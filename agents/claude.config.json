@@ -1,0 +1,118 @@
+{
+  "orchestrator": {
+    "tools": ["Read", "Write", "Edit", "Bash", "Grep", "Glob", "Agent"],
+    "skills": ["closed-loop"],
+    "color": "purple"
+  },
+  "product-spec": {
+    "tools": ["Read", "Write", "Edit", "Grep", "Glob"],
+    "skills": ["closed-loop"],
+    "color": "blue"
+  },
+  "architect": {
+    "tools": ["Read", "Write", "Edit", "Grep", "Glob"],
+    "skills": ["closed-loop"],
+    "color": "blue"
+  },
+  "design-ux": {
+    "tools": ["Read", "Write", "Edit", "Grep", "Glob"],
+    "skills": ["closed-loop"],
+    "color": "cyan"
+  },
+  "implementer": {
+    "tools": ["Read", "Write", "Edit", "Bash", "Grep", "Glob", "Agent"],
+    "skills": ["closed-loop"],
+    "color": "green"
+  },
+  "frontend": {
+    "tools": ["Read", "Write", "Edit", "Bash", "Grep", "Glob"],
+    "skills": ["closed-loop"],
+    "color": "green"
+  },
+  "backend": {
+    "tools": ["Read", "Write", "Edit", "Bash", "Grep", "Glob"],
+    "skills": ["closed-loop"],
+    "color": "green"
+  },
+  "data": {
+    "tools": ["Read", "Write", "Edit", "Bash", "Grep", "Glob"],
+    "skills": ["closed-loop"],
+    "color": "green"
+  },
+  "mobile": {
+    "tools": ["Read", "Write", "Edit", "Bash", "Grep", "Glob"],
+    "skills": ["closed-loop"],
+    "color": "green"
+  },
+  "verifier": {
+    "tools": ["Read", "Write", "Edit", "Bash", "Grep", "Glob"],
+    "skills": ["closed-loop"],
+    "color": "yellow"
+  },
+  "reviewer": {
+    "tools": ["Read", "Grep", "Glob", "Bash"],
+    "disallowedTools": ["Write", "Edit", "Agent"],
+    "skills": ["closed-loop"],
+    "color": "orange"
+  },
+  "security-reviewer": {
+    "tools": ["Read", "Grep", "Glob", "Bash"],
+    "disallowedTools": ["Write", "Edit", "Agent"],
+    "skills": ["closed-loop"],
+    "color": "red",
+    "model": "opus"
+  },
+  "qa-acceptance": {
+    "tools": ["Read", "Write", "Edit", "Bash", "Grep", "Glob"],
+    "skills": ["closed-loop"],
+    "color": "yellow"
+  },
+  "debugger": {
+    "tools": ["Read", "Write", "Edit", "Bash", "Grep", "Glob"],
+    "skills": ["closed-loop"],
+    "color": "red"
+  },
+  "integrator": {
+    "tools": ["Read", "Write", "Edit", "Bash", "Grep", "Glob", "Agent"],
+    "skills": ["closed-loop"],
+    "color": "orange"
+  },
+  "devops": {
+    "tools": ["Read", "Write", "Edit", "Bash", "Grep", "Glob"],
+    "skills": ["closed-loop"],
+    "color": "orange"
+  },
+  "release": {
+    "tools": ["Read", "Write", "Edit", "Bash", "Grep", "Glob"],
+    "skills": ["closed-loop"],
+    "color": "purple"
+  },
+  "monitor": {
+    "tools": ["Read", "Bash", "Grep", "Glob"],
+    "disallowedTools": ["Write", "Edit"],
+    "skills": ["closed-loop"],
+    "color": "pink"
+  },
+  "docs": {
+    "tools": ["Read", "Write", "Edit", "Grep", "Glob"],
+    "skills": ["closed-loop"],
+    "color": "blue"
+  },
+  "performance": {
+    "tools": ["Read", "Write", "Edit", "Bash", "Grep", "Glob"],
+    "skills": ["closed-loop"],
+    "color": "yellow"
+  },
+  "compliance": {
+    "tools": ["Read", "Grep", "Glob", "Bash"],
+    "disallowedTools": ["Write", "Edit", "Agent"],
+    "skills": ["closed-loop"],
+    "color": "red"
+  },
+  "cost": {
+    "tools": ["Read", "Grep", "Glob", "Bash"],
+    "disallowedTools": ["Write", "Edit", "Agent"],
+    "skills": ["closed-loop"],
+    "color": "yellow"
+  }
+}

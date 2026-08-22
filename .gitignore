@@ -1,0 +1,15 @@
+# Loop runtime artifacts
+.cursor/loop/handoffs/*.json
+.cursor/loop/state.json
+.cursor/loop/*.md
+loop/
+.claude/handoffs/*.json
+
+# Dependencies & build
+node_modules/
+dist/
+*.log
+
+# Environment
+.env
+.env.local

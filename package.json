@@ -1,0 +1,8 @@
+{
+  "name": "building-blocks",
+  "private": true,
+  "scripts": {
+    "loop": "yarn --cwd orchestrator loop",
+    "sync": "node scripts/sync.mjs"
+  }
+}

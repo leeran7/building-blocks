@@ -1,0 +1,62 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "ClosedLoopHandoff",
+  "type": "object",
+  "required": ["agent", "status", "summary", "timestamp"],
+  "properties": {
+    "agent": {
+      "type": "string",
+      "description": "Agent that produced this handoff"
+    },
+    "status": {
+      "type": "string",
+      "enum": ["success", "blocked", "failed", "needs_revision"]
+    },
+    "summary": {
+      "type": "string",
+      "description": "One-paragraph summary of what was done or found"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "goal": {
+      "type": "string",
+      "description": "What this stage was trying to achieve"
+    },
+    "artifacts": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Paths to files created or modified"
+    },
+    "exitCriteria": {
+      "type": "object",
+      "additionalProperties": { "type": "boolean" }
+    },
+    "feedback": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["severity", "message"],
+        "properties": {
+          "severity": {
+            "type": "string",
+            "enum": ["critical", "warning", "info"]
+          },
+          "message": { "type": "string" },
+          "file": { "type": "string" },
+          "line": { "type": "integer" },
+          "action": { "type": "string" }
+        }
+      }
+    },
+    "nextStage": {
+      "type": "string",
+      "description": "Recommended next agent in the loop"
+    },
+    "loopBackTo": {
+      "type": "string",
+      "description": "Agent to return to when status is needs_revision or failed"
+    }
+  }
+}
