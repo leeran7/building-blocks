@@ -2,7 +2,8 @@
   "defaultMode": "bypassPermissions",
   "permissions": {
     "allow": [
-      "Bash(pnpm vitest run *)"
+      "Bash(pnpm vitest run *)",
+      "Bash(pnpm tsc --noEmit *)"
     ]
   }
 }
