@@ -1,0 +1,66 @@
+// prisma/schema.prisma
+// Tower data model
+// Critical constraints:
+// - altitude has CHECK (altitude >= 0) — applied in migration
+// - views_k has CHECK (views_k >= 0) — applied in migration
+// - NO position/rank column (AC-20) — rank is derived via ORDER BY altitude DESC
+// - spend_c is NEVER in ORDER BY (AC-17) — display only
+// - stripe_session_id is UNIQUE — idempotency mechanism (NFR-D1)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Block {
+  id           String    @id @default(cuid())
+  slug         String    @unique
+  url          String
+  display_name String
+  owner_email  String
+  altitude     Float     @default(0) // metres; CHECK altitude >= 0 in migration
+  spend_c      Int       @default(0) // cents; display-only; NEVER in ORDER BY
+  views_served Int       @default(0) // above-ground views only
+  clicks       Int       @default(0)
+  peak_rank    Int? // best (lowest) rank number achieved
+  hidden_at    DateTime? // NULL = visible
+  created_at   DateTime  @default(now())
+  season_id    String
+
+  season   Season    @relation(fields: [season_id], references: [id])
+  payments Payment[]
+
+  // Partial index on altitude DESC WHERE hidden_at IS NULL (for rank query)
+  // Raw SQL applied in migration 0002 (Prisma @@index with where clause):
+  @@index([altitude(sort: Desc)], name: "blocks_rank_idx")
+  @@map("blocks")
+}
+
+model Season {
+  id        String   @id @default(cuid())
+  views_k   Float    @default(0) // cumulative qualified views / 1000; CHECK views_k >= 0
+  starts_at DateTime
+  ends_at   DateTime
+  is_active Boolean  @default(false)
+
+  blocks Block[]
+
+  @@map("season_state")
+}
+
+model Payment {
+  id                String   @id @default(cuid())
+  block_id          String
+  stripe_session_id String   @unique // idempotency key (NFR-D1)
+  amount_cents      Int
+  metres_added      Float
+  created_at        DateTime @default(now())
+
+  block Block @relation(fields: [block_id], references: [id])
+
+  @@map("payments")
+}

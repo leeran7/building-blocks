@@ -1,0 +1,114 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Tower custom styles */
+
+:root {
+  --tower-sky: #0ea5e9;
+  --tower-ground: #92400e;
+  --tower-buried: #9ca3af;
+  --tower-amber: #f59e0b;
+  --tower-base: #0f172a;
+  --tower-surface: #1e293b;
+  --tower-border: #334155;
+  --tower-text: #f8fafc;
+  --tower-muted: #94a3b8;
+}
+
+body {
+  background-color: var(--tower-base);
+  color: var(--tower-text);
+  font-family: system-ui, -apple-system, sans-serif;
+  overflow-x: hidden;
+}
+
+/* Block sway animation — CSS keyframe only, no physics library (AC-29) */
+@keyframes sway {
+  0%, 100% { transform: translateX(0px); }
+  50% { transform: translateX(2px); }
+}
+
+/* Rank change FLIP animations */
+@keyframes slideOut {
+  0% { transform: translateX(0); opacity: 1; }
+  100% { transform: translateX(-100%); opacity: 0; }
+}
+
+@keyframes slideIn {
+  0%   { transform: translateX(100%); opacity: 0; }
+  70%  { transform: translateX(-6px); opacity: 1; }
+  100% { transform: translateX(0);   opacity: 1; }
+}
+
+@keyframes crossFade {
+  0% { opacity: 0; }
+  100% { opacity: 1; }
+}
+
+@keyframes rise {
+  0% { transform: translateY(4px); opacity: 0; }
+  100% { transform: translateY(0); opacity: 1; }
+}
+
+/* Prefers-reduced-motion: replace slides with crossfade (AC-43) */
+@media (prefers-reduced-motion: reduce) {
+  .block-slide-out {
+    animation: crossFade 0.3s ease-in-out reverse !important;
+  }
+  .block-slide-in {
+    animation: crossFade 0.3s ease-in-out !important;
+  }
+  .block-sway {
+    animation: none !important;
+  }
+}
+
+.block-sway {
+  animation: sway 4s ease-in-out infinite;
+}
+
+.block-slide-out {
+  animation: slideOut 0.4s ease-in forwards;
+}
+
+.block-slide-in {
+  animation: slideIn 0.6s ease-out forwards;
+}
+
+/* Ground row styling */
+.ground-line {
+  background: linear-gradient(90deg, #92400e 0%, #78350f 50%, #92400e 100%);
+  position: relative;
+  overflow: hidden;
+}
+
+.ground-line::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, #f59e0b, transparent);
+  animation: rise 0.8s ease-out;
+}
+
+/* Amber edge indicator (AC-25) */
+.amber-edge {
+  border-left: 3px solid #f59e0b;
+}
+
+/* Buried block styling (AC-24) */
+.block-buried {
+  opacity: 0.5;
+  color: #9ca3af;
+}
+
+/* Focus styles for keyboard navigation (AC-23) */
+a:focus-visible,
+button:focus-visible {
+  outline: 2px solid var(--tower-sky);
+  outline-offset: 2px;
+  border-radius: 2px;
+}

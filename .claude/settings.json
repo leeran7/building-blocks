@@ -1,3 +1,8 @@
 {
-  "defaultMode": "bypassPermissions"
+  "defaultMode": "bypassPermissions",
+  "permissions": {
+    "allow": [
+      "Bash(pnpm vitest run *)"
+    ]
+  }
 }
