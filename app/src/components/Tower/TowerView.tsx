@@ -67,9 +67,10 @@ export interface TowerData {
 
 interface TowerViewProps {
   initialData: TowerData;
+  pollUrl?: string; // defaults to /api/tower; category pages pass /api/tower/[category]
 }
 
-export function TowerView({ initialData }: TowerViewProps) {
+export function TowerView({ initialData, pollUrl = "/api/tower" }: TowerViewProps) {
   const [data, setData] = useState<TowerData>(initialData);
   const [prevRanks, setPrevRanks] = useState<Map<string, number>>(new Map());
   const [changedBlocks, setChangedBlocks] = useState<Set<string>>(new Set());
@@ -108,7 +109,7 @@ export function TowerView({ initialData }: TowerViewProps) {
   // Poll for updates (AC-41 — interval <= 10s)
   const poll = useCallback(async () => {
     try {
-      const res = await fetch("/api/tower");
+      const res = await fetch(pollUrl);
       if (!res.ok) return;
       const newData: TowerData = await res.json();
 
@@ -141,7 +142,7 @@ export function TowerView({ initialData }: TowerViewProps) {
     } catch {
       // Network error — silent fail, will retry on next poll
     }
-  }, [prevRanks]);
+  }, [prevRanks, pollUrl]);
 
   // FLIP — Last + Invert + Play: runs synchronously after DOM update (AC-42, AC-45)
   useLayoutEffect(() => {

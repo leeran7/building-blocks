@@ -2,7 +2,7 @@
  * POST /api/admin/hide
  *
  * Set hidden_at on a block, removing it from the tower read path.
- * Requires: Authorization: Bearer {ADMIN_SECRET}
+ * Requires: Authorization: Bearer {ADMIN_TOKEN}
  */
 
 import { NextRequest, NextResponse } from "next/server";

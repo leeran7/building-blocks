@@ -4,24 +4,29 @@
  */
 
 import { prisma } from "./client";
+import { Category } from "@prisma/client";
 import type { Season } from "@prisma/client";
 
 /**
- * Get the currently active season.
- * Returns null if no active season exists.
+ * Get the currently active season for a specific category.
+ * Returns null if no active season exists for that category.
  */
-export async function getActiveSeason(): Promise<Season | null> {
+export async function getActiveSeason(
+  category: Category = Category.Tech
+): Promise<Season | null> {
   return prisma.season.findFirst({
-    where: { is_active: true },
+    where: { is_active: true, category },
   });
 }
 
 /**
- * Get or create the active season.
- * Creates a new 90-day season if none exists.
+ * Get or create the active season for a category.
+ * Creates a new 90-day season for that category if none exists.
  */
-export async function getOrCreateActiveSeason(): Promise<Season> {
-  const existing = await getActiveSeason();
+export async function getOrCreateActiveSeason(
+  category: Category = Category.Tech
+): Promise<Season> {
+  const existing = await getActiveSeason(category);
   if (existing) return existing;
 
   const now = new Date();
@@ -35,13 +40,14 @@ export async function getOrCreateActiveSeason(): Promise<Season> {
         ends_at: ends,
         is_active: true,
         views_k: 0,
+        category,
       },
     });
   } catch (err: unknown) {
     // Concurrent request already created the season — fetch and return it
     const raceErr = err as { code?: string };
     if (raceErr?.code === "P2002") {
-      const created = await getActiveSeason();
+      const created = await getActiveSeason(category);
       if (created) return created;
     }
     throw err;
@@ -49,44 +55,56 @@ export async function getOrCreateActiveSeason(): Promise<Season> {
 }
 
 /**
- * Increment views_k by 0.001 for the active season (1 qualified view = +0.001k).
- * DB transaction — atomic (NFR-V3).
+ * Fetch all currently active seasons, keyed by category.
+ * Used by the dashboard to get per-category inflation state in a single query.
+ */
+export async function getAllActiveSeasons(): Promise<Map<Category, Season>> {
+  const seasons = await prisma.season.findMany({
+    where: { is_active: true },
+  });
+  return new Map(seasons.map((s) => [s.category, s]));
+}
+
+/**
+ * Increment views_k by 0.001 for the active season of a specific category
+ * (1 qualified view = +0.001k). DB transaction — atomic (NFR-V3).
  *
+ * @param category - which category's season to increment
  * @returns new views_k value
  */
-export async function incrementSeasonViews(): Promise<number> {
-  // Single atomic UPDATE ... RETURNING eliminates TOCTOU race between
-  // the increment and the subsequent read under concurrent traffic.
+export async function incrementSeasonViews(
+  category: Category = Category.Tech
+): Promise<number> {
   const rows = await prisma.$queryRaw<{ views_k: number }[]>`
     UPDATE season_state
     SET views_k = views_k + 0.001
-    WHERE is_active = true
+    WHERE is_active = true AND category = ${category}::"Category"
     RETURNING views_k
   `;
 
   if (rows.length === 0) {
-    throw new Error("No active season found for view credit");
+    throw new Error(`No active season found for category ${category}`);
   }
 
   return rows[0].views_k;
 }
 
 /**
- * Roll over the current season: deactivate it and create a new one.
+ * Roll over the current season for a category: deactivate it and create a new one.
  * Called by admin endpoint or automatic trigger.
  *
  * Per ADR in architecture: blocks are NOT modified on rollover.
  * New season = new season_id. Returning buyers create new block rows.
  */
-export async function rolloverSeason(): Promise<Season> {
+export async function rolloverSeason(
+  category: Category = Category.Tech
+): Promise<Season> {
   return prisma.$transaction(async (tx) => {
-    // Deactivate current season
     await tx.season.updateMany({
-      where: { is_active: true },
+      where: { is_active: true, category },
       data: { is_active: false },
     });
 
-    // Create new season
     const now = new Date();
     const ends = new Date(now);
     ends.setDate(ends.getDate() + 90);
@@ -97,6 +115,7 @@ export async function rolloverSeason(): Promise<Season> {
         ends_at: ends,
         is_active: true,
         views_k: 0,
+        category,
       },
     });
   });

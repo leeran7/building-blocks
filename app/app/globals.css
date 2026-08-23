@@ -5,6 +5,7 @@
 /* Tower custom styles */
 
 :root {
+  /* V1 tokens — unchanged */
   --tower-sky: #0ea5e9;
   --tower-ground: #92400e;
   --tower-buried: #9ca3af;
@@ -14,12 +15,29 @@
   --tower-border: #334155;
   --tower-text: #f8fafc;
   --tower-muted: #94a3b8;
+
+  /* V2 tokens (design.md §1, AC-33–AC-35) */
+  --color-void: #0a0a0f;
+  --color-surface: #111118;
+  --color-elevated: #16161f;
+  --color-border: #1e1e2e;
+  --color-border-focus: #2e2e4e;
+  --color-text-primary: #f0f0ff;
+  --color-text-muted: #6b6b8a;
+
+  /* Category accent CSS vars for dynamic category pages (architecture.md §6.4) */
+  --accent-tech: #00d4ff;
+  --accent-design: #ff6b9d;
+  --accent-business: #ffd700;
+  --accent-creative: #9b59b6;
+  --accent-gaming: #00ff88;
+  --accent-science: #ff8c00;
 }
 
 body {
-  background-color: var(--tower-base);
-  color: var(--tower-text);
-  font-family: system-ui, -apple-system, sans-serif;
+  background-color: var(--color-void);
+  color: var(--color-text-primary);
+  font-family: var(--font-inter, system-ui, -apple-system, sans-serif);
   overflow-x: hidden;
 }
 
@@ -111,4 +129,44 @@ button:focus-visible {
   outline: 2px solid var(--tower-sky);
   outline-offset: 2px;
   border-radius: 2px;
+}
+
+/* V2 scrollbar-hide utility for CategoryTabBar horizontal scroll */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+/* V2 hero gradient animation (design.md §6.4) */
+@keyframes heroGradient {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+/* V2 glow pulse on hero CTA */
+@keyframes glowCycle {
+  0%   { box-shadow: 0 0 16px 2px #00d4ff40; }
+  17%  { box-shadow: 0 0 16px 2px #ff6b9d40; }
+  33%  { box-shadow: 0 0 16px 2px #ffd70040; }
+  50%  { box-shadow: 0 0 16px 2px #9b59b640; }
+  67%  { box-shadow: 0 0 16px 2px #00ff8840; }
+  83%  { box-shadow: 0 0 16px 2px #ff8c0040; }
+  100% { box-shadow: 0 0 16px 2px #00d4ff40; }
+}
+
+.hero-glow {
+  animation: glowCycle 3s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-glow {
+    animation: none;
+    box-shadow: 0 0 16px 2px #00d4ff40;
+  }
+  .hero-bg-animated {
+    animation: none !important;
+  }
 }

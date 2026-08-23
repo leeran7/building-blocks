@@ -1,8 +1,11 @@
 /**
- * /b/[slug] — Permanent record page (AC-37 through AC-40).
+ * /b/[slug] — Permanent record page (AC-37 through AC-40). V2 dark theme.
  *
  * Returns HTTP 200 for buried, hidden, and past-season blocks.
  * Never deleted.
+ *
+ * Design spec: design.md §6.20, §7.8
+ * Logic unchanged — only visual styling updated.
  */
 
 import { notFound } from "next/navigation";
@@ -57,23 +60,25 @@ export default async function RecordPage({
 
   const seasonsAppeared = new Set(seasonHistory.map((h) => h.season_id)).size;
 
-  // Current rank (approximate — derived from position in tower read)
-  // For record pages, we show peak_rank, not current rank
   const showSharePost = searchParams.payment === "success";
 
   return (
     // HTTP 200 even for buried/hidden/past-season (AC-37)
-    <main className="min-h-screen bg-tower-base">
-      <div className="bg-tower-surface/50 border-b border-tower-border px-4 py-3">
-        <a href="/" className="text-tower-sky text-sm font-bold tracking-widest uppercase">
-          TOWER
+    <main className="min-h-screen bg-void">
+      {/* V2 nav */}
+      <div className="bg-surface/80 backdrop-blur border-b border-border-subtle px-4 py-3">
+        <a
+          href="/"
+          className="text-text-primary text-xl font-semibold hover:text-accent-tech transition-colors"
+        >
+          Tower
         </a>
       </div>
 
       {/* Share post — shown after successful payment (AC-34) */}
       {showSharePost && (
         <div className="max-w-2xl mx-auto px-4 pt-6">
-          <div className="bg-green-900/20 border border-green-700/50 rounded p-3 mb-4 text-green-400 text-sm">
+          <div className="bg-success/10 border border-success/30 rounded-xl p-4 mb-4 text-success text-sm">
             Payment successful! Your altitude has been updated.
           </div>
           <SharePost
@@ -85,6 +90,7 @@ export default async function RecordPage({
         </div>
       )}
 
+      {/* V2 record stats — dark theme */}
       <RecordStats
         display_name={block.display_name}
         url={block.url}
@@ -100,11 +106,7 @@ export default async function RecordPage({
       />
 
       {/* Top-up CTA (if not hidden) */}
-      {!hidden && (
-        <div className="max-w-2xl mx-auto px-4 pb-4">
-          <TopupForm blockId={block.id} buried={buried} />
-        </div>
-      )}
+      {!hidden && <TopupForm blockId={block.id} buried={buried} />}
 
       {/* Standalone loopable rank-change animation (AC-44) */}
       <div className="max-w-2xl mx-auto px-4 pb-8">

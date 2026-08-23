@@ -1,10 +1,23 @@
 import type { Metadata } from "next";
+import { Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
+import { AuthProvider } from "../src/contexts/AuthContext";
+
+const inter = Inter({
+  subsets: ["latin"],
+  variable: "--font-inter",
+  display: "swap",
+});
+
+const jetbrainsMono = JetBrains_Mono({
+  subsets: ["latin"],
+  variable: "--font-jetbrains-mono",
+  display: "swap",
+});
 
 const BASE_URL = process.env.BASE_URL ?? "http://localhost:3000";
 
 export async function generateMetadata(): Promise<Metadata> {
-  // Fetch top block for OG image (best-effort)
   let topBlockId = "";
   let topBlockName = "Tower";
   let topAlt = "0";
@@ -34,8 +47,7 @@ export async function generateMetadata(): Promise<Metadata> {
       "Your altitude is permanent. The ground rises instead. The price of #1 falls with every thousand views — until someone buys it.",
     openGraph: {
       title: "Tower — Altitude is permanent",
-      description:
-        "Your altitude is permanent. The ground rises instead.",
+      description: "Your altitude is permanent. The ground rises instead.",
       images: [
         {
           url: ogUrl,
@@ -61,9 +73,9 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
-      <body className="bg-tower-base text-tower-text min-h-screen">
-        {children}
+    <html lang="en" className={`${inter.variable} ${jetbrainsMono.variable}`}>
+      <body className="bg-void text-text-primary font-sans min-h-screen">
+        <AuthProvider>{children}</AuthProvider>
       </body>
     </html>
   );

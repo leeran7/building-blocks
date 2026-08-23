@@ -16,6 +16,25 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum Category {
+  Tech
+  Design
+  Business
+  Creative
+  Gaming
+  Science
+}
+
+model User {
+  id            String   @id // Firebase UID
+  email         String   @unique
+  emailVerified Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  blocks        Block[]
+
+  @@map("users")
+}
+
 model Block {
   id           String    @id @default(cuid())
   slug         String    @unique
@@ -30,13 +49,17 @@ model Block {
   hidden_at    DateTime? // NULL = visible
   created_at   DateTime  @default(now())
   season_id    String
+  category     Category? @default(Tech) // nullable — existing rows are unaffected
+  userId       String?
 
   season   Season    @relation(fields: [season_id], references: [id])
   payments Payment[]
+  user     User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   // Partial index on altitude DESC WHERE hidden_at IS NULL (for rank query)
   // Raw SQL applied in migration 0002 (Prisma @@index with where clause):
   @@index([altitude(sort: Desc)], name: "blocks_rank_idx")
+  @@index([category, altitude(sort: Desc)], name: "blocks_category_altitude_idx")
   @@map("blocks")
 }
 
@@ -46,9 +69,12 @@ model Season {
   starts_at DateTime
   ends_at   DateTime
   is_active Boolean  @default(false)
+  category  Category @default(Tech)
 
   blocks Block[]
 
+  // Partial unique index enforced in migration SQL:
+  // CREATE UNIQUE INDEX season_one_active_per_category ON season_state (category) WHERE (is_active = true)
   @@map("season_state")
 }
 

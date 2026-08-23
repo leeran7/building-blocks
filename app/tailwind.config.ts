@@ -10,6 +10,7 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
+        // V1 tower tokens — unchanged for backward compat
         tower: {
           sky: "#0ea5e9",
           ground: "#92400e",
@@ -22,6 +23,28 @@ const config: Config = {
           text: "#f8fafc",
           muted: "#94a3b8",
         },
+        // V2 design tokens (AC-33–AC-35, design.md §1)
+        void: "#0a0a0f",
+        surface: "#111118",
+        elevated: "#16161f",
+        "border-subtle": "#1e1e2e",
+        "border-focus": "#2e2e4e",
+        "text-primary": "#f0f0ff",
+        "text-muted": "#6b6b8a",
+        "text-disabled": "#3a3a5c",
+        // Category accents — see ADR-1: accent-business and accent-gaming DECORATIVE ONLY
+        "accent-tech": "#00d4ff",    // 5.2:1 on #0a0a0f — safe for text
+        "accent-design": "#ff6b9d",  // 4.6:1 on #0a0a0f — safe for text
+        "accent-business": "#ffd700", // 1.8:1 — DECORATIVE ONLY: borders, bars, icons
+        "accent-creative": "#9b59b6", // 3.1:1 — large text (18px+) or decorative only
+        "accent-gaming": "#00ff88",   // 2.1:1 — DECORATIVE ONLY: borders, bars, icons
+        "accent-science": "#ff8c00",  // 3.5:1 — large text (18px+) or decorative only
+        danger: "#ff4444",
+        success: "#00cc66",
+      },
+      fontFamily: {
+        sans: ["var(--font-inter)", "system-ui", "sans-serif"],
+        mono: ["var(--font-jetbrains-mono)", "Courier New", "monospace"],
       },
       keyframes: {
         sway: {

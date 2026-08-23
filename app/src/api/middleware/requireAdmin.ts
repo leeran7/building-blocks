@@ -2,7 +2,7 @@
  * Admin authentication guard (NFR-S3).
  *
  * All admin routes call this first.
- * Checks: Authorization: Bearer {ADMIN_SECRET}
+ * Checks: Authorization: Bearer {ADMIN_TOKEN}
  *
  * Returns a 401 NextResponse if the token is missing or invalid.
  */
@@ -18,10 +18,10 @@ import { NextRequest, NextResponse } from "next/server";
  *   if (authError) return authError;
  */
 export function requireAdmin(request: NextRequest): NextResponse | null {
-  const adminSecret = process.env.ADMIN_SECRET;
+  const adminSecret = process.env.ADMIN_TOKEN;
 
   if (!adminSecret) {
-    console.error("ADMIN_SECRET is not configured");
+    console.error("ADMIN_TOKEN is not configured");
     return NextResponse.json({ error: "Admin not configured" }, { status: 500 });
   }
 

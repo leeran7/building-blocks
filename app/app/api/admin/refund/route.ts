@@ -2,7 +2,7 @@
  * POST /api/admin/refund
  *
  * Trigger Stripe full refund for all payments for a given block.
- * Requires: Authorization: Bearer {ADMIN_SECRET}
+ * Requires: Authorization: Bearer {ADMIN_TOKEN}
  * Action is logged (AC-50).
  */
 

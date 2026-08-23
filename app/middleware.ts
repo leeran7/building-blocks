@@ -1,9 +1,12 @@
 /**
  * Next.js Edge Middleware — at project root (not in /app/)
  *
- * Runs on every GET request to /.
- * 1. Inject tid session cookie (UUID v4) if missing
- * 2. Fire-and-forget to internal view-count route
+ * Handles two concerns:
+ * 1. Dashboard auth guard — redirect /dashboard/** to /auth/signin if no token
+ * 2. View counting — inject tid cookie and fire-and-forget to internal credit endpoint
+ *
+ * Auth check is presence-only (cookie/header existence).
+ * Actual token verification happens inside route handlers via requireAuth().
  *
  * CRITICAL: View counting is server-side only (AC-9, NFR-S5).
  * No client beacon, no JS fetch to counting endpoints from browser.
@@ -43,12 +46,28 @@ function isBotUa(ua: string | null | undefined): boolean {
 }
 
 export const config = {
-  matcher: ["/"],
+  matcher: ["/", "/dashboard/:path*"],
 };
 
 export default async function middleware(
   request: NextRequest
 ): Promise<NextResponse> {
+  const { pathname } = request.nextUrl;
+
+  // --- Dashboard auth guard (presence-only check) ---
+  if (pathname.startsWith("/dashboard")) {
+    const token =
+      request.cookies.get("firebaseToken")?.value ||
+      request.headers.get("authorization")?.replace("Bearer ", "");
+    if (!token) {
+      // AC-17: Redirect to /auth/signin?redirect=%2Fdashboard
+      const signinUrl = new URL("/auth/signin", request.url);
+      signinUrl.searchParams.set("redirect", pathname);
+      return NextResponse.redirect(signinUrl);
+    }
+    return NextResponse.next();
+  }
+
   const response = NextResponse.next();
 
   // Only count views for the homepage (GET /)
