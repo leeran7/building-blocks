@@ -1,12 +1,11 @@
 "use client";
 
 /**
- * GroundRow — Ground marker at the burial altitude boundary (AC-26). V2 theme.
+ * GroundRow — the rising-ground boundary (AC-26).
  *
- * Logic unchanged. Tailwind classes updated to v2 design tokens.
- * Design spec: design.md §6.15
- *
- * V2 visual: dashed danger line, inline label, gradient fade below
+ * Marks the burial altitude: blocks below this line are underground. Styled as
+ * a solid danger line with a label chip and a fade into the buried zone.
+ * Logic unchanged; role/aria/testids preserved.
  */
 
 interface GroundRowProps {
@@ -17,39 +16,38 @@ interface GroundRowProps {
 export function GroundRow({ ground, views_k }: GroundRowProps) {
   return (
     <div
-      className="relative my-2"
+      className="relative my-3"
       role="separator"
       aria-label={`Ground level at ${ground.toFixed(2)} metres`}
       data-testid="ground-row"
     >
-      {/* Dashed danger line with inline label */}
-      <div className="flex items-center">
-        <div className="flex-1 border-t-2 border-dashed border-danger/60" />
+      <div className="flex items-center gap-3">
+        <div className="flex-1 h-px bg-gradient-to-r from-transparent via-danger/70 to-danger/70" />
         <span
-          className="font-mono text-sm text-danger bg-void px-2 flex-shrink-0 whitespace-nowrap"
+          className="flex items-center gap-1.5 font-mono text-xs font-semibold text-danger bg-danger/10 border border-danger/30 rounded-full px-3 py-1 flex-shrink-0 whitespace-nowrap"
           aria-label={`Ground level at ${ground.toFixed(2)} metres`}
         >
-          Ground: {ground.toFixed(2)}m ↑
+          <span aria-hidden="true">▲</span>
+          Ground {ground.toFixed(2)}m
         </span>
-        <div className="flex-1 border-t-2 border-dashed border-danger/60" />
+        <div className="flex-1 h-px bg-gradient-to-l from-transparent via-danger/70 to-danger/70" />
       </div>
 
-      {/* Buried zone gradient fade — indicates underground zone */}
+      {/* Buried-zone fade */}
       <div
-        className="h-6 mt-0"
+        className="h-5"
         style={{
           background:
-            "linear-gradient(to bottom, rgba(255,68,68,0.08) 0%, transparent 100%)",
+            "linear-gradient(to bottom, rgba(255,84,112,0.10) 0%, transparent 100%)",
         }}
         aria-hidden="true"
       />
 
-      {/* Views context — smaller, secondary */}
-      <div className="text-center mt-1">
-        <span className="text-xs text-text-muted font-mono">
-          ({(views_k * 1000).toLocaleString()} views served)
+      <p className="text-center -mt-3">
+        <span className="text-[11px] text-text-muted font-mono tabular-nums">
+          {(views_k * 1000).toLocaleString()} views served · rising
         </span>
-      </div>
+      </p>
     </div>
   );
 }

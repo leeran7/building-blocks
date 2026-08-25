@@ -1,9 +1,11 @@
 "use client";
 
 /**
- * TowerHeader — Shows cost of #1, views served, $1 buys Nm (AC-27). V2 theme.
+ * TowerHeader — the tower's live stat bar.
  *
- * Logic unchanged from v1. Tailwind classes updated to v2 design tokens.
+ * "Cost of #1" is the hero figure (the product's headline number) and is
+ * accent-themed to the active tower. Secondary engine stats sit beside it.
+ * Logic unchanged from v1; all data-testids preserved (AC-27).
  */
 
 interface TowerHeaderProps {
@@ -27,56 +29,59 @@ export function TowerHeader({
 
   return (
     <header
-      className="bg-surface/80 backdrop-blur border-b border-border-subtle px-4 py-3"
+      className="bg-surface/70 backdrop-blur border-b border-border-subtle px-4 py-3"
       data-testid="tower-header"
     >
-      <div className="max-w-2xl mx-auto">
-        {/* Stats row — AC-27: all three values shown and updated on poll */}
-        <div className="flex flex-wrap gap-4 text-sm">
-          <div className="flex flex-col" data-testid="header-cost-rank1">
-            <span className="text-text-muted text-xs uppercase tracking-wider">
-              Cost of #1
-            </span>
-            <span className="font-mono font-bold text-text-primary">
-              ${cost_of_rank1_usd.toFixed(2)}
-            </span>
-          </div>
+      <div className="max-w-2xl mx-auto flex items-center gap-5">
+        {/* Hero stat — cost to take #1 */}
+        <div className="flex flex-col" data-testid="header-cost-rank1">
+          <span className="text-[10px] text-text-muted uppercase tracking-[0.15em]">
+            Cost of #1
+          </span>
+          <span className="font-mono text-2xl font-bold text-accent leading-tight tabular-nums">
+            ${cost_of_rank1_usd.toFixed(2)}
+          </span>
+        </div>
 
+        <div className="w-px self-stretch bg-border-subtle" aria-hidden="true" />
+
+        {/* Secondary stats */}
+        <dl className="flex flex-1 flex-wrap items-center gap-x-6 gap-y-1 text-sm">
           <div className="flex flex-col" data-testid="header-views-served">
-            <span className="text-text-muted text-xs uppercase tracking-wider">
+            <dt className="text-[10px] text-text-muted uppercase tracking-[0.15em]">
               Views served
-            </span>
-            <span className="font-mono font-bold text-text-primary">
+            </dt>
+            <dd className="font-mono font-semibold text-text-primary tabular-nums">
               {viewsServedDisplay}
-            </span>
+            </dd>
           </div>
 
           <div className="flex flex-col" data-testid="header-rate">
-            <span className="text-text-muted text-xs uppercase tracking-wider">
+            <dt className="text-[10px] text-text-muted uppercase tracking-[0.15em]">
               $1 buys
-            </span>
-            <span className="font-mono font-bold text-accent-tech">
+            </dt>
+            <dd className="font-mono font-semibold text-text-primary tabular-nums">
               {rate.toFixed(2)}m
-            </span>
+            </dd>
           </div>
 
           <div className="flex flex-col" data-testid="header-ground">
-            <span className="text-text-muted text-xs uppercase tracking-wider">
+            <dt className="text-[10px] text-text-muted uppercase tracking-[0.15em]">
               Ground
-            </span>
-            <span className="font-mono font-bold text-danger">
+            </dt>
+            <dd className="font-mono font-semibold text-danger tabular-nums">
               {ground.toFixed(2)}m
-            </span>
+            </dd>
           </div>
-        </div>
-
-        {/* Growth indicator */}
-        {growth >= 8 && (
-          <div className="mt-2 text-xs text-text-muted">
-            Rate at cap (×{growth.toFixed(1)}) — season nearly full
-          </div>
-        )}
+        </dl>
       </div>
+
+      {/* Growth indicator */}
+      {growth >= 8 && (
+        <div className="max-w-2xl mx-auto mt-2 text-[11px] text-warning">
+          Rate at cap (×{growth.toFixed(1)}) — season nearly full
+        </div>
+      )}
     </header>
   );
 }

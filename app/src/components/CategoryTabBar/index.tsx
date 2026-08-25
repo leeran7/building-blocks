@@ -1,64 +1,43 @@
 "use client";
 
 /**
- * CategoryTabBar — Persistent tab navigation between all six category towers.
+ * CategoryTabBar — persistent tab navigation across all six category towers.
  *
- * Design spec: design.md §6.1
- * AC-4: active tab highlighted with category accent color
- * AC-5: horizontally scrollable on 375px viewport, no tab clipping
+ * AC-4: active tab highlighted with its category accent color
+ * AC-5: horizontally scrollable at 375px, no tab clipping
  *
- * WCAG enforcement:
- * - tech tab: text-accent-tech (5.2:1) on active
- * - design tab: text-accent-design (4.6:1) on active
- * - all others: text-primary + border-bottom in accent (decorative only)
+ * All six category accents are verified >= 4.5:1 as text on #0a0a0f (see
+ * src/lib/categories.ts), so the active tab uses its accent as both text and
+ * underline.
  */
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { CATEGORIES } from "../../lib/categories";
 
 export interface CategoryTabBarProps {
   activeCategory?: string;
 }
 
-interface TabConfig {
-  slug: string;
-  label: string;
-  accent: string;
-  /** Whether the accent color is safe as text per WCAG AA (4.5:1 on #0a0a0f) */
-  accentSafeAsText: boolean;
-}
-
-const TABS: TabConfig[] = [
-  { slug: "tech", label: "Tech", accent: "#00d4ff", accentSafeAsText: true },
-  { slug: "design", label: "Design", accent: "#ff6b9d", accentSafeAsText: true },
-  { slug: "business", label: "Business", accent: "#ffd700", accentSafeAsText: false },
-  { slug: "creative", label: "Creative", accent: "#9b59b6", accentSafeAsText: false },
-  { slug: "gaming", label: "Gaming", accent: "#00ff88", accentSafeAsText: false },
-  { slug: "science", label: "Science", accent: "#ff8c00", accentSafeAsText: false },
-];
-
 export function CategoryTabBar({ activeCategory }: CategoryTabBarProps) {
   const pathname = usePathname();
 
-  // Derive active category from prop or URL
   const active =
     activeCategory ??
-    TABS.find((t) => pathname.startsWith(`/tower/${t.slug}`))?.slug ??
+    CATEGORIES.find((t) => pathname.startsWith(`/tower/${t.slug}`))?.slug ??
     "";
 
   return (
     <nav
       aria-label="Category towers"
-      className="bg-surface border-b border-border-subtle sticky top-0 z-10"
+      className="bg-surface border-b border-border-subtle"
     >
-      {/* Role tablist — keyboard: Left/Right arrow navigates tabs */}
       <ul
         role="tablist"
-        className="flex overflow-x-auto scrollbar-hide max-w-6xl mx-auto"
+        className="flex overflow-x-auto scrollbar-hide max-w-6xl mx-auto px-1"
       >
-        {TABS.map((tab) => {
+        {CATEGORIES.map((tab) => {
           const isActive = active === tab.slug;
-
           return (
             <li key={tab.slug} role="presentation" className="flex-shrink-0">
               <Link
@@ -67,25 +46,28 @@ export function CategoryTabBar({ activeCategory }: CategoryTabBarProps) {
                 aria-selected={isActive}
                 aria-controls="tower-panel"
                 className={[
-                  "relative flex items-center min-h-[44px] px-4 md:px-6 py-3 text-sm font-medium transition-colors",
-                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus focus-visible:ring-offset-2 focus-visible:ring-offset-void rounded-sm",
+                  "relative flex items-center gap-2 min-h-[44px] px-4 md:px-5 py-3 text-sm font-medium transition-colors rounded-sm",
+                  "focus-visible:outline-none",
                   isActive
-                    ? tab.accentSafeAsText
-                      ? ""  // text color set via inline style for safe accents
-                      : "text-text-primary"
+                    ? ""
                     : "text-text-muted hover:text-text-primary hover:bg-elevated",
                 ]
                   .filter(Boolean)
                   .join(" ")}
                 style={
                   isActive
-                    ? {
-                        color: tab.accentSafeAsText ? tab.accent : undefined,
-                        borderBottom: `2px solid ${tab.accent}`,
-                      }
+                    ? { color: "#00d4ff", borderBottom: "2px solid #00d4ff" }
                     : { borderBottom: "2px solid transparent" }
                 }
               >
+                <span
+                  className="w-1.5 h-1.5 rounded-full flex-shrink-0"
+                  style={{
+                    backgroundColor: tab.hex,
+                    opacity: isActive ? 1 : 0.5,
+                  }}
+                  aria-hidden="true"
+                />
                 {tab.label}
               </Link>
             </li>

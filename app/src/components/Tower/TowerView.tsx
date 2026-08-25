@@ -29,7 +29,7 @@ const POLL_INTERVAL_MS = parseInt(
   10
 );
 const VISIBLE_ROWS = 60;
-const ROW_HEIGHT = 52;
+const ROW_HEIGHT = 60; // min-h-[56px] row + 4px stack gap
 
 export interface TowerBlock {
   id: string;
@@ -101,6 +101,8 @@ export function TowerView({ initialData, pollUrl = "/api/tower" }: TowerViewProp
 
   const ground = data.engine.ground;
   const groundIndex = data.blocks.findIndex((b) => b.altitude < ground);
+  // Blocks are sorted by altitude DESC, so [0] is the tower max — scales the bars.
+  const maxAltitude = data.blocks[0]?.altitude ?? 0;
 
   const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
     setScrollTop(e.currentTarget.scrollTop);
@@ -213,7 +215,7 @@ export function TowerView({ initialData, pollUrl = "/api/tower" }: TowerViewProp
   const { views_k } = data.season;
 
   return (
-    <div className="flex flex-col h-screen" data-testid="tower-view">
+    <div className="flex flex-col h-full min-h-0" data-testid="tower-view">
       <TowerHeader
         cost_of_rank1_usd={data.cost_of_rank1_usd}
         views_k={views_k}
@@ -235,7 +237,7 @@ export function TowerView({ initialData, pollUrl = "/api/tower" }: TowerViewProp
         {/* Top spacer for virtualization */}
         <div style={{ height: startIndex * ROW_HEIGHT }} aria-hidden="true" />
 
-        <div className="max-w-2xl mx-auto px-2 space-y-1">
+        <div className="max-w-2xl mx-auto px-3 space-y-1.5 pt-3">
           {visibleBlocks.map((block, localIndex) => {
             const absoluteIndex = startIndex + localIndex;
             const showGroundBefore =
@@ -266,6 +268,7 @@ export function TowerView({ initialData, pollUrl = "/api/tower" }: TowerViewProp
                     buried={block.buried}
                     amber_edge={block.amber_edge}
                     views_served={block.views_served}
+                    maxAltitude={maxAltitude}
                     rankChanged={changedBlocks.has(block.id)}
                   />
                 </div>
@@ -279,10 +282,10 @@ export function TowerView({ initialData, pollUrl = "/api/tower" }: TowerViewProp
 
           {groundIndex >= 0 && (
             <div
-              className="bg-amber-950/30 border-t border-amber-900/50 py-8 text-center text-tower-muted text-xs"
+              className="mt-2 rounded-lg border border-danger/20 bg-danger/[0.04] py-6 text-center text-text-muted text-xs uppercase tracking-[0.2em]"
               aria-label="Underground — buried blocks are below ground level"
             >
-              Underground
+              Underground · buried blocks
             </div>
           )}
         </div>
