@@ -20,17 +20,17 @@ export function SharePost({ display_name, slug, rank, baseUrl }: SharePostProps)
   const tweetUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}`;
 
   return (
-    <div className="bg-tower-surface border border-tower-border rounded p-4 mb-6">
-      <div className="text-xs text-tower-muted uppercase tracking-wider mb-2">
+    <div className="bg-surface border border-border-subtle rounded-xl p-4">
+      <div className="text-[10px] text-text-muted uppercase tracking-[0.12em] mb-2">
         Share your listing
       </div>
-      <p className="text-tower-text text-sm mb-3 leading-relaxed">{text}</p>
+      <p className="text-text-secondary text-sm mb-3 leading-relaxed">{text}</p>
       <div className="flex gap-2 flex-wrap">
         <a
           href={tweetUrl}
           target="_blank"
           rel="noopener noreferrer"
-          className="text-xs bg-sky-900/40 hover:bg-sky-900/60 text-sky-400 px-3 py-1.5 rounded transition-colors"
+          className="text-sm font-medium bg-accent text-void hover:brightness-110 px-3.5 py-2 rounded-lg transition min-h-[40px] inline-flex items-center"
           aria-label="Share on Twitter/X"
         >
           Share on X
@@ -41,7 +41,7 @@ export function SharePost({ display_name, slug, rank, baseUrl }: SharePostProps)
               navigator.clipboard.writeText(text).catch(() => {});
             }
           }}
-          className="text-xs bg-tower-border/40 hover:bg-tower-border/60 text-tower-muted px-3 py-1.5 rounded transition-colors"
+          className="text-sm font-medium border border-border-strong text-text-secondary hover:bg-elevated hover:text-text-primary px-3.5 py-2 rounded-lg transition min-h-[40px] inline-flex items-center"
           aria-label="Copy share text to clipboard"
         >
           Copy text

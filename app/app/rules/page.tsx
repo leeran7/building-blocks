@@ -1,8 +1,13 @@
 /**
  * /rules — Engine formulas page (AC-47).
  *
- * Displays all formulas including MAX_GROWTH=8, DOUBLE_EVERY_K, season reset.
+ * Tower Dark Editorial: system tokens, editorial header, monospace "code well"
+ * cards for formulas. All data-testids and formula text preserved exactly
+ * (rules-max-growth, rules-season-days, rules-growth-formula, rules-season-reset;
+ * MAX_GROWTH=8, DOUBLE_EVERY_K, 500, 90-day season).
  */
+
+import { Navbar } from "../../src/components/Navbar";
 
 export const metadata = {
   title: "Tower — Rules & Formulas",
@@ -10,221 +15,194 @@ export const metadata = {
     "The complete Tower engine formulas: altitude permanence, growth cap, burial mechanics, and season reset.",
 };
 
+function Well({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="bg-surface-raised border border-border-subtle rounded-xl p-4 font-mono text-sm space-y-1.5">
+      {children}
+    </div>
+  );
+}
+
+function SectionHeading({ children }: { children: React.ReactNode }) {
+  return (
+    <h3 className="text-accent-tech font-semibold text-xs uppercase tracking-[0.15em] mb-3">
+      {children}
+    </h3>
+  );
+}
+
 export default function RulesPage() {
   return (
-    <main className="min-h-screen bg-tower-base">
-      <div className="max-w-2xl mx-auto px-4 py-12">
-        <div className="mb-8">
-          <a
-            href="/"
-            className="text-tower-muted hover:text-tower-sky text-sm"
-          >
-            ← Tower
-          </a>
-        </div>
+    <main className="min-h-screen bg-void">
+      <Navbar contextLabel="Rules" />
 
-        <h1 className="text-3xl font-black text-tower-sky uppercase tracking-widest mb-2">
-          TOWER
-        </h1>
-        <h2 className="text-xl text-tower-text font-bold mb-8">
-          Rules &amp; Engine Formulas
-        </h2>
+      <div className="max-w-2xl mx-auto px-4 py-12">
+        {/* Editorial header */}
+        <header className="mb-10">
+          <p className="text-xs uppercase tracking-[0.2em] text-accent-tech font-medium">
+            The engine
+          </p>
+          <h1 className="text-3xl md:text-4xl font-bold text-text-primary tracking-tight mt-2">
+            Rules &amp; formulas
+          </h1>
+          <p className="text-text-secondary mt-2">
+            Every number the tower runs on — altitude permanence, the growth cap,
+            burial mechanics, and the season reset.
+          </p>
+        </header>
 
         {/* Constants */}
         <section className="mb-8">
-          <h3 className="text-tower-sky font-bold text-sm uppercase tracking-wider mb-3">
-            Constants
-          </h3>
-          <div className="bg-tower-surface border border-tower-border rounded p-4 font-mono text-sm space-y-1">
-            <div className="text-tower-text">
-              <span className="text-tower-muted">DOUBLE_EVERY_K</span> = 500{" "}
-              <span className="text-tower-muted">
-                # thousand views per rate doubling
-              </span>
+          <SectionHeading>Constants</SectionHeading>
+          <Well>
+            <div className="text-text-primary">
+              <span className="text-text-muted">DOUBLE_EVERY_K</span> = 500{" "}
+              <span className="text-text-muted"># thousand views per rate doubling</span>
             </div>
-            <div className="text-tower-text" data-testid="rules-max-growth">
-              <span className="text-tower-muted">MAX_GROWTH</span> = 8{" "}
-              <span className="text-tower-muted">
-                # hard cap on growth multiplier
-              </span>
+            <div className="text-text-primary" data-testid="rules-max-growth">
+              <span className="text-text-muted">MAX_GROWTH</span> = 8{" "}
+              <span className="text-text-muted"># hard cap on growth multiplier</span>
             </div>
-            <div className="text-tower-text">
-              <span className="text-tower-muted">R0</span> = 1.0{" "}
-              <span className="text-tower-muted">
-                # metres per dollar at season start
-              </span>
+            <div className="text-text-primary">
+              <span className="text-text-muted">R0</span> = 1.0{" "}
+              <span className="text-text-muted"># metres per dollar at season start</span>
             </div>
-            <div className="text-tower-text">
-              <span className="text-tower-muted">G0</span> = 0.65{" "}
-              <span className="text-tower-muted">
-                # ground metres at season start (tuned for ~1.5M view burial)
-              </span>
+            <div className="text-text-primary">
+              <span className="text-text-muted">G0</span> = 0.65{" "}
+              <span className="text-text-muted"># ground metres at season start (tuned for ~1.5M view burial)</span>
             </div>
-            <div className="text-tower-text">
-              <span className="text-tower-muted">MIN_ENTRY_USD</span> = $5.00
+            <div className="text-text-primary">
+              <span className="text-text-muted">MIN_ENTRY_USD</span> = $5.00
             </div>
-            <div className="text-tower-text">
-              <span className="text-tower-muted">MIN_SPEND_USD</span> = $2.00
+            <div className="text-text-primary">
+              <span className="text-text-muted">MIN_SPEND_USD</span> = $2.00
             </div>
-            <div className="text-tower-text" data-testid="rules-season-days">
-              <span className="text-tower-muted">SEASON_DAYS</span> = 90{" "}
-              <span className="text-tower-muted"># season length</span>
+            <div className="text-text-primary" data-testid="rules-season-days">
+              <span className="text-text-muted">SEASON_DAYS</span> = 90{" "}
+              <span className="text-text-muted"># season length</span>
             </div>
-            <div className="text-tower-text">
-              <span className="text-tower-muted">CEIL_PER_HOUR</span> = 40,000{" "}
-              <span className="text-tower-muted">
-                # qualified view ceiling per hour
-              </span>
+            <div className="text-text-primary">
+              <span className="text-text-muted">CEIL_PER_HOUR</span> = 40,000{" "}
+              <span className="text-text-muted"># qualified view ceiling per hour</span>
             </div>
-          </div>
+          </Well>
         </section>
 
         {/* Growth formula */}
         <section className="mb-8">
-          <h3 className="text-tower-sky font-bold text-sm uppercase tracking-wider mb-3">
-            Growth &amp; Rate
-          </h3>
-          <div className="bg-tower-surface border border-tower-border rounded p-4 font-mono text-sm space-y-2">
-            <div className="text-tower-muted text-xs mb-2">
+          <SectionHeading>Growth &amp; rate</SectionHeading>
+          <Well>
+            <div className="text-text-muted text-xs mb-1">
               V = cumulative qualified views (thousands)
             </div>
-            <div className="text-tower-text">
-              λ = ln(2) / DOUBLE_EVERY_K
-            </div>
-            <div
-              className="text-tower-text"
-              data-testid="rules-growth-formula"
-            >
+            <div className="text-text-primary">λ = ln(2) / DOUBLE_EVERY_K</div>
+            <div className="text-text-primary" data-testid="rules-growth-formula">
               growth = min( exp(λ · V),{" "}
-              <span className="text-tower-sky font-bold">MAX_GROWTH</span> ){" "}
-              <span className="text-tower-muted">
-                ← capped at 8 (non-negotiable)
-              </span>
+              <span className="text-accent-tech font-bold">MAX_GROWTH</span> ){" "}
+              <span className="text-text-muted">← capped at 8 (non-negotiable)</span>
             </div>
-            <div className="text-tower-text">
-              rate = R0 · growth{" "}
-              <span className="text-tower-muted"># metres per dollar</span>
+            <div className="text-text-primary">
+              rate = R0 · growth <span className="text-text-muted"># metres per dollar</span>
             </div>
-            <div className="text-tower-text">
-              ground = G0 · growth{" "}
-              <span className="text-tower-muted"># burial threshold (m)</span>
+            <div className="text-text-primary">
+              ground = G0 · growth <span className="text-text-muted"># burial threshold (m)</span>
             </div>
-          </div>
+          </Well>
         </section>
 
         {/* Payment formula */}
         <section className="mb-8">
-          <h3 className="text-tower-sky font-bold text-sm uppercase tracking-wider mb-3">
-            Altitude (payments)
-          </h3>
-          <div className="bg-tower-surface border border-tower-border rounded p-4 font-mono text-sm space-y-2">
-            <div className="text-tower-text">
+          <SectionHeading>Altitude (payments)</SectionHeading>
+          <Well>
+            <div className="text-text-primary">
               metres = dollars · rate{" "}
-              <span className="text-tower-muted">
-                # altitude added per dollar
-              </span>
+              <span className="text-text-muted"># altitude added per dollar</span>
             </div>
-            <div className="text-tower-text">
+            <div className="text-text-primary">
               altitude += metres{" "}
-              <span className="text-tower-muted">
-                # additive only; never decreases
-              </span>
+              <span className="text-text-muted"># additive only; never decreases</span>
             </div>
-          </div>
-          <p className="text-tower-muted text-xs mt-2">
-            Altitude is monotonically increasing. No code path can decrease it.
-            The database has a CHECK constraint enforcing altitude ≥ 0.
+          </Well>
+          <p className="text-text-muted text-xs mt-2">
+            Altitude is monotonically increasing. No code path can decrease it. The
+            database has a CHECK constraint enforcing altitude ≥ 0.
           </p>
         </section>
 
         {/* Burial */}
         <section className="mb-8">
-          <h3 className="text-tower-sky font-bold text-sm uppercase tracking-wider mb-3">
-            Burial &amp; Amber Edge
-          </h3>
-          <div className="bg-tower-surface border border-tower-border rounded p-4 font-mono text-sm space-y-2">
-            <div className="text-tower-text">
-              buried = altitude &lt; ground
-            </div>
-            <div className="text-tower-text">
-              clearance = altitude − ground
-            </div>
-            <div className="text-tower-text">
+          <SectionHeading>Burial &amp; amber edge</SectionHeading>
+          <Well>
+            <div className="text-text-primary">buried = altitude &lt; ground</div>
+            <div className="text-text-primary">clearance = altitude − ground</div>
+            <div className="text-text-primary">
               amber_edge = clearance &lt; 1.6 · ground{" "}
-              <span className="text-tower-muted"># warning zone</span>
+              <span className="text-text-muted"># warning zone</span>
             </div>
-          </div>
-          <p className="text-tower-muted text-xs mt-2">
-            Buried blocks remain in the tower and are still clickable, but
-            they&apos;re greyed out. A $5 entry at season start stays above
-            ground for approximately 1.5 million views.
+          </Well>
+          <p className="text-text-muted text-xs mt-2">
+            Buried blocks remain in the tower and are still clickable, but they&apos;re
+            greyed out. A $5 entry at season start stays above ground for approximately
+            1.5 million views.
           </p>
         </section>
 
         {/* Pricing */}
         <section className="mb-8">
-          <h3 className="text-tower-sky font-bold text-sm uppercase tracking-wider mb-3">
-            Pricing a climb
-          </h3>
-          <div className="bg-tower-surface border border-tower-border rounded p-4 font-mono text-sm space-y-2">
-            <div className="text-tower-text">
+          <SectionHeading>Pricing a climb</SectionHeading>
+          <Well>
+            <div className="text-text-primary">
               target_alt = altitude_of_target_rank · 1.02
             </div>
-            <div className="text-tower-text">delta = target_alt − my_altitude</div>
-            <div className="text-tower-text">
+            <div className="text-text-primary">delta = target_alt − my_altitude</div>
+            <div className="text-text-primary">
               cost = max(delta / rate, MIN_SPEND_USD)
             </div>
-          </div>
-          <p className="text-tower-muted text-xs mt-2">
-            The 2% buffer means you beat the target block by a small margin.
-            Positions are live; your rank is calculated when payment completes.
+          </Well>
+          <p className="text-text-muted text-xs mt-2">
+            The 2% buffer means you beat the target block by a small margin. Positions
+            are live; your rank is calculated when payment completes.
           </p>
         </section>
 
         {/* Season reset — AC-47 requires this */}
         <section className="mb-8" data-testid="rules-season-reset">
-          <h3 className="text-tower-sky font-bold text-sm uppercase tracking-wider mb-3">
-            Season reset (90 days)
-          </h3>
-          <p className="text-tower-muted text-sm mb-2">
-            Each season runs for <strong className="text-tower-text">90 days</strong>.
-            At rollover:
+          <SectionHeading>Season reset (90 days)</SectionHeading>
+          <p className="text-text-secondary text-sm mb-2">
+            Each season runs for{" "}
+            <strong className="text-text-primary">90 days</strong>. At rollover:
           </p>
-          <ul className="text-tower-muted text-sm space-y-1 list-disc list-inside ml-2">
+          <ul className="text-text-secondary text-sm space-y-1.5 list-disc list-inside ml-1">
             <li>The current tower is archived to a permanent standings page</li>
             <li>V resets to 0 (rate drops back to R0 = $1 = 1m)</li>
             <li>New blocks start at altitude 0</li>
             <li>Record pages at /b/[slug] remain permanent and show all seasons</li>
-            <li>
-              The exchange rate caps, holds, then resets — creating a recurring
-              launch moment
-            </li>
+            <li>The exchange rate caps, holds, then resets — creating a recurring launch moment</li>
           </ul>
         </section>
 
         {/* View counting rules */}
         <section className="mb-8">
-          <h3 className="text-tower-sky font-bold text-sm uppercase tracking-wider mb-3">
-            Qualified view definition
-          </h3>
-          <p className="text-tower-muted text-sm mb-2">
+          <SectionHeading>Qualified view definition</SectionHeading>
+          <p className="text-text-secondary text-sm mb-2">
             A qualified view is one server-rendered homepage load that passes:
           </p>
-          <ul className="text-tower-muted text-sm space-y-1 list-disc list-inside ml-2">
+          <ul className="text-text-secondary text-sm space-y-1.5 list-disc list-inside ml-1">
             <li>Not a known bot or headless browser</li>
             <li>Session not counted in the last 30 minutes (per cookie)</li>
             <li>IP not exceeding 20 views per hour</li>
-            <li>
-              Global ceiling not exceeded (max 40,000 credits per hour)
-            </li>
+            <li>Global ceiling not exceeded (max 40,000 credits per hour)</li>
           </ul>
-          <p className="text-tower-muted text-sm mt-2">
+          <p className="text-text-secondary text-sm mt-2">
             View counting is server-side only. No client beacons.
           </p>
         </section>
 
-        <div className="border-t border-tower-border pt-6">
-          <a href="/" className="text-tower-muted hover:text-tower-sky text-sm">
+        <div className="border-t border-border-subtle pt-6">
+          <a
+            href="/"
+            className="text-text-muted hover:text-text-primary text-sm transition-colors"
+          >
             ← Back to Tower
           </a>
         </div>

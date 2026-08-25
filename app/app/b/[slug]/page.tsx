@@ -17,6 +17,8 @@ import { RecordStats } from "../../../src/components/RecordPage/RecordStats";
 import { SharePost } from "../../../src/components/RecordPage/SharePost";
 import { TopupForm } from "../../../src/components/RecordPage/TopupForm";
 import { RankAnimation } from "../../../src/components/RecordPage/RankAnimation";
+import { getCategory, categoryTheme } from "../../../src/lib/categories";
+import { Navbar } from "../../../src/components/Navbar";
 
 const BASE_URL = process.env.BASE_URL ?? "http://localhost:3000";
 
@@ -61,19 +63,13 @@ export default async function RecordPage({
   const seasonsAppeared = new Set(seasonHistory.map((h) => h.season_id)).size;
 
   const showSharePost = searchParams.payment === "success";
+  const cat = getCategory((block as { category?: string | null }).category ?? undefined);
 
   return (
     // HTTP 200 even for buried/hidden/past-season (AC-37)
-    <main className="min-h-screen bg-void">
-      {/* V2 nav */}
-      <div className="bg-surface/80 backdrop-blur border-b border-border-subtle px-4 py-3">
-        <a
-          href="/"
-          className="text-text-primary text-xl font-semibold hover:text-accent-tech transition-colors"
-        >
-          Tower
-        </a>
-      </div>
+    <main className="min-h-screen bg-void" style={categoryTheme(cat)}>
+      {/* Nav — auth-aware */}
+      <Navbar contextLabel={`${cat.label} tower`} contextDot={cat.hex} />
 
       {/* Share post — shown after successful payment (AC-34) */}
       {showSharePost && (
@@ -103,6 +99,7 @@ export default async function RecordPage({
         seasons_appeared={Math.max(1, seasonsAppeared)}
         buried={buried}
         hidden={hidden}
+        categoryLabel={cat.label}
       />
 
       {/* Top-up CTA (if not hidden) */}

@@ -119,46 +119,54 @@ export function RankAnimation() {
   }, [blocks]);
 
   return (
-    <div className="border border-tower-border rounded p-4 bg-tower-surface/30 mt-6">
-      <h3 className="text-tower-muted text-xs uppercase tracking-wider mb-3">
+    <div className="border border-border-subtle rounded-xl p-4 bg-surface mt-6">
+      <h3 className="text-text-muted text-[10px] uppercase tracking-[0.12em] mb-3">
         Live rank animation preview
       </h3>
 
       <div className="space-y-1.5">
-        {blocks.map((block, i) => (
-          <div
-            key={block.id}
-            ref={(el) => {
-              if (el) rowRefsRef.current.set(block.id, el);
-              else rowRefsRef.current.delete(block.id);
-            }}
-            className={[
-              "flex items-center gap-3 px-3 py-2 border border-tower-border rounded-sm text-sm",
-              highlightId === block.id ? "block-slide-in" : "",
-            ]
-              .filter(Boolean)
-              .join(" ")}
-          >
-            <span className="text-tower-muted font-mono w-5 text-right flex-shrink-0">
-              {i + 1}
-            </span>
-            <span
-              className={`flex-1 truncate font-medium ${
-                highlightId === block.id
-                  ? "text-tower-sky"
-                  : "text-tower-text"
-              }`}
+        {blocks.map((block, i) => {
+          const highlighted = highlightId === block.id;
+          return (
+            <div
+              key={block.id}
+              ref={(el) => {
+                if (el) rowRefsRef.current.set(block.id, el);
+                else rowRefsRef.current.delete(block.id);
+              }}
+              className={[
+                "flex items-center gap-3 px-3 py-2 rounded-lg border text-sm",
+                highlighted
+                  ? "border-accent/50 bg-accent/[0.06] block-slide-in"
+                  : "border-border-subtle",
+              ]
+                .filter(Boolean)
+                .join(" ")}
             >
-              {block.name}
-            </span>
-            <span className="text-tower-muted font-mono text-xs flex-shrink-0">
-              {block.altitude.toFixed(1)}m
-            </span>
-          </div>
-        ))}
+              <span
+                className={[
+                  "font-mono w-6 h-6 rounded-md flex items-center justify-center text-xs font-bold flex-shrink-0",
+                  highlighted ? "bg-accent text-void" : "border border-border-strong text-text-secondary",
+                ].join(" ")}
+              >
+                {i + 1}
+              </span>
+              <span
+                className={`flex-1 truncate font-medium ${
+                  highlighted ? "text-accent" : "text-text-primary"
+                }`}
+              >
+                {block.name}
+              </span>
+              <span className="text-text-muted font-mono text-xs flex-shrink-0 tabular-nums">
+                {block.altitude.toFixed(1)}m
+              </span>
+            </div>
+          );
+        })}
       </div>
 
-      <p className="text-tower-muted text-xs mt-3 text-center">
+      <p className="text-text-muted text-xs mt-3 text-center">
         Rank updates in real time as payments complete
       </p>
     </div>
