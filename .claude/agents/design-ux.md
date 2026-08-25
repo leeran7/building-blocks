@@ -185,6 +185,21 @@ Write `loop/handoffs/design-ux-<timestamp>.json`:
 }
 ```
 
+## Continuous learning (mandatory)
+
+You are part of a learning loop — agents ping findings off each other and get
+smarter every run. See `skills/closed-loop/learning-loop.md`.
+
+1. **READ** before working: `loop/learnings.md` (your section + `all`) and this
+   handoff's `learnings` array. Apply every finding aimed at you; if you skip one,
+   record why.
+2. **PING** before finishing: route findings via the handoff `learnings` array.
+   Typical for you: ping frontend when a component state is easy to miss, and ping
+   product-spec when a flow reveals a missing requirement.
+3. **RECORD** at handoff: append each new learning (one line) to
+   `loop/learnings.jsonl`. Always record at least one line, even if only a `metric`.
+   Never duplicate an existing lesson — bump its confidence instead.
+
 ## Hard rules
 
 - Do not write implementation code

@@ -109,6 +109,23 @@ Write `loop/handoffs/implementer-<timestamp>.json`:
 
 Use `status: needs_revision` only when blocked on a genuinely ambiguous spec requirement — escalate via orchestrator to product-spec. Never guess.
 
+## Continuous learning (mandatory)
+
+You are part of a learning loop — agents ping findings off each other and get
+smarter every run. See `skills/closed-loop/learning-loop.md`.
+
+1. **READ** before working: `loop/learnings.md` (your section + `all`) and this
+   handoff's `learnings` array. Apply every finding aimed at you; if you skip one,
+   record why. You receive the most pings (from verifier, reviewer,
+   security-reviewer, qa-acceptance) — a repeated pitfall is a standing rule you
+   must not reintroduce.
+2. **PING** before finishing: route findings to the agents who need them via the
+   handoff `learnings` array — e.g., tell architect when a contract was awkward to
+   implement, tell verifier which edge cases you already covered.
+3. **RECORD** at handoff: append each new learning (one line) to
+   `loop/learnings.jsonl`. Always record at least one line, even if only a `metric`.
+   Never duplicate an existing lesson — bump its confidence instead.
+
 ## Hard rules
 
 - Use `pnpm` for all package management — never npm, never yarn

@@ -15,7 +15,10 @@ Run the full agent loop to build an app from intent to merge-ready code.
 
 1. Read [stages.md](stages.md) for the stage graph and routing rules.
 2. Read [handoffs.md](handoffs.md) for the handoff contract.
-3. Initialize loop state:
+3. Read [learning-loop.md](learning-loop.md) — the mandatory continuous-learning
+   protocol. Every agent reads the learnings ledger before working and records new
+   learnings before finishing; the orchestrator runs a retro every iteration.
+4. Initialize loop state:
 
 ```bash
 mkdir -p loop/handoffs
@@ -36,7 +39,8 @@ Write `loop/state.json`:
 
 ## Orchestration workflow
 
-1. **Read state** — load `loop/state.json` and the latest handoff for the current stage.
+1. **Read state** — load `loop/state.json`, the latest handoff for the current
+   stage (including its `learnings` array), and `loop/learnings.md`.
 2. **Delegate** — invoke the subagent matching `currentStage`:
    - **Cursor**: Task tool with `subagent_type` matching the agent name
    - **Claude Code**: Agent tool with `subagent_type` matching the agent name, or `@agent-name` mention
@@ -46,8 +50,12 @@ Write `loop/state.json`:
    - `needs_revision` → increment `iteration`, set `currentStage` to `loopBackTo`
    - `blocked` or `failed` → set state `status` to paused, report to user
 5. **Quality gates** — after verifier succeeds, run security-reviewer and qa-acceptance before integrator.
-6. **Repeat** until terminal conditions in stages.md are met or `maxIterations` reached.
-7. **Report** — summarize artifacts, PR URL, test results, and remaining warnings.
+6. **Retro** — after each iteration/loop-back, fold new `loop/learnings.jsonl`
+   entries into `loop/learnings.md`, promote any lesson seen 2+ times to a
+   standing rule, and surface top learnings in the stage report (see
+   [learning-loop.md](learning-loop.md)).
+7. **Repeat** until terminal conditions in stages.md are met or `maxIterations` reached.
+8. **Report** — summarize artifacts, PR URL, test results, remaining warnings, and learnings recorded.
 
 ## Subagent roster
 
@@ -77,10 +85,15 @@ Goal: {goal}
 Prior handoff: {json}
 Your stage: {stage}
 
+Before starting: read loop/learnings.md (your section + `all`) and this handoff's
+`learnings` array, and apply every finding aimed at you (learning-loop.md).
+
 Complete your stage per your agent definition. Before finishing:
 1. Write handoff to loop/handoffs/{stage}-{iso-timestamp}.json
 2. Follow the handoff contract in skills/closed-loop/handoffs.md
 3. Set nextStage and loopBackTo appropriately
+4. Append your new learnings to loop/learnings.jsonl AND put cross-agent findings
+   in the handoff `learnings` array (ping the agents who need them)
 ```
 
 ## Running the loop

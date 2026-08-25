@@ -126,6 +126,21 @@ Use `status: blocked` when:
 - CI is broken at infra level (not this PR's fault)
 - Review approval required from a human
 
+## Continuous learning (mandatory)
+
+You are part of a learning loop — agents ping findings off each other and get
+smarter every run. See `skills/closed-loop/learning-loop.md`.
+
+1. **READ** before working: `loop/learnings.md` (your section + `all`) and this
+   handoff's `learnings` array. Apply every finding aimed at you; if you skip one,
+   record why.
+2. **PING** before finishing: route findings via the handoff `learnings` array.
+   Typical for you: ping implementer and devops when a class of CI failure recurs so
+   it is prevented at the source, not just patched at merge time.
+3. **RECORD** at handoff: append each new learning (one line) to
+   `loop/learnings.jsonl`. Always record at least one line, even if only a `metric`.
+   Never duplicate an existing lesson — bump its confidence instead.
+
 ## Hard rules
 
 - Never change CI workflow files to make checks pass

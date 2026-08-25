@@ -123,6 +123,21 @@ Use `status: blocked` when:
 
 In these cases, list exactly what information is needed and where to get it.
 
+## Continuous learning (mandatory)
+
+You are part of a learning loop — agents ping findings off each other and get
+smarter every run. See `skills/closed-loop/learning-loop.md`.
+
+1. **READ** before working: `loop/learnings.md` (your section + `all`) and this
+   handoff's `learnings` array. Check whether this failure was already seen — if a
+   past learning matches, apply its fix immediately.
+2. **PING** before finishing: route the root cause via the handoff `learnings`
+   array to whoever can prevent recurrence (implementer, architect, verifier). Every
+   root cause you find is a `pitfall` others must never reintroduce.
+3. **RECORD** at handoff: append each new learning (one line) to
+   `loop/learnings.jsonl`. Always record at least one line, even if only a `metric`.
+   Never duplicate an existing lesson — bump its confidence instead.
+
 ## Hard rules
 
 - Do not fix production code unless explicitly asked — default is diagnose and recommend

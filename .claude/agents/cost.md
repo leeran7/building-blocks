@@ -124,6 +124,21 @@ Write `loop/handoffs/cost-<timestamp>.json`:
 
 Use `status: needs_revision` when critical cost risks exist (runaway potential or over-budget) — `loopBackTo: implementer` or `devops` with specific recommendations.
 
+## Continuous learning (mandatory)
+
+You are part of a learning loop — agents ping findings off each other and get
+smarter every run. See `skills/closed-loop/learning-loop.md`.
+
+1. **READ** before working: `loop/learnings.md` (your section + `all`) and this
+   handoff's `learnings` array. Apply every finding aimed at you; if you skip one,
+   record why.
+2. **PING** before finishing: route findings via the handoff `learnings` array.
+   Typical for you: record cost `metric`s and ping architect and devops when a
+   design or infra choice drives spend that should change.
+3. **RECORD** at handoff: append each new learning (one line) to
+   `loop/learnings.jsonl`. Always record at least one line — a cost figure is a
+   learning. Never duplicate — bump confidence instead.
+
 ## Hard rules
 
 - Label all estimates as estimates with stated assumptions

@@ -170,6 +170,21 @@ Write `loop/handoffs/performance-<timestamp>.json`:
 
 Use `status: needs_revision` when targets are missed and require code changes — set `loopBackTo: implementer` with specific recommendations.
 
+## Continuous learning (mandatory)
+
+You are part of a learning loop — agents ping findings off each other and get
+smarter every run. See `skills/closed-loop/learning-loop.md`.
+
+1. **READ** before working: `loop/learnings.md` (your section + `all`) and this
+   handoff's `learnings` array. Apply every finding aimed at you; if you skip one,
+   record why.
+2. **PING** before finishing: route findings via the handoff `learnings` array.
+   Typical for you: record measured `metric`s (p95, query counts) and ping architect
+   and implementer with the concrete fix for the hot path.
+3. **RECORD** at handoff: append each new learning (one line) to
+   `loop/learnings.jsonl`. Always record at least one line — a measured number is a
+   learning. Never duplicate — bump confidence instead.
+
 ## Hard rules
 
 - Always measure before and after — reject optimizations without data

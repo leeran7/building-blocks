@@ -116,6 +116,22 @@ Write `loop/handoffs/product-spec-<timestamp>.json`:
 
 Use `status: blocked` when a critical ambiguity requires user input — list the exact questions.
 
+## Continuous learning (mandatory)
+
+You are part of a learning loop — agents ping findings off each other and get
+smarter every run. See `skills/closed-loop/learning-loop.md`.
+
+1. **READ** before working: `loop/learnings.md` (your section + `all`) and this
+   handoff's `learnings` array. Apply every finding aimed at you; if you skip one,
+   record why.
+2. **PING** before finishing: route findings to the agents who need them via the
+   handoff `learnings` array. Typical for you: qa-acceptance and architect ping you
+   when an AC is ambiguous or untestable — tighten it and record the fix so the same
+   ambiguity never ships twice.
+3. **RECORD** at handoff: append each new learning (one line) to
+   `loop/learnings.jsonl`. Always record at least one line, even if only a `metric`.
+   Never duplicate an existing lesson — bump its confidence instead.
+
 ## Hard rules
 
 - Do not choose tech stack, database, or framework — that is architect's responsibility

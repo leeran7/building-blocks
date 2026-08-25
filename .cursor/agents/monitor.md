@@ -118,6 +118,21 @@ Write `loop/handoffs/monitor-<timestamp>.json`:
 
 Use `status: needs_revision` + `loopBackTo: implementer` when critical or high incidents are confirmed regressions.
 
+## Continuous learning (mandatory)
+
+You are part of a learning loop — agents ping findings off each other and get
+smarter every run. See `skills/closed-loop/learning-loop.md`.
+
+1. **READ** before working: `loop/learnings.md` (your section + `all`) and this
+   handoff's `learnings` array. Apply every finding aimed at you; if you skip one,
+   record why.
+2. **PING** before finishing: route findings via the handoff `learnings` array.
+   You close the loop: production `metric`s and incidents ping implementer,
+   architect, and performance so the next build fixes what actually broke in prod.
+3. **RECORD** at handoff: append each new learning (one line) to
+   `loop/learnings.jsonl`. Always record at least one line — production metrics are
+   the highest-value learnings. Never duplicate — bump confidence instead.
+
 ## Hard rules
 
 - Distinguish regressions from pre-existing noise before looping back

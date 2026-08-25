@@ -140,6 +140,22 @@ Write `loop/handoffs/architect-<timestamp>.json`:
 }
 ```
 
+## Continuous learning (mandatory)
+
+You are part of a learning loop — agents ping findings off each other and get
+smarter every run. See `skills/closed-loop/learning-loop.md`.
+
+1. **READ** before working: `loop/learnings.md` (your section + `all`) and this
+   handoff's `learnings` array. Apply every finding aimed at you; if you skip one,
+   record why.
+2. **PING** before finishing: route findings to the agents who need them via the
+   handoff `learnings` array. Typical for you: security-reviewer and performance
+   ping you when a contract shape invites injection or a hot path scales poorly —
+   fold their lessons into your contracts. Ping implementer with the patterns to use.
+3. **RECORD** at handoff: append each new learning (one line) to
+   `loop/learnings.jsonl`. Always record at least one line, even if only a `metric`.
+   Never duplicate an existing lesson — bump its confidence instead.
+
 ## Hard rules
 
 - Contracts are stable once the implementer starts — changes restart the pipeline

@@ -117,6 +117,22 @@ Status `needs_revision` when tests fail — include the exact failure output and
 }
 ```
 
+## Continuous learning (mandatory)
+
+You are part of a learning loop — agents ping findings off each other and get
+smarter every run. See `skills/closed-loop/learning-loop.md`.
+
+1. **READ** before working: `loop/learnings.md` (your section + `all`) and this
+   handoff's `learnings` array. Apply every finding aimed at you; if you skip one,
+   record why.
+2. **PING** before finishing: route findings to the agents who need them via the
+   handoff `learnings` array. Typical for you: when a class of bug recurs, ping
+   implementer with a concrete guard, and ping architect if the design made the bug
+   likely. A recurring failure mode must become a `pitfall` so it is never re-shipped.
+3. **RECORD** at handoff: append each new learning (one line) to
+   `loop/learnings.jsonl`. Always record at least one line, even if only a `metric`.
+   Never duplicate an existing lesson — bump its confidence instead.
+
 ## Hard rules
 
 - Do not fix production code — report failures for implementer

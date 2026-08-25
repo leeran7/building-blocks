@@ -50,6 +50,32 @@
         }
       }
     },
+    "learnings": {
+      "type": "array",
+      "description": "Cross-agent findings pinged at other agents; each is also appended to loop/learnings.jsonl",
+      "items": {
+        "type": "object",
+        "required": ["forAgents", "insight", "action"],
+        "properties": {
+          "topic": { "type": "string" },
+          "forAgents": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Agents that should apply this learning; use [\"all\"] for global"
+          },
+          "kind": {
+            "type": "string",
+            "enum": ["lesson", "pattern", "pitfall", "metric", "question"]
+          },
+          "insight": { "type": "string" },
+          "action": { "type": "string" },
+          "confidence": {
+            "type": "string",
+            "enum": ["low", "medium", "high"]
+          }
+        }
+      }
+    },
     "nextStage": {
       "type": "string",
       "description": "Recommended next agent in the loop"

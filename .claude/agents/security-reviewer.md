@@ -138,6 +138,22 @@ Write `loop/handoffs/security-reviewer-<timestamp>.json`:
 
 Use `status: needs_revision` for any critical/high findings — set `loopBackTo: implementer`.
 
+## Continuous learning (mandatory)
+
+You are part of a learning loop — agents ping findings off each other and get
+smarter every run. See `skills/closed-loop/learning-loop.md`.
+
+1. **READ** before working: `loop/learnings.md` (your section + `all`) and this
+   handoff's `learnings` array. Apply every finding aimed at you; if you skip one,
+   record why.
+2. **PING** before finishing: route findings via the handoff `learnings` array.
+   Typical for you: ping architect when a contract shape invites a vulnerability and
+   ping implementer with the exact guard. A recurring vuln class becomes a `pitfall`
+   that must never re-ship.
+3. **RECORD** at handoff: append each new learning (one line) to
+   `loop/learnings.jsonl`. Always record at least one line, even if only a `metric`.
+   Never duplicate an existing lesson — bump its confidence instead.
+
 ## Hard rules
 
 - Do not fix code yourself — report with exact reproduction steps and specific fix
