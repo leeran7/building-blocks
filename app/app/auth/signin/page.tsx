@@ -29,6 +29,8 @@ import {
   GoogleAuthProvider,
 } from "firebase/auth";
 import { auth } from "../../../src/lib/firebase";
+import { AuthShell } from "../../../src/components/Auth/AuthShell";
+import { setTokenCookie } from "../../../src/lib/authCookie";
 
 function EyeIcon({ open }: { open: boolean }) {
   return open ? (
@@ -146,7 +148,9 @@ function SignInForm() {
     setLoading(true);
 
     try {
-      await signInWithEmailAndPassword(auth, email, password);
+      const cred = await signInWithEmailAndPassword(auth, email, password);
+      // Set the middleware cookie before navigating so /dashboard isn't bounced.
+      setTokenCookie(await cred.user.getIdToken());
       router.push(redirectTo);
     } catch (err: unknown) {
       const code =
@@ -179,7 +183,8 @@ function SignInForm() {
     setError(null);
 
     signInWithPopup(auth, provider)
-      .then(() => {
+      .then(async (cred) => {
+        setTokenCookie(await cred.user.getIdToken());
         router.push(redirectTo);
       })
       .catch((err: unknown) => {
@@ -209,13 +214,13 @@ function SignInForm() {
   };
 
   return (
-    <main className="min-h-screen bg-void flex items-center justify-center px-4">
+    <AuthShell>
       <section
         className="bg-surface rounded-2xl border border-border-subtle p-8 w-full max-w-sm"
         aria-labelledby="auth-card-title"
       >
-        {/* Logo */}
-        <p className="text-2xl font-bold text-text-primary mb-1">Tower</p>
+        {/* Logo — mobile only; desktop shows the brand panel */}
+        <p className="text-2xl font-bold text-text-primary mb-1 md:hidden">Tower</p>
 
         {/* Title */}
         <h1 id="auth-card-title" className="text-lg font-semibold text-text-primary mb-1">
@@ -378,7 +383,7 @@ function SignInForm() {
           </Link>
         </p>
       </section>
-    </main>
+    </AuthShell>
   );
 }
 

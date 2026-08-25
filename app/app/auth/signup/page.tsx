@@ -27,6 +27,8 @@ import {
   GoogleAuthProvider,
 } from "firebase/auth";
 import { auth } from "../../../src/lib/firebase";
+import { AuthShell } from "../../../src/components/Auth/AuthShell";
+import { setTokenCookie } from "../../../src/lib/authCookie";
 
 function EyeIcon({ open }: { open: boolean }) {
   return open ? (
@@ -225,6 +227,7 @@ export default function SignUpPage() {
         const token = await result.user.getIdToken();
         // AC-50: emailVerified = true for Google accounts
         await syncUserToDb(token, result.user.email ?? "");
+        setTokenCookie(token); // unblock the /dashboard middleware guard
         router.push("/dashboard");
       })
       .catch((err: unknown) => {
@@ -252,12 +255,12 @@ export default function SignUpPage() {
   };
 
   return (
-    <main className="min-h-screen bg-void flex items-center justify-center px-4">
+    <AuthShell>
       <section
         className="bg-surface rounded-2xl border border-border-subtle p-8 w-full max-w-sm"
         aria-labelledby="auth-card-title"
       >
-        <p className="text-2xl font-bold text-text-primary mb-1">Tower</p>
+        <p className="text-2xl font-bold text-text-primary mb-1 md:hidden">Tower</p>
         <h1
           id="auth-card-title"
           className="text-lg font-semibold text-text-primary mb-1"
@@ -412,7 +415,7 @@ export default function SignUpPage() {
           </Link>
         </p>
       </section>
-    </main>
+    </AuthShell>
   );
 }
 

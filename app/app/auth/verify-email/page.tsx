@@ -13,6 +13,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { sendEmailVerification } from "firebase/auth";
 import { useAuth } from "../../../src/contexts/AuthContext";
+import { AuthShell } from "../../../src/components/Auth/AuthShell";
 
 function EnvelopeIcon() {
   return (
@@ -89,12 +90,12 @@ export default function VerifyEmailPage() {
   }
 
   return (
-    <main className="min-h-screen bg-void flex items-center justify-center px-4">
+    <AuthShell>
       <section
         className="bg-surface rounded-2xl border border-border-subtle p-8 w-full max-w-sm text-center"
         aria-labelledby="auth-card-title"
       >
-        <p className="text-2xl font-bold text-text-primary mb-6">Tower</p>
+        <p className="text-2xl font-bold text-text-primary mb-6 md:hidden">Tower</p>
 
         {isVerified ? (
           // AC-53: Already verified state
@@ -185,6 +186,6 @@ export default function VerifyEmailPage() {
           </>
         )}
       </section>
-    </main>
+    </AuthShell>
   );
 }

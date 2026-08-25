@@ -20,6 +20,7 @@ import React, {
 import type { User as FirebaseUser } from "firebase/auth";
 import { auth } from "../lib/firebase";
 import { onIdTokenChanged, signOut as firebaseSignOut } from "firebase/auth";
+import { setTokenCookie, clearTokenCookie } from "../lib/authCookie";
 
 interface AuthState {
   user: FirebaseUser | null;
@@ -37,6 +38,7 @@ const AuthContext = createContext<AuthState>({
   signOut: async () => {},
 });
 
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<FirebaseUser | null>(null);
   const [token, setToken] = useState<string | null>(null);
@@ -49,9 +51,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const idToken = await firebaseUser.getIdToken();
         setUser(firebaseUser);
         setToken(idToken);
+        setTokenCookie(idToken); // unblock the /dashboard middleware guard
       } else {
         setUser(null);
         setToken(null);
+        clearTokenCookie();
       }
       setLoading(false);
     });
@@ -63,6 +67,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await firebaseSignOut(auth);
     setUser(null);
     setToken(null);
+    clearTokenCookie();
   }, []);
 
   return (

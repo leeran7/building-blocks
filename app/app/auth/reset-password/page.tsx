@@ -16,6 +16,7 @@ import { type FormEvent, useId, useState } from "react";
 import Link from "next/link";
 import { sendPasswordResetEmail } from "firebase/auth";
 import { auth } from "../../../src/lib/firebase";
+import { AuthShell } from "../../../src/components/Auth/AuthShell";
 
 function WarningIcon() {
   return (
@@ -68,12 +69,12 @@ export default function ResetPasswordPage() {
   };
 
   return (
-    <main className="min-h-screen bg-void flex items-center justify-center px-4">
+    <AuthShell>
       <section
         className="bg-surface rounded-2xl border border-border-subtle p-8 w-full max-w-sm"
         aria-labelledby="auth-card-title"
       >
-        <p className="text-2xl font-bold text-text-primary mb-1">Tower</p>
+        <p className="text-2xl font-bold text-text-primary mb-1 md:hidden">Tower</p>
         <h1
           id="auth-card-title"
           className="text-lg font-semibold text-text-primary mb-1"
@@ -153,6 +154,6 @@ export default function ResetPasswordPage() {
           </Link>
         </div>
       </section>
-    </main>
+    </AuthShell>
   );
 }
