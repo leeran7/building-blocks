@@ -1,5 +1,11 @@
 import type { Config } from "tailwindcss";
 
+/**
+ * Tower — dark editorial design system.
+ * Dark, high-contrast, data-dense. Single cyan brand accent; category color is
+ * functional wayfinding via --accent-rgb. Restrained radii + subtle shadows.
+ * Semantic tokens are the source of truth — see app/DESIGN.md.
+ */
 const config: Config = {
   content: [
     "./pages/**/*.{js,ts,jsx,tsx,mdx}",
@@ -23,29 +29,49 @@ const config: Config = {
           text: "#f8fafc",
           muted: "#94a3b8",
         },
-        // V2 design tokens (AC-33–AC-35, design.md §1)
+
+        // ── Dark editorial palette (semantic) ───────────────────────────────
         void: "#0a0a0f",
         surface: "#111118",
-        elevated: "#16161f",
+        "surface-raised": "#15151f",
+        elevated: "#1a1a26",
         "border-subtle": "#1e1e2e",
-        "border-focus": "#2e2e4e",
-        "text-primary": "#f0f0ff",
+        "border-strong": "#2a2a3d",
+        "border-focus": "#3a3a5c",
+        "text-primary": "#f4f4ff",
+        "text-secondary": "#a5a5c4",
         "text-muted": "#6b6b8a",
         "text-disabled": "#3a3a5c",
-        // Category accents — see ADR-1: accent-business and accent-gaming DECORATIVE ONLY
-        "accent-tech": "#00d4ff",    // 5.2:1 on #0a0a0f — safe for text
-        "accent-design": "#ff6b9d",  // 4.6:1 on #0a0a0f — safe for text
-        "accent-business": "#ffd700", // 1.8:1 — DECORATIVE ONLY: borders, bars, icons
-        "accent-creative": "#9b59b6", // 3.1:1 — large text (18px+) or decorative only
-        "accent-gaming": "#00ff88",   // 2.1:1 — DECORATIVE ONLY: borders, bars, icons
-        "accent-science": "#ff8c00",  // 3.5:1 — large text (18px+) or decorative only
-        danger: "#ff4444",
-        success: "#00cc66",
+
+        // Active accent — resolves to the themed category via --accent-rgb
+        // (default = brand cyan). Supports opacity: bg-accent/10, etc.
+        accent: {
+          DEFAULT: "rgb(var(--accent-rgb, 0 212 255) / <alpha-value>)",
+          tech: "#00d4ff",
+          design: "#ff6b9d",
+          business: "#ffd700",
+          creative: "#b07cd6",
+          gaming: "#00ff88",
+          science: "#ff8c00",
+        },
+        brand: "#00d4ff",
+
+        danger: "#ff5470",
+        warning: "#ffb020",
+        success: "#28d17c",
       },
+
+      boxShadow: {
+        // Subtle single-layer elevation on dark surfaces
+        card: "0 1px 2px 0 rgb(0 0 0 / 0.25)",
+        lifted: "0 8px 24px -12px rgb(0 0 0 / 0.55)",
+      },
+
       fontFamily: {
         sans: ["var(--font-inter)", "system-ui", "sans-serif"],
-        mono: ["var(--font-jetbrains-mono)", "Courier New", "monospace"],
+        mono: ["var(--font-jetbrains-mono)", "ui-monospace", "monospace"],
       },
+
       keyframes: {
         sway: {
           "0%, 100%": { transform: "translateX(0px)" },

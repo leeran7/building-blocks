@@ -2,7 +2,10 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Tower custom styles */
+/* ─────────────────────────────────────────────────────────────────────────
+   Tower — dark editorial design system
+   Dark canvas · single cyan accent · editorial display · restrained + subtle.
+   ───────────────────────────────────────────────────────────────────────── */
 
 :root {
   /* V1 tokens — unchanged */
@@ -16,22 +19,26 @@
   --tower-text: #f8fafc;
   --tower-muted: #94a3b8;
 
-  /* V2 tokens (design.md §1, AC-33–AC-35) */
+  /* Dark editorial tokens */
   --color-void: #0a0a0f;
   --color-surface: #111118;
-  --color-elevated: #16161f;
+  --color-elevated: #1a1a26;
   --color-border: #1e1e2e;
-  --color-border-focus: #2e2e4e;
-  --color-text-primary: #f0f0ff;
+  --color-border-focus: #3a3a5c;
+  --color-text-primary: #f4f4ff;
   --color-text-muted: #6b6b8a;
 
-  /* Category accent CSS vars for dynamic category pages (architecture.md §6.4) */
-  --accent-tech: #00d4ff;
-  --accent-design: #ff6b9d;
-  --accent-business: #ffd700;
-  --accent-creative: #9b59b6;
-  --accent-gaming: #00ff88;
-  --accent-science: #ff8c00;
+  /* Active accent — default brand cyan; categoryTheme() overrides per tower */
+  --accent-rgb: 0 212 255;
+}
+
+* {
+  border-color: var(--color-border);
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  scrollbar-gutter: stable;
 }
 
 body {
@@ -39,134 +46,139 @@ body {
   color: var(--color-text-primary);
   font-family: var(--font-inter, system-ui, -apple-system, sans-serif);
   overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
 
-/* Block sway animation — CSS keyframe only, no physics library (AC-29) */
+/* Editorial display headline — heavy italic (used sparingly) */
+.font-display {
+  font-weight: 800;
+  font-style: italic;
+  letter-spacing: -0.02em;
+  line-height: 1.02;
+}
+
+.font-mono {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+}
+
+::selection {
+  background: rgb(var(--accent-rgb) / 0.3);
+  color: #ffffff;
+}
+
+/* Dark scrollbars */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #2a2a3d transparent;
+}
+*::-webkit-scrollbar { width: 10px; height: 10px; }
+*::-webkit-scrollbar-thumb {
+  background: #24243a;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+  border-radius: 8px;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: #33334d;
+  background-clip: padding-box;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Animations (V1 preserved — FLIP + sway, AC-29/AC-38/AC-39)
+   ───────────────────────────────────────────────────────────────────────── */
+
 @keyframes sway {
   0%, 100% { transform: translateX(0px); }
   50% { transform: translateX(2px); }
 }
-
-/* Rank change FLIP animations */
 @keyframes slideOut {
   0% { transform: translateX(0); opacity: 1; }
   100% { transform: translateX(-100%); opacity: 0; }
 }
-
 @keyframes slideIn {
   0%   { transform: translateX(100%); opacity: 0; }
   70%  { transform: translateX(-6px); opacity: 1; }
   100% { transform: translateX(0);   opacity: 1; }
 }
-
 @keyframes crossFade {
   0% { opacity: 0; }
   100% { opacity: 1; }
 }
-
 @keyframes rise {
   0% { transform: translateY(4px); opacity: 0; }
   100% { transform: translateY(0); opacity: 1; }
 }
 
-/* Prefers-reduced-motion: replace slides with crossfade (AC-43) */
 @media (prefers-reduced-motion: reduce) {
-  .block-slide-out {
-    animation: crossFade 0.3s ease-in-out reverse !important;
-  }
-  .block-slide-in {
-    animation: crossFade 0.3s ease-in-out !important;
-  }
-  .block-sway {
-    animation: none !important;
-  }
+  .block-slide-out { animation: crossFade 0.3s ease-in-out reverse !important; }
+  .block-slide-in  { animation: crossFade 0.3s ease-in-out !important; }
+  .block-sway      { animation: none !important; }
 }
 
-.block-sway {
-  animation: sway 4s ease-in-out infinite;
+.block-sway      { animation: sway 4s ease-in-out infinite; }
+.block-slide-out { animation: slideOut 0.4s ease-in forwards; }
+.block-slide-in  { animation: slideIn 0.6s ease-out forwards; }
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Tower components
+   ───────────────────────────────────────────────────────────────────────── */
+
+/* Altitude bar — subtle track on dark, accent fill */
+.altitude-track {
+  background: rgb(255 255 255 / 0.05);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.altitude-fill {
+  background: linear-gradient(
+    90deg,
+    rgb(var(--accent-rgb) / 0.35) 0%,
+    rgb(var(--accent-rgb) / 0.85) 100%
+  );
+  border-radius: 999px;
+  transition: width 0.6s cubic-bezier(0.2, 0, 0.1, 1);
 }
 
-.block-slide-out {
-  animation: slideOut 0.4s ease-in forwards;
-}
-
-.block-slide-in {
-  animation: slideIn 0.6s ease-out forwards;
-}
-
-/* Ground row styling */
 .ground-line {
   background: linear-gradient(90deg, #92400e 0%, #78350f 50%, #92400e 100%);
   position: relative;
   overflow: hidden;
 }
 
-.ground-line::after {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 2px;
-  background: linear-gradient(90deg, transparent, #f59e0b, transparent);
-  animation: rise 0.8s ease-out;
-}
+.amber-edge { border-left: 3px solid var(--tower-amber); }
 
-/* Amber edge indicator (AC-25) */
-.amber-edge {
-  border-left: 3px solid #f59e0b;
-}
+.block-buried { opacity: 0.5; color: #9ca3af; }
 
-/* Buried block styling (AC-24) */
-.block-buried {
-  opacity: 0.5;
-  color: #9ca3af;
-}
-
-/* Focus styles for keyboard navigation (AC-23) */
+/* Keyboard focus — accent */
 a:focus-visible,
-button:focus-visible {
-  outline: 2px solid var(--tower-sky);
+button:focus-visible,
+[role="tab"]:focus-visible {
+  outline: 2px solid rgb(var(--accent-rgb));
   outline-offset: 2px;
-  border-radius: 2px;
+  border-radius: 4px;
 }
 
-/* V2 scrollbar-hide utility for CategoryTabBar horizontal scroll */
 .scrollbar-hide {
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
-.scrollbar-hide::-webkit-scrollbar {
-  display: none;
-}
+.scrollbar-hide::-webkit-scrollbar { display: none; }
 
-/* V2 hero gradient animation (design.md §6.4) */
-@keyframes heroGradient {
-  0%, 100% { background-position: 0% 50%; }
-  50% { background-position: 100% 50%; }
-}
-
-/* V2 glow pulse on hero CTA */
-@keyframes glowCycle {
-  0%   { box-shadow: 0 0 16px 2px #00d4ff40; }
-  17%  { box-shadow: 0 0 16px 2px #ff6b9d40; }
-  33%  { box-shadow: 0 0 16px 2px #ffd70040; }
-  50%  { box-shadow: 0 0 16px 2px #9b59b640; }
-  67%  { box-shadow: 0 0 16px 2px #00ff8840; }
-  83%  { box-shadow: 0 0 16px 2px #ff8c0040; }
-  100% { box-shadow: 0 0 16px 2px #00d4ff40; }
-}
+/* ─────────────────────────────────────────────────────────────────────────
+   Landing hero
+   ───────────────────────────────────────────────────────────────────────── */
 
 .hero-glow {
-  animation: glowCycle 3s ease-in-out infinite;
+  box-shadow: 0 6px 20px -10px rgb(0 0 0 / 0.6);
+  transition: box-shadow 0.2s ease, filter 0.2s ease;
+}
+.hero-glow:hover {
+  box-shadow: 0 10px 28px -10px rgb(0 0 0 / 0.7);
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .hero-glow {
-    animation: none;
-    box-shadow: 0 0 16px 2px #00d4ff40;
-  }
-  .hero-bg-animated {
-    animation: none !important;
-  }
+  .hero-bg-animated { animation: none !important; }
 }
