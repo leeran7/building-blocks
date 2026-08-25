@@ -155,7 +155,8 @@ export function stepMatch(
   inputs: Record<PlayerId, PlayerInput>,
   cfg: SimConfig = DEFAULT_SIM_CONFIG
 ): MatchState {
-  if (state.phase === "finished" || state.phase === "results") return state;
+  // Only countdown and climb advance the sim; lobby/finished/results are inert.
+  if (state.phase !== "countdown" && state.phase !== "climb") return state;
 
   // Countdown: a fixed 3-2-1 (90 ticks) before "GO"; inputs are locked.
   if (state.phase === "countdown") {

@@ -31,8 +31,47 @@ model User {
   emailVerified Boolean  @default(false)
   createdAt     DateTime @default(now())
   blocks        Block[]
+  climbRecords  ClimbRecord[]
+  climbRuns     ClimbRun[]
 
   @@map("users")
+}
+
+// Tower v3 "The Climb": permanent peak-height record per user per category.
+// Monotonic — peak_y is only ever raised, mirroring the "altitude is permanent"
+// invariant (spec-next.md AC-30/AC-31). Enforced in recordClimb() + app logic.
+model ClimbRecord {
+  id            String   @id @default(cuid())
+  userId        String
+  category_slug String
+  peak_y        Float    @default(0) // best peak height reached, metres
+  wins          Int      @default(0) // first-place finishes in this category
+  updated_at    DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // One record row per (user, category).
+  @@unique([userId, category_slug], name: "climb_record_user_category")
+  @@index([category_slug, peak_y(sort: Desc)], name: "climb_record_leaderboard_idx")
+  @@map("climb_records")
+}
+
+// Individual run result (history / audit). Ranked runs also store seed for
+// re-simulation-based verification (AC-17) — added when ranked ships.
+model ClimbRun {
+  id            String   @id @default(cuid())
+  userId        String?
+  category_slug String
+  peak_y        Float
+  finished      Boolean  @default(false)
+  finished_tick Int?
+  seed          String
+  created_at    DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([category_slug, created_at], name: "climb_run_category_idx")
+  @@map("climb_runs")
 }
 
 model Block {
