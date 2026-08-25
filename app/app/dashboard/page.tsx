@@ -19,21 +19,6 @@ import Link from "next/link";
 import { useAuth } from "../../src/contexts/AuthContext";
 import { BlockCard } from "../../src/components/Dashboard/BlockCard";
 
-const CATEGORY_ACCENTS: Record<string, string> = {
-  tech: "#00d4ff",
-  design: "#ff6b9d",
-  business: "#ffd700",
-  creative: "#9b59b6",
-  gaming: "#00ff88",
-  science: "#ff8c00",
-  Tech: "#00d4ff",
-  Design: "#ff6b9d",
-  Business: "#ffd700",
-  Creative: "#9b59b6",
-  Gaming: "#00ff88",
-  Science: "#ff8c00",
-};
-
 interface Payment {
   id: string;
   amount_cents: number;
@@ -99,7 +84,7 @@ function TowerIcon() {
 
 function SkeletonCard() {
   return (
-    <div className="bg-surface rounded-2xl border border-border-subtle p-6 animate-pulse">
+    <div className="bg-surface rounded-xl border border-border-subtle p-5 animate-pulse">
       <div className="flex items-center justify-between mb-3">
         <div className="h-6 w-20 bg-border-subtle rounded-full" />
         <div className="h-8 w-16 bg-border-subtle rounded-lg" />
@@ -184,32 +169,54 @@ export default function DashboardPage() {
   return (
     <div className="min-h-screen bg-void">
       {/* Nav */}
-      <nav className="flex items-center justify-between px-4 py-3 bg-void/80 backdrop-blur border-b border-border-subtle">
-        <Link
-          href="/"
-          className="text-xl font-semibold text-text-primary hover:text-accent-tech transition-colors"
-        >
-          Tower
-        </Link>
-        <div className="flex items-center gap-4">
-          <span className="text-sm text-text-muted hidden sm:block">
-            Your blocks
-          </span>
+      <nav className="sticky top-0 z-20 flex items-center justify-between px-4 md:px-6 h-14 bg-void/80 backdrop-blur border-b border-border-subtle">
+        <div className="flex items-center gap-3">
+          <Link
+            href="/"
+            className="text-lg font-bold tracking-tight text-text-primary hover:text-accent-tech transition-colors"
+          >
+            Tower
+          </Link>
+          <span className="text-border-strong" aria-hidden="true">/</span>
+          <span className="text-sm text-text-secondary">Dashboard</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <Link
+            href="/tower/tech"
+            className="hidden sm:inline-flex text-sm text-text-muted hover:text-text-primary transition-colors min-h-[44px] items-center px-2"
+          >
+            Browse towers
+          </Link>
           <SignOutButton />
         </div>
       </nav>
 
-      {/* Page heading */}
-      <div className="px-4 py-6 max-w-6xl mx-auto">
-        <h1 className="text-2xl font-semibold text-text-primary">
-          Your blocks across all towers
-        </h1>
+      {/* Page heading — context → heading → supporting → action */}
+      <div className="px-4 md:px-6 pt-8 pb-6 max-w-7xl mx-auto flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
+        <div>
+          <p className="text-xs uppercase tracking-[0.15em] text-text-muted">
+            Your account
+          </p>
+          <h1 className="text-2xl md:text-3xl font-bold text-text-primary tracking-tight mt-1">
+            Dashboard
+          </h1>
+          <p className="text-sm text-text-secondary mt-1">
+            Every block you own, across every tower.
+          </p>
+        </div>
+        <Link
+          href="/submit"
+          className="flex-shrink-0 bg-accent-tech text-void font-semibold rounded-lg px-5 py-2.5 hover:brightness-110 transition min-h-[44px] inline-flex items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-tech focus-visible:ring-offset-2 focus-visible:ring-offset-void"
+        >
+          Submit a block
+        </Link>
       </div>
 
       {/* Content */}
-      <main className="px-4 pb-12 max-w-6xl mx-auto">
+      <main className="px-4 md:px-6 pb-16 max-w-7xl mx-auto">
         {fetchState.status === "loading" && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+            <SkeletonCard />
             <SkeletonCard />
             <SkeletonCard />
           </div>
@@ -253,20 +260,60 @@ export default function DashboardPage() {
         )}
 
         {fetchState.status === "success" && fetchState.data.blocks.length > 0 && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {fetchState.data.blocks.map((block) => (
-              <BlockCard
-                key={block.id}
-                block={block}
-                categoryAccent={
-                  CATEGORY_ACCENTS[block.category] ?? "#00d4ff"
-                }
-              />
-            ))}
-          </div>
+          <>
+            <DashboardStats blocks={fetchState.data.blocks} />
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+              {fetchState.data.blocks.map((block) => (
+                <BlockCard key={block.id} block={block} />
+              ))}
+            </div>
+          </>
         )}
       </main>
     </div>
+  );
+}
+
+/**
+ * DashboardStats — overview band (Tailwind UI "Stats" pattern), derived from the
+ * owner's real blocks. Above-ground count, best rank, total altitude, total spend.
+ */
+function DashboardStats({ blocks }: { blocks: DashboardBlock[] }) {
+  const aboveGround = blocks.filter((b) => !b.buried).length;
+  const bestRank = blocks.reduce(
+    (min, b) => (b.rank < min ? b.rank : min),
+    Infinity
+  );
+  const totalAltitude = blocks.reduce((sum, b) => sum + b.altitude, 0);
+  const totalSpend = blocks.reduce((sum, b) => sum + b.spend_c, 0) / 100;
+
+  const stats = [
+    { label: "Blocks owned", value: String(blocks.length) },
+    { label: "Above ground", value: `${aboveGround}/${blocks.length}` },
+    {
+      label: "Best rank",
+      value: Number.isFinite(bestRank) ? `#${bestRank}` : "—",
+    },
+    { label: "Total altitude", value: `${totalAltitude.toFixed(0)}m` },
+    { label: "Total invested", value: `$${totalSpend.toFixed(0)}` },
+  ];
+
+  return (
+    <dl className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 mb-8">
+      {stats.map((s) => (
+        <div
+          key={s.label}
+          className="bg-surface border border-border-subtle rounded-2xl shadow-card px-5 py-4"
+        >
+          <dt className="text-[11px] uppercase tracking-[0.12em] text-text-muted">
+            {s.label}
+          </dt>
+          <dd className="font-mono text-2xl font-bold text-text-primary tabular-nums mt-1">
+            {s.value}
+          </dd>
+        </div>
+      ))}
+    </dl>
   );
 }
 

@@ -1,28 +1,29 @@
 "use client";
 
 /**
- * BlockCard — Dashboard block card with altitude chart, burial risk, competitor cost.
+ * BlockCard — a single owned block on the dashboard.
  *
- * Design spec: design.md §6.16
- * AC-18: Shows category, rank, altitude, views
+ * AC-18: shows category, rank, altitude (mono), and views served
  * AC-19: AltitudeChart present per card
- * AC-20: Single-point chart works
- * AC-21–25: Burial risk and competitor cost computed by API, displayed here
- *
+ * AC-20: single-point chart works
+ * AC-21–25: burial risk + competitor cost (delegated to subcomponents)
  * R-4: AltitudeChart loaded via dynamic import ssr:false
+ *
+ * Category is resolved via getCategory() so any category (curated or future)
+ * themes correctly. Accent is used functionally — the category dot, the
+ * altitude figure, and the top-up action — not as decoration.
  */
 
-import type React from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { BurialRisk } from "./BurialRisk";
 import { CompetitorCost } from "./CompetitorCost";
+import { getCategory, categoryTheme } from "../../lib/categories";
 
-// R-4: Must be dynamic with ssr:false — Recharts crashes on server
 const AltitudeChart = dynamic(() => import("./AltitudeChart"), {
   ssr: false,
   loading: () => (
-    <div className="w-full h-[120px] bg-surface rounded-lg animate-pulse" />
+    <div className="w-full h-[120px] bg-surface-raised rounded-lg animate-pulse" />
   ),
 });
 
@@ -60,108 +61,120 @@ interface DashboardBlock {
 
 interface BlockCardProps {
   block: DashboardBlock;
-  categoryAccent: string;
 }
 
-const CATEGORY_LABELS: Record<string, string> = {
-  tech: "TECH",
-  design: "DESIGN",
-  business: "BUSINESS",
-  creative: "CREATIVE",
-  gaming: "GAMING",
-  science: "SCIENCE",
-  Tech: "TECH",
-  Design: "DESIGN",
-  Business: "BUSINESS",
-  Creative: "CREATIVE",
-  Gaming: "GAMING",
-  Science: "SCIENCE",
-};
+function domainOf(url: string): string {
+  return url.replace(/^https?:\/\//, "").replace(/\/.*$/, "");
+}
 
-export function BlockCard({ block, categoryAccent }: BlockCardProps) {
-  const categoryLabel =
-    CATEGORY_LABELS[block.category] ?? block.category.toUpperCase();
+export function BlockCard({ block }: BlockCardProps) {
+  const cat = getCategory(block.category);
 
   return (
     <article
       aria-label={`${block.display_name} block`}
+      style={categoryTheme(cat)}
       className={[
-        "bg-surface rounded-2xl border border-border-subtle p-6",
-        block.buried ? "border-l-4 border-l-danger" : "",
-      ]
-        .filter(Boolean)
-        .join(" ")}
-      style={{ "--card-accent": categoryAccent } as React.CSSProperties}
+        "rounded-xl border bg-surface p-5 shadow-card",
+        block.buried ? "border-danger/40" : "border-border-subtle",
+      ].join(" ")}
     >
-      {/* Header: category badge + top-up button */}
-      <div className="flex items-center justify-between mb-3">
-        <span
-          className="text-xs font-semibold rounded-full px-2.5 py-1 border text-text-primary uppercase"
-          style={{ borderColor: categoryAccent }}
-          aria-label={`${block.category} category`}
-        >
-          {block.buried && (
-            <span className="text-danger mr-1.5">BURIED ·</span>
-          )}
-          {categoryLabel}
+      {/* Meta row: category + rank */}
+      <div className="flex items-center justify-between">
+        <span className="inline-flex items-center gap-2 text-[11px] font-medium uppercase tracking-[0.12em] text-text-secondary">
+          <span
+            className="w-2 h-2 rounded-full"
+            style={{ backgroundColor: cat.hex }}
+            aria-hidden="true"
+          />
+          {cat.label}
         </span>
-        <Link
-          href={`/b/${block.slug}`}
-          className="text-sm font-medium px-3 py-1.5 rounded-lg border text-text-primary hover:bg-elevated transition-colors min-h-[36px] inline-flex items-center"
-          style={{ borderColor: categoryAccent }}
-          aria-label={`Top up ${block.display_name}`}
-        >
-          Top up ↑
-        </Link>
+        <div className="flex items-center gap-2">
+          {block.buried && (
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-danger bg-danger/10 border border-danger/30 rounded px-1.5 py-0.5">
+              Buried
+            </span>
+          )}
+          <span className="font-mono text-xs text-text-muted tabular-nums">
+            Rank {block.rank}
+          </span>
+        </div>
       </div>
 
-      {/* Block title */}
-      <h2 className="text-lg font-semibold text-text-primary mt-3">
+      {/* Title + domain */}
+      <h2 className="text-base font-semibold text-text-primary mt-3 truncate">
         {block.display_name}
       </h2>
-
-      {/* Rank */}
-      <p className="font-mono text-sm text-text-muted">
-        Rank {block.rank}
+      <p className="text-xs font-mono text-text-muted truncate mt-0.5">
+        {domainOf(block.url)}
       </p>
 
-      {/* Altitude — large mono number */}
-      <div className="mt-2 mb-3">
-        <span
-          className="font-mono text-3xl font-bold text-text-primary"
-          aria-label={`Current altitude: ${block.altitude.toFixed(1)} metres`}
-        >
-          {block.altitude.toFixed(1)}
-        </span>
-        <span className="text-lg text-text-muted ml-1">m</span>
+      {/* Primary metrics */}
+      <div className="mt-4 flex items-end justify-between gap-4">
+        <div>
+          <p className="text-[10px] uppercase tracking-[0.12em] text-text-muted mb-0.5">
+            Altitude
+          </p>
+          <p
+            className="font-mono text-3xl font-bold text-accent leading-none tabular-nums"
+            aria-label={`Current altitude: ${block.altitude.toFixed(1)} metres`}
+          >
+            {block.altitude.toFixed(1)}
+            <span className="text-lg text-text-muted font-normal">m</span>
+          </p>
+        </div>
+        <div className="text-right">
+          <p className="text-[10px] uppercase tracking-[0.12em] text-text-muted mb-0.5">
+            Views served
+          </p>
+          <p className="font-mono text-lg font-semibold text-text-primary tabular-nums">
+            {block.views_served.toLocaleString()}
+          </p>
+        </div>
       </div>
 
-      {/* Altitude chart — dynamic import */}
-      <AltitudeChart
-        payments={block.payments}
-        categoryAccent={categoryAccent}
-        displayName={block.display_name}
-      />
+      {/* Altitude history */}
+      <div className="mt-4">
+        <AltitudeChart
+          payments={block.payments}
+          categoryAccent={cat.hex}
+          displayName={block.display_name}
+        />
+      </div>
 
-      {/* Divider */}
       <div className="border-t border-border-subtle my-4" />
 
-      {/* Burial risk */}
       <BurialRisk
         burialRiskDays={block.burial_risk_days}
         buried={block.buried}
         amberEdge={block.amber_edge}
       />
 
-      {/* Divider */}
       <div className="border-t border-border-subtle my-4" />
 
-      {/* Competitor cost */}
       <CompetitorCost
         competitorCostUsd={block.competitor_cost_usd}
         rank={block.rank}
-        category={block.category}
+        category={cat.label}
       />
+
+      {/* Actions */}
+      <div className="mt-4 flex items-center gap-2">
+        <Link
+          href={`/b/${block.slug}`}
+          className="flex-1 text-center text-sm font-semibold rounded-lg py-2.5 bg-accent text-void hover:brightness-110 transition min-h-[44px] inline-flex items-center justify-center"
+          aria-label={`Top up ${block.display_name}`}
+        >
+          Top up ↑
+        </Link>
+        <Link
+          href={`/b/${block.slug}`}
+          className="text-sm font-medium rounded-lg px-4 py-2.5 border border-border-strong text-text-secondary hover:bg-elevated hover:text-text-primary transition min-h-[44px] inline-flex items-center"
+          aria-label={`View record page for ${block.display_name}`}
+        >
+          Record
+        </Link>
+      </div>
     </article>
   );
 }
