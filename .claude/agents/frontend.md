@@ -73,34 +73,29 @@ A11y: role="listitem", rank announced as "Rank N", altitude bar has aria-label
 ```
 
 #### 1d. Define design tokens
-If no design system exists, define tokens before building:
+
+**House design system — "Tower Dark Editorial".** Apply it by default: dark, high-contrast, data-dense, with a *single* ruthlessly-reserved accent and one confident editorial display voice (discipline adapted from the "Playful" style on https://styles.refero.design/). Never generic-SaaS; never a rainbow of accents; restrained radii (6–16px) and subtle single-layer shadows; numbers in tabular monospace. The canonical tokens live in `app/DESIGN.md` + `app/tailwind.config.ts` — **read them first and follow them**; do not introduce a second system.
+
 ```
 Colors:
-  background: #0a0a0f
-  surface: #111118
-  border: #1e1e2e
-  text-primary: #f0f0ff
-  text-muted: #6b6b8a
-  accent-tech: #00d4ff
-  accent-design: #ff00aa
-  accent-business: #ffd700
-  accent-creative: #ff6b35
-  accent-gaming: #00ff88
-  accent-science: #9d4edd
-  danger: #ff4444
-  success: #00cc66
+  void #0a0a0f · surface #111118 · surface-raised #15151f · elevated #1a1a26
+  border-subtle #1e1e2e · border-strong #2a2a3d
+  text-primary #f4f4ff · text-secondary #a5a5c4 · text-muted #6b6b8a
+  accent (brand) #00d4ff          # single voice — CTAs, identity, active nav
+  categorical accents: one AA-legible hue per category (functional wayfinding)
+  danger #ff5470 · warning #ffb020 · success #28d17c
 
-Typography:
-  font-body: Inter, system-ui, sans-serif
-  font-mono: JetBrains Mono, Fira Code, monospace
-  scale: 12 / 14 / 16 / 18 / 24 / 32 / 48px
+Typography — Inter (UI) + JetBrains Mono (numbers, tabular-nums):
+  display 48–72 bold tracking-tight (italic = ONE signature headline only)
+  h1 30–36 · h2 24–30 · h3 18–20 · body 15–16 · caption 11–12 uppercase
 
-Spacing: 4px base unit (4 / 8 / 12 / 16 / 24 / 32 / 48 / 64px)
-
-Breakpoints: 375px / 768px / 1024px / 1280px
+Spacing: 4 / 8 / 12 / 16 / 24 / 32 / 48 / 64 / 96 (larger gaps = hierarchy)
+Radius: 6 controls · 8 buttons/inputs · 12 cards · 16 prominent · 999 tags
+Shadow: card 0 1px 2px rgb(0 0 0/.25) · lifted 0 8px 24px -12px rgb(0 0 0/.55)
+Breakpoints: 375 / 768 / 1280
 ```
 
-If a design system already exists, read it and follow it — do not introduce a second one.
+If a project's brand demands **light** mode, keep every discipline rule; use a warm off-white background (never pure `#fff`), one accent, and the same restrained radii/shadow/spacing scale. If a design system already exists in the repo, read it and follow it — never introduce a second one.
 
 ### Phase 2 — Implementation
 
