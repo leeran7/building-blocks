@@ -101,28 +101,38 @@ const steps: Step[] = [
 export function HowItWorks() {
   return (
     <section
+      id="how-it-works"
       aria-label="How Tower works"
-      className="py-16 px-4"
+      className="scroll-mt-20 py-16 px-4 border-t border-border-subtle bg-surface/30"
     >
-      <div className="max-w-5xl mx-auto">
-        <h2 className="text-2xl font-semibold text-text-primary mb-12 text-center">
-          How it works
-        </h2>
+      <div className="max-w-6xl mx-auto">
+        <div className="text-center mb-12">
+          <span className="text-xs uppercase tracking-[0.2em] text-accent-tech font-medium">
+            The rules
+          </span>
+          <h2 className="text-2xl md:text-3xl font-bold text-text-primary mt-2 tracking-tight">
+            How it works
+          </h2>
+        </div>
 
-        <ol className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <ol className="grid grid-cols-1 md:grid-cols-3 gap-5">
           {steps.map((step) => (
             <li
               key={step.number}
-              className="bg-surface rounded-xl p-6 border border-border-subtle hover:border-accent-tech/40 transition-colors"
+              className="group relative bg-surface rounded-2xl p-6 border border-border-subtle hover:border-accent-tech/40 transition-colors"
             >
-              <div className="text-accent-tech mb-4">{step.icon}</div>
-              <div className="font-mono text-sm text-text-muted mb-2">
-                {step.number}
+              <div className="flex items-center justify-between mb-5">
+                <div className="w-12 h-12 rounded-xl bg-void border border-border-subtle flex items-center justify-center text-accent-tech [&_svg]:w-6 [&_svg]:h-6">
+                  {step.icon}
+                </div>
+                <span className="font-mono text-2xl font-bold text-border-strong group-hover:text-accent-tech/40 transition-colors">
+                  {step.number}
+                </span>
               </div>
-              <h3 className="text-lg font-semibold text-text-primary mb-2">
+              <h3 className="text-lg font-bold text-text-primary mb-2">
                 {step.title}
               </h3>
-              <p className="text-sm text-text-muted leading-relaxed">
+              <p className="text-sm text-text-secondary leading-relaxed">
                 {step.description}
               </p>
             </li>

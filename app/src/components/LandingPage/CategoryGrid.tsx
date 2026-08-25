@@ -1,50 +1,31 @@
 /**
- * CategoryGrid — Live category cards on the landing page.
+ * CategoryGrid — live "featured towers" on the landing page.
  *
- * Design spec: design.md §6.6
- * Server component — fetches data at render time.
+ * AC-27: exactly 6 category cards
+ * AC-28: each card shows live block count + top block name
+ * AC-29: API failure → placeholder "—", no crash
  *
- * AC-28: Each card shows live block count + top block name
- * AC-29: API failure → placeholder "--", no crash
- * WCAG: accent used as border-top only (decorative), not as text
+ * Cards are themed per category via categoryTheme() so `text-accent`/`bg-accent`
+ * resolve to each tower's color. The curated six are the "featured" set; the
+ * category system itself is infinite-ready (see src/lib/categories.ts).
  */
 
-import type React from "react";
 import Link from "next/link";
+import { FEATURED_CATEGORIES, categoryTheme, type Category } from "../../lib/categories";
 
 const BASE_URL = process.env.BASE_URL ?? "http://localhost:3000";
 
-interface CategoryConfig {
-  slug: string;
-  label: string;
-  accent: string;
-}
-
-const CATEGORIES: CategoryConfig[] = [
-  { slug: "tech", label: "Tech", accent: "#00d4ff" },
-  { slug: "design", label: "Design", accent: "#ff6b9d" },
-  { slug: "business", label: "Business", accent: "#ffd700" },
-  { slug: "creative", label: "Creative", accent: "#9b59b6" },
-  { slug: "gaming", label: "Gaming", accent: "#00ff88" },
-  { slug: "science", label: "Science", accent: "#ff8c00" },
-];
-
-interface CategoryCardData {
-  slug: string;
-  label: string;
-  accent: string;
+interface CategoryCardData extends Category {
   blockCount: number | null;
   topBlockName: string | null;
 }
 
-async function fetchCategoryData(cat: CategoryConfig): Promise<CategoryCardData> {
+async function fetchCategoryData(cat: Category): Promise<CategoryCardData> {
   try {
     const res = await fetch(`${BASE_URL}/api/tower/${cat.slug}`, {
       next: { revalidate: 60 },
     });
-    if (!res.ok) {
-      return { ...cat, blockCount: null, topBlockName: null };
-    }
+    if (!res.ok) return { ...cat, blockCount: null, topBlockName: null };
     const data = await res.json();
     const visibleBlocks = (data.blocks ?? []).filter(
       (b: { buried: boolean }) => !b.buried
@@ -61,15 +42,21 @@ async function fetchCategoryData(cat: CategoryConfig): Promise<CategoryCardData>
 }
 
 export async function CategoryGrid() {
-  // Fetch all 6 categories in parallel (AC-29: individual failures are graceful)
-  const cards = await Promise.all(CATEGORIES.map(fetchCategoryData));
+  const cards = await Promise.all(FEATURED_CATEGORIES.map(fetchCategoryData));
 
   return (
-    <section aria-label="Category towers" className="py-12 px-4">
-      <div className="max-w-5xl mx-auto">
-        <h2 className="text-2xl font-semibold text-text-primary mb-8">
-          Live towers
-        </h2>
+    <section aria-label="Category towers" className="py-16 px-4">
+      <div className="max-w-6xl mx-auto">
+        <div className="flex items-end justify-between mb-8 gap-4">
+          <div>
+            <h2 className="text-2xl md:text-3xl font-bold text-text-primary tracking-tight">
+              Live towers
+            </h2>
+            <p className="text-sm text-text-muted mt-1">
+              Six arenas. Pick your fight.
+            </p>
+          </div>
+        </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {cards.map((card) => (
@@ -77,36 +64,50 @@ export async function CategoryGrid() {
               key={card.slug}
               href={`/tower/${card.slug}`}
               aria-label={`Browse ${card.label} tower, ${card.blockCount ?? 0} blocks`}
-              className="group bg-surface rounded-xl p-6 border border-border-subtle hover:scale-[1.01] transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus"
-              style={
-                {
-                  "--card-accent": card.accent,
-                  borderTop: `4px solid ${card.accent}`,
-                } as React.CSSProperties
-              }
+              style={categoryTheme(card)}
+              className="group relative overflow-hidden rounded-2xl border border-border-subtle bg-surface p-6 transition-all hover:border-accent/40 hover:-translate-y-0.5 hover:shadow-lifted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
             >
-              {/* Category name */}
-              <h3 className="text-xl font-semibold text-text-primary">
-                {card.label}
-              </h3>
+              {/* Accent wash on hover */}
+              <div
+                aria-hidden="true"
+                className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                style={{
+                  background:
+                    "radial-gradient(120% 80% at 0% 0%, rgb(var(--accent-rgb) / 0.10), transparent 60%)",
+                }}
+              />
 
-              {/* Block count */}
-              <div className="mt-2">
-                <span
-                  className="font-mono text-2xl font-bold text-text-primary"
-                  aria-label={`${card.blockCount ?? 0} blocks live`}
-                >
-                  {card.blockCount ?? "—"}
-                </span>
-                <span className="text-sm text-text-muted ml-2">blocks live</span>
-              </div>
+              <div className="relative z-10">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <span className="w-2.5 h-2.5 rounded-full bg-accent" />
+                    <h3 className="text-lg font-bold text-text-primary">
+                      {card.label}
+                    </h3>
+                  </div>
+                  <span className="text-text-muted text-lg transition-transform group-hover:translate-x-0.5">
+                    →
+                  </span>
+                </div>
 
-              {/* Top block */}
-              <div className="mt-3">
-                <p className="text-xs text-text-muted">Top block</p>
-                <p className="text-sm font-medium text-text-primary truncate mt-0.5">
-                  {card.topBlockName ?? (card.blockCount === 0 ? "No blocks yet" : "—")}
-                </p>
+                <p className="text-xs text-text-muted mt-2">{card.blurb}</p>
+
+                <div className="mt-5 flex items-baseline gap-2">
+                  <span className="font-mono text-3xl font-bold text-text-primary tabular-nums">
+                    {card.blockCount ?? "—"}
+                  </span>
+                  <span className="text-sm text-text-muted">blocks live</span>
+                </div>
+
+                <div className="mt-4 pt-4 border-t border-border-subtle">
+                  <p className="text-[10px] text-text-muted uppercase tracking-[0.15em]">
+                    Leader
+                  </p>
+                  <p className="text-sm font-medium text-accent truncate mt-1">
+                    {card.topBlockName ??
+                      (card.blockCount === 0 ? "No blocks yet" : "—")}
+                  </p>
+                </div>
               </div>
             </Link>
           ))}

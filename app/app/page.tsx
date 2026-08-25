@@ -13,6 +13,8 @@ import { Hero } from "../src/components/LandingPage/Hero";
 import { HowItWorks } from "../src/components/LandingPage/HowItWorks";
 import { CategoryGrid } from "../src/components/LandingPage/CategoryGrid";
 import { Footer } from "../src/components/LandingPage/Footer";
+import { Faq } from "../src/components/LandingPage/Faq";
+import { Navbar } from "../src/components/Navbar";
 import { Suspense } from "react";
 
 const BASE_URL = process.env.BASE_URL ?? "http://localhost:3000";
@@ -56,13 +58,18 @@ async function SocialProofStrip() {
   const proof = await getSocialProofData();
 
   return (
-    <div className="bg-elevated py-4 w-full">
-      <p className="text-sm text-text-muted text-center">
+    <div className="border-y border-border-subtle bg-surface/40 py-3">
+      <p className="text-sm text-text-muted text-center flex items-center justify-center gap-1.5">
+        <span className="w-1.5 h-1.5 rounded-full bg-success animate-pulse" aria-hidden="true" />
         {proof ? (
           <>
-            <span className="font-mono text-text-primary">{proof.totalBlocks}</span>
+            <span className="font-mono font-semibold text-text-primary tabular-nums">
+              {proof.totalBlocks}
+            </span>
             {" blocks live across "}
-            <span className="font-mono text-text-primary">{proof.arenaCount}</span>
+            <span className="font-mono font-semibold text-text-primary tabular-nums">
+              {proof.arenaCount}
+            </span>
             {" arenas"}
           </>
         ) : (
@@ -76,34 +83,13 @@ async function SocialProofStrip() {
 export default async function HomePage() {
   return (
     <main className="min-h-screen bg-void">
-      {/* Minimal nav */}
-      <nav className="fixed top-0 left-0 right-0 z-20 flex items-center justify-between px-4 py-3 bg-void/80 backdrop-blur border-b border-border-subtle">
-        <span className="text-xl font-semibold text-text-primary">Tower</span>
-        <div className="flex items-center gap-3">
-          <a
-            href="/auth/signin"
-            className="text-sm text-text-muted hover:text-text-primary transition-colors min-h-[44px] inline-flex items-center"
-          >
-            Sign in
-          </a>
-          <a
-            href="/auth/signup"
-            className="text-sm font-medium bg-surface border border-border-subtle rounded-lg px-4 py-2 text-text-primary hover:bg-elevated transition-colors min-h-[44px] inline-flex items-center"
-          >
-            Get started
-          </a>
-        </div>
-      </nav>
+      <Navbar />
 
-      {/* Hero — full-bleed, padded-top for nav */}
-      <div className="pt-[56px]">
-        <Hero />
-      </div>
+      <Hero />
 
-      {/* Social proof strip */}
       <Suspense
         fallback={
-          <div className="bg-elevated py-4">
+          <div className="border-y border-border-subtle bg-surface/40 py-3">
             <div className="h-4 bg-border-subtle rounded w-48 mx-auto animate-pulse" />
           </div>
         }
@@ -111,13 +97,12 @@ export default async function HomePage() {
         <SocialProofStrip />
       </Suspense>
 
-      {/* How it works */}
       <HowItWorks />
 
-      {/* Category grid */}
       <CategoryGrid />
 
-      {/* Footer */}
+      <Faq />
+
       <Footer />
     </main>
   );
