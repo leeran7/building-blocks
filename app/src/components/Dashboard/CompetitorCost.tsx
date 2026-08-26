@@ -22,20 +22,20 @@ export function CompetitorCost({
   // AC-25: Rank 1 — no competitor cost
   if (rank === 1 || competitorCostUsd === null) {
     return (
-      <div className="bg-elevated rounded-lg px-4 py-3 text-center">
-        <p className="text-sm text-text-muted italic">
-          You are rank #1 in {category}
+      <div className="rounded-lg border border-signal/25 bg-signal/[0.06] px-4 py-3 text-center">
+        <p className="font-mono text-xs uppercase tracking-[0.14em] text-signal">
+          ▲ You hold #1 in {category}
         </p>
       </div>
     );
   }
 
   return (
-    <div className="bg-elevated rounded-lg px-4 py-3 text-center">
-      <p className="text-xs text-text-muted uppercase tracking-wider mb-1">
+    <div className="rounded-lg border border-border-subtle bg-surface-raised px-4 py-3 text-center">
+      <p className="font-mono text-[10px] text-text-muted uppercase tracking-[0.14em] mb-1">
         To overtake rank #{rank - 1}
       </p>
-      <p className="font-mono text-xl font-bold text-text-primary">
+      <p className="font-mono text-xl font-bold text-signal tabular-nums">
         ${competitorCostUsd.toFixed(2)}
       </p>
     </div>

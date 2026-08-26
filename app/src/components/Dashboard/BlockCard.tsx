@@ -75,63 +75,76 @@ export function BlockCard({ block }: BlockCardProps) {
       aria-label={`${block.display_name} block`}
       style={categoryTheme(cat)}
       className={[
-        "rounded-xl border bg-surface p-5 shadow-card",
-        block.buried ? "border-danger/40" : "border-border-subtle",
+        "relative overflow-hidden rounded-2xl border bg-surface p-5 shadow-lifted",
+        block.buried ? "border-ember/40" : "border-border-strong edge-signal",
       ].join(" ")}
     >
-      {/* Meta row: category + rank */}
-      <div className="flex items-center justify-between">
-        <span className="inline-flex items-center gap-2 text-[11px] font-medium uppercase tracking-[0.12em] text-text-secondary">
-          <span
-            className="w-2 h-2 rounded-full"
-            style={{ backgroundColor: cat.hex }}
-            aria-hidden="true"
-          />
-          {cat.label}
-        </span>
-        <div className="flex items-center gap-2">
-          {block.buried && (
-            <span className="text-[10px] font-semibold uppercase tracking-wider text-danger bg-danger/10 border border-danger/30 rounded px-1.5 py-0.5">
-              Buried
-            </span>
-          )}
-          <span className="font-mono text-xs text-text-muted tabular-nums">
-            Rank {block.rank}
+      {/* survey-grid backdrop */}
+      <div className="pointer-events-none absolute inset-0 survey-grid opacity-40" />
+      {block.buried && (
+        <div
+          className="ground-gradient animate-groundRise pointer-events-none absolute inset-x-0 bottom-0 h-16 opacity-50"
+          aria-hidden="true"
+        />
+      )}
+
+      <div className="relative">
+        {/* Meta row: category + rank */}
+        <div className="flex items-center justify-between">
+          <span className="inline-flex items-center gap-2 font-mono text-[10px] font-medium uppercase tracking-[0.14em] text-text-secondary">
+            <span
+              className="w-2 h-2 rounded-full"
+              style={{ backgroundColor: cat.hex }}
+              aria-hidden="true"
+            />
+            {cat.label}
           </span>
+          <div className="flex items-center gap-2">
+            {block.buried && (
+              <span className="font-mono text-[10px] font-semibold uppercase tracking-[0.12em] text-ember bg-ember/10 border border-ember/30 rounded px-1.5 py-0.5">
+                Buried
+              </span>
+            )}
+            <span className="font-mono text-xs text-text-muted tabular-nums">
+              Rank {block.rank}
+            </span>
+          </div>
         </div>
-      </div>
 
-      {/* Title + domain */}
-      <h2 className="text-base font-semibold text-text-primary mt-3 truncate">
-        {block.display_name}
-      </h2>
-      <p className="text-xs font-mono text-text-muted truncate mt-0.5">
-        {domainOf(block.url)}
-      </p>
+        {/* Title + domain */}
+        <h2 className="font-display text-xl text-text-primary mt-3 truncate">
+          {block.display_name}
+        </h2>
+        <p className="text-xs font-mono text-text-muted truncate mt-0.5">
+          {domainOf(block.url)}
+        </p>
 
-      {/* Primary metrics */}
-      <div className="mt-4 flex items-end justify-between gap-4">
-        <div>
-          <p className="text-[10px] uppercase tracking-[0.12em] text-text-muted mb-0.5">
-            Altitude
-          </p>
-          <p
-            className="font-mono text-3xl font-bold text-accent leading-none tabular-nums"
-            aria-label={`Current altitude: ${block.altitude.toFixed(1)} metres`}
-          >
-            {block.altitude.toFixed(1)}
-            <span className="text-lg text-text-muted font-normal">m</span>
-          </p>
+        {/* Primary metrics */}
+        <div className="mt-4 flex items-end justify-between gap-4">
+          <div>
+            <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-text-muted mb-0.5">
+              Altitude
+            </p>
+            <p
+              className={[
+                "font-mono text-4xl font-bold leading-none tabular-nums",
+                block.buried ? "text-ember" : "text-signal",
+              ].join(" ")}
+              aria-label={`Current altitude: ${block.altitude.toFixed(1)} metres`}
+            >
+              {block.altitude.toFixed(1)}
+              <span className="text-lg text-text-muted font-normal">m</span>
+            </p>
+          </div>
+          <div className="text-right">
+            <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-text-muted mb-0.5">
+              Views served
+            </p>
+            <p className="font-mono text-lg font-semibold text-text-primary tabular-nums">
+              {block.views_served.toLocaleString()}
+            </p>
+          </div>
         </div>
-        <div className="text-right">
-          <p className="text-[10px] uppercase tracking-[0.12em] text-text-muted mb-0.5">
-            Views served
-          </p>
-          <p className="font-mono text-lg font-semibold text-text-primary tabular-nums">
-            {block.views_served.toLocaleString()}
-          </p>
-        </div>
-      </div>
 
       {/* Altitude history */}
       <div className="mt-4">
@@ -158,22 +171,23 @@ export function BlockCard({ block }: BlockCardProps) {
         category={cat.label}
       />
 
-      {/* Actions */}
-      <div className="mt-4 flex items-center gap-2">
-        <Link
-          href={`/b/${block.slug}`}
-          className="flex-1 text-center text-sm font-semibold rounded-lg py-2.5 bg-accent text-void hover:brightness-110 transition min-h-[44px] inline-flex items-center justify-center"
-          aria-label={`Top up ${block.display_name}`}
-        >
-          Top up ↑
-        </Link>
-        <Link
-          href={`/b/${block.slug}`}
-          className="text-sm font-medium rounded-lg px-4 py-2.5 border border-border-strong text-text-secondary hover:bg-elevated hover:text-text-primary transition min-h-[44px] inline-flex items-center"
-          aria-label={`View record page for ${block.display_name}`}
-        >
-          Record
-        </Link>
+        {/* Actions */}
+        <div className="mt-4 flex items-center gap-2">
+          <Link
+            href={`/b/${block.slug}`}
+            className="flex-1 text-center text-sm font-semibold rounded-full py-2.5 bg-signal text-void shadow-signal hover:brightness-110 active:scale-[0.98] transition-[filter,transform] min-h-[44px] inline-flex items-center justify-center"
+            aria-label={`Top up ${block.display_name}`}
+          >
+            Top up ↑
+          </Link>
+          <Link
+            href={`/b/${block.slug}`}
+            className="text-sm font-medium rounded-full px-4 py-2.5 border border-border-strong text-text-secondary hover:bg-elevated hover:text-text-primary transition min-h-[44px] inline-flex items-center"
+            aria-label={`View record page for ${block.display_name}`}
+          >
+            Record
+          </Link>
+        </div>
       </div>
     </article>
   );

@@ -20,18 +20,15 @@ export function BurialRisk({
   buried,
   amberEdge,
 }: BurialRiskProps) {
+  const LABEL = "font-mono text-[10px] text-text-muted uppercase tracking-[0.14em] mb-2";
+
   // AC-22: Buried state
   if (buried) {
     return (
       <div>
-        <p className="text-xs text-text-muted uppercase tracking-wider mb-2">
-          Burial risk
-        </p>
-        <p
-          className="text-sm font-semibold text-danger"
-          aria-live="polite"
-        >
-          Buried
+        <p className={LABEL}>Burial risk</p>
+        <p className="text-sm font-semibold text-ember" aria-live="polite">
+          ▼ Buried
         </p>
       </div>
     );
@@ -41,9 +38,7 @@ export function BurialRisk({
   if (burialRiskDays === null) {
     return (
       <div>
-        <p className="text-xs text-text-muted uppercase tracking-wider mb-2">
-          Burial risk
-        </p>
+        <p className={LABEL}>Burial risk</p>
         <p className="text-sm text-success">
           Safe — will not be buried this season
         </p>
@@ -51,27 +46,25 @@ export function BurialRisk({
     );
   }
 
-  // Color: green >14 days, amber 1–14 days, red 0
+  // Color: success >14 days, warning 1–14 days, ember 0
   const barColor =
     burialRiskDays > 14
-      ? "#00cc66"      // success
+      ? "#8fd14f"      // success
       : burialRiskDays > 0
-        ? "#f59e0b"    // amber
-        : "#ff4444";   // danger
+        ? "#ffb020"    // warning
+        : "#ff5a2c";   // ember
 
   const textColor =
     burialRiskDays > 14
       ? "text-text-primary"
-      : "text-danger"; // amber or red — high urgency per spec
+      : "text-ember"; // amber or red — high urgency per spec
 
   // Fill width: scale 0-100 over 30 days
   const fillPct = Math.min(100, (burialRiskDays / 30) * 100);
 
   return (
     <div>
-      <p className="text-xs text-text-muted uppercase tracking-wider mb-2">
-        Burial risk
-      </p>
+      <p className={LABEL}>Burial risk</p>
 
       {/* Meter bar */}
       <div
@@ -88,7 +81,7 @@ export function BurialRisk({
         />
       </div>
 
-      <p className={`text-sm font-mono ${textColor}`}>
+      <p className={`text-sm font-mono tabular-nums ${textColor}`}>
         {burialRiskDays} {burialRiskDays === 1 ? "day" : "days"} until burial
       </p>
     </div>
