@@ -35,17 +35,19 @@ export function GroundRow({ ground, views_k }: GroundRowProps) {
         <div className="flex-1 h-px bg-gradient-to-l from-transparent to-ember/80" />
       </div>
 
-      {/* Rising-ground gradient — the hazard creeping up into the buried zone */}
-      <div
-        className="ground-gradient animate-groundRise h-8 mt-1 rounded-b-sm"
-        aria-hidden="true"
-      />
-
-      <p className="text-center -mt-4 relative">
-        <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-text-muted tabular-nums">
+      {/* Meta caption — kept on the dark surface (above the molten band) so it
+          stays legible; text over the ember gradient washes out. */}
+      <p className="text-center mt-2">
+        <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-text-secondary tabular-nums">
           {(views_k * 1000).toLocaleString()} views served · rising
         </span>
       </p>
+
+      {/* Rising-ground gradient — purely decorative; no text over it. */}
+      <div
+        className="ground-gradient animate-groundRise h-6 mt-2 rounded-b-sm"
+        aria-hidden="true"
+      />
     </div>
   );
 }
