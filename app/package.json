@@ -5,7 +5,9 @@
   "packageManager": "pnpm@9.0.0",
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "prisma generate && next build",
+    "setup": "pnpm install && pnpm run build",
+    "postinstall": "prisma generate",
     "start": "next start",
     "lint": "next lint",
     "test": "vitest run",
