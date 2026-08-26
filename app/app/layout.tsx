@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { Bricolage_Grotesque, Hanken_Grotesk, Space_Mono } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "../src/contexts/AuthContext";
-import { PUBLIC_CONFIG } from "../src/config/public";
+import { resolveBaseUrl } from "../src/config/public";
 
 // ── ASCENT type system ────────────────────────────────────────────────────
 // Display: Bricolage Grotesque — architectural, contemporary, characterful.
@@ -34,9 +34,8 @@ const mono = Space_Mono({
   display: "swap",
 });
 
-const BASE_URL = process.env.BASE_URL ?? "http://localhost:3000";
-// Public canonical origin — used for OG/Twitter image + canonical URL resolution.
-const SITE_URL = PUBLIC_CONFIG.siteUrl;
+// Localhost in dev, the prod domain in production (see resolveBaseUrl).
+const BASE_URL = resolveBaseUrl();
 
 export async function generateMetadata(): Promise<Metadata> {
   let topBlockId = "";
@@ -63,7 +62,7 @@ export async function generateMetadata(): Promise<Metadata> {
   const ogUrl = `${BASE_URL}/api/og?v=${topBlockId}&name=${encodeURIComponent(topBlockName)}&alt=${topAlt}&rank=1`;
 
   return {
-    metadataBase: new URL(SITE_URL),
+    metadataBase: new URL(BASE_URL),
     title: "Doomstack — Altitude is permanent",
     description:
       "Your altitude is permanent. The ground rises instead. The price of #1 falls with every thousand views — until someone buys it.",

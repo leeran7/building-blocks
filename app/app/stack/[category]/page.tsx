@@ -13,9 +13,10 @@
 import { redirect } from "next/navigation";
 import { CategoryShell } from "../../../src/components/CategoryShell";
 import { TowerView, type TowerData } from "../../../src/components/Tower/TowerView";
+import { resolveBaseUrl } from "../../../src/config/public";
 import { isGameCategory, resolveGameCategory } from "../../../src/game/categories";
 
-const BASE_URL = process.env.BASE_URL ?? "http://localhost:3000";
+const BASE_URL = resolveBaseUrl();
 
 interface TowerPageProps {
   params: { category: string };

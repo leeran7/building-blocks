@@ -9,6 +9,7 @@
  */
 
 import { notFound } from "next/navigation";
+import { resolveBaseUrl } from "../../../src/config/public";
 import { getBlockBySlug, getBlockSeasonHistory } from "../../../src/db/blocks";
 import { getTotalSpend } from "../../../src/db/payments";
 import { getOrCreateActiveSeason } from "../../../src/db/seasons";
@@ -20,7 +21,7 @@ import { RankAnimation } from "../../../src/components/RecordPage/RankAnimation"
 import { getCategory, categoryTheme } from "../../../src/lib/categories";
 import { Navbar } from "../../../src/components/Navbar";
 
-const BASE_URL = process.env.BASE_URL ?? "http://localhost:3000";
+const BASE_URL = resolveBaseUrl();
 
 interface RecordPageProps {
   params: { slug: string };

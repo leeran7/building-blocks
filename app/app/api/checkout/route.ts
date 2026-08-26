@@ -24,6 +24,7 @@ import { loadConstants } from "../../../src/engine/constants";
 import { validateUrl } from "../../../src/lib/validateUrl";
 import { uniqueSlug } from "../../../src/lib/slugify";
 import { getStripe } from "../../../src/api/stripe";
+import { resolveBaseUrl } from "../../../src/config/public";
 
 export const runtime = "nodejs";
 
@@ -175,7 +176,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     // Create Stripe Checkout session
     const stripe = getStripe();
-    const baseUrl = process.env.BASE_URL ?? "http://localhost:3000";
+    const baseUrl = resolveBaseUrl();
 
     // Find block slug for redirect
     const block = await getBlockById(blockId);

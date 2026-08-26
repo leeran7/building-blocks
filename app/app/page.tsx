@@ -17,12 +17,13 @@ import { Footer } from "../src/components/LandingPage/Footer";
 import { Faq } from "../src/components/LandingPage/Faq";
 import { Navbar } from "../src/components/Navbar";
 import { getBlockCountsByCategory } from "../src/db/blocks";
+import { resolveBaseUrl } from "../src/config/public";
 import { getGlobalClimbStats } from "../src/db/climb";
 import { GAME_CATEGORIES } from "../src/game/categories";
 import { loadConstants } from "../src/engine/constants";
 import { Suspense } from "react";
 
-const BASE_URL = process.env.BASE_URL ?? "http://localhost:3000";
+const BASE_URL = resolveBaseUrl();
 
 // ISR: serve the landing from cache and regenerate at most once per 60s, so the
 // highest-traffic page doesn't hit the DB (block counts + social proof) on every
