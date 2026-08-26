@@ -15,65 +15,85 @@ const DECO_BARS = [94, 72, 58, 40];
 
 export function AuthShell({ children }: { children: ReactNode }) {
   return (
-    <div className="min-h-[100dvh] bg-void md:grid md:grid-cols-[1.1fr_1fr]">
+    <div className="grain min-h-[100dvh] bg-void md:grid md:grid-cols-[1.1fr_1fr]">
       {/* Brand panel — desktop only */}
-      <aside className="relative hidden md:flex flex-col justify-between p-10 lg:p-14 border-r border-border-subtle overflow-hidden">
+      <aside className="topo relative hidden md:flex flex-col justify-between p-10 lg:p-14 border-r border-border-subtle overflow-hidden">
         <div
           aria-hidden="true"
           className="absolute inset-0 pointer-events-none"
           style={{
             background:
-              "radial-gradient(90% 70% at 15% 5%, rgba(0,212,255,0.14), rgba(176,124,214,0.06) 45%, transparent 70%)",
+              "radial-gradient(90% 70% at 15% 5%, rgb(203 242 77 / 0.12), transparent 55%), radial-gradient(80% 60% at 90% 110%, rgb(255 90 44 / 0.10), transparent 60%)",
           }}
         />
         <Link
           href="/"
-          className="relative z-10 text-lg font-bold tracking-tight text-text-primary w-fit"
+          className="relative z-10 flex items-center gap-2.5 w-fit"
         >
-          Tower
+          <span className="h-6 w-[3px] rounded-full bg-signal" aria-hidden="true" />
+          <span className="font-display text-xl tracking-tight text-text-primary">
+            TOWER
+          </span>
         </Link>
 
         <div className="relative z-10 max-w-sm">
-          <h2 className="font-display text-4xl text-text-primary">
+          <span className="font-mono text-[11px] uppercase tracking-[0.2em] text-signal">
+            [ enlist ]
+          </span>
+          <h2 className="font-display text-5xl text-text-primary mt-3 leading-[0.95]">
             Buy altitude.
             <br />
-            <span className="text-accent-tech">Outlast everyone.</span>
+            Outlast{" "}
+            <span className="text-signal">everyone.</span>
           </h2>
-          <p className="text-sm text-text-secondary mt-3">
+          <p className="text-sm text-text-secondary mt-4">
             Your height is permanent — but the ground keeps rising. Claim your
             block before someone buries it.
           </p>
 
-          {/* Mini-tower deco */}
+          {/* Mini elevation deco */}
           <div className="mt-8 space-y-2" aria-hidden="true">
-            {DECO_BARS.map((w, i) => (
-              <div
-                key={i}
-                className={`relative h-9 rounded-lg border bg-surface overflow-hidden flex items-center px-3 ${
-                  i === 0 ? "border-accent-tech/40" : "border-border-subtle"
-                }`}
-              >
-                <span
-                  className="absolute inset-y-0 left-0"
-                  style={{
-                    width: `${w}%`,
-                    background:
-                      "linear-gradient(90deg, rgba(0,212,255,0.16), transparent)",
-                  }}
-                />
-                <span
-                  className={`relative z-10 font-mono text-xs font-bold ${
-                    i === 0 ? "text-accent-tech" : "text-text-secondary"
+            {DECO_BARS.map((w, i) => {
+              const buried = i === DECO_BARS.length - 1;
+              const leader = i === 0;
+              return (
+                <div
+                  key={i}
+                  className={`relative h-9 rounded-lg border bg-surface overflow-hidden flex items-center px-3 ${
+                    leader
+                      ? "border-signal/45"
+                      : buried
+                        ? "border-ember/25 opacity-60"
+                        : "border-border-subtle"
                   }`}
                 >
-                  #{i + 1}
-                </span>
-              </div>
-            ))}
+                  <span
+                    className="absolute inset-y-0 left-0"
+                    style={{
+                      width: `${w}%`,
+                      background: buried
+                        ? "linear-gradient(90deg, rgb(255 90 44 / 0.16), transparent)"
+                        : "linear-gradient(90deg, rgb(203 242 77 / 0.16), transparent)",
+                    }}
+                  />
+                  <span
+                    className={`relative z-10 font-mono text-xs font-bold tabular-nums ${
+                      leader
+                        ? "text-signal"
+                        : buried
+                          ? "text-ember"
+                          : "text-text-secondary"
+                    }`}
+                  >
+                    #{i + 1}
+                  </span>
+                </div>
+              );
+            })}
           </div>
         </div>
 
-        <p className="relative z-10 text-xs text-text-muted">
+        <p className="relative z-10 font-mono text-[11px] uppercase tracking-[0.14em] text-text-muted">
           © {new Date().getFullYear()} Tower
         </p>
       </aside>

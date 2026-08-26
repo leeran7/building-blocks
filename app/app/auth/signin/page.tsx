@@ -13,7 +13,7 @@
  * WCAG:
  * - All fields have associated <label>
  * - Errors use role="alert" aria-live="assertive"
- * - Focus ring: ring-accent-tech (5.2:1)
+ * - Focus ring: ring-signal (5.2:1)
  *
  * useSearchParams requires a Suspense boundary in Next.js 14.
  * SignInForm is the inner component; SignInPage wraps it in Suspense.
@@ -121,7 +121,7 @@ function WarningIcon() {
 }
 
 const INPUT_BASE =
-  "w-full bg-surface border border-border-subtle rounded-lg px-4 py-3 text-base text-text-primary placeholder-text-muted focus:outline-none focus:border-accent-tech focus:ring-1 focus:ring-accent-tech transition-colors";
+  "w-full bg-surface border border-border-subtle rounded-lg px-4 py-3 text-base text-text-primary placeholder-text-muted focus:outline-none focus:border-signal focus:ring-1 focus:ring-signal transition-colors";
 
 /** Inner form that reads useSearchParams — must be wrapped in Suspense */
 function SignInForm() {
@@ -313,7 +313,7 @@ function SignInForm() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-accent-tech text-void font-semibold rounded-lg py-3 text-base transition-all hover:brightness-110 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 min-h-[44px]"
+            className="w-full bg-signal text-void font-semibold rounded-lg py-3 text-base transition-all hover:brightness-110 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 min-h-[44px]"
           >
             {loading ? (
               <>
@@ -377,7 +377,7 @@ function SignInForm() {
           Don&apos;t have an account?{" "}
           <Link
             href="/auth/signup"
-            className="text-accent-tech hover:underline"
+            className="text-signal hover:underline"
           >
             Sign up
           </Link>
@@ -393,7 +393,7 @@ export default function SignInPage() {
     <Suspense
       fallback={
         <main className="min-h-screen bg-void flex items-center justify-center">
-          <div className="w-8 h-8 border-2 border-text-muted/30 border-t-accent-tech rounded-full animate-spin" />
+          <div className="w-8 h-8 border-2 border-text-muted/30 border-t-signal rounded-full animate-spin" />
         </main>
       }
     >

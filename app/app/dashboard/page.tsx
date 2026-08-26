@@ -156,7 +156,7 @@ export default function DashboardPage() {
   if (authLoading) {
     return (
       <div className="min-h-screen bg-void flex items-center justify-center">
-        <div className="w-8 h-8 border-2 border-text-muted/30 border-t-accent-tech rounded-full animate-spin" />
+        <div className="w-8 h-8 border-2 border-text-muted/30 border-t-signal rounded-full animate-spin" />
       </div>
     );
   }
@@ -173,7 +173,7 @@ export default function DashboardPage() {
         <div className="flex items-center gap-3">
           <Link
             href="/"
-            className="text-lg font-bold tracking-tight text-text-primary hover:text-accent-tech transition-colors"
+            className="text-lg font-bold tracking-tight text-text-primary hover:text-signal transition-colors"
           >
             Tower
           </Link>
@@ -206,7 +206,7 @@ export default function DashboardPage() {
         </div>
         <Link
           href="/submit"
-          className="flex-shrink-0 bg-accent-tech text-void font-semibold rounded-lg px-5 py-2.5 hover:brightness-110 transition min-h-[44px] inline-flex items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-tech focus-visible:ring-offset-2 focus-visible:ring-offset-void"
+          className="flex-shrink-0 bg-signal text-void font-semibold rounded-lg px-5 py-2.5 hover:brightness-110 transition min-h-[44px] inline-flex items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void"
         >
           Submit a block
         </Link>
@@ -230,7 +230,7 @@ export default function DashboardPage() {
             <p className="text-text-muted mb-2">{fetchState.message}</p>
             <button
               onClick={() => window.location.reload()}
-              className="text-sm text-accent-tech hover:underline"
+              className="text-sm text-signal hover:underline"
             >
               Refresh
             </button>

@@ -10,7 +10,7 @@
  * by the simulation. Honors prefers-reduced-motion by dropping the lava shimmer
  * (AC-35) — the sim is byte-identical either way.
  *
- * Dark editorial palette + single cyan accent (#00d4ff), per app/DESIGN.md.
+ * ASCENT palette: signal-lime climber (#cbf24d) + ember lava (#ff5a2c).
  */
 
 import { useEffect, useRef } from "react";
@@ -22,16 +22,17 @@ import {
   floorIndexAt,
 } from "../../game/towers";
 
-const VOID = "#0a0a0f";
-const SURFACE = "#15151f";
-const BORDER = "#2a2a3d";
-const ACCENT = "#00d4ff";
-const PLATFORM = "#3a3a52";
-const PLATFORM_TOP = "#4a4a6a";
-const LADDER = "#7a7aa8";
-const LAVA = "#ff5470";
-const TEXT_MUTED = "#6b6b8a";
-const FLAG = "#28d17c";
+// ASCENT palette — signal-lime climber, ember lava, warm-obsidian world.
+const VOID = "#0a0a0c";
+const SURFACE = "#17161c";
+const BORDER = "#37343f";
+const ACCENT = "#cbf24d"; // signal — the climber
+const PLATFORM = "#38353f";
+const PLATFORM_TOP = "#4a4656";
+const LADDER = "#8a86a0";
+const LAVA = "#ff5a2c"; // ember — the rising hazard
+const TEXT_MUTED = "#74707e";
+const FLAG = "#cbf24d"; // summit flag reads as signal too
 
 export interface ClimbCanvasProps {
   state: MatchState;
@@ -185,7 +186,7 @@ export function ClimbCanvas({
     ctx.moveTo(0, 34);
     ctx.lineTo(width, 34);
     ctx.stroke();
-    ctx.fillStyle = "#f4f4ff";
+    ctx.fillStyle = "#f4f2ec";
     ctx.font = "bold 13px monospace";
     ctx.textAlign = "left";
     ctx.fillText(`${playerY.toFixed(1)}m`, 10, 22);

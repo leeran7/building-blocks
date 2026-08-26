@@ -142,7 +142,7 @@ const STRENGTH_COLORS = [
 const STRENGTH_LABELS = ["Weak", "Fair", "Good", "Strong"];
 
 const INPUT_BASE =
-  "w-full bg-surface border border-border-subtle rounded-lg px-4 py-3 text-base text-text-primary placeholder-text-muted focus:outline-none focus:border-accent-tech focus:ring-1 focus:ring-accent-tech transition-colors";
+  "w-full bg-surface border border-border-subtle rounded-lg px-4 py-3 text-base text-text-primary placeholder-text-muted focus:outline-none focus:border-signal focus:ring-1 focus:ring-signal transition-colors";
 
 async function syncUserToDb(token: string, email: string) {
   await fetch("/api/auth/sync", {
@@ -366,7 +366,7 @@ export default function SignUpPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-accent-tech text-void font-semibold rounded-lg py-3 text-base transition-all hover:brightness-110 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 min-h-[44px] mt-2"
+            className="w-full bg-signal text-void font-semibold rounded-lg py-3 text-base transition-all hover:brightness-110 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 min-h-[44px] mt-2"
           >
             {loading ? (
               <>
@@ -410,7 +410,7 @@ export default function SignUpPage() {
         {/* Toggle to sign in */}
         <p className="text-sm text-text-muted text-center mt-4">
           Already have an account?{" "}
-          <Link href="/auth/signin" className="text-accent-tech hover:underline">
+          <Link href="/auth/signin" className="text-signal hover:underline">
             Sign in
           </Link>
         </p>

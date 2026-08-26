@@ -297,8 +297,8 @@ describe("Category enum — all 6 categories are valid (AC-3)", () => {
     }
   });
 
-  it("Tech category accent is #00d4ff as specified in AC-1", () => {
-    expect(getCategoryAccent("tech")).toBe("#00d4ff");
+  it("Tech category accent is the signal-lime brand hue (ASCENT redesign)", () => {
+    expect(getCategoryAccent("tech")).toBe("#cbf24d");
   });
 });
 

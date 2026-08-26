@@ -30,13 +30,14 @@ const SLUG_TO_LABEL: Record<CategorySlug, CategoryLabel> = {
   science: "Science",
 };
 
+// ASCENT-harmonized wayfinding hues (kept in sync with lib/categories.ts).
 const SLUG_TO_ACCENT: Record<CategorySlug, string> = {
-  tech: "#00d4ff",
-  design: "#ff6b9d",
-  business: "#ffd700",
-  creative: "#9b59b6",
-  gaming: "#00ff88",
-  science: "#ff8c00",
+  tech: "#cbf24d",
+  design: "#ff8da3",
+  business: "#f2c14e",
+  creative: "#c39bff",
+  gaming: "#5be0b0",
+  science: "#6bb8ff",
 };
 
 /**
@@ -62,7 +63,7 @@ export function categoryToSlug(cat: CategoryLabel): CategorySlug {
  */
 export function getCategoryAccent(cat: CategorySlug | CategoryLabel): string {
   const slug = cat.toLowerCase() as CategorySlug;
-  return SLUG_TO_ACCENT[slug] ?? "#00d4ff";
+  return SLUG_TO_ACCENT[slug] ?? "#cbf24d";
 }
 
 /**

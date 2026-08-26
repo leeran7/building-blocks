@@ -84,7 +84,7 @@ export default function VerifyEmailPage() {
   if (loading) {
     return (
       <main className="min-h-screen bg-void flex items-center justify-center px-4">
-        <div className="w-8 h-8 border-2 border-text-muted/30 border-t-accent-tech rounded-full animate-spin" />
+        <div className="w-8 h-8 border-2 border-text-muted/30 border-t-signal rounded-full animate-spin" />
       </main>
     );
   }
@@ -111,7 +111,7 @@ export default function VerifyEmailPage() {
             </h1>
             <Link
               href="/dashboard"
-              className="w-full bg-accent-tech text-void font-semibold rounded-lg py-3 text-base transition-all hover:brightness-110 inline-flex items-center justify-center min-h-[44px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus"
+              className="w-full bg-signal text-void font-semibold rounded-lg py-3 text-base transition-all hover:brightness-110 inline-flex items-center justify-center min-h-[44px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus"
             >
               Go to dashboard
             </Link>
@@ -119,7 +119,7 @@ export default function VerifyEmailPage() {
         ) : (
           // AC-51: Unverified state — check inbox
           <>
-            <div className="text-accent-tech flex justify-center mb-4">
+            <div className="text-signal flex justify-center mb-4">
               <EnvelopeIcon />
             </div>
             <h1
@@ -178,7 +178,7 @@ export default function VerifyEmailPage() {
               </p>
               <Link
                 href="/dashboard"
-                className="text-sm text-accent-tech hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus rounded-sm"
+                className="text-sm text-signal hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus rounded-sm"
               >
                 Go to dashboard →
               </Link>

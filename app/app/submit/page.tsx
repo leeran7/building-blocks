@@ -17,7 +17,7 @@ import { Navbar } from "../../src/components/Navbar";
 import { GAME_CATEGORIES, FAMILIES } from "../../src/game/categories";
 
 const INPUT =
-  "w-full bg-surface border border-border-subtle rounded-lg px-4 py-3 text-base text-text-primary placeholder-text-muted focus:outline-none focus:border-accent-tech focus:ring-1 focus:ring-accent-tech transition-colors";
+  "w-full bg-surface border border-border-subtle rounded-lg px-4 py-3 text-base text-text-primary placeholder-text-muted focus:outline-none focus:border-signal focus:ring-1 focus:ring-signal transition-colors";
 
 function SubmitForm() {
   const router = useRouter();
@@ -36,7 +36,7 @@ function SubmitForm() {
   if (authLoading) {
     return (
       <div className="min-h-[60vh] flex items-center justify-center">
-        <div className="w-8 h-8 border-2 border-text-muted/30 border-t-accent-tech rounded-full animate-spin" />
+        <div className="w-8 h-8 border-2 border-text-muted/30 border-t-signal rounded-full animate-spin" />
       </div>
     );
   }
@@ -59,7 +59,7 @@ function SubmitForm() {
         </p>
         <Link
           href="/auth/signup?redirect=%2Fsubmit"
-          className="mt-6 inline-flex bg-accent-tech text-void font-semibold rounded-lg px-6 py-3 hover:brightness-110 transition min-h-[44px] items-center"
+          className="mt-6 inline-flex bg-signal text-void font-semibold rounded-lg px-6 py-3 hover:brightness-110 transition min-h-[44px] items-center"
         >
           Create account
         </Link>
@@ -204,7 +204,7 @@ function SubmitForm() {
         <button
           type="submit"
           disabled={submitting}
-          className="w-full bg-accent-tech text-void font-semibold rounded-lg py-3 text-base transition-all hover:brightness-110 disabled:opacity-50 disabled:cursor-not-allowed min-h-[44px] flex items-center justify-center gap-2"
+          className="w-full bg-signal text-void font-semibold rounded-lg py-3 text-base transition-all hover:brightness-110 disabled:opacity-50 disabled:cursor-not-allowed min-h-[44px] flex items-center justify-center gap-2"
         >
           {submitting ? (
             <>
@@ -227,7 +227,7 @@ export default function SubmitPage() {
       <Suspense
         fallback={
           <div className="min-h-[60vh] flex items-center justify-center">
-            <div className="w-8 h-8 border-2 border-text-muted/30 border-t-accent-tech rounded-full animate-spin" />
+            <div className="w-8 h-8 border-2 border-text-muted/30 border-t-signal rounded-full animate-spin" />
           </div>
         }
       >

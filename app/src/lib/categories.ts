@@ -30,15 +30,17 @@ export interface Category {
   blurb: string;
 }
 
-// Bright, AA-legible-on-dark hues. Each tower is themed to its color via
-// categoryTheme() (functional wayfinding); the brand chrome uses cyan.
+// ASCENT-harmonized wayfinding hues — AA-legible on warm obsidian. Only one
+// category shows at a time (dot + chart line), so these read as functional
+// wayfinding, never a rainbow. Brand chrome stays signal-lime; tech is the
+// flagship and owns the signal hue.
 export const CATEGORIES: Category[] = [
-  { slug: "tech", label: "Tech", hex: "#00d4ff", rgb: "0 212 255", blurb: "Tools, apps, and infrastructure." },
-  { slug: "design", label: "Design", hex: "#ff6b9d", rgb: "255 107 157", blurb: "Portfolios, products, and studios." },
-  { slug: "business", label: "Business", hex: "#ffd700", rgb: "255 215 0", blurb: "Startups, stores, and services." },
-  { slug: "creative", label: "Creative", hex: "#b07cd6", rgb: "176 124 214", blurb: "Art, writing, music, and film." },
-  { slug: "gaming", label: "Gaming", hex: "#00ff88", rgb: "0 255 136", blurb: "Games, servers, and streamers." },
-  { slug: "science", label: "Science", hex: "#ff8c00", rgb: "255 140 0", blurb: "Research, labs, and open data." },
+  { slug: "tech", label: "Tech", hex: "#cbf24d", rgb: "203 242 77", blurb: "Tools, apps, and infrastructure." },
+  { slug: "design", label: "Design", hex: "#ff8da3", rgb: "255 141 163", blurb: "Portfolios, products, and studios." },
+  { slug: "business", label: "Business", hex: "#f2c14e", rgb: "242 193 78", blurb: "Startups, stores, and services." },
+  { slug: "creative", label: "Creative", hex: "#c39bff", rgb: "195 155 255", blurb: "Art, writing, music, and film." },
+  { slug: "gaming", label: "Gaming", hex: "#5be0b0", rgb: "91 224 176", blurb: "Games, servers, and streamers." },
+  { slug: "science", label: "Science", hex: "#6bb8ff", rgb: "107 184 255", blurb: "Research, labs, and open data." },
 ];
 
 export const CATEGORY_BY_SLUG: Record<string, Category> = Object.fromEntries(

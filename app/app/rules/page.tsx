@@ -25,7 +25,7 @@ function Well({ children }: { children: React.ReactNode }) {
 
 function SectionHeading({ children }: { children: React.ReactNode }) {
   return (
-    <h3 className="text-accent-tech font-semibold text-xs uppercase tracking-[0.15em] mb-3">
+    <h3 className="text-signal font-semibold text-xs uppercase tracking-[0.15em] mb-3">
       {children}
     </h3>
   );
@@ -39,7 +39,7 @@ export default function RulesPage() {
       <div className="max-w-2xl mx-auto px-4 py-12">
         {/* Editorial header */}
         <header className="mb-10">
-          <p className="text-xs uppercase tracking-[0.2em] text-accent-tech font-medium">
+          <p className="text-xs uppercase tracking-[0.2em] text-signal font-medium">
             The engine
           </p>
           <h1 className="text-3xl md:text-4xl font-bold text-text-primary tracking-tight mt-2">
@@ -98,7 +98,7 @@ export default function RulesPage() {
             <div className="text-text-primary">λ = ln(2) / DOUBLE_EVERY_K</div>
             <div className="text-text-primary" data-testid="rules-growth-formula">
               growth = min( exp(λ · V),{" "}
-              <span className="text-accent-tech font-bold">MAX_GROWTH</span> ){" "}
+              <span className="text-signal font-bold">MAX_GROWTH</span> ){" "}
               <span className="text-text-muted">← capped at 8 (non-negotiable)</span>
             </div>
             <div className="text-text-primary">
