@@ -17,6 +17,8 @@ import { Footer } from "../src/components/LandingPage/Footer";
 import { Faq } from "../src/components/LandingPage/Faq";
 import { Navbar } from "../src/components/Navbar";
 import { getBlockCountsByCategory } from "../src/db/blocks";
+import { getGlobalClimbStats } from "../src/db/climb";
+import { GAME_CATEGORIES } from "../src/game/categories";
 import { loadConstants } from "../src/engine/constants";
 import { Suspense } from "react";
 
@@ -89,16 +91,31 @@ async function SocialProofStrip() {
 }
 
 export default async function HomePage() {
-  const [counts, constants] = await Promise.all([
-    getBlockCountsByCategory().catch(() => ({})),
+  const [counts, climbStats, constants] = await Promise.all([
+    getBlockCountsByCategory().catch(() => ({}) as Record<string, number>),
+    getGlobalClimbStats().catch(() => ({ climberCount: 0, topPeak: null })),
     Promise.resolve(loadConstants()),
   ]);
+
+  // Real, live figures — count blocks the same way the directory does (over the
+  // game-category stacks) so the hero matches what the directory shows.
+  const totalBlocks = GAME_CATEGORIES.reduce(
+    (a, c) => a + (counts[c.slug] ?? 0),
+    0
+  );
 
   return (
     <main className="grain min-h-screen bg-void">
       <Navbar />
 
-      <Hero />
+      <Hero
+        stats={{
+          totalBlocks,
+          minEntryUsd: constants.MIN_ENTRY_USD,
+          climberCount: climbStats.climberCount,
+          topPeak: climbStats.topPeak,
+        }}
+      />
 
       <Suspense
         fallback={

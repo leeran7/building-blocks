@@ -31,15 +31,16 @@ const DEMO_BLOCKS: DemoBlock[] = [
   { name: "abandoned.dev", altitude: "77.3", width: 18, buried: true },
 ];
 
-// Instrument stat strip — illustrative launch numbers, split by tier.
-const PAID_STATS: { label: string; value: string }[] = [
-  { label: "Blocks climbing", value: "1,208" },
-  { label: "Cost of #1", value: "$24.80" },
-];
-const FREE_STATS: { label: string; value: string }[] = [
-  { label: "Climbers", value: "3,412" },
-  { label: "Top climb", value: "1,840m" },
-];
+export interface HeroStats {
+  /** Live paid blocks across all stacks. */
+  totalBlocks: number;
+  /** Minimum entry price (USD) — the honest "claim #1" floor. */
+  minEntryUsd: number;
+  /** Distinct free-climb players. */
+  climberCount: number;
+  /** Highest free-climb peak, or null if nobody has climbed. */
+  topPeak: number | null;
+}
 
 function ElevationProfile() {
   const groundAfterIndex = 3; // ember ground sits below the 4th block
@@ -142,7 +143,19 @@ function ElevationProfile() {
   );
 }
 
-export function Hero() {
+export function Hero({ stats }: { stats: HeroStats }) {
+  const paidStats = [
+    { label: "Blocks climbing", value: stats.totalBlocks.toLocaleString() },
+    { label: "Claim #1", value: `from $${stats.minEntryUsd.toFixed(0)}` },
+  ];
+  const freeStats = [
+    { label: "Climbers", value: stats.climberCount.toLocaleString() },
+    {
+      label: "Top climb",
+      value: stats.topPeak != null ? `${Math.round(stats.topPeak)}m` : "—",
+    },
+  ];
+
   return (
     <section
       aria-label="Hero"
@@ -232,7 +245,7 @@ export function Hero() {
                 </span>
               </div>
               <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-signal/30 bg-border-subtle">
-                {PAID_STATS.map((s) => (
+                {paidStats.map((s) => (
                   <div key={s.label} className="bg-surface px-3 py-2.5 text-center md:text-left">
                     <dt className="font-mono text-[10px] uppercase tracking-[0.12em] text-text-muted">
                       {s.label}
@@ -256,7 +269,7 @@ export function Hero() {
                 </span>
               </div>
               <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-border-subtle bg-border-subtle">
-                {FREE_STATS.map((s) => (
+                {freeStats.map((s) => (
                   <div key={s.label} className="bg-surface px-3 py-2 text-center md:text-left">
                     <dt className="font-mono text-[10px] uppercase tracking-[0.12em] text-text-muted">
                       {s.label}
