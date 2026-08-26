@@ -24,7 +24,13 @@ function SubmitForm() {
   const searchParams = useSearchParams();
   const { user, token, loading: authLoading } = useAuth();
 
-  const initialCategory = (searchParams.get("category") ?? "tech").toLowerCase();
+  const rawCategory = searchParams.get("category");
+  const initialCategory = (rawCategory ?? "tech").toLowerCase();
+  // Preserve the chosen stack through the auth round-trip so it's still
+  // prefilled after sign-in/up (the guards used to drop the ?category param).
+  const returnTo = rawCategory
+    ? `/submit?category=${encodeURIComponent(rawCategory.toLowerCase())}`
+    : "/submit";
   const [displayName, setDisplayName] = useState("");
   const [url, setUrl] = useState("");
   const [category, setCategory] = useState(initialCategory);
@@ -42,7 +48,7 @@ function SubmitForm() {
   }
   if (!user || !token) {
     if (typeof window !== "undefined") {
-      router.push("/auth/signin?redirect=%2Fsubmit");
+      router.push(`/auth/signin?redirect=${encodeURIComponent(returnTo)}`);
     }
     return null;
   }
@@ -58,7 +64,7 @@ function SubmitForm() {
           sign-in (not a guest session).
         </p>
         <Link
-          href="/auth/signup?redirect=%2Fsubmit"
+          href={`/auth/signup?redirect=${encodeURIComponent(returnTo)}`}
           className="mt-6 inline-flex bg-signal text-void font-semibold rounded-lg px-6 py-3 hover:brightness-110 transition min-h-[44px] items-center"
         >
           Create account
