@@ -20,7 +20,7 @@ export function CategorySectionTabs({
 }) {
   return (
     <div
-      className="inline-flex items-center gap-1 rounded-lg border border-border bg-surface p-1"
+      className="inline-flex items-center gap-1 rounded-full border border-border-strong bg-surface p-1"
       role="tablist"
       aria-label="Category sections"
     >
@@ -45,9 +45,9 @@ function Tab({
       role="tab"
       aria-selected={active}
       className={
-        "px-3 py-1.5 rounded-md text-sm font-medium transition " +
+        "px-4 py-1.5 rounded-full text-sm font-semibold transition " +
         (active
-          ? "bg-accent text-void"
+          ? "bg-signal text-void"
           : "text-text-secondary hover:text-text-primary")
       }
     >

@@ -74,14 +74,14 @@ export function CategoryNav({
                 className={
                   "flex-shrink-0 inline-flex items-center gap-1.5 rounded-full px-3 min-h-[34px] text-sm font-medium transition-colors " +
                   (isActive
-                    ? "bg-accent text-void"
+                    ? "bg-signal text-void"
                     : "text-text-secondary hover:text-text-primary hover:bg-elevated")
                 }
               >
                 <span
                   className={
                     "w-1.5 h-1.5 rounded-full flex-shrink-0 " +
-                    (isActive ? "bg-void" : "bg-accent")
+                    (isActive ? "bg-void" : "bg-signal")
                   }
                   aria-hidden="true"
                 />
@@ -109,9 +109,9 @@ function FilterChip({
       type="button"
       onClick={onClick}
       className={
-        "flex-shrink-0 rounded-full px-3 min-h-[30px] text-xs font-semibold uppercase tracking-wide transition-colors " +
+        "flex-shrink-0 rounded-full px-3 min-h-[30px] font-mono text-[11px] font-semibold uppercase tracking-[0.12em] transition-colors " +
         (active
-          ? "bg-accent/15 text-accent"
+          ? "bg-signal/15 text-signal"
           : "text-text-muted hover:text-text-primary")
       }
     >

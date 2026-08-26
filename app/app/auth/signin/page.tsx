@@ -121,7 +121,7 @@ function WarningIcon() {
 }
 
 const INPUT_BASE =
-  "w-full bg-surface border border-border-subtle rounded-lg px-4 py-3 text-base text-text-primary placeholder-text-muted focus:outline-none focus:border-signal focus:ring-1 focus:ring-signal transition-colors";
+  "w-full bg-surface-raised border border-border-strong rounded-lg px-4 py-3 text-base text-text-primary placeholder-text-muted focus:outline-none focus:border-signal focus:ring-1 focus:ring-signal transition-colors";
 
 /** Inner form that reads useSearchParams — must be wrapped in Suspense */
 function SignInForm() {
@@ -216,17 +216,23 @@ function SignInForm() {
   return (
     <AuthShell>
       <section
-        className="bg-surface rounded-2xl border border-border-subtle p-8 w-full max-w-sm"
+        className="relative overflow-hidden bg-surface rounded-2xl border border-border-strong p-8 w-full max-w-sm shadow-lifted edge-signal"
         aria-labelledby="auth-card-title"
       >
         {/* Logo — mobile only; desktop shows the brand panel */}
-        <p className="text-2xl font-bold text-text-primary mb-1 md:hidden">Tower</p>
+        <div className="flex items-center gap-2.5 mb-5 md:hidden">
+          <span className="h-6 w-[3px] rounded-full bg-signal" aria-hidden="true" />
+          <span className="font-display text-xl tracking-tight text-text-primary">TOWER</span>
+        </div>
 
         {/* Title */}
-        <h1 id="auth-card-title" className="text-lg font-semibold text-text-primary mb-1">
-          Sign in
+        <span className="font-mono text-[11px] uppercase tracking-[0.2em] text-signal">
+          [ sign in ]
+        </span>
+        <h1 id="auth-card-title" className="font-display text-3xl text-text-primary mt-2 mb-1">
+          Welcome back
         </h1>
-        <p className="text-sm text-text-muted mb-6">Welcome back</p>
+        <p className="text-sm text-text-muted mb-6">Climb back into your towers.</p>
 
         <form
           id={formId}

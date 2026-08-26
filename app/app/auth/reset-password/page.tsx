@@ -41,7 +41,7 @@ function WarningIcon() {
 }
 
 const INPUT_BASE =
-  "w-full bg-surface border border-border-subtle rounded-lg px-4 py-3 text-base text-text-primary placeholder-text-muted focus:outline-none focus:border-signal focus:ring-1 focus:ring-signal transition-colors";
+  "w-full bg-surface-raised border border-border-strong rounded-lg px-4 py-3 text-base text-text-primary placeholder-text-muted focus:outline-none focus:border-signal focus:ring-1 focus:ring-signal transition-colors";
 
 export default function ResetPasswordPage() {
   const emailId = useId();
@@ -71,13 +71,13 @@ export default function ResetPasswordPage() {
   return (
     <AuthShell>
       <section
-        className="bg-surface rounded-2xl border border-border-subtle p-8 w-full max-w-sm"
+        className="relative overflow-hidden bg-surface rounded-2xl border border-border-strong p-8 shadow-lifted edge-signal w-full max-w-sm"
         aria-labelledby="auth-card-title"
       >
         <p className="text-2xl font-bold text-text-primary mb-1 md:hidden">Tower</p>
         <h1
           id="auth-card-title"
-          className="text-lg font-semibold text-text-primary mb-1"
+          className="font-display text-2xl text-text-primary mb-1"
         >
           Reset your password
         </h1>

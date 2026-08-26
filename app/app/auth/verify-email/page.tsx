@@ -92,7 +92,7 @@ export default function VerifyEmailPage() {
   return (
     <AuthShell>
       <section
-        className="bg-surface rounded-2xl border border-border-subtle p-8 w-full max-w-sm text-center"
+        className="relative overflow-hidden bg-surface rounded-2xl border border-border-strong p-8 shadow-lifted edge-signal w-full max-w-sm text-center"
         aria-labelledby="auth-card-title"
       >
         <p className="text-2xl font-bold text-text-primary mb-6 md:hidden">Tower</p>
@@ -105,7 +105,7 @@ export default function VerifyEmailPage() {
             </div>
             <h1
               id="auth-card-title"
-              className="text-lg font-semibold text-text-primary mb-4"
+              className="font-display text-2xl text-text-primary mb-4"
             >
               Your email is already verified
             </h1>
@@ -124,7 +124,7 @@ export default function VerifyEmailPage() {
             </div>
             <h1
               id="auth-card-title"
-              className="text-lg font-semibold text-text-primary mb-3"
+              className="font-display text-2xl text-text-primary mb-3"
             >
               Check your inbox
             </h1>

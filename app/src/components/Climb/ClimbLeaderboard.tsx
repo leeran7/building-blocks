@@ -1,7 +1,7 @@
 /**
- * The skill-climb leaderboard: players ranked by their best peak height in a
- * category (free, earned by playing the endless climb). Rank 1 is emphasized;
- * altitude bars are proportional to the top score. Handles are pseudonyms —
+ * The skill-climb leaderboard (ASCENT): players ranked by best peak height in a
+ * category (free, earned by playing the endless climb). Rank 1 gets the signal
+ * glow; altitude bars are proportional to the top score. Handles are pseudonyms —
  * emails are never shown.
  */
 
@@ -10,9 +10,12 @@ import type { ClimberRank } from "../../db/climb";
 export function ClimbLeaderboard({ climbers }: { climbers: ClimberRank[] }) {
   if (climbers.length === 0) {
     return (
-      <div className="rounded-xl border border-border bg-surface p-8 text-center">
-        <p className="text-text-primary font-semibold">No climbers yet</p>
-        <p className="text-text-secondary text-sm mt-1">
+      <div className="relative overflow-hidden rounded-xl border border-border-strong bg-surface p-10 text-center">
+        <div className="pointer-events-none absolute inset-0 survey-grid opacity-50" />
+        <p className="relative font-mono text-[11px] uppercase tracking-[0.2em] text-signal">
+          [ no climbers yet ]
+        </p>
+        <p className="relative text-text-secondary text-sm mt-3">
           Be the first to set a height record for this category.
         </p>
       </div>
@@ -22,7 +25,7 @@ export function ClimbLeaderboard({ climbers }: { climbers: ClimberRank[] }) {
   const top = Math.max(1, climbers[0].peakY);
 
   return (
-    <ol className="flex flex-col gap-2" aria-label="Skill climb leaderboard">
+    <ol className="flex flex-col gap-1.5" aria-label="Skill climb leaderboard">
       {climbers.map((c) => {
         const pct = Math.max(4, Math.round((c.peakY / top) * 100));
         const isFirst = c.rank === 1;
@@ -30,24 +33,32 @@ export function ClimbLeaderboard({ climbers }: { climbers: ClimberRank[] }) {
           <li
             key={c.userId}
             className={
-              "relative overflow-hidden rounded-lg border px-4 py-3 " +
+              "relative overflow-hidden rounded-xl border px-3 py-2.5 min-h-[52px] flex items-center " +
               (isFirst
-                ? "border-accent/60 bg-accent/10"
-                : "border-border bg-surface")
+                ? "border-signal/50 bg-accent/[0.06] shadow-signal"
+                : "border-border-subtle bg-surface/40")
             }
           >
             {/* Altitude bar. */}
             <div
-              className="absolute inset-y-0 left-0 bg-accent/10"
-              style={{ width: `${pct}%` }}
+              className="absolute inset-y-0 left-0"
+              style={{
+                width: `${pct}%`,
+                background: isFirst
+                  ? "linear-gradient(90deg, rgb(203 242 77 / 0.20), transparent)"
+                  : "linear-gradient(90deg, rgb(203 242 77 / 0.10), transparent)",
+              }}
               aria-hidden="true"
             />
-            <div className="relative flex items-center gap-4">
+            <div className="relative flex items-center gap-3 w-full">
               <span
                 className={
-                  "w-8 text-right font-mono tabular-nums " +
-                  (isFirst ? "text-accent font-bold" : "text-text-muted")
+                  "flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center font-mono text-sm font-bold tabular-nums " +
+                  (isFirst
+                    ? "bg-signal text-void"
+                    : "border border-border-strong text-text-secondary")
                 }
+                aria-label={`Rank ${c.rank}`}
               >
                 {c.rank}
               </span>
@@ -55,17 +66,18 @@ export function ClimbLeaderboard({ climbers }: { climbers: ClimberRank[] }) {
                 {c.handle}
               </span>
               {c.wins > 0 && (
-                <span className="text-xs text-text-muted font-mono">
+                <span className="font-mono text-xs text-text-muted tabular-nums">
                   {c.wins}★
                 </span>
               )}
               <span
                 className={
-                  "font-mono tabular-nums " +
-                  (isFirst ? "text-accent font-bold" : "text-text-secondary")
+                  "font-mono tabular-nums font-bold " +
+                  (isFirst ? "text-signal" : "text-text-primary")
                 }
               >
-                {c.peakY.toFixed(0)}m
+                {c.peakY.toFixed(0)}
+                <span className="text-text-muted font-normal">m</span>
               </span>
             </div>
           </li>
