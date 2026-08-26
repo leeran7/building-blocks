@@ -144,3 +144,28 @@ export async function topClimbers(
     wins: r.wins,
   }));
 }
+
+export interface GlobalClimberRank extends ClimberRank {
+  /** The category this record was set in (for a label on the landing). */
+  categorySlug: string;
+}
+
+/**
+ * The best climbers across ALL stacks — highest peak-height records, ranked
+ * descending (ties → earliest). Powers the free-climb leaderboard on the landing.
+ */
+export async function topClimbersGlobal(limit = 8): Promise<GlobalClimberRank[]> {
+  const rows = await prisma.climbRecord.findMany({
+    orderBy: [{ peak_y: "desc" }, { updated_at: "asc" }],
+    take: limit,
+    select: { userId: true, peak_y: true, wins: true, category_slug: true },
+  });
+  return rows.map((r, i) => ({
+    rank: i + 1,
+    userId: r.userId,
+    handle: climberHandle(r.userId),
+    peakY: r.peak_y,
+    wins: r.wins,
+    categorySlug: r.category_slug,
+  }));
+}

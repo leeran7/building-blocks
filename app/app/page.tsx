@@ -12,6 +12,7 @@
 import { Hero } from "../src/components/LandingPage/Hero";
 import { HowItWorks } from "../src/components/LandingPage/HowItWorks";
 import { TowerDirectory } from "../src/components/LandingPage/TowerDirectory";
+import { FreeLeaderboard } from "../src/components/LandingPage/FreeLeaderboard";
 import { Footer } from "../src/components/LandingPage/Footer";
 import { Faq } from "../src/components/LandingPage/Faq";
 import { Navbar } from "../src/components/Navbar";
@@ -112,6 +113,8 @@ export default async function HomePage() {
       <HowItWorks />
 
       <TowerDirectory counts={counts} minEntryUsd={constants.MIN_ENTRY_USD} />
+
+      <FreeLeaderboard />
 
       <Faq />
 

@@ -59,16 +59,19 @@ export function TowerDirectory({ counts, minEntryUsd }: TowerDirectoryProps) {
     <section id="towers" aria-label="All towers" className="py-20 px-4 border-t border-border-subtle">
       <div className="max-w-6xl mx-auto">
         <div className="mb-6">
-          <span className="font-mono text-[11px] uppercase tracking-[0.2em] text-signal">
-            [ the arena ]
+          <span className="inline-flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.2em] text-signal">
+            <span className="rounded-full bg-signal text-void px-2 py-0.5 text-[10px] font-bold shadow-signal">
+              Paid
+            </span>
+            real stakes · buy your way up
           </span>
-          <h2 className="font-display text-4xl md:text-5xl text-text-primary mt-3">
+          <h2 className="font-display text-5xl md:text-6xl text-text-primary mt-3">
             Pick your stack
           </h2>
-          <p className="text-sm text-text-muted mt-2">
-            {GAME_CATEGORIES.length} stacks · {totalLive} blocks climbing. Open a
-            tower to see the standings, or play the free climb — without leaving
-            this page.
+          <p className="text-sm text-text-secondary mt-2 max-w-2xl">
+            {GAME_CATEGORIES.length} stacks · {totalLive} blocks climbing. Buy
+            altitude to claim your rank — your height is permanent, but the ground
+            rises to bury whoever stops climbing. Open a stack to see the standings.
           </p>
         </div>
 
