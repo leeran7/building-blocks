@@ -45,6 +45,25 @@ body 15–16 · secondary 13–14 · caption 11–12 uppercase tracking-[0.12–
 
 The **canonical, implemented** version of these tokens lives in `app/DESIGN.md` and `app/tailwind.config.ts` — read them before specifying UI so design and code stay in lockstep. If a brand demands **light** mode, keep every discipline rule above; use a warm off-white background (never pure `#fff`), one accent, and the same restrained radii/shadow/spacing scale.
 
+## Design resource library
+
+Curated, vetted external sources for inspiration, assets, and presentation. Treat
+everything here as **input** — always adapt what you source into the House design
+system above. Never paste a kit's look or a mockup's styling wholesale; that
+reintroduces generic-SaaS aesthetics or a second system and breaks the single-accent,
+one-editorial-voice discipline. Several are premium/paid — reference them for direction;
+don't assume automated access.
+
+| Source | Use it for | When |
+| --- | --- | --- |
+| [horizonx.so](https://horizonx.so) | Premium React UI kits | Component patterns + layout inspiration (adapt tokens to House system) |
+| [pryzm.design](https://pryzm.design) | Backgrounds, textures, animated loops | Surface treatment + motion reference for hero/empty states |
+| [presenta.design](https://presenta.design) | Image mockups | Presenting screens in context (case studies, handoff) |
+| [mockups.supply](https://mockups.supply) | Premium Photoshop mockups | High-fidelity device/product mockups for stakeholder review |
+| [appshot.gallery](https://appshot.gallery) | App screenshots for ASO | App-store screenshot layouts + copy patterns |
+| [slp.gallery](https://slp.gallery) | Curated, tested AI prompts | Prompting for generated imagery/copy/exploration |
+| [resurf.so](https://resurf.so) | Save notes, links, files | Collecting + organizing references and inspiration for a project |
+
 ## When to use this agent
 
 Use design-ux when:

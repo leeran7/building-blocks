@@ -97,6 +97,24 @@ Breakpoints: 375 / 768 / 1280
 
 If a project's brand demands **light** mode, keep every discipline rule; use a warm off-white background (never pure `#fff`), one accent, and the same restrained radii/shadow/spacing scale. If a design system already exists in the repo, read it and follow it — never introduce a second one.
 
+#### 1e. Design resource library
+
+Curated external sources for UI patterns, assets, and presentation. These are
+**references**, not drop-in code — adapt anything you pull into the House design
+system (single accent, one editorial voice, House tokens). Never import a kit's
+styling wholesale or you reintroduce generic-SaaS / a second system. Several are
+premium/paid; reference them for direction, don't assume automated access.
+
+| Source | Use it for |
+| --- | --- |
+| [horizonx.so](https://horizonx.so) | Premium **React UI kits** — component/layout patterns to re-implement against House tokens |
+| [pryzm.design](https://pryzm.design) | Backgrounds, textures, **animated loops** — hero/empty-state surfaces + motion reference (still respect `prefers-reduced-motion`, animate only transform/opacity) |
+| [presenta.design](https://presenta.design) | Image mockups — presenting built screens |
+| [mockups.supply](https://mockups.supply) | Premium Photoshop mockups — high-fidelity device/product mockups |
+| [appshot.gallery](https://appshot.gallery) | App screenshots for ASO — store screenshot layouts |
+| [slp.gallery](https://slp.gallery) | Curated, tested AI prompts — generating imagery/copy/exploration |
+| [resurf.so](https://resurf.so) | Save notes, links, files — collecting project references |
+
 ### Phase 2 — Implementation
 
 #### 2a. Read the codebase first
