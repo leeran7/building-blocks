@@ -13,7 +13,11 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
+  // Runtime uses the POOLED connection (Neon -pooler / PgBouncer) so serverless
+  // functions share connections instead of exhausting Postgres at scale.
+  url       = env("DATABASE_URL")
+  // Migrations need a DIRECT (non-pooled) connection. Set both in every env.
+  directUrl = env("DIRECT_URL")
 }
 
 // Category is now a free-form slug (String), not a fixed enum: every subcategory

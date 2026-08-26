@@ -205,10 +205,32 @@ export function TowerView({ initialData, pollUrl = "/api/tower" }: TowerViewProp
     setPrevRanks(rankMap);
   }, [initialData]);
 
-  // Set up polling interval
+  // Polite polling (scale): only poll while the tab is VISIBLE, and jitter the
+  // interval so 10k clients don't stampede the origin in lockstep. A hidden tab
+  // stops polling entirely (and refreshes once on return).
   useEffect(() => {
-    const interval = setInterval(poll, POLL_INTERVAL_MS);
-    return () => clearInterval(interval);
+    let timer: ReturnType<typeof setTimeout> | undefined;
+
+    const schedule = () => {
+      // Jitter DOWN only (80–100% of base) to de-sync clients while never
+      // exceeding the 10s poll cap (AC-41).
+      const jitter = POLL_INTERVAL_MS * (0.8 + Math.random() * 0.2);
+      timer = setTimeout(tick, jitter);
+    };
+    const tick = () => {
+      if (!document.hidden) poll();
+      schedule();
+    };
+    const onVisibility = () => {
+      if (!document.hidden) poll(); // catch up immediately on return
+    };
+
+    schedule();
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      if (timer) clearTimeout(timer);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
   }, [poll]);
 
   const { rate, growth } = data.engine;
