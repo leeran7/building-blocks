@@ -125,7 +125,7 @@ export function RecordStats({
               href="/"
               className="font-mono text-xs uppercase tracking-[0.14em] text-text-muted hover:text-signal transition-colors"
             >
-              ← Back to Tower
+              ← Back to Stack
             </a>
           </div>
         </div>

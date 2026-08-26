@@ -30,11 +30,11 @@ interface RecordPageProps {
 export async function generateMetadata({ params }: RecordPageProps) {
   const block = await getBlockBySlug(params.slug);
   if (!block) {
-    return { title: "Block not found — Tower" };
+    return { title: "Block not found — Stack" };
   }
   return {
-    title: `${block.display_name} — Tower`,
-    description: `Tower record page for ${block.display_name}. Peak rank #${block.peak_rank ?? "?"}, ${block.views_served} views served.`,
+    title: `${block.display_name} — Stack`,
+    description: `Stack record page for ${block.display_name}. Peak rank #${block.peak_rank ?? "?"}, ${block.views_served} views served.`,
   };
 }
 
@@ -69,7 +69,7 @@ export default async function RecordPage({
     // HTTP 200 even for buried/hidden/past-season (AC-37)
     <main className="min-h-screen bg-void" style={categoryTheme(cat)}>
       {/* Nav — auth-aware */}
-      <Navbar contextLabel={`${cat.label} tower`} contextDot={cat.hex} />
+      <Navbar contextLabel={`${cat.label} stack`} contextDot={cat.hex} />
 
       {/* Share post — shown after successful payment (AC-34) */}
       {showSharePost && (

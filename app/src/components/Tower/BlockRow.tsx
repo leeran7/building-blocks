@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * BlockRow — a single block in the tower.
+ * BlockRow — a single block in the stack.
  *
  * Redesign notes:
  * - The row now *shows altitude*: a themed proportion fill behind the content
@@ -32,7 +32,7 @@ export interface BlockRowProps {
   buried: boolean;
   amber_edge: boolean;
   views_served: number;
-  /** Highest altitude in this tower (rank-1) — used to scale the altitude bar. */
+  /** Highest altitude in this stack (rank-1) — used to scale the altitude bar. */
   maxAltitude?: number;
   /** Animation delay derived from block.id (AC-29) */
   swayDelay?: number;

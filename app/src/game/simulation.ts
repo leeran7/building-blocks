@@ -50,7 +50,7 @@ export const DEFAULT_SIM_CONFIG: SimConfig = {
   hazard: DEFAULT_HAZARD_CONFIG,
 };
 
-/** Build a fresh climbing player at the tower base. */
+/** Build a fresh climbing player at the stack base. */
 export function spawnPlayer(id: PlayerId, slot: number): PlayerState {
   return {
     id,

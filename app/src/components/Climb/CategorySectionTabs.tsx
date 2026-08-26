@@ -1,7 +1,7 @@
 /**
  * Section switcher shown on a category's pages. Every category has TWO sections:
  *   - "Skill climb" (free) — rank by how high you climb the endless game.
- *   - "Paid tower"  — the leaderboard where you buy altitude.
+ *   - "Paid stack"  — the leaderboard where you buy altitude.
  * This makes both reachable from either side.
  */
 
@@ -25,7 +25,7 @@ export function CategorySectionTabs({
       aria-label="Category sections"
     >
       <Tab href={`/climb/${climbSlug}`} label="Skill climb" active={active === "climb"} />
-      <Tab href={`/tower/${towerSlug}`} label="Paid tower" active={active === "tower"} />
+      <Tab href={`/stack/${towerSlug}`} label="Paid stack" active={active === "tower"} />
     </div>
   );
 }

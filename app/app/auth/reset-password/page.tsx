@@ -74,7 +74,7 @@ export default function ResetPasswordPage() {
         className="relative overflow-hidden bg-surface rounded-2xl border border-border-strong p-8 shadow-lifted edge-signal w-full max-w-sm"
         aria-labelledby="auth-card-title"
       >
-        <p className="text-2xl font-bold text-text-primary mb-1 md:hidden">Tower</p>
+        <p className="text-2xl font-bold text-text-primary mb-1 md:hidden">Stack</p>
         <h1
           id="auth-card-title"
           className="font-display text-2xl text-text-primary mb-1"

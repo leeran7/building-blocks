@@ -15,7 +15,7 @@ export const runtime = "edge";
 export async function GET(request: NextRequest): Promise<ImageResponse | Response> {
   try {
     const { searchParams } = new URL(request.url);
-    const blockName = searchParams.get("name") ?? "Tower";
+    const blockName = searchParams.get("name") ?? "Stack";
     const altitude = searchParams.get("alt") ?? "0";
     const rank = searchParams.get("rank") ?? "1";
 
@@ -45,7 +45,7 @@ export async function GET(request: NextRequest): Promise<ImageResponse | Respons
               marginBottom: 20,
             }}
           >
-            TOWER
+            STACK
           </div>
 
           {/* Rank badge */}

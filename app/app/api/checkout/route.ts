@@ -181,7 +181,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
             currency: "usd",
             unit_amount: Math.round(data.amount_usd * 100),
             product_data: {
-              name: `Tower — ${displayName}`,
+              name: `Stack — ${displayName}`,
               description: `Current rate: $1 = ${rate.toFixed(2)}m altitude. Positions are live; your rank is calculated when payment completes.`,
             },
           },

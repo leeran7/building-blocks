@@ -101,7 +101,7 @@ export function TowerView({ initialData, pollUrl = "/api/tower" }: TowerViewProp
 
   const ground = data.engine.ground;
   const groundIndex = data.blocks.findIndex((b) => b.altitude < ground);
-  // Blocks are sorted by altitude DESC, so [0] is the tower max — scales the bars.
+  // Blocks are sorted by altitude DESC, so [0] is the stack max — scales the bars.
   const maxAltitude = data.blocks[0]?.altitude ?? 0;
 
   const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {

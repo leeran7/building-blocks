@@ -33,7 +33,7 @@ const DEMO_BLOCKS: DemoBlock[] = [
 
 // Instrument stat strip — illustrative launch numbers.
 const STATS: { label: string; value: string }[] = [
-  { label: "Towers live", value: "74" },
+  { label: "Stacks live", value: "74" },
   { label: "Blocks climbing", value: "1,208" },
   { label: "Cost of #1", value: "$24.80" },
 ];
@@ -52,7 +52,7 @@ function ElevationProfile() {
       <div className="relative flex items-center justify-between border-b border-border-subtle px-4 py-3">
         <span className="inline-flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.18em] text-text-secondary">
           <span className="w-1.5 h-1.5 rounded-full bg-signal" />
-          Tech tower · live
+          Tech stack · live
         </span>
         <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-ember">
           ▲ ground +2.4m/day
@@ -163,7 +163,7 @@ export function Hero() {
             style={{ animationDelay: "0ms" }}
           >
             <span className="w-1.5 h-1.5 rounded-full bg-signal animate-pulse" />
-            Season 01 · 74 towers live
+            Season 01 · 74 stacks live
           </span>
 
           <h1
@@ -209,7 +209,7 @@ export function Hero() {
               href="/#towers"
               className="w-full sm:w-auto rounded-full border border-border-strong bg-surface/60 px-7 py-3.5 text-base font-medium text-text-primary inline-flex items-center justify-center hover:border-signal/50 hover:bg-surface transition-colors min-h-[52px]"
             >
-              Browse towers
+              Browse stacks
             </Link>
           </div>
 

@@ -14,8 +14,8 @@ interface SharePostProps {
 export function SharePost({ display_name, slug, rank, baseUrl }: SharePostProps) {
   const recordUrl = `${baseUrl}/b/${slug}`;
   const text = rank
-    ? `I just bought altitude on Tower! ${display_name} is at rank #${rank}. Altitude is permanent — the ground rises instead. ${recordUrl}`
-    : `I just listed ${display_name} on Tower! Altitude is permanent — the ground rises instead. ${recordUrl}`;
+    ? `I just bought altitude on Stack! ${display_name} is at rank #${rank}. Altitude is permanent — the ground rises instead. ${recordUrl}`
+    : `I just listed ${display_name} on Stack! Altitude is permanent — the ground rises instead. ${recordUrl}`;
 
   const tweetUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}`;
 

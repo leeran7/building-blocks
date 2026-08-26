@@ -21,8 +21,8 @@ interface ClimbPageProps {
 export function generateMetadata({ params }: ClimbPageProps): Metadata {
   const cat = resolveGameCategory(params.category);
   return {
-    title: `${cat.label} — Skill Climb Leaderboard — Tower`,
-    description: `Free skill leaderboard for ${cat.label}: climb the endless tower as high as you can. Your peak height is your rank.`,
+    title: `${cat.label} — Skill Climb Leaderboard — Stack`,
+    description: `Free skill leaderboard for ${cat.label}: climb the endless stack as high as you can. Your peak height is your rank.`,
   };
 }
 
@@ -39,7 +39,7 @@ export default async function ClimbPage({ params }: ClimbPageProps) {
       meta={
         <div className="mt-3">
           <p className="text-text-secondary text-sm max-w-lg">
-            Free to play. Climb the endless {category.label} tower as high as you can
+            Free to play. Climb the endless {category.label} stack as high as you can
             before the lava catches you — your best height is your rank.
           </p>
           <div className="mt-4 flex flex-wrap items-center gap-3">
@@ -50,7 +50,7 @@ export default async function ClimbPage({ params }: ClimbPageProps) {
               Play the climb
             </Link>
             <Link
-              href={`/tower/${category.slug}`}
+              href={`/stack/${category.slug}`}
               className="text-text-secondary hover:text-text-primary text-sm underline underline-offset-4"
             >
               or buy your way to the top →

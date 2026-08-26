@@ -1,5 +1,5 @@
 /**
- * Landing page — Tower v2
+ * Landing page — Stack v2
  *
  * AC-27: DOM contains hero, how-it-works (3 steps), category grid (6 cards), footer
  * AC-28: Live data in category cards
@@ -23,7 +23,7 @@ const BASE_URL = process.env.BASE_URL ?? "http://localhost:3000";
 
 // ISR: serve the landing from cache and regenerate at most once per 60s, so the
 // highest-traffic page doesn't hit the DB (block counts + social proof) on every
-// request. Live tower data still updates via the polled API on the tower views.
+// request. Live tower data still updates via the polled API on the stack views.
 export const revalidate = 60;
 
 async function getSocialProofData(): Promise<{

@@ -30,7 +30,7 @@ const BASE_URL = process.env.BASE_URL ?? "http://localhost:3000";
 
 export async function generateMetadata(): Promise<Metadata> {
   let topBlockId = "";
-  let topBlockName = "Tower";
+  let topBlockName = "Stack";
   let topAlt = "0";
 
   try {
@@ -53,25 +53,25 @@ export async function generateMetadata(): Promise<Metadata> {
   const ogUrl = `${BASE_URL}/api/og?v=${topBlockId}&name=${encodeURIComponent(topBlockName)}&alt=${topAlt}&rank=1`;
 
   return {
-    title: "Tower — Altitude is permanent",
+    title: "Stack — Altitude is permanent",
     description:
       "Your altitude is permanent. The ground rises instead. The price of #1 falls with every thousand views — until someone buys it.",
     openGraph: {
-      title: "Tower — Altitude is permanent",
+      title: "Stack — Altitude is permanent",
       description: "Your altitude is permanent. The ground rises instead.",
       images: [
         {
           url: ogUrl,
           width: 1200,
           height: 630,
-          alt: `Tower — ${topBlockName} leads at ${parseFloat(topAlt).toFixed(1)}m`,
+          alt: `Stack — ${topBlockName} leads at ${parseFloat(topAlt).toFixed(1)}m`,
         },
       ],
       type: "website",
     },
     twitter: {
       card: "summary_large_image",
-      title: "Tower — Altitude is permanent",
+      title: "Stack — Altitude is permanent",
       description: "Your altitude is permanent. The ground rises instead.",
       images: [ogUrl],
     },

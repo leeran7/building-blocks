@@ -10,9 +10,9 @@
 import { Navbar } from "../../src/components/Navbar";
 
 export const metadata = {
-  title: "Tower — Rules & Formulas",
+  title: "Stack — Rules & Formulas",
   description:
-    "The complete Tower engine formulas: altitude permanence, growth cap, burial mechanics, and season reset.",
+    "The complete Stack engine formulas: altitude permanence, growth cap, burial mechanics, and season reset.",
 };
 
 function Well({ children }: { children: React.ReactNode }) {
@@ -46,7 +46,7 @@ export default function RulesPage() {
             Rules &amp; formulas
           </h1>
           <p className="text-text-secondary mt-2">
-            Every number the tower runs on — altitude permanence, the growth cap,
+            Every number the stack runs on — altitude permanence, the growth cap,
             burial mechanics, and the season reset.
           </p>
         </header>
@@ -141,7 +141,7 @@ export default function RulesPage() {
             </div>
           </Well>
           <p className="text-text-muted text-xs mt-2">
-            Buried blocks remain in the tower and are still clickable, but they&apos;re
+            Buried blocks remain in the stack and are still clickable, but they&apos;re
             greyed out. A $5 entry at season start stays above ground for approximately
             1.5 million views.
           </p>
@@ -173,7 +173,7 @@ export default function RulesPage() {
             <strong className="text-text-primary">90 days</strong>. At rollover:
           </p>
           <ul className="text-text-secondary text-sm space-y-1.5 list-disc list-inside ml-1">
-            <li>The current tower is archived to a permanent standings page</li>
+            <li>The current stack is archived to a permanent standings page</li>
             <li>V resets to 0 (rate drops back to R0 = $1 = 1m)</li>
             <li>New blocks start at altitude 0</li>
             <li>Record pages at /b/[slug] remain permanent and show all seasons</li>
@@ -203,7 +203,7 @@ export default function RulesPage() {
             href="/"
             className="text-text-muted hover:text-text-primary text-sm transition-colors"
           >
-            ← Back to Tower
+            ← Back to Stack
           </a>
         </div>
       </div>

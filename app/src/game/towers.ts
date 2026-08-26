@@ -1,5 +1,5 @@
 /**
- * Tower v3 "The Climb" — endless tower generator.
+ * Tower v3 "The Climb" — endless stack generator.
  *
  * The tower has NO summit: it climbs forever and gets harder with altitude. It
  * acts as a leaderboard — your peak height is your score. Geometry is generated

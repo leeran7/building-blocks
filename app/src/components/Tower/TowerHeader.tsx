@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * TowerHeader — the tower's live instrument strip (ASCENT).
+ * TowerHeader — the stack's live instrument strip (ASCENT).
  *
  * "Cost of #1" is the hero figure (the product's headline number), rendered as a
  * big signal readout. Secondary engine stats sit in a bordered mono grid like a

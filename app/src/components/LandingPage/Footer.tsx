@@ -63,7 +63,7 @@ export function Footer() {
           <div className="flex items-center gap-2.5">
             <span className="h-6 w-[3px] rounded-full bg-signal" aria-hidden="true" />
             <span className="font-display text-xl tracking-tight text-text-primary">
-              TOWER
+              STACK
             </span>
           </div>
           <p className="text-sm text-text-muted mt-3 max-w-[220px]">
@@ -71,12 +71,12 @@ export function Footer() {
           </p>
         </div>
 
-        <nav aria-label="Towers">
-          <p className={COL_HEAD}>Towers</p>
+        <nav aria-label="Stacks">
+          <p className={COL_HEAD}>Stacks</p>
           <ul className="space-y-1">
             {FEATURED_GAME_CATEGORIES.map((c) => (
               <li key={c.slug}>
-                <Link href={`/tower/${c.slug}`} className={LINK}>
+                <Link href={`/stack/${c.slug}`} className={LINK}>
                   {c.label}
                 </Link>
               </li>
@@ -125,7 +125,7 @@ export function Footer() {
       <div className="border-t border-border-subtle">
         <div className="max-w-6xl mx-auto px-4 py-5 flex items-center justify-between gap-4">
           <p className="font-mono text-[11px] uppercase tracking-[0.14em] text-text-muted">
-            © {year} Tower
+            © {year} Stack
           </p>
           <p
             className="font-mono text-[11px] uppercase tracking-[0.14em] text-text-disabled"

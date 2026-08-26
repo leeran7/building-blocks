@@ -23,8 +23,8 @@ interface PlayPageProps {
 export function generateMetadata({ params }: PlayPageProps): Metadata {
   const cat = resolveGameCategory(params.category);
   return {
-    title: `Climb the ${cat.label} tower — Tower`,
-    description: `Endless climb: go as high as you can up the ${cat.label} tower before the rising lava catches you.`,
+    title: `Climb the ${cat.label} stack — Stack`,
+    description: `Endless climb: go as high as you can up the ${cat.label} stack before the rising lava catches you.`,
   };
 }
 

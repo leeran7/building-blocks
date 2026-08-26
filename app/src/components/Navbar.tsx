@@ -14,7 +14,7 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "../contexts/AuthContext";
 
 interface NavbarProps {
-  /** Optional breadcrumb shown after the wordmark (e.g. "Dashboard", "Tech tower"). */
+  /** Optional breadcrumb shown after the wordmark (e.g. "Dashboard", "Tech stack"). */
   contextLabel?: string;
   /** Optional dot color for the context breadcrumb (category hex). */
   contextDot?: string;
@@ -39,7 +39,7 @@ export function Navbar({ contextLabel, contextDot }: NavbarProps) {
       <div className="flex items-center gap-3 min-w-0">
         <Link
           href="/"
-          aria-label="Tower — home"
+          aria-label="Stack — home"
           className="group flex items-center gap-2.5 flex-shrink-0"
         >
           {/* Altimeter tick motif */}
@@ -48,7 +48,7 @@ export function Navbar({ contextLabel, contextDot }: NavbarProps) {
             aria-hidden="true"
           />
           <span className="font-display text-xl leading-none tracking-tight text-text-primary">
-            TOWER
+            STACK
           </span>
         </Link>
         {contextLabel && (

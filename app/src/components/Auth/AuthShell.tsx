@@ -32,7 +32,7 @@ export function AuthShell({ children }: { children: ReactNode }) {
         >
           <span className="h-6 w-[3px] rounded-full bg-signal" aria-hidden="true" />
           <span className="font-display text-xl tracking-tight text-text-primary">
-            TOWER
+            STACK
           </span>
         </Link>
 
@@ -94,7 +94,7 @@ export function AuthShell({ children }: { children: ReactNode }) {
         </div>
 
         <p className="relative z-10 font-mono text-[11px] uppercase tracking-[0.14em] text-text-muted">
-          © {new Date().getFullYear()} Tower
+          © {new Date().getFullYear()} Stack
         </p>
       </aside>
 

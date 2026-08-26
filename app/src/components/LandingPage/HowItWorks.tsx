@@ -79,7 +79,7 @@ const steps: Step[] = [
     icon: <ArrowUpIcon />,
     title: "Buy altitude",
     description:
-      "Pay once to place your block high in the tower. Your position is permanent — it never drops through inaction.",
+      "Pay once to place your block high in the stack. Your position is permanent — it never drops through inaction.",
     tone: "signal",
   },
   {
@@ -87,7 +87,7 @@ const steps: Step[] = [
     icon: <EyeIcon />,
     title: "The ground rises",
     description:
-      "Every view the tower serves lifts the ground line. Blocks that don't top up eventually sink beneath it — and get buried.",
+      "Every view the stack serves lifts the ground line. Blocks that don't top up eventually sink beneath it — and get buried.",
     tone: "ember",
   },
   {
@@ -95,7 +95,7 @@ const steps: Step[] = [
     icon: <TrophyIcon />,
     title: "Outlast everyone",
     description:
-      "Stay above ground to keep your rank and visibility. Top up, climb higher, and outlast every competitor in your tower.",
+      "Stay above ground to keep your rank and visibility. Top up, climb higher, and outlast every competitor in your stack.",
     tone: "signal",
   },
 ];
@@ -104,7 +104,7 @@ export function HowItWorks() {
   return (
     <section
       id="how-it-works"
-      aria-label="How Tower works"
+      aria-label="How Stack works"
       className="scroll-mt-20 py-20 px-4 border-t border-border-subtle bg-surface/30"
     >
       <div className="max-w-6xl mx-auto">

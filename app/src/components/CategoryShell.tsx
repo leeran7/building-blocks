@@ -34,7 +34,7 @@ export function CategoryShell({
   children: ReactNode;
 }) {
   const activeTab = section === "tower" ? "tower" : "climb";
-  const ctxWord = section === "tower" ? "tower" : "climb";
+  const ctxWord = section === "tower" ? "stack" : "climb";
 
   return (
     <div

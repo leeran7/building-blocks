@@ -110,7 +110,7 @@ function SubmitForm() {
           Submit a block
         </h1>
         <p className="text-text-secondary mt-2">
-          Buy your starting altitude. Your block enters the tower the moment
+          Buy your starting altitude. Your block enters the stack the moment
           payment completes.
         </p>
       </div>
@@ -160,7 +160,7 @@ function SubmitForm() {
 
         <div>
           <label htmlFor="category" className="block text-sm font-medium text-text-primary mb-1.5">
-            Tower
+            Stack
           </label>
           <select
             id="category"

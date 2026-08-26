@@ -3,7 +3,7 @@
 /**
  * InlineTower — a tower's live leaderboard expanded in place on the landing.
  *
- * Fetches the tower's data only when opened (no N-fetch on load) and mounts the
+ * Fetches the stack's data only when opened (no N-fetch on load) and mounts the
  * real virtualized TowerView bounded to a fixed height so it scrolls internally
  * and only THIS (open) tower polls for live updates. Includes a link to the
  * full dedicated tower page for sharing/SEO.
@@ -22,7 +22,7 @@ const TowerView = dynamic(
 export function InlineTower({ slug, label, onClose }: { slug: string; label: string; onClose: () => void }) {
   const [data, setData] = useState<TowerData | null>(null);
   const [error, setError] = useState(false);
-  const pollUrl = `/api/tower/${slug}`;
+  const pollUrl = `/api/stack/${slug}`;
 
   useEffect(() => {
     let live = true;
@@ -41,11 +41,11 @@ export function InlineTower({ slug, label, onClose }: { slug: string; label: str
     <div className="col-span-full rounded-2xl border border-signal/40 bg-surface overflow-hidden shadow-lifted animate-enter">
       <div className="flex items-center justify-between px-4 h-12 border-b border-border-subtle">
         <span className="font-mono text-[11px] uppercase tracking-[0.16em] text-signal">
-          [ {label} tower · live ]
+          [ {label} stack · live ]
         </span>
         <div className="flex items-center gap-3">
           <Link
-            href={`/tower/${slug}`}
+            href={`/stack/${slug}`}
             className="font-mono text-[11px] uppercase tracking-[0.12em] text-text-muted hover:text-signal transition-colors"
           >
             Open full ↗
@@ -54,7 +54,7 @@ export function InlineTower({ slug, label, onClose }: { slug: string; label: str
             type="button"
             onClick={onClose}
             className="font-mono text-[11px] uppercase tracking-[0.12em] text-text-muted hover:text-signal transition-colors min-h-[36px]"
-            aria-label={`Collapse ${label} tower`}
+            aria-label={`Collapse ${label} stack`}
           >
             Close ✕
           </button>
@@ -65,8 +65,8 @@ export function InlineTower({ slug, label, onClose }: { slug: string; label: str
         {error ? (
           <div className="h-full grid place-items-center px-4 text-center">
             <p className="font-mono text-xs uppercase tracking-[0.14em] text-text-muted">
-              couldn’t load this tower ·{" "}
-              <Link href={`/tower/${slug}`} className="text-signal">
+              couldn’t load this stack ·{" "}
+              <Link href={`/stack/${slug}`} className="text-signal">
                 open full ↗
               </Link>
             </p>

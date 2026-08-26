@@ -4,7 +4,7 @@
  * TowerDirectory — the landing page's interactive arena directory (ASCENT).
  *
  * The landing owns discovery AND play — the user never leaves the page:
- *   - Card body → expands the tower's live leaderboard inline (accordion, one at
+ *   - Card body → expands the stack's live leaderboard inline (accordion, one at
  *     a time, pushes content down). Only the open tower fetches + polls.
  *   - "Play" → opens the climb in a fullscreen overlay over the landing.
  * Each card is a state-aware conversion unit (empty → "Claim #1 · from $5").
@@ -63,10 +63,10 @@ export function TowerDirectory({ counts, minEntryUsd }: TowerDirectoryProps) {
             [ the arena ]
           </span>
           <h2 className="font-display text-4xl md:text-5xl text-text-primary mt-3">
-            Pick your tower
+            Pick your stack
           </h2>
           <p className="text-sm text-text-muted mt-2">
-            {GAME_CATEGORIES.length} towers · {totalLive} blocks climbing. Open a
+            {GAME_CATEGORIES.length} stacks · {totalLive} blocks climbing. Open a
             tower to see the standings, or play the free climb — without leaving
             this page.
           </p>
@@ -174,7 +174,7 @@ function TowerCard({
         onClick={onToggle}
         aria-expanded={isOpen}
         className="relative block w-full text-left p-5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal rounded-2xl"
-        aria-label={`${label} tower — ${empty ? "claim #1" : `${count} blocks live`}`}
+        aria-label={`${label} stack — ${empty ? "claim #1" : `${count} blocks live`}`}
       >
         <div className="flex items-start justify-between gap-2">
           <div className="flex items-center gap-2.5 min-w-0">

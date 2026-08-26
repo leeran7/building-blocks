@@ -1,7 +1,7 @@
 /**
  * POST /api/admin/hide
  *
- * Set hidden_at on a block, removing it from the tower read path.
+ * Set hidden_at on a block, removing it from the stack read path.
  * Requires: Authorization: Bearer {ADMIN_TOKEN}
  */
 

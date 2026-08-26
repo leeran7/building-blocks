@@ -175,7 +175,7 @@ export default function DashboardPage() {
             href="/"
             className="text-lg font-bold tracking-tight text-text-primary hover:text-signal transition-colors"
           >
-            Tower
+            Stack
           </Link>
           <span className="text-border-strong" aria-hidden="true">/</span>
           <span className="text-sm text-text-secondary">Dashboard</span>
@@ -185,7 +185,7 @@ export default function DashboardPage() {
             href="/browse"
             className="hidden sm:inline-flex text-sm text-text-muted hover:text-text-primary transition-colors min-h-[44px] items-center px-2"
           >
-            Browse towers
+            Browse stacks
           </Link>
           <SignOutButton />
         </div>

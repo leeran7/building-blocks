@@ -222,7 +222,7 @@ function SignInForm() {
         {/* Logo — mobile only; desktop shows the brand panel */}
         <div className="flex items-center gap-2.5 mb-5 md:hidden">
           <span className="h-6 w-[3px] rounded-full bg-signal" aria-hidden="true" />
-          <span className="font-display text-xl tracking-tight text-text-primary">TOWER</span>
+          <span className="font-display text-xl tracking-tight text-text-primary">STACK</span>
         </div>
 
         {/* Title */}
@@ -232,7 +232,7 @@ function SignInForm() {
         <h1 id="auth-card-title" className="font-display text-3xl text-text-primary mt-2 mb-1">
           Welcome back
         </h1>
-        <p className="text-sm text-text-muted mb-6">Climb back into your towers.</p>
+        <p className="text-sm text-text-muted mb-6">Climb back into your stacks.</p>
 
         <form
           id={formId}

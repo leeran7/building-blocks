@@ -18,7 +18,7 @@ const FAQS: QA[] = [
   },
   {
     q: "What does “buried” mean?",
-    a: "As the tower serves views, the ground level rises. Any block whose altitude falls below the ground line is buried — greyed out and pushed underground. Its record page stays live forever, but it drops out of the visible leaderboard until you top up.",
+    a: "As the stack serves views, the ground level rises. Any block whose altitude falls below the ground line is buried — greyed out and pushed underground. Its record page stays live forever, but it drops out of the visible leaderboard until you top up.",
   },
   {
     q: "Why does the price of #1 fall over time?",
@@ -30,7 +30,7 @@ const FAQS: QA[] = [
   },
   {
     q: "What happens at the end of a season?",
-    a: "Every 90 days the tower archives to a permanent standings page, cumulative views reset to zero, and the rate resets to $1 = 1m — a fresh launch moment. Record pages at /b/[slug] persist across every season.",
+    a: "Every 90 days the stack archives to a permanent standings page, cumulative views reset to zero, and the rate resets to $1 = 1m — a fresh launch moment. Record pages at /b/[slug] persist across every season.",
   },
 ];
 

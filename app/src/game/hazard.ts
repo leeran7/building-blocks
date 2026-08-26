@@ -3,14 +3,14 @@
  *
  * The rising hazard (lava / flood / collapsing floor) chases the climber upward
  * and supplies the Doodle-Jump "keep moving or you're caught" pressure. Its rise
- * speed is expressed as a FRACTION OF THE CLIMBER'S SPEED (the tower's ladder
+ * speed is expressed as a FRACTION OF THE CLIMBER'S SPEED (the stack's ladder
  * climb rate), so the chase is always proportional to how fast you can move and
  * scales automatically across archetypes:
  *
  *   - it starts at `startSpeedFrac` of the climb speed and accelerates to
  *     `endSpeedFrac` over `rampSeconds`, then holds that top speed;
  *   - it begins `headStartM` BELOW the base, giving a fair opening buffer;
- *   - height is the integral of that speed over race-time, clamped to the tower.
+ *   - height is the integral of that speed over race-time, clamped to the stack.
  *
  * Because the speed is a fraction of the climb rate (< 1 early, approaching but
  * below 1), a climber who keeps moving upward stays ahead, while dawdling on a
@@ -61,7 +61,7 @@ export const DEFAULT_HAZARD_CONFIG: HazardConfig = {
  * The hazard rises at v(t) = climbSpeed · frac(t) · speedScale, where frac ramps
  * linearly from startSpeedFrac to endSpeedFrac over rampSeconds and then holds.
  * Height is the integral of v from 0, offset by the head-start. There is no
- * upper bound — the tower is endless.
+ * upper bound — the stack is endless.
  *
  * @param seconds        race-time since match start (>= 0)
  * @param climbSpeedM    the climber's reference speed (tower.maxClimbSpeed)

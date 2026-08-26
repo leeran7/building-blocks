@@ -47,6 +47,9 @@ export function CategoryNav({
     [family]
   );
 
+  // The paid-leaderboard section lives at /stack (rebrand); climb/play unchanged.
+  const sectionPath = section === "tower" ? "stack" : section;
+
   return (
     <nav aria-label="Categories" className="bg-surface border-b border-border-subtle">
       <div className="max-w-6xl mx-auto px-3 py-2 flex flex-col gap-2">
@@ -69,7 +72,7 @@ export function CategoryNav({
             return (
               <Link
                 key={c.slug}
-                href={`/${section}/${c.slug}`}
+                href={`/${sectionPath}/${c.slug}`}
                 aria-current={isActive ? "page" : undefined}
                 className={
                   "flex-shrink-0 inline-flex items-center gap-1.5 rounded-full px-3 min-h-[34px] text-sm font-medium transition-colors " +

@@ -69,7 +69,7 @@ function clampAxis(v: unknown): -1 | 0 | 1 {
 
 /**
  * Height-rate sentinel (AC-15, AC-16). Given a player's height before and after
- * a tick, confirm the gain does not exceed the tower's maximum legal climb rate
+ * a tick, confirm the gain does not exceed the stack's maximum legal climb rate
  * (plus a small tolerance for float + platform-inheritance). Returns true if the
  * delta is LEGAL.
  */
