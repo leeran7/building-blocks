@@ -76,7 +76,7 @@ export function BlockRow({
     buried
       ? "border-danger/25 bg-danger/[0.03] block-buried"
       : isLeader
-        ? "border-accent/50 bg-accent/[0.06]"
+        ? "border-signal/50 bg-accent/[0.06] shadow-signal"
         : isPodium
           ? "border-border-strong bg-surface hover:bg-elevated"
           : "border-border-subtle bg-surface/40 hover:bg-elevated hover:border-border-strong",

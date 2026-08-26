@@ -227,7 +227,7 @@ export function TowerView({ initialData, pollUrl = "/api/tower" }: TowerViewProp
       {/* Virtualized scroll container (AC-22) */}
       <div
         ref={containerRef}
-        className="flex-1 overflow-y-auto overflow-x-hidden"
+        className="topo flex-1 overflow-y-auto overflow-x-hidden"
         onScroll={handleScroll}
         style={{ WebkitOverflowScrolling: "touch" }}
         data-testid="tower-scroll"
@@ -282,10 +282,10 @@ export function TowerView({ initialData, pollUrl = "/api/tower" }: TowerViewProp
 
           {groundIndex >= 0 && (
             <div
-              className="mt-2 rounded-lg border border-danger/20 bg-danger/[0.04] py-6 text-center text-text-muted text-xs uppercase tracking-[0.2em]"
+              className="mt-2 rounded-lg border border-ember/20 bg-ember/[0.04] py-6 text-center font-mono text-ember/70 text-[11px] uppercase tracking-[0.2em]"
               aria-label="Underground — buried blocks are below ground level"
             >
-              Underground · buried blocks
+              ▼ underground · buried blocks
             </div>
           )}
         </div>
