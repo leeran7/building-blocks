@@ -1,0 +1,8 @@
+<svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Doomstack mark: a stack of bars — signal-lime leader at the summit,
+       descending, ember at the base (the doom / burial). -->
+  <rect width="32" height="32" rx="7" fill="#0a0a0c"/>
+  <rect x="6.5" y="8" width="19" height="3.6" rx="1.8" fill="#cbf24d"/>
+  <rect x="6.5" y="14.2" width="14" height="3.6" rx="1.8" fill="#6b6b8a"/>
+  <rect x="6.5" y="20.4" width="9.5" height="3.6" rx="1.8" fill="#ff5a2c"/>
+</svg>

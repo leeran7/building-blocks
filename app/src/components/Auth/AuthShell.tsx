@@ -10,6 +10,7 @@
 
 import type { ReactNode } from "react";
 import Link from "next/link";
+import { StackMark } from "../Brand/StackMark";
 
 const DECO_BARS = [94, 72, 58, 40];
 
@@ -30,7 +31,7 @@ export function AuthShell({ children }: { children: ReactNode }) {
           href="/"
           className="relative z-10 flex items-center gap-2.5 w-fit"
         >
-          <span className="h-6 w-[3px] rounded-full bg-signal" aria-hidden="true" />
+          <StackMark className="h-6 w-6" />
           <span className="font-display text-xl tracking-tight text-text-primary">
             DOOMSTACK
           </span>

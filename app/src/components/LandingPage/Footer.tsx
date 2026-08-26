@@ -9,6 +9,7 @@
 
 import Link from "next/link";
 import { FEATURED_GAME_CATEGORIES } from "../../game/categories";
+import { StackMark } from "../Brand/StackMark";
 
 const LINK =
   "text-sm text-text-secondary hover:text-signal transition-colors min-h-[36px] inline-flex items-center";
@@ -61,7 +62,7 @@ export function Footer() {
       <div className="max-w-6xl mx-auto px-4 py-12 grid grid-cols-2 md:grid-cols-4 gap-8">
         <div className="col-span-2 md:col-span-1">
           <div className="flex items-center gap-2.5">
-            <span className="h-6 w-[3px] rounded-full bg-signal" aria-hidden="true" />
+            <StackMark className="h-6 w-6" />
             <span className="font-display text-xl tracking-tight text-text-primary">
               DOOMSTACK
             </span>

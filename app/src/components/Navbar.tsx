@@ -12,6 +12,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "../contexts/AuthContext";
+import { StackMark } from "./Brand/StackMark";
 
 interface NavbarProps {
   /** Optional breadcrumb shown after the wordmark (e.g. "Dashboard", "Tech stack"). */
@@ -42,11 +43,8 @@ export function Navbar({ contextLabel, contextDot }: NavbarProps) {
           aria-label="Stack — home"
           className="group flex items-center gap-2.5 flex-shrink-0"
         >
-          {/* Altimeter tick motif */}
-          <span
-            className="h-6 w-[3px] rounded-full bg-signal group-hover:h-7 transition-[height]"
-            aria-hidden="true"
-          />
+          {/* Doomstack logo mark */}
+          <StackMark className="h-6 w-6 group-hover:scale-105 transition-transform" />
           <span className="font-display text-xl leading-none tracking-tight text-text-primary">
             DOOMSTACK
           </span>

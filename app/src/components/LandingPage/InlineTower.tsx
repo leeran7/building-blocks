@@ -44,9 +44,17 @@ export function InlineTower({ slug, label, onClose }: { slug: string; label: str
           [ {label} stack · live ]
         </span>
         <div className="flex items-center gap-3">
+          {/* Primary action — add your block to this stack (the conversion CTA) */}
+          <Link
+            href={`/submit?category=${slug}`}
+            className="inline-flex items-center gap-1 rounded-full bg-signal text-void font-semibold text-xs px-3.5 min-h-[32px] shadow-signal hover:brightness-110 active:scale-[0.98] transition-[filter,transform]"
+            aria-label={`Add your block to the ${label} stack`}
+          >
+            + Add to this stack
+          </Link>
           <Link
             href={`/stack/${slug}`}
-            className="font-mono text-[11px] uppercase tracking-[0.12em] text-text-muted hover:text-signal transition-colors"
+            className="hidden sm:inline-flex font-mono text-[11px] uppercase tracking-[0.12em] text-text-muted hover:text-signal transition-colors"
           >
             Open full ↗
           </Link>
