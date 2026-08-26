@@ -111,10 +111,10 @@ export function ClimbScene({ tower, categoryLabel }: ClimbSceneProps) {
         {/* Countdown overlay. */}
         {phase === "countdown" && (
           <Overlay>
-            <p className="text-xs uppercase tracking-[0.2em] text-accent">
-              Get ready
+            <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-signal">
+              [ get ready ]
             </p>
-            <p className="text-5xl font-bold text-text-primary font-mono mt-2">
+            <p className="font-display text-7xl text-text-primary mt-3 tabular-nums">
               {Math.max(1, 3 - Math.floor(state.tick / 30))}
             </p>
           </Overlay>
@@ -123,13 +123,13 @@ export function ClimbScene({ tower, categoryLabel }: ClimbSceneProps) {
         {/* Idle (pre-start) overlay. */}
         {phase === "lobby" && (
           <Overlay>
-            <p className="text-xs uppercase tracking-[0.2em] text-accent">
-              {categoryLabel} tower
+            <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-signal">
+              [ {categoryLabel} climb ]
             </p>
-            <h2 className="text-2xl font-bold text-text-primary mt-1">
+            <h2 className="font-display text-4xl text-text-primary mt-2">
               Endless climb
             </h2>
-            <p className="text-text-secondary text-sm mt-2 max-w-[240px] text-center">
+            <p className="text-text-secondary text-sm mt-3 max-w-[260px] text-center leading-relaxed">
               Climb as high as you can before the rising lava catches you. It gets
               harder the higher you go — your peak height is your score.
             </p>
@@ -140,13 +140,16 @@ export function ClimbScene({ tower, categoryLabel }: ClimbSceneProps) {
         {/* Results overlay — endless climb ends when the lava catches you. */}
         {finished && (
           <Overlay>
-            <p className="text-xs uppercase tracking-[0.2em] text-danger">
-              Caught by the lava
+            <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-ember">
+              ▲ caught by the lava
             </p>
-            <h2 className="text-3xl font-bold text-text-primary mt-1">
-              {(player?.peakY ?? 0).toFixed(0)}m
+            <h2 className="font-mono text-6xl font-bold text-signal tabular-nums mt-2 leading-none">
+              {(player?.peakY ?? 0).toFixed(0)}
+              <span className="text-2xl text-text-muted font-normal ml-1">m</span>
             </h2>
-            <p className="text-text-secondary text-sm mt-2">your highest climb</p>
+            <p className="font-mono text-[11px] uppercase tracking-[0.16em] text-text-muted mt-2">
+              your highest climb
+            </p>
 
             {/* Record status + leaderboard place (immediate). */}
             {user ? (
@@ -216,7 +219,7 @@ function StartButton({ onClick, label }: { onClick: () => void; label: string })
     <button
       type="button"
       onClick={onClick}
-      className="mt-5 inline-flex items-center justify-center rounded-lg bg-accent text-void font-semibold px-6 min-h-[44px] hover:brightness-110 transition"
+      className="mt-6 inline-flex items-center justify-center rounded-full bg-signal text-void font-semibold px-7 min-h-[48px] shadow-signal hover:brightness-110 active:scale-[0.98] transition-[filter,transform]"
     >
       {label}
     </button>
