@@ -52,6 +52,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(firebaseUser);
         setToken(idToken);
         setTokenCookie(idToken); // unblock the /dashboard middleware guard
+
+        // Provision the DB `users` row on EVERY sign-in path (email, Google
+        // OAuth, returning session) — not just email/password signup. Anything
+        // that foreign-keys to users(id) (climb saves, blocks) fails without it.
+        // Anonymous sessions have no email and can't be provisioned; skip them.
+        if (!firebaseUser.isAnonymous && firebaseUser.email) {
+          fetch("/api/auth/sync", {
+            method: "POST",
+            headers: { Authorization: `Bearer ${idToken}` },
+          }).catch(() => {
+            /* best-effort; the climb route also self-heals on save */
+          });
+        }
       } else {
         setUser(null);
         setToken(null);

@@ -16,6 +16,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { getOrCreateActiveSeason } from "../../../src/db/seasons";
 import { createBlock, getBlockById } from "../../../src/db/blocks";
+import { ensureUser } from "../../../src/db/user";
 import { requireAuth, AuthError } from "../../../src/lib/requireAuth";
 import { computeRate } from "../../../src/engine/index";
 import { loadConstants } from "../../../src/engine/constants";
@@ -84,6 +85,19 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       try {
         const decoded = await requireAuth(request);
         authenticatedUserId = decoded.uid;
+        // blocks.userId FKs to users(id). Provision the row from the verified
+        // token so a first-time buyer (who may not have hit /api/auth/sync yet)
+        // doesn't fail block creation with a FK violation. Requires an email.
+        if (decoded.email) {
+          await ensureUser({
+            id: decoded.uid,
+            email: decoded.email,
+            emailVerified: decoded.email_verified ?? false,
+          });
+        } else {
+          // No email → can't own a block; don't attach an unprovisioned uid.
+          authenticatedUserId = null;
+        }
       } catch (err) {
         if (err instanceof AuthError) return err.response;
         return NextResponse.json(

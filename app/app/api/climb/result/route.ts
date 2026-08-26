@@ -16,6 +16,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyIdToken } from "../../../../src/lib/firebaseAdmin";
 import { recordClimb } from "../../../../src/db/climb";
+import { ensureUser } from "../../../../src/db/user";
 
 interface Body {
   categorySlug?: unknown;
@@ -58,15 +59,31 @@ export async function POST(request: NextRequest) {
   }
 
   let uid: string;
+  let email: string | undefined;
+  let emailVerified = false;
   try {
     const decoded = await verifyIdToken(token);
     uid = decoded.uid;
+    email = decoded.email;
+    emailVerified = decoded.email_verified ?? false;
   } catch {
     // A bad token on a solo run should not fail the run — just skip saving.
     return NextResponse.json({ saved: false, reason: "invalid_token" }, { status: 200 });
   }
 
+  // Anonymous Firebase sessions have no email; we can't create a `users` row
+  // (users.email is NOT NULL/unique), so there's nothing to persist against.
+  if (!email) {
+    return NextResponse.json({ saved: false, reason: "anonymous" }, { status: 200 });
+  }
+
   try {
+    // Self-heal: the climb tables FK to users(id). A user who signed in via a
+    // path that didn't provision their row (Google OAuth, returning sign-in)
+    // would otherwise hit a FK violation here. Upsert the row from the verified
+    // token before recording so saves succeed regardless of sign-in path.
+    await ensureUser({ id: uid, email, emailVerified });
+
     const result = await recordClimb({
       userId: uid,
       categorySlug,
