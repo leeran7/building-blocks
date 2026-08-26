@@ -27,12 +27,29 @@ model User {
   id            String   @id // Firebase UID
   email         String   @unique
   emailVerified Boolean  @default(false)
+  display_name  String? // profile display name (optional)
   createdAt     DateTime @default(now())
   blocks        Block[]
   climbRecords  ClimbRecord[]
   climbRuns     ClimbRun[]
+  savedUrls     SavedUrl[]
 
   @@map("users")
+}
+
+// A URL the user has saved (from settings or a previous submission) so they can
+// pick it again instead of retyping. Unique per (user, url).
+model SavedUrl {
+  id         String   @id @default(cuid())
+  userId     String
+  url        String
+  created_at DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, url], name: "saved_url_user_url")
+  @@index([userId])
+  @@map("saved_urls")
 }
 
 // Tower v3 "The Climb": permanent peak-height record per user per category.

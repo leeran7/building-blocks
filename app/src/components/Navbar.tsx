@@ -79,12 +79,10 @@ export function Navbar({ contextLabel, contextDot }: NavbarProps) {
             aria-hidden="true"
           />
         ) : user ? (
+          // Mirrors the signed-out layout: ghost links + a signal pill.
           <>
-            <Link
-              href="/dashboard"
-              className={`${PILL} bg-signal text-void`}
-            >
-              Dashboard
+            <Link href="/settings" className={`${GHOST} hidden sm:inline-flex`}>
+              Settings
             </Link>
             <button
               type="button"
@@ -94,6 +92,9 @@ export function Navbar({ contextLabel, contextDot }: NavbarProps) {
             >
               Sign out
             </button>
+            <Link href="/dashboard" className={`${PILL} bg-signal text-void`}>
+              Dashboard
+            </Link>
           </>
         ) : (
           <>

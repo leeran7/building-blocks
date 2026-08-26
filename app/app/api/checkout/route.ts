@@ -17,6 +17,7 @@ import { z } from "zod";
 import { getOrCreateActiveSeason } from "../../../src/db/seasons";
 import { createBlock, getBlockById } from "../../../src/db/blocks";
 import { ensureUser } from "../../../src/db/user";
+import { addSavedUrl } from "../../../src/db/settings";
 import { requireAuth, AuthError } from "../../../src/lib/requireAuth";
 import { computeRate } from "../../../src/engine/index";
 import { loadConstants } from "../../../src/engine/constants";
@@ -155,6 +156,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
       blockId = block.id;
       displayName = data.display_name;
+
+      // Remember this URL on the user so they can reuse it next time.
+      if (authenticatedUserId) {
+        await addSavedUrl(authenticatedUserId, urlResult.sanitised).catch(() => {
+          /* best-effort — never block checkout on this */
+        });
+      }
     } else {
       // Top-up: validate block exists
       const block = await getBlockById(data.block_id);

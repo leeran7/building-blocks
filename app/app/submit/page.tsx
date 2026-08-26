@@ -9,7 +9,7 @@
  * the "Submit a block" CTAs (previously they always bounced to /auth/signup).
  */
 
-import { type FormEvent, Suspense, useState } from "react";
+import { type FormEvent, Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "../../src/contexts/AuthContext";
@@ -37,6 +37,31 @@ function SubmitForm() {
   const [amount, setAmount] = useState("5");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [savedUrls, setSavedUrls] = useState<string[]>([]);
+  const [typingNewUrl, setTypingNewUrl] = useState(true);
+
+  // Load the user's saved URLs + display name to prefill the form.
+  useEffect(() => {
+    if (!token) return;
+    let live = true;
+    fetch("/api/settings", { headers: { Authorization: `Bearer ${token}` } })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((s) => {
+        if (!live || !s) return;
+        const list: string[] = Array.isArray(s.urls) ? s.urls : [];
+        setSavedUrls(list);
+        // Default to picking a saved URL when the user has any.
+        if (list.length > 0) {
+          setTypingNewUrl(false);
+          setUrl((cur) => cur || list[0]);
+        }
+        setDisplayName((cur) => cur || (s.displayName ?? ""));
+      })
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [token]);
 
   // Auth gate
   if (authLoading) {
@@ -152,16 +177,54 @@ function SubmitForm() {
           <label htmlFor="url" className="block text-sm font-medium text-text-primary mb-1.5">
             URL
           </label>
-          <input
-            id="url"
-            type="url"
-            value={url}
-            onChange={(e) => setUrl(e.target.value)}
-            className={`${INPUT} font-mono`}
-            placeholder="https://example.com"
-            required
-            disabled={submitting}
-          />
+
+          {savedUrls.length > 0 && (
+            <select
+              aria-label="Choose a saved URL"
+              value={typingNewUrl ? "__new__" : url}
+              onChange={(e) => {
+                const v = e.target.value;
+                if (v === "__new__") {
+                  setTypingNewUrl(true);
+                  setUrl("");
+                } else {
+                  setTypingNewUrl(false);
+                  setUrl(v);
+                }
+              }}
+              className={`${INPUT} mb-2`}
+              disabled={submitting}
+            >
+              {savedUrls.map((u) => (
+                <option key={u} value={u}>
+                  {u}
+                </option>
+              ))}
+              <option value="__new__">＋ Type a new URL…</option>
+            </select>
+          )}
+
+          {(savedUrls.length === 0 || typingNewUrl) && (
+            <input
+              id="url"
+              type="url"
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+              className={`${INPUT} font-mono`}
+              placeholder="https://example.com"
+              required
+              disabled={submitting}
+            />
+          )}
+          {savedUrls.length > 0 && (
+            <p className="text-xs text-text-muted mt-1.5">
+              New URLs are saved to your{" "}
+              <a href="/settings" className="text-signal hover:brightness-110">
+                settings
+              </a>{" "}
+              for next time.
+            </p>
+          )}
         </div>
 
         <div>
