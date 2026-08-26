@@ -1,10 +1,12 @@
-# Tower — Design System (Dark Editorial)
+# Tower — Design System (ASCENT)
 
-Dark, high-contrast, data-dense, editorial. **Cyan `#00d4ff` is the one and only
-accent** — used for identity, primary actions, active states, and altitude bars.
-Category identity is a small colored dot + label only (never a color wash).
-Numbers are tabular monospace. Restrained radii, subtle single-layer shadows,
-generous spacing. WCAG 2.1 AA.
+Dark, high-contrast, data-dense, built around the product's core mechanic: **you
+rise, the ground rises to bury you.** The identity is a **duotone** —
+**signal-lime `#cbf24d` = ascent / you / #1 / primary actions**, **ember `#ff5a2c`
+= the rising ground / burial / danger** — on a warm-obsidian canvas. Recurring
+motifs: topographic contours, a grain overlay, and an **altimeter tick ruler**.
+Numbers are tabular monospace. Restrained radii, subtle shadows (plus matched
+signal/ember glows), generous spacing. WCAG 2.1 AA.
 
 `tailwind.config.ts` + `app/globals.css` are the source of truth.
 
@@ -12,49 +14,70 @@ generous spacing. WCAG 2.1 AA.
 
 | Token | Hex | Role |
 | --- | --- | --- |
-| `void` | `#0a0a0f` | Page background |
-| `surface` | `#111118` | Cards / panels |
-| `surface-raised` | `#15151f` | Recessed wells |
-| `elevated` | `#1a1a26` | Hover surface |
-| `border-subtle` | `#1e1e2e` | Hairline borders |
-| `border-strong` | `#2a2a3d` | Emphasis borders |
-| `text-primary` | `#f4f4ff` | Headings, key values |
-| `text-secondary` | `#a5a5c4` | Body copy |
-| `text-muted` | `#6b6b8a` | Labels, captions |
-| **`accent` / `brand`** | **`#00d4ff`** | The single accent — CTAs, identity, active, bars |
-| `danger` `#ff5470` · `warning` `#ffb020` · `success` `#28d17c` | | Semantic only |
+| `void` | `#0a0a0c` | Page background (warm obsidian) |
+| `surface` | `#121116` | Cards / panels |
+| `surface-raised` | `#17161c` | Recessed wells |
+| `elevated` | `#1e1c24` | Hover surface |
+| `border-subtle` | `#24222c` | Hairline borders |
+| `border-strong` | `#37343f` | Emphasis borders |
+| `text-primary` | `#f4f2ec` | Headings, key values (warm off-white) |
+| `text-secondary` | `#a8a4b2` | Body copy |
+| `text-muted` | `#74707e` | Labels, captions |
+| **`signal` / `brand` / `accent`** | **`#cbf24d`** | Ascent · you · #1 · CTAs · active · bars |
+| **`ember`** | **`#ff5a2c`** | Rising ground · burial · danger |
+| `warning` `#ffb020` · `success` `#8fd14f` | | Semantic only |
 
-Category dots (identity only): tech `#00d4ff` · design `#ff6b9d` · business
-`#ffd700` · creative `#b07cd6` · gaming `#00ff88` · science `#ff8c00`. Arbitrary
-categories get a deterministic bright hue via `getCategory()`.
+Category wayfinding dots (one category shown at a time — never a rainbow): tech
+`#cbf24d` · design `#ff8da3` · business `#f2c14e` · creative `#c39bff` · gaming
+`#5be0b0` · science `#6bb8ff`. Arbitrary categories get a deterministic bright
+hue via `getCategory()`.
 
-## Typography — Inter (UI) + JetBrains Mono (numbers, tabular)
+## Typography
 
-Display `.font-display` (heavy italic, used sparingly) · h1 30–36 bold · h2 24–30
-bold · h3 18–20 semibold · body 15–16 · caption 11–12 uppercase tracking-wide.
+- **Display** `.font-display` — **Bricolage Grotesque**, heavy, tight tracking
+  (architectural). Used for headlines/section titles, often UPPERCASE.
+- **Body / UI** — **Hanken Grotesk** (`font-sans`).
+- **Mono / instrument** — **Space Mono** (`font-mono`, tabular): elevation
+  readouts, stats, uppercase eyebrow tags like `[ the rules ]`, coordinates.
+
+Scale: display 48–96 · h2 36–48 · h3 18–20 · body 15–16 · caption/mono 10–12
+uppercase tracking `0.12–0.2em`.
 
 ## Radius · Spacing · Shadow
 
-- Radius: `6` controls · `8` (`rounded-lg`) buttons/inputs · `12` (`rounded-xl`) cards · `16` (`rounded-2xl`) prominent · pill for tags.
-- Spacing: `4 / 8 / 12 / 16 / 24 / 32 / 48 / 64 / 96` — larger gaps establish hierarchy.
-- Shadow: `card` = `0 1px 2px rgb(0 0 0/.25)` · `lifted` = `0 8px 24px -12px rgb(0 0 0/.55)`. No colored halos.
+- Radius: `6` controls · `8` inputs · `12` (`rounded-xl`) cards · `16`
+  (`rounded-2xl`) prominent · `999` pills (buttons/tags).
+- Spacing: `4 / 8 / 12 / 16 / 24 / 32 / 48 / 64 / 96` — larger gaps set hierarchy.
+- Shadow: `card` · `lifted` = `0 18px 40px -20px rgb(0 0 0/.75)` · `signal` /
+  `ember` = hairline ring + matched colored glow (use only on the duotone poles).
+
+## Atmosphere utilities (globals.css)
+
+`.grain` (film noise overlay) · `.topo` (topographic contours) · `.survey-grid`
+(measurement grid) · `.ground-gradient` (ember creeping up) · `.altimeter` (tick
+ruler) · `.reveal` (staggered fade+rise on load — set `animationDelay` inline).
+All motion is `prefers-reduced-motion` guarded.
 
 ## CSS variables (globals.css)
 
 ```css
 :root {
-  --color-void: #0a0a0f;   --color-surface: #111118;   --color-elevated: #1a1a26;
-  --color-border: #1e1e2e; --color-border-focus: #3a3a5c;
-  --color-text-primary: #f4f4ff; --color-text-muted: #6b6b8a;
-  --accent-rgb: 0 212 255; /* the single accent — cyan */
+  --color-void: #0a0a0c;   --color-surface: #121116;   --color-elevated: #1e1c24;
+  --color-border: #24222c; --color-border-focus: #4a4656;
+  --color-text-primary: #f4f2ec; --color-text-muted: #74707e;
+  --signal-rgb: 203 242 77;  /* ascent  */
+  --ember-rgb:  255 90 44;   /* burial  */
+  --accent-rgb: 203 242 77;  /* active accent = signal */
 }
 ```
 
-`accent` resolves to `rgb(var(--accent-rgb, 0 212 255) / <alpha>)`. `categoryTheme()`
-is a no-op (accent stays cyan); flip it on to re-enable per-tower accents.
+`accent` resolves to `rgb(var(--accent-rgb, 203 242 77) / <alpha>)`.
+`categoryTheme()` is a no-op (single accent = signal); flip it on to re-enable
+per-tower accents.
 
 ## Buttons
 
-Primary `bg-accent-tech text-void font-semibold rounded-lg` (hover `brightness-110`) ·
-Secondary `border-border-strong bg-surface` (hover `bg-elevated`) · Ghost `text-muted`→`text-primary`.
+Primary `bg-signal text-void font-semibold rounded-full` (hover `brightness-110`,
+active `scale-[0.98]`, `shadow-signal`) · Secondary `rounded-full border-border-strong
+bg-surface/60` (hover `border-signal/50`) · Ghost mono uppercase `text-muted`→`text-primary`.
 All ship default/hover/active/focus/disabled/loading; min target 44px.
