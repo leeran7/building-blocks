@@ -31,11 +31,14 @@ const DEMO_BLOCKS: DemoBlock[] = [
   { name: "abandoned.dev", altitude: "77.3", width: 18, buried: true },
 ];
 
-// Instrument stat strip — illustrative launch numbers.
-const STATS: { label: string; value: string }[] = [
-  { label: "Stacks live", value: "74" },
+// Instrument stat strip — illustrative launch numbers, split by tier.
+const PAID_STATS: { label: string; value: string }[] = [
   { label: "Blocks climbing", value: "1,208" },
   { label: "Cost of #1", value: "$24.80" },
+];
+const FREE_STATS: { label: string; value: string }[] = [
+  { label: "Climbers", value: "3,412" },
+  { label: "Top climb", value: "1,840m" },
 ];
 
 function ElevationProfile() {
@@ -213,22 +216,59 @@ export function Hero() {
             </Link>
           </div>
 
-          {/* instrument stat strip */}
-          <dl
-            className="reveal mt-10 grid grid-cols-3 gap-px overflow-hidden rounded-xl border border-border-subtle bg-border-subtle max-w-md mx-auto md:mx-0"
+          {/* instrument stat strip — split by tier (paid dominant, free muted) */}
+          <div
+            className="reveal mt-8 space-y-2.5 max-w-md mx-auto md:mx-0"
             style={{ animationDelay: "280ms" }}
           >
-            {STATS.map((s) => (
-              <div key={s.label} className="bg-surface px-3 py-3 text-center md:text-left">
-                <dt className="font-mono text-[10px] uppercase tracking-[0.12em] text-text-muted">
-                  {s.label}
-                </dt>
-                <dd className="font-mono text-lg font-bold tabular-nums text-text-primary mt-0.5">
-                  {s.value}
-                </dd>
+            {/* PAID — the prominent tier */}
+            <div>
+              <div className="flex items-center gap-2 mb-1.5 justify-center md:justify-start">
+                <span className="rounded-full bg-signal text-void px-2 py-0.5 font-mono text-[9px] font-bold uppercase tracking-[0.12em] shadow-signal">
+                  Paid
+                </span>
+                <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-text-muted">
+                  real stakes
+                </span>
               </div>
-            ))}
-          </dl>
+              <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-signal/30 bg-border-subtle">
+                {PAID_STATS.map((s) => (
+                  <div key={s.label} className="bg-surface px-3 py-2.5 text-center md:text-left">
+                    <dt className="font-mono text-[10px] uppercase tracking-[0.12em] text-text-muted">
+                      {s.label}
+                    </dt>
+                    <dd className="font-mono text-lg font-bold tabular-nums text-signal mt-0.5">
+                      {s.value}
+                    </dd>
+                  </div>
+                ))}
+              </dl>
+            </div>
+
+            {/* FREE — the muted tier */}
+            <div>
+              <div className="flex items-center gap-2 mb-1.5 justify-center md:justify-start">
+                <span className="rounded-full border border-border-strong px-2 py-0.5 font-mono text-[9px] uppercase tracking-[0.12em] text-text-secondary">
+                  Free
+                </span>
+                <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-text-muted">
+                  warm-up game
+                </span>
+              </div>
+              <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-border-subtle bg-border-subtle">
+                {FREE_STATS.map((s) => (
+                  <div key={s.label} className="bg-surface px-3 py-2 text-center md:text-left">
+                    <dt className="font-mono text-[10px] uppercase tracking-[0.12em] text-text-muted">
+                      {s.label}
+                    </dt>
+                    <dd className="font-mono text-base font-bold tabular-nums text-text-secondary mt-0.5">
+                      {s.value}
+                    </dd>
+                  </div>
+                ))}
+              </dl>
+            </div>
+          </div>
 
           <p
             className="reveal text-sm text-text-muted mt-5"
