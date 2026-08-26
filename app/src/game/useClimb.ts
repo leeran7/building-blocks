@@ -115,7 +115,7 @@ export function useClimb({
     };
   }, []);
 
-  const sampleInput = useCallback((onLadder: boolean): PlayerInput => {
+  const sampleInput = useCallback((): PlayerInput => {
     const keys = keysRef.current;
     const t = touchRef.current;
     const left = t.left || hasAny(keys, KEY_LEFT);
@@ -125,15 +125,11 @@ export function useClimb({
     const jump = t.jump || hasAny(keys, KEY_JUMP);
 
     const moveX: -1 | 0 | 1 = left && !right ? -1 : right && !left ? 1 : 0;
-    // Up/Down only mean "climb" on a ladder; otherwise Up doubles as nothing
-    // here (jump is Space). This keeps the intent unambiguous.
-    const climbY: -1 | 0 | 1 = onLadder
-      ? upKey && !downKey
-        ? 1
-        : downKey && !upKey
-        ? -1
-        : 0
-      : 0;
+    // Up/Down are the climb intent. They only DO anything when the player is on
+    // (or reaching) a ladder — the sim decides whether to grab/climb — but we
+    // always report the intent so the sim can attach the player to a ladder.
+    const climbY: -1 | 0 | 1 =
+      upKey && !downKey ? 1 : downKey && !upKey ? -1 : 0;
 
     return { moveX, jump, climbY, usePowerUp: false };
   }, []);
@@ -156,9 +152,8 @@ export function useClimb({
       let advanced = false;
       while (accumulatorRef.current >= TICK_DT) {
         accumulatorRef.current -= TICK_DT;
-        const onLadder = cur.players[0]?.onLadder ?? false;
         const input =
-          cur.phase === "countdown" ? NO_INPUT : sampleInput(onLadder);
+          cur.phase === "countdown" ? NO_INPUT : sampleInput();
         cur = stepMatch(cur, { [PLAYER_ID]: input }, cfg);
         advanced = true;
         if (cur.phase === "finished" || cur.phase === "results") {
@@ -181,9 +176,8 @@ export function useClimb({
     const fresh = makeInitial();
     fresh.phase = "countdown"; // 3-2-1 then GO (inputs locked during countdown)
     fresh.tick = 0;
-    // Put the solo climber on a ladder at the base so climb input works from the
-    // first segment (MVP ladder-climb archetype); richer geometry comes later.
-    fresh.players[0].onLadder = true;
+    // The climber spawns grounded on the base platform (createMatch places them
+    // at the centre); they walk to a ladder and climb from there.
     accumulatorRef.current = 0;
     lastTsRef.current = 0;
     stateRef.current = fresh;

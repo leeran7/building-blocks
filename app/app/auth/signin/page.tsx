@@ -359,7 +359,7 @@ function SignInForm() {
             setGuestLoading(true);
             setError(null);
             signInAnonymously(auth)
-              .then(() => router.push("/tower/tech"))
+              .then(() => router.push("/browse"))
               .catch(() => setError("Could not sign in as guest. Please try again."))
               .finally(() => setGuestLoading(false));
           }}

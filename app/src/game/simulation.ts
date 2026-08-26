@@ -1,5 +1,5 @@
 /**
- * Tower v3 "The Climb" — deterministic simulation core (Phase 0).
+ * Tower v3 "The Climb" — deterministic simulation core.
  *
  * This is the single source of truth for physics, run by BOTH the authoritative
  * server tick and client-side prediction (spec-next.md, Netcode). It is pure and
@@ -8,14 +8,18 @@
  * re-simulating (seed, inputLog) reproduces the identical outcome. That property
  * is what AC-11 (determinism) and AC-17 (replay verification) rely on.
  *
+ * The world is a Donkey-Kong-style stack of solid platforms joined by ladders,
+ * with jumpable gaps. Motion is real 2D platforming — gravity, walking, jumping,
+ * one-way platform landings, and ladder climbing. The pressure is Doodle-Jump
+ * style: a single DEATH LINE = max(rising hazard, peak − fallDeathBelowPeak). If
+ * your feet drop to it, you're out (caught = you lose; peak height is retained).
+ *
  * Tick order is deliberate and load-bearing:
  *   1. advance race-clock + hazard height
- *   2. integrate each climbing player's motion from their input
- *   3. FLAG FINISH is evaluated BEFORE elimination (AC-4): a player touching the
- *      flag on the same tick the hazard reaches them FINISHES, not dies.
- *   4. hazard + fall elimination / respawn for players who did not finish (AC-7,
- *      AC-9, AC-10); peakY is always retained (AC-8).
- *   5. resolve match end + deterministic winner (AC-2, AC-3).
+ *   2. integrate each climbing player's 2D motion from their input
+ *   3. FLAG FINISH is evaluated BEFORE elimination (AC-4)
+ *   4. death-line elimination for players who did not finish
+ *   5. resolve match end + deterministic winner (AC-2, AC-3)
  */
 
 import {
@@ -24,6 +28,8 @@ import {
   PlayerState,
   PlayerId,
   TowerSpec,
+  Platform,
+  Ladder,
   TICK_DT,
   NO_INPUT,
 } from "./types";
@@ -32,18 +38,16 @@ import {
   DEFAULT_HAZARD_CONFIG,
   hazardHeightAt,
 } from "./hazard";
-import { type EngineConstants } from "../engine/constants";
+import { platformsNearY, laddersNearY, ladderForFloor } from "./towers";
+
+const EPS = 0.01;
 
 export interface SimConfig {
   hazard: HazardConfig;
-  /** Time penalty (ticks) added when a player respawns (solo). */
-  respawnPenaltyTicks: number;
-  engine?: Partial<EngineConstants>;
 }
 
 export const DEFAULT_SIM_CONFIG: SimConfig = {
   hazard: DEFAULT_HAZARD_CONFIG,
-  respawnPenaltyTicks: 60, // ~2s at 30Hz
 };
 
 /** Build a fresh climbing player at the tower base. */
@@ -57,11 +61,10 @@ export function spawnPlayer(id: PlayerId, slot: number): PlayerState {
     vy: 0,
     onGround: true,
     onLadder: false,
+    ladderIx: null,
     status: "climbing",
     peakY: 0,
-    lastCheckpoint: 0,
     finishedTick: null,
-    penaltyTicks: 0,
   };
 }
 
@@ -72,6 +75,15 @@ export function createMatch(params: {
   tower: TowerSpec;
   playerIds: PlayerId[];
 }): MatchState {
+  const { tower } = params;
+  const players = params.playerIds.map((id, i) => {
+    const p = spawnPlayer(id, i);
+    // Spread players across the middle of the base platform so multiplayer
+    // spawns don't overlap; solo lands in the centre.
+    const n = params.playerIds.length;
+    p.x = n > 1 ? tower.widthM * (0.3 + 0.4 * (i / (n - 1))) : tower.widthM / 2;
+    return p;
+  });
   return {
     seed: params.seed,
     mode: params.mode,
@@ -79,64 +91,158 @@ export function createMatch(params: {
     tick: 0,
     raceSeconds: 0,
     hazardY: 0,
-    tower: params.tower,
-    players: params.playerIds.map((id, i) => spawnPlayer(id, i)),
+    tower,
+    players,
     winnerId: null,
   };
 }
 
-/** Respawn a player at their last checkpoint with a time penalty. */
-function respawnAtCheckpoint(
-  p: PlayerState,
+// ── Geometry queries (pure) ────────────────────────────────────────────────
+
+/** The highest platform the feet crossed from above while falling (one-way). */
+function landingPlatform(
   tower: TowerSpec,
-  penaltyTicks: number
-): void {
-  // AC-10: caught before the first checkpoint → respawn at base (index 0).
-  const cpIndex = Math.max(0, Math.min(p.lastCheckpoint, tower.checkpoints.length - 1));
-  const cpY = tower.checkpoints[cpIndex] ?? 0;
-  p.y = cpY;
-  p.vx = 0;
-  p.vy = 0;
-  p.onGround = true;
-  p.onLadder = false;
-  p.penaltyTicks += penaltyTicks;
-  // AC-8: peakY is NOT reset — the peak reached so far is retained permanently.
+  x: number,
+  prevY: number,
+  newY: number
+): Platform | null {
+  let best: Platform | null = null;
+  for (const p of platformsNearY(tower, Math.min(newY, prevY), Math.max(newY, prevY))) {
+    if (x < p.x0 - EPS || x > p.x1 + EPS) continue;
+    // Feet moved down through the surface: newY <= p.y <= prevY.
+    if (p.y <= prevY + EPS && p.y >= newY - EPS) {
+      if (!best || p.y > best.y) best = p;
+    }
+  }
+  return best;
 }
 
-/** Integrate one climbing player's motion from their input for one tick. */
+/** Is there solid ground supporting feet at (x, y)? */
+function isSupported(tower: TowerSpec, x: number, y: number): boolean {
+  for (const p of platformsNearY(tower, y, y)) {
+    if (x < p.x0 - EPS || x > p.x1 + EPS) continue;
+    if (Math.abs(p.y - y) <= EPS) return true;
+  }
+  return false;
+}
+
+/** A ladder (with its floor index) the player can grab in the requested direction. */
+function grabbableLadder(
+  tower: TowerSpec,
+  x: number,
+  y: number,
+  climbY: number
+): { ix: number; ladder: Ladder } | null {
+  for (const { ix, ladder: l } of laddersNearY(tower, y, y)) {
+    if (Math.abs(x - l.x) > tower.ladderGrabRadius) continue;
+    if (y < l.y0 - EPS || y > l.y1 + EPS) continue;
+    if (climbY > 0 && l.y1 > y + EPS) return { ix, ladder: l }; // room to climb up
+    if (climbY < 0 && l.y0 < y - EPS) return { ix, ladder: l }; // room to climb down
+  }
+  return null;
+}
+
+// ── Motion integration ─────────────────────────────────────────────────────
+
+/** Integrate one climbing player's 2D motion from their input for one tick. */
 function integratePlayer(p: PlayerState, input: PlayerInput, tower: TowerSpec): void {
   const dt = TICK_DT;
 
-  // Horizontal movement.
+  // Horizontal movement (walk / ladder-slide is ignored while attached).
   p.vx = input.moveX * tower.moveSpeed;
-  p.x += p.vx * dt;
 
   if (p.onLadder) {
-    // On a ladder: gravity suspended, vertical input drives climb (clamped to
-    // the tower's max legal climb speed — the same bound anti-cheat enforces).
-    p.vy = input.climbY * tower.maxClimbSpeed;
-    p.y += p.vy * dt;
-    p.onGround = false;
-  } else {
-    // Airborne / grounded: gravity + jump.
-    if (input.jump && p.onGround) {
-      p.vy = tower.jumpSpeed;
+    p.x = clamp(p.x + p.vx * dt, 0, tower.widthM);
+    const l = p.ladderIx !== null ? ladderForFloor(tower, p.ladderIx) : undefined;
+    if (!l || input.jump) {
+      // Hop off (jump) or lost the ladder reference → let go.
+      p.onLadder = false;
+      p.ladderIx = null;
       p.onGround = false;
-    }
-    p.vy -= tower.gravity * dt;
-    p.y += p.vy * dt;
-    if (p.y <= 0) {
-      // Simplified base floor; segment/platform collision is layered on later.
-      p.y = 0;
+      p.vy = input.jump && l ? tower.jumpSpeed * 0.7 : 0;
+    } else if (Math.abs(p.x - l.x) > tower.ladderGrabRadius) {
+      // Walked off the side of the ladder → let go and fall.
+      p.onLadder = false;
+      p.ladderIx = null;
+      p.onGround = false;
       p.vy = 0;
-      p.onGround = true;
+    } else {
+      p.vy = input.climbY * tower.maxClimbSpeed;
+      p.y += p.vy * dt;
+      if (p.y >= l.y1) {
+        // Reached the top → step onto the platform there.
+        p.y = l.y1;
+        p.vy = 0;
+        p.onLadder = false;
+        p.ladderIx = null;
+        p.onGround = true;
+      } else if (p.y <= l.y0) {
+        // Back down onto the lower platform.
+        p.y = l.y0;
+        p.vy = 0;
+        p.onLadder = false;
+        p.ladderIx = null;
+        p.onGround = true;
+      }
     }
-  }
+  } else {
+    p.x = clamp(p.x + p.vx * dt, 0, tower.widthM);
 
-  // Advance checkpoint marker as the player climbs past checkpoint heights.
-  for (let i = p.lastCheckpoint + 1; i < tower.checkpoints.length; i++) {
-    if (p.y >= tower.checkpoints[i]) p.lastCheckpoint = i;
-    else break;
+    // Grab a ladder if the player is asking to climb and one is in reach.
+    if (input.climbY !== 0) {
+      const g = grabbableLadder(tower, p.x, p.y, input.climbY);
+      if (g) {
+        p.onLadder = true;
+        p.ladderIx = g.ix;
+        p.onGround = false;
+        p.vx = 0;
+        p.vy = 0;
+        p.x = g.ladder.x; // snap to the rungs for clean vertical climbing
+        p.y = clamp(p.y, g.ladder.y0, g.ladder.y1);
+      }
+    }
+
+    if (!p.onLadder) {
+      // Jump.
+      if (input.jump && p.onGround) {
+        p.vy = tower.jumpSpeed;
+        p.onGround = false;
+      }
+      // Gravity while airborne.
+      if (p.onGround) {
+        p.vy = 0;
+      } else {
+        p.vy -= tower.gravity * dt;
+      }
+
+      const prevY = p.y;
+      p.y += p.vy * dt;
+
+      if (p.y <= 0) {
+        // Base floor.
+        p.y = 0;
+        p.vy = 0;
+        p.onGround = true;
+      } else if (p.vy <= 0) {
+        // Falling — land on the first one-way platform crossed from above.
+        const plat = landingPlatform(tower, p.x, prevY, p.y);
+        if (plat) {
+          p.y = plat.y;
+          p.vy = 0;
+          p.onGround = true;
+        } else {
+          p.onGround = false;
+        }
+      } else {
+        // Rising through platforms (one-way): stay airborne.
+        p.onGround = false;
+      }
+
+      // Walked off a platform edge while grounded → start falling.
+      if (p.onGround && p.y > 0 && !isSupported(tower, p.x, p.y)) {
+        p.onGround = false;
+      }
+    }
   }
 
   // Permanent peak-height record ethos (AC-8, AC-30/AC-31).
@@ -173,59 +279,34 @@ export function stepMatch(
   state.tick += 1;
   state.raceSeconds = state.tick * TICK_DT;
 
-  // 1. Rising hazard reuses the leaderboard engine curve (AC-5, AC-6).
-  state.hazardY = hazardHeightAt(state.raceSeconds, cfg.hazard, cfg.engine);
+  // 1. Rising hazard — speed is a fraction of the climber's climb rate, so the
+  //    chase scales with how fast the player can move (AC-5, AC-6).
+  state.hazardY = hazardHeightAt(
+    state.raceSeconds,
+    state.tower.maxClimbSpeed,
+    cfg.hazard
+  );
 
   for (const p of state.players) {
     if (p.status !== "climbing") continue;
-
-    // Serve any outstanding respawn penalty (frozen while penalty ticks down).
-    if (p.penaltyTicks > 0) {
-      p.penaltyTicks -= 1;
-      continue;
-    }
 
     // 2. Integrate motion from validated input.
     const input = inputs[p.id] ?? NO_INPUT;
     integratePlayer(p, input, state.tower);
 
-    // 3. FLAG FINISH — evaluated BEFORE elimination (AC-4). Touching the flag
-    //    trigger height finishes the run even if the hazard arrives same tick.
-    if (p.y >= state.tower.flagY) {
-      p.status = "finished";
-      p.finishedTick = state.tick;
-      // Clamp to the summit: you cannot stand above the flag, so both position
-      // and the permanent peak record top out at flagY (keeps AC-1's peak exact).
-      p.y = state.tower.flagY;
-      p.peakY = state.tower.flagY;
+    // 3. DEATH LINE — the higher of the rising hazard and the Doodle-Jump fall
+    //    floor (peak minus the fall-death drop). The tower is endless: there is
+    //    no summit, so a run ends ONLY here. Peak height (the score) is retained
+    //    (AC-8).
+    const fallFloor = p.peakY - state.tower.fallDeathBelowPeakM;
+    const deathLine = Math.max(state.hazardY, fallFloor);
+    if (p.y <= deathLine) {
+      p.status = "eliminated";
       continue;
-    }
-
-    // 4a. Hazard elimination / respawn (AC-7).
-    if (p.y <= state.hazardY) {
-      if (state.mode === "solo") {
-        respawnAtCheckpoint(p, state.tower, cfg.respawnPenaltyTicks);
-      } else {
-        p.status = "eliminated"; // peakY retained (AC-8)
-      }
-      continue;
-    }
-
-    // 4b. Fall into a gap (AC-9): airborne and dropped more than fallDeathMargin
-    //     below the last passed checkpoint means a missed platform.
-    const cpY = state.tower.checkpoints[p.lastCheckpoint] ?? 0;
-    const fellIntoGap =
-      !p.onGround && !p.onLadder && p.y < cpY - state.tower.fallDeathMargin;
-    if (fellIntoGap) {
-      if (state.mode === "solo") {
-        respawnAtCheckpoint(p, state.tower, cfg.respawnPenaltyTicks);
-      } else {
-        p.status = "eliminated";
-      }
     }
   }
 
-  // 5. Resolve match end + deterministic winner.
+  // 4. Resolve match end + deterministic winner.
   resolveOutcome(state);
   return state;
 }
@@ -234,8 +315,7 @@ export function stepMatch(
  * Decide the winner deterministically (AC-2, AC-3):
  *   - winner = first finisher by earliest finishedTick,
  *   - ties on the same tick broken by lowest slot id.
- * Match ends when someone finishes (multiplayer) or, in solo, when the single
- * player finishes or is out.
+ * Match ends when someone finishes, or when nobody can still climb.
  */
 function resolveOutcome(state: MatchState): void {
   const finishers = state.players
@@ -260,6 +340,10 @@ function resolveOutcome(state: MatchState): void {
     state.winnerId = null;
     state.phase = "finished";
   }
+}
+
+function clamp(v: number, lo: number, hi: number): number {
+  return v < lo ? lo : v > hi ? hi : v;
 }
 
 /**

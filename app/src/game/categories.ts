@@ -139,6 +139,16 @@ export const GAME_CATEGORY_BY_SLUG: Record<string, GameCategory> =
 
 export const FAMILIES: Family[] = Object.keys(RAW) as Family[];
 
+/** True if a slug is one of the known subcategories (the only things that get towers). */
+export function isGameCategory(slug: string): boolean {
+  return slug.toLowerCase() in GAME_CATEGORY_BY_SLUG;
+}
+
+/** One representative subcategory per family — used for the landing "featured" grid. */
+export const FEATURED_GAME_CATEGORIES: GameCategory[] = FAMILIES.map(
+  (f) => GAME_CATEGORIES.find((c) => c.family === f) as GameCategory
+);
+
 /**
  * Resolve any slug to a themed category. Seeded slugs return their curated row;
  * unknown slugs are synthesized deterministically (AC-21) so arbitrary towers
@@ -151,3 +161,4 @@ export function resolveGameCategory(slug: string): GameCategory {
     make(key, titleFromSlug(key), "Gaming & Interactive")
   );
 }
+

@@ -1,24 +1,19 @@
 /**
- * Category Tower page — /tower/[category]
+ * Category Tower page — /tower/[category] (the PAID tower for a subcategory).
  *
- * AC-1: Shows only category blocks, uses category accent color
- * AC-2: Per-category season state
- * AC-3: Invalid category → 404
- * AC-4: CategoryTabBar active state = current category
+ * Only subcategories get towers: broad/legacy or unknown slugs redirect to
+ * /browse. Shares the category shell with /climb and /play — Navbar →
+ * CategoryNav (all 74 subcategories) → a centered header (section tabs, title,
+ * stats) → the leaderboard — so switching sections has no big layout jump.
  *
- * The whole page is wrapped in categoryTheme(cat), which sets --accent-rgb so
- * TowerHeader / BlockRow / GroundRow (and any `text-accent` etc.) resolve to
- * this tower's color. TowerView's logic is unchanged.
- *
- * Layout is a fixed-height app shell (h-[100dvh], overflow-hidden) so only the
- * tower list scrolls — fixes the previous nested `h-screen` double-scroll bug.
+ * Fixed-height app shell (h-[100dvh]) so only TowerView's virtualized list
+ * scrolls; its logic is unchanged.
  */
 
-import { notFound } from "next/navigation";
-import { CategoryTabBar } from "../../../src/components/CategoryTabBar";
+import { redirect } from "next/navigation";
+import { CategoryShell } from "../../../src/components/CategoryShell";
 import { TowerView, type TowerData } from "../../../src/components/Tower/TowerView";
-import { Navbar } from "../../../src/components/Navbar";
-import { CATEGORY_BY_SLUG, categoryTheme } from "../../../src/lib/categories";
+import { isGameCategory, resolveGameCategory } from "../../../src/game/categories";
 
 const BASE_URL = process.env.BASE_URL ?? "http://localhost:3000";
 
@@ -27,10 +22,7 @@ interface TowerPageProps {
 }
 
 export async function generateMetadata({ params }: TowerPageProps) {
-  const cat = CATEGORY_BY_SLUG[params.category.toLowerCase()];
-  if (!cat) {
-    return { title: "Not Found — Tower" };
-  }
+  const cat = resolveGameCategory(params.category.toLowerCase());
   return {
     title: `${cat.label} Tower — Tower`,
     description: `The ${cat.label} leaderboard. Buy altitude, survive the rise, outlast everyone.`,
@@ -64,12 +56,12 @@ const EMPTY_TOWER_DATA: TowerData = {
 
 export default async function CategoryTowerPage({ params }: TowerPageProps) {
   const slug = params.category.toLowerCase();
-  const cat = CATEGORY_BY_SLUG[slug];
-
-  // AC-3: Invalid category → 404
-  if (!cat) {
-    notFound();
+  // Only subcategories get towers. Broad/legacy slugs (tech, gaming, …) or
+  // unknown slugs route to the category index instead.
+  if (!isGameCategory(slug)) {
+    redirect("/browse");
   }
+  const category = resolveGameCategory(slug);
 
   const data = await getCategoryData(slug);
   const towerData = data ?? EMPTY_TOWER_DATA;
@@ -77,7 +69,6 @@ export default async function CategoryTowerPage({ params }: TowerPageProps) {
   const ground = towerData.engine.ground;
   const rate = towerData.engine.rate;
   const activeBlockCount = towerData.blocks.filter((b) => !b.buried).length;
-  const topBlock = towerData.blocks.find((b) => !b.buried) ?? towerData.blocks[0];
 
   const seasonEnds = new Date(towerData.season.ends_at).toLocaleDateString(
     "en-US",
@@ -85,115 +76,42 @@ export default async function CategoryTowerPage({ params }: TowerPageProps) {
   );
 
   return (
-    <div
-      className="h-[100dvh] bg-void flex flex-col overflow-hidden"
-      style={categoryTheme(cat)}
+    <CategoryShell
+      slug={slug}
+      section="tower"
+      eyebrow={`Paid tower · ${category.family}`}
+      title={category.label}
+      action={
+        <a
+          href={`/submit?category=${slug}`}
+          className="inline-flex items-center justify-center rounded-lg bg-accent text-void font-semibold px-5 min-h-[40px] text-sm hover:brightness-110 transition"
+        >
+          Submit a block
+        </a>
+      }
+      meta={
+        <dl className="mt-4 flex items-center gap-x-5 gap-y-1 flex-wrap text-sm">
+          <Stat label="Ground" value={`${ground.toFixed(1)}m`} danger />
+          <Stat label="$1 buys" value={`${rate.toFixed(2)}m`} />
+          <Stat label="Live" value={String(activeBlockCount)} />
+          <Stat label="Season ends" value={seasonEnds} />
+        </dl>
+      }
+      fill
     >
-      {/* Top nav — auth-aware */}
-      <div className="flex-shrink-0">
-        <Navbar contextLabel={`${cat.label} tower`} contextDot={cat.hex} />
-      </div>
+      <div aria-live="polite" className="sr-only" aria-atomic="true" id="rank-update-announcement" />
+      <TowerView initialData={towerData} pollUrl={`/api/tower/${slug}`} />
+    </CategoryShell>
+  );
+}
 
-      {/* Category tab bar — AC-4 */}
-      <div className="flex-shrink-0">
-        <CategoryTabBar activeCategory={slug} />
-      </div>
-
-      {/* Mobile stats strip */}
-      <div className="md:hidden bg-surface border-b border-border-subtle px-4 py-2.5 flex-shrink-0">
-        <div className="flex items-center gap-4 text-sm">
-          <div className="flex items-center gap-1.5">
-            <span className="text-text-muted text-xs">Ground</span>
-            <span className="font-mono text-danger tabular-nums">{ground.toFixed(1)}m</span>
-          </div>
-          <div className="border-l border-border-subtle h-4" />
-          <div className="flex items-center gap-1.5">
-            <span className="text-text-muted text-xs">$1 buys</span>
-            <span className="font-mono text-text-primary tabular-nums">{rate.toFixed(2)}m</span>
-          </div>
-          <div className="border-l border-border-subtle h-4" />
-          <div className="flex items-center gap-1.5">
-            <span className="text-text-muted text-xs">Live</span>
-            <span className="font-mono text-text-primary tabular-nums">{activeBlockCount}</span>
-          </div>
-        </div>
-      </div>
-
-      {/* Desktop: sidebar + main */}
-      <div className="flex flex-1 min-h-0">
-        {/* Left sidebar — desktop only */}
-        <aside
-          className="hidden md:flex flex-col w-64 bg-surface border-r border-border-subtle px-6 py-8 flex-shrink-0 overflow-y-auto"
-          aria-label={`${cat.label} tower sidebar`}
-        >
-          <div className="flex items-center gap-2.5 mb-1">
-            <span
-              className="w-2.5 h-2.5 rounded-full flex-shrink-0"
-              style={{ backgroundColor: cat.hex }}
-              aria-hidden="true"
-            />
-            <h1 className="text-xl font-bold text-text-primary">{cat.label}</h1>
-          </div>
-          <p className="text-sm text-text-muted mb-8">{cat.blurb}</p>
-
-          {topBlock && (
-            <div className="mb-8 rounded-xl border border-border-subtle bg-surface-raised p-4">
-              <p className="text-[10px] text-text-muted uppercase tracking-[0.15em] mb-1">
-                Leader
-              </p>
-              <p className="text-sm font-semibold text-text-primary truncate">
-                {topBlock.display_name}
-              </p>
-              <p className="font-mono text-accent text-lg font-bold tabular-nums mt-0.5">
-                {topBlock.altitude.toFixed(1)}m
-              </p>
-            </div>
-          )}
-
-          <dl className="space-y-5 text-sm">
-            {[
-              { label: "Ground level", value: `${ground.toFixed(2)}m`, danger: true },
-              { label: "$1 buys", value: `${rate.toFixed(2)}m` },
-              { label: "Active blocks", value: String(activeBlockCount) },
-              { label: "Season ends", value: seasonEnds },
-            ].map((row) => (
-              <div key={row.label}>
-                <dt className="text-[10px] text-text-muted uppercase tracking-[0.15em] mb-1">
-                  {row.label}
-                </dt>
-                <dd
-                  className={`font-mono tabular-nums ${row.danger ? "text-danger" : "text-text-primary"}`}
-                >
-                  {row.value}
-                </dd>
-              </div>
-            ))}
-          </dl>
-
-          <a
-            href={`/submit?category=${slug}`}
-            className="mt-8 w-full bg-accent text-void font-semibold rounded-lg py-2.5 px-4 text-sm hover:brightness-110 transition text-center min-h-[44px] inline-flex items-center justify-center"
-          >
-            Submit a block
-          </a>
-        </aside>
-
-        {/* Main tower area — tabpanel */}
-        <main
-          id="tower-panel"
-          role="tabpanel"
-          className="flex-1 min-h-0 flex flex-col"
-          aria-label={`${cat.label} tower leaderboard`}
-        >
-          <div
-            aria-live="polite"
-            className="sr-only"
-            aria-atomic="true"
-            id="rank-update-announcement"
-          />
-          <TowerView initialData={towerData} pollUrl={`/api/tower/${slug}`} />
-        </main>
-      </div>
+function Stat({ label, value, danger }: { label: string; value: string; danger?: boolean }) {
+  return (
+    <div className="flex items-center gap-1.5">
+      <dt className="text-text-muted text-xs">{label}</dt>
+      <dd className={`font-mono tabular-nums ${danger ? "text-danger" : "text-text-primary"}`}>
+        {value}
+      </dd>
     </div>
   );
 }

@@ -21,14 +21,15 @@ import { TowerSpec, TICK_DT } from "../../src/game/types";
 
 const TOWER: TowerSpec = {
   categorySlug: "t",
-  heightM: 300,
-  flagY: 300,
-  checkpoints: [0, 100, 200],
+  widthM: 100,
+  floorGap: 24,
+  seed: "t",
+  ladderGrabRadius: 2,
   maxClimbSpeed: 8,
   moveSpeed: 6,
   jumpSpeed: 12,
   gravity: 24,
-  fallDeathMargin: 20,
+  fallDeathBelowPeakM: 40,
 };
 
 describe("AC-15 / AC-18: input validation trusts only intent", () => {

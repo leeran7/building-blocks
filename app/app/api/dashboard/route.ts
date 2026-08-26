@@ -25,7 +25,6 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { Category } from "@prisma/client";
 import { requireAuth, AuthError } from "../../../src/lib/requireAuth";
 import { prisma } from "../../../src/db/client";
 import { getAllActiveSeasons } from "../../../src/db/seasons";
@@ -78,7 +77,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     const seasonMap = await getAllActiveSeasons();
 
     // Fallback season for blocks with null category or missing season
-    const techSeason = seasonMap.get(Category.Tech);
+    const techSeason = seasonMap.get("tech");
     const fallbackV = techSeason?.views_k ?? 0;
 
     // Query 2: user's blocks
@@ -131,11 +130,11 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
     // Queries 4–9: one per unique category in user's blocks (max 6)
     const userCategories = Array.from(
-      new Set(userBlocks.map((b) => b.category ?? Category.Tech))
-    ) as Category[];
+      new Set(userBlocks.map((b) => b.category ?? "tech"))
+    ) as string[];
 
     const categoryBlocksMap = new Map<
-      Category,
+      string,
       Array<{ id: string; slug: string; display_name: string; altitude: number; userId: string | null }>
     >();
 
@@ -153,7 +152,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
     // Enrich each user block
     const enrichedBlocks = userBlocks.map((block) => {
-      const cat = block.category ?? Category.Tech;
+      const cat = block.category ?? "tech";
       const season = seasonMap.get(cat);
       const V = season?.views_k ?? fallbackV;
       const ground = computeGround(V);

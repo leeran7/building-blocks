@@ -9,7 +9,6 @@
  */
 
 import { prisma } from "./client";
-import { Category } from "@prisma/client";
 import type { Block } from "@prisma/client";
 
 /**
@@ -56,7 +55,7 @@ export async function createBlock(data: {
   owner_email: string;
   season_id: string;
   userId?: string;
-  category?: Category;
+  category?: string;
 }): Promise<Block> {
   return prisma.block.create({
     data: {

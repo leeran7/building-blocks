@@ -14,7 +14,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "../../src/contexts/AuthContext";
 import { Navbar } from "../../src/components/Navbar";
-import { CATEGORIES, resolveCategory } from "../../src/lib/categories";
+import { GAME_CATEGORIES, FAMILIES } from "../../src/game/categories";
 
 const INPUT =
   "w-full bg-surface border border-border-subtle rounded-lg px-4 py-3 text-base text-text-primary placeholder-text-muted focus:outline-none focus:border-accent-tech focus:ring-1 focus:ring-accent-tech transition-colors";
@@ -24,7 +24,7 @@ function SubmitForm() {
   const searchParams = useSearchParams();
   const { user, token, loading: authLoading } = useAuth();
 
-  const initialCategory = resolveCategory(searchParams.get("category"))?.slug ?? "tech";
+  const initialCategory = (searchParams.get("category") ?? "tech").toLowerCase();
   const [displayName, setDisplayName] = useState("");
   const [url, setUrl] = useState("");
   const [category, setCategory] = useState(initialCategory);
@@ -169,10 +169,14 @@ function SubmitForm() {
             className={INPUT}
             disabled={submitting}
           >
-            {CATEGORIES.map((c) => (
-              <option key={c.slug} value={c.slug}>
-                {c.label}
-              </option>
+            {FAMILIES.map((family) => (
+              <optgroup key={family} label={family}>
+                {GAME_CATEGORIES.filter((c) => c.family === family).map((c) => (
+                  <option key={c.slug} value={c.slug}>
+                    {c.label}
+                  </option>
+                ))}
+              </optgroup>
             ))}
           </select>
         </div>

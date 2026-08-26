@@ -14,7 +14,6 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { Category } from "@prisma/client";
 import { getOrCreateActiveSeason } from "../../../src/db/seasons";
 import { createBlock, getBlockById } from "../../../src/db/blocks";
 import { requireAuth, AuthError } from "../../../src/lib/requireAuth";
@@ -26,15 +25,11 @@ import { getStripe } from "../../../src/api/stripe";
 
 export const runtime = "nodejs";
 
-// Map lowercase category slugs to Prisma enum values
-const SLUG_TO_CATEGORY = new Map<string, Category>([
-  ["tech", Category.Tech],
-  ["design", Category.Design],
-  ["business", Category.Business],
-  ["creative", Category.Creative],
-  ["gaming", Category.Gaming],
-  ["science", Category.Science],
-]);
+/** Normalize a category to a well-formed slug; default to "tech". */
+function normalizeCategorySlug(raw: string | undefined): string {
+  const slug = (raw ?? "tech").toLowerCase();
+  return /^[a-z0-9][a-z0-9-]{0,63}$/.test(slug) ? slug : "tech";
+}
 
 // Strip control characters and Unicode bidi-override chars to prevent log injection
 // and link-spoofing attacks (CWE-117).
@@ -108,11 +103,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       );
     }
 
-    // Resolve category for new listings (default Tech)
-    const category: Category =
-      data.type === "new"
-        ? SLUG_TO_CATEGORY.get((data.category ?? "tech").toLowerCase()) ?? Category.Tech
-        : Category.Tech;
+    // Resolve category slug for new listings (default "tech").
+    const category: string =
+      data.type === "new" ? normalizeCategorySlug(data.category) : "tech";
 
     // Get active season for this category
     const season = await getOrCreateActiveSeason(category);

@@ -3,22 +3,32 @@
 /**
  * Tower v3 "The Climb" — climb renderer.
  *
- * Draws the vertical tower on a canvas with the camera following the climber and
- * the level scrolling UPWARD (the whole theme is height/altitude — spec-next.md).
- * Rendering only; all positions come from the authoritative/predicted MatchState
- * produced by the simulation. Honors prefers-reduced-motion by disabling the
- * pulsing hazard shimmer (AC-35) — the sim is byte-identical either way.
+ * Draws the Donkey-Kong-style tower: solid platforms with gaps, ladders joining
+ * floors, the summit flag, the rising lava, and the climber — with the camera
+ * following the climber UPWARD (the whole theme is height/altitude). Rendering
+ * only; all positions come from the authoritative/predicted MatchState produced
+ * by the simulation. Honors prefers-reduced-motion by dropping the lava shimmer
+ * (AC-35) — the sim is byte-identical either way.
  *
  * Dark editorial palette + single cyan accent (#00d4ff), per app/DESIGN.md.
  */
 
 import { useEffect, useRef } from "react";
 import { MatchState } from "../../game/types";
+import {
+  platformsNearY,
+  laddersNearY,
+  floorHeight,
+  floorIndexAt,
+} from "../../game/towers";
 
 const VOID = "#0a0a0f";
 const SURFACE = "#15151f";
 const BORDER = "#2a2a3d";
 const ACCENT = "#00d4ff";
+const PLATFORM = "#3a3a52";
+const PLATFORM_TOP = "#4a4a6a";
+const LADDER = "#7a7aa8";
 const LAVA = "#ff5470";
 const TEXT_MUTED = "#6b6b8a";
 const FLAG = "#28d17c";
@@ -53,64 +63,91 @@ export function ClimbCanvas({
     const player = state.players[0];
     const playerY = player?.y ?? 0;
 
-    // Camera: keep the climber ~40% up the screen, clamp to tower bounds.
-    // Screen y grows downward, tower y grows upward → invert.
-    const pxPerM = 4; // world metres → screen px
-    const focusScreenFrac = 0.55;
-    let camWorldY = playerY - (height * (1 - focusScreenFrac)) / pxPerM;
-    camWorldY = Math.max(0, Math.min(camWorldY, tower.heightM - height / pxPerM));
+    // Scale so the full tower WIDTH fits the canvas; the camera scrolls in Y.
+    const pxPerM = width / tower.widthM;
+    const viewH = height / pxPerM; // metres visible vertically
+    const focusScreenFrac = 0.62; // keep the climber ~62% down the view
+    // Endless: the camera follows upward without any ceiling.
+    let camWorldY = playerY - viewH * (1 - focusScreenFrac);
+    camWorldY = Math.max(0, camWorldY);
 
-    const worldToScreenY = (worldY: number) =>
-      height - (worldY - camWorldY) * pxPerM;
+    const sx = (worldX: number) => worldX * pxPerM;
+    const sy = (worldY: number) => height - (worldY - camWorldY) * pxPerM;
+
+    // The window of floors currently in view (plus a margin).
+    const yLow = camWorldY - tower.floorGap;
+    const yHigh = camWorldY + viewH + tower.floorGap;
 
     // Background.
     ctx.fillStyle = VOID;
     ctx.fillRect(0, 0, width, height);
 
-    // Checkpoint gridlines.
-    ctx.strokeStyle = BORDER;
-    ctx.fillStyle = TEXT_MUTED;
+    // Faint per-floor altitude gridlines + labels (the leaderboard scale).
     ctx.font = "10px monospace";
-    ctx.lineWidth = 1;
-    for (let i = 0; i < tower.checkpoints.length; i++) {
-      const y = worldToScreenY(tower.checkpoints[i]);
+    const loFloor = Math.max(0, floorIndexAt(tower, camWorldY));
+    const hiFloor = floorIndexAt(tower, camWorldY + viewH) + 1;
+    for (let i = loFloor; i <= hiFloor; i++) {
+      const fy = floorHeight(tower, i);
+      const y = sy(fy);
       if (y < -20 || y > height + 20) continue;
-      ctx.globalAlpha = 0.5;
+      ctx.strokeStyle = BORDER;
+      ctx.globalAlpha = 0.22;
       ctx.beginPath();
       ctx.moveTo(0, y);
       ctx.lineTo(width, y);
       ctx.stroke();
       ctx.globalAlpha = 1;
-      ctx.fillText(`${tower.checkpoints[i]}m`, 6, y - 4);
+      ctx.fillStyle = TEXT_MUTED;
+      ctx.fillText(`${Math.round(fy)}m`, 4, y - 3);
     }
 
-    // Summit flag.
-    const flagScreenY = worldToScreenY(tower.flagY);
-    if (flagScreenY > -40 && flagScreenY < height + 40) {
-      ctx.strokeStyle = FLAG;
+    // Ladders (draw under platforms so platform lips overlap the rails).
+    for (const { ladder: l } of laddersNearY(tower, yLow, yHigh)) {
+      const yTop = sy(l.y1);
+      const yBot = sy(l.y0);
+      if (yBot < -20 || yTop > height + 20) continue;
+      const cx = sx(l.x);
+      const railHalf = Math.max(4, pxPerM * 1.4);
+      ctx.strokeStyle = LADDER;
       ctx.lineWidth = 2;
       ctx.beginPath();
-      ctx.moveTo(width / 2, flagScreenY);
-      ctx.lineTo(width / 2, flagScreenY - 28);
+      ctx.moveTo(cx - railHalf, yTop);
+      ctx.lineTo(cx - railHalf, yBot);
+      ctx.moveTo(cx + railHalf, yTop);
+      ctx.lineTo(cx + railHalf, yBot);
       ctx.stroke();
-      ctx.fillStyle = FLAG;
-      ctx.beginPath();
-      ctx.moveTo(width / 2, flagScreenY - 28);
-      ctx.lineTo(width / 2 + 20, flagScreenY - 22);
-      ctx.lineTo(width / 2, flagScreenY - 16);
-      ctx.closePath();
-      ctx.fill();
+      // Rungs.
+      ctx.lineWidth = 1.5;
+      const rungGap = 10;
+      for (let yy = yTop; yy <= yBot; yy += rungGap) {
+        ctx.beginPath();
+        ctx.moveTo(cx - railHalf, yy);
+        ctx.lineTo(cx + railHalf, yy);
+        ctx.stroke();
+      }
+    }
+
+    // Platforms — a solid slab hanging below each walkable surface.
+    const slab = Math.max(6, pxPerM * 2.5);
+    for (const p of platformsNearY(tower, yLow, yHigh)) {
+      const top = sy(p.y);
+      if (top < -slab || top > height + 20) continue;
+      const x0 = sx(p.x0);
+      const w = sx(p.x1) - x0;
+      ctx.fillStyle = PLATFORM;
+      ctx.fillRect(x0, top, w, slab);
+      ctx.fillStyle = PLATFORM_TOP;
+      ctx.fillRect(x0, top, w, 2); // bright top surface
     }
 
     // Rising hazard (lava) — a filled band from the hazard line downward.
-    const hazScreenY = worldToScreenY(state.hazardY);
+    const hazScreenY = sy(state.hazardY);
     if (hazScreenY < height) {
       const top = Math.max(0, hazScreenY);
       ctx.fillStyle = LAVA;
-      ctx.globalAlpha = reducedMotion ? 0.85 : 0.75;
+      ctx.globalAlpha = reducedMotion ? 0.85 : 0.72;
       ctx.fillRect(0, top, width, height - top);
       ctx.globalAlpha = 1;
-      // Bright edge line.
       ctx.strokeStyle = LAVA;
       ctx.lineWidth = 3;
       ctx.beginPath();
@@ -119,23 +156,28 @@ export function ClimbCanvas({
       ctx.stroke();
     }
 
-    // Player. MVP keeps the climber horizontally centered (single-lane climb);
-    // horizontal geometry is layered on with real segment platforms later.
-    const px = width / 2;
-    const pyScreen = worldToScreenY(playerY);
-    ctx.fillStyle =
+    // Player — a little climber whose pose animates with what it's doing.
+    const px = sx(player?.x ?? 0);
+    const pyScreen = sy(playerY); // feet
+    const facing: 1 | -1 = (player?.vx ?? 0) < 0 ? -1 : 1;
+    const color =
       player?.status === "finished"
         ? FLAG
         : player?.status === "eliminated"
         ? TEXT_MUTED
         : ACCENT;
-    ctx.beginPath();
-    ctx.arc(px, pyScreen - 8, 8, 0, Math.PI * 2);
-    ctx.fill();
+    let pose: Pose = "idle";
+    if (player?.status === "finished") pose = "done";
+    else if (player?.status === "eliminated") pose = "dead";
+    else if (player?.onLadder) pose = "climb";
+    else if (!player?.onGround) pose = "air";
+    else if (Math.abs(player?.vx ?? 0) > 0.1) pose = "walk";
+    const s = Math.max(9, pxPerM * 1.7);
+    drawClimber(ctx, px, pyScreen, s, facing, pose, state.tick, color, reducedMotion);
 
-    // HUD panel: height + hazard clearance.
+    // HUD panel: height + hazard line.
     ctx.fillStyle = SURFACE;
-    ctx.globalAlpha = 0.9;
+    ctx.globalAlpha = 0.92;
     ctx.fillRect(0, 0, width, 34);
     ctx.globalAlpha = 1;
     ctx.strokeStyle = BORDER;
@@ -145,10 +187,11 @@ export function ClimbCanvas({
     ctx.stroke();
     ctx.fillStyle = "#f4f4ff";
     ctx.font = "bold 13px monospace";
+    ctx.textAlign = "left";
     ctx.fillText(`${playerY.toFixed(1)}m`, 10, 22);
     ctx.fillStyle = TEXT_MUTED;
     ctx.textAlign = "right";
-    ctx.fillText(`hazard ${state.hazardY.toFixed(1)}m`, width - 10, 22);
+    ctx.fillText(`lava ${state.hazardY.toFixed(1)}m`, width - 10, 22);
     ctx.textAlign = "left";
   }, [state, width, height, reducedMotion]);
 
@@ -167,4 +210,132 @@ export function ClimbCanvas({
       role="img"
     />
   );
+}
+
+type Pose = "idle" | "walk" | "climb" | "air" | "done" | "dead";
+type Pt = [number, number];
+
+/**
+ * Draw a small climber character anchored at its feet (fx, fy). The limb targets
+ * are chosen per-pose and animated from the deterministic sim tick, so the
+ * character walks, climbs, jumps, cheers, or slumps to match its state. Purely
+ * cosmetic — no effect on the simulation. reducedMotion freezes the cycle.
+ */
+function drawClimber(
+  ctx: CanvasRenderingContext2D,
+  fx: number,
+  fy: number,
+  s: number,
+  facing: 1 | -1,
+  pose: Pose,
+  tick: number,
+  color: string,
+  reducedMotion: boolean
+) {
+  const hipY = fy - 1.0 * s;
+  const shoulderY = fy - 1.85 * s;
+  const headY = fy - 2.4 * s;
+  const headR = 0.52 * s;
+  const limbW = Math.max(2, 0.26 * s);
+  const p = reducedMotion ? 0 : tick * 0.5; // animation phase
+  const swing = Math.sin(p);
+
+  let leftFoot: Pt, rightFoot: Pt, leftHand: Pt, rightHand: Pt;
+  switch (pose) {
+    case "walk":
+      leftFoot = [fx + swing * 0.55 * s, fy];
+      rightFoot = [fx - swing * 0.55 * s, fy];
+      leftHand = [fx - swing * 0.45 * s, shoulderY + 0.55 * s];
+      rightHand = [fx + swing * 0.45 * s, shoulderY + 0.55 * s];
+      break;
+    case "climb": {
+      const c = Math.sin(p * 1.3);
+      leftFoot = [fx - 0.32 * s, fy - (0.18 + 0.16 * c) * s];
+      rightFoot = [fx + 0.32 * s, fy - (0.18 - 0.16 * c) * s];
+      leftHand = [fx - 0.3 * s, shoulderY - (0.4 - 0.25 * c) * s];
+      rightHand = [fx + 0.3 * s, shoulderY - (0.4 + 0.25 * c) * s];
+      break;
+    }
+    case "air":
+      leftFoot = [fx - 0.34 * s, fy - 0.35 * s];
+      rightFoot = [fx + 0.34 * s, fy - 0.18 * s];
+      leftHand = [fx - 0.52 * s, shoulderY - 0.5 * s];
+      rightHand = [fx + 0.52 * s, shoulderY - 0.5 * s];
+      break;
+    case "done": {
+      const wave = Math.sin(p * 1.5) * 0.15 * s;
+      leftFoot = [fx - 0.3 * s, fy];
+      rightFoot = [fx + 0.3 * s, fy];
+      leftHand = [fx - 0.5 * s, shoulderY - 0.65 * s + wave];
+      rightHand = [fx + 0.5 * s, shoulderY - 0.65 * s - wave];
+      break;
+    }
+    case "dead":
+      leftFoot = [fx - 0.55 * s, fy];
+      rightFoot = [fx + 0.55 * s, fy];
+      leftHand = [fx - 0.62 * s, shoulderY + 0.55 * s];
+      rightHand = [fx + 0.62 * s, shoulderY + 0.55 * s];
+      break;
+    default: // idle
+      leftFoot = [fx - 0.3 * s, fy];
+      rightFoot = [fx + 0.3 * s, fy];
+      leftHand = [fx - 0.42 * s, shoulderY + 0.6 * s];
+      rightHand = [fx + 0.42 * s, shoulderY + 0.6 * s];
+  }
+
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  ctx.strokeStyle = color;
+  ctx.lineWidth = limbW;
+
+  // Legs then arms (behind the torso).
+  limb(ctx, fx - 0.12 * s, hipY, leftFoot);
+  limb(ctx, fx + 0.12 * s, hipY, rightFoot);
+  limb(ctx, fx - 0.1 * s, shoulderY + 0.2 * s, leftHand);
+  limb(ctx, fx + 0.1 * s, shoulderY + 0.2 * s, rightHand);
+
+  // Hand + foot nubs.
+  ctx.fillStyle = color;
+  for (const pt of [leftHand, rightHand, leftFoot, rightFoot]) dot(ctx, pt, limbW * 0.6);
+
+  // Torso.
+  ctx.beginPath();
+  ctx.ellipse(fx, (hipY + shoulderY) / 2, 0.34 * s, 0.55 * s, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Head.
+  ctx.beginPath();
+  ctx.arc(fx, headY, headR, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Eye (or an X when caught), looking in the facing direction.
+  ctx.fillStyle = VOID;
+  if (pose === "dead") {
+    ctx.strokeStyle = VOID;
+    ctx.lineWidth = Math.max(1.5, 0.1 * s);
+    const ex = fx;
+    const ey = headY - 0.02 * s;
+    const r = 0.18 * s;
+    ctx.beginPath();
+    ctx.moveTo(ex - r, ey - r);
+    ctx.lineTo(ex + r, ey + r);
+    ctx.moveTo(ex + r, ey - r);
+    ctx.lineTo(ex - r, ey + r);
+    ctx.stroke();
+  } else {
+    dot(ctx, [fx + facing * 0.2 * s, headY - 0.02 * s], Math.max(1.3, 0.13 * s));
+  }
+}
+
+function limb(ctx: CanvasRenderingContext2D, x0: number, y0: number, [x1, y1]: Pt) {
+  ctx.beginPath();
+  ctx.moveTo(x0, y0);
+  ctx.lineTo(x1, y1);
+  ctx.stroke();
+}
+
+function dot(ctx: CanvasRenderingContext2D, [x, y]: Pt, r: number) {
+  ctx.beginPath();
+  ctx.arc(x, y, r, 0, Math.PI * 2);
+  ctx.fill();
 }

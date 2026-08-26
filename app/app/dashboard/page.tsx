@@ -182,7 +182,7 @@ export default function DashboardPage() {
         </div>
         <div className="flex items-center gap-2">
           <Link
-            href="/tower/tech"
+            href="/browse"
             className="hidden sm:inline-flex text-sm text-text-muted hover:text-text-primary transition-colors min-h-[44px] items-center px-2"
           >
             Browse towers
@@ -251,7 +251,7 @@ export default function DashboardPage() {
               category.
             </p>
             <Link
-              href="/tower/tech"
+              href="/browse"
               className="mt-6 bg-surface border border-border-subtle rounded-lg px-6 py-3 text-sm text-text-primary hover:bg-elevated transition-colors min-h-[44px] inline-flex items-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus"
             >
               Browse categories

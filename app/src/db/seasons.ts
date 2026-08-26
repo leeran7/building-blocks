@@ -4,7 +4,6 @@
  */
 
 import { prisma } from "./client";
-import { Category } from "@prisma/client";
 import type { Season } from "@prisma/client";
 
 /**
@@ -12,7 +11,7 @@ import type { Season } from "@prisma/client";
  * Returns null if no active season exists for that category.
  */
 export async function getActiveSeason(
-  category: Category = Category.Tech
+  category: string = "tech"
 ): Promise<Season | null> {
   return prisma.season.findFirst({
     where: { is_active: true, category },
@@ -24,7 +23,7 @@ export async function getActiveSeason(
  * Creates a new 90-day season for that category if none exists.
  */
 export async function getOrCreateActiveSeason(
-  category: Category = Category.Tech
+  category: string = "tech"
 ): Promise<Season> {
   const existing = await getActiveSeason(category);
   if (existing) return existing;
@@ -58,7 +57,7 @@ export async function getOrCreateActiveSeason(
  * Fetch all currently active seasons, keyed by category.
  * Used by the dashboard to get per-category inflation state in a single query.
  */
-export async function getAllActiveSeasons(): Promise<Map<Category, Season>> {
+export async function getAllActiveSeasons(): Promise<Map<string, Season>> {
   const seasons = await prisma.season.findMany({
     where: { is_active: true },
   });
@@ -73,12 +72,12 @@ export async function getAllActiveSeasons(): Promise<Map<Category, Season>> {
  * @returns new views_k value
  */
 export async function incrementSeasonViews(
-  category: Category = Category.Tech
+  category: string = "tech"
 ): Promise<number> {
   const rows = await prisma.$queryRaw<{ views_k: number }[]>`
     UPDATE season_state
     SET views_k = views_k + 0.001
-    WHERE is_active = true AND category = ${category}::"Category"
+    WHERE is_active = true AND category = ${category}
     RETURNING views_k
   `;
 
@@ -97,7 +96,7 @@ export async function incrementSeasonViews(
  * New season = new season_id. Returning buyers create new block rows.
  */
 export async function rolloverSeason(
-  category: Category = Category.Tech
+  category: string = "tech"
 ): Promise<Season> {
   return prisma.$transaction(async (tx) => {
     await tx.season.updateMany({

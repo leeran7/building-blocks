@@ -16,14 +16,8 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-enum Category {
-  Tech
-  Design
-  Business
-  Creative
-  Gaming
-  Science
-}
+// Category is now a free-form slug (String), not a fixed enum: every subcategory
+// (74+, per src/game/categories) gets its own paid tower + season, not just 6.
 
 model User {
   id            String   @id // Firebase UID
@@ -88,7 +82,7 @@ model Block {
   hidden_at    DateTime? // NULL = visible
   created_at   DateTime  @default(now())
   season_id    String
-  category     Category? @default(Tech) // nullable — existing rows are unaffected
+  category     String?   @default("tech") // free-form category slug
   userId       String?
 
   season   Season    @relation(fields: [season_id], references: [id])
@@ -108,7 +102,7 @@ model Season {
   starts_at DateTime
   ends_at   DateTime
   is_active Boolean  @default(false)
-  category  Category @default(Tech)
+  category  String   @default("tech") // free-form category slug
 
   blocks Block[]
 

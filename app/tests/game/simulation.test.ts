@@ -1,15 +1,14 @@
 /**
- * Tower v3 "The Climb" — simulation core tests.
+ * Tower v3 "The Climb" — simulation core tests (endless model).
  *
- * Covers:
- *   AC-1: solo run freezes on flag touch, peak recorded.
- *   AC-2: first flag-toucher wins; no second winner.
- *   AC-3: same-tick flag ties broken by earliest tick, then lowest slot.
- *   AC-4: flag finish evaluated BEFORE hazard elimination on the same tick.
- *   AC-7: hazard elimination (multiplayer) / respawn (solo).
- *   AC-8: peakY retained through elimination / respawn.
- *   AC-9/AC-10: fall respawns at last checkpoint / base.
- *   AC-11: re-simulation from (seed, input log) is bit-identical.
+ * The tower is endless — no summit, no win. A run ends only when the climber is
+ * caught (by the rising lava or a fall behind their peak); peak height is the
+ * score. Covers:
+ *   Motion: walk, jump, land on platforms, walk off edges, grab + climb ladders.
+ *   Death:  caught by the death line eliminates and retains peak (AC-7/AC-8).
+ *   Endless completability: a greedy bot climbs far up a generated tower.
+ *   AC-11:  re-simulation from (seed, input log) is bit-identical.
+ *   resolveOutcome: winner/tie-break logic (for future multiplayer).
  */
 
 import { describe, it, expect } from "vitest";
@@ -21,164 +20,206 @@ import {
   SimConfig,
   DEFAULT_SIM_CONFIG,
 } from "../../src/game/simulation";
-import { MatchState, PlayerInput, TowerSpec, PlayerId } from "../../src/game/types";
+import {
+  MatchState,
+  PlayerInput,
+  PlayerState,
+  TowerSpec,
+  PlayerId,
+  NO_INPUT,
+} from "../../src/game/types";
 import { DEFAULT_HAZARD_CONFIG } from "../../src/game/hazard";
+import {
+  buildTower,
+  ladderForFloor,
+  platformsForFloor,
+  floorHeight,
+  floorIndexAt,
+  platformsNearY,
+} from "../../src/game/towers";
 
-const TOWER: TowerSpec = {
-  categorySlug: "indie-games",
-  heightM: 300,
-  flagY: 300,
-  checkpoints: [0, 50, 100, 150, 200, 250],
-  maxClimbSpeed: 8,
-  moveSpeed: 6,
-  jumpSpeed: 12,
-  gravity: 24,
-  fallDeathMargin: 20,
-};
+const TOWER: TowerSpec = buildTower("indie-games");
 
 const UP: PlayerInput = { moveX: 0, jump: false, climbY: 1, usePowerUp: false };
+const IDLE = NO_INPUT;
+function move(dir: -1 | 0 | 1, jump = false): PlayerInput {
+  return { moveX: dir, jump, climbY: 0, usePowerUp: false };
+}
 
 /** Force a match straight into the climb phase (skip countdown for unit focus). */
-function climbingMatch(mode: MatchState["mode"], ids: PlayerId[]): MatchState {
-  const m = createMatch({ seed: "test-seed", mode, tower: TOWER, playerIds: ids });
+function climbingMatch(
+  mode: MatchState["mode"],
+  ids: PlayerId[],
+  tower: TowerSpec = TOWER
+): MatchState {
+  const m = createMatch({ seed: "test-seed", mode, tower, playerIds: ids });
   m.phase = "climb";
   m.tick = 0;
-  // Put everyone on a ladder so climbY drives clean vertical motion.
-  for (const p of m.players) p.onLadder = true;
   return m;
 }
 
-/** Slow-hazard config so the hazard does not interfere with pure-climb tests. */
+/** Slow-hazard config so the hazard does not interfere with pure-motion tests. */
 const SLOW: SimConfig = {
   ...DEFAULT_SIM_CONFIG,
-  hazard: { ...DEFAULT_HAZARD_CONFIG, HAZARD_VIEWS_PER_SEC: 0.01 },
+  hazard: { ...DEFAULT_HAZARD_CONFIG, speedScale: 0.001 },
+};
+/** Aggressive hazard that catches anything below it this tick. */
+const FAST: SimConfig = {
+  ...DEFAULT_SIM_CONFIG,
+  hazard: { ...DEFAULT_HAZARD_CONFIG, speedScale: 1e6 },
 };
 
-describe("AC-1: solo run finishes on flag touch and records peak", () => {
-  it("freezes the match and marks finished when the player reaches the flag", () => {
+describe("motion: walk, jump, land, and fall off edges", () => {
+  it("walks horizontally along the base platform while staying grounded", () => {
     const m = climbingMatch("solo", ["p1"]);
     const p = m.players[0];
-    p.y = TOWER.flagY - 0.05; // just below the flag
-    stepMatch(m, { p1: UP }, SLOW);
-    expect(p.status).toBe("finished");
-    expect(m.phase).toBe("finished");
-    expect(p.peakY).toBe(TOWER.flagY);
-    expect(m.winnerId).toBe("p1");
+    const x0 = p.x;
+    stepMatch(m, { p1: move(1) }, SLOW);
+    expect(p.x).toBeGreaterThan(x0);
+    expect(p.onGround).toBe(true);
+    expect(p.y).toBe(0);
+  });
+
+  it("jumps off the ground and lands back on the platform", () => {
+    const m = climbingMatch("solo", ["p1"]);
+    const p = m.players[0];
+    stepMatch(m, { p1: move(0, true) }, SLOW); // launch
+    expect(p.onGround).toBe(false);
+    expect(p.vy).toBeGreaterThan(0);
+    let ticks = 0;
+    while (!p.onGround && ticks < 200) {
+      stepMatch(m, { p1: IDLE }, SLOW);
+      ticks++;
+    }
+    expect(p.onGround).toBe(true);
+    expect(p.y).toBe(0);
+  });
+
+  it("falls off the inner edge of a platform into a gap", () => {
+    // Find a floor that has a gap (two platform pieces).
+    let gapFloor = -1;
+    let pieces = platformsForFloor(TOWER, 1);
+    for (let i = 1; i < 200; i++) {
+      const ps = platformsForFloor(TOWER, i);
+      if (ps.length === 2) {
+        gapFloor = i;
+        pieces = ps;
+        break;
+      }
+    }
+    expect(gapFloor).toBeGreaterThan(0);
+    const y = floorHeight(TOWER, gapFloor);
+    const leftPiece = pieces[0];
+    const m = climbingMatch("solo", ["p1"]);
+    const p = m.players[0];
+    p.x = leftPiece.x1 - 0.5; // right at the gap's left edge
+    p.y = y;
+    p.peakY = y;
+    p.onGround = true;
+    let fell = false;
+    for (let i = 0; i < 40 && !fell; i++) {
+      stepMatch(m, { p1: move(1) }, SLOW);
+      if (p.y < y - 1) fell = true; // dropped below the floor
+    }
+    expect(fell).toBe(true);
   });
 });
 
-describe("AC-2 / AC-3: first flag-toucher wins deterministically", () => {
-  it("declares exactly one winner and does not overwrite it", () => {
-    const m = climbingMatch("multiplayer", ["p1", "p2"]);
-    m.players[0].y = TOWER.flagY - 0.05; // p1 reaches first
-    m.players[1].y = 100;
-    stepMatch(m, { p1: UP, p2: UP }, SLOW);
-    expect(m.winnerId).toBe("p1");
-    expect(m.phase).toBe("finished");
-
-    // A further step must not change the winner.
-    const before = m.winnerId;
-    stepMatch(m, { p1: UP, p2: UP }, SLOW);
-    expect(m.winnerId).toBe(before);
-  });
-
-  it("breaks a same-tick tie by lowest slot", () => {
-    const m = climbingMatch("multiplayer", ["p1", "p2"]);
-    // Both cross the flag on the same tick; p1 has slot 0, p2 slot 1.
-    m.players[0].y = TOWER.flagY - 0.05;
-    m.players[1].y = TOWER.flagY - 0.05;
-    stepMatch(m, { p1: UP, p2: UP }, SLOW);
-    expect(m.players[0].finishedTick).toBe(m.players[1].finishedTick);
-    expect(m.winnerId).toBe("p1"); // lower slot wins the tie
-  });
-});
-
-describe("AC-4: flag finish beats hazard on the same tick", () => {
-  it("a player at the flag with the hazard at their feet finishes, not dies", () => {
+describe("ladders: grab and climb from one floor to the next", () => {
+  it("grabs the floor-0 ladder and climbs up to floor 1", () => {
+    const l0 = ladderForFloor(TOWER, 0);
     const m = climbingMatch("solo", ["p1"]);
     const p = m.players[0];
-    p.y = TOWER.flagY - 0.05;
-    // Aggressive hazard so hazardY is high this tick, but flag is checked first.
-    const fast: SimConfig = {
-      ...DEFAULT_SIM_CONFIG,
-      hazard: { ...DEFAULT_HAZARD_CONFIG, HAZARD_VIEWS_PER_SEC: 1e6 },
-    };
-    stepMatch(m, { p1: UP }, fast);
-    expect(p.status).toBe("finished");
-    expect(m.hazardY).toBeGreaterThan(0);
-  });
-});
-
-describe("AC-7 / AC-8: hazard elimination retains peak", () => {
-  it("eliminates a caught multiplayer player but keeps peakY", () => {
-    const m = climbingMatch("multiplayer", ["p1"]);
-    const p = m.players[0];
-    p.onLadder = false;
-    p.y = 40;
-    p.peakY = 120; // climbed high earlier, then fell back
-    const fast: SimConfig = {
-      ...DEFAULT_SIM_CONFIG,
-      hazard: { ...DEFAULT_HAZARD_CONFIG, HAZARD_VIEWS_PER_SEC: 1e6 },
-    };
-    stepMatch(m, { p1: { moveX: 0, jump: false, climbY: 0, usePowerUp: false } }, fast);
-    expect(p.status).toBe("eliminated");
-    expect(p.peakY).toBe(120); // retained
-  });
-
-  it("respawns a caught solo player at the last checkpoint with a penalty", () => {
-    const m = climbingMatch("solo", ["p1"]);
-    const p = m.players[0];
-    p.onLadder = false;
-    p.y = 40;
-    p.lastCheckpoint = 3; // 150m
-    p.peakY = 160;
-    const fast: SimConfig = {
-      ...DEFAULT_SIM_CONFIG,
-      hazard: { ...DEFAULT_HAZARD_CONFIG, HAZARD_VIEWS_PER_SEC: 1e6 },
-      respawnPenaltyTicks: 30,
-    };
-    stepMatch(m, { p1: { moveX: 0, jump: false, climbY: 0, usePowerUp: false } }, fast);
+    p.x = l0.x; // at the ladder base
+    p.y = 0;
+    p.onGround = true;
+    let ticks = 0;
+    const top = floorHeight(TOWER, 1);
+    while (p.y < top && ticks < 300) {
+      stepMatch(m, { p1: UP }, SLOW);
+      ticks++;
+    }
+    expect(p.y).toBeGreaterThanOrEqual(top);
     expect(p.status).toBe("climbing");
-    expect(p.y).toBe(TOWER.checkpoints[3]); // respawned at checkpoint 3
-    expect(p.penaltyTicks).toBe(30);
-    expect(p.peakY).toBe(160); // retained (AC-8)
   });
 });
 
-describe("AC-9 / AC-10: fall into a gap respawns at last checkpoint / base", () => {
-  const FALL: SimConfig = {
-    ...DEFAULT_SIM_CONFIG,
-    hazard: { ...DEFAULT_HAZARD_CONFIG, HAZARD_VIEWS_PER_SEC: 0.01 },
-  };
+describe("AC-7 / AC-8: caught by the death line eliminates and retains peak", () => {
+  it("eliminates a caught climber but keeps peakY (solo & multiplayer)", () => {
+    for (const mode of ["solo", "multiplayer"] as const) {
+      const m = climbingMatch(mode, ["p1"]);
+      m.tick = 200; // past the hazard's opening grace so FAST can catch
+      const p = m.players[0];
+      p.onGround = false;
+      p.y = 40;
+      p.peakY = 120; // climbed high earlier, then fell back
+      stepMatch(m, { p1: IDLE }, FAST);
+      expect(p.status).toBe("eliminated");
+      expect(p.peakY).toBe(120);
+      expect(m.phase).toBe("finished"); // solo run ends on a catch
+    }
+  });
 
-  it("respawns a solo player at their last checkpoint after a gap fall", () => {
+  it("kills a climber who falls more than fallDeathBelowPeakM below their peak", () => {
     const m = climbingMatch("solo", ["p1"]);
     const p = m.players[0];
-    p.onLadder = false;
     p.onGround = false;
-    p.lastCheckpoint = 4; // 200m
-    p.y = TOWER.checkpoints[4] - TOWER.fallDeathMargin - 5; // fell past the margin
-    p.peakY = 210;
-    stepMatch(m, { p1: { moveX: 0, jump: false, climbY: 0, usePowerUp: false } }, FALL);
-    expect(p.status).toBe("climbing");
-    expect(p.y).toBe(TOWER.checkpoints[4]);
-    expect(p.peakY).toBe(210); // retained
+    p.peakY = 200;
+    p.y = 200 - TOWER.fallDeathBelowPeakM - 1; // dropped past the fall floor
+    stepMatch(m, { p1: IDLE }, SLOW);
+    expect(p.status).toBe("eliminated");
   });
 
-  it("respawns at the base (AC-10) when caught before the first checkpoint", () => {
-    // Use the hazard path with lastCheckpoint=0 to exercise the base respawn.
+  it("has no summit: a very high climber is still climbing, never 'finished'", () => {
     const m = climbingMatch("solo", ["p1"]);
     const p = m.players[0];
-    p.onLadder = false;
-    p.y = 10; // above base, below an aggressive hazard
-    p.lastCheckpoint = 0; // never passed a checkpoint
-    const fast: SimConfig = {
-      ...DEFAULT_SIM_CONFIG,
-      hazard: { ...DEFAULT_HAZARD_CONFIG, HAZARD_VIEWS_PER_SEC: 1e6 },
-    };
-    stepMatch(m, { p1: { moveX: 0, jump: false, climbY: 0, usePowerUp: false } }, fast);
-    expect(p.status).toBe("climbing");
-    expect(p.y).toBe(TOWER.checkpoints[0]); // respawned at base
+    p.y = 100_000;
+    p.peakY = 100_000;
+    stepMatch(m, { p1: UP }, SLOW);
+    expect(p.status).toBe("climbing"); // endless — no finish line
+  });
+});
+
+describe("endless completability: a greedy bot climbs far up a generated tower", () => {
+  function botInput(p: PlayerState, tower: TowerSpec): PlayerInput {
+    if (p.onLadder) return UP;
+    const k = floorIndexAt(tower, p.y + 0.5); // current floor
+    const target = ladderForFloor(tower, k);
+    const dx = target.x - p.x;
+    if (Math.abs(dx) <= tower.ladderGrabRadius * 0.5) return UP; // grab
+    const dir: -1 | 0 | 1 = dx > 0 ? 1 : -1;
+    const probe = p.x + dir * 1.2;
+    const ahead = platformsNearY(tower, p.y, p.y).some(
+      (pl) => probe >= pl.x0 && probe <= pl.x1 && Math.abs(pl.y - p.y) <= 0.05
+    );
+    return { moveX: dir, jump: p.onGround && !ahead, climbY: 0, usePowerUp: false };
+  }
+
+  for (const slug of ["indie-games", "developer-tools", "fitness-and-wellness"]) {
+    it(`climbs high up the ${slug} tower under a slow hazard (solvable + unbounded)`, () => {
+      const tower = buildTower(slug);
+      const m = climbingMatch("solo", ["bot"], tower);
+      let ticks = 0;
+      while (m.phase === "climb" && ticks < 8000) {
+        stepMatch(m, { bot: botInput(m.players[0], tower) }, SLOW);
+        ticks++;
+      }
+      // Reached well beyond the difficulty ramp — many floors are solvable.
+      expect(m.players[0].peakY).toBeGreaterThan(600);
+    });
+  }
+
+  it("ends the run under the real hazard, with progress recorded", () => {
+    const tower = buildTower("indie-games");
+    const m = climbingMatch("solo", ["bot"], tower);
+    let ticks = 0;
+    while (m.phase === "climb" && ticks < 20000) {
+      stepMatch(m, { bot: botInput(m.players[0], tower) }, DEFAULT_SIM_CONFIG);
+      ticks++;
+    }
+    expect(m.phase).toBe("finished");
+    expect(m.players[0].status).toBe("eliminated");
+    expect(m.players[0].peakY).toBeGreaterThan(80); // real climbing happened
   });
 });
 
@@ -190,15 +231,58 @@ describe("AC-11: re-simulation is deterministic", () => {
       tower: TOWER,
       playerIds: ["p1", "p2"],
     };
-    // Build an input log: both climb every tick for 200 ticks.
     const log: Record<PlayerId, PlayerInput>[] = [];
-    for (let i = 0; i < 200; i++) log.push({ p1: UP, p2: UP });
+    for (let i = 0; i < 200; i++) log.push({ p1: UP, p2: move(1, i % 20 === 0) });
 
     const a = simulateFromInputs(init, log, SLOW);
     const b = simulateFromInputs(init, log, SLOW);
 
     expect(JSON.stringify(a)).toBe(JSON.stringify(b));
-    // And a fresh spawn is identical too (pure spawn).
     expect(spawnPlayer("p1", 0)).toEqual(spawnPlayer("p1", 0));
+  });
+});
+
+describe("resolveOutcome: deterministic winner + tie-break (future multiplayer)", () => {
+  it("breaks a same-tick finish tie by lowest slot", () => {
+    const m = climbingMatch("multiplayer", ["p1", "p2"]);
+    // Manually mark both finished on the same tick (endless solo never does this,
+    // but the resolver still governs a future multiplayer race-to-a-height).
+    for (const p of m.players) {
+      p.status = "finished";
+      p.finishedTick = 42;
+    }
+    stepMatch(m, { p1: IDLE, p2: IDLE }, SLOW);
+    expect(m.winnerId).toBe("p1"); // slot 0 wins the tie
+    expect(m.phase).toBe("finished");
+  });
+});
+
+describe("regression: a climber can move from the base; idling loses", () => {
+  it("hazard starts below the base and the climber gains height by climbing", () => {
+    const tower = buildTower("indie-games");
+    const m = climbingMatch("solo", ["p1"], tower);
+    stepMatch(m, { p1: IDLE }, DEFAULT_SIM_CONFIG);
+    expect(m.hazardY).toBeLessThan(0); // lava starts below the base
+    const l0 = ladderForFloor(tower, 0);
+    for (let i = 0; i < 200 && m.players[0].y < floorHeight(tower, 1); i++) {
+      const p = m.players[0];
+      const dx = l0.x - p.x;
+      const inp = Math.abs(dx) <= 1 ? UP : move(dx > 0 ? 1 : -1);
+      stepMatch(m, { p1: inp }, DEFAULT_SIM_CONFIG);
+    }
+    expect(m.players[0].status).toBe("climbing");
+    expect(m.players[0].peakY).toBeGreaterThan(5);
+  });
+
+  it("an idle climber is eventually caught and loses", () => {
+    const tower = buildTower("indie-games");
+    const m = climbingMatch("solo", ["p1"], tower);
+    let ticks = 0;
+    while (m.phase === "climb" && ticks < 100_000) {
+      stepMatch(m, { p1: IDLE }, DEFAULT_SIM_CONFIG);
+      ticks++;
+    }
+    expect(m.phase).toBe("finished");
+    expect(m.players[0].status).toBe("eliminated");
   });
 });

@@ -15,16 +15,23 @@
  */
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useClimb } from "../../game/useClimb";
 import { TowerSpec } from "../../game/types";
 import { ClimbCanvas } from "./ClimbCanvas";
-import { TouchControls } from "./TouchControls";
+import { useAuth } from "../../contexts/AuthContext";
+import { climberHandle } from "../../lib/handle";
 
 export interface ClimbSceneProps {
   tower: TowerSpec;
   categoryLabel: string;
-  /** Firebase ID token if signed in — enables record persistence. */
-  idToken?: string | null;
+}
+
+interface SaveInfo {
+  saved: boolean;
+  improved?: boolean;
+  rank?: number;
+  totalClimbers?: number;
 }
 
 function usePrefersReducedMotion(): boolean {
@@ -39,16 +46,28 @@ function usePrefersReducedMotion(): boolean {
   return reduced;
 }
 
-export function ClimbScene({ tower, categoryLabel, idToken }: ClimbSceneProps) {
+export function ClimbScene({ tower, categoryLabel }: ClimbSceneProps) {
   const reducedMotion = usePrefersReducedMotion();
   const seed = useMemo(() => `solo-${tower.categorySlug}`, [tower.categorySlug]);
-  const { state, start, finished, setTouch } = useClimb({ tower, seed });
+  const { state, start, finished } = useClimb({ tower, seed });
+  const { user, token } = useAuth();
   const [posted, setPosted] = useState(false);
+  const [saveInfo, setSaveInfo] = useState<SaveInfo | null>(null);
 
   const player = state.players[0];
   const phase = state.phase;
 
-  // Persist the run result once, best-effort, when the run finishes (AC-30/31).
+  // Start / restart: reset the save guard so EVERY run is recorded (not just
+  // the first), then kick off the countdown.
+  function handleStart() {
+    setPosted(false);
+    setSaveInfo(null);
+    start();
+  }
+
+  // Persist the run result once per run, best-effort, when it finishes. Uses the
+  // signed-in user's live Firebase token (from context) so records actually save;
+  // anonymous runs are accepted but not saved (AC-30/31).
   useEffect(() => {
     if (!finished || posted) return;
     setPosted(true);
@@ -63,16 +82,26 @@ export function ClimbScene({ tower, categoryLabel, idToken }: ClimbSceneProps) {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        ...(idToken ? { Authorization: `Bearer ${idToken}` } : {}),
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
       body,
-    }).catch(() => {
-      /* best-effort; never blocks the results screen */
-    });
-  }, [finished, posted, player, seed, tower.categorySlug, idToken]);
-
-  const showControls = phase === "climb" || phase === "countdown";
-  const onLadder = player?.onLadder ?? false;
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((res) =>
+        setSaveInfo(
+          res
+            ? {
+                saved: Boolean(res.saved),
+                improved: Boolean(res.improved),
+                rank: typeof res.rank === "number" ? res.rank : undefined,
+                totalClimbers:
+                  typeof res.totalClimbers === "number" ? res.totalClimbers : undefined,
+              }
+            : { saved: false }
+        )
+      )
+      .catch(() => setSaveInfo({ saved: false }));
+  }, [finished, posted, player, seed, tower.categorySlug, token]);
 
   return (
     <div className="flex flex-col items-center gap-4">
@@ -98,61 +127,76 @@ export function ClimbScene({ tower, categoryLabel, idToken }: ClimbSceneProps) {
               {categoryLabel} tower
             </p>
             <h2 className="text-2xl font-bold text-text-primary mt-1">
-              Solo time-trial
+              Endless climb
             </h2>
             <p className="text-text-secondary text-sm mt-2 max-w-[240px] text-center">
-              Climb to the flag before the lava catches you. First to the summit
-              sets the record.
+              Climb as high as you can before the rising lava catches you. It gets
+              harder the higher you go — your peak height is your score.
             </p>
-            <StartButton onClick={start} label="Start climb" />
+            <StartButton onClick={handleStart} label="Start climb" />
           </Overlay>
         )}
 
-        {/* Results overlay. */}
+        {/* Results overlay — endless climb ends when the lava catches you. */}
         {finished && (
           <Overlay>
-            {player?.status === "finished" ? (
-              <>
-                <p className="text-xs uppercase tracking-[0.2em] text-success">
-                  Summit reached
-                </p>
-                <h2 className="text-3xl font-bold text-text-primary mt-1">
-                  You made it
-                </h2>
-                <p className="text-text-secondary text-sm mt-2 font-mono">
-                  time {(state.raceSeconds).toFixed(2)}s
-                </p>
-              </>
-            ) : (
-              <>
-                <p className="text-xs uppercase tracking-[0.2em] text-danger">
-                  Caught by the lava
-                </p>
-                <h2 className="text-3xl font-bold text-text-primary mt-1">
-                  So close
-                </h2>
-              </>
-            )}
-            <p className="text-text-muted text-sm mt-3 font-mono">
-              peak {(player?.peakY ?? 0).toFixed(1)}m
+            <p className="text-xs uppercase tracking-[0.2em] text-danger">
+              Caught by the lava
             </p>
-            <StartButton onClick={start} label="Climb again" />
+            <h2 className="text-3xl font-bold text-text-primary mt-1">
+              {(player?.peakY ?? 0).toFixed(0)}m
+            </h2>
+            <p className="text-text-secondary text-sm mt-2">your highest climb</p>
+
+            {/* Record status + leaderboard place (immediate). */}
+            {user ? (
+              saveInfo?.saved && saveInfo.rank ? (
+                <div className="mt-3 flex flex-col items-center gap-0.5">
+                  <p className="text-lg font-bold text-accent">
+                    #{saveInfo.rank}
+                    {saveInfo.totalClimbers ? (
+                      <span className="text-text-muted font-normal text-sm">
+                        {" "}
+                        of {saveInfo.totalClimbers}
+                      </span>
+                    ) : null}
+                  </p>
+                  <p className="text-xs text-text-muted">
+                    {saveInfo.improved ? "new personal best · " : ""}
+                    {climberHandle(user.uid)}
+                  </p>
+                </div>
+              ) : (
+                <p className="text-xs mt-3 font-mono text-text-muted">
+                  {saveInfo === null ? "Saving…" : "Couldn’t save your run"}
+                </p>
+              )
+            ) : (
+              <p className="text-xs mt-3 text-text-muted">
+                <Link href="/auth/signin" className="text-accent underline underline-offset-2">
+                  Sign in
+                </Link>{" "}
+                to save your record & rank
+              </p>
+            )}
+
+            <StartButton onClick={handleStart} label="Climb again" />
+            <Link
+              href={`/climb/${tower.categorySlug}`}
+              className="mt-3 text-sm text-accent hover:brightness-110 underline underline-offset-4"
+            >
+              View leaderboard →
+            </Link>
           </Overlay>
         )}
       </div>
 
-      {showControls && (
-        <div className="w-[360px] max-w-full">
-          <TouchControls onChange={setTouch} showClimb={onLadder} />
-        </div>
-      )}
-
       {/* ARIA live region: announces win/eliminate for screen readers (NFR-5). */}
       <div className="sr-only" role="status" aria-live="polite">
         {finished
-          ? player?.status === "finished"
-            ? "You reached the summit."
-            : "You were caught by the hazard."
+          ? `You were caught by the lava at ${(player?.peakY ?? 0).toFixed(
+              0
+            )} metres.`
           : ""}
       </div>
     </div>

@@ -149,7 +149,7 @@ export function Hero() {
               Enter the arena →
             </Link>
             <Link
-              href="/tower/tech"
+              href="/browse"
               className="w-full sm:w-auto rounded-lg border border-border-strong bg-surface px-7 py-3.5 text-base font-medium text-text-primary inline-flex items-center justify-center hover:bg-elevated transition-colors min-h-[48px]"
             >
               Browse towers

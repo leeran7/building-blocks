@@ -161,28 +161,27 @@ describe("isAmberEdge — near-burial warning (AC-21)", () => {
 
 // ─── 2. Category validation on /api/tower/[category] ──────────────────────
 
-describe("Category validation — route source (AC-3 / AC-7 through AC-12)", () => {
-  // The route uses a lowercase slug → Category enum map for URL normalization.
-  // We read the route source to verify the validation logic is present.
+describe("Category validation — route source (free-form slugs)", () => {
+  // The route now accepts ANY well-formed category slug (every subcategory has
+  // its own tower); it only validates the slug shape and normalizes case.
   const routeSrc = readFileSync(
     resolve(__dirname, "../../app/api/tower/[category]/route.ts"),
     "utf-8"
   );
 
-  it("route source contains SLUG_TO_CATEGORY map for URL normalization", () => {
-    expect(routeSrc).toContain("SLUG_TO_CATEGORY");
-    expect(routeSrc).toContain("Category.Tech");
+  it("normalizes case and only allows known subcategories", () => {
+    expect(routeSrc).toContain(".toLowerCase()");
+    expect(routeSrc).toContain("isGameCategory");
   });
 
-  it("route returns 404 with INVALID_CATEGORY code for unknown categories", () => {
-    // The validation branch returns 404 (architecture contract §4.2)
+  it("returns 404 with INVALID_CATEGORY for a non-subcategory slug", () => {
     expect(routeSrc).toContain('"INVALID_CATEGORY"');
     expect(routeSrc).toContain("status: 404");
   });
 
-  it("route accepts a valid category by looking up slug in SLUG_TO_CATEGORY", () => {
-    expect(routeSrc).toContain("SLUG_TO_CATEGORY.get");
-    expect(routeSrc).toContain(".toLowerCase()");
+  it("no longer hardcodes the fixed 6-category enum map", () => {
+    expect(routeSrc).not.toContain("SLUG_TO_CATEGORY");
+    expect(routeSrc).not.toContain("Category.Tech");
   });
 });
 
@@ -274,14 +273,14 @@ describe("Category enum — all 6 categories are valid (AC-3)", () => {
   // URL slugs used by the category tower pages
   const URL_SLUGS = ["tech", "design", "business", "creative", "gaming", "science"] as const;
 
-  it("all 6 Prisma enum values are present in the schema", () => {
+  it("category is a free-form String slug in the schema (no fixed enum)", () => {
     const schemaSrc = readFileSync(
       resolve(__dirname, "../../prisma/schema.prisma"),
       "utf-8"
     );
-    for (const cat of PRISMA_CATEGORIES) {
-      expect(schemaSrc).toContain(cat);
-    }
+    expect(schemaSrc).not.toContain("enum Category");
+    // both blocks.category and season_state.category are String now
+    expect(schemaSrc).toMatch(/category\s+String/);
   });
 
   it("all 6 URL slugs are recognized by parseCategory", () => {
@@ -454,14 +453,9 @@ describe("Prisma schema — v2 additions (AC-6 / Category enum / User model)", (
     "utf-8"
   );
 
-  it("schema defines Category enum with all 6 values", () => {
-    expect(schemaSrc).toContain("enum Category");
-    expect(schemaSrc).toContain("Tech");
-    expect(schemaSrc).toContain("Design");
-    expect(schemaSrc).toContain("Business");
-    expect(schemaSrc).toContain("Creative");
-    expect(schemaSrc).toContain("Gaming");
-    expect(schemaSrc).toContain("Science");
+  it("category is a free-form String slug (subcategories, not a fixed enum)", () => {
+    expect(schemaSrc).not.toContain("enum Category");
+    expect(schemaSrc).toMatch(/category\s+String/);
   });
 
   it("Block model has category field (AC-6 / AC-13 / AC-14)", () => {

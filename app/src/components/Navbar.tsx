@@ -63,17 +63,14 @@ export function Navbar({ contextLabel, contextDot }: NavbarProps) {
       </div>
 
       <div className="flex items-center gap-1.5 sm:gap-2">
+        <Link href="/browse" className={`${GHOST} hidden sm:inline-flex`}>
+          Browse
+        </Link>
         {loading ? (
           // Stable placeholder — no flash of wrong auth state
           <div className="h-9 w-40 rounded-full bg-elevated animate-pulse" aria-hidden="true" />
         ) : user ? (
           <>
-            <Link
-              href="/tower/tech"
-              className={`${GHOST} hidden sm:inline-flex`}
-            >
-              Browse
-            </Link>
             <Link
               href="/dashboard"
               className={`${PILL} bg-accent-tech text-void hover:brightness-110`}

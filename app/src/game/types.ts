@@ -45,38 +45,68 @@ export interface PlayerState {
   vy: number;
   onGround: boolean;
   onLadder: boolean;
+  /** Floor index of the ladder being climbed (ladder i joins floor i→i+1), else null. */
+  ladderIx: number | null;
   status: PlayerStatus;
   /** Permanent-record ethos: max height reached, retained on death (AC-8). */
   peakY: number;
-  /** Index of the last checkpoint passed (respawn target). */
-  lastCheckpoint: number;
   /** Tick this player touched the flag, if finished (AC-3 tie-break). */
   finishedTick: number | null;
-  /** Accumulated respawn time penalty in ticks (solo mode). */
-  penaltyTicks: number;
 }
 
-/** Static tower geometry the simulation runs against. */
+/**
+ * A solid, one-way platform (you land on its top from above, and can jump up
+ * through it from below — Donkey-Kong / Doodle-Jump style). Spans [x0, x1] at
+ * top-surface height `y`, all in tower metres.
+ */
+export interface Platform {
+  x0: number;
+  x1: number;
+  y: number;
+}
+
+/**
+ * A climbable ladder connecting a lower platform to a higher one. Centered at
+ * `x`, spanning feet-heights [y0, y1]. A climber within `grabRadius` of `x` and
+ * inside the y-span can attach and climb (King-Kong ladders).
+ */
+export interface Ladder {
+  x: number;
+  y0: number;
+  y1: number;
+}
+
+/**
+ * An ENDLESS tower descriptor. There is no summit — the climb goes up forever
+ * and gets harder with altitude; a run ends only when the climber is caught, and
+ * the peak height reached is the leaderboard score. Geometry is NOT stored: each
+ * floor's platforms + ladder are generated deterministically on demand from
+ * `seed` + the floor index (see towers.ts), so the world is unbounded yet
+ * reproducible for re-simulation (AC-11).
+ */
 export interface TowerSpec {
   categorySlug: string;
-  /** Total climbable height in metres. */
-  heightM: number;
-  /** Feet-height of the summit flag trigger. */
-  flagY: number;
-  /** Ascending checkpoint heights (metres). Index 0 is the base. */
-  checkpoints: number[];
-  /** Max legal climb rate (m/s) used by anti-cheat + fall logic. */
+  /** Horizontal play width in metres (x ∈ [0, widthM]). */
+  widthM: number;
+  /** Vertical distance between consecutive floors in metres. */
+  floorGap: number;
+  /** Seed for deterministic per-floor geometry generation. */
+  seed: string;
+  /** How close (metres) to a ladder's x you must be to grab it. */
+  ladderGrabRadius: number;
+  /** Max legal climb rate (m/s) used by anti-cheat + climbing. */
   maxClimbSpeed: number;
+  /** Horizontal walk speed (m/s). */
   moveSpeed: number;
+  /** Upward launch velocity of a jump (m/s). */
   jumpSpeed: number;
+  /** Downward gravity acceleration (m/s²). */
   gravity: number;
   /**
-   * Fall-death margin (metres). If a player is airborne (not on ground/ladder)
-   * and falls more than this far below their last passed checkpoint, they have
-   * fallen into a gap and are eliminated / respawned (AC-9). Models missing a
-   * platform without needing full segment geometry yet.
+   * Doodle-Jump fall-death: if a climber's feet fall more than this far below
+   * their peak height reached, they have fallen off the climb and are out.
    */
-  fallDeathMargin: number;
+  fallDeathBelowPeakM: number;
 }
 
 export type MatchPhase =

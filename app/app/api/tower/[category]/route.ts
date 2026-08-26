@@ -23,9 +23,9 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { Category } from "@prisma/client";
 import { prisma } from "../../../../src/db/client";
 import { getOrCreateActiveSeason } from "../../../../src/db/seasons";
+import { isGameCategory } from "../../../../src/game/categories";
 import {
   computeGrowth,
   computeRate,
@@ -37,32 +37,20 @@ import {
 
 export const runtime = "nodejs";
 
-// Map lowercase URL slugs → Prisma enum values
-const SLUG_TO_CATEGORY = new Map<string, Category>([
-  ["tech", Category.Tech],
-  ["design", Category.Design],
-  ["business", Category.Business],
-  ["creative", Category.Creative],
-  ["gaming", Category.Gaming],
-  ["science", Category.Science],
-]);
-
 const LEADERBOARD_LIMIT = 100;
 
 export async function GET(
   _request: NextRequest,
   { params }: { params: { category: string } }
 ): Promise<NextResponse> {
-  // Normalize: URL slugs are lowercase, enum values are PascalCase
-  const category = SLUG_TO_CATEGORY.get(params.category.toLowerCase());
+  // Category is a free-form slug now — every subcategory has its own tower. Only
+  // guard the slug shape (a-z, 0-9, dashes) to keep it well-formed.
+  const category = params.category.toLowerCase();
 
-  if (!category) {
+  // Only subcategories get towers (broad/legacy slugs are not valid).
+  if (!isGameCategory(category)) {
     return NextResponse.json(
-      {
-        error: `Invalid category. Must be one of: ${Array.from(SLUG_TO_CATEGORY.keys()).join(", ")}`,
-        code: "INVALID_CATEGORY",
-        field: "category",
-      },
+      { error: "Unknown category", code: "INVALID_CATEGORY", field: "category" },
       { status: 404 }
     );
   }

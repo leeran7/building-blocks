@@ -13,7 +13,6 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { Category } from "@prisma/client";
 import { verifyWebhookSignature } from "../../../../src/api/stripe";
 import { findPaymentByStripeSession, applyPaymentTransaction } from "../../../../src/db/payments";
 import { getOrCreateActiveSeason } from "../../../../src/db/seasons";
@@ -67,12 +66,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const stripeSessionId = session.id;
   const blockId = session.metadata?.block_id;
   const amountTotal = session.amount_total ?? 0;
-  // Resolve category from metadata — falls back to Tech for legacy sessions
-  const rawCategory = session.metadata?.category;
-  const category: Category =
-    rawCategory && rawCategory in Category
-      ? (rawCategory as Category)
-      : Category.Tech;
+  // Resolve category slug from metadata — falls back to "tech" for legacy sessions.
+  const rawCategory = session.metadata?.category?.toLowerCase();
+  const category: string =
+    rawCategory && /^[a-z0-9][a-z0-9-]{0,63}$/.test(rawCategory) ? rawCategory : "tech";
 
   if (!blockId) {
     console.error("[webhook/stripe] Missing block_id in metadata:", session.id);

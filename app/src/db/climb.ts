@@ -9,6 +9,7 @@
  */
 
 import { prisma } from "./client";
+import { climberHandle } from "../lib/handle";
 
 export interface ClimbResultInput {
   userId: string;
@@ -19,18 +20,25 @@ export interface ClimbResultInput {
   seed: string;
 }
 
-export interface ClimbRecordResult {
+export interface PeakDecision {
   /** The player's peak height after this run (>= their prior best). */
   peakY: number;
   /** True if this run set a new personal best for the category. */
   improved: boolean;
 }
 
+export interface ClimbRecordResult extends PeakDecision {
+  /** The player's 1-based rank on the category leaderboard after this run. */
+  rank: number;
+  /** Total ranked climbers in the category. */
+  totalClimbers: number;
+}
+
 /**
  * Pure monotonic-peak decision (AC-30/AC-31): a record is only ever raised.
  * Extracted so the invariant is unit-testable without a database.
  */
-export function nextPeak(priorBest: number, runPeak: number): ClimbRecordResult {
+export function nextPeak(priorBest: number, runPeak: number): PeakDecision {
   const clamped = Math.max(0, runPeak);
   const prior = Math.max(0, priorBest);
   const peakY = Math.max(prior, clamped);
@@ -91,5 +99,48 @@ export async function recordClimb(
     },
   });
 
-  return { peakY: newBest, improved };
+  // Rank on the category board: 1 + the number of players strictly above you.
+  // (Ties share a rank.) Computed after the upsert so it reflects this run.
+  const [above, totalClimbers] = await Promise.all([
+    prisma.climbRecord.count({
+      where: { category_slug: input.categorySlug, peak_y: { gt: newBest } },
+    }),
+    prisma.climbRecord.count({ where: { category_slug: input.categorySlug } }),
+  ]);
+
+  return { peakY: newBest, improved, rank: above + 1, totalClimbers };
+}
+
+export interface ClimberRank {
+  rank: number;
+  userId: string;
+  /** Privacy-safe pseudonym (never the email). */
+  handle: string;
+  peakY: number;
+  wins: number;
+}
+
+/**
+ * The skill leaderboard for a category: the highest peak-height record per
+ * player, ranked descending. Ties broken by who reached it first (earliest
+ * updated_at). Uses the [category_slug, peak_y desc] index. Emails are never
+ * returned — only a deterministic pseudonym.
+ */
+export async function topClimbers(
+  categorySlug: string,
+  limit = 50
+): Promise<ClimberRank[]> {
+  const rows = await prisma.climbRecord.findMany({
+    where: { category_slug: categorySlug },
+    orderBy: [{ peak_y: "desc" }, { updated_at: "asc" }],
+    take: limit,
+    select: { userId: true, peak_y: true, wins: true },
+  });
+  return rows.map((r, i) => ({
+    rank: i + 1,
+    userId: r.userId,
+    handle: climberHandle(r.userId),
+    peakY: r.peak_y,
+    wins: r.wins,
+  }));
 }

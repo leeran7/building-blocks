@@ -11,7 +11,7 @@
  */
 
 import type { Metadata } from "next";
-import { Navbar } from "../../../src/components/Navbar";
+import { CategoryShell } from "../../../src/components/CategoryShell";
 import { ClimbScene } from "../../../src/components/Game/ClimbScene";
 import { buildTower } from "../../../src/game/towers";
 import { resolveGameCategory } from "../../../src/game/categories";
@@ -24,7 +24,7 @@ export function generateMetadata({ params }: PlayPageProps): Metadata {
   const cat = resolveGameCategory(params.category);
   return {
     title: `Climb the ${cat.label} tower — Tower`,
-    description: `Solo time-trial: race the rising lava to the summit flag of the ${cat.label} tower.`,
+    description: `Endless climb: go as high as you can up the ${cat.label} tower before the rising lava catches you.`,
   };
 }
 
@@ -33,24 +33,22 @@ export default function PlayPage({ params }: PlayPageProps) {
   const tower = buildTower(category);
 
   return (
-    <main className="min-h-screen bg-void">
-      <Navbar contextLabel={`${category.label} climb`} />
-      <div className="max-w-3xl mx-auto px-4 py-8 flex flex-col items-center">
-        <header className="mb-6 text-center">
-          <p className="text-xs uppercase tracking-[0.2em] text-accent font-medium">
-            The Climb · {category.family}
-          </p>
-          <h1 className="text-3xl md:text-4xl font-bold text-text-primary tracking-tight mt-2">
-            {category.label} tower
-          </h1>
-          <p className="text-text-secondary mt-2 max-w-md">
-            First to the flag wins. Keyboard: arrows / WASD to move & climb, Space
-            to jump. On touch, use the on-screen pad.
-          </p>
-        </header>
-
+    <CategoryShell
+      slug={category.slug}
+      section="play"
+      eyebrow={`The Climb · ${category.family}`}
+      title={category.label}
+      meta={
+        <p className="text-text-secondary text-sm mt-3 max-w-lg">
+          Endless climb — go as high as you can. Arrow keys / WASD to move & climb,
+          Space to jump. It gets harder the higher you go; your peak height is your
+          score.
+        </p>
+      }
+    >
+      <div className="flex justify-center">
         <ClimbScene tower={tower} categoryLabel={category.label} />
       </div>
-    </main>
+    </CategoryShell>
   );
 }

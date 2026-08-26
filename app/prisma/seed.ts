@@ -5,15 +5,15 @@
  * Run via: pnpm db:seed
  */
 
-import { PrismaClient, Category } from "@prisma/client";
+import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
 const BLOCKS_PER_CATEGORY: Record<
-  Category,
+  string,
   Array<{ slug: string; display_name: string; url: string; owner_email: string; altitude: number }>
 > = {
-  Tech: [
+  "developer-tools": [
     { slug: "vercel",       display_name: "Vercel",         url: "https://vercel.com",         owner_email: "seed@tower.dev", altitude: 142.5 },
     { slug: "supabase",     display_name: "Supabase",       url: "https://supabase.com",       owner_email: "seed@tower.dev", altitude: 118.2 },
     { slug: "linear-app",   display_name: "Linear",         url: "https://linear.app",         owner_email: "seed@tower.dev", altitude: 97.8  },
@@ -23,7 +23,7 @@ const BLOCKS_PER_CATEGORY: Record<
     { slug: "clerk-dev",    display_name: "Clerk",          url: "https://clerk.dev",          owner_email: "seed@tower.dev", altitude: 22.4  },
     { slug: "upstash-io",   display_name: "Upstash",        url: "https://upstash.com",        owner_email: "seed@tower.dev", altitude: 11.7  },
   ],
-  Design: [
+  "ui-ux-design": [
     { slug: "figma-com",    display_name: "Figma",          url: "https://figma.com",          owner_email: "seed@tower.dev", altitude: 165.0 },
     { slug: "framer-com",   display_name: "Framer",         url: "https://framer.com",         owner_email: "seed@tower.dev", altitude: 134.7 },
     { slug: "spline-design",display_name: "Spline",         url: "https://spline.design",      owner_email: "seed@tower.dev", altitude: 88.2  },
@@ -31,7 +31,7 @@ const BLOCKS_PER_CATEGORY: Record<
     { slug: "fontshare-io", display_name: "Fontshare",      url: "https://www.fontshare.com",  owner_email: "seed@tower.dev", altitude: 33.9  },
     { slug: "coolors-co",   display_name: "Coolors",        url: "https://coolors.co",         owner_email: "seed@tower.dev", altitude: 14.2  },
   ],
-  Business: [
+  "startups": [
     { slug: "notion-so",    display_name: "Notion",         url: "https://notion.so",          owner_email: "seed@tower.dev", altitude: 201.3 },
     { slug: "loom-com",     display_name: "Loom",           url: "https://loom.com",           owner_email: "seed@tower.dev", altitude: 154.6 },
     { slug: "cal-com",      display_name: "Cal.com",        url: "https://cal.com",            owner_email: "seed@tower.dev", altitude: 109.8 },
@@ -39,7 +39,7 @@ const BLOCKS_PER_CATEGORY: Record<
     { slug: "mercury-co",   display_name: "Mercury",        url: "https://mercury.com",        owner_email: "seed@tower.dev", altitude: 41.3  },
     { slug: "brex-com",     display_name: "Brex",           url: "https://brex.com",           owner_email: "seed@tower.dev", altitude: 18.7  },
   ],
-  Creative: [
+  "digital-art": [
     { slug: "runway-ml",    display_name: "Runway",         url: "https://runwayml.com",       owner_email: "seed@tower.dev", altitude: 178.4 },
     { slug: "midjourney-com",display_name:"Midjourney",     url: "https://midjourney.com",     owner_email: "seed@tower.dev", altitude: 143.2 },
     { slug: "udio-com",     display_name: "Udio",           url: "https://udio.com",           owner_email: "seed@tower.dev", altitude: 99.7  },
@@ -48,7 +48,7 @@ const BLOCKS_PER_CATEGORY: Record<
     { slug: "suno-ai",      display_name: "Suno",           url: "https://suno.com",           owner_email: "seed@tower.dev", altitude: 29.3  },
     { slug: "hedra-com",    display_name: "Hedra",          url: "https://hedra.com",          owner_email: "seed@tower.dev", altitude: 12.6  },
   ],
-  Gaming: [
+  "indie-games": [
     { slug: "itch-io",      display_name: "itch.io",        url: "https://itch.io",            owner_email: "seed@tower.dev", altitude: 187.9 },
     { slug: "godot-engine", display_name: "Godot",          url: "https://godotengine.org",    owner_email: "seed@tower.dev", altitude: 151.3 },
     { slug: "unity-com",    display_name: "Unity",          url: "https://unity.com",          owner_email: "seed@tower.dev", altitude: 116.4 },
@@ -56,7 +56,7 @@ const BLOCKS_PER_CATEGORY: Record<
     { slug: "bevy-engine",  display_name: "Bevy",           url: "https://bevyengine.org",     owner_email: "seed@tower.dev", altitude: 52.7  },
     { slug: "excaliburzr",  display_name: "Excalibur.js",   url: "https://excaliburjs.com",    owner_email: "seed@tower.dev", altitude: 27.9  },
   ],
-  Science: [
+  "space-and-astronomy": [
     { slug: "huggingface",  display_name: "Hugging Face",   url: "https://huggingface.co",     owner_email: "seed@tower.dev", altitude: 224.1 },
     { slug: "arxiv-org",    display_name: "arXiv",          url: "https://arxiv.org",          owner_email: "seed@tower.dev", altitude: 183.6 },
     { slug: "weights-biases",display_name:"Weights & Biases",url:"https://wandb.ai",           owner_email: "seed@tower.dev", altitude: 138.5 },
@@ -67,7 +67,7 @@ const BLOCKS_PER_CATEGORY: Record<
   ],
 };
 
-async function getOrCreateSeason(category: Category): Promise<string> {
+async function getOrCreateSeason(category: string): Promise<string> {
   const existing = await prisma.season.findFirst({
     where: { is_active: true, category },
   });
@@ -86,7 +86,7 @@ async function getOrCreateSeason(category: Category): Promise<string> {
 async function main() {
   console.log("Seeding towers...\n");
 
-  for (const [cat, blocks] of Object.entries(BLOCKS_PER_CATEGORY) as [Category, typeof BLOCKS_PER_CATEGORY[Category]][]) {
+  for (const [cat, blocks] of Object.entries(BLOCKS_PER_CATEGORY) as [string, typeof BLOCKS_PER_CATEGORY[string]][]) {
     const seasonId = await getOrCreateSeason(cat);
 
     let created = 0;
@@ -107,7 +107,7 @@ async function main() {
           views_served: Math.floor(b.altitude * 12),
           clicks:       Math.floor(b.altitude * 1.4),
           season_id:    seasonId,
-          category:     cat as Category,
+          category:     cat,
         },
       });
       created++;

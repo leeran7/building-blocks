@@ -6,7 +6,7 @@
  */
 
 import Link from "next/link";
-import { FEATURED_CATEGORIES } from "../../lib/categories";
+import { FEATURED_GAME_CATEGORIES } from "../../game/categories";
 
 export function Footer() {
   const year = new Date().getFullYear();
@@ -50,7 +50,7 @@ export function Footer() {
             Towers
           </p>
           <ul className="space-y-1">
-            {FEATURED_CATEGORIES.slice(0, 6).map((c) => (
+            {FEATURED_GAME_CATEGORIES.map((c) => (
               <li key={c.slug}>
                 <Link
                   href={`/tower/${c.slug}`}

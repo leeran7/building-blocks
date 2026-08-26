@@ -1,106 +1,110 @@
 /**
  * Tower v3 "The Climb" — Rising Hazard.
  *
- * The rising hazard (lava / flood / collapsing floor) that chases climbers
- * upward is the game-side reuse of the LEADERBOARD ENGINE. The v1/v2 "ground
- * that rises and buries blocks" IS the hazard here — same accelerate-then-cap
- * curve, driven by race-time instead of views.
+ * The rising hazard (lava / flood / collapsing floor) chases the climber upward
+ * and supplies the Doodle-Jump "keep moving or you're caught" pressure. Its rise
+ * speed is expressed as a FRACTION OF THE CLIMBER'S SPEED (the tower's ladder
+ * climb rate), so the chase is always proportional to how fast you can move and
+ * scales automatically across archetypes:
  *
- * Elegance / spec (spec-next.md, Core Game Design → "Rising hazard reuses the
- * engine", AC-5, AC-6):
- *   - The engine computes ground = G0 * min(exp(λ·V), MAX_GROWTH) via
- *     computeGround(V), with λ = ln(2) / DOUBLE_EVERY_K.
- *   - We feed a race-clock-derived V into the SAME function, UNCHANGED:
- *         V(t) = HAZARD_VIEWS_PER_SEC * t   (t = seconds since match start)
- *     then scale computeGround(V(t)) to the tower's height.
- *   - Consequence, inherited for free: the hazard starts slow, accelerates
- *     mid-race (doubling its effective pace every DOUBLE_EVERY_K "views", now
- *     seconds), and hard-caps at MAX_GROWTH = 8× so it can NEVER rise instantly
- *     — every match resolves.
+ *   - it starts at `startSpeedFrac` of the climb speed and accelerates to
+ *     `endSpeedFrac` over `rampSeconds`, then holds that top speed;
+ *   - it begins `headStartM` BELOW the base, giving a fair opening buffer;
+ *   - height is the integral of that speed over race-time, clamped to the tower.
  *
- * computeGround / computeGrowth are imported and called with NO modification.
- * Only the caller mapping race-time → V is new. That is the whole trick.
+ * Because the speed is a fraction of the climb rate (< 1 early, approaching but
+ * below 1), a climber who keeps moving upward stays ahead, while dawdling on a
+ * floor — or long horizontal detours to the next ladder — lets the lava close in.
+ *
+ * The function is a pure, deterministic function of (race-time, climb speed,
+ * config), which the re-simulation anti-cheat relies on (AC-11).
  */
 
-import { computeGround } from "../engine/index";
-import { type EngineConstants } from "../engine/constants";
-
-/** Tuning for how the shared engine curve maps onto a race. */
+/** Tuning for the movement-proportional rising hazard. */
 export interface HazardConfig {
+  /** Metres the hazard starts BELOW the base (spawn buffer). */
+  headStartM: number;
   /**
-   * How many "views (thousands)" of engine-V accrue per second of race time.
-   * This is the ONLY new knob — it sets how quickly the hazard walks up the
-   * engine's growth curve. Higher = a more aggressive chase.
+   * Seconds the hazard holds below the base before it starts rising — a fixed
+   * opening grace so the initial run to the first ladder is always survivable,
+   * independent of climb speed (a metres-only head-start evaporates too fast on
+   * fast-climb towers).
    */
-  HAZARD_VIEWS_PER_SEC: number;
-  /**
-   * Total climbable height of the tower, in metres. computeGround returns a
-   * ground altitude in the same "metres" units as block altitude; we express
-   * hazard height in tower metres and never let it exceed towerHeightM (the
-   * summit is the finish, not swallowed by lava).
-   */
-  towerHeightM: number;
+  graceSeconds: number;
+  /** Rise speed at race start, as a fraction of the climber's climb speed. */
+  startSpeedFrac: number;
+  /** Rise speed after the ramp, as a fraction of the climber's climb speed. */
+  endSpeedFrac: number;
+  /** Seconds over which the rise speed ramps start → end (then holds). */
+  rampSeconds: number;
+  /** Global speed multiplier — 1 = normal (knob for tuning + tests). */
+  speedScale: number;
 }
 
 export const DEFAULT_HAZARD_CONFIG: HazardConfig = {
-  // Tuned so a ~90s tower spends most of the race below the cap: at 3 "views"/s,
-  // V reaches the MAX_GROWTH cap threshold (~1500 for DOUBLE_EVERY_K=500) only
-  // after ~500s, so a normal race lives on the accelerating part of the curve.
-  HAZARD_VIEWS_PER_SEC: 3,
-  towerHeightM: 300,
+  headStartM: 6,
+  graceSeconds: 4,
+  // The tower is endless, so the lava must eventually OUTPACE the climb to
+  // guarantee every run ends (peak height = score). After the grace it opens at
+  // 50% of the climb speed and accelerates to 1.15× over ~60s — past that even a
+  // perfect vertical climber cannot keep up, and traverses/jumps make it bite
+  // sooner. Tuned so dawdling is punished but the opening is always fair.
+  startSpeedFrac: 0.5,
+  endSpeedFrac: 1.15,
+  rampSeconds: 60,
+  speedScale: 1,
 };
-
-/**
- * Map race-time (seconds) to the engine's V input. This is the entire new
- * surface area of the reuse: race-time → views.
- */
-export function raceTimeToV(seconds: number, cfg: HazardConfig): number {
-  const t = Math.max(0, seconds);
-  return cfg.HAZARD_VIEWS_PER_SEC * t;
-}
 
 /**
  * Rising-hazard height (metres) at the given race-time.
  *
- * hazardHeight(t) = min( computeGround(V(t)) scaled to tower, towerHeightM )
+ * The hazard rises at v(t) = climbSpeed · frac(t) · speedScale, where frac ramps
+ * linearly from startSpeedFrac to endSpeedFrac over rampSeconds and then holds.
+ * Height is the integral of v from 0, offset by the head-start. There is no
+ * upper bound — the tower is endless.
  *
- * Uses the shipped engine `computeGround` UNCHANGED (AC-5). Because
- * computeGrowth clamps at MAX_GROWTH, the rise is bounded and never
- * instantaneous (AC-6).
- *
- * @param seconds race-time since match start (>= 0)
- * @param cfg     hazard tuning (views/sec + tower height)
- * @param c       optional engine constants override (for tests)
+ * @param seconds        race-time since match start (>= 0)
+ * @param climbSpeedM    the climber's reference speed (tower.maxClimbSpeed)
+ * @param cfg            hazard tuning
  */
 export function hazardHeightAt(
   seconds: number,
-  cfg: HazardConfig = DEFAULT_HAZARD_CONFIG,
-  c?: Partial<EngineConstants>
+  climbSpeedM: number,
+  cfg: HazardConfig = DEFAULT_HAZARD_CONFIG
 ): number {
-  const V = raceTimeToV(seconds, cfg);
-  // computeGround at V=0 is G0 (small, > 0). We normalise against the ground's
-  // own capped maximum so the tower's full height is the meaningful play space:
-  // at the engine cap the hazard is at the tower ceiling.
-  const groundNow = computeGround(V, c);
-  const groundMax = computeGround(Number.POSITIVE_INFINITY, c); // = G0 * MAX_GROWTH
-  const fraction = groundMax > 0 ? groundNow / groundMax : 0;
-  const height = fraction * cfg.towerHeightM;
-  // Clamp into [0, towerHeightM]; the summit flag is never below the hazard cap.
-  return Math.min(Math.max(height, 0), cfg.towerHeightM);
+  // The lava holds below the base during the opening grace, then rises.
+  const t = Math.max(0, seconds - cfg.graceSeconds);
+  const ramp = Math.max(1e-6, cfg.rampSeconds);
+  const v0 = cfg.startSpeedFrac * climbSpeedM * cfg.speedScale;
+  const v1 = cfg.endSpeedFrac * climbSpeedM * cfg.speedScale;
+
+  let dist: number;
+  if (t <= ramp) {
+    // Linear accel v0 → v0 + (v1−v0)·t/ramp; integrate to get distance.
+    dist = v0 * t + ((v1 - v0) * t * t) / (2 * ramp);
+  } else {
+    const rampDist = v0 * ramp + ((v1 - v0) * ramp) / 2;
+    dist = rampDist + v1 * (t - ramp);
+  }
+
+  // Endless: no upper ceiling — the lava rises without limit. Only the base
+  // head-start floors the value.
+  return dist - cfg.headStartM;
 }
 
 /**
- * True if the hazard's top edge has reached or passed a climber's feet-height
- * on this tick — the elimination / respawn condition (spec AC-7).
+ * True if the hazard's top edge has reached or passed a climber's feet-height on
+ * this tick — the elimination condition (spec AC-7).
  *
  * @param feetHeightM climber's feet altitude in tower metres
  * @param seconds     race-time
+ * @param climbSpeedM the climber's reference speed (tower.maxClimbSpeed)
  */
 export function hazardHasReached(
   feetHeightM: number,
   seconds: number,
-  cfg: HazardConfig = DEFAULT_HAZARD_CONFIG,
-  c?: Partial<EngineConstants>
+  climbSpeedM: number,
+  cfg: HazardConfig = DEFAULT_HAZARD_CONFIG
 ): boolean {
-  return feetHeightM <= hazardHeightAt(seconds, cfg, c);
+  return feetHeightM <= hazardHeightAt(seconds, climbSpeedM, cfg);
 }
