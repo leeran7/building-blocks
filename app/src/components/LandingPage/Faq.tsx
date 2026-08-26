@@ -1,8 +1,8 @@
 /**
- * Faq — landing FAQ (Tailwind UI "FAQ" disclosure pattern, Playful accordion).
+ * Faq — landing FAQ (ASCENT design).
  *
  * Native <details>/<summary> so it works without client JS and stays accessible.
- * Playful: paper-white cards, generous radius, italic question, stone chevron.
+ * Styled as a survey legend: mono index per row, signal chevron, hairline cards.
  * Content is real (drawn from the /rules mechanics), not filler.
  */
 
@@ -37,7 +37,7 @@ const FAQS: QA[] = [
 function Chevron() {
   return (
     <svg
-      className="w-5 h-5 text-text-muted transition-transform duration-200 group-open:rotate-180 flex-shrink-0"
+      className="w-5 h-5 text-text-muted transition-transform duration-200 group-open:rotate-45 group-open:text-signal flex-shrink-0"
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
@@ -46,37 +46,43 @@ function Chevron() {
       strokeLinejoin="round"
       aria-hidden="true"
     >
-      <path d="m6 9 6 6 6-6" />
+      <path d="M12 5v14M5 12h14" />
     </svg>
   );
 }
 
 export function Faq() {
   return (
-    <section aria-label="Frequently asked questions" className="py-16 px-4">
+    <section
+      aria-label="Frequently asked questions"
+      className="py-20 px-4 border-t border-border-subtle"
+    >
       <div className="max-w-3xl mx-auto">
-        <div className="text-center mb-10">
-          <span className="text-xs uppercase tracking-[0.2em] text-accent-tech font-medium">
-            Questions
+        <div className="mb-10">
+          <span className="font-mono text-[11px] uppercase tracking-[0.2em] text-signal">
+            [ questions ]
           </span>
-          <h2 className="font-display text-3xl md:text-4xl text-text-primary mt-2">
-            Frequently asked
+          <h2 className="font-display text-4xl md:text-5xl text-text-primary mt-3">
+            Before you climb
           </h2>
         </div>
 
-        <div className="space-y-3">
-          {FAQS.map((item) => (
+        <div className="space-y-2.5">
+          {FAQS.map((item, i) => (
             <details
               key={item.q}
-              className="group bg-surface border border-border-subtle rounded-2xl shadow-card px-5 py-4 [&_summary::-webkit-details-marker]:hidden"
+              className="group bg-surface border border-border-subtle rounded-xl px-5 py-4 transition-colors hover:border-border-strong open:border-signal/40 [&_summary::-webkit-details-marker]:hidden"
             >
-              <summary className="flex items-center justify-between gap-4 cursor-pointer list-none min-h-[44px]">
-                <span className="text-base md:text-lg font-semibold italic text-text-primary">
+              <summary className="flex items-center gap-4 cursor-pointer list-none min-h-[44px]">
+                <span className="font-mono text-xs tabular-nums text-text-muted group-open:text-signal transition-colors">
+                  {String(i + 1).padStart(2, "0")}
+                </span>
+                <span className="flex-1 text-base md:text-lg font-semibold text-text-primary">
                   {item.q}
                 </span>
                 <Chevron />
               </summary>
-              <p className="text-text-secondary text-sm md:text-base leading-relaxed mt-3">
+              <p className="text-text-secondary text-sm md:text-base leading-relaxed mt-3 pl-9">
                 {item.a}
               </p>
             </details>

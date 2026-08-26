@@ -1,8 +1,9 @@
 /**
- * HowItWorks — 3-step explanation section.
+ * HowItWorks — 3-step explanation, ASCENT design.
  *
- * Design spec: design.md §6.5
- * Server component — static content.
+ * Reads as three stations on a climb: big mono altimeter numbers, a signal-lime
+ * icon plate, and duotone language (signal = rise, ember = burial). Server
+ * component, static content.
  * AC-27: DOM must contain a "how it works" section with exactly 3 step elements.
  */
 
@@ -12,8 +13,6 @@ function ArrowUpIcon() {
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"
-      width="48"
-      height="48"
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
@@ -31,8 +30,6 @@ function EyeIcon() {
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"
-      width="48"
-      height="48"
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
@@ -51,8 +48,6 @@ function TrophyIcon() {
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"
-      width="48"
-      height="48"
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
@@ -75,6 +70,7 @@ interface Step {
   icon: React.ReactNode;
   title: string;
   description: string;
+  tone: "signal" | "ember";
 }
 
 const steps: Step[] = [
@@ -82,19 +78,25 @@ const steps: Step[] = [
     number: "01",
     icon: <ArrowUpIcon />,
     title: "Buy altitude",
-    description: "Pay once to place your block high in the tower. Your position is permanent — it never decreases due to inaction.",
+    description:
+      "Pay once to place your block high in the tower. Your position is permanent — it never drops through inaction.",
+    tone: "signal",
   },
   {
     number: "02",
     icon: <EyeIcon />,
-    title: "Views raise the ground",
-    description: "As more people view the tower, the ground level rises. Blocks that don't top up eventually get buried below the ground line.",
+    title: "The ground rises",
+    description:
+      "Every view the tower serves lifts the ground line. Blocks that don't top up eventually sink beneath it — and get buried.",
+    tone: "ember",
   },
   {
     number: "03",
     icon: <TrophyIcon />,
-    title: "Outlast the competition",
-    description: "Blocks that fall below ground get buried and lose visibility. Top up to stay above ground and outlast every competitor.",
+    title: "Outlast everyone",
+    description:
+      "Stay above ground to keep your rank and visibility. Top up, climb higher, and outlast every competitor in your tower.",
+    tone: "signal",
   },
 ];
 
@@ -103,40 +105,70 @@ export function HowItWorks() {
     <section
       id="how-it-works"
       aria-label="How Tower works"
-      className="scroll-mt-20 py-16 px-4 border-t border-border-subtle bg-surface/30"
+      className="scroll-mt-20 py-20 px-4 border-t border-border-subtle bg-surface/30"
     >
       <div className="max-w-6xl mx-auto">
-        <div className="text-center mb-12">
-          <span className="text-xs uppercase tracking-[0.2em] text-accent-tech font-medium">
-            The rules
+        <div className="mb-12 flex items-end justify-between gap-4">
+          <div>
+            <span className="font-mono text-[11px] uppercase tracking-[0.2em] text-signal">
+              [ the rules ]
+            </span>
+            <h2 className="font-display text-4xl md:text-5xl text-text-primary mt-3">
+              How the climb works
+            </h2>
+          </div>
+          <span
+            className="hidden md:block font-mono text-[11px] uppercase tracking-[0.14em] text-text-muted"
+            aria-hidden="true"
+          >
+            3 stations
           </span>
-          <h2 className="text-2xl md:text-3xl font-bold text-text-primary mt-2 tracking-tight">
-            How it works
-          </h2>
         </div>
 
-        <ol className="grid grid-cols-1 md:grid-cols-3 gap-5">
-          {steps.map((step) => (
-            <li
-              key={step.number}
-              className="group relative bg-surface rounded-2xl p-6 border border-border-subtle hover:border-accent-tech/40 transition-colors"
-            >
-              <div className="flex items-center justify-between mb-5">
-                <div className="w-12 h-12 rounded-xl bg-void border border-border-subtle flex items-center justify-center text-accent-tech [&_svg]:w-6 [&_svg]:h-6">
-                  {step.icon}
-                </div>
-                <span className="font-mono text-2xl font-bold text-border-strong group-hover:text-accent-tech/40 transition-colors">
+        <ol className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {steps.map((step) => {
+            const ember = step.tone === "ember";
+            return (
+              <li
+                key={step.number}
+                className={`group relative overflow-hidden rounded-2xl border bg-surface p-6 transition-colors ${
+                  ember
+                    ? "border-border-subtle hover:border-ember/45"
+                    : "border-border-subtle hover:border-signal/45"
+                }`}
+              >
+                {/* faint altimeter numeral */}
+                <span
+                  className="pointer-events-none absolute -top-3 right-3 font-display text-7xl leading-none text-border-strong/50 select-none"
+                  aria-hidden="true"
+                >
                   {step.number}
                 </span>
-              </div>
-              <h3 className="text-lg font-bold text-text-primary mb-2">
-                {step.title}
-              </h3>
-              <p className="text-sm text-text-secondary leading-relaxed">
-                {step.description}
-              </p>
-            </li>
-          ))}
+
+                <div
+                  className={`relative w-12 h-12 rounded-xl border flex items-center justify-center [&_svg]:w-6 [&_svg]:h-6 ${
+                    ember
+                      ? "border-ember/30 bg-ember/10 text-ember"
+                      : "border-signal/30 bg-signal/10 text-signal"
+                  }`}
+                >
+                  {step.icon}
+                </div>
+
+                <div className="relative mt-5">
+                  <span className="font-mono text-[11px] uppercase tracking-[0.16em] text-text-muted">
+                    Station {step.number}
+                  </span>
+                  <h3 className="text-lg font-bold text-text-primary mt-1.5">
+                    {step.title}
+                  </h3>
+                  <p className="text-sm text-text-secondary leading-relaxed mt-2">
+                    {step.description}
+                  </p>
+                </div>
+              </li>
+            );
+          })}
         </ol>
       </div>
     </section>

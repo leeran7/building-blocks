@@ -1,12 +1,12 @@
 "use client";
 
 /**
- * Navbar — shared, auth-aware top navigation.
+ * Navbar — shared, auth-aware top navigation (ASCENT design).
  *
- * Reflects login state (the previous per-page navs always showed "Sign in /
- * Get started"): signed-in users get Dashboard + Sign out; signed-out users get
- * Sign in + Get started. Renders a stable skeleton while auth resolves to avoid
- * a flash of the wrong state. Playful styling — pill CTAs, single cyan accent.
+ * Reads as an instrument header: wide display wordmark preceded by an altimeter
+ * tick, mono/uppercase nav labels, and a signal-lime pill CTA. Auth behaviour is
+ * unchanged — signed-in users get Dashboard + Sign out; signed-out get Sign in +
+ * Get started. A stable skeleton renders while auth resolves (no wrong-state flash).
  */
 
 import Link from "next/link";
@@ -21,9 +21,9 @@ interface NavbarProps {
 }
 
 const PILL =
-  "inline-flex items-center justify-center rounded-full px-4 min-h-[40px] text-sm font-semibold transition";
+  "inline-flex items-center justify-center rounded-full px-4 min-h-[38px] text-sm font-semibold tracking-tight transition-[filter,transform] hover:brightness-110 active:scale-[0.98] focus-visible:outline-none";
 const GHOST =
-  "inline-flex items-center justify-center px-3 min-h-[40px] text-sm font-medium text-text-muted hover:text-text-primary transition-colors";
+  "inline-flex items-center justify-center px-3 min-h-[38px] font-mono text-xs uppercase tracking-[0.14em] text-text-muted hover:text-text-primary transition-colors";
 
 export function Navbar({ contextLabel, contextDot }: NavbarProps) {
   const { user, loading, signOut } = useAuth();
@@ -35,20 +35,28 @@ export function Navbar({ contextLabel, contextDot }: NavbarProps) {
   }
 
   return (
-    <nav className="sticky top-0 z-30 h-14 bg-void/85 backdrop-blur border-b border-border-subtle px-4 md:px-6 flex items-center justify-between">
-      <div className="flex items-center gap-2.5 min-w-0">
+    <nav className="sticky top-0 z-30 h-14 bg-void/80 backdrop-blur-md border-b border-border-subtle px-4 md:px-6 flex items-center justify-between">
+      <div className="flex items-center gap-3 min-w-0">
         <Link
           href="/"
-          className="text-lg font-bold tracking-tight text-text-primary hover:text-accent-tech transition-colors flex-shrink-0"
+          aria-label="Tower — home"
+          className="group flex items-center gap-2.5 flex-shrink-0"
         >
-          Tower
+          {/* Altimeter tick motif */}
+          <span
+            className="h-6 w-[3px] rounded-full bg-signal group-hover:h-7 transition-[height]"
+            aria-hidden="true"
+          />
+          <span className="font-display text-xl leading-none tracking-tight text-text-primary">
+            TOWER
+          </span>
         </Link>
         {contextLabel && (
           <>
-            <span className="text-border-strong" aria-hidden="true">
+            <span className="font-mono text-text-disabled" aria-hidden="true">
               /
             </span>
-            <span className="inline-flex items-center gap-1.5 text-sm text-text-secondary truncate">
+            <span className="inline-flex items-center gap-1.5 font-mono text-xs uppercase tracking-[0.12em] text-text-secondary truncate">
               {contextDot && (
                 <span
                   className="w-1.5 h-1.5 rounded-full flex-shrink-0"
@@ -62,18 +70,21 @@ export function Navbar({ contextLabel, contextDot }: NavbarProps) {
         )}
       </div>
 
-      <div className="flex items-center gap-1.5 sm:gap-2">
+      <div className="flex items-center gap-1 sm:gap-2">
         <Link href="/browse" className={`${GHOST} hidden sm:inline-flex`}>
           Browse
         </Link>
         {loading ? (
           // Stable placeholder — no flash of wrong auth state
-          <div className="h-9 w-40 rounded-full bg-elevated animate-pulse" aria-hidden="true" />
+          <div
+            className="h-9 w-40 rounded-full bg-elevated animate-pulse"
+            aria-hidden="true"
+          />
         ) : user ? (
           <>
             <Link
               href="/dashboard"
-              className={`${PILL} bg-accent-tech text-void hover:brightness-110`}
+              className={`${PILL} bg-signal text-void`}
             >
               Dashboard
             </Link>
@@ -91,10 +102,7 @@ export function Navbar({ contextLabel, contextDot }: NavbarProps) {
             <Link href="/auth/signin" className={GHOST}>
               Sign in
             </Link>
-            <Link
-              href="/auth/signup"
-              className={`${PILL} bg-accent-tech text-void hover:brightness-110`}
-            >
+            <Link href="/auth/signup" className={`${PILL} bg-signal text-void`}>
               Get started
             </Link>
           </>

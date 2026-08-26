@@ -19,17 +19,20 @@
   --tower-text: #f8fafc;
   --tower-muted: #94a3b8;
 
-  /* Dark editorial tokens */
-  --color-void: #0a0a0f;
-  --color-surface: #111118;
-  --color-elevated: #1a1a26;
-  --color-border: #1e1e2e;
-  --color-border-focus: #3a3a5c;
-  --color-text-primary: #f4f4ff;
-  --color-text-muted: #6b6b8a;
+  /* ASCENT tokens — warm obsidian + signal/ember duotone */
+  --color-void: #0a0a0c;
+  --color-surface: #121116;
+  --color-elevated: #1e1c24;
+  --color-border: #24222c;
+  --color-border-focus: #4a4656;
+  --color-text-primary: #f4f2ec;
+  --color-text-muted: #74707e;
 
-  /* Active accent — default brand cyan; categoryTheme() overrides per tower */
-  --accent-rgb: 0 212 255;
+  --signal-rgb: 203 242 77; /* acid lime — ascent */
+  --ember-rgb: 255 90 44; /* ember — rising ground / burial */
+
+  /* Active accent — default signal lime; categoryTheme() overrides per tower */
+  --accent-rgb: 203 242 77;
 }
 
 * {
@@ -44,19 +47,19 @@ html {
 body {
   background-color: var(--color-void);
   color: var(--color-text-primary);
-  font-family: var(--font-inter, system-ui, -apple-system, sans-serif);
+  font-family: var(--font-sans, system-ui, -apple-system, sans-serif);
   overflow-x: hidden;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
 }
 
-/* Editorial display headline — heavy italic (used sparingly) */
+/* Display voice — Bricolage Grotesque, heavy + tight (architectural). */
 .font-display {
+  font-family: var(--font-display, system-ui, sans-serif);
   font-weight: 800;
-  font-style: italic;
-  letter-spacing: -0.02em;
-  line-height: 1.02;
+  letter-spacing: -0.03em;
+  line-height: 0.94;
 }
 
 .font-mono {
@@ -65,8 +68,8 @@ body {
 }
 
 ::selection {
-  background: rgb(var(--accent-rgb) / 0.3);
-  color: #ffffff;
+  background: rgb(var(--signal-rgb) / 0.85);
+  color: #0a0a0c;
 }
 
 /* Dark scrollbars */
@@ -181,4 +184,88 @@ button:focus-visible,
 
 @media (prefers-reduced-motion: reduce) {
   .hero-bg-animated { animation: none !important; }
+}
+
+/* ═════════════════════════════════════════════════════════════════════════
+   ASCENT — atmosphere, texture, and instrument motifs
+   ═════════════════════════════════════════════════════════════════════════ */
+
+/* Grain overlay — fixed, very subtle film texture over the whole canvas. */
+.grain::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  opacity: 0.035;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* Topographic contour field — faint survey lines, tinted by the active accent. */
+.topo {
+  background-image: repeating-radial-gradient(
+    ellipse 120% 80% at 50% 120%,
+    transparent 0,
+    transparent 46px,
+    rgb(var(--signal-rgb) / 0.05) 47px,
+    rgb(var(--signal-rgb) / 0.05) 48px,
+    transparent 49px
+  );
+}
+
+/* Fine measurement grid — used behind data-dense panels. */
+.survey-grid {
+  background-image:
+    linear-gradient(to right, rgb(255 255 255 / 0.03) 1px, transparent 1px),
+    linear-gradient(to bottom, rgb(255 255 255 / 0.03) 1px, transparent 1px);
+  background-size: 40px 40px;
+}
+
+/* Rising-ground gradient — the ember hazard creeping up from the base. */
+.ground-gradient {
+  background: linear-gradient(
+    to top,
+    rgb(var(--ember-rgb) / 0.9) 0%,
+    rgb(var(--ember-rgb) / 0.28) 30%,
+    rgb(var(--ember-rgb) / 0.06) 60%,
+    transparent 100%
+  );
+}
+
+/* Altimeter tick ruler — a column of survey ticks (decorative). */
+.altimeter {
+  background-image: repeating-linear-gradient(
+    to bottom,
+    rgb(var(--signal-rgb) / 0.55) 0,
+    rgb(var(--signal-rgb) / 0.55) 1px,
+    transparent 1px,
+    transparent 16px
+  );
+}
+
+/* Signal / ember text with a faint matched glow. */
+.text-signal-glow {
+  color: rgb(var(--signal-rgb));
+  text-shadow: 0 0 24px rgb(var(--signal-rgb) / 0.45);
+}
+
+/* Hairline top-border accent used on CTA bands / cards. */
+.edge-signal {
+  box-shadow: inset 0 1px 0 0 rgb(var(--signal-rgb) / 0.25);
+}
+
+/* Staggered load-in: children fade+rise. Delays set inline per element. */
+.reveal {
+  animation: enter 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reveal,
+  .animate-enter,
+  .animate-climb,
+  .animate-groundRise,
+  .animate-marquee {
+    animation: none !important;
+  }
+  .ground-gradient { transform: none !important; }
 }

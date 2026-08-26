@@ -1,14 +1,15 @@
 /**
- * Hero — landing page hero.
+ * Hero — landing hero (ASCENT design).
  *
- * Redesigned to *show the product*: a two-column layout with the pitch on the
- * left and a static mini-tower visualization on the right (pure CSS — no new
- * deps, no canvas) that demonstrates altitude, the six category colors, and the
- * rising ground line burying the weak.
+ * The product's core mechanic drives the whole composition: you rise, the ground
+ * rises to bury you. Left = the pitch (huge duotone display headline + CTAs +
+ * an instrument stat strip). Right = an altimeter "elevation profile": a ranked
+ * stack of blocks with a glowing signal leader at the summit and a molten ember
+ * ground creeping up to bury the bottom two. Pure CSS — no canvas, no new deps.
  *
- * Server component, static content.
- * WCAG: CTA is text-void on bg-accent-tech (5.2:1). Body text is text-primary
- * (>= 15:1) / text-secondary (>= 7:1) on void. prefers-reduced-motion respected.
+ * Server component. WCAG: primary CTA is void text on signal lime (~15:1).
+ * The visualization is decorative (aria-hidden); all meaning lives in the pitch.
+ * prefers-reduced-motion disables the staggered reveal + rising-ground motion.
  */
 
 import Link from "next/link";
@@ -21,7 +22,6 @@ interface DemoBlock {
 }
 
 // Illustrative — not live data. Ordered top (leader) to bottom (buried).
-// One accent (the brand cyan) carries hierarchy; danger marks the buried zone.
 const DEMO_BLOCKS: DemoBlock[] = [
   { name: "linear.app", altitude: "418.2", width: 96 },
   { name: "figma.com", altitude: "331.0", width: 78 },
@@ -31,78 +31,110 @@ const DEMO_BLOCKS: DemoBlock[] = [
   { name: "abandoned.dev", altitude: "77.3", width: 18, buried: true },
 ];
 
-function MiniTower() {
-  const groundAfterIndex = 3; // ground line sits below the 4th block
+// Instrument stat strip — illustrative launch numbers.
+const STATS: { label: string; value: string }[] = [
+  { label: "Towers live", value: "74" },
+  { label: "Blocks climbing", value: "1,208" },
+  { label: "Cost of #1", value: "$24.80" },
+];
+
+function ElevationProfile() {
+  const groundAfterIndex = 3; // ember ground sits below the 4th block
   return (
     <div
-      className="relative w-full rounded-xl border border-border-subtle bg-surface p-4"
+      className="relative w-full rounded-2xl border border-border-strong bg-surface/80 shadow-lifted overflow-hidden"
       aria-hidden="true"
     >
-      <div className="flex items-center justify-between mb-3 px-1">
-        <span className="inline-flex items-center gap-1.5 text-[10px] uppercase tracking-[0.2em] text-text-muted">
-          <span className="w-1.5 h-1.5 rounded-full bg-accent-tech" />
-          Tech tower
+      {/* survey grid backdrop */}
+      <div className="absolute inset-0 survey-grid opacity-60" />
+
+      {/* header — instrument readout */}
+      <div className="relative flex items-center justify-between border-b border-border-subtle px-4 py-3">
+        <span className="inline-flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.18em] text-text-secondary">
+          <span className="w-1.5 h-1.5 rounded-full bg-signal" />
+          Tech tower · live
         </span>
-        <span className="font-mono text-[10px] text-text-muted">
-          cost of #1 · $24.80
+        <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-ember">
+          ▲ ground +2.4m/day
         </span>
       </div>
 
-      <div className="space-y-1.5">
-        {DEMO_BLOCKS.map((b, i) => {
-          const leader = i === 0;
-          return (
-            <div key={b.name}>
-              <div
-                className={`relative flex items-center gap-2.5 rounded-lg border px-2.5 py-2 overflow-hidden ${
-                  b.buried
-                    ? "border-danger/20 opacity-50"
-                    : leader
-                      ? "border-accent-tech/40"
-                      : "border-border-subtle"
-                }`}
-              >
-                <span
-                  className="absolute inset-y-0 left-0"
-                  style={{
-                    width: `${b.width}%`,
-                    background: b.buried
-                      ? "linear-gradient(90deg, rgba(255,84,112,0.10), transparent)"
-                      : "linear-gradient(90deg, rgba(0,212,255,0.16), transparent)",
-                  }}
-                />
-                <span
-                  className={`relative z-10 flex-shrink-0 w-6 h-6 rounded-md flex items-center justify-center font-mono text-[11px] font-bold ${
+      <div className="relative flex gap-3 px-4 py-4">
+        {/* altimeter ruler */}
+        <div className="relative flex-shrink-0 w-9 flex flex-col justify-between py-1 text-right">
+          {["500", "400", "300", "200", "100"].map((n) => (
+            <span
+              key={n}
+              className="font-mono text-[9px] tabular-nums text-text-muted leading-none"
+            >
+              {n}
+            </span>
+          ))}
+        </div>
+        <div className="w-px altimeter flex-shrink-0" />
+
+        {/* ranked stack */}
+        <div className="relative flex-1 space-y-1.5">
+          {DEMO_BLOCKS.map((b, i) => {
+            const leader = i === 0;
+            return (
+              <div key={b.name}>
+                <div
+                  className={`animate-climb relative flex items-center gap-2.5 rounded-lg border px-2.5 py-2 overflow-hidden ${
                     b.buried
-                      ? "border border-danger/40 text-danger"
+                      ? "border-ember/25 opacity-55"
                       : leader
-                        ? "bg-accent-tech text-void"
-                        : "border border-border-strong text-text-secondary"
+                        ? "border-signal/50 shadow-signal"
+                        : "border-border-subtle"
                   }`}
+                  style={{ animationDelay: `${i * 90}ms` }}
                 >
-                  {i + 1}
-                </span>
-                <span className="relative z-10 flex-1 text-xs font-medium text-text-primary truncate">
-                  {b.name}
-                </span>
-                <span className="relative z-10 font-mono text-[11px] text-text-muted flex-shrink-0">
-                  {b.altitude}m
-                </span>
-              </div>
-
-              {i === groundAfterIndex && (
-                <div className="flex items-center gap-2 my-2 px-1">
-                  <div className="flex-1 h-px bg-danger/50" />
-                  <span className="font-mono text-[10px] text-danger flex-shrink-0">
-                    ▲ ground 158.0m
+                  <span
+                    className="absolute inset-y-0 left-0"
+                    style={{
+                      width: `${b.width}%`,
+                      background: b.buried
+                        ? "linear-gradient(90deg, rgb(255 90 44 / 0.16), transparent)"
+                        : leader
+                          ? "linear-gradient(90deg, rgb(203 242 77 / 0.22), transparent)"
+                          : "linear-gradient(90deg, rgb(203 242 77 / 0.10), transparent)",
+                    }}
+                  />
+                  <span
+                    className={`relative z-10 flex-shrink-0 w-6 h-6 rounded-md flex items-center justify-center font-mono text-[11px] font-bold ${
+                      b.buried
+                        ? "border border-ember/40 text-ember"
+                        : leader
+                          ? "bg-signal text-void"
+                          : "border border-border-strong text-text-secondary"
+                    }`}
+                  >
+                    {i + 1}
                   </span>
-                  <div className="flex-1 h-px bg-danger/50" />
+                  <span className="relative z-10 flex-1 text-xs font-medium text-text-primary truncate">
+                    {b.name}
+                  </span>
+                  <span className="relative z-10 font-mono text-[11px] tabular-nums text-text-muted flex-shrink-0">
+                    {b.altitude}m
+                  </span>
                 </div>
-              )}
-            </div>
-          );
-        })}
+
+                {i === groundAfterIndex && (
+                  <div className="relative flex items-center gap-2 my-2">
+                    <span className="font-mono text-[9px] uppercase tracking-[0.14em] text-ember flex-shrink-0">
+                      ground 158.0m
+                    </span>
+                    <div className="flex-1 h-px bg-gradient-to-r from-ember/70 to-ember/10" />
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
       </div>
+
+      {/* molten ground creeping up from the base */}
+      <div className="ground-gradient animate-groundRise pointer-events-none absolute inset-x-0 bottom-0 h-16" />
     </div>
   );
 }
@@ -111,56 +143,101 @@ export function Hero() {
   return (
     <section
       aria-label="Hero"
-      className="relative overflow-hidden px-4 pt-16 pb-12 md:pt-24 md:pb-20"
+      className="topo relative overflow-hidden px-4 pt-16 pb-14 md:pt-24 md:pb-24"
     >
-      {/* Subtle background wash — decorative */}
+      {/* atmosphere: signal wash top-left, ember pool bottom */}
       <div
-        className="hero-bg-animated absolute inset-0 pointer-events-none"
+        className="pointer-events-none absolute inset-0"
         aria-hidden="true"
         style={{
           background:
-            "radial-gradient(ellipse 85% 55% at 25% 0%, rgba(0,212,255,0.14), rgba(176,124,214,0.07) 45%, transparent 72%)",
+            "radial-gradient(120% 70% at 15% -10%, rgb(203 242 77 / 0.12), transparent 55%), radial-gradient(90% 60% at 90% 110%, rgb(255 90 44 / 0.10), transparent 60%)",
         }}
       />
 
-      <div className="relative z-10 max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-10 md:gap-12 items-center">
+      <div className="relative z-10 max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-[1.05fr_0.95fr] gap-10 md:gap-14 items-center">
         {/* Pitch */}
         <div className="text-center md:text-left">
-          <span className="inline-flex items-center gap-2 rounded-full border border-border-subtle bg-surface px-3 py-1 text-xs text-text-secondary mb-6">
-            <span className="w-1.5 h-1.5 rounded-full bg-accent-tech" />
-            Six towers · one survivor each
+          <span
+            className="reveal inline-flex items-center gap-2 rounded-full border border-border-strong bg-surface/70 px-3 py-1 font-mono text-[11px] uppercase tracking-[0.16em] text-text-secondary"
+            style={{ animationDelay: "0ms" }}
+          >
+            <span className="w-1.5 h-1.5 rounded-full bg-signal animate-pulse" />
+            Season 01 · 74 towers live
           </span>
 
-          <h1 className="font-display text-5xl md:text-6xl lg:text-7xl text-text-primary text-balance">
-            The leaderboard that{" "}
-            <span className="text-accent-tech">buries the weak</span>
+          <h1
+            className="reveal font-display text-6xl sm:text-7xl lg:text-8xl text-text-primary mt-6"
+            style={{ animationDelay: "70ms" }}
+          >
+            CLIMB.
+            <br />
+            OR GET
+            <br />
+            <span className="relative inline-block text-ember">
+              BURIED.
+              <span
+                className="absolute -bottom-1 left-0 h-1 w-full bg-gradient-to-r from-ember to-ember/0"
+                aria-hidden="true"
+              />
+            </span>
           </h1>
 
-          <p className="text-lg text-text-secondary max-w-md mx-auto md:mx-0 mt-5">
-            Buy altitude. Your height is permanent — but the ground rises with
-            every view. Top up, or get buried.
+          <p
+            className="reveal text-lg text-text-secondary max-w-md mx-auto md:mx-0 mt-7 leading-relaxed"
+            style={{ animationDelay: "140ms" }}
+          >
+            Buy altitude on a public leaderboard. Your height is{" "}
+            <span className="text-text-primary font-medium">permanent</span> — but
+            the ground rises with every view. Top up, or sink beneath it.
           </p>
 
-          <div className="flex flex-col sm:flex-row items-center md:items-start gap-3 mt-8">
+          <div
+            className="reveal flex flex-col sm:flex-row items-center md:items-start gap-3 mt-8"
+            style={{ animationDelay: "210ms" }}
+          >
             <Link
               href="/auth/signup"
-              className="hero-glow w-full sm:w-auto bg-accent-tech text-void font-semibold rounded-lg px-7 py-3.5 text-base inline-flex items-center justify-center gap-2 hover:brightness-110 focus-visible:outline-none min-h-[48px]"
+              className="group w-full sm:w-auto bg-signal text-void font-semibold rounded-full px-7 py-3.5 text-base inline-flex items-center justify-center gap-2 shadow-signal transition-[filter,transform] hover:brightness-110 active:scale-[0.98] focus-visible:outline-none min-h-[52px]"
             >
-              Enter the arena →
+              Enter the arena
+              <span className="transition-transform group-hover:translate-x-0.5">
+                →
+              </span>
             </Link>
             <Link
               href="/browse"
-              className="w-full sm:w-auto rounded-lg border border-border-strong bg-surface px-7 py-3.5 text-base font-medium text-text-primary inline-flex items-center justify-center hover:bg-elevated transition-colors min-h-[48px]"
+              className="w-full sm:w-auto rounded-full border border-border-strong bg-surface/60 px-7 py-3.5 text-base font-medium text-text-primary inline-flex items-center justify-center hover:border-signal/50 hover:bg-surface transition-colors min-h-[52px]"
             >
               Browse towers
             </Link>
           </div>
 
-          <p className="text-sm text-text-muted mt-4">
+          {/* instrument stat strip */}
+          <dl
+            className="reveal mt-10 grid grid-cols-3 gap-px overflow-hidden rounded-xl border border-border-subtle bg-border-subtle max-w-md mx-auto md:mx-0"
+            style={{ animationDelay: "280ms" }}
+          >
+            {STATS.map((s) => (
+              <div key={s.label} className="bg-surface px-3 py-3 text-center md:text-left">
+                <dt className="font-mono text-[10px] uppercase tracking-[0.12em] text-text-muted">
+                  {s.label}
+                </dt>
+                <dd className="font-mono text-lg font-bold tabular-nums text-text-primary mt-0.5">
+                  {s.value}
+                </dd>
+              </div>
+            ))}
+          </dl>
+
+          <p
+            className="reveal text-sm text-text-muted mt-5"
+            style={{ animationDelay: "340ms" }}
+          >
             Already climbing?{" "}
             <Link
               href="/auth/signin"
-              className="text-text-secondary underline underline-offset-2 hover:text-text-primary transition-colors"
+              className="text-text-secondary underline underline-offset-4 decoration-border-strong hover:text-signal hover:decoration-signal transition-colors"
             >
               Sign in
             </Link>
@@ -168,8 +245,11 @@ export function Hero() {
         </div>
 
         {/* Visualization */}
-        <div className="relative">
-          <MiniTower />
+        <div
+          className="reveal relative"
+          style={{ animationDelay: "180ms" }}
+        >
+          <ElevationProfile />
         </div>
       </div>
     </section>

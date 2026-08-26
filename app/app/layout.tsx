@@ -1,17 +1,28 @@
 import type { Metadata } from "next";
-import { Inter, JetBrains_Mono } from "next/font/google";
+import { Bricolage_Grotesque, Hanken_Grotesk, Space_Mono } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "../src/contexts/AuthContext";
 
-const inter = Inter({
+// ── ASCENT type system ────────────────────────────────────────────────────
+// Display: Bricolage Grotesque — architectural, contemporary, characterful.
+// Body:    Hanken Grotesk — warm, refined, highly legible (not Inter/Roboto).
+// Mono:    Space Mono — instrument/altimeter readouts + tabular numerics.
+const display = Bricolage_Grotesque({
   subsets: ["latin"],
-  variable: "--font-inter",
+  variable: "--font-display",
   display: "swap",
 });
 
-const jetbrainsMono = JetBrains_Mono({
+const sans = Hanken_Grotesk({
   subsets: ["latin"],
-  variable: "--font-jetbrains-mono",
+  variable: "--font-sans",
+  display: "swap",
+});
+
+const mono = Space_Mono({
+  subsets: ["latin"],
+  weight: ["400", "700"],
+  variable: "--font-mono",
   display: "swap",
 });
 
@@ -73,8 +84,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className={`${inter.variable} ${jetbrainsMono.variable}`}>
-      <body className="bg-void text-text-primary font-sans min-h-screen">
+    <html
+      lang="en"
+      className={`${display.variable} ${sans.variable} ${mono.variable}`}
+    >
+      <body className="bg-void text-text-primary font-sans min-h-screen antialiased">
         <AuthProvider>{children}</AuthProvider>
       </body>
     </html>

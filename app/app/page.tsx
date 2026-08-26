@@ -59,15 +59,15 @@ async function SocialProofStrip() {
 
   return (
     <div className="border-y border-border-subtle bg-surface/40 py-3">
-      <p className="text-sm text-text-muted text-center flex items-center justify-center gap-1.5">
-        <span className="w-1.5 h-1.5 rounded-full bg-success animate-pulse" aria-hidden="true" />
+      <p className="font-mono text-xs uppercase tracking-[0.14em] text-text-secondary text-center flex items-center justify-center gap-2">
+        <span className="w-1.5 h-1.5 rounded-full bg-signal animate-pulse" aria-hidden="true" />
         {proof ? (
           <>
-            <span className="font-mono font-semibold text-text-primary tabular-nums">
+            <span className="font-bold text-signal tabular-nums">
               {proof.totalBlocks}
             </span>
             {" blocks live across "}
-            <span className="font-mono font-semibold text-text-primary tabular-nums">
+            <span className="font-bold text-signal tabular-nums">
               {proof.arenaCount}
             </span>
             {" arenas"}
@@ -82,7 +82,7 @@ async function SocialProofStrip() {
 
 export default async function HomePage() {
   return (
-    <main className="min-h-screen bg-void">
+    <main className="grain min-h-screen bg-void">
       <Navbar />
 
       <Hero />
