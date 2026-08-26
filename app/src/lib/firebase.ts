@@ -2,17 +2,14 @@
  * Firebase client SDK — browser-side only.
  *
  * Safe to import from client components. Contains only public config values
- * (NEXT_PUBLIC_ prefix) — no secrets.
+ * (from PUBLIC_CONFIG) — no secrets.
  */
 
 import { initializeApp, getApps } from "firebase/app";
 import { getAuth } from "firebase/auth";
+import { PUBLIC_CONFIG } from "../config/public";
 
-const firebaseConfig = {
-  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
-  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
-  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-};
+const firebaseConfig = PUBLIC_CONFIG.firebase;
 
 const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
 

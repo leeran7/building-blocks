@@ -23,11 +23,9 @@ import React, {
 import { BlockRow } from "./BlockRow";
 import { GroundRow } from "./GroundRow";
 import { TowerHeader } from "./TowerHeader";
+import { PUBLIC_CONFIG } from "../../config/public";
 
-const POLL_INTERVAL_MS = parseInt(
-  process.env.NEXT_PUBLIC_POLL_INTERVAL_MS ?? "10000",
-  10
-);
+const POLL_INTERVAL_MS = PUBLIC_CONFIG.pollIntervalMs;
 const VISIBLE_ROWS = 60;
 const ROW_HEIGHT = 60; // min-h-[56px] row + 4px stack gap
 

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Bricolage_Grotesque, Hanken_Grotesk, Space_Mono } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "../src/contexts/AuthContext";
+import { PUBLIC_CONFIG } from "../src/config/public";
 
 // ── ASCENT type system ────────────────────────────────────────────────────
 // Display: Bricolage Grotesque — architectural, contemporary, characterful.
@@ -35,7 +36,7 @@ const mono = Space_Mono({
 
 const BASE_URL = process.env.BASE_URL ?? "http://localhost:3000";
 // Public canonical origin — used for OG/Twitter image + canonical URL resolution.
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://doomstack.lol";
+const SITE_URL = PUBLIC_CONFIG.siteUrl;
 
 export async function generateMetadata(): Promise<Metadata> {
   let topBlockId = "";
