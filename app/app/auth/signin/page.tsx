@@ -365,7 +365,7 @@ function SignInForm() {
             setGuestLoading(true);
             setError(null);
             signInAnonymously(auth)
-              .then(() => router.push("/browse"))
+              .then(() => router.push(redirectTo))
               .catch(() => setError("Could not sign in as guest. Please try again."))
               .finally(() => setGuestLoading(false));
           }}
