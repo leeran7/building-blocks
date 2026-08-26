@@ -3,15 +3,17 @@
 /**
  * TowerDirectory — the landing page's interactive arena directory (ASCENT).
  *
- * The landing owns discovery: a family filter bar over a grid of every tower.
- * Each card is a conversion unit, not a link — it carries a state-aware CTA
- * (empty tower → "Claim #1", active → block count + "Take #1") and offers both
- * the paid tower (card body → /tower/[slug]) and the free game (Play → /play).
+ * The landing owns discovery AND play — the user never leaves the page:
+ *   - Card body → expands the tower's live leaderboard inline (accordion, one at
+ *     a time, pushes content down). Only the open tower fetches + polls.
+ *   - "Play" → opens the climb in a fullscreen overlay over the landing.
+ * Each card is a state-aware conversion unit (empty → "Claim #1 · from $5").
  */
 
-import Link from "next/link";
 import { useMemo, useState } from "react";
 import { GAME_CATEGORIES, FAMILIES, type Family } from "../../game/categories";
+import { InlineTower } from "./InlineTower";
+import { GameOverlay } from "./GameOverlay";
 
 const SHORT_FAMILY: Record<Family, string> = {
   "Tech & Software": "Tech",
@@ -32,6 +34,8 @@ export interface TowerDirectoryProps {
 
 export function TowerDirectory({ counts, minEntryUsd }: TowerDirectoryProps) {
   const [family, setFamily] = useState<Family | "all">("all");
+  const [openSlug, setOpenSlug] = useState<string | null>(null);
+  const [playSlug, setPlaySlug] = useState<string | null>(null);
 
   const families = family === "all" ? FAMILIES : [family];
   const grouped = useMemo(() => {
@@ -48,22 +52,24 @@ export function TowerDirectory({ counts, minEntryUsd }: TowerDirectoryProps) {
     [counts]
   );
 
+  const openLabel =
+    GAME_CATEGORIES.find((c) => c.slug === openSlug)?.label ?? "";
+
   return (
     <section id="towers" aria-label="All towers" className="py-20 px-4 border-t border-border-subtle">
       <div className="max-w-6xl mx-auto">
-        <div className="flex items-end justify-between gap-4 mb-6">
-          <div>
-            <span className="font-mono text-[11px] uppercase tracking-[0.2em] text-signal">
-              [ the arena ]
-            </span>
-            <h2 className="font-display text-4xl md:text-5xl text-text-primary mt-3">
-              Pick your tower
-            </h2>
-            <p className="text-sm text-text-muted mt-2">
-              {GAME_CATEGORIES.length} towers · {totalLive} blocks climbing. Buy your
-              way up, or climb the free game.
-            </p>
-          </div>
+        <div className="mb-6">
+          <span className="font-mono text-[11px] uppercase tracking-[0.2em] text-signal">
+            [ the arena ]
+          </span>
+          <h2 className="font-display text-4xl md:text-5xl text-text-primary mt-3">
+            Pick your tower
+          </h2>
+          <p className="text-sm text-text-muted mt-2">
+            {GAME_CATEGORIES.length} towers · {totalLive} blocks climbing. Open a
+            tower to see the standings, or play the free climb — without leaving
+            this page.
+          </p>
         </div>
 
         {/* Family filter bar */}
@@ -92,22 +98,45 @@ export function TowerDirectory({ counts, minEntryUsd }: TowerDirectoryProps) {
                 <div className="flex-1 h-px bg-border-subtle" />
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                {grouped[f].map((c) => (
-                  <TowerCard
-                    key={c.slug}
-                    slug={c.slug}
-                    label={c.label}
-                    count={counts[c.slug] ?? 0}
-                    minEntryUsd={minEntryUsd}
-                  />
-                ))}
+                {grouped[f].map((c) => {
+                  const isOpen = openSlug === c.slug;
+                  return (
+                    <TowerCardWithPanel key={c.slug}>
+                      <TowerCard
+                        slug={c.slug}
+                        label={c.label}
+                        count={counts[c.slug] ?? 0}
+                        minEntryUsd={minEntryUsd}
+                        isOpen={isOpen}
+                        onToggle={() => setOpenSlug(isOpen ? null : c.slug)}
+                        onPlay={() => setPlaySlug(c.slug)}
+                      />
+                      {isOpen && (
+                        <InlineTower
+                          slug={c.slug}
+                          label={c.label}
+                          onClose={() => setOpenSlug(null)}
+                        />
+                      )}
+                    </TowerCardWithPanel>
+                  );
+                })}
               </div>
             </div>
           ))}
         </div>
       </div>
+
+      {playSlug && (
+        <GameOverlay slug={playSlug} onClose={() => setPlaySlug(null)} />
+      )}
     </section>
   );
+}
+
+/** Fragment wrapper so the inline panel can escape the grid as a full-width row. */
+function TowerCardWithPanel({ children }: { children: React.ReactNode }) {
+  return <>{children}</>;
 }
 
 function TowerCard({
@@ -115,22 +144,37 @@ function TowerCard({
   label,
   count,
   minEntryUsd,
+  isOpen,
+  onToggle,
+  onPlay,
 }: {
   slug: string;
   label: string;
   count: number;
   minEntryUsd: number;
+  isOpen: boolean;
+  onToggle: () => void;
+  onPlay: () => void;
 }) {
   const empty = count === 0;
   return (
-    <div className="group relative overflow-hidden rounded-2xl border border-border-subtle bg-surface transition-all hover:border-signal/45 hover:-translate-y-1 hover:shadow-lifted focus-within:border-signal/45">
+    <div
+      className={
+        "group relative overflow-hidden rounded-2xl border bg-surface transition-all " +
+        (isOpen
+          ? "border-signal/50 shadow-signal"
+          : "border-border-subtle hover:border-signal/45 hover:-translate-y-1 hover:shadow-lifted")
+      }
+    >
       <div className="pointer-events-none absolute inset-0 survey-grid opacity-0 group-hover:opacity-100 transition-opacity" />
 
-      {/* Card body → paid tower */}
-      <Link
-        href={`/tower/${slug}`}
-        className="relative block p-5 focus-visible:outline-none"
-        aria-label={`${label} paid tower — ${empty ? "claim #1" : `${count} blocks live`}`}
+      {/* Card body → toggles the inline leaderboard */}
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={isOpen}
+        className="relative block w-full text-left p-5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal rounded-2xl"
+        aria-label={`${label} tower — ${empty ? "claim #1" : `${count} blocks live`}`}
       >
         <div className="flex items-start justify-between gap-2">
           <div className="flex items-center gap-2.5 min-w-0">
@@ -161,21 +205,28 @@ function TowerCard({
               <span className="text-sm text-text-muted">· buy altitude</span>
             </>
           )}
-          <span className="ml-auto text-text-muted transition-transform group-hover:translate-x-0.5 group-hover:text-signal">
+          <span
+            className={
+              "ml-auto text-text-muted transition-transform " +
+              (isOpen ? "rotate-90 text-signal" : "group-hover:translate-x-0.5 group-hover:text-signal")
+            }
+            aria-hidden="true"
+          >
             →
           </span>
         </div>
-      </Link>
+      </button>
 
-      {/* Play (free game) — separate affordance */}
+      {/* Play (free game) — opens the overlay, no navigation */}
       <div className="relative border-t border-border-subtle px-5 py-2.5">
-        <Link
-          href={`/play/${slug}`}
-          className="inline-flex items-center gap-1.5 font-mono text-[11px] uppercase tracking-[0.12em] text-text-muted hover:text-signal transition-colors"
+        <button
+          type="button"
+          onClick={onPlay}
+          className="inline-flex items-center gap-1.5 font-mono text-[11px] uppercase tracking-[0.12em] text-text-muted hover:text-signal transition-colors min-h-[32px]"
           aria-label={`Play the ${label} climb (free)`}
         >
           ▶ Play the climb · free
-        </Link>
+        </button>
       </div>
     </div>
   );
