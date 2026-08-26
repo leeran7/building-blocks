@@ -206,7 +206,7 @@ export function Hero() {
               </span>
             </Link>
             <Link
-              href="/browse"
+              href="/#towers"
               className="w-full sm:w-auto rounded-full border border-border-strong bg-surface/60 px-7 py-3.5 text-base font-medium text-text-primary inline-flex items-center justify-center hover:border-signal/50 hover:bg-surface transition-colors min-h-[52px]"
             >
               Browse towers

@@ -11,10 +11,12 @@
 
 import { Hero } from "../src/components/LandingPage/Hero";
 import { HowItWorks } from "../src/components/LandingPage/HowItWorks";
-import { CategoryGrid } from "../src/components/LandingPage/CategoryGrid";
+import { TowerDirectory } from "../src/components/LandingPage/TowerDirectory";
 import { Footer } from "../src/components/LandingPage/Footer";
 import { Faq } from "../src/components/LandingPage/Faq";
 import { Navbar } from "../src/components/Navbar";
+import { getBlockCountsByCategory } from "../src/db/blocks";
+import { loadConstants } from "../src/engine/constants";
 import { Suspense } from "react";
 
 const BASE_URL = process.env.BASE_URL ?? "http://localhost:3000";
@@ -81,6 +83,11 @@ async function SocialProofStrip() {
 }
 
 export default async function HomePage() {
+  const [counts, constants] = await Promise.all([
+    getBlockCountsByCategory().catch(() => ({})),
+    Promise.resolve(loadConstants()),
+  ]);
+
   return (
     <main className="grain min-h-screen bg-void">
       <Navbar />
@@ -99,7 +106,7 @@ export default async function HomePage() {
 
       <HowItWorks />
 
-      <CategoryGrid />
+      <TowerDirectory counts={counts} minEntryUsd={constants.MIN_ENTRY_USD} />
 
       <Faq />
 

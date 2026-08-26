@@ -26,6 +26,23 @@ export async function getRankedBlocks(): Promise<Block[]> {
 }
 
 /**
+ * Count visible (non-hidden) blocks per category slug, in one grouped query.
+ * Powers the landing tower directory without N per-tower fetches.
+ */
+export async function getBlockCountsByCategory(): Promise<Record<string, number>> {
+  const rows = await prisma.block.groupBy({
+    by: ["category"],
+    where: { hidden_at: null },
+    _count: { _all: true },
+  });
+  const out: Record<string, number> = {};
+  for (const r of rows) {
+    if (r.category) out[r.category] = r._count._all;
+  }
+  return out;
+}
+
+/**
  * Get a single block by slug (for record pages).
  * Returns block regardless of burial or hidden state (AC-37).
  */

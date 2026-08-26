@@ -71,7 +71,7 @@ export function Navbar({ contextLabel, contextDot }: NavbarProps) {
       </div>
 
       <div className="flex items-center gap-1 sm:gap-2">
-        <Link href="/browse" className={`${GHOST} hidden sm:inline-flex`}>
+        <Link href="/#towers" className={`${GHOST} hidden sm:inline-flex`}>
           Browse
         </Link>
         {loading ? (
