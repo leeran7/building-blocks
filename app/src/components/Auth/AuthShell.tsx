@@ -32,7 +32,7 @@ export function AuthShell({ children }: { children: ReactNode }) {
         >
           <span className="h-6 w-[3px] rounded-full bg-signal" aria-hidden="true" />
           <span className="font-display text-xl tracking-tight text-text-primary">
-            STACK
+            DOOMSTACK
           </span>
         </Link>
 

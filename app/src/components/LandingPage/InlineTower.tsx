@@ -22,7 +22,7 @@ const TowerView = dynamic(
 export function InlineTower({ slug, label, onClose }: { slug: string; label: string; onClose: () => void }) {
   const [data, setData] = useState<TowerData | null>(null);
   const [error, setError] = useState(false);
-  const pollUrl = `/api/stack/${slug}`;
+  const pollUrl = `/api/tower/${slug}`;
 
   useEffect(() => {
     let live = true;

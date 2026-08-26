@@ -45,7 +45,7 @@ export async function GET(request: NextRequest): Promise<ImageResponse | Respons
               marginBottom: 20,
             }}
           >
-            STACK
+            DOOMSTACK
           </div>
 
           {/* Rank badge */}

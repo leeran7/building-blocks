@@ -63,7 +63,7 @@ export function Footer() {
           <div className="flex items-center gap-2.5">
             <span className="h-6 w-[3px] rounded-full bg-signal" aria-hidden="true" />
             <span className="font-display text-xl tracking-tight text-text-primary">
-              STACK
+              DOOMSTACK
             </span>
           </div>
           <p className="text-sm text-text-muted mt-3 max-w-[220px]">

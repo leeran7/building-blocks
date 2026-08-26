@@ -7,16 +7,23 @@ import { AuthProvider } from "../src/contexts/AuthContext";
 // Display: Bricolage Grotesque — architectural, contemporary, characterful.
 // Body:    Hanken Grotesk — warm, refined, highly legible (not Inter/Roboto).
 // Mono:    Space Mono — instrument/altimeter readouts + tabular numerics.
+// adjustFontFallback:false — Next 14 lacks size-adjust fallback metrics for these
+// newer Google fonts ("Failed to find font override values"); disable the auto
+// override and provide an explicit fallback stack instead.
 const display = Bricolage_Grotesque({
   subsets: ["latin"],
   variable: "--font-display",
   display: "swap",
+  adjustFontFallback: false,
+  fallback: ["system-ui", "sans-serif"],
 });
 
 const sans = Hanken_Grotesk({
   subsets: ["latin"],
   variable: "--font-sans",
   display: "swap",
+  adjustFontFallback: false,
+  fallback: ["system-ui", "sans-serif"],
 });
 
 const mono = Space_Mono({
@@ -27,6 +34,8 @@ const mono = Space_Mono({
 });
 
 const BASE_URL = process.env.BASE_URL ?? "http://localhost:3000";
+// Public canonical origin — used for OG/Twitter image + canonical URL resolution.
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://doomstack.lol";
 
 export async function generateMetadata(): Promise<Metadata> {
   let topBlockId = "";
@@ -53,25 +62,26 @@ export async function generateMetadata(): Promise<Metadata> {
   const ogUrl = `${BASE_URL}/api/og?v=${topBlockId}&name=${encodeURIComponent(topBlockName)}&alt=${topAlt}&rank=1`;
 
   return {
-    title: "Stack — Altitude is permanent",
+    metadataBase: new URL(SITE_URL),
+    title: "Doomstack — Altitude is permanent",
     description:
       "Your altitude is permanent. The ground rises instead. The price of #1 falls with every thousand views — until someone buys it.",
     openGraph: {
-      title: "Stack — Altitude is permanent",
+      title: "Doomstack — Altitude is permanent",
       description: "Your altitude is permanent. The ground rises instead.",
       images: [
         {
           url: ogUrl,
           width: 1200,
           height: 630,
-          alt: `Stack — ${topBlockName} leads at ${parseFloat(topAlt).toFixed(1)}m`,
+          alt: `Doomstack — ${topBlockName} leads at ${parseFloat(topAlt).toFixed(1)}m`,
         },
       ],
       type: "website",
     },
     twitter: {
       card: "summary_large_image",
-      title: "Stack — Altitude is permanent",
+      title: "Doomstack — Altitude is permanent",
       description: "Your altitude is permanent. The ground rises instead.",
       images: [ogUrl],
     },

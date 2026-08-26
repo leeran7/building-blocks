@@ -48,7 +48,7 @@ export function Navbar({ contextLabel, contextDot }: NavbarProps) {
             aria-hidden="true"
           />
           <span className="font-display text-xl leading-none tracking-tight text-text-primary">
-            STACK
+            DOOMSTACK
           </span>
         </Link>
         {contextLabel && (

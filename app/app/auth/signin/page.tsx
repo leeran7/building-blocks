@@ -222,7 +222,7 @@ function SignInForm() {
         {/* Logo — mobile only; desktop shows the brand panel */}
         <div className="flex items-center gap-2.5 mb-5 md:hidden">
           <span className="h-6 w-[3px] rounded-full bg-signal" aria-hidden="true" />
-          <span className="font-display text-xl tracking-tight text-text-primary">STACK</span>
+          <span className="font-display text-xl tracking-tight text-text-primary">DOOMSTACK</span>
         </div>
 
         {/* Title */}
