@@ -14,7 +14,7 @@
  * never block the results screen.
  */
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useClimb } from "../../game/useClimb";
 import { TowerSpec } from "../../game/types";
@@ -33,6 +33,10 @@ interface SaveInfo {
   rank?: number;
   totalClimbers?: number;
 }
+
+// A finished run stashed here survives the navigation to sign-in and back, so a
+// signed-out player's record can be saved once they authenticate.
+const PENDING_CLIMB_KEY = "doomstack:pending-climb";
 
 function usePrefersReducedMotion(): boolean {
   const [reduced, setReduced] = useState(false);
@@ -53,58 +57,127 @@ export function ClimbScene({ tower, categoryLabel }: ClimbSceneProps) {
   const { user, token } = useAuth();
   const [posted, setPosted] = useState(false);
   const [saveInfo, setSaveInfo] = useState<SaveInfo | null>(null);
+  // Confirmation shown after a run saved via the sign-in → return flow.
+  const [savedBanner, setSavedBanner] = useState<SaveInfo | null>(null);
 
   const player = state.players[0];
   const phase = state.phase;
+
+  // sessionStorage key for a run awaiting sign-in, + where to return after login.
+  const redirectPath = `/play/${tower.categorySlug}`;
+
+  const buildRun = useCallback(
+    () => ({
+      categorySlug: tower.categorySlug,
+      peakY: player?.peakY ?? 0,
+      finished: player?.status === "finished",
+      finishedTick: player?.finishedTick ?? null,
+      seed,
+    }),
+    [player, seed, tower.categorySlug]
+  );
+
+  const postRun = useCallback(
+    async (run: object, authToken: string): Promise<SaveInfo> => {
+      const res = await fetch("/api/climb/result", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${authToken}`,
+        },
+        body: JSON.stringify(run),
+      })
+        .then((r) => (r.ok ? r.json() : null))
+        .catch(() => null);
+      return res
+        ? {
+            saved: Boolean(res.saved),
+            improved: Boolean(res.improved),
+            rank: typeof res.rank === "number" ? res.rank : undefined,
+            totalClimbers:
+              typeof res.totalClimbers === "number" ? res.totalClimbers : undefined,
+          }
+        : { saved: false };
+    },
+    []
+  );
 
   // Start / restart: reset the save guard so EVERY run is recorded (not just
   // the first), then kick off the countdown.
   function handleStart() {
     setPosted(false);
     setSaveInfo(null);
+    setSavedBanner(null);
     start();
   }
 
-  // Persist the run result once per run, best-effort, when it finishes. Uses the
-  // signed-in user's live Firebase token (from context) so records actually save;
-  // anonymous runs are accepted but not saved (AC-30/31).
+  // Persist the run once per run when it finishes. Signed-in → save now. Signed
+  // out → stash the run in sessionStorage so it can be saved after the player
+  // signs in and is redirected back here (AC-30/31).
   useEffect(() => {
     if (!finished || posted) return;
     setPosted(true);
-    const body = JSON.stringify({
-      categorySlug: tower.categorySlug,
-      peakY: player?.peakY ?? 0,
-      finished: player?.status === "finished",
-      finishedTick: player?.finishedTick ?? null,
-      seed,
-    });
-    fetch("/api/climb/result", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      body,
-    })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((res) =>
-        setSaveInfo(
-          res
-            ? {
-                saved: Boolean(res.saved),
-                improved: Boolean(res.improved),
-                rank: typeof res.rank === "number" ? res.rank : undefined,
-                totalClimbers:
-                  typeof res.totalClimbers === "number" ? res.totalClimbers : undefined,
-              }
-            : { saved: false }
-        )
-      )
-      .catch(() => setSaveInfo({ saved: false }));
-  }, [finished, posted, player, seed, tower.categorySlug, token]);
+    const run = buildRun();
+    if (token) {
+      postRun(run, token).then(setSaveInfo);
+    } else {
+      setSaveInfo({ saved: false });
+      try {
+        sessionStorage.setItem(PENDING_CLIMB_KEY, JSON.stringify(run));
+      } catch {
+        /* storage unavailable — sign-in save just won't persist */
+      }
+    }
+  }, [finished, posted, buildRun, token, postRun]);
+
+  // On mount / when auth resolves: if a pending run for THIS category is waiting
+  // (from the sign-in flow), save it now and confirm it.
+  useEffect(() => {
+    // Only a real (non-anonymous) account can save; don't let a guest login
+    // consume and lose the pending run.
+    if (!user || !token || user.isAnonymous) return;
+    let raw: string | null = null;
+    try {
+      raw = sessionStorage.getItem(PENDING_CLIMB_KEY);
+    } catch {
+      return;
+    }
+    if (!raw) return;
+    let run: { categorySlug?: string } | null = null;
+    try {
+      run = JSON.parse(raw);
+    } catch {
+      run = null;
+    }
+    if (!run || run.categorySlug !== tower.categorySlug) return;
+    try {
+      sessionStorage.removeItem(PENDING_CLIMB_KEY);
+    } catch {
+      /* ignore */
+    }
+    postRun(run, token).then(setSavedBanner);
+  }, [user, token, tower.categorySlug, postRun]);
 
   return (
     <div className="flex flex-col items-center gap-4">
+      {/* Saved confirmation — after signing in from a finished run and returning. */}
+      {savedBanner?.saved && (
+        <div
+          className="w-full rounded-xl border border-signal/40 bg-signal/[0.06] px-4 py-2.5 text-center"
+          role="status"
+        >
+          <p className="font-mono text-xs uppercase tracking-[0.14em] text-signal">
+            ✓ Record saved
+            {savedBanner.rank ? (
+              <>
+                {" · "}#{savedBanner.rank}
+                {savedBanner.totalClimbers ? ` of ${savedBanner.totalClimbers}` : ""}
+              </>
+            ) : null}
+          </p>
+        </div>
+      )}
+
       <div className="relative">
         <ClimbCanvas state={state} reducedMotion={reducedMotion} />
 
@@ -176,7 +249,20 @@ export function ClimbScene({ tower, categoryLabel }: ClimbSceneProps) {
               )
             ) : (
               <p className="text-xs mt-3 text-text-muted">
-                <Link href="/auth/signin" className="text-accent underline underline-offset-2">
+                <Link
+                  href={`/auth/signin?redirect=${encodeURIComponent(redirectPath)}`}
+                  onClick={() => {
+                    try {
+                      sessionStorage.setItem(
+                        PENDING_CLIMB_KEY,
+                        JSON.stringify(buildRun())
+                      );
+                    } catch {
+                      /* ignore */
+                    }
+                  }}
+                  className="text-accent underline underline-offset-2"
+                >
                   Sign in
                 </Link>{" "}
                 to save your record & rank
