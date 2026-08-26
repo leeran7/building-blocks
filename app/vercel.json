@@ -1,6 +1,6 @@
 {
   "framework": "nextjs",
-  "buildCommand": "pnpm db:migrate && pnpm build",
+  "buildCommand": "export DIRECT_URL=\"${DIRECT_URL:-$DATABASE_URL}\" && pnpm db:migrate && pnpm build",
   "installCommand": "pnpm install",
   "outputDirectory": ".next"
 }
