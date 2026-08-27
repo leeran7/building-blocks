@@ -14,7 +14,11 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "../../src/contexts/AuthContext";
 import { Navbar } from "../../src/components/Navbar";
-import { GAME_CATEGORIES, FAMILIES } from "../../src/game/categories";
+import {
+  GAME_CATEGORIES,
+  FAMILIES,
+  resolveGameCategory,
+} from "../../src/game/categories";
 
 const INPUT =
   "w-full bg-surface border border-border-subtle rounded-lg px-4 py-3 text-base text-text-primary placeholder-text-muted focus:outline-none focus:border-signal focus:ring-1 focus:ring-signal transition-colors";
@@ -26,6 +30,10 @@ function SubmitForm() {
 
   const rawCategory = searchParams.get("category");
   const initialCategory = (rawCategory ?? "tech").toLowerCase();
+  // Breadcrumb: name the stack this submission is scoped to, then "Submit".
+  const breadcrumb = rawCategory
+    ? `${resolveGameCategory(initialCategory).label} · Submit`
+    : "Submit";
   // Preserve the chosen stack through the auth round-trip so it's still
   // prefilled after sign-in/up (the guards used to drop the ?category param).
   const returnTo = rawCategory
@@ -63,12 +71,16 @@ function SubmitForm() {
     };
   }, [token]);
 
-  // Auth gate
+  // Auth gate. Every branch renders the same breadcrumbed Navbar so the user is
+  // never disoriented — they always know they're inside the submit flow.
   if (authLoading) {
     return (
-      <div className="min-h-[60vh] flex items-center justify-center">
-        <div className="w-8 h-8 border-2 border-text-muted/30 border-t-signal rounded-full animate-spin" />
-      </div>
+      <>
+        <Navbar contextLabel={breadcrumb} />
+        <div className="min-h-[60vh] flex items-center justify-center">
+          <div className="w-8 h-8 border-2 border-text-muted/30 border-t-signal rounded-full animate-spin" />
+        </div>
+      </>
     );
   }
   if (!user || !token) {
@@ -80,7 +92,9 @@ function SubmitForm() {
   if (!user.email) {
     // Anonymous/guest — needs a real account to own a block
     return (
-      <div className="max-w-md mx-auto px-4 py-16 text-center">
+      <>
+        <Navbar contextLabel={breadcrumb} />
+        <div className="max-w-md mx-auto px-4 py-16 text-center">
         <h1 className="text-2xl font-bold text-text-primary tracking-tight">
           Create an account first
         </h1>
@@ -89,12 +103,13 @@ function SubmitForm() {
           sign-in (not a guest session).
         </p>
         <Link
-          href={`/auth/signup?redirect=${encodeURIComponent(returnTo)}`}
-          className="mt-6 inline-flex bg-signal text-void font-semibold rounded-lg px-6 py-3 hover:brightness-110 transition min-h-[44px] items-center"
-        >
-          Create account
-        </Link>
-      </div>
+            href={`/auth/signup?redirect=${encodeURIComponent(returnTo)}`}
+            className="mt-6 inline-flex bg-signal text-void font-semibold rounded-lg px-6 py-3 hover:brightness-110 transition min-h-[44px] items-center"
+          >
+            Create account
+          </Link>
+        </div>
+      </>
     );
   }
 
@@ -132,7 +147,9 @@ function SubmitForm() {
   }
 
   return (
-    <div className="max-w-lg mx-auto px-4 py-10">
+    <>
+      <Navbar contextLabel={breadcrumb} />
+      <div className="max-w-lg mx-auto px-4 py-10">
       <div className="mb-8">
         <p className="text-xs uppercase tracking-[0.15em] text-text-muted">
           New listing
@@ -217,7 +234,7 @@ function SubmitForm() {
             />
           )}
           {savedUrls.length > 0 && (
-            <p className="text-xs text-text-muted mt-1.5">
+            <p className="text-xs text-text-secondary mt-1.5">
               New URLs are saved to your{" "}
               <a href="/settings" className="text-signal hover:brightness-110">
                 settings
@@ -265,7 +282,7 @@ function SubmitForm() {
             required
             disabled={submitting}
           />
-          <p className="text-xs text-text-muted mt-1.5">
+          <p className="text-xs text-text-secondary mt-1.5">
             Minimum $5. Altitude is permanent and non-refundable.
           </p>
         </div>
@@ -285,19 +302,22 @@ function SubmitForm() {
           )}
         </button>
       </form>
-    </div>
+      </div>
+    </>
   );
 }
 
 export default function SubmitPage() {
   return (
     <main className="min-h-screen bg-void">
-      <Navbar />
       <Suspense
         fallback={
-          <div className="min-h-[60vh] flex items-center justify-center">
-            <div className="w-8 h-8 border-2 border-text-muted/30 border-t-signal rounded-full animate-spin" />
-          </div>
+          <>
+            <Navbar />
+            <div className="min-h-[60vh] flex items-center justify-center">
+              <div className="w-8 h-8 border-2 border-text-muted/30 border-t-signal rounded-full animate-spin" />
+            </div>
+          </>
         }
       >
         <SubmitForm />

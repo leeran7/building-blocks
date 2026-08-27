@@ -49,11 +49,21 @@ export async function updateUserSettings(
     const toAdd = desired.filter((u) => !existing.includes(u));
     const toRemove = existing.filter((u) => !desired.includes(u));
 
+    // Use upsert (not create) for additions: the `existing` list is read outside
+    // this transaction, so a concurrent addSavedUrl (e.g. from checkout) could
+    // insert the same (userId, url) in the gap. create would then throw P2002 and
+    // abort the whole save; upsert is idempotent and race-safe.
     await prisma.$transaction([
       ...(toRemove.length
         ? [prisma.savedUrl.deleteMany({ where: { userId, url: { in: toRemove } } })]
         : []),
-      ...toAdd.map((url) => prisma.savedUrl.create({ data: { userId, url } })),
+      ...toAdd.map((url) =>
+        prisma.savedUrl.upsert({
+          where: { saved_url_user_url: { userId, url } },
+          create: { userId, url },
+          update: {},
+        })
+      ),
     ]);
   }
 

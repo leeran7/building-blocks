@@ -17,6 +17,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { verifyIdToken } from "../../../../src/lib/firebaseAdmin";
 import { recordClimb } from "../../../../src/db/climb";
 import { ensureUser } from "../../../../src/db/user";
+import { checkRateLimit, clientIp } from "../../../../src/lib/rateLimit";
+
+export const runtime = "nodejs";
+
+// Climb runs finish frequently, so keep the cap high. Keyed by client IP since
+// most play is anonymous. Fails OPEN so a Redis outage never blocks play.
+const CLIMB_RATE_MAX = 60;
+const CLIMB_RATE_WINDOW_SECONDS = 60;
 
 interface Body {
   categorySlug?: unknown;
@@ -46,6 +54,22 @@ export async function POST(request: NextRequest) {
 
   if (!categorySlug || peakY === null || peakY < 0 || !seed) {
     return NextResponse.json({ error: "Invalid climb result" }, { status: 400 });
+  }
+
+  // Rate limit by client IP (most play is anonymous). Fails OPEN so a Redis
+  // outage never blocks a free run.
+  const rl = await checkRateLimit({
+    namespace: "climb",
+    identifier: `ip:${clientIp(request)}`,
+    max: CLIMB_RATE_MAX,
+    windowSeconds: CLIMB_RATE_WINDOW_SECONDS,
+    failMode: "open",
+  });
+  if (!rl.allowed) {
+    return NextResponse.json(
+      { error: "Too many requests", code: "RATE_LIMITED" },
+      { status: 429 }
+    );
   }
 
   // Auth is optional for solo. Present + valid → save; absent → play, no save.

@@ -25,8 +25,14 @@ import { validateUrl } from "../../../src/lib/validateUrl";
 import { uniqueSlug } from "../../../src/lib/slugify";
 import { getStripe } from "../../../src/api/stripe";
 import { resolveBaseUrl } from "../../../src/config/public";
+import { checkRateLimit, clientIp } from "../../../src/lib/rateLimit";
 
 export const runtime = "nodejs";
+
+// Generous per-caller cap — real buyers make a handful of sessions, abusers
+// hammer. Fails OPEN if Redis is down so a Redis outage never blocks a sale.
+const CHECKOUT_RATE_MAX = 30;
+const CHECKOUT_RATE_WINDOW_SECONDS = 60;
 
 /** Normalize a category to a well-formed slug; default to "tech". */
 function normalizeCategorySlug(raw: string | undefined): string {
@@ -60,7 +66,21 @@ const RequestSchema = z.union([NewListingSchema, TopupSchema]);
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
-    const body = await request.json();
+    let body: unknown;
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+    }
+
+    // Body must be a JSON object. A primitive/array/null would make the `in`
+    // checks below throw a TypeError and surface as a misleading 500.
+    if (typeof body !== "object" || body === null || Array.isArray(body)) {
+      return NextResponse.json(
+        { error: "Request body must be a JSON object" },
+        { status: 400 }
+      );
+    }
 
     // CRITICAL: Reject if client supplies rate, metres, or growth (AC-30, NFR-S2)
     if ("rate" in body || "metres" in body || "growth" in body) {
@@ -107,6 +127,32 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           { status: 401 }
         );
       }
+    }
+
+    // Rate limit before any Stripe/DB writes. Key by verified UID when we have
+    // one (new listings), otherwise by client IP (open top-ups). Fails OPEN so a
+    // Redis outage never blocks a legitimate purchase (revenue path).
+    const rlIdentifier = authenticatedUserId ?? `ip:${clientIp(request)}`;
+    const rl = await checkRateLimit({
+      namespace: "checkout",
+      identifier: rlIdentifier,
+      max: CHECKOUT_RATE_MAX,
+      windowSeconds: CHECKOUT_RATE_WINDOW_SECONDS,
+      failMode: "open",
+    });
+    if (!rl.allowed) {
+      console.warn(
+        JSON.stringify({
+          type: "rate_limit_hit",
+          path: "/api/checkout",
+          identifier: rlIdentifier,
+          timestamp: new Date().toISOString(),
+        })
+      );
+      return NextResponse.json(
+        { error: "Too many requests", code: "RATE_LIMITED" },
+        { status: 429 }
+      );
     }
 
     // Validate amount minimums

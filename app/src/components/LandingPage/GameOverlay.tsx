@@ -10,7 +10,7 @@
  * weighs down the initial landing bundle. Esc or the close button dismisses it.
  */
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import dynamic from "next/dynamic";
 import { resolveGameCategory } from "../../game/categories";
 import { buildTower } from "../../game/towers";
@@ -34,22 +34,57 @@ export function GameOverlay({
 }) {
   const cat = resolveGameCategory(slug);
   const tower = buildTower(cat);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
+
+    // Remember what had focus so we can restore it on close (WCAG 2.4.3).
+    const trigger = document.activeElement as HTMLElement | null;
+    // Move focus into the dialog on open.
+    closeButtonRef.current?.focus();
+
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape") {
+        onClose();
+        return;
+      }
+      // Trap Tab within the dialog.
+      if (e.key === "Tab") {
+        const dialog = dialogRef.current;
+        if (!dialog) return;
+        const focusables = dialog.querySelectorAll<HTMLElement>(
+          'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        );
+        if (focusables.length === 0) return;
+        const first = focusables[0];
+        const last = focusables[focusables.length - 1];
+        const active = document.activeElement;
+        if (e.shiftKey) {
+          if (active === first || !dialog.contains(active)) {
+            e.preventDefault();
+            last.focus();
+          }
+        } else if (active === last || !dialog.contains(active)) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
     };
     window.addEventListener("keydown", onKey);
     return () => {
       document.body.style.overflow = prev;
       window.removeEventListener("keydown", onKey);
+      // Restore focus to the element that opened the overlay.
+      trigger?.focus?.();
     };
   }, [onClose]);
 
   return (
     <div
+      ref={dialogRef}
       className="fixed inset-0 z-50 flex flex-col"
       role="dialog"
       aria-modal="true"
@@ -72,9 +107,10 @@ export function GameOverlay({
           </span>
         </div>
         <button
+          ref={closeButtonRef}
           type="button"
           onClick={onClose}
-          className="inline-flex items-center gap-1.5 font-mono text-xs uppercase tracking-[0.14em] text-text-muted hover:text-signal transition-colors min-h-[40px] px-2"
+          className="inline-flex items-center gap-1.5 font-mono text-xs uppercase tracking-[0.14em] text-text-secondary hover:text-signal transition-colors min-h-[40px] px-2 focus-visible:outline-none focus-visible:text-signal"
         >
           Close ✕
         </button>

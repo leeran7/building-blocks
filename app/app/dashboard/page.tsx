@@ -17,6 +17,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "../../src/contexts/AuthContext";
+import { Navbar } from "../../src/components/Navbar";
 import { BlockCard } from "../../src/components/Dashboard/BlockCard";
 
 interface Payment {
@@ -168,28 +169,9 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-void">
-      {/* Nav */}
-      <nav className="sticky top-0 z-20 flex items-center justify-between px-4 md:px-6 h-14 bg-void/80 backdrop-blur border-b border-border-subtle">
-        <div className="flex items-center gap-3">
-          <Link
-            href="/"
-            className="text-lg font-bold tracking-tight text-text-primary hover:text-signal transition-colors"
-          >
-            Stack
-          </Link>
-          <span className="text-border-strong" aria-hidden="true">/</span>
-          <span className="text-sm text-text-secondary">Dashboard</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <Link
-            href="/browse"
-            className="hidden sm:inline-flex text-sm text-text-muted hover:text-text-primary transition-colors min-h-[44px] items-center px-2"
-          >
-            Browse stacks
-          </Link>
-          <SignOutButton />
-        </div>
-      </nav>
+      {/* Shared, auth-aware nav with a "Dashboard" breadcrumb — consistent with
+          the rest of the app (submit, settings, rules, stack/climb/play). */}
+      <Navbar contextLabel="Dashboard" />
 
       {/* Page heading — context → heading → supporting → action */}
       <div className="px-4 md:px-6 pt-8 pb-6 max-w-7xl mx-auto flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
@@ -227,7 +209,7 @@ export default function DashboardPage() {
             role="alert"
             className="bg-surface border border-danger/30 rounded-2xl p-8 text-center"
           >
-            <p className="text-text-muted mb-2">{fetchState.message}</p>
+            <p className="text-text-secondary mb-2">{fetchState.message}</p>
             <button
               onClick={() => window.location.reload()}
               className="text-sm text-signal hover:underline"
@@ -246,7 +228,7 @@ export default function DashboardPage() {
             <h2 className="text-xl font-semibold text-text-primary mt-4">
               No blocks yet
             </h2>
-            <p className="text-sm text-text-muted mt-2 max-w-sm">
+            <p className="text-sm text-text-secondary mt-2 max-w-sm">
               You haven&apos;t claimed any blocks yet. Start by browsing a
               category.
             </p>
@@ -317,27 +299,3 @@ function DashboardStats({ blocks }: { blocks: DashboardBlock[] }) {
   );
 }
 
-/**
- * Separated sign-out button — uses useAuth inside a client component.
- * This avoids calling useAuth inside a conditional or callback in the parent.
- */
-function SignOutButton() {
-  const { signOut } = useAuth();
-  const router = useRouter();
-
-  const handleSignOut = async () => {
-    await signOut();
-    router.push("/");
-  };
-
-  return (
-    <button
-      type="button"
-      onClick={handleSignOut}
-      aria-label="Sign out"
-      className="text-sm text-text-muted hover:text-text-primary transition-colors min-h-[44px] inline-flex items-center px-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus rounded-sm"
-    >
-      Sign out
-    </button>
-  );
-}
