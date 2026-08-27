@@ -150,11 +150,9 @@ export async function getGlobalClimbStats(): Promise<{
   climberCount: number;
   topPeak: number | null;
 }> {
-  const rows = await prisma.$queryRawUnsafe<
-    { climbers: number; top: number | null }[]
-  >(
-    `SELECT COUNT(DISTINCT "userId")::int AS climbers, MAX(peak_y) AS top FROM climb_records`
-  );
+  const rows = await prisma.$queryRaw<{ climbers: number; top: number | null }[]>`
+    SELECT COUNT(DISTINCT "userId")::int AS climbers, MAX(peak_y) AS top FROM climb_records
+  `;
   const row = rows[0] ?? { climbers: 0, top: null };
   return { climberCount: Number(row.climbers ?? 0), topPeak: row.top };
 }

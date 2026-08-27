@@ -17,13 +17,10 @@ import { Footer } from "../src/components/LandingPage/Footer";
 import { Faq } from "../src/components/LandingPage/Faq";
 import { Navbar } from "../src/components/Navbar";
 import { getBlockCountsByCategory } from "../src/db/blocks";
-import { resolveBaseUrl } from "../src/config/public";
 import { getGlobalClimbStats } from "../src/db/climb";
 import { GAME_CATEGORIES } from "../src/game/categories";
 import { loadConstants } from "../src/engine/constants";
 import { Suspense } from "react";
-
-const BASE_URL = resolveBaseUrl();
 
 // ISR: serve the landing from cache and regenerate at most once per 60s, so the
 // highest-traffic page doesn't hit the DB (block counts + social proof) on every
@@ -35,31 +32,14 @@ async function getSocialProofData(): Promise<{
   arenaCount: number;
 } | null> {
   try {
-    const categories = [
-      "tech",
-      "design",
-      "business",
-      "creative",
-      "gaming",
-      "science",
-    ];
-    const responses = await Promise.all(
-      categories.map((cat) =>
-        fetch(`${BASE_URL}/api/tower/${cat}`, {
-          next: { revalidate: 60 },
-        })
-          .then((r) => (r.ok ? r.json() : null))
-          .catch(() => null)
-      )
+    // Count real blocks across the game-category stacks (the legacy broad slugs
+    // this used to fetch no longer resolve). One grouped query, ISR-cached.
+    const counts = await getBlockCountsByCategory();
+    const totalBlocks = GAME_CATEGORIES.reduce(
+      (acc, c) => acc + (counts[c.slug] ?? 0),
+      0
     );
-    const totalBlocks = responses.reduce((acc, data) => {
-      if (!data) return acc;
-      const visible = (data.blocks ?? []).filter(
-        (b: { buried: boolean }) => !b.buried
-      );
-      return acc + visible.length;
-    }, 0);
-    return { totalBlocks, arenaCount: 6 };
+    return { totalBlocks, arenaCount: GAME_CATEGORIES.length };
   } catch {
     return null;
   }
@@ -81,7 +61,7 @@ async function SocialProofStrip() {
             <span className="font-bold text-signal tabular-nums">
               {proof.arenaCount}
             </span>
-            {" arenas"}
+            {" stacks"}
           </>
         ) : (
           "Join the leaderboard"

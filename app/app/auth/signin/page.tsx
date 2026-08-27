@@ -31,6 +31,7 @@ import {
 import { auth } from "../../../src/lib/firebase";
 import { AuthShell } from "../../../src/components/Auth/AuthShell";
 import { setTokenCookie } from "../../../src/lib/authCookie";
+import { safeInternalPath } from "../../../src/lib/safeRedirect";
 
 function EyeIcon({ open }: { open: boolean }) {
   return open ? (
@@ -140,7 +141,8 @@ function SignInForm() {
   const [guestLoading, setGuestLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const redirectTo = searchParams.get("redirect") ?? "/dashboard";
+  // Validate the redirect target — never push to an attacker-supplied off-site URL.
+  const redirectTo = safeInternalPath(searchParams.get("redirect"), "/dashboard");
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
