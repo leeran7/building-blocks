@@ -1,7 +1,9 @@
 /** @type {import('next').NextConfig} */
 const path = require("path");
 const securityHeaders = [
-  { key: "X-Frame-Options", value: "DENY" },
+  // SAMEORIGIN (not DENY): Firebase's auth handler, proxied onto our own domain
+  // via the /__/auth rewrites below, frames /__/auth/iframe same-origin.
+  { key: "X-Frame-Options", value: "SAMEORIGIN" },
   { key: "X-Content-Type-Options", value: "nosniff" },
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
   { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
@@ -14,10 +16,9 @@ const securityHeaders = [
       "font-src 'self' https://fonts.gstatic.com",
       "img-src 'self' data: https:",
       "connect-src 'self' https://api.stripe.com https://*.googleapis.com https://*.firebaseio.com https://*.firebase.com https://*.firebaseapp.com https://securetoken.googleapis.com https://identitytoolkit.googleapis.com wss://*.firebaseio.com",
-      // Firebase Auth loads its OAuth handler in an iframe on the authDomain
-      // (*.firebaseapp.com) + apis.google.com — without these, Google sign-in
-      // (popup OR redirect) is blocked by CSP and loops/errors.
-      "frame-src https://js.stripe.com https://hooks.stripe.com https://accounts.google.com https://*.firebaseapp.com https://apis.google.com",
+      // 'self' — the auth handler is proxied onto our own domain (/__/auth), so
+      // its iframe is same-origin. Plus Stripe, Google, and the Firebase domain.
+      "frame-src 'self' https://js.stripe.com https://hooks.stripe.com https://accounts.google.com https://*.firebaseapp.com https://apis.google.com",
     ].join("; "),
   },
 ];
@@ -45,6 +46,17 @@ const nextConfig = {
         source: "/(.*)",
         headers: securityHeaders,
       },
+    ];
+  },
+  // Serve Firebase Auth's handler on our own domain so authDomain can be
+  // www.doomstack.lol (recommended for signInWithRedirect — avoids Safari
+  // third-party-cookie breakage). Proxies the __/auth + __/firebase helper
+  // paths to the Firebase project. Keep the target in sync with the project id.
+  async rewrites() {
+    const fbHost = "https://building-blocks-88190.firebaseapp.com";
+    return [
+      { source: "/__/auth/:path*", destination: `${fbHost}/__/auth/:path*` },
+      { source: "/__/firebase/:path*", destination: `${fbHost}/__/firebase/:path*` },
     ];
   },
 };

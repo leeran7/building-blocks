@@ -18,7 +18,7 @@ export const PUBLIC_CONFIG = {
   /** Firebase web config — public identifiers, not secrets. */
   firebase: {
     apiKey: "AIzaSyCod-vHzZrsckdv9DV47u1KLxToqhzmsi4",
-    authDomain: "building-blocks-88190.firebaseapp.com",
+    authDomain: "www.doomstack.lol",
     projectId: "building-blocks-88190",
   },
 } as const;

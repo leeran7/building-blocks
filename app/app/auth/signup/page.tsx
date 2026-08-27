@@ -243,8 +243,18 @@ export default function SignUpPage() {
         setTokenCookie(token);
         router.push("/dashboard");
       })
-      .catch(() => {
-        if (live) setError("Google sign-up failed. Please try again.");
+      .catch((err: unknown) => {
+        const code =
+          err instanceof Error && "code" in err
+            ? (err as { code: string }).code
+            : "";
+        console.error("[google redirect] signup failed", code, err);
+        if (!live) return;
+        setError(
+          code === "auth/unauthorized-domain"
+            ? "This domain isn't authorized for Google sign-in yet."
+            : `Google sign-up failed${code ? ` (${code})` : ""}. Please try again.`
+        );
       });
     return () => {
       live = false;

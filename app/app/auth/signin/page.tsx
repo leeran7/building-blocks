@@ -202,8 +202,18 @@ function SignInForm() {
         setTokenCookie(await cred.user.getIdToken());
         router.push(redirectTo);
       })
-      .catch(() => {
-        if (live) setError("Google sign-in failed. Please try again.");
+      .catch((err: unknown) => {
+        const code =
+          err instanceof Error && "code" in err
+            ? (err as { code: string }).code
+            : "";
+        console.error("[google redirect] signin failed", code, err);
+        if (!live) return;
+        setError(
+          code === "auth/unauthorized-domain"
+            ? "This domain isn't authorized for Google sign-in yet."
+            : `Google sign-in failed${code ? ` (${code})` : ""}. Please try again.`
+        );
       });
     return () => {
       live = false;
