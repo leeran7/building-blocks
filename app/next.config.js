@@ -13,8 +13,11 @@ const securityHeaders = [
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
       "font-src 'self' https://fonts.gstatic.com",
       "img-src 'self' data: https:",
-      "connect-src 'self' https://api.stripe.com https://*.googleapis.com https://*.firebaseio.com https://*.firebase.com wss://*.firebaseio.com",
-      "frame-src https://js.stripe.com https://hooks.stripe.com https://accounts.google.com",
+      "connect-src 'self' https://api.stripe.com https://*.googleapis.com https://*.firebaseio.com https://*.firebase.com https://*.firebaseapp.com https://securetoken.googleapis.com https://identitytoolkit.googleapis.com wss://*.firebaseio.com",
+      // Firebase Auth loads its OAuth handler in an iframe on the authDomain
+      // (*.firebaseapp.com) + apis.google.com — without these, Google sign-in
+      // (popup OR redirect) is blocked by CSP and loops/errors.
+      "frame-src https://js.stripe.com https://hooks.stripe.com https://accounts.google.com https://*.firebaseapp.com https://apis.google.com",
     ].join("; "),
   },
 ];

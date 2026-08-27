@@ -19,12 +19,13 @@
  * SignInForm is the inner component; SignInPage wraps it in Suspense.
  */
 
-import { type FormEvent, useId, useRef, useState, Suspense } from "react";
+import { type FormEvent, useEffect, useId, useRef, useState, Suspense } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   signInWithEmailAndPassword,
-  signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
   signInAnonymously,
   GoogleAuthProvider,
 } from "firebase/auth";
@@ -178,42 +179,36 @@ function SignInForm() {
     }
   };
 
+  // Google sign-in uses full-page REDIRECT (not popup): more robust (no popup
+  // blockers / COOP / mobile issues). The result is handled on return below.
   const handleGoogle = () => {
-    // R-10: Must call signInWithPopup synchronously inside a click handler
-    const provider = new GoogleAuthProvider();
     setGoogleLoading(true);
     setError(null);
+    const provider = new GoogleAuthProvider();
+    signInWithRedirect(auth, provider).catch(() => {
+      setError("Google sign-in failed. Please try again.");
+      setGoogleLoading(false);
+      googleBtnRef.current?.focus();
+    });
+  };
 
-    signInWithPopup(auth, provider)
+  // On return from the Google redirect, complete sign-in and navigate.
+  useEffect(() => {
+    let live = true;
+    getRedirectResult(auth)
       .then(async (cred) => {
+        if (!live || !cred?.user) return;
+        setGoogleLoading(true);
         setTokenCookie(await cred.user.getIdToken());
         router.push(redirectTo);
       })
-      .catch((err: unknown) => {
-        const code =
-          err instanceof Error && "code" in err
-            ? (err as { code: string }).code
-            : "";
-        // AC-49: Dismissed popup → silent, no error message
-        if (
-          code === "auth/popup-closed-by-user" ||
-          code === "auth/cancelled-popup-request"
-        ) {
-          // Return focus to the Google button per AC-46
-          googleBtnRef.current?.focus();
-          return;
-        }
-        if (code === "auth/popup-blocked") {
-          setError("Popup blocked — try again or use email sign-in");
-        } else {
-          setError("Google sign-in failed. Please try again.");
-        }
-        googleBtnRef.current?.focus();
-      })
-      .finally(() => {
-        setGoogleLoading(false);
+      .catch(() => {
+        if (live) setError("Google sign-in failed. Please try again.");
       });
-  };
+    return () => {
+      live = false;
+    };
+  }, [redirectTo, router]);
 
   return (
     <AuthShell>

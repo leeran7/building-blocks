@@ -16,13 +16,14 @@
  * - Password strength bar decorative (no color-only info)
  */
 
-import { type FormEvent, useId, useRef, useState } from "react";
+import { type FormEvent, useEffect, useId, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   createUserWithEmailAndPassword,
   sendEmailVerification,
-  signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
   signInAnonymously,
   GoogleAuthProvider,
 } from "firebase/auth";
@@ -217,42 +218,38 @@ export default function SignUpPage() {
     }
   };
 
+  // Google uses full-page REDIRECT (not popup) — no popup blockers / COOP / mobile
+  // issues. The result is completed on return below.
   const handleGoogle = () => {
-    const provider = new GoogleAuthProvider();
     setGoogleLoading(true);
     setError(null);
+    const provider = new GoogleAuthProvider();
+    signInWithRedirect(auth, provider).catch(() => {
+      setError("Google sign-up failed. Please try again.");
+      setGoogleLoading(false);
+      googleBtnRef.current?.focus();
+    });
+  };
 
-    signInWithPopup(auth, provider)
+  // On return from the Google redirect: provision the user + navigate.
+  useEffect(() => {
+    let live = true;
+    getRedirectResult(auth)
       .then(async (result) => {
+        if (!live || !result?.user) return;
+        setGoogleLoading(true);
         const token = await result.user.getIdToken();
-        // AC-50: emailVerified = true for Google accounts
         await syncUserToDb(token, result.user.email ?? "");
-        setTokenCookie(token); // unblock the /dashboard middleware guard
+        setTokenCookie(token);
         router.push("/dashboard");
       })
-      .catch((err: unknown) => {
-        const code =
-          err instanceof Error && "code" in err
-            ? (err as { code: string }).code
-            : "";
-        if (
-          code === "auth/popup-closed-by-user" ||
-          code === "auth/cancelled-popup-request"
-        ) {
-          googleBtnRef.current?.focus();
-          return;
-        }
-        if (code === "auth/popup-blocked") {
-          setError("Popup blocked — try again or use email sign-up");
-        } else {
-          setError("Google sign-up failed. Please try again.");
-        }
-        googleBtnRef.current?.focus();
-      })
-      .finally(() => {
-        setGoogleLoading(false);
+      .catch(() => {
+        if (live) setError("Google sign-up failed. Please try again.");
       });
-  };
+    return () => {
+      live = false;
+    };
+  }, [router]);
 
   return (
     <AuthShell>
