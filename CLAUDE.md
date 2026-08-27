@@ -53,6 +53,25 @@ Agents are read-mostly reviewers (`reviewer`, `security-reviewer`) or can edit
 (`implementer`, `debugger`, `frontend`, `integrator`). Run reviewers to find,
 then fix (yourself or via `implementer`/`debugger`), then re-verify.
 
+**Persist their output.** Read-only reviewers can't write to `loop/` themselves —
+they return findings + a `learnings` array as text. When you dispatch them
+_inline_ (not via the orchestrator), **you** are the dispatcher: append their
+learnings to `loop/learnings.jsonl` and, for a substantial change, drop their
+handoff JSON in `loop/handoffs/`. Otherwise the learning loop silently loses the
+finding (see `skills/closed-loop/learning-loop.md`).
+
+## ⚠️ Standing rule — git & push workflow
+
+- **Remote:** push only to the **`building-blocks`** remote
+  (`git@github.com:leeran7/building-blocks.git`). **Never** push to `origin` — it
+  points at a different repo (`closed-loop-agents`).
+- **Branch:** this project is trunk-based — commit and push straight to **`main`**.
+  Do **not** open feature branches or PRs by default. If work happened on a branch,
+  fast-forward main first (`git checkout main && git merge --ff-only <branch>`),
+  then `git push building-blocks main`.
+- Still **review before pushing** (standing rule above): review-then-push, never
+  push-then-review.
+
 ## Full agent roster
 
 **Pipeline:** product-spec → architect → implementer → verifier → reviewer → security-reviewer → qa-acceptance → integrator → release → monitor

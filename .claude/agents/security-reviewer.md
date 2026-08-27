@@ -150,9 +150,12 @@ smarter every run. See `skills/closed-loop/learning-loop.md`.
    Typical for you: ping architect when a contract shape invites a vulnerability and
    ping implementer with the exact guard. A recurring vuln class becomes a `pitfall`
    that must never re-ship.
-3. **RECORD** at handoff: append each new learning (one line) to
-   `loop/learnings.jsonl`. Always record at least one line, even if only a `metric`.
-   Never duplicate an existing lesson — bump its confidence instead.
+3. **RECORD** at handoff: you are read-only (no Write tool; Bash-writes may be
+   sandboxed), so you cannot append to the ledger yourself. Put every new learning
+   in your handoff `learnings` array **and** your final message. The dispatcher —
+   the orchestrator retro, or the caller when you are run inline — appends them to
+   `loop/learnings.jsonl` on your behalf. Always surface at least one, even if only
+   a `metric`; never duplicate an existing lesson (say "bump confidence" instead).
 
 ## Hard rules
 
