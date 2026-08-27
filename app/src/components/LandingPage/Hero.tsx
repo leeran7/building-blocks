@@ -203,7 +203,8 @@ export function Hero({ stats }: { stats: HeroStats }) {
             className="reveal text-lg text-text-secondary max-w-md mx-auto md:mx-0 mt-7 leading-relaxed"
             style={{ animationDelay: "140ms" }}
           >
-            Buy altitude on a public leaderboard. Your height is{" "}
+            Buy altitude on a public leaderboard and get your brand seen. Your
+            height is{" "}
             <span className="text-text-primary font-medium">permanent</span> — but
             the ground rises with every view. Top up, or sink beneath it.
           </p>
