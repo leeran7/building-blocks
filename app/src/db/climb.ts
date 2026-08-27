@@ -9,7 +9,7 @@
  */
 
 import { prisma } from "./client";
-import { climberHandle } from "../lib/handle";
+import { climberDisplay } from "../lib/handle";
 
 export interface ClimbResultInput {
   userId: string;
@@ -32,6 +32,8 @@ export interface ClimbRecordResult extends PeakDecision {
   rank: number;
   /** Total ranked climbers in the category. */
   totalClimbers: number;
+  /** The name to show for this climber (profile name, else pseudonym). */
+  handle: string;
 }
 
 /**
@@ -101,14 +103,24 @@ export async function recordClimb(
 
   // Rank on the category board: 1 + the number of players strictly above you.
   // (Ties share a rank.) Computed after the upsert so it reflects this run.
-  const [above, totalClimbers] = await Promise.all([
+  const [above, totalClimbers, player] = await Promise.all([
     prisma.climbRecord.count({
       where: { category_slug: input.categorySlug, peak_y: { gt: newBest } },
     }),
     prisma.climbRecord.count({ where: { category_slug: input.categorySlug } }),
+    prisma.user.findUnique({
+      where: { id: input.userId },
+      select: { display_name: true },
+    }),
   ]);
 
-  return { peakY: newBest, improved, rank: above + 1, totalClimbers };
+  return {
+    peakY: newBest,
+    improved,
+    rank: above + 1,
+    totalClimbers,
+    handle: climberDisplay(input.userId, player?.display_name),
+  };
 }
 
 export interface ClimberRank {
@@ -134,12 +146,17 @@ export async function topClimbers(
     where: { category_slug: categorySlug },
     orderBy: [{ peak_y: "desc" }, { updated_at: "asc" }],
     take: limit,
-    select: { userId: true, peak_y: true, wins: true },
+    select: {
+      userId: true,
+      peak_y: true,
+      wins: true,
+      user: { select: { display_name: true } },
+    },
   });
   return rows.map((r, i) => ({
     rank: i + 1,
     userId: r.userId,
-    handle: climberHandle(r.userId),
+    handle: climberDisplay(r.userId, r.user.display_name),
     peakY: r.peak_y,
     wins: r.wins,
   }));
@@ -170,12 +187,18 @@ export async function topClimbersGlobal(limit = 8): Promise<GlobalClimberRank[]>
   const rows = await prisma.climbRecord.findMany({
     orderBy: [{ peak_y: "desc" }, { updated_at: "asc" }],
     take: limit,
-    select: { userId: true, peak_y: true, wins: true, category_slug: true },
+    select: {
+      userId: true,
+      peak_y: true,
+      wins: true,
+      category_slug: true,
+      user: { select: { display_name: true } },
+    },
   });
   return rows.map((r, i) => ({
     rank: i + 1,
     userId: r.userId,
-    handle: climberHandle(r.userId),
+    handle: climberDisplay(r.userId, r.user.display_name),
     peakY: r.peak_y,
     wins: r.wins,
     categorySlug: r.category_slug,

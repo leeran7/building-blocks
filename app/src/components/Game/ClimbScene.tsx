@@ -32,6 +32,8 @@ interface SaveInfo {
   improved?: boolean;
   rank?: number;
   totalClimbers?: number;
+  /** Name to show for the climber (profile name, else pseudonym). */
+  handle?: string;
 }
 
 // A finished run stashed here survives the navigation to sign-in and back, so a
@@ -96,6 +98,7 @@ export function ClimbScene({ tower, categoryLabel }: ClimbSceneProps) {
             rank: typeof res.rank === "number" ? res.rank : undefined,
             totalClimbers:
               typeof res.totalClimbers === "number" ? res.totalClimbers : undefined,
+            handle: typeof res.handle === "string" ? res.handle : undefined,
           }
         : { saved: false };
     },
@@ -239,7 +242,7 @@ export function ClimbScene({ tower, categoryLabel }: ClimbSceneProps) {
                   </p>
                   <p className="text-xs text-text-muted">
                     {saveInfo.improved ? "new personal best · " : ""}
-                    {climberHandle(user.uid)}
+                    {saveInfo.handle ?? climberHandle(user.uid)}
                   </p>
                 </div>
               ) : (

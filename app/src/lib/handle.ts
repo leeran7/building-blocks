@@ -35,3 +35,14 @@ export function climberHandle(id: string): string {
   const num = (h >>> 16) % 100;
   return `${adj} ${animal} ${num}`;
 }
+
+/**
+ * The name to show for a climber. If they've set a profile display name we use
+ * it; otherwise we fall back to the deterministic pseudonym. Either way we never
+ * expose the email. Keep this the single source of truth for "what do we call
+ * this climber" so the leaderboard and post-climb readout always agree.
+ */
+export function climberDisplay(id: string, displayName?: string | null): string {
+  const trimmed = displayName?.trim();
+  return trimmed ? trimmed : climberHandle(id);
+}

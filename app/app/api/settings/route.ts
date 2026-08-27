@@ -12,6 +12,8 @@ import { ensureUser } from "../../../src/db/user";
 import { getUserSettings, updateUserSettings } from "../../../src/db/settings";
 import { validateUrl } from "../../../src/lib/validateUrl";
 import { checkRateLimit } from "../../../src/lib/rateLimit";
+import { sanitizeDisplayName } from "../../../src/lib/sanitizeName";
+import { isHatefulName } from "../../../src/lib/nameModeration";
 
 export const runtime = "nodejs";
 
@@ -85,10 +87,26 @@ export async function PUT(request: NextRequest): Promise<NextResponse> {
     if (body.displayName !== null && typeof body.displayName !== "string") {
       return NextResponse.json({ error: "Invalid display name" }, { status: 400 });
     }
-    patch.displayName =
-      typeof body.displayName === "string"
-        ? body.displayName.slice(0, MAX_NAME)
-        : null;
+    // Sanitise before length-capping: the display name is now shown publicly on
+    // the leaderboard, so strip invisible / bidi-spoofing characters and
+    // normalise whitespace. Cap after cleaning so the 60-char budget reflects
+    // visible characters. Empty-after-clean becomes null (falls back to the
+    // pseudonym).
+    if (typeof body.displayName === "string") {
+      const clean = sanitizeDisplayName(body.displayName).slice(0, MAX_NAME);
+      // Reject racist / hateful names before they can reach the public
+      // leaderboard. Checked on the cleaned string so evasion via invisible
+      // chars is already stripped. Generic message — don't echo the term back.
+      if (clean && isHatefulName(clean)) {
+        return NextResponse.json(
+          { error: "That display name isn’t allowed." },
+          { status: 400 }
+        );
+      }
+      patch.displayName = clean || null;
+    } else {
+      patch.displayName = null;
+    }
   }
 
   if (body.urls !== undefined) {
@@ -126,6 +144,19 @@ export async function PUT(request: NextRequest): Promise<NextResponse> {
       });
     }
     const settings = await updateUserSettings(decoded.uid, patch);
+    // Audit trail for display-name changes: the name is public and
+    // impersonation-capable, so keep it traceable. Log uid + timestamp only —
+    // never the raw value, to avoid logging PII.
+    if (patch.displayName !== undefined) {
+      console.info(
+        JSON.stringify({
+          type: "display_name_changed",
+          uid: decoded.uid,
+          cleared: patch.displayName === null,
+          timestamp: new Date().toISOString(),
+        })
+      );
+    }
     return NextResponse.json(settings);
   } catch (err) {
     console.error("[PUT /api/settings]", err);

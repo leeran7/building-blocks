@@ -22,6 +22,8 @@ import { requireAuth, AuthError } from "../../../src/lib/requireAuth";
 import { computeRate } from "../../../src/engine/index";
 import { loadConstants } from "../../../src/engine/constants";
 import { validateUrl } from "../../../src/lib/validateUrl";
+import { sanitizeDisplayName } from "../../../src/lib/sanitizeName";
+import { isHatefulName } from "../../../src/lib/nameModeration";
 import { uniqueSlug } from "../../../src/lib/slugify";
 import { getStripe } from "../../../src/api/stripe";
 import { resolveBaseUrl } from "../../../src/config/public";
@@ -40,17 +42,21 @@ function normalizeCategorySlug(raw: string | undefined): string {
   return /^[a-z0-9][a-z0-9-]{0,63}$/.test(slug) ? slug : "tech";
 }
 
-// Strip control characters and Unicode bidi-override chars to prevent log injection
-// and link-spoofing attacks (CWE-117).
-function sanitizeDisplayName(raw: string): string {
-  // biome-ignore lint: intentional control-char strip
-  return raw.replace(/[\x00-\x1F\x7F]/g, "").normalize("NFC").trim();
-}
-
 const NewListingSchema = z.object({
   type: z.literal("new"),
   url: z.string().min(1),
-  display_name: z.string().min(1).max(100).transform(sanitizeDisplayName),
+  // A block name is public (tower + record pages). Share the sanitiser used for
+  // profile names (strips control / zero-width / bidi-spoof chars, CWE-117), then
+  // require a non-empty result and reject racist / hateful names.
+  display_name: z
+    .string()
+    .min(1)
+    .max(100)
+    .transform(sanitizeDisplayName)
+    .refine((n) => n.length > 0, { message: "Display name is required" })
+    .refine((n) => !isHatefulName(n), {
+      message: "That display name isn’t allowed.",
+    }),
   owner_email: z.string().email(),
   category: z.string().optional(),
   amount_usd: z.number().positive(),

@@ -4,7 +4,7 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { climberHandle } from "../../src/lib/handle";
+import { climberHandle, climberDisplay } from "../../src/lib/handle";
 
 describe("climberHandle", () => {
   it("is deterministic for the same id", () => {
@@ -26,5 +26,23 @@ describe("climberHandle", () => {
       Array.from({ length: 50 }, (_, i) => climberHandle(`user-${i}`))
     );
     expect(handles.size).toBeGreaterThan(10);
+  });
+});
+
+describe("climberDisplay", () => {
+  it("uses the profile display name when set", () => {
+    expect(climberDisplay("uid-1", "Acme Labs")).toBe("Acme Labs");
+  });
+
+  it("trims the display name", () => {
+    expect(climberDisplay("uid-1", "  Acme Labs  ")).toBe("Acme Labs");
+  });
+
+  it("falls back to the pseudonym when the name is missing or blank", () => {
+    const fallback = climberHandle("uid-1");
+    expect(climberDisplay("uid-1")).toBe(fallback);
+    expect(climberDisplay("uid-1", null)).toBe(fallback);
+    expect(climberDisplay("uid-1", "")).toBe(fallback);
+    expect(climberDisplay("uid-1", "   ")).toBe(fallback);
   });
 });
