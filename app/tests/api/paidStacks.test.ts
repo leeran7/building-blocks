@@ -98,8 +98,12 @@ describe("webhook prices metres from the block's stack", () => {
     expect(src).toContain("parseSeasonSlug");
     expect(src).not.toMatch(/:\s*"tech"/);
     expect(src).toContain("getRankedBlocks(category");
-    expect(src).toContain("Unknown stack");
-    expect(src).toContain("status: 500");
+    // An unparseable stack must still refuse to settle at V = 0. It used to
+    // return 500, which Stripe retries — and since the condition is
+    // deterministic in our own data, every retry failed identically until
+    // Stripe gave up, losing a captured payment. Now dead-lettered.
+    expect(src).toContain("unparseable stack");
+    expect(src).toContain("deadLetter");
   });
 });
 

@@ -23,6 +23,19 @@ import { parseSeasonSlug } from "../../../../src/game/categories";
 // Disable body parsing — need raw body for Stripe signature verification
 export const runtime = "nodejs";
 
+/**
+ * Events that can grant altitude. async_payment_succeeded is the settlement
+ * signal for delayed-notification methods, whose checkout.session.completed
+ * arrives unpaid.
+ */
+const CREDITING_EVENTS = new Set([
+  "checkout.session.completed",
+  "checkout.session.async_payment_succeeded",
+]);
+
+/** Session payment states that mean the money is actually ours. */
+const PAID_STATUSES = new Set(["paid", "no_payment_required"]);
+
 export async function POST(request: NextRequest): Promise<NextResponse> {
   let rawBody: string;
   try {
@@ -52,8 +65,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     );
   }
 
-  // Only handle checkout.session.completed
-  if (event.type !== "checkout.session.completed") {
+  if (!CREDITING_EVENTS.has(event.type)) {
     return NextResponse.json({ received: true });
   }
 
@@ -61,15 +73,34 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     id: string;
     metadata: { block_id: string; season_id: string; category?: string } | null;
     amount_total: number | null;
+    payment_status?: string | null;
   };
 
   const stripeSessionId = session.id;
   const blockId = session.metadata?.block_id;
   const amountTotal = session.amount_total ?? 0;
 
+  // Money must have actually moved. checkout.session.completed fires as soon as
+  // the customer finishes the flow, and for a delayed-notification method
+  // (bank debits, some wallets) that happens with payment_status "unpaid" —
+  // settlement can still fail days later. Which methods are enabled is a
+  // Stripe Dashboard setting when payment_method_types is omitted at session
+  // creation, as it is in app/api/checkout, so this cannot be ruled out from
+  // the repo. Credit is granted on the later async_payment_succeeded instead.
+  if (!PAID_STATUSES.has(session.payment_status ?? "")) {
+    console.log(
+      JSON.stringify({
+        type: "payment_webhook_unpaid",
+        stripe_session_id: stripeSessionId,
+        payment_status: session.payment_status ?? null,
+        event: event.type,
+      })
+    );
+    return NextResponse.json({ received: true, credited: false });
+  }
+
   if (!blockId) {
-    console.error("[webhook/stripe] Missing block_id in metadata:", session.id);
-    return NextResponse.json({ error: "Missing block_id" }, { status: 400 });
+    return deadLetter(event.type, stripeSessionId, amountTotal, "missing block_id");
   }
 
   // Step 2: Idempotency check — check for existing payment BEFORE any write (AC-32)
@@ -80,8 +111,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   const blockRow = await getBlockById(blockId);
   if (!blockRow) {
-    console.error("[webhook/stripe] Unknown block_id in metadata:", session.id);
-    return NextResponse.json({ error: "Unknown block_id" }, { status: 400 });
+    return deadLetter(
+      event.type,
+      stripeSessionId,
+      amountTotal,
+      `unknown block_id ${blockId}`
+    );
   }
 
   // Season comes from the block row, not checkout metadata.
@@ -90,13 +125,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     parseSeasonSlug(session.metadata?.category);
 
   if (!category) {
-    console.error(
-      "[webhook/stripe] Unparseable stack on block; refusing V=0 settlement:",
-      session.id
-    );
-    return NextResponse.json(
-      { error: "Unknown stack" },
-      { status: 500 }
+    return deadLetter(
+      event.type,
+      stripeSessionId,
+      amountTotal,
+      `unparseable stack "${blockRow.category}" on block ${blockId}`
     );
   }
 
@@ -146,10 +179,42 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     return NextResponse.json({ received: true });
   } catch (error) {
+    // 500 is correct here and only here: a failed transaction is plausibly
+    // transient (database unavailable, lock timeout), so Stripe's retry is
+    // exactly what we want. The deterministic failures above cannot benefit
+    // from a retry and are dead-lettered instead.
     console.error("[webhook/stripe] Transaction failed:", error);
     return NextResponse.json(
       { error: "Payment processing failed" },
       { status: 500 }
     );
   }
+}
+
+/**
+ * Record a captured payment we cannot attribute, and tell Stripe to stop.
+ *
+ * Returning 4xx or 5xx for these is worse in both directions: Stripe does not
+ * retry a 4xx, so the payment is silently lost, and a 5xx for a condition that
+ * is deterministic in our own data fails identically on every retry until
+ * Stripe gives up — losing it anyway, slower, after alert noise. The event is
+ * logged in a greppable shape so it can be replayed by hand, and acknowledged.
+ */
+function deadLetter(
+  eventType: string,
+  stripeSessionId: string,
+  amountCents: number,
+  reason: string
+): NextResponse {
+  console.error(
+    JSON.stringify({
+      type: "payment_webhook_dead_letter",
+      event: eventType,
+      stripe_session_id: stripeSessionId,
+      amount_cents: amountCents,
+      reason,
+      timestamp: new Date().toISOString(),
+    })
+  );
+  return NextResponse.json({ received: true, dead_lettered: true });
 }
