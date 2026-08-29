@@ -24,9 +24,9 @@ interface AutomationSettings {
 }
 
 const PLATFORM_CONNECT: Record<string, string> = {
-  TIKTOK: "/api/social/accounts/tiktok/connect",
-  X: "/api/social/accounts/x/connect",
-  YOUTUBE: "/api/social/accounts/youtube/connect",
+  TIKTOK: "/api/social/accounts/oauth/tiktok/connect",
+  X: "/api/social/accounts/oauth/x/connect",
+  YOUTUBE: "/api/social/accounts/oauth/youtube/connect",
 };
 
 export default function SettingsPage() {

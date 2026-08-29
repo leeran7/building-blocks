@@ -1,5 +1,5 @@
 /**
- * POST /api/social/accounts/:platform/connect — starts the official OAuth
+ * POST /api/social/accounts/oauth/:platform/connect — starts the official OAuth
  * flow for a platform (§4.2). Returns an `authorizeUrl` the browser must
  * navigate to directly (never fetched via XHR/fetch, since TikTok/X/YouTube
  * expect a real top-level navigation for their consent screens).
@@ -12,11 +12,11 @@ import {
   jsonError,
   enforceRateLimit,
   safeSocialAdminRedirect,
-} from "../../../../../../src/api/social/routeHelpers";
-import { issueOAuthState } from "../../../../../../src/social/oauth/oauthState";
-import { getProvider } from "../../../../../../src/social/providers/registry";
-import { SOCIAL_PLATFORMS } from "../../../../../../src/social/types";
-import type { SocialPlatform } from "../../../../../../src/social/types";
+} from "../../../../../../../src/api/social/routeHelpers";
+import { issueOAuthState } from "../../../../../../../src/social/oauth/oauthState";
+import { getProvider } from "../../../../../../../src/social/providers/registry";
+import { SOCIAL_PLATFORMS } from "../../../../../../../src/social/types";
+import type { SocialPlatform } from "../../../../../../../src/social/types";
 
 export const runtime = "nodejs";
 

@@ -1,19 +1,19 @@
 /**
- * GET /api/social/accounts/:platform/callback — OAuth redirect target
+ * GET /api/social/accounts/oauth/:platform/callback — OAuth redirect target
  * (§4.2). Auth: none — trust is established entirely by the server-issued,
  * single-use `state` value (AC-6/AC-7). An invalid/expired/mismatched
  * state creates or updates NOTHING and redirects to an error page.
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { checkRateLimit, clientIp } from "../../../../../../src/lib/rateLimit";
-import { safeSocialAdminRedirect } from "../../../../../../src/api/social/routeHelpers";
-import { verifyAndConsumeOAuthState } from "../../../../../../src/social/oauth/oauthState";
-import { getProvider } from "../../../../../../src/social/providers/registry";
-import { upsertSocialAccount } from "../../../../../../src/db/social/socialAccounts";
-import { writeAuditLog } from "../../../../../../src/db/social/auditLog";
-import { SOCIAL_PLATFORMS } from "../../../../../../src/social/types";
-import type { SocialPlatform } from "../../../../../../src/social/types";
+import { checkRateLimit, clientIp } from "../../../../../../../src/lib/rateLimit";
+import { safeSocialAdminRedirect } from "../../../../../../../src/api/social/routeHelpers";
+import { verifyAndConsumeOAuthState } from "../../../../../../../src/social/oauth/oauthState";
+import { getProvider } from "../../../../../../../src/social/providers/registry";
+import { upsertSocialAccount } from "../../../../../../../src/db/social/socialAccounts";
+import { writeAuditLog } from "../../../../../../../src/db/social/auditLog";
+import { SOCIAL_PLATFORMS } from "../../../../../../../src/social/types";
+import type { SocialPlatform } from "../../../../../../../src/social/types";
 
 export const runtime = "nodejs";
 
