@@ -46,12 +46,12 @@ export const DEFAULT_HAZARD_CONFIG: HazardConfig = {
   graceSeconds: 4,
   // The tower is endless, so the lava must eventually OUTPACE the climb to
   // guarantee every run ends (peak height = score). After the grace it opens at
-  // 50% of the climb speed and accelerates to 1.15× over ~60s — past that even a
+  // 50% of the climb speed and accelerates to 1.15× over ~90s — past that even a
   // perfect vertical climber cannot keep up, and traverses/jumps make it bite
   // sooner. Tuned so dawdling is punished but the opening is always fair.
   startSpeedFrac: 0.5,
   endSpeedFrac: 1.15,
-  rampSeconds: 60,
+  rampSeconds: 90,
   speedScale: 1,
 };
 

@@ -9,7 +9,7 @@
  *   super-jump    skip a ladder detour entirely with one big launch
  *   time-slow     the lava eventually outpaces any climber; buy back seconds
  *
- * BALANCE. The hazard passes 1.0x climb speed at ~48s and holds at 1.15x, so an
+ * BALANCE. The hazard passes 1.0x climb speed at ~73s and holds at 1.15x, so an
  * unaided run is hard-capped no matter how well it is played. Power-ups are
  * what push past that cap, and they are deliberately shaped so the ceiling is
  * raised by PLAYING WELL rather than by collecting:
