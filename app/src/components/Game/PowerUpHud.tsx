@@ -3,10 +3,10 @@
 /**
  * Power-up status strip: what is running, how long is left, and a sound toggle.
  *
- * The canvas already shows the banked power-up and an aura per live effect; this
- * adds the precise remaining time, which a pulsing ring cannot convey, and gives
- * the whole feature real text for screen readers and for anyone who finds the
- * glyphs alone ambiguous.
+ * The canvas already shows an aura per live effect; this adds the precise
+ * remaining time, which a pulsing ring cannot convey, and gives the whole
+ * feature real text for screen readers and for anyone who finds the glyphs
+ * alone ambiguous.
  *
  * Layout is deliberately rigid: the strip sits ABOVE the canvas, whose height
  * budget is measured from its own top edge downward, so any growth here moves
@@ -14,7 +14,7 @@
  * so chips appearing and expiring mid-climb can never resize the play area.
  */
 
-import { POWER_UP_SPECS, cooldownRemaining, isExpired } from "../../game/powerups";
+import { POWER_UP_SPECS, isExpired } from "../../game/powerups";
 import { TICK_HZ, type PlayerState } from "../../game/types";
 
 export function PowerUpHud({
@@ -42,29 +42,9 @@ export function PowerUpHud({
       };
     });
 
-  const held = player?.heldPowerUp ? POWER_UP_SPECS[player.heldPowerUp] : null;
-  // A banked power-up that will not fire looks broken unless the wait is shown.
-  const heldCooldown =
-    player && player.heldPowerUp
-      ? cooldownRemaining(player, player.heldPowerUp, tick) / TICK_HZ
-      : 0;
-
   return (
     <div className="flex w-full h-[46px] items-center gap-2">
       <div className="flex min-w-0 flex-1 flex-nowrap items-center gap-1.5 overflow-x-auto">
-        {held && (
-          <span
-            className="inline-flex flex-shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.12em]"
-            style={{ borderColor: `${held.color}66`, color: held.color }}
-          >
-            <span aria-hidden="true">{held.glyph}</span>
-            {held.label}
-            <span className="text-text-muted tabular-nums">
-              {heldCooldown > 0 ? `recharging ${heldCooldown.toFixed(1)}s` : "ready"}
-            </span>
-          </span>
-        )}
-
         {active.map((a) => (
           <span
             key={a.type}
@@ -85,9 +65,9 @@ export function PowerUpHud({
           </span>
         ))}
 
-        {!held && active.length === 0 && (
+        {active.length === 0 && (
           <span className="whitespace-nowrap font-mono text-[10px] uppercase tracking-[0.12em] text-text-muted">
-            no power-up held
+            climbing — grab a glowing orb
           </span>
         )}
       </div>

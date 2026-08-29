@@ -9,7 +9,9 @@
  * canvas off-screen: the ear should tell you what you grabbed.
  *
  * Nothing here touches the simulation — it is driven off the render-only
- * `lastPickupTick` / `lastActivationTick` markers the sim stamps on the player.
+ * `lastPickupTick` / `lastPickupType` markers the sim stamps on the player.
+ * Pickup now IS activation (power-ups fire the instant they're collected), so
+ * that one marker covers both the "pickup" and "activate" cues.
  *
  * Autoplay: browsers refuse an AudioContext until a user gesture, so the
  * context is created lazily on the first cue (which always follows the Start
@@ -115,7 +117,8 @@ export class PowerUpAudio {
     this.master = null;
   }
 
-  play(cue: Cue, type: PowerUpType): void {
+  /** @param delaySeconds Offsets this cue's start — lets a caller sequence two cues rather than layering them. */
+  play(cue: Cue, type: PowerUpType, delaySeconds = 0): void {
     if (this.muted) return;
     const ctx = this.ensureContext();
     if (!ctx || !this.master) return;
@@ -125,7 +128,7 @@ export class PowerUpAudio {
         : cue === "activate"
         ? ACTIVATE[type]
         : EXPIRE;
-    const now = ctx.currentTime;
+    const now = ctx.currentTime + delaySeconds;
     for (const n of notes) this.playNote(ctx, this.master, n, now);
   }
 

@@ -142,24 +142,16 @@ describe("spawning: deterministic, reachable, and denser with altitude", () => {
   });
 });
 
-describe("collection: one slot, replaced by the next orb", () => {
-  it("banks an orb the climber walks into", () => {
+describe("pickup: touching an orb auto-activates it immediately", () => {
+  it("activates on the same tick the climber walks into the orb", () => {
     const m = climbingMatch();
     const p = m.players[0];
     placeOrb(m, "rapid-climb", p.x + 1, p.y);
     stepMatch(m, { p1: move(1) }, SLOW);
-    expect(p.heldPowerUp).toBe("rapid-climb");
+    expect(isPowerUpActive(p, "rapid-climb", m.tick)).toBe(true);
     expect(m.powerUps[0].collected).toBe(true);
+    expect(p.lastPickupTick).toBe(m.tick);
     expect(p.lastPickupType).toBe("rapid-climb");
-  });
-
-  it("replaces the banked orb rather than dropping the new one", () => {
-    const m = climbingMatch();
-    const p = m.players[0];
-    p.heldPowerUp = "time-slow";
-    placeOrb(m, "super-jump", p.x, p.y);
-    stepMatch(m, { p1: NO_INPUT }, SLOW);
-    expect(p.heldPowerUp).toBe("super-jump");
   });
 
   it("collects an orb only once", () => {
@@ -167,9 +159,10 @@ describe("collection: one slot, replaced by the next orb", () => {
     const p = m.players[0];
     placeOrb(m, "sprint-burst", p.x, p.y);
     stepMatch(m, { p1: NO_INPUT }, SLOW);
-    p.heldPowerUp = null;
-    stepMatch(m, { p1: NO_INPUT }, SLOW);
-    expect(p.heldPowerUp).toBeNull();
+    const tickAfterFirst = p.lastPickupTick;
+    stepMatch(m, { p1: NO_INPUT }, SLOW); // still standing on the same spot
+    expect(p.lastPickupTick).toBe(tickAfterFirst);
+    expect(m.powerUps[0].collected).toBe(true);
   });
 
   it("ignores an orb the climber is not touching", () => {
@@ -177,47 +170,60 @@ describe("collection: one slot, replaced by the next orb", () => {
     const p = m.players[0];
     placeOrb(m, "rapid-climb", p.x + 40, p.y);
     stepMatch(m, { p1: NO_INPUT }, SLOW);
-    expect(p.heldPowerUp).toBeNull();
+    expect(p.lastPickupTick).toBeNull();
+    expect(m.powerUps[0].collected).toBe(false);
   });
-});
 
-describe("activation: edge-triggered, and only what you hold", () => {
-  it("activates on the rising edge and empties the slot", () => {
+  it("stacks two different orbs picked up back-to-back, both active at once", () => {
     const m = climbingMatch();
     const p = m.players[0];
-    p.heldPowerUp = "rapid-climb";
-    stepMatch(m, { p1: usePower() }, SLOW);
-    expect(p.heldPowerUp).toBeNull();
+    placeOrb(m, "rapid-climb", p.x, p.y);
+    stepMatch(m, { p1: NO_INPUT }, SLOW);
+    expect(isPowerUpActive(p, "rapid-climb", m.tick)).toBe(true);
+
+    placeOrb(m, "sprint-burst", p.x, p.y);
+    stepMatch(m, { p1: NO_INPUT }, SLOW);
+    expect(isPowerUpActive(p, "sprint-burst", m.tick)).toBe(true);
+    // The first pickup is still running — no held slot to be replaced.
     expect(isPowerUpActive(p, "rapid-climb", m.tick)).toBe(true);
   });
 
-  it("does not re-fire while the use button stays held", () => {
+  it("skips an orb whose type is still on cooldown, and collects it once the cooldown clears", () => {
     const m = climbingMatch();
     const p = m.players[0];
-    p.heldPowerUp = "rapid-climb";
-    stepMatch(m, { p1: usePower() }, SLOW);
-    p.heldPowerUp = "sprint-burst";
-    stepMatch(m, { p1: usePower() }, SLOW); // still held down
-    expect(p.heldPowerUp).toBe("sprint-burst");
-    // Releasing and pressing again spends it.
+    placeOrb(m, "time-slow", p.x, p.y);
     stepMatch(m, { p1: NO_INPUT }, SLOW);
-    stepMatch(m, { p1: usePower() }, SLOW);
-    expect(p.heldPowerUp).toBeNull();
-  });
+    expect(isPowerUpActive(p, "time-slow", m.tick)).toBe(true);
 
-  it("does nothing when the slot is empty", () => {
-    const m = climbingMatch();
-    const p = m.players[0];
-    stepMatch(m, { p1: usePower() }, SLOW);
-    expect(p.activePowerUps).toHaveLength(0);
+    // A second orb sitting right on top of the player while the first is still
+    // cooling down must NOT be collected.
+    placeOrb(m, "time-slow", p.x, p.y);
+    stepMatch(m, { p1: NO_INPUT }, SLOW);
+    expect(m.powerUps[1].collected).toBe(false);
+    expect(m.powerUps[1].collectedTick).toBeNull();
+    const lastPickupBeforeClear = p.lastPickupTick;
+
+    // Remove the skipped orb so it can't be auto-collected mid-wait the instant
+    // the cooldown clears — that path is covered by the "becomes usable again"
+    // test below; this one isolates the skip-then-fresh-pickup behavior.
+    m.powerUps = m.powerUps.filter((pu) => pu.collected);
+    const wait = durationTicks("time-slow") + cooldownTicks("time-slow");
+    for (let i = 0; i < wait; i++) stepMatch(m, { p1: NO_INPUT }, SLOW);
+    expect(p.lastPickupTick).toBe(lastPickupBeforeClear); // still untouched
+
+    // A fresh orb, placed now that the cooldown has cleared: collectable.
+    placeOrb(m, "time-slow", p.x, p.y);
+    stepMatch(m, { p1: NO_INPUT }, SLOW);
+    expect(m.powerUps[m.powerUps.length - 1].collected).toBe(true);
+    expect(isPowerUpActive(p, "time-slow", m.tick)).toBe(true);
   });
 
   it("expires each effect after its advertised duration", () => {
     for (const type of POWER_UP_TYPES) {
       const m = climbingMatch();
       const p = m.players[0];
-      p.heldPowerUp = type;
-      stepMatch(m, { p1: usePower() }, SLOW);
+      placeOrb(m, type, p.x, p.y);
+      stepMatch(m, { p1: NO_INPUT }, SLOW);
       expect(isPowerUpActive(p, type, m.tick)).toBe(true);
 
       const ticks = durationTicks(type);
@@ -253,8 +259,8 @@ describe("effects: each power-up does what its label claims", () => {
   it("double-jump grants two extra airborne jumps", () => {
     const m = climbingMatch();
     const p = m.players[0];
-    p.heldPowerUp = "double-jump";
-    stepMatch(m, { p1: usePower() }, SLOW);
+    placeOrb(m, "double-jump", p.x, p.y);
+    stepMatch(m, { p1: NO_INPUT }, SLOW);
 
     stepMatch(m, { p1: move(0, true) }, SLOW); // ground launch
     expect(p.onGround).toBe(false);
@@ -279,8 +285,8 @@ describe("effects: each power-up does what its label claims", () => {
   it("does not let a held jump key burn the double-jump charge", () => {
     const m = climbingMatch();
     const p = m.players[0];
-    p.heldPowerUp = "double-jump";
-    stepMatch(m, { p1: usePower() }, SLOW);
+    placeOrb(m, "double-jump", p.x, p.y);
+    stepMatch(m, { p1: NO_INPUT }, SLOW);
     // Jump held down continuously from the ground.
     stepMatch(m, { p1: move(0, true) }, SLOW);
     for (let i = 0; i < 6; i++) stepMatch(m, { p1: move(0, true) }, SLOW);
@@ -343,7 +349,12 @@ describe("anti-cheat: power-ups widen the rules only as far as they should", () 
 
   it("still rejects a climb input with no ladder under the player", () => {
     const p = airborne();
-    p.heldPowerUp = "rapid-climb";
+    p.activePowerUps.push({
+      type: "rapid-climb",
+      startTick: 0,
+      durationTicks: durationTicks("rapid-climb"),
+      used: false,
+    });
     const v = validateInput({ moveX: 0, jump: false, climbY: 1, usePowerUp: false }, p, 0);
     expect(v.rejected).toBe(true);
     expect(v.input.climbY).toBe(0);
@@ -351,7 +362,7 @@ describe("anti-cheat: power-ups widen the rules only as far as they should", () 
 });
 
 describe("AC-11: power-ups keep the simulation deterministic", () => {
-  it("replays a run whose input log presses the power-up button", () => {
+  it("replays a run deterministically with power-up pickups along the way", () => {
     const init = {
       seed: "pu-determinism",
       mode: "solo" as const,
@@ -365,7 +376,7 @@ describe("AC-11: power-ups keep the simulation deterministic", () => {
           moveX: i % 7 === 0 ? 1 : 0,
           jump: i % 23 === 0,
           climbY: i % 3 === 0 ? 1 : 0,
-          usePowerUp: i % 31 === 0,
+          usePowerUp: false,
         },
       });
     }
@@ -374,40 +385,38 @@ describe("AC-11: power-ups keep the simulation deterministic", () => {
     expect(JSON.stringify(a)).toBe(JSON.stringify(b));
   });
 
-  it("starts every climber with an empty slot and no effects", () => {
+  it("starts every climber with no effects running", () => {
     const p = spawnPlayer("p1", 0);
-    expect(p.heldPowerUp).toBeNull();
     expect(p.activePowerUps).toEqual([]);
   });
 });
 
 describe("time-slow cooldown: the thing that keeps a run finite", () => {
-  it("banks rather than burns a press made during the cooldown", () => {
+  it("leaves an orb uncollected rather than consuming it during the cooldown", () => {
     const m = climbingMatch();
     const p = m.players[0];
-    p.heldPowerUp = "time-slow";
-    stepMatch(m, { p1: usePower() }, SLOW);
+    placeOrb(m, "time-slow", p.x, p.y);
+    stepMatch(m, { p1: NO_INPUT }, SLOW);
     expect(isPowerUpActive(p, "time-slow", m.tick)).toBe(true);
 
-    // Another one picked up while the first is still running.
-    p.heldPowerUp = "time-slow";
+    // Another one sitting on the player while the first is still running.
+    placeOrb(m, "time-slow", p.x, p.y);
     stepMatch(m, { p1: NO_INPUT }, SLOW);
-    stepMatch(m, { p1: usePower() }, SLOW);
-    expect(p.heldPowerUp).toBe("time-slow"); // kept, not consumed
+    expect(m.powerUps[1].collected).toBe(false); // left in place, not wasted
     expect(cooldownRemaining(p, "time-slow", m.tick)).toBeGreaterThan(0);
   });
 
   it("becomes usable again once the cooldown elapses", () => {
     const m = climbingMatch();
     const p = m.players[0];
-    p.heldPowerUp = "time-slow";
-    stepMatch(m, { p1: usePower() }, SLOW);
+    placeOrb(m, "time-slow", p.x, p.y);
+    stepMatch(m, { p1: NO_INPUT }, SLOW);
     const wait = durationTicks("time-slow") + cooldownTicks("time-slow");
     for (let i = 0; i < wait; i++) stepMatch(m, { p1: NO_INPUT }, SLOW);
     expect(canActivate(p, "time-slow", m.tick)).toBe(true);
 
-    p.heldPowerUp = "time-slow";
-    stepMatch(m, { p1: usePower() }, SLOW);
+    placeOrb(m, "time-slow", p.x, p.y);
+    stepMatch(m, { p1: NO_INPUT }, SLOW);
     expect(isPowerUpActive(p, "time-slow", m.tick)).toBe(true);
   });
 
@@ -481,10 +490,6 @@ function move(dir: -1 | 0 | 1, jump = false): PlayerInput {
   return { moveX: dir, jump, climbY: 0, usePowerUp: false };
 }
 
-function usePower(): PlayerInput {
-  return { moveX: 0, jump: false, climbY: 0, usePowerUp: true };
-}
-
 function placeOrb(m: MatchState, type: PowerUpType, x: number, feetY: number): void {
   m.powerUps.push({
     id: `test:${type}`,
@@ -526,10 +531,10 @@ function climbLadderFor(ticks: number, boosted: boolean): number {
   p.x = l0.x;
   p.y = 0;
   p.onGround = true;
-  if (boosted) p.heldPowerUp = "rapid-climb";
+  if (boosted) placeOrb(m, "rapid-climb", p.x, p.y);
   stepMatch(
     m,
-    { p1: { moveX: 0, jump: false, climbY: 1, usePowerUp: boosted } },
+    { p1: { moveX: 0, jump: false, climbY: 1, usePowerUp: false } },
     SLOW
   );
   const y0 = p.y;
@@ -545,8 +550,8 @@ function runFor(ticks: number, boosted: boolean): number {
   const p = m.players[0];
   p.x = 5;
   if (boosted) {
-    p.heldPowerUp = "sprint-burst";
-    stepMatch(m, { p1: { moveX: 0, jump: false, climbY: 0, usePowerUp: true } }, SLOW);
+    placeOrb(m, "sprint-burst", p.x, p.y);
+    stepMatch(m, { p1: { moveX: 0, jump: false, climbY: 0, usePowerUp: false } }, SLOW);
   }
   const x0 = p.x;
   for (let i = 0; i < ticks; i++) stepMatch(m, { p1: move(1) }, SLOW);
@@ -558,8 +563,8 @@ function jumpApex(boosted: boolean): number {
   const m = climbingMatch();
   const p = m.players[0];
   if (boosted) {
-    p.heldPowerUp = "super-jump";
-    stepMatch(m, { p1: usePower() }, SLOW);
+    placeOrb(m, "super-jump", p.x, p.y);
+    stepMatch(m, { p1: NO_INPUT }, SLOW);
   }
   stepMatch(m, { p1: move(0, true) }, SLOW);
   let apex = p.y;
@@ -587,10 +592,10 @@ function hazardTrace(slowed: boolean, alsoActivate?: PowerUpType): number[] {
   p.y = 5_000;
   p.peakY = 5_000;
   const type = slowed ? "time-slow" : alsoActivate;
-  if (type) p.heldPowerUp = type;
+  if (type) placeOrb(m, type, p.x, p.y);
   const out: number[] = [];
   for (let i = 0; i < 400; i++) {
-    stepMatch(m, { p1: i === 0 && type ? usePower() : NO_INPUT }, DEFAULT_SIM_CONFIG);
+    stepMatch(m, { p1: NO_INPUT }, DEFAULT_SIM_CONFIG);
     p.y = 5_000; // hold position; only the lava is under test
     out.push(m.hazardY);
   }
@@ -615,10 +620,11 @@ function botInput(p: PlayerState, tower: TowerSpec): PlayerInput {
 }
 
 /**
- * The greedy bot under the real hazard, handed a fresh `type` whenever its slot
- * is empty and pressing use on every rising edge. This is the best case the
- * rules permit — far beyond what the world's drop rate supplies — so it is the
- * upper bound on what power-ups can do, not a typical run.
+ * The greedy bot under the real hazard, given a fresh `type` orb to walk over
+ * (and so auto-collect on the very next step) whenever it has no live effect
+ * of that type running and no such orb already waiting for it. This is the
+ * best case the rules permit — far beyond what the world's drop rate supplies
+ * — so it is the upper bound on what power-ups can do, not a typical run.
  */
 function fedBotRun(
   type: PowerUpType | null,
@@ -638,17 +644,23 @@ function fedBotRun(
   m.powerUpFloorHi = Number.MAX_SAFE_INTEGER;
 
   let ticks = 0;
-  let pressed = false;
   // Read through a closure: comparing `m.phase` inline narrows it to "climb" for
   // the rest of the function, and stepMatch's mutation is invisible to that.
   const climbing = () => m.phase === "climb";
   while (climbing() && ticks < maxTicks) {
     const p = m.players[0];
-    if (type && !p.heldPowerUp) p.heldPowerUp = type;
-    // Alternate so the edge-trigger sees a fresh press each time.
-    const press: boolean = type !== null && p.heldPowerUp !== null && !pressed;
-    pressed = press;
-    stepMatch(m, { bot: { ...botInput(p, tower), usePowerUp: press } }, DEFAULT_SIM_CONFIG);
+    if (type) {
+      // Re-park a single orb of `type` right where the bot currently stands,
+      // every tick it isn't already running the effect and isn't cooling
+      // down, so it is walked into and auto-collected the moment the rules
+      // allow. Dropping any stale copy first keeps this from stacking orbs
+      // the bot has already walked past.
+      const canFeedNow =
+        !isPowerUpActive(p, type, m.tick) && canActivate(p, type, m.tick);
+      m.powerUps = m.powerUps.filter((pu) => pu.type !== type);
+      if (canFeedNow) placeOrb(m, type, p.x, p.y);
+    }
+    stepMatch(m, { bot: botInput(p, tower) }, DEFAULT_SIM_CONFIG);
     ticks++;
   }
   return { peak: m.players[0].peakY, finished: !climbing() };

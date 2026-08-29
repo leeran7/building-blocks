@@ -26,25 +26,19 @@ const KEYBOARD_CONTROLS = [
     keys: ["↑", "↓", "W", "S"],
     detail: "Up/down on ladders — stand on a ladder first",
   },
-  {
-    label: "Power-up",
-    keys: ["E", "Shift"],
-    detail: "Spend the power-up you're carrying",
-  },
 ] as const;
 
 const TOUCH_CONTROLS = [
   { label: "Move", detail: "Tap and hold ← → at the bottom of the screen" },
   { label: "Jump", detail: "Tap JMP to leap across gaps" },
   { label: "Climb", detail: "Hold ↑ climb when you're on a ladder" },
-  { label: "Power-up", detail: "Tap USE to spend the power-up you're carrying" },
 ] as const;
 
 const TIPS = [
   "Grab a ladder and climb to go faster than jumping floor to floor.",
   "The lava rises steadily — keep moving upward; your peak height is your score.",
-  "Walk into a glowing orb to pick up a power-up. You can only carry one, and a new orb replaces it.",
-  "Power-ups are banked, not automatic — hold one until the moment it saves you.",
+  "Walk into a glowing orb to trigger its power-up instantly.",
+  "Power-ups activate the instant you touch them — time your route to grab one right when you need it.",
   "Sign in after a run to save your rank on the free leaderboard.",
 ] as const;
 
@@ -55,15 +49,14 @@ export function ClimbControlsGuide({ variant = "card" }: { variant?: Variant }) 
     return touch ? (
       <p className="text-sm text-text-secondary leading-relaxed">
         <span className="text-text-primary font-medium">Touch controls:</span>{" "}
-        hold ← → to move · hold ↑ climb on ladders · tap JMP to jump · tap USE for
-        your power-up
+        hold ← → to move · hold ↑ climb on ladders · tap JMP to jump
       </p>
     ) : (
       <p className="text-sm text-text-secondary leading-relaxed">
         <span className="text-text-primary font-medium">Controls:</span>{" "}
         <Key>←</Key>/<Key>→</Key> or <Key>A</Key>/<Key>D</Key> move ·{" "}
         <Key>Space</Key> jump · <Key>↑</Key>/<Key>↓</Key> or <Key>W</Key>/<Key>S</Key> climb
-        ladders · <Key>E</Key> power-up
+        ladders
       </p>
     );
   }

@@ -90,15 +90,11 @@ export function spawnPlayer(id: PlayerId, slot: number): PlayerState {
     status: "climbing",
     peakY: 0,
     finishedTick: null,
-    heldPowerUp: null,
     activePowerUps: [],
     cooldownUntilTick: {},
     lastPickupTick: null,
     lastPickupType: null,
-    lastActivationTick: null,
-    lastActivationType: null,
     jumpHeldPrev: false,
-    usePowerUpHeldPrev: false,
   };
 }
 
@@ -378,44 +374,30 @@ export function stepMatch(
 
     const input = inputs[p.id] ?? NO_INPUT;
 
-    // 2. Spend the banked power-up on the rising edge of the use button. A type
-    //    still cooling down stays banked rather than being consumed, so a press
-    //    during a cooldown costs the player nothing.
-    if (
-      input.usePowerUp &&
-      !p.usePowerUpHeldPrev &&
-      p.heldPowerUp &&
-      canActivate(p, p.heldPowerUp, state.tick)
-    ) {
-      const type = p.heldPowerUp;
-      const dur = durationTicks(type);
+    // 2. Integrate motion from validated input.
+    integratePlayer(p, input, state.tower, state.tick);
+
+    // 3. Auto-activate any orb the climber is now touching, on contact — no
+    //    banking, no use button. An orb whose type is still cooling down (only
+    //    time-slow ever sets one) is left uncollected so it stays pickable once
+    //    the cooldown clears, rather than being wasted or bypassing the rule.
+    for (const pu of state.powerUps) {
+      if (pu.collected) continue;
+      if (!overlapsPickup(pu, p.x, p.y)) continue;
+      if (!canActivate(p, pu.type, state.tick)) continue;
+      pu.collected = true;
+      pu.collectedTick = state.tick;
+      const dur = durationTicks(pu.type);
       p.activePowerUps.push({
-        type,
+        type: pu.type,
         startTick: state.tick,
         durationTicks: dur,
         used: false,
         chargesRemaining:
-          type === "double-jump" ? DOUBLE_JUMP_CHARGES : undefined,
+          pu.type === "double-jump" ? DOUBLE_JUMP_CHARGES : undefined,
       });
-      const cd = cooldownTicks(type);
-      if (cd > 0) p.cooldownUntilTick[type] = state.tick + dur + cd;
-      p.lastActivationTick = state.tick;
-      p.lastActivationType = type;
-      p.heldPowerUp = null;
-    }
-
-    // 3. Integrate motion from validated input.
-    integratePlayer(p, input, state.tower, state.tick);
-
-    // 4. Collect any orb the climber is now touching. One slot: a new pickup
-    //    replaces whatever was banked, so an orb is never wasted but hoarding
-    //    is impossible.
-    for (const pu of state.powerUps) {
-      if (pu.collected) continue;
-      if (!overlapsPickup(pu, p.x, p.y)) continue;
-      pu.collected = true;
-      pu.collectedTick = state.tick;
-      p.heldPowerUp = pu.type;
+      const cd = cooldownTicks(pu.type);
+      if (cd > 0) p.cooldownUntilTick[pu.type] = state.tick + dur + cd;
       p.lastPickupTick = state.tick;
       p.lastPickupType = pu.type;
       break;
@@ -423,9 +405,8 @@ export function stepMatch(
 
     pruneActive(p, state.tick);
     p.jumpHeldPrev = input.jump;
-    p.usePowerUpHeldPrev = input.usePowerUp;
 
-    // 5. DEATH LINE — the higher of the rising hazard and the Doodle-Jump fall
+    // 4. DEATH LINE — the higher of the rising hazard and the Doodle-Jump fall
     //    floor (peak minus the fall-death drop). The tower is endless: there is
     //    no summit, so a run ends ONLY here. Peak height (the score) is retained
     //    (AC-8).
@@ -437,10 +418,10 @@ export function stepMatch(
     }
   }
 
-  // 6. Keep the reachable band of power-ups materialized.
+  // 5. Keep the reachable band of power-ups materialized.
   ensurePowerUps(state);
 
-  // 7. Resolve match end + deterministic winner.
+  // 6. Resolve match end + deterministic winner.
   resolveOutcome(state);
   return state;
 }
