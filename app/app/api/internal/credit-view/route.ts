@@ -75,7 +75,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       updateSeasonViews: () => incrementSeasonViews(category),
     };
 
-    const result = await runViewPipeline({ sessionId, ip, ua }, { redis, db });
+    const result = await runViewPipeline(
+      { sessionId, ip, ua, category },
+      { redis, db }
+    );
 
     if (result.credited && result.views_k_new !== null) {
       const ground = computeGround(result.views_k_new);

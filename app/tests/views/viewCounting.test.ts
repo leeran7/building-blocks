@@ -79,11 +79,14 @@ class MockDb {
 
 // ── Helpers ───────────────────────────────────────────────────────────────
 
-function makeRequest(overrides: Partial<{ ip: string; ua: string; sessionId: string }> = {}) {
+function makeRequest(
+  overrides: Partial<{ ip: string; ua: string; sessionId: string; category: string }> = {}
+) {
   return {
     ip: overrides.ip ?? "1.2.3.4",
     ua: overrides.ua ?? "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
     sessionId: overrides.sessionId ?? "test-session-abc-123",
+    category: overrides.category ?? "ai",
   };
 }
 
@@ -142,6 +145,47 @@ describe("AC-10: Single session 10 rapid requests → exactly 1 qualified view",
     expect(totalQualified).toBe(1);
     expect(totalCredited).toBe(1);
     expect(db.views_k).toBeCloseTo(0.001, 10);
+  });
+
+  it("dedups per stack, not globally, for one visitor browsing several", async () => {
+    // views_k is per-stack, so one visitor's session must be able to credit a
+    // view to each stack they visit. While the dedup key was
+    // "dedup:{tid}:{bucket}" only the first stack was credited and the rest
+    // were suppressed as duplicates — and views_k drives both the burial line
+    // and price-per-metre.
+    const redis = new MockRedis();
+    const db = new MockDb();
+    const sessionId = "one-visitor-many-stacks";
+    const stacks = ["ai", "gaming-pc", "design-tools", "indie-games", "coffee"];
+
+    let credited = 0;
+    for (const category of stacks) {
+      const result = await runViewPipeline(makeRequest({ sessionId, category }), {
+        redis,
+        db,
+      });
+      credited += result.credited;
+    }
+
+    expect(credited).toBe(stacks.length);
+  });
+
+  it("still dedups repeat views of the same stack in one window", async () => {
+    const redis = new MockRedis();
+    const db = new MockDb();
+    const sessionId = "same-stack-twice";
+
+    const first = await runViewPipeline(
+      makeRequest({ sessionId, category: "ai" }),
+      { redis, db }
+    );
+    const second = await runViewPipeline(
+      makeRequest({ sessionId, category: "ai" }),
+      { redis, db }
+    );
+
+    expect(first.credited).toBe(1);
+    expect(second.credited).toBe(0);
   });
 
   it("different sessions each get 1 qualified view", async () => {

@@ -32,6 +32,8 @@ export interface PipelineRequest {
   ua: string | null | undefined;
   /** Session ID (tid cookie) */
   sessionId: string;
+  /** The stack this view is credited to. Partitions session dedup. */
+  category: string;
 }
 
 export interface PipelineDeps {
@@ -82,21 +84,32 @@ export async function runViewPipeline(
     return { raw: 1, qualified: 0, credited: 0, views_k_new: null };
   }
 
-  // Step 3: Per-IP cap (atomic Redis INCR)
+  // Step 3: Per-IP cap (atomic Redis INCR). Deliberately NOT partitioned by
+  // category: it is an abuse control on the IP, and per-stack keys would give
+  // one address IP_CAP_LIMIT views per stack instead of per hour.
   const ipResult = await checkIpCap(deps.redis, req.ip);
   if (!ipResult.allowed) {
     logRaw(req.ip, bucket30, req.ua, "ip_cap_exceeded");
     return { raw: 1, qualified: 0, credited: 0, views_k_new: null };
   }
 
-  // Step 4: Session dedup (Redis SETNX)
-  const isNewSession = await checkSessionDedup(deps.redis, req.sessionId);
+  // Step 4: Session dedup (Redis SETNX), scoped to this stack — the same
+  // visitor browsing two stacks is two credits, one per stack's views_k.
+  const isNewSession = await checkSessionDedup(
+    deps.redis,
+    req.sessionId,
+    req.category
+  );
   if (!isNewSession) {
     logRaw(req.ip, bucket30, req.ua, "session_duplicate");
     return { raw: 1, qualified: 0, credited: 0, views_k_new: null };
   }
 
-  // Step 5: Global ceiling check (atomic Redis INCR)
+  // Step 5: Global ceiling check (atomic Redis INCR). Also deliberately global:
+  // CEIL_PER_HOUR is the hard cap on inflation across the whole site (NFR-S5),
+  // and per-stack keys would multiply it by the number of stacks. The tradeoff
+  // is that one very popular stack can consume the hour's budget; splitting a
+  // per-stack allowance under this cap is a product decision, not a bug fix.
   const ceilResult = await checkGlobalCeiling(deps.redis, bucketHour);
   if (!ceilResult.allowed) {
     logRaw(req.ip, bucket30, req.ua, "global_ceiling_exceeded");
