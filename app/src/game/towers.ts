@@ -141,6 +141,17 @@ export function floorGapForFloor(tower: TowerSpec, i: number): number {
   return base * (0.68 + r.next() * 0.64);
 }
 
+/** Should floor i have a ladder? Reduces ladder frequency to ~60% for less climb-spam while keeping gameplay smooth. */
+function hasLadderForFloor(tower: TowerSpec, i: number): boolean {
+  // Always provide ladders on first 5 floors for gentle onboarding
+  if (i < 5) return true;
+  
+  // Use deterministic RNG so same tower always has same ladder pattern
+  const r = createRng(`${tower.seed}:has-ladder:${i}`);
+  // 60% chance of ladder = balanced mix of ladders and jumping
+  return r.next() < 0.6;
+}
+
 /** Seeded x of the ladder leaving floor i upward (deterministic). */
 function ladderXForFloor(tower: TowerSpec, i: number): number {
   const m = ladderMargin(tower);
@@ -161,8 +172,9 @@ function ladderXForFloor(tower: TowerSpec, i: number): number {
   return m + r.next() * span;
 }
 
-/** The ladder that leads UP from floor i to floor i+1. */
-export function ladderForFloor(tower: TowerSpec, i: number): Ladder {
+/** The ladder that leads UP from floor i to floor i+1, or null if this floor has no ladder. */
+export function ladderForFloor(tower: TowerSpec, i: number): Ladder | null {
+  if (!hasLadderForFloor(tower, i)) return null;
   return {
     x: ladderXForFloor(tower, i),
     y0: floorHeight(tower, i),
@@ -182,12 +194,20 @@ function gapWidthForFloor(tower: TowerSpec, i: number): number {
 export function platformsForFloor(tower: TowerSpec, i: number): Platform[] {
   const y = floorHeight(tower, i);
   const w = tower.widthM;
-  // Floor 0 is a safe full-width base (spawn); no incoming ladder.
-  const inX = i > 0 ? ladderXForFloor(tower, i - 1) : null;
-  const outX = ladderXForFloor(tower, i);
+  
+  // Floor 0 is always a safe full-width platform (spawn point)
+  if (i === 0) {
+    return [{ x0: 0, x1: w, y }];
+  }
+  
+  const inLadder = ladderForFloor(tower, i - 1);
+  const outLadder = ladderForFloor(tower, i);
   const clearance = tower.ladderGrabRadius + 2;
 
-  if (inX !== null) {
+  // If we have both incoming and outgoing ladders, try to fit a gap between them
+  if (inLadder && outLadder) {
+    const inX = inLadder.x;
+    const outX = outLadder.x;
     const lo = Math.min(inX, outX);
     const hi = Math.max(inX, outX);
     const gapW = gapWidthForFloor(tower, i);
@@ -196,6 +216,22 @@ export function platformsForFloor(tower: TowerSpec, i: number): Platform[] {
       const mid = (lo + hi) / 2;
       const g0 = mid - gapW / 2;
       const g1 = mid + gapW / 2;
+      return [
+        { x0: 0, x1: g0, y },
+        { x0: g1, x1: w, y },
+      ];
+    }
+  }
+  // If only one or no ladders, can still place a gap based on available space
+  if (inLadder || outLadder) {
+    const ladderX = inLadder ? inLadder.x : outLadder!.x;
+    const gapW = gapWidthForFloor(tower, i);
+    // Try to place gap away from the ladder
+    const gapCenter = ladderX < w / 2 ? w * 0.7 : w * 0.3;
+    const g0 = Math.max(clearance, gapCenter - gapW / 2);
+    const g1 = Math.min(w - clearance, gapCenter + gapW / 2);
+    // Only create gap if it doesn't conflict with ladder
+    if (Math.abs(gapCenter - ladderX) > gapW / 2 + clearance) {
       return [
         { x0: 0, x1: g0, y },
         { x0: g1, x1: w, y },
@@ -223,6 +259,9 @@ export function laddersNearY(
   const lo = Math.max(0, floorIndexAt(tower, yLow) - 1);
   const hi = floorIndexAt(tower, yHigh) + 1;
   const out: { ix: number; ladder: Ladder }[] = [];
-  for (let i = lo; i <= hi; i++) out.push({ ix: i, ladder: ladderForFloor(tower, i) });
+  for (let i = lo; i <= hi; i++) {
+    const ladder = ladderForFloor(tower, i);
+    if (ladder) out.push({ ix: i, ladder });
+  }
   return out;
 }

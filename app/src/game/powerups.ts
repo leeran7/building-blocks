@@ -347,15 +347,17 @@ function pickX(
   pieces: { p: Platform; w: number }[],
   margin: number,
   inX: number | null,
-  outX: number,
+  outX: number | null,
   width: number
 ): number {
   const mode = rng.next();
   let target: number | null = null;
-  if (mode < 0.26) target = outX;
+  if (mode < 0.26 && outX !== null) target = outX;
   else if (mode < 0.5 && inX !== null) target = inX;
   else if (mode < 0.76) {
-    const away = outX < width / 2 ? 0.82 : 0.18;
+    // Position power-up away from whichever ladder exists (or center if none)
+    const referenceX = outX ?? inX ?? width / 2;
+    const away = referenceX < width / 2 ? 0.82 : 0.18;
     target = width * away + (rng.next() - 0.5) * width * 0.14;
   }
 
@@ -402,8 +404,10 @@ export function powerUpForFloor(tower: TowerSpec, i: number): PowerUpPickup | nu
     .filter((e) => e.w > 2 * edgeMargin);
   if (pieces.length === 0) return null;
 
-  const inX = i > 0 ? ladderForFloor(tower, i - 1).x : null;
-  const outX = ladderForFloor(tower, i).x;
+  const inLadder = i > 0 ? ladderForFloor(tower, i - 1) : null;
+  const outLadder = ladderForFloor(tower, i);
+  const inX = inLadder?.x ?? null;
+  const outX = outLadder?.x ?? null;
 
   return {
     id: `pu:${i}`,

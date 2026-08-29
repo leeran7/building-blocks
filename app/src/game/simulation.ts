@@ -64,6 +64,11 @@ import {
 
 const EPS = 0.02; // Increased from 0.01 to prevent ground fall-through due to floating point precision
 
+/** Ticks to wait after dismounting a ladder before allowing re-grab. Prevents stuck-at-boundary
+ * bugs where stepping off at y=ladder.y1 immediately re-grabs the same ladder. At 30Hz tick rate,
+ * 5 ticks = 0.167 seconds, imperceptible but enough to require deliberate re-engagement. */
+const LADDER_DISMOUNT_COOLDOWN_TICKS = 5;
+
 /** Floors of power-ups kept materialized above the highest climber. */
 const POWER_UP_LOOKAHEAD_FLOORS = 6;
 

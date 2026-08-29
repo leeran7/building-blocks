@@ -120,6 +120,12 @@ export interface PlayerState {
    * ground launch.
    */
   jumpHeldPrev: boolean;
+  /**
+   * Tick when the player last dismounted from a ladder (stepped off top/bottom).
+   * Used to enforce a brief cooldown preventing immediate re-grab, which fixes
+   * stuck-at-boundary bugs where stepping off at y=ladder.y1 immediately re-grabs.
+   */
+  lastLadderDismountTick: number | null;
 }
 
 /**

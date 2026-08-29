@@ -75,14 +75,26 @@ describe("per-floor geometry", () => {
     expect(floorIndexAt(t, h5 + 1)).toBe(5);
   });
 
-  it("connects each floor to the next with a ladder within the play width", () => {
-    for (const i of [0, 3, 10, 99]) {
+  it("when a floor has a ladder, it connects properly within the play width", () => {
+    // Test that ladders, when present, have correct properties
+    let ladderCount = 0;
+    for (let i = 0; i < 100; i++) {
       const l = ladderForFloor(t, i);
-      expect(l.y0).toBe(floorHeight(t, i));
-      expect(l.y1).toBe(floorHeight(t, i + 1));
-      expect(l.x).toBeGreaterThan(0);
-      expect(l.x).toBeLessThan(t.widthM);
+      if (l) {
+        ladderCount++;
+        expect(l.y0).toBe(floorHeight(t, i));
+        expect(l.y1).toBe(floorHeight(t, i + 1));
+        expect(l.x).toBeGreaterThan(0);
+        expect(l.x).toBeLessThan(t.widthM);
+      }
     }
+    // First 5 floors always have ladders (onboarding)
+    for (let i = 0; i < 5; i++) {
+      expect(ladderForFloor(t, i)).toBeTruthy();
+    }
+    // ~60% of floors should have ladders
+    expect(ladderCount).toBeGreaterThan(50);
+    expect(ladderCount).toBeLessThan(75);
   });
 
   it("keeps the base floor a safe full-width platform", () => {
