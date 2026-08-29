@@ -15,15 +15,15 @@ export type PlayerId = string;
 /**
  * The five power-ups. Each is a deliberate counter to one of the ways the
  * endless tower kills you: the ladder grind (rapid-climb), long sideways
- * traverses (sprint-burst), a missed gap (double-jump), an out-of-reach ledge
- * (super-jump), and the lava simply outpacing you late in a run (time-slow).
+ * traverses (sprint-burst), a missed gap (double-jump), a bad ladder detour
+ * (jetpack), and the lava simply outpacing you late in a run (time-slow).
  * Tuning lives in powerups.ts.
  */
 export type PowerUpType =
   | "rapid-climb"
   | "sprint-burst"
   | "double-jump"
-  | "super-jump"
+  | "jetpack"
   | "time-slow";
 
 /**
@@ -46,17 +46,20 @@ export interface PowerUpPickup {
 
 /**
  * A power-up the player has activated. Duration-based effects run until
- * `startTick + durationTicks`; charge-based ones (double-jump, super-jump) are
- * consumed by the move they enable and expire unused when the window closes.
+ * `startTick + durationTicks`; charge-based ones (double-jump) are consumed
+ * by the move they enable and expire unused when the window closes. Jetpack
+ * is duration-based with a separate fuel budget spent while jump is held.
  */
 export interface ActivePowerUp {
   type: PowerUpType;
   startTick: number;
   durationTicks: number;
-  /** Charge-based only: the charge has been spent (super-jump). */
+  /** Charge-based only: the charge has been spent. */
   used: boolean;
   /** Double-jump only: mid-air jumps remaining in this window. */
   chargesRemaining?: number;
+  /** Jetpack only: ticks of thrust remaining in this window. */
+  fuelRemainingTicks?: number;
 }
 
 /** Per-tick intent produced by a client's input sampling. */
@@ -129,6 +132,11 @@ export interface PlayerState {
    * ground launch.
    */
   jumpHeldPrev: boolean;
+  /**
+   * Jetpack thrust applied this tick. Presentation-only (canvas flame); the
+   * simulation never reads it back.
+   */
+  jetpackThrusting: boolean;
 }
 
 /**

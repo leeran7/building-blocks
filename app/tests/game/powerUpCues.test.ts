@@ -109,13 +109,13 @@ describe("stepCues: a new run does not inherit the previous run's cues", () => {
     const again = frame(memo, {
       runId: 2,
       lastPickupTick: 40,
-      lastPickupType: "super-jump",
-      activeTypes: ["super-jump"],
+      lastPickupType: "jetpack",
+      activeTypes: ["jetpack"],
     });
 
     expect(again.out.sounds.map((s) => s.kind)).toEqual(["pickup", "activate"]);
     expect(announcementText(again.out.announcement ?? "")).toContain(
-      POWER_UP_SPECS["super-jump"].label
+      POWER_UP_SPECS.jetpack.label
     );
   });
 });
@@ -156,13 +156,13 @@ describe("stepCues: repeated announcements are distinct strings", () => {
     const both = frame(memo, {
       runId: 0,
       lastPickupTick: 40,
-      lastPickupType: "super-jump",
-      activeTypes: ["super-jump"],
+      lastPickupType: "jetpack",
+      activeTypes: ["jetpack"],
     });
 
     const text = announcementText(both.out.announcement ?? "");
     expect(text).toContain("ended");
-    expect(text).toContain(POWER_UP_SPECS["super-jump"].label);
+    expect(text).toContain(POWER_UP_SPECS.jetpack.label);
     expect(both.out.sounds.map((s) => s.kind)).toEqual([
       "pickup",
       "activate",

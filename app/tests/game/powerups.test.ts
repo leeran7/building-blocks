@@ -29,21 +29,34 @@ import {
   TICK_HZ,
   NO_INPUT,
 } from "../../src/game/types";
-import { DEFAULT_HAZARD_CONFIG, hazardMeanSpeedFrac } from "../../src/game/hazard";
+import {
+  DEFAULT_HAZARD_CONFIG,
+  hazardHeightAt,
+  hazardMeanSpeedFrac,
+} from "../../src/game/hazard";
 import {
   POWER_UP_SPECS,
   POWER_UP_TYPES,
   POWER_UP_HOVER_M,
   RAPID_CLIMB_MULT,
   SPRINT_BURST_MULT,
-  SUPER_JUMP_MULT,
+  JETPACK_THRUST,
+  JETPACK_MAX_VY,
+  JETPACK_FUEL_SECONDS,
+  JETPACK_WINDOW_SECONDS,
   TIME_SLOW_FRAC,
+  TIME_SLOW_COOLDOWN_SECONDS,
   canActivate,
   cooldownRemaining,
   cooldownTicks,
   durationTicks,
+  grantPowerUp,
+  hazardTimeScale,
   isPowerUpActive,
+  jetpackFuelRemaining,
+  jetpackFuelTicks,
   overlapsPickup,
+  powerUpChipMeter,
   powerUpForFloor,
   powerUpsNearY,
   spawnChanceForFloor,
@@ -69,6 +82,35 @@ const SLOW: SimConfig = {
   ...DEFAULT_SIM_CONFIG,
   hazard: { ...DEFAULT_HAZARD_CONFIG, speedScale: 0.001 },
 };
+
+const ARCHETYPE_SLUGS = ["indie-games", "ai", "gaming-pc", "design-tools"] as const;
+const PARTIAL_BURN_TICKS = 20;
+const HOLD_SAMPLE_TICKS = 12;
+const LADDER_CLIMB_TICKS = 8;
+const SETTLE_TICKS = 200;
+
+describe("specs: five live types, including jetpack", () => {
+  it("lists POWER_UP_TYPES in spawn-key order with jetpack in slot 4", () => {
+    expect(POWER_UP_TYPES).toEqual([
+      "rapid-climb",
+      "sprint-burst",
+      "double-jump",
+      "jetpack",
+      "time-slow",
+    ]);
+  });
+
+  it("sizes the jetpack tank at 7.5s of fuel inside a 30s window", () => {
+    expect(JETPACK_FUEL_SECONDS).toBe(7.5);
+    expect(JETPACK_WINDOW_SECONDS).toBe(30);
+    expect(jetpackFuelTicks()).toBe(Math.round(JETPACK_FUEL_SECONDS * TICK_HZ));
+    expect(durationTicks("jetpack")).toBe(
+      Math.round(POWER_UP_SPECS.jetpack.durationSeconds * TICK_HZ)
+    );
+    expect(POWER_UP_SPECS.jetpack.durationSeconds).toBe(JETPACK_WINDOW_SECONDS);
+    expect(POWER_UP_SPECS.jetpack.fuelSeconds).toBe(JETPACK_FUEL_SECONDS);
+  });
+});
 
 describe("spawning: deterministic, reachable, and denser with altitude", () => {
   it("generates identical orbs for the same (seed, floor)", () => {
@@ -406,14 +448,6 @@ describe("effects: each power-up does what its label claims", () => {
     expect(boosted / plain).toBeCloseTo(SPRINT_BURST_MULT, 2);
   });
 
-  it("super-jump launches higher than a normal jump", () => {
-    const plain = jumpApex(false);
-    const boosted = jumpApex(true);
-    // Apex scales with the square of launch velocity, give or take the tick
-    // granularity of sampling the arc.
-    expect(boosted / plain).toBeCloseTo(SUPER_JUMP_MULT ** 2, 0);
-  });
-
   it("double-jump grants two extra airborne jumps", () => {
     const m = climbingMatch();
     const p = m.players[0];
@@ -474,7 +508,11 @@ describe("effects: each power-up does what its label claims", () => {
     // Warm past the opening grace first — before that the lava is flat, so there
     // is no rise to slow and nothing to compare against.
     const warm = Math.round(TICK_HZ * (DEFAULT_HAZARD_CONFIG.graceSeconds + 5));
-    const window = durationTicks("time-slow") - 10;
+    // Observe a window that sits inside the live 8s effect. The ratio is not
+    // exact (lava still accelerates) so we keep the sample near the length this
+    // assertion was calibrated on, rather than stretching it with durationTicks.
+    const RATE_SAMPLE_TICKS = 6 * TICK_HZ - 10;
+    expect(RATE_SAMPLE_TICKS).toBeLessThan(durationTicks("time-slow"));
 
     const run = (slowed: boolean) => {
       const m = createMatch({
@@ -507,8 +545,9 @@ describe("effects: each power-up does what its label claims", () => {
       }
       const y0 = m.hazardY;
       const banked0 = m.hazardSlowSeconds;
-      hold(window);
+      hold(RATE_SAMPLE_TICKS);
       expect(isPowerUpActive(p, "time-slow", m.tick)).toBe(slowed);
+      expect(hazardTimeScale([p], m.tick)).toBe(slowed ? 1 - TIME_SLOW_FRAC : 1);
       return { rise: m.hazardY - y0, banked: m.hazardSlowSeconds - banked0 };
     };
 
@@ -517,13 +556,292 @@ describe("effects: each power-up does what its label claims", () => {
     expect(plain.banked).toBe(0);
     // Every slowed tick banks exactly TIME_SLOW_FRAC of it — seconds the lava
     // never gets to spend, which is how the effect stays monotonic.
-    expect(slow.banked).toBeCloseTo((TIME_SLOW_FRAC * window) / TICK_HZ, 6);
-    // Which surfaces as the lava rising at ~(1 − frac) of its normal rate. Not
-    // exact: the lava is still accelerating, and a held-back lava also
-    // accelerates more slowly, so the observed ratio sits just under.
-    const ratio = slow.rise / plain.rise;
-    expect(ratio).toBeGreaterThan((1 - TIME_SLOW_FRAC) * 0.9);
-    expect(ratio).toBeLessThan((1 - TIME_SLOW_FRAC) * 1.1);
+    expect(slow.banked).toBeCloseTo((TIME_SLOW_FRAC * RATE_SAMPLE_TICKS) / TICK_HZ, 6);
+
+    // Rise is the closed-form curve at the slowed clock, not (1 − frac) times
+    // the unslowed delta: the envelope is still ramping, so a linear ratio
+    // band around (1 − TIME_SLOW_FRAC) fails as soon as FRAC changes.
+    const t0 = warm / TICK_HZ;
+    const sampleSeconds = RATE_SAMPLE_TICKS / TICK_HZ;
+    const yAt = (seconds: number) =>
+      hazardHeightAt(seconds, TOWER.maxClimbSpeed, DEFAULT_HAZARD_CONFIG);
+    expect(plain.rise).toBeCloseTo(yAt(t0 + sampleSeconds) - yAt(t0), 6);
+    expect(slow.rise).toBeCloseTo(
+      yAt(t0 + sampleSeconds * (1 - TIME_SLOW_FRAC)) - yAt(t0),
+      6
+    );
+    expect(slow.rise).toBeGreaterThan(0);
+    expect(slow.rise).toBeLessThan(plain.rise);
+  });
+});
+
+describe("jetpack: hold-to-thrust with a fuel tank inside a window", () => {
+  it("AC-J1 auto-activates on contact without usePowerUp", () => {
+    const m = climbingMatch();
+    const p = m.players[0];
+    placeOrb(m, "jetpack", p.x, p.y);
+    stepMatch(m, { p1: NO_INPUT }, SLOW);
+    expect(isPowerUpActive(p, "jetpack", m.tick)).toBe(true);
+    expect(p.lastPickupType).toBe("jetpack");
+    expect(p.lastPickupTick).toBe(m.tick);
+    expect(NO_INPUT.usePowerUp).toBe(false);
+  });
+
+  it("AC-J1 usePowerUp does not grant a jetpack", () => {
+    const m = climbingMatch();
+    const p = m.players[0];
+    stepMatch(
+      m,
+      { p1: { moveX: 0, jump: false, climbY: 0, usePowerUp: true } },
+      SLOW
+    );
+    expect(isPowerUpActive(p, "jetpack", m.tick)).toBe(false);
+    expect(p.lastPickupType).toBeNull();
+  });
+
+  it("AC-J1/J8 pickup this tick cannot thrust until the next tick", () => {
+    const m = climbingMatch();
+    const p = m.players[0];
+    stepMatch(m, { p1: move(0, true) }, SLOW);
+    expect(p.onGround).toBe(false);
+    placeOrb(m, "jetpack", p.x, p.y);
+    stepMatch(m, { p1: move(0, true) }, SLOW);
+    expect(p.lastPickupType).toBe("jetpack");
+    expect(p.jetpackThrusting).toBe(false);
+    stepMatch(m, { p1: move(0, true) }, SLOW);
+    expect(p.jetpackThrusting).toBe(true);
+  });
+
+  it("AC-J2 held airborne jump thrusts and release returns to gravity", () => {
+    const m = climbingMatch();
+    const p = m.players[0];
+    pickupAtFeet(m, "jetpack");
+    stepMatch(m, { p1: move(0, true) }, SLOW);
+    const y0 = p.y;
+    for (let i = 0; i < HOLD_SAMPLE_TICKS; i++) {
+      stepMatch(m, { p1: move(0, true) }, SLOW);
+      expect(p.jetpackThrusting).toBe(true);
+    }
+    expect(p.y).toBeGreaterThan(y0);
+    stepMatch(m, { p1: NO_INPUT }, SLOW);
+    expect(p.jetpackThrusting).toBe(false);
+    const vyRelease = p.vy;
+    stepMatch(m, { p1: NO_INPUT }, SLOW);
+    expect(p.vy).toBeLessThan(vyRelease);
+    for (let i = 0; i < SETTLE_TICKS && !p.onGround; i++) {
+      stepMatch(m, { p1: NO_INPUT }, SLOW);
+    }
+    expect(p.onGround).toBe(true);
+  });
+
+  it("AC-J2 climbY off-ladder does not thrust or spend fuel", () => {
+    const m = climbingMatch();
+    const p = m.players[0];
+    pickupAtFeet(m, "jetpack");
+    stepMatch(m, { p1: move(0, true) }, SLOW);
+    expect(p.onGround).toBe(false);
+    const fuel = jetpackFuelRemaining(p, m.tick);
+    stepMatch(
+      m,
+      { p1: { moveX: 0, jump: false, climbY: 1, usePowerUp: false } },
+      SLOW
+    );
+    expect(p.jetpackThrusting).toBe(false);
+    expect(jetpackFuelRemaining(p, m.tick)).toBe(fuel);
+  });
+
+  it("AC-J3 ground launch does not spend fuel; the following hold does", () => {
+    const m = climbingMatch();
+    const p = m.players[0];
+    pickupAtFeet(m, "jetpack");
+    const tank = jetpackFuelTicks();
+    expect(jetpackFuelRemaining(p, m.tick)).toBe(tank);
+    stepMatch(m, { p1: move(0, true) }, SLOW);
+    expect(p.onGround).toBe(false);
+    expect(p.jetpackThrusting).toBe(false);
+    expect(jetpackFuelRemaining(p, m.tick)).toBe(tank);
+    stepMatch(m, { p1: move(0, true) }, SLOW);
+    expect(p.jetpackThrusting).toBe(true);
+    expect(jetpackFuelRemaining(p, m.tick)).toBe(tank - 1);
+  });
+
+  it("AC-J4 leftover fuel dies with the spend window", () => {
+    const m = climbingMatch();
+    const p = m.players[0];
+    pickupAtFeet(m, "jetpack");
+    expect(jetpackFuelRemaining(p, m.tick)).toBe(jetpackFuelTicks());
+    const window = durationTicks("jetpack");
+    for (let i = 0; i < window; i++) stepMatch(m, { p1: NO_INPUT }, SLOW);
+    expect(isPowerUpActive(p, "jetpack", m.tick)).toBe(false);
+    expect(liveEntryCount(p, "jetpack", m.tick)).toBe(0);
+    expect(jetpackFuelRemaining(p, m.tick)).toBe(0);
+  });
+
+  it("AC-J4 empty fuel expires the pack before the window ends", () => {
+    const m = climbingMatch();
+    const p = m.players[0];
+    pickupAtFeet(m, "jetpack");
+    stepMatch(m, { p1: move(0, true) }, SLOW);
+    const tank = jetpackFuelTicks();
+    for (let i = 0; i < tank; i++) stepMatch(m, { p1: move(0, true) }, SLOW);
+    expect(isPowerUpActive(p, "jetpack", m.tick)).toBe(false);
+    expect(liveEntryCount(p, "jetpack", m.tick)).toBe(0);
+    expect(remainingTicks(p, "jetpack", m.tick)).toBe(0);
+    expect(m.tick).toBeLessThan(durationTicks("jetpack"));
+  });
+
+  it("AC-J5 thrust beats gravity, caps at JETPACK_MAX_VY, and covers a multi-floor skip", () => {
+    for (const slug of ARCHETYPE_SLUGS) {
+      expect(JETPACK_THRUST).toBeGreaterThan(buildTower(slug).gravity);
+    }
+    const m = climbingMatch();
+    const p = m.players[0];
+    pickupAtFeet(m, "jetpack");
+    stepMatch(m, { p1: move(0, true) }, SLOW);
+    const y0 = p.y;
+    const tank = jetpackFuelTicks();
+    for (let i = 0; i < tank; i++) {
+      stepMatch(m, { p1: move(0, true) }, SLOW);
+      expect(p.jetpackThrusting).toBe(true);
+      expect(p.vy).toBeGreaterThan(0);
+      expect(p.vy).toBeLessThanOrEqual(JETPACK_MAX_VY);
+    }
+    const deltaY = p.y - y0;
+    const burnMetres = JETPACK_MAX_VY * JETPACK_FUEL_SECONDS;
+    expect(deltaY).toBeGreaterThan(burnMetres * 0.7);
+    expect(deltaY).toBeLessThan(burnMetres * 1.15);
+    expect(p.cheatFlagged).toBe(false);
+  });
+
+  it("AC-J6 jumping off a ladder hops without spending fuel, then the next hold thrusts", () => {
+    const m = climbingMatch();
+    const p = m.players[0];
+    const ladder = ladderForFloor(TOWER, 0);
+    p.x = ladder.x;
+    pickupAtFeet(m, "jetpack");
+    for (let i = 0; i < LADDER_CLIMB_TICKS; i++) {
+      stepMatch(
+        m,
+        { p1: { moveX: 0, jump: false, climbY: 1, usePowerUp: false } },
+        SLOW
+      );
+    }
+    expect(p.onLadder).toBe(true);
+    const fuelBefore = jetpackFuelRemaining(p, m.tick);
+    stepMatch(m, { p1: move(0, true) }, SLOW);
+    expect(p.onLadder).toBe(false);
+    expect(p.jetpackThrusting).toBe(false);
+    expect(jetpackFuelRemaining(p, m.tick)).toBe(fuelBefore);
+    stepMatch(m, { p1: move(0, true) }, SLOW);
+    expect(p.jetpackThrusting).toBe(true);
+    expect(jetpackFuelRemaining(p, m.tick)).toBe(fuelBefore - 1);
+  });
+
+  it("AC-J7 double-jump charges wait until fuel is empty, then need a tap", () => {
+    const m = climbingMatch();
+    const p = m.players[0];
+    pickupAtFeet(m, "jetpack");
+    pickupAtFeet(m, "double-jump");
+    expect(doubleJumpChargesRemaining(p, m.tick)).toBe(DOUBLE_JUMP_CHARGES);
+    stepMatch(m, { p1: move(0, true) }, SLOW);
+    const tank = jetpackFuelTicks();
+    for (let i = 0; i < tank; i++) {
+      stepMatch(m, { p1: move(0, true) }, SLOW);
+      expect(doubleJumpChargesRemaining(p, m.tick)).toBe(DOUBLE_JUMP_CHARGES);
+    }
+    expect(isPowerUpActive(p, "jetpack", m.tick)).toBe(false);
+    stepMatch(m, { p1: move(0, true) }, SLOW);
+    expect(doubleJumpChargesRemaining(p, m.tick)).toBe(DOUBLE_JUMP_CHARGES);
+    stepMatch(m, { p1: NO_INPUT }, SLOW);
+    stepMatch(m, { p1: move(0, true) }, SLOW);
+    expect(doubleJumpChargesRemaining(p, m.tick)).toBe(DOUBLE_JUMP_CHARGES - 1);
+  });
+
+  it("AC-J8 stepMatch keeps an airborne hold and strips a fuel-less air jump", () => {
+    const m = climbingMatch();
+    const p = m.players[0];
+    pickupAtFeet(m, "jetpack");
+    stepMatch(m, { p1: move(0, true) }, SLOW);
+    const y0 = p.y;
+    stepMatch(m, { p1: move(0, true) }, SLOW);
+    expect(p.jetpackThrusting).toBe(true);
+    expect(p.y).toBeGreaterThan(y0);
+
+    const empty = climbingMatch();
+    const q = empty.players[0];
+    stepMatch(empty, { p1: move(0, true) }, SLOW);
+    for (let i = 0; i < 8; i++) stepMatch(empty, { p1: NO_INPUT }, SLOW);
+    const vyBefore = q.vy;
+    expect(validateInput(move(0, true), q, empty.tick).input.jump).toBe(false);
+    stepMatch(empty, { p1: move(0, true) }, SLOW);
+    expect(q.vy).toBeLessThan(vyBefore);
+    expect(q.jetpackThrusting).toBe(false);
+  });
+
+  it("AC-J10 a second jetpack orb refills fuel and restarts the window", () => {
+    const m = climbingMatch();
+    const p = m.players[0];
+    pickupAtFeet(m, "jetpack");
+    stepMatch(m, { p1: move(0, true) }, SLOW);
+    for (let i = 0; i < PARTIAL_BURN_TICKS; i++) {
+      stepMatch(m, { p1: move(0, true) }, SLOW);
+    }
+    expect(jetpackFuelRemaining(p, m.tick)).toBeLessThan(jetpackFuelTicks());
+    const windowBefore = remainingTicks(p, "jetpack", m.tick);
+    expect(windowBefore).toBeLessThan(durationTicks("jetpack"));
+    pickupAtFeet(m, "jetpack");
+    expect(liveEntryCount(p, "jetpack", m.tick)).toBe(1);
+    expect(p.activePowerUps.filter((a) => a.type === "jetpack")).toHaveLength(1);
+    expect(jetpackFuelRemaining(p, m.tick)).toBe(jetpackFuelTicks());
+    expect(remainingTicks(p, "jetpack", m.tick)).toBe(durationTicks("jetpack"));
+  });
+
+  it("AC-J11 chip meter reports fuel, not the window", () => {
+    const m = climbingMatch();
+    const p = m.players[0];
+    pickupAtFeet(m, "jetpack");
+    for (let i = 0; i < TICK_HZ; i++) stepMatch(m, { p1: NO_INPUT }, SLOW);
+    const entry = p.activePowerUps.find((a) => a.type === "jetpack");
+    expect(entry).toBeDefined();
+    if (!entry) return;
+    const meter = powerUpChipMeter(entry, m.tick);
+    expect(meter.kind).toBe("fuel");
+    expect(meter.seconds).toBeCloseTo(JETPACK_FUEL_SECONDS, 5);
+    expect(meter.frac).toBe(1);
+    const windowSeconds = remainingTicks(p, "jetpack", m.tick) / TICK_HZ;
+    expect(windowSeconds).toBeCloseTo(
+      POWER_UP_SPECS.jetpack.durationSeconds - 1,
+      5
+    );
+    expect(meter.seconds).not.toBeCloseTo(windowSeconds, 1);
+
+    stepMatch(m, { p1: move(0, true) }, SLOW);
+    for (let i = 0; i < PARTIAL_BURN_TICKS; i++) {
+      stepMatch(m, { p1: move(0, true) }, SLOW);
+    }
+    const burned = p.activePowerUps.find((a) => a.type === "jetpack");
+    expect(burned).toBeDefined();
+    if (!burned) throw new Error("jetpack entry missing after partial burn");
+    const afterBurn = powerUpChipMeter(burned, m.tick);
+    const windowAfter = remainingTicks(p, "jetpack", m.tick) / TICK_HZ;
+    expect(afterBurn.kind).toBe("fuel");
+    expect(afterBurn.frac).toBeLessThan(1);
+    expect(afterBurn.seconds).toBeLessThan(JETPACK_FUEL_SECONDS);
+    expect(afterBurn.seconds).toBeLessThan(windowAfter);
+
+    const windowMatch = climbingMatch();
+    pickupAtFeet(windowMatch, "rapid-climb");
+    const rapid = windowMatch.players[0].activePowerUps.find(
+      (a) => a.type === "rapid-climb"
+    );
+    expect(rapid).toBeDefined();
+    if (!rapid) return;
+    expect(powerUpChipMeter(rapid, windowMatch.tick).kind).toBe("window");
+  });
+
+  it("AC-J12 description names hold-to-thrust and fuel", () => {
+    expect(POWER_UP_SPECS.jetpack.description).toMatch(/hold/i);
+    expect(POWER_UP_SPECS.jetpack.description).toMatch(/fuel/i);
   });
 });
 
@@ -577,6 +895,18 @@ describe("anti-cheat: power-ups widen the rules only as far as they should", () 
     expect(v.rejected).toBe(false);
     expect(v.input.climbY).toBe(1);
   });
+
+  it("allows an airborne hold when jetpack fuel remains", () => {
+    const p = airborne();
+    grantPowerUp(p, "jetpack", 0);
+    const v = validateInput(
+      { moveX: 0, jump: true, climbY: 0, usePowerUp: false },
+      p,
+      1
+    );
+    expect(v.rejected).toBe(false);
+    expect(v.input.jump).toBe(true);
+  });
 });
 
 describe("AC-11: power-ups keep the simulation deterministic", () => {
@@ -606,6 +936,7 @@ describe("AC-11: power-ups keep the simulation deterministic", () => {
   it("starts every climber with no effects running", () => {
     const p = spawnPlayer("p1", 0);
     expect(p.activePowerUps).toEqual([]);
+    expect(p.jetpackThrusting).toBe(false);
   });
 });
 
@@ -642,9 +973,17 @@ describe("time-slow cooldown: the thing that keeps a run finite", () => {
     // The endless tower's guarantee: the hazard settles above 1x the climb speed
     // so no run lasts forever. Time-slow is the only power-up that can cancel
     // enough of that to break it, and the cooldown is what bounds it.
+    expect(POWER_UP_SPECS["rapid-climb"].durationSeconds).toBe(15);
+    expect(POWER_UP_SPECS["sprint-burst"].durationSeconds).toBe(10);
+    expect(POWER_UP_SPECS["double-jump"].durationSeconds).toBe(18);
+    expect(POWER_UP_SPECS["time-slow"].durationSeconds).toBe(8);
+    expect(POWER_UP_SPECS["time-slow"].cooldownSeconds).toBe(40);
+    expect(TIME_SLOW_COOLDOWN_SECONDS).toBe(40);
+    expect(TIME_SLOW_FRAC).toBe(0.5);
     const d = POWER_UP_SPECS["time-slow"].durationSeconds;
     const c = POWER_UP_SPECS["time-slow"].cooldownSeconds;
     const maxUptime = d / (d + c);
+    expect(maxUptime).toBe(8 / 48);
     const effective =
       hazardMeanSpeedFrac(DEFAULT_HAZARD_CONFIG) *
       (1 - TIME_SLOW_FRAC * maxUptime);
@@ -712,7 +1051,7 @@ function move(dir: -1 | 0 | 1, jump = false): PlayerInput {
 
 function placeOrb(m: MatchState, type: PowerUpType, x: number, feetY: number): void {
   m.powerUps.push({
-    id: `test:${type}`,
+    id: `test:${type}:${m.powerUps.length}`,
     type,
     floorIndex: 0,
     x,
@@ -720,6 +1059,12 @@ function placeOrb(m: MatchState, type: PowerUpType, x: number, feetY: number): v
     collected: false,
     collectedTick: null,
   });
+}
+
+function pickupAtFeet(m: MatchState, type: PowerUpType): void {
+  const p = m.players[0];
+  placeOrb(m, type, p.x, p.y);
+  stepMatch(m, { p1: NO_INPUT }, SLOW);
 }
 
 function airborne(): PlayerState {
@@ -778,27 +1123,6 @@ function runFor(ticks: number, boosted: boolean): number {
   return p.x - x0;
 }
 
-/** Peak height of a single jump from the base, with or without super-jump. */
-function jumpApex(boosted: boolean): number {
-  const m = climbingMatch();
-  const p = m.players[0];
-  if (boosted) {
-    placeOrb(m, "super-jump", p.x, p.y);
-    stepMatch(m, { p1: NO_INPUT }, SLOW);
-  }
-  stepMatch(m, { p1: move(0, true) }, SLOW);
-  let apex = p.y;
-  for (let i = 0; i < 200 && !p.onGround; i++) {
-    stepMatch(m, { p1: NO_INPUT }, SLOW);
-    if (p.y > apex) apex = p.y;
-  }
-  return apex;
-}
-
-/**
- * Lava height each tick while the climber is parked out of reach, so only the
- * hazard clock is under test. Optionally activates one power-up on tick 1.
- */
 function hazardTrace(slowed: boolean, alsoActivate?: PowerUpType): number[] {
   const m = createMatch({
     seed: "haz",
