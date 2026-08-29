@@ -127,6 +127,7 @@ describe("AC-6: hazard rise ramps, stumbles, is monotonic, and is unbounded", ()
 
   it("eventually outpaces the climb speed on average, so every run must end", () => {
     expect(hazardMeanSpeedFrac(CFG)).toBeGreaterThan(1);
+    expect(hazardMeanSpeedFrac(CFG)).toBeCloseTo(1.15, 2);
     const g = CFG.graceSeconds;
     const period = CFG.stumblePeriodSeconds;
     const t = g + CFG.rampSeconds + 40;
@@ -134,6 +135,17 @@ describe("AC-6: hazard rise ramps, stumbles, is monotonic, and is unbounded", ()
       (hazardHeightAt(t + period, CLIMB, CFG) - hazardHeightAt(t, CLIMB, CFG)) /
       period;
     expect(avg).toBeGreaterThan(CLIMB);
+    expect(avg / CLIMB).toBeCloseTo(hazardMeanSpeedFrac(CFG), 5);
+  });
+
+  it("never lowers the lava, even if stumbleSpeedFrac is hostile", () => {
+    const hostile = { ...CFG, stumbleSpeedFrac: -1 };
+    let prev = Number.NEGATIVE_INFINITY;
+    for (let t = 0; t <= 40; t += 0.25) {
+      const h = hazardHeightAt(t, CLIMB, hostile);
+      expect(h).toBeGreaterThanOrEqual(prev);
+      prev = h;
+    }
   });
 
   it("matches the smooth integral when stumbling is disabled", () => {

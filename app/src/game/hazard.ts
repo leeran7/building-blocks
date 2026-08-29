@@ -66,8 +66,8 @@ export const DEFAULT_HAZARD_CONFIG: HazardConfig = {
   // Envelope ramps 0.5× → 1.42× over ~90s. Stumbles cut each 8s cycle to 2s at
   // 0.25× envelope, so the TIME-AVERAGED late-game chase is
   // 1.42 · (0.75 + 0.25·0.25) ≈ 1.15× — same pressure as a smooth 1.15× hold,
-  // but with recovery windows instead of a constant acceleration. Past that
-  // average even a perfect vertical climber cannot keep up.
+  // but with recovery windows instead of a smooth rise at the envelope. Past
+  // that average even a perfect vertical climber cannot keep up.
   startSpeedFrac: 0.5,
   endSpeedFrac: 1.42,
   rampSeconds: 90,
@@ -85,13 +85,10 @@ export const DEFAULT_HAZARD_CONFIG: HazardConfig = {
 export function hazardMeanSpeedFrac(
   cfg: HazardConfig = DEFAULT_HAZARD_CONFIG
 ): number {
-  const period = Math.max(0, cfg.stumblePeriodSeconds);
-  const dur = Math.max(0, Math.min(cfg.stumbleDurationSeconds, period));
-  if (period <= 0 || dur <= 0) return cfg.endSpeedFrac;
-  const surgeDuty = (period - dur) / period;
-  return (
-    cfg.endSpeedFrac * (surgeDuty + (1 - surgeDuty) * cfg.stumbleSpeedFrac)
-  );
+  const { period, duration, speedFrac } = stumbleWindow(cfg);
+  if (period <= 0 || duration <= 0) return cfg.endSpeedFrac;
+  const surgeDuty = (period - duration) / period;
+  return cfg.endSpeedFrac * (surgeDuty + (1 - surgeDuty) * speedFrac);
 }
 
 /**
@@ -156,12 +153,25 @@ function envelopeFrac(t: number, cfg: HazardConfig): number {
   return cfg.startSpeedFrac + ((cfg.endSpeedFrac - cfg.startSpeedFrac) * t) / ramp;
 }
 
+function stumbleWindow(cfg: HazardConfig): {
+  period: number;
+  duration: number;
+  speedFrac: number;
+} {
+  const period = cfg.stumblePeriodSeconds;
+  if (!(period > 1e-6)) {
+    return { period: 0, duration: 0, speedFrac: 1 };
+  }
+  const duration = Math.max(0, Math.min(cfg.stumbleDurationSeconds, period));
+  const speedFrac = Math.min(1, Math.max(0, cfg.stumbleSpeedFrac));
+  return { period, duration, speedFrac };
+}
+
 function stumbleMultiplier(t: number, cfg: HazardConfig): number {
-  const period = Math.max(0, cfg.stumblePeriodSeconds);
-  const dur = Math.max(0, Math.min(cfg.stumbleDurationSeconds, period));
-  if (period <= 0 || dur <= 0) return 1;
+  const { period, duration, speedFrac } = stumbleWindow(cfg);
+  if (period <= 0 || duration <= 0) return 1;
   const phase = t - Math.floor(t / period) * period;
-  return phase >= period - dur ? cfg.stumbleSpeedFrac : 1;
+  return phase >= period - duration ? speedFrac : 1;
 }
 
 /**
@@ -181,25 +191,23 @@ function integrateRise(
   const ramp = Math.max(1e-6, cfg.rampSeconds);
   const accel = (v1 - v0) / ramp;
 
-  const period = Math.max(0, cfg.stumblePeriodSeconds);
-  const stumbleDur = Math.max(0, Math.min(cfg.stumbleDurationSeconds, period));
-  if (period <= 0 || stumbleDur <= 0) {
+  const { period, duration, speedFrac } = stumbleWindow(cfg);
+  if (period <= 0 || duration <= 0) {
     return envelopeIntegral(0, t, v0, v1, ramp, accel);
   }
 
-  const surgeDur = period - stumbleDur;
-  const s = cfg.stumbleSpeedFrac;
+  const surgeDur = period - duration;
   let dist = 0;
   let t0 = 0;
-  while (t0 < t) {
+  const maxIters = Math.max(8, 2 * Math.ceil(t / period) + 8);
+  for (let i = 0; i < maxIters && t0 < t; i++) {
     const cycleStart = Math.floor(t0 / period + 1e-12) * period;
     const surgeEnd = cycleStart + surgeDur;
     const cycleEnd = cycleStart + period;
     const inSurge = t0 < surgeEnd - 1e-12;
     const t1 = Math.min(t, inSurge ? surgeEnd : cycleEnd);
-    const m = inSurge ? 1 : s;
+    const m = inSurge ? 1 : speedFrac;
     dist += m * envelopeIntegral(t0, t1, v0, v1, ramp, accel);
-    // Force progress if a boundary sits on a float knife-edge.
     t0 = t1 > t0 ? t1 : Math.min(t, t0 + 1e-9);
   }
   return dist;
