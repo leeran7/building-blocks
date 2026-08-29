@@ -1,5 +1,9 @@
 # Learnings Ledger
 
+Kernel quality gates (every repo): `skills/closed-loop/gates.md`.
+This file is **building-blocks** memory. Do not copy it into `closed-loop-agents`.
+This product’s stack, git, and trust facts: `context/`.
+
 _Last curated: 2026-08-29T13:40:00Z — retro over the 2026-08-29 review pass
 (`3385d3f..f76090a`, 5 agents, 52 raw learnings in `learnings.jsonl`)._
 

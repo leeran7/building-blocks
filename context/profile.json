@@ -1,0 +1,28 @@
+{
+  "name": "building-blocks",
+  "product": "The Climb (endless climber) plus paid-stack leaderboards. Product code lives in app/.",
+  "packageManagers": [
+    { "path": ".", "command": "yarn" },
+    { "path": "orchestrator", "command": "yarn" },
+    { "path": "app", "command": "pnpm" }
+  ],
+  "stack": {
+    "app": "Next.js App Router (app/)",
+    "ui": "React + Tailwind",
+    "db": "Prisma + Postgres",
+    "cache": "Upstash Redis",
+    "auth": "Firebase Auth — requireAuth in route handlers; middleware is presence-only",
+    "payments": "Stripe Checkout + webhooks",
+    "hosting": "Vercel"
+  },
+  "paths": {
+    "spec": "loop/spec.md",
+    "architecture": "loop/architecture.md",
+    "learnings": "loop/learnings.md",
+    "design": "app/DESIGN.md",
+    "gates": "context/gates.json",
+    "trust": "context/trust.md",
+    "git": "context/git.md",
+    "conventions": "context/conventions.md"
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "name": "closed-loop-agents",
+  "version": "2.0.0",
+  "description": "Reusable closed-loop agent pack. Product code (app/) is not in this manifest.",
+  "kernel": [
+    "agents/*.md",
+    "agents/claude.config.json",
+    "skills/closed-loop/*.md",
+    "handoffs/schema.json",
+    "pack/**",
+    "scripts/*.mjs",
+    "orchestrator/package.json",
+    "orchestrator/tsconfig.json",
+    "orchestrator/tsconfig.test.json",
+    "orchestrator/src/**",
+    "orchestrator/yarn.lock"
+  ],
+  "doNotCopy": [
+    "app/**",
+    "loop/learnings.md",
+    "loop/learnings.jsonl",
+    "closed-loop.profile.json",
+    "context/**",
+    "CLAUDE.md",
+    "CHANGELOG.md",
+    "docs/reviews/**",
+    "docs/runbook.md",
+    "docs/observability.md",
+    "docs/deploy.md"
+  ]
+}

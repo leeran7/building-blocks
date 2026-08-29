@@ -1,0 +1,16 @@
+{
+  "gates": [
+    {
+      "name": "typecheck",
+      "cwd": ".",
+      "command": "yarn typecheck",
+      "proveFail": "A file with an intentional type error must fail tsc --noEmit (or equivalent)."
+    },
+    {
+      "name": "test",
+      "cwd": ".",
+      "command": "yarn test",
+      "proveFail": "A test that invokes production code and asserts the wrong output must fail. Source-text greps are not this gate."
+    }
+  ]
+}
