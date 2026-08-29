@@ -29,7 +29,11 @@ import {
   TICK_HZ,
   NO_INPUT,
 } from "../../src/game/types";
-import { DEFAULT_HAZARD_CONFIG, hazardMeanSpeedFrac } from "../../src/game/hazard";
+import {
+  DEFAULT_HAZARD_CONFIG,
+  hazardHeightAt,
+  hazardMeanSpeedFrac,
+} from "../../src/game/hazard";
 import {
   POWER_UP_SPECS,
   POWER_UP_TYPES,
@@ -47,6 +51,7 @@ import {
   cooldownTicks,
   durationTicks,
   grantPowerUp,
+  hazardTimeScale,
   isPowerUpActive,
   jetpackFuelRemaining,
   jetpackFuelTicks,
@@ -542,6 +547,7 @@ describe("effects: each power-up does what its label claims", () => {
       const banked0 = m.hazardSlowSeconds;
       hold(RATE_SAMPLE_TICKS);
       expect(isPowerUpActive(p, "time-slow", m.tick)).toBe(slowed);
+      expect(hazardTimeScale([p], m.tick)).toBe(slowed ? 1 - TIME_SLOW_FRAC : 1);
       return { rise: m.hazardY - y0, banked: m.hazardSlowSeconds - banked0 };
     };
 
@@ -551,12 +557,21 @@ describe("effects: each power-up does what its label claims", () => {
     // Every slowed tick banks exactly TIME_SLOW_FRAC of it — seconds the lava
     // never gets to spend, which is how the effect stays monotonic.
     expect(slow.banked).toBeCloseTo((TIME_SLOW_FRAC * RATE_SAMPLE_TICKS) / TICK_HZ, 6);
-    // Which surfaces as the lava rising at ~(1 − frac) of its normal rate. Not
-    // exact: the lava is still accelerating, and a held-back lava also
-    // accelerates more slowly, so the observed ratio sits just under.
-    const ratio = slow.rise / plain.rise;
-    expect(ratio).toBeGreaterThan((1 - TIME_SLOW_FRAC) * 0.9);
-    expect(ratio).toBeLessThan((1 - TIME_SLOW_FRAC) * 1.1);
+
+    // Rise is the closed-form curve at the slowed clock, not (1 − frac) times
+    // the unslowed delta: the envelope is still ramping, so a linear ratio
+    // band around (1 − TIME_SLOW_FRAC) fails as soon as FRAC changes.
+    const t0 = warm / TICK_HZ;
+    const sampleSeconds = RATE_SAMPLE_TICKS / TICK_HZ;
+    const yAt = (seconds: number) =>
+      hazardHeightAt(seconds, TOWER.maxClimbSpeed, DEFAULT_HAZARD_CONFIG);
+    expect(plain.rise).toBeCloseTo(yAt(t0 + sampleSeconds) - yAt(t0), 6);
+    expect(slow.rise).toBeCloseTo(
+      yAt(t0 + sampleSeconds * (1 - TIME_SLOW_FRAC)) - yAt(t0),
+      6
+    );
+    expect(slow.rise).toBeGreaterThan(0);
+    expect(slow.rise).toBeLessThan(plain.rise);
   });
 });
 
