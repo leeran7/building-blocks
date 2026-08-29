@@ -2,6 +2,7 @@ import { Agent, CursorAgentError } from "@cursor/sdk";
 import { applyHandoff, buildStagePrompt } from "./stages.js";
 import { combineHandoffs, missingHandoff, stagesToDispatch } from "./team.js";
 import { loadLearningsExcerpt, runRetro } from "./retro.js";
+import { loadRepoContextExcerpt } from "./context.js";
 import {
   initState,
   latestHandoff,
@@ -43,12 +44,14 @@ export async function runLoop(options: RunLoopOptions): Promise<LoopState> {
     const startedAt = new Date().toISOString();
     const prior = pendingFeedback ?? (await latestUpstreamHandoff(state));
     const learnings = await loadLearningsExcerpt(LOOP_DIR);
+    const repoContext = await loadRepoContextExcerpt(REPO_ROOT);
 
     const runOne = async (stage: Stage): Promise<Handoff> => {
       const agentPrompt = await loadAgentPrompt(stage);
       const prompt = buildStagePrompt(state, agentPrompt, prior, {
         stage,
         learnings,
+        repoContext,
       });
       return runAgent(stage, prompt, apiKey, options.model, startedAt);
     };

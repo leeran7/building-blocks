@@ -1,0 +1,9 @@
+# Closed-loop runtime (pack gitignore snippet)
+# Ignore per-run artifacts. Re-include the ledger — a directory ignore of
+# `loop/` cannot be negated. See skills/closed-loop/gates.md (memory).
+loop/*
+!loop/learnings.md
+!loop/learnings.jsonl
+.cursor/loop/handoffs/*.json
+.cursor/loop/state.json
+.claude/handoffs/*.json

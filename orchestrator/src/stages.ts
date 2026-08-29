@@ -12,6 +12,7 @@ import { REQUIRED_TEAM } from "./types.js";
 export interface StagePromptExtras {
   stage: Stage;
   learnings?: string;
+  repoContext?: string;
 }
 
 function untrustedBlock(label: string, body: string): string {
@@ -33,6 +34,7 @@ export function buildStagePrompt(
   const stage = extras.stage;
   const prior = priorHandoff ? JSON.stringify(priorHandoff, null, 2) : "none";
   const learnings = extras.learnings ?? "(none)";
+  const repoContext = extras.repoContext ?? "(none)";
   return [
     "You are running as part of an automated closed-loop app build.",
     `You are ONLY the "${stage}" agent. Do not perform other pipeline stages.`,
@@ -49,6 +51,8 @@ export function buildStagePrompt(
     "",
     `## Required team (orchestrator dispatches these; you do not skip them)`,
     (state.requiredTeam ?? REQUIRED_TEAM).join(", "),
+    "",
+    untrustedBlock("Repo context (this product's facts — agents point here, they do not embed them)", repoContext),
     "",
     untrustedBlock("Prior handoff", prior),
     "",
