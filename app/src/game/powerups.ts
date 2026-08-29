@@ -540,3 +540,67 @@ export function pruneActive(p: PlayerState, tick: number): void {
   if (p.activePowerUps.length === 0) return;
   p.activePowerUps = p.activePowerUps.filter((a) => !isExpired(a, tick));
 }
+
+/**
+ * Grant a power-up, keeping at most ONE live entry per type.
+ *
+ * activePowerUps is read everywhere through activeEntry, which is a .find() —
+ * it returns the oldest live match and nothing else can see the rest. So an
+ * append-only list quietly breaks three things when two orbs of one type are
+ * picked up before the first expires:
+ *
+ *   - the HUD counts down the older entry, so the timer looks stuck and then
+ *     jumps back up when that entry is pruned;
+ *   - PowerUpHud and ClimbCanvas key their rows by type, so React sees
+ *     duplicate keys;
+ *   - for double-jump it is an exploit. consumeCharge drains the first entry,
+ *     isExpired then reports it spent, and activeEntry falls through to the
+ *     second — granting DOUBLE_JUMP_CHARGES again while
+ *     doubleJumpChargesRemaining, reading the same first entry, never showed
+ *     more than the original two. Four to five mid-air jumps from a counter
+ *     that says two.
+ *
+ * Refreshing in place is the fix rather than re-keying the HUD, because the
+ * charge duplication is in the simulation, not the view. This is deliberately
+ * the only place that writes to activePowerUps.
+ *
+ * Same-type only: whether DIFFERENT types should stack is a separate open
+ * question (the powerups.ts header describes a one-slot rule the simulation
+ * does not implement), and nothing here answers it either way.
+ */
+export function grantPowerUp(
+  p: PlayerState,
+  type: PowerUpType,
+  tick: number
+): void {
+  const charges = type === "double-jump" ? DOUBLE_JUMP_CHARGES : undefined;
+  const existing = activeEntry(p, type, tick);
+
+  if (existing) {
+    // Second orb of a live type extends it and tops it back up, which is what
+    // a player picking up an orb expects, without adding a second entry.
+    existing.startTick = tick;
+    existing.durationTicks = durationTicks(type);
+    existing.used = false;
+    existing.chargesRemaining = charges;
+    return;
+  }
+
+  p.activePowerUps.push({
+    type,
+    startTick: tick,
+    durationTicks: durationTicks(type),
+    used: false,
+    chargesRemaining: charges,
+  });
+}
+
+/** How many live entries of `type` the player holds. Should never exceed 1. */
+export function liveEntryCount(
+  p: PlayerState,
+  type: PowerUpType,
+  tick: number
+): number {
+  return p.activePowerUps.filter((a) => a.type === type && !isExpired(a, tick))
+    .length;
+}

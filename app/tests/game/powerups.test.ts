@@ -48,6 +48,11 @@ import {
   powerUpsNearY,
   spawnChanceForFloor,
   firstSpawnFloor,
+  liveEntryCount,
+  remainingTicks,
+  consumeCharge,
+  doubleJumpChargesRemaining,
+  DOUBLE_JUMP_CHARGES,
 } from "../../src/game/powerups";
 import { validateInput } from "../../src/game/antiCheat";
 import {
@@ -275,6 +280,100 @@ describe("pickup: touching an orb auto-activates it immediately", () => {
     stepMatch(m, { p1: NO_INPUT }, SLOW);
     expect(m.powerUps[m.powerUps.length - 1].collected).toBe(true);
     expect(isPowerUpActive(p, "time-slow", m.tick)).toBe(true);
+  });
+
+  // The pre-existing same-type duplicate tests all used time-slow, the one type
+  // whose cooldown blocks the second pickup outright. That left the four
+  // zero-cooldown types — and the double-jump charge exploit — uncovered.
+  describe("a second orb of a live type refreshes it instead of stacking", () => {
+    const ZERO_COOLDOWN_TYPES = POWER_UP_TYPES.filter(
+      (t) => cooldownTicks(t) === 0
+    );
+
+    it("has zero-cooldown types to test (guards against a vacuous sweep)", () => {
+      expect(ZERO_COOLDOWN_TYPES.length).toBeGreaterThan(0);
+      expect(ZERO_COOLDOWN_TYPES).not.toContain("time-slow");
+    });
+
+    it.each(ZERO_COOLDOWN_TYPES)("keeps exactly one live %s entry", (type) => {
+      const m = climbingMatch();
+      const p = m.players[0];
+
+      placeOrb(m, type, p.x, p.y);
+      stepMatch(m, { p1: NO_INPUT }, SLOW);
+      expect(isPowerUpActive(p, type, m.tick)).toBe(true);
+      expect(liveEntryCount(p, type, m.tick)).toBe(1);
+
+      placeOrb(m, type, p.x, p.y);
+      stepMatch(m, { p1: NO_INPUT }, SLOW);
+
+      expect(isPowerUpActive(p, type, m.tick)).toBe(true);
+      // Two entries mean a stale HUD countdown and duplicate React keys, since
+      // PowerUpHud and ClimbCanvas both key their rows by type.
+      expect(liveEntryCount(p, type, m.tick)).toBe(1);
+      expect(p.activePowerUps.filter((a) => a.type === type)).toHaveLength(1);
+    });
+
+    it.each(ZERO_COOLDOWN_TYPES)("restarts the %s countdown on refresh", (type) => {
+      const m = climbingMatch();
+      const p = m.players[0];
+
+      placeOrb(m, type, p.x, p.y);
+      stepMatch(m, { p1: NO_INPUT }, SLOW);
+
+      const half = Math.floor(durationTicks(type) / 2);
+      for (let i = 0; i < half; i++) stepMatch(m, { p1: NO_INPUT }, SLOW);
+      const beforeRefresh = remainingTicks(p, type, m.tick);
+      expect(beforeRefresh).toBeLessThan(durationTicks(type));
+
+      placeOrb(m, type, p.x, p.y);
+      stepMatch(m, { p1: NO_INPUT }, SLOW);
+
+      // Reading the older entry would report a countdown that keeps falling.
+      expect(remainingTicks(p, type, m.tick)).toBeGreaterThan(beforeRefresh);
+    });
+
+    it("does not hand out more double-jump charges than the HUD reports", () => {
+      // The exploit: consumeCharge drains the first entry, isExpired then
+      // reports it spent, and activeEntry falls through to the second entry,
+      // granting DOUBLE_JUMP_CHARGES again — while doubleJumpChargesRemaining
+      // read the first entry and never showed more than the original two.
+      const m = climbingMatch();
+      const p = m.players[0];
+
+      placeOrb(m, "double-jump", p.x, p.y);
+      stepMatch(m, { p1: NO_INPUT }, SLOW);
+      placeOrb(m, "double-jump", p.x, p.y);
+      stepMatch(m, { p1: NO_INPUT }, SLOW);
+
+      const reported = doubleJumpChargesRemaining(p, m.tick);
+      expect(reported).toBe(DOUBLE_JUMP_CHARGES);
+
+      let granted = 0;
+      while (consumeCharge(p, "double-jump", m.tick)) {
+        granted += 1;
+        if (granted > DOUBLE_JUMP_CHARGES * 4) break; // don't loop forever
+      }
+
+      expect(granted).toBe(reported);
+      expect(doubleJumpChargesRemaining(p, m.tick)).toBe(0);
+    });
+
+    it("tops charges back up when a second orb refreshes a partly spent one", () => {
+      const m = climbingMatch();
+      const p = m.players[0];
+
+      placeOrb(m, "double-jump", p.x, p.y);
+      stepMatch(m, { p1: NO_INPUT }, SLOW);
+      expect(consumeCharge(p, "double-jump", m.tick)).toBe(true);
+      expect(doubleJumpChargesRemaining(p, m.tick)).toBe(DOUBLE_JUMP_CHARGES - 1);
+
+      placeOrb(m, "double-jump", p.x, p.y);
+      stepMatch(m, { p1: NO_INPUT }, SLOW);
+
+      expect(doubleJumpChargesRemaining(p, m.tick)).toBe(DOUBLE_JUMP_CHARGES);
+      expect(liveEntryCount(p, "double-jump", m.tick)).toBe(1);
+    });
   });
 
   it("expires each effect after its advertised duration", () => {

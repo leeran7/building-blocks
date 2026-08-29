@@ -46,7 +46,7 @@ import {
   floorHeight,
 } from "./towers";
 import {
-  DOUBLE_JUMP_CHARGES,
+  grantPowerUp,
   DOUBLE_JUMP_MULT,
   SUPER_JUMP_MULT,
   canActivate,
@@ -413,14 +413,10 @@ export function stepMatch(
       pu.collected = true;
       pu.collectedTick = state.tick;
       const dur = durationTicks(pu.type);
-      p.activePowerUps.push({
-        type: pu.type,
-        startTick: state.tick,
-        durationTicks: dur,
-        used: false,
-        chargesRemaining:
-          pu.type === "double-jump" ? DOUBLE_JUMP_CHARGES : undefined,
-      });
+      // Refreshes a live entry of the same type rather than appending a second
+      // one — see grantPowerUp. Two entries let double-jump hand out twice the
+      // charges the HUD reports.
+      grantPowerUp(p, pu.type, state.tick);
       const cd = cooldownTicks(pu.type);
       if (cd > 0) p.cooldownUntilTick[pu.type] = state.tick + dur + cd;
       p.lastPickupTick = state.tick;
