@@ -25,7 +25,15 @@ Step-by-step instructions for deploying the Tower app to production on Vercel.
 
 ## Environment variables
 
-Set all of the following in the **Vercel project dashboard** under Settings > Environment Variables. Apply to Production (and optionally Preview).
+Set all of the following in the **Vercel project dashboard** under Settings > Environment Variables.
+
+| Variable | Production | Preview / Development |
+|----------|------------|------------------------|
+| `STRIPE_SECRET_KEY` | `sk_live_...` | **`sk_test_...`** (same as local `app/.env`) |
+| `STRIPE_WEBHOOK_SECRET` | `whsec_...` for prod URL | **`whsec_...`** (same as local; webhook URL must match) |
+| `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` | `pk_live_...` | `pk_test_...` |
+
+All other variables (apply to Production, Preview, and Development as appropriate):
 
 | Variable | Description |
 |----------|-------------|
@@ -33,14 +41,22 @@ Set all of the following in the **Vercel project dashboard** under Settings > En
 | `DIRECT_URL` | Direct (non-pooled) connection string — required by `prisma migrate deploy` |
 | `UPSTASH_REDIS_REST_URL` | Upstash Redis REST endpoint (e.g. `https://<id>.upstash.io`) |
 | `UPSTASH_REDIS_REST_TOKEN` | Upstash Redis REST token |
-| `STRIPE_SECRET_KEY` | Stripe secret key (`sk_live_...`) |
-| `STRIPE_WEBHOOK_SECRET` | Stripe webhook signing secret (`whsec_...`) — obtained after registering the endpoint |
-| `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` | Stripe publishable key (`pk_live_...`) — exposed to the browser |
 | `INTERNAL_TOKEN` | Random secret (min 32 chars) — signs edge-to-internal view-credit payloads; **must be set or server will refuse to start** |
 | `ADMIN_TOKEN` | Random secret (min 32 chars) — Bearer token for admin API routes |
-| `BASE_URL` | Production URL without trailing slash (e.g. `https://tower.example.com`) |
+| `BASE_URL` | Production URL without trailing slash (e.g. `https://tower.example.com`). Preview can omit — Vercel sets `VERCEL_URL`. |
 
-Generate `INTERNAL_TOKEN` and `ADMIN_TOKEN` with:
+### Sync Stripe test keys to Preview (same as local)
+
+From your machine (with `app/.env` filled in):
+
+```bash
+export VERCEL_TOKEN="..."   # https://vercel.com/account/tokens
+cd app && vercel link       # once, if not already linked
+bash scripts/vercel-sync-stripe-preview.sh
+```
+
+This copies `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET` from `app/.env` to Vercel **Preview** and **Development** only (not Production). Redeploy the preview after syncing.
+
 
 ```bash
 openssl rand -hex 32
