@@ -60,6 +60,19 @@ export async function markUploadFailed(assetId: string, errorMessage: string): P
   });
 }
 
+export async function getLatestReadyAssetForContentItem(
+  contentItemId: string
+): Promise<SocialContentAsset | null> {
+  return prisma.socialContentAsset.findFirst({
+    where: {
+      contentItemId,
+      status: "READY",
+      externalAssetId: { not: null },
+    },
+    orderBy: { updatedAt: "desc" },
+  });
+}
+
 /** API-response DTO — never includes `platformUploadSessionUri` (redacted like a token). */
 export function toPublicAsset(asset: SocialContentAsset) {
   const { platformUploadSessionUri, ...rest } = asset;

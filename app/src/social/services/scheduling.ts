@@ -45,12 +45,37 @@ export async function scheduleContent(
 export async function rescheduleContent(
   id: string,
   scheduledAt: Date,
-  uid: string
+  uid: string,
+  socialAccountId?: string
 ): Promise<ToolResult<SocialContentItem>> {
   const existing = await getContentItemById(id);
   if (!existing) return errResult("NOT_FOUND", "Content item not found");
   if (existing.status !== "SCHEDULED" && existing.status !== "APPROVED") {
     return errResult("VALIDATION_ERROR", `Cannot reschedule an item in status ${existing.status}`);
+  }
+
+  if (existing.status === "APPROVED") {
+    const accountId = socialAccountId ?? existing.socialAccountId;
+    if (!accountId) {
+      return errResult(
+        "VALIDATION_ERROR",
+        "socialAccountId is required to place an APPROVED item on the calendar"
+      );
+    }
+    const updated = await scheduleContentItem(id, scheduledAt, accountId);
+    if (!updated) {
+      return errResult("NOT_APPROVED", `Item must be APPROVED to schedule (currently ${existing.status})`);
+    }
+    await writeAuditLog({
+      action: "SCHEDULE_CONTENT",
+      result: "SUCCESS",
+      initiator: uid,
+      platform: updated.platform,
+      contentItemId: updated.id,
+      socialAccountId: accountId,
+      metadata: { scheduledAt: scheduledAt.toISOString(), via: "reschedule" },
+    });
+    return okResult(updated);
   }
 
   const updated = await updateContentItem(id, { scheduledAt });

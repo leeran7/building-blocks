@@ -104,12 +104,16 @@ export async function listContentItems(query: ContentItemQuery): Promise<SocialC
 }
 
 export async function getContentItemById(id: string): Promise<SocialContentItem | null> {
+  return prisma.socialContentItem.findFirst({ where: { id, deletedAt: null } });
+}
+
+export async function getContentItemByIdIncludingDeleted(id: string): Promise<SocialContentItem | null> {
   return prisma.socialContentItem.findFirst({ where: { id } });
 }
 
 export async function getContentItemWithRelations(id: string) {
   return prisma.socialContentItem.findFirst({
-    where: { id },
+    where: { id, deletedAt: null },
     include: {
       sourceItem: { select: { id: true, title: true, platform: true } },
       publications: { orderBy: { attemptNumber: "desc" } },
@@ -127,6 +131,34 @@ export async function updateContentItem(
 
 export async function softDeleteContentItem(id: string): Promise<SocialContentItem> {
   return prisma.socialContentItem.update({ where: { id }, data: { deletedAt: new Date() } });
+}
+
+/** DRAFT/IDEA → READY_FOR_REVIEW (AC-25). Conditional UPDATE blocks avoid-listed items. */
+export async function submitContentItemForReview(id: string): Promise<SocialContentItem | null> {
+  const result = await prisma.$executeRaw`
+    UPDATE social_content_items
+    SET status = 'READY_FOR_REVIEW', "updatedAt" = now()
+    WHERE id = ${id}
+      AND status IN ('IDEA', 'DRAFT')
+      AND "deletedAt" IS NULL
+      AND "blockedByAvoidTerm" = false
+  `;
+  if (result === 0) return null;
+  return getContentItemById(id);
+}
+
+/** Trusted auto-publish path: DRAFT/IDEA → APPROVED without human review. */
+export async function autoApproveContentItemFromDraft(id: string, uid: string): Promise<SocialContentItem | null> {
+  const result = await prisma.$executeRaw`
+    UPDATE social_content_items
+    SET status = 'APPROVED', "approvedByUid" = ${uid}, "approvedAt" = now(), "updatedAt" = now()
+    WHERE id = ${id}
+      AND status IN ('IDEA', 'DRAFT')
+      AND "deletedAt" IS NULL
+      AND "blockedByAvoidTerm" = false
+  `;
+  if (result === 0) return null;
+  return getContentItemById(id);
 }
 
 export async function approveContentItem(id: string, uid: string): Promise<SocialContentItem | null> {

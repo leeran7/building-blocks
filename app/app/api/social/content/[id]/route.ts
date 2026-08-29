@@ -59,7 +59,8 @@ export const PATCH = withSocialAdminParams<{ id: string }>(async (request, decod
   if (!existing) return jsonError("Content item not found", 404, "NOT_FOUND");
 
   if (typeof body.scheduledAt === "string") {
-    const result = await rescheduleContent(params.id, new Date(body.scheduledAt), decoded.uid);
+    const socialAccountId = typeof body.socialAccountId === "string" ? body.socialAccountId : undefined;
+    const result = await rescheduleContent(params.id, new Date(body.scheduledAt), decoded.uid, socialAccountId);
     return fromToolResult(result);
   }
 

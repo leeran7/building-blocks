@@ -25,6 +25,7 @@ import {
   hasSucceededPublication,
 } from "../../db/social/publications";
 import { getDecryptedTokens, setAccountStatus } from "../../db/social/socialAccounts";
+import { getLatestReadyAssetForContentItem } from "../../db/social/contentAssets";
 import { writeAuditLog } from "../../db/social/auditLog";
 import { getProvider } from "../providers/registry";
 import { errResult, okResult, type ToolResult } from "../types";
@@ -109,6 +110,8 @@ async function doPublish(item: SocialContentItem, initiator: string): Promise<To
     attemptNumber,
   });
 
+  const readyAsset = await getLatestReadyAssetForContentItem(item.id);
+
   const request: PublishRequest = {
     contentType: item.contentType,
     caption: item.caption ?? undefined,
@@ -116,7 +119,7 @@ async function doPublish(item: SocialContentItem, initiator: string): Promise<To
     description: item.description ?? undefined,
     hashtags: item.hashtags,
     threadParts: (item.threadParts as unknown as string[] | null) ?? undefined,
-    externalAssetId: undefined, // set by caller when an asset upload has completed
+    externalAssetId: readyAsset?.externalAssetId ?? undefined,
   };
 
   const result = await provider.publish(tokens.accessToken, request);
