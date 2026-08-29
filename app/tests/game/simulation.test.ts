@@ -232,7 +232,7 @@ describe("AC-11: re-simulation is deterministic", () => {
       playerIds: ["p1", "p2"],
     };
     const log: Record<PlayerId, PlayerInput>[] = [];
-    for (let i = 0; i < 200; i++) log.push({ p1: UP, p2: move(1, i % 20 === 0) });
+    for (let i = 0; i < 400; i++) log.push({ p1: UP, p2: move(1, i % 20 === 0) });
 
     const a = simulateFromInputs(init, log, SLOW);
     const b = simulateFromInputs(init, log, SLOW);

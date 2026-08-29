@@ -36,7 +36,7 @@ const TOUCH_CONTROLS = [
 
 const TIPS = [
   "Grab a ladder and climb to go faster than jumping floor to floor.",
-  "The lava rises steadily — keep moving upward; your peak height is your score.",
+  "The lava surges, then stumbles — use the slow windows to climb; your peak height is your score.",
   "Walk into a glowing orb to trigger its power-up instantly.",
   "Power-ups activate the instant you touch them — time your route to grab one right when you need it.",
   "Sign in after a run to save your rank on the free leaderboard.",
@@ -159,7 +159,9 @@ export function ClimbControlsGuide({ variant = "card" }: { variant?: Variant }) 
                     {spec.description}
                     <span className="text-text-muted">
                       {" · "}
-                      {spec.charge ? "one use" : `${spec.durationSeconds}s`}
+                      {spec.charge
+                        ? `${spec.chargeCount ?? 1} use${(spec.chargeCount ?? 1) > 1 ? "s" : ""}`
+                        : `${spec.durationSeconds}s`}
                       {spec.cooldownSeconds > 0
                         ? ` · ${spec.cooldownSeconds}s recharge`
                         : ""}

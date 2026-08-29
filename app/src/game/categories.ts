@@ -137,28 +137,68 @@ export const GAME_CATEGORIES: GameCategory[] = Object.entries(RAW).flatMap(
 export const GAME_CATEGORY_BY_SLUG: Record<string, GameCategory> =
   Object.fromEntries(GAME_CATEGORIES.map((c) => [c.slug, c]));
 
+/** Own-property allowlist — never `in` (prototype keys would pass). */
+const GAME_CATEGORY_SLUGS = new Set(GAME_CATEGORIES.map((c) => c.slug));
+
 export const FAMILIES: Family[] = Object.keys(RAW) as Family[];
 
 /** True if a slug is one of the known subcategories (the only things that get towers). */
 export function isGameCategory(slug: string): boolean {
-  return slug.toLowerCase() in GAME_CATEGORY_BY_SLUG;
+  return GAME_CATEGORY_SLUGS.has(slug.toLowerCase());
+}
+
+/**
+ * Resolve any slug to a themed category. Seeded slugs return their curated row;
+ * unknown slugs are synthesized deterministically (AC-21) so arbitrary towers
+ * still theme and play — the taxonomy is open-ended.
+ *
+ * Look up via the Set, not `obj[key] ??` — a prototype key like "constructor"
+ * is truthy on a normal Record and would skip the synthesizer.
+ */
+export function resolveGameCategory(slug: string): GameCategory {
+  const key = slug.toLowerCase();
+  if (GAME_CATEGORY_SLUGS.has(key)) return GAME_CATEGORY_BY_SLUG[key];
+  return make(key, titleFromSlug(key), "Gaming & Interactive");
+}
+
+/**
+ * Default paid stack when a flow has no valid category. MUST be a curated
+ * subcategory — never a legacy broad slug like "tech", which has no /stack
+ * page and would swallow a payment into an invisible season.
+ */
+export const DEFAULT_STACK_SLUG = GAME_CATEGORIES[0].slug;
+
+/** A paid-stack slug, or null if the value is missing / not a real stack. */
+export function parsePaidStackSlug(
+  raw: string | undefined | null
+): string | null {
+  if (!raw) return null;
+  const slug = raw.toLowerCase();
+  return isGameCategory(slug) ? slug : null;
+}
+
+/**
+ * Shape-valid season slug, including leftover legacy rows like "tech".
+ * Use parsePaidStackSlug for new money; this only gates format so an
+ * existing block can still credit the season it already lives in.
+ */
+const SEASON_SLUG_RE = /^[a-z0-9][a-z0-9-]{0,63}$/;
+const OBJECT_PROTO_KEYS = new Set(
+  Object.getOwnPropertyNames(Object.prototype).map((k) => k.toLowerCase())
+);
+OBJECT_PROTO_KEYS.add("__proto__");
+
+export function parseSeasonSlug(
+  raw: string | undefined | null
+): string | null {
+  if (!raw) return null;
+  const slug = raw.toLowerCase();
+  if (!SEASON_SLUG_RE.test(slug) || OBJECT_PROTO_KEYS.has(slug)) return null;
+  return slug;
 }
 
 /** One representative subcategory per family — used for the landing "featured" grid. */
 export const FEATURED_GAME_CATEGORIES: GameCategory[] = FAMILIES.map(
   (f) => GAME_CATEGORIES.find((c) => c.family === f) as GameCategory
 );
-
-/**
- * Resolve any slug to a themed category. Seeded slugs return their curated row;
- * unknown slugs are synthesized deterministically (AC-21) so arbitrary towers
- * still theme and play — the taxonomy is open-ended.
- */
-export function resolveGameCategory(slug: string): GameCategory {
-  const key = slug.toLowerCase();
-  return (
-    GAME_CATEGORY_BY_SLUG[key] ??
-    make(key, titleFromSlug(key), "Gaming & Interactive")
-  );
-}
 

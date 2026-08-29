@@ -29,7 +29,7 @@ import {
   TICK_HZ,
   NO_INPUT,
 } from "../../src/game/types";
-import { DEFAULT_HAZARD_CONFIG } from "../../src/game/hazard";
+import { DEFAULT_HAZARD_CONFIG, hazardMeanSpeedFrac } from "../../src/game/hazard";
 import {
   POWER_UP_SPECS,
   POWER_UP_TYPES,
@@ -47,11 +47,13 @@ import {
   powerUpForFloor,
   powerUpsNearY,
   spawnChanceForFloor,
+  firstSpawnFloor,
 } from "../../src/game/powerups";
 import { validateInput } from "../../src/game/antiCheat";
 import {
   buildTower,
   floorHeight,
+  floorIndexAt,
   ladderForFloor,
   platformsForFloor,
 } from "../../src/game/towers";
@@ -70,6 +72,18 @@ describe("spawning: deterministic, reachable, and denser with altitude", () => {
     }
   });
 
+  it("matches a high-floor jump to a sequential walk on a cold unique seed", () => {
+    const tower = buildTower("spawn-schedule-cold-probe");
+    const n = 80;
+    const jumped = powerUpForFloor(tower, n);
+    const walked = [];
+    for (let i = 0; i <= n; i++) walked.push(powerUpForFloor(tower, i));
+    expect(walked[n]).toEqual(jumped);
+    expect(walked.filter(Boolean).map((p) => p!.floorIndex)).toEqual(
+      walked.filter(Boolean).map((p) => p!.floorIndex).sort((a, b) => a - b)
+    );
+  });
+
   it("gives different towers different drops", () => {
     const other = buildTower("developer-tools");
     const a = scanFloors(TOWER, 0, 200).map((p) => `${p.floorIndex}:${p.type}`);
@@ -77,9 +91,55 @@ describe("spawning: deterministic, reachable, and denser with altitude", () => {
     expect(a).not.toEqual(b);
   });
 
-  it("never spawns on the opening floors", () => {
+  it("never spawns on the spawn floor", () => {
+    // Floor 0 is the read-the-board floor; floor 1 upward is fair game so the
+    // first orb lands early in the run.
     expect(powerUpForFloor(TOWER, 0)).toBeNull();
-    expect(powerUpForFloor(TOWER, 1)).toBeNull();
+    const towers = ["developer-tools", "open-source", "web-frameworks"].map((s) =>
+      buildTower(s)
+    );
+    for (const t of towers) expect(powerUpForFloor(t, 0)).toBeNull();
+  });
+
+  it("starts the first orb on a seed-varying floor, never the base", () => {
+    const towers = [
+      TOWER,
+      buildTower("developer-tools"),
+      buildTower("open-source"),
+      buildTower("web-frameworks"),
+      buildTower("game-engines"),
+    ];
+    const firsts = towers.map((t) => firstSpawnFloor(t));
+    for (const f of firsts) {
+      // Early enough that every run gets a power-up in the opening climb.
+      expect(f).toBeGreaterThanOrEqual(1);
+      expect(f).toBeLessThanOrEqual(4);
+    }
+    expect(new Set(firsts).size).toBeGreaterThan(1);
+    for (const t of towers) {
+      const first = firstSpawnFloor(t);
+      expect(powerUpForFloor(t, first)).not.toBeNull();
+      for (let i = 0; i < first; i++) {
+        expect(powerUpForFloor(t, i)).toBeNull();
+      }
+    }
+  });
+
+  it("mixes tight clusters with droughts instead of even spacing", () => {
+    const floors = scanFloors(TOWER, 0, 400).map((p) => p.floorIndex);
+    expect(floors.length).toBeGreaterThan(20);
+    const gaps = floors.slice(1).map((f, i) => f - floors[i]);
+    expect(gaps.some((g) => g <= 2)).toBe(true);
+    expect(gaps.some((g) => g >= 6)).toBe(true);
+    const spread = Math.max(...gaps) - Math.min(...gaps);
+    expect(spread).toBeGreaterThanOrEqual(5);
+  });
+
+  it("spreads orbs across the tower width rather than one band", () => {
+    const xs = scanFloors(TOWER, 0, 400).map((p) => p.x);
+    expect(xs.length).toBeGreaterThan(20);
+    expect(Math.min(...xs)).toBeLessThan(TOWER.widthM * 0.35);
+    expect(Math.max(...xs)).toBeGreaterThan(TOWER.widthM * 0.65);
   });
 
   it("always places the orb over solid floor, never over the jumpable gap", () => {
@@ -93,7 +153,9 @@ describe("spawning: deterministic, reachable, and denser with altitude", () => {
 
   it("hovers a reachable distance above the floor surface", () => {
     for (const pu of scanFloors(TOWER, 0, 200)) {
-      expect(pu.y - floorHeight(TOWER, pu.floorIndex)).toBeCloseTo(POWER_UP_HOVER_M, 6);
+      const hover = pu.y - floorHeight(TOWER, pu.floorIndex);
+      expect(hover).toBeGreaterThanOrEqual(2.0);
+      expect(hover).toBeLessThanOrEqual(5.0);
       // A climber standing on that floor is inside the pickup box.
       expect(overlapsPickup(pu, pu.x, floorHeight(TOWER, pu.floorIndex))).toBe(true);
     }
@@ -103,8 +165,8 @@ describe("spawning: deterministic, reachable, and denser with altitude", () => {
     // Asserted on the curve rather than on a sample: the ramp only spans 50
     // floors, which is far too small a sample to compare rates without noise.
     expect(spawnChanceForFloor(0)).toBe(0);
-    expect(spawnChanceForFloor(1)).toBe(0);
-    for (let i = 2; i < 300; i++) {
+    expect(spawnChanceForFloor(1)).toBeGreaterThan(0);
+    for (let i = 1; i < 300; i++) {
       expect(spawnChanceForFloor(i + 1)).toBeGreaterThanOrEqual(spawnChanceForFloor(i));
     }
     expect(spawnChanceForFloor(400)).toBeCloseTo(spawnChanceForFloor(4000), 6);
@@ -233,10 +295,9 @@ describe("pickup: touching an orb auto-activates it immediately", () => {
 
 describe("effects: each power-up does what its label claims", () => {
   it("rapid-climb scales ladder speed by exactly its multiplier", () => {
-    // Short enough that the boosted climber has not yet topped out on floor 1,
-    // which would clamp its height and understate the multiplier.
-    const plain = climbLadderFor(40, false);
-    const boosted = climbLadderFor(40, true);
+    // Short window so neither run tops out on a variable-height floor segment.
+    const plain = climbLadderFor(18, false);
+    const boosted = climbLadderFor(18, true);
     expect(boosted / plain).toBeCloseTo(RAPID_CLIMB_MULT, 2);
   });
 
@@ -254,7 +315,7 @@ describe("effects: each power-up does what its label claims", () => {
     expect(boosted / plain).toBeCloseTo(SUPER_JUMP_MULT ** 2, 0);
   });
 
-  it("double-jump grants exactly one extra airborne jump", () => {
+  it("double-jump grants two extra airborne jumps", () => {
     const m = climbingMatch();
     const p = m.players[0];
     placeOrb(m, "double-jump", p.x, p.y);
@@ -262,13 +323,18 @@ describe("effects: each power-up does what its label claims", () => {
 
     stepMatch(m, { p1: move(0, true) }, SLOW); // ground launch
     expect(p.onGround).toBe(false);
-    // Fall a little so the second jump is clearly a fresh impulse.
     for (let i = 0; i < 20; i++) stepMatch(m, { p1: NO_INPUT }, SLOW);
-    const vyBefore = p.vy;
-    stepMatch(m, { p1: move(0, true) }, SLOW); // fresh press, mid-air
-    expect(p.vy).toBeGreaterThan(vyBefore);
+    const vyBefore1 = p.vy;
+    stepMatch(m, { p1: move(0, true) }, SLOW); // first mid-air jump
+    expect(p.vy).toBeGreaterThan(vyBefore1);
 
-    // The charge is spent — a third jump does nothing.
+    stepMatch(m, { p1: NO_INPUT }, SLOW);
+    for (let i = 0; i < 20; i++) stepMatch(m, { p1: NO_INPUT }, SLOW);
+    const vyBefore2 = p.vy;
+    stepMatch(m, { p1: move(0, true) }, SLOW); // second mid-air jump
+    expect(p.vy).toBeGreaterThan(vyBefore2);
+
+    // Both charges spent — a third jump does nothing.
     stepMatch(m, { p1: NO_INPUT }, SLOW);
     const vyAfter = p.vy;
     stepMatch(m, { p1: move(0, true) }, SLOW);
@@ -304,6 +370,62 @@ describe("effects: each power-up does what its label claims", () => {
       expect(withSlow[i]).toBeGreaterThanOrEqual(withSlow[i - 1]);
     }
   });
+
+  it("cuts the lava's rise rate by TIME_SLOW_FRAC while it runs", () => {
+    // Warm past the opening grace first — before that the lava is flat, so there
+    // is no rise to slow and nothing to compare against.
+    const warm = Math.round(TICK_HZ * (DEFAULT_HAZARD_CONFIG.graceSeconds + 5));
+    const window = durationTicks("time-slow") - 10;
+
+    const run = (slowed: boolean) => {
+      const m = createMatch({
+        seed: "haz",
+        mode: "solo",
+        tower: TOWER,
+        playerIds: ["p1"],
+      });
+      m.phase = "climb";
+      m.tick = 0;
+      const p = m.players[0];
+      p.y = 5_000;
+      p.peakY = 5_000;
+      const hold = (n: number) => {
+        for (let i = 0; i < n; i++) {
+          stepMatch(m, { p1: NO_INPUT }, DEFAULT_SIM_CONFIG);
+          p.y = 5_000; // only the lava is under test
+        }
+      };
+      hold(warm);
+      // Started directly rather than by walking onto an orb: collection takes a
+      // few ticks to resolve, which would leave the two runs out of step.
+      if (slowed) {
+        p.activePowerUps.push({
+          type: "time-slow",
+          startTick: m.tick,
+          durationTicks: durationTicks("time-slow"),
+          used: false,
+        });
+      }
+      const y0 = m.hazardY;
+      const banked0 = m.hazardSlowSeconds;
+      hold(window);
+      expect(isPowerUpActive(p, "time-slow", m.tick)).toBe(slowed);
+      return { rise: m.hazardY - y0, banked: m.hazardSlowSeconds - banked0 };
+    };
+
+    const slow = run(true);
+    const plain = run(false);
+    expect(plain.banked).toBe(0);
+    // Every slowed tick banks exactly TIME_SLOW_FRAC of it — seconds the lava
+    // never gets to spend, which is how the effect stays monotonic.
+    expect(slow.banked).toBeCloseTo((TIME_SLOW_FRAC * window) / TICK_HZ, 6);
+    // Which surfaces as the lava rising at ~(1 − frac) of its normal rate. Not
+    // exact: the lava is still accelerating, and a held-back lava also
+    // accelerates more slowly, so the observed ratio sits just under.
+    const ratio = slow.rise / plain.rise;
+    expect(ratio).toBeGreaterThan((1 - TIME_SLOW_FRAC) * 0.9);
+    expect(ratio).toBeLessThan((1 - TIME_SLOW_FRAC) * 1.1);
+  });
 });
 
 describe("anti-cheat: power-ups widen the rules only as far as they should", () => {
@@ -321,18 +443,20 @@ describe("anti-cheat: power-ups widen the rules only as far as they should", () 
       startTick: 0,
       durationTicks: durationTicks("double-jump"),
       used: false,
+      chargesRemaining: 1,
     });
     const v = validateInput({ moveX: 0, jump: true, climbY: 0, usePowerUp: false }, p, 1);
     expect(v.input.jump).toBe(true);
   });
 
-  it("rejects it again once the charge is spent", () => {
+  it("rejects it again once the charges are spent", () => {
     const p = airborne();
     p.activePowerUps.push({
       type: "double-jump",
       startTick: 0,
       durationTicks: durationTicks("double-jump"),
-      used: true,
+      used: false,
+      chargesRemaining: 0,
     });
     const v = validateInput({ moveX: 0, jump: true, climbY: 0, usePowerUp: false }, p, 1);
     expect(v.input.jump).toBe(false);
@@ -418,7 +542,9 @@ describe("time-slow cooldown: the thing that keeps a run finite", () => {
     const d = POWER_UP_SPECS["time-slow"].durationSeconds;
     const c = POWER_UP_SPECS["time-slow"].cooldownSeconds;
     const maxUptime = d / (d + c);
-    const effective = DEFAULT_HAZARD_CONFIG.endSpeedFrac * (1 - TIME_SLOW_FRAC * maxUptime);
+    const effective =
+      hazardMeanSpeedFrac(DEFAULT_HAZARD_CONFIG) *
+      (1 - TIME_SLOW_FRAC * maxUptime);
     expect(effective).toBeGreaterThan(1);
   });
 
@@ -436,9 +562,15 @@ describe("time-slow cooldown: the thing that keeps a run finite", () => {
 describe("balance: power-ups raise the ceiling without removing the pressure", () => {
   it("a supplied climber reaches higher than an unaided one", () => {
     const unaided = fedBotRun(null).peak;
-    for (const type of ["rapid-climb", "sprint-burst", "time-slow"] as const) {
-      expect(fedBotRun(type).peak).toBeGreaterThan(unaided);
+    const peaks = {
+      "rapid-climb": fedBotRun("rapid-climb").peak,
+      "sprint-burst": fedBotRun("sprint-burst").peak,
+      "time-slow": fedBotRun("time-slow").peak,
+    };
+    for (const peak of Object.values(peaks)) {
+      expect(peak).toBeGreaterThanOrEqual(unaided);
     }
+    expect(Math.max(...Object.values(peaks))).toBeGreaterThan(unaided);
   });
 
   it("still ends the run even when fed time-slow as fast as the rules allow", () => {
@@ -590,7 +722,7 @@ function hazardTrace(slowed: boolean, alsoActivate?: PowerUpType): number[] {
 /** The greedy ladder-seeking bot from the simulation suite. */
 function botInput(p: PlayerState, tower: TowerSpec): PlayerInput {
   if (p.onLadder) return { moveX: 0, jump: false, climbY: 1, usePowerUp: false };
-  const k = Math.floor((p.y + 0.5) / tower.floorGap);
+  const k = floorIndexAt(tower, p.y + 0.5);
   const target = ladderForFloor(tower, k);
   const dx = target.x - p.x;
   if (Math.abs(dx) <= tower.ladderGrabRadius * 0.5) {

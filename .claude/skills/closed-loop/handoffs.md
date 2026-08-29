@@ -53,6 +53,26 @@ Severity levels:
 - **warning** — should fix, not blocking
 - **info** — suggestion only
 
+## Findings format (reviewer / security-reviewer)
+
+Quality-gate agents (`reviewer`, `security-reviewer`) emit a `findings` array
+in addition to, or instead of, `feedback`. The orchestrator treats **either**
+shape as blocking when `severity` is `critical`, and also treats
+`exitCriteria.no_critical_findings` / `no_critical_security_findings === false`
+as `needs_revision`.
+
+```json
+{
+  "severity": "critical",
+  "location": "src/auth/login.ts:42",
+  "issue": "Login endpoint missing rate limiting",
+  "fix": "Add rate limit middleware before handler"
+}
+```
+
+Do not omit `findings` just because `feedback` is documented above. The loop
+reads both.
+
 ## Learnings format (cross-agent pings)
 
 ```json

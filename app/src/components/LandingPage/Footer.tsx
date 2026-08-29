@@ -45,7 +45,7 @@ export function Footer() {
               Claim your altitude.
             </h2>
             <p className="text-sm text-text-secondary mt-3 max-w-sm">
-              Pick a tower, buy your way up, and outlast everyone before the ground
+              Pick a stack, buy your way up, and outlast everyone before the ground
               swallows them.
             </p>
           </div>

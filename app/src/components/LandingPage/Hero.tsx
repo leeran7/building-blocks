@@ -56,7 +56,7 @@ function ElevationProfile() {
       <div className="relative flex items-center justify-between border-b border-border-subtle px-4 py-3">
         <span className="inline-flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.18em] text-text-secondary">
           <span className="w-1.5 h-1.5 rounded-full bg-signal" />
-          Tech stack · live
+          Paid stack · live
         </span>
         <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-ember">
           ▲ ground +2.4m/day

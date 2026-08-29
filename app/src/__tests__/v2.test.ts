@@ -191,6 +191,8 @@ describe("Category validation — parseCategory utility (AC-3)", () => {
     expect(parseCategory("")).toBeNull();
     expect(parseCategory("unknown")).toBeNull();
     expect(parseCategory("xyz")).toBeNull();
+    expect(parseCategory("constructor")).toBeNull();
+    expect(parseCategory("toString")).toBeNull();
   });
 
   it("accepts all 6 valid category slugs", () => {

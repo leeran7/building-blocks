@@ -1,16 +1,16 @@
 import { Agent, CursorAgentError } from "@cursor/sdk";
-import {
-  applyHandoff,
-  buildStagePrompt,
-  resolveNextStage,
-} from "./stages.js";
+import { applyHandoff, buildStagePrompt } from "./stages.js";
+import { combineHandoffs, missingHandoff, stagesToDispatch } from "./team.js";
+import { loadLearningsExcerpt, runRetro } from "./retro.js";
 import {
   initState,
   latestHandoff,
+  latestUpstreamHandoff,
   loadAgentPrompt,
   readState,
-  REPO_ROOT,
   writeState,
+  LOOP_DIR,
+  REPO_ROOT,
   type Handoff,
   type LoopState,
   type Stage,
@@ -32,19 +32,42 @@ export async function runLoop(options: RunLoopOptions): Promise<LoopState> {
   let state = await loadOrInitState(options.goal);
   const maxStages = options.maxStages ?? 50;
   let stagesRun = 0;
+  let pendingFeedback: Handoff | null = await latestUpstreamHandoff(state);
 
   while (state.status === "running" && stagesRun < maxStages) {
-    console.log(`\n[loop] stage=${state.currentStage} iteration=${state.iteration}`);
+    const toRun = stagesToDispatch(state.currentStage);
+    console.log(
+      `\n[loop] stage=${state.currentStage} dispatch=[${toRun.join(",")}] iteration=${state.iteration}`,
+    );
 
-    const agentPrompt = await loadAgentPrompt(state.currentStage);
-    const priorHandoff = await latestHandoff(state.currentStage);
-    const prompt = buildStagePrompt(state, agentPrompt, priorHandoff);
+    const startedAt = new Date().toISOString();
+    const prior = pendingFeedback ?? (await latestUpstreamHandoff(state));
+    const learnings = await loadLearningsExcerpt(LOOP_DIR);
 
-    const handoff = await runStage(prompt, apiKey, options.model);
-    state = applyHandoff(state, handoff);
+    const runOne = async (stage: Stage): Promise<Handoff> => {
+      const agentPrompt = await loadAgentPrompt(stage);
+      const prompt = buildStagePrompt(state, agentPrompt, prior, {
+        stage,
+        learnings,
+      });
+      return runAgent(stage, prompt, apiKey, options.model, startedAt);
+    };
+
+    const handoffs =
+      toRun.length > 1
+        ? await Promise.all(toRun.map((stage) => runOne(stage)))
+        : [await runOne(toRun[0])];
+
+    await runRetro(LOOP_DIR, handoffs, state.iteration);
+
+    const handoff = combineHandoffs(handoffs);
+    state = applyHandoff(state, handoff, toRun);
     await writeState(state);
 
-    console.log(`[loop] handoff status=${handoff.status} summary=${handoff.summary.slice(0, 80)}...`);
+    pendingFeedback = handoff;
+    console.log(
+      `[loop] handoff status=${handoff.status} dispatched=[${state.dispatched.join(",")}] summary=${handoff.summary.slice(0, 80)}...`,
+    );
 
     if (state.status !== "running") break;
     stagesRun++;
@@ -63,74 +86,46 @@ async function loadOrInitState(goal: string): Promise<LoopState> {
   return initState(goal);
 }
 
-async function runStage(
+async function runAgent(
+  stage: Stage,
   prompt: string,
   apiKey: string,
   model = "composer-2.5",
+  startedAt: string,
 ): Promise<Handoff> {
   try {
     await using agent = await Agent.create({
       apiKey,
       model: { id: model },
-      local: { cwd: REPO_ROOT, settingSources: [] },
+      local: { cwd: REPO_ROOT, settingSources: ["project"] },
     });
 
     const run = await agent.send(prompt);
     const result = await run.wait();
-
-    if (result.status === "error") {
-      return errorHandoff(`Run failed: ${result.id}`);
-    }
-
-    const handoff = await findLatestHandoffFromRun(stateFromPrompt(prompt));
+    const handoff = await latestHandoff(stage, { notBefore: startedAt });
     if (handoff) return handoff;
 
-    return {
-      agent: "unknown",
-      status: "success",
-      summary: result.result ?? "Stage completed without structured handoff",
-      timestamp: new Date().toISOString(),
-      nextStage: undefined,
-    };
+    if (result.status === "error") {
+      return errorHandoff(stage, `Run failed: ${result.id}`);
+    }
+
+    return missingHandoff(stage);
   } catch (err) {
     if (err instanceof CursorAgentError) {
-      return errorHandoff(`Startup failed: ${err.message}`);
+      return errorHandoff(stage, `Startup failed: ${err.message}`);
     }
     throw err;
   }
 }
 
-function stateFromPrompt(prompt: string): Stage {
-  const match = prompt.match(/## Current stage\n(\S+)/);
-  return (match?.[1] ?? "implementer") as Stage;
-}
-
-async function findLatestHandoffFromRun(stage: Stage): Promise<Handoff | null> {
-  const { readdir, readFile } = await import("node:fs/promises");
-  const { join } = await import("node:path");
-  const handoffsDir = join(REPO_ROOT, ".cursor", "loop", "handoffs");
-
-  try {
-    const files = (await readdir(handoffsDir))
-      .filter((f) => f.startsWith(`${stage}-`) && f.endsWith(".json"))
-      .sort()
-      .reverse();
-
-    if (files.length === 0) return null;
-    const raw = await readFile(join(handoffsDir, files[0]), "utf-8");
-    return JSON.parse(raw) as Handoff;
-  } catch {
-    return null;
-  }
-}
-
-function errorHandoff(message: string): Handoff {
+function errorHandoff(stage: Stage, message: string): Handoff {
   return {
-    agent: "orchestrator",
+    agent: stage,
     status: "failed",
     summary: message,
     timestamp: new Date().toISOString(),
   };
 }
 
-export { resolveNextStage, applyHandoff, buildStagePrompt };
+export { applyHandoff, buildStagePrompt, resolveNextStage } from "./stages.js";
+export { combineHandoffs, clampNextStage, stagesToDispatch } from "./team.js";

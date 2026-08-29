@@ -89,7 +89,7 @@ const BASE_SIZE: CanvasSize = { width: 360, height: 640 };
  * drags the touch controls overlaid on it off screen.
  */
 const MIN_WIDTH = 120;
-const MAX_WIDTH = 560;
+const MAX_WIDTH = 2560;
 /** Keeps the canvas off the very bottom edge of the viewport. */
 const EDGE_MARGIN = 12;
 

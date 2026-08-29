@@ -53,8 +53,10 @@ export interface ActivePowerUp {
   type: PowerUpType;
   startTick: number;
   durationTicks: number;
-  /** Charge-based only: the charge has been spent. */
+  /** Charge-based only: the charge has been spent (super-jump). */
   used: boolean;
+  /** Double-jump only: mid-air jumps remaining in this window. */
+  chargesRemaining?: number;
 }
 
 /** Per-tick intent produced by a client's input sampling. */
@@ -92,6 +94,8 @@ export interface PlayerState {
   onLadder: boolean;
   /** Floor index of the ladder being climbed (ladder i joins floor i→i+1), else null. */
   ladderIx: number | null;
+  /** Which ladder on that floor is being climbed — floors can have several. */
+  ladderSlot: number | null;
   status: PlayerStatus;
   /** Permanent-record ethos: max height reached, retained on death (AC-8). */
   peakY: number;

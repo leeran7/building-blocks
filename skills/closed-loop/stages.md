@@ -3,19 +3,30 @@
 ## Primary loop (always run)
 
 ```
-product-spec → architect → implementer → verifier → reviewer → integrator → release
-                                    ↑         ↑          ↑           ↑
-                                    └─────────┴──────────┴───────────┘
+product-spec → architect → implementer → verifier
+                                              ↓
+                        reviewer + security-reviewer (parallel)
+                                              ↓
+                         qa-acceptance → integrator → release
+                                    ↑         ↑          ↑
+                                    └─────────┴──────────┘
                                               (failures loop back)
 ```
 
 ## Parallel quality gates (after verifier)
 
-Run in any order; all must pass before integrator:
+The orchestrator must dispatch these — doing the review in the parent does not count.
 
+Run `reviewer` and `security-reviewer` in the **same message** (parallel). Then
+`qa-acceptance`. All must pass before integrator:
+
+- **reviewer** — correctness, edge cases, conventions (critical findings block)
 - **security-reviewer** — auth, secrets, injection, dependencies
 - **qa-acceptance** — user flows vs acceptance criteria
 - **performance** — only when perf criteria exist in spec
+
+`nextStage` on a handoff cannot skip a required team member. The orchestrator
+clamps skips back onto the sequence (see [team.md](team.md)).
 
 ## Conditional stages
 
@@ -64,5 +75,8 @@ The orchestrator stops the loop when ALL are true:
 
 | Platform | Delegate to subagent |
 |----------|---------------------|
-| Cursor | Task tool with subagent type |
-| Claude Code | Agent tool with `subagent_type`, or `@agent-name` |
+| Cursor | Task tool with `subagent_type` **equal to the agent name** |
+| Claude Code | Agent tool with `subagent_type` matching the agent name |
+
+`custom` / `generalPurpose` / implementing the stage yourself is a loop defect.
+See [team.md](team.md).

@@ -15,6 +15,10 @@ import {
   FAMILIES,
   resolveGameCategory,
   slugifyCategory,
+  isGameCategory,
+  parseSeasonSlug,
+  parsePaidStackSlug,
+  DEFAULT_STACK_SLUG,
 } from "../../src/game/categories";
 
 describe("AC-22: full taxonomy grouped by family", () => {
@@ -61,5 +65,48 @@ describe("AC-19 / AC-21: open-ended, data-driven resolution", () => {
     expect(slugifyCategory("AI & ML Tools")).toBe("ai-and-ml-tools");
     expect(slugifyCategory("UI/UX Design")).toBe("ui-ux-design");
     expect(slugifyCategory("E-commerce & Stores")).toBe("e-commerce-and-stores");
+  });
+
+  it("does not treat Object.prototype keys as seeded categories", () => {
+    for (const key of ["constructor", "toString", "__proto__", "hasOwnProperty"]) {
+      expect(isGameCategory(key)).toBe(false);
+      const resolved = resolveGameCategory(key);
+      expect(resolved.slug).toBe(key.toLowerCase());
+      expect(resolved.themeArchetype).toBeTruthy();
+      expect(typeof resolved).not.toBe("function");
+    }
+  });
+});
+
+describe("parseSeasonSlug", () => {
+  it("accepts leftover legacy slugs but rejects junk", () => {
+    expect(parseSeasonSlug("tech")).toBe("tech");
+    expect(parseSeasonSlug("indie-games")).toBe("indie-games");
+    expect(parseSeasonSlug("__proto__")).toBeNull();
+    expect(parseSeasonSlug("constructor")).toBeNull();
+    expect(parseSeasonSlug("toString")).toBeNull();
+    expect(parseSeasonSlug("")).toBeNull();
+  });
+});
+
+describe("paid stack slugs", () => {
+  it("DEFAULT_STACK_SLUG is a curated 74-stack, never a legacy broad slug", () => {
+    expect(isGameCategory(DEFAULT_STACK_SLUG)).toBe(true);
+    expect(["tech", "design", "business", "creative", "gaming", "science"]).not.toContain(
+      DEFAULT_STACK_SLUG
+    );
+    expect(GAME_CATEGORIES[0].slug).toBe(DEFAULT_STACK_SLUG);
+  });
+
+  it("parsePaidStackSlug rejects ghost and empty values", () => {
+    expect(parsePaidStackSlug("tech")).toBeNull();
+    expect(parsePaidStackSlug("")).toBeNull();
+    expect(parsePaidStackSlug(undefined)).toBeNull();
+    expect(parsePaidStackSlug("indie-games")).toBe("indie-games");
+    expect(parsePaidStackSlug("AI-AND-ML-TOOLS")).toBe("ai-and-ml-tools");
+    expect(parsePaidStackSlug("constructor")).toBeNull();
+    expect(parsePaidStackSlug("toString")).toBeNull();
+    expect(parsePaidStackSlug("__proto__")).toBeNull();
+    expect(parsePaidStackSlug("hasOwnProperty")).toBeNull();
   });
 });

@@ -28,6 +28,7 @@ import { uniqueSlug } from "../../../src/lib/slugify";
 import { getStripe } from "../../../src/api/stripe";
 import { resolveBaseUrl } from "../../../src/config/public";
 import { checkRateLimit, clientIp } from "../../../src/lib/rateLimit";
+import { parsePaidStackSlug, parseSeasonSlug } from "../../../src/game/categories";
 
 export const runtime = "nodejs";
 
@@ -36,10 +37,9 @@ export const runtime = "nodejs";
 const CHECKOUT_RATE_MAX = 30;
 const CHECKOUT_RATE_WINDOW_SECONDS = 60;
 
-/** Normalize a category to a well-formed slug; default to "tech". */
-function normalizeCategorySlug(raw: string | undefined): string {
-  const slug = (raw ?? "tech").toLowerCase();
-  return /^[a-z0-9][a-z0-9-]{0,63}$/.test(slug) ? slug : "tech";
+/** A curated paid-stack slug, or null if the client sent a ghost/legacy value. */
+function normalizeCategorySlug(raw: string | undefined): string | null {
+  return parsePaidStackSlug(raw);
 }
 
 const NewListingSchema = z.object({
@@ -171,12 +171,43 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       );
     }
 
-    // Resolve category slug for new listings (default "tech").
-    const category: string =
-      data.type === "new" ? normalizeCategorySlug(data.category) : "tech";
+    // New listings must name a real 74-stack (never the legacy "tech" ghost).
+    // Top-ups inherit the block's own category; a missing category is an error
+    // rather than minting a ghost "tech" season.
+    const isNewListing = data.type === "new";
+    let stackSlug: string;
+    let blockId = "";
+    let displayName = "";
+    let redirectSlug = "";
 
-    // Get active season for this category
-    const season = await getOrCreateActiveSeason(category);
+    if (isNewListing) {
+      const stack = normalizeCategorySlug(data.category);
+      if (!stack) {
+        return NextResponse.json(
+          { error: "Unknown stack", code: "INVALID_CATEGORY", field: "category" },
+          { status: 400 }
+        );
+      }
+      stackSlug = stack;
+    } else {
+      const block = await getBlockById(data.block_id);
+      if (!block) {
+        return NextResponse.json({ error: "Block not found" }, { status: 404 });
+      }
+      const stackSlugParsed = parseSeasonSlug(block.category);
+      if (!stackSlugParsed) {
+        return NextResponse.json(
+          { error: "Block has no stack", code: "INVALID_CATEGORY" },
+          { status: 400 }
+        );
+      }
+      stackSlug = stackSlugParsed;
+      blockId = block.id;
+      displayName = block.display_name;
+      redirectSlug = block.slug;
+    }
+
+    const season = await getOrCreateActiveSeason(stackSlug);
     if (!season.is_active) {
       return NextResponse.json({ error: "No active season" }, { status: 503 });
     }
@@ -185,10 +216,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // Server always computes rate — never trusts client
     const rate = computeRate(V);
 
-    let blockId: string;
-    let displayName: string;
-
-    if (data.type === "new") {
+    if (isNewListing) {
       // Validate and sanitise URL (NFR-S4)
       const urlResult = validateUrl(data.url);
       if (!urlResult.valid || !urlResult.sanitised) {
@@ -204,11 +232,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         owner_email: data.owner_email,
         season_id: season.id,
         userId: authenticatedUserId ?? undefined,
-        category,
+        category: stackSlug,
       });
 
       blockId = block.id;
       displayName = data.display_name;
+      redirectSlug = block.slug;
 
       // Remember this URL on the user so they can reuse it next time.
       if (authenticatedUserId) {
@@ -216,23 +245,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           /* best-effort — never block checkout on this */
         });
       }
-    } else {
-      // Top-up: validate block exists
-      const block = await getBlockById(data.block_id);
-      if (!block) {
-        return NextResponse.json({ error: "Block not found" }, { status: 404 });
-      }
-      blockId = block.id;
-      displayName = block.display_name;
     }
 
     // Create Stripe Checkout session
     const stripe = getStripe();
     const baseUrl = resolveBaseUrl();
-
-    // Find block slug for redirect
-    const block = await getBlockById(blockId);
-    const slug = block?.slug ?? blockId;
 
     const session = await stripe.checkout.sessions.create({
       mode: "payment",
@@ -252,7 +269,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       metadata: {
         block_id: blockId,
         season_id: season.id,
-        category: category,
+        category: stackSlug,
         // Server-computed rate stored for audit trail only
         // (webhook recomputes metres from live views_k at settlement time)
         rate_at_checkout: rate.toString(),
@@ -264,7 +281,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
             "Altitude is permanent. No refunds. Positions are live; your rank is calculated when payment completes.",
         },
       },
-      success_url: `${baseUrl}/b/${slug}?payment=success`,
+      success_url: `${baseUrl}/b/${redirectSlug}?payment=success`,
       cancel_url: `${baseUrl}/?payment=cancelled`,
     });
 

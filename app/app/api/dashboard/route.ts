@@ -13,7 +13,7 @@
  *   1. getAllActiveSeasons (1 query, all categories)
  *   2. user's blocks (1 query)
  *   3. payments for user's blocks (1 query, bulk)
- *   4-9. one category leaderboard query per unique category (max 6)
+ *   4+. one category leaderboard query per unique category the user owns
  *
  * Request:
  *   Authorization: Bearer <firebase-id-token>
@@ -77,9 +77,8 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     // Query 1: all active seasons (one per category)
     const seasonMap = await getAllActiveSeasons();
 
-    // Fallback season for blocks with null category or missing season
-    const techSeason = seasonMap.get("tech");
-    const fallbackV = techSeason?.views_k ?? 0;
+    // Missing season → V=0 (season-start ground). Never fall back to the
+    // legacy "tech" ghost stack — that season is not one of the 74.
 
     // Query 2: user's blocks
     const userBlocks = await prisma.block.findMany({
@@ -131,10 +130,10 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       paymentsByBlock.set(p.block_id, list);
     }
 
-    // Queries 4–9: one per unique category in user's blocks (max 6)
+    // Queries 4+: one per unique category in the user's blocks.
     const userCategories = Array.from(
-      new Set(userBlocks.map((b) => b.category ?? "tech"))
-    ) as string[];
+      new Set(userBlocks.map((b) => b.category).filter((c): c is string => !!c))
+    );
 
     const categoryBlocksMap = new Map<
       string,
@@ -155,12 +154,12 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
     // Enrich each user block
     const enrichedBlocks = userBlocks.map((block) => {
-      const cat = block.category ?? "tech";
-      const season = seasonMap.get(cat);
-      const V = season?.views_k ?? fallbackV;
+      const cat = block.category;
+      const season = cat ? seasonMap.get(cat) : undefined;
+      const V = season?.views_k ?? 0;
       const ground = computeGround(V);
 
-      const catBlocks = categoryBlocksMap.get(cat) ?? [];
+      const catBlocks = cat ? categoryBlocksMap.get(cat) ?? [] : [];
       const myIndex = catBlocks.findIndex((b) => b.id === block.id);
       const rank = myIndex >= 0 ? myIndex + 1 : null;
 
