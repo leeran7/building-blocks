@@ -222,8 +222,8 @@ function integratePlayer(
   if (p.onLadder) {
     p.x = clamp(p.x + p.vx * dt, 0, tower.widthM);
     const l = p.ladderIx !== null ? ladderForFloor(tower, p.ladderIx) : undefined;
-    if (!l || input.jump) {
-      // Hop off (jump) or lost the ladder reference → let go.
+    if (!l || (input.jump && input.climbY === 0)) {
+      // Hop off (jump without climb intent) or lost the ladder reference → let go.
       p.onLadder = false;
       p.ladderIx = null;
       p.onGround = false;
@@ -394,7 +394,7 @@ export function stepMatch(
         durationTicks: dur,
         used: false,
         chargesRemaining:
-          type === "double-jump" ? DOUBLE_JUMP_CHARGES : undefined,
+          pu.type === "double-jump" ? DOUBLE_JUMP_CHARGES : undefined,
       });
       const cd = cooldownTicks(pu.type);
       if (cd > 0) p.cooldownUntilTick[pu.type] = state.tick + dur + cd;
