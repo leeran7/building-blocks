@@ -3,8 +3,9 @@
 /**
  * On-screen touch controls for The Climb (mobile Phase 1).
  *
- * Virtual joystick (move + climb) on the left, jump button on the right.
- * Wired into useClimb via setTouch, and only mounted on coarse-pointer devices.
+ * WASD-style pad on the left (W = climb up, S = climb down, A/D = move) and a
+ * jump button on the right. Wired into useClimb via setTouch, and only mounted
+ * on coarse-pointer devices.
  *
  * These sit *over* the bottom of the canvas rather than in a bar beneath it. A
  * phone has ~660px of viewport, and a 9:16 canvas wants all of it: a separate
@@ -16,25 +17,46 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { NO_TOUCH, type TouchInput } from "../../game/useClimb";
-import { NO_JOYSTICK, type JoystickAxes } from "./joystickInput";
-import { VirtualJoystick, JOYSTICK_ZONE_HEIGHT } from "./VirtualJoystick";
 import {
   initialHoldMemo,
   isHoldKey,
-  mergeTouchInput,
   reduceHold,
+  touchInputFromHeld,
   type ControlId,
   type HoldEvent,
   type HoldMemo,
 } from "./touchHold";
 
-const JUMP_CONTROL = {
-  id: "jump" as const,
+interface Control {
+  id: ControlId;
+  label: string;
+  glyph: string;
+  /** Small caption under the glyph. */
+  sub?: string;
+  /** Signal-coloured treatment for the primary action. */
+  accent?: boolean;
+  /** Glyph is a word ("JMP"), not a single letter — needs a smaller type size. */
+  wordGlyph?: boolean;
+}
+
+const WASD_CONTROLS = {
+  climb: { id: "climb" as const, label: "Climb up", glyph: "W" },
+  left: { id: "left" as const, label: "Move left", glyph: "A" },
+  down: { id: "down" as const, label: "Climb down", glyph: "S" },
+  right: { id: "right" as const, label: "Move right", glyph: "D" },
+} as const;
+
+const JUMP_CONTROL: Control = {
+  id: "jump",
   label: "Jump",
   glyph: "JMP",
   accent: true,
   wordGlyph: true,
 };
+
+const PAD_BUTTON_CLASS =
+  "relative flex flex-col items-center justify-center rounded-2xl border font-mono font-bold " +
+  "h-[72px] w-[72px] backdrop-blur-sm transition-[filter,transform,background-color] ";
 
 export function TouchControls({
   active,
@@ -44,57 +66,33 @@ export function TouchControls({
   onInput: (input: TouchInput) => void;
 }) {
   const memoRef = useRef<HoldMemo>(initialHoldMemo());
-  const joystickRef = useRef<JoystickAxes>(NO_JOYSTICK);
-  const [jumpHeld, setJumpHeld] = useState(false);
-
-  const emitInput = useCallback(
-    (held: ReadonlySet<ControlId>, joystick: JoystickAxes) => {
-      onInput(mergeTouchInput(joystick, held));
-    },
-    [onInput]
-  );
+  const [pressed, setPressed] = useState<ReadonlySet<ControlId>>(new Set());
 
   const apply = useCallback(
     (event: HoldEvent) => {
       const next = reduceHold(memoRef.current, event);
       memoRef.current = next;
-      setJumpHeld(next.held.has("jump"));
-      emitInput(next.held, joystickRef.current);
+      setPressed(next.held);
+      onInput(touchInputFromHeld(next.held));
     },
-    [emitInput]
+    [onInput]
   );
 
   const release = useCallback(
     (id: ControlId) => {
       apply({ kind: "release", id });
-      // Enter's keydown preventDefault cancels the compatibility click that
-      // would otherwise clear suppressActivate, and some pointer paths never
-      // deliver a click at all. Clear the flag after this turn: click, if it
-      // fires, runs first and consumes it; if it does not, this opens the
-      // toggle path again.
       queueMicrotask(() => apply({ kind: "clear-suppress", id }));
     },
     [apply]
   );
 
-  const handleJoystick = useCallback(
-    (axes: JoystickAxes) => {
-      joystickRef.current = axes;
-      emitInput(memoRef.current.held, axes);
-    },
-    [emitInput]
-  );
-
   useEffect(() => {
     if (active) return;
     memoRef.current = initialHoldMemo();
-    joystickRef.current = NO_JOYSTICK;
-    setJumpHeld(false);
+    setPressed(new Set());
     onInput(NO_TOUCH);
   }, [active, onInput]);
 
-  // Absolutely positioned, so unmounting between runs costs the canvas no
-  // height and cannot resize the game mid-transition.
   if (!active) return null;
 
   return (
@@ -105,12 +103,46 @@ export function TouchControls({
       aria-label="Touch game controls"
     >
       <div className="flex items-end justify-between gap-3">
-        <VirtualJoystick onChange={handleJoystick} />
+        <div
+          role="group"
+          aria-label="WASD movement and climb"
+          className="grid grid-cols-3 gap-1.5"
+          style={{ gridTemplateRows: "repeat(2, 72px)" }}
+        >
+          <div className="col-start-2">
+            <TouchButton
+              control={WASD_CONTROLS.climb}
+              held={pressed.has("climb")}
+              onEvent={apply}
+              onRelease={release}
+            />
+          </div>
+          <TouchButton
+            control={WASD_CONTROLS.left}
+            held={pressed.has("left")}
+            onEvent={apply}
+            onRelease={release}
+          />
+          <TouchButton
+            control={WASD_CONTROLS.down}
+            held={pressed.has("down")}
+            onEvent={apply}
+            onRelease={release}
+          />
+          <TouchButton
+            control={WASD_CONTROLS.right}
+            held={pressed.has("right")}
+            onEvent={apply}
+            onRelease={release}
+          />
+        </div>
+
         <TouchButton
           control={JUMP_CONTROL}
-          held={jumpHeld}
+          held={pressed.has("jump")}
           onEvent={apply}
           onRelease={release}
+          className="min-h-[148px] min-w-[92px]"
         />
       </div>
     </div>
@@ -122,11 +154,13 @@ function TouchButton({
   held,
   onEvent,
   onRelease,
+  className = "",
 }: {
-  control: typeof JUMP_CONTROL;
+  control: Control;
   held: boolean;
   onEvent: (event: HoldEvent) => void;
   onRelease: (id: ControlId) => void;
+  className?: string;
 }) {
   const { id, label, glyph, accent, wordGlyph } = control;
 
@@ -137,14 +171,8 @@ function TouchButton({
       aria-pressed={held}
       style={{ touchAction: "none" }}
       className={
-        "relative flex flex-col items-center justify-center rounded-2xl border font-mono font-bold " +
-        "min-h-[92px] min-w-[92px] flex-shrink-0 backdrop-blur-sm " +
-        "transition-[filter,transform,background-color] " +
-        // One ternary per state rather than appending the held colour: competing
-        // background utilities are resolved by stylesheet order, not by the
-        // order they appear here, so an appended override silently loses.
-        // Backgrounds stay opaque enough to read over the orange lava band, and
-        // the pressed accent flips the glyph to dark for contrast on lime.
+        PAD_BUTTON_CLASS +
+        className +
         (held
           ? accent
             ? "border-signal bg-signal/90 text-void scale-95 "
@@ -154,9 +182,6 @@ function TouchButton({
           : "border-border-strong bg-void/80 text-text-primary ")
       }
       onPointerDown={(e) => {
-        // Do not preventDefault: that cancels the compatibility click the
-        // suppress flag exists to ignore. Scrolling is already killed by
-        // touch-action: none.
         e.currentTarget.setPointerCapture(e.pointerId);
         onEvent({ kind: "press", id });
       }}
@@ -175,10 +200,6 @@ function TouchButton({
         onRelease(id);
       }}
       onClick={(e) => {
-        // Pointer and keyboard already applied press/release. The remaining
-        // click is the AT path (VoiceOver/TalkBack synthesise click with no
-        // pair). preventDefault keeps Enter from firing this after keyup when
-        // keydown did not already cancel it.
         e.preventDefault();
         onEvent({ kind: "activate", id });
       }}
@@ -187,7 +208,7 @@ function TouchButton({
         className={
           wordGlyph
             ? "text-lg uppercase tracking-[0.08em] leading-none"
-            : "text-3xl leading-none"
+            : "text-2xl leading-none"
         }
         aria-hidden="true"
       >
@@ -198,13 +219,8 @@ function TouchButton({
 }
 
 /**
- * Canvas height these controls cover: `min-h-[92px]` plus `p-2` top and bottom
- * (8px * 2 = 16px). Passed to ClimbCanvas as `bottomInset` so the camera keeps
- * the climber above the buttons instead of behind them.
- *
- * Button height and padding are deliberately breakpoint-free. When they varied
- * by breakpoint this constant matched only the phone case and understated the
- * bar by 16px at `sm:`, drawing the climber inside the buttons on tablets and
- * on any phone in landscape.
+ * Canvas height these controls cover: two 72px WASD rows plus `p-2` top and
+ * bottom (8px * 2 = 16px). Passed to ClimbCanvas as `bottomInset` so the camera
+ * keeps the climber above the buttons instead of behind them.
  */
-export const TOUCH_CONTROLS_INSET = JOYSTICK_ZONE_HEIGHT + 16;
+export const TOUCH_CONTROLS_INSET = 160;

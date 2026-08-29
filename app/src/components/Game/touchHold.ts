@@ -52,12 +52,7 @@ export function reduceHold(memo: HoldMemo, event: HoldEvent): HoldMemo {
   }
 }
 
-import type { JoystickAxes } from "./joystickInput";
-
-export function mergeTouchInput(
-  joystick: JoystickAxes,
-  held: ReadonlySet<ControlId>
-): {
+export function touchInputFromHeld(held: ReadonlySet<ControlId>): {
   left: boolean;
   right: boolean;
   up: boolean;
@@ -65,12 +60,15 @@ export function mergeTouchInput(
   jump: boolean;
 } {
   return {
-    ...joystick,
+    left: held.has("left"),
+    right: held.has("right"),
+    up: held.has("climb"),
+    down: held.has("down"),
     jump: held.has("jump"),
   };
 }
 
-export type ControlId = "jump";
+export type ControlId = "left" | "right" | "climb" | "down" | "jump";
 
 export type HoldEvent =
   | { kind: "press"; id: ControlId }

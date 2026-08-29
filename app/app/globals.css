@@ -254,17 +254,6 @@ button:focus-visible,
   box-shadow: inset 0 1px 0 0 rgb(var(--signal-rgb) / 0.25);
 }
 
-/* nipplejs virtual joystick — match game chrome */
-.game-joystick-zone .nipple .back {
-  border: 1px solid var(--color-border-focus);
-  box-shadow: 0 2px 12px rgb(0 0 0 / 0.35);
-}
-
-.game-joystick-zone .nipple .front {
-  border: 1px solid rgb(var(--signal-rgb) / 0.45);
-  box-shadow: 0 2px 8px rgb(0 0 0 / 0.3);
-}
-
 /* Staggered load-in: children fade+rise. Delays set inline per element. */
 .reveal {
   animation: enter 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;

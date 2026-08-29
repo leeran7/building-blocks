@@ -29,9 +29,6 @@ importers:
       next:
         specifier: 15.5.24
         version: 15.5.24(@babel/core@7.29.7)(@opentelemetry/api@1.9.1)(@playwright/test@1.62.1)(@types/node@20.19.43)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
-      nipplejs:
-        specifier: ^1.0.4
-        version: 1.0.4
       react:
         specifier: 18.3.1
         version: 18.3.1
@@ -3037,9 +3034,6 @@ packages:
         optional: true
       sass:
         optional: true
-
-  nipplejs@1.0.4:
-    resolution: {integrity: sha512-YtvRZDuyWQ+tOj0nUjfnZt4ZQmJVWfK9+yPmV5OXpQ4k4AkOGcSfKvSXbPNkV0ERqc4eakkBSZ7/Wyx1y6h/Sg==}
 
   node-exports-info@1.6.2:
     resolution: {integrity: sha512-kXs9Go0cah0qHVV2v389IXQLdLCeE1xfFtjOAF+iobu0OIoG1pje8At2vMHyaPMiPMnG/LWP50twML21eMcAag==}
@@ -7095,8 +7089,6 @@ snapshots:
       - '@babel/core'
       - '@types/node'
       - babel-plugin-macros
-
-  nipplejs@1.0.4: {}
 
   node-exports-info@1.6.2:
     dependencies:
