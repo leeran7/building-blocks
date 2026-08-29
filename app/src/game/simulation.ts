@@ -394,7 +394,7 @@ export function stepMatch(
         durationTicks: dur,
         used: false,
         chargesRemaining:
-          type === "double-jump" ? DOUBLE_JUMP_CHARGES : undefined,
+          pu.type === "double-jump" ? DOUBLE_JUMP_CHARGES : undefined,
       });
       const cd = cooldownTicks(pu.type);
       if (cd > 0) p.cooldownUntilTick[pu.type] = state.tick + dur + cd;
