@@ -1,13 +1,12 @@
 /**
- * HowItWorks — 3-step explanation, ASCENT design.
+ * HowItWorks — paid-stack explanation, ASCENT design.
  *
- * Reads as three stations on a climb: big mono altimeter numbers, a signal-lime
- * icon plate, and duotone language (signal = rise, ember = burial). Server
- * component, static content.
- * AC-27: DOM must contain a "how it works" section with exactly 3 step elements.
+ * Three stations on the climb (AC-27: exactly 3 step elements in the ol).
+ * Below that, a paid-stack primer with rate floors and season mechanics.
  */
 
 import type React from "react";
+import Link from "next/link";
 
 function ArrowUpIcon() {
   return (
@@ -73,13 +72,20 @@ interface Step {
   tone: "signal" | "ember";
 }
 
+export interface HowItWorksProps {
+  /** Minimum first payment for a new block (USD). */
+  minEntryUsd?: number;
+  /** Minimum top-up payment (USD). */
+  minSpendUsd?: number;
+}
+
 const steps: Step[] = [
   {
     number: "01",
     icon: <ArrowUpIcon />,
     title: "Buy altitude",
     description:
-      "Pay once to place your block high in the stack. Your position is permanent — it never drops through inaction.",
+      "Pick one of 74 category stacks and pay to place your block. At season start the rate is $1 = 1m — each dollar buys the live rate shown on the tower header. Your altitude is permanent; it never drops through inaction.",
     tone: "signal",
   },
   {
@@ -87,7 +93,7 @@ const steps: Step[] = [
     icon: <EyeIcon />,
     title: "The ground rises",
     description:
-      "Every view the stack serves lifts the ground line. Blocks that don't top up eventually sink beneath it — and get buried.",
+      "Every qualified view on that stack's pages credits views, doubles the exchange rate (up to 8×), and lifts the ground line. Blocks below ground are buried — greyed out on the leaderboard until you top up. Record pages stay live forever.",
     tone: "ember",
   },
   {
@@ -95,12 +101,18 @@ const steps: Step[] = [
     icon: <TrophyIcon />,
     title: "Outlast everyone",
     description:
-      "Stay above ground to keep your rank and visibility. Top up, climb higher, and outlast every competitor in your stack.",
+      "Rank is altitude, highest first. To beat someone you pay for a 2% buffer above their height at the current rate. Stay above ground to keep visibility, top up when burial risk spikes, and outlast every competitor in your stack.",
     tone: "signal",
   },
 ];
 
-export function HowItWorks() {
+export function HowItWorks({
+  minEntryUsd = 5,
+  minSpendUsd = 2,
+}: HowItWorksProps) {
+  const entryLabel = minEntryUsd.toFixed(0);
+  const spendLabel = minSpendUsd.toFixed(0);
+
   return (
     <section
       id="how-it-works"
@@ -114,8 +126,12 @@ export function HowItWorks() {
               [ the rules ]
             </span>
             <h2 className="font-display text-4xl md:text-5xl text-text-primary mt-3">
-              How the climb works
+              How paid stacks work
             </h2>
+            <p className="text-sm text-text-secondary mt-2 max-w-xl">
+              Real money, real rank. One leaderboard per category — separate from
+              the free skill climb.
+            </p>
           </div>
           <span
             className="hidden md:block font-mono text-[11px] uppercase tracking-[0.14em] text-text-muted"
@@ -137,7 +153,6 @@ export function HowItWorks() {
                     : "border-border-subtle hover:border-signal/45"
                 }`}
               >
-                {/* faint altimeter numeral */}
                 <span
                   className="pointer-events-none absolute -top-3 right-3 font-display text-7xl leading-none text-border-strong/50 select-none"
                   aria-hidden="true"
@@ -170,7 +185,68 @@ export function HowItWorks() {
             );
           })}
         </ol>
+
+        <div
+          className="mt-8 rounded-2xl border border-border-subtle bg-surface p-6 md:p-8"
+          aria-label="Paid stack quick reference"
+        >
+          <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-6">
+            <div>
+              <h3 className="font-mono text-[11px] uppercase tracking-[0.16em] text-signal">
+                Paid stack primer
+              </h3>
+              <p className="text-sm text-text-secondary mt-2 max-w-lg leading-relaxed">
+                <strong className="text-text-primary">$1</strong> is the pricing
+                unit — &ldquo;$1 buys&rdquo; on every tower is metres per dollar
+                right now, not a payment you can make. Minimum spend is higher.
+              </p>
+            </div>
+            <dl className="grid grid-cols-2 sm:grid-cols-4 gap-4 flex-shrink-0">
+              <PrimerStat
+                label="New block"
+                value={`$${entryLabel} min`}
+                hint="claim #1 on empty stack"
+              />
+              <PrimerStat
+                label="Top-up"
+                value={`$${spendLabel} min`}
+                hint="any existing block"
+              />
+              <PrimerStat label="Rate cap" value="8×" hint="doubles every 500k views" />
+              <PrimerStat label="Season" value="90 days" hint="resets to $1 = 1m" />
+            </dl>
+          </div>
+          <p className="text-xs text-text-muted mt-6 border-t border-border-subtle pt-4">
+            Full formulas — growth cap, burial threshold, overtaking math — on{" "}
+            <Link href="/rules" className="text-signal hover:underline">
+              Rules &amp; formulas
+            </Link>
+            .
+          </p>
+        </div>
       </div>
     </section>
+  );
+}
+
+function PrimerStat({
+  label,
+  value,
+  hint,
+}: {
+  label: string;
+  value: string;
+  hint: string;
+}) {
+  return (
+    <div>
+      <dt className="font-mono text-[10px] uppercase tracking-[0.12em] text-text-muted">
+        {label}
+      </dt>
+      <dd className="font-mono text-xl font-bold text-text-primary tabular-nums mt-0.5">
+        {value}
+      </dd>
+      <dd className="text-[11px] text-text-muted mt-0.5">{hint}</dd>
+    </div>
   );
 }

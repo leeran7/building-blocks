@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+
 /**
  * RecordStats — the permanent record dossier for a block (AC-38), ASCENT design.
  *
@@ -121,12 +123,12 @@ export function RecordStats({
           </div>
 
           <div className="pt-5 mt-6 border-t border-border-subtle">
-            <a
+            <Link
               href="/"
               className="font-mono text-xs uppercase tracking-[0.14em] text-text-muted hover:text-signal transition-colors"
             >
               ← Back to Stack
-            </a>
+            </Link>
           </div>
         </div>
       </div>
