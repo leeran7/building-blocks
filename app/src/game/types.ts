@@ -12,6 +12,51 @@ export const TICK_DT = 1 / TICK_HZ; // seconds per tick
 
 export type PlayerId = string;
 
+/**
+ * The five power-ups. Each is a deliberate counter to one of the ways the
+ * endless tower kills you: the ladder grind (rapid-climb), long sideways
+ * traverses (sprint-burst), a missed gap (double-jump), an out-of-reach ledge
+ * (super-jump), and the lava simply outpacing you late in a run (time-slow).
+ * Tuning lives in powerups.ts.
+ */
+export type PowerUpType =
+  | "rapid-climb"
+  | "sprint-burst"
+  | "double-jump"
+  | "super-jump"
+  | "time-slow";
+
+/**
+ * A power-up sitting in the world, hovering above a floor's surface. Generated
+ * deterministically per floor from (seed, floorIndex) like the rest of the
+ * tower geometry, so an endless world still re-simulates exactly (AC-11).
+ */
+export interface PowerUpPickup {
+  /** Stable per-floor id — `pu:<floorIndex>`. */
+  id: string;
+  type: PowerUpType;
+  floorIndex: number;
+  x: number;
+  /** Centre height of the orb in tower metres. */
+  y: number;
+  collected: boolean;
+  /** Tick it was collected, for the pickup flash. */
+  collectedTick: number | null;
+}
+
+/**
+ * A power-up the player has activated. Duration-based effects run until
+ * `startTick + durationTicks`; charge-based ones (double-jump, super-jump) are
+ * consumed by the move they enable and expire unused when the window closes.
+ */
+export interface ActivePowerUp {
+  type: PowerUpType;
+  startTick: number;
+  durationTicks: number;
+  /** Charge-based only: the charge has been spent. */
+  used: boolean;
+}
+
 /** Per-tick intent produced by a client's input sampling. */
 export interface PlayerInput {
   /** -1 = left, 0 = none, +1 = right. */
@@ -52,6 +97,32 @@ export interface PlayerState {
   peakY: number;
   /** Tick this player touched the flag, if finished (AC-3 tie-break). */
   finishedTick: number | null;
+  /** Banked power-up, waiting on the use input. One slot: a pickup replaces it. */
+  heldPowerUp: PowerUpType | null;
+  /** Power-ups currently running. Expired entries are dropped each tick. */
+  activePowerUps: ActivePowerUp[];
+  /**
+   * Earliest tick each type may be activated again. Only time-slow sets one —
+   * see the balance note in powerups.ts on why the run has to stay finite.
+   */
+  cooldownUntilTick: Partial<Record<PowerUpType, number>>;
+  /**
+   * Last pickup / activation, recorded so the renderer and the sound layer can
+   * fire one-shot feedback without diffing arrays. Presentation-only: nothing in
+   * the simulation reads them back.
+   */
+  lastPickupTick: number | null;
+  lastPickupType: PowerUpType | null;
+  lastActivationTick: number | null;
+  lastActivationType: PowerUpType | null;
+  /**
+   * Previous tick's jump / use-power-up buttons, so both can be edge-triggered.
+   * Without this a held jump key would spend a double-jump charge on the tick
+   * after the ground launch, and a held use key would fire a power-up the
+   * instant it was picked up.
+   */
+  jumpHeldPrev: boolean;
+  usePowerUpHeldPrev: boolean;
 }
 
 /**
@@ -127,8 +198,19 @@ export interface MatchState {
   /** Race-time in seconds since "GO" (tick * TICK_DT once climbing). */
   raceSeconds: number;
   hazardY: number;
+  /**
+   * Seconds of hazard rise cancelled by time-slow. The hazard reads the clock
+   * at `raceSeconds - hazardSlowSeconds` rather than being scaled directly:
+   * scaling a height curve that is already an integral would make the lava
+   * drop, and the lava must only ever rise.
+   */
+  hazardSlowSeconds: number;
   tower: TowerSpec;
   players: PlayerState[];
   /** Winner player id once phase is finished/results. */
   winnerId: PlayerId | null;
+  /** Materialized power-up pickups for the floors currently in play. */
+  powerUps: PowerUpPickup[];
+  /** Exclusive upper bound of the floor range `powerUps` has been generated for. */
+  powerUpFloorHi: number;
 }

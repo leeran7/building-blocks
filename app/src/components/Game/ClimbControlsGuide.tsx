@@ -6,6 +6,7 @@
 
 import type { ReactNode } from "react";
 import { useCoarsePointer } from "../../hooks/useCoarsePointer";
+import { POWER_UP_SPECS, POWER_UP_TYPES } from "../../game/powerups";
 
 type Variant = "card" | "compact" | "overlay";
 
@@ -25,17 +26,25 @@ const KEYBOARD_CONTROLS = [
     keys: ["↑", "↓", "W", "S"],
     detail: "Up/down on ladders — stand on a ladder first",
   },
+  {
+    label: "Power-up",
+    keys: ["E", "Shift"],
+    detail: "Spend the power-up you're carrying",
+  },
 ] as const;
 
 const TOUCH_CONTROLS = [
   { label: "Move", detail: "Tap and hold ← → at the bottom of the screen" },
   { label: "Jump", detail: "Tap JMP to leap across gaps" },
   { label: "Climb", detail: "Hold ↑ climb when you're on a ladder" },
+  { label: "Power-up", detail: "Tap USE to spend the power-up you're carrying" },
 ] as const;
 
 const TIPS = [
   "Grab a ladder and climb to go faster than jumping floor to floor.",
   "The lava rises steadily — keep moving upward; your peak height is your score.",
+  "Walk into a glowing orb to pick up a power-up. You can only carry one, and a new orb replaces it.",
+  "Power-ups are banked, not automatic — hold one until the moment it saves you.",
   "Sign in after a run to save your rank on the free leaderboard.",
 ] as const;
 
@@ -46,14 +55,15 @@ export function ClimbControlsGuide({ variant = "card" }: { variant?: Variant }) 
     return touch ? (
       <p className="text-sm text-text-secondary leading-relaxed">
         <span className="text-text-primary font-medium">Touch controls:</span>{" "}
-        hold ← → to move · hold ↑ climb on ladders · tap JMP to jump
+        hold ← → to move · hold ↑ climb on ladders · tap JMP to jump · tap USE for
+        your power-up
       </p>
     ) : (
       <p className="text-sm text-text-secondary leading-relaxed">
         <span className="text-text-primary font-medium">Controls:</span>{" "}
         <Key>←</Key>/<Key>→</Key> or <Key>A</Key>/<Key>D</Key> move ·{" "}
         <Key>Space</Key> jump · <Key>↑</Key>/<Key>↓</Key> or <Key>W</Key>/<Key>S</Key> climb
-        ladders
+        ladders · <Key>E</Key> power-up
       </p>
     );
   }
@@ -133,6 +143,41 @@ export function ClimbControlsGuide({ variant = "card" }: { variant?: Variant }) 
           ))}
         </div>
       )}
+
+      <div className="mt-5 border-t border-border-subtle pt-4">
+        <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-text-muted">
+          Power-ups
+        </p>
+        <ul className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+          {POWER_UP_TYPES.map((type) => {
+            const spec = POWER_UP_SPECS[type];
+            return (
+              <li key={type} className="flex items-start gap-2.5">
+                <span
+                  className="mt-0.5 flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-md border font-mono text-xs"
+                  style={{ borderColor: spec.color, color: spec.color }}
+                  aria-hidden="true"
+                >
+                  {spec.glyph}
+                </span>
+                <div className="min-w-0">
+                  <p className="text-xs font-medium text-text-primary">{spec.label}</p>
+                  <p className="text-xs text-text-secondary leading-relaxed">
+                    {spec.description}
+                    <span className="text-text-muted">
+                      {" · "}
+                      {spec.charge ? "one use" : `${spec.durationSeconds}s`}
+                      {spec.cooldownSeconds > 0
+                        ? ` · ${spec.cooldownSeconds}s recharge`
+                        : ""}
+                    </span>
+                  </p>
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      </div>
 
       <ul className="mt-5 space-y-2 border-t border-border-subtle pt-4">
         {TIPS.map((tip) => (
