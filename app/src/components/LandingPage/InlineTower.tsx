@@ -80,7 +80,7 @@ export function InlineTower({ slug, label, onClose }: { slug: string; label: str
             </p>
           </div>
         ) : data ? (
-          <TowerView initialData={data} pollUrl={pollUrl} />
+          <TowerView initialData={data} pollUrl={pollUrl} submitHref={`/submit?category=${slug}`} />
         ) : (
           <div className="h-full grid place-items-center">
             <span className="font-mono text-xs uppercase tracking-[0.14em] text-text-muted animate-pulse">

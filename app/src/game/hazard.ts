@@ -61,14 +61,16 @@ export interface HazardConfig {
 }
 
 export const DEFAULT_HAZARD_CONFIG: HazardConfig = {
-  headStartM: 6,
-  graceSeconds: 4,
-  // Envelope ramps 0.5× → 1.42× over ~90s. Stumbles cut each 8s cycle to 2s at
-  // 0.25× envelope, so the TIME-AVERAGED late-game chase is
+  headStartM: 9,
+  graceSeconds: 5,
+  // Opening is the gentler tune from main (9m head-start, 5s grace, 0.42×).
+  // Envelope ramps 0.42× → 1.42× over ~90s. Stumbles cut each 8s cycle to 2s
+  // at 0.25× envelope, so the TIME-AVERAGED late-game chase is
   // 1.42 · (0.75 + 0.25·0.25) ≈ 1.15× — same pressure as a smooth 1.15× hold,
-  // but with recovery windows instead of a smooth rise at the envelope. Past
-  // that average even a perfect vertical climber cannot keep up.
-  startSpeedFrac: 0.5,
+  // but with recovery windows instead of a smooth rise at the envelope.
+  // That average (not the raw envelope) carries the run-must-end guarantee
+  // and the time-slow uptime bound in `powerups.ts`.
+  startSpeedFrac: 0.42,
   endSpeedFrac: 1.42,
   rampSeconds: 90,
   stumblePeriodSeconds: 8,

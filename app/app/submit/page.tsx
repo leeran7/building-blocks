@@ -18,6 +18,8 @@ import {
   GAME_CATEGORIES,
   FAMILIES,
   resolveGameCategory,
+  parsePaidStackSlug,
+  DEFAULT_STACK_SLUG,
 } from "../../src/game/categories";
 
 const INPUT =
@@ -29,7 +31,7 @@ function SubmitForm() {
   const { user, token, loading: authLoading } = useAuth();
 
   const rawCategory = searchParams.get("category");
-  const initialCategory = (rawCategory ?? "tech").toLowerCase();
+  const initialCategory = parsePaidStackSlug(rawCategory) ?? DEFAULT_STACK_SLUG;
   // Breadcrumb: name the stack this submission is scoped to, then "Submit".
   const breadcrumb = rawCategory
     ? `${resolveGameCategory(initialCategory).label} · Submit`

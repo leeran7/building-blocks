@@ -49,7 +49,7 @@ Delegate when scope is clearly layer-specific:
 - **data** — schema, migrations, queries, seed data
 - **mobile** — native/cross-platform client screens
 
-When delegating: pass the relevant spec excerpt, architecture contracts, exact file scope, and instruction to return a handoff with `"parent": "implementer"`. Integrate specialist output; you own final consistency.
+When delegating: pass the relevant spec excerpt, architecture contracts, exact file scope, and instruction to return a handoff with `"parent": "implementer"`. Use Task `subagent_type` equal to the specialist name (`frontend`, `backend`, `data`, `mobile`) — not `custom` or `generalPurpose`. Integrate specialist output; you own final consistency and still write the **implementer** handoff.
 
 ### 4. Code quality invariants
 Apply these unconditionally:

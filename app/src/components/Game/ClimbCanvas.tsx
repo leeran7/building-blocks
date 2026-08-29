@@ -21,7 +21,13 @@ import {
   floorHeight,
   floorIndexAt,
 } from "../../game/towers";
-import { POWER_UP_SPECS, cooldownRemaining, isExpired } from "../../game/powerups";
+import {
+  POWER_UP_SPECS,
+  cooldownRemaining,
+  isExpired,
+  isPowerUpActive,
+} from "../../game/powerups";
+import { signX, type Billboard } from "../../game/billboards";
 
 // ASCENT palette — signal-lime climber, ember lava, warm-obsidian world.
 const VOID = "#0a0a0c";
@@ -32,6 +38,7 @@ const PLATFORM = "#38353f";
 const PLATFORM_TOP = "#4a4656";
 const LADDER = "#8a86a0";
 const LAVA = "#ff5a2c"; // ember — the rising hazard
+const LAVA_SLOWED = "#ff8ad4"; // matches the time-slow orb, for a held-back lava
 const TEXT_MUTED = "#74707e";
 /** Used for the small HUD/altitude text: TEXT_MUTED only reaches 3.8:1 on it. */
 const TEXT_SECONDARY = "#a8a4b2";
@@ -61,6 +68,11 @@ export interface ClimbCanvasProps {
    * the base; once it is following the climber, the view is identical.
    */
   bottomInset?: number;
+  /**
+   * Paid blocks hanging at the altitude they bought. Cosmetic — not in the sim.
+   * Drawn under the lava so a buried sign is visibly swallowed.
+   */
+  signs?: Billboard[];
 }
 
 export function ClimbCanvas({
@@ -69,6 +81,7 @@ export function ClimbCanvas({
   height = BASE_HEIGHT,
   reducedMotion = false,
   bottomInset = 0,
+  signs = [],
 }: ClimbCanvasProps) {
   const ref = useRef<HTMLCanvasElement>(null);
 
@@ -136,6 +149,15 @@ export function ClimbCanvas({
       ctx.fillText(`${Math.round(fy)}m`, 4 * ui, y - 3 * ui);
     }
 
+    // Paid-stack signs behind ladders, platforms, and orbs so they cannot
+    // hide a route. Lava still draws on top so a swallowed brand is buried.
+    for (const sign of signs) {
+      const sySign = sy(sign.altitude);
+      if (sySign < -40 || sySign > height + 40) continue;
+      const sxSign = sx(signX(tower.widthM, sign.slug));
+      drawPaidSign(ctx, sxSign, sySign, pxPerM, ui, sign);
+    }
+
     // Ladders (draw under platforms so platform lips overlap the rails).
     for (const { ladder: l } of laddersNearY(tower, yLow, yHigh)) {
       const yTop = sy(l.y1);
@@ -195,20 +217,28 @@ export function ClimbCanvas({
       drawPowerUpOrb(ctx, ox, oy, pxPerM, ui, pu, state.tick, reducedMotion, cooling);
     }
 
-    // Rising hazard (lava) — a filled band from the hazard line downward.
+    // Rising hazard (lava) — a filled band from the hazard line downward. While
+    // time-slow runs, the band cools toward the power-up's own colour and its
+    // edge breaks into dashes, so "the lava is being held back" reads on the
+    // hazard itself rather than only in the effect list.
+    const lavaSlowed = player
+      ? isPowerUpActive(player, "time-slow", state.tick)
+      : false;
     const hazScreenY = sy(state.hazardY);
     if (hazScreenY < height) {
       const top = Math.max(0, hazScreenY);
-      ctx.fillStyle = LAVA;
-      ctx.globalAlpha = reducedMotion ? 0.85 : 0.72;
+      ctx.fillStyle = lavaSlowed ? LAVA_SLOWED : LAVA;
+      ctx.globalAlpha = lavaSlowed ? 0.52 : reducedMotion ? 0.85 : 0.72;
       ctx.fillRect(0, top, width, height - top);
       ctx.globalAlpha = 1;
-      ctx.strokeStyle = LAVA;
-      ctx.lineWidth = 3 * ui;
+      ctx.strokeStyle = lavaSlowed ? LAVA_SLOWED : LAVA;
+      ctx.lineWidth = (lavaSlowed ? 4 : 3) * ui;
+      if (lavaSlowed) ctx.setLineDash([9 * ui, 6 * ui]);
       ctx.beginPath();
       ctx.moveTo(0, top);
       ctx.lineTo(width, top);
       ctx.stroke();
+      ctx.setLineDash([]);
     }
 
     // Player — a little climber whose pose animates with what it's doing.
@@ -276,9 +306,15 @@ export function ClimbCanvas({
     ctx.font = `bold ${Math.round(13 * ui)}px monospace`;
     ctx.textAlign = "left";
     ctx.fillText(`${playerY.toFixed(1)}m`, 10 * ui, 22 * ui);
-    ctx.fillStyle = TEXT_SECONDARY;
+    ctx.fillStyle = lavaSlowed ? LAVA_SLOWED : TEXT_SECONDARY;
     ctx.textAlign = "right";
-    ctx.fillText(`lava ${state.hazardY.toFixed(1)}m`, width - 10 * ui, 22 * ui);
+    ctx.fillText(
+      lavaSlowed
+        ? `lava ${state.hazardY.toFixed(1)}m slowed`
+        : `lava ${state.hazardY.toFixed(1)}m`,
+      width - 10 * ui,
+      22 * ui
+    );
     ctx.textAlign = "left";
 
     // Pickup flash — a short centred banner naming what was just grabbed.
@@ -307,7 +343,7 @@ export function ClimbCanvas({
         ctx.textAlign = "left";
       }
     }
-  }, [state, width, height, reducedMotion, bottomInset]);
+  }, [state, width, height, reducedMotion, bottomInset, signs]);
 
   return (
     <canvas
@@ -320,7 +356,11 @@ export function ClimbCanvas({
         display: "block",
         touchAction: "none",
       }}
-      aria-label="Climb view"
+      aria-label={
+        signs.length > 0
+          ? `Climb view. ${signs.length} paid blocks hanging.`
+          : "Climb view"
+      }
       role="img"
     />
   );
@@ -414,6 +454,69 @@ function drawPickupBurst(
   ctx.arc(cx, cy, r, 0, Math.PI * 2);
   ctx.stroke();
   ctx.restore();
+}
+
+/**
+ * A hanging plaque at the altitude a paid block bought. Cosmetic only.
+ * `cy` is the sign's altitude in screen pixels (feet-height of the brand).
+ */
+function drawPaidSign(
+  ctx: CanvasRenderingContext2D,
+  cx: number,
+  cy: number,
+  pxPerM: number,
+  ui: number,
+  sign: Billboard
+) {
+  const w = Math.max(56, pxPerM * 16);
+  const h = Math.max(18, pxPerM * 4.6);
+  const x = cx - w / 2;
+  const y = cy - h;
+  const name =
+    sign.display_name.length > 18
+      ? `${sign.display_name.slice(0, 16)}…`
+      : sign.display_name;
+
+  ctx.save();
+  // Nail + string from a bit above the plaque.
+  ctx.strokeStyle = ACCENT;
+  ctx.globalAlpha = 0.55;
+  ctx.lineWidth = Math.max(1, 0.8 * ui);
+  ctx.beginPath();
+  ctx.moveTo(cx, y - 6 * ui);
+  ctx.lineTo(cx, y);
+  ctx.stroke();
+  ctx.fillStyle = ACCENT;
+  ctx.globalAlpha = 0.9;
+  ctx.beginPath();
+  ctx.arc(cx, y - 6 * ui, Math.max(1.4, 0.9 * ui), 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.globalAlpha = 0.92;
+  ctx.fillStyle = SURFACE;
+  roundRect(ctx, x, y, w, h, 4 * ui);
+  ctx.fill();
+  ctx.strokeStyle = ACCENT;
+  ctx.lineWidth = Math.max(1, 1.1 * ui);
+  ctx.stroke();
+
+  ctx.globalAlpha = 1;
+  ctx.fillStyle = ACCENT;
+  ctx.font = `bold ${Math.round(9 * ui)}px monospace`;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(name, cx, y + h * 0.42, w - 8 * ui);
+  ctx.fillStyle = TEXT_SECONDARY;
+  ctx.font = `${Math.round(8 * ui)}px monospace`;
+  ctx.fillText(
+    `${Math.round(sign.altitude)}m`,
+    cx,
+    y + h * 0.74,
+    w - 8 * ui
+  );
+  ctx.restore();
+  ctx.textAlign = "left";
+  ctx.textBaseline = "alphabetic";
 }
 
 function roundRect(

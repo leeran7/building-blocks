@@ -30,7 +30,7 @@ Edit files in `agents/` or `skills/`, then run `yarn sync` to regenerate platfor
 
 Shared runtime artifacts live in `loop/` (not platform-specific):
 
-- `loop/state.json` — current stage and iteration
+- `loop/state.json` — current stage, iteration, `requiredTeam`, and `dispatched`
 - `loop/handoffs/` — JSON handoffs between agents
 - `loop/spec.md`, `loop/architecture.md`, etc. — stage outputs
 - `loop/learnings.md` + `loop/learnings.jsonl` — **persistent cross-agent memory.**
@@ -181,6 +181,23 @@ Before pushing **any** substantial or minor change, complete this checklist:
 **Typical review fan-out for substantial/minor changes:** `@reviewer` + `@security-reviewer`
 + domain agents (`@frontend` for UI, `@backend` for API, `@data` for schema). Trivial changes
 may skip review. For a whole-app build: run the pipeline via `@orchestrator`.
+
+## ⚠️ Standing rule — orchestrator must run the team
+
+When the closed-loop skill or `@orchestrator` / `yarn loop` is in play, the
+orchestrator **dispatches** each required team member. It does not impersonate them.
+
+- Task / Agent `subagent_type` must equal the agent name (`product-spec`, not
+  `custom` or `generalPurpose`).
+- A stage has not run until its handoff exists under `loop/handoffs/` and has
+  been read. A missing handoff is a **failure**, not success.
+- Required team: product-spec, architect, implementer, verifier, reviewer,
+  security-reviewer, qa-acceptance, integrator. After verifier, `reviewer` and
+  `security-reviewer` run in the same message.
+- `nextStage` cannot skip those members; the loop clamps skips.
+
+See `skills/closed-loop/team.md`. Incremental feature work that is **not** a
+closed-loop run still follows the agent-review standing rule above.
 
 ## Handoff contract
 

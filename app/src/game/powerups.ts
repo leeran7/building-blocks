@@ -17,20 +17,20 @@
  *
  *   - one slot. A pickup replaces whatever is banked, so hoarding is impossible
  *     and every orb is a "use it now or trade it away" decision;
- *   - short windows (6–8s) that must be spent on the right terrain — rapid-climb
+ *   - short windows (6–12s) that must be spent on the right terrain — rapid-climb
  *     is wasted if you are not on a ladder;
  *   - multipliers under 2x, so no single pickup trivialises a floor;
- *   - time-slow cancels half the lava's rise and is the rarest drop, but weights
- *     toward it with altitude — exactly where the lava wins — so a deep run keeps
- *     getting the tool it needs to go deeper.
+ *   - time-slow cancels most of the lava's rise and is the rarest drop, but
+ *     weights toward it with altitude — exactly where the lava wins — so a deep
+ *     run keeps getting the tool it needs to go deeper.
  *
  * THE RUN MUST STILL END. The endless tower's guarantee is that the lava's
  * time-averaged late-game speed (envelope × stumble duty) stays above 1x climb
  * speed, so no climber outlasts it. Time-slow is the one power-up that can break
- * that: held at 100% uptime it halves the rise and the tower becomes survivable
- * forever. Its cooldown is what keeps the guarantee — it caps uptime at 8s in
- * every 32s, so the lava still averages
- * meanSpeedFrac · (1 − 0.5 · 0.25) ≈ 1.01x the climb speed. That margin is thin on
+ * that: held at 100% uptime it drops the lava to ~0.29x and the tower becomes
+ * survivable forever. Its cooldown is what keeps the guarantee — it caps
+ * uptime at 6s in every 36s, so the lava still averages
+ * meanSpeedFrac · (1 − 0.75 · 0.167) ≈ 1.01x the climb speed. That margin is thin on
  * purpose: a player who lands every time-slow perfectly gets very close to
  * outrunning the tower, which is exactly the high-hike ceiling this is for, but
  * never actually escapes it. Do not raise TIME_SLOW_FRAC or shorten the cooldown
@@ -53,7 +53,7 @@ import {
   TowerSpec,
 } from "./types";
 import { createRng, Rng } from "./rng";
-import { floorHeight, floorIndexAt, ladderForFloor, platformsForFloor } from "./towers";
+import { floorHeight, floorIndexAt, laddersForFloor, platformsForFloor } from "./towers";
 
 // ── Pickup geometry ────────────────────────────────────────────────────────
 
@@ -67,16 +67,16 @@ const GRAB_ABOVE_M = 5.0;
 /** Keep orbs off the very lip of a platform piece so they are never half in a gap. */
 const EDGE_MARGIN_MIN_M = 1.6;
 const EDGE_MARGIN_MAX_M = 4.8;
-/** Floors below this never spawn — the opening should be read, not scrambled. */
-const MIN_SPAWN_FLOOR = 2;
+/** Only the spawn floor never drops — floor 1 is fair game so orbs start early. */
+const MIN_SPAWN_FLOOR = 1;
 /** First orb lands somewhere in this inclusive range (varies per tower seed). */
-const FIRST_SPAWN_MIN = 2;
-const FIRST_SPAWN_MAX = 8;
+const FIRST_SPAWN_MIN = 1;
+const FIRST_SPAWN_MAX = 4;
 /** Floors over which spawn density and the time-slow bias ramp to their maximum. */
 const RAMP_FLOORS = 50;
 /** Target occupancy per floor at the base, and after the ramp (drives mean gap). */
-const SPAWN_CHANCE_LOW = 0.16;
-const SPAWN_CHANCE_HIGH = 0.30;
+const SPAWN_CHANCE_LOW = 0.22;
+const SPAWN_CHANCE_HIGH = 0.34;
 
 // ── Effects ────────────────────────────────────────────────────────────────
 
@@ -90,10 +90,13 @@ export const SUPER_JUMP_MULT = 1.6;
 export const DOUBLE_JUMP_MULT = 0.92;
 /** Mid-air jumps granted per double-jump activation. */
 export const DOUBLE_JUMP_CHARGES = 2;
-/** Fraction of the lava's rise cancelled while time-slow runs. */
-export const TIME_SLOW_FRAC = 0.5;
+/**
+ * Fraction of the lava's rise cancelled while time-slow runs. High enough that
+ * the lava line visibly stalls — at 0.5 the effect was real but unreadable.
+ */
+export const TIME_SLOW_FRAC = 0.75;
 /** Seconds before time-slow may be used again — the endless-run guarantee. */
-export const TIME_SLOW_COOLDOWN_SECONDS = 24;
+export const TIME_SLOW_COOLDOWN_SECONDS = 30;
 
 export interface PowerUpSpec {
   type: PowerUpType;
@@ -181,13 +184,15 @@ export const POWER_UP_SPECS: Record<PowerUpType, PowerUpSpec> = {
     description: `Lava rises ${Math.round(TIME_SLOW_FRAC * 100)}% slower`,
     glyph: "◷",
     color: "#ff8ad4",
-    durationSeconds: 8,
+    durationSeconds: 6,
     cooldownSeconds: TIME_SLOW_COOLDOWN_SECONDS,
     charge: false,
-    weight: 12,
+    // Commoner at the base than the other altitude-scaled drops so a new
+    // climber actually meets it early, without changing its share high up.
+    weight: 15,
     // Weights up with altitude, where the lava is winning, but not so far that
     // the strongest power-up stops being the rarest one on the tower.
-    altitudeWeightMult: 1.5,
+    altitudeWeightMult: 1.2,
   },
 };
 
@@ -348,14 +353,17 @@ function pickX(
   rng: Rng,
   pieces: { p: Platform; w: number }[],
   margin: number,
-  inX: number | null,
-  outX: number,
+  inXs: number[],
+  outXs: number[],
   width: number
 ): number {
+  // Floors can host several ladders; anchor to a random one so orbs aren't
+  // always parked beside the same route up.
+  const outX = outXs[rng.int(0, outXs.length)];
   const mode = rng.next();
   let target: number | null = null;
   if (mode < 0.26) target = outX;
-  else if (mode < 0.5 && inX !== null) target = inX;
+  else if (mode < 0.5 && inXs.length > 0) target = inXs[rng.int(0, inXs.length)];
   else if (mode < 0.76) {
     const away = outX < width / 2 ? 0.82 : 0.18;
     target = width * away + (rng.next() - 0.5) * width * 0.14;
@@ -404,14 +412,14 @@ export function powerUpForFloor(tower: TowerSpec, i: number): PowerUpPickup | nu
     .filter((e) => e.w > 2 * edgeMargin);
   if (pieces.length === 0) return null;
 
-  const inX = i > 0 ? ladderForFloor(tower, i - 1).x : null;
-  const outX = ladderForFloor(tower, i).x;
+  const inXs = i > 0 ? laddersForFloor(tower, i - 1).map((l) => l.x) : [];
+  const outXs = laddersForFloor(tower, i).map((l) => l.x);
 
   return {
     id: `pu:${i}`,
     type: rec.type,
     floorIndex: i,
-    x: pickX(rng, pieces, edgeMargin, inX, outX, tower.widthM),
+    x: pickX(rng, pieces, edgeMargin, inXs, outXs, tower.widthM),
     y: floorHeight(tower, i) + hover,
     collected: false,
     collectedTick: null,
