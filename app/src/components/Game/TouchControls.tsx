@@ -3,9 +3,9 @@
 /**
  * On-screen touch controls for The Climb (mobile Phase 1).
  *
- * WASD-style pad on the left (W = climb up, S = climb down, A/D = move) and a
- * jump button on the right. Wired into useClimb via setTouch, and only mounted
- * on coarse-pointer devices.
+ * Arrow D-pad on the left (↑ climb, ↓ descend, ← → move) and jump on the
+ * right. Wired into useClimb via setTouch, and only mounted on coarse-pointer
+ * devices.
  *
  * These sit *over* the bottom of the canvas rather than in a bar beneath it. A
  * phone has ~660px of viewport, and a 9:16 canvas wants all of it: a separate
@@ -15,7 +15,7 @@
  * cover the lava band well below the climber, who is held at ~62% of the view.
  */
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 import { NO_TOUCH, type TouchInput } from "../../game/useClimb";
 import {
   initialHoldMemo,
@@ -35,15 +35,15 @@ interface Control {
   sub?: string;
   /** Signal-coloured treatment for the primary action. */
   accent?: boolean;
-  /** Glyph is a word ("JMP"), not a single letter — needs a smaller type size. */
+  /** Glyph is a word ("JMP"), not a single arrow — needs a smaller type size. */
   wordGlyph?: boolean;
 }
 
-const WASD_CONTROLS = {
-  climb: { id: "climb" as const, label: "Climb up", glyph: "W" },
-  left: { id: "left" as const, label: "Move left", glyph: "A" },
-  down: { id: "down" as const, label: "Climb down", glyph: "S" },
-  right: { id: "right" as const, label: "Move right", glyph: "D" },
+const D_PAD_CONTROLS = {
+  climb: { id: "climb" as const, label: "Climb up ladder", glyph: "↑", sub: "climb" },
+  left: { id: "left" as const, label: "Move left", glyph: "←" },
+  down: { id: "down" as const, label: "Climb down ladder", glyph: "↓" },
+  right: { id: "right" as const, label: "Move right", glyph: "→" },
 } as const;
 
 const JUMP_CONTROL: Control = {
@@ -54,9 +54,8 @@ const JUMP_CONTROL: Control = {
   wordGlyph: true,
 };
 
-const PAD_BUTTON_CLASS =
-  "relative flex flex-col items-center justify-center rounded-2xl border font-mono font-bold " +
-  "h-[72px] w-[72px] backdrop-blur-sm transition-[filter,transform,background-color] ";
+/** Two 92px rows plus the `gap-2` (8px) between them. */
+const D_PAD_HEIGHT = 192;
 
 export function TouchControls({
   active,
@@ -81,6 +80,11 @@ export function TouchControls({
   const release = useCallback(
     (id: ControlId) => {
       apply({ kind: "release", id });
+      // Enter's keydown preventDefault cancels the compatibility click that
+      // would otherwise clear suppressActivate, and some pointer paths never
+      // deliver a click at all. Clear the flag after this turn: click, if it
+      // fires, runs first and consumes it; if it does not, this opens the
+      // toggle path again.
       queueMicrotask(() => apply({ kind: "clear-suppress", id }));
     },
     [apply]
@@ -102,39 +106,44 @@ export function TouchControls({
       style={{ touchAction: "none" }}
       aria-label="Touch game controls"
     >
-      <div className="flex items-end justify-between gap-3">
+      <div className="flex items-end justify-between gap-2">
         <div
           role="group"
-          aria-label="WASD movement and climb"
-          className="grid grid-cols-3 gap-1.5"
-          style={{ gridTemplateRows: "repeat(2, 72px)" }}
+          aria-label="Directional controls"
+          className="grid grid-cols-3 grid-rows-2 gap-2"
         >
-          <div className="col-start-2">
+          <div className="col-start-2 row-start-1">
             <TouchButton
-              control={WASD_CONTROLS.climb}
+              control={D_PAD_CONTROLS.climb}
               held={pressed.has("climb")}
               onEvent={apply}
               onRelease={release}
             />
           </div>
-          <TouchButton
-            control={WASD_CONTROLS.left}
-            held={pressed.has("left")}
-            onEvent={apply}
-            onRelease={release}
-          />
-          <TouchButton
-            control={WASD_CONTROLS.down}
-            held={pressed.has("down")}
-            onEvent={apply}
-            onRelease={release}
-          />
-          <TouchButton
-            control={WASD_CONTROLS.right}
-            held={pressed.has("right")}
-            onEvent={apply}
-            onRelease={release}
-          />
+          <div className="col-start-1 row-start-2">
+            <TouchButton
+              control={D_PAD_CONTROLS.left}
+              held={pressed.has("left")}
+              onEvent={apply}
+              onRelease={release}
+            />
+          </div>
+          <div className="col-start-2 row-start-2">
+            <TouchButton
+              control={D_PAD_CONTROLS.down}
+              held={pressed.has("down")}
+              onEvent={apply}
+              onRelease={release}
+            />
+          </div>
+          <div className="col-start-3 row-start-2">
+            <TouchButton
+              control={D_PAD_CONTROLS.right}
+              held={pressed.has("right")}
+              onEvent={apply}
+              onRelease={release}
+            />
+          </div>
         </div>
 
         <TouchButton
@@ -142,7 +151,7 @@ export function TouchControls({
           held={pressed.has("jump")}
           onEvent={apply}
           onRelease={release}
-          className="min-h-[148px] min-w-[92px]"
+          style={{ height: D_PAD_HEIGHT }}
         />
       </div>
     </div>
@@ -154,25 +163,26 @@ function TouchButton({
   held,
   onEvent,
   onRelease,
-  className = "",
+  style,
 }: {
   control: Control;
   held: boolean;
   onEvent: (event: HoldEvent) => void;
   onRelease: (id: ControlId) => void;
-  className?: string;
+  style?: CSSProperties;
 }) {
-  const { id, label, glyph, accent, wordGlyph } = control;
+  const { id, label, glyph, sub, accent, wordGlyph } = control;
 
   return (
     <button
       type="button"
       aria-label={label}
       aria-pressed={held}
-      style={{ touchAction: "none" }}
+      style={{ touchAction: "none", ...style }}
       className={
-        PAD_BUTTON_CLASS +
-        className +
+        "relative flex flex-col items-center justify-center rounded-2xl border font-mono font-bold " +
+        "min-h-[92px] min-w-[72px] backdrop-blur-sm " +
+        "transition-[filter,transform,background-color] " +
         (held
           ? accent
             ? "border-signal bg-signal/90 text-void scale-95 "
@@ -208,19 +218,28 @@ function TouchButton({
         className={
           wordGlyph
             ? "text-lg uppercase tracking-[0.08em] leading-none"
-            : "text-2xl leading-none"
+            : "text-3xl leading-none"
         }
         aria-hidden="true"
       >
         {glyph}
       </span>
+      {sub && (
+        <span
+          className={
+            "mt-1 text-[10px] uppercase tracking-[0.12em] font-semibold " +
+            (held ? "text-inherit" : "text-text-secondary")
+          }
+        >
+          {sub}
+        </span>
+      )}
     </button>
   );
 }
 
 /**
- * Canvas height these controls cover: two 72px WASD rows plus `p-2` top and
- * bottom (8px * 2 = 16px). Passed to ClimbCanvas as `bottomInset` so the camera
- * keeps the climber above the buttons instead of behind them.
+ * Canvas height these controls cover: two `min-h-[92px]` rows plus `gap-2`
+ * (8px) and `p-2` top/bottom (16px). Passed to ClimbCanvas as `bottomInset`.
  */
-export const TOUCH_CONTROLS_INSET = 160;
+export const TOUCH_CONTROLS_INSET = D_PAD_HEIGHT + 16;
