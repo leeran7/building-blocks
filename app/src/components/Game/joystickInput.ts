@@ -35,7 +35,8 @@ export const JOYSTICK_DEADZONE = JOYSTICK_HORIZONTAL_DEADZONE;
  * with a shorter thumb throw.
  *
  * @param dx Horizontal deflection, -1 (left) to +1 (right).
- * @param dy Vertical deflection, -1 (up on screen) to +1 (down).
+ * @param dy Vertical deflection from nipplejs: +1 (up) to -1 (down).
+ *   nipplejs negates screen Y when building `vector.y`.
  */
 export function joystickAxesFromVector(dx: number, dy: number): JoystickAxes {
   const h = JOYSTICK_HORIZONTAL_DEADZONE;
@@ -47,8 +48,8 @@ export function joystickAxesFromVector(dx: number, dy: number): JoystickAxes {
   return {
     left: dx < -h,
     right: dx > h,
-    up: dy < -v,
-    down: dy > v,
+    up: dy > v,
+    down: dy < -v,
   };
 }
 

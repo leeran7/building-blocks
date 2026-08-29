@@ -103,13 +103,13 @@ describe("joystickAxesFromVector", () => {
   });
 
   it("maps vertical deflection to up and down", () => {
-    expect(joystickAxesFromVector(0, -0.5)).toEqual({
+    expect(joystickAxesFromVector(0, 0.5)).toEqual({
       left: false,
       right: false,
       up: true,
       down: false,
     });
-    expect(joystickAxesFromVector(0, 0.5)).toEqual({
+    expect(joystickAxesFromVector(0, -0.5)).toEqual({
       left: false,
       right: false,
       up: false,
@@ -118,7 +118,7 @@ describe("joystickAxesFromVector", () => {
   });
 
   it("can combine diagonal horizontal and vertical axes", () => {
-    expect(joystickAxesFromVector(-0.8, -0.8)).toEqual({
+    expect(joystickAxesFromVector(-0.8, 0.8)).toEqual({
       left: true,
       right: false,
       up: true,

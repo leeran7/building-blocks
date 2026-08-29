@@ -24,7 +24,7 @@ describe("joystickAxesFromVector", () => {
 
   it("uses a lower vertical deadzone for ladder climbs", () => {
     expect(JOYSTICK_VERTICAL_DEADZONE).toBeLessThan(JOYSTICK_HORIZONTAL_DEADZONE);
-    expect(joystickAxesFromVector(0, -0.09)).toEqual({
+    expect(joystickAxesFromVector(0, 0.09)).toEqual({
       left: false,
       right: false,
       up: true,
@@ -41,6 +41,12 @@ describe("joystickAxesFromVector", () => {
       down: false,
     });
     expect(joystickAxesFromVector(0, 0.5)).toEqual({
+      left: false,
+      right: false,
+      up: true,
+      down: false,
+    });
+    expect(joystickAxesFromVector(0, -0.5)).toEqual({
       left: false,
       right: false,
       up: false,
