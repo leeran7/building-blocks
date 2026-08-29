@@ -298,7 +298,7 @@ function StartButton({ onClick, label }: { onClick: () => void; label: string })
     <button
       type="button"
       onClick={onClick}
-      className="mt-6 inline-flex items-center justify-center rounded-full bg-signal text-void font-semibold px-7 min-h-[48px] shadow-signal hover:brightness-110 active:scale-[0.98] transition-[filter,transform]"
+      className="mt-6 inline-flex items-center justify-center rounded-full bg-signal text-void font-semibold px-10 min-h-[60px] text-lg shadow-signal hover:brightness-110 active:scale-[0.98] transition-[filter,transform]"
     >
       {label}
     </button>

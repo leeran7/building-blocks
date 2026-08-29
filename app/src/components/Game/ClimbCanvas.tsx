@@ -43,8 +43,8 @@ export interface ClimbCanvasProps {
 
 export function ClimbCanvas({
   state,
-  width = 360,
-  height = 640,
+  width = 480,
+  height = 800,
   reducedMotion = false,
 }: ClimbCanvasProps) {
   const ref = useRef<HTMLCanvasElement>(null);

@@ -20,7 +20,7 @@ const ClimbScene = dynamic(
   {
     ssr: false,
     loading: () => (
-      <div className="w-[min(92vw,420px)] h-[60vh] rounded-2xl bg-surface-raised animate-pulse" />
+      <div className="w-[min(92vw,500px)] h-[min(85vh,820px)] rounded-2xl bg-surface-raised animate-pulse" />
     ),
   }
 );
