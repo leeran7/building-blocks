@@ -1,16 +1,15 @@
+"use client";
+
 /**
- * ClimbControlsGuide — keyboard controls + gameplay tips for The Climb.
- *
- * Shown on the play page and in the pre-start lobby overlay. Separates
- * movement, ladder climbing, and jump so players understand the Donkey-Kong
- * style controls (walk + jump on platforms, up/down on ladders).
+ * ClimbControlsGuide — keyboard or touch controls + gameplay tips for The Climb.
  */
 
 import type { ReactNode } from "react";
+import { useCoarsePointer } from "../../hooks/useCoarsePointer";
 
 type Variant = "card" | "compact" | "overlay";
 
-const CONTROLS = [
+const KEYBOARD_CONTROLS = [
   {
     label: "Move",
     keys: ["←", "→", "A", "D"],
@@ -28,15 +27,28 @@ const CONTROLS = [
   },
 ] as const;
 
+const TOUCH_CONTROLS = [
+  { label: "Move", detail: "Tap and hold ← → at the bottom of the screen" },
+  { label: "Jump", detail: "Tap JMP to leap across gaps" },
+  { label: "Climb", detail: "Hold ↑ climb when you're on a ladder" },
+] as const;
+
 const TIPS = [
-  "Grab a ladder and hold ↑ to climb faster than jumping floor to floor.",
+  "Grab a ladder and climb to go faster than jumping floor to floor.",
   "The lava rises steadily — keep moving upward; your peak height is your score.",
   "Sign in after a run to save your rank on the free leaderboard.",
 ] as const;
 
 export function ClimbControlsGuide({ variant = "card" }: { variant?: Variant }) {
+  const touch = useCoarsePointer();
+
   if (variant === "compact") {
-    return (
+    return touch ? (
+      <p className="text-sm text-text-secondary leading-relaxed">
+        <span className="text-text-primary font-medium">Touch controls:</span>{" "}
+        hold ← → to move · hold ↑ climb on ladders · tap JMP to jump
+      </p>
+    ) : (
       <p className="text-sm text-text-secondary leading-relaxed">
         <span className="text-text-primary font-medium">Controls:</span>{" "}
         <Key>←</Key>/<Key>→</Key> or <Key>A</Key>/<Key>D</Key> move ·{" "}
@@ -50,24 +62,33 @@ export function ClimbControlsGuide({ variant = "card" }: { variant?: Variant }) 
     return (
       <div className="mt-5 w-full max-w-[280px] text-left">
         <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-text-muted mb-2">
-          Controls
+          {touch ? "Touch controls" : "Controls"}
         </p>
         <ul className="space-y-2">
-          {CONTROLS.map((c) => (
-            <li key={c.label} className="flex items-start gap-2.5">
-              <span className="flex-shrink-0 w-14 font-mono text-[10px] uppercase tracking-[0.1em] text-text-muted pt-1">
-                {c.label}
-              </span>
-              <div className="min-w-0">
-                <div className="flex flex-wrap gap-1">
-                  {c.keys.map((k) => (
-                    <Key key={k}>{k}</Key>
-                  ))}
-                </div>
-                <p className="text-[11px] text-text-muted mt-1 leading-snug">{c.detail}</p>
-              </div>
-            </li>
-          ))}
+          {touch
+            ? TOUCH_CONTROLS.map((c) => (
+                <li key={c.label} className="flex items-start gap-2.5">
+                  <span className="flex-shrink-0 w-14 font-mono text-[10px] uppercase tracking-[0.1em] text-text-muted pt-0.5">
+                    {c.label}
+                  </span>
+                  <p className="text-[11px] text-text-muted leading-snug">{c.detail}</p>
+                </li>
+              ))
+            : KEYBOARD_CONTROLS.map((c) => (
+                <li key={c.label} className="flex items-start gap-2.5">
+                  <span className="flex-shrink-0 w-14 font-mono text-[10px] uppercase tracking-[0.1em] text-text-muted pt-1">
+                    {c.label}
+                  </span>
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap gap-1">
+                      {c.keys.map((k) => (
+                        <Key key={k}>{k}</Key>
+                      ))}
+                    </div>
+                    <p className="text-[11px] text-text-muted mt-1 leading-snug">{c.detail}</p>
+                  </div>
+                </li>
+              ))}
         </ul>
       </div>
     );
@@ -84,21 +105,34 @@ export function ClimbControlsGuide({ variant = "card" }: { variant?: Variant }) 
         </span>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        {CONTROLS.map((c) => (
-          <div key={c.label} className="rounded-xl border border-border-subtle bg-void/40 p-4">
-            <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-text-muted">
-              {c.label}
-            </p>
-            <div className="flex flex-wrap gap-1.5 mt-2">
-              {c.keys.map((k) => (
-                <Key key={k}>{k}</Key>
-              ))}
+      {touch ? (
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          {TOUCH_CONTROLS.map((c) => (
+            <div key={c.label} className="rounded-xl border border-border-subtle bg-void/40 p-4">
+              <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-text-muted">
+                {c.label}
+              </p>
+              <p className="text-xs text-text-secondary mt-2 leading-relaxed">{c.detail}</p>
             </div>
-            <p className="text-xs text-text-secondary mt-2 leading-relaxed">{c.detail}</p>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          {KEYBOARD_CONTROLS.map((c) => (
+            <div key={c.label} className="rounded-xl border border-border-subtle bg-void/40 p-4">
+              <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-text-muted">
+                {c.label}
+              </p>
+              <div className="flex flex-wrap gap-1.5 mt-2">
+                {c.keys.map((k) => (
+                  <Key key={k}>{k}</Key>
+                ))}
+              </div>
+              <p className="text-xs text-text-secondary mt-2 leading-relaxed">{c.detail}</p>
+            </div>
+          ))}
+        </div>
+      )}
 
       <ul className="mt-5 space-y-2 border-t border-border-subtle pt-4">
         {TIPS.map((tip) => (
@@ -111,9 +145,11 @@ export function ClimbControlsGuide({ variant = "card" }: { variant?: Variant }) 
         ))}
       </ul>
 
-      <p className="mt-4 font-mono text-[10px] uppercase tracking-[0.12em] text-text-muted">
-        Desktop keyboard recommended · mobile controls planned
-      </p>
+      {!touch && (
+        <p className="mt-4 font-mono text-[10px] uppercase tracking-[0.12em] text-text-muted">
+          Keyboard controls · use a desktop for the best experience
+        </p>
+      )}
     </section>
   );
 }
