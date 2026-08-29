@@ -16,7 +16,7 @@ export function ClimbLeaderboard({ climbers }: { climbers: ClimberRank[] }) {
           [ no climbers yet ]
         </p>
         <p className="relative text-text-secondary text-sm mt-3">
-          Be the first to set a height record for this category.
+          Be the first to set a height record on the free stack.
         </p>
       </div>
     );

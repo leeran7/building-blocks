@@ -66,17 +66,16 @@ export function ClimbScene({ tower, categoryLabel }: ClimbSceneProps) {
   const phase = state.phase;
 
   // sessionStorage key for a run awaiting sign-in, + where to return after login.
-  const redirectPath = `/play/${tower.categorySlug}`;
+  const redirectPath = `/play`;
 
   const buildRun = useCallback(
     () => ({
-      categorySlug: tower.categorySlug,
       peakY: player?.peakY ?? 0,
       finished: player?.status === "finished",
       finishedTick: player?.finishedTick ?? null,
       seed,
     }),
-    [player, seed, tower.categorySlug]
+    [player, seed]
   );
 
   const postRun = useCallback(
@@ -152,14 +151,14 @@ export function ClimbScene({ tower, categoryLabel }: ClimbSceneProps) {
     } catch {
       run = null;
     }
-    if (!run || run.categorySlug !== tower.categorySlug) return;
+    if (!run) return;
     try {
       sessionStorage.removeItem(PENDING_CLIMB_KEY);
     } catch {
       /* ignore */
     }
     postRun(run, token).then(setSavedBanner);
-  }, [user, token, tower.categorySlug, postRun]);
+  }, [user, token, postRun]);
 
   return (
     <div className="flex flex-col items-center gap-4">
@@ -274,7 +273,7 @@ export function ClimbScene({ tower, categoryLabel }: ClimbSceneProps) {
 
             <StartButton onClick={handleStart} label="Climb again" />
             <Link
-              href={`/climb/${tower.categorySlug}`}
+              href="/climb"
               className="mt-3 text-sm text-accent hover:brightness-110 underline underline-offset-4"
             >
               View leaderboard →

@@ -19,6 +19,11 @@ import Link from "next/link";
 import { useAuth } from "../../src/contexts/AuthContext";
 import { Navbar } from "../../src/components/Navbar";
 import { BlockCard } from "../../src/components/Dashboard/BlockCard";
+import {
+  FreeClimbCard,
+  FreeClimbEmpty,
+  type FreeClimbData,
+} from "../../src/components/Dashboard/FreeClimbCard";
 
 interface Payment {
   id: string;
@@ -55,6 +60,7 @@ interface DashboardBlock {
 interface DashboardData {
   user: { id: string; email: string };
   blocks: DashboardBlock[];
+  freeClimb: FreeClimbData | null;
 }
 
 type FetchState =
@@ -183,7 +189,7 @@ export default function DashboardPage() {
             Dashboard
           </h1>
           <p className="text-sm text-text-secondary mt-1">
-            Every block you own, across every tower.
+            Your paid blocks and free climb rank.
           </p>
         </div>
         <Link
@@ -219,36 +225,45 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {fetchState.status === "success" && fetchState.data.blocks.length === 0 && (
-          // AC-26: Empty state
-          <div className="flex flex-col items-center justify-center min-h-[50vh] text-center">
-            <div className="text-border-subtle">
-              <TowerIcon />
-            </div>
-            <h2 className="text-xl font-semibold text-text-primary mt-4">
-              No blocks yet
-            </h2>
-            <p className="text-sm text-text-secondary mt-2 max-w-sm">
-              You haven&apos;t claimed any blocks yet. Start by browsing a
-              category.
-            </p>
-            <Link
-              href="/browse"
-              className="mt-6 bg-surface border border-border-subtle rounded-lg px-6 py-3 text-sm text-text-primary hover:bg-elevated transition-colors min-h-[44px] inline-flex items-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus"
-            >
-              Browse categories
-            </Link>
-          </div>
-        )}
-
-        {fetchState.status === "success" && fetchState.data.blocks.length > 0 && (
+        {fetchState.status === "success" && (
           <>
-            <DashboardStats blocks={fetchState.data.blocks} />
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
-              {fetchState.data.blocks.map((block) => (
-                <BlockCard key={block.id} block={block} />
-              ))}
-            </div>
+            {fetchState.data.freeClimb ? (
+              <FreeClimbCard climb={fetchState.data.freeClimb} />
+            ) : (
+              <FreeClimbEmpty />
+            )}
+
+            {fetchState.data.blocks.length === 0 && (
+              <div className="flex flex-col items-center justify-center min-h-[30vh] text-center">
+                <div className="text-border-subtle">
+                  <TowerIcon />
+                </div>
+                <h2 className="text-xl font-semibold text-text-primary mt-4">
+                  No paid blocks yet
+                </h2>
+                <p className="text-sm text-text-secondary mt-2 max-w-sm">
+                  You haven&apos;t claimed any paid stack blocks. Browse a category
+                  to buy altitude, or keep climbing on the free leaderboard above.
+                </p>
+                <Link
+                  href="/#towers"
+                  className="mt-6 bg-surface border border-border-subtle rounded-lg px-6 py-3 text-sm text-text-primary hover:bg-elevated transition-colors min-h-[44px] inline-flex items-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus"
+                >
+                  Browse paid stacks
+                </Link>
+              </div>
+            )}
+
+            {fetchState.data.blocks.length > 0 && (
+              <>
+                <DashboardStats blocks={fetchState.data.blocks} />
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+                  {fetchState.data.blocks.map((block) => (
+                    <BlockCard key={block.id} block={block} />
+                  ))}
+                </div>
+              </>
+            )}
           </>
         )}
       </main>

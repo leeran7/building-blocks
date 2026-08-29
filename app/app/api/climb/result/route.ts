@@ -16,6 +16,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyIdToken } from "../../../../src/lib/firebaseAdmin";
 import { recordClimb } from "../../../../src/db/climb";
+import { FREE_STACK_SLUG } from "../../../../src/game/freeStack";
 import { ensureUser } from "../../../../src/db/user";
 import { checkRateLimit, clientIp } from "../../../../src/lib/rateLimit";
 
@@ -43,7 +44,9 @@ export async function POST(request: NextRequest) {
   }
 
   // Validate the payload shape (never trust the client).
-  const categorySlug = typeof body.categorySlug === "string" ? body.categorySlug : null;
+  // categorySlug is optional — all records go to the free stack leaderboard.
+  const categorySlug =
+    typeof body.categorySlug === "string" ? body.categorySlug : FREE_STACK_SLUG;
   const peakY = typeof body.peakY === "number" && Number.isFinite(body.peakY) ? body.peakY : null;
   const finished = body.finished === true;
   const finishedTick =
@@ -52,7 +55,7 @@ export async function POST(request: NextRequest) {
       : null;
   const seed = typeof body.seed === "string" ? body.seed : null;
 
-  if (!categorySlug || peakY === null || peakY < 0 || !seed) {
+  if (peakY === null || peakY < 0 || !seed) {
     return NextResponse.json({ error: "Invalid climb result" }, { status: 400 });
   }
 

@@ -26,7 +26,7 @@ const FAQS: QA[] = [
   },
   {
     q: "Do I need an account to play?",
-    a: "You can top up any existing block without an account. You only need to sign in to submit a new block and track its rank, burial risk, and competitor cost on your dashboard.",
+    a: "The free climb is playable without an account — but you need to sign in to save your peak height and appear on the free leaderboard. For paid stacks, you can top up any existing block without an account; sign in to submit a new block and track rank, burial risk, and competitor cost on your dashboard.",
   },
   {
     q: "What happens at the end of a season?",

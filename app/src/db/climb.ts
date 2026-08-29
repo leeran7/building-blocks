@@ -1,19 +1,20 @@
 /**
  * Tower v3 "The Climb" — climb-record persistence.
  *
- * Records a run and updates the player's PERMANENT peak-height record for a
- * category. The record is MONOTONIC: peak_y is only ever raised, never lowered
- * (spec-next.md AC-30/AC-31), mirroring the leaderboard's "altitude is permanent"
- * invariant. Monotonicity is enforced here in application logic (and re-asserted
- * by tests) so no run can regress a record.
+ * Records a run and updates the player's PERMANENT peak-height record on the
+ * single free stack leaderboard. The record is MONOTONIC: peak_y is only ever
+ * raised, never lowered (spec-next.md AC-30/AC-31), mirroring the leaderboard's
+ * "altitude is permanent" invariant.
  */
 
 import { prisma } from "./client";
 import { climberDisplay } from "../lib/handle";
+import { FREE_STACK_SLUG } from "../game/freeStack";
 
 export interface ClimbResultInput {
   userId: string;
-  categorySlug: string;
+  /** Ignored for leaderboard placement — all records go to the free stack. */
+  categorySlug?: string;
   peakY: number;
   finished: boolean;
   finishedTick: number | null;
@@ -28,9 +29,9 @@ export interface PeakDecision {
 }
 
 export interface ClimbRecordResult extends PeakDecision {
-  /** The player's 1-based rank on the category leaderboard after this run. */
+  /** The player's 1-based rank on the free leaderboard after this run. */
   rank: number;
-  /** Total ranked climbers in the category. */
+  /** Total ranked climbers on the free stack. */
   totalClimbers: number;
   /** The name to show for this climber (profile name, else pseudonym). */
   handle: string;
@@ -48,7 +49,7 @@ export function nextPeak(priorBest: number, runPeak: number): PeakDecision {
 }
 
 /**
- * Persist a run and upsert the monotonic peak-height record.
+ * Persist a run and upsert the monotonic peak-height record on the free stack.
  *
  * @returns the record after applying the run (peak never decreases).
  */
@@ -56,12 +57,13 @@ export async function recordClimb(
   input: ClimbResultInput
 ): Promise<ClimbRecordResult> {
   const peakY = Math.max(0, input.peakY);
+  const stackSlug = FREE_STACK_SLUG;
 
   // Always store the raw run (history / future audit).
   await prisma.climbRun.create({
     data: {
       userId: input.userId,
-      category_slug: input.categorySlug,
+      category_slug: stackSlug,
       peak_y: peakY,
       finished: input.finished,
       finished_tick: input.finishedTick,
@@ -73,25 +75,23 @@ export async function recordClimb(
     where: {
       climb_record_user_category: {
         userId: input.userId,
-        category_slug: input.categorySlug,
+        category_slug: stackSlug,
       },
     },
   });
 
-  // AC-30/AC-31: monotonic — a higher run raises the record, a lower one never
-  // lowers it. Decision is the pure nextPeak() so it is unit-tested in isolation.
   const { peakY: newBest, improved } = nextPeak(existing?.peak_y ?? 0, peakY);
 
   await prisma.climbRecord.upsert({
     where: {
       climb_record_user_category: {
         userId: input.userId,
-        category_slug: input.categorySlug,
+        category_slug: stackSlug,
       },
     },
     create: {
       userId: input.userId,
-      category_slug: input.categorySlug,
+      category_slug: stackSlug,
       peak_y: newBest,
       wins: input.finished ? 1 : 0,
     },
@@ -101,13 +101,11 @@ export async function recordClimb(
     },
   });
 
-  // Rank on the category board: 1 + the number of players strictly above you.
-  // (Ties share a rank.) Computed after the upsert so it reflects this run.
   const [above, totalClimbers, player] = await Promise.all([
     prisma.climbRecord.count({
-      where: { category_slug: input.categorySlug, peak_y: { gt: newBest } },
+      where: { category_slug: stackSlug, peak_y: { gt: newBest } },
     }),
-    prisma.climbRecord.count({ where: { category_slug: input.categorySlug } }),
+    prisma.climbRecord.count({ where: { category_slug: stackSlug } }),
     prisma.user.findUnique({
       where: { id: input.userId },
       select: { display_name: true },
@@ -133,17 +131,12 @@ export interface ClimberRank {
 }
 
 /**
- * The skill leaderboard for a category: the highest peak-height record per
- * player, ranked descending. Ties broken by who reached it first (earliest
- * updated_at). Uses the [category_slug, peak_y desc] index. Emails are never
- * returned — only a deterministic pseudonym.
+ * The free-stack skill leaderboard: highest peak-height record per player,
+ * ranked descending. Ties broken by who reached it first (earliest updated_at).
  */
-export async function topClimbers(
-  categorySlug: string,
-  limit = 50
-): Promise<ClimberRank[]> {
+export async function topFreeClimbers(limit = 50): Promise<ClimberRank[]> {
   const rows = await prisma.climbRecord.findMany({
-    where: { category_slug: categorySlug },
+    where: { category_slug: FREE_STACK_SLUG },
     orderBy: [{ peak_y: "desc" }, { updated_at: "asc" }],
     take: limit,
     select: {
@@ -160,6 +153,14 @@ export async function topClimbers(
     peakY: r.peak_y,
     wins: r.wins,
   }));
+}
+
+/** @deprecated Use topFreeClimbers — kept for tests referencing the old name. */
+export async function topClimbers(
+  _categorySlug?: string,
+  limit = 50
+): Promise<ClimberRank[]> {
+  return topFreeClimbers(limit);
 }
 
 /** Aggregate free-climb stats for the landing: distinct climbers + best peak. */
@@ -168,39 +169,61 @@ export async function getGlobalClimbStats(): Promise<{
   topPeak: number | null;
 }> {
   const rows = await prisma.$queryRaw<{ climbers: number; top: number | null }[]>`
-    SELECT COUNT(DISTINCT "userId")::int AS climbers, MAX(peak_y) AS top FROM climb_records
+    SELECT COUNT(*)::int AS climbers, MAX(peak_y) AS top
+    FROM climb_records
+    WHERE category_slug = ${FREE_STACK_SLUG}
   `;
   const row = rows[0] ?? { climbers: 0, top: null };
   return { climberCount: Number(row.climbers ?? 0), topPeak: row.top };
 }
 
-export interface GlobalClimberRank extends ClimberRank {
-  /** The category this record was set in (for a label on the landing). */
-  categorySlug: string;
+export interface UserFreeClimbRecord {
+  peakY: number;
+  rank: number;
+  totalClimbers: number;
+  wins: number;
+  handle: string;
 }
 
-/**
- * The best climbers across ALL stacks — highest peak-height records, ranked
- * descending (ties → earliest). Powers the free-climb leaderboard on the landing.
- */
-export async function topClimbersGlobal(limit = 8): Promise<GlobalClimberRank[]> {
-  const rows = await prisma.climbRecord.findMany({
-    orderBy: [{ peak_y: "desc" }, { updated_at: "asc" }],
-    take: limit,
+/** A signed-in user's standing on the free stack, or null if they haven't played. */
+export async function getUserFreeClimbRecord(
+  userId: string
+): Promise<UserFreeClimbRecord | null> {
+  const record = await prisma.climbRecord.findUnique({
+    where: {
+      climb_record_user_category: {
+        userId,
+        category_slug: FREE_STACK_SLUG,
+      },
+    },
     select: {
-      userId: true,
       peak_y: true,
       wins: true,
-      category_slug: true,
       user: { select: { display_name: true } },
     },
   });
-  return rows.map((r, i) => ({
-    rank: i + 1,
-    userId: r.userId,
-    handle: climberDisplay(r.userId, r.user.display_name),
-    peakY: r.peak_y,
-    wins: r.wins,
-    categorySlug: r.category_slug,
-  }));
+  if (!record) return null;
+
+  const [above, totalClimbers] = await Promise.all([
+    prisma.climbRecord.count({
+      where: {
+        category_slug: FREE_STACK_SLUG,
+        peak_y: { gt: record.peak_y },
+      },
+    }),
+    prisma.climbRecord.count({ where: { category_slug: FREE_STACK_SLUG } }),
+  ]);
+
+  return {
+    peakY: record.peak_y,
+    rank: above + 1,
+    totalClimbers,
+    wins: record.wins,
+    handle: climberDisplay(userId, record.user.display_name),
+  };
+}
+
+/** @deprecated Use topFreeClimbers — landing previously used cross-category rows. */
+export async function topClimbersGlobal(limit = 8): Promise<ClimberRank[]> {
+  return topFreeClimbers(limit);
 }

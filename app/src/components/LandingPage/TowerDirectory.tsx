@@ -1,19 +1,15 @@
 "use client";
 
 /**
- * TowerDirectory — the landing page's interactive arena directory (ASCENT).
+ * TowerDirectory — the landing page's paid stack directory (ASCENT).
  *
- * The landing owns discovery AND play — the user never leaves the page:
- *   - Card body → expands the stack's live leaderboard inline (accordion, one at
- *     a time, pushes content down). Only the open tower fetches + polls.
- *   - "Play" → opens the climb in a fullscreen overlay over the landing.
- * Each card is a state-aware conversion unit (empty → "Claim #1 · from $5").
+ * Paid stacks only: card body expands the live paid leaderboard inline.
+ * The free climb game lives on its own stack — see FreeLeaderboard above.
  */
 
 import { useMemo, useState } from "react";
 import { GAME_CATEGORIES, FAMILIES, type Family } from "../../game/categories";
 import { InlineTower } from "./InlineTower";
-import { GameOverlay } from "./GameOverlay";
 
 const SHORT_FAMILY: Record<Family, string> = {
   "Tech & Software": "Tech",
@@ -35,7 +31,6 @@ export interface TowerDirectoryProps {
 export function TowerDirectory({ counts, minEntryUsd }: TowerDirectoryProps) {
   const [family, setFamily] = useState<Family | "all">("all");
   const [openSlug, setOpenSlug] = useState<string | null>(null);
-  const [playSlug, setPlaySlug] = useState<string | null>(null);
 
   const families = family === "all" ? FAMILIES : [family];
   const grouped = useMemo(() => {
@@ -45,18 +40,13 @@ export function TowerDirectory({ counts, minEntryUsd }: TowerDirectoryProps) {
     return out;
   }, []);
 
-  // Only count towers actually shown in the directory (game-category slugs), so
-  // the header total stays consistent with the cards.
   const totalLive = useMemo(
     () => GAME_CATEGORIES.reduce((a, c) => a + (counts[c.slug] ?? 0), 0),
     [counts]
   );
 
-  const openLabel =
-    GAME_CATEGORIES.find((c) => c.slug === openSlug)?.label ?? "";
-
   return (
-    <section id="towers" aria-label="All towers" className="py-20 px-4 border-t border-border-subtle">
+    <section id="towers" aria-label="Paid stacks" className="py-20 px-4 border-t border-border-subtle">
       <div className="max-w-6xl mx-auto">
         <div className="mb-6">
           <span className="inline-flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.2em] text-signal">
@@ -69,13 +59,15 @@ export function TowerDirectory({ counts, minEntryUsd }: TowerDirectoryProps) {
             Pick your stack
           </h2>
           <p className="text-sm text-text-secondary mt-2 max-w-2xl">
-            {GAME_CATEGORIES.length} stacks · {totalLive} blocks climbing. Buy
-            altitude to claim your rank — your height is permanent, but the ground
-            rises to bury whoever stops climbing. Open a stack to see the standings.
+            {GAME_CATEGORIES.length} paid stacks · {totalLive} blocks climbing.
+            Buy altitude to claim your rank — your height is permanent, but the
+            ground rises to bury whoever stops climbing.{" "}
+            <a href="/#free" className="text-text-primary underline underline-offset-4 hover:text-signal">
+              Free climb is separate →
+            </a>
           </p>
         </div>
 
-        {/* Family filter bar */}
         <div
           className="flex gap-1.5 overflow-x-auto scrollbar-hide pb-1 mb-8"
           role="tablist"
@@ -112,7 +104,6 @@ export function TowerDirectory({ counts, minEntryUsd }: TowerDirectoryProps) {
                         minEntryUsd={minEntryUsd}
                         isOpen={isOpen}
                         onToggle={() => setOpenSlug(isOpen ? null : c.slug)}
-                        onPlay={() => setPlaySlug(c.slug)}
                       />
                       {isOpen && (
                         <InlineTower
@@ -129,27 +120,20 @@ export function TowerDirectory({ counts, minEntryUsd }: TowerDirectoryProps) {
           ))}
         </div>
       </div>
-
-      {playSlug && (
-        <GameOverlay slug={playSlug} onClose={() => setPlaySlug(null)} />
-      )}
     </section>
   );
 }
 
-/** Fragment wrapper so the inline panel can escape the grid as a full-width row. */
 function TowerCardWithPanel({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
 function TowerCard({
-  slug,
   label,
   count,
   minEntryUsd,
   isOpen,
   onToggle,
-  onPlay,
 }: {
   slug: string;
   label: string;
@@ -157,7 +141,6 @@ function TowerCard({
   minEntryUsd: number;
   isOpen: boolean;
   onToggle: () => void;
-  onPlay: () => void;
 }) {
   const empty = count === 0;
   return (
@@ -171,7 +154,6 @@ function TowerCard({
     >
       <div className="pointer-events-none absolute inset-0 survey-grid opacity-0 group-hover:opacity-100 transition-opacity" />
 
-      {/* Card body → toggles the inline leaderboard */}
       <button
         type="button"
         onClick={onToggle}
@@ -189,7 +171,6 @@ function TowerCard({
           </span>
         </div>
 
-        {/* State-aware CTA — the conversion unit */}
         <div className="mt-4 flex items-baseline gap-1.5">
           {empty ? (
             <>
@@ -219,18 +200,6 @@ function TowerCard({
           </span>
         </div>
       </button>
-
-      {/* Play (free game) — opens the overlay, no navigation */}
-      <div className="relative border-t border-border-subtle px-5 py-2.5">
-        <button
-          type="button"
-          onClick={onPlay}
-          className="inline-flex items-center gap-1.5 font-mono text-[11px] uppercase tracking-[0.12em] text-text-muted hover:text-signal transition-colors min-h-[32px]"
-          aria-label={`Play the ${label} climb (free)`}
-        >
-          ▶ Play the climb · free
-        </button>
-      </div>
     </div>
   );
 }

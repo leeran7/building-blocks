@@ -33,7 +33,6 @@ export function CategoryShell({
   fill?: boolean;
   children: ReactNode;
 }) {
-  const activeTab = section === "tower" ? "tower" : "climb";
   const ctxWord = section === "tower" ? "stack" : "climb";
 
   return (
@@ -54,7 +53,7 @@ export function CategoryShell({
       {/* Header band — identical on every section. */}
       <div className="flex-shrink-0 border-b border-border-subtle">
         <div className="max-w-2xl mx-auto w-full px-4 pt-5 pb-4">
-          <CategorySectionTabs climbSlug={slug} towerSlug={slug} active={activeTab} />
+          {section === "tower" && <CategorySectionTabs towerSlug={slug} />}
           <div className="mt-5 flex items-end justify-between gap-3 flex-wrap">
             <div className="min-w-0">
               <p className="text-xs uppercase tracking-[0.2em] text-accent font-medium">
