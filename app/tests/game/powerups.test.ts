@@ -47,6 +47,7 @@ import {
   powerUpForFloor,
   powerUpsNearY,
   spawnChanceForFloor,
+  firstSpawnFloor,
 } from "../../src/game/powerups";
 import { validateInput } from "../../src/game/antiCheat";
 import {
@@ -71,6 +72,18 @@ describe("spawning: deterministic, reachable, and denser with altitude", () => {
     }
   });
 
+  it("matches a high-floor jump to a sequential walk on a cold unique seed", () => {
+    const tower = buildTower("spawn-schedule-cold-probe");
+    const n = 80;
+    const jumped = powerUpForFloor(tower, n);
+    const walked = [];
+    for (let i = 0; i <= n; i++) walked.push(powerUpForFloor(tower, i));
+    expect(walked[n]).toEqual(jumped);
+    expect(walked.filter(Boolean).map((p) => p!.floorIndex)).toEqual(
+      walked.filter(Boolean).map((p) => p!.floorIndex).sort((a, b) => a - b)
+    );
+  });
+
   it("gives different towers different drops", () => {
     const other = buildTower("developer-tools");
     const a = scanFloors(TOWER, 0, 200).map((p) => `${p.floorIndex}:${p.type}`);
@@ -81,6 +94,46 @@ describe("spawning: deterministic, reachable, and denser with altitude", () => {
   it("never spawns on the opening floors", () => {
     expect(powerUpForFloor(TOWER, 0)).toBeNull();
     expect(powerUpForFloor(TOWER, 1)).toBeNull();
+  });
+
+  it("starts the first orb on a seed-varying floor, never the base", () => {
+    const towers = [
+      TOWER,
+      buildTower("developer-tools"),
+      buildTower("open-source"),
+      buildTower("web-frameworks"),
+      buildTower("game-engines"),
+    ];
+    const firsts = towers.map((t) => firstSpawnFloor(t));
+    for (const f of firsts) {
+      expect(f).toBeGreaterThanOrEqual(2);
+      expect(f).toBeLessThanOrEqual(8);
+    }
+    expect(new Set(firsts).size).toBeGreaterThan(1);
+    for (const t of towers) {
+      const first = firstSpawnFloor(t);
+      expect(powerUpForFloor(t, first)).not.toBeNull();
+      for (let i = 0; i < first; i++) {
+        expect(powerUpForFloor(t, i)).toBeNull();
+      }
+    }
+  });
+
+  it("mixes tight clusters with droughts instead of even spacing", () => {
+    const floors = scanFloors(TOWER, 0, 400).map((p) => p.floorIndex);
+    expect(floors.length).toBeGreaterThan(20);
+    const gaps = floors.slice(1).map((f, i) => f - floors[i]);
+    expect(gaps.some((g) => g <= 2)).toBe(true);
+    expect(gaps.some((g) => g >= 6)).toBe(true);
+    const spread = Math.max(...gaps) - Math.min(...gaps);
+    expect(spread).toBeGreaterThanOrEqual(5);
+  });
+
+  it("spreads orbs across the tower width rather than one band", () => {
+    const xs = scanFloors(TOWER, 0, 400).map((p) => p.x);
+    expect(xs.length).toBeGreaterThan(20);
+    expect(Math.min(...xs)).toBeLessThan(TOWER.widthM * 0.35);
+    expect(Math.max(...xs)).toBeGreaterThan(TOWER.widthM * 0.65);
   });
 
   it("always places the orb over solid floor, never over the jumpable gap", () => {
