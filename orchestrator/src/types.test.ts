@@ -3,7 +3,7 @@ import { mkdtemp, mkdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "node:test";
-import { latestHandoff, type Handoff } from "./types.js";
+import { latestHandoff, loadAgentPrompt, type Handoff } from "./types.js";
 
 async function writeHandoff(
   dir: string,
@@ -75,5 +75,18 @@ describe("latestHandoff", () => {
     });
     const found = await latestHandoff("verifier", { dirs: [dir], notBefore });
     assert.equal(found?.summary, "fresh");
+  });
+});
+
+describe("loadAgentPrompt", () => {
+  it("prepends protocol.md so yarn loop gets kernel protocol and gates", async () => {
+    const prompt = await loadAgentPrompt("reviewer");
+    assert.match(prompt, /<!-- closed-loop:protocol -->/);
+    assert.match(prompt, /<!-- \/closed-loop:protocol -->/);
+    assert.match(prompt, /gates\.md/);
+    assert.match(prompt, /You are the reviewer/);
+    const marker = prompt.indexOf("<!-- /closed-loop:protocol -->");
+    const role = prompt.indexOf("You are the reviewer");
+    assert.ok(marker >= 0 && role > marker, "protocol must precede the role body");
   });
 });
