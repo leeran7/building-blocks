@@ -4,8 +4,9 @@
  * The hazard rises at a speed that is a FRACTION OF THE CLIMBER'S SPEED, so the
  * chase is proportional to how fast the player can move (spec-next.md, AC-5/AC-6):
  *   - starts below the base (head-start), then rises;
- *   - accelerates from startSpeedFrac → endSpeedFrac over rampSeconds;
- *   - is monotonic and bounded by the tower height;
+ *   - envelope ramps startSpeedFrac → endSpeedFrac over rampSeconds;
+ *   - stumbles (slows) on a fixed cycle instead of accelerating at every moment;
+ *   - is monotonic;
  *   - scales linearly with the climb speed.
  */
 
@@ -13,6 +14,8 @@ import { describe, it, expect } from "vitest";
 import {
   hazardHeightAt,
   hazardHasReached,
+  hazardSpeedFracAt,
+  hazardMeanSpeedFrac,
   DEFAULT_HAZARD_CONFIG,
 } from "../../src/game/hazard";
 
@@ -38,13 +41,13 @@ describe("AC-5: hazard rise is proportional to the climber's speed", () => {
   });
 
   it("rises at a fraction of the climb speed just after the grace", () => {
-    // Over a small dt after the grace, average speed ≈ startSpeedFrac · climb.
+    // Opening is a surge, so average speed ≈ startSpeedFrac · climb.
     const t0 = CFG.graceSeconds;
     const dt = 0.5;
     const dh = hazardHeightAt(t0 + dt, CLIMB, CFG) - hazardHeightAt(t0, CLIMB, CFG);
     const approxSpeed = dh / dt;
     expect(approxSpeed).toBeGreaterThan(0);
-    // Within ~15% of startSpeedFrac·climb (a touch higher due to acceleration).
+    // Within ~15% of startSpeedFrac·climb (a touch higher due to the envelope ramp).
     const expected = CFG.startSpeedFrac * CLIMB;
     expect(approxSpeed).toBeGreaterThan(expected * 0.9);
     expect(approxSpeed).toBeLessThan(expected * 1.15);
@@ -58,17 +61,53 @@ describe("AC-5: hazard rise is proportional to the climber's speed", () => {
   });
 });
 
-describe("AC-6: hazard rise accelerates, is monotonic, and is bounded", () => {
-  it("accelerates: a later interval covers more ground than an earlier one", () => {
+describe("AC-6: hazard rise ramps, stumbles, is monotonic, and is unbounded", () => {
+  it("the time-averaged envelope is higher later in the ramp than earlier", () => {
     const g = CFG.graceSeconds;
-    const early = hazardHeightAt(g + 5, CLIMB, CFG) - hazardHeightAt(g + 4, CLIMB, CFG);
-    const late = hazardHeightAt(g + 25, CLIMB, CFG) - hazardHeightAt(g + 24, CLIMB, CFG);
+    const period = CFG.stumblePeriodSeconds;
+    const early =
+      (hazardHeightAt(g + period, CLIMB, CFG) - hazardHeightAt(g, CLIMB, CFG)) /
+      period;
+    const late =
+      (hazardHeightAt(g + 4 * period, CLIMB, CFG) -
+        hazardHeightAt(g + 3 * period, CLIMB, CFG)) /
+      period;
     expect(late).toBeGreaterThan(early);
+  });
+
+  it("stumbles: a stumble window is slower than the surge that precedes it", () => {
+    const g = CFG.graceSeconds;
+    const period = CFG.stumblePeriodSeconds;
+    const dur = CFG.stumbleDurationSeconds;
+    // Second cycle, well into the run so both windows are past grace.
+    const surgeStart = g + period;
+    const stumbleStart = g + 2 * period - dur;
+    const dt = 0.4;
+    const surge =
+      (hazardHeightAt(surgeStart + dt, CLIMB, CFG) -
+        hazardHeightAt(surgeStart, CLIMB, CFG)) /
+      dt;
+    const stumble =
+      (hazardHeightAt(stumbleStart + dt, CLIMB, CFG) -
+        hazardHeightAt(stumbleStart, CLIMB, CFG)) /
+      dt;
+    expect(stumble).toBeLessThan(surge * 0.5);
+    expect(stumble).toBeGreaterThan(0);
+  });
+
+  it("does not accelerate at every moment — speed drops when a stumble starts", () => {
+    const g = CFG.graceSeconds;
+    const period = CFG.stumblePeriodSeconds;
+    const dur = CFG.stumbleDurationSeconds;
+    const before = hazardSpeedFracAt(g + period - dur - 0.05, CFG);
+    const during = hazardSpeedFracAt(g + period - dur + 0.05, CFG);
+    expect(during).toBeLessThan(before);
+    expect(during / before).toBeCloseTo(CFG.stumbleSpeedFrac, 2);
   });
 
   it("is monotonically non-decreasing over the race", () => {
     let prev = Number.NEGATIVE_INFINITY;
-    for (let t = 0; t <= 200; t += 2) {
+    for (let t = 0; t <= 200; t += 0.25) {
       const h = hazardHeightAt(t, CLIMB, CFG);
       expect(h).toBeGreaterThanOrEqual(prev);
       prev = h;
@@ -86,12 +125,45 @@ describe("AC-6: hazard rise accelerates, is monotonic, and is bounded", () => {
     expect(Number.isFinite(c)).toBe(true);
   });
 
-  it("eventually outpaces the climb speed, so every run must end", () => {
-    // After the ramp the rise speed exceeds the climb speed (endSpeedFrac > 1).
+  it("eventually outpaces the climb speed on average, so every run must end", () => {
+    expect(hazardMeanSpeedFrac(CFG)).toBeGreaterThan(1);
+    expect(hazardMeanSpeedFrac(CFG)).toBeCloseTo(1.15, 2);
+    const g = CFG.graceSeconds;
+    const period = CFG.stumblePeriodSeconds;
+    const t = g + CFG.rampSeconds + 40;
+    const avg =
+      (hazardHeightAt(t + period, CLIMB, CFG) - hazardHeightAt(t, CLIMB, CFG)) /
+      period;
+    expect(avg).toBeGreaterThan(CLIMB);
+    expect(avg / CLIMB).toBeCloseTo(hazardMeanSpeedFrac(CFG), 5);
+  });
+
+  it("never lowers the lava, even if stumbleSpeedFrac is hostile", () => {
+    const hostile = { ...CFG, stumbleSpeedFrac: -1 };
+    let prev = Number.NEGATIVE_INFINITY;
+    for (let t = 0; t <= 40; t += 0.25) {
+      const h = hazardHeightAt(t, CLIMB, hostile);
+      expect(h).toBeGreaterThanOrEqual(prev);
+      prev = h;
+    }
+  });
+
+  it("matches the smooth integral when stumbling is disabled", () => {
+    const smooth = {
+      ...CFG,
+      stumblePeriodSeconds: 0,
+      stumbleDurationSeconds: 0,
+    };
+    const t = CFG.graceSeconds + 30;
     const dt = 0.5;
-    const late =
-      (hazardHeightAt(200 + dt, CLIMB, CFG) - hazardHeightAt(200, CLIMB, CFG)) / dt;
-    expect(late).toBeGreaterThan(CLIMB);
+    const speed =
+      (hazardHeightAt(t + dt, CLIMB, smooth) - hazardHeightAt(t, CLIMB, smooth)) /
+      dt;
+    const expected =
+      (CFG.startSpeedFrac +
+        ((CFG.endSpeedFrac - CFG.startSpeedFrac) * 30.25) / CFG.rampSeconds) *
+      CLIMB;
+    expect(speed).toBeCloseTo(expected, 5);
   });
 });
 
