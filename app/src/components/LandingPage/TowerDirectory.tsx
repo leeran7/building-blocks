@@ -4,7 +4,7 @@
  * TowerDirectory — the landing page's paid stack directory (ASCENT).
  *
  * Paid stacks only: card body expands the live paid leaderboard inline.
- * The free climb game lives on its own stack — see FreeLeaderboard above.
+ * The free climb game lives on its own stack — see FreeLeaderboard below.
  */
 
 import { useMemo, useState } from "react";
@@ -59,12 +59,9 @@ export function TowerDirectory({ counts, minEntryUsd }: TowerDirectoryProps) {
             Pick your stack
           </h2>
           <p className="text-sm text-text-secondary mt-2 max-w-2xl">
-            {GAME_CATEGORIES.length} paid stacks · {totalLive} blocks climbing.
-            Buy altitude to claim your rank — your height is permanent, but the
-            ground rises to bury whoever stops climbing.{" "}
-            <a href="/#free" className="text-text-primary underline underline-offset-4 hover:text-signal">
-              Free climb is separate →
-            </a>
+            {GAME_CATEGORIES.length} stacks · {totalLive} blocks climbing. Buy
+            altitude to claim your rank — your height is permanent, but the ground
+            rises to bury whoever stops climbing. Open a stack to see the standings.
           </p>
         </div>
 
