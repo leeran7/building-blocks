@@ -79,24 +79,24 @@ const steps: Step[] = [
     icon: <ArrowUpIcon />,
     title: "Buy altitude",
     description:
-      "Pay once to place your block high in the stack. Your position is permanent — it never drops through inaction.",
+      "Pay once to place your block on a public stack. Your height is permanent — it never drops through inaction.",
     tone: "signal",
   },
   {
     number: "02",
     icon: <EyeIcon />,
-    title: "The ground rises",
+    title: "Hang on the climb",
     description:
-      "Every view the stack serves lifts the ground line. Blocks that don't top up eventually sink beneath it — and get buried.",
-    tone: "ember",
+      "Your block appears in the free climb at the metres you bought. Climbers pass your name on the way up — that's the visibility you paid for.",
+    tone: "signal",
   },
   {
     number: "03",
     icon: <TrophyIcon />,
-    title: "Outlast everyone",
+    title: "The ground rises",
     description:
-      "Stay above ground to keep your rank and visibility. Top up, climb higher, and outlast every competitor in your stack.",
-    tone: "signal",
+      "Every view the stack serves lifts the ground line. Stop topping up and you sink beneath it — buried on the leaderboard and gone from the climb.",
+    tone: "ember",
   },
 ];
 

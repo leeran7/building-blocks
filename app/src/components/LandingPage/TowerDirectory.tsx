@@ -37,8 +37,15 @@ export function TowerDirectory({ counts, minEntryUsd }: TowerDirectoryProps) {
     const out = {} as Record<Family, typeof GAME_CATEGORIES>;
     for (const f of FAMILIES) out[f] = [];
     for (const c of GAME_CATEGORIES) out[c.family].push(c);
+    for (const f of FAMILIES) {
+      out[f].sort((a, b) => {
+        const d = (counts[b.slug] ?? 0) - (counts[a.slug] ?? 0);
+        if (d !== 0) return d;
+        return a.label.localeCompare(b.label);
+      });
+    }
     return out;
-  }, []);
+  }, [counts]);
 
   const totalLive = useMemo(
     () => GAME_CATEGORIES.reduce((a, c) => a + (counts[c.slug] ?? 0), 0),
@@ -60,8 +67,9 @@ export function TowerDirectory({ counts, minEntryUsd }: TowerDirectoryProps) {
           </h2>
           <p className="text-sm text-text-secondary mt-2 max-w-2xl">
             {GAME_CATEGORIES.length} stacks · {totalLive} blocks climbing. Buy
-            altitude to claim your rank — your height is permanent, but the ground
-            rises to bury whoever stops climbing. Open a stack to see the standings.
+            altitude to claim your rank — your height is permanent, and it hangs
+            in the free climb at those metres. The ground rises to bury whoever
+            stops topping up. Open a stack to see the standings.
           </p>
         </div>
 

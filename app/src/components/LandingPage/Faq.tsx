@@ -14,7 +14,11 @@ interface QA {
 const FAQS: QA[] = [
   {
     q: "How does altitude work?",
-    a: "You buy altitude with money — $1 converts to the current rate in metres. Altitude is permanent: it never decreases through inaction. The only thing that moves is the ground beneath you.",
+    a: "You buy altitude with money — $1 converts to the current rate in metres. Altitude is permanent: it never decreases through inaction. The only thing that moves is the ground beneath you. The same metres are where your sign hangs in the free climb.",
+  },
+  {
+    q: "Does a paid block show up in the game?",
+    a: "Yes. Above-ground blocks hang in the free climb at the altitude they bought. Climbers see your name on the way up. If the ground rises past you, the lava swallows the sign — same burial as the leaderboard.",
   },
   {
     q: "What does “buried” mean?",

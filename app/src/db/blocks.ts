@@ -134,6 +134,45 @@ export async function incrementViewsServed(
 }
 
 /**
+ * Highest paid blocks that can hang in the free climb. Burial is computed by
+ * the caller with the real engine (per-category ground) — this only fetches
+ * visible, paid listings.
+ */
+export async function getClimbBillboardCandidates(
+  limit = 80
+): Promise<BillboardRow[]> {
+  const rows = await prisma.block.findMany({
+    where: {
+      hidden_at: null,
+      altitude: { gt: 0 },
+      category: { not: null },
+    },
+    orderBy: { altitude: "desc" },
+    take: limit,
+    select: {
+      slug: true,
+      display_name: true,
+      url: true,
+      altitude: true,
+      category: true,
+    },
+  });
+  return rows.flatMap((r) =>
+    r.category
+      ? [
+          {
+            slug: r.slug,
+            display_name: r.display_name,
+            url: r.url,
+            altitude: r.altitude,
+            category: r.category,
+          },
+        ]
+      : []
+  );
+}
+
+/**
  * Increment click count for a block.
  */
 export async function incrementClicks(id: string): Promise<void> {
@@ -156,4 +195,13 @@ export async function getBlockSeasonHistory(
     orderBy: { created_at: "asc" },
   });
   return blocks;
+}
+
+/** A paid block that can hang as a sign in the free climb. */
+export interface BillboardRow {
+  slug: string;
+  display_name: string;
+  url: string;
+  altitude: number;
+  category: string;
 }

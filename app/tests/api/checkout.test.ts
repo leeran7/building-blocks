@@ -37,6 +37,15 @@ describe("AC-30: Server-side quote — reject tampered rate/metres/growth", () =
     expect(routeContent).toContain("MIN_SPEND_USD");
     expect(routeContent).toContain("Minimum amount");
   });
+
+  it("checkout rejects new listings on a ghost/legacy category", () => {
+    const routePath = resolve(__dirname, "../../app/api/checkout/route.ts");
+    const routeContent = readFileSync(routePath, "utf-8");
+
+    expect(routeContent).toContain("parsePaidStackSlug");
+    expect(routeContent).toContain("INVALID_CATEGORY");
+    expect(routeContent).toContain("Unknown stack");
+  });
 });
 
 describe("AC-35: No-refunds disclosure at checkout", () => {

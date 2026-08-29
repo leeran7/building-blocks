@@ -144,6 +144,22 @@ export function isGameCategory(slug: string): boolean {
   return slug.toLowerCase() in GAME_CATEGORY_BY_SLUG;
 }
 
+/**
+ * Default paid stack when a flow has no valid category. MUST be a curated
+ * subcategory — never a legacy broad slug like "tech", which has no /stack
+ * page and would swallow a payment into an invisible season.
+ */
+export const DEFAULT_STACK_SLUG = GAME_CATEGORIES[0].slug;
+
+/** A paid-stack slug, or null if the value is missing / not a real stack. */
+export function parsePaidStackSlug(
+  raw: string | undefined | null
+): string | null {
+  if (!raw) return null;
+  const slug = raw.toLowerCase();
+  return isGameCategory(slug) ? slug : null;
+}
+
 /** One representative subcategory per family — used for the landing "featured" grid. */
 export const FEATURED_GAME_CATEGORIES: GameCategory[] = FAMILIES.map(
   (f) => GAME_CATEGORIES.find((c) => c.family === f) as GameCategory

@@ -39,6 +39,7 @@ const TIPS = [
   "The lava rises steadily — keep moving upward; your peak height is your score.",
   "Walk into a glowing orb to trigger its power-up instantly.",
   "Power-ups activate the instant you touch them — time your route to grab one right when you need it.",
+  "Lime plaques are paid blocks hanging at the altitude they bought.",
   "Sign in after a run to save your rank on the free leaderboard.",
 ] as const;
 
