@@ -146,6 +146,18 @@ describe("combineHandoffs", () => {
     assert.match(combined.agent, /reviewer/);
     assert.match(combined.agent, /security-reviewer/);
   });
+
+  it("ANDs exitCriteria so a later true cannot hide an earlier false", () => {
+    const combined = combineHandoffs([
+      handoff("reviewer", "needs_revision", {
+        exitCriteria: { no_critical_findings: false },
+      }),
+      handoff("security-reviewer", "success", {
+        exitCriteria: { no_critical_findings: true },
+      }),
+    ]);
+    assert.equal(combined.exitCriteria?.no_critical_findings, false);
+  });
 });
 
 describe("teamMissing", () => {
