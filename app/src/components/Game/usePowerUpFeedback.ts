@@ -76,6 +76,7 @@ export function usePowerUpFeedback(
     setMuted: (next: boolean) => {
       setMutedState(next);
       audio.setMuted(next);
+      if (!next) audio.unlock();
       try {
         localStorage.setItem(MUTE_KEY, next ? "1" : "0");
       } catch {
@@ -83,6 +84,7 @@ export function usePowerUpFeedback(
       }
     },
     announcement,
+    unlockAudio: () => audio.unlock(),
   };
 }
 
@@ -91,4 +93,6 @@ export interface PowerUpFeedback {
   setMuted: (muted: boolean) => void;
   /** Polite live-region text describing the most recent power-up event. */
   announcement: string;
+  /** Create/resume the AudioContext inside a user gesture (Start, unmute). */
+  unlockAudio: () => void;
 }

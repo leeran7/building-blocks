@@ -15,8 +15,11 @@
  * cap, and they are deliberately shaped so the ceiling is raised by PLAYING
  * WELL rather than by collecting:
  *
- *   - one slot. A pickup replaces whatever is banked, so hoarding is impossible
- *     and every orb is a "use it now or trade it away" decision;
+ *   - one live entry per type. A second orb of the same type refreshes the
+ *     running effect rather than stacking charges, so double-jump cannot be
+ *     hoarded. Different types may overlap; that is a separate product choice
+ *     from same-type stacking, which the HUD and the charge counter both
+ *     assume cannot happen;
  *   - short windows (6–12s) that must be spent on the right terrain — rapid-climb
  *     is wasted if you are not on a ladder;
  *   - multipliers under 2x, so no single pickup trivialises a floor;
@@ -572,9 +575,8 @@ export function pruneActive(p: PlayerState, tick: number): void {
  * charge duplication is in the simulation, not the view. This is deliberately
  * the only place that writes to activePowerUps.
  *
- * Same-type only: whether DIFFERENT types should stack is a separate open
- * question (the powerups.ts header describes a one-slot rule the simulation
- * does not implement), and nothing here answers it either way.
+ * Same-type only: different types still stack. The header above records that
+ * as the implemented rule, not a one-slot bank.
  */
 export function grantPowerUp(
   p: PlayerState,

@@ -143,4 +143,30 @@ describe("stepCues: repeated announcements are distinct strings", () => {
       announcementText(second.out.announcement!)
     );
   });
+
+  it("speaks both expiry and pickup when they land on the same tick", () => {
+    let memo = initialCueMemo(0);
+    memo = frame(memo, {
+      runId: 0,
+      lastPickupTick: 10,
+      lastPickupType: "sprint-burst",
+      activeTypes: ["sprint-burst"],
+    }).memo;
+
+    const both = frame(memo, {
+      runId: 0,
+      lastPickupTick: 40,
+      lastPickupType: "super-jump",
+      activeTypes: ["super-jump"],
+    });
+
+    const text = announcementText(both.out.announcement ?? "");
+    expect(text).toContain("ended");
+    expect(text).toContain(POWER_UP_SPECS["super-jump"].label);
+    expect(both.out.sounds.map((s) => s.kind)).toEqual([
+      "pickup",
+      "activate",
+      "expire",
+    ]);
+  });
 });

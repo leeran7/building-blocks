@@ -23,12 +23,15 @@ export function PowerUpHud({
   muted,
   onToggleMute,
   announcement,
+  runId,
 }: {
   player: PlayerState | undefined;
   tick: number;
   muted: boolean;
   onToggleMute: () => void;
   announcement: string;
+  /** Remounts the live region so a new run does not speak the previous run. */
+  runId: number;
 }) {
   const active = (player?.activePowerUps ?? [])
     .filter((a) => !isExpired(a, tick))
@@ -66,7 +69,7 @@ export function PowerUpHud({
         ))}
 
         {active.length === 0 && (
-          <span className="whitespace-nowrap font-mono text-[10px] uppercase tracking-[0.12em] text-text-muted">
+          <span className="whitespace-nowrap font-mono text-[10px] uppercase tracking-[0.12em] text-text-secondary">
             climbing — grab a glowing orb
           </span>
         )}
@@ -76,7 +79,7 @@ export function PowerUpHud({
         type="button"
         onClick={onToggleMute}
         aria-pressed={muted}
-        className="flex-shrink-0 rounded-full border border-border-strong bg-surface px-2.5 py-1.5 font-mono text-[10px] uppercase tracking-[0.12em] text-text-secondary hover:text-text-primary hover:border-signal/50 transition-colors"
+        className="flex-shrink-0 min-h-[44px] min-w-[44px] rounded-full border border-border-strong bg-surface px-2.5 py-1.5 font-mono text-[10px] uppercase tracking-[0.12em] text-text-secondary hover:text-text-primary hover:border-signal/50 transition-colors"
       >
         <span aria-hidden="true">{muted ? "🔇" : "🔊"}</span>
         <span className="sr-only">
@@ -84,7 +87,13 @@ export function PowerUpHud({
         </span>
       </button>
 
-      <div className="sr-only" role="status" aria-live="polite">
+      <div
+        key={runId}
+        className="sr-only"
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+      >
         {announcement}
       </div>
     </div>

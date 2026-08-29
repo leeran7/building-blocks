@@ -101,13 +101,21 @@ export class PowerUpAudio {
 
   setMuted(muted: boolean): void {
     this.muted = muted;
-    if (this.master && this.ctx) {
+    // Create the graph even when muting so unmute is a gain change, not a
+    // first-time context create outside a gesture.
+    const ctx = this.ensureContext();
+    if (this.master && ctx) {
       this.master.gain.setTargetAtTime(
         muted ? 0 : MASTER_GAIN,
-        this.ctx.currentTime,
+        ctx.currentTime,
         0.01
       );
     }
+  }
+
+  /** Call from a click/tap so WebKit will actually play later cues. */
+  unlock(): void {
+    this.ensureContext();
   }
 
   /** Release the audio device. Safe to call more than once. */
@@ -153,8 +161,14 @@ export class PowerUpAudio {
     gain.gain.exponentialRampToValueAtTime(peak, start + 0.008);
     gain.gain.exponentialRampToValueAtTime(0.0001, end);
     osc.connect(gain).connect(dest);
-    osc.start(start);
-    osc.stop(end + 0.02);
+    try {
+      osc.start(start);
+      osc.stop(end + 0.02);
+    } catch {
+      osc.disconnect();
+      gain.disconnect();
+      return;
+    }
     osc.onended = () => {
       osc.disconnect();
       gain.disconnect();

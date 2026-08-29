@@ -10,10 +10,16 @@
  * with no pair, so that path toggles. Browsers also fire a click after
  * pointerup/keyup, which must not toggle or a tap would press and immediately
  * release.
+ *
+ * `preventDefault` on pointerdown cancels that compatibility click (Pointer
+ * Events spec). The suppress flag would then stick and eat the next AT
+ * activate. `clear-suppress` is the follow-up the DOM layer queues on a
+ * microtask so a missing click cannot latch the flag shut. The flag is per
+ * control so jumping does not eat a later climb activation.
  */
 
 export function initialHoldMemo(): HoldMemo {
-  return { held: new Set(), suppressActivate: false };
+  return { held: new Set(), suppressActivate: new Set() };
 }
 
 export function isHoldKey(key: string): boolean {
@@ -22,20 +28,27 @@ export function isHoldKey(key: string): boolean {
 
 export function reduceHold(memo: HoldMemo, event: HoldEvent): HoldMemo {
   const held = new Set(memo.held);
+  const suppress = new Set(memo.suppressActivate);
   switch (event.kind) {
     case "press":
       held.add(event.id);
-      return { held, suppressActivate: true };
+      suppress.add(event.id);
+      return { held, suppressActivate: suppress };
     case "release":
       held.delete(event.id);
-      return { held, suppressActivate: true };
+      suppress.add(event.id);
+      return { held, suppressActivate: suppress };
+    case "clear-suppress":
+      suppress.delete(event.id);
+      return { held: memo.held, suppressActivate: suppress };
     case "activate":
-      if (memo.suppressActivate) {
-        return { held: memo.held, suppressActivate: false };
+      if (suppress.has(event.id)) {
+        suppress.delete(event.id);
+        return { held: memo.held, suppressActivate: suppress };
       }
       if (held.has(event.id)) held.delete(event.id);
       else held.add(event.id);
-      return { held, suppressActivate: false };
+      return { held, suppressActivate: suppress };
   }
 }
 
@@ -60,13 +73,11 @@ export type ControlId = "left" | "right" | "climb" | "jump";
 export type HoldEvent =
   | { kind: "press"; id: ControlId }
   | { kind: "release"; id: ControlId }
-  | { kind: "activate"; id: ControlId };
+  | { kind: "activate"; id: ControlId }
+  | { kind: "clear-suppress"; id: ControlId };
 
 export interface HoldMemo {
   held: ReadonlySet<ControlId>;
-  /**
-   * Pointer/key already applied this activation, so the click the browser
-   * synthesizes afterwards must not toggle.
-   */
-  suppressActivate: boolean;
+  /** Controls whose follow-up click must be ignored. */
+  suppressActivate: ReadonlySet<ControlId>;
 }

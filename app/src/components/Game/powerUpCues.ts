@@ -24,6 +24,8 @@ export function stepCues(
 ): { memo: CueMemo; out: CueOutput } {
   const next: CueMemo = { ...memo };
   const sounds: CueSound[] = [];
+  let pickupText: string | null = null;
+  let expireText: string | null = null;
   let announcement: string | null = null;
 
   // A restart reuses the mounted component, so every carried-over marker has to
@@ -50,7 +52,7 @@ export function stepCues(
     // "ding-whoosh" rather than layering them into a single muddy chord.
     sounds.push({ kind: "pickup", type: input.lastPickupType, delay: 0 });
     sounds.push({ kind: "activate", type: input.lastPickupType, delay: 0.13 });
-    announcement = `${spec.label} activated. ${spec.description}.`;
+    pickupText = `${spec.label} activated. ${spec.description}.`;
   }
 
   const activeKey = cueKey(input.activeTypes);
@@ -62,8 +64,16 @@ export function stepCues(
     next.activeKey = activeKey;
     if (ended.length > 0) {
       sounds.push({ kind: "expire", type: ended[0], delay: 0 });
-      announcement = `${POWER_UP_SPECS[ended[0]].label} ended.`;
+      expireText = `${POWER_UP_SPECS[ended[0]].label} ended.`;
     }
+  }
+
+  if (pickupText && expireText) {
+    // Both can fire on one tick (sprint-burst ending as you grab the next
+    // orb). A single live-region slot would keep only the last write.
+    announcement = `${expireText} ${pickupText}`;
+  } else {
+    announcement = pickupText ?? expireText ?? announcement;
   }
 
   if (announcement) {

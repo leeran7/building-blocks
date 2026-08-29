@@ -72,7 +72,7 @@ export function ClimbScene({ tower, categoryLabel }: ClimbSceneProps) {
   const phase = state.phase;
   const touchControlsActive =
     touchDevice && !finished && (phase === "countdown" || phase === "climb");
-  const { muted, setMuted, announcement } = usePowerUpFeedback(
+  const { muted, setMuted, announcement, unlockAudio } = usePowerUpFeedback(
     player,
     state.tick,
     runId
@@ -120,6 +120,7 @@ export function ClimbScene({ tower, categoryLabel }: ClimbSceneProps) {
   );
 
   function handleStart() {
+    unlockAudio();
     setPosted(false);
     setSaveInfo(null);
     setSavedBanner(null);
@@ -194,6 +195,7 @@ export function ClimbScene({ tower, categoryLabel }: ClimbSceneProps) {
           muted={muted}
           onToggleMute={() => setMuted(!muted)}
           announcement={announcement}
+          runId={runId}
         />
       </div>
 

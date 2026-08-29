@@ -22,6 +22,7 @@ import {
   reduceHold,
   touchInputFromHeld,
   type ControlId,
+  type HoldEvent,
   type HoldMemo,
 } from "./touchHold";
 
@@ -36,13 +37,26 @@ export function TouchControls({
   const [pressed, setPressed] = useState<ReadonlySet<ControlId>>(new Set());
 
   const apply = useCallback(
-    (event: Parameters<typeof reduceHold>[1]) => {
+    (event: HoldEvent) => {
       const next = reduceHold(memoRef.current, event);
       memoRef.current = next;
       setPressed(next.held);
       onInput(touchInputFromHeld(next.held));
     },
     [onInput]
+  );
+
+  const release = useCallback(
+    (id: ControlId) => {
+      apply({ kind: "release", id });
+      // Enter's keydown preventDefault cancels the compatibility click that
+      // would otherwise clear suppressActivate, and some pointer paths never
+      // deliver a click at all. Clear the flag after this turn: click, if it
+      // fires, runs first and consumes it; if it does not, this opens the
+      // toggle path again.
+      queueMicrotask(() => apply({ kind: "clear-suppress", id }));
+    },
+    [apply]
   );
 
   useEffect(() => {
@@ -70,6 +84,7 @@ export function TouchControls({
             control={control}
             held={pressed.has(control.id)}
             onEvent={apply}
+            onRelease={release}
           />
         ))}
       </div>
@@ -81,10 +96,12 @@ function TouchButton({
   control,
   held,
   onEvent,
+  onRelease,
 }: {
   control: Control;
   held: boolean;
-  onEvent: (event: Parameters<typeof reduceHold>[1]) => void;
+  onEvent: (event: HoldEvent) => void;
+  onRelease: (id: ControlId) => void;
 }) {
   const { id, label, glyph, sub, accent, wordGlyph } = control;
 
@@ -112,16 +129,15 @@ function TouchButton({
           : "border-border-strong bg-void/80 text-text-primary ")
       }
       onPointerDown={(e) => {
-        e.preventDefault();
+        // Do not preventDefault: that cancels the compatibility click the
+        // suppress flag exists to ignore. Scrolling is already killed by
+        // touch-action: none.
         e.currentTarget.setPointerCapture(e.pointerId);
         onEvent({ kind: "press", id });
       }}
-      onPointerUp={(e) => {
-        e.preventDefault();
-        onEvent({ kind: "release", id });
-      }}
-      onPointerCancel={() => onEvent({ kind: "release", id })}
-      onLostPointerCapture={() => onEvent({ kind: "release", id })}
+      onPointerUp={() => onRelease(id)}
+      onPointerCancel={() => onRelease(id)}
+      onLostPointerCapture={() => onRelease(id)}
       onKeyDown={(e) => {
         if (!isHoldKey(e.key)) return;
         e.preventDefault();
@@ -131,12 +147,13 @@ function TouchButton({
       onKeyUp={(e) => {
         if (!isHoldKey(e.key)) return;
         e.preventDefault();
-        onEvent({ kind: "release", id });
+        onRelease(id);
       }}
       onClick={(e) => {
         // Pointer and keyboard already applied press/release. The remaining
         // click is the AT path (VoiceOver/TalkBack synthesise click with no
-        // pair). preventDefault keeps Enter from firing this after keyup.
+        // pair). preventDefault keeps Enter from firing this after keyup when
+        // keydown did not already cancel it.
         e.preventDefault();
         onEvent({ kind: "activate", id });
       }}

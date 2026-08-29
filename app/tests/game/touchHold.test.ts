@@ -34,6 +34,27 @@ describe("reduceHold: pointer press/release", () => {
 
     expect(touchInputFromHeld(memo.held).jump).toBe(false);
   });
+
+  it("latches on AT activate after a pointer tap whose click never arrived", () => {
+    // preventDefault on pointerdown cancels the compatibility click, so the
+    // DOM layer sends clear-suppress on a microtask instead. Without that,
+    // suppressActivate stays set and this activate is dropped.
+    let memo = initialHoldMemo();
+    memo = reduceHold(memo, { kind: "press", id: "jump" });
+    memo = reduceHold(memo, { kind: "release", id: "jump" });
+    memo = reduceHold(memo, { kind: "clear-suppress", id: "jump" });
+    memo = reduceHold(memo, { kind: "activate", id: "jump" });
+
+    expect(touchInputFromHeld(memo.held).jump).toBe(true);
+  });
+
+  it("does not let a jump tap suppress a later climb activate", () => {
+    let memo = initialHoldMemo();
+    memo = reduceHold(memo, { kind: "press", id: "jump" });
+    memo = reduceHold(memo, { kind: "release", id: "jump" });
+    memo = reduceHold(memo, { kind: "activate", id: "climb" });
+    expect(touchInputFromHeld(memo.held).up).toBe(true);
+  });
 });
 
 describe("reduceHold: assistive-tech click toggles", () => {
