@@ -3,6 +3,7 @@
   "private": true,
   "scripts": {
     "loop": "pnpm --dir orchestrator loop",
-    "sync": "node scripts/sync.mjs"
+    "sync": "node scripts/sync.mjs",
+    "test:orchestrator": "yarn --cwd orchestrator test"
   }
 }
