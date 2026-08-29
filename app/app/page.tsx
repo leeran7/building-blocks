@@ -108,13 +108,19 @@ export default async function HomePage() {
         <SocialProofStrip />
       </Suspense>
 
-      <HowItWorks />
+      <HowItWorks
+        minEntryUsd={constants.MIN_ENTRY_USD}
+        minSpendUsd={constants.MIN_SPEND_USD}
+      />
 
       <TowerDirectory counts={counts} minEntryUsd={constants.MIN_ENTRY_USD} />
 
       <FreeLeaderboard />
 
-      <Faq />
+      <Faq
+        minEntryUsd={constants.MIN_ENTRY_USD}
+        minSpendUsd={constants.MIN_SPEND_USD}
+      />
 
       <Footer />
     </main>
