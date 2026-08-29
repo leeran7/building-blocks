@@ -17,21 +17,23 @@ const KEYBOARD_CONTROLS = [
     detail: "Walk left and right on platforms",
   },
   {
-    label: "Jump",
-    keys: ["Space"],
-    detail: "Leap across gaps between platforms",
+    label: "Jump / Climb",
+    keys: ["Space", "↑", "W"],
+    detail: "Leap across gaps, or climb up when you're on a ladder",
   },
   {
-    label: "Climb",
-    keys: ["↑", "↓", "W", "S"],
-    detail: "Up/down on ladders — stand on a ladder first",
+    label: "Climb down",
+    keys: ["↓", "S"],
+    detail: "Climb down ladders — stand on a ladder first",
   },
 ] as const;
 
 const TOUCH_CONTROLS = [
   { label: "Move", detail: "Tap and hold ← → at the bottom of the screen" },
-  { label: "Jump", detail: "Tap JMP to leap across gaps" },
-  { label: "Climb", detail: "Hold ↑ climb when you're on a ladder" },
+  {
+    label: "Jump / Climb",
+    detail: "Hold the ↑ jump/climb button to leap across gaps or climb up on ladders",
+  },
 ] as const;
 
 const TIPS = [
@@ -49,14 +51,14 @@ export function ClimbControlsGuide({ variant = "card" }: { variant?: Variant }) 
     return touch ? (
       <p className="text-sm text-text-secondary leading-relaxed">
         <span className="text-text-primary font-medium">Touch controls:</span>{" "}
-        hold ← → to move · hold ↑ climb on ladders · tap JMP to jump
+        hold ← → to move · hold ↑ jump/climb to leap or climb ladders
       </p>
     ) : (
       <p className="text-sm text-text-secondary leading-relaxed">
         <span className="text-text-primary font-medium">Controls:</span>{" "}
         <Key>←</Key>/<Key>→</Key> or <Key>A</Key>/<Key>D</Key> move ·{" "}
-        <Key>Space</Key> jump · <Key>↑</Key>/<Key>↓</Key> or <Key>W</Key>/<Key>S</Key> climb
-        ladders
+        <Key>Space</Key>/<Key>↑</Key>/<Key>W</Key> jump or climb up ·{" "}
+        <Key>↓</Key>/<Key>S</Key> climb down ladders
       </p>
     );
   }
@@ -109,7 +111,7 @@ export function ClimbControlsGuide({ variant = "card" }: { variant?: Variant }) 
       </div>
 
       {touch ? (
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {TOUCH_CONTROLS.map((c) => (
             <div key={c.label} className="rounded-xl border border-border-subtle bg-void/40 p-4">
               <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-text-muted">

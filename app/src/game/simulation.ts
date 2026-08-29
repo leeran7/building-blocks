@@ -250,8 +250,8 @@ function integratePlayer(
       p.ladderIx !== null && p.ladderSlot !== null
         ? laddersForFloor(tower, p.ladderIx)[p.ladderSlot]
         : undefined;
-    if (!l || input.jump) {
-      // Hop off (jump) or lost the ladder reference → let go.
+    if (!l || (input.jump && input.climbY === 0)) {
+      // Hop off (jump without climb intent) or lost the ladder reference → let go.
       releaseLadder(p);
       p.vy = input.jump && l ? tower.jumpSpeed * 0.7 : 0;
     } else if (Math.abs(p.x - l.x) > tower.ladderGrabRadius) {

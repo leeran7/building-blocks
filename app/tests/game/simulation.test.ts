@@ -142,6 +142,30 @@ describe("ladders: grab and climb from one floor to the next", () => {
     expect(p.y).toBeGreaterThanOrEqual(top);
     expect(p.status).toBe("climbing");
   });
+
+  it("climbs a ladder while the unified jump+climb action is held", () => {
+    const l0 = ladderForFloor(TOWER, 0);
+    const m = climbingMatch("solo", ["p1"]);
+    const p = m.players[0];
+    p.x = l0.x;
+    p.y = l0.y0 + 1;
+    p.onLadder = true;
+    p.ladderIx = 0;
+    p.ladderSlot = 0;
+    p.onGround = false;
+
+    const ACTION: PlayerInput = {
+      moveX: 0,
+      jump: true,
+      climbY: 1,
+      usePowerUp: false,
+    };
+    const yBefore = p.y;
+    stepMatch(m, { p1: ACTION }, SLOW);
+
+    expect(p.y).toBeGreaterThan(yBefore);
+    expect(p.onLadder || p.onGround).toBe(true);
+  });
 });
 
 describe("AC-7 / AC-8: caught by the death line eliminates and retains peak", () => {
