@@ -1,4 +1,4 @@
-import { readFile, writeFile, mkdir, readdir } from "node:fs/promises";
+import { readFile, writeFile, mkdir, readdir, stat } from "node:fs/promises";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -38,11 +38,29 @@ export interface Handoff {
   artifacts?: string[];
   exitCriteria?: Record<string, boolean>;
   feedback?: HandoffFeedback[];
+  findings?: HandoffFinding[];
   learnings?: HandoffLearning[];
   nextStage?: string;
   loopBackTo?: string;
   parent?: string;
 }
+
+export interface HandoffFinding {
+  severity: "critical" | "warning" | "info";
+  location?: string;
+  issue?: string;
+  message?: string;
+  fix?: string;
+  owasp?: string;
+  reproduction?: string;
+}
+
+export const HANDOFF_STATUSES: HandoffStatus[] = [
+  "success",
+  "blocked",
+  "failed",
+  "needs_revision",
+];
 
 export interface LoopState {
   goal: string;
@@ -155,38 +173,60 @@ export async function loadAgentPrompt(stage: Stage): Promise<string> {
   return readFile(path, "utf-8");
 }
 
+function agentMatchesStage(handoff: Handoff, stage: Stage): boolean {
+  const names = (handoff.agent ?? "")
+    .split("+")
+    .map((name) => name.trim())
+    .filter(Boolean);
+  return names.includes(stage);
+}
+
 export async function latestHandoff(
   stage: Stage,
-  opts?: { notBefore?: string },
+  opts?: { notBefore?: string; dirs?: string[] },
 ): Promise<Handoff | null> {
+  const dirs = opts?.dirs ?? [HANDOFFS_DIR, LEGACY_HANDOFFS_DIR];
+  for (const dir of dirs) {
+    const found = await collectHandoffsInDir(dir, stage, opts?.notBefore);
+    if (found.length > 0) {
+      found.sort((a, b) => (b.timestamp ?? "").localeCompare(a.timestamp ?? ""));
+      return found[0];
+    }
+  }
+  return null;
+}
+
+async function collectHandoffsInDir(
+  dir: string,
+  stage: Stage,
+  notBefore?: string,
+): Promise<Handoff[]> {
+  let files: string[] = [];
+  try {
+    files = await readdir(dir);
+  } catch {
+    return [];
+  }
+
   const found: Handoff[] = [];
-  for (const dir of [HANDOFFS_DIR, LEGACY_HANDOFFS_DIR]) {
-    let files: string[] = [];
+  for (const file of files) {
+    if (!file.startsWith(`${stage}-`) || !file.endsWith(".json")) continue;
+    const path = join(dir, file);
     try {
-      files = await readdir(dir);
+      const raw = await readFile(path, "utf-8");
+      const handoff = JSON.parse(raw) as Handoff;
+      if (!agentMatchesStage(handoff, stage)) continue;
+      if (notBefore) {
+        if (!handoff.timestamp || handoff.timestamp < notBefore) continue;
+        const fileStat = await stat(path);
+        if (fileStat.mtime.toISOString() < notBefore) continue;
+      }
+      found.push(handoff);
     } catch {
       continue;
     }
-    for (const file of files) {
-      if (!file.startsWith(`${stage}-`) || !file.endsWith(".json")) continue;
-      try {
-        const raw = await readFile(join(dir, file), "utf-8");
-        const handoff = JSON.parse(raw) as Handoff;
-        if (
-          opts?.notBefore &&
-          handoff.timestamp &&
-          handoff.timestamp < opts.notBefore
-        ) {
-          continue;
-        }
-        found.push(handoff);
-      } catch {
-        continue;
-      }
-    }
   }
-  found.sort((a, b) => (b.timestamp ?? "").localeCompare(a.timestamp ?? ""));
-  return found[0] ?? null;
+  return found;
 }
 
 export async function latestUpstreamHandoff(

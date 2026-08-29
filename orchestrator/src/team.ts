@@ -1,5 +1,5 @@
 import type { Handoff, HandoffStatus, LoopState, Stage } from "./types.js";
-import { REQUIRED_SEQUENCE, REQUIRED_TEAM } from "./types.js";
+import { HANDOFF_STATUSES, REQUIRED_SEQUENCE, REQUIRED_TEAM } from "./types.js";
 
 export { REQUIRED_SEQUENCE, REQUIRED_TEAM };
 
@@ -21,6 +21,13 @@ export const OPTIONAL_AFTER: Partial<Record<Stage, Stage[]>> = {
 export const PARALLEL_WITH: Partial<Record<Stage, Stage[]>> = {
   reviewer: ["security-reviewer"],
 };
+
+export const LOOP_BACK_TARGETS: Stage[] = [
+  "product-spec",
+  "architect",
+  "implementer",
+  "debugger",
+];
 
 const STATUS_RANK: Record<HandoffStatus, number> = {
   success: 1,
@@ -49,43 +56,21 @@ export function clampNextStage(
   current: Stage,
   requested: string | undefined,
 ): Stage | null {
-  const forced = nextInSequence(current);
   const optional = OPTIONAL_AFTER[current] ?? [];
-
   if (requested && optional.includes(requested as Stage)) {
     return requested as Stage;
   }
-
-  if (requested && (SPECIALIST_NAMES as readonly string[]).includes(requested)) {
-    return forced;
-  }
-
   if (requested === "security-reviewer" && current === "reviewer") {
     return "qa-acceptance";
   }
+  return nextInSequence(current);
+}
 
-  if (!requested) return forced;
-
-  const reqIdx = REQUIRED_SEQUENCE.indexOf(requested as Stage);
-  const curIdx = REQUIRED_SEQUENCE.indexOf(current);
-
-  if (reqIdx === -1) {
-    return forced;
+export function clampLoopBackTo(requested: string | undefined): Stage {
+  if (requested && LOOP_BACK_TARGETS.includes(requested as Stage)) {
+    return requested as Stage;
   }
-
-  if (curIdx >= 0 && reqIdx > curIdx + 1) {
-    return forced;
-  }
-
-  if (curIdx >= 0 && reqIdx === curIdx + 1) {
-    return forced;
-  }
-
-  if (requested === current) {
-    return forced;
-  }
-
-  return forced;
+  return "implementer";
 }
 
 export function missingHandoff(stage: Stage): Handoff {
@@ -97,16 +82,35 @@ export function missingHandoff(stage: Stage): Handoff {
   };
 }
 
+export function hasCritical(handoff: Handoff): boolean {
+  const fromFeedback = (handoff.feedback ?? []).some((item) => item.severity === "critical");
+  const fromFindings = (handoff.findings ?? []).some((item) => item.severity === "critical");
+  const exitFail =
+    handoff.exitCriteria?.no_critical_findings === false ||
+    handoff.exitCriteria?.no_critical_security_findings === false;
+  return fromFeedback || fromFindings || Boolean(exitFail);
+}
+
 export function withCriticalRevision(handoff: Handoff): Handoff {
-  const critical = (handoff.feedback ?? []).some((f) => f.severity === "critical");
-  if (handoff.status === "success" && critical) {
+  if (handoff.status === "success" && hasCritical(handoff)) {
     return {
       ...handoff,
       status: "needs_revision",
-      loopBackTo: handoff.loopBackTo ?? "implementer",
+      loopBackTo: clampLoopBackTo(handoff.loopBackTo),
     };
   }
   return handoff;
+}
+
+export function normalizeHandoff(handoff: Handoff): Handoff {
+  if (!HANDOFF_STATUSES.includes(handoff.status)) {
+    return {
+      ...handoff,
+      status: "failed",
+      summary: `Invalid handoff status "${String(handoff.status)}"; treating as failed.`,
+    };
+  }
+  return withCriticalRevision(handoff);
 }
 
 export function combineHandoffs(handoffs: Handoff[]): Handoff {
@@ -114,11 +118,11 @@ export function combineHandoffs(handoffs: Handoff[]): Handoff {
     return missingHandoff("reviewer");
   }
   if (handoffs.length === 1) {
-    return withCriticalRevision(handoffs[0]);
+    return normalizeHandoff(handoffs[0]);
   }
 
   const ranked = handoffs
-    .map(withCriticalRevision)
+    .map(normalizeHandoff)
     .sort((a, b) => STATUS_RANK[b.status] - STATUS_RANK[a.status]);
   const worst = ranked[0];
   const status = worst.status;
@@ -130,16 +134,25 @@ export function combineHandoffs(handoffs: Handoff[]): Handoff {
     timestamp: new Date().toISOString(),
     artifacts: handoffs.flatMap((h) => h.artifacts ?? []),
     feedback: handoffs.flatMap((h) => h.feedback ?? []),
+    findings: handoffs.flatMap((h) => h.findings ?? []),
     learnings: handoffs.flatMap((h) => h.learnings ?? []),
+    exitCriteria: Object.assign({}, ...handoffs.map((h) => h.exitCriteria ?? {})),
     nextStage: status === "success" ? "qa-acceptance" : undefined,
     loopBackTo:
-      status === "needs_revision" ? (worst.loopBackTo ?? "implementer") : worst.loopBackTo,
+      status === "needs_revision"
+        ? clampLoopBackTo(worst.loopBackTo)
+        : worst.loopBackTo,
   };
 }
 
-export function teamMissing(state: Pick<LoopState, "dispatched" | "completedStages">): Stage[] {
+export function teamMissing(
+  state: Pick<LoopState, "dispatched" | "completedStages"> & {
+    requiredTeam?: Stage[];
+  },
+): Stage[] {
+  const required = state.requiredTeam?.length ? state.requiredTeam : REQUIRED_TEAM;
   const seen = new Set([...state.dispatched, ...state.completedStages]);
-  return REQUIRED_TEAM.filter((stage) => !seen.has(stage));
+  return required.filter((stage) => !seen.has(stage));
 }
 
 export function uniqueStages(stages: Stage[]): Stage[] {

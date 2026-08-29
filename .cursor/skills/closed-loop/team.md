@@ -43,7 +43,10 @@ If the handoff file is absent when the subagent returns, the stage
 
 After verifier succeeds, dispatch `reviewer` and `security-reviewer` in
 **one message** (two Task calls). Both must pass before `qa-acceptance`.
-Critical findings → `needs_revision` → implementer.
+Critical items in `findings` **or** `feedback` (or
+`exitCriteria.no_critical_findings === false`) → `needs_revision` →
+implementer. `loopBackTo` is clamped to product-spec / architect /
+implementer / debugger — never forward to integrator or release.
 
 ## Prompt-loop vs programmatic loop
 
