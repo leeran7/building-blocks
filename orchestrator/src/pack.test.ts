@@ -87,16 +87,17 @@ type PackCopyModule = {
   ) => Promise<void>;
 };
 
-async function loadHygiene(): Promise<HygieneModule> {
-  return (await import("../../scripts/hygiene.mjs")) as HygieneModule;
+async function importRootScript<T>(relativeFromHere: string): Promise<T> {
+  const href = new URL(relativeFromHere, import.meta.url).href;
+  return (await import(href)) as T;
 }
 
-async function loadPackCopy(): Promise<PackCopyModule> {
-  return (await import("../../scripts/pack-copy.mjs")) as PackCopyModule;
+async function loadPackCopy() {
+  return importRootScript<PackCopyModule>("../../scripts/pack-copy.mjs");
 }
 
 async function lintAgents(root: string) {
-  const mod = await loadHygiene();
+  const mod = await importRootScript<HygieneModule>("../../scripts/hygiene.mjs");
   return mod.lintAgents(root);
 }
 
