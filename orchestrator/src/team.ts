@@ -136,7 +136,7 @@ export function combineHandoffs(handoffs: Handoff[]): Handoff {
     feedback: handoffs.flatMap((h) => h.feedback ?? []),
     findings: handoffs.flatMap((h) => h.findings ?? []),
     learnings: handoffs.flatMap((h) => h.learnings ?? []),
-    exitCriteria: Object.assign({}, ...handoffs.map((h) => h.exitCriteria ?? {})),
+    exitCriteria: mergeExitCriteria(handoffs),
     nextStage: status === "success" ? "qa-acceptance" : undefined,
     loopBackTo:
       status === "needs_revision"
@@ -153,6 +153,21 @@ export function teamMissing(
   const required = state.requiredTeam?.length ? state.requiredTeam : REQUIRED_TEAM;
   const seen = new Set([...state.dispatched, ...state.completedStages]);
   return required.filter((stage) => !seen.has(stage));
+}
+
+export function mergeExitCriteria(
+  handoffs: Handoff[],
+): Record<string, boolean> | undefined {
+  const keys = new Set(handoffs.flatMap((h) => Object.keys(h.exitCriteria ?? {})));
+  if (keys.size === 0) return undefined;
+  const merged: Record<string, boolean> = {};
+  for (const key of keys) {
+    const values = handoffs
+      .map((h) => h.exitCriteria?.[key])
+      .filter((value): value is boolean => typeof value === "boolean");
+    merged[key] = values.every(Boolean);
+  }
+  return merged;
 }
 
 export function uniqueStages(stages: Stage[]): Stage[] {
