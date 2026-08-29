@@ -18,7 +18,7 @@ import {
   updateSentinel,
 } from "../../src/game/antiCheat";
 import { createMatch, spawnPlayer, stepMatch } from "../../src/game/simulation";
-import { buildTower } from "../../src/game/towers";
+import { buildTower, laddersForFloor } from "../../src/game/towers";
 import { RAPID_CLIMB_MULT, SUPER_JUMP_MULT } from "../../src/game/powerups";
 import { TowerSpec, TICK_DT, TICK_HZ } from "../../src/game/types";
 
@@ -152,6 +152,7 @@ describe("AC-16: the sentinel stays silent on honest play", () => {
     }
 
     expect(sentinel.flagged).toBe(false);
+    expect(match.players[0]!.cheatFlagged).toBe(false);
     // Nowhere near the K=5 threshold, so a retune has room before it regresses.
     expect(worstStreak).toBeLessThan(3);
   });
@@ -204,5 +205,38 @@ describe("stepMatch is the production caller", () => {
     });
     expect(m.players[0].cheatViolations).toBe(0);
     expect(m.players[0].cheatFlagged).toBe(false);
+  });
+
+  it("does not grant height from climbY when no ladder is in reach", () => {
+    const tower = buildTower("ai", { runSeed: "climb-off-ladder" });
+    const m = createMatch({
+      seed: "climb-off-ladder",
+      mode: "solo",
+      tower,
+      playerIds: ["p1"],
+    });
+    m.phase = "climb";
+    const p = m.players[0]!;
+    const ladders = laddersForFloor(tower, 0);
+    let farX: number | null = null;
+    for (let x = 0; x <= tower.widthM; x += 1) {
+      if (ladders.every((l) => Math.abs(l.x - x) > tower.ladderGrabRadius + 2)) {
+        farX = x;
+        break;
+      }
+    }
+    expect(farX).not.toBeNull();
+    p.x = farX as number;
+    p.y = 0;
+    p.onGround = true;
+    p.onLadder = false;
+    const y0 = p.y;
+    for (let i = 0; i < 30; i++) {
+      stepMatch(m, {
+        p1: { moveX: 0, jump: false, climbY: 1, usePowerUp: false },
+      });
+    }
+    expect(p.onLadder).toBe(false);
+    expect(p.y).toBe(y0);
   });
 });

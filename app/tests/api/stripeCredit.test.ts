@@ -93,4 +93,15 @@ describe("classifyStripeCredit: unattributable paid events are dead-lettered", (
       expect(d.reason).toMatch(/session id/);
     }
   });
+
+  it("dead-letters a signed session with a negative amount", () => {
+    const d = classifyStripeCredit(
+      "checkout.session.completed",
+      session({ payment_status: "paid", amount_total: -500 })
+    );
+    expect(d.kind).toBe("dead_letter");
+    if (d.kind === "dead_letter") {
+      expect(d.reason).toMatch(/amount/);
+    }
+  });
 });

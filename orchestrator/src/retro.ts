@@ -105,7 +105,7 @@ export async function foldLearnings(loopDir: string, iteration: number): Promise
 
   const stamp = `_Last curated: ${new Date().toISOString()} by orchestrator retro (iteration ${iteration})._`;
   let nextMd = md.includes("_Last curated:")
-    ? md.replace(/_Last curated:[^\n]*_/, stamp)
+    ? md.replace(/_Last curated:[\s\S]*?_/, stamp)
     : `${stamp}\n\n${md}`;
 
   const byHeading = new Map<string, string[]>();
@@ -287,7 +287,16 @@ function parseRecentBullets(md: string): string[] {
   const rest = md.slice(start);
   const next = rest.search(/\n## /);
   const body = next < 0 ? rest : rest.slice(0, next);
-  return body.split("\n").filter((line) => line.startsWith("- "));
+  return body.split("\n").reduce<string[]>((bullets, line) => {
+    if (line.startsWith("- ")) {
+      bullets.push(line);
+      return bullets;
+    }
+    if (line.trim() && bullets.length > 0) {
+      bullets[bullets.length - 1] += `\n${line}`;
+    }
+    return bullets;
+  }, []);
 }
 
 function sectionInsertAt(md: string, headingIdx: number): number {

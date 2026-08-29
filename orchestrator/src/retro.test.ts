@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile } from "node:fs/promises";
+import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "node:test";
@@ -180,5 +180,47 @@ describe("retro", () => {
     const md = await readFile(join(dir, "learnings.md"), "utf-8");
     const standing = md.split("## Standing rules (always apply)")[1]?.split("## ")[0] ?? "";
     assert.doesNotMatch(standing, /one-off observation/);
+  });
+
+  it("keeps wrapped Recently applied bullets and standing prose when folding a new entry", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "loop-retro-"));
+    await writeFile(
+      join(dir, "learnings.md"),
+      `# Learnings Ledger
+
+_Last curated: 2026-08-29T13:40:00Z — retro over the 2026-08-29 review pass
+(\`3385d3f..f76090a\`)._
+
+## Standing rules (always apply)
+
+- **[all] A quality gate is not a gate until it has been proven to fail.**
+
+## By topic
+### Testing
+- existing testing bullet that must survive
+
+## Recently applied (last 20)
+- 2026-08-29 — .gitignore switched from \`loop/\` to \`loop/*\` plus negations so the
+  learnings ledger is version-controlled (F-16). Applied.
+`,
+    );
+    await persistHandoffLearnings(
+      handoff("verifier", {
+        forAgents: ["all"],
+        topic: "testing",
+        insight: "fresh insight this iteration",
+        action: "assert the handler, not the helper",
+      }),
+      dir,
+      2,
+    );
+    await foldLearnings(dir, 2);
+
+    const md = await readFile(join(dir, "learnings.md"), "utf-8");
+    assert.match(md, /version-controlled \(F-16\)\. Applied/);
+    assert.match(md, /A quality gate is not a gate until it has been proven to fail/);
+    assert.match(md, /existing testing bullet that must survive/);
+    assert.match(md, /orchestrator retro \(iteration 2\)/);
+    assert.match(md, /fresh insight this iteration/);
   });
 });

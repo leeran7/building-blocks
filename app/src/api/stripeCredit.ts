@@ -35,6 +35,16 @@ export function classifyStripeCredit(
     };
   }
 
+  if (!Number.isFinite(amountCents) || amountCents < 0) {
+    return {
+      kind: "dead_letter",
+      eventType,
+      stripeSessionId,
+      amountCents: Number.isFinite(amountCents) ? amountCents : 0,
+      reason: "invalid amount",
+    };
+  }
+
   const blockId = session.metadata?.block_id;
   if (!stripeSessionId) {
     return {
