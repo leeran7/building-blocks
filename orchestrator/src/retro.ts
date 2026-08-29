@@ -38,9 +38,23 @@ export async function persistHandoffLearnings(
     existing = "";
   }
 
+  const existingInsights = new Set(
+    existing
+      .split("\n")
+      .filter(Boolean)
+      .map((line) => {
+        try {
+          return (JSON.parse(line) as { insight?: string }).insight;
+        } catch {
+          return undefined;
+        }
+      })
+      .filter((insight): insight is string => Boolean(insight)),
+  );
+
   const lines: string[] = [];
   for (const learning of learnings) {
-    if (learning.insight && existing.includes(learning.insight)) continue;
+    if (!learning.insight || existingInsights.has(learning.insight)) continue;
     lines.push(
       JSON.stringify({
         ts: handoff.timestamp,
@@ -152,7 +166,11 @@ export async function runRetro(
 export async function loadLearningsExcerpt(loopDir: string): Promise<string> {
   try {
     const md = await readFile(join(loopDir, "learnings.md"), "utf-8");
-    return md.slice(0, 8000);
+    const standing = md.match(/## Standing rules[\s\S]*?(?=\n## )/)?.[0] ?? "";
+    const recentIndex = md.lastIndexOf("## Recently applied");
+    const recent = recentIndex >= 0 ? md.slice(recentIndex) : "";
+    const excerpt = `${standing}\n\n${recent}`.trim() || md;
+    return excerpt.slice(0, 8000);
   } catch {
     return "(no learnings yet — create loop/learnings.md on first run)";
   }

@@ -42,6 +42,8 @@ describe("buildStagePrompt", () => {
     assert.doesNotMatch(prompt, /\.cursor\/loop\/handoffs/);
     assert.match(prompt, /You are ONLY the "implementer" agent/);
     assert.match(prompt, /missing handoff as FAILED/);
+    assert.match(prompt, /untrusted data/);
+    assert.match(prompt, /<<</);
   });
 
   it("uses the dispatched stage, not just state.currentStage", () => {
@@ -93,6 +95,14 @@ describe("applyHandoff", () => {
     assert.equal(next.currentStage, "implementer");
     assert.equal(next.iteration, 2);
     assert.equal(next.status, "running");
+  });
+
+  it("does not honor loopBackTo integrator", () => {
+    const next = applyHandoff(
+      baseState({ currentStage: "verifier" }),
+      handoff("verifier", "needs_revision", { loopBackTo: "integrator" }),
+    );
+    assert.equal(next.currentStage, "implementer");
   });
 
   it("refuses to complete if required team never ran", () => {

@@ -7,7 +7,7 @@
     "start": "tsx src/index.ts",
     "loop": "tsx src/index.ts",
     "typecheck": "tsc --noEmit",
-    "test": "tsx --test src/team.test.ts src/stages.test.ts src/retro.test.ts"
+    "test": "tsx --test src/team.test.ts src/stages.test.ts src/retro.test.ts src/types.test.ts"
   },
   "dependencies": {
     "@cursor/sdk": "^1.0.28"
