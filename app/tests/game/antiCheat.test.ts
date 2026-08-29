@@ -20,6 +20,7 @@ import {
 import { createMatch, spawnPlayer, stepMatch } from "../../src/game/simulation";
 import { buildTower, laddersForFloor } from "../../src/game/towers";
 import { RAPID_CLIMB_MULT, JETPACK_MAX_VY, POWER_UP_HOVER_M, jetpackFuelTicks } from "../../src/game/powerups";
+import { checkClimbResult } from "../../src/game/scoreBounds";
 import { TowerSpec, TICK_DT, TICK_HZ, NO_INPUT } from "../../src/game/types";
 
 const TOWER: TowerSpec = {
@@ -264,7 +265,7 @@ describe("stepMatch is the production caller", () => {
 });
 
 describe("AC-J9: a full jetpack burn does not flag the sentinel", () => {
-  it("stays silent across a 75-tick hold through stepMatch", () => {
+  it("stays silent across a full-tank hold through stepMatch", () => {
     const m = climbingWithClearOrbs("jetpack-burn");
     const p = m.players[0]!;
     placeTestOrb(m, p.x, p.y);
@@ -274,6 +275,7 @@ describe("AC-J9: a full jetpack burn does not flag the sentinel", () => {
     const tank = jetpackFuelTicks();
     for (let i = 0; i < tank; i++) stepMatch(m, { p1: jump });
     expect(p.cheatFlagged).toBe(false);
+    expect(checkClimbResult(p.peakY, m.tick).ok).toBe(true);
   });
 });
 

@@ -39,6 +39,7 @@ import {
   JETPACK_THRUST,
   JETPACK_MAX_VY,
   JETPACK_FUEL_SECONDS,
+  JETPACK_WINDOW_SECONDS,
   TIME_SLOW_FRAC,
   TIME_SLOW_COOLDOWN_SECONDS,
   canActivate,
@@ -78,8 +79,6 @@ const SLOW: SimConfig = {
 };
 
 const ARCHETYPE_SLUGS = ["indie-games", "ai", "gaming-pc", "design-tools"] as const;
-const FLOOR_SKIP_MIN_FRAC = 0.75;
-const FLOOR_SKIP_MAX_FRAC = 2;
 const PARTIAL_BURN_TICKS = 20;
 const HOLD_SAMPLE_TICKS = 12;
 const LADDER_CLIMB_TICKS = 8;
@@ -96,13 +95,14 @@ describe("specs: five live types, including jetpack", () => {
     ]);
   });
 
-  it("sizes the jetpack tank at 2.5s / 75 ticks inside a 10s window", () => {
-    expect(JETPACK_FUEL_SECONDS).toBe(2.5);
+  it("sizes the jetpack tank at 7.5s of fuel inside a 30s window", () => {
+    expect(JETPACK_FUEL_SECONDS).toBe(7.5);
+    expect(JETPACK_WINDOW_SECONDS).toBe(30);
     expect(jetpackFuelTicks()).toBe(Math.round(JETPACK_FUEL_SECONDS * TICK_HZ));
     expect(durationTicks("jetpack")).toBe(
       Math.round(POWER_UP_SPECS.jetpack.durationSeconds * TICK_HZ)
     );
-    expect(POWER_UP_SPECS.jetpack.durationSeconds).toBe(10);
+    expect(POWER_UP_SPECS.jetpack.durationSeconds).toBe(JETPACK_WINDOW_SECONDS);
     expect(POWER_UP_SPECS.jetpack.fuelSeconds).toBe(JETPACK_FUEL_SECONDS);
   });
 });
@@ -572,6 +572,18 @@ describe("jetpack: hold-to-thrust with a fuel tank inside a window", () => {
     expect(NO_INPUT.usePowerUp).toBe(false);
   });
 
+  it("AC-J1 usePowerUp does not grant a jetpack", () => {
+    const m = climbingMatch();
+    const p = m.players[0];
+    stepMatch(
+      m,
+      { p1: { moveX: 0, jump: false, climbY: 0, usePowerUp: true } },
+      SLOW
+    );
+    expect(isPowerUpActive(p, "jetpack", m.tick)).toBe(false);
+    expect(p.lastPickupType).toBeNull();
+  });
+
   it("AC-J1/J8 pickup this tick cannot thrust until the next tick", () => {
     const m = climbingMatch();
     const p = m.players[0];
@@ -607,6 +619,22 @@ describe("jetpack: hold-to-thrust with a fuel tank inside a window", () => {
     expect(p.onGround).toBe(true);
   });
 
+  it("AC-J2 climbY off-ladder does not thrust or spend fuel", () => {
+    const m = climbingMatch();
+    const p = m.players[0];
+    pickupAtFeet(m, "jetpack");
+    stepMatch(m, { p1: move(0, true) }, SLOW);
+    expect(p.onGround).toBe(false);
+    const fuel = jetpackFuelRemaining(p, m.tick);
+    stepMatch(
+      m,
+      { p1: { moveX: 0, jump: false, climbY: 1, usePowerUp: false } },
+      SLOW
+    );
+    expect(p.jetpackThrusting).toBe(false);
+    expect(jetpackFuelRemaining(p, m.tick)).toBe(fuel);
+  });
+
   it("AC-J3 ground launch does not spend fuel; the following hold does", () => {
     const m = climbingMatch();
     const p = m.players[0];
@@ -622,7 +650,7 @@ describe("jetpack: hold-to-thrust with a fuel tank inside a window", () => {
     expect(jetpackFuelRemaining(p, m.tick)).toBe(tank - 1);
   });
 
-  it("AC-J4 leftover fuel dies with the 10s window", () => {
+  it("AC-J4 leftover fuel dies with the spend window", () => {
     const m = climbingMatch();
     const p = m.players[0];
     pickupAtFeet(m, "jetpack");
@@ -647,7 +675,7 @@ describe("jetpack: hold-to-thrust with a fuel tank inside a window", () => {
     expect(m.tick).toBeLessThan(durationTicks("jetpack"));
   });
 
-  it("AC-J5 thrust beats gravity, caps at JETPACK_MAX_VY, and skips about a floor", () => {
+  it("AC-J5 thrust beats gravity, caps at JETPACK_MAX_VY, and covers a multi-floor skip", () => {
     for (const slug of ARCHETYPE_SLUGS) {
       expect(JETPACK_THRUST).toBeGreaterThan(buildTower(slug).gravity);
     }
@@ -664,8 +692,9 @@ describe("jetpack: hold-to-thrust with a fuel tank inside a window", () => {
       expect(p.vy).toBeLessThanOrEqual(JETPACK_MAX_VY);
     }
     const deltaY = p.y - y0;
-    expect(deltaY).toBeGreaterThan(TOWER.floorGap * FLOOR_SKIP_MIN_FRAC);
-    expect(deltaY).toBeLessThan(TOWER.floorGap * FLOOR_SKIP_MAX_FRAC);
+    const burnMetres = JETPACK_MAX_VY * JETPACK_FUEL_SECONDS;
+    expect(deltaY).toBeGreaterThan(burnMetres * 0.7);
+    expect(deltaY).toBeLessThan(burnMetres * 1.15);
     expect(p.cheatFlagged).toBe(false);
   });
 
@@ -763,10 +792,26 @@ describe("jetpack: hold-to-thrust with a fuel tank inside a window", () => {
     expect(meter.kind).toBe("fuel");
     expect(meter.seconds).toBeCloseTo(JETPACK_FUEL_SECONDS, 5);
     expect(meter.frac).toBe(1);
-    expect(remainingTicks(p, "jetpack", m.tick) / TICK_HZ).toBeCloseTo(
+    const windowSeconds = remainingTicks(p, "jetpack", m.tick) / TICK_HZ;
+    expect(windowSeconds).toBeCloseTo(
       POWER_UP_SPECS.jetpack.durationSeconds - 1,
       5
     );
+    expect(meter.seconds).not.toBeCloseTo(windowSeconds, 1);
+
+    stepMatch(m, { p1: move(0, true) }, SLOW);
+    for (let i = 0; i < PARTIAL_BURN_TICKS; i++) {
+      stepMatch(m, { p1: move(0, true) }, SLOW);
+    }
+    const burned = p.activePowerUps.find((a) => a.type === "jetpack");
+    expect(burned).toBeDefined();
+    if (!burned) throw new Error("jetpack entry missing after partial burn");
+    const afterBurn = powerUpChipMeter(burned, m.tick);
+    const windowAfter = remainingTicks(p, "jetpack", m.tick) / TICK_HZ;
+    expect(afterBurn.kind).toBe("fuel");
+    expect(afterBurn.frac).toBeLessThan(1);
+    expect(afterBurn.seconds).toBeLessThan(JETPACK_FUEL_SECONDS);
+    expect(afterBurn.seconds).toBeLessThan(windowAfter);
 
     const windowMatch = climbingMatch();
     pickupAtFeet(windowMatch, "rapid-climb");
@@ -918,7 +963,7 @@ describe("time-slow cooldown: the thing that keeps a run finite", () => {
     expect(POWER_UP_SPECS["time-slow"].durationSeconds).toBe(8);
     expect(POWER_UP_SPECS["time-slow"].cooldownSeconds).toBe(40);
     expect(TIME_SLOW_COOLDOWN_SECONDS).toBe(40);
-    expect(TIME_SLOW_FRAC).toBe(0.75);
+    expect(TIME_SLOW_FRAC).toBe(0.5);
     const d = POWER_UP_SPECS["time-slow"].durationSeconds;
     const c = POWER_UP_SPECS["time-slow"].cooldownSeconds;
     const maxUptime = d / (d + c);

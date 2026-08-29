@@ -30,15 +30,13 @@
  * THE RUN MUST STILL END. The endless tower's guarantee is that the lava's
  * time-averaged late-game speed (envelope × stumble duty) stays above 1x climb
  * speed, so no climber outlasts it. Time-slow is the one power-up that can break
- * that: held at 100% uptime it drops the lava to ~0.29x and the tower becomes
- * survivable forever. Its cooldown is what keeps the guarantee — it caps
- * uptime at 8s in every 48s, so the lava still averages
- * meanSpeedFrac · (1 − 0.75 · 0.167) ≈ 1.01x the climb speed. That margin is thin on
- * purpose: a player who lands every time-slow perfectly gets very close to
- * outrunning the tower, which is exactly the high-hike ceiling this is for, but
- * never actually escapes it. Do not raise TIME_SLOW_FRAC or shorten the cooldown
- * without redoing that arithmetic — `powerups.test.ts` asserts the bound. The
- * 8s/40s pair keeps the same uptime fraction as the old 6s/30s window.
+ * that: held at 100% uptime it would drop the lava to (1 − TIME_SLOW_FRAC) of
+ * its clock and the tower could become survivable forever. Its cooldown is
+ * what keeps the guarantee — it caps uptime at 8s in every 48s, so the lava
+ * still averages meanSpeedFrac · (1 − 0.5 · 0.167) ≈ 1.06x the climb speed.
+ * Do not raise TIME_SLOW_FRAC or shorten the cooldown without redoing that
+ * arithmetic — `powerups.test.ts` asserts the bound. The 8s/40s pair keeps
+ * the same uptime fraction as the old 6s/30s window.
  *
  * Spawns are a seeded GAP SCHEDULE, not independent per-floor coin flips:
  * a random first floor, then mixed clusters and droughts whose mean gap
@@ -94,20 +92,22 @@ export const JETPACK_THRUST = 80;
 /**
  * Terminal rise speed while thrusting, in m/s. A bit above a typical ladder
  * so the pack reads as a skip, not a second climb. Fuel is sized so a full
- * burn covers about one floor at this cap.
+ * burn covers a few floors at this cap.
  */
 export const JETPACK_MAX_VY = 12;
-/** Seconds of thrust in the tank. Feathered inside the window, not a 10s fly. */
-export const JETPACK_FUEL_SECONDS = 2.5;
+/** Seconds of thrust in the tank. Feathered inside the window, not a full-window fly. */
+export const JETPACK_FUEL_SECONDS = 7.5;
+/** Window in which leftover fuel may still be burned. */
+export const JETPACK_WINDOW_SECONDS = 30;
 /** Fraction of a normal jump a double-jump gives (a recovery, not a second launch). */
 export const DOUBLE_JUMP_MULT = 0.92;
 /** Mid-air jumps granted per double-jump activation. */
 export const DOUBLE_JUMP_CHARGES = 2;
 /**
- * Fraction of the lava's rise cancelled while time-slow runs. High enough that
- * the lava line visibly stalls — at 0.5 the effect was real but unreadable.
+ * Fraction of the lava's rise cancelled while time-slow runs. Half the clock
+ * (0.5) so the line visibly slows without stalling the way 0.75 did.
  */
-export const TIME_SLOW_FRAC = 0.75;
+export const TIME_SLOW_FRAC = 0.5;
 /** Seconds before time-slow may be used again — the endless-run guarantee. */
 export const TIME_SLOW_COOLDOWN_SECONDS = 40;
 
@@ -195,7 +195,7 @@ export const POWER_UP_SPECS: Record<PowerUpType, PowerUpSpec> = {
     description: `Hold jump to thrust (${JETPACK_FUEL_SECONDS}s fuel)`,
     glyph: "▲",
     color: "#ff9a4a",
-    durationSeconds: 10,
+    durationSeconds: JETPACK_WINDOW_SECONDS,
     cooldownSeconds: 0,
     charge: false,
     fuelSeconds: JETPACK_FUEL_SECONDS,
@@ -529,8 +529,8 @@ export type PowerUpChipMeter = {
 };
 
 /**
- * HUD chip fill and numeral. Jetpack shows the fuel tank, not the 10 s window
- * — a window-only chip would look full after the pack has already died.
+ * HUD chip fill and numeral. Jetpack shows the fuel tank, not the spend
+ * window — a window-only chip would look full after the pack has already died.
  */
 export function powerUpChipMeter(a: ActivePowerUp, tick: number): PowerUpChipMeter {
   const spec = POWER_UP_SPECS[a.type];
