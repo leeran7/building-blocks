@@ -5,10 +5,10 @@
  * acts as a leaderboard — your peak height is your score. Geometry is generated
  * DETERMINISTICALLY PER FLOOR from (seed, floorIndex): floor i is a solid
  * platform (with a jumpable gap on higher floors) at a seeded height, joined to
- * floor i+1 by ONE TO THREE ladders at seeded x positions — several routes up, so
- * the climber picks a line instead of being funnelled. The category slug picks
- * physics; a per-run seed (applyRunSeed) is what makes each game a different
- * layout. Same (slug, runSeed) still replays exactly (AC-11).
+ * floor i+1 by ONE OR TWO ladders at seeded x positions — giving route choice
+ * without overcrowding. The category slug picks physics; a per-run seed
+ * (applyRunSeed) is what makes each game a different layout. Same (slug, runSeed)
+ * still replays exactly (AC-11).
  *
  * Difficulty scales with altitude: the gap you must jump on each floor widens
  * toward the physical jump limit, and ladders shift further sideways, so higher
@@ -172,20 +172,20 @@ function ladderSeparation(tower: TowerSpec): number {
 }
 
 /**
- * How many ladders leave floor i. Multiple routes up are the point: a floor with
- * two or three ladders lets the climber pick the near one instead of being
- * forced into one long traverse. Weighted toward 2 as altitude grows, which
- * partly offsets the widening gaps.
+ * How many ladders leave floor i. Limited to 1-2 to avoid visual clutter while
+ * still giving route choice. Two ladders let the climber pick the near one instead
+ * of being forced into one long traverse. Weighted toward 2 as altitude grows,
+ * which partly offsets the widening gaps.
  */
 function ladderCountForFloor(tower: TowerSpec, i: number): number {
   const r = createRng(`${tower.seed}:ln:${i}`);
   const d = Math.min(1, i / DIFFICULTY_FLOORS);
   const roll = r.next();
   // Single-ladder floors stay common low down (readable opening) and thin out.
-  const oneChance = 0.42 - 0.14 * d;
+  // Higher floors favor 2 ladders to help with wider gaps. Max is 2 (never 3).
+  const oneChance = 0.50 - 0.20 * d; // 50% at floor 0, 30% at floor 50+
   if (roll < oneChance) return 1;
-  if (roll < oneChance + 0.42) return 2;
-  return 3;
+  return 2; // Everything else gets 2 ladders (never 3)
 }
 
 /** X positions of every ladder leaving floor i, primary first (deterministic). */
