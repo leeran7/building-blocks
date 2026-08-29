@@ -6,7 +6,7 @@
  *   rapid-climb   ladders are the fastest way up, so make them faster
  *   sprint-burst  ladders drift further apart with altitude — cover the traverse
  *   double-jump   recover a missed gap instead of falling behind your peak
- *   super-jump    skip a ladder detour entirely with one big launch
+ *   jetpack       skip a ladder detour — hold jump to thrust, fuel is short
  *   time-slow     the lava eventually outpaces any climber; buy back seconds
  *
  * BALANCE. The hazard envelope ramps toward 1.42x, but the lava stumbles (2s
@@ -20,8 +20,8 @@
  *     hoarded. Different types may overlap; that is a separate product choice
  *     from same-type stacking, which the HUD and the charge counter both
  *     assume cannot happen;
- *   - short windows (6–12s) that must be spent on the right terrain — rapid-climb
- *     is wasted if you are not on a ladder;
+ *   - short windows that must be spent on the right terrain — rapid-climb is
+ *     wasted if you are not on a ladder, jetpack fuel is wasted in a hover;
  *   - multipliers under 2x, so no single pickup trivialises a floor;
  *   - time-slow cancels most of the lava's rise and is the rarest drop, but
  *     weights toward it with altitude — exactly where the lava wins — so a deep
@@ -32,12 +32,13 @@
  * speed, so no climber outlasts it. Time-slow is the one power-up that can break
  * that: held at 100% uptime it drops the lava to ~0.29x and the tower becomes
  * survivable forever. Its cooldown is what keeps the guarantee — it caps
- * uptime at 6s in every 36s, so the lava still averages
+ * uptime at 8s in every 48s, so the lava still averages
  * meanSpeedFrac · (1 − 0.75 · 0.167) ≈ 1.01x the climb speed. That margin is thin on
  * purpose: a player who lands every time-slow perfectly gets very close to
  * outrunning the tower, which is exactly the high-hike ceiling this is for, but
  * never actually escapes it. Do not raise TIME_SLOW_FRAC or shorten the cooldown
- * without redoing that arithmetic — `powerups.test.ts` asserts the bound.
+ * without redoing that arithmetic — `powerups.test.ts` asserts the bound. The
+ * 8s/40s pair keeps the same uptime fraction as the old 6s/30s window.
  *
  * Spawns are a seeded GAP SCHEDULE, not independent per-floor coin flips:
  * a random first floor, then mixed clusters and droughts whose mean gap
@@ -88,8 +89,16 @@ const SPAWN_CHANCE_HIGH = 0.34;
 export const RAPID_CLIMB_MULT = 1.75;
 /** Multiplier applied to `tower.moveSpeed` while sprint-burst runs. */
 export const SPRINT_BURST_MULT = 1.5;
-/** Multiplier applied to `tower.jumpSpeed` when a super-jump charge is spent. */
-export const SUPER_JUMP_MULT = 1.6;
+/** Upward acceleration applied while the jetpack is thrusting, in m/s². */
+export const JETPACK_THRUST = 80;
+/**
+ * Terminal rise speed while thrusting, in m/s. A bit above a typical ladder
+ * so the pack reads as a skip, not a second climb. Fuel is sized so a full
+ * burn covers about one floor at this cap.
+ */
+export const JETPACK_MAX_VY = 12;
+/** Seconds of thrust in the tank. Feathered inside the window, not a 10s fly. */
+export const JETPACK_FUEL_SECONDS = 2.5;
 /** Fraction of a normal jump a double-jump gives (a recovery, not a second launch). */
 export const DOUBLE_JUMP_MULT = 0.92;
 /** Mid-air jumps granted per double-jump activation. */
@@ -100,7 +109,12 @@ export const DOUBLE_JUMP_CHARGES = 2;
  */
 export const TIME_SLOW_FRAC = 0.75;
 /** Seconds before time-slow may be used again — the endless-run guarantee. */
-export const TIME_SLOW_COOLDOWN_SECONDS = 30;
+export const TIME_SLOW_COOLDOWN_SECONDS = 40;
+
+/** Jetpack fuel budget in simulation ticks. */
+export function jetpackFuelTicks(): number {
+  return Math.round(JETPACK_FUEL_SECONDS * TICK_HZ);
+}
 
 export interface PowerUpSpec {
   type: PowerUpType;
@@ -126,6 +140,11 @@ export interface PowerUpSpec {
   charge: boolean;
   /** Charge-based with multiple spends (double-jump). */
   chargeCount?: number;
+  /**
+   * Jetpack only: seconds of thrust in the tank. The duration is the window
+   * in which that fuel may be burned; leftover fuel dies with the window.
+   */
+  fuelSeconds?: number;
   /** Relative drop weight at the base of the tower. */
   weight: number;
   /** Drop-weight multiplier once past the altitude ramp. */
@@ -139,7 +158,7 @@ export const POWER_UP_SPECS: Record<PowerUpType, PowerUpSpec> = {
     description: `Climb ladders ${RAPID_CLIMB_MULT}x faster`,
     glyph: "⇈",
     color: "#4dd9f2",
-    durationSeconds: 10,
+    durationSeconds: 15,
     cooldownSeconds: 0,
     charge: false,
     weight: 26,
@@ -151,7 +170,7 @@ export const POWER_UP_SPECS: Record<PowerUpType, PowerUpSpec> = {
     description: `Run ${SPRINT_BURST_MULT}x faster`,
     glyph: "»",
     color: "#f2d24d",
-    durationSeconds: 6,
+    durationSeconds: 10,
     cooldownSeconds: 0,
     charge: false,
     weight: 22,
@@ -163,22 +182,23 @@ export const POWER_UP_SPECS: Record<PowerUpType, PowerUpSpec> = {
     description: `${DOUBLE_JUMP_CHARGES} extra jumps in mid-air`,
     glyph: "⇡",
     color: "#a98cf5",
-    durationSeconds: 12,
+    durationSeconds: 18,
     cooldownSeconds: 0,
     charge: true,
     chargeCount: DOUBLE_JUMP_CHARGES,
     weight: 22,
     altitudeWeightMult: 1,
   },
-  "super-jump": {
-    type: "super-jump",
-    label: "Super Jump",
-    description: `Next jump launches ${SUPER_JUMP_MULT}x higher`,
-    glyph: "⤒",
-    color: "#5cf29b",
-    durationSeconds: 8,
+  jetpack: {
+    type: "jetpack",
+    label: "Jetpack",
+    description: `Hold jump to thrust (${JETPACK_FUEL_SECONDS}s fuel)`,
+    glyph: "▲",
+    color: "#ff9a4a",
+    durationSeconds: 10,
     cooldownSeconds: 0,
-    charge: true,
+    charge: false,
+    fuelSeconds: JETPACK_FUEL_SECONDS,
     weight: 18,
     altitudeWeightMult: 1.1,
   },
@@ -188,7 +208,7 @@ export const POWER_UP_SPECS: Record<PowerUpType, PowerUpSpec> = {
     description: `Lava rises ${Math.round(TIME_SLOW_FRAC * 100)}% slower`,
     glyph: "◷",
     color: "#ff8ad4",
-    durationSeconds: 6,
+    durationSeconds: 8,
     cooldownSeconds: TIME_SLOW_COOLDOWN_SECONDS,
     charge: false,
     // Commoner at the base than the other altitude-scaled drops so a new
@@ -465,6 +485,9 @@ export function overlapsPickup(pu: PowerUpPickup, x: number, y: number): boolean
 export function isExpired(a: ActivePowerUp, tick: number): boolean {
   if (tick - a.startTick >= a.durationTicks) return true;
   const spec = POWER_UP_SPECS[a.type];
+  if (a.type === "jetpack") {
+    return (a.fuelRemainingTicks ?? 0) <= 0;
+  }
   if (spec.charge && a.type === "double-jump") {
     return (a.chargesRemaining ?? 0) <= 0;
   }
@@ -497,6 +520,35 @@ export function remainingTicks(
   const a = activeEntry(p, type, tick);
   if (!a) return 0;
   return Math.max(0, a.durationTicks - (tick - a.startTick));
+}
+
+export type PowerUpChipMeter = {
+  seconds: number;
+  frac: number;
+  kind: "fuel" | "window";
+};
+
+/**
+ * HUD chip fill and numeral. Jetpack shows the fuel tank, not the 10 s window
+ * — a window-only chip would look full after the pack has already died.
+ */
+export function powerUpChipMeter(a: ActivePowerUp, tick: number): PowerUpChipMeter {
+  const spec = POWER_UP_SPECS[a.type];
+  if (spec.fuelSeconds != null) {
+    const fuelLeft = Math.max(0, a.fuelRemainingTicks ?? 0);
+    const fuelMax = jetpackFuelTicks();
+    return {
+      seconds: fuelLeft / TICK_HZ,
+      frac: fuelMax > 0 ? fuelLeft / fuelMax : 0,
+      kind: "fuel",
+    };
+  }
+  const remaining = Math.max(0, a.durationTicks - (tick - a.startTick));
+  return {
+    seconds: remaining / TICK_HZ,
+    frac: a.durationTicks > 0 ? remaining / a.durationTicks : 0,
+    kind: "window",
+  };
 }
 
 export function climbSpeedMultiplier(p: PlayerState, tick: number): number {
@@ -546,6 +598,26 @@ export function doubleJumpChargesRemaining(
   return Math.max(0, a.chargesRemaining ?? 0);
 }
 
+/** Ticks of jetpack thrust still in the tank. */
+export function jetpackFuelRemaining(p: PlayerState, tick: number): number {
+  const a = activeEntry(p, "jetpack", tick);
+  if (!a) return 0;
+  return Math.max(0, a.fuelRemainingTicks ?? 0);
+}
+
+/**
+ * Spend one tick of jetpack fuel. Returns false when the pack is empty or
+ * the window has closed, so the caller can skip thrust.
+ */
+export function consumeJetpackFuel(p: PlayerState, tick: number): boolean {
+  const a = activeEntry(p, "jetpack", tick);
+  if (!a) return false;
+  const left = a.fuelRemainingTicks ?? 0;
+  if (left <= 0) return false;
+  a.fuelRemainingTicks = left - 1;
+  return true;
+}
+
 /** Drop entries that have expired or been spent, so the list stays small. */
 export function pruneActive(p: PlayerState, tick: number): void {
   if (p.activePowerUps.length === 0) return;
@@ -584,6 +656,7 @@ export function grantPowerUp(
   tick: number
 ): void {
   const charges = type === "double-jump" ? DOUBLE_JUMP_CHARGES : undefined;
+  const fuel = type === "jetpack" ? jetpackFuelTicks() : undefined;
   const existing = activeEntry(p, type, tick);
 
   if (existing) {
@@ -593,6 +666,7 @@ export function grantPowerUp(
     existing.durationTicks = durationTicks(type);
     existing.used = false;
     existing.chargesRemaining = charges;
+    existing.fuelRemainingTicks = fuel;
     return;
   }
 
@@ -602,6 +676,7 @@ export function grantPowerUp(
     durationTicks: durationTicks(type),
     used: false,
     chargesRemaining: charges,
+    fuelRemainingTicks: fuel,
   });
 }
 

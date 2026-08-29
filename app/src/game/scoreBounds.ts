@@ -20,20 +20,21 @@
 
 import { TICK_DT, TICK_HZ } from "./types";
 import { FASTEST_ARCHETYPE } from "./towers";
-import { RAPID_CLIMB_MULT, SUPER_JUMP_MULT } from "./powerups";
+import { RAPID_CLIMB_MULT, JETPACK_MAX_VY } from "./powerups";
 
 /**
  * The fastest sustained ascent the simulation can produce, in metres/second.
  *
- * Two candidates: a ladder climbed under rapid-climb, and jumping. The jump
- * term uses the launch velocity itself, which no run can sustain — vertical
- * speed decays to zero at the apex under gravity, and a jump only nets height
- * if it lands somewhere higher. Using it anyway keeps this an unambiguous
- * over-estimate, which is the point.
+ * Two candidates besides the jetpack cap: a ladder climbed under rapid-climb,
+ * and jumping. The jump term uses the launch velocity itself, which no run
+ * can sustain — vertical speed decays to zero at the apex under gravity, and
+ * a jump only nets height if it lands somewhere higher. Using it anyway keeps
+ * this an unambiguous over-estimate, which is the point.
  */
 export const MAX_ASCENT_SPEED_MPS = Math.max(
   FASTEST_ARCHETYPE.maxClimbSpeed * RAPID_CLIMB_MULT,
-  FASTEST_ARCHETYPE.jumpSpeed * SUPER_JUMP_MULT
+  FASTEST_ARCHETYPE.jumpSpeed,
+  JETPACK_MAX_VY
 );
 
 /**
