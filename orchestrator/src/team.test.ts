@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
+  clampLoopBackTo,
   clampNextStage,
   combineHandoffs,
   missingHandoff,
@@ -73,6 +74,21 @@ describe("clampNextStage — never skip the team", () => {
   });
 });
 
+describe("clampLoopBackTo", () => {
+  it("rejects a forward skip to integrator", () => {
+    assert.equal(clampLoopBackTo("integrator"), "implementer");
+    assert.equal(clampLoopBackTo("release"), "implementer");
+    assert.equal(clampLoopBackTo("qa-acceptance"), "implementer");
+  });
+
+  it("allows product-spec, architect, implementer, debugger", () => {
+    assert.equal(clampLoopBackTo("product-spec"), "product-spec");
+    assert.equal(clampLoopBackTo("architect"), "architect");
+    assert.equal(clampLoopBackTo("implementer"), "implementer");
+    assert.equal(clampLoopBackTo("debugger"), "debugger");
+  });
+});
+
 describe("missingHandoff", () => {
   it("is failed, never success", () => {
     const result = missingHandoff("verifier");
@@ -86,13 +102,30 @@ describe("combineHandoffs", () => {
   it("promotes critical findings on an otherwise successful review", () => {
     const combined = combineHandoffs([
       handoff("reviewer", "success", {
-        feedback: [{ severity: "critical", message: "broken auth" }],
+        findings: [{ severity: "critical", issue: "broken auth" }],
       }),
       handoff("security-reviewer", "success"),
     ]);
     assert.equal(combined.status, "needs_revision");
     assert.equal(combined.loopBackTo, "implementer");
     assert.equal(combined.nextStage, undefined);
+    assert.equal(combined.findings?.length, 1);
+  });
+
+  it("promotes exitCriteria.no_critical_findings === false", () => {
+    const combined = combineHandoffs([
+      handoff("reviewer", "success", {
+        exitCriteria: { no_critical_findings: false },
+      }),
+    ]);
+    assert.equal(combined.status, "needs_revision");
+  });
+
+  it("treats unknown status as failed", () => {
+    const combined = combineHandoffs([
+      handoff("verifier", "success", { status: "ok" as Handoff["status"] }),
+    ]);
+    assert.equal(combined.status, "failed");
   });
 
   it("fails the gate if security-reviewer fails", () => {
@@ -112,6 +145,18 @@ describe("combineHandoffs", () => {
     assert.equal(combined.nextStage, "qa-acceptance");
     assert.match(combined.agent, /reviewer/);
     assert.match(combined.agent, /security-reviewer/);
+  });
+
+  it("ANDs exitCriteria so a later true cannot hide an earlier false", () => {
+    const combined = combineHandoffs([
+      handoff("reviewer", "needs_revision", {
+        exitCriteria: { no_critical_findings: false },
+      }),
+      handoff("security-reviewer", "success", {
+        exitCriteria: { no_critical_findings: true },
+      }),
+    ]);
+    assert.equal(combined.exitCriteria?.no_critical_findings, false);
   });
 });
 

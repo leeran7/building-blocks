@@ -102,13 +102,12 @@ async function runAgent(
 
     const run = await agent.send(prompt);
     const result = await run.wait();
+    const handoff = await latestHandoff(stage, { notBefore: startedAt });
+    if (handoff) return handoff;
 
     if (result.status === "error") {
       return errorHandoff(stage, `Run failed: ${result.id}`);
     }
-
-    const handoff = await latestHandoff(stage, { notBefore: startedAt });
-    if (handoff) return handoff;
 
     return missingHandoff(stage);
   } catch (err) {

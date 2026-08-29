@@ -3,9 +3,13 @@
 ## Primary loop (always run)
 
 ```
-product-spec → architect → implementer → verifier → reviewer → integrator → release
-                                    ↑         ↑          ↑           ↑
-                                    └─────────┴──────────┴───────────┘
+product-spec → architect → implementer → verifier
+                                              ↓
+                        reviewer + security-reviewer (parallel)
+                                              ↓
+                         qa-acceptance → integrator → release
+                                    ↑         ↑          ↑
+                                    └─────────┴──────────┘
                                               (failures loop back)
 ```
 
