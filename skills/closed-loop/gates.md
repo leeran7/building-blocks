@@ -86,11 +86,16 @@ ledger.
 21. **Do not supply production secrets to a `pull_request`-triggered job.**
     Same-repo branch PRs plus install lifecycle scripts are an exfil path.
     `permissions: contents: read`; SHA-pin third-party actions.
-22. **Handoff `learnings` must match the canonical schema.** The dispatcher
+22. **A workflow that runs on `pull_request` is not a merge gate.** GitHub
+    will merge a red PR unless a repository ruleset (or classic branch
+    protection) requires those check names on the default branch. Job
+    `name:` values are load-bearing; renaming a job without updating the
+    ruleset silently drops the requirement.
+23. **Handoff `learnings` must match the canonical schema.** The dispatcher
     normalises a small set of aliases (`lesson`→`insight`, `type`→`kind`)
     and drops entries that still lack `insight` + `action`. Do not invent
     a third shape.
-23. **Read-only agents cannot write the ledger.** Inline dispatchers persist
+24. **Read-only agents cannot write the ledger.** Inline dispatchers persist
     their `learnings` arrays or the loop silently loses the finding.
 
 ## Promotion into this file

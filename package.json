@@ -7,6 +7,7 @@
     "hygiene": "node scripts/hygiene.mjs",
     "test:orchestrator": "yarn --cwd orchestrator test",
     "test:pack": "node scripts/hygiene.mjs",
-    "export-template": "node scripts/export-template.mjs"
+    "export-template": "node scripts/export-template.mjs",
+    "apply-github-ruleset": "node scripts/apply-github-ruleset.mjs"
   }
 }
