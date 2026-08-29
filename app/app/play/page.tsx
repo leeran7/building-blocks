@@ -9,6 +9,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { FreeStackShell } from "../../src/components/FreeStackShell";
 import { ClimbScene } from "../../src/components/Game/ClimbScene";
+import { ClimbControlsGuide } from "../../src/components/Game/ClimbControlsGuide";
 import { buildFreeTower } from "../../src/game/freeStack";
 
 export const metadata: Metadata = {
@@ -25,14 +26,17 @@ export default function FreePlayPage() {
       section="play"
       title="Play the climb"
       meta={
-        <p className="text-text-secondary text-sm mt-3 max-w-lg">
-          Arrow keys / WASD to move & climb, Space to jump. It gets harder the
-          higher you go; your peak height is your score on the{" "}
-          <Link href="/climb" className="text-accent underline underline-offset-2">
-            free leaderboard
-          </Link>
-          .
-        </p>
+        <div className="mt-3 space-y-4 max-w-lg">
+          <p className="text-text-secondary text-sm">
+            Endless climb — go as high as you can. Your peak height is your score on
+            the{" "}
+            <Link href="/climb" className="text-accent underline underline-offset-2">
+              free leaderboard
+            </Link>
+            .
+          </p>
+          <ClimbControlsGuide />
+        </div>
       }
     >
       <div className="flex justify-center">

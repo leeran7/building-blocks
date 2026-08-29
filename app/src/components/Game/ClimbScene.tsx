@@ -19,6 +19,7 @@ import Link from "next/link";
 import { useClimb } from "../../game/useClimb";
 import { TowerSpec } from "../../game/types";
 import { ClimbCanvas } from "./ClimbCanvas";
+import { ClimbControlsGuide } from "./ClimbControlsGuide";
 import { useAuth } from "../../contexts/AuthContext";
 import { climberHandle } from "../../lib/handle";
 
@@ -204,10 +205,11 @@ export function ClimbScene({ tower, categoryLabel }: ClimbSceneProps) {
             <h2 className="font-display text-4xl text-text-primary mt-2">
               Endless climb
             </h2>
-            <p className="text-text-secondary text-sm mt-3 max-w-[260px] text-center leading-relaxed">
+            <p className="text-text-secondary text-sm mt-3 max-w-[280px] text-center leading-relaxed">
               Climb as high as you can before the rising lava catches you. It gets
               harder the higher you go — your peak height is your score.
             </p>
+            <ClimbControlsGuide variant="overlay" />
             <StartButton onClick={handleStart} label="Start climb" />
           </Overlay>
         )}
