@@ -6,7 +6,6 @@
  */
 
 import type { ClimberRank } from "../../db/climb";
-import { LEADERBOARD_UNIT_CLASS } from "../freeStackChrome";
 
 export function ClimbLeaderboard({
   climbers,
@@ -92,9 +91,7 @@ export function ClimbLeaderboard({
                 {c.handle}
               </span>
               {c.wins > 0 && (
-                <span
-                  className={`font-mono text-xs ${LEADERBOARD_UNIT_CLASS} tabular-nums`}
-                >
+                <span className="font-mono text-xs text-text-secondary tabular-nums">
                   {c.wins}★
                 </span>
               )}
@@ -105,7 +102,7 @@ export function ClimbLeaderboard({
                 }
               >
                 {c.peakY.toFixed(0)}
-                <span className={`${LEADERBOARD_UNIT_CLASS} font-normal`}>m</span>
+                <span className="text-text-secondary font-normal">m</span>
               </span>
             </div>
           </li>

@@ -2,15 +2,15 @@
  * FreeStackShell — shared frame for the standalone free climb stack (/climb, /play).
  * Separate from CategoryShell, which wraps the 74 paid category stacks.
  *
- * Tab-locked fill/scroll: Navbar + a tab-only header band are identical on both
- * routes. Only the panel below the hairline swaps. Fill is derived from
- * section === "play" — there is no compactHeader second chrome path.
+ * Navbar + a tab-only header band are identical on both routes. Title, CTA and
+ * meta live in the panel below the hairline so switching Leaderboard/Play does
+ * not jump the tabs. The play panel scrolls (canvas + controls card); it is not
+ * a fill-viewport overflow-hidden stage.
  */
 
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { Navbar } from "./Navbar";
-import { isFillSection, type FreeStackSection } from "./freeStackChrome";
 
 export function FreeStackShell({
   section,
@@ -21,16 +21,10 @@ export function FreeStackShell({
   title: string;
   children: ReactNode;
 }) {
-  const fill = isFillSection(section);
+  const play = section === "play";
 
   return (
-    <div
-      className={
-        fill
-          ? "h-dvh bg-void flex flex-col overflow-hidden"
-          : "min-h-screen bg-void flex flex-col"
-      }
-    >
+    <div className="min-h-screen bg-void flex flex-col">
       <div className="shrink-0">
         <Navbar contextLabel="Free climb" />
       </div>
@@ -52,8 +46,8 @@ export function FreeStackShell({
         </div>
       </div>
 
-      {fill ? (
-        <div className="flex flex-1 min-h-0 flex-col overflow-hidden px-2 pt-2 pb-[max(0px,env(safe-area-inset-bottom))]">
+      {play ? (
+        <div className="w-full flex-1 px-2 pt-2 pb-[max(0px,env(safe-area-inset-bottom))]">
           <h1 className="sr-only">{title}</h1>
           {children}
         </div>
@@ -94,3 +88,5 @@ function FreeTab({
     </Link>
   );
 }
+
+export type FreeStackSection = "leaderboard" | "play";

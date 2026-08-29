@@ -168,7 +168,7 @@ export function ClimbScene({ tower, categoryLabel }: ClimbSceneProps) {
   }, [user, token, postRun]);
 
   return (
-    <div className="flex flex-col items-center gap-2 w-full h-full min-h-0">
+    <div className="flex flex-col items-center gap-4 w-full">
       {savedBanner?.saved && (
         <div
           className="w-full rounded-xl border border-signal/40 bg-signal/[0.06] px-4 py-2.5 text-center"
@@ -322,13 +322,9 @@ export function ClimbScene({ tower, categoryLabel }: ClimbSceneProps) {
 }
 
 function Overlay({ children }: { children: ReactNode }) {
-  // Inner min-h-full keeps content centered when it fits, and lets overflow-y-auto
-  // reach Start climb when the leftover canvas is shorter than the lobby stack.
   return (
-    <div className="absolute inset-0 overflow-y-auto rounded-xl bg-void/70 backdrop-blur-sm text-center">
-      <div className="flex min-h-full flex-col items-center justify-center p-4">
-        {children}
-      </div>
+    <div className="absolute inset-0 flex flex-col items-center justify-center rounded-xl bg-void/70 backdrop-blur-sm p-4 text-center">
+      {children}
     </div>
   );
 }
@@ -338,7 +334,7 @@ function StartButton({ onClick, label }: { onClick: () => void; label: string })
     <button
       type="button"
       onClick={onClick}
-      className="mt-6 inline-flex items-center justify-center rounded-full bg-signal text-void font-semibold px-10 min-h-[60px] text-lg shadow-signal hover:brightness-110 active:scale-[0.98] focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void transition-[filter,transform]"
+      className="mt-6 inline-flex items-center justify-center rounded-full bg-signal text-void font-semibold px-10 min-h-[60px] text-lg shadow-signal hover:brightness-110 active:scale-[0.98] transition-[filter,transform]"
     >
       {label}
     </button>
