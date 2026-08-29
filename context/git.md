@@ -13,8 +13,9 @@
   via the ruleset in `.github/rulesets/require-ci-on-main.json`.
   - Required checks (must match `jobs.*.name` in `.github/workflows/ci.yml`):
     `Lint, Typecheck, and Test`, `Orchestrator loop`, `CI`.
-  - Apply (repo admin): `yarn apply-github-ruleset`
-  - UI: https://github.com/leeran7/building-blocks/settings/rules
+  - Apply in the GitHub UI:
+    https://github.com/leeran7/building-blocks/settings/rules
+    (payload: `.github/rulesets/require-ci-on-main.json`)
   - **Proven not a gate:** PR #30 merged 2026-08-29 with `Orchestrator loop`
     **FAILURE** (Actions run 33267623536). After the ruleset is active,
     that merge is impossible.

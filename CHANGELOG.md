@@ -12,9 +12,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **CI required to merge into `main`** — workflow job names are now the
   GitHub check contexts; an aggregator job `CI` fails unless both the app
   and orchestrator jobs succeed. Payload:
-  `.github/rulesets/require-ci-on-main.json`. A repo admin must apply it
-  with `yarn apply-github-ruleset` (the GitHub App cannot create rulesets).
-  Until then, GitHub will still merge red PRs.
+  `.github/rulesets/require-ci-on-main.json`. A repo admin must create that
+  ruleset in GitHub Settings (the GitHub App cannot). Until then, GitHub
+  will still merge red PRs.
 
 ## [1.0.0] - 2026-08-23
 

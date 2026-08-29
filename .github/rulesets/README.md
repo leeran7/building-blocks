@@ -1,19 +1,15 @@
 # Repository rulesets
 
-GitHub does not read these files automatically. A repo admin must apply them
-once (API or Settings UI). The Cursor GitHub App cannot create rulesets
+GitHub does not read these files automatically. A repo admin must create
+the ruleset in the GitHub UI. The Cursor GitHub App cannot do this
 (`403 Resource not accessible by integration`).
 
 ## Require CI on main
 
-Payload: `require-ci-on-main.json`
+Reference payload: `require-ci-on-main.json`
 
-```bash
-yarn apply-github-ruleset --dry-run   # validate payload locally, no GitHub write
-yarn apply-github-ruleset             # create or update (needs admin token)
-```
-
-Or in the GitHub UI: **Settings → Rules → Rulesets → New branch ruleset**.
+Open **Settings → Rules → Rulesets → New branch ruleset**:
+https://github.com/leeran7/building-blocks/settings/rules
 
 - Enforcement: Active
 - Target: default branch (`main`)
@@ -24,3 +20,4 @@ Or in the GitHub UI: **Settings → Rules → Rulesets → New branch ruleset**.
   - `CI`
 - Block force pushes
 - Block deletions
+- No bypass actors

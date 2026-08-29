@@ -172,15 +172,9 @@ merge a red PR unless a repository ruleset requires the check names.
 1. Merge a revision that includes `.github/workflows/ci.yml` job names
    `Lint, Typecheck, and Test`, `Orchestrator loop`, and `CI` (so those
    checks exist).
-2. As a **repo admin**, apply the ruleset:
-
-```bash
-yarn apply-github-ruleset
-```
-
-Or open **Settings → Rules → Rulesets → New branch ruleset** and paste the
-settings from `.github/rulesets/README.md`. Payload:
-`.github/rulesets/require-ci-on-main.json`.
+2. As a **repo admin**, open **Settings → Rules → Rulesets → New branch
+   ruleset** and use `.github/rulesets/README.md` /
+   `.github/rulesets/require-ci-on-main.json`.
 
 The Cursor GitHub App cannot create rulesets (API `403`). Until an admin
 applies the ruleset, merges can still land with failing CI — PR #30 did

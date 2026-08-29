@@ -8,6 +8,12 @@ import { REPO_ROOT } from "./types.js";
 const RULESET_PATH = join(REPO_ROOT, ".github", "rulesets", "require-ci-on-main.json");
 const WORKFLOW_PATH = join(REPO_ROOT, ".github", "workflows", "ci.yml");
 const HAS_PRODUCT_CI = existsSync(RULESET_PATH) && existsSync(WORKFLOW_PATH);
+const GITHUB_ACTIONS_APP_ID = 15368;
+const REQUIRED_CHECK_CONTEXTS = [
+  "Lint, Typecheck, and Test",
+  "Orchestrator loop",
+  "CI",
+];
 
 describe("required CI ruleset", () => {
   it("parses job names, needs, and if: from a workflow fixture, not from a top-level name", () => {
@@ -55,49 +61,24 @@ jobs:
     assert.equal(aggregatorPassed("cancelled", "success"), false);
   });
 
-  it("validateRulesetPayload refuses disabled, bypass, and unpinned checks", async () => {
-    const {
-      validateRulesetPayload,
-      resolveRulesetPath,
-      assertRepoName,
-      GITHUB_ACTIONS_APP_ID,
-    } = await loadApplyScript();
-    const good = structuredClone(VALID_RULESET);
-    validateRulesetPayload(good);
-
-    const disabled = structuredClone(VALID_RULESET);
-    disabled.enforcement = "disabled";
-    assert.throws(() => validateRulesetPayload(disabled), /active/);
-
-    const bypass = structuredClone(VALID_RULESET);
-    bypass.bypass_actors = [{ actor_id: 1, actor_type: "OrganizationAdmin", bypass_mode: "always" }];
-    assert.throws(() => validateRulesetPayload(bypass), /bypass/);
-
-    const unpinned = structuredClone(VALID_RULESET);
-    const checks = unpinned.rules.find((rule) => rule.type === "required_status_checks")
-      ?.parameters?.required_status_checks;
-    assert.ok(checks);
-    delete checks[0].integration_id;
-    assert.throws(() => validateRulesetPayload(unpinned), /GitHub Actions/);
-
-    assert.equal(GITHUB_ACTIONS_APP_ID, 15368);
-    assert.equal(assertRepoName("leeran7/building-blocks"), "leeran7/building-blocks");
-    assert.throws(() => assertRepoName("../etc/passwd"), /Invalid owner\/repo/);
-    assert.throws(() => resolveRulesetPath("/tmp/backdoor.json"), /must be under/);
-  });
-
   it("keeps the committed ruleset aligned with ci.yml when those files exist", { skip: !HAS_PRODUCT_CI }, async () => {
-    const { validateRulesetPayload, REQUIRED_CHECK_CONTEXTS } = await loadApplyScript();
     const ruleset = JSON.parse(await readFile(RULESET_PATH, "utf-8")) as RulesetPayload;
     const workflow = parseWorkflow(await readFile(WORKFLOW_PATH, "utf-8"));
     const required = requiredCheckContexts(ruleset);
 
-    validateRulesetPayload(ruleset);
+    assert.equal(ruleset.enforcement, "active");
+    assert.deepEqual(ruleset.bypass_actors, []);
     assertRequiredChecksAreJobNames(
       required.map((check) => check.context),
       workflow.jobs.map((job) => job.name),
     );
-    assert.deepEqual([...required.map((check) => check.context)].sort(), [...REQUIRED_CHECK_CONTEXTS].sort());
+    assert.deepEqual(
+      [...required.map((check) => check.context)].sort(),
+      [...REQUIRED_CHECK_CONTEXTS].sort(),
+    );
+    for (const check of required) {
+      assert.equal(check.integration_id, GITHUB_ACTIONS_APP_ID);
+    }
 
     const gate = workflow.jobs.find((job) => job.name === "CI");
     assert.ok(gate, "workflow must have a job named CI");
@@ -111,11 +92,6 @@ jobs:
     }
   });
 });
-
-async function loadApplyScript() {
-  const href = new URL("../../scripts/apply-github-ruleset.mjs", import.meta.url).href;
-  return (await import(href)) as ApplyScriptModule;
-}
 
 function requiredCheckContexts(ruleset: RulesetPayload): RequiredStatusCheck[] {
   const rule = ruleset.rules.find((item) => item.type === "required_status_checks");
@@ -260,34 +236,4 @@ type RulesetPayload = {
       required_status_checks?: RequiredStatusCheck[];
     };
   }>;
-};
-
-type ApplyScriptModule = {
-  validateRulesetPayload: (payload: RulesetPayload) => void;
-  resolveRulesetPath: (fileArg?: string) => string;
-  assertRepoName: (name: string) => string;
-  GITHUB_ACTIONS_APP_ID: number;
-  REQUIRED_CHECK_CONTEXTS: string[];
-};
-
-const VALID_RULESET: RulesetPayload = {
-  name: "Require CI on main",
-  target: "branch",
-  enforcement: "active",
-  conditions: { ref_name: { include: ["~DEFAULT_BRANCH"], exclude: [] } },
-  rules: [
-    { type: "deletion" },
-    { type: "non_fast_forward" },
-    {
-      type: "required_status_checks",
-      parameters: {
-        strict_required_status_checks_policy: true,
-        required_status_checks: [
-          { context: "Lint, Typecheck, and Test", integration_id: 15368 },
-          { context: "Orchestrator loop", integration_id: 15368 },
-          { context: "CI", integration_id: 15368 },
-        ],
-      },
-    },
-  ],
 };
