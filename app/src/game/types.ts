@@ -94,6 +94,8 @@ export interface PlayerState {
   onLadder: boolean;
   /** Floor index of the ladder being climbed (ladder i joins floor i→i+1), else null. */
   ladderIx: number | null;
+  /** Which ladder on that floor is being climbed — floors can have several. */
+  ladderSlot: number | null;
   status: PlayerStatus;
   /** Permanent-record ethos: max height reached, retained on death (AC-8). */
   peakY: number;

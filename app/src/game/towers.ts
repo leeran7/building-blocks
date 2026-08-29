@@ -4,10 +4,11 @@
  * The tower has NO summit: it climbs forever and gets harder with altitude. It
  * acts as a leaderboard — your peak height is your score. Geometry is generated
  * DETERMINISTICALLY PER FLOOR from (seed, floorIndex): floor i is a solid
- * platform (with a jumpable gap on higher floors) at height i·floorGap, joined to
- * floor i+1 by a ladder at a seeded x. The category slug picks physics; a per-run
- * seed (applyRunSeed) is what makes each game a different layout. Same
- * (slug, runSeed) still replays exactly (AC-11).
+ * platform (with a jumpable gap on higher floors) at a seeded height, joined to
+ * floor i+1 by ONE TO THREE ladders at seeded x positions — several routes up, so
+ * the climber picks a line instead of being funnelled. The category slug picks
+ * physics; a per-run seed (applyRunSeed) is what makes each game a different
+ * layout. Same (slug, runSeed) still replays exactly (AC-11).
  *
  * Difficulty scales with altitude: the gap you must jump on each floor widens
  * toward the physical jump limit, and ladders shift further sideways, so higher
@@ -141,7 +142,7 @@ export function floorGapForFloor(tower: TowerSpec, i: number): number {
   return base * (0.68 + r.next() * 0.64);
 }
 
-/** Seeded x of the ladder leaving floor i upward (deterministic). */
+/** Seeded x of the primary ladder leaving floor i upward (deterministic). */
 function ladderXForFloor(tower: TowerSpec, i: number): number {
   const m = ladderMargin(tower);
   const span = tower.widthM - 2 * m;
@@ -161,13 +162,73 @@ function ladderXForFloor(tower: TowerSpec, i: number): number {
   return m + r.next() * span;
 }
 
-/** The ladder that leads UP from floor i to floor i+1. */
+/**
+ * Minimum centre-to-centre spacing between two ladders on one floor. Wide
+ * enough that the grab radii never overlap, so "which ladder am I on" is never
+ * ambiguous and letting go of one cannot snap the climber onto its neighbour.
+ */
+function ladderSeparation(tower: TowerSpec): number {
+  return tower.ladderGrabRadius * 3 + 2;
+}
+
+/**
+ * How many ladders leave floor i. Multiple routes up are the point: a floor with
+ * two or three ladders lets the climber pick the near one instead of being
+ * forced into one long traverse. Weighted toward 2 as altitude grows, which
+ * partly offsets the widening gaps.
+ */
+function ladderCountForFloor(tower: TowerSpec, i: number): number {
+  const r = createRng(`${tower.seed}:ln:${i}`);
+  const d = Math.min(1, i / DIFFICULTY_FLOORS);
+  const roll = r.next();
+  // Single-ladder floors stay common low down (readable opening) and thin out.
+  const oneChance = 0.42 - 0.14 * d;
+  if (roll < oneChance) return 1;
+  if (roll < oneChance + 0.42) return 2;
+  return 3;
+}
+
+/** X positions of every ladder leaving floor i, primary first (deterministic). */
+function ladderXsForFloor(tower: TowerSpec, i: number): number[] {
+  const m = ladderMargin(tower);
+  const loBound = m;
+  const hiBound = tower.widthM - m;
+  const sep = ladderSeparation(tower);
+  const xs = [ladderXForFloor(tower, i)];
+  const count = ladderCountForFloor(tower, i);
+  const r = createRng(`${tower.seed}:lx-extra:${i}`);
+
+  for (let k = 1; k < count; k++) {
+    // Place each extra in the widest stretch still clear of the ladders already
+    // on this floor, so spacing is guaranteed without a rejection loop.
+    const sorted = [...xs].sort((a, b) => a - b);
+    const edges = [loBound - sep, ...sorted, hiBound + sep];
+    let best: [number, number] | null = null;
+    let bestRoom = 0;
+    for (let e = 0; e < edges.length - 1; e++) {
+      const lo = Math.max(loBound, edges[e] + sep);
+      const hi = Math.min(hiBound, edges[e + 1] - sep);
+      if (hi - lo > bestRoom) {
+        bestRoom = hi - lo;
+        best = [lo, hi];
+      }
+    }
+    if (!best || bestRoom <= 0) break;
+    xs.push(best[0] + r.next() * (best[1] - best[0]));
+  }
+  return xs;
+}
+
+/** Every ladder leading UP from floor i to floor i+1 (one or more routes). */
+export function laddersForFloor(tower: TowerSpec, i: number): Ladder[] {
+  const y0 = floorHeight(tower, i);
+  const y1 = floorHeight(tower, i + 1);
+  return ladderXsForFloor(tower, i).map((x) => ({ x, y0, y1 }));
+}
+
+/** The primary ladder leading UP from floor i (floors may have more). */
 export function ladderForFloor(tower: TowerSpec, i: number): Ladder {
-  return {
-    x: ladderXForFloor(tower, i),
-    y0: floorHeight(tower, i),
-    y1: floorHeight(tower, i + 1),
-  };
+  return laddersForFloor(tower, i)[0];
 }
 
 /** Gap width to jump on floor i — widens with altitude but stays jumpable. */
@@ -183,24 +244,33 @@ export function platformsForFloor(tower: TowerSpec, i: number): Platform[] {
   const y = floorHeight(tower, i);
   const w = tower.widthM;
   // Floor 0 is a safe full-width base (spawn); no incoming ladder.
-  const inX = i > 0 ? ladderXForFloor(tower, i - 1) : null;
-  const outX = ladderXForFloor(tower, i);
-  const clearance = tower.ladderGrabRadius + 2;
+  if (i === 0) return [{ x0: 0, x1: w, y }];
 
-  if (inX !== null) {
-    const lo = Math.min(inX, outX);
-    const hi = Math.max(inX, outX);
-    const gapW = gapWidthForFloor(tower, i);
-    const room = hi - lo - 2 * clearance;
-    if (room >= gapW) {
-      const mid = (lo + hi) / 2;
-      const g0 = mid - gapW / 2;
-      const g1 = mid + gapW / 2;
-      return [
-        { x0: 0, x1: g0, y },
-        { x0: g1, x1: w, y },
-      ];
+  // Every ladder that touches this surface: the ones leaving it, plus the tops
+  // of the ones arriving from the floor below. The gap has to miss all of them.
+  const anchors = [...ladderXsForFloor(tower, i), ...ladderXsForFloor(tower, i - 1)].sort(
+    (a, b) => a - b
+  );
+  const clearance = tower.ladderGrabRadius + 2;
+  const gapW = gapWidthForFloor(tower, i);
+
+  let best: [number, number] | null = null;
+  let bestRoom = 0;
+  for (let k = 0; k < anchors.length - 1; k++) {
+    const lo = anchors[k] + clearance;
+    const hi = anchors[k + 1] - clearance;
+    if (hi - lo > bestRoom) {
+      bestRoom = hi - lo;
+      best = [lo, hi];
     }
+  }
+
+  if (best && bestRoom >= gapW) {
+    const mid = (best[0] + best[1]) / 2;
+    return [
+      { x0: 0, x1: mid - gapW / 2, y },
+      { x0: mid + gapW / 2, x1: w, y },
+    ];
   }
   return [{ x0: 0, x1: w, y }];
 }
@@ -214,15 +284,17 @@ export function platformsNearY(tower: TowerSpec, yLow: number, yHigh: number): P
   return out;
 }
 
-/** Ladders (with their floor index) intersecting [yLow, yHigh]. */
+/** Ladders (with floor index + slot on that floor) intersecting [yLow, yHigh]. */
 export function laddersNearY(
   tower: TowerSpec,
   yLow: number,
   yHigh: number
-): { ix: number; ladder: Ladder }[] {
+): { ix: number; slot: number; ladder: Ladder }[] {
   const lo = Math.max(0, floorIndexAt(tower, yLow) - 1);
   const hi = floorIndexAt(tower, yHigh) + 1;
-  const out: { ix: number; ladder: Ladder }[] = [];
-  for (let i = lo; i <= hi; i++) out.push({ ix: i, ladder: ladderForFloor(tower, i) });
+  const out: { ix: number; slot: number; ladder: Ladder }[] = [];
+  for (let i = lo; i <= hi; i++) {
+    laddersForFloor(tower, i).forEach((ladder, slot) => out.push({ ix: i, slot, ladder }));
+  }
   return out;
 }

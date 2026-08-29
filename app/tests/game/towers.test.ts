@@ -14,6 +14,7 @@ import {
   floorHeight,
   floorIndexAt,
   ladderForFloor,
+  laddersForFloor,
   platformsForFloor,
 } from "../../src/game/towers";
 
@@ -100,6 +101,61 @@ describe("per-floor geometry", () => {
         const gap = ps[1].x0 - ps[0].x1;
         expect(gap).toBeGreaterThan(0);
         expect(gap).toBeLessThan(reach);
+      }
+    }
+  });
+
+  it("gives most floors more than one route up", () => {
+    let multi = 0;
+    for (let i = 0; i < 300; i++) {
+      const n = laddersForFloor(t, i).length;
+      expect(n).toBeGreaterThanOrEqual(1);
+      expect(n).toBeLessThanOrEqual(3);
+      if (n > 1) multi++;
+    }
+    expect(multi).toBeGreaterThan(150);
+  });
+
+  it("spaces ladders on a floor so their grab radii never overlap", () => {
+    for (let i = 0; i < 300; i++) {
+      const xs = laddersForFloor(t, i)
+        .map((l) => l.x)
+        .sort((a, b) => a - b);
+      for (let k = 1; k < xs.length; k++) {
+        expect(xs[k] - xs[k - 1]).toBeGreaterThan(2 * t.ladderGrabRadius);
+      }
+      for (const x of xs) {
+        expect(x).toBeGreaterThan(0);
+        expect(x).toBeLessThan(t.widthM);
+      }
+    }
+  });
+
+  it("shares one span with every ladder on a floor and reports slots in order", () => {
+    for (const i of [1, 4, 17, 88]) {
+      const ls = laddersForFloor(t, i);
+      for (const l of ls) {
+        expect(l.y0).toBe(floorHeight(t, i));
+        expect(l.y1).toBe(floorHeight(t, i + 1));
+      }
+      // The primary ladder is slot 0, which is what ladderForFloor exposes.
+      expect(ladderForFloor(t, i)).toEqual(ls[0]);
+    }
+  });
+
+  it("never carves the gap under a ladder, in or out", () => {
+    for (let i = 1; i < 300; i++) {
+      const ps = platformsForFloor(t, i);
+      if (ps.length !== 2) continue;
+      const g0 = ps[0].x1;
+      const g1 = ps[1].x0;
+      const anchors = [...laddersForFloor(t, i), ...laddersForFloor(t, i - 1)];
+      for (const l of anchors) {
+        const standable = ps.some((p) => l.x >= p.x0 && l.x <= p.x1);
+        expect(standable).toBe(true);
+        // And with room to stand beside the rungs, not on the lip of the gap.
+        const clear = l.x <= g0 - t.ladderGrabRadius || l.x >= g1 + t.ladderGrabRadius;
+        expect(clear).toBe(true);
       }
     }
   });
