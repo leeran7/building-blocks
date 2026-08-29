@@ -68,3 +68,29 @@ jobs:
           INTERNAL_TOKEN: ${{ secrets.INTERNAL_TOKEN }}
           ADMIN_TOKEN: ${{ secrets.ADMIN_TOKEN }}
           BASE_URL: http://localhost:3000
+
+  orchestrator:
+    name: Orchestrator loop
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: orchestrator
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: yarn
+          cache-dependency-path: orchestrator/yarn.lock
+
+      - name: Install
+        run: yarn install --frozen-lockfile
+
+      - name: Typecheck
+        run: yarn typecheck
+
+      - name: Test
+        run: yarn test
