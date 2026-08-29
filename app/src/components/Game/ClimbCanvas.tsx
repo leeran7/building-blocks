@@ -60,6 +60,16 @@ const PICKUP_FLASH_TICKS = 55;
 /** Ticks the burst where an orb was collected plays for. */
 const PICKUP_BURST_TICKS = 12;
 
+/** Jetpack plume — short cone below the feet, color from the orb spec. */
+const JETPACK_FLAME_CORE = "#ffd4a8";
+const JETPACK_FLAME_WIDTH_FRAC = 0.42;
+const JETPACK_FLAME_HEIGHT_FRAC = 0.9;
+const JETPACK_FLAME_CORE_WIDTH_FRAC = 0.4;
+const JETPACK_FLAME_CORE_HEIGHT_FRAC = 0.5;
+const JETPACK_FLAME_STATIC_SCALE = 0.75;
+const JETPACK_FLAME_FLICKER_AMP = 0.16;
+const JETPACK_FLAME_FLICKER_RATE = 0.71;
+
 export interface ClimbCanvasProps {
   state: MatchState;
   width?: number;
@@ -297,6 +307,9 @@ export function ClimbCanvas({
     });
 
     drawClimber(ctx, px, pyScreen, s, facing, pose, state.tick, color, reducedMotion);
+    if (player?.jetpackThrusting) {
+      drawJetpackFlame(ctx, px, pyScreen, s, state.tick, reducedMotion);
+    }
 
     // HUD panel: height + hazard line.
     const hudH = 34 * ui;
@@ -572,6 +585,50 @@ function drawClimber(
   } else {
     dot(ctx, [fx + facing * 0.2 * s, headY - 0.02 * s], Math.max(1.3, 0.13 * s));
   }
+}
+
+/**
+ * Plume under the climber's feet while a thrust tick is applying. Screen Y
+ * grows downward, so "below the feet" is +fy. Flicker is tick-driven so two
+ * clients stay in sync; reducedMotion freezes a smaller static cone.
+ */
+function drawJetpackFlame(
+  ctx: CanvasRenderingContext2D,
+  fx: number,
+  fy: number,
+  s: number,
+  tick: number,
+  reducedMotion: boolean
+): void {
+  const flicker = reducedMotion
+    ? 0
+    : JETPACK_FLAME_FLICKER_AMP * Math.sin(tick * JETPACK_FLAME_FLICKER_RATE);
+  const widthScale = 1 + flicker;
+  const heightScale = reducedMotion
+    ? JETPACK_FLAME_STATIC_SCALE
+    : 1 + Math.abs(flicker);
+  const halfW = JETPACK_FLAME_WIDTH_FRAC * s * widthScale;
+  const height = JETPACK_FLAME_HEIGHT_FRAC * s * heightScale;
+
+  ctx.save();
+  ctx.fillStyle = POWER_UP_SPECS.jetpack.color;
+  ctx.beginPath();
+  ctx.moveTo(fx - halfW, fy);
+  ctx.lineTo(fx + halfW, fy);
+  ctx.lineTo(fx, fy + height);
+  ctx.closePath();
+  ctx.fill();
+
+  const coreHalf = halfW * JETPACK_FLAME_CORE_WIDTH_FRAC;
+  const coreH = height * JETPACK_FLAME_CORE_HEIGHT_FRAC;
+  ctx.fillStyle = JETPACK_FLAME_CORE;
+  ctx.beginPath();
+  ctx.moveTo(fx - coreHalf, fy);
+  ctx.lineTo(fx + coreHalf, fy);
+  ctx.lineTo(fx, fy + coreH);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
 }
 
 function limb(ctx: CanvasRenderingContext2D, x0: number, y0: number, [x1, y1]: Pt) {

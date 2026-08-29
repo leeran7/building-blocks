@@ -19,8 +19,9 @@ import {
 } from "../../src/game/antiCheat";
 import { createMatch, spawnPlayer, stepMatch } from "../../src/game/simulation";
 import { buildTower, laddersForFloor } from "../../src/game/towers";
-import { RAPID_CLIMB_MULT, SUPER_JUMP_MULT } from "../../src/game/powerups";
-import { TowerSpec, TICK_DT, TICK_HZ } from "../../src/game/types";
+import { RAPID_CLIMB_MULT, JETPACK_MAX_VY, POWER_UP_HOVER_M, jetpackFuelTicks } from "../../src/game/powerups";
+import { checkClimbResult } from "../../src/game/scoreBounds";
+import { TowerSpec, TICK_DT, TICK_HZ, NO_INPUT } from "../../src/game/types";
 
 const TOWER: TowerSpec = {
   categorySlug: "t",
@@ -30,7 +31,7 @@ const TOWER: TowerSpec = {
   ladderGrabRadius: 2,
   maxClimbSpeed: 8,
   moveSpeed: 6,
-  jumpSpeed: 12,
+  jumpSpeed: 10,
   gravity: 24,
   fallDeathBelowPeakM: 40,
 };
@@ -97,13 +98,17 @@ describe("AC-15: height-rate sentinel", () => {
     expect(isHeightDeltaLegal(100, 100 + jumpGain, TOWER)).toBe(true);
   });
 
-  it("accepts a super-jump launch", () => {
-    const superGain = TOWER.jumpSpeed * SUPER_JUMP_MULT * TICK_DT;
-    expect(isHeightDeltaLegal(100, 100 + superGain, TOWER)).toBe(true);
+  it("accepts a JETPACK_MAX_VY delta that exceeds this tower's jump and climb", () => {
+    expect(TOWER.jumpSpeed).toBeLessThan(JETPACK_MAX_VY);
+    expect(TOWER.maxClimbSpeed).toBeLessThan(JETPACK_MAX_VY);
+    const packGain = JETPACK_MAX_VY * TICK_DT;
+    expect(packGain).toBeGreaterThan(TOWER.jumpSpeed * TICK_DT);
+    expect(isHeightDeltaLegal(100, 100 + packGain, TOWER)).toBe(true);
   });
 
   it("still rejects a delta above the full vertical envelope", () => {
-    const envelope = TOWER.jumpSpeed * SUPER_JUMP_MULT * TICK_DT;
+    const envelope =
+      Math.max(TOWER.maxClimbSpeed, TOWER.jumpSpeed, JETPACK_MAX_VY) * TICK_DT;
     expect(isHeightDeltaLegal(100, 100 + envelope * 2, TOWER)).toBe(false);
   });
 
@@ -112,9 +117,14 @@ describe("AC-15: height-rate sentinel", () => {
     expect(isHeightDeltaLegal(100, 100 + rapidGain, TOWER, 0.01, RAPID_CLIMB_MULT)).toBe(
       true
     );
-    // A super-jump must stay legal even at the default multiplier.
-    const superGain = TOWER.jumpSpeed * SUPER_JUMP_MULT * TICK_DT;
-    expect(isHeightDeltaLegal(100, 100 + superGain, TOWER, 0.01, 1)).toBe(true);
+    expect(isHeightDeltaLegal(100, 100 + JETPACK_MAX_VY * TICK_DT, TOWER, 0.01, 1)).toBe(
+      true
+    );
+  });
+
+  it("uses the three-term max of climb rate, jumpSpeed, and JETPACK_MAX_VY", () => {
+    const threeTerm = Math.max(TOWER.maxClimbSpeed, TOWER.jumpSpeed, JETPACK_MAX_VY);
+    expect(isHeightDeltaLegal(100, 100 + threeTerm * TICK_DT, TOWER)).toBe(true);
   });
 });
 
@@ -122,7 +132,7 @@ describe("AC-16: the sentinel stays silent on honest play", () => {
   // The gap the old tests left: every sentinel assertion used synthetic deltas,
   // so nobody checked the sentinel against heights the simulation actually
   // produces. A real jump used to spend 4 consecutive ticks illegal and a
-  // super-jump 11, against a K of 5.
+  // jump power-up 11, against a K of 5.
   const SEEDS = ["honest-1", "honest-2", "honest-3"];
 
   it.each(SEEDS)("does not flag a jumping, climbing run (%s)", (seed) => {
@@ -239,4 +249,61 @@ describe("stepMatch is the production caller", () => {
     expect(p.onLadder).toBe(false);
     expect(p.y).toBe(y0);
   });
+
+  it("lets an airborne jetpack hold gain height (validateInput did not strip it)", () => {
+    const m = climbingWithClearOrbs("jetpack-hold");
+    const p = m.players[0]!;
+    placeTestOrb(m, p.x, p.y);
+    stepMatch(m, { p1: NO_INPUT });
+    stepMatch(m, {
+      p1: { moveX: 0, jump: true, climbY: 0, usePowerUp: false },
+    });
+    const y0 = p.y;
+    stepMatch(m, {
+      p1: { moveX: 0, jump: true, climbY: 0, usePowerUp: false },
+    });
+    expect(p.jetpackThrusting).toBe(true);
+    expect(p.y).toBeGreaterThan(y0);
+  });
 });
+
+describe("AC-J9: a full jetpack burn does not flag the sentinel", () => {
+  it("stays silent across a full-tank hold through stepMatch", () => {
+    const m = climbingWithClearOrbs("jetpack-burn");
+    const p = m.players[0]!;
+    placeTestOrb(m, p.x, p.y);
+    const jump = { moveX: 0, jump: true, climbY: 0, usePowerUp: false } as const;
+    stepMatch(m, { p1: NO_INPUT });
+    stepMatch(m, { p1: jump });
+    const tank = jetpackFuelTicks();
+    for (let i = 0; i < tank; i++) stepMatch(m, { p1: jump });
+    expect(p.cheatFlagged).toBe(false);
+    expect(checkClimbResult(p.peakY, m.tick).ok).toBe(true);
+  });
+});
+
+function climbingWithClearOrbs(seed: string) {
+  const tower = buildTower("ai", { runSeed: seed });
+  const m = createMatch({ seed, mode: "solo", tower, playerIds: ["p1"] });
+  m.phase = "climb";
+  m.tick = 0;
+  m.powerUps = [];
+  m.powerUpFloorHi = 100_000;
+  return m;
+}
+
+function placeTestOrb(
+  m: ReturnType<typeof climbingWithClearOrbs>,
+  x: number,
+  feetY: number
+): void {
+  m.powerUps.push({
+    id: "test:jetpack",
+    type: "jetpack",
+    floorIndex: 0,
+    x,
+    y: feetY + POWER_UP_HOVER_M,
+    collected: false,
+    collectedTick: null,
+  });
+}

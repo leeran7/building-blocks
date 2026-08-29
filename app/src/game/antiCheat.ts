@@ -13,9 +13,10 @@
 import { PlayerInput, PlayerState, TowerSpec, TICK_DT, NO_INPUT } from "./types";
 import {
   RAPID_CLIMB_MULT,
-  SUPER_JUMP_MULT,
+  JETPACK_MAX_VY,
   doubleJumpChargesRemaining,
   isPowerUpActive,
+  jetpackFuelRemaining,
 } from "./powerups";
 
 /** Result of validating a single player's input for one tick. */
@@ -53,10 +54,12 @@ export function validateInput(
   let rejected = false;
   let reason: string | undefined;
 
-  // Jump is only legal from the ground — an air-jump is the classic spoof. The
-  // one exception is an unspent double-jump charge, which is exactly the
-  // allowance that power-up buys; the sim consumes it on the same tick.
-  const mayAirJump = doubleJumpChargesRemaining(player, tick) > 0;
+  // Jump is only legal from the ground — an air-jump is the classic spoof.
+  // Double-jump spends a charge on the edge; a live jetpack with fuel lets
+  // the player hold jump to thrust. Both are the allowance those pickups buy.
+  const mayAirJump =
+    doubleJumpChargesRemaining(player, tick) > 0 ||
+    jetpackFuelRemaining(player, tick) > 0;
   if (jump && !player.onGround && !player.onLadder && !mayAirJump) {
     rejected = true;
     reason = reason ?? "jump while airborne";
@@ -82,13 +85,13 @@ function clampAxis(v: unknown): -1 | 0 | 1 {
  * itself can produce (plus a small tolerance for float + platform-inheritance).
  * Returns true if the delta is LEGAL.
  *
- * The envelope is the maximum of two things, not just the ladder rate: climbing
- * is capped at maxClimbSpeed, but a jump leaves the ground at jumpSpeed, which
- * is higher on every archetype. Bounding by the climb rate alone flagged honest
- * play — a plain jump spent 4 consecutive ticks over the limit against a K of
- * 5, and a super-jump, shipped in the same change set as this sentinel, spent
- * 11. climbSpeedMult scales only the climb term because that is the only one
- * rapid-climb affects.
+ * The envelope is the maximum of the ascent speeds the sim itself can
+ * produce, not just the ladder rate: climbing is capped at maxClimbSpeed, a
+ * jump leaves the ground at jumpSpeed (higher on every archetype), and a
+ * jetpack holds JETPACK_MAX_VY while thrusting. Bounding by the climb rate
+ * alone flagged honest play — a plain jump spent 4 consecutive ticks over
+ * the limit against a K of 5. climbSpeedMult scales only the climb term
+ * because that is the only one rapid-climb affects.
  */
 export function isHeightDeltaLegal(
   prevY: number,
@@ -99,7 +102,8 @@ export function isHeightDeltaLegal(
 ): boolean {
   const maxRise = Math.max(
     tower.maxClimbSpeed * climbSpeedMult,
-    tower.jumpSpeed * SUPER_JUMP_MULT
+    tower.jumpSpeed,
+    JETPACK_MAX_VY
   );
   return nextY - prevY <= maxRise * TICK_DT + toleranceM;
 }

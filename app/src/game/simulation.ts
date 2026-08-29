@@ -48,10 +48,12 @@ import {
 import {
   grantPowerUp,
   DOUBLE_JUMP_MULT,
-  SUPER_JUMP_MULT,
+  JETPACK_MAX_VY,
+  JETPACK_THRUST,
   canActivate,
   climbSpeedMultiplier,
   consumeCharge,
+  consumeJetpackFuel,
   cooldownTicks,
   durationTicks,
   hazardTimeScale,
@@ -104,6 +106,7 @@ export function spawnPlayer(id: PlayerId, slot: number): PlayerState {
     lastPickupTick: null,
     lastPickupType: null,
     jumpHeldPrev: false,
+    jetpackThrusting: false,
   };
 }
 
@@ -248,6 +251,7 @@ function integratePlayer(
   const dt = TICK_DT;
   const moveSpeed = tower.moveSpeed * moveSpeedMultiplier(p, tick);
   const climbSpeed = tower.maxClimbSpeed * climbSpeedMultiplier(p, tick);
+  p.jetpackThrusting = false;
 
   // Horizontal movement (walk / ladder-slide is ignored while attached).
   p.vx = input.moveX * moveSpeed;
@@ -302,27 +306,29 @@ function integratePlayer(
     }
 
     if (!p.onLadder) {
-      // Jump. A banked super-jump charge is spent on whichever jump comes next;
-      // a double-jump charge is what makes an airborne jump legal at all, and is
-      // deliberately weaker than a ground launch so it reads as a recovery.
+      // Jump from the ground is a normal launch. While a jetpack has fuel,
+      // holding jump in the air burns one tick of thrust instead of a
+      // double-jump charge — the pack is the spend, the extra hops wait.
       if (input.jump && p.onGround) {
-        const boosted = consumeCharge(p, "super-jump", tick);
-        p.vy = tower.jumpSpeed * (boosted ? SUPER_JUMP_MULT : 1);
+        p.vy = tower.jumpSpeed;
         p.onGround = false;
+      } else if (input.jump && !p.onGround && consumeJetpackFuel(p, tick)) {
+        p.jetpackThrusting = true;
       } else if (
         input.jump &&
         !p.jumpHeldPrev &&
         !p.onGround &&
         consumeCharge(p, "double-jump", tick)
       ) {
-        const boosted = consumeCharge(p, "super-jump", tick);
-        p.vy = tower.jumpSpeed * DOUBLE_JUMP_MULT * (boosted ? SUPER_JUMP_MULT : 1);
+        p.vy = tower.jumpSpeed * DOUBLE_JUMP_MULT;
       }
-      // Gravity while airborne.
+      // Gravity while airborne; thrust beats it and caps at JETPACK_MAX_VY.
       if (p.onGround) {
         p.vy = 0;
       } else {
+        if (p.jetpackThrusting) p.vy += JETPACK_THRUST * dt;
         p.vy -= tower.gravity * dt;
+        if (p.jetpackThrusting && p.vy > JETPACK_MAX_VY) p.vy = JETPACK_MAX_VY;
       }
 
       const prevY = p.y;
