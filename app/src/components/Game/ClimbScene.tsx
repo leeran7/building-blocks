@@ -20,7 +20,7 @@ import { useClimb } from "../../game/useClimb";
 import { TowerSpec } from "../../game/types";
 import { ClimbCanvas } from "./ClimbCanvas";
 import { ClimbControlsGuide } from "./ClimbControlsGuide";
-import { TouchControls } from "./TouchControls";
+import { TouchControls, TOUCH_CONTROLS_INSET } from "./TouchControls";
 import { useAuth } from "../../contexts/AuthContext";
 import { useCanvasSize } from "../../hooks/useCanvasSize";
 import { useCoarsePointer } from "../../hooks/useCoarsePointer";
@@ -185,6 +185,7 @@ export function ClimbScene({ tower, categoryLabel }: ClimbSceneProps) {
           reducedMotion={reducedMotion}
           width={canvasSize.width}
           height={canvasSize.height}
+          bottomInset={touchDevice ? TOUCH_CONTROLS_INSET : 0}
         />
 
         {phase === "countdown" && (

@@ -46,6 +46,13 @@ export interface ClimbCanvasProps {
   width?: number;
   height?: number;
   reducedMotion?: boolean;
+  /**
+   * Height in px of UI covering the bottom of the canvas (the touch controls).
+   * The camera keeps the climber clear of it, so it is never hidden behind a
+   * button. Only affects the low-altitude range where the camera is clamped to
+   * the base; once it is following the climber, the view is identical.
+   */
+  bottomInset?: number;
 }
 
 export function ClimbCanvas({
@@ -53,6 +60,7 @@ export function ClimbCanvas({
   width = BASE_WIDTH,
   height = BASE_HEIGHT,
   reducedMotion = false,
+  bottomInset = 0,
 }: ClimbCanvasProps) {
   const ref = useRef<HTMLCanvasElement>(null);
 
@@ -82,7 +90,11 @@ export function ClimbCanvas({
     const focusScreenFrac = 0.62; // keep the climber ~62% down the view
     // Endless: the camera follows upward without any ceiling.
     let camWorldY = playerY - viewH * (1 - focusScreenFrac);
-    camWorldY = Math.max(0, camWorldY);
+    // Near the base the camera stops following, so the climber drifts to the
+    // bottom of the view — behind the touch controls. Letting the floor sink by
+    // the inset keeps them above it; it only shows some empty air (and the
+    // rising lava) below the ground line.
+    camWorldY = Math.max(-bottomInset / pxPerM, camWorldY);
 
     const sx = (worldX: number) => worldX * pxPerM;
     const sy = (worldY: number) => height - (worldY - camWorldY) * pxPerM;

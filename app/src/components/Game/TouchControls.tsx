@@ -111,10 +111,11 @@ function TouchButton({
         "relative flex flex-1 flex-col items-center justify-center rounded-2xl border font-mono font-bold " +
         "min-h-[80px] sm:min-h-[88px] backdrop-blur-sm " +
         "transition-[filter,transform,background-color] active:scale-95 " +
+        // Opaque enough to stay legible where the lava band shows through.
         (accent
-          ? "border-signal/60 bg-signal/25 text-signal shadow-signal "
-          : "border-border-strong/90 bg-surface/75 text-text-primary ") +
-        (held ? (accent ? "bg-signal/40 scale-95 " : "bg-elevated/90 scale-95 ") : "")
+          ? "border-signal/70 bg-void/85 text-signal shadow-signal "
+          : "border-border-strong bg-void/80 text-text-primary ") +
+        (held ? (accent ? "bg-signal/35 scale-95 " : "bg-elevated/95 scale-95 ") : "")
       }
       style={{ touchAction: "none" }}
       onPointerDown={(e) => {
@@ -171,3 +172,10 @@ const CLIMB_CONTROLS: readonly Control[] = [
   { id: "climb", label: "Climb up ladder", glyph: "↑", sub: "climb" },
   { id: "jump", label: "Jump", glyph: "JMP", accent: true, wordGlyph: true },
 ];
+
+/**
+ * Canvas height these controls cover — the tallest button plus its padding.
+ * Passed to ClimbCanvas as `bottomInset` so the camera keeps the climber above
+ * the buttons instead of behind them.
+ */
+export const TOUCH_CONTROLS_INSET = 96;
