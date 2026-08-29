@@ -65,6 +65,13 @@ export async function advanceAgentRunStep(id: string): Promise<SocialAgentRun> {
   });
 }
 
+/** Read-only idempotency check — used BEFORE calling the LLM, so a replayed step never re-invokes it. */
+export async function getAgentTaskByStep(agentRunId: string, stepIndex: number): Promise<SocialAgentTask | null> {
+  return prisma.socialAgentTask.findUnique({
+    where: { social_agent_task_run_step: { agentRunId, stepIndex } },
+  });
+}
+
 /**
  * Idempotent step creation: `@@unique([agentRunId, stepIndex])` means
  * replaying the same step index returns the already-persisted result instead

@@ -11,13 +11,20 @@ import { z } from "zod";
 import { randomBytes } from "crypto";
 import { getLanguageModel } from "../agent/llmClient";
 import { getBrandProfile } from "../../db/social/brandProfile";
-import { createContentItem } from "../../db/social/contentItems";
+import {
+  createContentItem,
+  getContentItemById,
+  updateContentItem,
+  incrementRegenerateVersion,
+} from "../../db/social/contentItems";
+import { writeAuditLog } from "../../db/social/auditLog";
 import { checkAvoidTerms, validateCaptionLength } from "./safety";
+import { errResult, okResult, type ToolResult } from "../types";
 import { getBoundedMemorySummary } from "./memory";
 import { prisma } from "../../db/client";
-import type { SocialPlatform } from "../types";
+import type { SocialPlatform, SocialContentType } from "../types";
 import { PLATFORM_CONTENT_TYPES } from "../types";
-import type { SocialContentItem } from "@prisma/client";
+import type { SocialContentItem, Prisma } from "@prisma/client";
 
 const platformDraftSchema = z.object({
   platform: z.enum(["TIKTOK", "X", "YOUTUBE"]),
@@ -172,4 +179,220 @@ export async function generateContentForPlatforms(
   });
 
   return { promptBatchId, items };
+}
+
+const REGENERATABLE_FIELDS = ["script", "caption", "title", "description"] as const;
+export type RegeneratableField = (typeof REGENERATABLE_FIELDS)[number];
+
+const fieldValueSchema = z.object({ value: z.string() });
+
+/**
+ * AC-33: regenerates ONE field of an existing draft with AI, in place —
+ * same row/id, `version` incremented, never a new ContentItem. Backs the
+ * generate_script/generate_caption/generate_title/generate_description
+ * tools (each is this function pinned to one field).
+ */
+export async function regenerateContentField(
+  itemId: string,
+  field: RegeneratableField,
+  instructions: string | undefined,
+  uid: string
+): Promise<ToolResult<SocialContentItem>> {
+  const item = await getContentItemById(itemId);
+  if (!item) return errResult("NOT_FOUND", "Content item not found");
+  if (item.status === "PUBLISHED" || item.status === "SCHEDULED") {
+    return errResult("VALIDATION_ERROR", `Cannot regenerate content on an item in status ${item.status}`);
+  }
+
+  const [brand, memory] = await Promise.all([getBrandProfile(), getBoundedMemorySummary()]);
+  const context = [
+    `Platform: ${item.platform}. Content type: ${item.contentType}.`,
+    item.title ? `Current title: ${item.title}` : "",
+    item.hook ? `Current hook: ${item.hook}` : "",
+    item.script ? `Current script: ${item.script}` : "",
+    item.caption ? `Current caption: ${item.caption}` : "",
+    item.description ? `Current description: ${item.description}` : "",
+    instructions ? `Regeneration instructions: ${instructions}` : "",
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  let value: string;
+  try {
+    const result = await generateObject({
+      model: getLanguageModel(),
+      schema: fieldValueSchema,
+      system: [
+        `You rewrite the "${field}" field of a social media draft. Return only the new ${field} text.`,
+        brand ? `Brand: ${brand.name}. Tone: ${brand.tone ?? "n/a"}.` : "",
+        brand?.topicsToAvoid.length ? `NEVER mention: ${brand.topicsToAvoid.join(", ")}.` : "",
+        memory,
+      ]
+        .filter(Boolean)
+        .join("\n"),
+      prompt: `${context}\n\nRewrite the ${field}.`,
+    });
+    value = result.object.value;
+  } catch (err) {
+    throw new ContentGenerationError(`Regenerating ${field} failed: ${(err as Error).message}`);
+  }
+
+  const avoidTerms = brand?.topicsToAvoid ?? [];
+  const avoidCheck = checkAvoidTerms(value, avoidTerms);
+  const captionCheck = field === "caption" ? validateCaptionLength(item.platform, value) : null;
+
+  const fieldUpdate: Partial<Record<RegeneratableField, string>> = { [field]: value };
+  const updated = await updateContentItem(itemId, {
+    ...fieldUpdate,
+    blockedByAvoidTerm: avoidCheck.blocked,
+    blockedTerms: avoidCheck.matchedTerms,
+    validationErrors: (captionCheck && !captionCheck.valid
+      ? { captionLength: `${captionCheck.length}/${captionCheck.limit}` }
+      : null) as unknown as Prisma.InputJsonValue | undefined,
+  });
+  await incrementRegenerateVersion(itemId);
+  await writeAuditLog({
+    action: "REGENERATE_CONTENT",
+    result: "SUCCESS",
+    initiator: uid,
+    platform: updated.platform,
+    contentItemId: updated.id,
+    metadata: { field },
+  });
+
+  return okResult(updated);
+}
+
+const variationSchema = z.object({
+  title: z.string().optional(),
+  hook: z.string().optional(),
+  script: z.string().optional(),
+  caption: z.string().optional(),
+  description: z.string().optional(),
+  hashtags: z.array(z.string()).default([]),
+});
+const variationsSchema = z.object({ variations: z.array(variationSchema) });
+
+/** AC-33-adjacent: N alternative DRAFT siblings of an existing item, same platform/contentType, linked via sourceItemId. */
+export async function createContentVariations(
+  sourceItemId: string,
+  count: number,
+  createdByUid: string
+): Promise<ToolResult<SocialContentItem[]>> {
+  const source = await getContentItemById(sourceItemId);
+  if (!source) return errResult("NOT_FOUND", "Source content item not found");
+  if (count < 1 || count > 5) return errResult("VALIDATION_ERROR", "count must be between 1 and 5");
+
+  const [brand, memory] = await Promise.all([getBrandProfile(), getBoundedMemorySummary()]);
+  const sourceText = [source.hook, source.script, source.caption, source.description, source.title]
+    .filter(Boolean)
+    .join("\n");
+
+  let object: z.infer<typeof variationsSchema>;
+  try {
+    const result = await generateObject({
+      model: getLanguageModel(),
+      schema: variationsSchema,
+      system: [
+        `Produce ${count} DISTINCT alternative versions of this ${source.platform} ${source.contentType} draft — different hooks/angles, same core idea.`,
+        memory,
+      ]
+        .filter(Boolean)
+        .join("\n"),
+      prompt: sourceText || source.prompt || "No source text available — invent plausible alternatives.",
+    });
+    object = result.object;
+  } catch (err) {
+    throw new ContentGenerationError(`Variation generation failed: ${(err as Error).message}`);
+  }
+
+  const avoidTerms = brand?.topicsToAvoid ?? [];
+  const created = await prisma.$transaction(async (tx) => {
+    const items: SocialContentItem[] = [];
+    for (const variant of object.variations.slice(0, count)) {
+      const textToCheck = [variant.title, variant.hook, variant.script, variant.caption, variant.description]
+        .filter(Boolean)
+        .join(" ");
+      const avoidCheck = checkAvoidTerms(textToCheck, avoidTerms);
+      const item = await createContentItem(
+        {
+          platform: source.platform,
+          contentType: source.contentType,
+          sourceItemId: source.id,
+          title: variant.title,
+          hook: variant.hook,
+          script: variant.script,
+          caption: variant.caption,
+          description: variant.description,
+          hashtags: variant.hashtags,
+          brandProfileVersion: brand?.version ?? null,
+          generatedByModel: process.env.AI_MODEL || "gpt-4o-mini",
+          sourceToolName: "create_content_variations",
+          blockedByAvoidTerm: avoidCheck.blocked,
+          blockedTerms: avoidCheck.matchedTerms,
+          createdByUid,
+          status: "DRAFT",
+        },
+        tx
+      );
+      items.push(item);
+    }
+    return items;
+  });
+
+  return okResult(created);
+}
+
+export interface CreateDraftInput {
+  platform: SocialPlatform;
+  contentType: SocialContentType;
+  title?: string;
+  hook?: string;
+  script?: string;
+  caption?: string;
+  description?: string;
+  hashtags?: string[];
+  cta?: string;
+  threadParts?: string[];
+  createdByUid: string;
+  sourceToolName: "create_post" | "create_thread";
+}
+
+/**
+ * Deterministic (no LLM call) draft creation — backs create_post/create_thread,
+ * used when the agent has already composed the copy earlier in the
+ * conversation and just needs it persisted as a reviewable DRAFT row.
+ */
+export async function createDraftContentItem(input: CreateDraftInput): Promise<ToolResult<SocialContentItem>> {
+  const text = [input.title, input.hook, input.script, input.caption, input.description]
+    .filter(Boolean)
+    .join(" ");
+  if (!text.trim()) return errResult("VALIDATION_ERROR", "At least one content field must be provided");
+
+  const brand = await getBrandProfile();
+  const avoidTerms = brand?.topicsToAvoid ?? [];
+  const avoidCheck = checkAvoidTerms(text, avoidTerms);
+  const captionCheck = validateCaptionLength(input.platform, input.caption ?? input.description);
+
+  const item = await createContentItem({
+    platform: input.platform,
+    contentType: input.contentType,
+    title: input.title,
+    hook: input.hook,
+    script: input.script,
+    caption: input.caption,
+    description: input.description,
+    hashtags: input.hashtags ?? [],
+    cta: input.cta,
+    threadParts: input.threadParts,
+    brandProfileVersion: brand?.version ?? null,
+    sourceToolName: input.sourceToolName,
+    blockedByAvoidTerm: avoidCheck.blocked,
+    blockedTerms: avoidCheck.matchedTerms,
+    validationErrors: !captionCheck.valid ? { captionLength: `${captionCheck.length}/${captionCheck.limit}` } : null,
+    createdByUid: input.createdByUid,
+    status: "DRAFT",
+  });
+
+  return okResult(item);
 }

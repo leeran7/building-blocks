@@ -237,3 +237,19 @@ export async function findDueScheduledItems(limit = 50): Promise<SocialContentIt
 export async function incrementRegenerateVersion(id: string): Promise<void> {
   await prisma.socialContentItem.update({ where: { id }, data: { version: { increment: 1 } } });
 }
+
+/** AC-47: lets the weekly-strategy service check whether it already proposed drafts for a given week. */
+export async function listContentItemsByGeneratedWeek(isoWeek: string): Promise<SocialContentItem[]> {
+  return prisma.socialContentItem.findMany({
+    where: { generatedForIsoWeek: isoWeek, deletedAt: null },
+    orderBy: { createdAt: "asc" },
+  });
+}
+
+/** Published items whose publish date falls within [from, to) — used for weekly performance analysis. */
+export async function listPublishedItemsInRange(from: Date, to: Date): Promise<SocialContentItem[]> {
+  return prisma.socialContentItem.findMany({
+    where: { status: "PUBLISHED", deletedAt: null, publishedAt: { gte: from, lt: to } },
+    orderBy: { publishedAt: "desc" },
+  });
+}

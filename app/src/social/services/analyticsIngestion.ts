@@ -86,6 +86,51 @@ export async function refreshAllAnalytics(initiator: string): Promise<AnalyticsR
   return { itemsRefreshed, accountsRefreshed, errors };
 }
 
+/** Shared, deliberately simple engagement weighting — reused by weeklyStrategy's ranking. */
+export function computeEngagementScore(snapshot: {
+  views: number | null;
+  likes: number | null;
+  comments: number | null;
+  shares: number | null;
+}): number {
+  return (snapshot.likes ?? 0) * 3 + (snapshot.comments ?? 0) * 4 + (snapshot.shares ?? 0) * 5 + (snapshot.views ?? 0) * 0.02;
+}
+
+export interface ContentPerformanceSummary {
+  topItems: Array<{ id: string; platform: SocialPlatform; title: string | null; engagementScore: number }>;
+  totalEngagementScore: number;
+  itemsAnalyzed: number;
+}
+
+/** AC-22/AC-56-safe: ranks published items by the same engagement score used in the weekly report — never fabricates a metric a platform didn't return. */
+export async function analyzeContentPerformance(platform?: SocialPlatform, limit = 20): Promise<ContentPerformanceSummary> {
+  const items = await prisma.socialContentItem.findMany({
+    where: { platform, status: "PUBLISHED", deletedAt: null },
+    orderBy: { publishedAt: "desc" },
+    take: 100, // bounded scan; ranked/truncated to `limit` below
+  });
+
+  const ranked = await Promise.all(
+    items.map(async (item) => {
+      const snapshots = await listContentAnalytics(item.id);
+      const latest = snapshots[0];
+      return {
+        id: item.id,
+        platform: item.platform,
+        title: item.title,
+        engagementScore: latest ? computeEngagementScore(latest) : 0,
+      };
+    })
+  );
+  ranked.sort((a, b) => b.engagementScore - a.engagementScore);
+
+  return {
+    topItems: ranked.slice(0, limit),
+    totalEngagementScore: ranked.reduce((sum, r) => sum + r.engagementScore, 0),
+    itemsAnalyzed: ranked.length,
+  };
+}
+
 export async function getAnalyticsOverview(platform?: SocialPlatform, from?: Date, to?: Date) {
   const accounts = await prisma.socialAccount.findMany({
     where: { disconnectedAt: null, platform },
