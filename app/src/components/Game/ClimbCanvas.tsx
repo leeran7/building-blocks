@@ -34,6 +34,13 @@ const LAVA = "#ff5a2c"; // ember — the rising hazard
 const TEXT_MUTED = "#74707e";
 const FLAG = "#cbf24d"; // summit flag reads as signal too
 
+/**
+ * Baseline the HUD and label sizes are authored against. Callers normally pass a
+ * measured size (see useCanvasSize); these are the pre-measurement fallback.
+ */
+const BASE_WIDTH = 360;
+const BASE_HEIGHT = 640;
+
 export interface ClimbCanvasProps {
   state: MatchState;
   width?: number;
@@ -43,8 +50,8 @@ export interface ClimbCanvasProps {
 
 export function ClimbCanvas({
   state,
-  width = 480,
-  height = 800,
+  width = BASE_WIDTH,
+  height = BASE_HEIGHT,
   reducedMotion = false,
 }: ClimbCanvasProps) {
   const ref = useRef<HTMLCanvasElement>(null);
@@ -63,6 +70,11 @@ export function ClimbCanvas({
     const tower = state.tower;
     const player = state.players[0];
     const playerY = player?.y ?? 0;
+
+    // HUD and label sizes are authored against the 360px baseline. Scaling them
+    // with the canvas keeps the whole scene proportional, so a larger canvas
+    // reads as a larger game instead of the same game with thinner chrome.
+    const ui = width / BASE_WIDTH;
 
     // Scale so the full tower WIDTH fits the canvas; the camera scrolls in Y.
     const pxPerM = width / tower.widthM;
@@ -84,7 +96,7 @@ export function ClimbCanvas({
     ctx.fillRect(0, 0, width, height);
 
     // Faint per-floor altitude gridlines + labels (the leaderboard scale).
-    ctx.font = "10px monospace";
+    ctx.font = `${Math.round(10 * ui)}px monospace`;
     const loFloor = Math.max(0, floorIndexAt(tower, camWorldY));
     const hiFloor = floorIndexAt(tower, camWorldY + viewH) + 1;
     for (let i = loFloor; i <= hiFloor; i++) {
@@ -99,7 +111,7 @@ export function ClimbCanvas({
       ctx.stroke();
       ctx.globalAlpha = 1;
       ctx.fillStyle = TEXT_MUTED;
-      ctx.fillText(`${Math.round(fy)}m`, 4, y - 3);
+      ctx.fillText(`${Math.round(fy)}m`, 4 * ui, y - 3 * ui);
     }
 
     // Ladders (draw under platforms so platform lips overlap the rails).
@@ -110,7 +122,7 @@ export function ClimbCanvas({
       const cx = sx(l.x);
       const railHalf = Math.max(4, pxPerM * 1.4);
       ctx.strokeStyle = LADDER;
-      ctx.lineWidth = 2;
+      ctx.lineWidth = 2 * ui;
       ctx.beginPath();
       ctx.moveTo(cx - railHalf, yTop);
       ctx.lineTo(cx - railHalf, yBot);
@@ -118,8 +130,8 @@ export function ClimbCanvas({
       ctx.lineTo(cx + railHalf, yBot);
       ctx.stroke();
       // Rungs.
-      ctx.lineWidth = 1.5;
-      const rungGap = 10;
+      ctx.lineWidth = 1.5 * ui;
+      const rungGap = 10 * ui;
       for (let yy = yTop; yy <= yBot; yy += rungGap) {
         ctx.beginPath();
         ctx.moveTo(cx - railHalf, yy);
@@ -138,7 +150,7 @@ export function ClimbCanvas({
       ctx.fillStyle = PLATFORM;
       ctx.fillRect(x0, top, w, slab);
       ctx.fillStyle = PLATFORM_TOP;
-      ctx.fillRect(x0, top, w, 2); // bright top surface
+      ctx.fillRect(x0, top, w, 2 * ui); // bright top surface
     }
 
     // Rising hazard (lava) — a filled band from the hazard line downward.
@@ -150,7 +162,7 @@ export function ClimbCanvas({
       ctx.fillRect(0, top, width, height - top);
       ctx.globalAlpha = 1;
       ctx.strokeStyle = LAVA;
-      ctx.lineWidth = 3;
+      ctx.lineWidth = 3 * ui;
       ctx.beginPath();
       ctx.moveTo(0, top);
       ctx.lineTo(width, top);
@@ -177,22 +189,23 @@ export function ClimbCanvas({
     drawClimber(ctx, px, pyScreen, s, facing, pose, state.tick, color, reducedMotion);
 
     // HUD panel: height + hazard line.
+    const hudH = 34 * ui;
     ctx.fillStyle = SURFACE;
     ctx.globalAlpha = 0.92;
-    ctx.fillRect(0, 0, width, 34);
+    ctx.fillRect(0, 0, width, hudH);
     ctx.globalAlpha = 1;
     ctx.strokeStyle = BORDER;
     ctx.beginPath();
-    ctx.moveTo(0, 34);
-    ctx.lineTo(width, 34);
+    ctx.moveTo(0, hudH);
+    ctx.lineTo(width, hudH);
     ctx.stroke();
     ctx.fillStyle = "#f4f2ec";
-    ctx.font = "bold 13px monospace";
+    ctx.font = `bold ${Math.round(13 * ui)}px monospace`;
     ctx.textAlign = "left";
-    ctx.fillText(`${playerY.toFixed(1)}m`, 10, 22);
+    ctx.fillText(`${playerY.toFixed(1)}m`, 10 * ui, 22 * ui);
     ctx.fillStyle = TEXT_MUTED;
     ctx.textAlign = "right";
-    ctx.fillText(`lava ${state.hazardY.toFixed(1)}m`, width - 10, 22);
+    ctx.fillText(`lava ${state.hazardY.toFixed(1)}m`, width - 10 * ui, 22 * ui);
     ctx.textAlign = "left";
   }, [state, width, height, reducedMotion]);
 
