@@ -772,6 +772,7 @@ describe("jetpack: hold-to-thrust with a fuel tank inside a window", () => {
     stepMatch(empty, { p1: move(0, true) }, SLOW);
     for (let i = 0; i < 8; i++) stepMatch(empty, { p1: NO_INPUT }, SLOW);
     const vyBefore = q.vy;
+    expect(validateInput(move(0, true), q, empty.tick).input.jump).toBe(false);
     stepMatch(empty, { p1: move(0, true) }, SLOW);
     expect(q.vy).toBeLessThan(vyBefore);
     expect(q.jetpackThrusting).toBe(false);

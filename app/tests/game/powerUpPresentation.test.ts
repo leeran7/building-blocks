@@ -20,6 +20,7 @@ import { PowerUpHud } from "../../src/components/Game/PowerUpHud";
 import { PowerUpAudio } from "../../src/components/Game/powerUpAudio";
 import {
   JETPACK_FUEL_SECONDS,
+  JETPACK_MAX_VY,
   POWER_UP_HOVER_M,
   POWER_UP_SPECS,
   POWER_UP_TYPES,
@@ -83,13 +84,14 @@ describe("AC-J11 PowerUpHud calls powerUpChipMeter", () => {
     for (let i = 0; i < TICK_HZ; i++) stepMatch(m, { p1: NO_INPUT });
     const html = renderHud(p, m.tick);
     const fuelText = `${JETPACK_FUEL_SECONDS.toFixed(1)}s`;
-    expect(html).toContain(fuelText);
-    expect(html).toMatch(
-      new RegExp(`${JETPACK_FUEL_SECONDS.toFixed(1)}s fuel`, "i")
-    );
     const windowLeft = (
       POWER_UP_SPECS.jetpack.durationSeconds - 1
     ).toFixed(1);
+    expect(visibleChipSeconds(html)).toEqual([fuelText]);
+    expect(visibleChipSeconds(html)).not.toContain(`${windowLeft}s`);
+    expect(html).toMatch(
+      new RegExp(`${JETPACK_FUEL_SECONDS.toFixed(1)}s fuel`, "i")
+    );
     expect(html).toMatch(new RegExp(`${windowLeft}s remaining`, "i"));
     expect(html).toContain(POWER_UP_SPECS.jetpack.label);
   });
@@ -102,13 +104,9 @@ describe("AC-J11 PowerUpHud calls powerUpChipMeter", () => {
     const html = renderHud(p, m.tick);
     const fuelLeft = jetpackFuelTicks() - 20;
     const fuelSeconds = (fuelLeft / TICK_HZ).toFixed(1);
-    expect(html).toContain(`${fuelSeconds}s`);
+    expect(visibleChipSeconds(html)).toEqual([`${fuelSeconds}s`]);
     expect(html).toMatch(new RegExp(`${fuelSeconds}s fuel`, "i"));
     expect(html).toMatch(/s remaining/);
-    // Visible numeral is the tank, not the spend window.
-    expect(html).not.toMatch(
-      new RegExp(`>${POWER_UP_SPECS.jetpack.durationSeconds.toFixed(1)}s<`)
-    );
   });
 });
 
@@ -119,18 +117,22 @@ describe("AC-J12 ClimbControlsGuide copy", () => {
 
   it("renders hold-to-thrust copy, a short-fuel tip, and the fuel·window suffix", () => {
     const html = renderToStaticMarkup(createElement(ClimbControlsGuide, {}));
-    expect(html).toMatch(/hold Space in the air to thrust/i);
-    expect(html).toMatch(/hold jump in the air to thrust/i);
+    expect(html).toMatch(/tap Space to leap/i);
+    expect(html).toMatch(/re-hold in the air/i);
+    expect(html).toMatch(/tap jump to leap/i);
     expect(html).toMatch(/fuel is short/i);
+    expect(html).toMatch(
+      new RegExp(`caps rise at ${JETPACK_MAX_VY} m/s`)
+    );
     expect(html).toContain(`${JETPACK_FUEL_SECONDS}s fuel`);
     expect(html).toContain(`${POWER_UP_SPECS.jetpack.durationSeconds}s window`);
     expect(html).toContain(POWER_UP_SPECS.jetpack.description);
   });
 
-  it("tells touch players to hold JMP in the air to thrust", () => {
+  it("tells touch players to re-hold JMP in the air to thrust", () => {
     vi.mocked(useCoarsePointer).mockReturnValue(true);
     const html = renderToStaticMarkup(createElement(ClimbControlsGuide, {}));
-    expect(html).toMatch(/hold JMP in the air to thrust/i);
+    expect(html).toMatch(/re-hold JMP in the air to thrust/i);
   });
 });
 
@@ -144,3 +146,9 @@ describe("AC-J11 audio accepts every live PowerUpType including jetpack", () => 
     }
   });
 });
+
+function visibleChipSeconds(html: string): string[] {
+  return [...html.matchAll(/class="tabular-nums">([^<]+)</g)].map(
+    (match) => match[1]!
+  );
+}

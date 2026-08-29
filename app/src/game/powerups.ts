@@ -21,9 +21,10 @@
  *     from same-type stacking, which the HUD and the charge counter both
  *     assume cannot happen;
  *   - short windows that must be spent on the right terrain — rapid-climb is
- *     wasted if you are not on a ladder, jetpack fuel is wasted in a hover;
+ *     wasted if you are not on a ladder, leftover jetpack fuel dies if jump
+ *     is not held (or with the spend window);
  *   - multipliers under 2x, so no single pickup trivialises a floor;
- *   - time-slow cancels most of the lava's rise and is the rarest drop, but
+ *   - time-slow halves the lava's clock and is the rarest drop, but
  *     weights toward it with altitude — exactly where the lava wins — so a deep
  *     run keeps getting the tool it needs to go deeper.
  *

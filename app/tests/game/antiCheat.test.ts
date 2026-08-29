@@ -31,7 +31,7 @@ const TOWER: TowerSpec = {
   ladderGrabRadius: 2,
   maxClimbSpeed: 8,
   moveSpeed: 6,
-  jumpSpeed: 12,
+  jumpSpeed: 10,
   gravity: 24,
   fallDeathBelowPeakM: 40,
 };
@@ -98,8 +98,11 @@ describe("AC-15: height-rate sentinel", () => {
     expect(isHeightDeltaLegal(100, 100 + jumpGain, TOWER)).toBe(true);
   });
 
-  it("accepts a JETPACK_MAX_VY delta", () => {
+  it("accepts a JETPACK_MAX_VY delta that exceeds this tower's jump and climb", () => {
+    expect(TOWER.jumpSpeed).toBeLessThan(JETPACK_MAX_VY);
+    expect(TOWER.maxClimbSpeed).toBeLessThan(JETPACK_MAX_VY);
     const packGain = JETPACK_MAX_VY * TICK_DT;
+    expect(packGain).toBeGreaterThan(TOWER.jumpSpeed * TICK_DT);
     expect(isHeightDeltaLegal(100, 100 + packGain, TOWER)).toBe(true);
   });
 
