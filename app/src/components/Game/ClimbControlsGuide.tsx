@@ -166,7 +166,9 @@ export function ClimbControlsGuide({ variant = "card" }: { variant?: Variant }) 
                     {spec.description}
                     <span className="text-text-muted">
                       {" · "}
-                      {spec.charge ? "one use" : `${spec.durationSeconds}s`}
+                      {spec.charge
+                        ? `${spec.chargeCount ?? 1} use${(spec.chargeCount ?? 1) > 1 ? "s" : ""}`
+                        : `${spec.durationSeconds}s`}
                       {spec.cooldownSeconds > 0
                         ? ` · ${spec.cooldownSeconds}s recharge`
                         : ""}

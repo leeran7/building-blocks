@@ -11,7 +11,7 @@
  */
 
 import { PlayerInput, PlayerState, TowerSpec, TICK_DT, NO_INPUT } from "./types";
-import { RAPID_CLIMB_MULT, isPowerUpActive } from "./powerups";
+import { RAPID_CLIMB_MULT, canActivate, doubleJumpChargesRemaining, isPowerUpActive } from "./powerups";
 
 /** Result of validating a single player's input for one tick. */
 export interface InputValidation {
@@ -54,7 +54,13 @@ export function validateInput(
   // Jump is only legal from the ground — an air-jump is the classic spoof. The
   // one exception is an unspent double-jump charge, which is exactly the
   // allowance that power-up buys; the sim consumes it on the same tick.
-  const mayAirJump = isPowerUpActive(player, "double-jump", tick);
+  const pendingDoubleJump =
+    usePowerUp &&
+    !player.usePowerUpHeldPrev &&
+    player.heldPowerUp === "double-jump" &&
+    canActivate(player, "double-jump", tick);
+  const mayAirJump =
+    doubleJumpChargesRemaining(player, tick) > 0 || pendingDoubleJump;
   if (jump && !player.onGround && !player.onLadder && !mayAirJump) {
     rejected = true;
     reason = reason ?? "jump while airborne";
