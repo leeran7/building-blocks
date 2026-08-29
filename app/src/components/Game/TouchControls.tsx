@@ -15,7 +15,14 @@
  * cover the lava band well below the climber, who is held at ~62% of the view.
  */
 
-import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type PointerEvent as ReactPointerEvent,
+} from "react";
 import { NO_TOUCH, type TouchInput } from "../../game/useClimb";
 import {
   initialHoldMemo,
@@ -65,6 +72,7 @@ export function TouchControls({
   onInput: (input: TouchInput) => void;
 }) {
   const memoRef = useRef<HoldMemo>(initialHoldMemo());
+  const pointersRef = useRef(new Map<number, ControlId>());
   const [pressed, setPressed] = useState<ReadonlySet<ControlId>>(new Set());
 
   const apply = useCallback(
@@ -77,22 +85,41 @@ export function TouchControls({
     [onInput]
   );
 
+  const press = useCallback(
+    (id: ControlId, pointerId?: number) => {
+      if (pointerId != null) pointersRef.current.set(pointerId, id);
+      apply({ kind: "press", id });
+    },
+    [apply]
+  );
+
   const release = useCallback(
-    (id: ControlId) => {
+    (id: ControlId, pointerId?: number) => {
+      if (pointerId != null) pointersRef.current.delete(pointerId);
       apply({ kind: "release", id });
-      // Enter's keydown preventDefault cancels the compatibility click that
-      // would otherwise clear suppressActivate, and some pointer paths never
-      // deliver a click at all. Clear the flag after this turn: click, if it
-      // fires, runs first and consumes it; if it does not, this opens the
-      // toggle path again.
-      queueMicrotask(() => apply({ kind: "clear-suppress", id }));
     },
     [apply]
   );
 
   useEffect(() => {
+    const onWindowPointerUp = (e: PointerEvent) => {
+      const id = pointersRef.current.get(e.pointerId);
+      if (!id) return;
+      pointersRef.current.delete(e.pointerId);
+      apply({ kind: "release", id });
+    };
+    window.addEventListener("pointerup", onWindowPointerUp);
+    window.addEventListener("pointercancel", onWindowPointerUp);
+    return () => {
+      window.removeEventListener("pointerup", onWindowPointerUp);
+      window.removeEventListener("pointercancel", onWindowPointerUp);
+    };
+  }, [apply]);
+
+  useEffect(() => {
     if (active) return;
     memoRef.current = initialHoldMemo();
+    pointersRef.current.clear();
     setPressed(new Set());
     onInput(NO_TOUCH);
   }, [active, onInput]);
@@ -116,32 +143,36 @@ export function TouchControls({
             <TouchButton
               control={D_PAD_CONTROLS.climb}
               held={pressed.has("climb")}
-              onEvent={apply}
+              onPress={press}
               onRelease={release}
+              onEvent={apply}
             />
           </div>
           <div className="col-start-1 row-start-2">
             <TouchButton
               control={D_PAD_CONTROLS.left}
               held={pressed.has("left")}
-              onEvent={apply}
+              onPress={press}
               onRelease={release}
+              onEvent={apply}
             />
           </div>
           <div className="col-start-2 row-start-2">
             <TouchButton
               control={D_PAD_CONTROLS.down}
               held={pressed.has("down")}
-              onEvent={apply}
+              onPress={press}
               onRelease={release}
+              onEvent={apply}
             />
           </div>
           <div className="col-start-3 row-start-2">
             <TouchButton
               control={D_PAD_CONTROLS.right}
               held={pressed.has("right")}
-              onEvent={apply}
+              onPress={press}
               onRelease={release}
+              onEvent={apply}
             />
           </div>
         </div>
@@ -149,8 +180,9 @@ export function TouchControls({
         <TouchButton
           control={JUMP_CONTROL}
           held={pressed.has("jump")}
-          onEvent={apply}
+          onPress={press}
           onRelease={release}
+          onEvent={apply}
           style={{ height: D_PAD_HEIGHT }}
         />
       </div>
@@ -161,17 +193,24 @@ export function TouchControls({
 function TouchButton({
   control,
   held,
-  onEvent,
+  onPress,
   onRelease,
+  onEvent,
   style,
 }: {
   control: Control;
   held: boolean;
+  onPress: (id: ControlId, pointerId?: number) => void;
+  onRelease: (id: ControlId, pointerId?: number) => void;
   onEvent: (event: HoldEvent) => void;
-  onRelease: (id: ControlId) => void;
   style?: CSSProperties;
 }) {
   const { id, label, glyph, sub, accent, wordGlyph } = control;
+
+  const handlePointerDown = (e: ReactPointerEvent<HTMLButtonElement>) => {
+    e.currentTarget.setPointerCapture(e.pointerId);
+    onPress(id, e.pointerId);
+  };
 
   return (
     <button
@@ -191,18 +230,15 @@ function TouchButton({
           ? "border-signal/70 bg-void/85 text-signal shadow-signal "
           : "border-border-strong bg-void/80 text-text-primary ")
       }
-      onPointerDown={(e) => {
-        e.currentTarget.setPointerCapture(e.pointerId);
-        onEvent({ kind: "press", id });
-      }}
-      onPointerUp={() => onRelease(id)}
-      onPointerCancel={() => onRelease(id)}
-      onLostPointerCapture={() => onRelease(id)}
+      onPointerDown={handlePointerDown}
+      onPointerUp={(e) => onRelease(id, e.pointerId)}
+      onPointerCancel={(e) => onRelease(id, e.pointerId)}
+      onLostPointerCapture={(e) => onRelease(id, e.pointerId)}
       onKeyDown={(e) => {
         if (!isHoldKey(e.key)) return;
         e.preventDefault();
         if (e.repeat) return;
-        onEvent({ kind: "press", id });
+        onPress(id);
       }}
       onKeyUp={(e) => {
         if (!isHoldKey(e.key)) return;

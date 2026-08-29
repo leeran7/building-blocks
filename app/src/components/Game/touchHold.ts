@@ -1,54 +1,52 @@
 /**
  * Press/hold state for the on-screen climb controls.
  *
- * The buttons used to listen only to pointer events. Keyboard (Space/Enter),
- * iOS Switch Control, VoiceOver double-tap and TalkBack all reach a real
- * `<button>` and fire either a key event or a click — neither of which was
- * handled, so the controls were advertised to AT and then did nothing.
+ * Pointer and key have a press/release pair. Assistive tech (VoiceOver,
+ * TalkBack, Switch Control) typically synthesizes a click with no pair, so
+ * that path still toggles.
  *
- * Pointer and key have a press/release pair. AT typically synthesizes a click
- * with no pair, so that path toggles. Browsers also fire a click after
- * pointerup/keyup, which must not toggle or a tap would press and immediately
- * release.
- *
- * `preventDefault` on pointerdown cancels that compatibility click (Pointer
- * Events spec). The suppress flag would then stick and eat the next AT
- * activate. `clear-suppress` is the follow-up the DOM layer queues on a
- * microtask so a missing click cannot latch the flag shut. The flag is per
- * control so jumping does not eat a later climb activation.
+ * Browsers also fire a compatibility click after pointerup — on iOS that
+ * click can arrive hundreds of milliseconds later. Clearing the suppress
+ * flag on a microtask opened a race: the delayed click looked like an AT
+ * activate and latched the button on. Ignore activate for a short window
+ * after any press/release of that control instead.
  */
 
+export const CLICK_GUARD_MS = 700;
+
 export function initialHoldMemo(): HoldMemo {
-  return { held: new Set(), suppressActivate: new Set() };
+  return { held: new Set(), lastInputAt: new Map() };
 }
 
 export function isHoldKey(key: string): boolean {
   return key === " " || key === "Enter" || key === "Spacebar";
 }
 
-export function reduceHold(memo: HoldMemo, event: HoldEvent): HoldMemo {
+export function reduceHold(
+  memo: HoldMemo,
+  event: HoldEvent,
+  now = Date.now()
+): HoldMemo {
   const held = new Set(memo.held);
-  const suppress = new Set(memo.suppressActivate);
+  const lastInputAt = new Map(memo.lastInputAt);
   switch (event.kind) {
     case "press":
       held.add(event.id);
-      suppress.add(event.id);
-      return { held, suppressActivate: suppress };
+      lastInputAt.set(event.id, now);
+      return { held, lastInputAt };
     case "release":
       held.delete(event.id);
-      suppress.add(event.id);
-      return { held, suppressActivate: suppress };
-    case "clear-suppress":
-      suppress.delete(event.id);
-      return { held: memo.held, suppressActivate: suppress };
-    case "activate":
-      if (suppress.has(event.id)) {
-        suppress.delete(event.id);
-        return { held: memo.held, suppressActivate: suppress };
+      lastInputAt.set(event.id, now);
+      return { held, lastInputAt };
+    case "activate": {
+      const last = lastInputAt.get(event.id);
+      if (last != null && now - last < CLICK_GUARD_MS) {
+        return memo;
       }
       if (held.has(event.id)) held.delete(event.id);
       else held.add(event.id);
-      return { held, suppressActivate: suppress };
+      return { held, lastInputAt };
+    }
   }
 }
 
@@ -73,11 +71,10 @@ export type ControlId = "left" | "right" | "climb" | "down" | "jump";
 export type HoldEvent =
   | { kind: "press"; id: ControlId }
   | { kind: "release"; id: ControlId }
-  | { kind: "activate"; id: ControlId }
-  | { kind: "clear-suppress"; id: ControlId };
+  | { kind: "activate"; id: ControlId };
 
 export interface HoldMemo {
   held: ReadonlySet<ControlId>;
-  /** Controls whose follow-up click must be ignored. */
-  suppressActivate: ReadonlySet<ControlId>;
+  /** Latest press/release time per control, used to ignore delayed clicks. */
+  lastInputAt: ReadonlyMap<ControlId, number>;
 }
