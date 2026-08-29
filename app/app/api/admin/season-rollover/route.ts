@@ -8,7 +8,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "../../../../src/api/middleware/requireAdmin";
 import { rolloverSeason } from "../../../../src/db/seasons";
-import { parseSeasonSlug } from "../../../../src/game/categories";
+import { parsePaidStackSlug, parseSeasonSlug } from "../../../../src/game/categories";
 
 export const runtime = "nodejs";
 
@@ -20,9 +20,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const body = (await request.json().catch(() => null)) as
       | { category?: unknown }
       | null;
-    const category = parseSeasonSlug(
-      typeof body?.category === "string" ? body.category : null
-    );
+    const raw =
+      typeof body?.category === "string" ? body.category : null;
+    const category = parseAdminRolloverSlug(raw);
     if (!category) {
       return NextResponse.json(
         { error: "category required", code: "INVALID_CATEGORY" },
@@ -58,3 +58,21 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     );
   }
 }
+
+const LEGACY_BROAD_SLUGS = new Set([
+  "tech",
+  "design",
+  "business",
+  "creative",
+  "gaming",
+  "science",
+]);
+
+function parseAdminRolloverSlug(raw: string | null): string | null {
+  const paid = parsePaidStackSlug(raw);
+  if (paid) return paid;
+  const season = parseSeasonSlug(raw);
+  if (season && LEGACY_BROAD_SLUGS.has(season)) return season;
+  return null;
+}
+

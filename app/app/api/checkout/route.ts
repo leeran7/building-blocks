@@ -28,7 +28,7 @@ import { uniqueSlug } from "../../../src/lib/slugify";
 import { getStripe } from "../../../src/api/stripe";
 import { resolveBaseUrl } from "../../../src/config/public";
 import { checkRateLimit, clientIp } from "../../../src/lib/rateLimit";
-import { parsePaidStackSlug } from "../../../src/game/categories";
+import { parsePaidStackSlug, parseSeasonSlug } from "../../../src/game/categories";
 
 export const runtime = "nodejs";
 
@@ -194,13 +194,14 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       if (!block) {
         return NextResponse.json({ error: "Block not found" }, { status: 404 });
       }
-      if (!block.category) {
+      const stackSlugParsed = parseSeasonSlug(block.category);
+      if (!stackSlugParsed) {
         return NextResponse.json(
           { error: "Block has no stack", code: "INVALID_CATEGORY" },
           { status: 400 }
         );
       }
-      stackSlug = block.category;
+      stackSlug = stackSlugParsed;
       blockId = block.id;
       displayName = block.display_name;
       redirectSlug = block.slug;

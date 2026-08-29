@@ -18,7 +18,7 @@ const FAQS: QA[] = [
   },
   {
     q: "Does a paid block show up in the game?",
-    a: "Yes. Above-ground blocks hang in the free climb at the altitude they bought. Climbers see your name on the way up. If the ground rises past you, the lava swallows the sign — same burial as the leaderboard.",
+    a: "Yes. Above-ground blocks hang in the free climb at the altitude they bought. Climbers see your name on the way up. If the ground rises past you, the sign drops off the climb — same burial as the leaderboard.",
   },
   {
     q: "What does “buried” mean?",

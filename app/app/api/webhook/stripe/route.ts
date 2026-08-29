@@ -84,19 +84,26 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: "Unknown block_id" }, { status: 400 });
   }
 
-  // Season comes from the block row, not checkout metadata. Metadata used to
-  // fall back to "tech", which priced metres against a ghost season.
+  // Season comes from the block row, not checkout metadata.
   const category =
     parseSeasonSlug(blockRow.category) ??
     parseSeasonSlug(session.metadata?.category);
 
+  if (!category) {
+    console.error(
+      "[webhook/stripe] Unparseable stack on block; refusing V=0 settlement:",
+      session.id
+    );
+    return NextResponse.json(
+      { error: "Unknown stack" },
+      { status: 500 }
+    );
+  }
+
   // Step 3-5: Atomic transaction (AC-33)
   try {
-    let V = 0;
-    if (category) {
-      const activeSeason = await getOrCreateActiveSeason(category);
-      V = activeSeason.views_k;
-    }
+    const activeSeason = await getOrCreateActiveSeason(category);
+    const V = activeSeason.views_k;
 
     // Server computes metres from LIVE rate — never trusts client-supplied value
     const amountDollars = amountTotal / 100;
@@ -115,7 +122,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     // Update peak_rank (best-effort, not in the main transaction)
     try {
-      const allBlocks = await getRankedBlocks(category ?? undefined);
+      const allBlocks = await getRankedBlocks(category);
       const rank = allBlocks.findIndex((b) => b.id === blockId) + 1;
       if (rank > 0) {
         await updatePeakRank(blockId, rank);

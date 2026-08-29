@@ -326,7 +326,9 @@ export function ClimbScene({ tower, categoryLabel }: ClimbSceneProps) {
           ? `You were caught by the lava at ${(player?.peakY ?? 0).toFixed(
               0
             )} metres.`
-          : ""}
+          : signs.length > 0
+            ? `${signs.length} paid blocks hanging in the climb.`
+            : ""}
       </div>
     </div>
   );

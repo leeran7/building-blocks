@@ -135,28 +135,34 @@ export async function incrementViewsServed(
 
 /**
  * Highest paid blocks that can hang in the free climb. Burial is computed by
- * the caller with the real engine (per-category ground) — this only fetches
- * visible, paid listings.
+ * the caller with the real engine (per-category ground).
+ *
+ * Take a top-N *per stack*, not a global altitude window — leftover buried
+ * giants on one season must not starve live signs on the other 73.
  */
 export async function getClimbBillboardCandidates(
-  limit = 400
+  perStack = 8
 ): Promise<BillboardRow[]> {
-  const rows = await prisma.block.findMany({
-    where: {
-      hidden_at: null,
-      altitude: { gt: 0 },
-      category: { not: null },
-    },
-    orderBy: { altitude: "desc" },
-    take: limit,
-    select: {
-      slug: true,
-      display_name: true,
-      url: true,
-      altitude: true,
-      category: true,
-    },
-  });
+  const rows = await prisma.$queryRaw<
+    Array<{
+      slug: string;
+      display_name: string;
+      url: string;
+      altitude: number;
+      category: string;
+    }>
+  >`
+    SELECT slug, display_name, url, altitude, category
+    FROM (
+      SELECT slug, display_name, url, altitude, category,
+        ROW_NUMBER() OVER (PARTITION BY category ORDER BY altitude DESC) AS rn
+      FROM blocks
+      WHERE hidden_at IS NULL
+        AND altitude > 0
+        AND category IS NOT NULL
+    ) ranked
+    WHERE rn <= ${perStack}
+  `;
   return rows.flatMap((r) =>
     r.category
       ? [
@@ -164,7 +170,7 @@ export async function getClimbBillboardCandidates(
             slug: r.slug,
             display_name: r.display_name,
             url: r.url,
-            altitude: r.altitude,
+            altitude: Number(r.altitude),
             category: r.category,
           },
         ]

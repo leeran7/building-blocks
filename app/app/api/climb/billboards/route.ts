@@ -16,8 +16,8 @@ import { checkRateLimit, clientIp } from "../../../../src/lib/rateLimit";
 export const runtime = "nodejs";
 
 const SIGN_LIMIT = 48;
-/** Over-fetch so a mature stack's buried giants don't starve live signs. */
-const CANDIDATE_LIMIT = 400;
+/** Top paid listings per stack, before burial. */
+const PER_STACK_CANDIDATES = 8;
 const BILLBOARD_RATE_MAX = 60;
 const BILLBOARD_RATE_WINDOW_SECONDS = 60;
 
@@ -38,7 +38,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
   try {
     const [candidates, seasons] = await Promise.all([
-      getClimbBillboardCandidates(CANDIDATE_LIMIT),
+      getClimbBillboardCandidates(PER_STACK_CANDIDATES),
       getAllActiveSeasons(),
     ]);
 

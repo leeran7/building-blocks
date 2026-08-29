@@ -97,7 +97,18 @@ export default async function middleware(
 
   // Homepage is marketing — it must not feed a leftover "tech" season.
   // The climb is not in this matcher. Only stack + record pages credit views.
+  // Prefetch / RSC must not spend the session's one qualified view.
   if (!stackSlug && !recordSlug) {
+    return response;
+  }
+  if (
+    request.headers.get("Next-Router-Prefetch") ||
+    request.headers.get("Purpose") === "prefetch"
+  ) {
+    return response;
+  }
+  const fetchDest = request.headers.get("sec-fetch-dest");
+  if (fetchDest && fetchDest !== "document" && fetchDest !== "empty") {
     return response;
   }
 

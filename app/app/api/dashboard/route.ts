@@ -13,7 +13,7 @@
  *   1. getAllActiveSeasons (1 query, all categories)
  *   2. user's blocks (1 query)
  *   3. payments for user's blocks (1 query, bulk)
- *   4-9. one category leaderboard query per unique category (max 6)
+ *   4+. one category leaderboard query per unique category the user owns
  *
  * Request:
  *   Authorization: Bearer <firebase-id-token>
@@ -130,7 +130,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       paymentsByBlock.set(p.block_id, list);
     }
 
-    // Queries 4–9: one per unique category in user's blocks (max 6)
+    // Queries 4+: one per unique category in the user's blocks.
     const userCategories = Array.from(
       new Set(userBlocks.map((b) => b.category).filter((c): c is string => !!c))
     );

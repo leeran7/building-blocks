@@ -129,7 +129,9 @@ export function getCategory(value: string | null | undefined): Category {
 /** Accepts a slug or a display label; undefined only for unknown + no-fallback. */
 export function resolveCategory(value: string | null | undefined): Category | undefined {
   if (!value) return undefined;
-  return CATEGORY_BY_SLUG[value.toLowerCase()];
+  const key = value.toLowerCase();
+  if (!Object.hasOwn(CATEGORY_BY_SLUG, key)) return undefined;
+  return CATEGORY_BY_SLUG[key];
 }
 
 /**

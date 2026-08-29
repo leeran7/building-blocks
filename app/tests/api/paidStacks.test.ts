@@ -31,6 +31,14 @@ describe("GET /api/tower does not mint a tech season", () => {
   });
 });
 
+describe("billboard candidates are per stack", () => {
+  it("partitions by category so one buried giant stack cannot fill the window", () => {
+    const src = readFileSync(resolve(__dirname, "../../src/db/blocks.ts"), "utf-8");
+    expect(src).toContain("PARTITION BY category");
+    expect(src).toContain("ROW_NUMBER()");
+  });
+});
+
 describe("view counting is per paid stack", () => {
   it("credit-view requires a stack and never calls incrementSeasonViews()", () => {
     const src = readFileSync(
@@ -48,6 +56,7 @@ describe("view counting is per paid stack", () => {
     expect(src).toContain("/stack/:path*");
     expect(src).toContain("/b/:path*");
     expect(src).toContain("parsePaidStackSlug");
+    expect(src).toContain("Next-Router-Prefetch");
     expect(src).not.toContain("/play");
   });
 });
@@ -62,6 +71,8 @@ describe("webhook prices metres from the block's stack", () => {
     expect(src).toContain("parseSeasonSlug");
     expect(src).not.toMatch(/:\s*"tech"/);
     expect(src).toContain("getRankedBlocks(category");
+    expect(src).toContain("Unknown stack");
+    expect(src).toContain("status: 500");
   });
 });
 
@@ -71,7 +82,8 @@ describe("admin rollover is per stack", () => {
       resolve(__dirname, "../../app/api/admin/season-rollover/route.ts"),
       "utf-8"
     );
-    expect(src).toContain("parseSeasonSlug");
+    expect(src).toContain("parsePaidStackSlug");
+    expect(src).toContain("parseAdminRolloverSlug");
     expect(src).toContain("INVALID_CATEGORY");
     expect(src).not.toContain("rolloverSeason()");
   });

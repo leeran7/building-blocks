@@ -43,6 +43,7 @@ describe("AC-30: Server-side quote — reject tampered rate/metres/growth", () =
     const routeContent = readFileSync(routePath, "utf-8");
 
     expect(routeContent).toContain("parsePaidStackSlug");
+    expect(routeContent).toContain("parseSeasonSlug");
     expect(routeContent).toContain("INVALID_CATEGORY");
     expect(routeContent).toContain("Unknown stack");
     expect(routeContent).toContain("Block has no stack");

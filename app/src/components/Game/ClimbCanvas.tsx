@@ -149,6 +149,15 @@ export function ClimbCanvas({
       ctx.fillText(`${Math.round(fy)}m`, 4 * ui, y - 3 * ui);
     }
 
+    // Paid-stack signs behind ladders, platforms, and orbs so they cannot
+    // hide a route. Lava still draws on top so a swallowed brand is buried.
+    for (const sign of signs) {
+      const sySign = sy(sign.altitude);
+      if (sySign < -40 || sySign > height + 40) continue;
+      const sxSign = sx(signX(tower.widthM, sign.slug));
+      drawPaidSign(ctx, sxSign, sySign, pxPerM, ui, sign);
+    }
+
     // Ladders (draw under platforms so platform lips overlap the rails).
     for (const { ladder: l } of laddersNearY(tower, yLow, yHigh)) {
       const yTop = sy(l.y1);
@@ -206,15 +215,6 @@ export function ClimbCanvas({
       // contact — dim it so that doesn't read as a bug.
       const cooling = player ? cooldownRemaining(player, pu.type, state.tick) > 0 : false;
       drawPowerUpOrb(ctx, ox, oy, pxPerM, ui, pu, state.tick, reducedMotion, cooling);
-    }
-
-    // Paid-stack signs — hanging at the metres they bought, under the lava so
-    // a swallowed brand is visibly buried (same metaphor as the paid ground line).
-    for (const sign of signs) {
-      const sySign = sy(sign.altitude);
-      if (sySign < -40 || sySign > height + 40) continue;
-      const sxSign = sx(signX(tower.widthM, sign.slug));
-      drawPaidSign(ctx, sxSign, sySign, pxPerM, ui, sign);
     }
 
     // Rising hazard (lava) — a filled band from the hazard line downward. While
@@ -356,7 +356,11 @@ export function ClimbCanvas({
         display: "block",
         touchAction: "none",
       }}
-      aria-label="Climb view"
+      aria-label={
+        signs.length > 0
+          ? `Climb view. ${signs.length} paid blocks hanging.`
+          : "Climb view"
+      }
       role="img"
     />
   );
