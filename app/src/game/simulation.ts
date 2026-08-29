@@ -62,7 +62,7 @@ import {
   pruneActive,
 } from "./powerups";
 
-const EPS = 0.01;
+const EPS = 0.02; // Increased from 0.01 to prevent ground fall-through due to floating point precision
 
 /** Floors of power-ups kept materialized above the highest climber. */
 const POWER_UP_LOOKAHEAD_FLOORS = 6;
@@ -167,11 +167,13 @@ function landingPlatform(
   prevY: number,
   newY: number
 ): Platform | null {
+  // Slightly larger tolerance to catch landings more reliably
+  const LANDING_EPS = EPS * 1.5;
   let best: Platform | null = null;
   for (const p of platformsNearY(tower, Math.min(newY, prevY), Math.max(newY, prevY))) {
     if (x < p.x0 - EPS || x > p.x1 + EPS) continue;
     // Feet moved down through the surface: newY <= p.y <= prevY.
-    if (p.y <= prevY + EPS && p.y >= newY - EPS) {
+    if (p.y <= prevY + LANDING_EPS && p.y >= newY - LANDING_EPS) {
       if (!best || p.y > best.y) best = p;
     }
   }
@@ -180,9 +182,11 @@ function landingPlatform(
 
 /** Is there solid ground supporting feet at (x, y)? */
 function isSupported(tower: TowerSpec, x: number, y: number): boolean {
+  // Slightly larger tolerance for ground checks to prevent fall-through
+  const GROUND_EPS = EPS * 1.5;
   for (const p of platformsNearY(tower, y, y)) {
     if (x < p.x0 - EPS || x > p.x1 + EPS) continue;
-    if (Math.abs(p.y - y) <= EPS) return true;
+    if (Math.abs(p.y - y) <= GROUND_EPS) return true;
   }
   return false;
 }
@@ -194,11 +198,13 @@ function grabbableLadder(
   y: number,
   climbY: number
 ): { ix: number; ladder: Ladder } | null {
+  const BOUNDARY_BUFFER = 0.1; // Prevent immediate re-grab at ladder boundaries
   for (const { ix, ladder: l } of laddersNearY(tower, y, y)) {
     if (Math.abs(x - l.x) > tower.ladderGrabRadius) continue;
     if (y < l.y0 - EPS || y > l.y1 + EPS) continue;
-    if (climbY > 0 && l.y1 > y + EPS) return { ix, ladder: l }; // room to climb up
-    if (climbY < 0 && l.y0 < y - EPS) return { ix, ladder: l }; // room to climb down
+    // Require some distance from boundaries to prevent getting stuck when stepping off
+    if (climbY > 0 && l.y1 > y + BOUNDARY_BUFFER) return { ix, ladder: l }; // room to climb up
+    if (climbY < 0 && l.y0 < y - BOUNDARY_BUFFER) return { ix, ladder: l }; // room to climb down
   }
   return null;
 }
