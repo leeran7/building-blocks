@@ -59,7 +59,7 @@ export function Footer() {
       </div>
 
       {/* Links */}
-      <div className="max-w-6xl mx-auto px-4 py-12 grid grid-cols-2 md:grid-cols-4 gap-8">
+      <div className="max-w-6xl mx-auto px-4 py-12 grid grid-cols-2 md:grid-cols-5 gap-8">
         <div className="col-span-2 md:col-span-1">
           <div className="flex items-center gap-2.5">
             <StackMark className="h-6 w-6" />
@@ -82,6 +82,22 @@ export function Footer() {
                 </Link>
               </li>
             ))}
+          </ul>
+        </nav>
+
+        <nav aria-label="Free climb">
+          <p className={COL_HEAD}>Free climb</p>
+          <ul className="space-y-1">
+            <li>
+              <Link href="/play" className={LINK}>
+                Play
+              </Link>
+            </li>
+            <li>
+              <Link href="/climb" className={LINK}>
+                Leaderboard
+              </Link>
+            </li>
           </ul>
         </nav>
 

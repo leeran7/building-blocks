@@ -1,22 +1,19 @@
 /**
- * Section switcher shown on a category's pages. Every category has TWO sections:
- *   - "Skill climb" (free) — rank by how high you climb the endless game.
- *   - "Paid stack"  — the leaderboard where you buy altitude.
- * This makes both reachable from either side.
+ * Section switcher on paid category pages. The free climb is a separate stack —
+ * link out to /climb and /play instead of a per-category skill leaderboard.
  */
 
 import Link from "next/link";
 
-export type CategorySection = "climb" | "tower";
+export type CategorySection = "tower";
 
 export function CategorySectionTabs({
-  climbSlug,
   towerSlug,
-  active,
 }: {
-  climbSlug: string;
   towerSlug: string;
-  active: CategorySection;
+  /** @deprecated Free climb is no longer per-category */
+  climbSlug?: string;
+  active?: CategorySection;
 }) {
   return (
     <div
@@ -24,8 +21,8 @@ export function CategorySectionTabs({
       role="tablist"
       aria-label="Category sections"
     >
-      <Tab href={`/climb/${climbSlug}`} label="Skill climb" active={active === "climb"} />
-      <Tab href={`/stack/${towerSlug}`} label="Paid stack" active={active === "tower"} />
+      <Tab href={`/stack/${towerSlug}`} label="Paid stack" active />
+      <Tab href="/climb" label="Free climb" active={false} />
     </div>
   );
 }

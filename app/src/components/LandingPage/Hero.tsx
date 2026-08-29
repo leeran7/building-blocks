@@ -214,39 +214,39 @@ export function Hero({ stats }: { stats: HeroStats }) {
             style={{ animationDelay: "210ms" }}
           >
             <Link
-              href="/auth/signup"
+              href="/play"
               className="group w-full sm:w-auto bg-signal text-void font-semibold rounded-full px-7 py-3.5 text-base inline-flex items-center justify-center gap-2 shadow-signal transition-[filter,transform] hover:brightness-110 active:scale-[0.98] focus-visible:outline-none min-h-[52px]"
             >
-              Enter the arena
+              Play free climb
               <span className="transition-transform group-hover:translate-x-0.5">
                 →
               </span>
             </Link>
             <Link
-              href="/#towers"
+              href="/auth/signup"
               className="w-full sm:w-auto rounded-full border border-border-strong bg-surface/60 px-7 py-3.5 text-base font-medium text-text-primary inline-flex items-center justify-center hover:border-signal/50 hover:bg-surface transition-colors min-h-[52px]"
             >
-              Browse stacks
+              Enter paid stacks
             </Link>
           </div>
 
-          {/* instrument stat strip — split by tier (paid dominant, free muted) */}
+          {/* instrument stat strip — free + paid tiers */}
           <div
             className="reveal mt-8 space-y-2.5 max-w-md mx-auto md:mx-0"
             style={{ animationDelay: "280ms" }}
           >
-            {/* PAID — the prominent tier */}
+            {/* FREE — its own stack, prominent entry point */}
             <div>
               <div className="flex items-center gap-2 mb-1.5 justify-center md:justify-start">
                 <span className="rounded-full bg-signal text-void px-2 py-0.5 font-mono text-[9px] font-bold uppercase tracking-[0.12em] shadow-signal">
-                  Paid
+                  Free
                 </span>
                 <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-text-muted">
-                  real stakes
+                  one leaderboard · <Link href="/#free" className="hover:text-signal">see standings</Link>
                 </span>
               </div>
               <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-signal/30 bg-border-subtle">
-                {paidStats.map((s) => (
+                {freeStats.map((s) => (
                   <div key={s.label} className="bg-surface px-3 py-2.5 text-center md:text-left">
                     <dt className="font-mono text-[10px] uppercase tracking-[0.12em] text-text-muted">
                       {s.label}
@@ -259,18 +259,18 @@ export function Hero({ stats }: { stats: HeroStats }) {
               </dl>
             </div>
 
-            {/* FREE — the muted tier */}
+            {/* PAID — category stacks */}
             <div>
               <div className="flex items-center gap-2 mb-1.5 justify-center md:justify-start">
                 <span className="rounded-full border border-border-strong px-2 py-0.5 font-mono text-[9px] uppercase tracking-[0.12em] text-text-secondary">
-                  Free
+                  Paid
                 </span>
                 <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-text-muted">
-                  warm-up game
+                  74 category stacks
                 </span>
               </div>
               <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-border-subtle bg-border-subtle">
-                {freeStats.map((s) => (
+                {paidStats.map((s) => (
                   <div key={s.label} className="bg-surface px-3 py-2 text-center md:text-left">
                     <dt className="font-mono text-[10px] uppercase tracking-[0.12em] text-text-muted">
                       {s.label}

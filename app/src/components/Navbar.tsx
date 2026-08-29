@@ -69,8 +69,11 @@ export function Navbar({ contextLabel, contextDot }: NavbarProps) {
       </div>
 
       <div className="flex items-center gap-1 sm:gap-2">
+        <Link href="/#free" className={`${GHOST} hidden sm:inline-flex`}>
+          Free climb
+        </Link>
         <Link href="/#towers" className={`${GHOST} hidden sm:inline-flex`}>
-          Browse
+          Paid stacks
         </Link>
         {loading ? (
           // Stable placeholder — no flash of wrong auth state
