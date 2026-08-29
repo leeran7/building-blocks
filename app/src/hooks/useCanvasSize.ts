@@ -89,7 +89,14 @@ const BASE_SIZE: CanvasSize = { width: 360, height: 640 };
  * drags the touch controls overlaid on it off screen.
  */
 const MIN_WIDTH = 120;
-const MAX_WIDTH = 2560;
+/**
+ * Upper bound only. Real size is min(available box, this cap). Layout chrome
+ * above the canvas is what actually limits a laptop or phone — do not put a
+ * "comfortable desktop" width here (a previous 560px cap left the game looking
+ * like a phone column on a monitor that had room to spare).
+ */
+export const MAX_CANVAS_WIDTH = 2560;
+const MAX_WIDTH = MAX_CANVAS_WIDTH;
 /** Keeps the canvas off the very bottom edge of the viewport. */
 const EDGE_MARGIN = 12;
 

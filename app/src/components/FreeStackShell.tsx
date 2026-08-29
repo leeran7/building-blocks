@@ -18,24 +18,29 @@ export function FreeStackShell({
   title: string;
   meta?: ReactNode;
   /**
-   * Collapse the title and meta on phones, keeping only the section tabs. The
-   * game page needs that vertical space: the canvas sizes itself from whatever
-   * height is left below the header (see useCanvasSize).
+   * Collapse the title and meta on every viewport, keeping only the section
+   * tabs. The game page needs that vertical space: the canvas sizes itself from
+   * whatever height is left below the header (see useCanvasSize), and restoring
+   * the copy on a "tall enough" laptop made the play area smaller than on a phone.
    */
   compactHeader?: boolean;
   children: ReactNode;
 }) {
   return (
-    <div className="min-h-screen bg-void flex flex-col">
+    <div
+      className={
+        compactHeader
+          ? "h-dvh bg-void flex flex-col overflow-hidden"
+          : "min-h-screen bg-void flex flex-col"
+      }
+    >
       <Navbar contextLabel="Free climb" />
 
-      <div className="border-b border-border-subtle">
+      <div className="border-b border-border-subtle shrink-0">
         <div
           className={
             "max-w-2xl mx-auto w-full px-4 " +
-            (compactHeader
-              ? "pt-3 pb-3 [@media(min-width:640px)_and_(min-height:560px)]:pt-5 [@media(min-width:640px)_and_(min-height:560px)]:pb-4"
-              : "pt-5 pb-4")
+            (compactHeader ? "py-2" : "pt-5 pb-4")
           }
         >
           <div
@@ -52,17 +57,11 @@ export function FreeStackShell({
           </div>
 
           {/* sr-only rather than hidden: the heading stays in the document for
-              assistive tech and search, it just takes no room on a phone.
-              Restored only when the viewport is both wide AND tall enough — a
-              phone in landscape clears `sm` on width while having the least
-              height to spare, which is exactly when the game needs it most. */}
-          <div
-            className={
-              compactHeader
-                ? "sr-only [@media(min-width:640px)_and_(min-height:560px)]:not-sr-only [@media(min-width:640px)_and_(min-height:560px)]:mt-5"
-                : "mt-5"
-            }
-          >
+              assistive tech and search, it just takes no room. Compact mode is
+              the play page — restoring the title once the viewport cleared
+              560px tall stole the height budget the canvas sizes itself from,
+              so a laptop rendered a smaller game than a phone. */}
+          <div className={compactHeader ? "sr-only" : "mt-5"}>
             <p className="text-xs uppercase tracking-[0.2em] text-accent font-medium">
               Free stack · no payment
             </p>
@@ -71,25 +70,16 @@ export function FreeStackShell({
             </h1>
           </div>
           {meta && (
-            <div
-              className={
-                compactHeader
-                  ? "hidden [@media(min-width:640px)_and_(min-height:560px)]:block"
-                  : undefined
-              }
-            >
-              {meta}
-            </div>
+            <div className={compactHeader ? "hidden" : undefined}>{meta}</div>
           )}
         </div>
       </div>
 
       <div
         className={
-          "w-full px-4 flex-1 overflow-x-hidden " +
-          (compactHeader
-            ? "py-3 [@media(min-width:640px)_and_(min-height:560px)]:py-6"
-            : "py-6")
+          compactHeader
+            ? "w-full flex-1 min-h-0 overflow-hidden px-2 pt-2 pb-0"
+            : "w-full px-4 flex-1 overflow-x-hidden py-6"
         }
       >
         {children}

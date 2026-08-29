@@ -168,7 +168,7 @@ export function ClimbScene({ tower, categoryLabel }: ClimbSceneProps) {
   }, [user, token, postRun]);
 
   return (
-    <div className="flex flex-col items-center gap-4 w-full">
+    <div className="flex flex-col items-center gap-2 w-full h-full min-h-0">
       {savedBanner?.saved && (
         <div
           className="w-full rounded-xl border border-signal/40 bg-signal/[0.06] px-4 py-2.5 text-center"

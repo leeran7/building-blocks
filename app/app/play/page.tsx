@@ -6,10 +6,8 @@
  */
 
 import type { Metadata } from "next";
-import Link from "next/link";
 import { FreeStackShell } from "../../src/components/FreeStackShell";
 import { ClimbScene } from "../../src/components/Game/ClimbScene";
-import { ClimbControlsGuide } from "../../src/components/Game/ClimbControlsGuide";
 import { buildFreeTower } from "../../src/game/freeStack";
 
 export const metadata: Metadata = {
@@ -22,28 +20,13 @@ export default function FreePlayPage() {
   const tower = buildFreeTower();
 
   return (
-    <FreeStackShell
-      section="play"
-      title="Play the climb"
-      compactHeader
-      meta={
-        <p className="text-text-secondary text-sm mt-3 max-w-lg">
-          Endless climb — go as high as you can. Your peak height is your score on
-          the{" "}
-          <Link href="/climb" className="text-accent underline underline-offset-2">
-            free leaderboard
-          </Link>
-          .
-        </p>
-      }
-    >
-      {/* The guide sits below the game: above it, it pushed the canvas down and
-          cost it the vertical space it sizes itself from. */}
-      <div className="flex flex-col items-center gap-6">
+    <FreeStackShell section="play" title="Play the climb" compactHeader>
+      {/* Controls live in the lobby overlay. A guide below the canvas would
+          either push it off-screen or sit in a scroll region the game page
+          no longer has — compactHeader locks the stage to the remaining
+          viewport so the canvas can grow. */}
+      <div className="h-full w-full flex flex-col items-center">
         <ClimbScene tower={tower} categoryLabel="Free climb" />
-        <div className="w-full max-w-lg">
-          <ClimbControlsGuide />
-        </div>
       </div>
     </FreeStackShell>
   );
