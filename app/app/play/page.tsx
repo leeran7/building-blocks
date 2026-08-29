@@ -1,13 +1,14 @@
 /**
  * Free climb play page — /play
  *
- * Full-viewport play surface. Scores feed the single /climb leaderboard —
+ * Full-phone play surface. Scores feed the single /climb leaderboard —
  * not any paid category stack.
  */
 
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import Link from "next/link";
 import { ClimbScene } from "../../src/components/Game/ClimbScene";
+import { PlayViewport } from "../../src/components/Game/PlayViewport";
 import { buildFreeTower } from "../../src/game/freeStack";
 
 export const metadata: Metadata = {
@@ -16,11 +17,20 @@ export const metadata: Metadata = {
     "Endless free climb — go as high as you can before the rising lava catches you. Your peak height ranks on the free leaderboard.",
 };
 
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  viewportFit: "cover",
+  themeColor: "#0a0a0c",
+};
+
 export default function FreePlayPage() {
   const tower = buildFreeTower();
 
   return (
-    <div className="fixed inset-0 overflow-hidden bg-void">
+    <PlayViewport>
       <h1 className="sr-only">Play the climb</h1>
       <ClimbScene
         tower={tower}
@@ -34,6 +44,6 @@ export default function FreePlayPage() {
           </Link>
         }
       />
-    </div>
+    </PlayViewport>
   );
 }

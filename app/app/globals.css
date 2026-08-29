@@ -44,6 +44,37 @@ html {
   scrollbar-gutter: stable;
 }
 
+/* Play page: lock the document to the phone screen so the canvas can fill it. */
+html.play-fullscreen {
+  scrollbar-gutter: auto;
+  height: 100%;
+  height: 100dvh;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+html.play-fullscreen body {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  height: 100dvh;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+.play-viewport {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  height: -webkit-fill-available;
+  height: 100dvh;
+  overflow: hidden;
+  background: var(--color-void);
+  touch-action: manipulation;
+}
+
 body {
   background-color: var(--color-void);
   color: var(--color-text-primary);

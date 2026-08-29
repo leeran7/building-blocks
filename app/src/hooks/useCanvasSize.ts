@@ -24,9 +24,16 @@ export function useCanvasSize(
     const el = wrapperRef.current;
     if (!el) return;
     const parent = el.parentElement ?? el;
+    const vv = window.visualViewport;
+    const parentW = finite(parent.clientWidth);
+    const parentH = finite(parent.clientHeight);
+    const visW = finite(vv?.width ?? 0) || finite(window.innerWidth);
+    const visH = finite(vv?.height ?? 0) || finite(window.innerHeight);
+    // Prefer the parent box, but never paint past the phone's visible screen
+    // (mobile Safari's layout viewport is taller than the URL-bar-visible area).
     const next = fitCanvas({
-      availableWidth: parent.clientWidth,
-      availableHeight: parent.clientHeight,
+      availableWidth: Math.min(parentW || visW, visW),
+      availableHeight: Math.min(parentH || visH, visH),
       maxWidth,
     });
     // Bail out when nothing moved: the ResizeObserver below also fires for the
@@ -47,12 +54,14 @@ export function useCanvasSize(
     window.addEventListener("orientationchange", measure);
     // Mobile browser chrome collapsing changes the usable height.
     window.visualViewport?.addEventListener("resize", measure);
+    window.visualViewport?.addEventListener("scroll", measure);
 
     return () => {
       observer.disconnect();
       window.removeEventListener("resize", measure);
       window.removeEventListener("orientationchange", measure);
       window.visualViewport?.removeEventListener("resize", measure);
+      window.visualViewport?.removeEventListener("scroll", measure);
     };
   }, [measure, wrapperRef]);
 

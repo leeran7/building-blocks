@@ -14,6 +14,7 @@ import { useEffect, useRef } from "react";
 import dynamic from "next/dynamic";
 import { resolveGameCategory } from "../../game/categories";
 import { buildTower } from "../../game/towers";
+import { PlayViewport } from "../Game/PlayViewport";
 
 const ClimbScene = dynamic(
   () => import("../Game/ClimbScene").then((m) => ({ default: m.ClimbScene })),
@@ -86,19 +87,21 @@ export function GameOverlay({
       aria-label={`${cat.label} climb`}
       tabIndex={-1}
     >
-      <ClimbScene
-        tower={tower}
-        categoryLabel={cat.label}
-        leading={
-          <button
-            type="button"
-            onClick={onClose}
-            className="inline-flex min-h-[32px] items-center rounded-full px-2.5 font-mono text-[10px] uppercase tracking-[0.12em] text-text-secondary hover:text-signal transition-colors focus-visible:outline-none focus-visible:text-signal"
-          >
-            Close ✕
-          </button>
-        }
-      />
+      <PlayViewport>
+        <ClimbScene
+          tower={tower}
+          categoryLabel={cat.label}
+          leading={
+            <button
+              type="button"
+              onClick={onClose}
+              className="inline-flex min-h-[32px] items-center rounded-full px-2.5 font-mono text-[10px] uppercase tracking-[0.12em] text-text-secondary hover:text-signal transition-colors focus-visible:outline-none focus-visible:text-signal"
+            >
+              Close ✕
+            </button>
+          }
+        />
+      </PlayViewport>
     </div>
   );
 }

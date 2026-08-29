@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Bricolage_Grotesque, Hanken_Grotesk, Space_Mono } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "../src/contexts/AuthContext";
@@ -36,6 +36,13 @@ const mono = Space_Mono({
 
 // Localhost in dev, the prod domain in production (see resolveBaseUrl).
 const BASE_URL = resolveBaseUrl();
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  themeColor: "#0a0a0c",
+};
 
 export async function generateMetadata(): Promise<Metadata> {
   let topBlockId = "";
@@ -84,6 +91,11 @@ export async function generateMetadata(): Promise<Metadata> {
       title: "Doomstack — Altitude is permanent",
       description: "Your altitude is permanent. The ground rises instead.",
       images: [ogUrl],
+    },
+    appleWebApp: {
+      capable: true,
+      statusBarStyle: "black-translucent",
+      title: "Doomstack",
     },
   };
 }

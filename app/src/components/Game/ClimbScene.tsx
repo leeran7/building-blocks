@@ -10,6 +10,7 @@
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -64,8 +65,10 @@ export function ClimbScene({ tower, categoryLabel, leading }: ClimbSceneProps) {
   const { state, start, finished, setTouch } = useClimb({ tower, seed });
   // Fills the parent: the play page and game overlay are viewport-sized, and
   // overlays (HUD, touch controls) sit on the canvas rather than stealing height.
+  const rootRef = useRef<HTMLDivElement>(null);
   const canvasBoxRef = useRef<HTMLDivElement>(null);
   const canvasSize = useCanvasSize(canvasBoxRef);
+  const safeBottom = useSafeAreaBottom();
   const { user, token } = useAuth();
   const [posted, setPosted] = useState(false);
   const [saveInfo, setSaveInfo] = useState<SaveInfo | null>(null);
@@ -119,6 +122,7 @@ export function ClimbScene({ tower, categoryLabel, leading }: ClimbSceneProps) {
     setPosted(false);
     setSaveInfo(null);
     setSavedBanner(null);
+    tryEnterFullscreen(rootRef.current);
     start();
   }
 
@@ -175,14 +179,16 @@ export function ClimbScene({ tower, categoryLabel, leading }: ClimbSceneProps) {
   }, []);
 
   return (
-    <div className="relative h-full w-full overflow-hidden bg-void">
+    <div ref={rootRef} className="relative h-full w-full min-h-0 min-w-0 overflow-hidden bg-void">
       <div ref={canvasBoxRef} className="absolute inset-0">
         <ClimbCanvas
           state={state}
           reducedMotion={reducedMotion}
           width={canvasSize.width}
           height={canvasSize.height}
-          bottomInset={touchDevice ? TOUCH_CONTROLS_INSET : 0}
+          bottomInset={
+            touchDevice ? TOUCH_CONTROLS_INSET + safeBottom : 0
+          }
         />
 
         {savedBanner?.saved && (
@@ -328,14 +334,6 @@ export function ClimbScene({ tower, categoryLabel, leading }: ClimbSceneProps) {
   );
 }
 
-function Overlay({ children }: { children: ReactNode }) {
-  return (
-    <div className="absolute inset-0 flex flex-col items-center justify-center overflow-y-auto bg-void/70 backdrop-blur-sm p-4 text-center">
-      {children}
-    </div>
-  );
-}
-
 function StartButton({ onClick, label }: { onClick: () => void; label: string }) {
   return (
     <button
@@ -346,4 +344,51 @@ function StartButton({ onClick, label }: { onClick: () => void; label: string })
       {label}
     </button>
   );
+}
+
+function Overlay({ children }: { children: ReactNode }) {
+  return (
+    <div className="absolute inset-0 flex flex-col items-center justify-center overflow-y-auto bg-void/70 backdrop-blur-sm px-4 pt-[max(1rem,env(safe-area-inset-top))] pb-[max(1rem,env(safe-area-inset-bottom))] text-center">
+      {children}
+    </div>
+  );
+}
+
+/** Home-indicator inset, so touch controls stay above it on a phone. */
+function useSafeAreaBottom(): number {
+  const [bottom, setBottom] = useState(0);
+  useLayoutEffect(() => {
+    const probe = document.createElement("div");
+    probe.style.paddingBottom = "env(safe-area-inset-bottom, 0px)";
+    probe.style.position = "absolute";
+    probe.style.visibility = "hidden";
+    document.body.appendChild(probe);
+    const value = parseFloat(getComputedStyle(probe).paddingBottom) || 0;
+    document.body.removeChild(probe);
+    setBottom(value);
+  }, []);
+  return bottom;
+}
+
+function tryEnterFullscreen(el: HTMLElement | null) {
+  if (!el || document.fullscreenElement) return;
+  const node = el as HTMLElement & {
+    webkitRequestFullscreen?: () => Promise<void> | void;
+    webkitRequestFullScreen?: () => Promise<void> | void;
+  };
+  const req =
+    node.requestFullscreen?.bind(node) ??
+    node.webkitRequestFullscreen?.bind(node) ??
+    node.webkitRequestFullScreen?.bind(node);
+  if (!req) return;
+  try {
+    const result = req();
+    if (result && typeof result.catch === "function") {
+      result.catch(() => {
+        /* iOS often denies this; visual-viewport fill still covers the screen */
+      });
+    }
+  } catch {
+    /* unsupported */
+  }
 }

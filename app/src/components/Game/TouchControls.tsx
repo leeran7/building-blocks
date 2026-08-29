@@ -62,8 +62,11 @@ export function TouchControls({
   return (
     <div
       role="group"
-      className="absolute inset-x-0 bottom-0 z-10 select-none p-2"
-      style={{ touchAction: "none" }}
+      className="absolute inset-x-0 bottom-0 z-10 select-none px-2 pt-2"
+      style={{
+        touchAction: "none",
+        paddingBottom: "max(8px, env(safe-area-inset-bottom))",
+      }}
       aria-label="Touch game controls"
     >
       <div className="grid grid-cols-4 gap-2">
