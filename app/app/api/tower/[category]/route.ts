@@ -41,11 +41,12 @@ const LEADERBOARD_LIMIT = 100;
 
 export async function GET(
   _request: NextRequest,
-  { params }: { params: { category: string } }
+  { params }: { params: Promise<{ category: string }> }
 ): Promise<NextResponse> {
+  const { category: categoryParam } = await params;
   // Category is a free-form slug now — every subcategory has its own tower. Only
   // guard the slug shape (a-z, 0-9, dashes) to keep it well-formed.
-  const category = params.category.toLowerCase();
+  const category = categoryParam.toLowerCase();
 
   // Only subcategories get towers (broad/legacy slugs are not valid).
   if (!isGameCategory(category)) {

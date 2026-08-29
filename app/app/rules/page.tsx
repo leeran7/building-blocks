@@ -7,6 +7,7 @@
  * MAX_GROWTH=8, DOUBLE_EVERY_K, 500, 90-day season).
  */
 
+import Link from "next/link";
 import { Navbar } from "../../src/components/Navbar";
 
 export const metadata = {
@@ -199,12 +200,12 @@ export default function RulesPage() {
         </section>
 
         <div className="border-t border-border-subtle pt-6">
-          <a
+          <Link
             href="/"
             className="text-text-muted hover:text-text-primary text-sm transition-colors"
           >
             ← Back to Stack
-          </a>
+          </Link>
         </div>
       </div>
     </main>

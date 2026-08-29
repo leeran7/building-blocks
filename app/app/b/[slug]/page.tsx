@@ -24,13 +24,9 @@ import { Navbar } from "../../../src/components/Navbar";
 
 const BASE_URL = resolveBaseUrl();
 
-interface RecordPageProps {
-  params: { slug: string };
-  searchParams: { payment?: string };
-}
-
 export async function generateMetadata({ params }: RecordPageProps) {
-  const block = await getBlockBySlug(params.slug);
+  const { slug } = await params;
+  const block = await getBlockBySlug(slug);
   if (!block) {
     return { title: "Block not found — Stack" };
   }
@@ -44,7 +40,9 @@ export default async function RecordPage({
   params,
   searchParams,
 }: RecordPageProps) {
-  const block = await getBlockBySlug(params.slug);
+  const { slug } = await params;
+  const sp = await searchParams;
+  const block = await getBlockBySlug(slug);
 
   // Return 404 only if the slug truly doesn't exist (AC-37: always return 200 for real blocks)
   if (!block) {
@@ -57,7 +55,7 @@ export default async function RecordPage({
     // V already falls back to 0 below when there is no active season.
     seasonSlug ? getActiveSeason(seasonSlug) : Promise.resolve(null),
     getTotalSpend(block.id),
-    getBlockSeasonHistory(params.slug),
+    getBlockSeasonHistory(slug),
   ]);
 
   const V = activeSeason?.views_k ?? 0;
@@ -66,7 +64,7 @@ export default async function RecordPage({
 
   const seasonsAppeared = new Set(seasonHistory.map((h) => h.season_id)).size;
 
-  const showSharePost = searchParams.payment === "success";
+  const showSharePost = sp.payment === "success";
   const cat = recordTheme(block.category);
 
   return (
@@ -123,4 +121,9 @@ function recordTheme(slug: string | null | undefined): Category {
     return { ...base, label: resolveGameCategory(slug).label };
   }
   return base;
+}
+
+interface RecordPageProps {
+  params: Promise<{ slug: string }>;
+  searchParams: Promise<{ payment?: string }>;
 }

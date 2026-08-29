@@ -18,12 +18,9 @@ import { isGameCategory, resolveGameCategory } from "../../../src/game/categorie
 
 const BASE_URL = resolveBaseUrl();
 
-interface TowerPageProps {
-  params: { category: string };
-}
-
 export async function generateMetadata({ params }: TowerPageProps) {
-  const cat = resolveGameCategory(params.category.toLowerCase());
+  const { category } = await params;
+  const cat = resolveGameCategory(category.toLowerCase());
   return {
     title: `${cat.label} Stack — Stack`,
     description: `The ${cat.label} leaderboard. Buy altitude, survive the rise, outlast everyone.`,
@@ -50,7 +47,8 @@ const EMPTY_TOWER_DATA: TowerData = {
 };
 
 export default async function CategoryTowerPage({ params }: TowerPageProps) {
-  const slug = params.category.toLowerCase();
+  const { category: categoryParam } = await params;
+  const slug = categoryParam.toLowerCase();
   // Only subcategories get towers. Broad/legacy slugs (tech, gaming, …) or
   // unknown slugs route to the category index instead.
   if (!isGameCategory(slug)) {
@@ -118,4 +116,8 @@ function Stat({ label, value, danger }: { label: string; value: string; danger?:
       </dd>
     </div>
   );
+}
+
+interface TowerPageProps {
+  params: Promise<{ category: string }>;
 }

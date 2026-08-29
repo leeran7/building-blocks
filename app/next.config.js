@@ -1,5 +1,16 @@
 /** @type {import('next').NextConfig} */
 const path = require("path");
+const { createRequire } = require("module");
+
+// Node's package "exports" block require.resolve of dist/esm2017/index.js.
+// Resolve the package root, then join the browser ESM file the webpack alias
+// needs (Next SWC cannot parse undici private fields in the Node ESM entry).
+function resolveFirebaseAuthBrowserEsm() {
+  const firebaseRequire = createRequire(require.resolve("firebase/package.json"));
+  const authRoot = path.dirname(firebaseRequire.resolve("@firebase/auth/package.json"));
+  return path.join(authRoot, "dist/esm2017/index.js");
+}
+
 const securityHeaders = [
   // SAMEORIGIN (not DENY): Firebase's auth handler, proxied onto our own domain
   // via the /__/auth rewrites below, frames /__/auth/iframe same-origin.
@@ -33,10 +44,7 @@ const nextConfig = {
     // Alias to browser ESM bundle in BOTH server and client webpack configs.
     config.resolve.alias = {
       ...config.resolve.alias,
-      "@firebase/auth$": path.resolve(
-        __dirname,
-        "node_modules/.pnpm/node_modules/@firebase/auth/dist/esm2017/index.js"
-      ),
+      "@firebase/auth$": resolveFirebaseAuthBrowserEsm(),
     };
     return config;
   },
