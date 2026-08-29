@@ -14,7 +14,7 @@
  */
 
 import { useEffect, useRef } from "react";
-import { MatchState, PowerUpPickup, TICK_HZ } from "../../game/types";
+import { MatchState, PowerUpPickup } from "../../game/types";
 import {
   platformsNearY,
   laddersNearY,
@@ -54,8 +54,6 @@ export interface ClimbCanvasProps {
   width?: number;
   height?: number;
   reducedMotion?: boolean;
-  /** Show the touch wording on the banked-power-up pill instead of the key. */
-  touchHint?: boolean;
   /**
    * Height in px of UI covering the bottom of the canvas (the touch controls).
    * The camera keeps the climber clear of it, so it is never hidden behind a
@@ -71,7 +69,6 @@ export function ClimbCanvas({
   height = BASE_HEIGHT,
   reducedMotion = false,
   bottomInset = 0,
-  touchHint = false,
 }: ClimbCanvasProps) {
   const ref = useRef<HTMLCanvasElement>(null);
 
@@ -192,7 +189,10 @@ export function ClimbCanvas({
         }
         continue;
       }
-      drawPowerUpOrb(ctx, ox, oy, pxPerM, ui, pu, state.tick, reducedMotion);
+      // An orb whose type is still cooling down for this player is inert on
+      // contact — dim it so that doesn't read as a bug.
+      const cooling = player ? cooldownRemaining(player, pu.type, state.tick) > 0 : false;
+      drawPowerUpOrb(ctx, ox, oy, pxPerM, ui, pu, state.tick, reducedMotion, cooling);
     }
 
     // Rising hazard (lava) — a filled band from the hazard line downward.
@@ -281,56 +281,6 @@ export function ClimbCanvas({
     ctx.fillText(`lava ${state.hazardY.toFixed(1)}m`, width - 10 * ui, 22 * ui);
     ctx.textAlign = "left";
 
-    // Banked power-up — a pill under the HUD showing what is ready and the key
-    // that spends it. Sits in-scene because that decision is made mid-climb.
-    if (player?.heldPowerUp) {
-      const spec = POWER_UP_SPECS[player.heldPowerUp];
-      const label = `${spec.glyph} ${spec.label.toUpperCase()}`;
-      const cooling = cooldownRemaining(player, player.heldPowerUp, state.tick);
-      const hint =
-        cooling > 0
-          ? `${(cooling / TICK_HZ).toFixed(1)}S`
-          : touchHint
-          ? "TAP USE"
-          : "PRESS E";
-      ctx.font = `bold ${Math.round(10 * ui)}px monospace`;
-      const labelW = ctx.measureText(label).width;
-      ctx.font = `${Math.round(9 * ui)}px monospace`;
-      const hintW = ctx.measureText(hint).width;
-      const padX = 8 * ui;
-      const gap = 8 * ui;
-      const pillW = padX * 2 + labelW + gap + hintW;
-      const pillH = 20 * ui;
-      const pillX = width - pillW - 8 * ui;
-      const pillY = hudH + 8 * ui;
-
-      // Ready-to-use shimmer, so a banked power-up keeps drawing the eye. A
-      // recharging one sits still, matching its inert state.
-      const pulse =
-        reducedMotion || cooling > 0
-          ? 0.6
-          : 0.5 + 0.5 * Math.sin(state.tick * 0.14);
-      ctx.save();
-      roundRect(ctx, pillX, pillY, pillW, pillH, 6 * ui);
-      ctx.fillStyle = VOID;
-      ctx.globalAlpha = 0.88;
-      ctx.fill();
-      ctx.globalAlpha = 0.5 + 0.5 * pulse;
-      ctx.strokeStyle = spec.color;
-      ctx.lineWidth = 1.5 * ui;
-      ctx.stroke();
-      ctx.restore();
-
-      ctx.fillStyle = spec.color;
-      ctx.font = `bold ${Math.round(10 * ui)}px monospace`;
-      ctx.textBaseline = "middle";
-      ctx.fillText(label, pillX + padX, pillY + pillH / 2);
-      ctx.fillStyle = TEXT_SECONDARY;
-      ctx.font = `${Math.round(9 * ui)}px monospace`;
-      ctx.fillText(hint, pillX + padX + labelW + gap, pillY + pillH / 2);
-      ctx.textBaseline = "alphabetic";
-    }
-
     // Pickup flash — a short centred banner naming what was just grabbed.
     if (
       player?.lastPickupTick !== null &&
@@ -357,7 +307,7 @@ export function ClimbCanvas({
         ctx.textAlign = "left";
       }
     }
-  }, [state, width, height, reducedMotion, bottomInset, touchHint]);
+  }, [state, width, height, reducedMotion, bottomInset]);
 
   return (
     <canvas
@@ -390,7 +340,8 @@ function drawPowerUpOrb(
   ui: number,
   pu: PowerUpPickup,
   tick: number,
-  reducedMotion: boolean
+  reducedMotion: boolean,
+  cooling: boolean = false
 ) {
   const spec = POWER_UP_SPECS[pu.type];
   // Offset the phase per floor so a column of orbs does not bob in lockstep.
@@ -400,17 +351,21 @@ function drawPowerUpOrb(
   const r = Math.max(9, pxPerM * 1.35);
   const halo = reducedMotion ? 0.35 : 0.28 + 0.16 * (0.5 + 0.5 * Math.sin(phase * 1.6));
 
+  // Cooling down for this player: still visible (it may not be for others),
+  // but visibly inert on contact rather than a silent no-op.
+  const dim = cooling ? 0.45 : 1;
+
   ctx.save();
 
   // Soft halo.
-  ctx.globalAlpha = halo;
+  ctx.globalAlpha = halo * dim;
   ctx.fillStyle = spec.color;
   ctx.beginPath();
   ctx.arc(cx, cy, r * 1.85, 0, Math.PI * 2);
   ctx.fill();
 
   // Diamond body.
-  ctx.globalAlpha = 1;
+  ctx.globalAlpha = dim;
   ctx.beginPath();
   ctx.moveTo(cx, cy - r);
   ctx.lineTo(cx + r * 0.8, cy);
@@ -433,7 +388,7 @@ function drawPowerUpOrb(
   // Name plate, so a new player learns the glyphs by reading them in place.
   ctx.font = `${Math.round(8 * ui)}px monospace`;
   ctx.fillStyle = spec.color;
-  ctx.globalAlpha = 0.85;
+  ctx.globalAlpha = 0.85 * dim;
   ctx.fillText(spec.label.toUpperCase(), cx, cy + r * 1.95);
 
   ctx.restore();

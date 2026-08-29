@@ -65,7 +65,7 @@ export interface PlayerInput {
   jump: boolean;
   /** -1 = down, 0 = none, +1 = up (only meaningful while on a ladder). */
   climbY: -1 | 0 | 1;
-  /** Use held power-up this tick. */
+  /** Reserved: power-ups now auto-activate on pickup, so this is currently unused by the sim. */
   usePowerUp: boolean;
 }
 
@@ -97,8 +97,6 @@ export interface PlayerState {
   peakY: number;
   /** Tick this player touched the flag, if finished (AC-3 tie-break). */
   finishedTick: number | null;
-  /** Banked power-up, waiting on the use input. One slot: a pickup replaces it. */
-  heldPowerUp: PowerUpType | null;
   /** Power-ups currently running. Expired entries are dropped each tick. */
   activePowerUps: ActivePowerUp[];
   /**
@@ -107,22 +105,19 @@ export interface PlayerState {
    */
   cooldownUntilTick: Partial<Record<PowerUpType, number>>;
   /**
-   * Last pickup / activation, recorded so the renderer and the sound layer can
-   * fire one-shot feedback without diffing arrays. Presentation-only: nothing in
-   * the simulation reads them back.
+   * Last pickup, which is now also the activation (touching an orb activates it
+   * immediately — there is no held slot), recorded so the renderer and the sound
+   * layer can fire one-shot feedback without diffing arrays. Presentation-only:
+   * nothing in the simulation reads them back.
    */
   lastPickupTick: number | null;
   lastPickupType: PowerUpType | null;
-  lastActivationTick: number | null;
-  lastActivationType: PowerUpType | null;
   /**
-   * Previous tick's jump / use-power-up buttons, so both can be edge-triggered.
-   * Without this a held jump key would spend a double-jump charge on the tick
-   * after the ground launch, and a held use key would fire a power-up the
-   * instant it was picked up.
+   * Previous tick's jump button, so it can be edge-triggered. Without this a
+   * held jump key would spend a double-jump charge on the tick after the
+   * ground launch.
    */
   jumpHeldPrev: boolean;
-  usePowerUpHeldPrev: boolean;
 }
 
 /**

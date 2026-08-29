@@ -18,7 +18,6 @@ import {
 import Link from "next/link";
 import { useClimb } from "../../game/useClimb";
 import { TowerSpec } from "../../game/types";
-import { cooldownRemaining } from "../../game/powerups";
 import { ClimbCanvas } from "./ClimbCanvas";
 import { ClimbControlsGuide } from "./ClimbControlsGuide";
 import { PowerUpHud } from "./PowerUpHud";
@@ -201,7 +200,6 @@ export function ClimbScene({ tower, categoryLabel }: ClimbSceneProps) {
           width={canvasSize.width}
           height={canvasSize.height}
           bottomInset={touchDevice ? TOUCH_CONTROLS_INSET : 0}
-          touchHint={touchDevice}
         />
 
         {phase === "countdown" && (
@@ -226,7 +224,7 @@ export function ClimbScene({ tower, categoryLabel }: ClimbSceneProps) {
             <p className="text-text-secondary text-sm mt-3 max-w-[280px] text-center leading-relaxed">
               Climb as high as you can before the rising lava catches you. It gets
               harder the higher you go — your peak height is your score. Grab
-              glowing orbs for power-ups, and save them for when it gets tight.
+              glowing orbs to trigger their power-ups instantly.
             </p>
             <ClimbControlsGuide variant="overlay" />
             <StartButton onClick={handleStart} label="Start climb" />
@@ -301,16 +299,7 @@ export function ClimbScene({ tower, categoryLabel }: ClimbSceneProps) {
         )}
 
         {touchDevice && (
-          <TouchControls
-            active={touchControlsActive}
-            onInput={setTouch}
-            heldPowerUp={player?.heldPowerUp ?? null}
-            powerUpReady={
-              player?.heldPowerUp
-                ? cooldownRemaining(player, player.heldPowerUp, state.tick) === 0
-                : false
-            }
-          />
+          <TouchControls active={touchControlsActive} onInput={setTouch} />
         )}
       </div>
 

@@ -3,7 +3,7 @@
 /**
  * On-screen touch controls for The Climb (mobile Phase 1).
  *
- * Left cluster: move (← →). Right cluster: climb (hold ↑) + jump. Wired into
+ * Four buttons in a single row: move (← →), climb (hold ↑), jump. Wired into
  * useClimb via setTouch, and only mounted on coarse-pointer devices.
  *
  * These sit *over* the bottom of the canvas rather than in a bar beneath it. A
@@ -16,21 +16,13 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { NO_TOUCH, type TouchInput } from "../../game/useClimb";
-import { POWER_UP_SPECS } from "../../game/powerups";
-import type { PowerUpType } from "../../game/types";
 
 export function TouchControls({
   active,
   onInput,
-  heldPowerUp = null,
-  powerUpReady = false,
 }: {
   active: boolean;
   onInput: (input: TouchInput) => void;
-  /** Banked power-up, so the USE button can show what it will spend. */
-  heldPowerUp?: PowerUpType | null;
-  /** False while the banked power-up is still cooling down. */
-  powerUpReady?: boolean;
 }) {
   const pressedRef = useRef<Set<ControlId>>(new Set());
   const [pressed, setPressed] = useState<ReadonlySet<ControlId>>(new Set());
@@ -43,7 +35,6 @@ export function TouchControls({
       up: held.has("climb"),
       down: false,
       jump: held.has("jump"),
-      power: held.has("power"),
     });
     setPressed(new Set(held));
   }, [onInput]);
@@ -75,44 +66,15 @@ export function TouchControls({
       style={{ touchAction: "none" }}
       aria-label="Touch game controls"
     >
-      <div className="flex items-stretch gap-2">
-        <div className="flex flex-1 items-stretch gap-2">
-          {MOVE_CONTROLS.map((control) => (
-            <TouchButton
-              key={control.id}
-              control={control}
-              held={pressed.has(control.id)}
-              onHoldChange={setHeld}
-            />
-          ))}
-        </div>
-
-        {/* Always mounted, dimmed when empty: mounting it on pickup would resize
-            the neighbouring buttons under the player's thumbs mid-climb. */}
-        <TouchButton
-          control={{
-            ...POWER_CONTROL,
-            glyph: heldPowerUp ? POWER_UP_SPECS[heldPowerUp].glyph : POWER_CONTROL.glyph,
-            label: heldPowerUp
-              ? `Use ${POWER_UP_SPECS[heldPowerUp].label}`
-              : POWER_CONTROL.label,
-          }}
-          held={pressed.has("power")}
-          disabled={!heldPowerUp || !powerUpReady}
-          tint={heldPowerUp ? POWER_UP_SPECS[heldPowerUp].color : undefined}
-          onHoldChange={setHeld}
-        />
-
-        <div className="flex flex-1 items-stretch gap-2">
-          {CLIMB_CONTROLS.map((control) => (
-            <TouchButton
-              key={control.id}
-              control={control}
-              held={pressed.has(control.id)}
-              onHoldChange={setHeld}
-            />
-          ))}
-        </div>
+      <div className="grid grid-cols-4 gap-2">
+        {ALL_CONTROLS.map((control) => (
+          <TouchButton
+            key={control.id}
+            control={control}
+            held={pressed.has(control.id)}
+            onHoldChange={setHeld}
+          />
+        ))}
       </div>
     </div>
   );
@@ -121,39 +83,23 @@ export function TouchControls({
 function TouchButton({
   control,
   held,
-  disabled = false,
-  tint,
   onHoldChange,
 }: {
   control: Control;
   held: boolean;
-  /** Rendered but inert — used by the power-up button when nothing is banked. */
-  disabled?: boolean;
-  /** Overrides the border/text colour, so the button matches the banked orb. */
-  tint?: string;
   onHoldChange: (id: ControlId, down: boolean) => void;
 }) {
-  const { id, label, glyph, sub, accent, wordGlyph, narrow } = control;
+  const { id, label, glyph, sub, accent, wordGlyph } = control;
 
   return (
     <button
       type="button"
       aria-label={label}
       aria-pressed={held}
-      aria-disabled={disabled}
-      style={{
-        touchAction: "none",
-        // Inline, because the orb colours are data rather than a fixed palette.
-        ...(tint && !held && !disabled ? { borderColor: tint, color: tint } : null),
-      }}
+      style={{ touchAction: "none" }}
       className={
-        // Width first: `narrow` and the default must not both set `flex`, since
-        // competing flex utilities resolve by stylesheet order, not by the order
-        // they are concatenated here.
-        (narrow ? "flex-none basis-[72px] " : "flex-1 ") +
-        (disabled ? "opacity-40 " : "") +
         "relative flex flex-col items-center justify-center rounded-2xl border font-mono font-bold " +
-        "min-h-[80px] min-w-[44px] backdrop-blur-sm " +
+        "min-h-[92px] min-w-[44px] backdrop-blur-sm " +
         "transition-[filter,transform,background-color] " +
         // One ternary per state rather than appending the held colour: competing
         // background utilities are resolved by stylesheet order, not by the
@@ -170,7 +116,6 @@ function TouchButton({
       }
       onPointerDown={(e) => {
         e.preventDefault();
-        if (disabled) return;
         e.currentTarget.setPointerCapture(e.pointerId);
         onHoldChange(id, true);
       }}
@@ -207,7 +152,7 @@ function TouchButton({
   );
 }
 
-type ControlId = "left" | "right" | "climb" | "jump" | "power";
+type ControlId = "left" | "right" | "climb" | "jump";
 
 interface Control {
   id: ControlId;
@@ -219,36 +164,23 @@ interface Control {
   accent?: boolean;
   /** Glyph is a word ("JMP"), not a single arrow — needs a smaller type size. */
   wordGlyph?: boolean;
-  /** Fixed narrow width instead of sharing the row equally. */
-  narrow?: boolean;
 }
 
-const MOVE_CONTROLS: readonly Control[] = [
+const ALL_CONTROLS: readonly Control[] = [
   { id: "left", label: "Move left", glyph: "←" },
   { id: "right", label: "Move right", glyph: "→" },
-];
-
-const CLIMB_CONTROLS: readonly Control[] = [
   { id: "climb", label: "Climb up ladder", glyph: "↑", sub: "climb" },
   { id: "jump", label: "Jump", glyph: "JMP", accent: true, wordGlyph: true },
 ];
 
-const POWER_CONTROL: Control = {
-  id: "power",
-  label: "Use power-up (none held)",
-  glyph: "◆",
-  sub: "use",
-  narrow: true,
-};
-
 /**
- * Canvas height these controls cover: `min-h-[80px]` plus `p-2` top and bottom.
- * Passed to ClimbCanvas as `bottomInset` so the camera keeps the climber above
- * the buttons instead of behind them.
+ * Canvas height these controls cover: `min-h-[92px]` plus `p-2` top and bottom
+ * (8px * 2 = 16px). Passed to ClimbCanvas as `bottomInset` so the camera keeps
+ * the climber above the buttons instead of behind them.
  *
  * Button height and padding are deliberately breakpoint-free. When they varied
  * by breakpoint this constant matched only the phone case and understated the
  * bar by 16px at `sm:`, drawing the climber inside the buttons on tablets and
  * on any phone in landscape.
  */
-export const TOUCH_CONTROLS_INSET = 96;
+export const TOUCH_CONTROLS_INSET = 108;

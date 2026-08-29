@@ -4,12 +4,13 @@
  * Drives the power-up sound cues and the screen-reader announcements from the
  * simulation state.
  *
- * The sim is pure, so this watches the render-only markers it stamps on the
- * player (`lastPickupTick`, `lastActivationTick`) plus the set of live effects,
- * and fires a one-shot cue whenever one of them changes. Effects are compared as
- * a joined string rather than by array identity: `stepMatch` mutates the player
- * in place and the hook only ever sees shallow clones, so the array reference is
- * not a reliable change signal.
+ * The sim is pure, so this watches the render-only marker it stamps on the
+ * player (`lastPickupTick`) — pickup and activation are the same event now,
+ * since a power-up fires the instant it's collected — plus the set of live
+ * effects, and fires a one-shot cue whenever one of them changes. Effects are
+ * compared as a joined string rather than by array identity: `stepMatch`
+ * mutates the player in place and the hook only ever sees shallow clones, so
+ * the array reference is not a reliable change signal.
  */
 
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -38,7 +39,6 @@ export function usePowerUpFeedback(
   const [announcement, setAnnouncement] = useState("");
 
   const prevPickupTick = useRef<number | null>(null);
-  const prevActivationTick = useRef<number | null>(null);
   const prevActiveKey = useRef("");
 
   // Restore the saved preference before the first cue can play.
@@ -76,19 +76,12 @@ export function usePowerUpFeedback(
     ) {
       prevPickupTick.current = player.lastPickupTick;
       const spec = POWER_UP_SPECS[player.lastPickupType];
+      // Pickup IS activation now — sequence both motifs (a delay long enough
+      // for the pickup blip to finish, see pickupMotif's ~0.14s length) for a
+      // "ding-whoosh" rather than layering them into a single muddy chord.
       audio.play("pickup", player.lastPickupType);
-      setAnnouncement(`${spec.label} collected. Press E to use: ${spec.description}.`);
-    }
-
-    if (
-      player.lastActivationTick !== null &&
-      player.lastActivationTick !== prevActivationTick.current &&
-      player.lastActivationType
-    ) {
-      prevActivationTick.current = player.lastActivationTick;
-      const spec = POWER_UP_SPECS[player.lastActivationType];
-      audio.play("activate", player.lastActivationType);
-      setAnnouncement(`${spec.label} active. ${spec.description}.`);
+      audio.play("activate", player.lastPickupType, 0.13);
+      setAnnouncement(`${spec.label} activated. ${spec.description}.`);
     }
 
     const prev = prevActiveKey.current;
