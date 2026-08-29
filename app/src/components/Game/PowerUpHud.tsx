@@ -14,8 +14,14 @@
  * so chips appearing and expiring mid-climb can never resize the play area.
  */
 
-import { POWER_UP_SPECS, isExpired } from "../../game/powerups";
-import { TICK_HZ, type PlayerState } from "../../game/types";
+import {
+  POWER_UP_SPECS,
+  isExpired,
+  powerUpChipMeter,
+  type PowerUpChipMeter,
+  type PowerUpSpec,
+} from "../../game/powerups";
+import { TICK_HZ, type ActivePowerUp, type PlayerState } from "../../game/types";
 
 export function PowerUpHud({
   player,
@@ -36,12 +42,13 @@ export function PowerUpHud({
   const active = (player?.activePowerUps ?? [])
     .filter((a) => !isExpired(a, tick))
     .map((a) => {
-      const remaining = Math.max(0, a.durationTicks - (tick - a.startTick));
+      const spec = POWER_UP_SPECS[a.type];
+      const meter = powerUpChipMeter(a, tick);
       return {
         type: a.type,
-        spec: POWER_UP_SPECS[a.type],
-        seconds: remaining / TICK_HZ,
-        frac: a.durationTicks > 0 ? remaining / a.durationTicks : 0,
+        spec,
+        meter,
+        label: chipAriaLabel(spec, meter, windowSecondsLeft(a, tick)),
       };
     });
 
@@ -58,13 +65,15 @@ export function PowerUpHud({
               // Depleting fill doubles as the countdown; the numeral next to it
               // keeps it readable when the bar is nearly empty.
               background: `linear-gradient(to right, ${a.spec.color}26 ${
-                a.frac * 100
-              }%, transparent ${a.frac * 100}%)`,
+                a.meter.frac * 100
+              }%, transparent ${a.meter.frac * 100}%)`,
             }}
+            aria-label={a.label}
+            title={a.label}
           >
             <span aria-hidden="true">{a.spec.glyph}</span>
             {a.spec.label}
-            <span className="tabular-nums">{a.seconds.toFixed(1)}s</span>
+            <span className="tabular-nums">{a.meter.seconds.toFixed(1)}s</span>
           </span>
         ))}
 
@@ -98,4 +107,19 @@ export function PowerUpHud({
       </div>
     </div>
   );
+}
+
+function windowSecondsLeft(a: ActivePowerUp, tick: number): number {
+  return Math.max(0, a.durationTicks - (tick - a.startTick)) / TICK_HZ;
+}
+
+function chipAriaLabel(
+  spec: PowerUpSpec,
+  meter: PowerUpChipMeter,
+  windowSeconds: number
+): string {
+  if (meter.kind === "fuel") {
+    return `${spec.label}, ${meter.seconds.toFixed(1)}s fuel, ${windowSeconds.toFixed(1)}s remaining`;
+  }
+  return `${spec.label}, ${meter.seconds.toFixed(1)}s remaining`;
 }

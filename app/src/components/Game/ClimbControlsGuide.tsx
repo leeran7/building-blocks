@@ -6,7 +6,12 @@
 
 import type { ReactNode } from "react";
 import { useCoarsePointer } from "../../hooks/useCoarsePointer";
-import { POWER_UP_SPECS, POWER_UP_TYPES } from "../../game/powerups";
+import {
+  JETPACK_MAX_VY,
+  POWER_UP_SPECS,
+  POWER_UP_TYPES,
+  type PowerUpSpec,
+} from "../../game/powerups";
 import { OVERLAY_GUIDE_COPY_CLASS } from "../freeStackChrome";
 
 type Variant = "card" | "compact" | "overlay";
@@ -20,7 +25,7 @@ const KEYBOARD_CONTROLS = [
   {
     label: "Jump",
     keys: ["Space"],
-    detail: "Leap across gaps between platforms",
+    detail: "Tap Space to leap; re-hold in the air to thrust a jetpack",
   },
   {
     label: "Climb",
@@ -31,7 +36,7 @@ const KEYBOARD_CONTROLS = [
 
 const TOUCH_CONTROLS = [
   { label: "Move", detail: "Tap and hold ← → at the bottom of the screen" },
-  { label: "Jump", detail: "Tap JMP to leap across gaps" },
+  { label: "Jump", detail: "Tap JMP to leap; re-hold JMP in the air to thrust" },
   { label: "Climb", detail: "Hold ↑ climb when you're on a ladder" },
 ] as const;
 
@@ -40,6 +45,7 @@ const TIPS = [
   "The lava surges, then stumbles — use the slow windows to climb; your peak height is your score.",
   "Walk into a glowing orb to trigger its power-up instantly.",
   "Power-ups activate the instant you touch them — time your route to grab one right when you need it.",
+  `Tap jump to leap, then re-hold in the air to burn a jetpack; holding through takeoff caps rise at ${JETPACK_MAX_VY} m/s. Fuel is short, leftover dies with the window.`,
   "Sign in after a run to save your rank on the free leaderboard.",
 ] as const;
 
@@ -50,14 +56,15 @@ export function ClimbControlsGuide({ variant = "card" }: { variant?: Variant }) 
     return touch ? (
       <p className="text-sm text-text-secondary leading-relaxed">
         <span className="text-text-primary font-medium">Touch controls:</span>{" "}
-        hold ← → to move · hold ↑ climb on ladders · tap JMP to jump
+        hold ← → to move · hold ↑ climb on ladders · tap JMP to jump · re-hold
+        JMP in the air to thrust
       </p>
     ) : (
       <p className="text-sm text-text-secondary leading-relaxed">
         <span className="text-text-primary font-medium">Controls:</span>{" "}
         <Key>←</Key>/<Key>→</Key> or <Key>A</Key>/<Key>D</Key> move ·{" "}
-        <Key>Space</Key> jump · <Key>↑</Key>/<Key>↓</Key> or <Key>W</Key>/<Key>S</Key> climb
-        ladders
+        <Key>Space</Key> jump · re-hold <Key>Space</Key> in the air to thrust ·{" "}
+        <Key>↑</Key>/<Key>↓</Key> or <Key>W</Key>/<Key>S</Key> climb ladders
       </p>
     );
   }
@@ -172,12 +179,7 @@ export function ClimbControlsGuide({ variant = "card" }: { variant?: Variant }) 
                     {spec.description}
                     <span className="text-text-muted">
                       {" · "}
-                      {spec.charge
-                        ? `${spec.chargeCount ?? 1} use${(spec.chargeCount ?? 1) > 1 ? "s" : ""}`
-                        : `${spec.durationSeconds}s`}
-                      {spec.cooldownSeconds > 0
-                        ? ` · ${spec.cooldownSeconds}s recharge`
-                        : ""}
+                      {durationSuffix(spec)}
                     </span>
                   </p>
                 </div>
@@ -205,6 +207,22 @@ export function ClimbControlsGuide({ variant = "card" }: { variant?: Variant }) 
       )}
     </section>
   );
+}
+
+function durationSuffix(spec: PowerUpSpec): string {
+  let body: string;
+  if (spec.fuelSeconds != null) {
+    body = `${spec.fuelSeconds}s fuel · ${spec.durationSeconds}s window`;
+  } else if (spec.charge) {
+    const n = spec.chargeCount ?? 1;
+    body = `${n} use${n > 1 ? "s" : ""}`;
+  } else {
+    body = `${spec.durationSeconds}s`;
+  }
+  if (spec.cooldownSeconds > 0) {
+    return `${body} · ${spec.cooldownSeconds}s recharge`;
+  }
+  return body;
 }
 
 function Key({ children }: { children: ReactNode }) {

@@ -61,10 +61,11 @@ const ACTIVATE: Record<PowerUpType, Note[]> = {
     { at: 0, freq: 420, to: 700, dur: 0.09, wave: "triangle" },
     { at: 0.12, freq: 620, to: 980, dur: 0.11, wave: "triangle", gain: 0.75 },
   ],
-  // One long launch sweep.
-  "super-jump": [
-    { at: 0, freq: 260, to: 1180, dur: 0.28, wave: "sawtooth", gain: 0.45 },
-    { at: 0.1, freq: 520, to: 1560, dur: 0.2, wave: "sine", gain: 0.5 },
+  // Engine burst — short low square/sawtooth chugs, not a launch sweep.
+  jetpack: [
+    { at: 0, freq: 88, dur: 0.055, wave: "square", gain: 0.5 },
+    { at: 0.07, freq: 64, dur: 0.05, wave: "sawtooth", gain: 0.45 },
+    { at: 0.13, freq: 96, dur: 0.06, wave: "square", gain: 0.4 },
   ],
   // Descending, detuned pair — the world winding down.
   "time-slow": [
@@ -78,7 +79,7 @@ const PICKUP_PITCH: Record<PowerUpType, number> = {
   "rapid-climb": 880,
   "sprint-burst": 740,
   "double-jump": 990,
-  "super-jump": 1120,
+  jetpack: 260,
   "time-slow": 620,
 };
 

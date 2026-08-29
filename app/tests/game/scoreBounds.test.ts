@@ -15,8 +15,8 @@ import {
   checkClimbResult,
 } from "../../src/game/scoreBounds";
 import { FASTEST_ARCHETYPE } from "../../src/game/towers";
-import { RAPID_CLIMB_MULT, SUPER_JUMP_MULT } from "../../src/game/powerups";
-import { TICK_DT, TICK_HZ } from "../../src/game/types";
+import { RAPID_CLIMB_MULT, JETPACK_MAX_VY, POWER_UP_HOVER_M, jetpackFuelTicks } from "../../src/game/powerups";
+import { TICK_DT, TICK_HZ, NO_INPUT } from "../../src/game/types";
 import { buildTower, floorHeight } from "../../src/game/towers";
 import { createMatch, stepMatch } from "../../src/game/simulation";
 
@@ -25,7 +25,8 @@ describe("MAX_ASCENT_SPEED_MPS", () => {
     expect(MAX_ASCENT_SPEED_MPS).toBe(
       Math.max(
         FASTEST_ARCHETYPE.maxClimbSpeed * RAPID_CLIMB_MULT,
-        FASTEST_ARCHETYPE.jumpSpeed * SUPER_JUMP_MULT
+        FASTEST_ARCHETYPE.jumpSpeed,
+        JETPACK_MAX_VY
       )
     );
   });
@@ -38,6 +39,7 @@ describe("MAX_ASCENT_SPEED_MPS", () => {
       expect(MAX_ASCENT_SPEED_MPS).toBeGreaterThanOrEqual(
         tower.maxClimbSpeed * RAPID_CLIMB_MULT
       );
+      expect(MAX_ASCENT_SPEED_MPS).toBeGreaterThanOrEqual(JETPACK_MAX_VY);
     }
   });
 });
@@ -122,6 +124,37 @@ describe("checkClimbResult — accepts the possible", () => {
     }
     const player = match.players[0]!;
 
+    expect(player.peakY).toBeGreaterThan(0);
+    expect(checkClimbResult(player.peakY, match.tick).ok).toBe(true);
+  });
+
+  it("accepts a peak measured from a real jetpack thrust run", () => {
+    const tower = buildTower("ai", { runSeed: "jetpack-bound" });
+    const match = createMatch({
+      seed: "jetpack-bound",
+      mode: "solo",
+      tower,
+      playerIds: ["p1"],
+    });
+    match.phase = "climb";
+    match.tick = 0;
+    match.powerUps = [];
+    match.powerUpFloorHi = 100_000;
+    const player = match.players[0]!;
+    match.powerUps.push({
+      id: "test:jetpack",
+      type: "jetpack",
+      floorIndex: 0,
+      x: player.x,
+      y: player.y + POWER_UP_HOVER_M,
+      collected: false,
+      collectedTick: null,
+    });
+    const jump = { moveX: 0, jump: true, climbY: 0, usePowerUp: false } as const;
+    stepMatch(match, { p1: NO_INPUT });
+    stepMatch(match, { p1: jump });
+    const tank = jetpackFuelTicks();
+    for (let i = 0; i < tank; i++) stepMatch(match, { p1: jump });
     expect(player.peakY).toBeGreaterThan(0);
     expect(checkClimbResult(player.peakY, match.tick).ok).toBe(true);
   });
