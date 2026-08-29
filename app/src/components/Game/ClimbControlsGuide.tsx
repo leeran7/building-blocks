@@ -35,9 +35,9 @@ const KEYBOARD_CONTROLS = [
 ] as const;
 
 const TOUCH_CONTROLS = [
-  { label: "Move", detail: "Tap and hold ← → at the bottom of the screen" },
+  { label: "Move", detail: "Drag the joystick left and right to walk" },
   { label: "Jump", detail: "Tap JMP to leap; re-hold JMP in the air to thrust" },
-  { label: "Climb", detail: "Hold ↑ climb when you're on a ladder" },
+  { label: "Climb", detail: "Push the joystick up when you're on a ladder" },
 ] as const;
 
 const TIPS = [
@@ -56,7 +56,7 @@ export function ClimbControlsGuide({ variant = "card" }: { variant?: Variant }) 
     return touch ? (
       <p className="text-sm text-text-secondary leading-relaxed">
         <span className="text-text-primary font-medium">Touch controls:</span>{" "}
-        hold ← → to move · hold ↑ climb on ladders · tap JMP to jump · re-hold
+        hold the joystick to move · push up on ladders · tap JMP to jump · re-hold
         JMP in the air to thrust
       </p>
     ) : (

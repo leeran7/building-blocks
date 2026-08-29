@@ -12,18 +12,22 @@ import { describe, it, expect } from "vitest";
 import {
   initialHoldMemo,
   isHoldKey,
+  mergeTouchInput,
   reduceHold,
-  touchInputFromHeld,
 } from "../../src/components/Game/touchHold";
+import {
+  joystickAxesFromNormalized,
+  NO_JOYSTICK,
+} from "../../src/components/Game/joystickInput";
 
 describe("reduceHold: pointer press/release", () => {
   it("holds while pressed and clears on release", () => {
     let memo = initialHoldMemo();
-    memo = reduceHold(memo, { kind: "press", id: "left" });
-    expect(touchInputFromHeld(memo.held).left).toBe(true);
+    memo = reduceHold(memo, { kind: "press", id: "jump" });
+    expect(mergeTouchInput(NO_JOYSTICK, memo.held).jump).toBe(true);
 
-    memo = reduceHold(memo, { kind: "release", id: "left" });
-    expect(touchInputFromHeld(memo.held).left).toBe(false);
+    memo = reduceHold(memo, { kind: "release", id: "jump" });
+    expect(mergeTouchInput(NO_JOYSTICK, memo.held).jump).toBe(false);
   });
 
   it("does not treat the browser's follow-up click as a toggle", () => {
@@ -32,7 +36,7 @@ describe("reduceHold: pointer press/release", () => {
     memo = reduceHold(memo, { kind: "release", id: "jump" });
     memo = reduceHold(memo, { kind: "activate", id: "jump" });
 
-    expect(touchInputFromHeld(memo.held).jump).toBe(false);
+    expect(mergeTouchInput(NO_JOYSTICK, memo.held).jump).toBe(false);
   });
 
   it("latches on AT activate after a pointer tap whose click never arrived", () => {
@@ -45,26 +49,18 @@ describe("reduceHold: pointer press/release", () => {
     memo = reduceHold(memo, { kind: "clear-suppress", id: "jump" });
     memo = reduceHold(memo, { kind: "activate", id: "jump" });
 
-    expect(touchInputFromHeld(memo.held).jump).toBe(true);
-  });
-
-  it("does not let a jump tap suppress a later climb activate", () => {
-    let memo = initialHoldMemo();
-    memo = reduceHold(memo, { kind: "press", id: "jump" });
-    memo = reduceHold(memo, { kind: "release", id: "jump" });
-    memo = reduceHold(memo, { kind: "activate", id: "climb" });
-    expect(touchInputFromHeld(memo.held).up).toBe(true);
+    expect(mergeTouchInput(NO_JOYSTICK, memo.held).jump).toBe(true);
   });
 });
 
 describe("reduceHold: assistive-tech click toggles", () => {
   it("a click with no preceding press latches the control on", () => {
     let memo = initialHoldMemo();
-    memo = reduceHold(memo, { kind: "activate", id: "climb" });
-    expect(touchInputFromHeld(memo.held).up).toBe(true);
+    memo = reduceHold(memo, { kind: "activate", id: "jump" });
+    expect(mergeTouchInput(NO_JOYSTICK, memo.held).jump).toBe(true);
 
-    memo = reduceHold(memo, { kind: "activate", id: "climb" });
-    expect(touchInputFromHeld(memo.held).up).toBe(false);
+    memo = reduceHold(memo, { kind: "activate", id: "jump" });
+    expect(mergeTouchInput(NO_JOYSTICK, memo.held).jump).toBe(false);
   });
 });
 
@@ -77,9 +73,66 @@ describe("reduceHold: keyboard", () => {
 
   it("keydown holds and keyup releases, same as a pointer", () => {
     let memo = initialHoldMemo();
-    memo = reduceHold(memo, { kind: "press", id: "right" });
-    expect(touchInputFromHeld(memo.held).right).toBe(true);
-    memo = reduceHold(memo, { kind: "release", id: "right" });
-    expect(touchInputFromHeld(memo.held).right).toBe(false);
+    memo = reduceHold(memo, { kind: "press", id: "jump" });
+    expect(mergeTouchInput(NO_JOYSTICK, memo.held).jump).toBe(true);
+    memo = reduceHold(memo, { kind: "release", id: "jump" });
+    expect(mergeTouchInput(NO_JOYSTICK, memo.held).jump).toBe(false);
+  });
+});
+
+describe("joystickAxesFromNormalized", () => {
+  it("returns neutral inside the deadzone", () => {
+    expect(joystickAxesFromNormalized(0, 0)).toEqual(NO_JOYSTICK);
+    expect(joystickAxesFromNormalized(0.1, 0.1)).toEqual(NO_JOYSTICK);
+  });
+
+  it("maps horizontal deflection to left and right", () => {
+    expect(joystickAxesFromNormalized(-1, 0)).toEqual({
+      left: true,
+      right: false,
+      up: false,
+      down: false,
+    });
+    expect(joystickAxesFromNormalized(1, 0)).toEqual({
+      left: false,
+      right: true,
+      up: false,
+      down: false,
+    });
+  });
+
+  it("maps vertical deflection to up and down", () => {
+    expect(joystickAxesFromNormalized(0, -1)).toEqual({
+      left: false,
+      right: false,
+      up: true,
+      down: false,
+    });
+    expect(joystickAxesFromNormalized(0, 1)).toEqual({
+      left: false,
+      right: false,
+      up: false,
+      down: true,
+    });
+  });
+
+  it("can combine diagonal horizontal and vertical axes", () => {
+    expect(joystickAxesFromNormalized(-0.8, -0.8)).toEqual({
+      left: true,
+      right: false,
+      up: true,
+      down: false,
+    });
+  });
+
+  it("merges joystick axes with jump hold", () => {
+    const held = new Set(["jump"] as const);
+    expect(mergeTouchInput({ left: true, right: false, up: false, down: false }, held)).toEqual({
+      left: true,
+      right: false,
+      up: false,
+      down: false,
+      jump: true,
+    });
   });
 });

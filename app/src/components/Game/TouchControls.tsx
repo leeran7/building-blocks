@@ -3,8 +3,8 @@
 /**
  * On-screen touch controls for The Climb (mobile Phase 1).
  *
- * Four buttons in a single row: move (← →), climb (hold ↑), jump. Wired into
- * useClimb via setTouch, and only mounted on coarse-pointer devices.
+ * Virtual joystick (move + climb) on the left, jump button on the right.
+ * Wired into useClimb via setTouch, and only mounted on coarse-pointer devices.
  *
  * These sit *over* the bottom of the canvas rather than in a bar beneath it. A
  * phone has ~660px of viewport, and a 9:16 canvas wants all of it: a separate
@@ -16,15 +16,25 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { NO_TOUCH, type TouchInput } from "../../game/useClimb";
+import { NO_JOYSTICK, type JoystickAxes } from "./joystickInput";
+import { VirtualJoystick } from "./VirtualJoystick";
 import {
   initialHoldMemo,
   isHoldKey,
+  mergeTouchInput,
   reduceHold,
-  touchInputFromHeld,
   type ControlId,
   type HoldEvent,
   type HoldMemo,
 } from "./touchHold";
+
+const JUMP_CONTROL = {
+  id: "jump" as const,
+  label: "Jump",
+  glyph: "JMP",
+  accent: true,
+  wordGlyph: true,
+};
 
 export function TouchControls({
   active,
@@ -34,16 +44,24 @@ export function TouchControls({
   onInput: (input: TouchInput) => void;
 }) {
   const memoRef = useRef<HoldMemo>(initialHoldMemo());
-  const [pressed, setPressed] = useState<ReadonlySet<ControlId>>(new Set());
+  const joystickRef = useRef<JoystickAxes>(NO_JOYSTICK);
+  const [jumpHeld, setJumpHeld] = useState(false);
+
+  const emitInput = useCallback(
+    (held: ReadonlySet<ControlId>, joystick: JoystickAxes) => {
+      onInput(mergeTouchInput(joystick, held));
+    },
+    [onInput]
+  );
 
   const apply = useCallback(
     (event: HoldEvent) => {
       const next = reduceHold(memoRef.current, event);
       memoRef.current = next;
-      setPressed(next.held);
-      onInput(touchInputFromHeld(next.held));
+      setJumpHeld(next.held.has("jump"));
+      emitInput(next.held, joystickRef.current);
     },
-    [onInput]
+    [emitInput]
   );
 
   const release = useCallback(
@@ -59,10 +77,19 @@ export function TouchControls({
     [apply]
   );
 
+  const handleJoystick = useCallback(
+    (axes: JoystickAxes) => {
+      joystickRef.current = axes;
+      emitInput(memoRef.current.held, axes);
+    },
+    [emitInput]
+  );
+
   useEffect(() => {
     if (active) return;
     memoRef.current = initialHoldMemo();
-    setPressed(new Set());
+    joystickRef.current = NO_JOYSTICK;
+    setJumpHeld(false);
     onInput(NO_TOUCH);
   }, [active, onInput]);
 
@@ -77,16 +104,14 @@ export function TouchControls({
       style={{ touchAction: "none" }}
       aria-label="Touch game controls"
     >
-      <div className="grid grid-cols-4 gap-2">
-        {ALL_CONTROLS.map((control) => (
-          <TouchButton
-            key={control.id}
-            control={control}
-            held={pressed.has(control.id)}
-            onEvent={apply}
-            onRelease={release}
-          />
-        ))}
+      <div className="flex items-end justify-between gap-3">
+        <VirtualJoystick onChange={handleJoystick} />
+        <TouchButton
+          control={JUMP_CONTROL}
+          held={jumpHeld}
+          onEvent={apply}
+          onRelease={release}
+        />
       </div>
     </div>
   );
@@ -98,12 +123,12 @@ function TouchButton({
   onEvent,
   onRelease,
 }: {
-  control: Control;
+  control: typeof JUMP_CONTROL;
   held: boolean;
   onEvent: (event: HoldEvent) => void;
   onRelease: (id: ControlId) => void;
 }) {
-  const { id, label, glyph, sub, accent, wordGlyph } = control;
+  const { id, label, glyph, accent, wordGlyph } = control;
 
   return (
     <button
@@ -113,7 +138,7 @@ function TouchButton({
       style={{ touchAction: "none" }}
       className={
         "relative flex flex-col items-center justify-center rounded-2xl border font-mono font-bold " +
-        "min-h-[92px] min-w-[44px] backdrop-blur-sm " +
+        "min-h-[92px] min-w-[92px] flex-shrink-0 backdrop-blur-sm " +
         "transition-[filter,transform,background-color] " +
         // One ternary per state rather than appending the held colour: competing
         // background utilities are resolved by stylesheet order, not by the
@@ -168,40 +193,9 @@ function TouchButton({
       >
         {glyph}
       </span>
-      {sub && (
-        // text-secondary, not text-muted: muted only reaches 3.5:1 where the
-        // lava band shows through behind the button.
-        <span
-          className={
-            "mt-1 text-[10px] uppercase tracking-[0.12em] font-semibold " +
-            (held ? "text-inherit" : "text-text-secondary")
-          }
-        >
-          {sub}
-        </span>
-      )}
     </button>
   );
 }
-
-interface Control {
-  id: ControlId;
-  label: string;
-  glyph: string;
-  /** Small caption under the glyph. */
-  sub?: string;
-  /** Signal-coloured treatment for the primary action. */
-  accent?: boolean;
-  /** Glyph is a word ("JMP"), not a single arrow — needs a smaller type size. */
-  wordGlyph?: boolean;
-}
-
-const ALL_CONTROLS: readonly Control[] = [
-  { id: "left", label: "Move left", glyph: "←" },
-  { id: "right", label: "Move right", glyph: "→" },
-  { id: "climb", label: "Climb up ladder", glyph: "↑", sub: "climb" },
-  { id: "jump", label: "Jump", glyph: "JMP", accent: true, wordGlyph: true },
-];
 
 /**
  * Canvas height these controls cover: `min-h-[92px]` plus `p-2` top and bottom
