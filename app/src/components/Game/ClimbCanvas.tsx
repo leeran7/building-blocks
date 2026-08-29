@@ -27,6 +27,11 @@ import {
   isExpired,
   isPowerUpActive,
 } from "../../game/powerups";
+import {
+  backingStoreSize,
+  canvasNeedsResize,
+  clampDevicePixelRatio,
+} from "./canvasBacking";
 
 // ASCENT palette — signal-lime climber, ember lava, warm-obsidian world.
 const VOID = "#0a0a0c";
@@ -84,9 +89,27 @@ export function ClimbCanvas({
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    const dpr = typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1;
-    canvas.width = width * dpr;
-    canvas.height = height * dpr;
+    // This effect depends on `state`, which changes every tick, so everything
+    // here runs at frame rate. Assigning canvas.width or canvas.height
+    // reallocates and zeroes the backing store even when the value is
+    // unchanged, so the unconditional version below was throwing away and
+    // rebuilding the whole bitmap 60 times a second:
+    //
+    //     canvas.width = width * dpr;
+    //     canvas.height = height * dpr;
+    //
+    // Cheap at the 360x640 baseline, ruinous once useCanvasSize's MAX_WIDTH of
+    // 2560 comes into play — at that width the buffer is tens of megabytes.
+    // Assign only on an actual change.
+    const dpr = clampDevicePixelRatio(
+      typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1
+    );
+    const target = backingStoreSize(width, height, dpr);
+    if (canvasNeedsResize(canvas.width, canvas.height, target.width, target.height)) {
+      canvas.width = target.width;
+      canvas.height = target.height;
+    }
+    // Still set every frame: a resize resets the transform, and this is cheap.
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
     const tower = state.tower;

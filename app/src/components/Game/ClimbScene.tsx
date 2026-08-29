@@ -57,7 +57,7 @@ function usePrefersReducedMotion(): boolean {
 export function ClimbScene({ tower, categoryLabel }: ClimbSceneProps) {
   const reducedMotion = usePrefersReducedMotion();
   const touchDevice = useCoarsePointer();
-  const { state, start, finished, setTouch } = useClimb({ tower });
+  const { state, start, finished, setTouch, runId } = useClimb({ tower });
   // Measured on the canvas wrapper, not the scene root: the saved-record banner
   // renders between them, and budgeting from the root would ignore its height
   // and push the canvas (and the controls overlaid on it) past the fold.
@@ -72,7 +72,11 @@ export function ClimbScene({ tower, categoryLabel }: ClimbSceneProps) {
   const phase = state.phase;
   const touchControlsActive =
     touchDevice && !finished && (phase === "countdown" || phase === "climb");
-  const { muted, setMuted, announcement } = usePowerUpFeedback(player, state.tick);
+  const { muted, setMuted, announcement } = usePowerUpFeedback(
+    player,
+    state.tick,
+    runId
+  );
 
   const redirectPath = `/play`;
 

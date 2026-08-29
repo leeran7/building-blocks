@@ -16,6 +16,14 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { NO_TOUCH, type TouchInput } from "../../game/useClimb";
+import {
+  initialHoldMemo,
+  isHoldKey,
+  reduceHold,
+  touchInputFromHeld,
+  type ControlId,
+  type HoldMemo,
+} from "./touchHold";
 
 export function TouchControls({
   active,
@@ -24,33 +32,22 @@ export function TouchControls({
   active: boolean;
   onInput: (input: TouchInput) => void;
 }) {
-  const pressedRef = useRef<Set<ControlId>>(new Set());
+  const memoRef = useRef<HoldMemo>(initialHoldMemo());
   const [pressed, setPressed] = useState<ReadonlySet<ControlId>>(new Set());
 
-  const emit = useCallback(() => {
-    const held = pressedRef.current;
-    onInput({
-      left: held.has("left"),
-      right: held.has("right"),
-      up: held.has("climb"),
-      down: false,
-      jump: held.has("jump"),
-    });
-    setPressed(new Set(held));
-  }, [onInput]);
-
-  const setHeld = useCallback(
-    (id: ControlId, down: boolean) => {
-      if (down) pressedRef.current.add(id);
-      else pressedRef.current.delete(id);
-      emit();
+  const apply = useCallback(
+    (event: Parameters<typeof reduceHold>[1]) => {
+      const next = reduceHold(memoRef.current, event);
+      memoRef.current = next;
+      setPressed(next.held);
+      onInput(touchInputFromHeld(next.held));
     },
-    [emit]
+    [onInput]
   );
 
   useEffect(() => {
     if (active) return;
-    pressedRef.current = new Set();
+    memoRef.current = initialHoldMemo();
     setPressed(new Set());
     onInput(NO_TOUCH);
   }, [active, onInput]);
@@ -72,7 +69,7 @@ export function TouchControls({
             key={control.id}
             control={control}
             held={pressed.has(control.id)}
-            onHoldChange={setHeld}
+            onEvent={apply}
           />
         ))}
       </div>
@@ -83,11 +80,11 @@ export function TouchControls({
 function TouchButton({
   control,
   held,
-  onHoldChange,
+  onEvent,
 }: {
   control: Control;
   held: boolean;
-  onHoldChange: (id: ControlId, down: boolean) => void;
+  onEvent: (event: Parameters<typeof reduceHold>[1]) => void;
 }) {
   const { id, label, glyph, sub, accent, wordGlyph } = control;
 
@@ -117,14 +114,32 @@ function TouchButton({
       onPointerDown={(e) => {
         e.preventDefault();
         e.currentTarget.setPointerCapture(e.pointerId);
-        onHoldChange(id, true);
+        onEvent({ kind: "press", id });
       }}
       onPointerUp={(e) => {
         e.preventDefault();
-        onHoldChange(id, false);
+        onEvent({ kind: "release", id });
       }}
-      onPointerCancel={() => onHoldChange(id, false)}
-      onLostPointerCapture={() => onHoldChange(id, false)}
+      onPointerCancel={() => onEvent({ kind: "release", id })}
+      onLostPointerCapture={() => onEvent({ kind: "release", id })}
+      onKeyDown={(e) => {
+        if (!isHoldKey(e.key)) return;
+        e.preventDefault();
+        if (e.repeat) return;
+        onEvent({ kind: "press", id });
+      }}
+      onKeyUp={(e) => {
+        if (!isHoldKey(e.key)) return;
+        e.preventDefault();
+        onEvent({ kind: "release", id });
+      }}
+      onClick={(e) => {
+        // Pointer and keyboard already applied press/release. The remaining
+        // click is the AT path (VoiceOver/TalkBack synthesise click with no
+        // pair). preventDefault keeps Enter from firing this after keyup.
+        e.preventDefault();
+        onEvent({ kind: "activate", id });
+      }}
     >
       <span
         className={
@@ -151,8 +166,6 @@ function TouchButton({
     </button>
   );
 }
-
-type ControlId = "left" | "right" | "climb" | "jump";
 
 interface Control {
   id: ControlId;

@@ -170,6 +170,36 @@ describe("AC-10: Single session 10 rapid requests → exactly 1 qualified view",
     expect(credited).toBe(stacks.length);
   });
 
+  it("keeps one hourly ceiling across stacks rather than one budget per stack", async () => {
+    // Dedup is per-stack (views_k is per-stack). The ceiling is not: it is the
+    // site-wide inflation cap (NFR-S5). Partitioning it by category would
+    // multiply CEIL_PER_HOUR by the number of stacks.
+    const prev = process.env.CEIL_PER_HOUR;
+    process.env.CEIL_PER_HOUR = "2";
+    try {
+      const redis = new MockRedis();
+      const db = new MockDb();
+      const a = await runViewPipeline(
+        makeRequest({ ip: "10.0.0.1", sessionId: "ceil-a", category: "ai" }),
+        { redis, db }
+      );
+      const b = await runViewPipeline(
+        makeRequest({ ip: "10.0.0.2", sessionId: "ceil-b", category: "tech" }),
+        { redis, db }
+      );
+      const c = await runViewPipeline(
+        makeRequest({ ip: "10.0.0.3", sessionId: "ceil-c", category: "food" }),
+        { redis, db }
+      );
+      expect(a.credited).toBe(1);
+      expect(b.credited).toBe(1);
+      expect(c.credited).toBe(0);
+    } finally {
+      if (prev === undefined) delete process.env.CEIL_PER_HOUR;
+      else process.env.CEIL_PER_HOUR = prev;
+    }
+  });
+
   it("still dedups repeat views of the same stack in one window", async () => {
     const redis = new MockRedis();
     const db = new MockDb();

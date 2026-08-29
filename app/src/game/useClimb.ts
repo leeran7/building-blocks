@@ -17,6 +17,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
+  MatchPhase,
   MatchState,
   PlayerInput,
   TowerSpec,
@@ -59,6 +60,13 @@ export interface UseClimbResult {
   finished: boolean;
   /** Update the touch input (called by on-screen controls). */
   setTouch: (t: TouchInput) => void;
+  /**
+   * Increments on every Start. The seed cannot serve as a run identity — a
+   * replay locks it, so two runs share one seed — and consumers that carry
+   * per-run state across renders (sound cues, announcements) need to know a
+   * new run began.
+   */
+  runId: number;
 }
 
 export interface UseClimbOptions {
@@ -91,9 +99,16 @@ export function useClimb({
     [tower]
   );
 
-  const [state, setState] = useState<MatchState>(() =>
-    makeMatch(seedLock ?? "solo", "lobby")
-  );
+  // Match and runId live in one state object so a Start can never render a
+  // frame where they disagree. Feedback (sounds, live region) keys off runId;
+  // if it updated a frame after the match, the new run would inherit the
+  // previous run's last pickup and fire a spurious "ended" cue.
+  const [view, setView] = useState(() => ({
+    match: makeMatch(seedLock ?? "solo", "lobby"),
+    runId: 0,
+  }));
+  const state = view.match;
+  const runId = view.runId;
   const stateRef = useRef(state);
   stateRef.current = state;
 
@@ -112,18 +127,32 @@ export function useClimb({
     if (stateRef.current.phase !== "lobby") return;
     const fresh = makeMatch(newRunSeed(), "lobby");
     stateRef.current = fresh;
-    setState(fresh);
+    setView((v) => ({ ...v, match: fresh }));
     // Mount-only.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Keyboard listeners (AC-33: keyboard-only play is fully supported).
+  //
+  // This is a window-level listener, so it sees every key press on the page,
+  // and the game keys are Space and the arrows. Calling preventDefault on all
+  // of them unconditionally broke the page around the canvas: Space stopped
+  // activating any focused button (including the mute toggle beside the game)
+  // and the arrows stopped scrolling. So it is scoped two ways — the phases
+  // that actually consume input, and never over an interactive element.
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
-      if (isGameKey(e.key)) {
-        e.preventDefault();
-        keysRef.current.add(e.key);
+      if (
+        !shouldCaptureGameKey(
+          e.key,
+          stateRef.current.phase,
+          isInteractiveTarget(e.target)
+        )
+      ) {
+        return;
       }
+      e.preventDefault();
+      keysRef.current.add(e.key);
     };
     const up = (e: KeyboardEvent) => keysRef.current.delete(e.key);
     window.addEventListener("keydown", down);
@@ -133,6 +162,12 @@ export function useClimb({
       window.removeEventListener("keyup", up);
     };
   }, []);
+
+  // A key held as the run ends would otherwise stay in the set, and the next
+  // run would start already moving.
+  useEffect(() => {
+    if (!PHASES_CONSUMING_INPUT.has(state.phase)) keysRef.current.clear();
+  }, [state.phase]);
 
   const sampleInput = useCallback((): PlayerInput => {
     const keys = keysRef.current;
@@ -182,7 +217,10 @@ export function useClimb({
       }
       if (advanced) {
         // Shallow-clone so React re-renders with the new tick.
-        setState({ ...cur, players: cur.players.map((p) => ({ ...p })) });
+        setView((v) => ({
+          ...v,
+          match: { ...cur, players: cur.players.map((p) => ({ ...p })) },
+        }));
       }
     };
     raf = requestAnimationFrame(loop);
@@ -205,7 +243,7 @@ export function useClimb({
     accumulatorRef.current = 0;
     lastTsRef.current = 0;
     stateRef.current = fresh;
-    setState(fresh);
+    setView((v) => ({ match: fresh, runId: v.runId + 1 }));
     runningRef.current = true;
   }, [makeMatch, seedLock]);
 
@@ -215,7 +253,7 @@ export function useClimb({
 
   const finished = state.phase === "finished" || state.phase === "results";
 
-  return { state, start, finished, setTouch };
+  return { state, start, finished, setTouch, runId };
 }
 
 function hasAny(set: Set<string>, keys: Set<string>): boolean {
@@ -232,3 +270,62 @@ function isGameKey(key: string): boolean {
     KEY_JUMP.has(key)
   );
 }
+
+/**
+ * Whether this keydown should be recorded as game input and have its default
+ * action suppressed. Split from the listener so the scoping rules can be
+ * asserted without dispatching a DOM event:
+ *   - lobby/results leave Space and arrows alone (Start, mute, scroll)
+ *   - a focused button/link/input owns the key even during a climb
+ */
+export function shouldCaptureGameKey(
+  key: string,
+  phase: MatchPhase,
+  targetIsInteractive: boolean
+): boolean {
+  if (!isGameKey(key)) return false;
+  if (targetIsInteractive) return false;
+  return PHASES_CONSUMING_INPUT.has(phase);
+}
+
+/**
+ * True when the key press belongs to a control rather than to the game.
+ *
+ * Exported so the behaviour is testable without a DOM event: the property that
+ * matters is which elements are exempt, not how the listener is wired.
+ */
+export function isInteractiveTarget(target: EventTarget | null): boolean {
+  if (!target || !(target instanceof Element)) return false;
+  if (target.closest("[data-climb-capture-keys]")) return false;
+  return target.closest(INTERACTIVE_SELECTOR) !== null;
+}
+
+/**
+ * Elements that consume Space or the arrow keys themselves. `a` without href is
+ * excluded deliberately — it is not focusable and not activatable.
+ */
+const INTERACTIVE_SELECTOR = [
+  "button",
+  "a[href]",
+  "input",
+  "select",
+  "textarea",
+  "summary",
+  "[contenteditable]:not([contenteditable='false'])",
+  "[role='button']",
+  "[role='link']",
+  "[role='checkbox']",
+  "[role='radio']",
+  "[role='switch']",
+  "[role='tab']",
+  "[role='menuitem']",
+  "[role='textbox']",
+  "[role='slider']",
+  "[role='spinbutton']",
+].join(",");
+
+/** Phases where the game reads the keyboard and may suppress default actions. */
+const PHASES_CONSUMING_INPUT: ReadonlySet<MatchPhase> = new Set<MatchPhase>([
+  "countdown",
+  "climb",
+]);
