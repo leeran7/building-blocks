@@ -26,7 +26,6 @@ import { useAuth } from "../../contexts/AuthContext";
 import { useCanvasSize } from "../../hooks/useCanvasSize";
 import { useCoarsePointer } from "../../hooks/useCoarsePointer";
 import { climberHandle } from "../../lib/handle";
-import { visibleBillboards, type Billboard } from "../../game/billboards";
 
 export interface ClimbSceneProps {
   tower: TowerSpec;
@@ -68,7 +67,6 @@ export function ClimbScene({ tower, categoryLabel }: ClimbSceneProps) {
   const [posted, setPosted] = useState(false);
   const [saveInfo, setSaveInfo] = useState<SaveInfo | null>(null);
   const [savedBanner, setSavedBanner] = useState<SaveInfo | null>(null);
-  const [signs, setSigns] = useState<Billboard[]>([]);
 
   const player = state.players[0];
   const phase = state.phase;
@@ -77,22 +75,6 @@ export function ClimbScene({ tower, categoryLabel }: ClimbSceneProps) {
   const { muted, setMuted, announcement } = usePowerUpFeedback(player, state.tick);
 
   const redirectPath = `/play`;
-
-  useEffect(() => {
-    let live = true;
-    fetch("/api/climb/billboards")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d: { signs?: Billboard[] } | null) => {
-        if (!live || !d || !Array.isArray(d.signs)) return;
-        setSigns(visibleBillboards(d.signs));
-      })
-      .catch(() => {
-        /* climb still plays without signs */
-      });
-    return () => {
-      live = false;
-    };
-  }, []);
 
   const buildRun = useCallback(
     () => ({
@@ -216,7 +198,6 @@ export function ClimbScene({ tower, categoryLabel }: ClimbSceneProps) {
           width={canvasSize.width}
           height={canvasSize.height}
           bottomInset={touchDevice ? TOUCH_CONTROLS_INSET : 0}
-          signs={signs}
         />
 
         {phase === "countdown" && (
@@ -241,8 +222,7 @@ export function ClimbScene({ tower, categoryLabel }: ClimbSceneProps) {
             <p className="text-text-secondary text-sm mt-3 max-w-[280px] text-center leading-relaxed">
               Climb as high as you can before the rising lava catches you. It gets
               harder the higher you go — your peak height is your score. Grab
-              glowing orbs to trigger their power-ups instantly. Paid blocks hang
-              at the altitude they bought.
+              glowing orbs to trigger their power-ups instantly.
             </p>
             <ClimbControlsGuide variant="overlay" />
             <StartButton onClick={handleStart} label="Start climb" />
@@ -326,9 +306,7 @@ export function ClimbScene({ tower, categoryLabel }: ClimbSceneProps) {
           ? `You were caught by the lava at ${(player?.peakY ?? 0).toFixed(
               0
             )} metres.`
-          : signs.length > 0
-            ? `${signs.length} paid blocks hanging in the climb.`
-            : ""}
+          : ""}
       </div>
     </div>
   );

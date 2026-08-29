@@ -31,14 +31,6 @@ describe("GET /api/tower does not mint a tech season", () => {
   });
 });
 
-describe("billboard candidates are per stack", () => {
-  it("partitions by category so one buried giant stack cannot fill the window", () => {
-    const src = readFileSync(resolve(__dirname, "../../src/db/blocks.ts"), "utf-8");
-    expect(src).toContain("PARTITION BY category");
-    expect(src).toContain("ROW_NUMBER()");
-  });
-});
-
 describe("view counting is per paid stack", () => {
   it("credit-view requires a stack and never calls incrementSeasonViews()", () => {
     const src = readFileSync(

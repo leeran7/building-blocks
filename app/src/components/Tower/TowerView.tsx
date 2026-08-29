@@ -270,8 +270,8 @@ export function TowerView({
                 [ empty stack ]
               </p>
               <p className="text-text-secondary text-sm mt-3 max-w-sm mx-auto leading-relaxed">
-                Claim #1. Your block hangs in the free climb at the altitude you
-                buy — climbers will pass your name on the way up.
+                Claim #1. Buy altitude to place your block at the top of this
+                stack.
               </p>
               {submitHref && (
                 <a

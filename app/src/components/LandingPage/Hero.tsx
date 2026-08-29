@@ -205,9 +205,8 @@ export function Hero({ stats }: { stats: HeroStats }) {
           >
             Buy altitude on a public leaderboard and get your brand seen. Your
             height is{" "}
-            <span className="text-text-primary font-medium">permanent</span> — it
-            hangs in the live climb at the metres you paid for. The ground still
-            rises with every view. Top up, or sink beneath it.
+            <span className="text-text-primary font-medium">permanent</span> — but
+            the ground rises with every view. Top up, or sink beneath it.
           </p>
 
           <div

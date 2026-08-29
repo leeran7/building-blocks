@@ -67,9 +67,8 @@ export function TowerDirectory({ counts, minEntryUsd }: TowerDirectoryProps) {
           </h2>
           <p className="text-sm text-text-secondary mt-2 max-w-2xl">
             {GAME_CATEGORIES.length} stacks · {totalLive} blocks climbing. Buy
-            altitude to claim your rank — your height is permanent, and it hangs
-            in the free climb at those metres. The ground rises to bury whoever
-            stops topping up. Open a stack to see the standings.
+            altitude to claim your rank — your height is permanent, but the ground
+            rises to bury whoever stops topping up. Open a stack to see the standings.
           </p>
         </div>
 
