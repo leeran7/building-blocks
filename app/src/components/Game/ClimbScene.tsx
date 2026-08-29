@@ -20,7 +20,7 @@ import { useClimb } from "../../game/useClimb";
 import { TowerSpec } from "../../game/types";
 import { ClimbCanvas } from "./ClimbCanvas";
 import { ClimbControlsGuide } from "./ClimbControlsGuide";
-import { TouchControls, TOUCH_CONTROLS_RESERVE } from "./TouchControls";
+import { TouchControls, TOUCH_CONTROLS_INSET } from "./TouchControls";
 import { useAuth } from "../../contexts/AuthContext";
 import { useCanvasSize } from "../../hooks/useCanvasSize";
 import { useCoarsePointer } from "../../hooks/useCoarsePointer";
@@ -58,10 +58,11 @@ export function ClimbScene({ tower, categoryLabel }: ClimbSceneProps) {
   const touchDevice = useCoarsePointer();
   const seed = useMemo(() => `solo-${tower.categorySlug}`, [tower.categorySlug]);
   const { state, start, finished, setTouch } = useClimb({ tower, seed });
-  const stageRef = useRef<HTMLDivElement>(null);
-  const canvasSize = useCanvasSize(stageRef, {
-    reserveBelow: touchDevice ? TOUCH_CONTROLS_RESERVE : 0,
-  });
+  // Measured on the canvas wrapper, not the scene root: the saved-record banner
+  // renders between them, and budgeting from the root would ignore its height
+  // and push the canvas (and the controls overlaid on it) past the fold.
+  const canvasBoxRef = useRef<HTMLDivElement>(null);
+  const canvasSize = useCanvasSize(canvasBoxRef);
   const { user, token } = useAuth();
   const [posted, setPosted] = useState(false);
   const [saveInfo, setSaveInfo] = useState<SaveInfo | null>(null);
@@ -158,10 +159,7 @@ export function ClimbScene({ tower, categoryLabel }: ClimbSceneProps) {
   }, [user, token, postRun]);
 
   return (
-    <div
-      ref={stageRef}
-      className="flex flex-col items-center gap-4 w-full max-w-[560px]"
-    >
+    <div className="flex flex-col items-center gap-4 w-full max-w-[560px]">
       {savedBanner?.saved && (
         <div
           className="w-full rounded-xl border border-signal/40 bg-signal/[0.06] px-4 py-2.5 text-center"
@@ -180,12 +178,13 @@ export function ClimbScene({ tower, categoryLabel }: ClimbSceneProps) {
       )}
 
       {/* Width tracks the canvas so the overlays line up with it exactly. */}
-      <div className="relative" style={{ width: canvasSize.width }}>
+      <div ref={canvasBoxRef} className="relative" style={{ width: canvasSize.width }}>
         <ClimbCanvas
           state={state}
           reducedMotion={reducedMotion}
           width={canvasSize.width}
           height={canvasSize.height}
+          bottomInset={touchDevice ? TOUCH_CONTROLS_INSET : 0}
         />
 
         {phase === "countdown" && (
@@ -282,11 +281,11 @@ export function ClimbScene({ tower, categoryLabel }: ClimbSceneProps) {
             </Link>
           </Overlay>
         )}
-      </div>
 
-      {touchDevice && (
-        <TouchControls active={touchControlsActive} onInput={setTouch} />
-      )}
+        {touchDevice && (
+          <TouchControls active={touchControlsActive} onInput={setTouch} />
+        )}
+      </div>
 
       <div className="sr-only" role="status" aria-live="polite">
         {finished
