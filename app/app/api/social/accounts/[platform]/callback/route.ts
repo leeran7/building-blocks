@@ -7,6 +7,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { checkRateLimit, clientIp } from "../../../../../../src/lib/rateLimit";
+import { safeSocialAdminRedirect } from "../../../../../../src/api/social/routeHelpers";
 import { verifyAndConsumeOAuthState } from "../../../../../../src/social/oauth/oauthState";
 import { getProvider } from "../../../../../../src/social/providers/registry";
 import { upsertSocialAccount } from "../../../../../../src/db/social/socialAccounts";
@@ -89,7 +90,7 @@ export async function GET(
       socialAccountId: account.id,
     });
 
-    const redirectAfter = verified.redirectAfter || "/admin/social/settings";
+    const redirectAfter = safeSocialAdminRedirect(verified.redirectAfter);
     return NextResponse.redirect(new URL(redirectAfter, base));
   } catch (err) {
     console.error(`[social-oauth-callback] ${platform}`, err);

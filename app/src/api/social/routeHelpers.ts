@@ -8,6 +8,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireSocialAdmin, SocialAdminError } from "../middleware/requireSocialAdmin";
 import { checkRateLimit, type RateLimitOptions } from "../../lib/rateLimit";
 import { sanitizeForResponse } from "../../social/services/safety";
+import { safeSocialAdminPath } from "../../lib/safeRedirect";
 import type { DecodedIdToken } from "firebase-admin/auth";
 import type { ToolResult } from "../../social/types";
 
@@ -88,7 +89,12 @@ export async function enforceRateLimit(
 ): Promise<NextResponse | null> {
   const rl = await checkRateLimit(options);
   if (!rl.allowed) {
+    if (rl.degraded && options.failMode === "closed") {
+      return jsonError("Rate limiting temporarily unavailable", 503, "RATE_LIMIT_UNAVAILABLE");
+    }
     return jsonError("Too many requests", 429, "RATE_LIMITED");
   }
   return null;
 }
+
+export const safeSocialAdminRedirect = safeSocialAdminPath;

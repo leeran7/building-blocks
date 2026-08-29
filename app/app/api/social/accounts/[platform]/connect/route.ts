@@ -11,6 +11,7 @@ import {
   jsonOk,
   jsonError,
   enforceRateLimit,
+  safeSocialAdminRedirect,
 } from "../../../../../../src/api/social/routeHelpers";
 import { issueOAuthState } from "../../../../../../src/social/oauth/oauthState";
 import { getProvider } from "../../../../../../src/social/providers/registry";
@@ -48,7 +49,9 @@ export const POST = withSocialAdminParams<{ platform: string }>(async (request, 
   let redirectAfter: string | undefined;
   try {
     const body = await request.json();
-    if (typeof body?.redirectAfter === "string") redirectAfter = body.redirectAfter;
+    if (typeof body?.redirectAfter === "string") {
+      redirectAfter = safeSocialAdminRedirect(body.redirectAfter);
+    }
   } catch {
     // no body is fine — redirectAfter is optional
   }

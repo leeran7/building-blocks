@@ -19,6 +19,9 @@ export const GET = withSocialAdminParams<{ id: string }>(async (request, decoded
 
   const run = await getAgentRunWithTasks(params.id);
   if (!run) return jsonError("Agent run not found", 404, "NOT_FOUND");
+  if (run.initiatedByUid && run.initiatedByUid !== decoded.uid) {
+    return jsonError("You do not have access to this agent run", 403, "FORBIDDEN");
+  }
 
   const { tasks, ...runData } = run;
   return jsonOk({ run: runData, tasks });

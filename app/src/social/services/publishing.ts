@@ -140,13 +140,23 @@ async function doPublish(item: SocialContentItem, initiator: string): Promise<To
   }
 
   // AC-37: on an ambiguous failure, check whether the post already exists
-  // before treating this as a clean failure eligible for retry.
-  if (result.reason === "PLATFORM_ERROR") {
-    const existsCheck = await provider.checkPostExists(tokens.accessToken, item.id);
+  // before treating this as a clean failure eligible for retry — but ONLY when
+  // we have a real platform post id to look up. Never pass ContentItem.id
+  // (a cuid) to checkPostExists or store it as externalPostId.
+  if (result.reason === "PLATFORM_ERROR" && item.externalPostId) {
+    const existsCheck = await provider.checkPostExists(tokens.accessToken, item.externalPostId);
     if (existsCheck.ok && existsCheck.data) {
-      await finishPublicationAttempt(attempt.id, { status: "SUCCEEDED", errorMessage: "Recovered via checkPostExists after ambiguous error" });
-      const published = await markContentItemPublished(item.id, item.id);
-      return okResult({ contentItemId: published.id, status: "PUBLISHED" });
+      await finishPublicationAttempt(attempt.id, {
+        status: "SUCCEEDED",
+        externalPostId: item.externalPostId,
+        errorMessage: "Recovered via checkPostExists after ambiguous error",
+      });
+      const published = await markContentItemPublished(item.id, item.externalPostId);
+      return okResult({
+        contentItemId: published.id,
+        status: "PUBLISHED",
+        externalPostId: item.externalPostId,
+      });
     }
   }
 

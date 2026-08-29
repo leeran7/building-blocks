@@ -20,3 +20,13 @@ export function safeInternalPath(
   if (/[\x00-\x1F\x7F]/.test(raw)) return fallback;
   return raw;
 }
+
+/** Same-origin relative path under /admin/social only — blocks open redirects after OAuth. */
+export function safeSocialAdminPath(
+  raw: string | null | undefined,
+  fallback = "/admin/social/settings"
+): string {
+  const path = safeInternalPath(raw, fallback);
+  if (!path.startsWith("/admin/social")) return fallback;
+  return path;
+}

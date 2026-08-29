@@ -104,6 +104,10 @@ export async function runNextChatStep(runId: string, uid: string): Promise<ChatS
     if (!withTasks) throw new Error("Agent run not found");
     const { tasks, ...run } = withTasks;
 
+    if (run.initiatedByUid && run.initiatedByUid !== uid) {
+      throw new Error("You do not have access to this agent run");
+    }
+
     if (run.status === "SUCCEEDED" || run.status === "FAILED") {
       return { run, task: tasks[tasks.length - 1] ?? null };
     }

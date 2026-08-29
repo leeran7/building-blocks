@@ -8,6 +8,7 @@
  * callers must treat as "already published," not as an error to surface).
  */
 
+import { Prisma } from "@prisma/client";
 import { prisma } from "../client";
 import { sanitizeForStorage } from "../../social/services/safety";
 import type { SocialPublication } from "@prisma/client";
@@ -47,20 +48,44 @@ export async function finishPublicationAttempt(
     rawResponseSanitized?: unknown;
   }
 ): Promise<SocialPublication> {
-  return prisma.socialPublication.update({
-    where: { id },
-    data: {
-      status: input.status,
-      externalPostId: input.externalPostId,
-      rateLimitedUntil: input.rateLimitedUntil,
-      errorCode: input.errorCode,
-      errorMessage: input.errorMessage,
-      rawResponseSanitized: input.rawResponseSanitized
-        ? (sanitizeForStorage(input.rawResponseSanitized) as object)
-        : undefined,
-      finishedAt: new Date(),
-    },
-  });
+  try {
+    return await prisma.socialPublication.update({
+      where: { id },
+      data: {
+        status: input.status,
+        externalPostId: input.externalPostId,
+        rateLimitedUntil: input.rateLimitedUntil,
+        errorCode: input.errorCode,
+        errorMessage: input.errorMessage,
+        rawResponseSanitized: input.rawResponseSanitized
+          ? (sanitizeForStorage(input.rawResponseSanitized) as object)
+          : undefined,
+        finishedAt: new Date(),
+      },
+    });
+  } catch (err) {
+    // Defense-in-depth: partial unique index social_publication_one_success_per_item
+    if (input.status === "SUCCEEDED" && err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
+      const current = await prisma.socialPublication.findUnique({ where: { id } });
+      if (current) {
+        const existing = await prisma.socialPublication.findFirst({
+          where: { contentItemId: current.contentItemId, status: "SUCCEEDED" },
+        });
+        if (existing) {
+          await prisma.socialPublication.update({
+            where: { id },
+            data: {
+              status: "FAILED",
+              errorMessage: "Superseded: content item already has a SUCCEEDED publication",
+              finishedAt: new Date(),
+            },
+          });
+          return existing;
+        }
+      }
+    }
+    throw err;
+  }
 }
 
 export async function listPublicationsForItem(contentItemId: string): Promise<SocialPublication[]> {

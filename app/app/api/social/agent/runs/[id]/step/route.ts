@@ -23,6 +23,9 @@ export const POST = withSocialAdminParams<{ id: string }>(async (request, decode
 
   const existing = await getAgentRun(params.id);
   if (!existing) return jsonError("Agent run not found", 404, "NOT_FOUND");
+  if (existing.initiatedByUid && existing.initiatedByUid !== decoded.uid) {
+    return jsonError("You do not have access to this agent run", 403, "FORBIDDEN");
+  }
   if (existing.kind !== "CHAT_TURN") {
     return jsonError("Only CHAT_TURN runs can be stepped via this endpoint", 400, "VALIDATION_ERROR");
   }
