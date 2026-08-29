@@ -164,6 +164,24 @@ psql "$DIRECT_URL" -c "DELETE FROM _prisma_migrations WHERE migration_name = '<m
 
 ---
 
+## Protecting `main` (required CI)
+
+A workflow that *runs* on pull requests is not a merge gate. GitHub will
+merge a red PR unless a repository ruleset requires the check names.
+
+1. Merge a revision that includes `.github/workflows/ci.yml` job names
+   `Lint, Typecheck, and Test`, `Orchestrator loop`, and `CI` (so those
+   checks exist).
+2. As a **repo admin**, open **Settings → Rules → Rulesets → New branch
+   ruleset** and use `.github/rulesets/README.md` /
+   `.github/rulesets/require-ci-on-main.json`.
+
+The Cursor GitHub App cannot create rulesets (API `403`). Until an admin
+applies the ruleset, merges can still land with failing CI — PR #30 did
+that on 2026-08-29.
+
+---
+
 ## GitHub secrets required for CI
 
 The following secrets must be set in **GitHub repository Settings > Secrets and variables > Actions** for the CI pipeline to run correctly:

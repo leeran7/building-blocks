@@ -77,7 +77,9 @@ Read `context/README.md` first, then every file it lists. Default branch and rem
 
 - Change workflow files to make checks pass
 - Unrelated refactors while integrating
-- Force-push the default branch or merge red CI
+- Force-push the default branch or merge red, missing, or skipped required CI
+  (GitHub must require the checks in `context/git.md`; honor-system green is
+  not a gate)
 
 ## Handoff
 

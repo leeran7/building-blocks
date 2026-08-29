@@ -26,6 +26,9 @@ Read `context/README.md` first, then every file it lists. Use the package manage
 - Skip tests for speed
 - Hardcode a package manager — read `context/profile.json`
 - Supply production secrets to `pull_request` jobs (kernel gates.md)
+- Treat `on: pull_request` as a merge requirement. It is not. The default
+  branch must require the CI job names via a GitHub ruleset (see
+  `context/git.md`).
 
 ## Handoff
 
