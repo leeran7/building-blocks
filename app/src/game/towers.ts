@@ -54,6 +54,18 @@ const ARCHETYPE_TUNING: Record<TrackArchetype, ArchetypeTuning> = {
   },
 };
 
+/**
+ * Fastest vertical values across every archetype. Derived rather than written
+ * down so a retune of ARCHETYPE_TUNING cannot silently loosen or invalidate the
+ * server-side score bound in ./scoreBounds.
+ */
+export const FASTEST_ARCHETYPE = {
+  maxClimbSpeed: Math.max(
+    ...Object.values(ARCHETYPE_TUNING).map((t) => t.maxClimbSpeed)
+  ),
+  jumpSpeed: Math.max(...Object.values(ARCHETYPE_TUNING).map((t) => t.jumpSpeed)),
+} as const;
+
 const WIDTH_M = 100;
 /** Floors over which difficulty ramps from easy → hard (then holds). */
 const DIFFICULTY_FLOORS = 50;

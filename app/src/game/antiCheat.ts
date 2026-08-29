@@ -11,7 +11,12 @@
  */
 
 import { PlayerInput, PlayerState, TowerSpec, TICK_DT, NO_INPUT } from "./types";
-import { RAPID_CLIMB_MULT, doubleJumpChargesRemaining, isPowerUpActive } from "./powerups";
+import {
+  RAPID_CLIMB_MULT,
+  SUPER_JUMP_MULT,
+  doubleJumpChargesRemaining,
+  isPowerUpActive,
+} from "./powerups";
 
 /** Result of validating a single player's input for one tick. */
 export interface InputValidation {
@@ -76,9 +81,17 @@ function clampAxis(v: unknown): -1 | 0 | 1 {
 
 /**
  * Height-rate sentinel (AC-15, AC-16). Given a player's height before and after
- * a tick, confirm the gain does not exceed the stack's maximum legal climb rate
- * (plus a small tolerance for float + platform-inheritance). Returns true if the
- * delta is LEGAL.
+ * a tick, confirm the gain does not exceed the fastest ascent the simulation
+ * itself can produce (plus a small tolerance for float + platform-inheritance).
+ * Returns true if the delta is LEGAL.
+ *
+ * The envelope is the maximum of two things, not just the ladder rate: climbing
+ * is capped at maxClimbSpeed, but a jump leaves the ground at jumpSpeed, which
+ * is higher on every archetype. Bounding by the climb rate alone flagged honest
+ * play — a plain jump spent 4 consecutive ticks over the limit against a K of
+ * 5, and a super-jump, shipped in the same change set as this sentinel, spent
+ * 11. climbSpeedMult scales only the climb term because that is the only one
+ * rapid-climb affects.
  */
 export function isHeightDeltaLegal(
   prevY: number,
@@ -87,8 +100,11 @@ export function isHeightDeltaLegal(
   toleranceM = 0.01,
   climbSpeedMult = 1
 ): boolean {
-  const maxGain = tower.maxClimbSpeed * climbSpeedMult * TICK_DT + toleranceM;
-  return nextY - prevY <= maxGain;
+  const maxRise = Math.max(
+    tower.maxClimbSpeed * climbSpeedMult,
+    tower.jumpSpeed * SUPER_JUMP_MULT
+  );
+  return nextY - prevY <= maxRise * TICK_DT + toleranceM;
 }
 
 /**

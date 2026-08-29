@@ -13,11 +13,14 @@ import { describe, it, expect } from "vitest";
 import {
   validateInput,
   isHeightDeltaLegal,
+  legalClimbSpeedMult,
   newSentinel,
   updateSentinel,
 } from "../../src/game/antiCheat";
-import { spawnPlayer } from "../../src/game/simulation";
-import { TowerSpec, TICK_DT } from "../../src/game/types";
+import { createMatch, spawnPlayer, stepMatch } from "../../src/game/simulation";
+import { buildTower } from "../../src/game/towers";
+import { RAPID_CLIMB_MULT, SUPER_JUMP_MULT } from "../../src/game/powerups";
+import { TowerSpec, TICK_DT, TICK_HZ } from "../../src/game/types";
 
 const TOWER: TowerSpec = {
   categorySlug: "t",
@@ -83,6 +86,74 @@ describe("AC-15: height-rate sentinel", () => {
 
   it("rejects an impossible per-tick height jump", () => {
     expect(isHeightDeltaLegal(100, 100 + maxGain + 5, TOWER)).toBe(false);
+  });
+
+  it("accepts a launch at the tower's own jump speed", () => {
+    // The bound used to be the ladder climb rate alone, so the first tick of
+    // any jump was illegal on every archetype: jumpSpeed exceeds
+    // maxClimbSpeed everywhere.
+    const jumpGain = TOWER.jumpSpeed * TICK_DT;
+    expect(jumpGain).toBeGreaterThan(maxGain);
+    expect(isHeightDeltaLegal(100, 100 + jumpGain, TOWER)).toBe(true);
+  });
+
+  it("accepts a super-jump launch", () => {
+    const superGain = TOWER.jumpSpeed * SUPER_JUMP_MULT * TICK_DT;
+    expect(isHeightDeltaLegal(100, 100 + superGain, TOWER)).toBe(true);
+  });
+
+  it("still rejects a delta above the full vertical envelope", () => {
+    const envelope = TOWER.jumpSpeed * SUPER_JUMP_MULT * TICK_DT;
+    expect(isHeightDeltaLegal(100, 100 + envelope * 2, TOWER)).toBe(false);
+  });
+
+  it("widens for rapid-climb without narrowing for anything else", () => {
+    const rapidGain = TOWER.maxClimbSpeed * RAPID_CLIMB_MULT * TICK_DT;
+    expect(isHeightDeltaLegal(100, 100 + rapidGain, TOWER, 0.01, RAPID_CLIMB_MULT)).toBe(
+      true
+    );
+    // A super-jump must stay legal even at the default multiplier.
+    const superGain = TOWER.jumpSpeed * SUPER_JUMP_MULT * TICK_DT;
+    expect(isHeightDeltaLegal(100, 100 + superGain, TOWER, 0.01, 1)).toBe(true);
+  });
+});
+
+describe("AC-16: the sentinel stays silent on honest play", () => {
+  // The gap the old tests left: every sentinel assertion used synthetic deltas,
+  // so nobody checked the sentinel against heights the simulation actually
+  // produces. A real jump used to spend 4 consecutive ticks illegal and a
+  // super-jump 11, against a K of 5.
+  const SEEDS = ["honest-1", "honest-2", "honest-3"];
+
+  it.each(SEEDS)("does not flag a jumping, climbing run (%s)", (seed) => {
+    const tower = buildTower("ai", { runSeed: seed });
+    const match = createMatch({ seed, mode: "solo", tower, playerIds: ["p1"] });
+    match.phase = "climb";
+    match.tick = 0;
+
+    let sentinel = newSentinel();
+    let worstStreak = 0;
+
+    for (let i = 0; i < 30 * TICK_HZ; i++) {
+      const player = match.players[0]!;
+      const prevY = player.y;
+      stepMatch(match, {
+        p1: { moveX: i % 40 < 20 ? 1 : -1, jump: true, climbY: 1, usePowerUp: true },
+      });
+      const legal = isHeightDeltaLegal(
+        prevY,
+        match.players[0]!.y,
+        tower,
+        0.01,
+        legalClimbSpeedMult(match.players[0]!, match.tick)
+      );
+      sentinel = updateSentinel(sentinel, legal);
+      worstStreak = Math.max(worstStreak, sentinel.consecutiveViolations);
+    }
+
+    expect(sentinel.flagged).toBe(false);
+    // Nowhere near the K=5 threshold, so a retune has room before it regresses.
+    expect(worstStreak).toBeLessThan(3);
   });
 });
 

@@ -81,9 +81,12 @@ export function ClimbScene({ tower, categoryLabel }: ClimbSceneProps) {
       peakY: player?.peakY ?? 0,
       finished: player?.status === "finished",
       finishedTick: player?.finishedTick ?? null,
+      // Elapsed run length. finishedTick is only set when the lava catches the
+      // player, so the server cannot rely on it to bound peakY.
+      ticks: state.tick,
       seed: state.seed,
     }),
-    [player, state.seed]
+    [player, state.seed, state.tick]
   );
 
   const postRun = useCallback(
