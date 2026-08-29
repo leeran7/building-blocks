@@ -86,7 +86,7 @@ export function FreeStackShell({
 
       <div
         className={
-          "max-w-2xl mx-auto w-full px-4 flex-1 overflow-x-hidden " +
+          "w-full px-4 flex-1 overflow-x-hidden " +
           (compactHeader
             ? "py-3 [@media(min-width:640px)_and_(min-height:560px)]:py-6"
             : "py-6")
