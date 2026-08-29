@@ -160,6 +160,51 @@ export function isAmberEdge(
 }
 
 /**
+ * Assumed qualified-view accrual per day, in thousands, used to convert a
+ * "views until burial" delta into a day estimate.
+ */
+export const VIEWS_K_PER_DAY_ESTIMATE = 1.0;
+
+/**
+ * Estimate days until the rising ground line reaches a block's altitude.
+ *
+ * Returns 0 when the block is already buried or already at/below G0, and null
+ * when the altitude is above the highest ground the season can ever reach
+ * (G0 * MAX_GROWTH) — that block will never be buried this season (AC-23).
+ *
+ * Lives here rather than in the dashboard route because a test that
+ * re-implements it locally silently diverges: the previous copy in
+ * src/__tests__/v2.test.ts omitted the AC-23 cap and rounded instead of
+ * flooring, so two of its assertions asserted the inverse of production.
+ *
+ * @param altitude - block altitude in metres
+ * @param V - current views_k
+ * @param c - optional partial constants override
+ * @returns whole days until burial, 0 if already buried, null if never
+ */
+export function estimateDaysUntilBuried(
+  altitude: number,
+  V: number,
+  c?: Partial<EngineConstants>
+): number | null {
+  if (altitude <= computeGround(V, c)) return 0;
+
+  const { G0, DOUBLE_EVERY_K, MAX_GROWTH } = mergeConstants(c);
+  if (altitude <= G0) return 0;
+
+  // AC-23: altitude above maximum possible ground → never buried this season.
+  if (altitude > G0 * MAX_GROWTH) return null;
+
+  const lambda = Math.log(2) / DOUBLE_EVERY_K;
+  const dV = (1 / lambda) * Math.log(altitude / G0) - V;
+  if (dV <= 0) return 0;
+
+  // AC-21: floor (not round) — a conservative estimate never overstates the
+  // time a seller has left.
+  return Math.floor(dV / VIEWS_K_PER_DAY_ESTIMATE);
+}
+
+/**
  * Re-export constants types for convenience.
  */
 export type { EngineConstants };

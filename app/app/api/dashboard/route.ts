@@ -34,30 +34,10 @@ import {
   isBuried,
   isAmberEdge,
   priceTo,
+  estimateDaysUntilBuried,
 } from "../../../src/engine/index";
-import { DEFAULT_CONSTANTS } from "../../../src/engine/constants";
 
 export const runtime = "nodejs";
-
-const VIEWS_K_PER_DAY_ESTIMATE = 1.0;
-
-function estimateDaysUntilBuried(altitude: number, V: number): number | null {
-  const ground = computeGround(V);
-  if (altitude <= ground) return 0;
-
-  const { G0, DOUBLE_EVERY_K, MAX_GROWTH } = DEFAULT_CONSTANTS;
-  if (altitude <= G0) return 0;
-
-  // AC-23: altitude above maximum possible ground → will never be buried this season
-  if (altitude > G0 * MAX_GROWTH) return null;
-
-  const lambda = Math.log(2) / DOUBLE_EVERY_K;
-  const dV = (1 / lambda) * Math.log(altitude / G0) - V;
-  if (dV <= 0) return 0;
-
-  // AC-21: floor (not round) — conservative estimate
-  return Math.floor(dV / VIEWS_K_PER_DAY_ESTIMATE);
-}
 
 export async function GET(request: NextRequest): Promise<NextResponse> {
   const start = Date.now();
