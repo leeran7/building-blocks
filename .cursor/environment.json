@@ -6,7 +6,7 @@
     {
       "name": "dev-logs",
       "command": "mkdir -p /tmp/tower-dev && tail -n 50 -f /tmp/tower-dev/dev.log /tmp/tower-dev/ngrok.log 2>/dev/null || sleep infinity",
-      "description": "Next.js dev server + ngrok tunnel logs. Public URL is in /tmp/tower-dev/public-url.txt when NGROK_DOMAIN is configured."
+      "description": "Next.js dev server (nodemon) + ngrok tunnel logs. Restarts on next.config.js, middleware, prisma schema, or .env changes. Public URL is in /tmp/tower-dev/public-url.txt when NGROK_DOMAIN is configured."
     }
   ],
   "ports": [

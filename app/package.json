@@ -5,6 +5,7 @@
   "packageManager": "pnpm@9.0.0",
   "scripts": {
     "dev": "next dev",
+    "dev:watch": "nodemon",
     "build": "prisma generate && next build",
     "setup": "pnpm install && pnpm run build",
     "postinstall": "prisma generate",
@@ -46,6 +47,7 @@
     "autoprefixer": "^10.0.1",
     "eslint": "^8",
     "eslint-config-next": "14.0.4",
+    "nodemon": "^3.1.14",
     "playwright": "^1.40.1",
     "postcss": "^8",
     "prisma": "^5.7.1",

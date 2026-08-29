@@ -40,15 +40,16 @@ start_dev_server() {
     return 0
   fi
 
-  echo "Starting Next.js dev server on port ${PORT}..."
+  echo "Starting Next.js dev server (nodemon) on port ${PORT}..."
   (
     cd "$APP_DIR"
+    export PORT
     export BASE_URL="${BASE_URL:-http://localhost:${PORT}}"
     if [[ "$TUNNEL_ENABLED" == "true" ]]; then
       export BASE_URL="https://${NGROK_DOMAIN}"
     fi
     corepack enable >/dev/null 2>&1 || true
-    exec pnpm dev --port "$PORT"
+    exec pnpm run dev:watch
   ) >>"$DEV_LOG" 2>&1 &
   echo $! >"$PID_FILE"
 
