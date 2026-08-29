@@ -57,15 +57,16 @@ describe("fitCanvas: keeps the play area consistent between devices", () => {
 });
 
 describe("fitCanvas: uses the room a phone actually has", () => {
-  it("beats the old viewport-fraction budget on a 390x844 phone", () => {
-    // Room left once a compact header and the touch control bar are accounted
-    // for. The previous formula (innerHeight * 0.58 - 88) produced 226x402.
+  it("beats the old viewport-fraction budget on an iPhone 13", () => {
+    // 390x664 viewport, less a compact header; the touch controls overlay the
+    // canvas so they reserve nothing. Measured against the previous formula
+    // (innerHeight * 0.58 - 88), which rendered 167x297 on this device.
     const { width, height } = fitCanvas({
       availableWidth: PHONE_WIDTH,
-      availableHeight: 844 - 150 - 104 - 12,
+      availableHeight: 664 - 130 - 12,
     });
-    expect(width).toBeGreaterThan(226);
-    expect(height).toBeGreaterThan(402);
+    expect(width).toBeGreaterThan(167);
+    expect(height).toBeGreaterThan(297);
   });
 
   it("fills the width when the height budget allows it", () => {
@@ -76,12 +77,45 @@ describe("fitCanvas: uses the room a phone actually has", () => {
     expect(width).toBe(PHONE_WIDTH);
   });
 
-  it("degrades to a usable minimum rather than vanishing in a short viewport", () => {
-    const { width } = fitCanvas({
-      availableWidth: PHONE_WIDTH,
-      availableHeight: 40,
-    });
-    expect(width).toBeGreaterThanOrEqual(240);
-    expect(width).toBeLessThanOrEqual(PHONE_WIDTH);
+  // MIN_WIDTH is 120, so the floor starts competing with the height budget
+  // below 120 / ASPECT = 213.3px. Cases sit either side of that crossover.
+  it.each([320, 240, 214, 213, 200, 150, 128, 40])(
+    "respects a %ipx height budget rather than letting the floor win",
+    (budget) => {
+      // The touch controls are overlaid on the canvas, so a canvas past the
+      // fold takes them off screen with it — the bug this guards against.
+      const { width, height } = fitCanvas({
+        availableWidth: PHONE_WIDTH,
+        availableHeight: budget,
+      });
+      expect(height).toBeLessThanOrEqual(budget);
+      expect(width).toBeGreaterThan(0);
+    }
+  );
+
+  it("never returns a canvas wider than a narrow container", () => {
+    const { width } = fitCanvas({ availableWidth: 90, availableHeight: 900 });
+    expect(width).toBeLessThanOrEqual(90);
+  });
+
+  it("collapses to zero rather than propagating a bad measurement", () => {
+    for (const box of [
+      { availableWidth: Number.NaN, availableHeight: 600 },
+      { availableWidth: 358, availableHeight: Number.NaN },
+      { availableWidth: 358, availableHeight: -200 },
+      { availableWidth: 0, availableHeight: 600 },
+    ]) {
+      const { width, height } = fitCanvas(box);
+      expect(Number.isFinite(width)).toBe(true);
+      expect(Number.isFinite(height)).toBe(true);
+      expect(width).toBeGreaterThanOrEqual(0);
+    }
+  });
+
+  it("does not hand out the largest canvas when there is no room at all", () => {
+    // A non-positive budget used to skip the height clamp entirely, returning
+    // the widest possible canvas at the moment there was least space.
+    const { width } = fitCanvas({ availableWidth: PHONE_WIDTH, availableHeight: 0 });
+    expect(width).toBeLessThan(PHONE_WIDTH);
   });
 });

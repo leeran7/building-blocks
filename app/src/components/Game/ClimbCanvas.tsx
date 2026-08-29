@@ -32,6 +32,8 @@ const PLATFORM_TOP = "#4a4656";
 const LADDER = "#8a86a0";
 const LAVA = "#ff5a2c"; // ember — the rising hazard
 const TEXT_MUTED = "#74707e";
+/** Used for the small HUD/altitude text: TEXT_MUTED only reaches 3.8:1 on it. */
+const TEXT_SECONDARY = "#a8a4b2";
 const FLAG = "#cbf24d"; // summit flag reads as signal too
 
 /**
@@ -46,6 +48,13 @@ export interface ClimbCanvasProps {
   width?: number;
   height?: number;
   reducedMotion?: boolean;
+  /**
+   * Height in px of UI covering the bottom of the canvas (the touch controls).
+   * The camera keeps the climber clear of it, so it is never hidden behind a
+   * button. Only affects the low-altitude range where the camera is clamped to
+   * the base; once it is following the climber, the view is identical.
+   */
+  bottomInset?: number;
 }
 
 export function ClimbCanvas({
@@ -53,6 +62,7 @@ export function ClimbCanvas({
   width = BASE_WIDTH,
   height = BASE_HEIGHT,
   reducedMotion = false,
+  bottomInset = 0,
 }: ClimbCanvasProps) {
   const ref = useRef<HTMLCanvasElement>(null);
 
@@ -74,7 +84,9 @@ export function ClimbCanvas({
     // HUD and label sizes are authored against the 360px baseline. Scaling them
     // with the canvas keeps the whole scene proportional, so a larger canvas
     // reads as a larger game instead of the same game with thinner chrome.
-    const ui = width / BASE_WIDTH;
+    // Floored at 1: a phone canvas is narrower than the baseline, and scaling
+    // down took the HUD to 11px and the altitude labels to 8px.
+    const ui = Math.max(1, width / BASE_WIDTH);
 
     // Scale so the full tower WIDTH fits the canvas; the camera scrolls in Y.
     const pxPerM = width / tower.widthM;
@@ -82,7 +94,11 @@ export function ClimbCanvas({
     const focusScreenFrac = 0.62; // keep the climber ~62% down the view
     // Endless: the camera follows upward without any ceiling.
     let camWorldY = playerY - viewH * (1 - focusScreenFrac);
-    camWorldY = Math.max(0, camWorldY);
+    // Near the base the camera stops following, so the climber drifts to the
+    // bottom of the view — behind the touch controls. Letting the floor sink by
+    // the inset keeps them above it; it only shows some empty air (and the
+    // rising lava) below the ground line.
+    camWorldY = Math.max(-bottomInset / pxPerM, camWorldY);
 
     const sx = (worldX: number) => worldX * pxPerM;
     const sy = (worldY: number) => height - (worldY - camWorldY) * pxPerM;
@@ -110,7 +126,7 @@ export function ClimbCanvas({
       ctx.lineTo(width, y);
       ctx.stroke();
       ctx.globalAlpha = 1;
-      ctx.fillStyle = TEXT_MUTED;
+      ctx.fillStyle = TEXT_SECONDARY;
       ctx.fillText(`${Math.round(fy)}m`, 4 * ui, y - 3 * ui);
     }
 
@@ -203,11 +219,11 @@ export function ClimbCanvas({
     ctx.font = `bold ${Math.round(13 * ui)}px monospace`;
     ctx.textAlign = "left";
     ctx.fillText(`${playerY.toFixed(1)}m`, 10 * ui, 22 * ui);
-    ctx.fillStyle = TEXT_MUTED;
+    ctx.fillStyle = TEXT_SECONDARY;
     ctx.textAlign = "right";
     ctx.fillText(`lava ${state.hazardY.toFixed(1)}m`, width - 10 * ui, 22 * ui);
     ctx.textAlign = "left";
-  }, [state, width, height, reducedMotion]);
+  }, [state, width, height, reducedMotion, bottomInset]);
 
   return (
     <canvas

@@ -116,8 +116,10 @@ export function GameOverlay({
         </button>
       </header>
 
-      {/* stage */}
-      <div className="relative flex-1 overflow-auto grid place-items-center p-2 sm:p-4">
+      {/* stage — start-aligned, not centred: the canvas sizes itself from its own
+          top edge, so centring would feed its height back into that measurement
+          and make it ratchet upward over several layout passes. */}
+      <div className="relative flex-1 overflow-auto grid items-start justify-items-center p-2 sm:p-4">
         <ClimbScene tower={tower} categoryLabel={cat.label} />
       </div>
     </div>
