@@ -38,7 +38,7 @@ export function TouchControls({
 
   const apply = useCallback(
     (event: HoldEvent) => {
-      const next = reduceHold(memoRef.current, event, performance.now());
+      const next = reduceHold(memoRef.current, event);
       memoRef.current = next;
       setPressed(next.held);
       onInput(touchInputFromHeld(next.held));
@@ -46,31 +46,25 @@ export function TouchControls({
     [onInput]
   );
 
-  const reset = useCallback(() => {
-    memoRef.current = initialHoldMemo();
-    setPressed(new Set());
-    onInput(NO_TOUCH);
-  }, [onInput]);
+  const release = useCallback(
+    (id: ControlId) => {
+      apply({ kind: "release", id });
+      // Enter's keydown preventDefault cancels the compatibility click that
+      // would otherwise clear suppressActivate, and some pointer paths never
+      // deliver a click at all. Clear the flag after this turn: click, if it
+      // fires, runs first and consumes it; if it does not, this opens the
+      // toggle path again.
+      queueMicrotask(() => apply({ kind: "clear-suppress", id }));
+    },
+    [apply]
+  );
 
   useEffect(() => {
     if (active) return;
-    reset();
-  }, [active, reset]);
-
-  // A finger still down when the tab hides never gets pointerup. Without this
-  // the control stays held and the climber keeps walking after the user returns.
-  useEffect(() => {
-    if (!active) return;
-    const onHide = () => {
-      if (document.visibilityState === "hidden") reset();
-    };
-    document.addEventListener("visibilitychange", onHide);
-    window.addEventListener("pagehide", reset);
-    return () => {
-      document.removeEventListener("visibilitychange", onHide);
-      window.removeEventListener("pagehide", reset);
-    };
-  }, [active, reset]);
+    memoRef.current = initialHoldMemo();
+    setPressed(new Set());
+    onInput(NO_TOUCH);
+  }, [active, onInput]);
 
   // Absolutely positioned, so unmounting between runs costs the canvas no
   // height and cannot resize the game mid-transition.
@@ -90,6 +84,7 @@ export function TouchControls({
             control={control}
             held={pressed.has(control.id)}
             onEvent={apply}
+            onRelease={release}
           />
         ))}
       </div>
@@ -101,10 +96,12 @@ function TouchButton({
   control,
   held,
   onEvent,
+  onRelease,
 }: {
   control: Control;
   held: boolean;
   onEvent: (event: HoldEvent) => void;
+  onRelease: (id: ControlId) => void;
 }) {
   const { id, label, glyph, sub, accent, wordGlyph } = control;
 
@@ -132,15 +129,15 @@ function TouchButton({
           : "border-border-strong bg-void/80 text-text-primary ")
       }
       onPointerDown={(e) => {
-        // Do not preventDefault: scrolling is already killed by
-        // touch-action: none, and a cancelled pointerdown can skip pointerup
-        // on some mobile browsers, which is another way a hold gets stuck.
+        // Do not preventDefault: that cancels the compatibility click the
+        // suppress flag exists to ignore. Scrolling is already killed by
+        // touch-action: none.
         e.currentTarget.setPointerCapture(e.pointerId);
         onEvent({ kind: "press", id });
       }}
-      onPointerUp={() => onEvent({ kind: "release", id })}
-      onPointerCancel={() => onEvent({ kind: "release", id })}
-      onLostPointerCapture={() => onEvent({ kind: "release", id })}
+      onPointerUp={() => onRelease(id)}
+      onPointerCancel={() => onRelease(id)}
+      onLostPointerCapture={() => onRelease(id)}
       onKeyDown={(e) => {
         if (!isHoldKey(e.key)) return;
         e.preventDefault();
@@ -150,7 +147,7 @@ function TouchButton({
       onKeyUp={(e) => {
         if (!isHoldKey(e.key)) return;
         e.preventDefault();
-        onEvent({ kind: "release", id });
+        onRelease(id);
       }}
       onClick={(e) => {
         // Pointer and keyboard already applied press/release. The remaining

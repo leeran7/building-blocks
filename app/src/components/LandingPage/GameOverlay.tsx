@@ -20,7 +20,7 @@ const ClimbScene = dynamic(
   {
     ssr: false,
     loading: () => (
-      <div className="w-[min(96vw,720px)] aspect-[9/16] max-h-[90dvh] rounded-2xl bg-surface-raised animate-pulse" />
+      <div className="w-[min(92vw,560px)] h-[min(78vh,900px)] rounded-2xl bg-surface-raised animate-pulse" />
     ),
   }
 );
@@ -119,7 +119,7 @@ export function GameOverlay({
       {/* stage — start-aligned, not centred: the canvas sizes itself from its own
           top edge, so centring would feed its height back into that measurement
           and make it ratchet upward over several layout passes. */}
-      <div className="relative flex-1 min-h-0 overflow-hidden grid items-start justify-items-center p-1 sm:p-2 w-full">
+      <div className="relative flex-1 overflow-auto grid items-start justify-items-center p-2 sm:p-4">
         <ClimbScene tower={tower} categoryLabel={cat.label} />
       </div>
     </div>

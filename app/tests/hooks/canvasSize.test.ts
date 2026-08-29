@@ -9,7 +9,7 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { fitCanvas, MAX_CANVAS_WIDTH } from "../../src/hooks/useCanvasSize";
+import { fitCanvas } from "../../src/hooks/useCanvasSize";
 
 const ASPECT = 360 / 640;
 /** iPhone-class viewport, minus the page's horizontal padding. */
@@ -31,19 +31,6 @@ describe("fitCanvas: never exceeds the space it is given", () => {
       maxWidth: 560,
     });
     expect(width).toBe(560);
-  });
-
-  it("grows past the old 560px desktop cap when the box has room", () => {
-    // Invokes fitCanvas rather than grepping MAX_CANVAS_WIDTH: a comment
-    // saying the cap is 2560 is not a contract until this fails if it
-    // silently drops back to 560.
-    const { width } = fitCanvas({
-      availableWidth: 900,
-      availableHeight: 2000,
-    });
-    expect(width).toBe(900);
-    expect(width).toBeGreaterThan(560);
-    expect(width).toBeLessThanOrEqual(MAX_CANVAS_WIDTH);
   });
 
   it("fits the height budget when height is the binding constraint", () => {

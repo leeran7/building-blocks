@@ -13,7 +13,6 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "../contexts/AuthContext";
 import { StackMark } from "./Brand/StackMark";
-import { FREE_CLIMB_HREF } from "./navLinks";
 
 interface NavbarProps {
   /** Optional breadcrumb shown after the wordmark (e.g. "Dashboard", "Tech stack"). */
@@ -73,7 +72,7 @@ export function Navbar({ contextLabel, contextDot }: NavbarProps) {
         <Link href="/#towers" className={`${GHOST} hidden sm:inline-flex`}>
           Browse
         </Link>
-        <Link href={FREE_CLIMB_HREF} className={`${GHOST} hidden sm:inline-flex`}>
+        <Link href="/#free" className={`${GHOST} hidden sm:inline-flex`}>
           Free climb
         </Link>
         {loading ? (
