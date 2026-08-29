@@ -1,0 +1,12 @@
+{
+  "watch": [
+    "next.config.js",
+    "middleware.ts",
+    "prisma/schema.prisma",
+    ".env",
+    ".env.local"
+  ],
+  "ext": "js,json,ts,prisma,env",
+  "ignore": ["node_modules", ".next", "tests", "coverage"],
+  "exec": "next dev"
+}

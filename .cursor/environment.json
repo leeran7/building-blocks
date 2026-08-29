@@ -1,0 +1,16 @@
+{
+  "name": "building-blocks-dev",
+  "install": "bash scripts/install-ngrok.sh && corepack enable && cd app && pnpm install",
+  "start": "bash scripts/dev-stack.sh",
+  "terminals": [
+    {
+      "name": "dev-logs",
+      "command": "mkdir -p /tmp/tower-dev && tail -n 50 -f /tmp/tower-dev/dev.log /tmp/tower-dev/ngrok.log 2>/dev/null || sleep infinity",
+      "description": "Next.js dev server (nodemon) + ngrok tunnel logs. Restarts on next.config.js, middleware, prisma schema, or .env changes. Public URL is in /tmp/tower-dev/public-url.txt when NGROK_DOMAIN is configured."
+    }
+  ],
+  "ports": [
+    { "name": "web", "port": 3000 },
+    { "name": "ngrok-inspector", "port": 4040 }
+  ]
+}
