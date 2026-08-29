@@ -142,13 +142,13 @@ export function useClimb({
     const upKey = t.up || hasAny(keys, KEY_UP);
     const downKey = t.down || hasAny(keys, KEY_DOWN);
     const jump = t.jump || hasAny(keys, KEY_JUMP);
-    const climbUp = upKey || jump;
-    const climbDown = downKey && !climbUp;
 
     const moveX: -1 | 0 | 1 = left && !right ? -1 : right && !left ? 1 : 0;
-    // Up/Down are the climb intent. Jump shares the up intent so one action
-    // button can leap on platforms and climb ladders. Down still climbs down.
-    const climbY: -1 | 0 | 1 = climbUp ? 1 : climbDown ? -1 : 0;
+    // Up/Down are the climb intent. They only DO anything when the player is on
+    // (or reaching) a ladder — the sim decides whether to grab/climb — but we
+    // always report the intent so the sim can attach the player to a ladder.
+    const climbY: -1 | 0 | 1 =
+      upKey && !downKey ? 1 : downKey && !upKey ? -1 : 0;
 
     return { moveX, jump, climbY, usePowerUp: false };
   }, []);

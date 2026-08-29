@@ -3,8 +3,7 @@
 /**
  * On-screen touch controls for The Climb (mobile Phase 1).
  *
- * Three buttons in a single row: move (← →) and a shared jump/climb action.
- * Wired into
+ * Four buttons in a single row: move (← →), climb (hold ↑), jump. Wired into
  * useClimb via setTouch, and only mounted on coarse-pointer devices.
  *
  * These sit *over* the bottom of the canvas rather than in a bar beneath it. A
@@ -30,13 +29,12 @@ export function TouchControls({
 
   const emit = useCallback(() => {
     const held = pressedRef.current;
-    const action = held.has("action");
     onInput({
       left: held.has("left"),
       right: held.has("right"),
-      up: action,
+      up: held.has("climb"),
       down: false,
-      jump: action,
+      jump: held.has("jump"),
     });
     setPressed(new Set(held));
   }, [onInput]);
@@ -68,7 +66,7 @@ export function TouchControls({
       style={{ touchAction: "none" }}
       aria-label="Touch game controls"
     >
-      <div className="grid grid-cols-3 gap-2">
+      <div className="grid grid-cols-4 gap-2">
         {ALL_CONTROLS.map((control) => (
           <TouchButton
             key={control.id}
@@ -154,7 +152,7 @@ function TouchButton({
   );
 }
 
-type ControlId = "left" | "right" | "action";
+type ControlId = "left" | "right" | "climb" | "jump";
 
 interface Control {
   id: ControlId;
@@ -171,13 +169,8 @@ interface Control {
 const ALL_CONTROLS: readonly Control[] = [
   { id: "left", label: "Move left", glyph: "←" },
   { id: "right", label: "Move right", glyph: "→" },
-  {
-    id: "action",
-    label: "Jump or climb up",
-    glyph: "↑",
-    sub: "jump · climb",
-    accent: true,
-  },
+  { id: "climb", label: "Climb up ladder", glyph: "↑", sub: "climb" },
+  { id: "jump", label: "Jump", glyph: "JMP", accent: true, wordGlyph: true },
 ];
 
 /**
