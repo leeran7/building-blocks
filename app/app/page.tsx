@@ -98,8 +98,6 @@ export default async function HomePage() {
         }}
       />
 
-      <FreeLeaderboard />
-
       <Suspense
         fallback={
           <div className="border-y border-border-subtle bg-surface/40 py-3">
@@ -113,6 +111,8 @@ export default async function HomePage() {
       <HowItWorks />
 
       <TowerDirectory counts={counts} minEntryUsd={constants.MIN_ENTRY_USD} />
+
+      <FreeLeaderboard />
 
       <Faq />
 

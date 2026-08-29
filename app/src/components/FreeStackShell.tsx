@@ -49,7 +49,9 @@ export function FreeStackShell({
         </div>
       </div>
 
-      <div className="max-w-2xl mx-auto w-full px-4 py-6 flex-1">{children}</div>
+      <div className="max-w-2xl mx-auto w-full px-4 py-6 flex-1 overflow-x-hidden">
+        {children}
+      </div>
     </div>
   );
 }

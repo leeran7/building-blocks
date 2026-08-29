@@ -8,6 +8,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { FreeStackShell } from "../../src/components/FreeStackShell";
 import { ClimbLeaderboard } from "../../src/components/Climb/ClimbLeaderboard";
+import { ClimbControlsGuide } from "../../src/components/Game/ClimbControlsGuide";
 import { topFreeClimbers } from "../../src/db/climb";
 
 export const metadata: Metadata = {
@@ -36,6 +37,9 @@ export default async function FreeClimbPage() {
             >
               Play the climb
             </Link>
+          </div>
+          <div className="mt-6">
+            <ClimbControlsGuide variant="compact" />
           </div>
         </div>
       }

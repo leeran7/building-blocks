@@ -5,21 +5,18 @@
  *
  * Composes the deterministic climb (useClimb) with the canvas renderer, touch
  * controls, and the match lifecycle UI: idle → countdown → climb → results.
- * Win = touching the summit flag (spec-next.md). Reduced-motion is honored for
- * rendering; the simulation is identical either way (AC-35).
- *
- * On finish, POSTs the run result (peak height + finish) so a signed-in user's
- * permanent peak-height record can be updated (AC-30/AC-31). Anonymous players
- * can play but their record is not saved — the POST is best-effort and failures
- * never block the results screen.
  */
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useClimb } from "../../game/useClimb";
 import { TowerSpec } from "../../game/types";
 import { ClimbCanvas } from "./ClimbCanvas";
+import { ClimbControlsGuide } from "./ClimbControlsGuide";
+import { TouchControls } from "./TouchControls";
 import { useAuth } from "../../contexts/AuthContext";
+import { useCanvasSize } from "../../hooks/useCanvasSize";
+import { useCoarsePointer } from "../../hooks/useCoarsePointer";
 import { climberHandle } from "../../lib/handle";
 
 export interface ClimbSceneProps {
@@ -32,12 +29,9 @@ interface SaveInfo {
   improved?: boolean;
   rank?: number;
   totalClimbers?: number;
-  /** Name to show for the climber (profile name, else pseudonym). */
   handle?: string;
 }
 
-// A finished run stashed here survives the navigation to sign-in and back, so a
-// signed-out player's record can be saved once they authenticate.
 const PENDING_CLIMB_KEY = "doomstack:pending-climb";
 
 function usePrefersReducedMotion(): boolean {
@@ -54,18 +48,20 @@ function usePrefersReducedMotion(): boolean {
 
 export function ClimbScene({ tower, categoryLabel }: ClimbSceneProps) {
   const reducedMotion = usePrefersReducedMotion();
+  const touchDevice = useCoarsePointer();
   const seed = useMemo(() => `solo-${tower.categorySlug}`, [tower.categorySlug]);
-  const { state, start, finished } = useClimb({ tower, seed });
+  const { state, start, finished, setTouch } = useClimb({ tower, seed });
+  const canvasSize = useCanvasSize(touchDevice);
   const { user, token } = useAuth();
   const [posted, setPosted] = useState(false);
   const [saveInfo, setSaveInfo] = useState<SaveInfo | null>(null);
-  // Confirmation shown after a run saved via the sign-in → return flow.
   const [savedBanner, setSavedBanner] = useState<SaveInfo | null>(null);
 
   const player = state.players[0];
   const phase = state.phase;
+  const touchControlsActive =
+    touchDevice && !finished && (phase === "countdown" || phase === "climb");
 
-  // sessionStorage key for a run awaiting sign-in, + where to return after login.
   const redirectPath = `/play`;
 
   const buildRun = useCallback(
@@ -104,8 +100,6 @@ export function ClimbScene({ tower, categoryLabel }: ClimbSceneProps) {
     []
   );
 
-  // Start / restart: reset the save guard so EVERY run is recorded (not just
-  // the first), then kick off the countdown.
   function handleStart() {
     setPosted(false);
     setSaveInfo(null);
@@ -113,9 +107,6 @@ export function ClimbScene({ tower, categoryLabel }: ClimbSceneProps) {
     start();
   }
 
-  // Persist the run once per run when it finishes. Signed-in → save now. Signed
-  // out → stash the run in sessionStorage so it can be saved after the player
-  // signs in and is redirected back here (AC-30/31).
   useEffect(() => {
     if (!finished || posted) return;
     setPosted(true);
@@ -127,16 +118,12 @@ export function ClimbScene({ tower, categoryLabel }: ClimbSceneProps) {
       try {
         sessionStorage.setItem(PENDING_CLIMB_KEY, JSON.stringify(run));
       } catch {
-        /* storage unavailable — sign-in save just won't persist */
+        /* storage unavailable */
       }
     }
   }, [finished, posted, buildRun, token, postRun]);
 
-  // On mount / when auth resolves: if a pending run for THIS category is waiting
-  // (from the sign-in flow), save it now and confirm it.
   useEffect(() => {
-    // Only a real (non-anonymous) account can save; don't let a guest login
-    // consume and lose the pending run.
     if (!user || !token || user.isAnonymous) return;
     let raw: string | null = null;
     try {
@@ -161,8 +148,7 @@ export function ClimbScene({ tower, categoryLabel }: ClimbSceneProps) {
   }, [user, token, postRun]);
 
   return (
-    <div className="flex flex-col items-center gap-4">
-      {/* Saved confirmation — after signing in from a finished run and returning. */}
+    <div className="flex flex-col items-center gap-4 w-full max-w-[420px]">
       {savedBanner?.saved && (
         <div
           className="w-full rounded-xl border border-signal/40 bg-signal/[0.06] px-4 py-2.5 text-center"
@@ -180,10 +166,14 @@ export function ClimbScene({ tower, categoryLabel }: ClimbSceneProps) {
         </div>
       )}
 
-      <div className="relative">
-        <ClimbCanvas state={state} reducedMotion={reducedMotion} />
+      <div className="relative w-full flex justify-center">
+        <ClimbCanvas
+          state={state}
+          reducedMotion={reducedMotion}
+          width={canvasSize.width}
+          height={canvasSize.height}
+        />
 
-        {/* Countdown overlay. */}
         {phase === "countdown" && (
           <Overlay>
             <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-signal">
@@ -195,7 +185,6 @@ export function ClimbScene({ tower, categoryLabel }: ClimbSceneProps) {
           </Overlay>
         )}
 
-        {/* Idle (pre-start) overlay. */}
         {phase === "lobby" && (
           <Overlay>
             <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-signal">
@@ -204,15 +193,15 @@ export function ClimbScene({ tower, categoryLabel }: ClimbSceneProps) {
             <h2 className="font-display text-4xl text-text-primary mt-2">
               Endless climb
             </h2>
-            <p className="text-text-secondary text-sm mt-3 max-w-[260px] text-center leading-relaxed">
+            <p className="text-text-secondary text-sm mt-3 max-w-[280px] text-center leading-relaxed">
               Climb as high as you can before the rising lava catches you. It gets
               harder the higher you go — your peak height is your score.
             </p>
+            <ClimbControlsGuide variant="overlay" />
             <StartButton onClick={handleStart} label="Start climb" />
           </Overlay>
         )}
 
-        {/* Results overlay — endless climb ends when the lava catches you. */}
         {finished && (
           <Overlay>
             <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-ember">
@@ -226,7 +215,6 @@ export function ClimbScene({ tower, categoryLabel }: ClimbSceneProps) {
               your highest climb
             </p>
 
-            {/* Record status + leaderboard place (immediate). */}
             {user ? (
               saveInfo?.saved && saveInfo.rank ? (
                 <div className="mt-3 flex flex-col items-center gap-0.5">
@@ -282,7 +270,10 @@ export function ClimbScene({ tower, categoryLabel }: ClimbSceneProps) {
         )}
       </div>
 
-      {/* ARIA live region: announces win/eliminate for screen readers (NFR-5). */}
+      {touchDevice && (
+        <TouchControls active={touchControlsActive} onInput={setTouch} />
+      )}
+
       <div className="sr-only" role="status" aria-live="polite">
         {finished
           ? `You were caught by the lava at ${(player?.peakY ?? 0).toFixed(
@@ -294,7 +285,7 @@ export function ClimbScene({ tower, categoryLabel }: ClimbSceneProps) {
   );
 }
 
-function Overlay({ children }: { children: React.ReactNode }) {
+function Overlay({ children }: { children: ReactNode }) {
   return (
     <div className="absolute inset-0 flex flex-col items-center justify-center rounded-xl bg-void/70 backdrop-blur-sm p-4 text-center">
       {children}
