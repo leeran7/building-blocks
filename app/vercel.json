@@ -2,5 +2,20 @@
   "framework": "nextjs",
   "buildCommand": "export DIRECT_URL=\"${DIRECT_URL:-$DATABASE_URL}\" && pnpm db:migrate && pnpm build",
   "installCommand": "pnpm install",
-  "outputDirectory": ".next"
+  "outputDirectory": ".next",
+  "crons": [
+    { "path": "/api/social/cron/publish-sweep", "schedule": "*/5 * * * *" },
+    { "path": "/api/social/cron/analytics-refresh", "schedule": "0 6 * * *" },
+    { "path": "/api/social/cron/weekly-strategy", "schedule": "0 8 * * 1" },
+    { "path": "/api/social/cron/token-refresh-sweep", "schedule": "0 * * * *" }
+  ],
+  "functions": {
+    "app/api/social/agent/runs/route.js": { "maxDuration": 60 },
+    "app/api/social/agent/runs/[id]/step/route.js": { "maxDuration": 60 },
+    "app/api/social/cron/publish-sweep/route.js": { "maxDuration": 60 },
+    "app/api/social/cron/analytics-refresh/route.js": { "maxDuration": 60 },
+    "app/api/social/cron/weekly-strategy/route.js": { "maxDuration": 60 },
+    "app/api/social/cron/token-refresh-sweep/route.js": { "maxDuration": 60 },
+    "app/api/social/content/generate/route.js": { "maxDuration": 60 }
+  }
 }

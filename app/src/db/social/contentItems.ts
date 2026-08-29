@@ -246,6 +246,32 @@ export async function listContentItemsByGeneratedWeek(isoWeek: string): Promise<
   });
 }
 
+/** AC-32: "duplicate" is a plain copy for editing — a fresh DRAFT with no scheduledAt, distinct from repurposeContent's cross-format lineage (sourceItemId stays null here). */
+export async function duplicateContentItem(id: string, createdByUid: string): Promise<SocialContentItem | null> {
+  const source = await getContentItemById(id);
+  if (!source) return null;
+  return prisma.socialContentItem.create({
+    data: {
+      platform: source.platform,
+      contentType: source.contentType,
+      status: "DRAFT",
+      prompt: source.prompt,
+      title: source.title,
+      hook: source.hook,
+      script: source.script,
+      caption: source.caption,
+      description: source.description,
+      hashtags: source.hashtags,
+      cta: source.cta,
+      visualDirection: source.visualDirection,
+      threadParts: source.threadParts as object | undefined,
+      brandProfileVersion: source.brandProfileVersion,
+      generatedByModel: source.generatedByModel,
+      createdByUid,
+    },
+  });
+}
+
 /** Published items whose publish date falls within [from, to) — used for weekly performance analysis. */
 export async function listPublishedItemsInRange(from: Date, to: Date): Promise<SocialContentItem[]> {
   return prisma.socialContentItem.findMany({

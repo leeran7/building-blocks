@@ -13,30 +13,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth, AuthError } from "../../lib/requireAuth";
 import { requireAdmin } from "./requireAdmin";
+import { isSocialAdmin } from "./socialAdminAllowlist";
 import type { DecodedIdToken } from "firebase-admin/auth";
 
-function allowlistedUids(): string[] {
-  return (process.env.ADMIN_UIDS ?? "")
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean);
-}
-
-function allowlistedEmails(): string[] {
-  return (process.env.ADMIN_EMAILS ?? "")
-    .split(",")
-    .map((s) => s.trim().toLowerCase())
-    .filter(Boolean);
-}
-
-export function isSocialAdmin(decoded: Pick<DecodedIdToken, "uid" | "email">): boolean {
-  const uids = allowlistedUids();
-  const emails = allowlistedEmails();
-  if (uids.length === 0 && emails.length === 0) return false; // fail closed: inert until configured
-  if (uids.includes(decoded.uid)) return true;
-  if (decoded.email && emails.includes(decoded.email.toLowerCase())) return true;
-  return false;
-}
+export { isSocialAdmin } from "./socialAdminAllowlist";
 
 export class SocialAdminError extends Error {
   readonly response: NextResponse;
