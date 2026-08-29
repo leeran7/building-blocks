@@ -325,8 +325,8 @@ function Overlay({ children }: { children: ReactNode }) {
   // Inner min-h-full keeps content centered when it fits, and lets overflow-y-auto
   // reach Start climb when the leftover canvas is shorter than the lobby stack.
   return (
-    <div className="absolute inset-0 overflow-y-auto rounded-xl bg-void/70 backdrop-blur-sm p-4 text-center">
-      <div className="flex min-h-full flex-col items-center justify-center">
+    <div className="absolute inset-0 overflow-y-auto rounded-xl bg-void/70 backdrop-blur-sm text-center">
+      <div className="flex min-h-full flex-col items-center justify-center p-4">
         {children}
       </div>
     </div>

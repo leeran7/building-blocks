@@ -7,7 +7,7 @@
 import Link from "next/link";
 import { ClimbControlsGuide } from "../Game/ClimbControlsGuide";
 
-export function ClimbPanelIntro() {
+export function ClimbPanelIntro({ title }: { title: string }) {
   return (
     <header>
       <p className="font-mono text-xs uppercase tracking-[0.2em] font-medium text-signal">
@@ -15,7 +15,7 @@ export function ClimbPanelIntro() {
       </p>
       <div className="mt-1 flex items-end justify-between gap-3 flex-wrap">
         <h1 className="text-2xl md:text-3xl font-bold text-text-primary tracking-tight">
-          Free climb leaderboard
+          {title}
         </h1>
         <PlayTheClimbCta />
       </div>

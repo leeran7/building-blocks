@@ -46,12 +46,14 @@ test.describe("mobile play canvas", () => {
     await page.goto("/play");
     const canvas = page.getByTestId("climb-canvas");
     await expect(canvas).toBeVisible();
+    // Must beat BASE_SIZE width (360). A 350 floor passed on the
+    // pre-measure fallback the leftover-height path is meant to replace.
     await expect
       .poll(async () => {
         const box = await canvas.boundingBox();
         return box?.width ?? 0;
       })
-      .toBeGreaterThan(350);
+      .toBeGreaterThan(360);
     await expect
       .poll(async () => {
         const box = await canvas.boundingBox();

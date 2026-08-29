@@ -35,7 +35,7 @@ export default async function FreeClimbPage() {
 
   return (
     <FreeStackShell section="leaderboard" title="Free climb leaderboard">
-      <ClimbPanelIntro />
+      <ClimbPanelIntro title="Free climb leaderboard" />
       <div className="mt-6">
         <ClimbLeaderboard
           climbers={climbers ?? []}
