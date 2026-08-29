@@ -378,6 +378,7 @@ export function ClimbCanvas({
       }}
       aria-label="Climb view"
       role="img"
+      data-testid="climb-canvas"
     />
   );
 }

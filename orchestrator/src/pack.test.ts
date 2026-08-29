@@ -6,11 +6,6 @@ import { spawn } from "node:child_process";
 import { describe, it } from "node:test";
 import { REPO_ROOT } from "./types.js";
 
-async function lintAgents(root: string) {
-  const mod = await import("../../scripts/hygiene.mjs");
-  return mod.lintAgents(root);
-}
-
 describe("pack hygiene", () => {
   it("every role file points at context/README.md and leaks no product facts", async () => {
     const { filesChecked, violations } = await lintAgents(REPO_ROOT);
@@ -49,7 +44,7 @@ describe("pack hygiene", () => {
   });
 
   it("fixLoopGitignore rewrites loop/ so learnings are not ignored", async () => {
-    const { fixLoopGitignore } = await import("../../scripts/pack-copy.mjs");
+    const { fixLoopGitignore } = await loadPackCopy();
     const fixed = fixLoopGitignore("loop/\nnode_modules/\n");
     assert.match(fixed, /^loop\/\*/m);
     assert.match(fixed, /!loop\/learnings\.md/);
@@ -62,7 +57,7 @@ describe("pack hygiene", () => {
     await writeFile(join(dest, "loop", "learnings.md"), "# ledger\n");
     await writeFile(join(dest, "loop", "learnings.jsonl"), "");
 
-    const { mergeGitignore } = await import("../../scripts/pack-copy.mjs");
+    const { mergeGitignore } = await loadPackCopy();
     const snippet = await readFile(join(REPO_ROOT, "pack", "templates", "gitignore.snippet"), "utf-8");
     await mergeGitignore(dest, snippet);
 
@@ -70,6 +65,41 @@ describe("pack hygiene", () => {
     assert.equal(ignored, false, "loop/learnings.md must not be ignored after mergeGitignore");
   });
 });
+
+type HygieneViolation = {
+  file: string;
+  kind: string;
+  needle: string;
+};
+
+type HygieneModule = {
+  lintAgents: (
+    root?: string,
+  ) => Promise<{ filesChecked: number; violations: HygieneViolation[] }>;
+};
+
+type PackCopyModule = {
+  fixLoopGitignore: (content: string) => string;
+  mergeGitignore: (
+    destRoot: string,
+    snippet: string,
+    options?: { overwrite?: boolean },
+  ) => Promise<void>;
+};
+
+async function importRootScript<T>(relativeFromHere: string): Promise<T> {
+  const href = new URL(relativeFromHere, import.meta.url).href;
+  return (await import(href)) as T;
+}
+
+async function loadPackCopy() {
+  return importRootScript<PackCopyModule>("../../scripts/pack-copy.mjs");
+}
+
+async function lintAgents(root: string) {
+  const mod = await importRootScript<HygieneModule>("../../scripts/hygiene.mjs");
+  return mod.lintAgents(root);
+}
 
 async function cpRules(root: string) {
   const rules = await readFile(join(REPO_ROOT, "pack", "hygiene-rules.json"), "utf-8");
