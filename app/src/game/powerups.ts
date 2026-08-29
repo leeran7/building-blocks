@@ -79,6 +79,8 @@ export const SPRINT_BURST_MULT = 1.5;
 export const SUPER_JUMP_MULT = 1.6;
 /** Fraction of a normal jump a double-jump gives (a recovery, not a second launch). */
 export const DOUBLE_JUMP_MULT = 0.92;
+/** Mid-air jumps granted per double-jump activation. */
+export const DOUBLE_JUMP_CHARGES = 2;
 /** Fraction of the lava's rise cancelled while time-slow runs. */
 export const TIME_SLOW_FRAC = 0.5;
 /** Seconds before time-slow may be used again — the endless-run guarantee. */
@@ -106,6 +108,8 @@ export interface PowerUpSpec {
    * The duration is then just the window in which it may be spent.
    */
   charge: boolean;
+  /** Charge-based with multiple spends (double-jump). */
+  chargeCount?: number;
   /** Relative drop weight at the base of the tower. */
   weight: number;
   /** Drop-weight multiplier once past the altitude ramp. */
@@ -119,7 +123,7 @@ export const POWER_UP_SPECS: Record<PowerUpType, PowerUpSpec> = {
     description: `Climb ladders ${RAPID_CLIMB_MULT}x faster`,
     glyph: "⇈",
     color: "#4dd9f2",
-    durationSeconds: 6,
+    durationSeconds: 10,
     cooldownSeconds: 0,
     charge: false,
     weight: 26,
@@ -140,12 +144,13 @@ export const POWER_UP_SPECS: Record<PowerUpType, PowerUpSpec> = {
   "double-jump": {
     type: "double-jump",
     label: "Double Jump",
-    description: "One extra jump in mid-air",
+    description: `${DOUBLE_JUMP_CHARGES} extra jumps in mid-air`,
     glyph: "⇡",
     color: "#a98cf5",
-    durationSeconds: 10,
+    durationSeconds: 12,
     cooldownSeconds: 0,
     charge: true,
+    chargeCount: DOUBLE_JUMP_CHARGES,
     weight: 22,
     altitudeWeightMult: 1,
   },
@@ -245,32 +250,40 @@ export function powerUpForFloor(tower: TowerSpec, i: number): PowerUpPickup | nu
 
   const type = pickType(rng.next(), i);
 
-  // Sit the orb on a solid piece of the floor, chosen by width so a wide slab is
-  // likelier than a sliver, and inset from the edges so it never floats over the
-  // gap the player has to jump.
+  // Sit the orb on a solid piece of the floor with per-floor jitter so placement
+  // feels less formulaic than width-weighted centre picks every time.
+  const edgeMargin =
+    2.0 + rng.next() * 2.5; // 2.0–4.5 m inset from piece edges
+  const hover =
+    2.2 + rng.next() * 2.6; // 2.2–4.8 m above the floor surface
   const pieces = platformsForFloor(tower, i)
     .map((p) => ({ p, w: p.x1 - p.x0 }))
-    .filter((e) => e.w > 2 * EDGE_MARGIN_M);
+    .filter((e) => e.w > 2 * edgeMargin);
   if (pieces.length === 0) return null;
-  const totalW = pieces.reduce((a, e) => a + e.w, 0);
-  let pickW = rng.next() * totalW;
   let chosen = pieces[pieces.length - 1].p;
-  for (const e of pieces) {
-    pickW -= e.w;
-    if (pickW <= 0) {
-      chosen = e.p;
-      break;
+  if (rng.next() < 0.45) {
+    // Uniform piece pick — sometimes the narrow slab wins.
+    chosen = pieces[Math.floor(rng.next() * pieces.length)].p;
+  } else {
+    const totalW = pieces.reduce((a, e) => a + e.w, 0);
+    let pickW = rng.next() * totalW;
+    for (const e of pieces) {
+      pickW -= e.w;
+      if (pickW <= 0) {
+        chosen = e.p;
+        break;
+      }
     }
   }
-  const lo = chosen.x0 + EDGE_MARGIN_M;
-  const hi = chosen.x1 - EDGE_MARGIN_M;
+  const lo = chosen.x0 + edgeMargin;
+  const hi = chosen.x1 - edgeMargin;
 
   return {
     id: `pu:${i}`,
     type,
     floorIndex: i,
     x: lo + rng.next() * (hi - lo),
-    y: floorHeight(tower, i) + POWER_UP_HOVER_M,
+    y: floorHeight(tower, i) + hover,
     collected: false,
     collectedTick: null,
   };
@@ -302,7 +315,12 @@ export function overlapsPickup(pu: PowerUpPickup, x: number, y: number): boolean
 
 /** Has this entry run out of time (or been spent)? */
 export function isExpired(a: ActivePowerUp, tick: number): boolean {
-  return a.used || tick - a.startTick >= a.durationTicks;
+  if (tick - a.startTick >= a.durationTicks) return true;
+  const spec = POWER_UP_SPECS[a.type];
+  if (spec.charge && a.type === "double-jump") {
+    return (a.chargesRemaining ?? 0) <= 0;
+  }
+  return spec.charge ? a.used : false;
 }
 
 /** The live entry for `type`, or undefined. */
@@ -360,8 +378,24 @@ export function consumeCharge(
 ): boolean {
   const a = activeEntry(p, type, tick);
   if (!a) return false;
+  if (type === "double-jump") {
+    const left = a.chargesRemaining ?? 0;
+    if (left <= 0) return false;
+    a.chargesRemaining = left - 1;
+    return true;
+  }
   a.used = true;
   return true;
+}
+
+/** Mid-air jumps still available from an active double-jump. */
+export function doubleJumpChargesRemaining(
+  p: PlayerState,
+  tick: number
+): number {
+  const a = activeEntry(p, "double-jump", tick);
+  if (!a) return 0;
+  return Math.max(0, a.chargesRemaining ?? 0);
 }
 
 /** Drop entries that have expired or been spent, so the list stays small. */

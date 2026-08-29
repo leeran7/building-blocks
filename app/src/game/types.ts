@@ -53,8 +53,10 @@ export interface ActivePowerUp {
   type: PowerUpType;
   startTick: number;
   durationTicks: number;
-  /** Charge-based only: the charge has been spent. */
+  /** Charge-based only: the charge has been spent (super-jump). */
   used: boolean;
+  /** Double-jump only: mid-air jumps remaining in this window. */
+  chargesRemaining?: number;
 }
 
 /** Per-tick intent produced by a client's input sampling. */

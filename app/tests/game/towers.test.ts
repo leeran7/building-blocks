@@ -54,10 +54,12 @@ describe("per-floor geometry", () => {
     }
   });
 
-  it("stacks floors at floorGap intervals and maps heights back to indices", () => {
+  it("stacks floors with per-floor gaps and maps heights back to indices", () => {
     expect(floorHeight(t, 0)).toBe(0);
-    expect(floorHeight(t, 5)).toBe(5 * t.floorGap);
-    expect(floorIndexAt(t, 5 * t.floorGap + 1)).toBe(5);
+    expect(floorHeight(t, 5)).toBeGreaterThan(4 * t.floorGap);
+    expect(floorHeight(t, 5)).toBeLessThan(6 * t.floorGap);
+    const h5 = floorHeight(t, 5);
+    expect(floorIndexAt(t, h5 + 1)).toBe(5);
   });
 
   it("connects each floor to the next with a ladder within the play width", () => {

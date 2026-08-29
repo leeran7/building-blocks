@@ -91,12 +91,21 @@ export const MVP_TOWER: TowerSpec = buildTower("indie-games");
 
 /** Height (metres) of floor i's walking surface. */
 export function floorHeight(tower: TowerSpec, i: number): number {
-  return i * tower.floorGap;
+  let h = 0;
+  for (let f = 0; f < i; f++) h += floorGapForFloor(tower, f);
+  return h;
 }
 
 /** Floor index whose surface is at or just below height y. */
 export function floorIndexAt(tower: TowerSpec, y: number): number {
-  return Math.floor(y / tower.floorGap);
+  if (y < 0) return 0;
+  let i = 0;
+  let h = 0;
+  while (h + floorGapForFloor(tower, i) <= y) {
+    h += floorGapForFloor(tower, i);
+    i++;
+  }
+  return i;
 }
 
 /** Max horizontal distance a running jump can cover (same-height landing). */
@@ -106,15 +115,35 @@ function horizontalJumpReach(tower: TowerSpec): number {
 }
 
 function ladderMargin(tower: TowerSpec): number {
-  return Math.min(14, tower.widthM * 0.16);
+  return Math.min(10, tower.widthM * 0.08);
+}
+
+/** Per-floor vertical span (metres) — varies around the archetype base gap. */
+export function floorGapForFloor(tower: TowerSpec, i: number): number {
+  const r = createRng(`${tower.seed}:fg:${i}`);
+  const base = tower.floorGap;
+  // 68%–132% of base — noticeable variety without breaking jump solvability.
+  return base * (0.68 + r.next() * 0.64);
 }
 
 /** Seeded x of the ladder leaving floor i upward (deterministic). */
 function ladderXForFloor(tower: TowerSpec, i: number): number {
   const m = ladderMargin(tower);
-  // Difficulty pushes ladders further apart floor-to-floor (longer traverses).
+  const span = tower.widthM - 2 * m;
   const r = createRng(`${tower.seed}:lx:${i}`);
-  return m + r.next() * (tower.widthM - 2 * m);
+  // Mix full-span rolls with left/right/third bias so ladders feel less evenly spaced.
+  const zone = r.next();
+  if (zone < 0.22) return m + r.next() * span * 0.28;
+  if (zone < 0.44) return m + span * 0.72 + r.next() * span * 0.28;
+  if (zone < 0.62) return m + r.next() * span;
+  // Wild swing relative to an independent prior-x estimate (separate RNG stream).
+  if (i > 0) {
+    const rAway = createRng(`${tower.seed}:lx-away:${i}`);
+    const prevApprox = m + rAway.next() * span;
+    const away = prevApprox < tower.widthM / 2 ? 0.75 : 0.15;
+    return m + span * away + r.next() * span * 0.2;
+  }
+  return m + r.next() * span;
 }
 
 /** The ladder that leads UP from floor i to floor i+1. */

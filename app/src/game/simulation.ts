@@ -43,8 +43,10 @@ import {
   laddersNearY,
   ladderForFloor,
   floorIndexAt,
+  floorHeight,
 } from "./towers";
 import {
+  DOUBLE_JUMP_CHARGES,
   DOUBLE_JUMP_MULT,
   SUPER_JUMP_MULT,
   canActivate,
@@ -148,8 +150,9 @@ function ensurePowerUps(state: MatchState): void {
   }
   if (hi >= state.powerUpFloorHi) state.powerUpFloorHi = hi + 1;
 
-  // Anything a full floor below the death line is unreachable for good.
-  const cutoff = state.hazardY - tower.floorGap;
+  // Anything on a floor fully sealed under the death line is unreachable for good.
+  const belowHazard = Math.max(0, floorIndexAt(tower, state.hazardY) - 1);
+  const cutoff = floorHeight(tower, belowHazard);
   if (state.powerUps.length > 0 && cutoff > 0) {
     state.powerUps = state.powerUps.filter((pu) => pu.y >= cutoff);
   }
@@ -390,6 +393,8 @@ export function stepMatch(
         startTick: state.tick,
         durationTicks: dur,
         used: false,
+        chargesRemaining:
+          type === "double-jump" ? DOUBLE_JUMP_CHARGES : undefined,
       });
       const cd = cooldownTicks(pu.type);
       if (cd > 0) p.cooldownUntilTick[pu.type] = state.tick + dur + cd;
