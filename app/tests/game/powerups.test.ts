@@ -29,7 +29,7 @@ import {
   TICK_HZ,
   NO_INPUT,
 } from "../../src/game/types";
-import { DEFAULT_HAZARD_CONFIG } from "../../src/game/hazard";
+import { DEFAULT_HAZARD_CONFIG, hazardMeanSpeedFrac } from "../../src/game/hazard";
 import {
   POWER_UP_SPECS,
   POWER_UP_TYPES,
@@ -480,7 +480,9 @@ describe("time-slow cooldown: the thing that keeps a run finite", () => {
     const d = POWER_UP_SPECS["time-slow"].durationSeconds;
     const c = POWER_UP_SPECS["time-slow"].cooldownSeconds;
     const maxUptime = d / (d + c);
-    const effective = DEFAULT_HAZARD_CONFIG.endSpeedFrac * (1 - TIME_SLOW_FRAC * maxUptime);
+    const effective =
+      hazardMeanSpeedFrac(DEFAULT_HAZARD_CONFIG) *
+      (1 - TIME_SLOW_FRAC * maxUptime);
     expect(effective).toBeGreaterThan(1);
   });
 

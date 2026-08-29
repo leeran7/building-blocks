@@ -9,10 +9,11 @@
  *   super-jump    skip a ladder detour entirely with one big launch
  *   time-slow     the lava eventually outpaces any climber; buy back seconds
  *
- * BALANCE. The hazard passes 1.0x climb speed at ~73s and holds at 1.15x, so an
- * unaided run is hard-capped no matter how well it is played. Power-ups are
- * what push past that cap, and they are deliberately shaped so the ceiling is
- * raised by PLAYING WELL rather than by collecting:
+ * BALANCE. The hazard envelope ramps toward 1.42x, but the lava stumbles (2s
+ * of 0.25x envelope every 8s), so the time-averaged chase settles near 1.15x
+ * and an unaided run is still hard-capped. Power-ups are what push past that
+ * cap, and they are deliberately shaped so the ceiling is raised by PLAYING
+ * WELL rather than by collecting:
  *
  *   - one slot. A pickup replaces whatever is banked, so hoarding is impossible
  *     and every orb is a "use it now or trade it away" decision;
@@ -23,12 +24,13 @@
  *     toward it with altitude — exactly where the lava wins — so a deep run keeps
  *     getting the tool it needs to go deeper.
  *
- * THE RUN MUST STILL END. The endless tower's guarantee is that the lava settles
- * at 1.15x the climb speed, so no climber outlasts it. Time-slow is the one
- * power-up that can break that: held at 100% uptime it drops the lava to 0.58x
- * and the tower becomes survivable forever. Its cooldown is what keeps the
- * guarantee — it caps uptime at 8s in every 32s, so the lava still averages
- * 1.15 · (1 − 0.5 · 0.25) ≈ 1.006x the climb speed. That margin is thin on
+ * THE RUN MUST STILL END. The endless tower's guarantee is that the lava's
+ * time-averaged late-game speed (envelope × stumble duty) stays above 1x climb
+ * speed, so no climber outlasts it. Time-slow is the one power-up that can break
+ * that: held at 100% uptime it halves the rise and the tower becomes survivable
+ * forever. Its cooldown is what keeps the guarantee — it caps uptime at 8s in
+ * every 32s, so the lava still averages
+ * meanSpeedFrac · (1 − 0.5 · 0.25) ≈ 1.01x the climb speed. That margin is thin on
  * purpose: a player who lands every time-slow perfectly gets very close to
  * outrunning the tower, which is exactly the high-hike ceiling this is for, but
  * never actually escapes it. Do not raise TIME_SLOW_FRAC or shorten the cooldown

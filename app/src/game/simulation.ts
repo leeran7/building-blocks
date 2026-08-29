@@ -365,8 +365,10 @@ export function stepMatch(
   state.raceSeconds = state.tick * TICK_DT;
 
   // 1. Rising hazard — speed is a fraction of the climber's climb rate, so the
-  //    chase scales with how fast the player can move (AC-5, AC-6). Time-slow
-  //    banks seconds the lava never gets to spend, holding the curve monotonic.
+  //    chase scales with how fast the player can move (AC-5, AC-6). The lava
+  //    stumbles on a fixed cycle rather than accelerating at every moment.
+  //    Time-slow banks seconds the lava never gets to spend, holding the
+  //    curve monotonic.
   const timeScale = hazardTimeScale(state.players, state.tick);
   state.hazardSlowSeconds += TICK_DT * (1 - timeScale);
   state.hazardY = hazardHeightAt(
