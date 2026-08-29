@@ -144,3 +144,15 @@ model Payment {
 
   @@map("payments")
 }
+
+model PaymentDeadLetter {
+  id                String   @id @default(cuid())
+  stripe_session_id String
+  event_type        String
+  amount_cents      Int
+  reason            String
+  created_at        DateTime @default(now())
+
+  @@index([stripe_session_id])
+  @@map("payment_dead_letters")
+}

@@ -10,6 +10,7 @@
 export const store: Store = {
   blocks: {},
   payments: [],
+  deadLetters: [],
   seasons: [],
   seasonReads: 0,
   seasonCreates: 0,
@@ -34,6 +35,12 @@ export const fakePrisma = {
     findUnique: async ({ where }: { where: { stripe_session_id: string } }) =>
       store.payments.find((p) => p.stripe_session_id === where.stripe_session_id) ?? null,
   },
+  paymentDeadLetter: {
+    create: async ({ data }: { data: FakeDeadLetter }): Promise<FakeDeadLetter> => {
+      store.deadLetters.push(data);
+      return { ...data };
+    },
+  },
   season: {
     findFirst: async ({ where }: { where: { is_active?: boolean; category?: string } }) => {
       store.seasonReads += 1;
@@ -57,6 +64,7 @@ export const fakePrisma = {
 export function resetStore(): void {
   store.blocks = {};
   store.payments = [];
+  store.deadLetters = [];
   store.seasons = [];
   store.seasonReads = 0;
   store.seasonCreates = 0;
@@ -90,9 +98,17 @@ export interface FakeSeason {
   ends_at: Date;
 }
 
+export interface FakeDeadLetter {
+  stripe_session_id: string;
+  event_type: string;
+  amount_cents: number;
+  reason: string;
+}
+
 export interface Store {
   blocks: Record<string, FakeBlock>;
   payments: FakePayment[];
+  deadLetters: FakeDeadLetter[];
   seasons: FakeSeason[];
   /** How many times a season row was read. */
   seasonReads: number;

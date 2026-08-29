@@ -64,7 +64,9 @@ export async function POST(request: NextRequest) {
       : null;
   const seed = typeof body.seed === "string" ? body.seed : null;
   // Runs stashed in sessionStorage before `ticks` existed only carry
-  // finishedTick, so fall back to it rather than rejecting them.
+  // finishedTick. The sim now stamps finishedTick on elimination, so a client
+  // from this build always has a real value; a stale stash with neither is
+  // rejected by checkClimbResult rather than unbounded.
   const ticks =
     typeof body.ticks === "number" && Number.isFinite(body.ticks)
       ? body.ticks
@@ -84,6 +86,9 @@ export async function POST(request: NextRequest) {
       { status: 400 }
     );
   }
+  // After a successful bound, ticks is the number we actually used. Persist
+  // that, not a separate client field that the sim used to leave null.
+  const elapsedTicks = ticks as number;
 
   // Rate limit by client IP (most play is anonymous). Fails OPEN so a Redis
   // outage never blocks a free run.
@@ -142,7 +147,7 @@ export async function POST(request: NextRequest) {
       categorySlug,
       peakY,
       finished,
-      finishedTick,
+      finishedTick: elapsedTicks,
       seed,
     });
     return NextResponse.json({ saved: true, ...result }, { status: 200 });

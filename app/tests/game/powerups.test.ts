@@ -561,7 +561,11 @@ describe("anti-cheat: power-ups widen the rules only as far as they should", () 
     expect(v.input.jump).toBe(false);
   });
 
-  it("still rejects a climb input with no ladder under the player", () => {
+  it("does not let rapid-climb neutralize climb intent (the sim still has to find a ladder)", () => {
+    // climbY used to be zeroed off-ladder in validateInput, which made every
+    // honest grab look like a spoof. Rapid-climb is a speed multiplier, not a
+    // permission to skip the grab. Pass the intent through; integratePlayer
+    // no-ops it when no ladder is in reach.
     const p = airborne();
     p.activePowerUps.push({
       type: "rapid-climb",
@@ -570,8 +574,8 @@ describe("anti-cheat: power-ups widen the rules only as far as they should", () 
       used: false,
     });
     const v = validateInput({ moveX: 0, jump: false, climbY: 1, usePowerUp: false }, p, 0);
-    expect(v.rejected).toBe(true);
-    expect(v.input.climbY).toBe(0);
+    expect(v.rejected).toBe(false);
+    expect(v.input.climbY).toBe(1);
   });
 });
 

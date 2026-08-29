@@ -99,8 +99,15 @@ export interface PlayerState {
   status: PlayerStatus;
   /** Permanent-record ethos: max height reached, retained on death (AC-8). */
   peakY: number;
-  /** Tick this player touched the flag, if finished (AC-3 tie-break). */
+  /** Tick the run ended. Solo endless sets this on lava/fall death. */
   finishedTick: number | null;
+  /**
+   * Consecutive illegal height deltas this run (AC-16). Ranked payouts void
+   * once this hits K; see updateSentinel.
+   */
+  cheatViolations: number;
+  /** True once the height-rate sentinel has flagged this player (AC-16). */
+  cheatFlagged: boolean;
   /** Power-ups currently running. Expired entries are dropped each tick. */
   activePowerUps: ActivePowerUp[];
   /**

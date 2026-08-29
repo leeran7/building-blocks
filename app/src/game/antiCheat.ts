@@ -29,6 +29,11 @@ export interface InputValidation {
  * Validate a raw client input against the legal move-set and the player's state
  * (AC-15). Illegal fields are neutralized rather than trusted; an illegal input
  * is reported so the caller can flag/rate-limit the connection.
+ *
+ * climbY is NOT gated on player.onLadder. Off-ladder climb intent is how the
+ * sim grabs a ladder; neutralizing it made every honest grab look like a spoof
+ * and would have made ladders unreachable once this ran in front of stepMatch.
+ * The sim already no-ops climbY when no ladder is in reach.
  */
 export function validateInput(
   raw: unknown,
@@ -47,14 +52,6 @@ export function validateInput(
 
   let rejected = false;
   let reason: string | undefined;
-
-  // Legal state transition: you cannot climb (vertical ladder input) unless you
-  // are actually overlapping a ladder. Climbing off a ladder is a classic spoof.
-  if (climbY !== 0 && !player.onLadder) {
-    climbY = 0;
-    rejected = true;
-    reason = "climb input without ladder overlap";
-  }
 
   // Jump is only legal from the ground — an air-jump is the classic spoof. The
   // one exception is an unspent double-jump charge, which is exactly the

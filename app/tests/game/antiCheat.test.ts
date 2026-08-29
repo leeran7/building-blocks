@@ -51,12 +51,12 @@ describe("AC-15 / AC-18: input validation trusts only intent", () => {
     expect(v.input).toEqual({ moveX: 1, jump: false, climbY: 0, usePowerUp: false });
   });
 
-  it("neutralizes a climb input when the player is not on a ladder", () => {
+  it("allows climb intent off a ladder so the sim can grab one", () => {
     const p = spawnPlayer("p1", 0);
     p.onLadder = false;
     const v = validateInput({ moveX: 0, jump: false, climbY: 1, usePowerUp: false }, p);
-    expect(v.input.climbY).toBe(0);
-    expect(v.rejected).toBe(true);
+    expect(v.input.climbY).toBe(1);
+    expect(v.rejected).toBe(false);
   });
 
   it("allows a climb input when the player is on a ladder", () => {
@@ -169,5 +169,40 @@ describe("AC-16: K-consecutive-violation flagging", () => {
     s = updateSentinel(s, false, 3); // 2
     s = updateSentinel(s, false, 3); // 3 → flag
     expect(s.flagged).toBe(true);
+  });
+});
+
+describe("stepMatch is the production caller", () => {
+  it("clamps an out-of-range moveX so it cannot multiply walk speed", () => {
+    // clampAxis only accepts -1/0/1. If stepMatch skipped validateInput, a
+    // spoofed moveX of 5 would walk 5× as far in one tick.
+    const m = createMatch({
+      seed: "anticheat-caller",
+      mode: "solo",
+      tower: TOWER,
+      playerIds: ["p1"],
+    });
+    m.phase = "climb";
+    const x0 = m.players[0].x;
+    const spoof = { moveX: 5, jump: false, climbY: 0, usePowerUp: false };
+    stepMatch(m, { p1: spoof as never });
+    expect(m.players[0].x).toBe(x0);
+  });
+
+  it("writes the height sentinel back onto the player", () => {
+    // If stepMatch skipped updateSentinel, a leftover streak would stick.
+    const m = createMatch({
+      seed: "anticheat-sentinel",
+      mode: "solo",
+      tower: TOWER,
+      playerIds: ["p1"],
+    });
+    m.phase = "climb";
+    m.players[0].cheatViolations = 99;
+    stepMatch(m, {
+      p1: { moveX: 0, jump: false, climbY: 0, usePowerUp: false },
+    });
+    expect(m.players[0].cheatViolations).toBe(0);
+    expect(m.players[0].cheatFlagged).toBe(false);
   });
 });

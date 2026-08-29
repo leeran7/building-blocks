@@ -61,6 +61,12 @@ import {
   powerUpForFloor,
   pruneActive,
 } from "./powerups";
+import {
+  isHeightDeltaLegal,
+  legalClimbSpeedMult,
+  updateSentinel,
+  validateInput,
+} from "./antiCheat";
 
 const EPS = 0.02; // Increased from 0.01 to prevent ground fall-through due to floating point precision
 
@@ -91,6 +97,8 @@ export function spawnPlayer(id: PlayerId, slot: number): PlayerState {
     status: "climbing",
     peakY: 0,
     finishedTick: null,
+    cheatViolations: 0,
+    cheatFlagged: false,
     activePowerUps: [],
     cooldownUntilTick: {},
     lastPickupTick: null,
@@ -397,10 +405,28 @@ export function stepMatch(
   for (const p of state.players) {
     if (p.status !== "climbing") continue;
 
-    const input = inputs[p.id] ?? NO_INPUT;
+    const raw = inputs[p.id] ?? NO_INPUT;
+    const { input } = validateInput(raw, p, state.tick);
+    const prevY = p.y;
 
     // 2. Integrate motion from validated input.
     integratePlayer(p, input, state.tower, state.tick);
+
+    const sentinel = updateSentinel(
+      {
+        consecutiveViolations: p.cheatViolations,
+        flagged: p.cheatFlagged,
+      },
+      isHeightDeltaLegal(
+        prevY,
+        p.y,
+        state.tower,
+        0.01,
+        legalClimbSpeedMult(p, state.tick)
+      )
+    );
+    p.cheatViolations = sentinel.consecutiveViolations;
+    p.cheatFlagged = sentinel.flagged;
 
     // 3. Auto-activate any orb the climber is now touching, on contact — no
     //    banking, no use button. An orb whose type is still cooling down (only
@@ -435,6 +461,7 @@ export function stepMatch(
     const deathLine = Math.max(state.hazardY, fallFloor);
     if (p.y <= deathLine) {
       p.status = "eliminated";
+      p.finishedTick = state.tick;
       continue;
     }
   }

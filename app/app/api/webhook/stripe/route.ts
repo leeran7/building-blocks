@@ -14,7 +14,12 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { verifyWebhookSignature } from "../../../../src/api/stripe";
-import { findPaymentByStripeSession, applyPaymentTransaction } from "../../../../src/db/payments";
+import { classifyStripeCredit } from "../../../../src/api/stripeCredit";
+import {
+  findPaymentByStripeSession,
+  applyPaymentTransaction,
+  recordDeadLetter,
+} from "../../../../src/db/payments";
 import { getOrCreateActiveSeason } from "../../../../src/db/seasons";
 import { computeMetres } from "../../../../src/engine/index";
 import { updatePeakRank, getRankedBlocks, getBlockById } from "../../../../src/db/blocks";
@@ -22,19 +27,6 @@ import { parseSeasonSlug } from "../../../../src/game/categories";
 
 // Disable body parsing — need raw body for Stripe signature verification
 export const runtime = "nodejs";
-
-/**
- * Events that can grant altitude. async_payment_succeeded is the settlement
- * signal for delayed-notification methods, whose checkout.session.completed
- * arrives unpaid.
- */
-const CREDITING_EVENTS = new Set([
-  "checkout.session.completed",
-  "checkout.session.async_payment_succeeded",
-]);
-
-/** Session payment states that mean the money is actually ours. */
-const PAID_STATUSES = new Set(["paid", "no_payment_required"]);
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
   let rawBody: string;
@@ -65,10 +57,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     );
   }
 
-  if (!CREDITING_EVENTS.has(event.type)) {
-    return NextResponse.json({ received: true });
-  }
-
   const session = event.data.object as unknown as {
     id: string;
     metadata: { block_id: string; season_id: string; category?: string } | null;
@@ -76,32 +64,34 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     payment_status?: string | null;
   };
 
-  const stripeSessionId = session.id;
-  const blockId = session.metadata?.block_id;
-  const amountTotal = session.amount_total ?? 0;
+  const decision = classifyStripeCredit(event.type, session);
 
-  // Money must have actually moved. checkout.session.completed fires as soon as
-  // the customer finishes the flow, and for a delayed-notification method
-  // (bank debits, some wallets) that happens with payment_status "unpaid" —
-  // settlement can still fail days later. Which methods are enabled is a
-  // Stripe Dashboard setting when payment_method_types is omitted at session
-  // creation, as it is in app/api/checkout, so this cannot be ruled out from
-  // the repo. Credit is granted on the later async_payment_succeeded instead.
-  if (!PAID_STATUSES.has(session.payment_status ?? "")) {
+  if (decision.kind === "ignore") {
+    return NextResponse.json({ received: true });
+  }
+
+  if (decision.kind === "unpaid") {
     console.log(
       JSON.stringify({
         type: "payment_webhook_unpaid",
-        stripe_session_id: stripeSessionId,
-        payment_status: session.payment_status ?? null,
-        event: event.type,
+        stripe_session_id: decision.stripeSessionId,
+        payment_status: decision.paymentStatus,
+        event: decision.eventType,
       })
     );
     return NextResponse.json({ received: true, credited: false });
   }
 
-  if (!blockId) {
-    return deadLetter(event.type, stripeSessionId, amountTotal, "missing block_id");
+  if (decision.kind === "dead_letter") {
+    return await deadLetter(
+      decision.eventType,
+      decision.stripeSessionId,
+      decision.amountCents,
+      decision.reason
+    );
   }
+
+  const { stripeSessionId, blockId, amountCents } = decision;
 
   // Step 2: Idempotency check — check for existing payment BEFORE any write (AC-32)
   const existingPayment = await findPaymentByStripeSession(stripeSessionId);
@@ -111,10 +101,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   const blockRow = await getBlockById(blockId);
   if (!blockRow) {
-    return deadLetter(
+    return await deadLetter(
       event.type,
       stripeSessionId,
-      amountTotal,
+      amountCents,
       `unknown block_id ${blockId}`
     );
   }
@@ -125,10 +115,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     parseSeasonSlug(session.metadata?.category);
 
   if (!category) {
-    return deadLetter(
+    return await deadLetter(
       event.type,
       stripeSessionId,
-      amountTotal,
+      amountCents,
       `unparseable stack "${blockRow.category}" on block ${blockId}`
     );
   }
@@ -139,7 +129,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const V = activeSeason.views_k;
 
     // Server computes metres from LIVE rate — never trusts client-supplied value
-    const amountDollars = amountTotal / 100;
+    const amountDollars = amountCents / 100;
     // CRITICAL: computeMetres uses server-side V, not anything from the client
     const metresAdded = computeMetres(amountDollars, V);
 
@@ -149,7 +139,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const { block } = await applyPaymentTransaction(
       blockId,
       stripeSessionId,
-      amountTotal,
+      amountCents,
       metresAdded
     );
 
@@ -170,7 +160,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         type: "payment_webhook",
         block_id: blockId,
         stripe_session_id: stripeSessionId,
-        amount_cents: amountTotal,
+        amount_cents: amountCents,
         metres_added: metresAdded,
         new_altitude: block.altitude,
         timestamp: new Date().toISOString(),
@@ -197,15 +187,26 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
  * Returning 4xx or 5xx for these is worse in both directions: Stripe does not
  * retry a 4xx, so the payment is silently lost, and a 5xx for a condition that
  * is deterministic in our own data fails identically on every retry until
- * Stripe gives up — losing it anyway, slower, after alert noise. The event is
- * logged in a greppable shape so it can be replayed by hand, and acknowledged.
+ * Stripe gives up — losing it anyway, slower, after alert noise. Persist a
+ * replayable row first, then acknowledge. A persist failure is still 200 —
+ * Stripe must not retry a deterministic miss — and the log line remains.
  */
-function deadLetter(
+async function deadLetter(
   eventType: string,
   stripeSessionId: string,
   amountCents: number,
   reason: string
-): NextResponse {
+): Promise<NextResponse> {
+  try {
+    await recordDeadLetter({
+      eventType,
+      stripeSessionId,
+      amountCents,
+      reason,
+    });
+  } catch (err) {
+    console.error("[webhook/stripe] dead-letter persist failed:", err);
+  }
   console.error(
     JSON.stringify({
       type: "payment_webhook_dead_letter",

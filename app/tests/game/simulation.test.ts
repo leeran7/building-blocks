@@ -156,6 +156,7 @@ describe("AC-7 / AC-8: caught by the death line eliminates and retains peak", ()
       stepMatch(m, { p1: IDLE }, FAST);
       expect(p.status).toBe("eliminated");
       expect(p.peakY).toBe(120);
+      expect(p.finishedTick).toBe(m.tick);
       expect(m.phase).toBe("finished"); // solo run ends on a catch
     }
   });
@@ -168,6 +169,7 @@ describe("AC-7 / AC-8: caught by the death line eliminates and retains peak", ()
     p.y = 200 - TOWER.fallDeathBelowPeakM - 1; // dropped past the fall floor
     stepMatch(m, { p1: IDLE }, SLOW);
     expect(p.status).toBe("eliminated");
+    expect(p.finishedTick).toBe(m.tick);
   });
 
   it("has no summit: a very high climber is still climbing, never 'finished'", () => {

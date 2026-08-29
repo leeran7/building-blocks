@@ -74,12 +74,19 @@ After each full pass (or each loop-back), the orchestrator runs a lightweight
 **retro** before advancing:
 
 1. Collect all `learnings.jsonl` entries added this iteration (`"status":"open"`).
-2. Deduplicate and fold them into `loop/learnings.md` under the right section,
+2. Deduplicate and fold them into `loop/learnings.md` under the matching
+   `## By topic` heading (or `## Open questions` for `kind: question`),
    setting their jsonl `status` to `curated`.
-3. Promote any lesson that has now appeared in **2+ iterations** to a **rule** in
-   the relevant agent's "Standing rules from past runs" section of
-   `loop/learnings.md` — this is how repeated pain becomes a permanent guardrail.
-4. Surface the top new learnings in the one-line stage report to the user.
+3. Promote any lesson that has now appeared in **2+ iterations** or from
+   **2+ distinct agents** to `## Standing rules (always apply)` — this is how
+   repeated pain becomes a permanent guardrail. Metrics and open questions are
+   not promoted.
+4. Replace `## Recently applied (last 20)` with the 20 newest folded bullets
+   and surface the top new learnings in the one-line stage report to the user.
+
+`orchestrator/src/retro.ts` (`foldLearnings`) implements these steps; the
+assertions live in `orchestrator/src/retro.test.ts`. Do not document a folding
+step that the code does not perform.
 
 The retro is what makes learning *consistent*: it happens every iteration, not
 just at the end.
@@ -102,6 +109,7 @@ _Last curated: <ISO timestamp> by orchestrator retro (iteration N)._
 ### Performance
 ### Spec quality
 ### Build / CI
+### Orchestration
 
 ## Open questions (unresolved, need a decision)
 - [qa-acceptance → product-spec] ...
