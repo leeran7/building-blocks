@@ -5,6 +5,15 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 APP_DIR="$ROOT/app"
+
+# Load app/.env (gitignored) — NGROK_*, BASE_URL, Stripe keys, etc.
+if [[ -f "$APP_DIR/.env" ]]; then
+  set -a
+  # shellcheck disable=SC1091
+  source "$APP_DIR/.env"
+  set +a
+fi
+
 PORT="${PORT:-3000}"
 LOG_DIR="${LOG_DIR:-/tmp/tower-dev}"
 DEV_LOG="$LOG_DIR/dev.log"
