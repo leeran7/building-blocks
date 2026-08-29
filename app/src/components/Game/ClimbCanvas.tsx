@@ -25,7 +25,6 @@ import { POWER_UP_SPECS, cooldownRemaining, isExpired } from "../../game/powerup
 
 // ASCENT palette — signal-lime climber, ember lava, warm-obsidian world.
 const VOID = "#0a0a0c";
-const SURFACE = "#17161c";
 const BORDER = "#37343f";
 const ACCENT = "#cbf24d"; // signal — the climber
 const PLATFORM = "#38353f";
@@ -74,7 +73,7 @@ export function ClimbCanvas({
 
   useEffect(() => {
     const canvas = ref.current;
-    if (!canvas) return;
+    if (!canvas || width <= 0 || height <= 0) return;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
@@ -87,12 +86,14 @@ export function ClimbCanvas({
     const player = state.players[0];
     const playerY = player?.y ?? 0;
 
-    // HUD and label sizes are authored against the 360px baseline. Scaling them
-    // with the canvas keeps the whole scene proportional, so a larger canvas
-    // reads as a larger game instead of the same game with thinner chrome.
-    // Floored at 1: a phone canvas is narrower than the baseline, and scaling
-    // down took the HUD to 11px and the altitude labels to 8px.
-    const ui = Math.max(1, width / BASE_WIDTH);
+    // HUD and label sizes are authored against the 360×640 baseline. Scale with
+    // the smaller axis so a wide fullscreen canvas does not blow the chrome
+    // up to 5×; floor at 1 so a phone never shrinks the HUD below the authored
+    // size. Capped so a 4K window stays readable rather than billboard-sized.
+    const ui = Math.max(
+      1,
+      Math.min(width / BASE_WIDTH, height / BASE_HEIGHT, 1.35)
+    );
 
     // Scale so the full tower WIDTH fits the canvas; the camera scrolls in Y.
     const pxPerM = width / tower.widthM;
@@ -261,25 +262,9 @@ export function ClimbCanvas({
 
     drawClimber(ctx, px, pyScreen, s, facing, pose, state.tick, color, reducedMotion);
 
-    // HUD panel: height + hazard line.
-    const hudH = 34 * ui;
-    ctx.fillStyle = SURFACE;
-    ctx.globalAlpha = 0.92;
-    ctx.fillRect(0, 0, width, hudH);
-    ctx.globalAlpha = 1;
-    ctx.strokeStyle = BORDER;
-    ctx.beginPath();
-    ctx.moveTo(0, hudH);
-    ctx.lineTo(width, hudH);
-    ctx.stroke();
-    ctx.fillStyle = "#f4f2ec";
-    ctx.font = `bold ${Math.round(13 * ui)}px monospace`;
-    ctx.textAlign = "left";
-    ctx.fillText(`${playerY.toFixed(1)}m`, 10 * ui, 22 * ui);
-    ctx.fillStyle = TEXT_SECONDARY;
-    ctx.textAlign = "right";
-    ctx.fillText(`lava ${state.hazardY.toFixed(1)}m`, width - 10 * ui, 22 * ui);
-    ctx.textAlign = "left";
+    // Pickup flash sits below the HTML HUD overlay (see ClimbScene). The overlay
+    // is a fixed ~46px strip, so this is not scaled with the canvas.
+    const hudH = 48;
 
     // Pickup flash — a short centred banner naming what was just grabbed.
     if (
@@ -312,14 +297,8 @@ export function ClimbCanvas({
   return (
     <canvas
       ref={ref}
-      style={{
-        width,
-        height,
-        borderRadius: 12,
-        border: `1px solid ${BORDER}`,
-        display: "block",
-        touchAction: "none",
-      }}
+      className="block h-full w-full"
+      style={{ touchAction: "none" }}
       aria-label="Climb view"
       role="img"
     />

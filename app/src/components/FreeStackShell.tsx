@@ -1,6 +1,7 @@
 /**
- * FreeStackShell — shared frame for the standalone free climb stack (/climb, /play).
+ * FreeStackShell — shared frame for the standalone free climb stack (/climb).
  * Separate from CategoryShell, which wraps the 74 paid category stacks.
+ * The play page is a dedicated fullscreen surface and does not use this shell.
  */
 
 import type { ReactNode } from "react";
@@ -18,9 +19,7 @@ export function FreeStackShell({
   title: string;
   meta?: ReactNode;
   /**
-   * Collapse the title and meta on phones, keeping only the section tabs. The
-   * game page needs that vertical space: the canvas sizes itself from whatever
-   * height is left below the header (see useCanvasSize).
+   * Collapse the title and meta on phones, keeping only the section tabs.
    */
   compactHeader?: boolean;
   children: ReactNode;

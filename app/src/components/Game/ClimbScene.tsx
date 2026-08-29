@@ -31,6 +31,8 @@ import { climberHandle } from "../../lib/handle";
 export interface ClimbSceneProps {
   tower: TowerSpec;
   categoryLabel: string;
+  /** Overlay control on the HUD (leaderboard link, close, etc.). */
+  leading?: ReactNode;
 }
 
 interface SaveInfo {
@@ -55,14 +57,13 @@ function usePrefersReducedMotion(): boolean {
   return reduced;
 }
 
-export function ClimbScene({ tower, categoryLabel }: ClimbSceneProps) {
+export function ClimbScene({ tower, categoryLabel, leading }: ClimbSceneProps) {
   const reducedMotion = usePrefersReducedMotion();
   const touchDevice = useCoarsePointer();
   const seed = useMemo(() => `solo-${tower.categorySlug}`, [tower.categorySlug]);
   const { state, start, finished, setTouch } = useClimb({ tower, seed });
-  // Measured on the canvas wrapper, not the scene root: the saved-record banner
-  // renders between them, and budgeting from the root would ignore its height
-  // and push the canvas (and the controls overlaid on it) past the fold.
+  // Fills the parent: the play page and game overlay are viewport-sized, and
+  // overlays (HUD, touch controls) sit on the canvas rather than stealing height.
   const canvasBoxRef = useRef<HTMLDivElement>(null);
   const canvasSize = useCanvasSize(canvasBoxRef);
   const { user, token } = useAuth();
@@ -161,39 +162,21 @@ export function ClimbScene({ tower, categoryLabel }: ClimbSceneProps) {
     postRun(run, token).then(setSavedBanner);
   }, [user, token, postRun]);
 
+  useEffect(() => {
+    const html = document.documentElement;
+    const prevHtmlOverflow = html.style.overflow;
+    const prevBodyOverflow = document.body.style.overflow;
+    html.style.overflow = "hidden";
+    document.body.style.overflow = "hidden";
+    return () => {
+      html.style.overflow = prevHtmlOverflow;
+      document.body.style.overflow = prevBodyOverflow;
+    };
+  }, []);
+
   return (
-    <div className="flex flex-col items-center gap-4 w-full">
-      {savedBanner?.saved && (
-        <div
-          className="w-full rounded-xl border border-signal/40 bg-signal/[0.06] px-4 py-2.5 text-center"
-          role="status"
-        >
-          <p className="font-mono text-xs uppercase tracking-[0.14em] text-signal">
-            ✓ Record saved
-            {savedBanner.rank ? (
-              <>
-                {" · "}#{savedBanner.rank}
-                {savedBanner.totalClimbers ? ` of ${savedBanner.totalClimbers}` : ""}
-              </>
-            ) : null}
-          </p>
-        </div>
-      )}
-
-      {/* Above the canvas on purpose — see the note in PowerUpHud on why it
-          must not sit below it. */}
-      <div style={{ width: canvasSize.width }}>
-        <PowerUpHud
-          player={player}
-          tick={state.tick}
-          muted={muted}
-          onToggleMute={() => setMuted(!muted)}
-          announcement={announcement}
-        />
-      </div>
-
-      {/* Width tracks the canvas so the overlays line up with it exactly. */}
-      <div ref={canvasBoxRef} className="relative" style={{ width: canvasSize.width }}>
+    <div className="relative h-full w-full overflow-hidden bg-void">
+      <div ref={canvasBoxRef} className="absolute inset-0">
         <ClimbCanvas
           state={state}
           reducedMotion={reducedMotion}
@@ -201,6 +184,37 @@ export function ClimbScene({ tower, categoryLabel }: ClimbSceneProps) {
           height={canvasSize.height}
           bottomInset={touchDevice ? TOUCH_CONTROLS_INSET : 0}
         />
+
+        {savedBanner?.saved && (
+          <div
+            className="absolute inset-x-0 top-12 z-20 mx-auto w-max max-w-[calc(100%-1.5rem)] rounded-xl border border-signal/40 bg-void/90 px-4 py-2.5 text-center"
+            role="status"
+          >
+            <p className="font-mono text-xs uppercase tracking-[0.14em] text-signal">
+              ✓ Record saved
+              {savedBanner.rank ? (
+                <>
+                  {" · "}#{savedBanner.rank}
+                  {savedBanner.totalClimbers ? ` of ${savedBanner.totalClimbers}` : ""}
+                </>
+              ) : null}
+            </p>
+          </div>
+        )}
+
+        <div className="pointer-events-none absolute inset-x-0 top-0 z-10 bg-gradient-to-b from-void/80 to-transparent pt-[max(0.25rem,env(safe-area-inset-top))]">
+          <div className="pointer-events-auto">
+            <PowerUpHud
+              player={player}
+              tick={state.tick}
+              hazardY={state.hazardY}
+              muted={muted}
+              onToggleMute={() => setMuted(!muted)}
+              announcement={announcement}
+              leading={leading}
+            />
+          </div>
+        </div>
 
         {phase === "countdown" && (
           <Overlay>
@@ -316,7 +330,7 @@ export function ClimbScene({ tower, categoryLabel }: ClimbSceneProps) {
 
 function Overlay({ children }: { children: ReactNode }) {
   return (
-    <div className="absolute inset-0 flex flex-col items-center justify-center rounded-xl bg-void/70 backdrop-blur-sm p-4 text-center">
+    <div className="absolute inset-0 flex flex-col items-center justify-center overflow-y-auto bg-void/70 backdrop-blur-sm p-4 text-center">
       {children}
     </div>
   );

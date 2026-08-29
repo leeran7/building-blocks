@@ -8,28 +8,33 @@
  * feature real text for screen readers and for anyone who finds the glyphs
  * alone ambiguous.
  *
- * Layout is deliberately rigid: the strip sits ABOVE the canvas, whose height
- * budget is measured from its own top edge downward, so any growth here moves
- * the canvas. It keeps a fixed height and scrolls sideways rather than wrapping,
- * so chips appearing and expiring mid-climb can never resize the play area.
+ * Overlayed on the canvas (not laid out above it) so it never steals height
+ * from the play surface. Fixed height, chips scroll sideways rather than wrap,
+ * so chips appearing and expiring mid-climb cannot resize the play area.
  */
 
+import type { ReactNode } from "react";
 import { POWER_UP_SPECS, isExpired } from "../../game/powerups";
 import { TICK_HZ, type PlayerState } from "../../game/types";
 
 export function PowerUpHud({
   player,
   tick,
+  hazardY,
   muted,
   onToggleMute,
   announcement,
+  leading,
 }: {
   player: PlayerState | undefined;
   tick: number;
+  hazardY: number;
   muted: boolean;
   onToggleMute: () => void;
   announcement: string;
+  leading?: ReactNode;
 }) {
+  const playerY = player?.y ?? 0;
   const active = (player?.activePowerUps ?? [])
     .filter((a) => !isExpired(a, tick))
     .map((a) => {
@@ -43,7 +48,16 @@ export function PowerUpHud({
     });
 
   return (
-    <div className="flex w-full h-[46px] items-center gap-2">
+    <div className="flex w-full h-[46px] items-center gap-2 px-2">
+      {leading ? <div className="flex-shrink-0">{leading}</div> : null}
+
+      <p className="flex-shrink-0 font-mono text-xs font-bold text-text-primary tabular-nums">
+        {playerY.toFixed(1)}m
+      </p>
+      <p className="flex-shrink-0 font-mono text-[10px] uppercase tracking-[0.12em] text-text-secondary">
+        lava {hazardY.toFixed(1)}m
+      </p>
+
       <div className="flex min-w-0 flex-1 flex-nowrap items-center gap-1.5 overflow-x-auto">
         {active.map((a) => (
           <span

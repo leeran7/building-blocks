@@ -19,9 +19,7 @@ const ClimbScene = dynamic(
   () => import("../Game/ClimbScene").then((m) => ({ default: m.ClimbScene })),
   {
     ssr: false,
-    loading: () => (
-      <div className="w-[min(92vw,560px)] h-[min(78vh,900px)] rounded-2xl bg-surface-raised animate-pulse" />
-    ),
+    loading: () => <div className="h-full w-full bg-void" />,
   }
 );
 
@@ -35,16 +33,13 @@ export function GameOverlay({
   const cat = resolveGameCategory(slug);
   const tower = buildTower(cat);
   const dialogRef = useRef<HTMLDivElement>(null);
-  const closeButtonRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
 
-    // Remember what had focus so we can restore it on close (WCAG 2.4.3).
     const trigger = document.activeElement as HTMLElement | null;
-    // Move focus into the dialog on open.
-    closeButtonRef.current?.focus();
+    dialogRef.current?.focus();
 
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
@@ -85,43 +80,25 @@ export function GameOverlay({
   return (
     <div
       ref={dialogRef}
-      className="fixed inset-0 z-50 flex flex-col"
+      className="fixed inset-0 z-50 overflow-hidden bg-void focus:outline-none"
       role="dialog"
       aria-modal="true"
       aria-label={`${cat.label} climb`}
+      tabIndex={-1}
     >
-      {/* backdrop */}
-      <button
-        type="button"
-        aria-label="Close climb"
-        onClick={onClose}
-        className="absolute inset-0 bg-void/85 backdrop-blur-sm"
+      <ClimbScene
+        tower={tower}
+        categoryLabel={cat.label}
+        leading={
+          <button
+            type="button"
+            onClick={onClose}
+            className="inline-flex min-h-[32px] items-center rounded-full px-2.5 font-mono text-[10px] uppercase tracking-[0.12em] text-text-secondary hover:text-signal transition-colors focus-visible:outline-none focus-visible:text-signal"
+          >
+            Close ✕
+          </button>
+        }
       />
-
-      {/* header */}
-      <header className="relative flex items-center justify-between px-4 md:px-6 h-14 border-b border-border-subtle bg-void/60">
-        <div className="flex items-center gap-2.5 min-w-0">
-          <span className="h-6 w-[3px] rounded-full bg-signal" aria-hidden="true" />
-          <span className="font-mono text-xs uppercase tracking-[0.14em] text-text-secondary truncate">
-            {cat.label} climb · {cat.family}
-          </span>
-        </div>
-        <button
-          ref={closeButtonRef}
-          type="button"
-          onClick={onClose}
-          className="inline-flex items-center gap-1.5 font-mono text-xs uppercase tracking-[0.14em] text-text-secondary hover:text-signal transition-colors min-h-[40px] px-2 focus-visible:outline-none focus-visible:text-signal"
-        >
-          Close ✕
-        </button>
-      </header>
-
-      {/* stage — start-aligned, not centred: the canvas sizes itself from its own
-          top edge, so centring would feed its height back into that measurement
-          and make it ratchet upward over several layout passes. */}
-      <div className="relative flex-1 overflow-auto grid items-start justify-items-center p-2 sm:p-4">
-        <ClimbScene tower={tower} categoryLabel={cat.label} />
-      </div>
     </div>
   );
 }
