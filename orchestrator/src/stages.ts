@@ -1,34 +1,61 @@
+import {
+  clampNextStage,
+  combineHandoffs,
+  teamMissing,
+  uniqueStages,
+} from "./team.js";
 import type { Handoff, LoopState, Stage } from "./types.js";
+import { REQUIRED_TEAM } from "./types.js";
+
+export interface StagePromptExtras {
+  stage: Stage;
+  learnings?: string;
+}
 
 export function buildStagePrompt(
   state: LoopState,
   agentPrompt: string,
   priorHandoff: Handoff | null,
+  extras: StagePromptExtras,
 ): string {
+  const stage = extras.stage;
   const prior = priorHandoff ? JSON.stringify(priorHandoff, null, 2) : "none";
+  const learnings = extras.learnings ?? "(none)";
   return [
     "You are running as part of an automated closed-loop app build.",
+    `You are ONLY the "${stage}" agent. Do not perform other pipeline stages.`,
+    "Impersonating another team member, or finishing without a handoff file, fails the stage.",
     "",
     `## Goal`,
     state.goal,
     "",
     `## Current stage`,
-    state.currentStage,
+    stage,
     "",
     `## Iteration`,
     String(state.iteration),
     "",
+    `## Required team (orchestrator dispatches these; you do not skip them)`,
+    (state.requiredTeam ?? REQUIRED_TEAM).join(", "),
+    "",
     `## Prior handoff`,
     prior,
+    "",
+    `## Learnings ledger (apply findings aimed at you or all)`,
+    learnings,
     "",
     `## Agent definition`,
     agentPrompt,
     "",
     `## Required before finishing`,
-    `1. Complete all work for stage "${state.currentStage}"`,
-    `2. Write handoff JSON to .cursor/loop/handoffs/${state.currentStage}-<ISO-timestamp>.json`,
-    `3. Follow the handoff contract in .cursor/skills/closed-loop/handoffs.md`,
-    `4. Set nextStage and loopBackTo appropriately for your stage`,
+    `1. Complete all work for stage "${stage}" only.`,
+    `2. Write handoff JSON to loop/handoffs/${stage}-<ISO-timestamp>.json`,
+    `3. Follow the handoff contract in skills/closed-loop/handoffs.md`,
+    `4. Set nextStage and loopBackTo appropriately for your stage.`,
+    `5. Append new learnings to loop/learnings.jsonl and the handoff learnings array.`,
+    `6. If you delegate, Task subagent_type MUST equal the agent name (not custom or generalPurpose).`,
+    "",
+    "The orchestrator treats a missing handoff as FAILED, not success.",
   ].join("\n");
 }
 
@@ -52,50 +79,66 @@ export function resolveNextStage(
     return { nextStage: null, paused: false, complete: true };
   }
 
-  const next = (handoff.nextStage ?? defaultNextStage(state.currentStage)) as Stage | undefined;
-  return { nextStage: next ?? null, paused: false, complete: false };
+  const next = clampNextStage(state.currentStage, handoff.nextStage);
+  if (next === null) {
+    return { nextStage: null, paused: false, complete: true };
+  }
+  return { nextStage: next, paused: false, complete: false };
 }
 
-function defaultNextStage(current: Stage): Stage | undefined {
-  const order: Stage[] = [
-    "product-spec",
-    "architect",
-    "implementer",
-    "verifier",
-    "reviewer",
-    "security-reviewer",
-    "qa-acceptance",
-    "integrator",
-    "release",
-    "monitor",
-  ];
-  const idx = order.indexOf(current);
-  return idx >= 0 && idx < order.length - 1 ? order[idx + 1] : undefined;
-}
-
-export function applyHandoff(state: LoopState, handoff: Handoff): LoopState {
+export function applyHandoff(
+  state: LoopState,
+  handoff: Handoff,
+  stagesRun: Stage[] = [state.currentStage],
+): LoopState {
+  const dispatched = uniqueStages([...state.dispatched, ...stagesRun]);
   const { nextStage, paused, complete } = resolveNextStage(state, handoff);
 
   if (paused) {
-    return { ...state, status: "paused" };
-  }
-
-  if (complete) {
     return {
       ...state,
-      status: "complete",
-      completedStages: [...state.completedStages, state.currentStage],
+      dispatched,
+      status: "paused",
+      pauseReason: handoff.summary,
     };
   }
 
-  const needsRevision = handoff.status === "needs_revision";
+  if (handoff.status === "needs_revision") {
+    return {
+      ...state,
+      dispatched,
+      currentStage: nextStage ?? "implementer",
+      iteration: state.iteration + 1,
+    };
+  }
+
+  const completedStages = uniqueStages([...state.completedStages, ...stagesRun]);
+
+  if (complete) {
+    const missing = teamMissing({ dispatched, completedStages });
+    if (missing.length > 0) {
+      return {
+        ...state,
+        dispatched,
+        completedStages,
+        status: "paused",
+        pauseReason: `Loop tried to finish without dispatching required team: ${missing.join(", ")}`,
+      };
+    }
+    return {
+      ...state,
+      dispatched,
+      completedStages,
+      status: "complete",
+    };
+  }
+
   return {
     ...state,
+    dispatched,
+    completedStages,
     currentStage: nextStage!,
-    iteration: needsRevision ? state.iteration + 1 : state.iteration,
-    completedStages:
-      handoff.status === "success"
-        ? [...state.completedStages, handoff.agent as Stage]
-        : state.completedStages,
   };
 }
+
+export { combineHandoffs, clampNextStage };

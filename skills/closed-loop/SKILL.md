@@ -15,10 +15,12 @@ Run the full agent loop to build an app from intent to merge-ready code.
 
 1. Read [stages.md](stages.md) for the stage graph and routing rules.
 2. Read [handoffs.md](handoffs.md) for the handoff contract.
-3. Read [learning-loop.md](learning-loop.md) — the mandatory continuous-learning
+3. Read [team.md](team.md) — the orchestrator must actually dispatch the team.
+   Impersonating a specialist (doing their work in the parent) is a loop defect.
+4. Read [learning-loop.md](learning-loop.md) — the mandatory continuous-learning
    protocol. Every agent reads the learnings ledger before working and records new
    learnings before finishing; the orchestrator runs a retro every iteration.
-4. Initialize loop state:
+5. Initialize loop state:
 
 ```bash
 mkdir -p loop/handoffs
@@ -33,6 +35,17 @@ Write `loop/state.json`:
   "iteration": 1,
   "maxIterations": 10,
   "completedStages": [],
+  "dispatched": [],
+  "requiredTeam": [
+    "product-spec",
+    "architect",
+    "implementer",
+    "verifier",
+    "reviewer",
+    "security-reviewer",
+    "qa-acceptance",
+    "integrator"
+  ],
   "status": "running"
 }
 ```
@@ -43,13 +56,20 @@ Write `loop/state.json`:
    stage (including its `learnings` array), and `loop/learnings.md`.
 2. **Delegate** — invoke the subagent matching `currentStage`:
    - **Cursor**: Task tool with `subagent_type` matching the agent name
-   - **Claude Code**: Agent tool with `subagent_type` matching the agent name, or `@agent-name` mention
+     (`product-spec`, not `custom` / `generalPurpose`)
+   - **Claude Code**: Agent tool with `subagent_type` matching the agent name
+   - Record the agent on `loop/state.json` `dispatched`
+   - **Never do that stage's work in the orchestrator turn**
 3. Pass the user goal, prior handoff contents, and handoff write instructions.
 4. **Evaluate handoff** — read the new handoff file:
    - `success` → append stage to `completedStages`, set `currentStage` to `nextStage`
+     (the orchestrator **clamps** `nextStage` so required team members cannot be skipped)
    - `needs_revision` → increment `iteration`, set `currentStage` to `loopBackTo`
    - `blocked` or `failed` → set state `status` to paused, report to user
-5. **Quality gates** — after verifier succeeds, run security-reviewer and qa-acceptance before integrator.
+   - **File missing** → `failed` (not success). The team member did not run.
+5. **Quality gates** — after verifier succeeds, run `reviewer` **and**
+   `security-reviewer` in the same message (parallel), then `qa-acceptance`,
+   before integrator. Never skip these gates.
 6. **Retro** — after each iteration/loop-back, fold new `loop/learnings.jsonl`
    entries into `loop/learnings.md`, promote any lesson seen 2+ times to a
    standing rule, and surface top learnings in the stage report (see
