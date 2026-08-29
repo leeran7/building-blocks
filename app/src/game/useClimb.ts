@@ -25,6 +25,8 @@ import {
 } from "./types";
 import { createMatch, stepMatch, SimConfig, DEFAULT_SIM_CONFIG } from "./simulation";
 import { HazardConfig, DEFAULT_HAZARD_CONFIG } from "./hazard";
+import { applyRunSeed } from "./towers";
+import { newRunSeed } from "./rng";
 
 export interface TouchInput {
   left: boolean;
@@ -70,25 +72,28 @@ const PLAYER_ID = "you";
 
 export function useClimb({
   tower,
-  seed = "solo",
+  seed: seedLock,
   hazard = DEFAULT_HAZARD_CONFIG,
 }: UseClimbOptions): UseClimbResult {
   const cfg: SimConfig = { ...DEFAULT_SIM_CONFIG, hazard };
 
-  const makeInitial = useCallback(() => {
-    const m = createMatch({
-      seed,
-      mode: "solo",
-      tower,
-      playerIds: [PLAYER_ID],
-    });
-    // Idle in the lobby until the player presses Start; start() flips to
-    // countdown. createMatch defaults to countdown for headless/server use.
-    m.phase = "lobby";
-    return m;
-  }, [seed, tower]);
+  const makeMatch = useCallback(
+    (runSeed: string, phase: MatchState["phase"]) => {
+      const m = createMatch({
+        seed: runSeed,
+        mode: "solo",
+        tower: applyRunSeed(tower, runSeed),
+        playerIds: [PLAYER_ID],
+      });
+      m.phase = phase;
+      return m;
+    },
+    [tower]
+  );
 
-  const [state, setState] = useState<MatchState>(makeInitial);
+  const [state, setState] = useState<MatchState>(() =>
+    makeMatch(seedLock ?? "solo", "lobby")
+  );
   const stateRef = useRef(state);
   stateRef.current = state;
 
@@ -97,6 +102,20 @@ export function useClimb({
   const runningRef = useRef(false);
   const accumulatorRef = useRef(0);
   const lastTsRef = useRef(0);
+  const consumedLobbySeed = useRef(false);
+
+  // Roll a unique map after mount so SSR/hydration share a placeholder, then
+  // the lobby (and every later Start) is a different layout.
+  useEffect(() => {
+    if (seedLock) return;
+    if (consumedLobbySeed.current) return;
+    if (stateRef.current.phase !== "lobby") return;
+    const fresh = makeMatch(newRunSeed(), "lobby");
+    stateRef.current = fresh;
+    setState(fresh);
+    // Mount-only.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Keyboard listeners (AC-33: keyboard-only play is fully supported).
   useEffect(() => {
@@ -173,17 +192,22 @@ export function useClimb({
   }, [sampleInput]);
 
   const start = useCallback(() => {
-    const fresh = makeInitial();
-    fresh.phase = "countdown"; // 3-2-1 then GO (inputs locked during countdown)
+    // First Start keeps the lobby preview; every later Start rolls a new map.
+    // Pass `seed` into the hook to lock one layout (replay).
+    const runSeed = seedLock
+      ? seedLock
+      : consumedLobbySeed.current
+        ? newRunSeed()
+        : stateRef.current.seed;
+    consumedLobbySeed.current = true;
+    const fresh = makeMatch(runSeed, "countdown");
     fresh.tick = 0;
-    // The climber spawns grounded on the base platform (createMatch places them
-    // at the centre); they walk to a ladder and climb from there.
     accumulatorRef.current = 0;
     lastTsRef.current = 0;
     stateRef.current = fresh;
     setState(fresh);
     runningRef.current = true;
-  }, [makeInitial]);
+  }, [makeMatch, seedLock]);
 
   const setTouch = useCallback((tch: TouchInput) => {
     touchRef.current = tch;

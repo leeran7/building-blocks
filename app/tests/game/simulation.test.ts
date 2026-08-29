@@ -151,6 +151,7 @@ describe("ladders: grab and climb from one floor to the next", () => {
     p.y = l0.y0 + 1;
     p.onLadder = true;
     p.ladderIx = 0;
+    p.ladderSlot = 0;
     p.onGround = false;
 
     const ACTION: PlayerInput = {
