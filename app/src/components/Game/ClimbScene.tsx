@@ -20,7 +20,7 @@ import { useClimb } from "../../game/useClimb";
 import { TowerSpec } from "../../game/types";
 import { ClimbCanvas } from "./ClimbCanvas";
 import { ClimbControlsGuide } from "./ClimbControlsGuide";
-import { TouchControls, TOUCH_CONTROLS_RESERVE } from "./TouchControls";
+import { TouchControls } from "./TouchControls";
 import { useAuth } from "../../contexts/AuthContext";
 import { useCanvasSize } from "../../hooks/useCanvasSize";
 import { useCoarsePointer } from "../../hooks/useCoarsePointer";
@@ -59,9 +59,8 @@ export function ClimbScene({ tower, categoryLabel }: ClimbSceneProps) {
   const seed = useMemo(() => `solo-${tower.categorySlug}`, [tower.categorySlug]);
   const { state, start, finished, setTouch } = useClimb({ tower, seed });
   const stageRef = useRef<HTMLDivElement>(null);
-  const canvasSize = useCanvasSize(stageRef, {
-    reserveBelow: touchDevice ? TOUCH_CONTROLS_RESERVE : 0,
-  });
+  // The touch controls overlay the canvas, so they need no height reserved.
+  const canvasSize = useCanvasSize(stageRef);
   const { user, token } = useAuth();
   const [posted, setPosted] = useState(false);
   const [saveInfo, setSaveInfo] = useState<SaveInfo | null>(null);
@@ -282,11 +281,11 @@ export function ClimbScene({ tower, categoryLabel }: ClimbSceneProps) {
             </Link>
           </Overlay>
         )}
-      </div>
 
-      {touchDevice && (
-        <TouchControls active={touchControlsActive} onInput={setTouch} />
-      )}
+        {touchDevice && (
+          <TouchControls active={touchControlsActive} onInput={setTouch} />
+        )}
+      </div>
 
       <div className="sr-only" role="status" aria-live="polite">
         {finished

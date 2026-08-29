@@ -57,15 +57,16 @@ describe("fitCanvas: keeps the play area consistent between devices", () => {
 });
 
 describe("fitCanvas: uses the room a phone actually has", () => {
-  it("beats the old viewport-fraction budget on a 390x844 phone", () => {
-    // Room left once a compact header and the touch control bar are accounted
-    // for. The previous formula (innerHeight * 0.58 - 88) produced 226x402.
+  it("beats the old viewport-fraction budget on an iPhone 13", () => {
+    // 390x664 viewport, less a compact header; the touch controls overlay the
+    // canvas so they reserve nothing. Measured against the previous formula
+    // (innerHeight * 0.58 - 88), which rendered 167x297 on this device.
     const { width, height } = fitCanvas({
       availableWidth: PHONE_WIDTH,
-      availableHeight: 844 - 150 - 104 - 12,
+      availableHeight: 664 - 130 - 12,
     });
-    expect(width).toBeGreaterThan(226);
-    expect(height).toBeGreaterThan(402);
+    expect(width).toBeGreaterThan(167);
+    expect(height).toBeGreaterThan(297);
   });
 
   it("fills the width when the height budget allows it", () => {
@@ -76,12 +77,14 @@ describe("fitCanvas: uses the room a phone actually has", () => {
     expect(width).toBe(PHONE_WIDTH);
   });
 
-  it("degrades to a usable minimum rather than vanishing in a short viewport", () => {
-    const { width } = fitCanvas({
+  it("respects the height budget even in a short viewport", () => {
+    // The floor must not override the budget: the touch controls are overlaid
+    // on the canvas, so a canvas past the fold takes them off screen with it.
+    const { width, height } = fitCanvas({
       availableWidth: PHONE_WIDTH,
-      availableHeight: 40,
+      availableHeight: 240,
     });
-    expect(width).toBeGreaterThanOrEqual(240);
-    expect(width).toBeLessThanOrEqual(PHONE_WIDTH);
+    expect(width).toBeGreaterThan(0);
+    expect(height).toBeLessThanOrEqual(240);
   });
 });

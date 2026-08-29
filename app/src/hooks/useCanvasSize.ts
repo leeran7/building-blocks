@@ -75,7 +75,14 @@ export interface UseCanvasSizeOptions {
 const ASPECT = 360 / 640;
 /** Server-render / pre-measurement size; also the historical desktop size. */
 const BASE_SIZE: CanvasSize = { width: 360, height: 640 };
-const MIN_WIDTH = 240;
+/**
+ * A sanity guard against a degenerate canvas, not a comfortable minimum. It is
+ * kept this low on purpose: a floor overrides the height budget, and a canvas
+ * taller than the viewport drags the touch controls overlaid on it off screen.
+ * Fitting the viewport wins; a cramped canvas means the layout owes the game
+ * more room, which is not something this function can fix.
+ */
+const MIN_WIDTH = 120;
 const MAX_WIDTH = 560;
 /** Keeps the canvas off the very bottom edge of the viewport. */
 const EDGE_MARGIN = 12;
