@@ -9,7 +9,8 @@ once (API or Settings UI). The Cursor GitHub App cannot create rulesets
 Payload: `require-ci-on-main.json`
 
 ```bash
-yarn apply-github-ruleset
+yarn apply-github-ruleset --dry-run   # validate payload locally, no GitHub write
+yarn apply-github-ruleset             # create or update (needs admin token)
 ```
 
 Or in the GitHub UI: **Settings → Rules → Rulesets → New branch ruleset**.
