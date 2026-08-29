@@ -14,7 +14,7 @@ ledger.
    trusting lint, typecheck, tests, or audit, feed a deliberately violating
    input and confirm the command goes red. Never silence a gate to make it
    pass (for example by excluding the files it should check). Profile
-   `qualityGates[].proveFail` exists for this.
+   `context/gates.json` `gates[].proveFail` exists for this.
 2. **Never assert behaviour by grepping source text.** `readFileSync` +
    `toContain` / `not.toMatch` against production source passes while the
    bug is live (empty-paren literals, inverted negative lookaheads). Invoke

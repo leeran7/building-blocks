@@ -11,7 +11,7 @@ description: >-
 
 Run the full agent loop to build an app from intent to merge-ready code.
 
-**Installing into a new repo?** Read [`pack/SETUP.md`](../../pack/SETUP.md)
+**Installing into a new repo?** Read [`pack/SETUP.md`](pack/SETUP.md)
 first (file tree + 5-minute install). Repo-specific facts live in
 `context/` — agents only point there.
 

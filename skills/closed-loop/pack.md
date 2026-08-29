@@ -8,7 +8,7 @@ The pack is the agent system (`agents/`, `skills/closed-loop/`, `orchestrator/`,
 `scripts/`). It is **not** the product in `app/`. A second repo should be able
 to vendor the pack and run the same loop against a different stack.
 
-**File tree and install (start here):** [`pack/SETUP.md`](../../pack/SETUP.md).
+**File tree and install (start here):** [`pack/SETUP.md`](pack/SETUP.md).
 Repo-owned facts live in `context/`. Agents only point at that folder.
 
 ## Why the old layout did not travel
@@ -83,7 +83,7 @@ from layers 1–2 and points at 3–4.
 
 ## Install into another repo
 
-**Canonical steps and file tree:** [`pack/SETUP.md`](../../pack/SETUP.md).
+**Canonical steps and file tree:** [`pack/SETUP.md`](pack/SETUP.md).
 
 From a pack clone ([closed-loop-agents](https://github.com/leeran7/closed-loop-agents)
 or this tree):
@@ -134,8 +134,9 @@ Do not paste kernel gates back into every agent. Point at `gates.md`.
 ## Quality gates in the profile
 
 A gate that has never been shown to go red is not a gate (Aug 29: `next
-lint` with no ESLint config exited 0). Each `qualityGates[]` entry should
-include `proveFail`: a command that must fail on a known-bad input.
+lint` with no ESLint config exited 0). Each `context/gates.json`
+`gates[]` entry should include `proveFail`: a command that must fail on a
+known-bad input.
 
 The verifier and devops agents read this list. They do not invent
 `pnpm lint` because a template once said so.
@@ -167,7 +168,7 @@ for `@orchestrator` / `yarn loop`.
 | Path | Layer |
 |------|--------|
 | `pack/SETUP.md` | Install + file tree (start here) |
-| `skills/closed-loop/protocol.md` | Kernel preamble (sync prepends it) |
+| `skills/closed-loop/protocol.md` | Kernel preamble (sync + `loadAgentPrompt` prepend) |
 | `skills/closed-loop/gates.md` | Universal quality gates |
 | `skills/closed-loop/profile.md` | `context/` contract |
 | `skills/closed-loop/handoffs.md` | Handoff JSON contract |

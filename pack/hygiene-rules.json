@@ -2,8 +2,13 @@
   "bannedSubstrings": [
     "Tower Dark Editorial",
     "#00d4ff",
+    "#cbf24d",
+    "Bricolage Grotesque",
+    "ASCENT",
+    "The Climb",
     "building-blocks.git",
     "git@github.com:leeran7/building-blocks",
+    "github.com/leeran7/building-blocks",
     "horizonx.so",
     "pryzm.design",
     "presenta.design",
@@ -24,5 +29,5 @@
   "requiredSubstrings": [
     "context/README.md"
   ],
-  "notes": "Source agents must point at context/README.md and must not embed this product or a hardcoded exclusive package manager."
+  "notes": "Source agents must point at context/README.md and must not embed product facts or a hardcoded exclusive package manager."
 }

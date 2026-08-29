@@ -68,7 +68,7 @@ async function main() {
     }
     process.exit(1);
   }
-  console.log(`Pack hygiene ok (${filesChecked} agents, no product leakage)`);
+  console.log(`Pack hygiene ok (${filesChecked} source agents in agents/*.md scanned, 0 violations)`);
 }
 
 const isDirect = process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1];

@@ -8,20 +8,18 @@
  * Destination context/ always comes from pack/templates/context/.
  */
 import { readFile, writeFile, mkdir, cp, access, rm } from "node:fs/promises";
-import { dirname, join, resolve } from "node:path";
+import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawn } from "node:child_process";
+import {
+  assertSafeDest,
+  copyKernel,
+  mergeGitignore,
+  purgeDoNotCopy,
+  resetAgentsAndSkills,
+} from "./pack-copy.mjs";
 
 const PACK_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
-
-const COPY = [
-  ["agents", "agents"],
-  ["skills/closed-loop", "skills/closed-loop"],
-  ["handoffs", "handoffs"],
-  ["pack", "pack"],
-  ["scripts", "scripts"],
-  ["orchestrator", "orchestrator"],
-];
 
 async function exists(path) {
   try {
@@ -49,41 +47,38 @@ async function main() {
     console.error("Usage: node scripts/export-template.mjs /path/to/closed-loop-agents");
     process.exit(1);
   }
-  const dest = resolve(destArg);
+  const dest = assertSafeDest(destArg);
   if (dest === PACK_ROOT) {
     console.error("Refusing to export the template onto this checkout. Pass the template clone path.");
     process.exit(1);
   }
 
-  for (const [from, to] of COPY) {
-    const src = join(PACK_ROOT, from);
-    const out = join(dest, to);
-    await mkdir(dirname(out), { recursive: true });
-    await cp(src, out, {
-      recursive: true,
-      filter: (source) => !source.includes("node_modules") && !source.includes("dist"),
-    });
-    console.log(`copied ${from} → ${to}`);
-  }
+  await resetAgentsAndSkills(dest);
+  const { destRoot, manifest } = await copyKernel(PACK_ROOT, dest);
+  console.log(`copied kernel (${manifest.kernel.length} manifest patterns) → ${destRoot}`);
 
-  const contextDest = join(dest, "context");
+  await purgeDoNotCopy(destRoot, manifest);
+  console.log("purged doNotCopy paths (app/, docs/reviews/, CHANGELOG.md, …)");
+
+  const contextDest = join(destRoot, "context");
   if (await exists(contextDest)) {
     await rm(contextDest, { recursive: true, force: true });
   }
   await cp(join(PACK_ROOT, "pack", "templates", "context"), contextDest, { recursive: true });
   console.log("wrote template context/ from pack/templates/context");
 
-  await mkdir(join(dest, "loop"), { recursive: true });
-  await cp(join(PACK_ROOT, "pack", "templates", "learnings.md"), join(dest, "loop", "learnings.md"));
-  await writeFile(join(dest, "loop", "learnings.jsonl"), "");
+  await mkdir(join(destRoot, "loop"), { recursive: true });
+  await cp(join(PACK_ROOT, "pack", "templates", "learnings.md"), join(destRoot, "loop", "learnings.md"));
+  await writeFile(join(destRoot, "loop", "learnings.jsonl"), "");
 
-  await cp(join(PACK_ROOT, "pack", "templates", "README.md"), join(dest, "README.md"));
-  await cp(join(PACK_ROOT, "skills", "closed-loop", "host.md"), join(dest, "CLAUDE.md"));
-  await cp(join(PACK_ROOT, "pack", "templates", "gitignore.snippet"), join(dest, ".gitignore"));
-  await appendIgnoreExtras(join(dest, ".gitignore"));
+  await cp(join(PACK_ROOT, "pack", "templates", "README.md"), join(destRoot, "README.md"));
+  await cp(join(PACK_ROOT, "skills", "closed-loop", "host.md"), join(destRoot, "CLAUDE.md"));
+  const snippet = await readFile(join(PACK_ROOT, "pack", "templates", "gitignore.snippet"), "utf-8");
+  await mergeGitignore(destRoot, snippet, { overwrite: true });
+  await appendIgnoreExtras(join(destRoot, ".gitignore"));
 
   await writeFile(
-    join(dest, "package.json"),
+    join(destRoot, "package.json"),
     `${JSON.stringify(
       {
         name: "closed-loop-agents",
@@ -104,12 +99,12 @@ async function main() {
   );
 
   try {
-    await run("node", ["scripts/sync.mjs"], dest);
+    await run("node", ["scripts/sync.mjs"], destRoot);
   } catch (err) {
     console.warn("sync in template failed:", err.message);
   }
 
-  console.log(`\nTemplate exported to ${dest}`);
+  console.log(`\nTemplate exported to ${destRoot}`);
 }
 
 async function appendIgnoreExtras(gitignorePath) {
