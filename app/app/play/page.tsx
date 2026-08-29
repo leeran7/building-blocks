@@ -25,6 +25,7 @@ export default function FreePlayPage() {
     <FreeStackShell
       section="play"
       title="Play the climb"
+      compactHeader
       meta={
         <p className="text-text-secondary text-sm mt-3 max-w-lg">
           Endless climb — go as high as you can. Your peak height is your score on
