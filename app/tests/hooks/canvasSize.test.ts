@@ -33,6 +33,15 @@ describe("fitCanvas: never exceeds the space it is given", () => {
     expect(width).toBe(560);
   });
 
+  it("grows past 560px under default options when the box has room", () => {
+    const { width } = fitCanvas({
+      availableWidth: 900,
+      availableHeight: 2000,
+    });
+    expect(width).toBe(900);
+    expect(width).toBeGreaterThan(560);
+  });
+
   it("fits the height budget when height is the binding constraint", () => {
     const { height } = fitCanvas({
       availableWidth: PHONE_WIDTH,

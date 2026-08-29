@@ -91,7 +91,7 @@ export function ClimbLeaderboard({
                 {c.handle}
               </span>
               {c.wins > 0 && (
-                <span className="font-mono text-xs text-text-muted tabular-nums">
+                <span className="font-mono text-xs text-text-secondary tabular-nums">
                   {c.wins}★
                 </span>
               )}
@@ -102,7 +102,7 @@ export function ClimbLeaderboard({
                 }
               >
                 {c.peakY.toFixed(0)}
-                <span className="text-text-muted font-normal">m</span>
+                <span className="text-text-secondary font-normal">m</span>
               </span>
             </div>
           </li>
