@@ -3,11 +3,16 @@
 /**
  * On-screen touch controls for The Climb (mobile Phase 1).
  *
- * Left: move (← →). Right: climb (hold ↑) + jump. Wired into useClimb via
- * setTouch — only rendered on coarse-pointer devices during an active run.
+ * Left cluster: move (← →). Right cluster: climb (hold ↑) + jump. Wired into
+ * useClimb via setTouch, and only mounted on coarse-pointer devices.
+ *
+ * The bar keeps its footprint whether or not a run is active — the buttons just
+ * dim and disable between runs. Unmounting them instead would change how much
+ * height the canvas is given (see useCanvasSize) and resize the game every time
+ * a run starts or ends.
  */
 
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { NO_TOUCH, type TouchInput } from "../../game/useClimb";
 
 export function TouchControls({
@@ -17,37 +22,36 @@ export function TouchControls({
   active: boolean;
   onInput: (input: TouchInput) => void;
 }) {
-  const pressedRef = useRef<Set<string>>(new Set());
+  const pressedRef = useRef<Set<ControlId>>(new Set());
+  const [pressed, setPressed] = useState<ReadonlySet<ControlId>>(new Set());
 
   const emit = useCallback(() => {
-    const s = pressedRef.current;
+    const held = pressedRef.current;
     onInput({
-      left: s.has("left"),
-      right: s.has("right"),
-      up: s.has("climb"),
+      left: held.has("left"),
+      right: held.has("right"),
+      up: held.has("climb"),
       down: false,
-      jump: s.has("jump"),
+      jump: held.has("jump"),
     });
+    setPressed(new Set(held));
   }, [onInput]);
 
-  const setKey = useCallback(
-    (id: string, down: boolean) => {
-      const s = pressedRef.current;
-      if (down) s.add(id);
-      else s.delete(id);
+  const setHeld = useCallback(
+    (id: ControlId, down: boolean) => {
+      if (down) pressedRef.current.add(id);
+      else pressedRef.current.delete(id);
       emit();
     },
     [emit]
   );
 
   useEffect(() => {
-    if (!active) {
-      pressedRef.current = new Set();
-      onInput(NO_TOUCH);
-    }
+    if (active) return;
+    pressedRef.current = new Set();
+    setPressed(new Set());
+    onInput(NO_TOUCH);
   }, [active, onInput]);
-
-  if (!active) return null;
 
   return (
     <div
@@ -55,89 +59,126 @@ export function TouchControls({
       style={{ touchAction: "none" }}
       aria-label="Touch game controls"
     >
-      <div className="flex items-center justify-between gap-3 px-1">
-        <div className="flex items-center gap-2">
-          <TouchBtn
-            label="Move left"
-            glyph="←"
-            onDown={() => setKey("left", true)}
-            onUp={() => setKey("left", false)}
-          />
-          <TouchBtn
-            label="Move right"
-            glyph="→"
-            onDown={() => setKey("right", true)}
-            onUp={() => setKey("right", false)}
-          />
+      <div className="flex items-stretch gap-2">
+        <div className="flex flex-1 items-stretch gap-2">
+          {MOVE_CONTROLS.map((control) => (
+            <TouchButton
+              key={control.id}
+              control={control}
+              active={active}
+              held={pressed.has(control.id)}
+              onHoldChange={setHeld}
+            />
+          ))}
         </div>
-
-        <div className="flex items-center gap-2">
-          <TouchBtn
-            label="Climb up"
-            glyph="↑"
-            sub="climb"
-            onDown={() => setKey("climb", true)}
-            onUp={() => setKey("climb", false)}
-          />
-          <TouchBtn
-            label="Jump"
-            glyph="JMP"
-            accent
-            onDown={() => setKey("jump", true)}
-            onUp={() => setKey("jump", false)}
-          />
+        <div className="flex flex-1 items-stretch gap-2">
+          {CLIMB_CONTROLS.map((control) => (
+            <TouchButton
+              key={control.id}
+              control={control}
+              active={active}
+              held={pressed.has(control.id)}
+              onHoldChange={setHeld}
+            />
+          ))}
         </div>
       </div>
     </div>
   );
 }
 
-function TouchBtn({
-  label,
-  glyph,
-  sub,
-  accent,
-  onDown,
-  onUp,
+function TouchButton({
+  control,
+  active,
+  held,
+  onHoldChange,
 }: {
-  label: string;
-  glyph: string;
-  sub?: string;
-  accent?: boolean;
-  onDown: () => void;
-  onUp: () => void;
+  control: Control;
+  active: boolean;
+  held: boolean;
+  onHoldChange: (id: ControlId, down: boolean) => void;
 }) {
+  const { id, label, glyph, sub, accent, wordGlyph } = control;
+
+  const press = (down: boolean) => {
+    if (!active) return;
+    onHoldChange(id, down);
+  };
+
   return (
     <button
       type="button"
       aria-label={label}
+      aria-pressed={held}
+      disabled={!active}
       className={
-        "relative flex flex-col items-center justify-center rounded-2xl border font-mono font-bold transition-[filter,transform,background-color] active:scale-95 " +
+        "relative flex flex-1 flex-col items-center justify-center rounded-2xl border font-mono font-bold " +
+        "min-h-[76px] sm:min-h-[84px] transition-[filter,transform,background-color,opacity] " +
+        "active:scale-95 disabled:opacity-40 " +
         (accent
-          ? "min-w-[56px] min-h-[56px] border-signal/50 bg-signal/15 text-signal shadow-signal active:bg-signal/25"
-          : "min-w-[52px] min-h-[52px] border-border-strong bg-surface/80 text-text-primary active:bg-elevated")
+          ? "border-signal/50 bg-signal/15 text-signal shadow-signal "
+          : "border-border-strong bg-surface/80 text-text-primary ") +
+        (held ? (accent ? "bg-signal/30 scale-95 " : "bg-elevated scale-95 ") : "")
       }
       style={{ touchAction: "none" }}
       onPointerDown={(e) => {
         e.preventDefault();
         e.currentTarget.setPointerCapture(e.pointerId);
-        onDown();
+        press(true);
       }}
       onPointerUp={(e) => {
         e.preventDefault();
-        onUp();
+        press(false);
       }}
-      onPointerCancel={onUp}
-      onLostPointerCapture={onUp}
+      onPointerCancel={() => press(false)}
+      onLostPointerCapture={() => press(false)}
     >
-      <span className={sub ? "text-xl leading-none" : "text-[11px] uppercase tracking-[0.08em] leading-none"} aria-hidden="true">
+      <span
+        className={
+          wordGlyph
+            ? "text-lg sm:text-xl uppercase tracking-[0.08em] leading-none"
+            : "text-3xl sm:text-4xl leading-none"
+        }
+        aria-hidden="true"
+      >
         {glyph}
       </span>
       {sub && (
-        <span className="text-[9px] uppercase tracking-[0.12em] text-text-muted mt-0.5 font-semibold">
+        <span className="mt-1 text-[10px] uppercase tracking-[0.12em] font-semibold text-text-muted">
           {sub}
         </span>
       )}
     </button>
   );
 }
+
+type ControlId = "left" | "right" | "climb" | "jump";
+
+interface Control {
+  id: ControlId;
+  label: string;
+  glyph: string;
+  /** Small caption under the glyph. */
+  sub?: string;
+  /** Signal-coloured treatment for the primary action. */
+  accent?: boolean;
+  /** Glyph is a word ("JMP"), not a single arrow — needs a smaller type size. */
+  wordGlyph?: boolean;
+}
+
+const MOVE_CONTROLS: readonly Control[] = [
+  { id: "left", label: "Move left", glyph: "←" },
+  { id: "right", label: "Move right", glyph: "→" },
+];
+
+const CLIMB_CONTROLS: readonly Control[] = [
+  { id: "climb", label: "Climb up ladder", glyph: "↑", sub: "climb" },
+  { id: "jump", label: "Jump", glyph: "JMP", accent: true, wordGlyph: true },
+];
+
+/**
+ * Height the control bar occupies, for useCanvasSize's `reserveBelow`. Covers
+ * the tallest button (84px) plus its top margin and a little slack, so the
+ * controls stay on screen instead of being pushed below the fold.
+ */
+export const TOUCH_CONTROLS_RESERVE = 104;

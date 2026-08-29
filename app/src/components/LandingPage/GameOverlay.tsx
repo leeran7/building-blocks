@@ -20,7 +20,7 @@ const ClimbScene = dynamic(
   {
     ssr: false,
     loading: () => (
-      <div className="w-[min(92vw,500px)] h-[min(85vh,820px)] rounded-2xl bg-surface-raised animate-pulse" />
+      <div className="w-[min(92vw,560px)] h-[min(78vh,900px)] rounded-2xl bg-surface-raised animate-pulse" />
     ),
   }
 );
@@ -117,7 +117,7 @@ export function GameOverlay({
       </header>
 
       {/* stage */}
-      <div className="relative flex-1 overflow-auto grid place-items-center p-4">
+      <div className="relative flex-1 overflow-auto grid place-items-center p-2 sm:p-4">
         <ClimbScene tower={tower} categoryLabel={cat.label} />
       </div>
     </div>

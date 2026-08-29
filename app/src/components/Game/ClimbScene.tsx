@@ -7,13 +7,20 @@
  * controls, and the match lifecycle UI: idle → countdown → climb → results.
  */
 
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import Link from "next/link";
 import { useClimb } from "../../game/useClimb";
 import { TowerSpec } from "../../game/types";
 import { ClimbCanvas } from "./ClimbCanvas";
 import { ClimbControlsGuide } from "./ClimbControlsGuide";
-import { TouchControls } from "./TouchControls";
+import { TouchControls, TOUCH_CONTROLS_RESERVE } from "./TouchControls";
 import { useAuth } from "../../contexts/AuthContext";
 import { useCanvasSize } from "../../hooks/useCanvasSize";
 import { useCoarsePointer } from "../../hooks/useCoarsePointer";
@@ -51,7 +58,10 @@ export function ClimbScene({ tower, categoryLabel }: ClimbSceneProps) {
   const touchDevice = useCoarsePointer();
   const seed = useMemo(() => `solo-${tower.categorySlug}`, [tower.categorySlug]);
   const { state, start, finished, setTouch } = useClimb({ tower, seed });
-  const canvasSize = useCanvasSize(touchDevice);
+  const stageRef = useRef<HTMLDivElement>(null);
+  const canvasSize = useCanvasSize(stageRef, {
+    reserveBelow: touchDevice ? TOUCH_CONTROLS_RESERVE : 0,
+  });
   const { user, token } = useAuth();
   const [posted, setPosted] = useState(false);
   const [saveInfo, setSaveInfo] = useState<SaveInfo | null>(null);
@@ -148,7 +158,10 @@ export function ClimbScene({ tower, categoryLabel }: ClimbSceneProps) {
   }, [user, token, postRun]);
 
   return (
-    <div className="flex flex-col items-center gap-4 w-full max-w-[420px]">
+    <div
+      ref={stageRef}
+      className="flex flex-col items-center gap-4 w-full max-w-[560px]"
+    >
       {savedBanner?.saved && (
         <div
           className="w-full rounded-xl border border-signal/40 bg-signal/[0.06] px-4 py-2.5 text-center"
@@ -166,7 +179,8 @@ export function ClimbScene({ tower, categoryLabel }: ClimbSceneProps) {
         </div>
       )}
 
-      <div className="relative w-full flex justify-center">
+      {/* Width tracks the canvas so the overlays line up with it exactly. */}
+      <div className="relative" style={{ width: canvasSize.width }}>
         <ClimbCanvas
           state={state}
           reducedMotion={reducedMotion}
