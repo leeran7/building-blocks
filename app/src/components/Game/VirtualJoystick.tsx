@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import nipplejs from "nipplejs";
 import {
   joystickAxesFromVector,
   NO_JOYSTICK,
@@ -28,20 +27,8 @@ export function VirtualJoystick({
     const zone = zoneRef.current;
     if (!zone) return;
 
-    const manager = nipplejs.create({
-      zone,
-      mode: "static",
-      position: { left: "50%", top: "50%" },
-      size: JOYSTICK_SIZE,
-      threshold: 0.08,
-      fadeTime: 0,
-      restJoystick: true,
-      restOpacity: 0.92,
-      color: {
-        front: "rgba(203, 242, 77, 0.92)",
-        back: "rgba(30, 28, 36, 0.78)",
-      },
-    });
+    let destroyManager: (() => void) | undefined;
+    let cancelled = false;
 
     const emitAxes = (data: { vector: { x: number; y: number } }) => {
       const { x, y } = data.vector;
@@ -52,17 +39,37 @@ export function VirtualJoystick({
       emitAxes(evt.data);
     const onEnd = () => onChangeRef.current(NO_JOYSTICK);
 
-    manager.on("move", onMove);
-    manager.on("end", onEnd);
-
     const onWindowBlur = () => onChangeRef.current(NO_JOYSTICK);
     window.addEventListener("blur", onWindowBlur);
 
+    void import("nipplejs").then((nipplejs) => {
+      if (cancelled) return;
+
+      const manager = nipplejs.default.create({
+        zone,
+        mode: "static",
+        position: { left: "50%", top: "50%" },
+        size: JOYSTICK_SIZE,
+        threshold: 0.08,
+        fadeTime: 0,
+        restJoystick: true,
+        restOpacity: 0.92,
+        color: {
+          front: "rgba(203, 242, 77, 0.92)",
+          back: "rgba(30, 28, 36, 0.78)",
+        },
+      });
+
+      destroyManager = () => manager.destroy();
+
+      manager.on("move", onMove);
+      manager.on("end", onEnd);
+    });
+
     return () => {
+      cancelled = true;
       window.removeEventListener("blur", onWindowBlur);
-      manager.off("move", onMove);
-      manager.off("end", onEnd);
-      manager.destroy();
+      destroyManager?.();
       onChangeRef.current(NO_JOYSTICK);
     };
   }, []);
