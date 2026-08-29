@@ -13,6 +13,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { parsePaidStackSlug } from "./src/game/categories";
 
 // Edge-compatible UUID v4 generation
 function generateUuid(): string {
@@ -46,7 +47,7 @@ function isBotUa(ua: string | null | undefined): boolean {
 }
 
 export const config = {
-  matcher: ["/", "/dashboard/:path*"],
+  matcher: ["/", "/dashboard/:path*", "/stack/:path*", "/b/:path*"],
 };
 
 export default async function middleware(
@@ -70,11 +71,14 @@ export default async function middleware(
 
   const response = NextResponse.next();
 
-  // Only count views for the homepage (GET /)
-  if (
-    request.method !== "GET" ||
-    request.nextUrl.pathname !== "/"
-  ) {
+  if (request.method !== "GET") {
+    return response;
+  }
+
+  const stackSlug = stackSlugFromPath(pathname);
+  const recordSlug = recordSlugFromPath(pathname);
+  const injectSession = pathname === "/" || stackSlug !== null || recordSlug !== null;
+  if (!injectSession) {
     return response;
   }
 
@@ -91,14 +95,17 @@ export default async function middleware(
     });
   }
 
-  // Step 2: Early bot filter (edge — no Redis needed)
+  // Homepage is marketing — it must not feed a leftover "tech" season.
+  // The climb is not in this matcher. Only stack + record pages credit views.
+  if (!stackSlug && !recordSlug) {
+    return response;
+  }
+
   const ua = request.headers.get("user-agent");
   if (isBotUa(ua)) {
     return response;
   }
 
-  // Steps 3-6: Fire-and-forget to internal credit endpoint
-  // Internal route runs in Node.js (has Prisma + Redis access)
   const ip =
     request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
     request.headers.get("x-real-ip") ??
@@ -107,21 +114,45 @@ export default async function middleware(
   const baseUrl = request.nextUrl.origin;
   const internalToken = process.env.INTERNAL_TOKEN;
   if (!internalToken) {
-    // Fail closed — misconfigured server must not credit views
     return response;
   }
 
-  // Non-blocking fire-and-forget
+  const payload: {
+    sessionId: string;
+    ip: string;
+    ua: string;
+    ts: number;
+    category?: string;
+    blockSlug?: string;
+  } = {
+    sessionId,
+    ip,
+    ua: ua ?? "",
+    ts: Date.now(),
+  };
+  if (stackSlug) payload.category = stackSlug;
+  if (recordSlug) payload.blockSlug = recordSlug;
+
   fetch(`${baseUrl}/api/internal/credit-view`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       "X-Internal-Token": internalToken,
     },
-    body: JSON.stringify({ sessionId, ip, ua: ua ?? "", ts: Date.now() }),
+    body: JSON.stringify(payload),
   }).catch(() => {
     // Silent fail — view counting must not block page load
   });
 
   return response;
+}
+
+function stackSlugFromPath(pathname: string): string | null {
+  const m = pathname.match(/^\/stack\/([a-z0-9-]+)\/?$/);
+  return m ? parsePaidStackSlug(m[1]) : null;
+}
+
+function recordSlugFromPath(pathname: string): string | null {
+  const m = pathname.match(/^\/b\/([a-z0-9-]+)\/?$/);
+  return m?.[1] ?? null;
 }

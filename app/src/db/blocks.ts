@@ -17,10 +17,10 @@ import type { Block } from "@prisma/client";
  * CRITICAL: sorted by altitude descending — not by spend_c, not by rank.
  * The blocks_rank_idx partial index is used for this query.
  */
-export async function getRankedBlocks(): Promise<Block[]> {
+export async function getRankedBlocks(category?: string): Promise<Block[]> {
   // CRITICAL: sorted by altitude descending. spend_c is never used as a sort key.
   return prisma.block.findMany({
-    where: { hidden_at: null },
+    where: { hidden_at: null, ...(category ? { category } : {}) },
     orderBy: { altitude: "desc" },
   });
 }
@@ -139,7 +139,7 @@ export async function incrementViewsServed(
  * visible, paid listings.
  */
 export async function getClimbBillboardCandidates(
-  limit = 80
+  limit = 400
 ): Promise<BillboardRow[]> {
   const rows = await prisma.block.findMany({
     where: {

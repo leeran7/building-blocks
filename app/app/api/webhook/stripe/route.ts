@@ -16,9 +16,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { verifyWebhookSignature } from "../../../../src/api/stripe";
 import { findPaymentByStripeSession, applyPaymentTransaction } from "../../../../src/db/payments";
 import { getOrCreateActiveSeason } from "../../../../src/db/seasons";
-import { computeMetres, computeGround } from "../../../../src/engine/index";
-import { updatePeakRank } from "../../../../src/db/blocks";
-import { getRankedBlocks } from "../../../../src/db/blocks";
+import { computeMetres } from "../../../../src/engine/index";
+import { updatePeakRank, getRankedBlocks, getBlockById } from "../../../../src/db/blocks";
+import { parseSeasonSlug } from "../../../../src/game/categories";
 
 // Disable body parsing — need raw body for Stripe signature verification
 export const runtime = "nodejs";
@@ -66,10 +66,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const stripeSessionId = session.id;
   const blockId = session.metadata?.block_id;
   const amountTotal = session.amount_total ?? 0;
-  // Resolve category slug from metadata — falls back to "tech" for legacy sessions.
-  const rawCategory = session.metadata?.category?.toLowerCase();
-  const category: string =
-    rawCategory && /^[a-z0-9][a-z0-9-]{0,63}$/.test(rawCategory) ? rawCategory : "tech";
 
   if (!blockId) {
     console.error("[webhook/stripe] Missing block_id in metadata:", session.id);
@@ -79,15 +75,28 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   // Step 2: Idempotency check — check for existing payment BEFORE any write (AC-32)
   const existingPayment = await findPaymentByStripeSession(stripeSessionId);
   if (existingPayment) {
-    // Already processed — return 200 no-op (idempotent)
     return NextResponse.json({ received: true });
   }
 
+  const blockRow = await getBlockById(blockId);
+  if (!blockRow) {
+    console.error("[webhook/stripe] Unknown block_id in metadata:", session.id);
+    return NextResponse.json({ error: "Unknown block_id" }, { status: 400 });
+  }
+
+  // Season comes from the block row, not checkout metadata. Metadata used to
+  // fall back to "tech", which priced metres against a ghost season.
+  const category =
+    parseSeasonSlug(blockRow.category) ??
+    parseSeasonSlug(session.metadata?.category);
+
   // Step 3-5: Atomic transaction (AC-33)
   try {
-    // Get LIVE views_k for this block's category at settlement time (spec §3.7)
-    const activeSeason = await getOrCreateActiveSeason(category);
-    const V = activeSeason.views_k;
+    let V = 0;
+    if (category) {
+      const activeSeason = await getOrCreateActiveSeason(category);
+      V = activeSeason.views_k;
+    }
 
     // Server computes metres from LIVE rate — never trusts client-supplied value
     const amountDollars = amountTotal / 100;
@@ -106,7 +115,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     // Update peak_rank (best-effort, not in the main transaction)
     try {
-      const allBlocks = await getRankedBlocks();
+      const allBlocks = await getRankedBlocks(category ?? undefined);
       const rank = allBlocks.findIndex((b) => b.id === blockId) + 1;
       if (rank > 0) {
         await updatePeakRank(blockId, rank);

@@ -13,12 +13,13 @@ import { resolveBaseUrl } from "../../../src/config/public";
 import { getBlockBySlug, getBlockSeasonHistory } from "../../../src/db/blocks";
 import { getTotalSpend } from "../../../src/db/payments";
 import { getOrCreateActiveSeason } from "../../../src/db/seasons";
-import { computeGround, isBuried } from "../../../src/engine/index";
+import { isBuried } from "../../../src/engine/index";
 import { RecordStats } from "../../../src/components/RecordPage/RecordStats";
 import { SharePost } from "../../../src/components/RecordPage/SharePost";
 import { TopupForm } from "../../../src/components/RecordPage/TopupForm";
 import { RankAnimation } from "../../../src/components/RecordPage/RankAnimation";
-import { getCategory, categoryTheme } from "../../../src/lib/categories";
+import { getCategory, categoryTheme, type Category } from "../../../src/lib/categories";
+import { isGameCategory, parseSeasonSlug, resolveGameCategory } from "../../../src/game/categories";
 import { Navbar } from "../../../src/components/Navbar";
 
 const BASE_URL = resolveBaseUrl();
@@ -50,21 +51,21 @@ export default async function RecordPage({
     notFound();
   }
 
+  const seasonSlug = parseSeasonSlug(block.category);
   const [activeSeason, totalSpendCents, seasonHistory] = await Promise.all([
-    getOrCreateActiveSeason(),
+    seasonSlug ? getOrCreateActiveSeason(seasonSlug) : Promise.resolve(null),
     getTotalSpend(block.id),
     getBlockSeasonHistory(params.slug),
   ]);
 
-  const V = activeSeason.views_k;
-  const ground = computeGround(V);
+  const V = activeSeason?.views_k ?? 0;
   const buried = isBuried(block.altitude, V);
   const hidden = block.hidden_at !== null;
 
   const seasonsAppeared = new Set(seasonHistory.map((h) => h.season_id)).size;
 
   const showSharePost = searchParams.payment === "success";
-  const cat = getCategory((block as { category?: string | null }).category ?? undefined);
+  const cat = recordTheme(block.category);
 
   return (
     // HTTP 200 even for buried/hidden/past-season (AC-37)
@@ -112,4 +113,12 @@ export default async function RecordPage({
       </div>
     </main>
   );
+}
+
+function recordTheme(slug: string | null | undefined): Category {
+  const base = getCategory(slug);
+  if (slug && isGameCategory(slug)) {
+    return { ...base, label: resolveGameCategory(slug).label };
+  }
+  return base;
 }

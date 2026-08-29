@@ -15,6 +15,8 @@ import {
   FAMILIES,
   resolveGameCategory,
   slugifyCategory,
+  isGameCategory,
+  parseSeasonSlug,
 } from "../../src/game/categories";
 
 describe("AC-22: full taxonomy grouped by family", () => {
@@ -61,5 +63,26 @@ describe("AC-19 / AC-21: open-ended, data-driven resolution", () => {
     expect(slugifyCategory("AI & ML Tools")).toBe("ai-and-ml-tools");
     expect(slugifyCategory("UI/UX Design")).toBe("ui-ux-design");
     expect(slugifyCategory("E-commerce & Stores")).toBe("e-commerce-and-stores");
+  });
+
+  it("does not treat Object.prototype keys as seeded categories", () => {
+    for (const key of ["constructor", "toString", "__proto__", "hasOwnProperty"]) {
+      expect(isGameCategory(key)).toBe(false);
+      const resolved = resolveGameCategory(key);
+      expect(resolved.slug).toBe(key.toLowerCase());
+      expect(resolved.themeArchetype).toBeTruthy();
+      expect(typeof resolved).not.toBe("function");
+    }
+  });
+});
+
+describe("parseSeasonSlug", () => {
+  it("accepts leftover legacy slugs but rejects junk", () => {
+    expect(parseSeasonSlug("tech")).toBe("tech");
+    expect(parseSeasonSlug("indie-games")).toBe("indie-games");
+    expect(parseSeasonSlug("__proto__")).toBeNull();
+    expect(parseSeasonSlug("constructor")).toBeNull();
+    expect(parseSeasonSlug("toString")).toBeNull();
+    expect(parseSeasonSlug("")).toBeNull();
   });
 });

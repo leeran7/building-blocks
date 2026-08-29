@@ -172,25 +172,38 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
 
     // New listings must name a real 74-stack (never the legacy "tech" ghost).
-    // Top-ups inherit the block's own category, including pre-rebrand leftovers.
+    // Top-ups inherit the block's own category; a missing category is an error
+    // rather than minting a ghost "tech" season.
+    const isNewListing = data.type === "new";
     let stackSlug: string;
-    let topupBlock: Awaited<ReturnType<typeof getBlockById>> = null;
+    let blockId = "";
+    let displayName = "";
+    let redirectSlug = "";
 
-    if (data.type === "new") {
-      const parsed = normalizeCategorySlug(data.category);
-      if (!parsed) {
+    if (isNewListing) {
+      const stack = normalizeCategorySlug(data.category);
+      if (!stack) {
         return NextResponse.json(
           { error: "Unknown stack", code: "INVALID_CATEGORY", field: "category" },
           { status: 400 }
         );
       }
-      stackSlug = parsed;
+      stackSlug = stack;
     } else {
-      topupBlock = await getBlockById(data.block_id);
-      if (!topupBlock) {
+      const block = await getBlockById(data.block_id);
+      if (!block) {
         return NextResponse.json({ error: "Block not found" }, { status: 404 });
       }
-      stackSlug = topupBlock.category ?? "tech";
+      if (!block.category) {
+        return NextResponse.json(
+          { error: "Block has no stack", code: "INVALID_CATEGORY" },
+          { status: 400 }
+        );
+      }
+      stackSlug = block.category;
+      blockId = block.id;
+      displayName = block.display_name;
+      redirectSlug = block.slug;
     }
 
     const season = await getOrCreateActiveSeason(stackSlug);
@@ -202,11 +215,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // Server always computes rate — never trusts client
     const rate = computeRate(V);
 
-    let blockId: string;
-    let displayName: string;
-    let redirectSlug: string;
-
-    if (data.type === "new") {
+    if (isNewListing) {
       // Validate and sanitise URL (NFR-S4)
       const urlResult = validateUrl(data.url);
       if (!urlResult.valid || !urlResult.sanitised) {
@@ -235,10 +244,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           /* best-effort — never block checkout on this */
         });
       }
-    } else {
-      blockId = topupBlock!.id;
-      displayName = topupBlock!.display_name;
-      redirectSlug = topupBlock!.slug;
     }
 
     // Create Stripe Checkout session

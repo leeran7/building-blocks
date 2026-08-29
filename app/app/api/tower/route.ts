@@ -1,7 +1,9 @@
 /**
  * GET /api/tower
  *
- * Primary read path. Returns ranked block list and current engine state.
+ * Cross-stack snapshot for OG metadata and any caller that still hits the
+ * unscoped path. Burial is computed against each block's own season — never
+ * a leftover "tech" ground. This GET does not create seasons.
  *
  * CRITICAL:
  * - Sorted by altitude descending only (spend_c never used as sort key — AC-17)
@@ -12,7 +14,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { getRankedBlocks } from "../../../src/db/blocks";
-import { getOrCreateActiveSeason } from "../../../src/db/seasons";
+import { getAllActiveSeasons } from "../../../src/db/seasons";
 import {
   computeGrowth,
   computeRate,
@@ -26,13 +28,11 @@ export const runtime = "nodejs";
 
 export async function GET(_request: NextRequest): Promise<NextResponse> {
   try {
-    // Get active season (creates one if none exists)
-    const season = await getOrCreateActiveSeason();
-
-    // Season rollover is intentionally NOT performed here.
-    // An unauthenticated, cacheable GET must not trigger writes (race + abuse risk).
-    // Rollover is triggered via POST /api/admin/season-rollover (authenticated).
-    return buildResponse(season);
+    const [blocks, seasons] = await Promise.all([
+      getRankedBlocks(),
+      getAllActiveSeasons(),
+    ]);
+    return buildResponse(blocks, seasons);
   } catch (error) {
     console.error("[GET /api/tower]", error);
     return NextResponse.json(
@@ -42,56 +42,58 @@ export async function GET(_request: NextRequest): Promise<NextResponse> {
   }
 }
 
-async function buildResponse(season: {
-  id: string;
-  views_k: number;
-  starts_at: Date;
-  ends_at: Date;
-  is_active: boolean;
-}): Promise<NextResponse> {
-  const V = season.views_k;
+async function buildResponse(
+  blocks: Awaited<ReturnType<typeof getRankedBlocks>>,
+  seasons: Awaited<ReturnType<typeof getAllActiveSeasons>>
+): Promise<NextResponse> {
+  const viewsFor = (category: string | null): number => {
+    if (!category) return 0;
+    return seasons.get(category)?.views_k ?? 0;
+  };
 
-  // Engine state at current V
-  const growth = computeGrowth(V);
-  const rate = computeRate(V);
-  const ground = computeGround(V);
+  const top = blocks[0];
+  const topV = viewsFor(top?.category ?? null);
+  const growth = computeGrowth(topV);
+  const rate = computeRate(topV);
+  const ground = computeGround(topV);
 
-  // Ranked blocks — ORDER BY altitude DESC, hidden_at IS NULL
-  // CRITICAL: spend_c is never a sort key
-  const blocks = await getRankedBlocks();
+  const enrichedBlocks = blocks.map((block, index) => {
+    const V = viewsFor(block.category);
+    return {
+      id: block.id,
+      slug: block.slug,
+      url: block.url,
+      display_name: block.display_name,
+      altitude: block.altitude,
+      spend_c: block.spend_c,
+      views_served: block.views_served,
+      clicks: block.clicks,
+      peak_rank: block.peak_rank,
+      hidden_at: block.hidden_at?.toISOString() ?? null,
+      created_at: block.created_at.toISOString(),
+      buried: isBuried(block.altitude, V),
+      amber_edge: isAmberEdge(block.altitude, V),
+      rank: index + 1,
+    };
+  });
 
-  // Derive rank, buried, amber_edge at API layer (not stored)
-  const enrichedBlocks = blocks.map((block, index) => ({
-    id: block.id,
-    slug: block.slug,
-    url: block.url,
-    display_name: block.display_name,
-    altitude: block.altitude,
-    spend_c: block.spend_c,
-    views_served: block.views_served,
-    clicks: block.clicks,
-    peak_rank: block.peak_rank,
-    hidden_at: block.hidden_at?.toISOString() ?? null,
-    created_at: block.created_at.toISOString(),
-    // Derived fields — computed here, not stored (ADR-1)
-    buried: isBuried(block.altitude, V),
-    amber_edge: isAmberEdge(block.altitude, V),
-    rank: index + 1, // 1-based
-  }));
-
-  // Cost of rank #1 for a new buyer (myAlt = 0)
   const rank1 = enrichedBlocks[0];
   const cost_of_rank1_usd = rank1
-    ? priceTo(rank1.altitude, 0, V)
-    : 5.0; // MIN_ENTRY_USD if no blocks
+    ? priceTo(rank1.altitude, 0, topV)
+    : 5.0;
+
+  const topSeason = top?.category ? seasons.get(top.category) : undefined;
+  const now = new Date();
+  const ends = new Date(now);
+  ends.setDate(ends.getDate() + 90);
 
   const body = {
     season: {
-      id: season.id,
-      views_k: season.views_k,
-      starts_at: season.starts_at.toISOString(),
-      ends_at: season.ends_at.toISOString(),
-      is_active: season.is_active,
+      id: topSeason?.id ?? "none",
+      views_k: topV,
+      starts_at: (topSeason?.starts_at ?? now).toISOString(),
+      ends_at: (topSeason?.ends_at ?? ends).toISOString(),
+      is_active: topSeason?.is_active ?? false,
     },
     engine: {
       growth,

@@ -26,7 +26,7 @@ import { useAuth } from "../../contexts/AuthContext";
 import { useCanvasSize } from "../../hooks/useCanvasSize";
 import { useCoarsePointer } from "../../hooks/useCoarsePointer";
 import { climberHandle } from "../../lib/handle";
-import type { Billboard } from "../../game/billboards";
+import { visibleBillboards, type Billboard } from "../../game/billboards";
 
 export interface ClimbSceneProps {
   tower: TowerSpec;
@@ -84,7 +84,7 @@ export function ClimbScene({ tower, categoryLabel }: ClimbSceneProps) {
       .then((r) => (r.ok ? r.json() : null))
       .then((d: { signs?: Billboard[] } | null) => {
         if (!live || !d || !Array.isArray(d.signs)) return;
-        setSigns(d.signs);
+        setSigns(visibleBillboards(d.signs));
       })
       .catch(() => {
         /* climb still plays without signs */

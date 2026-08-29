@@ -6,20 +6,39 @@
  * DB failure so a season outage never blocks play.
  */
 
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getClimbBillboardCandidates } from "../../../../src/db/blocks";
 import { getAllActiveSeasons } from "../../../../src/db/seasons";
 import { isBuried } from "../../../../src/engine/index";
 import { visibleBillboards, type Billboard } from "../../../../src/game/billboards";
+import { checkRateLimit, clientIp } from "../../../../src/lib/rateLimit";
 
 export const runtime = "nodejs";
 
 const SIGN_LIMIT = 48;
+/** Over-fetch so a mature stack's buried giants don't starve live signs. */
+const CANDIDATE_LIMIT = 400;
+const BILLBOARD_RATE_MAX = 60;
+const BILLBOARD_RATE_WINDOW_SECONDS = 60;
 
-export async function GET(): Promise<NextResponse> {
+export async function GET(request: NextRequest): Promise<NextResponse> {
+  const rl = await checkRateLimit({
+    namespace: "climb-billboards",
+    identifier: `ip:${clientIp(request)}`,
+    max: BILLBOARD_RATE_MAX,
+    windowSeconds: BILLBOARD_RATE_WINDOW_SECONDS,
+    failMode: "open",
+  });
+  if (!rl.allowed) {
+    return NextResponse.json(
+      { error: "Too many requests", code: "RATE_LIMITED" },
+      { status: 429 }
+    );
+  }
+
   try {
     const [candidates, seasons] = await Promise.all([
-      getClimbBillboardCandidates(80),
+      getClimbBillboardCandidates(CANDIDATE_LIMIT),
       getAllActiveSeasons(),
     ]);
 
@@ -39,7 +58,11 @@ export async function GET(): Promise<NextResponse> {
 
     return NextResponse.json(
       { signs: visibleBillboards(aboveGround) },
-      { headers: { "Cache-Control": "s-maxage=10, stale-while-revalidate" } }
+      {
+        headers: {
+          "Cache-Control": "s-maxage=10, stale-while-revalidate=30",
+        },
+      }
     );
   } catch (error) {
     console.error("[GET /api/climb/billboards]", error);

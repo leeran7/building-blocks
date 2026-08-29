@@ -122,7 +122,8 @@ export function deriveCategory(slug: string): Category {
 export function getCategory(value: string | null | undefined): Category {
   if (!value) return CATEGORIES[0];
   const key = value.toLowerCase();
-  return CATEGORY_BY_SLUG[key] ?? deriveCategory(key);
+  if (Object.hasOwn(CATEGORY_BY_SLUG, key)) return CATEGORY_BY_SLUG[key];
+  return deriveCategory(key);
 }
 
 /** Accepts a slug or a display label; undefined only for unknown + no-fallback. */

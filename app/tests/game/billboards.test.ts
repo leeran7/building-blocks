@@ -71,5 +71,9 @@ describe("paid stack slugs", () => {
     expect(parsePaidStackSlug(undefined)).toBeNull();
     expect(parsePaidStackSlug("indie-games")).toBe("indie-games");
     expect(parsePaidStackSlug("AI-AND-ML-TOOLS")).toBe("ai-and-ml-tools");
+    expect(parsePaidStackSlug("constructor")).toBeNull();
+    expect(parsePaidStackSlug("toString")).toBeNull();
+    expect(parsePaidStackSlug("__proto__")).toBeNull();
+    expect(parsePaidStackSlug("hasOwnProperty")).toBeNull();
   });
 });

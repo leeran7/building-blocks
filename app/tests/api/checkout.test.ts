@@ -45,6 +45,15 @@ describe("AC-30: Server-side quote — reject tampered rate/metres/growth", () =
     expect(routeContent).toContain("parsePaidStackSlug");
     expect(routeContent).toContain("INVALID_CATEGORY");
     expect(routeContent).toContain("Unknown stack");
+    expect(routeContent).toContain("Block has no stack");
+    expect(routeContent).not.toContain("topupBlock!");
+  });
+
+  it("isGameCategory is an own-property allowlist, not `in`", () => {
+    const catPath = resolve(__dirname, "../../src/game/categories.ts");
+    const catContent = readFileSync(catPath, "utf-8");
+    expect(catContent).toContain("GAME_CATEGORY_SLUGS.has");
+    expect(catContent).not.toMatch(/slug\.toLowerCase\(\) in GAME_CATEGORY_BY_SLUG/);
   });
 });
 

@@ -45,9 +45,9 @@ const SLUG_TO_ACCENT: Record<CategorySlug, string> = {
  * Returns null for invalid/unrecognized values (triggers 404 in page).
  */
 export function parseCategory(slug: string): CategorySlug | null {
-  const normalized = slug.toLowerCase() as CategorySlug;
-  if (normalized in SLUG_TO_LABEL) return normalized;
-  return null;
+  const normalized = slug.toLowerCase();
+  if (!Object.hasOwn(SLUG_TO_LABEL, normalized)) return null;
+  return normalized as CategorySlug;
 }
 
 /**
