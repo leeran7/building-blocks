@@ -6,6 +6,7 @@
 
 import type { ReactNode } from "react";
 import { useCoarsePointer } from "../../hooks/useCoarsePointer";
+import { POWER_UP_SPECS, POWER_UP_TYPES } from "../../game/powerups";
 
 type Variant = "card" | "compact" | "overlay";
 
@@ -36,6 +37,8 @@ const TOUCH_CONTROLS = [
 const TIPS = [
   "Grab a ladder and climb to go faster than jumping floor to floor.",
   "The lava rises steadily — keep moving upward; your peak height is your score.",
+  "Walk into a glowing orb to trigger its power-up instantly.",
+  "Power-ups activate the instant you touch them — time your route to grab one right when you need it.",
   "Sign in after a run to save your rank on the free leaderboard.",
 ] as const;
 
@@ -133,6 +136,41 @@ export function ClimbControlsGuide({ variant = "card" }: { variant?: Variant }) 
           ))}
         </div>
       )}
+
+      <div className="mt-5 border-t border-border-subtle pt-4">
+        <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-text-muted">
+          Power-ups
+        </p>
+        <ul className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+          {POWER_UP_TYPES.map((type) => {
+            const spec = POWER_UP_SPECS[type];
+            return (
+              <li key={type} className="flex items-start gap-2.5">
+                <span
+                  className="mt-0.5 flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-md border font-mono text-xs"
+                  style={{ borderColor: spec.color, color: spec.color }}
+                  aria-hidden="true"
+                >
+                  {spec.glyph}
+                </span>
+                <div className="min-w-0">
+                  <p className="text-xs font-medium text-text-primary">{spec.label}</p>
+                  <p className="text-xs text-text-secondary leading-relaxed">
+                    {spec.description}
+                    <span className="text-text-muted">
+                      {" · "}
+                      {spec.charge ? "one use" : `${spec.durationSeconds}s`}
+                      {spec.cooldownSeconds > 0
+                        ? ` · ${spec.cooldownSeconds}s recharge`
+                        : ""}
+                    </span>
+                  </p>
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      </div>
 
       <ul className="mt-5 space-y-2 border-t border-border-subtle pt-4">
         {TIPS.map((tip) => (

@@ -14,13 +14,14 @@
  */
 
 import { useEffect, useRef } from "react";
-import { MatchState } from "../../game/types";
+import { MatchState, PowerUpPickup } from "../../game/types";
 import {
   platformsNearY,
   laddersNearY,
   floorHeight,
   floorIndexAt,
 } from "../../game/towers";
+import { POWER_UP_SPECS, cooldownRemaining, isExpired } from "../../game/powerups";
 
 // ASCENT palette — signal-lime climber, ember lava, warm-obsidian world.
 const VOID = "#0a0a0c";
@@ -42,6 +43,11 @@ const FLAG = "#cbf24d"; // summit flag reads as signal too
  */
 const BASE_WIDTH = 360;
 const BASE_HEIGHT = 640;
+
+/** Ticks the "picked up X" banner stays on screen. */
+const PICKUP_FLASH_TICKS = 55;
+/** Ticks the burst where an orb was collected plays for. */
+const PICKUP_BURST_TICKS = 12;
 
 export interface ClimbCanvasProps {
   state: MatchState;
@@ -169,6 +175,26 @@ export function ClimbCanvas({
       ctx.fillRect(x0, top, w, 2 * ui); // bright top surface
     }
 
+    // Power-up orbs, drawn above the platforms they hover over but below the
+    // lava, so an orb about to be swallowed visibly goes under.
+    for (const pu of state.powerUps) {
+      const oy = sy(pu.y);
+      if (oy < -40 || oy > height + 40) continue;
+      const ox = sx(pu.x);
+      if (pu.collected) {
+        // Brief burst where it was taken, then nothing.
+        const age = pu.collectedTick === null ? 999 : state.tick - pu.collectedTick;
+        if (age >= 0 && age < PICKUP_BURST_TICKS) {
+          drawPickupBurst(ctx, ox, oy, age / PICKUP_BURST_TICKS, pxPerM, POWER_UP_SPECS[pu.type].color);
+        }
+        continue;
+      }
+      // An orb whose type is still cooling down for this player is inert on
+      // contact — dim it so that doesn't read as a bug.
+      const cooling = player ? cooldownRemaining(player, pu.type, state.tick) > 0 : false;
+      drawPowerUpOrb(ctx, ox, oy, pxPerM, ui, pu, state.tick, reducedMotion, cooling);
+    }
+
     // Rising hazard (lava) — a filled band from the hazard line downward.
     const hazScreenY = sy(state.hazardY);
     if (hazScreenY < height) {
@@ -202,6 +228,37 @@ export function ClimbCanvas({
     else if (!player?.onGround) pose = "air";
     else if (Math.abs(player?.vx ?? 0) > 0.1) pose = "walk";
     const s = Math.max(9, pxPerM * 1.7);
+
+    // Aura for each running effect — the in-scene tell that a power-up is live,
+    // so the player never has to look away from the climber to check.
+    const live = (player?.activePowerUps ?? []).filter(
+      (a) => !isExpired(a, state.tick)
+    );
+    live.forEach((a, i) => {
+      const spec = POWER_UP_SPECS[a.type];
+      const remaining = a.durationTicks - (state.tick - a.startTick);
+      // Pulse faster over the last second so the window closing is visible.
+      const urgent = remaining <= 30;
+      const phase = reducedMotion ? 0 : state.tick * (urgent ? 0.36 : 0.12);
+      const pulse = reducedMotion ? 0.5 : 0.5 + 0.5 * Math.sin(phase);
+      ctx.save();
+      ctx.strokeStyle = spec.color;
+      ctx.globalAlpha = 0.3 + 0.45 * pulse;
+      ctx.lineWidth = Math.max(1.5, 0.16 * s);
+      ctx.beginPath();
+      ctx.ellipse(
+        px,
+        pyScreen - 1.25 * s,
+        (1.05 + 0.22 * i) * s + pulse * 0.12 * s,
+        (1.75 + 0.22 * i) * s + pulse * 0.12 * s,
+        0,
+        0,
+        Math.PI * 2
+      );
+      ctx.stroke();
+      ctx.restore();
+    });
+
     drawClimber(ctx, px, pyScreen, s, facing, pose, state.tick, color, reducedMotion);
 
     // HUD panel: height + hazard line.
@@ -223,6 +280,33 @@ export function ClimbCanvas({
     ctx.textAlign = "right";
     ctx.fillText(`lava ${state.hazardY.toFixed(1)}m`, width - 10 * ui, 22 * ui);
     ctx.textAlign = "left";
+
+    // Pickup flash — a short centred banner naming what was just grabbed.
+    if (
+      player?.lastPickupTick !== null &&
+      player?.lastPickupTick !== undefined &&
+      player.lastPickupType
+    ) {
+      const age = state.tick - player.lastPickupTick;
+      if (age >= 0 && age < PICKUP_FLASH_TICKS) {
+        const spec = POWER_UP_SPECS[player.lastPickupType];
+        const t = age / PICKUP_FLASH_TICKS;
+        const text = `${spec.glyph} ${spec.label.toUpperCase()}`;
+        ctx.save();
+        ctx.globalAlpha = 1 - t * t; // hold, then fade
+        ctx.textAlign = "center";
+        ctx.font = `bold ${Math.round(15 * ui)}px monospace`;
+        ctx.fillStyle = spec.color;
+        // Rises slightly as it fades.
+        const ty = hudH + 46 * ui - t * 10 * ui;
+        ctx.fillText(text, width / 2, ty);
+        ctx.font = `${Math.round(10 * ui)}px monospace`;
+        ctx.fillStyle = "#f4f2ec";
+        ctx.fillText(spec.description.toUpperCase(), width / 2, ty + 14 * ui);
+        ctx.restore();
+        ctx.textAlign = "left";
+      }
+    }
   }, [state, width, height, reducedMotion, bottomInset]);
 
   return (
@@ -240,6 +324,114 @@ export function ClimbCanvas({
       role="img"
     />
   );
+}
+
+/**
+ * A hovering power-up orb: a glowing diamond carrying the type's glyph, bobbing
+ * on the deterministic sim tick. Colour and glyph both encode the type, so it is
+ * still identifiable without colour vision, and the label under it names it
+ * outright. reducedMotion freezes the bob and the halo.
+ */
+function drawPowerUpOrb(
+  ctx: CanvasRenderingContext2D,
+  cx: number,
+  baseY: number,
+  pxPerM: number,
+  ui: number,
+  pu: PowerUpPickup,
+  tick: number,
+  reducedMotion: boolean,
+  cooling: boolean = false
+) {
+  const spec = POWER_UP_SPECS[pu.type];
+  // Offset the phase per floor so a column of orbs does not bob in lockstep.
+  const phase = tick * 0.08 + pu.floorIndex * 1.7;
+  const bob = reducedMotion ? 0 : Math.sin(phase) * pxPerM * 0.45;
+  const cy = baseY + bob;
+  const r = Math.max(9, pxPerM * 1.35);
+  const halo = reducedMotion ? 0.35 : 0.28 + 0.16 * (0.5 + 0.5 * Math.sin(phase * 1.6));
+
+  // Cooling down for this player: still visible (it may not be for others),
+  // but visibly inert on contact rather than a silent no-op.
+  const dim = cooling ? 0.45 : 1;
+
+  ctx.save();
+
+  // Soft halo.
+  ctx.globalAlpha = halo * dim;
+  ctx.fillStyle = spec.color;
+  ctx.beginPath();
+  ctx.arc(cx, cy, r * 1.85, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Diamond body.
+  ctx.globalAlpha = dim;
+  ctx.beginPath();
+  ctx.moveTo(cx, cy - r);
+  ctx.lineTo(cx + r * 0.8, cy);
+  ctx.lineTo(cx, cy + r);
+  ctx.lineTo(cx - r * 0.8, cy);
+  ctx.closePath();
+  ctx.fillStyle = VOID;
+  ctx.fill();
+  ctx.strokeStyle = spec.color;
+  ctx.lineWidth = Math.max(1.5, r * 0.16);
+  ctx.stroke();
+
+  // Glyph.
+  ctx.fillStyle = spec.color;
+  ctx.font = `bold ${Math.round(r * 1.15)}px monospace`;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(spec.glyph, cx, cy + r * 0.04);
+
+  // Name plate, so a new player learns the glyphs by reading them in place.
+  ctx.font = `${Math.round(8 * ui)}px monospace`;
+  ctx.fillStyle = spec.color;
+  ctx.globalAlpha = 0.85 * dim;
+  ctx.fillText(spec.label.toUpperCase(), cx, cy + r * 1.95);
+
+  ctx.restore();
+  ctx.textAlign = "left";
+  ctx.textBaseline = "alphabetic";
+}
+
+/** Expanding ring where an orb was just collected. `t` runs 0 → 1. */
+function drawPickupBurst(
+  ctx: CanvasRenderingContext2D,
+  cx: number,
+  cy: number,
+  t: number,
+  pxPerM: number,
+  color: string
+) {
+  const r = Math.max(9, pxPerM * 1.35) * (1 + t * 2.2);
+  ctx.save();
+  ctx.globalAlpha = 1 - t;
+  ctx.strokeStyle = color;
+  ctx.lineWidth = Math.max(1.5, pxPerM * 0.3 * (1 - t));
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.restore();
+}
+
+function roundRect(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  r: number
+) {
+  const rad = Math.min(r, w / 2, h / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + rad, y);
+  ctx.arcTo(x + w, y, x + w, y + h, rad);
+  ctx.arcTo(x + w, y + h, x, y + h, rad);
+  ctx.arcTo(x, y + h, x, y, rad);
+  ctx.arcTo(x, y, x + w, y, rad);
+  ctx.closePath();
 }
 
 type Pose = "idle" | "walk" | "climb" | "air" | "done" | "dead";

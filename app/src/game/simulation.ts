@@ -38,9 +38,32 @@ import {
   DEFAULT_HAZARD_CONFIG,
   hazardHeightAt,
 } from "./hazard";
-import { platformsNearY, laddersNearY, ladderForFloor } from "./towers";
+import {
+  platformsNearY,
+  laddersNearY,
+  ladderForFloor,
+  floorIndexAt,
+} from "./towers";
+import {
+  DOUBLE_JUMP_MULT,
+  SUPER_JUMP_MULT,
+  canActivate,
+  climbSpeedMultiplier,
+  consumeCharge,
+  cooldownTicks,
+  durationTicks,
+  hazardTimeScale,
+  isPowerUpActive,
+  moveSpeedMultiplier,
+  overlapsPickup,
+  powerUpForFloor,
+  pruneActive,
+} from "./powerups";
 
 const EPS = 0.01;
+
+/** Floors of power-ups kept materialized above the highest climber. */
+const POWER_UP_LOOKAHEAD_FLOORS = 6;
 
 export interface SimConfig {
   hazard: HazardConfig;
@@ -65,6 +88,11 @@ export function spawnPlayer(id: PlayerId, slot: number): PlayerState {
     status: "climbing",
     peakY: 0,
     finishedTick: null,
+    activePowerUps: [],
+    cooldownUntilTick: {},
+    lastPickupTick: null,
+    lastPickupType: null,
+    jumpHeldPrev: false,
   };
 }
 
@@ -84,17 +112,47 @@ export function createMatch(params: {
     p.x = n > 1 ? tower.widthM * (0.3 + 0.4 * (i / (n - 1))) : tower.widthM / 2;
     return p;
   });
-  return {
+  const state: MatchState = {
     seed: params.seed,
     mode: params.mode,
     phase: "countdown",
     tick: 0,
     raceSeconds: 0,
     hazardY: 0,
+    hazardSlowSeconds: 0,
     tower,
     players,
     winnerId: null,
+    powerUps: [],
+    powerUpFloorHi: 0,
   };
+  ensurePowerUps(state);
+  return state;
+}
+
+/**
+ * Materialize power-ups for every floor the climbers can still reach, and drop
+ * the ones now sealed under the death line. The tower is endless, so orbs are
+ * generated on demand from (seed, floor) exactly like platforms and ladders —
+ * this only decides WHICH floors are currently in the array.
+ */
+function ensurePowerUps(state: MatchState): void {
+  const { tower } = state;
+  let topY = 0;
+  for (const p of state.players) if (p.y > topY) topY = p.y;
+  const hi = floorIndexAt(tower, topY) + POWER_UP_LOOKAHEAD_FLOORS;
+
+  for (let i = state.powerUpFloorHi; i <= hi; i++) {
+    const pu = powerUpForFloor(tower, i);
+    if (pu) state.powerUps.push(pu);
+  }
+  if (hi >= state.powerUpFloorHi) state.powerUpFloorHi = hi + 1;
+
+  // Anything a full floor below the death line is unreachable for good.
+  const cutoff = state.hazardY - tower.floorGap;
+  if (state.powerUps.length > 0 && cutoff > 0) {
+    state.powerUps = state.powerUps.filter((pu) => pu.y >= cutoff);
+  }
 }
 
 // ── Geometry queries (pure) ────────────────────────────────────────────────
@@ -145,11 +203,18 @@ function grabbableLadder(
 // ── Motion integration ─────────────────────────────────────────────────────
 
 /** Integrate one climbing player's 2D motion from their input for one tick. */
-function integratePlayer(p: PlayerState, input: PlayerInput, tower: TowerSpec): void {
+function integratePlayer(
+  p: PlayerState,
+  input: PlayerInput,
+  tower: TowerSpec,
+  tick: number
+): void {
   const dt = TICK_DT;
+  const moveSpeed = tower.moveSpeed * moveSpeedMultiplier(p, tick);
+  const climbSpeed = tower.maxClimbSpeed * climbSpeedMultiplier(p, tick);
 
   // Horizontal movement (walk / ladder-slide is ignored while attached).
-  p.vx = input.moveX * tower.moveSpeed;
+  p.vx = input.moveX * moveSpeed;
 
   if (p.onLadder) {
     p.x = clamp(p.x + p.vx * dt, 0, tower.widthM);
@@ -167,7 +232,7 @@ function integratePlayer(p: PlayerState, input: PlayerInput, tower: TowerSpec): 
       p.onGround = false;
       p.vy = 0;
     } else {
-      p.vy = input.climbY * tower.maxClimbSpeed;
+      p.vy = input.climbY * climbSpeed;
       p.y += p.vy * dt;
       if (p.y >= l.y1) {
         // Reached the top → step onto the platform there.
@@ -203,10 +268,21 @@ function integratePlayer(p: PlayerState, input: PlayerInput, tower: TowerSpec): 
     }
 
     if (!p.onLadder) {
-      // Jump.
+      // Jump. A banked super-jump charge is spent on whichever jump comes next;
+      // a double-jump charge is what makes an airborne jump legal at all, and is
+      // deliberately weaker than a ground launch so it reads as a recovery.
       if (input.jump && p.onGround) {
-        p.vy = tower.jumpSpeed;
+        const boosted = consumeCharge(p, "super-jump", tick);
+        p.vy = tower.jumpSpeed * (boosted ? SUPER_JUMP_MULT : 1);
         p.onGround = false;
+      } else if (
+        input.jump &&
+        !p.jumpHeldPrev &&
+        !p.onGround &&
+        consumeCharge(p, "double-jump", tick)
+      ) {
+        const boosted = consumeCharge(p, "super-jump", tick);
+        p.vy = tower.jumpSpeed * DOUBLE_JUMP_MULT * (boosted ? SUPER_JUMP_MULT : 1);
       }
       // Gravity while airborne.
       if (p.onGround) {
@@ -280,9 +356,12 @@ export function stepMatch(
   state.raceSeconds = state.tick * TICK_DT;
 
   // 1. Rising hazard — speed is a fraction of the climber's climb rate, so the
-  //    chase scales with how fast the player can move (AC-5, AC-6).
+  //    chase scales with how fast the player can move (AC-5, AC-6). Time-slow
+  //    banks seconds the lava never gets to spend, holding the curve monotonic.
+  const timeScale = hazardTimeScale(state.players, state.tick);
+  state.hazardSlowSeconds += TICK_DT * (1 - timeScale);
   state.hazardY = hazardHeightAt(
-    state.raceSeconds,
+    state.raceSeconds - state.hazardSlowSeconds,
     state.tower.maxClimbSpeed,
     cfg.hazard
   );
@@ -290,11 +369,39 @@ export function stepMatch(
   for (const p of state.players) {
     if (p.status !== "climbing") continue;
 
-    // 2. Integrate motion from validated input.
     const input = inputs[p.id] ?? NO_INPUT;
-    integratePlayer(p, input, state.tower);
 
-    // 3. DEATH LINE — the higher of the rising hazard and the Doodle-Jump fall
+    // 2. Integrate motion from validated input.
+    integratePlayer(p, input, state.tower, state.tick);
+
+    // 3. Auto-activate any orb the climber is now touching, on contact — no
+    //    banking, no use button. An orb whose type is still cooling down (only
+    //    time-slow ever sets one) is left uncollected so it stays pickable once
+    //    the cooldown clears, rather than being wasted or bypassing the rule.
+    for (const pu of state.powerUps) {
+      if (pu.collected) continue;
+      if (!overlapsPickup(pu, p.x, p.y)) continue;
+      if (!canActivate(p, pu.type, state.tick)) continue;
+      pu.collected = true;
+      pu.collectedTick = state.tick;
+      const dur = durationTicks(pu.type);
+      p.activePowerUps.push({
+        type: pu.type,
+        startTick: state.tick,
+        durationTicks: dur,
+        used: false,
+      });
+      const cd = cooldownTicks(pu.type);
+      if (cd > 0) p.cooldownUntilTick[pu.type] = state.tick + dur + cd;
+      p.lastPickupTick = state.tick;
+      p.lastPickupType = pu.type;
+      break;
+    }
+
+    pruneActive(p, state.tick);
+    p.jumpHeldPrev = input.jump;
+
+    // 4. DEATH LINE — the higher of the rising hazard and the Doodle-Jump fall
     //    floor (peak minus the fall-death drop). The tower is endless: there is
     //    no summit, so a run ends ONLY here. Peak height (the score) is retained
     //    (AC-8).
@@ -306,7 +413,10 @@ export function stepMatch(
     }
   }
 
-  // 4. Resolve match end + deterministic winner.
+  // 5. Keep the reachable band of power-ups materialized.
+  ensurePowerUps(state);
+
+  // 6. Resolve match end + deterministic winner.
   resolveOutcome(state);
   return state;
 }

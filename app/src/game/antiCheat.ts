@@ -11,6 +11,7 @@
  */
 
 import { PlayerInput, PlayerState, TowerSpec, TICK_DT, NO_INPUT } from "./types";
+import { RAPID_CLIMB_MULT, isPowerUpActive } from "./powerups";
 
 /** Result of validating a single player's input for one tick. */
 export interface InputValidation {
@@ -24,7 +25,11 @@ export interface InputValidation {
  * (AC-15). Illegal fields are neutralized rather than trusted; an illegal input
  * is reported so the caller can flag/rate-limit the connection.
  */
-export function validateInput(raw: unknown, player: PlayerState): InputValidation {
+export function validateInput(
+  raw: unknown,
+  player: PlayerState,
+  tick = 0
+): InputValidation {
   if (typeof raw !== "object" || raw === null) {
     return { input: NO_INPUT, rejected: true, reason: "malformed input" };
   }
@@ -46,9 +51,11 @@ export function validateInput(raw: unknown, player: PlayerState): InputValidatio
     reason = "climb input without ladder overlap";
   }
 
-  // Jump is only legal from the ground (no infinite air-jumps without a power-up;
-  // power-up handling is layered on later and would set an explicit allowance).
-  if (jump && !player.onGround && !player.onLadder) {
+  // Jump is only legal from the ground — an air-jump is the classic spoof. The
+  // one exception is an unspent double-jump charge, which is exactly the
+  // allowance that power-up buys; the sim consumes it on the same tick.
+  const mayAirJump = isPowerUpActive(player, "double-jump", tick);
+  if (jump && !player.onGround && !player.onLadder && !mayAirJump) {
     rejected = true;
     reason = reason ?? "jump while airborne";
     // Keep jump=false so the sim never grants an illegal jump.
@@ -77,10 +84,20 @@ export function isHeightDeltaLegal(
   prevY: number,
   nextY: number,
   tower: TowerSpec,
-  toleranceM = 0.01
+  toleranceM = 0.01,
+  climbSpeedMult = 1
 ): boolean {
-  const maxGain = tower.maxClimbSpeed * TICK_DT + toleranceM;
+  const maxGain = tower.maxClimbSpeed * climbSpeedMult * TICK_DT + toleranceM;
   return nextY - prevY <= maxGain;
+}
+
+/**
+ * The climb-rate allowance a player has earned this tick. Rapid-climb raises the
+ * legal ceiling for as long as it runs; without this the sentinel would flag the
+ * power-up it was shipped alongside.
+ */
+export function legalClimbSpeedMult(player: PlayerState, tick: number): number {
+  return isPowerUpActive(player, "rapid-climb", tick) ? RAPID_CLIMB_MULT : 1;
 }
 
 /** Per-player rolling sentinel state for the K-consecutive-tick rule (AC-16). */

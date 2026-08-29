@@ -20,6 +20,8 @@ import { useClimb } from "../../game/useClimb";
 import { TowerSpec } from "../../game/types";
 import { ClimbCanvas } from "./ClimbCanvas";
 import { ClimbControlsGuide } from "./ClimbControlsGuide";
+import { PowerUpHud } from "./PowerUpHud";
+import { usePowerUpFeedback } from "./usePowerUpFeedback";
 import { TouchControls, TOUCH_CONTROLS_INSET } from "./TouchControls";
 import { useAuth } from "../../contexts/AuthContext";
 import { useCanvasSize } from "../../hooks/useCanvasSize";
@@ -72,6 +74,7 @@ export function ClimbScene({ tower, categoryLabel }: ClimbSceneProps) {
   const phase = state.phase;
   const touchControlsActive =
     touchDevice && !finished && (phase === "countdown" || phase === "climb");
+  const { muted, setMuted, announcement } = usePowerUpFeedback(player, state.tick);
 
   const redirectPath = `/play`;
 
@@ -177,6 +180,18 @@ export function ClimbScene({ tower, categoryLabel }: ClimbSceneProps) {
         </div>
       )}
 
+      {/* Above the canvas on purpose — see the note in PowerUpHud on why it
+          must not sit below it. */}
+      <div style={{ width: canvasSize.width }}>
+        <PowerUpHud
+          player={player}
+          tick={state.tick}
+          muted={muted}
+          onToggleMute={() => setMuted(!muted)}
+          announcement={announcement}
+        />
+      </div>
+
       {/* Width tracks the canvas so the overlays line up with it exactly. */}
       <div ref={canvasBoxRef} className="relative" style={{ width: canvasSize.width }}>
         <ClimbCanvas
@@ -208,7 +223,8 @@ export function ClimbScene({ tower, categoryLabel }: ClimbSceneProps) {
             </h2>
             <p className="text-text-secondary text-sm mt-3 max-w-[280px] text-center leading-relaxed">
               Climb as high as you can before the rising lava catches you. It gets
-              harder the higher you go — your peak height is your score.
+              harder the higher you go — your peak height is your score. Grab
+              glowing orbs to trigger their power-ups instantly.
             </p>
             <ClimbControlsGuide variant="overlay" />
             <StartButton onClick={handleStart} label="Start climb" />
