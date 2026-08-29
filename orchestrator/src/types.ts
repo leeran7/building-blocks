@@ -168,9 +168,24 @@ export async function initState(goal: string): Promise<LoopState> {
   return state;
 }
 
+const PROTOCOL_PATH = join(REPO_ROOT, "skills", "closed-loop", "protocol.md");
+const PROTOCOL_START = "<!-- closed-loop:protocol -->\n";
+const PROTOCOL_END = "<!-- /closed-loop:protocol -->\n";
+
+function stripProtocol(body: string): string {
+  return body.replace(
+    /<!-- closed-loop:protocol -->[\s\S]*?<!-- \/closed-loop:protocol -->\n*/g,
+    "",
+  );
+}
+
 export async function loadAgentPrompt(stage: Stage): Promise<string> {
-  const path = join(AGENTS_DIR, `${stage}.md`);
-  return readFile(path, "utf-8");
+  const [role, protocol] = await Promise.all([
+    readFile(join(AGENTS_DIR, `${stage}.md`), "utf-8"),
+    readFile(PROTOCOL_PATH, "utf-8"),
+  ]);
+  const stripped = stripProtocol(role).replace(/^\n+/, "");
+  return `${PROTOCOL_START}${protocol.trim()}\n${PROTOCOL_END}\n${stripped}`;
 }
 
 function agentMatchesStage(handoff: Handoff, stage: Stage): boolean {

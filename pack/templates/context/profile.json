@@ -1,0 +1,24 @@
+{
+  "name": "my-app",
+  "product": "One sentence: what this repo ships.",
+  "packageManagers": [
+    { "path": ".", "command": "yarn" }
+  ],
+  "stack": {
+    "app": "",
+    "db": "",
+    "auth": "",
+    "payments": "",
+    "hosting": ""
+  },
+  "paths": {
+    "spec": "loop/spec.md",
+    "architecture": "loop/architecture.md",
+    "learnings": "loop/learnings.md",
+    "design": "",
+    "gates": "context/gates.json",
+    "trust": "context/trust.md",
+    "git": "context/git.md",
+    "conventions": "context/conventions.md"
+  }
+}

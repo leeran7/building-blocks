@@ -3,7 +3,7 @@ import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "node:test";
-import { foldLearnings, loadLearningsExcerpt, persistHandoffLearnings, runRetro } from "./retro.js";
+import { foldLearnings, loadLearningsExcerpt, persistHandoffLearnings, runRetro, normalizeLearning } from "./retro.js";
 import type { Handoff, HandoffLearning } from "./types.js";
 
 function handoff(
@@ -222,5 +222,39 @@ _Last curated: 2026-08-29T13:40:00Z — retro over the 2026-08-29 review pass
     assert.match(md, /existing testing bullet that must survive/);
     assert.match(md, /orchestrator retro \(iteration 2\)/);
     assert.match(md, /fresh insight this iteration/);
+  });
+
+  it("normalises alias learning schemas (lesson/type → insight/kind)", async () => {
+    const canonical = normalizeLearning({
+      type: "pitfall",
+      lesson: "Grep tests went green while the bug was live",
+      recommendation: "Invoke the unit and assert output",
+      for: ["verifier"],
+    });
+    assert.equal(canonical?.insight, "Grep tests went green while the bug was live");
+    assert.equal(canonical?.action, "Invoke the unit and assert output");
+    assert.equal(canonical?.kind, "pitfall");
+    assert.deepEqual(canonical?.forAgents, ["verifier"]);
+
+    const dir = await mkdtemp(join(tmpdir(), "loop-alias-"));
+    await persistHandoffLearnings(
+      {
+        agent: "reviewer",
+        status: "success",
+        summary: "ok",
+        timestamp: "2026-08-29T00:00:00.000Z",
+        learnings: [
+          {
+            forAgents: ["all"],
+            lesson: "alias insight",
+            fix: "use the canonical fields",
+          } as unknown as HandoffLearning,
+        ],
+      },
+      dir,
+    );
+    const jsonl = await readFile(join(dir, "learnings.jsonl"), "utf-8");
+    assert.match(jsonl, /alias insight/);
+    assert.match(jsonl, /use the canonical fields/);
   });
 });

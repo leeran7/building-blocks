@@ -2,8 +2,11 @@
   "name": "building-blocks",
   "private": true,
   "scripts": {
-    "loop": "pnpm --dir orchestrator loop",
+    "loop": "yarn --cwd orchestrator loop",
     "sync": "node scripts/sync.mjs",
-    "test:orchestrator": "yarn --cwd orchestrator test"
+    "hygiene": "node scripts/hygiene.mjs",
+    "test:orchestrator": "yarn --cwd orchestrator test",
+    "test:pack": "node scripts/hygiene.mjs",
+    "export-template": "node scripts/export-template.mjs"
   }
 }

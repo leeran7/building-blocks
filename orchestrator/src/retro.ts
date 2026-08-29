@@ -1,6 +1,6 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import type { Handoff } from "./types.js";
+import type { Handoff, HandoffLearning } from "./types.js";
 
 const EMPTY_LEDGER = `# Learnings Ledger
 
@@ -34,6 +34,50 @@ const TOPIC_HEADINGS: Array<{ keys: string[]; heading: string }> = [
   { keys: ["orchestration", "orchestrator", "general"], heading: "### Orchestration" },
 ];
 
+export function normalizeLearning(raw: unknown): HandoffLearning | null {
+  if (!raw || typeof raw !== "object") return null;
+  const record = raw as Record<string, unknown>;
+  const insight = firstString(record, ["insight", "lesson", "message", "finding"]);
+  const action = firstString(record, ["action", "recommendation", "fix", "do"]);
+  if (!insight || !action) return null;
+  const forAgents = firstStringArray(record, ["forAgents", "agents", "for"]) ?? ["all"];
+  const kind = firstString(record, ["kind", "type"]);
+  const allowedKind = ["lesson", "pattern", "pitfall", "metric", "question"] as const;
+  return {
+    forAgents,
+    insight,
+    action,
+    topic: firstString(record, ["topic"]) ?? "general",
+    kind: allowedKind.includes(kind as (typeof allowedKind)[number])
+      ? (kind as HandoffLearning["kind"])
+      : "lesson",
+    confidence: firstString(record, ["confidence"]) === "high"
+      ? "high"
+      : firstString(record, ["confidence"]) === "low"
+        ? "low"
+        : "medium",
+  };
+}
+
+function firstString(record: Record<string, unknown>, keys: string[]): string | undefined {
+  for (const key of keys) {
+    const value = record[key];
+    if (typeof value === "string" && value.trim()) return value.trim();
+  }
+  return undefined;
+}
+
+function firstStringArray(record: Record<string, unknown>, keys: string[]): string[] | undefined {
+  for (const key of keys) {
+    const value = record[key];
+    if (Array.isArray(value) && value.every((item) => typeof item === "string")) {
+      return value;
+    }
+    if (typeof value === "string" && value.trim()) return [value.trim()];
+  }
+  return undefined;
+}
+
 export async function persistHandoffLearnings(
   handoff: Handoff,
   loopDir: string,
@@ -47,8 +91,9 @@ export async function persistHandoffLearnings(
   const entries = await readLedger(jsonlPath);
   let changed = false;
 
-  for (const learning of learnings) {
-    if (!learning.insight) continue;
+  for (const raw of learnings) {
+    const learning = normalizeLearning(raw);
+    if (!learning) continue;
     const existing = entries.find((entry) => entry.insight === learning.insight);
     if (existing) {
       const before = JSON.stringify(existing);
