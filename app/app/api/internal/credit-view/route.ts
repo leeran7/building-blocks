@@ -13,7 +13,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { runViewPipeline } from "../../../../src/views/pipeline";
-import { getOrCreateActiveSeason, incrementSeasonViews } from "../../../../src/db/seasons";
+import { getActiveSeason, incrementSeasonViews } from "../../../../src/db/seasons";
 import { getBlockBySlug, incrementViewsServed, getRankedBlocks } from "../../../../src/db/blocks";
 import { computeGround } from "../../../../src/engine/index";
 import { getRedis } from "../../../../src/lib/redis";
@@ -56,9 +56,21 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       });
     }
 
+    // A page view must not open a season. If a stack has no active season
+    // there is nothing to credit the view to — incrementSeasonViews would
+    // throw anyway — so skip, exactly as for an unresolvable category.
+    if (!(await getActiveSeason(category))) {
+      return NextResponse.json({
+        raw: 0,
+        qualified: 0,
+        credited: 0,
+        views_k_new: null,
+        skipped: true,
+      });
+    }
+
     const redis = getRedis();
 
-    await getOrCreateActiveSeason(category);
     const db = {
       updateSeasonViews: () => incrementSeasonViews(category),
     };

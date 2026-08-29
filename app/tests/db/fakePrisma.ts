@@ -10,6 +10,9 @@
 export const store: Store = {
   blocks: {},
   payments: [],
+  seasons: [],
+  seasonReads: 0,
+  seasonCreates: 0,
   updateModes: [],
   transactionDepth: 0,
   inTransaction: false,
@@ -31,11 +34,32 @@ export const fakePrisma = {
     findUnique: async ({ where }: { where: { stripe_session_id: string } }) =>
       store.payments.find((p) => p.stripe_session_id === where.stripe_session_id) ?? null,
   },
+  season: {
+    findFirst: async ({ where }: { where: { is_active?: boolean; category?: string } }) => {
+      store.seasonReads += 1;
+      return (
+        store.seasons.find(
+          (s) =>
+            (where.is_active === undefined || s.is_active === where.is_active) &&
+            (where.category === undefined || s.category === where.category)
+        ) ?? null
+      );
+    },
+    create: async ({ data }: { data: Omit<FakeSeason, "id"> }) => {
+      store.seasonCreates += 1;
+      const season: FakeSeason = { id: `season_${store.seasons.length + 1}`, ...data };
+      store.seasons.push(season);
+      return { ...season };
+    },
+  },
 };
 
 export function resetStore(): void {
   store.blocks = {};
   store.payments = [];
+  store.seasons = [];
+  store.seasonReads = 0;
+  store.seasonCreates = 0;
   store.updateModes = [];
   store.transactionDepth = 0;
   store.inTransaction = false;
@@ -57,9 +81,23 @@ export interface FakePayment {
 
 export type UpdateMode = "increment" | "assign";
 
+export interface FakeSeason {
+  id: string;
+  category: string;
+  is_active: boolean;
+  views_k: number;
+  starts_at: Date;
+  ends_at: Date;
+}
+
 export interface Store {
   blocks: Record<string, FakeBlock>;
   payments: FakePayment[];
+  seasons: FakeSeason[];
+  /** How many times a season row was read. */
+  seasonReads: number;
+  /** How many times a season row was written. The ghost-season guard. */
+  seasonCreates: number;
   updateModes: Array<{ field: string; mode: UpdateMode }>;
   transactionDepth: number;
   inTransaction: boolean;

@@ -11,14 +11,14 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from "vitest";
+import { applyPaymentTransaction } from "../../src/db/payments";
+import { store, resetStore } from "./fakePrisma";
 
+// Hoisted above the imports by Vitest, so payments.ts binds to the fake.
 vi.mock("../../src/db/client", async () => {
   const { fakePrisma } = await import("./fakePrisma");
   return { prisma: fakePrisma };
 });
-
-const { applyPaymentTransaction } = await import("../../src/db/payments");
-const { store, resetStore } = await import("./fakePrisma");
 
 describe("applyPaymentTransaction — additive altitude (ADR-7)", () => {
   beforeEach(() => {

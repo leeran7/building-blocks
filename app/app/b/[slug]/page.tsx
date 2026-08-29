@@ -12,7 +12,7 @@ import { notFound } from "next/navigation";
 import { resolveBaseUrl } from "../../../src/config/public";
 import { getBlockBySlug, getBlockSeasonHistory } from "../../../src/db/blocks";
 import { getTotalSpend } from "../../../src/db/payments";
-import { getOrCreateActiveSeason } from "../../../src/db/seasons";
+import { getActiveSeason } from "../../../src/db/seasons";
 import { isBuried } from "../../../src/engine/index";
 import { RecordStats } from "../../../src/components/RecordPage/RecordStats";
 import { SharePost } from "../../../src/components/RecordPage/SharePost";
@@ -53,7 +53,9 @@ export default async function RecordPage({
 
   const seasonSlug = parseSeasonSlug(block.category);
   const [activeSeason, totalSpendCents, seasonHistory] = await Promise.all([
-    seasonSlug ? getOrCreateActiveSeason(seasonSlug) : Promise.resolve(null),
+    // Read-only: an unauthenticated page view must never mint a season row.
+    // V already falls back to 0 below when there is no active season.
+    seasonSlug ? getActiveSeason(seasonSlug) : Promise.resolve(null),
     getTotalSpend(block.id),
     getBlockSeasonHistory(params.slug),
   ]);

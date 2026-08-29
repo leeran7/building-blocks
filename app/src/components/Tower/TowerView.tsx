@@ -47,13 +47,14 @@ export interface TowerBlock {
 }
 
 export interface TowerData {
+  // null until a stack's first checkout opens a season. Reads never open one.
   season: {
     id: string;
     views_k: number;
     starts_at: string;
     ends_at: string;
     is_active: boolean;
-  };
+  } | null;
   engine: {
     growth: number;
     rate: number;
@@ -238,7 +239,7 @@ export function TowerView({
   }, [poll]);
 
   const { rate, growth } = data.engine;
-  const { views_k } = data.season;
+  const views_k = data.season?.views_k ?? 0;
 
   return (
     <div className="flex flex-col h-full min-h-0" data-testid="tower-view">

@@ -43,13 +43,7 @@ async function getCategoryData(slug: string): Promise<TowerData | null> {
 }
 
 const EMPTY_TOWER_DATA: TowerData = {
-  season: {
-    id: "none",
-    views_k: 0,
-    starts_at: new Date().toISOString(),
-    ends_at: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString(),
-    is_active: false,
-  },
+  season: null,
   engine: { growth: 1, rate: 1.0, ground: 0.5 },
   blocks: [],
   cost_of_rank1_usd: 5.0,
@@ -71,10 +65,15 @@ export default async function CategoryTowerPage({ params }: TowerPageProps) {
   const rate = towerData.engine.rate;
   const activeBlockCount = towerData.blocks.filter((b) => !b.buried).length;
 
-  const seasonEnds = new Date(towerData.season.ends_at).toLocaleDateString(
-    "en-US",
-    { month: "short", day: "numeric", year: "numeric" }
-  );
+  // A stack with no season yet has no end date to show. Previously this read a
+  // date fabricated 90 days out, which looked like a real deadline.
+  const seasonEnds = towerData.season
+    ? new Date(towerData.season.ends_at).toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      })
+    : "Not started";
 
   return (
     <CategoryShell

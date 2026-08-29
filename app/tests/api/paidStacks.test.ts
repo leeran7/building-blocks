@@ -15,10 +15,41 @@ describe("season helpers require a category", () => {
 });
 
 describe("record page uses the block's own stack", () => {
-  it("does not open the unscoped tech season", () => {
+  it("does not open a season", () => {
     const src = readFileSync(resolve(__dirname, "../../app/b/[slug]/page.tsx"), "utf-8");
     expect(src).toContain("parseSeasonSlug");
-    expect(src).not.toContain("getOrCreateActiveSeason()");
+    // Was not.toContain("getOrCreateActiveSeason()") — the literal empty-paren
+    // form, which no call site can produce since the function requires a
+    // category. It passed while the page called getOrCreateActiveSeason(slug).
+    expect(src).not.toContain("getOrCreateActiveSeason");
+  });
+});
+
+describe("no public read path opens a season", () => {
+  // getActiveSeason vs getOrCreateActiveSeason is covered behaviourally in
+  // tests/db/seasons.test.ts. This pins which paths are allowed to use the
+  // creating variant at all, since a read path reaching for it is the bug.
+  const CREATE_ALLOWED = [
+    "app/api/checkout/route.ts", // authenticated, opens the season being paid into
+    "app/api/webhook/stripe/route.ts", // signature-verified, money already captured
+  ];
+
+  const READ_PATHS = [
+    "app/b/[slug]/page.tsx",
+    "app/api/tower/route.ts",
+    "app/api/tower/[category]/route.ts",
+    "app/api/internal/credit-view/route.ts",
+    "app/stack/[category]/page.tsx",
+  ];
+
+  it.each(READ_PATHS)("%s does not call getOrCreateActiveSeason", (path) => {
+    const src = readFileSync(resolve(__dirname, "../../", path), "utf-8");
+    expect(src).not.toContain("getOrCreateActiveSeason");
+  });
+
+  it.each(CREATE_ALLOWED)("%s still opens a season deliberately", (path) => {
+    const src = readFileSync(resolve(__dirname, "../../", path), "utf-8");
+    expect(src).toContain("getOrCreateActiveSeason");
   });
 });
 
@@ -39,8 +70,12 @@ describe("view counting is per paid stack", () => {
     );
     expect(src).toContain("parsePaidStackSlug");
     expect(src).toContain("incrementSeasonViews(category)");
-    expect(src).not.toContain("incrementSeasonViews()");
     expect(src).toContain("getRankedBlocks(category)");
+    // The dropped assertion here was not.toContain("incrementSeasonViews()").
+    // incrementSeasonViews(category: string) has a required parameter, so the
+    // no-arg form is a compile error and the grep could never fire. tsc is the
+    // real guard; what matters at this layer is that the category is threaded
+    // through rather than defaulted, which the two assertions above cover.
   });
 
   it("middleware credits /stack and /b, not the homepage or /play", () => {
@@ -77,6 +112,9 @@ describe("admin rollover is per stack", () => {
     expect(src).toContain("parsePaidStackSlug");
     expect(src).toContain("parseAdminRolloverSlug");
     expect(src).toContain("INVALID_CATEGORY");
-    expect(src).not.toContain("rolloverSeason()");
+    // not.toContain("rolloverSeason()") dropped for the same reason as the
+    // credit-view case: rolloverSeason(category: string) makes the no-arg form
+    // a compile error, so the assertion had no failing input.
+    expect(src).toContain("rolloverSeason(");
   });
 });
