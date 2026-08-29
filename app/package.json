@@ -37,6 +37,13 @@
   "prisma": {
     "seed": "tsx prisma/seed.ts"
   },
+  "pnpm": {
+    "overrides": {
+      "undici": ">=6.28.0",
+      "minimatch": ">=9.0.7",
+      "uuid": ">=11.1.1"
+    }
+  },
   "devDependencies": {
     "@playwright/test": "^1.40.1",
     "@types/node": "^20",
@@ -45,7 +52,7 @@
     "@vitejs/plugin-react": "^6.1.1",
     "autoprefixer": "^10.0.1",
     "eslint": "^8",
-    "eslint-config-next": "14.0.4",
+    "eslint-config-next": "16.3.3",
     "playwright": "^1.40.1",
     "postcss": "^8",
     "prisma": "^5.7.1",

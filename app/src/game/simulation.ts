@@ -175,7 +175,8 @@ function landingPlatform(
   const LANDING_EPS = EPS * 1.5;
   let best: Platform | null = null;
   for (const p of platformsNearY(tower, Math.min(newY, prevY), Math.max(newY, prevY))) {
-    if (x < p.x0 - EPS || x > p.x1 + EPS) continue;
+    // Use LANDING_EPS for both horizontal and vertical checks to maintain consistency
+    if (x < p.x0 - LANDING_EPS || x > p.x1 + LANDING_EPS) continue;
     // Feet moved down through the surface: newY <= p.y <= prevY.
     if (p.y <= prevY + LANDING_EPS && p.y >= newY - LANDING_EPS) {
       if (!best || p.y > best.y) best = p;
