@@ -20,14 +20,11 @@ export default function FreePlayPage() {
   const tower = buildFreeTower();
 
   return (
-    <FreeStackShell section="play" title="Play the climb" compactHeader>
-      {/* Controls live in the lobby overlay. A guide below the canvas would
-          either push it off-screen or sit in a scroll region the game page
-          no longer has — compactHeader locks the stage to the remaining
-          viewport so the canvas can grow. */}
-      <div className="h-full w-full flex flex-col items-center">
-        <ClimbScene tower={tower} categoryLabel="Free climb" />
-      </div>
+    <FreeStackShell section="play" title="Play the climb">
+      {/* Controls live in the lobby overlay. A card below the canvas would
+          sit in a scroll region the fill panel no longer has — leftover
+          height is the canvas budget. */}
+      <ClimbScene tower={tower} categoryLabel="Free climb" />
     </FreeStackShell>
   );
 }

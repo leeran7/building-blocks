@@ -7,6 +7,7 @@
 import type { ReactNode } from "react";
 import { useCoarsePointer } from "../../hooks/useCoarsePointer";
 import { POWER_UP_SPECS, POWER_UP_TYPES } from "../../game/powerups";
+import { OVERLAY_GUIDE_COPY_CLASS } from "../freeStackChrome";
 
 type Variant = "card" | "compact" | "overlay";
 
@@ -64,22 +65,30 @@ export function ClimbControlsGuide({ variant = "card" }: { variant?: Variant }) 
   if (variant === "overlay") {
     return (
       <div className="mt-5 w-full max-w-[280px] text-left">
-        <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-text-muted mb-2">
+        <p
+          className={`font-mono text-[10px] uppercase tracking-[0.16em] ${OVERLAY_GUIDE_COPY_CLASS} mb-2`}
+        >
           {touch ? "Touch controls" : "Controls"}
         </p>
         <ul className="space-y-2">
           {touch
             ? TOUCH_CONTROLS.map((c) => (
                 <li key={c.label} className="flex items-start gap-2.5">
-                  <span className="flex-shrink-0 w-14 font-mono text-[10px] uppercase tracking-[0.1em] text-text-muted pt-0.5">
+                  <span
+                    className={`flex-shrink-0 w-14 font-mono text-[10px] uppercase tracking-[0.1em] ${OVERLAY_GUIDE_COPY_CLASS} pt-0.5`}
+                  >
                     {c.label}
                   </span>
-                  <p className="text-[11px] text-text-muted leading-snug">{c.detail}</p>
+                  <p className={`text-[11px] ${OVERLAY_GUIDE_COPY_CLASS} leading-snug`}>
+                    {c.detail}
+                  </p>
                 </li>
               ))
             : KEYBOARD_CONTROLS.map((c) => (
                 <li key={c.label} className="flex items-start gap-2.5">
-                  <span className="flex-shrink-0 w-14 font-mono text-[10px] uppercase tracking-[0.1em] text-text-muted pt-1">
+                  <span
+                    className={`flex-shrink-0 w-14 font-mono text-[10px] uppercase tracking-[0.1em] ${OVERLAY_GUIDE_COPY_CLASS} pt-1`}
+                  >
                     {c.label}
                   </span>
                   <div className="min-w-0">
@@ -88,7 +97,11 @@ export function ClimbControlsGuide({ variant = "card" }: { variant?: Variant }) 
                         <Key key={k}>{k}</Key>
                       ))}
                     </div>
-                    <p className="text-[11px] text-text-muted mt-1 leading-snug">{c.detail}</p>
+                    <p
+                      className={`text-[11px] ${OVERLAY_GUIDE_COPY_CLASS} mt-1 leading-snug`}
+                    >
+                      {c.detail}
+                    </p>
                   </div>
                 </li>
               ))}

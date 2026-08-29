@@ -1,48 +1,42 @@
 /**
  * FreeStackShell — shared frame for the standalone free climb stack (/climb, /play).
  * Separate from CategoryShell, which wraps the 74 paid category stacks.
+ *
+ * Tab-locked fill/scroll: Navbar + a tab-only header band are identical on both
+ * routes. Only the panel below the hairline swaps. Fill is derived from
+ * section === "play" — there is no compactHeader second chrome path.
  */
 
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { Navbar } from "./Navbar";
+import { isFillSection, type FreeStackSection } from "./freeStackChrome";
 
 export function FreeStackShell({
   section,
   title,
-  meta,
-  compactHeader = false,
   children,
 }: {
-  section: "leaderboard" | "play";
+  section: FreeStackSection;
   title: string;
-  meta?: ReactNode;
-  /**
-   * Collapse the title and meta on every viewport, keeping only the section
-   * tabs. The game page needs that vertical space: the canvas sizes itself from
-   * whatever height is left below the header (see useCanvasSize), and restoring
-   * the copy on a "tall enough" laptop made the play area smaller than on a phone.
-   */
-  compactHeader?: boolean;
   children: ReactNode;
 }) {
+  const fill = isFillSection(section);
+
   return (
     <div
       className={
-        compactHeader
+        fill
           ? "h-dvh bg-void flex flex-col overflow-hidden"
           : "min-h-screen bg-void flex flex-col"
       }
     >
-      <Navbar contextLabel="Free climb" />
+      <div className="shrink-0">
+        <Navbar contextLabel="Free climb" />
+      </div>
 
       <div className="border-b border-border-subtle shrink-0">
-        <div
-          className={
-            "max-w-2xl mx-auto w-full px-4 " +
-            (compactHeader ? "py-2" : "pt-5 pb-4")
-          }
-        >
+        <div className="max-w-2xl mx-auto w-full px-4 py-2">
           <div
             className="inline-flex items-center gap-1 rounded-full border border-border-strong bg-surface p-1"
             role="tablist"
@@ -55,45 +49,31 @@ export function FreeStackShell({
             />
             <FreeTab href="/play" label="Play" active={section === "play"} />
           </div>
-
-          {/* sr-only rather than hidden: the heading stays in the document for
-              assistive tech and search, it just takes no room. Compact mode is
-              the play page — restoring the title once the viewport cleared
-              560px tall stole the height budget the canvas sizes itself from,
-              so a laptop rendered a smaller game than a phone. */}
-          <div className={compactHeader ? "sr-only" : "mt-5"}>
-            <p className="text-xs uppercase tracking-[0.2em] text-accent font-medium">
-              Free stack · no payment
-            </p>
-            <h1 className="text-2xl md:text-3xl font-bold text-text-primary tracking-tight mt-1">
-              {title}
-            </h1>
-          </div>
-          {meta && (
-            <div className={compactHeader ? "hidden" : undefined}>{meta}</div>
-          )}
         </div>
       </div>
 
-      <div
-        className={
-          compactHeader
-            ? "w-full flex-1 min-h-0 overflow-hidden px-2 pt-2 pb-0"
-            : "w-full px-4 flex-1 overflow-x-hidden py-6"
-        }
-      >
-        {children}
-      </div>
+      {fill ? (
+        <div className="flex flex-1 min-h-0 flex-col overflow-hidden px-2 pt-2 pb-[max(0px,env(safe-area-inset-bottom))]">
+          <h1 className="sr-only">{title}</h1>
+          {children}
+        </div>
+      ) : (
+        <div className="max-w-2xl mx-auto w-full px-4 py-6">{children}</div>
+      )}
     </div>
   );
 }
 
+/**
+ * Route links, not a WAI-ARIA tabs widget. Do not bind ArrowLeft/ArrowRight —
+ * those keys move the climber on /play. Enter/Space follow the native Link.
+ */
 function FreeTab({
   href,
   label,
   active,
 }: {
-  href: string;
+  href: "/climb" | "/play";
   label: string;
   active: boolean;
 }) {
@@ -102,10 +82,11 @@ function FreeTab({
       href={href}
       role="tab"
       aria-selected={active}
+      aria-current={active ? "page" : undefined}
       className={
-        "px-4 py-1.5 rounded-full text-sm font-semibold transition " +
+        "inline-flex items-center justify-center px-4 min-h-[44px] rounded-full text-sm font-semibold whitespace-nowrap transition-[color,filter] focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void " +
         (active
-          ? "bg-signal text-void"
+          ? "bg-signal text-void hover:brightness-110"
           : "text-text-secondary hover:text-text-primary")
       }
     >
