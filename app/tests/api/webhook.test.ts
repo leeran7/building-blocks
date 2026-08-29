@@ -44,16 +44,14 @@ describe("AC-33: Atomic transaction", () => {
     expect(paymentsContent).toContain("payment.create");
   });
 
-  it("altitude increment is additive, not set to absolute value", () => {
-    const paymentsPath = resolve(__dirname, "../../src/db/payments.ts");
-    const paymentsContent = readFileSync(paymentsPath, "utf-8");
-
-    // increment: metresAdded (Prisma additive update)
-    expect(paymentsContent).toContain("increment: metresAdded");
-    // NOT: altitude: metresAdded (would be a set, not increment)
-    const badPattern = /altitude:\s*metresAdded(?!\s*\})/;
-    expect(paymentsContent).not.toMatch(badPattern);
-  });
+  // Additivity (ADR-7) is asserted behaviourally in tests/db/payments.test.ts.
+  // The source-text guard that used to live here was
+  //   /altitude:\s*metresAdded(?!\s*\})/
+  // whose negative lookahead exempted `data: { altitude: metresAdded }` — the
+  // overwrite form it existed to forbid — whenever that was the object's final
+  // property. Deleted rather than patched: the behavioural test catches every
+  // form of the overwrite, and a second weaker guard on the same invariant only
+  // obscures which one is load-bearing.
 
   it("webhook verifies stripe signature before any DB write", () => {
     const webhookPath = resolve(__dirname, "../../app/api/webhook/stripe/route.ts");
