@@ -32,6 +32,7 @@ export interface TouchInput {
   up: boolean;
   down: boolean;
   jump: boolean;
+  power: boolean;
 }
 
 export const NO_TOUCH: TouchInput = {
@@ -40,6 +41,7 @@ export const NO_TOUCH: TouchInput = {
   up: false,
   down: false,
   jump: false,
+  power: false,
 };
 
 /** Default key bindings — remappable per AC-33 (map lives in one place). */
@@ -48,6 +50,8 @@ const KEY_RIGHT = new Set(["ArrowRight", "d", "D"]);
 const KEY_UP = new Set(["ArrowUp", "w", "W"]);
 const KEY_DOWN = new Set(["ArrowDown", "s", "S"]);
 const KEY_JUMP = new Set([" ", "Spacebar"]);
+/** Shift sits under the left hand on WASD; E is the muscle-memory "use" key. */
+const KEY_POWER = new Set(["e", "E", "Shift"]);
 
 export interface UseClimbResult {
   state: MatchState;
@@ -123,6 +127,7 @@ export function useClimb({
     const upKey = t.up || hasAny(keys, KEY_UP);
     const downKey = t.down || hasAny(keys, KEY_DOWN);
     const jump = t.jump || hasAny(keys, KEY_JUMP);
+    const usePowerUp = t.power || hasAny(keys, KEY_POWER);
 
     const moveX: -1 | 0 | 1 = left && !right ? -1 : right && !left ? 1 : 0;
     // Up/Down are the climb intent. They only DO anything when the player is on
@@ -131,7 +136,7 @@ export function useClimb({
     const climbY: -1 | 0 | 1 =
       upKey && !downKey ? 1 : downKey && !upKey ? -1 : 0;
 
-    return { moveX, jump, climbY, usePowerUp: false };
+    return { moveX, jump, climbY, usePowerUp };
   }, []);
 
   // Fixed-timestep rAF loop.
@@ -205,6 +210,7 @@ function isGameKey(key: string): boolean {
     KEY_RIGHT.has(key) ||
     KEY_UP.has(key) ||
     KEY_DOWN.has(key) ||
-    KEY_JUMP.has(key)
+    KEY_JUMP.has(key) ||
+    KEY_POWER.has(key)
   );
 }
