@@ -42,16 +42,22 @@ export interface HazardConfig {
 }
 
 export const DEFAULT_HAZARD_CONFIG: HazardConfig = {
-  headStartM: 6,
-  graceSeconds: 4,
+  headStartM: 9,
+  graceSeconds: 5,
   // The tower is endless, so the lava must eventually OUTPACE the climb to
   // guarantee every run ends (peak height = score). After the grace it opens at
-  // 50% of the climb speed and accelerates to 1.15× over ~60s — past that even a
-  // perfect vertical climber cannot keep up, and traverses/jumps make it bite
-  // sooner. Tuned so dawdling is punished but the opening is always fair.
-  startSpeedFrac: 0.5,
+  // 42% of the climb speed and accelerates to 1.15× over ~78s, drawing level with
+  // the climb at ~67s of race time — past that even a perfect vertical climber
+  // cannot keep up, and traverses/jumps make it bite sooner.
+  //
+  // The opening pressure is deliberately a notch gentler than the terminal
+  // speed: the endgame is what has to be unwinnable, not the first minute, so
+  // the start/ramp are where to tune feel. endSpeedFrac is NOT free to lower —
+  // it carries the run-must-end guarantee and the time-slow uptime bound in
+  // `powerups.ts`, which `powerups.test.ts` asserts.
+  startSpeedFrac: 0.42,
   endSpeedFrac: 1.15,
-  rampSeconds: 60,
+  rampSeconds: 78,
   speedScale: 1,
 };
 
