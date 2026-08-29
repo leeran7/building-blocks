@@ -1,90 +1,83 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
+import nipplejs from "nipplejs";
 import {
-  joystickAxesFromNormalized,
+  joystickAxesFromVector,
   NO_JOYSTICK,
   type JoystickAxes,
 } from "./joystickInput";
 
-const BASE_SIZE = 100;
-const KNOB_SIZE = 44;
+/** Visible outer ring diameter in px — also nipplejs `size`. */
+export const JOYSTICK_SIZE = 140;
+
+/** Touch capture area — larger than the stick so drags don't drop. */
+export const JOYSTICK_ZONE_WIDTH = 168;
+export const JOYSTICK_ZONE_HEIGHT = 148;
 
 export function VirtualJoystick({
   onChange,
 }: {
   onChange: (axes: JoystickAxes) => void;
 }) {
-  const baseRef = useRef<HTMLDivElement>(null);
-  const [knobOffset, setKnobOffset] = useState({ x: 0, y: 0 });
-  const activeRef = useRef(false);
+  const zoneRef = useRef<HTMLDivElement>(null);
+  const onChangeRef = useRef(onChange);
+  onChangeRef.current = onChange;
 
-  const maxDeflection = BASE_SIZE / 2 - KNOB_SIZE / 2;
+  useEffect(() => {
+    const zone = zoneRef.current;
+    if (!zone) return;
 
-  const updateFromClient = useCallback(
-    (clientX: number, clientY: number) => {
-      const base = baseRef.current;
-      if (!base) return;
+    const manager = nipplejs.create({
+      zone,
+      mode: "static",
+      position: { left: "50%", top: "50%" },
+      size: JOYSTICK_SIZE,
+      threshold: 0.08,
+      fadeTime: 0,
+      restJoystick: true,
+      restOpacity: 0.92,
+      color: {
+        front: "rgba(203, 242, 77, 0.92)",
+        back: "rgba(30, 28, 36, 0.78)",
+      },
+    });
 
-      const rect = base.getBoundingClientRect();
-      const cx = rect.left + rect.width / 2;
-      const cy = rect.top + rect.height / 2;
+    const emitAxes = (data: { vector: { x: number; y: number } }) => {
+      const { x, y } = data.vector;
+      onChangeRef.current(joystickAxesFromVector(x, y));
+    };
 
-      let dx = clientX - cx;
-      let dy = clientY - cy;
-      const dist = Math.hypot(dx, dy);
-      if (dist > maxDeflection) {
-        dx = (dx / dist) * maxDeflection;
-        dy = (dy / dist) * maxDeflection;
-      }
+    const onMove = (evt: { data: { vector: { x: number; y: number } } }) =>
+      emitAxes(evt.data);
+    const onEnd = () => onChangeRef.current(NO_JOYSTICK);
 
-      setKnobOffset({ x: dx, y: dy });
-      onChange(
-        joystickAxesFromNormalized(dx / maxDeflection, dy / maxDeflection)
-      );
-    },
-    [maxDeflection, onChange]
-  );
+    manager.on("move", onMove);
+    manager.on("end", onEnd);
 
-  const reset = useCallback(() => {
-    activeRef.current = false;
-    setKnobOffset({ x: 0, y: 0 });
-    onChange(NO_JOYSTICK);
-  }, [onChange]);
+    const onWindowBlur = () => onChangeRef.current(NO_JOYSTICK);
+    window.addEventListener("blur", onWindowBlur);
+
+    return () => {
+      window.removeEventListener("blur", onWindowBlur);
+      manager.off("move", onMove);
+      manager.off("end", onEnd);
+      manager.destroy();
+      onChangeRef.current(NO_JOYSTICK);
+    };
+  }, []);
 
   return (
     <div
-      ref={baseRef}
-      role="group"
-      aria-label="Move and climb joystick"
-      className="relative flex-shrink-0 rounded-full border border-border-strong bg-void/80 backdrop-blur-sm"
+      ref={zoneRef}
+      className="game-joystick-zone relative flex-shrink-0"
       style={{
         touchAction: "none",
-        width: BASE_SIZE,
-        height: BASE_SIZE,
+        width: JOYSTICK_ZONE_WIDTH,
+        height: JOYSTICK_ZONE_HEIGHT,
       }}
-      onPointerDown={(e) => {
-        e.currentTarget.setPointerCapture(e.pointerId);
-        activeRef.current = true;
-        updateFromClient(e.clientX, e.clientY);
-      }}
-      onPointerMove={(e) => {
-        if (!activeRef.current) return;
-        updateFromClient(e.clientX, e.clientY);
-      }}
-      onPointerUp={reset}
-      onPointerCancel={reset}
-      onLostPointerCapture={reset}
-    >
-      <div
-        aria-hidden="true"
-        className="absolute left-1/2 top-1/2 rounded-full border border-border-strong bg-elevated/95 shadow-[0_2px_8px_rgb(0_0_0/0.35)]"
-        style={{
-          width: KNOB_SIZE,
-          height: KNOB_SIZE,
-          transform: `translate(calc(-50% + ${knobOffset.x}px), calc(-50% + ${knobOffset.y}px))`,
-        }}
-      />
-    </div>
+      aria-label="Move and climb joystick"
+      role="group"
+    />
   );
 }

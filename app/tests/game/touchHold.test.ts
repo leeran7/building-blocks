@@ -17,6 +17,7 @@ import {
 } from "../../src/components/Game/touchHold";
 import {
   joystickAxesFromNormalized,
+  joystickAxesFromVector,
   NO_JOYSTICK,
 } from "../../src/components/Game/joystickInput";
 
@@ -80,20 +81,20 @@ describe("reduceHold: keyboard", () => {
   });
 });
 
-describe("joystickAxesFromNormalized", () => {
+describe("joystickAxesFromVector", () => {
   it("returns neutral inside the deadzone", () => {
-    expect(joystickAxesFromNormalized(0, 0)).toEqual(NO_JOYSTICK);
-    expect(joystickAxesFromNormalized(0.1, 0.1)).toEqual(NO_JOYSTICK);
+    expect(joystickAxesFromVector(0, 0)).toEqual(NO_JOYSTICK);
+    expect(joystickAxesFromVector(0.05, 0.05)).toEqual(NO_JOYSTICK);
   });
 
   it("maps horizontal deflection to left and right", () => {
-    expect(joystickAxesFromNormalized(-1, 0)).toEqual({
+    expect(joystickAxesFromVector(-0.5, 0)).toEqual({
       left: true,
       right: false,
       up: false,
       down: false,
     });
-    expect(joystickAxesFromNormalized(1, 0)).toEqual({
+    expect(joystickAxesFromVector(0.5, 0)).toEqual({
       left: false,
       right: true,
       up: false,
@@ -102,13 +103,13 @@ describe("joystickAxesFromNormalized", () => {
   });
 
   it("maps vertical deflection to up and down", () => {
-    expect(joystickAxesFromNormalized(0, -1)).toEqual({
+    expect(joystickAxesFromVector(0, -0.5)).toEqual({
       left: false,
       right: false,
       up: true,
       down: false,
     });
-    expect(joystickAxesFromNormalized(0, 1)).toEqual({
+    expect(joystickAxesFromVector(0, 0.5)).toEqual({
       left: false,
       right: false,
       up: false,
@@ -117,7 +118,7 @@ describe("joystickAxesFromNormalized", () => {
   });
 
   it("can combine diagonal horizontal and vertical axes", () => {
-    expect(joystickAxesFromNormalized(-0.8, -0.8)).toEqual({
+    expect(joystickAxesFromVector(-0.8, -0.8)).toEqual({
       left: true,
       right: false,
       up: true,
@@ -134,5 +135,12 @@ describe("joystickAxesFromNormalized", () => {
       down: false,
       jump: true,
     });
+  });
+});
+
+describe("joystickAxesFromNormalized", () => {
+  it("returns neutral inside the deadzone", () => {
+    expect(joystickAxesFromNormalized(0, 0)).toEqual(NO_JOYSTICK);
+    expect(joystickAxesFromNormalized(0.1, 0.1)).toEqual(NO_JOYSTICK);
   });
 });

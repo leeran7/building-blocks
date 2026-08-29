@@ -17,7 +17,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { NO_TOUCH, type TouchInput } from "../../game/useClimb";
 import { NO_JOYSTICK, type JoystickAxes } from "./joystickInput";
-import { VirtualJoystick } from "./VirtualJoystick";
+import { VirtualJoystick, JOYSTICK_ZONE_HEIGHT } from "./VirtualJoystick";
 import {
   initialHoldMemo,
   isHoldKey,
@@ -207,4 +207,4 @@ function TouchButton({
  * bar by 16px at `sm:`, drawing the climber inside the buttons on tablets and
  * on any phone in landscape.
  */
-export const TOUCH_CONTROLS_INSET = 108;
+export const TOUCH_CONTROLS_INSET = JOYSTICK_ZONE_HEIGHT + 16;
