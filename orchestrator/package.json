@@ -9,7 +9,7 @@
   "scripts": {
     "start": "tsx src/index.ts",
     "loop": "tsx src/index.ts",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.test.json",
     "test": "tsx --test src/team.test.ts src/stages.test.ts src/retro.test.ts src/types.test.ts"
   },
   "dependencies": {
