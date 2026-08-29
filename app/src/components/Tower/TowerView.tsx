@@ -66,9 +66,15 @@ export interface TowerData {
 interface TowerViewProps {
   initialData: TowerData;
   pollUrl?: string; // defaults to /api/tower; category pages pass /api/tower/[category]
+  /** CTA when the stack has no blocks yet. */
+  submitHref?: string;
 }
 
-export function TowerView({ initialData, pollUrl = "/api/tower" }: TowerViewProps) {
+export function TowerView({
+  initialData,
+  pollUrl = "/api/tower",
+  submitHref,
+}: TowerViewProps) {
   const [data, setData] = useState<TowerData>(initialData);
   const [prevRanks, setPrevRanks] = useState<Map<string, number>>(new Map());
   const [changedBlocks, setChangedBlocks] = useState<Set<string>>(new Set());
@@ -258,6 +264,26 @@ export function TowerView({ initialData, pollUrl = "/api/tower" }: TowerViewProp
         <div style={{ height: startIndex * ROW_HEIGHT }} aria-hidden="true" />
 
         <div className="max-w-2xl mx-auto px-3 space-y-1.5 pt-3">
+          {totalBlocks === 0 && (
+            <div className="rounded-2xl border border-border-subtle bg-surface p-8 text-center">
+              <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-text-muted">
+                [ empty stack ]
+              </p>
+              <p className="text-text-secondary text-sm mt-3 max-w-sm mx-auto leading-relaxed">
+                Claim #1. Your block hangs in the free climb at the altitude you
+                buy — climbers will pass your name on the way up.
+              </p>
+              {submitHref && (
+                <a
+                  href={submitHref}
+                  className="mt-5 inline-flex items-center justify-center rounded-full bg-signal text-void font-semibold px-6 min-h-[44px] text-sm shadow-signal hover:brightness-110"
+                >
+                  Submit a block
+                </a>
+              )}
+            </div>
+          )}
+
           {visibleBlocks.map((block, localIndex) => {
             const absoluteIndex = startIndex + localIndex;
             const showGroundBefore =

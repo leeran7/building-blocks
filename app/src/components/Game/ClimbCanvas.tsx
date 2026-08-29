@@ -27,6 +27,7 @@ import {
   isExpired,
   isPowerUpActive,
 } from "../../game/powerups";
+import { signX, type Billboard } from "../../game/billboards";
 
 // ASCENT palette — signal-lime climber, ember lava, warm-obsidian world.
 const VOID = "#0a0a0c";
@@ -67,6 +68,11 @@ export interface ClimbCanvasProps {
    * the base; once it is following the climber, the view is identical.
    */
   bottomInset?: number;
+  /**
+   * Paid blocks hanging at the altitude they bought. Cosmetic — not in the sim.
+   * Drawn under the lava so a buried sign is visibly swallowed.
+   */
+  signs?: Billboard[];
 }
 
 export function ClimbCanvas({
@@ -75,6 +81,7 @@ export function ClimbCanvas({
   height = BASE_HEIGHT,
   reducedMotion = false,
   bottomInset = 0,
+  signs = [],
 }: ClimbCanvasProps) {
   const ref = useRef<HTMLCanvasElement>(null);
 
@@ -140,6 +147,15 @@ export function ClimbCanvas({
       ctx.globalAlpha = 1;
       ctx.fillStyle = TEXT_SECONDARY;
       ctx.fillText(`${Math.round(fy)}m`, 4 * ui, y - 3 * ui);
+    }
+
+    // Paid-stack signs behind ladders, platforms, and orbs so they cannot
+    // hide a route. Lava still draws on top so a swallowed brand is buried.
+    for (const sign of signs) {
+      const sySign = sy(sign.altitude);
+      if (sySign < -40 || sySign > height + 40) continue;
+      const sxSign = sx(signX(tower.widthM, sign.slug));
+      drawPaidSign(ctx, sxSign, sySign, pxPerM, ui, sign);
     }
 
     // Ladders (draw under platforms so platform lips overlap the rails).
@@ -327,7 +343,7 @@ export function ClimbCanvas({
         ctx.textAlign = "left";
       }
     }
-  }, [state, width, height, reducedMotion, bottomInset]);
+  }, [state, width, height, reducedMotion, bottomInset, signs]);
 
   return (
     <canvas
@@ -340,7 +356,11 @@ export function ClimbCanvas({
         display: "block",
         touchAction: "none",
       }}
-      aria-label="Climb view"
+      aria-label={
+        signs.length > 0
+          ? `Climb view. ${signs.length} paid blocks hanging.`
+          : "Climb view"
+      }
       role="img"
     />
   );
@@ -434,6 +454,69 @@ function drawPickupBurst(
   ctx.arc(cx, cy, r, 0, Math.PI * 2);
   ctx.stroke();
   ctx.restore();
+}
+
+/**
+ * A hanging plaque at the altitude a paid block bought. Cosmetic only.
+ * `cy` is the sign's altitude in screen pixels (feet-height of the brand).
+ */
+function drawPaidSign(
+  ctx: CanvasRenderingContext2D,
+  cx: number,
+  cy: number,
+  pxPerM: number,
+  ui: number,
+  sign: Billboard
+) {
+  const w = Math.max(56, pxPerM * 16);
+  const h = Math.max(18, pxPerM * 4.6);
+  const x = cx - w / 2;
+  const y = cy - h;
+  const name =
+    sign.display_name.length > 18
+      ? `${sign.display_name.slice(0, 16)}…`
+      : sign.display_name;
+
+  ctx.save();
+  // Nail + string from a bit above the plaque.
+  ctx.strokeStyle = ACCENT;
+  ctx.globalAlpha = 0.55;
+  ctx.lineWidth = Math.max(1, 0.8 * ui);
+  ctx.beginPath();
+  ctx.moveTo(cx, y - 6 * ui);
+  ctx.lineTo(cx, y);
+  ctx.stroke();
+  ctx.fillStyle = ACCENT;
+  ctx.globalAlpha = 0.9;
+  ctx.beginPath();
+  ctx.arc(cx, y - 6 * ui, Math.max(1.4, 0.9 * ui), 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.globalAlpha = 0.92;
+  ctx.fillStyle = SURFACE;
+  roundRect(ctx, x, y, w, h, 4 * ui);
+  ctx.fill();
+  ctx.strokeStyle = ACCENT;
+  ctx.lineWidth = Math.max(1, 1.1 * ui);
+  ctx.stroke();
+
+  ctx.globalAlpha = 1;
+  ctx.fillStyle = ACCENT;
+  ctx.font = `bold ${Math.round(9 * ui)}px monospace`;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(name, cx, y + h * 0.42, w - 8 * ui);
+  ctx.fillStyle = TEXT_SECONDARY;
+  ctx.font = `${Math.round(8 * ui)}px monospace`;
+  ctx.fillText(
+    `${Math.round(sign.altitude)}m`,
+    cx,
+    y + h * 0.74,
+    w - 8 * ui
+  );
+  ctx.restore();
+  ctx.textAlign = "left";
+  ctx.textBaseline = "alphabetic";
 }
 
 function roundRect(

@@ -17,10 +17,10 @@ import type { Block } from "@prisma/client";
  * CRITICAL: sorted by altitude descending — not by spend_c, not by rank.
  * The blocks_rank_idx partial index is used for this query.
  */
-export async function getRankedBlocks(): Promise<Block[]> {
+export async function getRankedBlocks(category?: string): Promise<Block[]> {
   // CRITICAL: sorted by altitude descending. spend_c is never used as a sort key.
   return prisma.block.findMany({
-    where: { hidden_at: null },
+    where: { hidden_at: null, ...(category ? { category } : {}) },
     orderBy: { altitude: "desc" },
   });
 }
@@ -134,6 +134,51 @@ export async function incrementViewsServed(
 }
 
 /**
+ * Highest paid blocks that can hang in the free climb. Burial is computed by
+ * the caller with the real engine (per-category ground).
+ *
+ * Take a top-N *per stack*, not a global altitude window — leftover buried
+ * giants on one season must not starve live signs on the other 73.
+ */
+export async function getClimbBillboardCandidates(
+  perStack = 8
+): Promise<BillboardRow[]> {
+  const rows = await prisma.$queryRaw<
+    Array<{
+      slug: string;
+      display_name: string;
+      url: string;
+      altitude: number;
+      category: string;
+    }>
+  >`
+    SELECT slug, display_name, url, altitude, category
+    FROM (
+      SELECT slug, display_name, url, altitude, category,
+        ROW_NUMBER() OVER (PARTITION BY category ORDER BY altitude DESC) AS rn
+      FROM blocks
+      WHERE hidden_at IS NULL
+        AND altitude > 0
+        AND category IS NOT NULL
+    ) ranked
+    WHERE rn <= ${perStack}
+  `;
+  return rows.flatMap((r) =>
+    r.category
+      ? [
+          {
+            slug: r.slug,
+            display_name: r.display_name,
+            url: r.url,
+            altitude: Number(r.altitude),
+            category: r.category,
+          },
+        ]
+      : []
+  );
+}
+
+/**
  * Increment click count for a block.
  */
 export async function incrementClicks(id: string): Promise<void> {
@@ -156,4 +201,13 @@ export async function getBlockSeasonHistory(
     orderBy: { created_at: "asc" },
   });
   return blocks;
+}
+
+/** A paid block that can hang as a sign in the free climb. */
+export interface BillboardRow {
+  slug: string;
+  display_name: string;
+  url: string;
+  altitude: number;
+  category: string;
 }

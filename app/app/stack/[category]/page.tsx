@@ -101,7 +101,11 @@ export default async function CategoryTowerPage({ params }: TowerPageProps) {
       fill
     >
       <div aria-live="polite" className="sr-only" aria-atomic="true" id="rank-update-announcement" />
-      <TowerView initialData={towerData} pollUrl={`/api/tower/${slug}`} />
+      <TowerView
+        initialData={towerData}
+        pollUrl={`/api/tower/${slug}`}
+        submitHref={`/submit?category=${slug}`}
+      />
     </CategoryShell>
   );
 }

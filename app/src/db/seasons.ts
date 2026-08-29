@@ -10,9 +10,7 @@ import type { Season } from "@prisma/client";
  * Get the currently active season for a specific category.
  * Returns null if no active season exists for that category.
  */
-export async function getActiveSeason(
-  category: string = "tech"
-): Promise<Season | null> {
+export async function getActiveSeason(category: string): Promise<Season | null> {
   return prisma.season.findFirst({
     where: { is_active: true, category },
   });
@@ -23,7 +21,7 @@ export async function getActiveSeason(
  * Creates a new 90-day season for that category if none exists.
  */
 export async function getOrCreateActiveSeason(
-  category: string = "tech"
+  category: string
 ): Promise<Season> {
   const existing = await getActiveSeason(category);
   if (existing) return existing;
@@ -71,9 +69,7 @@ export async function getAllActiveSeasons(): Promise<Map<string, Season>> {
  * @param category - which category's season to increment
  * @returns new views_k value
  */
-export async function incrementSeasonViews(
-  category: string = "tech"
-): Promise<number> {
+export async function incrementSeasonViews(category: string): Promise<number> {
   const rows = await prisma.$queryRaw<{ views_k: number }[]>`
     UPDATE season_state
     SET views_k = views_k + 0.001
@@ -95,9 +91,7 @@ export async function incrementSeasonViews(
  * Per ADR in architecture: blocks are NOT modified on rollover.
  * New season = new season_id. Returning buyers create new block rows.
  */
-export async function rolloverSeason(
-  category: string = "tech"
-): Promise<Season> {
+export async function rolloverSeason(category: string): Promise<Season> {
   return prisma.$transaction(async (tx) => {
     await tx.season.updateMany({
       where: { is_active: true, category },
