@@ -62,7 +62,10 @@ import {
   pruneActive,
 } from "./powerups";
 
-const EPS = 0.02; // Increased from 0.01 to prevent ground fall-through due to floating point precision
+// Base epsilon for collision detection. Increased from 0.01 to 0.02 to handle floating
+// point precision errors that accumulate during motion integration. At the meter scale
+// with 20-30m floor gaps, 2cm is imperceptible but provides necessary numerical stability.
+const EPS = 0.02;
 
 /** Floors of power-ups kept materialized above the highest climber. */
 const POWER_UP_LOOKAHEAD_FLOORS = 6;
@@ -167,7 +170,8 @@ function landingPlatform(
   prevY: number,
   newY: number
 ): Platform | null {
-  // Slightly larger tolerance to catch landings more reliably
+  // Landing detection uses 1.5x base EPS (0.03m) to reliably catch platform crossings
+  // even when velocity is high and frame time causes the integration step to overshoot
   const LANDING_EPS = EPS * 1.5;
   let best: Platform | null = null;
   for (const p of platformsNearY(tower, Math.min(newY, prevY), Math.max(newY, prevY))) {
@@ -182,10 +186,12 @@ function landingPlatform(
 
 /** Is there solid ground supporting feet at (x, y)? */
 function isSupported(tower: TowerSpec, x: number, y: number): boolean {
-  // Slightly larger tolerance for ground checks to prevent fall-through
+  // Slightly larger tolerance (1.5x base EPS = 0.03m) for ground checks to prevent
+  // fall-through due to floating point accumulation errors during motion integration
   const GROUND_EPS = EPS * 1.5;
   for (const p of platformsNearY(tower, y, y)) {
-    if (x < p.x0 - EPS || x > p.x1 + EPS) continue;
+    // Use GROUND_EPS for both horizontal and vertical checks to maintain consistency
+    if (x < p.x0 - GROUND_EPS || x > p.x1 + GROUND_EPS) continue;
     if (Math.abs(p.y - y) <= GROUND_EPS) return true;
   }
   return false;
@@ -198,7 +204,10 @@ function grabbableLadder(
   y: number,
   climbY: number
 ): { ix: number; ladder: Ladder } | null {
-  const BOUNDARY_BUFFER = 0.1; // Prevent immediate re-grab at ladder boundaries
+  // Prevent immediate re-grab at ladder boundaries (top/bottom) by requiring 0.1m clearance.
+  // This prevents stuck states where stepping off a ladder at y=ladder.y1 immediately re-grabs it.
+  // Safe because minimum ladder height is ~15m (68% of 22m base gap), so 0.2m total buffer is <2%.
+  const BOUNDARY_BUFFER = 0.1;
   for (const { ix, ladder: l } of laddersNearY(tower, y, y)) {
     if (Math.abs(x - l.x) > tower.ladderGrabRadius) continue;
     if (y < l.y0 - EPS || y > l.y1 + EPS) continue;
