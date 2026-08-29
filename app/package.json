@@ -21,10 +21,12 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@ai-sdk/openai": "^4.0.51",
     "@prisma/client": "^5.7.1",
     "@stripe/stripe-js": "^2.3.0",
     "@upstash/redis": "^1.28.0",
     "@vercel/og": "^0.6.2",
+    "ai": "^7.0.84",
     "firebase": "^10.14.1",
     "firebase-admin": "^12.7.0",
     "next": "14.0.4",
