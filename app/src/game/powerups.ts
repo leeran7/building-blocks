@@ -53,6 +53,7 @@ import {
   TowerSpec,
 } from "./types";
 import { createRng, Rng } from "./rng";
+import { createSeedCache } from "./seedCache";
 import { floorHeight, floorIndexAt, laddersForFloor, platformsForFloor } from "./towers";
 
 // ── Pickup geometry ────────────────────────────────────────────────────────
@@ -265,16 +266,23 @@ interface SpawnRec {
   type: PowerUpType;
 }
 
-/** Memoized spawn schedule per tower seed — pure in (seed), just skips re-walks. */
-const spawnScheduleCache = new Map<string, SpawnRec[]>();
+/**
+ * Memoized spawn schedule per tower seed — pure in (seed), just skips re-walks.
+ *
+ * Bounded. This was safe as a plain Map while a seed was a stable per-category
+ * string, but tower seeds now mix in a fresh newRunSeed() per run, so every
+ * game played added an entry that was never released — and each entry's array
+ * grows with the altitude reached. Same bound and reasoning as the floor-height
+ * prefix cache in ./towers.
+ */
+const spawnScheduleCache = createSeedCache<SpawnRec[]>(8, () => []);
 
 function spawnScheduleUntil(tower: TowerSpec, atLeast: number): SpawnRec[] {
-  let list = spawnScheduleCache.get(tower.seed);
-  if (!list) {
+  const list = spawnScheduleCache.get(tower.seed);
+  if (list.length === 0) {
     const floor = firstSpawnFloor(tower);
     const rng = createRng(`${tower.seed}:pu:type:${floor}`);
-    list = [{ floor, type: pickType(rng, floor, null) }];
-    spawnScheduleCache.set(tower.seed, list);
+    list.push({ floor, type: pickType(rng, floor, null) });
   }
   while (list[list.length - 1].floor < atLeast) {
     const k = list.length - 1;

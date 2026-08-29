@@ -23,6 +23,7 @@ import {
   resolveGameCategory,
 } from "./categories";
 import { createRng } from "./rng";
+import { createSeedCache } from "./seedCache";
 
 /** Physics + layout tuning per archetype. */
 interface ArchetypeTuning {
@@ -117,23 +118,41 @@ export const MVP_TOWER: TowerSpec = buildTower("indie-games");
 
 // ── Deterministic per-floor geometry ───────────────────────────────────────
 
-/** Height (metres) of floor i's walking surface. */
+/**
+ * Height (metres) of floor i's walking surface.
+ *
+ * Backed by a cached prefix sum. Floor gaps became per-floor seeded, which made
+ * the obvious loop O(i) with a fresh RNG allocated per floor — and since
+ * geometry is queried every tick, the per-frame cost grew with the player's
+ * score in an endless climber. Measured before this change: a floorHeight scan
+ * cost 30.6ms at 400 floors, 123.2ms at 800 and 480.7ms at 1600, and the
+ * powerups and simulation suites ran 3.1s and 3.7s against a prior 250ms.
+ */
 export function floorHeight(tower: TowerSpec, i: number): number {
-  let h = 0;
-  for (let f = 0; f < i; f++) h += floorGapForFloor(tower, f);
-  return h;
+  if (i <= 0) return 0;
+  const prefix = FLOOR_PREFIX_CACHE.get(tower.seed);
+  growPrefixTo(tower, prefix, i);
+  return prefix[i]!;
 }
 
 /** Floor index whose surface is at or just below height y. */
 export function floorIndexAt(tower: TowerSpec, y: number): number {
   if (y < 0) return 0;
-  let i = 0;
-  let h = 0;
-  while (h + floorGapForFloor(tower, i) <= y) {
-    h += floorGapForFloor(tower, i);
-    i++;
+  const prefix = FLOOR_PREFIX_CACHE.get(tower.seed);
+
+  // Extend in blocks until the prefix covers y, then binary search it.
+  while (prefix[prefix.length - 1]! <= y) {
+    growPrefixTo(tower, prefix, prefix.length - 1 + PREFIX_GROWTH_BLOCK);
   }
-  return i;
+
+  let lo = 0;
+  let hi = prefix.length - 1;
+  while (lo < hi) {
+    const mid = (lo + hi + 1) >> 1;
+    if (prefix[mid]! <= y) lo = mid;
+    else hi = mid - 1;
+  }
+  return lo;
 }
 
 /** Max horizontal distance a running jump can cover (same-height landing). */
@@ -144,6 +163,35 @@ function horizontalJumpReach(tower: TowerSpec): number {
 
 function ladderMargin(tower: TowerSpec): number {
   return Math.min(10, tower.widthM * 0.08);
+}
+
+/**
+ * Cumulative floor heights per tower seed: prefix[i] is floor i's surface, so
+ * prefix[0] is always 0 and the array grows lazily as the climb goes higher.
+ *
+ * Bounded because tower seeds now include a per-run id, so an unbounded map
+ * retains one growing array per game ever played. Eight is generous: a session
+ * climbs one tower, and the menu may preview a couple more.
+ */
+const FLOOR_PREFIX_CACHE = createSeedCache<number[]>(8, () => [0]);
+
+/** Floors to extend by when searching past the cached range. */
+const PREFIX_GROWTH_BLOCK = 64;
+
+/** Extend a prefix sum so index `floor` exists. */
+function growPrefixTo(tower: TowerSpec, prefix: number[], floor: number): void {
+  for (let f = prefix.length - 1; f < floor; f++) {
+    const gap = floorGapForFloor(tower, f);
+    // floorGap is archetype tuning and the multiplier bottoms out at 0.68, so
+    // this cannot happen — but a non-positive gap would make floorIndexAt's
+    // growth loop spin forever, so fail loudly instead of hanging.
+    if (!(gap > 0)) {
+      throw new Error(
+        `floorGapForFloor returned ${gap} for floor ${f} of ${tower.seed}`
+      );
+    }
+    prefix.push(prefix[f]! + gap);
+  }
 }
 
 /** Per-floor vertical span (metres) — varies around the archetype base gap. */
