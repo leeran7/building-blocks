@@ -56,3 +56,10 @@ export function createRng(seed: number | string): Rng {
     },
   };
 }
+
+/** Opaque hex id for one climb — generated outside the sim, then used as a seed. */
+export function newRunSeed(): string {
+  const bytes = new Uint8Array(8);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+}

@@ -5,8 +5,9 @@
  * acts as a leaderboard — your peak height is your score. Geometry is generated
  * DETERMINISTICALLY PER FLOOR from (seed, floorIndex): floor i is a solid
  * platform (with a jumpable gap on higher floors) at height i·floorGap, joined to
- * floor i+1 by a ladder at a seeded x. Nothing is precomputed or stored, so the
- * world is unbounded yet fully reproducible for re-simulation (AC-11).
+ * floor i+1 by a ladder at a seeded x. The category slug picks physics; a per-run
+ * seed (applyRunSeed) is what makes each game a different layout. Same
+ * (slug, runSeed) still replays exactly (AC-11).
  *
  * Difficulty scales with altitude: the gap you must jump on each floor widens
  * toward the physical jump limit, and ladders shift further sideways, so higher
@@ -58,6 +59,11 @@ const DIFFICULTY_FLOORS = 50;
 
 export interface BuildTowerOptions {
   widthM?: number;
+  /**
+   * Per-run id mixed into geometry. Same slug without this always yields the
+   * same map; pass a fresh `newRunSeed()` so each game is a different layout.
+   */
+  runSeed?: string;
 }
 
 /** Build an endless TowerSpec for a category. Deterministic per (slug, options). */
@@ -70,7 +76,7 @@ export function buildTower(
       ? resolveGameCategory(slugOrCategory)
       : slugOrCategory;
   const t = ARCHETYPE_TUNING[category.themeArchetype];
-  return {
+  const base: TowerSpec = {
     categorySlug: category.slug,
     widthM: opts.widthM ?? WIDTH_M,
     floorGap: t.floorGap,
@@ -82,6 +88,15 @@ export function buildTower(
     gravity: t.gravity,
     fallDeathBelowPeakM: t.fallDeathBelowPeakM,
   };
+  return opts.runSeed ? applyRunSeed(base, opts.runSeed) : base;
+}
+
+/**
+ * Bind a run id into the tower seed so ladders, floor heights, and power-ups
+ * all change. Same (slug, runSeed) still replays bit-identically (AC-11).
+ */
+export function applyRunSeed(tower: TowerSpec, runSeed: string): TowerSpec {
+  return { ...tower, seed: `tower:${tower.categorySlug}:${runSeed}` };
 }
 
 /** The MVP tower (endless solo climb). */

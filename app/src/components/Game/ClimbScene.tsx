@@ -10,7 +10,6 @@
 import {
   useCallback,
   useEffect,
-  useMemo,
   useRef,
   useState,
   type ReactNode,
@@ -58,8 +57,7 @@ function usePrefersReducedMotion(): boolean {
 export function ClimbScene({ tower, categoryLabel }: ClimbSceneProps) {
   const reducedMotion = usePrefersReducedMotion();
   const touchDevice = useCoarsePointer();
-  const seed = useMemo(() => `solo-${tower.categorySlug}`, [tower.categorySlug]);
-  const { state, start, finished, setTouch } = useClimb({ tower, seed });
+  const { state, start, finished, setTouch } = useClimb({ tower });
   // Measured on the canvas wrapper, not the scene root: the saved-record banner
   // renders between them, and budgeting from the root would ignore its height
   // and push the canvas (and the controls overlaid on it) past the fold.
@@ -83,9 +81,9 @@ export function ClimbScene({ tower, categoryLabel }: ClimbSceneProps) {
       peakY: player?.peakY ?? 0,
       finished: player?.status === "finished",
       finishedTick: player?.finishedTick ?? null,
-      seed,
+      seed: state.seed,
     }),
-    [player, seed]
+    [player, state.seed]
   );
 
   const postRun = useCallback(

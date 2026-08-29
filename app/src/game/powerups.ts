@@ -34,21 +34,24 @@
  * never actually escapes it. Do not raise TIME_SLOW_FRAC or shorten the cooldown
  * without redoing that arithmetic — `powerups.test.ts` asserts the bound.
  *
- * Spawns are generated per floor from (seed, floorIndex) with the seeded Rng,
- * never Math.random, so an endless world still re-simulates bit-identically
- * (AC-11) and the same seed always drops the same orbs in the same places.
+ * Spawns are a seeded GAP SCHEDULE, not independent per-floor coin flips:
+ * a random first floor, then mixed clusters and droughts whose mean gap
+ * tightens with altitude. Placement is anchored to ladders (near the climb,
+ * on the traverse, or opposite side) so orbs don't sit in the same relative
+ * spot every time. Still fully deterministic in (seed, floorIndex) (AC-11).
  */
 
 import {
   ActivePowerUp,
+  Platform,
   PlayerState,
   PowerUpPickup,
   PowerUpType,
   TICK_HZ,
   TowerSpec,
 } from "./types";
-import { createRng } from "./rng";
-import { floorHeight, floorIndexAt, platformsForFloor } from "./towers";
+import { createRng, Rng } from "./rng";
+import { floorHeight, floorIndexAt, ladderForFloor, platformsForFloor } from "./towers";
 
 // ── Pickup geometry ────────────────────────────────────────────────────────
 
@@ -60,14 +63,18 @@ export const POWER_UP_GRAB_X = 2.8;
 const GRAB_BELOW_M = 2.0;
 const GRAB_ABOVE_M = 5.0;
 /** Keep orbs off the very lip of a platform piece so they are never half in a gap. */
-const EDGE_MARGIN_M = 3.0;
+const EDGE_MARGIN_MIN_M = 1.6;
+const EDGE_MARGIN_MAX_M = 4.8;
 /** Floors below this never spawn — the opening should be read, not scrambled. */
-const FIRST_SPAWN_FLOOR = 2;
-/** Floors over which spawn odds and the time-slow bias ramp to their maximum. */
+const MIN_SPAWN_FLOOR = 2;
+/** First orb lands somewhere in this inclusive range (varies per tower seed). */
+const FIRST_SPAWN_MIN = 2;
+const FIRST_SPAWN_MAX = 8;
+/** Floors over which spawn density and the time-slow bias ramp to their maximum. */
 const RAMP_FLOORS = 50;
-/** Spawn chance per floor at the base, and after the ramp. */
-const SPAWN_CHANCE_LOW = 0.18;
-const SPAWN_CHANCE_HIGH = 0.32;
+/** Target occupancy per floor at the base, and after the ramp (drives mean gap). */
+const SPAWN_CHANCE_LOW = 0.16;
+const SPAWN_CHANCE_HIGH = 0.30;
 
 // ── Effects ────────────────────────────────────────────────────────────────
 
@@ -216,22 +223,89 @@ export function canActivate(
 
 // ── Deterministic spawning ─────────────────────────────────────────────────
 
-/** Spawn odds for a floor — rises with altitude to keep deep runs supplied. */
+/**
+ * Target occupancy used to size gaps — denser with altitude so deep runs stay
+ * supplied. Not a per-floor coin flip; the schedule below is what actually
+ * places orbs.
+ */
 export function spawnChanceForFloor(i: number): number {
-  if (i < FIRST_SPAWN_FLOOR) return 0;
+  if (i < MIN_SPAWN_FLOOR) return 0;
   const d = Math.min(1, i / RAMP_FLOORS);
   return SPAWN_CHANCE_LOW + (SPAWN_CHANCE_HIGH - SPAWN_CHANCE_LOW) * d;
 }
 
-/** Pick a type by weight, biasing toward the altitude-scaled ones as you climb. */
-function pickType(roll: number, i: number): PowerUpType {
+/** Floor of the first orb on this tower (inclusive range, never the base). */
+export function firstSpawnFloor(tower: TowerSpec): number {
+  const r = createRng(`${tower.seed}:pu:first`);
+  return r.int(FIRST_SPAWN_MIN, FIRST_SPAWN_MAX + 1);
+}
+
+/** Gap (in floors) after spawn `ordinal` at `fromFloor`. Always >= 1. */
+function gapAfter(tower: TowerSpec, ordinal: number, fromFloor: number): number {
+  const r = createRng(`${tower.seed}:pu:gap:${ordinal}`);
+  const mean = 1 / Math.max(0.08, spawnChanceForFloor(fromFloor));
+  const roll = r.next();
+  // Drought: a long empty stretch so the next orb feels like a find.
+  if (roll < 0.14) return Math.max(4, Math.round(mean * (1.8 + r.next() * 1.4)));
+  // Cluster: next floor or skip-one, so two orbs can sit close together.
+  if (roll < 0.32) return r.next() < 0.6 ? 1 : 2;
+  // Typical: around the altitude-scaled mean, with a wide spread.
+  return Math.max(1, Math.round(mean * (0.45 + r.next() * 1.1)));
+}
+
+interface SpawnRec {
+  floor: number;
+  type: PowerUpType;
+}
+
+/** Memoized spawn schedule per tower seed — pure in (seed), just skips re-walks. */
+const spawnScheduleCache = new Map<string, SpawnRec[]>();
+
+function spawnScheduleUntil(tower: TowerSpec, atLeast: number): SpawnRec[] {
+  let list = spawnScheduleCache.get(tower.seed);
+  if (!list) {
+    const floor = firstSpawnFloor(tower);
+    const rng = createRng(`${tower.seed}:pu:type:${floor}`);
+    list = [{ floor, type: pickType(rng, floor, null) }];
+    spawnScheduleCache.set(tower.seed, list);
+  }
+  while (list[list.length - 1].floor < atLeast) {
+    const k = list.length - 1;
+    const prev = list[k];
+    const floor = prev.floor + Math.max(1, gapAfter(tower, k, prev.floor));
+    const rng = createRng(`${tower.seed}:pu:type:${floor}`);
+    list.push({ floor, type: pickType(rng, floor, prev.type) });
+  }
+  return list;
+}
+
+function spawnAtFloor(tower: TowerSpec, i: number): SpawnRec | null {
+  if (i < MIN_SPAWN_FLOOR) return null;
+  const list = spawnScheduleUntil(tower, i);
+  let lo = 0;
+  let hi = list.length - 1;
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1;
+    const f = list[mid].floor;
+    if (f === i) return list[mid];
+    if (f < i) lo = mid + 1;
+    else hi = mid - 1;
+  }
+  return null;
+}
+
+/** Pick a type by weight, with per-spawn jitter and a penalty for repeating. */
+function pickType(rng: Rng, i: number, avoid: PowerUpType | null): PowerUpType {
   const d = Math.min(1, i / RAMP_FLOORS);
   const weights = POWER_UP_TYPES.map((t) => {
     const s = POWER_UP_SPECS[t];
-    return s.weight * (1 + (s.altitudeWeightMult - 1) * d);
+    let w = s.weight * (1 + (s.altitudeWeightMult - 1) * d);
+    w *= 0.55 + rng.next() * 0.9;
+    if (t === avoid) w *= 0.22;
+    return w;
   });
   const total = weights.reduce((a, b) => a + b, 0);
-  let acc = roll * total;
+  let acc = rng.next() * total;
   for (let k = 0; k < POWER_UP_TYPES.length; k++) {
     acc -= weights[k];
     if (acc <= 0) return POWER_UP_TYPES[k];
@@ -239,31 +313,61 @@ function pickType(roll: number, i: number): PowerUpType {
   return POWER_UP_TYPES[POWER_UP_TYPES.length - 1];
 }
 
+function clampToPiece(piece: Platform, x: number, margin: number): number {
+  const lo = piece.x0 + margin;
+  const hi = piece.x1 - margin;
+  if (hi <= lo) return (piece.x0 + piece.x1) / 2;
+  return Math.min(hi, Math.max(lo, x));
+}
+
+function closestPiece(
+  pieces: { p: Platform; w: number }[],
+  target: number
+): Platform {
+  let best = pieces[0].p;
+  let bestD = Infinity;
+  for (const e of pieces) {
+    const inside = target >= e.p.x0 && target <= e.p.x1;
+    const mid = (e.p.x0 + e.p.x1) / 2;
+    const d = inside ? 0 : Math.abs(mid - target);
+    if (d < bestD) {
+      bestD = d;
+      best = e.p;
+    }
+  }
+  return best;
+}
+
 /**
- * The power-up on floor `i`, or null if that floor has none. Deterministic in
- * (tower.seed, i) — the same tower always drops the same orbs.
+ * Horizontal placement: mix ladder-anchored spots (easy grab after a climb or
+ * before the next one), opposite-side traverse orbs, and uniform piece rolls.
  */
-export function powerUpForFloor(tower: TowerSpec, i: number): PowerUpPickup | null {
-  if (i < FIRST_SPAWN_FLOOR) return null;
-  const rng = createRng(`${tower.seed}:pu:${i}`);
-  if (rng.next() >= spawnChanceForFloor(i)) return null;
+function pickX(
+  rng: Rng,
+  pieces: { p: Platform; w: number }[],
+  margin: number,
+  inX: number | null,
+  outX: number,
+  width: number
+): number {
+  const mode = rng.next();
+  let target: number | null = null;
+  if (mode < 0.26) target = outX;
+  else if (mode < 0.5 && inX !== null) target = inX;
+  else if (mode < 0.76) {
+    const away = outX < width / 2 ? 0.82 : 0.18;
+    target = width * away + (rng.next() - 0.5) * width * 0.14;
+  }
 
-  const type = pickType(rng.next(), i);
+  if (target !== null) {
+    const piece = closestPiece(pieces, target);
+    const jitter = (rng.next() - 0.5) * Math.min(16, (piece.x1 - piece.x0) * 0.45);
+    return clampToPiece(piece, target + jitter, margin);
+  }
 
-  // Sit the orb on a solid piece of the floor with per-floor jitter so placement
-  // feels less formulaic than width-weighted centre picks every time.
-  const edgeMargin =
-    2.0 + rng.next() * 2.5; // 2.0–4.5 m inset from piece edges
-  const hover =
-    2.2 + rng.next() * 2.6; // 2.2–4.8 m above the floor surface
-  const pieces = platformsForFloor(tower, i)
-    .map((p) => ({ p, w: p.x1 - p.x0 }))
-    .filter((e) => e.w > 2 * edgeMargin);
-  if (pieces.length === 0) return null;
   let chosen = pieces[pieces.length - 1].p;
-  if (rng.next() < 0.45) {
-    // Uniform piece pick — sometimes the narrow slab wins.
-    chosen = pieces[Math.floor(rng.next() * pieces.length)].p;
+  if (rng.next() < 0.5) {
+    chosen = pieces[rng.int(0, pieces.length)].p;
   } else {
     const totalW = pieces.reduce((a, e) => a + e.w, 0);
     let pickW = rng.next() * totalW;
@@ -275,14 +379,37 @@ export function powerUpForFloor(tower: TowerSpec, i: number): PowerUpPickup | nu
       }
     }
   }
-  const lo = chosen.x0 + edgeMargin;
-  const hi = chosen.x1 - edgeMargin;
+  const lo = chosen.x0 + margin;
+  const hi = chosen.x1 - margin;
+  if (hi <= lo) return (chosen.x0 + chosen.x1) / 2;
+  return lo + rng.next() * (hi - lo);
+}
+
+/**
+ * The power-up on floor `i`, or null if that floor has none. Deterministic in
+ * (tower.seed, i) — the same tower always drops the same orbs.
+ */
+export function powerUpForFloor(tower: TowerSpec, i: number): PowerUpPickup | null {
+  const rec = spawnAtFloor(tower, i);
+  if (!rec) return null;
+
+  const rng = createRng(`${tower.seed}:pu:pos:${i}`);
+  const edgeMargin =
+    EDGE_MARGIN_MIN_M + rng.next() * (EDGE_MARGIN_MAX_M - EDGE_MARGIN_MIN_M);
+  const hover = 2.0 + rng.next() * 2.8;
+  const pieces = platformsForFloor(tower, i)
+    .map((p) => ({ p, w: p.x1 - p.x0 }))
+    .filter((e) => e.w > 2 * edgeMargin);
+  if (pieces.length === 0) return null;
+
+  const inX = i > 0 ? ladderForFloor(tower, i - 1).x : null;
+  const outX = ladderForFloor(tower, i).x;
 
   return {
     id: `pu:${i}`,
-    type,
+    type: rec.type,
     floorIndex: i,
-    x: lo + rng.next() * (hi - lo),
+    x: pickX(rng, pieces, edgeMargin, inX, outX, tower.widthM),
     y: floorHeight(tower, i) + hover,
     collected: false,
     collectedTick: null,
