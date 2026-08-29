@@ -9,6 +9,7 @@
 import { describe, it, expect } from "vitest";
 import {
   buildTower,
+  applyRunSeed,
   MVP_TOWER,
   floorHeight,
   floorIndexAt,
@@ -23,6 +24,18 @@ function horizontalJumpReach(t: ReturnType<typeof buildTower>): number {
 describe("buildTower (endless)", () => {
   it("is deterministic for the same slug", () => {
     expect(buildTower("indie-games")).toEqual(buildTower("indie-games"));
+  });
+
+  it("changes geometry across run seeds and replays the same seed", () => {
+    const base = buildTower("indie-games");
+    const a = applyRunSeed(base, "run-aaa");
+    const b = applyRunSeed(base, "run-bbb");
+    const aAgain = applyRunSeed(base, "run-aaa");
+    expect(a.seed).not.toBe(base.seed);
+    expect(ladderForFloor(a, 4)).not.toEqual(ladderForFloor(b, 4));
+    expect(floorHeight(a, 5)).not.toBe(floorHeight(b, 5));
+    expect(ladderForFloor(a, 4)).toEqual(ladderForFloor(aAgain, 4));
+    expect(floorHeight(a, 5)).toBe(floorHeight(aAgain, 5));
   });
 
   it("has no summit fields — it is an endless descriptor", () => {
