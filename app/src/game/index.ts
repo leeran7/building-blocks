@@ -12,3 +12,4 @@ export * from "./simulation";
 export * from "./antiCheat";
 export * from "./categories";
 export * from "./towers";
+export * from "./runReplay";

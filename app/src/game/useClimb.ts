@@ -67,6 +67,10 @@ export interface UseClimbResult {
    * new run began.
    */
   runId: number;
+  /** Per-tick inputs from the last finished live run (empty while playing). */
+  inputLog: PlayerInput[];
+  /** True when inputs are fed from a shared replay instead of live controls. */
+  replaying: boolean;
 }
 
 export interface UseClimbOptions {
@@ -74,6 +78,10 @@ export interface UseClimbOptions {
   seed?: string;
   hazard?: HazardConfig;
   /** Reduced-motion: still simulates identically, only render differs (AC-35). */
+  /** When set, the hook replays this input log instead of sampling controls. */
+  replayInputs?: PlayerInput[];
+  /** Auto-start on mount (used for shared replays). */
+  autoStart?: boolean;
 }
 
 const PLAYER_ID = "you";
@@ -82,6 +90,8 @@ export function useClimb({
   tower,
   seed: seedLock,
   hazard = DEFAULT_HAZARD_CONFIG,
+  replayInputs,
+  autoStart = false,
 }: UseClimbOptions): UseClimbResult {
   const cfg: SimConfig = { ...DEFAULT_SIM_CONFIG, hazard };
 
@@ -118,11 +128,16 @@ export function useClimb({
   const accumulatorRef = useRef(0);
   const lastTsRef = useRef(0);
   const consumedLobbySeed = useRef(false);
+  const replayInputsRef = useRef(replayInputs);
+  replayInputsRef.current = replayInputs;
+  const inputLogRef = useRef<PlayerInput[]>([]);
+  const [inputLog, setInputLog] = useState<PlayerInput[]>([]);
+  const replaying = Boolean(replayInputs?.length);
 
   // Roll a unique map after mount so SSR/hydration share a placeholder, then
   // the lobby (and every later Start) is a different layout.
   useEffect(() => {
-    if (seedLock) return;
+    if (seedLock || replayInputsRef.current?.length) return;
     if (consumedLobbySeed.current) return;
     if (stateRef.current.phase !== "lobby") return;
     const fresh = makeMatch(newRunSeed(), "lobby");
@@ -206,8 +221,10 @@ export function useClimb({
       let advanced = false;
       while (accumulatorRef.current >= TICK_DT) {
         accumulatorRef.current -= TICK_DT;
-        const input =
-          cur.phase === "countdown" ? NO_INPUT : sampleInput();
+        const input = inputForTick(cur.phase, cur.tick);
+        if (!replayInputsRef.current?.length) {
+          inputLogRef.current.push(input);
+        }
         cur = stepMatch(cur, { [PLAYER_ID]: input }, cfg);
         advanced = true;
         if (cur.phase === "finished" || cur.phase === "results") {
@@ -229,23 +246,43 @@ export function useClimb({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sampleInput]);
 
+  const inputForTick = useCallback(
+    (phase: MatchState["phase"], tick: number): PlayerInput => {
+      if (phase === "countdown") return NO_INPUT;
+      const replay = replayInputsRef.current;
+      if (replay?.length) return replay[tick] ?? NO_INPUT;
+      return sampleInput();
+    },
+    [sampleInput]
+  );
+
   const start = useCallback(() => {
     // First Start keeps the lobby preview; every later Start rolls a new map.
     // Pass `seed` into the hook to lock one layout (replay).
     const runSeed = seedLock
       ? seedLock
-      : consumedLobbySeed.current
-        ? newRunSeed()
-        : stateRef.current.seed;
+      : replayInputsRef.current?.length
+        ? stateRef.current.seed
+        : consumedLobbySeed.current
+          ? newRunSeed()
+          : stateRef.current.seed;
     consumedLobbySeed.current = true;
     const fresh = makeMatch(runSeed, "countdown");
     fresh.tick = 0;
     accumulatorRef.current = 0;
     lastTsRef.current = 0;
+    inputLogRef.current = [];
+    setInputLog([]);
     stateRef.current = fresh;
     setView((v) => ({ match: fresh, runId: v.runId + 1 }));
     runningRef.current = true;
   }, [makeMatch, seedLock]);
+
+  useEffect(() => {
+    if (!autoStart || !replayInputsRef.current?.length) return;
+    if (stateRef.current.phase !== "lobby") return;
+    start();
+  }, [autoStart, start]);
 
   const setTouch = useCallback((tch: TouchInput) => {
     touchRef.current = tch;
@@ -253,7 +290,12 @@ export function useClimb({
 
   const finished = state.phase === "finished" || state.phase === "results";
 
-  return { state, start, finished, setTouch, runId };
+  useEffect(() => {
+    if (!finished || replaying) return;
+    setInputLog([...inputLogRef.current]);
+  }, [finished, replaying]);
+
+  return { state, start, finished, setTouch, runId, inputLog, replaying };
 }
 
 function hasAny(set: Set<string>, keys: Set<string>): boolean {
