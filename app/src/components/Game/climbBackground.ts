@@ -84,27 +84,88 @@ export function drawClimbBackground(
 ): void {
   const w = width;
   const h = height;
-  const t = reducedMotion ? 0 : tick;
   const ui = Math.max(1, w / 360);
-  // Climbing lifts you out of the worst heat: glow/embers ease with altitude.
+  // Climbing lifts you out of the worst heat: the embers ease with altitude.
   const heat = 0.5 + 0.5 * clamp01(1 - camWorldY / 800);
 
   // Everything inside one save/restore so no stroke/fill/composite state leaks
   // onto the gameplay draws ClimbCanvas renders after us.
   ctx.save();
 
+  // The sky, mountains, forest, ridge and lava field are static — repainting all
+  // those large gradient/overdraw fills every frame is the mobile bottleneck
+  // (cost is fill-rate × the device pixel ratio, so a phone at 2–3× DPR pays
+  // several ms per frame, and a power-up's full-canvas flash on top tips it over
+  // 60fps). So bake the static scene into an offscreen canvas once and blit it;
+  // only the embers are drawn live on top. Falls back to painting inline where
+  // an offscreen canvas isn't available.
+  const scene = getSceneCache(w, h, ui);
+  if (scene) ctx.drawImage(scene, 0, 0, w, h);
+  else paintScene(ctx, w, h, ui, BAKE_HEAT);
+
+  drawEmbers(ctx, w, h, ui, reducedMotion ? 0 : tick, heat, reducedMotion);
+
+  ctx.restore();
+}
+
+/** Heat the static scene is baked at. Embers still ease with real altitude; the
+ *  field itself no longer cools as you climb, which keeps the cache stable (no
+ *  mid-run rebuild hitches). */
+const BAKE_HEAT = 0.85;
+
+/** Paint the static scene (everything but the live embers) at a frozen tick. */
+function paintScene(
+  ctx: CanvasRenderingContext2D,
+  w: number,
+  h: number,
+  ui: number,
+  heat: number
+): void {
   drawSky(ctx, w, h);
-  drawClouds(ctx, w, h, t, reducedMotion);
+  drawClouds(ctx, w, h, 0, true);
   // Mountains, back (hazy/high) to front (darker/lower).
   ridgeLine(ctx, w, h, h * 0.3, h * 0.14, 1.7, MTN_FAR);
   ridgeLine(ctx, w, h, h * 0.38, h * 0.12, 3.1, MTN_MID);
   ridgeLine(ctx, w, h, h * HORIZON, h * 0.09, 5.3, MTN_NEAR);
   drawForest(ctx, w, h, ui);
   drawRidge(ctx, w, h);
-  drawLava(ctx, w, h, ui, t, heat, reducedMotion);
-  drawEmbers(ctx, w, h, ui, t, heat, reducedMotion);
+  drawLava(ctx, w, h, ui, 0, heat, true);
+}
 
-  ctx.restore();
+interface SceneCache {
+  w: number;
+  h: number;
+  canvas: HTMLCanvasElement;
+}
+// Render cache only — a pure function of (w, h): the backdrop is the same for
+// every tower, so this is shared and rebuilt only when the canvas resizes. The
+// simulation is untouched.
+let sceneCache: SceneCache | null = null;
+
+/** The baked static scene, rebuilt only on a size change. Returns null when no
+ *  offscreen canvas is available (SSR / unsupported) so the caller paints inline. */
+function getSceneCache(w: number, h: number, ui: number): HTMLCanvasElement | null {
+  if (typeof document === "undefined") return null;
+  if (sceneCache && sceneCache.w === w && sceneCache.h === h) return sceneCache.canvas;
+
+  // Cap the offscreen resolution: the scene is soft, so 2× is plenty, and it
+  // keeps both the buffer and the per-frame blit affordable on high-DPR phones.
+  const dpr = typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1;
+  let scale = Math.min(dpr, 2);
+  const MAX_PX = 3_000_000;
+  if (w * h * scale * scale > MAX_PX) {
+    scale = Math.max(1, Math.sqrt(MAX_PX / (w * h)));
+  }
+
+  const cv = sceneCache?.canvas ?? document.createElement("canvas");
+  cv.width = Math.round(w * scale);
+  cv.height = Math.round(h * scale);
+  const c = cv.getContext("2d");
+  if (!c) return null;
+  c.setTransform(scale, 0, 0, scale, 0, 0);
+  paintScene(c, w, h, ui, BAKE_HEAT);
+  sceneCache = { w, h, canvas: cv };
+  return cv;
 }
 
 function drawSky(ctx: CanvasRenderingContext2D, w: number, h: number): void {
