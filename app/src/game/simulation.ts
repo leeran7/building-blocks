@@ -72,7 +72,8 @@ import {
   validateInput,
 } from "./antiCheat";
 
-const EPS = 0.02; // Increased from 0.01 to prevent ground fall-through due to floating point precision
+// epsilon value for the simulation
+const EPS = 0.025; // Increased from 0.01 to prevent ground fall-through due to floating point precision
 
 /** Floors of power-ups kept materialized above the highest climber. */
 const POWER_UP_LOOKAHEAD_FLOORS = 6;
@@ -108,6 +109,7 @@ export function spawnPlayer(id: PlayerId, slot: number): PlayerState {
     lastPickupTick: null,
     lastPickupType: null,
     jetpackThrusting: false,
+    grabSuppressedUntilRelease: false,
   };
 }
 
@@ -258,6 +260,10 @@ function integratePlayer(
   const platformMargin = platformReachMargin(p, tick);
   p.jetpackThrusting = false;
 
+  // Releasing the climb intent clears the post-dismount grab suppression, so the
+  // next deliberate press can grab a ladder again (see grabSuppressedUntilRelease).
+  if (input.climbY === 0) p.grabSuppressedUntilRelease = false;
+
   // Horizontal movement (walk / ladder-slide is ignored while attached).
   p.vx = input.moveX * moveSpeed;
 
@@ -284,20 +290,30 @@ function integratePlayer(
         p.vy = 0;
         releaseLadder(p);
         p.onGround = true;
+        // Don't re-grab a ladder on this new surface until the climb button is
+        // released — otherwise a held climb snaps the player straight back on.
+        p.grabSuppressedUntilRelease = true;
       } else if (p.y <= l.y0) {
         // Back down onto the lower platform.
         p.y = l.y0;
         p.vy = 0;
         releaseLadder(p);
         p.onGround = true;
+        p.grabSuppressedUntilRelease = true;
       }
     }
   } else {
     const prevX = p.x;
     p.x = clamp(p.x + p.vx * dt, 0, tower.widthM);
 
-    // Grab a ladder if the player is asking to climb and one is in reach.
-    if (input.climbY !== 0) {
+    // Grab a ladder if the player is asking to climb and one is in reach. Right
+    // after stepping off a ladder, a grab is suppressed only while the player is
+    // also walking (moveX ≠ 0) — that is the "let me walk away" intent, and
+    // without it a held climb snapped them straight back onto an aligned ladder
+    // and they couldn't move. Holding climb with no direction still re-grabs, so
+    // vertically-stacked ladders can still be chained (tower stays solvable).
+    const escapingDismount = p.grabSuppressedUntilRelease && input.moveX !== 0;
+    if (input.climbY !== 0 && !escapingDismount) {
       const g = grabbableLadder(tower, p.x, p.y, input.climbY, grabRadius);
       if (g) {
         p.onLadder = true;
