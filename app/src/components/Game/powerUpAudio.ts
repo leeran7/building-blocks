@@ -276,7 +276,9 @@ export class PowerUpAudio {
 
   playLavaSting(delaySeconds = 0): void {
     if (this.muted) return;
-    const ctx = this.ensureContext();
+    // Do not create a context here — autoStart replay has no gesture, and
+    // Start/unmute already called unlock(). Same rule as the loop setters.
+    const ctx = this.ctx;
     if (!ctx || !this.master) return;
     const now = ctx.currentTime + delaySeconds;
     for (const n of LAVA_STING) this.playNote(ctx, this.master, n, now);
@@ -285,7 +287,7 @@ export class PowerUpAudio {
 
   playDeath(delaySeconds = 0): void {
     if (this.muted) return;
-    const ctx = this.ensureContext();
+    const ctx = this.ctx;
     if (!ctx || !this.master) return;
     // Duck the loops under the hit so thrust/rumble do not sit on the slam.
     this.jetWanted = false;

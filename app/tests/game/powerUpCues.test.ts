@@ -217,6 +217,7 @@ describe("stepCues: lava on screen sounds like doom is coming", () => {
     expect(shown.out.sounds.map((s) => s.kind)).toEqual(["lava-sting"]);
     expect(shown.out.loops.lavaDoom).toBe(true);
     expect(shown.out.loops.lavaFill).toBe(0.12);
+    expect(shown.out.announcement).toBeNull();
     const still = frame(shown.memo, {
       runId: 0,
       lavaOnScreen: true,
@@ -225,6 +226,7 @@ describe("stepCues: lava on screen sounds like doom is coming", () => {
     expect(still.out.sounds).toEqual([]);
     expect(still.out.loops.lavaDoom).toBe(true);
     expect(still.out.loops.lavaFill).toBe(0.4);
+    expect(still.out.announcement).toBeNull();
   });
 
   it("stings again if the climber climbs away and lava re-enters", () => {
@@ -243,6 +245,7 @@ describe("stepCues: death sounds like doom struck", () => {
     expect(hit.out.sounds.map((s) => s.kind)).toEqual(["death"]);
     expect(hit.out.loops.lavaDoom).toBe(false);
     expect(hit.out.loops.jetpack).toBe(false);
+    expect(hit.out.announcement).toBeNull();
     const sitting = frame(hit.memo, {
       runId: 0,
       dead: true,
