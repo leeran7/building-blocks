@@ -11,7 +11,7 @@
  *
  * BALANCE. The hazard envelope ramps toward 1.0× (ladder climb speed) and
  * stumbles (2s of 0.25× envelope every 8s), so the time-averaged chase
- * settles near 0.81× — climbable on a ladder, but dawdling on a floor still
+ * settles near 0.75× — climbable on a ladder, with longer stumble windows for
  * lets the lava close in. Power-ups are what push past that cap, and they are
  * cap, and they are deliberately shaped so the ceiling is raised by PLAYING
  * WELL rather than by collecting:

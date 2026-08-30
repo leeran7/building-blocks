@@ -68,14 +68,14 @@ export const DEFAULT_HAZARD_CONFIG: HazardConfig = {
   graceSeconds: 5,
   // Opening is the gentler tune from main (9m head-start, 5s grace, 0.42×).
   // Envelope ramps 0.42× → 1.0× over ~90s (capped at ladder climb speed).
-  // Stumbles cut each 8s cycle to 2s at 0.25× envelope, so the time-averaged
-  // late-game chase is 1.0 · (0.75 + 0.25·0.25) ≈ 0.81× — climbable on a
-  // ladder, but dawdling on a floor still lets the lava close in.
+  // Stumbles cut each 12s cycle to 4s at 0.25× envelope, so the time-averaged
+  // late-game chase is 1.0 · (8/12 + 4/12·0.25) = 0.75× — climbable on a
+  // ladder, with longer recovery windows than the old 8s / 2s rhythm.
   startSpeedFrac: 0.42,
   endSpeedFrac: 1,
   rampSeconds: 90,
-  stumblePeriodSeconds: 8,
-  stumbleDurationSeconds: 2,
+  stumblePeriodSeconds: 12,
+  stumbleDurationSeconds: 4,
   stumbleSpeedFrac: 0.25,
   speedScale: 1,
 };

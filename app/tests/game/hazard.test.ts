@@ -132,7 +132,7 @@ describe("AC-6: hazard rise ramps, stumbles, is monotonic, and is unbounded", ()
   });
 
   it("still closes in on a dawdling climber over time", () => {
-    expect(hazardMeanSpeedFrac(CFG)).toBeCloseTo(0.8125, 3);
+    expect(hazardMeanSpeedFrac(CFG)).toBeCloseTo(0.75, 3);
     const g = CFG.graceSeconds;
     const period = CFG.stumblePeriodSeconds;
     const t = g + CFG.rampSeconds + 40;
