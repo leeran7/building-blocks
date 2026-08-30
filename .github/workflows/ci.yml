@@ -5,9 +5,9 @@ name: CI
 # Renaming a job without updating and re-applying that ruleset drops the gate.
 on:
   push:
-    branches: [main]
+    branches: [main, development]
   pull_request:
-    branches: [main]
+    branches: [main, development]
   merge_group:
 
 permissions:
