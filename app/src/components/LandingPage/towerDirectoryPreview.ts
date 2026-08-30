@@ -1,22 +1,27 @@
 /**
  * Preview rules for the landing #towers directory.
  *
- * Collapsed "All" shows the featured stacks (one per family). Expanding
- * reveals every stack, still grouped by family. A family chip always
- * shows that family's full list — the user already chose a category.
+ * Collapsed "All" shows the first DEFAULT_VISIBLE_STACKS stacks (at least
+ * 9, filling three desktop rows). Expanding reveals every stack, still
+ * grouped by family. A family chip always shows that family's full list —
+ * the user already chose a category.
  */
 
 import { FAMILIES, type Family, type GameCategory } from "../../game/categories";
+
+/** Collapsed All preview. 9 fills three rows of the lg 3-column grid. */
+export const DEFAULT_VISIBLE_STACKS = 9;
 
 export function directorySections(input: {
   family: Family | "all";
   expanded: boolean;
   grouped: Record<Family, GameCategory[]>;
-  featured: GameCategory[];
+  previewCount?: number;
 }): DirectorySection[] {
-  const { family, expanded, grouped, featured } = input;
+  const previewCount = input.previewCount ?? DEFAULT_VISIBLE_STACKS;
+  const { family, expanded, grouped } = input;
   if (family === "all" && !expanded) {
-    return [{ family: null, stacks: featured }];
+    return previewSections(grouped, previewCount);
   }
   const families = family === "all" ? FAMILIES : [family];
   return families.map((f) => ({
@@ -44,7 +49,24 @@ export function directoryToggleVisible(input: {
   return input.expanded || input.hiddenCount > 0;
 }
 
+function previewSections(
+  grouped: Record<Family, GameCategory[]>,
+  limit: number
+): DirectorySection[] {
+  let remaining = Math.max(0, limit);
+  const out: DirectorySection[] = [];
+  for (const f of FAMILIES) {
+    if (remaining <= 0) break;
+    const all = Object.hasOwn(grouped, f) ? grouped[f] : [];
+    const stacks = all.slice(0, remaining);
+    if (stacks.length === 0) continue;
+    out.push({ family: f, stacks });
+    remaining -= stacks.length;
+  }
+  return out;
+}
+
 export type DirectorySection = {
-  family: Family | null;
+  family: Family;
   stacks: GameCategory[];
 };

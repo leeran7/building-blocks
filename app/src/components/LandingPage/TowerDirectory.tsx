@@ -6,16 +6,15 @@
  * Paid stacks only: card body expands the live paid leaderboard inline.
  * The free climb game lives on its own stack — see FreeLeaderboard below.
  *
- * Default (All, collapsed): featured stacks, one per family. "Show more"
- * replaces that preview with every stack grouped by family. A family chip
- * always shows that family's full list.
+ * Default (All, collapsed): the first DEFAULT_VISIBLE_STACKS stacks (9).
+ * "Show more" replaces that preview with every stack grouped by family. A
+ * family chip always shows that family's full list.
  */
 
 import { useMemo, useState } from "react";
 import {
   GAME_CATEGORIES,
   FAMILIES,
-  FEATURED_GAME_CATEGORIES,
   type Family,
 } from "../../game/categories";
 import { InlineTower } from "./InlineTower";
@@ -23,6 +22,7 @@ import {
   directorySections,
   hiddenDirectoryCount,
   directoryToggleVisible,
+  DEFAULT_VISIBLE_STACKS,
 } from "./towerDirectoryPreview";
 
 const SHORT_FAMILY: Record<Family, string> = {
@@ -67,14 +67,13 @@ export function TowerDirectory({ counts, minEntryUsd }: TowerDirectoryProps) {
         family,
         expanded,
         grouped,
-        featured: FEATURED_GAME_CATEGORIES,
       }),
     [family, expanded, grouped]
   );
 
   const hiddenCount = hiddenDirectoryCount(
     GAME_CATEGORIES.length,
-    FEATURED_GAME_CATEGORIES.length,
+    DEFAULT_VISIBLE_STACKS,
     expanded,
     family
   );
@@ -92,7 +91,6 @@ export function TowerDirectory({ counts, minEntryUsd }: TowerDirectoryProps) {
         family: next,
         expanded: false,
         grouped,
-        featured: FEATURED_GAME_CATEGORIES,
       }).flatMap((section) => section.stacks.map((c) => c.slug))
     );
     setOpenSlug((slug) => (slug && nextSlugs.has(slug) ? slug : null));
@@ -100,10 +98,14 @@ export function TowerDirectory({ counts, minEntryUsd }: TowerDirectoryProps) {
 
   function toggleExpanded() {
     if (expanded) {
-      const featuredSlugs = new Set(
-        FEATURED_GAME_CATEGORIES.map((c) => c.slug)
+      const previewSlugs = new Set(
+        directorySections({
+          family: "all",
+          expanded: false,
+          grouped,
+        }).flatMap((section) => section.stacks.map((c) => c.slug))
       );
-      setOpenSlug((slug) => (slug && featuredSlugs.has(slug) ? slug : null));
+      setOpenSlug((slug) => (slug && previewSlugs.has(slug) ? slug : null));
       setExpanded(false);
       scrollTowersIntoView();
       return;
@@ -170,7 +172,7 @@ export function TowerDirectory({ counts, minEntryUsd }: TowerDirectoryProps) {
 
         <div id="tower-directory-list" className="flex flex-col gap-10">
           {sections.map((section) => (
-            <div key={section.family ?? "featured"}>
+            <div key={section.family}>
               {section.family && (
                 <div className="flex items-center gap-3 mb-4">
                   <h3 className="font-mono text-[11px] uppercase tracking-[0.16em] text-text-secondary">
