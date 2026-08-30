@@ -10,6 +10,7 @@ import {
   obstaclesNearY,
   jumpApexM,
   obstacleLadderKeepOutM,
+  obstacleAhead,
 } from "../../src/game/obstacles";
 import {
   buildTower,
@@ -53,12 +54,24 @@ function move(dir: -1 | 0 | 1, jump = false): PlayerInput {
   return { moveX: dir, jump, climbY: 0, usePowerUp: false };
 }
 
-function firstCrate(tower: TowerSpec) {
-  for (let i = 2; i < 120; i++) {
+function firstHurdle(tower: TowerSpec) {
+  for (let i = 2; i < 200; i++) {
     const os = obstaclesForFloor(tower, i);
-    if (os.length > 0) return os[0];
+    const floorY = floorHeight(tower, i);
+    const grounded = os.filter((o) => Math.abs(o.y0 - floorY) < 1e-9);
+    if (os.length <= 2 && grounded.length === os.length && os.length > 0) {
+      return os[0];
+    }
   }
-  throw new Error("expected a crate in the first 120 floors");
+  throw new Error("expected a hurdle crate in the first 200 floors");
+}
+
+function firstStair(tower: TowerSpec) {
+  for (let i = 2; i < 200; i++) {
+    const os = obstaclesForFloor(tower, i);
+    if (os.length >= 3) return { floor: i, crates: os };
+  }
+  throw new Error("expected a crate stair in the first 200 floors");
 }
 
 describe("obstacle spawn", () => {
@@ -90,7 +103,6 @@ describe("obstacle spawn", () => {
     for (let i = 2; i < 80; i++) {
       for (const o of obstaclesForFloor(TOWER, i)) {
         expect(o.y1 - o.y0).toBeLessThan(apex);
-        expect(o.y0).toBe(floorHeight(TOWER, i));
       }
     }
   });
@@ -100,20 +112,25 @@ describe("obstacle spawn", () => {
       const ladders = [
         ...laddersForFloor(TOWER, i),
         ...laddersForFloor(TOWER, i - 1),
+        ...laddersForFloor(TOWER, i + 1),
       ];
       const clear = obstacleLadderKeepOutM(TOWER);
       for (const o of obstaclesForFloor(TOWER, i)) {
         for (const l of ladders) {
-          expect(o.x0 < l.x + clear && o.x1 > l.x - clear).toBe(false);
+          const xHit = o.x0 < l.x + clear && o.x1 > l.x - clear;
+          const yHit = o.y0 < l.y1 && o.y1 > l.y0;
+          expect(xHit && yHit).toBe(false);
         }
       }
     }
   });
 
-  it("sits on solid floor, never in the jump gap", () => {
+  it("keeps floor-level crates on solid floor, never in the jump gap", () => {
     for (let i = 2; i < 60; i++) {
       const pieces = platformsForFloor(TOWER, i);
+      const floorY = floorHeight(TOWER, i);
       for (const o of obstaclesForFloor(TOWER, i)) {
+        if (Math.abs(o.y0 - floorY) > 1e-9) continue;
         const onPiece = pieces.some(
           (p) => o.x0 >= p.x0 - 1e-9 && o.x1 <= p.x1 + 1e-9
         );
@@ -129,17 +146,46 @@ describe("obstacle spawn", () => {
   });
 
   it("obstaclesNearY includes crates whose band intersects the window", () => {
-    const o = firstCrate(TOWER);
+    const o = firstHurdle(TOWER);
     const near = obstaclesNearY(TOWER, o.y0 - 1, o.y1 + 1);
     expect(near.some((c) => c.x0 === o.x0 && c.floorIndex === o.floorIndex)).toBe(
       true
     );
   });
+
+  it("makes crates wide enough to read as a hurdle, not a pebble", () => {
+    const o = firstHurdle(TOWER);
+    expect(o.x1 - o.x0).toBeGreaterThanOrEqual(4);
+    expect(o.y1 - o.y0).toBeGreaterThan(1.5);
+  });
+
+  it("stacks some crates into a stair whose last top meets the next floor", () => {
+    const { floor, crates } = firstStair(TOWER);
+    const nextY = floorHeight(TOWER, floor + 1);
+    const last = crates.reduce((a, b) => (a.y1 >= b.y1 ? a : b));
+    expect(last.y1).toBeCloseTo(nextY, 5);
+    const dest = platformsForFloor(TOWER, floor + 1);
+    const overlap = dest.some((p) => {
+      const hit = Math.min(last.x1, p.x1) - Math.max(last.x0, p.x0);
+      return hit >= (last.x1 - last.x0) * 0.4;
+    });
+    expect(overlap).toBe(true);
+    for (let k = 1; k < crates.length; k++) {
+      expect(crates[k].y0).toBeCloseTo(crates[k - 1].y1, 5);
+    }
+  });
+
+  it("does not treat a crate a storey up as a hurdle on this walk", () => {
+    const o = firstHurdle(TOWER);
+    const mid = (o.x0 + o.x1) / 2;
+    expect(obstacleAhead(TOWER, mid - 1, o.y0, 1)).toBe(true);
+    expect(obstacleAhead(TOWER, mid, o.y0 - 8, 1, 20)).toBe(false);
+  });
 });
 
 describe("obstacle collision (simulation)", () => {
   it("stops a grounded walker who does not jump", () => {
-    const o = firstCrate(TOWER);
+    const o = firstHurdle(TOWER);
     const m = climbingMatch();
     const p = m.players[0];
     p.x = o.x0 - 1.2;
@@ -153,7 +199,7 @@ describe("obstacle collision (simulation)", () => {
   });
 
   it("lets a jumping walker clear the crate", () => {
-    const o = firstCrate(TOWER);
+    const o = firstHurdle(TOWER);
     const m = climbingMatch();
     const p = m.players[0];
     p.x = o.x0 - 2.2;
@@ -172,7 +218,7 @@ describe("obstacle collision (simulation)", () => {
   });
 
   it("lands on the crate top when falling onto it", () => {
-    const o = firstCrate(TOWER);
+    const o = firstHurdle(TOWER);
     const m = climbingMatch();
     const p = m.players[0];
     p.x = (o.x0 + o.x1) / 2;

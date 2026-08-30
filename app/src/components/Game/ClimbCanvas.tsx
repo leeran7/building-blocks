@@ -242,8 +242,7 @@ export function ClimbCanvas({
       ctx.fillRect(x0, top, w, 2 * ui); // bright top surface
     }
 
-    // Jump-over crates — sit on the floor, drawn above the slab so they read
-    // as something you have to leap, not as part of the platform.
+    // Crates — hurdles on the slab, or stacked as a stair to the next floor.
     for (const o of obstaclesNearY(tower, yLow, yHigh)) {
       drawObstacle(ctx, o, sx, sy, pxPerM, ui, height);
     }

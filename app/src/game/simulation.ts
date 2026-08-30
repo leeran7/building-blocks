@@ -48,10 +48,12 @@ import {
 } from "./towers";
 import {
   grantPowerUp,
+  DOUBLE_JUMP_MULT,
   JETPACK_MAX_VY,
   JETPACK_THRUST,
   canActivate,
   climbSpeedMultiplier,
+  consumeCharge,
   consumeJetpackFuel,
   cooldownTicks,
   durationTicks,
@@ -108,6 +110,7 @@ export function spawnPlayer(id: PlayerId, slot: number): PlayerState {
     cooldownUntilTick: {},
     lastPickupTick: null,
     lastPickupType: null,
+    jumpHeldPrev: false,
     jetpackThrusting: false,
     grabSuppressedUntilRelease: false,
   };
@@ -329,12 +332,20 @@ function integratePlayer(
 
     if (!p.onLadder) {
       // Jump from the ground is a normal launch. While a jetpack has fuel,
-      // holding jump in the air burns one tick of thrust.
+      // holding jump in the air burns one tick of thrust instead of the
+      // double jump — the pack is the spend, the extra hop waits for a tap.
       if (input.jump && p.onGround) {
         p.vy = tower.jumpSpeed;
         p.onGround = false;
       } else if (input.jump && !p.onGround && consumeJetpackFuel(p, tick)) {
         p.jetpackThrusting = true;
+      } else if (
+        input.jump &&
+        !p.jumpHeldPrev &&
+        !p.onGround &&
+        consumeCharge(p, "double-jump", tick)
+      ) {
+        p.vy = tower.jumpSpeed * DOUBLE_JUMP_MULT;
       }
       // Gravity while airborne; thrust beats it and caps at JETPACK_MAX_VY.
       if (p.onGround) {
@@ -477,6 +488,7 @@ export function stepMatch(
     }
 
     pruneActive(p, state.tick);
+    p.jumpHeldPrev = input.jump;
 
     // 4. DEATH LINE — the higher of the rising hazard and the Doodle-Jump fall
     //    floor (peak minus the fall-death drop). The tower is endless: there is

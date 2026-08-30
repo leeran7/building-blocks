@@ -12,8 +12,10 @@
  *
  * Difficulty scales with altitude: the gap you must jump on each floor widens
  * toward the physical jump limit, ladders shift further sideways, and jump-over
- * crates appear on the traverse (more exposure to the lava). Because gaps and
- * crates stay within jump reach, every floor remains solvable.
+ *         crates appear on the traverse (more exposure to the lava), and stacked
+ * crates sometimes form a stair to the next floor. Because gaps, hurdles, and
+ * stair steps stay within jump reach, every floor remains solvable. Ladders
+ * offset from the floors below so they do not stack into a single column.
  */
 
 import { TowerSpec, Platform, Ladder } from "./types";
@@ -174,6 +176,16 @@ function ladderMargin(tower: TowerSpec): number {
  * climbs one tower, and the menu may preview a couple more.
  */
 const FLOOR_PREFIX_CACHE = createSeedCache<number[]>(8, () => [0]);
+/**
+ * Ladder x positions per floor, grown in order so floor i can offset from the
+ * real xs on i-1 / i-2 / i-3. Recursing `ladderXsForFloor(i-1)` would be
+ * exponential; this cache is O(floors) like the height prefix.
+ */
+const LADDER_XS_CACHE = createSeedCache<number[][]>(8, () => []);
+
+/** Centre-to-centre keep-out vs ladders on the floor below (then fading). */
+const STACK_CLEAR_M = 14;
+const STACK_LOOKBACK = 3;
 
 /** Floors to extend by when searching past the cached range. */
 const PREFIX_GROWTH_BLOCK = 64;
@@ -250,33 +262,138 @@ function ladderCountForFloor(tower: TowerSpec, i: number): number {
 
 /** X positions of every ladder leaving floor i, primary first (deterministic). */
 function ladderXsForFloor(tower: TowerSpec, i: number): number[] {
+  const cache = LADDER_XS_CACHE.get(tower.seed);
+  growLadderXsTo(tower, cache, i);
+  return cache[i]!;
+}
+
+function growLadderXsTo(
+  tower: TowerSpec,
+  cache: number[][],
+  floor: number
+): void {
+  for (let f = cache.length; f <= floor; f++) {
+    cache.push(placeLadderXs(tower, f, cache));
+  }
+}
+
+/**
+ * Place floor `i` after lower floors are already in `cache`. Punch keep-out
+ * around recent ladders so columns of 4 aligned routes are rare; if the floor
+ * is fully covered, fall back to the x farthest from those ladders.
+ */
+function placeLadderXs(
+  tower: TowerSpec,
+  i: number,
+  cache: number[][]
+): number[] {
   const m = ladderMargin(tower);
   const loBound = m;
   const hiBound = tower.widthM - m;
   const sep = ladderSeparation(tower);
-  const xs = [ladderXForFloor(tower, i)];
+  const keepOut = stackKeepOut(cache, i);
+  const raw = ladderXForFloor(tower, i);
+  const xs = [snapAwayFromStack(raw, keepOut, loBound, hiBound)];
   const count = ladderCountForFloor(tower, i);
   const r = createRng(`${tower.seed}:lx-extra:${i}`);
 
   for (let k = 1; k < count; k++) {
-    // Place each extra in the widest stretch still clear of the ladders already
-    // on this floor, so spacing is guaranteed without a rejection loop.
-    const sorted = [...xs].sort((a, b) => a - b);
-    const edges = [loBound - sep, ...sorted, hiBound + sep];
-    let best: [number, number] | null = null;
+    // Place each extra in the widest stretch still clear of this floor's
+    // ladders and the vertical keep-out, so spacing is guaranteed without a
+    // rejection loop.
+    let spans: { lo: number; hi: number }[] = [{ lo: loBound, hi: hiBound }];
+    for (const x of xs) spans = punchSpan(spans, x - sep, x + sep);
+    for (const o of keepOut) spans = punchSpan(spans, o.x - o.r, o.x + o.r);
+    let best: { lo: number; hi: number } | null = null;
     let bestRoom = 0;
-    for (let e = 0; e < edges.length - 1; e++) {
-      const lo = Math.max(loBound, edges[e] + sep);
-      const hi = Math.min(hiBound, edges[e + 1] - sep);
-      if (hi - lo > bestRoom) {
-        bestRoom = hi - lo;
-        best = [lo, hi];
+    for (const s of spans) {
+      const room = s.hi - s.lo;
+      if (room > bestRoom) {
+        bestRoom = room;
+        best = s;
       }
     }
     if (!best || bestRoom <= 0) break;
-    xs.push(best[0] + r.next() * (best[1] - best[0]));
+    xs.push(best.lo + r.next() * (best.hi - best.lo));
   }
   return xs;
+}
+
+function stackKeepOut(
+  cache: number[][],
+  i: number
+): { x: number; r: number }[] {
+  const out: { x: number; r: number }[] = [];
+  for (let d = 1; d <= STACK_LOOKBACK && i - d >= 0; d++) {
+    const r = d === 1 ? STACK_CLEAR_M : d === 2 ? 10 : 8;
+    for (const x of cache[i - d] ?? []) out.push({ x, r });
+  }
+  return out;
+}
+
+function snapAwayFromStack(
+  raw: number,
+  keepOut: { x: number; r: number }[],
+  loBound: number,
+  hiBound: number
+): number {
+  if (keepOut.length === 0) return raw;
+  let spans: { lo: number; hi: number }[] = [{ lo: loBound, hi: hiBound }];
+  for (const o of keepOut) {
+    spans = punchSpan(spans, o.x - o.r, o.x + o.r);
+  }
+  if (spans.length > 0) {
+    for (const s of spans) {
+      if (raw >= s.lo && raw <= s.hi) return raw;
+    }
+    let best = spans[0];
+    let bestD = spanDist(raw, best);
+    for (const s of spans) {
+      const d = spanDist(raw, s);
+      if (d < bestD) {
+        bestD = d;
+        best = s;
+      }
+    }
+    return raw < best.lo ? best.lo : best.hi;
+  }
+  // Fully covered: pick the x that maximises distance to the nearest keep-out.
+  let bestX = (loBound + hiBound) / 2;
+  let bestMin = -1;
+  const samples = 24;
+  for (let s = 0; s <= samples; s++) {
+    const x = loBound + ((hiBound - loBound) * s) / samples;
+    let nearest = Infinity;
+    for (const o of keepOut) nearest = Math.min(nearest, Math.abs(x - o.x));
+    if (nearest > bestMin) {
+      bestMin = nearest;
+      bestX = x;
+    }
+  }
+  return bestX;
+}
+
+function punchSpan(
+  spans: { lo: number; hi: number }[],
+  cutLo: number,
+  cutHi: number
+): { lo: number; hi: number }[] {
+  const next: { lo: number; hi: number }[] = [];
+  for (const s of spans) {
+    if (cutHi <= s.lo || cutLo >= s.hi) {
+      next.push(s);
+      continue;
+    }
+    if (cutLo > s.lo) next.push({ lo: s.lo, hi: Math.min(s.hi, cutLo) });
+    if (cutHi < s.hi) next.push({ lo: Math.max(s.lo, cutHi), hi: s.hi });
+  }
+  return next.filter((s) => s.hi - s.lo > 0.5);
+}
+
+function spanDist(x: number, s: { lo: number; hi: number }): number {
+  if (x < s.lo) return s.lo - x;
+  if (x > s.hi) return x - s.hi;
+  return 0;
 }
 
 /** Every ladder leading UP from floor i to floor i+1 (one or more routes). */

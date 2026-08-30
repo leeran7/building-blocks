@@ -38,7 +38,8 @@ import {
   floorIndexAt,
   platformsNearY,
 } from "../../src/game/towers";
-import { obstacleAhead } from "../../src/game/obstacles";
+import { obstacleAhead, isOnObstacle, obstaclesNearY } from "../../src/game/obstacles";
+import { doubleJumpChargesRemaining } from "../../src/game/powerups";
 
 const TOWER: TowerSpec = buildTower("indie-games");
 
@@ -244,8 +245,26 @@ describe("AC-7 / AC-8: caught by the death line eliminates and retains peak", ()
 });
 
 describe("endless completability: a greedy bot climbs far up a generated tower", () => {
-  function botInput(p: PlayerState, tower: TowerSpec): PlayerInput {
+  function botInput(p: PlayerState, tower: TowerSpec, tick = 0): PlayerInput {
     if (p.onLadder) return UP;
+    const hops = doubleJumpChargesRemaining(p, tick);
+    if (isOnObstacle(tower, p.x, p.y)) {
+      const nextStep = obstaclesNearY(tower, p.y + 0.1, p.y + 3)
+        .filter((o) => o.y1 > p.y + 0.15)
+        .sort((a, b) => a.y0 - b.y0)[0];
+      if (nextStep) {
+        const mid = (nextStep.x0 + nextStep.x1) / 2;
+        const dir: -1 | 0 | 1 = mid >= p.x ? 1 : -1;
+        return {
+          moveX: dir,
+          jump:
+            p.onGround ||
+            (hops > 0 && !p.jumpHeldPrev && nextStep.y0 > p.y + 0.2),
+          climbY: 0,
+          usePowerUp: false,
+        };
+      }
+    }
     const k = floorIndexAt(tower, p.y + 0.5);
     const ladders = laddersForFloor(tower, k);
     const pieces = platformsForFloor(tower, k);
@@ -271,7 +290,9 @@ describe("endless completability: a greedy bot climbs far up a generated tower",
     const crate = obstacleAhead(tower, p.x, p.y, dir);
     return {
       moveX: dir,
-      jump: p.onGround && (!ahead || crate),
+      jump:
+        (p.onGround && (!ahead || crate)) ||
+        (!p.onGround && crate && hops > 0 && !p.jumpHeldPrev),
       climbY: 0,
       usePowerUp: false,
     };
@@ -283,7 +304,7 @@ describe("endless completability: a greedy bot climbs far up a generated tower",
       const m = climbingMatch("solo", ["bot"], tower);
       let ticks = 0;
       while (m.phase === "climb" && ticks < 8000) {
-        stepMatch(m, { bot: botInput(m.players[0], tower) }, SLOW);
+        stepMatch(m, { bot: botInput(m.players[0], tower, m.tick) }, SLOW);
         ticks++;
       }
       // Reached well beyond the difficulty ramp — many floors are solvable.
@@ -296,7 +317,7 @@ describe("endless completability: a greedy bot climbs far up a generated tower",
     const m = climbingMatch("solo", ["bot"], tower);
     let ticks = 0;
     while (m.phase === "climb" && ticks < 20000) {
-      stepMatch(m, { bot: botInput(m.players[0], tower) }, DEFAULT_SIM_CONFIG);
+      stepMatch(m, { bot: botInput(m.players[0], tower, m.tick) }, DEFAULT_SIM_CONFIG);
       ticks++;
     }
     expect(m.phase).toBe("finished");

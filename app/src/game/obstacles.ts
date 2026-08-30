@@ -1,9 +1,10 @@
 /**
  * Tower v3 "The Climb" — floor obstacles.
  *
- * Jump-over crates on the traverse. They tax time the lava spends closing:
- * walking into one stops you; jumping clears it; the top is a one-way landing.
- * Nothing falls from the sky — a knock-down next to lava reads as cheap death.
+ * Jump-over crates on the traverse, and stacked crates that form a stair to
+ * the next floor. They tax time the lava spends closing: walking into one
+ * stops you; jumping clears a hurdle or climbs the stair. Nothing falls from
+ * the sky — a knock-down next to lava reads as cheap death.
  *
  * Placement is a pure function of (tower.seed, floorIndex), same as platforms
  * and ladders, so re-simulation stays bit-identical (AC-11). No Date/random.
@@ -34,6 +35,8 @@ export function obstacleLadderKeepOutM(tower: TowerSpec): number {
 
 /**
  * Crates on floor `i`, or empty. Deterministic in (tower.seed, i).
+ * A floor is either a hurdle (one or two crates on the slab) or a stair of
+ * stacked crates whose last top meets the next floor.
  */
 export function obstaclesForFloor(tower: TowerSpec, i: number): Obstacle[] {
   if (i < MIN_SPAWN_FLOOR) return [];
@@ -42,33 +45,13 @@ export function obstaclesForFloor(tower: TowerSpec, i: number): Obstacle[] {
   const chance = 0.28 + 0.5 * d;
   if (rng.next() >= chance) return [];
 
-  const jumpH = jumpApexM(tower);
-  const height = Math.min(1.5, jumpH * 0.55);
-  const width = 2.2 + 1.4 * d;
-  const count = d > 0.5 && rng.next() < 0.35 ? 2 : 1;
   const kind = resolveGameCategory(tower.categorySlug).fallingHazardType;
-  const y0 = floorHeight(tower, i);
-
-  const placed: Obstacle[] = [];
-  let spans = walkableSpans(tower, i, width);
-  for (let n = 0; n < count; n++) {
-    if (spans.length === 0) break;
-    const span = pickSpan(rng, spans);
-    const room = span.hi - span.lo - width;
-    if (room < 0) break;
-    const x0 = span.lo + rng.next() * room;
-    const x1 = x0 + width;
-    placed.push({
-      floorIndex: i,
-      x0,
-      x1,
-      y0,
-      y1: y0 + height,
-      kind,
-    });
-    spans = punch(spans, x0 - 0.8, x1 + 0.8, width);
+  const stairChance = 0.22 + 0.28 * d;
+  if (rng.next() < stairChance) {
+    const stair = tryStair(tower, i, rng, kind, d);
+    if (stair) return stair;
   }
-  return placed;
+  return placeHurdles(tower, i, rng, kind, d);
 }
 
 /** Obstacles whose crates intersect [yLow, yHigh]. */
@@ -85,8 +68,8 @@ export function obstaclesNearY(
 }
 
 /**
- * Peak of a standing jump (v² / 2g). Crates stay below this so every floor
- * remains solvable without a power-up.
+ * Peak of a standing jump (v² / 2g). Each crate step stays below this so every
+ * floor remains solvable without a power-up.
  */
 export function jumpApexM(tower: TowerSpec): number {
   return (tower.jumpSpeed * tower.jumpSpeed) / (2 * tower.gravity);
@@ -103,11 +86,14 @@ export function obstacleAhead(
   if (dir === 0) return false;
   const lo = dir > 0 ? x : x - lookM;
   const hi = dir > 0 ? x + lookM : x;
-  for (const o of obstaclesNearY(tower, y - 0.25, y + 0.25)) {
+  for (const o of obstaclesNearY(tower, y - 0.25, y + 2.8)) {
     if (y >= o.y1 - 0.08) continue;
+    // Next-floor crates share a generation window but are a storey up — they
+    // are not a hurdle on this walk. Stair steps sit at the current feet.
+    if (o.y0 > y + 0.5) continue;
     if (o.x1 < lo || o.x0 > hi) continue;
-    if (dir > 0 && o.x0 >= x - 0.05) return true;
-    if (dir < 0 && o.x1 <= x + 0.05) return true;
+    if (dir > 0 && o.x1 > x) return true;
+    if (dir < 0 && o.x0 < x) return true;
   }
   return false;
 }
@@ -173,6 +159,156 @@ export function resolveObstacleMotion(
   }
 }
 
+function crateWidthM(d: number): number {
+  return 4.2 + 1.2 * d;
+}
+
+function hurdleHeightM(tower: TowerSpec): number {
+  return Math.min(2.15, jumpApexM(tower) * 0.72);
+}
+
+function placeHurdles(
+  tower: TowerSpec,
+  i: number,
+  rng: { next(): number },
+  kind: Obstacle["kind"],
+  d: number
+): Obstacle[] {
+  const height = hurdleHeightM(tower);
+  const width = crateWidthM(d);
+  const count = d > 0.5 && rng.next() < 0.35 ? 2 : 1;
+  const y0 = floorHeight(tower, i);
+  const placed: Obstacle[] = [];
+  let spans = walkableSpans(tower, i, width);
+  for (let n = 0; n < count; n++) {
+    if (spans.length === 0) break;
+    const span = pickSpan(rng, spans);
+    const room = span.hi - span.lo - width;
+    if (room < 0) break;
+    const x0 = span.lo + rng.next() * room;
+    const x1 = x0 + width;
+    placed.push({
+      floorIndex: i,
+      x0,
+      x1,
+      y0,
+      y1: y0 + height,
+      kind,
+    });
+    spans = punch(spans, x0 - 0.8, x1 + 0.8, width);
+  }
+  return placed;
+}
+
+function tryStair(
+  tower: TowerSpec,
+  i: number,
+  rng: { next(): number },
+  kind: Obstacle["kind"],
+  d: number
+): Obstacle[] | null {
+  const y0 = floorHeight(tower, i);
+  const yNext = floorHeight(tower, i + 1);
+  const gap = yNext - y0;
+  const apex = jumpApexM(tower);
+  const maxStep = Math.min(2.2, apex * 0.82);
+  const nSteps = Math.max(3, Math.ceil(gap / maxStep));
+  const stepH = gap / nSteps;
+  if (stepH >= apex * 0.9) return null;
+
+  const width = crateWidthM(d);
+  const overlapFrac = 0.45 + rng.next() * 0.25;
+  const advance = width * (1 - overlapFrac);
+  const srcPieces = platformsForFloor(tower, i);
+  const destPieces = platformsForFloor(tower, i + 1);
+  const srcSpans = walkableSpans(tower, i, width);
+  const destKeep = obstacleLadderKeepOutM(tower);
+  const destLadders = [
+    ...(i > 0 ? laddersForFloor(tower, i - 1).map((l) => l.x) : []),
+    ...laddersForFloor(tower, i).map((l) => l.x),
+    ...laddersForFloor(tower, i + 1).map((l) => l.x),
+  ];
+
+  const dirs: (-1 | 1)[] = rng.next() < 0.5 ? [1, -1] : [-1, 1];
+  for (const dir of dirs) {
+    for (const span of srcSpans) {
+      const room = span.hi - span.lo - width;
+      if (room < 0) continue;
+      for (let t = 0; t < 6; t++) {
+        const origin = span.lo + (t === 0 ? rng.next() * room : (t / 5) * room);
+        if (
+          stairFits(
+            origin,
+            dir,
+            nSteps,
+            width,
+            advance,
+            srcPieces,
+            destPieces,
+            destLadders,
+            destKeep
+          )
+        ) {
+          return buildStair(i, origin, dir, nSteps, width, advance, y0, stepH, kind);
+        }
+      }
+    }
+  }
+  return null;
+}
+
+function stairFits(
+  origin: number,
+  dir: -1 | 1,
+  nSteps: number,
+  width: number,
+  advance: number,
+  srcPieces: { x0: number; x1: number }[],
+  destPieces: { x0: number; x1: number }[],
+  destLadders: number[],
+  destKeep: number
+): boolean {
+  for (let k = 0; k < nSteps; k++) {
+    const x0 = origin + k * advance * dir;
+    const x1 = x0 + width;
+    if (overlapsLadder(x0, x1, destLadders, destKeep)) return false;
+    if (k < nSteps - 1 && !onSolid(srcPieces, x0, x1)) return false;
+  }
+  const lastX0 = origin + (nSteps - 1) * advance * dir;
+  const lastX1 = lastX0 + width;
+  const overlapNeed = width * 0.45;
+  return destPieces.some((p) => {
+    const overlap = Math.min(lastX1, p.x1) - Math.max(lastX0, p.x0);
+    return overlap >= overlapNeed;
+  });
+}
+
+function buildStair(
+  floorIndex: number,
+  origin: number,
+  dir: -1 | 1,
+  nSteps: number,
+  width: number,
+  advance: number,
+  y0: number,
+  stepH: number,
+  kind: Obstacle["kind"]
+): Obstacle[] {
+  const out: Obstacle[] = [];
+  for (let k = 0; k < nSteps; k++) {
+    const x0 = origin + k * advance * dir;
+    out.push({
+      floorIndex,
+      x0,
+      x1: x0 + width,
+      y0: y0 + k * stepH,
+      y1: y0 + (k + 1) * stepH,
+      kind,
+    });
+  }
+  return out;
+}
+
 function landingObstacle(
   band: Obstacle[],
   x: number,
@@ -215,6 +351,23 @@ function walkableSpans(
     }
   }
   return spans;
+}
+
+function onSolid(
+  pieces: { x0: number; x1: number }[],
+  x0: number,
+  x1: number
+): boolean {
+  return pieces.some((p) => x0 >= p.x0 - 1e-9 && x1 <= p.x1 + 1e-9);
+}
+
+function overlapsLadder(
+  x0: number,
+  x1: number,
+  xs: number[],
+  clear: number
+): boolean {
+  return xs.some((lx) => x0 < lx + clear && x1 > lx - clear);
 }
 
 function punch(spans: Span[], cutLo: number, cutHi: number, minW: number): Span[] {
