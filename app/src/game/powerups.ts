@@ -125,8 +125,6 @@ export interface PowerUpSpec {
   label: string;
   /** One-line explanation for the guide and the a11y announcement. */
   description: string;
-  /** Canvas/HUD glyph. */
-  glyph: string;
   /** Hex colour used for the orb, the HUD chip, and the climber's aura. */
   color: string;
   /** How long the effect lasts, in seconds. */
@@ -152,7 +150,6 @@ export const POWER_UP_SPECS: Record<PowerUpType, PowerUpSpec> = {
     type: "rapid-climb",
     label: "Rapid Climb",
     description: `Climb ladders ${RAPID_CLIMB_MULT}x faster`,
-    glyph: "⇈",
     color: "#4dd9f2",
     durationSeconds: 15,
     cooldownSeconds: 0,
@@ -163,7 +160,6 @@ export const POWER_UP_SPECS: Record<PowerUpType, PowerUpSpec> = {
     type: "sprint-burst",
     label: "Sprint Burst",
     description: `Run ${SPRINT_BURST_MULT}x faster`,
-    glyph: "»",
     color: "#f2d24d",
     durationSeconds: 10,
     cooldownSeconds: 0,
@@ -174,7 +170,6 @@ export const POWER_UP_SPECS: Record<PowerUpType, PowerUpSpec> = {
     type: "giant",
     label: "Giant",
     description: `${GIANT_VISUAL_SCALE}× size · wider grabs & landings`,
-    glyph: "◉",
     color: "#b8f57c",
     durationSeconds: 12,
     cooldownSeconds: 0,
@@ -185,7 +180,6 @@ export const POWER_UP_SPECS: Record<PowerUpType, PowerUpSpec> = {
     type: "jetpack",
     label: "Jetpack",
     description: `Hold jump to thrust (${JETPACK_FUEL_SECONDS}s fuel)`,
-    glyph: "▲",
     color: "#ff9a4a",
     durationSeconds: JETPACK_WINDOW_SECONDS,
     cooldownSeconds: 0,
@@ -197,7 +191,6 @@ export const POWER_UP_SPECS: Record<PowerUpType, PowerUpSpec> = {
     type: "slow-lava",
     label: "Slow Lava",
     description: `Lava rises ${Math.round(TIME_SLOW_FRAC * 100)}% slower`,
-    glyph: "◷",
     color: "#ff8ad4",
     durationSeconds: 8,
     cooldownSeconds: TIME_SLOW_COOLDOWN_SECONDS,

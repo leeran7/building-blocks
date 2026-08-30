@@ -5,8 +5,8 @@
  *
  * The canvas already shows an aura per live effect; this adds the precise
  * remaining time, which a pulsing ring cannot convey, and gives the whole
- * feature real text for screen readers and for anyone who finds the glyphs
- * alone ambiguous.
+ * feature real text for screen readers and for anyone who finds the type
+ * icons alone ambiguous.
  *
  * Layout is deliberately rigid: the strip sits ABOVE the canvas, whose height
  * budget is measured from its own top edge downward, so any growth here moves
@@ -22,6 +22,7 @@ import {
   type PowerUpSpec,
 } from "../../game/powerups";
 import { TICK_HZ, type ActivePowerUp, type PlayerState } from "../../game/types";
+import { PowerUpTypeIcon } from "./PowerUpTypeIcon";
 
 export function PowerUpHud({
   player,
@@ -80,7 +81,12 @@ export function PowerUpHud({
             aria-label={a.label}
             title={a.label}
           >
-            <span aria-hidden="true">{a.spec.glyph}</span>
+            <span
+              aria-hidden="true"
+              className="inline-flex h-[14px] w-[14px] flex-shrink-0"
+            >
+              <PowerUpTypeIcon type={a.type} />
+            </span>
             {a.spec.label}
             <span className="tabular-nums">{a.meter.seconds.toFixed(1)}s</span>
           </span>
