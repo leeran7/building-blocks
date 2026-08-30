@@ -242,7 +242,7 @@ export function ClimbCanvas({
       ctx.fillRect(x0, top, w, 2 * ui); // bright top surface
     }
 
-    // Crates — hurdles on the slab, or stacked as a stair to the next floor.
+    // Crates — hurdles, 3-level triangles, or a stair to the next floor.
     for (const o of obstaclesNearY(tower, yLow, yHigh)) {
       drawObstacle(ctx, o, sx, sy, pxPerM, ui, height);
     }

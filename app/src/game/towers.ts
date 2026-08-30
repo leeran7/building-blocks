@@ -11,11 +11,11 @@
  * still replays exactly (AC-11).
  *
  * Difficulty scales with altitude: the gap you must jump on each floor widens
- * toward the physical jump limit, ladders shift further sideways, and jump-over
- *         crates appear on the traverse (more exposure to the lava), and stacked
- * crates sometimes form a stair to the next floor. Because gaps, hurdles, and
- * stair steps stay within jump reach, every floor remains solvable. Ladders
- * offset from the floors below so they do not stack into a single column.
+ * toward the physical jump limit, ladders shift further sideways, and crates
+ * show up on most floors — jump-over hurdles on the traverse and stacked stairs
+ * to the next slab. Because gaps, hurdles, and stair steps stay within jump
+ * reach, every floor remains solvable. Ladders offset from the floors below so
+ * they do not stack into a single column.
  */
 
 import { TowerSpec, Platform, Ladder } from "./types";
@@ -255,9 +255,9 @@ function ladderCountForFloor(tower: TowerSpec, i: number): number {
   const roll = r.next();
   // Single-ladder floors stay common low down (readable opening) and thin out.
   // Higher floors favor 2 ladders to help with wider gaps. Max is 2 (never 3).
-  const oneChance = 0.50 - 0.20 * d; // 50% at floor 0, 30% at floor 50+
+  const oneChance = 0.5 - 0.2 * d; // 50% at floor 0, 30% at floor 50+
   if (roll < oneChance) return 1;
-  return 2; // Everything else gets 2 ladders (never 3)
+  return 2;
 }
 
 /** X positions of every ladder leaving floor i, primary first (deterministic). */

@@ -69,9 +69,31 @@ function firstHurdle(tower: TowerSpec) {
 function firstStair(tower: TowerSpec) {
   for (let i = 2; i < 200; i++) {
     const os = obstaclesForFloor(tower, i);
-    if (os.length >= 3) return { floor: i, crates: os };
+    if (os.length < 3) continue;
+    const nextY = floorHeight(tower, i + 1);
+    const last = os.reduce((a, b) => (a.y1 >= b.y1 ? a : b));
+    if (Math.abs(last.y1 - nextY) < 0.05) return { floor: i, crates: os };
   }
   throw new Error("expected a crate stair in the first 200 floors");
+}
+
+function firstPyramid(tower: TowerSpec) {
+  for (let i = 2; i < 200; i++) {
+    const os = obstaclesForFloor(tower, i);
+    const floorY = floorHeight(tower, i);
+    const nextY = floorHeight(tower, i + 1);
+    const peak = os.reduce((a, b) => (a.y1 >= b.y1 ? a : b), os[0]);
+    const levels = new Set(os.map((o) => Math.round((o.y0 - floorY) * 100)));
+    if (
+      os.length >= 5 &&
+      levels.size === 3 &&
+      peak &&
+      peak.y1 < nextY - 1
+    ) {
+      return { floor: i, crates: os };
+    }
+  }
+  throw new Error("expected a 3-level hurdle triangle in the first 200 floors");
 }
 
 describe("obstacle spawn", () => {
@@ -139,10 +161,14 @@ describe("obstacle spawn", () => {
     }
   });
 
-  it("shows up on some floors so the traverse is not empty", () => {
+  it("shows up on most floors so the traverse is not empty", () => {
     let n = 0;
-    for (let i = 2; i < 40; i++) n += obstaclesForFloor(TOWER, i).length;
-    expect(n).toBeGreaterThan(5);
+    let floors = 0;
+    for (let i = 2; i < 40; i++) {
+      floors += 1;
+      if (obstaclesForFloor(TOWER, i).length > 0) n += 1;
+    }
+    expect(n).toBeGreaterThan(floors * 0.4);
   });
 
   it("obstaclesNearY includes crates whose band intersects the window", () => {
@@ -173,6 +199,37 @@ describe("obstacle spawn", () => {
     for (let k = 1; k < crates.length; k++) {
       expect(crates[k].y0).toBeCloseTo(crates[k - 1].y1, 5);
     }
+  });
+
+  it("stacks some hurdles into a 3-level triangle on the slab", () => {
+    const { floor, crates } = firstPyramid(TOWER);
+    const floorY = floorHeight(TOWER, floor);
+    const nextY = floorHeight(TOWER, floor + 1);
+    const step = crates[0].y1 - crates[0].y0;
+    const peak = crates.reduce((a, b) => (a.y1 >= b.y1 ? a : b));
+    expect(peak.y1 - floorY).toBeCloseTo(3 * step, 5);
+    expect(peak.y1).toBeLessThan(nextY - 1);
+    const levels = new Set(crates.map((o) => Math.round((o.y0 - floorY) * 50)));
+    expect(levels.size).toBe(3);
+  });
+
+  it("lets a walker crest a hurdle triangle without jumping", () => {
+    const { crates } = firstPyramid(TOWER);
+    const left = crates.reduce((a, b) => (a.x0 <= b.x0 ? a : b));
+    const right = crates.reduce((a, b) => (a.x1 >= b.x1 ? a : b));
+    const m = climbingMatch();
+    const p = m.players[0];
+    p.x = left.x0 - 1.2;
+    p.y = left.y0;
+    p.peakY = left.y0;
+    p.onGround = true;
+    p.vy = 0;
+    for (let i = 0; i < 400 && (p.x < right.x1 + 0.4 || p.y > left.y0 + 0.3); i++) {
+      stepMatch(m, { p1: move(1, false) }, SLOW);
+    }
+    expect(p.x).toBeGreaterThan(right.x1);
+    expect(p.y).toBeCloseTo(left.y0, 1);
+    expect(p.status).toBe("climbing");
   });
 
   it("lets a walker crest a crate stair without jumping", () => {

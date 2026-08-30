@@ -1,9 +1,10 @@
 /**
  * Tower v3 "The Climb" — floor obstacles.
  *
- * Jump-over crates on the traverse, and stacked crates that form a stair to
- * the next floor. They tax time the lava spends closing: walking into a hurdle
- * stops you; jumping clears it. A stair is walk-up — each next crate is a
+ * Jump-over crates on the traverse, stacked crates that form a stair to the
+ * next floor, and three-level hurdle triangles (up one side, down the other).
+ * They tax time the lava spends closing: walking into a lone hurdle stops you;
+ * jumping clears it. A stair or triangle is walk-up — each next crate is a
  * tread, not a wall. Nothing falls from the sky — a knock-down next to lava
  * reads as cheap death.
  *
@@ -29,6 +30,8 @@ const RAMP_FLOORS = 50;
 const EDGE_M = 1.2;
 /** Keep-out around every ladder centre so grab + climb stay unblocked. */
 const LADDER_CLEAR_EXTRA_M = 2.5;
+/** Hurdle pyramids: floor, mid, peak — then back down. */
+const PYRAMID_LEVELS = 3;
 
 export function obstacleLadderKeepOutM(tower: TowerSpec): number {
   return tower.ladderGrabRadius + LADDER_CLEAR_EXTRA_M;
@@ -36,21 +39,26 @@ export function obstacleLadderKeepOutM(tower: TowerSpec): number {
 
 /**
  * Crates on floor `i`, or empty. Deterministic in (tower.seed, i).
- * A floor is either a hurdle (one or two crates on the slab) or a stair of
- * stacked crates whose last top meets the next floor.
+ * A floor is a hurdle (one or two crates on the slab), a three-level hurdle
+ * triangle, or a stair of stacked crates whose last top meets the next floor.
  */
 export function obstaclesForFloor(tower: TowerSpec, i: number): Obstacle[] {
   if (i < MIN_SPAWN_FLOOR) return [];
   const d = Math.min(1, i / RAMP_FLOORS);
   const rng = createRng(`${tower.seed}:ob:${i}`);
-  const chance = 0.28 + 0.5 * d;
+  const chance = 0.5 + 0.42 * d;
   if (rng.next() >= chance) return [];
 
   const kind = resolveGameCategory(tower.categorySlug).fallingHazardType;
-  const stairChance = 0.22 + 0.28 * d;
+  const stairChance = 0.4 + 0.35 * d;
   if (rng.next() < stairChance) {
     const stair = tryStair(tower, i, rng, kind, d);
     if (stair) return stair;
+  }
+  const pyramidChance = 0.4 + 0.2 * d;
+  if (rng.next() < pyramidChance) {
+    const pyramid = tryPyramid(tower, i, rng, kind, d);
+    if (pyramid) return pyramid;
   }
   return placeHurdles(tower, i, rng, kind, d);
 }
@@ -192,7 +200,7 @@ function placeHurdles(
 ): Obstacle[] {
   const height = hurdleHeightM(tower);
   const width = crateWidthM(d);
-  const count = d > 0.5 && rng.next() < 0.35 ? 2 : 1;
+  const count = d > 0.35 && rng.next() < 0.5 ? 2 : 1;
   const y0 = floorHeight(tower, i);
   const placed: Obstacle[] = [];
   let spans = walkableSpans(tower, i, width);
@@ -214,6 +222,44 @@ function placeHurdles(
     spans = punch(spans, x0 - 0.8, x1 + 0.8, width);
   }
   return placed;
+}
+
+function tryPyramid(
+  tower: TowerSpec,
+  i: number,
+  rng: { next(): number },
+  kind: Obstacle["kind"],
+  d: number
+): Obstacle[] | null {
+  const y0 = floorHeight(tower, i);
+  const height = hurdleHeightM(tower);
+  const width = crateWidthM(d);
+  const overlapFrac = 0.32 + rng.next() * 0.1;
+  const advance = width * (1 - overlapFrac);
+  const nCrates = PYRAMID_LEVELS * 2 - 1;
+  const spanW = (nCrates - 1) * advance + width;
+  const pieces = platformsForFloor(tower, i);
+  const spans = walkableSpans(tower, i, spanW);
+  const destKeep = obstacleLadderKeepOutM(tower);
+  const destLadders = [
+    ...(i > 0 ? laddersForFloor(tower, i - 1).map((l) => l.x) : []),
+    ...laddersForFloor(tower, i).map((l) => l.x),
+    ...laddersForFloor(tower, i + 1).map((l) => l.x),
+  ];
+
+  for (const span of spans) {
+    const room = span.hi - span.lo - spanW;
+    if (room < 0) continue;
+    for (let t = 0; t < 6; t++) {
+      const origin = span.lo + (t === 0 ? rng.next() * room : (t / 5) * room);
+      if (
+        pyramidFits(origin, nCrates, width, advance, pieces, destLadders, destKeep)
+      ) {
+        return buildPyramid(i, origin, nCrates, width, advance, y0, height, kind);
+      }
+    }
+  }
+  return null;
 }
 
 function tryStair(
@@ -374,7 +420,52 @@ function walkableSpans(
   return spans;
 }
 
-/** True when `o` is one tread of a stacked stair, not a lone hurdle. */
+function pyramidFits(
+  origin: number,
+  nCrates: number,
+  width: number,
+  advance: number,
+  pieces: { x0: number; x1: number }[],
+  destLadders: number[],
+  destKeep: number
+): boolean {
+  for (let k = 0; k < nCrates; k++) {
+    const x0 = origin + k * advance;
+    const x1 = x0 + width;
+    if (overlapsLadder(x0, x1, destLadders, destKeep)) return false;
+    if (!onSolid(pieces, x0, x1)) return false;
+  }
+  return true;
+}
+
+function buildPyramid(
+  floorIndex: number,
+  origin: number,
+  nCrates: number,
+  width: number,
+  advance: number,
+  y0: number,
+  height: number,
+  kind: Obstacle["kind"]
+): Obstacle[] {
+  const out: Obstacle[] = [];
+  const peak = PYRAMID_LEVELS - 1;
+  for (let k = 0; k < nCrates; k++) {
+    const level = k <= peak ? k : nCrates - 1 - k;
+    const x0 = origin + k * advance;
+    out.push({
+      floorIndex,
+      x0,
+      x1: x0 + width,
+      y0: y0 + level * height,
+      y1: y0 + (level + 1) * height,
+      kind,
+    });
+  }
+  return out;
+}
+
+/** True when `o` is one tread of a stacked stair or pyramid, not a lone hurdle. */
 function isStairCrate(band: Obstacle[], o: Obstacle): boolean {
   for (const b of band) {
     if (b.floorIndex !== o.floorIndex) continue;

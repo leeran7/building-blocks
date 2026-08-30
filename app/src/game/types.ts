@@ -163,8 +163,9 @@ export interface Platform {
 
 /**
  * A crate on or above a floor. Solid from the sides; the top is a one-way
- * landing. Single crates are hurdles; stacked ones form a stair to the next
- * floor. Generated per floor from the tower seed (AC-11).
+ * landing. Single crates are hurdles; three stacked as a triangle sit on the
+ * slab; a taller run forms a stair to the next floor. Generated per floor from
+ * the tower seed (AC-11).
  */
 export interface Obstacle {
   floorIndex: number;
