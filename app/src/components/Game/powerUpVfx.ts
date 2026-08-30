@@ -16,6 +16,7 @@ import {
   type PowerUpPickup,
   type PowerUpType,
 } from "../../game/types";
+import { drawPowerUpIcon, drawPowerUpOrbBody } from "./powerUpVisuals";
 
 /** Ticks the pickup burst plays for (matches ClimbCanvas). */
 export const PICKUP_BURST_TICKS = 18;
@@ -27,6 +28,11 @@ export const PICKUP_SCREEN_FLASH_TICKS = 10;
 export const PICKUP_SHAKE_TICKS = 8;
 
 const TAU = Math.PI * 2;
+const ORB_ICON_SIZE_FRAC = 1.15;
+const BANNER_ICON_SIZE_UI = 16;
+const BANNER_ICON_GAP_UI = 8;
+const BANNER_PILL_PAD_UI = 28;
+const BANNER_PILL_HEIGHT_UI = 36;
 
 /** Deterministic pseudo-random in [0, 1) from integers. */
 export function hash01(a: number, b: number, c: number = 0): number {
@@ -109,25 +115,15 @@ export function drawPowerUpOrb(
   ctx.stroke();
   ctx.setLineDash([]);
 
-  // Diamond body with a slow wobble.
+  // Type-specific body with a slow wobble.
   const wobble = reducedMotion ? 0 : Math.sin(phase * 0.7) * 0.06;
   ctx.save();
   ctx.translate(cx, cy);
   ctx.rotate(wobble);
   ctx.globalAlpha = dim;
-  ctx.beginPath();
-  ctx.moveTo(0, -r);
-  ctx.lineTo(r * 0.8, 0);
-  ctx.lineTo(0, r);
-  ctx.lineTo(-r * 0.8, 0);
-  ctx.closePath();
-  ctx.fillStyle = "#0a0a0c";
-  ctx.fill();
-  ctx.strokeStyle = spec.color;
-  ctx.lineWidth = Math.max(1.5, r * 0.16);
-  ctx.stroke();
+  drawPowerUpOrbBody(ctx, pu.type, r, spec.color);
 
-  // Corner sparkles on the diamond.
+  // Corner sparkles on the body.
   if (!reducedMotion) {
     const sparkle = 0.45 + 0.55 * Math.sin(tick * 0.31 + pu.floorIndex);
     ctx.globalAlpha = sparkle * 0.85 * dim;
@@ -142,13 +138,8 @@ export function drawPowerUpOrb(
     }
   }
 
-  // Glyph.
   ctx.globalAlpha = dim;
-  ctx.fillStyle = spec.color;
-  ctx.font = `bold ${Math.round(r * 1.15)}px monospace`;
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  ctx.fillText(spec.glyph, 0, r * 0.04);
+  drawPowerUpIcon(ctx, pu.type, 0, 0, r * ORB_ICON_SIZE_FRAC, spec.color);
   ctx.restore();
 
   // Name plate.
@@ -539,23 +530,26 @@ export function drawPickupBanner(
   const t = age / PICKUP_FLASH_TICKS;
   const scale = pickupBannerScale(t, reducedMotion);
   const alpha = 1 - t * t;
-  const title = `${spec.glyph} ${spec.label.toUpperCase()}`;
+  const title = spec.label.toUpperCase();
   const subtitle = spec.description.toUpperCase();
   const ty = hudH + 46 * ui - t * 14 * ui;
   const cx = width / 2;
+  const iconSize = BANNER_ICON_SIZE_UI * ui;
+  const gap = BANNER_ICON_GAP_UI * ui;
 
   ctx.save();
   ctx.globalAlpha = alpha;
   ctx.textAlign = "center";
 
-  // Glow pill behind the text.
   ctx.font = `bold ${Math.round(15 * ui)}px monospace`;
   const titleW = ctx.measureText(title).width;
   ctx.font = `${Math.round(10 * ui)}px monospace`;
   const subW = ctx.measureText(subtitle).width;
-  const pillW = Math.max(titleW, subW) + 28 * ui;
-  const pillH = 36 * ui;
+  const innerW = iconSize + gap + Math.max(titleW, subW);
+  const pillW = innerW + BANNER_PILL_PAD_UI * ui;
+  const pillH = BANNER_PILL_HEIGHT_UI * ui;
   const pillY = ty - 18 * ui;
+  const groupLeft = cx - innerW / 2;
 
   ctx.save();
   ctx.translate(cx, ty);
@@ -572,14 +566,27 @@ export function drawPickupBanner(
   ctx.lineWidth = 1.5 * ui;
   ctx.stroke();
 
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  drawPowerUpIcon(
+    ctx,
+    spec.type,
+    groupLeft + iconSize / 2,
+    ty,
+    iconSize,
+    spec.color
+  );
+  ctx.restore();
+
   ctx.font = `bold ${Math.round(15 * ui)}px monospace`;
   ctx.fillStyle = spec.color;
   ctx.globalAlpha = alpha;
-  ctx.fillText(title, cx, ty);
+  ctx.textAlign = "left";
+  ctx.fillText(title, groupLeft + iconSize + gap, ty);
 
   ctx.font = `${Math.round(10 * ui)}px monospace`;
   ctx.fillStyle = "#f4f2ec";
-  ctx.fillText(subtitle, cx, ty + 14 * ui);
+  ctx.fillText(subtitle, groupLeft + iconSize + gap, ty + 14 * ui);
   ctx.restore();
 
   ctx.restore();

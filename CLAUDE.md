@@ -28,4 +28,4 @@ are proposed for `skills/closed-loop/gates.md`. Do not paste them into all
 Git remotes and branch policy: `context/git.md`. Package managers and
 gates: `context/profile.json` and `context/gates.json`.
 
-Whole-app loop: `@orchestrator`, `/closed-loop`, or `yarn loop "…"`.
+Closed loop (any scoped goal): `@orchestrator`, `/closed-loop`, or `yarn loop "…"`.

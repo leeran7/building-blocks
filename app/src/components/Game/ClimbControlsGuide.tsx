@@ -12,6 +12,7 @@ import {
   POWER_UP_TYPES,
   type PowerUpSpec,
 } from "../../game/powerups";
+import { PowerUpTypeIcon } from "./PowerUpTypeIcon";
 
 type Variant = "card" | "compact" | "overlay";
 
@@ -155,11 +156,13 @@ export function ClimbControlsGuide({ variant = "card" }: { variant?: Variant }) 
             return (
               <li key={type} className="flex items-start gap-2.5">
                 <span
-                  className="mt-0.5 flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-md border font-mono text-xs"
+                  className="mt-0.5 flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-md border"
                   style={{ borderColor: spec.color, color: spec.color }}
                   aria-hidden="true"
                 >
-                  {spec.glyph}
+                  <span className="inline-flex h-4 w-4">
+                    <PowerUpTypeIcon type={type} />
+                  </span>
                 </span>
                 <div className="min-w-0">
                   <p className="text-xs font-medium text-text-primary">{spec.label}</p>

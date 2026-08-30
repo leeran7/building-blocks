@@ -26,9 +26,13 @@ import {
   PlayerState,
   TowerSpec,
   PlayerId,
+  TICK_HZ,
   NO_INPUT,
 } from "../../src/game/types";
-import { DEFAULT_HAZARD_CONFIG } from "../../src/game/hazard";
+import {
+  DEFAULT_HAZARD_CONFIG,
+  HAZARD_CATCHUP_LEAD_M,
+} from "../../src/game/hazard";
 import {
   buildTower,
   ladderForFloor,
@@ -426,3 +430,74 @@ describe("regression: a climber can move from the base; idling loses", () => {
     expect(m.players[0].status).toBe("eliminated");
   });
 });
+
+describe("hazard catch-up: lava closes a large lead", () => {
+  it("rises faster when the climber is over 125m ahead than when they are close", () => {
+    const sampleTicks = 4 * TICK_HZ;
+    const far = riseWhileHeld(HAZARD_CATCHUP_LEAD_M + 1, sampleTicks);
+    const near = riseWhileHeld(50, sampleTicks);
+    const atThreshold = riseWhileHeld(HAZARD_CATCHUP_LEAD_M, sampleTicks);
+    expect(far.rise).toBeGreaterThan(near.rise);
+    expect(near.rise).toBeCloseTo(atThreshold.rise, 6);
+    expect(near.banked).toBe(0);
+    expect(far.banked).toBeLessThan(0);
+  });
+
+  it("slows back to the normal clock once the lead is within 125m again", () => {
+    const sampleTicks = 4 * TICK_HZ;
+    const m = climbingMatch("solo", ["p1"]);
+    silenceOrbs(m);
+    const p = m.players[0];
+    const warm = Math.round(TICK_HZ * (DEFAULT_HAZARD_CONFIG.graceSeconds + 2));
+    const hold = (leadM: number, n: number) => {
+      for (let i = 0; i < n; i++) {
+        p.y = m.hazardY + leadM;
+        p.peakY = p.y;
+        stepMatch(m, { p1: IDLE }, DEFAULT_SIM_CONFIG);
+      }
+    };
+    hold(50, warm);
+    const yFar0 = m.hazardY;
+    const bankedFar0 = m.hazardSlowSeconds;
+    hold(HAZARD_CATCHUP_LEAD_M + 20, sampleTicks);
+    const farRise = m.hazardY - yFar0;
+    const farBanked = m.hazardSlowSeconds - bankedFar0;
+    const yNear0 = m.hazardY;
+    const bankedNear0 = m.hazardSlowSeconds;
+    hold(50, sampleTicks);
+    const nearRise = m.hazardY - yNear0;
+    const nearBanked = m.hazardSlowSeconds - bankedNear0;
+    expect(farBanked).toBeLessThan(0);
+    expect(nearBanked).toBe(0);
+    expect(nearRise).toBeLessThan(farRise);
+  });
+});
+
+/** Warm past grace, then hold the climber at a fixed lead and measure lava rise. */
+function riseWhileHeld(
+  leadM: number,
+  sampleTicks: number
+): { rise: number; banked: number } {
+  const m = climbingMatch("solo", ["p1"]);
+  silenceOrbs(m);
+  const p = m.players[0];
+  const warm = Math.round(TICK_HZ * (DEFAULT_HAZARD_CONFIG.graceSeconds + 2));
+  const hold = (n: number) => {
+    for (let i = 0; i < n; i++) {
+      p.y = m.hazardY + leadM;
+      p.peakY = p.y;
+      stepMatch(m, { p1: IDLE }, DEFAULT_SIM_CONFIG);
+    }
+  };
+  hold(warm);
+  const y0 = m.hazardY;
+  const banked0 = m.hazardSlowSeconds;
+  hold(sampleTicks);
+  return { rise: m.hazardY - y0, banked: m.hazardSlowSeconds - banked0 };
+}
+
+/** Keep orbs from spawning so a held climber cannot pick up slow-lava. */
+function silenceOrbs(m: MatchState): void {
+  m.powerUps = [];
+  m.powerUpFloorHi = 100_000;
+}

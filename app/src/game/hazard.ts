@@ -16,11 +16,16 @@
  *   - height is the integral of that speed over race-time.
  *
  * The envelope never exceeds 1× the ladder climb rate, so holding climb on a
- * ladder always keeps pace or pulls ahead (stumbles are slower). Runs still
- * end when the player dawdles on a floor, misses a ladder, or stops climbing.
+ * ladder always keeps pace or pulls ahead (stumbles are slower). When the
+ * lead climber is more than `HAZARD_CATCHUP_LEAD_M` ahead, the simulation
+ * advances this clock a little faster so lava can close the gap. The boost
+ * is not sticky: as soon as the lead is at or under that distance, the
+ * clock returns to 1×. Runs still end when the player dawdles on a floor,
+ * misses a ladder, or stops climbing.
  *
- * The function is a pure, deterministic function of (race-time, climb speed,
- * config), which the re-simulation anti-cheat relies on (AC-11).
+ * Height is a pure, deterministic function of (race-time, climb speed,
+ * config), which the re-simulation anti-cheat relies on (AC-11). Catch-up is
+ * a clock multiplier in the sim, not a second random curve.
  */
 
 /** Tuning for the movement-proportional rising hazard. */
@@ -79,6 +84,12 @@ export const DEFAULT_HAZARD_CONFIG: HazardConfig = {
   stumbleSpeedFrac: 0.25,
   speedScale: 1,
 };
+
+/** Lead (metres above lava) at which the lava clock starts catching up. */
+export const HAZARD_CATCHUP_LEAD_M = 125;
+
+/** Clock multiplier while the lead climber is farther than the catch-up lead. */
+export const HAZARD_CATCHUP_TIME_SCALE = 1.25;
 
 /**
  * Time-averaged end-game speed fraction, including stumbles.
@@ -240,4 +251,16 @@ function envelopeIntegral(
     envelopeIntegral(t0, ramp, v0, v1, ramp, accel) +
     envelopeIntegral(ramp, t1, v0, v1, ramp, accel)
   );
+}
+
+/**
+ * Clock multiplier so lava can close a large gap. Evaluated from the
+ * current lead every tick — it does not latch. At or under the threshold
+ * the curve runs at 1×; beyond it the sim samples a little faster.
+ * Deterministic: same lead → same scale (AC-11).
+ */
+export function hazardCatchupTimeScale(leadM: number): number {
+  // Slack so `hazardY + 125 − hazardY` float noise does not keep the boost on
+  // when the climber is already within the threshold.
+  return leadM > HAZARD_CATCHUP_LEAD_M + 1e-6 ? HAZARD_CATCHUP_TIME_SCALE : 1;
 }

@@ -241,10 +241,11 @@ export interface MatchState {
   raceSeconds: number;
   hazardY: number;
   /**
-   * Seconds of hazard rise cancelled by slow-lava. The hazard reads the clock
-   * at `raceSeconds - hazardSlowSeconds` rather than being scaled directly:
-   * scaling a height curve that is already an integral would make the lava
-   * drop, and the lava must only ever rise.
+   * Seconds subtracted from race-time before sampling the hazard curve.
+   * Slow-lava increases this (lava spends fewer seconds). Catch-up when the
+   * lead climber is far ahead decreases it — it can go negative — so the
+   * curve is sampled a little faster. Height is still only ever non-decreasing
+   * because the curve is monotonic in time.
    */
   hazardSlowSeconds: number;
   tower: TowerSpec;

@@ -26,7 +26,7 @@
  *     wasted if you are not on a ladder, leftover jetpack fuel dies if jump
  *     is not held (or with the spend window);
  *   - multipliers under 2x, so no single pickup trivialises a floor;
- *   - slow-lava halves the lava's clock and is the rarest drop, but
+ *   - slow-lava cuts the lava's clock by 40% and is the rarest drop, but
  *     weights toward it with altitude — exactly where the lava wins — so a deep
  *     run keeps getting the tool it needs to go deeper.
  *
@@ -36,10 +36,10 @@
  * that: held at 100% uptime it would drop the lava to (1 − TIME_SLOW_FRAC) of
  * its clock and the tower could become survivable forever. Its cooldown is
  * what keeps the guarantee — it caps uptime at 8s in every 48s, so the lava
- * still averages meanSpeedFrac · (1 − 0.5 · 0.167) ≈ 1.06x the climb speed.
- * Do not raise TIME_SLOW_FRAC or shorten the cooldown without redoing that
- * arithmetic — `powerups.test.ts` asserts the bound. The 8s/40s pair keeps
- * the same uptime fraction as the old 6s/30s window.
+ * still averages meanSpeedFrac · (1 − TIME_SLOW_FRAC · 0.167). At 0.4 that is
+ * 0.75 · 0.933 = 0.700. Do not raise TIME_SLOW_FRAC or shorten the cooldown
+ * without redoing that arithmetic — `powerups.test.ts` asserts the bound.
+ * The 8s/40s pair keeps the same uptime fraction as the old 6s/30s window.
  *
  * Spawns are a seeded GAP SCHEDULE, not independent per-floor coin flips:
  * a random first floor, then mixed clusters and droughts whose mean gap
@@ -113,10 +113,10 @@ export const DOUBLE_JUMP_MULT = 0.92;
 /** Mid-air jumps granted per double-jump activation. */
 export const DOUBLE_JUMP_CHARGES = 2;
 /**
- * Fraction of the lava's rise cancelled while slow-lava runs. Half the clock
- * (0.5) so the line visibly slows without stalling the way 0.75 did.
+ * Fraction of the lava's rise cancelled while slow-lava runs. 0.4 so the
+ * line visibly slows without stalling the way 0.75 did.
  */
-export const TIME_SLOW_FRAC = 0.5;
+export const TIME_SLOW_FRAC = 0.4;
 /** Seconds before slow-lava may be used again — the endless-run guarantee. */
 export const TIME_SLOW_COOLDOWN_SECONDS = 40;
 
@@ -131,8 +131,6 @@ export interface PowerUpSpec {
   label: string;
   /** One-line explanation for the guide and the a11y announcement. */
   description: string;
-  /** Canvas/HUD glyph. */
-  glyph: string;
   /** Hex colour used for the orb, the HUD chip, and the climber's aura. */
   color: string;
   /** How long the effect lasts, in seconds. */
@@ -165,9 +163,8 @@ export const POWER_UP_SPECS: Record<PowerUpType, PowerUpSpec> = {
     type: "rapid-climb",
     label: "Rapid Climb",
     description: `Climb ladders ${RAPID_CLIMB_MULT}x faster`,
-    glyph: "⇈",
     color: "#4dd9f2",
-    durationSeconds: 15,
+    durationSeconds: 10,
     cooldownSeconds: 0,
     weight: 26,
     altitudeWeightMult: 1.15,
@@ -176,7 +173,6 @@ export const POWER_UP_SPECS: Record<PowerUpType, PowerUpSpec> = {
     type: "sprint-burst",
     label: "Sprint Burst",
     description: `Run ${SPRINT_BURST_MULT}x faster`,
-    glyph: "»",
     color: "#f2d24d",
     durationSeconds: 10,
     cooldownSeconds: 0,
@@ -187,7 +183,6 @@ export const POWER_UP_SPECS: Record<PowerUpType, PowerUpSpec> = {
     type: "double-jump",
     label: "Double Jump",
     description: `${DOUBLE_JUMP_CHARGES} extra jumps in mid-air`,
-    glyph: "⇡",
     color: "#a98cf5",
     durationSeconds: 18,
     cooldownSeconds: 0,
@@ -200,9 +195,8 @@ export const POWER_UP_SPECS: Record<PowerUpType, PowerUpSpec> = {
     type: "giant",
     label: "Giant",
     description: `${GIANT_VISUAL_SCALE}× size · wider grabs & landings`,
-    glyph: "◉",
     color: "#b8f57c",
-    durationSeconds: 12,
+    durationSeconds: 20,
     cooldownSeconds: 0,
     weight: 22,
     altitudeWeightMult: 1,
@@ -211,7 +205,6 @@ export const POWER_UP_SPECS: Record<PowerUpType, PowerUpSpec> = {
     type: "jetpack",
     label: "Jetpack",
     description: `Hold jump to thrust (${JETPACK_FUEL_SECONDS}s fuel)`,
-    glyph: "▲",
     color: "#ff9a4a",
     durationSeconds: JETPACK_WINDOW_SECONDS,
     cooldownSeconds: 0,
@@ -223,7 +216,6 @@ export const POWER_UP_SPECS: Record<PowerUpType, PowerUpSpec> = {
     type: "slow-lava",
     label: "Slow Lava",
     description: `Lava rises ${Math.round(TIME_SLOW_FRAC * 100)}% slower`,
-    glyph: "◷",
     color: "#ff8ad4",
     durationSeconds: 8,
     cooldownSeconds: TIME_SLOW_COOLDOWN_SECONDS,
@@ -545,8 +537,9 @@ export type PowerUpChipMeter = {
 };
 
 /**
- * HUD chip fill and numeral. Jetpack shows the fuel tank, not the spend
- * window — a window-only chip would look full after the pack has already died.
+ * HUD chip fill and primary numeral. Jetpack fill tracks the fuel tank so an
+ * empty pack does not look full; the HUD also prints the spend window beside
+ * that numeral so leftover fuel cannot expire unseen.
  */
 export function powerUpChipMeter(a: ActivePowerUp, tick: number): PowerUpChipMeter {
   const spec = POWER_UP_SPECS[a.type];

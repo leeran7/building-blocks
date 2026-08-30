@@ -5,8 +5,8 @@
  *
  * The canvas already shows an aura per live effect; this adds the precise
  * remaining time, which a pulsing ring cannot convey, and gives the whole
- * feature real text for screen readers and for anyone who finds the glyphs
- * alone ambiguous.
+ * feature real text for screen readers and for anyone who finds the type
+ * icons alone ambiguous.
  *
  * Layout is deliberately rigid: the strip sits ABOVE the canvas, whose height
  * budget is measured from its own top edge downward, so any growth here moves
@@ -22,6 +22,7 @@ import {
   type PowerUpSpec,
 } from "../../game/powerups";
 import { TICK_HZ, type ActivePowerUp, type PlayerState } from "../../game/types";
+import { PowerUpTypeIcon } from "./PowerUpTypeIcon";
 
 export function PowerUpHud({
   player,
@@ -50,6 +51,7 @@ export function PowerUpHud({
         type: a.type,
         spec,
         meter,
+        windowSeconds,
         fresh: ageTicks >= 0 && ageTicks < 18,
         urgent: meter.frac <= 0.15 || windowSeconds <= 1,
         label: chipAriaLabel(spec, meter, windowSeconds),
@@ -80,9 +82,19 @@ export function PowerUpHud({
             aria-label={a.label}
             title={a.label}
           >
-            <span aria-hidden="true">{a.spec.glyph}</span>
+            <span
+              aria-hidden="true"
+              className="inline-flex h-[14px] w-[14px] flex-shrink-0"
+            >
+              <PowerUpTypeIcon type={a.type} />
+            </span>
             {a.spec.label}
-            <span className="tabular-nums">{a.meter.seconds.toFixed(1)}s</span>
+            <span className="tabular-nums">{formatChipMeter(a.meter)}</span>
+            {a.meter.kind === "fuel" ? (
+              <span className="tabular-nums opacity-70">
+                {a.windowSeconds.toFixed(1)}s
+              </span>
+            ) : null}
           </span>
         ))}
 
@@ -138,7 +150,12 @@ function chipAriaLabel(
   windowSeconds: number
 ): string {
   if (meter.kind === "fuel") {
-    return `${spec.label}, ${meter.seconds.toFixed(1)}s fuel, ${windowSeconds.toFixed(1)}s remaining`;
+    return `${spec.label}, ${meter.seconds.toFixed(1)} gal fuel, ${windowSeconds.toFixed(1)}s remaining`;
   }
   return `${spec.label}, ${meter.seconds.toFixed(1)}s remaining`;
+}
+
+function formatChipMeter(meter: PowerUpChipMeter): string {
+  if (meter.kind === "fuel") return `${meter.seconds.toFixed(1)} gal`;
+  return `${meter.seconds.toFixed(1)}s`;
 }
