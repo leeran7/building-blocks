@@ -127,6 +127,15 @@ export interface PlayerState {
    * simulation never reads it back.
    */
   jetpackThrusting: boolean;
+  /**
+   * True after stepping off a ladder onto a platform (its top or bottom) while
+   * the climb intent is still held. It suppresses re-grabbing a ladder until the
+   * climb button is released, and clears the moment it is. Without it, topping
+   * out with the mobile climb button still down instantly re-grabbed a ladder on
+   * that same surface and snapped the climber's x back, so they could not walk
+   * away — the "stuck after getting off a ladder" bug.
+   */
+  grabSuppressedUntilRelease: boolean;
 }
 
 /**

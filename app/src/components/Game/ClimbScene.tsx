@@ -21,10 +21,15 @@ import { ClimbCanvas } from "./ClimbCanvas";
 import { ClimbControlsGuide } from "./ClimbControlsGuide";
 import { PowerUpHud } from "./PowerUpHud";
 import { usePowerUpFeedback } from "./usePowerUpFeedback";
-import { TouchControls, TOUCH_CONTROLS_INSET } from "./TouchControls";
+import {
+  TouchControls,
+  TOUCH_CONTROLS_INSET,
+  TOUCH_CONTROLS_MIN_BOTTOM,
+} from "./TouchControls";
 import { useAuth } from "../../contexts/AuthContext";
 import { useCanvasSize } from "../../hooks/useCanvasSize";
 import { useCoarsePointer } from "../../hooks/useCoarsePointer";
+import { useSafeAreaInsets } from "../../hooks/useSafeAreaInsets";
 import { climberHandle } from "../../lib/handle";
 import { ShareRun } from "./ShareRun";
 import {
@@ -49,6 +54,14 @@ interface SaveInfo {
 }
 
 const PENDING_CLIMB_KEY = "doomstack:pending-climb";
+
+/**
+ * Approx height (px) of the on-canvas height/lava HUD bar, so the overlaid
+ * power-up strip on the full-bleed mobile stage sits just under it rather than
+ * on top of it. Tracks the 34px bar in ClimbCanvas with a little breathing room;
+ * exact alignment is not load-bearing.
+ */
+const MOBILE_HUD_BAR_PX = 40;
 
 function usePrefersReducedMotion(): boolean {
   const [reduced, setReduced] = useState(false);
@@ -75,7 +88,10 @@ export function ClimbScene({ tower, categoryLabel, replay = null }: ClimbScenePr
   // renders between them, and budgeting from the root would ignore its height
   // and push the canvas (and the controls overlaid on it) past the fold.
   const canvasBoxRef = useRef<HTMLDivElement>(null);
-  const canvasSize = useCanvasSize(canvasBoxRef);
+  // Touch devices get the full-bleed iOS stage: the canvas fills the viewport
+  // and matches the device aspect. Desktop keeps the framed 9:16 column.
+  const canvasSize = useCanvasSize(canvasBoxRef, { fill: touchDevice });
+  const safeArea = useSafeAreaInsets();
   const { user, token } = useAuth();
   const [posted, setPosted] = useState(false);
   const [saveInfo, setSaveInfo] = useState<SaveInfo | null>(null);
@@ -88,6 +104,11 @@ export function ClimbScene({ tower, categoryLabel, replay = null }: ClimbScenePr
   const phase = state.phase;
   const touchControlsActive =
     touchDevice && !finished && (phase === "countdown" || phase === "climb");
+  // Camera clearance under the touch controls = the buttons + their bottom gutter
+  // (which grows into the home-indicator safe area). 0 on desktop (no controls).
+  const bottomInset = touchDevice
+    ? TOUCH_CONTROLS_INSET + Math.max(TOUCH_CONTROLS_MIN_BOTTOM, safeArea.bottom)
+    : 0;
   const { muted, setMuted, announcement, unlockAudio } = usePowerUpFeedback(
     player,
     state.tick,
@@ -208,10 +229,25 @@ export function ClimbScene({ tower, categoryLabel, replay = null }: ClimbScenePr
   }, [user, token, postRun]);
 
   return (
-    <div className="flex flex-col items-center gap-4 w-full">
+    <div
+      className={
+        touchDevice
+          ? "fixed inset-0 z-40 bg-void"
+          : "flex flex-col items-center gap-4 w-full"
+      }
+    >
       {savedBanner?.saved && (
         <div
-          className="w-full rounded-xl border border-signal/40 bg-signal/[0.06] px-4 py-2.5 text-center"
+          className={
+            touchDevice
+              ? "absolute left-1/2 z-30 w-[min(92%,28rem)] -translate-x-1/2 rounded-xl border border-signal/40 bg-signal/[0.06] px-4 py-2.5 text-center"
+              : "w-full rounded-xl border border-signal/40 bg-signal/[0.06] px-4 py-2.5 text-center"
+          }
+          style={
+            touchDevice
+              ? { top: safeArea.top + MOBILE_HUD_BAR_PX + 8 }
+              : undefined
+          }
           role="status"
         >
           <p className="font-mono text-xs uppercase tracking-[0.14em] text-signal">
@@ -226,27 +262,55 @@ export function ClimbScene({ tower, categoryLabel, replay = null }: ClimbScenePr
         </div>
       )}
 
-      {/* Above the canvas on purpose — see the note in PowerUpHud on why it
-          must not sit below it. */}
-      <div style={{ width: canvasSize.width }}>
-        <PowerUpHud
-          player={player}
-          tick={state.tick}
-          muted={muted}
-          onToggleMute={() => setMuted(!muted)}
-          announcement={announcement}
-          runId={runId}
-        />
+      {/* Power-up strip. Desktop: in-flow above the canvas (see the note in
+          PowerUpHud on why it must not sit below it). Mobile: overlaid at the top
+          of the full-bleed stage, tucked just under the safe area + HUD bar. */}
+      <div
+        className={
+          touchDevice
+            ? "pointer-events-none absolute inset-x-0 top-0 z-20"
+            : undefined
+        }
+        style={
+          touchDevice
+            ? {
+                paddingTop: safeArea.top + MOBILE_HUD_BAR_PX,
+                paddingLeft: `max(8px, ${safeArea.left}px)`,
+                paddingRight: `max(8px, ${safeArea.right}px)`,
+              }
+            : { width: canvasSize.width }
+        }
+      >
+        <div className={touchDevice ? "pointer-events-auto" : undefined}>
+          <PowerUpHud
+            player={player}
+            tick={state.tick}
+            muted={muted}
+            onToggleMute={() => setMuted(!muted)}
+            announcement={announcement}
+            runId={runId}
+          />
+        </div>
       </div>
 
-      {/* Width tracks the canvas so the overlays line up with it exactly. */}
-      <div ref={canvasBoxRef} className="relative" style={{ width: canvasSize.width }}>
+      {/* Desktop: width tracks the canvas so overlays line up. Mobile: the box
+          fills the whole full-bleed stage. */}
+      <div
+        ref={canvasBoxRef}
+        data-climb-surface
+        className={
+          touchDevice ? "relative h-full w-full overflow-hidden" : "relative"
+        }
+        style={touchDevice ? undefined : { width: canvasSize.width }}
+      >
         <ClimbCanvas
           state={state}
           reducedMotion={reducedMotion}
           width={canvasSize.width}
           height={canvasSize.height}
-          bottomInset={touchDevice ? TOUCH_CONTROLS_INSET : 0}
+          bottomInset={bottomInset}
+          fullBleed={touchDevice}
+          hudInsetTop={touchDevice ? safeArea.top : 0}
         />
 
         {phase === "countdown" && (
@@ -275,6 +339,12 @@ export function ClimbScene({ tower, categoryLabel, replay = null }: ClimbScenePr
             </p>
             <ClimbControlsGuide variant="overlay" />
             <StartButton onClick={handleStart} label="Start climb" />
+            <Link
+              href="/climb"
+              className="mt-4 text-sm text-accent hover:brightness-110 underline underline-offset-4"
+            >
+              View leaderboard →
+            </Link>
           </Overlay>
         )}
 

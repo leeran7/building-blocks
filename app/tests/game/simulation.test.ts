@@ -32,6 +32,7 @@ import { DEFAULT_HAZARD_CONFIG } from "../../src/game/hazard";
 import {
   buildTower,
   ladderForFloor,
+  laddersForFloor,
   platformsForFloor,
   floorHeight,
   floorIndexAt,
@@ -141,6 +142,65 @@ describe("ladders: grab and climb from one floor to the next", () => {
     }
     expect(p.y).toBeGreaterThanOrEqual(top);
     expect(p.status).toBe("climbing");
+  });
+});
+
+describe("ladder dismount: a held climb button does not re-stick you to a ladder", () => {
+  // The mobile stuck-after-ladder bug: the only climb control on touch is a held
+  // "up" button, so it is still down when you top out. If another ladder leaves
+  // the surface you step onto within grab radius, a per-tick grab snapped you
+  // straight back and you couldn't walk away. Find such a surface so the test
+  // exercises exactly that geometry.
+  const UP_RIGHT: PlayerInput = { moveX: 1, jump: false, climbY: 1, usePowerUp: false };
+
+  function findReGrabFloor(tower: TowerSpec): { floor: number; ladderX: number } {
+    for (let i = 0; i < 120; i++) {
+      const climbed = ladderForFloor(tower, i); // top lands on floor i+1
+      const leaving = laddersForFloor(tower, i + 1); // ladders off that surface
+      if (leaving.some((b) => Math.abs(b.x - climbed.x) <= tower.ladderGrabRadius)) {
+        return { floor: i, ladderX: climbed.x };
+      }
+    }
+    throw new Error("no floor with a re-grabbable ladder above found");
+  }
+
+  function climbToTop(tower: TowerSpec): { m: MatchState; p: PlayerState; floor: number } {
+    const { floor, ladderX } = findReGrabFloor(tower);
+    const m = climbingMatch("solo", ["p1"], tower);
+    const p = m.players[0];
+    p.x = ladderX;
+    p.y = floorHeight(tower, floor);
+    p.peakY = p.y;
+    p.onGround = true;
+    const top = floorHeight(tower, floor + 1);
+    for (let t = 0; t < 400 && p.y < top; t++) stepMatch(m, { p1: UP }, SLOW);
+    expect(p.onLadder).toBe(false);
+    expect(p.y).toBeGreaterThanOrEqual(top);
+    return { m, p, floor };
+  }
+
+  it("lets the climber walk off the top with the climb button still held", () => {
+    const tower = buildTower("indie-games");
+    const { m, p } = climbToTop(tower);
+    const xAtTop = p.x;
+    // Keep holding climb AND press right — the touch case where the climb finger
+    // is still down. The player must move, not snap back onto a ladder.
+    for (let k = 0; k < 6; k++) stepMatch(m, { p1: UP_RIGHT }, SLOW);
+    expect(p.onLadder).toBe(false);
+    expect(p.x).toBeGreaterThan(xAtTop + 1.5);
+  });
+
+  it("still grabs a ladder once the climb button is released and pressed again", () => {
+    const tower = buildTower("indie-games");
+    const { m, p } = climbToTop(tower);
+    // Release for a tick (clears the suppression), then a deliberate press grabs.
+    stepMatch(m, { p1: IDLE }, SLOW);
+    let grabbed = false;
+    for (let k = 0; k < 10 && !grabbed; k++) {
+      stepMatch(m, { p1: UP }, SLOW);
+      grabbed = p.onLadder;
+    }
+    expect(grabbed).toBe(true);
   });
 });
 

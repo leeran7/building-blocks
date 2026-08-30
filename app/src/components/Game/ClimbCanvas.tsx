@@ -79,6 +79,17 @@ export interface ClimbCanvasProps {
    * the base; once it is following the climber, the view is identical.
    */
   bottomInset?: number;
+  /**
+   * Full-bleed stage (touch / iOS): drops the framing border + rounded corners
+   * so the canvas reaches every edge of the viewport.
+   */
+  fullBleed?: boolean;
+  /**
+   * Safe-area top inset in px (notch / Dynamic Island). The on-canvas HUD panel
+   * and pickup banner are pushed down by this much so they clear the cutout on a
+   * full-bleed stage; 0 on framed layouts.
+   */
+  hudInsetTop?: number;
 }
 
 export function ClimbCanvas({
@@ -87,6 +98,8 @@ export function ClimbCanvas({
   height = BASE_HEIGHT,
   reducedMotion = false,
   bottomInset = 0,
+  fullBleed = false,
+  hudInsetTop = 0,
 }: ClimbCanvasProps) {
   const ref = useRef<HTMLCanvasElement>(null);
 
@@ -295,8 +308,15 @@ export function ClimbCanvas({
     else if (player?.onLadder) pose = "climb";
     else if (!player?.onGround) pose = "air";
     else if (Math.abs(player?.vx ?? 0) > 0.1) pose = "walk";
+    // Character size is world-proportional (1.7m of the 100m-wide tower). The
+    // floor only guards against a sub-pixel figure on a tiny canvas; it was 9px,
+    // which on a phone-width canvas sat ABOVE the proportional size and so drew
+    // the climber — and doubly the Giant climber — oversized relative to the
+    // world compared with desktop. Lowered so it no longer binds on a full-bleed
+    // phone, keeping the climber (and Giant's 2×) the same relative size on every
+    // device. Desktop is unaffected: pxPerM * 1.7 is far above the floor there.
     const s =
-      Math.max(9, pxPerM * 1.7) *
+      Math.max(5, pxPerM * 1.7) *
       (player && isPowerUpActive(player, "giant", state.tick)
         ? GIANT_VISUAL_SCALE
         : 1);
@@ -326,21 +346,25 @@ export function ClimbCanvas({
       drawJetpackFlame(ctx, px, pyScreen, s, state.tick, reducedMotion);
     }
 
-    // HUD panel: height + hazard line.
+    // HUD panel: height + hazard line. On a full-bleed stage it is pushed down
+    // by the safe-area top inset so the readout clears the notch / Dynamic
+    // Island; the panel still fills up to y=0 so there is a solid bar behind the
+    // cutout rather than see-through world.
+    const hudTop = hudInsetTop;
     const hudH = 34 * ui;
     ctx.fillStyle = SURFACE;
     ctx.globalAlpha = 0.92;
-    ctx.fillRect(0, 0, width, hudH);
+    ctx.fillRect(0, 0, width, hudTop + hudH);
     ctx.globalAlpha = 1;
     ctx.strokeStyle = BORDER;
     ctx.beginPath();
-    ctx.moveTo(0, hudH);
-    ctx.lineTo(width, hudH);
+    ctx.moveTo(0, hudTop + hudH);
+    ctx.lineTo(width, hudTop + hudH);
     ctx.stroke();
     ctx.fillStyle = "#f4f2ec";
     ctx.font = `bold ${Math.round(13 * ui)}px monospace`;
     ctx.textAlign = "left";
-    ctx.fillText(`${playerY.toFixed(1)}m`, 10 * ui, 22 * ui);
+    ctx.fillText(`${playerY.toFixed(1)}m`, 10 * ui, hudTop + 22 * ui);
     ctx.fillStyle = lavaSlowed ? LAVA_SLOWED : TEXT_SECONDARY;
     ctx.textAlign = "right";
     ctx.fillText(
@@ -348,7 +372,7 @@ export function ClimbCanvas({
         ? `lava ${state.hazardY.toFixed(1)}m slowed`
         : `lava ${state.hazardY.toFixed(1)}m`,
       width - 10 * ui,
-      22 * ui
+      hudTop + 22 * ui
     );
     ctx.textAlign = "left";
 
@@ -369,20 +393,22 @@ export function ClimbCanvas({
         spec.color,
         reducedMotion
       );
-      drawPickupBanner(ctx, width, hudH, ui, spec, pickupAge, reducedMotion);
+      drawPickupBanner(ctx, width, hudTop + hudH, ui, spec, pickupAge, reducedMotion);
     }
 
     ctx.restore();
-  }, [state, width, height, reducedMotion, bottomInset]);
+  }, [state, width, height, reducedMotion, bottomInset, hudInsetTop]);
 
   return (
     <canvas
       ref={ref}
+      data-climb-surface
       style={{
         width,
         height,
-        borderRadius: 12,
-        border: `1px solid ${BORDER}`,
+        // Full-bleed stage reaches every edge — no framing border or radius.
+        borderRadius: fullBleed ? 0 : 12,
+        border: fullBleed ? "none" : `1px solid ${BORDER}`,
         display: "block",
         touchAction: "none",
       }}
