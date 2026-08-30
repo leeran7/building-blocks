@@ -333,7 +333,9 @@ function StartButton({ onClick, label }: { onClick: () => void; label: string })
   return (
     <button
       type="button"
+      data-game-control
       onClick={onClick}
+      onContextMenu={(e) => e.preventDefault()}
       className="mt-6 inline-flex items-center justify-center rounded-full bg-signal text-void font-semibold px-10 min-h-[60px] text-lg shadow-signal hover:brightness-110 active:scale-[0.98] transition-[filter,transform]"
     >
       {label}

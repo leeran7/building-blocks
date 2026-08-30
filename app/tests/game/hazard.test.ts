@@ -125,16 +125,21 @@ describe("AC-6: hazard rise ramps, stumbles, is monotonic, and is unbounded", ()
     expect(Number.isFinite(c)).toBe(true);
   });
 
-  it("eventually outpaces the climb speed on average, so every run must end", () => {
-    expect(hazardMeanSpeedFrac(CFG)).toBeGreaterThan(1);
-    expect(hazardMeanSpeedFrac(CFG)).toBeCloseTo(1.15, 2);
+  it("never rises faster than ladder climb speed", () => {
+    for (let t = CFG.graceSeconds; t <= 300; t += 0.25) {
+      expect(hazardSpeedFracAt(t, CFG)).toBeLessThanOrEqual(1);
+    }
+  });
+
+  it("still closes in on a dawdling climber over time", () => {
+    expect(hazardMeanSpeedFrac(CFG)).toBeCloseTo(0.75, 3);
     const g = CFG.graceSeconds;
     const period = CFG.stumblePeriodSeconds;
     const t = g + CFG.rampSeconds + 40;
     const avg =
       (hazardHeightAt(t + period, CLIMB, CFG) - hazardHeightAt(t, CLIMB, CFG)) /
       period;
-    expect(avg).toBeGreaterThan(CLIMB);
+    expect(avg).toBeLessThanOrEqual(CLIMB);
     expect(avg / CLIMB).toBeCloseTo(hazardMeanSpeedFrac(CFG), 5);
   });
 

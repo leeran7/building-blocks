@@ -111,9 +111,11 @@ function TouchButton({
   return (
     <button
       type="button"
+      data-game-control
       aria-label={label}
       aria-pressed={held}
       style={{ touchAction: "none" }}
+      onContextMenu={(e) => e.preventDefault()}
       className={
         "relative flex flex-col items-center justify-center rounded-2xl border font-mono font-bold " +
         "min-h-[92px] min-w-[44px] backdrop-blur-sm " +
