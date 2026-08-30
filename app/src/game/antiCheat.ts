@@ -14,6 +14,7 @@ import { PlayerInput, PlayerState, TowerSpec, TICK_DT, NO_INPUT } from "./types"
 import {
   RAPID_CLIMB_MULT,
   JETPACK_MAX_VY,
+  doubleJumpChargesRemaining,
   isPowerUpActive,
   jetpackFuelRemaining,
 } from "./powerups";
@@ -54,8 +55,11 @@ export function validateInput(
   let reason: string | undefined;
 
   // Jump is only legal from the ground — an air-jump is the classic spoof.
-  // A live jetpack with fuel lets the player hold jump to thrust.
-  const mayAirJump = jetpackFuelRemaining(player, tick) > 0;
+  // Double-jump spends a charge on the edge; a live jetpack with fuel lets
+  // the player hold jump to thrust. Both are the allowance those pickups buy.
+  const mayAirJump =
+    doubleJumpChargesRemaining(player, tick) > 0 ||
+    jetpackFuelRemaining(player, tick) > 0;
   if (jump && !player.onGround && !player.onLadder && !mayAirJump) {
     rejected = true;
     reason = reason ?? "jump while airborne";

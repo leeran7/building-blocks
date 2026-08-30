@@ -9,10 +9,11 @@
  * is what AC-11 (determinism) and AC-17 (replay verification) rely on.
  *
  * The world is a Donkey-Kong-style stack of solid platforms joined by ladders,
- * with jumpable gaps. Motion is real 2D platforming — gravity, walking, jumping,
- * one-way platform landings, and ladder climbing. The pressure is Doodle-Jump
- * style: a single DEATH LINE = max(rising hazard, peak − fallDeathBelowPeak). If
- * your feet drop to it, you're out (caught = you lose; peak height is retained).
+ * with jumpable gaps and jump-over crates on the traverse. Motion is real 2D
+ * platforming — gravity, walking, jumping, one-way platform landings, and ladder
+ * climbing. The pressure is Doodle-Jump style: a single DEATH LINE = max(rising
+ * hazard, peak − fallDeathBelowPeak). If your feet drop to it, you're out
+ * (caught = you lose; peak height is retained).
  *
  * Tick order is deliberate and load-bearing:
  *   1. advance race-clock + hazard height
@@ -47,10 +48,12 @@ import {
 } from "./towers";
 import {
   grantPowerUp,
+  DOUBLE_JUMP_MULT,
   JETPACK_MAX_VY,
   JETPACK_THRUST,
   canActivate,
   climbSpeedMultiplier,
+  consumeCharge,
   consumeJetpackFuel,
   cooldownTicks,
   durationTicks,
@@ -63,6 +66,7 @@ import {
   powerUpForFloor,
   pruneActive,
 } from "./powerups";
+import { isOnObstacle, resolveObstacleMotion } from "./obstacles";
 import {
   isHeightDeltaLegal,
   legalClimbSpeedMult,
@@ -106,6 +110,7 @@ export function spawnPlayer(id: PlayerId, slot: number): PlayerState {
     cooldownUntilTick: {},
     lastPickupTick: null,
     lastPickupType: null,
+    jumpHeldPrev: false,
     jetpackThrusting: false,
     grabSuppressedUntilRelease: false,
   };
@@ -301,6 +306,7 @@ function integratePlayer(
       }
     }
   } else {
+    const prevX = p.x;
     p.x = clamp(p.x + p.vx * dt, 0, tower.widthM);
 
     // Grab a ladder if the player is asking to climb and one is in reach. Right
@@ -326,12 +332,20 @@ function integratePlayer(
 
     if (!p.onLadder) {
       // Jump from the ground is a normal launch. While a jetpack has fuel,
-      // holding jump in the air burns one tick of thrust.
+      // holding jump in the air burns one tick of thrust instead of the
+      // double jump — the pack is the spend, the extra hop waits for a tap.
       if (input.jump && p.onGround) {
         p.vy = tower.jumpSpeed;
         p.onGround = false;
       } else if (input.jump && !p.onGround && consumeJetpackFuel(p, tick)) {
         p.jetpackThrusting = true;
+      } else if (
+        input.jump &&
+        !p.jumpHeldPrev &&
+        !p.onGround &&
+        consumeCharge(p, "double-jump", tick)
+      ) {
+        p.vy = tower.jumpSpeed * DOUBLE_JUMP_MULT;
       }
       // Gravity while airborne; thrust beats it and caps at JETPACK_MAX_VY.
       if (p.onGround) {
@@ -365,8 +379,15 @@ function integratePlayer(
         p.onGround = false;
       }
 
-      // Walked off a platform edge while grounded → start falling.
-      if (p.onGround && p.y > 0 && !isSupported(tower, p.x, p.y, platformMargin)) {
+      resolveObstacleMotion(p, prevX, prevY, tower, platformMargin);
+
+      // Walked off a platform or crate while grounded → start falling.
+      if (
+        p.onGround &&
+        p.y > 0 &&
+        !isSupported(tower, p.x, p.y, platformMargin) &&
+        !isOnObstacle(tower, p.x, p.y, platformMargin)
+      ) {
         p.onGround = false;
       }
     }
@@ -467,6 +488,7 @@ export function stepMatch(
     }
 
     pruneActive(p, state.tick);
+    p.jumpHeldPrev = input.jump;
 
     // 4. DEATH LINE — the higher of the rising hazard and the Doodle-Jump fall
     //    floor (peak minus the fall-death drop). The tower is endless: there is

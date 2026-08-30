@@ -131,6 +131,26 @@ describe("per-floor geometry", () => {
     }
   });
 
+  it("does not line up four ladders in a column", () => {
+    const ALIGN_M = 8;
+    for (let i = 0; i < 120; i++) {
+      for (const start of laddersForFloor(t, i)) {
+        let x = start.x;
+        let run = 1;
+        for (let f = i + 1; f < i + 6; f++) {
+          const next = laddersForFloor(t, f)
+            .map((l) => l.x)
+            .filter((nx) => Math.abs(nx - x) < ALIGN_M)
+            .sort((a, b) => Math.abs(a - x) - Math.abs(b - x))[0];
+          if (next === undefined) break;
+          x = next;
+          run += 1;
+        }
+        expect(run).toBeLessThan(4);
+      }
+    }
+  });
+
   it("shares one span with every ladder on a floor and reports slots in order", () => {
     for (const i of [1, 4, 17, 88]) {
       const ls = laddersForFloor(t, i);
