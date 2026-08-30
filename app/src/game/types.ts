@@ -13,16 +13,17 @@ export const TICK_DT = 1 / TICK_HZ; // seconds per tick
 export type PlayerId = string;
 
 /**
- * The five power-ups. Each is a deliberate counter to one of the ways the
+ * The six power-ups. Each is a deliberate counter to one of the ways the
  * endless tower kills you: the ladder grind (rapid-climb), long sideways
- * traverses (sprint-burst), a sloppy ladder grab or platform edge (giant),
- * a bad ladder detour (jetpack), and the lava simply outpacing you late in a
- * run (slow-lava).
+ * traverses (sprint-burst), a missed gap or crate stair (double-jump), a
+ * sloppy ladder grab or platform edge (giant), a bad ladder detour (jetpack),
+ * and the lava simply outpacing you late in a run (slow-lava).
  * Tuning lives in powerups.ts.
  */
 export type PowerUpType =
   | "rapid-climb"
   | "sprint-burst"
+  | "double-jump"
   | "giant"
   | "jetpack"
   | "slow-lava";
@@ -47,13 +48,18 @@ export interface PowerUpPickup {
 
 /**
  * A power-up the player has activated. Duration-based effects run until
- * `startTick + durationTicks`. Jetpack is duration-based with a separate fuel
- * budget spent while jump is held.
+ * `startTick + durationTicks`; charge-based ones (double-jump) are consumed
+ * by the move they enable and expire unused when the window closes. Jetpack
+ * is duration-based with a separate fuel budget spent while jump is held.
  */
 export interface ActivePowerUp {
   type: PowerUpType;
   startTick: number;
   durationTicks: number;
+  /** Charge-based only: the charge has been spent. */
+  used?: boolean;
+  /** Double-jump only: mid-air jumps remaining in this window. */
+  chargesRemaining?: number;
   /** Jetpack only: ticks of thrust remaining in this window. */
   fuelRemainingTicks?: number;
 }
@@ -123,6 +129,12 @@ export interface PlayerState {
   lastPickupTick: number | null;
   lastPickupType: PowerUpType | null;
   /**
+   * Previous tick's jump button, so it can be edge-triggered. Without this a
+   * held jump key would spend a double-jump charge on the tick after the
+   * ground launch (and would fight the jetpack's hold-to-thrust).
+   */
+  jumpHeldPrev: boolean;
+  /**
    * Jetpack thrust applied this tick. Presentation-only (canvas flame); the
    * simulation never reads it back.
    */
@@ -147,6 +159,23 @@ export interface Platform {
   x0: number;
   x1: number;
   y: number;
+}
+
+/**
+ * A crate on or above a floor. Solid from the sides; the top is a one-way
+ * landing. Single crates are hurdles; three stacked as a triangle sit on the
+ * slab; a taller run forms a stair to the next floor. Generated per floor from
+ * the tower seed (AC-11).
+ */
+export interface Obstacle {
+  floorIndex: number;
+  x0: number;
+  x1: number;
+  /** Bottom of the crate (floor height for a hurdle; stacked for a stair). */
+  y0: number;
+  /** Top of the crate (landable). */
+  y1: number;
+  kind: "barrel" | "rock" | "debris";
 }
 
 /**

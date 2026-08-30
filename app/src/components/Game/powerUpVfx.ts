@@ -246,17 +246,10 @@ export function drawPickupScreenFlash(
 ): void {
   if (reducedMotion || age < 0 || age >= PICKUP_SCREEN_FLASH_TICKS) return;
   const t = age / PICKUP_SCREEN_FLASH_TICKS;
-  const alpha = (1 - t) * (1 - t) * 0.22;
-  const cx = width / 2;
-  const cy = height / 2;
-  const radius = Math.max(width, height) * (0.35 + t * 0.75);
-  const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, radius);
-  grad.addColorStop(0, color);
-  grad.addColorStop(0.55, color);
-  grad.addColorStop(1, "rgba(10,10,12,0)");
+  const alpha = (1 - t) * (1 - t) * 0.18;
   ctx.save();
   ctx.globalAlpha = alpha;
-  ctx.fillStyle = grad;
+  ctx.fillStyle = color;
   ctx.fillRect(0, 0, width, height);
   ctx.restore();
 }
@@ -286,6 +279,9 @@ export function drawActivePowerUpEffect(
       break;
     case "sprint-burst":
       drawSprintBurstEffect(ctx, px, pyScreen, s, facing, pulse, tick, spec, reducedMotion);
+      break;
+    case "double-jump":
+      drawDoubleJumpEffect(ctx, px, pyScreen - 1.25 * s, s, pulse, spec, reducedMotion);
       break;
     case "giant":
       drawGiantEffect(ctx, px, pyScreen - 1.25 * s, s, pulse, tick, spec, reducedMotion);
@@ -389,6 +385,33 @@ function drawSprintBurstEffect(
     TAU
   );
   ctx.stroke();
+  ctx.restore();
+}
+
+function drawDoubleJumpEffect(
+  ctx: CanvasRenderingContext2D,
+  px: number,
+  py: number,
+  s: number,
+  pulse: number,
+  spec: PowerUpSpec,
+  reducedMotion: boolean
+): void {
+  ctx.save();
+  ctx.strokeStyle = spec.color;
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  const hops = reducedMotion ? 1 : 2;
+  for (let i = 0; i < hops; i++) {
+    const y = py - (0.35 + i * 0.55 + pulse * 0.12) * s;
+    ctx.globalAlpha = 0.35 + 0.4 * pulse - i * 0.12;
+    ctx.lineWidth = Math.max(1.6, 0.14 * s);
+    ctx.beginPath();
+    ctx.moveTo(px - 0.45 * s, y + 0.22 * s);
+    ctx.lineTo(px, y);
+    ctx.lineTo(px + 0.45 * s, y + 0.22 * s);
+    ctx.stroke();
+  }
   ctx.restore();
 }
 

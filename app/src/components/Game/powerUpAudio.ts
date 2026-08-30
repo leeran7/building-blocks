@@ -19,6 +19,7 @@
  */
 
 import { PowerUpType } from "../../game/types";
+import { createAudioOutput, type AudioOutput } from "./audioOutput";
 
 export type Cue = "pickup" | "activate" | "expire";
 
@@ -56,6 +57,11 @@ const ACTIVATE: Record<PowerUpType, Note[]> = {
     { at: 0, freq: 300, to: 620, dur: 0.07, wave: "square", gain: 0.5 },
     { at: 0.09, freq: 380, to: 760, dur: 0.09, wave: "square", gain: 0.5 },
   ],
+  // Two rising hops — "jump jump".
+  "double-jump": [
+    { at: 0, freq: 420, to: 700, dur: 0.09, wave: "triangle" },
+    { at: 0.12, freq: 620, to: 980, dur: 0.11, wave: "triangle", gain: 0.75 },
+  ],
   // Low swell — growing bigger.
   giant: [
     { at: 0, freq: 180, to: 280, dur: 0.14, wave: "sine" },
@@ -78,6 +84,7 @@ const ACTIVATE: Record<PowerUpType, Note[]> = {
 const PICKUP_PITCH: Record<PowerUpType, number> = {
   "rapid-climb": 880,
   "sprint-burst": 740,
+  "double-jump": 990,
   giant: 320,
   jetpack: 260,
   "slow-lava": 620,
@@ -98,6 +105,7 @@ const EXPIRE: Note[] = [
 export class PowerUpAudio {
   private ctx: AudioContext | null = null;
   private master: GainNode | null = null;
+  private output: AudioOutput | null = null;
   private muted = false;
 
   setMuted(muted: boolean): void {
@@ -117,10 +125,13 @@ export class PowerUpAudio {
   /** Call from a click/tap so WebKit will actually play later cues. */
   unlock(): void {
     this.ensureContext();
+    this.output?.prime();
   }
 
   /** Release the audio device. Safe to call more than once. */
   dispose(): void {
+    this.output?.dispose();
+    this.output = null;
     void this.ctx?.close().catch(() => {});
     this.ctx = null;
     this.master = null;
@@ -191,7 +202,10 @@ export class PowerUpAudio {
       }
       this.master = this.ctx.createGain();
       this.master.gain.value = this.muted ? 0 : MASTER_GAIN;
-      this.master.connect(this.ctx.destination);
+      // Route through a media element so iOS plays it over the Ring/Silent
+      // switch instead of on the (switch-muted) ringer channel.
+      this.output = createAudioOutput(this.ctx);
+      this.master.connect(this.output.node);
     }
     // A context created before the first gesture starts suspended.
     if (this.ctx.state === "suspended") void this.ctx.resume().catch(() => {});

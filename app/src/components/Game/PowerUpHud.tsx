@@ -109,7 +109,7 @@ export function PowerUpHud({
       >
         <span aria-hidden="true">{muted ? "🔇" : "🔊"}</span>
         <span className="sr-only">
-          {muted ? "Unmute power-up sounds" : "Mute power-up sounds"}
+          {muted ? "Unmute game sound" : "Mute game sound"}
         </span>
       </button>
 
