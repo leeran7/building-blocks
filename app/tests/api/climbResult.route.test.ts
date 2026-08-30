@@ -26,7 +26,14 @@ vi.mock("../../src/db/user", () => ({
   ensureUser: vi.fn(),
 }));
 
+vi.mock("next/cache", () => ({
+  revalidatePath: vi.fn(),
+}));
+
 import { POST } from "../../app/api/climb/result/route";
+import { recordClimb } from "../../src/db/climb";
+import { verifyIdToken } from "../../src/lib/firebaseAdmin";
+import { revalidatePath } from "next/cache";
 import { maxReachablePeakY } from "../../src/game/scoreBounds";
 import { FASTEST_ARCHETYPE } from "../../src/game/towers";
 import { TICK_DT, NO_INPUT } from "../../src/game/types";
@@ -115,5 +122,38 @@ describe("POST /api/climb/result calls checkClimbResult", () => {
     expect(res.status).toBe(200);
     const body = (await res.json()) as { saved?: boolean };
     expect(body.saved).toBe(false);
+  });
+
+  it("revalidates leaderboard pages after a persisted run", async () => {
+    vi.mocked(verifyIdToken).mockResolvedValue({
+      uid: "user-1",
+      email: "climber@example.com",
+      email_verified: true,
+    } as Awaited<ReturnType<typeof verifyIdToken>>);
+    vi.mocked(recordClimb).mockResolvedValue({
+      peakY: 120,
+      improved: true,
+      rank: 4,
+      totalClimbers: 40,
+      handle: "Climber",
+    });
+
+    const res = await POST(
+      new NextRequest("http://localhost/api/climb/result", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          authorization: "Bearer valid-token",
+        },
+        body: JSON.stringify({ peakY: 120, ticks: 500, seed: "saved-run" }),
+      })
+    );
+
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { saved?: boolean; rank?: number };
+    expect(body.saved).toBe(true);
+    expect(body.rank).toBe(4);
+    expect(revalidatePath).toHaveBeenCalledWith("/climb");
+    expect(revalidatePath).toHaveBeenCalledWith("/");
   });
 });

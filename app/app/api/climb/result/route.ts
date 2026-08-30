@@ -27,6 +27,7 @@ import { ensureUser } from "../../../../src/db/user";
 import { checkRateLimit, clientIp } from "../../../../src/lib/rateLimit";
 import { checkClimbResult } from "../../../../src/game/scoreBounds";
 import { MAX_REPLAY_TOKEN_LENGTH } from "../../../../src/game/runReplay";
+import { revalidateClimbLeaderboard } from "../../../../src/lib/revalidateClimbLeaderboard";
 
 export const runtime = "nodejs";
 
@@ -154,6 +155,7 @@ export async function POST(request: NextRequest) {
       seed,
       replayToken,
     });
+    revalidateClimbLeaderboard();
     return NextResponse.json({ saved: true, ...result }, { status: 200 });
   } catch (err) {
     console.error("[climb/result] persist failed:", err);
