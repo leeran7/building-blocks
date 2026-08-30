@@ -81,11 +81,14 @@ model ClimbRun {
   finished      Boolean  @default(false)
   finished_tick Int?
   seed          String
+  /** Deflate-packed input log for deterministic replay (/play?r=…). */
+  replay_token  String?
   created_at    DateTime @default(now())
 
   user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   @@index([category_slug, created_at], name: "climb_run_category_idx")
+  @@index([userId, created_at(sort: Desc)], name: "climb_run_user_idx")
   @@map("climb_runs")
 }
 
