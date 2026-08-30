@@ -26,6 +26,7 @@ import { FREE_STACK_SLUG } from "../../../../src/game/freeStack";
 import { ensureUser } from "../../../../src/db/user";
 import { checkRateLimit, clientIp } from "../../../../src/lib/rateLimit";
 import { checkClimbResult } from "../../../../src/game/scoreBounds";
+import { revalidateClimbLeaderboard } from "../../../../src/lib/revalidateClimbLeaderboard";
 
 export const runtime = "nodejs";
 
@@ -150,6 +151,7 @@ export async function POST(request: NextRequest) {
       finishedTick: elapsedTicks,
       seed,
     });
+    revalidateClimbLeaderboard();
     return NextResponse.json({ saved: true, ...result }, { status: 200 });
   } catch (err) {
     console.error("[climb/result] persist failed:", err);
