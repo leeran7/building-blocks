@@ -17,7 +17,15 @@ vi.mock("../../src/hooks/useCoarsePointer", () => ({
 import { useCoarsePointer } from "../../src/hooks/useCoarsePointer";
 import { ClimbControlsGuide } from "../../src/components/Game/ClimbControlsGuide";
 import { PowerUpHud } from "../../src/components/Game/PowerUpHud";
-import { PowerUpAudio } from "../../src/components/Game/powerUpAudio";
+import {
+  DEATH_HIT_ATTACK,
+  DEATH_HIT_PEAK,
+  LAVA_STING_ATTACK,
+  LAVA_STING_PEAK,
+  PowerUpAudio,
+  jetpackLoopGain,
+  lavaDoomLoopGain,
+} from "../../src/components/Game/powerUpAudio";
 import {
   JETPACK_FUEL_SECONDS,
   JETPACK_MAX_VY,
@@ -144,6 +152,41 @@ describe("AC-J11 audio accepts every live PowerUpType including jetpack", () => 
       expect(() => audio.play("pickup", type)).not.toThrow();
       expect(() => audio.play("activate", type)).not.toThrow();
     }
+  });
+});
+
+describe("world SFX: jetpack loop, lava doom, death hit", () => {
+  it("loop and one-shot methods do not throw without a Web Audio context", () => {
+    const audio = new PowerUpAudio();
+    expect(() => audio.setJetpackThrusting(true)).not.toThrow();
+    expect(() => audio.setJetpackThrusting(false)).not.toThrow();
+    expect(() => audio.setLavaDoom(true, 0.4)).not.toThrow();
+    expect(() => audio.setLavaDoom(false, 0)).not.toThrow();
+    expect(() => audio.playLavaSting()).not.toThrow();
+    expect(() => audio.playDeath()).not.toThrow();
+    audio.dispose();
+  });
+
+  it("doom-struck is louder and faster than doom-is-coming", () => {
+    expect(DEATH_HIT_PEAK).toBeGreaterThan(LAVA_STING_PEAK);
+    expect(DEATH_HIT_ATTACK).toBeLessThan(LAVA_STING_ATTACK);
+    expect(LAVA_STING_ATTACK).toBeGreaterThan(0.1);
+    expect(DEATH_HIT_ATTACK).toBeLessThan(0.02);
+  });
+
+  it("jetpack loop is silent off and audible on", () => {
+    expect(jetpackLoopGain(false)).toBe(0);
+    expect(jetpackLoopGain(true)).toBeGreaterThan(0.4);
+  });
+
+  it("lava rumble is silent until a sliver is visible, then grows with fill", () => {
+    expect(lavaDoomLoopGain(0)).toBe(0);
+    expect(lavaDoomLoopGain(-1)).toBe(0);
+    const whisper = lavaDoomLoopGain(0.05);
+    const roar = lavaDoomLoopGain(1);
+    expect(whisper).toBeGreaterThan(0);
+    expect(roar).toBeGreaterThan(whisper);
+    expect(lavaDoomLoopGain(2)).toBe(roar);
   });
 });
 

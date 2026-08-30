@@ -22,6 +22,12 @@ import { ClimbControlsGuide } from "./ClimbControlsGuide";
 import { PowerUpHud } from "./PowerUpHud";
 import { usePowerUpFeedback } from "./usePowerUpFeedback";
 import {
+  cameraTargetY,
+  climbView,
+  isLavaThreatening,
+  lavaThreatFill,
+} from "./climbCamera";
+import {
   TouchControls,
   TOUCH_CONTROLS_INSET,
   TOUCH_CONTROLS_MIN_BOTTOM,
@@ -118,11 +124,25 @@ export function ClimbScene({ tower, categoryLabel, replay = null }: ClimbScenePr
     !finished && !replaying && (phase === "countdown" || phase === "climb");
   const lavaGap = player ? player.y - state.hazardY : Infinity;
   const musicIntensity = Math.max(0, Math.min(1, (40 - lavaGap) / 40));
+  const view = climbView(canvasSize.width, canvasSize.height, state.tower.widthM);
+  const camY = cameraTargetY(player?.y ?? 0, view.viewH, bottomInset, view.pxPerM);
+  const lavaFill = lavaThreatFill(
+    state.hazardY,
+    camY,
+    view.viewH,
+    view.pxPerM > 0 ? bottomInset / view.pxPerM : 0
+  );
   const { muted, setMuted, announcement, unlockAudio } = usePowerUpFeedback(
     player,
     state.tick,
     runId,
-    { active: musicActive, intensity: musicIntensity }
+    { active: musicActive, intensity: musicIntensity },
+    {
+      jetpackThrusting: player?.jetpackThrusting ?? false,
+      lavaOnScreen: isLavaThreatening(lavaFill),
+      lavaFill,
+      dead: player?.status === "eliminated",
+    }
   );
 
   const redirectPath = `/play`;
