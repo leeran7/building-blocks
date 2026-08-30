@@ -42,7 +42,7 @@ const MASTER_GAIN = 0.16;
 /**
  * Activation motifs. Each shape mirrors what the power-up does, so the cue is
  * learnable rather than arbitrary: things that move you up glide up, sprint is a
- * fast clipped double-tap, and time-slow sags downward.
+ * fast clipped double-tap, and slow-lava sags downward.
  */
 const ACTIVATE: Record<PowerUpType, Note[]> = {
   // Fast rising triad — "going up".
@@ -56,10 +56,10 @@ const ACTIVATE: Record<PowerUpType, Note[]> = {
     { at: 0, freq: 300, to: 620, dur: 0.07, wave: "square", gain: 0.5 },
     { at: 0.09, freq: 380, to: 760, dur: 0.09, wave: "square", gain: 0.5 },
   ],
-  // Two hops, the second lighter — literally a double jump.
-  "double-jump": [
-    { at: 0, freq: 420, to: 700, dur: 0.09, wave: "triangle" },
-    { at: 0.12, freq: 620, to: 980, dur: 0.11, wave: "triangle", gain: 0.75 },
+  // Low swell — growing bigger.
+  giant: [
+    { at: 0, freq: 180, to: 280, dur: 0.14, wave: "sine" },
+    { at: 0.08, freq: 220, to: 360, dur: 0.16, wave: "triangle", gain: 0.7 },
   ],
   // Engine burst — short low square/sawtooth chugs, not a launch sweep.
   jetpack: [
@@ -68,7 +68,7 @@ const ACTIVATE: Record<PowerUpType, Note[]> = {
     { at: 0.13, freq: 96, dur: 0.06, wave: "square", gain: 0.4 },
   ],
   // Descending, detuned pair — the world winding down.
-  "time-slow": [
+  "slow-lava": [
     { at: 0, freq: 660, to: 300, dur: 0.34, wave: "sine" },
     { at: 0.02, freq: 655, to: 297, dur: 0.34, wave: "sine", gain: 0.5 },
   ],
@@ -78,9 +78,9 @@ const ACTIVATE: Record<PowerUpType, Note[]> = {
 const PICKUP_PITCH: Record<PowerUpType, number> = {
   "rapid-climb": 880,
   "sprint-burst": 740,
-  "double-jump": 990,
+  giant: 320,
   jetpack: 260,
-  "time-slow": 620,
+  "slow-lava": 620,
 };
 
 function pickupMotif(type: PowerUpType): Note[] {

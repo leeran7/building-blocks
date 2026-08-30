@@ -23,6 +23,7 @@ import {
 } from "../../game/towers";
 import {
   POWER_UP_SPECS,
+  GIANT_VISUAL_SCALE,
   cooldownRemaining,
   isExpired,
   isPowerUpActive,
@@ -53,7 +54,7 @@ const PLATFORM = "#38353f";
 const PLATFORM_TOP = "#4a4656";
 const LADDER = "#8a86a0";
 const LAVA = "#ff5a2c"; // ember — the rising hazard
-const LAVA_SLOWED = "#ff8ad4"; // matches the time-slow orb, for a held-back lava
+const LAVA_SLOWED = "#ff8ad4"; // matches the slow-lava orb, for a held-back lava
 const TEXT_MUTED = "#74707e";
 /** Used for the small HUD/altitude text: TEXT_MUTED only reaches 3.8:1 on it. */
 const TEXT_SECONDARY = "#a8a4b2";
@@ -255,11 +256,11 @@ export function ClimbCanvas({
     }
 
     // Rising hazard (lava) — a filled band from the hazard line downward. While
-    // time-slow runs, the band cools toward the power-up's own colour and its
+    // slow-lava runs, the band cools toward the power-up's own colour and its
     // edge breaks into dashes, so "the lava is being held back" reads on the
     // hazard itself rather than only in the effect list.
     const lavaSlowed = player
-      ? isPowerUpActive(player, "time-slow", state.tick)
+      ? isPowerUpActive(player, "slow-lava", state.tick)
       : false;
     const hazScreenY = sy(state.hazardY);
     if (hazScreenY < height) {
@@ -294,7 +295,11 @@ export function ClimbCanvas({
     else if (player?.onLadder) pose = "climb";
     else if (!player?.onGround) pose = "air";
     else if (Math.abs(player?.vx ?? 0) > 0.1) pose = "walk";
-    const s = Math.max(9, pxPerM * 1.7);
+    const s =
+      Math.max(9, pxPerM * 1.7) *
+      (player && isPowerUpActive(player, "giant", state.tick)
+        ? GIANT_VISUAL_SCALE
+        : 1);
 
     // Aura for each running effect — the in-scene tell that a power-up is live,
     // so the player never has to look away from the climber to check.

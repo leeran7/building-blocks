@@ -200,9 +200,6 @@ function durationSuffix(spec: PowerUpSpec): string {
   let body: string;
   if (spec.fuelSeconds != null) {
     body = `${spec.fuelSeconds}s fuel · ${spec.durationSeconds}s window`;
-  } else if (spec.charge) {
-    const n = spec.chargeCount ?? 1;
-    body = `${n} use${n > 1 ? "s" : ""}`;
   } else {
     body = `${spec.durationSeconds}s`;
   }

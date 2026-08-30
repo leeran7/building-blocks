@@ -8,7 +8,6 @@
 
 import {
   POWER_UP_SPECS,
-  doubleJumpChargesRemaining,
   type PowerUpSpec,
 } from "../../game/powerups";
 import {
@@ -297,24 +296,14 @@ export function drawActivePowerUpEffect(
     case "sprint-burst":
       drawSprintBurstEffect(ctx, px, pyScreen, s, facing, pulse, tick, spec, reducedMotion);
       break;
-    case "double-jump":
-      drawDoubleJumpEffect(
-        ctx,
-        px,
-        pyScreen - 1.25 * s,
-        s,
-        pulse,
-        tick,
-        player,
-        spec,
-        reducedMotion
-      );
+    case "giant":
+      drawGiantEffect(ctx, px, pyScreen - 1.25 * s, s, pulse, tick, spec, reducedMotion);
       break;
     case "jetpack":
       drawJetpackAura(ctx, px, pyScreen - 1.25 * s, s, pulse, spec);
       break;
-    case "time-slow":
-      drawTimeSlowEffect(ctx, px, pyScreen - 1.25 * s, s, pulse, tick, spec, reducedMotion);
+    case "slow-lava":
+      drawSlowLavaEffect(ctx, px, pyScreen - 1.25 * s, s, pulse, tick, spec, reducedMotion);
       break;
   }
 }
@@ -412,53 +401,38 @@ function drawSprintBurstEffect(
   ctx.restore();
 }
 
-function drawDoubleJumpEffect(
+function drawGiantEffect(
   ctx: CanvasRenderingContext2D,
   px: number,
   py: number,
   s: number,
   pulse: number,
   tick: number,
-  player: PlayerState | undefined,
   spec: PowerUpSpec,
   reducedMotion: boolean
 ): void {
-  const charges = player ? doubleJumpChargesRemaining(player, tick) : 0;
-  const total = spec.chargeCount ?? 2;
-
   ctx.save();
   ctx.strokeStyle = spec.color;
-  ctx.fillStyle = spec.color;
 
-  // Wing arcs.
-  ctx.globalAlpha = 0.25 + 0.3 * pulse;
-  ctx.lineWidth = Math.max(1.2, 0.12 * s);
-  for (const sign of [-1, 1]) {
-    ctx.beginPath();
-    ctx.arc(px + sign * 0.55 * s, py, 0.45 * s, sign < 0 ? 0.2 : Math.PI + 0.2, sign < 0 ? Math.PI - 0.2 : -0.2);
-    ctx.stroke();
-  }
-
-  // Orbiting charge orbs — one per remaining charge.
-  const orbitR = (0.95 + pulse * 0.12) * s;
-  for (let i = 0; i < total; i++) {
-    const active = i < charges;
-    const angle = reducedMotion
-      ? (i / total) * TAU - Math.PI / 2
-      : tick * 0.14 + (i / total) * TAU;
-    const ox = px + Math.cos(angle) * orbitR;
-    const oy = py + Math.sin(angle) * orbitR * 0.65;
-    ctx.globalAlpha = active ? 0.75 + 0.25 * pulse : 0.15;
-    ctx.beginPath();
-    ctx.arc(ox, oy, Math.max(2, 0.12 * s), 0, TAU);
-    ctx.fill();
-  }
-
-  // Soft enclosing ring.
-  ctx.globalAlpha = 0.28 + 0.42 * pulse;
+  const swell = reducedMotion ? 0.5 : 0.5 + 0.5 * Math.sin(tick * 0.1);
+  ctx.globalAlpha = 0.2 + 0.25 * pulse;
   ctx.lineWidth = Math.max(1.5, 0.14 * s);
   ctx.beginPath();
-  ctx.ellipse(px, py, (1.05 + pulse * 0.15) * s, (1.65 + pulse * 0.12) * s, 0, 0, TAU);
+  ctx.ellipse(
+    px,
+    py,
+    (1.35 + swell * 0.2) * s,
+    (2.05 + swell * 0.15) * s,
+    0,
+    0,
+    TAU
+  );
+  ctx.stroke();
+
+  ctx.globalAlpha = 0.35 + 0.45 * pulse;
+  ctx.lineWidth = Math.max(1.8, 0.16 * s);
+  ctx.beginPath();
+  ctx.ellipse(px, py, (1.08 + pulse * 0.12) * s, (1.72 + pulse * 0.1) * s, 0, 0, TAU);
   ctx.stroke();
   ctx.restore();
 }
@@ -481,7 +455,7 @@ function drawJetpackAura(
   ctx.restore();
 }
 
-function drawTimeSlowEffect(
+function drawSlowLavaEffect(
   ctx: CanvasRenderingContext2D,
   px: number,
   py: number,

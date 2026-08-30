@@ -56,15 +56,15 @@ describe("stepCues: pickup is announced and scored", () => {
     const first = frame(memo, {
       runId: 0,
       lastPickupTick: 12,
-      lastPickupType: "double-jump",
-      activeTypes: ["double-jump"],
+      lastPickupType: "giant",
+      activeTypes: ["giant"],
     });
     memo = first.memo;
     const second = frame(memo, {
       runId: 0,
       lastPickupTick: 12,
-      lastPickupType: "double-jump",
-      activeTypes: ["double-jump"],
+      lastPickupType: "giant",
+      activeTypes: ["giant"],
     });
 
     expect(second.out.sounds).toEqual([]);
@@ -126,14 +126,14 @@ describe("stepCues: repeated announcements are distinct strings", () => {
     const first = frame(memo, {
       runId: 0,
       lastPickupTick: 10,
-      lastPickupType: "double-jump",
-      activeTypes: ["double-jump"],
+      lastPickupType: "giant",
+      activeTypes: ["giant"],
     });
     const second = frame(first.memo, {
       runId: 0,
       lastPickupTick: 24,
-      lastPickupType: "double-jump",
-      activeTypes: ["double-jump"],
+      lastPickupType: "giant",
+      activeTypes: ["giant"],
     });
 
     expect(first.out.announcement).not.toBeNull();
