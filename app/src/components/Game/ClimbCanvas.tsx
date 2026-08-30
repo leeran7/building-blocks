@@ -34,6 +34,7 @@ import {
   canvasNeedsResize,
   clampDevicePixelRatio,
 } from "./canvasBacking";
+import { drawClimbBackground } from "./climbBackground";
 import {
   PICKUP_BURST_TICKS,
   PICKUP_FLASH_TICKS,
@@ -187,16 +188,17 @@ export function ClimbCanvas({
         ? pickupShakeOffset(pickupAge, state.tick, ui, reducedMotion)
         : { dx: 0, dy: 0 };
 
+    // Tiled volcanic vista. Drawn before the shake translate so the scenery
+    // stays anchored while only the tower jolts on a pickup; it fully covers
+    // the canvas, so no explicit clear is needed.
+    drawClimbBackground(ctx, width, height, camWorldY, state.tick, reducedMotion);
+
     ctx.save();
     ctx.translate(shake.dx, shake.dy);
 
     // The window of floors currently in view (plus a margin).
     const yLow = camWorldY - tower.floorGap;
     const yHigh = camWorldY + viewH + tower.floorGap;
-
-    // Background.
-    ctx.fillStyle = VOID;
-    ctx.fillRect(0, 0, width, height);
 
     // Faint per-floor altitude gridlines + labels (the leaderboard scale).
     ctx.font = `${Math.round(10 * ui)}px monospace`;

@@ -109,10 +109,20 @@ export function ClimbScene({ tower, categoryLabel, replay = null }: ClimbScenePr
   const bottomInset = touchDevice
     ? TOUCH_CONTROLS_INSET + Math.max(TOUCH_CONTROLS_MIN_BOTTOM, safeArea.bottom)
     : 0;
+  // Music plays through the countdown + climb and stops on the results screen.
+  // Intensity ramps up over the last ~40m of clearance as the lava gains.
+  // Not during a replay: a replay auto-starts with no user gesture, so kicking
+  // the AudioContext there would trip the browser's autoplay block (a console
+  // warning + a suspended context that only resumes on a later tap).
+  const musicActive =
+    !finished && !replaying && (phase === "countdown" || phase === "climb");
+  const lavaGap = player ? player.y - state.hazardY : Infinity;
+  const musicIntensity = Math.max(0, Math.min(1, (40 - lavaGap) / 40));
   const { muted, setMuted, announcement, unlockAudio } = usePowerUpFeedback(
     player,
     state.tick,
-    runId
+    runId,
+    { active: musicActive, intensity: musicIntensity }
   );
 
   const redirectPath = `/play`;

@@ -255,17 +255,10 @@ export function drawPickupScreenFlash(
 ): void {
   if (reducedMotion || age < 0 || age >= PICKUP_SCREEN_FLASH_TICKS) return;
   const t = age / PICKUP_SCREEN_FLASH_TICKS;
-  const alpha = (1 - t) * (1 - t) * 0.22;
-  const cx = width / 2;
-  const cy = height / 2;
-  const radius = Math.max(width, height) * (0.35 + t * 0.75);
-  const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, radius);
-  grad.addColorStop(0, color);
-  grad.addColorStop(0.55, color);
-  grad.addColorStop(1, "rgba(10,10,12,0)");
+  const alpha = (1 - t) * (1 - t) * 0.18;
   ctx.save();
   ctx.globalAlpha = alpha;
-  ctx.fillStyle = grad;
+  ctx.fillStyle = color;
   ctx.fillRect(0, 0, width, height);
   ctx.restore();
 }
