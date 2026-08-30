@@ -56,10 +56,10 @@ const ACTIVATE: Record<PowerUpType, Note[]> = {
     { at: 0, freq: 300, to: 620, dur: 0.07, wave: "square", gain: 0.5 },
     { at: 0.09, freq: 380, to: 760, dur: 0.09, wave: "square", gain: 0.5 },
   ],
-  // Two hops, the second lighter — literally a double jump.
-  "double-jump": [
-    { at: 0, freq: 420, to: 700, dur: 0.09, wave: "triangle" },
-    { at: 0.12, freq: 620, to: 980, dur: 0.11, wave: "triangle", gain: 0.75 },
+  // Low swell — growing bigger.
+  giant: [
+    { at: 0, freq: 180, to: 280, dur: 0.14, wave: "sine" },
+    { at: 0.08, freq: 220, to: 360, dur: 0.16, wave: "triangle", gain: 0.7 },
   ],
   // Engine burst — short low square/sawtooth chugs, not a launch sweep.
   jetpack: [
@@ -78,7 +78,7 @@ const ACTIVATE: Record<PowerUpType, Note[]> = {
 const PICKUP_PITCH: Record<PowerUpType, number> = {
   "rapid-climb": 880,
   "sprint-burst": 740,
-  "double-jump": 990,
+  giant: 320,
   jetpack: 260,
   "time-slow": 620,
 };

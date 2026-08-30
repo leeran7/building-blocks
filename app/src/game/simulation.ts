@@ -47,19 +47,19 @@ import {
 } from "./towers";
 import {
   grantPowerUp,
-  DOUBLE_JUMP_MULT,
   JETPACK_MAX_VY,
   JETPACK_THRUST,
   canActivate,
   climbSpeedMultiplier,
-  consumeCharge,
   consumeJetpackFuel,
   cooldownTicks,
   durationTicks,
   hazardTimeScale,
   isPowerUpActive,
+  ladderGrabMultiplier,
   moveSpeedMultiplier,
   overlapsPickup,
+  platformReachMargin,
   powerUpForFloor,
   pruneActive,
 } from "./powerups";
@@ -105,7 +105,6 @@ export function spawnPlayer(id: PlayerId, slot: number): PlayerState {
     cooldownUntilTick: {},
     lastPickupTick: null,
     lastPickupType: null,
-    jumpHeldPrev: false,
     jetpackThrusting: false,
   };
 }
@@ -177,13 +176,14 @@ function landingPlatform(
   tower: TowerSpec,
   x: number,
   prevY: number,
-  newY: number
+  newY: number,
+  marginM = 0
 ): Platform | null {
   // Slightly larger tolerance to catch landings more reliably
   const LANDING_EPS = EPS * 1.5;
   let best: Platform | null = null;
   for (const p of platformsNearY(tower, Math.min(newY, prevY), Math.max(newY, prevY))) {
-    if (x < p.x0 - EPS || x > p.x1 + EPS) continue;
+    if (x < p.x0 - EPS - marginM || x > p.x1 + EPS + marginM) continue;
     // Feet moved down through the surface: newY <= p.y <= prevY.
     if (p.y <= prevY + LANDING_EPS && p.y >= newY - LANDING_EPS) {
       if (!best || p.y > best.y) best = p;
@@ -193,11 +193,11 @@ function landingPlatform(
 }
 
 /** Is there solid ground supporting feet at (x, y)? */
-function isSupported(tower: TowerSpec, x: number, y: number): boolean {
+function isSupported(tower: TowerSpec, x: number, y: number, marginM = 0): boolean {
   // Slightly larger tolerance for ground checks to prevent fall-through
   const GROUND_EPS = EPS * 1.5;
   for (const p of platformsNearY(tower, y, y)) {
-    if (x < p.x0 - EPS || x > p.x1 + EPS) continue;
+    if (x < p.x0 - EPS - marginM || x > p.x1 + EPS + marginM) continue;
     if (Math.abs(p.y - y) <= GROUND_EPS) return true;
   }
   return false;
@@ -216,7 +216,8 @@ function grabbableLadder(
   tower: TowerSpec,
   x: number,
   y: number,
-  climbY: number
+  climbY: number,
+  grabRadius: number
 ): { ix: number; slot: number; ladder: Ladder } | null {
   const BOUNDARY_BUFFER = 0.1; // Prevent immediate re-grab at ladder boundaries
   // Floors can carry several ladders, so prefer the nearest reachable one.
@@ -224,7 +225,7 @@ function grabbableLadder(
   let bestDx = Infinity;
   for (const { ix, slot, ladder: l } of laddersNearY(tower, y, y)) {
     const dx = Math.abs(x - l.x);
-    if (dx > tower.ladderGrabRadius) continue;
+    if (dx > grabRadius) continue;
     if (y < l.y0 - EPS || y > l.y1 + EPS) continue;
     // Require some distance from boundaries to prevent getting stuck when stepping off
     const usable =
@@ -251,6 +252,8 @@ function integratePlayer(
   const dt = TICK_DT;
   const moveSpeed = tower.moveSpeed * moveSpeedMultiplier(p, tick);
   const climbSpeed = tower.maxClimbSpeed * climbSpeedMultiplier(p, tick);
+  const grabRadius = tower.ladderGrabRadius * ladderGrabMultiplier(p, tick);
+  const platformMargin = platformReachMargin(p, tick);
   p.jetpackThrusting = false;
 
   // Horizontal movement (walk / ladder-slide is ignored while attached).
@@ -266,7 +269,7 @@ function integratePlayer(
       // Hop off (jump) or lost the ladder reference → let go.
       releaseLadder(p);
       p.vy = input.jump && l ? tower.jumpSpeed * 0.7 : 0;
-    } else if (Math.abs(p.x - l.x) > tower.ladderGrabRadius) {
+    } else if (Math.abs(p.x - l.x) > grabRadius) {
       // Walked off the side of the ladder → let go and fall.
       releaseLadder(p);
       p.vy = 0;
@@ -292,7 +295,7 @@ function integratePlayer(
 
     // Grab a ladder if the player is asking to climb and one is in reach.
     if (input.climbY !== 0) {
-      const g = grabbableLadder(tower, p.x, p.y, input.climbY);
+      const g = grabbableLadder(tower, p.x, p.y, input.climbY, grabRadius);
       if (g) {
         p.onLadder = true;
         p.ladderIx = g.ix;
@@ -307,20 +310,12 @@ function integratePlayer(
 
     if (!p.onLadder) {
       // Jump from the ground is a normal launch. While a jetpack has fuel,
-      // holding jump in the air burns one tick of thrust instead of a
-      // double-jump charge — the pack is the spend, the extra hops wait.
+      // holding jump in the air burns one tick of thrust.
       if (input.jump && p.onGround) {
         p.vy = tower.jumpSpeed;
         p.onGround = false;
       } else if (input.jump && !p.onGround && consumeJetpackFuel(p, tick)) {
         p.jetpackThrusting = true;
-      } else if (
-        input.jump &&
-        !p.jumpHeldPrev &&
-        !p.onGround &&
-        consumeCharge(p, "double-jump", tick)
-      ) {
-        p.vy = tower.jumpSpeed * DOUBLE_JUMP_MULT;
       }
       // Gravity while airborne; thrust beats it and caps at JETPACK_MAX_VY.
       if (p.onGround) {
@@ -341,7 +336,7 @@ function integratePlayer(
         p.onGround = true;
       } else if (p.vy <= 0) {
         // Falling — land on the first one-way platform crossed from above.
-        const plat = landingPlatform(tower, p.x, prevY, p.y);
+        const plat = landingPlatform(tower, p.x, prevY, p.y, platformMargin);
         if (plat) {
           p.y = plat.y;
           p.vy = 0;
@@ -355,7 +350,7 @@ function integratePlayer(
       }
 
       // Walked off a platform edge while grounded → start falling.
-      if (p.onGround && p.y > 0 && !isSupported(tower, p.x, p.y)) {
+      if (p.onGround && p.y > 0 && !isSupported(tower, p.x, p.y, platformMargin)) {
         p.onGround = false;
       }
     }
@@ -446,8 +441,7 @@ export function stepMatch(
       pu.collectedTick = state.tick;
       const dur = durationTicks(pu.type);
       // Refreshes a live entry of the same type rather than appending a second
-      // one — see grantPowerUp. Two entries let double-jump hand out twice the
-      // charges the HUD reports.
+      // one — see grantPowerUp.
       grantPowerUp(p, pu.type, state.tick);
       const cd = cooldownTicks(pu.type);
       if (cd > 0) p.cooldownUntilTick[pu.type] = state.tick + dur + cd;
@@ -457,7 +451,6 @@ export function stepMatch(
     }
 
     pruneActive(p, state.tick);
-    p.jumpHeldPrev = input.jump;
 
     // 4. DEATH LINE — the higher of the rising hazard and the Doodle-Jump fall
     //    floor (peak minus the fall-death drop). The tower is endless: there is

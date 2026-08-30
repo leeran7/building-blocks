@@ -23,6 +23,7 @@ import {
 } from "../../game/towers";
 import {
   POWER_UP_SPECS,
+  GIANT_VISUAL_SCALE,
   cooldownRemaining,
   isExpired,
   isPowerUpActive,
@@ -274,7 +275,11 @@ export function ClimbCanvas({
     else if (player?.onLadder) pose = "climb";
     else if (!player?.onGround) pose = "air";
     else if (Math.abs(player?.vx ?? 0) > 0.1) pose = "walk";
-    const s = Math.max(9, pxPerM * 1.7);
+    const s =
+      Math.max(9, pxPerM * 1.7) *
+      (player && isPowerUpActive(player, "giant", state.tick)
+        ? GIANT_VISUAL_SCALE
+        : 1);
 
     // Aura for each running effect — the in-scene tell that a power-up is live,
     // so the player never has to look away from the climber to check.

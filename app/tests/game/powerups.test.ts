@@ -46,6 +46,9 @@ import {
   JETPACK_WINDOW_SECONDS,
   TIME_SLOW_FRAC,
   TIME_SLOW_COOLDOWN_SECONDS,
+  GIANT_GRAB_MULT,
+  GIANT_PLATFORM_MARGIN_M,
+  GIANT_VISUAL_SCALE,
   canActivate,
   cooldownRemaining,
   cooldownTicks,
@@ -63,9 +66,8 @@ import {
   firstSpawnFloor,
   liveEntryCount,
   remainingTicks,
-  consumeCharge,
-  doubleJumpChargesRemaining,
-  DOUBLE_JUMP_CHARGES,
+  ladderGrabMultiplier,
+  platformReachMargin,
 } from "../../src/game/powerups";
 import { validateInput } from "../../src/game/antiCheat";
 import {
@@ -73,6 +75,7 @@ import {
   floorHeight,
   floorIndexAt,
   ladderForFloor,
+  laddersForFloor,
   platformsForFloor,
 } from "../../src/game/towers";
 
@@ -94,7 +97,7 @@ describe("specs: five live types, including jetpack", () => {
     expect(POWER_UP_TYPES).toEqual([
       "rapid-climb",
       "sprint-burst",
-      "double-jump",
+      "giant",
       "jetpack",
       "time-slow",
     ]);
@@ -326,7 +329,7 @@ describe("pickup: touching an orb auto-activates it immediately", () => {
 
   // The pre-existing same-type duplicate tests all used time-slow, the one type
   // whose cooldown blocks the second pickup outright. That left the four
-  // zero-cooldown types — and the double-jump charge exploit — uncovered.
+  // zero-cooldown types — uncovered if only time-slow duplicate tests exist.
   describe("a second orb of a live type refreshes it instead of stacking", () => {
     const ZERO_COOLDOWN_TYPES = POWER_UP_TYPES.filter(
       (t) => cooldownTicks(t) === 0
@@ -374,48 +377,6 @@ describe("pickup: touching an orb auto-activates it immediately", () => {
       // Reading the older entry would report a countdown that keeps falling.
       expect(remainingTicks(p, type, m.tick)).toBeGreaterThan(beforeRefresh);
     });
-
-    it("does not hand out more double-jump charges than the HUD reports", () => {
-      // The exploit: consumeCharge drains the first entry, isExpired then
-      // reports it spent, and activeEntry falls through to the second entry,
-      // granting DOUBLE_JUMP_CHARGES again — while doubleJumpChargesRemaining
-      // read the first entry and never showed more than the original two.
-      const m = climbingMatch();
-      const p = m.players[0];
-
-      placeOrb(m, "double-jump", p.x, p.y);
-      stepMatch(m, { p1: NO_INPUT }, SLOW);
-      placeOrb(m, "double-jump", p.x, p.y);
-      stepMatch(m, { p1: NO_INPUT }, SLOW);
-
-      const reported = doubleJumpChargesRemaining(p, m.tick);
-      expect(reported).toBe(DOUBLE_JUMP_CHARGES);
-
-      let granted = 0;
-      while (consumeCharge(p, "double-jump", m.tick)) {
-        granted += 1;
-        if (granted > DOUBLE_JUMP_CHARGES * 4) break; // don't loop forever
-      }
-
-      expect(granted).toBe(reported);
-      expect(doubleJumpChargesRemaining(p, m.tick)).toBe(0);
-    });
-
-    it("tops charges back up when a second orb refreshes a partly spent one", () => {
-      const m = climbingMatch();
-      const p = m.players[0];
-
-      placeOrb(m, "double-jump", p.x, p.y);
-      stepMatch(m, { p1: NO_INPUT }, SLOW);
-      expect(consumeCharge(p, "double-jump", m.tick)).toBe(true);
-      expect(doubleJumpChargesRemaining(p, m.tick)).toBe(DOUBLE_JUMP_CHARGES - 1);
-
-      placeOrb(m, "double-jump", p.x, p.y);
-      stepMatch(m, { p1: NO_INPUT }, SLOW);
-
-      expect(doubleJumpChargesRemaining(p, m.tick)).toBe(DOUBLE_JUMP_CHARGES);
-      expect(liveEntryCount(p, "double-jump", m.tick)).toBe(1);
-    });
   });
 
   it("expires each effect after its advertised duration", () => {
@@ -448,44 +409,45 @@ describe("effects: each power-up does what its label claims", () => {
     expect(boosted / plain).toBeCloseTo(SPRINT_BURST_MULT, 2);
   });
 
-  it("double-jump grants two extra airborne jumps", () => {
+  it("giant widens ladder grab and platform reach while active", () => {
     const m = climbingMatch();
     const p = m.players[0];
-    placeOrb(m, "double-jump", p.x, p.y);
-    stepMatch(m, { p1: NO_INPUT }, SLOW);
+    expect(ladderGrabMultiplier(p, m.tick)).toBe(1);
+    expect(platformReachMargin(p, m.tick)).toBe(0);
 
-    stepMatch(m, { p1: move(0, true) }, SLOW); // ground launch
-    expect(p.onGround).toBe(false);
-    for (let i = 0; i < 20; i++) stepMatch(m, { p1: NO_INPUT }, SLOW);
-    const vyBefore1 = p.vy;
-    stepMatch(m, { p1: move(0, true) }, SLOW); // first mid-air jump
-    expect(p.vy).toBeGreaterThan(vyBefore1);
-
-    stepMatch(m, { p1: NO_INPUT }, SLOW);
-    for (let i = 0; i < 20; i++) stepMatch(m, { p1: NO_INPUT }, SLOW);
-    const vyBefore2 = p.vy;
-    stepMatch(m, { p1: move(0, true) }, SLOW); // second mid-air jump
-    expect(p.vy).toBeGreaterThan(vyBefore2);
-
-    // Both charges spent — a third jump does nothing.
-    stepMatch(m, { p1: NO_INPUT }, SLOW);
-    const vyAfter = p.vy;
-    stepMatch(m, { p1: move(0, true) }, SLOW);
-    expect(p.vy).toBeLessThan(vyAfter);
+    grantPowerUp(p, "giant", m.tick);
+    expect(ladderGrabMultiplier(p, m.tick)).toBe(GIANT_GRAB_MULT);
+    expect(platformReachMargin(p, m.tick)).toBe(GIANT_PLATFORM_MARGIN_M);
+    expect(POWER_UP_SPECS.giant.durationSeconds).toBe(12);
+    expect(GIANT_VISUAL_SCALE).toBe(2);
   });
 
-  it("does not let a held jump key burn the double-jump charge", () => {
+  it("giant grabs a ladder from outside the normal radius", () => {
     const m = climbingMatch();
     const p = m.players[0];
-    placeOrb(m, "double-jump", p.x, p.y);
-    stepMatch(m, { p1: NO_INPUT }, SLOW);
-    // Jump held down continuously from the ground.
-    stepMatch(m, { p1: move(0, true) }, SLOW);
-    for (let i = 0; i < 6; i++) stepMatch(m, { p1: move(0, true) }, SLOW);
-    expect(isPowerUpActive(p, "double-jump", m.tick)).toBe(true);
+    const ladder = laddersForFloor(TOWER, 0)[0];
+    p.y = (ladder.y0 + ladder.y1) / 2;
+    p.x = ladder.x + TOWER.ladderGrabRadius * 1.25;
+    p.onGround = false;
+    p.onLadder = false;
+
+    stepMatch(
+      m,
+      { p1: { moveX: 0, jump: false, climbY: 1, usePowerUp: false } },
+      SLOW
+    );
+    expect(p.onLadder).toBe(false);
+
+    grantPowerUp(p, "giant", m.tick);
+    stepMatch(
+      m,
+      { p1: { moveX: 0, jump: false, climbY: 1, usePowerUp: false } },
+      SLOW
+    );
+    expect(p.onLadder).toBe(true);
   });
 
-  it("an airborne jump without the charge stays impossible", () => {
+  it("an airborne jump without jetpack fuel stays impossible", () => {
     const m = climbingMatch();
     const p = m.players[0];
     stepMatch(m, { p1: move(0, true) }, SLOW);
@@ -540,7 +502,6 @@ describe("effects: each power-up does what its label claims", () => {
           type: "time-slow",
           startTick: m.tick,
           durationTicks: durationTicks("time-slow"),
-          used: false,
         });
       }
       const y0 = m.hazardY;
@@ -737,24 +698,18 @@ describe("jetpack: hold-to-thrust with a fuel tank inside a window", () => {
     expect(jetpackFuelRemaining(p, m.tick)).toBe(fuelBefore - 1);
   });
 
-  it("AC-J7 double-jump charges wait until fuel is empty, then need a tap", () => {
+  it("AC-J7 jetpack thrust does not require a tap after leaving a ladder", () => {
     const m = climbingMatch();
     const p = m.players[0];
     pickupAtFeet(m, "jetpack");
-    pickupAtFeet(m, "double-jump");
-    expect(doubleJumpChargesRemaining(p, m.tick)).toBe(DOUBLE_JUMP_CHARGES);
     stepMatch(m, { p1: move(0, true) }, SLOW);
     const tank = jetpackFuelTicks();
     for (let i = 0; i < tank; i++) {
       stepMatch(m, { p1: move(0, true) }, SLOW);
-      expect(doubleJumpChargesRemaining(p, m.tick)).toBe(DOUBLE_JUMP_CHARGES);
     }
     expect(isPowerUpActive(p, "jetpack", m.tick)).toBe(false);
     stepMatch(m, { p1: move(0, true) }, SLOW);
-    expect(doubleJumpChargesRemaining(p, m.tick)).toBe(DOUBLE_JUMP_CHARGES);
-    stepMatch(m, { p1: NO_INPUT }, SLOW);
-    stepMatch(m, { p1: move(0, true) }, SLOW);
-    expect(doubleJumpChargesRemaining(p, m.tick)).toBe(DOUBLE_JUMP_CHARGES - 1);
+    expect(p.jetpackThrusting).toBe(false);
   });
 
   it("AC-J8 stepMatch keeps an airborne hold and strips a fuel-less air jump", () => {
@@ -846,36 +801,10 @@ describe("jetpack: hold-to-thrust with a fuel tank inside a window", () => {
 });
 
 describe("anti-cheat: power-ups widen the rules only as far as they should", () => {
-  it("rejects an air jump from a player with no charge", () => {
+  it("rejects an air jump from a player with no jetpack fuel", () => {
     const p = airborne();
     const v = validateInput({ moveX: 0, jump: true, climbY: 0, usePowerUp: false }, p, 0);
     expect(v.rejected).toBe(true);
-    expect(v.input.jump).toBe(false);
-  });
-
-  it("allows an air jump backed by an unspent double-jump charge", () => {
-    const p = airborne();
-    p.activePowerUps.push({
-      type: "double-jump",
-      startTick: 0,
-      durationTicks: durationTicks("double-jump"),
-      used: false,
-      chargesRemaining: 1,
-    });
-    const v = validateInput({ moveX: 0, jump: true, climbY: 0, usePowerUp: false }, p, 1);
-    expect(v.input.jump).toBe(true);
-  });
-
-  it("rejects it again once the charges are spent", () => {
-    const p = airborne();
-    p.activePowerUps.push({
-      type: "double-jump",
-      startTick: 0,
-      durationTicks: durationTicks("double-jump"),
-      used: false,
-      chargesRemaining: 0,
-    });
-    const v = validateInput({ moveX: 0, jump: true, climbY: 0, usePowerUp: false }, p, 1);
     expect(v.input.jump).toBe(false);
   });
 
@@ -889,7 +818,6 @@ describe("anti-cheat: power-ups widen the rules only as far as they should", () 
       type: "rapid-climb",
       startTick: 0,
       durationTicks: durationTicks("rapid-climb"),
-      used: false,
     });
     const v = validateInput({ moveX: 0, jump: false, climbY: 1, usePowerUp: false }, p, 0);
     expect(v.rejected).toBe(false);
@@ -974,7 +902,7 @@ describe("time-slow cooldown: the thing that keeps a run finite", () => {
     // for deep runs rather than a requirement to beat the lava.
     expect(POWER_UP_SPECS["rapid-climb"].durationSeconds).toBe(15);
     expect(POWER_UP_SPECS["sprint-burst"].durationSeconds).toBe(10);
-    expect(POWER_UP_SPECS["double-jump"].durationSeconds).toBe(18);
+    expect(POWER_UP_SPECS.giant.durationSeconds).toBe(12);
     expect(POWER_UP_SPECS["time-slow"].durationSeconds).toBe(8);
     expect(POWER_UP_SPECS["time-slow"].cooldownSeconds).toBe(40);
     expect(TIME_SLOW_COOLDOWN_SECONDS).toBe(40);
