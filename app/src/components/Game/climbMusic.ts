@@ -15,6 +15,8 @@
  * rides the master gain so muting is instant and reversible.
  */
 
+import { createAudioOutput, type AudioOutput } from "./audioOutput";
+
 const MASTER_GAIN = 0.13;
 const A3 = 220; // reference pitch; all notes are semitone offsets from here
 
@@ -47,6 +49,7 @@ export class ClimbMusic {
   private ctx: AudioContext | null = null;
   private master: GainNode | null = null;
   private filter: BiquadFilterNode | null = null;
+  private output: AudioOutput | null = null;
   private muted = false;
   private playing = false;
   private intensity = 0;
@@ -87,12 +90,16 @@ export class ClimbMusic {
   /** Create/resume the context inside a user gesture so cues will play. */
   unlock(): void {
     this.ensureContext();
+    this.output?.prime();
   }
 
   /** Begin (or resume) the loop. Idempotent. */
   start(): void {
     const ctx = this.ensureContext();
     if (!ctx || this.playing) return;
+    // start() follows the Start-button unlock, but prime again in case music was
+    // toggled on without a fresh unlock — harmless if already open.
+    this.output?.prime();
     this.playing = true;
     // Start a hair in the future so the first bar isn't clipped.
     this.nextStepTime = ctx.currentTime + 0.06;
@@ -111,6 +118,8 @@ export class ClimbMusic {
   /** Release the audio device. Safe to call more than once. */
   dispose(): void {
     this.stop();
+    this.output?.dispose();
+    this.output = null;
     void this.ctx?.close().catch(() => {});
     this.ctx = null;
     this.master = null;
@@ -231,7 +240,10 @@ export class ClimbMusic {
       this.filter.type = "lowpass";
       this.filter.frequency.value = 700 + this.intensity * 3600;
       this.filter.Q.value = 0.7;
-      this.filter.connect(this.master).connect(this.ctx.destination);
+      // Route through a media element so iOS plays it over the Ring/Silent
+      // switch instead of on the (switch-muted) ringer channel.
+      this.output = createAudioOutput(this.ctx);
+      this.filter.connect(this.master).connect(this.output.node);
     }
     if (this.ctx.state === "suspended") void this.ctx.resume().catch(() => {});
     return this.ctx;

@@ -19,6 +19,7 @@
  */
 
 import { PowerUpType } from "../../game/types";
+import { createAudioOutput, type AudioOutput } from "./audioOutput";
 
 export type Cue = "pickup" | "activate" | "expire";
 
@@ -104,6 +105,7 @@ const EXPIRE: Note[] = [
 export class PowerUpAudio {
   private ctx: AudioContext | null = null;
   private master: GainNode | null = null;
+  private output: AudioOutput | null = null;
   private muted = false;
 
   setMuted(muted: boolean): void {
@@ -123,10 +125,13 @@ export class PowerUpAudio {
   /** Call from a click/tap so WebKit will actually play later cues. */
   unlock(): void {
     this.ensureContext();
+    this.output?.prime();
   }
 
   /** Release the audio device. Safe to call more than once. */
   dispose(): void {
+    this.output?.dispose();
+    this.output = null;
     void this.ctx?.close().catch(() => {});
     this.ctx = null;
     this.master = null;
@@ -197,7 +202,10 @@ export class PowerUpAudio {
       }
       this.master = this.ctx.createGain();
       this.master.gain.value = this.muted ? 0 : MASTER_GAIN;
-      this.master.connect(this.ctx.destination);
+      // Route through a media element so iOS plays it over the Ring/Silent
+      // switch instead of on the (switch-muted) ringer channel.
+      this.output = createAudioOutput(this.ctx);
+      this.master.connect(this.output.node);
     }
     // A context created before the first gesture starts suspended.
     if (this.ctx.state === "suspended") void this.ctx.resume().catch(() => {});
