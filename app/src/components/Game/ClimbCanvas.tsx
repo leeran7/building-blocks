@@ -70,6 +70,8 @@ const FLAG = "#cbf24d"; // summit flag reads as signal too
  */
 const BASE_WIDTH = 360;
 const BASE_HEIGHT = 640;
+/** How fast the camera closes on the climber each tick (1 = snap). */
+const CAM_FOLLOW = 0.3;
 
 export interface ClimbCanvasProps {
   state: MatchState;
@@ -106,6 +108,8 @@ export function ClimbCanvas({
   hudInsetTop = 0,
 }: ClimbCanvasProps) {
   const ref = useRef<HTMLCanvasElement>(null);
+  const camYRef = useRef<number | null>(null);
+  const camTickRef = useRef<number | null>(null);
 
   useEffect(() => {
     const canvas = ref.current;
@@ -152,12 +156,22 @@ export function ClimbCanvas({
     const viewH = height / pxPerM; // metres visible vertically
     const focusScreenFrac = 0.62; // keep the climber ~62% down the view
     // Endless: the camera follows upward without any ceiling.
-    let camWorldY = playerY - viewH * (1 - focusScreenFrac);
-    // Near the base the camera stops following, so the climber drifts to the
-    // bottom of the view — behind the touch controls. Letting the floor sink by
-    // the inset keeps them above it; it only shows some empty air (and the
-    // rising lava) below the ground line.
-    camWorldY = Math.max(-bottomInset / pxPerM, camWorldY);
+    const camTarget = Math.max(
+      -bottomInset / pxPerM,
+      playerY - viewH * (1 - focusScreenFrac)
+    );
+    // Walk-up stairs and hurdle triangles snap the feet a crate-height per
+    // tick. Following y 1:1 made the whole view hitch. Ease toward the target
+    // and only snap on a new run or a huge gap (respawn / seek).
+    const camWorldY = followCamY(
+      camYRef.current,
+      camTarget,
+      viewH,
+      state.tick,
+      camTickRef.current
+    );
+    camYRef.current = camWorldY;
+    camTickRef.current = state.tick;
 
     const sx = (worldX: number) => worldX * pxPerM;
     const sy = (worldY: number) => height - (worldY - camWorldY) * pxPerM;
@@ -553,6 +567,21 @@ function dot(ctx: CanvasRenderingContext2D, [x, y]: Pt, r: number) {
   ctx.beginPath();
   ctx.arc(x, y, r, 0, Math.PI * 2);
   ctx.fill();
+}
+
+function followCamY(
+  current: number | null,
+  target: number,
+  viewH: number,
+  tick: number,
+  prevTick: number | null
+): number {
+  if (current === null || prevTick === null || tick < prevTick || tick === 0) {
+    return target;
+  }
+  const err = target - current;
+  if (Math.abs(err) > viewH * 0.55) return target;
+  return current + err * CAM_FOLLOW;
 }
 
 function drawObstacle(
