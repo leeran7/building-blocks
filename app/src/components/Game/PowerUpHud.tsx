@@ -86,7 +86,9 @@ export function PowerUpHud({
 
       <button
         type="button"
+        data-game-control
         onClick={onToggleMute}
+        onContextMenu={(e) => e.preventDefault()}
         aria-pressed={muted}
         className="flex-shrink-0 min-h-[44px] min-w-[44px] rounded-full border border-border-strong bg-surface px-2.5 py-1.5 font-mono text-[10px] uppercase tracking-[0.12em] text-text-secondary hover:text-text-primary hover:border-signal/50 transition-colors"
       >

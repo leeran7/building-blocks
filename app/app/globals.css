@@ -72,6 +72,13 @@ body {
   color: #0a0a0c;
 }
 
+/* Game controls: suppress iOS long-press copy/lookup on button labels. */
+[data-game-control] {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
 /* Dark scrollbars */
 * {
   scrollbar-width: thin;

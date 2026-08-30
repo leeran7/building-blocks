@@ -9,9 +9,10 @@
  *   jetpack       skip a ladder detour — hold jump to thrust, fuel is short
  *   time-slow     the lava eventually outpaces any climber; buy back seconds
  *
- * BALANCE. The hazard envelope ramps toward 1.42x, but the lava stumbles (2s
- * of 0.25x envelope every 8s), so the time-averaged chase settles near 1.15x
- * and an unaided run is still hard-capped. Power-ups are what push past that
+ * BALANCE. The hazard envelope ramps toward 1.0× (ladder climb speed) and
+ * stumbles (2s of 0.25× envelope every 8s), so the time-averaged chase
+ * settles near 0.81× — climbable on a ladder, but dawdling on a floor still
+ * lets the lava close in. Power-ups are what push past that cap, and they are
  * cap, and they are deliberately shaped so the ceiling is raised by PLAYING
  * WELL rather than by collecting:
  *
