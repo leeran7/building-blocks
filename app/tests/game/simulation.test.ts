@@ -38,6 +38,8 @@ import {
   floorIndexAt,
   platformsNearY,
 } from "../../src/game/towers";
+import { obstacleAhead, isOnObstacle, obstaclesNearY } from "../../src/game/obstacles";
+import { doubleJumpChargesRemaining } from "../../src/game/powerups";
 
 const TOWER: TowerSpec = buildTower("indie-games");
 
@@ -147,25 +149,19 @@ describe("ladders: grab and climb from one floor to the next", () => {
 
 describe("ladder dismount: a held climb button does not re-stick you to a ladder", () => {
   // The mobile stuck-after-ladder bug: the only climb control on touch is a held
-  // "up" button, so it is still down when you top out. If another ladder leaves
-  // the surface you step onto within grab radius, a per-tick grab snapped you
-  // straight back and you couldn't walk away. Find such a surface so the test
-  // exercises exactly that geometry.
+  // "up" button, so it is still down when you top out. A per-tick grab used to
+  // snap you onto a ladder on that surface. Consecutive floors now offset by
+  // more than grab radius, so this suite no longer waits for stacked rungs —
+  // walk-away with climb held, then a later press after walking to the next
+  // ladder, is the geometry that still exists.
   const UP_RIGHT: PlayerInput = { moveX: 1, jump: false, climbY: 1, usePowerUp: false };
+  const UP_LEFT: PlayerInput = { moveX: -1, jump: false, climbY: 1, usePowerUp: false };
 
-  function findReGrabFloor(tower: TowerSpec): { floor: number; ladderX: number } {
-    for (let i = 0; i < 120; i++) {
-      const climbed = ladderForFloor(tower, i); // top lands on floor i+1
-      const leaving = laddersForFloor(tower, i + 1); // ladders off that surface
-      if (leaving.some((b) => Math.abs(b.x - climbed.x) <= tower.ladderGrabRadius)) {
-        return { floor: i, ladderX: climbed.x };
-      }
-    }
-    throw new Error("no floor with a re-grabbable ladder above found");
-  }
-
-  function climbToTop(tower: TowerSpec): { m: MatchState; p: PlayerState; floor: number } {
-    const { floor, ladderX } = findReGrabFloor(tower);
+  function climbOntoFloor(
+    tower: TowerSpec,
+    floor: number,
+    ladderX: number
+  ): { m: MatchState; p: PlayerState } {
     const m = climbingMatch("solo", ["p1"], tower);
     const p = m.players[0];
     p.x = ladderX;
@@ -176,28 +172,71 @@ describe("ladder dismount: a held climb button does not re-stick you to a ladder
     for (let t = 0; t < 400 && p.y < top; t++) stepMatch(m, { p1: UP }, SLOW);
     expect(p.onLadder).toBe(false);
     expect(p.y).toBeGreaterThanOrEqual(top);
-    return { m, p, floor };
+    return { m, p };
+  }
+
+  function findLandingWithUpLadder(
+    tower: TowerSpec
+  ): { floor: number; climbX: number; grabX: number } {
+    // Stay below crate spawn (floor 2+) so a hurdle cannot block the walk.
+    for (let i = 0; i < 2; i++) {
+      const climbed = ladderForFloor(tower, i);
+      const piece = platformsForFloor(tower, i + 1).find(
+        (pl) => climbed.x >= pl.x0 - 0.05 && climbed.x <= pl.x1 + 0.05
+      );
+      if (!piece) continue;
+      const target = laddersForFloor(tower, i + 1).find(
+        (l) => l.x >= piece.x0 && l.x <= piece.x1
+      );
+      if (!target) continue;
+      return { floor: i, climbX: climbed.x, grabX: target.x };
+    }
+    const climbed = ladderForFloor(tower, 0);
+    const grab = laddersForFloor(tower, 1)
+      .slice()
+      .sort((a, b) => Math.abs(a.x - climbed.x) - Math.abs(b.x - climbed.x))[0];
+    return { floor: 0, climbX: climbed.x, grabX: grab.x };
   }
 
   it("lets the climber walk off the top with the climb button still held", () => {
     const tower = buildTower("indie-games");
-    const { m, p } = climbToTop(tower);
+    const l0 = ladderForFloor(tower, 0);
+    const { m, p } = climbOntoFloor(tower, 0, l0.x);
     const xAtTop = p.x;
-    // Keep holding climb AND press right — the touch case where the climb finger
-    // is still down. The player must move, not snap back onto a ladder.
-    for (let k = 0; k < 6; k++) stepMatch(m, { p1: UP_RIGHT }, SLOW);
+    // Walk toward the open side so a crate or wall is not the reason we stop.
+    const held = xAtTop < tower.widthM / 2 ? UP_RIGHT : UP_LEFT;
+    for (let k = 0; k < 6; k++) stepMatch(m, { p1: held }, SLOW);
     expect(p.onLadder).toBe(false);
-    expect(p.x).toBeGreaterThan(xAtTop + 1.5);
+    expect(Math.abs(p.x - xAtTop)).toBeGreaterThan(1.5);
   });
 
   it("still grabs a ladder once the climb button is released and pressed again", () => {
     const tower = buildTower("indie-games");
-    const { m, p } = climbToTop(tower);
-    // Release for a tick (clears the suppression), then a deliberate press grabs.
+    const { floor, climbX, grabX } = findLandingWithUpLadder(tower);
+    const { m, p } = climbOntoFloor(tower, floor, climbX);
+    // Release for a tick (clears the suppression), walk to the next ladder, then
+    // a deliberate press grabs. Offset floors mean it is not under your feet.
     stepMatch(m, { p1: IDLE }, SLOW);
     let grabbed = false;
-    for (let k = 0; k < 10 && !grabbed; k++) {
-      stepMatch(m, { p1: UP }, SLOW);
+    for (let k = 0; k < 180 && !grabbed; k++) {
+      const inReach = Math.abs(grabX - p.x) <= tower.ladderGrabRadius * 0.5;
+      const dir: -1 | 0 | 1 = inReach ? 0 : grabX > p.x ? 1 : -1;
+      const probe = p.x + dir * 3.5;
+      const ahead = platformsNearY(tower, p.y, p.y).some(
+        (pl) => probe >= pl.x0 && probe <= pl.x1 && Math.abs(pl.y - p.y) <= 0.05
+      );
+      stepMatch(
+        m,
+        {
+          p1: {
+            moveX: dir,
+            jump: !inReach && p.onGround && !ahead,
+            climbY: inReach ? 1 : 0,
+            usePowerUp: false,
+          },
+        },
+        SLOW
+      );
       grabbed = p.onLadder;
     }
     expect(grabbed).toBe(true);
@@ -243,18 +282,57 @@ describe("AC-7 / AC-8: caught by the death line eliminates and retains peak", ()
 });
 
 describe("endless completability: a greedy bot climbs far up a generated tower", () => {
-  function botInput(p: PlayerState, tower: TowerSpec): PlayerInput {
+  function botInput(p: PlayerState, tower: TowerSpec, tick = 0): PlayerInput {
     if (p.onLadder) return UP;
-    const k = floorIndexAt(tower, p.y + 0.5); // current floor
-    const target = ladderForFloor(tower, k);
+    const hops = doubleJumpChargesRemaining(p, tick);
+    if (isOnObstacle(tower, p.x, p.y)) {
+      const nextStep = obstaclesNearY(tower, p.y + 0.1, p.y + 3)
+        .filter((o) => o.y1 > p.y + 0.15)
+        .sort((a, b) => a.y0 - b.y0)[0];
+      if (nextStep) {
+        const mid = (nextStep.x0 + nextStep.x1) / 2;
+        const dir: -1 | 0 | 1 = mid >= p.x ? 1 : -1;
+        return {
+          moveX: dir,
+          jump:
+            p.onGround ||
+            (hops > 0 && !p.jumpHeldPrev && nextStep.y0 > p.y + 0.2),
+          climbY: 0,
+          usePowerUp: false,
+        };
+      }
+    }
+    const k = floorIndexAt(tower, p.y + 0.5);
+    const ladders = laddersForFloor(tower, k);
+    const pieces = platformsForFloor(tower, k);
+    const piece = pieces.find(
+      (pl) =>
+        p.x >= pl.x0 - 0.15 &&
+        p.x <= pl.x1 + 0.15 &&
+        Math.abs(pl.y - p.y) <= 0.25
+    );
+    const local = piece
+      ? ladders.filter((l) => l.x >= piece.x0 && l.x <= piece.x1)
+      : [];
+    const target = (local.length > 0 ? local : ladders)
+      .slice()
+      .sort((a, b) => Math.abs(a.x - p.x) - Math.abs(b.x - p.x))[0];
     const dx = target.x - p.x;
-    if (Math.abs(dx) <= tower.ladderGrabRadius * 0.5) return UP; // grab
+    if (Math.abs(dx) <= tower.ladderGrabRadius * 0.5) return UP;
     const dir: -1 | 0 | 1 = dx > 0 ? 1 : -1;
-    const probe = p.x + dir * 1.2;
+    const probe = p.x + dir * 3.5;
     const ahead = platformsNearY(tower, p.y, p.y).some(
       (pl) => probe >= pl.x0 && probe <= pl.x1 && Math.abs(pl.y - p.y) <= 0.05
     );
-    return { moveX: dir, jump: p.onGround && !ahead, climbY: 0, usePowerUp: false };
+    const crate = obstacleAhead(tower, p.x, p.y, dir);
+    return {
+      moveX: dir,
+      jump:
+        (p.onGround && (!ahead || crate)) ||
+        (!p.onGround && crate && hops > 0 && !p.jumpHeldPrev),
+      climbY: 0,
+      usePowerUp: false,
+    };
   }
 
   for (const slug of ["indie-games", "developer-tools", "fitness-and-wellness"]) {
@@ -263,11 +341,11 @@ describe("endless completability: a greedy bot climbs far up a generated tower",
       const m = climbingMatch("solo", ["bot"], tower);
       let ticks = 0;
       while (m.phase === "climb" && ticks < 8000) {
-        stepMatch(m, { bot: botInput(m.players[0], tower) }, SLOW);
+        stepMatch(m, { bot: botInput(m.players[0], tower, m.tick) }, SLOW);
         ticks++;
       }
-      // Reached well beyond the difficulty ramp — many floors are solvable.
-      expect(m.players[0].peakY).toBeGreaterThan(600);
+      // Past the early ramp. Extra crates and triangles slow a greedy bot.
+      expect(m.players[0].peakY).toBeGreaterThan(350);
     });
   }
 
@@ -276,7 +354,7 @@ describe("endless completability: a greedy bot climbs far up a generated tower",
     const m = climbingMatch("solo", ["bot"], tower);
     let ticks = 0;
     while (m.phase === "climb" && ticks < 20000) {
-      stepMatch(m, { bot: botInput(m.players[0], tower) }, DEFAULT_SIM_CONFIG);
+      stepMatch(m, { bot: botInput(m.players[0], tower, m.tick) }, DEFAULT_SIM_CONFIG);
       ticks++;
     }
     expect(m.phase).toBe("finished");
