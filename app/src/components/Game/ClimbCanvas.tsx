@@ -14,7 +14,7 @@
  */
 
 import { useEffect, useRef } from "react";
-import { MatchState, PowerUpPickup } from "../../game/types";
+import { MatchState } from "../../game/types";
 import {
   platformsNearY,
   laddersNearY,
@@ -32,6 +32,17 @@ import {
   canvasNeedsResize,
   clampDevicePixelRatio,
 } from "./canvasBacking";
+import {
+  PICKUP_BURST_TICKS,
+  PICKUP_FLASH_TICKS,
+  drawActivePowerUpEffect,
+  drawJetpackFlame,
+  drawPickupBanner,
+  drawPickupBurst,
+  drawPickupScreenFlash,
+  drawPowerUpOrb,
+  pickupShakeOffset,
+} from "./powerUpVfx";
 
 // ASCENT palette — signal-lime climber, ember lava, warm-obsidian world.
 const VOID = "#0a0a0c";
@@ -54,21 +65,6 @@ const FLAG = "#cbf24d"; // summit flag reads as signal too
  */
 const BASE_WIDTH = 360;
 const BASE_HEIGHT = 640;
-
-/** Ticks the "picked up X" banner stays on screen. */
-const PICKUP_FLASH_TICKS = 55;
-/** Ticks the burst where an orb was collected plays for. */
-const PICKUP_BURST_TICKS = 12;
-
-/** Jetpack plume — short cone below the feet, color from the orb spec. */
-const JETPACK_FLAME_CORE = "#ffd4a8";
-const JETPACK_FLAME_WIDTH_FRAC = 0.42;
-const JETPACK_FLAME_HEIGHT_FRAC = 0.9;
-const JETPACK_FLAME_CORE_WIDTH_FRAC = 0.4;
-const JETPACK_FLAME_CORE_HEIGHT_FRAC = 0.5;
-const JETPACK_FLAME_STATIC_SCALE = 0.75;
-const JETPACK_FLAME_FLICKER_AMP = 0.16;
-const JETPACK_FLAME_FLICKER_RATE = 0.71;
 
 export interface ClimbCanvasProps {
   state: MatchState;
@@ -148,6 +144,20 @@ export function ClimbCanvas({
     const sx = (worldX: number) => worldX * pxPerM;
     const sy = (worldY: number) => height - (worldY - camWorldY) * pxPerM;
 
+    const pickupAge =
+      player?.lastPickupTick !== null &&
+      player?.lastPickupTick !== undefined &&
+      player.lastPickupType
+        ? state.tick - player.lastPickupTick
+        : -1;
+    const shake =
+      pickupAge >= 0
+        ? pickupShakeOffset(pickupAge, state.tick, ui, reducedMotion)
+        : { dx: 0, dy: 0 };
+
+    ctx.save();
+    ctx.translate(shake.dx, shake.dy);
+
     // The window of floors currently in view (plus a margin).
     const yLow = camWorldY - tower.floorGap;
     const yHigh = camWorldY + viewH + tower.floorGap;
@@ -224,7 +234,17 @@ export function ClimbCanvas({
         // Brief burst where it was taken, then nothing.
         const age = pu.collectedTick === null ? 999 : state.tick - pu.collectedTick;
         if (age >= 0 && age < PICKUP_BURST_TICKS) {
-          drawPickupBurst(ctx, ox, oy, age / PICKUP_BURST_TICKS, pxPerM, POWER_UP_SPECS[pu.type].color);
+          drawPickupBurst(
+            ctx,
+            ox,
+            oy,
+            age / PICKUP_BURST_TICKS,
+            pxPerM,
+            pu.type,
+            pu.floorIndex,
+            state.tick,
+            reducedMotion
+          );
         }
         continue;
       }
@@ -281,29 +301,19 @@ export function ClimbCanvas({
     const live = (player?.activePowerUps ?? []).filter(
       (a) => !isExpired(a, state.tick)
     );
-    live.forEach((a, i) => {
-      const spec = POWER_UP_SPECS[a.type];
-      const remaining = a.durationTicks - (state.tick - a.startTick);
-      // Pulse faster over the last second so the window closing is visible.
-      const urgent = remaining <= 30;
-      const phase = reducedMotion ? 0 : state.tick * (urgent ? 0.36 : 0.12);
-      const pulse = reducedMotion ? 0.5 : 0.5 + 0.5 * Math.sin(phase);
-      ctx.save();
-      ctx.strokeStyle = spec.color;
-      ctx.globalAlpha = 0.3 + 0.45 * pulse;
-      ctx.lineWidth = Math.max(1.5, 0.16 * s);
-      ctx.beginPath();
-      ctx.ellipse(
+    live.forEach((a) => {
+      drawActivePowerUpEffect(
+        ctx,
+        a.type,
         px,
-        pyScreen - 1.25 * s,
-        (1.05 + 0.22 * i) * s + pulse * 0.12 * s,
-        (1.75 + 0.22 * i) * s + pulse * 0.12 * s,
-        0,
-        0,
-        Math.PI * 2
+        pyScreen,
+        s,
+        facing,
+        state.tick,
+        a,
+        player,
+        reducedMotion
       );
-      ctx.stroke();
-      ctx.restore();
     });
 
     drawClimber(ctx, px, pyScreen, s, facing, pose, state.tick, color, reducedMotion);
@@ -337,32 +347,27 @@ export function ClimbCanvas({
     );
     ctx.textAlign = "left";
 
-    // Pickup flash — a short centred banner naming what was just grabbed.
+    // Pickup flash — colour wash plus a centred banner naming what was grabbed.
     if (
       player?.lastPickupTick !== null &&
       player?.lastPickupTick !== undefined &&
-      player.lastPickupType
+      player.lastPickupType &&
+      pickupAge >= 0 &&
+      pickupAge < PICKUP_FLASH_TICKS
     ) {
-      const age = state.tick - player.lastPickupTick;
-      if (age >= 0 && age < PICKUP_FLASH_TICKS) {
-        const spec = POWER_UP_SPECS[player.lastPickupType];
-        const t = age / PICKUP_FLASH_TICKS;
-        const text = `${spec.glyph} ${spec.label.toUpperCase()}`;
-        ctx.save();
-        ctx.globalAlpha = 1 - t * t; // hold, then fade
-        ctx.textAlign = "center";
-        ctx.font = `bold ${Math.round(15 * ui)}px monospace`;
-        ctx.fillStyle = spec.color;
-        // Rises slightly as it fades.
-        const ty = hudH + 46 * ui - t * 10 * ui;
-        ctx.fillText(text, width / 2, ty);
-        ctx.font = `${Math.round(10 * ui)}px monospace`;
-        ctx.fillStyle = "#f4f2ec";
-        ctx.fillText(spec.description.toUpperCase(), width / 2, ty + 14 * ui);
-        ctx.restore();
-        ctx.textAlign = "left";
-      }
+      const spec = POWER_UP_SPECS[player.lastPickupType];
+      drawPickupScreenFlash(
+        ctx,
+        width,
+        height,
+        pickupAge,
+        spec.color,
+        reducedMotion
+      );
+      drawPickupBanner(ctx, width, hudH, ui, spec, pickupAge, reducedMotion);
     }
+
+    ctx.restore();
   }, [state, width, height, reducedMotion, bottomInset]);
 
   return (
@@ -380,96 +385,6 @@ export function ClimbCanvas({
       role="img"
     />
   );
-}
-
-/**
- * A hovering power-up orb: a glowing diamond carrying the type's glyph, bobbing
- * on the deterministic sim tick. Colour and glyph both encode the type, so it is
- * still identifiable without colour vision, and the label under it names it
- * outright. reducedMotion freezes the bob and the halo.
- */
-function drawPowerUpOrb(
-  ctx: CanvasRenderingContext2D,
-  cx: number,
-  baseY: number,
-  pxPerM: number,
-  ui: number,
-  pu: PowerUpPickup,
-  tick: number,
-  reducedMotion: boolean,
-  cooling: boolean = false
-) {
-  const spec = POWER_UP_SPECS[pu.type];
-  // Offset the phase per floor so a column of orbs does not bob in lockstep.
-  const phase = tick * 0.08 + pu.floorIndex * 1.7;
-  const bob = reducedMotion ? 0 : Math.sin(phase) * pxPerM * 0.45;
-  const cy = baseY + bob;
-  const r = Math.max(9, pxPerM * 1.35);
-  const halo = reducedMotion ? 0.35 : 0.28 + 0.16 * (0.5 + 0.5 * Math.sin(phase * 1.6));
-
-  // Cooling down for this player: still visible (it may not be for others),
-  // but visibly inert on contact rather than a silent no-op.
-  const dim = cooling ? 0.45 : 1;
-
-  ctx.save();
-
-  // Soft halo.
-  ctx.globalAlpha = halo * dim;
-  ctx.fillStyle = spec.color;
-  ctx.beginPath();
-  ctx.arc(cx, cy, r * 1.85, 0, Math.PI * 2);
-  ctx.fill();
-
-  // Diamond body.
-  ctx.globalAlpha = dim;
-  ctx.beginPath();
-  ctx.moveTo(cx, cy - r);
-  ctx.lineTo(cx + r * 0.8, cy);
-  ctx.lineTo(cx, cy + r);
-  ctx.lineTo(cx - r * 0.8, cy);
-  ctx.closePath();
-  ctx.fillStyle = VOID;
-  ctx.fill();
-  ctx.strokeStyle = spec.color;
-  ctx.lineWidth = Math.max(1.5, r * 0.16);
-  ctx.stroke();
-
-  // Glyph.
-  ctx.fillStyle = spec.color;
-  ctx.font = `bold ${Math.round(r * 1.15)}px monospace`;
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  ctx.fillText(spec.glyph, cx, cy + r * 0.04);
-
-  // Name plate, so a new player learns the glyphs by reading them in place.
-  ctx.font = `${Math.round(8 * ui)}px monospace`;
-  ctx.fillStyle = spec.color;
-  ctx.globalAlpha = 0.85 * dim;
-  ctx.fillText(spec.label.toUpperCase(), cx, cy + r * 1.95);
-
-  ctx.restore();
-  ctx.textAlign = "left";
-  ctx.textBaseline = "alphabetic";
-}
-
-/** Expanding ring where an orb was just collected. `t` runs 0 → 1. */
-function drawPickupBurst(
-  ctx: CanvasRenderingContext2D,
-  cx: number,
-  cy: number,
-  t: number,
-  pxPerM: number,
-  color: string
-) {
-  const r = Math.max(9, pxPerM * 1.35) * (1 + t * 2.2);
-  ctx.save();
-  ctx.globalAlpha = 1 - t;
-  ctx.strokeStyle = color;
-  ctx.lineWidth = Math.max(1.5, pxPerM * 0.3 * (1 - t));
-  ctx.beginPath();
-  ctx.arc(cx, cy, r, 0, Math.PI * 2);
-  ctx.stroke();
-  ctx.restore();
 }
 
 type Pose = "idle" | "walk" | "climb" | "air" | "done" | "dead";
@@ -585,50 +500,6 @@ function drawClimber(
   } else {
     dot(ctx, [fx + facing * 0.2 * s, headY - 0.02 * s], Math.max(1.3, 0.13 * s));
   }
-}
-
-/**
- * Plume under the climber's feet while a thrust tick is applying. Screen Y
- * grows downward, so "below the feet" is +fy. Flicker is tick-driven so two
- * clients stay in sync; reducedMotion freezes a smaller static cone.
- */
-function drawJetpackFlame(
-  ctx: CanvasRenderingContext2D,
-  fx: number,
-  fy: number,
-  s: number,
-  tick: number,
-  reducedMotion: boolean
-): void {
-  const flicker = reducedMotion
-    ? 0
-    : JETPACK_FLAME_FLICKER_AMP * Math.sin(tick * JETPACK_FLAME_FLICKER_RATE);
-  const widthScale = 1 + flicker;
-  const heightScale = reducedMotion
-    ? JETPACK_FLAME_STATIC_SCALE
-    : 1 + Math.abs(flicker);
-  const halfW = JETPACK_FLAME_WIDTH_FRAC * s * widthScale;
-  const height = JETPACK_FLAME_HEIGHT_FRAC * s * heightScale;
-
-  ctx.save();
-  ctx.fillStyle = POWER_UP_SPECS.jetpack.color;
-  ctx.beginPath();
-  ctx.moveTo(fx - halfW, fy);
-  ctx.lineTo(fx + halfW, fy);
-  ctx.lineTo(fx, fy + height);
-  ctx.closePath();
-  ctx.fill();
-
-  const coreHalf = halfW * JETPACK_FLAME_CORE_WIDTH_FRAC;
-  const coreH = height * JETPACK_FLAME_CORE_HEIGHT_FRAC;
-  ctx.fillStyle = JETPACK_FLAME_CORE;
-  ctx.beginPath();
-  ctx.moveTo(fx - coreHalf, fy);
-  ctx.lineTo(fx + coreHalf, fy);
-  ctx.lineTo(fx, fy + coreH);
-  ctx.closePath();
-  ctx.fill();
-  ctx.restore();
 }
 
 function limb(ctx: CanvasRenderingContext2D, x0: number, y0: number, [x1, y1]: Pt) {
