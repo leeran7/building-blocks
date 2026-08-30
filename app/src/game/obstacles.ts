@@ -2,9 +2,10 @@
  * Tower v3 "The Climb" — floor obstacles.
  *
  * Jump-over crates on the traverse, and stacked crates that form a stair to
- * the next floor. They tax time the lava spends closing: walking into one
- * stops you; jumping clears a hurdle or climbs the stair. Nothing falls from
- * the sky — a knock-down next to lava reads as cheap death.
+ * the next floor. They tax time the lava spends closing: walking into a hurdle
+ * stops you; jumping clears it. A stair is walk-up — each next crate is a
+ * tread, not a wall. Nothing falls from the sky — a knock-down next to lava
+ * reads as cheap death.
  *
  * Placement is a pure function of (tower.seed, floorIndex), same as platforms
  * and ladders, so re-simulation stays bit-identical (AC-11). No Date/random.
@@ -145,13 +146,28 @@ export function resolveObstacleMotion(
 
   // Hurdle: only the grounded walk is blocked. An airborne climber may clip
   // the face on the way over; landing on the top still catches a short jump.
+  // Stair: overlapping AABBs put the next crate's y0 at your feet, so a side
+  // hit would shove you off the tread. One walk-up per tick, lowest first.
   if (!p.onGround) return;
 
-  for (const o of band) {
+  const LANDING_EPS = EPS * 1.5;
+  const faces = band.slice().sort((a, b) => a.y0 - b.y0);
+  let stepped = false;
+  for (const o of faces) {
     const belowTop = p.y >= o.y0 - EPS && p.y < o.y1 - EPS;
     if (!belowTop) continue;
     const inX = p.x >= o.x0 && p.x <= o.x1;
     if (!inX) continue;
+    const atBase = Math.abs(p.y - o.y0) <= LANDING_EPS;
+    if (atBase && isStairCrate(band, o)) {
+      if (!stepped) {
+        p.y = o.y1;
+        p.vy = 0;
+        p.onGround = true;
+        stepped = true;
+      }
+      continue;
+    }
     if (prevX <= o.x0) p.x = o.x0 - EPS;
     else if (prevX >= o.x1) p.x = o.x1 + EPS;
     else p.x = prevX < (o.x0 + o.x1) / 2 ? o.x0 - EPS : o.x1 + EPS;
@@ -211,13 +227,13 @@ function tryStair(
   const yNext = floorHeight(tower, i + 1);
   const gap = yNext - y0;
   const apex = jumpApexM(tower);
-  const maxStep = Math.min(2.2, apex * 0.82);
+  const maxStep = Math.min(1.75, apex * 0.62);
   const nSteps = Math.max(3, Math.ceil(gap / maxStep));
   const stepH = gap / nSteps;
   if (stepH >= apex * 0.9) return null;
 
   const width = crateWidthM(d);
-  const overlapFrac = 0.45 + rng.next() * 0.25;
+  const overlapFrac = 0.36 + rng.next() * 0.16;
   const advance = width * (1 - overlapFrac);
   const srcPieces = platformsForFloor(tower, i);
   const destPieces = platformsForFloor(tower, i + 1);
@@ -246,7 +262,8 @@ function tryStair(
             srcPieces,
             destPieces,
             destLadders,
-            destKeep
+            destKeep,
+            tower.widthM
           )
         ) {
           return buildStair(i, origin, dir, nSteps, width, advance, y0, stepH, kind);
@@ -266,13 +283,17 @@ function stairFits(
   srcPieces: { x0: number; x1: number }[],
   destPieces: { x0: number; x1: number }[],
   destLadders: number[],
-  destKeep: number
+  destKeep: number,
+  widthM: number
 ): boolean {
+  const firstX0 = origin;
+  const firstX1 = origin + width;
+  if (!onSolid(srcPieces, firstX0, firstX1)) return false;
   for (let k = 0; k < nSteps; k++) {
     const x0 = origin + k * advance * dir;
     const x1 = x0 + width;
+    if (x0 < 0 || x1 > widthM) return false;
     if (overlapsLadder(x0, x1, destLadders, destKeep)) return false;
-    if (k < nSteps - 1 && !onSolid(srcPieces, x0, x1)) return false;
   }
   const lastX0 = origin + (nSteps - 1) * advance * dir;
   const lastX1 = lastX0 + width;
@@ -351,6 +372,19 @@ function walkableSpans(
     }
   }
   return spans;
+}
+
+/** True when `o` is one tread of a stacked stair, not a lone hurdle. */
+function isStairCrate(band: Obstacle[], o: Obstacle): boolean {
+  for (const b of band) {
+    if (b.floorIndex !== o.floorIndex) continue;
+    if (b.x0 === o.x0 && b.y0 === o.y0 && b.y1 === o.y1) continue;
+    const stacked =
+      Math.abs(b.y0 - o.y1) <= 0.05 || Math.abs(b.y1 - o.y0) <= 0.05;
+    const xOverlap = Math.min(b.x1, o.x1) - Math.max(b.x0, o.x0) > 0;
+    if (stacked && xOverlap) return true;
+  }
+  return false;
 }
 
 function onSolid(

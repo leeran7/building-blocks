@@ -175,6 +175,26 @@ describe("obstacle spawn", () => {
     }
   });
 
+  it("lets a walker crest a crate stair without jumping", () => {
+    const { floor, crates } = firstStair(TOWER);
+    const first = crates.reduce((a, b) => (a.y0 <= b.y0 ? a : b));
+    const last = crates.reduce((a, b) => (a.y1 >= b.y1 ? a : b));
+    const dir: -1 | 1 = last.x0 >= first.x0 ? 1 : -1;
+    const m = climbingMatch();
+    const p = m.players[0];
+    p.x = dir > 0 ? first.x0 - 1.2 : first.x1 + 1.2;
+    p.y = first.y0;
+    p.peakY = first.y0;
+    p.onGround = true;
+    p.vy = 0;
+    const nextY = floorHeight(TOWER, floor + 1);
+    for (let i = 0; i < 500 && p.y < nextY - 0.15; i++) {
+      stepMatch(m, { p1: move(dir, false) }, SLOW);
+    }
+    expect(p.y).toBeGreaterThan(nextY - 0.2);
+    expect(p.status).toBe("climbing");
+  });
+
   it("does not treat a crate a storey up as a hurdle on this walk", () => {
     const o = firstHurdle(TOWER);
     const mid = (o.x0 + o.x1) / 2;
