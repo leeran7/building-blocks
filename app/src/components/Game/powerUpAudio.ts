@@ -51,8 +51,8 @@ const DOOM_ROOT_HZ = 46.25;
 const DOOM_TRITONE_HZ = DOOM_ROOT_HZ * Math.pow(2, 6 / 12);
 
 /** Exported so tests can assert coming vs struck without grepping motifs. */
-export const LAVA_STING_ATTACK = 0.28;
-export const LAVA_STING_PEAK = 0.58;
+export const LAVA_STING_ATTACK = 1.4;
+export const LAVA_STING_PEAK = 0.28;
 export const DEATH_HIT_ATTACK = 0.006;
 export const DEATH_HIT_PEAK = 0.95;
 
@@ -118,33 +118,23 @@ const EXPIRE: Note[] = [
   { at: 0, freq: 420, to: 240, dur: 0.16, wave: "sine", gain: 0.4 },
 ];
 
-/** Slow descending tritone — doom is coming. Attack is long on purpose. */
+/** Slow swell of the doom interval — builds in, never a hit. */
 const LAVA_STING: Note[] = [
   {
     at: 0,
-    freq: DOOM_ROOT_HZ * 2,
-    to: DOOM_ROOT_HZ,
-    dur: 1.15,
+    freq: DOOM_ROOT_HZ,
+    dur: 3.4,
     wave: "sine",
     gain: LAVA_STING_PEAK,
     attack: LAVA_STING_ATTACK,
   },
   {
-    at: 0.04,
-    freq: DOOM_TRITONE_HZ * 2,
-    to: DOOM_TRITONE_HZ,
-    dur: 1.2,
+    at: 0.25,
+    freq: DOOM_TRITONE_HZ,
+    dur: 3.2,
     wave: "sine",
-    gain: LAVA_STING_PEAK * 0.78,
+    gain: LAVA_STING_PEAK * 0.72,
     attack: LAVA_STING_ATTACK,
-  },
-  {
-    at: 0.55,
-    freq: DOOM_ROOT_HZ,
-    dur: 0.7,
-    wave: "triangle",
-    gain: 0.4,
-    attack: 0.08,
   },
 ];
 
@@ -282,7 +272,6 @@ export class PowerUpAudio {
     if (!ctx || !this.master) return;
     const now = ctx.currentTime + delaySeconds;
     for (const n of LAVA_STING) this.playNote(ctx, this.master, n, now);
-    this.playNoiseBurst(ctx, this.master, now, 0.9, 0.22, 180);
   }
 
   playDeath(delaySeconds = 0): void {
@@ -320,7 +309,7 @@ export class PowerUpAudio {
       this.jetGain.gain.setTargetAtTime(
         Math.max(0.0001, peak),
         ctx.currentTime,
-        this.jetWanted ? 0.03 : 0.05
+        this.jetWanted ? 0.08 : 0.06
       );
       this.jetApplied = this.jetWanted;
     } catch {
@@ -345,17 +334,19 @@ export class PowerUpAudio {
       this.ensureLavaGraph(ctx);
       if (!this.lavaGain) return;
       const peak = lavaDoomLoopGain(this.lavaWanted ? this.lavaFillWanted : 0);
+      const turningOn = this.lavaWanted && !this.lavaAppliedOn;
+      const tau = !this.lavaWanted ? 0.28 : turningOn ? lavaDoomAttackSeconds() : 0.55;
       this.lavaGain.gain.setTargetAtTime(
         Math.max(0.0001, peak),
         ctx.currentTime,
-        0.12
+        tau
       );
       if (this.lavaLfo) {
-        const rate = 0.85 + this.lavaFillWanted * 2.1;
+        const rate = 0.35 + this.lavaFillWanted * 0.9;
         this.lavaLfo.frequency.setTargetAtTime(
-          this.lavaWanted ? rate : 0.85,
+          this.lavaWanted ? rate : 0.35,
           ctx.currentTime,
-          0.2
+          turningOn ? lavaDoomAttackSeconds() : 0.4
         );
       }
       this.lavaAppliedOn = this.lavaWanted;
@@ -372,44 +363,36 @@ export class PowerUpAudio {
     noise.loop = true;
     const band = ctx.createBiquadFilter();
     band.type = "bandpass";
-    band.frequency.value = 920;
-    band.Q.value = 0.85;
+    band.frequency.value = 1400;
+    band.Q.value = 0.45;
     const high = ctx.createBiquadFilter();
     high.type = "highpass";
-    high.frequency.value = 280;
+    high.frequency.value = 420;
     const noiseGain = ctx.createGain();
-    noiseGain.gain.value = 0.55;
+    noiseGain.gain.value = 0.38;
 
     const saw = ctx.createOscillator();
-    saw.type = "sawtooth";
-    saw.frequency.value = 78;
+    saw.type = "triangle";
+    saw.frequency.value = 96;
     const sawGain = ctx.createGain();
-    sawGain.gain.value = 0.28;
-
-    const pulse = ctx.createOscillator();
-    pulse.type = "square";
-    pulse.frequency.value = 49;
-    const pulseGain = ctx.createGain();
-    pulseGain.gain.value = 0.16;
+    sawGain.gain.value = 0.1;
 
     const out = ctx.createGain();
     out.gain.value = 0.0001;
 
     noise.connect(high).connect(band).connect(noiseGain).connect(out);
     saw.connect(sawGain).connect(out);
-    pulse.connect(pulseGain).connect(out);
     out.connect(this.master);
 
     try {
       noise.start();
       saw.start();
-      pulse.start();
     } catch {
-      this.stopSources([noise, saw, pulse]);
+      this.stopSources([noise, saw]);
       out.disconnect();
       return;
     }
-    this.jetSources = [noise, saw, pulse];
+    this.jetSources = [noise, saw];
     this.jetGain = out;
   }
 
@@ -423,7 +406,7 @@ export class PowerUpAudio {
     low.frequency.value = 160;
     low.Q.value = 0.6;
     const noiseGain = ctx.createGain();
-    noiseGain.gain.value = 0.7;
+    noiseGain.gain.value = 0.42;
 
     const root = ctx.createOscillator();
     root.type = "sine";
@@ -444,9 +427,9 @@ export class PowerUpAudio {
     heartbeat.gain.value = 0.78;
     const lfo = ctx.createOscillator();
     lfo.type = "sine";
-    lfo.frequency.value = 0.85;
+    lfo.frequency.value = 0.35;
     const lfoDepth = ctx.createGain();
-    lfoDepth.gain.value = 0.22;
+    lfoDepth.gain.value = 0.1;
     lfo.connect(lfoDepth).connect(heartbeat.gain);
 
     noise.connect(low).connect(noiseGain).connect(rumble);
@@ -590,16 +573,21 @@ function noiseBuffer(ctx: AudioContext): AudioBuffer {
 
 /** Peak loop gain (pre-master) while the jetpack is thrusting. */
 export function jetpackLoopGain(on: boolean): number {
-  return on ? 0.58 : 0;
+  return on ? 0.26 : 0;
 }
 
 /**
  * Peak rumble gain (pre-master) from how much of the uncovered view lava
- * has eaten. Zero at no lava; a whisper at the first sliver so the sting
- * can lead; a roar when the view is full.
+ * has eaten. Zero at no lava; a true whisper at the first sliver so the
+ * coming-cue can swell; a roar only when the view is full.
  */
 export function lavaDoomLoopGain(fill: number): number {
   const f = fill < 0 ? 0 : fill > 1 ? 1 : fill;
   if (f <= 0) return 0;
-  return 0.16 + f * 0.62;
+  return 0.04 + f * 0.5;
+}
+
+/** Seconds the rumble takes to bloom when lava first enters the view. */
+export function lavaDoomAttackSeconds(): number {
+  return 1.8;
 }

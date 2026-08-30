@@ -24,6 +24,7 @@ import {
   LAVA_STING_PEAK,
   PowerUpAudio,
   jetpackLoopGain,
+  lavaDoomAttackSeconds,
   lavaDoomLoopGain,
 } from "../../src/components/Game/powerUpAudio";
 import {
@@ -170,23 +171,26 @@ describe("world SFX: jetpack loop, lava doom, death hit", () => {
   it("doom-struck is louder and faster than doom-is-coming", () => {
     expect(DEATH_HIT_PEAK).toBeGreaterThan(LAVA_STING_PEAK);
     expect(DEATH_HIT_ATTACK).toBeLessThan(LAVA_STING_ATTACK);
-    expect(LAVA_STING_ATTACK).toBeGreaterThan(0.1);
+    expect(LAVA_STING_ATTACK).toBeGreaterThan(1);
     expect(DEATH_HIT_ATTACK).toBeLessThan(0.02);
   });
 
-  it("jetpack loop is silent off and audible on", () => {
+  it("jetpack loop is a whoosh, not a thud", () => {
     expect(jetpackLoopGain(false)).toBe(0);
-    expect(jetpackLoopGain(true)).toBeGreaterThan(0.4);
+    expect(jetpackLoopGain(true)).toBeGreaterThan(0.1);
+    expect(jetpackLoopGain(true)).toBeLessThan(0.4);
   });
 
-  it("lava rumble is silent until a sliver is visible, then grows with fill", () => {
+  it("lava rumble starts as a whisper and grows with fill", () => {
     expect(lavaDoomLoopGain(0)).toBe(0);
     expect(lavaDoomLoopGain(-1)).toBe(0);
     const whisper = lavaDoomLoopGain(0.05);
     const roar = lavaDoomLoopGain(1);
     expect(whisper).toBeGreaterThan(0);
-    expect(roar).toBeGreaterThan(whisper);
+    expect(whisper).toBeLessThan(0.15);
+    expect(roar).toBeGreaterThan(whisper * 2);
     expect(lavaDoomLoopGain(2)).toBe(roar);
+    expect(lavaDoomAttackSeconds()).toBeGreaterThan(1);
   });
 });
 
