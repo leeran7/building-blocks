@@ -19,6 +19,8 @@ export interface ClimbResultInput {
   finished: boolean;
   finishedTick: number | null;
   seed: string;
+  /** Encoded deterministic replay for /play?r=… */
+  replayToken?: string | null;
 }
 
 export interface PeakDecision {
@@ -68,6 +70,7 @@ export async function recordClimb(
       finished: input.finished,
       finished_tick: input.finishedTick,
       seed: input.seed,
+      replay_token: input.replayToken ?? null,
     },
   });
 
@@ -226,4 +229,35 @@ export async function getUserFreeClimbRecord(
 /** @deprecated Use topFreeClimbers — landing previously used cross-category rows. */
 export async function topClimbersGlobal(limit = 8): Promise<ClimberRank[]> {
   return topFreeClimbers(limit);
+}
+
+export interface ClimbReplaySummary {
+  id: string;
+  peakY: number;
+  createdAt: string;
+  replayToken: string | null;
+}
+
+/** Recent climb runs for the dashboard, newest first. */
+export async function getUserClimbReplays(
+  userId: string,
+  limit = 30
+): Promise<ClimbReplaySummary[]> {
+  const rows = await prisma.climbRun.findMany({
+    where: { userId },
+    orderBy: { created_at: "desc" },
+    take: limit,
+    select: {
+      id: true,
+      peak_y: true,
+      created_at: true,
+      replay_token: true,
+    },
+  });
+  return rows.map((r) => ({
+    id: r.id,
+    peakY: r.peak_y,
+    createdAt: r.created_at.toISOString(),
+    replayToken: r.replay_token,
+  }));
 }

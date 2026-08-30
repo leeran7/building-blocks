@@ -24,6 +24,10 @@ import {
   FreeClimbEmpty,
   type FreeClimbData,
 } from "../../src/components/Dashboard/FreeClimbCard";
+import {
+  ClimbReplaysSection,
+  type ClimbReplayItem,
+} from "../../src/components/Dashboard/ClimbReplaysSection";
 
 interface Payment {
   id: string;
@@ -61,6 +65,7 @@ interface DashboardData {
   user: { id: string; email: string };
   blocks: DashboardBlock[];
   freeClimb: FreeClimbData | null;
+  replays: ClimbReplayItem[];
 }
 
 type FetchState =
@@ -189,7 +194,7 @@ export default function DashboardPage() {
             Dashboard
           </h1>
           <p className="text-sm text-text-secondary mt-1">
-            Your paid blocks and free climb rank.
+            Your paid blocks, free climb rank, and saved replays.
           </p>
         </div>
         <Link
@@ -232,6 +237,8 @@ export default function DashboardPage() {
             ) : (
               <FreeClimbEmpty />
             )}
+
+            <ClimbReplaysSection replays={fetchState.data.replays ?? []} />
 
             {fetchState.data.blocks.length === 0 && (
               <div className="flex flex-col items-center justify-center min-h-[30vh] text-center">

@@ -11,6 +11,8 @@ import { PlayerInput } from "./types";
 export const REPLAY_VERSION = 1;
 /** Longest run we will encode into a share link (~10 minutes). */
 export const MAX_SHARE_TICKS = 18_000;
+/** Max encoded token length accepted by the server. */
+export const MAX_REPLAY_TOKEN_LENGTH = 32_768;
 
 export interface RunReplay {
   version: typeof REPLAY_VERSION;

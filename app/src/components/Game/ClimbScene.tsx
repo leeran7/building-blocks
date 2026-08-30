@@ -82,6 +82,7 @@ export function ClimbScene({ tower, categoryLabel, replay = null }: ClimbScenePr
   const [savedBanner, setSavedBanner] = useState<SaveInfo | null>(null);
   const [shareUrl, setShareUrl] = useState<string | null>(null);
   const [encodingShare, setEncodingShare] = useState(false);
+  const [savingRun, setSavingRun] = useState(false);
 
   const player = state.players[0];
   const phase = state.phase;
@@ -141,43 +142,46 @@ export function ClimbScene({ tower, categoryLabel, replay = null }: ClimbScenePr
     setSavedBanner(null);
     setShareUrl(null);
     setEncodingShare(false);
+    setSavingRun(false);
     start();
   }
 
   useEffect(() => {
-    if (!finished || posted) return;
+    if (!finished || posted || replaying) return;
+    if (inputLog.length === 0) return;
+
     setPosted(true);
     const run = buildRun();
-    if (token) {
-      postRun(run, token).then(setSaveInfo);
-    } else {
-      setSaveInfo({ saved: false });
-      try {
-        sessionStorage.setItem(PENDING_CLIMB_KEY, JSON.stringify(run));
-      } catch {
-        /* storage unavailable */
-      }
-    }
-  }, [finished, posted, buildRun, token, postRun]);
 
-  useEffect(() => {
-    if (!finished || replaying || encodingShare || shareUrl) return;
-    setEncodingShare(true);
-    const run = buildRun();
-    encodeRunReplay({
-      seed: run.seed,
-      peakY: run.peakY,
-      inputs: inputLog,
-    })
-      .then((token) => {
-        if (!token) {
-          setShareUrl(null);
-          return;
+    const finishRun = async () => {
+      setEncodingShare(true);
+      setSavingRun(Boolean(token));
+      const replayToken = await encodeRunReplay({
+        seed: run.seed,
+        peakY: run.peakY,
+        inputs: inputLog,
+      });
+      if (replayToken) {
+        setShareUrl(buildReplayUrl(replayToken, window.location.origin));
+      }
+      setEncodingShare(false);
+
+      if (token) {
+        const payload = replayToken ? { ...run, replayToken } : run;
+        postRun(payload, token).then(setSaveInfo).finally(() => setSavingRun(false));
+      } else {
+        setSaveInfo({ saved: false });
+        setSavingRun(false);
+        try {
+          sessionStorage.setItem(PENDING_CLIMB_KEY, JSON.stringify(run));
+        } catch {
+          /* storage unavailable */
         }
-        setShareUrl(buildReplayUrl(token, window.location.origin));
-      })
-      .finally(() => setEncodingShare(false));
-  }, [finished, replaying, encodingShare, shareUrl, buildRun, inputLog]);
+      }
+    };
+
+    finishRun();
+  }, [finished, posted, replaying, inputLog, buildRun, token, postRun]);
 
   useEffect(() => {
     if (!user || !token || user.isAnonymous) return;
@@ -306,7 +310,9 @@ export function ClimbScene({ tower, categoryLabel, replay = null }: ClimbScenePr
                 </div>
               ) : replaying ? null : (
                 <p className="text-xs mt-3 font-mono text-text-muted">
-                  {saveInfo === null ? "Saving…" : "Couldn’t save your run"}
+                  {savingRun || saveInfo === null
+                    ? "Saving…"
+                    : "Couldn’t save your run"}
                 </p>
               )
             ) : replaying ? null : (
