@@ -44,11 +44,15 @@ export function PowerUpHud({
     .map((a) => {
       const spec = POWER_UP_SPECS[a.type];
       const meter = powerUpChipMeter(a, tick);
+      const windowSeconds = windowSecondsLeft(a, tick);
+      const ageTicks = tick - a.startTick;
       return {
         type: a.type,
         spec,
         meter,
-        label: chipAriaLabel(spec, meter, windowSecondsLeft(a, tick)),
+        fresh: ageTicks >= 0 && ageTicks < 18,
+        urgent: meter.frac <= 0.15 || windowSeconds <= 1,
+        label: chipAriaLabel(spec, meter, windowSeconds),
       };
     });
 
@@ -58,7 +62,7 @@ export function PowerUpHud({
         {active.map((a) => (
           <span
             key={a.type}
-            className="relative inline-flex flex-shrink-0 items-center gap-1.5 overflow-hidden whitespace-nowrap rounded-full border px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.12em]"
+            className={chipClassName(a.fresh, a.urgent)}
             style={{
               borderColor: a.spec.color,
               color: a.spec.color,
@@ -67,6 +71,11 @@ export function PowerUpHud({
               background: `linear-gradient(to right, ${a.spec.color}26 ${
                 a.meter.frac * 100
               }%, transparent ${a.meter.frac * 100}%)`,
+              boxShadow: a.fresh
+                ? `0 0 0 1px ${a.spec.color}55, 0 0 18px -4px ${a.spec.color}66`
+                : a.urgent
+                  ? `0 0 0 1px ${a.spec.color}44, 0 0 12px -6px ${a.spec.color}55`
+                  : undefined,
             }}
             aria-label={a.label}
             title={a.label}
@@ -109,6 +118,14 @@ export function PowerUpHud({
       </div>
     </div>
   );
+}
+
+function chipClassName(fresh: boolean, urgent: boolean): string {
+  const base =
+    "relative inline-flex flex-shrink-0 items-center gap-1.5 overflow-hidden whitespace-nowrap rounded-full border px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.12em] transition-[box-shadow,transform] duration-200";
+  if (fresh) return `${base} animate-powerUpEnter motion-reduce:animate-none`;
+  if (urgent) return `${base} animate-powerUpUrgent motion-reduce:animate-none`;
+  return base;
 }
 
 function windowSecondsLeft(a: ActivePowerUp, tick: number): number {

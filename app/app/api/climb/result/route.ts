@@ -26,6 +26,8 @@ import { FREE_STACK_SLUG } from "../../../../src/game/freeStack";
 import { ensureUser } from "../../../../src/db/user";
 import { checkRateLimit, clientIp } from "../../../../src/lib/rateLimit";
 import { checkClimbResult } from "../../../../src/game/scoreBounds";
+import { MAX_REPLAY_TOKEN_LENGTH } from "../../../../src/game/runReplay";
+import { revalidateClimbLeaderboard } from "../../../../src/lib/revalidateClimbLeaderboard";
 
 export const runtime = "nodejs";
 
@@ -42,6 +44,7 @@ interface Body {
   /** Elapsed run length in ticks. Bounds peakY; see src/game/scoreBounds. */
   ticks?: unknown;
   seed?: unknown;
+  replayToken?: unknown;
 }
 
 export async function POST(request: NextRequest) {
@@ -89,6 +92,7 @@ export async function POST(request: NextRequest) {
   // After a successful bound, ticks is the number we actually used. Persist
   // that, not a separate client field that the sim used to leave null.
   const elapsedTicks = ticks as number;
+  const replayToken = parseReplayToken(body.replayToken);
 
   // Rate limit by client IP (most play is anonymous). Fails OPEN so a Redis
   // outage never blocks a free run.
@@ -149,10 +153,19 @@ export async function POST(request: NextRequest) {
       finished,
       finishedTick: elapsedTicks,
       seed,
+      replayToken,
     });
+    revalidateClimbLeaderboard();
     return NextResponse.json({ saved: true, ...result }, { status: 200 });
   } catch (err) {
     console.error("[climb/result] persist failed:", err);
     return NextResponse.json({ saved: false, reason: "persist_error" }, { status: 500 });
   }
+}
+
+function parseReplayToken(raw: unknown): string | null {
+  if (typeof raw !== "string") return null;
+  const trimmed = raw.trim();
+  if (!trimmed || trimmed.length > MAX_REPLAY_TOKEN_LENGTH) return null;
+  return trimmed;
 }

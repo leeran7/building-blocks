@@ -235,9 +235,9 @@ describe("spawning: deterministic, reachable, and denser with altitude", () => {
       counts.set(pu.type, (counts.get(pu.type) ?? 0) + 1);
     }
     for (const t of POWER_UP_TYPES) expect(counts.get(t) ?? 0).toBeGreaterThan(0);
-    const stopLava = counts.get("slow-lava") ?? 0;
+    const slowLava = counts.get("slow-lava") ?? 0;
     for (const t of POWER_UP_TYPES) {
-      if (t !== "slow-lava") expect(stopLava).toBeLessThan(counts.get(t) ?? 0);
+      if (t !== "slow-lava") expect(slowLava).toBeLessThan(counts.get(t) ?? 0);
     }
   });
 

@@ -26,10 +26,18 @@ import { useAuth } from "../../contexts/AuthContext";
 import { useCanvasSize } from "../../hooks/useCanvasSize";
 import { useCoarsePointer } from "../../hooks/useCoarsePointer";
 import { climberHandle } from "../../lib/handle";
+import { ShareRun } from "./ShareRun";
+import {
+  buildReplayUrl,
+  encodeRunReplay,
+  type RunReplay,
+} from "../../game/runReplay";
 
 export interface ClimbSceneProps {
   tower: TowerSpec;
   categoryLabel: string;
+  /** When set, the scene plays back a shared run instead of live controls. */
+  replay?: RunReplay | null;
 }
 
 interface SaveInfo {
@@ -54,10 +62,15 @@ function usePrefersReducedMotion(): boolean {
   return reduced;
 }
 
-export function ClimbScene({ tower, categoryLabel }: ClimbSceneProps) {
+export function ClimbScene({ tower, categoryLabel, replay = null }: ClimbSceneProps) {
   const reducedMotion = usePrefersReducedMotion();
   const touchDevice = useCoarsePointer();
-  const { state, start, finished, setTouch, runId } = useClimb({ tower });
+  const { state, start, finished, setTouch, runId, inputLog, replaying } = useClimb({
+    tower,
+    seed: replay?.seed,
+    replayInputs: replay?.inputs,
+    autoStart: Boolean(replay),
+  });
   // Measured on the canvas wrapper, not the scene root: the saved-record banner
   // renders between them, and budgeting from the root would ignore its height
   // and push the canvas (and the controls overlaid on it) past the fold.
@@ -67,6 +80,9 @@ export function ClimbScene({ tower, categoryLabel }: ClimbSceneProps) {
   const [posted, setPosted] = useState(false);
   const [saveInfo, setSaveInfo] = useState<SaveInfo | null>(null);
   const [savedBanner, setSavedBanner] = useState<SaveInfo | null>(null);
+  const [shareUrl, setShareUrl] = useState<string | null>(null);
+  const [encodingShare, setEncodingShare] = useState(false);
+  const [savingRun, setSavingRun] = useState(false);
 
   const player = state.players[0];
   const phase = state.phase;
@@ -124,24 +140,48 @@ export function ClimbScene({ tower, categoryLabel }: ClimbSceneProps) {
     setPosted(false);
     setSaveInfo(null);
     setSavedBanner(null);
+    setShareUrl(null);
+    setEncodingShare(false);
+    setSavingRun(false);
     start();
   }
 
   useEffect(() => {
-    if (!finished || posted) return;
+    if (!finished || posted || replaying) return;
+    if (inputLog.length === 0) return;
+
     setPosted(true);
     const run = buildRun();
-    if (token) {
-      postRun(run, token).then(setSaveInfo);
-    } else {
-      setSaveInfo({ saved: false });
-      try {
-        sessionStorage.setItem(PENDING_CLIMB_KEY, JSON.stringify(run));
-      } catch {
-        /* storage unavailable */
+
+    const finishRun = async () => {
+      setEncodingShare(true);
+      setSavingRun(Boolean(token));
+      const replayToken = await encodeRunReplay({
+        seed: run.seed,
+        peakY: run.peakY,
+        inputs: inputLog,
+      });
+      if (replayToken) {
+        setShareUrl(buildReplayUrl(replayToken, window.location.origin));
       }
-    }
-  }, [finished, posted, buildRun, token, postRun]);
+      setEncodingShare(false);
+
+      if (token) {
+        const payload = replayToken ? { ...run, replayToken } : run;
+        postRun(payload, token).then(setSaveInfo).finally(() => setSavingRun(false));
+      } else {
+        setSaveInfo({ saved: false });
+        setSavingRun(false);
+        try {
+          sessionStorage.setItem(PENDING_CLIMB_KEY, JSON.stringify(run));
+        } catch {
+          /* storage unavailable */
+        }
+      }
+    };
+
+    finishRun();
+  }, [finished, posted, replaying, inputLog, buildRun, token, postRun]);
 
   useEffect(() => {
     if (!user || !token || user.isAnonymous) return;
@@ -220,7 +260,7 @@ export function ClimbScene({ tower, categoryLabel }: ClimbSceneProps) {
           </Overlay>
         )}
 
-        {phase === "lobby" && (
+        {phase === "lobby" && !replaying && (
           <Overlay>
             <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-signal">
               [ {categoryLabel} climb ]
@@ -241,7 +281,7 @@ export function ClimbScene({ tower, categoryLabel }: ClimbSceneProps) {
         {finished && (
           <Overlay>
             <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-ember">
-              ▲ caught by the lava
+              {replaying ? "▲ replay finished" : "▲ caught by the lava"}
             </p>
             <h2 className="font-mono text-6xl font-bold text-signal tabular-nums mt-2 leading-none">
               {(player?.peakY ?? 0).toFixed(0)}
@@ -268,12 +308,14 @@ export function ClimbScene({ tower, categoryLabel }: ClimbSceneProps) {
                     {saveInfo.handle ?? climberHandle(user.uid)}
                   </p>
                 </div>
-              ) : (
+              ) : replaying ? null : (
                 <p className="text-xs mt-3 font-mono text-text-muted">
-                  {saveInfo === null ? "Saving…" : "Couldn’t save your run"}
+                  {savingRun || saveInfo === null
+                    ? "Saving…"
+                    : "Couldn’t save your run"}
                 </p>
               )
-            ) : (
+            ) : replaying ? null : (
               <p className="text-xs mt-3 text-text-muted">
                 <Link
                   href={`/auth/signin?redirect=${encodeURIComponent(redirectPath)}`}
@@ -295,17 +337,42 @@ export function ClimbScene({ tower, categoryLabel }: ClimbSceneProps) {
               </p>
             )}
 
-            <StartButton onClick={handleStart} label="Climb again" />
-            <Link
-              href="/climb"
-              className="mt-3 text-sm text-accent hover:brightness-110 underline underline-offset-4"
-            >
-              View leaderboard →
-            </Link>
+            {!replaying ? (
+              <ShareRun
+                peakY={player?.peakY ?? 0}
+                shareUrl={shareUrl}
+                encoding={encodingShare}
+              />
+            ) : null}
+
+            {!replaying ? (
+              <StartButton onClick={handleStart} label="Climb again" />
+            ) : null}
+            {replaying ? (
+              <Link
+                href="/play"
+                className="mt-3 text-sm text-accent hover:brightness-110 underline underline-offset-4"
+              >
+                Play yourself →
+              </Link>
+            ) : (
+              <Link
+                href="/climb"
+                className="mt-3 text-sm text-accent hover:brightness-110 underline underline-offset-4"
+              >
+                View leaderboard →
+              </Link>
+            )}
           </Overlay>
         )}
 
-        {touchDevice && (
+        {replaying && phase !== "lobby" && phase !== "finished" && (
+          <div className="pointer-events-none absolute top-3 left-1/2 -translate-x-1/2 rounded-full bg-void/70 px-3 py-1 font-mono text-[10px] uppercase tracking-[0.16em] text-signal">
+            Watching replay
+          </div>
+        )}
+
+        {touchDevice && !replaying && (
           <TouchControls active={touchControlsActive} onInput={setTouch} />
         )}
       </div>
@@ -323,8 +390,10 @@ export function ClimbScene({ tower, categoryLabel }: ClimbSceneProps) {
 
 function Overlay({ children }: { children: ReactNode }) {
   return (
-    <div className="absolute inset-0 flex flex-col items-center justify-center rounded-xl bg-void/70 backdrop-blur-sm p-4 text-center">
-      {children}
+    <div className="absolute inset-0 flex flex-col items-center justify-center overflow-y-auto rounded-xl bg-void/70 backdrop-blur-sm p-4 text-center">
+      <div className="my-auto flex w-full max-w-sm flex-col items-center py-2">
+        {children}
+      </div>
     </div>
   );
 }
