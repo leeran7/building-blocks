@@ -1,21 +1,33 @@
 "use client";
 
 /**
- * Climb backdrop — a flat, animated volcano.
+ * Climb backdrop — a flat, animated volcanic vista.
  *
- * The climber is scaling a tower on the flank of an erupting volcano, which is
- * what the rising lava IS: a dark mountain fills the lower sky, its crater
- * glowing and breathing, lava veins shimmering down the slopes, ash drifting up,
- * and embers streaming into a warm dusk sky. It is a single screen-space scene
- * (no parallax layers) animated entirely from the tick — cheap to draw: a couple
- * of gradients, one silhouette, a handful of veins/smoke puffs, and ~40 embers,
- * versus the thousands of fills a tiled city cost.
+ * A single screen-space scene (no parallax layers) stacked back-to-front like a
+ * game-art background: a moody sky with drifting clouds, layered hazy mountains,
+ * a dark forest tree-line, a jagged volcanic rock ridge, and — the hero — a
+ * cracked-basalt lava field where glowing molten veins run between dark plates
+ * and pool bright at the junctions. It explains the game's rising lava: the
+ * whole ground is molten.
  *
- * Purely cosmetic and render-only — it never touches the simulation and is a
- * pure function of (width, height, camWorldY, tick). camWorldY only cools the
- * scene slightly as you climb away from the heat. reducedMotion freezes all
- * motion (embers, ash, glow pulse, vein shimmer, twinkle) to a steady frame; the
- * scene still draws.
+ * Detailed but cheap: a couple of gradients, a handful of jagged silhouettes,
+ * ~130 flat lava plates, and ~30 embers — all flat-shaded, no per-frame gradient
+ * churn beyond the molten base + hot pools. Everything is a pure function of
+ * (width, height, camWorldY, tick) + hashed indices, so it is deterministic and
+ * needs no cached state. camWorldY only eases the heat as you climb away from it;
+ * reducedMotion freezes all motion (clouds, pool pulse, ember drift) to a steady,
+ * fully-drawn frame.
+ *
+ * The whole body runs inside a save/restore so no stroke/fill state (lineJoin,
+ * lineWidth, composite…) can leak onto the gameplay draws ClimbCanvas layers on
+ * top of us. The lava field is deliberately kept dim (a dark scrim + subdued
+ * glow) so the real rising-lava hazard band and the lime climber stay legible
+ * over it.
+ *
+ * Fill-rate note: cost is bounded by fixed loop counts but scales with pixel
+ * area (large-area gradient fills). Comfortable on phone/full-bleed widths
+ * (≤~1200px); a hypothetical 2560px full-bleed stage would want the backdrop's
+ * backing store capped — that is a canvas-layer decision, not one for this file.
  */
 
 const clamp01 = (v: number) => (v < 0 ? 0 : v > 1 ? 1 : v);
@@ -28,22 +40,38 @@ function hash(x: number, y: number): number {
   return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
 }
 
-// Warm volcanic palette, kept off the lime climber (#cbf24d): sky purples, a
-// near-black mountain, and ember golds for the lava/crater/embers.
-const SKY_TOP: [number, number, number] = [10, 11, 22];
-const SKY_MID: [number, number, number] = [26, 18, 32];
-const SKY_HORIZON: [number, number, number] = [58, 27, 32];
-const MOUNTAIN = "#141019";
-const MOUNTAIN_BASE = "#0c0912";
-// Deep red-orange sparks. Kept out of the amber/gold band so a drifting ember
-// is never mistaken for the jetpack orb (#ff9a4a) or the sprint-burst gold; the
-// solid rising gameplay-lava band stays distinct from these tiny particles.
+type Rgb = [number, number, number];
+const rgb = (c: Rgb) => `rgb(${c[0] | 0},${c[1] | 0},${c[2] | 0})`;
+const mix = (a: Rgb, b: Rgb, t: number): Rgb => [
+  a[0] + (b[0] - a[0]) * t,
+  a[1] + (b[1] - a[1]) * t,
+  a[2] + (b[2] - a[2]) * t,
+];
+
+// Palette. Upper scene is a moody desaturated slate (kept dark so the lime
+// climber and dark platforms stay legible over it); the warmth is saved for the
+// lava field — and even there it is subdued so gameplay reads on top.
+const SKY_TOP: Rgb = [24, 28, 38];
+const SKY_MID: Rgb = [38, 46, 58];
+const SKY_HORIZON: Rgb = [60, 66, 78];
+const CLOUD: Rgb = [70, 78, 92];
+const MTN_FAR: Rgb = [62, 72, 84];
+const MTN_MID: Rgb = [48, 58, 70];
+const MTN_NEAR: Rgb = [37, 47, 58];
+const FOREST: Rgb = [28, 40, 40];
+const RIDGE: Rgb = [58, 24, 26];
+const RIDGE_SHADOW: Rgb = [40, 16, 18];
+const MOLTEN_TOP: Rgb = [128, 44, 20];
+const MOLTEN_BOT: Rgb = [206, 88, 30];
+const PLATE: string[] = ["#2c1518", "#341a1c", "#221016", "#3a1e1e", "#281319"];
 const EMBER = ["255,74,36", "255,102,48", "255,132,64"];
+const SCRIM: Rgb = [10, 10, 14];
 
-const EMBER_COUNT = 42;
-const SMOKE_COUNT = 6;
+// Scene band boundaries as fractions of canvas height.
+const HORIZON = 0.52; // sky/land meeting line
+const LAVA_TOP = 0.6; // top of the cracked lava field
 
-/** Draw the volcano scene behind the tower for the current frame. */
+/** Draw the volcanic vista behind the tower for the current frame. */
 export function drawClimbBackground(
   ctx: CanvasRenderingContext2D,
   width: number,
@@ -54,319 +82,304 @@ export function drawClimbBackground(
   tick: number,
   reducedMotion: boolean
 ): void {
-  const ui = Math.max(1, width / 360);
+  const w = width;
+  const h = height;
   const t = reducedMotion ? 0 : tick;
-  // Climbing lifts you out of the worst heat: the glow, embers and haze ease off
-  // with altitude but never vanish.
-  const heat = 0.45 + 0.55 * clamp01(1 - camWorldY / 700);
+  const ui = Math.max(1, w / 360);
+  // Climbing lifts you out of the worst heat: glow/embers ease with altitude.
+  const heat = 0.5 + 0.5 * clamp01(1 - camWorldY / 800);
 
-  // Volcano geometry (fractions of the canvas, so it scales with any size).
-  const peakX = width * 0.5;
-  const peakY = height * 0.37;
-  const craterHalf = width * 0.07;
-  const craterDip = height * 0.02;
+  // Everything inside one save/restore so no stroke/fill/composite state leaks
+  // onto the gameplay draws ClimbCanvas renders after us.
+  ctx.save();
 
-  drawSky(ctx, width, height);
-  drawStars(ctx, width, height, t, reducedMotion);
-  drawCraterGlow(ctx, peakX, peakY, width, height, t, heat, reducedMotion);
-  drawMountain(ctx, width, height, peakX, peakY, craterHalf, craterDip, ui, t, heat, reducedMotion);
-  drawSmoke(ctx, peakX, peakY, width, height, ui, t, reducedMotion);
-  drawEmbers(ctx, width, height, peakX, ui, t, heat, reducedMotion);
-  drawHeatHaze(ctx, width, height, t, heat, reducedMotion);
+  drawSky(ctx, w, h);
+  drawClouds(ctx, w, h, t, reducedMotion);
+  // Mountains, back (hazy/high) to front (darker/lower).
+  ridgeLine(ctx, w, h, h * 0.3, h * 0.14, 1.7, MTN_FAR);
+  ridgeLine(ctx, w, h, h * 0.38, h * 0.12, 3.1, MTN_MID);
+  ridgeLine(ctx, w, h, h * HORIZON, h * 0.09, 5.3, MTN_NEAR);
+  drawForest(ctx, w, h, ui);
+  drawRidge(ctx, w, h);
+  drawLava(ctx, w, h, ui, t, heat, reducedMotion);
+  drawEmbers(ctx, w, h, ui, t, heat, reducedMotion);
+
+  ctx.restore();
 }
 
-const rgb = (c: [number, number, number]) => `rgb(${c[0] | 0},${c[1] | 0},${c[2] | 0})`;
-
-function mix(
-  a: [number, number, number],
-  b: [number, number, number],
-  t: number
-): string {
-  return rgb([a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t]);
-}
-
-function drawSky(ctx: CanvasRenderingContext2D, width: number, height: number): void {
-  const g = ctx.createLinearGradient(0, 0, 0, height);
+function drawSky(ctx: CanvasRenderingContext2D, w: number, h: number): void {
+  const g = ctx.createLinearGradient(0, 0, 0, h * HORIZON);
   g.addColorStop(0, rgb(SKY_TOP));
-  g.addColorStop(0.55, rgb(SKY_MID));
-  g.addColorStop(1, mix(SKY_MID, SKY_HORIZON, 0.8));
+  g.addColorStop(0.7, rgb(SKY_MID));
+  g.addColorStop(1, rgb(SKY_HORIZON));
   ctx.fillStyle = g;
-  ctx.fillRect(0, 0, width, height);
+  ctx.fillRect(0, 0, w, h * HORIZON + 1);
 }
 
-function drawStars(
+/** A few soft cloud banks drifting slowly across the upper sky. */
+function drawClouds(
   ctx: CanvasRenderingContext2D,
-  width: number,
-  height: number,
+  w: number,
+  h: number,
   t: number,
   reducedMotion: boolean
 ): void {
-  // A light sprinkle in the upper sky only, above the mountain.
-  ctx.fillStyle = "#dfe3f2";
-  const cols = Math.ceil(width / 46) + 1;
-  const rows = Math.ceil(height * 0.4 / 46);
+  const n = 5;
+  for (let i = 0; i < n; i++) {
+    const speed = (0.05 + 0.05 * hash(i, 2)) * (i % 2 ? 1 : -1);
+    const drift = reducedMotion ? 0 : t * speed;
+    const cx = frac(hash(i, 1) + drift / w) * (w + w * 0.6) - w * 0.3;
+    const cy = h * (0.06 + 0.22 * hash(i, 3));
+    const cw = w * (0.28 + 0.22 * hash(i, 4));
+    const ch = cw * 0.4;
+    const a = 0.1 + 0.12 * hash(i, 5);
+    ctx.fillStyle = `rgba(${CLOUD[0]},${CLOUD[1]},${CLOUD[2]},${a.toFixed(3)})`;
+    // A cloud = a few overlapping soft ellipses.
+    for (let p = 0; p < 4; p++) {
+      const px = cx + (hash(i * 7 + p, 6) - 0.5) * cw;
+      const py = cy + (hash(i * 7 + p, 8) - 0.5) * ch * 0.6;
+      const pr = cw * (0.16 + 0.12 * hash(i * 7 + p, 9));
+      ctx.beginPath();
+      ctx.ellipse(px, py, pr, pr * 0.62, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+}
+
+/** A soft, rounded mountain silhouette filled down to the bottom. A few broad
+ *  humps (low-frequency sines + a gentle hashed offset) drawn as quadratic
+ *  curves through the midpoints, so the ridges roll rather than zigzag. */
+function ridgeLine(
+  ctx: CanvasRenderingContext2D,
+  w: number,
+  h: number,
+  baseY: number,
+  amp: number,
+  seed: number,
+  color: Rgb
+): void {
+  const segs = 8;
+  const pts: Array<[number, number]> = [];
+  for (let i = 0; i <= segs; i++) {
+    const x = (i / segs) * w;
+    const hump = 0.5 + 0.5 * Math.sin(i * 1.05 + seed);
+    const roll = 0.32 * Math.sin(i * 0.5 + seed * 1.7);
+    const jitter = (hash(i, seed | 0) - 0.5) * 0.28;
+    const y = baseY - amp * (hump * 0.72 + roll + jitter);
+    pts.push([x, y]);
+  }
+  ctx.fillStyle = rgb(color);
+  ctx.beginPath();
+  ctx.moveTo(0, h);
+  ctx.lineTo(pts[0][0], pts[0][1]);
+  for (let i = 0; i < pts.length - 1; i++) {
+    const mx = (pts[i][0] + pts[i + 1][0]) / 2;
+    const my = (pts[i][1] + pts[i + 1][1]) / 2;
+    ctx.quadraticCurveTo(pts[i][0], pts[i][1], mx, my);
+  }
+  ctx.lineTo(pts[pts.length - 1][0], pts[pts.length - 1][1]);
+  ctx.lineTo(w, h);
+  ctx.closePath();
+  ctx.fill();
+}
+
+/** A dark row of evergreens along the horizon — a soft sawtooth of tree tops. */
+function drawForest(ctx: CanvasRenderingContext2D, w: number, h: number, ui: number): void {
+  const baseY = h * (HORIZON + 0.02);
+  ctx.fillStyle = rgb(FOREST);
+  ctx.beginPath();
+  ctx.moveTo(0, h);
+  ctx.lineTo(0, baseY);
+  const step = 11 * ui;
+  const teeth = Math.ceil(w / step);
+  for (let i = 0; i <= teeth; i++) {
+    const x = (i / teeth) * w;
+    const th = (7 + 12 * hash(i, 44)) * ui;
+    ctx.lineTo(x - step * 0.5, baseY);
+    ctx.lineTo(x, baseY - th);
+  }
+  ctx.lineTo(w, baseY);
+  ctx.lineTo(w, h);
+  ctx.closePath();
+  ctx.fill();
+}
+
+/** The dark volcanic rock wall between the forest and the lava field: a jagged
+ *  maroon top edge with a few darker facets for rocky relief. */
+function drawRidge(ctx: CanvasRenderingContext2D, w: number, h: number): void {
+  const topBase = h * (LAVA_TOP - 0.06);
+  const botY = h * LAVA_TOP + 2;
+  const top: Array<[number, number]> = [];
+  const segs = 22;
+  for (let i = 0; i <= segs; i++) {
+    const x = (i / segs) * w;
+    const jag = (hash(i, 61) - 0.5) * h * 0.05 + (hash(i, 63) - 0.5) * h * 0.02;
+    top.push([x, topBase + jag]);
+  }
+  // Body.
+  ctx.fillStyle = rgb(RIDGE);
+  ctx.beginPath();
+  ctx.moveTo(0, botY);
+  ctx.lineTo(top[0][0], top[0][1]);
+  for (let i = 1; i < top.length; i++) ctx.lineTo(top[i][0], top[i][1]);
+  ctx.lineTo(w, botY);
+  ctx.closePath();
+  ctx.fill();
+  // A few shadowed rock facets hanging from the crest.
+  ctx.fillStyle = rgb(RIDGE_SHADOW);
+  for (let i = 0; i < top.length - 1; i++) {
+    if (hash(i, 67) > 0.5) continue;
+    const [x0, y0] = top[i];
+    const [x1] = top[i + 1];
+    ctx.beginPath();
+    ctx.moveTo(x0, y0);
+    ctx.lineTo(x1, top[i + 1][1]);
+    ctx.lineTo((x0 + x1) / 2, botY);
+    ctx.closePath();
+    ctx.fill();
+  }
+}
+
+/**
+ * The cracked lava field. A subdued molten underlayer + pulsing hot pools are
+ * laid down first, then dark basalt plates are drawn on top slightly shrunk
+ * toward their centres — the gaps between them become the glowing veins, widest
+ * and brightest near the bottom (perspective). A dark scrim graded toward the
+ * bottom keeps the field from out-shouting the gameplay hazard band + climber.
+ */
+function drawLava(
+  ctx: CanvasRenderingContext2D,
+  w: number,
+  h: number,
+  ui: number,
+  t: number,
+  heat: number,
+  reducedMotion: boolean
+): void {
+  const top = h * LAVA_TOP;
+
+  // Molten underlayer — the cracks read as glowing veins, hotter near the base.
+  const g = ctx.createLinearGradient(0, top, 0, h);
+  g.addColorStop(0, rgb(mix(MOLTEN_TOP, MOLTEN_BOT, 0.15 * heat)));
+  g.addColorStop(1, rgb(mix(MOLTEN_TOP, MOLTEN_BOT, heat)));
+  ctx.fillStyle = g;
+  ctx.fillRect(0, top, w, h - top + 1);
+
+  // Jittered lattice with vertical perspective: rows packed near the top, spread
+  // toward the bottom, cells widening with them.
+  const rows = 11;
+  const cols = 12;
+  const P: Array<Array<[number, number]>> = [];
+  for (let r = 0; r <= rows; r++) {
+    const u = r / rows;
+    const y = top + (h * 1.05 - top) * (0.32 * u + 0.68 * u * u);
+    const scale = 0.4 + 1 * u;
+    const row: Array<[number, number]> = [];
+    for (let c = 0; c <= cols; c++) {
+      const bx = (c / cols) * w;
+      const jx = (hash(r * 41 + c, 3) - 0.5) * (w / cols) * 0.55 * scale;
+      const jy = (hash(r * 23 + c, 5) - 0.5) * h * 0.028 * scale;
+      row.push([bx + jx, y + jy]);
+    }
+    P.push(row);
+  }
+
+  // Hot pools at some junctions, glowing under the plates and pulsing. Skipped
+  // in the top ~18% of the field — that band sits behind the climber's focus
+  // point, and the brightest elements there would wash the lime figure out.
+  ctx.globalCompositeOperation = "lighter";
+  for (let r = 1; r < rows; r++) {
+    const u = r / rows;
+    if (u < 0.18) continue;
+    for (let c = 1; c < cols; c++) {
+      if (hash(r * 13 + c, 21) > 0.4) continue;
+      const [px, py] = P[r][c];
+      const pulse = reducedMotion ? 1 : 0.55 + 0.45 * Math.sin(t * 0.09 + hash(r, c) * 6.283);
+      const rad = (7 + 30 * u) * ui;
+      const a = 0.4 * heat * pulse;
+      const rgd = ctx.createRadialGradient(px, py, 0, px, py, rad);
+      rgd.addColorStop(0, `rgba(255,210,110,${a.toFixed(3)})`);
+      rgd.addColorStop(0.5, `rgba(255,128,40,${(a * 0.6).toFixed(3)})`);
+      rgd.addColorStop(1, "rgba(200,60,20,0)");
+      ctx.fillStyle = rgd;
+      ctx.fillRect(px - rad, py - rad, rad * 2, rad * 2);
+    }
+  }
+  ctx.globalCompositeOperation = "source-over";
+
+  // Basalt plates, inset toward their centroids so the molten shows in the gaps.
+  ctx.lineJoin = "round";
   for (let r = 0; r < rows; r++) {
     for (let c = 0; c < cols; c++) {
-      const h0 = hash(c * 3 + 7, r * 5 + 7);
-      if (h0 > 0.42) continue;
-      const x = (c + hash(c, r)) * 46;
-      const y = (r + hash(c + 2, r + 2)) * 46;
-      const tw = reducedMotion ? 0.7 : 0.5 + 0.5 * Math.sin(t * 0.05 + h0 * 6.283);
-      ctx.globalAlpha = clamp01((0.35 + 0.5 * h0) * tw) * clamp01(1 - y / (height * 0.5));
-      ctx.fillRect(x, y, 1.4, 1.4);
+      const TL = P[r][c];
+      const TR = P[r][c + 1];
+      const BR = P[r + 1][c + 1];
+      const BL = P[r + 1][c];
+      const cx = (TL[0] + TR[0] + BR[0] + BL[0]) / 4;
+      const cy = (TL[1] + TR[1] + BR[1] + BL[1]) / 4;
+      const u = r / rows;
+      const inset = (1.5 + 4.5 * u) * ui; // wider cracks near the bottom
+      const pull = (p: [number, number]): [number, number] => {
+        const dx = cx - p[0];
+        const dy = cy - p[1];
+        const d = Math.hypot(dx, dy) || 1;
+        const k = Math.min(inset / d, 0.42);
+        return [p[0] + dx * k, p[1] + dy * k];
+      };
+      const q = [pull(TL), pull(TR), pull(BR), pull(BL)];
+      ctx.fillStyle = PLATE[(hash(r * 7 + c, 31) * PLATE.length) | 0];
+      ctx.beginPath();
+      ctx.moveTo(q[0][0], q[0][1]);
+      for (let i = 1; i < 4; i++) ctx.lineTo(q[i][0], q[i][1]);
+      ctx.closePath();
+      ctx.fill();
+      // Warm crust highlight on the top lip where the vein light catches it.
+      ctx.strokeStyle = `rgba(158,64,44,${(0.4 * heat).toFixed(3)})`;
+      ctx.lineWidth = Math.max(1, (0.5 + 1.1 * u) * ui);
+      ctx.beginPath();
+      ctx.moveTo(q[0][0], q[0][1]);
+      ctx.lineTo(q[1][0], q[1][1]);
+      ctx.stroke();
     }
   }
-  ctx.globalAlpha = 1;
+
+  // Dark scrim graded toward the bottom: recedes the field a plane so the
+  // translucent gameplay-lava band and the climber read against a neutral base,
+  // darkest where the real hazard band rises from (screen bottom).
+  const scrim = ctx.createLinearGradient(0, top, 0, h);
+  scrim.addColorStop(0, `rgba(${SCRIM[0]},${SCRIM[1]},${SCRIM[2]},0)`);
+  scrim.addColorStop(1, `rgba(${SCRIM[0]},${SCRIM[1]},${SCRIM[2]},0.4)`);
+  ctx.fillStyle = scrim;
+  ctx.fillRect(0, top, w, h - top + 1);
 }
 
-/** Warm halo around the crater — lights the peak and the sky above it, and
- *  breathes so the volcano feels alive. */
-function drawCraterGlow(
-  ctx: CanvasRenderingContext2D,
-  peakX: number,
-  peakY: number,
-  width: number,
-  height: number,
-  t: number,
-  heat: number,
-  reducedMotion: boolean
-): void {
-  const pulse = reducedMotion ? 1 : 1 + 0.12 * Math.sin(t * 0.05);
-  const r = width * 0.5 * pulse;
-  const cy = peakY + height * 0.02;
-  const a = 0.5 * heat;
-  const prev = ctx.globalCompositeOperation;
-  ctx.globalCompositeOperation = "lighter";
-  const g = ctx.createRadialGradient(peakX, cy, 0, peakX, cy, r);
-  g.addColorStop(0, `rgba(255,140,70,${(a).toFixed(3)})`);
-  g.addColorStop(0.35, `rgba(210,70,50,${(a * 0.5).toFixed(3)})`);
-  g.addColorStop(1, "rgba(120,40,60,0)");
-  ctx.fillStyle = g;
-  // Only the glow's bounding box — the gradient is fully transparent past r, so
-  // a full-canvas 'lighter' fill would composite mostly-empty pixels for nothing.
-  ctx.fillRect(peakX - r, cy - r, r * 2, r * 2);
-  ctx.globalCompositeOperation = prev;
-}
-
-/** The mountain silhouette + rim light + shimmering lava veins. */
-function drawMountain(
-  ctx: CanvasRenderingContext2D,
-  width: number,
-  height: number,
-  peakX: number,
-  peakY: number,
-  craterHalf: number,
-  craterDip: number,
-  ui: number,
-  t: number,
-  heat: number,
-  reducedMotion: boolean
-): void {
-  const baseY = height * 1.02;
-  // Ridge from base up to the crater rim, dipping into the crater, back down.
-  // A little hashed jitter on the shoulders keeps it from reading as a triangle.
-  const ridge: Array<[number, number]> = [
-    [-width * 0.06, baseY],
-    [width * 0.1, height * (0.86 + 0.03 * hash(1, 3))],
-    [width * 0.26, height * (0.66 + 0.03 * hash(2, 3))],
-    [width * 0.4, height * (0.49 + 0.02 * hash(3, 3))],
-    [peakX - craterHalf, peakY + craterDip],
-    [peakX - craterHalf * 0.45, peakY + craterDip * 1.7],
-    [peakX + craterHalf * 0.45, peakY + craterDip * 1.7],
-    [peakX + craterHalf, peakY + craterDip],
-    [width * 0.61, height * (0.5 + 0.02 * hash(4, 3))],
-    [width * 0.75, height * (0.67 + 0.03 * hash(5, 3))],
-    [width * 0.9, height * (0.85 + 0.03 * hash(6, 3))],
-    [width * 1.06, baseY],
-  ];
-
-  // Closed silhouette polygon (ridge + the two bottom corners), traced for both
-  // the fill and the vein clip so the veins can never leave the mountain.
-  const traceBody = () => {
-    ctx.beginPath();
-    ctx.moveTo(ridge[0][0], ridge[0][1]);
-    for (let i = 1; i < ridge.length; i++) ctx.lineTo(ridge[i][0], ridge[i][1]);
-    ctx.lineTo(width * 1.06, height);
-    ctx.lineTo(-width * 0.06, height);
-    ctx.closePath();
-  };
-
-  // Body — a vertical gradient, warmer just under the crater, near-black at base.
-  const body = ctx.createLinearGradient(0, peakY, 0, height);
-  body.addColorStop(0, MOUNTAIN);
-  body.addColorStop(1, MOUNTAIN_BASE);
-  ctx.fillStyle = body;
-  traceBody();
-  ctx.fill();
-
-  // Lava veins, clipped to the mountain so they read as molten cracks in the
-  // slopes rather than wires in the sky.
-  ctx.save();
-  traceBody();
-  ctx.clip();
-  ctx.globalCompositeOperation = "lighter";
-  drawVeins(ctx, peakX, peakY + craterDip * 1.6, height, ui, t, heat, reducedMotion);
-  ctx.restore();
-
-  // Warm rim light on the crater lip where the glow catches the edge. Wrapped in
-  // save/restore so its lineCap/lineWidth/composite don't leak onto the gameplay
-  // strokes ClimbCanvas draws after us (gridlines, ladder rungs, lava dashes) —
-  // the ctx persists every property across frames, not just alpha/composite.
-  ctx.save();
-  ctx.globalCompositeOperation = "lighter";
-  ctx.strokeStyle = `rgba(255,150,80,${(0.6 * heat).toFixed(3)})`;
-  ctx.lineWidth = 1.6 * ui;
-  ctx.lineCap = "round";
-  ctx.beginPath();
-  ctx.moveTo(ridge[4][0], ridge[4][1]);
-  ctx.lineTo(ridge[5][0], ridge[5][1]);
-  ctx.moveTo(ridge[6][0], ridge[6][1]);
-  ctx.lineTo(ridge[7][0], ridge[7][1]);
-  ctx.stroke();
-  ctx.restore();
-
-  // Molten pool nestled DOWN in the crater notch (not floating above the peak),
-  // so it reads as a glowing vent between the two rim points.
-  const cy = peakY + craterDip * 2;
-  const poolPulse = reducedMotion ? 1 : 0.88 + 0.12 * Math.sin(t * 0.07 + 1);
-  const pool = ctx.createRadialGradient(peakX, cy, 0, peakX, cy, craterHalf * poolPulse);
-  pool.addColorStop(0, `rgba(255,216,150,${(0.9 * heat).toFixed(3)})`);
-  pool.addColorStop(0.45, `rgba(255,120,48,${(0.82 * heat).toFixed(3)})`);
-  pool.addColorStop(1, "rgba(200,60,40,0)");
-  ctx.fillStyle = pool;
-  ctx.beginPath();
-  ctx.ellipse(peakX, cy, craterHalf * 0.92, craterDip * 2.6, 0, 0, Math.PI * 2);
-  ctx.fill();
-}
-
-/** A few glowing lava streaks from the crater, each a bright core over a soft
- *  wide halo, with a per-segment shimmer. */
-function drawVeins(
-  ctx: CanvasRenderingContext2D,
-  x0: number,
-  y0: number,
-  height: number,
-  ui: number,
-  t: number,
-  heat: number,
-  reducedMotion: boolean
-): void {
-  const veins = 4;
-  for (let v = 0; v < veins; v++) {
-    const dir = v < veins / 2 ? -1 : 1;
-    const spread = 0.05 + 0.11 * hash(v, 11);
-    const len = height * (0.24 + 0.2 * hash(v, 13));
-    const pts: Array<[number, number]> = [[x0 + dir * 4 * ui, y0]];
-    const steps = 5;
-    for (let s = 1; s <= steps; s++) {
-      const f = s / steps;
-      const wob = (hash(v, s) - 0.5) * height * 0.03;
-      pts.push([x0 + dir * spread * height * f + wob, y0 + len * f]);
-    }
-    const shimmer = reducedMotion ? 1 : 0.7 + 0.3 * Math.sin(t * 0.12 + v);
-    // Soft outer halo.
-    ctx.strokeStyle = `rgba(255,90,44,${(0.22 * heat * shimmer).toFixed(3)})`;
-    ctx.lineWidth = 5 * ui;
-    strokePath(ctx, pts);
-    // Bright molten core.
-    ctx.strokeStyle = `rgba(255,196,120,${(0.7 * heat * shimmer).toFixed(3)})`;
-    ctx.lineWidth = 1.6 * ui;
-    strokePath(ctx, pts);
-  }
-}
-
-function strokePath(ctx: CanvasRenderingContext2D, pts: Array<[number, number]>): void {
-  ctx.beginPath();
-  ctx.moveTo(pts[0][0], pts[0][1]);
-  for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]);
-  ctx.stroke();
-}
-
-/** Ash plume rising from the crater and dissipating into the sky. */
-function drawSmoke(
-  ctx: CanvasRenderingContext2D,
-  peakX: number,
-  peakY: number,
-  width: number,
-  height: number,
-  ui: number,
-  t: number,
-  reducedMotion: boolean
-): void {
-  for (let i = 0; i < SMOKE_COUNT; i++) {
-    const phase = hash(i, 31);
-    const speed = 0.0016 + 0.001 * hash(i, 33);
-    const p = frac(phase + (reducedMotion ? 0 : t * speed));
-    const rise = height * 0.5 * p;
-    const cx = peakX + Math.sin(phase * 6.283 + p * 2) * width * (0.04 + 0.08 * p);
-    const cy = peakY - rise;
-    const rad = (12 + 40 * p) * ui;
-    const a = 0.16 * Math.sin(p * Math.PI); // fade in then out
-    if (a <= 0.002) continue;
-    const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, rad);
-    g.addColorStop(0, `rgba(38,30,36,${a.toFixed(3)})`);
-    g.addColorStop(1, "rgba(38,30,36,0)");
-    ctx.fillStyle = g;
-    ctx.fillRect(cx - rad, cy - rad, rad * 2, rad * 2);
-  }
-}
-
-/** Embers streaming upward — the "rising heat" motif. A fixed pool, each looping
- *  from below the fold up past the top with a gentle horizontal sway. */
+/** Embers streaming upward off the lava field — deep red-orange sparks so they
+ *  read as fire, never as an amber power-up orb. */
 function drawEmbers(
   ctx: CanvasRenderingContext2D,
-  width: number,
-  height: number,
-  peakX: number,
+  w: number,
+  h: number,
   ui: number,
   t: number,
   heat: number,
   reducedMotion: boolean
 ): void {
-  const prev = ctx.globalCompositeOperation;
   ctx.globalCompositeOperation = "lighter";
-  const count = Math.round(EMBER_COUNT * (0.55 + 0.45 * heat));
+  const count = Math.round(30 * (0.55 + 0.45 * heat));
   for (let i = 0; i < count; i++) {
     const phase = hash(i, 71);
-    const speed = 0.0022 + 0.0032 * hash(i, 73);
+    const speed = 0.0022 + 0.003 * hash(i, 73);
     const p = frac(phase + (reducedMotion ? 0 : t * speed));
-    const y = height * 1.05 - p * height * 1.25;
-    // Embers cluster toward the volcano centre but scatter across the width.
-    const spread = width * (0.2 + 0.55 * hash(i, 75));
-    const baseX = peakX + (hash(i, 77) - 0.5) * 2 * spread;
-    const sway = Math.sin((reducedMotion ? 0 : t * 0.03) + phase * 6.283) * width * 0.02;
-    const x = baseX + sway;
+    // Rise from the lava field up through the scene, fading out toward the top.
+    const y = h * 1.02 - p * h * 0.72;
+    const baseX = hash(i, 77) * w;
+    const sway = Math.sin((reducedMotion ? 0 : t * 0.03) + phase * 6.283) * w * 0.015;
     const tw = reducedMotion ? 0.8 : 0.5 + 0.5 * Math.sin(t * 0.2 + i);
-    // Fade in off the bottom, out toward the top.
-    const life = Math.sin(clamp01(p) * Math.PI);
-    const a = clamp01(0.7 * life * tw) * heat;
+    const a = clamp01(0.75 * Math.sin(clamp01(p) * Math.PI) * tw) * heat;
     if (a <= 0.01) continue;
-    const size = (0.8 + 1.6 * hash(i, 79)) * ui;
+    const size = (0.8 + 1.5 * hash(i, 79)) * ui;
     ctx.fillStyle = `rgba(${EMBER[i % EMBER.length]},${a.toFixed(3)})`;
-    ctx.fillRect(x, y, size, size);
+    ctx.fillRect(baseX + sway, y, size, size);
   }
-  ctx.globalCompositeOperation = prev;
-}
-
-/** A warm uplight along the bottom edge — heat radiating from below (where the
- *  gameplay lava rises), pulsing slowly. */
-function drawHeatHaze(
-  ctx: CanvasRenderingContext2D,
-  width: number,
-  height: number,
-  t: number,
-  heat: number,
-  reducedMotion: boolean
-): void {
-  const pulse = reducedMotion ? 1 : 0.85 + 0.15 * Math.sin(t * 0.06);
-  const band = height * 0.32;
-  const a = 0.14 * heat * pulse;
-  const prev = ctx.globalCompositeOperation;
-  ctx.globalCompositeOperation = "lighter";
-  const g = ctx.createLinearGradient(0, height, 0, height - band);
-  g.addColorStop(0, `rgba(255,90,44,${a.toFixed(3)})`);
-  g.addColorStop(1, "rgba(255,90,44,0)");
-  ctx.fillStyle = g;
-  ctx.fillRect(0, height - band, width, band);
-  ctx.globalCompositeOperation = prev;
+  ctx.globalCompositeOperation = "source-over";
 }
