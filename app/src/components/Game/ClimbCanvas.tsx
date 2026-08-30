@@ -188,19 +188,10 @@ export function ClimbCanvas({
         ? pickupShakeOffset(pickupAge, state.tick, ui, reducedMotion)
         : { dx: 0, dy: 0 };
 
-    // Parallax night-sky backdrop. Drawn before the shake translate so the sky
-    // stays anchored while only the tower jolts on a pickup; it fully covers the
-    // canvas, so no explicit clear is needed.
-    drawClimbBackground(
-      ctx,
-      width,
-      height,
-      camWorldY,
-      viewH,
-      pxPerM,
-      state.tick,
-      reducedMotion
-    );
+    // Tiled volcanic vista. Drawn before the shake translate so the scenery
+    // stays anchored while only the tower jolts on a pickup; it fully covers
+    // the canvas, so no explicit clear is needed.
+    drawClimbBackground(ctx, width, height, camWorldY, state.tick, reducedMotion);
 
     ctx.save();
     ctx.translate(shake.dx, shake.dy);

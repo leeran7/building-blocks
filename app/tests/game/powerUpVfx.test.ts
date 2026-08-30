@@ -3,6 +3,7 @@ import {
   PICKUP_BURST_TICKS,
   PICKUP_SCREEN_FLASH_TICKS,
   PICKUP_SHAKE_TICKS,
+  drawPickupScreenFlash,
   hash01,
   pickupBannerScale,
   pickupShakeOffset,
@@ -39,5 +40,29 @@ describe("powerUpVfx helpers", () => {
   it("exports burst and flash tick budgets used by the canvas", () => {
     expect(PICKUP_BURST_TICKS).toBeGreaterThan(12);
     expect(PICKUP_SCREEN_FLASH_TICKS).toBeGreaterThan(0);
+  });
+
+  it("paints the pickup flash as a flat fill, not a full-canvas radial gradient", () => {
+    let radial = 0;
+    let fills = 0;
+    const ctx = {
+      save: () => undefined,
+      restore: () => undefined,
+      fillRect: () => {
+        fills += 1;
+      },
+      createRadialGradient: () => {
+        radial += 1;
+        return { addColorStop: () => undefined };
+      },
+      fillStyle: "",
+      globalAlpha: 1,
+    } as unknown as CanvasRenderingContext2D;
+    drawPickupScreenFlash(ctx, 360, 640, 0, "#ff5a2c", false);
+    expect(radial).toBe(0);
+    expect(fills).toBe(1);
+    fills = 0;
+    drawPickupScreenFlash(ctx, 360, 640, 0, "#ff5a2c", true);
+    expect(fills).toBe(0);
   });
 });
