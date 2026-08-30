@@ -5,11 +5,24 @@
  *
  * Paid stacks only: card body expands the live paid leaderboard inline.
  * The free climb game lives on its own stack — see FreeLeaderboard below.
+ *
+ * Default (All, collapsed): featured stacks, one per family. "Show more"
+ * reveals the rest of the 74 stacks grouped by family. A family chip
+ * always shows that family's full list.
  */
 
 import { useMemo, useState } from "react";
-import { GAME_CATEGORIES, FAMILIES, type Family } from "../../game/categories";
+import {
+  GAME_CATEGORIES,
+  FAMILIES,
+  FEATURED_GAME_CATEGORIES,
+  type Family,
+} from "../../game/categories";
 import { InlineTower } from "./InlineTower";
+import {
+  directorySections,
+  hiddenDirectoryCount,
+} from "./towerDirectoryPreview";
 
 const SHORT_FAMILY: Record<Family, string> = {
   "Tech & Software": "Tech",
@@ -31,8 +44,8 @@ export interface TowerDirectoryProps {
 export function TowerDirectory({ counts, minEntryUsd }: TowerDirectoryProps) {
   const [family, setFamily] = useState<Family | "all">("all");
   const [openSlug, setOpenSlug] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState(false);
 
-  const families = family === "all" ? FAMILIES : [family];
   const grouped = useMemo(() => {
     const out = {} as Record<Family, typeof GAME_CATEGORIES>;
     for (const f of FAMILIES) out[f] = [];
@@ -47,10 +60,54 @@ export function TowerDirectory({ counts, minEntryUsd }: TowerDirectoryProps) {
     return out;
   }, [counts]);
 
+  const sections = useMemo(
+    () =>
+      directorySections({
+        family,
+        expanded,
+        grouped,
+        featured: FEATURED_GAME_CATEGORIES,
+      }),
+    [family, expanded, grouped]
+  );
+
+  const hiddenCount = hiddenDirectoryCount(
+    GAME_CATEGORIES.length,
+    FEATURED_GAME_CATEGORIES.length,
+    expanded,
+    family
+  );
+
   const totalLive = useMemo(
     () => GAME_CATEGORIES.reduce((a, c) => a + (counts[c.slug] ?? 0), 0),
     [counts]
   );
+
+  function selectFamily(next: Family | "all") {
+    setFamily(next);
+    const nextSlugs = new Set(
+      directorySections({
+        family: next,
+        expanded,
+        grouped,
+        featured: FEATURED_GAME_CATEGORIES,
+      }).flatMap((section) => section.stacks.map((c) => c.slug))
+    );
+    setOpenSlug((slug) => (slug && nextSlugs.has(slug) ? slug : null));
+  }
+
+  function toggleExpanded() {
+    if (expanded) {
+      const featuredSlugs = new Set(
+        FEATURED_GAME_CATEGORIES.map((c) => c.slug)
+      );
+      setOpenSlug((slug) => (slug && featuredSlugs.has(slug) ? slug : null));
+      setExpanded(false);
+      scrollTowersIntoView();
+      return;
+    }
+    setExpanded(true);
+  }
 
   return (
     <section id="towers" aria-label="Paid stacks" className="py-20 px-4 border-t border-border-subtle">
@@ -77,27 +134,36 @@ export function TowerDirectory({ counts, minEntryUsd }: TowerDirectoryProps) {
           role="tablist"
           aria-label="Filter by family"
         >
-          <FilterChip active={family === "all"} onClick={() => setFamily("all")}>
+          <FilterChip
+            active={family === "all"}
+            onClick={() => selectFamily("all")}
+          >
             All
           </FilterChip>
           {FAMILIES.map((f) => (
-            <FilterChip key={f} active={family === f} onClick={() => setFamily(f)}>
+            <FilterChip
+              key={f}
+              active={family === f}
+              onClick={() => selectFamily(f)}
+            >
               {SHORT_FAMILY[f]}
             </FilterChip>
           ))}
         </div>
 
-        <div className="flex flex-col gap-10">
-          {families.map((f) => (
-            <div key={f}>
-              <div className="flex items-center gap-3 mb-4">
-                <h3 className="font-mono text-[11px] uppercase tracking-[0.16em] text-text-secondary">
-                  {f}
-                </h3>
-                <div className="flex-1 h-px bg-border-subtle" />
-              </div>
+        <div id="tower-directory-list" className="flex flex-col gap-10">
+          {sections.map((section) => (
+            <div key={section.family ?? "featured"}>
+              {section.family && (
+                <div className="flex items-center gap-3 mb-4">
+                  <h3 className="font-mono text-[11px] uppercase tracking-[0.16em] text-text-secondary">
+                    {section.family}
+                  </h3>
+                  <div className="flex-1 h-px bg-border-subtle" />
+                </div>
+              )}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                {grouped[f].map((c) => {
+                {section.stacks.map((c) => {
                   const isOpen = openSlug === c.slug;
                   return (
                     <TowerCardWithPanel key={c.slug}>
@@ -123,6 +189,22 @@ export function TowerDirectory({ counts, minEntryUsd }: TowerDirectoryProps) {
             </div>
           ))}
         </div>
+
+        {family === "all" && (hiddenCount > 0 || expanded) && (
+          <div className="mt-10 flex justify-center">
+            <button
+              type="button"
+              aria-expanded={expanded}
+              aria-controls="tower-directory-list"
+              onClick={toggleExpanded}
+              className="w-full sm:w-auto inline-flex items-center justify-center rounded-full border border-border-strong bg-surface/60 px-7 min-h-[44px] text-sm font-medium text-text-primary hover:border-signal/50 hover:bg-surface transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void"
+            >
+              {expanded
+                ? "Show less"
+                : `Show ${hiddenCount} more ${hiddenCount === 1 ? "stack" : "stacks"}`}
+            </button>
+          </div>
+        )}
       </div>
     </section>
   );
@@ -233,4 +315,11 @@ function FilterChip({
       {children}
     </button>
   );
+}
+
+function scrollTowersIntoView() {
+  const el = document.getElementById("towers");
+  if (!el) return;
+  const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  el.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "start" });
 }
