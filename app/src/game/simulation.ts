@@ -37,6 +37,7 @@ import {
 import {
   HazardConfig,
   DEFAULT_HAZARD_CONFIG,
+  hazardCatchupTimeScale,
   hazardHeightAt,
 } from "./hazard";
 import {
@@ -430,9 +431,13 @@ export function stepMatch(
   // 1. Rising hazard — speed is a fraction of the climber's climb rate, so the
   //    chase scales with how fast the player can move (AC-5, AC-6). The lava
   //    stumbles on a fixed cycle rather than accelerating at every moment.
-  //    Time-slow banks seconds the lava never gets to spend, holding the
+  //    Time-slow banks seconds the lava never gets to spend; catch-up spends
+  //    them a little faster while the lead climber is far ahead, then drops
+  //    back to 1× as soon as the gap is within 125m. Both keep the height
   //    curve monotonic.
-  const timeScale = hazardTimeScale(state.players, state.tick);
+  const timeScale =
+    hazardTimeScale(state.players, state.tick) *
+    hazardCatchupTimeScale(climbingLeadM(state.players, state.hazardY));
   state.hazardSlowSeconds += TICK_DT * (1 - timeScale);
   state.hazardY = hazardHeightAt(
     state.raceSeconds - state.hazardSlowSeconds,
@@ -544,6 +549,16 @@ function resolveOutcome(state: MatchState): void {
 
 function clamp(v: number, lo: number, hi: number): number {
   return v < lo ? lo : v > hi ? hi : v;
+}
+
+/** Metres the highest still-climbing player sits above the lava. */
+function climbingLeadM(players: readonly PlayerState[], hazardY: number): number {
+  let lead = 0;
+  for (const p of players) {
+    if (p.status !== "climbing") continue;
+    lead = Math.max(lead, p.y - hazardY);
+  }
+  return lead;
 }
 
 /**

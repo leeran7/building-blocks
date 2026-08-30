@@ -51,6 +51,7 @@ export function PowerUpHud({
         type: a.type,
         spec,
         meter,
+        windowSeconds,
         fresh: ageTicks >= 0 && ageTicks < 18,
         urgent: meter.frac <= 0.15 || windowSeconds <= 1,
         label: chipAriaLabel(spec, meter, windowSeconds),
@@ -88,7 +89,12 @@ export function PowerUpHud({
               <PowerUpTypeIcon type={a.type} />
             </span>
             {a.spec.label}
-            <span className="tabular-nums">{a.meter.seconds.toFixed(1)}s</span>
+            <span className="tabular-nums">{formatChipMeter(a.meter)}</span>
+            {a.meter.kind === "fuel" ? (
+              <span className="tabular-nums opacity-70">
+                {a.windowSeconds.toFixed(1)}s
+              </span>
+            ) : null}
           </span>
         ))}
 
@@ -144,7 +150,12 @@ function chipAriaLabel(
   windowSeconds: number
 ): string {
   if (meter.kind === "fuel") {
-    return `${spec.label}, ${meter.seconds.toFixed(1)}s fuel, ${windowSeconds.toFixed(1)}s remaining`;
+    return `${spec.label}, ${meter.seconds.toFixed(1)} gal fuel, ${windowSeconds.toFixed(1)}s remaining`;
   }
   return `${spec.label}, ${meter.seconds.toFixed(1)}s remaining`;
+}
+
+function formatChipMeter(meter: PowerUpChipMeter): string {
+  if (meter.kind === "fuel") return `${meter.seconds.toFixed(1)} gal`;
+  return `${meter.seconds.toFixed(1)}s`;
 }

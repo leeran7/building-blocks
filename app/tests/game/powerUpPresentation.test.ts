@@ -83,14 +83,13 @@ describe("AC-J11 PowerUpHud calls powerUpChipMeter", () => {
     const p = m.players[0]!;
     for (let i = 0; i < TICK_HZ; i++) stepMatch(m, { p1: NO_INPUT });
     const html = renderHud(p, m.tick);
-    const fuelText = `${JETPACK_FUEL_SECONDS.toFixed(1)}s`;
+    const fuelText = `${JETPACK_FUEL_SECONDS.toFixed(1)} gal`;
     const windowLeft = (
       POWER_UP_SPECS.jetpack.durationSeconds - 1
     ).toFixed(1);
-    expect(visibleChipSeconds(html)).toEqual([fuelText]);
-    expect(visibleChipSeconds(html)).not.toContain(`${windowLeft}s`);
+    expect(visibleChipSeconds(html)).toEqual([fuelText, `${windowLeft}s`]);
     expect(html).toMatch(
-      new RegExp(`${JETPACK_FUEL_SECONDS.toFixed(1)}s fuel`, "i")
+      new RegExp(`${JETPACK_FUEL_SECONDS.toFixed(1)} gal fuel`, "i")
     );
     expect(html).toMatch(new RegExp(`${windowLeft}s remaining`, "i"));
     expect(html).toContain(POWER_UP_SPECS.jetpack.label);
@@ -104,8 +103,9 @@ describe("AC-J11 PowerUpHud calls powerUpChipMeter", () => {
     const html = renderHud(p, m.tick);
     const fuelLeft = jetpackFuelTicks() - 20;
     const fuelSeconds = (fuelLeft / TICK_HZ).toFixed(1);
-    expect(visibleChipSeconds(html)).toEqual([`${fuelSeconds}s`]);
-    expect(html).toMatch(new RegExp(`${fuelSeconds}s fuel`, "i"));
+    expect(visibleChipSeconds(html)[0]).toBe(`${fuelSeconds} gal`);
+    expect(visibleChipSeconds(html)).toHaveLength(2);
+    expect(html).toMatch(new RegExp(`${fuelSeconds} gal fuel`, "i"));
     expect(html).toMatch(/s remaining/);
   });
 });
@@ -148,7 +148,7 @@ describe("AC-J11 audio accepts every live PowerUpType including jetpack", () => 
 });
 
 function visibleChipSeconds(html: string): string[] {
-  return [...html.matchAll(/class="tabular-nums">([^<]+)</g)].map(
+  return [...html.matchAll(/class="[^"]*tabular-nums[^"]*">([^<]+)</g)].map(
     (match) => match[1]!
   );
 }

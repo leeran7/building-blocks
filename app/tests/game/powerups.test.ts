@@ -460,7 +460,7 @@ describe("effects: each power-up does what its label claims", () => {
     grantPowerUp(p, "giant", m.tick);
     expect(ladderGrabMultiplier(p, m.tick)).toBe(GIANT_GRAB_MULT);
     expect(platformReachMargin(p, m.tick)).toBe(GIANT_PLATFORM_MARGIN_M);
-    expect(POWER_UP_SPECS.giant.durationSeconds).toBe(12);
+    expect(POWER_UP_SPECS.giant.durationSeconds).toBe(20);
     expect(GIANT_VISUAL_SCALE).toBe(2);
   });
 
@@ -564,12 +564,12 @@ describe("effects: each power-up does what its label claims", () => {
       m.phase = "climb";
       m.tick = 0;
       const p = m.players[0];
-      p.y = 5_000;
-      p.peakY = 5_000;
       const hold = (n: number) => {
         for (let i = 0; i < n; i++) {
+          // Stay close so catch-up does not fire; only slow-lava is under test.
+          p.y = m.hazardY + LAVA_HOLD_LEAD_M;
+          p.peakY = p.y;
           stepMatch(m, { p1: NO_INPUT }, DEFAULT_SIM_CONFIG);
-          p.y = 5_000; // only the lava is under test
         }
       };
       hold(warm);
@@ -996,13 +996,13 @@ describe("slow-lava cooldown: the thing that keeps a run finite", () => {
   it("slow-lava is the only power-up that touches the lava clock", () => {
     // The hazard is capped at ladder climb speed, so slow-lava is a luxury
     // for deep runs rather than a requirement to beat the lava.
-    expect(POWER_UP_SPECS["rapid-climb"].durationSeconds).toBe(15);
+    expect(POWER_UP_SPECS["rapid-climb"].durationSeconds).toBe(10);
     expect(POWER_UP_SPECS["sprint-burst"].durationSeconds).toBe(10);
-    expect(POWER_UP_SPECS.giant.durationSeconds).toBe(12);
+    expect(POWER_UP_SPECS.giant.durationSeconds).toBe(20);
     expect(POWER_UP_SPECS["slow-lava"].durationSeconds).toBe(8);
     expect(POWER_UP_SPECS["slow-lava"].cooldownSeconds).toBe(40);
     expect(TIME_SLOW_COOLDOWN_SECONDS).toBe(40);
-    expect(TIME_SLOW_FRAC).toBe(0.5);
+    expect(TIME_SLOW_FRAC).toBe(0.4);
     const d = POWER_UP_SPECS["slow-lava"].durationSeconds;
     const c = POWER_UP_SPECS["slow-lava"].cooldownSeconds;
     const maxUptime = d / (d + c);
@@ -1146,6 +1146,9 @@ function runFor(ticks: number, boosted: boolean): number {
   return p.x - x0;
 }
 
+/** Close enough that lava catch-up does not fire while a test holds the climber. */
+const LAVA_HOLD_LEAD_M = 40;
+
 function hazardTrace(slowed: boolean, alsoActivate?: PowerUpType): number[] {
   const m = createMatch({
     seed: "haz",
@@ -1156,14 +1159,15 @@ function hazardTrace(slowed: boolean, alsoActivate?: PowerUpType): number[] {
   m.phase = "climb";
   m.tick = 0;
   const p = m.players[0];
-  p.y = 5_000;
-  p.peakY = 5_000;
+  p.y = m.hazardY + LAVA_HOLD_LEAD_M;
+  p.peakY = p.y;
   const type = slowed ? "slow-lava" : alsoActivate;
   if (type) placeOrb(m, type, p.x, p.y);
   const out: number[] = [];
   for (let i = 0; i < 400; i++) {
+    p.y = m.hazardY + LAVA_HOLD_LEAD_M;
+    p.peakY = p.y;
     stepMatch(m, { p1: NO_INPUT }, DEFAULT_SIM_CONFIG);
-    p.y = 5_000; // hold position; only the lava is under test
     out.push(m.hazardY);
   }
   return out;

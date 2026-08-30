@@ -16,6 +16,9 @@ import {
   hazardHasReached,
   hazardSpeedFracAt,
   hazardMeanSpeedFrac,
+  hazardCatchupTimeScale,
+  HAZARD_CATCHUP_LEAD_M,
+  HAZARD_CATCHUP_TIME_SCALE,
   DEFAULT_HAZARD_CONFIG,
 } from "../../src/game/hazard";
 
@@ -179,5 +182,26 @@ describe("AC-7: hazardHasReached detects catching a climber", () => {
     expect(hazardHasReached(h, t, CLIMB, CFG)).toBe(true);
     expect(hazardHasReached(h - 0.001, t, CLIMB, CFG)).toBe(true);
     expect(hazardHasReached(h + 0.001, t, CLIMB, CFG)).toBe(false);
+  });
+});
+
+describe("catch-up: lava clock speeds up when the climber is far ahead", () => {
+  it("stays at 1× at or under the lead threshold", () => {
+    expect(hazardCatchupTimeScale(0)).toBe(1);
+    expect(hazardCatchupTimeScale(HAZARD_CATCHUP_LEAD_M)).toBe(1);
+  });
+
+  it("runs a little fast once the lead is over the threshold", () => {
+    expect(hazardCatchupTimeScale(HAZARD_CATCHUP_LEAD_M + 0.1)).toBe(
+      HAZARD_CATCHUP_TIME_SCALE
+    );
+    expect(HAZARD_CATCHUP_TIME_SCALE).toBeGreaterThan(1);
+    expect(HAZARD_CATCHUP_TIME_SCALE).toBeLessThanOrEqual(1.3);
+  });
+
+  it("drops back to 1× as soon as the lead is within the threshold again", () => {
+    expect(hazardCatchupTimeScale(200)).toBe(HAZARD_CATCHUP_TIME_SCALE);
+    expect(hazardCatchupTimeScale(HAZARD_CATCHUP_LEAD_M)).toBe(1);
+    expect(hazardCatchupTimeScale(50)).toBe(1);
   });
 });

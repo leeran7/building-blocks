@@ -81,13 +81,13 @@ describe("AC-3 decorative mark and jetpack fuel/window copy", () => {
     }
   });
 
-  it("jetpack after 1s with no burn shows 7.5s fuel and 29.0s remaining", () => {
+  it("jetpack after 1s with no burn shows 7.5 gal fuel and 29.0s remaining", () => {
     const html = renderHudWithActive([activeEntry("jetpack")], TICK_HZ);
-    expect(visibleChipSeconds(html)).toEqual(["7.5s"]);
+    expect(visibleChipSeconds(html)).toEqual(["7.5 gal", "29.0s"]);
     const chip = hudChips(html)[0];
     expect(chip).toBeDefined();
     expect(chip!.ariaLabel.startsWith(POWER_UP_SPECS.jetpack.label)).toBe(true);
-    expect(chip!.ariaLabel).toMatch(/7\.5s fuel/i);
+    expect(chip!.ariaLabel).toMatch(/7\.5 gal fuel/i);
     expect(chip!.ariaLabel).toMatch(/29\.0s remaining/);
     expect(everySvgIsDecorative(chip!.html)).toBe(true);
   });
@@ -320,7 +320,7 @@ describe("AC-16 locked durations, fuel, and cooldown", () => {
     expect(POWER_UP_SPECS["rapid-climb"].description).toBe(
       "Climb ladders 1.75x faster"
     );
-    expect(POWER_UP_SPECS["rapid-climb"].durationSeconds).toBe(15);
+    expect(POWER_UP_SPECS["rapid-climb"].durationSeconds).toBe(10);
 
     expect(POWER_UP_SPECS["sprint-burst"].label).toBe("Sprint Burst");
     expect(POWER_UP_SPECS["sprint-burst"].description).toBe("Run 1.5x faster");
@@ -336,7 +336,7 @@ describe("AC-16 locked durations, fuel, and cooldown", () => {
     expect(POWER_UP_SPECS.giant.description).toBe(
       "2× size · wider grabs & landings"
     );
-    expect(POWER_UP_SPECS.giant.durationSeconds).toBe(12);
+    expect(POWER_UP_SPECS.giant.durationSeconds).toBe(20);
 
     expect(POWER_UP_SPECS.jetpack.label).toBe("Jetpack");
     expect(POWER_UP_SPECS.jetpack.description).toBe(
@@ -348,7 +348,7 @@ describe("AC-16 locked durations, fuel, and cooldown", () => {
 
     expect(POWER_UP_SPECS["slow-lava"].label).toBe("Slow Lava");
     expect(POWER_UP_SPECS["slow-lava"].description).toBe(
-      "Lava rises 50% slower"
+      "Lava rises 40% slower"
     );
     expect(POWER_UP_SPECS["slow-lava"].durationSeconds).toBe(8);
     expect(POWER_UP_SPECS["slow-lava"].cooldownSeconds).toBe(40);
@@ -520,7 +520,7 @@ function chipRowText(html: string): string {
 }
 
 function visibleChipSeconds(html: string): string[] {
-  return [...html.matchAll(/class="tabular-nums">([^<]+)</g)].map(
+  return [...html.matchAll(/class="[^"]*tabular-nums[^"]*">([^<]+)</g)].map(
     (match) => match[1]!
   );
 }
