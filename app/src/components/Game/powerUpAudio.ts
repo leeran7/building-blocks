@@ -51,8 +51,8 @@ const DOOM_ROOT_HZ = 46.25;
 const DOOM_TRITONE_HZ = DOOM_ROOT_HZ * Math.pow(2, 6 / 12);
 
 /** Exported so tests can assert coming vs struck without grepping motifs. */
-export const LAVA_STING_ATTACK = 1.4;
-export const LAVA_STING_PEAK = 0.28;
+export const LAVA_STING_ATTACK = 2.8;
+export const LAVA_STING_PEAK = 0.12;
 export const DEATH_HIT_ATTACK = 0.006;
 export const DEATH_HIT_PEAK = 0.95;
 
@@ -83,11 +83,10 @@ const ACTIVATE: Record<PowerUpType, Note[]> = {
     { at: 0, freq: 180, to: 280, dur: 0.14, wave: "sine" },
     { at: 0.08, freq: 220, to: 360, dur: 0.16, wave: "triangle", gain: 0.7 },
   ],
-  // Engine burst — short low square/sawtooth chugs, not a launch sweep.
+  // Soft hiss — the hold-to-thrust loop is the engine; pickup must not thud.
   jetpack: [
-    { at: 0, freq: 88, dur: 0.055, wave: "square", gain: 0.5 },
-    { at: 0.07, freq: 64, dur: 0.05, wave: "sawtooth", gain: 0.45 },
-    { at: 0.13, freq: 96, dur: 0.06, wave: "square", gain: 0.4 },
+    { at: 0, freq: 280, to: 460, dur: 0.2, wave: "sine", gain: 0.22, attack: 0.05 },
+    { at: 0.05, freq: 190, to: 310, dur: 0.18, wave: "triangle", gain: 0.14, attack: 0.06 },
   ],
   // Descending, detuned pair — the world winding down.
   "slow-lava": [
@@ -102,7 +101,7 @@ const PICKUP_PITCH: Record<PowerUpType, number> = {
   "sprint-burst": 740,
   "double-jump": 990,
   giant: 320,
-  jetpack: 260,
+  jetpack: 420,
   "slow-lava": 620,
 };
 
@@ -123,15 +122,15 @@ const LAVA_STING: Note[] = [
   {
     at: 0,
     freq: DOOM_ROOT_HZ,
-    dur: 3.4,
+    dur: 6.5,
     wave: "sine",
     gain: LAVA_STING_PEAK,
     attack: LAVA_STING_ATTACK,
   },
   {
-    at: 0.25,
+    at: 0.4,
     freq: DOOM_TRITONE_HZ,
-    dur: 3.2,
+    dur: 6.2,
     wave: "sine",
     gain: LAVA_STING_PEAK * 0.72,
     attack: LAVA_STING_ATTACK,
@@ -309,7 +308,7 @@ export class PowerUpAudio {
       this.jetGain.gain.setTargetAtTime(
         Math.max(0.0001, peak),
         ctx.currentTime,
-        this.jetWanted ? 0.08 : 0.06
+        this.jetWanted ? 0.14 : 0.08
       );
       this.jetApplied = this.jetWanted;
     } catch {
@@ -363,36 +362,28 @@ export class PowerUpAudio {
     noise.loop = true;
     const band = ctx.createBiquadFilter();
     band.type = "bandpass";
-    band.frequency.value = 1400;
-    band.Q.value = 0.45;
+    band.frequency.value = 1800;
+    band.Q.value = 0.35;
     const high = ctx.createBiquadFilter();
     high.type = "highpass";
-    high.frequency.value = 420;
+    high.frequency.value = 520;
     const noiseGain = ctx.createGain();
-    noiseGain.gain.value = 0.38;
-
-    const saw = ctx.createOscillator();
-    saw.type = "triangle";
-    saw.frequency.value = 96;
-    const sawGain = ctx.createGain();
-    sawGain.gain.value = 0.1;
+    noiseGain.gain.value = 0.5;
 
     const out = ctx.createGain();
     out.gain.value = 0.0001;
 
     noise.connect(high).connect(band).connect(noiseGain).connect(out);
-    saw.connect(sawGain).connect(out);
     out.connect(this.master);
 
     try {
       noise.start();
-      saw.start();
     } catch {
-      this.stopSources([noise, saw]);
+      this.stopSources([noise]);
       out.disconnect();
       return;
     }
-    this.jetSources = [noise, saw];
+    this.jetSources = [noise];
     this.jetGain = out;
   }
 
@@ -573,21 +564,21 @@ function noiseBuffer(ctx: AudioContext): AudioBuffer {
 
 /** Peak loop gain (pre-master) while the jetpack is thrusting. */
 export function jetpackLoopGain(on: boolean): number {
-  return on ? 0.26 : 0;
+  return on ? 0.18 : 0;
 }
 
 /**
  * Peak rumble gain (pre-master) from how much of the uncovered view lava
- * has eaten. Zero at no lava; a true whisper at the first sliver so the
- * coming-cue can swell; a roar only when the view is full.
+ * has eaten. First sliver is almost silent so the cue can bloom; it only
+ * becomes a presence as lava takes the view.
  */
 export function lavaDoomLoopGain(fill: number): number {
   const f = fill < 0 ? 0 : fill > 1 ? 1 : fill;
   if (f <= 0) return 0;
-  return 0.04 + f * 0.5;
+  return 0.02 + f * 0.42;
 }
 
 /** Seconds the rumble takes to bloom when lava first enters the view. */
 export function lavaDoomAttackSeconds(): number {
-  return 1.8;
+  return 3.6;
 }
