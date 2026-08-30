@@ -23,26 +23,35 @@ import { useCallback, useEffect, useState, type RefObject } from "react";
  */
 export function useCanvasSize(
   wrapperRef: RefObject<HTMLElement | null>,
-  { maxWidth = MAX_WIDTH }: UseCanvasSizeOptions = {}
+  { maxWidth = MAX_WIDTH, fill = false }: UseCanvasSizeOptions = {}
 ): CanvasSize {
   const [size, setSize] = useState<CanvasSize>(BASE_SIZE);
 
   const measure = useCallback(() => {
     const el = wrapperRef.current;
     if (!el) return;
-    const next = fitCanvas({
-      // The wrapper's own width is driven by what we return, so read the width
-      // from its parent to keep that axis out of the feedback loop.
-      availableWidth: (el.parentElement ?? el).clientWidth,
-      availableHeight: availableHeight(el),
-      maxWidth,
-    });
+    // Fill mode (touch / iOS-first): the canvas owns the whole viewport as a
+    // full-bleed stage, so it matches the device aspect exactly — no 9:16 lock
+    // and no max width. The safe-area insets are handled by the overlaid HUD and
+    // controls, not by shrinking the canvas, so it truly reaches every edge.
+    const next = fill
+      ? fillCanvas({
+          availableWidth: viewportWidth(),
+          availableHeight: viewportHeight(),
+        })
+      : fitCanvas({
+          // The wrapper's own width is driven by what we return, so read the
+          // width from its parent to keep that axis out of the feedback loop.
+          availableWidth: (el.parentElement ?? el).clientWidth,
+          availableHeight: availableHeight(el),
+          maxWidth,
+        });
     // Bail out when nothing moved: the ResizeObserver below also fires for the
     // height change our own resize causes, which would otherwise never settle.
     setSize((prev) =>
       prev.width === next.width && prev.height === next.height ? prev : next
     );
-  }, [wrapperRef, maxWidth]);
+  }, [wrapperRef, maxWidth, fill]);
 
   useEffect(() => {
     measure();
@@ -77,6 +86,12 @@ export interface CanvasSize {
 export interface UseCanvasSizeOptions {
   /** Upper bound on canvas width, so the game stays playable on a wide monitor. */
   maxWidth?: number;
+  /**
+   * Full-bleed stage mode: the canvas fills the whole viewport and matches the
+   * device aspect (no 9:16 lock, no max width). Used on touch devices where the
+   * game runs edge-to-edge; desktop stays framed with the default fit path.
+   */
+  fill?: boolean;
 }
 
 /** Locked play-area aspect ratio — see the note on useCanvasSize. */
@@ -115,6 +130,12 @@ function viewportHeight(): number {
   return vv && vv.scale === 1 ? vv.height : window.innerHeight;
 }
 
+/** Width counterpart to viewportHeight, ignoring a pinch-zoom scale. */
+function viewportWidth(): number {
+  const vv = window.visualViewport;
+  return vv && vv.scale === 1 ? vv.width : window.innerWidth;
+}
+
 function isFixed(el: HTMLElement): boolean {
   for (let node: HTMLElement | null = el; node; node = node.parentElement) {
     if (getComputedStyle(node).position === "fixed") return true;
@@ -149,6 +170,25 @@ export function fitCanvas({
   // budget, and the budget is a hard limit rather than a target.
   const floored = Math.floor(width);
   return { width: floored, height: Math.floor(floored / ASPECT) };
+}
+
+/**
+ * Device-matched canvas that fills the box exactly (touch full-bleed stage).
+ * Unlike fitCanvas there is no aspect lock and no max width: the whole viewport
+ * is the play area. Exported for unit tests. Non-finite / non-positive
+ * measurements collapse to the base size rather than propagating a bad value.
+ */
+export function fillCanvas({
+  availableWidth,
+  availableHeight: availHeight,
+}: {
+  availableWidth: number;
+  availableHeight: number;
+}): CanvasSize {
+  const width = finite(availableWidth);
+  const height = finite(availHeight);
+  if (width === 0 || height === 0) return BASE_SIZE;
+  return { width: Math.floor(width), height: Math.floor(height) };
 }
 
 /** Non-finite or negative measurements collapse to 0 rather than propagating. */

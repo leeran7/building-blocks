@@ -79,11 +79,19 @@ export function TouchControls({
   return (
     <div
       role="group"
-      className="absolute inset-x-0 bottom-0 z-10 select-none p-2"
-      style={{ touchAction: "none" }}
+      className="absolute inset-x-0 bottom-0 z-10 select-none"
+      style={{
+        touchAction: "none",
+        // Sit inside the safe area so the buttons clear the home indicator and
+        // the rounded display corners, but never less than a comfortable gutter.
+        paddingTop: 8,
+        paddingLeft: "max(10px, env(safe-area-inset-left))",
+        paddingRight: "max(10px, env(safe-area-inset-right))",
+        paddingBottom: "max(10px, env(safe-area-inset-bottom))",
+      }}
       aria-label="Touch game controls"
     >
-      <div className="grid grid-cols-4 gap-2">
+      <div className="grid grid-cols-4 gap-2.5">
         {ALL_CONTROLS.map((control) => (
           <TouchButton
             key={control.id}
@@ -118,7 +126,7 @@ function TouchButton({
       onContextMenu={(e) => e.preventDefault()}
       className={
         "relative flex flex-col items-center justify-center rounded-2xl border font-mono font-bold " +
-        "min-h-[92px] min-w-[44px] backdrop-blur-sm " +
+        "min-h-[104px] min-w-[44px] backdrop-blur-sm " +
         "transition-[filter,transform,background-color] " +
         // One ternary per state rather than appending the held colour: competing
         // background utilities are resolved by stylesheet order, not by the
@@ -209,13 +217,16 @@ const ALL_CONTROLS: readonly Control[] = [
 ];
 
 /**
- * Canvas height these controls cover: `min-h-[92px]` plus `p-2` top and bottom
- * (8px * 2 = 16px). Passed to ClimbCanvas as `bottomInset` so the camera keeps
- * the climber above the buttons instead of behind them.
+ * Height these controls cover ABOVE the safe area: the `min-h-[104px]` button
+ * plus the 8px top gutter. Callers add the bottom padding —
+ * `max(10px, safe-area-inset-bottom)` — themselves, because the safe-area part
+ * is only known at runtime (see ClimbScene). The sum is passed to ClimbCanvas as
+ * `bottomInset` so the camera keeps the climber above the buttons.
  *
  * Button height and padding are deliberately breakpoint-free. When they varied
  * by breakpoint this constant matched only the phone case and understated the
- * bar by 16px at `sm:`, drawing the climber inside the buttons on tablets and
- * on any phone in landscape.
+ * bar, drawing the climber inside the buttons on tablets and in landscape.
  */
-export const TOUCH_CONTROLS_INSET = 108;
+export const TOUCH_CONTROLS_INSET = 112;
+/** Minimum bottom gutter under the buttons, matched to the container padding. */
+export const TOUCH_CONTROLS_MIN_BOTTOM = 10;
