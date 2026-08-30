@@ -7,7 +7,7 @@
  * The free climb game lives on its own stack — see FreeLeaderboard below.
  *
  * Default (All, collapsed): featured stacks, one per family. "Show more"
- * reveals the rest of the 74 stacks grouped by family. A family chip
+ * replaces that preview with every stack grouped by family. A family chip
  * always shows that family's full list.
  */
 
@@ -22,6 +22,7 @@ import { InlineTower } from "./InlineTower";
 import {
   directorySections,
   hiddenDirectoryCount,
+  directoryToggleVisible,
 } from "./towerDirectoryPreview";
 
 const SHORT_FAMILY: Record<Family, string> = {
@@ -85,10 +86,11 @@ export function TowerDirectory({ counts, minEntryUsd }: TowerDirectoryProps) {
 
   function selectFamily(next: Family | "all") {
     setFamily(next);
+    setExpanded(false);
     const nextSlugs = new Set(
       directorySections({
         family: next,
-        expanded,
+        expanded: false,
         grouped,
         featured: FEATURED_GAME_CATEGORIES,
       }).flatMap((section) => section.stacks.map((c) => c.slug))
@@ -109,8 +111,14 @@ export function TowerDirectory({ counts, minEntryUsd }: TowerDirectoryProps) {
     setExpanded(true);
   }
 
+  const showToggle = directoryToggleVisible({
+    family,
+    expanded,
+    hiddenCount,
+  });
+
   return (
-    <section id="towers" aria-label="Paid stacks" className="py-20 px-4 border-t border-border-subtle">
+    <section id="towers" aria-label="Paid stacks" className="scroll-mt-20 py-20 px-4 border-t border-border-subtle">
       <div className="max-w-6xl mx-auto">
         <div className="mb-6">
           <span className="inline-flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.2em] text-signal">
@@ -151,6 +159,15 @@ export function TowerDirectory({ counts, minEntryUsd }: TowerDirectoryProps) {
           ))}
         </div>
 
+        {showToggle && expanded && (
+          <DirectoryToggle
+            expanded={expanded}
+            hiddenCount={hiddenCount}
+            onClick={toggleExpanded}
+            className="mb-8"
+          />
+        )}
+
         <div id="tower-directory-list" className="flex flex-col gap-10">
           {sections.map((section) => (
             <div key={section.family ?? "featured"}>
@@ -190,20 +207,13 @@ export function TowerDirectory({ counts, minEntryUsd }: TowerDirectoryProps) {
           ))}
         </div>
 
-        {family === "all" && (hiddenCount > 0 || expanded) && (
-          <div className="mt-10 flex justify-center">
-            <button
-              type="button"
-              aria-expanded={expanded}
-              aria-controls="tower-directory-list"
-              onClick={toggleExpanded}
-              className="w-full sm:w-auto inline-flex items-center justify-center rounded-full border border-border-strong bg-surface/60 px-7 min-h-[44px] text-sm font-medium text-text-primary hover:border-signal/50 hover:bg-surface transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void"
-            >
-              {expanded
-                ? "Show less"
-                : `Show ${hiddenCount} more ${hiddenCount === 1 ? "stack" : "stacks"}`}
-            </button>
-          </div>
+        {showToggle && !expanded && (
+          <DirectoryToggle
+            expanded={expanded}
+            hiddenCount={hiddenCount}
+            onClick={toggleExpanded}
+            className="mt-10"
+          />
         )}
       </div>
     </section>
@@ -314,6 +324,35 @@ function FilterChip({
     >
       {children}
     </button>
+  );
+}
+
+function DirectoryToggle({
+  expanded,
+  hiddenCount,
+  onClick,
+  className,
+}: {
+  expanded: boolean;
+  hiddenCount: number;
+  onClick: () => void;
+  className: string;
+}) {
+  const label = expanded
+    ? "Show less"
+    : `Show ${hiddenCount} more ${hiddenCount === 1 ? "stack" : "stacks"}`;
+  return (
+    <div className={`flex justify-center ${className}`}>
+      <button
+        type="button"
+        aria-expanded={expanded}
+        aria-controls="tower-directory-list"
+        onClick={onClick}
+        className="w-full sm:w-auto inline-flex items-center justify-center rounded-full border border-border-strong bg-surface/60 px-7 min-h-[44px] text-sm font-medium text-text-primary hover:border-signal/50 hover:bg-surface transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void"
+      >
+        {label}
+      </button>
+    </div>
   );
 }
 

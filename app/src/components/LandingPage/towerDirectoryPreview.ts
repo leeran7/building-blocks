@@ -35,6 +35,15 @@ export function hiddenDirectoryCount(
   return Math.max(0, total - previewCount);
 }
 
+export function directoryToggleVisible(input: {
+  family: Family | "all";
+  expanded: boolean;
+  hiddenCount: number;
+}): boolean {
+  if (input.family !== "all") return false;
+  return input.expanded || input.hiddenCount > 0;
+}
+
 export type DirectorySection = {
   family: Family | null;
   stacks: GameCategory[];

@@ -18,6 +18,7 @@ import {
 import {
   directorySections,
   hiddenDirectoryCount,
+  directoryToggleVisible,
 } from "../../src/components/LandingPage/towerDirectoryPreview";
 
 function groupedFromSeed(): Record<Family, GameCategory[]> {
@@ -146,5 +147,32 @@ describe("hiddenDirectoryCount", () => {
     expect(hiddenDirectoryCount(7, 7, false, "all")).toBe(0);
     expect(hiddenDirectoryCount(5, 9, false, "all")).toBe(0);
     expect(hiddenDirectoryCount(0, 7, false, "all")).toBe(0);
+  });
+});
+
+describe("directoryToggleVisible", () => {
+  it("shows the control on collapsed All when stacks are hidden", () => {
+    expect(
+      directoryToggleVisible({ family: "all", expanded: false, hiddenCount: 67 })
+    ).toBe(true);
+  });
+
+  it("keeps the control on expanded All even though hiddenCount is 0", () => {
+    expect(
+      directoryToggleVisible({ family: "all", expanded: true, hiddenCount: 0 })
+    ).toBe(true);
+  });
+
+  it("hides the control on a family chip and when the preview already covers all", () => {
+    expect(
+      directoryToggleVisible({
+        family: "Tech & Software",
+        expanded: false,
+        hiddenCount: 67,
+      })
+    ).toBe(false);
+    expect(
+      directoryToggleVisible({ family: "all", expanded: false, hiddenCount: 0 })
+    ).toBe(false);
   });
 });
