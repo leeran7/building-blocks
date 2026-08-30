@@ -78,6 +78,7 @@ import {
   laddersForFloor,
   platformsForFloor,
 } from "../../src/game/towers";
+import { obstacleAhead } from "../../src/game/obstacles";
 
 const TOWER: TowerSpec = buildTower("indie-games");
 
@@ -1077,17 +1078,36 @@ function hazardTrace(slowed: boolean, alsoActivate?: PowerUpType): number[] {
 function botInput(p: PlayerState, tower: TowerSpec): PlayerInput {
   if (p.onLadder) return { moveX: 0, jump: false, climbY: 1, usePowerUp: false };
   const k = floorIndexAt(tower, p.y + 0.5);
-  const target = ladderForFloor(tower, k);
+  const ladders = laddersForFloor(tower, k);
+  const pieces = platformsForFloor(tower, k);
+  const piece = pieces.find(
+    (pl) =>
+      p.x >= pl.x0 - 0.15 &&
+      p.x <= pl.x1 + 0.15 &&
+      Math.abs(pl.y - p.y) <= 0.25
+  );
+  const local = piece
+    ? ladders.filter((l) => l.x >= piece.x0 && l.x <= piece.x1)
+    : [];
+  const target = (local.length > 0 ? local : ladders)
+    .slice()
+    .sort((a, b) => Math.abs(a.x - p.x) - Math.abs(b.x - p.x))[0];
   const dx = target.x - p.x;
   if (Math.abs(dx) <= tower.ladderGrabRadius * 0.5) {
     return { moveX: 0, jump: false, climbY: 1, usePowerUp: false };
   }
   const dir: -1 | 0 | 1 = dx > 0 ? 1 : -1;
-  const probe = p.x + dir * 1.2;
+  const probe = p.x + dir * 3.5;
   const ahead = platformsForFloor(tower, k).some(
     (pl) => probe >= pl.x0 && probe <= pl.x1 && Math.abs(pl.y - p.y) <= 0.05
   );
-  return { moveX: dir, jump: p.onGround && !ahead, climbY: 0, usePowerUp: false };
+  const crate = obstacleAhead(tower, p.x, p.y, dir);
+  return {
+    moveX: dir,
+    jump: p.onGround && (!ahead || crate),
+    climbY: 0,
+    usePowerUp: false,
+  };
 }
 
 /**

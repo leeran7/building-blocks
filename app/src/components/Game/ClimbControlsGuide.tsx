@@ -42,6 +42,7 @@ const TOUCH_CONTROLS = [
 const TIPS = [
   "Grab a ladder and climb to go faster than jumping floor to floor.",
   "The lava surges, then stumbles — use the slow windows to climb; your peak height is your score.",
+  "Crates on a floor block the walk — jump them, or the lava closes while you stall.",
   "Walk into a glowing orb to trigger its power-up instantly.",
   "Power-ups activate the instant you touch them — time your route to grab one right when you need it.",
   `Tap jump to leap, then re-hold in the air to burn a jetpack; holding through takeoff caps rise at ${JETPACK_MAX_VY} m/s. Fuel is short, leftover dies with the window.`,

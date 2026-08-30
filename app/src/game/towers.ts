@@ -11,9 +11,9 @@
  * still replays exactly (AC-11).
  *
  * Difficulty scales with altitude: the gap you must jump on each floor widens
- * toward the physical jump limit, and ladders shift further sideways, so higher
- * floors demand tighter jumps and longer traverses (more exposure to the lava).
- * Because these stay within the jump reach, every floor remains solvable.
+ * toward the physical jump limit, ladders shift further sideways, and jump-over
+ * crates appear on the traverse (more exposure to the lava). Because gaps and
+ * crates stay within jump reach, every floor remains solvable.
  */
 
 import { TowerSpec, Platform, Ladder } from "./types";

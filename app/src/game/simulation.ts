@@ -9,10 +9,11 @@
  * is what AC-11 (determinism) and AC-17 (replay verification) rely on.
  *
  * The world is a Donkey-Kong-style stack of solid platforms joined by ladders,
- * with jumpable gaps. Motion is real 2D platforming — gravity, walking, jumping,
- * one-way platform landings, and ladder climbing. The pressure is Doodle-Jump
- * style: a single DEATH LINE = max(rising hazard, peak − fallDeathBelowPeak). If
- * your feet drop to it, you're out (caught = you lose; peak height is retained).
+ * with jumpable gaps and jump-over crates on the traverse. Motion is real 2D
+ * platforming — gravity, walking, jumping, one-way platform landings, and ladder
+ * climbing. The pressure is Doodle-Jump style: a single DEATH LINE = max(rising
+ * hazard, peak − fallDeathBelowPeak). If your feet drop to it, you're out
+ * (caught = you lose; peak height is retained).
  *
  * Tick order is deliberate and load-bearing:
  *   1. advance race-clock + hazard height
@@ -63,6 +64,7 @@ import {
   powerUpForFloor,
   pruneActive,
 } from "./powerups";
+import { isOnObstacle, resolveObstacleMotion } from "./obstacles";
 import {
   isHeightDeltaLegal,
   legalClimbSpeedMult,
@@ -291,6 +293,7 @@ function integratePlayer(
       }
     }
   } else {
+    const prevX = p.x;
     p.x = clamp(p.x + p.vx * dt, 0, tower.widthM);
 
     // Grab a ladder if the player is asking to climb and one is in reach.
@@ -349,8 +352,15 @@ function integratePlayer(
         p.onGround = false;
       }
 
-      // Walked off a platform edge while grounded → start falling.
-      if (p.onGround && p.y > 0 && !isSupported(tower, p.x, p.y, platformMargin)) {
+      resolveObstacleMotion(p, prevX, prevY, tower, platformMargin);
+
+      // Walked off a platform or crate while grounded → start falling.
+      if (
+        p.onGround &&
+        p.y > 0 &&
+        !isSupported(tower, p.x, p.y, platformMargin) &&
+        !isOnObstacle(tower, p.x, p.y, platformMargin)
+      ) {
         p.onGround = false;
       }
     }

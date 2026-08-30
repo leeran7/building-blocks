@@ -4,23 +4,24 @@
  * Tower v3 "The Climb" — climb renderer.
  *
  * Draws the Donkey-Kong-style tower: solid platforms with gaps, ladders joining
- * floors, the summit flag, the rising lava, and the climber — with the camera
- * following the climber UPWARD (the whole theme is height/altitude). Rendering
- * only; all positions come from the authoritative/predicted MatchState produced
- * by the simulation. Honors prefers-reduced-motion by dropping the lava shimmer
- * (AC-35) — the sim is byte-identical either way.
+ * floors, jump-over crates on the traverse, the rising lava, and the climber —
+ * with the camera following the climber UPWARD (the whole theme is height).
+ * Rendering only; all positions come from the authoritative/predicted MatchState
+ * produced by the simulation. Honors prefers-reduced-motion by dropping the lava
+ * shimmer (AC-35) — the sim is byte-identical either way.
  *
  * ASCENT palette: signal-lime climber (#cbf24d) + ember lava (#ff5a2c).
  */
 
 import { useEffect, useRef } from "react";
-import { MatchState } from "../../game/types";
+import { MatchState, Obstacle } from "../../game/types";
 import {
   platformsNearY,
   laddersNearY,
   floorHeight,
   floorIndexAt,
 } from "../../game/towers";
+import { obstaclesNearY } from "../../game/obstacles";
 import {
   POWER_UP_SPECS,
   GIANT_VISUAL_SCALE,
@@ -52,6 +53,9 @@ const BORDER = "#37343f";
 const ACCENT = "#cbf24d"; // signal — the climber
 const PLATFORM = "#38353f";
 const PLATFORM_TOP = "#4a4656";
+const CRATE = "#2a2730";
+const CRATE_TOP = "#4a4656";
+const CRATE_FACE = "#3a3644";
 const LADDER = "#8a86a0";
 const LAVA = "#ff5a2c"; // ember — the rising hazard
 const LAVA_SLOWED = "#ff8ad4"; // matches the slow-lava orb, for a held-back lava
@@ -223,6 +227,12 @@ export function ClimbCanvas({
       ctx.fillRect(x0, top, w, slab);
       ctx.fillStyle = PLATFORM_TOP;
       ctx.fillRect(x0, top, w, 2 * ui); // bright top surface
+    }
+
+    // Jump-over crates — sit on the floor, drawn above the slab so they read
+    // as something you have to leap, not as part of the platform.
+    for (const o of obstaclesNearY(tower, yLow, yHigh)) {
+      drawObstacle(ctx, o, sx, sy, pxPerM, ui, height);
     }
 
     // Power-up orbs, drawn above the platforms they hover over but below the
@@ -518,4 +528,67 @@ function dot(ctx: CanvasRenderingContext2D, [x, y]: Pt, r: number) {
   ctx.beginPath();
   ctx.arc(x, y, r, 0, Math.PI * 2);
   ctx.fill();
+}
+
+function drawObstacle(
+  ctx: CanvasRenderingContext2D,
+  o: Obstacle,
+  sx: (x: number) => number,
+  sy: (y: number) => number,
+  pxPerM: number,
+  ui: number,
+  canvasH: number
+) {
+  const x = sx(o.x0);
+  const top = sy(o.y1);
+  const bot = sy(o.y0);
+  const w = sx(o.x1) - x;
+  const h = bot - top;
+  if (bot < -8 || top > canvasH + 8 || w <= 1 || h <= 1) return;
+
+  ctx.fillStyle = CRATE;
+  if (o.kind === "barrel") {
+    roundRect(ctx, x, top, w, h, Math.min(h * 0.22, 6 * ui));
+    ctx.fill();
+    ctx.fillStyle = CRATE_FACE;
+    ctx.fillRect(x + 2 * ui, top + h * 0.28, w - 4 * ui, Math.max(2 * ui, h * 0.12));
+    ctx.fillRect(x + 2 * ui, top + h * 0.6, w - 4 * ui, Math.max(2 * ui, h * 0.12));
+  } else if (o.kind === "rock") {
+    ctx.beginPath();
+    ctx.moveTo(x + w * 0.08, top + h * 0.72);
+    ctx.lineTo(x + w * 0.22, top + h * 0.12);
+    ctx.lineTo(x + w * 0.62, top);
+    ctx.lineTo(x + w * 0.96, top + h * 0.38);
+    ctx.lineTo(x + w * 0.82, bot);
+    ctx.lineTo(x + w * 0.12, bot);
+    ctx.closePath();
+    ctx.fill();
+  } else {
+    ctx.fillRect(x, top + h * 0.35, w, h * 0.65);
+    ctx.fillStyle = CRATE_FACE;
+    ctx.fillRect(x + w * 0.12, top, w * 0.76, h * 0.48);
+  }
+  ctx.fillStyle = CRATE_TOP;
+  ctx.fillRect(x, top, w, Math.max(2 * ui, pxPerM * 0.18));
+  ctx.strokeStyle = LADDER;
+  ctx.lineWidth = Math.max(1.5, 1.5 * ui);
+  ctx.strokeRect(x + 0.5, top + 0.5, w - 1, h - 1);
+}
+
+function roundRect(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  r: number
+) {
+  const rad = Math.max(0, Math.min(r, w / 2, h / 2));
+  ctx.beginPath();
+  ctx.moveTo(x + rad, y);
+  ctx.arcTo(x + w, y, x + w, y + h, rad);
+  ctx.arcTo(x + w, y + h, x, y + h, rad);
+  ctx.arcTo(x, y + h, x, y, rad);
+  ctx.arcTo(x, y, x + w, y, rad);
+  ctx.closePath();
 }

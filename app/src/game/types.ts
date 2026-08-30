@@ -141,6 +141,22 @@ export interface Platform {
 }
 
 /**
+ * A jump-over crate sitting on a floor. Solid from the sides; the top is a
+ * one-way landing like a platform. Generated per floor from the tower seed
+ * (AC-11), never overlapping a ladder grab zone or the floor's jump gap.
+ */
+export interface Obstacle {
+  floorIndex: number;
+  x0: number;
+  x1: number;
+  /** Platform surface the crate sits on. */
+  y0: number;
+  /** Top of the crate (landable). */
+  y1: number;
+  kind: "barrel" | "rock" | "debris";
+}
+
+/**
  * A climbable ladder connecting a lower platform to a higher one. Centered at
  * `x`, spanning feet-heights [y0, y1]. A climber within `grabRadius` of `x` and
  * inside the y-span can attach and climb (King-Kong ladders).
