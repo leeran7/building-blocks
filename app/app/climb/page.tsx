@@ -16,14 +16,12 @@ export const metadata: Metadata = {
     "The free endless climb leaderboard. Play for practice and bragging rights — your best peak height is your rank.",
 };
 
-// Without this the page is a static route whose only data comes from an awaited
-// DB read, so Next prerenders it at build time and never regenerates it: the
-// leaderboard is frozen at whatever the build machine saw. Worse, the read is
-// wrapped in a fallback, so a build with no database reachable bakes in an empty
-// board and still exits 0 — which is exactly what `next build` does here.
-// 30s matches how fast a new personal best should surface; the landing page uses
-// 60s for the same reason.
-export const revalidate = 30;
+// Always render on request so a fresh run shows up immediately after save.
+// ISR alone left standings stale for up to 30s (plus client router cache) even
+// after POST /api/climb/result called revalidatePath — force-dynamic avoids that.
+// The landing page stays ISR-cached and is invalidated on save via
+// revalidateClimbLeaderboard().
+export const dynamic = "force-dynamic";
 
 export default async function FreeClimbPage() {
   const climbers = await topFreeClimbers(50).catch((err) => {
