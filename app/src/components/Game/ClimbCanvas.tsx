@@ -43,7 +43,7 @@ const PLATFORM = "#38353f";
 const PLATFORM_TOP = "#4a4656";
 const LADDER = "#8a86a0";
 const LAVA = "#ff5a2c"; // ember — the rising hazard
-const LAVA_SLOWED = "#ff8ad4"; // matches the stop-lava orb, for a held-back lava
+const LAVA_SLOWED = "#ff8ad4"; // matches the slow-lava orb, for a held-back lava
 const TEXT_MUTED = "#74707e";
 /** Used for the small HUD/altitude text: TEXT_MUTED only reaches 3.8:1 on it. */
 const TEXT_SECONDARY = "#a8a4b2";
@@ -236,11 +236,11 @@ export function ClimbCanvas({
     }
 
     // Rising hazard (lava) — a filled band from the hazard line downward. While
-    // stop-lava runs, the band cools toward the power-up's own colour and its
+    // slow-lava runs, the band cools toward the power-up's own colour and its
     // edge breaks into dashes, so "the lava is being held back" reads on the
     // hazard itself rather than only in the effect list.
     const lavaSlowed = player
-      ? isPowerUpActive(player, "stop-lava", state.tick)
+      ? isPowerUpActive(player, "slow-lava", state.tick)
       : false;
     const hazScreenY = sy(state.hazardY);
     if (hazScreenY < height) {

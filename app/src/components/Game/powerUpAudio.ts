@@ -42,7 +42,7 @@ const MASTER_GAIN = 0.16;
 /**
  * Activation motifs. Each shape mirrors what the power-up does, so the cue is
  * learnable rather than arbitrary: things that move you up glide up, sprint is a
- * fast clipped double-tap, and stop-lava sags downward.
+ * fast clipped double-tap, and slow-lava sags downward.
  */
 const ACTIVATE: Record<PowerUpType, Note[]> = {
   // Fast rising triad — "going up".
@@ -68,7 +68,7 @@ const ACTIVATE: Record<PowerUpType, Note[]> = {
     { at: 0.13, freq: 96, dur: 0.06, wave: "square", gain: 0.4 },
   ],
   // Descending, detuned pair — the world winding down.
-  "stop-lava": [
+  "slow-lava": [
     { at: 0, freq: 660, to: 300, dur: 0.34, wave: "sine" },
     { at: 0.02, freq: 655, to: 297, dur: 0.34, wave: "sine", gain: 0.5 },
   ],
@@ -80,7 +80,7 @@ const PICKUP_PITCH: Record<PowerUpType, number> = {
   "sprint-burst": 740,
   giant: 320,
   jetpack: 260,
-  "stop-lava": 620,
+  "slow-lava": 620,
 };
 
 function pickupMotif(type: PowerUpType): Note[] {

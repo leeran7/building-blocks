@@ -17,7 +17,7 @@ export type PlayerId = string;
  * endless tower kills you: the ladder grind (rapid-climb), long sideways
  * traverses (sprint-burst), a sloppy ladder grab or platform edge (giant),
  * a bad ladder detour (jetpack), and the lava simply outpacing you late in a
- * run (stop-lava).
+ * run (slow-lava).
  * Tuning lives in powerups.ts.
  */
 export type PowerUpType =
@@ -25,7 +25,7 @@ export type PowerUpType =
   | "sprint-burst"
   | "giant"
   | "jetpack"
-  | "stop-lava";
+  | "slow-lava";
 
 /**
  * A power-up sitting in the world, hovering above a floor's surface. Generated
@@ -110,7 +110,7 @@ export interface PlayerState {
   /** Power-ups currently running. Expired entries are dropped each tick. */
   activePowerUps: ActivePowerUp[];
   /**
-   * Earliest tick each type may be activated again. Only stop-lava sets one —
+   * Earliest tick each type may be activated again. Only slow-lava sets one —
    * see the balance note in powerups.ts on why the run has to stay finite.
    */
   cooldownUntilTick: Partial<Record<PowerUpType, number>>;
@@ -203,7 +203,7 @@ export interface MatchState {
   raceSeconds: number;
   hazardY: number;
   /**
-   * Seconds of hazard rise cancelled by stop-lava. The hazard reads the clock
+   * Seconds of hazard rise cancelled by slow-lava. The hazard reads the clock
    * at `raceSeconds - hazardSlowSeconds` rather than being scaled directly:
    * scaling a height curve that is already an integral would make the lava
    * drop, and the lava must only ever rise.

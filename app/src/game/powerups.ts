@@ -7,7 +7,7 @@
  *   sprint-burst  ladders drift further apart with altitude — cover the traverse
  *   giant         grow 2× — wider ladder grabs and platform landings
  *   jetpack       skip a ladder detour — hold jump to thrust, fuel is short
- *   stop-lava     the lava eventually outpaces any climber; buy back seconds
+ *   slow-lava     the lava eventually outpaces any climber; buy back seconds
  *
  * BALANCE. The hazard envelope ramps toward 1.0× (ladder climb speed) and
  * stumbles (2s of 0.25× envelope every 8s), so the time-averaged chase
@@ -24,7 +24,7 @@
  *     wasted if you are not on a ladder, leftover jetpack fuel dies if jump
  *     is not held (or with the spend window);
  *   - multipliers under 2x, so no single pickup trivialises a floor;
- *   - stop-lava halves the lava's clock and is the rarest drop, but
+ *   - slow-lava halves the lava's clock and is the rarest drop, but
  *     weights toward it with altitude — exactly where the lava wins — so a deep
  *     run keeps getting the tool it needs to go deeper.
  *
@@ -76,7 +76,7 @@ const MIN_SPAWN_FLOOR = 1;
 /** First orb lands somewhere in this inclusive range (varies per tower seed). */
 const FIRST_SPAWN_MIN = 1;
 const FIRST_SPAWN_MAX = 4;
-/** Floors over which spawn density and the stop-lava bias ramp to their maximum. */
+/** Floors over which spawn density and the slow-lava bias ramp to their maximum. */
 const RAMP_FLOORS = 50;
 /** Target occupancy per floor at the base, and after the ramp (drives mean gap). */
 const SPAWN_CHANCE_LOW = 0.22;
@@ -107,11 +107,11 @@ export const GIANT_GRAB_MULT = 1.5;
 /** Extra horizontal metres allowed for platform landings while giant runs. */
 export const GIANT_PLATFORM_MARGIN_M = 0.75;
 /**
- * Fraction of the lava's rise cancelled while stop-lava runs. Half the clock
+ * Fraction of the lava's rise cancelled while slow-lava runs. Half the clock
  * (0.5) so the line visibly slows without stalling the way 0.75 did.
  */
 export const TIME_SLOW_FRAC = 0.5;
-/** Seconds before stop-lava may be used again — the endless-run guarantee. */
+/** Seconds before slow-lava may be used again — the endless-run guarantee. */
 export const TIME_SLOW_COOLDOWN_SECONDS = 40;
 
 /** Jetpack fuel budget in simulation ticks. */
@@ -133,7 +133,7 @@ export interface PowerUpSpec {
   durationSeconds: number;
   /**
    * Seconds after the effect ends before this type may be activated again. Only
-   * stop-lava needs one — see the note at the top on why the run must still end.
+   * slow-lava needs one — see the note at the top on why the run must still end.
    */
   cooldownSeconds: number;
   /**
@@ -193,9 +193,9 @@ export const POWER_UP_SPECS: Record<PowerUpType, PowerUpSpec> = {
     weight: 18,
     altitudeWeightMult: 1.1,
   },
-  "stop-lava": {
-    type: "stop-lava",
-    label: "Stop Lava",
+  "slow-lava": {
+    type: "slow-lava",
+    label: "Slow Lava",
     description: `Lava rises ${Math.round(TIME_SLOW_FRAC * 100)}% slower`,
     glyph: "◷",
     color: "#ff8ad4",
@@ -561,7 +561,7 @@ export function platformReachMargin(p: PlayerState, tick: number): number {
  */
 export function hazardTimeScale(players: PlayerState[], tick: number): number {
   const slowed = players.some(
-    (p) => p.status === "climbing" && isPowerUpActive(p, "stop-lava", tick)
+    (p) => p.status === "climbing" && isPowerUpActive(p, "slow-lava", tick)
   );
   return slowed ? 1 - TIME_SLOW_FRAC : 1;
 }
