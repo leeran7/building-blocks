@@ -431,7 +431,7 @@ export function stepMatch(
 
     // 3. Auto-activate any orb the climber is now touching, on contact — no
     //    banking, no use button. An orb whose type is still cooling down (only
-    //    time-slow ever sets one) is left uncollected so it stays pickable once
+    //    stop-lava ever sets one) is left uncollected so it stays pickable once
     //    the cooldown clears, rather than being wasted or bypassing the rule.
     for (const pu of state.powerUps) {
       if (pu.collected) continue;

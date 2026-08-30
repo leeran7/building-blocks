@@ -99,7 +99,7 @@ describe("specs: five live types, including jetpack", () => {
       "sprint-burst",
       "giant",
       "jetpack",
-      "time-slow",
+      "stop-lava",
     ]);
   });
 
@@ -229,15 +229,15 @@ describe("spawning: deterministic, reachable, and denser with altitude", () => {
     expect(rate).toBeLessThan(0.4);
   });
 
-  it("offers every type across a long climb, with time-slow the rarest", () => {
+  it("offers every type across a long climb, with stop-lava the rarest", () => {
     const counts = new Map<PowerUpType, number>();
     for (const pu of scanFloors(TOWER, 0, 3000)) {
       counts.set(pu.type, (counts.get(pu.type) ?? 0) + 1);
     }
     for (const t of POWER_UP_TYPES) expect(counts.get(t) ?? 0).toBeGreaterThan(0);
-    const timeSlow = counts.get("time-slow") ?? 0;
+    const stopLava = counts.get("stop-lava") ?? 0;
     for (const t of POWER_UP_TYPES) {
-      if (t !== "time-slow") expect(timeSlow).toBeLessThan(counts.get(t) ?? 0);
+      if (t !== "stop-lava") expect(stopLava).toBeLessThan(counts.get(t) ?? 0);
     }
   });
 
@@ -300,13 +300,13 @@ describe("pickup: touching an orb auto-activates it immediately", () => {
   it("skips an orb whose type is still on cooldown, and collects it once the cooldown clears", () => {
     const m = climbingMatch();
     const p = m.players[0];
-    placeOrb(m, "time-slow", p.x, p.y);
+    placeOrb(m, "stop-lava", p.x, p.y);
     stepMatch(m, { p1: NO_INPUT }, SLOW);
-    expect(isPowerUpActive(p, "time-slow", m.tick)).toBe(true);
+    expect(isPowerUpActive(p, "stop-lava", m.tick)).toBe(true);
 
     // A second orb sitting right on top of the player while the first is still
     // cooling down must NOT be collected.
-    placeOrb(m, "time-slow", p.x, p.y);
+    placeOrb(m, "stop-lava", p.x, p.y);
     stepMatch(m, { p1: NO_INPUT }, SLOW);
     expect(m.powerUps[1].collected).toBe(false);
     expect(m.powerUps[1].collectedTick).toBeNull();
@@ -316,20 +316,20 @@ describe("pickup: touching an orb auto-activates it immediately", () => {
     // the cooldown clears — that path is covered by the "becomes usable again"
     // test below; this one isolates the skip-then-fresh-pickup behavior.
     m.powerUps = m.powerUps.filter((pu) => pu.collected);
-    const wait = durationTicks("time-slow") + cooldownTicks("time-slow");
+    const wait = durationTicks("stop-lava") + cooldownTicks("stop-lava");
     for (let i = 0; i < wait; i++) stepMatch(m, { p1: NO_INPUT }, SLOW);
     expect(p.lastPickupTick).toBe(lastPickupBeforeClear); // still untouched
 
     // A fresh orb, placed now that the cooldown has cleared: collectable.
-    placeOrb(m, "time-slow", p.x, p.y);
+    placeOrb(m, "stop-lava", p.x, p.y);
     stepMatch(m, { p1: NO_INPUT }, SLOW);
     expect(m.powerUps[m.powerUps.length - 1].collected).toBe(true);
-    expect(isPowerUpActive(p, "time-slow", m.tick)).toBe(true);
+    expect(isPowerUpActive(p, "stop-lava", m.tick)).toBe(true);
   });
 
-  // The pre-existing same-type duplicate tests all used time-slow, the one type
+  // The pre-existing same-type duplicate tests all used stop-lava, the one type
   // whose cooldown blocks the second pickup outright. That left the four
-  // zero-cooldown types — uncovered if only time-slow duplicate tests exist.
+  // zero-cooldown types — uncovered if only stop-lava duplicate tests exist.
   describe("a second orb of a live type refreshes it instead of stacking", () => {
     const ZERO_COOLDOWN_TYPES = POWER_UP_TYPES.filter(
       (t) => cooldownTicks(t) === 0
@@ -337,7 +337,7 @@ describe("pickup: touching an orb auto-activates it immediately", () => {
 
     it("has zero-cooldown types to test (guards against a vacuous sweep)", () => {
       expect(ZERO_COOLDOWN_TYPES.length).toBeGreaterThan(0);
-      expect(ZERO_COOLDOWN_TYPES).not.toContain("time-slow");
+      expect(ZERO_COOLDOWN_TYPES).not.toContain("stop-lava");
     });
 
     it.each(ZERO_COOLDOWN_TYPES)("keeps exactly one live %s entry", (type) => {
@@ -457,7 +457,7 @@ describe("effects: each power-up does what its label claims", () => {
     expect(p.vy).toBeLessThan(vyBefore); // just gravity, no impulse
   });
 
-  it("time-slow holds the lava back without ever moving it downward", () => {
+  it("stop-lava holds the lava back without ever moving it downward", () => {
     const withSlow = hazardTrace(true);
     const without = hazardTrace(false);
     expect(withSlow[withSlow.length - 1]).toBeLessThan(without[without.length - 1]);
@@ -474,7 +474,7 @@ describe("effects: each power-up does what its label claims", () => {
     // exact (lava still accelerates) so we keep the sample near the length this
     // assertion was calibrated on, rather than stretching it with durationTicks.
     const RATE_SAMPLE_TICKS = 6 * TICK_HZ - 10;
-    expect(RATE_SAMPLE_TICKS).toBeLessThan(durationTicks("time-slow"));
+    expect(RATE_SAMPLE_TICKS).toBeLessThan(durationTicks("stop-lava"));
 
     const run = (slowed: boolean) => {
       const m = createMatch({
@@ -499,15 +499,15 @@ describe("effects: each power-up does what its label claims", () => {
       // few ticks to resolve, which would leave the two runs out of step.
       if (slowed) {
         p.activePowerUps.push({
-          type: "time-slow",
+          type: "stop-lava",
           startTick: m.tick,
-          durationTicks: durationTicks("time-slow"),
+          durationTicks: durationTicks("stop-lava"),
         });
       }
       const y0 = m.hazardY;
       const banked0 = m.hazardSlowSeconds;
       hold(RATE_SAMPLE_TICKS);
-      expect(isPowerUpActive(p, "time-slow", m.tick)).toBe(slowed);
+      expect(isPowerUpActive(p, "stop-lava", m.tick)).toBe(slowed);
       expect(hazardTimeScale([p], m.tick)).toBe(slowed ? 1 - TIME_SLOW_FRAC : 1);
       return { rise: m.hazardY - y0, banked: m.hazardSlowSeconds - banked0 };
     };
@@ -868,47 +868,47 @@ describe("AC-11: power-ups keep the simulation deterministic", () => {
   });
 });
 
-describe("time-slow cooldown: the thing that keeps a run finite", () => {
+describe("stop-lava cooldown: the thing that keeps a run finite", () => {
   it("leaves an orb uncollected rather than consuming it during the cooldown", () => {
     const m = climbingMatch();
     const p = m.players[0];
-    placeOrb(m, "time-slow", p.x, p.y);
+    placeOrb(m, "stop-lava", p.x, p.y);
     stepMatch(m, { p1: NO_INPUT }, SLOW);
-    expect(isPowerUpActive(p, "time-slow", m.tick)).toBe(true);
+    expect(isPowerUpActive(p, "stop-lava", m.tick)).toBe(true);
 
     // Another one sitting on the player while the first is still running.
-    placeOrb(m, "time-slow", p.x, p.y);
+    placeOrb(m, "stop-lava", p.x, p.y);
     stepMatch(m, { p1: NO_INPUT }, SLOW);
     expect(m.powerUps[1].collected).toBe(false); // left in place, not wasted
-    expect(cooldownRemaining(p, "time-slow", m.tick)).toBeGreaterThan(0);
+    expect(cooldownRemaining(p, "stop-lava", m.tick)).toBeGreaterThan(0);
   });
 
   it("becomes usable again once the cooldown elapses", () => {
     const m = climbingMatch();
     const p = m.players[0];
-    placeOrb(m, "time-slow", p.x, p.y);
+    placeOrb(m, "stop-lava", p.x, p.y);
     stepMatch(m, { p1: NO_INPUT }, SLOW);
-    const wait = durationTicks("time-slow") + cooldownTicks("time-slow");
+    const wait = durationTicks("stop-lava") + cooldownTicks("stop-lava");
     for (let i = 0; i < wait; i++) stepMatch(m, { p1: NO_INPUT }, SLOW);
-    expect(canActivate(p, "time-slow", m.tick)).toBe(true);
+    expect(canActivate(p, "stop-lava", m.tick)).toBe(true);
 
-    placeOrb(m, "time-slow", p.x, p.y);
+    placeOrb(m, "stop-lava", p.x, p.y);
     stepMatch(m, { p1: NO_INPUT }, SLOW);
-    expect(isPowerUpActive(p, "time-slow", m.tick)).toBe(true);
+    expect(isPowerUpActive(p, "stop-lava", m.tick)).toBe(true);
   });
 
-  it("time-slow is the only power-up that touches the lava clock", () => {
-    // The hazard is capped at ladder climb speed, so time-slow is a luxury
+  it("stop-lava is the only power-up that touches the lava clock", () => {
+    // The hazard is capped at ladder climb speed, so stop-lava is a luxury
     // for deep runs rather than a requirement to beat the lava.
     expect(POWER_UP_SPECS["rapid-climb"].durationSeconds).toBe(15);
     expect(POWER_UP_SPECS["sprint-burst"].durationSeconds).toBe(10);
     expect(POWER_UP_SPECS.giant.durationSeconds).toBe(12);
-    expect(POWER_UP_SPECS["time-slow"].durationSeconds).toBe(8);
-    expect(POWER_UP_SPECS["time-slow"].cooldownSeconds).toBe(40);
+    expect(POWER_UP_SPECS["stop-lava"].durationSeconds).toBe(8);
+    expect(POWER_UP_SPECS["stop-lava"].cooldownSeconds).toBe(40);
     expect(TIME_SLOW_COOLDOWN_SECONDS).toBe(40);
     expect(TIME_SLOW_FRAC).toBe(0.5);
-    const d = POWER_UP_SPECS["time-slow"].durationSeconds;
-    const c = POWER_UP_SPECS["time-slow"].cooldownSeconds;
+    const d = POWER_UP_SPECS["stop-lava"].durationSeconds;
+    const c = POWER_UP_SPECS["stop-lava"].cooldownSeconds;
     const maxUptime = d / (d + c);
     expect(maxUptime).toBe(8 / 48);
     const effective =
@@ -919,7 +919,7 @@ describe("time-slow cooldown: the thing that keeps a run finite", () => {
 
   it("no other power-up touches the lava clock", () => {
     for (const type of POWER_UP_TYPES) {
-      if (type === "time-slow") continue;
+      if (type === "stop-lava") continue;
       expect(POWER_UP_SPECS[type].cooldownSeconds).toBe(0);
       const trace = hazardTrace(false, type);
       const plain = hazardTrace(false);
@@ -934,7 +934,7 @@ describe("balance: power-ups raise the ceiling without removing the pressure", (
     const peaks = {
       "rapid-climb": fedBotRun("rapid-climb").peak,
       "sprint-burst": fedBotRun("sprint-burst").peak,
-      "time-slow": fedBotRun("time-slow").peak,
+      "stop-lava": fedBotRun("stop-lava").peak,
     };
     for (const peak of Object.values(peaks)) {
       expect(peak).toBeGreaterThanOrEqual(unaided);
@@ -942,8 +942,8 @@ describe("balance: power-ups raise the ceiling without removing the pressure", (
     expect(Math.max(...Object.values(peaks))).toBeGreaterThan(unaided);
   });
 
-  it("still ends the run even when fed time-slow as fast as the rules allow", () => {
-    const run = fedBotRun("time-slow", 200_000);
+  it("still ends the run even when fed stop-lava as fast as the rules allow", () => {
+    const run = fedBotRun("stop-lava", 200_000);
     expect(run.finished).toBe(true);
     expect(run.peak).toBeGreaterThan(0);
   });
@@ -1062,7 +1062,7 @@ function hazardTrace(slowed: boolean, alsoActivate?: PowerUpType): number[] {
   const p = m.players[0];
   p.y = 5_000;
   p.peakY = 5_000;
-  const type = slowed ? "time-slow" : alsoActivate;
+  const type = slowed ? "stop-lava" : alsoActivate;
   if (type) placeOrb(m, type, p.x, p.y);
   const out: number[] = [];
   for (let i = 0; i < 400; i++) {
