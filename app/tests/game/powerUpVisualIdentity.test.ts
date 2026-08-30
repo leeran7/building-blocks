@@ -28,6 +28,7 @@ import {
   type PathSink,
 } from "../../src/components/Game/powerUpVisuals";
 import {
+  DOUBLE_JUMP_CHARGES,
   JETPACK_FUEL_SECONDS,
   JETPACK_MAX_VY,
   POWER_UP_SPECS,
@@ -37,11 +38,11 @@ import {
 } from "../../src/game/powerups";
 import { TICK_HZ, type ActivePowerUp, type PowerUpPickup, type PowerUpType } from "../../src/game/types";
 
-describe("AC-1 five-chip HUD", () => {
+describe("AC-1 six-chip HUD", () => {
   it("each chip has svg[data-power-up-type] plus spec.label", () => {
     const html = renderHudWithActive(allActiveEntries(), 0);
     const chips = hudChips(html);
-    expect(chips).toHaveLength(5);
+    expect(chips).toHaveLength(POWER_UP_TYPES.length);
     for (const type of POWER_UP_TYPES) {
       const chip = chips.find((c) => c.ariaLabel.startsWith(POWER_UP_SPECS[type].label));
       expect(chip, `missing chip for ${type}`).toBeDefined();
@@ -60,6 +61,7 @@ describe("AC-2 only rapid-climb active", () => {
     expect(dataPowerUpTypes(html)).toEqual(["rapid-climb"]);
     expect(html).not.toContain('data-power-up-type="jetpack"');
     expect(html).not.toContain('data-power-up-type="sprint-burst"');
+    expect(html).not.toContain('data-power-up-type="double-jump"');
     expect(html).not.toContain('data-power-up-type="giant"');
     expect(html).not.toContain('data-power-up-type="slow-lava"');
   });
@@ -99,7 +101,7 @@ describe("AC-4 empty HUD and former-glyph retirement", () => {
     expect(formerGlyphsInText(chipRowText(html))).toEqual([]);
   });
 
-  it("five-chip HUD has no former-glyph text nodes in chips", () => {
+  it("six-chip HUD has no former-glyph text nodes in chips", () => {
     const html = renderHudWithActive(allActiveEntries(), 0);
     for (const chip of hudChips(html)) {
       expect(formerGlyphsInText(textContent(chip.html))).toEqual([]);
@@ -185,23 +187,23 @@ describe("AC-8 orb fillText is label uppercase, never a former glyph", () => {
 });
 
 describe("AC-9 POWER_UP_ICON_GEOMETRY pairwise unique", () => {
-  it("imports the production catalog: size 5, pairwise deep-unequal", () => {
-    expect(Object.keys(POWER_UP_ICON_GEOMETRY)).toHaveLength(5);
+  it("imports the production catalog: size 6, pairwise deep-unequal", () => {
+    expect(Object.keys(POWER_UP_ICON_GEOMETRY)).toHaveLength(6);
     const serialized = new Set(
       POWER_UP_TYPES.map((type) => JSON.stringify(POWER_UP_ICON_GEOMETRY[type]))
     );
-    expect(serialized.size).toBe(5);
+    expect(serialized.size).toBe(6);
     assertPairwiseUnequal(POWER_UP_TYPES.map((type) => POWER_UP_ICON_GEOMETRY[type]));
   });
 });
 
 describe("AC-10 POWER_UP_ORB_BODIES pairwise unique, not a shared diamond", () => {
-  it("imports the production catalog: size 5, distinct bodies", () => {
-    expect(Object.keys(POWER_UP_ORB_BODIES)).toHaveLength(5);
+  it("imports the production catalog: size 6, distinct bodies", () => {
+    expect(Object.keys(POWER_UP_ORB_BODIES)).toHaveLength(6);
     const bodies = POWER_UP_TYPES.map((type) => POWER_UP_ORB_BODIES[type]);
-    expect(new Set(bodies).size).toBe(5);
+    expect(new Set(bodies).size).toBe(6);
     const serialized = new Set(bodies.map((body) => JSON.stringify(body)));
-    expect(serialized.size).toBe(5);
+    expect(serialized.size).toBe(6);
     assertPairwiseUnequal(bodies);
     const commandLengths = new Set(bodies.map((body) => body.commands.length));
     expect(commandLengths.size).toBeGreaterThan(1);
@@ -294,16 +296,18 @@ describe("AC-14 jetpack banner is not the concatenated glyph title", () => {
 });
 
 describe("AC-15 locked type set and hex colors", () => {
-  it("POWER_UP_TYPES is exactly the five strings and colors match", () => {
+  it("POWER_UP_TYPES is exactly the six strings and colors match", () => {
     expect(POWER_UP_TYPES).toEqual([
       "rapid-climb",
       "sprint-burst",
+      "double-jump",
       "giant",
       "jetpack",
       "slow-lava",
     ]);
     expect(POWER_UP_SPECS["rapid-climb"].color).toBe("#4dd9f2");
     expect(POWER_UP_SPECS["sprint-burst"].color).toBe("#f2d24d");
+    expect(POWER_UP_SPECS["double-jump"].color).toBe("#a98cf5");
     expect(POWER_UP_SPECS.giant.color).toBe("#b8f57c");
     expect(POWER_UP_SPECS.jetpack.color).toBe("#ff9a4a");
     expect(POWER_UP_SPECS["slow-lava"].color).toBe("#ff8ad4");
@@ -321,6 +325,12 @@ describe("AC-16 locked durations, fuel, and cooldown", () => {
     expect(POWER_UP_SPECS["sprint-burst"].label).toBe("Sprint Burst");
     expect(POWER_UP_SPECS["sprint-burst"].description).toBe("Run 1.5x faster");
     expect(POWER_UP_SPECS["sprint-burst"].durationSeconds).toBe(10);
+
+    expect(POWER_UP_SPECS["double-jump"].label).toBe("Double Jump");
+    expect(POWER_UP_SPECS["double-jump"].description).toBe(
+      `${DOUBLE_JUMP_CHARGES} extra jumps in mid-air`
+    );
+    expect(POWER_UP_SPECS["double-jump"].durationSeconds).toBe(18);
 
     expect(POWER_UP_SPECS.giant.label).toBe("Giant");
     expect(POWER_UP_SPECS.giant.description).toBe(
@@ -352,11 +362,11 @@ describe("AC-16 locked durations, fuel, and cooldown", () => {
   });
 });
 
-describe("AC-17 no sixth type; decorative SVGs unnamed", () => {
-  it("HUD, guide, orb, and banner stay on five types with hidden marks", () => {
-    expect(POWER_UP_TYPES).toHaveLength(5);
+describe("AC-17 decorative SVGs unnamed", () => {
+  it("HUD, guide, orb, and banner stay on live types with hidden marks", () => {
+    expect(POWER_UP_TYPES).toHaveLength(6);
     const hud = renderHudWithActive(allActiveEntries(), 0);
-    expect(dataPowerUpTypes(hud)).toHaveLength(5);
+    expect(dataPowerUpTypes(hud)).toHaveLength(6);
     expect(everySvgIsDecorative(hud)).toBe(true);
     for (const chip of hudChips(hud)) {
       expect(chip.ariaLabel.toLowerCase()).not.toContain("svg");
@@ -364,7 +374,7 @@ describe("AC-17 no sixth type; decorative SVGs unnamed", () => {
     }
 
     const guide = renderGuide();
-    expect(dataPowerUpTypes(guide)).toHaveLength(5);
+    expect(dataPowerUpTypes(guide)).toHaveLength(6);
     expect(everySvgIsDecorative(guide)).toBe(true);
 
     for (const type of POWER_UP_TYPES) {
@@ -375,7 +385,7 @@ describe("AC-17 no sixth type; decorative SVGs unnamed", () => {
 
 describe("former-glyph matcher (negative-guard fixture)", () => {
   it("rejects the retired marks and the concatenated jetpack title", () => {
-    expect(FORMER_GLYPHS).toEqual(["⇈", "»", "◉", "▲", "◷"]);
+    expect(FORMER_GLYPHS).toEqual(["⇈", "»", "⇡", "◉", "▲", "◷"]);
     for (const glyph of FORMER_GLYPHS) {
       expect(containsFormerGlyph(glyph)).toBe(true);
     }
@@ -385,11 +395,12 @@ describe("former-glyph matcher (negative-guard fixture)", () => {
   });
 });
 
-const FORMER_GLYPHS = ["⇈", "»", "◉", "▲", "◷"] as const;
+const FORMER_GLYPHS = ["⇈", "»", "⇡", "◉", "▲", "◷"] as const;
 
 const LOCKED_COLORS: Record<PowerUpType, string> = {
   "rapid-climb": "#4dd9f2",
   "sprint-burst": "#f2d24d",
+  "double-jump": "#a98cf5",
   giant: "#b8f57c",
   jetpack: "#ff9a4a",
   "slow-lava": "#ff8ad4",
@@ -452,6 +463,9 @@ function activeEntry(type: PowerUpType): ActivePowerUp {
   };
   if (type === "jetpack") {
     entry.fuelRemainingTicks = jetpackFuelTicks();
+  }
+  if (type === "double-jump") {
+    entry.chargesRemaining = DOUBLE_JUMP_CHARGES;
   }
   return entry;
 }

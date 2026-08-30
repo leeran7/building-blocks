@@ -1,10 +1,11 @@
 /**
  * Tower v3 "The Climb" — power-ups.
  *
- * Five pickups, each answering one of the ways the endless tower ends a run:
+ * Six pickups, each answering one of the ways the endless tower ends a run:
  *
  *   rapid-climb   ladders are the fastest way up, so make them faster
  *   sprint-burst  ladders drift further apart with altitude — cover the traverse
+ *   double-jump   recover a missed gap or climb a crate stair
  *   giant         grow 2× — wider ladder grabs and platform landings
  *   jetpack       skip a ladder detour — hold jump to thrust, fuel is short
  *   slow-lava     the lava eventually outpaces any climber; buy back seconds
@@ -17,9 +18,10 @@
  * WELL rather than by collecting:
  *
  *   - one live entry per type. A second orb of the same type refreshes the
- *     running effect rather than stacking. Different types may overlap; that is
- *     a separate product choice from same-type stacking, which the HUD assumes
- *     cannot happen;
+ *     running effect rather than stacking charges, so double-jump cannot be
+ *     hoarded. Different types may overlap; that is a separate product choice
+ *     from same-type stacking, which the HUD and the charge counter both
+ *     assume cannot happen;
  *   - short windows that must be spent on the right terrain — rapid-climb is
  *     wasted if you are not on a ladder, leftover jetpack fuel dies if jump
  *     is not held (or with the spend window);
@@ -106,6 +108,10 @@ export const GIANT_VISUAL_SCALE = 2;
 export const GIANT_GRAB_MULT = 1.5;
 /** Extra horizontal metres allowed for platform landings while giant runs. */
 export const GIANT_PLATFORM_MARGIN_M = 0.75;
+/** Fraction of a normal jump a double-jump gives (a recovery, not a second launch). */
+export const DOUBLE_JUMP_MULT = 0.92;
+/** Mid-air jumps granted per double-jump activation. */
+export const DOUBLE_JUMP_CHARGES = 2;
 /**
  * Fraction of the lava's rise cancelled while slow-lava runs. Half the clock
  * (0.5) so the line visibly slows without stalling the way 0.75 did.
@@ -135,6 +141,13 @@ export interface PowerUpSpec {
    */
   cooldownSeconds: number;
   /**
+   * Charge-based: consumed by the move it enables (a jump) rather than by time.
+   * The duration is then just the window in which it may be spent.
+   */
+  charge?: boolean;
+  /** Charge-based with multiple spends (double-jump). */
+  chargeCount?: number;
+  /**
    * Jetpack only: seconds of thrust in the tank. The duration is the window
    * in which that fuel may be burned; leftover fuel dies with the window.
    */
@@ -163,6 +176,18 @@ export const POWER_UP_SPECS: Record<PowerUpType, PowerUpSpec> = {
     color: "#f2d24d",
     durationSeconds: 10,
     cooldownSeconds: 0,
+    weight: 22,
+    altitudeWeightMult: 1,
+  },
+  "double-jump": {
+    type: "double-jump",
+    label: "Double Jump",
+    description: `${DOUBLE_JUMP_CHARGES} extra jumps in mid-air`,
+    color: "#a98cf5",
+    durationSeconds: 18,
+    cooldownSeconds: 0,
+    charge: true,
+    chargeCount: DOUBLE_JUMP_CHARGES,
     weight: 22,
     altitudeWeightMult: 1,
   },
@@ -196,7 +221,7 @@ export const POWER_UP_SPECS: Record<PowerUpType, PowerUpSpec> = {
     cooldownSeconds: TIME_SLOW_COOLDOWN_SECONDS,
     // Commoner at the base than the other altitude-scaled drops so a new
     // climber actually meets it early, without changing its share high up.
-    weight: 15,
+    weight: 12,
     // Weights up with altitude, where the lava is winning, but not so far that
     // the strongest power-up stops being the rarest one on the tower.
     altitudeWeightMult: 1.2,
@@ -470,7 +495,11 @@ export function isExpired(a: ActivePowerUp, tick: number): boolean {
   if (a.type === "jetpack") {
     return (a.fuelRemainingTicks ?? 0) <= 0;
   }
-  return false;
+  const spec = POWER_UP_SPECS[a.type];
+  if (spec.charge && a.type === "double-jump") {
+    return (a.chargesRemaining ?? 0) <= 0;
+  }
+  return spec.charge ? a.used === true : false;
 }
 
 /** The live entry for `type`, or undefined. */
@@ -579,6 +608,34 @@ export function consumeJetpackFuel(p: PlayerState, tick: number): boolean {
   return true;
 }
 
+/** Spend a charge-based power-up, returning whether one was available. */
+export function consumeCharge(
+  p: PlayerState,
+  type: PowerUpType,
+  tick: number
+): boolean {
+  const a = activeEntry(p, type, tick);
+  if (!a) return false;
+  if (type === "double-jump") {
+    const left = a.chargesRemaining ?? 0;
+    if (left <= 0) return false;
+    a.chargesRemaining = left - 1;
+    return true;
+  }
+  a.used = true;
+  return true;
+}
+
+/** Mid-air jumps still available from an active double-jump. */
+export function doubleJumpChargesRemaining(
+  p: PlayerState,
+  tick: number
+): number {
+  const a = activeEntry(p, "double-jump", tick);
+  if (!a) return 0;
+  return Math.max(0, a.chargesRemaining ?? 0);
+}
+
 /** Drop entries that have expired or been spent, so the list stays small. */
 export function pruneActive(p: PlayerState, tick: number): void {
   if (p.activePowerUps.length === 0) return;
@@ -597,6 +654,12 @@ export function pruneActive(p: PlayerState, tick: number): void {
  *     jumps back up when that entry is pruned;
  *   - PowerUpHud and ClimbCanvas key their rows by type, so React sees
  *     duplicate keys;
+ *   - for double-jump it is an exploit. consumeCharge drains the first entry,
+ *     isExpired then reports it spent, and activeEntry falls through to the
+ *     second — granting DOUBLE_JUMP_CHARGES again while
+ *     doubleJumpChargesRemaining, reading the same first entry, never showed
+ *     more than the original two. Four to five mid-air jumps from a counter
+ *     that says two.
  *
  * Refreshing in place is the fix rather than re-keying the HUD, because the
  * duplication is in the simulation, not the view. This is deliberately the only
@@ -610,6 +673,7 @@ export function grantPowerUp(
   type: PowerUpType,
   tick: number
 ): void {
+  const charges = type === "double-jump" ? DOUBLE_JUMP_CHARGES : undefined;
   const fuel = type === "jetpack" ? jetpackFuelTicks() : undefined;
   const existing = activeEntry(p, type, tick);
 
@@ -618,6 +682,8 @@ export function grantPowerUp(
     // a player picking up an orb expects, without adding a second entry.
     existing.startTick = tick;
     existing.durationTicks = durationTicks(type);
+    existing.used = false;
+    existing.chargesRemaining = charges;
     existing.fuelRemainingTicks = fuel;
     return;
   }
@@ -626,6 +692,8 @@ export function grantPowerUp(
     type,
     startTick: tick,
     durationTicks: durationTicks(type),
+    used: false,
+    chargesRemaining: charges,
     fuelRemainingTicks: fuel,
   });
 }

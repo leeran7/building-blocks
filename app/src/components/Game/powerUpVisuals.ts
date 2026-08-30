@@ -157,6 +157,43 @@ export const POWER_UP_ICON_GEOMETRY: Record<PowerUpType, PowerUpIconGeometry> = 
       },
     ],
   },
+  "double-jump": {
+    viewBox: ICON_VIEWBOX,
+    layers: [
+      {
+        paint: "fill",
+        strokeWidth: 0,
+        commands: [
+          { t: "M", x: 2, y: 14 },
+          { t: "L", x: 11, y: 14 },
+          { t: "L", x: 11, y: 22 },
+          { t: "L", x: 2, y: 22 },
+          { t: "Z" },
+          { t: "M", x: 12, y: 7 },
+          { t: "L", x: 22, y: 7 },
+          { t: "L", x: 22, y: 22 },
+          { t: "L", x: 12, y: 22 },
+          { t: "Z" },
+        ],
+      },
+      {
+        paint: "fill",
+        strokeWidth: 0,
+        commands: [
+          { t: "M", x: 7, y: 8 },
+          { t: "C", x1: 9.5, y1: 1.2, x2: 14.5, y2: 1.2, x: 17, y: 8 },
+          { t: "L", x: 14.8, y: 8 },
+          { t: "C", x1: 13.2, y1: 4, x2: 10.8, y2: 4, x: 9.2, y: 8 },
+          { t: "Z" },
+          { t: "M", x: 10, y: 5.2 },
+          { t: "C", x1: 11.6, y1: 0.8, x2: 15.4, y2: 0.8, x: 17, y: 5.2 },
+          { t: "L", x: 15.4, y: 5.2 },
+          { t: "C", x1: 14.2, y1: 2.6, x2: 12.8, y2: 2.6, x: 11.6, y: 5.2 },
+          { t: "Z" },
+        ],
+      },
+    ],
+  },
   giant: {
     viewBox: ICON_VIEWBOX,
     layers: [
@@ -269,6 +306,19 @@ export const POWER_UP_ORB_BODIES: Record<PowerUpType, OrbBodyGeometry> = {
       { t: "L", x: 0.2, y: 0.72 },
       { t: "L", x: -0.95, y: 0.72 },
       { t: "L", x: -0.55, y: 0 },
+      { t: "Z" },
+    ],
+  },
+  "double-jump": {
+    fill: ORB_BODY_FILL,
+    strokeWidthFrac: ORB_STROKE_WIDTH_FRAC,
+    commands: [
+      { t: "M", x: -1, y: 0.15 },
+      { t: "L", x: 0, y: 0.15 },
+      { t: "L", x: 0, y: -1 },
+      { t: "L", x: 1, y: -1 },
+      { t: "L", x: 1, y: 1 },
+      { t: "L", x: -1, y: 1 },
       { t: "Z" },
     ],
   },
