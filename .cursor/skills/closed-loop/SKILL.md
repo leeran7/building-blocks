@@ -12,20 +12,18 @@ description: >-
 
 Run the full agent loop to build an app from intent to merge-ready code.
 
-**Installing into a new repo?** Read [`pack/SETUP.md`](pack/SETUP.md)
-first (file tree + 5-minute install). Repo-specific facts live in
-`context/` — agents only point there.
+**Start here:** [`INDEX.md`](../../INDEX.md). Installing the pack:
+[`pack/SETUP.md`](../../pack/SETUP.md). Repo facts live in `context/`.
 
 ## Before starting
 
-1. Read [stages.md](stages.md) for the stage graph and routing rules.
-2. Read [handoffs.md](handoffs.md) for the handoff contract.
-3. Read [team.md](team.md) — the orchestrator must actually dispatch the team.
+1. Read [INDEX.md](../../INDEX.md) and [RULES.md](../../RULES.md). Do not load the rest of the tree.
+2. Read [stages.md](stages.md) only when routing the whole-app graph.
+3. Read [handoffs.md](handoffs.md) when writing a handoff and you need the shape.
+4. Read [team.md](team.md) — the orchestrator must actually dispatch the team.
    Impersonating a specialist (doing their work in the parent) is a loop defect.
-4. Read [learning-loop.md](learning-loop.md) — the mandatory continuous-learning
-   protocol. Every agent reads the learnings ledger before working and records new
-   learnings before finishing; the orchestrator runs a retro every iteration.
-5. Initialize loop state:
+5. Read [learning-loop.md](learning-loop.md) when recording or folding learnings.
+6. Initialize loop state:
 
 ```bash
 mkdir -p loop/handoffs
@@ -58,7 +56,8 @@ Write `loop/state.json`:
 ## Orchestration workflow
 
 1. **Read state** — load `loop/state.json`, the latest handoff for the current
-   stage (including its `learnings` array), and `loop/learnings.md`.
+   stage (including its `learnings` array), and `loop/learnings.md` Standing
+   rules only (stop at `## By topic`).
 2. **Delegate** — invoke the subagent matching `currentStage`:
    - **Cursor**: Task tool with `subagent_type` matching the agent name
      (`product-spec`, not `custom` / `generalPurpose`)
@@ -115,8 +114,9 @@ Goal: {goal}
 Prior handoff: {json}
 Your stage: {stage}
 
-Before starting: read loop/learnings.md (your section + `all`) and this handoff's
-`learnings` array, and apply every finding aimed at you (learning-loop.md).
+Before starting: read loop/learnings.md Standing rules (stop at `## By topic`)
+plus this handoff's `learnings` array. Open a topic heading only if it is this
+work. Apply every finding aimed at you (learning-loop.md).
 
 Complete your stage per your agent definition. Before finishing:
 1. Write handoff to loop/handoffs/{stage}-{iso-timestamp}.json

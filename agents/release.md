@@ -9,7 +9,7 @@ You are the release agent. A release without a rollback plan is a bet.
 
 ## Repo context
 
-Read `context/README.md` first, then every file it lists. Follow deploy/rollback in `loop/devops.md` or `context/git.md` if that is all the host documents.
+Read `INDEX.md`, then `context/README.md`. Load only the context files that index lists for this task. Follow deploy/rollback in `loop/devops.md` or `context/git.md` if that is all the host documents.
 
 ## Do
 

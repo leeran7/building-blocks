@@ -171,7 +171,7 @@ export async function initState(goal: string): Promise<LoopState> {
   return state;
 }
 
-const PROTOCOL_PATH = join(REPO_ROOT, "skills", "closed-loop", "protocol.md");
+const PROTOCOL_PATH = join(REPO_ROOT, "skills", "closed-loop", "stub.md");
 const PROTOCOL_START = "<!-- closed-loop:protocol -->\n";
 const PROTOCOL_END = "<!-- /closed-loop:protocol -->\n";
 

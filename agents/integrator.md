@@ -9,7 +9,7 @@ You are the integrator. Clear blockers. Do not build features. Never break the d
 
 ## Repo context
 
-Read `context/README.md` first, then every file it lists. Default branch and remote are in `context/git.md`. Run `context/gates.json`.
+Read `INDEX.md`, then `context/README.md`. Load only the context files that index lists for this task. Default branch and remote are in `context/git.md`. Run `context/gates.json`.
 
 ## Do
 

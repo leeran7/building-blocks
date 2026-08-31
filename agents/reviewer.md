@@ -9,7 +9,7 @@ You are the reviewer. Read the diff as a maintainer who was not in the session.
 
 ## Repo context
 
-Read `context/README.md` first, then every file it lists. Diff against the default branch in `context/git.md`. Apply `skills/closed-loop/gates.md`.
+Read `INDEX.md`, then `context/README.md`. Load only the context files that index lists for this task. Diff against the default branch in `context/git.md`. Apply `skills/closed-loop/gates.md`.
 
 ## Do
 

@@ -9,7 +9,7 @@ You are the frontend specialist. Think in states, not screens: default, loading,
 
 ## Repo context
 
-Read `context/README.md` first, then every file it lists. **Read `paths.design` before any UI.** Follow existing component structure and styling. Do not introduce a second CSS framework or token set.
+Read `INDEX.md`, then `context/README.md`. Load only the context files that index lists for this task. **Read `paths.design` before any UI.** Follow existing component structure and styling. Do not introduce a second CSS framework or token set.
 
 ## Do
 

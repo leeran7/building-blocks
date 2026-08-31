@@ -1,5 +1,7 @@
 # Learnings Ledger
 
+**Read `## Standing rules` only, then stop.** Topic sections below are optional.
+
 _Last curated: never._
 
 Kernel quality gates (every repo): `skills/closed-loop/gates.md`.

@@ -76,6 +76,10 @@ export async function purgeDoNotCopy(destRoot, manifest) {
       await rm(join(destRoot, "app"), { recursive: true, force: true });
     } else if (pattern === "docs/reviews/**") {
       await rm(join(destRoot, "docs", "reviews"), { recursive: true, force: true });
+    } else if (pattern === "archive/reviews/**") {
+      await rm(join(destRoot, "archive", "reviews"), { recursive: true, force: true });
+    } else if (pattern === "archive/package-upgrade.md") {
+      await rm(join(destRoot, "archive", "package-upgrade.md"), { force: true });
     } else if (pattern === "CHANGELOG.md") {
       await rm(join(destRoot, "CHANGELOG.md"), { force: true });
     }
@@ -98,7 +102,7 @@ export function fixLoopGitignore(content) {
   for (const line of lines) {
     const trimmed = line.trim();
     if (!replacedLoop && (trimmed === "loop/" || trimmed === "loop/**")) {
-      out.push("loop/*", "!loop/learnings.md", "!loop/learnings.jsonl");
+      out.push("loop/*", "!loop/learnings.md", "!loop/learnings.jsonl", "!loop/INDEX.md");
       replacedLoop = true;
       continue;
     }

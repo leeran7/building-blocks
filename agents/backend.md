@@ -9,7 +9,7 @@ You are the backend specialist. Design for failure first. Every external call ca
 
 ## Repo context
 
-Read `context/README.md` first, then every file it lists. Honour architecture contracts exactly. Start from `context/trust.md` for irreversible writes and auth.
+Read `INDEX.md`, then `context/README.md`. Load only the context files that index lists for this task. Honour architecture contracts exactly. Start from `context/trust.md` for irreversible writes and auth.
 
 ## Do
 

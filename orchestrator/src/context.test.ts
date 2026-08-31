@@ -12,7 +12,7 @@ describe("repo context", () => {
     assert.match(excerpt, /no context\/ folder/);
   });
 
-  it("loads profile.json and concatenates context files", async () => {
+  it("loads README and profile only, not the rest of context/", async () => {
     const root = await mkdtemp(join(tmpdir(), "with-context-"));
     await mkdir(join(root, "context"));
     await writeFile(
@@ -23,6 +23,7 @@ describe("repo context", () => {
       }),
     );
     await writeFile(join(root, "context", "README.md"), "Read this first.\n");
+    await writeFile(join(root, "context", "trust.md"), "SECRET_SHOULD_NOT_LOAD");
     const profile = await loadProfile(root);
     assert.equal(profile?.name, "demo");
     assert.equal(packageManagerFor(profile, "app"), "pnpm");
@@ -31,5 +32,7 @@ describe("repo context", () => {
     assert.match(excerpt, /context\/README.md/);
     assert.match(excerpt, /Read this first/);
     assert.match(excerpt, /"name":"demo"/);
+    assert.match(excerpt, /trust\.md/);
+    assert.doesNotMatch(excerpt, /SECRET_SHOULD_NOT_LOAD/);
   });
 });

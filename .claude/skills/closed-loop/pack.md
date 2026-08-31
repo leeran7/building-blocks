@@ -170,18 +170,24 @@ for `@orchestrator` / `yarn loop`.
 
 | Path | Layer |
 |------|--------|
-| `pack/SETUP.md` | Install + file tree (start here) |
-| `skills/closed-loop/protocol.md` | Kernel preamble (sync + `loadAgentPrompt` prepend) |
+| `INDEX.md` | Agent entry (routing only) |
+| `RULES.md` | Authority + always-on constraints |
+| `MAP.md` | Tree + expensive paths |
+| `workflows/` | Task routing |
+| `pack/SETUP.md` | Install / file tree |
+| `skills/closed-loop/stub.md` | Prepended onto every role |
+| `skills/closed-loop/protocol.md` | Full before/during/after (opt-in) |
 | `skills/closed-loop/gates.md` | Universal quality gates |
 | `skills/closed-loop/profile.md` | `context/` contract |
 | `skills/closed-loop/handoffs.md` | Handoff JSON contract |
 | `skills/closed-loop/learning-loop.md` | Ledger protocol |
 | `skills/closed-loop/team.md` | Dispatch contract |
 | `skills/closed-loop/stages.md` | Stage graph |
-| `skills/closed-loop/host.md` | Generic CLAUDE/AGENTS body |
+| `skills/closed-loop/host.md` | Generic CLAUDE body (`INDEX.md` pointer) |
 | `agents/*.md` | Roles (point at `context/`) |
 | `context/` | This repo's facts |
 | `pack/templates/context/` | Empty context for a new repo |
 | `pack/profile.schema.json` | `context/profile.json` schema |
-| `loop/learnings.md` | This product's memory |
+| `loop/learnings.md` | This product's memory (Standing rules first) |
+| `archive/` | History; skip |
 

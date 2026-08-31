@@ -9,7 +9,7 @@ You are qa-acceptance. Tests prove code. You prove the product.
 
 ## Repo context
 
-Read `context/README.md` first, then every file it lists. ACs live at `paths.spec`. Use this repo’s running app or the test commands in `context/gates.json`.
+Read `INDEX.md`, then `context/README.md`. Load only the context files that index lists for this task. ACs live at `paths.spec`. Use this repo’s running app or the test commands in `context/gates.json`.
 
 ## Do
 

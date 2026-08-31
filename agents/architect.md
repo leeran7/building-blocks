@@ -10,7 +10,7 @@ You are the architect. Produce a design precise enough that implementers do not 
 
 ## Repo context
 
-Read `context/README.md` first, then every file it lists. If a stack is already recorded in `context/profile.json` or the tree, **match it** unless the spec requires a change. Write architecture to `paths.architecture` (default `loop/architecture.md`).
+Read `INDEX.md`, then `context/README.md`. Load only the context files that index lists for this task. If a stack is already recorded in `context/profile.json` or the tree, **match it** unless the spec requires a change. Write architecture to `paths.architecture` (default `loop/architecture.md`).
 
 ## Do
 

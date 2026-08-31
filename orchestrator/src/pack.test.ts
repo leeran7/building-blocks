@@ -40,7 +40,16 @@ describe("pack hygiene", () => {
     assert.match(setup, /building-blocks/);
     assert.match(setup, /context\//);
     assert.match(setup, /init-pack/);
-    assert.match(setup, /export-template/);
+    assert.match(setup, /INDEX\.md/);
+    assert.match(setup, /stub\.md/);
+  });
+
+  it("root INDEX.md is a small routing table", async () => {
+    const index = await readFile(join(REPO_ROOT, "INDEX.md"), "utf-8");
+    assert.ok(index.length < 2500, `INDEX.md is ${index.length} bytes; keep it a routing table`);
+    assert.match(index, /RULES\.md/);
+    assert.match(index, /workflows\//);
+    assert.doesNotMatch(index, /Standing rules \(always apply\)/);
   });
 
   it("fixLoopGitignore rewrites loop/ so learnings are not ignored", async () => {
@@ -49,6 +58,7 @@ describe("pack hygiene", () => {
     assert.match(fixed, /^loop\/\*/m);
     assert.match(fixed, /!loop\/learnings\.md/);
     assert.match(fixed, /!loop\/learnings\.jsonl/);
+    assert.match(fixed, /!loop\/INDEX\.md/);
 
     const dest = await mkdtemp(join(tmpdir(), "pack-gitignore-"));
     await spawnOk("git", ["init"], dest);
@@ -56,6 +66,7 @@ describe("pack hygiene", () => {
     await writeFile(join(dest, ".gitignore"), "loop/\n");
     await writeFile(join(dest, "loop", "learnings.md"), "# ledger\n");
     await writeFile(join(dest, "loop", "learnings.jsonl"), "");
+    await writeFile(join(dest, "loop", "INDEX.md"), "# loop index\n");
 
     const { mergeGitignore } = await loadPackCopy();
     const snippet = await readFile(join(REPO_ROOT, "pack", "templates", "gitignore.snippet"), "utf-8");
@@ -63,6 +74,8 @@ describe("pack hygiene", () => {
 
     const ignored = await gitCheckIgnore(dest, "loop/learnings.md");
     assert.equal(ignored, false, "loop/learnings.md must not be ignored after mergeGitignore");
+    const indexIgnored = await gitCheckIgnore(dest, "loop/INDEX.md");
+    assert.equal(indexIgnored, false, "loop/INDEX.md must not be ignored after mergeGitignore");
   });
 });
 

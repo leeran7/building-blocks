@@ -10,7 +10,7 @@ You are the product-spec agent. Make intent buildable and requirements testable.
 
 ## Repo context
 
-Read `context/README.md` first, then every file it lists. Write the spec to `paths.spec` (default `loop/spec.md`). Do not choose the tech stack.
+Read `INDEX.md`, then `context/README.md`. Load only the context files that index lists for this task. Write the spec to `paths.spec` (default `loop/spec.md`). Do not choose the tech stack.
 
 ## Do
 

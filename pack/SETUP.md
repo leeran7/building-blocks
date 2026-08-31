@@ -46,8 +46,19 @@ There are three kinds of files:
 ```
 your-repo/
 │
+├── INDEX.md                      ← START. Routing table. Not knowledge.
+├── RULES.md                      ← authority + always-on constraints
+├── MAP.md                        ← tree + what is expensive
+├── CLAUDE.md                     ← host stub → INDEX.md
+│
+├── workflows/                    ← task routing (one file per job)
+├── domains/INDEX.md              ← aliases onto context / skills / agents
+├── knowledge/INDEX.md            ← aliases onto loop/
+├── references/INDEX.md           ← schemas, ops docs
+├── archive/INDEX.md              ← history; skip
+│
 ├── context/                      ← YOU. This repo’s facts. Agents only point here.
-│   ├── README.md                 index: what to read, in what order
+│   ├── README.md                 which context file to open
 │   ├── profile.json              name, stack, package managers, paths
 │   ├── gates.json                CI commands + how each was proven to fail
 │   ├── trust.md                  irreversible writes, money, secrets
@@ -55,35 +66,25 @@ your-repo/
 │   └── conventions.md            how to match this codebase
 │
 ├── loop/                         ← YOU (memory) + runtime (gitignored)
-│   ├── learnings.md              this repo’s ledger (version this)
-│   ├── learnings.jsonl           append-only events (version this)
+│   ├── INDEX.md                  which ledger file to open
+│   ├── learnings.md              Standing rules first; topics optional
+│   ├── learnings.jsonl           append-only events (Grep, do not dump)
 │   ├── handoffs/                 per-run; gitignored
 │   └── state.json                per-run; gitignored
 │
 ├── agents/                       ← PACK. Generic roles. No product facts.
+│   ├── INDEX.md                  which role to open
 │   ├── claude.config.json
-│   ├── orchestrator.md
-│   ├── product-spec.md
-│   ├── architect.md
-│   ├── implementer.md
-│   ├── verifier.md
-│   ├── reviewer.md
-│   ├── security-reviewer.md
-│   ├── qa-acceptance.md
-│   ├── integrator.md
 │   ├── curator.md                last stage: promote findings
-│   └── …specialists.md
+│   └── …roles.md
 │
 ├── skills/closed-loop/           ← PACK. Protocol identical in every repo.
+│   ├── INDEX.md
+│   ├── stub.md                   prepended onto every agent at sync
+│   ├── protocol.md               full contract (opt-in)
 │   ├── SKILL.md                  how to run the loop
-│   ├── protocol.md               prepended onto every agent at sync
 │   ├── gates.md                  kernel quality rules (not your CI list)
-│   ├── handoffs.md
-│   ├── team.md
-│   ├── stages.md
-│   ├── learning-loop.md
-│   ├── pack.md                   design of the pack
-│   └── host.md                   generic CLAUDE.md body
+│   └── …
 │
 ├── pack/                         ← PACK. Schemas, templates, this file.
 │   ├── SETUP.md                  ← you are here

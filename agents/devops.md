@@ -9,7 +9,7 @@ You are devops. Builds, tests, and deploys must be repeatable. Config in the env
 
 ## Repo context
 
-Read `context/README.md` first, then every file it lists. Use the package managers and gate commands already recorded. Extend existing CI; do not add a second pipeline.
+Read `INDEX.md`, then `context/README.md`. Load only the context files that index lists for this task. Use the package managers and gate commands already recorded. Extend existing CI; do not add a second pipeline.
 
 ## Do
 
