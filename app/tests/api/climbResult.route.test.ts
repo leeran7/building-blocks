@@ -33,6 +33,7 @@ vi.mock("next/cache", () => ({
 import { POST } from "../../app/api/climb/result/route";
 import { recordClimb } from "../../src/db/climb";
 import { verifyIdToken } from "../../src/lib/firebaseAdmin";
+import { checkRateLimit } from "../../src/lib/rateLimit";
 import { revalidatePath } from "next/cache";
 import { maxReachablePeakY } from "../../src/game/scoreBounds";
 import { FASTEST_ARCHETYPE } from "../../src/game/towers";
@@ -51,6 +52,32 @@ async function postResult(body: unknown): Promise<Response> {
   );
 }
 
+async function authedPost(body: unknown): Promise<Response> {
+  vi.mocked(verifyIdToken).mockResolvedValue({
+    uid: "user-1",
+    email: "climber@example.com",
+    email_verified: true,
+  } as Awaited<ReturnType<typeof verifyIdToken>>);
+  vi.mocked(recordClimb).mockImplementation(async (input) => ({
+    peakY: input.peakY,
+    improved: true,
+    rank: 4,
+    totalClimbers: 40,
+    handle: "Climber",
+    board: input.board,
+  }));
+  return POST(
+    new NextRequest("http://localhost/api/climb/result", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: "Bearer valid-token",
+      },
+      body: JSON.stringify(body),
+    })
+  );
+}
+
 describe("POST /api/climb/result calls checkClimbResult", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -61,6 +88,19 @@ describe("POST /api/climb/result calls checkClimbResult", () => {
     expect(res.status).toBe(400);
     const body = (await res.json()) as { code?: string };
     expect(body.code).toBe("IMPLAUSIBLE_RESULT");
+  });
+
+  it("still rejects an implausible peak when board is desktop", async () => {
+    const res = await postResult({
+      peakY: 1e9,
+      ticks: 100,
+      seed: "x",
+      board: "desktop",
+    });
+    expect(res.status).toBe(400);
+    const body = (await res.json()) as { code?: string };
+    expect(body.code).toBe("IMPLAUSIBLE_RESULT");
+    expect(recordClimb).not.toHaveBeenCalled();
   });
 
   it("rejects a claim that would have fit the deleted super-jump envelope", async () => {
@@ -136,6 +176,7 @@ describe("POST /api/climb/result calls checkClimbResult", () => {
       rank: 4,
       totalClimbers: 40,
       handle: "Climber",
+      board: "mobile",
     });
 
     const res = await POST(
@@ -156,4 +197,80 @@ describe("POST /api/climb/result calls checkClimbResult", () => {
     expect(revalidatePath).toHaveBeenCalledWith("/climb");
     expect(revalidatePath).toHaveBeenCalledWith("/");
   });
+
+  it("omitted board is persisted as mobile", async () => {
+    const res = await authedPost({ peakY: 120, ticks: 500, seed: "saved-run" });
+    expect(recordClimb).toHaveBeenCalledWith(
+      expect.objectContaining({ board: "mobile", peakY: 120 })
+    );
+    const body = (await res.json()) as { saved?: boolean; board?: string };
+    expect(body.saved).toBe(true);
+    expect(body.board).toBe("mobile");
+  });
+
+  it("JSON null board is persisted as mobile", async () => {
+    const res = await authedPost({
+      peakY: 120,
+      ticks: 500,
+      seed: "saved-run",
+      board: null,
+    });
+    expect(recordClimb).toHaveBeenCalledWith(
+      expect.objectContaining({ board: "mobile" })
+    );
+    const body = (await res.json()) as { board?: string };
+    expect(body.board).toBe("mobile");
+  });
+
+  it("desktop board is forwarded to recordClimb and named in the JSON", async () => {
+    const res = await authedPost({
+      peakY: 120,
+      ticks: 500,
+      seed: "saved-run",
+      board: "desktop",
+    });
+    expect(recordClimb).toHaveBeenCalledWith(
+      expect.objectContaining({ board: "desktop" })
+    );
+    const body = (await res.json()) as { saved?: boolean; board?: string };
+    expect(body.saved).toBe(true);
+    expect(body.board).toBe("desktop");
+  });
+
+  it("rate-limits globally by IP, not per board", async () => {
+    await authedPost({
+      peakY: 120,
+      ticks: 500,
+      seed: "saved-run",
+      board: "desktop",
+    });
+    expect(checkRateLimit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        namespace: "climb",
+        identifier: "ip:127.0.0.1",
+        max: 60,
+        windowSeconds: 60,
+        failMode: "open",
+      })
+    );
+    const identifier = vi.mocked(checkRateLimit).mock.calls[0]?.[0]?.identifier;
+    expect(identifier).not.toContain("desktop");
+    expect(identifier).not.toContain("mobile");
+  });
+
+  it.each(["tablet", "Desktop", "Mobile", "", {}, 1, true] as const)(
+    "rejects board %j without persisting",
+    async (board) => {
+      const res = await postResult({
+        peakY: 120,
+        ticks: 500,
+        seed: "x",
+        board,
+      });
+      expect(res.status).toBe(400);
+      const body = (await res.json()) as { code?: string };
+      expect(body.code).toBe("INVALID_BOARD");
+      expect(recordClimb).not.toHaveBeenCalled();
+    }
+  );
 });

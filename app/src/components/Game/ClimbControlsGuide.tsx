@@ -46,7 +46,7 @@ const TIPS = [
   "Walk into a glowing orb to trigger its power-up instantly.",
   "Power-ups activate the instant you touch them — time your route to grab one right when you need it.",
   `Tap jump to leap, then re-hold in the air to burn a jetpack; holding through takeoff caps rise at ${JETPACK_MAX_VY} m/s. Fuel is short, leftover dies with the window.`,
-  "Sign in after a run to save your rank on the free leaderboard.",
+  "Sign in after a run to save your rank on the matching mobile or desktop board.",
 ] as const;
 
 export function ClimbControlsGuide({ variant = "card" }: { variant?: Variant }) {

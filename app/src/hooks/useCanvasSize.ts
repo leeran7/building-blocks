@@ -18,8 +18,10 @@ import { useCallback, useEffect, useState, type RefObject } from "react";
  *
  * The 9:16 play area is locked. Visible tower metres are `(height / width) *
  * tower.widthM`, so a device-dependent aspect ratio would let tall screens see
- * further ahead — a real edge on a shared leaderboard. Only the pixel scale
- * changes between devices, never how much world you can see.
+ * further ahead — a real edge if those scores shared a ranking. Mobile
+ * (fill-stage) and desktop (9:16) therefore rank on separate boards
+ * (`src/game/climbBoard.ts`). Only the pixel scale changes between devices of
+ * the same board, never how much world you can see.
  */
 export function useCanvasSize(
   wrapperRef: RefObject<HTMLElement | null>,

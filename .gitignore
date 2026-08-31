@@ -12,6 +12,13 @@ loop/*
 # Package-upgrade architecture is a durable implementer contract, not a
 # per-run scratch file. Track it the same way as the learnings ledger.
 !loop/package-upgrade.md
+# Product contract for the current change. Spec-after-code on PR #49 left
+# the loop with no durable PRD; keep loop/spec.md in git so architect/QA
+# can test against it after a clone.
+!loop/spec.md
+# Implementer contract for this change. Same durability as spec.md — a
+# gitignored architecture.md would vanish on clone and rubber-stamp PR #49.
+!loop/architecture.md
 .claude/handoffs/*.json
 
 # Dependencies & build
