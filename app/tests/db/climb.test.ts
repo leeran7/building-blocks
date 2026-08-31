@@ -90,6 +90,57 @@ describe("recordClimb / topFreeClimbers — board isolation", () => {
     expect(standing?.boards[0]?.peakY).toBe(12);
     expect(standing?.boards[1]?.peakY).toBe(40);
   });
+
+  it("scopes rank and totalClimbers to each board", async () => {
+    await save("u", "mobile", 10);
+    await save("u", "desktop", 40);
+    await save("rival", "mobile", 20);
+
+    const standing = await getUserFreeClimbRecords("u");
+    expect(standing?.boards).toEqual([
+      expect.objectContaining({
+        board: "mobile",
+        peakY: 10,
+        rank: 2,
+        totalClimbers: 2,
+      }),
+      expect.objectContaining({
+        board: "desktop",
+        peakY: 40,
+        rank: 1,
+        totalClimbers: 1,
+      }),
+    ]);
+  });
+
+  it("omits a Mobile row when the user only has Desktop", async () => {
+    await save("drew", "desktop", 40);
+    const standing = await getUserFreeClimbRecords("drew");
+    expect(standing?.boards).toHaveLength(1);
+    expect(standing?.boards[0]).toMatchObject({ board: "desktop", peakY: 40 });
+  });
+
+  it("returns null when the user has no free-climb records", async () => {
+    expect(await getUserFreeClimbRecords("nobody")).toBeNull();
+  });
+
+  it("ignores a paid categorySlug and does not change block altitude", async () => {
+    store.blocks.b1 = { id: "b1", altitude: 418, spend_c: 50 };
+    store.users.maya = { id: "maya", display_name: "Maya" };
+    await recordClimb({
+      userId: "maya",
+      categorySlug: "ai",
+      peakY: 12,
+      finished: false,
+      finishedTick: 100,
+      seed: "s",
+      board: "mobile",
+    });
+    expect(store.blocks.b1.altitude).toBe(418);
+    expect(store.climbRecords).toHaveLength(1);
+    expect(store.climbRecords[0]?.category_slug).toBe(FREE_STACK_SLUG);
+    expect(store.climbRuns[0]?.category_slug).toBe(FREE_STACK_SLUG);
+  });
 });
 
 describe("historical cutover (AC-15, AC-16)", () => {
