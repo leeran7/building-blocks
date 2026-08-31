@@ -276,6 +276,9 @@ the same pass — the `learning-loop.md` bar for a permanent guardrail.
 
 ## Recently applied (last 20)
 
+- 2026-08-31 — Skip-vercel high closed: fail-closed SHA guard proven by
+  invoking the script (unset, HEAD, `--output=`, ancestor docs-only skip,
+  app delta). Do not restore `HEAD^`. Applied.
 - 2026-08-31 — Vercel ignoreCommand fail-closes unless
   `VERCEL_GIT_PREVIOUS_SHA` is a distinct reachable hex commit. No `HEAD^`
   fallback. Proven by invoking `skip-vercel-if-app-unchanged.sh` (unset,
