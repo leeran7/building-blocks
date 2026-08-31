@@ -9,6 +9,7 @@
  */
 
 import { notFound } from "next/navigation";
+import type { Metadata } from "next";
 import { resolveBaseUrl } from "../../../src/config/public";
 import { getBlockBySlug, getBlockSeasonHistory } from "../../../src/db/blocks";
 import { getTotalSpend } from "../../../src/db/payments";
@@ -21,19 +22,19 @@ import { RankAnimation } from "../../../src/components/RecordPage/RankAnimation"
 import { getCategory, categoryTheme, type Category } from "../../../src/lib/categories";
 import { isGameCategory, parseSeasonSlug, resolveGameCategory } from "../../../src/game/categories";
 import { Navbar } from "../../../src/components/Navbar";
+import { getRecordPageMetadata } from "../../../src/seo/recordMetadata";
+import { buildWebPageJsonLd, jsonLdScriptHtml } from "../../../src/share/jsonLd";
+import { buildRecordCanonicalUrl } from "../../../src/share/urls";
 
 const BASE_URL = resolveBaseUrl();
 
-export async function generateMetadata({ params }: RecordPageProps) {
+export async function generateMetadata({
+  params,
+}: RecordPageProps): Promise<Metadata> {
   const { slug } = await params;
-  const block = await getBlockBySlug(slug);
-  if (!block) {
-    return { title: "Block not found — Stack" };
-  }
-  return {
-    title: `${block.display_name} — Stack`,
-    description: `Stack record page for ${block.display_name}. Peak rank #${block.peak_rank ?? "?"}, ${block.views_served} views served.`,
-  };
+  const result = await getRecordPageMetadata(slug, resolveBaseUrl());
+  if (!result.ok) notFound();
+  return result.metadata;
 }
 
 export default async function RecordPage({
@@ -42,7 +43,11 @@ export default async function RecordPage({
 }: RecordPageProps) {
   const { slug } = await params;
   const sp = await searchParams;
-  const block = await getBlockBySlug(slug);
+  const parsedSlug = parseSeasonSlug(slug);
+  if (!parsedSlug) {
+    notFound();
+  }
+  const block = await getBlockBySlug(parsedSlug);
 
   // Return 404 only if the slug truly doesn't exist (AC-37: always return 200 for real blocks)
   if (!block) {
@@ -55,7 +60,7 @@ export default async function RecordPage({
     // V already falls back to 0 below when there is no active season.
     seasonSlug ? getActiveSeason(seasonSlug) : Promise.resolve(null),
     getTotalSpend(block.id),
-    getBlockSeasonHistory(slug),
+    getBlockSeasonHistory(block.slug),
   ]);
 
   const V = activeSeason?.views_k ?? 0;
@@ -66,10 +71,19 @@ export default async function RecordPage({
 
   const showSharePost = sp.payment === "success";
   const cat = recordTheme(block.category);
+  const jsonLd = buildWebPageJsonLd({
+    url: buildRecordCanonicalUrl(resolveBaseUrl(), block.slug),
+    name: `${block.display_name} — Stack`,
+    description: `Stack record page for ${block.display_name}. Peak rank #${block.peak_rank ?? "?"}, ${block.views_served} views served.`,
+  });
 
   return (
     // HTTP 200 even for buried/hidden/past-season (AC-37)
     <main className="min-h-screen bg-void" style={categoryTheme(cat)}>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: jsonLdScriptHtml(jsonLd) }}
+      />
       {/* Nav — auth-aware */}
       <Navbar contextLabel={`${cat.label} stack`} contextDot={cat.hex} />
 

@@ -157,3 +157,19 @@ export async function getBlockSeasonHistory(
   });
   return blocks;
 }
+
+/** Cap for sitemap `findMany` (kernel: every findMany needs take). */
+export const SITEMAP_BLOCK_SLUG_TAKE = 10_000;
+
+/**
+ * Public listing slugs for the sitemap. Includes hidden/buried (those pages
+ * already 200). Never includes climb recordings.
+ */
+export async function listSitemapBlockSlugs(): Promise<string[]> {
+  const rows = await prisma.block.findMany({
+    select: { slug: true },
+    take: SITEMAP_BLOCK_SLUG_TAKE,
+    orderBy: { created_at: "asc" },
+  });
+  return rows.map((r) => r.slug);
+}

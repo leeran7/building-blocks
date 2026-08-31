@@ -14,6 +14,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { parsePaidStackSlug } from "./src/game/categories";
+import { isBot } from "./src/views/botList";
 
 // Edge-compatible UUID v4 generation
 function generateUuid(): string {
@@ -28,22 +29,6 @@ function generateUuid(): string {
     const v = c === "x" ? r : (r & 0x3) | 0x8;
     return v.toString(16);
   });
-}
-
-// Bot UA patterns (edge-compatible — no require())
-const BOT_PATTERNS = [
-  "googlebot", "bingbot", "slurp", "duckduckbot", "baiduspider",
-  "yandexbot", "facebookexternalhit", "twitterbot", "linkedinbot",
-  "whatsapp", "telegrambot", "applebot", "headlesschrome", "headless",
-  "phantomjs", "selenium", "puppeteer", "playwright", "webdriver",
-  "automation", "crawler", "spider", "scraper", "robot", "uptimerobot",
-  "pingdom", "prerender", "rendertron", "slackbot", "discordbot",
-];
-
-function isBotUa(ua: string | null | undefined): boolean {
-  if (!ua || ua.trim() === "") return true;
-  const lower = ua.toLowerCase();
-  return BOT_PATTERNS.some((p) => lower.includes(p));
 }
 
 export const config = {
@@ -113,7 +98,7 @@ export default async function middleware(
   }
 
   const ua = request.headers.get("user-agent");
-  if (isBotUa(ua)) {
+  if (isBot(ua)) {
     return response;
   }
 

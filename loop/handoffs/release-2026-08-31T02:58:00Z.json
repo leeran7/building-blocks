@@ -1,0 +1,134 @@
+{
+  "agent": "release",
+  "status": "success",
+  "summary": "Release notes for climb-recording share SEO (PR #50) written under Unreleased Features + Security. app/package.json left at 1.0.0 (next cut is minor 1.1.0). loop/release.md documents version plan, artifacts, smoke, and rollback. Did not bump version, tag, merge, or deploy. Integrator CI remains the smoke basis: local gates.json all 0; required GitHub checks SUCCESS on 1c332c7 (run 33351736486) and ee437de (run 33352004744). Vercel preview SUCCESS but SSO-protected, so live OG unfurl was not fully smoked. nextStage monitor — orchestrator may skip because this is not a production deploy.",
+  "timestamp": "2026-08-31T02:58:00Z",
+  "goal": "SEO for sharing climb-recording links on X, TikTok, and YouTube so a marketing agent can post them and crawlers unfurl a unique preview (title, description, image, canonical URL) per recording.",
+  "pr": {
+    "number": 50,
+    "url": "https://github.com/leeran7/building-blocks/pull/50",
+    "base": "development",
+    "head": "cursor/seo-recording-share-5f7b",
+    "headShaAtIntegratorSmoke": "1c332c7631bd395951ac6dbb4c1d23258afa4faf",
+    "headShaAtReleaseStart": "ee437de8d633598c2179731643a2cdf88df2affd",
+    "isDraft": true,
+    "mergeable": "MERGEABLE",
+    "mergeStateStatus": "CLEAN"
+  },
+  "versionPlan": {
+    "current": "1.0.0",
+    "changelog": "Unreleased",
+    "nextWhenCut": "1.1.0",
+    "semver": "minor",
+    "bumpedPackageJson": false,
+    "tagged": false
+  },
+  "artifacts": [
+    "CHANGELOG.md",
+    "loop/release.md",
+    "loop/handoffs/release-2026-08-31T02:58:00Z.json",
+    "https://github.com/leeran7/building-blocks/pull/50"
+  ],
+  "exitCriteria": {
+    "changelog_unreleased_features": true,
+    "changelog_security_bot_classification": true,
+    "no_secrets_in_changelog": true,
+    "package_json_not_bumped": true,
+    "release_md_written": true,
+    "rollback_documented": true,
+    "did_not_merge": true,
+    "did_not_deploy": true,
+    "did_not_tag": true,
+    "integrator_was_green": true
+  },
+  "smoke": {
+    "production": false,
+    "localGates": "integrator 2026-08-31T02:50:48Z: all context/gates.json commands exit 0 (app lint/typecheck/test 58 files 630 passed; orchestrator typecheck + 56 tests; hygiene 0)",
+    "requiredGitHubChecks": {
+      "names": [
+        "Lint, Typecheck, and Test",
+        "Orchestrator loop",
+        "CI"
+      ],
+      "integratorHead": {
+        "sha": "1c332c7631bd395951ac6dbb4c1d23258afa4faf",
+        "run": 33351736486,
+        "url": "https://github.com/leeran7/building-blocks/actions/runs/33351736486",
+        "conclusion": "success"
+      },
+      "releaseStartHead": {
+        "sha": "ee437de8d633598c2179731643a2cdf88df2affd",
+        "run": 33352004744,
+        "url": "https://github.com/leeran7/building-blocks/actions/runs/33352004744",
+        "conclusion": "success"
+      }
+    },
+    "vercelPreview": {
+      "conclusion": "success",
+      "required": false,
+      "ssoProtected": true,
+      "liveOgUnfurl": "not fully smoked"
+    },
+    "healthEndpoint": "not curled — no production deploy",
+    "qa": "AC-1–AC-40 all pass; live Next skipped (DATABASE_URL unset)"
+  },
+  "rollback": {
+    "inProduction": false,
+    "git": "Revert the PR #50 merge on development and push so Vercel redeploys previous development (4593c5f / last known-good).",
+    "host": "If a deployment was promoted: Vercel Dashboard Promote previous known-good, or vercel rollback on production.",
+    "database": "None — no Prisma migration in this PR."
+  },
+  "pingsAnswered": [
+    {
+      "from": "integrator",
+      "insight": "Release next. Do not merge or deploy unless a human asks. Do not loopBackTo implementer for react.cache or tests-only buildDashboardShareUrl.",
+      "applied": "Wrote Unreleased notes only. Did not merge, deploy, tag, or bump 1.0.0. Left reviewer warnings unexpanded."
+    },
+    {
+      "from": "integrator",
+      "insight": "Treat git.md required check names as the merge gate. Draft + pending Vercel is not an in-scope CI failure.",
+      "applied": "Required checks SUCCESS on 1c332c7 and ee437de. Did not treat isDraft or Vercel SSO as a release blocker. Did not merge the draft."
+    },
+    {
+      "from": "qa-acceptance",
+      "insight": "loop/qa-report.md is gitignored; read AC matrix from the qa-acceptance handoff.",
+      "applied": "Cited loop/handoffs/qa-acceptance-2026-08-31T02:42:03Z.json (AC-1–AC-40). Did not force-add qa-report.md. Same gitignore pattern applies to loop/release.md."
+    }
+  ],
+  "feedback": [
+    {
+      "severity": "info",
+      "message": "PR #50 remains a draft. Version stays Unreleased / 1.0.0. Orchestrator may skip monitor because this is not a production deploy. Live OG unfurl needs a non-SSO URL or production after merge.",
+      "file": "https://github.com/leeran7/building-blocks/pull/50",
+      "action": "Do not merge or promote until a human asks. When cutting a version, bump app/package.json 1.0.0 → 1.1.0 and move Unreleased Features/Security under [1.1.0]."
+    }
+  ],
+  "learnings": [
+    {
+      "topic": "Build / CI",
+      "forAgents": ["monitor", "orchestrator", "all"],
+      "kind": "metric",
+      "insight": "Release of climb-recording share SEO is notes-only: CHANGELOG Unreleased; app/package.json 1.0.0; next cut minor 1.1.0. Did not merge, tag, or deploy. Required GH checks SUCCESS on ee437de run 33352004744. Vercel preview SUCCESS but SSO-protected — live OG unfurl not smoked.",
+      "action": "Monitor: skip production error-budget/SLO checks unless a human deploys. Orchestrator: nextStage monitor may be skipped for this notes-only pass.",
+      "confidence": "high"
+    },
+    {
+      "topic": "Orchestration",
+      "forAgents": ["release", "docs", "orchestrator"],
+      "kind": "lesson",
+      "insight": "loop/release.md is ignored by gitignore loop/* (exceptions are learnings, spec, architecture, handoffs, package-upgrade). A clone will not see the markdown release notes.",
+      "action": "Put user-facing impact in CHANGELOG.md and the stage contract in loop/handoffs/release-*.json. Do not git add loop/release.md unless gitignore is updated.",
+      "confidence": "high"
+    },
+    {
+      "topic": "Build / CI",
+      "forAgents": ["release", "orchestrator"],
+      "kind": "lesson",
+      "insight": "A feature PR that is merge-ready against development is still Unreleased. Bumping app/package.json 1.0.0 → 1.1.0 without an explicit product versioning decision creates a version with no tag and no production ship.",
+      "action": "Keep changelog under Unreleased and leave package.json until a human asks to cut 1.1.0. Semver for share/SEO is minor when they do.",
+      "confidence": "high"
+    }
+  ],
+  "nextStage": "monitor",
+  "loopBackTo": "implementer"
+}

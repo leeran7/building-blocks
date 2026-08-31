@@ -8,12 +8,11 @@
 import type { Metadata } from "next";
 import { FreeStackShell } from "../../src/components/FreeStackShell";
 import { ClimbPlayClient } from "../../src/components/Game/ClimbPlayClient";
+import { getPlayPageMetadata } from "../../src/seo/playMetadata";
 
-export const metadata: Metadata = {
-  title: "Play the Free Climb — Stack",
-  description:
-    "Endless climb — go as high as you can before the rising lava catches you. Your peak height ranks on the matching mobile or desktop leaderboard.",
-};
+export function generateMetadata(): Metadata {
+  return getPlayPageMetadata();
+}
 
 export default async function FreePlayPage({
   searchParams,

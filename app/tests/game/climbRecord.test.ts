@@ -1,9 +1,22 @@
 /**
  * Tower v3 "The Climb" — monotonic peak-record tests (AC-30 / AC-31).
  * The record is only ever raised, never lowered.
+ *
+ * climb.ts also uses `react.cache` for getShareableClimbRun. That export is not
+ * a function in vitest's node `react` build, so identity-mock it here in order
+ * to import `nextPeak` without changing production.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
+
+vi.mock("react", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("react")>();
+  return {
+    ...actual,
+    cache: <T extends (...args: never[]) => unknown>(fn: T) => fn,
+  };
+});
+
 import { nextPeak } from "../../src/db/climb";
 
 describe("AC-30 / AC-31: peak-height record is monotonic", () => {
