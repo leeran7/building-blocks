@@ -274,3 +274,58 @@ describe("POST /api/climb/result calls checkClimbResult", () => {
     }
   );
 });
+
+describe("POST /api/climb/result additive runId (AC-1, AC-3, AC-4)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("includes runId plus existing fields when a signed-in run is saved (AC-1, AC-3)", async () => {
+    vi.mocked(verifyIdToken).mockResolvedValue({
+      uid: "user-1",
+      email: "climber@example.com",
+      email_verified: true,
+    } as Awaited<ReturnType<typeof verifyIdToken>>);
+    vi.mocked(recordClimb).mockResolvedValue({
+      peakY: 120,
+      improved: true,
+      rank: 4,
+      totalClimbers: 40,
+      handle: "Climber",
+      board: "mobile",
+      runId: "rec_saved_1",
+    });
+
+    const res = await POST(
+      new NextRequest("http://localhost/api/climb/result", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          authorization: "Bearer valid-token",
+        },
+        body: JSON.stringify({ peakY: 120, ticks: 500, seed: "saved-run" }),
+      })
+    );
+
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as Record<string, unknown>;
+    expect(body.saved).toBe(true);
+    expect(typeof body.runId).toBe("string");
+    expect(String(body.runId).length).toBeGreaterThan(0);
+    expect(body.runId).toBe("rec_saved_1");
+    expect(body.peakY).toBe(120);
+    expect(body.improved).toBe(true);
+    expect(body.rank).toBe(4);
+    expect(body.totalClimbers).toBe(40);
+    expect(body.handle).toBe("Climber");
+  });
+
+  it("anonymous POST has saved false, reason anonymous, and no own property runId (AC-4)", async () => {
+    const res = await postResult({ peakY: 120, ticks: 500, seed: "anon-run" });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as Record<string, unknown>;
+    expect(body.saved).toBe(false);
+    expect(body.reason).toBe("anonymous");
+    expect(Object.hasOwn(body, "runId")).toBe(false);
+  });
+});

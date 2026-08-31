@@ -1,781 +1,699 @@
-# Architecture — split free-climb leaderboard (mobile / desktop)
+# Architecture: Climb-recording share SEO
 
-Scoped revision of the draft on `cursor/leaderboard-device-split-715e` (PR #49).
-The branch is **not** the contract. `loop/spec.md` AC-1–AC-27 is. This document
-tells the implementer what to keep, what to rewrite, and which invariants the
-draft conflated.
+**Product:** The Climb / Doomstack (`app/`).
+**Goal:** Unique, crawler-unfurlable `/r/{id}` links plus a standalone share payload for X / TikTok / YouTube.
+**Status:** implementable. `nextStage`: implementer. `app/DESIGN.md` already covers share UI — do not insert design-ux.
+**Canonical production origin:** `https://www.doomstack.lol` via `resolveBaseUrl()` / `PUBLIC_CONFIG.siteUrl`.
 
-**Stance:** keep the play-surface classifier, allow-list parser, omit→mobile
-writes, per-board uniqueness/rank, paid towers unsplit, `/climb` default mobile,
-landing/dashboard mobile-first, client-declared board on this non-payout ranking.
-**Revise** historical cutover (D-1), hero Top climb (D-2), landing teaser
-unavailable vs empty (D-3), and the AC-17 empty-Mobile control.
-
-This is not a greenfield app. No second ORM, HTTP client, test runner, or design
-system.
+This document maps **AC-1–AC-40** to named production units. Implementers must not guess paths, field names, or 4xx shapes. Do not write a second stack. Do not require PR #11. Do not close F-1. Do not add MP4, oEmbed, player cards, Instagram, or 9:16 OG.
 
 ---
 
-## 1. Stack (confirm, do not replace)
+## 0. Pings from product-spec (applied)
 
-| Layer | Choice | Rationale | Not choosing |
+| Ping | Architecture decision |
+| --- | --- |
+| Standalone share-payload builder; no PR #11 Prisma/social imports; mirror field names + JS `.length`; `VALIDATION_ERROR` not slice; X = twitter/x intent; TikTok/YouTube `compose.mode = UNSUPPORTED_BY_PLATFORM` | New `app/src/share/*` with a local `ShareToolResult` (not `app/src/social/*`). Limits copied as numbers. |
+| Additive `runId` on `recordClimb` + `saved: true` JSON; canonical builders use `resolveBaseUrl()` / `PUBLIC_CONFIG.siteUrl`; never request `Host`; never `window.location.origin` for marketing canonicals | `ClimbRecordResult.runId?: string`. URL helpers take explicit `origin: string`. Client share code calls those helpers with `resolveBaseUrl()`. |
+| Canonical/OG/share URL builders take explicit origin; sanitize OG display params; 404 unknown ids; omit `replay_token` / `seed` / email; do not sitemap `/r/` | Allow-list DTOs. `listSitemapBlockSlugs` never returns recordings. |
+| One `isBot`; middleware calls it | Delete `BOT_PATTERNS` / `isBotUa` from `middleware.ts`. |
+| Do not attach server-derived peaks (F-1 stays open) | Cards display persisted `peak_y`. No re-sim. |
+| Do not widen to MP4, oEmbed, player cards, Instagram, F-1 re-sim | Out of folder tree. JSON-LD `@type` is `WebPage` only. |
+
+Standing rules applied: reject-never-default for recording id and block slug; no `getOrCreate` on public GET; no unbounded `Map` keyed by recording id; every new helper has a non-test caller; tests invoke production units (named below).
+
+---
+
+## 1. AC → architectural need → production unit
+
+Every AC has a **named export** (or route handler) the verifier will import. Grepping source is not proof.
+
+| AC | Need | Production unit | File (create unless noted) |
 | --- | --- | --- | --- |
-| App | Next.js App Router in `app/` | Already the product (`context/profile.json`) | Pages Router, a new Next app |
-| DB | Prisma + Postgres (Neon) | Already maps `ClimbRecord` / `ClimbRun`; kernel: declare indexes in `schema.prisma` | Drizzle, raw-only, a second ORM |
-| Package manager | `pnpm` in `app/` | Existing lockfile | yarn/npm inside `app/` |
-| Cache | Upstash Redis | Existing persist rate limiter | Per-board Redis standings cache |
-| Auth | Firebase Auth, `requireAuth` in handlers | Middleware is presence-only (`context/trust.md`) | New authn |
-| UI | React + Tailwind, ASCENT (`app/DESIGN.md`) | Tabs, 44×44, tokens already exist | Novel design system / design-ux stage |
+| **AC-1** | Additive save JSON | `POST` handler | **extend** `app/app/api/climb/result/route.ts` (spreads `recordClimb` result; `runId` rides along) |
+| **AC-2** | Short canonical URL | `buildRecordingCanonicalUrl(origin, recordingId)` | `app/src/share/urls.ts` |
+| **AC-3** | Additive `recordClimb` | `recordClimb` return includes existing keys + optional `runId` | **extend** `app/src/db/climb.ts` (`ClimbRecordResult`) |
+| **AC-4** | Anonymous unchanged | `POST` with no `Authorization` → `{ saved: false, reason: "anonymous" }` and **no** own property `runId` | **extend** `app/app/api/climb/result/route.ts` (do not add `runId` on this branch) |
+| **AC-5** | Unknown id → 404, not homepage card | `getRecordingPageMetadata`, `GET` recording OG handlers, `buildRecordingSharePayload` / share GET | `app/src/seo/recordingMetadata.ts`; `app/app/api/og/recording/[id]/route.tsx`; `app/app/api/og/recording/[id]/square/route.tsx`; `app/src/share/payload.ts`; `app/app/api/share/recording/[id]/route.ts` |
+| **AC-6** | `replay_token == null` → 404 | `getShareableClimbRun(id)` returns `null` when token is null; all AC-5 units 404/`NOT_FOUND` | **extend** `app/src/db/climb.ts` |
+| **AC-7** | Invalid id → 404, never demo, never 500 | `parseRecordingId(raw)` returns `null`; callers 404 | `app/src/share/parseRecordingId.ts` |
+| **AC-8** | Unique OG url/image; peak metres in title+description | `getRecordingPageMetadata(id, origin)` | `app/src/seo/recordingMetadata.ts` |
+| **AC-9** | `twitter.card = summary_large_image`; not homepage title; `openGraph.url` = AC-2 | same helper | same |
+| **AC-10** | `/play` generic metadata; do not decode `?r=` | `getPlayPageMetadata()` — **no** token arg, **must not** import `decodeRunReplay` | `app/src/seo/playMetadata.ts`; **extend** `app/app/play/page.tsx` to export it as `metadata` / `generateMetadata` |
+| **AC-11** | Unknown recording metadata is 404, not listing `/api/og?...` | `getRecordingPageMetadata` → `{ ok: false, reason: "NOT_FOUND" }` | `app/src/seo/recordingMetadata.ts` |
+| **AC-12** | Share payload shape | `buildRecordingSharePayload(recording, origin)` | `app/src/share/payload.ts` + types in `app/src/share/types.ts` |
+| **AC-13** | Redaction | payload mapper allow-list only; `shareHandle` never email / never `/@/` | `app/src/share/handle.ts` |
+| **AC-14** | Compose modes | `buildRecordingSharePayload` sets `compose` | `app/src/share/payload.ts` |
+| **AC-15** | Unknown id payload | builder `{ ok: false, reason: "NOT_FOUND" }`; HTTP 404 `{ error, code: "NOT_FOUND" }` | `payload.ts` + share route |
+| **AC-16** | X caption ≤ 280 and includes canonical URL | builder + `validateShareFieldLength` | `app/src/share/limits.ts`, `payload.ts` |
+| **AC-17** | Over-limit ⇒ invalid, **no sliced string** | `validateShareFieldLength(text, limit)` → `{ valid, length, limit }` only | `app/src/share/limits.ts` |
+| **AC-18** | TikTok ≤ 2200 + URL; YT title ≤ 100; YT description ≤ 5000 + URL | builder | `payload.ts` |
+| **AC-19** | Limit table numbers | `SHARE_FIELD_LIMITS` | `app/src/share/limits.ts` |
+| **AC-20** | Recording landscape 1200×630 | `recordingOgImageOptions("landscape")` used by landscape route | `app/src/og/sizes.ts`; `app/app/api/og/recording/[id]/route.tsx` |
+| **AC-21** | Square 1080×1080 | `recordingOgImageOptions("square")` | same + `.../square/route.tsx` |
+| **AC-22** | ASCENT palette; listing OG uses it; listing still 1200×630 | `OG_PALETTE`; `listingOgImageOptions()`; `buildListingOgModel` | `app/src/og/palette.ts`; **extend** `app/app/api/og/route.tsx` |
+| **AC-23** | Junk listing params 200 or 400, never 500, no `<script`/`<img`; recording missing id 404 | `sanitizeOgText`; listing route uses model; recording routes 404 | `app/src/og/sanitize.ts` |
+| **AC-24** | `resolveBaseUrl()` in prod; builders emit that origin | **existing** `resolveBaseUrl`; builders take `origin` | **existing** `app/src/config/public.ts`; `app/src/share/urls.ts` |
+| **AC-25** | Origin arg wins; never `Host` | builders accept only `origin` (no request); tests pass fixture | `urls.ts` |
+| **AC-26** | X action href = `platforms.X.compose.url` | `buildShareActions(payload)` | `app/src/share/actions.ts`; **extend** `ShareRun.tsx` |
+| **AC-27** | TikTok copy + `UNSUPPORTED_BY_PLATFORM` | `buildShareActions` | `actions.ts` |
+| **AC-28** | YouTube copy `title + "\n\n" + description` | `buildShareActions` | `actions.ts` |
+| **AC-29** | Dashboard copy URL is `/r/{id}` not `/play?r=` | `buildDashboardShareUrl(origin, replay)` | `app/src/share/dashboard.ts`; **extend** `ClimbReplaysSection.tsx` |
+| **AC-30** | `replayToken: null` → no platform share, no `/r/{id}` copy | `buildDashboardShareActions(replay, origin)` | `dashboard.ts` |
+| **AC-31** | 44×44 named controls | `SHARE_CONTROL_LAYOUT` consumed by `ShareRun` / dashboard | `app/src/share/controlLayout.ts` |
+| **AC-32** | Record page OG/Twitter | `getRecordPageMetadata(slug, origin)` | `app/src/seo/recordMetadata.ts`; **extend** `app/app/b/[slug]/page.tsx` |
+| **AC-33** | Record OG 1200×630 + same palette | `GET /api/og/b/[slug]`; `recordOgImageOptions()` | `app/app/api/og/b/[slug]/route.tsx` |
+| **AC-34** | Unknown slug → `notFound`, not homepage title | `getRecordPageMetadata` → `NOT_FOUND`; page `generateMetadata` calls `notFound()` | `recordMetadata.ts` (today’s metadata returns `"Block not found — Stack"` **without** `notFound()` — that is the bug to fix) |
+| **AC-35** | robots allows marketing + `/r/` + `/api/og`; does not Disallow `/r/` | `getRobotsConfig(origin)` | `app/src/seo/robotsConfig.ts`; `app/app/robots.ts` |
+| **AC-36** | sitemap has `/`, `/play`, `/climb`, `/b/{slug}`; **zero** `/r/` | `buildSitemapEntries(origin, slugs)` | `app/src/seo/sitemapEntries.ts`; `app/app/sitemap.ts`; `listSitemapBlockSlugs` in `blocks.ts` |
+| **AC-37** | JSON-LD `WebPage`, not `VideoObject`, no MP4 `contentUrl` | `buildWebPageJsonLd({ url, name, description })` | `app/src/share/jsonLd.ts`; recording + record pages |
+| **AC-38** | `isBot` fixtures including tiktok / bytespider / bytedance | `isBot` | **extend** `app/src/views/botList.ts` |
+| **AC-39** | view pipeline credits 0 for those UAs | **existing** `runViewPipeline` (already calls `isBot`) | **existing** `app/src/views/pipeline.ts` — no second list |
+| **AC-40** | Bot GET of `/r/{id}` is 200, not 401/403 | recording `page.tsx` public; **do not** add `/r/` to middleware view-credit matcher | `app/app/r/[id]/page.tsx`; **extend** `app/middleware.ts` (import `isBot` only; matcher unchanged) |
 
-UI is a tabbed leaderboard on an existing page, not a novel surface. **nextStage
-is implementer**, not design-ux.
+Non-AC but required wiring (non-test callers):
+
+| Caller | Uses |
+| --- | --- |
+| `app/app/r/[id]/page.tsx` | `parseRecordingId`, `getShareableClimbRun`, `getRecordingPageMetadata`, `buildWebPageJsonLd`, `ClimbPlayClient` with server-loaded token |
+| `ClimbScene` / `ClimbPlayClient` | `buildRecordingCanonicalUrl` after `saved && runId`; `buildShareActions`; `resolveBaseUrl()` as origin |
+| `ShareRun` | `buildShareActions` + `SHARE_CONTROL_LAYOUT` |
+| `ClimbReplaysSection` | `buildDashboardShareUrl` / `buildDashboardShareActions` |
+| Listing `GET /api/og` | `OG_PALETTE`, `buildListingOgModel`, `listingOgImageOptions` |
+| `recordClimb` | returns `runId: created.id` |
 
 ---
 
-## 2. AC → architectural need
+## 2. Stack (confirm, do not change)
 
-| ACs | Need | Contract (this doc) |
+Match `context/profile.json` and the live `app/` tree.
+
+| Layer | Choice | One-sentence rationale |
 | --- | --- | --- |
-| AC-1, AC-3, AC-6 | Default **view** | `GET /climb` searchParams; unknown → Mobile, HTTP 200 |
-| AC-2, AC-5 | Desktop view + deep link | `?board=desktop`; Mobile tab href = `/climb` (no query) |
-| AC-4, AC-19 | Failed read ≠ empty | Per-board `{ ok \| unavailable }`; never `.catch(() => [])` |
-| AC-7, AC-12 | Isolation | `WHERE board = $board` on every list, rank, and `totalClimbers` |
-| AC-8, AC-9, NFR-9 | Classifier | Play surface (coarse + fill vs fine + 9:16), snapshotted at run start |
-| AC-10 | Default **write** | Omit / JSON `null` → persist `mobile`. **Not** history policy |
-| AC-11 | Reject, never coerce | `400 { error, code: "INVALID_BOARD" }` before auth/anon short-circuit |
-| AC-13, AC-14, AC-16 | Independent peaks | Unique `(userId, category_slug, board)`; `nextPeak` per row only |
-| AC-15 | Historical cutover | Existing untagged rows → **Desktop**. Column default for **new** inserts → mobile |
-| AC-17 | Empty featured board | When Mobile has 0 and Desktop has ≥1 (or Desktop read failed), empty Mobile offers a Desktop control |
-| AC-18 | Landing teaser | Both boards, Mobile selected, tab switch stays on `/` |
-| AC-20 | Hero Climbers | `COUNT(DISTINCT userId)` across both boards |
-| AC-21 | Hero Top climb | `MAX(peak_y)` **Mobile only**; empty Mobile → `null` → `—` |
-| AC-22–AC-24 | Dashboard | `freeClimb.boards[]` existing rows only, Mobile first |
-| AC-25–AC-27 | Paid isolation | No `board` on Block / `/stack` / paid hero stats |
-| NFR-1 | Auth | Persist optional after board validation; dashboard Bearer |
-| NFR-2 | Privacy | Handles only on both boards |
-| NFR-3 | Envelope | `scoreBounds` still 400 `IMPLAUSIBLE_RESULT` regardless of board |
-| NFR-4 | Rate limit | **Global** `60 / 60s / IP`, namespace `climb` — **not** per board |
-| NFR-5 | Freshness | `/climb` `force-dynamic`; persist `revalidatePath` `/` and `/climb` |
-| NFR-6 | Latency | One board of 50 on `/climb`; two teaser reads **concurrent**; dashboard ≤2 extra standing queries vs pre-split |
-| NFR-7 | Scale | Top 50 / teaser 8; design for 10k rows **per board** |
-| NFR-8 | A11y | Existing `tablist`; empty-state control ≥44×44, not `text-muted` only |
-| F-1 | Out of scope | Do not add re-sim; do not mark F-1 closed |
+| App | Next.js App Router in `app/` (Next **15.5.24**, already in `app/package.json`) | Recording pages, `generateMetadata`, `robots.ts`, `sitemap.ts`, and route handlers already live here. |
+| UI | React + Tailwind + `app/DESIGN.md` tokens | Share controls restyle in place; no second component library. |
+| DB | Prisma + Postgres (`ClimbRun.id` cuid already) | PK lookup is O(1); **zero migration**. |
+| Cache | Vercel CDN `Cache-Control` on OG responses; existing Upstash Redis only for optional share-JSON rate limit | Recording ids are unbounded — do not add a process-local `Map`. |
+| Auth | Existing Firebase; public GET; POST save unchanged | Middleware remains presence-only (`context/trust.md` #5). |
+| OG | Existing `@vercel/og` `ImageResponse` | Listing already uses it; do not switch to `next/og` or Satori 1.x. |
+| Tests | vitest in `app/` (`pnpm test`) | Do not add Jest. |
+| Package manager | `pnpm` in `app/` | Do not touch root/orchestrator `yarn.lock`. |
+
+**Not choosing:** new ORM; new HTTP client; Jest; PR #11 social Prisma / OAuth / `app/src/social/*`; Redis as a recording store; hashids/nanoid extra column; `window.location.origin` canonicals; Host-header canonicals; MP4 / oEmbed / Twitter player cards / Instagram compose; server re-sim of `peakY` (F-1); design-ux stage / second token set; Edge Prisma; `getOrCreate` on GET `/r/{id}`.
 
 ---
 
-## 3. Data flow and trust boundary
+## 3. Data flow (trust boundaries)
 
 ```mermaid
 flowchart TB
-  subgraph untrusted [Untrusted client]
-    Pointer["(pointer: coarse) → useCanvasSize fill vs 9:16"]
-    Scene["ClimbScene snapshots board at run start"]
-    PostBody["POST body: peakY, ticks, board"]
-    Query["GET /climb?board="]
+  subgraph Untrusted["UNTRUSTED: crawler / browser / marketing agent"]
+    Crawler["GET /r/{id}\nUA: Twitterbot / TikTok / Bytespider"]
+    Human["Signed-in climber POST /api/climb/result"]
+    Atlas["GET /api/share/recording/{id}"]
+    OgFetch["GET /api/og/recording/{id}\nGET /api/og/recording/{id}/square"]
+    ListingOg["GET /api/og?name&alt&rank\nattacker-controlled display params"]
   end
 
-  subgraph vercel [Next.js route handlers — trust boundary]
-    Parse["parseClimbBoard: omit/null → mobile; else allow-list or 400 INVALID_BOARD"]
-    Bounds["checkClimbResult(peakY, ticks) — board is not a bypass"]
-    RL["checkRateLimit namespace=climb key=rl:climb:ip:*  60/60s fail-open GLOBAL"]
-    Auth["verifyIdToken optional; no/invalid token → saved:false after board check"]
-    ViewParse["parseClimbBoard(searchParams) ?? mobile — never 4xx"]
+  subgraph EdgeMW["Edge middleware — presence-only, NOT an ACL"]
+    MW["matcher: / /dashboard /stack /b\nNOT /r/\nisBot from botList.ts"]
   end
 
-  subgraph data [Postgres via Prisma]
-    Records["climb_records UNIQUE userId+category_slug+board  CHECK board IN mobile,desktop"]
-    Runs["climb_runs append-only board NOT NULL"]
+  subgraph OriginBound["TRUSTED origin — resolveBaseUrl() / PUBLIC_CONFIG.siteUrl\nnever request Host"]
+    Urls["buildRecordingCanonicalUrl(origin, id)\nbuildRecordingOgImageUrl(origin, id, variant)\nbuildRecordCanonicalUrl(origin, slug)"]
   end
 
-  subgraph paid [Paid towers — no board]
-    Blocks["blocks altitude ranking"]
-    TowerAPI["GET /api/tower/[category]"]
+  subgraph NodeApp["Next.js Node (App Router)"]
+    Parse["parseRecordingId → null ⇒ 404"]
+    Page["r/[id]/page.tsx + getRecordingPageMetadata"]
+    Share["buildRecordingSharePayload"]
+    RecOg["recording OG ImageResponse"]
+    RecPage["b/[slug] getRecordPageMetadata"]
+    Robots["robots.ts / sitemap.ts"]
+    Post["POST /api/climb/result"]
   end
 
-  Pointer --> Scene
-  Scene --> PostBody
-  PostBody --> Parse
-  Parse -->|invalid| Reject400
-  Parse --> Bounds
-  Bounds -->|implausible| Reject400b
-  Bounds --> RL
-  RL --> Auth
-  Auth -->|signed-in + email| Records
-  Auth --> Runs
-  Query --> ViewParse
-  ViewParse --> Records
-  PostBody -.->|must not write| Blocks
-  Query -.->|ignored on /stack| TowerAPI
+  subgraph Data["Postgres via Prisma — read-only on public GET"]
+    ClimbRun["ClimbRun PK lookup\nrequire replay_token IS NOT NULL"]
+    Block["Block by slug"]
+  end
+
+  subgraph CDN["CDN cache"]
+    RecCache["recording OG s-maxage ≥ 3600"]
+    ListCache["listing OG s-maxage=60"]
+  end
+
+  Crawler --> Page
+  Crawler --> OgFetch
+  Human --> Post
+  Atlas --> Share
+  ListingOg --> ListCache
+  OgFetch --> RecCache
+  RecCache --> RecOg
+  ListCache --> ListingOgH["listing OG sanitizer + OG_PALETTE"]
+  Page --> Parse
+  Share --> Parse
+  RecOg --> Parse
+  Parse --> ClimbRun
+  RecPage --> Block
+  Post --> ClimbRun
+  Page --> Urls
+  Share --> Urls
+  MW -.->|"no view credit for /r/"| Crawler
 ```
 
-**Trust boundary.** `board` is client-declared and **spoofable in the same class
-as `peakY`**. Allow-list + 400 is the control, not User-Agent and not viewport
-width. Both values are irreversible once written (`Math.max` per board). This
-change **does not** close F-1. `scoreBounds` still runs on every persist,
-including omit→mobile and explicit desktop. Splitting boards **doubles**
-irreversible write targets; that is accepted for this non-payout ranking.
+**Trust notes**
+
+- Recording **id** is capability-by-id (enumerable cuid). Parser **rejects** (returns `null`); it never substitutes a demo id.
+- OG **query params** (`name`, `alt`, `rank`) are display-only and attacker-controlled. Sanitize; listing may default missing params (A-12). Recording OG identity is the path id, not query text.
+- **Origin** for every absolute marketing URL is an explicit function argument filled with `resolveBaseUrl()`. Builders have no `Request` parameter.
+- Public GET does not credit `views_k`. `/r/` is **outside** the middleware matcher so unfurls cannot trigger `INTERNAL_TOKEN` forwarding (do not copy `request.nextUrl.origin` + `INTERNAL_TOKEN`).
+- `peak_y` on cards is **untrusted display text** (A-8 / F-1 open).
 
 ---
 
 ## 4. Data model
 
-### 4.1 Enum (application, exhaustive)
+### 4.1 No schema change (zero migration)
 
-```ts
-type ClimbBoard = "mobile" | "desktop";
-// Order for display: mobile first, then desktop.
-CLIMB_BOARD_ORDER = ["mobile", "desktop"] as const
-DEFAULT_CLIMB_BOARD = "mobile"  // view + omit-POST only
-```
-
-No `"legacy"`, no `"tablet"`, no case variants. Postgres CHECK matches the
-allow-list. Prisma cannot express CHECK; keep it in migration SQL (same pattern
-as `peak_y >= 0` in `0005`) **and** mention it in the `schema.prisma` comment so
-`db push` readers know it exists. Declare **indexes** in `schema.prisma` so
-`db push` cannot drop them (kernel).
-
-### 4.2 `ClimbRecord` (`climb_records`)
+`ClimbRun` already:
 
 | Field | Type | Null | Notes |
 | --- | --- | --- | --- |
-| `id` | String cuid | NOT NULL | PK |
-| `userId` | String | NOT NULL | Firebase UID; FK → `users.id` **ON DELETE CASCADE** |
-| `category_slug` | String | NOT NULL | Always `FREE_STACK_SLUG` (`"free"`). Paid slugs never land here |
-| `board` | String | NOT NULL | `mobile` \| `desktop`. **Prisma `@default("mobile")` = insert default for NEW rows** |
-| `peak_y` | Float | NOT NULL, default 0 | CHECK `>= 0`. Monotonic **per (user, slug, board)** via `nextPeak` |
-| `wins` | Int | NOT NULL, default 0 | Per board |
-| `updated_at` | DateTime | NOT NULL | `@updatedAt`. Tie-break: earlier first |
-
-**Unique key:** `@@unique([userId, category_slug, board], name: "climb_record_user_category_board")`.
-One account **may** hold two rows (one per board). A phone PB cannot overwrite a
-keyboard PB.
-
-**Indexes (declare in schema):**
-
-- Unique: `climb_record_user_category_board` on `(userId, category_slug, board)`.
-- Leaderboard: `climb_record_leaderboard_idx` on
-  `(category_slug, board, peak_y DESC, updated_at ASC)`.
-  The draft index omitted `updated_at`. Include it so NFR-7 ties
-  (`peak desc, earlier update first, per board`) do not sort 10k rows in memory.
-
-**CHECK (migration SQL):** `board IN ('mobile', 'desktop')` as
-`climb_records_board_valid`.
-
-**Delete policy:** user delete cascades records on **both** boards. No endpoint
-deletes a single board. No copy/max across boards. Runs are not deleted with the
-user (`ClimbRun.userId` SET NULL) — existing policy; `board` stays on the run
-row for audit.
-
-### 4.3 `ClimbRun` (`climb_runs`)
-
-Same `board` column: NOT NULL, Prisma `@default("mobile")` for new inserts,
-CHECK `climb_runs_board_valid`. Append-only. No unique on board. Existing
-indexes stay (`category_slug, created_at`, `userId, created_at DESC`). Do not
-partition replay lists in this change (spec out of scope).
-
-### 4.4 Paid models
-
-`Block`, `Season`, `Payment` — **no `board` column**. Skill `board` must not
-appear on altitude writes or tower queries (AC-25–AC-27).
-
-### 4.5 Column default vs cutover (do not conflate)
-
-| Event | `board` value | Why |
-| --- | --- | --- |
-| Pre-split row (no column existed) | **desktop** after cutover | AC-15. Original contract was locked 9:16 |
-| New INSERT that omits `board` | **mobile** | AC-10. Prisma / Postgres default |
-| New INSERT with `board='desktop'` | desktop | AC-9 |
-| New INSERT with `board='mobile'` | mobile | AC-8 |
-
-Prisma `@default("mobile")` is **only** the insert default. It must not be
-documented or used as “existing rows land on mobile”. The draft schema comment
-and CHANGELOG line are wrong.
-
----
-
-## 5. Cutover plan
-
-Production (`development` / `main`) **does not have** `board` yet. PR #49’s
-`0010_climb_board_split` uses `ADD COLUMN ... DEFAULT 'mobile'`, which backfills
-every historical row onto the featured board (D-1 / AC-15). Revise that.
-
-### 5.1 Rewrite `0010` (fresh apply — the production path)
-
-Postgres `ADD COLUMN ... DEFAULT x` backfills existing rows with `x`.
-`ALTER COLUMN ... SET DEFAULT y` changes **future** inserts only and does not
-rewrite rows.
-
-```sql
--- Existing rows → desktop (AC-15). New inserts without a value → mobile (AC-10).
-ALTER TABLE "climb_records" ADD COLUMN "board" TEXT NOT NULL DEFAULT 'desktop';
-ALTER TABLE "climb_runs"    ADD COLUMN "board" TEXT NOT NULL DEFAULT 'desktop';
-
-ALTER TABLE "climb_records" ALTER COLUMN "board" SET DEFAULT 'mobile';
-ALTER TABLE "climb_runs"    ALTER COLUMN "board" SET DEFAULT 'mobile';
-
-ALTER TABLE "climb_records" ADD CONSTRAINT "climb_records_board_valid"
-  CHECK ("board" IN ('mobile', 'desktop'));
-ALTER TABLE "climb_runs" ADD CONSTRAINT "climb_runs_board_valid"
-  CHECK ("board" IN ('mobile', 'desktop'));
-
-DROP INDEX IF EXISTS "climb_record_user_category";
-CREATE UNIQUE INDEX "climb_record_user_category_board"
-  ON "climb_records"("userId", "category_slug", "board");
-
-DROP INDEX IF EXISTS "climb_record_leaderboard_idx";
-CREATE INDEX "climb_record_leaderboard_idx"
-  ON "climb_records"("category_slug", "board", "peak_y" DESC, "updated_at" ASC);
-```
-
-`ADD COLUMN` does **not** bump `updated_at`. That fact is load-bearing for §5.2.
-
-After this migration on a database that never had `board`, every pre-split
-record is Desktop, uniqueness is still one row per user, and omit-POST writes
-use DEFAULT mobile / explicit client `board`.
-
-### 5.2 Add `0011_climb_board_history_to_desktop` (repair + idempotent)
-
-Preview/local DBs may already have applied the **wrong** `0010` (all rows
-`mobile`). Do not blanket `UPDATE ... SET board='desktop' WHERE board='mobile'`
-— that would also move legitimate post-split omit-POST Mobile writes.
-
-`0011` re-homes only rows whose timestamps predate `0010`’s
-`_prisma_migrations.finished_at`:
-
-1. **Historical `climb_records`:** `board='mobile' AND updated_at < 0010.finished_at`
-   → set `desktop`.
-2. **Collision (preview only):** a user who already has a `desktop` row (explicit
-   POST after the wrong `0010`) plus a historical `mobile` row would violate
-   `climb_record_user_category_board`. Before step 1, for those users:
-   `desktop.peak_y = GREATEST(desktop.peak_y, historical_mobile.peak_y)` (and
-   `wins = desktop.wins + historical_mobile.wins` is acceptable; do not drop
-   wins), then `DELETE` the historical mobile row. Production first-apply of
-   rewritten `0010` never hits this (one row per user, already desktop).
-3. **Historical `climb_runs`:** `board='mobile' AND created_at < 0010.finished_at`
-   → set `desktop`. No unique key; no merge.
-4. `ALTER COLUMN SET DEFAULT 'mobile'` (idempotent if already mobile).
-
-If `_prisma_migrations` has no `0010` finished_at, skip the UPDATEs (rewritten
-`0010` already did the right backfill).
-
-If rewritten `0010` checksums fail on a long-lived preview that applied the old
-file: **do not** `migrate resolve --rolled-back`. Leave `0010` applied and rely
-on `0011`. Fresh `development`/`main` will run corrected `0010` then no-op
-`0011`.
-
-### 5.3 After cutover: empty Mobile is expected
-
-Featured `/climb` and the landing Mobile tab may list 0 climbers while Desktop
-holds the mixed-era history. That is AC-15 succeeding, not a wipe. **AC-17 is
-the product control** — see §7.3. Do not secretly copy Desktop peaks onto Mobile.
-
-### 5.4 Docs the draft got wrong
-
-- `schema.prisma` comments: insert default mobile; historical cutover desktop.
-- `CHANGELOG.md`: “Existing records land on mobile” → Desktop.
-- `context/trust.md`: keep omit→mobile / invalid→400; add one sentence that
-  **untagged historical rows cut over to desktop**. Do not imply DEFAULT mobile
-  is the history rule (D-5).
-- `src/game/climbBoard.ts` header: view + omit-write default only.
-
----
-
-## 6. API contracts
-
-Error shape at HTTP boundaries: `{ error: string, code: string }`. No stacks, no
-raw Prisma messages (`context/conventions.md`).
-
-### 6.1 `POST /api/climb/result`
-
-| | |
-| --- | --- |
-| Auth | Optional Firebase Bearer. Absence/invalid/no-email → `200 { saved: false, reason }` **after** board validation |
-| Rate limit | `namespace: "climb"`, `identifier: "ip:" + clientIp`, **60 / 60s**, fail-open. Key `rl:climb:ip:<ip>`. **Not** `rl:climb:<board>:...` |
-| Idempotency | None. Each POST inserts a `ClimbRun`. Abuse budget is the global cap |
-| Revalidation | On `saved: true`: `revalidatePath("/climb")` and `revalidatePath("/")` (covers `?board=desktop`) |
-
-**Request JSON** (relevant fields):
-
-| Field | Required | Rules |
-| --- | --- | --- |
-| `peakY` | yes | finite number |
-| `seed` | yes | string |
-| `ticks` / `finishedTick` | for envelope | existing `scoreBounds` path |
-| `board` | no | omit or JSON `null` → `"mobile"`; exact `"mobile"` \| `"desktop"`; **anything else** → 400 |
-| `categorySlug` | no | **Ignored for placement.** Persist always uses `FREE_STACK_SLUG`. Paid slug must not write Block altitude (AC-26) |
-
-**Allow-list (write path).** `parseClimbBoard` returns `null` on unknown.
-`parseBoardField`: `undefined` \| `null` → `"mobile"`; else `parseClimbBoard(raw) ?? "invalid"`. Invalid includes `"Mobile"`, `"tablet"`, `1`, `{}`, `""`, `" desktop"`. Reject, never substitute (kernel). Omitted is a **documented product default**, not coercion of an unknown string.
-
-**Handler order (load-bearing for AC-11):**
-
-1. Parse JSON (400 invalid JSON).
-2. Shape-check `peakY` / `seed` (existing 400 `"Invalid climb result"`).
-3. **Parse `board`. If invalid → `400 { error: "Invalid climb board", code: "INVALID_BOARD" }` with no `ClimbRun` and no `ClimbRecord` write.** This runs **before** auth, anonymous short-circuit, and `recordClimb`.
-4. `checkClimbResult` → `400 { error: "Implausible climb result", code: "IMPLAUSIBLE_RESULT" }` regardless of board (NFR-3).
-5. Rate limit → `429 { error: "Too many requests", code: "RATE_LIMITED" }`.
-6. Auth optional → persist or `saved: false`.
-
-**200 `saved: true`:**
-
-```json
-{
-  "saved": true,
-  "peakY": 12.5,
-  "improved": true,
-  "rank": 4,
-  "totalClimbers": 40,
-  "handle": "…",
-  "board": "mobile"
-}
-```
-
-`rank` and `totalClimbers` are **scoped to `board` only** (COUNT of rows with
-that `category_slug` + `board`). `board` in the JSON is the board written, so
-the client “view leaderboard” link uses `climbBoardPath(result.board)`.
-
-**4xx:**
-
-| Status | code | When |
-| --- | --- | --- |
-| 400 | *(none required)* | Invalid JSON / missing peakY or seed |
-| 400 | `INVALID_BOARD` | board not in allow-list and not omit/null |
-| 400 | `IMPLAUSIBLE_RESULT` | envelope fail |
-| 429 | `RATE_LIMITED` | global cap |
-
-Anonymous invalid board must **not** return `200 { saved: false, reason: "anonymous" }`.
-
-### 6.2 `GET /api/dashboard`
-
-| | |
-| --- | --- |
-| Auth | Required Firebase Bearer (`requireAuth`). 401 existing shape |
-| `freeClimb` | `null` if the user has **no** free-climb rows (either board) |
-
-**`freeClimb` 200 fragment:**
-
-```json
-{
-  "freeClimb": {
-    "handle": "…",
-    "boards": [
-      { "board": "mobile", "peakY": 12, "rank": 3, "totalClimbers": 10, "wins": 0 },
-      { "board": "desktop", "peakY": 40, "rank": 1, "totalClimbers": 80, "wins": 2 }
-    ]
-  }
-}
-```
-
-Rules:
-
-- Include **only boards the user has a row on** (AC-23: Desktop-only → one
-  element, not a fake Mobile at peak 0).
-- Sort with `CLIMB_BOARD_ORDER` (Mobile first) (AC-22).
-- `rank` / `totalClimbers` counted **inside that board**.
-- Empty → `freeClimb: null` → `FreeClimbEmpty`, no invented rank (AC-24).
-- Each row links to `climbBoardPath(board)` (S7).
-
-Query budget (NFR-6): at most **one** `findMany` of the user’s free records plus
-**at most two** per-board standing queries (rank count + total, batched). Do not
-await per-row. At 10k/board, rank is `COUNT(*) WHERE board=X AND peak_y > mine`,
-not `findMany` + `findIndex`.
-
-### 6.3 Paid APIs
-
-`GET /api/tower`, `GET /api/tower/[category]`, checkout, webhooks — **no
-`board`**. `?board=` on `/stack/[category]` is ignored (AC-25). POST climb
-result never writes `blocks.altitude` (AC-26).
-
----
-
-## 7. Page contracts
-
-### 7.1 `GET /climb`
-
-`export const dynamic = "force-dynamic"` stays (NFR-5). Do not ISR this page.
-
-**searchParams.board**
-
-| Input | Selected board | HTTP |
-| --- | --- | --- |
-| missing | mobile | 200 |
-| `mobile` | mobile | 200 |
-| `desktop` | desktop | 200 |
-| `tablet`, `Mobile`, `1`, `""`, other | **mobile** (not merged, not desktop) | 200, not 4xx |
-
-Parser: `parseClimbBoard(sp.board) ?? DEFAULT_CLIMB_BOARD`. Same allow-list as
-POST, **different failure**: GET never 400s (AC-3).
-
-Tabs: `hrefFor` defaults to `climbBoardPath` — Mobile → `/climb`, Desktop →
-`/climb?board=desktop` (AC-5, AC-6). List: `topFreeClimbers(50, selected)` only
-(AC-1, AC-2, AC-7).
-
-**Unavailable vs empty (AC-4).** Failed `topFreeClimbers` → `unavailable: true`,
-not `[]`. Keep the draft `/climb` pattern (`catch` → `null`). Do **not** copy
-the landing teaser’s `.catch(() => [])`.
-
-### 7.2 Landing `#free` teaser (AC-18, AC-19)
-
-Replace independent swallowed reads with a **per-board result**:
+| `id` | `String @id @default(cuid())` | no | **This is `{recordingId}`.** Public path `/r/{id}`. |
+| `userId` | `String?` | yes | `onDelete: SetNull`. Do not select `User.email`. |
+| `category_slug` | `String` | no | unused by share SEO |
+| `peak_y` | `Float` | no | Display with `Math.round`; not authenticated |
+| `finished` | `Boolean` | no | unused by share SEO |
+| `finished_tick` | `Int?` | yes | unused |
+| `seed` | `String` | no | **Never** in payload/metadata/OG alt text |
+| `replay_token` | `String?` | yes | Required **non-null** for shareable recording; **never** in share JSON |
+| `created_at` | `DateTime` | no | unused by cards |
+
+Indexes already: PK on `id`; `climb_run_category_idx`; `climb_run_user_idx`. PK is sufficient for `findUnique({ where: { id } })`. Do not add a slug/hashid column.
+
+**Delete policy:** unchanged. User delete sets `userId` null; row remains. If `replay_token` is still set, `/r/{id}` stays 200 with `handle: null`. Do not cascade-delete runs in this change.
+
+### 4.2 Public DTO (allow-list — never spread the Prisma row)
 
 ```ts
-type BoardRead =
-  | { status: "ok"; climbers: ClimberRank[] }      // may be length 0
-  | { status: "unavailable" };
-
-// Two reads in Promise.all (NFR-6). Each catch → { status: "unavailable" }, never [].
+// conceptual — implementer writes the real types in app/src/share/types.ts
+interface ShareableRecording {
+  id: string;          // = ClimbRun.id
+  peakY: number;       // persisted peak_y
+  handle: string | null; // shareHandle(...); never email; never matches /@/
+}
 ```
 
-`FreeLeaderboardBoard` props: `{ mobile: BoardRead; desktop: BoardRead }`.
-Client state defaults to Mobile. Tab switch does not navigate off `/`. “Full
-leaderboard” uses `climbBoardPath(selected)`.
+`getShareableClimbRun(id: string): Promise<ShareableRecording | null>`
 
-Render:
+1. `parseRecordingId(id)` → if null, return null (do not hit DB with junk).
+2. `findUnique` **select**: `id`, `peak_y`, `replay_token`, `userId`, `user: { select: { display_name: true } }` — **not** `seed`, **not** `email`.
+3. If missing **or** `replay_token == null`, return `null`.
+4. Map handle via `shareHandle(userId, display_name)` (`climberDisplay`, then if `/@/.test(handle)` fall back to `climberHandle(userId)`). If `userId` is null, `handle` is `null`.
 
-| Read | UI |
-| --- | --- |
-| `unavailable` | same standings-unavailable copy as `/climb` (AC-4/AC-19) |
-| `ok` + length 0 | empty-board copy, plus AC-17 control when applicable |
-| `ok` + rows | list of 8 |
+Playback token loader (page body only, **not** imported by share JSON or metadata):
 
-If Mobile teaser fails and Desktop succeeds: Mobile tab shows unavailable;
-Desktop tab still lists. Symmetric. **Do not** let one failure empty both.
+`getClimbRunReplayToken(id: string): Promise<string | null>` — same row via `react.cache` so metadata + page + player are **one** query per request, not an N+1 and not a process-global Map.
 
-### 7.3 AC-17 — empty Mobile control
+### 4.3 `recordClimb` return (additive)
 
-**When:** the visitor is on the **Mobile** surface (`/climb` with selected
-mobile, or landing Mobile tab) **and** Mobile standings are a successful empty
-list (not unavailable).
-
-**Desktop populated?**
-
-| Desktop read | Show control? |
-| --- | --- |
-| ok, ≥1 climber | **Yes** |
-| ok, 0 climbers | No (both empty — nothing to recover) |
-| unavailable / error | **Yes** (fail open toward “looks like a wipe” after cutover) |
-
-**`/climb` extra read:** when selected board is mobile **and** the mobile list
-is `ok` + empty, run a cheap existence probe (`count` or `findFirst({ select: { id } })`
-on desktop). Do **not** fetch a second top-50. If the probe throws, treat as
-unavailable → still show the control.
-
-**Control:** a real control (link or button), min **44×44**, accessible name
-includes “Desktop”. Not `text-muted` as the only text.
-
-| Surface | Activation |
-| --- | --- |
-| `/climb` | navigates to `/climb?board=desktop` |
-| Landing Mobile tab | selects the Desktop tab (stay on `/`). A link to `/climb?board=desktop` is also valid |
-
-Do not invent a Desktop-empty → Mobile control. Do not show the control on
-unavailable Mobile (AC-4/AC-19 win).
-
-### 7.4 Hero (`getGlobalClimbStats`)
-
-One round-trip (raw SQL or equivalent Prisma). **Do not** `MAX(peak_y)` over all
-free rows.
-
-```sql
-SELECT
-  COUNT(DISTINCT "userId")::int AS climbers,
-  MAX(peak_y) FILTER (WHERE board = 'mobile') AS top
-FROM climb_records
-WHERE category_slug = $free_stack_slug
+```ts
+export interface ClimbRecordResult extends PeakDecision {
+  rank: number;
+  totalClimbers: number;
+  handle: string;
+  runId?: string; // set to prisma.climbRun.create().id whenever create succeeds
+}
 ```
 
-(`MAX(CASE WHEN board = 'mobile' THEN peak_y END)` is equivalent.)
+Capture the create result (`const created = await prisma.climbRun.create(...)`) and set `runId: created.id`. Do not remove or rename `peakY`, `improved`, `rank`, `totalClimbers`, `handle`.
 
-| Output | Meaning |
+Anonymous POST still does not call `recordClimb` and must not invent `runId`.
+
+### 4.4 Enums (exhaustive for this feature)
+
+| Enum | Values |
 | --- | --- |
-| `climberCount` | Distinct users with a row on **either** board (user on both counts once) — AC-20 |
-| `topPeak` | Mobile max metres, or `null` if Mobile has no rows — AC-21 |
+| `SharePlatform` | `X` \| `TIKTOK` \| `YOUTUBE` |
+| `ShareContentType` | `X_POST` \| `TIKTOK_VIDEO` \| `YOUTUBE_SHORT` (no `X_THREAD`, no `YOUTUBE_LONGFORM`) |
+| `ComposeMode` | `web_intent` \| `UNSUPPORTED_BY_PLATFORM` |
+| `ShareFailReason` | `NOT_FOUND` \| `VALIDATION_ERROR` |
+| `OgVariant` | `landscape` \| `square` |
 
-Hero already maps `topPeak == null` → `—`. After cutover, Desktop can hold the
-global max while Top climb shows `—` until someone posts a Mobile run. That is
-correct.
+Local result type (mirror PR #11 **shape**, do not import it):
 
-Landing `getGlobalClimbStats().catch(() => ({ climberCount: 0, topPeak: null }))`
-is pre-existing hero degrade. **Do not** change it in this PR unless a test
-already covers it; AC-20/21 are about the successful aggregate.
+```ts
+type ShareToolResult<T> =
+  | { ok: true; data: T }
+  | { ok: false; reason: "NOT_FOUND"; detail: string }
+  | { ok: false; reason: "VALIDATION_ERROR"; detail: string };
+```
 
-Paid hero stats (`totalBlocks`, `minEntryUsd`) stay paid-only (AC-27).
+### 4.5 Sitemap blocks
 
-### 7.5 Classifier (client)
+New `listSitemapBlockSlugs(): Promise<string[]>` in `app/src/db/blocks.ts`:
 
-`useCoarsePointer` (`(pointer: coarse)`) drives `useCanvasSize({ fill })`.
-`climbBoardFromPointer(coarse)` → mobile / desktop. **Not** `innerWidth`, **not**
-User-Agent, **not** `navigator.maxTouchPoints` alone.
-
-**Snapshot at run start** (NFR-9): persist the board that matched **that run’s
-canvas**, not a pointer change after Start and not after persist. Hybrid laptops
-follow the canvas they actually used. `buildRun()` must not re-read a live
-pointer if it can flip mid-run.
-
-Viewport width ≥1024 with coarse pointer still posts **mobile** (AC-8). Width
-≤390 with fine pointer still posts **desktop** (AC-9).
+- `prisma.block.findMany({ select: { slug: true }, take: 10_000, orderBy: { created_at: "asc" } })`
+- Include hidden/buried (those pages already 200).
+- **take** is mandatory (kernel). Cap 10_000 is an ADR; recordings are never included.
 
 ---
 
-## 8. Folder tree (2–3 levels) and ownership
+## 5. API contracts
+
+**4xx shape (JSON routes):** `{ error: string, code: string }` matching existing handlers (`NOT_FOUND`, `RATE_LIMITED`, `INTERNAL_ERROR`, `VALIDATION_ERROR`). Never leak stack traces or raw Prisma messages.
+
+**Auth:** all GET below are **unauthenticated**. POST save keeps the existing optional Bearer path.
+
+**Idempotency:** GETs are naturally idempotent. POST `/api/climb/result` is unchanged (not newly idempotent).
+
+### 5.1 `GET /r/[id]` — HTML recording page
+
+| | |
+| --- | --- |
+| Auth | public |
+| Runtime | Node; `export const dynamic = "force-dynamic"` (unbounded ids — do not prerender; do not `generateStaticParams`) |
+| Success | **200** HTML. Unique `generateMetadata` from `getRecordingPageMetadata`. JSON-LD `WebPage`. Human player: server passes replay token into `ClimbPlayClient` (same as `/play`). Canonical path stays `/r/{id}` — **do not 302** to `/play?r=` (crawlers would unfurl generic play metadata). |
+| 404 | `parseRecordingId` fails, row missing, or `replay_token == null` → `notFound()`. Metadata helper returns `{ ok: false, reason: "NOT_FOUND" }` and **must not** return homepage `og:title` `Doomstack — Altitude is permanent`. |
+| Rate limit | none required |
+| View credit | none. Do not add `/r/:path*` to `middleware.ts` `config.matcher`. |
+
+Metadata helper return (testable, no `notFound()` inside the helper):
+
+```ts
+type RecordingMetadataResult =
+  | { ok: true; metadata: Metadata }
+  | { ok: false; reason: "NOT_FOUND" };
+```
+
+`metadata.openGraph.url` === `buildRecordingCanonicalUrl(origin, id)`.
+`metadata.openGraph.images[0]` = landscape OG URL, `width: 1200`, `height: 630`.
+`metadata.twitter.card` === `"summary_large_image"`.
+Title and description each contain `String(Math.round(peakY))`.
+
+### 5.2 Recording OG images
+
+**Landscape:** `GET /api/og/recording/[id]`  
+**Square:** `GET /api/og/recording/[id]/square`
+
+| | |
+| --- | --- |
+| Auth | public |
+| Runtime | **nodejs** (Prisma lookup). Listing `/api/og` stays **edge**. |
+| Success | **200** `image/png` (ImageResponse). Landscape **1200×630**. Square **1080×1080**. Palette `OG_PALETTE`. Cache-Control: `public, s-maxage=3600, stale-while-revalidate=86400` (**s-maxage ≥ 3600**). |
+| 404 | invalid / unknown / no token → **404** `{ error: "Recording not found", code: "NOT_FOUND" }` — **not** a 200 listing card. |
+| 500 | Satori/render throw → `{ error: "Failed to generate OG image", code: "OG_RENDER_FAILED" }` (or plain text 500 like listing). **Never** fall back to homepage listing art. |
+| Rate limit | none (CDN) |
+| Query params | none required for identity. Ignore junk query; do not 500. |
+
+Absolute URLs:
+
+- landscape: `{origin}/api/og/recording/{id}`
+- square: `{origin}/api/og/recording/{id}/square`
+
+Helpers: `buildRecordingOgImageUrl(origin, id, "landscape" | "square")`.
+
+### 5.3 Listing OG (restyle, same path)
+
+`GET /api/og?name&alt&rank&v=`
+
+| | |
+| --- | --- |
+| Auth | public |
+| Runtime | edge (unchanged) |
+| Defaults | A-12: missing `name` → `"Stack"`, `alt` → `"0"`, `rank` → `"1"` **after** sanitize of provided values |
+| Success | 200, 1200×630, `OG_PALETTE` (void `#0a0a0c`, signal `#cbf24d`, ember `#ff5a2c`, text-primary `#f4f2ec`) |
+| Junk | 200 sanitized **or** 400; **never 500**. Sanitized name must not contain `<script` or `<img`. |
+| Cache | keep `s-maxage=60, stale-while-revalidate=300` |
+
+### 5.4 Record (listing) OG
+
+`GET /api/og/b/[slug]`
+
+| | |
+| --- | --- |
+| Auth | public |
+| Runtime | nodejs (getBlockBySlug) |
+| Success | 200, 1200×630, same `OG_PALETTE`, display_name + altitude |
+| 404 | slug fail parse or `getBlockBySlug` null → `{ error, code: "NOT_FOUND" }` |
+| Cache | `s-maxage=3600, stale-while-revalidate=86400` |
+
+Page metadata `openGraph.images[0].url` = `{origin}/api/og/b/{slug}`.
+`openGraph.url` = `buildRecordCanonicalUrl(origin, slug)` → `{origin}/b/{slug}` (no trailing slash).
+
+Slug allow-list: reuse `parseSeasonSlug` (same `^[a-z0-9][a-z0-9-]{0,63}$` + proto-key reject) **before** DB. Reject never default.
+
+### 5.5 Share JSON
+
+`GET /api/share/recording/[id]`
+
+| | |
+| --- | --- |
+| Auth | public |
+| Runtime | nodejs |
+| Success 200 | `{ ok: true, data: SharePayload }` — same object the pure builder returns. `Cache-Control: public, s-maxage=3600, stale-while-revalidate=86400` |
+| 404 | `{ error: "Recording not found", code: "NOT_FOUND" }` when parser fails, row missing, or no token |
+| 422 | `{ error, code: "VALIDATION_ERROR" }` only if builder returns `VALIDATION_ERROR` (production templates must not hit this) |
+| 429 | optional: `{ error: "Too many requests", code: "RATE_LIMITED" }` using existing `checkRateLimit({ namespace: "share-recording", identifier: ip, max: 60, windowSeconds: 60, failMode: "open" })`. Not required to pass ACs; recommended for enumeration (R-1). |
+| 500 | `{ error: "Internal server error", code: "INTERNAL_ERROR" }` |
+
+Pure builder is the AC-12/15 unit. HTTP is the non-test caller.
+
+**SharePayload (AC-12) — load-bearing fields, no TBD:**
+
+```ts
+interface SharePayload {
+  recordingId: string;
+  canonicalUrl: string;      // buildRecordingCanonicalUrl
+  imageUrl: string;          // landscape OG absolute URL
+  imageUrlSquare: string;    // square OG absolute URL
+  peakY: number;             // finite, persisted
+  handle: string | null;
+  platforms: {
+    X: PlatformShare;
+    TIKTOK: PlatformShare;
+    YOUTUBE: PlatformShare;
+  };
+}
+
+interface PlatformShare {
+  platform: "X" | "TIKTOK" | "YOUTUBE";
+  contentType: "X_POST" | "TIKTOK_VIDEO" | "YOUTUBE_SHORT"; // matching platform
+  title: string;
+  caption: string;
+  description: string;
+  hashtags: string[];        // without leading '#'
+  cta: string;               // contains canonicalUrl
+  canonicalUrl: string;
+  imageUrl: string;          // X and YOUTUBE: landscape; TIKTOK: square
+  compose:
+    | { mode: "web_intent"; url: string }           // X only
+    | { mode: "UNSUPPORTED_BY_PLATFORM"; detail: string }; // TikTok + YouTube; no url
+}
+```
+
+**X compose.url:** starts with `https://twitter.com/intent/tweet?` (existing `ShareRun` already uses this; `https://x.com/intent/tweet?` is also AC-legal but implement **twitter.com** for one contract). Decoded `text` query param **equals** `platforms.X.caption`.
+
+TikTok / YouTube `compose` **must not** include a `url` the UI would treat as a web intent.
+
+**Deterministic copy (English, integer metres).** Templates are designed to fit limits so production `ok: true` does not slice. If a future handle/origin would overflow, builder returns `VALIDATION_ERROR` and **does not** include a truncated caption.
+
+Let `peakM = Math.round(recording.peakY)`, `url = canonicalUrl`.
+
+| Field | Value |
+| --- | --- |
+| X title | `Climbed ${peakM}m on Doomstack` |
+| X caption | `I climbed ${peakM}m on Doomstack. Watch the replay: ${url}` |
+| X description | same as caption |
+| TikTok title | same as X title |
+| TikTok caption | `I climbed ${peakM}m on Doomstack. Watch the replay: ${url}` (do **not** interpolate unbounded handle into X; TikTok may append ` as ${handle}` **only if** `validateShareFieldLength` still passes 2200, else omit handle — never slice the final caption) |
+| TikTok description | same as caption |
+| YouTube title | `Climbed ${peakM}m on Doomstack` (must be ≤ 100 without `.slice`) |
+| YouTube description | `Watch this ${peakM}m climb on Doomstack.\n\n${url}` |
+| hashtags (all) | `["doomstack", "theclimb"]` — **not** appended to X caption (A-6) |
+| cta (all) | `Watch the replay: ${url}` |
+
+`JSON.stringify(data)` must not contain `replay_token`, `replayToken`, a `seed` key, or `INTERNAL_TOKEN`. `handle` must not match `/@/`.
+
+### 5.6 `POST /api/climb/result` (additive)
+
+Unchanged except success body when `saved === true` **may** include `runId: string` (non-empty, the cuid). Existing keys stay.
+
+Anonymous / invalid_token / no email: **200** `{ saved: false, reason: "anonymous" | "invalid_token" }` with **no** `runId` own property.
+
+Existing 400/429 codes unchanged (`IMPLAUSIBLE_RESULT`, `RATE_LIMITED`).
+
+Client (`ClimbScene`): after `saved === true` and `typeof runId === "string" && runId.length > 0`, set share URL to `buildRecordingCanonicalUrl(resolveBaseUrl(), runId)`. Do not first publish a token URL then swap (avoids Maya tweeting `/play?r=`). If save fails but a token exists, pass that URL through `buildShareActionsFromTokenUrl` so X is **disabled** when caption `.length > 280` rather than truncated.
+
+### 5.7 `GET /robots.txt` via `app/app/robots.ts`
+
+`getRobotsConfig(origin)` returns a `MetadataRoute.Robots` equivalent:
+
+- `allow`: `/`, `/play`, `/climb`, `/b/`, `/r/`, `/api/og` (prefix `/api/og` covers recording + record OG).
+- **Must not** set `disallow: "/r/"` or `Disallow: /r/`.
+- `sitemap`: `{origin}/sitemap.xml` with origin = `resolveBaseUrl()`.
+
+### 5.8 `GET /sitemap.xml` via `app/app/sitemap.ts`
+
+`buildSitemapEntries(origin, slugs: string[])` returns URL objects for:
+
+- `{origin}/`
+- `{origin}/play`
+- `{origin}/climb`
+- `{origin}/b/{slug}` for each slug from `listSitemapBlockSlugs()`
+
+**Invariant:** no entry `url` pathname starts with `/r/`.
+
+On Prisma failure: still emit the three static marketing URLs (home, play, climb) so the sitemap is not empty of required paths. Log the error. Do not throw an empty 500 that hides `/play`.
+
+`export const dynamic = "force-dynamic"` on sitemap (DB). `take: 10000` on the query.
+
+### 5.9 Play metadata
+
+`getPlayPageMetadata(): Metadata` — constant title/description (today’s copy). `generateMetadata` on `/play` may receive `searchParams` but **must ignore `r`** and must not call `decodeRunReplay`. Token playback stays a client path in `ClimbPlayClient`.
+
+---
+
+## 6. Folder tree (2–3 levels) and ownership
 
 ```
 app/
-  prisma/
-    schema.prisma                          # data — comments, default, indexes
-    migrations/0010_climb_board_split/     # data — rewrite DEFAULT split
-    migrations/0011_climb_board_history_to_desktop/  # data — repair cutover
+  middleware.ts                         # backend: import isBot; delete BOT_PATTERNS
   app/
-    page.tsx                               # frontend — hero stats + teaser
-    climb/page.tsx                         # frontend — searchParams, AC-17 probe
-    dashboard/page.tsx                     # frontend — boards vs empty card
-    stack/[category]/page.tsx              # frontend — ignore ?board= (paid)
-    api/climb/result/route.ts              # backend — allow-list, envelope, RL
-    api/dashboard/route.ts                 # backend — freeClimb.boards shape
+    r/[id]/page.tsx                     # backend metadata + frontend player shell
+    robots.ts                           # backend
+    sitemap.ts                          # backend + data
+    play/page.tsx                       # frontend: use getPlayPageMetadata
+    b/[slug]/page.tsx                   # backend: getRecordPageMetadata + JSON-LD
+    layout.tsx                          # unchanged homepage generateMetadata (listing OG URL)
+    api/
+      og/route.tsx                      # backend: listing restyle (edge)
+      og/recording/[id]/route.tsx       # backend: landscape
+      og/recording/[id]/square/route.tsx
+      og/b/[slug]/route.tsx             # backend: record card
+      share/recording/[id]/route.ts     # backend: JSON
+      climb/result/route.ts             # backend: additive runId
   src/
-    db/climb.ts                            # data/backend — recordClimb, stats, rank
-    game/climbBoard.ts                     # shared — allow-list, paths, order
-    game/scoreBounds.ts                    # backend — unchanged caller
-    game/freeStack.ts                      # shared — FREE_STACK_SLUG
-    hooks/useCoarsePointer.ts              # frontend — classifier input
-    hooks/useCanvasSize.ts                 # frontend — fill vs 9:16
-    components/Climb/                      # frontend — tabs, list, empty+AC-17
-    components/LandingPage/FreeLeaderboard*.tsx  # frontend — BoardRead
-    components/Dashboard/FreeClimbCard.tsx # frontend
-    components/Game/ClimbScene.tsx         # frontend — snapshot + POST board
-    lib/rateLimit.ts                       # backend — keep global key
-    lib/revalidateClimbLeaderboard.ts      # backend
-    lib/handle.ts                          # privacy — unchanged
-  tests/
-    db/climb.test.ts                       # invoke recordClimb / stats / isolation
-    db/fakePrisma.ts                       # $queryRaw or aggregate for stats
-    api/climbResult.route.test.ts          # INVALID_BOARD before anon; omit→mobile
-    game/climbBoard.test.ts                # parser + pointer map
+    share/
+      types.ts                          # backend (contract)
+      parseRecordingId.ts               # backend
+      urls.ts                           # backend + frontend (pure)
+      limits.ts                         # backend + frontend (pure)
+      payload.ts                        # backend (pure given DTO)
+      actions.ts                        # frontend (pure)
+      dashboard.ts                      # frontend (pure)
+      handle.ts                         # backend
+      jsonLd.ts                         # backend (pure)
+      copy.ts                           # backend (templates used by payload.ts)
+      controlLayout.ts                  # frontend
+    seo/
+      recordingMetadata.ts              # backend
+      playMetadata.ts                   # frontend/backend
+      recordMetadata.ts                 # backend
+      robotsConfig.ts                   # backend
+      sitemapEntries.ts                 # backend
+    og/
+      palette.ts                        # backend (edge-safe)
+      sanitize.ts                       # backend (edge-safe)
+      sizes.ts                          # backend
+      listingModel.ts                   # backend: buildListingOgModel
+    db/climb.ts                         # data: runId, getShareableClimbRun, token loader
+    db/blocks.ts                        # data: listSitemapBlockSlugs
+    views/botList.ts                    # backend: +tiktok, bytespider, bytedance
+    config/public.ts                    # unchanged
+    components/Game/ShareRun.tsx        # frontend
+    components/Game/ClimbScene.tsx      # frontend: runId → canonical URL
+    components/Game/ClimbPlayClient.tsx # frontend: origin + token from server
+    components/Dashboard/ClimbReplaysSection.tsx  # frontend
+    lib/handle.ts                       # existing climberDisplay
+  tests/                                # verifier (not this stage)
+    share/*.test.ts
+    seo/*.test.ts
+    og/*.test.ts
 ```
 
-Specialists: **data** owns 0010/0011 + schema; **backend** owns persist/stats;
-**frontend** owns `/climb`, teaser, AC-17, snapshot; **security-reviewer** owns
-allow-list + F-1 non-closure + global RL. Verifier invokes production functions;
-no `readFileSync` + `toContain` as proof of AC-4/AC-19 (the existing
-`renderingMode.test.ts` greps are **not** the AC-19 gate).
+**Specialists (implementer delegates, does not skip):**
+
+| Specialist | Owns |
+| --- | --- |
+| **data** | `recordClimb` `runId`; `getShareableClimbRun`; `getClimbRunReplayToken`; `listSitemapBlockSlugs`; **no migration** |
+| **backend** | parsers, payload builder, metadata helpers, OG routes, share JSON, robots/sitemap, `isBot` unify, POST additive field |
+| **frontend** | `ShareRun`, dashboard share, ClimbScene canonical after save, `SHARE_CONTROL_LAYOUT` (44×44, `text-primary` / `text-void` on `signal`, not `text-muted` on void), labels from AC-31 |
+
+Do not add `app/src/social/` (that is PR #11).
 
 ---
 
-## 9. Failure modes (external + product)
+## 7. Failure modes (external + identified)
 
-| Dependency / case | Failure | Behaviour |
+| Dependency / fault | Failure mode | Behaviour |
 | --- | --- | --- |
-| Postgres / Neon | `topFreeClimbers` throws | That board: unavailable copy. Other board (landing): still lists if its read succeeded |
-| Postgres | `recordClimb` throws | `500 { saved: false, reason: "persist_error" }`. No partial rank JSON |
-| Postgres | `getGlobalClimbStats` throws | Existing hero degrade `0` / `null` (`—`) |
-| Redis | rate limiter down | Fail **open** (existing). Do not skip `scoreBounds` |
-| Firebase | bad/missing token | `saved: false` **after** valid board parse |
-| Cutover | `0010` not applied | Do not ship UI that filters `board=` against a missing column — same deploy |
-| Cutover | empty Mobile, populated Desktop | AC-17 control; do not copy peaks |
-| Cutover | empty Mobile, Desktop read fails | Show Desktop control (fail open) |
-| Client spoofs `board` | keyboard peak on Mobile | Accepted; same class as spoofed `peakY`. Not a payout board |
-| Old client omits `board` | fill **or** 9:16 peak lands on Mobile | Spec risk; short-lived if client+API ship together. Invalid strings still 400 |
-| Hybrid pointer change mid-run | without snapshot, persist board ≠ canvas | Snapshot at Start (NFR-9) |
-| 10× (10k / board) | unindexed sort / `findIndex` rank | Use declared index + `COUNT` / `take: 50` |
-| Rate limit partitioned by board | 120 writes / 60s | **Forbidden** (NFR-4). Ranking is partitioned; abuse budget is not |
-| Paid `?board=` | none | Ignore; single altitude list |
+| Prisma down | page/OG/share/sitemap cannot load | Recording HTML/OG/share: 500 `INTERNAL_ERROR` / `OG_RENDER_FAILED`, **not** homepage OG. Sitemap: static `/`, `/play`, `/climb` only. |
+| `ImageResponse` / Satori throw | listing or recording render | Listing: keep today’s catch → 500 text, never throw uncaught. Recording: 500, never listing fallback. Sanitize so junk params do not cause the throw (AC-23). |
+| Missing / unknown block slug in sitemap query | one slug 404s as a page | Sitemap skips nothing if the row exists; if `getBlockBySlug` later 404s, that is a separate page. Query is `findMany` slugs — no per-row await (no N+1). |
+| Invalid recording id | traversal, empty, proto | `parseRecordingId` → `null` → 404 `NOT_FOUND`. Never 500. Never demo id. |
+| `replay_token` null | row exists but not shareable | same 404 as unknown (AC-6). Dashboard: no share actions (AC-30). |
+| Anonymous POST | no persist | `{ saved: false, reason: "anonymous" }`, no `runId`. Share UI uses token URL + length validator (X disabled if > 280). |
+| Over-limit composition | Atlas / tests 281-char fixture | `validateShareFieldLength` → `valid: false`; **no** `sliced` / truncated field on the result object. |
+| Spoofed `Host` | attacker wants evil canonical | Builders do not read headers. Passing `Host` into a wrapper must not change URLs if `origin` is the production fixture (AC-25). |
+| Bot UA | TikTok unfurl | `isBot` true → `runViewPipeline` `credited === 0`. `/r/{id}` still 200 because matcher excludes `/r/` and bots are not 401’d. |
+| Redis down | optional share rate limit | `failMode: "open"` — serve JSON. Same as climb POST. |
+| Handle is an email-like `display_name` | AC-13 `/@/` | `shareHandle` falls back to `climberHandle(userId)`. Never select `email`. |
+| 10× recordings | PK lookups + CDN | Sitemap size unchanged (0 `/r/`). Do not cache rows in a module-level Map (kernel 19). |
+| 10× blocks | sitemap O(blocks) | `take: 10000`. Past cap, extra listings are omitted from sitemap only (pages still 200). |
+| Homepage OG restyle | old sky-blue in caches | Listing TTL already 60s (R-10). |
 
 ---
 
-## 10. ADRs
+## 8. ADRs
 
-### ADR-1 — Historical untagged rows cut over to Desktop
+### ADR-1 — Public path `/r/{id}` not `/play/r/{id}`
 
-**Decision:** Pre-split skill rows become `board='desktop'`. Prisma/Postgres
-**insert** default remains `'mobile'`.
+**Decision:** `https://www.doomstack.lol/r/{cuid}`.
 
-**Why:** “Mobile is default” means default **view** and **omit-POST write**
-(AC-10), not the home for mixed-era scores. Fill-stage is ~2 days old vs ~4 days
-of 9:16-only play. Dumping history onto featured Mobile recreates the unfair
-ranking this split exists to remove. A third legacy board is out of scope.
+**Why:** Spec A-1 fixes the prefix at `/r/`. Shorter for X’s 280. A nested `/play/r/{id}` would merge with generic play metadata and still look like a game route. `/play?r={token}` remains the anonymous playback URL only (A-2).
 
-**Rejected:** Draft `DEFAULT 'mobile'` backfill; copying historical peaks onto
-Mobile; leaving `board` nullable.
+**Not:** extra slug column, vanity names, or 302 from `/r/{id}` → `/play?r=`.
 
-**Reversible:** Spec allows a human to redirect AC-15 to Mobile if production
-evidence says almost all pre-split play was fill-stage. Until then, Desktop.
+### ADR-2 — Token vs short URL
 
-### ADR-2 — Hero Top climb is Mobile-only; Climbers stay global distinct
+**Decision:** Short URL **is** `ClimbRun.id` (cuid). Token stays in DB for playback. Marketing never puts the token in canonical/OG/share JSON.
 
-**Decision:** `climberCount = COUNT(DISTINCT userId)` across both boards.
-`topPeak = MAX(peak_y)` **where board = mobile** (null → `—`).
+**Why:** Cuid already exists; zero migration. Token URLs were unguessable; short ids are enumerable — accepted (A-7) with no sitemap and redacted payload.
 
-**Why:** Kernel: a partitioned resource cannot keep the old global scalar.
-`MAX` across boards is `max(mobile, desktop)` and would feature a 9:16 peak as
-the site-wide Top climb after cutover. Distinct **people** is a headcount, not a
-ranking, and stays global (AC-20).
+**Not:** hashids, nanoid column, or encoding peak into the path.
 
-**Rejected:** Draft `MAX(peak_y)` over all `climb_records`; two hero numbers per
-board; showing Desktop max when Mobile is empty.
+### ADR-3 — Listing OG defaults vs recording 404
 
-### ADR-3 — Classifier is play surface, not UA / viewport
+**Decision:** `GET /api/og` keeps A-12 defaults (homepage always needs a card). Recording OG/metadata/share **404** on unknown/invalid/no-token ids. They must not render listing art or homepage title `Doomstack — Altitude is permanent`.
 
-**Decision:** Board of a run = the canvas path for that run: coarse pointer +
-`useCanvasSize({ fill: true })` → Mobile; fine pointer + locked 9:16 → Desktop.
-Server allow-lists the client-declared value. Snapshot at run start.
+### ADR-4 — Single `isBot`
 
-**Why:** Visible tower metres scale with aspect. Viewport width and User-Agent
-do not choose fill vs 9:16 today (`ClimbScene` already uses `useCoarsePointer`).
-Landing tab is **not** auto-selected from the visitor’s pointer (spec).
+**Decision:** `app/src/views/botList.ts` is the only pattern list. Add `"tiktok"`, `"bytespider"`, `"bytedance"` (explicit; do not rely on `bot/` or generic `spider`). `middleware.ts` imports `isBot` and deletes `BOT_PATTERNS` / `isBotUa`. `runViewPipeline` already calls `isBot` — AC-38 and AC-39 cannot diverge.
 
-**Rejected:** `innerWidth < 768`; `sec-ch-ua-mobile`; server-side UA parse.
+`botList.ts` is Edge-safe (no Node APIs). Empty UA remains bot (`true`) — existing behaviour; Chrome UA remains `false`.
 
-### ADR-4 — Persist rate limit stays global (exception to “partition the keys”)
+### ADR-5 — Share JSON path `GET /api/share/recording/[id]`
 
-**Decision:** Keep `rl:climb:ip:*` at 60/60s. Do **not** add `board` to the Redis
-key.
+**Decision:** JSON lives under `/api/share/recording/[id]`, not `/r/{id}/share` and not `/r/{id}.json`.
 
-**Why:** Kernel 15 says when a **counter** is partitioned, every key that gates
-writes to it must gain the partition. Here the **ranking** is partitioned, not
-the abuse counter. NFR-4 forbids doubling the write budget. Score envelope is
-unchanged per request.
+**Why:** Crawlers fetching `/r/{id}` must receive HTML+OG, not JSON. Atlas fetches programmatically; `/api/` matches this repo. A nested `/r/{id}/share` would be easier to accidentally sitemap/index.
 
-**Rejected:** 60 per board per IP.
+**Not:** requiring PR #11 to consume it. Atlas can `fetch` this JSON **or** later import `buildRecordingSharePayload`.
 
-### ADR-5 — Client `board` is accepted; F-1 stays open
+### ADR-6 — Recording OG is Node, listing OG stays Edge
 
-**Decision:** Allow-listed client `board` on this non-payout ranking. Invalid →
-400. Do not add server re-simulation of `peakY`. Do not claim F-1 closed because
-board is allow-listed.
+Recording OG must 404 via Prisma. Edge has no Prisma client here. Do **not** fetch an internal URL with `INTERNAL_TOKEN` from the OG route (trust.md #4 / R-5). Listing OG stays Edge with query-param display text + sanitizer.
 
-**Why:** Product-spec explicit exception. Free climb remains reputation-adjacent
-(landing, next to paid stacks) and still monotonic. Security-reviewer ping
-stands as an **open product question**, not a blocker for this PR.
+### ADR-7 — `react.cache` per request, not a module Map
+
+`getClimbRunRow` wrapped in `cache()` from `react` so generateMetadata + page + JSON-LD share one query. Eviction is request-scoped. A module-level `Map` keyed by recording id is forbidden (unbounded cardinality).
+
+### ADR-8 — F-1 remains open
+
+Share cards print persisted `peak_y`. No server-derived peak, no AC-17 re-sim, no claim of verified height in copy (`Watch the replay` is allowed; `verified` / `certified` is not). Security-reviewer: cite A-8 if a finding claims this authenticates scores.
+
+### ADR-9 — Sitemap cap 10_000 block slugs
+
+Kernel requires `take` on `findMany`. 10k ≫ current listing count; 10× blocks still fit. Recordings stay at 0 rows in the sitemap regardless of cap.
+
+### ADR-10 — Skip design-ux
+
+`app/DESIGN.md` already defines void/signal/ember/text-primary, 44px targets, and button recipes. Share UI extends `ShareRun` / dashboard. `nextStage` is implementer.
 
 ---
 
-## 11. Security boundaries
+## 9. Security boundaries
 
 | Topic | Rule |
 | --- | --- |
-| Authn | POST persist optional; dashboard `requireAuth`. Middleware is not access control |
-| Authz | A user can only upsert their own `userId` from the verified token. No admin board-rewrite API in this change |
-| PII | Boards show `climberDisplay` (handle / moderated name). Email never on `/climb` or teaser. Dashboard `user.email` is the caller only |
-| Secrets | No new names. Existing: `DATABASE_URL`, `DIRECT_URL`, `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN`, Firebase admin, `INTERNAL_TOKEN` (unused here) |
-| Irreversible writes | `peakY` and `board` together choose a ranking cell that only rises. Treat both as untrusted |
-| Allow-list | Single `parseClimbBoard` in `src/game/climbBoard.ts`. `Object.hasOwn` on the allow-list. Write path 400s; GET path defaults to mobile |
-| Paid isolation | Skill persist must not touch `blocks` |
+| Authn vs authz | GET page/OG/share/robots/sitemap: no auth. POST save: existing optional Firebase. Middleware is **not** ACL. `/r/` is not a paid-stack view surface. |
+| Identity parsers | `parseRecordingId`: allow-list `^[a-z0-9][a-z0-9_-]{0,31}$` (case-insensitive input lowercased), reject empty, whitespace, `/`, `.` (so `..`), `%`, proto keys (`constructor`, `__proto__`, …). **Reject never default.** `parseSeasonSlug` for block slugs. |
+| OG sanitizer | `sanitizeOgText(raw, maxLen)`: strip tags (`<...>`), strip controls/bidi (may reuse the same code-point rules as `sanitizeDisplayName`), cap length, never throw. Listing name max 80; rank max 8; alt coerced to finite number or default `"0"`. |
+| Origin | `buildRecordingCanonicalUrl(origin, id)` etc. **only** take `origin: string`. Callers pass `resolveBaseUrl()`. Production `NODE_ENV=production` and no `BASE_URL` → `https://www.doomstack.lol` (already true). Client bundles may not see `BASE_URL`; then `PUBLIC_CONFIG.siteUrl` applies in production — desired for marketing. **Never** `window.location.origin` for canonical/copy/share. **Never** `request.headers.get("host")`. |
+| Payload redaction | Allow-list DTO. Share route `JSON.stringify` of `data` only. Do not pass Prisma objects to the client. Playback token may appear in the recording page RSC payload (capability-by-id) but **not** in share JSON or OG alt. |
+| PII | `climberDisplay` / `shareHandle`. Never `User.email`. Dashboard user email is an existing dashboard concern, not this JSON. |
+| Secrets | Do not reference `INTERNAL_TOKEN`, Firebase admin, or Stripe on these GET routes. Do not forward secrets to Host-derived URLs. |
+| Bots vs views | `isBot` skip in `runViewPipeline`. Do not add `/r/` to the view-credit matcher. Bots still receive HTML (A-13). |
+| XSS | OG text sanitized. JSON-LD via `JSON.stringify` into a script tag (no raw HTML interpolation of handle). |
+| Enumeration | No directory, no sitemap `/r/`, optional fail-open rate limit on share JSON. 404 for misses (no oracle beyond existence). |
 
 ---
 
-## 12. Hot paths, cache, N+1
+## 10. Hot paths, cache, N+1
 
-| Path | Budget | Notes |
+| Path | Cost | Cache | Invalidation |
+| --- | --- | --- | --- |
+| `GET /r/{id}` metadata | 1 PK lookup (cached per request via `react.cache`) | page `force-dynamic`; do not ISR a hole of ids | none; run row immutable except handle change (accepted at OG TTL) |
+| Recording OG | 1 PK + ImageResponse | `s-maxage ≥ 3600` | none (peak/handle treated stable per NFR-2) |
+| Listing OG | no DB | `s-maxage=60` | `?v={top_block_id}` already |
+| Share JSON | 1 PK + pure builder (< 50 ms given row, NFR-1) | `s-maxage=3600` | none |
+| Sitemap | 1 `findMany` slugs `take 10000` | dynamic | new listings appear on next request |
+| `isBot` | substring scan | none | NFR-7 < 1 ms per AC-38 fixture |
+| POST result | existing persist + now returns id | n/a | n/a |
+
+**N+1:** forbidden `getShareableClimbRun` inside a map of ids (there is no list endpoint). Record page metadata must not decode `replay_token` (NFR-3). Homepage `generateMetadata` may keep fetching `/api/tower` for listing `?v=` (out of scope to change `/api/tower`).
+
+**Hot path:** uncached recording OG must stay a single DB read + ImageResponse with **system-ui** (no Google font fetch that can 500). p95 < 2000 ms (NFR-2).
+
+**Builder given a loaded row:** string concat only; no network; p95 < 50 ms (NFR-1).
+
+---
+
+## 11. Share actions + a11y (frontend contract)
+
+`buildShareActions(payload: SharePayload): ShareAction[]`
+
+| Action | type | fields |
 | --- | --- | --- |
-| `GET /climb` | 1 × `findMany` take 50 on `climb_record_leaderboard_idx`; +1 count/findFirst **only** on empty Mobile for AC-17 | `force-dynamic`. p95 TTFB ≤ 1.0s |
-| Landing teasers | 2 × `findMany` take 8, **concurrent** | Combined wall ≤ 1.5× one read. ISR ≤ 60s + `revalidatePath("/")` |
-| `getGlobalClimbStats` | 1 aggregate query | Do not load all rows into Node |
-| `POST /api/climb/result` | insert run + findUnique + upsert + 2 counts | Rank via COUNT, not load-all |
-| Dashboard free-climb | 1 findMany user rows + ≤2 standing queries | NFR-6. `groupBy`/`COUNT` not per-row await |
-| Redis | `rl:climb:ip:<ip>` TTL 60s | Eviction = TTL. Cardinality = unique IPs in the window, not unbounded Map |
+| X | `intent` | `href === payload.platforms.X.compose.url`; label `Share on X` |
+| TikTok | `copy` | `text === platforms.TIKTOK.caption`; `unsupportedReason === "UNSUPPORTED_BY_PLATFORM"`; label `Copy TikTok caption` |
+| YouTube | `copy` | `text === title + "\n\n" + description`; `unsupportedReason === "UNSUPPORTED_BY_PLATFORM"`; label `Copy YouTube title and description` |
+| Copy link | `copy` | `text === payload.canonicalUrl`; label `Copy link` |
 
-**Cache keys:** none for standings besides Next ISR on `/` (`revalidate = 60`)
-and on-demand `revalidatePath`. Do not add a Redis leaderboard cache in this PR.
+`SHARE_CONTROL_LAYOUT`: `minHeightPx: 44`, `minWidthPx: 44`, class includes `min-h-[44px] min-w-[44px] inline-flex items-center justify-center`. Labels as above. Native `<a>` / `<button>` (or component that renders one). No `tabIndex={-1}`, no `pointer-events: none` on the control. Share labels: `text-primary` (`#f4f2ec`) or `text-void` on `signal` — **not** `text-muted` on void.
 
-**Invalidation:** persist success → `/` and `/climb`. Do not require a
-per-board path; App Router `revalidatePath("/climb")` covers searchParams.
+Dashboard: if `replayToken` is null, `buildDashboardShareActions` returns `[]` (no X/TikTok/YouTube, no canonical copy). Watch link may be `/r/{id}` (preferred — token stays out of the href) or keep in-app playback; copy/share **must** be `buildRecordingCanonicalUrl(origin, id)`.
 
-**N+1 risks:** `getUserFreeClimbRecords` looping `Promise.all` of counts **per
-board** is OK at N=2 if the loop is over `CLIMB_BOARD_ORDER` (fixed). Do not
-loop users. `topFreeClimbers` already `take` + `select`. FakePrisma must grow
-`$queryRaw` **or** `aggregate`/`distinct` so `getGlobalClimbStats` tests invoke
-the production function (no SQL greps; no reimplemented MAX in the test).
+`SharePost` on `/b/[slug]` stays X + copy-text (A-9). Only metadata + OG image change on record pages.
 
 ---
 
-## 13. What the draft already got right (keep)
+## 12. Client origin wiring
 
-- `parseClimbBoard` allow-list + POST omit/null → mobile + invalid 400.
-- Unique `(userId, category_slug, board)` and `boardWhere` on list/rank.
-- Rank on both; independent `nextPeak`.
-- Paid towers unsplit; `recordClimb` forces `FREE_STACK_SLUG`.
-- `/climb` default mobile; unknown query → mobile 200.
-- Landing + dashboard Mobile first (`CLIMB_BOARD_ORDER`).
-- `/climb` unavailable vs empty (do not regress).
-- Client-declared board; coarse-pointer classifier; `climbBoardPath`.
-- Global 60/60s rate limit; `scoreBounds` before persist.
-- `force-dynamic` on `/climb`; revalidate `/` + `/climb`.
+| Surface | Origin argument |
+| --- | --- |
+| Server metadata, OG absolute URLs, share JSON, robots, sitemap | `resolveBaseUrl()` |
+| `ClimbScene` after save | `resolveBaseUrl()` (imported from `public.ts`; prod client → `PUBLIC_CONFIG.siteUrl`) |
+| `ClimbReplaysSection` copy/share | same |
+| Playback `Watch` | relative `/r/{id}` or `/play?r=` for humans; **copy** is always absolute canonical |
+
+Remove `buildReplayUrl(token, window.location.origin)` from dashboard copy. Keep `buildReplayUrl` in `runReplay.ts` for anonymous token links and tests; marketing paths must not call it.
 
 ---
 
-## 14. Implementer revision checklist
+## 13. Out of scope (do not implement)
 
-Do not rubber-stamp PR #49. Treat the branch as a draft. Proof is invoking
-production units / routes, not grepping source.
-
-### D-1 CRITICAL — historical cutover (AC-15, AC-16, AC-17)
-
-- [ ] Rewrite `0010` so **existing** rows backfill **desktop**, then
-      `ALTER COLUMN SET DEFAULT 'mobile'` for **new** inserts.
-- [ ] Add `0011` timestamp-based re-home + unique-key merge (§5.2). No blanket
-      `UPDATE mobile → desktop`.
-- [ ] Prisma `@default("mobile")` stays for inserts; comments must not say
-      “existing rows default to mobile”.
-- [ ] CHANGELOG: historical → Desktop.
-- [ ] `context/trust.md`: history sentence Desktop; POST allow-list unchanged.
-- [ ] AC-16: a later Mobile persist uses `nextPeak` on the **mobile** row only
-      (new row at P, historical Desktop H unchanged). No cross-board `max`.
-- [ ] Do not add a third board. Do not copy Desktop onto Mobile to avoid an
-      empty featured list.
-
-### D-2 — hero aggregates (AC-20, AC-21)
-
-- [ ] `getGlobalClimbStats`: `climberCount` = `COUNT(DISTINCT userId)` across
-      both boards.
-- [ ] `topPeak` = `MAX(peak_y)` **Mobile only**; no Mobile rows → `null` →
-      hero `—` even when Desktop max is non-null.
-- [ ] Test invokes `getGlobalClimbStats` with mixed boards (not a SQL string
-      grep). Fixture: Desktop 999 + Mobile 10 → Top climb 10; Desktop only →
-      `topPeak === null`; same user on both → climberCount 1.
-
-### D-3 — landing teaser unavailable (AC-19)
-
-- [ ] Delete `.catch(() => [])` on both teaser reads.
-- [ ] Per-board `BoardRead` (`ok` \| `unavailable`).
-- [ ] Fail Mobile, succeed Desktop: Mobile tab unavailable copy; Desktop tab
-      still lists. Symmetric.
-- [ ] Unavailable copy is the existing standings-unavailable UI, not
-      `[ no climbers yet ]`.
-- [ ] Verifier: drive the teaser module/page; do not `toContain("catch(() => [])")`
-      as the AC-19 proof.
-
-### AC-17 — empty Mobile control
-
-- [ ] `/climb` default Mobile, 0 mobile rows, ≥1 desktop (or desktop probe
-      failed): empty state includes a Desktop control → `/climb?board=desktop`.
-- [ ] Landing Mobile tab, same occupancy: control selects Desktop (stay on `/`)
-      or links to the Desktop `/climb`.
-- [ ] Both boards empty (successful reads): **no** history-recovery control.
-- [ ] Unavailable Mobile: AC-4/AC-19, not empty + control.
-- [ ] Control ≥44×44; accessible name mentions Desktop; not `text-muted` only.
-- [ ] Cheap probe only (count/findFirst), never a second top-50 on `/climb`.
-
-### Keep (D-4) — do not “fix”
-
-Allow-list + omit→mobile + invalid 400; rank on both; paid unsplit; `/climb`
-default mobile; classifier = play surface; client board on non-payout ranking;
-global 60/60s; do not close F-1; `scoreBounds` on every persist.
-
-### Snapshot + tests
-
-- [ ] Snapshot board at run Start; POST that value (NFR-9).
-- [ ] AC-11: unauthenticated POST with `board: "tablet"` → 400 `INVALID_BOARD`,
-      `recordClimb` not called.
-- [ ] AC-8/AC-9: client sends board from snapshot, not width.
-- [ ] FakePrisma: support the stats query path so tests call production
-      `getGlobalClimbStats`.
+- PR #11 merge, `SocialBrandProfile` avoid-terms, `prepare_video_upload`
+- MP4, oEmbed, Twitter player cards, 9:16 OG, Instagram/LinkedIn compose
+- Server-derived `peakY` / F-1 / ranked re-sim
+- Sitemap of `/r/`
+- Unique OG for `/play?r=`
+- Landing grid AC-27 / page background `#0a0a0f` rewrite (OG uses void `#0a0a0c` only)
+- Unscoped `/api/tower` redesign
+- Power-up one-slot vs stacking
+- New view-credit for `/r/{id}`
 
 ---
 
-## 15. Open questions (none blocking)
+## 14. Implementation order (for implementer)
 
-F-1 / server-derived `peakY` remains a product-level open question. This
-architecture records the exception and does not schedule re-sim.
+1. Pure: `parseRecordingId`, `urls.ts`, `limits.ts`, `OG_PALETTE`, `sanitizeOgText`, `jsonLd`, `SHARE_CONTROL_LAYOUT`, `isBot` extras + middleware import.
+2. Data: `recordClimb` `runId`; `getShareableClimbRun`; `listSitemapBlockSlugs`.
+3. Payload + actions builders; POST already spreads result.
+4. Routes: `/r/[id]`, OG recording + square, share JSON, listing OG restyle, record OG, robots, sitemap.
+5. Metadata helpers wired to pages (`notFound` on record unknown slug).
+6. Frontend: ShareRun, dashboard, ClimbScene canonical after `runId`.
 
-Power-up stacking vs one-slot, and unscoped `GET /api/tower` scalars, are
-unrelated ledger items — **not** this change.
+Verifier invokes the symbols in §1; do not grep `route.tsx` for `#0ea5e9` or DESIGN hexes. Prove AC-17 with a **281-character** (and 2201 / 101) fixture that is not sliced.

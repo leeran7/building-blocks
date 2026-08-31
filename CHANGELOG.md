@@ -9,10 +9,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Features
 
+- **Canonical climb-recording URLs** — a saved climb with a replay token is
+  shareable at a short, stable `/r/{id}` link (production origin
+  `https://www.doomstack.lol`). That replaces the long `/play?r={token}` URL
+  that burns X's 280-character limit. Anonymous and unsaved runs still play
+  back via `/play?r=`; those token links keep generic play metadata.
+- **Unique Open Graph and Twitter cards** — `/r/{id}` recordings and
+  `/b/[slug]` listings emit unique `og:title`, `og:description`, `og:image`,
+  `og:url`, and `twitter:card=summary_large_image`. Images use ASCENT tokens
+  (void / signal / ember): landscape 1200×630 for X/OG and square 1080×1080
+  for TikTok. Listing cards no longer use the old sky-blue palette.
+- **Share payload JSON** — `GET /api/share/recording/{id}` returns a public
+  payload (`title`, `caption`, `description`, `hashtags`, `cta`,
+  `canonicalUrl`, `imageUrl`) so an X / TikTok / YouTube marketing agent can
+  fill drafts without inventing copy or overflowing platform limits. Over-limit
+  captions are rejected, not truncated.
+- **Share UI** — ShareRun and dashboard replays offer Share on X (tweet web
+  intent), copy TikTok caption, copy YouTube title and description, and copy
+  link. TikTok and YouTube have no public compose-with-URL intent; the UI
+  copies text instead of inventing a compose URL.
+- **robots.txt and sitemap** — crawlers may fetch `/`, `/play`, `/climb`,
+  `/b/`, `/r/`, and `/api/og`. The sitemap lists home, play, climb, and existing
+  `/b/{slug}` listings. Climb recordings are not bulk-listed in the sitemap.
 - **Mobile / desktop climb leaderboards** — touch (full-bleed) and keyboard
   (9:16) scores rank on separate boards. `/climb` defaults to mobile;
   `?board=desktop` is the other board. Untagged historical records cut over
   to desktop; omit-POST still writes mobile.
+
+### Security
+
+- **TikTok / ByteDance crawlers classified as bots** — `tiktok`,
+  `bytespider`, and `bytedance` user-agents skip paid-stack view credit so
+  unfurls do not inflate listing altitude, and they still receive the HTML
+  document (not 401/403).
 
 ### Infrastructure
 

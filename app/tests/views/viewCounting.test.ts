@@ -13,6 +13,7 @@ import { checkIpCap, ipCapKey, hourBucket } from "../../src/views/ipCap";
 import { checkSessionDedup, dedupKey, thirtyMinBucket } from "../../src/views/sessionDedup";
 import { checkGlobalCeiling, globalCeilKey } from "../../src/views/globalCeiling";
 import { logRaw, logQualified, logCredited } from "../../src/lib/logger";
+import { BOT_UA, CHROME_UA } from "../share/fixtures";
 
 // ── In-memory Redis mock ───────────────────────────────────────────────────
 
@@ -469,5 +470,61 @@ describe("AC-15: Buried block views_served gating", () => {
     const buried = isBuried(altitude, 1500);
     expect(buried).toBe(true);
     expect(groundAtV1500).toBeGreaterThan(altitude);
+  });
+});
+
+// ── Recording-share SEO AC-38 / AC-39 (TikTok / ByteDance unfurl UAs) ──
+describe("isBot TikTok/ByteDance fixtures (AC-38)", () => {
+  it.each([
+    ["Twitterbot", BOT_UA.twitter],
+    ["Googlebot", BOT_UA.google],
+    ["TikTok (no bot/ substring)", BOT_UA.tiktok],
+    ["Bytespider (explicit bytespider, not only spider)", BOT_UA.bytespider],
+    ["ByteDance", BOT_UA.bytedance],
+  ] as const)("returns true for %s", (_label, ua) => {
+    const start = performance.now();
+    expect(isBot(ua)).toBe(true);
+    expect(performance.now() - start).toBeLessThan(1);
+  });
+
+  it("returns false for a desktop Chrome UA (regression)", () => {
+    expect(isBot(CHROME_UA)).toBe(false);
+  });
+
+  it("lists tiktok, bytespider, and bytedance as explicit patterns", () => {
+    expect(BOT_UA_PATTERNS).toContain("tiktok");
+    expect(BOT_UA_PATTERNS).toContain("bytespider");
+    expect(BOT_UA_PATTERNS).toContain("bytedance");
+  });
+
+  it("classifies TikTok without needing the generic bot/ pattern", () => {
+    expect(BOT_UA.tiktok.toLowerCase().includes("bot/")).toBe(false);
+    expect(BOT_UA.tiktok.toLowerCase().includes("spider")).toBe(false);
+    expect(isBot(BOT_UA.tiktok)).toBe(true);
+  });
+});
+
+describe("runViewPipeline credits 0 for unfurl crawlers (AC-39)", () => {
+  it.each([BOT_UA.tiktok, BOT_UA.bytespider, BOT_UA.bytedance, BOT_UA.twitter, BOT_UA.google])(
+    "credited===0 and qualified===0 for %s",
+    async (ua) => {
+      const redis = new MockRedis();
+      const db = new MockDb();
+      const result = await runViewPipeline(makeRequest({ ua }), { redis, db });
+      expect(result.qualified).toBe(0);
+      expect(result.credited).toBe(0);
+      expect(db.views_k).toBe(0);
+    }
+  );
+
+  it("still credits a Chrome UA that would otherwise qualify", async () => {
+    const redis = new MockRedis();
+    const db = new MockDb();
+    const result = await runViewPipeline(makeRequest({ ua: CHROME_UA }), {
+      redis,
+      db,
+    });
+    expect(result.credited).toBe(1);
+    expect(result.qualified).toBe(1);
   });
 });

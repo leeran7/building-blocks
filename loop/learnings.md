@@ -4,8 +4,8 @@ Kernel quality gates (every repo): `skills/closed-loop/gates.md`.
 This file is **building-blocks** memory. Do not copy it into `closed-loop-agents`.
 This product’s stack, git, and trust facts: `context/`.
 
-_Last curated: 2026-08-29T13:40:00Z — retro over the 2026-08-29 review pass
-(`3385d3f..f76090a`, 5 agents, 52 raw learnings in `learnings.jsonl`)._
+_Last curated: 2026-08-31T03:00:00Z — retro over climb-recording share SEO
+(iteration 1, product-spec → release; skip monitor — no production deploy)._
 
 > The Aug 29 ledger was folded by the dispatcher by hand. `foldLearnings` in
 > `orchestrator/src/retro.ts` now implements the three steps
@@ -270,6 +270,17 @@ the same pass — the `learning-loop.md` bar for a permanent guardrail.
 
 ## Recently applied (last 20)
 
+- 2026-08-31 — Climb-recording share SEO: canonical `/r/{cuid}`, standalone
+  share payload (X 280 / TikTok 2200 / YouTube title 100 / description 5000,
+  never slice), unique OG/Twitter cards, GET `/api/share/recording/{id}` for
+  the marketing agent, robots/sitemap with zero `/r/` rows, one `isBot` list
+  including tiktok/bytespider/bytedance. PR #50. Applied.
+- 2026-08-31 — Share JSON is an allow-list DTO (no Prisma spread). Canonical
+  URLs take `resolveBaseUrl()`, never request Host. F-1 peakY remains
+  untrusted display. Applied.
+- 2026-08-31 — Verifier proved AC-1–AC-40 by importing production units
+  (`pnpm test` 58 files / 630 passed). Do not grep `route.tsx` for palette
+  hexes. Applied.
 - 2026-08-29 — `.gitignore` switched from `loop/` to `loop/*` plus negations so the
   learnings ledger is version-controlled (F-16). Applied.
 - 2026-08-29 — 52 learnings from `reviewer`, `security-reviewer`, `frontend`,

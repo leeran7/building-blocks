@@ -1,0 +1,145 @@
+{
+  "agent": "qa-acceptance",
+  "status": "success",
+  "summary": "QA-acceptance of climb-recording share SEO: AC-1–AC-40 all PASS (40/0/0). Re-ran app gates: pnpm test 58 files / 630 passed; pnpm typecheck exit 0. Extra tsx pass of production units for unknown-id/null-token/anonymous POST/over-limit/junk OG/Host spoof/sitemap-zero-/r//empty ShareRun/dashboard null token/generic /play metadata/isBot fixtures. Live Next skipped (DATABASE_URL unset). Did not fail stale landing AC-27/AC-32 comments, react.cache warning, tests-only buildDashboardShareUrl, or security info (A-7, F-1, sanitizer fallback). AC-40 structural (matcher excludes /r/, generateMetadata unauthenticated).",
+  "timestamp": "2026-08-31T02:42:03Z",
+  "goal": "SEO for sharing climb-recording links on X, TikTok, and YouTube so a marketing agent can post them and crawlers unfurl a unique preview (title, description, image, canonical URL) per recording.",
+  "artifacts": [
+    "loop/qa-report.md",
+    "loop/handoffs/qa-acceptance-2026-08-31T02:42:03Z.json",
+    "loop/learnings.jsonl"
+  ],
+  "exitCriteria": {
+    "every_ac_pass_or_fail": true,
+    "acs_1_to_40_pass": true,
+    "failed_count": 0,
+    "untestable_count": 0,
+    "pnpm_test_pass": true,
+    "pnpm_typecheck_pass": true,
+    "negative_paths_checked": true,
+    "exploratory_checked": true,
+    "qa_report_written": true,
+    "landing_ac_27_32_not_failed": true,
+    "reviewer_warnings_not_ac_failures": true,
+    "security_info_not_ac_failures": true,
+    "ac40_structural_accepted": true,
+    "live_server_skipped_no_database_url": true
+  },
+  "gates": {
+    "app-test": {
+      "command": "pnpm test",
+      "cwd": "app",
+      "exit": 0,
+      "result": "58 files, 630 passed, 6.29s"
+    },
+    "app-typecheck": {
+      "command": "pnpm typecheck",
+      "cwd": "app",
+      "exit": 0
+    }
+  },
+  "acResults": [
+    {"ac": "AC-1", "result": "pass", "evidence": "app/tests/api/climbResult.route.test.ts:166"},
+    {"ac": "AC-2", "result": "pass", "evidence": "app/tests/share/urls.test.ts:16"},
+    {"ac": "AC-3", "result": "pass", "evidence": "app/tests/db/climbShare.test.ts:125"},
+    {"ac": "AC-4", "result": "pass", "evidence": "app/tests/api/climbResult.route.test.ts:205"},
+    {"ac": "AC-5", "result": "pass", "evidence": "app/tests/seo/recordingMetadata.test.ts:84; app/tests/og/handlers.test.ts:66; app/tests/share/http.test.ts:51"},
+    {"ac": "AC-6", "result": "pass", "evidence": "app/tests/db/climbShare.test.ts:59"},
+    {"ac": "AC-7", "result": "pass", "evidence": "app/tests/share/parseRecordingId.test.ts:21"},
+    {"ac": "AC-8", "result": "pass", "evidence": "app/tests/seo/recordingMetadata.test.ts:38"},
+    {"ac": "AC-9", "result": "pass", "evidence": "app/tests/seo/recordingMetadata.test.ts:38"},
+    {"ac": "AC-10", "result": "pass", "evidence": "app/tests/seo/playMetadata.test.ts:19"},
+    {"ac": "AC-11", "result": "pass", "evidence": "app/tests/seo/recordingMetadata.test.ts:84"},
+    {"ac": "AC-12", "result": "pass", "evidence": "app/tests/share/payload.test.ts:23"},
+    {"ac": "AC-13", "result": "pass", "evidence": "app/tests/share/payload.test.ts:65"},
+    {"ac": "AC-14", "result": "pass", "evidence": "app/tests/share/payload.test.ts:84"},
+    {"ac": "AC-15", "result": "pass", "evidence": "app/tests/share/http.test.ts:51"},
+    {"ac": "AC-16", "result": "pass", "evidence": "app/tests/share/payload.test.ts:113"},
+    {"ac": "AC-17", "result": "pass", "evidence": "app/tests/share/limits.test.ts:56"},
+    {"ac": "AC-18", "result": "pass", "evidence": "app/tests/share/payload.test.ts:122"},
+    {"ac": "AC-19", "result": "pass", "evidence": "app/tests/share/limits.test.ts:27"},
+    {"ac": "AC-20", "result": "pass", "evidence": "app/tests/og/paletteSizes.test.ts:34"},
+    {"ac": "AC-21", "result": "pass", "evidence": "app/tests/og/handlers.test.ts:102"},
+    {"ac": "AC-22", "result": "pass", "evidence": "app/tests/og/paletteSizes.test.ts:17"},
+    {"ac": "AC-23", "result": "pass", "evidence": "app/tests/og/handlers.test.ts:48"},
+    {"ac": "AC-24", "result": "pass", "evidence": "app/tests/share/urls.test.ts:93"},
+    {"ac": "AC-25", "result": "pass", "evidence": "app/tests/share/urls.test.ts:34"},
+    {"ac": "AC-26", "result": "pass", "evidence": "app/tests/share/actions.test.ts:20"},
+    {"ac": "AC-27", "result": "pass", "evidence": "app/tests/share/actions.test.ts:35"},
+    {"ac": "AC-28", "result": "pass", "evidence": "app/tests/share/actions.test.ts:47"},
+    {"ac": "AC-29", "result": "pass", "evidence": "app/tests/share/dashboard.test.ts:13"},
+    {"ac": "AC-30", "result": "pass", "evidence": "app/tests/share/dashboard.test.ts:25"},
+    {"ac": "AC-31", "result": "pass", "evidence": "app/tests/share/controlLayout.test.tsx:18"},
+    {"ac": "AC-32", "result": "pass", "evidence": "app/tests/seo/recordMetadata.test.ts:43"},
+    {"ac": "AC-33", "result": "pass", "evidence": "app/tests/og/paletteSizes.test.ts:45"},
+    {"ac": "AC-34", "result": "pass", "evidence": "app/tests/seo/recordMetadata.test.ts:64"},
+    {"ac": "AC-35", "result": "pass", "evidence": "app/tests/seo/robotsSitemap.test.ts:30"},
+    {"ac": "AC-36", "result": "pass", "evidence": "app/tests/seo/robotsSitemap.test.ts:50"},
+    {"ac": "AC-37", "result": "pass", "evidence": "app/tests/share/jsonLd.test.ts:11"},
+    {"ac": "AC-38", "result": "pass", "evidence": "app/tests/views/viewCounting.test.ts:477"},
+    {"ac": "AC-39", "result": "pass", "evidence": "app/tests/views/viewCounting.test.ts:507"},
+    {"ac": "AC-40", "result": "pass", "evidence": "app/tests/seo/recordingPagePublic.test.ts:32", "note": "Structural: matcher has no /r/; generateMetadata unauthenticated. Live Twitterbot GET skipped — DATABASE_URL unset."}
+  ],
+  "skipped": [
+    {
+      "what": "Live next start GET /robots.txt /sitemap.xml /api/og /r/not-a-real-id /api/share/recording/not-a-real-id and Twitterbot GET of a real /r/{id}",
+      "reason": "DATABASE_URL unset; no app/.env.local. In-process handler tests already 404 unknown ids. AC-40 live crawler GET is optional e2e."
+    }
+  ],
+  "pingsAnswered": [
+    {
+      "from": "product-spec",
+      "insight": "Do not fail this change for featured-grid / landing AC-27/AC-32 comments",
+      "applied": "Noted on app/app/page.tsx; not an AC fail. QA scored loop/spec.md AC-1–AC-40 only."
+    },
+    {
+      "from": "architect/implementer/verifier",
+      "insight": "Import production units; prove AC-17 with 281-char fixture; do not grep route.tsx for palette",
+      "applied": "Cited verifier coverageMatrix file:line; extra tsx invoked builders. AC-17 281/2201/101 no slice. OG_PALETTE imported in tests."
+    },
+    {
+      "from": "verifier/security-reviewer",
+      "insight": "AC-40 live Twitterbot GET is optional; structural matcher + unauthenticated generateMetadata is acceptable",
+      "applied": "PASS on recordingPagePublic.test.ts. Did not mark untestable. Did not start Next without DATABASE_URL."
+    },
+    {
+      "from": "reviewer",
+      "insight": "react.cache guard and tests-only buildDashboardShareUrl are warnings, not AC failures",
+      "applied": "AC-29/AC-3 still pass via payload canonicalUrl and recordClimb.runId. Not looped back to implementer."
+    },
+    {
+      "from": "security-reviewer",
+      "insight": "Enumeration A-7, F-1 display-only peak, sanitizer empty fallback are not AC failures",
+      "applied": "No fail. F-1 left open. Sitemap zero /r/ confirmed."
+    }
+  ],
+  "feedback": [],
+  "learnings": [
+    {
+      "topic": "testing",
+      "forAgents": ["integrator", "qa-acceptance", "all"],
+      "kind": "metric",
+      "insight": "QA-acceptance scored AC-1–AC-40 all pass. pnpm test (app/): 58 files, 630 passed, 6.29s. pnpm typecheck: exit 0. Extra production-unit tsx: 35/35 including Host spoof, 281-char no-slice, junk OG, sitemap zero /r/, ShareRun empty/too-long, dashboard null token, AC-38 isBot fixtures. Live Next skipped (DATABASE_URL unset).",
+      "action": "Integrator: treat qa-acceptance as success and run CI. Do not loopBackTo implementer for react.cache, tests-only buildDashboardShareUrl, landing AC-27/32 comments, or missing live Twitterbot GET.",
+      "confidence": "high"
+    },
+    {
+      "topic": "testing",
+      "forAgents": ["qa-acceptance", "devops", "integrator"],
+      "kind": "lesson",
+      "insight": "This Cloud Agent environment had no DATABASE_URL and no app/.env.local. Starting next to GET /robots.txt or /r/not-a-real-id would not add AC proof beyond in-process handler tests, and Prisma-down 500 vs 404 cannot be distinguished without a running server. Spec AC-40 live crawler GET is optional e2e.",
+      "action": "When DATABASE_URL is missing, skip live next, record the skip, and accept AC-40 from middleware config.matcher (no /r/) plus unauthenticated generateMetadata. Do not mark AC-40 untestable if verifier already invoked those units.",
+      "confidence": "high"
+    },
+    {
+      "topic": "Orchestration",
+      "forAgents": ["integrator", "orchestrator"],
+      "kind": "pitfall",
+      "insight": "loop/qa-report.md is ignored by gitignore loop/* (only learnings, spec, architecture, handoffs, package-upgrade are re-included). A clone will not see the markdown report.",
+      "action": "Read the AC matrix from loop/handoffs/qa-acceptance-*.json acResults, not only loop/qa-report.md. Do not force-add qa-report.md unless gitignore is updated.",
+      "confidence": "high"
+    }
+  ],
+  "nextStage": "integrator",
+  "loopBackTo": "implementer"
+}

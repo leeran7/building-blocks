@@ -5,6 +5,15 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from "vitest";
+
+vi.mock("react", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("react")>();
+  return {
+    ...actual,
+    cache: <T extends (...args: never[]) => unknown>(fn: T) => fn,
+  };
+});
+
 import { store, resetStore, fakePrisma } from "./fakePrisma";
 import {
   recordClimb,
