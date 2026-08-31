@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Documentation
+
+- Canonical human-facing investigation for launching The Climb on iOS and mobile alone: [`docs/ios-mobile-launch.md`](docs/ios-mobile-launch.md) (Safari + Home Screen, not App Store).
+
 ### Infrastructure
 
 - **CI required to merge into `main`** — workflow job names are now the
