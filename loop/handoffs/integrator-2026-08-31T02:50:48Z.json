@@ -1,0 +1,200 @@
+{
+  "agent": "integrator",
+  "status": "success",
+  "summary": "PR #50 (cursor/seo-recording-share-5f7b) is merge-ready against origin/development: MERGEABLE, mergeStateStatus CLEAN, 0 conflicts, 0 behind / 8 ahead (73 files, +5483/−243). All context/gates.json commands exited 0. Required GitHub Actions checks on HEAD 1c332c7 succeeded (run 33351736486). Vercel preview also SUCCESS (not a git.md required check). Earlier red runs on this branch were superseded (cc576ad tests; a21f765 typecheck) and fixed at 41c5936. Did not expand reviewer warnings (react.cache; tests-only buildDashboardShareUrl). Did not merge, did not deploy, did not change workflows, did not commit tsbuildinfo. PR remains draft — orchestrator owns ready-for-review.",
+  "timestamp": "2026-08-31T02:50:48Z",
+  "goal": "SEO for sharing climb-recording links on X, TikTok, and YouTube so a marketing agent can post them and crawlers unfurl a unique preview (title, description, image, canonical URL) per recording.",
+  "pr": {
+    "number": 50,
+    "url": "https://github.com/leeran7/building-blocks/pull/50",
+    "base": "development",
+    "head": "cursor/seo-recording-share-5f7b",
+    "headSha": "1c332c7631bd395951ac6dbb4c1d23258afa4faf",
+    "isDraft": true,
+    "mergeable": "MERGEABLE",
+    "mergeStateStatus": "CLEAN",
+    "reviews": 0,
+    "reviewComments": 0,
+    "issueComments": "vercel[bot] deployment table only"
+  },
+  "diffBase": "origin/development",
+  "mergeability": {
+    "mergeBase": "4593c5fafdfaa82cc2cb32b487fc9d9b59fbd416",
+    "ahead": 8,
+    "behind": 0,
+    "conflicts": 0,
+    "mergeTree": "clean",
+    "diffstat": "73 files changed, 5483 insertions(+), 243 deletions(-)"
+  },
+  "artifacts": [
+    "loop/handoffs/integrator-2026-08-31T02:50:48Z.json",
+    "loop/learnings.jsonl"
+  ],
+  "exitCriteria": {
+    "branch_assessed_vs_development": true,
+    "no_conflicts": true,
+    "gates_json_all_green": true,
+    "required_github_checks_green": true,
+    "did_not_merge": true,
+    "did_not_deploy": true,
+    "did_not_change_workflows": true,
+    "did_not_commit_tsbuildinfo": true,
+    "did_not_expand_accepted_warnings": true
+  },
+  "gates": {
+    "app-lint": {
+      "command": "pnpm lint",
+      "cwd": "app",
+      "exit": 0,
+      "result": "next lint --max-warnings=0: No ESLint warnings or errors"
+    },
+    "app-typecheck": {
+      "command": "pnpm typecheck",
+      "cwd": "app",
+      "exit": 0
+    },
+    "app-test": {
+      "command": "pnpm test",
+      "cwd": "app",
+      "exit": 0,
+      "result": "58 files, 630 passed, 4.86s"
+    },
+    "orchestrator-typecheck": {
+      "command": "yarn typecheck",
+      "cwd": "orchestrator",
+      "exit": 0
+    },
+    "orchestrator-test": {
+      "command": "yarn test",
+      "cwd": "orchestrator",
+      "exit": 0,
+      "result": "15 suites, 56 passed"
+    },
+    "pack-hygiene": {
+      "command": "node scripts/hygiene.mjs",
+      "cwd": ".",
+      "exit": 0,
+      "result": "22 source agents scanned, 0 violations"
+    }
+  },
+  "githubActions": {
+    "branch": "cursor/seo-recording-share-5f7b",
+    "requiredChecks": [
+      "Lint, Typecheck, and Test",
+      "Orchestrator loop",
+      "CI"
+    ],
+    "headRun": {
+      "sha": "1c332c7631bd395951ac6dbb4c1d23258afa4faf",
+      "id": 33351736486,
+      "url": "https://github.com/leeran7/building-blocks/actions/runs/33351736486",
+      "conclusion": "success",
+      "jobs": {
+        "Lint, Typecheck, and Test": "success",
+        "Orchestrator loop": "success",
+        "CI": "success"
+      }
+    },
+    "nonRequired": {
+      "Vercel": "success",
+      "Vercel Preview Comments": "success",
+      "note": "Not in context/git.md required checks. Listed for completeness after pending→success."
+    },
+    "supersededFailures": [
+      {
+        "id": 33349806395,
+        "sha": "cc576ad1706b826150f89cba05102dc8b9bc13ba",
+        "url": "https://github.com/leeran7/building-blocks/actions/runs/33349806395",
+        "failedJob": "Lint, Typecheck, and Test",
+        "step": "Run tests",
+        "note": "Implementer commit before verifier coverage/typecheck fix."
+      },
+      {
+        "id": 33350383545,
+        "sha": "a21f765ec35cb9a9f32ae4427b1ce45969e77b97",
+        "url": "https://github.com/leeran7/building-blocks/actions/runs/33350383545",
+        "failedJob": "Lint, Typecheck, and Test",
+        "step": "Typecheck",
+        "note": "Fixed in 41c5936 (twitter.card narrowing + react.cache test mocks)."
+      }
+    ],
+    "subsequentSuccesses": [
+      33350664943,
+      33351209015,
+      33351639204,
+      33351736486
+    ]
+  },
+  "pingsAnswered": [
+    {
+      "from": "qa-acceptance",
+      "insight": "Treat qa-acceptance as success and run CI. Do not loopBackTo implementer for react.cache, tests-only buildDashboardShareUrl, landing AC-27/32 comments, or missing live Twitterbot GET.",
+      "applied": "Local gates re-run green. Required GitHub checks green. Warnings left as accepted. nextStage release."
+    },
+    {
+      "from": "qa-acceptance",
+      "insight": "When DATABASE_URL is missing, skip live next and accept AC-40 from matcher + unauthenticated generateMetadata.",
+      "applied": "Did not start Next. Did not mark AC-40 untestable."
+    },
+    {
+      "from": "qa-acceptance",
+      "insight": "Read AC matrix from qa-acceptance handoff acResults, not only gitignored loop/qa-report.md.",
+      "applied": "Used loop/handoffs/qa-acceptance-2026-08-31T02:42:03Z.json (AC-1–AC-40 all pass). Did not force-add qa-report.md."
+    },
+    {
+      "from": "devops",
+      "insight": "on: pull_request does not block merges; required check names are load-bearing.",
+      "applied": "Did not merge. Confirmed PR check names match git.md / ci.yml jobs: Lint, Typecheck, and Test; Orchestrator loop; CI. All SUCCESS. This PR targets development; git.md ruleset is ~DEFAULT_BRANCH (main)."
+    }
+  ],
+  "warningsLeftOpen": [
+    {
+      "source": "reviewer",
+      "severity": "warning",
+      "location": "app/src/db/climb.ts",
+      "issue": "react.cache module-load guard (vitest/node only; Next compiled React exports cache)"
+    },
+    {
+      "source": "reviewer",
+      "severity": "warning",
+      "location": "app/src/share/dashboard.ts",
+      "issue": "buildDashboardShareUrl is tests-only; dashboard copy uses buildDashboardShareActions canonicalUrl"
+    }
+  ],
+  "feedback": [
+    {
+      "severity": "info",
+      "message": "PR #50 is still a draft. mergeStateStatus is CLEAN and required CI is green. User forbade merge/deploy. Orchestrator owns PR body and ready-for-review.",
+      "file": "https://github.com/leeran7/building-blocks/pull/50",
+      "action": "Release: version/tag only if product asks; do not merge this draft; do not deploy."
+    }
+  ],
+  "learnings": [
+    {
+      "topic": "Build / CI",
+      "forAgents": ["release", "orchestrator", "all"],
+      "kind": "metric",
+      "insight": "Integrator vs origin/development on cursor/seo-recording-share-5f7b @ 1c332c7: 0 conflicts, MERGEABLE, CLEAN. Local gates.json all exit 0 (app lint/typecheck/test 58 files 630 passed; orchestrator typecheck + 56 tests; hygiene 0 violations). Required GH checks SUCCESS on run 33351736486. Vercel SUCCESS (non-required). Did not merge.",
+      "action": "Release next. Do not merge or deploy unless a human asks. Do not loopBackTo implementer for react.cache or tests-only buildDashboardShareUrl.",
+      "confidence": "high"
+    },
+    {
+      "topic": "Build / CI",
+      "forAgents": ["integrator", "devops"],
+      "kind": "pitfall",
+      "insight": "pnpm typecheck in app/ dirties tracked app/tsconfig.tsbuildinfo. app/.gitignore lists tsconfig.tsbuildinfo, but the file is still in git from older commits (not this PR's diff vs development). Staging it would violate Do not commit tsbuildinfo.",
+      "action": "After app typecheck, git checkout -- app/tsconfig.tsbuildinfo and never git add it. Untracking belongs in a separate hygiene change, not a product PR.",
+      "confidence": "high"
+    },
+    {
+      "topic": "Build / CI",
+      "forAgents": ["integrator", "release"],
+      "kind": "lesson",
+      "insight": "GitHub reported mergeStateStatus BLOCKED on this MERGEABLE draft while the Vercel commit status was PENDING, then CLEAN after Vercel SUCCESS. Required Actions jobs were already SUCCESS during BLOCKED. Draft + pending non-required status is not an in-scope CI failure.",
+      "action": "Treat git.md required check names as the merge gate. If those are success and mergeable is MERGEABLE, do not loopBackTo implementer for Vercel-pending BLOCKED or for isDraft.",
+      "confidence": "high"
+    }
+  ],
+  "nextStage": "release",
+  "loopBackTo": "implementer"
+}
