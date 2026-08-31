@@ -1,6 +1,6 @@
 # Release
 
-**When:** shipping, deploying, or closing a whole-app run.
+**When:** shipping, deploying, or closing a closed-loop run.
 
 `agents/release.md` → `agents/monitor.md` → `agents/curator.md`.
 

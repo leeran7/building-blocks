@@ -1,16 +1,18 @@
 ---
 name: closed-loop
 description: >-
-  Orchestrates the full closed-loop app build: spec → architecture →
+  Orchestrates the closed-loop agent pipeline: spec → architecture →
   implementation → verification → review → CI → release → monitor →
-  curator. Use when building an entire app autonomously, running the
-  agent loop, or coordinating multiple subagents in sequence. Works in
-  Cursor and Claude Code.
+  curator. Use when running the agent loop on a goal of any size, or
+  coordinating multiple subagents in sequence. Works in Cursor and
+  Claude Code.
 ---
 
-# Closed Loop App Builder
+# Closed Loop
 
-Run the full agent loop to build an app from intent to merge-ready code.
+Run the agent loop from intent to merge-ready code. Scope is the user’s
+goal — a bug, a feature, or a new app. Do not expand the goal into a
+full-app rewrite.
 
 **Start here:** [`INDEX.md`](../../INDEX.md). Installing the pack:
 [`pack/SETUP.md`](../../pack/SETUP.md). Repo facts live in `context/`.
@@ -18,7 +20,7 @@ Run the full agent loop to build an app from intent to merge-ready code.
 ## Before starting
 
 1. Read [INDEX.md](../../INDEX.md) and [RULES.md](../../RULES.md). Do not load the rest of the tree.
-2. Read [stages.md](stages.md) only when routing the whole-app graph.
+2. Read [stages.md](stages.md) only when routing the loop graph.
 3. Read [handoffs.md](handoffs.md) when writing a handoff and you need the shape.
 4. Read [team.md](team.md) — the orchestrator must actually dispatch the team.
    Impersonating a specialist (doing their work in the parent) is a loop defect.
@@ -33,7 +35,7 @@ Write `loop/state.json`:
 
 ```json
 {
-  "goal": "<user's app goal>",
+  "goal": "<user's goal>",
   "currentStage": "product-spec",
   "iteration": 1,
   "maxIterations": 10,

@@ -6,7 +6,7 @@ Generic jobs. No product facts. Sync to `.cursor/agents/` and `.claude/agents/` 
 
 **Authoritative:** the named `agents/<role>.md`. `claude.config.json` is Claude tool config only.
 
-## Pipeline (whole-app)
+## Pipeline (closed-loop)
 
 | File | Read when |
 |------|-----------|

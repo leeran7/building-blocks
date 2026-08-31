@@ -22,7 +22,7 @@ Stop as soon as you can do the work.
 
 | Task | Next |
 |------|------|
-| Whole-app closed loop | `workflows/closed-loop.md` |
+| Closed loop (any scope) | `workflows/closed-loop.md` |
 | Implement / fix product code | `workflows/implement.md` |
 | Review a diff | `workflows/review.md` |
 | Debug a failure | `workflows/debug.md` |

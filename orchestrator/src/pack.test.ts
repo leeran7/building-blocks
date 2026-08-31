@@ -134,6 +134,11 @@ describe("pack hygiene", () => {
     assert.match(index, /RULES\.md/);
     assert.match(index, /workflows\//);
     assert.doesNotMatch(index, /Standing rules \(always apply\)/);
+    assert.doesNotMatch(index, /Whole-app closed loop/);
+    assert.doesNotMatch(index, /entire app/);
+    const skill = await readFile(join(REPO_ROOT, "skills", "closed-loop", "SKILL.md"), "utf-8");
+    assert.doesNotMatch(skill, /Closed Loop App Builder/);
+    assert.doesNotMatch(skill, /entire app autonomously/);
   });
 
   it("fixLoopGitignore rewrites loop/ so learnings are not ignored", async () => {

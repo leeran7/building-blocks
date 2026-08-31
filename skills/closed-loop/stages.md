@@ -42,7 +42,7 @@ clamps skips back onto the sequence (see [team.md](team.md)).
 | Cloud/infra changes | devops |
 | Post-deploy | monitor |
 | Missing docs | docs |
-| End of a whole-app run (always) | curator |
+| End of a loop run (always) | curator |
 
 ## Specialist delegation
 

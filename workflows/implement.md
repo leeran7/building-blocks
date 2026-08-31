@@ -1,6 +1,6 @@
 # Implement
 
-**When:** writing or fixing product or pack runtime code (not running the full loop).
+**When:** writing or fixing product or pack runtime code as the implementer (you are not orchestrating).
 
 1. `context/profile.json` (stack + package manager for the path you touch)
 2. `context/conventions.md`

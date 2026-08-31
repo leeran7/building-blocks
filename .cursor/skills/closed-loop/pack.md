@@ -154,7 +154,7 @@ manager, the old design-resource URL list). `yarn sync` runs hygiene first.
 
 ## Roster
 
-Required on a **whole-app** closed-loop run:
+Required on an orchestrated closed-loop run (any goal size):
 
 `product-spec → architect → implementer → verifier → reviewer +
 security-reviewer → qa-acceptance → integrator`
@@ -166,9 +166,9 @@ when those are skipped for local-only).
 Specialists (delegated from implementer, not pipeline stages): `frontend`,
 `backend`, `data`, `mobile`, `performance`, `compliance`, `cost`.
 
-Incremental work in an existing repo uses `workflows/review.md`
-(substantial / minor / trivial) — not the eight-agent clamp. The clamp is
-for `@orchestrator` / `yarn loop`.
+The clamp is for `@orchestrator` / `yarn loop`. Scope is the user’s goal,
+not a full-app rewrite. A single-role implement (no orchestrator) still
+uses `workflows/review.md` (substantial / minor / trivial) before merge.
 
 ## File map
 
