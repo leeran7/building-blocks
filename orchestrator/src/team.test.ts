@@ -72,6 +72,22 @@ describe("clampNextStage — never skip the team", () => {
   it("keeps qa-acceptance from skipping integrator", () => {
     assert.equal(clampNextStage("qa-acceptance", "release"), "integrator");
   });
+
+  it("sends monitor to curator, the last stage", () => {
+    assert.equal(nextInSequence("monitor"), "curator");
+    assert.equal(clampNextStage("monitor", undefined), "curator");
+    assert.equal(clampNextStage("monitor", "implementer"), "curator");
+    assert.equal(nextInSequence("curator"), null);
+    assert.equal(clampNextStage("curator", "implementer"), null);
+  });
+
+  it("allows a local-only skip to curator after integrator or release", () => {
+    assert.equal(clampNextStage("integrator", "curator"), "curator");
+    assert.equal(clampNextStage("release", "curator"), "curator");
+    assert.equal(clampNextStage("devops", "curator"), "curator");
+    assert.equal(clampNextStage("docs", "curator"), "curator");
+    assert.equal(clampNextStage("integrator", "release"), "release");
+  });
 });
 
 describe("clampLoopBackTo", () => {

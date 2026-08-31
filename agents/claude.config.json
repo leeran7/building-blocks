@@ -114,5 +114,10 @@
     "disallowedTools": ["Write", "Edit", "Agent"],
     "skills": ["closed-loop"],
     "color": "yellow"
+  },
+  "curator": {
+    "tools": ["Read", "Write", "Edit", "Bash", "Grep", "Glob"],
+    "skills": ["closed-loop"],
+    "color": "purple"
   }
 }

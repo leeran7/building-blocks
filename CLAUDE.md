@@ -22,8 +22,8 @@ Fix critical findings and re-run until `status: success`. Persist read-only
 agents’ `learnings` into `loop/learnings.jsonl`.
 
 Product facts go in `context/` or the ledger. Kernel-generic `[all]` lessons
-are proposed for `skills/closed-loop/gates.md`. Do not paste them into all
-22 agent files.
+are proposed for `skills/closed-loop/gates.md`. Do not paste them into every
+role file — the `curator` (last stage) applies those promotions.
 
 Git remotes and branch policy: `context/git.md`. Package managers and
 gates: `context/profile.json` and `context/gates.json`.

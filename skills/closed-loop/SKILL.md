@@ -77,9 +77,13 @@ Write `loop/state.json`:
 6. **Retro** — after each iteration/loop-back, fold new `loop/learnings.jsonl`
    entries into `loop/learnings.md`, promote any lesson seen 2+ times to a
    standing rule, and surface top learnings in the stage report (see
-   [learning-loop.md](learning-loop.md)).
-7. **Repeat** until terminal conditions in stages.md are met or `maxIterations` reached.
-8. **Report** — summarize artifacts, PR URL, test results, remaining warnings, and learnings recorded.
+   [learning-loop.md](learning-loop.md)). Do **not** edit role files here.
+7. **Repeat** until product stages in stages.md are met or `maxIterations` reached.
+8. **Curator (last)** — dispatch `curator`. It routes this run’s findings into
+   `context/`, `gates.md`, the ledger, or a **single** role file when that job
+   must change. Zero writes is success. Never impersonate the curator.
+9. **Report** — summarize artifacts, PR URL, test results, remaining warnings,
+   learnings recorded, and curator routing (files updated or none).
 
 ## Subagent roster
 
@@ -99,6 +103,7 @@ Write `loop/state.json`:
 | 11 | monitor | Production observability |
 | 12 | docs | Documentation |
 | 13 | debugger | Root-cause unclear failures |
+| 14 | curator | Last stage: promote findings into context / gates / one role |
 
 Specialists (delegated from implementer): frontend, backend, data, mobile, design-ux, performance, compliance, cost.
 

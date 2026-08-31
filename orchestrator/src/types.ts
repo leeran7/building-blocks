@@ -89,7 +89,8 @@ export type Stage =
   | "release"
   | "monitor"
   | "docs"
-  | "debugger";
+  | "debugger"
+  | "curator";
 
 /** Required team members the orchestrator must actually dispatch. Cannot skip. */
 export const REQUIRED_TEAM: Stage[] = [
@@ -117,6 +118,7 @@ export const REQUIRED_SEQUENCE: Stage[] = [
   "integrator",
   "release",
   "monitor",
+  "curator",
 ];
 
 export const PRIMARY_PIPELINE: Stage[] = [
@@ -130,6 +132,7 @@ export const PRIMARY_PIPELINE: Stage[] = [
   "integrator",
   "release",
   "monitor",
+  "curator",
 ];
 
 export function normalizeState(state: LoopState): LoopState {

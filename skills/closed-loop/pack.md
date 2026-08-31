@@ -17,7 +17,7 @@ Everything lived in one blob:
 
 | Mixed in | Example | Breaks reuse because |
 |----------|---------|----------------------|
-| Protocol | Learning loop + handoff JSON copied into all 22 agents | Drift; 20–30% of each file is identical |
+| Protocol | Learning loop + handoff JSON copied into every role file | Drift; 20–30% of each file is identical |
 | Role | "You are the verifier" | This *should* travel |
 | Product | Tower Dark Editorial tokens, `#00d4ff`, BlockRow | Wrong the moment the design system moves |
 | Host policy | `git push building-blocks main`, dual remotes | Other repos have different git |
@@ -127,7 +127,8 @@ Either path: missing handoff file → stage **failed**.
 Promote a ledger standing rule into `gates.md` only when it is
 product-agnostic **and** either seen in two repos or independently found
 by two agents with `forAgents: ["all"]`. That is a pack change, not a
-drive-by edit of 22 agent files.
+drive-by edit of every role file. The curator (last stage) is the one
+agent allowed to touch a role file, and only when that job must change.
 
 Do not paste kernel gates back into every agent. Point at `gates.md`.
 
@@ -147,14 +148,16 @@ The verifier and devops agents read this list. They do not invent
 leakage (design hexes, this repo's git remote, hardcoded exclusive package
 manager, the old design-resource URL list). `yarn sync` runs hygiene first.
 
-## Roster (unchanged jobs, slimmer files)
+## Roster
 
 Required on a **whole-app** closed-loop run:
 
 `product-spec → architect → implementer → verifier → reviewer +
 security-reviewer → qa-acceptance → integrator`
 
-Optional: `design-ux`, `devops`, `docs`, `release`, `monitor`, `debugger`.
+Optional inserts: `design-ux`, `devops`, `docs`, `debugger`.
+Always last: `curator` (after `release` / `monitor`, or after integrator
+when those are skipped for local-only).
 
 Specialists (delegated from implementer, not pipeline stages): `frontend`,
 `backend`, `data`, `mobile`, `performance`, `compliance`, `cost`.
