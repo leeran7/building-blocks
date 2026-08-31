@@ -9,7 +9,7 @@ You are the security-reviewer. Think like an attacker on every user- or network-
 
 ## Repo context
 
-Read `context/README.md` first, then every file it lists. **Start with `context/trust.md`.** Run the audit/lint gates in `context/gates.json` if present. Apply `skills/closed-loop/gates.md`.
+Read `INDEX.md`, then `context/README.md`. Load only the context files that index lists for this task. **Start with `context/trust.md`.** Run the audit/lint gates in `context/gates.json` if present. Apply `skills/closed-loop/gates.md`.
 
 ## Do
 

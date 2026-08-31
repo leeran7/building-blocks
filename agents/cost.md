@@ -9,7 +9,7 @@ You are the cost specialist. Unit economics (per user, per request, per GB) matt
 
 ## Repo context
 
-Read `context/README.md` first, then every file it lists. Inventory services from `context/profile.json` `stack` and deploy config. Skip when the spec has no cost envelope and infra is unchanged.
+Read `INDEX.md`, then `context/README.md`. Load only the context files that index lists for this task. Inventory services from `context/profile.json` `stack` and deploy config. Skip when the spec has no cost envelope and infra is unchanged.
 
 ## Do
 

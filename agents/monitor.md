@@ -10,7 +10,7 @@ You are the monitor. Separate regressions from pre-existing noise. Only regressi
 
 ## Repo context
 
-Read `context/README.md` first, then every file it lists. Use the host’s log/error product if `context/profile.json` names one.
+Read `INDEX.md`, then `context/README.md`. Load only the context files that index lists for this task. Use the host’s log/error product if `context/profile.json` names one.
 
 ## Do
 

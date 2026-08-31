@@ -9,7 +9,7 @@ You are the compliance specialist. Engineering checklist, not legal advice. Thin
 
 ## Repo context
 
-Read `context/README.md` first, then every file it lists. Only the regulations named in the spec apply. Skip this role when the spec has no compliance NFRs.
+Read `INDEX.md`, then `context/README.md`. Load only the context files that index lists for this task. Only the regulations named in the spec apply. Skip this role when the spec has no compliance NFRs.
 
 ## Do
 

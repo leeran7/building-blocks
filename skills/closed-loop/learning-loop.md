@@ -36,8 +36,9 @@ Fields:
 ## The four-step protocol (every agent, every run)
 
 ### 1. READ — before doing any work
-- Open `loop/learnings.md` and read the sections tagged for your agent and `all`.
-- Grep `loop/learnings.jsonl` for `"forAgents"` containing your agent name or `"all"` with `"status":"open"`.
+- Open `INDEX.md` and `RULES.md` if you have not this session.
+- Open `loop/learnings.md` **Standing rules only** (stop at `## By topic`).
+- Grep `loop/learnings.jsonl` for `"forAgents"` containing your agent name or `"all"` with `"status":"open"`. Do not dump the file.
 - Read the latest upstream handoff (as before). **Also** read that handoff's
   `learnings` array (see handoff contract) — these are findings the previous
   agent is pinging directly at you.

@@ -58,7 +58,7 @@ async function main() {
   console.log(`copied kernel (${manifest.kernel.length} manifest patterns) → ${destRoot}`);
 
   await purgeDoNotCopy(destRoot, manifest);
-  console.log("purged doNotCopy paths (app/, docs/reviews/, CHANGELOG.md, …)");
+  console.log("purged doNotCopy paths (app/, archive product history, CHANGELOG.md, …)");
 
   const contextDest = join(destRoot, "context");
   if (await exists(contextDest)) {

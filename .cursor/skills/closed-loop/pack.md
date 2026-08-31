@@ -108,13 +108,17 @@ product memory.
 
 ## Runtime: how an agent sees the layers
 
-1. **Cursor / Claude Code** — platform agent file = protocol (prepended by
+1. **Cursor / Claude Code** — platform agent file = `stub.md` (prepended by
    sync) + role body. Skills live under `skills/closed-loop/` or
-   `.claude/skills/closed-loop/`. The agent reads `context/` and the ledger.
-2. **`yarn loop`** — `buildStagePrompt` wraps goal, **repo `context/`**,
-   prior handoff, and learnings as untrusted data, then the role body.
+   `.claude/skills/closed-loop/`. The agent starts at `INDEX.md`, then opens
+   only the `context/` files and ledger sections that indexes mark.
+2. **`yarn loop`** — `buildStagePrompt` wraps goal, **repo `context/` excerpt
+   (README + profile only)**, prior handoff, and Standing-rules excerpt as
+   untrusted data, then the stub + role body. `trust.md` is a Read path, not
+   an embedded excerpt.
 
-Either path: missing handoff file → stage **failed**.
+Either path: missing handoff file → stage **failed**. Do not prepend
+`protocol.md`.
 
 ## Learnings → kernel (promotion)
 
@@ -150,7 +154,7 @@ manager, the old design-resource URL list). `yarn sync` runs hygiene first.
 
 ## Roster
 
-Required on a **whole-app** closed-loop run:
+Required on an orchestrated closed-loop run (any goal size):
 
 `product-spec → architect → implementer → verifier → reviewer +
 security-reviewer → qa-acceptance → integrator`
@@ -162,26 +166,32 @@ when those are skipped for local-only).
 Specialists (delegated from implementer, not pipeline stages): `frontend`,
 `backend`, `data`, `mobile`, `performance`, `compliance`, `cost`.
 
-Incremental work in an existing repo uses the host review classification
-(substantial / minor / trivial) — not the eight-agent clamp. The clamp is
-for `@orchestrator` / `yarn loop`.
+The clamp is for `@orchestrator` / `yarn loop`. Scope is the user’s goal,
+not a full-app rewrite. A single-role implement (no orchestrator) still
+uses `workflows/review.md` (substantial / minor / trivial) before merge.
 
 ## File map
 
 | Path | Layer |
 |------|--------|
-| `pack/SETUP.md` | Install + file tree (start here) |
-| `skills/closed-loop/protocol.md` | Kernel preamble (sync + `loadAgentPrompt` prepend) |
+| `INDEX.md` | Agent entry (routing only) |
+| `RULES.md` | Authority + always-on constraints |
+| `MAP.md` | Tree + expensive paths |
+| `workflows/` | Task routing |
+| `pack/SETUP.md` | Install / file tree |
+| `skills/closed-loop/stub.md` | Prepended onto every role |
+| `skills/closed-loop/protocol.md` | Full before/during/after (opt-in) |
 | `skills/closed-loop/gates.md` | Universal quality gates |
 | `skills/closed-loop/profile.md` | `context/` contract |
 | `skills/closed-loop/handoffs.md` | Handoff JSON contract |
 | `skills/closed-loop/learning-loop.md` | Ledger protocol |
 | `skills/closed-loop/team.md` | Dispatch contract |
 | `skills/closed-loop/stages.md` | Stage graph |
-| `skills/closed-loop/host.md` | Generic CLAUDE/AGENTS body |
+| `skills/closed-loop/host.md` | Generic CLAUDE body (`INDEX.md` pointer) |
 | `agents/*.md` | Roles (point at `context/`) |
 | `context/` | This repo's facts |
 | `pack/templates/context/` | Empty context for a new repo |
 | `pack/profile.schema.json` | `context/profile.json` schema |
-| `loop/learnings.md` | This product's memory |
+| `loop/learnings.md` | This product's memory (Standing rules first) |
+| `archive/` | History; skip |
 

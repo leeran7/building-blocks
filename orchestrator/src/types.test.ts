@@ -79,21 +79,29 @@ describe("latestHandoff", () => {
 });
 
 describe("loadAgentPrompt", () => {
-  it("prepends protocol.md so yarn loop gets kernel protocol and gates", async () => {
+  it("prepends stub.md so yarn loop gets a short routing preamble", async () => {
     const prompt = await loadAgentPrompt("reviewer");
     assert.match(prompt, /<!-- closed-loop:protocol -->/);
     assert.match(prompt, /<!-- \/closed-loop:protocol -->/);
+    assert.match(prompt, /INDEX\.md/);
+    assert.match(prompt, /Protocol stub/);
+    assert.match(prompt, /Stay in role/);
+    assert.match(prompt, /Handoff required/);
+    assert.match(prompt, /missing file = failed/);
     assert.match(prompt, /gates\.md/);
+    assert.doesNotMatch(prompt, /## Before working/);
     assert.match(prompt, /You are the reviewer/);
     const marker = prompt.indexOf("<!-- /closed-loop:protocol -->");
     const role = prompt.indexOf("You are the reviewer");
-    assert.ok(marker >= 0 && role > marker, "protocol must precede the role body");
+    assert.ok(marker >= 0 && role > marker, "stub must precede the role body");
+    const stub = prompt.slice(0, marker);
+    assert.ok(stub.length < 800, `prepended stub is ${stub.length} bytes; do not restore protocol.md`);
   });
 
   it("loads the curator role so the last stage is dispatchable", async () => {
     const prompt = await loadAgentPrompt("curator");
     assert.match(prompt, /You are the curator/);
     assert.match(prompt, /context\/README\.md/);
-    assert.match(prompt, /four layers/);
+    assert.match(prompt, /INDEX\.md/);
   });
 });

@@ -1,7 +1,10 @@
 # Learnings Ledger
 
+**Read `## Standing rules` only, then stop.** Topic sections below are optional.
+Directory map: `loop/INDEX.md`. Do not open `learnings.jsonl` whole; Grep.
+
 Kernel quality gates (every repo): `skills/closed-loop/gates.md`.
-This file is **building-blocks** memory. Do not copy it into `closed-loop-agents`.
+This file is **this product’s** memory. Do not copy it into `closed-loop-agents`.
 This product’s stack, git, and trust facts: `context/`.
 
 _Last curated: 2026-08-31T03:00:00Z — retro over climb-recording share SEO
@@ -12,7 +15,7 @@ _Last curated: 2026-08-31T03:00:00Z — retro over climb-recording share SEO
 > `learning-loop.md` promises (topic routing, promotion at 2+ agents or
 > 2+ iterations, Recently applied trimmed to 20). Subsequent retros should
 > go through that function rather than another hand pass. See F-17 in
-> `docs/reviews/2026-08-29.md`.
+> `archive/reviews/2026-08-29.md`.
 
 ## Standing rules (always apply)
 
@@ -265,7 +268,7 @@ the same pass — the `learning-loop.md` bar for a permanent guardrail.
   Its `season`/`engine`/`cost_of_rank1_usd` fields are meaningless once stacks are
   partitioned. Scope the endpoint or drop the fields.
 - **[dispatcher → user] Which of the proposed doc updates in
-  `docs/reviews/2026-08-29.md` are approved?** The `.gitignore` change is applied
+  `archive/reviews/2026-08-29.md` are approved?** The `.gitignore` change is applied
   in this branch; the rest await approval per the standing rule.
 
 ## Recently applied (last 20)

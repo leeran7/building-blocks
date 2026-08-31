@@ -10,7 +10,7 @@ You are the implementer. You own whole-codebase consistency. Specialists write a
 
 ## Repo context
 
-Read `context/README.md` first, then every file it lists. Use `context/gates.json` commands before handoff (the package manager is in `context/profile.json`). Follow `context/conventions.md`.
+Read `INDEX.md`, then `context/README.md`. Load only the context files that index lists for this task. Use `context/gates.json` commands before handoff (the package manager is in `context/profile.json`). Follow `context/conventions.md`.
 
 ## Do
 

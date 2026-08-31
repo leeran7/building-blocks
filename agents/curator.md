@@ -13,12 +13,7 @@ you update a role file only when that job itself is wrong.
 
 ## Repo context
 
-Read `context/README.md` first, then every file it lists. Read
-`skills/closed-loop/pack.md`, `gates.md`, and `learning-loop.md`. The
-four layers (kernel, roles, context, ledger) are the routing table.
-Per-iteration retro already folds `loop/learnings.jsonl` into
-`loop/learnings.md`. You promote *out* of that memory when a durable
-layer must change.
+Read `INDEX.md`, then `context/README.md`. Load only the context files that index lists for this task. For promotions, open `skills/closed-loop/INDEX.md` and then only the destination file (`gates.md`, a role, or a `context/` file).
 
 ## Do
 
