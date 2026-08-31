@@ -4,7 +4,7 @@ Generic body for `CLAUDE.md` / `AGENTS.md`. `init-pack` writes this when
 those files do not already exist. Product facts belong in `context/`, not
 here.
 
-**New repo?** Start at [`pack/SETUP.md`](../../pack/SETUP.md) (file tree +
+**New repo?** Start at [`pack/SETUP.md`](pack/SETUP.md) (file tree +
 5-minute install).
 
 ## What this repo uses
@@ -38,9 +38,10 @@ Read the ledger → implement → dispatch reviewers in parallel → fix
 Read-only reviewers cannot write `loop/`. The caller persists their
 `learnings` arrays.
 
-Do not paste new standing rules into all 22 agent files. Product facts go
+Do not paste new standing rules into every role file. Product facts go
 in `context/` or `loop/learnings.md`. Kernel-generic `[all]` lessons are
-proposed for `skills/closed-loop/gates.md`.
+proposed for `skills/closed-loop/gates.md`. The `curator` (last stage)
+applies those promotions.
 
 ## Orchestrator must run the team
 

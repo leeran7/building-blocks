@@ -102,5 +102,5 @@ ledger.
 
 A repo standing rule moves here only when it is product-agnostic and was
 found by two or more agents with `forAgents: ["all"]`, or independently in
-two consuming repos. Land it in a pack change. Leave product facts in that
-repo's `loop/learnings.md`.
+two consuming repos. The curator lands it as a pack change at the end of
+the run. Leave product facts in that repo's `loop/learnings.md`.

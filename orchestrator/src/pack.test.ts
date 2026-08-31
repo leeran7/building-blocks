@@ -9,7 +9,7 @@ import { REPO_ROOT } from "./types.js";
 describe("pack hygiene", () => {
   it("every role file points at context/README.md and leaks no product facts", async () => {
     const { filesChecked, violations } = await lintAgents(REPO_ROOT);
-    assert.ok(filesChecked >= 20, `expected a full roster, got ${filesChecked}`);
+    assert.ok(filesChecked >= 23, `expected a full roster including curator, got ${filesChecked}`);
     assert.equal(
       violations.length,
       0,

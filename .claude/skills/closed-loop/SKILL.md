@@ -2,16 +2,17 @@
 name: closed-loop
 description: >-
   Orchestrates the full closed-loop app build: spec → architecture →
-  implementation → verification → review → CI → release → monitor. Use when
-  building an entire app autonomously, running the agent loop, or coordinating
-  multiple subagents in sequence. Works in Cursor and Claude Code.
+  implementation → verification → review → CI → release → monitor →
+  curator. Use when building an entire app autonomously, running the
+  agent loop, or coordinating multiple subagents in sequence. Works in
+  Cursor and Claude Code.
 ---
 
 # Closed Loop App Builder
 
 Run the full agent loop to build an app from intent to merge-ready code.
 
-**Installing into a new repo?** Read [`pack/SETUP.md`](../../pack/SETUP.md)
+**Installing into a new repo?** Read [`pack/SETUP.md`](pack/SETUP.md)
 first (file tree + 5-minute install). Repo-specific facts live in
 `context/` — agents only point there.
 
@@ -77,9 +78,13 @@ Write `loop/state.json`:
 6. **Retro** — after each iteration/loop-back, fold new `loop/learnings.jsonl`
    entries into `loop/learnings.md`, promote any lesson seen 2+ times to a
    standing rule, and surface top learnings in the stage report (see
-   [learning-loop.md](learning-loop.md)).
-7. **Repeat** until terminal conditions in stages.md are met or `maxIterations` reached.
-8. **Report** — summarize artifacts, PR URL, test results, remaining warnings, and learnings recorded.
+   [learning-loop.md](learning-loop.md)). Do **not** edit role files here.
+7. **Repeat** until product stages in stages.md are met or `maxIterations` reached.
+8. **Curator (last)** — dispatch `curator`. It routes this run’s findings into
+   `context/`, `gates.md`, the ledger, or a **single** role file when that job
+   must change. Zero writes is success. Never impersonate the curator.
+9. **Report** — summarize artifacts, PR URL, test results, remaining warnings,
+   learnings recorded, and curator routing (files updated or none).
 
 ## Subagent roster
 
@@ -99,6 +104,7 @@ Write `loop/state.json`:
 | 11 | monitor | Production observability |
 | 12 | docs | Documentation |
 | 13 | debugger | Root-cause unclear failures |
+| 14 | curator | Last stage: promote findings into context / gates / one role |
 
 Specialists (delegated from implementer): frontend, backend, data, mobile, design-ux, performance, compliance, cost.
 
@@ -115,7 +121,7 @@ Before starting: read loop/learnings.md (your section + `all`) and this handoff'
 Complete your stage per your agent definition. Before finishing:
 1. Write handoff to loop/handoffs/{stage}-{iso-timestamp}.json
 2. Follow the handoff contract in skills/closed-loop/handoffs.md
-3. Set nextStage and loopBackTo appropriately
+3. Set nextStage and loopBackTo appropriately (curator omits nextStage; it is terminal)
 4. Append your new learnings to loop/learnings.jsonl AND put cross-agent findings
    in the handoff `learnings` array (ping the agents who need them)
 ```

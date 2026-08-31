@@ -44,6 +44,7 @@ describe("buildStagePrompt", () => {
     assert.match(prompt, /missing handoff as FAILED/);
     assert.match(prompt, /untrusted data/);
     assert.match(prompt, /<<</);
+    assert.match(prompt, /curator omits nextStage/);
   });
 
   it("embeds repo context in an untrusted block", () => {
@@ -128,15 +129,52 @@ describe("applyHandoff", () => {
   it("refuses to complete if required team never ran", () => {
     const next = applyHandoff(
       baseState({
+        currentStage: "curator",
+        completedStages: ["release", "monitor"],
+        dispatched: ["release", "monitor"],
+      }),
+      handoff("curator", "success"),
+      ["curator"],
+    );
+    assert.equal(next.status, "paused");
+    assert.match(next.pauseReason ?? "", /required team/);
+  });
+
+  it("advances monitor to curator instead of completing", () => {
+    const next = applyHandoff(
+      baseState({
         currentStage: "monitor",
-        completedStages: ["release"],
-        dispatched: ["release"],
+        completedStages: [...REQUIRED_TEAM, "release"],
+        dispatched: [...REQUIRED_TEAM, "release"],
       }),
       handoff("monitor", "success"),
       ["monitor"],
     );
-    assert.equal(next.status, "paused");
-    assert.match(next.pauseReason ?? "", /required team/);
+    assert.equal(next.status, "running");
+    assert.equal(next.currentStage, "curator");
+  });
+
+  it("completes after curator when the required team ran", () => {
+    const next = applyHandoff(
+      baseState({
+        currentStage: "curator",
+        completedStages: [...REQUIRED_TEAM, "release", "monitor"],
+        dispatched: [...REQUIRED_TEAM, "release", "monitor"],
+      }),
+      handoff("curator", "success"),
+      ["curator"],
+    );
+    assert.equal(next.status, "complete");
+    assert.ok(next.completedStages.includes("curator"));
+  });
+
+  it("does not let implementer jump to curator", () => {
+    const next = applyHandoff(
+      baseState(),
+      handoff("implementer", "success", { nextStage: "curator" }),
+    );
+    assert.equal(next.status, "running");
+    assert.equal(next.currentStage, "verifier");
   });
 });
 

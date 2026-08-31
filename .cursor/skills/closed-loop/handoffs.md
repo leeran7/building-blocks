@@ -96,3 +96,6 @@ Before starting work, read the latest handoff from the upstream agent listed in
 previous agent aimed directly at you. Also read `loop/learnings.md` (your section
 + `all`). Answer every ping addressed to you: apply it, or record an explicit
 exception. See [learning-loop.md](learning-loop.md).
+
+The curator is terminal: omit `nextStage`. Earlier stages still set `nextStage`
+per the stage graph; the orchestrator clamps skips.
