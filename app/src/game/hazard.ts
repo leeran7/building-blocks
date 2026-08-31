@@ -12,7 +12,8 @@
  *   - that envelope is not applied smoothly: the lava *surges*, then *stumbles*
  *     (drops to `stumbleSpeedFrac` of the envelope) on a fixed cycle, so the
  *     chase is not accelerating at every moment — there are windows to recover;
- *   - it begins `headStartM` BELOW the base, giving a fair opening buffer;
+ *   - it begins `headStartM` BELOW the base (or a per-tower fair-first-surge
+ *     solve of that offset — see firstSurge.ts), giving an opening buffer;
  *   - height is the integral of that speed over race-time.
  *
  * The envelope never exceeds 1× the ladder climb rate, so holding climb on a
@@ -58,15 +59,37 @@ export interface HazardConfig {
   stumbleSpeedFrac: number;
   /** Global speed multiplier — 1 = normal (knob for tuning + tests). */
   speedScale: number;
+  /**
+   * When true (the default), `headStartM` is replaced by a per-tower solve so
+   * the first surge misses a fair first-time climber by `firstSurgeMissFloors`
+   * of that tower's floor gap. Same physics → same opening for every user;
+   * layout seed is not an input (a lucky first ladder is skill, not a handicap).
+   * Set false to use the numeric `headStartM` as written (tests, overrides).
+   */
+  fairFirstSurge: boolean;
+  /**
+   * Target gap at the instant the first surge ends (first stumble begins), in
+   * units of `tower.floorGap`. 1 = one floor of air — close enough to teach
+   * the chase, far enough that a slightly slow first run still lives into the
+   * stumble. Ignored when `fairFirstSurge` is false.
+   */
+  firstSurgeMissFloors: number;
+  /**
+   * Extra time a first-time climber spends vs a clean walk-then-climb route
+   * (1 = no hesitation). The fair-height model uses this so the opening is
+   * tuned for a new player, not a greedy bot. Ignored when `fairFirstSurge`
+   * is false.
+   */
+  firstRunHesitation: number;
 }
 
 /** Lava never rises faster than the tower's max ladder climb speed. */
 export const MAX_HAZARD_SPEED_FRAC = 1;
 
 export const DEFAULT_HAZARD_CONFIG: HazardConfig = {
+  // Fallback only — live runs replace this via fairFirstSurge (firstSurge.ts).
   headStartM: 9,
   graceSeconds: 5,
-  // Opening is the gentler tune from main (9m head-start, 5s grace, 0.42×).
   // Envelope ramps 0.42× → 1.0× over ~90s (capped at ladder climb speed).
   // Stumbles cut each 12s cycle to 4s at 0.25× envelope, so the time-averaged
   // late-game chase is 1.0 · (8/12 + 4/12·0.25) = 0.75× — climbable on a
@@ -78,6 +101,9 @@ export const DEFAULT_HAZARD_CONFIG: HazardConfig = {
   stumbleDurationSeconds: 4,
   stumbleSpeedFrac: 0.25,
   speedScale: 1,
+  fairFirstSurge: true,
+  firstSurgeMissFloors: 1,
+  firstRunHesitation: 1.45,
 };
 
 /**
@@ -149,6 +175,31 @@ export function hazardHasReached(
   cfg: HazardConfig = DEFAULT_HAZARD_CONFIG
 ): boolean {
   return feetHeightM <= hazardHeightAt(seconds, climbSpeedM, cfg);
+}
+
+/**
+ * Metres the hazard has risen by `seconds` of race-time, ignoring head-start.
+ * Equal to `hazardHeightAt` with `headStartM = 0`. Used to solve the opening
+ * offset so the first surge lands a chosen gap below a fair climber.
+ */
+export function hazardRiseDistance(
+  seconds: number,
+  climbSpeedM: number,
+  cfg: HazardConfig = DEFAULT_HAZARD_CONFIG
+): number {
+  return hazardHeightAt(seconds, climbSpeedM, { ...cfg, headStartM: 0 });
+}
+
+/**
+ * Race-time when the first surge ends and the first stumble begins.
+ * Equals `graceSeconds` when stumbling is disabled (no surge/stumble cycle).
+ */
+export function firstSurgeEndSeconds(
+  cfg: HazardConfig = DEFAULT_HAZARD_CONFIG
+): number {
+  const { period, duration } = stumbleWindow(cfg);
+  const surge = period > 0 ? period - duration : 0;
+  return Math.max(0, cfg.graceSeconds) + surge;
 }
 
 function envelopeFrac(t: number, cfg: HazardConfig): number {

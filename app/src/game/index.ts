@@ -8,6 +8,7 @@
 export * from "./types";
 export * from "./rng";
 export * from "./hazard";
+export * from "./firstSurge";
 export * from "./simulation";
 export * from "./antiCheat";
 export * from "./categories";

@@ -16,7 +16,9 @@
  * (caught = you lose; peak height is retained).
  *
  * Tick order is deliberate and load-bearing:
- *   1. advance race-clock + hazard height
+ *   1. advance race-clock + hazard height (head-start solved per tower so the
+ *      first surge misses a fair first-time climber by one floor — firstSurge.ts)
+
  *   2. integrate each climbing player's 2D motion from their input
  *   3. FLAG FINISH is evaluated BEFORE elimination (AC-4)
  *   4. death-line elimination for players who did not finish
@@ -39,6 +41,7 @@ import {
   DEFAULT_HAZARD_CONFIG,
   hazardHeightAt,
 } from "./hazard";
+import { resolveHazardConfig } from "./firstSurge";
 import {
   platformsNearY,
   laddersNearY,
@@ -138,7 +141,11 @@ export function createMatch(params: {
     phase: "countdown",
     tick: 0,
     raceSeconds: 0,
-    hazardY: 0,
+    hazardY: hazardHeightAt(
+      0,
+      tower.maxClimbSpeed,
+      resolveHazardConfig(tower, DEFAULT_HAZARD_CONFIG)
+    ),
     hazardSlowSeconds: 0,
     tower,
     players,
@@ -434,10 +441,11 @@ export function stepMatch(
   //    curve monotonic.
   const timeScale = hazardTimeScale(state.players, state.tick);
   state.hazardSlowSeconds += TICK_DT * (1 - timeScale);
+  const hazard = resolveHazardConfig(state.tower, cfg.hazard);
   state.hazardY = hazardHeightAt(
     state.raceSeconds - state.hazardSlowSeconds,
     state.tower.maxClimbSpeed,
-    cfg.hazard
+    hazard
   );
 
   for (const p of state.players) {
