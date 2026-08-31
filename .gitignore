@@ -12,6 +12,8 @@ loop/*
 # Package-upgrade architecture is a durable implementer contract, not a
 # per-run scratch file. Track it the same way as the learnings ledger.
 !loop/package-upgrade.md
+# iOS/mobile launch cost envelope (investigation artifact; not a per-run scratch file).
+!loop/ios-mobile-launch-cost.md
 .claude/handoffs/*.json
 
 # Dependencies & build
