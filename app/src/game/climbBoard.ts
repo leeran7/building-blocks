@@ -3,8 +3,10 @@
  *
  * Mobile (coarse pointer, full-bleed canvas) and desktop (keyboard, locked
  * 9:16) are not the same game: a taller fill-stage sees further up the tower.
- * Scores are ranked on separate boards. Mobile is the default — omitted writes
- * and `/climb` with no query land there.
+ * Scores are ranked on separate boards. Mobile is the default **view**
+ * (`/climb` with no query) and default **omit-POST write**. Historical
+ * untagged rows cut over to desktop — the insert default is not history
+ * policy.
  */
 
 export const CLIMB_BOARD_ORDER = ["mobile", "desktop"] as const;

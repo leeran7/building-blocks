@@ -5,6 +5,7 @@
  * emails are never shown.
  */
 
+import type { ReactNode } from "react";
 import type { ClimberRank } from "../../db/climb";
 import {
   CLIMB_BOARD_LABELS,
@@ -15,6 +16,7 @@ export function ClimbLeaderboard({
   climbers,
   unavailable = false,
   board,
+  emptyAction,
 }: {
   climbers: ClimberRank[];
   /**
@@ -25,6 +27,8 @@ export function ClimbLeaderboard({
   unavailable?: boolean;
   /** Which surface this list is for. Affects empty copy and the accessible name. */
   board?: ClimbBoard;
+  /** Empty-board extra control (AC-17 Desktop recovery). Not used when unavailable. */
+  emptyAction?: ReactNode;
 }) {
   const boardLabel = board ? CLIMB_BOARD_LABELS[board].toLowerCase() : "free stack";
 
@@ -52,6 +56,9 @@ export function ClimbLeaderboard({
         <p className="relative text-text-secondary text-sm mt-3">
           Be the first to set a height record on the {boardLabel} board.
         </p>
+        {emptyAction ? (
+          <div className="relative mt-6 flex justify-center">{emptyAction}</div>
+        ) : null}
       </div>
     );
   }

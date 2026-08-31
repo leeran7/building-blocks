@@ -137,16 +137,26 @@ export const fakePrisma = {
       where,
       orderBy,
       take,
-      select,
+      distinct,
     }: {
       where?: FakeClimbRecordWhere;
       orderBy?: Array<{ peak_y?: "asc" | "desc"; updated_at?: "asc" | "desc" }>;
       take?: number;
       select?: { userId?: boolean; peak_y?: boolean; wins?: boolean; board?: boolean; user?: unknown };
+      distinct?: string[];
     }) => {
       let rows = store.climbRecords.filter((r) => matchesClimbWhere(r, where));
       if (orderBy && orderBy.length > 0) {
         rows = [...rows].sort((a, b) => compareClimbRecords(a, b, orderBy));
+      }
+      if (distinct && distinct.length > 0) {
+        const seen = new Set<string>();
+        rows = rows.filter((r) => {
+          const key = climbDistinctKey(r, distinct);
+          if (seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        });
       }
       if (take != null) rows = rows.slice(0, take);
       return rows.map((r) => ({
@@ -159,6 +169,35 @@ export const fakePrisma = {
     },
     count: async ({ where }: { where?: FakeClimbRecordWhere }) =>
       store.climbRecords.filter((r) => matchesClimbWhere(r, where)).length,
+    findFirst: async ({
+      where,
+      select,
+    }: {
+      where?: FakeClimbRecordWhere;
+      select?: { id?: boolean };
+    }) => {
+      const row = store.climbRecords.find((r) => matchesClimbWhere(r, where));
+      if (!row) return null;
+      if (select?.id) return { id: row.id };
+      return { ...row };
+    },
+    aggregate: async ({
+      where,
+      _max,
+    }: {
+      where?: FakeClimbRecordWhere;
+      _max?: { peak_y?: boolean };
+    }) => {
+      const rows = store.climbRecords.filter((r) => matchesClimbWhere(r, where));
+      if (!_max?.peak_y || rows.length === 0) {
+        return { _max: { peak_y: null } };
+      }
+      let maxPeak = rows[0].peak_y;
+      for (const row of rows) {
+        if (row.peak_y > maxPeak) maxPeak = row.peak_y;
+      }
+      return { _max: { peak_y: maxPeak } };
+    },
   },
 };
 
@@ -321,6 +360,18 @@ function findClimbRecord(key: FakeClimbRecordKey): FakeClimbRecord | undefined {
       r.category_slug === key.category_slug &&
       r.board === key.board
   );
+}
+
+function climbDistinctKey(row: FakeClimbRecord, fields: string[]): string {
+  return fields
+    .map((field) => {
+      if (field === "userId") return row.userId;
+      if (field === "board") return row.board;
+      if (field === "category_slug") return row.category_slug;
+      if (field === "id") return row.id;
+      return field;
+    })
+    .join("\0");
 }
 
 function matchesClimbWhere(

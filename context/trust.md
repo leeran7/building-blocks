@@ -10,7 +10,9 @@ irreversible or money-adjacent writes — not generic OWASP.
    **Client-submitted climb board** (`mobile` | `desktop`) chooses which
    irreversible ranking that peak is written to. Allow-list only; omit
    → mobile (product default); anything else → 400. Same spoofability
-   as `peakY` — not a payout board.
+   as `peakY` — not a payout board. Untagged historical rows (pre-split,
+   no board column) cut over to desktop; the insert default remaining
+   mobile is not the history rule.
 2. **Stripe webhooks credit altitude.** Gate on the provider’s
    `payment_status` (or equivalent success state), not merely event type.
    A 4xx on an unresolvable reference permanently drops a captured payment

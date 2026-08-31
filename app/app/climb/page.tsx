@@ -10,7 +10,8 @@ import { FreeStackShell } from "../../src/components/FreeStackShell";
 import { ClimbLeaderboard } from "../../src/components/Climb/ClimbLeaderboard";
 import { ClimbBoardTabs } from "../../src/components/Climb/ClimbBoardTabs";
 import { ClimbPanelIntro } from "../../src/components/Climb/ClimbPanelIntro";
-import { topFreeClimbers } from "../../src/db/climb";
+import { topFreeClimbers, probeFreeClimbBoardOccupied } from "../../src/db/climb";
+import { DesktopBoardControl } from "../../src/components/Climb/DesktopBoardControl";
 import {
   CLIMB_BOARD_BLURB,
   CLIMB_BOARD_LABELS,
@@ -18,6 +19,7 @@ import {
   parseClimbBoard,
   type ClimbBoard,
 } from "../../src/game/climbBoard";
+import { shouldOfferDesktopControl } from "../../src/game/climbBoardRead";
 
 // Always render on request so a fresh run shows up immediately after save.
 // ISR alone left standings stale for up to 30s (plus client router cache) even
@@ -52,6 +54,20 @@ export default async function FreeClimbPage({
     return null;
   });
 
+  const mobileEmpty =
+    board === DEFAULT_CLIMB_BOARD && climbers !== null && climbers.length === 0;
+  const desktopOccupied = mobileEmpty
+    ? await probeFreeClimbBoardOccupied("desktop")
+    : false;
+  const offerDesktop = shouldOfferDesktopControl({
+    viewing: board,
+    mobile:
+      climbers === null
+        ? { status: "unavailable" }
+        : { status: "ok", climbers },
+    desktopOccupied,
+  });
+
   return (
     <FreeStackShell section="leaderboard" title={`${CLIMB_BOARD_LABELS[board]} climb leaderboard`}>
       <ClimbPanelIntro title="Free climb leaderboard" />
@@ -65,6 +81,7 @@ export default async function FreeClimbPage({
             climbers={climbers ?? []}
             unavailable={climbers === null}
             board={board}
+            emptyAction={offerDesktop ? <DesktopBoardControl /> : undefined}
           />
         </div>
       </div>

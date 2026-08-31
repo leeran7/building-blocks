@@ -60,8 +60,11 @@ model ClimbRecord {
   id            String   @id @default(cuid())
   userId        String
   category_slug String
-  /// Play surface this peak was earned on. Allow-listed to mobile | desktop.
-  /// Existing rows default to mobile (the default board).
+  /// Play surface this peak was earned on. Allow-listed to mobile | desktop
+  /// (CHECK climb_records_board_valid in migration SQL; Prisma cannot express
+  /// CHECK). @default("mobile") is the insert default for NEW rows only
+  /// (omit-POST). Historical untagged rows cut over to desktop (0010 ADD
+  /// COLUMN DEFAULT desktop, then ALTER SET DEFAULT mobile).
   board         String   @default("mobile")
   peak_y        Float    @default(0) // best peak height reached, metres
   wins          Int      @default(0) // first-place finishes in this category
@@ -71,7 +74,7 @@ model ClimbRecord {
 
   // One record row per (user, category, board) so a player can rank on both.
   @@unique([userId, category_slug, board], name: "climb_record_user_category_board")
-  @@index([category_slug, board, peak_y(sort: Desc)], name: "climb_record_leaderboard_idx")
+  @@index([category_slug, board, peak_y(sort: Desc), updated_at(sort: Asc)], name: "climb_record_leaderboard_idx")
   @@map("climb_records")
 }
 
@@ -81,7 +84,9 @@ model ClimbRun {
   id            String   @id @default(cuid())
   userId        String?
   category_slug String
-  /// Play surface this run was recorded on. Same allow-list as ClimbRecord.
+  /// Play surface this run was recorded on. Same allow-list as ClimbRecord
+  /// (CHECK climb_runs_board_valid). @default("mobile") is the insert default
+  /// for NEW runs; historical untagged runs cut over to desktop.
   board         String   @default("mobile")
   peak_y        Float
   finished      Boolean  @default(false)

@@ -9,6 +9,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { ClimbLeaderboard } from "../Climb/ClimbLeaderboard";
 import { ClimbBoardTabs } from "../Climb/ClimbBoardTabs";
+import { DesktopBoardControl } from "../Climb/DesktopBoardControl";
 import type { ClimberRank } from "../../db/climb";
 import {
   CLIMB_BOARD_BLURB,
@@ -17,16 +18,28 @@ import {
   climbBoardPath,
   type ClimbBoard,
 } from "../../game/climbBoard";
+import {
+  climbLeaderboardFromRead,
+  desktopOccupancy,
+  shouldOfferDesktopControl,
+  type ClimbBoardRead,
+} from "../../game/climbBoardRead";
 
 export function FreeLeaderboardBoard({
   mobile,
   desktop,
 }: {
-  mobile: ClimberRank[];
-  desktop: ClimberRank[];
+  mobile: ClimbBoardRead<ClimberRank>;
+  desktop: ClimbBoardRead<ClimberRank>;
 }) {
   const [board, setBoard] = useState<ClimbBoard>(DEFAULT_CLIMB_BOARD);
-  const climbers = board === "mobile" ? mobile : desktop;
+  const selected = board === "mobile" ? mobile : desktop;
+  const list = climbLeaderboardFromRead(selected, board);
+  const offerDesktop = shouldOfferDesktopControl({
+    viewing: board,
+    mobile,
+    desktopOccupied: desktopOccupancy(desktop),
+  });
 
   return (
     <>
@@ -37,24 +50,49 @@ export function FreeLeaderboardBoard({
         </p>
       </div>
 
-      <ClimbLeaderboard climbers={climbers} board={board} />
+      <ClimbLeaderboard
+        climbers={list.climbers}
+        unavailable={list.unavailable}
+        board={list.board}
+        emptyAction={
+          offerDesktop ? (
+            <DesktopBoardControl onSelectDesktop={() => setBoard("desktop")} />
+          ) : undefined
+        }
+      />
 
-      {climbers.length > 0 ? (
-        <div className="mt-4 flex justify-end">
-          <Link
-            href={climbBoardPath(board)}
-            className="font-mono text-xs uppercase tracking-[0.14em] text-text-muted hover:text-text-primary whitespace-nowrap transition"
-          >
-            Full {CLIMB_BOARD_LABELS[board].toLowerCase()} leaderboard →
-          </Link>
-        </div>
-      ) : (
-        <p className="text-sm text-text-muted mt-4">
-          <Link href="/play" className="text-text-primary underline underline-offset-4 hover:text-signal">
-            Play the free climb →
-          </Link>
-        </p>
-      )}
+      <TeaserFooter unavailable={list.unavailable} count={list.climbers.length} board={board} />
     </>
+  );
+}
+
+function TeaserFooter({
+  unavailable,
+  count,
+  board,
+}: {
+  unavailable: boolean;
+  count: number;
+  board: ClimbBoard;
+}) {
+  if (unavailable) return null;
+  if (count > 0) {
+    return (
+      <div className="mt-4 flex justify-end">
+        <Link
+          href={climbBoardPath(board)}
+          className="font-mono text-xs uppercase tracking-[0.14em] text-text-muted hover:text-text-primary whitespace-nowrap transition"
+        >
+          Full {CLIMB_BOARD_LABELS[board].toLowerCase()} leaderboard →
+        </Link>
+      </div>
+    );
+  }
+  return (
+    <p className="text-sm text-text-muted mt-4">
+      <Link href="/play" className="text-text-primary underline underline-offset-4 hover:text-signal">
+        Play the free climb →
+      </Link>
+    </p>
   );
 }

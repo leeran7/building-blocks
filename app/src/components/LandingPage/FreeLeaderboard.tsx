@@ -9,12 +9,23 @@
 import Link from "next/link";
 import { topFreeClimbers } from "../../db/climb";
 import { FreeLeaderboardBoard } from "./FreeLeaderboardBoard";
+import { prepareFreeLeaderboardBoards } from "../../game/climbBoardRead";
 
 export async function FreeLeaderboard() {
-  const [mobile, desktop] = await Promise.all([
-    topFreeClimbers(8, "mobile").catch(() => []),
-    topFreeClimbers(8, "desktop").catch(() => []),
+  const [mobileSettled, desktopSettled] = await Promise.allSettled([
+    topFreeClimbers(8, "mobile"),
+    topFreeClimbers(8, "desktop"),
   ]);
+  const { mobile, desktop } = prepareFreeLeaderboardBoards(
+    mobileSettled,
+    desktopSettled
+  );
+  if (mobileSettled.status === "rejected") {
+    console.error("[landing] mobile teaser read failed:", mobileSettled.reason);
+  }
+  if (desktopSettled.status === "rejected") {
+    console.error("[landing] desktop teaser read failed:", desktopSettled.reason);
+  }
 
   return (
     <section

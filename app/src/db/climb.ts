@@ -175,18 +175,46 @@ export async function topClimbers(
   return topFreeClimbers(limit);
 }
 
-/** Aggregate free-climb stats for the landing: distinct climbers + best peak. */
+/** Aggregate free-climb stats for the landing: distinct climbers + Mobile max. */
 export async function getGlobalClimbStats(): Promise<{
   climberCount: number;
   topPeak: number | null;
 }> {
-  const rows = await prisma.$queryRaw<{ climbers: number; top: number | null }[]>`
-    SELECT COUNT(DISTINCT "userId")::int AS climbers, MAX(peak_y) AS top
-    FROM climb_records
-    WHERE category_slug = ${FREE_STACK_SLUG}
-  `;
-  const row = rows[0] ?? { climbers: 0, top: null };
-  return { climberCount: Number(row.climbers ?? 0), topPeak: row.top };
+  const [distinctClimbers, mobilePeak] = await Promise.all([
+    prisma.climbRecord.findMany({
+      where: { category_slug: FREE_STACK_SLUG },
+      distinct: ["userId"],
+      select: { userId: true },
+    }),
+    prisma.climbRecord.aggregate({
+      where: { category_slug: FREE_STACK_SLUG, board: DEFAULT_CLIMB_BOARD },
+      _max: { peak_y: true },
+    }),
+  ]);
+  return {
+    climberCount: distinctClimbers.length,
+    topPeak: mobilePeak._max.peak_y,
+  };
+}
+
+/** Whether this board has at least one free-climb record (cheap occupancy probe). */
+export async function freeClimbBoardOccupied(board: ClimbBoard): Promise<boolean> {
+  const row = await prisma.climbRecord.findFirst({
+    where: boardWhere(board),
+    select: { id: true },
+  });
+  return row !== null;
+}
+
+/** Occupancy probe that fails open: `null` when the read throws. */
+export async function probeFreeClimbBoardOccupied(
+  board: ClimbBoard
+): Promise<boolean | null> {
+  try {
+    return await freeClimbBoardOccupied(board);
+  } catch {
+    return null;
+  }
 }
 
 export interface UserBoardStanding {
