@@ -154,7 +154,8 @@ export function teamMissing(
     requiredTeam?: Stage[];
   },
 ): Stage[] {
-  const required = state.requiredTeam?.length ? state.requiredTeam : REQUIRED_TEAM;
+  const extra = state.requiredTeam ?? [];
+  const required = uniqueStages([...REQUIRED_TEAM, ...extra]);
   const seen = new Set([...state.dispatched, ...state.completedStages]);
   return required.filter((stage) => !seen.has(stage));
 }

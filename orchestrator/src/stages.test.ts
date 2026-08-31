@@ -44,6 +44,7 @@ describe("buildStagePrompt", () => {
     assert.match(prompt, /missing handoff as FAILED/);
     assert.match(prompt, /untrusted data/);
     assert.match(prompt, /<<</);
+    assert.match(prompt, /curator omits nextStage/);
   });
 
   it("embeds repo context in an untrusted block", () => {
@@ -165,6 +166,15 @@ describe("applyHandoff", () => {
     );
     assert.equal(next.status, "complete");
     assert.ok(next.completedStages.includes("curator"));
+  });
+
+  it("does not let implementer jump to curator", () => {
+    const next = applyHandoff(
+      baseState(),
+      handoff("implementer", "success", { nextStage: "curator" }),
+    );
+    assert.equal(next.status, "running");
+    assert.equal(next.currentStage, "verifier");
   });
 });
 

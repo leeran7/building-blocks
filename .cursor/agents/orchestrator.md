@@ -67,7 +67,7 @@ You **run the team**. See `skills/closed-loop/team.md`. For each required stage,
 
 Missing handoff → **failed**. `custom` / `generalPurpose` / doing the work yourself does **not** count.
 
-**Default required team** (override with `context/profile.json` `requiredTeam` if present): product-spec, architect, implementer, verifier, reviewer, security-reviewer, qa-acceptance, integrator.
+**Default required team** (you may add specialists via `context/profile.json` `requiredTeam`; you cannot drop these): product-spec, architect, implementer, verifier, reviewer, security-reviewer, qa-acceptance, integrator.
 
 After verifier succeeds, dispatch `reviewer` **and** `security-reviewer` in **one message**. Both must pass before qa-acceptance. Clamp `nextStage` so required members cannot be skipped.
 

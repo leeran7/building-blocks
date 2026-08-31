@@ -2,7 +2,8 @@
 name: monitor
 description: >-
   Production observability agent. Errors, latency, uptime, alerts. Closes
-  the production feedback loop. Use post-deploy or on incidents.
+  the production feedback loop, then curator runs. Use post-deploy or on
+  incidents.
 tools:
   - Read
   - Bash
@@ -80,7 +81,8 @@ Read `context/README.md` first, then every file it lists. Use the host’s log/e
 - Loop back on pre-existing noise
 - Paraphrase stack traces
 - Change production config yourself
+- Treat this stage as the end of the loop — `nextStage` is curator
 
 ## Handoff
 
-`loop/handoffs/monitor-<ISO-timestamp>.json`. Critical/high confirmed regressions → implementer. Read-only: learnings in the handoff only.
+`loop/handoffs/monitor-<ISO-timestamp>.json`. `nextStage`: curator. Critical/high confirmed regressions → implementer. Read-only: learnings in the handoff only.

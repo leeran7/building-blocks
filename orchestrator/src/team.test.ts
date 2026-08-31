@@ -88,6 +88,12 @@ describe("clampNextStage — never skip the team", () => {
     assert.equal(clampNextStage("docs", "curator"), "curator");
     assert.equal(clampNextStage("integrator", "release"), "release");
   });
+
+  it("does not let early required stages skip to curator", () => {
+    assert.equal(clampNextStage("implementer", "curator"), "verifier");
+    assert.equal(clampNextStage("verifier", "curator"), "reviewer");
+    assert.equal(clampNextStage("qa-acceptance", "curator"), "integrator");
+  });
 });
 
 describe("clampLoopBackTo", () => {
@@ -197,5 +203,28 @@ describe("teamMissing", () => {
       completedStages: [...REQUIRED_TEAM],
     };
     assert.deepEqual(teamMissing(state), []);
+  });
+
+  it("cannot drop quality-gate members via a short requiredTeam override", () => {
+    const missing = teamMissing({
+      dispatched: ["implementer"],
+      completedStages: ["implementer"],
+      requiredTeam: ["implementer"],
+    });
+    assert.ok(missing.includes("verifier"));
+    assert.ok(missing.includes("reviewer"));
+    assert.ok(missing.includes("security-reviewer"));
+    assert.ok(missing.includes("qa-acceptance"));
+    assert.ok(missing.includes("integrator"));
+    assert.ok(!missing.includes("implementer"));
+  });
+
+  it("still requires extras listed on requiredTeam", () => {
+    const missing = teamMissing({
+      dispatched: [...REQUIRED_TEAM],
+      completedStages: [...REQUIRED_TEAM],
+      requiredTeam: [...REQUIRED_TEAM, "curator"],
+    });
+    assert.deepEqual(missing, ["curator"]);
   });
 });

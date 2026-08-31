@@ -2,9 +2,10 @@
 name: closed-loop
 description: >-
   Orchestrates the full closed-loop app build: spec → architecture →
-  implementation → verification → review → CI → release → monitor. Use when
-  building an entire app autonomously, running the agent loop, or coordinating
-  multiple subagents in sequence. Works in Cursor and Claude Code.
+  implementation → verification → review → CI → release → monitor →
+  curator. Use when building an entire app autonomously, running the
+  agent loop, or coordinating multiple subagents in sequence. Works in
+  Cursor and Claude Code.
 ---
 
 # Closed Loop App Builder
@@ -120,7 +121,7 @@ Before starting: read loop/learnings.md (your section + `all`) and this handoff'
 Complete your stage per your agent definition. Before finishing:
 1. Write handoff to loop/handoffs/{stage}-{iso-timestamp}.json
 2. Follow the handoff contract in skills/closed-loop/handoffs.md
-3. Set nextStage and loopBackTo appropriately
+3. Set nextStage and loopBackTo appropriately (curator omits nextStage; it is terminal)
 4. Append your new learnings to loop/learnings.jsonl AND put cross-agent findings
    in the handoff `learnings` array (ping the agents who need them)
 ```
