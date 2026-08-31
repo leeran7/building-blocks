@@ -1,8 +1,8 @@
 /**
  * Free climb play page — /play
  *
- * The standalone free endless climb game. Scores feed the single /climb
- * leaderboard — not any paid category stack.
+ * The standalone free endless climb game. Scores feed the matching /climb
+ * board (mobile or desktop) — not any paid category stack.
  */
 
 import type { Metadata } from "next";

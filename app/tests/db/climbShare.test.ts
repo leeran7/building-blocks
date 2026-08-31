@@ -136,6 +136,7 @@ describe("recordClimb return (AC-3)", () => {
       finishedTick: 500,
       seed: "saved-run",
       replayToken: "tok",
+      board: "mobile",
     });
 
     expect(result.peakY).toBe(120);
@@ -144,5 +145,6 @@ describe("recordClimb return (AC-3)", () => {
     expect(typeof result.totalClimbers).toBe("number");
     expect(typeof result.handle).toBe("string");
     expect(result.runId).toBe("rec_saved_1");
+    expect(result.board).toBe("mobile");
   });
 });

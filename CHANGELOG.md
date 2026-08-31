@@ -31,6 +31,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **robots.txt and sitemap** — crawlers may fetch `/`, `/play`, `/climb`,
   `/b/`, `/r/`, and `/api/og`. The sitemap lists home, play, climb, and existing
   `/b/{slug}` listings. Climb recordings are not bulk-listed in the sitemap.
+- **Mobile / desktop climb leaderboards** — touch (full-bleed) and keyboard
+  (9:16) scores rank on separate boards. `/climb` defaults to mobile;
+  `?board=desktop` is the other board. Untagged historical records cut over
+  to desktop; omit-POST still writes mobile.
 
 ### Security
 

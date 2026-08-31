@@ -10,7 +10,8 @@ loop/*
 !loop/learnings.md
 !loop/learnings.jsonl
 # Durable loop contracts (not per-run scratch). Spec + architecture must
-# survive clones the same way the learnings ledger does.
+# survive clones the same way the learnings ledger does. Both PR #49
+# (board split) and this share-SEO branch need these negations.
 !loop/spec.md
 !loop/architecture.md
 !loop/handoffs/

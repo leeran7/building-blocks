@@ -20,8 +20,8 @@ export function ClimbPanelIntro({ title }: { title: string }) {
         <PlayTheClimbCta />
       </div>
       <p className="mt-3 text-sm text-text-secondary max-w-lg">
-        One leaderboard for the free game. Climb the endless stack as high as you
-        can before the lava catches you — your best height is your rank.
+        Touch and keyboard climbs are ranked separately — the screens are not
+        the same game. Mobile is the default board.
       </p>
       <div className="mt-4">
         <ClimbControlsGuide variant="compact" />

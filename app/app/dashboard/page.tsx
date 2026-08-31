@@ -232,7 +232,7 @@ export default function DashboardPage() {
 
         {fetchState.status === "success" && (
           <>
-            {fetchState.data.freeClimb ? (
+            {fetchState.data.freeClimb && fetchState.data.freeClimb.boards.length > 0 ? (
               <FreeClimbCard climb={fetchState.data.freeClimb} />
             ) : (
               <FreeClimbEmpty />

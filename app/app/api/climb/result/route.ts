@@ -8,15 +8,13 @@
  * the free MVP playable without an account.
  *
  * Server trust boundary: peakY is self-reported by the client, and
- * src/db/climb.ts persists it monotonically, so it feeds the PUBLIC free-stack
- * leaderboard (topFreeClimbers) and cannot be lowered once written. It is
- * therefore a real trust boundary — an earlier version of this comment claimed
- * the value "never affects other players", which was not true once the
- * leaderboard shipped.
- *
- * Until peakY is re-derived server-side from seed + input log the way ranked
- * play is specified to be (AC-17), it is bounded by what the simulation can
- * physically produce in the claimed number of ticks. See src/game/scoreBounds.
+ * src/db/climb.ts persists it monotonically onto one allow-listed board
+ * (mobile | desktop). It feeds that board's PUBLIC ranking and cannot be
+ * lowered once written. Invalid board values are rejected; omitted board
+ * is mobile (the product default). Until peakY is re-derived server-side
+ * from seed + input log the way ranked play is specified to be (AC-17),
+ * it is bounded by what the simulation can physically produce in the
+ * claimed number of ticks. See src/game/scoreBounds.
  */
 
 import { NextRequest, NextResponse } from "next/server";
@@ -28,6 +26,11 @@ import { checkRateLimit, clientIp } from "../../../../src/lib/rateLimit";
 import { checkClimbResult } from "../../../../src/game/scoreBounds";
 import { MAX_REPLAY_TOKEN_LENGTH } from "../../../../src/game/runReplay";
 import { revalidateClimbLeaderboard } from "../../../../src/lib/revalidateClimbLeaderboard";
+import {
+  DEFAULT_CLIMB_BOARD,
+  parseClimbBoard,
+  type ClimbBoard,
+} from "../../../../src/game/climbBoard";
 
 export const runtime = "nodejs";
 
@@ -45,6 +48,8 @@ interface Body {
   ticks?: unknown;
   seed?: unknown;
   replayToken?: unknown;
+  /** Play surface. Allow-listed; omit → mobile. Invalid → 400. */
+  board?: unknown;
 }
 
 export async function POST(request: NextRequest) {
@@ -77,6 +82,14 @@ export async function POST(request: NextRequest) {
 
   if (peakY === null || !seed) {
     return NextResponse.json({ error: "Invalid climb result" }, { status: 400 });
+  }
+
+  const board = parseBoardField(body.board);
+  if (board === "invalid") {
+    return NextResponse.json(
+      { error: "Invalid climb board", code: "INVALID_BOARD" },
+      { status: 400 }
+    );
   }
 
   // Reject anything the simulation could not have produced in the claimed run
@@ -154,6 +167,7 @@ export async function POST(request: NextRequest) {
       finishedTick: elapsedTicks,
       seed,
       replayToken,
+      board,
     });
     revalidateClimbLeaderboard();
     return NextResponse.json({ saved: true, ...result }, { status: 200 });
@@ -168,4 +182,13 @@ function parseReplayToken(raw: unknown): string | null {
   const trimmed = raw.trim();
   if (!trimmed || trimmed.length > MAX_REPLAY_TOKEN_LENGTH) return null;
   return trimmed;
+}
+
+/**
+ * Omit / null → mobile (old clients and the product default). Anything else must
+ * be on the allow-list; we do not coerce "desktooo" onto a ranking.
+ */
+function parseBoardField(raw: unknown): ClimbBoard | "invalid" {
+  if (raw === undefined || raw === null) return DEFAULT_CLIMB_BOARD;
+  return parseClimbBoard(raw) ?? "invalid";
 }
