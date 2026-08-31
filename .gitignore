@@ -12,6 +12,11 @@ loop/*
 # Package-upgrade architecture is a durable implementer contract, not a
 # per-run scratch file. Track it the same way as the learnings ledger.
 !loop/package-upgrade.md
+# iOS/mobile launch investigation (architect + product-spec). A gitignored
+# architecture.md / spec.md vanishes on clone — same class of defect as
+# ignoring the learnings ledger (context/git.md memory rule).
+!loop/ios-mobile-launch-architecture.md
+!loop/ios-mobile-launch-spec.md
 # iOS/mobile launch investigation spec. loop/spec.md stays ignored (reserved
 # name, no exception). This filename is the tracked product contract.
 !loop/ios-mobile-launch-spec.md
@@ -19,6 +24,10 @@ loop/*
 !loop/ios-mobile-launch-cost.md
 # iOS/mobile launch — mobile specialist gap analysis of the /play web client.
 !loop/ios-mobile-launch-mobile.md
+# Per-run handoffs stay ignored except this investigation's mobile handoff
+# (docs stage consumes it).
+!loop/handoffs/
+!loop/handoffs/mobile-*.json
 .claude/handoffs/*.json
 
 # Dependencies & build

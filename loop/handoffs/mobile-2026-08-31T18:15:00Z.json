@@ -1,0 +1,56 @@
+{
+  "agent": "mobile",
+  "status": "success",
+  "summary": "Investigation-only gap analysis of the existing /play coarse-pointer full-bleed web client as the iPhone/iPad tree. No native app. iOS-specific engineering already in tree: fill canvas, visualViewport, safe-area, hold controls with 500ms ghost-click window, ringer-to-media audio routing, Start-tap unlock, Google redirect + same-origin /__/auth. Not launch-ready: document still rubber-bands under fixed inset-0 (FreeStackShell is explicitly not overflow-hidden), Navbar/tabs/how-to stay in flow, useCoarsePointer SSR false flashes 9:16, no manifest/apple-touch-icon, no Wake Lock, no navigator.share, Playwright iphone-12 is Chromium UA without hasTouch, fillCanvas has zero unit tests. Smallest launch set is still this web client (shell + PWA chrome + share + wake lock + WebKit smoke), not an App Store binary. Parent: investigation. Artifact: loop/ios-mobile-launch-mobile.md.",
+  "timestamp": "2026-08-31T18:15:00Z",
+  "parent": "investigation",
+  "goal": "Investigate launching The Climb on iOS and mobile alone — gap analysis of the existing web game as an iPhone/iPad client. Investigation only; do not implement a native app.",
+  "artifacts": [
+    "loop/ios-mobile-launch-mobile.md",
+    ".gitignore"
+  ],
+  "exitCriteria": {
+    "tree_readable": true,
+    "no_application_code": true,
+    "gap_analysis_written": true,
+    "file_line_citations": true,
+    "device_matrix": true,
+    "recommendation": true
+  },
+  "feedback": [],
+  "learnings": [
+    {
+      "topic": "frontend",
+      "forAgents": ["implementer", "frontend", "architect", "docs"],
+      "kind": "pitfall",
+      "insight": "ClimbScene on coarse pointer is fixed inset-0 z-40, but FreeStackShell is explicitly not a fill-viewport overflow-hidden stage (min-h-screen) and PlayShell still lays out the how-to card under the scene. That in-flow height is what iOS Safari rubber-bands. CategoryShell already has h-[100dvh] overflow-hidden for fill — /play did not copy it.",
+      "action": "When implementing mobile-alone /play, make the coarse stage the only layout box (100dvh + overflow-hidden + overscroll-behavior none; unmount or inert Navbar/tabs/how-to). Do not treat CategoryShell fill as already applied to FreeStackShell.",
+      "confidence": "high"
+    },
+    {
+      "topic": "testing",
+      "forAgents": ["verifier", "qa-acceptance", "implementer"],
+      "kind": "pitfall",
+      "insight": "Playwright project iphone-12 sets only viewport 375×812 and an iPhone UA. It does not spread devices['iPhone 12']: no hasTouch, no isMobile, no deviceScaleFactor, browserName remains Chromium. (pointer: coarse) follows the emulator's touch capability, so this project likely never mounts the fill-bleed tree. fillCanvas has zero unit tests (canvasSize.test.ts only imports fitCanvas). CI does not run Playwright.",
+      "action": "Add a webkit project using devices['iPhone 12'] or iPhone 14 (hasTouch + isMobile). Assert coarse → full-bleed surface and document scrollHeight ≈ innerHeight. Unit-test fillCanvas. Do not treat the current iphone-12 project as iOS coverage.",
+      "confidence": "high"
+    },
+    {
+      "topic": "audio",
+      "forAgents": ["implementer", "frontend"],
+      "kind": "lesson",
+      "insight": "The Aug 29 finding that Start never unlocks Web Audio is no longer true: ClimbScene.handleStart calls unlockAudio() in the click, and unmute also unlocks. Residual: musicEngine.start() still runs from a musicActive useEffect (after the gesture), and PowerUpAudio.setMuted(true) on mount still ensureContext()s outside a gesture. Replay one-shots correctly read this.ctx only.",
+      "action": "Do not re-open 'Start never calls unlock' as a live defect. Move music start into the Start stack or no-op until ctx.state==='running'. Stop setMuted(true) from constructing a context at mount.",
+      "confidence": "high"
+    },
+    {
+      "topic": "mobile",
+      "forAgents": ["docs", "product-spec", "architect", "all"],
+      "kind": "metric",
+      "insight": "Mobile-alone iOS launch without an App Store binary is the existing /play coarse-pointer client plus ~10 client gaps (G1–G11 in loop/ios-mobile-launch-mobile.md). Climb in portrait after hydration is mostly possible today; share is clipboard/X-intent only; Google redirect is designed correctly but unproven on WebKit. Native/Capacitor/Game Center/APNs/offline are not in the smallest set.",
+      "action": "Docs should cite loop/ios-mobile-launch-mobile.md for engineering blockers and loop/ios-mobile-launch-spec.md for the vehicle (Safari + Home Screen). Do not start a native tree this cycle.",
+      "confidence": "high"
+    }
+  ],
+  "nextStage": "docs"
+}
