@@ -35,6 +35,12 @@
       "cwd": ".",
       "command": "node scripts/hygiene.mjs",
       "proveFail": "An agent file containing a banned product substring, or missing a pointer to context/README.md, must fail hygiene."
+    },
+    {
+      "name": "skip-vercel",
+      "cwd": "app",
+      "command": "pnpm test tests/deploy/skipVercel.test.ts",
+      "proveFail": "Invokes app/scripts/skip-vercel-if-app-unchanged.sh. A commit that touches app/ with PREV=base must exit 1. Unset PREV, PREV=HEAD, PREV=--output=..., and an unreachable hex SHA must exit 1 (build). Docs-only vs PREV=base must exit 0 (skip)."
     }
   ]
 }

@@ -2,5 +2,6 @@
   "framework": "nextjs",
   "buildCommand": "export DIRECT_URL=\"${DIRECT_URL:-$DATABASE_URL}\" && pnpm db:migrate && pnpm build",
   "installCommand": "pnpm install",
-  "outputDirectory": ".next"
+  "outputDirectory": ".next",
+  "ignoreCommand": "bash scripts/skip-vercel-if-app-unchanged.sh"
 }

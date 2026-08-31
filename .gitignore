@@ -10,12 +10,11 @@ loop/*
 !loop/learnings.md
 !loop/learnings.jsonl
 !loop/INDEX.md
-# Durable loop contracts (not per-run scratch). Spec + architecture must
-# survive clones the same way the learnings ledger does.
-!loop/spec.md
-!loop/architecture.md
-!loop/handoffs/
-!loop/handoffs/*.json
+# Spec, architecture, cost, schema-target, and handoffs stay local. Tracking
+# them made every agent-notes commit a Vercel production deploy. Do not
+# add `!loop/spec.md` (or architecture/handoffs) back.
+# package-upgrade moved to archive/package-upgrade.md (progressive-disclosure
+# filesystem). Handoffs are per-run scratch (loop/INDEX.md).
 .claude/handoffs/*.json
 
 # Dependencies & build
