@@ -1,8 +1,7 @@
 /**
  * AC-20/21/23 recording + listing OG HTTP handlers.
- * ImageResponse is stubbed so we do not require a live Satori render.
- * Options width/height are asserted via recordingOgImageOptions / listingOgImageOptions
- * in paletteSizes.test.ts; these tests prove 404 vs 200 and junk params never 500.
+ * ImageResponse is stubbed here so HTTP 404 vs 200 can run without Satori.
+ * Live PNG render lives in satoriRender.test.tsx (unmocked ImageResponse).
  */
 
 import { beforeEach, describe, expect, it, vi } from "vitest";

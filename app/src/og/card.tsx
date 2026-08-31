@@ -1,12 +1,19 @@
 /**
  * Shared ImageResponse trees for listing, recording, and record cards.
  * System-ui only — no Google font fetch that can 500.
+ *
+ * Satori (@vercel/og) requires display:flex|contents|none on any element
+ * with more than one child. Mixed JSX like `{value}m` is two children and
+ * 500s the route. Production /api/og already dies on that. OgBox locks
+ * display:flex; text is a single string child.
  */
 
+import type { CSSProperties, ReactNode } from "react";
 import { OG_PALETTE } from "./palette";
 import type { ListingOgModel } from "./listingModel";
 
 const FONT = "system-ui, -apple-system, sans-serif";
+const MONO = "ui-monospace, SFMono-Regular, Menlo, monospace";
 
 export function ListingOgCard(model: ListingOgModel) {
   const p = model.palette;
@@ -14,9 +21,8 @@ export function ListingOgCard(model: ListingOgModel) {
   const altLabel = Number.isFinite(altNum) ? altNum.toFixed(1) : "0.0";
 
   return (
-    <div
+    <OgBox
       style={{
-        display: "flex",
         flexDirection: "column",
         alignItems: "center",
         justifyContent: "center",
@@ -28,7 +34,7 @@ export function ListingOgCard(model: ListingOgModel) {
         position: "relative",
       }}
     >
-      <div
+      <OgBox
         style={{
           fontSize: 28,
           fontWeight: 800,
@@ -39,10 +45,9 @@ export function ListingOgCard(model: ListingOgModel) {
         }}
       >
         DOOMSTACK
-      </div>
-      <div
+      </OgBox>
+      <OgBox
         style={{
-          display: "flex",
           alignItems: "center",
           justifyContent: "center",
           background: p.signal,
@@ -54,9 +59,9 @@ export function ListingOgCard(model: ListingOgModel) {
           marginBottom: 16,
         }}
       >
-        #{model.rank}
-      </div>
-      <div
+        {`#${model.rank}`}
+      </OgBox>
+      <OgBox
         style={{
           fontSize: 48,
           fontWeight: 800,
@@ -67,17 +72,17 @@ export function ListingOgCard(model: ListingOgModel) {
         }}
       >
         {model.name}
-      </div>
-      <div
+      </OgBox>
+      <OgBox
         style={{
           fontSize: 20,
           color: p.textPrimary,
           marginBottom: 24,
         }}
       >
-        {altLabel}m altitude
-      </div>
-      <div
+        {`${altLabel}m altitude`}
+      </OgBox>
+      <OgBox
         style={{
           fontSize: 16,
           color: p.textPrimary,
@@ -86,8 +91,8 @@ export function ListingOgCard(model: ListingOgModel) {
         }}
       >
         Your altitude is permanent. The ground rises instead.
-      </div>
-      <div
+      </OgBox>
+      <OgBox
         style={{
           position: "absolute",
           bottom: 0,
@@ -97,7 +102,7 @@ export function ListingOgCard(model: ListingOgModel) {
           background: p.ember,
         }}
       />
-    </div>
+    </OgBox>
   );
 }
 
@@ -107,9 +112,8 @@ export function RecordingOgCard(props: {
 }) {
   const p = OG_PALETTE;
   return (
-    <div
+    <OgBox
       style={{
-        display: "flex",
         flexDirection: "column",
         alignItems: "center",
         justifyContent: "center",
@@ -121,7 +125,7 @@ export function RecordingOgCard(props: {
         position: "relative",
       }}
     >
-      <div
+      <OgBox
         style={{
           fontSize: 24,
           fontWeight: 800,
@@ -132,25 +136,40 @@ export function RecordingOgCard(props: {
         }}
       >
         DOOMSTACK
-      </div>
-      <div
+      </OgBox>
+      <OgBox
         style={{
-          fontSize: 72,
-          fontWeight: 800,
-          fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
+          alignItems: "flex-end",
           color: p.signal,
           lineHeight: 1,
         }}
       >
-        {props.peakM}
-        <span style={{ fontSize: 28, fontWeight: 400, marginLeft: 8 }}>m</span>
-      </div>
+        <OgBox
+          style={{
+            fontSize: 72,
+            fontWeight: 800,
+            fontFamily: MONO,
+          }}
+        >
+          {String(props.peakM)}
+        </OgBox>
+        <OgBox
+          style={{
+            fontSize: 28,
+            fontWeight: 400,
+            marginLeft: 8,
+            marginBottom: 8,
+          }}
+        >
+          m
+        </OgBox>
+      </OgBox>
       {props.handle ? (
-        <div style={{ fontSize: 22, marginTop: 16, color: p.textPrimary }}>
+        <OgBox style={{ fontSize: 22, marginTop: 16, color: p.textPrimary }}>
           {props.handle}
-        </div>
+        </OgBox>
       ) : null}
-      <div
+      <OgBox
         style={{
           fontSize: 18,
           marginTop: 20,
@@ -158,8 +177,8 @@ export function RecordingOgCard(props: {
         }}
       >
         Watch the replay
-      </div>
-      <div
+      </OgBox>
+      <OgBox
         style={{
           position: "absolute",
           bottom: 0,
@@ -169,7 +188,7 @@ export function RecordingOgCard(props: {
           background: p.ember,
         }}
       />
-    </div>
+    </OgBox>
   );
 }
 
@@ -179,9 +198,8 @@ export function RecordOgCard(props: {
 }) {
   const p = OG_PALETTE;
   return (
-    <div
+    <OgBox
       style={{
-        display: "flex",
         flexDirection: "column",
         alignItems: "center",
         justifyContent: "center",
@@ -193,7 +211,7 @@ export function RecordOgCard(props: {
         position: "relative",
       }}
     >
-      <div
+      <OgBox
         style={{
           fontSize: 24,
           fontWeight: 800,
@@ -204,8 +222,8 @@ export function RecordOgCard(props: {
         }}
       >
         DOOMSTACK
-      </div>
-      <div
+      </OgBox>
+      <OgBox
         style={{
           fontSize: 44,
           fontWeight: 800,
@@ -216,17 +234,17 @@ export function RecordOgCard(props: {
         }}
       >
         {props.displayName}
-      </div>
-      <div
+      </OgBox>
+      <OgBox
         style={{
           fontSize: 28,
-          fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
+          fontFamily: MONO,
           color: p.signal,
         }}
       >
-        {props.altitudeM}m
-      </div>
-      <div
+        {`${props.altitudeM}m`}
+      </OgBox>
+      <OgBox
         style={{
           position: "absolute",
           bottom: 0,
@@ -236,6 +254,15 @@ export function RecordOgCard(props: {
           background: p.ember,
         }}
       />
-    </div>
+    </OgBox>
   );
+}
+
+function OgBox({ children, style }: OgBoxProps) {
+  return <div style={{ ...style, display: "flex" }}>{children}</div>;
+}
+
+interface OgBoxProps {
+  children?: ReactNode;
+  style?: CSSProperties;
 }

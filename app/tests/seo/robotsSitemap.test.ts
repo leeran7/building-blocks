@@ -5,7 +5,7 @@
 import { describe, expect, it } from "vitest";
 import { getRobotsConfig } from "../../src/seo/robotsConfig";
 import { buildSitemapEntries } from "../../src/seo/sitemapEntries";
-import robots from "../../app/robots";
+import robots, { dynamic as robotsDynamic } from "../../app/robots";
 import { PROD_ORIGIN } from "../share/fixtures";
 
 function allowList(config: ReturnType<typeof getRobotsConfig>): string[] {
@@ -43,6 +43,7 @@ describe("getRobotsConfig (AC-35)", () => {
     const fromRoute = robots();
     expect(allowList(fromRoute)).toContain("/r/");
     expect(disallowList(fromRoute)).not.toContain("/r/");
+    expect(robotsDynamic).toBe("force-dynamic");
   });
 });
 
