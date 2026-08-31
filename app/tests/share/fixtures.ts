@@ -26,3 +26,12 @@ export function sampleRecording(
     ...overrides,
   };
 }
+
+/** Next Metadata `twitter` is a union; card is only on some members. */
+export function twitterCard(twitter: unknown): string | undefined {
+  if (twitter && typeof twitter === "object" && "card" in twitter) {
+    const card = (twitter as { card?: unknown }).card;
+    return typeof card === "string" ? card : undefined;
+  }
+  return undefined;
+}

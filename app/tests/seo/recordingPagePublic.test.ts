@@ -26,7 +26,7 @@ vi.mock("../../src/components/FreeStackShell", () => ({
 import { config } from "../../middleware";
 import { generateMetadata } from "../../app/r/[id]/page";
 import { getShareableClimbRun } from "../../src/db/climb";
-import { PROD_ORIGIN } from "../share/fixtures";
+import { PROD_ORIGIN, twitterCard } from "../share/fixtures";
 
 describe("middleware matcher (AC-40)", () => {
   it("does not include a /r/ entry, so bots are not 401'd by the matcher", () => {
@@ -59,7 +59,7 @@ describe("recording page generateMetadata is unauthenticated (AC-40)", () => {
     const meta = await generateMetadata({
       params: Promise.resolve({ id: "rec_test_1" }),
     });
-    expect(meta.twitter?.card).toBe("summary_large_image");
+    expect(twitterCard(meta.twitter)).toBe("summary_large_image");
     expect(String(meta.openGraph?.url)).toContain("/r/rec_test_1");
     vi.unstubAllEnvs();
   });

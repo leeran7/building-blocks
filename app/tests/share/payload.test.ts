@@ -75,7 +75,9 @@ describe("buildRecordingSharePayload (AC-12, AC-13, AC-14, AC-16, AC-18)", () =>
     expect(json).not.toContain("INTERNAL_TOKEN");
     expect(collectKeys(result.data).some((k) => k === "seed")).toBe(false);
     expect(json).not.toMatch(/"seed"\s*:/);
-    expect(result.data.handle).not.toMatch(/@/);
+    expect(result.data.handle === null || !/@/.test(result.data.handle)).toBe(
+      true
+    );
     expect(result.data.handle).not.toBe("maya@evil.com");
   });
 

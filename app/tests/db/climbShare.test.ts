@@ -1,9 +1,22 @@
 /**
  * AC-3, AC-5, AC-6, AC-7 (DTO) — invoke recordClimb / getShareableClimbRun
  * with a Prisma stand-in. Proves allow-list mapping and null-token 404.
+ *
+ * `react.cache` is not a function in vitest's node `react` build; identity-mock
+ * it so this file can import climb.ts. Existing climbRecord.test.ts still loads
+ * the unmocked module and will fail until production guards cache.
  */
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
+
+const prismaMocks = vi.hoisted(() => ({
+  findUnique: vi.fn(),
+  create: vi.fn(),
+  recordFindUnique: vi.fn(),
+  recordUpsert: vi.fn(),
+  recordCount: vi.fn(),
+  userFindUnique: vi.fn(),
+}));
 
 vi.mock("react", async (importOriginal) => {
   const actual = await importOriginal<typeof import("react")>();
@@ -13,26 +26,19 @@ vi.mock("react", async (importOriginal) => {
   };
 });
 
-const findUnique = vi.fn();
-const create = vi.fn();
-const recordFindUnique = vi.fn();
-const recordUpsert = vi.fn();
-const recordCount = vi.fn();
-const userFindUnique = vi.fn();
-
 vi.mock("../../src/db/client", () => ({
   prisma: {
     climbRun: {
-      findUnique,
-      create,
+      findUnique: prismaMocks.findUnique,
+      create: prismaMocks.create,
     },
     climbRecord: {
-      findUnique: recordFindUnique,
-      upsert: recordUpsert,
-      count: recordCount,
+      findUnique: prismaMocks.recordFindUnique,
+      upsert: prismaMocks.recordUpsert,
+      count: prismaMocks.recordCount,
     },
     user: {
-      findUnique: userFindUnique,
+      findUnique: prismaMocks.userFindUnique,
     },
   },
 }));
@@ -42,16 +48,16 @@ import { parseRecordingId } from "../../src/share/parseRecordingId";
 
 describe("getShareableClimbRun (AC-5, AC-6, AC-7)", () => {
   beforeEach(() => {
-    findUnique.mockReset();
+    prismaMocks.findUnique.mockReset();
   });
 
   it("returns null for an unknown row (AC-5)", async () => {
-    findUnique.mockResolvedValue(null);
+    prismaMocks.findUnique.mockResolvedValue(null);
     expect(await getShareableClimbRun("rec_missing")).toBeNull();
   });
 
   it("returns null when replay_token is null (AC-6)", async () => {
-    findUnique.mockResolvedValue({
+    prismaMocks.findUnique.mockResolvedValue({
       id: "rec_notoken",
       peak_y: 100,
       replay_token: null,
@@ -65,11 +71,11 @@ describe("getShareableClimbRun (AC-5, AC-6, AC-7)", () => {
   it("does not hit the DB for a parser-rejected id (AC-7)", async () => {
     expect(parseRecordingId("..")).toBeNull();
     expect(await getShareableClimbRun("..")).toBeNull();
-    expect(findUnique).not.toHaveBeenCalled();
+    expect(prismaMocks.findUnique).not.toHaveBeenCalled();
   });
 
   it("maps an allow-list DTO without token/seed (AC-13 DTO half)", async () => {
-    findUnique.mockResolvedValue({
+    prismaMocks.findUnique.mockResolvedValue({
       id: "rec_test_1",
       peak_y: 100,
       replay_token: "SECRET_REPLAY_TOKEN",
@@ -91,7 +97,7 @@ describe("getShareableClimbRun (AC-5, AC-6, AC-7)", () => {
   });
 
   it("never leaves an @ in handle", async () => {
-    findUnique.mockResolvedValue({
+    prismaMocks.findUnique.mockResolvedValue({
       id: "rec_test_1",
       peak_y: 50,
       replay_token: "tok",
@@ -100,26 +106,28 @@ describe("getShareableClimbRun (AC-5, AC-6, AC-7)", () => {
     });
     const dto = await getShareableClimbRun("rec_test_1");
     expect(dto).not.toBeNull();
-    expect(dto?.handle).not.toMatch(/@/);
+    expect(dto?.handle === null || (dto?.handle != null && !/@/.test(dto.handle))).toBe(
+      true
+    );
     expect(dto?.handle).not.toBe("maya@evil.com");
   });
 });
 
 describe("recordClimb return (AC-3)", () => {
   beforeEach(() => {
-    create.mockReset();
-    recordFindUnique.mockReset();
-    recordUpsert.mockReset();
-    recordCount.mockReset();
-    userFindUnique.mockReset();
+    prismaMocks.create.mockReset();
+    prismaMocks.recordFindUnique.mockReset();
+    prismaMocks.recordUpsert.mockReset();
+    prismaMocks.recordCount.mockReset();
+    prismaMocks.userFindUnique.mockReset();
   });
 
   it("includes existing keys plus additive runId", async () => {
-    create.mockResolvedValue({ id: "rec_saved_1" });
-    recordFindUnique.mockResolvedValue(null);
-    recordUpsert.mockResolvedValue({});
-    recordCount.mockResolvedValue(0);
-    userFindUnique.mockResolvedValue({ display_name: "Maya" });
+    prismaMocks.create.mockResolvedValue({ id: "rec_saved_1" });
+    prismaMocks.recordFindUnique.mockResolvedValue(null);
+    prismaMocks.recordUpsert.mockResolvedValue({});
+    prismaMocks.recordCount.mockResolvedValue(0);
+    prismaMocks.userFindUnique.mockResolvedValue({ display_name: "Maya" });
 
     const result = await recordClimb({
       userId: "user-1",

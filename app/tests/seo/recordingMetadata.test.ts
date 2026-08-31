@@ -14,7 +14,7 @@ import { getRecordingPageMetadata } from "../../src/seo/recordingMetadata";
 import { getShareableClimbRun } from "../../src/db/climb";
 import { parseRecordingId } from "../../src/share/parseRecordingId";
 import { buildRecordingCanonicalUrl, buildRecordingOgImageUrl } from "../../src/share/urls";
-import { HOMEPAGE_OG_TITLE, PROD_ORIGIN } from "../share/fixtures";
+import { HOMEPAGE_OG_TITLE, PROD_ORIGIN, twitterCard } from "../share/fixtures";
 
 function ogUrl(meta: Metadata): string {
   return String(meta.openGraph?.url ?? "");
@@ -74,7 +74,7 @@ describe("getRecordingPageMetadata (AC-5, AC-8, AC-9, AC-11)", () => {
     expect(String(a.metadata.title)).not.toContain("250");
     expect(String(b.metadata.title)).not.toContain("100");
 
-    expect(a.metadata.twitter?.card).toBe("summary_large_image");
+    expect(twitterCard(a.metadata.twitter)).toBe("summary_large_image");
     expect(String(a.metadata.openGraph?.title)).not.toBe(HOMEPAGE_OG_TITLE);
     expect(ogUrl(a.metadata)).toBe(
       buildRecordingCanonicalUrl(PROD_ORIGIN, "rec_peak_100")

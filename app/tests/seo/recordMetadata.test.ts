@@ -12,7 +12,7 @@ vi.mock("../../src/db/blocks", () => ({
 import { getRecordPageMetadata } from "../../src/seo/recordMetadata";
 import { getBlockBySlug } from "../../src/db/blocks";
 import { buildRecordCanonicalUrl } from "../../src/share/urls";
-import { HOMEPAGE_OG_TITLE, PROD_ORIGIN } from "../share/fixtures";
+import { HOMEPAGE_OG_TITLE, PROD_ORIGIN, twitterCard } from "../share/fixtures";
 
 function fakeBlock(overrides: Partial<Block> = {}): Block {
   return {
@@ -57,7 +57,7 @@ describe("getRecordPageMetadata (AC-32, AC-34)", () => {
     const images = metadata.openGraph?.images;
     const first = Array.isArray(images) ? images[0] : images;
     expect(first).toMatchObject({ width: 1200, height: 630 });
-    expect(metadata.twitter?.card).toBe("summary_large_image");
+    expect(twitterCard(metadata.twitter)).toBe("summary_large_image");
     expect(String(metadata.openGraph?.title)).not.toBe(HOMEPAGE_OG_TITLE);
   });
 

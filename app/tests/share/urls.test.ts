@@ -3,7 +3,7 @@
  * Callers pass an explicit origin; Host is not a parameter.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { PUBLIC_CONFIG, resolveBaseUrl } from "../../src/config/public";
 import {
   buildRecordCanonicalUrl,
@@ -92,15 +92,14 @@ describe("PUBLIC_CONFIG.siteUrl and resolveBaseUrl (AC-24)", () => {
 
   it("resolveBaseUrl equals production origin when NODE_ENV=production and BASE_URL is unset", () => {
     const prevBase = process.env.BASE_URL;
-    const prevNode = process.env.NODE_ENV;
     delete process.env.BASE_URL;
-    process.env.NODE_ENV = "production";
+    vi.stubEnv("NODE_ENV", "production");
     try {
       expect(resolveBaseUrl()).toBe(PROD_ORIGIN);
     } finally {
+      vi.unstubAllEnvs();
       if (prevBase === undefined) delete process.env.BASE_URL;
       else process.env.BASE_URL = prevBase;
-      process.env.NODE_ENV = prevNode;
     }
   });
 
