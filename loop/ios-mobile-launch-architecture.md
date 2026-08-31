@@ -596,7 +596,7 @@ Do **not** add `SENTRY_DSN` to the client without a CSP change in the same commi
 
 ### 10.5 Climb score trust
 
-iOS launch is a **megaphone** for the existing hole: client `peakY` + monotonic persist + public `/` teaser. Controls that exist: `checkClimbResult` (generous envelope), IP rate limit, auth to persist. Controls that **do not** exist: `antiCheat.ts` is test-only (learnings); ranked re-sim (AC-17) is not a route. **Do not** claim the mobile leaderboard is fairer than desktop. **Do not** add a comment that “verification happens on iOS.” Server-derive or keep the known bound.
+iOS launch is a **megaphone** for the existing hole: client `peakY` + monotonic persist + public `/` teaser. Controls that exist: `checkClimbResult` (generous envelope), IP rate limit, auth to persist. `antiCheat.ts` runs in the **client** sim (`simulation.ts` imports `validateInput`) and is **not** a server oracle — it does not close F-1. Ranked re-sim (AC-17) is not a route. **Do not** claim the mobile leaderboard is fairer than desktop. **Do not** add a comment that “verification happens on iOS.” Server-derive or keep the known bound.
 
 ### 10.6 CSP vs new origins
 
@@ -722,7 +722,7 @@ N+1 risks: do not load Stripe, Recharts, or dashboard charts on `/play`. `GameOv
 
 **Reason:** AC-19 asserts the sessionStorage key is cleared — keep writing it. iOS often drops sessionStorage across Google redirect (mobile G11) — localStorage backup covers **same-container** recreation. A claim-token table is the cross-container fix and is out of v1 (new write path + authz).
 
-**Consequence:** `ClimbScene.tsx` (or `usePendingClimb`) only. No Prisma migration. Read: try sessionStorage, then localStorage. Spec AC-19 still passes.
+**Consequence:** `ClimbScene.tsx` (or `usePendingClimb`) only. No Prisma migration. Read: try sessionStorage, then localStorage (ignore `savedAt` older than 2h). Allow-list parse `peakY`/`ticks`/`finishedTick`/`seed`/`v`/`savedAt` only — **never** persist `firebaseToken` or Authorization. Any `redirectTo` goes through `safeInternalPath` on write and read. Spec AC-19 must clear **both** stores after one successful POST. POST always through `checkClimbResult`.
 
 ### ADR-10 — Wake Lock allowed; vibrate not in policy
 

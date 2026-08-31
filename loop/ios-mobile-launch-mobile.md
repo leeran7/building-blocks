@@ -227,11 +227,12 @@ hydration mismatch / delayed fill also means Playwright “mobile” polls can
 pass on `BASE_SIZE` before measure (already a ledger finding).
 
 **Design-level fix:** Do not wait on a client effect to choose the stage.
-Options (pick one): (a) CSS `@media (pointer: coarse)` full-bleed wrapper so
+Pick (a) or (b) only: (a) CSS `@media (pointer: coarse)` full-bleed wrapper so
 the first paint is already fill, with `suppressHydrationWarning` on the
 dimensioned canvas; (b) a tiny inline script that sets a class on `<html>`
-from `matchMedia` before React; (c) iPhone UA cookie set from middleware for
-SSR. Do not default `useState(false)` for a load-bearing layout bit.
+from `matchMedia('(pointer: coarse)')` before React. Do **not** set a
+User-Agent cookie from middleware — play surface and boards are never UA.
+Do not default `useState(false)` for a load-bearing layout bit.
 
 ### G4. Pinch zoom and overscroll fight the game
 
@@ -275,11 +276,13 @@ of scope (no `screen.orientation.lock`). That does not make landscape *playable*
 or fair look-ahead vs the portrait leaderboard. A launch that only tested
 portrait will look broken the first time someone rotates.
 
-**Design-level fix:** Do not ship an Orientation Lock API (out of spec). Either
-(1) a CSS/JS “rotate to portrait” **pause overlay** (not a lock), or (2)
-letterbox a 9:16 play surface inside the landscape viewport (reuse `fitCanvas`,
-do not `fillCanvas`). Apply HUD offset from the **scaled** canvas HUD, not a
-40 px constant. Add left/right safe-area to the on-canvas HUD, not only top.
+**Design-level fix:** Do not ship an Orientation Lock API (out of spec). The
+only G5 path is a CSS/JS “rotate to portrait” **pause overlay** (not a lock):
+do not run fill-stage and do not accept Start while `innerWidth > innerHeight`
+(ADR-16 / AC-8a). Do **not** letterbox `fitCanvas` onto the Desktop 9:16
+board in the same session (that would split one phone across two boards).
+Apply HUD offset from the **scaled** canvas HUD, not a 40 px constant. Add
+left/right safe-area to the on-canvas HUD, not only top.
 
 ### G6. No Web App Manifest / apple-touch-icon / standalone
 
@@ -295,10 +298,13 @@ Add to Home Screen is a Safari bookmark (unstable chrome, generic icon).
 standalone even without a manifest; we still need name, icon, and `start_url`.
 
 **Design-level fix:** Next.js `metadata.manifest` + `appleWebApp: { capable:
-true, statusBarStyle: "black-translucent" }`, a PNG `app/apple-icon.tsx` (Apple
-does not use SVG for home-screen icons), and `display: standalone` /
-`orientation: portrait` in the manifest. Scope start_url to `/play`. This is
-the install vehicle; not a second client.
+true, statusBarStyle: "black-translucent" }`, and a 180×180 PNG at
+`app/app/apple-icon.png` (or `app/app/apple-icon.tsx` — App Router lives under
+`app/app/`; `app/apple-icon.tsx` at the Next project root does not satisfy
+AC-10). Apple does not use SVG for home-screen icons. Manifest fields:
+`display: standalone`, `start_url: "/play"`, **`scope: "/"`** (never
+`scope: "/play"` — that ejects `/auth/*` and `/__/auth/*` into Safari).
+This is the install vehicle; not a second client.
 
 ### G7. Screen can sleep mid-run (no Wake Lock)
 
@@ -434,12 +440,14 @@ Safari-correct setup (`next.config.js:59–68`).
 **Why it can block:** Climb → sign-in → rank is the retention loop. A lost
 stash is a silent drop.
 
-**Design-level fix:** Persist `{ run, redirectTo }` in `sessionStorage` **and**
-`localStorage` with a short TTL before `signInWithRedirect`. On every auth
-landing page, read redirect from storage if the query is missing. Do not treat
-guest as a save path (copy already says sign in). Prove with a WebKit e2e that
-round-trips storage across a same-origin navigation, plus one human Google
-pass on iPhone Safari.
+**Design-level fix:** Dual-write the allow-listed run JSON (`peakY`, `ticks`,
+`finishedTick`, `seed`, `v`, `savedAt` only — **never** `firebaseToken` /
+Bearer) to `sessionStorage` **and** `localStorage` (2h TTL) before
+`signInWithRedirect`. Clear **both** stores after one successful POST (AC-19).
+If a `redirectTo` is stored, pass it through `safeInternalPath` on write and
+read. Do not treat guest as a save path (copy already says sign in). Prove with
+a WebKit e2e that round-trips storage across a same-origin navigation, plus one
+human Google pass on iPhone Safari.
 
 ### G12. iPad: coarse → full bleed; `pointer: fine` → desktop; split-screen untested
 
@@ -486,7 +494,7 @@ is Desktop). Split View: best-effort via existing `visualViewport` listener.
 | Surface | Role |
 | --- | --- |
 | **iPhone Safari, portrait** | **Launch-critical.** Must complete climb + share + sign-in. |
-| iPhone Safari, landscape | **Required not to break** (rotate overlay or letterbox — not Orientation Lock API). |
+| iPhone Safari, landscape | **Required not to break** (rotate-to-portrait overlay only — not Orientation Lock API, not letterbox). |
 | iPhone Home Screen standalone | **Launch-critical** for the chosen vehicle (spec: Safari + Home Screen). G6 is in the v1 set, not a phase-2 bonus. |
 | iOS 16.4+ Safari | **Minimum** for Wake Lock + current visualViewport behaviour. |
 | iOS 16.0–16.3 | **Best-effort:** no Wake Lock; keep the “leave screen on” copy. |
@@ -520,7 +528,7 @@ Do **not** start a native app. Fix the existing `/play` coarse-pointer tree:
 1. **Play shell = non-scrolling viewport** (G1, G2): `100dvh` + `overflow-hidden` + `overscroll-behavior: none`; drop Navbar/tabs/how-to from layout while the stage is up.
 2. **First paint is already fill** (G3): CSS or pre-React `pointer: coarse` class; stop `useState(false)` as the layout source of truth.
 3. **Stage `touch-action` + no nested document scroll** (G4).
-4. **Portrait contract** (G5): landscape rotate **overlay** (not Orientation Lock) or letterboxed `fitCanvas`; HUD offset from scaled bar + side safe-area. iPad fill uses the same HUD-scale fix.
+4. **Portrait contract** (G5): landscape rotate **overlay** only (not Orientation Lock, not letterboxed `fitCanvas`). HUD offset from scaled bar + side safe-area. iPad fill uses the same HUD-scale fix.
 5. **Wake Lock on Start** (G7).
 6. **`navigator.share` + 44 px share/sign-in** (G8).
 7. **Home Screen PWA chrome** (G6): manifest, PNG apple-touch-icon, `appleWebApp`.

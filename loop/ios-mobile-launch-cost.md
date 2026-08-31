@@ -5,7 +5,7 @@
 **Product:** The Climb on `https://www.doomstack.lol` (Next.js on Vercel; Prisma/Neon; Upstash Redis; Firebase Auth; Stripe Checkout).  
 **Spec envelope:** `loop/spec.md` is absent. There is no prior cost NFR. This note is the envelope for the iOS/mobile-alone investigation.
 
-**Verdict:** The cheapest vehicle that still achieves “the game launches on iPhone without a desktop” is **stay on Vercel web + iOS Safari / Add to Home Screen**. Incremental spend versus today is static CDN bytes (touch icons, optional manifest) plus whatever extra signed-in climb POSTs mobile actually produces. An App Store binary and a native rewrite are not required to meet that bar, and both add take-rate, dual payment rails, and duplicated subsystems before they add a single extra metre of climb.
+**Verdict:** The cheapest vehicle that still achieves “the game launches on iPhone without a desktop” is **stay on Vercel web + iOS Safari / Add to Home Screen**. Incremental spend versus today is static CDN bytes (required touch icons + manifest) plus whatever extra signed-in climb POSTs mobile actually produces. An App Store binary and a native rewrite are not required to meet that bar, and both add take-rate, dual payment rails, and duplicated subsystems before they add a single extra metre of climb.
 
 Do not change hosting, payment processor, or auth provider to “save money” for this launch.
 
@@ -97,17 +97,17 @@ Paid-stack views (not the climb) hit Edge middleware → `POST /api/internal/cre
 
 ## 3. Vehicle 1 — Stay on Vercel web, iOS Safari / Home Screen
 
-**What already exists:** full-bleed canvas (`viewportFit: "cover"`), touch controls, iOS audio routing (`audioOutput.ts` / media-element sink), 375×812 Playwright coverage, `/play` with no login wall.
+**What already exists:** full-bleed canvas (`viewportFit: "cover"`), touch controls, iOS audio routing (`audioOutput.ts` / media-element sink), `/play` with no login wall. Playwright has a 375×812 **Chromium** project named `iphone-12` (UA spoof, no `hasTouch` / `isMobile`) — that is **not** iOS coverage (see G9 / NFR-8).
 
-**What is missing for a “real” Home Screen icon:** no `apple-touch-icon` (only `app/app/icon.svg` 32×32), no web app manifest, no service worker. Those are static assets on the same CDN.
+**What is missing for a Home Screen icon:** no 180×180 PNG `apple-touch-icon` (only `app/app/icon.svg` 32×32), no web app manifest. The **manifest is required** for this launch (static CDN bytes, not a function meter). No service worker — keep SW **out of v1**.
 
 ### Incremental cost versus today
 
 | Item | Unit | If mobile is the growth channel |
 |---|---|---|
 | 180×180 / 192 / 512 PNG icons | One download per install, then cache | ≲ 50 KB Fast Data Transfer / first Home Screen add. Hobby includes 100 GB |
-| Optional `manifest.webmanifest` | Same | Bytes, not functions |
-| Optional service worker | Can **cut** origin hits if it caches `/play` shell; can **add** a request on every navigation if mis-scoped | Net saving only if it caches. Do not add a chatty SW “for PWA” |
+| Required `manifest.webmanifest` | Same | Bytes, not functions. Required by AC-9 (`scope: "/"`, `start_url: "/play"`). |
+| Service worker | Out of v1 | Can cut origin hits if it caches `/play` shell; can add a request on every navigation if mis-scoped. Do not add a chatty SW “for PWA” this cycle |
 | Extra `/play` document loads | 1 Edge Request + JS/CSS/canvas tile transfer per visit | Game loop is client-side; origin is idle during play |
 | Extra signed-in finishes | §2.1 | Only if Home Screen users **sign in to save**. Anonymous play is free at origin |
 | Extra Google redirects | §2.3 | If the growth loop is “play → sign in with Google to keep the height” |
@@ -121,7 +121,7 @@ No Apple fee. No IAP. Stripe stays on the web for paid stacks. Firebase stays in
 - Do not add per-replay OG images as part of “make it feel native.”
 - A service worker, if added later, must cache the play shell and must not revalidate APIs every tick.
 
-**Engineering cost:** icons + maybe `apple-mobile-web-app-capable` / manifest. No second renderer, no second store, no second payment rail.
+**Engineering cost:** required icons + `apple-mobile-web-app-capable` / manifest (AC-9). No second renderer, no second store, no second payment rail.
 
 ---
 
@@ -148,7 +148,7 @@ Fixed and take-rate costs, independent of traffic:
 
 Primary product price is **$5 minimum entry**. IAP is strictly more expensive than Stripe at that ticket even on Small Business 15%. IAP only “wins” on sub-~$3 tickets at 15%, which is not the listing SKU.
 
-A **game-only** binary that cannot buy altitude and opens Safari for paid stacks avoids IAP **and** most of 3.1.1 — and then the store listing does not monetize. You still pay $99/year, SIWA if Google stays, review, and wrapper work for zero incremental revenue.
+A **game-only** App Store binary still cannot open Safari for paid stacks as a 3.1.1 workaround: Guideline **3.1.3(f)** forbids calls to action for purchase outside the app. Game-only means **no in-app purchase and no outbound buy CTAs** (architecture §5.1). You still pay $99/year, SIWA if Google stays, review, and wrapper work for zero incremental altitude revenue.
 
 Capacitor / WKWebView wrap of the existing Next app still hits origin for every API. It does **not** remove Vercel/Neon/Upstash/Firebase; it **adds** Apple’s layer on top.
 

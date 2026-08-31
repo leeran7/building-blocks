@@ -264,12 +264,16 @@ the same pass — the `learning-loop.md` bar for a permanent guardrail.
 - **[backend → architect] Is `/api/tower` (unscoped) still a supported contract?**
   Its `season`/`engine`/`cost_of_rank1_usd` fields are meaningless once stacks are
   partitioned. Scope the endpoint or drop the fields.
-- **[dispatcher → user] Which of the proposed doc updates in
-  `docs/reviews/2026-08-29.md` are approved?** The `.gitignore` change is applied
-  in this branch; the rest await approval per the standing rule.
+- **[dispatcher → user] iOS / mobile-alone launch (2026-08-31):** v1 is Safari +
+  Home Screen, not an App Store binary. Report: `docs/ios-mobile-launch.md`.
+  Next loop implements AC-1–38 + AC-8a; do not add Capacitor.
 
 ## Recently applied (last 20)
 
+- 2026-08-31 — iOS/mobile-alone investigation: v1 is Safari + Home Screen, not
+  App Store. Reviewer/security warnings applied in-docs: landscape overlay-only
+  (AC-8a), manifest `scope: "/"`, AC-19 clears both stash stores, no Safari
+  Checkout as a 3.1.1 workaround. Applied.
 - 2026-08-29 — `.gitignore` switched from `loop/` to `loop/*` plus negations so the
   learnings ledger is version-controlled (F-16). Applied.
 - 2026-08-29 — 52 learnings from `reviewer`, `security-reviewer`, `frontend`,

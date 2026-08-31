@@ -89,7 +89,7 @@ Engineering gaps **G1–G12** from the mobile specialist. One line each. Full an
 
 ## Product contract for the next implementer loop
 
-Acceptance criteria **AC-1 through AC-38** live in **[loop/ios-mobile-launch-spec.md](../loop/ios-mobile-launch-spec.md)**. That file is the contract. This report does not restate every AC.
+Acceptance criteria **AC-1 through AC-38 plus AC-8a** (landscape overlay) live in **[loop/ios-mobile-launch-spec.md](../loop/ios-mobile-launch-spec.md)**. That file is the contract. This report does not restate every AC.
 
 Architecture (vehicle A, no second stack): [loop/ios-mobile-launch-architecture.md](../loop/ios-mobile-launch-architecture.md) — especially **§1** (vehicle), **§4** (what to add in `app/`), **§5** (App Store stop-list), **§12** (16 ADRs). Do not paste those ADRs into product copy; implementers read them there.
 
@@ -99,7 +99,7 @@ Load-bearing calls the next loop must not invert:
 | --- | --- |
 | **PR #49 board split is in-scope** | Free climb splits Mobile vs Desktop by **play surface** (fill-stage / coarse vs 9:16 / keyboard). Mobile is the default write/read. Untagged history → Desktop. Invalid `board` → 400 `INVALID_BOARD`. Paid towers stay one ranking. If #49 is not merged, this launch includes equivalent work (`0010`/`0011` or equivalent). Do not ship Home Screen chrome against a mixed free board. |
 | **Manifest `scope: "/"` and `start_url: "/play"`** | **Do not scope the manifest to `/play`.** Auth is `/auth/*` and `/__/auth/*`; a `/play` scope ejects those navigations into Safari (different storage partition) and breaks Google return. Hide chrome with CSS/`inert`, not with a narrow scope. |
-| **Dual-write pending-climb** | Same JSON to `sessionStorage` **and** `localStorage` under `doomstack:pending-climb`; clear both after one successful POST (AC-19 still names sessionStorage). No `pending_climbs` table in v1. |
+| **Dual-write pending-climb** | Same JSON to `sessionStorage` **and** `localStorage` under `doomstack:pending-climb`; **clear both** after one successful POST (AC-19). Allow-list fields only; 2h TTL; never stash JWT/Bearer; `safeInternalPath` on any stored redirect. No `pending_climbs` table in v1. |
 | **Landscape = rotate overlay, not fill-stage** | Coarse landscape fill would still POST `board: mobile` and poison the phone board. Show a rotate-to-portrait overlay; do not run fill-stage or accept Start while width > height. Do **not** call `screen.orientation.lock` (out of spec; Safari will not grant it). |
 | **`/privacy` and `/terms` in v1** | Home Screen looks like an app and the product already collects Firebase identifiers and climb peaks. Routes return 200; privacy headings include `Data we collect`, `Authentication`, and `Climb scores`. Copy quality is compliance; **the routes are in this launch**. |
 | **WebKit Playwright** | Current `iphone-12` project is **Chromium + iPhone UA** (no `devices["iPhone 12"]` spread: no `hasTouch` / `isMobile`). That does **not** satisfy WebKit ACs. Add a real WebKit project. |

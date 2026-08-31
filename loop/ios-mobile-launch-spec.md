@@ -206,7 +206,7 @@ Numbered globally. qa-acceptance must be able to automate these without taste. P
 
 **AC-2.** Given the same viewport, when Riley opens `/play`, then an element `[data-climb-surface]` is in the document, `document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1`, and a `Start climb` control exists with box ≥44×44.
 
-**AC-3.** Given a 375×812 viewport, when Riley views the header on `/` or `/play` (lobby), then a control with accessible name matching `/free climb|play/i` that hrefs `/play` is visible (`getComputedStyle(el).display !== 'none'` and bounding box height > 0). (Today `Navbar` “Free climb” is `hidden sm:inline-flex`.)
+**AC-3.** Given a 375×812 viewport and `matchMedia('(display-mode: browser)')` is true, when Riley views the header on `/` (and on `/play` lobby when site chrome is still shown), then a control with accessible name matching `/free climb|play/i` that hrefs `/play` is visible (`getComputedStyle(el).display !== 'none'` and bounding box height > 0). (Today `Navbar` “Free climb” is `hidden sm:inline-flex`.) This AC does **not** apply in `display-mode: standalone` on `/play`, where site Navbar is hidden and in-canvas 44×44 exits (lobby/results leaderboard links) are the way out.
 
 **AC-4 (negative).** Given a coarse-pointer 375×812 viewport, when Riley opens `/play` in the lobby phase, then the lobby overlay does not contain an `a[href*="checkout"]`, an `a[href="/submit"]`, or a control whose accessible name matches `/enter the arena|buy altitude|claim your altitude/i`.
 
@@ -220,9 +220,11 @@ Numbered globally. qa-acceptance must be able to automate these without taste. P
 
 **AC-8.** Given coarse `/play` climbing, when `visualViewport` height changes by ≥50px (simulated chrome collapse), then `[data-climb-surface]` height is within 2px of the new `visualViewport.height` (fill-stage tracks the viewport; it does not stay locked to the first measure).
 
+**AC-8a.** Given coarse `/play` with `window.innerWidth > window.innerHeight`, when the lobby is shown, then a rotate-to-portrait overlay is visible, activating `Start climb` does **not** enter the climb phase, fill-stage does not run, and no `POST /api/climb/result` is sent. `screen.orientation.lock` is not invoked. (Landscape fill would still tag Mobile and poison the phone board. Do not letterbox onto the Desktop 9:16 board in the same session.)
+
 ### US-3 Home Screen
 
-**AC-9.** Given `GET` of the document at `/play`, when the HTML is parsed, then a `<link rel="manifest">` (or equivalent HTTP `Link`) points at a resource that JSON-parses with `display` exactly `standalone`, `start_url` that resolves to a URL whose pathname is `/play` on `https://www.doomstack.lol`, and `background_color` / `theme_color` equal to `#0a0a0c` (case-insensitive).
+**AC-9.** Given `GET` of the document at `/play`, when the HTML is parsed, then a `<link rel="manifest">` (or equivalent HTTP `Link`) points at a resource that JSON-parses with `display` exactly `standalone`, `start_url` that resolves to a URL whose pathname is `/play` on `https://www.doomstack.lol`, `scope` that resolves to the origin root (`/` — **not** `/play`), and `background_color` / `theme_color` equal to `#0a0a0c` (case-insensitive). A `/play` scope ejects `/auth/*` and `/__/auth/*` into Safari and fails Google return.
 
 **AC-10.** Given `GET /play`, when the HTML is parsed, then a `<link rel="apple-touch-icon">` href returns **200** with `Content-Type` image/png and pixel size **180×180** (SVG-only `app/icon.svg` does not satisfy this AC).
 
@@ -246,7 +248,7 @@ Numbered globally. qa-acceptance must be able to automate these without taste. P
 
 **AC-18.** Given an unauthenticated POST `/api/climb/result` with a legal envelope payload, when the handler responds, then JSON includes `saved: false` (or equivalent) and no new monotonic peak row exists for a user id.
 
-**AC-19.** Given a finished guest run, when the results overlay is shown, then a Sign in link is present whose `href` includes `/auth/signin` and a `redirect` back to `/play`. After a successful email or Google **redirect** sign-in, a previously stashed legal run is POSTed once and then cleared from `sessionStorage` key `doomstack:pending-climb`.
+**AC-19.** Given a finished guest run, when the results overlay is shown, then a Sign in link is present whose `href` includes `/auth/signin` and a `redirect` back to `/play`. After a successful email or Google **redirect** sign-in, a previously stashed legal run is POSTed once through `/api/climb/result` (still envelope-checked) and then the key `doomstack:pending-climb` is cleared from **both** `sessionStorage` and `localStorage`. Stash JSON is an allow-list (`peakY`, `ticks`, `finishedTick`, `seed`, optional `v`/`savedAt` only — no token, no Bearer). localStorage copies older than 2h are ignored. Any stored `redirectTo` is passed through `safeInternalPath` on write and read.
 
 **AC-20 (negative).** Given `/auth/signin` on a coarse viewport, when the Google control is activated, then the page does **not** open a new browsing context (`window.open` / popup). The next document URL is same-origin `/__/auth/...` or `accounts.google.com` via top-level navigation.
 
@@ -280,7 +282,7 @@ Numbered globally. qa-acceptance must be able to automate these without taste. P
 
 **AC-31.** Given a **fine** pointer (`matchMedia('(pointer: coarse)') === false`) and viewport ≥1024×768, when Alex opens `/`, then the primary (first in DOM among hero CTAs) link href is `/auth/signup` or `/#towers` (paid path), not `/play`.
 
-**AC-32.** Given fine pointer `/play`, when the canvas is laid out, then `height / width` of `[data-climb-surface]` is within **0.02** of `16/9`.
+**AC-32.** Given fine pointer `/play`, when the canvas is laid out, then `height / width` of `[data-climb-surface]` is within **0.02** of `16/9` (portrait 9:16 column, not a landscape 16:9 canvas).
 
 **AC-33 (negative).** Given fine pointer, when Alex `GET /`, then the response is **not** a 3xx to `/play`. (Coarse `/` also must not hard-redirect; it restyles in place.)
 
