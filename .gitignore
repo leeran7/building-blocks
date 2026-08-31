@@ -9,9 +9,11 @@
 loop/*
 !loop/learnings.md
 !loop/learnings.jsonl
-# Package-upgrade architecture is a durable implementer contract, not a
-# per-run scratch file. Track it the same way as the learnings ledger.
+# Durable contracts (not per-run scratch). Track the same way as the ledger.
 !loop/package-upgrade.md
+!loop/spec.md
+!loop/architecture.md
+!loop/cost.md
 .claude/handoffs/*.json
 
 # Dependencies & build
