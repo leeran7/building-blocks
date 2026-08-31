@@ -46,8 +46,19 @@ There are three kinds of files:
 ```
 your-repo/
 │
+├── INDEX.md                      ← START. Routing table. Not knowledge.
+├── RULES.md                      ← authority + always-on constraints
+├── MAP.md                        ← tree + what is expensive
+├── CLAUDE.md                     ← host stub → INDEX.md
+│
+├── workflows/                    ← task routing (one file per job)
+├── domains/INDEX.md              ← aliases onto context / skills / agents
+├── knowledge/INDEX.md            ← aliases onto loop/
+├── references/INDEX.md           ← schemas, ops docs
+├── archive/INDEX.md              ← history; skip
+│
 ├── context/                      ← YOU. This repo’s facts. Agents only point here.
-│   ├── README.md                 index: what to read, in what order
+│   ├── README.md                 which context file to open
 │   ├── profile.json              name, stack, package managers, paths
 │   ├── gates.json                CI commands + how each was proven to fail
 │   ├── trust.md                  irreversible writes, money, secrets
@@ -55,34 +66,25 @@ your-repo/
 │   └── conventions.md            how to match this codebase
 │
 ├── loop/                         ← YOU (memory) + runtime (gitignored)
-│   ├── learnings.md              this repo’s ledger (version this)
-│   ├── learnings.jsonl           append-only events (version this)
+│   ├── INDEX.md                  which ledger file to open
+│   ├── learnings.md              Standing rules first; topics optional
+│   ├── learnings.jsonl           append-only events (Grep, do not dump)
 │   ├── handoffs/                 per-run; gitignored
 │   └── state.json                per-run; gitignored
 │
 ├── agents/                       ← PACK. Generic roles. No product facts.
+│   ├── INDEX.md                  which role to open
 │   ├── claude.config.json
-│   ├── orchestrator.md
-│   ├── product-spec.md
-│   ├── architect.md
-│   ├── implementer.md
-│   ├── verifier.md
-│   ├── reviewer.md
-│   ├── security-reviewer.md
-│   ├── qa-acceptance.md
-│   ├── integrator.md
-│   └── …specialists.md
+│   ├── curator.md                last stage: promote findings
+│   └── …roles.md
 │
 ├── skills/closed-loop/           ← PACK. Protocol identical in every repo.
+│   ├── INDEX.md
+│   ├── stub.md                   prepended onto every agent at sync
+│   ├── protocol.md               full contract (opt-in)
 │   ├── SKILL.md                  how to run the loop
-│   ├── protocol.md               prepended onto every agent at sync
 │   ├── gates.md                  kernel quality rules (not your CI list)
-│   ├── handoffs.md
-│   ├── team.md
-│   ├── stages.md
-│   ├── learning-loop.md
-│   ├── pack.md                   design of the pack
-│   └── host.md                   generic CLAUDE.md body
+│   └── …
 │
 ├── pack/                         ← PACK. Schemas, templates, this file.
 │   ├── SETUP.md                  ← you are here
@@ -144,15 +146,21 @@ Invoke `@orchestrator` (Cursor), `/closed-loop` (Claude Code), or
 
 ## What agents read (in order)
 
-Every role file starts with: read `context/README.md`, then the files it
-lists. Sync also prepends `skills/closed-loop/protocol.md`. Runtime memory
-is `loop/learnings.md`. Kernel rules are `skills/closed-loop/gates.md`.
+Start at `INDEX.md`, then `RULES.md`. Open **one** workflow or domain INDEX,
+then only the files that index marks. Do not load the rest of the tree.
+
+Every role file points at `context/README.md` (which files in `context/`
+to open). `yarn sync` and `loadAgentPrompt` prepend `skills/closed-loop/stub.md`
+only — not `protocol.md`. Full contract is opt-in: `skills/closed-loop/protocol.md`.
+Standing rules: `loop/learnings.md` until `## By topic`. Kernel gates:
+`skills/closed-loop/gates.md` (tests, review, CI, money/auth).
 
 ```
-context/          →  this product
-protocol + gates  →  every product
-agents/*.md       →  the job (verifier, frontend, …)
-loop/learnings.md →  what this product already burned itself on
+INDEX.md + RULES.md     →  routing + always-on
+stub.md (prepended)     →  stay in role, handoff required
+context/README.md       →  which product facts to open
+agents/<role>.md        →  the job
+loop/learnings.md       →  Standing rules only unless a topic is in play
 ```
 
 If `context/` is missing, agents infer from lockfiles and existing code.

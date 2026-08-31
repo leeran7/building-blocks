@@ -72,6 +72,28 @@ describe("clampNextStage — never skip the team", () => {
   it("keeps qa-acceptance from skipping integrator", () => {
     assert.equal(clampNextStage("qa-acceptance", "release"), "integrator");
   });
+
+  it("sends monitor to curator, the last stage", () => {
+    assert.equal(nextInSequence("monitor"), "curator");
+    assert.equal(clampNextStage("monitor", undefined), "curator");
+    assert.equal(clampNextStage("monitor", "implementer"), "curator");
+    assert.equal(nextInSequence("curator"), null);
+    assert.equal(clampNextStage("curator", "implementer"), null);
+  });
+
+  it("allows a local-only skip to curator after integrator or release", () => {
+    assert.equal(clampNextStage("integrator", "curator"), "curator");
+    assert.equal(clampNextStage("release", "curator"), "curator");
+    assert.equal(clampNextStage("devops", "curator"), "curator");
+    assert.equal(clampNextStage("docs", "curator"), "curator");
+    assert.equal(clampNextStage("integrator", "release"), "release");
+  });
+
+  it("does not let early required stages skip to curator", () => {
+    assert.equal(clampNextStage("implementer", "curator"), "verifier");
+    assert.equal(clampNextStage("verifier", "curator"), "reviewer");
+    assert.equal(clampNextStage("qa-acceptance", "curator"), "integrator");
+  });
 });
 
 describe("clampLoopBackTo", () => {
@@ -181,5 +203,28 @@ describe("teamMissing", () => {
       completedStages: [...REQUIRED_TEAM],
     };
     assert.deepEqual(teamMissing(state), []);
+  });
+
+  it("cannot drop quality-gate members via a short requiredTeam override", () => {
+    const missing = teamMissing({
+      dispatched: ["implementer"],
+      completedStages: ["implementer"],
+      requiredTeam: ["implementer"],
+    });
+    assert.ok(missing.includes("verifier"));
+    assert.ok(missing.includes("reviewer"));
+    assert.ok(missing.includes("security-reviewer"));
+    assert.ok(missing.includes("qa-acceptance"));
+    assert.ok(missing.includes("integrator"));
+    assert.ok(!missing.includes("implementer"));
+  });
+
+  it("still requires extras listed on requiredTeam", () => {
+    const missing = teamMissing({
+      dispatched: [...REQUIRED_TEAM],
+      completedStages: [...REQUIRED_TEAM],
+      requiredTeam: [...REQUIRED_TEAM, "curator"],
+    });
+    assert.deepEqual(missing, ["curator"]);
   });
 });

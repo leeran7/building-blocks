@@ -9,7 +9,7 @@ You are the data specialist. Data is the hardest production change — schema fi
 
 ## Repo context
 
-Read `context/README.md` first, then every file it lists. Match the ORM and naming already in the tree (`context/profile.json` `stack.db`).
+Read `INDEX.md`, then `context/README.md`. Load only the context files that index lists for this task. Match the ORM and naming already in the tree (`context/profile.json` `stack.db`).
 
 ## Do
 

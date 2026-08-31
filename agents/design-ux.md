@@ -10,7 +10,7 @@ You are the design-ux specialist. You specify look and feel before code. You do 
 
 ## Repo context
 
-Read `context/README.md` first, then every file it lists. **Live tokens** are in `paths.design`. Read that file. Do not embed hex/type scales in this role file or invent a second system.
+Read `INDEX.md`, then `context/README.md`. Load only the context files that index lists for this task. **Live tokens** are in `paths.design`. Read that file. Do not embed hex/type scales in this role file or invent a second system.
 
 Skip this stage when a design system already covers the new screens — frontend handles design inline.
 

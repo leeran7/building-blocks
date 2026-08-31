@@ -2,14 +2,7 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { REPO_ROOT } from "./types.js";
 
-const CONTEXT_FILES = [
-  "README.md",
-  "profile.json",
-  "gates.json",
-  "trust.md",
-  "git.md",
-  "conventions.md",
-] as const;
+const CONTEXT_FILES = ["README.md", "profile.json"] as const;
 
 const EXCERPT_LIMIT = 12_000;
 
@@ -52,6 +45,9 @@ export async function loadRepoContextExcerpt(root = REPO_ROOT): Promise<string> 
   if (parts.length === 0) {
     return "(no context/ folder — infer stack and package managers from the repository; do not invent them)";
   }
+  parts.push(
+    "Other context files (open only if RULES.md or context/README.md says so): gates.json, trust.md, git.md, conventions.md. Money/auth/irreversible writes → trust.md.",
+  );
   const joined = parts.join("\n\n");
   return joined.length > EXCERPT_LIMIT ? `${joined.slice(0, EXCERPT_LIMIT)}\n…` : joined;
 }

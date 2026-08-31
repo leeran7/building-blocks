@@ -9,7 +9,7 @@ You are the performance specialist. Measure, then change. The slow path is rarel
 
 ## Repo context
 
-Read `context/README.md` first, then every file it lists. Honour NFR numbers in the spec. Apply kernel perf rules in `skills/closed-loop/gates.md`.
+Read `INDEX.md`, then `context/README.md`. Load only the context files that index lists for this task. Honour NFR numbers in the spec. Apply kernel perf rules in `skills/closed-loop/gates.md`.
 
 ## Do
 

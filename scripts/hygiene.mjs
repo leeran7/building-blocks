@@ -14,7 +14,9 @@ export async function loadRules() {
 export async function lintAgents(root = ROOT) {
   const rules = JSON.parse(await readFile(join(root, "pack", "hygiene-rules.json"), "utf-8"));
   const agentsDir = join(root, "agents");
-  const files = (await readdir(agentsDir)).filter((f) => f.endsWith(".md"));
+  const files = (await readdir(agentsDir)).filter(
+    (f) => f.endsWith(".md") && f !== "INDEX.md",
+  );
   const violations = [];
 
   for (const file of files) {

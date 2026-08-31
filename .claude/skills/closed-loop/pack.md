@@ -8,7 +8,7 @@ The pack is the agent system (`agents/`, `skills/closed-loop/`, `orchestrator/`,
 `scripts/`). It is **not** the product in `app/`. A second repo should be able
 to vendor the pack and run the same loop against a different stack.
 
-**File tree and install (start here):** [`pack/SETUP.md`](../../pack/SETUP.md).
+**File tree and install (start here):** [`pack/SETUP.md`](pack/SETUP.md).
 Repo-owned facts live in `context/`. Agents only point at that folder.
 
 ## Why the old layout did not travel
@@ -17,7 +17,7 @@ Everything lived in one blob:
 
 | Mixed in | Example | Breaks reuse because |
 |----------|---------|----------------------|
-| Protocol | Learning loop + handoff JSON copied into all 22 agents | Drift; 20–30% of each file is identical |
+| Protocol | Learning loop + handoff JSON copied into every role file | Drift; 20–30% of each file is identical |
 | Role | "You are the verifier" | This *should* travel |
 | Product | Tower Dark Editorial tokens, `#00d4ff`, BlockRow | Wrong the moment the design system moves |
 | Host policy | `git push building-blocks main`, dual remotes | Other repos have different git |
@@ -83,7 +83,7 @@ from layers 1–2 and points at 3–4.
 
 ## Install into another repo
 
-**Canonical steps and file tree:** [`pack/SETUP.md`](../../pack/SETUP.md).
+**Canonical steps and file tree:** [`pack/SETUP.md`](pack/SETUP.md).
 
 From a pack clone ([closed-loop-agents](https://github.com/leeran7/closed-loop-agents)
 or this tree):
@@ -108,13 +108,17 @@ product memory.
 
 ## Runtime: how an agent sees the layers
 
-1. **Cursor / Claude Code** — platform agent file = protocol (prepended by
+1. **Cursor / Claude Code** — platform agent file = `stub.md` (prepended by
    sync) + role body. Skills live under `skills/closed-loop/` or
-   `.claude/skills/closed-loop/`. The agent reads `context/` and the ledger.
-2. **`yarn loop`** — `buildStagePrompt` wraps goal, **repo `context/`**,
-   prior handoff, and learnings as untrusted data, then the role body.
+   `.claude/skills/closed-loop/`. The agent starts at `INDEX.md`, then opens
+   only the `context/` files and ledger sections that indexes mark.
+2. **`yarn loop`** — `buildStagePrompt` wraps goal, **repo `context/` excerpt
+   (README + profile only)**, prior handoff, and Standing-rules excerpt as
+   untrusted data, then the stub + role body. `trust.md` is a Read path, not
+   an embedded excerpt.
 
-Either path: missing handoff file → stage **failed**.
+Either path: missing handoff file → stage **failed**. Do not prepend
+`protocol.md`.
 
 ## Learnings → kernel (promotion)
 
@@ -127,15 +131,17 @@ Either path: missing handoff file → stage **failed**.
 Promote a ledger standing rule into `gates.md` only when it is
 product-agnostic **and** either seen in two repos or independently found
 by two agents with `forAgents: ["all"]`. That is a pack change, not a
-drive-by edit of 22 agent files.
+drive-by edit of every role file. The curator (last stage) is the one
+agent allowed to touch a role file, and only when that job must change.
 
 Do not paste kernel gates back into every agent. Point at `gates.md`.
 
 ## Quality gates in the profile
 
 A gate that has never been shown to go red is not a gate (Aug 29: `next
-lint` with no ESLint config exited 0). Each `qualityGates[]` entry should
-include `proveFail`: a command that must fail on a known-bad input.
+lint` with no ESLint config exited 0). Each `context/gates.json`
+`gates[]` entry should include `proveFail`: a command that must fail on a
+known-bad input.
 
 The verifier and devops agents read this list. They do not invent
 `pnpm lint` because a template once said so.
@@ -146,38 +152,46 @@ The verifier and devops agents read this list. They do not invent
 leakage (design hexes, this repo's git remote, hardcoded exclusive package
 manager, the old design-resource URL list). `yarn sync` runs hygiene first.
 
-## Roster (unchanged jobs, slimmer files)
+## Roster
 
-Required on a **whole-app** closed-loop run:
+Required on an orchestrated closed-loop run (any goal size):
 
 `product-spec → architect → implementer → verifier → reviewer +
 security-reviewer → qa-acceptance → integrator`
 
-Optional: `design-ux`, `devops`, `docs`, `release`, `monitor`, `debugger`.
+Optional inserts: `design-ux`, `devops`, `docs`, `debugger`.
+Always last: `curator` (after `release` / `monitor`, or after integrator
+when those are skipped for local-only).
 
 Specialists (delegated from implementer, not pipeline stages): `frontend`,
 `backend`, `data`, `mobile`, `performance`, `compliance`, `cost`.
 
-Incremental work in an existing repo uses the host review classification
-(substantial / minor / trivial) — not the eight-agent clamp. The clamp is
-for `@orchestrator` / `yarn loop`.
+The clamp is for `@orchestrator` / `yarn loop`. Scope is the user’s goal,
+not a full-app rewrite. A single-role implement (no orchestrator) still
+uses `workflows/review.md` (substantial / minor / trivial) before merge.
 
 ## File map
 
 | Path | Layer |
 |------|--------|
-| `pack/SETUP.md` | Install + file tree (start here) |
-| `skills/closed-loop/protocol.md` | Kernel preamble (sync prepends it) |
+| `INDEX.md` | Agent entry (routing only) |
+| `RULES.md` | Authority + always-on constraints |
+| `MAP.md` | Tree + expensive paths |
+| `workflows/` | Task routing |
+| `pack/SETUP.md` | Install / file tree |
+| `skills/closed-loop/stub.md` | Prepended onto every role |
+| `skills/closed-loop/protocol.md` | Full before/during/after (opt-in) |
 | `skills/closed-loop/gates.md` | Universal quality gates |
 | `skills/closed-loop/profile.md` | `context/` contract |
 | `skills/closed-loop/handoffs.md` | Handoff JSON contract |
 | `skills/closed-loop/learning-loop.md` | Ledger protocol |
 | `skills/closed-loop/team.md` | Dispatch contract |
 | `skills/closed-loop/stages.md` | Stage graph |
-| `skills/closed-loop/host.md` | Generic CLAUDE/AGENTS body |
+| `skills/closed-loop/host.md` | Generic CLAUDE body (`INDEX.md` pointer) |
 | `agents/*.md` | Roles (point at `context/`) |
 | `context/` | This repo's facts |
 | `pack/templates/context/` | Empty context for a new repo |
 | `pack/profile.schema.json` | `context/profile.json` schema |
-| `loop/learnings.md` | This product's memory |
+| `loop/learnings.md` | This product's memory (Standing rules first) |
+| `archive/` | History; skip |
 

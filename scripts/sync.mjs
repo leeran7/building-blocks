@@ -7,7 +7,7 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const AGENTS_SRC = join(ROOT, "agents");
 const SKILLS_SRC = join(ROOT, "skills");
 const CLAUDE_CONFIG_PATH = join(AGENTS_SRC, "claude.config.json");
-const PROTOCOL_PATH = join(SKILLS_SRC, "closed-loop", "protocol.md");
+const PROTOCOL_PATH = join(SKILLS_SRC, "closed-loop", "stub.md");
 
 const PATH_REPLACEMENTS = [
   [/.cursor\/loop/g, "loop"],
@@ -75,7 +75,9 @@ async function runHygiene() {
 }
 
 async function syncAgents(claudeConfig, protocolBody) {
-  const files = (await readdir(AGENTS_SRC)).filter((f) => f.endsWith(".md"));
+  const files = (await readdir(AGENTS_SRC)).filter(
+    (f) => f.endsWith(".md") && f !== "INDEX.md",
+  );
 
   await mkdir(join(ROOT, ".cursor", "agents"), { recursive: true });
   await mkdir(join(ROOT, ".claude", "agents"), { recursive: true });
@@ -98,7 +100,7 @@ async function syncAgents(claudeConfig, protocolBody) {
     await writeFile(join(ROOT, ".claude", "agents", file), claudeOut);
   }
 
-  console.log(`Synced ${files.length} agents → .cursor/agents/ and .claude/agents/ (protocol prepended)`);
+  console.log(`Synced ${files.length} agents → .cursor/agents/ and .claude/agents/ (stub prepended)`);
 }
 
 async function syncSkills() {

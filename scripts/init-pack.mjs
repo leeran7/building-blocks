@@ -15,7 +15,6 @@ import {
   assertSafeDest,
   copyKernel,
   mergeGitignore,
-  purgeDoNotCopy,
 } from "./pack-copy.mjs";
 
 const PACK_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -54,7 +53,9 @@ async function main() {
 
   const { destRoot, manifest } = await copyKernel(PACK_ROOT, dest);
   console.log(`copied kernel (${manifest.kernel.length} manifest patterns) → ${destRoot}`);
-  await purgeDoNotCopy(destRoot, manifest);
+  // Do not strip dest product trees here. doNotCopy patterns are for
+  // export-template (strip leftovers). Applying them on init would delete
+  // dest app/, context/, CLAUDE.md, and the ledger.
 
   const contextDest = join(destRoot, "context");
   if (!(await exists(contextDest))) {

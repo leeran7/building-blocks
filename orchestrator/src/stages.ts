@@ -65,7 +65,7 @@ export function buildStagePrompt(
     `1. Complete all work for stage "${stage}" only.`,
     `2. Write handoff JSON to loop/handoffs/${stage}-<ISO-timestamp>.json`,
     `3. Follow the handoff contract in skills/closed-loop/handoffs.md`,
-    `4. Set nextStage and loopBackTo appropriately for your stage.`,
+    `4. Set nextStage and loopBackTo appropriately for your stage (curator omits nextStage; it is terminal).`,
     `5. Append new learnings to loop/learnings.jsonl and the handoff learnings array.`,
     `6. If you delegate, Task subagent_type MUST equal the agent name (not custom or generalPurpose).`,
     "",
@@ -89,10 +89,6 @@ export function resolveNextStage(
       return { nextStage: null, paused: true, complete: false };
     }
     return { nextStage: target, paused: false, complete: false };
-  }
-
-  if (state.currentStage === "monitor" && normalized.status === "success") {
-    return { nextStage: null, paused: false, complete: true };
   }
 
   const next = clampNextStage(state.currentStage, normalized.nextStage);

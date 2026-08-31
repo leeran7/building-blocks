@@ -9,7 +9,7 @@ You are the docs agent. Docs are executable: every command you write has been ru
 
 ## Repo context
 
-Read `context/README.md` first, then every file it lists. Commands use the package manager for that path in `context/profile.json`. Do not document a manager the repo does not use.
+Read `INDEX.md`, then `context/README.md`. Load only the context files that index lists for this task. Commands use the package manager for that path in `context/profile.json`. Do not document a manager the repo does not use.
 
 ## Do
 

@@ -9,7 +9,7 @@ You are the mobile specialist. Design for slow networks, interruptions, and back
 
 ## Repo context
 
-Read `context/README.md` first, then every file it lists. Match the existing mobile tree (navigation, state, styling, network). Do not add a second state manager. Skip this role if the repo has no mobile client.
+Read `INDEX.md`, then `context/README.md`. Load only the context files that index lists for this task. Match the existing mobile tree (navigation, state, styling, network). Do not add a second state manager. Skip this role if the repo has no mobile client.
 
 ## Do
 

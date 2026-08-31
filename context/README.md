@@ -1,27 +1,19 @@
 # Repo context
 
-This folder is **this repository’s** facts. Agents in `agents/` are generic:
-they read this folder and the live code. They do not embed product names,
-design tokens, git remotes, or a package manager.
+This folder is **this repository’s** facts. Role files in `agents/` stay generic.
 
-If you are an agent, read these files **in order** before doing work:
+Do **not** read every file. Start with `profile.json`. Open others only when the table says so.
 
-| File | What it is |
-|------|------------|
-| `context/profile.json` | Name, stack, package managers, paths to spec/design |
-| `context/gates.json` | Quality gates and how each was proven to fail |
-| `context/trust.md` | Trust boundaries and irreversible writes |
-| `context/git.md` | Remotes, default branch, review-then-push, required CI checks |
-| `context/conventions.md` | How to match this codebase |
-| Design file in `profile.json` `paths.design` | Live tokens — never copy them into an agent |
-| `loop/learnings.md` | This repo’s memory (your section + `all`) |
+| File | Purpose | Read when |
+|------|---------|-----------|
+| `profile.json` | name, stack, package managers, paths | every product task |
+| `gates.json` | CI commands + `proveFail` | tests, CI, verifier, integrator |
+| `trust.md` | irreversible writes, money, secrets | backend, security, payments, scores |
+| `git.md` | remote, default branch, required checks | PRs, integrator, release |
+| `conventions.md` | how to match this tree | writing code |
+| `profile.json` `paths.design` | live tokens | UI / design-ux / frontend |
+| `loop/learnings.md` | Standing rules only | after RULES.md; stop at `## By topic` |
 
-Kernel protocol (every repo): `skills/closed-loop/protocol.md` and
-`skills/closed-loop/gates.md`. Do not confuse kernel gates with
-`context/gates.json` (this repo’s CI commands).
+Kernel: `INDEX.md` → `RULES.md`. Kernel gates: `skills/closed-loop/gates.md` (not this folder’s `gates.json`).
 
-When adding a fact that is true only here, put it in **this folder** (or
-the ledger), not in `agents/*.md`.
-
-This `context/` is **building-blocks**. The empty template lives in
-`pack/templates/context/` and in [closed-loop-agents](https://github.com/leeran7/closed-loop-agents).
+When adding a fact that is true only here, put it in **this folder** (or the ledger), not in `agents/*.md`.

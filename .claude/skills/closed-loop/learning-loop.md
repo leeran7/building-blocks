@@ -36,8 +36,9 @@ Fields:
 ## The four-step protocol (every agent, every run)
 
 ### 1. READ — before doing any work
-- Open `loop/learnings.md` and read the sections tagged for your agent and `all`.
-- Grep `loop/learnings.jsonl` for `"forAgents"` containing your agent name or `"all"` with `"status":"open"`.
+- Open `INDEX.md` and `RULES.md` if you have not this session.
+- Open `loop/learnings.md` **Standing rules only** (stop at `## By topic`).
+- Grep `loop/learnings.jsonl` for `"forAgents"` containing your agent name or `"all"` with `"status":"open"`. Do not dump the file.
 - Read the latest upstream handoff (as before). **Also** read that handoff's
   `learnings` array (see handoff contract) — these are findings the previous
   agent is pinging directly at you.
@@ -89,7 +90,27 @@ assertions live in `orchestrator/src/retro.test.ts`. Do not document a folding
 step that the code does not perform.
 
 The retro is what makes learning *consistent*: it happens every iteration, not
-just at the end.
+just at the end. It does **not** edit `agents/*.md`, `context/`, or `gates.md`.
+
+## Last stage: curator (end of the run)
+
+After the product loop succeeds (and after release/monitor, or a local-only
+skip of those), the orchestrator dispatches `curator`. This is not a second
+retro. The retro folds jsonl into the ledger. The curator reads that ledger
+plus this run’s handoff findings and writes durable updates:
+
+| Kind | Write |
+|------|--------|
+| Product fact | matching `context/` file |
+| Product lesson already folded | no-op |
+| Kernel-generic `[all]`, 2+ agents | `skills/closed-loop/gates.md` |
+| This role’s unique job is wrong or incomplete | that one `agents/<role>.md` |
+
+Never paste one rule into every role file. After role or kernel edits, run
+`node scripts/sync.mjs`. Success with zero writes is valid.
+
+Earlier stages **record** findings. They do not promote into role files or
+kernel gates. That is the curator’s job so the next run inherits them.
 
 ## `learnings.md` structure
 
@@ -136,3 +157,5 @@ retro and routes it back.
   "verify the Firebase token before any DB query in every /api route" is accepted.
 - Lessons that recur across runs become standing rules — the system must get
   stricter over time, never re-learn the same pitfall twice.
+- Earlier stages do not edit `agents/*.md` or `skills/closed-loop/gates.md`.
+  Record the finding; the curator promotes it at the end of the run.

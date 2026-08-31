@@ -1,30 +1,31 @@
 ---
 name: closed-loop
 description: >-
-  Orchestrates the full closed-loop app build: spec → architecture →
-  implementation → verification → review → CI → release → monitor. Use when
-  building an entire app autonomously, running the agent loop, or coordinating
-  multiple subagents in sequence. Works in Cursor and Claude Code.
+  Orchestrates the closed-loop agent pipeline: spec → architecture →
+  implementation → verification → review → CI → release → monitor →
+  curator. Use when running the agent loop on a goal of any size, or
+  coordinating multiple subagents in sequence. Works in Cursor and
+  Claude Code.
 ---
 
-# Closed Loop App Builder
+# Closed Loop
 
-Run the full agent loop to build an app from intent to merge-ready code.
+Run the agent loop from intent to merge-ready code. Scope is the user’s
+goal — a bug, a feature, or a new app. Do not expand the goal into a
+full-app rewrite.
 
-**Installing into a new repo?** Read [`pack/SETUP.md`](pack/SETUP.md)
-first (file tree + 5-minute install). Repo-specific facts live in
-`context/` — agents only point there.
+**Start here:** [`INDEX.md`](../../INDEX.md). Installing the pack:
+[`pack/SETUP.md`](../../pack/SETUP.md). Repo facts live in `context/`.
 
 ## Before starting
 
-1. Read [stages.md](stages.md) for the stage graph and routing rules.
-2. Read [handoffs.md](handoffs.md) for the handoff contract.
-3. Read [team.md](team.md) — the orchestrator must actually dispatch the team.
+1. Read [INDEX.md](../../INDEX.md) and [RULES.md](../../RULES.md). Do not load the rest of the tree.
+2. Read [stages.md](stages.md) only when routing the loop graph.
+3. Read [handoffs.md](handoffs.md) when writing a handoff and you need the shape.
+4. Read [team.md](team.md) — the orchestrator must actually dispatch the team.
    Impersonating a specialist (doing their work in the parent) is a loop defect.
-4. Read [learning-loop.md](learning-loop.md) — the mandatory continuous-learning
-   protocol. Every agent reads the learnings ledger before working and records new
-   learnings before finishing; the orchestrator runs a retro every iteration.
-5. Initialize loop state:
+5. Read [learning-loop.md](learning-loop.md) when recording or folding learnings.
+6. Initialize loop state:
 
 ```bash
 mkdir -p loop/handoffs
@@ -34,7 +35,7 @@ Write `loop/state.json`:
 
 ```json
 {
-  "goal": "<user's app goal>",
+  "goal": "<user's goal>",
   "currentStage": "product-spec",
   "iteration": 1,
   "maxIterations": 10,
@@ -57,7 +58,8 @@ Write `loop/state.json`:
 ## Orchestration workflow
 
 1. **Read state** — load `loop/state.json`, the latest handoff for the current
-   stage (including its `learnings` array), and `loop/learnings.md`.
+   stage (including its `learnings` array), and `loop/learnings.md` Standing
+   rules only (stop at `## By topic`).
 2. **Delegate** — invoke the subagent matching `currentStage`:
    - **Cursor**: Task tool with `subagent_type` matching the agent name
      (`product-spec`, not `custom` / `generalPurpose`)
@@ -77,9 +79,13 @@ Write `loop/state.json`:
 6. **Retro** — after each iteration/loop-back, fold new `loop/learnings.jsonl`
    entries into `loop/learnings.md`, promote any lesson seen 2+ times to a
    standing rule, and surface top learnings in the stage report (see
-   [learning-loop.md](learning-loop.md)).
-7. **Repeat** until terminal conditions in stages.md are met or `maxIterations` reached.
-8. **Report** — summarize artifacts, PR URL, test results, remaining warnings, and learnings recorded.
+   [learning-loop.md](learning-loop.md)). Do **not** edit role files here.
+7. **Repeat** until product stages in stages.md are met or `maxIterations` reached.
+8. **Curator (last)** — dispatch `curator`. It routes this run’s findings into
+   `context/`, `gates.md`, the ledger, or a **single** role file when that job
+   must change. Zero writes is success. Never impersonate the curator.
+9. **Report** — summarize artifacts, PR URL, test results, remaining warnings,
+   learnings recorded, and curator routing (files updated or none).
 
 ## Subagent roster
 
@@ -99,6 +105,7 @@ Write `loop/state.json`:
 | 11 | monitor | Production observability |
 | 12 | docs | Documentation |
 | 13 | debugger | Root-cause unclear failures |
+| 14 | curator | Last stage: promote findings into context / gates / one role |
 
 Specialists (delegated from implementer): frontend, backend, data, mobile, design-ux, performance, compliance, cost.
 
@@ -109,13 +116,14 @@ Goal: {goal}
 Prior handoff: {json}
 Your stage: {stage}
 
-Before starting: read loop/learnings.md (your section + `all`) and this handoff's
-`learnings` array, and apply every finding aimed at you (learning-loop.md).
+Before starting: read loop/learnings.md Standing rules (stop at `## By topic`)
+plus this handoff's `learnings` array. Open a topic heading only if it is this
+work. Apply every finding aimed at you (learning-loop.md).
 
 Complete your stage per your agent definition. Before finishing:
 1. Write handoff to loop/handoffs/{stage}-{iso-timestamp}.json
 2. Follow the handoff contract in skills/closed-loop/handoffs.md
-3. Set nextStage and loopBackTo appropriately
+3. Set nextStage and loopBackTo appropriately (curator omits nextStage; it is terminal)
 4. Append your new learnings to loop/learnings.jsonl AND put cross-agent findings
    in the handoff `learnings` array (ping the agents who need them)
 ```
@@ -124,9 +132,9 @@ Complete your stage per your agent definition. Before finishing:
 
 | Platform | How to start |
 |----------|--------------|
-| **Cursor** | "Use the closed-loop skill to build …" or invoke `@orchestrator` |
-| **Claude Code** | `/closed-loop` or "Use the orchestrator agent to build …" |
-| **Programmatic** | `yarn loop "Build a todo app"` (Cursor SDK orchestrator) |
+| **Cursor** | "Use the closed-loop skill …" or invoke `@orchestrator` |
+| **Claude Code** | `/closed-loop` or invoke the orchestrator |
+| **Programmatic** | `yarn loop "<goal>"` |
 
 ## Iteration limits
 

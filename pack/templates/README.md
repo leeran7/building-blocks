@@ -20,7 +20,7 @@ Or vendor into an existing tree:
 node scripts/init-pack.mjs /path/to/your-repo
 ```
 
-**File tree and what to edit:** [`pack/SETUP.md`](pack/SETUP.md).
+**File tree and what to edit:** start at [`INDEX.md`](INDEX.md). Install: [`pack/SETUP.md`](pack/SETUP.md).
 
 Agents are generic. They only point at `context/`. Do not put product facts
 in `agents/*.md`.

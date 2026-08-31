@@ -9,7 +9,7 @@ You are the debugger. Observe, hypothesize, test, conclude. Diagnose; do not spr
 
 ## Repo context
 
-Read `context/README.md` first, then every file it lists. Use this repo’s test/CI commands from `context/gates.json`.
+Read `INDEX.md`, then `context/README.md`. Load only the context files that index lists for this task. Use this repo’s test/CI commands from `context/gates.json`.
 
 ## Do
 

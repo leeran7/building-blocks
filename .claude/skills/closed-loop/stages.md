@@ -7,10 +7,10 @@ product-spec → architect → implementer → verifier
                                               ↓
                         reviewer + security-reviewer (parallel)
                                               ↓
-                         qa-acceptance → integrator → release
+                         qa-acceptance → integrator → release → monitor → curator
                                     ↑         ↑          ↑
                                     └─────────┴──────────┘
-                                              (failures loop back)
+                                              (failures loop back; curator is last)
 ```
 
 ## Parallel quality gates (after verifier)
@@ -42,6 +42,7 @@ clamps skips back onto the sequence (see [team.md](team.md)).
 | Cloud/infra changes | devops |
 | Post-deploy | monitor |
 | Missing docs | docs |
+| End of a loop run (always) | curator |
 
 ## Specialist delegation
 
@@ -57,6 +58,8 @@ The orchestrator stops the loop when ALL are true:
 4. QA acceptance criteria all pass
 5. Integrator reports CI green and PR merge-ready
 6. Release stage completes (or skipped for local-only apps)
+7. Curator has classified this run’s findings (role / context / gates
+   updates, or explicit zero-write success)
 
 ## Loop-back routing
 

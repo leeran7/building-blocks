@@ -10,10 +10,12 @@
   `loop/schema-target.md`, `loop/cost.md`, `loop/handoffs/`, and
   `loop/state.json` are gitignored. Do not `git add -f` them. A GitHub
   commit of those files is enough for Vercel to start a production deploy
-  even though the Next app did not change. The learnings ledger
-  (`loop/learnings.md`, `loop/learnings.jsonl`) and `loop/package-upgrade.md`
-  stay tracked. `app/vercel.json` `ignoreCommand` skips the Vercel build
-  when `app/` is unchanged, so a ledger-only merge does not redeploy.
+  even though the Next app did not change. Tracked under `loop/`: the
+  learnings ledger (`loop/learnings.md`, `loop/learnings.jsonl`) and
+  `loop/INDEX.md`. Package-upgrade architecture lives at
+  `archive/package-upgrade.md`. `app/vercel.json` `ignoreCommand` skips
+  the Vercel build when `app/` is unchanged, so a ledger-only merge does
+  not redeploy.
 - **Review then push:** agent review (see `skills/closed-loop/host.md`)
   before merge. Do not push-then-review except production hotfixes.
 - **CI is required to merge into `main`.** A workflow that *runs* on a
