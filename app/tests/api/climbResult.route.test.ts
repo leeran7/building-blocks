@@ -51,6 +51,32 @@ async function postResult(body: unknown): Promise<Response> {
   );
 }
 
+async function authedPost(body: unknown): Promise<Response> {
+  vi.mocked(verifyIdToken).mockResolvedValue({
+    uid: "user-1",
+    email: "climber@example.com",
+    email_verified: true,
+  } as Awaited<ReturnType<typeof verifyIdToken>>);
+  vi.mocked(recordClimb).mockResolvedValue({
+    peakY: 120,
+    improved: true,
+    rank: 4,
+    totalClimbers: 40,
+    handle: "Climber",
+    board: "mobile",
+  });
+  return POST(
+    new NextRequest("http://localhost/api/climb/result", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: "Bearer valid-token",
+      },
+      body: JSON.stringify(body),
+    })
+  );
+}
+
 describe("POST /api/climb/result calls checkClimbResult", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -136,6 +162,7 @@ describe("POST /api/climb/result calls checkClimbResult", () => {
       rank: 4,
       totalClimbers: 40,
       handle: "Climber",
+      board: "mobile",
     });
 
     const res = await POST(
@@ -156,4 +183,39 @@ describe("POST /api/climb/result calls checkClimbResult", () => {
     expect(revalidatePath).toHaveBeenCalledWith("/climb");
     expect(revalidatePath).toHaveBeenCalledWith("/");
   });
+
+  it("omitted board is persisted as mobile", async () => {
+    await authedPost({ peakY: 120, ticks: 500, seed: "saved-run" });
+    expect(recordClimb).toHaveBeenCalledWith(
+      expect.objectContaining({ board: "mobile", peakY: 120 })
+    );
+  });
+
+  it("desktop board is forwarded to recordClimb", async () => {
+    await authedPost({
+      peakY: 120,
+      ticks: 500,
+      seed: "saved-run",
+      board: "desktop",
+    });
+    expect(recordClimb).toHaveBeenCalledWith(
+      expect.objectContaining({ board: "desktop" })
+    );
+  });
+
+  it.each(["tablet", "Desktop", 1, true] as const)(
+    "rejects board %j without persisting",
+    async (board) => {
+      const res = await postResult({
+        peakY: 120,
+        ticks: 500,
+        seed: "x",
+        board,
+      });
+      expect(res.status).toBe(400);
+      const body = (await res.json()) as { code?: string };
+      expect(body.code).toBe("INVALID_BOARD");
+      expect(recordClimb).not.toHaveBeenCalled();
+    }
+  );
 });

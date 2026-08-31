@@ -7,6 +7,10 @@ irreversible or money-adjacent writes — not generic OWASP.
    `Math.max` cannot be lowered later. Treat as a hard trust boundary:
    server-derive or reject. A comment that says verification happens
    elsewhere is not a control until that path exists.
+   **Client-submitted climb board** (`mobile` | `desktop`) chooses which
+   irreversible ranking that peak is written to. Allow-list only; omit
+   → mobile (product default); anything else → 400. Same spoofability
+   as `peakY` — not a payout board.
 2. **Stripe webhooks credit altitude.** Gate on the provider’s
    `payment_status` (or equivalent success state), not merely event type.
    A 4xx on an unresolvable reference permanently drops a captured payment

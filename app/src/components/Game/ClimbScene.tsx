@@ -43,6 +43,12 @@ import {
   encodeRunReplay,
   type RunReplay,
 } from "../../game/runReplay";
+import {
+  CLIMB_BOARD_LABELS,
+  climbBoardFromPointer,
+  climbBoardPath,
+  type ClimbBoard,
+} from "../../game/climbBoard";
 
 export interface ClimbSceneProps {
   tower: TowerSpec;
@@ -57,6 +63,7 @@ interface SaveInfo {
   rank?: number;
   totalClimbers?: number;
   handle?: string;
+  board?: ClimbBoard;
 }
 
 const PENDING_CLIMB_KEY = "doomstack:pending-climb";
@@ -163,8 +170,9 @@ export function ClimbScene({ tower, categoryLabel, replay = null }: ClimbScenePr
       // player, so the server cannot rely on it to bound peakY.
       ticks: state.tick,
       seed: state.seed,
+      board: climbBoardFromPointer(touchDevice),
     }),
-    [player, state.seed, state.tick]
+    [player, state.seed, state.tick, touchDevice]
   );
 
   const postRun = useCallback(
@@ -187,6 +195,10 @@ export function ClimbScene({ tower, categoryLabel, replay = null }: ClimbScenePr
             totalClimbers:
               typeof res.totalClimbers === "number" ? res.totalClimbers : undefined,
             handle: typeof res.handle === "string" ? res.handle : undefined,
+            board:
+              res.board === "mobile" || res.board === "desktop"
+                ? res.board
+                : undefined,
           }
         : { saved: false };
     },
@@ -377,7 +389,7 @@ export function ClimbScene({ tower, categoryLabel, replay = null }: ClimbScenePr
             <ClimbControlsGuide variant="overlay" />
             <StartButton onClick={handleStart} label="Start climb" />
             <Link
-              href="/climb"
+              href={climbBoardPath(climbBoardFromPointer(touchDevice))}
               className="mt-4 text-sm text-accent hover:brightness-110 underline underline-offset-4"
             >
               View leaderboard →
@@ -411,6 +423,9 @@ export function ClimbScene({ tower, categoryLabel, replay = null }: ClimbScenePr
                     ) : null}
                   </p>
                   <p className="text-xs text-text-muted">
+                    {saveInfo.board
+                      ? `${CLIMB_BOARD_LABELS[saveInfo.board]} board · `
+                      : ""}
                     {saveInfo.improved ? "new personal best · " : ""}
                     {saveInfo.handle ?? climberHandle(user.uid)}
                   </p>
@@ -464,7 +479,7 @@ export function ClimbScene({ tower, categoryLabel, replay = null }: ClimbScenePr
               </Link>
             ) : (
               <Link
-                href="/climb"
+                href={climbBoardPath(climbBoardFromPointer(touchDevice))}
                 className="mt-3 text-sm text-accent hover:brightness-110 underline underline-offset-4"
               >
                 View leaderboard →

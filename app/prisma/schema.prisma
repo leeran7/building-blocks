@@ -52,22 +52,26 @@ model SavedUrl {
   @@map("saved_urls")
 }
 
-// Tower v3 "The Climb": permanent peak-height record per user per category.
-// Monotonic — peak_y is only ever raised, mirroring the "altitude is permanent"
-// invariant (spec-next.md AC-30/AC-31). Enforced in recordClimb() + app logic.
+// Tower v3 "The Climb": permanent peak-height record per user per category
+// per board. Mobile (touch, full-bleed) and desktop (keyboard, 9:16) are
+// separate rankings — they do not share a peak. Monotonic per row: peak_y is
+// only ever raised (spec-next.md AC-30/AC-31). Enforced in recordClimb().
 model ClimbRecord {
   id            String   @id @default(cuid())
   userId        String
   category_slug String
+  /// Play surface this peak was earned on. Allow-listed to mobile | desktop.
+  /// Existing rows default to mobile (the default board).
+  board         String   @default("mobile")
   peak_y        Float    @default(0) // best peak height reached, metres
   wins          Int      @default(0) // first-place finishes in this category
   updated_at    DateTime @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  // One record row per (user, category).
-  @@unique([userId, category_slug], name: "climb_record_user_category")
-  @@index([category_slug, peak_y(sort: Desc)], name: "climb_record_leaderboard_idx")
+  // One record row per (user, category, board) so a player can rank on both.
+  @@unique([userId, category_slug, board], name: "climb_record_user_category_board")
+  @@index([category_slug, board, peak_y(sort: Desc)], name: "climb_record_leaderboard_idx")
   @@map("climb_records")
 }
 
@@ -77,6 +81,8 @@ model ClimbRun {
   id            String   @id @default(cuid())
   userId        String?
   category_slug String
+  /// Play surface this run was recorded on. Same allow-list as ClimbRecord.
+  board         String   @default("mobile")
   peak_y        Float
   finished      Boolean  @default(false)
   finished_tick Int?

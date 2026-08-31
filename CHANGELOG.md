@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Features
+
+- **Mobile / desktop climb leaderboards** — touch (full-bleed) and keyboard
+  (9:16) scores rank on separate boards. `/climb` defaults to mobile;
+  `?board=desktop` is the other board. Existing records land on mobile.
+
 ### Infrastructure
 
 - **CI required to merge into `main`** — workflow job names are now the

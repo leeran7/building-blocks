@@ -1,7 +1,8 @@
 /**
- * The free skill-climb stack — ONE global leaderboard, decoupled from the 74
- * paid category stacks. All free-climb records use this slug; the tower theme
- * is fixed so every player competes on the same endless climb.
+ * The free skill-climb stack — TWO boards (mobile default, desktop), decoupled
+ * from the 74 paid category stacks. All free-climb records use this slug; the
+ * tower theme is fixed so every player on a given board competes on the same
+ * endless climb.
  */
 
 import type { GameCategory } from "./categories";

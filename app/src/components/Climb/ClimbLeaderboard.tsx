@@ -6,10 +6,15 @@
  */
 
 import type { ClimberRank } from "../../db/climb";
+import {
+  CLIMB_BOARD_LABELS,
+  type ClimbBoard,
+} from "../../game/climbBoard";
 
 export function ClimbLeaderboard({
   climbers,
   unavailable = false,
+  board,
 }: {
   climbers: ClimberRank[];
   /**
@@ -18,7 +23,11 @@ export function ClimbLeaderboard({
    * is what a swallowed error used to look like.
    */
   unavailable?: boolean;
+  /** Which surface this list is for. Affects empty copy and the accessible name. */
+  board?: ClimbBoard;
 }) {
+  const boardLabel = board ? CLIMB_BOARD_LABELS[board].toLowerCase() : "free stack";
+
   if (unavailable) {
     return (
       <div className="relative overflow-hidden rounded-xl border border-border-strong bg-surface p-10 text-center">
@@ -41,7 +50,7 @@ export function ClimbLeaderboard({
           [ no climbers yet ]
         </p>
         <p className="relative text-text-secondary text-sm mt-3">
-          Be the first to set a height record on the free stack.
+          Be the first to set a height record on the {boardLabel} board.
         </p>
       </div>
     );
@@ -50,7 +59,14 @@ export function ClimbLeaderboard({
   const top = Math.max(1, climbers[0].peakY);
 
   return (
-    <ol className="flex flex-col gap-1.5" aria-label="Skill climb leaderboard">
+    <ol
+      className="flex flex-col gap-1.5"
+      aria-label={
+        board
+          ? `${CLIMB_BOARD_LABELS[board]} skill climb leaderboard`
+          : "Skill climb leaderboard"
+      }
+    >
       {climbers.map((c) => {
         const pct = Math.max(4, Math.round((c.peakY / top) * 100));
         const isFirst = c.rank === 1;
