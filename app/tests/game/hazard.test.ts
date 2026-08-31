@@ -186,6 +186,14 @@ describe("AC-7: hazardHasReached detects catching a climber", () => {
 });
 
 describe("catch-up: lava clock speeds up when the climber is far ahead", () => {
+  it("starts catching up once the lead is beyond 200m", () => {
+    expect(HAZARD_CATCHUP_LEAD_M).toBe(200);
+    expect(hazardCatchupTimeScale(HAZARD_CATCHUP_LEAD_M)).toBe(1);
+    expect(hazardCatchupTimeScale(HAZARD_CATCHUP_LEAD_M + 0.1)).toBe(
+      HAZARD_CATCHUP_TIME_SCALE
+    );
+  });
+
   it("stays at 1× at or under the lead threshold", () => {
     expect(hazardCatchupTimeScale(0)).toBe(1);
     expect(hazardCatchupTimeScale(HAZARD_CATCHUP_LEAD_M)).toBe(1);
@@ -200,7 +208,9 @@ describe("catch-up: lava clock speeds up when the climber is far ahead", () => {
   });
 
   it("drops back to 1× as soon as the lead is within the threshold again", () => {
-    expect(hazardCatchupTimeScale(200)).toBe(HAZARD_CATCHUP_TIME_SCALE);
+    expect(hazardCatchupTimeScale(HAZARD_CATCHUP_LEAD_M + 50)).toBe(
+      HAZARD_CATCHUP_TIME_SCALE
+    );
     expect(hazardCatchupTimeScale(HAZARD_CATCHUP_LEAD_M)).toBe(1);
     expect(hazardCatchupTimeScale(50)).toBe(1);
   });

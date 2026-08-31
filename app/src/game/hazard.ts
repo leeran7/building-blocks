@@ -86,7 +86,7 @@ export const DEFAULT_HAZARD_CONFIG: HazardConfig = {
 };
 
 /** Lead (metres above lava) at which the lava clock starts catching up. */
-export const HAZARD_CATCHUP_LEAD_M = 125;
+export const HAZARD_CATCHUP_LEAD_M = 200;
 
 /** Clock multiplier while the lead climber is farther than the catch-up lead. */
 export const HAZARD_CATCHUP_TIME_SCALE = 1.25;
@@ -260,7 +260,7 @@ function envelopeIntegral(
  * Deterministic: same lead → same scale (AC-11).
  */
 export function hazardCatchupTimeScale(leadM: number): number {
-  // Slack so `hazardY + 125 − hazardY` float noise does not keep the boost on
+  // Slack so `hazardY + lead − hazardY` float noise does not keep the boost on
   // when the climber is already within the threshold.
   return leadM > HAZARD_CATCHUP_LEAD_M + 1e-6 ? HAZARD_CATCHUP_TIME_SCALE : 1;
 }
