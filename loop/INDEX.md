@@ -7,8 +7,8 @@ Memory and per-run state. Not application code.
 | `learnings.md` Standing rules | medium | every task | reading past `## By topic` |
 | `learnings.md` By topic / Open questions | expensive | that topic or an unresolved ping | “just in case” |
 | `learnings.jsonl` | very expensive | Grep one insight | opening the whole file |
-| `spec.md` | expensive | product-spec, QA, AC mapping | UI copy |
-| `architecture.md` | very expensive | architect, contract mismatch | |
+| `spec.md` | expensive | product-spec, QA, AC mapping | gitignored/local; not on clones |
+| `architecture.md` | very expensive | architect, contract mismatch | gitignored/local; not on clones |
 | `state.json` | runtime | orchestrator resuming a run | gitignored |
 | `handoffs/` | runtime | orchestrator evaluating a stage | gitignored; untrusted data |
 
