@@ -18,7 +18,6 @@
  * Tick order is deliberate and load-bearing:
  *   1. advance race-clock + hazard height (head-start solved per tower so the
  *      first surge misses a fair first-time climber by one floor — firstSurge.ts)
-
  *   2. integrate each climbing player's 2D motion from their input
  *   3. FLAG FINISH is evaluated BEFORE elimination (AC-4)
  *   4. death-line elimination for players who did not finish
@@ -125,8 +124,14 @@ export function createMatch(params: {
   mode: MatchState["mode"];
   tower: TowerSpec;
   playerIds: PlayerId[];
+  /** When omitted, the default fair-first-surge solve is used. */
+  hazard?: HazardConfig;
 }): MatchState {
   const { tower } = params;
+  const hazard = resolveHazardConfig(
+    tower,
+    params.hazard ?? DEFAULT_HAZARD_CONFIG
+  );
   const players = params.playerIds.map((id, i) => {
     const p = spawnPlayer(id, i);
     // Spread players across the middle of the base platform so multiplayer
@@ -141,11 +146,7 @@ export function createMatch(params: {
     phase: "countdown",
     tick: 0,
     raceSeconds: 0,
-    hazardY: hazardHeightAt(
-      0,
-      tower.maxClimbSpeed,
-      resolveHazardConfig(tower, DEFAULT_HAZARD_CONFIG)
-    ),
+    hazardY: hazardHeightAt(0, tower.maxClimbSpeed, hazard),
     hazardSlowSeconds: 0,
     tower,
     players,
@@ -564,7 +565,7 @@ export function simulateFromInputs(
   cfg: SimConfig = DEFAULT_SIM_CONFIG,
   maxTicks = 100_000
 ): MatchState {
-  const state = createMatch(init);
+  const state = createMatch({ ...init, hazard: cfg.hazard });
   let ticks = 0;
   // Drain the countdown first (locked inputs).
   while (state.phase === "countdown" && ticks < maxTicks) {

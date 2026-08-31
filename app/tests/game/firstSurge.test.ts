@@ -30,7 +30,7 @@ import {
   GAME_CATEGORIES,
   TrackArchetype,
 } from "../../src/game/categories";
-import { applyRunSeed, buildTower } from "../../src/game/towers";
+import { applyRunSeed, buildTower, ladderKeepInM } from "../../src/game/towers";
 
 const CFG = DEFAULT_HAZARD_CONFIG;
 const ARCHETYPES: TrackArchetype[] = [
@@ -114,8 +114,7 @@ describe("fairness is physics, not seed and not this player", () => {
 
   it("traverse is a fraction of the playable width, independent of seed", () => {
     const tower = buildTower("indie-games");
-    const margin = Math.min(10, tower.widthM * 0.08);
-    const playable = tower.widthM - 2 * margin;
+    const playable = tower.widthM - 2 * ladderKeepInM(tower);
     const tFloor =
       CFG.firstRunHesitation *
       ((playable * FIRST_RUN_TRAVERSE_FRAC) / tower.moveSpeed +
@@ -193,12 +192,24 @@ describe("resolveHazardConfig is what the live sim uses", () => {
       headStartM: 9,
     };
     expect(resolveHazardConfig(tower, frozen).headStartM).toBe(9);
+    const prox = firstSurgeProximity(tower, frozen);
+    expect(prox.headStartM).toBe(9);
+    expect(prox.clamped).toBe(false);
+    expect(prox.lavaHeightM).toBeCloseTo(
+      hazardHeightAt(prox.endSeconds, tower.maxClimbSpeed, frozen),
+      9
+    );
+    expect(Math.abs(prox.missFloors - CFG.firstSurgeMissFloors)).toBeGreaterThan(
+      0.05
+    );
     const m = createMatch({
       seed: "fixed-surge",
       mode: "solo",
       tower,
       playerIds: ["p1"],
+      hazard: frozen,
     });
+    expect(m.hazardY).toBeCloseTo(-9, 9);
     m.phase = "climb";
     m.tick = 0;
     stepMatch(m, { p1: NO_INPUT }, { hazard: frozen });

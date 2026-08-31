@@ -102,11 +102,12 @@ export function useClimb({
         mode: "solo",
         tower: applyRunSeed(tower, runSeed),
         playerIds: [PLAYER_ID],
+        hazard,
       });
       m.phase = phase;
       return m;
     },
-    [tower]
+    [tower, hazard]
   );
 
   // Match and runId live in one state object so a Start can never render a

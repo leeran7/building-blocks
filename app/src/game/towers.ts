@@ -163,8 +163,13 @@ function horizontalJumpReach(tower: TowerSpec): number {
   return tower.moveSpeed * airtime;
 }
 
-function ladderMargin(tower: TowerSpec): number {
+/** Horizontal keep-in from each wall; ladders never spawn inside this band. */
+export function ladderKeepInM(tower: TowerSpec): number {
   return Math.min(10, tower.widthM * 0.08);
+}
+
+function ladderMargin(tower: TowerSpec): number {
+  return ladderKeepInM(tower);
 }
 
 /**

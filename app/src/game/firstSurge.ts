@@ -36,6 +36,7 @@ import {
   hazardHeightAt,
   hazardRiseDistance,
 } from "./hazard";
+import { ladderKeepInM } from "./towers";
 
 /** Fraction of the playable width a first-time climber walks each floor. */
 export const FIRST_RUN_TRAVERSE_FRAC = 0.35;
@@ -68,8 +69,10 @@ export function firstSurgeProximity(
 ): FirstSurgeProximity {
   const endSeconds = firstSurgeEndSeconds(cfg);
   const fairHeightM = fairFirstClimberHeight(tower, endSeconds, cfg);
-  const { headStartM, clamped } = solveHeadStartM(tower, cfg);
-  const resolved: HazardConfig = { ...cfg, headStartM };
+  const solved = cfg.fairFirstSurge
+    ? solveHeadStartM(tower, cfg)
+    : { headStartM: cfg.headStartM, clamped: false };
+  const resolved: HazardConfig = { ...cfg, headStartM: solved.headStartM };
   const lavaHeightM = hazardHeightAt(
     endSeconds,
     Math.max(0, tower.maxClimbSpeed),
@@ -78,13 +81,13 @@ export function firstSurgeProximity(
   const missM = fairHeightM - lavaHeightM;
   const gap = Math.max(1e-6, tower.floorGap);
   return {
-    headStartM,
+    headStartM: solved.headStartM,
     endSeconds,
     fairHeightM,
     lavaHeightM,
     missM,
     missFloors: missM / gap,
-    clamped,
+    clamped: solved.clamped,
   };
 }
 
@@ -132,14 +135,8 @@ function fairFloorSeconds(tower: TowerSpec, cfg: HazardConfig): number {
   return hesitation * (fairFirstRunTraverseM(tower) / move + gap / climb);
 }
 
-/**
- * Seed-independent walk per floor. Matches the keep-in band ladders use
- * (`min(10, 8% of width)` in towers.ts) so the characteristic traverse is a
- * fraction of the same playable span every user actually walks.
- */
 function fairFirstRunTraverseM(tower: TowerSpec): number {
-  const margin = Math.min(10, tower.widthM * 0.08);
-  const playable = Math.max(0, tower.widthM - 2 * margin);
+  const playable = Math.max(0, tower.widthM - 2 * ladderKeepInM(tower));
   return playable * FIRST_RUN_TRAVERSE_FRAC;
 }
 
