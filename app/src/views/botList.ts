@@ -63,6 +63,11 @@ export const BOT_UA_PATTERNS: string[] = [
   "rendertron",
   "slackbot",
   "discordbot",
+
+  // Social unfurl crawlers (explicit — do not rely on generic "spider" / "bot/")
+  "tiktok",
+  "bytespider",
+  "bytedance",
 ];
 
 /**

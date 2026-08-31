@@ -37,6 +37,9 @@ import { useCanvasSize } from "../../hooks/useCanvasSize";
 import { useCoarsePointer } from "../../hooks/useCoarsePointer";
 import { useSafeAreaInsets } from "../../hooks/useSafeAreaInsets";
 import { climberHandle } from "../../lib/handle";
+import { shareHandle } from "../../share/handle";
+import { resolveBaseUrl } from "../../config/public";
+import type { ShareableRecording } from "../../share/types";
 import { ShareRun } from "./ShareRun";
 import {
   buildReplayUrl,
@@ -57,6 +60,7 @@ interface SaveInfo {
   rank?: number;
   totalClimbers?: number;
   handle?: string;
+  runId?: string;
 }
 
 const PENDING_CLIMB_KEY = "doomstack:pending-climb";
@@ -102,7 +106,10 @@ export function ClimbScene({ tower, categoryLabel, replay = null }: ClimbScenePr
   const [posted, setPosted] = useState(false);
   const [saveInfo, setSaveInfo] = useState<SaveInfo | null>(null);
   const [savedBanner, setSavedBanner] = useState<SaveInfo | null>(null);
-  const [shareUrl, setShareUrl] = useState<string | null>(null);
+  const [shareRecording, setShareRecording] = useState<ShareableRecording | null>(
+    null
+  );
+  const [tokenShareUrl, setTokenShareUrl] = useState<string | null>(null);
   const [encodingShare, setEncodingShare] = useState(false);
   const [savingRun, setSavingRun] = useState(false);
 
@@ -187,6 +194,10 @@ export function ClimbScene({ tower, categoryLabel, replay = null }: ClimbScenePr
             totalClimbers:
               typeof res.totalClimbers === "number" ? res.totalClimbers : undefined,
             handle: typeof res.handle === "string" ? res.handle : undefined,
+            runId:
+              typeof res.runId === "string" && res.runId.length > 0
+                ? res.runId
+                : undefined,
           }
         : { saved: false };
     },
@@ -198,7 +209,8 @@ export function ClimbScene({ tower, categoryLabel, replay = null }: ClimbScenePr
     setPosted(false);
     setSaveInfo(null);
     setSavedBanner(null);
-    setShareUrl(null);
+    setShareRecording(null);
+    setTokenShareUrl(null);
     setEncodingShare(false);
     setSavingRun(false);
     start();
@@ -219,27 +231,47 @@ export function ClimbScene({ tower, categoryLabel, replay = null }: ClimbScenePr
         peakY: run.peakY,
         inputs: inputLog,
       });
-      if (replayToken) {
-        setShareUrl(buildReplayUrl(replayToken, window.location.origin));
-      }
-      setEncodingShare(false);
+      const origin = resolveBaseUrl();
 
       if (token) {
         const payload = replayToken ? { ...run, replayToken } : run;
-        postRun(payload, token).then(setSaveInfo).finally(() => setSavingRun(false));
+        const info = await postRun(payload, token);
+        setSaveInfo(info);
+        setSavingRun(false);
+        if (
+          info.saved &&
+          typeof info.runId === "string" &&
+          info.runId.length > 0 &&
+          replayToken
+        ) {
+          setShareRecording({
+            id: info.runId,
+            peakY: run.peakY,
+            handle: user ? shareHandle(user.uid, info.handle ?? null) : null,
+          });
+          setTokenShareUrl(null);
+        } else if (replayToken) {
+          setShareRecording(null);
+          setTokenShareUrl(buildReplayUrl(replayToken, origin));
+        }
       } else {
         setSaveInfo({ saved: false });
         setSavingRun(false);
+        if (replayToken) {
+          setShareRecording(null);
+          setTokenShareUrl(buildReplayUrl(replayToken, origin));
+        }
         try {
           sessionStorage.setItem(PENDING_CLIMB_KEY, JSON.stringify(run));
         } catch {
           /* storage unavailable */
         }
       }
+      setEncodingShare(false);
     };
 
     finishRun();
-  }, [finished, posted, replaying, inputLog, buildRun, token, postRun]);
+  }, [finished, posted, replaying, inputLog, buildRun, token, postRun, user]);
 
   useEffect(() => {
     if (!user || !token || user.isAnonymous) return;
@@ -447,7 +479,8 @@ export function ClimbScene({ tower, categoryLabel, replay = null }: ClimbScenePr
             {!replaying ? (
               <ShareRun
                 peakY={player?.peakY ?? 0}
-                shareUrl={shareUrl}
+                recording={shareRecording}
+                tokenUrl={tokenShareUrl}
                 encoding={encodingShare}
               />
             ) : null}

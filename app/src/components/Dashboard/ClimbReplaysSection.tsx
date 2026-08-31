@@ -2,12 +2,16 @@
 
 /**
  * ClimbReplaysSection — dashboard list of saved climb replays.
+ * Copy/share uses `/r/{id}` when a replay token exists; no share when null.
  */
 
-import { useCallback, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { Toast } from "../Toast";
-import { buildReplayUrl } from "../../game/runReplay";
+import { resolveBaseUrl } from "../../config/public";
+import { buildDashboardShareActions } from "../../share/dashboard";
+import { SHARE_CONTROL_LAYOUT } from "../../share/controlLayout";
+import { ShareControls } from "../Game/ShareControls";
 
 export interface ClimbReplayItem {
   id: string;
@@ -18,17 +22,7 @@ export interface ClimbReplayItem {
 
 export function ClimbReplaysSection({ replays }: { replays: ClimbReplayItem[] }) {
   const [toast, setToast] = useState<string | null>(null);
-
-  const copyReplay = useCallback(async (token: string) => {
-    const url = buildReplayUrl(token, window.location.origin);
-    try {
-      if (!navigator.clipboard) throw new Error("clipboard unavailable");
-      await navigator.clipboard.writeText(url);
-      setToast("Replay link copied");
-    } catch {
-      setToast("Couldn't copy link");
-    }
-  }, []);
+  const origin = resolveBaseUrl();
 
   if (replays.length === 0) {
     return (
@@ -75,40 +69,46 @@ export function ClimbReplaysSection({ replays }: { replays: ClimbReplayItem[] })
       </div>
 
       <ul className="rounded-2xl border border-border-subtle bg-surface divide-y divide-border-subtle overflow-hidden">
-        {replays.map((run) => (
-          <li
-            key={run.id}
-            className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-4 py-3.5"
-          >
-            <div className="min-w-0">
-              <p className="font-mono text-lg font-bold text-text-primary tabular-nums">
-                {run.peakY.toFixed(0)}
-                <span className="text-sm font-normal text-text-muted ml-1">m</span>
-              </p>
-              <p className="text-xs text-text-muted mt-0.5">
-                {formatReplayDate(run.createdAt)}
-                {!run.replayToken ? " · replay unavailable" : null}
-              </p>
-            </div>
-            {run.replayToken ? (
-              <div className="flex gap-2 shrink-0">
-                <Link
-                  href={`/play?r=${encodeURIComponent(run.replayToken)}`}
-                  className="text-sm font-medium bg-signal/10 text-signal border border-signal/30 hover:bg-signal/20 px-3.5 py-2 rounded-lg transition min-h-[40px] inline-flex items-center"
-                >
-                  Watch
-                </Link>
-                <button
-                  type="button"
-                  onClick={() => copyReplay(run.replayToken!)}
-                  className="text-sm font-medium border border-border-strong text-text-secondary hover:bg-elevated hover:text-text-primary px-3.5 py-2 rounded-lg transition min-h-[40px] inline-flex items-center"
-                >
-                  Copy link
-                </button>
+        {replays.map((run) => {
+          const actions = buildDashboardShareActions(
+            {
+              id: run.id,
+              peakY: run.peakY,
+              replayToken: run.replayToken,
+            },
+            origin
+          );
+          return (
+            <li
+              key={run.id}
+              className="flex flex-col gap-3 px-4 py-3.5"
+            >
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="font-mono text-lg font-bold text-text-primary tabular-nums">
+                    {run.peakY.toFixed(0)}
+                    <span className="text-sm font-normal text-text-muted ml-1">m</span>
+                  </p>
+                  <p className="text-xs text-text-muted mt-0.5">
+                    {formatReplayDate(run.createdAt)}
+                    {!run.replayToken ? " · replay unavailable" : null}
+                  </p>
+                </div>
+                {run.replayToken ? (
+                  <Link
+                    href={`/r/${run.id}`}
+                    className={`${SHARE_CONTROL_LAYOUT.className} text-sm font-medium bg-signal/10 text-signal border border-signal/30 hover:bg-signal/20 px-3.5 rounded-lg transition`}
+                  >
+                    Watch
+                  </Link>
+                ) : null}
               </div>
-            ) : null}
-          </li>
-        ))}
+              {actions.length > 0 ? (
+                <ShareControls actions={actions} onToast={setToast} />
+              ) : null}
+            </li>
+          );
+        })}
       </ul>
 
       {replayable.length === 0 && replays.length > 0 ? (

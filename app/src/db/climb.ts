@@ -7,9 +7,13 @@
  * "altitude is permanent" invariant.
  */
 
+import { cache } from "react";
 import { prisma } from "./client";
 import { climberDisplay } from "../lib/handle";
 import { FREE_STACK_SLUG } from "../game/freeStack";
+import { shareHandle } from "../share/handle";
+import { parseRecordingId } from "../share/parseRecordingId";
+import type { ShareableRecording } from "../share/types";
 
 export interface ClimbResultInput {
   userId: string;
@@ -37,6 +41,8 @@ export interface ClimbRecordResult extends PeakDecision {
   totalClimbers: number;
   /** The name to show for this climber (profile name, else pseudonym). */
   handle: string;
+  /** Additive ClimbRun.id when create succeeds — used to build `/r/{id}`. */
+  runId?: string;
 }
 
 /**
@@ -61,8 +67,8 @@ export async function recordClimb(
   const peakY = Math.max(0, input.peakY);
   const stackSlug = FREE_STACK_SLUG;
 
-  // Always store the raw run (history / future audit).
-  await prisma.climbRun.create({
+  // Always store the raw run (history / future audit). Capture id for `/r/{id}`.
+  const created = await prisma.climbRun.create({
     data: {
       userId: input.userId,
       category_slug: stackSlug,
@@ -121,7 +127,50 @@ export async function recordClimb(
     rank: above + 1,
     totalClimbers,
     handle: climberDisplay(input.userId, player?.display_name),
+    runId: created.id,
   };
+}
+
+const getClimbRunRow = cache(async (id: string) => {
+  const parsed = parseRecordingId(id);
+  if (!parsed) return null;
+  return prisma.climbRun.findUnique({
+    where: { id: parsed },
+    select: {
+      id: true,
+      peak_y: true,
+      replay_token: true,
+      userId: true,
+      user: { select: { display_name: true } },
+    },
+  });
+});
+
+/**
+ * Allow-list DTO for share/OG/metadata. Returns null when the id is invalid,
+ * the row is missing, or `replay_token` is null. Never spreads the Prisma row.
+ */
+export async function getShareableClimbRun(
+  id: string
+): Promise<ShareableRecording | null> {
+  const row = await getClimbRunRow(id);
+  if (!row || row.replay_token == null) return null;
+  return {
+    id: row.id,
+    peakY: row.peak_y,
+    handle: shareHandle(row.userId, row.user?.display_name),
+  };
+}
+
+/**
+ * Playback token for the recording page body only — not share JSON or metadata.
+ */
+export async function getClimbRunReplayToken(
+  id: string
+): Promise<string | null> {
+  const row = await getClimbRunRow(id);
+  if (!row || row.replay_token == null) return null;
+  return row.replay_token;
 }
 
 export interface ClimberRank {
