@@ -89,4 +89,11 @@ describe("loadAgentPrompt", () => {
     const role = prompt.indexOf("You are the reviewer");
     assert.ok(marker >= 0 && role > marker, "protocol must precede the role body");
   });
+
+  it("loads the curator role so the last stage is dispatchable", async () => {
+    const prompt = await loadAgentPrompt("curator");
+    assert.match(prompt, /You are the curator/);
+    assert.match(prompt, /context\/README\.md/);
+    assert.match(prompt, /four layers/);
+  });
 });

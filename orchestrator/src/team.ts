@@ -15,7 +15,10 @@ export const SPECIALIST_NAMES = [
 
 export const OPTIONAL_AFTER: Partial<Record<Stage, Stage[]>> = {
   architect: ["design-ux"],
-  integrator: ["devops", "docs"],
+  integrator: ["devops", "docs", "curator"],
+  release: ["curator"],
+  devops: ["curator"],
+  docs: ["curator"],
 };
 
 export const PARALLEL_WITH: Partial<Record<Stage, Stage[]>> = {
@@ -46,6 +49,7 @@ export function nextInSequence(current: Stage): Stage | null {
   if (current === "devops" || current === "docs") return "release";
   if (current === "debugger") return "implementer";
   if (current === "security-reviewer") return "qa-acceptance";
+  if (current === "curator") return null;
   const idx = REQUIRED_SEQUENCE.indexOf(current);
   if (idx === -1) return "implementer";
   if (idx >= REQUIRED_SEQUENCE.length - 1) return null;
@@ -150,7 +154,8 @@ export function teamMissing(
     requiredTeam?: Stage[];
   },
 ): Stage[] {
-  const required = state.requiredTeam?.length ? state.requiredTeam : REQUIRED_TEAM;
+  const extra = state.requiredTeam ?? [];
+  const required = uniqueStages([...REQUIRED_TEAM, ...extra]);
   const seen = new Set([...state.dispatched, ...state.completedStages]);
   return required.filter((stage) => !seen.has(stage));
 }

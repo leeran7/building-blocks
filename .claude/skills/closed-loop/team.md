@@ -27,8 +27,10 @@ product-spec → architect → implementer → verifier
                                        qa-acceptance → integrator
 ```
 
-Release and monitor still run after integrator (default sequence). Optional
-inserts: `design-ux` after architect; `devops` / `docs` after integrator.
+Release and monitor still run after integrator (default sequence). `curator`
+always runs last (after monitor, or after integrator/release when those
+deploy stages are skipped for local-only). Optional inserts: `design-ux`
+after architect; `devops` / `docs` after integrator.
 
 Specialists (`frontend`, `backend`, `data`, `mobile`, …) are **not**
 pipeline stages. The implementer may delegate to them with matching

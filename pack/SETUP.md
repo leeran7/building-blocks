@@ -71,6 +71,7 @@ your-repo/
 │   ├── security-reviewer.md
 │   ├── qa-acceptance.md
 │   ├── integrator.md
+│   ├── curator.md                last stage: promote findings
 │   └── …specialists.md
 │
 ├── skills/closed-loop/           ← PACK. Protocol identical in every repo.
