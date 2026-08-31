@@ -57,8 +57,11 @@ openssl rand -hex 32
 3. Vercel will auto-detect Next.js and use `pnpm install --frozen-lockfile` + `pnpm build`.
 4. Push to `main`; Vercel triggers a production deployment automatically
    **only if `app/` changed.** `app/vercel.json` `ignoreCommand` skips the
-   build (no migrate, no Fluid CPU) when the commit only touches loop notes,
-   the learnings ledger, docs, or other paths outside `app/`.
+   build (no migrate, no Fluid CPU) when `VERCEL_GIT_PREVIOUS_SHA` is a
+   distinct reachable commit and `app/` is unchanged in that range. If that
+   system variable is missing, equal to HEAD, or not a commit SHA, the
+   script **builds** (fail closed). Do not set `VERCEL_GIT_PREVIOUS_SHA` in
+   the dashboard.
 
 ### Option B — Manual deploy with Vercel CLI
 

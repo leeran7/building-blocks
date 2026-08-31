@@ -276,6 +276,10 @@ the same pass — the `learning-loop.md` bar for a permanent guardrail.
 
 ## Recently applied (last 20)
 
+- 2026-08-31 — Vercel ignoreCommand fail-closes unless
+  `VERCEL_GIT_PREVIOUS_SHA` is a distinct reachable hex commit. No `HEAD^`
+  fallback. Proven by invoking `skip-vercel-if-app-unchanged.sh` (unset,
+  HEAD, app delta, docs-only, `--output=`, unreachable SHA). Applied.
 - 2026-08-31 — After dropping spec/architecture gitignore un-ignores, mark
   those rows in `loop/INDEX.md` as gitignored/local so a clone is not told
   they exist like the ledger. Do not add `!loop/spec.md` back. Applied.

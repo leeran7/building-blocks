@@ -14,8 +14,9 @@
   learnings ledger (`loop/learnings.md`, `loop/learnings.jsonl`) and
   `loop/INDEX.md`. Package-upgrade architecture lives at
   `archive/package-upgrade.md`. `app/vercel.json` `ignoreCommand` skips
-  the Vercel build when `app/` is unchanged, so a ledger-only merge does
-  not redeploy.
+  the Vercel build when `VERCEL_GIT_PREVIOUS_SHA` is a distinct reachable
+  commit and `app/` is unchanged. Missing, self, or non-SHA previous
+  values fail closed (build). Never fall back to `HEAD^`.
 - **Review then push:** agent review (see `skills/closed-loop/host.md`)
   before merge. Do not push-then-review except production hotfixes.
 - **CI is required to merge into `main`.** A workflow that *runs* on a
