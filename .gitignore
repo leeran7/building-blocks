@@ -16,6 +16,9 @@ loop/*
 # the loop with no durable PRD; keep loop/spec.md in git so architect/QA
 # can test against it after a clone.
 !loop/spec.md
+# Implementer contract for this change. Same durability as spec.md — a
+# gitignored architecture.md would vanish on clone and rubber-stamp PR #49.
+!loop/architecture.md
 .claude/handoffs/*.json
 
 # Dependencies & build
