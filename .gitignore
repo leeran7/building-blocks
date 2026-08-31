@@ -24,10 +24,13 @@ loop/*
 !loop/ios-mobile-launch-cost.md
 # iOS/mobile launch — mobile specialist gap analysis of the /play web client.
 !loop/ios-mobile-launch-mobile.md
-# Per-run handoffs stay ignored except this investigation's mobile handoff
-# (docs stage consumes it).
+# iOS/mobile launch — App Store / Safari compliance checklist.
+!loop/ios-mobile-launch-compliance.md
+# Per-run handoffs stay ignored except this investigation's specialist handoffs
+# (docs stage consumes them).
 !loop/handoffs/
 !loop/handoffs/mobile-*.json
+!loop/handoffs/architect-*.json
 .claude/handoffs/*.json
 
 # Dependencies & build

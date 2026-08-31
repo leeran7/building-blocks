@@ -1,0 +1,70 @@
+{
+  "agent": "architect",
+  "status": "success",
+  "summary": "Recommended vehicle A (Safari + Home Screen web app on existing Next.js/Vercel app/). Rejected Capacitor/WKWebView (B), native/Unity rewrite (C), and Android TWA in the same cycle (D). Architecture at loop/ios-mobile-launch-architecture.md maps spec AC-1–38, includes 16 ADRs, Home Screen add-list (manifest scope /, start_url /play, 180 PNG, wake lock, Web Share, legal routes, PR #49 board split in-launch), and a hard stop-list before any App Store binary (3.1.1 / 4.2 / 4.8 / SIWA / bundled vs remote). Re-keyed after loop/ios-mobile-launch-spec.md landed in parallel. No application code, no Capacitor files.",
+  "timestamp": "2026-08-31T18:09:00Z",
+  "goal": "Investigate launching The Climb on iOS and mobile alone — decide vehicle (Safari/Home Screen vs App Store binary), scope (game-only vs paid stacks), and launch blockers. Investigation only; do not implement a native client.",
+  "artifacts": [
+    "loop/ios-mobile-launch-architecture.md",
+    ".gitignore"
+  ],
+  "exitCriteria": {
+    "vehicle_chosen": true,
+    "adrs_numbered": true,
+    "ac_mapped": true,
+    "no_application_code": true,
+    "no_capacitor_tree": true
+  },
+  "feedback": [],
+  "learnings": [
+    {
+      "topic": "Orchestration",
+      "forAgents": ["architect", "product-spec", "docs", "orchestrator"],
+      "kind": "lesson",
+      "insight": "Architect ran in parallel with product-spec while loop/ios-mobile-launch-spec.md was absent, then had to re-key assumed ACs to AC-1–38 (Google stays redirect; board split in-launch; legal routes in v1) once the spec landed.",
+      "action": "When architect and product-spec are dispatched together, architect must re-read the named spec file before handoff if it appears mid-turn, and must not leave assumed-AC tables in the architecture.",
+      "confidence": "high"
+    },
+    {
+      "topic": "Architecture & contracts",
+      "forAgents": ["implementer", "mobile", "frontend"],
+      "kind": "pitfall",
+      "insight": "A PWA manifest scoped to /play ejects /auth/* and /__/auth/* into Safari, which is a different storage partition from the Home Screen web app — Google redirect then cannot return to the standalone session.",
+      "action": "Ship manifest scope: \"/\" and start_url: \"/play\". Hide chrome with CSS/inert, not with a narrow scope.",
+      "confidence": "high"
+    },
+    {
+      "topic": "Spec quality",
+      "forAgents": ["implementer", "frontend", "product-spec"],
+      "kind": "pitfall",
+      "insight": "AC-19 names sessionStorage key doomstack:pending-climb, but iOS often drops sessionStorage across Google redirect tab recreation. localStorage does not hop Safari ↔ Home Screen either.",
+      "action": "Dual-write the same JSON to sessionStorage and localStorage; clear both after one successful POST so AC-19 still passes. Do not add a pending_climbs table in v1.",
+      "confidence": "high"
+    },
+    {
+      "topic": "Security",
+      "forAgents": ["implementer", "compliance", "all"],
+      "kind": "pitfall",
+      "insight": "A WKWebView/Capacitor binary of doomstack.lol can reach same-origin Stripe /submit and is a 4.2 thin client; 3.1.1 does not allow “they could have paid on the web” without IAP in the app. 4.8 requires SIWA if Google stays in a Store binary.",
+      "action": "Do not add Capacitor, ios/, or an IPA this cycle. Treat §5 of loop/ios-mobile-launch-architecture.md as a hard stop-list before any Store attempt.",
+      "confidence": "high"
+    },
+    {
+      "topic": "Architecture & contracts",
+      "forAgents": ["implementer", "mobile"],
+      "kind": "lesson",
+      "insight": "Coarse iPhone landscape fill-stage is a different sightline than portrait fill-stage but would still POST board=mobile, poisoning the phone leaderboard. Spec only ruled out the Orientation Lock API, not landscape play.",
+      "action": "Show a rotate-to-portrait overlay and do not run fill-stage or accept Start while width>height on coarse /play (ADR-16). Do not letterbox onto desktop; do not add a third board.",
+      "confidence": "high"
+    },
+    {
+      "topic": "Architecture & contracts",
+      "forAgents": ["docs", "qa-acceptance", "data"],
+      "kind": "metric",
+      "insight": "Launch vehicle A; 16 ADRs; spec AC-1–38 mapped; PR #49 board contract in-scope (unique userId+category_slug+board); no new auth/ORM/engine.",
+      "action": "Docs should index architecture sections 1, 4, 5, 12 against the spec AC table. Data must land 0010/0011 or equivalent before calling mobile launch done.",
+      "confidence": "high"
+    }
+  ],
+  "nextStage": "docs"
+}
