@@ -2,9 +2,8 @@
 
 Do **not** read this directory during normal work. Nothing here overrides `RULES.md`, `context/`, or Standing rules.
 
-| File | What it is |
-|------|------------|
-| `reviews/2026-08-29.md` | One review pass over a large merge |
-| `package-upgrade.md` | One-off dependency-upgrade notes |
+**When:** the current task explicitly needs historical notes (a named review pass, a one-off dump, a finding id that only exists here).
 
-Open only when the user asks for that history or a current task names a finding id from that pass.
+**How:** list this directory and open the named file. Do not load sibling files.
+
+Consuming repos may have extra files here. Those are product history and are not pack kernel — export purges them. This index stays generic on purpose.

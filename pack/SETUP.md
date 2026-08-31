@@ -146,15 +146,21 @@ Invoke `@orchestrator` (Cursor), `/closed-loop` (Claude Code), or
 
 ## What agents read (in order)
 
-Every role file starts with: read `context/README.md`, then the files it
-lists. Sync also prepends `skills/closed-loop/protocol.md`. Runtime memory
-is `loop/learnings.md`. Kernel rules are `skills/closed-loop/gates.md`.
+Start at `INDEX.md`, then `RULES.md`. Open **one** workflow or domain INDEX,
+then only the files that index marks. Do not load the rest of the tree.
+
+Every role file points at `context/README.md` (which files in `context/`
+to open). `yarn sync` and `loadAgentPrompt` prepend `skills/closed-loop/stub.md`
+only — not `protocol.md`. Full contract is opt-in: `skills/closed-loop/protocol.md`.
+Standing rules: `loop/learnings.md` until `## By topic`. Kernel gates:
+`skills/closed-loop/gates.md` (tests, review, CI, money/auth).
 
 ```
-context/          →  this product
-protocol + gates  →  every product
-agents/*.md       →  the job (verifier, frontend, …)
-loop/learnings.md →  what this product already burned itself on
+INDEX.md + RULES.md     →  routing + always-on
+stub.md (prepended)     →  stay in role, handoff required
+context/README.md       →  which product facts to open
+agents/<role>.md        →  the job
+loop/learnings.md       →  Standing rules only unless a topic is in play
 ```
 
 If `context/` is missing, agents infer from lockfiles and existing code.

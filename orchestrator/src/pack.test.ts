@@ -36,12 +36,90 @@ describe("pack hygiene", () => {
 
   it("documents the install tree in pack/SETUP.md", async () => {
     const setup = await readFile(join(REPO_ROOT, "pack", "SETUP.md"), "utf-8");
+    const packMd = await readFile(join(REPO_ROOT, "skills", "closed-loop", "pack.md"), "utf-8");
     assert.match(setup, /closed-loop-agents/);
     assert.match(setup, /building-blocks/);
     assert.match(setup, /context\//);
     assert.match(setup, /init-pack/);
     assert.match(setup, /INDEX\.md/);
     assert.match(setup, /stub\.md/);
+    assert.doesNotMatch(setup, /Sync also prepends `skills\/closed-loop\/protocol\.md`/);
+    assert.match(setup, /prepend `skills\/closed-loop\/stub\.md`/);
+    assert.doesNotMatch(packMd, /protocol \(prepended by sync\)/);
+    assert.match(packMd, /stub\.md` \(prepended by/);
+  });
+
+  it("agents/INDEX.md is kernel-generic and skipped by lintAgents", async () => {
+    const rules = JSON.parse(
+      await readFile(join(REPO_ROOT, "pack", "hygiene-rules.json"), "utf-8"),
+    );
+    const index = await readFile(join(REPO_ROOT, "agents", "INDEX.md"), "utf-8");
+    for (const needle of rules.bannedSubstrings ?? []) {
+      assert.ok(!index.includes(needle), `agents/INDEX.md leaks ${needle}`);
+    }
+
+    const root = await mkdtemp(join(tmpdir(), "pack-index-skip-"));
+    await mkdir(join(root, "agents"), { recursive: true });
+    await mkdir(join(root, "pack"), { recursive: true });
+    await cpRules(root);
+    await writeFile(
+      join(root, "agents", "ok.md"),
+      "---\nname: ok\n---\nRead context/README.md\n",
+    );
+    await writeFile(join(root, "agents", "INDEX.md"), "The Climb uses #cbf24d\n");
+    const { filesChecked, violations } = await lintAgents(root);
+    assert.equal(filesChecked, 1, "INDEX.md must not be counted as a role file");
+    assert.ok(
+      !violations.some((v) => v.file === "INDEX.md"),
+      "lintAgents skip of INDEX.md is load-bearing; keep agents/INDEX.md generic",
+    );
+  });
+
+  it("archive/INDEX.md stays generic so pack export has no product history names", async () => {
+    const archiveIndex = await readFile(join(REPO_ROOT, "archive", "INDEX.md"), "utf-8");
+    assert.doesNotMatch(archiveIndex, /2026-08-29/);
+    assert.doesNotMatch(archiveIndex, /package-upgrade/);
+    assert.match(archiveIndex, /Do \*\*not\*\* read this directory during normal work/);
+  });
+
+  it("purgeDoNotCopy applies every manifest pattern, not a hardcoded subset", async () => {
+    const dest = await mkdtemp(join(tmpdir(), "pack-purge-"));
+    await mkdir(join(dest, "archive", "reviews"), { recursive: true });
+    await mkdir(join(dest, "app"), { recursive: true });
+    await mkdir(join(dest, "loop"), { recursive: true });
+    await writeFile(join(dest, "archive", "INDEX.md"), "# keep\n");
+    await writeFile(join(dest, "archive", "reviews", "secret.md"), "history\n");
+    await writeFile(join(dest, "archive", "package-upgrade.md"), "upgrade\n");
+    await writeFile(join(dest, "loop", "learnings.md"), "product ledger\n");
+    await writeFile(join(dest, "app", "game.ts"), "product\n");
+    await writeFile(join(dest, "CHANGELOG.md"), "log\n");
+
+    const { purgeDoNotCopy } = await loadPackCopy();
+    const manifest = JSON.parse(await readFile(join(REPO_ROOT, "pack", "MANIFEST.json"), "utf-8"));
+    await purgeDoNotCopy(dest, manifest);
+
+    assert.equal(await pathExists(join(dest, "archive", "reviews", "secret.md")), false);
+    assert.equal(await pathExists(join(dest, "archive", "package-upgrade.md")), false);
+    assert.equal(await pathExists(join(dest, "loop", "learnings.md")), false);
+    assert.equal(await pathExists(join(dest, "app", "game.ts")), false);
+    assert.equal(await pathExists(join(dest, "CHANGELOG.md")), false);
+    assert.equal(await pathExists(join(dest, "archive", "INDEX.md")), true);
+  });
+
+  it("init-pack does not wipe dest product trees via purgeDoNotCopy", async () => {
+    const initSrc = await readFile(join(REPO_ROOT, "scripts", "init-pack.mjs"), "utf-8");
+    assert.doesNotMatch(initSrc, /purgeDoNotCopy\s*\(/);
+    assert.doesNotMatch(initSrc, /purgeDoNotCopy,/);
+    const exportSrc = await readFile(join(REPO_ROOT, "scripts", "export-template.mjs"), "utf-8");
+    assert.match(exportSrc, /purgeDoNotCopy/);
+  });
+
+  it("doNotCopyTarget rejects path escape", async () => {
+    const { doNotCopyTarget } = await loadPackCopy();
+    assert.equal(doNotCopyTarget("app/**"), "app");
+    assert.equal(doNotCopyTarget("archive/package-upgrade.md"), "archive/package-upgrade.md");
+    assert.equal(doNotCopyTarget("../etc/passwd"), null);
+    assert.equal(doNotCopyTarget("/etc/passwd"), null);
   });
 
   it("root INDEX.md is a small routing table", async () => {
@@ -98,6 +176,11 @@ type PackCopyModule = {
     snippet: string,
     options?: { overwrite?: boolean },
   ) => Promise<void>;
+  purgeDoNotCopy: (
+    destRoot: string,
+    manifest: { doNotCopy?: string[] },
+  ) => Promise<void>;
+  doNotCopyTarget: (pattern: string) => string | null;
 };
 
 async function importRootScript<T>(relativeFromHere: string): Promise<T> {
@@ -112,6 +195,15 @@ async function loadPackCopy() {
 async function lintAgents(root: string) {
   const mod = await importRootScript<HygieneModule>("../../scripts/hygiene.mjs");
   return mod.lintAgents(root);
+}
+
+async function pathExists(path: string): Promise<boolean> {
+  try {
+    await readFile(path);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 async function cpRules(root: string) {

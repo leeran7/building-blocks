@@ -70,22 +70,6 @@ export async function copyKernel(packRoot, destArg) {
   return { destRoot, manifest };
 }
 
-export async function purgeDoNotCopy(destRoot, manifest) {
-  for (const pattern of manifest.doNotCopy ?? []) {
-    if (pattern === "app/**") {
-      await rm(join(destRoot, "app"), { recursive: true, force: true });
-    } else if (pattern === "docs/reviews/**") {
-      await rm(join(destRoot, "docs", "reviews"), { recursive: true, force: true });
-    } else if (pattern === "archive/reviews/**") {
-      await rm(join(destRoot, "archive", "reviews"), { recursive: true, force: true });
-    } else if (pattern === "archive/package-upgrade.md") {
-      await rm(join(destRoot, "archive", "package-upgrade.md"), { force: true });
-    } else if (pattern === "CHANGELOG.md") {
-      await rm(join(destRoot, "CHANGELOG.md"), { force: true });
-    }
-  }
-}
-
 export async function resetAgentsAndSkills(destRoot) {
   await rm(join(destRoot, "agents"), { recursive: true, force: true });
   await rm(join(destRoot, "skills", "closed-loop"), { recursive: true, force: true });
@@ -135,3 +119,23 @@ export async function mergeGitignore(destRoot, snippet, { overwrite = false } = 
     await writeFile(gitignorePath, next.endsWith("\n") ? next : `${next}\n`);
   }
 }
+
+function doNotCopyTarget(pattern) {
+  if (typeof pattern !== "string" || pattern.includes("..")) return null;
+  const trimmed = pattern.replace(/\/\*\*$/, "").replace(/\/\*$/, "");
+  if (!trimmed || trimmed.startsWith("/") || trimmed.includes("..")) return null;
+  return trimmed;
+}
+
+async function purgeDoNotCopy(destRoot, manifest) {
+  const root = assertSafeDest(destRoot);
+  for (const pattern of manifest.doNotCopy ?? []) {
+    const rel = doNotCopyTarget(pattern);
+    if (!rel) continue;
+    const out = join(root, rel);
+    assertSafeOut(root, out);
+    await rm(out, { recursive: true, force: true });
+  }
+}
+
+export { doNotCopyTarget, purgeDoNotCopy };

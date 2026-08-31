@@ -34,8 +34,9 @@ orchestrator/            yarn loop runtime
 | `loop/spec.md` | full PRD |
 | `loop/architecture.md` | full design |
 | `skills/closed-loop/pack.md` | pack rationale |
-| `skills/closed-loop/gates.md` | full kernel list (RULES.md has the hot subset) |
-| `archive/` | stale review pass, upgrade notes |
+| `archive/` | historical notes; skip unless named |
+
+`skills/closed-loop/gates.md` is required for tests, review, CI, money, and auth — not a dump to skip.
 
 ## Do not
 

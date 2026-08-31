@@ -108,13 +108,17 @@ product memory.
 
 ## Runtime: how an agent sees the layers
 
-1. **Cursor / Claude Code** — platform agent file = protocol (prepended by
+1. **Cursor / Claude Code** — platform agent file = `stub.md` (prepended by
    sync) + role body. Skills live under `skills/closed-loop/` or
-   `.claude/skills/closed-loop/`. The agent reads `context/` and the ledger.
-2. **`yarn loop`** — `buildStagePrompt` wraps goal, **repo `context/`**,
-   prior handoff, and learnings as untrusted data, then the role body.
+   `.claude/skills/closed-loop/`. The agent starts at `INDEX.md`, then opens
+   only the `context/` files and ledger sections that indexes mark.
+2. **`yarn loop`** — `buildStagePrompt` wraps goal, **repo `context/` excerpt
+   (README + profile only)**, prior handoff, and Standing-rules excerpt as
+   untrusted data, then the stub + role body. `trust.md` is a Read path, not
+   an embedded excerpt.
 
-Either path: missing handoff file → stage **failed**.
+Either path: missing handoff file → stage **failed**. Do not prepend
+`protocol.md`.
 
 ## Learnings → kernel (promotion)
 
@@ -162,7 +166,7 @@ when those are skipped for local-only).
 Specialists (delegated from implementer, not pipeline stages): `frontend`,
 `backend`, `data`, `mobile`, `performance`, `compliance`, `cost`.
 
-Incremental work in an existing repo uses the host review classification
+Incremental work in an existing repo uses `workflows/review.md`
 (substantial / minor / trivial) — not the eight-agent clamp. The clamp is
 for `@orchestrator` / `yarn loop`.
 

@@ -46,7 +46,7 @@ export async function loadRepoContextExcerpt(root = REPO_ROOT): Promise<string> 
     return "(no context/ folder — infer stack and package managers from the repository; do not invent them)";
   }
   parts.push(
-    "Other context files (open only if context/README.md says so): gates.json, trust.md, git.md, conventions.md.",
+    "Other context files (open only if RULES.md or context/README.md says so): gates.json, trust.md, git.md, conventions.md. Money/auth/irreversible writes → trust.md.",
   );
   const joined = parts.join("\n\n");
   return joined.length > EXCERPT_LIMIT ? `${joined.slice(0, EXCERPT_LIMIT)}\n…` : joined;

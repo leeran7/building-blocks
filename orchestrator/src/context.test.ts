@@ -24,6 +24,9 @@ describe("repo context", () => {
     );
     await writeFile(join(root, "context", "README.md"), "Read this first.\n");
     await writeFile(join(root, "context", "trust.md"), "SECRET_SHOULD_NOT_LOAD");
+    await writeFile(join(root, "context", "gates.json"), "{\"sentinel\":\"GATES_SHOULD_NOT_LOAD\"}");
+    await writeFile(join(root, "context", "git.md"), "GIT_SHOULD_NOT_LOAD");
+    await writeFile(join(root, "context", "conventions.md"), "CONVENTIONS_SHOULD_NOT_LOAD");
     const profile = await loadProfile(root);
     assert.equal(profile?.name, "demo");
     assert.equal(packageManagerFor(profile, "app"), "pnpm");
@@ -34,5 +37,8 @@ describe("repo context", () => {
     assert.match(excerpt, /"name":"demo"/);
     assert.match(excerpt, /trust\.md/);
     assert.doesNotMatch(excerpt, /SECRET_SHOULD_NOT_LOAD/);
+    assert.doesNotMatch(excerpt, /GATES_SHOULD_NOT_LOAD/);
+    assert.doesNotMatch(excerpt, /GIT_SHOULD_NOT_LOAD/);
+    assert.doesNotMatch(excerpt, /CONVENTIONS_SHOULD_NOT_LOAD/);
   });
 });
