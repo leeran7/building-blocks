@@ -34,6 +34,11 @@ import {
   canvasNeedsResize,
   clampDevicePixelRatio,
 } from "./canvasBacking";
+import {
+  cameraTargetY,
+  climbView,
+  followCamY,
+} from "./climbCamera";
 import { drawClimbBackground } from "./climbBackground";
 import {
   PICKUP_BURST_TICKS,
@@ -71,8 +76,6 @@ const FLAG = "#cbf24d"; // summit flag reads as signal too
  */
 const BASE_WIDTH = 360;
 const BASE_HEIGHT = 640;
-/** How fast the camera closes on the climber each tick (1 = snap). */
-const CAM_FOLLOW = 0.3;
 
 export interface ClimbCanvasProps {
   state: MatchState;
@@ -153,14 +156,9 @@ export function ClimbCanvas({
     const ui = Math.max(1, width / BASE_WIDTH);
 
     // Scale so the full tower WIDTH fits the canvas; the camera scrolls in Y.
-    const pxPerM = width / tower.widthM;
-    const viewH = height / pxPerM; // metres visible vertically
-    const focusScreenFrac = 0.62; // keep the climber ~62% down the view
+    const { pxPerM, viewH } = climbView(width, height, tower.widthM);
     // Endless: the camera follows upward without any ceiling.
-    const camTarget = Math.max(
-      -bottomInset / pxPerM,
-      playerY - viewH * (1 - focusScreenFrac)
-    );
+    const camTarget = cameraTargetY(playerY, viewH, bottomInset, pxPerM);
     // Walk-up stairs and hurdle triangles snap the feet a crate-height per
     // tick. Following y 1:1 made the whole view hitch. Ease toward the target
     // and only snap on a new run or a huge gap (respawn / seek).
@@ -569,21 +567,6 @@ function dot(ctx: CanvasRenderingContext2D, [x, y]: Pt, r: number) {
   ctx.beginPath();
   ctx.arc(x, y, r, 0, Math.PI * 2);
   ctx.fill();
-}
-
-function followCamY(
-  current: number | null,
-  target: number,
-  viewH: number,
-  tick: number,
-  prevTick: number | null
-): number {
-  if (current === null || prevTick === null || tick < prevTick || tick === 0) {
-    return target;
-  }
-  const err = target - current;
-  if (Math.abs(err) > viewH * 0.55) return target;
-  return current + err * CAM_FOLLOW;
 }
 
 function drawObstacle(

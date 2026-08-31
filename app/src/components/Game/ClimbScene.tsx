@@ -22,6 +22,12 @@ import { ClimbControlsGuide } from "./ClimbControlsGuide";
 import { PowerUpHud } from "./PowerUpHud";
 import { usePowerUpFeedback } from "./usePowerUpFeedback";
 import {
+  cameraTargetY,
+  climbView,
+  isLavaThreatening,
+  lavaThreatFill,
+} from "./climbCamera";
+import {
   TouchControls,
   TOUCH_CONTROLS_INSET,
   TOUCH_CONTROLS_MIN_BOTTOM,
@@ -105,10 +111,14 @@ export function ClimbScene({ tower, categoryLabel, replay = null }: ClimbScenePr
   const touchControlsActive =
     touchDevice && !finished && (phase === "countdown" || phase === "climb");
   // Camera clearance under the touch controls = the buttons + their bottom gutter
-  // (which grows into the home-indicator safe area). 0 on desktop (no controls).
-  const bottomInset = touchDevice
-    ? TOUCH_CONTROLS_INSET + Math.max(TOUCH_CONTROLS_MIN_BOTTOM, safeArea.bottom)
-    : 0;
+  // (which grows into the home-indicator safe area). Replay never mounts those
+  // buttons, so the inset is 0 — otherwise lava in that band is visible on the
+  // canvas but ignored by audio. Live play keeps the inset after death so the
+  // camera does not jump when the results overlay replaces the buttons.
+  const bottomInset =
+    touchDevice && !replaying
+      ? TOUCH_CONTROLS_INSET + Math.max(TOUCH_CONTROLS_MIN_BOTTOM, safeArea.bottom)
+      : 0;
   // Music plays through the countdown + climb and stops on the results screen.
   // Intensity ramps up over the last ~40m of clearance as the lava gains.
   // Not during a replay: a replay auto-starts with no user gesture, so kicking
@@ -118,11 +128,28 @@ export function ClimbScene({ tower, categoryLabel, replay = null }: ClimbScenePr
     !finished && !replaying && (phase === "countdown" || phase === "climb");
   const lavaGap = player ? player.y - state.hazardY : Infinity;
   const musicIntensity = Math.max(0, Math.min(1, (40 - lavaGap) / 40));
+  const view = climbView(canvasSize.width, canvasSize.height, state.tower.widthM);
+  const camY = cameraTargetY(player?.y ?? 0, view.viewH, bottomInset, view.pxPerM);
+  const lavaFill = lavaThreatFill(
+    state.hazardY,
+    camY,
+    view.viewH,
+    view.pxPerM > 0 ? bottomInset / view.pxPerM : 0
+  );
+  // World one-shots call into the SFX engine; skip them on autoStart replay
+  // the same way music is gated — there is no Start click to unlock Web Audio.
+  const worldLive = !replaying;
   const { muted, setMuted, announcement, unlockAudio } = usePowerUpFeedback(
     player,
     state.tick,
     runId,
-    { active: musicActive, intensity: musicIntensity }
+    { active: musicActive, intensity: musicIntensity },
+    {
+      jetpackThrusting: worldLive && (player?.jetpackThrusting ?? false),
+      lavaOnScreen: worldLive && isLavaThreatening(lavaFill),
+      lavaFill: worldLive ? lavaFill : 0,
+      dead: worldLive && player?.status === "eliminated",
+    }
   );
 
   const redirectPath = `/play`;

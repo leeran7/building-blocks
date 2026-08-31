@@ -1,5 +1,5 @@
 /**
- * The pure half of the power-up feedback layer.
+ * The pure half of the power-up (and world) feedback layer.
  *
  * `usePowerUpFeedback` used to hold all of this inline in a ref-driven effect,
  * which made two real defects invisible to the test suite — stale run state and
@@ -7,6 +7,10 @@
  * is a function of the previous cue state and the current player, so it lives
  * here as a plain reducer; the hook is left with the parts that genuinely need
  * React and the Web Audio API.
+ *
+ * World cues (jetpack loop, lava-on-screen doom, death hit) follow the same
+ * pattern: edges become one-shots, levels become loop flags the hook applies
+ * every frame.
  */
 
 import type { PowerUpType } from "../../game/types";
@@ -32,11 +36,15 @@ export function stepCues(
   // be dropped explicitly. Leaving `pickupTick` behind would swallow the new
   // run's first pickup whenever it landed on the same tick number, and leaving
   // `activeKey` behind would report the previous run's effects as having just
-  // ended.
+  // ended. Lava/death flags have to reset too — otherwise a new climb that
+  // dies would stay silent (memo.dead still true) and a leftover lava-visible
+  // flag would skip the "doom is coming" sting.
   if (input.runId !== next.runId) {
     next.runId = input.runId;
     next.pickupTick = null;
     next.activeKey = "";
+    next.lavaOnScreen = false;
+    next.dead = false;
     announcement = "";
   }
 
@@ -68,6 +76,18 @@ export function stepCues(
     }
   }
 
+  // Death wins the frame: if doom already struck, skip the approaching sting
+  // so the two motifs do not pile into one muddy chord.
+  if (input.dead && !next.dead) {
+    sounds.push({ kind: "death", delay: 0 });
+  }
+  next.dead = input.dead;
+
+  if (!input.dead && input.lavaOnScreen && !next.lavaOnScreen) {
+    sounds.push({ kind: "lava-sting", delay: 0 });
+  }
+  next.lavaOnScreen = input.lavaOnScreen;
+
   if (pickupText && expireText) {
     // Both can fire on one tick (sprint-burst ending as you grab the next
     // orb). A single live-region slot would keep only the last write.
@@ -86,12 +106,27 @@ export function stepCues(
     next.announceCount = memo.announceCount + 1;
   }
 
-  return { memo: next, out: { sounds, announcement } };
+  const loops: CueLoops = input.dead
+    ? { jetpack: false, lavaDoom: false, lavaFill: 0 }
+    : {
+        jetpack: input.jetpackThrusting,
+        lavaDoom: input.lavaOnScreen,
+        lavaFill: input.lavaFill,
+      };
+
+  return { memo: next, out: { sounds, loops, announcement } };
 }
 
 /** Cue state for a component that has not seen a frame yet. */
 export function initialCueMemo(runId: number): CueMemo {
-  return { runId, pickupTick: null, activeKey: "", announceCount: 0 };
+  return {
+    runId,
+    pickupTick: null,
+    activeKey: "",
+    announceCount: 0,
+    lavaOnScreen: false,
+    dead: false,
+  };
 }
 
 /**
@@ -114,17 +149,32 @@ export function announcementText(announcement: string): string {
 
 const ZERO_WIDTH_SPACE = "\u200b";
 
-export type CueKind = "pickup" | "activate" | "expire";
+export type PowerCueKind = "pickup" | "activate" | "expire";
+export type WorldCueKind = "lava-sting" | "death";
+export type CueKind = PowerCueKind | WorldCueKind;
 
-export interface CueSound {
-  kind: CueKind;
+export interface PowerCueSound {
+  kind: PowerCueKind;
   type: PowerUpType;
   /** Seconds to wait before playing, so motifs can be sequenced. */
   delay: number;
 }
 
+export type CueSound =
+  | PowerCueSound
+  | { kind: "lava-sting"; delay: number }
+  | { kind: "death"; delay: number };
+
+export interface CueLoops {
+  jetpack: boolean;
+  lavaDoom: boolean;
+  /** 0..1 how much of the uncovered view the lava has eaten. */
+  lavaFill: number;
+}
+
 export interface CueOutput {
   sounds: CueSound[];
+  loops: CueLoops;
   /** New live-region text, or null to leave the current text alone. */
   announcement: string | null;
 }
@@ -134,6 +184,8 @@ export interface CueMemo {
   pickupTick: number | null;
   activeKey: string;
   announceCount: number;
+  lavaOnScreen: boolean;
+  dead: boolean;
 }
 
 export interface CueInput {
@@ -142,4 +194,9 @@ export interface CueInput {
   lastPickupType: PowerUpType | null;
   /** Types live *this* tick — expired entries already filtered out. */
   activeTypes: readonly PowerUpType[];
+  jetpackThrusting: boolean;
+  /** Lava line is in the uncovered (above overlay) view. */
+  lavaOnScreen: boolean;
+  lavaFill: number;
+  dead: boolean;
 }
