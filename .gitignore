@@ -9,15 +9,10 @@
 loop/*
 !loop/learnings.md
 !loop/learnings.jsonl
-# Durable loop contracts (not per-run scratch). Spec + architecture must
-# survive clones the same way the learnings ledger does. Both PR #49
-# (board split) and this share-SEO branch need these negations.
-!loop/spec.md
-!loop/architecture.md
-!loop/handoffs/
-!loop/handoffs/*.json
-# Package-upgrade architecture is a durable implementer contract, not a
-# per-run scratch file. Track it the same way as the learnings ledger.
+# Spec, architecture, cost, schema-target, and handoffs stay local. Tracking
+# them made every agent-notes commit a Vercel production deploy. Do not
+# add `!loop/spec.md` (or architecture/handoffs) back.
+# Package-upgrade architecture is a durable implementer contract.
 !loop/package-upgrade.md
 .claude/handoffs/*.json
 

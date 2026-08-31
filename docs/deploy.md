@@ -55,7 +55,10 @@ openssl rand -hex 32
 1. Connect the repository to a Vercel project.
 2. In Vercel project settings set **Root Directory** to `app`.
 3. Vercel will auto-detect Next.js and use `pnpm install --frozen-lockfile` + `pnpm build`.
-4. Push to `main`; Vercel triggers a production deployment automatically.
+4. Push to `main`; Vercel triggers a production deployment automatically
+   **only if `app/` changed.** `app/vercel.json` `ignoreCommand` skips the
+   build (no migrate, no Fluid CPU) when the commit only touches loop notes,
+   the learnings ledger, docs, or other paths outside `app/`.
 
 ### Option B — Manual deploy with Vercel CLI
 
