@@ -1,0 +1,109 @@
+{
+  "agent": "architect",
+  "status": "success",
+  "summary": "Architecture for climb-recording share SEO: zero-migration /r/{cuid} on existing ClimbRun.id; standalone app/src/share payload builder (no PR #11 import) with JS .length limits and VALIDATION_ERROR not slice; additive recordClimb.runId; explicit-origin URL builders; one isBot used by middleware; recording OG Node+Prisma 404 vs listing OG edge defaults; GET /api/share/recording/[id]; robots allow /r/ but sitemap has zero /r/ rows. AC-1–AC-40 each map to a named production unit. nextStage implementer (DESIGN.md already covers share UI). F-1 left open.",
+  "timestamp": "2026-08-31T01:51:46Z",
+  "goal": "SEO for sharing climb-recording links on X, TikTok, and YouTube so a marketing agent can post them and crawlers unfurl a unique preview (title, description, image, canonical URL) per recording.",
+  "artifacts": [
+    "loop/architecture.md",
+    "loop/handoffs/architect-2026-08-31T01:51:46Z.json",
+    "loop/learnings.jsonl"
+  ],
+  "exitCriteria": {
+    "ac_to_module_map_1_to_40": true,
+    "stack_confirmed_match_profile": true,
+    "not_choosing_documented": true,
+    "mermaid_data_flow_with_trust_boundaries": true,
+    "data_model_zero_migration_runId_additive": true,
+    "api_contracts_with_4xx_shape": true,
+    "folder_tree_with_specialist_ownership": true,
+    "failure_modes_og_sitemap_id_parser": true,
+    "adrs_path_token_og_isbot_share_json": true,
+    "security_boundaries": true,
+    "cache_recording_og_smaxage_3600_listing_60": true,
+    "no_application_code": true,
+    "no_second_orm_or_test_runner": true,
+    "pr11_not_required": true,
+    "nextStage_implementer_not_design_ux": true,
+    "pings_answered": true
+  },
+  "pingsAnswered": [
+    {
+      "insight": "Standalone share-payload builder; no PR #11 import; VALIDATION_ERROR not slice; X intent; TikTok/YouTube UNSUPPORTED_BY_PLATFORM",
+      "applied": "app/src/share/{types,payload,limits,actions}.ts. Local ShareToolResult. SHARE_FIELD_LIMITS X_CAPTION 280 / TIKTOK_CAPTION 2200 / YOUTUBE_TITLE 100 / YOUTUBE_DESCRIPTION 5000. twitter.com/intent/tweet. compose.mode UNSUPPORTED_BY_PLATFORM without url for TikTok/YouTube."
+    },
+    {
+      "insight": "Additive runId; canonical builders explicit origin; never Host; never window.location.origin",
+      "applied": "ClimbRecordResult.runId from create().id. buildRecordingCanonicalUrl(origin, id). Client uses resolveBaseUrl(). Anonymous POST unchanged, no runId."
+    },
+    {
+      "insight": "Sanitize OG; 404 unknown ids; omit token/seed/email; do not sitemap /r/",
+      "applied": "sanitizeOgText; parseRecordingId reject-never-default; getShareableClimbRun allow-list DTO; buildSitemapEntries invariant no /r/ paths."
+    },
+    {
+      "insight": "Export one isBot; call from middleware",
+      "applied": "ADR-4: delete middleware BOT_PATTERNS; import isBot from botList.ts; add tiktok/bytespider/bytedance."
+    },
+    {
+      "insight": "Do not attach server-derived peaks; F-1 stays open",
+      "applied": "ADR-8. Cards display persisted peak_y. No re-sim in folder tree."
+    },
+    {
+      "insight": "Do not widen to MP4, oEmbed, player cards, Instagram, or F-1 re-sim",
+      "applied": "JSON-LD WebPage only. Out-of-scope section enumerates all five. Share platforms X/TIKTOK/YOUTUBE only."
+    }
+  ],
+  "feedback": [],
+  "learnings": [
+    {
+      "topic": "Architecture & contracts",
+      "forAgents": ["implementer", "verifier", "qa-acceptance"],
+      "kind": "lesson",
+      "insight": "Every AC-1–AC-40 has a named production unit in loop/architecture.md §1. Share JSON HTTP is GET /api/share/recording/[id] with {ok:true,data} on 200 and {error,code:NOT_FOUND} on 404. Recording OG is Node Prisma at GET /api/og/recording/[id] and .../square; listing GET /api/og stays edge with A-12 defaults. Do not grep route.tsx for palette hexes.",
+      "action": "Implement and test by importing the symbols in architecture.md §1. Prove AC-17 with a 281-char fixture that validateShareFieldLength does not slice. Spy or omit decodeRunReplay from getPlayPageMetadata.",
+      "confidence": "high"
+    },
+    {
+      "topic": "testing",
+      "forAgents": ["implementer", "verifier"],
+      "kind": "pitfall",
+      "insight": "Middleware still has a second BOT_PATTERNS list. Updating only botList.ts would make AC-38 pass and leave Edge view-skip stale until TikTok UAs are in the one isBot middleware calls. Bytespider already matches generic spider — tests must use explicit tiktok/bytespider/bytedance fixtures.",
+      "action": "Delete BOT_PATTERNS and isBotUa from app/middleware.ts. import { isBot } from ./src/views/botList. Add tiktok, bytespider, bytedance to BOT_UA_PATTERNS. Do not add /r/ to the view-credit matcher.",
+      "confidence": "high"
+    },
+    {
+      "topic": "Architecture & contracts",
+      "forAgents": ["implementer", "data", "backend"],
+      "kind": "lesson",
+      "insight": "ClimbRun.id is already cuid — zero migration. recordClimb currently discards create() and does not return id. Public GET must be findUnique only (no getOrCreate). Share JSON must map an allow-list DTO so spreading the Prisma row cannot leak replay_token/seed/email.",
+      "action": "const created = await prisma.climbRun.create(...); return { ..., runId: created.id }. Add getShareableClimbRun select id, peak_y, replay_token (check only), userId, user.display_name. Wrap the raw find in react.cache. listSitemapBlockSlugs take 10000, never include /r/.",
+      "confidence": "high"
+    },
+    {
+      "topic": "Security",
+      "forAgents": ["implementer", "frontend", "security-reviewer"],
+      "kind": "pitfall",
+      "insight": "Dashboard copy still uses buildReplayUrl(token, window.location.origin). Layout generateMetadata uses resolveBaseUrl but listing OG query params are unsanitized. Recording metadata must notFound() on unknown slug — b/[slug] generateMetadata today returns title Block not found without notFound().",
+      "action": "All marketing URL builders take origin from resolveBaseUrl()/PUBLIC_CONFIG.siteUrl. Sanitize OG display params. getRecordPageMetadata + getRecordingPageMetadata return NOT_FOUND and pages call notFound(). Never read Host. Leave F-1 open: do not re-sim peakY.",
+      "confidence": "high"
+    },
+    {
+      "topic": "Spec quality",
+      "forAgents": ["frontend", "implementer"],
+      "kind": "lesson",
+      "insight": "ShareRun and dashboard copy controls are min-h-[40px] and tweet-only. AC-31 requires 44×44 named X/TikTok/YouTube/Copy-link. DESIGN.md already has 44px and signal/void — do not invent tokens. SharePost on /b/[slug] stays X+copy (A-9).",
+      "action": "Consume SHARE_CONTROL_LAYOUT and buildShareActions in ShareRun. Dashboard copy/share uses /r/{id} when replayToken is set; no share actions when token is null. Labels exactly: Share on X, Copy TikTok caption, Copy YouTube title and description, Copy link. text-primary or text-void on signal, not text-muted on void.",
+      "confidence": "high"
+    },
+    {
+      "topic": "Architecture & contracts",
+      "forAgents": ["all"],
+      "kind": "metric",
+      "insight": "Architecture maps 40 ACs to production units, 10 ADRs, zero Prisma migrations, recording OG s-maxage>=3600 vs listing 60, SHARE_FIELD_LIMITS 280/2200/100/5000, public path /r/{cuid}, share JSON /api/share/recording/{id}.",
+      "action": "Implementer: follow loop/architecture.md; do not add MP4, oEmbed, player cards, Instagram, a second isBot list, a recording sitemap, or F-1 re-sim.",
+      "confidence": "high"
+    }
+  ],
+  "nextStage": "implementer",
+  "loopBackTo": "architect"
+}
