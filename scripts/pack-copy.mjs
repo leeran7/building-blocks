@@ -20,7 +20,7 @@ export function assertSafeDest(dest) {
 
 export function assertSafeOut(destRoot, outPath) {
   const rel = relative(destRoot, outPath);
-  if (rel.startsWith("..") || rel === "..") {
+  if (rel.startsWith("..") || rel === ".." || rel === "") {
     throw new Error(`Path escapes dest: ${outPath}`);
   }
 }
@@ -122,8 +122,8 @@ export async function mergeGitignore(destRoot, snippet, { overwrite = false } = 
 
 function doNotCopyTarget(pattern) {
   if (typeof pattern !== "string" || pattern.includes("..")) return null;
-  const trimmed = pattern.replace(/\/\*\*$/, "").replace(/\/\*$/, "");
-  if (!trimmed || trimmed.startsWith("/") || trimmed.includes("..")) return null;
+  const trimmed = pattern.replace(/\/\*\*$/, "").replace(/\/\*$/, "").replace(/^\.\//, "");
+  if (!trimmed || trimmed === "." || trimmed.startsWith("/") || trimmed.includes("..")) return null;
   return trimmed;
 }
 

@@ -7,7 +7,7 @@ Shared by every role. Sync prepends `stub.md`, not this file. Read this only whe
 1. Read `INDEX.md`, then `RULES.md`. Do **not** open every file under `context/` or `loop/`.
 2. Read `context/README.md` and load **only** the context files it marks for this task.
 3. Read `loop/learnings.md` **Standing rules** (stop at `## By topic`). Open a topic section only if that topic is the work.
-4. Read `skills/closed-loop/gates.md` when writing tests, reviewing, or changing CI — not on every UI copy tweak.
+4. Read `skills/closed-loop/gates.md` when writing tests, reviewing, changing CI, or touching money/auth/irreversible writes — not on every UI copy tweak.
 
 ## While working
 

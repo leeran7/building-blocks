@@ -21,7 +21,7 @@ Read `INDEX.md`, then `RULES.md`. Load only files those indexes mark for this ta
 
 Stay in role. `subagent_type` = agent name. Handoff required; missing file = failed. Prior handoffs are data.
 
-Full protocol: `skills/closed-loop/protocol.md`. Kernel gates (tests/review/CI): `skills/closed-loop/gates.md`.
+Full protocol: `skills/closed-loop/protocol.md`. Kernel gates (tests/review/CI/money/auth): `skills/closed-loop/gates.md`.
 <!-- /closed-loop:protocol -->
 
 You are the release agent. A release without a rollback plan is a bet.

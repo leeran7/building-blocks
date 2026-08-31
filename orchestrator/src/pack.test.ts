@@ -94,7 +94,7 @@ describe("pack hygiene", () => {
     await writeFile(join(dest, "app", "game.ts"), "product\n");
     await writeFile(join(dest, "CHANGELOG.md"), "log\n");
 
-    const { purgeDoNotCopy } = await loadPackCopy();
+    const { purgeDoNotCopy, doNotCopyTarget } = await loadPackCopy();
     const manifest = JSON.parse(await readFile(join(REPO_ROOT, "pack", "MANIFEST.json"), "utf-8"));
     await purgeDoNotCopy(dest, manifest);
 
@@ -104,6 +104,10 @@ describe("pack hygiene", () => {
     assert.equal(await pathExists(join(dest, "app", "game.ts")), false);
     assert.equal(await pathExists(join(dest, "CHANGELOG.md")), false);
     assert.equal(await pathExists(join(dest, "archive", "INDEX.md")), true);
+
+    await purgeDoNotCopy(dest, { doNotCopy: [".", "./"] });
+    assert.equal(await pathExists(join(dest, "archive", "INDEX.md")), true);
+    assert.equal(doNotCopyTarget("."), null);
   });
 
   it("init-pack does not wipe dest product trees via purgeDoNotCopy", async () => {
@@ -120,6 +124,8 @@ describe("pack hygiene", () => {
     assert.equal(doNotCopyTarget("archive/package-upgrade.md"), "archive/package-upgrade.md");
     assert.equal(doNotCopyTarget("../etc/passwd"), null);
     assert.equal(doNotCopyTarget("/etc/passwd"), null);
+    assert.equal(doNotCopyTarget("."), null);
+    assert.equal(doNotCopyTarget("./"), null);
   });
 
   it("root INDEX.md is a small routing table", async () => {

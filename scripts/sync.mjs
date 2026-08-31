@@ -100,7 +100,7 @@ async function syncAgents(claudeConfig, protocolBody) {
     await writeFile(join(ROOT, ".claude", "agents", file), claudeOut);
   }
 
-  console.log(`Synced ${files.length} agents → .cursor/agents/ and .claude/agents/ (protocol prepended)`);
+  console.log(`Synced ${files.length} agents → .cursor/agents/ and .claude/agents/ (stub prepended)`);
 }
 
 async function syncSkills() {

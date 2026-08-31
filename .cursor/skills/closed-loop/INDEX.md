@@ -13,7 +13,7 @@
 | `team.md` | Dispatch contract | orchestrator | |
 | `handoffs.md` | Handoff JSON | writing a handoff and you forgot the shape | |
 | `learning-loop.md` | Ledger protocol | recording/folding learnings | |
-| `gates.md` | Kernel quality rules | tests, review, CI | copy/docs-only |
+| `gates.md` | Kernel quality rules | tests, review, CI, money/auth | copy-only |
 | `profile.md` | `context/` contract | adding a context file | |
 | `host.md` | CLAUDE.md template | init-pack | |
 | `pack.md` | Why four layers | vendoring the pack | daily work |
