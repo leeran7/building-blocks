@@ -13,6 +13,7 @@ loop/*
 !loop/package-upgrade.md
 !loop/spec.md
 !loop/architecture.md
+!loop/schema-target.md
 !loop/cost.md
 .claude/handoffs/*.json
 
