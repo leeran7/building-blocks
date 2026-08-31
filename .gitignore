@@ -9,6 +9,12 @@
 loop/*
 !loop/learnings.md
 !loop/learnings.jsonl
+# Durable loop contracts (not per-run scratch). Spec + architecture must
+# survive clones the same way the learnings ledger does.
+!loop/spec.md
+!loop/architecture.md
+!loop/handoffs/
+!loop/handoffs/*.json
 # Package-upgrade architecture is a durable implementer contract, not a
 # per-run scratch file. Track it the same way as the learnings ledger.
 !loop/package-upgrade.md
