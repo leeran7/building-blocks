@@ -12,8 +12,13 @@ loop/*
 # Package-upgrade architecture is a durable implementer contract, not a
 # per-run scratch file. Track it the same way as the learnings ledger.
 !loop/package-upgrade.md
+# iOS/mobile launch investigation spec. loop/spec.md stays ignored (reserved
+# name, no exception). This filename is the tracked product contract.
+!loop/ios-mobile-launch-spec.md
 # iOS/mobile launch cost envelope (investigation artifact; not a per-run scratch file).
 !loop/ios-mobile-launch-cost.md
+# iOS/mobile launch — mobile specialist gap analysis of the /play web client.
+!loop/ios-mobile-launch-mobile.md
 .claude/handoffs/*.json
 
 # Dependencies & build
