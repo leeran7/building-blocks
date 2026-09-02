@@ -21,6 +21,7 @@
  */
 
 import React from "react";
+import { ALTITUDE_UNIT, formatAltitudeLabel } from "../../lib/units";
 
 export interface BlockRowProps {
   id: string;
@@ -179,10 +180,10 @@ export function BlockRow({
                 ? "text-accent"
                 : "text-text-primary",
           ].join(" ")}
-          aria-label={`${altitude.toFixed(1)} metres`}
+          aria-label={formatAltitudeLabel(altitude, 1)}
         >
           {altitude.toFixed(1)}
-          <span className="text-text-muted font-normal">m</span>
+          <span className="text-text-muted font-normal">{ALTITUDE_UNIT}</span>
         </span>
       </div>
 

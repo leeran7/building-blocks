@@ -8,9 +8,9 @@ export interface EngineConstants {
   DOUBLE_EVERY_K: number;
   /** Hard cap on growth multiplier. Default: 8 — MANDATORY */
   MAX_GROWTH: number;
-  /** Initial metres per dollar at season start. Default: 1.0 */
+  /** Initial altitude units per dollar at season start (shown as ft). Default: 1.0 */
   R0: number;
-  /** Initial ground metres at season start. Default: 0.5 */
+  /** Initial ground altitude at season start (shown as ft). Default: 0.5 */
   G0: number;
   /** Minimum first payment in USD. Default: 5.00 */
   MIN_ENTRY_USD: number;

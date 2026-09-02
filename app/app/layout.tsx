@@ -3,6 +3,7 @@ import { Bricolage_Grotesque, Hanken_Grotesk, Space_Mono } from "next/font/googl
 import "./globals.css";
 import { AuthProvider } from "../src/contexts/AuthContext";
 import { resolveBaseUrl } from "../src/config/public";
+import { formatAltitude } from "../src/lib/units";
 
 // ── ASCENT type system ────────────────────────────────────────────────────
 // Display: Bricolage Grotesque — architectural, contemporary, characterful.
@@ -83,7 +84,7 @@ export async function generateMetadata(): Promise<Metadata> {
           url: ogUrl,
           width: 1200,
           height: 630,
-          alt: `Doomstack — ${topBlockName} leads at ${parseFloat(topAlt).toFixed(1)}m`,
+          alt: `Doomstack — ${topBlockName} leads at ${formatAltitude(parseFloat(topAlt), 1)}`,
         },
       ],
       type: "website",

@@ -9,6 +9,7 @@
 
 import Link from "next/link";
 import { Navbar } from "../../src/components/Navbar";
+import { ALTITUDE_UNIT, SEASON_START_RATE } from "../../src/lib/units";
 
 export const metadata = {
   title: "Stack — Rules & Formulas",
@@ -66,11 +67,11 @@ export default function RulesPage() {
             </div>
             <div className="text-text-primary">
               <span className="text-text-muted">R0</span> = 1.0{" "}
-              <span className="text-text-muted"># metres per dollar at season start</span>
+              <span className="text-text-muted">{`# ${ALTITUDE_UNIT} per dollar at season start`}</span>
             </div>
             <div className="text-text-primary">
               <span className="text-text-muted">G0</span> = 0.65{" "}
-              <span className="text-text-muted"># ground metres at season start (tuned for ~1.5M view burial)</span>
+              <span className="text-text-muted">{`# ground ${ALTITUDE_UNIT} at season start (tuned for ~1.5M view burial)`}</span>
             </div>
             <div className="text-text-primary">
               <span className="text-text-muted">MIN_ENTRY_USD</span> = $5.00
@@ -103,10 +104,10 @@ export default function RulesPage() {
               <span className="text-text-muted">← capped at 8 (non-negotiable)</span>
             </div>
             <div className="text-text-primary">
-              rate = R0 · growth <span className="text-text-muted"># metres per dollar</span>
+              rate = R0 · growth <span className="text-text-muted">{`# ${ALTITUDE_UNIT} per dollar`}</span>
             </div>
             <div className="text-text-primary">
-              ground = G0 · growth <span className="text-text-muted"># burial threshold (m)</span>
+              ground = G0 · growth <span className="text-text-muted">{`# burial threshold (${ALTITUDE_UNIT})`}</span>
             </div>
           </Well>
         </section>
@@ -116,11 +117,11 @@ export default function RulesPage() {
           <SectionHeading>Altitude (payments)</SectionHeading>
           <Well>
             <div className="text-text-primary">
-              metres = dollars · rate{" "}
-              <span className="text-text-muted"># altitude added per dollar</span>
+              height = dollars · rate{" "}
+              <span className="text-text-muted">{`# altitude added (${ALTITUDE_UNIT})`}</span>
             </div>
             <div className="text-text-primary">
-              altitude += metres{" "}
+              altitude += height{" "}
               <span className="text-text-muted"># additive only; never decreases</span>
             </div>
           </Well>
@@ -175,7 +176,7 @@ export default function RulesPage() {
           </p>
           <ul className="text-text-secondary text-sm space-y-1.5 list-disc list-inside ml-1">
             <li>The current stack is archived to a permanent standings page</li>
-            <li>V resets to 0 (rate drops back to R0 = $1 = 1m)</li>
+            <li>V resets to 0 (rate drops back to R0 = {SEASON_START_RATE})</li>
             <li>New blocks start at altitude 0</li>
             <li>Record pages at /b/[slug] remain permanent and show all seasons</li>
             <li>The exchange rate caps, holds, then resets — creating a recurring launch moment</li>

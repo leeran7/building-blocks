@@ -9,6 +9,8 @@
  * Logic unchanged from v1; all data-testids preserved (AC-27).
  */
 
+import { formatAltitude } from "../../lib/units";
+
 interface TowerHeaderProps {
   cost_of_rank1_usd: number;
   views_k: number;
@@ -58,13 +60,13 @@ export function TowerHeader({
             },
             {
               t: "$1 buys",
-              v: `${rate.toFixed(2)}m`,
+              v: formatAltitude(rate, 2),
               cls: "text-text-primary",
               id: "header-rate",
             },
             {
               t: "Ground",
-              v: `${ground.toFixed(2)}m`,
+              v: formatAltitude(ground, 2),
               cls: "text-ember",
               id: "header-ground",
             },

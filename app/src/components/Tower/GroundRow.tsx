@@ -8,6 +8,8 @@
  * hero's rising ground. Logic unchanged; role/aria/testids preserved.
  */
 
+import { formatAltitude, formatAltitudeLabel } from "../../lib/units";
+
 interface GroundRowProps {
   ground: number;
   views_k: number;
@@ -18,19 +20,19 @@ export function GroundRow({ ground, views_k }: GroundRowProps) {
     <div
       className="relative my-4"
       role="separator"
-      aria-label={`Ground level at ${ground.toFixed(2)} metres`}
+      aria-label={`Ground level at ${formatAltitudeLabel(ground, 2)}`}
       data-testid="ground-row"
     >
       <div className="flex items-center gap-3">
         <div className="flex-1 h-px bg-gradient-to-r from-transparent to-ember/80" />
         <span
           className="inline-flex items-center gap-1.5 font-mono text-xs font-bold uppercase tracking-[0.12em] text-ember bg-ember/10 border border-ember/35 rounded-full px-3 py-1 flex-shrink-0 whitespace-nowrap shadow-ember"
-          aria-label={`Ground level at ${ground.toFixed(2)} metres`}
+          aria-label={`Ground level at ${formatAltitudeLabel(ground, 2)}`}
         >
           <span className="animate-pulse" aria-hidden="true">
             ▲
           </span>
-          Ground {ground.toFixed(2)}m
+          Ground {formatAltitude(ground, 2)}
         </span>
         <div className="flex-1 h-px bg-gradient-to-l from-transparent to-ember/80" />
       </div>

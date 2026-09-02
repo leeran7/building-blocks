@@ -6,6 +6,7 @@
 
 import { useCallback, useState } from "react";
 import { Toast } from "../Toast";
+import { formatAltitude } from "../../lib/units";
 
 interface ShareRunProps {
   peakY: number;
@@ -19,7 +20,7 @@ export function ShareRun({ peakY, shareUrl, encoding }: ShareRunProps) {
   const [copied, setCopied] = useState(false);
 
   const shareText = shareUrl
-    ? `I climbed ${height}m on Stack before the lava caught me. Watch the replay: ${shareUrl}`
+    ? `I climbed ${formatAltitude(height, 0)} on Stack before the lava caught me. Watch the replay: ${shareUrl}`
     : null;
 
   const tweetUrl =
@@ -51,7 +52,7 @@ export function ShareRun({ peakY, shareUrl, encoding }: ShareRunProps) {
           <>
             <p className="text-text-secondary text-xs leading-relaxed mb-3">
               Replay ready — share your{" "}
-              <span className="text-signal font-mono tabular-nums">{height}m</span>{" "}
+              <span className="text-signal font-mono tabular-nums">{formatAltitude(height, 0)}</span>{" "}
               climb
             </p>
             <div className="flex gap-2 justify-center">

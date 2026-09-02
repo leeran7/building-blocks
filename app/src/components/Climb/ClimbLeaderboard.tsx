@@ -6,6 +6,7 @@
  */
 
 import type { ClimberRank } from "../../db/climb";
+import { ALTITUDE_UNIT } from "../../lib/units";
 
 export function ClimbLeaderboard({
   climbers,
@@ -102,7 +103,7 @@ export function ClimbLeaderboard({
                 }
               >
                 {c.peakY.toFixed(0)}
-                <span className="text-text-secondary font-normal">m</span>
+                <span className="text-text-secondary font-normal">{ALTITUDE_UNIT}</span>
               </span>
             </div>
           </li>

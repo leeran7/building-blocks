@@ -13,6 +13,7 @@
  */
 
 import Link from "next/link";
+import { ALTITUDE_UNIT, formatAltitude } from "../../lib/units";
 
 interface DemoBlock {
   name: string;
@@ -59,7 +60,7 @@ function ElevationProfile() {
           Paid stack · live
         </span>
         <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-ember">
-          ▲ ground +2.4m/day
+          ▲ ground +2.4{ALTITUDE_UNIT}/day
         </span>
       </div>
 
@@ -119,14 +120,14 @@ function ElevationProfile() {
                     {b.name}
                   </span>
                   <span className="relative z-10 font-mono text-[11px] tabular-nums text-text-muted flex-shrink-0">
-                    {b.altitude}m
+                    {b.altitude}{ALTITUDE_UNIT}
                   </span>
                 </div>
 
                 {i === groundAfterIndex && (
                   <div className="relative flex items-center gap-2 my-2">
                     <span className="font-mono text-[9px] uppercase tracking-[0.14em] text-ember flex-shrink-0">
-                      ground 158.0m
+                      ground 158.0{ALTITUDE_UNIT}
                     </span>
                     <div className="flex-1 h-px bg-gradient-to-r from-ember/70 to-ember/10" />
                   </div>
@@ -152,7 +153,7 @@ export function Hero({ stats }: { stats: HeroStats }) {
     { label: "Climbers", value: stats.climberCount.toLocaleString() },
     {
       label: "Top climb",
-      value: stats.topPeak != null ? `${Math.round(stats.topPeak)}m` : "—",
+      value: stats.topPeak != null ? formatAltitude(Math.round(stats.topPeak), 0) : "—",
     },
   ];
 
