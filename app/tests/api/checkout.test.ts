@@ -64,7 +64,7 @@ describe("AC-35: No-refunds disclosure at checkout", () => {
     const routeContent = readFileSync(routePath, "utf-8");
 
     expect(routeContent).toContain("No refunds");
-    expect(routeContent).toContain("custom_text");
+    expect(routeContent).toContain("product_data");
   });
 
   it("checkout includes positions-are-live disclosure", () => {

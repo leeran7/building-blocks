@@ -34,10 +34,34 @@ export function verifyWebhookSignature(
   rawBody: string,
   signature: string
 ): Stripe.Event {
-  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
-  if (!webhookSecret) {
+  const secrets = webhookSecrets();
+  let lastError: unknown;
+
+  for (const secret of secrets) {
+    try {
+      return getStripe().webhooks.constructEvent(rawBody, signature, secret);
+    } catch (err) {
+      lastError = err;
+    }
+  }
+
+  throw lastError ?? new Error("Invalid webhook signature");
+}
+
+function webhookSecrets(): string[] {
+  const raw = process.env.STRIPE_WEBHOOK_SECRET;
+  if (!raw) {
     throw new Error("STRIPE_WEBHOOK_SECRET is not configured");
   }
 
-  return getStripe().webhooks.constructEvent(rawBody, signature, webhookSecret);
+  const secrets = raw
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  if (secrets.length === 0) {
+    throw new Error("STRIPE_WEBHOOK_SECRET is not configured");
+  }
+
+  return secrets;
 }

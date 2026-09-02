@@ -33,12 +33,11 @@ Set all of the following in the **Vercel project dashboard** under Settings > En
 | `DIRECT_URL` | Direct (non-pooled) connection string — required by `prisma migrate deploy` |
 | `UPSTASH_REDIS_REST_URL` | Upstash Redis REST endpoint (e.g. `https://<id>.upstash.io`) |
 | `UPSTASH_REDIS_REST_TOKEN` | Upstash Redis REST token |
-| `STRIPE_SECRET_KEY` | Stripe secret key (`sk_live_...`) |
-| `STRIPE_WEBHOOK_SECRET` | Stripe webhook signing secret (`whsec_...`) — obtained after registering the endpoint |
-| `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` | Stripe publishable key (`pk_live_...`) — exposed to the browser |
+| `STRIPE_SECRET_KEY` | Stripe secret key (`sk_live_...` in production, `sk_test_...` in preview/development) |
+| `STRIPE_WEBHOOK_SECRET` | Webhook signing secret (`whsec_...`); production may comma-separate live + test secrets |
 | `INTERNAL_TOKEN` | Random secret (min 32 chars) — signs edge-to-internal view-credit payloads; **must be set or server will refuse to start** |
 | `ADMIN_TOKEN` | Random secret (min 32 chars) — Bearer token for admin API routes |
-| `BASE_URL` | Production URL without trailing slash (e.g. `https://tower.example.com`) |
+| `BASE_URL` | Production URL without trailing slash (`https://www.doomstack.lol`) |
 
 Generate `INTERNAL_TOKEN` and `ADMIN_TOKEN` with:
 
@@ -117,18 +116,29 @@ If either check fails, inspect Vercel Function logs in the dashboard.
 
 ## Stripe webhook registration
 
-After the first production deploy, register the webhook endpoint in the Stripe dashboard:
+Production and sandbox each have a webhook on:
 
-1. Go to **Stripe Dashboard > Developers > Webhooks > Add endpoint**.
-2. Set the endpoint URL to:
-   ```
-   https://<domain>/api/webhook/stripe
-   ```
-3. Select the event **`checkout.session.completed`**.
-4. Click **Add endpoint**.
-5. Copy the **Signing secret** (`whsec_...`) and set it as `STRIPE_WEBHOOK_SECRET` in Vercel, then redeploy (or trigger a redeployment via Vercel dashboard).
+```
+https://www.doomstack.lol/api/webhook/stripe
+```
 
-Webhook verification uses `stripe.webhooks.constructEvent`; payloads with invalid signatures are rejected with HTTP 400.
+Events: `checkout.session.completed`, `checkout.session.async_payment_succeeded`.
+
+| Environment | `STRIPE_SECRET_KEY` | `STRIPE_WEBHOOK_SECRET` |
+|-------------|---------------------|-------------------------|
+| **Production** | `sk_live_...` | Live `whsec_...` (comma-separate test `whsec_...` if both modes hit prod) |
+| **Preview / Development** | `sk_test_...` | Test `whsec_...` |
+| **Local** | `sk_test_...` | Output of `stripe listen --forward-to localhost:3000/api/webhook/stripe` |
+
+**Live secret key:** copy `sk_live_...` from [Stripe API keys](https://dashboard.stripe.com/apikeys) (live mode), then:
+
+```bash
+cd app
+printf '%s' 'sk_live_...' | npx vercel env add STRIPE_SECRET_KEY production --sensitive --yes --force
+npx vercel redeploy --target production
+```
+
+Webhook verification uses `stripe.webhooks.constructEvent`; invalid signatures return HTTP 400.
 
 ---
 
@@ -190,6 +200,5 @@ The following secrets must be set in **GitHub repository Settings > Secrets and 
 - `UPSTASH_REDIS_REST_TOKEN`
 - `STRIPE_SECRET_KEY`
 - `STRIPE_WEBHOOK_SECRET`
-- `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`
 - `INTERNAL_TOKEN`
 - `ADMIN_TOKEN`
