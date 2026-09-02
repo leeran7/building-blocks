@@ -29,5 +29,6 @@
   "requiredSubstrings": [
     "context/README.md"
   ],
-  "notes": "Source agents must point at context/README.md and must not embed product facts or a hardcoded exclusive package manager."
+  "maxAgentLines": 200,
+  "notes": "Source agents must point at context/README.md, stay under maxAgentLines, and must not embed product facts or a hardcoded exclusive package manager. Split oversized roles into agents/<role>/*.md partials and reference them from the entry file."
 }
