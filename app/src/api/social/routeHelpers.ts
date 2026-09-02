@@ -62,11 +62,11 @@ export function withSocialAdmin(
   };
 }
 
-/** Same, for dynamic routes with a `params` object (Next 14 App Router — synchronous). */
+/** Same, for dynamic routes with a `params` object (Next 15 App Router — async). */
 export function withSocialAdminParams<P>(
   handler: (request: NextRequest, decoded: DecodedIdToken, params: P) => Promise<NextResponse>
 ) {
-  return async (request: NextRequest, ctx: { params: P }): Promise<NextResponse> => {
+  return async (request: NextRequest, ctx: { params: Promise<P> }): Promise<NextResponse> => {
     let decoded: DecodedIdToken;
     try {
       decoded = await requireSocialAdmin(request);
@@ -75,7 +75,8 @@ export function withSocialAdminParams<P>(
       return jsonError("Unauthorized", 401);
     }
     try {
-      return await handler(request, decoded, ctx.params);
+      const params = await ctx.params;
+      return await handler(request, decoded, params);
     } catch (err) {
       console.error(`[social-api] ${request.method} ${request.nextUrl.pathname}`, err);
       return jsonError("Internal server error", 500, "INTERNAL_ERROR");

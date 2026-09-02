@@ -33,10 +33,11 @@ function redirectUriFor(platform: SocialPlatform): string {
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { platform: string } }
+  { params }: { params: Promise<{ platform: string }> }
 ): Promise<NextResponse> {
+  const { platform: platformParam } = await params;
   const base = request.nextUrl.origin;
-  const platform = parsePlatform(params.platform);
+  const platform = parsePlatform(platformParam);
   if (!platform) return NextResponse.redirect(new URL(ERROR_REDIRECT, base));
 
   const rl = await checkRateLimit({
