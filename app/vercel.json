@@ -4,10 +4,10 @@
   "installCommand": "pnpm install",
   "outputDirectory": ".next",
   "crons": [
-    { "path": "/api/social/cron/publish-sweep", "schedule": "*/5 * * * *" },
+    { "path": "/api/social/cron/publish-sweep", "schedule": "0 7 * * *" },
     { "path": "/api/social/cron/analytics-refresh", "schedule": "0 6 * * *" },
     { "path": "/api/social/cron/weekly-strategy", "schedule": "0 8 * * 1" },
-    { "path": "/api/social/cron/token-refresh-sweep", "schedule": "0 * * * *" }
+    { "path": "/api/social/cron/token-refresh-sweep", "schedule": "0 5 * * *" }
   ],
   "functions": {
     "app/api/social/agent/runs/route.js": { "maxDuration": 60 },
