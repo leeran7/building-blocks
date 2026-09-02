@@ -1,0 +1,22 @@
+{
+  "mcpServers": {
+    "neon": {
+      "url": "https://mcp.neon.tech/mcp"
+    },
+    "upstash": {
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "-y",
+        "@upstash/mcp-server@latest",
+        "--email",
+        "${env:UPSTASH_EMAIL}",
+        "--api-key",
+        "${env:UPSTASH_API_KEY}"
+      ]
+    },
+    "stripe": {
+      "url": "https://mcp.stripe.com"
+    }
+  }
+}
