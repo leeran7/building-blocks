@@ -49,7 +49,6 @@ export interface DispatchResult {
 
 type Handler = (input: unknown, ctx: ToolContext) => Promise<unknown>;
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const HANDLERS: Record<SocialAgentToolName, Handler> = {
   get_social_accounts: () => getSocialAccountsTool(),
   get_brand_profile: () => getBrandProfileTool(),

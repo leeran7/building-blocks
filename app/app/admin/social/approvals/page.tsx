@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useSocialApi } from "../../../../src/components/Social/useSocialApi";
 
 interface ContentItem {
@@ -19,15 +19,15 @@ export default function ApprovalsPage() {
   const [error, setError] = useState<string | null>(null);
   const [acting, setActing] = useState<string | null>(null);
 
-  function load() {
+  const load = useCallback(() => {
     request<{ items: ContentItem[] }>("/api/social/content?status=READY_FOR_REVIEW")
       .then((data: { items: ContentItem[] }) => setItems(data.items))
       .catch((err: Error) => setError(err.message));
-  }
+  }, [request]);
 
   useEffect(() => {
     load();
-  }, [request]);
+  }, [load]);
 
   async function approve(id: string) {
     setActing(id);

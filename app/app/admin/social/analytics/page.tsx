@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useSocialApi } from "../../../../src/components/Social/useSocialApi";
 
 export default function AnalyticsPage() {
@@ -9,15 +9,15 @@ export default function AnalyticsPage() {
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
 
-  function load() {
+  const load = useCallback(() => {
     request("/api/social/analytics")
       .then(setData)
       .catch((err: Error) => setError(err.message));
-  }
+  }, [request]);
 
   useEffect(() => {
     load();
-  }, [request]);
+  }, [load]);
 
   async function handleRefresh() {
     setRefreshing(true);
