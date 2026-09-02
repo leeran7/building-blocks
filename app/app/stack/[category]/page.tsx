@@ -15,6 +15,7 @@ import { CategoryShell } from "../../../src/components/CategoryShell";
 import { TowerView, type TowerData } from "../../../src/components/Tower/TowerView";
 import { resolveBaseUrl } from "../../../src/config/public";
 import { isGameCategory, resolveGameCategory } from "../../../src/game/categories";
+import { formatAltitude } from "../../../src/lib/units";
 
 const BASE_URL = resolveBaseUrl();
 
@@ -89,8 +90,8 @@ export default async function CategoryTowerPage({ params }: TowerPageProps) {
       }
       meta={
         <dl className="mt-4 flex items-center gap-x-5 gap-y-1 flex-wrap text-sm">
-          <Stat label="Ground" value={`${ground.toFixed(1)}m`} danger />
-          <Stat label="$1 buys" value={`${rate.toFixed(2)}m`} />
+          <Stat label="Ground" value={formatAltitude(ground, 1)} danger />
+          <Stat label="$1 buys" value={formatAltitude(rate, 2)} />
           <Stat label="Live" value={String(activeBlockCount)} />
           <Stat label="Season ends" value={seasonEnds} />
         </dl>

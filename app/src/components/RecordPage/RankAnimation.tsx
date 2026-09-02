@@ -11,6 +11,7 @@
  */
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { formatAltitude } from "../../lib/units";
 
 interface DemoBlock {
   id: string;
@@ -159,7 +160,7 @@ export function RankAnimation() {
                 {block.name}
               </span>
               <span className="text-text-muted font-mono text-xs flex-shrink-0 tabular-nums">
-                {block.altitude.toFixed(1)}m
+                {formatAltitude(block.altitude, 1)}
               </span>
             </div>
           );

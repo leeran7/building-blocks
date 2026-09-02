@@ -20,6 +20,7 @@ import {
   YAxis,
   Tooltip,
 } from "recharts";
+import { formatAltitude } from "../../lib/units";
 
 interface Payment {
   id: string;
@@ -92,6 +93,7 @@ export default function AltitudeChart({
             }}
             itemStyle={{ color: "#f0f0ff" }}
             labelStyle={{ color: "#6b6b8a" }}
+            formatter={(value: number) => [formatAltitude(value, 1), "Altitude"]}
           />
           <Line
             type="monotone"

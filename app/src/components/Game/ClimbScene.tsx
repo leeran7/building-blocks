@@ -37,6 +37,7 @@ import { useCanvasSize } from "../../hooks/useCanvasSize";
 import { useCoarsePointer } from "../../hooks/useCoarsePointer";
 import { useSafeAreaInsets } from "../../hooks/useSafeAreaInsets";
 import { climberHandle } from "../../lib/handle";
+import { ALTITUDE_UNIT, formatAltitudeLabel } from "../../lib/units";
 import { ShareRun } from "./ShareRun";
 import {
   buildReplayUrl,
@@ -392,7 +393,7 @@ export function ClimbScene({ tower, categoryLabel, replay = null }: ClimbScenePr
             </p>
             <h2 className="font-mono text-6xl font-bold text-signal tabular-nums mt-2 leading-none">
               {(player?.peakY ?? 0).toFixed(0)}
-              <span className="text-2xl text-text-muted font-normal ml-1">m</span>
+              <span className="text-2xl text-text-muted font-normal ml-1">{ALTITUDE_UNIT}</span>
             </h2>
             <p className="font-mono text-[11px] uppercase tracking-[0.16em] text-text-muted mt-2">
               your highest climb
@@ -486,9 +487,10 @@ export function ClimbScene({ tower, categoryLabel, replay = null }: ClimbScenePr
 
       <div className="sr-only" role="status" aria-live="polite">
         {finished
-          ? `You were caught by the lava at ${(player?.peakY ?? 0).toFixed(
+          ? `You were caught by the lava at ${formatAltitudeLabel(
+              player?.peakY ?? 0,
               0
-            )} metres.`
+            )}.`
           : ""}
       </div>
     </div>

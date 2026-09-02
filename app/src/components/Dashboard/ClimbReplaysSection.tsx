@@ -8,6 +8,7 @@ import { useCallback, useState } from "react";
 import Link from "next/link";
 import { Toast } from "../Toast";
 import { buildReplayUrl } from "../../game/runReplay";
+import { ALTITUDE_UNIT } from "../../lib/units";
 
 export interface ClimbReplayItem {
   id: string;
@@ -83,7 +84,7 @@ export function ClimbReplaysSection({ replays }: { replays: ClimbReplayItem[] })
             <div className="min-w-0">
               <p className="font-mono text-lg font-bold text-text-primary tabular-nums">
                 {run.peakY.toFixed(0)}
-                <span className="text-sm font-normal text-text-muted ml-1">m</span>
+                <span className="text-sm font-normal text-text-muted ml-1">{ALTITUDE_UNIT}</span>
               </p>
               <p className="text-xs text-text-muted mt-0.5">
                 {formatReplayDate(run.createdAt)}

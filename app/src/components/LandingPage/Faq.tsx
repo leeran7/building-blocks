@@ -5,6 +5,8 @@
  * Content drawn from paid-stack mechanics and /rules.
  */
 
+import { ALTITUDE_UNIT, ALTITUDE_UNIT_LONG, SEASON_START_RATE } from "../../lib/units";
+
 export interface FaqProps {
   minEntryUsd?: number;
   minSpendUsd?: number;
@@ -22,11 +24,11 @@ function buildFaqs(minEntryUsd: number, minSpendUsd: number): QA[] {
   return [
     {
       q: "How does altitude work?",
-      a: "You buy altitude with money — each dollar converts at the current rate in metres (shown as “$1 buys” on the tower). Altitude is permanent: it never decreases through inaction. The only thing that moves is the ground beneath you.",
+      a: `You buy altitude with money — each dollar converts at the current rate in ${ALTITUDE_UNIT_LONG} (shown as “$1 buys” on the tower). Altitude is permanent: it never decreases through inaction. The only thing that moves is the ground beneath you.`,
     },
     {
       q: "What does “$1 buys” mean?",
-      a: "$1 is the exchange-rate unit, not the minimum payment. “$1 buys 2.4m” means one dollar currently purchases 2.4 metres of altitude. That rate rises as the stack accumulates views (up to 8×) and resets to $1 = 1m every new season.",
+      a: `$1 is the exchange-rate unit, not the minimum payment. “$1 buys 2.4${ALTITUDE_UNIT}” means one dollar currently purchases 2.4 ${ALTITUDE_UNIT_LONG} of altitude. That rate rises as the stack accumulates views (up to 8×) and resets to ${SEASON_START_RATE} every new season.`,
     },
     {
       q: "What’s the minimum I can pay?",
@@ -48,7 +50,10 @@ function buildFaqs(minEntryUsd: number, minSpendUsd: number): QA[] {
         entry +
         " → " +
         entry +
-        "m when $1 = 1m). When someone leads, you pay for a 2% buffer above their altitude at the live rate: cost = (their altitude × 1.02 − yours) ÷ rate, with a $" +
+        ALTITUDE_UNIT +
+        " when " +
+        SEASON_START_RATE +
+        "). When someone leads, you pay for a 2% buffer above their altitude at the live rate: cost = (their altitude × 1.02 − yours) ÷ rate, with a $" +
         spend +
         " minimum. Late in a season the rate can be 8×, so overtaking gets cheaper in dollars even as the ground rises.",
     },
@@ -70,7 +75,7 @@ function buildFaqs(minEntryUsd: number, minSpendUsd: number): QA[] {
     },
     {
       q: "What happens at the end of a season?",
-      a: "Every 90 days each stack archives to a permanent standings page, cumulative views reset to zero, and the rate resets to $1 = 1m — a fresh launch moment. Record pages at /b/[slug] persist across every season.",
+      a: `Every 90 days each stack archives to a permanent standings page, cumulative views reset to zero, and the rate resets to ${SEASON_START_RATE} — a fresh launch moment. Record pages at /b/[slug] persist across every season.`,
     },
   ];
 }

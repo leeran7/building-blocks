@@ -7,6 +7,7 @@
 
 import type React from "react";
 import Link from "next/link";
+import { SEASON_START_RATE } from "../../lib/units";
 
 function ArrowUpIcon() {
   return (
@@ -85,7 +86,7 @@ const steps: Step[] = [
     icon: <ArrowUpIcon />,
     title: "Buy altitude",
     description:
-      "Pick one of 74 category stacks and pay to place your block. At season start the rate is $1 = 1m — each dollar buys the live rate shown on the tower header. Your altitude is permanent; it never drops through inaction.",
+      `Pick one of 74 category stacks and pay to place your block. At season start the rate is ${SEASON_START_RATE} — each dollar buys the live rate shown on the tower header. Your altitude is permanent; it never drops through inaction.`,
     tone: "signal",
   },
   {
@@ -197,7 +198,7 @@ export function HowItWorks({
               </h3>
               <p className="text-sm text-text-secondary mt-2 max-w-lg leading-relaxed">
                 <strong className="text-text-primary">$1</strong> is the pricing
-                unit — &ldquo;$1 buys&rdquo; on every tower is metres per dollar
+                unit — &ldquo;$1 buys&rdquo; on every tower is feet per dollar
                 right now, not a payment you can make. Minimum spend is higher.
               </p>
             </div>
@@ -213,7 +214,7 @@ export function HowItWorks({
                 hint="any existing block"
               />
               <PrimerStat label="Rate cap" value="8×" hint="doubles every 500k views" />
-              <PrimerStat label="Season" value="90 days" hint="resets to $1 = 1m" />
+              <PrimerStat label="Season" value="90 days" hint={`resets to ${SEASON_START_RATE}`} />
             </dl>
           </div>
           <p className="text-xs text-text-muted mt-6 border-t border-border-subtle pt-4">

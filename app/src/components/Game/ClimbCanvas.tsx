@@ -29,6 +29,7 @@ import {
   isExpired,
   isPowerUpActive,
 } from "../../game/powerups";
+import { formatAltitude } from "../../lib/units";
 import {
   backingStoreSize,
   canvasNeedsResize,
@@ -214,7 +215,7 @@ export function ClimbCanvas({
       ctx.stroke();
       ctx.globalAlpha = 1;
       ctx.fillStyle = TEXT_SECONDARY;
-      ctx.fillText(`${Math.round(fy)}m`, 4 * ui, y - 3 * ui);
+      ctx.fillText(formatAltitude(Math.round(fy), 0), 4 * ui, y - 3 * ui);
     }
 
     // Ladders (draw under platforms so platform lips overlap the rails).
@@ -387,13 +388,13 @@ export function ClimbCanvas({
     ctx.fillStyle = "#f4f2ec";
     ctx.font = `bold ${Math.round(13 * ui)}px monospace`;
     ctx.textAlign = "left";
-    ctx.fillText(`${playerY.toFixed(1)}m`, 10 * ui, hudTop + 22 * ui);
+    ctx.fillText(formatAltitude(playerY, 1), 10 * ui, hudTop + 22 * ui);
     ctx.fillStyle = lavaSlowed ? LAVA_SLOWED : TEXT_SECONDARY;
     ctx.textAlign = "right";
     ctx.fillText(
       lavaSlowed
-        ? `lava ${state.hazardY.toFixed(1)}m slowed`
-        : `lava ${state.hazardY.toFixed(1)}m`,
+        ? `lava ${formatAltitude(state.hazardY, 1)} slowed`
+        : `lava ${formatAltitude(state.hazardY, 1)}`,
       width - 10 * ui,
       hudTop + 22 * ui
     );

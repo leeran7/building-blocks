@@ -28,6 +28,7 @@ import {
   ClimbReplaysSection,
   type ClimbReplayItem,
 } from "../../src/components/Dashboard/ClimbReplaysSection";
+import { formatAltitude } from "../../src/lib/units";
 
 interface Payment {
   id: string;
@@ -298,7 +299,7 @@ function DashboardStats({ blocks }: { blocks: DashboardBlock[] }) {
       label: "Best rank",
       value: Number.isFinite(bestRank) ? `#${bestRank}` : "—",
     },
-    { label: "Total altitude", value: `${totalAltitude.toFixed(0)}m` },
+    { label: "Total altitude", value: formatAltitude(totalAltitude, 0) },
     { label: "Total invested", value: `$${totalSpend.toFixed(0)}` },
   ];
 
