@@ -267,11 +267,15 @@ export function Hero({ stats }: { stats: HeroStats }) {
                   Free
                 </span>
                 <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-text-muted">
-                  warm-up game ·{" "}
-                  <Link href="/play" className="hover:text-signal">
-                    play →
-                  </Link>
+                  warm-up game
                 </span>
+                <Link
+                  href="/play"
+                  className="inline-flex items-center gap-1 rounded-full border border-border-strong bg-surface/60 px-2.5 py-0.5 font-mono text-[9px] uppercase tracking-[0.12em] text-text-secondary hover:border-signal/50 hover:text-signal transition-colors"
+                >
+                  play{" "}
+                  <span className="transition-transform group-hover:translate-x-0.5">→</span>
+                </Link>
               </div>
               <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-border-subtle bg-border-subtle">
                 {freeStats.map((s) => (
