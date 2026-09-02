@@ -1,0 +1,33 @@
+{
+  "bannedSubstrings": [
+    "Tower Dark Editorial",
+    "#00d4ff",
+    "#cbf24d",
+    "Bricolage Grotesque",
+    "ASCENT",
+    "The Climb",
+    "building-blocks.git",
+    "git@github.com:leeran7/building-blocks",
+    "github.com/leeran7/building-blocks",
+    "horizonx.so",
+    "pryzm.design",
+    "presenta.design",
+    "mockups.supply",
+    "appshot.gallery",
+    "slp.gallery",
+    "resurf.so",
+    "never npm, never yarn",
+    "never yarn",
+    "Use `pnpm` for all",
+    "Use `pnpm` in all",
+    "JetBrains Mono",
+    "styles.refero.design"
+  ],
+  "bannedRegex": [
+    "Use `pnpm` for any package"
+  ],
+  "requiredSubstrings": [
+    "context/README.md"
+  ],
+  "notes": "Source agents must point at context/README.md and must not embed product facts or a hardcoded exclusive package manager."
+}

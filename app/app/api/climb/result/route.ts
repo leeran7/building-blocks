@@ -7,10 +7,16 @@
  * is present, the run is accepted but not saved ({ saved: false }) — this keeps
  * the free MVP playable without an account.
  *
- * Server trust boundary: peakY here is a self-reported SOLO result and is only
- * used for the player's own record — it never affects other players and never
- * pays out. Ranked results (which DO pay out) are re-simulated server-side from
- * seed + input log, not trusted from the client (AC-17); that path is separate.
+ * Server trust boundary: peakY is self-reported by the client, and
+ * src/db/climb.ts persists it monotonically, so it feeds the PUBLIC free-stack
+ * leaderboard (topFreeClimbers) and cannot be lowered once written. It is
+ * therefore a real trust boundary — an earlier version of this comment claimed
+ * the value "never affects other players", which was not true once the
+ * leaderboard shipped.
+ *
+ * Until peakY is re-derived server-side from seed + input log the way ranked
+ * play is specified to be (AC-17), it is bounded by what the simulation can
+ * physically produce in the claimed number of ticks. See src/game/scoreBounds.
  */
 
 import { NextRequest, NextResponse } from "next/server";
@@ -19,6 +25,9 @@ import { recordClimb } from "../../../../src/db/climb";
 import { FREE_STACK_SLUG } from "../../../../src/game/freeStack";
 import { ensureUser } from "../../../../src/db/user";
 import { checkRateLimit, clientIp } from "../../../../src/lib/rateLimit";
+import { checkClimbResult } from "../../../../src/game/scoreBounds";
+import { MAX_REPLAY_TOKEN_LENGTH } from "../../../../src/game/runReplay";
+import { revalidateClimbLeaderboard } from "../../../../src/lib/revalidateClimbLeaderboard";
 
 export const runtime = "nodejs";
 
@@ -32,7 +41,10 @@ interface Body {
   peakY?: unknown;
   finished?: unknown;
   finishedTick?: unknown;
+  /** Elapsed run length in ticks. Bounds peakY; see src/game/scoreBounds. */
+  ticks?: unknown;
   seed?: unknown;
+  replayToken?: unknown;
 }
 
 export async function POST(request: NextRequest) {
@@ -54,10 +66,33 @@ export async function POST(request: NextRequest) {
       ? body.finishedTick
       : null;
   const seed = typeof body.seed === "string" ? body.seed : null;
+  // Runs stashed in sessionStorage before `ticks` existed only carry
+  // finishedTick. The sim now stamps finishedTick on elimination, so a client
+  // from this build always has a real value; a stale stash with neither is
+  // rejected by checkClimbResult rather than unbounded.
+  const ticks =
+    typeof body.ticks === "number" && Number.isFinite(body.ticks)
+      ? body.ticks
+      : finishedTick;
 
-  if (peakY === null || peakY < 0 || !seed) {
+  if (peakY === null || !seed) {
     return NextResponse.json({ error: "Invalid climb result" }, { status: 400 });
   }
+
+  // Reject anything the simulation could not have produced in the claimed run
+  // length. This is a damage bound, not proof the score is honest — see the
+  // module docblock in src/game/scoreBounds.
+  const plausible = checkClimbResult(peakY, ticks);
+  if (!plausible.ok) {
+    return NextResponse.json(
+      { error: "Implausible climb result", code: "IMPLAUSIBLE_RESULT" },
+      { status: 400 }
+    );
+  }
+  // After a successful bound, ticks is the number we actually used. Persist
+  // that, not a separate client field that the sim used to leave null.
+  const elapsedTicks = ticks as number;
+  const replayToken = parseReplayToken(body.replayToken);
 
   // Rate limit by client IP (most play is anonymous). Fails OPEN so a Redis
   // outage never blocks a free run.
@@ -116,12 +151,21 @@ export async function POST(request: NextRequest) {
       categorySlug,
       peakY,
       finished,
-      finishedTick,
+      finishedTick: elapsedTicks,
       seed,
+      replayToken,
     });
+    revalidateClimbLeaderboard();
     return NextResponse.json({ saved: true, ...result }, { status: 200 });
   } catch (err) {
     console.error("[climb/result] persist failed:", err);
     return NextResponse.json({ saved: false, reason: "persist_error" }, { status: 500 });
   }
+}
+
+function parseReplayToken(raw: unknown): string | null {
+  if (typeof raw !== "string") return null;
+  const trimmed = raw.trim();
+  if (!trimmed || trimmed.length > MAX_REPLAY_TOKEN_LENGTH) return null;
+  return trimmed;
 }

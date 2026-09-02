@@ -16,6 +16,9 @@ import {
   hazardHasReached,
   hazardSpeedFracAt,
   hazardMeanSpeedFrac,
+  hazardCatchupTimeScale,
+  HAZARD_CATCHUP_LEAD_M,
+  HAZARD_CATCHUP_TIME_SCALE,
   DEFAULT_HAZARD_CONFIG,
 } from "../../src/game/hazard";
 
@@ -125,16 +128,21 @@ describe("AC-6: hazard rise ramps, stumbles, is monotonic, and is unbounded", ()
     expect(Number.isFinite(c)).toBe(true);
   });
 
-  it("eventually outpaces the climb speed on average, so every run must end", () => {
-    expect(hazardMeanSpeedFrac(CFG)).toBeGreaterThan(1);
-    expect(hazardMeanSpeedFrac(CFG)).toBeCloseTo(1.15, 2);
+  it("never rises faster than ladder climb speed", () => {
+    for (let t = CFG.graceSeconds; t <= 300; t += 0.25) {
+      expect(hazardSpeedFracAt(t, CFG)).toBeLessThanOrEqual(1);
+    }
+  });
+
+  it("still closes in on a dawdling climber over time", () => {
+    expect(hazardMeanSpeedFrac(CFG)).toBeCloseTo(0.75, 3);
     const g = CFG.graceSeconds;
     const period = CFG.stumblePeriodSeconds;
     const t = g + CFG.rampSeconds + 40;
     const avg =
       (hazardHeightAt(t + period, CLIMB, CFG) - hazardHeightAt(t, CLIMB, CFG)) /
       period;
-    expect(avg).toBeGreaterThan(CLIMB);
+    expect(avg).toBeLessThanOrEqual(CLIMB);
     expect(avg / CLIMB).toBeCloseTo(hazardMeanSpeedFrac(CFG), 5);
   });
 
@@ -174,5 +182,36 @@ describe("AC-7: hazardHasReached detects catching a climber", () => {
     expect(hazardHasReached(h, t, CLIMB, CFG)).toBe(true);
     expect(hazardHasReached(h - 0.001, t, CLIMB, CFG)).toBe(true);
     expect(hazardHasReached(h + 0.001, t, CLIMB, CFG)).toBe(false);
+  });
+});
+
+describe("catch-up: lava clock speeds up when the climber is far ahead", () => {
+  it("starts catching up once the lead is beyond 200m", () => {
+    expect(HAZARD_CATCHUP_LEAD_M).toBe(200);
+    expect(hazardCatchupTimeScale(HAZARD_CATCHUP_LEAD_M)).toBe(1);
+    expect(hazardCatchupTimeScale(HAZARD_CATCHUP_LEAD_M + 0.1)).toBe(
+      HAZARD_CATCHUP_TIME_SCALE
+    );
+  });
+
+  it("stays at 1× at or under the lead threshold", () => {
+    expect(hazardCatchupTimeScale(0)).toBe(1);
+    expect(hazardCatchupTimeScale(HAZARD_CATCHUP_LEAD_M)).toBe(1);
+  });
+
+  it("runs a little fast once the lead is over the threshold", () => {
+    expect(hazardCatchupTimeScale(HAZARD_CATCHUP_LEAD_M + 0.1)).toBe(
+      HAZARD_CATCHUP_TIME_SCALE
+    );
+    expect(HAZARD_CATCHUP_TIME_SCALE).toBeGreaterThan(1);
+    expect(HAZARD_CATCHUP_TIME_SCALE).toBeLessThanOrEqual(1.3);
+  });
+
+  it("drops back to 1× as soon as the lead is within the threshold again", () => {
+    expect(hazardCatchupTimeScale(HAZARD_CATCHUP_LEAD_M + 50)).toBe(
+      HAZARD_CATCHUP_TIME_SCALE
+    );
+    expect(hazardCatchupTimeScale(HAZARD_CATCHUP_LEAD_M)).toBe(1);
+    expect(hazardCatchupTimeScale(50)).toBe(1);
   });
 });

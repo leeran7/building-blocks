@@ -19,6 +19,7 @@ import Link from "next/link";
 import { BurialRisk } from "./BurialRisk";
 import { CompetitorCost } from "./CompetitorCost";
 import { getCategory, categoryTheme } from "../../lib/categories";
+import { ALTITUDE_UNIT, formatAltitudeLabel } from "../../lib/units";
 
 const AltitudeChart = dynamic(() => import("./AltitudeChart"), {
   ssr: false,
@@ -130,10 +131,10 @@ export function BlockCard({ block }: BlockCardProps) {
                 "font-mono text-4xl font-bold leading-none tabular-nums",
                 block.buried ? "text-ember" : "text-signal",
               ].join(" ")}
-              aria-label={`Current altitude: ${block.altitude.toFixed(1)} metres`}
+              aria-label={`Current altitude: ${formatAltitudeLabel(block.altitude, 1)}`}
             >
               {block.altitude.toFixed(1)}
-              <span className="text-lg text-text-muted font-normal">m</span>
+              <span className="text-lg text-text-muted font-normal">{ALTITUDE_UNIT}</span>
             </p>
           </div>
           <div className="text-right">

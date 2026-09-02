@@ -29,6 +29,7 @@ import { getStripe } from "../../../src/api/stripe";
 import { resolveBaseUrl } from "../../../src/config/public";
 import { checkRateLimit, clientIp } from "../../../src/lib/rateLimit";
 import { parsePaidStackSlug, parseSeasonSlug } from "../../../src/game/categories";
+import { formatAltitude } from "../../../src/lib/units";
 
 export const runtime = "nodejs";
 
@@ -260,7 +261,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
             unit_amount: Math.round(data.amount_usd * 100),
             product_data: {
               name: `Stack — ${displayName}`,
-              description: `Current rate: $1 = ${rate.toFixed(2)}m altitude. Positions are live; your rank is calculated when payment completes.`,
+              description: `Current rate: $1 = ${formatAltitude(rate, 2)} altitude. Positions are live; your rank is calculated when payment completes. Altitude is permanent. No refunds.`,
             },
           },
           quantity: 1,
@@ -273,13 +274,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         // Server-computed rate stored for audit trail only
         // (webhook recomputes metres from live views_k at settlement time)
         rate_at_checkout: rate.toString(),
-      },
-      // No-refunds disclosure (AC-35)
-      custom_text: {
-        submit: {
-          message:
-            "Altitude is permanent. No refunds. Positions are live; your rank is calculated when payment completes.",
-        },
       },
       success_url: `${baseUrl}/b/${redirectSlug}?payment=success`,
       cancel_url: `${baseUrl}/?payment=cancelled`,

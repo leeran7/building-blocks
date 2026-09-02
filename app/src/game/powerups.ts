@@ -1,40 +1,45 @@
 /**
  * Tower v3 "The Climb" — power-ups.
  *
- * Five pickups, each answering one of the ways the endless tower ends a run:
+ * Six pickups, each answering one of the ways the endless tower ends a run:
  *
  *   rapid-climb   ladders are the fastest way up, so make them faster
  *   sprint-burst  ladders drift further apart with altitude — cover the traverse
- *   double-jump   recover a missed gap instead of falling behind your peak
- *   super-jump    skip a ladder detour entirely with one big launch
- *   time-slow     the lava eventually outpaces any climber; buy back seconds
+ *   double-jump   recover a missed gap or climb a crate stair
+ *   giant         grow 2× — wider ladder grabs and platform landings
+ *   jetpack       skip a ladder detour — hold jump to thrust, fuel is short
+ *   slow-lava     the lava eventually outpaces any climber; buy back seconds
  *
- * BALANCE. The hazard envelope ramps toward 1.42x, but the lava stumbles (2s
- * of 0.25x envelope every 8s), so the time-averaged chase settles near 1.15x
- * and an unaided run is still hard-capped. Power-ups are what push past that
+ * BALANCE. The hazard envelope ramps toward 1.0× (ladder climb speed) and
+ * stumbles (2s of 0.25× envelope every 8s), so the time-averaged chase
+ * settles near 0.75× — climbable on a ladder, with longer stumble windows for
+ * lets the lava close in. Power-ups are what push past that cap, and they are
  * cap, and they are deliberately shaped so the ceiling is raised by PLAYING
  * WELL rather than by collecting:
  *
- *   - one slot. A pickup replaces whatever is banked, so hoarding is impossible
- *     and every orb is a "use it now or trade it away" decision;
- *   - short windows (6–12s) that must be spent on the right terrain — rapid-climb
- *     is wasted if you are not on a ladder;
+ *   - one live entry per type. A second orb of the same type refreshes the
+ *     running effect rather than stacking charges, so double-jump cannot be
+ *     hoarded. Different types may overlap; that is a separate product choice
+ *     from same-type stacking, which the HUD and the charge counter both
+ *     assume cannot happen;
+ *   - short windows that must be spent on the right terrain — rapid-climb is
+ *     wasted if you are not on a ladder, leftover jetpack fuel dies if jump
+ *     is not held (or with the spend window);
  *   - multipliers under 2x, so no single pickup trivialises a floor;
- *   - time-slow cancels most of the lava's rise and is the rarest drop, but
+ *   - slow-lava cuts the lava's clock by 40% and is the rarest drop, but
  *     weights toward it with altitude — exactly where the lava wins — so a deep
  *     run keeps getting the tool it needs to go deeper.
  *
  * THE RUN MUST STILL END. The endless tower's guarantee is that the lava's
  * time-averaged late-game speed (envelope × stumble duty) stays above 1x climb
  * speed, so no climber outlasts it. Time-slow is the one power-up that can break
- * that: held at 100% uptime it drops the lava to ~0.29x and the tower becomes
- * survivable forever. Its cooldown is what keeps the guarantee — it caps
- * uptime at 6s in every 36s, so the lava still averages
- * meanSpeedFrac · (1 − 0.75 · 0.167) ≈ 1.01x the climb speed. That margin is thin on
- * purpose: a player who lands every time-slow perfectly gets very close to
- * outrunning the tower, which is exactly the high-hike ceiling this is for, but
- * never actually escapes it. Do not raise TIME_SLOW_FRAC or shorten the cooldown
+ * that: held at 100% uptime it would drop the lava to (1 − TIME_SLOW_FRAC) of
+ * its clock and the tower could become survivable forever. Its cooldown is
+ * what keeps the guarantee — it caps uptime at 8s in every 48s, so the lava
+ * still averages meanSpeedFrac · (1 − TIME_SLOW_FRAC · 0.167). At 0.4 that is
+ * 0.75 · 0.933 = 0.700. Do not raise TIME_SLOW_FRAC or shorten the cooldown
  * without redoing that arithmetic — `powerups.test.ts` asserts the bound.
+ * The 8s/40s pair keeps the same uptime fraction as the old 6s/30s window.
  *
  * Spawns are a seeded GAP SCHEDULE, not independent per-floor coin flips:
  * a random first floor, then mixed clusters and droughts whose mean gap
@@ -53,6 +58,7 @@ import {
   TowerSpec,
 } from "./types";
 import { createRng, Rng } from "./rng";
+import { createSeedCache } from "./seedCache";
 import { floorHeight, floorIndexAt, laddersForFloor, platformsForFloor } from "./towers";
 
 // ── Pickup geometry ────────────────────────────────────────────────────────
@@ -72,7 +78,7 @@ const MIN_SPAWN_FLOOR = 1;
 /** First orb lands somewhere in this inclusive range (varies per tower seed). */
 const FIRST_SPAWN_MIN = 1;
 const FIRST_SPAWN_MAX = 4;
-/** Floors over which spawn density and the time-slow bias ramp to their maximum. */
+/** Floors over which spawn density and the slow-lava bias ramp to their maximum. */
 const RAMP_FLOORS = 50;
 /** Target occupancy per floor at the base, and after the ramp (drives mean gap). */
 const SPAWN_CHANCE_LOW = 0.22;
@@ -84,19 +90,40 @@ const SPAWN_CHANCE_HIGH = 0.34;
 export const RAPID_CLIMB_MULT = 1.75;
 /** Multiplier applied to `tower.moveSpeed` while sprint-burst runs. */
 export const SPRINT_BURST_MULT = 1.5;
-/** Multiplier applied to `tower.jumpSpeed` when a super-jump charge is spent. */
-export const SUPER_JUMP_MULT = 1.6;
+/** Upward acceleration applied while the jetpack is thrusting, in m/s². */
+export const JETPACK_THRUST = 80;
+/**
+ * Terminal rise speed while thrusting, in m/s. A bit above a typical ladder
+ * so the pack reads as a skip, not a second climb. Fuel is sized so a full
+ * burn covers a few floors at this cap.
+ */
+export const JETPACK_MAX_VY = 12;
+/** Seconds of thrust in the tank. Feathered inside the window, not a full-window fly. */
+export const JETPACK_FUEL_SECONDS = 7.5;
+/** Window in which leftover fuel may still be burned. */
+export const JETPACK_WINDOW_SECONDS = 30;
+/** Canvas draw scale while giant runs (sim uses separate grab/landing tuning). */
+export const GIANT_VISUAL_SCALE = 2;
+/** Multiplier on `tower.ladderGrabRadius` while giant runs. */
+export const GIANT_GRAB_MULT = 1.5;
+/** Extra horizontal metres allowed for platform landings while giant runs. */
+export const GIANT_PLATFORM_MARGIN_M = 0.75;
 /** Fraction of a normal jump a double-jump gives (a recovery, not a second launch). */
 export const DOUBLE_JUMP_MULT = 0.92;
 /** Mid-air jumps granted per double-jump activation. */
 export const DOUBLE_JUMP_CHARGES = 2;
 /**
- * Fraction of the lava's rise cancelled while time-slow runs. High enough that
- * the lava line visibly stalls — at 0.5 the effect was real but unreadable.
+ * Fraction of the lava's rise cancelled while slow-lava runs. 0.4 so the
+ * line visibly slows without stalling the way 0.75 did.
  */
-export const TIME_SLOW_FRAC = 0.75;
-/** Seconds before time-slow may be used again — the endless-run guarantee. */
-export const TIME_SLOW_COOLDOWN_SECONDS = 30;
+export const TIME_SLOW_FRAC = 0.4;
+/** Seconds before slow-lava may be used again — the endless-run guarantee. */
+export const TIME_SLOW_COOLDOWN_SECONDS = 40;
+
+/** Jetpack fuel budget in simulation ticks. */
+export function jetpackFuelTicks(): number {
+  return Math.round(JETPACK_FUEL_SECONDS * TICK_HZ);
+}
 
 export interface PowerUpSpec {
   type: PowerUpType;
@@ -104,24 +131,27 @@ export interface PowerUpSpec {
   label: string;
   /** One-line explanation for the guide and the a11y announcement. */
   description: string;
-  /** Canvas/HUD glyph. */
-  glyph: string;
   /** Hex colour used for the orb, the HUD chip, and the climber's aura. */
   color: string;
-  /** How long the effect (or the window to spend a charge) lasts, in seconds. */
+  /** How long the effect lasts, in seconds. */
   durationSeconds: number;
   /**
    * Seconds after the effect ends before this type may be activated again. Only
-   * time-slow needs one — see the note at the top on why the run must still end.
+   * slow-lava needs one — see the note at the top on why the run must still end.
    */
   cooldownSeconds: number;
   /**
    * Charge-based: consumed by the move it enables (a jump) rather than by time.
    * The duration is then just the window in which it may be spent.
    */
-  charge: boolean;
+  charge?: boolean;
   /** Charge-based with multiple spends (double-jump). */
   chargeCount?: number;
+  /**
+   * Jetpack only: seconds of thrust in the tank. The duration is the window
+   * in which that fuel may be burned; leftover fuel dies with the window.
+   */
+  fuelSeconds?: number;
   /** Relative drop weight at the base of the tower. */
   weight: number;
   /** Drop-weight multiplier once past the altitude ramp. */
@@ -133,11 +163,9 @@ export const POWER_UP_SPECS: Record<PowerUpType, PowerUpSpec> = {
     type: "rapid-climb",
     label: "Rapid Climb",
     description: `Climb ladders ${RAPID_CLIMB_MULT}x faster`,
-    glyph: "⇈",
     color: "#4dd9f2",
     durationSeconds: 10,
     cooldownSeconds: 0,
-    charge: false,
     weight: 26,
     altitudeWeightMult: 1.15,
   },
@@ -145,11 +173,9 @@ export const POWER_UP_SPECS: Record<PowerUpType, PowerUpSpec> = {
     type: "sprint-burst",
     label: "Sprint Burst",
     description: `Run ${SPRINT_BURST_MULT}x faster`,
-    glyph: "»",
     color: "#f2d24d",
-    durationSeconds: 6,
+    durationSeconds: 10,
     cooldownSeconds: 0,
-    charge: false,
     weight: 22,
     altitudeWeightMult: 1,
   },
@@ -157,39 +183,45 @@ export const POWER_UP_SPECS: Record<PowerUpType, PowerUpSpec> = {
     type: "double-jump",
     label: "Double Jump",
     description: `${DOUBLE_JUMP_CHARGES} extra jumps in mid-air`,
-    glyph: "⇡",
     color: "#a98cf5",
-    durationSeconds: 12,
+    durationSeconds: 18,
     cooldownSeconds: 0,
     charge: true,
     chargeCount: DOUBLE_JUMP_CHARGES,
     weight: 22,
     altitudeWeightMult: 1,
   },
-  "super-jump": {
-    type: "super-jump",
-    label: "Super Jump",
-    description: `Next jump launches ${SUPER_JUMP_MULT}x higher`,
-    glyph: "⤒",
-    color: "#5cf29b",
-    durationSeconds: 8,
+  giant: {
+    type: "giant",
+    label: "Giant",
+    description: `${GIANT_VISUAL_SCALE}× size · wider grabs & landings`,
+    color: "#b8f57c",
+    durationSeconds: 20,
     cooldownSeconds: 0,
-    charge: true,
+    weight: 22,
+    altitudeWeightMult: 1,
+  },
+  jetpack: {
+    type: "jetpack",
+    label: "Jetpack",
+    description: `Hold jump to thrust (${JETPACK_FUEL_SECONDS}s fuel)`,
+    color: "#ff9a4a",
+    durationSeconds: JETPACK_WINDOW_SECONDS,
+    cooldownSeconds: 0,
+    fuelSeconds: JETPACK_FUEL_SECONDS,
     weight: 18,
     altitudeWeightMult: 1.1,
   },
-  "time-slow": {
-    type: "time-slow",
-    label: "Time Slow",
+  "slow-lava": {
+    type: "slow-lava",
+    label: "Slow Lava",
     description: `Lava rises ${Math.round(TIME_SLOW_FRAC * 100)}% slower`,
-    glyph: "◷",
     color: "#ff8ad4",
-    durationSeconds: 6,
+    durationSeconds: 8,
     cooldownSeconds: TIME_SLOW_COOLDOWN_SECONDS,
-    charge: false,
     // Commoner at the base than the other altitude-scaled drops so a new
     // climber actually meets it early, without changing its share high up.
-    weight: 15,
+    weight: 12,
     // Weights up with altitude, where the lava is winning, but not so far that
     // the strongest power-up stops being the rarest one on the tower.
     altitudeWeightMult: 1.2,
@@ -265,16 +297,23 @@ interface SpawnRec {
   type: PowerUpType;
 }
 
-/** Memoized spawn schedule per tower seed — pure in (seed), just skips re-walks. */
-const spawnScheduleCache = new Map<string, SpawnRec[]>();
+/**
+ * Memoized spawn schedule per tower seed — pure in (seed), just skips re-walks.
+ *
+ * Bounded. This was safe as a plain Map while a seed was a stable per-category
+ * string, but tower seeds now mix in a fresh newRunSeed() per run, so every
+ * game played added an entry that was never released — and each entry's array
+ * grows with the altitude reached. Same bound and reasoning as the floor-height
+ * prefix cache in ./towers.
+ */
+const spawnScheduleCache = createSeedCache<SpawnRec[]>(8, () => []);
 
 function spawnScheduleUntil(tower: TowerSpec, atLeast: number): SpawnRec[] {
-  let list = spawnScheduleCache.get(tower.seed);
-  if (!list) {
+  const list = spawnScheduleCache.get(tower.seed);
+  if (list.length === 0) {
     const floor = firstSpawnFloor(tower);
     const rng = createRng(`${tower.seed}:pu:type:${floor}`);
-    list = [{ floor, type: pickType(rng, floor, null) }];
-    spawnScheduleCache.set(tower.seed, list);
+    list.push({ floor, type: pickType(rng, floor, null) });
   }
   while (list[list.length - 1].floor < atLeast) {
     const k = list.length - 1;
@@ -453,11 +492,14 @@ export function overlapsPickup(pu: PowerUpPickup, x: number, y: number): boolean
 /** Has this entry run out of time (or been spent)? */
 export function isExpired(a: ActivePowerUp, tick: number): boolean {
   if (tick - a.startTick >= a.durationTicks) return true;
+  if (a.type === "jetpack") {
+    return (a.fuelRemainingTicks ?? 0) <= 0;
+  }
   const spec = POWER_UP_SPECS[a.type];
   if (spec.charge && a.type === "double-jump") {
     return (a.chargesRemaining ?? 0) <= 0;
   }
-  return spec.charge ? a.used : false;
+  return spec.charge ? a.used === true : false;
 }
 
 /** The live entry for `type`, or undefined. */
@@ -488,6 +530,36 @@ export function remainingTicks(
   return Math.max(0, a.durationTicks - (tick - a.startTick));
 }
 
+export type PowerUpChipMeter = {
+  seconds: number;
+  frac: number;
+  kind: "fuel" | "window";
+};
+
+/**
+ * HUD chip fill and primary numeral. Jetpack fill tracks the fuel tank so an
+ * empty pack does not look full; the HUD also prints the spend window beside
+ * that numeral so leftover fuel cannot expire unseen.
+ */
+export function powerUpChipMeter(a: ActivePowerUp, tick: number): PowerUpChipMeter {
+  const spec = POWER_UP_SPECS[a.type];
+  if (spec.fuelSeconds != null) {
+    const fuelLeft = Math.max(0, a.fuelRemainingTicks ?? 0);
+    const fuelMax = jetpackFuelTicks();
+    return {
+      seconds: fuelLeft / TICK_HZ,
+      frac: fuelMax > 0 ? fuelLeft / fuelMax : 0,
+      kind: "fuel",
+    };
+  }
+  const remaining = Math.max(0, a.durationTicks - (tick - a.startTick));
+  return {
+    seconds: remaining / TICK_HZ,
+    frac: a.durationTicks > 0 ? remaining / a.durationTicks : 0,
+    kind: "window",
+  };
+}
+
 export function climbSpeedMultiplier(p: PlayerState, tick: number): number {
   return isPowerUpActive(p, "rapid-climb", tick) ? RAPID_CLIMB_MULT : 1;
 }
@@ -496,15 +568,45 @@ export function moveSpeedMultiplier(p: PlayerState, tick: number): number {
   return isPowerUpActive(p, "sprint-burst", tick) ? SPRINT_BURST_MULT : 1;
 }
 
+/** Ladder grab radius multiplier while giant runs. */
+export function ladderGrabMultiplier(p: PlayerState, tick: number): number {
+  return isPowerUpActive(p, "giant", tick) ? GIANT_GRAB_MULT : 1;
+}
+
+/** Extra horizontal metres for platform support and landing while giant runs. */
+export function platformReachMargin(p: PlayerState, tick: number): number {
+  return isPowerUpActive(p, "giant", tick) ? GIANT_PLATFORM_MARGIN_M : 0;
+}
+
 /**
  * Fraction of real time the lava clock advances by this tick. Multiplayer shares
  * one hazard, so the slowest clock any live climber has earned applies to all.
  */
 export function hazardTimeScale(players: PlayerState[], tick: number): number {
   const slowed = players.some(
-    (p) => p.status === "climbing" && isPowerUpActive(p, "time-slow", tick)
+    (p) => p.status === "climbing" && isPowerUpActive(p, "slow-lava", tick)
   );
   return slowed ? 1 - TIME_SLOW_FRAC : 1;
+}
+
+/** Ticks of jetpack thrust still in the tank. */
+export function jetpackFuelRemaining(p: PlayerState, tick: number): number {
+  const a = activeEntry(p, "jetpack", tick);
+  if (!a) return 0;
+  return Math.max(0, a.fuelRemainingTicks ?? 0);
+}
+
+/**
+ * Spend one tick of jetpack fuel. Returns false when the pack is empty or
+ * the window has closed, so the caller can skip thrust.
+ */
+export function consumeJetpackFuel(p: PlayerState, tick: number): boolean {
+  const a = activeEntry(p, "jetpack", tick);
+  if (!a) return false;
+  const left = a.fuelRemainingTicks ?? 0;
+  if (left <= 0) return false;
+  a.fuelRemainingTicks = left - 1;
+  return true;
 }
 
 /** Spend a charge-based power-up, returning whether one was available. */
@@ -539,4 +641,70 @@ export function doubleJumpChargesRemaining(
 export function pruneActive(p: PlayerState, tick: number): void {
   if (p.activePowerUps.length === 0) return;
   p.activePowerUps = p.activePowerUps.filter((a) => !isExpired(a, tick));
+}
+
+/**
+ * Grant a power-up, keeping at most ONE live entry per type.
+ *
+ * activePowerUps is read everywhere through activeEntry, which is a .find() —
+ * it returns the oldest live match and nothing else can see the rest. So an
+ * append-only list quietly breaks three things when two orbs of one type are
+ * picked up before the first expires:
+ *
+ *   - the HUD counts down the older entry, so the timer looks stuck and then
+ *     jumps back up when that entry is pruned;
+ *   - PowerUpHud and ClimbCanvas key their rows by type, so React sees
+ *     duplicate keys;
+ *   - for double-jump it is an exploit. consumeCharge drains the first entry,
+ *     isExpired then reports it spent, and activeEntry falls through to the
+ *     second — granting DOUBLE_JUMP_CHARGES again while
+ *     doubleJumpChargesRemaining, reading the same first entry, never showed
+ *     more than the original two. Four to five mid-air jumps from a counter
+ *     that says two.
+ *
+ * Refreshing in place is the fix rather than re-keying the HUD, because the
+ * duplication is in the simulation, not the view. This is deliberately the only
+ * place that writes to activePowerUps.
+ *
+ * Same-type only: different types still stack. The header above records that
+ * as the implemented rule, not a one-slot bank.
+ */
+export function grantPowerUp(
+  p: PlayerState,
+  type: PowerUpType,
+  tick: number
+): void {
+  const charges = type === "double-jump" ? DOUBLE_JUMP_CHARGES : undefined;
+  const fuel = type === "jetpack" ? jetpackFuelTicks() : undefined;
+  const existing = activeEntry(p, type, tick);
+
+  if (existing) {
+    // Second orb of a live type extends it and tops it back up, which is what
+    // a player picking up an orb expects, without adding a second entry.
+    existing.startTick = tick;
+    existing.durationTicks = durationTicks(type);
+    existing.used = false;
+    existing.chargesRemaining = charges;
+    existing.fuelRemainingTicks = fuel;
+    return;
+  }
+
+  p.activePowerUps.push({
+    type,
+    startTick: tick,
+    durationTicks: durationTicks(type),
+    used: false,
+    chargesRemaining: charges,
+    fuelRemainingTicks: fuel,
+  });
+}
+
+/** How many live entries of `type` the player holds. Should never exceed 1. */
+export function liveEntryCount(
+  p: PlayerState,
+  type: PowerUpType,
+  tick: number
+): number {
+  return p.activePowerUps.filter((a) => a.type === type && !isExpired(a, tick))
+    .length;
 }

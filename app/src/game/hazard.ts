@@ -15,12 +15,17 @@
  *   - it begins `headStartM` BELOW the base, giving a fair opening buffer;
  *   - height is the integral of that speed over race-time.
  *
- * Because the time-averaged late-game speed still exceeds the climb rate, a
- * climber who keeps moving upward can use stumble windows to stay ahead, while
- * dawdling on a floor — or missing a surge — lets the lava close in.
+ * The envelope never exceeds 1× the ladder climb rate, so holding climb on a
+ * ladder always keeps pace or pulls ahead (stumbles are slower). When the
+ * lead climber is more than `HAZARD_CATCHUP_LEAD_M` ahead, the simulation
+ * advances this clock a little faster so lava can close the gap. The boost
+ * is not sticky: as soon as the lead is at or under that distance, the
+ * clock returns to 1×. Runs still end when the player dawdles on a floor,
+ * misses a ladder, or stops climbing.
  *
- * The function is a pure, deterministic function of (race-time, climb speed,
- * config), which the re-simulation anti-cheat relies on (AC-11).
+ * Height is a pure, deterministic function of (race-time, climb speed,
+ * config), which the re-simulation anti-cheat relies on (AC-11). Catch-up is
+ * a clock multiplier in the sim, not a second random curve.
  */
 
 /** Tuning for the movement-proportional rising hazard. */
@@ -39,7 +44,7 @@ export interface HazardConfig {
   /**
    * Envelope rise speed after the ramp, as a fraction of the climber's climb
    * speed. Applied during surges; stumbles multiply this by stumbleSpeedFrac.
-   * Tune so `hazardMeanSpeedFrac` stays above 1 (and above the time-slow bound).
+   * Capped at `MAX_HAZARD_SPEED_FRAC` (1× climb) so lava never outruns a ladder.
    */
   endSpeedFrac: number;
   /** Seconds over which the envelope ramps start → end (then holds). */
@@ -60,29 +65,34 @@ export interface HazardConfig {
   speedScale: number;
 }
 
+/** Lava never rises faster than the tower's max ladder climb speed. */
+export const MAX_HAZARD_SPEED_FRAC = 1;
+
 export const DEFAULT_HAZARD_CONFIG: HazardConfig = {
   headStartM: 9,
   graceSeconds: 5,
   // Opening is the gentler tune from main (9m head-start, 5s grace, 0.42×).
-  // Envelope ramps 0.42× → 1.42× over ~90s. Stumbles cut each 8s cycle to 2s
-  // at 0.25× envelope, so the TIME-AVERAGED late-game chase is
-  // 1.42 · (0.75 + 0.25·0.25) ≈ 1.15× — same pressure as a smooth 1.15× hold,
-  // but with recovery windows instead of a smooth rise at the envelope.
-  // That average (not the raw envelope) carries the run-must-end guarantee
-  // and the time-slow uptime bound in `powerups.ts`.
+  // Envelope ramps 0.42× → 1.0× over ~90s (capped at ladder climb speed).
+  // Stumbles cut each 12s cycle to 4s at 0.25× envelope, so the time-averaged
+  // late-game chase is 1.0 · (8/12 + 4/12·0.25) = 0.75× — climbable on a
+  // ladder, with longer recovery windows than the old 8s / 2s rhythm.
   startSpeedFrac: 0.42,
-  endSpeedFrac: 1.42,
+  endSpeedFrac: 1,
   rampSeconds: 90,
-  stumblePeriodSeconds: 8,
-  stumbleDurationSeconds: 2,
+  stumblePeriodSeconds: 12,
+  stumbleDurationSeconds: 4,
   stumbleSpeedFrac: 0.25,
   speedScale: 1,
 };
 
+/** Lead (metres above lava) at which the lava clock starts catching up. */
+export const HAZARD_CATCHUP_LEAD_M = 200;
+
+/** Clock multiplier while the lead climber is farther than the catch-up lead. */
+export const HAZARD_CATCHUP_TIME_SCALE = 1.25;
+
 /**
- * Time-averaged end-game speed fraction, including stumbles. This — not the
- * raw envelope — is what must stay above 1× (and above the time-slow bound)
- * so every run still ends.
+ * Time-averaged end-game speed fraction, including stumbles.
  */
 export function hazardMeanSpeedFrac(
   cfg: HazardConfig = DEFAULT_HAZARD_CONFIG
@@ -103,7 +113,10 @@ export function hazardSpeedFracAt(
 ): number {
   const t = Math.max(0, seconds - cfg.graceSeconds);
   if (t <= 0) return 0;
-  return envelopeFrac(t, cfg) * stumbleMultiplier(t, cfg);
+  return Math.min(
+    envelopeFrac(t, cfg) * stumbleMultiplier(t, cfg),
+    MAX_HAZARD_SPEED_FRAC
+  );
 }
 
 /**
@@ -151,8 +164,11 @@ export function hazardHasReached(
 
 function envelopeFrac(t: number, cfg: HazardConfig): number {
   const ramp = Math.max(1e-6, cfg.rampSeconds);
-  if (t >= ramp) return cfg.endSpeedFrac;
-  return cfg.startSpeedFrac + ((cfg.endSpeedFrac - cfg.startSpeedFrac) * t) / ramp;
+  const raw =
+    t >= ramp
+      ? cfg.endSpeedFrac
+      : cfg.startSpeedFrac + ((cfg.endSpeedFrac - cfg.startSpeedFrac) * t) / ramp;
+  return Math.min(raw, MAX_HAZARD_SPEED_FRAC);
 }
 
 function stumbleWindow(cfg: HazardConfig): {
@@ -188,8 +204,8 @@ function integrateRise(
 ): number {
   if (t <= 0) return 0;
   const vScale = climbSpeedM * cfg.speedScale;
-  const v0 = cfg.startSpeedFrac * vScale;
-  const v1 = cfg.endSpeedFrac * vScale;
+  const v0 = Math.min(cfg.startSpeedFrac, MAX_HAZARD_SPEED_FRAC) * vScale;
+  const v1 = Math.min(cfg.endSpeedFrac, MAX_HAZARD_SPEED_FRAC) * vScale;
   const ramp = Math.max(1e-6, cfg.rampSeconds);
   const accel = (v1 - v0) / ramp;
 
@@ -235,4 +251,16 @@ function envelopeIntegral(
     envelopeIntegral(t0, ramp, v0, v1, ramp, accel) +
     envelopeIntegral(ramp, t1, v0, v1, ramp, accel)
   );
+}
+
+/**
+ * Clock multiplier so lava can close a large gap. Evaluated from the
+ * current lead every tick — it does not latch. At or under the threshold
+ * the curve runs at 1×; beyond it the sim samples a little faster.
+ * Deterministic: same lead → same scale (AC-11).
+ */
+export function hazardCatchupTimeScale(leadM: number): number {
+  // Slack so `hazardY + lead − hazardY` float noise does not keep the boost on
+  // when the climber is already within the threshold.
+  return leadM > HAZARD_CATCHUP_LEAD_M + 1e-6 ? HAZARD_CATCHUP_TIME_SCALE : 1;
 }

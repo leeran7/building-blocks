@@ -26,17 +26,24 @@ import {
   PlayerState,
   TowerSpec,
   PlayerId,
+  TICK_HZ,
   NO_INPUT,
 } from "../../src/game/types";
-import { DEFAULT_HAZARD_CONFIG } from "../../src/game/hazard";
+import {
+  DEFAULT_HAZARD_CONFIG,
+  HAZARD_CATCHUP_LEAD_M,
+} from "../../src/game/hazard";
 import {
   buildTower,
   ladderForFloor,
+  laddersForFloor,
   platformsForFloor,
   floorHeight,
   floorIndexAt,
   platformsNearY,
 } from "../../src/game/towers";
+import { obstacleAhead, isOnObstacle, obstaclesNearY } from "../../src/game/obstacles";
+import { doubleJumpChargesRemaining } from "../../src/game/powerups";
 
 const TOWER: TowerSpec = buildTower("indie-games");
 
@@ -144,6 +151,102 @@ describe("ladders: grab and climb from one floor to the next", () => {
   });
 });
 
+describe("ladder dismount: a held climb button does not re-stick you to a ladder", () => {
+  // The mobile stuck-after-ladder bug: the only climb control on touch is a held
+  // "up" button, so it is still down when you top out. A per-tick grab used to
+  // snap you onto a ladder on that surface. Consecutive floors now offset by
+  // more than grab radius, so this suite no longer waits for stacked rungs —
+  // walk-away with climb held, then a later press after walking to the next
+  // ladder, is the geometry that still exists.
+  const UP_RIGHT: PlayerInput = { moveX: 1, jump: false, climbY: 1, usePowerUp: false };
+  const UP_LEFT: PlayerInput = { moveX: -1, jump: false, climbY: 1, usePowerUp: false };
+
+  function climbOntoFloor(
+    tower: TowerSpec,
+    floor: number,
+    ladderX: number
+  ): { m: MatchState; p: PlayerState } {
+    const m = climbingMatch("solo", ["p1"], tower);
+    const p = m.players[0];
+    p.x = ladderX;
+    p.y = floorHeight(tower, floor);
+    p.peakY = p.y;
+    p.onGround = true;
+    const top = floorHeight(tower, floor + 1);
+    for (let t = 0; t < 400 && p.y < top; t++) stepMatch(m, { p1: UP }, SLOW);
+    expect(p.onLadder).toBe(false);
+    expect(p.y).toBeGreaterThanOrEqual(top);
+    return { m, p };
+  }
+
+  function findLandingWithUpLadder(
+    tower: TowerSpec
+  ): { floor: number; climbX: number; grabX: number } {
+    // Stay below crate spawn (floor 2+) so a hurdle cannot block the walk.
+    for (let i = 0; i < 2; i++) {
+      const climbed = ladderForFloor(tower, i);
+      const piece = platformsForFloor(tower, i + 1).find(
+        (pl) => climbed.x >= pl.x0 - 0.05 && climbed.x <= pl.x1 + 0.05
+      );
+      if (!piece) continue;
+      const target = laddersForFloor(tower, i + 1).find(
+        (l) => l.x >= piece.x0 && l.x <= piece.x1
+      );
+      if (!target) continue;
+      return { floor: i, climbX: climbed.x, grabX: target.x };
+    }
+    const climbed = ladderForFloor(tower, 0);
+    const grab = laddersForFloor(tower, 1)
+      .slice()
+      .sort((a, b) => Math.abs(a.x - climbed.x) - Math.abs(b.x - climbed.x))[0];
+    return { floor: 0, climbX: climbed.x, grabX: grab.x };
+  }
+
+  it("lets the climber walk off the top with the climb button still held", () => {
+    const tower = buildTower("indie-games");
+    const l0 = ladderForFloor(tower, 0);
+    const { m, p } = climbOntoFloor(tower, 0, l0.x);
+    const xAtTop = p.x;
+    // Walk toward the open side so a crate or wall is not the reason we stop.
+    const held = xAtTop < tower.widthM / 2 ? UP_RIGHT : UP_LEFT;
+    for (let k = 0; k < 6; k++) stepMatch(m, { p1: held }, SLOW);
+    expect(p.onLadder).toBe(false);
+    expect(Math.abs(p.x - xAtTop)).toBeGreaterThan(1.5);
+  });
+
+  it("still grabs a ladder once the climb button is released and pressed again", () => {
+    const tower = buildTower("indie-games");
+    const { floor, climbX, grabX } = findLandingWithUpLadder(tower);
+    const { m, p } = climbOntoFloor(tower, floor, climbX);
+    // Release for a tick (clears the suppression), walk to the next ladder, then
+    // a deliberate press grabs. Offset floors mean it is not under your feet.
+    stepMatch(m, { p1: IDLE }, SLOW);
+    let grabbed = false;
+    for (let k = 0; k < 180 && !grabbed; k++) {
+      const inReach = Math.abs(grabX - p.x) <= tower.ladderGrabRadius * 0.5;
+      const dir: -1 | 0 | 1 = inReach ? 0 : grabX > p.x ? 1 : -1;
+      const probe = p.x + dir * 3.5;
+      const ahead = platformsNearY(tower, p.y, p.y).some(
+        (pl) => probe >= pl.x0 && probe <= pl.x1 && Math.abs(pl.y - p.y) <= 0.05
+      );
+      stepMatch(
+        m,
+        {
+          p1: {
+            moveX: dir,
+            jump: !inReach && p.onGround && !ahead,
+            climbY: inReach ? 1 : 0,
+            usePowerUp: false,
+          },
+        },
+        SLOW
+      );
+      grabbed = p.onLadder;
+    }
+    expect(grabbed).toBe(true);
+  });
+});
+
 describe("AC-7 / AC-8: caught by the death line eliminates and retains peak", () => {
   it("eliminates a caught climber but keeps peakY (solo & multiplayer)", () => {
     for (const mode of ["solo", "multiplayer"] as const) {
@@ -156,6 +259,7 @@ describe("AC-7 / AC-8: caught by the death line eliminates and retains peak", ()
       stepMatch(m, { p1: IDLE }, FAST);
       expect(p.status).toBe("eliminated");
       expect(p.peakY).toBe(120);
+      expect(p.finishedTick).toBe(m.tick);
       expect(m.phase).toBe("finished"); // solo run ends on a catch
     }
   });
@@ -168,6 +272,7 @@ describe("AC-7 / AC-8: caught by the death line eliminates and retains peak", ()
     p.y = 200 - TOWER.fallDeathBelowPeakM - 1; // dropped past the fall floor
     stepMatch(m, { p1: IDLE }, SLOW);
     expect(p.status).toBe("eliminated");
+    expect(p.finishedTick).toBe(m.tick);
   });
 
   it("has no summit: a very high climber is still climbing, never 'finished'", () => {
@@ -181,18 +286,57 @@ describe("AC-7 / AC-8: caught by the death line eliminates and retains peak", ()
 });
 
 describe("endless completability: a greedy bot climbs far up a generated tower", () => {
-  function botInput(p: PlayerState, tower: TowerSpec): PlayerInput {
+  function botInput(p: PlayerState, tower: TowerSpec, tick = 0): PlayerInput {
     if (p.onLadder) return UP;
-    const k = floorIndexAt(tower, p.y + 0.5); // current floor
-    const target = ladderForFloor(tower, k);
+    const hops = doubleJumpChargesRemaining(p, tick);
+    if (isOnObstacle(tower, p.x, p.y)) {
+      const nextStep = obstaclesNearY(tower, p.y + 0.1, p.y + 3)
+        .filter((o) => o.y1 > p.y + 0.15)
+        .sort((a, b) => a.y0 - b.y0)[0];
+      if (nextStep) {
+        const mid = (nextStep.x0 + nextStep.x1) / 2;
+        const dir: -1 | 0 | 1 = mid >= p.x ? 1 : -1;
+        return {
+          moveX: dir,
+          jump:
+            p.onGround ||
+            (hops > 0 && !p.jumpHeldPrev && nextStep.y0 > p.y + 0.2),
+          climbY: 0,
+          usePowerUp: false,
+        };
+      }
+    }
+    const k = floorIndexAt(tower, p.y + 0.5);
+    const ladders = laddersForFloor(tower, k);
+    const pieces = platformsForFloor(tower, k);
+    const piece = pieces.find(
+      (pl) =>
+        p.x >= pl.x0 - 0.15 &&
+        p.x <= pl.x1 + 0.15 &&
+        Math.abs(pl.y - p.y) <= 0.25
+    );
+    const local = piece
+      ? ladders.filter((l) => l.x >= piece.x0 && l.x <= piece.x1)
+      : [];
+    const target = (local.length > 0 ? local : ladders)
+      .slice()
+      .sort((a, b) => Math.abs(a.x - p.x) - Math.abs(b.x - p.x))[0];
     const dx = target.x - p.x;
-    if (Math.abs(dx) <= tower.ladderGrabRadius * 0.5) return UP; // grab
+    if (Math.abs(dx) <= tower.ladderGrabRadius * 0.5) return UP;
     const dir: -1 | 0 | 1 = dx > 0 ? 1 : -1;
-    const probe = p.x + dir * 1.2;
+    const probe = p.x + dir * 3.5;
     const ahead = platformsNearY(tower, p.y, p.y).some(
       (pl) => probe >= pl.x0 && probe <= pl.x1 && Math.abs(pl.y - p.y) <= 0.05
     );
-    return { moveX: dir, jump: p.onGround && !ahead, climbY: 0, usePowerUp: false };
+    const crate = obstacleAhead(tower, p.x, p.y, dir);
+    return {
+      moveX: dir,
+      jump:
+        (p.onGround && (!ahead || crate)) ||
+        (!p.onGround && crate && hops > 0 && !p.jumpHeldPrev),
+      climbY: 0,
+      usePowerUp: false,
+    };
   }
 
   for (const slug of ["indie-games", "developer-tools", "fitness-and-wellness"]) {
@@ -201,11 +345,11 @@ describe("endless completability: a greedy bot climbs far up a generated tower",
       const m = climbingMatch("solo", ["bot"], tower);
       let ticks = 0;
       while (m.phase === "climb" && ticks < 8000) {
-        stepMatch(m, { bot: botInput(m.players[0], tower) }, SLOW);
+        stepMatch(m, { bot: botInput(m.players[0], tower, m.tick) }, SLOW);
         ticks++;
       }
-      // Reached well beyond the difficulty ramp — many floors are solvable.
-      expect(m.players[0].peakY).toBeGreaterThan(600);
+      // Past the early ramp. Extra crates and triangles slow a greedy bot.
+      expect(m.players[0].peakY).toBeGreaterThan(350);
     });
   }
 
@@ -214,7 +358,7 @@ describe("endless completability: a greedy bot climbs far up a generated tower",
     const m = climbingMatch("solo", ["bot"], tower);
     let ticks = 0;
     while (m.phase === "climb" && ticks < 20000) {
-      stepMatch(m, { bot: botInput(m.players[0], tower) }, DEFAULT_SIM_CONFIG);
+      stepMatch(m, { bot: botInput(m.players[0], tower, m.tick) }, DEFAULT_SIM_CONFIG);
       ticks++;
     }
     expect(m.phase).toBe("finished");
@@ -286,3 +430,74 @@ describe("regression: a climber can move from the base; idling loses", () => {
     expect(m.players[0].status).toBe("eliminated");
   });
 });
+
+describe("hazard catch-up: lava closes a large lead", () => {
+  it("rises faster when the climber is over 200m ahead than when they are close", () => {
+    const sampleTicks = 4 * TICK_HZ;
+    const far = riseWhileHeld(HAZARD_CATCHUP_LEAD_M + 1, sampleTicks);
+    const near = riseWhileHeld(50, sampleTicks);
+    const atThreshold = riseWhileHeld(HAZARD_CATCHUP_LEAD_M, sampleTicks);
+    expect(far.rise).toBeGreaterThan(near.rise);
+    expect(near.rise).toBeCloseTo(atThreshold.rise, 6);
+    expect(near.banked).toBe(0);
+    expect(far.banked).toBeLessThan(0);
+  });
+
+  it("slows back to the normal clock once the lead is within 200m again", () => {
+    const sampleTicks = 4 * TICK_HZ;
+    const m = climbingMatch("solo", ["p1"]);
+    silenceOrbs(m);
+    const p = m.players[0];
+    const warm = Math.round(TICK_HZ * (DEFAULT_HAZARD_CONFIG.graceSeconds + 2));
+    const hold = (leadM: number, n: number) => {
+      for (let i = 0; i < n; i++) {
+        p.y = m.hazardY + leadM;
+        p.peakY = p.y;
+        stepMatch(m, { p1: IDLE }, DEFAULT_SIM_CONFIG);
+      }
+    };
+    hold(50, warm);
+    const yFar0 = m.hazardY;
+    const bankedFar0 = m.hazardSlowSeconds;
+    hold(HAZARD_CATCHUP_LEAD_M + 20, sampleTicks);
+    const farRise = m.hazardY - yFar0;
+    const farBanked = m.hazardSlowSeconds - bankedFar0;
+    const yNear0 = m.hazardY;
+    const bankedNear0 = m.hazardSlowSeconds;
+    hold(50, sampleTicks);
+    const nearRise = m.hazardY - yNear0;
+    const nearBanked = m.hazardSlowSeconds - bankedNear0;
+    expect(farBanked).toBeLessThan(0);
+    expect(nearBanked).toBe(0);
+    expect(nearRise).toBeLessThan(farRise);
+  });
+});
+
+/** Warm past grace, then hold the climber at a fixed lead and measure lava rise. */
+function riseWhileHeld(
+  leadM: number,
+  sampleTicks: number
+): { rise: number; banked: number } {
+  const m = climbingMatch("solo", ["p1"]);
+  silenceOrbs(m);
+  const p = m.players[0];
+  const warm = Math.round(TICK_HZ * (DEFAULT_HAZARD_CONFIG.graceSeconds + 2));
+  const hold = (n: number) => {
+    for (let i = 0; i < n; i++) {
+      p.y = m.hazardY + leadM;
+      p.peakY = p.y;
+      stepMatch(m, { p1: IDLE }, DEFAULT_SIM_CONFIG);
+    }
+  };
+  hold(warm);
+  const y0 = m.hazardY;
+  const banked0 = m.hazardSlowSeconds;
+  hold(sampleTicks);
+  return { rise: m.hazardY - y0, banked: m.hazardSlowSeconds - banked0 };
+}
+
+/** Keep orbs from spawning so a held climber cannot pick up slow-lava. */
+function silenceOrbs(m: MatchState): void {
+  m.powerUps = [];
+  m.powerUpFloorHi = 100_000;
+}

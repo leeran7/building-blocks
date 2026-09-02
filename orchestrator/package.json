@@ -9,15 +9,15 @@
   "scripts": {
     "start": "tsx src/index.ts",
     "loop": "tsx src/index.ts",
-    "typecheck": "tsc --noEmit",
-    "test": "tsx --test src/team.test.ts src/stages.test.ts src/retro.test.ts src/types.test.ts"
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.test.json",
+    "test": "tsx --test src/team.test.ts src/stages.test.ts src/retro.test.ts src/types.test.ts src/context.test.ts src/pack.test.ts src/ci-ruleset.test.ts"
   },
   "dependencies": {
-    "@cursor/sdk": "^1.0.28"
+    "@cursor/sdk": "1.0.30"
   },
   "devDependencies": {
-    "@types/node": "^22.0.0",
-    "tsx": "^4.19.0",
-    "typescript": "^5.6.0"
+    "@types/node": "22.20.1",
+    "tsx": "4.23.12",
+    "typescript": "5.9.3"
   }
 }

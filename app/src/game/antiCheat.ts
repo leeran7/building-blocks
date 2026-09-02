@@ -11,7 +11,13 @@
  */
 
 import { PlayerInput, PlayerState, TowerSpec, TICK_DT, NO_INPUT } from "./types";
-import { RAPID_CLIMB_MULT, doubleJumpChargesRemaining, isPowerUpActive } from "./powerups";
+import {
+  RAPID_CLIMB_MULT,
+  JETPACK_MAX_VY,
+  doubleJumpChargesRemaining,
+  isPowerUpActive,
+  jetpackFuelRemaining,
+} from "./powerups";
 
 /** Result of validating a single player's input for one tick. */
 export interface InputValidation {
@@ -24,6 +30,11 @@ export interface InputValidation {
  * Validate a raw client input against the legal move-set and the player's state
  * (AC-15). Illegal fields are neutralized rather than trusted; an illegal input
  * is reported so the caller can flag/rate-limit the connection.
+ *
+ * climbY is NOT gated on player.onLadder. Off-ladder climb intent is how the
+ * sim grabs a ladder; neutralizing it made every honest grab look like a spoof
+ * and would have made ladders unreachable once this ran in front of stepMatch.
+ * The sim already no-ops climbY when no ladder is in reach.
  */
 export function validateInput(
   raw: unknown,
@@ -43,18 +54,12 @@ export function validateInput(
   let rejected = false;
   let reason: string | undefined;
 
-  // Legal state transition: you cannot climb (vertical ladder input) unless you
-  // are actually overlapping a ladder. Climbing off a ladder is a classic spoof.
-  if (climbY !== 0 && !player.onLadder) {
-    climbY = 0;
-    rejected = true;
-    reason = "climb input without ladder overlap";
-  }
-
-  // Jump is only legal from the ground — an air-jump is the classic spoof. The
-  // one exception is an unspent double-jump charge, which is exactly the
-  // allowance that power-up buys; the sim consumes it on the same tick.
-  const mayAirJump = doubleJumpChargesRemaining(player, tick) > 0;
+  // Jump is only legal from the ground — an air-jump is the classic spoof.
+  // Double-jump spends a charge on the edge; a live jetpack with fuel lets
+  // the player hold jump to thrust. Both are the allowance those pickups buy.
+  const mayAirJump =
+    doubleJumpChargesRemaining(player, tick) > 0 ||
+    jetpackFuelRemaining(player, tick) > 0;
   if (jump && !player.onGround && !player.onLadder && !mayAirJump) {
     rejected = true;
     reason = reason ?? "jump while airborne";
@@ -76,9 +81,17 @@ function clampAxis(v: unknown): -1 | 0 | 1 {
 
 /**
  * Height-rate sentinel (AC-15, AC-16). Given a player's height before and after
- * a tick, confirm the gain does not exceed the stack's maximum legal climb rate
- * (plus a small tolerance for float + platform-inheritance). Returns true if the
- * delta is LEGAL.
+ * a tick, confirm the gain does not exceed the fastest ascent the simulation
+ * itself can produce (plus a small tolerance for float + platform-inheritance).
+ * Returns true if the delta is LEGAL.
+ *
+ * The envelope is the maximum of the ascent speeds the sim itself can
+ * produce, not just the ladder rate: climbing is capped at maxClimbSpeed, a
+ * jump leaves the ground at jumpSpeed (higher on every archetype), and a
+ * jetpack holds JETPACK_MAX_VY while thrusting. Bounding by the climb rate
+ * alone flagged honest play — a plain jump spent 4 consecutive ticks over
+ * the limit against a K of 5. climbSpeedMult scales only the climb term
+ * because that is the only one rapid-climb affects.
  */
 export function isHeightDeltaLegal(
   prevY: number,
@@ -87,8 +100,12 @@ export function isHeightDeltaLegal(
   toleranceM = 0.01,
   climbSpeedMult = 1
 ): boolean {
-  const maxGain = tower.maxClimbSpeed * climbSpeedMult * TICK_DT + toleranceM;
-  return nextY - prevY <= maxGain;
+  const maxRise = Math.max(
+    tower.maxClimbSpeed * climbSpeedMult,
+    tower.jumpSpeed,
+    JETPACK_MAX_VY
+  );
+  return nextY - prevY <= maxRise * TICK_DT + toleranceM;
 }
 
 /**

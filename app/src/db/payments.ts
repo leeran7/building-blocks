@@ -94,3 +94,25 @@ export async function getTotalSpend(
   });
   return result._sum.amount_cents ?? 0;
 }
+
+/**
+ * Persist an unattributable captured payment so it can be replayed.
+ *
+ * The webhook still returns 200 after this write — Stripe must not retry a
+ * deterministic miss. Logs are the alert; this row is the system of record.
+ */
+export async function recordDeadLetter(input: {
+  eventType: string;
+  stripeSessionId: string;
+  amountCents: number;
+  reason: string;
+}): Promise<void> {
+  await prisma.paymentDeadLetter.create({
+    data: {
+      stripe_session_id: input.stripeSessionId,
+      event_type: input.eventType,
+      amount_cents: input.amountCents,
+      reason: input.reason,
+    },
+  });
+}

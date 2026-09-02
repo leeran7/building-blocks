@@ -9,6 +9,9 @@
     "outDir": "dist",
     "rootDir": "src"
   },
+  // Tests are excluded from the build so they stay out of dist/. They are still
+  // typechecked, via tsconfig.test.json — `tsx --test` strips types without
+  // checking them, so excluding them here and nowhere else left them unchecked.
   "include": ["src/**/*"],
   "exclude": ["src/**/*.test.ts"]
 }

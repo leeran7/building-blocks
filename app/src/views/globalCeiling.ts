@@ -6,6 +6,11 @@
  *
  * Enforces CEIL_PER_HOUR (default 40,000) global qualified views per hour.
  * This is the hard cap — any bypass is NFR-S5 violation.
+ *
+ * Deliberately not partitioned by category. Session dedup is per-stack because
+ * views_k is per-stack; this counter is the site-wide inflation lid. Per-stack
+ * keys would multiply the cap by the number of stacks. A per-stack fairness
+ * quota under this lid is a product change, not a bug fix.
  */
 
 import { loadConstants } from "../engine/constants";

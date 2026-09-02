@@ -5,10 +5,13 @@
 
 import { redirect } from "next/navigation";
 
-export default function LegacyTowerRedirect({
+export default async function LegacyTowerRedirect({
   params,
-}: {
-  params: { category: string };
-}) {
-  redirect(`/stack/${params.category}`);
+}: LegacyTowerRedirectProps) {
+  const { category } = await params;
+  redirect(`/stack/${category}`);
+}
+
+interface LegacyTowerRedirectProps {
+  params: Promise<{ category: string }>;
 }

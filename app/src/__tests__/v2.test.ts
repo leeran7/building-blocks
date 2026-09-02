@@ -15,6 +15,7 @@ import {
   computeGround,
   isBuried,
   isAmberEdge,
+  estimateDaysUntilBuried,
 } from "../engine/index";
 import type { EngineConstants } from "../engine/constants";
 import { parseCategory, getCategoryAccent } from "../lib/categoryUtils";
@@ -205,64 +206,75 @@ describe("Category validation — parseCategory utility (AC-3)", () => {
 
 // ─── 3. Dashboard burial risk formula (AC-21 / AC-22 / AC-23) ─────────────
 
-// Re-implement estimateDaysUntilBuried locally for unit testing.
-// This mirrors the production logic in app/api/dashboard/route.ts exactly,
-// using the same env-var defaults (G0=10, DOUBLE_EVERY_K=100) when no env override.
-function estimateDaysUntilBuried(altitude: number, V: number): number | null {
-  // Import computeGround using production default constants (G0=0.65, DOUBLE_EVERY_K=500)
-  // to decide "already buried"
-  const ground = computeGround(V);
-  if (altitude <= ground) {
-    return 0;
-  }
+describe("estimateDaysUntilBuried (AC-21 / AC-22 / AC-23)", () => {
+  // The highest ground the season can ever reach. Above this, burial is
+  // impossible and the estimate is null rather than a number.
+  const maxGround = C.G0 * C.MAX_GROWTH; // 0.65 * 8 = 5.2
 
-  // Dashboard route reads these env vars with its own defaults (10, 100)
-  const G0 = Number(process.env["ENGINE_G0"] ?? 10);
-  const DOUBLE_EVERY_K = Number(process.env["ENGINE_DOUBLE_EVERY_K"] ?? 100);
-
-  const lambda = Math.log(2) / DOUBLE_EVERY_K;
-  if (altitude <= G0) {
-    return 0;
-  }
-
-  const dV = (1 / lambda) * Math.log(altitude / G0) - V;
-  if (dV <= 0) return 0;
-
-  const VIEWS_K_PER_DAY_ESTIMATE = 1.0;
-  return Math.round(dV / VIEWS_K_PER_DAY_ESTIMATE);
-}
-
-describe("Dashboard burial risk formula (AC-21 / AC-22 / AC-23)", () => {
-  it("already-buried block returns 0 days", () => {
-    // altitude=0.1, V=0: ground=0.65 > 0.1 → buried → 0 days
-    const result = estimateDaysUntilBuried(0.1, 0);
-    expect(result).toBe(0);
+  it("returns 0 for an already-buried block", () => {
+    // ground at V=0 is G0 * 1 = 0.65, so 0.1 is below it.
+    expect(estimateDaysUntilBuried(0.1, 0, C)).toBe(0);
   });
 
-  it("block with huge altitude returns a large positive number of days", () => {
-    // altitude=1e6 (far above any ground), V=0 → many days
-    const result = estimateDaysUntilBuried(1e6, 0);
-    expect(result).toBeGreaterThan(1000);
+  it("returns 0 for a block sitting exactly on the ground line", () => {
+    expect(estimateDaysUntilBuried(computeGround(0, C), 0, C)).toBe(0);
   });
 
-  it("block is closer to burial as V increases (more views = faster rising ground)", () => {
-    const altitude = 100; // well above ground at V=0
-    const daysAtV0 = estimateDaysUntilBuried(altitude, 0);
-    const daysAtV100 = estimateDaysUntilBuried(altitude, 100);
-
-    // More views elapsed → less time remains
-    if (daysAtV0 !== null && daysAtV100 !== null) {
-      expect(daysAtV100).toBeLessThan(daysAtV0);
-    }
+  it("returns null above the maximum possible ground — never buried (AC-23)", () => {
+    // This is the case the previous local re-implementation omitted entirely.
+    expect(estimateDaysUntilBuried(maxGround + 0.01, 0, C)).toBeNull();
+    expect(estimateDaysUntilBuried(100, 0, C)).toBeNull();
+    expect(estimateDaysUntilBuried(1e6, 0, C)).toBeNull();
   });
 
-  it("returns a non-negative integer for a block with 100m altitude at V=0", () => {
-    // altitude=100, V=0 → well above ground → positive days
-    const result = estimateDaysUntilBuried(100, 0);
-    expect(result).not.toBeNull();
-    if (result !== null) {
-      expect(result).toBeGreaterThan(0);
-      expect(Number.isInteger(result)).toBe(true); // Math.round returns integer
+  it("returns a number at the maximum possible ground, null just above it", () => {
+    // Boundary is inclusive: altitude === maxGround is still buriable.
+    expect(estimateDaysUntilBuried(maxGround, 0, C)).not.toBeNull();
+    expect(estimateDaysUntilBuried(maxGround * 1.000001, 0, C)).toBeNull();
+  });
+
+  it("floors rather than rounds the day count (AC-21, conservative)", () => {
+    // altitude 5 at V=0: dV = (DOUBLE_EVERY_K / ln2) * ln(5 / G0)
+    //                       = 721.3475 * ln(7.6923) = 1471.94...
+    // floor → 1471, round → 1472. Asserting 1471 pins floor semantics, which
+    // the previous copy got wrong by using Math.round.
+    const exactDV = (C.DOUBLE_EVERY_K / Math.log(2)) * Math.log(5 / C.G0);
+    expect(exactDV % 1).toBeGreaterThan(0.5); // fractional part forces the two apart
+    expect(estimateDaysUntilBuried(5, 0, C)).toBe(Math.floor(exactDV));
+    expect(estimateDaysUntilBuried(5, 0, C)).not.toBe(Math.round(exactDV));
+  });
+
+  it("agrees with the V_burial figure the G0 default was tuned against", () => {
+    // src/engine/constants.ts documents V_burial ≈ 1472k for a $5 entry, which
+    // is why G0 is 0.65. This ties the estimate to that tuning rationale.
+    const days = estimateDaysUntilBuried(5, 0, C);
+    expect(days).not.toBeNull();
+    expect(days!).toBeGreaterThanOrEqual(1400);
+    expect(days!).toBeLessThanOrEqual(1600);
+  });
+
+  it("leaves less time as V increases", () => {
+    const altitude = 5; // above ground, below maxGround
+    const atV0 = estimateDaysUntilBuried(altitude, 0, C);
+    const atV100 = estimateDaysUntilBuried(altitude, 100, C);
+    expect(atV0).not.toBeNull();
+    expect(atV100).not.toBeNull();
+    expect(atV100!).toBeLessThan(atV0!);
+  });
+
+  it("returns 0 once accrued views already exceed the burial threshold", () => {
+    // V past V_burial for this altitude → dV <= 0 → 0, not a negative number.
+    expect(estimateDaysUntilBuried(5, 5000, C)).toBe(0);
+  });
+
+  it("always returns a whole number or null, never a negative", () => {
+    for (const altitude of [0.1, 0.65, 1, 2.5, 5, 5.2, 5.3, 100]) {
+      for (const V of [0, 1, 100, 1000, 5000]) {
+        const days = estimateDaysUntilBuried(altitude, V, C);
+        if (days === null) continue;
+        expect(Number.isInteger(days)).toBe(true);
+        expect(days).toBeGreaterThanOrEqual(0);
+      }
     }
   });
 });
@@ -406,10 +418,14 @@ describe("GET /api/dashboard — structural contract (AC-17 through AC-26)", () 
     expect(dashboardSrc).toContain("ground,");
   });
 
-  it("estimateDaysUntilBuried returns 0 for an already-buried block (AC-22)", () => {
-    // From the source: if altitude <= ground → return 0
-    expect(dashboardSrc).toContain("altitude <= ground");
-    expect(dashboardSrc).toContain("return 0");
+  it("dashboard derives burial risk from the engine, not a local formula", () => {
+    // The estimate itself is covered behaviourally by the
+    // "estimateDaysUntilBuried" suite above. All this needs to hold is that the
+    // route delegates to the engine rather than re-deriving it here — a second
+    // copy of the formula is what let the old test assert the inverse of
+    // production and still pass.
+    expect(dashboardSrc).toContain("estimateDaysUntilBuried");
+    expect(dashboardSrc).not.toMatch(/function\s+estimateDaysUntilBuried/);
   });
 });
 

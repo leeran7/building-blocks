@@ -1,15 +1,21 @@
 ---
 name: closed-loop
 description: >-
-  Orchestrates the full closed-loop app build: spec → architecture →
-  implementation → verification → review → CI → release → monitor. Use when
-  building an entire app autonomously, running the agent loop, or coordinating
-  multiple subagents in sequence. Works in Cursor and Claude Code.
+  Orchestrates the closed-loop: spec → architecture → implementation →
+  verification → review → CI → release → monitor. Use for any scoped product
+  goal — a feature, a visual pass, a fix, or a full app — whenever the agent
+  loop should run or multiple subagents should coordinate. Works in Cursor
+  and Claude Code.
 ---
 
-# Closed Loop App Builder
+# Closed Loop
 
-Run the full agent loop to build an app from intent to merge-ready code.
+Run the agent loop from intent to merge-ready code. Scope can be a single
+change or a whole product — the team still runs.
+
+**Installing into a new repo?** Read [`pack/SETUP.md`](pack/SETUP.md)
+first (file tree + 5-minute install). Repo-specific facts live in
+`context/` — agents only point there.
 
 ## Before starting
 
@@ -30,7 +36,7 @@ Write `loop/state.json`:
 
 ```json
 {
-  "goal": "<user's app goal>",
+  "goal": "<user's goal>",
   "currentStage": "product-spec",
   "iteration": 1,
   "maxIterations": 10,

@@ -8,6 +8,7 @@
 
 import Link from "next/link";
 import { topFreeClimbers } from "../../db/climb";
+import { ALTITUDE_UNIT } from "../../lib/units";
 
 export async function FreeLeaderboard() {
   const climbers = await topFreeClimbers(8).catch(() => []);
@@ -86,7 +87,7 @@ export async function FreeLeaderboard() {
                     )}
                     <span className="font-mono tabular-nums font-bold text-text-secondary">
                       {c.peakY.toFixed(0)}
-                      <span className="text-text-muted font-normal">m</span>
+                      <span className="text-text-muted font-normal">{ALTITUDE_UNIT}</span>
                     </span>
                   </div>
                 </li>

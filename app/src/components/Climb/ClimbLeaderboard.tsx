@@ -6,8 +6,34 @@
  */
 
 import type { ClimberRank } from "../../db/climb";
+import { ALTITUDE_UNIT } from "../../lib/units";
 
-export function ClimbLeaderboard({ climbers }: { climbers: ClimberRank[] }) {
+export function ClimbLeaderboard({
+  climbers,
+  unavailable = false,
+}: {
+  climbers: ClimberRank[];
+  /**
+   * True when the standings could not be read. Kept separate from an empty
+   * list so a failed query never renders as "nobody has played yet" — which
+   * is what a swallowed error used to look like.
+   */
+  unavailable?: boolean;
+}) {
+  if (unavailable) {
+    return (
+      <div className="relative overflow-hidden rounded-xl border border-border-strong bg-surface p-10 text-center">
+        <div className="pointer-events-none absolute inset-0 survey-grid opacity-50" />
+        <p className="relative font-mono text-[11px] uppercase tracking-[0.2em] text-ember">
+          [ standings unavailable ]
+        </p>
+        <p className="relative text-text-secondary text-sm mt-3">
+          The leaderboard could not be loaded. Try again in a moment.
+        </p>
+      </div>
+    );
+  }
+
   if (climbers.length === 0) {
     return (
       <div className="relative overflow-hidden rounded-xl border border-border-strong bg-surface p-10 text-center">
@@ -66,7 +92,7 @@ export function ClimbLeaderboard({ climbers }: { climbers: ClimberRank[] }) {
                 {c.handle}
               </span>
               {c.wins > 0 && (
-                <span className="font-mono text-xs text-text-muted tabular-nums">
+                <span className="font-mono text-xs text-text-secondary tabular-nums">
                   {c.wins}★
                 </span>
               )}
@@ -77,7 +103,7 @@ export function ClimbLeaderboard({ climbers }: { climbers: ClimberRank[] }) {
                 }
               >
                 {c.peakY.toFixed(0)}
-                <span className="text-text-muted font-normal">m</span>
+                <span className="text-text-secondary font-normal">{ALTITUDE_UNIT}</span>
               </span>
             </div>
           </li>

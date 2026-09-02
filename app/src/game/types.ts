@@ -13,18 +13,20 @@ export const TICK_DT = 1 / TICK_HZ; // seconds per tick
 export type PlayerId = string;
 
 /**
- * The five power-ups. Each is a deliberate counter to one of the ways the
+ * The six power-ups. Each is a deliberate counter to one of the ways the
  * endless tower kills you: the ladder grind (rapid-climb), long sideways
- * traverses (sprint-burst), a missed gap (double-jump), an out-of-reach ledge
- * (super-jump), and the lava simply outpacing you late in a run (time-slow).
+ * traverses (sprint-burst), a missed gap or crate stair (double-jump), a
+ * sloppy ladder grab or platform edge (giant), a bad ladder detour (jetpack),
+ * and the lava simply outpacing you late in a run (slow-lava).
  * Tuning lives in powerups.ts.
  */
 export type PowerUpType =
   | "rapid-climb"
   | "sprint-burst"
   | "double-jump"
-  | "super-jump"
-  | "time-slow";
+  | "giant"
+  | "jetpack"
+  | "slow-lava";
 
 /**
  * A power-up sitting in the world, hovering above a floor's surface. Generated
@@ -46,17 +48,20 @@ export interface PowerUpPickup {
 
 /**
  * A power-up the player has activated. Duration-based effects run until
- * `startTick + durationTicks`; charge-based ones (double-jump, super-jump) are
- * consumed by the move they enable and expire unused when the window closes.
+ * `startTick + durationTicks`; charge-based ones (double-jump) are consumed
+ * by the move they enable and expire unused when the window closes. Jetpack
+ * is duration-based with a separate fuel budget spent while jump is held.
  */
 export interface ActivePowerUp {
   type: PowerUpType;
   startTick: number;
   durationTicks: number;
-  /** Charge-based only: the charge has been spent (super-jump). */
-  used: boolean;
+  /** Charge-based only: the charge has been spent. */
+  used?: boolean;
   /** Double-jump only: mid-air jumps remaining in this window. */
   chargesRemaining?: number;
+  /** Jetpack only: ticks of thrust remaining in this window. */
+  fuelRemainingTicks?: number;
 }
 
 /** Per-tick intent produced by a client's input sampling. */
@@ -99,12 +104,19 @@ export interface PlayerState {
   status: PlayerStatus;
   /** Permanent-record ethos: max height reached, retained on death (AC-8). */
   peakY: number;
-  /** Tick this player touched the flag, if finished (AC-3 tie-break). */
+  /** Tick the run ended. Solo endless sets this on lava/fall death. */
   finishedTick: number | null;
+  /**
+   * Consecutive illegal height deltas this run (AC-16). Ranked payouts void
+   * once this hits K; see updateSentinel.
+   */
+  cheatViolations: number;
+  /** True once the height-rate sentinel has flagged this player (AC-16). */
+  cheatFlagged: boolean;
   /** Power-ups currently running. Expired entries are dropped each tick. */
   activePowerUps: ActivePowerUp[];
   /**
-   * Earliest tick each type may be activated again. Only time-slow sets one —
+   * Earliest tick each type may be activated again. Only slow-lava sets one —
    * see the balance note in powerups.ts on why the run has to stay finite.
    */
   cooldownUntilTick: Partial<Record<PowerUpType, number>>;
@@ -119,9 +131,23 @@ export interface PlayerState {
   /**
    * Previous tick's jump button, so it can be edge-triggered. Without this a
    * held jump key would spend a double-jump charge on the tick after the
-   * ground launch.
+   * ground launch (and would fight the jetpack's hold-to-thrust).
    */
   jumpHeldPrev: boolean;
+  /**
+   * Jetpack thrust applied this tick. Presentation-only (canvas flame); the
+   * simulation never reads it back.
+   */
+  jetpackThrusting: boolean;
+  /**
+   * True after stepping off a ladder onto a platform (its top or bottom) while
+   * the climb intent is still held. It suppresses re-grabbing a ladder until the
+   * climb button is released, and clears the moment it is. Without it, topping
+   * out with the mobile climb button still down instantly re-grabbed a ladder on
+   * that same surface and snapped the climber's x back, so they could not walk
+   * away — the "stuck after getting off a ladder" bug.
+   */
+  grabSuppressedUntilRelease: boolean;
 }
 
 /**
@@ -133,6 +159,23 @@ export interface Platform {
   x0: number;
   x1: number;
   y: number;
+}
+
+/**
+ * A crate on or above a floor. Solid from the sides; the top is a one-way
+ * landing. Single crates are hurdles; three stacked as a triangle sit on the
+ * slab; a taller run forms a stair to the next floor. Generated per floor from
+ * the tower seed (AC-11).
+ */
+export interface Obstacle {
+  floorIndex: number;
+  x0: number;
+  x1: number;
+  /** Bottom of the crate (floor height for a hurdle; stacked for a stair). */
+  y0: number;
+  /** Top of the crate (landable). */
+  y1: number;
+  kind: "barrel" | "rock" | "debris";
 }
 
 /**
@@ -198,10 +241,11 @@ export interface MatchState {
   raceSeconds: number;
   hazardY: number;
   /**
-   * Seconds of hazard rise cancelled by time-slow. The hazard reads the clock
-   * at `raceSeconds - hazardSlowSeconds` rather than being scaled directly:
-   * scaling a height curve that is already an integral would make the lava
-   * drop, and the lava must only ever rise.
+   * Seconds subtracted from race-time before sampling the hazard curve.
+   * Slow-lava increases this (lava spends fewer seconds). Catch-up when the
+   * lead climber is far ahead decreases it — it can go negative — so the
+   * curve is sampled a little faster. Height is still only ever non-decreasing
+   * because the curve is monotonic in time.
    */
   hazardSlowSeconds: number;
   tower: TowerSpec;

@@ -1,5 +1,8 @@
 "use client";
 
+import Link from "next/link";
+import { ALTITUDE_UNIT, formatAltitude, formatAltitudeLabel } from "../../lib/units";
+
 /**
  * RecordStats — the permanent record dossier for a block (AC-38), ASCENT design.
  *
@@ -89,10 +92,10 @@ export function RecordStats({
               "font-mono text-6xl md:text-7xl font-bold tabular-nums leading-none",
               buried ? "text-ember" : "text-signal",
             ].join(" ")}
-            aria-label={`Current altitude: ${altitude.toFixed(1)} metres`}
+            aria-label={`Current altitude: ${formatAltitudeLabel(altitude, 1)}`}
           >
             {altitude.toFixed(1)}
-            <span className="text-2xl text-text-muted font-normal ml-1">m</span>
+            <span className="text-2xl text-text-muted font-normal ml-1">{ALTITUDE_UNIT}</span>
           </span>
 
           {/* Name + outbound */}
@@ -113,7 +116,7 @@ export function RecordStats({
           {/* Stats grid — cockpit gauge cluster (AC-38) */}
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-px overflow-hidden rounded-xl border border-border-subtle bg-border-subtle mt-7">
             <StatCard label="Peak rank" value={peak_rank ? `#${peak_rank}` : "—"} testId="record-peak-rank" accent />
-            <StatCard label="Altitude" value={`${altitude.toFixed(2)}m`} testId="record-altitude" />
+            <StatCard label="Altitude" value={formatAltitude(altitude, 2)} testId="record-altitude" />
             <StatCard label="Views served" value={views_served.toLocaleString()} testId="record-views-served" />
             <StatCard label="Clicks" value={clicks.toLocaleString()} testId="record-clicks" />
             <StatCard label="Total spend" value={`$${totalSpendUsd}`} testId="record-total-spend" />
@@ -121,12 +124,12 @@ export function RecordStats({
           </div>
 
           <div className="pt-5 mt-6 border-t border-border-subtle">
-            <a
+            <Link
               href="/"
               className="font-mono text-xs uppercase tracking-[0.14em] text-text-muted hover:text-signal transition-colors"
             >
               ← Back to Stack
-            </a>
+            </Link>
           </div>
         </div>
       </div>

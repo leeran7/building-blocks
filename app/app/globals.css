@@ -72,6 +72,19 @@ body {
   color: #0a0a0c;
 }
 
+/* Game controls + play surface: suppress the iOS long-press copy/lookup callout
+   and text selection. The button-only rule was not enough — a hold that drifts
+   off a button onto the canvas, or a long-press on the canvas itself, still
+   raised the selection/copy bubble, so the whole play surface opts out. */
+[data-game-control],
+[data-climb-surface],
+[data-climb-surface] * {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
 /* Dark scrollbars */
 * {
   scrollbar-width: thin;

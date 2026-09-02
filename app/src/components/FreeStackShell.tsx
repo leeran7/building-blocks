@@ -1,6 +1,11 @@
 /**
  * FreeStackShell — shared frame for the standalone free climb stack (/climb, /play).
  * Separate from CategoryShell, which wraps the 74 paid category stacks.
+ *
+ * Navbar + a tab-only header band are identical on both routes. Title, CTA and
+ * meta live in the panel below the hairline so switching Leaderboard/Play does
+ * not jump the tabs. The play panel scrolls (canvas + controls card); it is not
+ * a fill-viewport overflow-hidden stage.
  */
 
 import type { ReactNode } from "react";
@@ -10,34 +15,22 @@ import { Navbar } from "./Navbar";
 export function FreeStackShell({
   section,
   title,
-  meta,
-  compactHeader = false,
   children,
 }: {
-  section: "leaderboard" | "play";
+  section: FreeStackSection;
   title: string;
-  meta?: ReactNode;
-  /**
-   * Collapse the title and meta on phones, keeping only the section tabs. The
-   * game page needs that vertical space: the canvas sizes itself from whatever
-   * height is left below the header (see useCanvasSize).
-   */
-  compactHeader?: boolean;
   children: ReactNode;
 }) {
+  const play = section === "play";
+
   return (
     <div className="min-h-screen bg-void flex flex-col">
-      <Navbar contextLabel="Free climb" />
+      <div className="shrink-0">
+        <Navbar contextLabel="Free climb" />
+      </div>
 
-      <div className="border-b border-border-subtle">
-        <div
-          className={
-            "max-w-2xl mx-auto w-full px-4 " +
-            (compactHeader
-              ? "pt-3 pb-3 [@media(min-width:640px)_and_(min-height:560px)]:pt-5 [@media(min-width:640px)_and_(min-height:560px)]:pb-4"
-              : "pt-5 pb-4")
-          }
-        >
+      <div className="border-b border-border-subtle shrink-0">
+        <div className="max-w-2xl mx-auto w-full px-4 py-2">
           <div
             className="inline-flex items-center gap-1 rounded-full border border-border-strong bg-surface p-1"
             role="tablist"
@@ -50,60 +43,31 @@ export function FreeStackShell({
             />
             <FreeTab href="/play" label="Play" active={section === "play"} />
           </div>
-
-          {/* sr-only rather than hidden: the heading stays in the document for
-              assistive tech and search, it just takes no room on a phone.
-              Restored only when the viewport is both wide AND tall enough — a
-              phone in landscape clears `sm` on width while having the least
-              height to spare, which is exactly when the game needs it most. */}
-          <div
-            className={
-              compactHeader
-                ? "sr-only [@media(min-width:640px)_and_(min-height:560px)]:not-sr-only [@media(min-width:640px)_and_(min-height:560px)]:mt-5"
-                : "mt-5"
-            }
-          >
-            <p className="text-xs uppercase tracking-[0.2em] text-accent font-medium">
-              Free stack · no payment
-            </p>
-            <h1 className="text-2xl md:text-3xl font-bold text-text-primary tracking-tight mt-1">
-              {title}
-            </h1>
-          </div>
-          {meta && (
-            <div
-              className={
-                compactHeader
-                  ? "hidden [@media(min-width:640px)_and_(min-height:560px)]:block"
-                  : undefined
-              }
-            >
-              {meta}
-            </div>
-          )}
         </div>
       </div>
 
-      <div
-        className={
-          "w-full px-4 flex-1 overflow-x-hidden " +
-          (compactHeader
-            ? "py-3 [@media(min-width:640px)_and_(min-height:560px)]:py-6"
-            : "py-6")
-        }
-      >
-        {children}
-      </div>
+      {play ? (
+        <div className="w-full flex-1 px-2 pt-2 pb-[max(0px,env(safe-area-inset-bottom))]">
+          <h1 className="sr-only">{title}</h1>
+          {children}
+        </div>
+      ) : (
+        <div className="max-w-2xl mx-auto w-full px-4 py-6">{children}</div>
+      )}
     </div>
   );
 }
 
+/**
+ * Route links, not a WAI-ARIA tabs widget. Do not bind ArrowLeft/ArrowRight —
+ * those keys move the climber on /play. Enter/Space follow the native Link.
+ */
 function FreeTab({
   href,
   label,
   active,
 }: {
-  href: string;
+  href: "/climb" | "/play";
   label: string;
   active: boolean;
 }) {
@@ -112,10 +76,11 @@ function FreeTab({
       href={href}
       role="tab"
       aria-selected={active}
+      aria-current={active ? "page" : undefined}
       className={
-        "px-4 py-1.5 rounded-full text-sm font-semibold transition " +
+        "inline-flex items-center justify-center px-4 min-h-[44px] rounded-full text-sm font-semibold whitespace-nowrap transition-[color,filter] focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void " +
         (active
-          ? "bg-signal text-void"
+          ? "bg-signal text-void hover:brightness-110"
           : "text-text-secondary hover:text-text-primary")
       }
     >
@@ -123,3 +88,5 @@ function FreeTab({
     </Link>
   );
 }
+
+export type FreeStackSection = "leaderboard" | "play";

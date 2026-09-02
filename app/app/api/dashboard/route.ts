@@ -28,36 +28,16 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAuth, AuthError } from "../../../src/lib/requireAuth";
 import { prisma } from "../../../src/db/client";
 import { getAllActiveSeasons } from "../../../src/db/seasons";
-import { getUserFreeClimbRecord } from "../../../src/db/climb";
+import { getUserFreeClimbRecord, getUserClimbReplays } from "../../../src/db/climb";
 import {
   computeGround,
   isBuried,
   isAmberEdge,
   priceTo,
+  estimateDaysUntilBuried,
 } from "../../../src/engine/index";
-import { DEFAULT_CONSTANTS } from "../../../src/engine/constants";
 
 export const runtime = "nodejs";
-
-const VIEWS_K_PER_DAY_ESTIMATE = 1.0;
-
-function estimateDaysUntilBuried(altitude: number, V: number): number | null {
-  const ground = computeGround(V);
-  if (altitude <= ground) return 0;
-
-  const { G0, DOUBLE_EVERY_K, MAX_GROWTH } = DEFAULT_CONSTANTS;
-  if (altitude <= G0) return 0;
-
-  // AC-23: altitude above maximum possible ground → will never be buried this season
-  if (altitude > G0 * MAX_GROWTH) return null;
-
-  const lambda = Math.log(2) / DOUBLE_EVERY_K;
-  const dV = (1 / lambda) * Math.log(altitude / G0) - V;
-  if (dV <= 0) return 0;
-
-  // AC-21: floor (not round) — conservative estimate
-  return Math.floor(dV / VIEWS_K_PER_DAY_ESTIMATE);
-}
 
 export async function GET(request: NextRequest): Promise<NextResponse> {
   const start = Date.now();
@@ -102,11 +82,15 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     });
 
     if (userBlocks.length === 0) {
-      const freeClimb = await getUserFreeClimbRecord(decoded.uid).catch(() => null);
+      const [freeClimb, replays] = await Promise.all([
+        getUserFreeClimbRecord(decoded.uid).catch(() => null),
+        getUserClimbReplays(decoded.uid).catch(() => []),
+      ]);
       return NextResponse.json({
         user: { id: decoded.uid, email: decoded.email ?? "" },
         blocks: [],
         freeClimb,
+        replays,
       });
     }
 
@@ -222,12 +206,16 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       })
     );
 
-    const freeClimb = await getUserFreeClimbRecord(decoded.uid).catch(() => null);
+    const [freeClimb, replays] = await Promise.all([
+      getUserFreeClimbRecord(decoded.uid).catch(() => null),
+      getUserClimbReplays(decoded.uid).catch(() => []),
+    ]);
 
     return NextResponse.json({
       user: { id: decoded.uid, email: decoded.email ?? "" },
       blocks: enrichedBlocks,
       freeClimb,
+      replays,
     });
   } catch (error) {
     console.error("[GET /api/dashboard]", error);

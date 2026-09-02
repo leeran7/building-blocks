@@ -1,0 +1,40 @@
+{
+  "gates": [
+    {
+      "name": "app-lint",
+      "cwd": "app",
+      "command": "pnpm lint",
+      "proveFail": "next lint with no ESLint config exited 0 (Aug 29). Gate requires a committed config and --max-warnings=0."
+    },
+    {
+      "name": "app-typecheck",
+      "cwd": "app",
+      "command": "pnpm typecheck",
+      "proveFail": "A file with an intentional type error must fail tsc --noEmit."
+    },
+    {
+      "name": "app-test",
+      "cwd": "app",
+      "command": "pnpm test",
+      "proveFail": "A test that invokes production code and asserts the wrong output must fail. Source-text greps are not this gate."
+    },
+    {
+      "name": "orchestrator-typecheck",
+      "cwd": "orchestrator",
+      "command": "yarn typecheck",
+      "proveFail": "Test files must be typechecked (tsconfig.test.json), not excluded from all tsc."
+    },
+    {
+      "name": "orchestrator-test",
+      "cwd": "orchestrator",
+      "command": "yarn test",
+      "proveFail": "A failing assertion in orchestrator/src/*.test.ts must fail the script."
+    },
+    {
+      "name": "pack-hygiene",
+      "cwd": ".",
+      "command": "node scripts/hygiene.mjs",
+      "proveFail": "An agent file containing a banned product substring, or missing a pointer to context/README.md, must fail hygiene."
+    }
+  ]
+}

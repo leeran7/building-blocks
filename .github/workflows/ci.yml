@@ -1,10 +1,17 @@
 name: CI
 
+# Job `name:` values are GitHub check contexts. They are required to merge
+# into main by the ruleset in .github/rulesets/require-ci-on-main.json.
+# Renaming a job without updating and re-applying that ruleset drops the gate.
 on:
   push:
-    branches: [main]
+    branches: [main, development]
   pull_request:
-    branches: [main]
+    branches: [main, development]
+  merge_group:
+
+permissions:
+  contents: read
 
 jobs:
   test:
@@ -45,6 +52,9 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Audit (critical)
+        run: pnpm audit --audit-level=critical
 
       - name: Generate Prisma client
         run: pnpm db:generate
@@ -94,3 +104,21 @@ jobs:
 
       - name: Test
         run: yarn test
+
+  ci:
+    name: CI
+    if: always()
+    needs: [test, orchestrator]
+    runs-on: ubuntu-latest
+    steps:
+      - name: All required jobs passed
+        env:
+          TEST_RESULT: ${{ needs.test.result }}
+          ORCHESTRATOR_RESULT: ${{ needs.orchestrator.result }}
+        run: |
+          echo "test=$TEST_RESULT"
+          echo "orchestrator=$ORCHESTRATOR_RESULT"
+          if [ "$TEST_RESULT" != "success" ] || [ "$ORCHESTRATOR_RESULT" != "success" ]; then
+            echo "Required CI jobs did not all succeed."
+            exit 1
+          fi

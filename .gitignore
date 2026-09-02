@@ -9,6 +9,9 @@
 loop/*
 !loop/learnings.md
 !loop/learnings.jsonl
+# Package-upgrade architecture is a durable implementer contract, not a
+# per-run scratch file. Track it the same way as the learnings ledger.
+!loop/package-upgrade.md
 .claude/handoffs/*.json
 
 # Dependencies & build
@@ -19,3 +22,7 @@ dist/
 # Environment
 .env
 .env.local
+
+# Deploy tooling (may contain auth tokens / local project links)
+.vercel
+.firebaserc

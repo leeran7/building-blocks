@@ -9,10 +9,11 @@
  * is what AC-11 (determinism) and AC-17 (replay verification) rely on.
  *
  * The world is a Donkey-Kong-style stack of solid platforms joined by ladders,
- * with jumpable gaps. Motion is real 2D platforming — gravity, walking, jumping,
- * one-way platform landings, and ladder climbing. The pressure is Doodle-Jump
- * style: a single DEATH LINE = max(rising hazard, peak − fallDeathBelowPeak). If
- * your feet drop to it, you're out (caught = you lose; peak height is retained).
+ * with jumpable gaps and jump-over crates on the traverse. Motion is real 2D
+ * platforming — gravity, walking, jumping, one-way platform landings, and ladder
+ * climbing. The pressure is Doodle-Jump style: a single DEATH LINE = max(rising
+ * hazard, peak − fallDeathBelowPeak). If your feet drop to it, you're out
+ * (caught = you lose; peak height is retained).
  *
  * Tick order is deliberate and load-bearing:
  *   1. advance race-clock + hazard height
@@ -36,6 +37,7 @@ import {
 import {
   HazardConfig,
   DEFAULT_HAZARD_CONFIG,
+  hazardCatchupTimeScale,
   hazardHeightAt,
 } from "./hazard";
 import {
@@ -46,23 +48,35 @@ import {
   floorHeight,
 } from "./towers";
 import {
-  DOUBLE_JUMP_CHARGES,
+  grantPowerUp,
   DOUBLE_JUMP_MULT,
-  SUPER_JUMP_MULT,
+  JETPACK_MAX_VY,
+  JETPACK_THRUST,
   canActivate,
   climbSpeedMultiplier,
   consumeCharge,
+  consumeJetpackFuel,
   cooldownTicks,
   durationTicks,
   hazardTimeScale,
   isPowerUpActive,
+  ladderGrabMultiplier,
   moveSpeedMultiplier,
   overlapsPickup,
+  platformReachMargin,
   powerUpForFloor,
   pruneActive,
 } from "./powerups";
+import { isOnObstacle, resolveObstacleMotion } from "./obstacles";
+import {
+  isHeightDeltaLegal,
+  legalClimbSpeedMult,
+  updateSentinel,
+  validateInput,
+} from "./antiCheat";
 
-const EPS = 0.02; // Increased from 0.01 to prevent ground fall-through due to floating point precision
+// epsilon value for the simulation
+const EPS = 0.025; // Increased from 0.01 to prevent ground fall-through due to floating point precision
 
 /** Floors of power-ups kept materialized above the highest climber. */
 const POWER_UP_LOOKAHEAD_FLOORS = 6;
@@ -91,11 +105,15 @@ export function spawnPlayer(id: PlayerId, slot: number): PlayerState {
     status: "climbing",
     peakY: 0,
     finishedTick: null,
+    cheatViolations: 0,
+    cheatFlagged: false,
     activePowerUps: [],
     cooldownUntilTick: {},
     lastPickupTick: null,
     lastPickupType: null,
     jumpHeldPrev: false,
+    jetpackThrusting: false,
+    grabSuppressedUntilRelease: false,
   };
 }
 
@@ -166,13 +184,14 @@ function landingPlatform(
   tower: TowerSpec,
   x: number,
   prevY: number,
-  newY: number
+  newY: number,
+  marginM = 0
 ): Platform | null {
   // Slightly larger tolerance to catch landings more reliably
   const LANDING_EPS = EPS * 1.5;
   let best: Platform | null = null;
   for (const p of platformsNearY(tower, Math.min(newY, prevY), Math.max(newY, prevY))) {
-    if (x < p.x0 - EPS || x > p.x1 + EPS) continue;
+    if (x < p.x0 - EPS - marginM || x > p.x1 + EPS + marginM) continue;
     // Feet moved down through the surface: newY <= p.y <= prevY.
     if (p.y <= prevY + LANDING_EPS && p.y >= newY - LANDING_EPS) {
       if (!best || p.y > best.y) best = p;
@@ -182,11 +201,11 @@ function landingPlatform(
 }
 
 /** Is there solid ground supporting feet at (x, y)? */
-function isSupported(tower: TowerSpec, x: number, y: number): boolean {
+function isSupported(tower: TowerSpec, x: number, y: number, marginM = 0): boolean {
   // Slightly larger tolerance for ground checks to prevent fall-through
   const GROUND_EPS = EPS * 1.5;
   for (const p of platformsNearY(tower, y, y)) {
-    if (x < p.x0 - EPS || x > p.x1 + EPS) continue;
+    if (x < p.x0 - EPS - marginM || x > p.x1 + EPS + marginM) continue;
     if (Math.abs(p.y - y) <= GROUND_EPS) return true;
   }
   return false;
@@ -205,7 +224,8 @@ function grabbableLadder(
   tower: TowerSpec,
   x: number,
   y: number,
-  climbY: number
+  climbY: number,
+  grabRadius: number
 ): { ix: number; slot: number; ladder: Ladder } | null {
   const BOUNDARY_BUFFER = 0.1; // Prevent immediate re-grab at ladder boundaries
   // Floors can carry several ladders, so prefer the nearest reachable one.
@@ -213,7 +233,7 @@ function grabbableLadder(
   let bestDx = Infinity;
   for (const { ix, slot, ladder: l } of laddersNearY(tower, y, y)) {
     const dx = Math.abs(x - l.x);
-    if (dx > tower.ladderGrabRadius) continue;
+    if (dx > grabRadius) continue;
     if (y < l.y0 - EPS || y > l.y1 + EPS) continue;
     // Require some distance from boundaries to prevent getting stuck when stepping off
     const usable =
@@ -240,6 +260,13 @@ function integratePlayer(
   const dt = TICK_DT;
   const moveSpeed = tower.moveSpeed * moveSpeedMultiplier(p, tick);
   const climbSpeed = tower.maxClimbSpeed * climbSpeedMultiplier(p, tick);
+  const grabRadius = tower.ladderGrabRadius * ladderGrabMultiplier(p, tick);
+  const platformMargin = platformReachMargin(p, tick);
+  p.jetpackThrusting = false;
+
+  // Releasing the climb intent clears the post-dismount grab suppression, so the
+  // next deliberate press can grab a ladder again (see grabSuppressedUntilRelease).
+  if (input.climbY === 0) p.grabSuppressedUntilRelease = false;
 
   // Horizontal movement (walk / ladder-slide is ignored while attached).
   p.vx = input.moveX * moveSpeed;
@@ -254,7 +281,7 @@ function integratePlayer(
       // Hop off (jump) or lost the ladder reference → let go.
       releaseLadder(p);
       p.vy = input.jump && l ? tower.jumpSpeed * 0.7 : 0;
-    } else if (Math.abs(p.x - l.x) > tower.ladderGrabRadius) {
+    } else if (Math.abs(p.x - l.x) > grabRadius) {
       // Walked off the side of the ladder → let go and fall.
       releaseLadder(p);
       p.vy = 0;
@@ -267,20 +294,31 @@ function integratePlayer(
         p.vy = 0;
         releaseLadder(p);
         p.onGround = true;
+        // Don't re-grab a ladder on this new surface until the climb button is
+        // released — otherwise a held climb snaps the player straight back on.
+        p.grabSuppressedUntilRelease = true;
       } else if (p.y <= l.y0) {
         // Back down onto the lower platform.
         p.y = l.y0;
         p.vy = 0;
         releaseLadder(p);
         p.onGround = true;
+        p.grabSuppressedUntilRelease = true;
       }
     }
   } else {
+    const prevX = p.x;
     p.x = clamp(p.x + p.vx * dt, 0, tower.widthM);
 
-    // Grab a ladder if the player is asking to climb and one is in reach.
-    if (input.climbY !== 0) {
-      const g = grabbableLadder(tower, p.x, p.y, input.climbY);
+    // Grab a ladder if the player is asking to climb and one is in reach. Right
+    // after stepping off a ladder, a grab is suppressed only while the player is
+    // also walking (moveX ≠ 0) — that is the "let me walk away" intent, and
+    // without it a held climb snapped them straight back onto an aligned ladder
+    // and they couldn't move. Holding climb with no direction still re-grabs, so
+    // vertically-stacked ladders can still be chained (tower stays solvable).
+    const escapingDismount = p.grabSuppressedUntilRelease && input.moveX !== 0;
+    if (input.climbY !== 0 && !escapingDismount) {
+      const g = grabbableLadder(tower, p.x, p.y, input.climbY, grabRadius);
       if (g) {
         p.onLadder = true;
         p.ladderIx = g.ix;
@@ -294,27 +332,29 @@ function integratePlayer(
     }
 
     if (!p.onLadder) {
-      // Jump. A banked super-jump charge is spent on whichever jump comes next;
-      // a double-jump charge is what makes an airborne jump legal at all, and is
-      // deliberately weaker than a ground launch so it reads as a recovery.
+      // Jump from the ground is a normal launch. While a jetpack has fuel,
+      // holding jump in the air burns one tick of thrust instead of the
+      // double jump — the pack is the spend, the extra hop waits for a tap.
       if (input.jump && p.onGround) {
-        const boosted = consumeCharge(p, "super-jump", tick);
-        p.vy = tower.jumpSpeed * (boosted ? SUPER_JUMP_MULT : 1);
+        p.vy = tower.jumpSpeed;
         p.onGround = false;
+      } else if (input.jump && !p.onGround && consumeJetpackFuel(p, tick)) {
+        p.jetpackThrusting = true;
       } else if (
         input.jump &&
         !p.jumpHeldPrev &&
         !p.onGround &&
         consumeCharge(p, "double-jump", tick)
       ) {
-        const boosted = consumeCharge(p, "super-jump", tick);
-        p.vy = tower.jumpSpeed * DOUBLE_JUMP_MULT * (boosted ? SUPER_JUMP_MULT : 1);
+        p.vy = tower.jumpSpeed * DOUBLE_JUMP_MULT;
       }
-      // Gravity while airborne.
+      // Gravity while airborne; thrust beats it and caps at JETPACK_MAX_VY.
       if (p.onGround) {
         p.vy = 0;
       } else {
+        if (p.jetpackThrusting) p.vy += JETPACK_THRUST * dt;
         p.vy -= tower.gravity * dt;
+        if (p.jetpackThrusting && p.vy > JETPACK_MAX_VY) p.vy = JETPACK_MAX_VY;
       }
 
       const prevY = p.y;
@@ -327,7 +367,7 @@ function integratePlayer(
         p.onGround = true;
       } else if (p.vy <= 0) {
         // Falling — land on the first one-way platform crossed from above.
-        const plat = landingPlatform(tower, p.x, prevY, p.y);
+        const plat = landingPlatform(tower, p.x, prevY, p.y, platformMargin);
         if (plat) {
           p.y = plat.y;
           p.vy = 0;
@@ -340,8 +380,15 @@ function integratePlayer(
         p.onGround = false;
       }
 
-      // Walked off a platform edge while grounded → start falling.
-      if (p.onGround && p.y > 0 && !isSupported(tower, p.x, p.y)) {
+      resolveObstacleMotion(p, prevX, prevY, tower, platformMargin);
+
+      // Walked off a platform or crate while grounded → start falling.
+      if (
+        p.onGround &&
+        p.y > 0 &&
+        !isSupported(tower, p.x, p.y, platformMargin) &&
+        !isOnObstacle(tower, p.x, p.y, platformMargin)
+      ) {
         p.onGround = false;
       }
     }
@@ -384,9 +431,13 @@ export function stepMatch(
   // 1. Rising hazard — speed is a fraction of the climber's climb rate, so the
   //    chase scales with how fast the player can move (AC-5, AC-6). The lava
   //    stumbles on a fixed cycle rather than accelerating at every moment.
-  //    Time-slow banks seconds the lava never gets to spend, holding the
+  //    Time-slow banks seconds the lava never gets to spend; catch-up spends
+  //    them a little faster while the lead climber is far ahead, then drops
+  //    back to 1× as soon as the gap is within 200m. Both keep the height
   //    curve monotonic.
-  const timeScale = hazardTimeScale(state.players, state.tick);
+  const timeScale =
+    hazardTimeScale(state.players, state.tick) *
+    hazardCatchupTimeScale(climbingLeadM(state.players, state.hazardY));
   state.hazardSlowSeconds += TICK_DT * (1 - timeScale);
   state.hazardY = hazardHeightAt(
     state.raceSeconds - state.hazardSlowSeconds,
@@ -397,14 +448,32 @@ export function stepMatch(
   for (const p of state.players) {
     if (p.status !== "climbing") continue;
 
-    const input = inputs[p.id] ?? NO_INPUT;
+    const raw = inputs[p.id] ?? NO_INPUT;
+    const { input } = validateInput(raw, p, state.tick);
+    const prevY = p.y;
 
     // 2. Integrate motion from validated input.
     integratePlayer(p, input, state.tower, state.tick);
 
+    const sentinel = updateSentinel(
+      {
+        consecutiveViolations: p.cheatViolations,
+        flagged: p.cheatFlagged,
+      },
+      isHeightDeltaLegal(
+        prevY,
+        p.y,
+        state.tower,
+        0.01,
+        legalClimbSpeedMult(p, state.tick)
+      )
+    );
+    p.cheatViolations = sentinel.consecutiveViolations;
+    p.cheatFlagged = sentinel.flagged;
+
     // 3. Auto-activate any orb the climber is now touching, on contact — no
     //    banking, no use button. An orb whose type is still cooling down (only
-    //    time-slow ever sets one) is left uncollected so it stays pickable once
+    //    slow-lava ever sets one) is left uncollected so it stays pickable once
     //    the cooldown clears, rather than being wasted or bypassing the rule.
     for (const pu of state.powerUps) {
       if (pu.collected) continue;
@@ -413,14 +482,9 @@ export function stepMatch(
       pu.collected = true;
       pu.collectedTick = state.tick;
       const dur = durationTicks(pu.type);
-      p.activePowerUps.push({
-        type: pu.type,
-        startTick: state.tick,
-        durationTicks: dur,
-        used: false,
-        chargesRemaining:
-          pu.type === "double-jump" ? DOUBLE_JUMP_CHARGES : undefined,
-      });
+      // Refreshes a live entry of the same type rather than appending a second
+      // one — see grantPowerUp.
+      grantPowerUp(p, pu.type, state.tick);
       const cd = cooldownTicks(pu.type);
       if (cd > 0) p.cooldownUntilTick[pu.type] = state.tick + dur + cd;
       p.lastPickupTick = state.tick;
@@ -439,6 +503,7 @@ export function stepMatch(
     const deathLine = Math.max(state.hazardY, fallFloor);
     if (p.y <= deathLine) {
       p.status = "eliminated";
+      p.finishedTick = state.tick;
       continue;
     }
   }
@@ -484,6 +549,16 @@ function resolveOutcome(state: MatchState): void {
 
 function clamp(v: number, lo: number, hi: number): number {
   return v < lo ? lo : v > hi ? hi : v;
+}
+
+/** Metres the highest still-climbing player sits above the lava. */
+function climbingLeadM(players: readonly PlayerState[], hazardY: number): number {
+  let lead = 0;
+  for (const p of players) {
+    if (p.status !== "climbing") continue;
+    lead = Math.max(lead, p.y - hazardY);
+  }
+  return lead;
 }
 
 /**

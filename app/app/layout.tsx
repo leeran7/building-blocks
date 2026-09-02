@@ -1,8 +1,9 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Bricolage_Grotesque, Hanken_Grotesk, Space_Mono } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "../src/contexts/AuthContext";
 import { resolveBaseUrl } from "../src/config/public";
+import { formatAltitude } from "../src/lib/units";
 
 // ── ASCENT type system ────────────────────────────────────────────────────
 // Display: Bricolage Grotesque — architectural, contemporary, characterful.
@@ -36,6 +37,15 @@ const mono = Space_Mono({
 
 // Localhost in dev, the prod domain in production (see resolveBaseUrl).
 const BASE_URL = resolveBaseUrl();
+
+// viewport-fit: cover lets the climb game go truly edge-to-edge on notched
+// iPhones — the canvas fills under the status bar / home indicator and the HUD
+// and touch controls inset themselves with env(safe-area-inset-*). Without it
+// those insets all report 0 and the full-bleed stage cannot dodge the notch.
+export const viewport: Viewport = {
+  themeColor: "#0a0a0c",
+  viewportFit: "cover",
+};
 
 export async function generateMetadata(): Promise<Metadata> {
   let topBlockId = "";
@@ -74,7 +84,7 @@ export async function generateMetadata(): Promise<Metadata> {
           url: ogUrl,
           width: 1200,
           height: 630,
-          alt: `Doomstack — ${topBlockName} leads at ${parseFloat(topAlt).toFixed(1)}m`,
+          alt: `Doomstack — ${topBlockName} leads at ${formatAltitude(parseFloat(topAlt), 1)}`,
         },
       ],
       type: "website",

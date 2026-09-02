@@ -5,6 +5,7 @@
  */
 
 import Link from "next/link";
+import { formatAltitude } from "../../lib/units";
 
 export interface FreeClimbData {
   peakY: number;
@@ -37,7 +38,7 @@ export function FreeClimbCard({ climb }: { climb: FreeClimbData }) {
           <p className="text-sm text-text-secondary mt-2">
             Best peak:{" "}
             <span className="font-mono font-bold text-text-primary tabular-nums">
-              {climb.peakY.toFixed(0)}m
+              {formatAltitude(climb.peakY, 0)}
             </span>
             {climb.wins > 0 && (
               <span className="text-text-muted"> · {climb.wins} wins</span>

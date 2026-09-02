@@ -24,7 +24,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "../../../../src/db/client";
-import { getOrCreateActiveSeason } from "../../../../src/db/seasons";
+import { getActiveSeason } from "../../../../src/db/seasons";
 import { isGameCategory } from "../../../../src/game/categories";
 import {
   computeGrowth,
@@ -41,11 +41,12 @@ const LEADERBOARD_LIMIT = 100;
 
 export async function GET(
   _request: NextRequest,
-  { params }: { params: { category: string } }
+  { params }: { params: Promise<{ category: string }> }
 ): Promise<NextResponse> {
+  const { category: categoryParam } = await params;
   // Category is a free-form slug now — every subcategory has its own tower. Only
   // guard the slug shape (a-z, 0-9, dashes) to keep it well-formed.
-  const category = params.category.toLowerCase();
+  const category = categoryParam.toLowerCase();
 
   // Only subcategories get towers (broad/legacy slugs are not valid).
   if (!isGameCategory(category)) {
@@ -56,8 +57,12 @@ export async function GET(
   }
 
   try {
-    const season = await getOrCreateActiveSeason(category);
-    const V = season.views_k;
+    // Read-only: this is an unauthenticated GET on a free-form slug, so
+    // creating here mints one season row per slug anyone happens to request.
+    // A category with no season has accrued no views, which is the same V a
+    // freshly created one would carry, so the response is unchanged.
+    const season = await getActiveSeason(category);
+    const V = season?.views_k ?? 0;
 
     const growth = computeGrowth(V);
     const rate = computeRate(V);
@@ -112,13 +117,17 @@ export async function GET(
 
     const body = {
       category,
-      season: {
-        id: season.id,
-        views_k: season.views_k,
-        starts_at: season.starts_at.toISOString(),
-        ends_at: season.ends_at.toISOString(),
-        is_active: season.is_active,
-      },
+      // null when no season has started for this stack yet. The first
+      // checkout creates it; a read must not.
+      season: season
+        ? {
+            id: season.id,
+            views_k: season.views_k,
+            starts_at: season.starts_at.toISOString(),
+            ends_at: season.ends_at.toISOString(),
+            is_active: season.is_active,
+          }
+        : null,
       engine: {
         growth,
         rate,

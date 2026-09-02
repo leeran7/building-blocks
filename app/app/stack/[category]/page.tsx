@@ -15,15 +15,13 @@ import { CategoryShell } from "../../../src/components/CategoryShell";
 import { TowerView, type TowerData } from "../../../src/components/Tower/TowerView";
 import { resolveBaseUrl } from "../../../src/config/public";
 import { isGameCategory, resolveGameCategory } from "../../../src/game/categories";
+import { formatAltitude } from "../../../src/lib/units";
 
 const BASE_URL = resolveBaseUrl();
 
-interface TowerPageProps {
-  params: { category: string };
-}
-
 export async function generateMetadata({ params }: TowerPageProps) {
-  const cat = resolveGameCategory(params.category.toLowerCase());
+  const { category } = await params;
+  const cat = resolveGameCategory(category.toLowerCase());
   return {
     title: `${cat.label} Stack — Stack`,
     description: `The ${cat.label} leaderboard. Buy altitude, survive the rise, outlast everyone.`,
@@ -43,20 +41,15 @@ async function getCategoryData(slug: string): Promise<TowerData | null> {
 }
 
 const EMPTY_TOWER_DATA: TowerData = {
-  season: {
-    id: "none",
-    views_k: 0,
-    starts_at: new Date().toISOString(),
-    ends_at: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString(),
-    is_active: false,
-  },
+  season: null,
   engine: { growth: 1, rate: 1.0, ground: 0.5 },
   blocks: [],
   cost_of_rank1_usd: 5.0,
 };
 
 export default async function CategoryTowerPage({ params }: TowerPageProps) {
-  const slug = params.category.toLowerCase();
+  const { category: categoryParam } = await params;
+  const slug = categoryParam.toLowerCase();
   // Only subcategories get towers. Broad/legacy slugs (tech, gaming, …) or
   // unknown slugs route to the category index instead.
   if (!isGameCategory(slug)) {
@@ -71,10 +64,15 @@ export default async function CategoryTowerPage({ params }: TowerPageProps) {
   const rate = towerData.engine.rate;
   const activeBlockCount = towerData.blocks.filter((b) => !b.buried).length;
 
-  const seasonEnds = new Date(towerData.season.ends_at).toLocaleDateString(
-    "en-US",
-    { month: "short", day: "numeric", year: "numeric" }
-  );
+  // A stack with no season yet has no end date to show. Previously this read a
+  // date fabricated 90 days out, which looked like a real deadline.
+  const seasonEnds = towerData.season
+    ? new Date(towerData.season.ends_at).toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      })
+    : "Not started";
 
   return (
     <CategoryShell
@@ -92,8 +90,8 @@ export default async function CategoryTowerPage({ params }: TowerPageProps) {
       }
       meta={
         <dl className="mt-4 flex items-center gap-x-5 gap-y-1 flex-wrap text-sm">
-          <Stat label="Ground" value={`${ground.toFixed(1)}m`} danger />
-          <Stat label="$1 buys" value={`${rate.toFixed(2)}m`} />
+          <Stat label="Ground" value={formatAltitude(ground, 1)} danger />
+          <Stat label="$1 buys" value={formatAltitude(rate, 2)} />
           <Stat label="Live" value={String(activeBlockCount)} />
           <Stat label="Season ends" value={seasonEnds} />
         </dl>
@@ -119,4 +117,8 @@ function Stat({ label, value, danger }: { label: string; value: string; danger?:
       </dd>
     </div>
   );
+}
+
+interface TowerPageProps {
+  params: Promise<{ category: string }>;
 }

@@ -9,6 +9,7 @@
 
 import { ImageResponse } from "@vercel/og";
 import { NextRequest } from "next/server";
+import { formatAltitude } from "../../../src/lib/units";
 
 export const runtime = "edge";
 
@@ -88,7 +89,7 @@ export async function GET(request: NextRequest): Promise<ImageResponse | Respons
               marginBottom: 24,
             }}
           >
-            {parseFloat(altitude).toFixed(1)}m altitude
+            {formatAltitude(parseFloat(altitude), 1)} altitude
           </div>
 
           {/* Tagline */}

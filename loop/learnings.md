@@ -1,12 +1,17 @@
 # Learnings Ledger
 
+Kernel quality gates (every repo): `skills/closed-loop/gates.md`.
+This file is **building-blocks** memory. Do not copy it into `closed-loop-agents`.
+This product’s stack, git, and trust facts: `context/`.
+
 _Last curated: 2026-08-29T13:40:00Z — retro over the 2026-08-29 review pass
 (`3385d3f..f76090a`, 5 agents, 52 raw learnings in `learnings.jsonl`)._
 
-> This retro was performed by the dispatcher by hand. `orchestrator/src/retro.ts`
-> implements none of the three folding steps `learning-loop.md:76-81` promises —
-> it appends everything to `## Recently applied` and never routes by topic,
-> promotes recurring lessons, or trims the list. See F-17 in
+> The Aug 29 ledger was folded by the dispatcher by hand. `foldLearnings` in
+> `orchestrator/src/retro.ts` now implements the three steps
+> `learning-loop.md` promises (topic routing, promotion at 2+ agents or
+> 2+ iterations, Recently applied trimmed to 20). Subsequent retros should
+> go through that function rather than another hand pass. See F-17 in
 > `docs/reviews/2026-08-29.md`.
 
 ## Standing rules (always apply)

@@ -14,7 +14,12 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { verifyWebhookSignature } from "../../../../src/api/stripe";
-import { findPaymentByStripeSession, applyPaymentTransaction } from "../../../../src/db/payments";
+import { classifyStripeCredit } from "../../../../src/api/stripeCredit";
+import {
+  findPaymentByStripeSession,
+  applyPaymentTransaction,
+  recordDeadLetter,
+} from "../../../../src/db/payments";
 import { getOrCreateActiveSeason } from "../../../../src/db/seasons";
 import { computeMetres } from "../../../../src/engine/index";
 import { updatePeakRank, getRankedBlocks, getBlockById } from "../../../../src/db/blocks";
@@ -52,25 +57,41 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     );
   }
 
-  // Only handle checkout.session.completed
-  if (event.type !== "checkout.session.completed") {
-    return NextResponse.json({ received: true });
-  }
-
   const session = event.data.object as unknown as {
     id: string;
     metadata: { block_id: string; season_id: string; category?: string } | null;
     amount_total: number | null;
+    payment_status?: string | null;
   };
 
-  const stripeSessionId = session.id;
-  const blockId = session.metadata?.block_id;
-  const amountTotal = session.amount_total ?? 0;
+  const decision = classifyStripeCredit(event.type, session);
 
-  if (!blockId) {
-    console.error("[webhook/stripe] Missing block_id in metadata:", session.id);
-    return NextResponse.json({ error: "Missing block_id" }, { status: 400 });
+  if (decision.kind === "ignore") {
+    return NextResponse.json({ received: true });
   }
+
+  if (decision.kind === "unpaid") {
+    console.log(
+      JSON.stringify({
+        type: "payment_webhook_unpaid",
+        stripe_session_id: decision.stripeSessionId,
+        payment_status: decision.paymentStatus,
+        event: decision.eventType,
+      })
+    );
+    return NextResponse.json({ received: true, credited: false });
+  }
+
+  if (decision.kind === "dead_letter") {
+    return await deadLetter(
+      decision.eventType,
+      decision.stripeSessionId,
+      decision.amountCents,
+      decision.reason
+    );
+  }
+
+  const { stripeSessionId, blockId, amountCents } = decision;
 
   // Step 2: Idempotency check — check for existing payment BEFORE any write (AC-32)
   const existingPayment = await findPaymentByStripeSession(stripeSessionId);
@@ -80,8 +101,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   const blockRow = await getBlockById(blockId);
   if (!blockRow) {
-    console.error("[webhook/stripe] Unknown block_id in metadata:", session.id);
-    return NextResponse.json({ error: "Unknown block_id" }, { status: 400 });
+    return await deadLetter(
+      event.type,
+      stripeSessionId,
+      amountCents,
+      `unknown block_id ${blockId}`
+    );
   }
 
   // Season comes from the block row, not checkout metadata.
@@ -90,13 +115,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     parseSeasonSlug(session.metadata?.category);
 
   if (!category) {
-    console.error(
-      "[webhook/stripe] Unparseable stack on block; refusing V=0 settlement:",
-      session.id
-    );
-    return NextResponse.json(
-      { error: "Unknown stack" },
-      { status: 500 }
+    return await deadLetter(
+      event.type,
+      stripeSessionId,
+      amountCents,
+      `unparseable stack "${blockRow.category}" on block ${blockId}`
     );
   }
 
@@ -106,7 +129,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const V = activeSeason.views_k;
 
     // Server computes metres from LIVE rate — never trusts client-supplied value
-    const amountDollars = amountTotal / 100;
+    const amountDollars = amountCents / 100;
     // CRITICAL: computeMetres uses server-side V, not anything from the client
     const metresAdded = computeMetres(amountDollars, V);
 
@@ -116,7 +139,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const { block } = await applyPaymentTransaction(
       blockId,
       stripeSessionId,
-      amountTotal,
+      amountCents,
       metresAdded
     );
 
@@ -137,7 +160,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         type: "payment_webhook",
         block_id: blockId,
         stripe_session_id: stripeSessionId,
-        amount_cents: amountTotal,
+        amount_cents: amountCents,
         metres_added: metresAdded,
         new_altitude: block.altitude,
         timestamp: new Date().toISOString(),
@@ -146,10 +169,53 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     return NextResponse.json({ received: true });
   } catch (error) {
+    // 500 is correct here and only here: a failed transaction is plausibly
+    // transient (database unavailable, lock timeout), so Stripe's retry is
+    // exactly what we want. The deterministic failures above cannot benefit
+    // from a retry and are dead-lettered instead.
     console.error("[webhook/stripe] Transaction failed:", error);
     return NextResponse.json(
       { error: "Payment processing failed" },
       { status: 500 }
     );
   }
+}
+
+/**
+ * Record a captured payment we cannot attribute, and tell Stripe to stop.
+ *
+ * Returning 4xx or 5xx for these is worse in both directions: Stripe does not
+ * retry a 4xx, so the payment is silently lost, and a 5xx for a condition that
+ * is deterministic in our own data fails identically on every retry until
+ * Stripe gives up — losing it anyway, slower, after alert noise. Persist a
+ * replayable row first, then acknowledge. A persist failure is still 200 —
+ * Stripe must not retry a deterministic miss — and the log line remains.
+ */
+async function deadLetter(
+  eventType: string,
+  stripeSessionId: string,
+  amountCents: number,
+  reason: string
+): Promise<NextResponse> {
+  try {
+    await recordDeadLetter({
+      eventType,
+      stripeSessionId,
+      amountCents,
+      reason,
+    });
+  } catch (err) {
+    console.error("[webhook/stripe] dead-letter persist failed:", err);
+  }
+  console.error(
+    JSON.stringify({
+      type: "payment_webhook_dead_letter",
+      event: eventType,
+      stripe_session_id: stripeSessionId,
+      amount_cents: amountCents,
+      reason,
+      timestamp: new Date().toISOString(),
+    })
+  );
+  return NextResponse.json({ received: true, dead_lettered: true });
 }

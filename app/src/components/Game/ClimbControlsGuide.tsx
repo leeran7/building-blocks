@@ -6,7 +6,13 @@
 
 import type { ReactNode } from "react";
 import { useCoarsePointer } from "../../hooks/useCoarsePointer";
-import { POWER_UP_SPECS, POWER_UP_TYPES } from "../../game/powerups";
+import {
+  JETPACK_MAX_VY,
+  POWER_UP_SPECS,
+  POWER_UP_TYPES,
+  type PowerUpSpec,
+} from "../../game/powerups";
+import { PowerUpTypeIcon } from "./PowerUpTypeIcon";
 
 type Variant = "card" | "compact" | "overlay";
 
@@ -19,7 +25,7 @@ const KEYBOARD_CONTROLS = [
   {
     label: "Jump",
     keys: ["Space"],
-    detail: "Leap across gaps between platforms",
+    detail: "Tap Space to leap; re-hold in the air to thrust a jetpack",
   },
   {
     label: "Climb",
@@ -30,15 +36,17 @@ const KEYBOARD_CONTROLS = [
 
 const TOUCH_CONTROLS = [
   { label: "Move", detail: "Tap and hold ← → at the bottom of the screen" },
-  { label: "Jump", detail: "Tap JMP to leap across gaps" },
+  { label: "Jump", detail: "Tap JMP to leap; re-hold JMP in the air to thrust" },
   { label: "Climb", detail: "Hold ↑ climb when you're on a ladder" },
 ] as const;
 
 const TIPS = [
   "Grab a ladder and climb to go faster than jumping floor to floor.",
   "The lava surges, then stumbles — use the slow windows to climb; your peak height is your score.",
+  "Crates on a floor block the walk — jump a hurdle, walk a three-crate triangle, or climb a stacked stair to the next floor.",
   "Walk into a glowing orb to trigger its power-up instantly.",
   "Power-ups activate the instant you touch them — time your route to grab one right when you need it.",
+  `Tap jump to leap, then re-hold in the air to burn a jetpack; holding through takeoff caps rise at ${JETPACK_MAX_VY} m/s. Fuel is short, leftover dies with the window.`,
   "Sign in after a run to save your rank on the free leaderboard.",
 ] as const;
 
@@ -49,14 +57,15 @@ export function ClimbControlsGuide({ variant = "card" }: { variant?: Variant }) 
     return touch ? (
       <p className="text-sm text-text-secondary leading-relaxed">
         <span className="text-text-primary font-medium">Touch controls:</span>{" "}
-        hold ← → to move · hold ↑ climb on ladders · tap JMP to jump
+        hold ← → to move · hold ↑ climb on ladders · tap JMP to jump · re-hold
+        JMP in the air to thrust
       </p>
     ) : (
       <p className="text-sm text-text-secondary leading-relaxed">
         <span className="text-text-primary font-medium">Controls:</span>{" "}
         <Key>←</Key>/<Key>→</Key> or <Key>A</Key>/<Key>D</Key> move ·{" "}
-        <Key>Space</Key> jump · <Key>↑</Key>/<Key>↓</Key> or <Key>W</Key>/<Key>S</Key> climb
-        ladders
+        <Key>Space</Key> jump · re-hold <Key>Space</Key> in the air to thrust ·{" "}
+        <Key>↑</Key>/<Key>↓</Key> or <Key>W</Key>/<Key>S</Key> climb ladders
       </p>
     );
   }
@@ -64,22 +73,22 @@ export function ClimbControlsGuide({ variant = "card" }: { variant?: Variant }) 
   if (variant === "overlay") {
     return (
       <div className="mt-5 w-full max-w-[280px] text-left">
-        <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-text-muted mb-2">
+        <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-text-secondary mb-2">
           {touch ? "Touch controls" : "Controls"}
         </p>
         <ul className="space-y-2">
           {touch
             ? TOUCH_CONTROLS.map((c) => (
                 <li key={c.label} className="flex items-start gap-2.5">
-                  <span className="flex-shrink-0 w-14 font-mono text-[10px] uppercase tracking-[0.1em] text-text-muted pt-0.5">
+                  <span className="flex-shrink-0 w-14 font-mono text-[10px] uppercase tracking-[0.1em] text-text-secondary pt-0.5">
                     {c.label}
                   </span>
-                  <p className="text-[11px] text-text-muted leading-snug">{c.detail}</p>
+                  <p className="text-[11px] text-text-secondary leading-snug">{c.detail}</p>
                 </li>
               ))
             : KEYBOARD_CONTROLS.map((c) => (
                 <li key={c.label} className="flex items-start gap-2.5">
-                  <span className="flex-shrink-0 w-14 font-mono text-[10px] uppercase tracking-[0.1em] text-text-muted pt-1">
+                  <span className="flex-shrink-0 w-14 font-mono text-[10px] uppercase tracking-[0.1em] text-text-secondary pt-1">
                     {c.label}
                   </span>
                   <div className="min-w-0">
@@ -88,7 +97,7 @@ export function ClimbControlsGuide({ variant = "card" }: { variant?: Variant }) 
                         <Key key={k}>{k}</Key>
                       ))}
                     </div>
-                    <p className="text-[11px] text-text-muted mt-1 leading-snug">{c.detail}</p>
+                    <p className="text-[11px] text-text-secondary mt-1 leading-snug">{c.detail}</p>
                   </div>
                 </li>
               ))}
@@ -147,11 +156,13 @@ export function ClimbControlsGuide({ variant = "card" }: { variant?: Variant }) 
             return (
               <li key={type} className="flex items-start gap-2.5">
                 <span
-                  className="mt-0.5 flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-md border font-mono text-xs"
+                  className="mt-0.5 flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-md border"
                   style={{ borderColor: spec.color, color: spec.color }}
                   aria-hidden="true"
                 >
-                  {spec.glyph}
+                  <span className="inline-flex h-4 w-4">
+                    <PowerUpTypeIcon type={type} />
+                  </span>
                 </span>
                 <div className="min-w-0">
                   <p className="text-xs font-medium text-text-primary">{spec.label}</p>
@@ -159,12 +170,7 @@ export function ClimbControlsGuide({ variant = "card" }: { variant?: Variant }) 
                     {spec.description}
                     <span className="text-text-muted">
                       {" · "}
-                      {spec.charge
-                        ? `${spec.chargeCount ?? 1} use${(spec.chargeCount ?? 1) > 1 ? "s" : ""}`
-                        : `${spec.durationSeconds}s`}
-                      {spec.cooldownSeconds > 0
-                        ? ` · ${spec.cooldownSeconds}s recharge`
-                        : ""}
+                      {durationSuffix(spec)}
                     </span>
                   </p>
                 </div>
@@ -192,6 +198,19 @@ export function ClimbControlsGuide({ variant = "card" }: { variant?: Variant }) 
       )}
     </section>
   );
+}
+
+function durationSuffix(spec: PowerUpSpec): string {
+  let body: string;
+  if (spec.fuelSeconds != null) {
+    body = `${spec.fuelSeconds}s fuel · ${spec.durationSeconds}s window`;
+  } else {
+    body = `${spec.durationSeconds}s`;
+  }
+  if (spec.cooldownSeconds > 0) {
+    return `${body} · ${spec.cooldownSeconds}s recharge`;
+  }
+  return body;
 }
 
 function Key({ children }: { children: ReactNode }) {

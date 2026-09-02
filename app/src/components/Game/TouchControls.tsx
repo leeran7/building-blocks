@@ -16,6 +16,15 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { NO_TOUCH, type TouchInput } from "../../game/useClimb";
+import {
+  initialHoldMemo,
+  isHoldKey,
+  reduceHold,
+  touchInputFromHeld,
+  type ControlId,
+  type HoldEvent,
+  type HoldMemo,
+} from "./touchHold";
 
 export function TouchControls({
   active,
@@ -24,36 +33,44 @@ export function TouchControls({
   active: boolean;
   onInput: (input: TouchInput) => void;
 }) {
-  const pressedRef = useRef<Set<ControlId>>(new Set());
+  const memoRef = useRef<HoldMemo>(initialHoldMemo());
   const [pressed, setPressed] = useState<ReadonlySet<ControlId>>(new Set());
 
-  const emit = useCallback(() => {
-    const held = pressedRef.current;
-    onInput({
-      left: held.has("left"),
-      right: held.has("right"),
-      up: held.has("climb"),
-      down: false,
-      jump: held.has("jump"),
-    });
-    setPressed(new Set(held));
-  }, [onInput]);
-
-  const setHeld = useCallback(
-    (id: ControlId, down: boolean) => {
-      if (down) pressedRef.current.add(id);
-      else pressedRef.current.delete(id);
-      emit();
+  const apply = useCallback(
+    (event: HoldEvent) => {
+      const next = reduceHold(memoRef.current, event, performance.now());
+      memoRef.current = next;
+      setPressed(next.held);
+      onInput(touchInputFromHeld(next.held));
     },
-    [emit]
+    [onInput]
   );
+
+  const reset = useCallback(() => {
+    memoRef.current = initialHoldMemo();
+    setPressed(new Set());
+    onInput(NO_TOUCH);
+  }, [onInput]);
 
   useEffect(() => {
     if (active) return;
-    pressedRef.current = new Set();
-    setPressed(new Set());
-    onInput(NO_TOUCH);
-  }, [active, onInput]);
+    reset();
+  }, [active, reset]);
+
+  // A finger still down when the tab hides never gets pointerup. Without this
+  // the control stays held and the climber keeps walking after the user returns.
+  useEffect(() => {
+    if (!active) return;
+    const onHide = () => {
+      if (document.visibilityState === "hidden") reset();
+    };
+    document.addEventListener("visibilitychange", onHide);
+    window.addEventListener("pagehide", reset);
+    return () => {
+      document.removeEventListener("visibilitychange", onHide);
+      window.removeEventListener("pagehide", reset);
+    };
+  }, [active, reset]);
 
   // Absolutely positioned, so unmounting between runs costs the canvas no
   // height and cannot resize the game mid-transition.
@@ -62,17 +79,25 @@ export function TouchControls({
   return (
     <div
       role="group"
-      className="absolute inset-x-0 bottom-0 z-10 select-none p-2"
-      style={{ touchAction: "none" }}
+      className="absolute inset-x-0 bottom-0 z-10 select-none"
+      style={{
+        touchAction: "none",
+        // Sit inside the safe area so the buttons clear the home indicator and
+        // the rounded display corners, but never less than a comfortable gutter.
+        paddingTop: 8,
+        paddingLeft: "max(10px, env(safe-area-inset-left))",
+        paddingRight: "max(10px, env(safe-area-inset-right))",
+        paddingBottom: "max(10px, env(safe-area-inset-bottom))",
+      }}
       aria-label="Touch game controls"
     >
-      <div className="grid grid-cols-4 gap-2">
+      <div className="grid grid-cols-4 gap-2.5">
         {ALL_CONTROLS.map((control) => (
           <TouchButton
             key={control.id}
             control={control}
             held={pressed.has(control.id)}
-            onHoldChange={setHeld}
+            onEvent={apply}
           />
         ))}
       </div>
@@ -83,23 +108,25 @@ export function TouchControls({
 function TouchButton({
   control,
   held,
-  onHoldChange,
+  onEvent,
 }: {
   control: Control;
   held: boolean;
-  onHoldChange: (id: ControlId, down: boolean) => void;
+  onEvent: (event: HoldEvent) => void;
 }) {
   const { id, label, glyph, sub, accent, wordGlyph } = control;
 
   return (
     <button
       type="button"
+      data-game-control
       aria-label={label}
       aria-pressed={held}
       style={{ touchAction: "none" }}
+      onContextMenu={(e) => e.preventDefault()}
       className={
         "relative flex flex-col items-center justify-center rounded-2xl border font-mono font-bold " +
-        "min-h-[92px] min-w-[44px] backdrop-blur-sm " +
+        "min-h-[104px] min-w-[44px] backdrop-blur-sm " +
         "transition-[filter,transform,background-color] " +
         // One ternary per state rather than appending the held colour: competing
         // background utilities are resolved by stylesheet order, not by the
@@ -115,16 +142,34 @@ function TouchButton({
           : "border-border-strong bg-void/80 text-text-primary ")
       }
       onPointerDown={(e) => {
-        e.preventDefault();
+        // Do not preventDefault: scrolling is already killed by
+        // touch-action: none, and a cancelled pointerdown can skip pointerup
+        // on some mobile browsers, which is another way a hold gets stuck.
         e.currentTarget.setPointerCapture(e.pointerId);
-        onHoldChange(id, true);
+        onEvent({ kind: "press", id });
       }}
-      onPointerUp={(e) => {
+      onPointerUp={() => onEvent({ kind: "release", id })}
+      onPointerCancel={() => onEvent({ kind: "release", id })}
+      onLostPointerCapture={() => onEvent({ kind: "release", id })}
+      onKeyDown={(e) => {
+        if (!isHoldKey(e.key)) return;
         e.preventDefault();
-        onHoldChange(id, false);
+        if (e.repeat) return;
+        onEvent({ kind: "press", id });
       }}
-      onPointerCancel={() => onHoldChange(id, false)}
-      onLostPointerCapture={() => onHoldChange(id, false)}
+      onKeyUp={(e) => {
+        if (!isHoldKey(e.key)) return;
+        e.preventDefault();
+        onEvent({ kind: "release", id });
+      }}
+      onClick={(e) => {
+        // Pointer and keyboard already applied press/release. The remaining
+        // click is the AT path (VoiceOver/TalkBack synthesise click with no
+        // pair). preventDefault keeps Enter from firing this after keyup when
+        // keydown did not already cancel it.
+        e.preventDefault();
+        onEvent({ kind: "activate", id });
+      }}
     >
       <span
         className={
@@ -152,8 +197,6 @@ function TouchButton({
   );
 }
 
-type ControlId = "left" | "right" | "climb" | "jump";
-
 interface Control {
   id: ControlId;
   label: string;
@@ -174,13 +217,16 @@ const ALL_CONTROLS: readonly Control[] = [
 ];
 
 /**
- * Canvas height these controls cover: `min-h-[92px]` plus `p-2` top and bottom
- * (8px * 2 = 16px). Passed to ClimbCanvas as `bottomInset` so the camera keeps
- * the climber above the buttons instead of behind them.
+ * Height these controls cover ABOVE the safe area: the `min-h-[104px]` button
+ * plus the 8px top gutter. Callers add the bottom padding —
+ * `max(10px, safe-area-inset-bottom)` — themselves, because the safe-area part
+ * is only known at runtime (see ClimbScene). The sum is passed to ClimbCanvas as
+ * `bottomInset` so the camera keeps the climber above the buttons.
  *
  * Button height and padding are deliberately breakpoint-free. When they varied
  * by breakpoint this constant matched only the phone case and understated the
- * bar by 16px at `sm:`, drawing the climber inside the buttons on tablets and
- * on any phone in landscape.
+ * bar, drawing the climber inside the buttons on tablets and in landscape.
  */
-export const TOUCH_CONTROLS_INSET = 108;
+export const TOUCH_CONTROLS_INSET = 112;
+/** Minimum bottom gutter under the buttons, matched to the container padding. */
+export const TOUCH_CONTROLS_MIN_BOTTOM = 10;
