@@ -34,6 +34,22 @@ describe("pack hygiene", () => {
     );
   });
 
+  it("lintAgents fails when an agent file exceeds maxAgentLines", async () => {
+    const root = await mkdtemp(join(tmpdir(), "pack-long-"));
+    await mkdir(join(root, "agents"), { recursive: true });
+    await mkdir(join(root, "pack"), { recursive: true });
+    await cpRules(root);
+    await writeFile(
+      join(root, "agents", "bloated.md"),
+      `---\nname: bloated\n---\nRead context/README.md\n${"x\n".repeat(201)}`,
+    );
+    const { violations } = await lintAgents(root);
+    assert.ok(
+      violations.some((v) => v.file === "bloated.md" && v.kind === "tooLong"),
+      "overlong agent must produce a tooLong violation",
+    );
+  });
+
   it("documents the install tree in pack/SETUP.md", async () => {
     const setup = await readFile(join(REPO_ROOT, "pack", "SETUP.md"), "utf-8");
     assert.match(setup, /closed-loop-agents/);

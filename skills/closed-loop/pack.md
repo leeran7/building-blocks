@@ -47,9 +47,10 @@ Two concrete failures in this repo:
 │                Per-repo folder: profile, gates, trust, git,     │
 │                conventions. Schema: pack/profile.schema.json    │
 ├─────────────────────────────────────────────────────────────────┤
-│  2. ROLES      agents/*.md                                      │
+│  2. ROLES      agents/*.md (+ agents/<role>/*.md partials)    │
 │                Kernel. Identity + unique workflow + hard rules. │
 │                No protocol copy, no product hex, no "use pnpm". │
+│                Each file ≤ 200 lines — split and reference.     │
 ├─────────────────────────────────────────────────────────────────┤
 │  1. KERNEL     skills/closed-loop/{protocol,gates,handoffs,     │
 │                team,stages,learning-loop,SKILL}.md              │
@@ -129,7 +130,9 @@ product-agnostic **and** either seen in two repos or independently found
 by two agents with `forAgents: ["all"]`. That is a pack change, not a
 drive-by edit of 22 agent files.
 
-Do not paste kernel gates back into every agent. Point at `gates.md`.
+Do not paste kernel gates back into every agent. Point at `gates.md`. Keep each
+`agents/` markdown file under 200 lines; split into `agents/<role>/*.md` partials
+and reference them instead of growing the entry file.
 
 ## Quality gates in the profile
 
@@ -145,7 +148,28 @@ The verifier and devops agents read this list. They do not invent
 
 `scripts/hygiene.mjs` fails the pack if any source agent contains product
 leakage (design hexes, this repo's git remote, hardcoded exclusive package
-manager, the old design-resource URL list). `yarn sync` runs hygiene first.
+manager, the old design-resource URL list) or exceeds **200 lines**.
+`yarn sync` runs hygiene first.
+
+### Agent file size
+
+Each markdown file under `agents/` — entry files (`agents/<role>.md`) and
+partials (`agents/<role>/*.md`) — must stay **under 200 lines**. When a role
+outgrows that limit:
+
+1. Keep `agents/<role>.md` as the entry point (YAML frontmatter + identity +
+   pointers).
+2. Move detailed checklists, examples, or domain sections into
+   `agents/<role>/<topic>.md`.
+3. Reference partials from the entry file and from each other with repo paths,
+   e.g. `Read agents/verifier/coverage-matrix.md before writing tests.`
+
+Do **not** paste partial contents back into the entry file at sync time. Agents
+read the referenced files when the task needs that depth — same pattern as
+`context/` and `skills/closed-loop/gates.md`.
+
+Kernel-generic lessons belong in `gates.md` or the ledger, not in longer agent
+files.
 
 ## Roster (unchanged jobs, slimmer files)
 
