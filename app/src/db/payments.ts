@@ -54,6 +54,8 @@ export async function applyPaymentTransaction(
         altitude: { increment: metresAdded },
         // spend_c is display-only — also additive
         spend_c: { increment: amountCents },
+        // Reveal the block now that payment is confirmed
+        hidden_at: null,
       },
     });
 
