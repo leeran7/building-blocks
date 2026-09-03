@@ -62,8 +62,8 @@ export async function getBlockById(id: string): Promise<Block | null> {
 }
 
 /**
- * Create a new block with altitude = 0.
- * Altitude is set to 0 and incremented by the payment webhook (AC-36).
+ * Create a new block with altitude = 0, hidden by default.
+ * Pass hidden_at: null only after payment is confirmed (webhook).
  */
 export async function createBlock(data: {
   slug: string;
@@ -73,6 +73,7 @@ export async function createBlock(data: {
   season_id: string;
   userId?: string;
   category?: string;
+  hidden_at?: Date | null;
 }): Promise<Block> {
   return prisma.block.create({
     data: {
