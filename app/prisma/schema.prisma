@@ -208,6 +208,7 @@ enum SocialAssetKind {
 
 enum SocialAssetStatus {
   PENDING
+  GENERATING
   UPLOADING
   READY
   FAILED
@@ -465,6 +466,8 @@ model SocialContentAsset {
   chunkSizeBytes           Int
   bytesUploaded            Int               @default(0) // resumability checkpoint
   externalAssetId          String?
+  aiVideoJobId             String? // OpenAI Videos API job id while GENERATING
+  storedVideoUrl           String? @db.Text // preview/download URL after generation (Vercel Blob or proxied)
   platformUploadSessionUri String?           @db.Text // server-only, never serialized (same redaction rule as tokens)
   errorMessage             String?
   createdAt                DateTime          @default(now())

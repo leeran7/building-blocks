@@ -29,6 +29,24 @@ export async function createUploadSession(input: {
   });
 }
 
+export async function createAiVideoAsset(input: {
+  contentItemId: string;
+  aiVideoJobId: string;
+  mimeType: string;
+}): Promise<SocialContentAsset> {
+  return prisma.socialContentAsset.create({
+    data: {
+      contentItemId: input.contentItemId,
+      kind: "VIDEO",
+      status: "GENERATING",
+      mimeType: input.mimeType,
+      sizeBytes: 0,
+      chunkSizeBytes: 0,
+      aiVideoJobId: input.aiVideoJobId,
+    },
+  });
+}
+
 export async function getUploadSession(assetId: string): Promise<SocialContentAsset | null> {
   return prisma.socialContentAsset.findUnique({ where: { id: assetId } });
 }
@@ -50,6 +68,17 @@ export async function markUploadReady(
   return prisma.socialContentAsset.update({
     where: { id: assetId },
     data: { status: "READY", externalAssetId },
+  });
+}
+
+export async function markVideoGenerationReady(
+  assetId: string,
+  storedVideoUrl: string,
+  sizeBytes: number
+): Promise<SocialContentAsset> {
+  return prisma.socialContentAsset.update({
+    where: { id: assetId },
+    data: { status: "READY", storedVideoUrl, sizeBytes },
   });
 }
 
@@ -75,7 +104,8 @@ export async function getLatestReadyAssetForContentItem(
 
 /** API-response DTO — never includes `platformUploadSessionUri` (redacted like a token). */
 export function toPublicAsset(asset: SocialContentAsset) {
-  const { platformUploadSessionUri, ...rest } = asset;
+  const { platformUploadSessionUri, aiVideoJobId, ...rest } = asset;
   void platformUploadSessionUri;
+  void aiVideoJobId;
   return rest;
 }

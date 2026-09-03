@@ -12,7 +12,12 @@ export async function createContentIdeaTool(
   input: z.infer<typeof TOOL_SCHEMAS.create_content_idea>,
   ctx: ToolCtx
 ) {
-  return generateContentForPlatforms({ prompt: input.prompt, platforms: input.platforms, createdByUid: ctx.uid });
+  return generateContentForPlatforms({
+    prompt: input.prompt,
+    platforms: input.platforms,
+    createdByUid: ctx.uid,
+    generateVideo: input.generateVideo,
+  });
 }
 
 export async function generateScriptTool(input: z.infer<typeof TOOL_SCHEMAS.generate_script>, ctx: ToolCtx) {

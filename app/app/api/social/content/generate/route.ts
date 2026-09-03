@@ -28,7 +28,7 @@ export const POST = withSocialAdmin(async (request: NextRequest, decoded) => {
   });
   if (limited) return limited;
 
-  let body: { prompt?: unknown; platforms?: unknown };
+  let body: { prompt?: unknown; platforms?: unknown; generateVideo?: unknown };
   try {
     body = await request.json();
   } catch {
@@ -46,6 +46,8 @@ export const POST = withSocialAdmin(async (request: NextRequest, decoded) => {
     return jsonError("platforms contains an unknown value", 400, "VALIDATION_ERROR");
   }
 
+  const generateVideo = body.generateVideo !== false;
+
   const idempotencyKey = request.headers.get("Idempotency-Key");
   if (idempotencyKey) {
     const cached = idempotencyCache.get(`${decoded.uid}:${idempotencyKey}`);
@@ -60,6 +62,7 @@ export const POST = withSocialAdmin(async (request: NextRequest, decoded) => {
       prompt: body.prompt,
       platforms: platforms as SocialPlatform[],
       createdByUid: decoded.uid,
+      generateVideo,
     });
     if (idempotencyKey) {
       idempotencyCache.set(`${decoded.uid}:${idempotencyKey}`, { at: Date.now(), promptBatchId: result.promptBatchId });

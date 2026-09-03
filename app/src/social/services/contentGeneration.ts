@@ -21,6 +21,7 @@ import { writeAuditLog } from "../../db/social/auditLog";
 import { checkAvoidTerms, validateCaptionLength } from "./safety";
 import { errResult, okResult, type ToolResult } from "../types";
 import { getBoundedMemorySummary } from "./memory";
+import { startVideosForContentItems } from "./videoGeneration";
 import { prisma } from "../../db/client";
 import type { SocialPlatform, SocialContentType } from "../types";
 import { PLATFORM_CONTENT_TYPES } from "../types";
@@ -49,11 +50,14 @@ export interface GenerateContentInput {
   prompt: string;
   platforms: SocialPlatform[];
   createdByUid: string;
+  /** When true, kick off OpenAI Sora jobs for TikTok / YouTube Short items. */
+  generateVideo?: boolean;
 }
 
 export interface GenerateContentResult {
   promptBatchId: string;
   items: SocialContentItem[];
+  videoJobs?: Array<{ contentItemId: string; assetId?: string; error?: string }>;
 }
 
 export class ContentGenerationError extends Error {}
@@ -178,7 +182,21 @@ export async function generateContentForPlatforms(
     return created;
   });
 
-  return { promptBatchId, items };
+  let videoJobs: GenerateContentResult["videoJobs"];
+  if (input.generateVideo) {
+    const videoItemIds = items
+      .filter(
+        (item) =>
+          item.platform === "TIKTOK" ||
+          (item.platform === "YOUTUBE" && item.contentType === "YOUTUBE_SHORT")
+      )
+      .map((item) => item.id);
+    if (videoItemIds.length > 0) {
+      videoJobs = await startVideosForContentItems(videoItemIds);
+    }
+  }
+
+  return { promptBatchId, items, videoJobs };
 }
 
 const REGENERATABLE_FIELDS = ["script", "caption", "title", "description"] as const;

@@ -41,6 +41,7 @@ async function buildSystemPrompt(): Promise<string> {
   return [
     "You are Doomstack's social media management assistant for TikTok, X, and YouTube.",
     "You may only act through the tools provided — there is no other way to read or change data.",
+    "When the user asks to create videos, use create_content_idea with generateVideo: true for TikTok and/or YouTube.",
     "Never fabricate a metric, post id, or platform capability. If a tool reports something is unsupported or unavailable, say so plainly instead of guessing.",
     "Publishing/scheduling always goes through the schedule_content/publish_content tools — never claim something was published without calling them.",
     brand ? `Brand: ${brand.name}.${brand.niche ? ` Niche: ${brand.niche}.` : ""}${brand.tone ? ` Tone: ${brand.tone}.` : ""}` : "",
