@@ -15,7 +15,7 @@ export function getStripe(): Stripe {
   }
 
   _stripe = new Stripe(secretKey, {
-    apiVersion: "2023-10-16",
+    apiVersion: "2026-08-26.dahlia",
     typescript: true,
   });
 
