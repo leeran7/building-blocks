@@ -4,7 +4,7 @@ import { TOOL_SCHEMAS, isKnownTool, buildToolSet } from "../../src/social/agent/
 
 describe("toolRegistry (AC-20)", () => {
   it("exposes exactly 18 named tools", () => {
-    expect(AGENT_TOOL_NAMES).toHaveLength(18);
+    expect(AGENT_TOOL_NAMES).toHaveLength(19);
   });
 
   it("has a Zod schema for every tool name", () => {

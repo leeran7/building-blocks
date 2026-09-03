@@ -21,7 +21,7 @@ export const POST = withSocialAdmin(async (request, decoded) => {
   });
   if (limited) return limited;
 
-  let body: { kind?: unknown; message?: unknown; conversationId?: unknown };
+  let body: { kind?: unknown; message?: unknown; conversationId?: unknown; replayUrl?: unknown };
   try {
     body = await request.json();
   } catch {
@@ -35,7 +35,8 @@ export const POST = withSocialAdmin(async (request, decoded) => {
   const result = await createChatRun(
     decoded.uid,
     body.message,
-    typeof body.conversationId === "string" ? body.conversationId : undefined
+    typeof body.conversationId === "string" ? body.conversationId : undefined,
+    typeof body.replayUrl === "string" && body.replayUrl.trim() ? body.replayUrl.trim() : undefined
   );
 
   return jsonOk({

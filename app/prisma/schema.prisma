@@ -270,6 +270,7 @@ enum SocialAgentToolName {
   get_social_analytics
   analyze_content_performance
   generate_weekly_strategy
+  analyze_climb_replay
 }
 
 enum SocialAuditAction {

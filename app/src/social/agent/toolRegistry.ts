@@ -43,6 +43,13 @@ export const TOOL_SCHEMAS = {
       .optional()
       .default(true)
       .describe("When true, also generate an AI video (OpenAI Sora) for TikTok and YouTube Short drafts"),
+    replayUrl: z
+      .string()
+      .optional()
+      .describe("Optional /play?r=… link or raw replay token — merges climb highlights into the brief"),
+  }),
+  analyze_climb_replay: z.object({
+    replayUrl: z.string().min(1).describe("Doomstack replay URL (/play?r=…) or raw replay token"),
   }),
   generate_script: z.object({
     contentItemId: z.string(),
@@ -117,7 +124,8 @@ const TOOL_DESCRIPTIONS: Record<SocialAgentToolName, string> = {
   get_social_accounts: "List connected TikTok/X/YouTube accounts and their connection status.",
   get_brand_profile: "Get the current brand profile (name, niche, audience, tone, topics to discuss/avoid, CTAs).",
   get_content_calendar: "List content items (drafts/scheduled/published/etc.), optionally filtered by status/platform/date range.",
-  create_content_idea: "Generate distinct, platform-adapted content drafts for one or more platforms from a natural-language idea. Set generateVideo=true to also create an AI video for TikTok/YouTube Short items.",
+  create_content_idea: "Generate distinct, platform-adapted content drafts for one or more platforms from a natural-language idea. Set generateVideo=true to also create an AI video for TikTok/YouTube Short items. Pass replayUrl to weave in real climb highlights.",
+  analyze_climb_replay: "Decode a Doomstack climb replay, re-simulate it, and return the most intense moments (near-death, clutches, milestones) for marketing copy.",
   generate_script: "Regenerate the script field of an existing draft content item.",
   generate_caption: "Regenerate the caption field of an existing draft content item.",
   generate_title: "Regenerate the title field of an existing draft content item.",

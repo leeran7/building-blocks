@@ -36,14 +36,19 @@ export interface ChatStepResult {
   assistantText?: string;
 }
 
-async function buildSystemPrompt(): Promise<string> {
+async function buildSystemPrompt(runInput?: { replayUrl?: string }): Promise<string> {
   const [brand, memory] = await Promise.all([getBrandProfile(), getBoundedMemorySummary()]);
   return [
-    "You are Doomstack's social media management assistant for TikTok, X, and YouTube.",
+    "You are Doomstack's marketing agent for TikTok, X, and YouTube.",
     "You may only act through the tools provided — there is no other way to read or change data.",
-    "When the user asks to create videos, use create_content_idea with generateVideo: true for TikTok and/or YouTube.",
+    "Replay → video workflow:",
+    "1) When the user provides a climb replay link (/play?r=…), call analyze_climb_replay first.",
+    "2) Pick the most intense highlight(s) and write a punchy marketing brief.",
+    "3) Call create_content_idea with that brief, generateVideo: true, platforms including TikTok and/or YouTube, and the same replayUrl so visuals match the run.",
+    "Never fabricate climb stats — only use numbers returned by analyze_climb_replay.",
     "Never fabricate a metric, post id, or platform capability. If a tool reports something is unsupported or unavailable, say so plainly instead of guessing.",
     "Publishing/scheduling always goes through the schedule_content/publish_content tools — never claim something was published without calling them.",
+    runInput?.replayUrl ? `User attached replay: ${runInput.replayUrl}` : "",
     brand ? `Brand: ${brand.name}.${brand.niche ? ` Niche: ${brand.niche}.` : ""}${brand.tone ? ` Tone: ${brand.tone}.` : ""}` : "",
     memory,
   ]
@@ -64,8 +69,10 @@ function toToolResultPart(task: Pick<SocialAgentTask, "id" | "toolName" | "outpu
 }
 
 async function reconstructMessages(run: SocialAgentRun, tasks: SocialAgentTask[]): Promise<ModelMessage[]> {
-  const input = run.input as { message?: string };
-  const messages: ModelMessage[] = [{ role: "user", content: input.message ?? "" }];
+  const input = run.input as { message?: string; replayUrl?: string };
+  const userLines = [input.message ?? ""];
+  if (input.replayUrl) userLines.push(`Replay: ${input.replayUrl}`);
+  const messages: ModelMessage[] = [{ role: "user", content: userLines.filter(Boolean).join("\n") }];
 
   for (const task of tasks) {
     if (task.toolName) {
@@ -82,11 +89,16 @@ async function reconstructMessages(run: SocialAgentRun, tasks: SocialAgentTask[]
   return messages;
 }
 
-export async function createChatRun(uid: string, message: string, conversationId?: string): Promise<ChatStepResult> {
+export async function createChatRun(
+  uid: string,
+  message: string,
+  conversationId?: string,
+  replayUrl?: string
+): Promise<ChatStepResult> {
   const run = await createAgentRun({
     kind: "CHAT_TURN",
     initiatedByUid: uid,
-    input: { message, conversationId },
+    input: { message, conversationId, replayUrl },
   });
   await updateAgentRunStatus(run.id, "RUNNING", { startedAt: new Date() });
   return runNextChatStep(run.id, uid);
@@ -129,7 +141,10 @@ export async function runNextChatStep(runId: string, uid: string): Promise<ChatS
       return { run, task: existing };
     }
 
-    const [system, messages] = await Promise.all([buildSystemPrompt(), reconstructMessages(run, tasks)]);
+    const [system, messages] = await Promise.all([
+      buildSystemPrompt(run.input as { replayUrl?: string }),
+      reconstructMessages(run, tasks),
+    ]);
 
     const result = await generateText({
       model: getLanguageModel(),

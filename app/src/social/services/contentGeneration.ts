@@ -22,6 +22,7 @@ import { checkAvoidTerms, validateCaptionLength } from "./safety";
 import { errResult, okResult, type ToolResult } from "../types";
 import { getBoundedMemorySummary } from "./memory";
 import { startVideosForContentItems } from "./videoGeneration";
+import { analyzeClimbReplay, topHighlightsVideoPrompt } from "./replayAnalysis";
 import { prisma } from "../../db/client";
 import type { SocialPlatform, SocialContentType } from "../types";
 import { PLATFORM_CONTENT_TYPES } from "../types";
@@ -50,8 +51,10 @@ export interface GenerateContentInput {
   prompt: string;
   platforms: SocialPlatform[];
   createdByUid: string;
-  /** When true, kick off OpenAI Sora jobs for TikTok / YouTube Short items. */
   generateVideo?: boolean;
+  replayUrl?: string;
+  /** Pre-computed replay analysis (from analyze_climb_replay tool). */
+  replayAnalysis?: Awaited<ReturnType<typeof import("./replayAnalysis").analyzeClimbReplay>>;
 }
 
 export interface GenerateContentResult {
@@ -106,6 +109,27 @@ export async function generateContentForPlatforms(
     throw new ContentGenerationError("At least one platform must be selected");
   }
 
+  let replayContext = input.replayAnalysis ?? null;
+  if (!replayContext && input.replayUrl?.trim()) {
+    try {
+      replayContext = await analyzeClimbReplay(input.replayUrl);
+    } catch (err) {
+      throw new ContentGenerationError(`Replay analysis failed: ${(err as Error).message}`);
+    }
+  }
+
+  const marketingPrompt = replayContext
+    ? [
+        input.prompt,
+        "",
+        "── Climb replay context (use these real moments in hooks and visualDirection) ──",
+        replayContext.summary,
+        ...replayContext.highlights.slice(0, 4).map(
+          (h) => `• ${h.title} (${h.raceSeconds.toFixed(0)}s, ${h.peakYM.toFixed(0)}m): ${h.description}`
+        ),
+      ].join("\n")
+    : input.prompt;
+
   const [brand, memory] = await Promise.all([getBrandProfile(), getBoundedMemorySummary()]);
 
   let object: z.infer<typeof generationSchema>;
@@ -114,7 +138,7 @@ export async function generateContentForPlatforms(
       model: getLanguageModel(),
       schema: generationSchema,
       system: buildSystemPrompt(brand, memory),
-      prompt: `Create platform-adapted content drafts for these platforms: ${input.platforms.join(", ")}.\n\nContent idea: ${input.prompt}`,
+      prompt: `Create platform-adapted content drafts for these platforms: ${input.platforms.join(", ")}.\n\nContent idea:\n${marketingPrompt}`,
     });
     object = result.object;
   } catch (err) {
@@ -164,7 +188,11 @@ export async function generateContentForPlatforms(
           description: draft.description,
           hashtags: draft.hashtags,
           cta: draft.cta,
-          visualDirection: draft.visualDirection,
+          visualDirection:
+            draft.visualDirection ??
+            (replayContext && (platform === "TIKTOK" || contentType === "YOUTUBE_SHORT")
+              ? topHighlightsVideoPrompt(replayContext.highlights)
+              : undefined),
           threadParts: draft.threadParts,
           brandProfileVersion: brand?.version ?? null,
           generatedByModel: process.env.AI_MODEL || "gpt-4o-mini",

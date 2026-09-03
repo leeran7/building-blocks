@@ -59,6 +59,7 @@ export const AGENT_TOOL_NAMES: SocialAgentToolName[] = [
   "get_social_analytics",
   "analyze_content_performance",
   "generate_weekly_strategy",
+  "analyze_climb_replay",
 ];
 
 export const SOCIAL_PLATFORMS: SocialPlatform[] = ["TIKTOK", "X", "YOUTUBE"];

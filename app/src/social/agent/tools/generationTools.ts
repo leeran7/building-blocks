@@ -17,6 +17,7 @@ export async function createContentIdeaTool(
     platforms: input.platforms,
     createdByUid: ctx.uid,
     generateVideo: input.generateVideo,
+    replayUrl: input.replayUrl,
   });
 }
 

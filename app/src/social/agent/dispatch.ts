@@ -35,6 +35,7 @@ import {
 } from "./tools/publishingTools";
 import { getSocialAnalyticsTool, analyzeContentPerformanceTool } from "./tools/analyticsTools";
 import { generateWeeklyStrategyTool } from "./tools/strategyTools";
+import { analyzeClimbReplayTool } from "./tools/replayTools";
 import type { SocialAgentTaskStatus, SocialAgentToolName } from "../types";
 
 export interface ToolContext {
@@ -68,6 +69,7 @@ const HANDLERS: Record<SocialAgentToolName, Handler> = {
   get_social_analytics: (input, _ctx) => getSocialAnalyticsTool(input as never),
   analyze_content_performance: (input, _ctx) => analyzeContentPerformanceTool(input as never),
   generate_weekly_strategy: (input, ctx) => generateWeeklyStrategyTool(input as never, ctx),
+  analyze_climb_replay: (input, _ctx) => analyzeClimbReplayTool(input as never),
 };
 
 function isToolResultShaped(value: unknown): value is { ok: boolean; data?: unknown; reason?: string; detail?: string } {
