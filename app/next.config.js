@@ -67,6 +67,19 @@ const nextConfig = {
       { source: "/__/firebase/:path*", destination: `${fbHost}/__/firebase/:path*` },
     ];
   },
+  // Canonical host is www.doomstack.lol (PUBLIC_CONFIG.siteUrl). Redirect the
+  // apex to it so search engines never see both as separate indexable hosts.
+  // No-op if the apex isn't pointed at this Vercel project.
+  async redirects() {
+    return [
+      {
+        source: "/:path*",
+        has: [{ type: "host", value: "doomstack.lol" }],
+        destination: "https://www.doomstack.lol/:path*",
+        permanent: true,
+      },
+    ];
+  },
 };
 
 module.exports = nextConfig;

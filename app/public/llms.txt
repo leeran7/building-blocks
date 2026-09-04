@@ -1,0 +1,18 @@
+# Doomstack
+
+> Your altitude is permanent. The ground rises instead. The price of #1 falls with every
+> thousand views — until someone buys it.
+
+Doomstack is a browser game plus a set of paid category leaderboards ("stacks"). The free
+climb is a skill-based endless climber with one global leaderboard and no payment. The paid
+stacks are 74 category leaderboards where players buy permanent altitude and compete to avoid
+being buried as the ground rises; each has its own season, rate, and standings.
+
+## Primary pages
+
+- https://www.doomstack.lol/ — landing page, category directory, free-climb leaderboard preview
+- https://www.doomstack.lol/climb — the free climb leaderboard
+- https://www.doomstack.lol/play — play the free climb
+- https://www.doomstack.lol/rules — the exact growth, burial, and season formulas
+- https://www.doomstack.lol/stack/{category} — one of 74 paid category leaderboards
+- https://www.doomstack.lol/b/{slug} — a permanent record page for one submitted block

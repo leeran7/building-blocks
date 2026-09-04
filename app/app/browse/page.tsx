@@ -5,8 +5,8 @@
  * every tower, paid + game). This route redirects there to keep old links alive.
  */
 
-import { redirect } from "next/navigation";
+import { permanentRedirect } from "next/navigation";
 
 export default function BrowsePage() {
-  redirect("/#towers");
+  permanentRedirect("/#towers");
 }

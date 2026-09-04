@@ -11,21 +11,29 @@
  */
 
 import { redirect } from "next/navigation";
+import { Breadcrumbs } from "../../../src/components/Breadcrumbs";
 import { CategoryShell } from "../../../src/components/CategoryShell";
 import { TowerView, type TowerData } from "../../../src/components/Tower/TowerView";
 import { resolveBaseUrl } from "../../../src/config/public";
 import { isGameCategory, resolveGameCategory } from "../../../src/game/categories";
 import { formatAltitude } from "../../../src/lib/units";
+import { buildMetadata, ogImageUrl } from "../../../src/lib/seo";
 
 const BASE_URL = resolveBaseUrl();
 
 export async function generateMetadata({ params }: TowerPageProps) {
   const { category } = await params;
-  const cat = resolveGameCategory(category.toLowerCase());
-  return {
-    title: `${cat.label} Stack — Stack`,
-    description: `The ${cat.label} leaderboard. Buy altitude, survive the rise, outlast everyone.`,
-  };
+  const slug = category.toLowerCase();
+  const cat = resolveGameCategory(slug);
+  const title = `${cat.label} Stack — Stack`;
+  const description = `The ${cat.label} leaderboard. Buy altitude, survive the rise, outlast everyone.`;
+  return buildMetadata({
+    title,
+    description,
+    path: `/stack/${slug}`,
+    image: ogImageUrl({ name: `${cat.label} Stack` }),
+    imageAlt: title,
+  });
 }
 
 async function getCategoryData(slug: string): Promise<TowerData | null> {
@@ -80,6 +88,15 @@ export default async function CategoryTowerPage({ params }: TowerPageProps) {
       section="tower"
       eyebrow={`Paid stack · ${category.family}`}
       title={category.label}
+      breadcrumbs={
+        <Breadcrumbs
+          items={[
+            { label: "Home", href: "/" },
+            { label: "Stacks", href: "/#towers" },
+            { label: category.label, href: `/stack/${slug}` },
+          ]}
+        />
+      }
       action={
         <a
           href={`/submit?category=${slug}`}
@@ -89,12 +106,20 @@ export default async function CategoryTowerPage({ params }: TowerPageProps) {
         </a>
       }
       meta={
-        <dl className="mt-4 flex items-center gap-x-5 gap-y-1 flex-wrap text-sm">
-          <Stat label="Ground" value={formatAltitude(ground, 1)} danger />
-          <Stat label="$1 buys" value={formatAltitude(rate, 2)} />
-          <Stat label="Live" value={String(activeBlockCount)} />
-          <Stat label="Season ends" value={seasonEnds} />
-        </dl>
+        <>
+          <dl className="mt-4 flex items-center gap-x-5 gap-y-1 flex-wrap text-sm">
+            <Stat label="Ground" value={formatAltitude(ground, 1)} danger />
+            <Stat label="$1 buys" value={formatAltitude(rate, 2)} />
+            <Stat label="Live" value={String(activeBlockCount)} />
+            <Stat label="Season ends" value={seasonEnds} />
+          </dl>
+          <p className="mt-3 max-w-2xl text-sm text-text-secondary">
+            The {category.label} stack is a paid leaderboard in {category.family}. Buy altitude,
+            survive the rise, and outlast everyone competing for the same audience —{" "}
+            {activeBlockCount} block{activeBlockCount === 1 ? "" : "s"} live right now, ground at{" "}
+            {formatAltitude(ground, 1)}, $1 currently buys {formatAltitude(rate, 2)}.
+          </p>
+        </>
       }
       fill
     >

@@ -14,12 +14,14 @@ import { HowItWorks } from "../src/components/LandingPage/HowItWorks";
 import { TowerDirectory } from "../src/components/LandingPage/TowerDirectory";
 import { FreeLeaderboard } from "../src/components/LandingPage/FreeLeaderboard";
 import { Footer } from "../src/components/LandingPage/Footer";
-import { Faq } from "../src/components/LandingPage/Faq";
+import { Faq, buildFaqs } from "../src/components/LandingPage/Faq";
 import { Navbar } from "../src/components/Navbar";
+import { JsonLd } from "../src/components/JsonLd";
 import { getBlockCountsByCategory } from "../src/db/blocks";
 import { getGlobalClimbStats } from "../src/db/climb";
 import { GAME_CATEGORIES } from "../src/game/categories";
 import { loadConstants } from "../src/engine/constants";
+import { organizationJsonLd, websiteJsonLd } from "../src/lib/seo";
 import { Suspense } from "react";
 
 // ISR: serve the landing from cache and regenerate at most once per 60s, so the
@@ -85,8 +87,20 @@ export default async function HomePage() {
     0
   );
 
+  // Generated from the exact same call the <Faq> component below renders from,
+  // so the JSON-LD can never drift from the visible <details>/<summary> content.
+  const faqJsonLd = {
+    "@type": "FAQPage",
+    mainEntity: buildFaqs(constants.MIN_ENTRY_USD, constants.MIN_SPEND_USD).map((faq) => ({
+      "@type": "Question",
+      name: faq.q,
+      acceptedAnswer: { "@type": "Answer", text: faq.a },
+    })),
+  };
+
   return (
-    <main className="grain min-h-screen bg-void">
+    <main id="main-content" className="grain min-h-screen bg-void">
+      <JsonLd data={[organizationJsonLd(), websiteJsonLd(), faqJsonLd]} />
       <Navbar />
 
       <Hero

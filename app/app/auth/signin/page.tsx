@@ -405,7 +405,7 @@ export default function SignInPage() {
   return (
     <Suspense
       fallback={
-        <main className="min-h-screen bg-void flex items-center justify-center">
+        <main id="main-content" className="min-h-screen bg-void flex items-center justify-center">
           <div className="w-8 h-8 border-2 border-text-muted/30 border-t-signal rounded-full animate-spin" />
         </main>
       }

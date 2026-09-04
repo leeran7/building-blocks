@@ -54,19 +54,33 @@ export function ClimbControlsGuide({ variant = "card" }: { variant?: Variant }) 
   const touch = useCoarsePointer();
 
   if (variant === "compact") {
-    return touch ? (
-      <p className="text-sm text-text-secondary leading-relaxed">
-        <span className="text-text-primary font-medium">Touch controls:</span>{" "}
-        hold ← → to move · hold ↑ climb on ladders · tap JMP to jump · re-hold
-        JMP in the air to thrust
-      </p>
-    ) : (
-      <p className="text-sm text-text-secondary leading-relaxed">
-        <span className="text-text-primary font-medium">Controls:</span>{" "}
-        <Key>←</Key>/<Key>→</Key> or <Key>A</Key>/<Key>D</Key> move ·{" "}
-        <Key>Space</Key> jump · re-hold <Key>Space</Key> in the air to thrust ·{" "}
-        <Key>↑</Key>/<Key>↓</Key> or <Key>W</Key>/<Key>S</Key> climb ladders
-      </p>
+    return (
+      <div className="flex flex-col gap-1.5">
+        <span className="text-sm font-medium text-text-primary">
+          {touch ? "Touch controls" : "Controls"}
+        </span>
+        {touch
+          ? TOUCH_CONTROLS.map((c) => (
+              <p key={c.label} className="flex flex-wrap items-baseline gap-x-2 text-sm">
+                <span className="w-14 flex-shrink-0 text-text-primary">{c.label}</span>
+                <span className="text-text-secondary leading-snug">{c.detail}</span>
+              </p>
+            ))
+          : KEYBOARD_CONTROLS.map((c) => (
+              <p
+                key={c.label}
+                className="flex flex-wrap items-baseline gap-x-2 gap-y-1 text-sm"
+              >
+                <span className="w-14 flex-shrink-0 text-text-primary">{c.label}</span>
+                <span className="inline-flex items-center gap-1">
+                  {c.keys.map((k) => (
+                    <Key key={k}>{k}</Key>
+                  ))}
+                </span>
+                <span className="text-text-secondary leading-snug">{c.detail}</span>
+              </p>
+            ))}
+      </div>
     );
   }
 

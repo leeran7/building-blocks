@@ -7,14 +7,16 @@
 import type { Metadata } from "next";
 import { FreeStackShell } from "../../src/components/FreeStackShell";
 import { ClimbLeaderboard } from "../../src/components/Climb/ClimbLeaderboard";
-import { ClimbPanelIntro } from "../../src/components/Climb/ClimbPanelIntro";
+import { ClimbAbout, ClimbPanelIntro } from "../../src/components/Climb/ClimbPanelIntro";
 import { topFreeClimbers } from "../../src/db/climb";
+import { buildMetadata } from "../../src/lib/seo";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = buildMetadata({
   title: "Free Climb Leaderboard — Stack",
   description:
     "The free endless climb leaderboard. Play for practice and bragging rights — your best peak height is your rank.",
-};
+  path: "/climb",
+});
 
 // Always render on request so a fresh run shows up immediately after save.
 // ISR alone left standings stale for up to 30s (plus client router cache) even
@@ -40,6 +42,7 @@ export default async function FreeClimbPage() {
           unavailable={climbers === null}
         />
       </div>
+      <ClimbAbout />
     </FreeStackShell>
   );
 }

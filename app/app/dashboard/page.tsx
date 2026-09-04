@@ -207,7 +207,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Content */}
-      <main className="px-4 md:px-6 pb-16 max-w-7xl mx-auto">
+      <main id="main-content" className="px-4 md:px-6 pb-16 max-w-7xl mx-auto">
         {fetchState.status === "loading" && (
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
             <SkeletonCard />

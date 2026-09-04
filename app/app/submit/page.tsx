@@ -311,7 +311,7 @@ function SubmitForm() {
 
 export default function SubmitPage() {
   return (
-    <main className="min-h-screen bg-void">
+    <main id="main-content" className="min-h-screen bg-void">
       <Suspense
         fallback={
           <>

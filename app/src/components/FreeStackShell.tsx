@@ -24,7 +24,7 @@ export function FreeStackShell({
   const play = section === "play";
 
   return (
-    <div className="min-h-screen bg-void flex flex-col">
+    <main id="main-content" className="min-h-screen bg-void flex flex-col">
       <div className="shrink-0">
         <Navbar contextLabel="Free climb" />
       </div>
@@ -54,7 +54,7 @@ export function FreeStackShell({
       ) : (
         <div className="max-w-2xl mx-auto w-full px-4 py-6">{children}</div>
       )}
-    </div>
+    </main>
   );
 }
 

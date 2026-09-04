@@ -4,6 +4,7 @@ import "./globals.css";
 import { AuthProvider } from "../src/contexts/AuthContext";
 import { resolveBaseUrl } from "../src/config/public";
 import { formatAltitude } from "../src/lib/units";
+import { DEFAULT_DESCRIPTION, DEFAULT_TITLE, SITE_URL, ogImageUrl } from "../src/lib/seo";
 
 // ── ASCENT type system ────────────────────────────────────────────────────
 // Display: Bricolage Grotesque — architectural, contemporary, characterful.
@@ -69,16 +70,32 @@ export async function generateMetadata(): Promise<Metadata> {
     // Fail silently — metadata is not critical path
   }
 
-  const ogUrl = `${BASE_URL}/api/og?v=${topBlockId}&name=${encodeURIComponent(topBlockName)}&alt=${topAlt}&rank=1`;
+  const ogUrl = ogImageUrl({ v: topBlockId, name: topBlockName, alt: topAlt, rank: "1" });
+
+  // Inert until the real tokens exist — set after creating the Google Search
+  // Console / Bing Webmaster Tools properties for this domain. No fabricated
+  // values here; unset env vars just omit the tag entirely.
+  const googleVerification = process.env.GOOGLE_SITE_VERIFICATION;
+  const bingVerification = process.env.BING_SITE_VERIFICATION;
 
   return {
-    metadataBase: new URL(BASE_URL),
-    title: "Doomstack — Altitude is permanent",
-    description:
-      "Your altitude is permanent. The ground rises instead. The price of #1 falls with every thousand views — until someone buys it.",
+    metadataBase: new URL(SITE_URL),
+    title: DEFAULT_TITLE,
+    description: DEFAULT_DESCRIPTION,
+    alternates: { canonical: SITE_URL },
+    ...(googleVerification || bingVerification
+      ? {
+          verification: {
+            ...(googleVerification ? { google: googleVerification } : {}),
+            ...(bingVerification ? { other: { "msvalidate.01": bingVerification } } : {}),
+          },
+        }
+      : {}),
     openGraph: {
-      title: "Doomstack — Altitude is permanent",
+      title: DEFAULT_TITLE,
       description: "Your altitude is permanent. The ground rises instead.",
+      url: SITE_URL,
+      siteName: "Doomstack",
       images: [
         {
           url: ogUrl,
@@ -91,7 +108,7 @@ export async function generateMetadata(): Promise<Metadata> {
     },
     twitter: {
       card: "summary_large_image",
-      title: "Doomstack — Altitude is permanent",
+      title: DEFAULT_TITLE,
       description: "Your altitude is permanent. The ground rises instead.",
       images: [ogUrl],
     },
@@ -109,6 +126,12 @@ export default function RootLayout({
       className={`${display.variable} ${sans.variable} ${mono.variable}`}
     >
       <body className="bg-void text-text-primary font-sans min-h-screen antialiased">
+        <a
+          href="#main-content"
+          className="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-50 focus:rounded-lg focus:bg-signal focus:px-4 focus:py-2 focus:text-void focus:font-semibold"
+        >
+          Skip to content
+        </a>
         <AuthProvider>{children}</AuthProvider>
       </body>
     </html>
