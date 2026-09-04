@@ -12,6 +12,7 @@ export default function robots(): MetadataRoute.Robots {
         "/submit",
         "/auth/verify-email",
         "/auth/reset-password",
+        "/admin",
         "/api/",
       ],
     },
