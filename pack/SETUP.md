@@ -62,16 +62,11 @@ your-repo/
 │
 ├── agents/                       ← PACK. Generic roles. No product facts.
 │   ├── claude.config.json
-│   ├── orchestrator.md
-│   ├── product-spec.md
-│   ├── architect.md
-│   ├── implementer.md
+│   ├── orchestrator.md           entry files (≤ 200 lines each)
 │   ├── verifier.md
-│   ├── reviewer.md
-│   ├── security-reviewer.md
-│   ├── qa-acceptance.md
-│   ├── integrator.md
-│   └── …specialists.md
+│   ├── verifier/                 optional partials when a role grows
+│   │   └── coverage-matrix.md
+│   └── …
 │
 ├── skills/closed-loop/           ← PACK. Protocol identical in every repo.
 │   ├── SKILL.md                  how to run the loop
@@ -173,7 +168,7 @@ They still must not invent a second stack.
 | Command | What |
 |---------|------|
 | `node scripts/sync.mjs` | Rebuild platform agents; runs hygiene first |
-| `node scripts/hygiene.mjs` | Fail if `agents/*.md` contain product leakage or omit `context/README.md` |
+| `node scripts/hygiene.mjs` | Fail if agent files leak product facts, omit `context/README.md`, or exceed 200 lines |
 | `yarn loop "…"` | Programmatic closed loop |
 | Edit `agents/` or `skills/` | Then `sync` again |
 

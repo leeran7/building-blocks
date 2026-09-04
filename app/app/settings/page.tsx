@@ -98,7 +98,7 @@ export default function SettingsPage() {
 
   if (loading || !user) {
     return (
-      <main className="grain min-h-screen bg-void">
+      <main id="main-content" className="grain min-h-screen bg-void">
         <Navbar contextLabel="Settings" />
         <div className="min-h-[60vh] flex items-center justify-center">
           <div className="w-8 h-8 border-2 border-text-muted/30 border-t-signal rounded-full animate-spin" />
@@ -108,7 +108,7 @@ export default function SettingsPage() {
   }
 
   return (
-    <main className="grain min-h-screen bg-void">
+    <main id="main-content" className="grain min-h-screen bg-void">
       <Navbar contextLabel="Settings" />
 
       <div className="max-w-2xl mx-auto px-4 py-12">

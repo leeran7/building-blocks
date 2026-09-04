@@ -4,6 +4,7 @@
   "description": "Reusable closed-loop agent pack. Product code (app/) is not in this manifest.",
   "kernel": [
     "agents/*.md",
+    "agents/*/*.md",
     "agents/claude.config.json",
     "skills/closed-loop/*.md",
     "handoffs/schema.json",

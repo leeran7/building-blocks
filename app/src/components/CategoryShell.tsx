@@ -19,6 +19,7 @@ export function CategoryShell({
   section,
   eyebrow,
   title,
+  breadcrumbs,
   action,
   meta,
   fill = false,
@@ -28,6 +29,7 @@ export function CategoryShell({
   section: "climb" | "tower" | "play";
   eyebrow: string;
   title: string;
+  breadcrumbs?: ReactNode;
   action?: ReactNode;
   meta?: ReactNode;
   fill?: boolean;
@@ -36,7 +38,8 @@ export function CategoryShell({
   const ctxWord = section === "tower" ? "stack" : "climb";
 
   return (
-    <div
+    <main
+      id="main-content"
       className={
         fill
           ? "h-[100dvh] bg-void flex flex-col overflow-hidden"
@@ -53,6 +56,7 @@ export function CategoryShell({
       {/* Header band — identical on every section. */}
       <div className="flex-shrink-0 border-b border-border-subtle">
         <div className="max-w-2xl mx-auto w-full px-4 pt-5 pb-4">
+          {breadcrumbs && <div className="mb-3">{breadcrumbs}</div>}
           {section === "tower" && <CategorySectionTabs towerSlug={slug} />}
           <div className="mt-5 flex items-end justify-between gap-3 flex-wrap">
             <div className="min-w-0">
@@ -75,6 +79,6 @@ export function CategoryShell({
       ) : (
         <div className="max-w-2xl mx-auto w-full px-4 py-6">{children}</div>
       )}
-    </div>
+    </main>
   );
 }

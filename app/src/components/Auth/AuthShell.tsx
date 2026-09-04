@@ -100,7 +100,7 @@ export function AuthShell({ children }: { children: ReactNode }) {
       </aside>
 
       {/* Form column */}
-      <main className="flex items-center justify-center px-4 py-10 min-h-[100dvh] md:min-h-0">
+      <main id="main-content" className="flex items-center justify-center px-4 py-10 min-h-[100dvh] md:min-h-0">
         {children}
       </main>
     </div>

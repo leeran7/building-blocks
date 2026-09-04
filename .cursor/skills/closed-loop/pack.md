@@ -8,7 +8,7 @@ The pack is the agent system (`agents/`, `skills/closed-loop/`, `orchestrator/`,
 `scripts/`). It is **not** the product in `app/`. A second repo should be able
 to vendor the pack and run the same loop against a different stack.
 
-**File tree and install (start here):** [`pack/SETUP.md`](../../pack/SETUP.md).
+**File tree and install (start here):** [`pack/SETUP.md`](pack/SETUP.md).
 Repo-owned facts live in `context/`. Agents only point at that folder.
 
 ## Why the old layout did not travel
@@ -47,9 +47,10 @@ Two concrete failures in this repo:
 │                Per-repo folder: profile, gates, trust, git,     │
 │                conventions. Schema: pack/profile.schema.json    │
 ├─────────────────────────────────────────────────────────────────┤
-│  2. ROLES      agents/*.md                                      │
+│  2. ROLES      agents/*.md (+ agents/<role>/*.md partials)    │
 │                Kernel. Identity + unique workflow + hard rules. │
 │                No protocol copy, no product hex, no "use pnpm". │
+│                Each file ≤ 200 lines — split and reference.     │
 ├─────────────────────────────────────────────────────────────────┤
 │  1. KERNEL     skills/closed-loop/{protocol,gates,handoffs,     │
 │                team,stages,learning-loop,SKILL}.md              │
@@ -83,7 +84,7 @@ from layers 1–2 and points at 3–4.
 
 ## Install into another repo
 
-**Canonical steps and file tree:** [`pack/SETUP.md`](../../pack/SETUP.md).
+**Canonical steps and file tree:** [`pack/SETUP.md`](pack/SETUP.md).
 
 From a pack clone ([closed-loop-agents](https://github.com/leeran7/closed-loop-agents)
 or this tree):
@@ -129,13 +130,16 @@ product-agnostic **and** either seen in two repos or independently found
 by two agents with `forAgents: ["all"]`. That is a pack change, not a
 drive-by edit of 22 agent files.
 
-Do not paste kernel gates back into every agent. Point at `gates.md`.
+Do not paste kernel gates back into every agent. Point at `gates.md`. Keep each
+`agents/` markdown file under 200 lines; split into `agents/<role>/*.md` partials
+and reference them instead of growing the entry file.
 
 ## Quality gates in the profile
 
 A gate that has never been shown to go red is not a gate (Aug 29: `next
-lint` with no ESLint config exited 0). Each `qualityGates[]` entry should
-include `proveFail`: a command that must fail on a known-bad input.
+lint` with no ESLint config exited 0). Each `context/gates.json`
+`gates[]` entry should include `proveFail`: a command that must fail on a
+known-bad input.
 
 The verifier and devops agents read this list. They do not invent
 `pnpm lint` because a template once said so.
@@ -144,7 +148,28 @@ The verifier and devops agents read this list. They do not invent
 
 `scripts/hygiene.mjs` fails the pack if any source agent contains product
 leakage (design hexes, this repo's git remote, hardcoded exclusive package
-manager, the old design-resource URL list). `yarn sync` runs hygiene first.
+manager, the old design-resource URL list) or exceeds **200 lines**.
+`yarn sync` runs hygiene first.
+
+### Agent file size
+
+Each markdown file under `agents/` — entry files (`agents/<role>.md`) and
+partials (`agents/<role>/*.md`) — must stay **under 200 lines**. When a role
+outgrows that limit:
+
+1. Keep `agents/<role>.md` as the entry point (YAML frontmatter + identity +
+   pointers).
+2. Move detailed checklists, examples, or domain sections into
+   `agents/<role>/<topic>.md`.
+3. Reference partials from the entry file and from each other with repo paths,
+   e.g. `Read agents/verifier/coverage-matrix.md before writing tests.`
+
+Do **not** paste partial contents back into the entry file at sync time. Agents
+read the referenced files when the task needs that depth — same pattern as
+`context/` and `skills/closed-loop/gates.md`.
+
+Kernel-generic lessons belong in `gates.md` or the ledger, not in longer agent
+files.
 
 ## Roster (unchanged jobs, slimmer files)
 
@@ -167,7 +192,7 @@ for `@orchestrator` / `yarn loop`.
 | Path | Layer |
 |------|--------|
 | `pack/SETUP.md` | Install + file tree (start here) |
-| `skills/closed-loop/protocol.md` | Kernel preamble (sync prepends it) |
+| `skills/closed-loop/protocol.md` | Kernel preamble (sync + `loadAgentPrompt` prepend) |
 | `skills/closed-loop/gates.md` | Universal quality gates |
 | `skills/closed-loop/profile.md` | `context/` contract |
 | `skills/closed-loop/handoffs.md` | Handoff JSON contract |

@@ -234,6 +234,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         season_id: season.id,
         userId: authenticatedUserId ?? undefined,
         category: stackSlug,
+        hidden_at: new Date(),
       });
 
       blockId = block.id;
@@ -262,6 +263,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
             product_data: {
               name: `Stack — ${displayName}`,
               description: `Current rate: $1 = ${formatAltitude(rate, 2)} altitude. Positions are live; your rank is calculated when payment completes. Altitude is permanent. No refunds.`,
+              tax_code: "txcd_10103001",
             },
           },
           quantity: 1,

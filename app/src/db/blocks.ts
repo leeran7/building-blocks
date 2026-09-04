@@ -62,8 +62,8 @@ export async function getBlockById(id: string): Promise<Block | null> {
 }
 
 /**
- * Create a new block with altitude = 0.
- * Altitude is set to 0 and incremented by the payment webhook (AC-36).
+ * Create a new block with altitude = 0, hidden by default.
+ * Pass hidden_at: null only after payment is confirmed (webhook).
  */
 export async function createBlock(data: {
   slug: string;
@@ -73,6 +73,7 @@ export async function createBlock(data: {
   season_id: string;
   userId?: string;
   category?: string;
+  hidden_at?: Date | null;
 }): Promise<Block> {
   return prisma.block.create({
     data: {
@@ -140,6 +141,25 @@ export async function incrementClicks(id: string): Promise<void> {
   await prisma.block.update({
     where: { id },
     data: { clicks: { increment: 1 } },
+  });
+}
+
+/** Sitemap generation never lists more than this many /b/[slug] URLs (single
+ *  sitemap.xml file is capped at 50,000 URLs; blocks are never deleted and new
+ *  ones are minted every season rollover, so this is a real ceiling, not a
+ *  hypothetical one). Newest-first so the cap drops the least-relevant tail. */
+const SITEMAP_BLOCK_LIMIT = 45_000;
+
+/**
+ * Slugs of visible (non-hidden) blocks, for sitemap generation only.
+ * Capped and ordered newest-first — see SITEMAP_BLOCK_LIMIT.
+ */
+export async function getVisibleBlockSlugs(): Promise<Array<{ slug: string; created_at: Date }>> {
+  return prisma.block.findMany({
+    where: { hidden_at: null },
+    select: { slug: true, created_at: true },
+    orderBy: { created_at: "desc" },
+    take: SITEMAP_BLOCK_LIMIT,
   });
 }
 

@@ -6,6 +6,7 @@
  */
 
 import { ALTITUDE_UNIT, ALTITUDE_UNIT_LONG, SEASON_START_RATE } from "../../lib/units";
+import { Chevron } from "../Chevron";
 
 export interface FaqProps {
   minEntryUsd?: number;
@@ -17,7 +18,9 @@ interface QA {
   a: string;
 }
 
-function buildFaqs(minEntryUsd: number, minSpendUsd: number): QA[] {
+/** Exported so the home page can generate matching FAQPage JSON-LD from the
+ *  exact same content this component renders — the two can never drift. */
+export function buildFaqs(minEntryUsd: number, minSpendUsd: number): QA[] {
   const entry = minEntryUsd.toFixed(0);
   const spend = minSpendUsd.toFixed(0);
 
@@ -78,23 +81,6 @@ function buildFaqs(minEntryUsd: number, minSpendUsd: number): QA[] {
       a: `Every 90 days each stack archives to a permanent standings page, cumulative views reset to zero, and the rate resets to ${SEASON_START_RATE} — a fresh launch moment. Record pages at /b/[slug] persist across every season.`,
     },
   ];
-}
-
-function Chevron() {
-  return (
-    <svg
-      className="w-5 h-5 text-text-muted transition-transform duration-200 group-open:rotate-45 group-open:text-signal flex-shrink-0"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <path d="M12 5v14M5 12h14" />
-    </svg>
-  );
 }
 
 export function Faq({ minEntryUsd = 5, minSpendUsd = 2 }: FaqProps) {

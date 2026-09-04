@@ -83,7 +83,7 @@ export default function VerifyEmailPage() {
 
   if (loading) {
     return (
-      <main className="min-h-screen bg-void flex items-center justify-center px-4">
+      <main id="main-content" className="min-h-screen bg-void flex items-center justify-center px-4">
         <div className="w-8 h-8 border-2 border-text-muted/30 border-t-signal rounded-full animate-spin" />
       </main>
     );
