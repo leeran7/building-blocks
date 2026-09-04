@@ -1,9 +1,10 @@
 /**
  * Section switcher on paid category pages. The free climb is a separate stack —
- * link out to /climb and /play instead of a per-category skill leaderboard.
+ * link out to the game (FREE_CLIMB_HREF) instead of a per-category skill leaderboard.
  */
 
 import Link from "next/link";
+import { FREE_CLIMB_HREF } from "../navLinks";
 
 export type CategorySection = "tower";
 
@@ -22,7 +23,7 @@ export function CategorySectionTabs({
       aria-label="Category sections"
     >
       <Tab href={`/stack/${towerSlug}`} label="Paid stack" active />
-      <Tab href="/climb" label="Free climb" active={false} />
+      <Tab href={FREE_CLIMB_HREF} label="Free climb" active={false} />
     </div>
   );
 }

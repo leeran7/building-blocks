@@ -18,9 +18,11 @@ import { RecordStats } from "../../../src/components/RecordPage/RecordStats";
 import { SharePost } from "../../../src/components/RecordPage/SharePost";
 import { TopupForm } from "../../../src/components/RecordPage/TopupForm";
 import { RankAnimation } from "../../../src/components/RecordPage/RankAnimation";
+import { Breadcrumbs } from "../../../src/components/Breadcrumbs";
 import { getCategory, categoryTheme, type Category } from "../../../src/lib/categories";
 import { isGameCategory, parseSeasonSlug, resolveGameCategory } from "../../../src/game/categories";
 import { Navbar } from "../../../src/components/Navbar";
+import { buildMetadata, ogImageUrl } from "../../../src/lib/seo";
 
 const BASE_URL = resolveBaseUrl();
 
@@ -28,12 +30,25 @@ export async function generateMetadata({ params }: RecordPageProps) {
   const { slug } = await params;
   const block = await getBlockBySlug(slug);
   if (!block) {
-    return { title: "Block not found — Stack" };
+    // True 404 — never indexable, never carries a canonical.
+    return { title: "Block not found — Stack", robots: { index: false } };
   }
-  return {
-    title: `${block.display_name} — Stack`,
-    description: `Stack record page for ${block.display_name}. Peak rank #${block.peak_rank ?? "?"}, ${block.views_served} views served.`,
-  };
+  const title = `${block.display_name} — Stack`;
+  const description = `Stack record page for ${block.display_name}. Peak rank #${block.peak_rank ?? "?"}, ${block.views_served} views served.`;
+  return buildMetadata({
+    title,
+    description,
+    path: `/b/${slug}`,
+    image: ogImageUrl({
+      name: block.display_name,
+      alt: String(block.altitude),
+      rank: block.peak_rank ? String(block.peak_rank) : undefined,
+    }),
+    imageAlt: title,
+    // Unpaid/hidden blocks are thin content — keep the permanent record page
+    // live (AC-37) but out of the index.
+    robots: block.hidden_at !== null ? { index: false, follow: true } : undefined,
+  });
 }
 
 export default async function RecordPage({
@@ -66,12 +81,24 @@ export default async function RecordPage({
 
   const showSharePost = sp.payment === "success";
   const cat = recordTheme(block.category);
+  const categorySlug = block.category && isGameCategory(block.category) ? block.category : null;
 
   return (
     // HTTP 200 even for buried/hidden/past-season (AC-37)
-    <main className="min-h-screen bg-void" style={categoryTheme(cat)}>
+    <main id="main-content" className="min-h-screen bg-void" style={categoryTheme(cat)}>
       {/* Nav — auth-aware */}
       <Navbar contextLabel={`${cat.label} stack`} contextDot={cat.hex} />
+
+      <div className="max-w-2xl mx-auto px-4 pt-4">
+        <Breadcrumbs
+          items={[
+            { label: "Home", href: "/" },
+            { label: "Stacks", href: "/#towers" },
+            ...(categorySlug ? [{ label: cat.label, href: `/stack/${categorySlug}` }] : []),
+            { label: block.display_name, href: `/b/${block.slug}` },
+          ]}
+        />
+      </div>
 
       {/* Share post — shown after successful payment (AC-34) */}
       {showSharePost && (

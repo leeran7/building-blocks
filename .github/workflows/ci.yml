@@ -54,7 +54,16 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Audit (critical)
-        run: pnpm audit --audit-level=critical
+        # registry.npmjs.org's audit endpoint intermittently times out from
+        # GitHub-hosted runners; retry before failing a required check on
+        # infra flakiness rather than a real finding.
+        run: |
+          for attempt in 1 2 3; do
+            pnpm audit --audit-level=critical && exit 0
+            echo "Audit attempt $attempt failed, retrying in 15s..."
+            sleep 15
+          done
+          exit 1
 
       - name: Generate Prisma client
         run: pnpm db:generate

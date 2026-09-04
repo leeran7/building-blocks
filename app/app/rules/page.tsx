@@ -10,12 +10,14 @@
 import Link from "next/link";
 import { Navbar } from "../../src/components/Navbar";
 import { ALTITUDE_UNIT, SEASON_START_RATE } from "../../src/lib/units";
+import { buildMetadata } from "../../src/lib/seo";
 
-export const metadata = {
+export const metadata = buildMetadata({
   title: "Stack — Rules & Formulas",
   description:
     "The complete Stack engine formulas: altitude permanence, growth cap, burial mechanics, and season reset.",
-};
+  path: "/rules",
+});
 
 function Well({ children }: { children: React.ReactNode }) {
   return (
@@ -35,7 +37,7 @@ function SectionHeading({ children }: { children: React.ReactNode }) {
 
 export default function RulesPage() {
   return (
-    <main className="min-h-screen bg-void">
+    <main id="main-content" className="min-h-screen bg-void">
       <Navbar contextLabel="Rules" />
 
       <div className="max-w-2xl mx-auto px-4 py-12">

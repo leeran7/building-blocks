@@ -144,6 +144,25 @@ export async function incrementClicks(id: string): Promise<void> {
   });
 }
 
+/** Sitemap generation never lists more than this many /b/[slug] URLs (single
+ *  sitemap.xml file is capped at 50,000 URLs; blocks are never deleted and new
+ *  ones are minted every season rollover, so this is a real ceiling, not a
+ *  hypothetical one). Newest-first so the cap drops the least-relevant tail. */
+const SITEMAP_BLOCK_LIMIT = 45_000;
+
+/**
+ * Slugs of visible (non-hidden) blocks, for sitemap generation only.
+ * Capped and ordered newest-first — see SITEMAP_BLOCK_LIMIT.
+ */
+export async function getVisibleBlockSlugs(): Promise<Array<{ slug: string; created_at: Date }>> {
+  return prisma.block.findMany({
+    where: { hidden_at: null },
+    select: { slug: true, created_at: true },
+    orderBy: { created_at: "desc" },
+    take: SITEMAP_BLOCK_LIMIT,
+  });
+}
+
 /**
  * Get all seasons a block has appeared in (via slug across seasons).
  * Used for record page season history (AC-40).

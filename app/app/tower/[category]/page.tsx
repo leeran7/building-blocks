@@ -3,13 +3,13 @@
  * Kept so old shared links (and the pre-rebrand deploy) stay alive.
  */
 
-import { redirect } from "next/navigation";
+import { permanentRedirect } from "next/navigation";
 
 export default async function LegacyTowerRedirect({
   params,
 }: LegacyTowerRedirectProps) {
   const { category } = await params;
-  redirect(`/stack/${category}`);
+  permanentRedirect(`/stack/${category}`);
 }
 
 interface LegacyTowerRedirectProps {
