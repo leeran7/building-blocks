@@ -2,10 +2,10 @@
 
 Each consuming repo owns a `context/` folder. Agents never embed product
 facts; they read this folder. Schema for `profile.json`:
-[`pack/profile.schema.json`](../../pack/profile.schema.json).
+[`pack/profile.schema.json`](pack/profile.schema.json).
 
-Templates for a new repo: [`pack/templates/context/`](../../pack/templates/context/).
-Full tree and install steps: [`pack/SETUP.md`](../../pack/SETUP.md).
+Templates for a new repo: [`pack/templates/context/`](pack/templates/context/).
+Full tree and install steps: [`pack/SETUP.md`](pack/SETUP.md).
 
 ## Files
 

@@ -39,6 +39,7 @@ clamps skips back onto the sequence (see [team.md](team.md)).
 | Mobile client | mobile |
 | UI/UX requirements in spec | design-ux (before implementer) |
 | Compliance requirements in spec | compliance |
+| New data field, third-party processor, or payment flow | legal |
 | Cloud/infra changes | devops |
 | Post-deploy | monitor |
 | Missing docs | docs |

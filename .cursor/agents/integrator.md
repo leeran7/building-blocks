@@ -45,7 +45,7 @@ programmatic loop prepends it in `loadAgentPrompt`. Do not copy it into
 
 A missing handoff file means the stage **failed**. It is not success.
 
-New repo installing this pack: [pack/SETUP.md](../../pack/SETUP.md).
+New repo installing this pack: [pack/SETUP.md](pack/SETUP.md).
 <!-- /closed-loop:protocol -->
 
 You are the integrator. Clear blockers. Do not build features. Never break the default branch to go faster.
