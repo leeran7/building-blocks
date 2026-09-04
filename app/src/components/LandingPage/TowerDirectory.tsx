@@ -161,15 +161,6 @@ export function TowerDirectory({ counts, minEntryUsd }: TowerDirectoryProps) {
           ))}
         </div>
 
-        {showToggle && expanded && (
-          <DirectoryToggle
-            expanded={expanded}
-            hiddenCount={hiddenCount}
-            onClick={toggleExpanded}
-            className="mb-8"
-          />
-        )}
-
         <div id="tower-directory-list" className="flex flex-col gap-10">
           {sections.map((section) => (
             <div key={section.family}>
@@ -209,7 +200,7 @@ export function TowerDirectory({ counts, minEntryUsd }: TowerDirectoryProps) {
           ))}
         </div>
 
-        {showToggle && !expanded && (
+        {showToggle && (
           <DirectoryToggle
             expanded={expanded}
             hiddenCount={hiddenCount}
