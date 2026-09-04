@@ -47,7 +47,7 @@ function isBotUa(ua: string | null | undefined): boolean {
 }
 
 export const config = {
-  matcher: ["/", "/dashboard/:path*", "/stack/:path*", "/b/:path*"],
+  matcher: ["/", "/dashboard/:path*", "/admin/social/:path*", "/stack/:path*", "/b/:path*"],
 };
 
 export default async function middleware(
@@ -62,6 +62,19 @@ export default async function middleware(
       request.headers.get("authorization")?.replace("Bearer ", "");
     if (!token) {
       // AC-17: Redirect to /auth/signin?redirect=%2Fdashboard
+      const signinUrl = new URL("/auth/signin", request.url);
+      signinUrl.searchParams.set("redirect", pathname);
+      return NextResponse.redirect(signinUrl);
+    }
+    return NextResponse.next();
+  }
+
+  // --- Social admin UI guard (presence-only; API uses requireSocialAdmin) ---
+  if (pathname.startsWith("/admin/social")) {
+    const token =
+      request.cookies.get("firebaseToken")?.value ||
+      request.headers.get("authorization")?.replace("Bearer ", "");
+    if (!token) {
       const signinUrl = new URL("/auth/signin", request.url);
       signinUrl.searchParams.set("redirect", pathname);
       return NextResponse.redirect(signinUrl);

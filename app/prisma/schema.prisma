@@ -12,7 +12,7 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider  = "postgresql"
   // Runtime uses the POOLED connection (Neon -pooler / PgBouncer) so serverless
   // functions share connections instead of exhausting Postgres at scale.
   url       = env("DATABASE_URL")
@@ -24,11 +24,11 @@ datasource db {
 // (74+, per src/game/categories) gets its own paid tower + season, not just 6.
 
 model User {
-  id            String   @id // Firebase UID
-  email         String   @unique
-  emailVerified Boolean  @default(false)
+  id            String        @id // Firebase UID
+  email         String        @unique
+  emailVerified Boolean       @default(false)
   display_name  String? // profile display name (optional)
-  createdAt     DateTime @default(now())
+  createdAt     DateTime      @default(now())
   blocks        Block[]
   climbRecords  ClimbRecord[]
   climbRuns     ClimbRun[]
@@ -146,6 +146,488 @@ model Payment {
   block Block @relation(fields: [block_id], references: [id])
 
   @@map("payments")
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// AI Social Media Management Agent
+//
+// Everything below this line is the additive social-media feature area
+// (loop/architecture.md). It is a SINGLE-TENANT internal admin tool for this
+// business's own TikTok/X/YouTube accounts — operated by a small allowlist of
+// admins (ADMIN_UIDS/ADMIN_EMAILS), NOT a feature exposed to game players.
+// No existing model above this line is modified. See loop/architecture.md for
+// the full design rationale (ADR-1 through ADR-12).
+// ═══════════════════════════════════════════════════════════════════════════
+
+enum SocialPlatform {
+  TIKTOK
+  X
+  YOUTUBE
+  // Adding Instagram/LinkedIn/Facebook later = one additive enum value here
+  // only — no shape change to ContentItem/Approval/Calendar/AuditLog (AC-66).
+}
+
+enum SocialAccountStatus {
+  CONNECTED
+  TOKEN_EXPIRED
+  REAUTH_REQUIRED
+  ERROR
+  DISCONNECTED
+}
+
+enum SocialContentType {
+  TIKTOK_VIDEO
+  YOUTUBE_SHORT
+  YOUTUBE_LONGFORM
+  X_POST
+  X_THREAD
+}
+
+enum SocialContentStatus {
+  IDEA
+  DRAFT
+  READY_FOR_REVIEW
+  APPROVED
+  SCHEDULED
+  PUBLISHED
+  FAILED
+  REJECTED
+}
+
+enum SocialApprovalMode {
+  ALWAYS_REQUIRE_APPROVAL // default — never auto-publish
+  AUTO_PUBLISH_TRUSTED
+  MANUAL_ONLY
+}
+
+enum SocialAssetKind {
+  VIDEO
+  IMAGE
+}
+
+enum SocialAssetStatus {
+  PENDING
+  GENERATING
+  UPLOADING
+  READY
+  FAILED
+}
+
+enum SocialPublicationStatus {
+  PENDING
+  IN_PROGRESS
+  SUCCEEDED
+  FAILED
+  RATE_LIMITED
+}
+
+enum SocialAgentRunKind {
+  CHAT_TURN
+  CONTENT_STUDIO_GENERATION
+  REPURPOSE_CONTENT
+  WEEKLY_STRATEGY
+  ANALYTICS_REFRESH
+  PUBLISH_SWEEP
+  TOKEN_REFRESH_SWEEP
+}
+
+enum SocialAgentRunStatus {
+  PENDING
+  RUNNING
+  WAITING_ON_STEP
+  SUCCEEDED
+  FAILED
+  PARTIAL
+}
+
+enum SocialAgentTaskStatus {
+  PENDING
+  RUNNING
+  SUCCEEDED
+  FAILED
+  UNSUPPORTED
+}
+
+// The closed 18-tool set (AC-20). No tool or code path accepts raw SQL/Prisma
+// query objects — this enum IS the exhaustive list of what the agent may call.
+enum SocialAgentToolName {
+  get_social_accounts
+  get_brand_profile
+  get_content_calendar
+  create_content_idea
+  generate_script
+  generate_caption
+  generate_title
+  generate_description
+  create_content_variations
+  repurpose_content
+  create_post
+  create_thread
+  prepare_video_upload
+  schedule_content
+  publish_content
+  get_social_analytics
+  analyze_content_performance
+  generate_weekly_strategy
+  analyze_climb_replay
+}
+
+enum SocialAuditAction {
+  CONNECT_ACCOUNT
+  DISCONNECT_ACCOUNT
+  CREATE_CONTENT
+  UPDATE_CONTENT
+  REGENERATE_CONTENT
+  DUPLICATE_CONTENT
+  DELETE_CONTENT
+  APPROVE_CONTENT
+  REJECT_CONTENT
+  SCHEDULE_CONTENT
+  RESCHEDULE_CONTENT
+  PUBLISH_CONTENT
+  DELETE_PLATFORM_POST
+  TOKEN_REFRESH
+  ANALYTICS_REFRESH
+  WEEKLY_STRATEGY_RUN
+  BRAND_PROFILE_UPDATE
+  AUTOMATION_SETTINGS_UPDATE
+  AUTO_PUBLISH
+}
+
+enum SocialAuditResult {
+  SUCCESS
+  FAILURE
+}
+
+// One row per connected platform account. Never hard-deleted by app code
+// (ADR-9) — AuditLog/Publication/AnalyticsSnapshot must remain attributable.
+model SocialAccount {
+  id                    String              @id @default(cuid())
+  platform              SocialPlatform
+  externalAccountId     String
+  handle                String
+  displayName           String?
+  avatarUrl             String?
+  status                SocialAccountStatus @default(CONNECTED)
+  accessTokenEncrypted  String?             @db.Text // AES-256-GCM blob (ADR-5); never plaintext
+  refreshTokenEncrypted String?             @db.Text
+  tokenExpiresAt        DateTime?
+  scopes                String[]            @default([])
+  lastSyncedAt          DateTime?
+  connectedByUid        String
+  disconnectedAt        DateTime?
+  createdAt             DateTime            @default(now())
+  updatedAt             DateTime            @updatedAt
+
+  contentItems       SocialContentItem[]
+  publications       SocialPublication[]
+  auditLogs          SocialAuditLog[]
+  analyticsSnapshots SocialAccountAnalyticsSnapshot[]
+
+  @@unique([platform, externalAccountId], name: "social_account_platform_external_id")
+  @@index([platform, status], name: "social_account_platform_status_idx")
+  @@map("social_accounts")
+}
+
+// Single-use CSRF token for the OAuth callback (AC-7). Deliberately decoupled
+// from every other table — a forged/expired state must fail closed with zero
+// DB side effects elsewhere.
+model SocialOAuthState {
+  id             String         @id // random 32-byte token, not a cuid
+  platform       SocialPlatform
+  initiatedByUid String
+  redirectAfter  String?
+  createdAt      DateTime       @default(now())
+  expiresAt      DateTime
+  consumedAt     DateTime?
+
+  @@index([expiresAt], name: "social_oauth_state_expires_idx")
+  @@map("social_oauth_states")
+}
+
+// Mutable singleton (id is always "singleton", enforced in application code).
+model SocialBrandProfile {
+  id              String   @id @default("singleton")
+  name            String
+  niche           String?
+  audience        String?
+  tone            String?
+  style           String?
+  topicsToDiscuss String[] @default([])
+  topicsToAvoid   String[] @default([]) // drives AC-13's deterministic block check
+  ctas            String[] @default([])
+  terminology     String[] @default([])
+  competitors     String[] @default([])
+  products        String[] @default([])
+  positioning     String?  @db.Text
+  version         Int      @default(1) // incremented on every save
+  updatedAt       DateTime @updatedAt
+  updatedByUid    String?
+
+  @@map("social_brand_profiles")
+}
+
+// Immutable append-only history, one row per BrandProfile save (AC-15).
+model SocialBrandProfileSnapshot {
+  id           String   @id @default(cuid())
+  version      Int      @unique
+  data         Json
+  createdAt    DateTime @default(now())
+  createdByUid String?
+
+  @@map("social_brand_profile_snapshots")
+}
+
+// Mutable singleton — approval-mode policy (Epic G).
+model SocialAutomationSettings {
+  id                   String             @id @default("singleton")
+  approvalMode         SocialApprovalMode @default(ALWAYS_REQUIRE_APPROVAL)
+  autoPublishWhitelist Json               @default("[]") // Array<{platform, contentType}>
+  updatedAt            DateTime           @updatedAt
+  updatedByUid         String?
+
+  @@map("social_automation_settings")
+}
+
+// The core entity — one row per platform-adapted draft (ADR-2: no separate
+// ContentVariant model; a ContentItem IS the per-platform variant).
+model SocialContentItem {
+  id                  String               @id @default(cuid())
+  platform            SocialPlatform
+  contentType         SocialContentType
+  status              SocialContentStatus  @default(DRAFT) // never created APPROVED/SCHEDULED/PUBLISHED (AC-23)
+  promptBatchId       String? // groups all items from one Content Studio submission (AC-14/16)
+  sourceItemId        String? // repurposing lineage (AC-18/19)
+  prompt              String?              @db.Text
+  title               String?
+  hook                String?              @db.Text
+  script              String?              @db.Text
+  caption             String?              @db.Text
+  description         String?              @db.Text // YouTube description
+  hashtags            String[]             @default([])
+  cta                 String?
+  visualDirection     String?              @db.Text // notes only — never a rendered asset
+  threadParts         Json? // ordered string array for X_THREAD
+  brandProfileVersion Int? // references SocialBrandProfileSnapshot.version (not an FK — see ADR)
+  generatedByModel    String?
+  sourceToolName      SocialAgentToolName?
+  socialAccountId     String?
+  scheduledAt         DateTime?
+  publishedAt         DateTime?
+  externalPostId      String?
+  approvedByUid       String?
+  approvedAt          DateTime?
+  rejectedByUid       String?
+  rejectedAt          DateTime?
+  rejectionReason     String?
+  failureReason       String?
+  blockedByAvoidTerm  Boolean              @default(false) // AC-13
+  blockedTerms        String[]             @default([])
+  validationErrors    Json?
+  autoPublishEligible Boolean              @default(false)
+  generatedForIsoWeek String? // e.g. "2026-W35" — set only for weekly-strategy items
+  version             Int                  @default(1) // incremented on regenerate (AC-33)
+  lockedAt            DateTime? // publish-claim lock (ADR-3)
+  publishAttempts     Int                  @default(0)
+  deletedAt           DateTime? // soft delete (AC-34, ADR-9)
+  createdByUid        String? // null = system-initiated (weekly strategy)
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+
+  socialAccount SocialAccount?      @relation(fields: [socialAccountId], references: [id], onDelete: SetNull)
+  sourceItem    SocialContentItem?  @relation("ContentLineage", fields: [sourceItemId], references: [id], onDelete: SetNull)
+  repurposedTo  SocialContentItem[] @relation("ContentLineage")
+
+  assets       SocialContentAsset[]
+  publications SocialPublication[]
+  analytics    SocialContentAnalyticsSnapshot[]
+  auditLogs    SocialAuditLog[]
+  agentTasks   SocialAgentTask[]
+  topPostFor   SocialAIRecommendation[]
+
+  @@index([status, scheduledAt], name: "social_content_status_scheduled_idx")
+  @@index([platform, status], name: "social_content_platform_status_idx")
+  @@index([sourceItemId], name: "social_content_source_item_idx")
+  @@index([promptBatchId], name: "social_content_prompt_batch_idx")
+  @@index([generatedForIsoWeek], name: "social_content_iso_week_idx")
+  @@index([createdAt], name: "social_content_created_at_idx")
+  @@map("social_content_items")
+}
+
+// A video/image file's upload-session state (Epic J).
+model SocialContentAsset {
+  id                       String            @id @default(cuid())
+  contentItemId            String
+  kind                     SocialAssetKind
+  status                   SocialAssetStatus @default(PENDING)
+  sourceFilename           String?
+  mimeType                 String
+  sizeBytes                Int
+  chunkSizeBytes           Int
+  bytesUploaded            Int               @default(0) // resumability checkpoint
+  externalAssetId          String?
+  aiVideoJobId             String? // OpenAI Videos API job id while GENERATING
+  storedVideoUrl           String? @db.Text // preview/download URL after generation (Vercel Blob or proxied)
+  platformUploadSessionUri String?           @db.Text // server-only, never serialized (same redaction rule as tokens)
+  errorMessage             String?
+  createdAt                DateTime          @default(now())
+  updatedAt                DateTime          @updatedAt
+
+  contentItem SocialContentItem @relation(fields: [contentItemId], references: [id], onDelete: Cascade)
+
+  @@index([contentItemId, status], name: "social_asset_item_status_idx")
+  @@map("social_content_assets")
+}
+
+// Durable attempt/result audit trail for each publish try (Epic I).
+model SocialPublication {
+  id                   String                  @id @default(cuid())
+  contentItemId        String
+  socialAccountId      String?
+  attemptNumber        Int
+  status               SocialPublicationStatus @default(PENDING)
+  externalPostId       String?
+  rateLimitedUntil     DateTime?
+  errorCode            String?
+  errorMessage         String?
+  rawResponseSanitized Json?
+  startedAt            DateTime                @default(now())
+  finishedAt           DateTime?
+
+  contentItem   SocialContentItem @relation(fields: [contentItemId], references: [id], onDelete: Cascade)
+  socialAccount SocialAccount?    @relation(fields: [socialAccountId], references: [id], onDelete: SetNull)
+
+  @@unique([contentItemId, attemptNumber], name: "social_publication_item_attempt")
+  @@index([contentItemId], name: "social_publication_item_idx")
+  @@index([status], name: "social_publication_status_idx")
+  @@map("social_publications")
+}
+
+// Per-item, per-day metrics (Epic K).
+model SocialContentAnalyticsSnapshot {
+  id                   String   @id @default(cuid())
+  contentItemId        String
+  snapshotDate         DateTime @db.Date // day granularity — the idempotency window
+  views                Int? // null (not 0) means "not available from this platform's API tier" (AC-43)
+  likes                Int?
+  comments             Int?
+  shares               Int?
+  watchTimeSeconds     Int?
+  retentionPct         Float?
+  clicks               Int?
+  notAvailableMetrics  String[] @default([])
+  rawResponseSanitized Json?
+  fetchedAt            DateTime @default(now())
+
+  contentItem SocialContentItem @relation(fields: [contentItemId], references: [id], onDelete: Cascade)
+
+  @@unique([contentItemId, snapshotDate], name: "social_content_analytics_item_date") // idempotent upsert (AC-44)
+  @@index([contentItemId], name: "social_content_analytics_item_idx")
+  @@map("social_content_analytics_snapshots")
+}
+
+// Per-account, per-day follower/reach (account-level metrics).
+model SocialAccountAnalyticsSnapshot {
+  id                  String   @id @default(cuid())
+  socialAccountId     String
+  snapshotDate        DateTime @db.Date
+  followers           Int?
+  notAvailableMetrics String[] @default([])
+  fetchedAt           DateTime @default(now())
+
+  socialAccount SocialAccount @relation(fields: [socialAccountId], references: [id], onDelete: Cascade)
+
+  @@unique([socialAccountId, snapshotDate], name: "social_account_analytics_account_date")
+  @@map("social_account_analytics_snapshots")
+}
+
+// Weekly report output (Epic L).
+model SocialAIRecommendation {
+  id                      String          @id @default(cuid())
+  isoWeek                 String          @unique // AC-47's idempotency key
+  bestPlatform            SocialPlatform?
+  bestTopic               String?
+  bestHook                String?
+  topPostContentItemId    String?
+  weekOverWeekDeltaPct    Float?
+  recommendations         String[]        @default([])
+  rawModelOutputSanitized Json?
+  createdAt               DateTime        @default(now())
+
+  topPostContentItem SocialContentItem? @relation(fields: [topPostContentItemId], references: [id], onDelete: SetNull)
+
+  @@map("social_ai_recommendations")
+}
+
+// One top-level unit of agent work: a chat turn, or one scheduled-job
+// execution. The resumable-step engine (ADR-1).
+model SocialAgentRun {
+  id                String               @id @default(cuid())
+  kind              SocialAgentRunKind
+  status            SocialAgentRunStatus @default(PENDING)
+  initiatedByUid    String? // null = system
+  initiatedBySystem String? // e.g. "cron:weekly-strategy"
+  input             Json
+  isoWeek           String? // set only for WEEKLY_STRATEGY runs
+  currentStepIndex  Int                  @default(0)
+  maxSteps          Int                  @default(12) // hard ceiling against runaway tool-call loops
+  lockedAt          DateTime? // cron-claim lock, same pattern as ContentItem.lockedAt
+  error             String?              @db.Text
+  startedAt         DateTime?
+  finishedAt        DateTime?
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+
+  tasks SocialAgentTask[]
+
+  @@index([kind, status], name: "social_agent_run_kind_status_idx")
+  @@map("social_agent_runs")
+}
+
+// One step within an AgentRun (one LLM round-trip and/or one tool execution).
+model SocialAgentTask {
+  id              String                @id @default(cuid())
+  agentRunId      String
+  stepIndex       Int
+  toolName        SocialAgentToolName? // null for a pure-text model step with no tool call
+  contentItemId   String?
+  input           Json?
+  outputSanitized Json? // credential-shaped fields stripped before persisting (AC-55)
+  status          SocialAgentTaskStatus @default(PENDING)
+  errorMessage    String?
+  startedAt       DateTime?
+  finishedAt      DateTime?
+  createdAt       DateTime              @default(now())
+
+  agentRun    SocialAgentRun     @relation(fields: [agentRunId], references: [id], onDelete: Cascade)
+  contentItem SocialContentItem? @relation(fields: [contentItemId], references: [id], onDelete: SetNull)
+
+  @@unique([agentRunId, stepIndex], name: "social_agent_task_run_step")
+  @@map("social_agent_tasks")
+}
+
+// Every mutating action (Epic N). Never targeted by any delete in app code.
+model SocialAuditLog {
+  id              String            @id @default(cuid())
+  action          SocialAuditAction
+  platform        SocialPlatform? // null for platform-agnostic actions (brand profile, settings)
+  socialAccountId String?
+  contentItemId   String?
+  result          SocialAuditResult
+  initiator       String // Firebase UID, or "system:<job-name>" / "system:auto-publish" / "system:cron"
+  errorDetail     String?           @db.Text
+  metadata        Json?
+  createdAt       DateTime          @default(now())
+
+  socialAccount SocialAccount?     @relation(fields: [socialAccountId], references: [id], onDelete: SetNull)
+  contentItem   SocialContentItem? @relation(fields: [contentItemId], references: [id], onDelete: SetNull)
+
+  @@index([createdAt(sort: Desc)], name: "social_audit_created_at_idx")
+  @@index([platform, action, result], name: "social_audit_platform_action_result_idx")
+  @@index([socialAccountId], name: "social_audit_account_idx")
+  @@index([contentItemId], name: "social_audit_content_idx")
+  @@map("social_audit_logs")
 }
 
 model PaymentDeadLetter {

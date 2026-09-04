@@ -2,5 +2,11 @@
   "framework": "nextjs",
   "buildCommand": "export DIRECT_URL=\"${DIRECT_URL:-$DATABASE_URL}\" && pnpm db:migrate && pnpm build",
   "installCommand": "pnpm install",
-  "outputDirectory": ".next"
+  "outputDirectory": ".next",
+  "functions": {
+    "app/api/social/agent/runs/route.js": { "maxDuration": 60 },
+    "app/api/social/agent/runs/[id]/step/route.js": { "maxDuration": 60 },
+    "app/api/social/content/generate/route.js": { "maxDuration": 60 },
+    "app/api/social/content/[id]/video/route.js": { "maxDuration": 120 }
+  }
 }
