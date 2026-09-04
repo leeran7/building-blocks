@@ -135,6 +135,16 @@ export function Footer() {
                 Rules
               </Link>
             </li>
+            <li>
+              <Link href="/privacy" className={LINK}>
+                Privacy
+              </Link>
+            </li>
+            <li>
+              <Link href="/terms" className={LINK}>
+                Terms
+              </Link>
+            </li>
           </ul>
         </nav>
       </div>

@@ -4,7 +4,7 @@ Generic body for `CLAUDE.md` / `AGENTS.md`. `init-pack` writes this when
 those files do not already exist. Product facts belong in `context/`, not
 here.
 
-**New repo?** Start at [`pack/SETUP.md`](../../pack/SETUP.md) (file tree +
+**New repo?** Start at [`pack/SETUP.md`](pack/SETUP.md) (file tree +
 5-minute install).
 
 ## What this repo uses

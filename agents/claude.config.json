@@ -114,5 +114,10 @@
     "disallowedTools": ["Write", "Edit", "Agent"],
     "skills": ["closed-loop"],
     "color": "yellow"
+  },
+  "legal": {
+    "tools": ["Read", "Write", "Edit", "Grep", "Glob"],
+    "skills": ["closed-loop"],
+    "color": "blue"
   }
 }
