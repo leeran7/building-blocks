@@ -3,7 +3,7 @@ import { AGENT_TOOL_NAMES } from "../../src/social/types";
 import { TOOL_SCHEMAS, isKnownTool, buildToolSet } from "../../src/social/agent/toolRegistry";
 
 describe("toolRegistry (AC-20)", () => {
-  it("exposes exactly 18 named tools", () => {
+  it("exposes exactly 19 named tools", () => {
     expect(AGENT_TOOL_NAMES).toHaveLength(19);
   });
 

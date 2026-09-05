@@ -36,6 +36,7 @@ export const POST = withSocialAdminParams<{ id: string }>(async (request, decode
     status: result.run.status,
     currentStepIndex: result.run.currentStepIndex,
     assistantText: result.assistantText,
+    error: result.run.status === "FAILED" ? result.run.error : undefined,
     toolCalls: result.task ? [result.task] : [],
   });
 });

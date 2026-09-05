@@ -48,7 +48,7 @@ export default function AnalyticsPage() {
         </button>
       </header>
 
-      {error && <p className="text-red-400 text-sm">{error}</p>}
+      {error && <p className="text-danger text-sm">{error}</p>}
 
       {data ? (
         <pre className="rounded-xl border border-border bg-void p-4 text-xs overflow-auto max-h-[32rem] font-mono text-text-muted">

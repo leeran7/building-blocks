@@ -1,59 +1,85 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useSocialApi } from "../../../../src/components/Social/useSocialApi";
+import { ApprovalCard, type ApprovalContentItem } from "../../../../src/components/Social/ApprovalCard";
+import { RejectDialog } from "../../../../src/components/Social/RejectDialog";
 
-interface ContentItem {
-  id: string;
-  platform: string;
-  title: string | null;
-  hook: string | null;
-  caption: string | null;
-  status: string;
-  blockedByAvoidTerm: boolean;
-}
+type ContentItem = ApprovalContentItem;
 
 export default function ApprovalsPage() {
   const { request } = useSocialApi();
   const [items, setItems] = useState<ContentItem[]>([]);
-  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [listError, setListError] = useState<string | null>(null);
   const [acting, setActing] = useState<string | null>(null);
+  const [itemErrors, setItemErrors] = useState<Record<string, string>>({});
+
+  const [rejectTarget, setRejectTarget] = useState<string | null>(null);
+  const [rejectSubmitting, setRejectSubmitting] = useState(false);
+  const [rejectError, setRejectError] = useState<string | null>(null);
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
 
   const load = useCallback(() => {
+    setLoading(true);
     request<{ items: ContentItem[] }>("/api/social/content?status=READY_FOR_REVIEW")
-      .then((data: { items: ContentItem[] }) => setItems(data.items))
-      .catch((err: Error) => setError(err.message));
+      .then((data) => setItems(data.items))
+      .catch((err: Error) => setListError(err.message))
+      .finally(() => setLoading(false));
   }, [request]);
 
   useEffect(() => {
     load();
   }, [load]);
 
+  function clearItemError(id: string) {
+    setItemErrors((prev) => {
+      if (!(id in prev)) return prev;
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
+  }
+
   async function approve(id: string) {
     setActing(id);
+    clearItemError(id);
     try {
       await request(`/api/social/content/${id}/approve`, { method: "POST", body: "{}" });
       load();
     } catch (err) {
-      setError((err as Error).message);
+      setItemErrors((prev) => ({ ...prev, [id]: (err as Error).message }));
     } finally {
       setActing(null);
     }
   }
 
-  async function reject(id: string) {
-    const reason = window.prompt("Rejection reason (optional):") ?? undefined;
-    setActing(id);
+  function openReject(id: string, trigger: HTMLButtonElement) {
+    triggerRef.current = trigger;
+    setRejectTarget(id);
+    setRejectError(null);
+  }
+
+  function closeReject() {
+    setRejectTarget(null);
+    triggerRef.current?.focus();
+  }
+
+  async function confirmReject(reason: string) {
+    if (!rejectTarget) return;
+    setRejectSubmitting(true);
+    setRejectError(null);
     try {
-      await request(`/api/social/content/${id}/reject`, {
+      await request(`/api/social/content/${rejectTarget}/reject`, {
         method: "POST",
-        body: JSON.stringify({ reason }),
+        body: JSON.stringify({ reason: reason.trim() || undefined }),
       });
+      closeReject();
       load();
     } catch (err) {
-      setError((err as Error).message);
+      setRejectError((err as Error).message);
     } finally {
-      setActing(null);
+      setRejectSubmitting(false);
     }
   }
 
@@ -61,49 +87,40 @@ export default function ApprovalsPage() {
     <div className="space-y-6">
       <header>
         <h1 className="font-display text-2xl tracking-tight">Approval Queue</h1>
-        <p className="text-text-muted text-sm mt-1">Review AI-generated drafts before scheduling or publishing.</p>
+        <p className="mt-1 text-sm text-text-secondary">Review AI-generated drafts before scheduling or publishing.</p>
       </header>
 
-      {error && <p className="text-red-400 text-sm">{error}</p>}
+      {listError && <p className="text-sm text-danger">{listError}</p>}
 
       <div className="space-y-4">
-        {items.length === 0 ? (
-          <p className="text-text-muted text-sm">Nothing awaiting approval.</p>
+        {loading ? (
+          <>
+            <div className="h-32 rounded-xl border border-border bg-elevated/60 animate-pulse motion-reduce:animate-none" />
+            <div className="h-32 rounded-xl border border-border bg-elevated/60 animate-pulse motion-reduce:animate-none" />
+          </>
+        ) : items.length === 0 ? (
+          <p className="text-sm text-text-secondary">Nothing awaiting approval.</p>
         ) : (
           items.map((item) => (
-            <article key={item.id} className="rounded-xl border border-border bg-elevated p-5 space-y-3">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <span className="font-mono text-xs text-text-muted">{item.platform}</span>
-                  <h2 className="font-semibold">{item.title ?? item.hook ?? "Untitled"}</h2>
-                  {item.caption && <p className="text-sm text-text-muted mt-1 line-clamp-3">{item.caption}</p>}
-                  {item.blockedByAvoidTerm && (
-                    <p className="text-amber-400 text-xs mt-2">⚠ Contains avoid-listed terms — cannot approve until edited.</p>
-                  )}
-                </div>
-                <div className="flex gap-2 flex-shrink-0">
-                  <button
-                    type="button"
-                    disabled={acting === item.id || item.blockedByAvoidTerm}
-                    onClick={() => approve(item.id)}
-                    className="rounded-full bg-signal px-4 py-1.5 text-xs font-semibold text-void disabled:opacity-50"
-                  >
-                    Approve
-                  </button>
-                  <button
-                    type="button"
-                    disabled={acting === item.id}
-                    onClick={() => reject(item.id)}
-                    className="rounded-full border border-border px-4 py-1.5 text-xs text-text-muted hover:text-text-primary disabled:opacity-50"
-                  >
-                    Reject
-                  </button>
-                </div>
-              </div>
-            </article>
+            <ApprovalCard
+              key={item.id}
+              item={item}
+              acting={acting === item.id}
+              error={itemErrors[item.id]}
+              onApprove={() => approve(item.id)}
+              onReject={(e) => openReject(item.id, e.currentTarget)}
+            />
           ))
         )}
       </div>
+
+      <RejectDialog
+        open={rejectTarget !== null}
+        submitting={rejectSubmitting}
+        error={rejectError}
+        onCancel={closeReject}
+        onConfirm={confirmReject}
+      />
     </div>
   );
 }

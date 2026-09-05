@@ -249,7 +249,7 @@ enum SocialAgentTaskStatus {
   UNSUPPORTED
 }
 
-// The closed 18-tool set (AC-20). No tool or code path accepts raw SQL/Prisma
+// The closed 19-tool set (AC-20). No tool or code path accepts raw SQL/Prisma
 // query objects — this enum IS the exhaustive list of what the agent may call.
 enum SocialAgentToolName {
   get_social_accounts

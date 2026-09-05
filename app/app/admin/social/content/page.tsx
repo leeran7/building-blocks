@@ -1,7 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 import { useSocialApi } from "../../../../src/components/Social/useSocialApi";
+import { CapabilityCompare } from "../../../../src/components/Social/CapabilityCompare";
 
 const PLATFORMS = ["TIKTOK", "X", "YOUTUBE"] as const;
 
@@ -141,11 +143,19 @@ export default function ContentStudioPage() {
 
   return (
     <div className="space-y-6">
-      <header>
-        <h1 className="font-display text-2xl tracking-tight">Content Studio</h1>
-        <p className="text-text-muted text-sm mt-1">
-          One prompt → platform-native copy and optional AI-generated videos (OpenAI Sora).
-        </p>
+      <header className="space-y-3">
+        <div>
+          <h1 className="font-display text-2xl tracking-tight">Quick Create</h1>
+          <p className="text-text-secondary text-sm mt-1">
+            One prompt → platform-native copy and optional AI-generated videos (OpenAI Sora). For
+            replay-driven content, scheduling, or publishing, use the{" "}
+            <Link href="/admin/social/agent" className="text-signal underline">
+              AI Assistant
+            </Link>{" "}
+            →
+          </p>
+        </div>
+        <CapabilityCompare />
       </header>
 
       <form onSubmit={handleGenerate} className="space-y-4 rounded-xl border border-border bg-elevated p-5">
@@ -200,7 +210,7 @@ export default function ContentStudioPage() {
         </button>
       </form>
 
-      {error && <p className="text-red-400 text-sm">{error}</p>}
+      {error && <p className="text-danger text-sm">{error}</p>}
 
       {result?.items && result.items.length > 0 ? (
         <section className="space-y-3">
@@ -233,7 +243,7 @@ export default function ContentStudioPage() {
                 {showVideo ? (
                   <div className="rounded-lg border border-border bg-void p-3 text-xs text-text-muted space-y-2">
                     {job?.error ? (
-                      <p className="text-red-400">Video: {job.error}</p>
+                      <p className="text-danger">Video: {job.error}</p>
                     ) : video?.status === "READY" && video.videoUrl ? (
                       <video
                         src={video.videoUrl}
@@ -242,7 +252,7 @@ export default function ContentStudioPage() {
                         playsInline
                       />
                     ) : video?.status === "FAILED" ? (
-                      <p className="text-red-400">Video failed: {video.errorMessage ?? "Unknown error"}</p>
+                      <p className="text-danger">Video failed: {video.errorMessage ?? "Unknown error"}</p>
                     ) : (
                       <p>
                         Video: {video?.jobStatus ?? "queued"}… (Sora renders take a few minutes — this page polls
