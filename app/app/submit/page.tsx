@@ -21,6 +21,14 @@ import {
   parsePaidStackSlug,
   DEFAULT_STACK_SLUG,
 } from "../../src/game/categories";
+import {
+  PLATFORM_META,
+  SOCIAL_PLATFORMS,
+} from "../../src/lib/socialHandle";
+import type { CreatorPlatform } from "@prisma/client";
+
+/** "" = a website listing; otherwise the chosen social platform. */
+type LinkTarget = "" | CreatorPlatform;
 
 const INPUT =
   "w-full bg-surface border border-border-subtle rounded-lg px-4 py-3 text-base text-text-primary placeholder-text-muted focus:outline-none focus:border-signal focus:ring-1 focus:ring-signal transition-colors";
@@ -43,6 +51,8 @@ function SubmitForm() {
     : "/submit";
   const [displayName, setDisplayName] = useState("");
   const [url, setUrl] = useState("");
+  const [linkTarget, setLinkTarget] = useState<LinkTarget>("");
+  const [handle, setHandle] = useState("");
   const [category, setCategory] = useState(initialCategory);
   const [amount, setAmount] = useState("5");
   const [submitting, setSubmitting] = useState(false);
@@ -128,7 +138,11 @@ function SubmitForm() {
         },
         body: JSON.stringify({
           type: "new",
-          url,
+          // Website listings send `url`; social listings send platform+handle
+          // and the server derives the canonical profile URL.
+          ...(linkTarget
+            ? { platform: linkTarget, handle }
+            : { url }),
           display_name: displayName,
           owner_email: user!.email,
           category,
@@ -193,56 +207,108 @@ function SubmitForm() {
         </div>
 
         <div>
-          <label htmlFor="url" className="block text-sm font-medium text-text-primary mb-1.5">
-            URL
+          <label htmlFor="link_target" className="block text-sm font-medium text-text-primary mb-1.5">
+            What are you linking?
           </label>
+          <select
+            id="link_target"
+            value={linkTarget}
+            onChange={(e) => setLinkTarget(e.target.value as LinkTarget)}
+            className={`${INPUT} mb-3`}
+            disabled={submitting}
+          >
+            <option value="">Website</option>
+            {SOCIAL_PLATFORMS.map((p) => (
+              <option key={p} value={p}>
+                {PLATFORM_META[p].label}
+              </option>
+            ))}
+          </select>
 
-          {savedUrls.length > 0 && (
-            <select
-              aria-label="Choose a saved URL"
-              value={typingNewUrl ? "__new__" : url}
-              onChange={(e) => {
-                const v = e.target.value;
-                if (v === "__new__") {
-                  setTypingNewUrl(true);
-                  setUrl("");
-                } else {
-                  setTypingNewUrl(false);
-                  setUrl(v);
-                }
-              }}
-              className={`${INPUT} mb-2`}
-              disabled={submitting}
-            >
-              {savedUrls.map((u) => (
-                <option key={u} value={u}>
-                  {u}
-                </option>
-              ))}
-              <option value="__new__">＋ Type a new URL…</option>
-            </select>
-          )}
+          {linkTarget ? (
+            <>
+              <label htmlFor="handle" className="block text-sm font-medium text-text-primary mb-1.5">
+                {PLATFORM_META[linkTarget].label} handle
+              </label>
+              <div className="flex items-center gap-2">
+                <span aria-hidden="true" className="text-text-muted font-mono">
+                  @
+                </span>
+                <input
+                  id="handle"
+                  value={handle}
+                  onChange={(e) => setHandle(e.target.value)}
+                  className={`${INPUT} font-mono`}
+                  placeholder={PLATFORM_META[linkTarget].example}
+                  maxLength={120}
+                  required
+                  disabled={submitting}
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck={false}
+                />
+              </div>
+              <p className="text-xs text-text-secondary mt-1.5">
+                Players who tap your block go straight to your{" "}
+                {PLATFORM_META[linkTarget].label} profile. Following must be their
+                choice — you can’t reward players for it. Add each platform as its
+                own entry (one per platform in a stack).
+              </p>
+            </>
+          ) : (
+            <>
+              <label htmlFor="url" className="block text-sm font-medium text-text-primary mb-1.5">
+                URL
+              </label>
 
-          {(savedUrls.length === 0 || typingNewUrl) && (
-            <input
-              id="url"
-              type="url"
-              value={url}
-              onChange={(e) => setUrl(e.target.value)}
-              className={`${INPUT} font-mono`}
-              placeholder="https://example.com"
-              required
-              disabled={submitting}
-            />
-          )}
-          {savedUrls.length > 0 && (
-            <p className="text-xs text-text-secondary mt-1.5">
-              New URLs are saved to your{" "}
-              <a href="/settings" className="text-signal hover:brightness-110">
-                settings
-              </a>{" "}
-              for next time.
-            </p>
+              {savedUrls.length > 0 && (
+                <select
+                  aria-label="Choose a saved URL"
+                  value={typingNewUrl ? "__new__" : url}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    if (v === "__new__") {
+                      setTypingNewUrl(true);
+                      setUrl("");
+                    } else {
+                      setTypingNewUrl(false);
+                      setUrl(v);
+                    }
+                  }}
+                  className={`${INPUT} mb-2`}
+                  disabled={submitting}
+                >
+                  {savedUrls.map((u) => (
+                    <option key={u} value={u}>
+                      {u}
+                    </option>
+                  ))}
+                  <option value="__new__">＋ Type a new URL…</option>
+                </select>
+              )}
+
+              {(savedUrls.length === 0 || typingNewUrl) && (
+                <input
+                  id="url"
+                  type="url"
+                  value={url}
+                  onChange={(e) => setUrl(e.target.value)}
+                  className={`${INPUT} font-mono`}
+                  placeholder="https://example.com"
+                  required
+                  disabled={submitting}
+                />
+              )}
+              {savedUrls.length > 0 && (
+                <p className="text-xs text-text-secondary mt-1.5">
+                  New URLs are saved to your{" "}
+                  <a href="/settings" className="text-signal hover:brightness-110">
+                    settings
+                  </a>{" "}
+                  for next time.
+                </p>
+              )}
+            </>
           )}
         </div>
 

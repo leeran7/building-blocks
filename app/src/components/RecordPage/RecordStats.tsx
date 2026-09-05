@@ -1,7 +1,10 @@
 "use client";
 
 import Link from "next/link";
+import type { CreatorPlatform } from "@prisma/client";
 import { ALTITUDE_UNIT, formatAltitude, formatAltitudeLabel } from "../../lib/units";
+import { SocialMark } from "../Social/SocialMark";
+import { PLATFORM_META, handleDisplay } from "../../lib/socialHandle";
 
 /**
  * RecordStats — the permanent record dossier for a block (AC-38), ASCENT design.
@@ -24,11 +27,18 @@ interface RecordStatsProps {
   buried: boolean;
   hidden: boolean;
   categoryLabel?: string;
+  /** Set when the listing points at a social account (native label). */
+  platform?: CreatorPlatform | null;
+  handle?: string | null;
+  /** Owner's public identity — links to their creator page when a username is set. */
+  creatorName?: string | null;
+  creatorUsername?: string | null;
 }
 
 export function RecordStats({
   display_name,
   url,
+  slug,
   altitude,
   peak_rank,
   views_served,
@@ -38,8 +48,13 @@ export function RecordStats({
   buried,
   hidden,
   categoryLabel,
+  platform,
+  handle,
+  creatorName,
+  creatorUsername,
 }: RecordStatsProps) {
   const totalSpendUsd = (total_spend_cents / 100).toFixed(2);
+  const isSocial = Boolean(platform && handle);
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-10">
@@ -102,16 +117,61 @@ export function RecordStats({
           <h1 className="font-display text-3xl md:text-4xl text-text-primary mt-6">
             {display_name}
           </h1>
-          <a
-            href={url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-block text-signal hover:brightness-110 text-sm break-all font-mono mt-1.5"
-            aria-label={`Visit ${display_name} (opens external site)`}
-            data-testid="record-outbound-link"
-          >
-            {url} ↗
-          </a>
+          {hidden ? (
+            // Hidden blocks (unpaid, or admin-hidden for abuse) are not live —
+            // show the destination as non-clickable text so /go (which 404s
+            // hidden blocks) is never linked and a flagged URL stays unreachable.
+            <span
+              className="inline-flex items-center gap-1.5 text-text-secondary text-sm break-all font-mono mt-1.5"
+              data-testid="record-outbound-link"
+            >
+              {isSocial ? (
+                <>
+                  <SocialMark platform={platform!} className="h-4 w-4 flex-shrink-0" />
+                  {handleDisplay(handle!)}
+                </>
+              ) : (
+                <>{url}</>
+              )}
+            </span>
+          ) : (
+            <a
+              href={`/go/${slug}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 text-signal hover:brightness-110 text-sm break-all font-mono mt-1.5"
+              aria-label={
+                isSocial
+                  ? `Visit ${display_name} on ${PLATFORM_META[platform!].label} (opens external site)`
+                  : `Visit ${display_name} (opens external site)`
+              }
+              data-testid="record-outbound-link"
+            >
+              {isSocial ? (
+                <>
+                  <SocialMark platform={platform!} className="h-4 w-4 flex-shrink-0" />
+                  {handleDisplay(handle!)} ↗
+                </>
+              ) : (
+                <>{url} ↗</>
+              )}
+            </a>
+          )}
+          {creatorName && (
+            <p className="text-xs text-text-muted mt-2">
+              by{" "}
+              {creatorUsername ? (
+                <Link
+                  href={`/c/${creatorUsername}`}
+                  className="text-text-secondary hover:text-signal transition-colors"
+                >
+                  {creatorName}
+                </Link>
+              ) : (
+                <span className="text-text-secondary">{creatorName}</span>
+              )}
+            </p>
+          )}
 
           {/* Stats grid — cockpit gauge cluster (AC-38) */}
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-px overflow-hidden rounded-xl border border-border-subtle bg-border-subtle mt-7">

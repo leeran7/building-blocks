@@ -9,7 +9,7 @@
  */
 
 import { prisma } from "./client";
-import type { Block } from "@prisma/client";
+import type { Block, CreatorPlatform } from "@prisma/client";
 
 /**
  * Get all visible blocks, ordered by altitude DESC.
@@ -62,6 +62,36 @@ export async function getBlockById(id: string): Promise<Block | null> {
 }
 
 /**
+ * Find a user's existing entry (hidden OR visible) for a platform within a
+ * season. Backs "one entry per stack, per user, per platform": the DB unique
+ * index blocks_user_season_platform_key guarantees at most one such row, so
+ * this returns it whether it's a paid (visible) entry or an unpaid (hidden)
+ * one left by an earlier/abandoned checkout — the checkout flow then either
+ * rejects a paid duplicate or reuses the unpaid one.
+ */
+export async function findUserSeasonPlatformBlock(
+  userId: string,
+  seasonId: string,
+  platform: CreatorPlatform
+): Promise<Block | null> {
+  return prisma.block.findFirst({
+    where: { userId, season_id: seasonId, platform },
+  });
+}
+
+/**
+ * Point an existing (unpaid, hidden) social block at a possibly-updated
+ * destination — used when a creator re-runs checkout for a platform whose entry
+ * they never paid for. Slug is permanent identity and is left unchanged.
+ */
+export async function retargetSocialBlock(
+  id: string,
+  data: { url: string; display_name: string; handle: string }
+): Promise<Block> {
+  return prisma.block.update({ where: { id }, data });
+}
+
+/**
  * Create a new block with altitude = 0, hidden by default.
  * Pass hidden_at: null only after payment is confirmed (webhook).
  */
@@ -74,6 +104,9 @@ export async function createBlock(data: {
   userId?: string;
   category?: string;
   hidden_at?: Date | null;
+  /** Set when the listing points at a social account (native card). */
+  platform?: CreatorPlatform;
+  handle?: string;
 }): Promise<Block> {
   return prisma.block.create({
     data: {

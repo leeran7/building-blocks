@@ -21,7 +21,10 @@
  */
 
 import React from "react";
+import type { CreatorPlatform } from "@prisma/client";
 import { ALTITUDE_UNIT, formatAltitudeLabel } from "../../lib/units";
+import { SocialMark } from "../Social/SocialMark";
+import { PLATFORM_META, handleDisplay } from "../../lib/socialHandle";
 
 export interface BlockRowProps {
   id: string;
@@ -33,6 +36,9 @@ export interface BlockRowProps {
   buried: boolean;
   amber_edge: boolean;
   views_served: number;
+  /** Set when the listing points at a social account (renders a native card). */
+  platform?: CreatorPlatform | null;
+  handle?: string | null;
   /** Highest altitude in this stack (rank-1) — used to scale the altitude bar. */
   maxAltitude?: number;
   /** Animation delay derived from block.id (AC-29) */
@@ -55,6 +61,8 @@ export function BlockRow({
   buried,
   amber_edge,
   views_served,
+  platform,
+  handle,
   maxAltitude = 0,
   rankChanged = false,
 }: BlockRowProps) {
@@ -129,7 +137,7 @@ export function BlockRow({
       {/* Name + domain */}
       <div className="relative z-10 flex-1 min-w-0">
         <a
-          href={url}
+          href={`/go/${slug}`}
           target="_blank"
           rel="noopener noreferrer"
           className={[
@@ -144,14 +152,28 @@ export function BlockRow({
         >
           {display_name}
         </a>
-        <span
-          className={[
-            "block text-xs font-mono truncate mt-0.5",
-            buried ? "text-text-disabled" : "text-text-muted",
-          ].join(" ")}
-        >
-          {domainOf(url)}
-        </span>
+        {platform && handle ? (
+          <span
+            className={[
+              "flex items-center gap-1 text-xs font-mono truncate mt-0.5",
+              buried ? "text-text-disabled" : "text-text-secondary",
+            ].join(" ")}
+            title={`${PLATFORM_META[platform].label} · ${handleDisplay(handle)}`}
+            aria-label={`${PLATFORM_META[platform].label} ${handleDisplay(handle)}`}
+          >
+            <SocialMark platform={platform} className="h-3.5 w-3.5 flex-shrink-0" />
+            <span className="truncate">{handleDisplay(handle)}</span>
+          </span>
+        ) : (
+          <span
+            className={[
+              "block text-xs font-mono truncate mt-0.5",
+              buried ? "text-text-disabled" : "text-text-muted",
+            ].join(" ")}
+          >
+            {domainOf(url)}
+          </span>
+        )}
       </div>
 
       {/* Status chip */}

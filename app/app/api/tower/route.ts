@@ -71,6 +71,8 @@ async function buildResponse(
       peak_rank: block.peak_rank,
       hidden_at: block.hidden_at?.toISOString() ?? null,
       created_at: block.created_at.toISOString(),
+      platform: block.platform,
+      handle: block.handle,
       buried: isBuried(block.altitude, V),
       amber_edge: isAmberEdge(block.altitude, V),
       rank: index + 1,

@@ -15,7 +15,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { getOrCreateActiveSeason } from "../../../src/db/seasons";
-import { createBlock, getBlockById } from "../../../src/db/blocks";
+import {
+  createBlock,
+  getBlockById,
+  findUserSeasonPlatformBlock,
+  retargetSocialBlock,
+} from "../../../src/db/blocks";
+import { Prisma } from "@prisma/client";
+import { PLATFORM_META } from "../../../src/lib/socialHandle";
 import { ensureUser } from "../../../src/db/user";
 import { addSavedUrl } from "../../../src/db/settings";
 import { requireAuth, AuthError } from "../../../src/lib/requireAuth";
@@ -24,7 +31,13 @@ import { loadConstants } from "../../../src/engine/constants";
 import { validateUrl } from "../../../src/lib/validateUrl";
 import { sanitizeDisplayName } from "../../../src/lib/sanitizeName";
 import { isHatefulName } from "../../../src/lib/nameModeration";
+import {
+  normalizeHandle,
+  profileUrl,
+  detectSocialPlatform,
+} from "../../../src/lib/socialHandle";
 import { uniqueSlug } from "../../../src/lib/slugify";
+import type { CreatorPlatform } from "@prisma/client";
 import { getStripe } from "../../../src/api/stripe";
 import { resolveBaseUrl } from "../../../src/config/public";
 import { checkRateLimit, clientIp } from "../../../src/lib/rateLimit";
@@ -43,25 +56,37 @@ function normalizeCategorySlug(raw: string | undefined): string | null {
   return parsePaidStackSlug(raw);
 }
 
-const NewListingSchema = z.object({
-  type: z.literal("new"),
-  url: z.string().min(1),
-  // A block name is public (tower + record pages). Share the sanitiser used for
-  // profile names (strips control / zero-width / bidi-spoof chars, CWE-117), then
-  // require a non-empty result and reject racist / hateful names.
-  display_name: z
-    .string()
-    .min(1)
-    .max(100)
-    .transform(sanitizeDisplayName)
-    .refine((n) => n.length > 0, { message: "Display name is required" })
-    .refine((n) => !isHatefulName(n), {
-      message: "That display name isn’t allowed.",
-    }),
-  owner_email: z.string().email(),
-  category: z.string().optional(),
-  amount_usd: z.number().positive(),
-});
+const NewListingSchema = z
+  .object({
+    type: z.literal("new"),
+    // Either a website URL or a (platform, handle) pair. URL is optional so a
+    // social listing can omit it — the server derives the profile URL.
+    url: z.string().min(1).optional(),
+    // A block name is public (tower + record pages). Share the sanitiser used for
+    // profile names (strips control / zero-width / bidi-spoof chars, CWE-117), then
+    // require a non-empty result and reject racist / hateful names.
+    display_name: z
+      .string()
+      .min(1)
+      .max(100)
+      .transform(sanitizeDisplayName)
+      .refine((n) => n.length > 0, { message: "Display name is required" })
+      .refine((n) => !isHatefulName(n), {
+        message: "That display name isn’t allowed.",
+      }),
+    owner_email: z.string().email(),
+    category: z.string().optional(),
+    amount_usd: z.number().positive(),
+    // Optional social account this listing points at (no OAuth — a typed handle).
+    platform: z
+      .enum(["TIKTOK", "X", "YOUTUBE", "INSTAGRAM", "TWITCH"])
+      .optional(),
+    handle: z.string().min(1).max(120).optional(),
+  })
+  .refine((d) => (d.platform && d.handle) || d.url, {
+    message: "Provide a website URL or a social handle",
+    path: ["url"],
+  });
 
 const TopupSchema = z.object({
   type: z.literal("topup"),
@@ -218,24 +243,127 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const rate = computeRate(V);
 
     if (isNewListing) {
-      // Validate and sanitise URL (NFR-S4)
-      const urlResult = validateUrl(data.url);
-      if (!urlResult.valid || !urlResult.sanitised) {
-        return NextResponse.json({ error: urlResult.error }, { status: 400 });
+      // Resolve the final URL from either a typed social handle or a website URL.
+      // Social listings build a canonical profile URL server-side; both paths
+      // pass through validateUrl (NFR-S4) as defense-in-depth.
+      let finalUrl: string;
+      let platform: CreatorPlatform | undefined;
+      let handle: string | undefined;
+
+      if (data.platform) {
+        const norm = normalizeHandle(data.platform, data.handle ?? "");
+        if (!norm.valid || !norm.handle) {
+          return NextResponse.json(
+            { error: norm.error, field: "handle" },
+            { status: 400 }
+          );
+        }
+        // The handle is public (card + creator link) — reject hateful handles.
+        if (isHatefulName(norm.handle)) {
+          return NextResponse.json(
+            { error: "That handle isn’t allowed.", field: "handle" },
+            { status: 400 }
+          );
+        }
+        const built = validateUrl(profileUrl(data.platform, norm.handle));
+        if (!built.valid || !built.sanitised) {
+          return NextResponse.json({ error: built.error }, { status: 400 });
+        }
+        finalUrl = built.sanitised;
+        platform = data.platform;
+        handle = norm.handle;
+      } else {
+        const urlResult = validateUrl(data.url as string);
+        if (!urlResult.valid || !urlResult.sanitised) {
+          return NextResponse.json({ error: urlResult.error }, { status: 400 });
+        }
+        finalUrl = urlResult.sanitised;
+        // Upgrade a pasted social profile URL to a native card automatically —
+        // but only if the derived handle passes the same moderation as a typed
+        // one; otherwise leave it as a plain website listing.
+        const detected = detectSocialPlatform(finalUrl);
+        if (detected && !isHatefulName(detected.handle)) {
+          platform = detected.platform;
+          handle = detected.handle;
+        }
       }
 
-      // C2: userId comes from verified token, never from client body
-      const slug = uniqueSlug(data.display_name);
-      const block = await createBlock({
-        slug,
-        url: urlResult.sanitised,
-        display_name: data.display_name,
-        owner_email: data.owner_email,
-        season_id: season.id,
-        userId: authenticatedUserId ?? undefined,
-        category: stackSlug,
-        hidden_at: new Date(),
-      });
+      // One entry per (stack, user, platform). The unique index
+      // blocks_user_season_platform_key is the source of truth; here we turn a
+      // conflict into a clear outcome:
+      //   - a paid (visible) duplicate → 409, tell them to top up the existing one
+      //   - an unpaid (hidden) entry from an earlier/abandoned checkout → reuse it
+      const dupResponse = (slug: string) =>
+        NextResponse.json(
+          {
+            error: `You already have a ${PLATFORM_META[platform!].label} entry in this stack. Top it up from your dashboard instead.`,
+            code: "DUPLICATE_PLATFORM_ENTRY",
+            field: "handle",
+            block_slug: slug,
+          },
+          { status: 409 }
+        );
+
+      let block: { id: string; slug: string } | null = null;
+
+      if (platform && authenticatedUserId) {
+        const existing = await findUserSeasonPlatformBlock(
+          authenticatedUserId,
+          season.id,
+          platform
+        );
+        if (existing) {
+          if (existing.hidden_at === null) return dupResponse(existing.slug);
+          block = await retargetSocialBlock(existing.id, {
+            url: finalUrl,
+            display_name: data.display_name,
+            handle: handle as string,
+          });
+        }
+      }
+
+      if (!block) {
+        // C2: userId comes from verified token, never from client body
+        const slug = uniqueSlug(data.display_name);
+        try {
+          block = await createBlock({
+            slug,
+            url: finalUrl,
+            display_name: data.display_name,
+            owner_email: data.owner_email,
+            season_id: season.id,
+            userId: authenticatedUserId ?? undefined,
+            category: stackSlug,
+            hidden_at: new Date(),
+            platform,
+            handle,
+          });
+        } catch (err) {
+          // A concurrent checkout for the same (user, season, platform) lost the
+          // race on the unique index — resolve it the same way as the check above.
+          if (
+            platform &&
+            authenticatedUserId &&
+            err instanceof Prisma.PrismaClientKnownRequestError &&
+            err.code === "P2002"
+          ) {
+            const existing = await findUserSeasonPlatformBlock(
+              authenticatedUserId,
+              season.id,
+              platform
+            );
+            if (!existing) throw err;
+            if (existing.hidden_at === null) return dupResponse(existing.slug);
+            block = await retargetSocialBlock(existing.id, {
+              url: finalUrl,
+              display_name: data.display_name,
+              handle: handle as string,
+            });
+          } else {
+            throw err;
+          }
+        }
+      }
 
       blockId = block.id;
       displayName = data.display_name;
@@ -243,7 +371,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
       // Remember this URL on the user so they can reuse it next time.
       if (authenticatedUserId) {
-        await addSavedUrl(authenticatedUserId, urlResult.sanitised).catch(() => {
+        await addSavedUrl(authenticatedUserId, finalUrl).catch(() => {
           /* best-effort — never block checkout on this */
         });
       }

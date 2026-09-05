@@ -23,11 +23,26 @@ datasource db {
 // Category is now a free-form slug (String), not a fixed enum: every subcategory
 // (74+, per src/game/categories) gets its own paid tower + season, not just 6.
 
+// Platforms a paid listing may point at (buyer-facing). Deliberately separate
+// from SocialPlatform (the single-tenant posting agent's enum) so the two evolve
+// independently — a listing can link to Twitch even though the agent can't post
+// there. Adding one is one enum value + one PLATFORM_META entry + one glyph.
+enum CreatorPlatform {
+  TIKTOK
+  X
+  YOUTUBE
+  INSTAGRAM
+  TWITCH
+}
+
 model User {
   id            String        @id // Firebase UID
   email         String        @unique
   emailVerified Boolean       @default(false)
   display_name  String? // profile display name (optional)
+  // Public, user-chosen handle for the creator page at /c/[username].
+  // Slug-safe, unique, moderated. NULL = no public profile yet.
+  username      String?       @unique
   createdAt     DateTime      @default(now())
   blocks        Block[]
   climbRecords  ClimbRecord[]
@@ -81,7 +96,9 @@ model ClimbRun {
   finished      Boolean  @default(false)
   finished_tick Int?
   seed          String
-  /** Deflate-packed input log for deterministic replay (/play?r=…). */
+  /**
+   * Deflate-packed input log for deterministic replay (/play?r=…).
+   */
   replay_token  String?
   created_at    DateTime @default(now())
 
@@ -93,21 +110,29 @@ model ClimbRun {
 }
 
 model Block {
-  id           String    @id @default(cuid())
-  slug         String    @unique
+  id           String          @id @default(cuid())
+  slug         String          @unique
   url          String
   display_name String
   owner_email  String
-  altitude     Float     @default(0) // metres; CHECK altitude >= 0 in migration
-  spend_c      Int       @default(0) // cents; display-only; NEVER in ORDER BY
-  views_served Int       @default(0) // above-ground views only
-  clicks       Int       @default(0)
+  altitude     Float           @default(0) // metres; CHECK altitude >= 0 in migration
+  spend_c      Int             @default(0) // cents; display-only; NEVER in ORDER BY
+  views_served Int             @default(0) // above-ground views only
+  clicks       Int             @default(0)
   peak_rank    Int? // best (lowest) rank number achieved
   hidden_at    DateTime? // NULL = visible
-  created_at   DateTime  @default(now())
+  created_at   DateTime        @default(now())
   season_id    String
-  category     String?   @default("tech") // free-form category slug
+  category     String?         @default("tech") // free-form category slug
   userId       String?
+  // Optional social account this listing points at. When set, the block
+  // renders as a native creator card and `url` is the canonical profile URL
+  // built from (platform, handle). NULL = a plain website listing.
+  // Separate from the agent's SocialPlatform enum: this is the buyer-facing set
+  // of platforms a listing may link to, evolved independently of what the
+  // single-tenant posting agent supports.
+  platform     CreatorPlatform?
+  handle       String?
 
   season   Season    @relation(fields: [season_id], references: [id])
   payments Payment[]
@@ -117,6 +142,13 @@ model Block {
   // Raw SQL applied in migration 0002 (Prisma @@index with where clause):
   @@index([altitude(sort: Desc)], name: "blocks_rank_idx")
   @@index([category, altitude(sort: Desc)], name: "blocks_category_altitude_idx")
+  // One social entry per (user, season, platform): a creator may list all their
+  // platforms in a stack, but not two entries for the same one. Postgres treats
+  // NULLs as distinct, so this only binds when all three are set — i.e. an
+  // owned social listing. Website blocks (platform NULL) are unaffected. Covers
+  // hidden + visible rows, so a single tuple owns exactly one block (no
+  // create-then-reveal race). See checkout dedup + reuse logic.
+  @@unique([userId, season_id, platform], name: "blocks_user_season_platform_key")
   @@map("blocks")
 }
 
@@ -147,7 +179,6 @@ model Payment {
 
   @@map("payments")
 }
-
 
 // ═══════════════════════════════════════════════════════════════════════════
 // AI Social Media Management Agent
@@ -468,7 +499,7 @@ model SocialContentAsset {
   bytesUploaded            Int               @default(0) // resumability checkpoint
   externalAssetId          String?
   aiVideoJobId             String? // provider video job id while GENERATING
-  storedVideoUrl           String? @db.Text // preview/download URL after generation (Vercel Blob or proxied)
+  storedVideoUrl           String?           @db.Text // preview/download URL after generation (Vercel Blob or proxied)
   platformUploadSessionUri String?           @db.Text // server-only, never serialized (same redaction rule as tokens)
   errorMessage             String?
   createdAt                DateTime          @default(now())

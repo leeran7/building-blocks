@@ -5,7 +5,11 @@
  * + Google OAuth + anonymous guest sessions), Stripe Checkout for paid leaderboard
  * blocks, Postgres/Prisma for storage, Upstash Redis for caching/rate-limiting,
  * Vercel hosting, and an OpenAI-backed social media agent (internal/business use,
- * not applied to end-user personal data). Doomstack currently operates as a sole
+ * not applied to end-user personal data). It also covers the public creator
+ * surface: user-chosen public usernames (/c/[username]), the social platform +
+ * handle a paid listing can point at (typed by the buyer, no OAuth into their
+ * social account), and the /go/[slug] tracked outbound redirect that counts
+ * clicks before forwarding. Doomstack currently operates as a sole
  * proprietorship (no formed entity) based in Florida, USA — update the operator
  * name in CONTACT_EMAIL/entity references below if/when that changes.
  */
@@ -100,6 +104,18 @@ export default function PrivacyPage() {
               never see or store your plaintext password.
             </li>
             <li>
+              <strong>Public username</strong> — if you choose one, we store a
+              unique, user-chosen handle that creates a public creator page at{" "}
+              <code>/c/your-username</code> aggregating your visible listings
+              and public climbing record. It’s optional; you can clear it at any
+              time, which removes the page. Choose a username you’re comfortable
+              being public — see{" "}
+              <a href="#sharing" className="text-signal hover:underline">
+                Sharing &amp; disclosure
+              </a>
+              .
+            </li>
+            <li>
               <strong>Google sign-in</strong> — if you continue with Google,
               we receive your name, email address, and profile photo from
               Google as part of the OAuth flow.
@@ -112,12 +128,17 @@ export default function PrivacyPage() {
             <li>
               <strong>Leaderboard submissions (&ldquo;blocks&rdquo;)</strong>{" "}
               — if you buy a spot on a paid Stack, we collect the destination
-              URL, display name, and owner email you submit. These fields are
-              shown publicly as part of the leaderboard — see{" "}
+              URL, display name, and owner email you submit. A listing may
+              instead point at a social account: you type a platform (TikTok,
+              X, YouTube, Instagram, or Twitch) and a handle, and we build the
+              public profile link from them. This is a handle you type — we do
+              not connect to, log into, or access your social account. The
+              destination URL or the platform and handle, and the display name,
+              are shown publicly as part of the leaderboard — see{" "}
               <a href="#sharing" className="text-signal hover:underline">
                 Sharing &amp; disclosure
               </a>
-              .
+              . The owner email is not shown publicly.
             </li>
             <li>
               <strong>Payment information</strong> — payments are handled by
@@ -145,6 +166,15 @@ export default function PrivacyPage() {
               and device type, pages and features used, timestamps, and
               general (city/region-level) location inferred from IP address,
               collected via server logs and our hosting/CDN provider.
+            </li>
+            <li>
+              <strong>Click &amp; view counts</strong> — when someone clicks a
+              listing, the link routes through our server (<code>/go/…</code>)
+              so we can count the click before forwarding to the destination.
+              We filter out automated traffic (bots and link previewers) and
+              keep an aggregate per-listing tally; we likewise count above-ground
+              views. These are counts shown to a listing’s owner and used to
+              price ranks, not a per-visitor browsing history.
             </li>
             <li>
               <strong>Session &amp; security identifiers</strong> — an
@@ -214,12 +244,16 @@ export default function PrivacyPage() {
           <SubHeading>Public by design</SubHeading>
           <p>
             Doomstack’s leaderboards are public. A block’s display name,
-            destination URL, category, altitude/rank, and (for the free
-            climb board) your chosen display name are visible to anyone who
-            visits the Service — that’s the product. Do not submit
-            information in these fields that you don’t want to be public.
-            Your account email and owner email associated with a block are
-            <em> not</em> displayed publicly.
+            destination URL (or the social platform and handle it points at),
+            category, altitude/rank, and (for the free climb board) your chosen
+            display name are visible to anyone who visits the Service — that’s
+            the product. If you set a public username, your creator page at{" "}
+            <code>/c/your-username</code> aggregates that already-public data:
+            your visible listings and your public climbing-record standing. It
+            never exposes your email or other private account details. Do not
+            submit information in these fields — or choose a username — that you
+            don’t want to be public. Your account email and the owner email
+            associated with a block are <em>not</em> displayed publicly.
           </p>
           <SubHeading>Service providers</SubHeading>
           <p>

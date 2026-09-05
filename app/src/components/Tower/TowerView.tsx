@@ -20,6 +20,7 @@ import React, {
   useState,
   useCallback,
 } from "react";
+import type { CreatorPlatform } from "@prisma/client";
 import { BlockRow } from "./BlockRow";
 import { GroundRow } from "./GroundRow";
 import { TowerHeader } from "./TowerHeader";
@@ -41,6 +42,8 @@ export interface TowerBlock {
   peak_rank: number | null;
   hidden_at: string | null;
   created_at: string;
+  platform: CreatorPlatform | null;
+  handle: string | null;
   buried: boolean;
   amber_edge: boolean;
   rank: number;
@@ -315,6 +318,8 @@ export function TowerView({
                     buried={block.buried}
                     amber_edge={block.amber_edge}
                     views_served={block.views_served}
+                    platform={block.platform}
+                    handle={block.handle}
                     maxAltitude={maxAltitude}
                     rankChanged={changedBlocks.has(block.id)}
                   />

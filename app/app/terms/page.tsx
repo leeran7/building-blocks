@@ -193,6 +193,19 @@ export default function TermsPage() {
               means.
             </li>
             <li>
+              Offer players any reward, incentive, or compensation in exchange
+              for following, subscribing to, or engaging with a linked social
+              account. Listings that point at a social profile (TikTok, X,
+              YouTube, Instagram, or Twitch) must rely on genuine, organic
+              discovery. Incentivized engagement violates those platforms’ own
+              terms and is not allowed here.
+            </li>
+            <li>
+              Link to a social account you do not own or are not authorized to
+              promote, or choose a public username or handle that impersonates
+              another person, brand, or the Service itself.
+            </li>
+            <li>
               Interfere with or disrupt the Service’s infrastructure, or
               attempt to gain unauthorized access to any account, system, or
               network connected to it.
@@ -211,13 +224,19 @@ export default function TermsPage() {
         <Section id="content" title="6. User content & submissions">
           <p>
             &ldquo;User Content&rdquo; means anything you submit to the
-            Service, including a block’s display name and destination URL.
-            You retain ownership of your User Content. By submitting it, you
-            grant Doomstack a non-exclusive, worldwide, royalty-free license
-            to host, display, and distribute it as part of operating the
-            public leaderboard — for example, showing your block’s name and
-            rank to other visitors and in leaderboard-related images (such as
-            social share cards).
+            Service, including a block’s display name and destination URL, the
+            social platform and handle a listing points at, and a public
+            username you choose (which creates a public creator page at{" "}
+            <code>/c/your-username</code> that aggregates your visible listings
+            and public climbing record). You retain ownership of your User
+            Content. By submitting it, you grant Doomstack a non-exclusive,
+            worldwide, royalty-free license to host, display, and distribute it
+            as part of operating the public leaderboard and creator pages — for
+            example, showing your block’s name, handle, and rank to other
+            visitors and in leaderboard-related images (such as social share
+            cards). When a visitor clicks your listing, we route them through a
+            tracked link that counts the click before forwarding them to your
+            destination.
           </p>
           <p>
             You represent that you have the rights necessary to submit your

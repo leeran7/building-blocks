@@ -26,3 +26,4 @@ dist/
 # Deploy tooling (may contain auth tokens / local project links)
 .vercel
 .firebaserc
+scratch

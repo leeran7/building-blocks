@@ -129,6 +129,8 @@ export interface ClimberRank {
   userId: string;
   /** Privacy-safe pseudonym (never the email). */
   handle: string;
+  /** Public creator username, when set — links the row to /c/[username]. */
+  username: string | null;
   peakY: number;
   wins: number;
 }
@@ -146,13 +148,14 @@ export async function topFreeClimbers(limit = 50): Promise<ClimberRank[]> {
       userId: true,
       peak_y: true,
       wins: true,
-      user: { select: { display_name: true } },
+      user: { select: { display_name: true, username: true } },
     },
   });
   return rows.map((r, i) => ({
     rank: i + 1,
     userId: r.userId,
     handle: climberDisplay(r.userId, r.user.display_name),
+    username: r.user.username,
     peakY: r.peak_y,
     wins: r.wins,
   }));

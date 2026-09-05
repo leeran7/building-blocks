@@ -5,6 +5,7 @@
  * emails are never shown.
  */
 
+import Link from "next/link";
 import type { ClimberRank } from "../../db/climb";
 import { ALTITUDE_UNIT } from "../../lib/units";
 
@@ -88,9 +89,18 @@ export function ClimbLeaderboard({
               >
                 {c.rank}
               </span>
-              <span className="flex-1 truncate text-text-primary font-medium">
-                {c.handle}
-              </span>
+              {c.username ? (
+                <Link
+                  href={`/c/${c.username}`}
+                  className="flex-1 truncate text-text-primary font-medium hover:text-signal transition-colors"
+                >
+                  {c.handle}
+                </Link>
+              ) : (
+                <span className="flex-1 truncate text-text-primary font-medium">
+                  {c.handle}
+                </span>
+              )}
               {c.wins > 0 && (
                 <span className="font-mono text-xs text-text-secondary tabular-nums">
                   {c.wins}★
