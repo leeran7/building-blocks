@@ -41,6 +41,7 @@ import {
   followCamY,
 } from "./climbCamera";
 import { drawClimbBackground } from "./climbBackground";
+import { drawLava, LAVA_SLOWED } from "./lava";
 import {
   PICKUP_BURST_TICKS,
   PICKUP_FLASH_TICKS,
@@ -64,8 +65,6 @@ const CRATE = "#2a2730";
 const CRATE_TOP = "#4a4656";
 const CRATE_FACE = "#3a3644";
 const LADDER = "#8a86a0";
-const LAVA = "#ff5a2c"; // ember — the rising hazard
-const LAVA_SLOWED = "#ff8ad4"; // matches the slow-lava orb, for a held-back lava
 const TEXT_MUTED = "#74707e";
 /** Used for the small HUD/altitude text: TEXT_MUTED only reaches 3.8:1 on it. */
 const TEXT_SECONDARY = "#a8a4b2";
@@ -292,28 +291,24 @@ export function ClimbCanvas({
       drawPowerUpOrb(ctx, ox, oy, pxPerM, ui, pu, state.tick, reducedMotion, cooling);
     }
 
-    // Rising hazard (lava) — a filled band from the hazard line downward. While
-    // slow-lava runs, the band cools toward the power-up's own colour and its
-    // edge breaks into dashes, so "the lava is being held back" reads on the
+    // Rising hazard (lava) — a molten body from the hazard line downward (see
+    // ./lava). While slow-lava runs, the body cools toward the power-up's own
+    // colour and its crest calms, so "the lava is being held back" reads on the
     // hazard itself rather than only in the effect list.
     const lavaSlowed = player
       ? isPowerUpActive(player, "slow-lava", state.tick)
       : false;
     const hazScreenY = sy(state.hazardY);
     if (hazScreenY < height) {
-      const top = Math.max(0, hazScreenY);
-      ctx.fillStyle = lavaSlowed ? LAVA_SLOWED : LAVA;
-      ctx.globalAlpha = lavaSlowed ? 0.52 : reducedMotion ? 0.85 : 0.72;
-      ctx.fillRect(0, top, width, height - top);
-      ctx.globalAlpha = 1;
-      ctx.strokeStyle = lavaSlowed ? LAVA_SLOWED : LAVA;
-      ctx.lineWidth = (lavaSlowed ? 4 : 3) * ui;
-      if (lavaSlowed) ctx.setLineDash([9 * ui, 6 * ui]);
-      ctx.beginPath();
-      ctx.moveTo(0, top);
-      ctx.lineTo(width, top);
-      ctx.stroke();
-      ctx.setLineDash([]);
+      drawLava(ctx, {
+        width,
+        height,
+        top: Math.max(0, hazScreenY),
+        ui,
+        tick: state.tick,
+        reducedMotion,
+        slowed: lavaSlowed,
+      });
     }
 
     // Player — a little climber whose pose animates with what it's doing.
