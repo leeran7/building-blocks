@@ -39,7 +39,7 @@ export type {
   SocialAuditResult,
 };
 
-/** The closed 18-tool set (AC-20) — single source of truth for validation. */
+/** The closed 19-tool set (AC-20) — single source of truth for validation. */
 export const AGENT_TOOL_NAMES: SocialAgentToolName[] = [
   "get_social_accounts",
   "get_brand_profile",

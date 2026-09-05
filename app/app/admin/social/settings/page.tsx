@@ -114,8 +114,8 @@ export default function SettingsPage() {
         <p className="text-text-muted text-sm mt-1">Connect accounts, brand profile, and approval mode.</p>
       </header>
 
-      {error && <p className="text-red-400 text-sm">{error}</p>}
-      {message && <p className="text-green-400 text-sm">{message}</p>}
+      {error && <p className="text-danger text-sm">{error}</p>}
+      {message && <p className="text-success text-sm">{message}</p>}
 
       <section className="rounded-xl border border-border bg-elevated p-5 space-y-4">
         <h2 className="font-semibold text-sm">Social accounts</h2>
@@ -139,7 +139,11 @@ export default function SettingsPage() {
                 {a.handle} <span className="text-text-muted">({a.status})</span>
               </span>
               {a.status !== "DISCONNECTED" && (
-                <button type="button" onClick={() => disconnect(a.id)} className="text-xs text-red-400 hover:underline">
+                <button
+                  type="button"
+                  onClick={() => disconnect(a.id)}
+                  className="text-xs text-danger hover:underline focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void rounded"
+                >
                   Disconnect
                 </button>
               )}
@@ -213,7 +217,7 @@ function Field({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         required={required}
-        className="w-full rounded-lg border border-border bg-void px-3 py-2 text-sm focus:outline-none focus:border-border-focus"
+        className="w-full rounded-lg border border-border bg-void px-3 py-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void"
       />
     </div>
   );

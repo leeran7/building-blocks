@@ -1,5 +1,5 @@
 /**
- * The closed 18-tool set (AC-20). This file is the SINGLE source of truth
+ * The closed 19-tool set (AC-20). This file is the SINGLE source of truth
  * for tool names, descriptions, and input schemas — the LLM only ever sees
  * these definitions (no `execute` is attached here, see dispatch.ts), and
  * `AGENT_TOOL_NAMES` in ../types.ts is validated against this file's keys
@@ -120,7 +120,13 @@ export const TOOL_SCHEMAS = {
   }),
 } as const satisfies Record<SocialAgentToolName, z.ZodObject<z.ZodRawShape>>;
 
-const TOOL_DESCRIPTIONS: Record<SocialAgentToolName, string> = {
+/**
+ * Human-authored per-tool copy. Exported so front-end-only presentation
+ * layers (e.g. `src/components/Social/toolCategories.ts`, which maps these
+ * tools into the 4 plain-English categories shown in the AI Assistant UI)
+ * can reuse it verbatim instead of hand-duplicating the copy.
+ */
+export const TOOL_DESCRIPTIONS: Record<SocialAgentToolName, string> = {
   get_social_accounts: "List connected TikTok/X/YouTube accounts and their connection status.",
   get_brand_profile: "Get the current brand profile (name, niche, audience, tone, topics to discuss/avoid, CTAs).",
   get_content_calendar: "List content items (drafts/scheduled/published/etc.), optionally filtered by status/platform/date range.",

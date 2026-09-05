@@ -43,6 +43,7 @@ export const POST = withSocialAdmin(async (request, decoded) => {
     runId: result.run.id,
     status: result.run.status,
     assistantText: result.assistantText,
+    error: result.run.status === "FAILED" ? result.run.error : undefined,
     toolCalls: result.task ? [result.task] : [],
   });
 });
