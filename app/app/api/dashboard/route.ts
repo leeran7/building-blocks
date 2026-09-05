@@ -54,8 +54,15 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   }
 
   try {
-    // Query 1: all active seasons (one per category)
-    const seasonMap = await getAllActiveSeasons();
+    // Query 1: all active seasons (one per category) + the user's public username
+    const [seasonMap, dbUser] = await Promise.all([
+      getAllActiveSeasons(),
+      prisma.user.findUnique({
+        where: { id: decoded.uid },
+        select: { username: true },
+      }),
+    ]);
+    const username = dbUser?.username ?? null;
 
     // Missing season → V=0 (season-start ground). Never fall back to the
     // legacy "tech" ghost stack — that season is not one of the 74.
@@ -89,7 +96,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         getUserClimbReplays(decoded.uid).catch(() => []),
       ]);
       return NextResponse.json({
-        user: { id: decoded.uid, email: decoded.email ?? "" },
+        user: { id: decoded.uid, email: decoded.email ?? "", username },
         blocks: [],
         freeClimb,
         replays,
@@ -179,6 +186,9 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         season_id: block.season_id,
         platform: block.platform,
         handle: block.handle,
+        // A just-paid block stays hidden until the Stripe webhook reveals it —
+        // the dashboard shows a "processing" card for these.
+        pending: block.hidden_at !== null,
         rank,
         rank_above_altitude,
         competitor_cost_usd,

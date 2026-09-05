@@ -59,8 +59,13 @@ function SubmitForm() {
   const [error, setError] = useState<string | null>(null);
   const [savedUrls, setSavedUrls] = useState<string[]>([]);
   const [typingNewUrl, setTypingNewUrl] = useState(true);
+  const [savedSocial, setSavedSocial] = useState<
+    Partial<Record<CreatorPlatform, string>>
+  >({});
+  // Which platform the current handle was auto-filled from — drives the hint.
+  const [prefilledFrom, setPrefilledFrom] = useState<CreatorPlatform | null>(null);
 
-  // Load the user's saved URLs + display name to prefill the form.
+  // Load the user's saved URLs + social handles + display name to prefill.
   useEffect(() => {
     if (!token) return;
     let live = true;
@@ -75,6 +80,7 @@ function SubmitForm() {
           setTypingNewUrl(false);
           setUrl((cur) => cur || list[0]);
         }
+        setSavedSocial(s.social && typeof s.social === "object" ? s.social : {});
         setDisplayName((cur) => cur || (s.displayName ?? ""));
       })
       .catch(() => {});
@@ -213,7 +219,18 @@ function SubmitForm() {
           <select
             id="link_target"
             value={linkTarget}
-            onChange={(e) => setLinkTarget(e.target.value as LinkTarget)}
+            onChange={(e) => {
+              const next = e.target.value as LinkTarget;
+              setLinkTarget(next);
+              // Prefill the handle from the saved one for this platform when the
+              // field is empty; flag it so the "from saved" hint can show/clear.
+              if (next && !handle.trim() && savedSocial[next]) {
+                setHandle(savedSocial[next]!);
+                setPrefilledFrom(next);
+              } else {
+                setPrefilledFrom(null);
+              }
+            }}
             className={`${INPUT} mb-3`}
             disabled={submitting}
           >
@@ -237,7 +254,10 @@ function SubmitForm() {
                 <input
                   id="handle"
                   value={handle}
-                  onChange={(e) => setHandle(e.target.value)}
+                  onChange={(e) => {
+                    setHandle(e.target.value);
+                    setPrefilledFrom(null); // no longer a verbatim saved value
+                  }}
                   className={`${INPUT} font-mono`}
                   placeholder={PLATFORM_META[linkTarget].example}
                   maxLength={120}
@@ -248,6 +268,22 @@ function SubmitForm() {
                   spellCheck={false}
                 />
               </div>
+              {prefilledFrom === linkTarget && (
+                <p className="flex items-center gap-1.5 font-mono text-[11px] uppercase tracking-[0.12em] text-signal mt-1.5">
+                  <span aria-hidden="true">✓</span> From your saved{" "}
+                  {PLATFORM_META[linkTarget].label}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setHandle("");
+                      setPrefilledFrom(null);
+                    }}
+                    className="text-text-muted hover:text-text-primary underline-offset-2 hover:underline"
+                  >
+                    clear
+                  </button>
+                </p>
+              )}
               <p className="text-xs text-text-secondary mt-1.5">
                 Players who tap your block go straight to your{" "}
                 {PLATFORM_META[linkTarget].label} profile. Following must be their

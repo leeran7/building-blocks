@@ -30,13 +30,15 @@ vi.mock("../../src/db/seasons", () => ({
 }));
 
 vi.mock("../../src/db/user", () => ({ ensureUser: vi.fn(async () => {}) }));
-vi.mock("../../src/db/settings", () => ({ addSavedUrl: vi.fn(async () => {}) }));
+vi.mock("../../src/db/settings", () => ({
+  addSavedUrl: vi.fn(async () => {}),
+  saveSocialHandle: vi.fn(async () => {}),
+}));
 
 vi.mock("../../src/db/blocks", () => ({
   createBlock: vi.fn(async () => ({ id: "new", slug: "new" })),
   getBlockById: vi.fn(),
   findUserSeasonPlatformBlock: vi.fn(),
-  retargetSocialBlock: vi.fn(async () => ({ id: "reused", slug: "creator-abcd" })),
 }));
 
 const createSession = vi.fn(async () => ({ url: "https://stripe.test/session" }));
@@ -56,11 +58,7 @@ vi.mock("../../src/game/categories", async (importOriginal) => {
 });
 
 import { POST } from "../../app/api/checkout/route";
-import {
-  createBlock,
-  findUserSeasonPlatformBlock,
-  retargetSocialBlock,
-} from "../../src/db/blocks";
+import { createBlock, findUserSeasonPlatformBlock } from "../../src/db/blocks";
 
 function post(body: unknown): Promise<Response> {
   return POST(
@@ -90,11 +88,10 @@ describe("checkout — one entry per (stack, user, platform)", () => {
     vi.clearAllMocks();
   });
 
-  it("409s a PAID (visible) duplicate and never creates a block or Stripe session", async () => {
+  it("409s a duplicate platform entry (any state) and never creates a block or Stripe session", async () => {
     (findUserSeasonPlatformBlock as ReturnType<typeof vi.fn>).mockResolvedValue({
       id: "existing",
       slug: "creator-abcd",
-      hidden_at: null, // visible = already paid
     });
     const res = await post(socialListing);
     expect(res.status).toBe(409);
@@ -103,19 +100,6 @@ describe("checkout — one entry per (stack, user, platform)", () => {
     expect(json.block_slug).toBe("creator-abcd");
     expect(createBlock).not.toHaveBeenCalled();
     expect(createSession).not.toHaveBeenCalled();
-  });
-
-  it("reuses an UNPAID (hidden) entry instead of creating a duplicate", async () => {
-    (findUserSeasonPlatformBlock as ReturnType<typeof vi.fn>).mockResolvedValue({
-      id: "existing",
-      slug: "creator-abcd",
-      hidden_at: new Date(), // hidden = unpaid, from an earlier/abandoned checkout
-    });
-    const res = await post(socialListing);
-    expect(res.status).toBe(200);
-    expect(retargetSocialBlock).toHaveBeenCalledOnce();
-    expect(createBlock).not.toHaveBeenCalled();
-    expect(createSession).toHaveBeenCalledOnce();
   });
 
   it("allows a platform the user does not yet have an entry for", async () => {

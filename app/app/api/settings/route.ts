@@ -9,7 +9,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth, AuthError } from "../../../src/lib/requireAuth";
 import { ensureUser } from "../../../src/db/user";
-import { getUserSettings, updateUserSettings } from "../../../src/db/settings";
+import {
+  getUserSettings,
+  updateUserSettings,
+  updateUserSocialHandles,
+  type SocialHandleMap,
+} from "../../../src/db/settings";
+import { normalizeHandle, isSocialPlatform } from "../../../src/lib/socialHandle";
 import { validateUrl } from "../../../src/lib/validateUrl";
 import { checkRateLimit } from "../../../src/lib/rateLimit";
 import { sanitizeDisplayName } from "../../../src/lib/sanitizeName";
@@ -76,7 +82,12 @@ export async function PUT(request: NextRequest): Promise<NextResponse> {
     );
   }
 
-  let body: { displayName?: unknown; username?: unknown; urls?: unknown };
+  let body: {
+    displayName?: unknown;
+    username?: unknown;
+    urls?: unknown;
+    social?: unknown;
+  };
   try {
     body = await request.json();
   } catch {
@@ -84,6 +95,49 @@ export async function PUT(request: NextRequest): Promise<NextResponse> {
   }
 
   const patch: { displayName?: string | null; urls?: string[] } = {};
+
+  // Social handles: a { platform: handle } map. Normalize + moderate each;
+  // an empty/null value clears that platform. Built here, applied after the
+  // user row is ensured below.
+  let socialPatch: SocialHandleMap | undefined;
+  if (body.social !== undefined) {
+    if (
+      typeof body.social !== "object" ||
+      body.social === null ||
+      Array.isArray(body.social)
+    ) {
+      return NextResponse.json({ error: "social must be an object" }, { status: 400 });
+    }
+    const out: SocialHandleMap = {};
+    for (const [platform, raw] of Object.entries(body.social)) {
+      if (!isSocialPlatform(platform)) {
+        return NextResponse.json(
+          { error: `Unknown platform: ${platform}`, field: "social" },
+          { status: 400 }
+        );
+      }
+      const value = raw == null ? "" : String(raw).trim();
+      if (!value) {
+        out[platform] = ""; // cleared
+        continue;
+      }
+      const norm = normalizeHandle(platform, value);
+      if (!norm.valid || !norm.handle) {
+        return NextResponse.json(
+          { error: norm.error, field: "social", platform },
+          { status: 400 }
+        );
+      }
+      if (isHatefulName(norm.handle)) {
+        return NextResponse.json(
+          { error: "That handle isn’t allowed.", field: "social", platform },
+          { status: 400 }
+        );
+      }
+      out[platform] = norm.handle;
+    }
+    socialPatch = out;
+  }
 
   if (body.displayName !== undefined) {
     if (body.displayName !== null && typeof body.displayName !== "string") {
@@ -171,6 +225,10 @@ export async function PUT(request: NextRequest): Promise<NextResponse> {
           );
         }
       }
+    }
+
+    if (socialPatch) {
+      await updateUserSocialHandles(decoded.uid, socialPatch);
     }
 
     const settings = await updateUserSettings(decoded.uid, patch);

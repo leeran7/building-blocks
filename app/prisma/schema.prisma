@@ -48,8 +48,25 @@ model User {
   climbRecords  ClimbRecord[]
   climbRuns     ClimbRun[]
   savedUrls     SavedUrl[]
+  socialHandles SavedSocialHandle[]
 
   @@map("users")
+}
+
+// A social handle the user has saved, one per platform, so it prefills at submit
+// and renders as a chip on their creator page. Unique per (user, platform).
+model SavedSocialHandle {
+  id         String          @id @default(cuid())
+  userId     String
+  platform   CreatorPlatform
+  handle     String
+  created_at DateTime        @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, platform], name: "saved_social_user_platform")
+  @@index([userId])
+  @@map("saved_social_handles")
 }
 
 // A URL the user has saved (from settings or a previous submission) so they can

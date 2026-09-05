@@ -17,6 +17,7 @@ import { getActiveSeason } from "../../../src/db/seasons";
 import { isBuried } from "../../../src/engine/index";
 import { RecordStats } from "../../../src/components/RecordPage/RecordStats";
 import { SharePost } from "../../../src/components/RecordPage/SharePost";
+import { PostPaymentSetup } from "../../../src/components/RecordPage/PostPaymentSetup";
 import { TopupForm } from "../../../src/components/RecordPage/TopupForm";
 import { RankAnimation } from "../../../src/components/RecordPage/RankAnimation";
 import { Breadcrumbs } from "../../../src/components/Breadcrumbs";
@@ -108,6 +109,7 @@ export default async function RecordPage({
           <div className="bg-success/10 border border-success/30 rounded-xl p-4 mb-4 text-success text-sm">
             Payment successful! Your altitude has been updated.
           </div>
+          <PostPaymentSetup />
           <SharePost
             display_name={block.display_name}
             slug={block.slug}

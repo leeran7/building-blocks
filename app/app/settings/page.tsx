@@ -8,10 +8,20 @@
  */
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
+import type { CreatorPlatform } from "@prisma/client";
 import { Navbar } from "../../src/components/Navbar";
 import { useAuth } from "../../src/contexts/AuthContext";
-import { normalizeUsername } from "../../src/lib/username";
+import { normalizeUsername, suggestUsername } from "../../src/lib/username";
+import { SocialMark } from "../../src/components/Social/SocialMark";
+import {
+  SOCIAL_PLATFORMS,
+  PLATFORM_META,
+  normalizeHandle,
+} from "../../src/lib/socialHandle";
+
+type SocialState = Partial<Record<CreatorPlatform, string>>;
 
 const INPUT =
   "w-full bg-surface-raised border border-border-strong rounded-lg px-4 py-3 text-base text-text-primary placeholder-text-muted focus:outline-none focus:border-signal focus:ring-1 focus:ring-signal transition-colors";
@@ -26,6 +36,7 @@ export default function SettingsPage() {
 
   const [displayName, setDisplayName] = useState("");
   const [username, setUsername] = useState("");
+  const [social, setSocial] = useState<SocialState>({});
   const [urls, setUrls] = useState<string[]>([]);
   const [newUrl, setNewUrl] = useState("");
   const [loaded, setLoaded] = useState(false);
@@ -46,7 +57,10 @@ export default function SettingsPage() {
       .then((s) => {
         if (live && s) {
           setDisplayName(s.displayName ?? "");
-          setUsername(s.username ?? "");
+          // Prefill an unclaimed username from a normalized display name so the
+          // creator page is one click away; they still Save to claim it.
+          setUsername(s.username ?? suggestUsername(s.displayName));
+          setSocial(s.social && typeof s.social === "object" ? s.social : {});
           setUrls(Array.isArray(s.urls) ? s.urls : []);
         }
         if (live) setLoaded(true);
@@ -85,12 +99,13 @@ export default function SettingsPage() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ displayName, username, urls }),
+        body: JSON.stringify({ displayName, username, social, urls }),
       });
       if (res.ok) {
         const s = await res.json();
         setDisplayName(s.displayName ?? "");
         setUsername(s.username ?? "");
+        setSocial(s.social && typeof s.social === "object" ? s.social : {});
         setUrls(Array.isArray(s.urls) ? s.urls : []);
         setMsg({ type: "ok", text: "Settings saved." });
       } else {
@@ -180,13 +195,72 @@ export default function SettingsPage() {
             (usernameCheck.valid ? (
               <p className="text-xs text-text-secondary mt-2">
                 Your page:{" "}
-                <span className="font-mono text-signal">
-                  /c/{usernameCheck.username}
-                </span>
+                <Link
+                  href={`/c/${usernameCheck.username}`}
+                  className="font-mono text-signal hover:brightness-110 underline-offset-2 hover:underline"
+                >
+                  /c/{usernameCheck.username} ↗
+                </Link>
               </p>
             ) : (
               <p className="text-xs text-ember mt-2">{usernameCheck.error}</p>
             ))}
+        </section>
+
+        {/* Social accounts — one saved handle per platform, prefilled at submit */}
+        <section className="mt-6 rounded-2xl border border-border-strong bg-surface p-6 shadow-lifted">
+          <p className="font-mono text-[11px] uppercase tracking-[0.16em] text-text-muted">
+            Social accounts
+          </p>
+          <p className="text-xs text-text-secondary mt-1">
+            Shown as chips on your creator page and prefilled when you list that
+            platform.
+          </p>
+          <div className="mt-4">
+            {SOCIAL_PLATFORMS.map((p) => {
+              const value = social[p] ?? "";
+              const check = value.trim()
+                ? normalizeHandle(p, value)
+                : null;
+              return (
+                <div
+                  key={p}
+                  className="grid grid-cols-[7rem_1fr] items-center gap-3 py-2.5 border-b border-border-subtle last:border-0"
+                >
+                  <span className="flex items-center gap-2 text-text-secondary">
+                    <SocialMark platform={p} className="h-4 w-4 flex-shrink-0" />
+                    <span className="text-sm">{PLATFORM_META[p].label}</span>
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <span aria-hidden="true" className="font-mono text-text-muted">
+                      @
+                    </span>
+                    <input
+                      value={value}
+                      onChange={(e) =>
+                        setSocial((s) => ({ ...s, [p]: e.target.value }))
+                      }
+                      placeholder={PLATFORM_META[p].example}
+                      maxLength={PLATFORM_META[p].maxLen + 4}
+                      autoCapitalize="none"
+                      autoCorrect="off"
+                      spellCheck={false}
+                      aria-label={`${PLATFORM_META[p].label} handle`}
+                      aria-invalid={check ? !check.valid : undefined}
+                      className={`${INPUT} font-mono py-2 ${
+                        check && !check.valid ? "border-ember/60" : ""
+                      }`}
+                    />
+                    {check && !check.valid && (
+                      <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-ember whitespace-nowrap">
+                        ⚠
+                      </span>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </section>
 
         {/* Saved URLs */}
