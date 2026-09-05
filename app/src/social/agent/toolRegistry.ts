@@ -42,7 +42,7 @@ export const TOOL_SCHEMAS = {
       .boolean()
       .optional()
       .default(true)
-      .describe("When true, also generate an AI video (OpenAI Sora) for TikTok and YouTube Short drafts"),
+      .describe("When true, also generate an AI video for TikTok and YouTube Short drafts"),
     replayUrl: z
       .string()
       .optional()

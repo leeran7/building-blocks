@@ -133,7 +133,7 @@ export default function AgentChatPage() {
         <div className="flex-1 overflow-y-auto p-4 space-y-3">
           {messages.length === 0 && (
             <p className="text-text-secondary text-sm">
-              Paste a /play?r=… replay link below. The agent will analyze highlights, craft copy, and generate a Sora video.
+              Paste a /play?r=… replay link below. The agent will analyze highlights, craft copy, and generate an AI video.
             </p>
           )}
           {messages.map((m, i) => (

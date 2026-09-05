@@ -1,5 +1,5 @@
 /**
- * OpenAI Sora video generation for social content items.
+ * Runway Gen-4.5 (text-to-video) generation for social content items.
  * Jobs are async — start here, then poll refreshVideoGenerationStatus().
  */
 
@@ -15,26 +15,28 @@ import { errResult, okResult, type ToolResult } from "../types";
 import type { SocialPlatform } from "../types";
 import type { SocialContentAsset } from "@prisma/client";
 
-const OPENAI_VIDEOS_URL = "https://api.openai.com/v1/videos";
+const RUNWAY_BASE_URL = "https://api.dev.runwayml.com/v1";
+const RUNWAY_API_VERSION = "2024-11-06";
 
 const VIDEO_PLATFORMS = new Set<SocialPlatform>(["TIKTOK", "YOUTUBE"]);
 
-function openAiKey(): string {
-  const key = process.env.OPENAI_API_KEY;
-  if (!key) throw new Error("OPENAI_API_KEY is not configured");
+function runwayKey(): string {
+  const key = process.env.RUNWAY_API_KEY;
+  if (!key) throw new Error("RUNWAY_API_KEY is not configured");
   return key;
 }
 
 function videoModel(): string {
-  return process.env.AI_VIDEO_MODEL || "sora-2";
+  return process.env.AI_VIDEO_MODEL || "gen4.5";
 }
 
-function videoSizeForPlatform(platform: SocialPlatform): string {
-  return platform === "YOUTUBE" ? "1080x1920" : "720x1280";
+function videoRatioForPlatform(_platform: SocialPlatform): string {
+  // Gen-4.5 text-to-video tops out at 720p; portrait fits both TikTok and YouTube Shorts.
+  return "720:1280";
 }
 
-function videoSeconds(): string {
-  return process.env.AI_VIDEO_SECONDS || "8";
+function videoSeconds(): number {
+  return Number(process.env.AI_VIDEO_SECONDS) || 8;
 }
 
 function isVideoContent(platform: SocialPlatform, contentType: string): boolean {
@@ -61,55 +63,58 @@ function buildVideoPrompt(input: {
   return parts.filter(Boolean).join("\n");
 }
 
-interface OpenAiVideoJob {
+type RunwayTaskStatus = "PENDING" | "THROTTLED" | "RUNNING" | "SUCCEEDED" | "FAILED" | "CANCELLED";
+
+interface RunwayTask {
   id: string;
-  status: string;
-  error?: { message?: string } | null;
+  status: RunwayTaskStatus;
+  output?: string[];
+  failure?: string;
+  failureCode?: string;
 }
 
-async function openAiFetch(path: string, init?: RequestInit): Promise<Response> {
-  return fetch(`${OPENAI_VIDEOS_URL}${path}`, {
+async function runwayFetch(path: string, init?: RequestInit): Promise<Response> {
+  return fetch(`${RUNWAY_BASE_URL}${path}`, {
     ...init,
     headers: {
-      Authorization: `Bearer ${openAiKey()}`,
+      Authorization: `Bearer ${runwayKey()}`,
+      "X-Runway-Version": RUNWAY_API_VERSION,
+      "Content-Type": "application/json",
       ...(init?.headers ?? {}),
     },
   });
 }
 
-async function createOpenAiVideoJob(prompt: string, platform: SocialPlatform): Promise<OpenAiVideoJob> {
-  const body = new URLSearchParams({
-    model: videoModel(),
-    prompt,
-    size: videoSizeForPlatform(platform),
-    seconds: videoSeconds(),
-  });
-  const res = await openAiFetch("", {
+async function createRunwayVideoTask(prompt: string, platform: SocialPlatform): Promise<{ id: string }> {
+  const res = await runwayFetch("/text_to_video", {
     method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body,
+    body: JSON.stringify({
+      model: videoModel(),
+      promptText: prompt,
+      ratio: videoRatioForPlatform(platform),
+      duration: videoSeconds(),
+    }),
   });
-  const data = (await res.json()) as OpenAiVideoJob & { error?: { message?: string } };
+  const data = (await res.json()) as { id?: string; error?: string };
+  if (!res.ok || !data.id) {
+    throw new Error(data.error ?? `Runway video create failed (${res.status})`);
+  }
+  return { id: data.id };
+}
+
+async function getRunwayVideoTask(taskId: string): Promise<RunwayTask> {
+  const res = await runwayFetch(`/tasks/${taskId}`);
+  const data = (await res.json()) as RunwayTask & { error?: string };
   if (!res.ok) {
-    throw new Error(data.error?.message ?? `OpenAI video create failed (${res.status})`);
+    throw new Error(data.error ?? `Runway video status failed (${res.status})`);
   }
   return data;
 }
 
-async function getOpenAiVideoJob(jobId: string): Promise<OpenAiVideoJob> {
-  const res = await openAiFetch(`/${jobId}`);
-  const data = (await res.json()) as OpenAiVideoJob & { error?: { message?: string } };
+async function downloadRunwayVideo(videoUrl: string): Promise<Buffer> {
+  const res = await fetch(videoUrl);
   if (!res.ok) {
-    throw new Error(data.error?.message ?? `OpenAI video status failed (${res.status})`);
-  }
-  return data;
-}
-
-async function downloadOpenAiVideo(jobId: string): Promise<Buffer> {
-  const res = await openAiFetch(`/${jobId}/content`);
-  if (!res.ok) {
-    const err = (await res.json().catch(() => ({}))) as { error?: { message?: string } };
-    throw new Error(err.error?.message ?? `OpenAI video download failed (${res.status})`);
+    throw new Error(`Runway video download failed (${res.status})`);
   }
   return Buffer.from(await res.arrayBuffer());
 }
@@ -137,14 +142,14 @@ async function persistVideoBytes(contentItemId: string, assetId: string, bytes: 
 }
 
 export function isVideoGenerationConfigured(): boolean {
-  return !!process.env.OPENAI_API_KEY;
+  return !!process.env.RUNWAY_API_KEY;
 }
 
 export async function startVideoGenerationForContentItem(
   contentItemId: string
 ): Promise<ToolResult<{ assetId: string; jobId: string }>> {
   if (!isVideoGenerationConfigured()) {
-    return errResult("VALIDATION_ERROR", "OPENAI_API_KEY is not configured — video generation is unavailable");
+    return errResult("VALIDATION_ERROR", "RUNWAY_API_KEY is not configured — video generation is unavailable");
   }
 
   const item = await getContentItemById(contentItemId);
@@ -176,9 +181,9 @@ export async function startVideoGenerationForContentItem(
     platform: item.platform,
   });
 
-  let job: OpenAiVideoJob;
+  let job: { id: string };
   try {
-    job = await createOpenAiVideoJob(videoPrompt, item.platform);
+    job = await createRunwayVideoTask(videoPrompt, item.platform);
   } catch (err) {
     return errResult("PLATFORM_ERROR", (err as Error).message);
   }
@@ -233,18 +238,18 @@ export async function refreshVideoGenerationStatus(
   }
 
   if (!asset.aiVideoJobId) {
-    return errResult("VALIDATION_ERROR", "Video asset has no OpenAI job id");
+    return errResult("VALIDATION_ERROR", "Video asset has no video job id");
   }
 
-  let job: OpenAiVideoJob;
+  let job: RunwayTask;
   try {
-    job = await getOpenAiVideoJob(asset.aiVideoJobId);
+    job = await getRunwayVideoTask(asset.aiVideoJobId);
   } catch (err) {
     return errResult("PLATFORM_ERROR", (err as Error).message);
   }
 
-  if (job.status === "failed") {
-    const message = job.error?.message ?? "Video generation failed";
+  if (job.status === "FAILED" || job.status === "CANCELLED") {
+    const message = job.failure ?? "Video generation failed";
     await markUploadFailed(asset.id, message);
     return okResult({
       assetId: asset.id,
@@ -254,7 +259,8 @@ export async function refreshVideoGenerationStatus(
     });
   }
 
-  if (job.status !== "completed") {
+  const videoUrl = job.status === "SUCCEEDED" ? job.output?.[0] : undefined;
+  if (job.status !== "SUCCEEDED" || !videoUrl) {
     return okResult({
       assetId: asset.id,
       status: "GENERATING",
@@ -263,14 +269,14 @@ export async function refreshVideoGenerationStatus(
   }
 
   try {
-    const bytes = await downloadOpenAiVideo(asset.aiVideoJobId);
-    const videoUrl = await persistVideoBytes(contentItemId, asset.id, bytes);
-    const updated = await markVideoGenerationReady(asset.id, videoUrl, bytes.length);
+    const bytes = await downloadRunwayVideo(videoUrl);
+    const storedUrl = await persistVideoBytes(contentItemId, asset.id, bytes);
+    const updated = await markVideoGenerationReady(asset.id, storedUrl, bytes.length);
     return okResult({
       assetId: updated.id,
       status: updated.status,
       jobStatus: job.status,
-      videoUrl: updated.storedVideoUrl ?? videoUrl,
+      videoUrl: updated.storedVideoUrl ?? storedUrl,
     });
   } catch (err) {
     const message = (err as Error).message;
