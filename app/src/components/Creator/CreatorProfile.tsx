@@ -80,7 +80,7 @@ export function CreatorProfile({ profile }: { profile: CreatorProfileData }) {
             <div className="flex items-baseline justify-between mb-3">
               <h2
                 id="creator-listings"
-                className="font-mono text-[11px] uppercase tracking-[0.16em] text-text-muted"
+                className="font-mono text-[11px] uppercase tracking-[0.16em] text-text-secondary"
               >
                 Listings
               </h2>
@@ -148,7 +148,7 @@ export function CreatorProfile({ profile }: { profile: CreatorProfileData }) {
           <section aria-labelledby="creator-climbs">
             <h2
               id="creator-climbs"
-              className="font-mono text-[11px] uppercase tracking-[0.16em] text-text-muted mb-3"
+              className="font-mono text-[11px] uppercase tracking-[0.16em] text-text-secondary mb-3"
             >
               Climbing
             </h2>

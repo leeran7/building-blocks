@@ -87,11 +87,10 @@ export function AccountMenu() {
         ref={triggerRef}
         type="button"
         onClick={() => setOpen((v) => !v)}
-        aria-haspopup="menu"
         aria-expanded={open}
         aria-controls={open ? menuId : undefined}
         aria-label="Account menu"
-        className="inline-flex items-center gap-1.5 rounded-full border border-border-strong bg-surface/60 pl-1 pr-2 min-h-[38px] hover:border-signal/50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal"
+        className="inline-flex items-center gap-1.5 rounded-full border border-border-strong bg-surface/60 pl-1 pr-2 min-h-[44px] hover:border-signal/50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal"
       >
         <span className="flex h-8 w-8 items-center justify-center rounded-full bg-elevated font-mono text-xs font-bold text-text-primary">
           {initials(label)}
@@ -101,41 +100,41 @@ export function AccountMenu() {
         </span>
       </button>
 
+      {/* Disclosure (not a role=menu): items are plain links a user Tabs
+          through; open/close via click + Escape + click-outside. */}
       {open && (
-        <div
+        <nav
           id={menuId}
-          role="menu"
           aria-label="Account"
           className="reveal absolute right-0 mt-2 w-56 rounded-xl border border-border-strong bg-surface-raised shadow-lifted p-1.5"
         >
-          <Link href="/dashboard" role="menuitem" className={ITEM} onClick={() => setOpen(false)}>
+          <Link href="/dashboard" className={ITEM} onClick={() => setOpen(false)}>
             Dashboard
           </Link>
           {usernameLoaded && username ? (
-            <Link href={`/c/${username}`} role="menuitem" className={ITEM} onClick={() => setOpen(false)}>
+            <Link href={`/c/${username}`} className={ITEM} onClick={() => setOpen(false)}>
               My creator page
             </Link>
           ) : (
             <Link
               href="/settings"
-              role="menuitem"
               className={`${ITEM} text-signal`}
               onClick={() => setOpen(false)}
             >
               {usernameLoaded ? "Claim your page" : "Creator page…"}
             </Link>
           )}
-          <Link href="/settings" role="menuitem" className={ITEM} onClick={() => setOpen(false)}>
+          <Link href="/settings" className={ITEM} onClick={() => setOpen(false)}>
             Settings
           </Link>
 
           {/* Mobile-only: the navbar hides these below sm. */}
           <div className="sm:hidden">
             <div className="my-1.5 border-t border-border-subtle" aria-hidden="true" />
-            <Link href="/#towers" role="menuitem" className={ITEM} onClick={() => setOpen(false)}>
+            <Link href="/#towers" className={ITEM} onClick={() => setOpen(false)}>
               Browse
             </Link>
-            <Link href={FREE_CLIMB_HREF} role="menuitem" className={ITEM} onClick={() => setOpen(false)}>
+            <Link href={FREE_CLIMB_HREF} className={ITEM} onClick={() => setOpen(false)}>
               Free climb
             </Link>
           </div>
@@ -143,13 +142,12 @@ export function AccountMenu() {
           <div className="my-1.5 border-t border-border-subtle" aria-hidden="true" />
           <button
             type="button"
-            role="menuitem"
             onClick={handleSignOut}
             className={`${ITEM} w-full text-left hover:text-ember`}
           >
             Sign out
           </button>
-        </div>
+        </nav>
       )}
     </div>
   );

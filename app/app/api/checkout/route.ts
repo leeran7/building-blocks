@@ -328,12 +328,26 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           handle,
         });
       } catch (err) {
-        if (
-          platform &&
+        // Only the (user, season, platform) unique index maps to the friendly
+        // duplicate 409. A slug collision or any other unique conflict must not
+        // be masked as "you already have this platform" — rethrow those.
+        const target =
           err instanceof Prisma.PrismaClientKnownRequestError &&
           err.code === "P2002"
-        ) {
-          return dupResponse("");
+            ? (err.meta?.target as string[] | string | undefined)
+            : undefined;
+        const hitPlatformIndex =
+          !!target &&
+          (Array.isArray(target)
+            ? target.includes("platform")
+            : String(target).includes("platform"));
+        if (platform && authenticatedUserId && hitPlatformIndex) {
+          const existing = await findUserSeasonPlatformBlock(
+            authenticatedUserId,
+            season.id,
+            platform
+          );
+          return dupResponse(existing?.slug ?? "");
         }
         throw err;
       }

@@ -269,16 +269,22 @@ function SubmitForm() {
                 />
               </div>
               {prefilledFrom === linkTarget && (
-                <p className="flex items-center gap-1.5 font-mono text-[11px] uppercase tracking-[0.12em] text-signal mt-1.5">
-                  <span aria-hidden="true">✓</span> From your saved{" "}
-                  {PLATFORM_META[linkTarget].label}
+                <p
+                  role="status"
+                  aria-live="polite"
+                  className="flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.12em] text-signal mt-1.5"
+                >
+                  <span>
+                    <span aria-hidden="true">✓</span> From your saved{" "}
+                    {PLATFORM_META[linkTarget].label}
+                  </span>
                   <button
                     type="button"
                     onClick={() => {
                       setHandle("");
                       setPrefilledFrom(null);
                     }}
-                    className="text-text-muted hover:text-text-primary underline-offset-2 hover:underline"
+                    className="inline-flex items-center min-h-[44px] text-text-muted hover:text-text-primary underline-offset-2 hover:underline"
                   >
                     clear
                   </button>

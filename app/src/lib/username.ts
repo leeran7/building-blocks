@@ -33,8 +33,9 @@ export interface UsernameResult {
 }
 
 /**
- * Normalise + validate a username. Lowercased; letters, digits and underscores
- * only; 3–30 chars; not reserved; not hateful. A leading "@" is tolerated.
+ * Normalise + validate a username. Lowercased; letters, digits and dashes only
+ * (no leading/trailing dash); 3–30 chars; not reserved; not hateful. A leading
+ * "@" is tolerated.
  */
 export function normalizeUsername(raw: string): UsernameResult {
   const s = (raw ?? "").trim().replace(/^@+/, "").toLowerCase();

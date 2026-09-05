@@ -44,7 +44,9 @@ export function PostPaymentSetup() {
   }, [token]);
 
   const needsUsername = loaded && !username;
-  const needsSocials = loaded && linkedCount < SOCIAL_PLATFORMS.length;
+  // Only nudge to add socials when they have none — don't badger creators who've
+  // already linked some but not all five.
+  const needsSocials = loaded && linkedCount === 0;
 
   if (!loaded || dismissed || (!needsUsername && !needsSocials)) return null;
 

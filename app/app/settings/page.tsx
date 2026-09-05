@@ -141,8 +141,9 @@ export default function SettingsPage() {
         <h1 className="font-display text-4xl md:text-5xl text-text-primary mt-3">
           Settings
         </h1>
-        <p className="text-sm text-text-muted mt-2">
-          Set a display name and save the URLs you list often.
+        <p className="text-sm text-text-secondary mt-2">
+          Set your display name, claim your creator page, and save the social
+          accounts and URLs you list often.
         </p>
 
         {/* Display name */}
@@ -268,7 +269,7 @@ export default function SettingsPage() {
           <p className="font-mono text-[11px] uppercase tracking-[0.16em] text-text-muted">
             Saved URLs
           </p>
-          <p className="text-xs text-text-muted mt-1">
+          <p className="text-xs text-text-secondary mt-1">
             Pick these at submit time instead of retyping. New URLs you submit are
             added here automatically.
           </p>
@@ -289,7 +290,7 @@ export default function SettingsPage() {
                   <span className="block text-sm text-text-primary truncate">
                     {domainOf(u)}
                   </span>
-                  <span className="block font-mono text-[11px] text-text-muted truncate">
+                  <span className="block font-mono text-[11px] text-text-secondary truncate">
                     {u}
                   </span>
                 </span>
