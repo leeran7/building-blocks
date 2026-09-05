@@ -11,6 +11,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Navbar } from "../../src/components/Navbar";
 import { useAuth } from "../../src/contexts/AuthContext";
+import { normalizeUsername } from "../../src/lib/username";
 
 const INPUT =
   "w-full bg-surface-raised border border-border-strong rounded-lg px-4 py-3 text-base text-text-primary placeholder-text-muted focus:outline-none focus:border-signal focus:ring-1 focus:ring-signal transition-colors";
@@ -24,6 +25,7 @@ export default function SettingsPage() {
   const { user, token, loading } = useAuth();
 
   const [displayName, setDisplayName] = useState("");
+  const [username, setUsername] = useState("");
   const [urls, setUrls] = useState<string[]>([]);
   const [newUrl, setNewUrl] = useState("");
   const [loaded, setLoaded] = useState(false);
@@ -44,6 +46,7 @@ export default function SettingsPage() {
       .then((s) => {
         if (live && s) {
           setDisplayName(s.displayName ?? "");
+          setUsername(s.username ?? "");
           setUrls(Array.isArray(s.urls) ? s.urls : []);
         }
         if (live) setLoaded(true);
@@ -53,6 +56,10 @@ export default function SettingsPage() {
       live = false;
     };
   }, [token]);
+
+  // Live preview mirrors the server's normalizer so it never shows an invalid
+  // URL (e.g. "/c/@Foo!") or a reserved/too-short name as if it will work.
+  const usernameCheck = username.trim() ? normalizeUsername(username) : null;
 
   function addUrl() {
     const u = newUrl.trim();
@@ -78,11 +85,12 @@ export default function SettingsPage() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ displayName, urls }),
+        body: JSON.stringify({ displayName, username, urls }),
       });
       if (res.ok) {
         const s = await res.json();
         setDisplayName(s.displayName ?? "");
+        setUsername(s.username ?? "");
         setUrls(Array.isArray(s.urls) ? s.urls : []);
         setMsg({ type: "ok", text: "Settings saved." });
       } else {
@@ -139,6 +147,46 @@ export default function SettingsPage() {
             maxLength={60}
             className={`${INPUT} mt-2`}
           />
+        </section>
+
+        {/* Username / public creator page */}
+        <section className="mt-6 rounded-2xl border border-border-strong bg-surface p-6 shadow-lifted">
+          <label
+            htmlFor="username"
+            className="font-mono text-[11px] uppercase tracking-[0.16em] text-text-muted"
+          >
+            Public username
+          </label>
+          <p className="text-xs text-text-secondary mt-1">
+            Claims your public creator page. Leave blank for none.
+          </p>
+          <div className="mt-2 flex items-center gap-2">
+            <span className="font-mono text-sm text-text-secondary">/c/</span>
+            <input
+              id="username"
+              type="text"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              placeholder="yourname"
+              maxLength={30}
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
+              className={`${INPUT} font-mono`}
+              aria-invalid={usernameCheck ? !usernameCheck.valid : undefined}
+            />
+          </div>
+          {usernameCheck &&
+            (usernameCheck.valid ? (
+              <p className="text-xs text-text-secondary mt-2">
+                Your page:{" "}
+                <span className="font-mono text-signal">
+                  /c/{usernameCheck.username}
+                </span>
+              </p>
+            ) : (
+              <p className="text-xs text-ember mt-2">{usernameCheck.error}</p>
+            ))}
         </section>
 
         {/* Saved URLs */}

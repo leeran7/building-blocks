@@ -78,6 +78,8 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         created_at: true,
         category: true,
         season_id: true,
+        platform: true,
+        handle: true,
       },
     });
 
@@ -175,6 +177,8 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         created_at: block.created_at.toISOString(),
         category: block.category,
         season_id: block.season_id,
+        platform: block.platform,
+        handle: block.handle,
         rank,
         rank_above_altitude,
         competitor_cost_usd,

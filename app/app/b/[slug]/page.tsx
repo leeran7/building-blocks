@@ -11,6 +11,7 @@
 import { notFound } from "next/navigation";
 import { resolveBaseUrl } from "../../../src/config/public";
 import { getBlockBySlug, getBlockSeasonHistory } from "../../../src/db/blocks";
+import { getCreatorIdentity } from "../../../src/db/creator";
 import { getTotalSpend } from "../../../src/db/payments";
 import { getActiveSeason } from "../../../src/db/seasons";
 import { isBuried } from "../../../src/engine/index";
@@ -65,12 +66,13 @@ export default async function RecordPage({
   }
 
   const seasonSlug = parseSeasonSlug(block.category);
-  const [activeSeason, totalSpendCents, seasonHistory] = await Promise.all([
+  const [activeSeason, totalSpendCents, seasonHistory, creator] = await Promise.all([
     // Read-only: an unauthenticated page view must never mint a season row.
     // V already falls back to 0 below when there is no active season.
     seasonSlug ? getActiveSeason(seasonSlug) : Promise.resolve(null),
     getTotalSpend(block.id),
     getBlockSeasonHistory(slug),
+    getCreatorIdentity(block.userId),
   ]);
 
   const V = activeSeason?.views_k ?? 0;
@@ -129,6 +131,10 @@ export default async function RecordPage({
         buried={buried}
         hidden={hidden}
         categoryLabel={cat.label}
+        platform={block.platform}
+        handle={block.handle}
+        creatorName={creator?.name ?? null}
+        creatorUsername={creator?.username ?? null}
       />
 
       {/* Top-up CTA (if not hidden) */}

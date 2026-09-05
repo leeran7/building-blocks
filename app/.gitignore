@@ -6,3 +6,6 @@ node_modules
 
 
 tsconfig.tsbuildinfo
+
+# Closed-loop agent run artifacts (handoffs, stage outputs) — not source.
+loop/

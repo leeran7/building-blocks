@@ -14,6 +14,8 @@ import { validateUrl } from "../../../src/lib/validateUrl";
 import { checkRateLimit } from "../../../src/lib/rateLimit";
 import { sanitizeDisplayName } from "../../../src/lib/sanitizeName";
 import { isHatefulName } from "../../../src/lib/nameModeration";
+import { normalizeUsername } from "../../../src/lib/username";
+import { setUsername, clearUsername } from "../../../src/db/creator";
 
 export const runtime = "nodejs";
 
@@ -74,7 +76,7 @@ export async function PUT(request: NextRequest): Promise<NextResponse> {
     );
   }
 
-  let body: { displayName?: unknown; urls?: unknown };
+  let body: { displayName?: unknown; username?: unknown; urls?: unknown };
   try {
     body = await request.json();
   } catch {
@@ -143,6 +145,34 @@ export async function PUT(request: NextRequest): Promise<NextResponse> {
         emailVerified: decoded.email_verified ?? false,
       });
     }
+
+    // Public creator username (optional). Empty string / null clears it; any
+    // other value is normalised, moderated, and set with a uniqueness check.
+    if (body.username !== undefined) {
+      if (body.username !== null && typeof body.username !== "string") {
+        return NextResponse.json({ error: "Invalid username" }, { status: 400 });
+      }
+      const raw = typeof body.username === "string" ? body.username.trim() : "";
+      if (!raw) {
+        await clearUsername(decoded.uid);
+      } else {
+        const norm = normalizeUsername(raw);
+        if (!norm.valid || !norm.username) {
+          return NextResponse.json(
+            { error: norm.error, field: "username" },
+            { status: 400 }
+          );
+        }
+        const res = await setUsername(decoded.uid, norm.username);
+        if (!res.ok) {
+          return NextResponse.json(
+            { error: "That username is already taken", field: "username" },
+            { status: 409 }
+          );
+        }
+      }
+    }
+
     const settings = await updateUserSettings(decoded.uid, patch);
     // Audit trail for display-name changes: the name is public and
     // impersonation-capable, so keep it traceable. Log uid + timestamp only —

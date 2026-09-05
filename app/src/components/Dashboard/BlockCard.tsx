@@ -16,10 +16,13 @@
 
 import dynamic from "next/dynamic";
 import Link from "next/link";
+import type { CreatorPlatform } from "@prisma/client";
 import { BurialRisk } from "./BurialRisk";
 import { CompetitorCost } from "./CompetitorCost";
 import { getCategory, categoryTheme } from "../../lib/categories";
 import { ALTITUDE_UNIT, formatAltitudeLabel } from "../../lib/units";
+import { SocialMark } from "../Social/SocialMark";
+import { PLATFORM_META, handleDisplay } from "../../lib/socialHandle";
 
 const AltitudeChart = dynamic(() => import("./AltitudeChart"), {
   ssr: false,
@@ -58,6 +61,8 @@ interface DashboardBlock {
   competitor_cost_usd: number | null;
   season: Season;
   payments: Payment[];
+  platform?: CreatorPlatform | null;
+  handle?: string | null;
 }
 
 interface BlockCardProps {
@@ -116,9 +121,20 @@ export function BlockCard({ block }: BlockCardProps) {
         <h2 className="font-display text-xl text-text-primary mt-3 truncate">
           {block.display_name}
         </h2>
-        <p className="text-xs font-mono text-text-muted truncate mt-0.5">
-          {domainOf(block.url)}
-        </p>
+        {block.platform && block.handle ? (
+          <p
+            className="flex items-center gap-1 text-xs font-mono text-text-secondary truncate mt-0.5"
+            title={`${PLATFORM_META[block.platform].label} · ${handleDisplay(block.handle)}`}
+            aria-label={`${PLATFORM_META[block.platform].label} ${handleDisplay(block.handle)}`}
+          >
+            <SocialMark platform={block.platform} className="h-3.5 w-3.5 flex-shrink-0" />
+            <span className="truncate">{handleDisplay(block.handle)}</span>
+          </p>
+        ) : (
+          <p className="text-xs font-mono text-text-secondary truncate mt-0.5">
+            {domainOf(block.url)}
+          </p>
+        )}
 
         {/* Primary metrics */}
         <div className="mt-4 flex items-end justify-between gap-4">

@@ -9,6 +9,7 @@ import { prisma } from "./client";
 
 export interface UserSettings {
   displayName: string | null;
+  username: string | null;
   urls: string[];
 }
 
@@ -16,7 +17,7 @@ export async function getUserSettings(userId: string): Promise<UserSettings> {
   const [user, urls] = await Promise.all([
     prisma.user.findUnique({
       where: { id: userId },
-      select: { display_name: true },
+      select: { display_name: true, username: true },
     }),
     prisma.savedUrl.findMany({
       where: { userId },
@@ -24,7 +25,11 @@ export async function getUserSettings(userId: string): Promise<UserSettings> {
       select: { url: true },
     }),
   ]);
-  return { displayName: user?.display_name ?? null, urls: urls.map((u) => u.url) };
+  return {
+    displayName: user?.display_name ?? null,
+    username: user?.username ?? null,
+    urls: urls.map((u) => u.url),
+  };
 }
 
 /** Update display name and/or replace the saved-URL list (add new, drop removed). */
