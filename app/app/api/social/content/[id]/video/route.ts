@@ -1,5 +1,5 @@
 /**
- * GET /api/social/content/:id/video — poll AI video generation status (OpenAI Sora).
+ * GET /api/social/content/:id/video — poll AI video generation status (Runway Gen-4.5).
  * When complete, returns a preview URL (Vercel Blob or local proxy).
  *
  * GET with ?assetId= streams the MP4 when stored on local disk (dev fallback).

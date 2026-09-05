@@ -147,7 +147,7 @@ export default function ContentStudioPage() {
         <div>
           <h1 className="font-display text-2xl tracking-tight">Quick Create</h1>
           <p className="text-text-secondary text-sm mt-1">
-            One prompt → platform-native copy and optional AI-generated videos (OpenAI Sora). For
+            One prompt → platform-native copy and optional AI-generated videos. For
             replay-driven content, scheduling, or publishing, use the{" "}
             <Link href="/admin/social/agent" className="text-signal underline">
               AI Assistant
@@ -198,7 +198,7 @@ export default function ContentStudioPage() {
             onChange={(e) => setGenerateVideo(e.target.checked)}
             className="rounded border-border"
           />
-          Generate AI videos for TikTok / YouTube Shorts (OpenAI Sora)
+          Generate AI videos for TikTok / YouTube Shorts
         </label>
 
         <button
@@ -255,7 +255,7 @@ export default function ContentStudioPage() {
                       <p className="text-danger">Video failed: {video.errorMessage ?? "Unknown error"}</p>
                     ) : (
                       <p>
-                        Video: {video?.jobStatus ?? "queued"}… (Sora renders take a few minutes — this page polls
+                        Video: {video?.jobStatus ?? "queued"}… (AI video renders take a few minutes — this page polls
                         automatically)
                       </p>
                     )}
