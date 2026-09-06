@@ -23,6 +23,7 @@ loop/*
 !loop/research-native-video-share.md
 !loop/handoffs/
 !loop/handoffs/**/*.json
+!loop/qa-report.md
 .claude/handoffs/*.json
 
 # Dependencies & build
