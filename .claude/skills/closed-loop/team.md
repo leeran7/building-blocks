@@ -28,11 +28,14 @@ product-spec → architect → implementer → verifier
 ```
 
 Release and monitor still run after integrator (default sequence). Optional
-inserts: `design-ux` after architect; `devops` / `docs` after integrator.
+inserts: `design-ux` after architect; `devops` / `docs` / `github` after
+integrator.
 
 Specialists (`frontend`, `backend`, `data`, `mobile`, …) are **not**
 pipeline stages. The implementer may delegate to them with matching
-`subagent_type` and still owns the implementer handoff.
+`subagent_type` and still owns the implementer handoff. `github` is an
+**optional stage** after integrator (and may be dispatched by integrator for
+stacking / ruleset strategy) — not an implementer layer specialist.
 
 ## Missing handoff
 

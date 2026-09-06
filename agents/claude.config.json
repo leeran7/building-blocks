@@ -82,6 +82,11 @@
     "skills": ["closed-loop"],
     "color": "orange"
   },
+  "github": {
+    "tools": ["Read", "Write", "Edit", "Bash", "Grep", "Glob"],
+    "skills": ["closed-loop", "github"],
+    "color": "orange"
+  },
   "release": {
     "tools": ["Read", "Write", "Edit", "Bash", "Grep", "Glob"],
     "skills": ["closed-loop"],
