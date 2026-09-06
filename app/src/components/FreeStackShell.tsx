@@ -57,7 +57,10 @@ export function FreeStackShell({
       </div>
 
       {play ? (
-        <div className="climb-reveal relative z-10 w-full flex-1 px-2 pt-2 pb-[max(0px,env(safe-area-inset-bottom))]">
+        // Do NOT put climb-reveal (transform animation) on this wrapper —
+        // ClimbScene is `fixed inset-0` on touch, and a transformed ancestor
+        // becomes its containing block, breaking mobile fullscreen layout.
+        <div className="relative z-10 w-full flex-1 px-2 pt-2 pb-[max(0px,env(safe-area-inset-bottom))]">
           <h1 className="sr-only">{title}</h1>
           {children}
         </div>

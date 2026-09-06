@@ -91,6 +91,27 @@ describe("FreeStackShell climb chrome (AC-3)", () => {
     // Paid GroundRow baseline must not leak into free shell.
     expect(html).not.toMatch(/\banimate-groundRise\b/);
   });
+
+  it("does not put climb-reveal on the play stage (mobile fullscreen)", () => {
+    // climb-reveal uses transform; a transformed ancestor becomes the containing
+    // block for ClimbScene's `fixed inset-0` touch layout and breaks fullscreen.
+    const html = renderToStaticMarkup(
+      createElement(FreeStackShell, {
+        section: "play",
+        title: "Play",
+        children: createElement("div", { id: "stage" }, "canvas"),
+      })
+    );
+    const stageIdx = html.indexOf('id="stage"');
+    expect(stageIdx).toBeGreaterThan(0);
+    const before = html.slice(0, stageIdx);
+    const lastOpenDiv = before.lastIndexOf("<div");
+    const wrapper = before.slice(lastOpenDiv, stageIdx);
+    expect(wrapper).not.toMatch(/\bclimb-reveal\b/);
+    // Tabs may still climb-reveal; chrome atmosphere stays.
+    expect(html).toMatch(/\bgrain\b/);
+    expect(html).toMatch(/\btopo\b/);
+  });
 });
 
 describe("Hero free climb CTA (AC-5, AC-7)", () => {
