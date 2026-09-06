@@ -270,12 +270,14 @@ function tryPyramid(
   d: number
 ): Obstacle[] | null {
   const y0 = floorHeight(tower, i);
-  const height = hurdleHeightM(tower);
+  // Shallower levels + higher overlap → tent ramp reads smoother underfoot.
+  const height = Math.min(hurdleHeightM(tower) * 0.88, jumpApexM(tower) * 0.55);
   const width = crateWidthM(d);
-  const overlapFrac = 0.32 + rng.next() * 0.1;
+  const overlapFrac = 0.48 + rng.next() * 0.12;
   const advance = width * (1 - overlapFrac);
   const nCrates = PYRAMID_LEVELS * 2 - 1;
-  const spanW = (nCrates - 1) * advance + width;
+  // Need side clearance so the triangle sits in a pocket, not flush to ladders.
+  const spanW = (nCrates - 1) * advance + width + HURDLE_CLEAR_M;
   const pieces = platformsForFloor(tower, i);
   const destKeep = obstacleLadderKeepOutM(tower);
   const destLadders = [
@@ -283,29 +285,49 @@ function tryPyramid(
     ...laddersForFloor(tower, i).map((l) => l.x),
     ...laddersForFloor(tower, i + 1).map((l) => l.x),
   ];
+  const footprint = (nCrates - 1) * advance + width;
 
   const attempt = (spans: Span[]): Obstacle[] | null => {
-    for (const span of spans) {
-      const room = span.hi - span.lo - spanW;
-      if (room < 0) continue;
-      for (let t = 0; t < 6; t++) {
+    // Longest corridor first — more deterministic than RNG span picks.
+    const ranked = [...spans].sort((a, b) => b.hi - b.lo - (a.hi - a.lo));
+    for (const span of ranked) {
+      const room = span.hi - span.lo - footprint;
+      if (room < HURDLE_CLEAR_M) continue;
+      // Center-first, then evenly spaced — same pattern as stairs.
+      for (let t = 0; t < 5; t++) {
         const origin =
-          span.lo + (t === 0 ? room / 2 : ((t - 1) / 4) * room);
+          span.lo +
+          HURDLE_CLEAR_M * 0.5 +
+          (t === 0 ? room / 2 : ((t - 1) / 3) * room);
         if (
-          pyramidFits(origin, nCrates, width, advance, pieces, destLadders, destKeep)
+          pyramidFits(
+            origin,
+            nCrates,
+            width,
+            advance,
+            pieces,
+            destLadders,
+            destKeep
+          )
         ) {
-          return buildPyramid(i, origin, nCrates, width, advance, y0, height, kind);
+          return buildPyramid(
+            i,
+            origin,
+            nCrates,
+            width,
+            advance,
+            y0,
+            height,
+            kind
+          );
         }
       }
     }
     return null;
   };
 
-  // Prefer between-ladder pockets; fall back so triangles still spawn.
-  return (
-    attempt(betweenLadderSpans(tower, i, spanW)) ??
-    attempt(walkableSpans(tower, i, spanW))
-  );
+  // Between-ladder only — same deterministic corridor rule as lone hurdles.
+  return attempt(betweenLadderSpans(tower, i, spanW));
 }
 
 function tryStair(
@@ -670,8 +692,8 @@ function rideStairRamps(
 
 /**
  * Continuous surface height at `x` for stair/pyramid crates; discrete top
- * otherwise. Monotone stairs lerp floor→landing; pyramids use piecewise
- * centers so the crest still rises and falls.
+ * otherwise. Monotone stairs lerp floor→landing; pyramids use a true tent
+ * ramp (floor→peak→floor) so cresting is not a kinked tread polyline.
  */
 function obstacleSurfaceY(band: Obstacle[], o: Obstacle, x: number): number {
   if (!isStairCrate(band, o)) return o.y1;
@@ -681,11 +703,13 @@ function obstacleSurfaceY(band: Obstacle[], o: Obstacle, x: number): number {
   const sorted = [...run].sort(
     (a, b) => (a.x0 + a.x1) / 2 - (b.x0 + b.x1) / 2
   );
+  const left = Math.min(...run.map((r) => r.x0));
+  const right = Math.max(...run.map((r) => r.x1));
+  const yBase = Math.min(...run.map((r) => r.y0));
+
   if (isMonotoneY1(sorted)) {
     const bottom = run.reduce((a, b) => (a.y0 <= b.y0 ? a : b));
     const top = run.reduce((a, b) => (a.y1 >= b.y1 ? a : b));
-    const left = Math.min(...run.map((r) => r.x0));
-    const right = Math.max(...run.map((r) => r.x1));
     const asc = (bottom.x0 + bottom.x1) / 2 <= (top.x0 + top.x1) / 2;
     const t = asc
       ? (x - left) / Math.max(1e-6, right - left)
@@ -694,29 +718,18 @@ function obstacleSurfaceY(band: Obstacle[], o: Obstacle, x: number): number {
     return bottom.y0 + tt * (top.y1 - bottom.y0);
   }
 
-  const pts = [
-    { x: sorted[0]!.x0, y: sorted[0]!.y0 },
-    ...sorted.map((c) => ({
-      x: (c.x0 + c.x1) / 2,
-      y: c.y1,
-    })),
-    {
-      x: sorted[sorted.length - 1]!.x1,
-      y: sorted[sorted.length - 1]!.y0,
-    },
-  ];
-  if (x <= pts[0]!.x) return pts[0]!.y;
-  const last = pts[pts.length - 1]!;
-  if (x >= last.x) return last.y;
-  for (let i = 0; i < pts.length - 1; i++) {
-    const a = pts[i]!;
-    const b = pts[i + 1]!;
-    if (x >= a.x && x <= b.x) {
-      const u = (x - a.x) / Math.max(1e-6, b.x - a.x);
-      return a.y + u * (b.y - a.y);
-    }
+  // Tent ramp: linear up to the peak centre, linear down to the far base.
+  const peak = run.reduce((a, b) => (a.y1 >= b.y1 ? a : b));
+  const peakX = (peak.x0 + peak.x1) / 2;
+  const yPeak = peak.y1;
+  if (x <= left) return yBase;
+  if (x >= right) return yBase;
+  if (x <= peakX) {
+    const t = (x - left) / Math.max(1e-6, peakX - left);
+    return yBase + t * (yPeak - yBase);
   }
-  return o.y1;
+  const t = (x - peakX) / Math.max(1e-6, right - peakX);
+  return yPeak + t * (yBase - yPeak);
 }
 
 function isMonotoneY1(sorted: Obstacle[]): boolean {

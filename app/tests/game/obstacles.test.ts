@@ -274,6 +274,39 @@ describe("obstacle spawn", () => {
     expect(levels.size).toBe(3);
   });
 
+  it("places hurdle triangles between ladder anchors", () => {
+    let checked = 0;
+    for (let i = 2; i < 200; i++) {
+      const os = obstaclesForFloor(TOWER, i);
+      const floorY = floorHeight(TOWER, i);
+      const nextY = floorHeight(TOWER, i + 1);
+      if (os.length < 5) continue;
+      const peak = os.reduce((a, b) => (a.y1 >= b.y1 ? a : b));
+      const levels = new Set(os.map((o) => Math.round((o.y0 - floorY) * 100)));
+      if (levels.size !== 3 || peak.y1 >= nextY - 1) continue;
+      const ladderXs = [
+        ...laddersForFloor(TOWER, i).map((l) => l.x),
+        ...laddersForFloor(TOWER, i - 1).map((l) => l.x),
+      ]
+        .filter((v, idx, arr) => arr.indexOf(v) === idx)
+        .sort((a, b) => a - b);
+      if (ladderXs.length < 2) continue;
+      const clear = obstacleLadderKeepOutM(TOWER);
+      const mid =
+        (Math.min(...os.map((o) => o.x0)) + Math.max(...os.map((o) => o.x1))) /
+        2;
+      let inCorridor = false;
+      for (let a = 0; a < ladderXs.length - 1; a++) {
+        const lo = ladderXs[a]! + clear;
+        const hi = ladderXs[a + 1]! - clear;
+        if (mid >= lo && mid <= hi) inCorridor = true;
+      }
+      expect(inCorridor).toBe(true);
+      checked += 1;
+    }
+    expect(checked).toBeGreaterThan(0);
+  });
+
   it("lets a walker crest a hurdle triangle without jumping", () => {
     const { crates } = firstPyramid(TOWER);
     const left = crates.reduce((a, b) => (a.x0 <= b.x0 ? a : b));
@@ -285,12 +318,40 @@ describe("obstacle spawn", () => {
     p.peakY = left.y0;
     p.onGround = true;
     p.vy = 0;
-    for (let i = 0; i < 400 && (p.x < right.x1 + 0.4 || p.y > left.y0 + 0.3); i++) {
+    const step = crates[0].y1 - crates[0].y0;
+    let maxRise = 0;
+    let prevY = p.y;
+    for (
+      let i = 0;
+      i < 500 && (p.x < right.x1 + 0.4 || p.y > left.y0 + 0.3);
+      i++
+    ) {
       stepMatch(m, { p1: move(1, false) }, SLOW);
+      maxRise = Math.max(maxRise, p.y - prevY);
+      prevY = p.y;
     }
     expect(p.x).toBeGreaterThan(right.x1);
     expect(p.y).toBeCloseTo(left.y0, 0);
     expect(p.status).toBe("climbing");
+    // Tent ramp: no single-tick snap of a full pyramid tread.
+    expect(maxRise).toBeLessThan(step * 0.85 + 0.05);
+  });
+
+  it("does not yank a mid-air fall down onto a pyramid tent", () => {
+    const { crates } = firstPyramid(TOWER);
+    const peak = crates.reduce((a, b) => (a.y1 >= b.y1 ? a : b));
+    const bandX = (peak.x0 + peak.x1) / 2;
+    const m = climbingMatch();
+    const p = m.players[0];
+    const surfaceApprox = peak.y1;
+    p.x = bandX;
+    p.y = surfaceApprox + 3.2;
+    p.peakY = p.y;
+    p.onGround = false;
+    p.vy = 0;
+    stepMatch(m, { p1: move(0, false) }, SLOW);
+    expect(p.y).toBeGreaterThan(surfaceApprox + 1.5);
+    expect(p.onGround).toBe(false);
   });
 
   it("lets a walker crest a crate stair without jumping", () => {
