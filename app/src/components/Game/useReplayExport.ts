@@ -80,19 +80,10 @@ export function useReplayExport({
   startExport: () => Promise<void>;
   cancelExport: () => void;
   dismissStatus: () => void;
-  /** Prefer "Share" when an empty preferred-MIME File probes canShare. */
-  exportControlLabel: "Share" | "Export";
 } {
   const [status, setStatus] = useState<ReplayExportStatus>({ kind: "idle" });
   const sessionRef = useRef<ExportSession | null>(null);
   const announceSeq = useRef(0);
-  const [exportControlLabel, setExportControlLabel] = useState<
-    "Share" | "Export"
-  >("Export");
-
-  useEffect(() => {
-    setExportControlLabel(probeExportControlLabel());
-  }, []);
 
   const cancelExport = useCallback(() => {
     const s = sessionRef.current;
@@ -335,21 +326,7 @@ export function useReplayExport({
     startExport,
     cancelExport,
     dismissStatus,
-    exportControlLabel,
   };
-}
-
-/**
- * Early Share label probe: empty File of preferred container MIME.
- * Returns "Export" when probe is awkward / unsupported.
- */
-function probeExportControlLabel(): "Share" | "Export" {
-  if (typeof document === "undefined") return "Export";
-  const mime = pickExportMime();
-  if (!mime) return "Export";
-  const type = containerMimeForLabel(mime.label);
-  const probe = new File([], `climb-probe.${mime.extension}`, { type });
-  return canShareVideoFile(probe) ? "Share" : "Export";
 }
 
 type ExportSession = {

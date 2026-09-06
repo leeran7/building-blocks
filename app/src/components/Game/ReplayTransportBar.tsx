@@ -39,8 +39,6 @@ export interface ReplayTransportBarProps {
   onCancelExport: () => void;
   onDismissExportStatus: () => void;
   exportStatus: ReplayExportStatus;
-  /** Prefer Share when canShare probes with preferred MIME (optional). */
-  exportControlLabel?: "Share" | "Export";
 }
 
 export function ReplayTransportBar({
@@ -54,7 +52,6 @@ export function ReplayTransportBar({
   onCancelExport,
   onDismissExportStatus,
   exportStatus,
-  exportControlLabel = "Export",
 }: ReplayTransportBarProps) {
   const liveId = useId();
   const [announce, setAnnounce] = useState("");
@@ -100,7 +97,7 @@ export function ReplayTransportBar({
     }
     if (exportStatus.kind === prev) return;
     if (exportStatus.kind === "running") {
-      speak(exportControlLabel === "Share" ? "Share started" : "Export started");
+      speak("Export started");
     } else if (exportStatus.kind === "success") {
       if (nowShared) {
         speak("Share complete");
@@ -119,7 +116,7 @@ export function ReplayTransportBar({
     } else if (exportStatus.kind === "paused_hidden") {
       speak("Return to this tab to finish exporting");
     }
-  }, [exportStatus, speak, exportControlLabel]);
+  }, [exportStatus, speak]);
 
   const startRewindHold = () => {
     onRewind();
@@ -241,16 +238,14 @@ export function ReplayTransportBar({
           </p>
 
           <TransportIconButton
-            label={
-              exportControlLabel === "Share" ? "Share video" : "Export video"
-            }
+            label="Export video"
             disabled={exporting}
             onClick={() => {
               onExport();
             }}
           >
             <span className="font-mono text-[10px] uppercase tracking-wider">
-              {exportControlLabel}
+              Export
             </span>
           </TransportIconButton>
         </div>

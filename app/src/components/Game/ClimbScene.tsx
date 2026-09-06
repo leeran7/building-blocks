@@ -116,7 +116,6 @@ export function ClimbScene({ tower, categoryLabel, replay = null }: ClimbScenePr
     startExport,
     cancelExport,
     dismissStatus,
-    exportControlLabel,
   } = useReplayExport({
     replay,
     tower,
@@ -536,9 +535,7 @@ export function ClimbScene({ tower, categoryLabel, replay = null }: ClimbScenePr
                   }
                   className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-full border border-border-strong bg-surface/60 px-8 font-semibold text-text-primary hover:border-signal/50 disabled:opacity-40"
                 >
-                  {exportControlLabel === "Share"
-                    ? "Share video"
-                    : "Export video"}
+                  Export video
                 </button>
               </div>
             )}
@@ -580,7 +577,6 @@ export function ClimbScene({ tower, categoryLabel, replay = null }: ClimbScenePr
             onCancelExport={cancelExport}
             onDismissExportStatus={dismissStatus}
             exportStatus={exportStatus}
-            exportControlLabel={exportControlLabel}
           />
         ) : null}
 
