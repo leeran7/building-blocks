@@ -1,0 +1,118 @@
+{
+  "agent": "security-reviewer",
+  "status": "success",
+  "summary": "Replay transport/export stays inside the browser trust boundary: MediaRecorder → blob download only (no product-API upload), no secrets in the diff, runReplay decode unchanged and client-only, export filenames allow-listed to numeric peak + UTC date + mime extension, keyboard capture reuses isInteractiveTarget, climb/result and leaderboard write paths untouched. Zero critical findings.",
+  "timestamp": "2026-09-06T16:03:05Z",
+  "goal": "Climb replay should allow fast forwarding, rewind, pause/play. Export as mp4.",
+  "artifacts": [
+    "loop/handoffs/security-reviewer-2026-09-06T160305Z.json"
+  ],
+  "exitCriteria": {
+    "secret_scan_clean": true,
+    "no_video_upload_to_product_apis": true,
+    "replay_token_client_decode_only": true,
+    "filename_injection_safe": true,
+    "keyboard_interactive_exemption": true,
+    "climb_result_leaderboard_untouched": true,
+    "xss_status_messages_safe": true,
+    "no_critical_security_findings": true
+  },
+  "feedback": [],
+  "findings": [
+    {
+      "severity": "info",
+      "owasp": "A01",
+      "location": "app/src/components/Game/useReplayExport.ts:392-401",
+      "issue": "NFR-6 held: export ends in URL.createObjectURL + <a download>; new modules have zero fetch/XHR/sendBeacon/WebSocket. Video bytes never leave the browser for product APIs.",
+      "reproduction": "rg fetch|upload|/api/ across useReplayExport, exportMime, ReplayTransportBar, paintClimbFrame, replayTransport, replaySnapshots, cloneMatch — empty. onstop only calls downloadBlob.",
+      "fix": "None. Keep export path free of network I/O if extended."
+    },
+    {
+      "severity": "info",
+      "owasp": null,
+      "location": "git diff main...HEAD (app product code)",
+      "issue": "Secret scan clean: no api keys, INTERNAL_TOKEN, Stripe secrets, or private key material in the feature diff. No package.json / lockfile changes (no new CVE surface from deps).",
+      "reproduction": "git diff main...HEAD -G '(api[_-]?key|secret|password|Bearer |sk_live|INTERNAL_TOKEN|BEGIN .*PRIVATE)'; package.json/pnpm-lock untouched.",
+      "fix": "None for this feature. Pre-existing next@14.0.4 audit debt remains open in the ledger and is out of scope here."
+    },
+    {
+      "severity": "info",
+      "owasp": "A03",
+      "location": "app/src/components/Game/ClimbPlayClient.tsx:30; app/src/game/runReplay.ts (untouched); useReplayExport.ts:134-136",
+      "issue": "Share token still decoded only client-side via decodeRunReplay; runReplay encode/decode and MAX_REPLAY_TOKEN_LENGTH unchanged. Export filename is climb-{Math.round(peakY)}m-{yyyyMMdd}.{mp4|webm} — peakY already Number.isFinite-gated at decode; extension from pickExportMime allow-list. No path/HTML injection via download name.",
+      "reproduction": "Confirm runReplay.ts absent from feature diff; decodeRunReplay rejects non-finite peakY; filename interpolates only number + digit date + extension enum.",
+      "fix": "None. If filename builder is later exported for tests, keep the same numeric/allow-list composition."
+    },
+    {
+      "severity": "info",
+      "owasp": "A04",
+      "location": "app/src/components/Game/ClimbScene.tsx:299-325; app/src/game/replayTransport.ts:76-84; app/src/game/useClimb.ts:200-221,494-511",
+      "issue": "Replay keydown handler mounts only when replaying and gates on shouldCaptureReplayKey(..., isInteractiveTarget). Live shouldCaptureGameKey interactive exemption unchanged. Space/j/k/l/. /Home/0 will not steal focus from buttons, links, inputs, or role=slider (seek bar).",
+      "reproduction": "Unit: shouldCaptureReplayKey(key,true,true)===false; shouldCaptureReplayKey(key,false,*)===false. Live Space during climb with non-interactive target still true (AC-20).",
+      "fix": "None. QA should smoke-check mute/Start/Export while focused still receive Space."
+    },
+    {
+      "severity": "info",
+      "owasp": "A01",
+      "location": "app/src/components/Game/ClimbScene.tsx:239; git diff vs app/app/api/** app/src/db/**",
+      "issue": "Trust boundary #1 (client-submitted climb scores) untouched: no API/db/prisma/middleware diffs. postRun still early-returns when replaying. Free-leaderboard open question remains out of scope per architect exception.",
+      "reproduction": "git diff main...HEAD --name-only -- 'app/app/api/**' 'app/src/db/**' 'app/prisma/**' empty; ClimbScene finished effect retains `if (!finished || posted || replaying) return`.",
+      "fix": "None for this feature. Do not mark free-leaderboard trust boundary closed."
+    },
+    {
+      "severity": "info",
+      "owasp": "A03",
+      "location": "app/src/components/Game/ReplayTransportBar.tsx:241-254,257-259; useReplayExport.ts:175-177",
+      "issue": "Export success/error/aria-live copy rendered as React text children (no innerHTML / dangerouslySetInnerHTML). Canvas HUD uses fillText only. err.message passthrough on blob failure is React-escaped — not an XSS sink.",
+      "reproduction": "rg innerHTML|dangerouslySetInnerHTML on new UI modules — empty. Error UI is `{exportStatus.message}` text node.",
+      "fix": "Optional hardening: map encode failures to fixed copy instead of err.message (defense-in-depth; not required to merge)."
+    }
+  ],
+  "learnings": [
+    {
+      "topic": "Security",
+      "forAgents": ["all", "qa-acceptance", "reviewer"],
+      "kind": "metric",
+      "insight": "Security review of replay transport/export: 0 critical, 0 warning, 6 info. Client-only MediaRecorder download confirmed; climb/result and leaderboard write paths absent from the diff; keyboard interactive exemption preserved.",
+      "action": "Proceed to qa-acceptance; do not loopBack to implementer for this stage.",
+      "confidence": "high"
+    },
+    {
+      "topic": "Security",
+      "forAgents": ["implementer", "architect", "verifier"],
+      "kind": "pattern",
+      "insight": "A client-only export that never calls fetch is a trust-boundary control you can prove by absence: no network APIs in the export module plus a single downloadBlob (createObjectURL → <a download> → revoke). Coupling filename to Math.round(finite peakY) + digit date + mime allow-list removes query-token string injection from the download attribute.",
+      "action": "When adding any 'share/export' path, require the same no-network grep and allow-listed filename composition; never interpolate raw ?r= token bytes into DOM attributes or URLs that leave the origin.",
+      "confidence": "high"
+    },
+    {
+      "topic": "Security",
+      "forAgents": ["product-spec", "architect"],
+      "kind": "exception",
+      "insight": "Free-leaderboard trust-boundary open question remains unresolved and correctly out of scope for replay transport/export — implementer did not touch climb/result persistence.",
+      "action": "Keep the ledger open question; do not treat this feature's success as closing score authenticity.",
+      "confidence": "high"
+    }
+  ],
+  "nextStage": "qa-acceptance",
+  "loopBackTo": null,
+  "notes": {
+    "branch": "cursor/replay-controls-export-b391",
+    "appliedLearnings": [
+      "Did not close free-leaderboard trust boundary (architect exception + standing Security ledger)",
+      "Confirmed non-test callers of export/transport exist before treating controls as real",
+      "Treated monotonic climb/result write as hard boundary — verified path untouched rather than trusting comments",
+      "Verified interactive-target exemption on new key predicate (standing Spec quality rule)"
+    ],
+    "trustBoundaryConclusions": {
+      "videoBytes": "browser-only; never uploaded to product servers",
+      "replayToken": "client decode only; runReplay untouched",
+      "scorePersistence": "climb/result + leaderboard write paths unchanged; postRun skipped while replaying",
+      "secrets": "none introduced",
+      "xss": "React text + canvas fillText; download filename allow-listed"
+    },
+    "criticalCount": 0,
+    "warningCount": 0,
+    "infoCount": 6
+  }
+}
