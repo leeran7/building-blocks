@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useSocialApi, SocialApiError } from "../../../../src/components/Social/useSocialApi";
+import { Select } from "../../../../src/components/Select";
 
 interface ContentItem {
   id: string;
@@ -210,20 +211,19 @@ export default function CalendarPage() {
                               className={`rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text-primary focus:outline-none ${FOCUS_RING}`}
                             />
                           </label>
-                          <label className="flex flex-col gap-1 text-xs text-text-secondary">
+                          <div className="flex flex-col gap-1 text-xs text-text-secondary">
                             Account
-                            <select
+                            <Select
+                              size="sm"
+                              aria-label="Account"
                               value={scheduleAccountId}
-                              onChange={(e) => setScheduleAccountId(e.target.value)}
-                              className={`rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text-primary focus:outline-none ${FOCUS_RING}`}
-                            >
-                              {eligibleAccounts.map((a) => (
-                                <option key={a.id} value={a.id}>
-                                  @{a.handle}
-                                </option>
-                              ))}
-                            </select>
-                          </label>
+                              onChange={setScheduleAccountId}
+                              options={eligibleAccounts.map((a) => ({
+                                value: a.id,
+                                label: `@${a.handle}`,
+                              }))}
+                            />
+                          </div>
                         </div>
                       )}
 

@@ -14,6 +14,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "../../src/contexts/AuthContext";
 import { Navbar } from "../../src/components/Navbar";
+import { Select } from "../../src/components/Select";
 import {
   GAME_CATEGORIES,
   FAMILIES,
@@ -216,11 +217,11 @@ function SubmitForm() {
           <label htmlFor="link_target" className="block text-sm font-medium text-text-primary mb-1.5">
             What are you linking?
           </label>
-          <select
+          <Select
             id="link_target"
             value={linkTarget}
-            onChange={(e) => {
-              const next = e.target.value as LinkTarget;
+            onChange={(value) => {
+              const next = value as LinkTarget;
               setLinkTarget(next);
               // Prefill the handle from the saved one for this platform when the
               // field is empty; flag it so the "from saved" hint can show/clear.
@@ -231,16 +232,16 @@ function SubmitForm() {
                 setPrefilledFrom(null);
               }
             }}
-            className={`${INPUT} mb-3`}
+            className="mb-3"
             disabled={submitting}
-          >
-            <option value="">Website</option>
-            {SOCIAL_PLATFORMS.map((p) => (
-              <option key={p} value={p}>
-                {PLATFORM_META[p].label}
-              </option>
-            ))}
-          </select>
+            options={[
+              { value: "", label: "Website" },
+              ...SOCIAL_PLATFORMS.map((p) => ({
+                value: p,
+                label: PLATFORM_META[p].label,
+              })),
+            ]}
+          />
 
           {linkTarget ? (
             <>
@@ -304,11 +305,10 @@ function SubmitForm() {
               </label>
 
               {savedUrls.length > 0 && (
-                <select
+                <Select
                   aria-label="Choose a saved URL"
                   value={typingNewUrl ? "__new__" : url}
-                  onChange={(e) => {
-                    const v = e.target.value;
+                  onChange={(v) => {
                     if (v === "__new__") {
                       setTypingNewUrl(true);
                       setUrl("");
@@ -317,16 +317,13 @@ function SubmitForm() {
                       setUrl(v);
                     }
                   }}
-                  className={`${INPUT} mb-2`}
+                  className="mb-2"
                   disabled={submitting}
-                >
-                  {savedUrls.map((u) => (
-                    <option key={u} value={u}>
-                      {u}
-                    </option>
-                  ))}
-                  <option value="__new__">＋ Type a new URL…</option>
-                </select>
+                  options={[
+                    ...savedUrls.map((u) => ({ value: u, label: u })),
+                    { value: "__new__", label: "＋ Type a new URL…" },
+                  ]}
+                />
               )}
 
               {(savedUrls.length === 0 || typingNewUrl) && (
@@ -358,23 +355,18 @@ function SubmitForm() {
           <label htmlFor="category" className="block text-sm font-medium text-text-primary mb-1.5">
             Stack
           </label>
-          <select
+          <Select
             id="category"
             value={category}
-            onChange={(e) => setCategory(e.target.value)}
-            className={INPUT}
+            onChange={setCategory}
             disabled={submitting}
-          >
-            {FAMILIES.map((family) => (
-              <optgroup key={family} label={family}>
-                {GAME_CATEGORIES.filter((c) => c.family === family).map((c) => (
-                  <option key={c.slug} value={c.slug}>
-                    {c.label}
-                  </option>
-                ))}
-              </optgroup>
-            ))}
-          </select>
+            options={FAMILIES.map((family) => ({
+              label: family,
+              options: GAME_CATEGORIES.filter((c) => c.family === family).map(
+                (c) => ({ value: c.slug, label: c.label }),
+              ),
+            }))}
+          />
         </div>
 
         <div>
