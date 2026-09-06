@@ -1,0 +1,127 @@
+{
+  "agent": "architect",
+  "status": "success",
+  "summary": "Designed async ghost race MVP: client-only /play/race + ?c= invite (t:race,g:100), MatchState.goalM + multiplayer peak fallback, dual-player useRaceClimb, POST /api/climb/result stays solo-only. No WebSocket/APIs. nextStage implementer.",
+  "timestamp": "2026-09-06T20:13:17Z",
+  "goal": "Two players race each other on the same climb map (same seed/tower). Ship async ghost race MVP per locked product-spec.",
+  "artifacts": [
+    "loop/architecture-two-player-race.md",
+    "loop/architecture.md"
+  ],
+  "exitCriteria": {
+    "acs_mapped": true,
+    "stack_confirmed": true,
+    "mermaid_trust_boundaries": true,
+    "data_models_complete": true,
+    "invite_payload_specified": true,
+    "sim_outcome_rules_specified": true,
+    "routes_distinct_from_solo_replay": true,
+    "api_contracts": true,
+    "no_new_race_persist_api": true,
+    "climb_result_solo_only_explicit": true,
+    "folder_tree_with_ownership": true,
+    "failure_modes": true,
+    "adrs_recorded": true,
+    "security_boundaries": true,
+    "hot_paths_limits": true,
+    "next_stage_decided": true
+  },
+  "feedback": [],
+  "learnings": [
+    {
+      "topic": "Architecture & contracts",
+      "forAgents": ["implementer", "verifier"],
+      "kind": "lesson",
+      "insight": "Race invite must carry discriminator t:\"race\" and g:RACE_GOAL_M; decodeRunReplay must reject t===\"race\" so a challenge token never silently becomes solo replay. Route is /play/race?c= — do not teach /play to read c.",
+      "action": "Implement raceInvite.ts + harden runReplay decode; add /play/race page; prove round-trip and cross-decode rejection in tests (not source greps).",
+      "confidence": "high"
+    },
+    {
+      "topic": "Architecture & contracts",
+      "forAgents": ["implementer", "verifier"],
+      "kind": "pitfall",
+      "insight": "resolveOutcome today never crowns peak winners and nothing sets status=finished in endless solo. Race needs goalM finish-at-y in stepMatch plus multiplayer-only peakY/slot fallback so solo winnerId===null tests stay green.",
+      "action": "Add MatchState.goalM; finish when y>=goalM; peak fallback gated on mode===\"multiplayer\"; prove AC-11/AC-12 with simulateFromInputs.",
+      "confidence": "high"
+    },
+    {
+      "topic": "Security",
+      "forAgents": ["implementer", "security-reviewer", "backend"],
+      "kind": "lesson",
+      "insight": "MVP adds zero race persist APIs. Race UI must not fetch POST /api/climb/result. Harden that route to 400 RACE_RESULT_NOT_SUPPORTED on raceWin/raceResult/winnerId/opponentPeakY/mode race|multiplayer without calling recordClimb. Free solo LB server-re-sim OQ stays OPEN.",
+      "action": "Skip postRun on race surfaces; add climbResult route tests for forged raceWin; do not mark free-LB trust closed.",
+      "confidence": "high"
+    },
+    {
+      "topic": "Architecture & contracts",
+      "forAgents": ["frontend", "implementer"],
+      "kind": "pitfall",
+      "insight": "paintClimbFrame currently draws only players[0]; ghost race needs both bodies and camera following the live challenger (id you / slot 1).",
+      "action": "Amend paintClimbFrame (+ camera target) for N=2; style ghost distinctly (muted/alpha).",
+      "confidence": "high"
+    },
+    {
+      "topic": "Spec quality",
+      "forAgents": ["design-ux", "qa-acceptance", "orchestrator"],
+      "kind": "exception",
+      "insight": "ASCENT + climb chrome already cover race overlays; architect set nextStage=implementer and skipped design-ux-first. Nav honesty still required: Race a friend → /play/race Start recording.",
+      "action": "QA walk F-1; escalate to design-ux only if contrast/a11y/chrome fails acceptance.",
+      "confidence": "high"
+    },
+    {
+      "topic": "Architecture & contracts",
+      "forAgents": ["all"],
+      "kind": "metric",
+      "insight": "Architecture maps AC-1…AC-21 across ~6 new modules (raceConstants, raceInvite, useRaceClimb, Race* clients/overlay, /play/race page), ~5 amended (simulation, types, runReplay, paintClimbFrame, climb/result), 7 ADRs, 0 new HTTP race endpoints, MAX_RACE_TICKS=18000 / MAX_RACE_TOKEN_LENGTH=32768.",
+      "action": "Implementer checklist in loop/architecture-two-player-race.md §16; nextStage implementer.",
+      "confidence": "high"
+    }
+  ],
+  "nextStage": "implementer",
+  "lockedDecisions": {
+    "mode": "async_ghost_race",
+    "route": "/play/race",
+    "inviteQuery": "c",
+    "inviteWire": { "v": 1, "t": "race", "s": "seed", "p": "hostPeakY", "g": 100, "i": "deflatePackedInputs" },
+    "RACE_GOAL_M": 100,
+    "serverApis": "none_for_race_mvp",
+    "climbResult": "solo_only_reject_race_claims",
+    "peakFallback": "multiplayer_only",
+    "hostLabel": "Host",
+    "designUxFirst": false
+  },
+  "openQuestions": [
+    "Solo free leaderboard server-re-sim (pre-existing OPEN — race does not close).",
+    "Power-up one-slot vs stacking (OPEN — out of scope).",
+    "/api/tower unscoped aggregate (OPEN — out of scope).",
+    "Host recording early-stop at 100 recommended for invite size (non-blocking)."
+  ],
+  "notes": {
+    "canonicalArchitecture": "loop/architecture-two-player-race.md",
+    "pathsArchitecturePointer": "loop/architecture.md",
+    "appliedLearnings": [
+      "product-spec: ghost MatchState + no WebSocket",
+      "product-spec: extend resolveOutcome for 100m + peak fallback",
+      "product-spec: no race writes to free solo LB; climb/result solo-only",
+      "product-spec: RACE_GOAL_M=100 contract",
+      "ledger: free LB trust stays OPEN; do not worsen",
+      "ledger: no second stack/ORM/HTTP client"
+    ],
+    "moduleListForImplementer": [
+      "app/src/game/raceConstants.ts (NEW)",
+      "app/src/game/raceInvite.ts (NEW)",
+      "app/src/game/useRaceClimb.ts (NEW)",
+      "app/app/play/race/page.tsx (NEW)",
+      "app/src/components/Game/RaceCreateClient.tsx (NEW)",
+      "app/src/components/Game/RaceAcceptClient.tsx (NEW)",
+      "app/src/components/Game/RaceResultsOverlay.tsx (NEW)",
+      "app/src/game/simulation.ts (goalM + finish + peak fallback)",
+      "app/src/game/types.ts (goalM)",
+      "app/src/game/runReplay.ts (reject t=race)",
+      "app/src/components/Game/paintClimbFrame.ts (draw N players)",
+      "app/src/components/Game/ClimbScene.tsx (Race a friend CTA)",
+      "app/app/api/climb/result/route.ts (reject race claims)",
+      "app/tests/game/raceInvite.test.ts + raceOutcome.test.ts (NEW)"
+    ]
+  }
+}
