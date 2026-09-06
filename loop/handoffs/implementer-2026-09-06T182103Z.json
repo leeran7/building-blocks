@@ -1,0 +1,68 @@
+{
+  "agent": "implementer",
+  "status": "success",
+  "summary": "Fixed share activation: startExport is async and awaits an encode Promise resolved from MediaRecorder.onstop with the File only (no download/share in onstop). After await, deliverExportFile runs share/download in the Export click continuation (AC-SI-3). Optional Share label via empty-File canShare probe. Success may set shared:true for Share complete announce.",
+  "timestamp": "2026-09-06T18:21:03Z",
+  "goal": "Open native share sheet from the Export button’s user-gesture chain (no download prompt when shareable)",
+  "artifacts": [
+    "app/src/components/Game/useReplayExport.ts",
+    "app/src/game/exportDelivery.ts",
+    "app/tests/game/exportDelivery.test.ts",
+    "app/src/components/Game/ClimbScene.tsx",
+    "app/src/components/Game/ReplayTransportBar.tsx",
+    "loop/spec-share-immediate.md"
+  ],
+  "exitCriteria": {
+    "startExport_returns_promise": true,
+    "onstop_resolves_file_only": true,
+    "share_awaited_in_click_continuation": true,
+    "no_download_when_canShare": true,
+    "download_when_cannot_share": true,
+    "deliverExportFile_unit_tested": true,
+    "ac_si_3_spec_strengthened": true,
+    "share_label_probe_optional": true,
+    "unit_tests_pass": true,
+    "typecheck_pass": true
+  },
+  "feedback": [],
+  "feedbackAddressed": [
+    "Prior implementer shared from onstop (activation loss); now await encode inside startExport click async function"
+  ],
+  "learnings": [
+    {
+      "topic": "Architecture & contracts",
+      "forAgents": ["verifier", "frontend", "security-reviewer"],
+      "kind": "lesson",
+      "insight": "Web Share after MediaRecorder encode keeps activation only when share is awaited inside the same async function started by the Export click — wrapping onstop in a Promise and awaiting it from startExport, not void shareVideoFile from onstop.",
+      "action": "Verify AC-SI-3 by confirming onstop only resolves File and deliverExportFile/share runs after await encodePromise in startExport; Share retry button remains for aborted/NotAllowed.",
+      "confidence": "high"
+    },
+    {
+      "topic": "Testing",
+      "forAgents": ["verifier", "qa-acceptance"],
+      "kind": "metric",
+      "insight": "Gesture-chain share-immediate: 17 production-invoking unit tests green (exportDelivery 8 including deliverExportFile + shareVideoFile 9); pnpm typecheck clean.",
+      "action": "Map AC-SI-1/2/3 to deliverExportFile + resolveExportDelivery; residual browser: Export tap → encode → native sheet without download when canShare.",
+      "confidence": "high"
+    }
+  ],
+  "nextStage": "verifier",
+  "notes": {
+    "branch": "cursor/share-immediate-b391",
+    "commit": "3748e07",
+    "priorHandoff": "loop/handoffs/implementer-2026-09-06T181659Z.json",
+    "spec": "loop/spec-share-immediate.md",
+    "howStartExportAwaitsShare": "encodePromise resolves File in onstop; startExport awaits it then await deliverExportFile → shareVideoFile; call sites void startExport() from click",
+    "appliedLearnings": [
+      "Invoke production units in tests — no source greps",
+      "Await encode inside click handler to preserve activation chain (user goal)",
+      "Supersedes prior onstop fire-and-forget share lesson for AC-SI-3"
+    ]
+  },
+  "testResults": {
+    "command": "pnpm exec vitest run tests/game/exportDelivery.test.ts tests/game/shareVideoFile.test.ts && pnpm typecheck",
+    "passed": 17,
+    "failed": 0,
+    "typecheck": "pass"
+  }
+}
