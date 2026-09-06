@@ -17,8 +17,12 @@ export interface ClimbReplayItem {
   replayToken: string | null;
 }
 
+/** Runs shown before the list collapses behind a "Show all" toggle. */
+const COLLAPSED_COUNT = 5;
+
 export function ClimbReplaysSection({ replays }: { replays: ClimbReplayItem[] }) {
   const [toast, setToast] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState(false);
 
   const copyReplay = useCallback(async (token: string) => {
     const url = buildReplayUrl(token, window.location.origin);
@@ -55,6 +59,9 @@ export function ClimbReplaysSection({ replays }: { replays: ClimbReplayItem[] })
   }
 
   const replayable = replays.filter((r) => r.replayToken);
+  const collapsible = replays.length > COLLAPSED_COUNT;
+  const visibleReplays =
+    collapsible && !expanded ? replays.slice(0, COLLAPSED_COUNT) : replays;
 
   return (
     <section aria-label="Climb replays" className="mb-8">
@@ -76,7 +83,7 @@ export function ClimbReplaysSection({ replays }: { replays: ClimbReplayItem[] })
       </div>
 
       <ul className="rounded-2xl border border-border-subtle bg-surface divide-y divide-border-subtle overflow-hidden">
-        {replays.map((run) => (
+        {visibleReplays.map((run) => (
           <li
             key={run.id}
             className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-4 py-3.5"
@@ -111,6 +118,20 @@ export function ClimbReplaysSection({ replays }: { replays: ClimbReplayItem[] })
           </li>
         ))}
       </ul>
+
+      {collapsible ? (
+        <button
+          type="button"
+          onClick={() => setExpanded((v) => !v)}
+          aria-expanded={expanded}
+          className="mt-3 w-full rounded-lg border border-border-subtle bg-surface px-4 min-h-[40px] text-sm font-medium text-text-secondary hover:text-text-primary hover:border-border-strong transition inline-flex items-center justify-center gap-1.5"
+        >
+          {expanded ? "Show less" : `Show all ${replays.length} runs`}
+          <span aria-hidden="true" className="text-text-muted">
+            {expanded ? "▴" : "▾"}
+          </span>
+        </button>
+      ) : null}
 
       {replayable.length === 0 && replays.length > 0 ? (
         <p className="text-xs text-text-muted mt-3 text-center">

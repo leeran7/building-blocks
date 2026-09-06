@@ -77,14 +77,9 @@ export function Navbar({ contextLabel, contextDot }: NavbarProps) {
             aria-hidden="true"
           />
         ) : user ? (
-          // Dashboard pill stays the primary CTA; the account menu groups
-          // creator page / settings / sign out and folds in mobile nav.
-          <>
-            <Link href="/dashboard" className={`${PILL} bg-signal text-void`}>
-              Dashboard
-            </Link>
-            <AccountMenu />
-          </>
+          // The account menu is the sole signed-in surface: it groups dashboard,
+          // creator page, settings, sign out and folds in mobile nav.
+          <AccountMenu />
         ) : (
           <>
             <Link href="/auth/signin" className={GHOST}>
