@@ -461,7 +461,7 @@ describe("regression: a climber can move from the base; idling loses", () => {
 });
 
 describe("hazard catch-up: lava closes a large lead", () => {
-  it("rises faster when the climber is over 200m ahead than when they are close", () => {
+  it("rises faster when the climber is over 250m ahead than when they are close", () => {
     const sampleTicks = 4 * TICK_HZ;
     const far = riseWhileHeld(HAZARD_CATCHUP_LEAD_M + 1, sampleTicks);
     const near = riseWhileHeld(50, sampleTicks);
@@ -472,7 +472,7 @@ describe("hazard catch-up: lava closes a large lead", () => {
     expect(far.banked).toBeLessThan(0);
   });
 
-  it("slows back to the normal clock once the lead is within 200m again", () => {
+  it("slows back to the normal clock once the lead is within 250m again", () => {
     const sampleTicks = 4 * TICK_HZ;
     const m = climbingMatch("solo", ["p1"]);
     silenceOrbs(m);
