@@ -21,6 +21,7 @@ import {
   formatReplayClock,
   REWIND_REPEAT_MS,
 } from "../../game/replayTransport";
+import { exportSuccessLabel } from "../../game/exportDelivery";
 import {
   canShareVideoFile,
   shareVideoFile,
@@ -86,7 +87,14 @@ export function ReplayTransportBar({
     if (exportStatus.kind === "running") {
       speak("Export started");
     } else if (exportStatus.kind === "success") {
-      speak(`Downloaded ${exportStatus.label}`);
+      const canShare = canShareVideoFile(exportStatus.file);
+      speak(
+        exportSuccessLabel(
+          exportStatus.label,
+          exportStatus.delivery,
+          canShare
+        )
+      );
     } else if (exportStatus.kind === "error") {
       speak(exportStatus.message);
     } else if (exportStatus.kind === "paused_hidden") {
@@ -259,7 +267,11 @@ export function ReplayTransportBar({
           <div className="flex flex-col gap-1">
             <div className="flex items-center justify-between gap-2">
               <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-signal">
-                Downloaded {exportStatus.label}
+                {exportSuccessLabel(
+                  exportStatus.label,
+                  exportStatus.delivery,
+                  canShareVideoFile(exportStatus.file)
+                )}
               </p>
               <div className="flex items-center gap-1">
                 {canShareVideoFile(exportStatus.file) ? (

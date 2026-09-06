@@ -7,6 +7,10 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
+  resolveExportDelivery,
+  type ExportDeliveryKind,
+} from "../../game/exportDelivery";
+import {
   pickExportMime,
   type ExportMimeChoice,
 } from "../../game/exportMime";
@@ -16,6 +20,10 @@ import {
   resumeExportRecorder,
   shouldEnterPausedHidden,
 } from "../../game/exportVisibility";
+import {
+  canShareVideoFile,
+  shareVideoFile,
+} from "../../game/shareVideoFile";
 import {
   createMatch,
   stepMatch,
@@ -35,6 +43,8 @@ export type ReplayExportStatus =
       label: "MP4" | "WebM";
       /** Retained export file — same bytes/name/type as download (AC-NS-7). */
       file: File;
+      /** How bytes were offered: native share-first vs browser download (AC-SI). */
+      delivery?: ExportDeliveryKind;
     }
   | { kind: "error"; message: string };
 
@@ -189,14 +199,23 @@ export function useReplayExport({
           return;
         }
         const file = new File([blob], session.filename, { type: containerType });
-        downloadBlob(file, session.filename);
-        // Retain File past download URL revoke (~1s). Never auto-share here
-        // (ADR-NS-1 / AC-NS-4 negative) — gesture lives in the transport bar.
+        // Share-first when canShare({files}): skip download; attempt share once
+        // from onstop (may lack user activation → NotAllowed → Share retry).
+        const choice = resolveExportDelivery(canShareVideoFile(file));
+        if (choice.download) {
+          downloadBlob(file, session.filename);
+        }
         setStatus({
           kind: "success",
           label: session.mime.label,
           file,
+          delivery: choice.delivery,
         });
+        if (choice.attemptShare) {
+          // Fire-and-forget: aborted / unsupported / activation errors stay quiet;
+          // Share button remains for a real gesture (AC-SI-3).
+          void shareVideoFile(file, { title: file.name });
+        }
       } catch (err) {
         const msg = err instanceof Error ? err.message : "Export failed";
         failSession(session, sessionRef, setStatus, msg);
