@@ -116,6 +116,7 @@ export function ClimbScene({ tower, categoryLabel, replay = null }: ClimbScenePr
     startExport,
     cancelExport,
     dismissStatus,
+    exportControlLabel,
   } = useReplayExport({
     replay,
     tower,
@@ -526,14 +527,18 @@ export function ClimbScene({ tower, categoryLabel, replay = null }: ClimbScenePr
                 <button
                   type="button"
                   data-game-control
-                  onClick={startExport}
+                  onClick={() => {
+                    void startExport();
+                  }}
                   disabled={
                     exportStatus.kind === "running" ||
                     exportStatus.kind === "paused_hidden"
                   }
                   className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-full border border-border-strong bg-surface/60 px-8 font-semibold text-text-primary hover:border-signal/50 disabled:opacity-40"
                 >
-                  Export video
+                  {exportControlLabel === "Share"
+                    ? "Share video"
+                    : "Export video"}
                 </button>
               </div>
             )}
@@ -569,10 +574,13 @@ export function ClimbScene({ tower, categoryLabel, replay = null }: ClimbScenePr
             onRewind={rewind}
             onCycleSpeed={cycleSpeed}
             onSeek={seekToTick}
-            onExport={startExport}
+            onExport={() => {
+              void startExport();
+            }}
             onCancelExport={cancelExport}
             onDismissExportStatus={dismissStatus}
             exportStatus={exportStatus}
+            exportControlLabel={exportControlLabel}
           />
         ) : null}
 

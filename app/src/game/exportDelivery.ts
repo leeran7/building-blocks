@@ -1,14 +1,16 @@
 /**
  * Share-first vs download delivery for climb replay export (AC-SI-1…3).
- * Pure decision — invoke from MediaRecorder.onstop; unit-test without DOM.
+ * Pure decision + delivery helper — unit-test without DOM / MediaRecorder.
  */
+
+import type { ShareVideoResult } from "./shareVideoFile";
 
 export type ExportDeliveryKind = "share" | "download";
 
 export type ExportDeliveryChoice = {
   /** Invoke downloadBlob / `<a download>` when true. */
   download: boolean;
-  /** Invoke shareVideoFile once on success when true (may lack user activation). */
+  /** Invoke shareVideoFile once on success when true. */
   attemptShare: boolean;
   delivery: ExportDeliveryKind;
 };
@@ -23,6 +25,41 @@ export function resolveExportDelivery(canShare: boolean): ExportDeliveryChoice {
     return { download: false, attemptShare: true, delivery: "share" };
   }
   return { download: true, attemptShare: false, delivery: "download" };
+}
+
+export type DeliverExportFileDeps = {
+  canShare: (file: File) => boolean;
+  share: (
+    file: File,
+    options: { title: string }
+  ) => Promise<ShareVideoResult>;
+  download: (file: File, filename: string) => void;
+};
+
+export type DeliverExportFileResult = {
+  delivery: ExportDeliveryKind;
+  /** Present when attemptShare ran. */
+  shareResult?: ShareVideoResult;
+};
+
+/**
+ * Apply share-first vs download after encode produces a File (AC-SI-1…3).
+ * Call from the Export click async continuation after awaiting encode —
+ * not from MediaRecorder.onstop alone (user-activation chain).
+ */
+export async function deliverExportFile(
+  file: File,
+  deps: DeliverExportFileDeps
+): Promise<DeliverExportFileResult> {
+  const choice = resolveExportDelivery(deps.canShare(file));
+  if (choice.attemptShare) {
+    const shareResult = await deps.share(file, { title: file.name });
+    return { delivery: "share", shareResult };
+  }
+  if (choice.download) {
+    deps.download(file, file.name);
+  }
+  return { delivery: "download" };
 }
 
 /**

@@ -3,11 +3,14 @@
 /**
  * Client-only MediaRecorder export of a shared climb replay.
  * Separate sim + canvas from the viewer; never mutates viewer tick (AC-13).
+ *
+ * Share-first delivery (AC-SI): startExport is async so encode + share await
+ * inside the Export click activation chain (not fire-and-forget from onstop).
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  resolveExportDelivery,
+  deliverExportFile,
   type ExportDeliveryKind,
 } from "../../game/exportDelivery";
 import {
@@ -45,6 +48,8 @@ export type ReplayExportStatus =
       file: File;
       /** How bytes were offered: native share-first vs browser download (AC-SI). */
       delivery?: ExportDeliveryKind;
+      /** True after an auto-share attempt fulfilled (AC-SI-4 announce). */
+      shared?: boolean;
     }
   | { kind: "error"; message: string };
 
@@ -72,13 +77,22 @@ export function useReplayExport({
   enabled,
 }: UseReplayExportArgs): {
   status: ReplayExportStatus;
-  startExport: () => void;
+  startExport: () => Promise<void>;
   cancelExport: () => void;
   dismissStatus: () => void;
+  /** Prefer "Share" when an empty preferred-MIME File probes canShare. */
+  exportControlLabel: "Share" | "Export";
 } {
   const [status, setStatus] = useState<ReplayExportStatus>({ kind: "idle" });
   const sessionRef = useRef<ExportSession | null>(null);
   const announceSeq = useRef(0);
+  const [exportControlLabel, setExportControlLabel] = useState<
+    "Share" | "Export"
+  >("Export");
+
+  useEffect(() => {
+    setExportControlLabel(probeExportControlLabel());
+  }, []);
 
   const cancelExport = useCallback(() => {
     const s = sessionRef.current;
@@ -101,7 +115,7 @@ export function useReplayExport({
     setStatus({ kind: "idle" });
   }, []);
 
-  const startExport = useCallback(() => {
+  const startExport = useCallback(async () => {
     if (!enabled || !replay?.inputs.length) return;
     if (sessionRef.current) return; // AC-14 negative
 
@@ -176,54 +190,49 @@ export function useReplayExport({
     };
     sessionRef.current = session;
 
-    recorder.ondataavailable = (ev) => {
-      if (ev.data.size > 0) session.chunks.push(ev.data);
-    };
-    recorder.onerror = () => {
-      if (session.cancelled) return;
-      failSession(session, sessionRef, setStatus, "Encode error");
-    };
-    recorder.onstop = () => {
-      if (session.cancelled) {
-        cleanupSession(session);
-        if (sessionRef.current === session) sessionRef.current = null;
-        return;
-      }
-      try {
-        // Container MIME only on assembled File/Blob (ADR-NS-2) — never forge
-        // video/mp4 for WebM, never pass codec-qualified strings to share.
-        const containerType = containerMimeForLabel(session.mime.label);
-        const blob = new Blob(session.chunks, { type: containerType });
-        if (blob.size === 0) {
-          failSession(session, sessionRef, setStatus, "Empty video");
+    // Encode completion Promise — onstop only resolves File (never download/share).
+    const encodePromise = new Promise<File | null>((resolve) => {
+      recorder.ondataavailable = (ev) => {
+        if (ev.data.size > 0) session.chunks.push(ev.data);
+      };
+      recorder.onerror = () => {
+        if (session.cancelled) {
+          resolve(null);
           return;
         }
-        const file = new File([blob], session.filename, { type: containerType });
-        // Share-first when canShare({files}): skip download; attempt share once
-        // from onstop (may lack user activation → NotAllowed → Share retry).
-        const choice = resolveExportDelivery(canShareVideoFile(file));
-        if (choice.download) {
-          downloadBlob(file, session.filename);
+        failSession(session, sessionRef, setStatus, "Encode error");
+        resolve(null);
+      };
+      recorder.onstop = () => {
+        if (session.cancelled) {
+          cleanupSession(session);
+          if (sessionRef.current === session) sessionRef.current = null;
+          resolve(null);
+          return;
         }
-        setStatus({
-          kind: "success",
-          label: session.mime.label,
-          file,
-          delivery: choice.delivery,
-        });
-        if (choice.attemptShare) {
-          // Fire-and-forget: aborted / unsupported / activation errors stay quiet;
-          // Share button remains for a real gesture (AC-SI-3).
-          void shareVideoFile(file, { title: file.name });
+        try {
+          // Container MIME only on assembled File/Blob (ADR-NS-2) — never forge
+          // video/mp4 for WebM, never pass codec-qualified strings to share.
+          const containerType = containerMimeForLabel(session.mime.label);
+          const blob = new Blob(session.chunks, { type: containerType });
+          if (blob.size === 0) {
+            failSession(session, sessionRef, setStatus, "Empty video");
+            resolve(null);
+            return;
+          }
+          const file = new File([blob], session.filename, {
+            type: containerType,
+          });
+          cleanupSession(session);
+          if (sessionRef.current === session) sessionRef.current = null;
+          resolve(file);
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : "Export failed";
+          failSession(session, sessionRef, setStatus, msg);
+          resolve(null);
         }
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : "Export failed";
-        failSession(session, sessionRef, setStatus, msg);
-        return;
-      }
-      cleanupSession(session);
-      if (sessionRef.current === session) sessionRef.current = null;
-    };
+      };
+    });
 
     setStatus({ kind: "running", percent: 0 });
     try {
@@ -238,7 +247,48 @@ export function useReplayExport({
       return;
     }
 
+    // Drive encode; completion is signalled via encodePromise (onstop).
     void runEncodeLoop(session, replay, tower, setStatus, sessionRef);
+
+    const file = await encodePromise;
+    if (!file) return;
+
+    // Delivery continues the Export click async function (AC-SI-3).
+    const label = mime.label;
+    const choiceCanShare = canShareVideoFile(file);
+    if (choiceCanShare) {
+      setStatus({
+        kind: "success",
+        label,
+        file,
+        delivery: "share",
+      });
+    }
+
+    const delivered = await deliverExportFile(file, {
+      canShare: canShareVideoFile,
+      share: (f, opts) => shareVideoFile(f, opts),
+      download: downloadBlob,
+    });
+
+    if (delivered.delivery === "download") {
+      setStatus({
+        kind: "success",
+        label,
+        file,
+        delivery: "download",
+      });
+      return;
+    }
+
+    const shareOk = delivered.shareResult?.ok === true;
+    setStatus({
+      kind: "success",
+      label,
+      file,
+      delivery: "share",
+      shared: shareOk ? true : undefined,
+    });
   }, [enabled, replay, tower]);
 
   // Visibility: pause encode + MediaRecorder when hidden ≥3s (AC-18 policy b).
@@ -280,7 +330,26 @@ export function useReplayExport({
   // Silence unused — seq reserved for future a11y coupling from bar.
   void announceSeq;
 
-  return { status, startExport, cancelExport, dismissStatus };
+  return {
+    status,
+    startExport,
+    cancelExport,
+    dismissStatus,
+    exportControlLabel,
+  };
+}
+
+/**
+ * Early Share label probe: empty File of preferred container MIME.
+ * Returns "Export" when probe is awkward / unsupported.
+ */
+function probeExportControlLabel(): "Share" | "Export" {
+  if (typeof document === "undefined") return "Export";
+  const mime = pickExportMime();
+  if (!mime) return "Export";
+  const type = containerMimeForLabel(mime.label);
+  const probe = new File([], `climb-probe.${mime.extension}`, { type });
+  return canShareVideoFile(probe) ? "Share" : "Export";
 }
 
 type ExportSession = {
