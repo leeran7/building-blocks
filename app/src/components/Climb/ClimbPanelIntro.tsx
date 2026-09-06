@@ -12,20 +12,29 @@ import { CLIMB_PANEL_INTRO_TITLE_CLASS } from "../../design/climbFeelTokens";
 export function ClimbPanelIntro({ title }: { title: string }) {
   return (
     <header>
-      <p className="font-mono text-xs uppercase tracking-[0.2em] font-medium text-signal">
+      <p
+        className="climb-reveal font-mono text-xs uppercase tracking-[0.2em] font-medium text-signal"
+        style={{ animationDelay: "0ms" }}
+      >
         Free stack · no payment
       </p>
-      <div className="mt-1 flex items-end justify-between gap-3 flex-wrap">
+      <div
+        className="climb-reveal mt-1 flex items-end justify-between gap-3 flex-wrap"
+        style={{ animationDelay: "70ms" }}
+      >
         <h1 className={CLIMB_PANEL_INTRO_TITLE_CLASS}>
           {title}
         </h1>
         <PlayTheClimbCta />
       </div>
-      <p className="mt-3 text-sm text-text-secondary max-w-lg">
+      <p
+        className="climb-reveal mt-3 text-sm text-text-secondary max-w-lg"
+        style={{ animationDelay: "140ms" }}
+      >
         One leaderboard for the free game. Climb the endless stack as high as you
         can before the lava catches you — your best height is your rank.
       </p>
-      <div className="mt-4">
+      <div className="climb-reveal mt-4" style={{ animationDelay: "210ms" }}>
         <ClimbControlsGuide variant="compact" />
       </div>
     </header>

@@ -76,6 +76,21 @@ describe("FreeStackShell climb chrome (AC-3)", () => {
     expect(html).toMatch(/\bgrain\b/);
     expect(html).toMatch(/\btopo\b/);
   });
+
+  it("wires climb-reveal enter fork and climbGroundRise atmosphere (AC-17)", () => {
+    const html = renderToStaticMarkup(
+      createElement(FreeStackShell, {
+        section: "leaderboard",
+        title: "Climb",
+        children: createElement("div", null, "lb"),
+      })
+    );
+    expect(html).toMatch(/\bclimb-reveal\b/);
+    expect(html).toMatch(/\banimate-climbGroundRise\b/);
+    expect(html).toMatch(/\bground-gradient\b/);
+    // Paid GroundRow baseline must not leak into free shell.
+    expect(html).not.toMatch(/\banimate-groundRise\b/);
+  });
 });
 
 describe("Hero free climb CTA (AC-5, AC-7)", () => {
@@ -96,6 +111,16 @@ describe("Hero free climb CTA (AC-5, AC-7)", () => {
   it("keeps zero filled bg-signal /play CTAs on the hero (AC-7 baseline)", () => {
     const html = renderToStaticMarkup(createElement(Hero, { stats: HERO_STATS }));
     expect(filledSignalPlayCtas(html)).toHaveLength(0);
+  });
+
+  it("applies climb-reveal + climbPunch on free band; paid pitch stays on shared reveal (AC-17)", () => {
+    const html = renderToStaticMarkup(createElement(Hero, { stats: HERO_STATS }));
+    expect(html).toMatch(/\bclimb-reveal\b/);
+    expect(html).toMatch(/\banimate-climbPunch\b/);
+    // Paid primary pitch still uses shared .reveal (not climb-reveal on h1).
+    expect(html).toMatch(/class="reveal font-display/);
+    // ElevationProfile paid ground keeps shared baseline.
+    expect(html).toMatch(/\banimate-groundRise\b/);
   });
 });
 
@@ -129,6 +154,8 @@ describe("FreeLeaderboard (AC-6)", () => {
     expect(html).toContain(FREE_LEADERBOARD_HEADING_CLASS);
     expect(html).toMatch(/climber/i);
     expect(html).toContain("Top climbers");
+    expect(html).toMatch(/\bclimb-reveal\b/);
+    expect(html).toMatch(/\banimate-climbGroundRise\b/);
     const playLinks = playAnchors(html);
     expect(playLinks.length).toBeGreaterThanOrEqual(1);
     expect(filledSignalPlayCtas(html)).toHaveLength(0);
@@ -145,6 +172,7 @@ describe("FreeLeaderboard (AC-6)", () => {
     expect(playLinks.length).toBeLessThanOrEqual(2);
     expect(filledSignalPlayCtas(html)).toHaveLength(0);
     expect(html).toContain("Play the free climb");
+    expect(html).toMatch(/\bclimb-reveal\b/);
   });
 });
 
@@ -156,6 +184,7 @@ describe("ClimbPanelIntro title (AC-8)", () => {
     expect(html).toContain(CLIMB_PANEL_INTRO_TITLE_CLASS);
     expect(html).toMatch(/font-mono[^"]*text-signal|text-signal[^"]*font-mono/);
     expect(html).toContain("Free stack · no payment");
+    expect(html).toMatch(/\bclimb-reveal\b/);
   });
 });
 
@@ -175,6 +204,8 @@ describe("FreeClimbCard rank + empty (AC-9, AC-11)", () => {
     expect(html).toContain(FREE_CLIMB_RANK_CLASS);
     expect(html).toContain("shadow-signal");
     expect(html).toContain('data-climb-chrome');
+    expect(html).toMatch(/\banimate-climbEnter\b/);
+    expect(html).toMatch(/\banimate-climbGroundRise\b/);
   });
 
   it("FreeClimbEmpty body is not text-muted and play control is ≥44×44", () => {
@@ -183,6 +214,8 @@ describe("FreeClimbCard rank + empty (AC-9, AC-11)", () => {
     // Body sentence must use secondary (or primary), not muted.
     expect(html).toContain("text-text-secondary");
     expect(html).toMatch(/No record yet[\s\S]*text-text-secondary|text-text-secondary[\s\S]*No record yet/);
+    expect(html).toMatch(/\bclimb-reveal\b/);
+    expect(html).toMatch(/\banimate-climbGroundRise\b/);
     const play = playAnchors(html)[0];
     expect(play).toBeDefined();
     expect(play!).toMatch(/min-h-\[44px\]/);
@@ -190,7 +223,7 @@ describe("FreeClimbCard rank + empty (AC-9, AC-11)", () => {
     expect(play!).not.toMatch(/\btext-muted\b/);
     // Eyebrow may use muted; body paragraph must not carry text-muted.
     const bodyMatch = html.match(
-      /<p class="text-text-secondary text-sm mt-2[^"]*">([\s\S]*?)<\/p>/
+      /<p class="[^"]*\btext-text-secondary\b[^"]*text-sm mt-2[^"]*">([\s\S]*?)<\/p>/
     );
     expect(bodyMatch?.[1]).toMatch(/climb/i);
     expect(bodyMatch?.[0]).not.toContain("text-muted");

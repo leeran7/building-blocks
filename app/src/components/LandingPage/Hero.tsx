@@ -260,22 +260,15 @@ export function Hero({ stats }: { stats: HeroStats }) {
               </dl>
             </div>
 
-            {/* FREE — warm-up game, secondary to paid */}
-            <div data-climb-chrome>
-              <div className="flex items-center gap-2 mb-1.5 justify-center md:justify-start">
+            {/* FREE — warm-up game, secondary to paid (climb forks only) */}
+            <div data-climb-chrome className="climb-reveal space-y-2">
+              <div className="flex items-center gap-2 justify-center md:justify-start">
                 <span className="rounded-full border border-border-strong px-2 py-0.5 font-mono text-[9px] uppercase tracking-[0.12em] text-text-secondary">
                   Free
                 </span>
                 <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-text-muted">
                   warm-up game
                 </span>
-                <Link
-                  href="/play"
-                  aria-label="Play free climb"
-                  className="inline-flex items-center justify-center gap-1 rounded-full border border-border-strong bg-surface/60 px-3 min-h-[44px] min-w-[44px] font-mono text-[11px] uppercase tracking-[0.12em] text-text-secondary hover:border-signal/50 hover:text-signal transition-colors focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void"
-                >
-                  Free climb
-                </Link>
               </div>
               <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-border-subtle bg-border-subtle">
                 {freeStats.map((s, i) => (
@@ -293,6 +286,16 @@ export function Hero({ stats }: { stats: HeroStats }) {
                   </div>
                 ))}
               </dl>
+              {/* Own row under free stats — avoids 44×44 crowding the badge pills */}
+              <div className="flex justify-center md:justify-start">
+                <Link
+                  href="/play"
+                  aria-label="Play free climb"
+                  className="inline-flex items-center justify-center gap-1 rounded-full border border-border-strong bg-surface/60 px-4 min-h-[44px] min-w-[44px] font-mono text-[11px] uppercase tracking-[0.12em] text-text-secondary hover:border-signal/50 hover:text-signal transition-colors focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void"
+                >
+                  Free climb
+                </Link>
+              </div>
             </div>
           </div>
 
