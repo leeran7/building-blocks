@@ -6,16 +6,13 @@
  * Runs the deterministic simulation on the client for solo time-trial play
  * (spec-next.md Phase 1). Uses a FIXED-TIMESTEP accumulator decoupled from the
  * render loop: requestAnimationFrame drives wall-clock, but the sim only ever
- * advances in whole TICK_DT steps via stepMatch. This is the same fixed-tick
- * discipline the authoritative server uses, so the exact same simulation code
- * later powers client-side prediction in multiplayer — no rewrite.
+ * advances in whole TICK_DT steps via stepMatch.
  *
- * Input is sampled from keyboard + an injectable touch state, mapped to the
- * PlayerInput intent the sim consumes. Position is always derived by stepMatch,
- * never set directly (mirrors the server-authoritative rule, AC-18).
+ * When `replayInputs` is set, a gated transport layer adds pause/speed/seek
+ * without touching the live-play hot path (NFR-8).
  */
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   MatchPhase,
   MatchState,
@@ -28,6 +25,13 @@ import { createMatch, stepMatch, SimConfig, DEFAULT_SIM_CONFIG } from "./simulat
 import { HazardConfig, DEFAULT_HAZARD_CONFIG } from "./hazard";
 import { applyRunSeed } from "./towers";
 import { newRunSeed } from "./rng";
+import { ReplaySnapshotCache } from "./replaySnapshots";
+import {
+  cycleReplaySpeed,
+  rewindTargetTick,
+  type ReplaySpeed,
+  REPLAY_SPEEDS,
+} from "./replayTransport";
 
 export interface TouchInput {
   left: boolean;
@@ -52,6 +56,16 @@ const KEY_UP = new Set(["ArrowUp", "w", "W"]);
 const KEY_DOWN = new Set(["ArrowDown", "s", "S"]);
 const KEY_JUMP = new Set([" ", "Spacebar"]);
 
+export type ReplayPhaseLabel = "playing" | "paused" | "finished";
+
+export interface ReplayTransportView {
+  paused: boolean;
+  speed: ReplaySpeed;
+  climbTick: number;
+  totalTicks: number;
+  phaseLabel: ReplayPhaseLabel;
+}
+
 export interface UseClimbResult {
   state: MatchState;
   /** Start / restart the run from countdown. */
@@ -71,13 +85,24 @@ export interface UseClimbResult {
   inputLog: PlayerInput[];
   /** True when inputs are fed from a shared replay instead of live controls. */
   replaying: boolean;
+  /**
+   * Replay-only transport snapshot. Null when not replaying so live play pays
+   * no per-frame transport React work (NFR-8).
+   */
+  transport: ReplayTransportView | null;
+  pause: () => void;
+  play: () => void;
+  togglePlayPause: () => void;
+  cycleSpeed: () => void;
+  rewind: () => void;
+  seekToTick: (tick: number) => void;
+  restartReplay: () => void;
 }
 
 export interface UseClimbOptions {
   tower: TowerSpec;
   seed?: string;
   hazard?: HazardConfig;
-  /** Reduced-motion: still simulates identically, only render differs (AC-35). */
   /** When set, the hook replays this input log instead of sampling controls. */
   replayInputs?: PlayerInput[];
   /** Auto-start on mount (used for shared replays). */
@@ -109,10 +134,6 @@ export function useClimb({
     [tower]
   );
 
-  // Match and runId live in one state object so a Start can never render a
-  // frame where they disagree. Feedback (sounds, live region) keys off runId;
-  // if it updated a frame after the match, the new run would inherit the
-  // previous run's last pickup and fire a spurious "ended" cue.
   const [view, setView] = useState(() => ({
     match: makeMatch(seedLock ?? "solo", "lobby"),
     runId: 0,
@@ -134,6 +155,35 @@ export function useClimb({
   const [inputLog, setInputLog] = useState<PlayerInput[]>([]);
   const replaying = Boolean(replayInputs?.length);
 
+  // Replay transport refs — only read when replaying (NFR-8).
+  const pausedRef = useRef(false);
+  const speedRef = useRef<ReplaySpeed>(1);
+  const seekReqRef = useRef<number | null>(null);
+  const snapshotRef = useRef<ReplaySnapshotCache | null>(null);
+  const [transportUi, setTransportUi] = useState<{
+    paused: boolean;
+    speed: ReplaySpeed;
+  }>({ paused: false, speed: 1 });
+
+  useEffect(() => {
+    if (!replaying || !replayInputs?.length || !seedLock) {
+      snapshotRef.current = null;
+      return;
+    }
+    snapshotRef.current = new ReplaySnapshotCache({
+      tower,
+      seed: seedLock,
+      inputs: replayInputs,
+      cfg,
+    });
+    return () => {
+      snapshotRef.current?.invalidate();
+      snapshotRef.current = null;
+    };
+    // Rebuild only when the replay identity changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [replaying, seedLock, replayInputs, tower]);
+
   // Roll a unique map after mount so SSR/hydration share a placeholder, then
   // the lobby (and every later Start) is a different layout.
   useEffect(() => {
@@ -148,13 +198,6 @@ export function useClimb({
   }, []);
 
   // Keyboard listeners (AC-33: keyboard-only play is fully supported).
-  //
-  // This is a window-level listener, so it sees every key press on the page,
-  // and the game keys are Space and the arrows. Calling preventDefault on all
-  // of them unconditionally broke the page around the canvas: Space stopped
-  // activating any focused button (including the mute toggle beside the game)
-  // and the arrows stopped scrolling. So it is scoped two ways — the phases
-  // that actually consume input, and never over an interactive element.
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
       if (
@@ -178,8 +221,6 @@ export function useClimb({
     };
   }, []);
 
-  // A key held as the run ends would otherwise stay in the set, and the next
-  // run would start already moving.
   useEffect(() => {
     if (!PHASES_CONSUMING_INPUT.has(state.phase)) keysRef.current.clear();
   }, [state.phase]);
@@ -194,28 +235,74 @@ export function useClimb({
     const jump = t.jump || hasAny(keys, KEY_JUMP);
 
     const moveX: -1 | 0 | 1 = left && !right ? -1 : right && !left ? 1 : 0;
-    // Up/Down are the climb intent. They only DO anything when the player is on
-    // (or reaching) a ladder — the sim decides whether to grab/climb — but we
-    // always report the intent so the sim can attach the player to a ladder.
     const climbY: -1 | 0 | 1 =
       upKey && !downKey ? 1 : downKey && !upKey ? -1 : 0;
 
     return { moveX, jump, climbY, usePowerUp: false };
   }, []);
 
+  const inputForTick = useCallback(
+    (phase: MatchState["phase"], tick: number): PlayerInput => {
+      if (phase === "countdown") return NO_INPUT;
+      const replay = replayInputsRef.current;
+      if (replay?.length) return replay[tick] ?? NO_INPUT;
+      return sampleInput();
+    },
+    [sampleInput]
+  );
+
+  const publishMatch = useCallback((cur: MatchState) => {
+    stateRef.current = cur;
+    setView((v) => ({
+      ...v,
+      match: { ...cur, players: cur.players.map((p) => ({ ...p })) },
+    }));
+  }, []);
+
+  const applySeek = useCallback(
+    (target: number) => {
+      const cache = snapshotRef.current;
+      if (!cache) return;
+      const next = cache.seek(target);
+      accumulatorRef.current = 0;
+      lastTsRef.current = 0;
+      // Preserve play/pause; resume rAF if playing and not finished.
+      const finished =
+        next.phase === "finished" || next.phase === "results";
+      runningRef.current = !pausedRef.current && !finished;
+      publishMatch(next);
+    },
+    [publishMatch]
+  );
+
   // Fixed-timestep rAF loop.
   useEffect(() => {
     let raf = 0;
     const loop = (ts: number) => {
       raf = requestAnimationFrame(loop);
+
+      // Replay seek requests are applied on the rAF thread.
+      if (replayInputsRef.current?.length && seekReqRef.current !== null) {
+        const t = seekReqRef.current;
+        seekReqRef.current = null;
+        applySeek(t);
+      }
+
       if (!runningRef.current) return;
+
+      // Pause gate — only while replaying (NFR-8: live never reads this).
+      if (replayInputsRef.current?.length && pausedRef.current) {
+        lastTsRef.current = ts;
+        return;
+      }
 
       if (lastTsRef.current === 0) lastTsRef.current = ts;
       let dt = (ts - lastTsRef.current) / 1000;
       lastTsRef.current = ts;
-      // Clamp huge frame gaps (tab was backgrounded) to avoid a spiral.
       if (dt > 0.25) dt = 0.25;
-      accumulatorRef.current += dt;
+
+      const speed = replayInputsRef.current?.length ? speedRef.current : 1;
+      accumulatorRef.current += dt * speed;
 
       let cur = stateRef.current;
       let advanced = false;
@@ -233,7 +320,6 @@ export function useClimb({
         }
       }
       if (advanced) {
-        // Shallow-clone so React re-renders with the new tick.
         setView((v) => ({
           ...v,
           match: { ...cur, players: cur.players.map((p) => ({ ...p })) },
@@ -242,23 +328,10 @@ export function useClimb({
     };
     raf = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(raf);
-    // cfg/sampleInput are stable per tower/seed.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sampleInput]);
-
-  const inputForTick = useCallback(
-    (phase: MatchState["phase"], tick: number): PlayerInput => {
-      if (phase === "countdown") return NO_INPUT;
-      const replay = replayInputsRef.current;
-      if (replay?.length) return replay[tick] ?? NO_INPUT;
-      return sampleInput();
-    },
-    [sampleInput]
-  );
+  }, [sampleInput, applySeek, inputForTick]);
 
   const start = useCallback(() => {
-    // First Start keeps the lobby preview; every later Start rolls a new map.
-    // Pass `seed` into the hook to lock one layout (replay).
     const runSeed = seedLock
       ? seedLock
       : replayInputsRef.current?.length
@@ -295,7 +368,107 @@ export function useClimb({
     setInputLog([...inputLogRef.current]);
   }, [finished, replaying]);
 
-  return { state, start, finished, setTouch, runId, inputLog, replaying };
+  const bumpTransportUi = useCallback(() => {
+    if (!replaying) return;
+    setTransportUi({ paused: pausedRef.current, speed: speedRef.current });
+  }, [replaying]);
+
+  const pause = useCallback(() => {
+    if (!replaying) return;
+    if (finished) return;
+    pausedRef.current = true;
+    runningRef.current = false;
+    bumpTransportUi();
+  }, [replaying, finished, bumpTransportUi]);
+
+  const play = useCallback(() => {
+    if (!replaying) return;
+    if (finished) return;
+    pausedRef.current = false;
+    runningRef.current = true;
+    lastTsRef.current = 0;
+    bumpTransportUi();
+  }, [replaying, finished, bumpTransportUi]);
+
+  const togglePlayPause = useCallback(() => {
+    if (!replaying) return;
+    if (finished) return;
+    if (pausedRef.current) play();
+    else pause();
+  }, [replaying, finished, play, pause]);
+
+  const cycleSpeed = useCallback(() => {
+    if (!replaying) return;
+    speedRef.current = cycleReplaySpeed(speedRef.current);
+    bumpTransportUi();
+  }, [replaying, bumpTransportUi]);
+
+  const seekToTick = useCallback(
+    (tick: number) => {
+      if (!replaying) return;
+      seekReqRef.current = tick;
+      // Kick the loop if paused so seek still applies.
+      if (!runningRef.current) {
+        applySeek(tick);
+        seekReqRef.current = null;
+      }
+    },
+    [replaying, applySeek]
+  );
+
+  const rewind = useCallback(() => {
+    if (!replaying) return;
+    const climbTick = climbTickOf(stateRef.current);
+    seekToTick(rewindTargetTick(climbTick));
+  }, [replaying, seekToTick]);
+
+  const restartReplay = useCallback(() => {
+    if (!replaying) return;
+    pausedRef.current = false;
+    speedRef.current = REPLAY_SPEEDS[0];
+    seekReqRef.current = null;
+    bumpTransportUi();
+    start();
+  }, [replaying, bumpTransportUi, start]);
+
+  const transport = useMemo((): ReplayTransportView | null => {
+    if (!replaying || !replayInputs?.length) return null;
+    const phaseLabel: ReplayPhaseLabel = finished
+      ? "finished"
+      : transportUi.paused
+        ? "paused"
+        : "playing";
+    return {
+      paused: transportUi.paused,
+      speed: transportUi.speed,
+      climbTick: climbTickOf(state),
+      totalTicks: replayInputs.length,
+      phaseLabel,
+    };
+  }, [replaying, replayInputs, finished, transportUi, state]);
+
+  return {
+    state,
+    start,
+    finished,
+    setTouch,
+    runId,
+    inputLog,
+    replaying,
+    transport,
+    pause,
+    play,
+    togglePlayPause,
+    cycleSpeed,
+    rewind,
+    seekToTick,
+    restartReplay,
+  };
+}
+
+function climbTickOf(state: MatchState): number {
+  if (state.phase === "countdown") return 0;
+  return state.tick;
 }
 
 function hasAny(set: Set<string>, keys: Set<string>): boolean {
@@ -316,9 +489,7 @@ function isGameKey(key: string): boolean {
 /**
  * Whether this keydown should be recorded as game input and have its default
  * action suppressed. Split from the listener so the scoping rules can be
- * asserted without dispatching a DOM event:
- *   - lobby/results leave Space and arrows alone (Start, mute, scroll)
- *   - a focused button/link/input owns the key even during a climb
+ * asserted without dispatching a DOM event.
  */
 export function shouldCaptureGameKey(
   key: string,
@@ -332,9 +503,6 @@ export function shouldCaptureGameKey(
 
 /**
  * True when the key press belongs to a control rather than to the game.
- *
- * Exported so the behaviour is testable without a DOM event: the property that
- * matters is which elements are exempt, not how the listener is wired.
  */
 export function isInteractiveTarget(target: EventTarget | null): boolean {
   if (!target || !(target instanceof Element)) return false;
@@ -342,10 +510,6 @@ export function isInteractiveTarget(target: EventTarget | null): boolean {
   return target.closest(INTERACTIVE_SELECTOR) !== null;
 }
 
-/**
- * Elements that consume Space or the arrow keys themselves. `a` without href is
- * excluded deliberately — it is not focusable and not activatable.
- */
 const INTERACTIVE_SELECTOR = [
   "button",
   "a[href]",
@@ -366,7 +530,6 @@ const INTERACTIVE_SELECTOR = [
   "[role='spinbutton']",
 ].join(",");
 
-/** Phases where the game reads the keyboard and may suppress default actions. */
 const PHASES_CONSUMING_INPUT: ReadonlySet<MatchPhase> = new Set<MatchPhase>([
   "countdown",
   "climb",

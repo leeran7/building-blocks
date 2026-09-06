@@ -15,7 +15,10 @@ import {
   type ReactNode,
 } from "react";
 import Link from "next/link";
-import { useClimb } from "../../game/useClimb";
+import {
+  isInteractiveTarget,
+  useClimb,
+} from "../../game/useClimb";
 import { TowerSpec } from "../../game/types";
 import { ClimbCanvas } from "./ClimbCanvas";
 import { ClimbControlsGuide } from "./ClimbControlsGuide";
@@ -44,6 +47,9 @@ import {
   encodeRunReplay,
   type RunReplay,
 } from "../../game/runReplay";
+import { shouldCaptureReplayKey } from "../../game/replayTransport";
+import { ReplayTransportBar } from "./ReplayTransportBar";
+import { useReplayExport } from "./useReplayExport";
 
 export interface ClimbSceneProps {
   tower: TowerSpec;
@@ -85,11 +91,35 @@ function usePrefersReducedMotion(): boolean {
 export function ClimbScene({ tower, categoryLabel, replay = null }: ClimbSceneProps) {
   const reducedMotion = usePrefersReducedMotion();
   const touchDevice = useCoarsePointer();
-  const { state, start, finished, setTouch, runId, inputLog, replaying } = useClimb({
+  const {
+    state,
+    start,
+    finished,
+    setTouch,
+    runId,
+    inputLog,
+    replaying,
+    transport,
+    togglePlayPause,
+    cycleSpeed,
+    rewind,
+    seekToTick,
+    restartReplay,
+  } = useClimb({
     tower,
     seed: replay?.seed,
     replayInputs: replay?.inputs,
     autoStart: Boolean(replay),
+  });
+  const {
+    status: exportStatus,
+    startExport,
+    cancelExport,
+    dismissStatus,
+  } = useReplayExport({
+    replay,
+    tower,
+    enabled: replaying,
   });
   // Measured on the canvas wrapper, not the scene root: the saved-record banner
   // renders between them, and budgeting from the root would ignore its height
@@ -265,6 +295,41 @@ export function ClimbScene({ tower, categoryLabel, replay = null }: ClimbScenePr
     }
     postRun(run, token).then(setSavedBanner);
   }, [user, token, postRun]);
+
+  // Replay transport shortcuts (AC-3). Separate from live jump capture.
+  useEffect(() => {
+    if (!replaying) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (!shouldCaptureReplayKey(e.key, true, isInteractiveTarget(e.target))) {
+        return;
+      }
+      e.preventDefault();
+      if (e.key === " " || e.key === "Spacebar" || e.key === "k" || e.key === "K") {
+        togglePlayPause();
+        return;
+      }
+      if (e.key === "j" || e.key === "J") {
+        rewind();
+        return;
+      }
+      if (e.key === "l" || e.key === "L" || e.key === ".") {
+        cycleSpeed();
+        return;
+      }
+      if (e.key === "Home" || e.key === "0") {
+        seekToTick(0);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [replaying, togglePlayPause, rewind, cycleSpeed, seekToTick]);
+
+  const statusBadge =
+    transport?.phaseLabel === "paused"
+      ? "Paused"
+      : transport?.phaseLabel === "finished"
+        ? "Finished"
+        : "Playing";
 
   return (
     <div
@@ -455,7 +520,23 @@ export function ClimbScene({ tower, categoryLabel, replay = null }: ClimbScenePr
 
             {!replaying ? (
               <StartButton onClick={handleStart} label="Climb again" />
-            ) : null}
+            ) : (
+              <div className="mt-6 flex flex-col items-center gap-2">
+                <StartButton onClick={restartReplay} label="Restart" />
+                <button
+                  type="button"
+                  data-game-control
+                  onClick={startExport}
+                  disabled={
+                    exportStatus.kind === "running" ||
+                    exportStatus.kind === "paused_hidden"
+                  }
+                  className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-full border border-border-strong bg-surface/60 px-8 font-semibold text-text-primary hover:border-signal/50 disabled:opacity-40"
+                >
+                  Export video
+                </button>
+              </div>
+            )}
             {replaying ? (
               <Link
                 href="/play"
@@ -474,11 +555,26 @@ export function ClimbScene({ tower, categoryLabel, replay = null }: ClimbScenePr
           </Overlay>
         )}
 
-        {replaying && phase !== "lobby" && phase !== "finished" && (
-          <div className="pointer-events-none absolute top-3 left-1/2 -translate-x-1/2 rounded-full bg-void/70 px-3 py-1 font-mono text-[10px] uppercase tracking-[0.16em] text-signal">
-            Watching replay
+        {replaying && phase !== "lobby" && transport ? (
+          <div className="pointer-events-none absolute top-3 left-1/2 z-20 -translate-x-1/2 rounded-full bg-void/70 px-3 py-1 font-mono text-[10px] uppercase tracking-[0.16em] text-signal">
+            {statusBadge}
           </div>
-        )}
+        ) : null}
+
+        {replaying && phase !== "lobby" && transport ? (
+          <ReplayTransportBar
+            transport={transport}
+            finished={finished}
+            onTogglePlayPause={togglePlayPause}
+            onRewind={rewind}
+            onCycleSpeed={cycleSpeed}
+            onSeek={seekToTick}
+            onExport={startExport}
+            onCancelExport={cancelExport}
+            onDismissExportStatus={dismissStatus}
+            exportStatus={exportStatus}
+          />
+        ) : null}
 
         {touchDevice && !replaying && (
           <TouchControls active={touchControlsActive} onInput={setTouch} />
