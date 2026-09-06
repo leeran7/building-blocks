@@ -1,0 +1,88 @@
+{
+  "agent": "implementer",
+  "status": "success",
+  "summary": "Implemented replay-only transport (pause/play, rewind 150, speeds 1/2/4, seek via snapshot-every-120 cache) and client MediaRecorder export (720×1280@30, MIME order + honest labels, progress/cancel/visibility pause). Wired ASCENT ReplayTransportBar + status badge + Restart/Export into ClimbScene. 24 unit tests pass invoking production code. nextStage: verifier.",
+  "timestamp": "2026-09-06T15:57:22Z",
+  "goal": "Climb replay should allow fast forwarding, rewind, pause/play. Export as mp4.",
+  "artifacts": [
+    "app/src/game/replayTransport.ts",
+    "app/src/game/replaySnapshots.ts",
+    "app/src/game/cloneMatch.ts",
+    "app/src/game/exportMime.ts",
+    "app/src/game/useClimb.ts",
+    "app/src/components/Game/paintClimbFrame.ts",
+    "app/src/components/Game/ClimbCanvas.tsx",
+    "app/src/components/Game/useReplayExport.ts",
+    "app/src/components/Game/ReplayTransportBar.tsx",
+    "app/src/components/Game/ClimbScene.tsx",
+    "app/tests/game/replayTransport.test.ts",
+    "app/tests/game/replaySnapshots.test.ts",
+    "app/tests/game/exportMime.test.ts",
+    "app/tests/game/useClimb.replayTransport.test.ts"
+  ],
+  "exitCriteria": {
+    "acs_mapped_to_code": true,
+    "transport_modules_created": true,
+    "snapshot_seek_implemented": true,
+    "export_mime_order_locked": true,
+    "useClimb_transport_gated": true,
+    "paintClimbFrame_extracted": true,
+    "climbScene_wired": true,
+    "unit_tests_invoke_production": true,
+    "unit_tests_pass": true,
+    "typecheck_pass": true,
+    "no_leaderboard_touch": true
+  },
+  "feedback": [],
+  "learnings": [
+    {
+      "topic": "Architecture & contracts",
+      "forAgents": ["verifier", "frontend"],
+      "kind": "lesson",
+      "insight": "ReplaySnapshotCache.seek clones the floor(target/120)*120 snapshot then steps ≤119; parity oracle is createMatch→drain countdown→apply inputs[0..target-1]. Mutating a returned state must not affect the next seek (clone-before-return).",
+      "action": "Assert player.y/peakY/tick against the headless oracle across boundaries 0,119,120,121; reject source greps of SNAPSHOT_INTERVAL_TICKS as AC-6 proof.",
+      "confidence": "high"
+    },
+    {
+      "topic": "Testing",
+      "forAgents": ["verifier", "qa-acceptance"],
+      "kind": "metric",
+      "insight": "Implementer shipped 24 production-invoking unit tests (transport 10, snapshots 5, MIME 5, useClimb replay predicates 4); typecheck clean. AC-10 wall-clock speed windows and full MediaRecorder encode need browser/verifier harness — not covered by node vitest.",
+      "action": "Verifier should map AC-10/AC-13–19 to browser checks; unit suite covers AC-3/6/7/9/15/17 helpers and NFR-8 transport:null contract via shouldCaptureReplayKey(!replaying)=false.",
+      "confidence": "high"
+    },
+    {
+      "topic": "Performance",
+      "forAgents": ["verifier", "performance"],
+      "kind": "lesson",
+      "insight": "useClimb returns transport:null when !replaying and only reads pause/speed/seek refs inside the rAF loop when replayInputs are present — live path accumulator is still accumulator += dt with no speed multiply.",
+      "action": "Confirm live ClimbScene does not mount ReplayTransportBar / useReplayExport session chrome (enabled:false); do not require per-frame transport React updates on live play.",
+      "confidence": "high"
+    },
+    {
+      "topic": "Spec quality",
+      "forAgents": ["frontend", "verifier"],
+      "kind": "lesson",
+      "insight": "Export success/error copy and filename extension come from pickExportMime().label/extension — WebM must never be labeled or saved as MP4. Countdown frames are skipped in encode (duration ≈ N/30).",
+      "action": "Browser-check success toast shows Downloaded MP4|WebM matching the blob type; cancel must not download.",
+      "confidence": "high"
+    }
+  ],
+  "nextStage": "verifier",
+  "knownGaps": [
+    "AC-10 wall-clock 2×/4× timing windows need a fake-clock or browser harness (not in node vitest).",
+    "AC-13–19 MediaRecorder encode/download/visibility are integration-level; unit tests cover MIME probe + helpers only.",
+    "Export uses HTMLCanvasElement (not OffscreenCanvas) for draw-helper type compatibility; still 720×1280@30 detached.",
+    "useClimb transport React view updates on every match tick while replaying (needed for seek bar); live path remains transport:null."
+  ],
+  "testResults": {
+    "command": "pnpm exec vitest run tests/game/replayTransport.test.ts tests/game/replaySnapshots.test.ts tests/game/exportMime.test.ts tests/game/useClimb.replayTransport.test.ts",
+    "passed": 24,
+    "failed": 0,
+    "typecheck": "pass"
+  },
+  "notes": {
+    "branch": "cursor/replay-controls-export-09a3",
+    "outOfScopeHonored": ["climb/result", "runReplay encode/decode", "leaderboard", "audio mux"]
+  }
+}
