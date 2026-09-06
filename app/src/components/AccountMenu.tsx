@@ -3,11 +3,10 @@
 /**
  * AccountMenu — signed-in account dropdown for the navbar.
  *
- * Groups Creator page · Settings · Sign out (plus Browse / Free climb on
- * mobile, where the navbar hides them). Dashboard stays the navbar pill CTA, so
- * it is intentionally not repeated here. Fetches the user's public username so
- * "Creator page" deep-links to /c/[username] — or to settings when unset.
- * Keyboard + click-outside dismissible.
+ * Groups Dashboard · Creator page · Settings · Sign out (plus Browse / Free
+ * climb on mobile, where the navbar hides them). Fetches the user's public
+ * username so "Creator page" deep-links to /c/[username] — shown only once a
+ * username is claimed. Keyboard + click-outside dismissible.
  */
 
 import { useEffect, useId, useRef, useState } from "react";
@@ -109,16 +108,21 @@ export function AccountMenu() {
           aria-label="Account"
           className="reveal absolute right-0 mt-2 w-56 rounded-xl border border-border-strong bg-surface-raised shadow-lifted p-1.5"
         >
-          {/* Dashboard is the always-visible pill CTA in the navbar; the menu
-              covers only what the pill doesn't. Plain nav entry — deep-links to
-              the live page once claimed, else to settings. No promo verbiage. */}
-          <Link
-            href={usernameLoaded && username ? `/c/${username}` : "/settings"}
-            className={ITEM}
-            onClick={() => setOpen(false)}
-          >
-            Creator page
+          <Link href="/dashboard" className={ITEM} onClick={() => setOpen(false)}>
+            Dashboard
           </Link>
+          {/* Creator page is a plain deep-link, shown only once a username is
+              claimed. No promo verbiage; setup lives in the post-payment card. */}
+          {usernameLoaded && username && (
+            <Link
+              href={`/c/${username}`}
+              className={ITEM}
+              onClick={() => setOpen(false)}
+            >
+              Creator page
+            </Link>
+          )}
+
           <Link href="/settings" className={ITEM} onClick={() => setOpen(false)}>
             Settings
           </Link>
