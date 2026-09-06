@@ -4,6 +4,18 @@ Read this before writing stories. Specs that only list features ship unfinished
 products: missing entry points, dead CTAs, empty states with no next step, and
 flows nobody would choose to use.
 
+## Critical vs secondary
+
+Every in-scope F-n must declare **`critical: yes` or `critical: no`**.
+
+- **Critical** (default): the primary job of the change, money/score/auth paths,
+  or any flow named in nav/CTA. Empty/first-run, failure recovery, negative ACs,
+  and mid-flow abandon/refresh/double-submit are required.
+- **Secondary**: supporting or rare paths. Still need discovery → entry → happy
+  path → success next. Empty/failure may be `N/A` with a one-line reason.
+
+If unsure, mark **critical**.
+
 ## Flow inventory
 
 For every in-scope capability, write one named flow (F-1…). A story without a
@@ -14,16 +26,18 @@ Each flow must answer:
 
 | Question | Spec it as |
 |----------|------------|
+| Critical? | `critical: yes` \| `no` (see above) |
 | Who starts this, and why now? | Persona + trigger (intent, notification, nav, deep link) |
 | How do they find it? | Discovery surface(s): nav label, CTA copy, search, URL |
 | Where do they land? | Entry route/screen; label destination must match the named mode |
 | What must already be true? | Auth, data, permissions, prior steps |
 | What is the one job? | Primary outcome in one sentence |
 | What do they do, step by step? | Ordered happy path (entry → act → confirm → next) |
-| What if nothing is there yet? | Empty / first-run / zero-state + the recovery action |
-| What goes wrong? | At least one failure path with user-visible recovery |
+| What if nothing is there yet? | Empty / first-run / zero-state + recovery — or `N/A` + reason if secondary |
+| What goes wrong? | Failure path + user-visible recovery — or `N/A` + reason if secondary |
 | How does it end well? | Success state + obvious next action (not a dead end) |
-| How do they come back? | Return / resume / undo / history if relevant |
+| How do they come back? | Return / resume / history if relevant. **Undo** only for reversible UI/session state — never for irreversible or money-adjacent writes (`context/trust.md`) |
+| Mid-flow interrupt? | Abandon, refresh, double-submit — required when `critical: yes` |
 
 ## Utilization (best way to use the flow)
 
@@ -47,16 +61,23 @@ design-ux do not reverse it.
 
 ## Finishing-touch checklist (reject the spec if any fail)
 
+- [ ] Every F-n declares `critical: yes|no`
 - [ ] Every in-scope flow has discovery → entry → happy path → success next step
-- [ ] Every critical flow has empty/first-run and at least one failure recovery
+  and a utilization note (primary path)
+- [ ] Every **critical** flow has empty/first-run, failure recovery, and defined
+  abandon / refresh / double-submit (ACs or explicit N/A with reason)
 - [ ] Nav/CTA copy that names a mode links to that mode’s real surface
-- [ ] Mid-flow abandon, refresh, and double-submit have defined behavior
 - [ ] No success screen is a dead end; no empty state is only “nothing here”
+- [ ] Auth-gated or trust-boundary flows (`context/trust.md`: money, score,
+  admin, irreversible writes) include unauthorized/unauthenticated failure ACs
+  and server/provider-derived state — not client-trusted undo
 - [ ] Out-of-scope finishing work is listed under Future with a one-line why
 
 ## Spec shape
 
-Under **Flows**, list F-n with: trigger, discovery, entry, preconditions, steps,
-empty, failure, success next, utilization note. Map each story to its F-n.
-Acceptance criteria must cover the happy path, the empty/first-run case, and
-one negative path for each critical flow — not only the capability in isolation.
+Under **Flows**, list F-n with: criticality, trigger, discovery, entry,
+preconditions, steps, empty, failure, success next, mid-flow interrupt,
+utilization note. Map each story to its F-n. For each **critical** flow,
+acceptance criteria must cover: happy path, empty/first-run, one negative path,
+and mid-flow interrupt (or N/A with reason) — not only the capability in
+isolation.

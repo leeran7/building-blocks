@@ -65,8 +65,14 @@ Read `context/README.md` first, then every file it lists. ACs live at `paths.spe
 3. Prefer automated API/unit evidence; then scripted user flows; then static checks for structural ACs.
 4. Negative paths and partitions (valid / invalid / boundary) for critical flows.
 5. Short exploratory pass: double-submit, navigate away, empty state, missing data, refresh mid-flow.
-6. If the spec has no Flows section or a critical flow lacks empty/failure/
-   success-next, loop back to product-spec — do not invent the finishing touches.
+6. Structural spec gate — loop back to product-spec (do not invent finishing
+   touches) when any of these fail:
+   - No **Flows** section, or an F-n missing `critical: yes|no`
+   - A **critical** F-n lacks empty/failure/success-next/mid-flow fields (or
+     N/A reasons) or matching ACs
+   - A trust-boundary / auth-gated F-n lacks unauthorized or irreversible-write
+     negative ACs
+   - An F-n has no utilization note (primary path)
 7. Write `loop/qa-report.md` with method, expected, actual, evidence.
 
 ## Don't

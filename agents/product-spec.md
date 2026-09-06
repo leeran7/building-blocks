@@ -33,8 +33,10 @@ Read `context/README.md` first, then every file it lists. Write the spec to
 4. User stories mapped to F-n: `As a [persona], I want [action], so that
    [outcome].` Each has a happy path and at least one failure case.
 5. Acceptance criteria: `Given / When / Then`, numbered AC-1…, verifiable
-   without taste. No “works correctly” / “looks good”. Per critical flow: happy
-   path + empty/first-run + at least one negative AC. 2–4 ACs per story.
+   without taste. No “works correctly” / “looks good”. Each F-n declares
+   `critical: yes|no` (default yes). Per **critical** flow: happy path +
+   empty/first-run + one negative AC + mid-flow interrupt (or N/A reason).
+   Trust-boundary flows also need unauthorized failure ACs. 2–4 ACs per story.
 6. Measurable NFRs (latency, auth, a11y level, scale envelope) with numbers.
 7. Risk register (third parties, legal, missing assets, unstable rules).
 8. Write the spec. Sections: Goal, Scope, **Flows**, Personas, Stories, ACs,
