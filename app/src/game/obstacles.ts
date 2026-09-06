@@ -8,9 +8,9 @@
  * crates stay stepped) so cresting is not a jittery tread snap. Nothing falls
  * from the sky — a knock-down next to lava reads as cheap death.
  *
- * Placement prefers corridors between consecutive ladder anchors, with extra
- * punched gaps so crates sit in pockets rather than filling the span. Pure
- * function of (tower.seed, floorIndex) — re-simulation stays bit-identical
+ * Placement: lone hurdles and pyramids sit only in between-ladder corridors
+ * (with punched mid-gaps); stairs prefer those corridors then fall back.
+ * Pure function of (tower.seed, floorIndex) — re-simulation stays bit-identical
  * (AC-11). No Date/random.
  */
 
