@@ -25,6 +25,7 @@ import {
   DEFAULT_SIM_CONFIG,
 } from "../../src/game/simulation";
 import { DEFAULT_HAZARD_CONFIG } from "../../src/game/hazard";
+import { grantPowerUp } from "../../src/game/powerups";
 import {
   MatchState,
   PlayerInput,
@@ -273,6 +274,26 @@ describe("obstacle collision (simulation)", () => {
     for (let i = 0; i < 45; i++) stepMatch(m, { p1: move(1) }, SLOW);
     expect(p.x).toBeLessThan(o.x0 + 0.05);
     expect(p.y).toBeCloseTo(o.y0, 1);
+  });
+
+  it("lets a Giant walk over a small hurdle without jumping", () => {
+    const o = firstHurdle(TOWER);
+    const m = climbingMatch();
+    const p = m.players[0];
+    p.x = o.x0 - 1.2;
+    p.y = o.y0;
+    p.peakY = o.y0;
+    p.onGround = true;
+    p.vy = 0;
+    grantPowerUp(p, "giant", m.tick);
+    let crested = false;
+    for (let i = 0; i < 90; i++) {
+      stepMatch(m, { p1: move(1) }, SLOW);
+      if (p.y >= o.y1 - 0.05) crested = true;
+    }
+    expect(crested).toBe(true);
+    expect(p.x).toBeGreaterThan(o.x1);
+    expect(p.status).toBe("climbing");
   });
 
   it("lets a jumping walker clear the crate", () => {

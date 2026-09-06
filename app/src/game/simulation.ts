@@ -380,7 +380,14 @@ function integratePlayer(
         p.onGround = false;
       }
 
-      resolveObstacleMotion(p, prevX, prevY, tower, platformMargin);
+      resolveObstacleMotion(
+        p,
+        prevX,
+        prevY,
+        tower,
+        platformMargin,
+        isPowerUpActive(p, "giant", tick)
+      );
 
       // Walked off a platform or crate while grounded → start falling.
       if (

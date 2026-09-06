@@ -1,5 +1,5 @@
 /**
- * Climb Feel 1.2× — presentation token contracts (AC-1/2/17/18).
+ * Climb Feel 1.25× — presentation token contracts (AC-1/2/17/18).
  * Assert by importing exports — never by grepping CSS/source text.
  */
 
@@ -46,40 +46,40 @@ describe("climbFeelTokens — HUD / VFX (AC-1, AC-2, NFR-6)", () => {
     expect(TEXT_SECONDARY).not.toBe(TEXT_MUTED);
   });
 
-  it("pickup shake amp is in the 2.53–2.75 band and wired into VFX", () => {
-    expect(PICKUP_SHAKE_AMP_UI).toBeGreaterThanOrEqual(2.53);
-    expect(PICKUP_SHAKE_AMP_UI).toBeLessThanOrEqual(2.75);
+  it("pickup shake amp is in the 1.25× band and wired into VFX", () => {
+    expect(PICKUP_SHAKE_AMP_UI).toBeGreaterThanOrEqual(2.7);
+    expect(PICKUP_SHAKE_AMP_UI).toBeLessThanOrEqual(2.8);
     expect(VFX_SHAKE).toBe(PICKUP_SHAKE_AMP_UI);
   });
 
-  it("ember max is ≤ +20% of baseline 88", () => {
-    expect(EMBER_MAX).toBeLessThanOrEqual(105);
+  it("ember max is ≤ +25% of baseline 88", () => {
+    expect(EMBER_MAX).toBeLessThanOrEqual(110);
     expect(EMBER_MAX).toBeGreaterThanOrEqual(88);
     expect(BG_EMBER_MAX).toBe(EMBER_MAX);
   });
 });
 
 describe("climbFeelTokens — motion forks (AC-17, NFR-3)", () => {
-  it("climbEnter travel/duration land in the intensity band with ≥200ms floor", () => {
-    expect(CLIMB_ENTER_TRANSLATE_Y_PX).toBeGreaterThanOrEqual(18);
-    expect(CLIMB_ENTER_TRANSLATE_Y_PX).toBeLessThanOrEqual(20);
-    expect(CLIMB_ENTER_DURATION_S).toBeGreaterThanOrEqual(0.56);
-    expect(CLIMB_ENTER_DURATION_S).toBeLessThanOrEqual(0.61);
+  it("climbEnter travel/duration land in the 1.25× band with ≥200ms floor", () => {
+    expect(CLIMB_ENTER_TRANSLATE_Y_PX).toBeGreaterThanOrEqual(19);
+    expect(CLIMB_ENTER_TRANSLATE_Y_PX).toBeLessThanOrEqual(21);
+    expect(CLIMB_ENTER_DURATION_S).toBeGreaterThanOrEqual(0.54);
+    expect(CLIMB_ENTER_DURATION_S).toBeLessThanOrEqual(0.58);
     expect(CLIMB_ENTER_DURATION_S).toBeGreaterThanOrEqual(0.2);
   });
 
-  it("climbPunch travel/duration land in the intensity band", () => {
-    expect(CLIMB_PUNCH_TRANSLATE_Y_PX).toBeGreaterThanOrEqual(7);
-    expect(CLIMB_PUNCH_TRANSLATE_Y_PX).toBeLessThanOrEqual(7.5);
-    expect(CLIMB_PUNCH_DURATION_S).toBeGreaterThanOrEqual(0.64);
-    expect(CLIMB_PUNCH_DURATION_S).toBeLessThanOrEqual(0.7);
+  it("climbPunch travel/duration land in the 1.25× band", () => {
+    expect(CLIMB_PUNCH_TRANSLATE_Y_PX).toBeGreaterThanOrEqual(7.3);
+    expect(CLIMB_PUNCH_TRANSLATE_Y_PX).toBeLessThanOrEqual(7.7);
+    expect(CLIMB_PUNCH_DURATION_S).toBeGreaterThanOrEqual(0.62);
+    expect(CLIMB_PUNCH_DURATION_S).toBeLessThanOrEqual(0.66);
     expect(CLIMB_PUNCH_DURATION_S).toBeGreaterThanOrEqual(0.2);
   });
 
-  it("climbGroundRise period shortens ≤20% and stays ≥4s", () => {
-    expect(CLIMB_GROUND_RISE_DURATION_S).toBeLessThanOrEqual(6 * 0.87);
+  it("climbGroundRise period shortens ≤25% and stays ≥4s", () => {
+    expect(CLIMB_GROUND_RISE_DURATION_S).toBeLessThanOrEqual(6 * 0.85);
     expect(CLIMB_GROUND_RISE_DURATION_S).toBeGreaterThanOrEqual(4);
-    expect(CLIMB_GROUND_RISE_AMP_PERCENT).toBeCloseTo(4.8, 5);
+    expect(CLIMB_GROUND_RISE_AMP_PERCENT).toBeCloseTo(5, 5);
   });
 
   it("power-up HUD motion stays in the one-shot duration band", () => {
@@ -87,21 +87,21 @@ describe("climbFeelTokens — motion forks (AC-17, NFR-3)", () => {
     expect(POWER_UP_ENTER_DURATION_S).toBeLessThanOrEqual(0.9);
     expect(POWER_UP_URGENT_DURATION_S).toBeGreaterThanOrEqual(0.2);
     expect(POWER_UP_URGENT_DURATION_S).toBeLessThanOrEqual(0.9);
-    expect(POWER_UP_ENTER_SCALE_FROM).toBeCloseTo(0.784, 5);
-    expect(POWER_UP_ENTER_SCALE_PEAK).toBeCloseTo(1.072, 5);
-    expect(POWER_UP_URGENT_SCALE_PEAK).toBeCloseTo(1.048, 5);
+    expect(POWER_UP_ENTER_SCALE_FROM).toBeCloseTo(0.775, 5);
+    expect(POWER_UP_ENTER_SCALE_PEAK).toBeCloseTo(1.075, 5);
+    expect(POWER_UP_URGENT_SCALE_PEAK).toBeCloseTo(1.05, 5);
   });
 });
 
 describe("climbFeelTokens — atmosphere (AC-18, NFR-4)", () => {
-  it("grain opacity is in 0.040–0.044 and ≤0.05", () => {
-    expect(CLIMB_GRAIN_OPACITY).toBeGreaterThanOrEqual(0.04);
-    expect(CLIMB_GRAIN_OPACITY).toBeLessThanOrEqual(0.044);
+  it("grain opacity is in the 1.25× band and ≤0.05", () => {
+    expect(CLIMB_GRAIN_OPACITY).toBeGreaterThanOrEqual(0.043);
+    expect(CLIMB_GRAIN_OPACITY).toBeLessThanOrEqual(0.046);
     expect(CLIMB_GRAIN_OPACITY).toBeLessThanOrEqual(0.05);
   });
 
-  it("topo signal alpha is in 0.055–0.065 and ≤0.08", () => {
-    expect(CLIMB_TOPO_SIGNAL_ALPHA).toBeGreaterThanOrEqual(0.055);
+  it("topo signal alpha is in the 1.25× band and ≤0.08", () => {
+    expect(CLIMB_TOPO_SIGNAL_ALPHA).toBeGreaterThanOrEqual(0.06);
     expect(CLIMB_TOPO_SIGNAL_ALPHA).toBeLessThanOrEqual(0.065);
     expect(CLIMB_TOPO_SIGNAL_ALPHA).toBeLessThanOrEqual(0.08);
   });
@@ -120,10 +120,10 @@ describe("climbFeelTokens — type class contracts (AC-8, AC-9)", () => {
     expect(FREE_LEADERBOARD_HEADING_CLASS).toContain("md:text-4xl");
   });
 
-  it("FreeClimbCard rank is 2.7rem mono tabular (not text-5xl)", () => {
+  it("FreeClimbCard rank is 2.8rem mono tabular (not text-5xl)", () => {
     expect(FREE_CLIMB_RANK_CLASS).toContain("font-mono");
     expect(FREE_CLIMB_RANK_CLASS).toContain("tabular-nums");
-    expect(FREE_CLIMB_RANK_CLASS).toContain("text-[2.7rem]");
+    expect(FREE_CLIMB_RANK_CLASS).toContain("text-[2.8rem]");
     expect(FREE_CLIMB_RANK_CLASS).not.toContain("text-5xl");
   });
 });

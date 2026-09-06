@@ -194,7 +194,7 @@ export const POWER_UP_SPECS: Record<PowerUpType, PowerUpSpec> = {
   giant: {
     type: "giant",
     label: "Giant",
-    description: `${GIANT_VISUAL_SCALE}× size · wider grabs & landings`,
+    description: `${GIANT_VISUAL_SCALE}× size · stride small crates · wider grabs`,
     color: "#b8f57c",
     durationSeconds: 20,
     cooldownSeconds: 0,

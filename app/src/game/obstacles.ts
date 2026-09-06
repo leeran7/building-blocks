@@ -126,13 +126,17 @@ export function isOnObstacle(
  * Resolve crate collision after x/y integration. Lands on tops (one-way),
  * blocks walking through the sides. Skip while on a ladder — crates never
  * occupy grab zones.
+ *
+ * When `strideSmallObstacles` is set (Giant), lone slab hurdles are walked
+ * over like stair treads — stacked stairs/pyramids already walk-up for everyone.
  */
 export function resolveObstacleMotion(
   p: PlayerState,
   prevX: number,
   prevY: number,
   tower: TowerSpec,
-  marginM: number
+  marginM: number,
+  strideSmallObstacles = false
 ): void {
   if (p.onLadder) return;
 
@@ -156,6 +160,7 @@ export function resolveObstacleMotion(
   // the face on the way over; landing on the top still catches a short jump.
   // Stair: overlapping AABBs put the next crate's y0 at your feet, so a side
   // hit would shove you off the tread. One walk-up per tick, lowest first.
+  // Giant: strideSmallObstacles also walk-ups lone (non-stair) slab hurdles.
   if (!p.onGround) return;
 
   const LANDING_EPS = EPS * 1.5;
@@ -167,7 +172,11 @@ export function resolveObstacleMotion(
     const inX = p.x >= o.x0 && p.x <= o.x1;
     if (!inX) continue;
     const atBase = Math.abs(p.y - o.y0) <= LANDING_EPS;
-    if (atBase && isStairCrate(band, o)) {
+    const canWalkUp =
+      atBase &&
+      (isStairCrate(band, o) ||
+        (strideSmallObstacles && isSmallHurdle(band, o, tower)));
+    if (canWalkUp) {
       if (!stepped) {
         p.y = o.y1;
         p.vy = 0;
@@ -181,6 +190,16 @@ export function resolveObstacleMotion(
     else p.x = prevX < (o.x0 + o.x1) / 2 ? o.x0 - EPS : o.x1 + EPS;
     p.vx = 0;
   }
+}
+
+/** Lone slab hurdle — not a stair/pyramid tread, height ≤ authored hurdle. */
+export function isSmallHurdle(
+  band: Obstacle[],
+  o: Obstacle,
+  tower: TowerSpec
+): boolean {
+  if (isStairCrate(band, o)) return false;
+  return o.y1 - o.y0 <= hurdleHeightM(tower) + 0.1;
 }
 
 function crateWidthM(d: number): number {

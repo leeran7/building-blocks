@@ -189,7 +189,7 @@ describe("ClimbPanelIntro title (AC-8)", () => {
 });
 
 describe("FreeClimbCard rank + empty (AC-9, AC-11)", () => {
-  it("rank numeral uses 2.7rem mono tabular with signal chrome", () => {
+  it("rank numeral uses 2.8rem mono tabular with signal chrome", () => {
     const html = renderToStaticMarkup(
       createElement(FreeClimbCard, {
         climb: {

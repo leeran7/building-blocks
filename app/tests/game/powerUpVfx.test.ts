@@ -30,8 +30,8 @@ describe("powerUpVfx helpers", () => {
     const amp = PICKUP_SHAKE_AMP_UI * ui;
     expect(dx).toBeCloseTo(Math.sin(tick * 2.37) * amp, 5);
     expect(dy).toBeCloseTo(Math.cos(tick * 1.83) * amp * 0.65, 5);
-    expect(PICKUP_SHAKE_AMP_UI).toBeGreaterThanOrEqual(2.53);
-    expect(PICKUP_SHAKE_AMP_UI).toBeLessThanOrEqual(2.75);
+    expect(PICKUP_SHAKE_AMP_UI).toBeGreaterThanOrEqual(2.7);
+    expect(PICKUP_SHAKE_AMP_UI).toBeLessThanOrEqual(2.8);
   });
 
   it("pickupShakeOffset fades out after PICKUP_SHAKE_TICKS", () => {

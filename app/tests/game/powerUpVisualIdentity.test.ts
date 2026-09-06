@@ -334,7 +334,7 @@ describe("AC-16 locked durations, fuel, and cooldown", () => {
 
     expect(POWER_UP_SPECS.giant.label).toBe("Giant");
     expect(POWER_UP_SPECS.giant.description).toBe(
-      "2× size · wider grabs & landings"
+      "2× size · stride small crates · wider grabs"
     );
     expect(POWER_UP_SPECS.giant.durationSeconds).toBe(20);
 

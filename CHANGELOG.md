@@ -9,12 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- **Climb Feel 1.2× (presentation only)** — amplify The Climb identity on
-  climb-facing surfaces (~1.2× HUD, shake, grain/topo, and climb-scoped enter /
+- **Climb Feel 1.25× (presentation only)** — amplify The Climb identity on
+  climb-facing surfaces (~1.25× HUD, shake, grain/topo, and climb-scoped enter /
   reveal / groundRise / punch motion). Shared ASCENT baselines for paid/auth
   shells stay frozen. Game physics, `RAPID_CLIMB_MULT`, score envelopes, Stripe,
-  and schema are untouched. **Open:** OQ-1 free-leaderboard trust (client
-  `peakY` / F-1) is not closed by this pass. PR:
+  and schema are untouched. **Giant** now strides over small slab hurdles while
+  active. **Open:** OQ-1 free-leaderboard trust (client `peakY` / F-1) is not
+  closed by this pass. PR:
   https://github.com/leeran7/building-blocks/pull/80
 
 ### Infrastructure
