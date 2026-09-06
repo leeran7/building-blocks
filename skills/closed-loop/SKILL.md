@@ -88,7 +88,7 @@ Write `loop/state.json`:
 | Stage | Subagent | When |
 |-------|----------|------|
 | Loop owner | orchestrator | Coordinate all stages |
-| 1 | product-spec | Turn intent into requirements |
+| 1 | product-spec | Turn intent into end-to-end flows + requirements |
 | 2 | architect | System design and contracts |
 | 3 | implementer | Write application code |
 | 4 | verifier | Tests and correctness |
