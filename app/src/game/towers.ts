@@ -6,9 +6,10 @@
  * DETERMINISTICALLY PER FLOOR from (seed, floorIndex): floor i is a solid
  * platform (with 1–3 jumpable gaps on higher floors) at a seeded height, joined
  * to floor i+1 by ONE OR TWO ladders at seeded x positions — giving route choice
- * without overcrowding. The category slug picks physics; a per-run seed
- * (applyRunSeed) is what makes each game a different layout. Same (slug, runSeed)
- * still replays exactly (AC-11).
+ * without overcrowding. Multi-gap floors are dampened after another multi-gap
+ * floor so back-to-back doubles stay uncommon. The category slug picks physics;
+ * a per-run seed (applyRunSeed) is what makes each game a different layout.
+ * Same (slug, runSeed) still replays exactly (AC-11).
  *
  * Difficulty scales with altitude: gaps widen toward the physical jump limit
  * (never past it — every floor stays passable), ladders shift sideways, and
@@ -422,7 +423,55 @@ const PLATFORM_EDGE_M = 1.2;
 /** Max jumpable holes carved into one floor. */
 const MAX_GAPS_PER_FLOOR = 3;
 
+/**
+ * Multi-gap desire: base chance for 2 / 3 gaps, ramping with altitude.
+ * Kept moderate so single-gap floors stay common early.
+ */
+const TWO_GAP_BASE = 0.22;
+const TWO_GAP_RAMP = 0.28;
+const THREE_GAP_BASE = 0.08;
+const THREE_GAP_RAMP = 0.22;
+/**
+ * After a floor that wanted 2+ gaps, cut the next floor's multi-gap odds so
+ * back-to-back ("immediate") double gaps are rare without removing them.
+ */
+const AFTER_MULTI_GAP_FACTOR = 0.28;
+
+/**
+ * Desired gap count per floor (before corridor capacity). Grown in order so
+ * floor i can dampen after floor i−1 without recomputing platforms.
+ */
+const DESIRED_GAPS_CACHE = createSeedCache<number[]>(8, () => [0]);
+
 type GapSpan = { lo: number; hi: number };
+
+/** How many gaps floor i wants before corridor / solvability limits. */
+function desiredGapCount(tower: TowerSpec, i: number): number {
+  const cache = DESIRED_GAPS_CACHE.get(tower.seed);
+  growDesiredGapsTo(tower, cache, i);
+  return cache[i]!;
+}
+
+function growDesiredGapsTo(
+  tower: TowerSpec,
+  cache: number[],
+  floor: number
+): void {
+  for (let f = cache.length; f <= floor; f++) {
+    const rng = createRng(`${tower.seed}:pgap-n:${f}`);
+    const d = Math.min(1, f / DIFFICULTY_FLOORS);
+    let twoChance = TWO_GAP_BASE + TWO_GAP_RAMP * d;
+    let threeChance = THREE_GAP_BASE + THREE_GAP_RAMP * d;
+    if (f > 1 && cache[f - 1]! >= 2) {
+      twoChance *= AFTER_MULTI_GAP_FACTOR;
+      threeChance *= AFTER_MULTI_GAP_FACTOR;
+    }
+    let want = 1;
+    if (rng.next() < twoChance) want = 2;
+    if (rng.next() < threeChance) want = 3;
+    cache.push(want);
+  }
+}
 
 /** Solid platform pieces making up floor i (1 piece, or 2–4 around 1–3 gaps). */
 export function platformsForFloor(tower: TowerSpec, i: number): Platform[] {
@@ -446,12 +495,8 @@ export function platformsForFloor(tower: TowerSpec, i: number): Platform[] {
   if (proposals.length === 0) return solid;
 
   const rng = createRng(`${tower.seed}:pgap:${i}`);
-  const d = Math.min(1, i / DIFFICULTY_FLOORS);
   const maxWant = Math.min(MAX_GAPS_PER_FLOOR, proposals.length);
-  let want = 1;
-  if (maxWant >= 2 && rng.next() < 0.35 + 0.4 * d) want = 2;
-  if (maxWant >= 3 && rng.next() < 0.15 + 0.35 * d) want = 3;
-  want = Math.min(want, maxWant);
+  const want = Math.min(desiredGapCount(tower, i), maxWant);
 
   // Try want, then fewer — never ship a floor that traps a ladder in a hole.
   for (let n = want; n >= 1; n--) {
