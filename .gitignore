@@ -14,6 +14,8 @@ loop/*
 !loop/package-upgrade.md
 # Active product PRD for the current goal — durable until the loop closes.
 !loop/spec.md
+# Active architecture for the current goal — durable implementer contract.
+!loop/architecture.md
 .claude/handoffs/*.json
 
 # Dependencies & build
