@@ -1,0 +1,293 @@
+{
+  "agent": "verifier",
+  "status": "success",
+  "summary": "Iteration 2 verification: both reviewer criticals closed by production-invoking tests (commitScrubRatio scrub commit; exportVisibility pause/resume). Seek clamp [0,N−1] asserted. 38/38 related tests pass; typecheck clean. Residual browser ACs unchanged.",
+  "timestamp": "2026-09-06T16:12:20Z",
+  "goal": "Climb replay should allow fast forwarding, rewind, pause/play. Export as mp4.",
+  "artifacts": [
+    "loop/handoffs/verifier-2026-09-06T161220Z.json"
+  ],
+  "exitCriteria": {
+    "acs_mapped": true,
+    "criticals_closed_by_invoked_tests": true,
+    "unit_tests_invoked_production": true,
+    "no_source_text_greps_in_new_tests": true,
+    "non_test_callers_confirmed": true,
+    "vitest_pass": true,
+    "typecheck_pass": true,
+    "coverage_matrix_written": true,
+    "residual_risks_documented": true
+  },
+  "feedback": [],
+  "criticalFindingsStatus": [
+    {
+      "from": "reviewer-2026-09-06T160550Z.json",
+      "severity": "critical",
+      "issue": "Seek scrub broken — controlled range with no local scrub state",
+      "status": "closed",
+      "evidence": "commitScrubRatio(midDragRatio,totalTicks) → tick ≠ liveClimbTick; ReplayTransportBar binds scrubRatio while pointer down and commits via commitScrubRatio (non-test caller).",
+      "invokedTest": "app/tests/game/replayTransport.test.ts:62–82 (commitScrubRatio)",
+      "productionUnit": "app/src/game/replayTransport.ts:commitScrubRatio",
+      "nonTestCaller": "app/src/components/Game/ReplayTransportBar.tsx"
+    },
+    {
+      "from": "reviewer-2026-09-06T160550Z.json",
+      "severity": "critical",
+      "issue": "Visibility pause does not pause MediaRecorder/captureStream",
+      "status": "closed",
+      "evidence": "pauseExportRecorder on recording → pause() called; resumeExportRecorder on paused → resume(); missing/throwing pause|resume → false (AC-19 fail-closed); shouldEnterPausedHidden boundary at 2999/3000ms.",
+      "invokedTest": "app/tests/game/exportVisibility.test.ts:35–98",
+      "productionUnit": "app/src/game/exportVisibility.ts:pauseExportRecorder/resumeExportRecorder/shouldEnterPausedHidden",
+      "nonTestCaller": "app/src/components/Game/useReplayExport.ts"
+    }
+  ],
+  "coverageMatrix": [
+    {
+      "ac": "AC-1",
+      "status": "residual",
+      "evidence": "ClimbScene mounts ReplayTransportBar when replaying; no automated render test.",
+      "file": "app/src/components/Game/ClimbScene.tsx",
+      "invokedTest": null
+    },
+    {
+      "ac": "AC-2",
+      "status": "residual",
+      "evidence": "min-h/min-w-[44px] in bar; no layout measurement test.",
+      "file": "app/src/components/Game/ReplayTransportBar.tsx",
+      "invokedTest": null
+    },
+    {
+      "ac": "AC-3",
+      "status": "pass",
+      "evidence": "shouldCaptureReplayKey positive keys + interactive exemption + unbound keys.",
+      "file": "app/tests/game/replayTransport.test.ts:94",
+      "invokedTest": "shouldCaptureReplayKey"
+    },
+    {
+      "ac": "AC-4",
+      "status": "residual",
+      "evidence": "pause() sets pausedRef; wall-clock freeze needs rAF harness.",
+      "file": "app/src/game/useClimb.ts",
+      "invokedTest": null
+    },
+    {
+      "ac": "AC-5",
+      "status": "residual",
+      "evidence": "play() clears pause; resume timing needs browser/fake-clock harness.",
+      "file": "app/src/game/useClimb.ts",
+      "invokedTest": null
+    },
+    {
+      "ac": "AC-6",
+      "status": "pass",
+      "evidence": "ReplaySnapshotCache.seek/seekToTick vs headless oracle y/peakY/tick; rewind; clone isolation.",
+      "file": "app/tests/game/replaySnapshots.test.ts:65",
+      "invokedTest": "ReplaySnapshotCache.seek / headlessReplayAtTick"
+    },
+    {
+      "ac": "AC-7",
+      "status": "pass",
+      "evidence": "tickFromSeekRatio(0,0.5,1); commitScrubRatio mid-drag ≠ live climbTick; seek(N) clamps to N−1 with oracle parity.",
+      "file": "app/tests/game/replayTransport.test.ts:47,62; app/tests/game/replaySnapshots.test.ts:120",
+      "invokedTest": "tickFromSeekRatio + commitScrubRatio + ReplaySnapshotCache.seek(N)"
+    },
+    {
+      "ac": "AC-8",
+      "status": "residual",
+      "evidence": "restartReplay wired; no unit invoking restartReplay.",
+      "file": "app/src/game/useClimb.ts",
+      "invokedTest": null
+    },
+    {
+      "ac": "AC-9",
+      "status": "pass",
+      "evidence": "cycleReplaySpeed 1→2→4→1; REPLAY_SPEEDS=[1,2,4].",
+      "file": "app/tests/game/replayTransport.test.ts:29",
+      "invokedTest": "cycleReplaySpeed"
+    },
+    {
+      "ac": "AC-10",
+      "status": "residual",
+      "evidence": "Architecture §14: fake-clock/browser harness.",
+      "file": "app/src/game/useClimb.ts",
+      "invokedTest": null
+    },
+    {
+      "ac": "AC-11",
+      "status": "residual",
+      "evidence": "pause/play no-op when finished; no auto-advance stop test.",
+      "file": "app/src/game/useClimb.ts",
+      "invokedTest": null
+    },
+    {
+      "ac": "AC-12",
+      "status": "residual",
+      "evidence": "Controls not gated on reducedMotion; no fixture.",
+      "file": "app/src/components/Game/ReplayTransportBar.tsx",
+      "invokedTest": null
+    },
+    {
+      "ac": "AC-13",
+      "status": "residual",
+      "evidence": "720×1280@30 detached canvas; encode needs browser harness.",
+      "file": "app/src/components/Game/useReplayExport.ts",
+      "invokedTest": null
+    },
+    {
+      "ac": "AC-14",
+      "status": "residual",
+      "evidence": "Duration N/30 not unit-asserted; encode is browser. MediaRecorder pause now prevents frozen-frame padding (AC-18 critical closed at helper seam).",
+      "file": "app/src/components/Game/useReplayExport.ts",
+      "invokedTest": null
+    },
+    {
+      "ac": "AC-15",
+      "status": "pass_partial",
+      "evidence": "pickExportMime extension/label honesty unit-tested. Filename builder unexported.",
+      "file": "app/tests/game/exportMime.test.ts:12",
+      "invokedTest": "pickExportMime"
+    },
+    {
+      "ac": "AC-16",
+      "status": "residual",
+      "evidence": "exportPercent private; cancel/download need browser.",
+      "file": "app/src/components/Game/useReplayExport.ts",
+      "invokedTest": null
+    },
+    {
+      "ac": "AC-17",
+      "status": "pass_partial",
+      "evidence": "pickExportMime(()=>false)→null; announce-from-status-only is wiring residual (no optimistic onClick speak).",
+      "file": "app/tests/game/exportMime.test.ts:39",
+      "invokedTest": "pickExportMime"
+    },
+    {
+      "ac": "AC-18",
+      "status": "pass",
+      "evidence": "shouldEnterPausedHidden ≥3s; pauseExportRecorder/resumeExportRecorder with fake recorder; fail-closed without pause/resume. Visibility event wiring residual (browser).",
+      "file": "app/tests/game/exportVisibility.test.ts:35",
+      "invokedTest": "pauseExportRecorder / resumeExportRecorder / shouldEnterPausedHidden"
+    },
+    {
+      "ac": "AC-19",
+      "status": "pass_partial",
+      "evidence": "pause/resume missing or throwing → false (fail-closed helper). Full encode-error UI path still browser residual.",
+      "file": "app/tests/game/exportVisibility.test.ts:73",
+      "invokedTest": "pauseExportRecorder / resumeExportRecorder fail-closed"
+    },
+    {
+      "ac": "AC-20",
+      "status": "pass",
+      "evidence": "shouldCaptureGameKey(..., replaying=true)===false; shouldCaptureReplayKey(!replaying)=false; interactive exemption.",
+      "file": "app/tests/game/useClimb.replayTransport.test.ts:14",
+      "invokedTest": "shouldCaptureGameKey + shouldCaptureReplayKey"
+    }
+  ],
+  "nonTestCallers": {
+    "replayTransport.ts": ["useClimb.ts", "ClimbScene.tsx", "ReplayTransportBar.tsx", "replaySnapshots.ts"],
+    "commitScrubRatio": ["ReplayTransportBar.tsx"],
+    "replaySnapshots.ts": ["useClimb.ts"],
+    "exportVisibility.ts": ["useReplayExport.ts"],
+    "exportMime.ts": ["useReplayExport.ts"],
+    "paintClimbFrame.ts": ["ClimbCanvas.tsx", "useReplayExport.ts"],
+    "ReplayTransportBar.tsx": ["ClimbScene.tsx"],
+    "useReplayExport.ts": ["ClimbScene.tsx"]
+  },
+  "warningFindingsStatus": [
+    {
+      "issue": "Gate live shouldCaptureGameKey when replaying",
+      "status": "closed",
+      "invokedTest": "useClimb.replayTransport.test.ts:19 (replaying=true → false)"
+    },
+    {
+      "issue": "Don't speak Export started optimistically",
+      "status": "residual_wiring",
+      "evidence": "Bar announces only on exportStatus.kind transition; no unit/RTL for announce path"
+    },
+    {
+      "issue": "Clamp seek to [0, N-1]",
+      "status": "closed",
+      "invokedTest": "replaySnapshots.test.ts:120 seek(N)===seek(N-1) + oracle"
+    },
+    {
+      "issue": "Delay blob URL revoke after download",
+      "status": "residual_wiring",
+      "evidence": "downloadBlob delay is implementation; no unit asserting revoke timing"
+    }
+  ],
+  "testResults": {
+    "command": "cd /workspace/app && pnpm exec vitest run tests/game/replayTransport.test.ts tests/game/replaySnapshots.test.ts tests/game/exportMime.test.ts tests/game/useClimb.replayTransport.test.ts tests/game/exportVisibility.test.ts tests/game/runReplay.test.ts",
+    "passed": 38,
+    "failed": 0,
+    "files": {
+      "replayTransport.test.ts": 12,
+      "replaySnapshots.test.ts": 6,
+      "exportMime.test.ts": 5,
+      "useClimb.replayTransport.test.ts": 5,
+      "exportVisibility.test.ts": 6,
+      "runReplay.test.ts": 4
+    },
+    "typecheck": {
+      "command": "cd /workspace/app && pnpm typecheck",
+      "status": "pass"
+    },
+    "sourceTextGrepsInNewTests": false
+  },
+  "residualRisks": [
+    "RTL/browser proof that scrubRatio stays bound under per-tick React updates while pointer-down (unit covers commitScrubRatio seam only).",
+    "AC-18 visibilitychange → pauseExportRecorder wiring in useReplayExport is caller-confirmed, not hook-integration tested.",
+    "AC-10 wall-clock 2×/4× — fake-clock/browser harness.",
+    "AC-13–16 MediaRecorder encode/download/cancel/progress — browser.",
+    "AC-1/2/8/11/12 UI mount, 44px, Restart, finished idle, reduced-motion — browser/RTL.",
+    "AC-4/5 pause/play wall-clock — useClimb rAF harness.",
+    "AC-15 filename + AC-16 exportPercent still unexported private helpers.",
+    "Export announce-from-status and delayed blob revoke — wiring residual for QA.",
+    "NFR-8 live transport:null — ClimbScene mount gate; no RTL."
+  ],
+  "learnings": [
+    {
+      "topic": "Testing",
+      "forAgents": ["all", "reviewer"],
+      "kind": "metric",
+      "insight": "Iteration 2 verifier: 38 production-invoking tests pass (transport 12, snapshots 6, mime 5, useClimb 5, exportVisibility 6, runReplay 4); typecheck pass. Both reviewer criticals closed by invoked units — commitScrubRatio and pauseExportRecorder/resumeExportRecorder — not source greps.",
+      "action": "Treat criticalCount=0 for seek scrub + MediaRecorder visibility as the revision-close gate; advance to reviewer re-pass.",
+      "confidence": "high"
+    },
+    {
+      "topic": "Testing",
+      "forAgents": ["reviewer", "qa-acceptance", "frontend"],
+      "kind": "lesson",
+      "insight": "commitScrubRatio is a named alias of tickFromSeekRatio used by ReplayTransportBar; unit coverage proves mid-drag commit math ≠ live climbTick, while React scrubRatio pointer-down binding remains a residual browser/RTL check.",
+      "action": "Reviewer may accept the critical closed at the production commit seam; QA should still scrub while autoplaying to confirm the thumb does not snap back mid-drag.",
+      "confidence": "high"
+    },
+    {
+      "topic": "Testing",
+      "forAgents": ["implementer", "verifier"],
+      "kind": "lesson",
+      "insight": "exportVisibility helpers have a confirmed non-test caller (useReplayExport) and fake-recorder tests assert pause()/resume() calls and fail-closed false — satisfying the reviewer fix without grepping useReplayExport source for .pause().",
+      "action": "Keep MediaRecorder visibility proofs on injectable PauseableRecorder units; do not accept status.kind===paused_hidden alone as AC-18 proof.",
+      "confidence": "high"
+    }
+  ],
+  "nextStage": "reviewer",
+  "loopBackTo": null,
+  "notes": {
+    "branch": "cursor/replay-controls-export-b391",
+    "head": "890932f83169d26e1bb3e9ae99b1b51295974e2c",
+    "iteration": 2,
+    "priorHandoffs": [
+      "loop/handoffs/implementer-2026-09-06T161034Z.json",
+      "loop/handoffs/reviewer-2026-09-06T160550Z.json",
+      "loop/handoffs/verifier-2026-09-06T160020Z.json"
+    ],
+    "appliedLearnings": [
+      "Rejected source greps; invoked commitScrubRatio / pauseExportRecorder / resumeExportRecorder / ReplaySnapshotCache.seek",
+      "Confirmed non-test callers for exportVisibility and commitScrubRatio before counting AC coverage",
+      "Did not fail for residual browser ACs per architecture harness + user stage instructions",
+      "Re-verified AC-7 scrub + AC-18 MediaRecorder per implementer revision learnings"
+    ],
+    "criticalsClosed": true,
+    "criticalCount": 0
+  }
+}
