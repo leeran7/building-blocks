@@ -15,7 +15,10 @@ loop/*
 # Feature-loop product specs and stage handoffs must survive clones so the
 # next closed-loop stage (and PR reviewers) can read them.
 !loop/spec.md
+!loop/spec-*.md
 !loop/architecture.md
+!loop/architecture-*.md
+!loop/research-*.md
 !loop/handoffs/
 !loop/handoffs/**/*.json
 .claude/handoffs/*.json
