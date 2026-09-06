@@ -35,28 +35,8 @@ export function ClimbReplaysSection({ replays }: { replays: ClimbReplayItem[] })
     }
   }, []);
 
-  if (replays.length === 0) {
-    return (
-      <section
-        aria-label="Climb replays"
-        className="mb-8 rounded-2xl border border-border-subtle bg-surface p-6 text-center"
-      >
-        <p className="font-mono text-[11px] uppercase tracking-[0.16em] text-text-muted">
-          Climb replays
-        </p>
-        <p className="text-text-secondary text-sm mt-2 max-w-sm mx-auto">
-          Signed-in runs with a shareable replay appear here. Play a climb while
-          logged in to build your library.
-        </p>
-        <Link
-          href="/play"
-          className="mt-4 inline-flex items-center justify-center rounded-lg border border-border-strong px-5 min-h-[44px] text-sm font-semibold text-text-primary hover:border-signal/50 transition"
-        >
-          Play free climb
-        </Link>
-      </section>
-    );
-  }
+  // Hide the whole section until the user has at least one saved run.
+  if (replays.length === 0) return null;
 
   const replayable = replays.filter((r) => r.replayToken);
   const collapsible = replays.length > COLLAPSED_COUNT;
