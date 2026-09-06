@@ -4,7 +4,8 @@
  * CreatorPageBand — dashboard banner for the user's public creator page.
  *
  * Has a username → show the live /c/[username] link + copy-to-clipboard.
- * No username → an edge-signal claim CTA (priority action) to /settings.
+ * No username → renders nothing; first-time setup is owned by the post-payment
+ * card (single prompt surface) and the neutral "Creator page" nav entry.
  */
 
 import Link from "next/link";
@@ -13,26 +14,7 @@ import { useState } from "react";
 export function CreatorPageBand({ username }: { username: string | null }) {
   const [copied, setCopied] = useState(false);
 
-  if (!username) {
-    return (
-      <div className="mb-8 rounded-2xl border border-border-strong bg-surface edge-signal p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div>
-          <p className="font-mono text-[11px] uppercase tracking-[0.14em] text-signal">
-            ◈ Claim your creator page
-          </p>
-          <p className="text-sm text-text-secondary mt-1">
-            Turn your listings into one shareable profile.
-          </p>
-        </div>
-        <Link
-          href="/settings"
-          className="flex-shrink-0 bg-signal text-void font-semibold rounded-full px-5 min-h-[44px] inline-flex items-center justify-center hover:brightness-110 active:scale-[0.98] transition-[filter,transform] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void"
-        >
-          Claim your page
-        </Link>
-      </div>
-    );
-  }
+  if (!username) return null;
 
   const path = `/c/${username}`;
 

@@ -81,3 +81,22 @@ Primary `bg-signal text-void font-semibold rounded-full` (hover `brightness-110`
 active `scale-[0.98]`, `shadow-signal`) · Secondary `rounded-full border-border-strong
 bg-surface/60` (hover `border-signal/50`) · Ghost mono uppercase `text-muted`→`text-primary`.
 All ship default/hover/active/focus/disabled/loading; min target 44px.
+
+## Calls to action
+
+One pitch per destination. A given CTA has **one canonical home** — the surface
+closest to the moment it makes sense (e.g. post-payment for creator setup). Do
+not repeat the same pitch across nav + dashboard + inline cards; a signed-in user
+should never see the same ask twice on one screen. Nav entries are **plain
+navigation** (`Creator page`), not promo verbiage. A surface with nothing to
+offer renders nothing — no placeholder pitch. Avoid loaded action words like
+`Claim`; name the destination or the action.
+
+Before adding any CTA or link, run this check:
+
+1. List every existing surface that already points to this destination.
+2. If one exists, extend or neutralize it instead of adding a second pitch.
+3. Confirm one primary action per surface/funnel moment; downgrade the rest to
+   plain links or remove them.
+4. Reviewers reject net-new CTAs that duplicate a destination already pitched
+   elsewhere.

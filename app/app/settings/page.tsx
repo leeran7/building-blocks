@@ -36,6 +36,9 @@ export default function SettingsPage() {
 
   const [displayName, setDisplayName] = useState("");
   const [username, setUsername] = useState("");
+  // The username actually persisted on the server. The /c/ page only exists
+  // once claimed, so we only link to it when the typed value matches this.
+  const [savedUsername, setSavedUsername] = useState("");
   const [social, setSocial] = useState<SocialState>({});
   const [urls, setUrls] = useState<string[]>([]);
   const [newUrl, setNewUrl] = useState("");
@@ -57,9 +60,10 @@ export default function SettingsPage() {
       .then((s) => {
         if (live && s) {
           setDisplayName(s.displayName ?? "");
-          // Prefill an unclaimed username from a normalized display name so the
-          // creator page is one click away; they still Save to claim it.
+          // Prefill an unset username from a normalized display name so the
+          // creator page is one click away; they still Save to create it.
           setUsername(s.username ?? suggestUsername(s.displayName));
+          setSavedUsername(s.username ?? "");
           setSocial(s.social && typeof s.social === "object" ? s.social : {});
           setUrls(Array.isArray(s.urls) ? s.urls : []);
         }
@@ -105,6 +109,7 @@ export default function SettingsPage() {
         const s = await res.json();
         setDisplayName(s.displayName ?? "");
         setUsername(s.username ?? "");
+        setSavedUsername(s.username ?? "");
         setSocial(s.social && typeof s.social === "object" ? s.social : {});
         setUrls(Array.isArray(s.urls) ? s.urls : []);
         setMsg({ type: "ok", text: "Settings saved." });
@@ -142,7 +147,7 @@ export default function SettingsPage() {
           Settings
         </h1>
         <p className="text-sm text-text-secondary mt-2">
-          Set your display name, claim your creator page, and save the social
+          Set your display name, create your creator page, and save the social
           accounts and URLs you list often.
         </p>
 
@@ -174,7 +179,7 @@ export default function SettingsPage() {
             Public username
           </label>
           <p className="text-xs text-text-secondary mt-1">
-            Claims your public creator page. Leave blank for none.
+            Creates your public creator page. Leave blank for none.
           </p>
           <div className="mt-2 flex items-center gap-2">
             <span className="font-mono text-sm text-text-secondary">/c/</span>
@@ -193,7 +198,11 @@ export default function SettingsPage() {
             />
           </div>
           {usernameCheck &&
-            (usernameCheck.valid ? (
+            (!usernameCheck.valid ? (
+              <p className="text-xs text-ember mt-2">{usernameCheck.error}</p>
+            ) : usernameCheck.username === savedUsername ? (
+              // Only link once the handle is actually claimed — the /c/ page
+              // 404s for an unsaved (suggested or edited) username.
               <p className="text-xs text-text-secondary mt-2">
                 Your page:{" "}
                 <Link
@@ -204,7 +213,13 @@ export default function SettingsPage() {
                 </Link>
               </p>
             ) : (
-              <p className="text-xs text-ember mt-2">{usernameCheck.error}</p>
+              <p className="text-xs text-text-secondary mt-2">
+                Your page will be{" "}
+                <span className="font-mono text-text-primary">
+                  /c/{usernameCheck.username}
+                </span>{" "}
+                — Save to create it.
+              </p>
             ))}
         </section>
 
