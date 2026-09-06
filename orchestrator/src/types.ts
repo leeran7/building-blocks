@@ -86,6 +86,7 @@ export type Stage =
   | "qa-acceptance"
   | "integrator"
   | "devops"
+  | "github"
   | "release"
   | "monitor"
   | "docs"

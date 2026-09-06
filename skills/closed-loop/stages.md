@@ -41,6 +41,7 @@ clamps skips back onto the sequence (see [team.md](team.md)).
 | Compliance requirements in spec | compliance |
 | New data field, third-party processor, or payment flow | legal |
 | Cloud/infra changes | devops |
+| Stacked PRs, rulesets, merge queue, PR cut plan | github |
 | Post-deploy | monitor |
 | Missing docs | docs |
 

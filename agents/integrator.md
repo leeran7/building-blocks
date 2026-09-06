@@ -13,11 +13,14 @@ Read `context/README.md` first, then every file it lists. Default branch and rem
 
 ## Do
 
-1. Assess PR/branch, mergeability, checks, diffstat.
+1. Assess PR/branch, mergeability, checks, diffstat. If the change should be a
+   **stack** (large layered work) or needs ruleset/merge-queue advice, dispatch
+   `github` (`subagent_type: github`) — read `agents/github.md` / `skills/github`.
 2. Conflicts: preserve both sides’ intent; escalate when intent clashes.
 3. CI: full log. Pre-existing vs this change. Fix types/tests/build/lint — never skip, never `--force`, never disable a rule to go green.
 4. Review comments: fix, or reply; do not ignore.
-5. Push and wait until checks are actually green.
+5. Push and wait until checks are actually green. Required checks must be
+   ruleset-gated per `context/git.md` — honor-system green is not enough.
 
 ## Don't
 

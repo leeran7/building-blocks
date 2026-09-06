@@ -79,6 +79,9 @@ your-repo/
 │   ├── pack.md                   design of the pack
 │   └── host.md                   generic CLAUDE.md body
 │
+├── skills/github/                ← PACK. GitHub platform skill (stacks, PRs)
+│   └── SKILL.md
+│
 ├── pack/                         ← PACK. Schemas, templates, this file.
 │   ├── SETUP.md                  ← you are here
 │   ├── MANIFEST.json
@@ -99,8 +102,10 @@ your-repo/
 │
 ├── .cursor/agents/               ← GENERATED. Do not edit.
 ├── .cursor/skills/closed-loop/   ← GENERATED.
+├── .cursor/skills/github/        ← GENERATED.
 ├── .claude/agents/               ← GENERATED.
-└── .claude/skills/closed-loop/   ← GENERATED.
+├── .claude/skills/closed-loop/   ← GENERATED.
+└── .claude/skills/github/        ← GENERATED.
 ```
 
 Product code (`app/`, libraries, DESIGN.md, etc.) stays wherever the host

@@ -15,7 +15,7 @@ export const SPECIALIST_NAMES = [
 
 export const OPTIONAL_AFTER: Partial<Record<Stage, Stage[]>> = {
   architect: ["design-ux"],
-  integrator: ["devops", "docs"],
+  integrator: ["devops", "docs", "github"],
 };
 
 export const PARALLEL_WITH: Partial<Record<Stage, Stage[]>> = {
@@ -43,7 +43,9 @@ export function stagesToDispatch(current: Stage): Stage[] {
 
 export function nextInSequence(current: Stage): Stage | null {
   if (current === "design-ux") return "implementer";
-  if (current === "devops" || current === "docs") return "release";
+  if (current === "devops" || current === "docs" || current === "github") {
+    return "release";
+  }
   if (current === "debugger") return "implementer";
   if (current === "security-reviewer") return "qa-acceptance";
   const idx = REQUIRED_SEQUENCE.indexOf(current);

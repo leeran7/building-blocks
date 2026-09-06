@@ -231,6 +231,13 @@ the same pass — the `learning-loop.md` bar for a permanent guardrail.
   at `14.0.4` accounts for the critical (middleware auth bypass) and 15 highs. An
   exact pin means routine updates never move it — add an audit gate.
 
+### GitHub / PRs / stacks
+
+- Prefer native **stacked PRs** (`gh stack`) for large layered work; keep
+  3–5 coherent layers. Rules and CI apply as if every layer targeted trunk.
+- A workflow on `pull_request` is not a merge gate until a **ruleset** requires
+  the check name. Merge queues need the same checks on `merge_group`.
+
 ### Orchestration
 
 - `retro.ts` implements none of the three documented folding steps; `retro.test.ts`

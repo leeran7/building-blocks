@@ -7,6 +7,7 @@
     "agents/*/*.md",
     "agents/claude.config.json",
     "skills/closed-loop/*.md",
+    "skills/github/*.md",
     "handoffs/schema.json",
     "pack/**",
     "scripts/*.mjs",
