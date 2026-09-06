@@ -16,6 +16,8 @@ loop/*
 !loop/spec.md
 # Active architecture for the current goal — durable implementer contract.
 !loop/architecture.md
+# Active design-ux token map for the current goal — durable implementer contract.
+!loop/design.md
 .claude/handoffs/*.json
 
 # Dependencies & build
