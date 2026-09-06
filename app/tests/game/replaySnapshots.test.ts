@@ -116,4 +116,21 @@ describe("ReplaySnapshotCache", () => {
     expect(b.players[0].y).not.toBe(9999);
     expect(b.players[0].y).toBe(oracleAt(inputs, 50).players[0].y);
   });
+
+  it("clamps seek(N) to N−1 (AC-7 domain)", () => {
+    const inputs = idleInputs(100);
+    const cache = new ReplaySnapshotCache({
+      tower: TOWER,
+      seed: SEED,
+      inputs,
+    });
+    const n = inputs.length;
+    const atN = cache.seek(n);
+    const atLast = cache.seek(n - 1);
+    expect(atN.tick).toBe(atLast.tick);
+    expect(atN.players[0].y).toBe(atLast.players[0].y);
+    expect(atN.players[0].peakY).toBe(atLast.players[0].peakY);
+    const oracle = oracleAt(inputs, n - 1);
+    expect(atN.tick).toBe(oracle.tick);
+  });
 });

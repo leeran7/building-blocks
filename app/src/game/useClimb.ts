@@ -198,8 +198,11 @@ export function useClimb({
   }, []);
 
   // Keyboard listeners (AC-33: keyboard-only play is fully supported).
+  // During shared replay, skip live capture so Space/arrows are not
+  // preventDefault'd twice (replay handler owns transport keys; AC-20).
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
+      if (replayInputsRef.current?.length) return;
       if (
         !shouldCaptureGameKey(
           e.key,
@@ -490,12 +493,15 @@ function isGameKey(key: string): boolean {
  * Whether this keydown should be recorded as game input and have its default
  * action suppressed. Split from the listener so the scoping rules can be
  * asserted without dispatching a DOM event.
+ * When `replaying` is true, always false — replay transport owns those keys.
  */
 export function shouldCaptureGameKey(
   key: string,
   phase: MatchPhase,
-  targetIsInteractive: boolean
+  targetIsInteractive: boolean,
+  replaying = false
 ): boolean {
+  if (replaying) return false;
   if (!isGameKey(key)) return false;
   if (targetIsInteractive) return false;
   return PHASES_CONSUMING_INPUT.has(phase);

@@ -51,7 +51,8 @@ export class ReplaySnapshotCache {
    */
   seek(targetClimbTick: number): MatchState {
     const n = this.inputs.length;
-    const target = clampInt(targetClimbTick, 0, Math.max(0, n));
+    // AC-7 domain is climb ticks [0, N−1]; never step to N.
+    const target = clampInt(targetClimbTick, 0, Math.max(0, n - 1));
     const base = Math.floor(target / this.interval) * this.interval;
     const baseState = this.ensureSnapshot(base);
     const working = cloneMatchState(baseState);

@@ -59,6 +59,14 @@ export function tickFromSeekRatio(r: number, n: number): number {
 /** Alias. */
 export const seekTickFromRatio = tickFromSeekRatio;
 
+/**
+ * Commit a scrub draft ratio to a climb tick (pointerup / change-end).
+ * Same math as tickFromSeekRatio — named seam for transport-bar tests.
+ */
+export function commitScrubRatio(ratio: number, totalTicks: number): number {
+  return tickFromSeekRatio(ratio, totalTicks);
+}
+
 /** mm:ss from climb tick at 30 Hz. */
 export function formatReplayClock(tick: number): string {
   const safe = Number.isFinite(tick) && tick > 0 ? Math.floor(tick) : 0;

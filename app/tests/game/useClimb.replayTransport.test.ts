@@ -16,6 +16,12 @@ describe("live vs replay key predicates", () => {
     expect(shouldCaptureGameKey(" ", "climb", false)).toBe(true);
   });
 
+  it("live predicate is false while replaying so Space/arrows are not swallowed", () => {
+    expect(shouldCaptureGameKey(" ", "climb", false, true)).toBe(false);
+    expect(shouldCaptureGameKey("ArrowLeft", "climb", false, true)).toBe(false);
+    expect(shouldCaptureGameKey("ArrowUp", "climb", false, true)).toBe(false);
+  });
+
   it("replay predicate is false when not replaying so live path is unchanged", () => {
     expect(shouldCaptureReplayKey(" ", false, false)).toBe(false);
     expect(shouldCaptureReplayKey("j", false, false)).toBe(false);

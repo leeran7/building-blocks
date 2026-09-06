@@ -16,10 +16,10 @@ import {
 } from "react";
 import type { ReplayTransportView } from "../../game/useClimb";
 import {
+  commitScrubRatio,
   cycleReplaySpeed,
   formatReplayClock,
   REWIND_REPEAT_MS,
-  tickFromSeekRatio,
 } from "../../game/replayTransport";
 import type { ReplayExportStatus } from "./useReplayExport";
 
@@ -52,7 +52,9 @@ export function ReplayTransportBar({
   const [announce, setAnnounce] = useState("");
   const announceSeq = useRef(0);
   const rewindHoldRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const scrubbing = useRef(false);
+  /** Draft seek ratio while pointer is down; null = track live climbTick. */
+  const [scrubRatio, setScrubRatio] = useState<number | null>(null);
+  const prevExportKind = useRef(exportStatus.kind);
 
   const speak = useCallback((msg: string) => {
     announceSeq.current += 1;
@@ -66,7 +68,12 @@ export function ReplayTransportBar({
   }, []);
 
   useEffect(() => {
-    if (exportStatus.kind === "success") {
+    const prev = prevExportKind.current;
+    prevExportKind.current = exportStatus.kind;
+    if (exportStatus.kind === prev) return;
+    if (exportStatus.kind === "running") {
+      speak("Export started");
+    } else if (exportStatus.kind === "success") {
       speak(`Downloaded ${exportStatus.label}`);
     } else if (exportStatus.kind === "error") {
       speak(exportStatus.message);
@@ -90,10 +97,21 @@ export function ReplayTransportBar({
     }
   };
 
-  const ratio =
+  const liveRatio =
     transport.totalTicks <= 1
       ? 0
       : transport.climbTick / Math.max(1, transport.totalTicks - 1);
+  const displayRatio =
+    scrubRatio !== null
+      ? scrubRatio
+      : Number.isFinite(liveRatio)
+        ? liveRatio
+        : 0;
+
+  const commitScrub = (ratio: number) => {
+    onSeek(commitScrubRatio(ratio, transport.totalTicks));
+    setScrubRatio(null);
+  };
 
   const exporting =
     exportStatus.kind === "running" || exportStatus.kind === "paused_hidden";
@@ -111,24 +129,27 @@ export function ReplayTransportBar({
             min={0}
             max={1}
             step={0.001}
-            value={Number.isFinite(ratio) ? ratio : 0}
+            value={displayRatio}
             aria-label="Seek replay"
             aria-valuetext={`${formatReplayClock(transport.climbTick)} of ${formatReplayClock(transport.totalTicks)}`}
             className="h-11 w-full min-h-[44px] accent-signal cursor-pointer"
             onPointerDown={() => {
-              scrubbing.current = true;
+              setScrubRatio(Number.isFinite(liveRatio) ? liveRatio : 0);
             }}
             onPointerUp={(e) => {
-              scrubbing.current = false;
-              const r = Number((e.target as HTMLInputElement).value);
-              onSeek(tickFromSeekRatio(r, transport.totalTicks));
+              // Prefer the input's live value — React state can lag the last drag frame.
+              commitScrub(Number((e.target as HTMLInputElement).value));
+            }}
+            onPointerCancel={(e) => {
+              commitScrub(Number((e.target as HTMLInputElement).value));
             }}
             onChange={(e) => {
-              if (!scrubbing.current) {
-                onSeek(
-                  tickFromSeekRatio(Number(e.target.value), transport.totalTicks)
-                );
+              const r = Number(e.target.value);
+              if (scrubRatio !== null) {
+                setScrubRatio(r);
+                return;
               }
+              onSeek(commitScrubRatio(r, transport.totalTicks));
             }}
           />
         </div>
@@ -185,7 +206,6 @@ export function ReplayTransportBar({
             disabled={exporting}
             onClick={() => {
               onExport();
-              speak("Export started");
             }}
           >
             <span className="font-mono text-[10px] uppercase tracking-wider">

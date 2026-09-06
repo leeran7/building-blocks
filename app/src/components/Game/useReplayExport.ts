@@ -11,6 +11,12 @@ import {
   type ExportMimeChoice,
 } from "../../game/exportMime";
 import {
+  EXPORT_HIDDEN_PAUSE_MS,
+  pauseExportRecorder,
+  resumeExportRecorder,
+  shouldEnterPausedHidden,
+} from "../../game/exportVisibility";
+import {
   createMatch,
   stepMatch,
   DEFAULT_SIM_CONFIG,
@@ -31,9 +37,13 @@ const EXPORT_W = 720;
 const EXPORT_H = 1280;
 const EXPORT_FPS = 30;
 const EXPORT_BITRATE = 2_500_000;
-const HIDDEN_PAUSE_MS = 3000;
 const PLAYER_ID = "you";
 const FRAME_MS = 1000 / EXPORT_FPS;
+/** Delay revoke so browsers finish the download click (AC-15). */
+const BLOB_REVOKE_MS = 1000;
+const UNSUPPORTED_MSG = "Video export isn’t supported in this browser";
+const HIDDEN_UNSUPPORTED_MSG =
+  "Video export can’t pause in the background in this browser";
 
 export interface UseReplayExportArgs {
   replay: RunReplay | null | undefined;
@@ -84,7 +94,7 @@ export function useReplayExport({
     if (!mime) {
       setStatus({
         kind: "error",
-        message: "Video export isn’t supported in this browser",
+        message: UNSUPPORTED_MSG,
       });
       return;
     }
@@ -101,7 +111,7 @@ export function useReplayExport({
     } catch {
       setStatus({
         kind: "error",
-        message: "Video export isn’t supported in this browser",
+        message: UNSUPPORTED_MSG,
       });
       return;
     }
@@ -109,7 +119,7 @@ export function useReplayExport({
     if (typeof canvas.captureStream !== "function" || typeof MediaRecorder === "undefined") {
       setStatus({
         kind: "error",
-        message: "Video export isn’t supported in this browser",
+        message: UNSUPPORTED_MSG,
       });
       return;
     }
@@ -124,7 +134,7 @@ export function useReplayExport({
     } catch {
       setStatus({
         kind: "error",
-        message: "Video export isn’t supported in this browser",
+        message: UNSUPPORTED_MSG,
       });
       stream.getTracks().forEach((t) => t.stop());
       return;
@@ -189,7 +199,7 @@ export function useReplayExport({
         session,
         sessionRef,
         setStatus,
-        "Video export isn’t supported in this browser"
+        UNSUPPORTED_MSG
       );
       return;
     }
@@ -197,19 +207,22 @@ export function useReplayExport({
     void runEncodeLoop(session, replay, tower, setStatus, sessionRef);
   }, [enabled, replay, tower]);
 
-  // Visibility: pause encode when hidden ≥3s (AC-18 policy b).
+  // Visibility: pause encode + MediaRecorder when hidden ≥3s (AC-18 policy b).
   useEffect(() => {
     const onVis = () => {
       const s = sessionRef.current;
       if (!s) return;
       if (document.visibilityState === "hidden") {
         s.hiddenSince = performance.now();
-      } else {
-        s.hiddenSince = null;
-        if (status.kind === "paused_hidden") {
-          setStatus({ kind: "running", percent: status.percent });
-        }
+        return;
       }
+      s.hiddenSince = null;
+      if (status.kind !== "paused_hidden") return;
+      if (!resumeExportRecorder(s.recorder)) {
+        failSession(s, sessionRef, setStatus, HIDDEN_UNSUPPORTED_MSG);
+        return;
+      }
+      setStatus({ kind: "running", percent: status.percent });
     };
     document.addEventListener("visibilitychange", onVis);
     return () => document.removeEventListener("visibilitychange", onVis);
@@ -283,7 +296,22 @@ async function runEncodeLoop(
 
     if (document.visibilityState === "hidden") {
       if (session.hiddenSince === null) session.hiddenSince = performance.now();
-      if (performance.now() - session.hiddenSince >= HIDDEN_PAUSE_MS) {
+      if (
+        shouldEnterPausedHidden(
+          session.hiddenSince,
+          performance.now(),
+          EXPORT_HIDDEN_PAUSE_MS
+        )
+      ) {
+        if (!pauseExportRecorder(session.recorder)) {
+          failSession(
+            session,
+            sessionRef,
+            setStatus,
+            HIDDEN_UNSUPPORTED_MSG
+          );
+          return false;
+        }
         setStatus({
           kind: "paused_hidden",
           percent: exportPercent(framesDone, n),
@@ -398,7 +426,10 @@ function downloadBlob(blob: Blob, filename: string): void {
   document.body.appendChild(a);
   a.click();
   a.remove();
-  URL.revokeObjectURL(url);
+  // Some browsers cancel the download if the blob URL is revoked synchronously.
+  window.setTimeout(() => {
+    URL.revokeObjectURL(url);
+  }, BLOB_REVOKE_MS);
 }
 
 function utcDateStamp(d: Date): string {

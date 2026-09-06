@@ -1,0 +1,109 @@
+{
+  "agent": "implementer",
+  "status": "success",
+  "summary": "Revision 2: fixed seek scrub (local scrubRatio + commitScrubRatio) and AC-18 MediaRecorder.pause/resume on visibility (fail-closed if unsupported). Also fixed warnings: skip live key capture while replaying, announce Export started only on status kind transition, clamp seek to [0,N−1], delay blob URL revoke. 34 unit tests green; typecheck clean.",
+  "timestamp": "2026-09-06T16:10:34Z",
+  "goal": "Climb replay should allow fast forwarding, rewind, pause/play. Export as mp4.",
+  "artifacts": [
+    "app/src/components/Game/ReplayTransportBar.tsx",
+    "app/src/components/Game/useReplayExport.ts",
+    "app/src/game/exportVisibility.ts",
+    "app/src/game/replayTransport.ts",
+    "app/src/game/replaySnapshots.ts",
+    "app/src/game/useClimb.ts",
+    "app/tests/game/replayTransport.test.ts",
+    "app/tests/game/replaySnapshots.test.ts",
+    "app/tests/game/exportVisibility.test.ts",
+    "app/tests/game/useClimb.replayTransport.test.ts"
+  ],
+  "exitCriteria": {
+    "seek_scrub_local_state": true,
+    "mediarecorder_pause_on_hidden": true,
+    "mediarecorder_resume_on_visible": true,
+    "pause_resume_fail_closed": true,
+    "live_keys_gated_during_replay": true,
+    "export_announce_from_status": true,
+    "seek_clamp_n_minus_1": true,
+    "blob_revoke_delayed": true,
+    "unit_tests_pass": true,
+    "typecheck_pass": true
+  },
+  "feedbackAddressed": [
+    {
+      "severity": "critical",
+      "from": "reviewer-2026-09-06T160550Z.json",
+      "message": "Seek scrub broken while playing — controlled range with no local scrub state",
+      "resolution": "ReplayTransportBar keeps scrubRatio state while pointer down; value binds to local; pointerup commits via commitScrubRatio then clears"
+    },
+    {
+      "severity": "critical",
+      "from": "reviewer-2026-09-06T160550Z.json",
+      "message": "Visibility pause does not pause MediaRecorder/captureStream — duration pads with frozen frames",
+      "resolution": "exportVisibility.pauseExportRecorder on enter paused_hidden; resumeExportRecorder on visible; missing pause/resume → AC-19 error"
+    },
+    {
+      "severity": "warning",
+      "from": "reviewer-2026-09-06T160550Z.json",
+      "message": "Gate live shouldCaptureGameKey when replaying",
+      "resolution": "useClimb keydown skips when replayInputs active; shouldCaptureGameKey(replaying=true)===false"
+    },
+    {
+      "severity": "warning",
+      "from": "reviewer-2026-09-06T160550Z.json",
+      "message": "Don't speak Export started optimistically",
+      "resolution": "Removed onClick speak; announce only on exportStatus.kind transition to running"
+    },
+    {
+      "severity": "warning",
+      "from": "reviewer-2026-09-06T160550Z.json",
+      "message": "Clamp seek to [0, N-1]",
+      "resolution": "ReplaySnapshotCache.seek clamps with Math.max(0, n-1); unit asserts seek(n)===seek(n-1)"
+    },
+    {
+      "severity": "warning",
+      "from": "reviewer-2026-09-06T160550Z.json",
+      "message": "Delay blob URL revoke after download click",
+      "resolution": "downloadBlob revokes after 1000ms timeout"
+    }
+  ],
+  "feedback": [],
+  "learnings": [
+    {
+      "topic": "Architecture & contracts",
+      "forAgents": ["verifier", "reviewer", "frontend"],
+      "kind": "lesson",
+      "insight": "AC-18 requires MediaRecorder.pause/resume in addition to pausing the encode step loop; browsers without pause/resume must fail closed (AC-19) rather than pad duration with frozen captureStream frames.",
+      "action": "Assert pauseExportRecorder on hidden≥3s and resumeExportRecorder on visible with a fake recorder; reject tests that only check status.kind===paused_hidden.",
+      "confidence": "high"
+    },
+    {
+      "topic": "Testing",
+      "forAgents": ["verifier", "all"],
+      "kind": "metric",
+      "insight": "Revision 2: 34 production-invoking unit tests pass (transport 12, snapshots 6, mime 5, useClimb 5, exportVisibility 6); typecheck clean. Critical scrub + MediaRecorder visibility covered without source greps.",
+      "action": "Re-verify AC-7 scrub commit via commitScrubRatio and AC-18 via exportVisibility helpers before qa-acceptance.",
+      "confidence": "high"
+    },
+    {
+      "topic": "Spec quality",
+      "forAgents": ["frontend", "all"],
+      "kind": "pitfall",
+      "insight": "aria-live export announcements must key off status.kind transitions, not every running percent update or optimistic onClick — otherwise users hear false starts before MIME/captureStream errors (AC-17).",
+      "action": "Announce Export started only when kind transitions to running; never speak from the Export button click path.",
+      "confidence": "high"
+    }
+  ],
+  "nextStage": "verifier",
+  "notes": {
+    "branch": "cursor/replay-controls-export-b391",
+    "iteration": 2,
+    "priorHandoff": "loop/handoffs/reviewer-2026-09-06T160550Z.json",
+    "securityReviewer": "security-reviewer-2026-09-06T160305Z.json passed (0 critical); no security regressions expected from pause/resume + delayed revoke"
+  },
+  "testResults": {
+    "command": "pnpm exec vitest run tests/game/replayTransport.test.ts tests/game/replaySnapshots.test.ts tests/game/exportMime.test.ts tests/game/useClimb.replayTransport.test.ts tests/game/exportVisibility.test.ts",
+    "passed": 34,
+    "failed": 0,
+    "typecheck": "pass"
+  }
+}

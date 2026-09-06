@@ -10,6 +10,7 @@ import {
   cycleReplaySpeed,
   rewindTargetTick,
   tickFromSeekRatio,
+  commitScrubRatio,
   formatReplayClock,
   shouldCaptureReplayKey,
   nextSpeed,
@@ -55,6 +56,29 @@ describe("tickFromSeekRatio", () => {
   it("seeking to 0 with N≥1 yields tick 0", () => {
     expect(tickFromSeekRatio(0, 1)).toBe(0);
     expect(tickFromSeekRatio(0, 50)).toBe(0);
+  });
+});
+
+describe("commitScrubRatio", () => {
+  it("commits a mid-drag ratio to a tick ≠ live climbTick (AC-7 scrub)", () => {
+    const totalTicks = 301;
+    const liveClimbTick = 30; // playing near the start
+    const midDragRatio = 0.75;
+    const committed = commitScrubRatio(midDragRatio, totalTicks);
+    expect(committed).toBe(tickFromSeekRatio(midDragRatio, totalTicks));
+    expect(committed).toBe(225);
+    expect(committed).not.toBe(liveClimbTick);
+  });
+
+  it("does not snap back to the pre-drag tick when ratio moved", () => {
+    const totalTicks = 101;
+    const preDragTick = 10;
+    const preDragRatio = preDragTick / (totalTicks - 1);
+    const scrubbedRatio = 0.9;
+    expect(commitScrubRatio(scrubbedRatio, totalTicks)).not.toBe(
+      commitScrubRatio(preDragRatio, totalTicks)
+    );
+    expect(commitScrubRatio(scrubbedRatio, totalTicks)).toBe(90);
   });
 });
 
