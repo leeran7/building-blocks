@@ -1,0 +1,127 @@
+{
+  "agent": "reviewer",
+  "status": "needs_revision",
+  "summary": "Replay transport/export review found 2 critical defects: (1) seek range is fully controlled by climbTick with no local scrub value, so pointer scrubbing fights per-tick React updates while playing and onPointerUp often seeks the pre-drag tick; (2) AC-18 visibility pause stops the encode step loop but never pauses MediaRecorder/captureStream, so hidden time inflates video duration past AC-14 N/30±1s. Plus warnings on live key preventDefault during replay, export announce-before-fail, and seek clamp max=N. loopBackTo implementer.",
+  "timestamp": "2026-09-06T16:05:50Z",
+  "goal": "Climb replay should allow fast forwarding, rewind, pause/play. Export as mp4.",
+  "artifacts": [
+    "loop/handoffs/reviewer-2026-09-06T160550Z.json"
+  ],
+  "exitCriteria": {
+    "diff_reviewed": true,
+    "non_test_callers_confirmed": true,
+    "no_source_text_proofs_relied_on": true,
+    "findings_emitted": true,
+    "no_critical_findings": false
+  },
+  "findings": [
+    {
+      "severity": "critical",
+      "location": "app/src/components/Game/ReplayTransportBar.tsx:93-132",
+      "issue": "Seek <input type=\"range\"> is controlled solely by transport.climbTick (`value={ratio}`) while scrubbing only sets a ref and defers onSeek to pointerup (and skips onChange while scrubbing). Spec requires scrub-then-commit (spec Speeds/seek table; AC-7). While the replay is playing, useClimb publishes match/transport every tick, so React resets the thumb to the advancing climbTick and the pointerup read of e.target.value is typically the pre-drag position — seek becomes a no-op. This breaks S2/AC-7 for the default autoplaying replay.",
+      "fix": "Keep a local scrub ratio state (or uncontrolled defaultValue + commit on pointerup/change). While pointer-down, bind value to the local ratio; on pointerup/commit call onSeek(tickFromSeekRatio(local, totalTicks)) then clear local so the control tracks transport again. Add a production-invoking unit or RTL test that commits a mid-drag ratio to a tick ≠ climbTick."
+    },
+    {
+      "severity": "critical",
+      "location": "app/src/components/Game/useReplayExport.ts:200-216,281-295,117-123",
+      "issue": "AC-18 policy (b) pauses the paint/step loop after document.hidden ≥3s, but canvas.captureStream(30) + MediaRecorder keep running. captureStream continues emitting the frozen canvas at 30fps for the entire hidden wall-clock interval, so exported duration becomes (simTicks/30 + hiddenSeconds) and violates AC-14’s N/30 ±1s envelope whenever the user backgrounds the tab mid-export — the exact case AC-18 exists to handle.",
+      "fix": "When entering paused_hidden, call MediaRecorder.pause() if state==='recording' (and optionally stop requesting new frames). On visibility visible, MediaRecorder.resume() then continue the encode loop. Guard browsers without pause/resume by stopping tracks or failing closed with AC-19 rather than silently padding duration. Cover with a unit that injects a fake recorder and asserts pause() on hidden≥3s / resume() on visible."
+    },
+    {
+      "severity": "warning",
+      "location": "app/src/game/useClimb.ts:200-222 + ClimbScene.tsx:299-325",
+      "issue": "During replay, the live shouldCaptureGameKey window listener still preventDefaults Space and arrows in countdown/climb even though sampleInput is unused. Replay Space/k correctly toggles pause via a second listener, but arrow keys still swallow page scroll and Space is double-handled. AC-20 only locks the non-replay path; replay UX regresses scrolling around the stage (known prior Space/arrow incident class from learnings).",
+      "fix": "When replayInputs are active, skip live key capture entirely (or gate PHASES_CONSUMING_INPUT / shouldCaptureGameKey on !replaying) so only shouldCaptureReplayKey owns preventDefault during shared replay."
+    },
+    {
+      "severity": "warning",
+      "location": "app/src/components/Game/ReplayTransportBar.tsx:186-189",
+      "issue": "Export button always speak(\"Export started\") after onExport(), even when startExport synchronously sets kind:\"error\" (unsupported MIME / no captureStream). aria-live then announces a false start before the error (AC-17).",
+      "fix": "Announce only from exportStatus transitions (running → \"Export started\"; error/success already handled in the exportStatus effect). Remove the optimistic speak in onClick."
+    },
+    {
+      "severity": "warning",
+      "location": "app/src/game/replaySnapshots.ts:52-55",
+      "issue": "seek() clamps target to [0, N] (inputs.length) rather than architecture/AC-7 [0, N−1]. tickFromSeekRatio is correct, but seekToTick(N) / any caller past the last climb index can step one past the normative tick domain.",
+      "fix": "Clamp with Math.max(0, n - 1) (or document finished-at-N as intentional and align AC-7/tests). Add a unit asserting seek(n) === seek(n-1) or equals the N−1 oracle."
+    },
+    {
+      "severity": "warning",
+      "location": "app/src/components/Game/useReplayExport.ts:392-401",
+      "issue": "downloadBlob revokes the object URL synchronously after a.click(). Some browsers cancel the download when the blob URL is revoked immediately, causing intermittent missing files after a successful encode (AC-15).",
+      "fix": "Revoke on a short delay (e.g. setTimeout 0–1000ms) or on the anchor’s click timeout; keep revoke on unmount/cancel paths."
+    },
+    {
+      "severity": "info",
+      "location": "app/src/game/replaySnapshots.ts:105-109 (architecture §5 step 2)",
+      "issue": "Architecture allows forward-seek in place when target−current ≤ SNAPSHOT_INTERVAL_TICKS; implementation always clones from floor snapshot. Correctness OK (parity tests pass); minor extra clone/step cost only.",
+      "fix": "Optional: if current viewer state is available and target is ahead within one interval, step in place without cache clone. Not merge-blocking."
+    },
+    {
+      "severity": "info",
+      "location": "app/src/components/Game/useReplayExport.ts:364-367,134-136",
+      "issue": "Verifier residual: exportPercent and filename builders are private — AC-15/16 cannot be unit-invoked. Non-test callers for new modules confirmed; new tests invoke production units (no source greps).",
+      "fix": "If tightening before QA, extract buildExportFilename + exportPercent next to pickExportMime; otherwise leave for browser QA-acceptance."
+    }
+  ],
+  "feedback": [
+    {
+      "severity": "critical",
+      "message": "Seek scrub broken while playing — controlled range with no local scrub state",
+      "file": "app/src/components/Game/ReplayTransportBar.tsx",
+      "line": 114,
+      "action": "Add local scrub ratio; commit on pointerup via tickFromSeekRatio"
+    },
+    {
+      "severity": "critical",
+      "message": "Visibility pause does not pause MediaRecorder/captureStream — duration pads with frozen frames",
+      "file": "app/src/components/Game/useReplayExport.ts",
+      "line": 286,
+      "action": "MediaRecorder.pause/resume around paused_hidden"
+    }
+  ],
+  "learnings": [
+    {
+      "topic": "Spec quality",
+      "forAgents": ["implementer", "frontend", "all"],
+      "kind": "pitfall",
+      "insight": "A controlled range input whose value is bound to live playback position cannot scrub: per-tick React updates reset the thumb, and commit-on-pointerup then reads the pre-drag value. Seek-on-release still needs local scrub state (or uncontrolled value) while the pointer is down.",
+      "action": "For any scrub/seek control driven by a moving media clock, keep draft local value during pointer capture and commit once; never bind value only to the advancing clock while scrubbing.",
+      "confidence": "high"
+    },
+    {
+      "topic": "Architecture & contracts",
+      "forAgents": ["implementer", "frontend", "verifier"],
+      "kind": "pitfall",
+      "insight": "Pausing an encode rAF/step loop is not enough when canvas.captureStream is feeding MediaRecorder — the stream keeps sampling the last bitmap at the capture fps, so tab-hide time becomes frozen padding in the file and breaks duration contracts.",
+      "action": "Whenever export visibility policy pauses encoding, also MediaRecorder.pause() (and resume on visible); assert pause/resume in a fake-recorder unit.",
+      "confidence": "high"
+    },
+    {
+      "topic": "Testing",
+      "forAgents": ["all"],
+      "kind": "metric",
+      "insight": "Reviewer re-ran 24 production-invoking replay unit tests (transport/snapshots/mime/useClimb predicates) — all green; 2 critical + 4 warning + 2 info findings. Critical count blocks merge → needs_revision.",
+      "action": "Treat criticalCount=2 as the revision gate; do not advance to qa-acceptance until seek scrub + MediaRecorder visibility pause are fixed and re-verified.",
+      "confidence": "high"
+    }
+  ],
+  "nextStage": null,
+  "loopBackTo": "implementer",
+  "notes": {
+    "branch": "cursor/replay-controls-export-b391",
+    "base": "main",
+    "appliedLearnings": [
+      "Confirmed non-test callers for replayTransport/replaySnapshots/cloneMatch/exportMime/paintClimbFrame/ReplayTransportBar/useReplayExport (verifier ping)",
+      "Did not treat source greps or AC-10/MediaRecorder browser residuals alone as critical",
+      "Checked write-on-read / trust: export is client download only; no climb/result touch",
+      "Did not expand into untouched files or implement fixes"
+    ],
+    "priorHandoffs": [
+      "loop/handoffs/verifier-2026-09-06T160020Z.json",
+      "loop/handoffs/implementer-2026-09-06T155722Z.json",
+      "loop/handoffs/architect-2026-09-06T154529Z.json"
+    ],
+    "securityReviewerParallel": "security-reviewer-2026-09-06T160305Z reported 0 critical security issues; functional criticals here still require implementer revision before qa-acceptance"
+  }
+}

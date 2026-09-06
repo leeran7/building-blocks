@@ -1,0 +1,136 @@
+{
+  "agent": "security-reviewer",
+  "status": "success",
+  "summary": "Native-share security review: no video upload to product APIs; shareVideoFile only from Share onClick (never onstop/effects); secret scan clean; filename allow-list climb-{round(peakY)}m-{yyyyMMdd}.{mp4|webm}; AbortError → aborted with no UI message/stack; share title is file.name and shareError is React text (no XSS sinks). Zero critical findings. Free-leaderboard trust boundary remains open/out of scope.",
+  "timestamp": "2026-09-06T17:52:37Z",
+  "goal": "After downloading climb replay video, allow sharing via Apple & Android native share sheets (Web Share API files).",
+  "artifacts": [
+    "loop/handoffs/security-reviewer-2026-09-06T175237Z.json",
+    "app/src/game/shareVideoFile.ts",
+    "app/src/components/Game/ReplayTransportBar.tsx",
+    "app/src/components/Game/useReplayExport.ts"
+  ],
+  "exitCriteria": {
+    "secret_scan_clean": true,
+    "no_video_upload_to_product_apis": true,
+    "share_only_on_user_gesture": true,
+    "filename_injection_safe": true,
+    "abort_error_no_stack_leak": true,
+    "no_xss_via_share_title_text": true,
+    "climb_result_leaderboard_untouched": true,
+    "no_critical_security_findings": true
+  },
+  "feedback": [],
+  "findings": [
+    {
+      "severity": "info",
+      "owasp": "A01",
+      "location": "app/src/game/shareVideoFile.ts; app/src/components/Game/useReplayExport.ts; app/src/components/Game/ReplayTransportBar.tsx",
+      "issue": "NFR-NS-4 / parent NFR-6 held: share and export paths contain zero fetch/XHR/sendBeacon/WebSocket/FormData/upload. downloadBlob uses createObjectURL + <a download> only; shareVideoFile calls navigator.share with local File. Native-share commits touch no app/app/api, db, prisma, or middleware.",
+      "reproduction": "rg fetch|XMLHttpRequest|sendBeacon|WebSocket|/api/|upload across shareVideoFile, useReplayExport, ReplayTransportBar, exportMime, exportVisibility — empty. git diff ace0a77^..HEAD --name-only -- app/app/api app/src/db app/prisma app/middleware.ts — empty.",
+      "fix": "None. Keep share client-only File → OS sheet."
+    },
+    {
+      "severity": "info",
+      "owasp": "A01",
+      "location": "app/src/components/Game/ReplayTransportBar.tsx:270-289; app/src/components/Game/useReplayExport.ts:176-207",
+      "issue": "Gesture safety confirmed: sole production caller of shareVideoFile is Share button onClick. useReplayExport onstop builds File, downloads, setStatus(success) — never calls share. No useEffect invokes share on success transition (ADR-NS-1 / NFR-NS-1).",
+      "reproduction": "rg shareVideoFile|navigator.share in useReplayExport — empty. ReplayTransportBar mounts share only inside onClick after canShareVideoFile gate.",
+      "fix": "None."
+    },
+    {
+      "severity": "info",
+      "owasp": null,
+      "location": "git diff ace0a77^..HEAD (app product + share modules)",
+      "issue": "Secret scan clean on native-share delta: no api keys, INTERNAL_TOKEN, Stripe secrets, or private key material. No package.json / lockfile changes in this delta (pre-existing pnpm audit highs remain out of scope; next already past Aug 29 critical pin).",
+      "reproduction": "git diff ace0a77^..HEAD -G '(api[_-]?key|secret|password|Bearer |sk_live|INTERNAL_TOKEN|BEGIN .*PRIVATE)' — empty; package/lock untouched.",
+      "fix": "None for this feature."
+    },
+    {
+      "severity": "info",
+      "owasp": "A03",
+      "location": "app/src/components/Game/useReplayExport.ts:149-151,435-448; app/src/game/exportMime.ts:39-43",
+      "issue": "Filename remains allow-listed: climb-${Math.round(peakY)}m-${utcDigitStamp}.${mp4|webm}. Extension from pickExportMime enum only; date is UTC digit stamp; no path separators or user-controlled strings. Share title uses the same file.name.",
+      "reproduction": "Confirm filename interpolates only Math.round(peakY) + yyyyMMdd digits + mime.extension allow-list; downloadBlob sets a.download then blob: URL.",
+      "fix": "Optional hardening: coerce non-finite peakY to 0 before filename (NaN/Infinity would yield climb-NaNm-… which is ugly but not traversable)."
+    },
+    {
+      "severity": "info",
+      "owasp": "A04",
+      "location": "app/src/game/shareVideoFile.ts:69-77,94-100; app/src/components/Game/ReplayTransportBar.tsx:282-311",
+      "issue": "AbortError classified by err.name → { reason: 'aborted' } with no message field; bar returns quietly without setShareError. Non-abort uses Error.message only (never err.stack); empty message falls back to 'Share failed'. shareError rendered as React text child — no innerHTML/dangerouslySetInnerHTML.",
+      "reproduction": "shareVideoFile.test.ts AbortError → aborted; bar aborted branch has no setShareError. rg innerHTML|dangerouslySetInnerHTML|.stack on share modules — empty for sinks.",
+      "fix": "None required. Optional: map non-abort to fixed UI strings instead of forwarding browser Error.message."
+    },
+    {
+      "severity": "info",
+      "owasp": "A03",
+      "location": "app/src/components/Game/ReplayTransportBar.tsx:275-277,306-312; app/src/game/shareVideoFile.ts:62-64",
+      "issue": "XSS via share title/text: title is file.name (allow-listed climb-… pattern); text option unused by bar. canShare probe is files-only (no title/text). UI error path uses React text interpolation — escapes HTML.",
+      "reproduction": "Bar passes title: file.name only; shareError in JSX text child; no HTML sinks in share modules.",
+      "fix": "None."
+    },
+    {
+      "severity": "info",
+      "owasp": "A01",
+      "location": "app/src/components/Game/ClimbScene.tsx:239; git diff ace0a77^..HEAD -- app/app/api app/src/db",
+      "issue": "Trust boundary #1 untouched: postRun still gated with `if (!finished || posted || replaying) return`. Native-share adds no score writes. Free-leaderboard open question remains out of scope (product-spec/architect exception).",
+      "reproduction": "ClimbScene finished effect retains replaying early-return; no API/db diffs in native-share commits.",
+      "fix": "None for this feature. Do not mark free-leaderboard F-1 closed."
+    }
+  ],
+  "learnings": [
+    {
+      "topic": "Security",
+      "forAgents": ["all", "qa-acceptance", "reviewer"],
+      "kind": "metric",
+      "insight": "Native-share security review: 0 critical, 0 warning, 7 info. Confirmed no video upload, share-only-on-click, clean secrets, allow-listed filename, AbortError quiet (no stack/UI leak), React-escaped shareError + allow-listed share title.",
+      "action": "Proceed to qa-acceptance; do not loopBack to implementer for security.",
+      "confidence": "high"
+    },
+    {
+      "topic": "Security",
+      "forAgents": ["implementer", "architect", "frontend"],
+      "kind": "pattern",
+      "insight": "Web Share file path stays a client-only trust boundary when: (1) File retained locally past download URL revoke, (2) share() only in a click handler, (3) AbortError mapped to a reason enum without surfacing message/stack, (4) share title derived from allow-listed filename not free text.",
+      "action": "When extending share copy, keep title/text from allow-listed or static strings; never POST bytes; never call share from onstop/effects.",
+      "confidence": "high"
+    },
+    {
+      "topic": "Security",
+      "forAgents": ["security-reviewer", "product-spec", "architect"],
+      "kind": "exception",
+      "insight": "Free-leaderboard trust-boundary ping remains open and out of scope for native share; this delta adds no server upload and no new score writes.",
+      "action": "Do not mark F-1 / free-leaderboard AC closed when reviewing share. Confirm share path stays client-only File to OS sheet.",
+      "confidence": "high"
+    }
+  ],
+  "nextStage": "qa-acceptance",
+  "loopBackTo": null,
+  "notes": {
+    "branch": "cursor/native-video-share-b391",
+    "priorHandoff": "loop/handoffs/verifier-2026-09-06T175010Z.json",
+    "spec": "loop/spec-native-share.md",
+    "research": "loop/research-native-video-share.md",
+    "architecture": "loop/architecture-native-share.md",
+    "appliedLearnings": [
+      "Did not close free-leaderboard trust boundary (product-spec/architect exception)",
+      "Confirmed non-test caller of shareVideoFile is ReplayTransportBar only",
+      "Re-proved no-network export/share by absence of fetch/upload after File retention",
+      "Treated climb/result monotonic write as hard boundary — verified untouched",
+      "Verified AbortError → aborted without message; no err.stack to UI"
+    ],
+    "reconfirm": {
+      "noVideoUpload": true,
+      "shareOnlyOnUserGesture": true,
+      "filenameSafe": true,
+      "noNewSecrets": true,
+      "abortErrorNoStackLeak": true,
+      "noXssViaShareTitleText": true
+    },
+    "criticalCount": 0,
+    "warningCount": 0,
+    "infoCount": 7,
+    "pnpmAudit": "pre-existing highs (postcss via next, deepmerge-ts via prisma); no lockfile change in this delta — out of scope"
+  }
+}

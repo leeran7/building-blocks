@@ -1,0 +1,190 @@
+{
+  "agent": "verifier",
+  "status": "success",
+  "summary": "Share-immediate verification: 22/22 production-invoking tests pass (exportDelivery 8, shareVideoFile 9, exportMime 5); typecheck clean. AC-SI-1/2 covered by deliverExportFile+resolveExportDelivery; AC-SI-3 gesture chain confirmed via encodePromise→await deliverExportFile in startExport (onstop File-only); AC-SI-4/5 wiring + MIME honesty pass with announce residual for QA.",
+  "timestamp": "2026-09-06T18:22:54Z",
+  "goal": "Open native share sheet from the Export button’s user-gesture chain (no download prompt when shareable)",
+  "artifacts": [
+    "loop/handoffs/verifier-2026-09-06T182254Z.json",
+    "app/tests/game/exportDelivery.test.ts",
+    "app/src/game/exportDelivery.ts",
+    "app/src/components/Game/useReplayExport.ts",
+    "app/src/components/Game/ReplayTransportBar.tsx",
+    "app/src/components/Game/ClimbScene.tsx"
+  ],
+  "exitCriteria": {
+    "acs_mapped": true,
+    "unit_tests_invoked_production": true,
+    "no_source_text_greps_in_new_tests": true,
+    "non_test_callers_confirmed": true,
+    "vitest_pass": true,
+    "typecheck_pass": true,
+    "coverage_matrix_written": true,
+    "startExport_async_chain_inspected": true,
+    "residual_risks_documented": true
+  },
+  "feedback": [],
+  "coverageMatrix": [
+    {
+      "ac": "AC-SI-1",
+      "status": "pass",
+      "evidence": "deliverExportFile with canShare→true calls share once and never download; resolveExportDelivery(true) sets download:false. Hook wires downloadBlob only through deliverExportFile.",
+      "file": "app/tests/game/exportDelivery.test.ts:14-20,36-49",
+      "invokedTest": "resolveExportDelivery(true); deliverExportFile canShare true",
+      "productionUnit": "app/src/game/exportDelivery.ts:resolveExportDelivery,deliverExportFile",
+      "nonTestCaller": "app/src/components/Game/useReplayExport.ts:268-272"
+    },
+    {
+      "ac": "AC-SI-2",
+      "status": "pass",
+      "evidence": "deliverExportFile with canShare→false calls download once and never share; resolveExportDelivery(false) sets download:true (AC-NS-10 fallback).",
+      "file": "app/tests/game/exportDelivery.test.ts:22-28,51-63",
+      "invokedTest": "resolveExportDelivery(false); deliverExportFile canShare false",
+      "productionUnit": "app/src/game/exportDelivery.ts:resolveExportDelivery,deliverExportFile",
+      "nonTestCaller": "app/src/components/Game/useReplayExport.ts:268-272"
+    },
+    {
+      "ac": "AC-SI-3",
+      "status": "pass_partial",
+      "evidence": "Unit: share once when canShare; aborted shareResult without download. Inspection: onstop only resolve(file); startExport awaits encodePromise then await deliverExportFile; ClimbScene/ReplayTransportBar void startExport() from click; Share ≥44×44 remains on success when canShare. Browser activation survival after long encode residual (spec allows Share retry).",
+      "file": "app/tests/game/exportDelivery.test.ts:36-49,65-75; app/src/components/Game/useReplayExport.ts:193-235,253-291",
+      "invokedTest": "deliverExportFile share once + aborted no-download",
+      "productionUnit": "useReplayExport.startExport + deliverExportFile",
+      "nonTestCaller": "ClimbScene.tsx:531,578 → startExport"
+    },
+    {
+      "ac": "AC-SI-4",
+      "status": "pass_partial",
+      "evidence": "exportSuccessLabel Ready to share when delivery=share; fulfilled auto-share sets shared:true → speak('Share complete'); Share button onClick also speak on ok. No unit asserting aria-live text (same residual class as prior AC-NS-9).",
+      "file": "app/tests/game/exportDelivery.test.ts:78-88; app/src/components/Game/ReplayTransportBar.tsx:97-116,311-312",
+      "invokedTest": "exportSuccessLabel share/download copy",
+      "productionUnit": "exportSuccessLabel + ReplayTransportBar speak",
+      "nonTestCaller": "ReplayTransportBar.tsx (via ClimbScene)"
+    },
+    {
+      "ac": "AC-SI-5",
+      "status": "pass",
+      "evidence": "WebM/MP4 MIME honesty unchanged: pickExportMime never labels WebM as MP4; canShare/share probe video/webm not forged mp4 (AC-NS-8).",
+      "file": "app/tests/game/exportMime.test.ts:32-37; app/tests/game/shareVideoFile.test.ts:55-62,143-153",
+      "invokedTest": "pickExportMime WebM; canShareVideoFile/shareVideoFile WebM",
+      "productionUnit": "exportMime.pickExportMime + shareVideoFile",
+      "nonTestCaller": "useReplayExport.ts + ReplayTransportBar.tsx"
+    },
+    {
+      "ac": "AC-NS-1",
+      "status": "pass_partial",
+      "evidence": "Still applicable: canShare files-only gate; Share mounts when canShare on success (copy now Ready to share). Mount residual RTL.",
+      "file": "app/tests/game/shareVideoFile.test.ts:31-53",
+      "invokedTest": "canShareVideoFile"
+    },
+    {
+      "ac": "AC-NS-8",
+      "status": "pass",
+      "evidence": "Unchanged MIME-honest WebM/MP4 — dual-cited by AC-SI-5.",
+      "file": "app/tests/game/shareVideoFile.test.ts:55-62,143-153",
+      "invokedTest": "canShareVideoFile WebM + shareVideoFile WebM"
+    },
+    {
+      "ac": "AC-NS-9",
+      "status": "pass_partial",
+      "evidence": "Share complete announce on Share click ok and on shared:true success transition; aria-live region present. Unit residual.",
+      "file": "app/src/components/Game/ReplayTransportBar.tsx:97-107,311-312,366",
+      "invokedTest": null
+    },
+    {
+      "ac": "AC-NS-10",
+      "status": "pass",
+      "evidence": "Superseded when canShare: download skipped (AC-SI-1). When canShare false, deliverExportFile still downloads once (AC-SI-2).",
+      "file": "app/tests/game/exportDelivery.test.ts:51-63",
+      "invokedTest": "deliverExportFile canShare false → download"
+    }
+  ],
+  "nonTestCallers": {
+    "exportDelivery.ts": [
+      "useReplayExport.ts (deliverExportFile)",
+      "ReplayTransportBar.tsx (exportSuccessLabel)"
+    ],
+    "shareVideoFile.ts": [
+      "useReplayExport.ts",
+      "ReplayTransportBar.tsx"
+    ],
+    "useReplayExport.ts": ["ClimbScene.tsx"],
+    "ReplayTransportBar.tsx": ["ClimbScene.tsx"],
+    "exportMime.ts": ["useReplayExport.ts"]
+  },
+  "testResults": {
+    "command": "cd /workspace/app && pnpm exec vitest run tests/game/exportDelivery.test.ts tests/game/shareVideoFile.test.ts tests/game/exportMime.test.ts",
+    "passed": 22,
+    "failed": 0,
+    "files": {
+      "exportDelivery.test.ts": 8,
+      "shareVideoFile.test.ts": 9,
+      "exportMime.test.ts": 5
+    },
+    "typecheck": {
+      "command": "cd /workspace/app && pnpm typecheck",
+      "status": "pass"
+    },
+    "sourceTextGrepsInNewTests": false
+  },
+  "asyncChainInspection": {
+    "onstop": "resolves File | null only — no downloadBlob, no shareVideoFile, no deliverExportFile",
+    "startExport": "async; await encodePromise; then await deliverExportFile(file, { canShare:canShareVideoFile, share:shareVideoFile, download:downloadBlob })",
+    "clickSites": [
+      "ClimbScene Export/Share video button void startExport()",
+      "ReplayTransportBar onExport → void startExport()"
+    ],
+    "downloadOnlyWhen": "!canShare via resolveExportDelivery → deliverExportFile download branch"
+  },
+  "residualRisks": [
+    "AC-SI-3: UA may still drop user activation across a long MediaRecorder encode even with await in the same async click function — Share retry button is the recovery path; needs device QA.",
+    "AC-SI-4 / AC-NS-9: Share complete aria-live has no unit asserting speak text; wiring only.",
+    "Export click → native sheet without download is browser-residual (cannot MediaRecorder+gesture in vitest)."
+  ],
+  "learnings": [
+    {
+      "topic": "Testing",
+      "forAgents": ["all", "reviewer", "qa-acceptance"],
+      "kind": "metric",
+      "insight": "Share-immediate verifier: 22 production-invoking tests pass (exportDelivery 8, shareVideoFile 9, exportMime 5); pnpm typecheck pass. AC-SI-1/2 pass via deliverExportFile; AC-SI-3 pass_partial (unit + encodePromise chain inspect); AC-SI-4 residual announce; AC-SI-5/AC-NS-8 pass.",
+      "action": "Advance to reviewer; QA device-check Export tap → sheet without download when canShare, and Share retry after NotAllowed/abort.",
+      "confidence": "high"
+    },
+    {
+      "topic": "Architecture & contracts",
+      "forAgents": ["reviewer", "security-reviewer", "frontend"],
+      "kind": "lesson",
+      "insight": "Applied implementer ping: onstop is File-only; share runs after await encodePromise inside startExport (Export click async continuation). Prior onstop fire-and-forget share lesson is superseded — do not fail review for share-from-onstop because that path is gone.",
+      "action": "Review AC-SI-3 against startExport await order, not against the superseded onstop-share ADR override from iteration 1.",
+      "confidence": "high"
+    }
+  ],
+  "nextStage": "reviewer",
+  "loopBackTo": null,
+  "notes": {
+    "branch": "cursor/share-immediate-b391",
+    "commit": "3748e07",
+    "priorHandoff": "loop/handoffs/implementer-2026-09-06T182103Z.json",
+    "spec": "loop/spec-share-immediate.md",
+    "specAlsoApplicable": "loop/spec-native-share.md (AC-NS-1/8/9/10 as mapped)",
+    "appliedLearnings": [
+      "Invoked deliverExportFile/resolveExportDelivery/shareVideoFile/pickExportMime — no source greps",
+      "Confirmed non-test callers before counting AC coverage",
+      "Verified AC-SI-3 via onstop File-only + await encodePromise then deliverExportFile (implementer iteration-2 ping)",
+      "Left browser activation survival + Share complete announce unit residual for QA"
+    ],
+    "acSummary": {
+      "pass": ["AC-SI-1", "AC-SI-2", "AC-SI-5", "AC-NS-8", "AC-NS-10"],
+      "pass_partial": ["AC-SI-3", "AC-SI-4", "AC-NS-1", "AC-NS-9"],
+      "residual": [],
+      "fail": []
+    },
+    "counts": {
+      "testsPassed": 22,
+      "testsFailed": 0,
+      "acSiPass": 3,
+      "acSiPassPartial": 2,
+      "acSiFail": 0
+    }
+  }
+}

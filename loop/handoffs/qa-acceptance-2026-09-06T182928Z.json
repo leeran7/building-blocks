@@ -1,0 +1,137 @@
+{
+  "agent": "qa-acceptance",
+  "status": "success",
+  "summary": "AC-SI-1…5 acceptance: 5 pass, 0 fail. 22/22 related vitest + typecheck green. Playwright with canShare/share mocks proved Export→share with downloadClicks=0 when canShare true; download when false; Share ≥44×44; Share complete announce; MIME-honest MP4. Advance to integrator.",
+  "timestamp": "2026-09-06T18:29:28Z",
+  "goal": "Skip download prompt when Web Share files is available; open native share as primary path after export (fallback Share button if gesture expired)",
+  "artifacts": [
+    "loop/qa-report.md",
+    "loop/handoffs/qa-acceptance-2026-09-06T182928Z.json"
+  ],
+  "exitCriteria": {
+    "all_acs_listed": true,
+    "no_ac_failures": true,
+    "unit_evidence_invoked": true,
+    "browser_smoke_run": true,
+    "code_inspection_async_chain": true,
+    "qa_report_written": true,
+    "residuals_documented": true
+  },
+  "feedback": [],
+  "acMatrix": [
+    {
+      "ac": "AC-SI-1",
+      "status": "pass",
+      "evidence": "Unit deliverExportFile canShare true → share once, download never; Playwright downloadClicks=0 + createObjectURLs=0 + READY TO SHARE MP4"
+    },
+    {
+      "ac": "AC-SI-2",
+      "status": "pass",
+      "evidence": "Unit canShare false → download once, share never; Playwright downloadClicks=1 climb-99m-*.mp4 + DOWNLOADED MP4 + Share hidden"
+    },
+    {
+      "ac": "AC-SI-3",
+      "status": "pass",
+      "evidence": "Inspection onstop File-only; startExport await encodePromise then deliverExportFile from Export click; Playwright shareCalls=1 after Export; Share button 48.5×44 remains for retry"
+    },
+    {
+      "ac": "AC-SI-4",
+      "status": "pass",
+      "evidence": "Playwright Share click → aria-live Share complete 3; exportSuccessLabel Ready to share; speak on shared/ok paths"
+    },
+    {
+      "ac": "AC-SI-5",
+      "status": "pass",
+      "evidence": "exportMime never labels WebM as MP4; Playwright share payload video/mp4 climb-99m-20260906.mp4 (AC-NS-8 unchanged)"
+    }
+  ],
+  "testResults": {
+    "vitest": {
+      "command": "pnpm exec vitest run tests/game/exportDelivery.test.ts tests/game/shareVideoFile.test.ts tests/game/exportMime.test.ts",
+      "passed": 22,
+      "failed": 0
+    },
+    "typecheck": { "command": "pnpm typecheck", "status": "pass" },
+    "browserSmoke": {
+      "app": "next dev :3010",
+      "tool": "Playwright Chromium iPhone 12",
+      "routes": ["/play?r=<encoded>"],
+      "canShareMock": true,
+      "canShareTrue": {
+        "label": "READY TO SHARE MP4",
+        "shareCalls": 1,
+        "downloadClicks": 0,
+        "shareBox": "48.5x44",
+        "announce": "Share complete 3"
+      },
+      "canShareFalse": {
+        "label": "DOWNLOADED MP4",
+        "shareCalls": 0,
+        "downloadClicks": 1
+      }
+    }
+  },
+  "asyncChainInspection": {
+    "onstop": "resolves File | null only",
+    "startExport": "await encodePromise then await deliverExportFile({ canShare, share, download:downloadBlob })",
+    "clickSites": ["ClimbScene Export/Share video", "ReplayTransportBar onExport"]
+  },
+  "residuals": [
+    "Physical OS share sheet UI not exercised (mocked navigator.share)",
+    "Reviewer warnings: delivery re-entry / late setStatus after dismiss — not AC-SI",
+    "Delta spec has no Flows F-n; primary Export→share-first path walked"
+  ],
+  "learnings": [
+    {
+      "topic": "Testing",
+      "forAgents": ["integrator", "all"],
+      "kind": "metric",
+      "insight": "QA-acceptance for share-immediate: AC-SI pass=5 fail=0. Vitest 22/22; Playwright mocked canShare true → downloadClicks=0 + shareCalls=1 + Ready to share; canShare false → download once; Share complete announce on retry click.",
+      "action": "Do not loopBackTo implementer. nextStage integrator.",
+      "confidence": "high"
+    },
+    {
+      "topic": "Testing",
+      "forAgents": ["qa-acceptance", "verifier", "frontend"],
+      "kind": "lesson",
+      "insight": "Prove AC-SI-1 in Playwright by patching HTMLAnchorElement.prototype.click for [download] (and optionally URL.createObjectURL) under mocked canShare→true — zero download clicks is stronger than label text alone.",
+      "action": "When smoking share-first export, assert downloadClicks===0 and createObjectURL-from-download path idle when canShare mocked true; assert downloadClicks>=1 when false.",
+      "confidence": "high"
+    },
+    {
+      "topic": "Testing",
+      "forAgents": ["qa-acceptance", "reviewer"],
+      "kind": "lesson",
+      "insight": "AC-SI-3 browser residual (activation after encode) closed for acceptance by proving structural await chain + Export-triggered shareCalls>=1 under mock + Share ≥44×44 retry chrome — not by requiring a real OS sheet.",
+      "action": "Do not fail share-immediate QA solely because desktop Chromium lacks native file share; mock canShare/share and assert no-download partition.",
+      "confidence": "high"
+    }
+  ],
+  "nextStage": "integrator",
+  "loopBackTo": null,
+  "notes": {
+    "branch": "cursor/share-immediate-b391",
+    "priorHandoffs": [
+      "loop/handoffs/reviewer-2026-09-06T182528Z.json",
+      "loop/handoffs/security-reviewer-2026-09-06T182514Z.json",
+      "loop/handoffs/verifier-2026-09-06T182254Z.json"
+    ],
+    "spec": "loop/spec-share-immediate.md",
+    "appliedLearnings": [
+      "Mock canShare/share for Playwright file-share ACs",
+      "Review AC-SI-3 against startExport await order (onstop File-only)",
+      "Did not loopBack for activation/announce residuals once Playwright closed them",
+      "Did not reopen free-leaderboard trust boundary",
+      "No source-text greps as AC proof"
+    ],
+    "acSummary": {
+      "pass": ["AC-SI-1", "AC-SI-2", "AC-SI-3", "AC-SI-4", "AC-SI-5"],
+      "fail": []
+    },
+    "criticalCount": 0,
+    "reviewerWarningsCarried": [
+      "delivery re-entry while deliverExportFile in flight",
+      "late share UI after dismiss"
+    ]
+  }
+}

@@ -1,0 +1,102 @@
+{
+  "agent": "integrator",
+  "status": "success",
+  "summary": "PR #85 merge-ready: merged main (Climb Feel #80 — paintClimbFrame + HUD_ALTITUDE_FONT_UI, climb-feel loop docs archived, learnings.jsonl chronological), local gates green (typecheck, lint, 38 share/feel + 24 climb-feel vitest), required CI + Vercel all pass on 84cde85; mergeStateStatus CLEAN. Did not merge — human merges feature PR. Release stage optional/skippable for this feature PR.",
+  "timestamp": "2026-09-06T18:35:13Z",
+  "goal": "Skip download prompt when Web Share files is available; open native share as primary path after export (fallback Share button if gesture expired)",
+  "artifacts": [
+    "loop/handoffs/integrator-2026-09-06T183513Z.json",
+    "loop/qa-report.md",
+    "loop/handoffs/qa-acceptance-2026-09-06T182928Z.json",
+    "https://github.com/leeran7/building-blocks/pull/85"
+  ],
+  "exitCriteria": {
+    "loop_artifacts_pushed": true,
+    "local_gates_green": true,
+    "merge_conflicts_resolved": true,
+    "ci_required_checks_green": true,
+    "pr_mergeable_clean": true,
+    "did_not_merge": true
+  },
+  "feedback": [],
+  "ci": {
+    "headSha": "84cde858eb9488b6b64b47463b3c05596ab23b72",
+    "runUrl": "https://github.com/leeran7/building-blocks/actions/runs/34052091711",
+    "checks": {
+      "Lint, Typecheck, and Test": "pass",
+      "Orchestrator loop": "pass",
+      "CI": "pass",
+      "Vercel": "pass",
+      "Vercel Preview Comments": "pass"
+    },
+    "mergeable": "MERGEABLE",
+    "mergeStateStatus": "CLEAN"
+  },
+  "gates": {
+    "app-typecheck": { "command": "pnpm typecheck", "status": "pass" },
+    "app-lint": { "command": "pnpm lint", "status": "pass" },
+    "app-test-focused": {
+      "command": "pnpm exec vitest run tests/game/exportDelivery.test.ts tests/game/shareVideoFile.test.ts tests/game/exportMime.test.ts tests/design/climbFeelTokens.test.ts tests/design/climbContrast.test.ts",
+      "passed": 38,
+      "failed": 0,
+      "status": "pass"
+    },
+    "app-test-climb-feel-merge": {
+      "command": "pnpm exec vitest run tests/components/climbFeelSurfaces.test.tsx tests/game/climbFeelPhysicsFreeze.test.ts tests/design/ascentBaselinesFreeze.test.ts",
+      "passed": 24,
+      "failed": 0,
+      "status": "pass"
+    }
+  },
+  "pr": {
+    "number": 85,
+    "url": "https://github.com/leeran7/building-blocks/pull/85",
+    "branch": "cursor/share-immediate-b391",
+    "base": "main"
+  },
+  "learnings": [
+    {
+      "topic": "Build / CI",
+      "forAgents": ["integrator", "all"],
+      "kind": "metric",
+      "insight": "Integrator for share-immediate: local typecheck+lint+38/38 share/feel vitest (+24 climb-feel merge) pass; merged main resolving Climb Feel #80 (HUD font into paintClimbFrame, climb-feel specs archived, learnings chronological); PR #85 CI all green (Lint/Typecheck/Test, Orchestrator loop, CI, Vercel) on 84cde85; mergeStateStatus CLEAN. Not merged.",
+      "action": "Human merges PR #85. nextStage release may be skipped for this feature PR (no version bump).",
+      "confidence": "high"
+    },
+    {
+      "topic": "GitHub / PRs / stacks",
+      "forAgents": ["integrator", "devops"],
+      "kind": "lesson",
+      "insight": "Merging Climb Feel into a branch that already extracted ClimbCanvas→paintClimbFrame requires porting HUD_ALTITUDE_FONT_UI into the painter and re-exporting TEXT_MUTED/TEXT_SECONDARY/HUD from ClimbCanvas for climbFeelTokens/climbContrast tests — not restoring the monolith canvas.",
+      "action": "On ClimbCanvas vs paintClimbFrame conflicts, keep the thin wrapper + shared painter; wire feel tokens into paintClimbFrame; archive conflicting loop/spec.md as loop/spec-climb-feel.md.",
+      "confidence": "high"
+    },
+    {
+      "topic": "Security",
+      "forAgents": ["product-spec", "architect", "release"],
+      "kind": "exception",
+      "insight": "Free-leaderboard peakY trust boundary and one-slot vs stacking remain open and out of scope; share-immediate adds no climb/result persistence or video upload.",
+      "action": "Leave OQ open in release notes if any; do not mark F-1 closed.",
+      "confidence": "high"
+    }
+  ],
+  "nextStage": "release",
+  "loopBackTo": null,
+  "notes": {
+    "release": "Skip or human-only for this feature PR — no package version bump; cloud agent must not merge. Human merges when ready.",
+    "retro": "Full foldLearnings retro is orchestrator-owned (learning-loop.md). Integrator did not rewrite learnings.md; new jsonl entries remain status open for orchestrator curation.",
+    "priorHandoff": "loop/handoffs/qa-acceptance-2026-09-06T182928Z.json",
+    "appliedLearnings": [
+      "Did not loopBackTo implementer after QA PASS (AC-SI 5/5)",
+      "Fetched origin/main first; resolved CONFLICTING via Climb Feel merge into paintClimbFrame + chronological learnings.jsonl",
+      "Did not merge PR; left free-leaderboard / stacking OQ open",
+      "Verified required check names from context/git.md are green",
+      "Waited for Vercel GitHub status after deployment READY"
+    ],
+    "mergeCommit": "84cde85 Merge main into cursor/share-immediate-b391",
+    "reviewerWarningsCarried": [
+      "delivery re-entry while deliverExportFile in flight",
+      "late share UI after dismiss"
+    ]
+  }
+}

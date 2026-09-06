@@ -1,0 +1,103 @@
+{
+  "agent": "security-reviewer",
+  "status": "success",
+  "summary": "Iteration 2 security re-check after scrub + MediaRecorder.pause revision: still no video upload to product APIs; pause/resume is local MediaRecorder only (no fetch/XHR/Beacon/WebSocket); download filename remains climb-{round(peakY)}m-{yyyyMMdd}.{mp4|webm}; secret scan clean; climb/result and leaderboard write paths still untouched. Zero critical findings.",
+  "timestamp": "2026-09-06T16:14:21Z",
+  "goal": "Climb replay should allow fast forwarding, rewind, pause/play. Export as mp4.",
+  "artifacts": [
+    "loop/handoffs/security-reviewer-2026-09-06T161421Z.json"
+  ],
+  "exitCriteria": {
+    "secret_scan_clean": true,
+    "no_video_upload_to_product_apis": true,
+    "pause_resume_no_network": true,
+    "filename_injection_safe": true,
+    "climb_result_leaderboard_untouched": true,
+    "no_critical_security_findings": true
+  },
+  "feedback": [],
+  "findings": [
+    {
+      "severity": "info",
+      "owasp": "A01",
+      "location": "app/src/components/Game/useReplayExport.ts:171-183,420-433; app/src/game/exportVisibility.ts",
+      "issue": "NFR-6 still held after revision: export ends in createObjectURL + <a download>; pauseExportRecorder/resumeExportRecorder only call MediaRecorder.pause/resume locally. Zero fetch/XHR/sendBeacon/WebSocket in export, exportVisibility, transport bar, mime, snapshots, paint modules.",
+      "reproduction": "rg fetch|upload|sendBeacon|WebSocket|/api/ across useReplayExport, exportVisibility, ReplayTransportBar, exportMime, replayTransport, replaySnapshots, cloneMatch, paintClimbFrame — empty. onstop still only downloadBlob; visibility path only pause/resume recorder + status transitions.",
+      "fix": "None. Keep pause/resume free of any network I/O if extended."
+    },
+    {
+      "severity": "info",
+      "owasp": null,
+      "location": "git diff 9ce3469..HEAD (revision) and main...HEAD (app product)",
+      "issue": "Secret scan clean on revision and full feature diff: no api keys, INTERNAL_TOKEN, Stripe secrets, or private key material. No package.json / lockfile changes in this feature (audit surface unchanged; pre-existing next/undici debt remains out of scope).",
+      "reproduction": "git diff main...HEAD -G '(api[_-]?key|secret|password|Bearer |sk_live|INTERNAL_TOKEN|BEGIN .*PRIVATE)' empty; package.json/pnpm-lock untouched in feature commits.",
+      "fix": "None for this feature."
+    },
+    {
+      "severity": "info",
+      "owasp": "A03",
+      "location": "app/src/components/Game/useReplayExport.ts:144-146,420-424; app/src/game/exportMime.ts:6-9,39-43",
+      "issue": "Filename composition unchanged and still allow-listed: climb-${Math.round(peakY)}m-${utcDateStamp}.${mp4|webm}. Extension from pickExportMime enum only; date is digit UTC stamp. Delayed revoke (BLOB_REVOKE_MS=1000) does not change trust boundary — blob: URL stays same-document and is never uploaded.",
+      "reproduction": "Confirm filename interpolates only Math.round(peakY) + yyyyMMdd digits + mime.extension allow-list; downloadBlob still sets a.download then createObjectURL click; revoke only deferred.",
+      "fix": "None."
+    },
+    {
+      "severity": "info",
+      "owasp": "A01",
+      "location": "app/src/components/Game/ClimbScene.tsx:239; git diff vs app/app/api/** app/src/db/**",
+      "issue": "Trust boundary #1 untouched in revision: no API/db/prisma/middleware diffs. postRun still gated with `if (!finished || posted || replaying) return`. Scrub local state and live-key skip while replaying do not open score writes.",
+      "reproduction": "git diff main...HEAD --name-only -- 'app/app/api/**' 'app/src/db/**' 'app/prisma/**' empty; ClimbScene finished effect retains replaying early-return.",
+      "fix": "None for this feature. Free-leaderboard open question remains out of scope."
+    },
+    {
+      "severity": "info",
+      "owasp": "A03",
+      "location": "app/src/components/Game/ReplayTransportBar.tsx (scrubRatio + aria-live); exportVisibility.ts",
+      "issue": "Scrub revision is pure UI/local state (scrubRatio number | null); MediaRecorder pause helpers take injectable PauseableRecorder with no URL/host input. Export status/aria-live still React text children — no innerHTML / dangerouslySetInnerHTML introduced.",
+      "reproduction": "rg innerHTML|dangerouslySetInnerHTML on ReplayTransportBar + useReplayExport — empty. pauseExportRecorder/resumeExportRecorder only invoke recorder.pause/resume.",
+      "fix": "None."
+    }
+  ],
+  "learnings": [
+    {
+      "topic": "Security",
+      "forAgents": ["all", "qa-acceptance", "reviewer"],
+      "kind": "metric",
+      "insight": "Iteration 2 security re-check (scrub + MediaRecorder.pause): 0 critical, 0 warning, 5 info. Pause/resume adds no network; download path and filename allow-list unchanged; secrets and climb/result paths still clean.",
+      "action": "Proceed to qa-acceptance; do not loopBack to implementer for security.",
+      "confidence": "high"
+    },
+    {
+      "topic": "Security",
+      "forAgents": ["implementer", "architect", "verifier"],
+      "kind": "pattern",
+      "insight": "Visibility pause that only calls MediaRecorder.pause/resume (fail-closed if missing) preserves the client-only export trust boundary: no new network surface, and blob: download + delayed revoke stays same-document.",
+      "action": "When extending background-export behavior, keep controls on the local recorder/stream; never add upload, beacon, or origin-derived URLs in the visibility path.",
+      "confidence": "high"
+    }
+  ],
+  "nextStage": "qa-acceptance",
+  "loopBackTo": null,
+  "notes": {
+    "branch": "cursor/replay-controls-export-b391",
+    "iteration": 2,
+    "priorHandoff": "loop/handoffs/security-reviewer-2026-09-06T160305Z.json",
+    "revisionHandoff": "loop/handoffs/implementer-2026-09-06T161034Z.json",
+    "verifierHandoff": "loop/handoffs/verifier-2026-09-06T161220Z.json",
+    "appliedLearnings": [
+      "Did not close free-leaderboard trust boundary",
+      "Re-proved no-network export control by absence after pause/resume addition",
+      "Confirmed exportVisibility has non-test caller (useReplayExport) before treating pause as real control",
+      "Treated climb/result monotonic write as hard boundary — verified untouched"
+    ],
+    "reconfirm": {
+      "noVideoUpload": true,
+      "pauseResumeNoNetwork": true,
+      "filenameSafe": true,
+      "noNewSecrets": true
+    },
+    "criticalCount": 0,
+    "warningCount": 0,
+    "infoCount": 5
+  }
+}

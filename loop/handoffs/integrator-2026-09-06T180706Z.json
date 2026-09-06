@@ -1,0 +1,93 @@
+{
+  "agent": "integrator",
+  "status": "success",
+  "summary": "PR #84 merge-ready: merged main (learnings.jsonl both-sides chronological with Flows #83), local gates green (typecheck, lint, 32/32 share+export vitest), required CI + Vercel all pass on cd31efc; mergeStateStatus CLEAN. Did not merge — human merges feature PR. Release stage optional/skippable for this feature PR.",
+  "timestamp": "2026-09-06T18:07:06Z",
+  "goal": "After download, share climb replay MP4 via Apple & Android native share sheets (Web Share API files).",
+  "artifacts": [
+    "loop/handoffs/integrator-2026-09-06T180706Z.json",
+    "loop/qa-report.md",
+    "loop/handoffs/qa-acceptance-2026-09-06T180015Z.json",
+    "https://github.com/leeran7/building-blocks/pull/84"
+  ],
+  "exitCriteria": {
+    "loop_artifacts_pushed": true,
+    "local_gates_green": true,
+    "merge_conflicts_resolved": true,
+    "ci_required_checks_green": true,
+    "pr_mergeable_clean": true,
+    "did_not_merge": true
+  },
+  "feedback": [],
+  "ci": {
+    "headSha": "cd31efc13b424459b5cc4f86829ac554e5f61e07",
+    "runUrl": "https://github.com/leeran7/building-blocks/actions/runs/34050470430",
+    "checks": {
+      "Lint, Typecheck, and Test": "pass",
+      "Orchestrator loop": "pass",
+      "CI": "pass",
+      "Vercel": "pass",
+      "Vercel Preview Comments": "pass"
+    },
+    "mergeable": "MERGEABLE",
+    "mergeStateStatus": "CLEAN"
+  },
+  "gates": {
+    "app-typecheck": { "command": "pnpm typecheck", "status": "pass" },
+    "app-lint": { "command": "pnpm lint", "status": "pass" },
+    "app-test-focused": {
+      "command": "pnpm exec vitest run tests/game/shareVideoFile.test.ts tests/game/exportMime.test.ts tests/game/exportVisibility.test.ts tests/game/replayTransport.test.ts",
+      "passed": 32,
+      "failed": 0,
+      "status": "pass"
+    }
+  },
+  "pr": {
+    "number": 84,
+    "url": "https://github.com/leeran7/building-blocks/pull/84",
+    "branch": "cursor/native-video-share-b391",
+    "base": "main"
+  },
+  "learnings": [
+    {
+      "topic": "Build / CI",
+      "forAgents": ["integrator", "all"],
+      "kind": "metric",
+      "insight": "Integrator for native-share: local typecheck+lint+32 vitest pass; merged main resolving learnings.jsonl append conflict with Flows #83; PR #84 CI all green (Lint/Typecheck/Test, Orchestrator loop, CI, Vercel) on cd31efc; mergeStateStatus CLEAN. Not merged.",
+      "action": "Human merges PR #84. nextStage release may be skipped for this feature PR (no version bump).",
+      "confidence": "high"
+    },
+    {
+      "topic": "GitHub / PRs / stacks",
+      "forAgents": ["integrator", "devops"],
+      "kind": "lesson",
+      "insight": "QA HEAD left PR #84 CONFLICTING after main landed product-spec Flows (#83) learnings; Actions were absent until merge+push. Same pattern as #81.",
+      "action": "At integrator start, fetch origin/main and probe mergeability before trusting last Actions SHA; resolve append-only jsonl chronologically.",
+      "confidence": "high"
+    },
+    {
+      "topic": "Security",
+      "forAgents": ["product-spec", "architect", "release"],
+      "kind": "exception",
+      "insight": "Free-leaderboard peakY trust boundary and one-slot vs stacking remain open and out of scope; native-share adds no climb/result persistence or video upload.",
+      "action": "Leave OQ open in release notes if any; do not mark F-1 closed.",
+      "confidence": "high"
+    }
+  ],
+  "nextStage": "release",
+  "loopBackTo": null,
+  "notes": {
+    "release": "Skip or human-only for this feature PR — no package version bump; cloud agent must not merge. Human merges when ready.",
+    "retro": "Full foldLearnings retro is orchestrator-owned (learning-loop.md). Integrator did not rewrite learnings.md; new jsonl entries remain status open for orchestrator curation.",
+    "priorHandoff": "loop/handoffs/qa-acceptance-2026-09-06T180015Z.json",
+    "appliedLearnings": [
+      "Did not loopBackTo implementer after QA PASS (AC-NS 10/10)",
+      "Fetched origin/main first; resolved CONFLICTING via chronological learnings.jsonl merge",
+      "Did not merge PR; left free-leaderboard / stacking OQ open",
+      "Verified required check names from context/git.md are green",
+      "Waited for Vercel GitHub status after deployment READY"
+    ],
+    "mergeCommit": "cd31efc Merge main into cursor/native-video-share-b391",
+    "reviewerWarning": "Late share settlement after dismiss/re-export can stale setShareError — non-blocking optional follow-up"
+  }
+}

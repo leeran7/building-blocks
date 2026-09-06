@@ -1,0 +1,180 @@
+{
+  "agent": "verifier",
+  "status": "success",
+  "summary": "Native-share verification: 32/32 production-invoking tests pass (shareVideoFile 9, exportMime 5, exportVisibility 6, replayTransport 12); typecheck clean. AC-NS-1/4/5/6/8 seams covered by injectable canShare/share fakes; non-test callers confirmed. Gesture/UI ACs (2/3/7/9 + UI timing) residual per stage note.",
+  "timestamp": "2026-09-06T17:50:10Z",
+  "goal": "After downloading climb replay video, allow sharing via Apple & Android native share sheets (Web Share API files).",
+  "artifacts": [
+    "loop/handoffs/verifier-2026-09-06T175010Z.json",
+    "app/tests/game/shareVideoFile.test.ts",
+    "app/src/game/shareVideoFile.ts",
+    "app/src/components/Game/ReplayTransportBar.tsx",
+    "app/src/components/Game/useReplayExport.ts"
+  ],
+  "exitCriteria": {
+    "acs_mapped": true,
+    "unit_tests_invoked_production": true,
+    "no_source_text_greps_in_new_tests": true,
+    "non_test_callers_confirmed": true,
+    "vitest_pass": true,
+    "typecheck_pass": true,
+    "coverage_matrix_written": true,
+    "residual_risks_documented": true
+  },
+  "feedback": [],
+  "coverageMatrix": [
+    {
+      "ac": "AC-NS-1",
+      "status": "pass_partial",
+      "evidence": "canShareVideoFile true with files-only payload (no title/text); false when canShare missing/false/throws. Bar mounts Share when canShareVideoFile(file) — mount itself residual (no RTL).",
+      "file": "app/tests/game/shareVideoFile.test.ts:31-53",
+      "invokedTest": "canShareVideoFile",
+      "productionUnit": "app/src/game/shareVideoFile.ts:canShareVideoFile",
+      "nonTestCaller": "app/src/components/Game/ReplayTransportBar.tsx:265"
+    },
+    {
+      "ac": "AC-NS-2",
+      "status": "residual",
+      "evidence": "Share button className includes min-h-[44px] min-w-[44px]; no layout measurement test.",
+      "file": "app/src/components/Game/ReplayTransportBar.tsx:269",
+      "invokedTest": null
+    },
+    {
+      "ac": "AC-NS-3",
+      "status": "residual",
+      "evidence": "Share JSX only under exportStatus.kind===success; bar unmounted when not replaying (ClimbScene). No automated render gate.",
+      "file": "app/src/components/Game/ReplayTransportBar.tsx:258-293",
+      "invokedTest": null
+    },
+    {
+      "ac": "AC-NS-4",
+      "status": "pass_partial",
+      "evidence": "shareVideoFile invokes share with files:[file] (+ optional title); unsupported skips share. Gesture-negative (no auto-share on onstop) is structural in useReplayExport — residual for click/RTL proof.",
+      "file": "app/tests/game/shareVideoFile.test.ts:66-87",
+      "invokedTest": "shareVideoFile",
+      "productionUnit": "app/src/game/shareVideoFile.ts:shareVideoFile",
+      "nonTestCaller": "app/src/components/Game/ReplayTransportBar.tsx:270-277"
+    },
+    {
+      "ac": "AC-NS-5",
+      "status": "pass_partial",
+      "evidence": "AbortError → { ok:false, reason:'aborted' }. Bar treats aborted as quiet (no shareError). UI ≤500ms residual.",
+      "file": "app/tests/game/shareVideoFile.test.ts:89-102",
+      "invokedTest": "shareVideoFile AbortError → aborted"
+    },
+    {
+      "ac": "AC-NS-6",
+      "status": "pass_partial",
+      "evidence": "NotAllowedError → reason error with non-empty message; empty message falls back to 'Share failed'. Bar setShareError(message). UI ≤2s residual.",
+      "file": "app/tests/game/shareVideoFile.test.ts:104-141",
+      "invokedTest": "shareVideoFile non-abort → error"
+    },
+    {
+      "ac": "AC-NS-7",
+      "status": "residual",
+      "evidence": "onstop builds File([blob], filename, {type:containerMime}) and sets success.file; dismissStatus → idle drops reference. No unit asserting byte length/name/type retention or dismiss release.",
+      "file": "app/src/components/Game/useReplayExport.ts:185-199,90-91",
+      "invokedTest": null
+    },
+    {
+      "ac": "AC-NS-8",
+      "status": "pass",
+      "evidence": "WebM File.type video/webm in canShare probe and share payload; .webm name; never forged mp4. Parent pickExportMime label/extension honesty still green.",
+      "file": "app/tests/game/shareVideoFile.test.ts:55-62,143-153; app/tests/game/exportMime.test.ts:32-37",
+      "invokedTest": "canShareVideoFile WebM + shareVideoFile WebM + pickExportMime"
+    },
+    {
+      "ac": "AC-NS-9",
+      "status": "residual",
+      "evidence": "On result.ok bar calls speak('Share complete') which appends monotonic announceSeq; aria-live polite region present. No unit for announce text.",
+      "file": "app/src/components/Game/ReplayTransportBar.tsx:65-67,278-279,333-334",
+      "invokedTest": null
+    },
+    {
+      "ac": "AC-NS-10",
+      "status": "pass_partial",
+      "evidence": "onstop always downloadBlob then setStatus success (share additive). MIME honesty via pickExportMime. Download trigger itself residual (DOM <a download>).",
+      "file": "app/src/components/Game/useReplayExport.ts:191-199; app/tests/game/exportMime.test.ts:12",
+      "invokedTest": "pickExportMime (label/extension honesty)"
+    }
+  ],
+  "nonTestCallers": {
+    "shareVideoFile.ts": ["ReplayTransportBar.tsx"],
+    "useReplayExport.ts": ["ClimbScene.tsx"],
+    "ReplayTransportBar.tsx": ["ClimbScene.tsx"],
+    "exportMime.ts": ["useReplayExport.ts"],
+    "exportVisibility.ts": ["useReplayExport.ts"]
+  },
+  "testResults": {
+    "command": "cd /workspace/app && pnpm exec vitest run tests/game/shareVideoFile.test.ts tests/game/exportMime.test.ts tests/game/exportVisibility.test.ts tests/game/replayTransport.test.ts",
+    "passed": 32,
+    "failed": 0,
+    "files": {
+      "shareVideoFile.test.ts": 9,
+      "exportMime.test.ts": 5,
+      "exportVisibility.test.ts": 6,
+      "replayTransport.test.ts": 12
+    },
+    "typecheck": {
+      "command": "cd /workspace/app && pnpm typecheck",
+      "status": "pass"
+    },
+    "sourceTextGrepsInNewTests": false
+  },
+  "residualRisks": [
+    "AC-NS-2 44×44 hit-target — CSS classes only; needs layout/RTL or manual measure.",
+    "AC-NS-3 Share absent off success / live play — wiring residual; ClimbScene gate untested.",
+    "AC-NS-4 negative auto-share — structural (no share in onstop); no fake asserting share not called on success transition.",
+    "AC-NS-5/6 UI timing windows (500ms / 2s) and quiet vs alert rendering — bar wiring residual.",
+    "AC-NS-7 File retention byte-equality + dismiss/new-export release — hook residual (encode browser).",
+    "AC-NS-9 Share complete aria-live + monotonic suffix — speak() wiring residual.",
+    "AC-NS-10 download trigger DOM residual; share-hidden UA still downloads — QA device check.",
+    "NFR-NS-2 ≤100ms click→share start — not timed in unit suite."
+  ],
+  "learnings": [
+    {
+      "topic": "Testing",
+      "forAgents": ["all", "reviewer", "qa-acceptance"],
+      "kind": "metric",
+      "insight": "Native-share verifier: 32 production-invoking tests pass (shareVideoFile 9, exportMime 5, exportVisibility 6, replayTransport 12); pnpm typecheck pass. AC-NS-1/4/5/6/8 covered by injectable canShare/share fakes; AC-NS-2/3/7/9 residual UI/hook.",
+      "action": "Advance to reviewer; QA should device-check Share sheet on iOS/Android and confirm no Share on desktop canShare=false.",
+      "confidence": "high"
+    },
+    {
+      "topic": "Testing",
+      "forAgents": ["reviewer", "implementer", "frontend"],
+      "kind": "lesson",
+      "insight": "shareVideoFile non-test caller is ReplayTransportBar only; File retention lives in useReplayExport success.file and is independent of download URL revoke — units correctly assert MIME/name on the File, not object-URL liveness.",
+      "action": "Do not require revoke-timing tests for AC-NS-7; if retention must be unit-proven later, export a buildExportFile helper or test File construction with injectable blob seams.",
+      "confidence": "high"
+    },
+    {
+      "topic": "Testing",
+      "forAgents": ["qa-acceptance", "frontend"],
+      "kind": "lesson",
+      "insight": "Gesture/UI ACs (Share mount, 44px, announce, no auto-share on success transition) are intentionally residual when canShare/share/Abort seams are thoroughly unit-covered; click→share activation cannot be proven without RTL/browser.",
+      "action": "QA: cancel sheet → no error; fulfill share → hear/see Share complete; encode complete without tap → no sheet.",
+      "confidence": "high"
+    }
+  ],
+  "nextStage": "reviewer",
+  "loopBackTo": null,
+  "notes": {
+    "branch": "cursor/native-video-share-b391",
+    "priorHandoff": "loop/handoffs/implementer-2026-09-06T174711Z.json",
+    "spec": "loop/spec-native-share.md",
+    "architecture": "loop/architecture-native-share.md",
+    "appliedLearnings": [
+      "Invoked canShareVideoFile/shareVideoFile with fakes — no navigator.share source greps",
+      "Asserted files-only probe and WebM video/webm MIME (implementer + architect pings)",
+      "Confirmed non-test callers before counting AC coverage",
+      "Left gesture/UI ACs residual per user stage instruction when seams covered",
+      "Did not require download object URL to remain live for share (File owns bytes)"
+    ],
+    "acSummary": {
+      "pass": ["AC-NS-8"],
+      "pass_partial": ["AC-NS-1", "AC-NS-4", "AC-NS-5", "AC-NS-6", "AC-NS-10"],
+      "residual": ["AC-NS-2", "AC-NS-3", "AC-NS-7", "AC-NS-9"]
+    }
+  }
+}
