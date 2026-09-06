@@ -1,0 +1,73 @@
+{
+  "agent": "product-spec",
+  "status": "success",
+  "summary": "Locked MVP as async same-seed ghost race (not live): host records, invite link, challenger races ghost in shared multiplayer MatchState with shared lead-based lava. Win = first to RACE_GOAL_M=100m; if both die earlier, higher peakY (host/slot0 on tie). Auth optional for play; no race writes to free solo leaderboard. Spec in loop/spec-two-player-race.md (+ loop/spec.md). Flows F-1…F-5, AC-1…AC-21.",
+  "timestamp": "2026-09-06T20:02:14Z",
+  "goal": "Two players race each other on the same climb map (same seed/tower). Define finish rules, live vs async, and ship the smallest coherent head-to-head race mode that fits The Climb.",
+  "artifacts": [
+    "loop/spec-two-player-race.md",
+    "loop/spec.md"
+  ],
+  "exitCriteria": {
+    "flows_inventory_complete": true,
+    "locked_mvp_mode": true,
+    "win_condition_locked": true,
+    "acceptance_criteria_testable": true,
+    "trust_boundary_addressed_for_race": true,
+    "out_of_scope_explicit": true
+  },
+  "feedback": [],
+  "learnings": [
+    {
+      "topic": "Spec quality",
+      "forAgents": ["architect", "implementer", "verifier"],
+      "kind": "lesson",
+      "insight": "MVP race is async ghost on one MatchState (mode multiplayer): host input log drives ghost; live challenger; shared seed and shared lead-based lava. Live realtime is Future; ghost is also the named fallback if live is ever blocked.",
+      "action": "Design race invite payload (distinct from ?r= replay) and wire createMatch/stepMatch for two players; do not add WebSocket infra in this MVP.",
+      "confidence": "high"
+    },
+    {
+      "topic": "Architecture & contracts",
+      "forAgents": ["architect", "implementer", "verifier"],
+      "kind": "pitfall",
+      "insight": "resolveOutcome today only crowns status=finished or sets winnerId=null when all eliminated. Solo endless never finishes at a height; race needs first-to-100m finishers plus peakY fallback when both die below goal.",
+      "action": "Extend race outcome rules so AC-11/AC-12 hold: finished at ≥100m wins; else higher peakY; equal peak → slot 0 (host). Prove with simulateFromInputs, not source greps.",
+      "confidence": "high"
+    },
+    {
+      "topic": "Security",
+      "forAgents": ["architect", "security-reviewer", "backend"],
+      "kind": "lesson",
+      "insight": "Product decision for race: outcomes must not write free solo peakY / topFreeClimbers. Solo free-leaderboard server-re-sim question stays OPEN and is not closed by this MVP.",
+      "action": "Keep POST /api/climb/result solo-only; reject any raceWin-style claim; if a race-result API is added later, require auth + server re-sim of both logs before persist.",
+      "confidence": "high"
+    },
+    {
+      "topic": "Spec quality",
+      "forAgents": ["design-ux", "frontend", "qa-acceptance"],
+      "kind": "lesson",
+      "insight": "Race a friend must open a playable race-create surface (rules + Start recording), not #free teaser — same nav-honesty rule that fixed Free climb → /play.",
+      "action": "Walk F-1 in QA: CTA from /play or post-run overlay lands on Start recording; invalid invite recovers to Free climb / Create race without auto-starting solo replay.",
+      "confidence": "high"
+    },
+    {
+      "topic": "Spec quality",
+      "forAgents": ["all", "orchestrator"],
+      "kind": "metric",
+      "insight": "Locked constants: primary mode=async ghost race; RACE_GOAL_M=100; lava=shared lead-based; invite=link only; auth=anonymous play OK; persistent race ladder=out of scope.",
+      "action": "Architect and QA treat RACE_GOAL_M=100 and AC-1…AC-21 in loop/spec-two-player-race.md as the contract for this goal.",
+      "confidence": "high"
+    }
+  ],
+  "nextStage": "architect",
+  "lockedDecisions": {
+    "mode": "async_ghost_race",
+    "live": "out_of_scope_mvp_future_with_ghost_fallback",
+    "winCondition": "first_to_100m_else_higher_peakY_tie_host_slot0",
+    "sameMap": "shared_seed_identical_geometry_powerups",
+    "lava": "shared_lead_based",
+    "lobby": "invite_link_only",
+    "auth": "anonymous_play_persist_requires_auth_and_resim_future",
+    "fairness": "no_race_writes_to_free_solo_leaderboard"
+  }
+}
