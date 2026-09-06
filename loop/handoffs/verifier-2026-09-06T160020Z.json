@@ -1,0 +1,236 @@
+{
+  "agent": "verifier",
+  "status": "success",
+  "summary": "Verified replay transport/export: 28/28 unit+regression tests pass invoking production code; typecheck clean. Core unit-seam ACs (3,6,7,9,15/17 helpers,20 predicates) covered; browser/integration ACs (1–2,4–5,8,10–14,16,18–19, UI chrome) documented as residual risk per architecture harness plan — not needs_revision.",
+  "timestamp": "2026-09-06T16:00:20Z",
+  "goal": "Climb replay should allow fast forwarding, rewind, pause/play. Export as mp4.",
+  "artifacts": [
+    "loop/handoffs/verifier-2026-09-06T160020Z.json"
+  ],
+  "exitCriteria": {
+    "acs_mapped": true,
+    "unit_tests_invoked_production": true,
+    "no_source_text_greps_in_new_tests": true,
+    "non_test_callers_confirmed": true,
+    "vitest_pass": true,
+    "typecheck_pass": true,
+    "coverage_matrix_written": true,
+    "residual_risks_documented": true
+  },
+  "feedback": [],
+  "coverageMatrix": [
+    {
+      "ac": "AC-1",
+      "status": "residual",
+      "evidence": "ClimbScene mounts ReplayTransportBar when replaying && phase!==lobby && transport; live path skips mount. No automated render test.",
+      "file": "app/src/components/Game/ClimbScene.tsx:564",
+      "invokedTest": null
+    },
+    {
+      "ac": "AC-2",
+      "status": "residual",
+      "evidence": "ReplayTransportBar uses min-h/min-w-[44px]; no layout measurement test.",
+      "file": "app/src/components/Game/ReplayTransportBar.tsx:293",
+      "invokedTest": null
+    },
+    {
+      "ac": "AC-3",
+      "status": "pass",
+      "evidence": "shouldCaptureReplayKey positive keys + interactive exemption + unbound keys.",
+      "file": "app/tests/game/replayTransport.test.ts:70",
+      "invokedTest": "shouldCaptureReplayKey"
+    },
+    {
+      "ac": "AC-4",
+      "status": "residual",
+      "evidence": "pause() sets pausedRef; wall-clock freeze needs rAF/fake-clock harness (architecture §14 did not list as unit seam).",
+      "file": "app/src/game/useClimb.ts:376",
+      "invokedTest": null
+    },
+    {
+      "ac": "AC-5",
+      "status": "residual",
+      "evidence": "play() clears pause; resume timing needs browser/fake-clock harness.",
+      "file": "app/src/game/useClimb.ts:384",
+      "invokedTest": null
+    },
+    {
+      "ac": "AC-6",
+      "status": "pass",
+      "evidence": "ReplaySnapshotCache.seek/seekToTick vs headless oracle y/peakY/tick; rewind 150→50; clone isolation.",
+      "file": "app/tests/game/replaySnapshots.test.ts:65",
+      "invokedTest": "ReplaySnapshotCache.seek / headlessReplayAtTick"
+    },
+    {
+      "ac": "AC-7",
+      "status": "pass",
+      "evidence": "tickFromSeekRatio(0,0.5,1) for N=101; seek(0) playable climb phase.",
+      "file": "app/tests/game/replayTransport.test.ts:46",
+      "invokedTest": "tickFromSeekRatio + ReplaySnapshotCache.seek(0)"
+    },
+    {
+      "ac": "AC-8",
+      "status": "residual",
+      "evidence": "restartReplay wired (speed 1, playing, start); no unit invoking restartReplay.",
+      "file": "app/src/game/useClimb.ts:425",
+      "invokedTest": null
+    },
+    {
+      "ac": "AC-9",
+      "status": "pass",
+      "evidence": "cycleReplaySpeed 1→2→4→1; REPLAY_SPEEDS=[1,2,4].",
+      "file": "app/tests/game/replayTransport.test.ts:28",
+      "invokedTest": "cycleReplaySpeed"
+    },
+    {
+      "ac": "AC-10",
+      "status": "residual",
+      "evidence": "Architecture §14: fake-clock/browser harness. Not covered by node vitest.",
+      "file": "app/src/game/useClimb.ts:304",
+      "invokedTest": null
+    },
+    {
+      "ac": "AC-11",
+      "status": "residual",
+      "evidence": "pause/play no-op when finished; phaseLabel finished in transport view. No auto-advance stop test.",
+      "file": "app/src/game/useClimb.ts:376",
+      "invokedTest": null
+    },
+    {
+      "ac": "AC-12",
+      "status": "residual",
+      "evidence": "Controls are not gated on reducedMotion; no automated reduced-motion fixture.",
+      "file": "app/src/components/Game/ReplayTransportBar.tsx",
+      "invokedTest": null
+    },
+    {
+      "ac": "AC-13",
+      "status": "residual",
+      "evidence": "useReplayExport 720×1280@30 detached canvas; MediaRecorder encode needs browser harness.",
+      "file": "app/src/components/Game/useReplayExport.ts:30",
+      "invokedTest": null
+    },
+    {
+      "ac": "AC-14",
+      "status": "residual",
+      "evidence": "Double-start guarded (sessionRef); duration N/30 not unit-asserted; encode is browser.",
+      "file": "app/src/components/Game/useReplayExport.ts:81",
+      "invokedTest": null
+    },
+    {
+      "ac": "AC-15",
+      "status": "pass_partial",
+      "evidence": "pickExportMime extension/label honesty unit-tested. Filename climb-{peak}m-{yyyyMMdd} built in useReplayExport (unexported) — residual for filename string.",
+      "file": "app/tests/game/exportMime.test.ts:12",
+      "invokedTest": "pickExportMime"
+    },
+    {
+      "ac": "AC-16",
+      "status": "residual",
+      "evidence": "exportPercent private helper matches formula but not exported/tested; cancel/download need browser.",
+      "file": "app/src/components/Game/useReplayExport.ts:364",
+      "invokedTest": null
+    },
+    {
+      "ac": "AC-17",
+      "status": "pass_partial",
+      "evidence": "pickExportMime(()=>false)→null unit-tested; UI error string + 2s timing residual (browser).",
+      "file": "app/tests/game/exportMime.test.ts:39",
+      "invokedTest": "pickExportMime"
+    },
+    {
+      "ac": "AC-18",
+      "status": "residual",
+      "evidence": "visibility policy (b) in useReplayExport; architecture ADR-4 — browser harness.",
+      "file": "app/src/components/Game/useReplayExport.ts:205",
+      "invokedTest": null
+    },
+    {
+      "ac": "AC-19",
+      "status": "residual",
+      "evidence": "failSession sets error status; encode failure needs MediaRecorder browser path.",
+      "file": "app/src/components/Game/useReplayExport.ts:369",
+      "invokedTest": null
+    },
+    {
+      "ac": "AC-20",
+      "status": "pass",
+      "evidence": "shouldCaptureReplayKey(!replaying)=false; shouldCaptureGameKey Space during climb still true; interactive exemption both predicates. TouchControls mount residual (wiring only).",
+      "file": "app/tests/game/useClimb.replayTransport.test.ts:14",
+      "invokedTest": "shouldCaptureGameKey + shouldCaptureReplayKey"
+    }
+  ],
+  "nonTestCallers": {
+    "replayTransport.ts": ["useClimb.ts", "ClimbScene.tsx", "ReplayTransportBar.tsx", "replaySnapshots.ts"],
+    "replaySnapshots.ts": ["useClimb.ts"],
+    "cloneMatch.ts": ["replaySnapshots.ts"],
+    "exportMime.ts": ["useReplayExport.ts"],
+    "paintClimbFrame.ts": ["ClimbCanvas.tsx", "useReplayExport.ts"],
+    "ReplayTransportBar.tsx": ["ClimbScene.tsx"],
+    "useReplayExport.ts": ["ClimbScene.tsx"]
+  },
+  "testResults": {
+    "command": "cd /workspace/app && pnpm exec vitest run tests/game/replayTransport.test.ts tests/game/replaySnapshots.test.ts tests/game/exportMime.test.ts tests/game/useClimb.replayTransport.test.ts tests/game/runReplay.test.ts",
+    "passed": 28,
+    "failed": 0,
+    "files": {
+      "replayTransport.test.ts": 10,
+      "replaySnapshots.test.ts": 5,
+      "exportMime.test.ts": 5,
+      "useClimb.replayTransport.test.ts": 4,
+      "runReplay.test.ts": 4
+    },
+    "typecheck": {
+      "command": "cd /workspace/app && pnpm typecheck",
+      "status": "pass"
+    },
+    "sourceTextGrepsInNewTests": false
+  },
+  "residualRisks": [
+    "AC-10 wall-clock 2×/4× windows — architecture-marked fake-clock/browser harness; not fail criteria for this stage.",
+    "AC-13–19 MediaRecorder encode/download/visibility/cancel — integration/browser; units cover MIME probe + (partial) labels only.",
+    "AC-1/2/8/11/12 UI mount, 44px hit targets, Restart, finished idle, reduced-motion — need browser/RTL or manual QA.",
+    "AC-4/5 pause/play wall-clock freeze/resume — need useClimb rAF harness with injectable clock.",
+    "AC-15 filename string and AC-16 exportPercent are pure but unexported; extract+unit if tightening before QA.",
+    "NFR-8 transport:null on live play asserted only via key-predicate false when !replaying + ClimbScene mount gates — no RTL asserting transport===null.",
+    "Implementer knownGap: HTMLCanvasElement (not OffscreenCanvas) for export draw — still 720×1280@30 detached."
+  ],
+  "learnings": [
+    {
+      "topic": "Testing",
+      "forAgents": ["all"],
+      "kind": "metric",
+      "insight": "Verifier ran 28 production-invoking tests (24 new + 4 runReplay regression) all green; typecheck pass. Core unit-seam ACs from architecture §14 covered; browser/integration ACs left as residual per harness plan.",
+      "action": "Treat pass=28 fail=0 typecheck=pass as the verifier gate for this iteration; do not loopBack for AC-10/13–19 alone.",
+      "confidence": "high"
+    },
+    {
+      "topic": "Testing",
+      "forAgents": ["implementer", "qa-acceptance", "frontend"],
+      "kind": "lesson",
+      "insight": "exportPercent and climb-{peak}m-{yyyyMMdd} filename builders live as private helpers inside useReplayExport — AC-15/16 formula coverage cannot be unit-invoked without extracting them (or a browser harness).",
+      "action": "If QA needs stronger unit proof, export buildExportFilename(peakY, date, extension) and exportPercent(tick, n) next to pickExportMime and add vitest cases; otherwise keep as residual for browser QA.",
+      "confidence": "high"
+    },
+    {
+      "topic": "Testing",
+      "forAgents": ["reviewer", "frontend"],
+      "kind": "lesson",
+      "insight": "Non-test callers confirmed for all new modules (useClimb/ClimbScene/ClimbCanvas/useReplayExport). New tests import production units only — no readFileSync source greps in the four new replay test files.",
+      "action": "Reviewer should not accept source-text proofs if added later; NFR-8 still needs behavioral check that live ClimbScene skips ReplayTransportBar.",
+      "confidence": "high"
+    }
+  ],
+  "nextStage": "reviewer",
+  "loopBackTo": null,
+  "notes": {
+    "branch": "cursor/replay-controls-export-b391",
+    "appliedLearnings": [
+      "Rejected source greps; invoked ReplaySnapshotCache/pickExportMime/shouldCaptureReplayKey",
+      "Confirmed non-test callers before counting AC coverage",
+      "Did not fail solely for AC-10/MediaRecorder per architecture browser harness + user stage instructions",
+      "Mapped AC-10/13–19 to residual browser checks per implementer handoff"
+    ],
+    "outOfScopeUntouched": ["runReplay encode/decode", "climb/result", "leaderboard"]
+  }
+}
