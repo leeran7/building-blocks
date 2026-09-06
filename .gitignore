@@ -15,6 +15,7 @@ loop/*
 # Closed-loop stage contracts consumed across agents / clones.
 !loop/spec.md
 !loop/architecture.md
+!loop/design.md
 .claude/handoffs/*.json
 
 # Dependencies & build

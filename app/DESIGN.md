@@ -100,3 +100,22 @@ Before adding any CTA or link, run this check:
    plain links or remove them.
 4. Reviewers reject net-new CTAs that duplicate a destination already pitched
    elsewhere.
+
+## Landing POP pass (additive — no new tokens)
+
+Composition-only notes for `/`. Full storyboard, hero budget, motion beats, and
+empty-arena rules live in **`loop/design.md`**. Do not invent a parallel palette
+or type stack for this pass.
+
+- **Concept:** Burial Horizon — brand-first `DOOMSTACK` at display scale + one
+  headline + one support + one CTA group + one **full-bleed** elevation plane
+  (not an inset `rounded-2xl` + border + `bg-surface` card).
+- **Depth:** reuse `.grain`, `.topo`, dual signal/ember radials, `.survey-grid`,
+  `.ground-gradient`, `.altimeter`, `shadow-signal` / ember on the duotone poles.
+- **Motion (≤3):** M1 `.reveal` stagger · M2 `animate-groundRise` · M3 CTA hover
+  (or one-shot `animate-climb` on demo bars — not both as named layers). All
+  gated by `prefers-reduced-motion`.
+- **Empty arena:** never lead Hero with a live `0` blocks number; keep demo stack
+  + invitation / `from $N` floor copy.
+- **Hard don’ts:** no purple gradients, no hero cards, no dual paid+free stat
+  strips in the first viewport, no badge overlays on hero media.
