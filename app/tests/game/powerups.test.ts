@@ -1214,7 +1214,11 @@ function botInput(p: PlayerState, tower: TowerSpec, tick = 0): PlayerInput {
     return { moveX: 0, jump: false, climbY: 1, usePowerUp: false };
   }
   const dir: -1 | 0 | 1 = dx > 0 ? 1 : -1;
-  const probe = p.x + dir * 3.5;
+  const probeRaw = p.x + dir * 3.5;
+  const probe =
+    probeRaw < 0 || probeRaw > tower.widthM
+      ? ((probeRaw % tower.widthM) + tower.widthM) % tower.widthM
+      : probeRaw;
   const ahead = platformsForFloor(tower, k).some(
     (pl) => probe >= pl.x0 && probe <= pl.x1 && Math.abs(pl.y - p.y) <= 0.05
   );

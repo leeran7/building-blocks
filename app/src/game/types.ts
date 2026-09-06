@@ -199,7 +199,7 @@ export interface Ladder {
  */
 export interface TowerSpec {
   categorySlug: string;
-  /** Horizontal play width in metres (x ∈ [0, widthM]). */
+  /** Horizontal play width in metres (x wraps in [0, widthM)). */
   widthM: number;
   /** Vertical distance between consecutive floors in metres. */
   floorGap: number;
