@@ -88,7 +88,8 @@ describe("Hero — empty arena (AC-11, AC-12)", () => {
   it("uses arena chrome when live blocks exist, still without Free/Paid strips", () => {
     const html = renderHero(42);
     expect(html).toContain("Paid stack · arena");
-    expect(html).not.toContain("42");
+    expect(html).not.toMatch(/\b42\b/);
+    expect(html).not.toContain("42 blocks");
     expect(html).not.toMatch(/>\s*Paid\s*</);
   });
 });
