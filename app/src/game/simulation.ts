@@ -367,20 +367,28 @@ function integratePlayer(
         p.onGround = true;
       } else if (p.vy <= 0) {
         // Falling — land on the first one-way platform crossed from above.
+        // If no platform, leave onGround alone: crate/ramp resolve + the
+        // support check below clear it when truly unsupported (so standing
+        // on a stair above the slab is not wiped every tick).
         const plat = landingPlatform(tower, p.x, prevY, p.y, platformMargin);
         if (plat) {
           p.y = plat.y;
           p.vy = 0;
           p.onGround = true;
-        } else {
-          p.onGround = false;
         }
       } else {
         // Rising through platforms (one-way): stay airborne.
         p.onGround = false;
       }
 
-      resolveObstacleMotion(p, prevX, prevY, tower, platformMargin);
+      resolveObstacleMotion(
+        p,
+        prevX,
+        prevY,
+        tower,
+        platformMargin,
+        isPowerUpActive(p, "giant", tick)
+      );
 
       // Walked off a platform or crate while grounded → start falling.
       if (

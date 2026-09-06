@@ -6,6 +6,7 @@
  * static or simplified visuals when set.
  */
 
+import { PICKUP_SHAKE_AMP_UI } from "../../design/climbFeelTokens";
 import {
   POWER_UP_SPECS,
   type PowerUpSpec,
@@ -17,6 +18,8 @@ import {
   type PowerUpType,
 } from "../../game/types";
 import { drawPowerUpIcon, drawPowerUpOrbBody } from "./powerUpVisuals";
+
+export { PICKUP_SHAKE_AMP_UI };
 
 /** Ticks the pickup burst plays for (matches ClimbCanvas). */
 export const PICKUP_BURST_TICKS = 18;
@@ -53,7 +56,7 @@ export function pickupShakeOffset(
     return { dx: 0, dy: 0 };
   }
   const falloff = 1 - pickupAge / PICKUP_SHAKE_TICKS;
-  const amp = 2.2 * ui * falloff * falloff;
+  const amp = PICKUP_SHAKE_AMP_UI * ui * falloff * falloff;
   return {
     dx: Math.sin(tick * 2.37 + pickupAge * 1.1) * amp,
     dy: Math.cos(tick * 1.83 + pickupAge * 0.9) * amp * 0.65,

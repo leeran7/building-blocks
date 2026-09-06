@@ -14,6 +14,8 @@
  * cannot leak onto gameplay.
  */
 
+import { EMBER_MAX as CLIMB_EMBER_MAX } from "../../design/climbFeelTokens";
+
 export const VOLCANO_TILE_SRC = "/climb/volcano-tile.jpg";
 
 /** Camera altitudes (metres) at the five biome anchors. */
@@ -32,7 +34,8 @@ const OVERLAY: readonly Rgb[] = [
 ];
 const OVERLAY_A = [0.18, 0.26, 0.34, 0.4, 0.46] as const;
 const EMBER = ["255,74,36", "255,102,48", "255,132,64", "255,176,80"] as const;
-export const EMBER_MAX = 88;
+/** Climb Feel 1.2× — re-export from climbFeelTokens (≤+20% of baseline 88). */
+export const EMBER_MAX = CLIMB_EMBER_MAX;
 const VENT_COUNT = 7;
 
 const clamp01 = (v: number) => (v < 0 ? 0 : v > 1 ? 1 : v);
