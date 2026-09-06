@@ -1,79 +1,68 @@
-# QA Acceptance Report — native share of exported climb video
+# QA Acceptance Report — share-first export (no download when canShare)
 
-**Goal:** After download, share climb replay MP4 via Apple & Android native share sheets  
-**Branch:** `cursor/native-video-share-b391`  
-**Date:** 2026-09-06T18:00:15Z  
+**Goal:** Native share immediately after encode; no download when `canShare`  
+**Branch:** `cursor/share-immediate-b391`  
+**Date:** 2026-09-06T18:29:28Z  
 **Agent:** qa-acceptance  
-**Spec:** `loop/spec-native-share.md` (AC-NS-1…10)  
+**Spec:** `loop/spec-share-immediate.md` (AC-SI-1…5)  
 **Verdict:** **PASS** → integrator
 
 ## Method
 
-1. Re-ran production-invoking vitest (32/32 related) + `pnpm typecheck` (pass).
-2. Code inspection of non-test callers: `ClimbScene` → `ReplayTransportBar` / `useReplayExport` / `shareVideoFile`.
-3. Playwright Chromium smoke on live `/play` and `/play?r=` with injectable `canShare`/`share` mocks (desktop Chromium does not expose file share natively).
+1. Re-ran production-invoking vitest (22/22 related) + `pnpm typecheck` (pass).
+2. Code inspection: `onstop` File-only; `startExport` awaits `encodePromise` then `deliverExportFile`; click sites ClimbScene + ReplayTransportBar; Share ≥44×44 + “Share complete” wiring.
+3. Playwright Chromium (iPhone 12) smoke on live `/play?r=` with injectable `canShare`/`share` mocks and `<a download>` click spy — assert download **not** triggered when canShare true.
 4. No source-text greps as AC proof (kernel gate).
 
 ## Unit evidence
 
 | Suite | Result |
 | --- | --- |
+| `exportDelivery.test.ts` | 8 pass |
 | `shareVideoFile.test.ts` | 9 pass |
 | `exportMime.test.ts` | 5 pass |
-| `exportVisibility.test.ts` | 6 pass |
-| `replayTransport.test.ts` | 12 pass |
-| **Total** | **32/32** |
+| **Total** | **22/22** |
 | `pnpm typecheck` | pass |
 
 ## Browser smoke highlights
 
-- Live `/play`: transport=0, Share=0 (AC-NS-3).
-- Replay before success: Share=0 (AC-NS-3).
-- Native desktop Chromium after export: `Downloaded MP4`, Share=0, Dismiss=1 (AC-NS-1 negative / AC-NS-10).
-- Mock `canShare→true`: Share mounts; box ≥44×44 (48.5×44 mobile, 48.5×44 iPhone 12) (AC-NS-1/2).
-- Encode complete → `share()` call count before Share click = 0 (AC-NS-4 negative).
-- Share click → `files:[File]` with `climb-99m-20260906.mp4` / `video/mp4` / size>0; title=file.name; no text (AC-NS-4/7).
-- Fulfilled share → aria-live `Share complete 3` (monotonic suffix) (AC-NS-9).
-- AbortError mock → transport `role=alert` count 0; success + Share remain (AC-NS-5).
-- NotAllowedError mock → dismissible non-empty alert within 400ms (AC-NS-6).
-- Dismiss → Share=0 and success chrome gone (AC-NS-7 negative).
-- Mock `canShare→false` → Share=0, Dismiss=1; download label still shown (AC-NS-1 negative / AC-NS-10).
+Base: `http://127.0.0.1:3010/play?r=<qa-export token>` · device: iPhone 12 · mocks: `navigator.canShare` / `navigator.share` + patched `HTMLAnchorElement.click` for `[download]`.
+
+| Partition | Label | share() calls | `<a download>` clicks | Share btn | Notes |
+| --- | --- | --- | --- | --- | --- |
+| canShare→true | READY TO SHARE MP4 | 1 (auto after Export) | **0** | visible 48.5×44 | createObjectURL count 0; Share click → aria-live `Share complete 3`; file `climb-99m-20260906.mp4` / `video/mp4` |
+| canShare→false | DOWNLOADED MP4 | 0 | **1** | hidden | download `climb-99m-20260906.mp4` blob URL |
 
 ## AC matrix
 
 | AC | Status | Expected | Actual / evidence |
 | --- | --- | --- | --- |
-| AC-NS-1 | **pass** | Share when canShare(files); hide otherwise | Unit canShare true/false/missing/throw; Playwright mount when mocked true; Share=0 when false/native desktop |
-| AC-NS-2 | **pass** | Share hit target ≥44×44 | Playwright boundingBox 48.5×44 (390×844 + iPhone 12) |
-| AC-NS-3 | **pass** | No Share off success / live play | Live Share=0; replay pre-success Share=0; JSX only under `kind===success`; bar gated `replaying` |
-| AC-NS-4 | **pass** | share() from click with same file; no auto-share | Unit share payload; Playwright payloadsBeforeClick=0; sole caller Share onClick |
-| AC-NS-5 | **pass** | AbortError quiet; success retained | Unit → aborted; Playwright abort → 0 transport alerts; Share+Downloaded remain |
-| AC-NS-6 | **pass** | Non-abort → dismissible non-empty error | Unit NotAllowedError/empty→Share failed; Playwright alert `NOTALLOWEDERROR` |
-| AC-NS-7 | **pass** | Retain File until dismiss/new export | onstop `File([blob],…)` retained; smoke name/type/size; dismiss clears Share |
-| AC-NS-8 | **pass** | MIME-honest WebM/MP4 gate | Unit WebM probe+share `video/webm`; `containerMimeForLabel`; browser path MP4 honest |
-| AC-NS-9 | **pass** | aria-live Share complete + monotonic | Playwright `Share complete 3`; `speak()` appends announceSeq |
-| AC-NS-10 | **pass** | Download always; Share additive | onstop always `downloadBlob` then success; smoke Downloaded MP4 with Share hidden or shown |
+| AC-SI-1 | **pass** | canShare true → no downloadBlob / `<a download>` | Unit: `deliverExportFile` download not called; Playwright: downloadClicks=0, createObjectURLs=0 when mocked canShare true |
+| AC-SI-2 | **pass** | canShare false → download still occurs | Unit: download once, share never; Playwright: downloadClicks=1, DOWNLOADED MP4 |
+| AC-SI-3 | **pass** | share once in Export click async chain after await encode; Share ≥44×44 on abort/unsupported | Inspection: onstop File-only; await encodePromise → deliverExportFile; Playwright: shareCalls=1 after Export before retry click; Share 48.5×44 remains |
+| AC-SI-4 | **pass** | Share click after share-first success → aria-live Share complete | Playwright: Share click → `Share complete 3`; unit+wiring: exportSuccessLabel Ready to share; speak on shared/ok |
+| AC-SI-5 | **pass** | WebM/MP4 MIME honesty unchanged (AC-NS-8) | Unit pickExportMime never labels WebM as MP4; Playwright fileType `video/mp4` for MP4 path |
 
 ## Residuals / risk
 
 | Item | Risk | Why not fail |
 | --- | --- | --- |
-| Physical iOS/Android OS sheet UI | Low | Product contract is Web Share Level 2; mocked navigator.share proves wiring; real sheet is UA chrome |
-| NFR-NS-2 ≤100ms click→share | Low | onClick awaits shareVideoFile first with no preceding awaits (ADR-NS-5); not wall-clock timed |
-| Stale shareError after dismiss/re-export (reviewer warning) | Low | Not an AC; exploratory note for follow-up |
-| Double-tap Share (reviewer info) | Low | Not an AC; OS may ignore concurrent share |
+| Physical iOS/Android OS sheet | Low | Product contract is Web Share Level 2; mocked navigator.share proves no-download + share wiring |
+| UA activation loss after long encode | Low | Spec allows Share retry; AC-SI-3 structural await chain + Share ≥44×44 proven |
+| Delivery re-entry / late setStatus (reviewer warnings) | Low | Not AC-SI; note for follow-up — Export enabled during deliverExportFile settlement |
+| Delta spec has no Flows F-n inventory | Low | Intentional UX delta on native-share; primary Export→share-first path walked end-to-end |
 
 ## Exploratory
 
-- Double Export while success: new encode replaces status (Share unmounts on running).
-- Navigate live ↔ replay: Share never on live.
-- canShare throw/missing: treated unsupported (unit).
-- Empty reject message → UI “Share failed” (unit).
+- canShare true: success copy is Ready to share (not Downloaded); Share + Dismiss present.
+- canShare false: Downloaded + Dismiss only; Share absent (negative partition).
+- Double Export while delivery in flight: known reviewer warning (session cleared early) — not an AC fail.
+- Abort path covered by unit (`aborted` shareResult → no download); Share retry chrome remains when canShare.
 
 ## Applied learnings
 
-- Invoked units + Playwright; no `navigator.share` source greps.
-- Confirmed non-test caller of `shareVideoFile` is `ReplayTransportBar` only.
-- Did not require download object-URL liveness for AC-NS-7 (File owns bytes).
+- Invoked `deliverExportFile` / `resolveExportDelivery` / `shareVideoFile` / `pickExportMime` — no source greps.
+- Mocked canShare/share in Playwright (desktop Chromium lacks file share) per prior QA lesson.
+- Confirmed AC-SI-3 against startExport await order (onstop File-only), not superseded onstop-share.
+- Did not loopBack for activation survival or announce unit residuals once Playwright closed them.
 - Did not reopen free-leaderboard trust boundary.
-- Treated gesture/UI ACs as QA-owned; closed them with browser mocks rather than looping implementer.
