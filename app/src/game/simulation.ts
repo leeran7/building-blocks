@@ -9,7 +9,7 @@
  * is what AC-11 (determinism) and AC-17 (replay verification) rely on.
  *
  * The world is a Donkey-Kong-style stack of solid platforms joined by ladders,
- * with jumpable gaps and jump-over crates on the traverse. Motion is real 2D
+ * with jumpable gaps and jump-over crates on the traverse. Horizontal space wraps: walking off the left edge enters on the right (and vice versa). Motion is real 2D
  * platforming — gravity, walking, jumping, one-way platform landings, and ladder
  * climbing. The pressure is Doodle-Jump style: a single DEATH LINE = max(rising
  * hazard, peak − fallDeathBelowPeak). If your feet drop to it, you're out
@@ -272,7 +272,7 @@ function integratePlayer(
   p.vx = input.moveX * moveSpeed;
 
   if (p.onLadder) {
-    p.x = clamp(p.x + p.vx * dt, 0, tower.widthM);
+    p.x = wrapX(p.x + p.vx * dt, tower.widthM);
     const l =
       p.ladderIx !== null && p.ladderSlot !== null
         ? laddersForFloor(tower, p.ladderIx)[p.ladderSlot]
@@ -308,7 +308,10 @@ function integratePlayer(
     }
   } else {
     const prevX = p.x;
-    p.x = clamp(p.x + p.vx * dt, 0, tower.widthM);
+    const nextX = p.x + p.vx * dt;
+    p.x = wrapX(nextX, tower.widthM);
+    // Keep obstacle collision continuous across the seam (prevX shifts with the wrap).
+    const wrappedPrevX = prevX + (p.x - nextX);
 
     // Grab a ladder if the player is asking to climb and one is in reach. Right
     // after stepping off a ladder, a grab is suppressed only while the player is
@@ -383,12 +386,13 @@ function integratePlayer(
 
       resolveObstacleMotion(
         p,
-        prevX,
+        wrappedPrevX,
         prevY,
         tower,
         platformMargin,
         isPowerUpActive(p, "giant", tick)
       );
+      p.x = wrapX(p.x, tower.widthM);
 
       // Walked off a platform or crate while grounded → start falling.
       if (
@@ -557,6 +561,13 @@ function resolveOutcome(state: MatchState): void {
 
 function clamp(v: number, lo: number, hi: number): number {
   return v < lo ? lo : v > hi ? hi : v;
+}
+
+/** Wrap x onto the tower cylinder — walk off the left edge, enter on the right. */
+function wrapX(x: number, widthM: number): number {
+  if (!(widthM > 0)) return x;
+  const w = x % widthM;
+  return w < 0 ? w + widthM : w;
 }
 
 /** Metres the highest still-climbing player sits above the lava. */
