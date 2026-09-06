@@ -354,7 +354,7 @@ describe("obstacle spawn", () => {
     expect(p.onGround).toBe(false);
   });
 
-  it("lets a walker crest a crate stair without jumping", () => {
+  it("lets a walker crest a crate stair onto the next floor without jumping", () => {
     const { floor, crates } = firstStair(TOWER);
     const first = crates.reduce((a, b) => (a.y0 <= b.y0 ? a : b));
     const last = crates.reduce((a, b) => (a.y1 >= b.y1 ? a : b));
@@ -370,12 +370,20 @@ describe("obstacle spawn", () => {
     const step = crates[0].y1 - crates[0].y0;
     let maxRise = 0;
     let prevY = p.y;
-    for (let i = 0; i < 700 && p.y < nextY - 0.15; i++) {
+    const pastLast = () =>
+      dir > 0 ? p.x > last.x1 + 0.8 : p.x < last.x0 - 0.8;
+    for (let i = 0; i < 900 && !(pastLast() && p.y >= nextY - 0.1); i++) {
       stepMatch(m, { p1: move(dir, false) }, SLOW);
       maxRise = Math.max(maxRise, p.y - prevY);
       prevY = p.y;
+      // Must not fall off the top while cresting onto the next slab.
+      if (p.y > nextY - 1.5) {
+        expect(p.onGround).toBe(true);
+      }
     }
-    expect(p.y).toBeGreaterThan(nextY - 0.2);
+    expect(pastLast()).toBe(true);
+    expect(p.y).toBeCloseTo(nextY, 1);
+    expect(p.onGround).toBe(true);
     expect(p.status).toBe("climbing");
     // Continuous ramp: no single-tick snap of a full old-style tread.
     expect(maxRise).toBeLessThan(step * 0.85 + 0.05);

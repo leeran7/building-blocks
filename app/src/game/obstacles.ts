@@ -710,12 +710,21 @@ function obstacleSurfaceY(band: Obstacle[], o: Obstacle, x: number): number {
   if (isMonotoneY1(sorted)) {
     const bottom = run.reduce((a, b) => (a.y0 <= b.y0 ? a : b));
     const top = run.reduce((a, b) => (a.y1 >= b.y1 ? a : b));
+    const yLo = bottom.y0;
+    const yHi = top.y1;
     const asc = (bottom.x0 + bottom.x1) / 2 <= (top.x0 + top.x1) / 2;
-    const t = asc
-      ? (x - left) / Math.max(1e-6, right - left)
-      : (right - x) / Math.max(1e-6, right - left);
-    const tt = Math.max(0, Math.min(1, t));
-    return bottom.y0 + tt * (top.y1 - bottom.y0);
+    // Reach full height at the near edge of the last tread so that tread is a
+    // flat landing flush with the next slab — walking off needs no jump.
+    if (asc) {
+      const landX = top.x0;
+      if (x >= landX) return yHi;
+      const t = (x - left) / Math.max(1e-6, landX - left);
+      return yLo + Math.max(0, Math.min(1, t)) * (yHi - yLo);
+    }
+    const landX = top.x1;
+    if (x <= landX) return yHi;
+    const t = (right - x) / Math.max(1e-6, right - landX);
+    return yLo + Math.max(0, Math.min(1, t)) * (yHi - yLo);
   }
 
   // Tent ramp: linear up to the peak centre, linear down to the far base.
