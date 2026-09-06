@@ -1,0 +1,102 @@
+{
+  "agent": "qa-acceptance",
+  "status": "success",
+  "summary": "AC-1…AC-20 acceptance: 18 pass, 2 residual (AC-17 unsupported MediaRecorder in Chromium; AC-19 injected encode-error UI). 38/38 related vitest green; Playwright smoke on live /play and /play?r= proved transport, 44px targets, shortcuts, pause/play, seek/scrub, speed 2×/4× wall-clock, finished Restart, export progress/cancel/download climb-99m-*.mp4, visibility pause message, reduced-motion. No AC failures. Advance to integrator.",
+  "timestamp": "2026-09-06T16:23:06Z",
+  "goal": "Climb replay should allow fast forwarding, rewind, pause/play. Export as mp4.",
+  "artifacts": [
+    "loop/qa-report.md",
+    "loop/handoffs/qa-acceptance-2026-09-06T162306Z.json"
+  ],
+  "exitCriteria": {
+    "all_acs_listed": true,
+    "no_ac_failures": true,
+    "unit_evidence_invoked": true,
+    "browser_smoke_run": true,
+    "qa_report_written": true,
+    "residuals_documented": true
+  },
+  "feedback": [],
+  "acMatrix": [
+    { "ac": "AC-1", "status": "pass", "evidence": "Playwright: replay mounts Pause/Rewind/Speed/Seek/Export; live transport=0" },
+    { "ac": "AC-2", "status": "pass", "evidence": "Playwright 390×844: 5 controls ≥44×44" },
+    { "ac": "AC-3", "status": "pass", "evidence": "Browser Space/k/J/L/Home + interactive Export exempt; shouldCaptureReplayKey unit" },
+    { "ac": "AC-4", "status": "pass", "evidence": "Browser pause freezes clock ≥500ms; Play affordance" },
+    { "ac": "AC-5", "status": "pass", "evidence": "Browser k resumes to Pause affordance" },
+    { "ac": "AC-6", "status": "pass", "evidence": "replaySnapshots oracle parity + browser rewind" },
+    { "ac": "AC-7", "status": "pass", "evidence": "tickFromSeekRatio/commitScrubRatio unit; browser r∈{0,0.5,1}; scrub mid-play holds draft" },
+    { "ac": "AC-8", "status": "pass", "evidence": "Browser Restart → 1x, 00:00" },
+    { "ac": "AC-9", "status": "pass", "evidence": "cycleReplaySpeed unit; browser 1→2→4→1" },
+    { "ac": "AC-10", "status": "pass", "evidence": "Browser 2×=1.049s / 4×=0.518s for 60 ticks; paused@4× no advance" },
+    { "ac": "AC-11", "status": "pass", "evidence": "Browser Pause disabled when finished; Restart+Export present" },
+    { "ac": "AC-12", "status": "pass", "evidence": "Playwright emulateMedia reducedMotion still toggles pause/speed" },
+    { "ac": "AC-13", "status": "pass", "evidence": "useReplayExport 720×1280@30 from tick 0; browser MP4 download" },
+    { "ac": "AC-14", "status": "pass", "evidence": "Double Export → one Cancel; shareable N accepted" },
+    { "ac": "AC-15", "status": "pass", "evidence": "Download climb-99m-20260906.mp4 + Downloaded MP4; pickExportMime honesty unit" },
+    { "ac": "AC-16", "status": "pass", "evidence": "Browser determinate % + Cancel clears session" },
+    { "ac": "AC-17", "status": "residual", "evidence": "pickExportMime null unit + error wiring; Chromium always has MediaRecorder" },
+    { "ac": "AC-18", "status": "pass", "evidence": "exportVisibility unit + browser hidden message after ≥3s" },
+    { "ac": "AC-19", "status": "residual", "evidence": "fail-closed pause/resume unit + failSession/onerror wiring; no injected OOM in smoke" },
+    { "ac": "AC-20", "status": "pass", "evidence": "Live predicates unit; live page no transport; TouchControls gated !replaying" }
+  ],
+  "testResults": {
+    "vitest": {
+      "command": "pnpm exec vitest run tests/game/replayTransport.test.ts tests/game/replaySnapshots.test.ts tests/game/exportMime.test.ts tests/game/useClimb.replayTransport.test.ts tests/game/exportVisibility.test.ts tests/game/runReplay.test.ts",
+      "passed": 38,
+      "failed": 0
+    },
+    "typecheck": { "command": "pnpm typecheck", "status": "pass" },
+    "browserSmoke": {
+      "app": "next dev :3010",
+      "tool": "Playwright Chromium",
+      "routes": ["/play", "/play?r=<encoded>"],
+      "exportDownload": "climb-99m-20260906.mp4"
+    }
+  },
+  "learnings": [
+    {
+      "topic": "Testing",
+      "forAgents": ["integrator", "all"],
+      "kind": "metric",
+      "insight": "QA-acceptance for replay-transport-export: AC pass=18 residual=2 fail=0. Vitest 38/38; Playwright proved transport mount, 44px targets, shortcuts, pause/play, scrub-under-autoplay, 2×/4× wall-clock bands, finished Restart, export MP4 download + visibility pause copy.",
+      "action": "Do not loopBackTo implementer. nextStage integrator.",
+      "confidence": "high"
+    },
+    {
+      "topic": "Testing",
+      "forAgents": ["qa-acceptance", "verifier"],
+      "kind": "lesson",
+      "insight": "AC-10 wall-clock measurements are invalid if transport keys are pressed while focus remains on the seek range (interactive exemption). Measuring 2×/4× required clicking the canvas (or the Speed button) before timing.",
+      "action": "Before replay keyboard timing smokes, focus a non-interactive target or drive speed via the Speed control click.",
+      "confidence": "high"
+    },
+    {
+      "topic": "Spec quality",
+      "forAgents": ["product-spec", "qa-acceptance"],
+      "kind": "lesson",
+      "insight": "AC-17 cannot be forced in stock Chromium Playwright because MediaRecorder is present; residual is acceptable when pickExportMime(null path) is unit-tested and the UI error string is wired on null MIME.",
+      "action": "Keep AC-17 as unit+wiring residual unless a stubbed MediaRecorder harness is added; do not fail implementer solely for missing unsupported-browser e2e.",
+      "confidence": "high"
+    }
+  ],
+  "nextStage": "integrator",
+  "loopBackTo": null,
+  "notes": {
+    "branch": "cursor/replay-controls-export-b391",
+    "priorHandoffs": [
+      "loop/handoffs/reviewer-2026-09-06T161434Z.json",
+      "loop/handoffs/security-reviewer-2026-09-06T161421Z.json",
+      "loop/handoffs/verifier-2026-09-06T161220Z.json"
+    ],
+    "appliedLearnings": [
+      "Did not assert via source greps; invoked units + Playwright",
+      "Confirmed non-test callers for transport/export modules before counting AC coverage",
+      "Scrubbed while autoplaying per reviewer/verifier residual ping — draft ratio held",
+      "Treated AC-17 unsupported path as residual with unit coverage, not implementer failure",
+      "Did not reopen free-leaderboard trust boundary"
+    ],
+    "passCount": 18,
+    "residualCount": 2,
+    "failCount": 0
+  }
+}
