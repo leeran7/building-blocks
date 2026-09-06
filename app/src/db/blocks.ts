@@ -63,11 +63,9 @@ export async function getBlockById(id: string): Promise<Block | null> {
 
 /**
  * Find a user's existing entry (hidden OR visible) for a platform within a
- * season. Backs "one entry per stack, per user, per platform": the DB unique
- * index blocks_user_season_platform_key guarantees at most one such row, so
- * this returns it whether it's a paid (visible) entry or an unpaid (hidden)
- * one left by an earlier/abandoned checkout — the checkout flow then either
- * rejects a paid duplicate or reuses the unpaid one.
+ * season. Backs "one entry per stack, per user, per platform" — the checkout
+ * flow rejects a duplicate with a friendly 409; the DB unique index
+ * blocks_user_season_platform_key is the actual guarantee.
  */
 export async function findUserSeasonPlatformBlock(
   userId: string,
@@ -77,18 +75,6 @@ export async function findUserSeasonPlatformBlock(
   return prisma.block.findFirst({
     where: { userId, season_id: seasonId, platform },
   });
-}
-
-/**
- * Point an existing (unpaid, hidden) social block at a possibly-updated
- * destination — used when a creator re-runs checkout for a platform whose entry
- * they never paid for. Slug is permanent identity and is left unchanged.
- */
-export async function retargetSocialBlock(
-  id: string,
-  data: { url: string; display_name: string; handle: string }
-): Promise<Block> {
-  return prisma.block.update({ where: { id }, data });
 }
 
 /**

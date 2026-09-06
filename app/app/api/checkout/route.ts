@@ -19,12 +19,11 @@ import {
   createBlock,
   getBlockById,
   findUserSeasonPlatformBlock,
-  retargetSocialBlock,
 } from "../../../src/db/blocks";
 import { Prisma } from "@prisma/client";
 import { PLATFORM_META } from "../../../src/lib/socialHandle";
 import { ensureUser } from "../../../src/db/user";
-import { addSavedUrl } from "../../../src/db/settings";
+import { addSavedUrl, saveSocialHandle } from "../../../src/db/settings";
 import { requireAuth, AuthError } from "../../../src/lib/requireAuth";
 import { computeRate } from "../../../src/engine/index";
 import { loadConstants } from "../../../src/engine/constants";
@@ -289,14 +288,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       }
 
       // One entry per (stack, user, platform). The unique index
-      // blocks_user_season_platform_key is the source of truth; here we turn a
-      // conflict into a clear outcome:
-      //   - a paid (visible) duplicate → 409, tell them to top up the existing one
-      //   - an unpaid (hidden) entry from an earlier/abandoned checkout → reuse it
+      // blocks_user_season_platform_key is the source of truth; a duplicate is
+      // just rejected. Pre-check for a friendly error; the DB index backstops
+      // the concurrent race (P2002 → same 409).
       const dupResponse = (slug: string) =>
         NextResponse.json(
           {
-            error: `You already have a ${PLATFORM_META[platform!].label} entry in this stack. Top it up from your dashboard instead.`,
+            error: `You already have a ${PLATFORM_META[platform!].label} entry in this stack.`,
             code: "DUPLICATE_PLATFORM_ENTRY",
             field: "handle",
             block_slug: slug,
@@ -304,76 +302,70 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           { status: 409 }
         );
 
-      let block: { id: string; slug: string } | null = null;
-
       if (platform && authenticatedUserId) {
         const existing = await findUserSeasonPlatformBlock(
           authenticatedUserId,
           season.id,
           platform
         );
-        if (existing) {
-          if (existing.hidden_at === null) return dupResponse(existing.slug);
-          block = await retargetSocialBlock(existing.id, {
-            url: finalUrl,
-            display_name: data.display_name,
-            handle: handle as string,
-          });
-        }
+        if (existing) return dupResponse(existing.slug);
       }
 
-      if (!block) {
-        // C2: userId comes from verified token, never from client body
-        const slug = uniqueSlug(data.display_name);
-        try {
-          block = await createBlock({
-            slug,
-            url: finalUrl,
-            display_name: data.display_name,
-            owner_email: data.owner_email,
-            season_id: season.id,
-            userId: authenticatedUserId ?? undefined,
-            category: stackSlug,
-            hidden_at: new Date(),
-            platform,
-            handle,
-          });
-        } catch (err) {
-          // A concurrent checkout for the same (user, season, platform) lost the
-          // race on the unique index — resolve it the same way as the check above.
-          if (
-            platform &&
-            authenticatedUserId &&
-            err instanceof Prisma.PrismaClientKnownRequestError &&
-            err.code === "P2002"
-          ) {
-            const existing = await findUserSeasonPlatformBlock(
-              authenticatedUserId,
-              season.id,
-              platform
-            );
-            if (!existing) throw err;
-            if (existing.hidden_at === null) return dupResponse(existing.slug);
-            block = await retargetSocialBlock(existing.id, {
-              url: finalUrl,
-              display_name: data.display_name,
-              handle: handle as string,
-            });
-          } else {
-            throw err;
-          }
+      // C2: userId comes from verified token, never from client body
+      const slug = uniqueSlug(data.display_name);
+      let block: { id: string; slug: string };
+      try {
+        block = await createBlock({
+          slug,
+          url: finalUrl,
+          display_name: data.display_name,
+          owner_email: data.owner_email,
+          season_id: season.id,
+          userId: authenticatedUserId ?? undefined,
+          category: stackSlug,
+          hidden_at: new Date(),
+          platform,
+          handle,
+        });
+      } catch (err) {
+        // Only the (user, season, platform) unique index maps to the friendly
+        // duplicate 409. A slug collision or any other unique conflict must not
+        // be masked as "you already have this platform" — rethrow those.
+        const target =
+          err instanceof Prisma.PrismaClientKnownRequestError &&
+          err.code === "P2002"
+            ? (err.meta?.target as string[] | string | undefined)
+            : undefined;
+        const hitPlatformIndex =
+          !!target &&
+          (Array.isArray(target)
+            ? target.includes("platform")
+            : String(target).includes("platform"));
+        if (platform && authenticatedUserId && hitPlatformIndex) {
+          const existing = await findUserSeasonPlatformBlock(
+            authenticatedUserId,
+            season.id,
+            platform
+          );
+          return dupResponse(existing?.slug ?? "");
         }
+        throw err;
       }
 
       blockId = block.id;
       displayName = data.display_name;
       redirectSlug = block.slug;
 
-      // Remember this URL on the user so they can reuse it next time.
+      // Remember this listing target on the user so it prefills next time —
+      // the social handle per platform, or the website URL. Best-effort.
       if (authenticatedUserId) {
-        await addSavedUrl(authenticatedUserId, finalUrl).catch(() => {
-          /* best-effort — never block checkout on this */
-        });
+        if (platform && handle) {
+          await saveSocialHandle(authenticatedUserId, platform, handle).catch(
+            () => {}
+          );
+        } else {
+          await addSavedUrl(authenticatedUserId, finalUrl).catch(() => {});
+        }
       }
     }
 

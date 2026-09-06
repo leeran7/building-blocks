@@ -15,6 +15,7 @@ import {
   type UserFreeClimbRecord,
   type ClimbReplaySummary,
 } from "./climb";
+import { getUserSocialHandles, type SocialHandleMap } from "./settings";
 
 export interface CreatorBlock {
   slug: string;
@@ -29,6 +30,8 @@ export interface CreatorProfile {
   username: string;
   /** Display name (profile name, else deterministic pseudonym). Never the email. */
   name: string;
+  /** Saved social handles → chip row (only platforms the creator has set). */
+  social: SocialHandleMap;
   blocks: CreatorBlock[];
   freeClimb: UserFreeClimbRecord | null;
   replays: ClimbReplaySummary[];
@@ -97,7 +100,7 @@ export async function getCreatorProfileByUsername(
   });
   if (!user || !user.username) return null;
 
-  const [blocks, freeClimb, replays] = await Promise.all([
+  const [blocks, freeClimb, replays, social] = await Promise.all([
     prisma.block.findMany({
       where: { userId: user.id, hidden_at: null },
       orderBy: { altitude: "desc" },
@@ -112,11 +115,13 @@ export async function getCreatorProfileByUsername(
     }),
     getUserFreeClimbRecord(user.id).catch(() => null),
     getUserClimbReplays(user.id).catch(() => []),
+    getUserSocialHandles(user.id).catch(() => ({})),
   ]);
 
   return {
     username: user.username,
     name: climberDisplay(user.id, user.display_name),
+    social,
     blocks,
     freeClimb,
     replays,

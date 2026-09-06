@@ -14,6 +14,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "../../src/contexts/AuthContext";
 import { Navbar } from "../../src/components/Navbar";
+import { Select } from "../../src/components/Select";
 import {
   GAME_CATEGORIES,
   FAMILIES,
@@ -59,8 +60,13 @@ function SubmitForm() {
   const [error, setError] = useState<string | null>(null);
   const [savedUrls, setSavedUrls] = useState<string[]>([]);
   const [typingNewUrl, setTypingNewUrl] = useState(true);
+  const [savedSocial, setSavedSocial] = useState<
+    Partial<Record<CreatorPlatform, string>>
+  >({});
+  // Which platform the current handle was auto-filled from — drives the hint.
+  const [prefilledFrom, setPrefilledFrom] = useState<CreatorPlatform | null>(null);
 
-  // Load the user's saved URLs + display name to prefill the form.
+  // Load the user's saved URLs + social handles + display name to prefill.
   useEffect(() => {
     if (!token) return;
     let live = true;
@@ -75,6 +81,7 @@ function SubmitForm() {
           setTypingNewUrl(false);
           setUrl((cur) => cur || list[0]);
         }
+        setSavedSocial(s.social && typeof s.social === "object" ? s.social : {});
         setDisplayName((cur) => cur || (s.displayName ?? ""));
       })
       .catch(() => {});
@@ -210,20 +217,31 @@ function SubmitForm() {
           <label htmlFor="link_target" className="block text-sm font-medium text-text-primary mb-1.5">
             What are you linking?
           </label>
-          <select
+          <Select
             id="link_target"
             value={linkTarget}
-            onChange={(e) => setLinkTarget(e.target.value as LinkTarget)}
-            className={`${INPUT} mb-3`}
+            onChange={(value) => {
+              const next = value as LinkTarget;
+              setLinkTarget(next);
+              // Prefill the handle from the saved one for this platform when the
+              // field is empty; flag it so the "from saved" hint can show/clear.
+              if (next && !handle.trim() && savedSocial[next]) {
+                setHandle(savedSocial[next]!);
+                setPrefilledFrom(next);
+              } else {
+                setPrefilledFrom(null);
+              }
+            }}
+            className="mb-3"
             disabled={submitting}
-          >
-            <option value="">Website</option>
-            {SOCIAL_PLATFORMS.map((p) => (
-              <option key={p} value={p}>
-                {PLATFORM_META[p].label}
-              </option>
-            ))}
-          </select>
+            options={[
+              { value: "", label: "Website" },
+              ...SOCIAL_PLATFORMS.map((p) => ({
+                value: p,
+                label: PLATFORM_META[p].label,
+              })),
+            ]}
+          />
 
           {linkTarget ? (
             <>
@@ -237,7 +255,10 @@ function SubmitForm() {
                 <input
                   id="handle"
                   value={handle}
-                  onChange={(e) => setHandle(e.target.value)}
+                  onChange={(e) => {
+                    setHandle(e.target.value);
+                    setPrefilledFrom(null); // no longer a verbatim saved value
+                  }}
                   className={`${INPUT} font-mono`}
                   placeholder={PLATFORM_META[linkTarget].example}
                   maxLength={120}
@@ -248,6 +269,28 @@ function SubmitForm() {
                   spellCheck={false}
                 />
               </div>
+              {prefilledFrom === linkTarget && (
+                <p
+                  role="status"
+                  aria-live="polite"
+                  className="flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.12em] text-signal mt-1.5"
+                >
+                  <span>
+                    <span aria-hidden="true">✓</span> From your saved{" "}
+                    {PLATFORM_META[linkTarget].label}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setHandle("");
+                      setPrefilledFrom(null);
+                    }}
+                    className="inline-flex items-center min-h-[44px] text-text-muted hover:text-text-primary underline-offset-2 hover:underline"
+                  >
+                    clear
+                  </button>
+                </p>
+              )}
               <p className="text-xs text-text-secondary mt-1.5">
                 Players who tap your block go straight to your{" "}
                 {PLATFORM_META[linkTarget].label} profile. Following must be their
@@ -262,11 +305,10 @@ function SubmitForm() {
               </label>
 
               {savedUrls.length > 0 && (
-                <select
+                <Select
                   aria-label="Choose a saved URL"
                   value={typingNewUrl ? "__new__" : url}
-                  onChange={(e) => {
-                    const v = e.target.value;
+                  onChange={(v) => {
                     if (v === "__new__") {
                       setTypingNewUrl(true);
                       setUrl("");
@@ -275,16 +317,13 @@ function SubmitForm() {
                       setUrl(v);
                     }
                   }}
-                  className={`${INPUT} mb-2`}
+                  className="mb-2"
                   disabled={submitting}
-                >
-                  {savedUrls.map((u) => (
-                    <option key={u} value={u}>
-                      {u}
-                    </option>
-                  ))}
-                  <option value="__new__">＋ Type a new URL…</option>
-                </select>
+                  options={[
+                    ...savedUrls.map((u) => ({ value: u, label: u })),
+                    { value: "__new__", label: "＋ Type a new URL…" },
+                  ]}
+                />
               )}
 
               {(savedUrls.length === 0 || typingNewUrl) && (
@@ -316,23 +355,18 @@ function SubmitForm() {
           <label htmlFor="category" className="block text-sm font-medium text-text-primary mb-1.5">
             Stack
           </label>
-          <select
+          <Select
             id="category"
             value={category}
-            onChange={(e) => setCategory(e.target.value)}
-            className={INPUT}
+            onChange={setCategory}
             disabled={submitting}
-          >
-            {FAMILIES.map((family) => (
-              <optgroup key={family} label={family}>
-                {GAME_CATEGORIES.filter((c) => c.family === family).map((c) => (
-                  <option key={c.slug} value={c.slug}>
-                    {c.label}
-                  </option>
-                ))}
-              </optgroup>
-            ))}
-          </select>
+            options={FAMILIES.map((family) => ({
+              label: family,
+              options: GAME_CATEGORIES.filter((c) => c.family === family).map(
+                (c) => ({ value: c.slug, label: c.label }),
+              ),
+            }))}
+          />
         </div>
 
         <div>

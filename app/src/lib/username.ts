@@ -33,8 +33,9 @@ export interface UsernameResult {
 }
 
 /**
- * Normalise + validate a username. Lowercased; letters, digits and underscores
- * only; 3–30 chars; not reserved; not hateful. A leading "@" is tolerated.
+ * Normalise + validate a username. Lowercased; letters, digits and dashes only
+ * (no leading/trailing dash); 3–30 chars; not reserved; not hateful. A leading
+ * "@" is tolerated.
  */
 export function normalizeUsername(raw: string): UsernameResult {
   const s = (raw ?? "").trim().replace(/^@+/, "").toLowerCase();
@@ -45,8 +46,11 @@ export function normalizeUsername(raw: string): UsernameResult {
   if (s.length > USERNAME_MAX) {
     return { valid: false, error: `Username must be at most ${USERNAME_MAX} characters` };
   }
-  if (!/^[a-z0-9_]+$/.test(s)) {
-    return { valid: false, error: "Use only letters, numbers and underscores" };
+  if (!/^[a-z0-9-]+$/.test(s)) {
+    return { valid: false, error: "Use only letters, numbers and dashes" };
+  }
+  if (s.startsWith("-") || s.endsWith("-")) {
+    return { valid: false, error: "Username can’t start or end with a dash" };
   }
   if (RESERVED.has(s)) {
     return { valid: false, error: "That username isn’t available" };
@@ -61,9 +65,11 @@ export function normalizeUsername(raw: string): UsernameResult {
 export function suggestUsername(displayName: string | null | undefined): string {
   const base = (displayName ?? "")
     .toLowerCase()
-    .replace(/[^a-z0-9_]+/g, "_")
-    .replace(/^_+|_+$/g, "")
-    .slice(0, USERNAME_MAX);
+    .replace(/[^a-z0-9-]+/g, "-") // non-alphanumerics (incl. spaces) → dash
+    .replace(/-+/g, "-") // collapse runs
+    .replace(/^-+|-+$/g, "") // trim leading/trailing
+    .slice(0, USERNAME_MAX)
+    .replace(/-+$/g, ""); // re-trim after slice
   const res = normalizeUsername(base);
   return res.valid ? res.username! : "";
 }

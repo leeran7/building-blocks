@@ -10,9 +10,9 @@
  */
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useAuth } from "../contexts/AuthContext";
 import { StackMark } from "./Brand/StackMark";
+import { AccountMenu } from "./AccountMenu";
 import { FREE_CLIMB_HREF } from "./navLinks";
 
 interface NavbarProps {
@@ -28,13 +28,7 @@ const GHOST =
   "inline-flex items-center justify-center px-3 min-h-[38px] font-mono text-xs uppercase tracking-[0.14em] text-text-muted hover:text-text-primary transition-colors";
 
 export function Navbar({ contextLabel, contextDot }: NavbarProps) {
-  const { user, loading, signOut } = useAuth();
-  const router = useRouter();
-
-  async function handleSignOut() {
-    await signOut();
-    router.push("/");
-  }
+  const { user, loading } = useAuth();
 
   return (
     <nav className="sticky top-0 z-30 h-14 bg-void/80 backdrop-blur-md border-b border-border-subtle px-4 md:px-6 flex items-center justify-between">
@@ -83,22 +77,13 @@ export function Navbar({ contextLabel, contextDot }: NavbarProps) {
             aria-hidden="true"
           />
         ) : user ? (
-          // Mirrors the signed-out layout: ghost links + a signal pill.
+          // Dashboard pill stays the primary CTA; the account menu groups
+          // creator page / settings / sign out and folds in mobile nav.
           <>
-            <Link href="/settings" className={`${GHOST} hidden sm:inline-flex`}>
-              Settings
-            </Link>
-            <button
-              type="button"
-              onClick={handleSignOut}
-              className={GHOST}
-              aria-label="Sign out"
-            >
-              Sign out
-            </button>
             <Link href="/dashboard" className={`${PILL} bg-signal text-void`}>
               Dashboard
             </Link>
+            <AccountMenu />
           </>
         ) : (
           <>

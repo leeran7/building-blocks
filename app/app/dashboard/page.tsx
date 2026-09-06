@@ -13,12 +13,15 @@
  * Middleware handles the redirect for unauthenticated users.
  */
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import type { CreatorPlatform } from "@prisma/client";
 import { useAuth } from "../../src/contexts/AuthContext";
 import { Navbar } from "../../src/components/Navbar";
 import { BlockCard } from "../../src/components/Dashboard/BlockCard";
+import { CreatorPageBand } from "../../src/components/Dashboard/CreatorPageBand";
+import { PendingBlockCard } from "../../src/components/Dashboard/PendingBlockCard";
 import {
   FreeClimbCard,
   FreeClimbEmpty,
@@ -60,10 +63,14 @@ interface DashboardBlock {
   competitor_cost_usd: number | null;
   season: Season;
   payments: Payment[];
+  platform: CreatorPlatform | null;
+  handle: string | null;
+  /** Paid but not yet revealed by the webhook — shown as a "processing" card. */
+  pending: boolean;
 }
 
 interface DashboardData {
-  user: { id: string; email: string };
+  user: { id: string; email: string; username: string | null };
   blocks: DashboardBlock[];
   freeClimb: FreeClimbData | null;
   replays: ClimbReplayItem[];
@@ -120,50 +127,52 @@ export default function DashboardPage() {
   const { user, token, loading: authLoading } = useAuth();
   const [fetchState, setFetchState] = useState<FetchState>({ status: "loading" });
 
-  useEffect(() => {
-    // Wait for auth to resolve
-    if (authLoading) return;
+  const fetchDashboard = useCallback(async () => {
+    if (!token) return;
+    try {
+      const res = await fetch("/api/dashboard", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.status === 401) {
+        router.push("/auth/signin?redirect=%2Fdashboard");
+        return;
+      }
+      if (!res.ok) {
+        setFetchState({
+          status: "error",
+          message: "Failed to load dashboard. Please try refreshing.",
+        });
+        return;
+      }
+      const data: DashboardData = await res.json();
+      setFetchState({ status: "success", data });
+    } catch {
+      setFetchState({
+        status: "error",
+        message: "Network error. Please check your connection and refresh.",
+      });
+    }
+  }, [token, router]);
 
-    // AC-17: Redirect unauthenticated users
+  useEffect(() => {
+    if (authLoading) return;
     if (!user || !token) {
       router.push("/auth/signin?redirect=%2Fdashboard");
       return;
     }
-
-    // Fetch dashboard data with Bearer token
-    const fetchDashboard = async () => {
-      try {
-        const res = await fetch("/api/dashboard", {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
-
-        if (res.status === 401) {
-          router.push("/auth/signin?redirect=%2Fdashboard");
-          return;
-        }
-
-        if (!res.ok) {
-          setFetchState({
-            status: "error",
-            message: "Failed to load dashboard. Please try refreshing.",
-          });
-          return;
-        }
-
-        const data: DashboardData = await res.json();
-        setFetchState({ status: "success", data });
-      } catch {
-        setFetchState({
-          status: "error",
-          message: "Network error. Please check your connection and refresh.",
-        });
-      }
-    };
-
     fetchDashboard();
-  }, [authLoading, user, token, router]);
+  }, [authLoading, user, token, router, fetchDashboard]);
+
+  // While any block is still "processing" (paid, awaiting webhook reveal), poll
+  // so it flips to a real card on its own.
+  const hasPending =
+    fetchState.status === "success" &&
+    fetchState.data.blocks.some((b) => b.pending);
+  useEffect(() => {
+    if (!hasPending) return;
+    const id = setInterval(fetchDashboard, 5000);
+    return () => clearInterval(id);
+  }, [hasPending, fetchDashboard]);
 
   // Auth loading state
   if (authLoading) {
@@ -233,6 +242,8 @@ export default function DashboardPage() {
 
         {fetchState.status === "success" && (
           <>
+            <CreatorPageBand username={fetchState.data.user.username} />
+
             {fetchState.data.freeClimb ? (
               <FreeClimbCard climb={fetchState.data.freeClimb} />
             ) : (
@@ -264,11 +275,28 @@ export default function DashboardPage() {
 
             {fetchState.data.blocks.length > 0 && (
               <>
-                <DashboardStats blocks={fetchState.data.blocks} />
+                {fetchState.data.blocks.some((b) => !b.pending) && (
+                  <DashboardStats
+                    blocks={fetchState.data.blocks.filter((b) => !b.pending)}
+                  />
+                )}
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
-                  {fetchState.data.blocks.map((block) => (
-                    <BlockCard key={block.id} block={block} />
-                  ))}
+                  {fetchState.data.blocks
+                    .filter((b) => b.pending)
+                    .map((block) => (
+                      <PendingBlockCard
+                        key={block.id}
+                        displayName={block.display_name}
+                        platform={block.platform}
+                        handle={block.handle}
+                        onRefresh={fetchDashboard}
+                      />
+                    ))}
+                  {fetchState.data.blocks
+                    .filter((b) => !b.pending)
+                    .map((block) => (
+                      <BlockCard key={block.id} block={block} />
+                    ))}
                 </div>
               </>
             )}
