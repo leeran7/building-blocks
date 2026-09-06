@@ -187,6 +187,12 @@ the same pass — the `learning-loop.md` bar for a permanent guardrail.
 
 ### Spec quality
 
+- **Spec entire flows, not isolated capabilities.** A feature AC without
+  discovery, entry, empty/first-run, failure recovery, and a success next step
+  ships unfinished (e.g. nav “Free climb” → landing teaser instead of `/play`).
+  product-spec writes a Flows inventory (F-n) first; qa-acceptance walks each
+  flow end-to-end and loops back when finishing touches are missing from the
+  spec. See `agents/product-spec/flows.md`.
 - **Reset every previous-value ref in a feedback hook when the match changes.**
   Refs surviving a game restart fired a phantom "X ended" cue at the top of a
   fresh run and silently swallowed a real pickup whose tick index collided with
