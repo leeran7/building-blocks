@@ -24,7 +24,11 @@ export function FreeStackShell({
   const play = section === "play";
 
   return (
-    <main id="main-content" className="min-h-screen bg-void flex flex-col">
+    <main
+      id="main-content"
+      data-climb-chrome
+      className="grain topo min-h-screen bg-void flex flex-col"
+    >
       <div className="shrink-0">
         <Navbar contextLabel="Free climb" />
       </div>

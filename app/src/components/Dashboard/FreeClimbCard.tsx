@@ -5,6 +5,7 @@
  */
 
 import Link from "next/link";
+import { FREE_CLIMB_RANK_CLASS } from "../../design/climbFeelTokens";
 import { formatAltitude } from "../../lib/units";
 
 export interface FreeClimbData {
@@ -19,6 +20,7 @@ export function FreeClimbCard({ climb }: { climb: FreeClimbData }) {
   return (
     <section
       aria-label="Free climb rank"
+      data-climb-chrome
       className="mb-8 relative overflow-hidden rounded-2xl border border-signal/30 bg-surface shadow-signal"
     >
       <div className="pointer-events-none absolute inset-0 survey-grid opacity-40" />
@@ -28,7 +30,7 @@ export function FreeClimbCard({ climb }: { climb: FreeClimbData }) {
             Free climb · your rank
           </p>
           <div className="flex items-baseline gap-3 mt-2">
-            <span className="font-mono text-4xl font-bold text-text-primary tabular-nums">
+            <span className={FREE_CLIMB_RANK_CLASS}>
               #{climb.rank}
             </span>
             <span className="text-sm text-text-muted">
@@ -68,6 +70,7 @@ export function FreeClimbEmpty() {
   return (
     <section
       aria-label="Free climb"
+      data-climb-chrome
       className="mb-8 rounded-2xl border border-border-subtle bg-surface p-6 text-center"
     >
       <p className="font-mono text-[11px] uppercase tracking-[0.16em] text-text-muted">
@@ -78,7 +81,7 @@ export function FreeClimbEmpty() {
       </p>
       <Link
         href="/play"
-        className="mt-4 inline-flex items-center justify-center rounded-lg border border-border-strong px-5 min-h-[44px] text-sm font-semibold text-text-primary hover:border-signal/50 transition"
+        className="mt-4 inline-flex items-center justify-center rounded-lg border border-border-strong px-5 min-h-[44px] min-w-[44px] text-sm font-semibold text-text-primary hover:border-signal/50 transition"
       >
         Play free climb
       </Link>

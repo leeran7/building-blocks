@@ -7,6 +7,7 @@
  */
 
 import Link from "next/link";
+import { FREE_LEADERBOARD_HEADING_CLASS } from "../../design/climbFeelTokens";
 import { topFreeClimbers } from "../../db/climb";
 import { ALTITUDE_UNIT } from "../../lib/units";
 
@@ -17,6 +18,7 @@ export async function FreeLeaderboard() {
     <section
       id="free"
       aria-label="Free climb leaderboard"
+      data-climb-chrome
       className="scroll-mt-20 py-20 px-4 border-t border-border-subtle bg-surface/30"
     >
       <div className="max-w-3xl mx-auto">
@@ -28,10 +30,10 @@ export async function FreeLeaderboard() {
               </span>
               warm-up game · separate stack
             </span>
-            <h2 className="font-display text-2xl md:text-3xl text-text-secondary mt-3">
+            <h2 className={FREE_LEADERBOARD_HEADING_CLASS}>
               Top climbers
             </h2>
-            <p className="text-sm text-text-muted mt-2 max-w-lg">
+            <p className="text-sm text-text-secondary mt-2 max-w-lg">
               No stakes, no payout — one endless climb for practice and bragging
               rights. Best peak height is your rank.{" "}
               <Link href="/play" className="text-text-secondary underline underline-offset-4 hover:text-signal">

@@ -14,6 +14,7 @@
  */
 
 import { useEffect, useRef } from "react";
+import { HUD_ALTITUDE_FONT_UI } from "../../design/climbFeelTokens";
 import { MatchState, Obstacle } from "../../game/types";
 import {
   platformsNearY,
@@ -54,6 +55,8 @@ import {
   pickupShakeOffset,
 } from "./powerUpVfx";
 
+export { HUD_ALTITUDE_FONT_UI };
+
 // ASCENT palette — signal-lime climber, ember lava, warm-obsidian world.
 const VOID = "#0a0a0c";
 const SURFACE = "#17161c";
@@ -65,9 +68,10 @@ const CRATE = "#2a2730";
 const CRATE_TOP = "#4a4656";
 const CRATE_FACE = "#3a3644";
 const LADDER = "#8a86a0";
-const TEXT_MUTED = "#74707e";
-/** Used for the small HUD/altitude text: TEXT_MUTED only reaches 3.8:1 on it. */
-const TEXT_SECONDARY = "#a8a4b2";
+/** Decorative / eliminated only — never body or lava HUD (AC-1 / AC-13). */
+export const TEXT_MUTED = "#74707e";
+/** Lava/hazard HUD + altitude grid labels (≥ AA on void/surface). */
+export const TEXT_SECONDARY = "#a8a4b2";
 const FLAG = "#cbf24d"; // summit flag reads as signal too
 
 /**
@@ -381,7 +385,7 @@ export function ClimbCanvas({
     ctx.lineTo(width, hudTop + hudH);
     ctx.stroke();
     ctx.fillStyle = "#f4f2ec";
-    ctx.font = `bold ${Math.round(13 * ui)}px monospace`;
+    ctx.font = `bold ${Math.round(HUD_ALTITUDE_FONT_UI * ui)}px monospace`;
     ctx.textAlign = "left";
     ctx.fillText(formatAltitude(playerY, 1), 10 * ui, hudTop + 22 * ui);
     ctx.fillStyle = lavaSlowed ? LAVA_SLOWED : TEXT_SECONDARY;

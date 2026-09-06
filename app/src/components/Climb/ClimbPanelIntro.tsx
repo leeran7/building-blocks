@@ -7,6 +7,7 @@
 import Link from "next/link";
 import { ClimbControlsGuide } from "../Game/ClimbControlsGuide";
 import { Chevron } from "../Chevron";
+import { CLIMB_PANEL_INTRO_TITLE_CLASS } from "../../design/climbFeelTokens";
 
 export function ClimbPanelIntro({ title }: { title: string }) {
   return (
@@ -15,7 +16,7 @@ export function ClimbPanelIntro({ title }: { title: string }) {
         Free stack · no payment
       </p>
       <div className="mt-1 flex items-end justify-between gap-3 flex-wrap">
-        <h1 className="text-2xl md:text-3xl font-bold text-text-primary tracking-tight">
+        <h1 className={CLIMB_PANEL_INTRO_TITLE_CLASS}>
           {title}
         </h1>
         <PlayTheClimbCta />

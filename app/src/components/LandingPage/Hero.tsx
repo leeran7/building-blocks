@@ -260,8 +260,8 @@ export function Hero({ stats }: { stats: HeroStats }) {
               </dl>
             </div>
 
-            {/* FREE — warm-up game, muted */}
-            <div>
+            {/* FREE — warm-up game, secondary to paid */}
+            <div data-climb-chrome>
               <div className="flex items-center gap-2 mb-1.5 justify-center md:justify-start">
                 <span className="rounded-full border border-border-strong px-2 py-0.5 font-mono text-[9px] uppercase tracking-[0.12em] text-text-secondary">
                   Free
@@ -271,15 +271,19 @@ export function Hero({ stats }: { stats: HeroStats }) {
                 </span>
                 <Link
                   href="/play"
-                  className="inline-flex items-center gap-1 rounded-full border border-border-strong bg-surface/60 px-2.5 py-0.5 font-mono text-[9px] uppercase tracking-[0.12em] text-text-secondary hover:border-signal/50 hover:text-signal transition-colors"
+                  aria-label="Play free climb"
+                  className="inline-flex items-center justify-center gap-1 rounded-full border border-border-strong bg-surface/60 px-3 min-h-[44px] min-w-[44px] font-mono text-[11px] uppercase tracking-[0.12em] text-text-secondary hover:border-signal/50 hover:text-signal transition-colors focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void"
                 >
-                  play{" "}
-                  <span className="transition-transform group-hover:translate-x-0.5">→</span>
+                  Free climb
                 </Link>
               </div>
               <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-border-subtle bg-border-subtle">
-                {freeStats.map((s) => (
-                  <div key={s.label} className="bg-surface px-3 py-2 text-center md:text-left">
+                {freeStats.map((s, i) => (
+                  <div
+                    key={s.label}
+                    className="animate-climbPunch bg-surface px-3 py-2 text-center md:text-left"
+                    style={{ animationDelay: `${i * 90}ms` }}
+                  >
                     <dt className="font-mono text-[10px] uppercase tracking-[0.12em] text-text-muted">
                       {s.label}
                     </dt>
