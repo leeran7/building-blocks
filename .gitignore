@@ -16,9 +16,9 @@ loop/*
 # next closed-loop stage (and PR reviewers) can read them.
 !loop/spec.md
 !loop/spec-*.md
-!loop/spec-native-share.md
 !loop/architecture.md
 !loop/architecture-*.md
+!loop/design.md
 !loop/research-*.md
 !loop/research-native-video-share.md
 !loop/handoffs/

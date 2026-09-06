@@ -281,6 +281,16 @@ the same pass — the `learning-loop.md` bar for a permanent guardrail.
   `docs/reviews/2026-08-29.md` are approved?** The `.gitignore` change is applied
   in this branch; the rest await approval per the standing rule.
 
+
+### Climb Feel 1.2× (2026-09-06) — curated this run
+- **[all]** Feel multipliers need climb-scoped forks when shared motion/atmosphere would hit paid/auth (OQ-3). Do not raise global enter/reveal/grain/topo for climb-only goals.
+- **[implementer, verifier]** Presentation tunables belong in importable `climbFeelTokens.ts`; AC proofs import constants — never source-grep CSS alone.
+- **[implementer, qa-acceptance]** A motion fork without a non-test production caller fails AC delivery (AC-17 iter1). Wire or delete before QA.
+- **[security-reviewer, orchestrator]** OQ-1 free-leaderboard trust boundary stays OPEN through feel passes; scoreBounds freeze ≠ closing F-1.
+- **[design-ux]** Band midpoints (grain 0.042, topo 0.060, HUD 16, shake 2.64) are the contract; implementer must not invent alternate magnitudes.
+
+_Last curated: 2026-09-06T05:28:18Z — Climb Feel 1.2× closed loop._
+
 ## Recently applied (last 20)
 
 - 2026-08-29 — `.gitignore` switched from `loop/` to `loop/*` plus negations so the

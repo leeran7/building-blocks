@@ -18,6 +18,7 @@ import {
   isExpired,
   isPowerUpActive,
 } from "../../game/powerups";
+import { HUD_ALTITUDE_FONT_UI } from "../../design/climbFeelTokens";
 import { formatAltitude } from "../../lib/units";
 import {
   cameraTargetY,
@@ -48,7 +49,9 @@ const CRATE = "#2a2730";
 const CRATE_TOP = "#4a4656";
 const CRATE_FACE = "#3a3644";
 const LADDER = "#8a86a0";
+/** Decorative / eliminated only — never body or lava HUD (AC-1 / AC-13). */
 const TEXT_MUTED = "#74707e";
+/** Lava/hazard HUD + altitude grid labels (≥ AA on void/surface). */
 const TEXT_SECONDARY = "#a8a4b2";
 const FLAG = "#cbf24d";
 
@@ -278,7 +281,7 @@ export function paintClimbFrame(
     ctx.lineTo(width, hudTop + hudH);
     ctx.stroke();
     ctx.fillStyle = "#f4f2ec";
-    ctx.font = `bold ${Math.round(13 * ui)}px monospace`;
+    ctx.font = `bold ${Math.round(HUD_ALTITUDE_FONT_UI * ui)}px monospace`;
     ctx.textAlign = "left";
     ctx.fillText(formatAltitude(playerY, 1), 10 * ui, hudTop + 22 * ui);
     ctx.fillStyle = lavaSlowed ? LAVA_SLOWED : TEXT_SECONDARY;

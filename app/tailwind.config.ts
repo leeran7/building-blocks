@@ -117,18 +117,32 @@ const config: Config = {
           "0%": { transform: "translateY(6px)", opacity: "0.4" },
           "100%": { transform: "translateY(0)", opacity: "1" },
         },
+        // Climb Feel 1.25× forks — mirrors app/src/design/climbFeelTokens.ts
+        climbEnter: {
+          "0%": { transform: "translateY(20px)", opacity: "0" },
+          "100%": { transform: "translateY(0)", opacity: "1" },
+        },
+        climbPunch: {
+          "0%": { transform: "translateY(7.5px)", opacity: "0.4" },
+          "100%": { transform: "translateY(0)", opacity: "1" },
+        },
+        climbGroundRise: {
+          "0%, 100%": { transform: "translateY(5%)", opacity: "0.85" },
+          "50%": { transform: "translateY(0)", opacity: "1" },
+        },
         marquee: {
           "0%": { transform: "translateX(0)" },
           "100%": { transform: "translateX(-50%)" },
         },
+        // Tuned in place (climb-only PowerUpHud) — climbFeelTokens POWER_UP_*
         powerUpEnter: {
-          "0%": { transform: "scale(0.82)", opacity: "0" },
-          "55%": { transform: "scale(1.06)", opacity: "1" },
+          "0%": { transform: "scale(0.775)", opacity: "0" },
+          "55%": { transform: "scale(1.075)", opacity: "1" },
           "100%": { transform: "scale(1)", opacity: "1" },
         },
         powerUpUrgent: {
           "0%, 100%": { transform: "scale(1)", opacity: "1" },
-          "50%": { transform: "scale(1.04)", opacity: "0.92" },
+          "50%": { transform: "scale(1.05)", opacity: "0.92" },
         },
       },
       animation: {
@@ -140,9 +154,12 @@ const config: Config = {
         enter: "enter 0.7s cubic-bezier(0.16, 1, 0.3, 1) both",
         groundRise: "groundRise 6s ease-in-out infinite",
         climb: "climb 0.8s cubic-bezier(0.16, 1, 0.3, 1) both",
+        climbEnter: "climbEnter 0.56s cubic-bezier(0.16, 1, 0.3, 1) both",
+        climbPunch: "climbPunch 0.64s cubic-bezier(0.16, 1, 0.3, 1) both",
+        climbGroundRise: "climbGroundRise 4.8s ease-in-out infinite",
         marquee: "marquee 40s linear infinite",
-        powerUpEnter: "powerUpEnter 0.45s cubic-bezier(0.16, 1, 0.3, 1) both",
-        powerUpUrgent: "powerUpUrgent 0.75s ease-in-out infinite",
+        powerUpEnter: "powerUpEnter 0.36s cubic-bezier(0.16, 1, 0.3, 1) both",
+        powerUpUrgent: "powerUpUrgent 0.6s ease-in-out infinite",
       },
     },
   },

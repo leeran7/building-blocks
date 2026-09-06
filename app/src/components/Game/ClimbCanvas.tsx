@@ -8,6 +8,7 @@
  */
 
 import { useEffect, useRef } from "react";
+import { HUD_ALTITUDE_FONT_UI } from "../../design/climbFeelTokens";
 import { MatchState } from "../../game/types";
 import {
   backingStoreSize,
@@ -15,6 +16,13 @@ import {
   clampDevicePixelRatio,
 } from "./canvasBacking";
 import { paintClimbFrame } from "./paintClimbFrame";
+
+export { HUD_ALTITUDE_FONT_UI };
+
+/** Decorative / eliminated only — never body or lava HUD (AC-1 / AC-13). */
+export const TEXT_MUTED = "#74707e";
+/** Lava/hazard HUD + altitude grid labels (≥ AA on void/surface). */
+export const TEXT_SECONDARY = "#a8a4b2";
 
 const BORDER = "#37343f";
 const BASE_WIDTH = 360;

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { PICKUP_SHAKE_AMP_UI } from "../../src/design/climbFeelTokens";
 import {
   PICKUP_BURST_TICKS,
   PICKUP_SCREEN_FLASH_TICKS,
@@ -20,6 +21,17 @@ describe("powerUpVfx helpers", () => {
 
   it("pickupShakeOffset is zero when reduced motion is on", () => {
     expect(pickupShakeOffset(0, 10, 1, true)).toEqual({ dx: 0, dy: 0 });
+  });
+
+  it("pickupShakeOffset at age 0 uses PICKUP_SHAKE_AMP_UI band (AC-2)", () => {
+    const ui = 1;
+    const tick = 10;
+    const { dx, dy } = pickupShakeOffset(0, tick, ui, false);
+    const amp = PICKUP_SHAKE_AMP_UI * ui;
+    expect(dx).toBeCloseTo(Math.sin(tick * 2.37) * amp, 5);
+    expect(dy).toBeCloseTo(Math.cos(tick * 1.83) * amp * 0.65, 5);
+    expect(PICKUP_SHAKE_AMP_UI).toBeGreaterThanOrEqual(2.7);
+    expect(PICKUP_SHAKE_AMP_UI).toBeLessThanOrEqual(2.8);
   });
 
   it("pickupShakeOffset fades out after PICKUP_SHAKE_TICKS", () => {

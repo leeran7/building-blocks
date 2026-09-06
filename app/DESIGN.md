@@ -58,6 +58,12 @@ uppercase tracking `0.12–0.2em`.
 ruler) · `.reveal` (staggered fade+rise on load — set `animationDelay` inline).
 All motion is `prefers-reduced-motion` guarded.
 
+**Climb Feel 1.2× forks (climb chrome only):** do not raise shared
+`enter` / `.reveal` / `groundRise` / grain·topo baselines. Amplify via
+`climbEnter` / `climbPunch` / `climbGroundRise` / `.climb-reveal` and
+`[data-climb-chrome]` CSS vars. Numeric contracts live in
+`src/design/climbFeelTokens.ts` — not a second palette.
+
 ## CSS variables (globals.css)
 
 ```css
