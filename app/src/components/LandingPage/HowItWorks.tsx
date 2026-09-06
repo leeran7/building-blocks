@@ -118,10 +118,10 @@ export function HowItWorks({
     <section
       id="how-it-works"
       aria-label="How Stack works"
-      className="scroll-mt-20 border-t border-border-subtle bg-surface/30 px-4 py-20 md:py-24"
+      className="scroll-mt-20 border-t border-border-subtle px-4 py-16 md:py-20 lg:py-24"
     >
       <div className="mx-auto max-w-6xl">
-        <div className="mb-14 flex items-end justify-between gap-4">
+        <div className="mb-12 flex items-end justify-between gap-4 md:mb-14">
           <div>
             <span className="font-mono text-[11px] uppercase tracking-[0.2em] text-signal">
               [ the rules ]
@@ -142,7 +142,7 @@ export function HowItWorks({
           </span>
         </div>
 
-        <ol className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <ol className="grid grid-cols-1 gap-4 md:grid-cols-3 md:gap-5">
           {steps.map((step) => {
             const ember = step.tone === "ember";
             return (

@@ -64,10 +64,20 @@ describe("Hero — declutter (AC-3, AC-10, AC-18)", () => {
     const html = renderHero(0);
     const visualIdx = html.indexOf('data-testid="landing-hero-visual"');
     expect(visualIdx).toBeGreaterThan(-1);
-    const visualChunk = html.slice(visualIdx, visualIdx + 800);
+    // Full opening tag may put className before data-testid — walk back to <div
+    const tagStart = html.lastIndexOf("<div", visualIdx);
+    const tagEnd = html.indexOf(">", visualIdx);
+    const visualOpenTag = html.slice(tagStart, tagEnd + 1);
+    // Edge-to-edge underlay — no max-w boxing (AC-4 ≥90%/100vw)
+    expect(visualOpenTag).not.toContain("max-w-6xl");
+    expect(visualOpenTag).toContain("w-full");
+    expect(visualOpenTag).toMatch(/\binset-x-0\b|\binset-0\b/);
+    // Outer plane chrome: rounded-none, never the forbidden card combo
+    const visualChunk = html.slice(tagStart, tagStart + 1400);
     expect(visualChunk).not.toContain("rounded-2xl");
     expect(visualChunk).not.toMatch(/rounded-2xl[^"]*border[^"]*bg-surface/);
     expect(visualChunk).toContain("rounded-none");
+    expect(visualChunk).not.toContain("bg-surface");
   });
 });
 
