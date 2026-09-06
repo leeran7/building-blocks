@@ -3,7 +3,7 @@ import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "node:test";
-import { foldLearnings, loadLearningsExcerpt, persistHandoffLearnings, runRetro, normalizeLearning } from "./retro.js";
+import { foldLearnings, loadLearningsExcerpt, loadLearningsForStage, persistHandoffLearnings, runRetro, normalizeLearning } from "./retro.js";
 import type { Handoff, HandoffLearning } from "./types.js";
 
 function handoff(
@@ -256,5 +256,30 @@ _Last curated: 2026-08-29T13:40:00Z — retro over the 2026-08-29 review pass
     const jsonl = await readFile(join(dir, "learnings.jsonl"), "utf-8");
     assert.match(jsonl, /alias insight/);
     assert.match(jsonl, /use the canonical fields/);
+  });
+
+  it("loadLearningsForStage appends graph-scoped learnings for the agent", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "loop-retro-"));
+    await persistHandoffLearnings(
+      handoff("security-reviewer", {
+        forAgents: ["security-reviewer", "implementer"],
+        topic: "Security",
+        kind: "pitfall",
+        insight: "Security control had no production callers.",
+        action: "Assert the control is reachable from a request handler.",
+      }),
+      dir,
+      1,
+    );
+    await writeFile(
+      join(dir, "learnings.md"),
+      `# Learnings Ledger\n\n## Standing rules (always apply)\n\n- Keep secrets out of prompts.\n\n## Recently applied (last 20)\n`,
+    );
+
+    const excerpt = await loadLearningsForStage(dir, "security-reviewer");
+    assert.match(excerpt, /Standing rules/);
+    assert.match(excerpt, /Graph-scoped learnings/);
+    assert.match(excerpt, /Security control had no production callers/);
+    assert.match(excerpt, /agent:security-reviewer|topic:Security/);
   });
 });

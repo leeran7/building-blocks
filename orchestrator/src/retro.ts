@@ -1,6 +1,12 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { Handoff, HandoffLearning } from "./types.js";
+import {
+  buildMemoryGraph,
+  formatGraphExcerpt,
+  stageDefaultTopics,
+  type LearningRecord,
+} from "./memory-graph.js";
 
 const EMPTY_LEDGER = `# Learnings Ledger
 
@@ -215,6 +221,34 @@ export async function loadLearningsExcerpt(loopDir: string): Promise<string> {
   } catch {
     return "(no learnings yet — create loop/learnings.md on first run)";
   }
+}
+
+/**
+ * Standing/recent markdown plus graph-scoped learnings for a stage.
+ * Prefer this over the flat excerpt when dispatching a named agent.
+ */
+export async function loadLearningsForStage(
+  loopDir: string,
+  stage: string,
+): Promise<string> {
+  const base = await loadLearningsExcerpt(loopDir);
+  const graphBlock = await loadGraphLearningsExcerpt(loopDir, stage);
+  if (!graphBlock) return base;
+  const combined = `${base}\n\n${graphBlock}`.trim();
+  return combined.slice(0, 10_000);
+}
+
+export async function loadGraphLearningsExcerpt(
+  loopDir: string,
+  stage: string,
+): Promise<string> {
+  const entries = await readLedger(join(loopDir, "learnings.jsonl"));
+  if (entries.length === 0) return "";
+  const graph = buildMemoryGraph(entries as LearningRecord[]);
+  return formatGraphExcerpt(graph, {
+    agent: stage,
+    topics: stageDefaultTopics(stage),
+  });
 }
 
 async function readLedger(jsonlPath: string): Promise<LedgerEntry[]> {

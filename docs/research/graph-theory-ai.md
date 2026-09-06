@@ -180,8 +180,112 @@ Even without a formal KG product, agent stacks already *are* graphs:
 
 `building-blocks` already encodes a **stage DAG** in the closed-loop skill (`skills/closed-loop/stages.md`): ordered stages, parallel quality gates, and failure loop-backs. That is graph control flow.
 
-Natural next experiments (research only; not scoped here):
+---
 
-- Index `context/`, `loop/learnings*`, and handoffs as a small **typed knowledge graph** for agent memory.  
-- Expose graph tools (`neighbors`, `path`, `community_summary`) to the orchestrator instead of stuffing full ledgers into prompts.  
-- Keep vector search for fuzzy doc lookup; use graph walk for “what depends on / decided / blocked X?”
+## 11. GraphRAG — mechanics (deeper)
+
+### Indexing pipeline
+
+```
+corpus chunks
+  → LLM entity/relation extraction (schema-bounded if possible)
+  → property graph (entities, relations, claims, sources)
+  → community detection (Leiden / Louvain / k-core)
+  → community summaries (bottom-up hierarchy)
+  → optional embeddings on nodes + community reports
+```
+
+### Query modes
+
+| Mode | Question shape | Mechanism |
+|------|----------------|-----------|
+| **Local** | “What do we know about X?” | Seed entity → neighborhood / DRIFT fan-out |
+| **Global** | “What themes dominate?” | Map-reduce over community summaries |
+| **Multi-hop** | “How does A connect to B?” | Path search + evidence assembly |
+| **Agentic** | Open-ended / adaptive | Tool loop: think → traverse → reflect → answer |
+
+### Cost / quality trade-offs
+
+- **Construction** is the expensive part (LLM extraction over the whole corpus).
+- **Query** can be cheaper than stuffing large retrieved chunks if communities compress well.
+- Extraction noise creates **false edges**; schema seeds + human review of high-degree nodes help.
+- Dense RAG still wins for single-fact lookups — use GraphRAG when relations matter.
+
+### Design rule of thumb
+
+Prefer GraphRAG when answers require **join-like** reasoning across documents. Prefer dense RAG when answers are **lookup-like**. Prefer agentic graph walk when the graph is huge and one-shot context injection is impossible.
+
+---
+
+## 12. GNNs — mechanics (deeper)
+
+### Message passing (one layer)
+
+For node \(v\) at layer \(\ell\):
+
+1. **Gather** messages from neighbors \(u \in N(v)\)  
+2. **Aggregate** (sum / mean / max / attention)  
+3. **Update** \(h_v^{(\ell+1)} = \mathrm{Update}(h_v^{(\ell)}, m_v)\)
+
+Stacking \(L\) layers ≈ \(L\)-hop receptive field. Too deep → over-smoothing (all nodes look alike).
+
+### Why LLMs + tools are eating pure GNN Q&A
+
+| Pure GNN | LLM + graph tools |
+|----------|-------------------|
+| Needs labels / task head | Works with NL goals |
+| Fixed graph at train time | Can edit / expand graph |
+| Great at structural prediction | Great at explanation + open tasks |
+| Hard to inject new docs | Tools re-query live graph |
+
+Keep GNNs where they shine: recommendations, fraud rings, molecule property prediction, link prediction at scale. For agent memory and codebase reasoning, **typed graphs + traversal tools** are the pragmatic default.
+
+---
+
+## 13. Prototype in this repo (shipped)
+
+### What we built
+
+A **GraphRAG-lite memory graph** over `loop/learnings.jsonl`:
+
+| Piece | Path |
+|-------|------|
+| Graph core | `orchestrator/src/memory-graph.ts` |
+| Tests | `orchestrator/src/memory-graph.test.ts` |
+| CLI | `yarn memory` → `orchestrator/src/memory-cli.ts` |
+| Loop wiring | `loadLearningsForStage` in `retro.ts`, used by `loop.ts` |
+
+### Schema
+
+**Nodes:** `learning`, `agent`, `topic`, `kind`, `file`, `status`  
+**Edges:** `authored_by`, `about_topic`, `of_kind`, `targets_agent`, `cites`, `has_status`
+
+### Queries
+
+```bash
+yarn --cwd orchestrator memory stats
+yarn --cwd orchestrator memory agent implementer
+yarn --cwd orchestrator memory topic Security
+yarn --cwd orchestrator memory file antiCheat
+yarn --cwd orchestrator memory path "grepping" "quality gate"
+```
+
+### How the loop uses it
+
+Each dispatched stage now gets:
+
+1. Standing rules + recently applied (markdown excerpt), **plus**
+2. A **graph-scoped** excerpt ranked for that agent and its default topics
+
+So `security-reviewer` sees Security-community + agent-targeted learnings instead of a flat dump of the whole ledger.
+
+### Snapshot on current ledger
+
+Against the committed `loop/learnings.jsonl` (~279 entries): on the order of **~20 agents**, **~38 topics**, **~117 files**, **~1.9k edges**. That is enough topology for neighborhood / path queries without a vector DB.
+
+### Next increments (not in this change)
+
+1. Add handoff nodes (`stage` → `handoff` → `learning`) for temporal provenance.  
+2. Optional embeddings on learning nodes for hybrid vector+graph retrieval.  
+3. Expose `neighbors` / `path` as agent tools (agentic GraphRAG), not only precomputed excerpts.  
+4. Community summaries for standing-rule clusters (true global GraphRAG).
