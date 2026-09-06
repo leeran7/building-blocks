@@ -320,6 +320,25 @@ describe("obstacle spawn", () => {
     expect(maxRise).toBeLessThan(step * 0.85 + 0.05);
   });
 
+  it("does not yank a mid-air fall down onto a stair ramp", () => {
+    const { crates } = firstStair(TOWER);
+    const mid = crates[Math.floor(crates.length / 2)]!;
+    const bandX = (mid.x0 + mid.x1) / 2;
+    const m = climbingMatch();
+    const p = m.players[0];
+    // Hover well above the ramp, then fall — must not snap to the surface
+    // in a single tick (landingObstacle handles a normal one-way land).
+    const surfaceApprox = mid.y1;
+    p.x = bandX;
+    p.y = surfaceApprox + 3.2;
+    p.peakY = p.y;
+    p.onGround = false;
+    p.vy = 0;
+    stepMatch(m, { p1: move(0, false) }, SLOW);
+    expect(p.y).toBeGreaterThan(surfaceApprox + 1.5);
+    expect(p.onGround).toBe(false);
+  });
+
   it("does not treat a crate a storey up as a hurdle on this walk", () => {
     const o = firstHurdle(TOWER);
     const mid = (o.x0 + o.x1) / 2;

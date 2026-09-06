@@ -650,8 +650,11 @@ function rideStairRamps(
         o,
         Math.max(left, Math.min(right, prevX))
       );
-      // One-way: only ride if feet were already on/above the prior surface.
-      if (prevY >= prevSurface - landingEps) {
+      // One-way near-surface only — never yank a mid-air fall down onto the ramp.
+      if (
+        prevY >= prevSurface - landingEps &&
+        prevY <= prevSurface + stepSlack
+      ) {
         p.y = surface;
         p.vy = 0;
         p.onGround = true;
