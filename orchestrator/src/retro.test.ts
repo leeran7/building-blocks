@@ -258,7 +258,7 @@ _Last curated: 2026-08-29T13:40:00Z — retro over the 2026-08-29 review pass
     assert.match(jsonl, /use the canonical fields/);
   });
 
-  it("loadLearningsForStage appends graph-scoped learnings for the agent", async () => {
+  it("loadLearningsForStage appends forAgents-scoped learnings for the agent", async () => {
     const dir = await mkdtemp(join(tmpdir(), "loop-retro-"));
     await persistHandoffLearnings(
       handoff("security-reviewer", {
@@ -271,6 +271,17 @@ _Last curated: 2026-08-29T13:40:00Z — retro over the 2026-08-29 review pass
       dir,
       1,
     );
+    await persistHandoffLearnings(
+      handoff("frontend", {
+        forAgents: ["frontend"],
+        topic: "Performance",
+        kind: "lesson",
+        insight: "Unrelated frontend-only note should stay out of security excerpt.",
+        action: "Ignore for other stages.",
+      }),
+      dir,
+      1,
+    );
     await writeFile(
       join(dir, "learnings.md"),
       `# Learnings Ledger\n\n## Standing rules (always apply)\n\n- Keep secrets out of prompts.\n\n## Recently applied (last 20)\n`,
@@ -278,8 +289,8 @@ _Last curated: 2026-08-29T13:40:00Z — retro over the 2026-08-29 review pass
 
     const excerpt = await loadLearningsForStage(dir, "security-reviewer");
     assert.match(excerpt, /Standing rules/);
-    assert.match(excerpt, /Graph-scoped learnings/);
+    assert.match(excerpt, /Learnings for security-reviewer/);
     assert.match(excerpt, /Security control had no production callers/);
-    assert.match(excerpt, /agent:security-reviewer|topic:Security/);
+    assert.doesNotMatch(excerpt, /Unrelated frontend-only note/);
   });
 });

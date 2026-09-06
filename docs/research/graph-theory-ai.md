@@ -242,50 +242,29 @@ Keep GNNs where they shine: recommendations, fraud rings, molecule property pred
 
 ---
 
-## 13. Prototype in this repo (shipped)
+## 13. What we shipped here (simple filter, not a graph)
 
-### What we built
+We prototyped a typed memory graph, then **scrapped it**. For this ledger the
+useful part was only “show learnings aimed at this stage.” That does not need
+nodes, edges, or a CLI.
 
-A **GraphRAG-lite memory graph** over `loop/learnings.jsonl`:
+### What runs now
 
-| Piece | Path |
-|-------|------|
-| Graph core | `orchestrator/src/memory-graph.ts` |
-| Tests | `orchestrator/src/memory-graph.test.ts` |
-| CLI | `yarn memory` → `orchestrator/src/memory-cli.ts` |
-| Loop wiring | `loadLearningsForStage` in `retro.ts`, used by `loop.ts` |
+`loadLearningsForStage` in `orchestrator/src/retro.ts` (called from `loop.ts`):
 
-### Schema
+1. Standing rules + recently applied (markdown excerpt, as before)
+2. Up to **12** newest `learnings.jsonl` rows whose `forAgents` includes the
+   stage name or `"all"`
 
-**Nodes:** `learning`, `agent`, `topic`, `kind`, `file`, `status`  
-**Edges:** `authored_by`, `about_topic`, `of_kind`, `targets_agent`, `cites`, `has_status`
+Automatic in `yarn loop`. No CLI. No graph build. No embeddings.
 
-### Queries
+### Why not the graph
 
-```bash
-yarn --cwd orchestrator memory stats
-yarn --cwd orchestrator memory agent implementer
-yarn --cwd orchestrator memory topic Security
-yarn --cwd orchestrator memory file antiCheat
-yarn --cwd orchestrator memory path "grepping" "quality gate"
-```
+- Same per-stage relevance from a one-line `forAgents` filter
+- Graph code was ~700 lines for zero extra product behavior we need today
+- Token cost stays capped (~10k chars of learnings context per stage)
 
-### How the loop uses it
+### If you later need graph ops
 
-Each dispatched stage now gets:
-
-1. Standing rules + recently applied (markdown excerpt), **plus**
-2. A **graph-scoped** excerpt ranked for that agent and its default topics
-
-So `security-reviewer` sees Security-community + agent-targeted learnings instead of a flat dump of the whole ledger.
-
-### Snapshot on current ledger
-
-Against the committed `loop/learnings.jsonl` (~279 entries): on the order of **~20 agents**, **~38 topics**, **~117 files**, **~1.9k edges**. That is enough topology for neighborhood / path queries without a vector DB.
-
-### Next increments (not in this change)
-
-1. Add handoff nodes (`stage` → `handoff` → `learning`) for temporal provenance.  
-2. Optional embeddings on learning nodes for hybrid vector+graph retrieval.  
-3. Expose `neighbors` / `path` as agent tools (agentic GraphRAG), not only precomputed excerpts.  
-4. Community summaries for standing-rule clusters (true global GraphRAG).
+Revisit only when you need “what else cites this file?” or multi-hop path
+queries. Until then, keep the filter.

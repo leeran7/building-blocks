@@ -1,12 +1,6 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { Handoff, HandoffLearning } from "./types.js";
-import {
-  buildMemoryGraph,
-  formatGraphExcerpt,
-  stageDefaultTopics,
-  type LearningRecord,
-} from "./memory-graph.js";
 
 const EMPTY_LEDGER = `# Learnings Ledger
 
@@ -27,6 +21,9 @@ _Last curated: never._
 
 ## Recently applied (last 20)
 `;
+
+const STAGE_LEARNING_LIMIT = 12;
+const ACTION_SNIPPET = 160;
 
 const RECENT_LIMIT = 20;
 
@@ -224,31 +221,43 @@ export async function loadLearningsExcerpt(loopDir: string): Promise<string> {
 }
 
 /**
- * Standing/recent markdown plus graph-scoped learnings for a stage.
- * Prefer this over the flat excerpt when dispatching a named agent.
+ * Standing/recent markdown plus learnings whose forAgents includes this stage
+ * (or "all"). No graph — just a targeted filter on the jsonl ledger.
  */
 export async function loadLearningsForStage(
   loopDir: string,
   stage: string,
 ): Promise<string> {
   const base = await loadLearningsExcerpt(loopDir);
-  const graphBlock = await loadGraphLearningsExcerpt(loopDir, stage);
-  if (!graphBlock) return base;
-  const combined = `${base}\n\n${graphBlock}`.trim();
-  return combined.slice(0, 10_000);
+  const scoped = await formatAgentScopedLearnings(loopDir, stage);
+  if (!scoped) return base;
+  return `${base}\n\n${scoped}`.trim().slice(0, 10_000);
 }
 
-export async function loadGraphLearningsExcerpt(
+async function formatAgentScopedLearnings(
   loopDir: string,
   stage: string,
 ): Promise<string> {
   const entries = await readLedger(join(loopDir, "learnings.jsonl"));
-  if (entries.length === 0) return "";
-  const graph = buildMemoryGraph(entries as LearningRecord[]);
-  return formatGraphExcerpt(graph, {
-    agent: stage,
-    topics: stageDefaultTopics(stage),
+  const stageKey = stage.toLowerCase();
+  const matched = entries.filter((entry) => {
+    if (!entry.insight?.trim()) return false;
+    const targets = (entry.forAgents ?? ["all"]).map((agent) =>
+      agent.toLowerCase(),
+    );
+    return targets.includes("all") || targets.includes(stageKey);
   });
+  // jsonl is append-only; newest last → take from the end
+  const picked = matched.slice(-STAGE_LEARNING_LIMIT).reverse();
+  if (picked.length === 0) return "";
+
+  const lines = [`## Learnings for ${stage} (${picked.length})`, ""];
+  for (const entry of picked) {
+    lines.push(`- ${entry.insight}`);
+    const action = (entry.action ?? "").slice(0, ACTION_SNIPPET);
+    if (action) lines.push(`  → ${action}`);
+  }
+  return lines.join("\n");
 }
 
 async function readLedger(jsonlPath: string): Promise<LedgerEntry[]> {
