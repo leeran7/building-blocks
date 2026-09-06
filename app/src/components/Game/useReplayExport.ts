@@ -30,7 +30,12 @@ export type ReplayExportStatus =
   | { kind: "idle" }
   | { kind: "running"; percent: number }
   | { kind: "paused_hidden"; percent: number }
-  | { kind: "success"; label: "MP4" | "WebM" }
+  | {
+      kind: "success";
+      label: "MP4" | "WebM";
+      /** Retained export file — same bytes/name/type as download (AC-NS-7). */
+      file: File;
+    }
   | { kind: "error"; message: string };
 
 const EXPORT_W = 720;
@@ -175,13 +180,23 @@ export function useReplayExport({
         return;
       }
       try {
-        const blob = new Blob(session.chunks, { type: session.mime.mimeType });
+        // Container MIME only on assembled File/Blob (ADR-NS-2) — never forge
+        // video/mp4 for WebM, never pass codec-qualified strings to share.
+        const containerType = containerMimeForLabel(session.mime.label);
+        const blob = new Blob(session.chunks, { type: containerType });
         if (blob.size === 0) {
           failSession(session, sessionRef, setStatus, "Empty video");
           return;
         }
-        downloadBlob(blob, session.filename);
-        setStatus({ kind: "success", label: session.mime.label });
+        const file = new File([blob], session.filename, { type: containerType });
+        downloadBlob(file, session.filename);
+        // Retain File past download URL revoke (~1s). Never auto-share here
+        // (ADR-NS-1 / AC-NS-4 negative) — gesture lives in the transport bar.
+        setStatus({
+          kind: "success",
+          label: session.mime.label,
+          file,
+        });
       } catch (err) {
         const msg = err instanceof Error ? err.message : "Export failed";
         failSession(session, sessionRef, setStatus, msg);
@@ -427,9 +442,15 @@ function downloadBlob(blob: Blob, filename: string): void {
   a.click();
   a.remove();
   // Some browsers cancel the download if the blob URL is revoked synchronously.
+  // Share retention uses status.file (independent of this revoke — AC-NS-7).
   window.setTimeout(() => {
     URL.revokeObjectURL(url);
   }, BLOB_REVOKE_MS);
+}
+
+/** Container MIME for download + share File.type (ADR-NS-2 / AC-NS-8). */
+function containerMimeForLabel(label: "MP4" | "WebM"): "video/mp4" | "video/webm" {
+  return label === "MP4" ? "video/mp4" : "video/webm";
 }
 
 function utcDateStamp(d: Date): string {

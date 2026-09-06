@@ -21,6 +21,10 @@ import {
   formatReplayClock,
   REWIND_REPEAT_MS,
 } from "../../game/replayTransport";
+import {
+  canShareVideoFile,
+  shareVideoFile,
+} from "../../game/shareVideoFile";
 import type { ReplayExportStatus } from "./useReplayExport";
 
 export interface ReplayTransportBarProps {
@@ -55,6 +59,8 @@ export function ReplayTransportBar({
   /** Draft seek ratio while pointer is down; null = track live climbTick. */
   const [scrubRatio, setScrubRatio] = useState<number | null>(null);
   const prevExportKind = useRef(exportStatus.kind);
+  /** Bar-local share failure — must not replace status.kind === success. */
+  const [shareError, setShareError] = useState<string | null>(null);
 
   const speak = useCallback((msg: string) => {
     announceSeq.current += 1;
@@ -66,6 +72,12 @@ export function ReplayTransportBar({
       if (rewindHoldRef.current) clearInterval(rewindHoldRef.current);
     };
   }, []);
+
+  useEffect(() => {
+    if (exportStatus.kind !== "success") {
+      setShareError(null);
+    }
+  }, [exportStatus.kind]);
 
   useEffect(() => {
     const prev = prevExportKind.current;
@@ -244,17 +256,61 @@ export function ReplayTransportBar({
         ) : null}
 
         {exportStatus.kind === "success" ? (
-          <div className="flex items-center justify-between gap-2">
-            <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-signal">
-              Downloaded {exportStatus.label}
-            </p>
-            <button
-              type="button"
-              className="min-h-[44px] px-2 font-mono text-[10px] uppercase text-text-muted hover:text-text-primary"
-              onClick={onDismissExportStatus}
-            >
-              Dismiss
-            </button>
+          <div className="flex flex-col gap-1">
+            <div className="flex items-center justify-between gap-2">
+              <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-signal">
+                Downloaded {exportStatus.label}
+              </p>
+              <div className="flex items-center gap-1">
+                {canShareVideoFile(exportStatus.file) ? (
+                  <button
+                    type="button"
+                    aria-label="Share"
+                    className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-lg px-2 font-mono text-[10px] uppercase tracking-wider text-text-primary hover:bg-signal/10"
+                    onClick={async () => {
+                      // Start share in this activation — no unrelated awaits first
+                      // (ADR-NS-5 / NFR-NS-2).
+                      const file = exportStatus.file;
+                      setShareError(null);
+                      const result = await shareVideoFile(file, {
+                        title: file.name,
+                      });
+                      if (result.ok) {
+                        speak("Share complete");
+                        return;
+                      }
+                      if (result.reason === "aborted") {
+                        // Quiet cancel — keep success + Share (AC-NS-5).
+                        return;
+                      }
+                      if (result.reason === "error") {
+                        setShareError(result.message);
+                      }
+                    }}
+                  >
+                    Share
+                  </button>
+                ) : null}
+                <button
+                  type="button"
+                  className="min-h-[44px] px-2 font-mono text-[10px] uppercase text-text-muted hover:text-text-primary"
+                  onClick={() => {
+                    setShareError(null);
+                    onDismissExportStatus();
+                  }}
+                >
+                  Dismiss
+                </button>
+              </div>
+            </div>
+            {shareError ? (
+              <p
+                className="font-mono text-[10px] uppercase tracking-[0.12em] text-ember"
+                role="alert"
+              >
+                {shareError}
+              </p>
+            ) : null}
           </div>
         ) : null}
 
