@@ -118,18 +118,18 @@ export function HowItWorks({
     <section
       id="how-it-works"
       aria-label="How Stack works"
-      className="scroll-mt-20 py-20 px-4 border-t border-border-subtle bg-surface/30"
+      className="scroll-mt-20 border-t border-border-subtle bg-surface/30 px-4 py-20 md:py-24"
     >
-      <div className="max-w-6xl mx-auto">
-        <div className="mb-12 flex items-end justify-between gap-4">
+      <div className="mx-auto max-w-6xl">
+        <div className="mb-14 flex items-end justify-between gap-4">
           <div>
             <span className="font-mono text-[11px] uppercase tracking-[0.2em] text-signal">
               [ the rules ]
             </span>
-            <h2 className="font-display text-4xl md:text-5xl text-text-primary mt-3">
+            <h2 className="font-display mt-3 text-4xl text-text-primary md:text-5xl">
               How paid stacks work
             </h2>
-            <p className="text-sm text-text-secondary mt-2 max-w-xl">
+            <p className="mt-3 max-w-xl text-sm text-text-secondary md:text-base">
               Real money, real rank. One leaderboard per category — separate from
               the free skill climb.
             </p>

@@ -16,6 +16,7 @@ import {
 } from "../../src/game/categories";
 import {
   directorySections,
+  directoryIntroCopy,
   hiddenDirectoryCount,
   directoryToggleVisible,
   DEFAULT_VISIBLE_STACKS,
@@ -203,5 +204,13 @@ describe("directoryToggleVisible", () => {
     expect(
       directoryToggleVisible({ family: "all", expanded: false, hiddenCount: 0 })
     ).toBe(false);
+  });
+});
+
+describe("directoryIntroCopy", () => {
+  it("never claims 0 blocks when the arena is empty", () => {
+    const copy = directoryIntroCopy(GAME_CATEGORIES.length, 0);
+    expect(copy).not.toMatch(/\b0 blocks\b/);
+    expect(copy.toLowerCase()).toContain("claim #1");
   });
 });

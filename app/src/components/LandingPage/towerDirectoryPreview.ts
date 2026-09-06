@@ -70,3 +70,17 @@ export type DirectorySection = {
   family: Family;
   stacks: GameCategory[];
 };
+
+/**
+ * Directory intro body copy. When live totals are cold, never lead with a
+ * numeric `0 blocks` claim (AC-12 spirit for below-hero surfaces).
+ */
+export function directoryIntroCopy(
+  stackCount: number,
+  totalLive: number
+): string {
+  if (totalLive === 0) {
+    return `${stackCount} stacks · claim #1. Buy altitude to take your place — your height is permanent, but the ground rises to bury whoever stops topping up. Open a stack to see the standings.`;
+  }
+  return `${stackCount} stacks · ${totalLive} blocks climbing. Buy altitude to claim your rank — your height is permanent, but the ground rises to bury whoever stops topping up. Open a stack to see the standings.`;
+}

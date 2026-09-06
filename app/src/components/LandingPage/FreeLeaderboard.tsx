@@ -17,24 +17,27 @@ export async function FreeLeaderboard() {
     <section
       id="free"
       aria-label="Free climb leaderboard"
-      className="scroll-mt-20 py-20 px-4 border-t border-border-subtle bg-surface/30"
+      className="scroll-mt-20 border-t border-border-subtle bg-surface/30 px-4 py-20 md:py-24"
     >
-      <div className="max-w-3xl mx-auto">
-        <div className="flex items-end justify-between gap-4 mb-8">
+      <div className="mx-auto max-w-3xl">
+        <div className="mb-10 flex items-end justify-between gap-4">
           <div>
-            <span className="inline-flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.2em] text-text-muted">
+            <span className="inline-flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.2em] text-text-secondary">
               <span className="rounded-full border border-border-strong px-2 py-0.5 text-[10px] text-text-secondary">
                 Free
               </span>
               warm-up game · separate stack
             </span>
-            <h2 className="font-display text-2xl md:text-3xl text-text-secondary mt-3">
+            <h2 className="font-display mt-3 text-2xl text-text-secondary md:text-3xl">
               Top climbers
             </h2>
-            <p className="text-sm text-text-muted mt-2 max-w-lg">
+            <p className="mt-3 max-w-lg text-sm text-text-secondary">
               No stakes, no payout — one endless climb for practice and bragging
               rights. Best peak height is your rank.{" "}
-              <Link href="/play" className="text-text-secondary underline underline-offset-4 hover:text-signal">
+              <Link
+                href="/play"
+                className="text-text-primary underline underline-offset-4 hover:text-signal"
+              >
                 Play free →
               </Link>
             </p>
@@ -50,12 +53,15 @@ export async function FreeLeaderboard() {
         {climbers.length === 0 ? (
           <div className="relative overflow-hidden rounded-2xl border border-border-strong bg-surface p-10 text-center">
             <div className="pointer-events-none absolute inset-0 survey-grid opacity-50" />
-            <p className="relative font-mono text-[11px] uppercase tracking-[0.2em] text-text-muted">
+            <p className="relative font-mono text-[11px] uppercase tracking-[0.2em] text-text-secondary">
               [ no climbers yet ]
             </p>
-            <p className="relative text-text-secondary text-sm mt-3">
+            <p className="relative mt-3 text-sm text-text-secondary">
               Be the first to set a height record.{" "}
-              <Link href="/play" className="text-text-primary underline underline-offset-4 hover:text-signal">
+              <Link
+                href="/play"
+                className="text-text-primary underline underline-offset-4 hover:text-signal"
+              >
                 Play the free climb →
               </Link>
             </p>

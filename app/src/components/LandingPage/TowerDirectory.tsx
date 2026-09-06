@@ -20,6 +20,7 @@ import {
 import { InlineTower } from "./InlineTower";
 import {
   directorySections,
+  directoryIntroCopy,
   hiddenDirectoryCount,
   directoryToggleVisible,
   DEFAULT_VISIBLE_STACKS,
@@ -120,22 +121,24 @@ export function TowerDirectory({ counts, minEntryUsd }: TowerDirectoryProps) {
   });
 
   return (
-    <section id="towers" aria-label="Paid stacks" className="scroll-mt-20 py-20 px-4 border-t border-border-subtle">
-      <div className="max-w-6xl mx-auto">
-        <div className="mb-6">
+    <section
+      id="towers"
+      aria-label="Paid stacks"
+      className="scroll-mt-20 border-t border-border-subtle px-4 py-20 md:py-24"
+    >
+      <div className="mx-auto max-w-6xl">
+        <div className="mb-8">
           <span className="inline-flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.2em] text-signal">
-            <span className="rounded-full bg-signal text-void px-2 py-0.5 text-[10px] font-bold shadow-signal">
+            <span className="rounded-full bg-signal px-2 py-0.5 text-[10px] font-bold text-void shadow-signal">
               Paid
             </span>
             real stakes · buy your way up
           </span>
-          <h2 className="font-display text-5xl md:text-6xl text-text-primary mt-3">
+          <h2 className="font-display mt-3 text-5xl text-text-primary md:text-6xl">
             Pick your stack
           </h2>
-          <p className="text-sm text-text-secondary mt-2 max-w-2xl">
-            {GAME_CATEGORIES.length} stacks · {totalLive} blocks climbing. Buy
-            altitude to claim your rank — your height is permanent, but the ground
-            rises to bury whoever stops topping up. Open a stack to see the standings.
+          <p className="mt-3 max-w-2xl text-sm text-text-secondary md:text-base">
+            {directoryIntroCopy(GAME_CATEGORIES.length, totalLive)}
           </p>
         </div>
 

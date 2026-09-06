@@ -89,17 +89,17 @@ export function Faq({ minEntryUsd = 5, minSpendUsd = 2 }: FaqProps) {
   return (
     <section
       aria-label="Frequently asked questions"
-      className="py-20 px-4 border-t border-border-subtle"
+      className="border-t border-border-subtle px-4 py-20 md:py-24"
     >
-      <div className="max-w-3xl mx-auto">
-        <div className="mb-10">
+      <div className="mx-auto max-w-3xl">
+        <div className="mb-12">
           <span className="font-mono text-[11px] uppercase tracking-[0.2em] text-signal">
             [ questions ]
           </span>
-          <h2 className="font-display text-4xl md:text-5xl text-text-primary mt-3">
+          <h2 className="font-display mt-3 text-4xl text-text-primary md:text-5xl">
             Paid stacks FAQ
           </h2>
-          <p className="text-sm text-text-secondary mt-2">
+          <p className="mt-3 text-sm text-text-secondary md:text-base">
             Money, rank, burial, and seasons — the mechanics behind the towers.
           </p>
         </div>

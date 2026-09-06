@@ -21,8 +21,7 @@ export function Footer() {
 
   return (
     <footer role="contentinfo" className="border-t border-border-subtle bg-surface">
-      {/* CTA band */}
-      <div className="relative overflow-hidden border-b border-border-subtle edge-signal">
+      <div className="edge-signal relative overflow-hidden border-b border-border-subtle">
         {/* ground creeping up */}
         <div
           className="ground-gradient pointer-events-none absolute inset-x-0 bottom-0 h-24 opacity-60"
