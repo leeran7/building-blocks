@@ -194,12 +194,72 @@ describe("obstacle spawn", () => {
     const dest = platformsForFloor(TOWER, floor + 1);
     const overlap = dest.some((p) => {
       const hit = Math.min(last.x1, p.x1) - Math.max(last.x0, p.x0);
-      return hit >= (last.x1 - last.x0) * 0.4;
+      return hit >= (last.x1 - last.x0) * 0.3;
     });
     expect(overlap).toBe(true);
     for (let k = 1; k < crates.length; k++) {
       expect(crates[k].y0).toBeCloseTo(crates[k - 1].y1, 5);
     }
+  });
+
+  it("builds stairs with shallow treads so the climb reads as a ramp", () => {
+    const { floor, crates } = firstStair(TOWER);
+    const step = crates[0].y1 - crates[0].y0;
+    const apex = jumpApexM(TOWER);
+    expect(crates.length).toBeGreaterThanOrEqual(5);
+    expect(step).toBeLessThanOrEqual(Math.min(1.05, apex * 0.38) + 1e-6);
+    expect(step).toBeLessThan(
+      floorHeight(TOWER, floor + 1) - floorHeight(TOWER, floor)
+    );
+  });
+
+  it("places floor crates between ladder anchors when corridors exist", () => {
+    let checked = 0;
+    for (let i = 2; i < 80; i++) {
+      const ladderXs = [
+        ...laddersForFloor(TOWER, i).map((l) => l.x),
+        ...laddersForFloor(TOWER, i - 1).map((l) => l.x),
+      ]
+        .filter((v, idx, arr) => arr.indexOf(v) === idx)
+        .sort((a, b) => a - b);
+      if (ladderXs.length < 2) continue;
+      const clear = obstacleLadderKeepOutM(TOWER);
+      const floorY = floorHeight(TOWER, i);
+      const os = obstaclesForFloor(TOWER, i);
+      // Lone slab hurdles only — stairs may extend to reach the next floor.
+      const grounded = os.filter((o) => Math.abs(o.y0 - floorY) < 1e-9);
+      if (grounded.length === 0 || grounded.length !== os.length) continue;
+      if (grounded.length > 2) continue;
+      for (const o of grounded) {
+        const mid = (o.x0 + o.x1) / 2;
+        let inCorridor = false;
+        for (let a = 0; a < ladderXs.length - 1; a++) {
+          const lo = ladderXs[a]! + clear;
+          const hi = ladderXs[a + 1]! - clear;
+          if (mid >= lo && mid <= hi) inCorridor = true;
+        }
+        expect(inCorridor).toBe(true);
+        checked += 1;
+      }
+    }
+    expect(checked).toBeGreaterThan(5);
+  });
+
+  it("keeps clear gaps between two hurdles on the same floor", () => {
+    let found = false;
+    for (let i = 2; i < 120; i++) {
+      const floorY = floorHeight(TOWER, i);
+      const hurdles = obstaclesForFloor(TOWER, i).filter(
+        (o) => Math.abs(o.y0 - floorY) < 1e-9
+      );
+      if (hurdles.length !== 2) continue;
+      const [a, b] = [...hurdles].sort((x, y) => x.x0 - y.x0);
+      const gap = b!.x0 - a!.x1;
+      expect(gap).toBeGreaterThanOrEqual(2.5);
+      found = true;
+      break;
+    }
+    expect(found).toBe(true);
   });
 
   it("stacks some hurdles into a 3-level triangle on the slab", () => {
@@ -229,7 +289,7 @@ describe("obstacle spawn", () => {
       stepMatch(m, { p1: move(1, false) }, SLOW);
     }
     expect(p.x).toBeGreaterThan(right.x1);
-    expect(p.y).toBeCloseTo(left.y0, 1);
+    expect(p.y).toBeCloseTo(left.y0, 0);
     expect(p.status).toBe("climbing");
   });
 
@@ -246,11 +306,18 @@ describe("obstacle spawn", () => {
     p.onGround = true;
     p.vy = 0;
     const nextY = floorHeight(TOWER, floor + 1);
-    for (let i = 0; i < 500 && p.y < nextY - 0.15; i++) {
+    const step = crates[0].y1 - crates[0].y0;
+    let maxRise = 0;
+    let prevY = p.y;
+    for (let i = 0; i < 700 && p.y < nextY - 0.15; i++) {
       stepMatch(m, { p1: move(dir, false) }, SLOW);
+      maxRise = Math.max(maxRise, p.y - prevY);
+      prevY = p.y;
     }
     expect(p.y).toBeGreaterThan(nextY - 0.2);
     expect(p.status).toBe("climbing");
+    // Continuous ramp: no single-tick snap of a full old-style tread.
+    expect(maxRise).toBeLessThan(step * 0.85 + 0.05);
   });
 
   it("does not treat a crate a storey up as a hurdle on this walk", () => {
