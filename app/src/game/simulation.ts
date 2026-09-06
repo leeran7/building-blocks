@@ -441,7 +441,7 @@ export function stepMatch(
   //    stumbles on a fixed cycle rather than accelerating at every moment.
   //    Time-slow banks seconds the lava never gets to spend; catch-up spends
   //    them a little faster while the lead climber is far ahead, then drops
-  //    back to 1× as soon as the gap is within 200m. Both keep the height
+  //    back to 1× as soon as the gap is within 250m. Both keep the height
   //    curve monotonic.
   const timeScale =
     hazardTimeScale(state.players, state.tick) *
