@@ -71,7 +71,7 @@ export function PostPaymentSetup() {
         {needsUsername ? (
           <li>
             <p className="text-sm font-semibold text-text-primary">
-              Claim your creator page
+              Your creator page
             </p>
             <p className="text-sm text-text-secondary mt-0.5">
               One public link for all your listings and climbs.
@@ -80,7 +80,7 @@ export function PostPaymentSetup() {
               href="/settings"
               className="mt-2 inline-flex items-center bg-signal text-void font-semibold rounded-full px-4 min-h-[44px] hover:brightness-110 active:scale-[0.98] transition-[filter,transform]"
             >
-              Claim your page
+              Create page
             </Link>
           </li>
         ) : (
