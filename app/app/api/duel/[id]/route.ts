@@ -4,10 +4,15 @@
  * Public endpoint — no auth required. The seed is withheld when the duel is
  * still pending (AC spec: seed oracle prevention — player2 must not be able
  * to pre-compute the tower before joining).
+ *
+ * DELETE /api/duel/[id] — Cancel a pending challenge you created, so the
+ * one-pending-challenge-per-user guard on POST /api/duel can't strand you.
+ * Auth required; only the creator may cancel, and only while still pending.
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { getDuel } from "../../../../src/db/duel";
+import { getDuel, cancelPendingDuel } from "../../../../src/db/duel";
+import { requireAuth, AuthError } from "../../../../src/lib/requireAuth";
 
 export const runtime = "nodejs";
 
@@ -44,4 +49,38 @@ export async function GET(
     startedAt: duel.started_at?.toISOString() ?? null,
     completedAt: duel.completed_at?.toISOString() ?? null,
   });
+}
+
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params;
+
+  let uid: string;
+  try {
+    const decoded = await requireAuth(request);
+    uid = decoded.uid;
+  } catch (err) {
+    if (err instanceof AuthError) return err.response;
+    return NextResponse.json({ error: "Unauthorized", code: "UNAUTHORIZED" }, { status: 401 });
+  }
+
+  const result = await cancelPendingDuel(id, uid);
+  switch (result.outcome) {
+    case "cancelled":
+      return NextResponse.json({ cancelled: true }, { status: 200 });
+    case "not_found":
+      return NextResponse.json({ error: "Duel not found", code: "NOT_FOUND" }, { status: 404 });
+    case "forbidden":
+      return NextResponse.json(
+        { error: "Not your challenge", code: "FORBIDDEN" },
+        { status: 403 }
+      );
+    case "not_pending":
+      return NextResponse.json(
+        { error: "Challenge already started", code: "NOT_PENDING" },
+        { status: 409 }
+      );
+  }
 }

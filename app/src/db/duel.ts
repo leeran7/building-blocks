@@ -303,6 +303,49 @@ export async function voidDuelForForfeit(
   });
 }
 
+/** Possible results from cancelPendingDuel. */
+export type CancelPendingResult =
+  | { outcome: "cancelled" }
+  | { outcome: "forbidden" }
+  | { outcome: "not_pending" }
+  | { outcome: "not_found" };
+
+/**
+ * Cancel a still-pending challenge the requester created. Lets a player clear
+ * an open challenge nobody joined so they are not permanently blocked by the
+ * one-pending-challenge-per-user guard in POST /api/duel.
+ *
+ * Guarded inside SELECT FOR UPDATE:
+ *   - only the creator (player1) may cancel — otherwise "forbidden";
+ *   - only while status is PENDING and no player2 has joined — otherwise
+ *     "not_pending" (a joined/active duel must be forfeited, not silently
+ *     cancelled, so it can never erase a match in progress).
+ * No stats are touched: a pending duel was never played.
+ */
+export async function cancelPendingDuel(
+  id: string,
+  requesterId: string
+): Promise<CancelPendingResult> {
+  return prisma.$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT id FROM duels WHERE id = ${id} FOR UPDATE`;
+
+    const current = await tx.duel.findUnique({ where: { id } });
+    if (!current) return { outcome: "not_found" } satisfies CancelPendingResult;
+    if (current.player1_id !== requesterId) {
+      return { outcome: "forbidden" } satisfies CancelPendingResult;
+    }
+    if (current.status !== DuelStatus.pending || current.player2_id !== null) {
+      return { outcome: "not_pending" } satisfies CancelPendingResult;
+    }
+
+    await tx.duel.update({
+      where: { id },
+      data: { status: DuelStatus.voided },
+    });
+    return { outcome: "cancelled" } satisfies CancelPendingResult;
+  });
+}
+
 /**
  * Mark one player's replay as submitted and store the encoded replay payload.
  * Serialized with SELECT FOR UPDATE so the two concurrent submissions do not

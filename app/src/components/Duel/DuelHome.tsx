@@ -103,6 +103,33 @@ export function DuelHome() {
     }
   }, [token]);
 
+  const handleCancelExisting = useCallback(
+    async (existingId: string) => {
+      if (!token) return;
+      setCreateState({ status: "loading" });
+      try {
+        const res = await fetch(`/api/duel/${existingId}`, {
+          method: "DELETE",
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok && res.status !== 404) {
+          const body = (await res.json().catch(() => ({}))) as { error?: string };
+          setCreateState({
+            status: "error",
+            message: body.error ?? "Could not cancel the open challenge.",
+          });
+          return;
+        }
+        // Cancelled (or already gone) — back to a clean slate so a new
+        // challenge can be created.
+        setCreateState({ status: "idle" });
+      } catch {
+        setCreateState({ status: "error", message: "Network error. Please try again." });
+      }
+    },
+    [token]
+  );
+
   const handleCopyLink = useCallback(async (link: string) => {
     try {
       await navigator.clipboard.writeText(link);
@@ -199,7 +226,8 @@ export function DuelHome() {
           1v1 Duel
         </h1>
         <p className="mt-4 text-text-secondary text-base max-w-sm mx-auto">
-          Race a friend or a random opponent up the tower. Highest peak wins.
+          Race a friend or a random opponent up the same tower. Outclimb the
+          rising lava — the last one standing wins.
         </p>
       </div>
 
@@ -294,13 +322,22 @@ export function DuelHome() {
 
           {user && createState.status === "existing" && (
             <div className="flex flex-col gap-2">
-              <p className="text-warning text-sm">You have an open challenge.</p>
+              <p className="text-warning text-sm">
+                You already have an open challenge. Reopen it, or cancel it to
+                create a new one.
+              </p>
               <a
                 href={`/duel/${createState.existingId}`}
                 className="inline-flex items-center justify-center rounded-full px-5 min-h-[44px] border border-border-strong text-text-secondary text-sm hover:border-signal/50 transition-colors"
               >
                 Go to existing duel
               </a>
+              <button
+                onClick={() => handleCancelExisting(createState.existingId)}
+                className="inline-flex items-center justify-center rounded-full px-5 min-h-[44px] border border-border-strong text-text-secondary text-sm hover:border-ember/50 transition-colors"
+              >
+                Cancel challenge
+              </button>
               <button
                 onClick={() => setCreateState({ status: "idle" })}
                 className="text-text-muted text-xs underline underline-offset-2 text-left"
