@@ -46,6 +46,16 @@ export interface ClimbCanvasProps {
    * Safe-area top inset in px (notch / Dynamic Island).
    */
   hudInsetTop?: number;
+  /**
+   * Local player's Firebase UID — determines which sprite gets lime vs blue.
+   * When absent, slot 0 is treated as the local player.
+   */
+  myId?: string;
+  /**
+   * Display names keyed by player id — used for nameplates drawn above each
+   * climber. Falls back to "Guest" when a player id is not present.
+   */
+  playerNames?: Record<string, string>;
 }
 
 export function ClimbCanvas({
@@ -56,6 +66,8 @@ export function ClimbCanvas({
   bottomInset = 0,
   fullBleed = false,
   hudInsetTop = 0,
+  myId,
+  playerNames,
 }: ClimbCanvasProps) {
   const ref = useRef<HTMLCanvasElement>(null);
   const camRef = useRef<{ y: number | null; tick: number | null }>({
@@ -87,8 +99,20 @@ export function ClimbCanvas({
       hudInsetTop,
       includeHud: true,
       camera: camRef.current,
+      myId,
+      playerNames,
     });
-  }, [state, width, height, reducedMotion, bottomInset, hudInsetTop]);
+  }, [
+    state,
+    width,
+    height,
+    reducedMotion,
+    bottomInset,
+    hudInsetTop,
+    myId,
+    playerNames,
+  ]);
+
 
   return (
     <canvas

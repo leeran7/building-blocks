@@ -98,6 +98,11 @@ export function Footer() {
                 Leaderboard
               </Link>
             </li>
+            <li>
+              <Link href="/duel" className={LINK}>
+                1v1 duel
+              </Link>
+            </li>
           </ul>
         </nav>
 

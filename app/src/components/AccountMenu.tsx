@@ -13,7 +13,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "../contexts/AuthContext";
-import { FREE_CLIMB_HREF } from "./navLinks";
+import { FREE_CLIMB_HREF, DUEL_HREF } from "./navLinks";
 
 const ITEM =
   "flex items-center gap-2.5 rounded-lg px-3 min-h-[44px] text-sm text-text-secondary hover:bg-elevated hover:text-text-primary transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal";
@@ -135,6 +135,9 @@ export function AccountMenu() {
             </Link>
             <Link href={FREE_CLIMB_HREF} className={ITEM} onClick={() => setOpen(false)}>
               Free climb
+            </Link>
+            <Link href={DUEL_HREF} className={ITEM} onClick={() => setOpen(false)}>
+              1v1
             </Link>
           </div>
 

@@ -49,6 +49,7 @@ const CRATE = "#2a2730";
 const CRATE_TOP = "#4a4656";
 const CRATE_FACE = "#3a3644";
 const LADDER = "#8a86a0";
+const OPPONENT_COLOR = "#6bb8ff"; // wayfinding blue — opponent in a duel
 /** Decorative / eliminated only — never body or lava HUD (AC-1 / AC-13). */
 const TEXT_MUTED = "#74707e";
 /** Lava/hazard HUD + altitude grid labels (≥ AA on void/surface). */
@@ -73,6 +74,17 @@ export type PaintClimbFrameOptions = {
    * snaps to target each call (fine for one-shot export frames with a bag).
    */
   camera?: { y: number | null; tick: number | null };
+  /**
+   * Local player's id (Firebase UID). Determines which climber gets the lime
+   * sprite + camera; everyone else is drawn as an opponent (blue). Falls back
+   * to slot 0 when absent (solo play / export).
+   */
+  myId?: string;
+  /**
+   * Display names keyed by player id — drawn as nameplates above each climber.
+   * Falls back to "Guest" for ids not present.
+   */
+  playerNames?: Record<string, string>;
 };
 
 export function paintClimbFrame(
@@ -89,7 +101,12 @@ export function paintClimbFrame(
   const camBag = opts.camera ?? { y: null as number | null, tick: null as number | null };
 
   const tower = state.tower;
-  const player = state.players[0];
+  // The local player drives camera, HUD, and pickup feedback; everyone else is
+  // an opponent. Falls back to slot 0 for solo play / export.
+  const localPlayerId = opts.myId ?? state.players[0]?.id;
+  const player =
+    (opts.myId ? state.players.find((p) => p.id === opts.myId) : null) ??
+    state.players[0];
   const playerY = player?.y ?? 0;
   const ui = Math.max(1, width / BASE_WIDTH);
 
@@ -226,46 +243,112 @@ export function paintClimbFrame(
     });
   }
 
-  const px = sx(player?.x ?? 0);
-  const pyScreen = sy(playerY);
-  const facing: 1 | -1 = (player?.vx ?? 0) < 0 ? -1 : 1;
-  const color =
-    player?.status === "finished"
-      ? FLAG
-      : player?.status === "eliminated"
-        ? TEXT_MUTED
-        : ACCENT;
-  let pose: Pose = "idle";
-  if (player?.status === "finished") pose = "done";
-  else if (player?.status === "eliminated") pose = "dead";
-  else if (player?.onLadder) pose = "climb";
-  else if (!player?.onGround) pose = "air";
-  else if (Math.abs(player?.vx ?? 0) > 0.1) pose = "walk";
-  const s =
-    Math.max(5, pxPerM * 1.7) *
-    (player && isPowerUpActive(player, "giant", state.tick)
-      ? GIANT_VISUAL_SCALE
-      : 1);
+  // Draw every climber — local gets signal-lime + auras; opponents get
+  // wayfinding blue and a nameplate. Camera/HUD stay keyed to the local player.
+  for (const p of state.players) {
+    const isLocal = p.id === localPlayerId;
+    const pxScreen = sx(p.x);
+    const pFeetY = sy(p.y);
+    const pFacing: 1 | -1 = p.vx < 0 ? -1 : 1;
 
-  const live = (player?.activePowerUps ?? []).filter((a) => !isExpired(a, state.tick));
-  live.forEach((a) => {
-    drawActivePowerUpEffect(
-      ctx,
-      a.type,
-      px,
-      pyScreen,
-      s,
-      facing,
-      state.tick,
-      a,
-      player,
-      reducedMotion
+    const baseColor = isLocal ? ACCENT : OPPONENT_COLOR;
+    const pColor =
+      p.status === "finished"
+        ? isLocal
+          ? FLAG
+          : OPPONENT_COLOR
+        : p.status === "eliminated"
+          ? TEXT_MUTED
+          : baseColor;
+
+    let pPose: Pose = "idle";
+    if (p.status === "finished") pPose = "done";
+    else if (p.status === "eliminated") pPose = "dead";
+    else if (p.onLadder) pPose = "climb";
+    else if (!p.onGround) pPose = "air";
+    else if (Math.abs(p.vx) > 0.1) pPose = "walk";
+
+    const pS =
+      Math.max(5, pxPerM * 1.7) *
+      (isPowerUpActive(p, "giant", state.tick) ? GIANT_VISUAL_SCALE : 1);
+
+    // Auras are local-only — keeps the opponent read clean.
+    if (isLocal) {
+      const live = p.activePowerUps.filter((a) => !isExpired(a, state.tick));
+      live.forEach((a) => {
+        drawActivePowerUpEffect(
+          ctx,
+          a.type,
+          pxScreen,
+          pFeetY,
+          pS,
+          pFacing,
+          state.tick,
+          a,
+          p,
+          reducedMotion
+        );
+      });
+    }
+
+    drawClimber(ctx, pxScreen, pFeetY, pS, pFacing, pPose, state.tick, pColor, reducedMotion);
+
+    if (isLocal && p.jetpackThrusting) {
+      drawJetpackFlame(ctx, pxScreen, pFeetY, pS, state.tick, reducedMotion);
+    }
+
+    // Nameplate for opponents (the local player is obvious as the camera focus).
+    if (!isLocal) {
+      const nameLabel = (opts.playerNames ? opts.playerNames[p.id] : null) ?? "Guest";
+      ctx.font = `${Math.round(10 * ui)}px monospace`;
+      ctx.textAlign = "center";
+      ctx.fillStyle = OPPONENT_COLOR;
+      ctx.fillText(nameLabel, pxScreen, pFeetY - (2.4 * pS + 6 * ui));
+      ctx.textAlign = "left";
+    }
+  }
+
+  // Off-screen indicator for opponents outside the camera view — a small arrow
+  // at the top/bottom edge with the opponent's altitude, so you always know
+  // where they are relative to you.
+  for (const p of state.players) {
+    if (p.id === localPlayerId) continue;
+    const oppScreenY = sy(p.y);
+    if (oppScreenY >= 0 && oppScreenY <= height) continue;
+
+    const arrowSize = 12 * ui;
+    const edgeMargin = 16 * ui;
+    const isAbove = oppScreenY < 0;
+    const arrowCenterX = width / 2;
+    const arrowCenterY = isAbove
+      ? edgeMargin + arrowSize
+      : height - edgeMargin - arrowSize;
+
+    ctx.fillStyle = OPPONENT_COLOR;
+    ctx.beginPath();
+    if (isAbove) {
+      ctx.moveTo(arrowCenterX, arrowCenterY - arrowSize);
+      ctx.lineTo(arrowCenterX - arrowSize, arrowCenterY + arrowSize * 0.5);
+      ctx.lineTo(arrowCenterX + arrowSize, arrowCenterY + arrowSize * 0.5);
+    } else {
+      ctx.moveTo(arrowCenterX, arrowCenterY + arrowSize);
+      ctx.lineTo(arrowCenterX - arrowSize, arrowCenterY - arrowSize * 0.5);
+      ctx.lineTo(arrowCenterX + arrowSize, arrowCenterY - arrowSize * 0.5);
+    }
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.font = `${Math.round(9 * ui)}px monospace`;
+    ctx.textAlign = "center";
+    ctx.fillStyle = OPPONENT_COLOR;
+    ctx.fillText(
+      formatAltitude(p.y, 1),
+      arrowCenterX,
+      isAbove
+        ? arrowCenterY + arrowSize + 12 * ui
+        : arrowCenterY - arrowSize - 4 * ui
     );
-  });
-
-  drawClimber(ctx, px, pyScreen, s, facing, pose, state.tick, color, reducedMotion);
-  if (player?.jetpackThrusting) {
-    drawJetpackFlame(ctx, px, pyScreen, s, state.tick, reducedMotion);
+    ctx.textAlign = "left";
   }
 
   if (includeHud) {

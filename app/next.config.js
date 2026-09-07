@@ -26,7 +26,7 @@ const securityHeaders = [
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
       "font-src 'self' https://fonts.gstatic.com",
       "img-src 'self' data: https:",
-      "connect-src 'self' https://api.stripe.com https://*.googleapis.com https://*.firebaseio.com https://*.firebase.com https://*.firebaseapp.com https://securetoken.googleapis.com https://identitytoolkit.googleapis.com wss://*.firebaseio.com",
+      "connect-src 'self' https://api.stripe.com https://*.googleapis.com https://*.firebaseio.com https://*.firebase.com https://*.firebaseapp.com https://securetoken.googleapis.com https://identitytoolkit.googleapis.com wss://*.firebaseio.com https://realtime.ably.io https://*.ably.io wss://realtime.ably.io wss://*.ably.io",
       // 'self' — the auth handler is proxied onto our own domain (/__/auth), so
       // its iframe is same-origin. Plus Stripe, Google, and the Firebase domain.
       "frame-src 'self' https://js.stripe.com https://hooks.stripe.com https://accounts.google.com https://*.firebaseapp.com https://apis.google.com",
@@ -36,6 +36,11 @@ const securityHeaders = [
 
 const nextConfig = {
   experimental: {},
+  // Mark ably as a server external so Next.js never bundles it on the server
+  // webpack pass. Ably is a browser-only WebSocket client; it must not appear
+  // in the RSC bundle. Client components that import it are loaded only in the
+  // browser (via DuelRoomLoader's `ssr: false` dynamic import).
+  serverExternalPackages: ["ably"],
   transpilePackages: ["firebase", "@firebase/auth", "@firebase/app", "@firebase/storage", "@firebase/firestore"],
   webpack: (config) => {
     // next-flight-client-module-loader (RSC) also runs on server webpack for
@@ -46,6 +51,28 @@ const nextConfig = {
       ...config.resolve.alias,
       "@firebase/auth$": resolveFirebaseAuthBrowserEsm(),
     };
+
+    // ably@2's compiled bundles use `var __super = (...args) => { super(...args) }`
+    // inside a class constructor — valid ES2022 syntax that Next.js's SWC transform
+    // fails to parse when transpilePackages (Firebase) causes SWC to run on all
+    // node_modules. Process ably through Babel with @babel/preset-env so it gets
+    // downcompiled to syntax SWC (and older browsers) accept.
+    config.module.rules.unshift({
+      test: /[\\/]node_modules[\\/]ably[\\/]build[\\/]ably.*\.js$/,
+      use: {
+        loader: require.resolve("babel-loader"),
+        options: {
+          presets: [
+            [
+              require.resolve("@babel/preset-env"),
+              { targets: "defaults", modules: false },
+            ],
+          ],
+          cacheDirectory: true,
+        },
+      },
+    });
+
     return config;
   },
   async headers() {

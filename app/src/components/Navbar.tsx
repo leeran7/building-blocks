@@ -13,7 +13,7 @@ import Link from "next/link";
 import { useAuth } from "../contexts/AuthContext";
 import { StackMark } from "./Brand/StackMark";
 import { AccountMenu } from "./AccountMenu";
-import { FREE_CLIMB_HREF } from "./navLinks";
+import { FREE_CLIMB_HREF, DUEL_HREF } from "./navLinks";
 
 interface NavbarProps {
   /** Optional breadcrumb shown after the wordmark (e.g. "Dashboard", "Tech stack"). */
@@ -69,6 +69,9 @@ export function Navbar({ contextLabel, contextDot }: NavbarProps) {
         </Link>
         <Link href={FREE_CLIMB_HREF} className={`${GHOST} hidden sm:inline-flex`}>
           Free climb
+        </Link>
+        <Link href={DUEL_HREF} className={`${GHOST} hidden sm:inline-flex`}>
+          1v1
         </Link>
         {loading ? (
           // Stable placeholder — no flash of wrong auth state
