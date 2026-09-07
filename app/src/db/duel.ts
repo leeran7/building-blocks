@@ -150,6 +150,27 @@ export async function getDuelsByPlayer1(
 }
 
 /**
+ * The user's most recent ACTIVE duel (as either player), created within the
+ * given window. Used by the queue status poll so a waiting player can discover
+ * they were matched (the pairing happens in the *other* player's request, which
+ * creates an active duel with this user as player1).
+ */
+export async function getActiveDuelForUser(
+  userId: string,
+  withinSeconds = 600
+): Promise<Duel | null> {
+  const since = new Date(Date.now() - withinSeconds * 1000);
+  return prisma.duel.findFirst({
+    where: {
+      status: DuelStatus.active,
+      created_at: { gte: since },
+      OR: [{ player1_id: userId }, { player2_id: userId }],
+    },
+    orderBy: { created_at: "desc" },
+  });
+}
+
+/**
  * Complete a duel atomically. Uses SELECT FOR UPDATE so concurrent result
  * submissions (e.g. both players submit at the same millisecond) are
  * serialized and only the first write wins.

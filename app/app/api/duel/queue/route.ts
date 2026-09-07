@@ -1,5 +1,6 @@
 /**
  * POST /api/duel/queue — Join the random matchmaking queue.
+ * GET  /api/duel/queue — Poll match status (matched / waiting / idle).
  * DELETE /api/duel/queue — Leave the queue.
  *
  * Queue state lives in Redis (Upstash) using two keys per category:
@@ -8,6 +9,11 @@
  *
  * Pairing is done atomically with a Lua script to prevent TOCTOU races.
  * Members stale for more than 300s are removed before checking queue size.
+ *
+ * Clients JOIN once with POST, then POLL with GET — never re-POST to poll. The
+ * waiting player is paired inside the *other* player's POST, so re-POSTing would
+ * both blow the join rate limit and re-enqueue the waiting player instead of
+ * surfacing the match.
  */
 
 import { NextRequest, NextResponse } from "next/server";
@@ -17,13 +23,17 @@ import { checkRateLimit } from "../../../../src/lib/rateLimit";
 import { getRedis } from "../../../../src/lib/redis";
 import { newRunSeed } from "../../../../src/game/rng";
 import { CATEGORY_BY_SLUG } from "../../../../src/lib/categories";
-import { createDuel } from "../../../../src/db/duel";
+import { createDuel, getActiveDuelForUser } from "../../../../src/db/duel";
 import { DuelStatus } from "@prisma/client";
 
 export const runtime = "nodejs";
 
 const RATE_MAX = 30;
 const RATE_WINDOW_SECONDS = 3600; // 1 hour
+// The status poll is read-only and hit every ~2s while searching, so it gets a
+// far higher ceiling than the join and fails open (a missed poll just delays the
+// match hand-off; the next tick recovers).
+const POLL_RATE_MAX = 900;
 const QUEUE_TTL_SECONDS = 300;
 
 // Lua script: atomically remove stale members, then either enqueue or pair.
@@ -148,6 +158,45 @@ export async function POST(request: NextRequest) {
   });
 
   return NextResponse.json({ status: "matched", duelId: newId });
+}
+
+export async function GET(request: NextRequest) {
+  // Auth: required
+  let uid: string;
+  try {
+    const decoded = await requireAuth(request);
+    uid = decoded.uid;
+  } catch (err) {
+    if (err instanceof AuthError) return err.response;
+    return NextResponse.json({ error: "Unauthorized", code: "UNAUTHORIZED" }, { status: 401 });
+  }
+
+  // High-ceiling, fail-open limit — this is a read-only 2s poll, not a mutation.
+  const rl = await checkRateLimit({
+    namespace: "duel:queue:poll",
+    identifier: uid,
+    max: POLL_RATE_MAX,
+    windowSeconds: RATE_WINDOW_SECONDS,
+    failMode: "open",
+  });
+  if (!rl.allowed) {
+    return NextResponse.json(
+      { error: "Too many requests", code: "RATE_LIMITED" },
+      { status: 429 }
+    );
+  }
+
+  // Matched? The pairing happens in the other player's POST and creates an
+  // active duel with this user as a participant.
+  const match = await getActiveDuelForUser(uid);
+  if (match) {
+    return NextResponse.json({ status: "matched", duelId: match.id });
+  }
+
+  // Still holding a queue slot?
+  const redis = getRedis();
+  const inQueue = await redis.get(`duel:queue:member:${uid}`);
+  return NextResponse.json({ status: inQueue ? "waiting" : "idle" });
 }
 
 export async function DELETE(request: NextRequest) {

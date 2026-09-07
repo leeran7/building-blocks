@@ -146,6 +146,28 @@ export function DuelHome() {
     if (!token) return;
     setQueueState({ status: "searching" });
 
+    // Poll the read-only status endpoint every 2s (GET, not a re-POST:
+    // re-joining would blow the join rate limit and re-enqueue us).
+    const beginPolling = () => {
+      if (pollRef.current) clearInterval(pollRef.current);
+      pollRef.current = setInterval(async () => {
+        try {
+          const pollRes = await fetch("/api/duel/queue", {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          if (!pollRes.ok) return;
+          const pollBody = (await pollRes.json()) as { status: string; duelId?: string };
+          if (pollBody.status === "matched" && pollBody.duelId) {
+            if (pollRef.current) clearInterval(pollRef.current);
+            setQueueState({ status: "idle" });
+            router.push(`/duel/${pollBody.duelId}`);
+          }
+        } catch {
+          // Ignore poll errors — the next tick recovers.
+        }
+      }, 2000);
+    };
+
     try {
       const res = await fetch("/api/duel/queue", {
         method: "POST",
@@ -155,6 +177,12 @@ export function DuelHome() {
         },
         body: JSON.stringify({ categorySlug: "tech" }),
       });
+
+      // Already holding a queue slot from a previous search — just resume polling.
+      if (res.status === 409) {
+        beginPolling();
+        return;
+      }
 
       if (!res.ok) {
         const body = (await res.json().catch(() => ({}))) as { error?: string };
@@ -169,28 +197,8 @@ export function DuelHome() {
         return;
       }
 
-      // Waiting — start polling every 2s
-      pollRef.current = setInterval(async () => {
-        try {
-          const pollRes = await fetch("/api/duel/queue", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${token}`,
-            },
-            body: JSON.stringify({ categorySlug: "tech" }),
-          });
-          if (!pollRes.ok) return;
-          const pollBody = (await pollRes.json()) as { status: string; duelId?: string };
-          if (pollBody.status === "matched" && pollBody.duelId) {
-            if (pollRef.current) clearInterval(pollRef.current);
-            setQueueState({ status: "idle" });
-            router.push(`/duel/${pollBody.duelId}`);
-          }
-        } catch {
-          // Ignore poll errors
-        }
-      }, 2000);
+      // Waiting — start polling for the match.
+      beginPolling();
     } catch {
       setQueueState({ status: "error", message: "Network error. Please try again." });
     }
