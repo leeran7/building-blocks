@@ -31,6 +31,8 @@ interface DuelMeta {
   status: string;
   seed: string;
   categorySlug: string;
+  /** Server-resolved identity of the caller (uid or guest:<ip>). */
+  youId: string;
   player1: { id: string; displayName: string | null } | null;
   player2: { id: string; displayName: string | null } | null;
   winnerId: string | null;
@@ -105,6 +107,9 @@ function DuelGame({
     stalling,
     setTouch: _setTouch,
     duelResult,
+    opponentForfeited,
+    resultError,
+    retrySubmit,
   } = useDuel({
     tower,
     seed,
@@ -117,6 +122,9 @@ function DuelGame({
 
   const startedRef = useRef(false);
   const readyCountRef = useRef(0);
+  const [connectionState, setConnectionState] = useState<string>("connected");
+  const [waitedTooLong, setWaitedTooLong] = useState(false);
+  const [linkCopied, setLinkCopied] = useState(false);
 
   // Handshake:
   // - Enter presence
@@ -147,7 +155,16 @@ function DuelGame({
       }
     };
 
-    const unsubPresence = realtime.onPresence(async (action) => {
+    const unsubPresence = realtime.onPresence(async (action, member) => {
+      if (action === "leave" || action === "absent") {
+        // The opponent dropped. If the match has started, we win by forfeit
+        // immediately instead of waiting out the 3s stall clock. (Ignore our
+        // own leave and any pre-start churn.)
+        if (member.clientId !== myId && startedRef.current) {
+          opponentForfeited();
+        }
+        return;
+      }
       if (action !== "enter" && action !== "present") return;
       const members = await realtime.getPresence();
       if (members.length >= 2) {
@@ -179,10 +196,10 @@ function DuelGame({
       }
     });
 
-    // Handle forfeit from opponent
+    // Opponent forfeited (explicit leave / beforeunload) — we win immediately,
+    // no need to wait for the stall clock.
     const unsubForfeit = realtime.onEvent("forfeit", () => {
-      // The sim will detect the stall and call forfeit on our side too,
-      // but we can also surface the result immediately.
+      opponentForfeited();
     });
 
     // Handle rematch
@@ -206,7 +223,41 @@ function DuelGame({
       unsubRematch();
       window.removeEventListener("beforeunload", handleBeforeUnload);
     };
-  }, [realtime, myId, mySlot, player1Name, player2Name, start, onRematch]);
+  }, [realtime, myId, mySlot, player1Name, player2Name, start, onRematch, opponentForfeited]);
+
+  // Surface connection health so a blip reads as "reconnecting", not a freeze.
+  useEffect(() => {
+    const unsub = realtime.onConnectionState((s) => setConnectionState(s));
+    return unsub;
+  }, [realtime]);
+
+  // Lobby timeout: if the match hasn't started after a while, the opponent
+  // probably isn't coming (or this is an un-resumable reload). Offer a way out
+  // instead of an indefinite spinner.
+  useEffect(() => {
+    if (state.phase !== "lobby") return;
+    const t = setTimeout(() => {
+      if (!startedRef.current) setWaitedTooLong(true);
+    }, 75_000);
+    return () => clearTimeout(t);
+  }, [state.phase]);
+
+  const copyInviteLink = useCallback(async () => {
+    const url = `${window.location.origin}/duel/${duelId}`;
+    try {
+      if (navigator.share && /Mobi|Android/i.test(navigator.userAgent)) {
+        await navigator.share({ title: "1v1 duel", url });
+        return;
+      }
+      if (!navigator.clipboard) throw new Error("no clipboard");
+      await navigator.clipboard.writeText(url);
+      setLinkCopied(true);
+      setTimeout(() => setLinkCopied(false), 2000);
+    } catch {
+      // Last-resort fallback: prompt so the link is always obtainable.
+      window.prompt("Copy this duel link:", url);
+    }
+  }, [duelId]);
 
   const playerNames: Record<string, string> = {
     [player1Id]: player1Name,
@@ -237,6 +288,8 @@ function DuelGame({
         duelId={duelId}
         onRematch={onRematch}
         realtime={realtime}
+        resultError={resultError}
+        onRetrySubmit={retrySubmit}
       />
     );
   }
@@ -251,7 +304,14 @@ function DuelGame({
           <span className="text-[#6bb8ff]">{player2Name}</span>
         </div>
         <div className="flex items-center gap-2">
-          {stalling && (
+          {(connectionState === "disconnected" ||
+            connectionState === "suspended" ||
+            connectionState === "connecting") && (
+            <span className="font-mono text-xs text-warning animate-pulse">
+              reconnecting…
+            </span>
+          )}
+          {stalling && connectionState === "connected" && (
             <span className="font-mono text-xs text-warning animate-pulse">
               syncing...
             </span>
@@ -303,11 +363,41 @@ function DuelGame({
 
         {/* Waiting overlay */}
         {(phase === "lobby") && !startedRef.current && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center bg-void/80 backdrop-blur-sm pointer-events-none">
-            <div className="w-6 h-6 rounded-full border-2 border-text-muted border-t-signal animate-spin mb-4" aria-hidden="true" />
-            <p className="font-mono text-sm text-text-secondary">
-              Waiting for opponent...
-            </p>
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-void/85 backdrop-blur-sm px-6 text-center">
+            {!waitedTooLong ? (
+              <>
+                <div className="w-6 h-6 rounded-full border-2 border-text-muted border-t-signal animate-spin" aria-hidden="true" />
+                <p className="font-mono text-sm text-text-secondary">
+                  Waiting for opponent…
+                </p>
+                <button
+                  onClick={copyInviteLink}
+                  className="inline-flex items-center justify-center rounded-full px-5 min-h-[44px] border border-border-strong text-text-secondary text-sm hover:border-signal/50 transition-colors"
+                >
+                  {linkCopied ? "Link copied!" : "Copy invite link"}
+                </button>
+              </>
+            ) : (
+              <>
+                <p className="font-mono text-sm text-text-secondary">
+                  Your opponent hasn&apos;t joined yet.
+                </p>
+                <div className="flex flex-col gap-2 items-center">
+                  <button
+                    onClick={copyInviteLink}
+                    className="inline-flex items-center justify-center rounded-full px-5 min-h-[44px] bg-signal text-void font-semibold text-sm hover:brightness-110 transition"
+                  >
+                    {linkCopied ? "Link copied!" : "Copy invite link"}
+                  </button>
+                  <Link
+                    href="/duel"
+                    className="inline-flex items-center justify-center rounded-full px-5 min-h-[44px] border border-border-strong text-text-secondary text-sm hover:border-signal/50 transition-colors"
+                  >
+                    Back to duels
+                  </Link>
+                </div>
+              </>
+            )}
           </div>
         )}
       </div>
@@ -341,13 +431,13 @@ export function DuelRoom({ duelId }: DuelRoomProps) {
   useEffect(() => {
     let cancelled = false;
 
-    async function init() {
-      // Determine local user id
-      const localId = user?.uid ?? `guest:${Math.random().toString(36).slice(2)}`;
-      setMyId(localId);
+    const authHeaders: Record<string, string> = token
+      ? { Authorization: `Bearer ${token}` }
+      : {};
 
-      // Fetch duel metadata
-      const metaRes = await fetch(`/api/duel/${duelId}`);
+    async function init() {
+      // Fetch duel metadata (auth header lets the server resolve our identity).
+      const metaRes = await fetch(`/api/duel/${duelId}`, { headers: authHeaders });
       if (!metaRes.ok) {
         if (cancelled) return;
         const body = (await metaRes.json().catch(() => ({}))) as { error?: string };
@@ -359,24 +449,33 @@ export function DuelRoom({ duelId }: DuelRoomProps) {
       const duelMeta = (await metaRes.json()) as DuelMeta;
       if (cancelled) return;
 
+      // The server resolves our stable identity (uid or guest:<ip>). Use it for
+      // slot detection + Ably clientId so guests match the duel row.
+      let localId = duelMeta.youId;
+
+      // Reload after the match already ended → don't drop into an un-startable
+      // lobby; show a clear terminal state.
+      if (duelMeta.status === "completed" || duelMeta.status === "voided") {
+        setErrorMsg("This duel has already ended.");
+        setPhase("error");
+        return;
+      }
+
       // If pending and we're not player1, join as player2
       let finalMeta = duelMeta;
       if (duelMeta.status === "pending" && duelMeta.player1?.id !== localId) {
         const joinRes = await fetch(`/api/duel/${duelId}/join`, {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          },
+          headers: { "Content-Type": "application/json", ...authHeaders },
           body: JSON.stringify({}),
         });
 
         if (!joinRes.ok) {
           if (cancelled) return;
           const body = (await joinRes.json().catch(() => ({}))) as { error?: string; code?: string };
-          if (body.code === "DUEL_NOT_PENDING") {
+          if (body.code === "DUEL_NOT_PENDING" || body.code === "ALREADY_JOINED") {
             // Already active — re-fetch meta with seed
-            const refetch = await fetch(`/api/duel/${duelId}`);
+            const refetch = await fetch(`/api/duel/${duelId}`, { headers: authHeaders });
             if (refetch.ok) finalMeta = (await refetch.json()) as DuelMeta;
           } else {
             setErrorMsg(body.error ?? "Could not join duel.");
@@ -386,9 +485,11 @@ export function DuelRoom({ duelId }: DuelRoomProps) {
         } else {
           const joinBody = (await joinRes.json()) as {
             seed: string;
+            youId?: string;
             player1DisplayName: string | null;
             player2DisplayName: string | null;
           };
+          if (joinBody.youId) localId = joinBody.youId;
           // Merge seed and names into meta
           finalMeta = {
             ...duelMeta,
@@ -406,7 +507,7 @@ export function DuelRoom({ duelId }: DuelRoomProps) {
 
       // Re-fetch to get seed if still missing
       if (!finalMeta.seed) {
-        const refetch = await fetch(`/api/duel/${duelId}`);
+        const refetch = await fetch(`/api/duel/${duelId}`, { headers: authHeaders });
         if (refetch.ok) finalMeta = (await refetch.json()) as DuelMeta;
       }
 
@@ -416,6 +517,7 @@ export function DuelRoom({ duelId }: DuelRoomProps) {
         return;
       }
 
+      setMyId(localId);
       setMeta(finalMeta);
 
       // Determine slot

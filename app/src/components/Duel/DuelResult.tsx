@@ -37,6 +37,10 @@ export interface DuelResultProps {
   onRematch?: (newDuelId: string) => void;
   /** The live Ably handle kept open from the match. Enables AC-8 and AC-9. */
   realtime?: RealtimeHandle;
+  /** True when the server never recorded the result (all submits failed). */
+  resultError?: boolean;
+  /** Re-attempt the failed result submission. */
+  onRetrySubmit?: () => void;
 }
 
 function tiebreakLabel(rule: string): string {
@@ -68,6 +72,8 @@ export function DuelResult({
   duelId,
   onRematch,
   realtime,
+  resultError,
+  onRetrySubmit,
 }: DuelResultProps) {
   const { user, token } = useAuth();
   const router = useRouter();
@@ -75,6 +81,7 @@ export function DuelResult({
   const [rematchLoading, setRematchLoading] = useState(false);
   const [rematchError, setRematchError] = useState<string>("");
   const [shared, setShared] = useState(false);
+  const [shareFailed, setShareFailed] = useState(false);
   /** AC-9: true when the opponent leaves presence on the result screen. */
   const [opponentLeft, setOpponentLeft] = useState(false);
 
@@ -153,12 +160,24 @@ export function DuelResult({
 
   const handleShare = useCallback(async () => {
     const url = `${typeof window !== "undefined" ? window.location.origin : ""}/duel/${duelId}`;
+    setShareFailed(false);
     try {
+      // Native share sheet on mobile.
+      if (typeof navigator !== "undefined" && navigator.share && /Mobi|Android/i.test(navigator.userAgent)) {
+        await navigator.share({ title: "The Climb — 1v1 duel", url });
+        return;
+      }
+      if (typeof navigator === "undefined" || !navigator.clipboard) {
+        throw new Error("clipboard unavailable");
+      }
       await navigator.clipboard.writeText(url);
       setShared(true);
       setTimeout(() => setShared(false), 2000);
     } catch {
-      // Fallback silent
+      // Last-resort fallback so the link is always obtainable.
+      const ok =
+        typeof window !== "undefined" && window.prompt("Copy this duel link:", url) !== null;
+      if (!ok) setShareFailed(true);
     }
   }, [duelId]);
 
@@ -240,6 +259,24 @@ export function DuelResult({
         </div>
       )}
 
+      {/* Result-not-saved banner (all submit attempts failed) */}
+      {resultError && (
+        <div
+          role="alert"
+          className="w-full max-w-sm mb-2 px-4 py-3 rounded-xl bg-surface border border-ember/40 text-center"
+        >
+          <p className="text-ember text-sm mb-2">
+            We couldn&apos;t save this result.
+          </p>
+          <button
+            onClick={onRetrySubmit}
+            className="inline-flex items-center justify-center rounded-full px-5 min-h-[40px] border border-border-strong text-text-secondary text-sm hover:border-signal/50 transition-colors"
+          >
+            Retry saving
+          </button>
+        </div>
+      )}
+
       {/* Actions */}
       <div className="flex flex-col gap-3 w-full max-w-sm">
         {/* Rematch */}
@@ -263,6 +300,16 @@ export function DuelResult({
           <p className="text-ember text-xs text-center">{rematchError}</p>
         )}
 
+        {/* Guest can't rematch — point them to sign-in instead of a dead button */}
+        {!user && !opponentLeft && (
+          <p className="text-text-muted text-xs text-center">
+            <a href="/auth/signin" className="text-signal underline underline-offset-2">
+              Sign in
+            </a>{" "}
+            to rematch.
+          </p>
+        )}
+
         {/* Share */}
         <button
           onClick={handleShare}
@@ -270,6 +317,9 @@ export function DuelResult({
         >
           {shared ? "Link copied!" : "Share"}
         </button>
+        {shareFailed && (
+          <p className="text-ember text-xs text-center">Couldn&apos;t copy the link.</p>
+        )}
 
         {/* Play again */}
         <Link

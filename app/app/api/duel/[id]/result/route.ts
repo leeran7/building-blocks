@@ -73,6 +73,10 @@ export async function POST(
     }
   }
 
+  // Guest participants are stored as "guest:<ip>" (join route / token route).
+  // A guest has no verified uid, so their identity for the participant check is
+  // their IP-derived id — the same value the join route wrote to the duel row.
+  const guestId = `guest:${clientIp(request)}`;
   const identifier = uid ?? `ip:${clientIp(request)}`;
 
   // Rate limit: 5 per match (keyed by duelId + uid-or-ip)
@@ -114,9 +118,14 @@ export async function POST(
     return NextResponse.json({ error: "Duel not found", code: "NOT_FOUND" }, { status: 404 });
   }
 
-  // Check user is participant — derive identity from verified session, never from body
-  const isPlayer1 = uid !== null && duel.player1_id === uid;
-  const isPlayer2 = uid !== null && duel.player2_id === uid;
+  // Check user is participant — derive identity from the verified session (uid)
+  // or, for a guest, the IP-derived "guest:<ip>" id stored at join time. Never
+  // from the request body. The winner is still re-simulated server-side, so a
+  // guest cannot forge an outcome by being allowed to submit.
+  const isPlayer1 =
+    (uid !== null && duel.player1_id === uid) || duel.player1_id === guestId;
+  const isPlayer2 =
+    (uid !== null && duel.player2_id === uid) || duel.player2_id === guestId;
   if (!isPlayer1 && !isPlayer2) {
     return NextResponse.json(
       { error: "Not a participant in this duel", code: "FORBIDDEN" },

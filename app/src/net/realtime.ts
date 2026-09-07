@@ -49,6 +49,12 @@ export interface RealtimeHandle {
   onPresence(cb: (action: string, member: { clientId: string; data: unknown }) => void): () => void;
   /** Get current presence members. */
   getPresence(): Promise<{ clientId: string; data: unknown }[]>;
+  /**
+   * Subscribe to connection-state changes so the UI can show "reconnecting"
+   * during a blip instead of a silent freeze. Fires with Ably state strings
+   * (connected, disconnected, suspended, closed, failed…).
+   */
+  onConnectionState(cb: (state: string) => void): () => void;
   /** Clean up the connection. */
   dispose(): void;
 }
@@ -72,8 +78,8 @@ async function getFirebaseToken(): Promise<string | null> {
  * backoff. Returns the token request object on success, throws on final
  * failure.
  */
-async function fetchAblyToken(duelId: string): Promise<Ably.TokenRequest> {
-  const delays = [500, 1000, 2000];
+async function fetchAblyToken(duelId: string, retry = true): Promise<Ably.TokenRequest> {
+  const delays = retry ? [500, 1000, 2000] : [];
   let lastError: unknown;
 
   for (let attempt = 0; attempt <= delays.length; attempt++) {
@@ -129,11 +135,23 @@ export async function connectRealtime(
     (AblyModule as { default?: { Realtime: typeof AblyModule.Realtime } }).default?.Realtime ??
     AblyModule.Realtime;
 
+  let firstAuth = true;
   const ably = new AblyRealtime({
     tokenDetails: undefined,
-    // Pass the token request directly so Ably uses it to obtain a token.
+    // Reuse the pre-fetched token request for the initial auth, then fetch a
+    // FRESH one on every subsequent demand (renewal / reconnect). Returning the
+    // same stale request would make Ably reject the renewal and fail the
+    // connection mid-session. Keep this fast (no retry) so Ably's own retry
+    // strategy stays in control.
     authCallback: (_tokenParams, callback) => {
-      callback(null, tokenRequest);
+      if (firstAuth) {
+        firstAuth = false;
+        callback(null, tokenRequest);
+        return;
+      }
+      fetchAblyToken(duelId, false)
+        .then((fresh) => callback(null, fresh))
+        .catch((err) => callback(err as string, null));
     },
     clientId,
   });
@@ -204,6 +222,14 @@ export async function connectRealtime(
     async getPresence() {
       const members = await channel.presence.get();
       return members.map((m) => ({ clientId: m.clientId, data: m.data }));
+    },
+
+    onConnectionState(cb) {
+      const handler = (stateChange: Ably.ConnectionStateChange) => {
+        cb(stateChange.current);
+      };
+      ably.connection.on(handler);
+      return () => ably.connection.off(handler);
     },
 
     dispose() {

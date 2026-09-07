@@ -102,6 +102,10 @@ export async function POST(
     id: duel.id,
     seed: duel.seed,
     categorySlug: duel.category_slug,
+    // The server-resolved identity this player joined as (uid or guest:<ip>) —
+    // the client must use this as its local id so slot detection and the Ably
+    // clientId match the value stored on the duel row.
+    youId: guestOrUid,
     player1DisplayName: duel.player1?.display_name ?? null,
     player2DisplayName: duel.player2?.display_name ?? null,
   });

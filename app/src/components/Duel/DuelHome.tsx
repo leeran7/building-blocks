@@ -97,11 +97,13 @@ export function DuelHome() {
       }
 
       const body = (await res.json()) as { id: string; link: string };
-      setCreateState({ status: "done", duelId: body.id, link: body.link });
+      // Seamless: drop the creator straight into the waiting lobby (where they
+      // can copy the invite link and warm up) instead of a static copy screen.
+      router.push(`/duel/${body.id}`);
     } catch {
       setCreateState({ status: "error", message: "Network error. Please try again." });
     }
-  }, [token]);
+  }, [token, router]);
 
   const handleCancelExisting = useCallback(
     async (existingId: string) => {
@@ -132,11 +134,19 @@ export function DuelHome() {
 
   const handleCopyLink = useCallback(async (link: string) => {
     try {
+      // Native share sheet on mobile.
+      if (navigator.share && /Mobi|Android/i.test(navigator.userAgent)) {
+        await navigator.share({ title: "The Climb — 1v1 duel", url: link });
+        return;
+      }
+      if (!navigator.clipboard) throw new Error("clipboard unavailable");
       await navigator.clipboard.writeText(link);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      // Fallback: select + copy
+      // Last-resort fallback so the link is always obtainable (http / denied
+      // clipboard / older browsers) rather than silently doing nothing.
+      window.prompt("Copy this duel link:", link);
     }
   }, []);
 

@@ -77,6 +77,12 @@ export interface UseDuelResult {
   setTouch: (t: TouchInput) => void;
   duelResult: DuelResult | null;
   forfeit: () => void;
+  /** Opponent abandoned — resolve the local player as the winner. */
+  opponentForfeited: () => void;
+  /** True when every result-submit attempt failed (offer a manual retry). */
+  resultError: boolean;
+  /** Re-attempt a failed result submission. */
+  retrySubmit: () => void;
 }
 
 function hasAny(set: Set<string>, keys: Set<string>): boolean {
@@ -124,6 +130,8 @@ export function useDuel({
 
   const [stalling, setStalling] = useState(false);
   const [duelResult, setDuelResult] = useState<DuelResult | null>(null);
+  /** True when every result-submit attempt failed; the UI offers a manual retry. */
+  const [resultError, setResultError] = useState(false);
 
   // Input buffers
   const remoteBuffer = useRef(new Map<number, PlayerInput>());
@@ -138,6 +146,7 @@ export function useDuel({
   const lastTsRef = useRef(0);
   const resultSubmittedRef = useRef(false);
   const forfeitedRef = useRef(false);
+  const lastOutcomeRef = useRef<"win" | "loss" | "forfeit" | null>(null);
 
   // Keyboard listeners
   useEffect(() => {
@@ -183,28 +192,48 @@ export function useDuel({
     async (claimedOutcome: "win" | "loss" | "forfeit") => {
       if (resultSubmittedRef.current) return;
       resultSubmittedRef.current = true;
+      lastOutcomeRef.current = claimedOutcome;
 
       const packed = packInputLog(localInputLog.current);
       // Convert to base64 for JSON transport
       const base64 = btoa(String.fromCharCode(...packed));
+      const token = await getFirebaseToken();
+      const body = JSON.stringify({ seed, inputLog: base64, claimedOutcome });
 
-      try {
-        const token = await getFirebaseToken();
-        await fetch(`/api/duel/${duelId}/result`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          },
-          body: JSON.stringify({
-            seed,
-            inputLog: base64,
-            claimedOutcome,
-          }),
-        });
-      } catch {
-        // Best-effort — don't crash the UI
+      // A dropped result submission leaves the duel stuck "active" forever, so
+      // retry with backoff and a per-attempt timeout. 202 (pending — opponent
+      // not in yet), 200 (completed) and most 4xx are terminal; only network
+      // errors / timeouts / 5xx are worth retrying.
+      const delays = [0, 750, 2000, 4000];
+      for (let attempt = 0; attempt < delays.length; attempt++) {
+        if (delays[attempt] > 0) {
+          await new Promise((r) => setTimeout(r, delays[attempt]));
+        }
+        const ctrl = new AbortController();
+        const timer = setTimeout(() => ctrl.abort(), 10_000);
+        try {
+          const res = await fetch(`/api/duel/${duelId}/result`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            },
+            body,
+            signal: ctrl.signal,
+          });
+          clearTimeout(timer);
+          // Retry only on transient server errors; any other status is terminal.
+          if (res.status >= 500) continue;
+          setResultError(false);
+          return;
+        } catch {
+          clearTimeout(timer);
+          // Network error / timeout — fall through to the next attempt.
+        }
       }
+      // All attempts failed — let the UI offer a manual retry.
+      resultSubmittedRef.current = false;
+      setResultError(true);
     },
     [duelId, seed]
   );
@@ -231,6 +260,42 @@ export function useDuel({
 
     setState((prev) => ({ ...prev, phase: "finished", winnerId: mySlot === 0 ? opponentId : myId }));
   }, [mySlot, myId, opponentId, realtime, submitResult]);
+
+  /**
+   * The opponent left (presence leave / explicit forfeit event) — the LOCAL
+   * player wins. Distinct from forfeit(), which makes the local player lose.
+   *
+   * Server resolution is driven by the LEAVER's forfeit submission (sent via
+   * sendBeacon on unload, so it survives a tab close). Here we (a) show the win
+   * immediately so the remaining player is never stuck, and (b) submit our own
+   * replay so our peak/participation is stored; it waits pending until the
+   * leaver's forfeit voids the duel and records the win.
+   */
+  const opponentForfeited = useCallback(() => {
+    if (forfeitedRef.current) return;
+    forfeitedRef.current = true;
+    runningRef.current = false;
+
+    submitResult("win");
+
+    const cur = stateRef.current;
+    setDuelResult({
+      winnerId: myId,
+      tiebreakRule: null,
+      player1Peak: cur.players[0]?.peakY ?? null,
+      player2Peak: cur.players[1]?.peakY ?? null,
+      forfeit: true,
+    });
+    setState((prev) => ({ ...prev, phase: "finished", winnerId: myId }));
+  }, [myId, submitResult]);
+
+  /** Re-attempt a failed result submission (wired to a UI retry button). */
+  const retrySubmit = useCallback(() => {
+    if (lastOutcomeRef.current) {
+      setResultError(false);
+      submitResult(lastOutcomeRef.current);
+    }
+  }, [submitResult]);
 
   // Subscribe to remote input
   useEffect(() => {
@@ -383,5 +448,8 @@ export function useDuel({
     setTouch,
     duelResult,
     forfeit,
+    opponentForfeited,
+    resultError,
+    retrySubmit,
   };
 }
