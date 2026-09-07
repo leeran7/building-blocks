@@ -65,6 +65,8 @@ export interface UseDuelOptions {
   mySlot: 0 | 1;
   realtime: RealtimeHandle;
   duelId: string;
+  /** Opaque guest token (guest:<nanoid>) when the local player is a guest. */
+  guestId?: string | null;
 }
 
 export interface UseDuelResult {
@@ -108,6 +110,7 @@ export function useDuel({
   mySlot,
   realtime,
   duelId,
+  guestId = null,
 }: UseDuelOptions): UseDuelResult {
   const playerIds = mySlot === 0 ? [myId, opponentId] : [opponentId, myId];
 
@@ -198,7 +201,13 @@ export function useDuel({
       // Convert to base64 for JSON transport
       const base64 = btoa(String.fromCharCode(...packed));
       const token = await getFirebaseToken();
-      const body = JSON.stringify({ seed, inputLog: base64, claimedOutcome });
+      const body = JSON.stringify({
+        seed,
+        inputLog: base64,
+        claimedOutcome,
+        // Guests prove slot ownership with their opaque join token.
+        ...(guestId ? { guestId } : {}),
+      });
 
       // A dropped result submission leaves the duel stuck "active" forever, so
       // retry with backoff and a per-attempt timeout. 202 (pending — opponent
@@ -235,7 +244,7 @@ export function useDuel({
       resultSubmittedRef.current = false;
       setResultError(true);
     },
-    [duelId, seed]
+    [duelId, seed, guestId]
   );
 
   const forfeit = useCallback(() => {

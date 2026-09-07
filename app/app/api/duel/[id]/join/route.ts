@@ -10,6 +10,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { nanoid } from "nanoid";
 import { verifyIdToken } from "../../../../../src/lib/firebaseAdmin";
 import { checkRateLimit, clientIp } from "../../../../../src/lib/rateLimit";
 import { getDuel, joinDuel } from "../../../../../src/db/duel";
@@ -86,7 +87,12 @@ export async function POST(
     );
   }
 
-  const guestOrUid = uid ?? `guest:${clientIp(request)}`;
+  // Guests get an UNGUESSABLE server-issued token, not an IP-derived id. The
+  // client must present this token on write paths (result, realtime token) to
+  // prove it owns the guest slot — x-forwarded-for is client-spoofable on Vercel
+  // (it appends rather than replaces), so an IP-based guest id would let an
+  // attacker impersonate a guest participant and grief their match.
+  const guestOrUid = uid ?? `guest:${nanoid(24)}`;
   const joinResult = await joinDuel(id, guestOrUid);
 
   // W-1: joinDuel acquires SELECT FOR UPDATE and re-checks status inside the

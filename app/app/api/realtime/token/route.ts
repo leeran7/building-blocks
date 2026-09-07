@@ -5,10 +5,11 @@
  * with subscribe+publish+presence capabilities. The requesting user must be
  * player1 or player2 of the duel.
  *
- * AC-31: IP-based guest users (player2_id = "guest:<ip>") have no Firebase
- * session but still need an Ably token to play live. They are identified by
- * matching "guest:<ip>" against the duel row. A lower rate limit applies to
- * unauthenticated requests (10/hour per IP vs 60 for authenticated).
+ * AC-31: guest users (player2_id = "guest:<nanoid>") have no Firebase session
+ * but still need an Ably token to play live. They present the unguessable token
+ * issued at join, matched against the duel row (IP is never an identity — it is
+ * client-spoofable). A lower rate limit applies to unauthenticated requests
+ * (10/hour per IP vs 60 for authenticated).
  */
 
 import { NextRequest, NextResponse } from "next/server";
@@ -26,6 +27,8 @@ const RATE_WINDOW_SECONDS = 3600;
 
 interface Body {
   duelId?: unknown;
+  /** Opaque guest token from join (guest:<nanoid>) — proves guest-slot ownership. */
+  guestId?: unknown;
 }
 
 export async function POST(request: NextRequest) {
@@ -52,15 +55,11 @@ export async function POST(request: NextRequest) {
   }
 
   const ip = clientIp(request);
-  const guestId = `guest:${ip}`;
-  // The stable identity used for rate-limit keying and Ably clientId.
-  const identity = uid ?? guestId;
-
-  // Rate limit: lower budget for unauthenticated (guest) requests.
+  // IP is a rate-limit bucket only — never an identity (spoofable via XFF).
   const rateMax = uid ? AUTH_RATE_MAX : GUEST_RATE_MAX;
   const rl = await checkRateLimit({
     namespace: "realtime:token",
-    identifier: identity,
+    identifier: uid ?? `ip:${ip}`,
     max: rateMax,
     windowSeconds: RATE_WINDOW_SECONDS,
     failMode: "closed",
@@ -92,15 +91,26 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Duel not found", code: "NOT_FOUND" }, { status: 404 });
   }
 
-  // AC-31: Authenticated participants match by uid. Guest participants match
-  // by "guest:<ip>" stored in the duel row at join time. If neither matches,
-  // reject — no token issued to non-participants.
-  const isAuthParticipant =
-    uid !== null && (duel.player1_id === uid || duel.player2_id === uid);
-  const isGuestParticipant =
-    uid === null && (duel.player1_id === guestId || duel.player2_id === guestId);
+  // AC-31: authenticated participants match by verified uid; guests by the
+  // unguessable token issued at join (trusted only when there is no uid). The
+  // Ably clientId is the matched identity, so it always equals a stored id.
+  const submittedGuestId =
+    typeof body.guestId === "string" && body.guestId.startsWith("guest:")
+      ? body.guestId
+      : null;
 
-  if (!isAuthParticipant && !isGuestParticipant) {
+  let identity: string | null = null;
+  if (uid !== null && (duel.player1_id === uid || duel.player2_id === uid)) {
+    identity = uid;
+  } else if (
+    uid === null &&
+    submittedGuestId !== null &&
+    (duel.player1_id === submittedGuestId || duel.player2_id === submittedGuestId)
+  ) {
+    identity = submittedGuestId;
+  }
+
+  if (identity === null) {
     return NextResponse.json(
       { error: "Not a participant in this duel", code: "FORBIDDEN" },
       { status: 403 }

@@ -78,7 +78,11 @@ async function getFirebaseToken(): Promise<string | null> {
  * backoff. Returns the token request object on success, throws on final
  * failure.
  */
-async function fetchAblyToken(duelId: string, retry = true): Promise<Ably.TokenRequest> {
+async function fetchAblyToken(
+  duelId: string,
+  guestId: string | null,
+  retry = true
+): Promise<Ably.TokenRequest> {
   const delays = retry ? [500, 1000, 2000] : [];
   let lastError: unknown;
 
@@ -95,7 +99,7 @@ async function fetchAblyToken(duelId: string, retry = true): Promise<Ably.TokenR
       const res = await fetch("/api/realtime/token", {
         method: "POST",
         headers,
-        body: JSON.stringify({ duelId }),
+        body: JSON.stringify({ duelId, ...(guestId ? { guestId } : {}) }),
       });
 
       if (!res.ok) {
@@ -122,9 +126,10 @@ async function fetchAblyToken(duelId: string, retry = true): Promise<Ably.TokenR
  */
 export async function connectRealtime(
   duelId: string,
-  clientId: string
+  clientId: string,
+  guestId: string | null = null
 ): Promise<RealtimeHandle> {
-  const tokenRequest = await fetchAblyToken(duelId);
+  const tokenRequest = await fetchAblyToken(duelId, guestId);
 
   // webpackIgnore prevents webpack from statically analysing this import, so
   // the next-flight-client-module-loader never walks into ably's build output
@@ -149,7 +154,7 @@ export async function connectRealtime(
         callback(null, tokenRequest);
         return;
       }
-      fetchAblyToken(duelId, false)
+      fetchAblyToken(duelId, guestId, false)
         .then((fresh) => callback(null, fresh))
         .catch((err) => callback(err as string, null));
     },
@@ -229,6 +234,9 @@ export async function connectRealtime(
         cb(stateChange.current);
       };
       ably.connection.on(handler);
+      // Emit the current state immediately so a subscriber that mounts after a
+      // drop doesn't sit on a stale "connected" default.
+      cb(ably.connection.state);
       return () => ably.connection.off(handler);
     },
 

@@ -43,6 +43,8 @@ interface Body {
   seed?: unknown;
   inputLog?: unknown;
   claimedOutcome?: unknown;
+  /** Opaque guest token issued at join (guest:<nanoid>); proves guest-slot ownership. */
+  guestId?: unknown;
 }
 
 type ClaimedOutcome = "win" | "loss" | "forfeit";
@@ -73,10 +75,9 @@ export async function POST(
     }
   }
 
-  // Guest participants are stored as "guest:<ip>" (join route / token route).
-  // A guest has no verified uid, so their identity for the participant check is
-  // their IP-derived id — the same value the join route wrote to the duel row.
-  const guestId = `guest:${clientIp(request)}`;
+  // IP is used ONLY as a rate-limit bucket, never as an identity (it is
+  // client-spoofable via x-forwarded-for on Vercel). Guest identity comes from
+  // the unguessable token issued at join, presented in the body below.
   const identifier = uid ?? `ip:${clientIp(request)}`;
 
   // Rate limit: 5 per match (keyed by duelId + uid-or-ip)
@@ -105,6 +106,11 @@ export async function POST(
   const submittedSeed = typeof body.seed === "string" ? body.seed : null;
   const inputLogB64 = typeof body.inputLog === "string" ? body.inputLog : null;
   const claimedOutcome = isClaimedOutcome(body.claimedOutcome) ? body.claimedOutcome : null;
+  // Guest slot ownership is proven by presenting the opaque token from join.
+  const submittedGuestId =
+    typeof body.guestId === "string" && body.guestId.startsWith("guest:")
+      ? body.guestId
+      : null;
 
   if (!submittedSeed || !inputLogB64 || !claimedOutcome) {
     return NextResponse.json(
@@ -118,14 +124,16 @@ export async function POST(
     return NextResponse.json({ error: "Duel not found", code: "NOT_FOUND" }, { status: 404 });
   }
 
-  // Check user is participant — derive identity from the verified session (uid)
-  // or, for a guest, the IP-derived "guest:<ip>" id stored at join time. Never
-  // from the request body. The winner is still re-simulated server-side, so a
-  // guest cannot forge an outcome by being allowed to submit.
+  // Check user is participant — a signed-in user by verified uid, or a guest by
+  // the unguessable token they were issued at join (only trusted when there is
+  // no uid). The winner is still re-simulated server-side, so being allowed to
+  // submit never lets anyone forge an outcome.
   const isPlayer1 =
-    (uid !== null && duel.player1_id === uid) || duel.player1_id === guestId;
+    (uid !== null && duel.player1_id === uid) ||
+    (uid === null && submittedGuestId !== null && duel.player1_id === submittedGuestId);
   const isPlayer2 =
-    (uid !== null && duel.player2_id === uid) || duel.player2_id === guestId;
+    (uid !== null && duel.player2_id === uid) ||
+    (uid === null && submittedGuestId !== null && duel.player2_id === submittedGuestId);
   if (!isPlayer1 && !isPlayer2) {
     return NextResponse.json(
       { error: "Not a participant in this duel", code: "FORBIDDEN" },

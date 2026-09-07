@@ -13,34 +13,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDuel, cancelPendingDuel } from "../../../../src/db/duel";
 import { requireAuth, AuthError } from "../../../../src/lib/requireAuth";
-import { verifyIdToken } from "../../../../src/lib/firebaseAdmin";
-import { clientIp } from "../../../../src/lib/rateLimit";
 
 export const runtime = "nodejs";
 
-/**
- * Resolve the caller's stable duel identity: their Firebase uid when signed in
- * (non-anonymous), otherwise the IP-derived "guest:<ip>" used by the join and
- * realtime-token routes. Returning this lets the client key slot detection, the
- * Ably clientId, and result submission off the SAME id the server stores, so a
- * guest challenge-link flow works end to end.
- */
-async function resolveYouId(request: NextRequest): Promise<string> {
-  const authHeader = request.headers.get("authorization");
-  const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7).trim() : null;
-  if (token) {
-    try {
-      const decoded = await verifyIdToken(token);
-      if (decoded.firebase?.sign_in_provider !== "anonymous") return decoded.uid;
-    } catch {
-      // fall through to guest
-    }
-  }
-  return `guest:${clientIp(request)}`;
-}
-
 export async function GET(
-  request: NextRequest,
+  _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
@@ -50,8 +27,6 @@ export async function GET(
     return NextResponse.json({ error: "Duel not found", code: "NOT_FOUND" }, { status: 404 });
   }
 
-  const youId = await resolveYouId(request);
-
   // Omit seed while pending — seed oracle prevention (R-5)
   const seed = duel.status === "pending" ? undefined : duel.seed;
 
@@ -59,7 +34,6 @@ export async function GET(
     id: duel.id,
     status: duel.status,
     categorySlug: duel.category_slug,
-    youId,
     ...(seed !== undefined ? { seed } : {}),
     player1: duel.player1
       ? { id: duel.player1.id, displayName: duel.player1.display_name }

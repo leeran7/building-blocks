@@ -31,8 +31,6 @@ interface DuelMeta {
   status: string;
   seed: string;
   categorySlug: string;
-  /** Server-resolved identity of the caller (uid or guest:<ip>). */
-  youId: string;
   player1: { id: string; displayName: string | null } | null;
   player2: { id: string; displayName: string | null } | null;
   winnerId: string | null;
@@ -75,6 +73,7 @@ interface GameProps {
   duelId: string;
   seed: string;
   myId: string;
+  guestId: string | null;
   opponentId: string;
   mySlot: 0 | 1;
   realtime: RealtimeHandle;
@@ -89,6 +88,7 @@ function DuelGame({
   duelId,
   seed,
   myId,
+  guestId,
   opponentId,
   mySlot,
   realtime,
@@ -118,6 +118,7 @@ function DuelGame({
     mySlot,
     realtime,
     duelId,
+    guestId,
   });
 
   const startedRef = useRef(false);
@@ -155,17 +156,31 @@ function DuelGame({
       }
     };
 
+    // A presence "leave" can fire on a transient Ably blip, so don't award the
+    // win instantly — wait a few seconds and re-check presence; a real departure
+    // stays gone, a blip re-enters. (The explicit "forfeit" event below is the
+    // fast, unambiguous path.)
+    let leaveTimer: ReturnType<typeof setTimeout> | null = null;
+    const clearLeaveTimer = () => {
+      if (leaveTimer) {
+        clearTimeout(leaveTimer);
+        leaveTimer = null;
+      }
+    };
+
     const unsubPresence = realtime.onPresence(async (action, member) => {
       if (action === "leave" || action === "absent") {
-        // The opponent dropped. If the match has started, we win by forfeit
-        // immediately instead of waiting out the 3s stall clock. (Ignore our
-        // own leave and any pre-start churn.)
-        if (member.clientId !== myId && startedRef.current) {
-          opponentForfeited();
-        }
+        if (member.clientId === myId || !startedRef.current) return;
+        clearLeaveTimer();
+        leaveTimer = setTimeout(async () => {
+          const members = await realtime.getPresence().catch(() => []);
+          const opponentStillHere = members.some((m) => m.clientId !== myId);
+          if (!opponentStillHere) opponentForfeited();
+        }, 5000);
         return;
       }
       if (action !== "enter" && action !== "present") return;
+      if (member.clientId !== myId) clearLeaveTimer(); // opponent (re)appeared
       const members = await realtime.getPresence();
       if (members.length >= 2) {
         publishSelfReady();
@@ -222,6 +237,7 @@ function DuelGame({
       unsubForfeit();
       unsubRematch();
       window.removeEventListener("beforeunload", handleBeforeUnload);
+      clearLeaveTimer();
     };
   }, [realtime, myId, mySlot, player1Name, player2Name, start, onRematch, opponentForfeited]);
 
@@ -417,6 +433,8 @@ export function DuelRoom({ duelId }: DuelRoomProps) {
   const [realtime, setRealtime] = useState<RealtimeHandle | null>(null);
   const [myId, setMyId] = useState<string>("");
   const [mySlot, setMySlot] = useState<0 | 1>(0);
+  /** Opaque guest token when the local player is an unauthenticated guest. */
+  const [myGuestId, setMyGuestId] = useState<string | null>(null);
 
   const realtimeRef = useRef<RealtimeHandle | null>(null);
 
@@ -449,9 +467,17 @@ export function DuelRoom({ duelId }: DuelRoomProps) {
       const duelMeta = (await metaRes.json()) as DuelMeta;
       if (cancelled) return;
 
-      // The server resolves our stable identity (uid or guest:<ip>). Use it for
-      // slot detection + Ably clientId so guests match the duel row.
-      let localId = duelMeta.youId;
+      // Identity: a signed-in user is their uid; a guest uses the opaque token
+      // issued at join (persisted per-duel so a reload re-presents it). Player1
+      // is always authenticated (create/queue require auth), so only a joiner
+      // can be a guest.
+      const guestKey = `duel-guest:${duelId}`;
+      let guestToken: string | null = user?.uid
+        ? null
+        : typeof window !== "undefined"
+          ? window.sessionStorage.getItem(guestKey)
+          : null;
+      let localId = user?.uid ?? guestToken ?? "";
 
       // Reload after the match already ended → don't drop into an un-startable
       // lobby; show a clear terminal state.
@@ -461,7 +487,7 @@ export function DuelRoom({ duelId }: DuelRoomProps) {
         return;
       }
 
-      // If pending and we're not player1, join as player2
+      // If pending and we're not already player1, join as player2.
       let finalMeta = duelMeta;
       if (duelMeta.status === "pending" && duelMeta.player1?.id !== localId) {
         const joinRes = await fetch(`/api/duel/${duelId}/join`, {
@@ -489,7 +515,14 @@ export function DuelRoom({ duelId }: DuelRoomProps) {
             player1DisplayName: string | null;
             player2DisplayName: string | null;
           };
-          if (joinBody.youId) localId = joinBody.youId;
+          if (joinBody.youId) {
+            localId = joinBody.youId;
+            // Persist a freshly-issued guest token so a reload re-identifies us.
+            if (!user?.uid && localId.startsWith("guest:") && typeof window !== "undefined") {
+              guestToken = localId;
+              window.sessionStorage.setItem(guestKey, localId);
+            }
+          }
           // Merge seed and names into meta
           finalMeta = {
             ...duelMeta,
@@ -505,6 +538,14 @@ export function DuelRoom({ duelId }: DuelRoomProps) {
 
       if (cancelled) return;
 
+      // A guest who couldn't establish an identity (e.g. reload with no stored
+      // token on an active duel they never joined) cannot participate.
+      if (!localId) {
+        setErrorMsg("This duel is no longer open to join.");
+        setPhase("error");
+        return;
+      }
+
       // Re-fetch to get seed if still missing
       if (!finalMeta.seed) {
         const refetch = await fetch(`/api/duel/${duelId}`, { headers: authHeaders });
@@ -518,15 +559,16 @@ export function DuelRoom({ duelId }: DuelRoomProps) {
       }
 
       setMyId(localId);
+      setMyGuestId(guestToken);
       setMeta(finalMeta);
 
       // Determine slot
       const slot: 0 | 1 = finalMeta.player1?.id === localId ? 0 : 1;
       setMySlot(slot);
 
-      // Connect Ably
+      // Connect Ably (guests present their opaque token for the capability token)
       try {
-        const handle = await connectRealtime(duelId, localId);
+        const handle = await connectRealtime(duelId, localId, guestToken);
         if (cancelled) {
           handle.dispose();
           return;
@@ -608,6 +650,7 @@ export function DuelRoom({ duelId }: DuelRoomProps) {
       duelId={duelId}
       seed={meta.seed}
       myId={myId}
+      guestId={myGuestId}
       opponentId={opponentId}
       mySlot={mySlot}
       realtime={realtime}
