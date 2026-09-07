@@ -122,6 +122,27 @@ describe("per-floor geometry", () => {
     expect(three).toBeGreaterThan(20);
   });
 
+  it("makes immediate back-to-back multi-gap floors uncommon", () => {
+    // Across several run seeds so one unlucky layout cannot pass.
+    let multi = 0;
+    let consecutiveMulti = 0;
+    for (const seed of ["a", "b", "c", "d", "e", "f", "g", "h"]) {
+      const tower = buildTower("indie-games", { runSeed: seed });
+      let prevMulti = false;
+      for (let i = 1; i < 200; i++) {
+        const gaps = platformsForFloor(tower, i).length - 1;
+        const isMulti = gaps >= 2;
+        if (isMulti) multi += 1;
+        if (isMulti && prevMulti) consecutiveMulti += 1;
+        prevMulti = isMulti;
+      }
+    }
+    expect(multi).toBeGreaterThan(80);
+    // Before the cooldown, ~85% of multi floors followed another multi floor.
+    // Keep immediate doubles well under half of all multi-gap floors.
+    expect(consecutiveMulti / multi).toBeLessThan(0.45);
+  });
+
   it("gives most floors more than one route up", () => {
     let multi = 0;
     for (let i = 0; i < 300; i++) {
