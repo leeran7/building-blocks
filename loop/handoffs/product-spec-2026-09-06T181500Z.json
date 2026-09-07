@@ -1,0 +1,19 @@
+{
+  "agent": "product-spec",
+  "status": "success",
+  "summary": "Delta spec: when canShare(files) is true, skip automatic download and prefer immediate navigator.share; keep Share button as gesture retry. AC-SI-1…5 in loop/spec-share-immediate.md.",
+  "timestamp": "2026-09-06T18:15:00Z",
+  "goal": "Simplify export delivery to native share immediately instead of download-then-share",
+  "artifacts": ["loop/spec-share-immediate.md", "loop/research-native-video-share.md"],
+  "nextStage": "implementer",
+  "learnings": [
+    {
+      "topic": "Architecture & contracts",
+      "forAgents": ["implementer", "verifier"],
+      "kind": "lesson",
+      "insight": "Immediate share after async MediaRecorder.onstop usually lacks user activation (NotAllowedError). Product still wants share-first: skip download when canShare, attempt share once, keep Share button for the real gesture.",
+      "action": "Gate downloadBlob behind !canShareVideoFile(file); always attempt shareVideoFile on share-capable success; UI copy Ready to share not Downloaded.",
+      "confidence": "high"
+    }
+  ]
+}

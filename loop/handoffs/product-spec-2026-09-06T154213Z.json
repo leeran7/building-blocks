@@ -1,0 +1,82 @@
+{
+  "agent": "product-spec",
+  "status": "success",
+  "summary": "Spec'd climb shared-replay transport (pause/play, rewind 5s / seek, speeds 1×/2×/4×, keyboard scoped) and client-side video export (720×1280@30fps, MP4-preferred with honest WebM fallback, progress/cancel/failures). 20 testable ACs in loop/spec.md. nextStage: architect (design-ux not required first — DESIGN.md tokens suffice).",
+  "timestamp": "2026-09-06T15:42:13Z",
+  "goal": "Climb replay should allow fast forwarding, rewind, pause/play. Export as mp4.",
+  "artifacts": [
+    "loop/spec.md"
+  ],
+  "exitCriteria": {
+    "scope_in_out_defined": true,
+    "personas_present": true,
+    "stories_with_happy_and_failure": true,
+    "acs_given_when_then": true,
+    "acs_mechanically_testable": true,
+    "nfrs_measurable": true,
+    "risks_listed": true,
+    "open_questions_non_blocking": true
+  },
+  "feedback": [],
+  "learnings": [
+    {
+      "topic": "Spec quality",
+      "forAgents": ["architect", "implementer", "frontend"],
+      "kind": "lesson",
+      "insight": "Replay transport shortcuts (Space/k, J, L) must reuse the same interactive-target exemption pattern as shouldCaptureGameKey: never preventDefault or change playback when focus is on button/link/form controls, or mute/Start regress again.",
+      "action": "Wire replay shortcut listeners through a testable predicate that returns false for interactive targets and for non-replay sessions; add AC-3 negative coverage in verifier.",
+      "confidence": "high"
+    },
+    {
+      "topic": "Architecture & contracts",
+      "forAgents": ["architect", "implementer", "performance"],
+      "kind": "lesson",
+      "insight": "Rewind/seek on a deterministic input-log replay is a resim-to-tick problem (O(N) naively up to 18000 ticks). Product requires visual parity with headless stepMatch and ≤500ms seek paint, not a specific cache design.",
+      "action": "Architect should decide snapshot interval or incremental cache in loop/architecture.md; do not mutate live-play useClimb hot path when replaying===false (NFR-8).",
+      "confidence": "high"
+    },
+    {
+      "topic": "Spec quality",
+      "forAgents": ["architect", "implementer", "qa-acceptance"],
+      "kind": "lesson",
+      "insight": "User-facing 'Export as MP4' cannot mean 'always MP4' across browsers: MediaRecorder MIME support is uneven. Spec requires format-honest filenames and UI labels plus a WebM (or equivalent) fallback path.",
+      "action": "Implement MIME negotiation with explicit success copy ('Downloaded MP4' vs 'Downloaded WebM') and AC-17 unsupported path; do not silently rename WebM to .mp4.",
+      "confidence": "high"
+    },
+    {
+      "topic": "Testing",
+      "forAgents": ["verifier", "qa-acceptance"],
+      "kind": "metric",
+      "insight": "Product-spec for replay transport+export defines 20 mechanically testable ACs (AC-1…AC-20) covering controls, export, negatives for live-play regression, MediaRecorder absence, and reduced motion.",
+      "action": "Map each AC to an invoked unit or browser check; reject source-text grep proofs. Headless stepMatch parity is the oracle for AC-6.",
+      "confidence": "high"
+    },
+    {
+      "topic": "Security",
+      "forAgents": ["product-spec", "architect"],
+      "kind": "exception",
+      "insight": "Pre-existing free-leaderboard trust-boundary ping remains open and is explicitly out of scope for replay transport/export; this spec does not accept or close it.",
+      "action": "Do not treat this handoff as resolving AC-17/server-derived peaks for free play. Keep the ledger open question until a dedicated goal scopes it.",
+      "confidence": "high"
+    }
+  ],
+  "nextStage": "architect",
+  "openQuestions": [
+    "Audio mux in export (deferred to Future; v1 silent).",
+    "Exact MediaRecorder MIME priority order (architect).",
+    "Free-leaderboard trust boundary (pre-existing; unrelated)."
+  ],
+  "notes": {
+    "acCount": 20,
+    "designUxFirst": false,
+    "designUxRationale": "ASCENT tokens and control patterns in app/DESIGN.md are sufficient; optional design-ux polish after first implementation if transport chrome needs a visual pass.",
+    "keyNormativeConstants": {
+      "TICK_HZ": 30,
+      "REWIND_STEP_TICKS": 150,
+      "speeds": [1, 2, 4],
+      "exportSize": "720x1280",
+      "exportFps": 30,
+      "maxShareTicks": 18000
+    }
+  }
+}

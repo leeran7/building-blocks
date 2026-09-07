@@ -11,7 +11,7 @@ const PROTOCOL_PATH = join(SKILLS_SRC, "closed-loop", "protocol.md");
 
 const PATH_REPLACEMENTS = [
   [/.cursor\/loop/g, "loop"],
-  [/.cursor\/skills\/closed-loop/g, "skills/closed-loop"],
+  [/.cursor\/skills\//g, "skills/"],
   [/.cursor\/handoffs/g, "handoffs"],
 ];
 
@@ -102,20 +102,29 @@ async function syncAgents(claudeConfig, protocolBody) {
 }
 
 async function syncSkills() {
-  const skillDir = join(SKILLS_SRC, "closed-loop");
-  const cursorDest = join(ROOT, ".cursor", "skills", "closed-loop");
-  const claudeDest = join(ROOT, ".claude", "skills", "closed-loop");
+  const skillEntries = await readdir(SKILLS_SRC, { withFileTypes: true });
+  let synced = 0;
 
-  await mkdir(cursorDest, { recursive: true });
-  await mkdir(claudeDest, { recursive: true });
+  for (const entry of skillEntries) {
+    if (!entry.isDirectory()) continue;
+    const name = entry.name;
+    const skillDir = join(SKILLS_SRC, name);
+    const cursorDest = join(ROOT, ".cursor", "skills", name);
+    const claudeDest = join(ROOT, ".claude", "skills", name);
 
-  for (const file of await readdir(skillDir)) {
-    const neutral = neutralizePaths(await readFile(join(skillDir, file), "utf-8"));
-    await writeFile(join(cursorDest, file), neutral);
-    await writeFile(join(claudeDest, file), neutral);
+    await mkdir(cursorDest, { recursive: true });
+    await mkdir(claudeDest, { recursive: true });
+
+    for (const file of await readdir(skillDir)) {
+      const srcPath = join(skillDir, file);
+      const neutral = neutralizePaths(await readFile(srcPath, "utf-8"));
+      await writeFile(join(cursorDest, file), neutral);
+      await writeFile(join(claudeDest, file), neutral);
+    }
+    synced += 1;
   }
 
-  console.log("Synced skills/closed-loop → .cursor/skills/ and .claude/skills/");
+  console.log(`Synced ${synced} skill pack(s) → .cursor/skills/ and .claude/skills/`);
 }
 
 async function syncHandoffsSchema() {

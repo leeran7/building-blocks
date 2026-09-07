@@ -14,6 +14,7 @@ This file is **this repo's** memory. Do not copy it into other products.
 ### Performance
 ### Spec quality
 ### Build / CI
+### GitHub / PRs / stacks
 ### Orchestration
 
 ## Open questions (unresolved, need a decision)

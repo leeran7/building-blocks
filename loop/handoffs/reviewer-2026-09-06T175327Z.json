@@ -1,0 +1,107 @@
+{
+  "agent": "reviewer",
+  "status": "success",
+  "summary": "Native-share review: 0 critical. shareVideoFile seams match ADR-NS-1/2/3/5; success.file retention past download revoke; Share gated by canShareVideoFile and invoked only from click; AbortError quiet; download still additive. 32 related unit tests + typecheck green. One warning (stale shareError if share settles after dismiss/re-export). nextStage qa-acceptance.",
+  "timestamp": "2026-09-06T17:53:27Z",
+  "goal": "After downloading climb replay video, allow sharing via Apple & Android native share sheets (Web Share API files).",
+  "artifacts": [
+    "loop/handoffs/reviewer-2026-09-06T175327Z.json",
+    "app/src/game/shareVideoFile.ts",
+    "app/tests/game/shareVideoFile.test.ts",
+    "app/src/components/Game/useReplayExport.ts",
+    "app/src/components/Game/ReplayTransportBar.tsx"
+  ],
+  "exitCriteria": {
+    "diff_reviewed": true,
+    "non_test_callers_confirmed": true,
+    "no_source_text_proofs_relied_on": true,
+    "findings_emitted": true,
+    "no_critical_findings": true,
+    "related_tests_green": true,
+    "typecheck_pass": true
+  },
+  "findings": [
+    {
+      "severity": "warning",
+      "location": "app/src/components/Game/ReplayTransportBar.tsx:270-288",
+      "issue": "Share onClick awaits shareVideoFile then unconditionally setShareError / speak. If the user Dismisses or starts a new export while the OS sheet is open, a late rejection can setShareError after the next success chrome mounts (effect only clears shareError when kind !== success), showing a stale ember alert on an unrelated export. Late ok also speaks Share complete after dismiss.",
+      "fix": "Capture a share generation id (or the File identity) at click; after await, apply speak/setShareError only if exportStatus is still success with that same file (or generation matches). Optional: disable Share while in-flight."
+    },
+    {
+      "severity": "info",
+      "location": "app/src/components/Game/ReplayTransportBar.tsx:265-292",
+      "issue": "Share has no in-flight guard; rapid double-tap can invoke navigator.share twice before the first settles.",
+      "fix": "Optional: sharingRef / disabled while promise pending. Not merge-blocking."
+    },
+    {
+      "severity": "info",
+      "location": "app/src/components/Game/useReplayExport.ts:185-199,452-454",
+      "issue": "containerMimeForLabel + File([blob], …) assembly is private; AC-NS-7 byte/name/type retention and dismiss release remain residual (verifier). Wiring matches ADR-NS-2 and checklist §14.",
+      "fix": "QA device-check retention; extract buildExportFile only if unit proof is required later."
+    },
+    {
+      "severity": "info",
+      "location": "app/src/game/shareVideoFile.ts + ReplayTransportBar / useReplayExport",
+      "issue": "Contracts verified OK: files-only canShare probe; optional title on share() only; AbortError→aborted; non-abort→non-empty message; onstop builds File + downloadBlob without share; bar mounts Share only on success + canShare; ClimbScene gates bar on replaying.",
+      "fix": "None — proceed to QA for gesture/UI residuals (AC-NS-2/3/7/9, device Share sheet)."
+    }
+  ],
+  "feedback": [],
+  "criticalCount": 0,
+  "warningCount": 1,
+  "infoCount": 3,
+  "nonTestCallers": {
+    "shareVideoFile.ts": ["ReplayTransportBar.tsx"],
+    "useReplayExport.ts (success.file)": ["ClimbScene.tsx → ReplayTransportBar"],
+    "ReplayTransportBar.tsx": ["ClimbScene.tsx"]
+  },
+  "testResults": {
+    "command": "cd /workspace/app && pnpm exec vitest run tests/game/shareVideoFile.test.ts tests/game/exportMime.test.ts tests/game/exportVisibility.test.ts tests/game/replayTransport.test.ts && pnpm typecheck",
+    "passed": 32,
+    "failed": 0,
+    "typecheck": "pass"
+  },
+  "appliedLearnings": [
+    "Confirmed non-test caller for shareVideoFile (ReplayTransportBar) before accepting coverage",
+    "Did not require revoke-timing tests for AC-NS-7 — File owns bytes independent of object URL",
+    "Accepted injectable canShare/share unit proofs; left gesture/UI ACs residual for QA",
+    "Did not treat free-leaderboard trust boundary as closed by this delta",
+    "Verified ADR-NS-1 (no share in onstop) and ADR-NS-5 (gesture in bar click) in production code"
+  ],
+  "learnings": [
+    {
+      "topic": "Testing",
+      "forAgents": ["all", "qa-acceptance"],
+      "kind": "metric",
+      "insight": "Native-share reviewer: criticalCount=0; 32 related vitest + typecheck green. Share path matches ADR-NS-1/2/3/5 with success.file retention and click-only shareVideoFile.",
+      "action": "Advance to qa-acceptance; device-check iOS/Android Share sheet, desktop canShare=false hide, Abort quiet, and Share complete announce.",
+      "confidence": "high"
+    },
+    {
+      "topic": "Architecture & contracts",
+      "forAgents": ["implementer", "frontend"],
+      "kind": "pitfall",
+      "insight": "Async OS share settlement after Dismiss/re-export can apply setShareError/speak against a newer success chrome because shareError clear runs only when kind !== success.",
+      "action": "After await shareVideoFile, gate UI updates on still-success + same File/generation; do not rely on kind-change effects alone for late promise results.",
+      "confidence": "high"
+    },
+    {
+      "topic": "Spec quality",
+      "forAgents": ["reviewer", "verifier"],
+      "kind": "lesson",
+      "insight": "Native-share critical bar is structural: File on success, no share in onstop, files-only canShare, Abort≠error, MIME-honest container type. Gesture/UI residuals (44px, announce, no auto-share proof) correctly stay for QA when seams are unit-proven.",
+      "action": "Do not loopBack implementer solely for AC-NS-2/3/7/9 residuals when production wiring matches architecture §6 and shareVideoFile tests cover AC-NS-1/4/5/6/8.",
+      "confidence": "high"
+    }
+  ],
+  "nextStage": "qa-acceptance",
+  "loopBackTo": null,
+  "notes": {
+    "branch": "cursor/native-video-share-b391",
+    "priorHandoff": "loop/handoffs/verifier-2026-09-06T175010Z.json",
+    "securityHandoff": "loop/handoffs/security-reviewer-2026-09-06T175237Z.json",
+    "spec": "loop/spec-native-share.md",
+    "architecture": "loop/architecture-native-share.md",
+    "diffBasis": "main...HEAD focus files + implementer commit 2c3d038 vs ace0a77"
+  }
+}

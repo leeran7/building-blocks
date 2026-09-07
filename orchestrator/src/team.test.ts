@@ -60,6 +60,23 @@ describe("clampNextStage — never skip the team", () => {
     assert.equal(clampNextStage("architect", "design-ux"), "design-ux");
   });
 
+  it("allows optional github after integrator", () => {
+    assert.equal(clampNextStage("integrator", "github"), "github");
+    assert.equal(nextInSequence("github"), "release");
+  });
+
+  it("keeps devops and docs optional after integrator", () => {
+    assert.equal(clampNextStage("integrator", "devops"), "devops");
+    assert.equal(clampNextStage("integrator", "docs"), "docs");
+    assert.equal(nextInSequence("devops"), "release");
+    assert.equal(nextInSequence("docs"), "release");
+  });
+
+  it("does not treat github as a required-sequence skip target", () => {
+    assert.equal(clampNextStage("verifier", "github"), "reviewer");
+    assert.equal(clampNextStage("qa-acceptance", "github"), "integrator");
+  });
+
   it("does not treat frontend as a pipeline skip", () => {
     assert.equal(clampNextStage("implementer", "frontend"), "verifier");
   });

@@ -1,0 +1,106 @@
+{
+  "agent": "architect",
+  "status": "success",
+  "summary": "Designed replay-only transport (pause/play, rewind 150 ticks, speeds 1/2/4, seek) with snapshot-every-120 seek cache for ≤500ms/NFR-2 parity to stepMatch, plus client MediaRecorder export at 720×1280@30 with MIME order mp4×3 then webm×3 and honest labels. nextStage: implementer (design-ux not required).",
+  "timestamp": "2026-09-06T15:45:29Z",
+  "goal": "Climb replay should allow fast forwarding, rewind, pause/play. Export as mp4.",
+  "artifacts": [
+    "loop/architecture.md",
+    ".gitignore"
+  ],
+  "exitCriteria": {
+    "acs_mapped_to_architecture": true,
+    "stack_confirmed": true,
+    "data_flow_mermaid": true,
+    "seek_snapshot_strategy_decided": true,
+    "playback_rate_model_specified": true,
+    "export_mime_order_specified": true,
+    "public_apis_specified": true,
+    "test_seams_listed": true,
+    "adrs_recorded": true,
+    "nfr8_live_path_isolated": true,
+    "no_open_blockers": true
+  },
+  "feedback": [],
+  "learnings": [
+    {
+      "topic": "Architecture & contracts",
+      "forAgents": ["implementer", "performance", "verifier"],
+      "kind": "lesson",
+      "insight": "Seek/rewind for deterministic input-log replay uses a climb-tick snapshot cache every SNAPSHOT_INTERVAL_TICKS=120: clone nearest floor snapshot, step forward at most 119 ticks; never mutate stored snapshots; parity oracle is createMatch→drain countdown→apply inputs[0..target-1] via stepMatch.",
+      "action": "Implement ReplaySnapshotCache per loop/architecture.md ADR-1; assert player.y and peakY against the headless oracle (AC-6). Do not full-resim from 0 on every seek.",
+      "confidence": "high"
+    },
+    {
+      "topic": "Architecture & contracts",
+      "forAgents": ["implementer", "frontend", "qa-acceptance"],
+      "kind": "lesson",
+      "insight": "Export MIME probe order is locked: video/mp4;codecs=avc1.42E01E → avc1.4D401E → video/mp4 → video/webm;codecs=vp9 → vp8 → video/webm. Success UI and filename extension must follow the chosen container; never label WebM as MP4.",
+      "action": "Implement pickExportMime with injectable isTypeSupported for unit tests; wire AC-15/AC-17 copy from ExportMimeChoice.label.",
+      "confidence": "high"
+    },
+    {
+      "topic": "Performance",
+      "forAgents": ["implementer", "frontend"],
+      "kind": "lesson",
+      "insight": "NFR-8 requires transport/export to be inert when replaying===false: useClimb must gate pause/speed/seek refs and return transport:null for live play so the live rAF path pays no new per-frame React subscriptions.",
+      "action": "Branch all new control state behind replaying; mount ReplayTransportBar / useReplayExport only when ClimbScene has a decoded replay.",
+      "confidence": "high"
+    },
+    {
+      "topic": "Spec quality",
+      "forAgents": ["implementer", "frontend"],
+      "kind": "lesson",
+      "insight": "Replay shortcuts must use shouldCaptureReplayKey with the same isInteractiveTarget exemption as shouldCaptureGameKey so Space/k/J/L do not steal focus from mute/Start/buttons (AC-3 negative).",
+      "action": "Export a testable predicate; add interactive-target fixtures in verifier coverage.",
+      "confidence": "high"
+    },
+    {
+      "topic": "Security",
+      "forAgents": ["all"],
+      "kind": "exception",
+      "insight": "Architect stage confirms free-leaderboard trust-boundary remains open and out of scope for replay transport/export; no climb/result or score-write changes in this design.",
+      "action": "Implementer must not touch climb result persistence while shipping transport/export.",
+      "confidence": "high"
+    },
+    {
+      "topic": "Architecture & contracts",
+      "forAgents": ["implementer", "verifier"],
+      "kind": "metric",
+      "insight": "Architecture locks REWIND_STEP_TICKS=150, REPLAY_SPEEDS=[1,2,4], SNAPSHOT_INTERVAL_TICKS=120, export 720x1280@30 silent, countdown frames skipped in encode (ADR-2), visibility policy pause-on-hidden (ADR-4).",
+      "action": "Treat these as normative constants in code and tests; duration assertion uses N/30 not N/30+3.",
+      "confidence": "high"
+    }
+  ],
+  "nextStage": "implementer",
+  "openQuestions": [
+    "Audio mux in export remains Future (v1 silent).",
+    "Free-leaderboard trust boundary (pre-existing; unrelated)."
+  ],
+  "notes": {
+    "designUxFirst": false,
+    "seekStrategy": "snapshot every 120 climb ticks; clone+step ≤119; forward micro-seek can step from current",
+    "exportMimeOrder": [
+      "video/mp4;codecs=avc1.42E01E",
+      "video/mp4;codecs=avc1.4D401E",
+      "video/mp4",
+      "video/webm;codecs=vp9",
+      "video/webm;codecs=vp8",
+      "video/webm"
+    ],
+    "implementerModules": [
+      "app/src/game/replayTransport.ts",
+      "app/src/game/replaySnapshots.ts",
+      "app/src/game/exportMime.ts",
+      "app/src/game/useClimb.ts",
+      "app/src/components/Game/paintClimbFrame.ts",
+      "app/src/components/Game/ClimbCanvas.tsx",
+      "app/src/components/Game/useReplayExport.ts",
+      "app/src/components/Game/ReplayTransportBar.tsx",
+      "app/src/components/Game/ClimbScene.tsx",
+      "app/tests/game/replayTransport.test.ts",
+      "app/tests/game/replaySnapshots.test.ts",
+      "app/tests/game/exportMime.test.ts"
+    ]
+  }
+}

@@ -88,7 +88,7 @@ Write `loop/state.json`:
 | Stage | Subagent | When |
 |-------|----------|------|
 | Loop owner | orchestrator | Coordinate all stages |
-| 1 | product-spec | Turn intent into requirements |
+| 1 | product-spec | Turn intent into end-to-end flows + requirements |
 | 2 | architect | System design and contracts |
 | 3 | implementer | Write application code |
 | 4 | verifier | Tests and correctness |
@@ -101,8 +101,11 @@ Write `loop/state.json`:
 | 11 | monitor | Production observability |
 | 12 | docs | Documentation |
 | 13 | debugger | Root-cause unclear failures |
+| 14 | github | Stacked PRs, PR/ruleset/merge-queue expertise |
 
 Specialists (delegated from implementer): frontend, backend, data, mobile, design-ux, performance, compliance, cost.
+
+Optional after integrator: devops, docs, **github** (PR stacking / branch policy).
 
 ## Prompt template for each delegation
 

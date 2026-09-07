@@ -178,10 +178,15 @@ Required on a **whole-app** closed-loop run:
 `product-spec → architect → implementer → verifier → reviewer +
 security-reviewer → qa-acceptance → integrator`
 
-Optional: `design-ux`, `devops`, `docs`, `release`, `monitor`, `debugger`.
+Optional: `design-ux`, `devops`, `docs`, `github`, `release`, `monitor`,
+`debugger`.
 
 Specialists (delegated from implementer, not pipeline stages): `frontend`,
 `backend`, `data`, `mobile`, `performance`, `compliance`, `cost`.
+
+`github` may also be dispatched after integrator (or by integrator) for
+stacked PRs, rulesets, and merge-queue advice — see `agents/github.md` and
+`skills/github/SKILL.md`.
 
 Incremental work in an existing repo uses the host review classification
 (substantial / minor / trivial) — not the eight-agent clamp. The clamp is
@@ -200,6 +205,7 @@ for `@orchestrator` / `yarn loop`.
 | `skills/closed-loop/team.md` | Dispatch contract |
 | `skills/closed-loop/stages.md` | Stage graph |
 | `skills/closed-loop/host.md` | Generic CLAUDE/AGENTS body |
+| `skills/github/SKILL.md` | GitHub platform skill (stacks, PRs, rulesets) |
 | `agents/*.md` | Roles (point at `context/`) |
 | `context/` | This repo's facts |
 | `pack/templates/context/` | Empty context for a new repo |

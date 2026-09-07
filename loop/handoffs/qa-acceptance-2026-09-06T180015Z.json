@@ -1,0 +1,137 @@
+{
+  "agent": "qa-acceptance",
+  "status": "success",
+  "summary": "AC-NS-1…10 acceptance: 10 pass, 0 fail. 32/32 related vitest + typecheck green. Playwright /play?r= smoke with canShare/share mocks proved Share mount, ≥44×44, no auto-share, Abort quiet, non-abort alert, Share complete announce, dismiss release, download-additive when Share hidden. Advance to integrator.",
+  "timestamp": "2026-09-06T18:00:15Z",
+  "goal": "After download, share climb replay MP4 via Apple & Android native share sheets (Web Share API files).",
+  "artifacts": [
+    "loop/qa-report.md",
+    "loop/handoffs/qa-acceptance-2026-09-06T180015Z.json"
+  ],
+  "exitCriteria": {
+    "all_acs_listed": true,
+    "no_ac_failures": true,
+    "unit_evidence_invoked": true,
+    "browser_smoke_run": true,
+    "qa_report_written": true,
+    "residuals_documented": true
+  },
+  "feedback": [],
+  "acMatrix": [
+    {
+      "ac": "AC-NS-1",
+      "status": "pass",
+      "evidence": "Unit canShare true/false/missing/throw; Playwright Share mounts when mocked true, hidden when false/native desktop; Dismiss remains"
+    },
+    {
+      "ac": "AC-NS-2",
+      "status": "pass",
+      "evidence": "Playwright Share boundingBox 48.5×44 on 390×844 and iPhone 12"
+    },
+    {
+      "ac": "AC-NS-3",
+      "status": "pass",
+      "evidence": "Live Share=0; replay pre-success Share=0; success-only JSX; ClimbScene gates bar on replaying"
+    },
+    {
+      "ac": "AC-NS-4",
+      "status": "pass",
+      "evidence": "Unit share files:[file]+optional title; Playwright sharePayloadsBeforeClick=0; onClick-only caller; payload name/type match download"
+    },
+    {
+      "ac": "AC-NS-5",
+      "status": "pass",
+      "evidence": "Unit AbortError→aborted; Playwright abort→0 transport alerts; success+Share remain"
+    },
+    {
+      "ac": "AC-NS-6",
+      "status": "pass",
+      "evidence": "Unit non-abort→non-empty message; Playwright NotAllowedError→role=alert within 400ms"
+    },
+    {
+      "ac": "AC-NS-7",
+      "status": "pass",
+      "evidence": "onstop File retained past revoke; smoke climb-99m-20260906.mp4 video/mp4 size>0; dismiss clears Share"
+    },
+    {
+      "ac": "AC-NS-8",
+      "status": "pass",
+      "evidence": "Unit WebM canShare+share video/webm; containerMimeForLabel; browser MP4 honest"
+    },
+    {
+      "ac": "AC-NS-9",
+      "status": "pass",
+      "evidence": "Playwright aria-live 'Share complete 3'; speak() monotonic announceSeq"
+    },
+    {
+      "ac": "AC-NS-10",
+      "status": "pass",
+      "evidence": "onstop downloadBlob then success; smoke Downloaded MP4 with Share hidden (native/false) and when Share shown"
+    }
+  ],
+  "testResults": {
+    "vitest": {
+      "command": "pnpm exec vitest run tests/game/shareVideoFile.test.ts tests/game/exportMime.test.ts tests/game/exportVisibility.test.ts tests/game/replayTransport.test.ts",
+      "passed": 32,
+      "failed": 0
+    },
+    "typecheck": { "command": "pnpm typecheck", "status": "pass" },
+    "browserSmoke": {
+      "app": "next dev :3010",
+      "tool": "Playwright Chromium",
+      "routes": ["/play", "/play?r=<encoded>"],
+      "canShareMock": true,
+      "exportDownloadLabel": "Downloaded MP4",
+      "shareFile": "climb-99m-20260906.mp4"
+    }
+  },
+  "learnings": [
+    {
+      "topic": "Testing",
+      "forAgents": ["integrator", "all"],
+      "kind": "metric",
+      "insight": "QA-acceptance for native-share: AC-NS pass=10 residual=0 fail=0. Vitest 32/32; Playwright with canShare/share mocks proved Share mount, 44px, no auto-share, Abort quiet, error alert, Share complete announce, dismiss release, download-additive.",
+      "action": "Do not loopBackTo implementer. nextStage integrator.",
+      "confidence": "high"
+    },
+    {
+      "topic": "Testing",
+      "forAgents": ["qa-acceptance", "verifier", "frontend"],
+      "kind": "lesson",
+      "insight": "Desktop Chromium rarely exposes navigator.canShare({files}); Share visibility ACs need page.addInitScript mocks of canShare/share. Without mocks, success chrome correctly shows Downloaded + Dismiss only — that is AC-NS-1 negative evidence, not a missing button bug.",
+      "action": "When smoking Web Share file flows in Playwright, mock canShare/share; treat native desktop Share=0 after export as the unsupported partition.",
+      "confidence": "high"
+    },
+    {
+      "topic": "Testing",
+      "forAgents": ["qa-acceptance"],
+      "kind": "pitfall",
+      "insight": "Counting page-wide [role=alert] after AbortError can false-positive; scope alerts to [data-climb-transport] and assert text. Isolated probe showed 0 transport alerts after abort while a broad locator briefly reported an empty alert.",
+      "action": "For AC-NS-5, assert transport-scoped alert count/text and that success+Share remain — do not fail on unrelated empty role=alert nodes.",
+      "confidence": "high"
+    }
+  ],
+  "nextStage": "integrator",
+  "loopBackTo": null,
+  "notes": {
+    "branch": "cursor/native-video-share-b391",
+    "priorHandoffs": [
+      "loop/handoffs/reviewer-2026-09-06T175327Z.json",
+      "loop/handoffs/security-reviewer-2026-09-06T175237Z.json",
+      "loop/handoffs/verifier-2026-09-06T175010Z.json"
+    ],
+    "spec": "loop/spec-native-share.md",
+    "appliedLearnings": [
+      "Invoked canShare/share units + Playwright mocks; no navigator.share source greps",
+      "Confirmed non-test caller shareVideoFile → ReplayTransportBar only",
+      "Did not require download object URL liveness for AC-NS-7",
+      "Closed gesture/UI residuals (2/3/7/9) with browser smoke rather than looping implementer",
+      "Did not reopen free-leaderboard trust boundary",
+      "Noted reviewer stale-shareError warning as non-blocking exploratory"
+    ],
+    "passCount": 10,
+    "residualCount": 0,
+    "failCount": 0,
+    "reviewerWarning": "Late share settlement after dismiss/re-export can stale setShareError — not an AC failure; optional follow-up"
+  }
+}

@@ -1,0 +1,92 @@
+{
+  "agent": "integrator",
+  "status": "success",
+  "summary": "PR #81 merge-ready: merged main (learnings.jsonl both-sides + ClimbReplaysSection empty return null), local gates green (typecheck, lint, 34/34 replay vitest), required CI checks all pass on 86b41e9. Did not merge — human merges feature PR. Release stage optional/skippable for this feature PR.",
+  "timestamp": "2026-09-06T16:30:23Z",
+  "goal": "Climb replay should allow fast forwarding, rewind, pause/play. Export as mp4.",
+  "artifacts": [
+    "loop/handoffs/integrator-2026-09-06T163023Z.json",
+    "loop/qa-report.md",
+    "loop/handoffs/qa-acceptance-2026-09-06T162306Z.json",
+    "https://github.com/leeran7/building-blocks/pull/81"
+  ],
+  "exitCriteria": {
+    "loop_artifacts_pushed": true,
+    "local_gates_green": true,
+    "merge_conflicts_resolved": true,
+    "ci_required_checks_green": true,
+    "pr_mergeable_clean": true,
+    "did_not_merge": true
+  },
+  "feedback": [],
+  "ci": {
+    "headSha": "86b41e9c14cb9db52c5f9b6d694dda333e7e41ee",
+    "runUrl": "https://github.com/leeran7/building-blocks/actions/runs/34045450463",
+    "checks": {
+      "Lint, Typecheck, and Test": "pass",
+      "Orchestrator loop": "pass",
+      "CI": "pass",
+      "Vercel": "pass",
+      "Vercel Preview Comments": "pass"
+    },
+    "mergeable": "MERGEABLE",
+    "mergeStateStatus": "CLEAN"
+  },
+  "gates": {
+    "app-typecheck": { "command": "pnpm typecheck", "status": "pass" },
+    "app-lint": { "command": "pnpm lint", "status": "pass" },
+    "app-test-focused": {
+      "command": "pnpm exec vitest run tests/game/replayTransport.test.ts tests/game/replaySnapshots.test.ts tests/game/exportMime.test.ts tests/game/useClimb.replayTransport.test.ts tests/game/exportVisibility.test.ts",
+      "passed": 34,
+      "failed": 0,
+      "status": "pass"
+    }
+  },
+  "pr": {
+    "number": 81,
+    "url": "https://github.com/leeran7/building-blocks/pull/81",
+    "branch": "cursor/replay-controls-export-b391",
+    "base": "main"
+  },
+  "learnings": [
+    {
+      "topic": "Build / CI",
+      "forAgents": ["integrator", "all"],
+      "kind": "metric",
+      "insight": "Integrator for replay-transport-export: local typecheck+lint+34 vitest pass; merged main resolving learnings.jsonl append conflict; PR #81 CI all green (Lint/Typecheck/Test, Orchestrator loop, CI, Vercel) on 86b41e9; mergeStateStatus CLEAN. Not merged.",
+      "action": "Human merges PR #81. nextStage release may be skipped for this feature PR (no version bump).",
+      "confidence": "high"
+    },
+    {
+      "topic": "GitHub / PRs / stacks",
+      "forAgents": ["integrator", "devops"],
+      "kind": "lesson",
+      "insight": "QA-only HEAD can leave PR CONFLICTING with main when another PR lands learnings.jsonl and ClimbReplaysSection changes; gh pr checks then shows only Vercel until a merge+push retriggers Actions.",
+      "action": "At integrator start, fetch origin/main and probe mergeability before trusting last Actions SHA; resolve append-only jsonl by keeping both sides chronologically.",
+      "confidence": "high"
+    },
+    {
+      "topic": "Security",
+      "forAgents": ["product-spec", "architect", "release"],
+      "kind": "exception",
+      "insight": "Free-leaderboard peakY trust boundary and one-slot vs stacking remain open and out of scope; this PR does not touch climb/result persistence.",
+      "action": "Leave OQ open in release notes if any; do not mark F-1 closed.",
+      "confidence": "high"
+    }
+  ],
+  "nextStage": "release",
+  "loopBackTo": null,
+  "notes": {
+    "release": "Skip or human-only for this feature PR — no package version bump; cloud agent must not merge. Human merges when ready.",
+    "retro": "Full foldLearnings retro is orchestrator-owned (learning-loop.md). Integrator did not rewrite learnings.md; new jsonl entries remain status open for orchestrator curation.",
+    "priorHandoff": "loop/handoffs/qa-acceptance-2026-09-06T162306Z.json",
+    "appliedLearnings": [
+      "Did not loopBackTo implementer after QA PASS",
+      "Resolved learnings.jsonl by keeping both append-only sides",
+      "Accepted main ClimbReplaysSection empty return null (intent preserved)",
+      "Did not merge PR; left OQ free-leaderboard / stacking open",
+      "Verified required check names from context/git.md are green"
+    ],
+    "mergeCommit": "86b41e9 Merge main into cursor/replay-controls-export-b391"
+  }
+}

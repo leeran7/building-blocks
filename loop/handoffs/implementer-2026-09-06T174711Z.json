@@ -1,0 +1,75 @@
+{
+  "agent": "implementer",
+  "status": "success",
+  "summary": "Implemented native video share: shareVideoFile helper with injectable canShare/share seams (AbortError→aborted, files-only probe, MIME-honest WebM), useReplayExport retains File on success with container MIME past download revoke, ReplayTransportBar Share (≥44×44) gated by canShareVideoFile and invoked only on click. 20 related unit tests green; typecheck clean. No server APIs; no auto-share.",
+  "timestamp": "2026-09-06T17:47:11Z",
+  "goal": "After downloading climb replay video, allow sharing via Apple & Android native share sheets (Web Share API files).",
+  "artifacts": [
+    "app/src/game/shareVideoFile.ts",
+    "app/tests/game/shareVideoFile.test.ts",
+    "app/src/components/Game/useReplayExport.ts",
+    "app/src/components/Game/ReplayTransportBar.tsx"
+  ],
+  "exitCriteria": {
+    "shareVideoFile_module": true,
+    "shareVideoFile_tests_invoke_units": true,
+    "success_retains_file": true,
+    "container_mime_on_file": true,
+    "download_still_happens": true,
+    "no_auto_share_from_onstop": true,
+    "share_button_gated_by_canShare": true,
+    "share_button_min_44x44": true,
+    "abort_error_quiet": true,
+    "share_complete_announce": true,
+    "no_new_server_apis": true,
+    "unit_tests_pass": true,
+    "typecheck_pass": true
+  },
+  "feedback": [],
+  "learnings": [
+    {
+      "topic": "Architecture & contracts",
+      "forAgents": ["verifier", "frontend"],
+      "kind": "lesson",
+      "insight": "Download blob URL revoke (~1s) is independent of share retention: success status carries a File that owns the bytes; share never uses the revoked object URL. Assembled File.type is container MIME only (video/mp4|video/webm), not the MediaRecorder codec string.",
+      "action": "Assert success.file.type is video/webm for WebM label and that canShare/share probes use that type; do not require the download object URL to remain live for share.",
+      "confidence": "high"
+    },
+    {
+      "topic": "Testing",
+      "forAgents": ["verifier", "qa-acceptance"],
+      "kind": "lesson",
+      "insight": "shareVideoFile accepts injectable canShare/share deps; AbortError → reason aborted (non-error UI); non-abort → reason error with non-empty message. canShare probe payload is files-only (no title/text).",
+      "action": "Map AC-NS-1/4/5/6/8 to shareVideoFile.test.ts fakes; reject source-text greps for navigator.share; assert bar click path for gesture (ADR-NS-5).",
+      "confidence": "high"
+    },
+    {
+      "topic": "Testing",
+      "forAgents": ["all"],
+      "kind": "metric",
+      "insight": "Native-share implementer pass: 20 production-invoking unit tests green (shareVideoFile 9, exportMime 5, exportVisibility 6); pnpm typecheck clean. Zero new HTTP endpoints or dependencies.",
+      "action": "Verifier: extend AC-NS matrix for bar mount/announce and success-transition no-auto-share; nextStage verifier.",
+      "confidence": "high"
+    }
+  ],
+  "nextStage": "verifier",
+  "notes": {
+    "branch": "cursor/native-video-share-b391",
+    "priorHandoff": "loop/handoffs/architect-2026-09-06T174320Z.json",
+    "architecture": "loop/architecture-native-share.md",
+    "spec": "loop/spec-native-share.md",
+    "climbScene": "No prop changes — ReplayExportStatus.success.file flows through existing exportStatus prop",
+    "appliedLearnings": [
+      "Retain File past download URL revoke (architect + product-spec)",
+      "Files-only canShare probe; never forge video/mp4 for WebM",
+      "Share only from bar click; never from onstop",
+      "Invoke production units in tests — no source greps"
+    ]
+  },
+  "testResults": {
+    "command": "pnpm exec vitest run tests/game/shareVideoFile.test.ts tests/game/exportMime.test.ts tests/game/exportVisibility.test.ts && pnpm typecheck",
+    "passed": 20,
+    "failed": 0,
+    "typecheck": "pass"
+  }
+}

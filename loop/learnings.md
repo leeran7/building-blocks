@@ -187,6 +187,12 @@ the same pass — the `learning-loop.md` bar for a permanent guardrail.
 
 ### Spec quality
 
+- **Spec entire flows, not isolated capabilities.** A feature AC without
+  discovery, entry, empty/first-run, failure recovery, and a success next step
+  ships unfinished (e.g. nav “Free climb” → landing teaser instead of `/play`).
+  product-spec writes a Flows inventory (F-n) first; qa-acceptance walks each
+  flow end-to-end and loops back when finishing touches are missing from the
+  spec. See `agents/product-spec/flows.md`.
 - **Reset every previous-value ref in a feedback hook when the match changes.**
   Refs surviving a game restart fired a phantom "X ended" cue at the top of a
   fresh run and silently swallowed a real pickup whose tick index collided with
@@ -231,6 +237,13 @@ the same pass — the `learning-loop.md` bar for a permanent guardrail.
   at `14.0.4` accounts for the critical (middleware auth bypass) and 15 highs. An
   exact pin means routine updates never move it — add an audit gate.
 
+### GitHub / PRs / stacks
+
+- Prefer native **stacked PRs** (`gh stack`) for large layered work; keep
+  3–5 coherent layers. Rules and CI apply as if every layer targeted trunk.
+- A workflow on `pull_request` is not a merge gate until a **ruleset** requires
+  the check name. Merge queues need the same checks on `merge_group`.
+
 ### Orchestration
 
 - `retro.ts` implements none of the three documented folding steps; `retro.test.ts`
@@ -267,6 +280,16 @@ the same pass — the `learning-loop.md` bar for a permanent guardrail.
 - **[dispatcher → user] Which of the proposed doc updates in
   `docs/reviews/2026-08-29.md` are approved?** The `.gitignore` change is applied
   in this branch; the rest await approval per the standing rule.
+
+
+### Climb Feel 1.2× (2026-09-06) — curated this run
+- **[all]** Feel multipliers need climb-scoped forks when shared motion/atmosphere would hit paid/auth (OQ-3). Do not raise global enter/reveal/grain/topo for climb-only goals.
+- **[implementer, verifier]** Presentation tunables belong in importable `climbFeelTokens.ts`; AC proofs import constants — never source-grep CSS alone.
+- **[implementer, qa-acceptance]** A motion fork without a non-test production caller fails AC delivery (AC-17 iter1). Wire or delete before QA.
+- **[security-reviewer, orchestrator]** OQ-1 free-leaderboard trust boundary stays OPEN through feel passes; scoreBounds freeze ≠ closing F-1.
+- **[design-ux]** Band midpoints (grain 0.042, topo 0.060, HUD 16, shake 2.64) are the contract; implementer must not invent alternate magnitudes.
+
+_Last curated: 2026-09-06T05:28:18Z — Climb Feel 1.2× closed loop._
 
 ## Recently applied (last 20)
 

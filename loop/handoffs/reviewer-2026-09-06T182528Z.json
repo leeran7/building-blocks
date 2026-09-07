@@ -1,0 +1,114 @@
+{
+  "agent": "reviewer",
+  "status": "success",
+  "summary": "Share-immediate review: 0 critical. startExport awaits encodePromise then deliverExportFile in the Export click async continuation; onstop is File-only; download only when !canShare; ReplayTransportBar Ready to share + Share ≥44×44 + Share complete announce wiring OK. 22 related tests green. Two warnings (delivery-phase re-entry; stale Share UI after dismiss). nextStage qa-acceptance.",
+  "timestamp": "2026-09-06T18:25:28Z",
+  "goal": "Open native share sheet from the Export button’s user-gesture chain (no download prompt when shareable)",
+  "artifacts": [
+    "loop/handoffs/reviewer-2026-09-06T182528Z.json",
+    "app/src/components/Game/useReplayExport.ts",
+    "app/src/game/exportDelivery.ts",
+    "app/src/components/Game/ReplayTransportBar.tsx",
+    "app/src/components/Game/ClimbScene.tsx",
+    "app/tests/game/exportDelivery.test.ts"
+  ],
+  "exitCriteria": {
+    "diff_reviewed": true,
+    "non_test_callers_confirmed": true,
+    "no_source_text_proofs_relied_on": true,
+    "findings_emitted": true,
+    "no_critical_findings": true,
+    "related_tests_green": true,
+    "ac_si_3_reviewed_against_startExport_await_order": true
+  },
+  "findings": [
+    {
+      "severity": "warning",
+      "location": "app/src/components/Game/useReplayExport.ts:253-291",
+      "issue": "After encode, sessionRef is cleared and status becomes success before await deliverExportFile finishes. Export stays enabled (ClimbScene/ReplayTransportBar only disable for running|paused_hidden), so a second startExport can begin while the first share/download settlement is still pending; the first await then setStatus(success) can clobber the second encode’s running state.",
+      "fix": "Keep an inFlightDelivery/busy flag (or leave sessionRef occupied) until deliverExportFile settles; disable Export while delivery is in flight. Optional: ignore late setStatus unless a generation id still matches."
+    },
+    {
+      "severity": "warning",
+      "location": "app/src/components/Game/ReplayTransportBar.tsx:303-321 + useReplayExport.ts:284-291",
+      "issue": "Late share settlement still applies UI updates without generation/file guards: Share onClick can setShareError/speak after Dismiss/re-export; auto-share’s final setStatus can resurrect success chrome after dismissStatus→idle.",
+      "fix": "Capture File identity or generation at share start; after await apply speak/setShareError/setStatus only if still success with that same file (or generation matches)."
+    },
+    {
+      "severity": "info",
+      "location": "app/src/components/Game/useReplayExport.ts:193-235,253-272",
+      "issue": "AC-SI-3 structural contract holds: onstop resolves File|null only; startExport awaits encodePromise then await deliverExportFile; ClimbScene/ReplayTransportBar invoke startExport from click. Browser may still drop user activation across long MediaRecorder encode — Share retry is the specified recovery.",
+      "fix": "None for implementer — QA device-check Export tap → sheet without download when canShare, and Share retry after NotAllowed/abort."
+    },
+    {
+      "severity": "info",
+      "location": "app/src/game/exportDelivery.ts + ReplayTransportBar.tsx:287-326",
+      "issue": "AC-SI-1/2/4/5 seams OK: deliverExportFile never downloads when canShare; download when false; exportSuccessLabel Ready to share; Share ≥44×44 on success when canShare; MIME honesty unchanged. Announce unit residual unchanged (verifier).",
+      "fix": "None — proceed to QA for gesture/announce residuals."
+    }
+  ],
+  "feedback": [],
+  "criticalCount": 0,
+  "warningCount": 2,
+  "infoCount": 2,
+  "nonTestCallers": {
+    "exportDelivery.ts": [
+      "useReplayExport.ts (deliverExportFile)",
+      "ReplayTransportBar.tsx (exportSuccessLabel)"
+    ],
+    "useReplayExport.ts": ["ClimbScene.tsx"],
+    "ReplayTransportBar.tsx": ["ClimbScene.tsx"],
+    "shareVideoFile.ts": [
+      "useReplayExport.ts",
+      "ReplayTransportBar.tsx"
+    ]
+  },
+  "testResults": {
+    "command": "cd /workspace/app && pnpm exec vitest run tests/game/exportDelivery.test.ts tests/game/shareVideoFile.test.ts tests/game/exportMime.test.ts",
+    "passed": 22,
+    "failed": 0,
+    "typecheck": "not re-run (verifier pass on 7afef57)"
+  },
+  "appliedLearnings": [
+    "Reviewed AC-SI-3 against startExport await encodePromise → deliverExportFile order (verifier/implementer ping); did not fail for superseded onstop-share path",
+    "Confirmed non-test callers for exportDelivery/useReplayExport/ReplayTransportBar before accepting coverage",
+    "Did not loopBack solely for browser activation or announce unit residuals when structural seams match spec",
+    "Carried forward prior stale-share UI warning; extended to auto-share late setStatus after dismiss"
+  ],
+  "learnings": [
+    {
+      "topic": "Testing",
+      "forAgents": ["all", "qa-acceptance"],
+      "kind": "metric",
+      "insight": "Share-immediate reviewer: criticalCount=0; 22 related vitest green. AC-SI-1/2 via deliverExportFile; AC-SI-3 startExport await chain; AC-SI-4/5 wiring + MIME honesty. Warnings only (delivery re-entry; late share UI).",
+      "action": "Advance to qa-acceptance; device-check Export → native sheet without download when canShare, Share retry after NotAllowed/abort, and Ready to share / Share complete announces.",
+      "confidence": "high"
+    },
+    {
+      "topic": "Architecture & contracts",
+      "forAgents": ["implementer", "frontend"],
+      "kind": "pitfall",
+      "insight": "Clearing sessionRef and flipping to success before await deliverExportFile leaves Export enabled during share settlement, so a second startExport can race the first late setStatus.",
+      "action": "Treat share/download delivery as part of the busy/export session: busy until deliverExportFile settles, or gate late setStatus on a generation id.",
+      "confidence": "high"
+    },
+    {
+      "topic": "Architecture & contracts",
+      "forAgents": ["reviewer", "verifier"],
+      "kind": "lesson",
+      "insight": "Share-immediate AC-SI-3 critical bar is structural await order (onstop File-only; share after await encode inside click-started startExport), not proof that UA activation survives long encode.",
+      "action": "Do not loopBack implementer for activation survival or announce unit residuals when deliverExportFile + startExport chain and Share retry chrome match AC-SI-1…5.",
+      "confidence": "high"
+    }
+  ],
+  "nextStage": "qa-acceptance",
+  "loopBackTo": null,
+  "notes": {
+    "branch": "cursor/share-immediate-b391",
+    "commit": "7afef57",
+    "priorHandoff": "loop/handoffs/verifier-2026-09-06T182254Z.json",
+    "spec": "loop/spec-share-immediate.md",
+    "diffBasis": "main...HEAD focus useReplayExport / exportDelivery / ReplayTransportBar / ClimbScene",
+    "criticalCount": 0
+  }
+}

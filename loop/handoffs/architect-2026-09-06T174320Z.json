@@ -1,0 +1,95 @@
+{
+  "agent": "architect",
+  "status": "success",
+  "summary": "Designed client-only native-share delta: pure shareVideoFile helper with injectable canShare/share, success status retains File past download URL revoke, ReplayTransportBar Share on user gesture only, AbortError quiet, no server APIs/auto-share. Artifact: loop/architecture-native-share.md.",
+  "timestamp": "2026-09-06T17:43:20Z",
+  "goal": "After downloading climb replay video, allow sharing via Apple & Android native share sheets.",
+  "artifacts": [
+    "loop/architecture-native-share.md"
+  ],
+  "exitCriteria": {
+    "acs_mapped": true,
+    "stack_confirmed": true,
+    "mermaid_trust_boundaries": true,
+    "data_models_complete": true,
+    "api_contracts": true,
+    "folder_tree_with_ownership": true,
+    "failure_modes": true,
+    "adrs_recorded": true,
+    "security_boundaries": true,
+    "hot_paths_limits": true,
+    "test_seams_defined": true,
+    "no_new_server_apis": true,
+    "no_auto_share": true
+  },
+  "feedback": [],
+  "learnings": [
+    {
+      "topic": "Architecture & contracts",
+      "forAgents": ["implementer", "frontend"],
+      "kind": "lesson",
+      "insight": "Download object URL revoke (~1s) is independent of share retention: success status must carry a File that owns the bytes until Dismiss/new export/unmount. Do not share via the revoked blob URL.",
+      "action": "On encode success: new File([blob], filename, { type: container MIME }); setStatus({ kind:'success', label, file }); clear file reference in dismissStatus/startExport/unmount only.",
+      "confidence": "high"
+    },
+    {
+      "topic": "Architecture & contracts",
+      "forAgents": ["implementer", "verifier"],
+      "kind": "lesson",
+      "insight": "canShare probe must be files-only; optional title/text belong on share() only. Assembled File.type must be container MIME (video/mp4|video/webm), not MediaRecorder codec string — WebM must not be forged as mp4.",
+      "action": "Implement shareVideoFile.ts with injectable canShare/share; assert probe payload has only files; WebM fixture uses type video/webm in both gate and share.",
+      "confidence": "high"
+    },
+    {
+      "topic": "Testing",
+      "forAgents": ["implementer", "verifier", "qa-acceptance"],
+      "kind": "lesson",
+      "insight": "Share must be invoked only from ReplayTransportBar click — hook must not expose share() and onstop must never call navigator.share. AbortError maps to result.reason==='aborted' (non-error UI).",
+      "action": "Unit-test shareVideoFile with fake reject AbortError vs NotAllowedError; success-transition test asserts share fake not called; reject source greps for navigator.share.",
+      "confidence": "high"
+    },
+    {
+      "topic": "Security",
+      "forAgents": ["security-reviewer", "implementer"],
+      "kind": "exception",
+      "insight": "Native-share delta adds zero product API surface and never POSTs video bytes; free-leaderboard trust boundary remains open and out of scope.",
+      "action": "Confirm no new routes/env secrets; do not mark F-1 closed when reviewing this change.",
+      "confidence": "high"
+    },
+    {
+      "topic": "Architecture & contracts",
+      "forAgents": ["all"],
+      "kind": "metric",
+      "insight": "Native-share architecture maps all 10 AC-NS-* to contracts across 1 new module (shareVideoFile.ts), 2 amended modules (useReplayExport, ReplayTransportBar), 5 ADRs, and zero HTTP endpoints.",
+      "action": "Implementer checklist in loop/architecture-native-share.md §14; nextStage implementer.",
+      "confidence": "high"
+    }
+  ],
+  "nextStage": "implementer",
+  "openQuestions": [
+    "Share accessible name defaults to Share (product default) — implemented label may be Share video if space allows.",
+    "Free-leaderboard trust boundary (pre-existing; unrelated)."
+  ],
+  "notes": {
+    "parentArchitecture": "loop/architecture.md",
+    "deltaArchitecture": "loop/architecture-native-share.md",
+    "designUxFirst": false,
+    "moduleListForImplementer": [
+      "app/src/game/shareVideoFile.ts (NEW)",
+      "app/tests/game/shareVideoFile.test.ts (NEW)",
+      "app/src/components/Game/useReplayExport.ts (amend success+File retention+container MIME)",
+      "app/src/components/Game/ReplayTransportBar.tsx (Share button+gesture+announce+shareError)",
+      "app/src/components/Game/ClimbScene.tsx (types only if needed)"
+    ],
+    "keyNormativeRules": {
+      "api": "navigator.share({ files }) + canShare({ files }) via shareVideoFile.ts",
+      "gesture": "bar onClick only; never onstop/effect",
+      "abortError": "reason aborted = non-error",
+      "retention": "success.file until dismiss/new export/unmount",
+      "downloadRevoke": "independent 1s blob URL revoke",
+      "containerMime": "video/mp4 | video/webm on File",
+      "noServerApis": true,
+      "noAutoShare": true
+    }
+  }
+}

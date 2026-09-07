@@ -22,7 +22,7 @@ Run `reviewer` and `security-reviewer` in the **same message** (parallel). Then
 
 - **reviewer** — correctness, edge cases, conventions (critical findings block)
 - **security-reviewer** — auth, secrets, injection, dependencies
-- **qa-acceptance** — user flows vs acceptance criteria
+- **qa-acceptance** — end-to-end flows vs acceptance criteria (incl. finishing touches)
 - **performance** — only when perf criteria exist in spec
 
 `nextStage` on a handoff cannot skip a required team member. The orchestrator
@@ -41,6 +41,7 @@ clamps skips back onto the sequence (see [team.md](team.md)).
 | Compliance requirements in spec | compliance |
 | New data field, third-party processor, or payment flow | legal |
 | Cloud/infra changes | devops |
+| Stacked PRs, rulesets, merge queue, PR cut plan | github |
 | Post-deploy | monitor |
 | Missing docs | docs |
 
@@ -66,7 +67,7 @@ The orchestrator stops the loop when ALL are true:
 | Verifier test failures | implementer |
 | Reviewer critical findings | implementer |
 | Security critical findings | implementer |
-| QA acceptance failures | implementer (or product-spec if spec is wrong) |
+| QA acceptance failures | implementer (or product-spec if spec/flows are wrong) |
 | CI failures in PR scope | implementer |
 | CI failures unrelated to PR | integrator (merge base first) |
 | Flaky/unclear failures | debugger → implementer |

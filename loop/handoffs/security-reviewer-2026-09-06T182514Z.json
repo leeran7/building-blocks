@@ -1,0 +1,131 @@
+{
+  "agent": "security-reviewer",
+  "status": "success",
+  "summary": "Share-immediate security review: 0 critical. No video upload; share remains user-initiated (Export/Share click starts async startExport → await encode → deliverExportFile/shareVideoFile; onstop File-only); secret scan clean; AbortError → aborted with no UI/stack leak; WebM/MP4 MIME honesty unchanged. Free-leaderboard trust boundary still open/out of scope.",
+  "timestamp": "2026-09-06T18:25:14Z",
+  "goal": "Skip download prompt when Web Share files is available; open native share as primary path after export (fallback Share button if gesture expired)",
+  "artifacts": [
+    "loop/handoffs/security-reviewer-2026-09-06T182514Z.json",
+    "app/src/game/exportDelivery.ts",
+    "app/src/game/shareVideoFile.ts",
+    "app/src/components/Game/useReplayExport.ts",
+    "app/src/components/Game/ReplayTransportBar.tsx"
+  ],
+  "exitCriteria": {
+    "secret_scan_clean": true,
+    "no_video_upload_to_product_apis": true,
+    "share_user_initiated_click_async_chain": true,
+    "onstop_file_only_no_share": true,
+    "abort_error_quiet": true,
+    "mime_honest_unchanged": true,
+    "filename_injection_safe": true,
+    "climb_result_leaderboard_untouched": true,
+    "no_critical_security_findings": true
+  },
+  "feedback": [],
+  "findings": [
+    {
+      "severity": "info",
+      "owasp": "A01",
+      "location": "app/src/game/exportDelivery.ts; app/src/game/shareVideoFile.ts; app/src/components/Game/useReplayExport.ts; app/src/components/Game/ReplayTransportBar.tsx",
+      "issue": "No upload: share-immediate path has zero fetch/XHR/sendBeacon/WebSocket/FormData/upload. deliverExportFile only calls injectable share or download; downloadBlob is createObjectURL + <a download>; shareVideoFile calls navigator.share with local File. Delta touches no app/app/api, db, prisma, or middleware.",
+      "reproduction": "rg fetch|XMLHttpRequest|sendBeacon|WebSocket|FormData|upload|/api/ across exportDelivery, shareVideoFile, useReplayExport, ReplayTransportBar, exportMime — empty. git diff 7fab500..HEAD --name-only -- app/app/api app/src/db app/prisma app/middleware.ts — empty.",
+      "fix": "None. Keep share client-only File → OS sheet."
+    },
+    {
+      "severity": "info",
+      "owasp": "A01",
+      "location": "app/src/components/Game/useReplayExport.ts:193-291; ClimbScene.tsx:531,578; ReplayTransportBar.tsx:248-250,303-321",
+      "issue": "Share still user-initiated: MediaRecorder.onstop only resolves File (no share/download). shareVideoFile runs after await encodePromise inside startExport, which is started only from Export/Share click (void startExport()). Retry Share remains onClick-only. Mount probeExportControlLabel uses canShare only (empty File) — never share(). No useEffect invokes share.",
+      "reproduction": "Inspect encodePromise onstop → resolve(file); startExport awaits then deliverExportFile; rg navigator.share callers — shareVideoFile defaults + deliverExportFile/Share onClick only. Verifier asyncChainInspection matches.",
+      "fix": "None. Do not treat Export-click async share as drive-by; activation loss → NotAllowed/abort leaves Share retry (AC-SI-3)."
+    },
+    {
+      "severity": "info",
+      "owasp": null,
+      "location": "git diff 7fab500..HEAD (share-immediate product + tests)",
+      "issue": "Secret scan clean: no api keys, INTERNAL_TOKEN, Stripe secrets, or private key material in delta. No package.json / lockfile changes. pnpm audit highs are pre-existing (undici via firebase/blob, etc.) — out of scope.",
+      "reproduction": "git diff 7fab500..HEAD -G '(api[_-]?key|secret|password|Bearer |sk_live|INTERNAL_TOKEN|BEGIN .*PRIVATE)' — empty; package/lock untouched.",
+      "fix": "None for this feature."
+    },
+    {
+      "severity": "info",
+      "owasp": "A04",
+      "location": "app/src/game/shareVideoFile.ts:69-77,94-100; useReplayExport.ts:284-291; ReplayTransportBar.tsx:315-317",
+      "issue": "AbortError quiet: isAbortError maps err.name === 'AbortError' → { reason: 'aborted' } with no message field and no err.stack. Auto-share abort sets shared undefined and keeps success+Share without setShareError. Share-button abort returns quietly (AC-NS-5). Non-abort uses Error.message only into React text child.",
+      "reproduction": "shareVideoFile.test.ts AbortError → aborted; deliverExportFile aborted fixture no download; bar aborted branch no setShareError; rg .stack|dangerouslySetInnerHTML on share modules — empty.",
+      "fix": "None required."
+    },
+    {
+      "severity": "info",
+      "owasp": "A03",
+      "location": "app/src/components/Game/useReplayExport.ts:216-224,539-542; app/src/game/exportMime.ts; shareVideoFile.ts",
+      "issue": "MIME honesty unchanged (AC-SI-5 / AC-NS-8): File.type from containerMimeForLabel(MP4|WebM) → video/mp4|video/webm only; pickExportMime never labels WebM as MP4; canShare/share probe uses assembled File.type. Filename still allow-listed climb-${Math.round(peakY)}m-${yyyyMMdd}.${mp4|webm}. Share title = file.name.",
+      "reproduction": "exportMime + shareVideoFile WebM tests; containerMimeForLabel branch; filename composition in startExport.",
+      "fix": "None."
+    },
+    {
+      "severity": "info",
+      "owasp": "A01",
+      "location": "app/src/components/Game/ClimbScene.tsx:240; git diff 7fab500..HEAD -- app/app/api app/src/db",
+      "issue": "Trust boundary #1 untouched: postRun still gated `if (!finished || posted || replaying) return`. Share-immediate adds no score writes. Free-leaderboard open question remains out of scope.",
+      "reproduction": "ClimbScene finished effect retains replaying early-return; no API/db diffs in share-immediate commits.",
+      "fix": "None for this feature. Do not mark free-leaderboard F-1 closed."
+    }
+  ],
+  "learnings": [
+    {
+      "topic": "Security",
+      "forAgents": ["all", "qa-acceptance", "reviewer"],
+      "kind": "metric",
+      "insight": "Share-immediate security review: 0 critical, 0 warning, 6 info. Confirmed no upload; click→await encode→share chain (onstop File-only); secrets clean; AbortError quiet; MIME-honest container types; climb/result untouched.",
+      "action": "Proceed to qa-acceptance; do not loopBack to implementer for security.",
+      "confidence": "high"
+    },
+    {
+      "topic": "Security",
+      "forAgents": ["security-reviewer", "implementer", "frontend"],
+      "kind": "pattern",
+      "insight": "Share-first after async MediaRecorder is still a user-initiated trust boundary when: (1) click starts the async function, (2) onstop only resolves File, (3) share/download run after await in that same function or a later Share click, (4) AbortError maps to reason enum without message/stack, (5) no network upload of bytes.",
+      "action": "When reviewing share-immediate deltas, verify onstop File-only + deliverExportFile after await encodePromise; reject fire-and-forget share from onstop; keep no-fetch grep.",
+      "confidence": "high"
+    },
+    {
+      "topic": "Security",
+      "forAgents": ["security-reviewer", "product-spec", "architect"],
+      "kind": "exception",
+      "insight": "Free-leaderboard trust-boundary ping remains open and out of scope for share-immediate; this delta adds no server upload and no new score writes.",
+      "action": "Do not mark F-1 / free-leaderboard AC closed when reviewing share-immediate. Confirm share path stays client-only File to OS sheet.",
+      "confidence": "high"
+    }
+  ],
+  "nextStage": "qa-acceptance",
+  "loopBackTo": null,
+  "notes": {
+    "branch": "cursor/share-immediate-b391",
+    "commit": "7afef57",
+    "priorHandoff": "loop/handoffs/verifier-2026-09-06T182254Z.json",
+    "spec": "loop/spec-share-immediate.md",
+    "appliedLearnings": [
+      "Verifier ping: review AC-SI-3 against startExport await order, not superseded onstop-share",
+      "Implementer ping: onstop File-only; deliverExportFile after await encodePromise",
+      "Did not close free-leaderboard trust boundary",
+      "Confirmed no-network export/share by absence of fetch/upload",
+      "Verified AbortError → aborted without message; auto-share abort does not setShareError",
+      "MIME honesty via containerMimeForLabel + existing AC-NS-8 tests"
+    ],
+    "reconfirm": {
+      "noVideoUpload": true,
+      "shareUserInitiatedClickAsyncChain": true,
+      "onstopFileOnly": true,
+      "filenameSafe": true,
+      "noNewSecrets": true,
+      "abortErrorQuiet": true,
+      "mimeHonest": true
+    },
+    "criticalCount": 0,
+    "warningCount": 0,
+    "infoCount": 6,
+    "pnpmAudit": "pre-existing highs (undici via firebase/@vercel/blob); no lockfile change in this delta — out of scope"
+  }
+}

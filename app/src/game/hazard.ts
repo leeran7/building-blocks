@@ -86,7 +86,7 @@ export const DEFAULT_HAZARD_CONFIG: HazardConfig = {
 };
 
 /** Lead (metres above lava) at which the lava clock starts catching up. */
-export const HAZARD_CATCHUP_LEAD_M = 200;
+export const HAZARD_CATCHUP_LEAD_M = 250;
 
 /** Clock multiplier while the lead climber is farther than the catch-up lead. */
 export const HAZARD_CATCHUP_TIME_SCALE = 1.25;

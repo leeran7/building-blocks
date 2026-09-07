@@ -20,7 +20,7 @@ const KEYBOARD_CONTROLS = [
   {
     label: "Move",
     keys: ["←", "→", "A", "D"],
-    detail: "Walk left and right on platforms",
+    detail: "Walk left and right — edges wrap to the other side",
   },
   {
     label: "Jump",

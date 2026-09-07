@@ -7,6 +7,7 @@
  */
 
 import Link from "next/link";
+import { FREE_LEADERBOARD_HEADING_CLASS } from "../../design/climbFeelTokens";
 import { topFreeClimbers } from "../../db/climb";
 import { ALTITUDE_UNIT } from "../../lib/units";
 
@@ -17,10 +18,18 @@ export async function FreeLeaderboard() {
     <section
       id="free"
       aria-label="Free climb leaderboard"
-      className="scroll-mt-20 py-20 px-4 border-t border-border-subtle bg-surface/30"
+      data-climb-chrome
+      className="relative scroll-mt-20 py-20 px-4 border-t border-border-subtle bg-surface/30"
     >
-      <div className="max-w-3xl mx-auto">
-        <div className="flex items-end justify-between gap-4 mb-8">
+      <div
+        className="ground-gradient animate-climbGroundRise pointer-events-none absolute inset-x-0 bottom-0 h-20 opacity-35"
+        aria-hidden="true"
+      />
+      <div className="relative z-10 max-w-3xl mx-auto">
+        <div
+          className="climb-reveal flex items-end justify-between gap-4 mb-8"
+          style={{ animationDelay: "0ms" }}
+        >
           <div>
             <span className="inline-flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.2em] text-text-muted">
               <span className="rounded-full border border-border-strong px-2 py-0.5 text-[10px] text-text-secondary">
@@ -28,10 +37,10 @@ export async function FreeLeaderboard() {
               </span>
               warm-up game · separate stack
             </span>
-            <h2 className="font-display text-2xl md:text-3xl text-text-secondary mt-3">
+            <h2 className={FREE_LEADERBOARD_HEADING_CLASS}>
               Top climbers
             </h2>
-            <p className="text-sm text-text-muted mt-2 max-w-lg">
+            <p className="text-sm text-text-secondary mt-2 max-w-lg">
               No stakes, no payout — one endless climb for practice and bragging
               rights. Best peak height is your rank.{" "}
               <Link href="/play" className="text-text-secondary underline underline-offset-4 hover:text-signal">
@@ -48,7 +57,10 @@ export async function FreeLeaderboard() {
         </div>
 
         {climbers.length === 0 ? (
-          <div className="relative overflow-hidden rounded-2xl border border-border-strong bg-surface p-10 text-center">
+          <div
+            className="climb-reveal relative overflow-hidden rounded-2xl border border-border-strong bg-surface p-10 text-center"
+            style={{ animationDelay: "90ms" }}
+          >
             <div className="pointer-events-none absolute inset-0 survey-grid opacity-50" />
             <p className="relative font-mono text-[11px] uppercase tracking-[0.2em] text-text-muted">
               [ no climbers yet ]
@@ -61,7 +73,11 @@ export async function FreeLeaderboard() {
             </p>
           </div>
         ) : (
-          <ol className="flex flex-col gap-1.5" aria-label="Free climb leaderboard">
+          <ol
+            className="climb-reveal flex flex-col gap-1.5"
+            style={{ animationDelay: "90ms" }}
+            aria-label="Free climb leaderboard"
+          >
             {climbers.map((c) => {
               const first = c.rank === 1;
               return (

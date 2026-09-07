@@ -87,6 +87,28 @@ describe("motion: walk, jump, land, and fall off edges", () => {
     expect(p.y).toBe(0);
   });
 
+  it("wraps from the right edge onto the left side (and vice versa)", () => {
+    const m = climbingMatch("solo", ["p1"]);
+    const p = m.players[0];
+    const w = m.tower.widthM;
+
+    // Sit just inside the right rim and walk right → appear on the left.
+    p.x = w - 0.2;
+    p.vx = 0;
+    stepMatch(m, { p1: move(1) }, SLOW);
+    expect(p.x).toBeLessThan(w * 0.5);
+    expect(p.x).toBeGreaterThanOrEqual(0);
+    expect(p.onGround).toBe(true);
+
+    // Sit just inside the left rim and walk left → appear on the right.
+    p.x = 0.2;
+    p.vx = 0;
+    stepMatch(m, { p1: move(-1) }, SLOW);
+    expect(p.x).toBeGreaterThan(w * 0.5);
+    expect(p.x).toBeLessThan(w);
+    expect(p.onGround).toBe(true);
+  });
+
   it("jumps off the ground and lands back on the platform", () => {
     const m = climbingMatch("solo", ["p1"]);
     const p = m.players[0];
@@ -325,8 +347,15 @@ describe("endless completability: a greedy bot climbs far up a generated tower",
     if (Math.abs(dx) <= tower.ladderGrabRadius * 0.5) return UP;
     const dir: -1 | 0 | 1 = dx > 0 ? 1 : -1;
     const probe = p.x + dir * 3.5;
+    const probeWrapped =
+      ((probe % tower.widthM) + tower.widthM) % tower.widthM;
+    const probeForFloor =
+      probe < 0 || probe > tower.widthM ? probeWrapped : probe;
     const ahead = platformsNearY(tower, p.y, p.y).some(
-      (pl) => probe >= pl.x0 && probe <= pl.x1 && Math.abs(pl.y - p.y) <= 0.05
+      (pl) =>
+        probeForFloor >= pl.x0 &&
+        probeForFloor <= pl.x1 &&
+        Math.abs(pl.y - p.y) <= 0.05
     );
     const crate = obstacleAhead(tower, p.x, p.y, dir);
     return {
@@ -432,7 +461,7 @@ describe("regression: a climber can move from the base; idling loses", () => {
 });
 
 describe("hazard catch-up: lava closes a large lead", () => {
-  it("rises faster when the climber is over 200m ahead than when they are close", () => {
+  it("rises faster when the climber is over 250m ahead than when they are close", () => {
     const sampleTicks = 4 * TICK_HZ;
     const far = riseWhileHeld(HAZARD_CATCHUP_LEAD_M + 1, sampleTicks);
     const near = riseWhileHeld(50, sampleTicks);
@@ -443,7 +472,7 @@ describe("hazard catch-up: lava closes a large lead", () => {
     expect(far.banked).toBeLessThan(0);
   });
 
-  it("slows back to the normal clock once the lead is within 200m again", () => {
+  it("slows back to the normal clock once the lead is within 250m again", () => {
     const sampleTicks = 4 * TICK_HZ;
     const m = climbingMatch("solo", ["p1"]);
     silenceOrbs(m);

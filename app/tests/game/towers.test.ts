@@ -97,12 +97,50 @@ describe("per-floor geometry", () => {
     const reach = horizontalJumpReach(t);
     for (let i = 1; i < 300; i++) {
       const ps = platformsForFloor(t, i);
-      if (ps.length === 2) {
-        const gap = ps[1].x0 - ps[0].x1;
+      expect(ps.length).toBeGreaterThanOrEqual(1);
+      expect(ps.length).toBeLessThanOrEqual(4); // at most 3 gaps
+      for (let k = 1; k < ps.length; k++) {
+        const gap = ps[k]!.x0 - ps[k - 1]!.x1;
         expect(gap).toBeGreaterThan(0);
         expect(gap).toBeLessThan(reach);
       }
     }
+  });
+
+  it("carves 1–3 gaps on floors so the traverse is not a single slab", () => {
+    let one = 0;
+    let two = 0;
+    let three = 0;
+    for (let i = 1; i < 300; i++) {
+      const gaps = platformsForFloor(t, i).length - 1;
+      if (gaps === 1) one += 1;
+      if (gaps === 2) two += 1;
+      if (gaps === 3) three += 1;
+    }
+    expect(one).toBeGreaterThan(20);
+    expect(two).toBeGreaterThan(20);
+    expect(three).toBeGreaterThan(20);
+  });
+
+  it("makes immediate back-to-back multi-gap floors uncommon", () => {
+    // Across several run seeds so one unlucky layout cannot pass.
+    let multi = 0;
+    let consecutiveMulti = 0;
+    for (const seed of ["a", "b", "c", "d", "e", "f", "g", "h"]) {
+      const tower = buildTower("indie-games", { runSeed: seed });
+      let prevMulti = false;
+      for (let i = 1; i < 200; i++) {
+        const gaps = platformsForFloor(tower, i).length - 1;
+        const isMulti = gaps >= 2;
+        if (isMulti) multi += 1;
+        if (isMulti && prevMulti) consecutiveMulti += 1;
+        prevMulti = isMulti;
+      }
+    }
+    expect(multi).toBeGreaterThan(80);
+    // Before the cooldown, ~85% of multi floors followed another multi floor.
+    // Keep immediate doubles well under half of all multi-gap floors.
+    expect(consecutiveMulti / multi).toBeLessThan(0.45);
   });
 
   it("gives most floors more than one route up", () => {
@@ -163,19 +201,23 @@ describe("per-floor geometry", () => {
     }
   });
 
-  it("never carves the gap under a ladder, in or out", () => {
+  it("never carves a gap under a ladder, in or out", () => {
     for (let i = 1; i < 300; i++) {
       const ps = platformsForFloor(t, i);
-      if (ps.length !== 2) continue;
-      const g0 = ps[0].x1;
-      const g1 = ps[1].x0;
       const anchors = [...laddersForFloor(t, i), ...laddersForFloor(t, i - 1)];
       for (const l of anchors) {
         const standable = ps.some((p) => l.x >= p.x0 && l.x <= p.x1);
         expect(standable).toBe(true);
-        // And with room to stand beside the rungs, not on the lip of the gap.
-        const clear = l.x <= g0 - t.ladderGrabRadius || l.x >= g1 + t.ladderGrabRadius;
-        expect(clear).toBe(true);
+      }
+      for (let k = 1; k < ps.length; k++) {
+        const g0 = ps[k - 1]!.x1;
+        const g1 = ps[k]!.x0;
+        for (const l of anchors) {
+          // Room to stand beside the rungs, not on the lip of a gap.
+          const clear =
+            l.x <= g0 - t.ladderGrabRadius || l.x >= g1 + t.ladderGrabRadius;
+          expect(clear).toBe(true);
+        }
       }
     }
   });
@@ -183,7 +225,10 @@ describe("per-floor geometry", () => {
   it("gets harder with altitude: higher floors have wider gaps on average", () => {
     const gapAt = (i: number) => {
       const ps = platformsForFloor(t, i);
-      return ps.length === 2 ? ps[1].x0 - ps[0].x1 : 0;
+      if (ps.length < 2) return 0;
+      let sum = 0;
+      for (let k = 1; k < ps.length; k++) sum += ps[k]!.x0 - ps[k - 1]!.x1;
+      return sum / (ps.length - 1);
     };
     const low = avgGap(t, 1, 10, gapAt);
     const high = avgGap(t, 60, 90, gapAt);

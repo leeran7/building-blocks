@@ -1,0 +1,63 @@
+{
+  "agent": "implementer",
+  "status": "success",
+  "summary": "Share-first export delivery: when canShareVideoFile is true, onstop skips downloadBlob, sets delivery:\"share\", and fire-and-forgets shareVideoFile (activation loss quiet; Share retry remains). Desktop canShare=false keeps download + delivery:\"download\". Success chrome/aria-live uses Ready to share {label} vs Downloaded {label} via exportSuccessLabel. Pure resolveExportDelivery unit-tested (no source greps).",
+  "timestamp": "2026-09-06T18:16:59Z",
+  "goal": "Simplify climb replay export delivery — use native share immediately instead of download-then-share",
+  "artifacts": [
+    "app/src/game/exportDelivery.ts",
+    "app/tests/game/exportDelivery.test.ts",
+    "app/src/components/Game/useReplayExport.ts",
+    "app/src/components/Game/ReplayTransportBar.tsx",
+    "loop/spec-share-immediate.md",
+    "loop/handoffs/product-spec-2026-09-06T181500Z.json"
+  ],
+  "exitCriteria": {
+    "resolveExportDelivery_helper": true,
+    "delivery_tests_invoke_units": true,
+    "share_skips_download": true,
+    "download_when_cannot_share": true,
+    "auto_share_attempt_on_onstop": true,
+    "success_copy_ready_to_share": true,
+    "share_button_retry_retained": true,
+    "mime_honesty_unchanged": true,
+    "unit_tests_pass": true,
+    "typecheck_pass": true
+  },
+  "feedback": [],
+  "learnings": [
+    {
+      "topic": "Architecture & contracts",
+      "forAgents": ["verifier", "security-reviewer", "frontend"],
+      "kind": "lesson",
+      "insight": "Product intentionally overrides ADR-NS-1 for share-capable devices: onstop may call shareVideoFile once knowing NotAllowedError is common after async encode; download is gated behind !canShare; Share button remains the reliable gesture path.",
+      "action": "Verify AC-SI-1…3 via resolveExportDelivery(true|false) outputs and that useReplayExport only calls downloadBlob when choice.download; do not fail review solely because share() is invoked from onstop when canShare.",
+      "confidence": "high"
+    },
+    {
+      "topic": "Testing",
+      "forAgents": ["verifier", "qa-acceptance"],
+      "kind": "metric",
+      "insight": "Share-immediate implementer: 14 production-invoking unit tests green (exportDelivery 5 + shareVideoFile 9); pnpm typecheck clean. Zero new dependencies or HTTP endpoints.",
+      "action": "Map AC-SI-1/2/3 to resolveExportDelivery; AC-SI success copy to exportSuccessLabel; residual: onstop auto-share NotAllowed + Share retry in browser/QA.",
+      "confidence": "high"
+    }
+  ],
+  "nextStage": "verifier",
+  "notes": {
+    "branch": "cursor/share-immediate-b391",
+    "priorHandoff": "loop/handoffs/product-spec-2026-09-06T181500Z.json",
+    "spec": "loop/spec-share-immediate.md",
+    "appliedLearnings": [
+      "Gate downloadBlob behind !canShareVideoFile; attempt share on share-capable success; Ready to share copy (product-spec)",
+      "Invoke production units in tests — no source greps (standing rule)",
+      "Auto-share after async encode often lacks activation — expected; Share retry is product intent"
+    ]
+  },
+  "testResults": {
+    "command": "pnpm exec vitest run tests/game/shareVideoFile.test.ts tests/game/exportDelivery.test.ts && pnpm typecheck",
+    "passed": 14,
+    "failed": 0,
+    "typecheck": "pass"
+  }
+}

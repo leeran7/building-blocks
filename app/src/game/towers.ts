@@ -4,18 +4,17 @@
  * The tower has NO summit: it climbs forever and gets harder with altitude. It
  * acts as a leaderboard — your peak height is your score. Geometry is generated
  * DETERMINISTICALLY PER FLOOR from (seed, floorIndex): floor i is a solid
- * platform (with a jumpable gap on higher floors) at a seeded height, joined to
- * floor i+1 by ONE OR TWO ladders at seeded x positions — giving route choice
- * without overcrowding. The category slug picks physics; a per-run seed
- * (applyRunSeed) is what makes each game a different layout. Same (slug, runSeed)
- * still replays exactly (AC-11).
+ * platform (with 1–3 jumpable gaps on higher floors) at a seeded height, joined
+ * to floor i+1 by ONE OR TWO ladders at seeded x positions — giving route choice
+ * without overcrowding. Multi-gap floors are dampened after another multi-gap
+ * floor so back-to-back doubles stay uncommon. The category slug picks physics;
+ * a per-run seed (applyRunSeed) is what makes each game a different layout.
+ * Same (slug, runSeed) still replays exactly (AC-11).
  *
- * Difficulty scales with altitude: the gap you must jump on each floor widens
- * toward the physical jump limit, ladders shift further sideways, and crates
- * show up on most floors — jump-over hurdles on the traverse and stacked stairs
- * to the next slab. Because gaps, hurdles, and stair steps stay within jump
- * reach, every floor remains solvable. Ladders offset from the floors below so
- * they do not stack into a single column.
+ * Difficulty scales with altitude: gaps widen toward the physical jump limit
+ * (never past it — every floor stays passable), ladders shift sideways, and
+ * crates show up on most floors. Ladders offset from the floors below so they
+ * do not stack into a single column.
  */
 
 import { TowerSpec, Platform, Ladder } from "./types";
@@ -413,10 +412,68 @@ function gapWidthForFloor(tower: TowerSpec, i: number): number {
   const reach = horizontalJumpReach(tower);
   const d = Math.min(1, i / DIFFICULTY_FLOORS);
   const frac = 0.34 + (0.6 - 0.34) * d; // 34% → 60% of jump reach
-  return reach * frac;
+  // Stay under reach with a margin so float error never bricks a floor.
+  return Math.min(reach * frac, reach * 0.92);
 }
 
-/** Solid platform pieces making up floor i (1 piece, or 2 around a gap). */
+/** Standable pad between gaps so landings stay usable. */
+const MIN_LANDING_M = 3.5;
+/** Keep gaps off the absolute tower walls. */
+const PLATFORM_EDGE_M = 1.2;
+/** Max jumpable holes carved into one floor. */
+const MAX_GAPS_PER_FLOOR = 3;
+
+/**
+ * Multi-gap desire: base chance for 2 / 3 gaps, ramping with altitude.
+ * Kept moderate so single-gap floors stay common early.
+ */
+const TWO_GAP_BASE = 0.22;
+const TWO_GAP_RAMP = 0.28;
+const THREE_GAP_BASE = 0.08;
+const THREE_GAP_RAMP = 0.22;
+/**
+ * After a floor that wanted 2+ gaps, cut the next floor's multi-gap odds so
+ * back-to-back ("immediate") double gaps are rare without removing them.
+ */
+const AFTER_MULTI_GAP_FACTOR = 0.28;
+
+/**
+ * Desired gap count per floor (before corridor capacity). Grown in order so
+ * floor i can dampen after floor i−1 without recomputing platforms.
+ */
+const DESIRED_GAPS_CACHE = createSeedCache<number[]>(8, () => [0]);
+
+type GapSpan = { lo: number; hi: number };
+
+/** How many gaps floor i wants before corridor / solvability limits. */
+function desiredGapCount(tower: TowerSpec, i: number): number {
+  const cache = DESIRED_GAPS_CACHE.get(tower.seed);
+  growDesiredGapsTo(tower, cache, i);
+  return cache[i]!;
+}
+
+function growDesiredGapsTo(
+  tower: TowerSpec,
+  cache: number[],
+  floor: number
+): void {
+  for (let f = cache.length; f <= floor; f++) {
+    const rng = createRng(`${tower.seed}:pgap-n:${f}`);
+    const d = Math.min(1, f / DIFFICULTY_FLOORS);
+    let twoChance = TWO_GAP_BASE + TWO_GAP_RAMP * d;
+    let threeChance = THREE_GAP_BASE + THREE_GAP_RAMP * d;
+    if (f > 1 && cache[f - 1]! >= 2) {
+      twoChance *= AFTER_MULTI_GAP_FACTOR;
+      threeChance *= AFTER_MULTI_GAP_FACTOR;
+    }
+    let want = 1;
+    if (rng.next() < twoChance) want = 2;
+    if (rng.next() < threeChance) want = 3;
+    cache.push(want);
+  }
+}
+
+/** Solid platform pieces making up floor i (1 piece, or 2–4 around 1–3 gaps). */
 export function platformsForFloor(tower: TowerSpec, i: number): Platform[] {
   const y = floorHeight(tower, i);
   const w = tower.widthM;
@@ -424,32 +481,145 @@ export function platformsForFloor(tower: TowerSpec, i: number): Platform[] {
   if (i === 0) return [{ x0: 0, x1: w, y }];
 
   // Every ladder that touches this surface: the ones leaving it, plus the tops
-  // of the ones arriving from the floor below. The gap has to miss all of them.
-  const anchors = [...ladderXsForFloor(tower, i), ...ladderXsForFloor(tower, i - 1)].sort(
-    (a, b) => a - b
-  );
+  // of the ones arriving from the floor below. Gaps must miss all of them.
+  const anchors = uniqueSorted([
+    ...ladderXsForFloor(tower, i),
+    ...ladderXsForFloor(tower, i - 1),
+  ]);
   const clearance = tower.ladderGrabRadius + 2;
   const gapW = gapWidthForFloor(tower, i);
+  const solid: Platform[] = [{ x0: 0, x1: w, y }];
 
-  let best: [number, number] | null = null;
-  let bestRoom = 0;
+  const corridors = platformCorridors(w, anchors, clearance);
+  const proposals = proposeGaps(corridors, gapW, MIN_LANDING_M);
+  if (proposals.length === 0) return solid;
+
+  const rng = createRng(`${tower.seed}:pgap:${i}`);
+  const maxWant = Math.min(MAX_GAPS_PER_FLOOR, proposals.length);
+  const want = Math.min(desiredGapCount(tower, i), maxWant);
+
+  // Try want, then fewer — never ship a floor that traps a ladder in a hole.
+  for (let n = want; n >= 1; n--) {
+    const chosen = pickGaps(proposals, n, rng);
+    const pieces = carveGaps(w, y, chosen);
+    if (pieces.length === 0) continue;
+    if (!laddersStandable(pieces, anchors, clearance)) continue;
+    if (!gapsAllPassable(pieces, horizontalJumpReach(tower))) continue;
+    return pieces;
+  }
+  return solid;
+}
+
+/** Corridors clear of ladder keep-outs where a gap may be carved. */
+function platformCorridors(
+  widthM: number,
+  anchors: number[],
+  clear: number
+): GapSpan[] {
+  if (anchors.length === 0) {
+    return [{ lo: PLATFORM_EDGE_M, hi: widthM - PLATFORM_EDGE_M }];
+  }
+  const out: GapSpan[] = [];
+  const leftHi = anchors[0]! - clear;
+  if (leftHi - PLATFORM_EDGE_M >= MIN_LANDING_M) {
+    out.push({ lo: PLATFORM_EDGE_M, hi: leftHi });
+  }
   for (let k = 0; k < anchors.length - 1; k++) {
-    const lo = anchors[k] + clearance;
-    const hi = anchors[k + 1] - clearance;
-    if (hi - lo > bestRoom) {
-      bestRoom = hi - lo;
-      best = [lo, hi];
+    const lo = anchors[k]! + clear;
+    const hi = anchors[k + 1]! - clear;
+    if (hi - lo >= MIN_LANDING_M) out.push({ lo, hi });
+  }
+  const rightLo = anchors[anchors.length - 1]! + clear;
+  if (widthM - PLATFORM_EDGE_M - rightLo >= MIN_LANDING_M) {
+    out.push({ lo: rightLo, hi: widthM - PLATFORM_EDGE_M });
+  }
+  return out;
+}
+
+/**
+ * Propose concrete gap intervals inside corridors. Multiple gaps in one wide
+ * corridor keep MIN_LANDING_M pads between them so each landing stays usable.
+ */
+function proposeGaps(
+  corridors: GapSpan[],
+  gapW: number,
+  minLand: number
+): GapSpan[] {
+  const props: GapSpan[] = [];
+  for (const c of corridors) {
+    const room = c.hi - c.lo;
+    if (room < gapW) continue;
+    let n = MAX_GAPS_PER_FLOOR;
+    while (n > 1 && n * gapW + (n - 1) * minLand > room) n -= 1;
+    if (n * gapW > room) continue;
+    const free = room - n * gapW;
+    const inner = n > 1 ? minLand : 0;
+    const side = (free - inner * (n - 1)) / 2;
+    if (side < 0) continue;
+    let x = c.lo + side;
+    for (let j = 0; j < n; j++) {
+      props.push({ lo: x, hi: x + gapW });
+      x += gapW + inner;
     }
   }
+  return props;
+}
 
-  if (best && bestRoom >= gapW) {
-    const mid = (best[0] + best[1]) / 2;
-    return [
-      { x0: 0, x1: mid - gapW / 2, y },
-      { x0: mid + gapW / 2, x1: w, y },
-    ];
+/** Pick up to `n` non-overlapping proposals (seeded shuffle). */
+function pickGaps(
+  proposals: GapSpan[],
+  n: number,
+  rng: { next(): number }
+): GapSpan[] {
+  const order = proposals.map((_, i) => i);
+  for (let i = order.length - 1; i > 0; i--) {
+    const j = Math.floor(rng.next() * (i + 1));
+    const tmp = order[i]!;
+    order[i] = order[j]!;
+    order[j] = tmp;
   }
-  return [{ x0: 0, x1: w, y }];
+  const chosen: GapSpan[] = [];
+  for (const ix of order) {
+    if (chosen.length >= n) break;
+    const g = proposals[ix]!;
+    if (chosen.some((c) => !(g.hi <= c.lo || g.lo >= c.hi))) continue;
+    chosen.push(g);
+  }
+  return chosen.sort((a, b) => a.lo - b.lo);
+}
+
+function carveGaps(widthM: number, y: number, gaps: GapSpan[]): Platform[] {
+  const pieces: Platform[] = [];
+  let cursor = 0;
+  for (const g of gaps) {
+    if (g.lo > cursor + 0.05) pieces.push({ x0: cursor, x1: g.lo, y });
+    cursor = g.hi;
+  }
+  if (cursor < widthM - 0.05) pieces.push({ x0: cursor, x1: widthM, y });
+  return pieces.filter((p) => p.x1 - p.x0 > 0.5);
+}
+
+function laddersStandable(
+  pieces: Platform[],
+  anchors: number[],
+  clear: number
+): boolean {
+  const pad = Math.min(clear * 0.5, 1.5);
+  return anchors.every((ax) =>
+    pieces.some((p) => ax >= p.x0 + pad && ax <= p.x1 - pad)
+  );
+}
+
+function gapsAllPassable(pieces: Platform[], reach: number): boolean {
+  for (let k = 1; k < pieces.length; k++) {
+    const gap = pieces[k]!.x0 - pieces[k - 1]!.x1;
+    if (!(gap > 0) || gap >= reach) return false;
+  }
+  return true;
+}
+
+function uniqueSorted(xs: number[]): number[] {
+  return [...new Set(xs)].sort((a, b) => a - b);
 }
 
 /** Platforms whose surfaces lie within [yLow, yHigh] (a generation window). */
