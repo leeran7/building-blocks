@@ -19,7 +19,9 @@
  *   Authorization: Bearer <firebase-id-token>
  *
  * Response 200:
- *   { user: { id, email }, blocks: EnrichedBlock[] }
+ *   { user: { id, email, username }, blocks: EnrichedBlock[],
+ *     freeClimb: FreeClimbData | null, replays: ClimbReplayItem[],
+ *     duelStats: DuelStats | null }
  *
  * Error responses: { error: string, code: string }
  */
@@ -29,6 +31,7 @@ import { requireAuth, AuthError } from "../../../src/lib/requireAuth";
 import { prisma } from "../../../src/db/client";
 import { getAllActiveSeasons } from "../../../src/db/seasons";
 import { getUserFreeClimbRecord, getUserClimbReplays } from "../../../src/db/climb";
+import { getDuelStats } from "../../../src/db/duel";
 import {
   computeGround,
   isBuried,
@@ -91,15 +94,17 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     });
 
     if (userBlocks.length === 0) {
-      const [freeClimb, replays] = await Promise.all([
+      const [freeClimb, replays, duelStats] = await Promise.all([
         getUserFreeClimbRecord(decoded.uid).catch(() => null),
         getUserClimbReplays(decoded.uid).catch(() => []),
+        getDuelStats(decoded.uid).catch(() => null),
       ]);
       return NextResponse.json({
         user: { id: decoded.uid, email: decoded.email ?? "", username },
         blocks: [],
         freeClimb,
         replays,
+        duelStats,
       });
     }
 
@@ -220,16 +225,18 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       })
     );
 
-    const [freeClimb, replays] = await Promise.all([
+    const [freeClimb, replays, duelStats] = await Promise.all([
       getUserFreeClimbRecord(decoded.uid).catch(() => null),
       getUserClimbReplays(decoded.uid).catch(() => []),
+      getDuelStats(decoded.uid).catch(() => null),
     ]);
 
     return NextResponse.json({
-      user: { id: decoded.uid, email: decoded.email ?? "" },
+      user: { id: decoded.uid, email: decoded.email ?? "", username },
       blocks: enrichedBlocks,
       freeClimb,
       replays,
+      duelStats,
     });
   } catch (error) {
     console.error("[GET /api/dashboard]", error);

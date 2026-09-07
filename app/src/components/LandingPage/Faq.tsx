@@ -69,6 +69,14 @@ export function buildFaqs(minEntryUsd: number, minSpendUsd: number): QA[] {
       a: "The free climb at /climb is skill-based with one global leaderboard — no payment. Paid stacks are money-ranked per category: you buy altitude, survive burial, and compete for visibility on the tower. You can play free without an account; paid top-ups work without signing in, but submitting a new block requires auth.",
     },
     {
+      q: "How do 1v1 duels work?",
+      a: "In a 1v1 duel you and your opponent race the same tower at the same time while the lava rises from below. The first climber the lava catches loses; if you're both caught on the same tick, the higher peak wins. Duels are free and skill-only, separate from paid stacks — start one at /duel.",
+    },
+    {
+      q: "Do I need an account to play a 1v1 duel?",
+      a: "No — you can open a challenge link and play as a guest. Your win-loss record is only saved when you're signed in, so sign in first if you want the duel to count toward your record.",
+    },
+    {
       q: "Do I need an account?",
       a: "The free climb is playable without an account — sign in to save your peak height and appear on the free leaderboard. For paid stacks, you can top up any existing block without an account. Sign in to submit a new block and track rank, burial risk, and competitor cost on your dashboard.",
     },
