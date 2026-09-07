@@ -46,6 +46,7 @@ import {
   laddersForFloor,
   floorIndexAt,
   floorHeight,
+  buildTower,
 } from "./towers";
 import {
   grantPowerUp,
@@ -104,6 +105,7 @@ export function spawnPlayer(id: PlayerId, slot: number): PlayerState {
     ladderSlot: null,
     status: "climbing",
     peakY: 0,
+    peakTick: null,
     finishedTick: null,
     cheatViolations: 0,
     cheatFlagged: false,
@@ -144,6 +146,7 @@ export function createMatch(params: {
     tower,
     players,
     winnerId: null,
+    tiebreakRule: null,
     powerUps: [],
     powerUpFloorHi: 0,
   };
@@ -395,7 +398,7 @@ function integratePlayer(
   }
 
   // Permanent peak-height record ethos (AC-8, AC-30/AC-31).
-  if (p.y > p.peakY) p.peakY = p.y;
+  if (p.y > p.peakY) { p.peakY = p.y; p.peakTick = tick; }
 }
 
 /**
@@ -520,6 +523,8 @@ export function stepMatch(
  * Decide the winner deterministically (AC-2, AC-3):
  *   - winner = first finisher by earliest finishedTick,
  *   - ties on the same tick broken by lowest slot id.
+ * In multiplayer mode, the last survivor wins; a double-KO resolves by
+ * peakY DESC → peakTick ASC → slot ASC.
  * Match ends when someone finishes, or when nobody can still climb.
  */
 function resolveOutcome(state: MatchState): void {
@@ -538,8 +543,52 @@ function resolveOutcome(state: MatchState): void {
     return;
   }
 
-  // No finisher yet — if nobody can still climb, the match is over (solo caught,
-  // or all multiplayer players eliminated).
+  // Multiplayer last-survivor branch.
+  if (state.mode === "multiplayer") {
+    const eliminated = state.players.filter((p) => p.status === "eliminated");
+    if (eliminated.length === 0) return; // nobody out yet
+
+    const stillClimbing = state.players.filter((p) => p.status === "climbing");
+    if (stillClimbing.length >= 1) {
+      // At least one survivor — that player wins.
+      // Prefer the highest climber if several remain; fall back to slot.
+      const winner = stillClimbing.sort((a, b) => {
+        if (b.peakY !== a.peakY) return b.peakY - a.peakY;
+        return a.slot - b.slot;
+      })[0];
+      state.winnerId = winner.id;
+      state.phase = "finished";
+      return;
+    }
+
+    // Double-KO: all eliminated. Resolve by peak height, then tick, then slot.
+    const sorted = [...eliminated].sort((a, b) => {
+      if (b.peakY !== a.peakY) return b.peakY - a.peakY;
+      const aT = a.peakTick ?? Infinity;
+      const bT = b.peakTick ?? Infinity;
+      if (aT !== bT) return aT - bT;
+      return a.slot - b.slot;
+    });
+    const best = sorted[0];
+    state.winnerId = best.id;
+    // Determine which tiebreak rule fired.
+    const second = sorted[1];
+    if (!second || best.peakY !== second.peakY) {
+      state.tiebreakRule = "peak_y";
+    } else {
+      const bPeakTick = best.peakTick ?? Infinity;
+      const sPeakTick = second.peakTick ?? Infinity;
+      if (bPeakTick !== sPeakTick) {
+        state.tiebreakRule = "earlier_peak";
+      } else {
+        state.tiebreakRule = "slot";
+      }
+    }
+    state.phase = "finished";
+    return;
+  }
+
+  // Solo / fallback: if nobody can still climb, the match is over.
   const stillClimbing = state.players.some((p) => p.status === "climbing");
   if (!stillClimbing && state.players.length > 0) {
     state.winnerId = null;
@@ -585,4 +634,76 @@ export function simulateFromInputs(
     if (ticks >= maxTicks) break;
   }
   return state;
+}
+
+export interface DuelSimResult {
+  winnerId: PlayerId | null;
+  player1Peak: number;
+  player2Peak: number;
+  player1CheatFlagged: boolean;
+  player2CheatFlagged: boolean;
+  tiebreakRule: "peak_y" | "earlier_peak" | "slot" | null;
+  finishedTick: number | null;
+  totalTicks: number;
+}
+
+/**
+ * Deterministic duel re-simulation: replay two input logs against the same
+ * tower and return the outcome. Mirrors simulateFromInputs but is scoped to
+ * exactly two players in multiplayer mode (AC-11, AC-17).
+ */
+export function simulateDuel(
+  seed: string,
+  categorySlug: string,
+  player1Id: PlayerId,
+  player2Id: PlayerId,
+  log1: PlayerInput[],
+  log2: PlayerInput[],
+  cfg: SimConfig = DEFAULT_SIM_CONFIG
+): DuelSimResult {
+  // Build the tower from category (same pattern as the solo result route).
+  const tower = buildTower(categorySlug, { runSeed: seed });
+
+  // Create a multiplayer match with both players.
+  const state = createMatch({
+    seed,
+    mode: "multiplayer",
+    tower,
+    playerIds: [player1Id, player2Id],
+  });
+
+  // Drain the countdown (inputs locked during countdown).
+  while (state.phase === "countdown") {
+    stepMatch(state, {}, cfg);
+  }
+
+  // Step through both logs in lockstep; pad the shorter one with NO_INPUT.
+  const maxLen = Math.max(log1.length, log2.length);
+  let totalTicks = 0;
+  for (let t = 0; t < maxLen && state.phase !== "finished" && state.phase !== "results"; t++) {
+    stepMatch(
+      state,
+      {
+        [player1Id]: log1[t] ?? NO_INPUT,
+        [player2Id]: log2[t] ?? NO_INPUT,
+      },
+      cfg
+    );
+    totalTicks++;
+  }
+
+  // Extract results from final state.
+  const p1 = state.players.find((p) => p.id === player1Id);
+  const p2 = state.players.find((p) => p.id === player2Id);
+
+  return {
+    winnerId: state.winnerId,
+    player1Peak: p1?.peakY ?? 0,
+    player2Peak: p2?.peakY ?? 0,
+    player1CheatFlagged: p1?.cheatFlagged ?? false,
+    player2CheatFlagged: p2?.cheatFlagged ?? false,
+    tiebreakRule: state.tiebreakRule,
+    finishedTick: state.phase === "finished" ? state.tick : null,
+    totalTicks,
+  };
 }

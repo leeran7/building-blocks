@@ -58,7 +58,8 @@ import {
 const VOID = "#0a0a0c";
 const SURFACE = "#17161c";
 const BORDER = "#37343f";
-const ACCENT = "#cbf24d"; // signal — the climber
+const ACCENT = "#cbf24d"; // signal — the local climber
+const OPPONENT_COLOR = "#6bb8ff"; // wayfinding blue — opponent in a duel
 const PLATFORM = "#38353f";
 const PLATFORM_TOP = "#4a4656";
 const CRATE = "#2a2730";
@@ -100,6 +101,16 @@ export interface ClimbCanvasProps {
    * full-bleed stage; 0 on framed layouts.
    */
   hudInsetTop?: number;
+  /**
+   * Local player's Firebase UID — determines which sprite gets lime vs blue.
+   * When absent, slot 0 is treated as the local player.
+   */
+  myId?: string;
+  /**
+   * Display names keyed by player id — used for nameplates drawn above each
+   * climber. Falls back to "Guest" when a player id is not present.
+   */
+  playerNames?: Record<string, string>;
 }
 
 export function ClimbCanvas({
@@ -110,6 +121,8 @@ export function ClimbCanvas({
   bottomInset = 0,
   fullBleed = false,
   hudInsetTop = 0,
+  myId,
+  playerNames,
 }: ClimbCanvasProps) {
   const ref = useRef<HTMLCanvasElement>(null);
   const camYRef = useRef<number | null>(null);
@@ -145,7 +158,11 @@ export function ClimbCanvas({
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
     const tower = state.tower;
-    const player = state.players[0];
+    // Camera follows the local player (myId or slot 0).
+    const localPlayer =
+      (myId ? state.players.find((p) => p.id === myId) : null) ??
+      state.players[0];
+    const player = localPlayer; // existing code references `player`
     const playerY = player?.y ?? 0;
 
     // HUD and label sizes are authored against the 360px baseline. Scaling them
@@ -311,59 +328,123 @@ export function ClimbCanvas({
       });
     }
 
-    // Player — a little climber whose pose animates with what it's doing.
-    const px = sx(player?.x ?? 0);
-    const pyScreen = sy(playerY); // feet
-    const facing: 1 | -1 = (player?.vx ?? 0) < 0 ? -1 : 1;
-    const color =
-      player?.status === "finished"
-        ? FLAG
-        : player?.status === "eliminated"
-        ? TEXT_MUTED
-        : ACCENT;
-    let pose: Pose = "idle";
-    if (player?.status === "finished") pose = "done";
-    else if (player?.status === "eliminated") pose = "dead";
-    else if (player?.onLadder) pose = "climb";
-    else if (!player?.onGround) pose = "air";
-    else if (Math.abs(player?.vx ?? 0) > 0.1) pose = "walk";
-    // Character size is world-proportional (1.7m of the 100m-wide tower). The
-    // floor only guards against a sub-pixel figure on a tiny canvas; it was 9px,
-    // which on a phone-width canvas sat ABOVE the proportional size and so drew
-    // the climber — and doubly the Giant climber — oversized relative to the
-    // world compared with desktop. Lowered so it no longer binds on a full-bleed
-    // phone, keeping the climber (and Giant's 2×) the same relative size on every
-    // device. Desktop is unaffected: pxPerM * 1.7 is far above the floor there.
-    const s =
-      Math.max(5, pxPerM * 1.7) *
-      (player && isPowerUpActive(player, "giant", state.tick)
-        ? GIANT_VISUAL_SCALE
-        : 1);
+    // Determine which player is local for color/camera purposes.
+    const localPlayerId = myId ?? state.players[0]?.id;
 
-    // Aura for each running effect — the in-scene tell that a power-up is live,
-    // so the player never has to look away from the climber to check.
-    const live = (player?.activePowerUps ?? []).filter(
-      (a) => !isExpired(a, state.tick)
-    );
-    live.forEach((a) => {
-      drawActivePowerUpEffect(
-        ctx,
-        a.type,
-        px,
-        pyScreen,
-        s,
-        facing,
-        state.tick,
-        a,
-        player,
-        reducedMotion
-      );
-    });
+    // Draw all players — local gets signal-lime, opponents get wayfinding blue.
+    for (const p of state.players) {
+      const isLocal = p.id === localPlayerId;
+      const pxScreen = sx(p.x);
+      const pyScreen = sy(p.y); // feet
+      const pFacing: 1 | -1 = p.vx < 0 ? -1 : 1;
 
-    drawClimber(ctx, px, pyScreen, s, facing, pose, state.tick, color, reducedMotion);
-    if (player?.jetpackThrusting) {
-      drawJetpackFlame(ctx, px, pyScreen, s, state.tick, reducedMotion);
+      // Color: local stays lime; opponent is blue; both change on death/finish.
+      const baseColor = isLocal ? ACCENT : OPPONENT_COLOR;
+      const pColor =
+        p.status === "finished"
+          ? isLocal ? FLAG : OPPONENT_COLOR
+          : p.status === "eliminated"
+          ? TEXT_MUTED
+          : baseColor;
+
+      let pPose: Pose = "idle";
+      if (p.status === "finished") pPose = "done";
+      else if (p.status === "eliminated") pPose = "dead";
+      else if (p.onLadder) pPose = "climb";
+      else if (!p.onGround) pPose = "air";
+      else if (Math.abs(p.vx) > 0.1) pPose = "walk";
+
+      // Character size is world-proportional (1.7m of the 100m-wide tower).
+      const pS =
+        Math.max(5, pxPerM * 1.7) *
+        (isPowerUpActive(p, "giant", state.tick) ? GIANT_VISUAL_SCALE : 1);
+
+      // Aura for active power-ups (local player only — keeps the visual clean).
+      if (isLocal) {
+        const live = p.activePowerUps.filter((a) => !isExpired(a, state.tick));
+        live.forEach((a) => {
+          drawActivePowerUpEffect(
+            ctx,
+            a.type,
+            pxScreen,
+            pyScreen,
+            pS,
+            pFacing,
+            state.tick,
+            a,
+            p,
+            reducedMotion
+          );
+        });
+      }
+
+      drawClimber(ctx, pxScreen, pyScreen, pS, pFacing, pPose, state.tick, pColor, reducedMotion);
+
+      if (isLocal && p.jetpackThrusting) {
+        drawJetpackFlame(ctx, pxScreen, pyScreen, pS, state.tick, reducedMotion);
+      }
+
+      // Nameplate — small mono text above the sprite head.
+      const nameLabel = (playerNames ? playerNames[p.id] : null) ?? "Guest";
+      const nameFontPx = Math.round(10 * ui);
+      ctx.font = `${nameFontPx}px monospace`;
+      ctx.textAlign = "center";
+      ctx.fillStyle = isLocal ? ACCENT : OPPONENT_COLOR;
+      // Position above the head (head is ~2.4s above feet)
+      ctx.fillText(nameLabel, pxScreen, pyScreen - (2.4 * pS + 6 * ui));
+      ctx.textAlign = "left";
     }
+
+    // Off-screen indicator for non-local players (opponents).
+    // Only drawn when the opponent is outside the current camera view.
+    for (const p of state.players) {
+      if (p.id === localPlayerId) continue;
+      const opponentScreenY = sy(p.y);
+      const ARROW_SIZE = 12 * ui;
+      const EDGE_MARGIN = 16 * ui;
+
+      if (opponentScreenY < 0 || opponentScreenY > height) {
+        // Opponent is above or below the viewport
+        const isAbove = opponentScreenY < 0;
+        const arrowCenterX = width / 2;
+        const arrowCenterY = isAbove
+          ? EDGE_MARGIN + ARROW_SIZE
+          : height - EDGE_MARGIN - ARROW_SIZE;
+
+        ctx.fillStyle = OPPONENT_COLOR;
+        ctx.beginPath();
+        if (isAbove) {
+          // Triangle pointing up
+          ctx.moveTo(arrowCenterX, arrowCenterY - ARROW_SIZE);
+          ctx.lineTo(arrowCenterX - ARROW_SIZE, arrowCenterY + ARROW_SIZE * 0.5);
+          ctx.lineTo(arrowCenterX + ARROW_SIZE, arrowCenterY + ARROW_SIZE * 0.5);
+        } else {
+          // Triangle pointing down
+          ctx.moveTo(arrowCenterX, arrowCenterY + ARROW_SIZE);
+          ctx.lineTo(arrowCenterX - ARROW_SIZE, arrowCenterY - ARROW_SIZE * 0.5);
+          ctx.lineTo(arrowCenterX + ARROW_SIZE, arrowCenterY - ARROW_SIZE * 0.5);
+        }
+        ctx.closePath();
+        ctx.fill();
+
+        // Show altitude alongside the arrow
+        const altLabel = formatAltitude(p.y, 1);
+        ctx.font = `${Math.round(9 * ui)}px monospace`;
+        ctx.textAlign = "center";
+        ctx.fillStyle = OPPONENT_COLOR;
+        const altY = isAbove
+          ? arrowCenterY + ARROW_SIZE + 12 * ui
+          : arrowCenterY - ARROW_SIZE - 4 * ui;
+        ctx.fillText(altLabel, arrowCenterX, altY);
+        ctx.textAlign = "left";
+      }
+    }
+
+    // Keep the pickup-related local-player references available below.
+    const px = sx(player?.x ?? 0);
+    const pyScreen = sy(playerY); // feet (local player)
+    const s = Math.max(5, pxPerM * 1.7) *
+      (player && isPowerUpActive(player, "giant", state.tick) ? GIANT_VISUAL_SCALE : 1);
 
     // HUD panel: height + hazard line. On a full-bleed stage it is pushed down
     // by the safe-area top inset so the readout clears the notch / Dynamic
@@ -416,7 +497,7 @@ export function ClimbCanvas({
     }
 
     ctx.restore();
-  }, [state, width, height, reducedMotion, bottomInset, hudInsetTop]);
+  }, [state, width, height, reducedMotion, bottomInset, hudInsetTop, myId, playerNames]);
 
   return (
     <canvas

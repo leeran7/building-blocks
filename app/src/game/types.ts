@@ -104,6 +104,8 @@ export interface PlayerState {
   status: PlayerStatus;
   /** Permanent-record ethos: max height reached, retained on death (AC-8). */
   peakY: number;
+  /** Tick at which peakY was last updated. Set alongside peakY in integratePlayer. */
+  peakTick: number | null;
   /** Tick the run ended. Solo endless sets this on lava/fall death. */
   finishedTick: number | null;
   /**
@@ -252,6 +254,8 @@ export interface MatchState {
   players: PlayerState[];
   /** Winner player id once phase is finished/results. */
   winnerId: PlayerId | null;
+  /** Which tiebreak rule resolved a double-KO. null if not a double-KO. */
+  tiebreakRule: "peak_y" | "earlier_peak" | "slot" | null;
   /** Materialized power-up pickups for the floors currently in play. */
   powerUps: PowerUpPickup[];
   /** Exclusive upper bound of the floor range `powerUps` has been generated for. */

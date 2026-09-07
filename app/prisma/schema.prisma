@@ -49,6 +49,10 @@ model User {
   climbRuns     ClimbRun[]
   savedUrls     SavedUrl[]
   socialHandles SavedSocialHandle[]
+  duelsAsPlayer1 Duel[]      @relation("DuelPlayer1")
+  duelsAsPlayer2 Duel[]      @relation("DuelPlayer2")
+  duelsWon       Duel[]      @relation("DuelWinner")
+  duelStats      DuelStats?
 
   @@map("users")
 }
@@ -688,4 +692,59 @@ model PaymentDeadLetter {
 
   @@index([stripe_session_id])
   @@map("payment_dead_letters")
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 1v1 Duel multiplayer mode
+// ═══════════════════════════════════════════════════════════════════════════
+
+enum DuelStatus {
+  pending
+  active
+  completed
+  voided
+}
+
+model Duel {
+  id                  String     @id
+  seed                String
+  category_slug       String
+  status              DuelStatus @default(pending)
+  player1_id          String
+  player2_id          String?
+  winner_id           String?
+  player1_peak        Float?
+  player2_peak        Float?
+  player1_replay      String?    @db.Text
+  player2_replay      String?    @db.Text
+  player1_submitted   Boolean    @default(false)
+  player2_submitted   Boolean    @default(false)
+  forfeit             Boolean    @default(false)
+  tiebreak_rule       String?
+  created_at          DateTime   @default(now())
+  started_at          DateTime?
+  completed_at        DateTime?
+
+  player1 User  @relation("DuelPlayer1", fields: [player1_id], references: [id], onDelete: Restrict)
+  player2 User? @relation("DuelPlayer2", fields: [player2_id], references: [id], onDelete: SetNull)
+  winner  User? @relation("DuelWinner",  fields: [winner_id],  references: [id], onDelete: SetNull)
+
+  @@index([status, created_at], name: "duel_status_created_idx")
+  @@index([player1_id, status], name: "duel_player1_status_idx")
+  @@index([player2_id, status], name: "duel_player2_status_idx")
+  @@map("duels")
+}
+
+model DuelStats {
+  user_id        String   @id
+  wins           Int      @default(0)
+  losses         Int      @default(0)
+  current_streak Int      @default(0)
+  best_streak    Int      @default(0)
+  updated_at     DateTime @updatedAt
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([wins(sort: Desc)], name: "duel_stats_wins_desc_idx")
+  @@map("duel_stats")
 }
