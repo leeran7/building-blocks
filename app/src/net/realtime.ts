@@ -131,11 +131,14 @@ export async function connectRealtime(
 ): Promise<RealtimeHandle> {
   const tokenRequest = await fetchAblyToken(duelId, guestId);
 
-  // webpackIgnore prevents webpack from statically analysing this import, so
-  // the next-flight-client-module-loader never walks into ably's build output
-  // (which contains an arrow-function-super pattern that SWC cannot parse).
-  // At runtime in the browser this resolves normally via the bundle's module map.
-  const AblyModule = await import(/* webpackIgnore: true */ "ably");
+  // Dynamic import so ably is code-split into a browser-only chunk (this module
+  // is "use client"; the page loads it via DuelRoomLoader's ssr:false dynamic
+  // import, so the server bundle never evaluates it). ably's build output uses an
+  // arrow-function-super pattern SWC can't parse — the babel-loader rule in
+  // next.config.js downcompiles it, and serverExternalPackages keeps it off the
+  // RSC pass. (No webpackIgnore: that left the browser with an unresolved bare
+  // "ably" specifier — "does not resolve to a valid URL".)
+  const AblyModule = await import("ably");
   const AblyRealtime =
     (AblyModule as { default?: { Realtime: typeof AblyModule.Realtime } }).default?.Realtime ??
     AblyModule.Realtime;

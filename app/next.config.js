@@ -53,11 +53,14 @@ const nextConfig = {
     };
 
     // ably@2's compiled bundles use `var __super = (...args) => { super(...args) }`
-    // inside a class constructor — valid ES2022 syntax that Next.js's SWC transform
+    // inside a class field — valid ES2022 syntax that Next.js's SWC transform
     // fails to parse when transpilePackages (Firebase) causes SWC to run on all
-    // node_modules. Process ably through Babel with @babel/preset-env so it gets
-    // downcompiled to syntax SWC (and older browsers) accept.
+    // node_modules. Process ably through Babel FIRST (enforce: "pre") so the
+    // arrow-super is downcompiled away before next-swc-loader (a normal loader)
+    // ever parses it. Target ES5 so both the arrow and the class field are fully
+    // transformed — this is vendored code, so aggressive downcompilation is safe.
     config.module.rules.unshift({
+      enforce: "pre",
       test: /[\\/]node_modules[\\/]ably[\\/]build[\\/]ably.*\.js$/,
       use: {
         loader: require.resolve("babel-loader"),
@@ -65,7 +68,7 @@ const nextConfig = {
           presets: [
             [
               require.resolve("@babel/preset-env"),
-              { targets: "defaults", modules: false },
+              { targets: { ie: "11" }, modules: false },
             ],
           ],
           cacheDirectory: true,
