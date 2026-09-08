@@ -572,16 +572,17 @@ function DuelGame({
       className={
         touchDevice
           ? "fixed inset-0 z-40 bg-void text-text-primary"
-          : "flex flex-col items-center min-h-screen bg-void text-text-primary"
+          : "flex flex-col items-center gap-3 min-h-screen bg-void text-text-primary py-4"
       }
     >
-      {/* Versus HUD: desktop bars in-flow above the canvas; mobile overlaid at
-          the top of the full-bleed stage, inside the safe area. */}
+      {/* Versus HUD: desktop bars in-flow above the canvas (width tracks the
+          canvas so they line up); mobile overlaid at the top of the full-bleed
+          stage, inside the safe area. */}
       <div
         className={
           touchDevice
             ? "pointer-events-none absolute inset-x-0 top-0 z-20 flex flex-col gap-1"
-            : "w-full max-w-md"
+            : "flex flex-col overflow-hidden rounded-xl border border-border-subtle"
         }
         style={
           touchDevice
@@ -590,7 +591,7 @@ function DuelGame({
                 paddingLeft: `max(8px, ${safeArea.left}px)`,
                 paddingRight: `max(8px, ${safeArea.right}px)`,
               }
-            : undefined
+            : { width: canvasSize.width }
         }
       >
         <div
@@ -632,7 +633,7 @@ function DuelGame({
             className={
               touchDevice
                 ? "mx-2 flex justify-between rounded-lg bg-void/60 px-4 py-1.5 font-mono text-xs tabular-nums backdrop-blur-sm"
-                : "w-full max-w-md flex justify-between px-4 py-2 bg-surface-raised border-b border-border-subtle font-mono text-xs tabular-nums"
+                : "w-full flex justify-between px-4 py-2 bg-surface-raised font-mono text-xs tabular-nums"
             }
           >
             <span className="text-signal">

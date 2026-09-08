@@ -35,8 +35,19 @@ import { TouchInput, NO_TOUCH } from "./useClimb";
 import { packInputLog } from "./runReplay";
 import { auth } from "../lib/firebase";
 
-/** How many ticks ahead we tag published inputs (133 ms at 30 Hz). */
-const INPUT_DELAY = 4;
+/**
+ * How many ticks ahead we tag published inputs (~400 ms at 30 Hz).
+ *
+ * This is the lockstep tolerance: a tick only advances once the peer's input for
+ * it has arrived, and the peer publishes each input this many ticks early, so the
+ * two clients can drift up to INPUT_DELAY ticks apart (start-time skew from the
+ * "start" round-trip, plus network jitter) without stalling. It costs nothing in
+ * local responsiveness — your own input is applied on the same tick you sample
+ * it; the delay only affects how soon the opponent's client sees your move. A
+ * small value (was 4 ≈ 133 ms) let the ~150–300 ms start skew permanently starve
+ * the earlier-starting client.
+ */
+const INPUT_DELAY = 12;
 
 /** Show "syncing…" after this many stall ticks (1 s). */
 const STALL_WARN_TICKS = 30;
