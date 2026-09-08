@@ -294,8 +294,11 @@ function DuelGame({
       if (startedRef.current || disposed) return;
       const members = await realtime.getPresence().catch(() => []);
       if (disposed || startedRef.current) return;
-      const ids = new Set(members.map((m) => m.clientId));
-      if (ids.size < 2) {
+      // Count presence ENTRIES, not distinct clientIds: Ably returns one entry
+      // per connection, so two participants = two entries even when they share a
+      // clientId (e.g. two tabs on the same account, or same-account testing).
+      // Deduping by clientId would collapse that to 1 and hang the lobby forever.
+      if (members.length < 2) {
         bothPresentSince = 0; // opponent not present yet
         return;
       }
