@@ -9,7 +9,7 @@
  *   2. Connect Ably. Subscribe to control events + presence, then enter presence.
  *   3. Slot-0 (coordinator) waits until both players are present, then publishes
  *      "start" (re-broadcast a few times for reliability).
- *   4. On "start" → call useDuel.start() → countdown → climb.
+ *   4. On "start" → call useRace.start() → countdown → climb.
  *   5. On finish → show DuelResult.
  */
 
@@ -17,7 +17,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "../../contexts/AuthContext";
-import { useDuel } from "../../game/useDuel";
+import { useRace, RaceParticipant } from "../../game/useRace";
 import { useClimb } from "../../game/useClimb";
 import { ClimbCanvas } from "../Game/ClimbCanvas";
 import {
@@ -206,7 +206,6 @@ interface GameProps {
   categorySlug: string;
   myId: string;
   guestId: string | null;
-  opponentId: string;
   mySlot: 0 | 1;
   realtime: RealtimeHandle;
   player1Name: string;
@@ -222,7 +221,6 @@ function DuelGame({
   categorySlug,
   myId,
   guestId,
-  opponentId,
   mySlot,
   realtime,
   player1Name,
@@ -231,54 +229,38 @@ function DuelGame({
   player2Id,
   onRematch,
 }: GameProps) {
-  // Canonical tower for this category — useDuel applies the run seed internally,
+  // Canonical tower for this category — useRace applies the run seed internally,
   // producing a tower bit-identical to the server's simulateDuel re-sim
   // (buildTower(categorySlug, { runSeed: seed })). Anything else diverges and
   // gets cheat-flagged.
   const [tower] = useState(() => buildTower(categorySlug));
 
-  // Populated after useDuel returns (it needs forfeit/opponentForfeited). Held in
-  // a ref so the stable onStallCeiling callback below can reach the latest one.
-  const resolveStallRef = useRef<() => void>(() => {});
+  // Slot→id map for the race sim (slot 0 = player1, slot 1 = player2). The sim,
+  // renderer, and useRace are all slot-indexed, so this generalizes to N.
+  const participants: RaceParticipant[] = [
+    { slot: 0, id: player1Id },
+    { slot: 1, id: player2Id },
+  ];
 
   const {
     state,
     start,
     finished,
-    stalling,
+    awaitingResult,
     setTouch,
     duelResult,
-    forfeit,
     opponentForfeited,
     resultError,
     retrySubmit,
-  } = useDuel({
+  } = useRace({
     tower,
     seed,
-    myId,
-    opponentId,
     mySlot,
+    participants,
     realtime,
     duelId,
     guestId,
-    // Resolve a long stall by presence rather than always self-losing: if the
-    // opponent is truly gone we WIN; if they're still in Ably presence (a real
-    // desync) we drop. Removes the dependence on the stall ceiling racing the
-    // presence-leave timeout.
-    onStallCeiling: () => resolveStallRef.current(),
   });
-
-  // Presence-gated stall resolution (see onStallCeiling above).
-  useEffect(() => {
-    resolveStallRef.current = () => {
-      void (async () => {
-        const members = await realtime.getPresence().catch(() => []);
-        const opponentPresent = members.some((m) => m.clientId !== myId);
-        if (opponentPresent) forfeit(); // both here but desynced → we drop
-        else opponentForfeited(); // opponent abandoned → we win
-      })();
-    };
-  }, [realtime, myId, forfeit, opponentForfeited]);
 
   const { token } = useAuth();
   const router = useRouter();
@@ -513,9 +495,10 @@ function DuelGame({
     [player2Id]: player2Name,
   };
 
-  // Local player altitude
-  const localPlayer = state.players.find((p) => p.id === myId) ?? state.players[0];
-  const opponentPlayer = state.players.find((p) => p.id === opponentId);
+  // Local player altitude — key by SLOT, not id, so same-account testing (two
+  // tabs sharing one uid) still resolves each tab to its own climber.
+  const localPlayer = state.players.find((p) => p.slot === mySlot) ?? state.players[0];
+  const opponentPlayer = state.players.find((p) => p.slot !== mySlot);
   const localAlt = localPlayer?.y ?? 0;
   const opponentAlt = opponentPlayer?.y ?? 0;
 
@@ -549,6 +532,27 @@ function DuelGame({
         onRetrySubmit={retrySubmit}
         hasReplay={duelResult.hasReplay}
       />
+    );
+  }
+
+  // Local run ended; the authoritative winner is being re-simulated server-side
+  // (and, on the pending path, we're waiting for the opponent's replay). Show a
+  // clear interstitial instead of freezing on the finished canvas or flashing a
+  // provisional local result.
+  if (awaitingResult && !duelResult) {
+    return (
+      <div className="min-h-screen bg-void flex flex-col items-center justify-center gap-4 px-4 text-center">
+        <div className="w-8 h-8 rounded-full border-2 border-text-muted border-t-signal animate-spin" aria-hidden="true" />
+        <p className="font-mono text-sm text-text-secondary">Computing result…</p>
+        {resultError && (
+          <button
+            onClick={retrySubmit}
+            className="inline-flex items-center justify-center rounded-full px-6 min-h-[44px] border border-border-strong text-text-secondary text-sm hover:border-signal/50 transition-colors"
+          >
+            Retry
+          </button>
+        )}
+      </div>
     );
   }
 
@@ -614,11 +618,6 @@ function DuelGame({
                 reconnecting…
               </span>
             )}
-            {stalling && connectionState === "connected" && (
-              <span className="font-mono text-xs text-warning animate-pulse">
-                syncing...
-              </span>
-            )}
             {phase === "climb" && (
               <span className="flex items-center gap-1 font-mono text-xs text-ember">
                 <span className="w-1.5 h-1.5 rounded-full bg-ember animate-pulse" aria-hidden="true" />
@@ -682,7 +681,7 @@ function DuelGame({
           </div>
         )}
 
-        {/* Touch controls (mobile). useDuel feeds these into the sim via
+        {/* Touch controls (mobile). useRace feeds these into the sim via
             setTouch → sampleInput, exactly like the solo climb. */}
         {touchDevice && (
           <TouchControls active={touchControlsActive} onInput={setTouch} />
@@ -906,11 +905,6 @@ export function DuelRoom({ duelId }: DuelRoomProps) {
     );
   }
 
-  const opponentId =
-    mySlot === 0
-      ? (meta.player2?.id ?? "opponent")
-      : (meta.player1?.id ?? "opponent");
-
   const player1Name = meta.player1?.displayName ?? "Player 1";
   const player2Name = meta.player2?.displayName ?? "Player 2";
   const player1Id = meta.player1?.id ?? "";
@@ -923,7 +917,6 @@ export function DuelRoom({ duelId }: DuelRoomProps) {
       categorySlug={meta.categorySlug}
       myId={myId}
       guestId={myGuestId}
-      opponentId={opponentId}
       mySlot={mySlot}
       realtime={realtime}
       player1Name={player1Name}
