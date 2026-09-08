@@ -47,7 +47,35 @@ import { auth } from "../lib/firebase";
  * small value (was 4 ≈ 133 ms) let the ~150–300 ms start skew permanently starve
  * the earlier-starting client.
  */
-const INPUT_DELAY = 12;
+export const INPUT_DELAY = 12;
+
+/**
+ * The climb-tick tag to publish for the input sampled at `currentTick` of the
+ * given phase — the delay-based lockstep schedule. Returns null when nothing
+ * should be published for this tick.
+ *
+ * The sim's tick counter resets to 0 at the countdown→climb boundary
+ * (stepMatch), so the two phases must be stitched into ONE continuous publish
+ * timeline or the lockstep gate stalls the instant the race starts:
+ *   - climb tick t     → tag t + INPUT_DELAY
+ *   - countdown tick c → tag (c − COUNTDOWN_TICKS) + INPUT_DELAY
+ *
+ * i.e. the last INPUT_DELAY countdown ticks emit tags 0..INPUT_DELAY−1 — exactly
+ * the early climb ticks the climb phase can't yet cover (it only starts emitting
+ * from tag INPUT_DELAY). Earlier countdown ticks map to negative tags → skipped.
+ * The invariant this preserves: every climb tick ≥ 0 is published exactly once,
+ * no gap at the start and no duplicate at the seam.
+ */
+export function publishTickFor(
+  phase: "countdown" | "climb",
+  currentTick: number
+): number | null {
+  const tag =
+    phase === "countdown"
+      ? currentTick - COUNTDOWN_TICKS + INPUT_DELAY
+      : currentTick + INPUT_DELAY;
+  return tag >= 0 ? tag : null;
+}
 
 /** Show "syncing…" after this many stall ticks (1 s). */
 const STALL_WARN_TICKS = 30;
@@ -400,16 +428,11 @@ export function useDuel({
         if (cur.phase === "countdown") {
           // Advance without gating on remote buffer
           cur = stepMatch(cur, {}, DEFAULT_SIM_CONFIG);
-          // Pre-fill the peer's buffer for the FIRST INPUT_DELAY climb ticks.
-          // The tick counter resets to 0 at the countdown→climb boundary, so a
-          // countdown tick maps to climb tick (currentTick - COUNTDOWN_TICKS).
-          // Publishing that + INPUT_DELAY means the last INPUT_DELAY countdown
-          // ticks emit climb-tick tags 0..INPUT_DELAY-1, seamlessly continuous
-          // with the climb-phase publishes (which start at tag INPUT_DELAY).
-          // Without this, climb ticks 0..INPUT_DELAY-1 never receive a remote
-          // input and the lockstep gate stalls the instant the race starts.
-          const climbTick = currentTick - COUNTDOWN_TICKS + INPUT_DELAY;
-          if (climbTick >= 0) realtime.publishInput(climbTick, localInput);
+          // Pre-fill the peer's buffer for the first INPUT_DELAY climb ticks so
+          // the lockstep gate isn't starved the instant the race starts. See
+          // publishTickFor for the continuous countdown→climb tag schedule.
+          const tag = publishTickFor("countdown", currentTick);
+          if (tag !== null) realtime.publishInput(tag, localInput);
           // Do NOT push to localInputLog during countdown — the server re-sim
           // drains its own 90-tick countdown unconditionally then reads from
           // index 0 as climb-tick 0. Pushing here would shift every climb
@@ -429,8 +452,10 @@ export function useDuel({
 
             cur = stepMatch(cur, inputMap, DEFAULT_SIM_CONFIG);
 
-            // Publish local input for a future tick
-            realtime.publishInput(currentTick + INPUT_DELAY, localInput);
+            // Publish local input for a future tick (continuous with the
+            // countdown pre-fill — see publishTickFor).
+            const tag = publishTickFor("climb", currentTick);
+            if (tag !== null) realtime.publishInput(tag, localInput);
             localInputLog.current.push(localInput);
 
             advanced = true;
