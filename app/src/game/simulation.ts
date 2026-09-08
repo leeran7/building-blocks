@@ -119,6 +119,15 @@ export function spawnPlayer(id: PlayerId, slot: number): PlayerState {
   };
 }
 
+/**
+ * Fixed 3-2-1 countdown length in ticks before "GO". The tick counter resets to
+ * 0 at the countdown→climb boundary, so anything that publishes inputs ahead of
+ * time (delay-based lockstep in useDuel) must translate countdown ticks into
+ * climb-tick space using this constant — otherwise the first INPUT_DELAY climb
+ * ticks never get a remote input and the match stalls the instant it starts.
+ */
+export const COUNTDOWN_TICKS = 90;
+
 /** Create an initial match state in the countdown phase. */
 export function createMatch(params: {
   seed: string;
@@ -431,7 +440,7 @@ export function stepMatch(
   // Countdown: a fixed 3-2-1 (90 ticks) before "GO"; inputs are locked.
   if (state.phase === "countdown") {
     state.tick += 1;
-    if (state.tick >= 90) {
+    if (state.tick >= COUNTDOWN_TICKS) {
       state.phase = "climb";
       state.tick = 0;
       state.raceSeconds = 0;

@@ -28,7 +28,7 @@ import {
   TICK_DT,
   NO_INPUT,
 } from "./types";
-import { createMatch, stepMatch, DEFAULT_SIM_CONFIG } from "./simulation";
+import { createMatch, stepMatch, DEFAULT_SIM_CONFIG, COUNTDOWN_TICKS } from "./simulation";
 import { applyRunSeed } from "./towers";
 import { RealtimeHandle } from "../net/realtime";
 import { TouchInput, NO_TOUCH } from "./useClimb";
@@ -400,8 +400,16 @@ export function useDuel({
         if (cur.phase === "countdown") {
           // Advance without gating on remote buffer
           cur = stepMatch(cur, {}, DEFAULT_SIM_CONFIG);
-          // Publish my delayed input
-          realtime.publishInput(currentTick + INPUT_DELAY, localInput);
+          // Pre-fill the peer's buffer for the FIRST INPUT_DELAY climb ticks.
+          // The tick counter resets to 0 at the countdown→climb boundary, so a
+          // countdown tick maps to climb tick (currentTick - COUNTDOWN_TICKS).
+          // Publishing that + INPUT_DELAY means the last INPUT_DELAY countdown
+          // ticks emit climb-tick tags 0..INPUT_DELAY-1, seamlessly continuous
+          // with the climb-phase publishes (which start at tag INPUT_DELAY).
+          // Without this, climb ticks 0..INPUT_DELAY-1 never receive a remote
+          // input and the lockstep gate stalls the instant the race starts.
+          const climbTick = currentTick - COUNTDOWN_TICKS + INPUT_DELAY;
+          if (climbTick >= 0) realtime.publishInput(climbTick, localInput);
           // Do NOT push to localInputLog during countdown — the server re-sim
           // drains its own 90-tick countdown unconditionally then reads from
           // index 0 as climb-tick 0. Pushing here would shift every climb
