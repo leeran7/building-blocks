@@ -20,6 +20,14 @@ import { useAuth } from "../../contexts/AuthContext";
 import { useDuel } from "../../game/useDuel";
 import { useClimb } from "../../game/useClimb";
 import { ClimbCanvas } from "../Game/ClimbCanvas";
+import {
+  TouchControls,
+  TOUCH_CONTROLS_INSET,
+  TOUCH_CONTROLS_MIN_BOTTOM,
+} from "../Game/TouchControls";
+import { useCoarsePointer } from "../../hooks/useCoarsePointer";
+import { useCanvasSize } from "../../hooks/useCanvasSize";
+import { useSafeAreaInsets } from "../../hooks/useSafeAreaInsets";
 import { DuelResult } from "./DuelResult";
 import { connectRealtime, RealtimeHandle } from "../../net/realtime";
 import { buildTower } from "../../game/towers";
@@ -62,12 +70,14 @@ interface DuelRoomProps {
  */
 function PracticeGame({
   categorySlug,
+  touchDevice,
   linkCopied,
   waitedTooLong,
   onCopyLink,
   onLeave,
 }: {
   categorySlug: string;
+  touchDevice: boolean;
   linkCopied: boolean;
   waitedTooLong: boolean;
   onCopyLink: () => void;
@@ -78,7 +88,18 @@ function PracticeGame({
   // never reveals the duel's actual layout (no pre-scouting the real seed).
   const [tower] = useState(() => buildTower(categorySlug));
 
-  const { state, start, finished } = useClimb({ tower });
+  const { state, start, finished, setTouch } = useClimb({ tower });
+
+  // Same responsive stage as the live match / solo climb.
+  const canvasBoxRef = useRef<HTMLDivElement>(null);
+  const canvasSize = useCanvasSize(canvasBoxRef, { fill: touchDevice });
+  const safeArea = useSafeAreaInsets();
+  const bottomInset = touchDevice
+    ? TOUCH_CONTROLS_INSET + Math.max(TOUCH_CONTROLS_MIN_BOTTOM, safeArea.bottom)
+    : 0;
+  const phase = state.phase;
+  const touchControlsActive =
+    touchDevice && (phase === "countdown" || phase === "climb");
 
   // Start on mount and restart when the warm-up run ends
   useEffect(() => { start(); }, [start]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -87,12 +108,43 @@ function PracticeGame({
   }, [finished, start]);
 
   return (
-    <div className="relative flex-1 flex items-start justify-center pt-4">
+    <div
+      className={
+        touchDevice
+          ? "fixed inset-0 z-40 bg-void text-text-primary"
+          : "flex flex-col items-center min-h-screen bg-void text-text-primary"
+      }
+    >
+      <div
+        ref={canvasBoxRef}
+        data-climb-surface
+        className={
+          touchDevice ? "relative h-full w-full overflow-hidden" : "relative"
+        }
+        style={touchDevice ? undefined : { width: canvasSize.width }}
+      >
       {/* Warm-up canvas (solo, throwaway) */}
-      <ClimbCanvas state={state} width={360} height={600} />
+      <ClimbCanvas
+        state={state}
+        width={canvasSize.width}
+        height={canvasSize.height}
+        bottomInset={bottomInset}
+        fullBleed={touchDevice}
+        hudInsetTop={touchDevice ? safeArea.top : 0}
+      />
 
       {/* Waiting HUD overlay */}
-      <div className="absolute inset-0 flex flex-col items-end justify-start p-4 gap-2 pointer-events-none">
+      <div
+        className="absolute inset-x-0 top-0 flex flex-col items-end justify-start p-4 gap-2 pointer-events-none"
+        style={
+          touchDevice
+            ? {
+                paddingTop: `max(16px, ${safeArea.top + 8}px)`,
+                paddingRight: `max(16px, ${safeArea.right}px)`,
+              }
+            : undefined
+        }
+      >
         <div className="bg-void/80 backdrop-blur-sm rounded-xl border border-border-subtle px-3 py-2 pointer-events-auto max-w-[200px]">
           {!waitedTooLong ? (
             <div className="flex flex-col items-center gap-2 text-center">
@@ -135,6 +187,12 @@ function PracticeGame({
         <p className="font-mono text-[10px] text-text-muted bg-void/70 rounded px-2 py-1 pointer-events-none">
           warm-up • not ranked
         </p>
+      </div>
+
+        {/* Touch controls: the warm-up climb is playable while you wait. */}
+        {touchDevice && (
+          <TouchControls active={touchControlsActive} onInput={setTouch} />
+        )}
       </div>
     </div>
   );
@@ -188,7 +246,7 @@ function DuelGame({
     start,
     finished,
     stalling,
-    setTouch: _setTouch,
+    setTouch,
     duelResult,
     forfeit,
     opponentForfeited,
@@ -224,6 +282,14 @@ function DuelGame({
 
   const { token } = useAuth();
   const router = useRouter();
+
+  // Same responsive stage as the solo climb ("The Climb"): full-bleed on touch
+  // devices (canvas fills the viewport, HUD overlaid within the safe area, touch
+  // controls at the bottom), framed 9:16 column on desktop with keyboard input.
+  const touchDevice = useCoarsePointer();
+  const canvasBoxRef = useRef<HTMLDivElement>(null);
+  const canvasSize = useCanvasSize(canvasBoxRef, { fill: touchDevice });
+  const safeArea = useSafeAreaInsets();
 
   const startedRef = useRef(false);
   const [connectionState, setConnectionState] = useState<string>("connected");
@@ -455,6 +521,14 @@ function DuelGame({
 
   const phase = state.phase;
 
+  // Camera clearance under the touch controls (buttons + their safe-area gutter)
+  // so the player isn't hidden behind the button bar — mirrors the solo climb.
+  const bottomInset = touchDevice
+    ? TOUCH_CONTROLS_INSET + Math.max(TOUCH_CONTROLS_MIN_BOTTOM, safeArea.bottom)
+    : 0;
+  const touchControlsActive =
+    touchDevice && (phase === "countdown" || phase === "climb");
+
   if (finished && duelResult) {
     return (
       <DuelResult
@@ -478,83 +552,141 @@ function DuelGame({
     );
   }
 
+  // Lobby: the practice warm-up owns the whole stage (its own full-bleed canvas
+  // + waiting overlay), so render it directly — same responsive shell as below.
+  if (phase === "lobby" && !startedRef.current) {
+    return (
+      <PracticeGame
+        categorySlug={categorySlug}
+        touchDevice={touchDevice}
+        linkCopied={linkCopied}
+        waitedTooLong={waitedTooLong}
+        onCopyLink={copyInviteLink}
+        onLeave={handleLeave}
+      />
+    );
+  }
+
   return (
-    <div className="flex flex-col items-center min-h-screen bg-void text-text-primary">
-      {/* HUD bar */}
-      <div className="w-full max-w-md flex items-center justify-between px-4 py-3 bg-surface border-b border-border-subtle">
-        <div className="font-mono text-xs tabular-nums">
-          <span className="text-signal">{player1Name}</span>
-          <span className="text-text-muted mx-1">vs</span>
-          <span className="text-[#6bb8ff]">{player2Name}</span>
+    <div
+      className={
+        touchDevice
+          ? "fixed inset-0 z-40 bg-void text-text-primary"
+          : "flex flex-col items-center min-h-screen bg-void text-text-primary"
+      }
+    >
+      {/* Versus HUD: desktop bars in-flow above the canvas; mobile overlaid at
+          the top of the full-bleed stage, inside the safe area. */}
+      <div
+        className={
+          touchDevice
+            ? "pointer-events-none absolute inset-x-0 top-0 z-20 flex flex-col gap-1"
+            : "w-full max-w-md"
+        }
+        style={
+          touchDevice
+            ? {
+                paddingTop: `max(8px, ${safeArea.top}px)`,
+                paddingLeft: `max(8px, ${safeArea.left}px)`,
+                paddingRight: `max(8px, ${safeArea.right}px)`,
+              }
+            : undefined
+        }
+      >
+        <div
+          className={
+            touchDevice
+              ? "mx-2 flex items-center justify-between rounded-lg bg-void/70 px-3 py-2 backdrop-blur-sm"
+              : "w-full flex items-center justify-between px-4 py-3 bg-surface border-b border-border-subtle"
+          }
+        >
+          <div className="font-mono text-xs tabular-nums">
+            <span className="text-signal">{player1Name}</span>
+            <span className="text-text-muted mx-1">vs</span>
+            <span className="text-[#6bb8ff]">{player2Name}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            {(connectionState === "disconnected" ||
+              connectionState === "suspended" ||
+              connectionState === "connecting") && (
+              <span className="font-mono text-xs text-warning animate-pulse">
+                reconnecting…
+              </span>
+            )}
+            {stalling && connectionState === "connected" && (
+              <span className="font-mono text-xs text-warning animate-pulse">
+                syncing...
+              </span>
+            )}
+            {phase === "climb" && (
+              <span className="flex items-center gap-1 font-mono text-xs text-ember">
+                <span className="w-1.5 h-1.5 rounded-full bg-ember animate-pulse" aria-hidden="true" />
+                LIVE
+              </span>
+            )}
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          {(connectionState === "disconnected" ||
-            connectionState === "suspended" ||
-            connectionState === "connecting") && (
-            <span className="font-mono text-xs text-warning animate-pulse">
-              reconnecting…
+
+        {(phase === "climb" || phase === "countdown") && (
+          <div
+            className={
+              touchDevice
+                ? "mx-2 flex justify-between rounded-lg bg-void/60 px-4 py-1.5 font-mono text-xs tabular-nums backdrop-blur-sm"
+                : "w-full max-w-md flex justify-between px-4 py-2 bg-surface-raised border-b border-border-subtle font-mono text-xs tabular-nums"
+            }
+          >
+            <span className="text-signal">
+              {player1Name}: {formatAltitude(mySlot === 0 ? localAlt : opponentAlt, 1)}
             </span>
-          )}
-          {stalling && connectionState === "connected" && (
-            <span className="font-mono text-xs text-warning animate-pulse">
-              syncing...
+            <span className="text-[#6bb8ff]">
+              {player2Name}: {formatAltitude(mySlot === 0 ? opponentAlt : localAlt, 1)}
             </span>
-          )}
-          {phase === "climb" && (
-            <span className="flex items-center gap-1 font-mono text-xs text-ember">
-              <span className="w-1.5 h-1.5 rounded-full bg-ember animate-pulse" aria-hidden="true" />
-              LIVE
-            </span>
-          )}
-        </div>
+          </div>
+        )}
       </div>
 
-      {/* Altitude readouts */}
-      {(phase === "climb" || phase === "countdown") && (
-        <div className="w-full max-w-md flex justify-between px-4 py-2 bg-surface-raised border-b border-border-subtle font-mono text-xs tabular-nums">
-          <span className="text-signal">
-            {player1Name}: {formatAltitude(mySlot === 0 ? localAlt : opponentAlt, 1)}
-          </span>
-          <span className="text-[#6bb8ff]">
-            {player2Name}: {formatAltitude(mySlot === 0 ? opponentAlt : localAlt, 1)}
-          </span>
-        </div>
-      )}
-
-      {/* Canvas / Lobby */}
-      {phase === "lobby" && !startedRef.current ? (
-        <PracticeGame
-          categorySlug={categorySlug}
-          linkCopied={linkCopied}
-          waitedTooLong={waitedTooLong}
-          onCopyLink={copyInviteLink}
-          onLeave={handleLeave}
+      {/* Play stage: full-bleed on touch, framed 9:16 column on desktop. */}
+      <div
+        ref={canvasBoxRef}
+        data-climb-surface
+        className={
+          touchDevice ? "relative h-full w-full overflow-hidden" : "relative"
+        }
+        style={touchDevice ? undefined : { width: canvasSize.width }}
+      >
+        <ClimbCanvas
+          state={state}
+          width={canvasSize.width}
+          height={canvasSize.height}
+          bottomInset={bottomInset}
+          fullBleed={touchDevice}
+          hudInsetTop={touchDevice ? safeArea.top : 0}
+          myId={myId}
+          playerNames={playerNames}
         />
-      ) : (
-        <div className="relative flex-1 flex items-start justify-center pt-4">
-          <ClimbCanvas
-            state={state}
-            width={360}
-            height={600}
-            myId={myId}
-            playerNames={playerNames}
-          />
 
-          {/* Countdown overlay */}
-          {phase === "countdown" && (
+        {/* Countdown overlay */}
+        {phase === "countdown" && (
+          <div
+            className="absolute inset-0 flex items-center justify-center pointer-events-none"
+            aria-live="assertive"
+            aria-atomic="true"
+          >
             <div
-              className="absolute inset-0 flex items-center justify-center pointer-events-none"
-              aria-live="assertive"
-              aria-atomic="true"
+              className="font-display text-8xl font-black text-signal"
+              style={{ textShadow: "0 0 40px rgb(203 242 77 / 0.5)" }}
             >
-              <div className="font-display text-8xl font-black text-signal"
-                style={{ textShadow: "0 0 40px rgb(203 242 77 / 0.5)" }}>
-                {Math.max(1, 3 - Math.floor(state.tick / 30))}
-              </div>
+              {Math.max(1, 3 - Math.floor(state.tick / 30))}
             </div>
-          )}
-        </div>
-      )}
+          </div>
+        )}
+
+        {/* Touch controls (mobile). useDuel feeds these into the sim via
+            setTouch → sampleInput, exactly like the solo climb. */}
+        {touchDevice && (
+          <TouchControls active={touchControlsActive} onInput={setTouch} />
+        )}
+      </div>
     </div>
   );
 }
