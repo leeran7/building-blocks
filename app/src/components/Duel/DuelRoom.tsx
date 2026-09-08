@@ -80,10 +80,12 @@ function PracticeGame({
   linkCopied,
   waitedTooLong,
   onCopyLink,
+  onLeave,
 }: {
   linkCopied: boolean;
   waitedTooLong: boolean;
   onCopyLink: () => void;
+  onLeave: () => void;
 }) {
   const [warmSeed] = useState(() => newRunSeed());
   const tower: TowerSpec = { ...DEFAULT_TOWER, seed: warmSeed };
@@ -136,12 +138,12 @@ function PracticeGame({
               >
                 {linkCopied ? "Copied!" : "Copy invite link"}
               </button>
-              <Link
-                href="/duel"
+              <button
+                onClick={onLeave}
                 className="text-text-muted text-xs underline underline-offset-2"
               >
-                Leave
-              </Link>
+                Back to duels
+              </button>
             </div>
           )}
         </div>
@@ -206,6 +208,9 @@ function DuelGame({
     duelId,
     guestId,
   });
+
+  const { token } = useAuth();
+  const router = useRouter();
 
   const startedRef = useRef(false);
   const readyCountRef = useRef(0);
@@ -361,6 +366,24 @@ function DuelGame({
     }
   }, [duelId]);
 
+  // Leaving the waiting lobby must cancel the still-pending challenge, otherwise
+  // the creator's one-open-challenge slot is stranded and the next "Create
+  // challenge" is blocked by the 409 guard. Best-effort: only the creator (slot 0)
+  // can cancel a pending duel; navigate away regardless of the DELETE outcome.
+  const handleLeave = useCallback(async () => {
+    if (mySlot === 0) {
+      try {
+        await fetch(`/api/duel/${duelId}`, {
+          method: "DELETE",
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+      } catch {
+        // Ignore — the lobby is being abandoned either way.
+      }
+    }
+    router.push("/duel");
+  }, [mySlot, duelId, token, router]);
+
   const playerNames: Record<string, string> = {
     [player1Id]: player1Name,
     [player2Id]: player2Name,
@@ -446,6 +469,7 @@ function DuelGame({
           linkCopied={linkCopied}
           waitedTooLong={waitedTooLong}
           onCopyLink={copyInviteLink}
+          onLeave={handleLeave}
         />
       ) : (
         <div className="relative flex-1 flex items-start justify-center pt-4">
