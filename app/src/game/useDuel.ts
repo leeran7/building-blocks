@@ -13,7 +13,11 @@
  *     → finished/results
  *
  * Stall detection: if the remote buffer is empty for STALL_WARN_TICKS we
- * surface stalling=true; at STALL_FORFEIT_TICKS we auto-forfeit.
+ * surface stalling=true ("syncing…"). At STALL_FORFEIT_TICKS (~40 s, a
+ * last-resort ceiling) we hand off to the owner via `onStallCeiling` to resolve
+ * the outcome by presence, or self-forfeit if no handler is given. An opponent
+ * who truly leaves is normally resolved sooner and correctly as a WIN by the
+ * presence-leave / explicit-forfeit paths in DuelRoom.
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -37,8 +41,19 @@ const INPUT_DELAY = 4;
 /** Show "syncing…" after this many stall ticks (1 s). */
 const STALL_WARN_TICKS = 30;
 
-/** Auto-forfeit after this many stall ticks (3 s). */
-const STALL_FORFEIT_TICKS = 90;
+/**
+ * Last-resort self-forfeit after this many stall ticks (~40 s).
+ *
+ * This is deliberately long. A stall (no remote input) usually means the
+ * opponent briefly backgrounded their tab or hit a network blip — they'll be
+ * back, so we keep waiting and show "syncing…" rather than punishing the player
+ * who stayed. A genuine opponent departure is resolved *sooner* and correctly as
+ * a WIN by the presence-leave path in DuelRoom (Ably marks them absent) or by an
+ * explicit forfeit event on tab close. This threshold only fires when the peer is
+ * still present in Ably but has sent nothing for a very long time (a true desync)
+ * — at which point dropping is the only sane exit.
+ */
+const STALL_FORFEIT_TICKS = 1200;
 
 const TICK_DT_MS = TICK_DT * 1000;
 
@@ -68,6 +83,14 @@ export interface UseDuelOptions {
   duelId: string;
   /** Opaque guest token (guest:<nanoid>) when the local player is a guest. */
   guestId?: string | null;
+  /**
+   * Called once when the remote input buffer has been empty for the full
+   * STALL_FORFEIT_TICKS window. When provided, the hook does NOT self-forfeit —
+   * the owner decides the outcome (e.g. re-check presence: opponent gone → win,
+   * still present → true desync → loss). Falls back to a plain self-forfeit
+   * (local loss) when omitted.
+   */
+  onStallCeiling?: () => void;
 }
 
 export interface UseDuelResult {
@@ -112,8 +135,15 @@ export function useDuel({
   realtime,
   duelId,
   guestId = null,
+  onStallCeiling,
 }: UseDuelOptions): UseDuelResult {
   const playerIds = mySlot === 0 ? [myId, opponentId] : [opponentId, myId];
+
+  // Keep the latest callback in a ref so the rAF loop (mounted once) always
+  // calls the current closure without re-subscribing.
+  const onStallCeilingRef = useRef(onStallCeiling);
+  onStallCeilingRef.current = onStallCeiling;
+  const stallCeilingFiredRef = useRef(false);
 
   const makeMatch = useCallback(() => {
     const seededTower = applyRunSeed(tower, seed);
@@ -317,6 +347,23 @@ export function useDuel({
     return unsub;
   }, [realtime]);
 
+  // When our OWN tab returns to the foreground, the rAF loop was paused/throttled
+  // by the browser. Reset only the fixed-timestep clock so the first frame back
+  // doesn't fast-forward a huge accumulated dt (which could burst the stall
+  // counter to the ceiling). We deliberately leave stallTicksRef/stalling alone:
+  // a stall that is genuinely in progress (opponent gone) should keep counting
+  // and keep showing "syncing…"; the loop recomputes `stalling` each frame, and
+  // a resumed opponent input resets the counter on its own.
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState !== "visible") return;
+      accumulatorRef.current = 0;
+      lastTsRef.current = 0;
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, []);
+
   // Fixed-timestep rAF loop
   useEffect(() => {
     let raf = 0;
@@ -355,6 +402,7 @@ export function useDuel({
           if (remoteInput !== undefined) {
             remoteBuffer.current.delete(currentTick);
             stallTicksRef.current = 0;
+            stallCeilingFiredRef.current = false; // opponent input resumed
 
             const inputMap: Record<string, PlayerInput> = {};
             inputMap[myId] = localInput;
@@ -371,7 +419,17 @@ export function useDuel({
             // Remote input not yet available — stall
             stallTicksRef.current++;
             if (stallTicksRef.current >= STALL_FORFEIT_TICKS) {
-              forfeit();
+              // Delegate the outcome when the owner wants to resolve it via
+              // presence (opponent gone → win, still present → true desync →
+              // loss); otherwise fall back to a plain self-forfeit (loss).
+              if (onStallCeilingRef.current) {
+                if (!stallCeilingFiredRef.current) {
+                  stallCeilingFiredRef.current = true;
+                  onStallCeilingRef.current();
+                }
+              } else {
+                forfeit();
+              }
               break;
             }
           }

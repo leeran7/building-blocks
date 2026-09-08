@@ -179,6 +179,10 @@ function DuelGame({
   // gets cheat-flagged.
   const [tower] = useState(() => buildTower(categorySlug));
 
+  // Populated after useDuel returns (it needs forfeit/opponentForfeited). Held in
+  // a ref so the stable onStallCeiling callback below can reach the latest one.
+  const resolveStallRef = useRef<() => void>(() => {});
+
   const {
     state,
     start,
@@ -186,6 +190,7 @@ function DuelGame({
     stalling,
     setTouch: _setTouch,
     duelResult,
+    forfeit,
     opponentForfeited,
     resultError,
     retrySubmit,
@@ -198,7 +203,24 @@ function DuelGame({
     realtime,
     duelId,
     guestId,
+    // Resolve a long stall by presence rather than always self-losing: if the
+    // opponent is truly gone we WIN; if they're still in Ably presence (a real
+    // desync) we drop. Removes the dependence on the stall ceiling racing the
+    // presence-leave timeout.
+    onStallCeiling: () => resolveStallRef.current(),
   });
+
+  // Presence-gated stall resolution (see onStallCeiling above).
+  useEffect(() => {
+    resolveStallRef.current = () => {
+      void (async () => {
+        const members = await realtime.getPresence().catch(() => []);
+        const opponentPresent = members.some((m) => m.clientId !== myId);
+        if (opponentPresent) forfeit(); // both here but desynced → we drop
+        else opponentForfeited(); // opponent abandoned → we win
+      })();
+    };
+  }, [realtime, myId, forfeit, opponentForfeited]);
 
   const { token } = useAuth();
   const router = useRouter();
@@ -225,10 +247,12 @@ function DuelGame({
       start();
     };
 
-    // A presence "leave" can fire on a transient Ably blip, so don't award the
-    // win instantly — wait a few seconds and re-check presence; a real departure
-    // stays gone, a blip re-enters. (The explicit "forfeit" event below is the
-    // fast, unambiguous path.)
+    // A presence "leave" can fire on a transient Ably blip or a phone briefly
+    // backgrounding the tab, so don't award the win instantly — wait a while and
+    // re-check presence; a real departure stays gone, a blip/return re-enters and
+    // clears this timer. (The explicit "forfeit" event below is the fast,
+    // unambiguous path for an intentional leave / tab close.)
+    const LEAVE_GRACE_MS = 12_000;
     let leaveTimer: ReturnType<typeof setTimeout> | null = null;
     const clearLeaveTimer = () => {
       if (leaveTimer) {
@@ -323,7 +347,7 @@ function DuelGame({
           const members = await realtime.getPresence().catch(() => []);
           const opponentStillHere = members.some((m) => m.clientId !== myId);
           if (!opponentStillHere) opponentForfeited();
-        }, 5000);
+        }, LEAVE_GRACE_MS);
         return;
       }
       if (action !== "enter" && action !== "present") return;
