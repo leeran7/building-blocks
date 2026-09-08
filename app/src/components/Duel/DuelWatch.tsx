@@ -14,10 +14,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { ClimbCanvas } from "../Game/ClimbCanvas";
 import { createMatch, stepMatch, DEFAULT_SIM_CONFIG } from "../../game/simulation";
-import { applyRunSeed } from "../../game/towers";
+import { buildTower } from "../../game/towers";
 import { buildDuelWatchUrl } from "../../game/runReplay";
 import { formatAltitude } from "../../lib/units";
-import type { MatchState, PlayerInput, TowerSpec } from "../../game/types";
+import type { MatchState, PlayerInput } from "../../game/types";
 
 // ─────────────────────────────── Types ────────────────────────────────────
 
@@ -42,19 +42,6 @@ interface ReplayData {
 type WatchPhase = "loading" | "ready" | "playing" | "done" | "error";
 
 const TICK_DT_MS = (1 / 30) * 1000;
-
-const DEFAULT_TOWER: TowerSpec = {
-  categorySlug: "tech",
-  widthM: 100,
-  floorGap: 4,
-  seed: "default",
-  ladderGrabRadius: 2.5,
-  maxClimbSpeed: 12,
-  moveSpeed: 8,
-  jumpSpeed: 14,
-  gravity: 32,
-  fallDeathBelowPeakM: 10,
-};
 
 // ─────────────────────────────── Component ────────────────────────────────
 
@@ -94,10 +81,9 @@ export function DuelWatch({ duelId }: { duelId: string }) {
 
   const buildInitialState = useCallback(
     (data: ReplayData): MatchState => {
-      const tower = applyRunSeed(
-        { ...DEFAULT_TOWER, categorySlug: data.categorySlug, seed: data.seed },
-        data.seed
-      );
+      // Canonical tower for this category + run seed — identical to the tower
+      // the live match and the server's simulateDuel used, so playback matches.
+      const tower = buildTower(data.categorySlug, { runSeed: data.seed });
       const playerIds = [
         data.player1?.id ?? "player1",
         data.player2?.id ?? "player2",

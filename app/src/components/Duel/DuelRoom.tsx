@@ -6,11 +6,11 @@
  *
  * Lifecycle:
  *   1. Fetch duel metadata. If pending, POST /join first.
- *   2. Connect Ably. Enter presence.
- *   3. Wait for both players in presence → each publishes "ready".
- *   4. Slot-0 waits for two "ready" events → publishes "start".
- *   5. On "start" → call useDuel.start() → countdown → climb.
- *   6. On finish → show DuelResult.
+ *   2. Connect Ably. Subscribe to control events + presence, then enter presence.
+ *   3. Slot-0 (coordinator) waits until both players are present, then publishes
+ *      "start" (re-broadcast a few times for reliability).
+ *   4. On "start" → call useDuel.start() → countdown → climb.
+ *   5. On finish → show DuelResult.
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -22,9 +22,8 @@ import { useClimb } from "../../game/useClimb";
 import { ClimbCanvas } from "../Game/ClimbCanvas";
 import { DuelResult } from "./DuelResult";
 import { connectRealtime, RealtimeHandle } from "../../net/realtime";
-import { TowerSpec } from "../../game/types";
+import { buildTower } from "../../game/towers";
 import { formatAltitude } from "../../lib/units";
-import { newRunSeed } from "../../game/rng";
 
 // ─────────────────────────────── Types ────────────────────────────────────
 
@@ -45,7 +44,6 @@ interface DuelMeta {
 type RoomPhase =
   | "loading"         // fetching meta + connecting realtime
   | "waiting"         // in presence, waiting for opponent
-  | "ready_handshake" // both present, exchanging ready signals
   | "countdown"       // sim running countdown
   | "climb"           // live race
   | "finished"        // match over
@@ -55,20 +53,6 @@ interface DuelRoomProps {
   duelId: string;
 }
 
-// Default tower spec — the actual seed gets applied in useDuel via applyRunSeed
-const DEFAULT_TOWER: TowerSpec = {
-  categorySlug: "tech",
-  widthM: 100,
-  floorGap: 4,
-  seed: "default",
-  ladderGrabRadius: 2.5,
-  maxClimbSpeed: 12,
-  moveSpeed: 8,
-  jumpSpeed: 14,
-  gravity: 32,
-  fallDeathBelowPeakM: 10,
-};
-
 // ─────────────────────────────── Practice lobby ───────────────────────────
 
 /**
@@ -77,23 +61,24 @@ const DEFAULT_TOWER: TowerSpec = {
  * Tear it down by unmounting (parent replaces it on duel start).
  */
 function PracticeGame({
+  categorySlug,
   linkCopied,
   waitedTooLong,
   onCopyLink,
   onLeave,
 }: {
+  categorySlug: string;
   linkCopied: boolean;
   waitedTooLong: boolean;
   onCopyLink: () => void;
   onLeave: () => void;
 }) {
-  const [warmSeed] = useState(() => newRunSeed());
-  const tower: TowerSpec = { ...DEFAULT_TOWER, seed: warmSeed };
+  // Same tower archetype as the real duel category, but with NO seed lock so
+  // useClimb rolls a fresh random map each run — a representative warm-up that
+  // never reveals the duel's actual layout (no pre-scouting the real seed).
+  const [tower] = useState(() => buildTower(categorySlug));
 
-  const { state, start, finished } = useClimb({
-    tower,
-    seed: warmSeed,
-  });
+  const { state, start, finished } = useClimb({ tower });
 
   // Start on mount and restart when the warm-up run ends
   useEffect(() => { start(); }, [start]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -160,6 +145,7 @@ function PracticeGame({
 interface GameProps {
   duelId: string;
   seed: string;
+  categorySlug: string;
   myId: string;
   guestId: string | null;
   opponentId: string;
@@ -175,6 +161,7 @@ interface GameProps {
 function DuelGame({
   duelId,
   seed,
+  categorySlug,
   myId,
   guestId,
   opponentId,
@@ -186,7 +173,11 @@ function DuelGame({
   player2Id,
   onRematch,
 }: GameProps) {
-  const tower: TowerSpec = { ...DEFAULT_TOWER, seed };
+  // Canonical tower for this category — useDuel applies the run seed internally,
+  // producing a tower bit-identical to the server's simulateDuel re-sim
+  // (buildTower(categorySlug, { runSeed: seed })). Anything else diverges and
+  // gets cheat-flagged.
+  const [tower] = useState(() => buildTower(categorySlug));
 
   const {
     state,
@@ -213,38 +204,25 @@ function DuelGame({
   const router = useRouter();
 
   const startedRef = useRef(false);
-  const readyCountRef = useRef(0);
   const [connectionState, setConnectionState] = useState<string>("connected");
   const [waitedTooLong, setWaitedTooLong] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
 
-  // Handshake:
-  // - Enter presence
-  // - Publish "ready" once both players are in presence
-  // - Slot-0 publishes "start" once it has seen two "ready" events
+  // Handshake (presence-authoritative):
+  // - Subscribe to control events + presence BEFORE announcing ourselves, so we
+  //   can never miss the coordinator's "start" (Ably does not replay channel
+  //   messages to subscribers that attach after publish).
+  // - Slot-0 is the coordinator: once BOTH players are present it publishes
+  //   "start" and begins locally. Presence is Ably's reliable synced primitive,
+  //   so readiness is gated on it rather than on echo-prone "ready" counters.
   useEffect(() => {
-    realtime.enterPresence({
-      uid: myId,
-      displayName: mySlot === 0 ? player1Name : player2Name,
-      slot: mySlot,
-    });
+    let disposed = false;
 
-    // Watch for both players in presence.
-    // Track whether we have already published "ready" so we don't double-count
-    // our own event (the initial-check block below may have already fired it).
-    let selfReadyPublished = false;
-    const publishSelfReady = () => {
-      if (selfReadyPublished) return;
-      selfReadyPublished = true;
-      realtime.publishEvent({ type: "ready", slot: mySlot });
-      // Count our own "ready" locally — the broker may deliver it after
-      // onEvent("ready") is subscribed, but if not we would deadlock.
-      readyCountRef.current += 1;
-      if (mySlot === 0 && readyCountRef.current >= 2 && !startedRef.current) {
-        startedRef.current = true;
-        realtime.publishEvent({ type: "start", serverTimestamp: Date.now() });
-        start();
-      }
+    const beginMatch = () => {
+      if (startedRef.current) return;
+      startedRef.current = true;
+      stopPoll();
+      start();
     };
 
     // A presence "leave" can fire on a transient Ably blip, so don't award the
@@ -259,48 +237,70 @@ function DuelGame({
       }
     };
 
-    const unsubPresence = realtime.onPresence(async (action, member) => {
-      if (action === "leave" || action === "absent") {
-        if (member.clientId === myId || !startedRef.current) return;
-        clearLeaveTimer();
-        leaveTimer = setTimeout(async () => {
-          const members = await realtime.getPresence().catch(() => []);
-          const opponentStillHere = members.some((m) => m.clientId !== myId);
-          if (!opponentStillHere) opponentForfeited();
-        }, 5000);
+    // Coordinator re-broadcasts "start" (~6 publishes over ~2s) so a single
+    // dropped packet can't strand the opponent; the receiver is idempotent.
+    let rebroadcasts = 0;
+    let rebroadcastTimer: ReturnType<typeof setInterval> | null = null;
+    const stopRebroadcast = () => {
+      if (rebroadcastTimer) {
+        clearInterval(rebroadcastTimer);
+        rebroadcastTimer = null;
+      }
+    };
+
+    // Both slots poll presence as a safety net against a stale presence read or
+    // a missed "enter" event, until the match starts.
+    let pollTimer: ReturnType<typeof setInterval> | null = null;
+    function stopPoll() {
+      if (pollTimer) {
+        clearInterval(pollTimer);
+        pollTimer = null;
+      }
+    }
+
+    // Slot-1 fallback: if both players have been present this long without a
+    // "start" arriving (i.e. every coordinator broadcast dropped), begin anyway
+    // rather than dead-end in the lobby. Generous so it never fires in normal
+    // operation (start arrives in well under a second); the countdown absorbs the
+    // small resulting offset.
+    const SLOT1_FALLBACK_MS = 5000;
+    let bothPresentSince = 0;
+
+    const evaluateStart = async () => {
+      if (startedRef.current || disposed) return;
+      const members = await realtime.getPresence().catch(() => []);
+      if (disposed || startedRef.current) return;
+      const ids = new Set(members.map((m) => m.clientId));
+      if (ids.size < 2) {
+        bothPresentSince = 0; // opponent not present yet
         return;
       }
-      if (action !== "enter" && action !== "present") return;
-      if (member.clientId !== myId) clearLeaveTimer(); // opponent (re)appeared
-      const members = await realtime.getPresence();
-      if (members.length >= 2) {
-        publishSelfReady();
-      }
-    });
 
-    // Check initial presence (may already have 2 members if late joiner).
-    realtime.getPresence().then((members) => {
-      if (members.length >= 2) {
-        publishSelfReady();
-      }
-    });
-
-    const unsubReady = realtime.onEvent("ready", () => {
-      readyCountRef.current += 1;
-      // Slot-0 is the match coordinator
-      if (mySlot === 0 && readyCountRef.current >= 2 && !startedRef.current) {
-        startedRef.current = true;
+      if (mySlot === 0) {
+        // Coordinator: set the local guard first, then tell the opponent
+        // (retrying briefly so a dropped "start" can't strand them).
+        beginMatch();
         realtime.publishEvent({ type: "start", serverTimestamp: Date.now() });
-        start();
+        stopRebroadcast();
+        rebroadcasts = 0;
+        rebroadcastTimer = setInterval(() => {
+          rebroadcasts += 1;
+          if (disposed || rebroadcasts > 5) {
+            stopRebroadcast();
+            return;
+          }
+          realtime.publishEvent({ type: "start", serverTimestamp: Date.now() });
+        }, 400);
+      } else {
+        // Slot-1 normally begins on the "start" event; this is only the
+        // all-broadcasts-dropped rescue.
+        if (bothPresentSince === 0) bothPresentSince = Date.now();
+        else if (Date.now() - bothPresentSince >= SLOT1_FALLBACK_MS) beginMatch();
       }
-    });
+    };
 
-    const unsubStart = realtime.onEvent("start", () => {
-      if (!startedRef.current) {
-        startedRef.current = true;
-        start();
-      }
-    });
+    // 1) Subscribe first — before we enter presence.
+    const unsubStart = realtime.onEvent("start", () => beginMatch());
 
     // Opponent forfeited (explicit leave / beforeunload) — we win immediately,
     // no need to wait for the stall clock.
@@ -315,6 +315,35 @@ function DuelGame({
       }
     });
 
+    const unsubPresence = realtime.onPresence((action, member) => {
+      if (action === "leave" || action === "absent") {
+        if (member.clientId === myId || !startedRef.current) return;
+        clearLeaveTimer();
+        leaveTimer = setTimeout(async () => {
+          const members = await realtime.getPresence().catch(() => []);
+          const opponentStillHere = members.some((m) => m.clientId !== myId);
+          if (!opponentStillHere) opponentForfeited();
+        }, 5000);
+        return;
+      }
+      if (action !== "enter" && action !== "present") return;
+      if (member.clientId !== myId) clearLeaveTimer(); // opponent (re)appeared
+      evaluateStart(); // fast path
+    });
+
+    // 2) Announce ourselves.
+    realtime.enterPresence({
+      uid: myId,
+      displayName: mySlot === 0 ? player1Name : player2Name,
+      slot: mySlot,
+    });
+
+    // 3) Kick off immediately (covers the already-present opponent) and then
+    //    poll until the match starts — coordinator elects/broadcasts start,
+    //    slot-1 uses it as the dropped-broadcast rescue.
+    evaluateStart();
+    pollTimer = setInterval(evaluateStart, 600);
+
     // beforeunload: publish forfeit on disconnect
     const handleBeforeUnload = () => {
       realtime.publishEvent({ type: "forfeit", slot: mySlot, reason: "disconnect" });
@@ -322,13 +351,15 @@ function DuelGame({
     window.addEventListener("beforeunload", handleBeforeUnload);
 
     return () => {
-      unsubPresence();
-      unsubReady();
+      disposed = true;
       unsubStart();
       unsubForfeit();
       unsubRematch();
+      unsubPresence();
       window.removeEventListener("beforeunload", handleBeforeUnload);
       clearLeaveTimer();
+      stopPoll();
+      stopRebroadcast();
     };
   }, [realtime, myId, mySlot, player1Name, player2Name, start, onRematch, opponentForfeited]);
 
@@ -466,6 +497,7 @@ function DuelGame({
       {/* Canvas / Lobby */}
       {phase === "lobby" && !startedRef.current ? (
         <PracticeGame
+          categorySlug={categorySlug}
           linkCopied={linkCopied}
           waitedTooLong={waitedTooLong}
           onCopyLink={copyInviteLink}
@@ -728,6 +760,7 @@ export function DuelRoom({ duelId }: DuelRoomProps) {
     <DuelGame
       duelId={duelId}
       seed={meta.seed}
+      categorySlug={meta.categorySlug}
       myId={myId}
       guestId={myGuestId}
       opponentId={opponentId}
