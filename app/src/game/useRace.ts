@@ -468,11 +468,28 @@ export function useRace({
             // Tell peers our final state so their live view can resolve promptly.
             const me = cur.players.find((p) => p.slot === mySlot);
             if (me) publishSnapshot(cur, me);
-            // claimedOutcome is advisory only — the server ignores it on the
-            // normal path (winner is re-simulated). Show "computing…" until the
-            // authoritative result lands.
-            const localOutcome = cur.winnerId === myId ? "win" : "loss";
+
+            // Show the LOCAL sim's result immediately (provisional) so the player
+            // is never stuck waiting on the opponent's replay — the server can't
+            // complete the joint re-sim until both have submitted, and the loser
+            // typically finishes while the winner is still climbing. We reconcile
+            // to the authoritative server result if/when it lands (see
+            // applyServerResult); divergence is rare (only very close races).
+            const p0 = cur.players.find((p) => p.slot === 0);
+            const p1 = cur.players.find((p) => p.slot === 1);
+            setDuelResult({
+              winnerId: cur.winnerId,
+              tiebreakRule: cur.tiebreakRule,
+              player1Peak: p0?.peakY ?? null,
+              player2Peak: p1?.peakY ?? null,
+              forfeit: false,
+              hasReplay: true,
+            });
             setAwaitingResult(true);
+
+            // claimedOutcome is advisory only — the server ignores it on the
+            // normal path (the winner is re-simulated).
+            const localOutcome = cur.winnerId === myId ? "win" : "loss";
             submitResult(localOutcome);
           }
           break;
