@@ -6,24 +6,7 @@
 # the learnings ledger: CLAUDE.md defines that as persistent cross-agent memory
 # "never deleted between runs", and ignoring it made it vanish on every clone.
 # Must be `loop/*` rather than `loop/`, or the negations below cannot re-include.
-loop/*
-!loop/learnings.md
-!loop/learnings.jsonl
-# Package-upgrade architecture is a durable implementer contract, not a
-# per-run scratch file. Track it the same way as the learnings ledger.
-!loop/package-upgrade.md
-# Feature-loop product specs and stage handoffs must survive clones so the
-# next closed-loop stage (and PR reviewers) can read them.
-!loop/spec.md
-!loop/spec-*.md
-!loop/architecture.md
-!loop/architecture-*.md
-!loop/design.md
-!loop/research-*.md
-!loop/research-native-video-share.md
-!loop/handoffs/
-!loop/handoffs/**/*.json
-!loop/qa-report.md
+loop
 .claude/handoffs/*.json
 
 # Dependencies & build

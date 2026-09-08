@@ -350,6 +350,7 @@ export async function POST(
     player2Peak: result.player2Peak,
     forfeit: false,
     tiebreakRule: result.tiebreakRule,
+    hasReplay: true,
     myStats,
   });
 }

@@ -18,6 +18,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "../../contexts/AuthContext";
 import { formatAltitude } from "../../lib/units";
+import { buildDuelWatchUrl } from "../../game/runReplay";
 import type { RealtimeHandle } from "../../net/realtime";
 
 // ─────────────────────────────── Types ────────────────────────────────────
@@ -41,6 +42,8 @@ export interface DuelResultProps {
   resultError?: boolean;
   /** Re-attempt the failed result submission. */
   onRetrySubmit?: () => void;
+  /** Whether both replay logs were stored (enables the Watch replay button). */
+  hasReplay?: boolean;
 }
 
 function tiebreakLabel(rule: string): string {
@@ -74,6 +77,7 @@ export function DuelResult({
   realtime,
   resultError,
   onRetrySubmit,
+  hasReplay = false,
 }: DuelResultProps) {
   const { user, token } = useAuth();
   const router = useRouter();
@@ -159,7 +163,11 @@ export function DuelResult({
   }, [duelId, token, onRematch, router]);
 
   const handleShare = useCallback(async () => {
-    const url = `${typeof window !== "undefined" ? window.location.origin : ""}/duel/${duelId}`;
+    // Share the watch link when a replay is available, otherwise the room URL.
+    const origin = typeof window !== "undefined" ? window.location.origin : "";
+    const url = hasReplay
+      ? buildDuelWatchUrl(duelId, origin)
+      : `${origin}/duel/${duelId}`;
     setShareFailed(false);
     try {
       // Native share sheet on mobile.
@@ -176,10 +184,10 @@ export function DuelResult({
     } catch {
       // Last-resort fallback so the link is always obtainable.
       const ok =
-        typeof window !== "undefined" && window.prompt("Copy this duel link:", url) !== null;
+        typeof window !== "undefined" && window.prompt("Copy this link:", url) !== null;
       if (!ok) setShareFailed(true);
     }
-  }, [duelId]);
+  }, [duelId, hasReplay]);
 
   // ─────────────── Result label ────────────────
 
@@ -310,12 +318,22 @@ export function DuelResult({
           </p>
         )}
 
+        {/* Watch replay */}
+        {hasReplay && (
+          <Link
+            href={`/duel/${duelId}/watch`}
+            className="inline-flex items-center justify-center rounded-full px-6 min-h-[44px] border border-border-strong text-text-secondary text-sm hover:border-signal/50 transition-colors"
+          >
+            Watch replay
+          </Link>
+        )}
+
         {/* Share */}
         <button
           onClick={handleShare}
           className="inline-flex items-center justify-center rounded-full px-6 min-h-[44px] border border-border-strong text-text-secondary text-sm hover:border-signal/50 transition-colors"
         >
-          {shared ? "Link copied!" : "Share"}
+          {shared ? "Link copied!" : hasReplay ? "Share replay" : "Share"}
         </button>
         {shareFailed && (
           <p className="text-ember text-xs text-center">Couldn&apos;t copy the link.</p>

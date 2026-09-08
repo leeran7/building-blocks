@@ -24,6 +24,7 @@ import { getRedis } from "../../../../src/lib/redis";
 import { newRunSeed } from "../../../../src/game/rng";
 import { CATEGORY_BY_SLUG } from "../../../../src/lib/categories";
 import { createDuel, getActiveDuelForUser } from "../../../../src/db/duel";
+import { ensureUser } from "../../../../src/db/user";
 import { DuelStatus } from "@prisma/client";
 
 export const runtime = "nodejs";
@@ -73,12 +74,28 @@ interface PostBody {
 export async function POST(request: NextRequest) {
   // Auth: required
   let uid: string;
+  let userEmail: string | undefined;
+  let emailVerified: boolean | undefined;
   try {
     const decoded = await requireAuth(request);
     uid = decoded.uid;
+    userEmail = decoded.email;
+    emailVerified = decoded.email_verified;
   } catch (err) {
     if (err instanceof AuthError) return err.response;
     return NextResponse.json({ error: "Unauthorized", code: "UNAUTHORIZED" }, { status: 401 });
+  }
+
+  // Ensure the user row exists in the DB — the duels table foreign-keys to
+  // users(id), and auth/sync is fire-and-forget so it may not have run yet.
+  if (userEmail) {
+    await ensureUser({
+      id: uid,
+      email: userEmail,
+      emailVerified: emailVerified ?? false,
+    }).catch(() => {
+      // Best-effort: if this fails, createDuel will fail too and we'll re-enqueue.
+    });
   }
 
   // Rate limit: 30/hour
@@ -151,11 +168,24 @@ export async function POST(request: NextRequest) {
   const newId = nanoid(8);
   const seed = newRunSeed();
 
-  // Create the duel row with both players active immediately
-  await createDuel(waitingUid, categorySlug, newId, seed, {
-    player2Id: uid,
-    status: DuelStatus.active,
-  });
+  // Create the duel row with both players active immediately.
+  // If this fails (e.g. FK violation — waiting user's `users` row missing because
+  // their auth/sync hasn't run yet), re-enqueue them so they're not stranded.
+  try {
+    await createDuel(waitingUid, categorySlug, newId, seed, {
+      player2Id: uid,
+      status: DuelStatus.active,
+    });
+  } catch (err) {
+    console.error("[POST /api/duel/queue] createDuel failed; re-enqueueing waiting user:", err);
+    const reNow = Math.floor(Date.now() / 1000);
+    await redis.zadd(queueKey, { score: reNow, member: waitingUid });
+    await redis.set(`duel:queue:member:${waitingUid}`, categorySlug, { ex: QUEUE_TTL_SECONDS });
+    return NextResponse.json(
+      { error: "Internal server error", code: "INTERNAL_ERROR" },
+      { status: 500 }
+    );
+  }
 
   return NextResponse.json({ status: "matched", duelId: newId });
 }

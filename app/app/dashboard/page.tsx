@@ -36,6 +36,10 @@ import {
   DuelRecordEmpty,
   type DuelRecordData,
 } from "../../src/components/Dashboard/DuelRecordCard";
+import {
+  DuelReplaysSection,
+  type DuelReplayItem,
+} from "../../src/components/Dashboard/DuelReplaysSection";
 import { formatAltitude } from "../../src/lib/units";
 
 interface Payment {
@@ -80,6 +84,7 @@ interface DashboardData {
   freeClimb: FreeClimbData | null;
   replays: ClimbReplayItem[];
   duelStats: DuelRecordData | null;
+  recentDuels?: DuelReplayItem[];
 }
 
 type FetchState =
@@ -262,6 +267,13 @@ export default function DashboardPage() {
               <DuelRecordCard record={fetchState.data.duelStats} />
             ) : (
               <DuelRecordEmpty />
+            )}
+
+            {(fetchState.data.recentDuels?.length ?? 0) > 0 && (
+              <DuelReplaysSection
+                duels={fetchState.data.recentDuels!}
+                userId={fetchState.data.user.id}
+              />
             )}
 
             {fetchState.data.blocks.length === 0 && (

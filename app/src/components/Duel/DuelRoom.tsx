@@ -18,11 +18,13 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "../../contexts/AuthContext";
 import { useDuel } from "../../game/useDuel";
+import { useClimb } from "../../game/useClimb";
 import { ClimbCanvas } from "../Game/ClimbCanvas";
 import { DuelResult } from "./DuelResult";
 import { connectRealtime, RealtimeHandle } from "../../net/realtime";
 import { TowerSpec } from "../../game/types";
 import { formatAltitude } from "../../lib/units";
+import { newRunSeed } from "../../game/rng";
 
 // ─────────────────────────────── Types ────────────────────────────────────
 
@@ -66,6 +68,90 @@ const DEFAULT_TOWER: TowerSpec = {
   gravity: 32,
   fallDeathBelowPeakM: 10,
 };
+
+// ─────────────────────────────── Practice lobby ───────────────────────────
+
+/**
+ * Warm-up solo climb shown while waiting for the opponent to join.
+ * Runs on a fresh random seed (never the duel seed — no pre-scouting).
+ * Tear it down by unmounting (parent replaces it on duel start).
+ */
+function PracticeGame({
+  linkCopied,
+  waitedTooLong,
+  onCopyLink,
+}: {
+  linkCopied: boolean;
+  waitedTooLong: boolean;
+  onCopyLink: () => void;
+}) {
+  const [warmSeed] = useState(() => newRunSeed());
+  const tower: TowerSpec = { ...DEFAULT_TOWER, seed: warmSeed };
+
+  const { state, start, finished } = useClimb({
+    tower,
+    seed: warmSeed,
+  });
+
+  // Start on mount and restart when the warm-up run ends
+  useEffect(() => { start(); }, [start]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (finished) start();
+  }, [finished, start]);
+
+  return (
+    <div className="relative flex-1 flex items-start justify-center pt-4">
+      {/* Warm-up canvas (solo, throwaway) */}
+      <ClimbCanvas state={state} width={360} height={600} />
+
+      {/* Waiting HUD overlay */}
+      <div className="absolute inset-0 flex flex-col items-end justify-start p-4 gap-2 pointer-events-none">
+        <div className="bg-void/80 backdrop-blur-sm rounded-xl border border-border-subtle px-3 py-2 pointer-events-auto max-w-[200px]">
+          {!waitedTooLong ? (
+            <div className="flex flex-col items-center gap-2 text-center">
+              <div className="flex items-center gap-2">
+                <span
+                  className="w-3 h-3 rounded-full border-2 border-text-muted border-t-signal animate-spin shrink-0"
+                  aria-hidden="true"
+                />
+                <p className="font-mono text-xs text-text-secondary">
+                  Waiting for opponent…
+                </p>
+              </div>
+              <button
+                onClick={onCopyLink}
+                className="inline-flex items-center justify-center rounded-full px-3 min-h-[36px] border border-border-strong text-text-secondary text-xs hover:border-signal/50 transition-colors w-full"
+              >
+                {linkCopied ? "Copied!" : "Copy invite link"}
+              </button>
+            </div>
+          ) : (
+            <div className="flex flex-col items-center gap-2 text-center">
+              <p className="font-mono text-xs text-text-secondary">
+                Opponent hasn&apos;t joined yet.
+              </p>
+              <button
+                onClick={onCopyLink}
+                className="inline-flex items-center justify-center rounded-full px-3 min-h-[36px] bg-signal text-void font-semibold text-xs hover:brightness-110 transition w-full"
+              >
+                {linkCopied ? "Copied!" : "Copy invite link"}
+              </button>
+              <Link
+                href="/duel"
+                className="text-text-muted text-xs underline underline-offset-2"
+              >
+                Leave
+              </Link>
+            </div>
+          )}
+        </div>
+        <p className="font-mono text-[10px] text-text-muted bg-void/70 rounded px-2 py-1 pointer-events-none">
+          warm-up • not ranked
+        </p>
+      </div>
+    </div>
+  );
+}
 
 // ─────────────────────────────── Inner game component ─────────────────────
 
@@ -306,6 +392,7 @@ function DuelGame({
         realtime={realtime}
         resultError={resultError}
         onRetrySubmit={retrySubmit}
+        hasReplay={duelResult.hasReplay}
       />
     );
   }
@@ -353,70 +440,38 @@ function DuelGame({
         </div>
       )}
 
-      {/* Canvas */}
-      <div className="relative flex-1 flex items-start justify-center pt-4">
-        <ClimbCanvas
-          state={state}
-          width={360}
-          height={600}
-          myId={myId}
-          playerNames={playerNames}
+      {/* Canvas / Lobby */}
+      {phase === "lobby" && !startedRef.current ? (
+        <PracticeGame
+          linkCopied={linkCopied}
+          waitedTooLong={waitedTooLong}
+          onCopyLink={copyInviteLink}
         />
+      ) : (
+        <div className="relative flex-1 flex items-start justify-center pt-4">
+          <ClimbCanvas
+            state={state}
+            width={360}
+            height={600}
+            myId={myId}
+            playerNames={playerNames}
+          />
 
-        {/* Countdown overlay */}
-        {phase === "countdown" && (
-          <div
-            className="absolute inset-0 flex items-center justify-center pointer-events-none"
-            aria-live="assertive"
-            aria-atomic="true"
-          >
-            <div className="font-display text-8xl font-black text-signal"
-              style={{ textShadow: "0 0 40px rgb(203 242 77 / 0.5)" }}>
-              {Math.max(1, 3 - Math.floor(state.tick / 30))}
+          {/* Countdown overlay */}
+          {phase === "countdown" && (
+            <div
+              className="absolute inset-0 flex items-center justify-center pointer-events-none"
+              aria-live="assertive"
+              aria-atomic="true"
+            >
+              <div className="font-display text-8xl font-black text-signal"
+                style={{ textShadow: "0 0 40px rgb(203 242 77 / 0.5)" }}>
+                {Math.max(1, 3 - Math.floor(state.tick / 30))}
+              </div>
             </div>
-          </div>
-        )}
-
-        {/* Waiting overlay */}
-        {(phase === "lobby") && !startedRef.current && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-void/85 backdrop-blur-sm px-6 text-center">
-            {!waitedTooLong ? (
-              <>
-                <div className="w-6 h-6 rounded-full border-2 border-text-muted border-t-signal animate-spin" aria-hidden="true" />
-                <p className="font-mono text-sm text-text-secondary">
-                  Waiting for opponent…
-                </p>
-                <button
-                  onClick={copyInviteLink}
-                  className="inline-flex items-center justify-center rounded-full px-5 min-h-[44px] border border-border-strong text-text-secondary text-sm hover:border-signal/50 transition-colors"
-                >
-                  {linkCopied ? "Link copied!" : "Copy invite link"}
-                </button>
-              </>
-            ) : (
-              <>
-                <p className="font-mono text-sm text-text-secondary">
-                  Your opponent hasn&apos;t joined yet.
-                </p>
-                <div className="flex flex-col gap-2 items-center">
-                  <button
-                    onClick={copyInviteLink}
-                    className="inline-flex items-center justify-center rounded-full px-5 min-h-[44px] bg-signal text-void font-semibold text-sm hover:brightness-110 transition"
-                  >
-                    {linkCopied ? "Link copied!" : "Copy invite link"}
-                  </button>
-                  <Link
-                    href="/duel"
-                    className="inline-flex items-center justify-center rounded-full px-5 min-h-[44px] border border-border-strong text-text-secondary text-sm hover:border-signal/50 transition-colors"
-                  >
-                    Back to duels
-                  </Link>
-                </div>
-              </>
-            )}
-          </div>
-        )}
-      </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

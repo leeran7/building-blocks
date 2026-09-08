@@ -55,6 +55,7 @@ export interface DuelResult {
   player1Peak: number | null;
   player2Peak: number | null;
   forfeit: boolean;
+  hasReplay: boolean;
 }
 
 export interface UseDuelOptions {
@@ -265,6 +266,7 @@ export function useDuel({
       player1Peak: player0?.peakY ?? null,
       player2Peak: player1?.peakY ?? null,
       forfeit: true,
+      hasReplay: false,
     });
 
     setState((prev) => ({ ...prev, phase: "finished", winnerId: mySlot === 0 ? opponentId : myId }));
@@ -294,6 +296,7 @@ export function useDuel({
       player1Peak: cur.players[0]?.peakY ?? null,
       player2Peak: cur.players[1]?.peakY ?? null,
       forfeit: true,
+      hasReplay: false,
     });
     setState((prev) => ({ ...prev, phase: "finished", winnerId: myId }));
   }, [myId, submitResult]);
@@ -402,6 +405,7 @@ export function useDuel({
             player1Peak: player0?.peakY ?? null,
             player2Peak: player1?.peakY ?? null,
             forfeit: false,
+            hasReplay: true,
           });
 
           submitResult(outcome);

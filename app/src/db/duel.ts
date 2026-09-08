@@ -492,6 +492,74 @@ export async function getDuelStats(userId: string): Promise<DuelStats | null> {
   return prisma.duelStats.findUnique({ where: { user_id: userId } });
 }
 
+export interface RecentDuelItem {
+  id: string;
+  status: string;
+  categorySlug: string;
+  winnerId: string | null;
+  forfeit: boolean;
+  player1Peak: number | null;
+  player2Peak: number | null;
+  tiebreakRule: string | null;
+  completedAt: string | null;
+  hasReplay: boolean;
+  opponent: { id: string; displayName: string | null } | null;
+  mySlot: 1 | 2;
+}
+
+export async function getRecentDuelsForUser(
+  userId: string,
+  take = 10
+): Promise<RecentDuelItem[]> {
+  const rows = await prisma.duel.findMany({
+    where: {
+      status: DuelStatus.completed,
+      OR: [{ player1_id: userId }, { player2_id: userId }],
+    },
+    orderBy: { completed_at: "desc" },
+    take,
+    select: {
+      id: true,
+      status: true,
+      category_slug: true,
+      winner_id: true,
+      forfeit: true,
+      player1_peak: true,
+      player2_peak: true,
+      tiebreak_rule: true,
+      completed_at: true,
+      player1_replay: true,
+      player2_replay: true,
+      player1: { select: { id: true, display_name: true } },
+      player2: { select: { id: true, display_name: true } },
+      player1_id: true,
+      player2_id: true,
+    },
+  });
+
+  return rows.map((r) => {
+    const isP1 = r.player1_id === userId;
+    const opponent = isP1
+      ? (r.player2 ? { id: r.player2.id, displayName: r.player2.display_name } : null)
+      : (r.player1 ? { id: r.player1.id, displayName: r.player1.display_name } : null);
+    const hasReplay = isP1 ? !!r.player1_replay : !!r.player2_replay;
+    return {
+      id: r.id,
+      status: r.status,
+      categorySlug: r.category_slug,
+      winnerId: r.winner_id ?? null,
+      forfeit: r.forfeit ?? false,
+      player1Peak: r.player1_peak ?? null,
+      player2Peak: r.player2_peak ?? null,
+      tiebreakRule: r.tiebreak_rule ?? null,
+      completedAt: r.completed_at?.toISOString() ?? null,
+      hasReplay,
+      opponent,
+      mySlot: isP1 ? 1 : 2,
+    };
+  });
+}
+
 /**
  * Top duel leaderboard by wins. Excludes anonymous users (no display_name).
  * winPct = wins / (wins + losses) * 100, rounded to 1 decimal.

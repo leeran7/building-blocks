@@ -101,6 +101,11 @@ export function buildReplayUrl(token: string, origin: string): string {
   return `${origin.replace(/\/$/, "")}/play?r=${token}`;
 }
 
+/** Build the shareable watch URL for a completed duel replay. */
+export function buildDuelWatchUrl(duelId: string, origin: string): string {
+  return `${origin.replace(/\/$/, "")}/duel/${duelId}/watch`;
+}
+
 async function deflate(bytes: Uint8Array): Promise<Uint8Array> {
   if (typeof CompressionStream === "undefined") return bytes;
   const stream = new Blob([bytes as BlobPart])
