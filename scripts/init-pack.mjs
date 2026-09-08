@@ -69,8 +69,7 @@ async function main() {
   const learningsMd = join(ledgerDest, "learnings.md");
   if (!(await exists(learningsMd))) {
     await cp(join(PACK_ROOT, "pack", "templates", "learnings.md"), learningsMd);
-    await writeFile(join(ledgerDest, "learnings.jsonl"), "");
-    console.log("wrote empty loop/learnings.md + learnings.jsonl");
+    console.log("wrote empty loop/learnings.md");
   }
 
   const snippet = await readFile(join(PACK_ROOT, "pack", "templates", "gitignore.snippet"), "utf-8");

@@ -22,14 +22,14 @@ You **run the team**. See `skills/closed-loop/team.md`. For each required stage,
 
 Missing handoff → **failed**. `custom` / `generalPurpose` / doing the work yourself does **not** count.
 
-**Default required team** (override with `context/profile.json` `requiredTeam` if present): product-spec, architect, implementer, verifier, reviewer, security-reviewer, qa-acceptance, integrator.
+**Default required team** (override with `context/profile.json` `requiredTeam` if present): product-spec, implementer, verifier, reviewer, security-reviewer, qa-acceptance, integrator. Implementer designs contracts inline and delegates UI to `frontend`; integrator is terminal.
 
 After verifier succeeds, dispatch `reviewer` **and** `security-reviewer` in **one message**. Both must pass before qa-acceptance. Clamp `nextStage` so required members cannot be skipped.
 
 ## Startup
 
 1. Read `skills/closed-loop/SKILL.md`, `stages.md`, `handoffs.md`, `team.md`, `learning-loop.md`, and `context/README.md`.
-2. Ensure `loop/learnings.md` and `loop/learnings.jsonl` exist (create empty if missing). Never delete them.
+2. Ensure `loop/learnings.md` exists (create empty if missing). Never delete it.
 3. Create or resume `loop/state.json`. Resume from `currentStage` if it exists.
 
 ## Routing
@@ -45,7 +45,7 @@ After verifier succeeds, dispatch `reviewer` **and** `security-reviewer` in **on
 
 ## Retro (every iteration)
 
-Follow `skills/closed-loop/learning-loop.md`. Persist read-only agents’ `learnings` arrays into `loop/learnings.jsonl`. Unanswered cross-agent ping → route back. Promote repeats per that skill — do not paste new rules into `agents/*.md`. Kernel-generic `[all]` lessons are proposed for `skills/closed-loop/gates.md`. Product facts go in `context/` or the ledger.
+Follow `skills/closed-loop/learning-loop.md`: append any handoff `learnings` to `loop/learnings.md` Notes (deduped, capped) — no fold or promotion algorithm. Occasionally hand-promote a recurring Note to a Standing rule. Do not paste new rules into `agents/*.md`. Kernel-generic `[all]` lessons are proposed for `skills/closed-loop/gates.md`. Product facts go in `context/` or the ledger.
 
 ## Convergence
 

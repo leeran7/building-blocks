@@ -56,38 +56,23 @@ describe("clampNextStage — never skip the team", () => {
     assert.equal(nextInSequence("reviewer"), "qa-acceptance");
   });
 
-  it("allows optional design-ux after architect", () => {
-    assert.equal(clampNextStage("architect", "design-ux"), "design-ux");
+  it("advances product-spec straight to implementer (no architect stage)", () => {
+    assert.equal(clampNextStage("product-spec", "implementer"), "implementer");
+    assert.equal(clampNextStage("product-spec", undefined), "implementer");
+    assert.equal(clampNextStage("product-spec", "integrator"), "implementer");
   });
 
-  it("allows optional github after integrator", () => {
-    assert.equal(clampNextStage("integrator", "github"), "github");
-    assert.equal(nextInSequence("github"), "release");
-  });
-
-  it("keeps devops and docs optional after integrator", () => {
-    assert.equal(clampNextStage("integrator", "devops"), "devops");
-    assert.equal(clampNextStage("integrator", "docs"), "docs");
-    assert.equal(nextInSequence("devops"), "release");
-    assert.equal(nextInSequence("docs"), "release");
-  });
-
-  it("does not treat github as a required-sequence skip target", () => {
-    assert.equal(clampNextStage("verifier", "github"), "reviewer");
-    assert.equal(clampNextStage("qa-acceptance", "github"), "integrator");
-  });
-
-  it("does not treat frontend as a pipeline skip", () => {
+  it("does not treat frontend as a pipeline skip (it is a specialist)", () => {
     assert.equal(clampNextStage("implementer", "frontend"), "verifier");
   });
 
-  it("advances architect to implementer when no optional insert requested", () => {
-    assert.equal(clampNextStage("architect", "implementer"), "implementer");
-    assert.equal(clampNextStage("architect", undefined), "implementer");
+  it("keeps qa-acceptance from skipping integrator", () => {
+    assert.equal(clampNextStage("qa-acceptance", undefined), "integrator");
   });
 
-  it("keeps qa-acceptance from skipping integrator", () => {
-    assert.equal(clampNextStage("qa-acceptance", "release"), "integrator");
+  it("completes after integrator, the terminal required stage", () => {
+    assert.equal(nextInSequence("integrator"), null);
+    assert.equal(clampNextStage("integrator", undefined), null);
   });
 });
 
@@ -98,11 +83,14 @@ describe("clampLoopBackTo", () => {
     assert.equal(clampLoopBackTo("qa-acceptance"), "implementer");
   });
 
-  it("allows product-spec, architect, implementer, debugger", () => {
+  it("allows product-spec, implementer, debugger", () => {
     assert.equal(clampLoopBackTo("product-spec"), "product-spec");
-    assert.equal(clampLoopBackTo("architect"), "architect");
     assert.equal(clampLoopBackTo("implementer"), "implementer");
     assert.equal(clampLoopBackTo("debugger"), "debugger");
+  });
+
+  it("no longer honors architect as a loop-back target", () => {
+    assert.equal(clampLoopBackTo("architect"), "implementer");
   });
 });
 
@@ -180,7 +168,7 @@ describe("combineHandoffs", () => {
 describe("teamMissing", () => {
   it("lists every required member not yet dispatched", () => {
     const state = {
-      dispatched: ["product-spec", "architect"] as Stage[],
+      dispatched: ["product-spec"] as Stage[],
       completedStages: ["product-spec"] as Stage[],
     };
     const missing = teamMissing(state);
@@ -188,8 +176,8 @@ describe("teamMissing", () => {
     assert.ok(missing.includes("verifier"));
     assert.ok(missing.includes("reviewer"));
     assert.ok(missing.includes("security-reviewer"));
+    assert.ok(missing.includes("integrator"));
     assert.ok(!missing.includes("product-spec"));
-    assert.ok(!missing.includes("architect"));
   });
 
   it("is empty when the required team all ran", () => {

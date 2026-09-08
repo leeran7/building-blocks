@@ -55,8 +55,7 @@ your-repo/
 │   └── conventions.md            how to match this codebase
 │
 ├── loop/                         ← YOU (memory) + runtime (gitignored)
-│   ├── learnings.md              this repo’s ledger (version this)
-│   ├── learnings.jsonl           append-only events (version this)
+│   ├── learnings.md              this repo’s ledger, single lean file (version this)
 │   ├── handoffs/                 per-run; gitignored
 │   └── state.json                per-run; gitignored
 │

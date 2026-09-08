@@ -73,26 +73,25 @@ as `needs_revision`.
 Do not omit `findings` just because `feedback` is documented above. The loop
 reads both.
 
-## Learnings format (cross-agent pings)
+## Learnings format (optional cross-agent pings)
+
+Only include when you hit something genuinely new and reusable — otherwise omit
+the array. Three fields, nothing more:
 
 ```json
 {
-  "topic": "testing",
-  "forAgents": ["implementer", "architect"],
-  "kind": "lesson",
+  "forAgents": ["implementer"],
   "insight": "Webhook handler read the raw body twice; the second read was empty.",
-  "action": "Buffer the raw body once, pass it to constructEvent; never re-read req.body.",
-  "confidence": "high"
+  "action": "Buffer the raw body once, pass it to constructEvent; never re-read req.body."
 }
 ```
 
-Each learning here MUST also be appended (one line) to `loop/learnings.jsonl`.
-See [learning-loop.md](learning-loop.md).
+The orchestrator appends new entries to `loop/learnings.md` Notes. You do not
+write the ledger yourself. See [learning-loop.md](learning-loop.md).
 
 ## Reading prior handoffs
 
-Before starting work, read the latest handoff from the upstream agent listed in
-`loop/state.json` — **including its `learnings` array**, which are findings the
-previous agent aimed directly at you. Also read `loop/learnings.md` (your section
-+ `all`). Answer every ping addressed to you: apply it, or record an explicit
-exception. See [learning-loop.md](learning-loop.md).
+Before starting, read the latest upstream handoff from `loop/state.json` —
+including its `learnings` array (findings aimed at you) — plus the top of
+`loop/learnings.md` (Standing rules + Notes tagged for you or `all`). Apply what
+fits. See [learning-loop.md](learning-loop.md).

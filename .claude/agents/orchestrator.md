@@ -30,9 +30,8 @@ programmatic loop prepends it in `loadAgentPrompt`. Do not copy it into
    That folder is **this repo’s** facts. If `context/` is missing, infer
    from lockfiles and existing code — do not invent a second stack or a
    hardcoded package manager.
-2. Read `loop/learnings.md` (your section + `all`) and the prior handoff
-   `learnings` array. Apply every finding aimed at you; if you skip one,
-   record why.
+2. Read the top of `loop/learnings.md` (Standing rules + any Note tagged for
+   you or `all`) and the prior handoff `learnings` array. Apply what fits.
 3. Apply every rule in [gates.md](gates.md) (kernel — every repo).
 
 ## While working
@@ -48,12 +47,10 @@ programmatic loop prepends it in `loadAgentPrompt`. Do not copy it into
 1. Write `loop/handoffs/<agent>-<ISO-timestamp>.json` per
    [handoffs.md](handoffs.md). Required: `agent`, `status`, `summary`,
    `timestamp`. Status is `success` | `needs_revision` | `blocked` | `failed`.
-2. Put new learnings in the handoff `learnings` array (`forAgents`,
-   `insight`, `action`; optional `kind`, `topic`, `confidence`). At least
-   one entry (a `metric` is enough).
-3. Append those lines to `loop/learnings.jsonl` unless you are read-only.
-   Read-only agents put learnings only in the handoff; the dispatcher
-   persists them. Never duplicate an existing insight — bump confidence.
+2. **Only if** you hit something genuinely new and reusable, add one concise
+   entry to the handoff `learnings` array (`forAgents`, `insight`, `action`).
+   Otherwise omit it — do not pad. The orchestrator appends new entries to
+   `loop/learnings.md` Notes; you never write the ledger yourself.
 
 A missing handoff file means the stage **failed**. It is not success.
 
@@ -76,14 +73,14 @@ You **run the team**. See `skills/closed-loop/team.md`. For each required stage,
 
 Missing handoff → **failed**. `custom` / `generalPurpose` / doing the work yourself does **not** count.
 
-**Default required team** (override with `context/profile.json` `requiredTeam` if present): product-spec, architect, implementer, verifier, reviewer, security-reviewer, qa-acceptance, integrator.
+**Default required team** (override with `context/profile.json` `requiredTeam` if present): product-spec, implementer, verifier, reviewer, security-reviewer, qa-acceptance, integrator. Implementer designs contracts inline and delegates UI to `frontend`; integrator is terminal.
 
 After verifier succeeds, dispatch `reviewer` **and** `security-reviewer` in **one message**. Both must pass before qa-acceptance. Clamp `nextStage` so required members cannot be skipped.
 
 ## Startup
 
 1. Read `skills/closed-loop/SKILL.md`, `stages.md`, `handoffs.md`, `team.md`, `learning-loop.md`, and `context/README.md`.
-2. Ensure `loop/learnings.md` and `loop/learnings.jsonl` exist (create empty if missing). Never delete them.
+2. Ensure `loop/learnings.md` exists (create empty if missing). Never delete it.
 3. Create or resume `loop/state.json`. Resume from `currentStage` if it exists.
 
 ## Routing
@@ -99,7 +96,7 @@ After verifier succeeds, dispatch `reviewer` **and** `security-reviewer` in **on
 
 ## Retro (every iteration)
 
-Follow `skills/closed-loop/learning-loop.md`. Persist read-only agents’ `learnings` arrays into `loop/learnings.jsonl`. Unanswered cross-agent ping → route back. Promote repeats per that skill — do not paste new rules into `agents/*.md`. Kernel-generic `[all]` lessons are proposed for `skills/closed-loop/gates.md`. Product facts go in `context/` or the ledger.
+Follow `skills/closed-loop/learning-loop.md`: append any handoff `learnings` to `loop/learnings.md` Notes (deduped, capped) — no fold or promotion algorithm. Occasionally hand-promote a recurring Note to a Standing rule. Do not paste new rules into `agents/*.md`. Kernel-generic `[all]` lessons are proposed for `skills/closed-loop/gates.md`. Product facts go in `context/` or the ledger.
 
 ## Convergence
 

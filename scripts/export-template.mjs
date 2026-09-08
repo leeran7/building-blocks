@@ -69,7 +69,6 @@ async function main() {
 
   await mkdir(join(destRoot, "loop"), { recursive: true });
   await cp(join(PACK_ROOT, "pack", "templates", "learnings.md"), join(destRoot, "loop", "learnings.md"));
-  await writeFile(join(destRoot, "loop", "learnings.jsonl"), "");
 
   await cp(join(PACK_ROOT, "pack", "templates", "README.md"), join(destRoot, "README.md"));
   await cp(join(PACK_ROOT, "skills", "closed-loop", "host.md"), join(destRoot, "CLAUDE.md"));

@@ -3,15 +3,19 @@
 ## Primary loop (always run)
 
 ```
-product-spec → architect → implementer → verifier
-                                              ↓
-                        reviewer + security-reviewer (parallel)
-                                              ↓
-                         qa-acceptance → integrator → release
-                                    ↑         ↑          ↑
-                                    └─────────┴──────────┘
-                                              (failures loop back)
+product-spec → implementer → verifier
+                                 ↓
+           reviewer + security-reviewer (parallel)
+                                 ↓
+                  qa-acceptance → integrator (terminal)
+                        ↑              ↑
+                        └──────────────┘
+                          (failures loop back)
 ```
+
+`implementer` designs contracts/data models inline (no separate architect
+stage) and delegates UI to `frontend`. `integrator` is the terminal required
+stage — its success completes the loop.
 
 ## Parallel quality gates (after verifier)
 
@@ -33,21 +37,16 @@ clamps skips back onto the sequence (see [team.md](team.md)).
 | Trigger | Agent |
 |---------|-------|
 | Test or CI failure with unclear cause | debugger |
-| Frontend-heavy work | frontend (delegated from implementer) |
-| API/backend work | backend |
-| Schema or migration work | data |
-| Mobile client | mobile |
-| UI/UX requirements in spec | design-ux (before implementer) |
-| Compliance requirements in spec | compliance |
-| New data field, third-party processor, or payment flow | legal |
-| Cloud/infra changes | devops |
-| Stacked PRs, rulesets, merge queue, PR cut plan | github |
-| Post-deploy | monitor |
-| Missing docs | docs |
+| UI / frontend / design work | frontend (delegated from implementer) |
+
+Everything else — API, data, schema, performance, contracts — is the
+implementer's own work. GitHub platform strategy (stacks, rulesets, merge
+queue) is the integrator's.
 
 ## Specialist delegation
 
-Implementer delegates to specialists but owns integration. Specialists write their own handoffs tagged `"parent": "implementer"`.
+Implementer delegates UI to `frontend` but owns integration. Frontend writes
+its own handoff tagged `"parent": "implementer"`.
 
 ## Terminal conditions
 
@@ -57,8 +56,7 @@ The orchestrator stops the loop when ALL are true:
 2. Reviewer has no critical feedback
 3. Security-reviewer has no critical findings
 4. QA acceptance criteria all pass
-5. Integrator reports CI green and PR merge-ready
-6. Release stage completes (or skipped for local-only apps)
+5. Integrator reports CI green and PR/stack merge-ready
 
 ## Loop-back routing
 
@@ -71,7 +69,6 @@ The orchestrator stops the loop when ALL are true:
 | CI failures in PR scope | implementer |
 | CI failures unrelated to PR | integrator (merge base first) |
 | Flaky/unclear failures | debugger → implementer |
-| Production alerts | monitor → orchestrator → implementer |
 
 ## Platform delegation
 

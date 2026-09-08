@@ -1,65 +1,43 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import type { Handoff, HandoffLearning } from "./types.js";
+import type { Handoff } from "./types.js";
 
-const EMPTY_LEDGER = `# Learnings Ledger
+/**
+ * Lean learnings ledger: one short `loop/learnings.md`, no JSONL, no retro
+ * fold/promote. Two sections — durable Standing rules and recent Notes.
+ * Agents read the top; they append at most a one-line note when they hit
+ * something genuinely new. Prune aggressively; this file must stay cheap to read.
+ */
 
-_Last curated: never._
+const STANDING_HEADING = "## Standing rules (always apply)";
+const NOTES_HEADING = "## Notes (recent — newest first)";
+const NOTES_LIMIT = 30;
+const EXCERPT_CAP = 2500;
 
-## Standing rules (always apply)
+export const EMPTY_LEDGER = `# Learnings
 
-## By topic
-### Testing
-### Security
-### Architecture & contracts
-### Performance
-### Spec quality
-### Build / CI
-### Orchestration
+Keep this short. Standing rules are durable, always-apply lessons. Notes are
+recent one-line findings. Prune aggressively — a ledger nobody reads is dead weight.
 
-## Open questions (unresolved, need a decision)
+${STANDING_HEADING}
 
-## Recently applied (last 20)
+${NOTES_HEADING}
 `;
 
-const STAGE_LEARNING_LIMIT = 12;
-const ACTION_SNIPPET = 160;
+export interface Learning {
+  forAgents: string[];
+  insight: string;
+  action: string;
+}
 
-const RECENT_LIMIT = 20;
-
-const TOPIC_HEADINGS: Array<{ keys: string[]; heading: string }> = [
-  { keys: ["testing", "test"], heading: "### Testing" },
-  { keys: ["security"], heading: "### Security" },
-  { keys: ["architecture", "architecture & contracts", "contracts"], heading: "### Architecture & contracts" },
-  { keys: ["performance"], heading: "### Performance" },
-  { keys: ["spec", "spec quality", "product"], heading: "### Spec quality" },
-  { keys: ["build / ci", "build", "ci"], heading: "### Build / CI" },
-  { keys: ["orchestration", "orchestrator", "general"], heading: "### Orchestration" },
-];
-
-export function normalizeLearning(raw: unknown): HandoffLearning | null {
+export function normalizeLearning(raw: unknown): Learning | null {
   if (!raw || typeof raw !== "object") return null;
   const record = raw as Record<string, unknown>;
   const insight = firstString(record, ["insight", "lesson", "message", "finding"]);
   const action = firstString(record, ["action", "recommendation", "fix", "do"]);
   if (!insight || !action) return null;
   const forAgents = firstStringArray(record, ["forAgents", "agents", "for"]) ?? ["all"];
-  const kind = firstString(record, ["kind", "type"]);
-  const allowedKind = ["lesson", "pattern", "pitfall", "metric", "question"] as const;
-  return {
-    forAgents,
-    insight,
-    action,
-    topic: firstString(record, ["topic"]) ?? "general",
-    kind: allowedKind.includes(kind as (typeof allowedKind)[number])
-      ? (kind as HandoffLearning["kind"])
-      : "lesson",
-    confidence: firstString(record, ["confidence"]) === "high"
-      ? "high"
-      : firstString(record, ["confidence"]) === "low"
-        ? "low"
-        : "medium",
-  };
+  return { forAgents, insight, action };
 }
 
 function firstString(record: Record<string, unknown>, keys: string[]): string | undefined {
@@ -81,335 +59,129 @@ function firstStringArray(record: Record<string, unknown>, keys: string[]): stri
   return undefined;
 }
 
+function formatBullet(learning: Learning): string {
+  return `- [${learning.forAgents.join(", ")}] ${learning.insight} → ${learning.action}`;
+}
+
+function bulletInsight(bullet: string): string {
+  return bullet.replace(/^- \[[^\]]*\]\s*/, "").split(" → ")[0]?.trim() ?? bullet;
+}
+
+function bulletTargets(bullet: string): string[] {
+  const tag = bullet.match(/^- \[([^\]]*)\]/)?.[1] ?? "all";
+  return tag.split(",").map((agent) => agent.trim().toLowerCase());
+}
+
+function getSection(md: string, heading: string): string {
+  const idx = md.indexOf(heading);
+  if (idx < 0) return "";
+  const start = md.indexOf("\n", idx);
+  if (start < 0) return "";
+  const rest = md.slice(start + 1);
+  const next = rest.search(/\n## /);
+  return (next < 0 ? rest : rest.slice(0, next)).trim();
+}
+
+function setNotes(md: string, bullets: string[]): string {
+  const body = bullets.length > 0 ? `${bullets.join("\n")}\n` : "";
+  const idx = md.indexOf(NOTES_HEADING);
+  if (idx < 0) return `${md.trimEnd()}\n\n${NOTES_HEADING}\n${body}`;
+  const start = md.indexOf("\n", idx);
+  const head = start < 0 ? md.length : start + 1;
+  const rest = md.slice(head);
+  const next = rest.search(/\n## /);
+  const end = next < 0 ? md.length : head + next;
+  return `${md.slice(0, head)}${body}${md.slice(end)}`;
+}
+
+async function readLedger(loopDir: string): Promise<string> {
+  try {
+    return await readFile(join(loopDir, "learnings.md"), "utf-8");
+  } catch {
+    return EMPTY_LEDGER;
+  }
+}
+
+/** Append new handoff learnings to Notes (newest first), deduped and capped. */
 export async function persistHandoffLearnings(
   handoff: Handoff,
   loopDir: string,
-  iteration?: number,
 ): Promise<void> {
-  const learnings = handoff.learnings ?? [];
-  if (learnings.length === 0) return;
+  const incoming = (handoff.learnings ?? [])
+    .map(normalizeLearning)
+    .filter((l): l is Learning => l !== null);
+  if (incoming.length === 0) return;
 
   await mkdir(loopDir, { recursive: true });
-  const jsonlPath = join(loopDir, "learnings.jsonl");
-  const entries = await readLedger(jsonlPath);
-  let changed = false;
+  const md = await readLedger(loopDir);
+  const existing = getSection(md, NOTES_HEADING)
+    .split("\n")
+    .filter((line) => line.startsWith("- "));
 
-  for (const raw of learnings) {
-    const learning = normalizeLearning(raw);
-    if (!learning) continue;
-    const existing = entries.find((entry) => entry.insight === learning.insight);
-    if (existing) {
-      const before = JSON.stringify(existing);
-      mergeOccurrence(existing, handoff.agent, iteration);
-      if (JSON.stringify(existing) !== before) changed = true;
-      continue;
-    }
-    entries.push({
-      ts: handoff.timestamp,
-      agent: handoff.agent,
-      agents: [handoff.agent],
-      iterations: iteration != null ? [iteration] : [],
-      kind: learning.kind ?? "lesson",
-      topic: learning.topic ?? "general",
-      forAgents: learning.forAgents,
-      insight: learning.insight,
-      action: learning.action,
-      confidence: learning.confidence ?? "medium",
-      status: "open",
-    });
-    changed = true;
+  const seen = new Set(existing.map(bulletInsight));
+  const fresh: string[] = [];
+  for (const learning of incoming) {
+    if (seen.has(learning.insight)) continue;
+    seen.add(learning.insight);
+    fresh.push(formatBullet(learning));
   }
+  if (fresh.length === 0) return;
 
-  if (!changed) return;
-  await writeLedger(jsonlPath, entries);
+  const notes = [...fresh, ...existing].slice(0, NOTES_LIMIT);
+  await writeFile(join(loopDir, "learnings.md"), setNotes(md, notes));
 }
 
-export async function foldLearnings(loopDir: string, iteration: number): Promise<void> {
-  const mdPath = join(loopDir, "learnings.md");
-  const jsonlPath = join(loopDir, "learnings.jsonl");
-
-  let md: string;
-  try {
-    md = await readFile(mdPath, "utf-8");
-  } catch {
-    md = EMPTY_LEDGER;
-  }
-
-  const entries = await readLedger(jsonlPath);
-  if (entries.length === 0) {
-    await writeFile(mdPath, md);
-    return;
-  }
-
-  const open = entries.filter((entry) => entry.status === "open");
-  const promotions = entries.filter(
-    (entry) => shouldPromote(entry) && !alreadyInStanding(md, entry),
-  );
-
-  if (open.length === 0 && promotions.length === 0) {
-    await writeFile(mdPath, md);
-    return;
-  }
-
-  const stamp = `_Last curated: ${new Date().toISOString()} by orchestrator retro (iteration ${iteration})._`;
-  let nextMd = md.includes("_Last curated:")
-    ? md.replace(/_Last curated:[\s\S]*?_/, stamp)
-    : `${stamp}\n\n${md}`;
-
-  const byHeading = new Map<string, string[]>();
-  for (const entry of open) {
-    if (!entry.insight || nextMd.includes(entry.insight)) continue;
-    const heading = sectionHeading(entry);
-    const bullets = byHeading.get(heading) ?? [];
-    bullets.push(formatBullet(entry));
-    byHeading.set(heading, bullets);
-  }
-  for (const [heading, bullets] of byHeading) {
-    nextMd = appendBullets(nextMd, heading, bullets);
-  }
-
-  if (promotions.length > 0) {
-    nextMd = appendBullets(
-      nextMd,
-      "## Standing rules (always apply)",
-      promotions.map((entry) => formatStanding(entry)),
-    );
-  }
-
-  if (open.length > 0) {
-    const newestFirst = [...open].reverse().map((entry) => formatBullet(entry));
-    const previous = parseRecentBullets(nextMd).filter(
-      (bullet) => !newestFirst.includes(bullet),
-    );
-    nextMd = setSectionBody(nextMd, "## Recently applied (last 20)", [
-      ...newestFirst,
-      ...previous,
-    ].slice(0, RECENT_LIMIT));
-  }
-
-  await writeFile(mdPath, nextMd);
-
-  for (const entry of entries) {
-    if (entry.status === "open") entry.status = "curated";
-  }
-  await writeLedger(jsonlPath, entries);
-}
-
+/** Persist every dispatched handoff's learnings. No fold, no promote. */
 export async function runRetro(
   loopDir: string,
   handoffs: Handoff[],
-  iteration: number,
+  _iteration?: number,
 ): Promise<void> {
   await mkdir(loopDir, { recursive: true });
   for (const handoff of handoffs) {
-    await persistHandoffLearnings(handoff, loopDir, iteration);
+    await persistHandoffLearnings(handoff, loopDir);
   }
-  await foldLearnings(loopDir, iteration);
 }
 
+/** Standing rules (always) + recent Notes, capped so it stays cheap to read. */
 export async function loadLearningsExcerpt(loopDir: string): Promise<string> {
+  let md: string;
   try {
-    const md = await readFile(join(loopDir, "learnings.md"), "utf-8");
-    const standing = md.match(/## Standing rules[\s\S]*?(?=\n## )/)?.[0] ?? "";
-    const recentIndex = md.lastIndexOf("## Recently applied");
-    const recent = recentIndex >= 0 ? md.slice(recentIndex) : "";
-    const excerpt = `${standing}\n\n${recent}`.trim() || md;
-    return excerpt.slice(0, 8000);
+    md = await readFile(join(loopDir, "learnings.md"), "utf-8");
   } catch {
     return "(no learnings yet — create loop/learnings.md on first run)";
   }
+  const standing = getSection(md, STANDING_HEADING);
+  const notes = getSection(md, NOTES_HEADING);
+  const parts = [
+    `${STANDING_HEADING}\n${standing}`.trim(),
+    notes ? `${NOTES_HEADING}\n${notes}`.trim() : "",
+  ].filter(Boolean);
+  return (parts.join("\n\n") || md).slice(0, EXCERPT_CAP);
 }
 
-/**
- * Standing/recent markdown plus learnings whose forAgents includes this stage
- * (or "all"). No graph — just a targeted filter on the jsonl ledger.
- */
+/** Standing rules plus the Notes tagged for this stage (or `all`). */
 export async function loadLearningsForStage(
   loopDir: string,
   stage: string,
 ): Promise<string> {
-  const base = await loadLearningsExcerpt(loopDir);
-  const scoped = await formatAgentScopedLearnings(loopDir, stage);
-  if (!scoped) return base;
-  return `${base}\n\n${scoped}`.trim().slice(0, 10_000);
-}
-
-async function formatAgentScopedLearnings(
-  loopDir: string,
-  stage: string,
-): Promise<string> {
-  const entries = await readLedger(join(loopDir, "learnings.jsonl"));
-  const stageKey = stage.toLowerCase();
-  const matched = entries.filter((entry) => {
-    if (!entry.insight?.trim()) return false;
-    const targets = (entry.forAgents ?? ["all"]).map((agent) =>
-      agent.toLowerCase(),
-    );
-    return targets.includes("all") || targets.includes(stageKey);
-  });
-  // jsonl is append-only; newest last → take from the end
-  const picked = matched.slice(-STAGE_LEARNING_LIMIT).reverse();
-  if (picked.length === 0) return "";
-
-  const lines = [`## Learnings for ${stage} (${picked.length})`, ""];
-  for (const entry of picked) {
-    lines.push(`- ${entry.insight}`);
-    const action = (entry.action ?? "").slice(0, ACTION_SNIPPET);
-    if (action) lines.push(`  → ${action}`);
-  }
-  return lines.join("\n");
-}
-
-async function readLedger(jsonlPath: string): Promise<LedgerEntry[]> {
-  let jsonl = "";
+  let md: string;
   try {
-    jsonl = await readFile(jsonlPath, "utf-8");
+    md = await readFile(join(loopDir, "learnings.md"), "utf-8");
   } catch {
-    return [];
+    return "(no learnings yet — create loop/learnings.md on first run)";
   }
-  const entries: LedgerEntry[] = [];
-  for (const line of jsonl.split("\n")) {
-    if (!line) continue;
-    try {
-      entries.push(JSON.parse(line) as LedgerEntry);
-    } catch {
-      // skip malformed lines — the rest of the ledger is still foldable
-    }
-  }
-  return entries;
-}
+  const standing = getSection(md, STANDING_HEADING);
+  const stageKey = stage.toLowerCase();
+  const notes = getSection(md, NOTES_HEADING)
+    .split("\n")
+    .filter((line) => line.startsWith("- "))
+    .filter((line) => {
+      const targets = bulletTargets(line);
+      return targets.includes("all") || targets.includes(stageKey);
+    });
 
-async function writeLedger(jsonlPath: string, entries: LedgerEntry[]): Promise<void> {
-  if (entries.length === 0) {
-    await writeFile(jsonlPath, "");
-    return;
-  }
-  await writeFile(jsonlPath, `${entries.map((entry) => JSON.stringify(entry)).join("\n")}\n`);
-}
-
-function mergeOccurrence(entry: LedgerEntry, agent: string, iteration?: number): void {
-  const agents = new Set(entry.agents ?? []);
-  if (entry.agent) agents.add(entry.agent);
-  agents.add(agent);
-  entry.agents = [...agents];
-
-  const iterations = new Set<number>(entry.iterations ?? []);
-  if (typeof entry.iteration === "number") iterations.add(entry.iteration);
-  if (iteration != null) iterations.add(iteration);
-  entry.iterations = [...iterations];
-}
-
-function shouldPromote(entry: LedgerEntry): boolean {
-  if (!entry.insight) return false;
-  if (entry.kind === "metric" || entry.kind === "question") return false;
-  const agents = new Set(entry.agents ?? []);
-  if (entry.agent) agents.add(entry.agent);
-  const iterations = new Set<number>(entry.iterations ?? []);
-  if (typeof entry.iteration === "number") iterations.add(entry.iteration);
-  return agents.size >= 2 || iterations.size >= 2;
-}
-
-function alreadyInStanding(md: string, entry: LedgerEntry): boolean {
-  const standing = md.match(/## Standing rules[\s\S]*?(?=\n## )/)?.[0] ?? "";
-  return Boolean(entry.insight && standing.includes(entry.insight));
-}
-
-function sectionHeading(entry: LedgerEntry): string {
-  if (entry.kind === "question") {
-    return "## Open questions (unresolved, need a decision)";
-  }
-  const topic = (entry.topic ?? "general").trim().toLowerCase();
-  for (const { keys, heading } of TOPIC_HEADINGS) {
-    if (keys.includes(topic) || heading.slice(4).toLowerCase() === topic) {
-      return heading;
-    }
-  }
-  return "### Orchestration";
-}
-
-function formatBullet(entry: LedgerEntry): string {
-  const who = (entry.forAgents ?? ["all"]).join(", ");
-  return `- [${who}] ${entry.insight ?? ""} → ${entry.action ?? ""}`;
-}
-
-function formatStanding(entry: LedgerEntry): string {
-  const agents = new Set(entry.agents ?? []);
-  if (entry.agent) agents.add(entry.agent);
-  const seen = [...agents].join(", ");
-  return `${formatBullet(entry)} _(${seen})_`;
-}
-
-function appendBullets(md: string, heading: string, bullets: string[]): string {
-  if (bullets.length === 0) return md;
-  const idx = md.indexOf(heading);
-  const block = `${bullets.join("\n")}\n`;
-  if (idx < 0) {
-    const recent = md.indexOf("## Recently applied");
-    const chunk = `\n${heading}\n${block}`;
-    if (recent >= 0) return `${md.slice(0, recent)}${chunk}${md.slice(recent)}`;
-    return `${md}${chunk}`;
-  }
-  const insertAt = sectionInsertAt(md, idx);
-  const prefix = md.slice(0, insertAt);
-  const nl = prefix.endsWith("\n") ? "" : "\n";
-  return `${prefix}${nl}${block}${md.slice(insertAt)}`;
-}
-
-function setSectionBody(md: string, heading: string, bullets: string[]): string {
-  const body = bullets.length > 0 ? `${bullets.join("\n")}\n` : "";
-  const idx = md.indexOf(heading);
-  if (idx < 0) return `${md}\n${heading}\n${body}`;
-  const afterHeading = md.indexOf("\n", idx);
-  const start = afterHeading < 0 ? md.length : afterHeading + 1;
-  const rest = md.slice(start);
-  const next = rest.search(/\n## /);
-  const end = next < 0 ? md.length : start + next;
-  return `${md.slice(0, start)}${body}${md.slice(end)}`;
-}
-
-function parseRecentBullets(md: string): string[] {
-  const idx = md.indexOf("## Recently applied (last 20)");
-  if (idx < 0) return [];
-  const afterHeading = md.indexOf("\n", idx);
-  const start = afterHeading < 0 ? md.length : afterHeading + 1;
-  const rest = md.slice(start);
-  const next = rest.search(/\n## /);
-  const body = next < 0 ? rest : rest.slice(0, next);
-  return body.split("\n").reduce<string[]>((bullets, line) => {
-    if (line.startsWith("- ")) {
-      bullets.push(line);
-      return bullets;
-    }
-    if (line.trim() && bullets.length > 0) {
-      bullets[bullets.length - 1] += `\n${line}`;
-    }
-    return bullets;
-  }, []);
-}
-
-function sectionInsertAt(md: string, headingIdx: number): number {
-  const afterHeading = md.indexOf("\n", headingIdx);
-  const searchFrom = afterHeading < 0 ? md.length : afterHeading + 1;
-  const rest = md.slice(searchFrom);
-  // An empty section is a heading immediately followed by another heading.
-  if (rest.startsWith("##")) return searchFrom;
-  const next = rest.search(/\n##/);
-  return next < 0 ? md.length : searchFrom + next;
-}
-
-interface LedgerEntry {
-  ts?: string;
-  agent?: string;
-  agents?: string[];
-  iteration?: number;
-  iterations?: number[];
-  kind?: string;
-  topic?: string;
-  forAgents?: string[];
-  insight?: string;
-  action?: string;
-  confidence?: string;
-  status?: string;
-  evidence?: string;
-  stage?: string;
+  const parts = [`${STANDING_HEADING}\n${standing}`.trim()];
+  if (notes.length > 0) parts.push(`## Notes for ${stage}\n${notes.join("\n")}`);
+  return parts.join("\n\n").slice(0, EXCERPT_CAP);
 }

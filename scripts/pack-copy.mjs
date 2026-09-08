@@ -98,7 +98,7 @@ export function fixLoopGitignore(content) {
   for (const line of lines) {
     const trimmed = line.trim();
     if (!replacedLoop && (trimmed === "loop/" || trimmed === "loop/**")) {
-      out.push("loop/*", "!loop/learnings.md", "!loop/learnings.jsonl");
+      out.push("loop/*", "!loop/learnings.md");
       replacedLoop = true;
       continue;
     }

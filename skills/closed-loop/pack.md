@@ -25,7 +25,7 @@ Everything lived in one blob:
 
 Two concrete failures in this repo:
 
-1. **Stale product facts in agents.** `frontend.md` / `design-ux.md` still
+1. **Stale product facts in agents.** `frontend.md` still
    specified cyan Inter / JetBrains after `app/DESIGN.md` became ASCENT
    (signal lime, ember, Bricolage). Fat encyclopedias drift; a path to the
    live design file does not.
@@ -39,7 +39,7 @@ Two concrete failures in this repo:
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│  4. MEMORY     loop/learnings.md + learnings.jsonl              │
+│  4. MEMORY     loop/learnings.md (single lean file)            │
 │                Per-repo. Version the ledger, gitignore the rest │
 │                of loop/. Product-specific. Never ships in pack. │
 ├─────────────────────────────────────────────────────────────────┤
@@ -78,7 +78,7 @@ from layers 1–2 and points at 3–4.
 
 - `app/` and any product code
 - `context/` (write from `pack/templates/context/`)
-- `loop/learnings.md` + `loop/learnings.jsonl`
+- `loop/learnings.md`
 - Host git policy, remotes, trunk vs PR
 - `CLAUDE.md` / `AGENTS.md` once customized
 
@@ -128,7 +128,7 @@ Either path: missing handoff file → stage **failed**.
 Promote a ledger standing rule into `gates.md` only when it is
 product-agnostic **and** either seen in two repos or independently found
 by two agents with `forAgents: ["all"]`. That is a pack change, not a
-drive-by edit of 22 agent files.
+drive-by edit of the agent files.
 
 Do not paste kernel gates back into every agent. Point at `gates.md`. Keep each
 `agents/` markdown file under 200 lines; split into `agents/<role>/*.md` partials
@@ -141,7 +141,7 @@ lint` with no ESLint config exited 0). Each `context/gates.json`
 `gates[]` entry should include `proveFail`: a command that must fail on a
 known-bad input.
 
-The verifier and devops agents read this list. They do not invent
+The verifier and implementer agents read this list. They do not invent
 `pnpm lint` because a template once said so.
 
 ## Hygiene
@@ -175,21 +175,23 @@ files.
 
 Required on a **whole-app** closed-loop run:
 
-`product-spec → architect → implementer → verifier → reviewer +
+`product-spec → implementer → verifier → reviewer +
 security-reviewer → qa-acceptance → integrator`
 
-Optional: `design-ux`, `devops`, `docs`, `github`, `release`, `monitor`,
-`debugger`.
+`integrator` is terminal. Conditional: `debugger` (unclear failures).
 
-Specialists (delegated from implementer, not pipeline stages): `frontend`,
-`backend`, `data`, `mobile`, `performance`, `compliance`, `cost`.
+The core roster is 10 agents. Absorbed jobs: the **implementer** designs
+contracts/data models inline and owns server, data, and performance (no
+separate architect / backend / data / performance agents); the **frontend**
+owns UI + inline design (no separate design-ux); the **integrator** owns CI,
+PRs, and GitHub platform strategy — stacks, rulesets, merge queue — reading
+`skills/github/SKILL.md` and the `agents/github/*.md` partials on demand.
 
-`github` may also be dispatched after integrator (or by integrator) for
-stacked PRs, rulesets, and merge-queue advice — see `agents/github.md` and
-`skills/github/SKILL.md`.
+`frontend` is the only specialist (delegated from implementer, not a pipeline
+stage).
 
 Incremental work in an existing repo uses the host review classification
-(substantial / minor / trivial) — not the eight-agent clamp. The clamp is
+(substantial / minor / trivial) — not the seven-agent clamp. The clamp is
 for `@orchestrator` / `yarn loop`.
 
 ## File map

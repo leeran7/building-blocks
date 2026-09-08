@@ -56,8 +56,8 @@ competent user should take:
    next step (continue, share, return home). After failure, offer retry or exit.
 
 If two designs both satisfy the ACs, pick the one that makes the primary path
-obvious without a tutorial. Record the choice in the flow notes so architect and
-design-ux do not reverse it.
+obvious without a tutorial. Record the choice in the flow notes so the
+implementer and frontend do not reverse it.
 
 ## Finishing-touch checklist (reject the spec if any fail)
 

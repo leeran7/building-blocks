@@ -18,12 +18,12 @@ Edit `agents/` or `skills/`, then `yarn sync`. To refresh the template repo:
 
 Substantial: `@reviewer` + `@security-reviewer` + domain agents. Minor: both
 reviewers. Trivial (no code): optional. Docs with scripts: both reviewers.
-Fix critical findings and re-run until `status: success`. Persist read-only
-agents’ `learnings` into `loop/learnings.jsonl`.
+Fix critical findings and re-run until `status: success`. The orchestrator
+appends any handoff `learnings` to `loop/learnings.md` Notes.
 
 Product facts go in `context/` or the ledger. Kernel-generic `[all]` lessons
-are proposed for `skills/closed-loop/gates.md`. Do not paste them into all
-22 agent files. Keep each agent markdown file under 200 lines — split into
+are proposed for `skills/closed-loop/gates.md`. Do not paste them into every
+agent file. Keep each agent markdown file under 200 lines — split into
 `agents/<role>/*.md` partials and reference them when a role grows.
 
 Git remotes and branch policy: `context/git.md`. Package managers and
