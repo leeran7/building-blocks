@@ -11,7 +11,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { getDuel, cancelPendingDuel } from "../../../../src/db/duel";
+import { getDuel, cancelPendingDuel, reapDuelIfStale } from "../../../../src/db/duel";
 import { requireAuth, AuthError } from "../../../../src/lib/requireAuth";
 
 export const runtime = "nodejs";
@@ -22,7 +22,13 @@ export async function GET(
 ) {
   const { id } = await params;
 
-  const duel = await getDuel(id);
+  // Lazily reap an abandoned duel so a polling client (e.g. useRace waiting on
+  // the opponent's replay) resolves instead of hanging on "active" forever.
+  // No-op unless the duel is genuinely stale; re-fetch to reflect the void.
+  let duel = await getDuel(id);
+  if (duel && duel.status === "active" && (await reapDuelIfStale(id))) {
+    duel = await getDuel(id);
+  }
   if (!duel) {
     return NextResponse.json({ error: "Duel not found", code: "NOT_FOUND" }, { status: 404 });
   }
@@ -48,6 +54,9 @@ export async function GET(
     tiebreakRule: duel.tiebreak_rule ?? null,
     startedAt: duel.started_at?.toISOString() ?? null,
     completedAt: duel.completed_at?.toISOString() ?? null,
+    // Drop-safe rematch discovery: the opponent polls this as a fallback when
+    // the fire-and-forget Ably "rematch" event doesn't arrive.
+    rematchDuelId: duel.rematch_duel_id ?? null,
   });
 }
 

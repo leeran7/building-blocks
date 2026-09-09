@@ -260,6 +260,44 @@ export async function voidDuel(id: string, opts: VoidDuelOptions = {}): Promise<
   });
 }
 
+/**
+ * Grace window after a duel starts before it's considered abandoned. Comfortably
+ * exceeds any real match (the rising lava bounds a climb to a couple of minutes),
+ * so a still-live race is never reaped.
+ */
+export const DUEL_STALE_GRACE_MS = 10 * 60_000;
+
+/**
+ * Lazily resolve a stale, abandoned duel (the "silent crash" case: no forfeit
+ * signal ever arrived). If the duel is still ACTIVE past the grace window and
+ * hasn't had both replays submitted, VOID it with no winner and no stats — we
+ * can't fairly pick a winner without both input logs, and an intentional leave
+ * would have resolved earlier via the forfeit path. Idempotent + race-safe via
+ * SELECT FOR UPDATE. Returns true iff this call reaped it.
+ *
+ * (Intentional leaves are resolved immediately and correctly by the forfeit
+ * beacon → voidDuelForForfeit, which DOES award the opponent + record stats.)
+ */
+export async function reapDuelIfStale(
+  id: string,
+  graceMs = DUEL_STALE_GRACE_MS
+): Promise<boolean> {
+  return prisma.$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT id FROM duels WHERE id = ${id} FOR UPDATE`;
+    const current = await tx.duel.findUnique({ where: { id } });
+    if (!current || current.status !== DuelStatus.active) return false;
+    if (current.player1_submitted && current.player2_submitted) return false;
+    const startedAt = current.started_at ?? current.created_at;
+    if (Date.now() - startedAt.getTime() < graceMs) return false;
+
+    await tx.duel.update({
+      where: { id },
+      data: { status: DuelStatus.voided, forfeit: false, completed_at: new Date() },
+    });
+    return true;
+  });
+}
+
 /** Return shape from completeDuel. */
 export type CompleteDuelResult =
   | { outcome: "completed"; duel: Duel }
@@ -407,6 +445,19 @@ export async function markPlayerSubmitted(
 
   const bothSubmitted = duel.player1_submitted && duel.player2_submitted;
   return { duel, bothSubmitted, alreadySubmitted };
+}
+
+/**
+ * Point a completed duel at its rematch so the opponent can discover the new
+ * room by polling meta even if the realtime "rematch" event is dropped. Only
+ * writes the pointer once (first rematch wins) to keep both players converging
+ * on the same room. Best-effort: never throws into the request path.
+ */
+export async function recordRematch(originalId: string, rematchDuelId: string): Promise<void> {
+  await prisma.duel.updateMany({
+    where: { id: originalId, rematch_duel_id: null },
+    data: { rematch_duel_id: rematchDuelId },
+  });
 }
 
 // ── Stats ──────────────────────────────────────────────────────────────────

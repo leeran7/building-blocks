@@ -38,6 +38,12 @@ const TICK_DT_MS = TICK_DT * 1000;
 /** Publish the local player's snapshot this often (~7.5 Hz at 30 Hz sim). */
 const SNAPSHOT_EVERY_TICKS = 4;
 
+/** No peer snapshot for this long mid-race → surface the opponent as "dropped". */
+const OPPONENT_STALE_MS = 2500;
+
+/** Where the currently-shown result came from. */
+export type ResultSource = "provisional" | "authoritative" | null;
+
 /** Default key bindings — same as useClimb / useDuel. */
 const KEY_LEFT = new Set(["ArrowLeft", "a", "A"]);
 const KEY_RIGHT = new Set(["ArrowRight", "d", "D"]);
@@ -83,6 +89,10 @@ export interface UseRaceResult {
   awaitingResult: boolean;
   setTouch: (t: TouchInput) => void;
   duelResult: DuelResult | null;
+  /** Whether duelResult is the instant local guess or the server's truth. */
+  resultSource: ResultSource;
+  /** True when the opponent's live snapshots have gone quiet mid-race. */
+  opponentStale: boolean;
   /** Local player forfeits (they lose). */
   forfeit: () => void;
   /** A peer abandoned — resolve the local player as the winner. */
@@ -142,6 +152,10 @@ export function useRace({
   const [duelResult, setDuelResult] = useState<DuelResult | null>(null);
   const [awaitingResult, setAwaitingResult] = useState(false);
   const [resultError, setResultError] = useState(false);
+  /** Where the shown result came from: the instant local sim vs the server. */
+  const [resultSource, setResultSource] = useState<ResultSource>(null);
+  /** True when the opponent's snapshots have gone quiet mid-race (their line dropped). */
+  const [opponentStale, setOpponentStale] = useState(false);
 
   // Ghost store — peers' interpolated positions from their snapshots.
   const ghostsRef = useRef(new GhostStore());
@@ -156,7 +170,13 @@ export function useRace({
   const resultSubmittedRef = useRef(false);
   const forfeitedRef = useRef(false);
   const finishHandledRef = useRef(false);
+  const matchStartedRef = useRef(false);
   const lastOutcomeRef = useRef<"win" | "loss" | "forfeit" | null>(null);
+  // Latest Firebase ID token, captured while the page is alive so the unload
+  // forfeit beacon (which can't await) has a synchronous credential. Tokens live
+  // ~1 h — far longer than a match — so one captured at start covers the race.
+  const authTokenRef = useRef<string | null>(null);
+  const lastSnapshotAtRef = useRef(0);
 
   // ── Keyboard ──────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -200,9 +220,68 @@ export function useRace({
     const unsub = realtime.onSnapshot((msg) => {
       if (msg.slot === mySlot) return; // ignore echoes of our own snapshots
       store.ingest(msg);
+      lastSnapshotAtRef.current = Date.now();
     });
     return unsub;
   }, [realtime, mySlot]);
+
+  // Keep a fresh Firebase ID token in a ref for the unload forfeit beacon (it
+  // can't await on exit). Subscribing to token changes — rather than a one-shot
+  // capture at start() — ensures a signed-in player whose auth resolves late
+  // still authenticates the beacon, so their opponent is awarded the win instead
+  // of the match degrading to a no-winner reaper void.
+  useEffect(() => {
+    authTokenRef.current = null;
+    const unsub = auth.onIdTokenChanged((user) => {
+      if (!user) {
+        authTokenRef.current = null;
+        return;
+      }
+      void user.getIdToken().then((t) => {
+        authTokenRef.current = t;
+      }).catch(() => {});
+    });
+    return unsub;
+  }, []);
+
+  // Forfeit-on-leave: if the player abandons a match in progress (tab close /
+  // navigation), tell the SERVER via a keepalive fetch so the duel resolves
+  // deterministically — the opponent is awarded the win and stats record. The
+  // peer-facing Ably "forfeit" event (published by DuelRoom) only updates the
+  // opponent's live view; it never reaches the server. Fires only for an
+  // in-progress, unfinished, not-yet-forfeited match.
+  useEffect(() => {
+    const beacon = () => {
+      if (!matchStartedRef.current) return;
+      if (finishHandledRef.current || forfeitedRef.current || resultSubmittedRef.current) return;
+      forfeitedRef.current = true;
+      const token = authTokenRef.current;
+      try {
+        void fetch(`/api/duel/${duelId}/result`, {
+          method: "POST",
+          keepalive: true,
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({
+            seed,
+            claimedOutcome: "forfeit",
+            ...(guestId ? { guestId } : {}),
+          }),
+        });
+      } catch {
+        // Best-effort — the stale-duel reaper is the backstop.
+      }
+    };
+    const onPageHide = () => beacon();
+    window.addEventListener("pagehide", onPageHide);
+    window.addEventListener("beforeunload", onPageHide);
+    return () => {
+      window.removeEventListener("pagehide", onPageHide);
+      window.removeEventListener("beforeunload", onPageHide);
+    };
+  }, [duelId, seed, guestId]);
 
   /**
    * Slave every non-local player's position/status to its latest interpolated
@@ -264,6 +343,7 @@ export function useRace({
         forfeit: Boolean(body.forfeit),
         hasReplay: true,
       });
+      setResultSource("authoritative");
       setAwaitingResult(false);
       setResultError(false);
     },
@@ -389,6 +469,7 @@ export function useRace({
       forfeit: true,
       hasReplay: false,
     });
+    setResultSource("authoritative");
     setState((prev) => ({ ...prev, phase: "finished" }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mySlot, realtime, submitResult]);
@@ -407,6 +488,7 @@ export function useRace({
       forfeit: true,
       hasReplay: false,
     });
+    setResultSource("authoritative");
     setState((prev) => ({ ...prev, phase: "finished" }));
   }, [myId, submitResult]);
 
@@ -485,6 +567,7 @@ export function useRace({
               forfeit: false,
               hasReplay: true,
             });
+            setResultSource("provisional");
             setAwaitingResult(true);
 
             // claimedOutcome is advisory only — the server ignores it on the
@@ -495,6 +578,14 @@ export function useRace({
           break;
         }
       }
+
+      // Surface a dropped opponent line: no snapshot for a while mid-race.
+      // (React bails on an unchanged boolean, so this is cheap per frame.)
+      const stale =
+        cur.phase === "climb" &&
+        lastSnapshotAtRef.current > 0 &&
+        Date.now() - lastSnapshotAtRef.current > OPPONENT_STALE_MS;
+      setOpponentStale(stale);
 
       if (advanced) {
         setState({ ...cur, players: cur.players.map((p) => ({ ...p })) });
@@ -516,9 +607,13 @@ export function useRace({
     resultSubmittedRef.current = false;
     forfeitedRef.current = false;
     finishHandledRef.current = false;
+    matchStartedRef.current = true;
+    lastSnapshotAtRef.current = 0;
     ghostsRef.current.clear();
     setAwaitingResult(false);
     setResultError(false);
+    setResultSource(null);
+    setOpponentStale(false);
     stateRef.current = fresh;
     setState(fresh);
     runningRef.current = true;
@@ -539,6 +634,8 @@ export function useRace({
     awaitingResult,
     setTouch,
     duelResult,
+    resultSource,
+    opponentStale,
     forfeit,
     opponentForfeited,
     resultError,
