@@ -310,7 +310,7 @@ export function DuelHome() {
               de-emphasized secondary. Rendered only when signed in — the gate
               above stands in otherwise. ── */}
         {user && (
-          <section className="bg-surface rounded-xl border border-border-subtle p-6">
+          <section id="free-duel" className="bg-surface rounded-xl border border-border-subtle p-6 scroll-mt-20">
             <h2 className="font-mono text-xs uppercase tracking-[0.14em] text-text-muted mb-1">
               Find opponent
             </h2>

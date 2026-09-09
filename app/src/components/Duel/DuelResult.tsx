@@ -24,6 +24,7 @@ import { useAuth } from "../../contexts/AuthContext";
 import { formatAltitude } from "../../lib/units";
 import { buildDuelWatchUrl } from "../../game/runReplay";
 import { shareInvite } from "../../lib/shareInvite";
+import { PAID_DUELS_ENABLED_PUBLIC } from "../../config/paidDuel";
 import type { RealtimeHandle } from "../../net/realtime";
 import type { ResultSource } from "../../game/useRace";
 
@@ -492,21 +493,34 @@ export function DuelResult({
             Rematch requested — waiting for opponent…
           </div>
         ) : (
-          <button
-            onClick={handleRematch}
-            disabled={rematchLoading || !user || opponentLeft}
-            className="inline-flex items-center justify-center rounded-full px-6 min-h-[44px] bg-signal text-void font-semibold text-sm hover:brightness-110 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed transition-[filter,transform] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void"
-            aria-label={opponentLeft ? "Rematch unavailable — opponent has left" : "Rematch"}
-          >
-            {rematchLoading ? (
-              <span
-                className="w-4 h-4 rounded-full border-2 border-void/40 border-t-void motion-safe:animate-spin"
-                aria-hidden="true"
-              />
-            ) : (
-              "Rematch"
+          <div className={paid ? "flex gap-2" : ""}>
+            <button
+              onClick={handleRematch}
+              disabled={rematchLoading || !user || opponentLeft}
+              className={`inline-flex items-center justify-center rounded-full px-6 min-h-[44px] bg-signal text-void font-semibold text-sm hover:brightness-110 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed transition-[filter,transform] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void ${paid ? "flex-1" : "w-full"}`}
+              aria-label={opponentLeft ? "Rematch unavailable — opponent has left" : paid ? "Rematch (free)" : "Rematch"}
+            >
+              {rematchLoading ? (
+                <span
+                  className="w-4 h-4 rounded-full border-2 border-void/40 border-t-void motion-safe:animate-spin"
+                  aria-hidden="true"
+                />
+              ) : paid ? (
+                "Rematch (free)"
+              ) : (
+                "Rematch"
+              )}
+            </button>
+            {/* Paid rematch: link back to /duel with the same tier pre-indicated */}
+            {paid && (
+              <Link
+                href={`/duel?stake=${paid.stakeCents / 100}`}
+                className="flex-1 inline-flex items-center justify-center rounded-full px-4 min-h-[44px] border border-border-strong text-text-secondary text-sm hover:border-signal/50 transition-colors"
+              >
+                Paid rematch →
+              </Link>
             )}
-          </button>
+          </div>
         )}
 
         {rematchError && (
@@ -542,6 +556,18 @@ export function DuelResult({
         </button>
         {shareFailed && (
           <p className="text-ember text-xs text-center">Couldn&apos;t copy the link.</p>
+        )}
+
+        {/* Post-free-duel: low-key nudge toward paid at the highest-intent moment.
+            Only shown when the duel was free, the flag is on, and the user is signed in.
+            Not a primary CTA — Rematch holds that role. */}
+        {paid === null && PAID_DUELS_ENABLED_PUBLIC && user && (
+          <Link
+            href="/duel"
+            className="inline-flex items-center justify-center px-6 min-h-[40px] font-mono text-xs text-text-muted hover:text-signal transition-colors"
+          >
+            Want to play for the pot? →
+          </Link>
         )}
 
         {/* Play again */}

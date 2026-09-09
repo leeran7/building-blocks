@@ -15,6 +15,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "../../contexts/AuthContext";
 import { BuyCreditsModal } from "../Wallet/BuyCreditsModal";
+import { duelPayoutCents } from "../../config/paidDuel";
 
 const STAKE_TIERS_USD = [1, 2, 5, 10] as const;
 const DEFAULT_CATEGORY = "tech";
@@ -39,6 +40,9 @@ export function PaidDuelSection() {
   const [error, setError] = useState<string | null>(null);
   const [existingId, setExistingId] = useState<string | null>(null);
   const [buyOpen, setBuyOpen] = useState(false);
+  const [geoBlocked, setGeoBlocked] = useState(false);
+  const [introOpen, setIntroOpen] = useState(false);
+  const [introDismissed, setIntroDismissed] = useState(true); // start dismissed; corrected on mount
 
   const refreshWallet = useCallback(async () => {
     if (!token) return;
@@ -59,6 +63,21 @@ export function PaidDuelSection() {
 
   const balanceCents = (wallet?.playCents ?? 0) + (wallet?.winningsCents ?? 0);
 
+  // First-run explainer: show when both balances are zero and not dismissed.
+  useEffect(() => {
+    if (wallet && wallet.playCents === 0 && wallet.winningsCents === 0) {
+      const dismissed = localStorage.getItem("paid-duel-intro-dismissed") === "1";
+      setIntroDismissed(dismissed);
+      setIntroOpen(!dismissed);
+    }
+  }, [wallet]);
+
+  function dismissIntro() {
+    localStorage.setItem("paid-duel-intro-dismissed", "1");
+    setIntroDismissed(true);
+    setIntroOpen(false);
+  }
+
   const handleCreate = useCallback(async () => {
     if (!token || !ageConfirmed) return;
     setLoading(true);
@@ -77,7 +96,7 @@ export function PaidDuelSection() {
         return;
       }
       if (res.status === 451) {
-        setError("Paid duels aren't available in your region.");
+        setGeoBlocked(true);
         setLoading(false);
         return;
       }
@@ -103,7 +122,23 @@ export function PaidDuelSection() {
   }, [token, ageConfirmed, stakeUsd, router]);
 
   const stakeCents = stakeUsd * 100;
-  const payoutCents = Math.floor(stakeCents * 2 * 0.9);
+  const payoutCents = duelPayoutCents(stakeCents);
+
+  if (geoBlocked) {
+    return (
+      <section className="bg-surface-raised rounded-xl border border-border-subtle p-6 text-center">
+        <p className="text-text-secondary text-sm mb-3">
+          Paid duels are not available in your region.
+        </p>
+        <a
+          href="#free-duel"
+          className="font-mono text-xs uppercase tracking-[0.12em] text-text-muted hover:text-text-primary transition-colors"
+        >
+          Play a free match ↑
+        </a>
+      </section>
+    );
+  }
 
   return (
     <section className="bg-surface-raised rounded-xl border border-border-subtle p-6">
@@ -124,6 +159,39 @@ export function PaidDuelSection() {
         <span className="text-signal font-semibold">{dollars(payoutCents)}</span>{" "}
         <span className="text-text-muted">(10% fee)</span>.
       </p>
+
+      {/* First-run explainer — shown once when both balances are zero */}
+      {!introDismissed && introOpen && (
+        <div className="mb-4 rounded-lg border border-border-subtle bg-surface p-3 text-xs text-text-muted">
+          <div className="flex items-start justify-between gap-2 mb-1.5">
+            <span className="font-mono uppercase tracking-[0.12em] text-text-secondary text-[11px]">
+              How it works
+            </span>
+            <button
+              onClick={dismissIntro}
+              aria-label="Dismiss"
+              className="text-text-muted hover:text-text-primary transition-colors leading-none"
+            >
+              ×
+            </button>
+          </div>
+          <p className="leading-relaxed">
+            Buy credits → stake on a match → winner takes 90% of the pot.
+          </p>
+          <p className="leading-relaxed mt-1">
+            Credits you buy are for playing only — not withdrawable.
+          </p>
+          <p className="leading-relaxed mt-1">
+            Winnings you earn are cashable to your bank.
+          </p>
+          <button
+            onClick={dismissIntro}
+            className="mt-2 font-mono text-[11px] uppercase tracking-[0.12em] text-signal hover:underline"
+          >
+            Got it
+          </button>
+        </div>
+      )}
 
       {/* Stake picker */}
       <div className="grid grid-cols-4 gap-2 mb-4">
