@@ -14,6 +14,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "../../contexts/AuthContext";
+import { shareInvite } from "../../lib/shareInvite";
 
 // ─────────────────────────────── Types ────────────────────────────────────
 
@@ -23,10 +24,14 @@ interface DuelStats {
   streak: number;
 }
 
+/**
+ * Creating a challenge navigates straight into the duel lobby (the canonical
+ * home for the invite), so there is no post-create "here is your link" state —
+ * only the in-flight, already-have-one, and failure cases live here.
+ */
 type CreateState =
   | { status: "idle" }
   | { status: "loading" }
-  | { status: "done"; duelId: string; link: string }
   | { status: "existing"; existingId: string }
   | { status: "error"; message: string };
 
@@ -45,7 +50,6 @@ export function DuelHome() {
   const [createState, setCreateState] = useState<CreateState>({ status: "idle" });
   const [queueState, setQueueState] = useState<QueueState>({ status: "idle" });
   const [stats, setStats] = useState<DuelStats | null>(null);
-  const [copied, setCopied] = useState(false);
 
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -99,8 +103,13 @@ export function DuelHome() {
       }
 
       const body = (await res.json()) as { id: string; link: string };
+      // Offer the native share sheet right away — we're still inside the click's
+      // transient activation (the POST above is fast), which navigator.share
+      // requires. Best-effort only: if the window has lapsed or sharing isn't
+      // available, the lobby's "Share invite" button is the guaranteed path.
+      await shareInvite(body.link).catch(() => {});
       // Seamless: drop the creator straight into the waiting lobby (where they
-      // can copy the invite link and warm up) instead of a static copy screen.
+      // can share the invite and warm up) instead of a static copy screen.
       router.push(`/duel/${body.id}`);
     } catch {
       setCreateState({ status: "error", message: "Network error. Please try again." });
@@ -133,24 +142,6 @@ export function DuelHome() {
     },
     [token]
   );
-
-  const handleCopyLink = useCallback(async (link: string) => {
-    try {
-      // Native share sheet on mobile.
-      if (navigator.share && /Mobi|Android/i.test(navigator.userAgent)) {
-        await navigator.share({ title: "The Climb — 1v1 duel", url: link });
-        return;
-      }
-      if (!navigator.clipboard) throw new Error("clipboard unavailable");
-      await navigator.clipboard.writeText(link);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      // Last-resort fallback so the link is always obtainable (http / denied
-      // clipboard / older browsers) rather than silently doing nothing.
-      window.prompt("Copy this duel link:", link);
-    }
-  }, []);
 
   // ─────────────── Queue ───────────────
 
@@ -406,28 +397,6 @@ export function DuelHome() {
                   aria-hidden="true"
                 />
                 Creating…
-              </div>
-            )}
-
-            {createState.status === "done" && (
-              <div className="flex flex-col gap-3">
-                <p className="font-mono text-xs text-text-muted break-all">
-                  {createState.link}
-                </p>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => handleCopyLink(createState.link)}
-                    className="inline-flex items-center justify-center rounded-full px-5 min-h-[44px] border border-border-strong bg-surface/60 text-text-secondary text-sm hover:border-signal/50 hover:text-text-primary active:scale-[0.98] transition-[color,border-color,transform]"
-                  >
-                    {copied ? "Copied!" : "Copy link"}
-                  </button>
-                  <button
-                    onClick={() => setCreateState({ status: "idle" })}
-                    className="inline-flex items-center justify-center rounded-full px-4 min-h-[44px] border border-border-strong text-text-secondary text-sm hover:border-signal/50 transition-colors"
-                  >
-                    New
-                  </button>
-                </div>
               </div>
             )}
 

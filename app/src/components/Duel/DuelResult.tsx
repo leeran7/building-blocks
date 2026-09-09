@@ -23,6 +23,7 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "../../contexts/AuthContext";
 import { formatAltitude } from "../../lib/units";
 import { buildDuelWatchUrl } from "../../game/runReplay";
+import { shareInvite } from "../../lib/shareInvite";
 import type { RealtimeHandle } from "../../net/realtime";
 import type { ResultSource } from "../../game/useRace";
 
@@ -230,23 +231,16 @@ export function DuelResult({
       ? buildDuelWatchUrl(duelId, origin)
       : `${origin}/duel/${duelId}`;
     setShareFailed(false);
-    try {
-      // Native share sheet on mobile.
-      if (typeof navigator !== "undefined" && navigator.share && /Mobi|Android/i.test(navigator.userAgent)) {
-        await navigator.share({ title: "The Climb — 1v1 duel", url });
-        return;
-      }
-      if (typeof navigator === "undefined" || !navigator.clipboard) {
-        throw new Error("clipboard unavailable");
-      }
-      await navigator.clipboard.writeText(url);
+    // Native share sheet first, clipboard/prompt as fallback (shareInvite).
+    const outcome = await shareInvite(url, {
+      title: "The Climb — 1v1 duel",
+      text: hasReplay ? "Watch how this duel went." : "Race me to the top.",
+    });
+    if (outcome === "copied") {
       setShared(true);
       setTimeout(() => setShared(false), 2000);
-    } catch {
-      // Last-resort fallback so the link is always obtainable.
-      const ok =
-        typeof window !== "undefined" && window.prompt("Copy this link:", url) !== null;
-      if (!ok) setShareFailed(true);
+    } else if (outcome === "failed") {
+      setShareFailed(true);
     }
   }, [duelId, hasReplay]);
 

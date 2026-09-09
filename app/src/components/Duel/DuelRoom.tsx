@@ -32,6 +32,7 @@ import { DuelResult } from "./DuelResult";
 import { connectRealtime, RealtimeHandle } from "../../net/realtime";
 import { buildTower } from "../../game/towers";
 import { formatAltitude } from "../../lib/units";
+import { shareInvite } from "../../lib/shareInvite";
 
 // ─────────────────────────────── Types ────────────────────────────────────
 
@@ -157,11 +158,13 @@ function PracticeGame({
                   Waiting for opponent…
                 </p>
               </div>
+              {/* Invite is the primary action here — this lobby is its canonical
+                  home. Native share sheet first, clipboard as fallback. */}
               <button
                 onClick={onCopyLink}
-                className="inline-flex items-center justify-center rounded-full px-3 min-h-[36px] border border-border-strong text-text-secondary text-xs hover:border-signal/50 transition-colors w-full"
+                className="inline-flex items-center justify-center rounded-full px-3 min-h-[36px] bg-signal text-void font-semibold text-xs hover:brightness-110 active:scale-[0.98] transition-[filter,transform] w-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void"
               >
-                {linkCopied ? "Copied!" : "Copy invite link"}
+                {linkCopied ? "Copied!" : "Share invite"}
               </button>
             </div>
           ) : (
@@ -171,9 +174,9 @@ function PracticeGame({
               </p>
               <button
                 onClick={onCopyLink}
-                className="inline-flex items-center justify-center rounded-full px-3 min-h-[36px] bg-signal text-void font-semibold text-xs hover:brightness-110 transition w-full"
+                className="inline-flex items-center justify-center rounded-full px-3 min-h-[36px] bg-signal text-void font-semibold text-xs hover:brightness-110 active:scale-[0.98] transition-[filter,transform] w-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void"
               >
-                {linkCopied ? "Copied!" : "Copy invite link"}
+                {linkCopied ? "Copied!" : "Share invite"}
               </button>
               <button
                 onClick={onLeave}
@@ -457,20 +460,13 @@ function DuelGame({
     return () => clearTimeout(t);
   }, [state.phase]);
 
+  /** Invite: native share sheet first, clipboard/prompt as fallback. */
   const copyInviteLink = useCallback(async () => {
     const url = `${window.location.origin}/duel/${duelId}`;
-    try {
-      if (navigator.share && /Mobi|Android/i.test(navigator.userAgent)) {
-        await navigator.share({ title: "1v1 duel", url });
-        return;
-      }
-      if (!navigator.clipboard) throw new Error("no clipboard");
-      await navigator.clipboard.writeText(url);
+    const outcome = await shareInvite(url);
+    if (outcome === "copied") {
       setLinkCopied(true);
       setTimeout(() => setLinkCopied(false), 2000);
-    } catch {
-      // Last-resort fallback: prompt so the link is always obtainable.
-      window.prompt("Copy this duel link:", url);
     }
   }, [duelId]);
 
@@ -946,7 +942,17 @@ export function DuelRoom({ duelId }: DuelRoomProps) {
         if (refetch.ok) finalMeta = (await refetch.json()) as DuelMeta;
       }
 
-      if (!finalMeta.seed) {
+      // A pending duel withholds the seed (seed-oracle prevention, R-5) — it is
+      // only issued once an opponent joins. The CREATOR opening their own
+      // challenge link is therefore seedless BY DESIGN: they wait in the lobby
+      // on a throwaway warm-up map until someone joins, at which point the poll
+      // below picks the seed up. Only a genuinely unobtainable seed is an error.
+      const awaitingJoin =
+        !finalMeta.seed &&
+        finalMeta.status === "pending" &&
+        finalMeta.player1?.id === localId;
+
+      if (!finalMeta.seed && !awaitingJoin) {
         setErrorMsg("Could not load duel seed.");
         setPhase("error");
         return;
@@ -998,6 +1004,83 @@ export function DuelRoom({ duelId }: DuelRoomProps) {
     [router]
   );
 
+  // ── Waiting lobby (creator of a still-pending challenge) ──────────────────
+  // The seed is withheld until an opponent joins (see init), so the creator sits
+  // here on the warm-up climb. Everything below only runs while `meta.seed` is
+  // empty; once it lands, DuelGame takes over.
+
+  const awaitingOpponent = Boolean(meta && !meta.seed);
+  const touchDevice = useCoarsePointer();
+  const [linkCopied, setLinkCopied] = useState(false);
+  const [waitedTooLong, setWaitedTooLong] = useState(false);
+
+  // Poll for the seed — plus a presence fast-path, since realtime is already
+  // connected — so the room flips into the real match the moment the opponent
+  // joins and the duel goes active.
+  useEffect(() => {
+    if (!awaitingOpponent) return;
+    let cancelled = false;
+
+    const authHeaders: Record<string, string> = token
+      ? { Authorization: `Bearer ${token}` }
+      : {};
+
+    const refetch = async () => {
+      if (cancelled) return;
+      try {
+        const res = await fetch(`/api/duel/${duelId}`, { headers: authHeaders });
+        if (!res.ok || cancelled) return;
+        const fresh = (await res.json()) as DuelMeta;
+        if (!cancelled && fresh.seed) setMeta(fresh);
+      } catch {
+        // Transient — the next tick retries.
+      }
+    };
+
+    const timer = setInterval(refetch, 2000);
+    const unsubPresence = realtime?.onPresence((action) => {
+      if (action === "enter" || action === "present") void refetch();
+    });
+
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+      unsubPresence?.();
+    };
+  }, [awaitingOpponent, realtime, duelId, token]);
+
+  // After a while the invite probably isn't being accepted — surface the
+  // stronger invite + a way out instead of an endless spinner.
+  useEffect(() => {
+    if (!awaitingOpponent) return;
+    const t = setTimeout(() => setWaitedTooLong(true), 75_000);
+    return () => clearTimeout(t);
+  }, [awaitingOpponent]);
+
+  /** Invite: native share sheet first, clipboard/prompt as fallback. */
+  const shareInviteLink = useCallback(async () => {
+    const url = `${window.location.origin}/duel/${duelId}`;
+    const outcome = await shareInvite(url);
+    if (outcome === "copied") {
+      setLinkCopied(true);
+      setTimeout(() => setLinkCopied(false), 2000);
+    }
+  }, [duelId]);
+
+  // Leaving cancels the still-pending challenge, otherwise the creator's
+  // one-open-challenge slot is stranded and the next "Create challenge" 409s.
+  const handleLeaveLobby = useCallback(async () => {
+    try {
+      await fetch(`/api/duel/${duelId}`, {
+        method: "DELETE",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+    } catch {
+      // Ignore — the lobby is being abandoned either way.
+    }
+    router.push("/duel");
+  }, [duelId, token, router]);
+
   if (phase === "loading") {
     return (
       <div className="min-h-screen bg-void flex flex-col items-center justify-center gap-4">
@@ -1026,6 +1109,22 @@ export function DuelRoom({ duelId }: DuelRoomProps) {
       <div className="min-h-screen bg-void flex items-center justify-center">
         <div className="w-8 h-8 rounded-full border-2 border-text-muted border-t-signal animate-spin" aria-hidden="true" />
       </div>
+    );
+  }
+
+  // Pending challenge whose seed hasn't been issued yet → the creator waits here
+  // (playable warm-up + invite). The seed poll above swaps this for the real
+  // match as soon as an opponent joins.
+  if (!meta.seed) {
+    return (
+      <PracticeGame
+        categorySlug={meta.categorySlug}
+        touchDevice={touchDevice}
+        linkCopied={linkCopied}
+        waitedTooLong={waitedTooLong}
+        onCopyLink={shareInviteLink}
+        onLeave={handleLeaveLobby}
+      />
     );
   }
 
