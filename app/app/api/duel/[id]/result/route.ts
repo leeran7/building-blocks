@@ -112,9 +112,14 @@ export async function POST(
       ? body.guestId
       : null;
 
-  if (!submittedSeed || !inputLogB64 || !claimedOutcome) {
+  // A forfeit needs no input log — it's an administrative resolution (the
+  // forfeiter's opponent wins) and never touches the replay. Requiring it here
+  // would block the leave-beacon path, where the departing client sends only
+  // seed + claimedOutcome via `fetch` keepalive on unload.
+  const inputLogRequired = claimedOutcome !== "forfeit";
+  if (!submittedSeed || !claimedOutcome || (inputLogRequired && !inputLogB64)) {
     return NextResponse.json(
-      { error: "Missing required fields: seed, inputLog, claimedOutcome", code: "BAD_REQUEST" },
+      { error: "Missing required fields: seed, claimedOutcome (and inputLog unless forfeit)", code: "BAD_REQUEST" },
       { status: 400 }
     );
   }
@@ -205,6 +210,15 @@ export async function POST(
   }
 
   // ── NORMAL PATH ───────────────────────────────────────────────────────────
+
+  // inputLog is required for every non-forfeit outcome (validated above); this
+  // guard both satisfies the type narrowing and defends the normal path.
+  if (!inputLogB64) {
+    return NextResponse.json(
+      { error: "Missing required field: inputLog", code: "BAD_REQUEST" },
+      { status: 400 }
+    );
+  }
 
   // FIX 1: Zip-bomb guard — cap raw base64 length before allocating a Buffer.
   if (inputLogB64.length > MAX_REPLAY_TOKEN_LENGTH) {
@@ -350,6 +364,7 @@ export async function POST(
     player2Peak: result.player2Peak,
     forfeit: false,
     tiebreakRule: result.tiebreakRule,
+    hasReplay: true,
     myStats,
   });
 }

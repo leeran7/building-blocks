@@ -26,7 +26,10 @@ const securityHeaders = [
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
       "font-src 'self' https://fonts.gstatic.com",
       "img-src 'self' data: https:",
-      "connect-src 'self' https://api.stripe.com https://*.googleapis.com https://*.firebaseio.com https://*.firebase.com https://*.firebaseapp.com https://securetoken.googleapis.com https://identitytoolkit.googleapis.com wss://*.firebaseio.com https://realtime.ably.io https://*.ably.io wss://realtime.ably.io wss://*.ably.io",
+      // Ably needs both the primary *.ably.io hosts AND the *.ably-realtime.com
+      // fallback hosts (used for token requests / regional failover) — otherwise
+      // the requestToken XHR is blocked by CSP and the connection never authorises.
+      "connect-src 'self' https://api.stripe.com https://*.googleapis.com https://*.firebaseio.com https://*.firebase.com https://*.firebaseapp.com https://securetoken.googleapis.com https://identitytoolkit.googleapis.com wss://*.firebaseio.com https://realtime.ably.io https://*.ably.io wss://realtime.ably.io wss://*.ably.io https://*.ably-realtime.com wss://*.ably-realtime.com",
       // 'self' — the auth handler is proxied onto our own domain (/__/auth), so
       // its iframe is same-origin. Plus Stripe, Google, and the Firebase domain.
       "frame-src 'self' https://js.stripe.com https://hooks.stripe.com https://accounts.google.com https://*.firebaseapp.com https://apis.google.com",
@@ -53,11 +56,14 @@ const nextConfig = {
     };
 
     // ably@2's compiled bundles use `var __super = (...args) => { super(...args) }`
-    // inside a class constructor — valid ES2022 syntax that Next.js's SWC transform
+    // inside a class field — valid ES2022 syntax that Next.js's SWC transform
     // fails to parse when transpilePackages (Firebase) causes SWC to run on all
-    // node_modules. Process ably through Babel with @babel/preset-env so it gets
-    // downcompiled to syntax SWC (and older browsers) accept.
+    // node_modules. Process ably through Babel FIRST (enforce: "pre") so the
+    // arrow-super is downcompiled away before next-swc-loader (a normal loader)
+    // ever parses it. Target ES5 so both the arrow and the class field are fully
+    // transformed — this is vendored code, so aggressive downcompilation is safe.
     config.module.rules.unshift({
+      enforce: "pre",
       test: /[\\/]node_modules[\\/]ably[\\/]build[\\/]ably.*\.js$/,
       use: {
         loader: require.resolve("babel-loader"),
@@ -65,7 +71,7 @@ const nextConfig = {
           presets: [
             [
               require.resolve("@babel/preset-env"),
-              { targets: "defaults", modules: false },
+              { targets: { ie: "11" }, modules: false },
             ],
           ],
           cacheDirectory: true,

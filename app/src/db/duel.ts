@@ -260,6 +260,44 @@ export async function voidDuel(id: string, opts: VoidDuelOptions = {}): Promise<
   });
 }
 
+/**
+ * Grace window after a duel starts before it's considered abandoned. Comfortably
+ * exceeds any real match (the rising lava bounds a climb to a couple of minutes),
+ * so a still-live race is never reaped.
+ */
+export const DUEL_STALE_GRACE_MS = 10 * 60_000;
+
+/**
+ * Lazily resolve a stale, abandoned duel (the "silent crash" case: no forfeit
+ * signal ever arrived). If the duel is still ACTIVE past the grace window and
+ * hasn't had both replays submitted, VOID it with no winner and no stats — we
+ * can't fairly pick a winner without both input logs, and an intentional leave
+ * would have resolved earlier via the forfeit path. Idempotent + race-safe via
+ * SELECT FOR UPDATE. Returns true iff this call reaped it.
+ *
+ * (Intentional leaves are resolved immediately and correctly by the forfeit
+ * beacon → voidDuelForForfeit, which DOES award the opponent + record stats.)
+ */
+export async function reapDuelIfStale(
+  id: string,
+  graceMs = DUEL_STALE_GRACE_MS
+): Promise<boolean> {
+  return prisma.$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT id FROM duels WHERE id = ${id} FOR UPDATE`;
+    const current = await tx.duel.findUnique({ where: { id } });
+    if (!current || current.status !== DuelStatus.active) return false;
+    if (current.player1_submitted && current.player2_submitted) return false;
+    const startedAt = current.started_at ?? current.created_at;
+    if (Date.now() - startedAt.getTime() < graceMs) return false;
+
+    await tx.duel.update({
+      where: { id },
+      data: { status: DuelStatus.voided, forfeit: false, completed_at: new Date() },
+    });
+    return true;
+  });
+}
+
 /** Return shape from completeDuel. */
 export type CompleteDuelResult =
   | { outcome: "completed"; duel: Duel }
@@ -409,6 +447,19 @@ export async function markPlayerSubmitted(
   return { duel, bothSubmitted, alreadySubmitted };
 }
 
+/**
+ * Point a completed duel at its rematch so the opponent can discover the new
+ * room by polling meta even if the realtime "rematch" event is dropped. Only
+ * writes the pointer once (first rematch wins) to keep both players converging
+ * on the same room. Best-effort: never throws into the request path.
+ */
+export async function recordRematch(originalId: string, rematchDuelId: string): Promise<void> {
+  await prisma.duel.updateMany({
+    where: { id: originalId, rematch_duel_id: null },
+    data: { rematch_duel_id: rematchDuelId },
+  });
+}
+
 // ── Stats ──────────────────────────────────────────────────────────────────
 
 type TxClient = Prisma.TransactionClient;
@@ -490,6 +541,74 @@ export async function upsertDuelStats(
  */
 export async function getDuelStats(userId: string): Promise<DuelStats | null> {
   return prisma.duelStats.findUnique({ where: { user_id: userId } });
+}
+
+export interface RecentDuelItem {
+  id: string;
+  status: string;
+  categorySlug: string;
+  winnerId: string | null;
+  forfeit: boolean;
+  player1Peak: number | null;
+  player2Peak: number | null;
+  tiebreakRule: string | null;
+  completedAt: string | null;
+  hasReplay: boolean;
+  opponent: { id: string; displayName: string | null } | null;
+  mySlot: 1 | 2;
+}
+
+export async function getRecentDuelsForUser(
+  userId: string,
+  take = 10
+): Promise<RecentDuelItem[]> {
+  const rows = await prisma.duel.findMany({
+    where: {
+      status: DuelStatus.completed,
+      OR: [{ player1_id: userId }, { player2_id: userId }],
+    },
+    orderBy: { completed_at: "desc" },
+    take,
+    select: {
+      id: true,
+      status: true,
+      category_slug: true,
+      winner_id: true,
+      forfeit: true,
+      player1_peak: true,
+      player2_peak: true,
+      tiebreak_rule: true,
+      completed_at: true,
+      player1_replay: true,
+      player2_replay: true,
+      player1: { select: { id: true, display_name: true } },
+      player2: { select: { id: true, display_name: true } },
+      player1_id: true,
+      player2_id: true,
+    },
+  });
+
+  return rows.map((r) => {
+    const isP1 = r.player1_id === userId;
+    const opponent = isP1
+      ? (r.player2 ? { id: r.player2.id, displayName: r.player2.display_name } : null)
+      : (r.player1 ? { id: r.player1.id, displayName: r.player1.display_name } : null);
+    const hasReplay = isP1 ? !!r.player1_replay : !!r.player2_replay;
+    return {
+      id: r.id,
+      status: r.status,
+      categorySlug: r.category_slug,
+      winnerId: r.winner_id ?? null,
+      forfeit: r.forfeit ?? false,
+      player1Peak: r.player1_peak ?? null,
+      player2Peak: r.player2_peak ?? null,
+      tiebreakRule: r.tiebreak_rule ?? null,
+      completedAt: r.completed_at?.toISOString() ?? null,
+      hasReplay,
+      opponent,
+      mySlot: isP1 ? 1 : 2,
+    };
+  });
 }
 
 /**

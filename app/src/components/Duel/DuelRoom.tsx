@@ -6,22 +6,31 @@
  *
  * Lifecycle:
  *   1. Fetch duel metadata. If pending, POST /join first.
- *   2. Connect Ably. Enter presence.
- *   3. Wait for both players in presence → each publishes "ready".
- *   4. Slot-0 waits for two "ready" events → publishes "start".
- *   5. On "start" → call useDuel.start() → countdown → climb.
- *   6. On finish → show DuelResult.
+ *   2. Connect Ably. Subscribe to control events + presence, then enter presence.
+ *   3. Slot-0 (coordinator) waits until both players are present, then publishes
+ *      "start" (re-broadcast a few times for reliability).
+ *   4. On "start" → call useRace.start() → countdown → climb.
+ *   5. On finish → show DuelResult.
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "../../contexts/AuthContext";
-import { useDuel } from "../../game/useDuel";
+import { useRace, RaceParticipant } from "../../game/useRace";
+import { useClimb } from "../../game/useClimb";
 import { ClimbCanvas } from "../Game/ClimbCanvas";
+import {
+  TouchControls,
+  TOUCH_CONTROLS_INSET,
+  TOUCH_CONTROLS_MIN_BOTTOM,
+} from "../Game/TouchControls";
+import { useCoarsePointer } from "../../hooks/useCoarsePointer";
+import { useCanvasSize } from "../../hooks/useCanvasSize";
+import { useSafeAreaInsets } from "../../hooks/useSafeAreaInsets";
 import { DuelResult } from "./DuelResult";
 import { connectRealtime, RealtimeHandle } from "../../net/realtime";
-import { TowerSpec } from "../../game/types";
+import { buildTower } from "../../game/towers";
 import { formatAltitude } from "../../lib/units";
 
 // ─────────────────────────────── Types ────────────────────────────────────
@@ -43,7 +52,6 @@ interface DuelMeta {
 type RoomPhase =
   | "loading"         // fetching meta + connecting realtime
   | "waiting"         // in presence, waiting for opponent
-  | "ready_handshake" // both present, exchanging ready signals
   | "countdown"       // sim running countdown
   | "climb"           // live race
   | "finished"        // match over
@@ -53,28 +61,151 @@ interface DuelRoomProps {
   duelId: string;
 }
 
-// Default tower spec — the actual seed gets applied in useDuel via applyRunSeed
-const DEFAULT_TOWER: TowerSpec = {
-  categorySlug: "tech",
-  widthM: 100,
-  floorGap: 4,
-  seed: "default",
-  ladderGrabRadius: 2.5,
-  maxClimbSpeed: 12,
-  moveSpeed: 8,
-  jumpSpeed: 14,
-  gravity: 32,
-  fallDeathBelowPeakM: 10,
-};
+// ─────────────────────────────── Practice lobby ───────────────────────────
+
+/**
+ * Warm-up solo climb shown while waiting for the opponent to join.
+ * Runs on a fresh random seed (never the duel seed — no pre-scouting).
+ * Tear it down by unmounting (parent replaces it on duel start).
+ */
+function PracticeGame({
+  categorySlug,
+  touchDevice,
+  linkCopied,
+  waitedTooLong,
+  onCopyLink,
+  onLeave,
+}: {
+  categorySlug: string;
+  touchDevice: boolean;
+  linkCopied: boolean;
+  waitedTooLong: boolean;
+  onCopyLink: () => void;
+  onLeave: () => void;
+}) {
+  // Same tower archetype as the real duel category, but with NO seed lock so
+  // useClimb rolls a fresh random map each run — a representative warm-up that
+  // never reveals the duel's actual layout (no pre-scouting the real seed).
+  const [tower] = useState(() => buildTower(categorySlug));
+
+  const { state, start, finished, setTouch } = useClimb({ tower });
+
+  // Same responsive stage as the live match / solo climb.
+  const canvasBoxRef = useRef<HTMLDivElement>(null);
+  const canvasSize = useCanvasSize(canvasBoxRef, { fill: touchDevice });
+  const safeArea = useSafeAreaInsets();
+  const bottomInset = touchDevice
+    ? TOUCH_CONTROLS_INSET + Math.max(TOUCH_CONTROLS_MIN_BOTTOM, safeArea.bottom)
+    : 0;
+  const phase = state.phase;
+  const touchControlsActive =
+    touchDevice && (phase === "countdown" || phase === "climb");
+
+  // Start on mount and restart when the warm-up run ends
+  useEffect(() => { start(); }, [start]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (finished) start();
+  }, [finished, start]);
+
+  return (
+    <div
+      className={
+        touchDevice
+          ? "fixed inset-0 z-40 bg-void text-text-primary"
+          : "flex flex-col items-center min-h-screen bg-void text-text-primary"
+      }
+    >
+      <div
+        ref={canvasBoxRef}
+        data-climb-surface
+        className={
+          touchDevice ? "relative h-full w-full overflow-hidden" : "relative"
+        }
+        style={touchDevice ? undefined : { width: canvasSize.width }}
+      >
+      {/* Warm-up canvas (solo, throwaway) */}
+      <ClimbCanvas
+        state={state}
+        width={canvasSize.width}
+        height={canvasSize.height}
+        bottomInset={bottomInset}
+        fullBleed={touchDevice}
+        hudInsetTop={touchDevice ? safeArea.top : 0}
+      />
+
+      {/* Waiting HUD overlay */}
+      <div
+        className="absolute inset-x-0 top-0 flex flex-col items-end justify-start p-4 gap-2 pointer-events-none"
+        style={
+          touchDevice
+            ? {
+                paddingTop: `max(16px, ${safeArea.top + 8}px)`,
+                paddingRight: `max(16px, ${safeArea.right}px)`,
+              }
+            : undefined
+        }
+      >
+        <div className="bg-void/80 backdrop-blur-sm rounded-xl border border-border-subtle px-3 py-2 pointer-events-auto max-w-[200px]">
+          {!waitedTooLong ? (
+            <div className="flex flex-col items-center gap-2 text-center">
+              <div className="flex items-center gap-2">
+                <span
+                  className="w-3 h-3 rounded-full border-2 border-text-muted border-t-signal animate-spin shrink-0"
+                  aria-hidden="true"
+                />
+                <p className="font-mono text-xs text-text-secondary">
+                  Waiting for opponent…
+                </p>
+              </div>
+              <button
+                onClick={onCopyLink}
+                className="inline-flex items-center justify-center rounded-full px-3 min-h-[36px] border border-border-strong text-text-secondary text-xs hover:border-signal/50 transition-colors w-full"
+              >
+                {linkCopied ? "Copied!" : "Copy invite link"}
+              </button>
+            </div>
+          ) : (
+            <div className="flex flex-col items-center gap-2 text-center">
+              <p className="font-mono text-xs text-text-secondary">
+                Opponent hasn&apos;t joined yet.
+              </p>
+              <button
+                onClick={onCopyLink}
+                className="inline-flex items-center justify-center rounded-full px-3 min-h-[36px] bg-signal text-void font-semibold text-xs hover:brightness-110 transition w-full"
+              >
+                {linkCopied ? "Copied!" : "Copy invite link"}
+              </button>
+              <button
+                onClick={onLeave}
+                className="text-text-muted text-xs underline underline-offset-2"
+              >
+                Back to duels
+              </button>
+            </div>
+          )}
+        </div>
+        <p className="font-mono text-[10px] text-text-muted bg-void/70 rounded px-2 py-1 pointer-events-none">
+          warm-up • not ranked
+        </p>
+      </div>
+
+        {/* Touch controls: the warm-up climb is playable while you wait. */}
+        {touchDevice && (
+          <TouchControls active={touchControlsActive} onInput={setTouch} />
+        )}
+      </div>
+    </div>
+  );
+}
 
 // ─────────────────────────────── Inner game component ─────────────────────
 
 interface GameProps {
   duelId: string;
   seed: string;
+  categorySlug: string;
   myId: string;
   guestId: string | null;
-  opponentId: string;
   mySlot: 0 | 1;
   realtime: RealtimeHandle;
   player1Name: string;
@@ -87,9 +218,9 @@ interface GameProps {
 function DuelGame({
   duelId,
   seed,
+  categorySlug,
   myId,
   guestId,
-  opponentId,
   mySlot,
   realtime,
   player1Name,
@@ -98,68 +229,80 @@ function DuelGame({
   player2Id,
   onRematch,
 }: GameProps) {
-  const tower: TowerSpec = { ...DEFAULT_TOWER, seed };
+  // Canonical tower for this category — useRace applies the run seed internally,
+  // producing a tower bit-identical to the server's simulateDuel re-sim
+  // (buildTower(categorySlug, { runSeed: seed })). Anything else diverges and
+  // gets cheat-flagged.
+  const [tower] = useState(() => buildTower(categorySlug));
+
+  // Slot→id map for the race sim (slot 0 = player1, slot 1 = player2). The sim,
+  // renderer, and useRace are all slot-indexed, so this generalizes to N.
+  const participants: RaceParticipant[] = [
+    { slot: 0, id: player1Id },
+    { slot: 1, id: player2Id },
+  ];
 
   const {
     state,
     start,
     finished,
-    stalling,
-    setTouch: _setTouch,
+    awaitingResult,
+    setTouch,
     duelResult,
+    resultSource,
+    opponentStale,
     opponentForfeited,
     resultError,
     retrySubmit,
-  } = useDuel({
+  } = useRace({
     tower,
     seed,
-    myId,
-    opponentId,
     mySlot,
+    participants,
     realtime,
     duelId,
     guestId,
   });
 
+  const { token } = useAuth();
+  const router = useRouter();
+
+  // Same responsive stage as the solo climb ("The Climb"): full-bleed on touch
+  // devices (canvas fills the viewport, HUD overlaid within the safe area, touch
+  // controls at the bottom), framed 9:16 column on desktop with keyboard input.
+  const touchDevice = useCoarsePointer();
+  const canvasBoxRef = useRef<HTMLDivElement>(null);
+  const canvasSize = useCanvasSize(canvasBoxRef, { fill: touchDevice });
+  const safeArea = useSafeAreaInsets();
+
   const startedRef = useRef(false);
-  const readyCountRef = useRef(0);
   const [connectionState, setConnectionState] = useState<string>("connected");
   const [waitedTooLong, setWaitedTooLong] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
 
-  // Handshake:
-  // - Enter presence
-  // - Publish "ready" once both players are in presence
-  // - Slot-0 publishes "start" once it has seen two "ready" events
+  // Handshake (presence-authoritative):
+  // - Subscribe to control events + presence BEFORE announcing ourselves, so we
+  //   can never miss the coordinator's "start" (Ably does not replay channel
+  //   messages to subscribers that attach after publish).
+  // - Slot-0 is the coordinator: once BOTH players are present it publishes
+  //   "start" and begins locally. Presence is Ably's reliable synced primitive,
+  //   so readiness is gated on it rather than on echo-prone "ready" counters.
   useEffect(() => {
-    realtime.enterPresence({
-      uid: myId,
-      displayName: mySlot === 0 ? player1Name : player2Name,
-      slot: mySlot,
-    });
+    let disposed = false;
 
-    // Watch for both players in presence.
-    // Track whether we have already published "ready" so we don't double-count
-    // our own event (the initial-check block below may have already fired it).
-    let selfReadyPublished = false;
-    const publishSelfReady = () => {
-      if (selfReadyPublished) return;
-      selfReadyPublished = true;
-      realtime.publishEvent({ type: "ready", slot: mySlot });
-      // Count our own "ready" locally — the broker may deliver it after
-      // onEvent("ready") is subscribed, but if not we would deadlock.
-      readyCountRef.current += 1;
-      if (mySlot === 0 && readyCountRef.current >= 2 && !startedRef.current) {
-        startedRef.current = true;
-        realtime.publishEvent({ type: "start", serverTimestamp: Date.now() });
-        start();
-      }
+    const beginMatch = () => {
+      if (startedRef.current) return;
+      startedRef.current = true;
+      stopPoll();
+      start();
     };
 
-    // A presence "leave" can fire on a transient Ably blip, so don't award the
-    // win instantly — wait a few seconds and re-check presence; a real departure
-    // stays gone, a blip re-enters. (The explicit "forfeit" event below is the
-    // fast, unambiguous path.)
+    // A presence "leave" can fire on a transient Ably blip or a phone briefly
+    // backgrounding the tab, so don't award the win instantly — wait a while and
+    // re-check presence; a real departure stays gone, a blip/return re-enters and
+    // clears this timer. (The explicit "forfeit" event below is the fast,
+    // unambiguous path for an intentional leave / tab close.)
+    const LEAVE_GRACE_MS = 12_000;
     let leaveTimer: ReturnType<typeof setTimeout> | null = null;
     const clearLeaveTimer = () => {
       if (leaveTimer) {
@@ -168,48 +311,73 @@ function DuelGame({
       }
     };
 
-    const unsubPresence = realtime.onPresence(async (action, member) => {
-      if (action === "leave" || action === "absent") {
-        if (member.clientId === myId || !startedRef.current) return;
-        clearLeaveTimer();
-        leaveTimer = setTimeout(async () => {
-          const members = await realtime.getPresence().catch(() => []);
-          const opponentStillHere = members.some((m) => m.clientId !== myId);
-          if (!opponentStillHere) opponentForfeited();
-        }, 5000);
+    // Coordinator re-broadcasts "start" (~6 publishes over ~2s) so a single
+    // dropped packet can't strand the opponent; the receiver is idempotent.
+    let rebroadcasts = 0;
+    let rebroadcastTimer: ReturnType<typeof setInterval> | null = null;
+    const stopRebroadcast = () => {
+      if (rebroadcastTimer) {
+        clearInterval(rebroadcastTimer);
+        rebroadcastTimer = null;
+      }
+    };
+
+    // Both slots poll presence as a safety net against a stale presence read or
+    // a missed "enter" event, until the match starts.
+    let pollTimer: ReturnType<typeof setInterval> | null = null;
+    function stopPoll() {
+      if (pollTimer) {
+        clearInterval(pollTimer);
+        pollTimer = null;
+      }
+    }
+
+    // Slot-1 fallback: if both players have been present this long without a
+    // "start" arriving (i.e. every coordinator broadcast dropped), begin anyway
+    // rather than dead-end in the lobby. Generous so it never fires in normal
+    // operation (start arrives in well under a second); the countdown absorbs the
+    // small resulting offset.
+    const SLOT1_FALLBACK_MS = 5000;
+    let bothPresentSince = 0;
+
+    const evaluateStart = async () => {
+      if (startedRef.current || disposed) return;
+      const members = await realtime.getPresence().catch(() => []);
+      if (disposed || startedRef.current) return;
+      // Count presence ENTRIES, not distinct clientIds: Ably returns one entry
+      // per connection, so two participants = two entries even when they share a
+      // clientId (e.g. two tabs on the same account, or same-account testing).
+      // Deduping by clientId would collapse that to 1 and hang the lobby forever.
+      if (members.length < 2) {
+        bothPresentSince = 0; // opponent not present yet
         return;
       }
-      if (action !== "enter" && action !== "present") return;
-      if (member.clientId !== myId) clearLeaveTimer(); // opponent (re)appeared
-      const members = await realtime.getPresence();
-      if (members.length >= 2) {
-        publishSelfReady();
-      }
-    });
 
-    // Check initial presence (may already have 2 members if late joiner).
-    realtime.getPresence().then((members) => {
-      if (members.length >= 2) {
-        publishSelfReady();
-      }
-    });
-
-    const unsubReady = realtime.onEvent("ready", () => {
-      readyCountRef.current += 1;
-      // Slot-0 is the match coordinator
-      if (mySlot === 0 && readyCountRef.current >= 2 && !startedRef.current) {
-        startedRef.current = true;
+      if (mySlot === 0) {
+        // Coordinator: set the local guard first, then tell the opponent
+        // (retrying briefly so a dropped "start" can't strand them).
+        beginMatch();
         realtime.publishEvent({ type: "start", serverTimestamp: Date.now() });
-        start();
+        stopRebroadcast();
+        rebroadcasts = 0;
+        rebroadcastTimer = setInterval(() => {
+          rebroadcasts += 1;
+          if (disposed || rebroadcasts > 5) {
+            stopRebroadcast();
+            return;
+          }
+          realtime.publishEvent({ type: "start", serverTimestamp: Date.now() });
+        }, 400);
+      } else {
+        // Slot-1 normally begins on the "start" event; this is only the
+        // all-broadcasts-dropped rescue.
+        if (bothPresentSince === 0) bothPresentSince = Date.now();
+        else if (Date.now() - bothPresentSince >= SLOT1_FALLBACK_MS) beginMatch();
       }
-    });
+    };
 
-    const unsubStart = realtime.onEvent("start", () => {
-      if (!startedRef.current) {
-        startedRef.current = true;
-        start();
-      }
-    });
+    // 1) Subscribe first — before we enter presence.
+    const unsubStart = realtime.onEvent("start", () => beginMatch());
 
     // Opponent forfeited (explicit leave / beforeunload) — we win immediately,
     // no need to wait for the stall clock.
@@ -224,6 +392,35 @@ function DuelGame({
       }
     });
 
+    const unsubPresence = realtime.onPresence((action, member) => {
+      if (action === "leave" || action === "absent") {
+        if (member.clientId === myId || !startedRef.current) return;
+        clearLeaveTimer();
+        leaveTimer = setTimeout(async () => {
+          const members = await realtime.getPresence().catch(() => []);
+          const opponentStillHere = members.some((m) => m.clientId !== myId);
+          if (!opponentStillHere) opponentForfeited();
+        }, LEAVE_GRACE_MS);
+        return;
+      }
+      if (action !== "enter" && action !== "present") return;
+      if (member.clientId !== myId) clearLeaveTimer(); // opponent (re)appeared
+      evaluateStart(); // fast path
+    });
+
+    // 2) Announce ourselves.
+    realtime.enterPresence({
+      uid: myId,
+      displayName: mySlot === 0 ? player1Name : player2Name,
+      slot: mySlot,
+    });
+
+    // 3) Kick off immediately (covers the already-present opponent) and then
+    //    poll until the match starts — coordinator elects/broadcasts start,
+    //    slot-1 uses it as the dropped-broadcast rescue.
+    evaluateStart();
+    pollTimer = setInterval(evaluateStart, 600);
+
     // beforeunload: publish forfeit on disconnect
     const handleBeforeUnload = () => {
       realtime.publishEvent({ type: "forfeit", slot: mySlot, reason: "disconnect" });
@@ -231,13 +428,15 @@ function DuelGame({
     window.addEventListener("beforeunload", handleBeforeUnload);
 
     return () => {
-      unsubPresence();
-      unsubReady();
+      disposed = true;
       unsubStart();
       unsubForfeit();
       unsubRematch();
+      unsubPresence();
       window.removeEventListener("beforeunload", handleBeforeUnload);
       clearLeaveTimer();
+      stopPoll();
+      stopRebroadcast();
     };
   }, [realtime, myId, mySlot, player1Name, player2Name, start, onRematch, opponentForfeited]);
 
@@ -275,18 +474,74 @@ function DuelGame({
     }
   }, [duelId]);
 
+  // Leaving the waiting lobby must cancel the still-pending challenge, otherwise
+  // the creator's one-open-challenge slot is stranded and the next "Create
+  // challenge" is blocked by the 409 guard. Best-effort: only the creator (slot 0)
+  // can cancel a pending duel; navigate away regardless of the DELETE outcome.
+  const handleLeave = useCallback(async () => {
+    if (mySlot === 0) {
+      try {
+        await fetch(`/api/duel/${duelId}`, {
+          method: "DELETE",
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+      } catch {
+        // Ignore — the lobby is being abandoned either way.
+      }
+    }
+    router.push("/duel");
+  }, [mySlot, duelId, token, router]);
+
   const playerNames: Record<string, string> = {
     [player1Id]: player1Name,
     [player2Id]: player2Name,
   };
 
-  // Local player altitude
-  const localPlayer = state.players.find((p) => p.id === myId) ?? state.players[0];
-  const opponentPlayer = state.players.find((p) => p.id === opponentId);
-  const localAlt = localPlayer?.y ?? 0;
-  const opponentAlt = opponentPlayer?.y ?? 0;
-
   const phase = state.phase;
+
+  // Live altitude ordering for the lead bar. Iterate ALL players (not a hardcoded
+  // two) so this generalizes cheaply to the planned group-race (≤4). Sort by
+  // slot for a stable left→right order that matches the versus bar.
+  const racers = [...state.players].sort((a, b) => a.slot - b.slot);
+  const maxAlt = racers.reduce((m, p) => Math.max(m, p.y), 0);
+  const leader = racers.reduce<typeof racers[number] | null>(
+    (best, p) => (best === null || p.y > best.y ? p : best),
+    null
+  );
+
+  // ── Delight beats ──────────────────────────────────────────────────────────
+  // (1) "Opponent joined!" — fired once on the lobby → countdown transition.
+  // (2) Countdown → LIVE release flash — fired once when climb begins.
+  const [joinBeat, setJoinBeat] = useState(false);
+  const [liveBeat, setLiveBeat] = useState(false);
+  const prevPhaseRef = useRef(phase);
+  useEffect(() => {
+    const prev = prevPhaseRef.current;
+    if (prev !== "countdown" && phase === "countdown") {
+      setJoinBeat(true);
+      const t = setTimeout(() => setJoinBeat(false), 1800);
+      prevPhaseRef.current = phase;
+      return () => clearTimeout(t);
+    }
+    if (prev !== "climb" && phase === "climb") {
+      setLiveBeat(true);
+      const t = setTimeout(() => setLiveBeat(false), 900);
+      prevPhaseRef.current = phase;
+      return () => clearTimeout(t);
+    }
+    prevPhaseRef.current = phase;
+  }, [phase]);
+
+  // Countdown numeral (3-2-1). Extracted so we can drive the release beat off it.
+  const countdownNum = Math.max(1, 3 - Math.floor(state.tick / 30));
+
+  // Camera clearance under the touch controls (buttons + their safe-area gutter)
+  // so the player isn't hidden behind the button bar — mirrors the solo climb.
+  const bottomInset = touchDevice
+    ? TOUCH_CONTROLS_INSET + Math.max(TOUCH_CONTROLS_MIN_BOTTOM, safeArea.bottom)
+    : 0;
+  const touchControlsActive =
+    touchDevice && (phase === "countdown" || phase === "climb");
 
   if (finished && duelResult) {
     return (
@@ -306,115 +561,254 @@ function DuelGame({
         realtime={realtime}
         resultError={resultError}
         onRetrySubmit={retrySubmit}
+        hasReplay={duelResult.hasReplay}
+        resultSource={resultSource}
+      />
+    );
+  }
+
+  // Local run ended; the authoritative winner is being re-simulated server-side
+  // (and, on the pending path, we're waiting for the opponent's replay). Show a
+  // clear interstitial instead of freezing on the finished canvas or flashing a
+  // provisional local result.
+  if (awaitingResult && !duelResult) {
+    return (
+      <div className="min-h-screen bg-void flex flex-col items-center justify-center gap-4 px-4 text-center">
+        <div className="w-8 h-8 rounded-full border-2 border-text-muted border-t-signal animate-spin" aria-hidden="true" />
+        <p className="font-mono text-sm text-text-secondary">Computing result…</p>
+        {resultError && (
+          <button
+            onClick={retrySubmit}
+            className="inline-flex items-center justify-center rounded-full px-6 min-h-[44px] border border-border-strong text-text-secondary text-sm hover:border-signal/50 transition-colors"
+          >
+            Retry
+          </button>
+        )}
+      </div>
+    );
+  }
+
+  // Lobby: the practice warm-up owns the whole stage (its own full-bleed canvas
+  // + waiting overlay), so render it directly — same responsive shell as below.
+  if (phase === "lobby" && !startedRef.current) {
+    return (
+      <PracticeGame
+        categorySlug={categorySlug}
+        touchDevice={touchDevice}
+        linkCopied={linkCopied}
+        waitedTooLong={waitedTooLong}
+        onCopyLink={copyInviteLink}
+        onLeave={handleLeave}
       />
     );
   }
 
   return (
-    <div className="flex flex-col items-center min-h-screen bg-void text-text-primary">
-      {/* HUD bar */}
-      <div className="w-full max-w-md flex items-center justify-between px-4 py-3 bg-surface border-b border-border-subtle">
-        <div className="font-mono text-xs tabular-nums">
-          <span className="text-signal">{player1Name}</span>
-          <span className="text-text-muted mx-1">vs</span>
-          <span className="text-[#6bb8ff]">{player2Name}</span>
+    <div
+      className={
+        touchDevice
+          ? "fixed inset-0 z-40 bg-void text-text-primary"
+          : "flex flex-col items-center gap-3 min-h-screen bg-void text-text-primary py-4"
+      }
+    >
+      {/* Versus HUD: desktop bars in-flow above the canvas (width tracks the
+          canvas so they line up); mobile overlaid at the top of the full-bleed
+          stage, inside the safe area. */}
+      <div
+        className={
+          touchDevice
+            ? "pointer-events-none absolute inset-x-0 top-0 z-20 flex flex-col gap-1"
+            : "flex flex-col overflow-hidden rounded-xl border border-border-subtle"
+        }
+        style={
+          touchDevice
+            ? {
+                paddingTop: `max(8px, ${safeArea.top}px)`,
+                paddingLeft: `max(8px, ${safeArea.left}px)`,
+                paddingRight: `max(8px, ${safeArea.right}px)`,
+              }
+            : { width: canvasSize.width }
+        }
+      >
+        <div
+          className={
+            touchDevice
+              ? "mx-2 flex items-center justify-between rounded-lg bg-void/70 px-3 py-2 backdrop-blur-sm"
+              : "w-full flex items-center justify-between px-4 py-3 bg-surface border-b border-border-subtle"
+          }
+        >
+          <div className="font-mono text-xs tabular-nums">
+            <span className="text-signal">{player1Name}</span>
+            <span className="text-text-muted mx-1">vs</span>
+            <span className="text-[#6bb8ff]">{player2Name}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            {/* Own connection health: a blip reads as "reconnecting", not a freeze. */}
+            {(connectionState === "disconnected" ||
+              connectionState === "suspended" ||
+              connectionState === "connecting") && (
+              <span className="font-mono text-xs text-warning motion-safe:animate-pulse" role="status">
+                reconnecting…
+              </span>
+            )}
+            {/* Opponent's live line went quiet mid-race — unobtrusive cue, not an
+                alarm; the race never stalls on it. Suppressed while our OWN
+                connection is already flagged above to avoid a double message. */}
+            {phase === "climb" &&
+              opponentStale &&
+              connectionState === "connected" && (
+                <span
+                  className="font-mono text-xs text-text-muted"
+                  role="status"
+                  aria-live="polite"
+                >
+                  opponent reconnecting…
+                </span>
+              )}
+            {phase === "climb" && (
+              <span className="flex items-center gap-1 font-mono text-xs text-ember">
+                <span className="w-1.5 h-1.5 rounded-full bg-ember motion-safe:animate-pulse" aria-hidden="true" />
+                LIVE
+              </span>
+            )}
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          {(connectionState === "disconnected" ||
-            connectionState === "suspended" ||
-            connectionState === "connecting") && (
-            <span className="font-mono text-xs text-warning animate-pulse">
-              reconnecting…
-            </span>
-          )}
-          {stalling && connectionState === "connected" && (
-            <span className="font-mono text-xs text-warning animate-pulse">
-              syncing...
-            </span>
-          )}
-          {phase === "climb" && (
-            <span className="flex items-center gap-1 font-mono text-xs text-ember">
-              <span className="w-1.5 h-1.5 rounded-full bg-ember animate-pulse" aria-hidden="true" />
-              LIVE
-            </span>
-          )}
-        </div>
+
+        {/* Live altitude race bar — who's ahead as heights change. Iterates
+            state.players so a group-race (≤4) needs no rework. */}
+        {(phase === "climb" || phase === "countdown") && (
+          <div
+            className={
+              touchDevice
+                ? "mx-2 flex flex-col gap-1 rounded-lg bg-void/60 px-3 py-2 backdrop-blur-sm"
+                : "w-full flex flex-col gap-1 px-4 py-2.5 bg-surface-raised"
+            }
+          >
+            {racers.map((p) => {
+              const isMe = p.slot === mySlot;
+              const isLeader = leader !== null && p.slot === leader.slot && maxAlt > 0;
+              const isOpp = !isMe;
+              const stale = isOpp && phase === "climb" && opponentStale;
+              const pct = maxAlt > 0 ? Math.round((p.y / maxAlt) * 100) : 0;
+              const barColor = p.slot === 0 ? "bg-signal" : "bg-[#6bb8ff]";
+              const nameColor = p.slot === 0 ? "text-signal" : "text-[#6bb8ff]";
+              const name = p.slot === 0 ? player1Name : player2Name;
+              return (
+                <div key={p.slot} className="flex items-center gap-2">
+                  <span
+                    className={`font-mono text-[11px] tabular-nums truncate w-24 shrink-0 ${nameColor} ${
+                      stale ? "opacity-50" : ""
+                    }`}
+                  >
+                    {isLeader && (
+                      <span aria-hidden="true" className="mr-0.5">
+                        ▲
+                      </span>
+                    )}
+                    {name}
+                    {isMe && <span className="text-text-muted ml-1">(you)</span>}
+                  </span>
+                  <div
+                    className="relative flex-1 h-1.5 rounded-full bg-border-subtle overflow-hidden"
+                    role="progressbar"
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                    aria-valuenow={pct}
+                    aria-label={`${name} altitude ${formatAltitude(p.y, 1)}${
+                      isLeader ? ", leading" : ""
+                    }${stale ? ", connection lost" : ""}`}
+                  >
+                    <div
+                      className={`absolute inset-y-0 left-0 rounded-full transition-[width] duration-200 ease-out ${barColor} ${
+                        stale ? "opacity-40" : ""
+                      }`}
+                      style={{ width: `${pct}%` }}
+                    />
+                  </div>
+                  <span
+                    className={`font-mono text-[11px] tabular-nums text-text-secondary w-14 text-right shrink-0 ${
+                      stale ? "opacity-50" : ""
+                    }`}
+                  >
+                    {formatAltitude(p.y, 1)}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
-      {/* Altitude readouts */}
-      {(phase === "climb" || phase === "countdown") && (
-        <div className="w-full max-w-md flex justify-between px-4 py-2 bg-surface-raised border-b border-border-subtle font-mono text-xs tabular-nums">
-          <span className="text-signal">
-            {player1Name}: {formatAltitude(mySlot === 0 ? localAlt : opponentAlt, 1)}
-          </span>
-          <span className="text-[#6bb8ff]">
-            {player2Name}: {formatAltitude(mySlot === 0 ? opponentAlt : localAlt, 1)}
-          </span>
-        </div>
-      )}
-
-      {/* Canvas */}
-      <div className="relative flex-1 flex items-start justify-center pt-4">
+      {/* Play stage: full-bleed on touch, framed 9:16 column on desktop. */}
+      <div
+        ref={canvasBoxRef}
+        data-climb-surface
+        className={
+          touchDevice ? "relative h-full w-full overflow-hidden" : "relative"
+        }
+        style={touchDevice ? undefined : { width: canvasSize.width }}
+      >
         <ClimbCanvas
           state={state}
-          width={360}
-          height={600}
+          width={canvasSize.width}
+          height={canvasSize.height}
+          bottomInset={bottomInset}
+          fullBleed={touchDevice}
+          hudInsetTop={touchDevice ? safeArea.top : 0}
           myId={myId}
           playerNames={playerNames}
         />
 
-        {/* Countdown overlay */}
+        {/* "Opponent joined!" beat — a brief moment when the lobby flips into the
+            countdown so the match start feels like an arrival, not a jump cut. */}
+        {joinBeat && (
+          <div
+            className="absolute inset-x-0 top-[18%] flex justify-center pointer-events-none"
+            role="status"
+            aria-live="polite"
+          >
+            <span className="font-mono text-xs uppercase tracking-[0.18em] text-signal bg-void/70 rounded-full px-4 py-2 backdrop-blur-sm motion-safe:animate-rise [text-shadow:0_0_20px_rgb(203_242_77/0.4)]">
+              Opponent joined
+            </span>
+          </div>
+        )}
+
+        {/* Countdown overlay (3-2-1). Numeral keyed so each beat re-triggers its
+            pop; aria-live announces each number and the release. */}
         {phase === "countdown" && (
           <div
             className="absolute inset-0 flex items-center justify-center pointer-events-none"
             aria-live="assertive"
             aria-atomic="true"
           >
-            <div className="font-display text-8xl font-black text-signal"
-              style={{ textShadow: "0 0 40px rgb(203 242 77 / 0.5)" }}>
-              {Math.max(1, 3 - Math.floor(state.tick / 30))}
+            <div
+              key={countdownNum}
+              className="font-display text-8xl font-black text-signal motion-safe:animate-rise"
+              style={{ textShadow: "0 0 40px rgb(203 242 77 / 0.5)" }}
+            >
+              {countdownNum}
             </div>
           </div>
         )}
 
-        {/* Waiting overlay */}
-        {(phase === "lobby") && !startedRef.current && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-void/85 backdrop-blur-sm px-6 text-center">
-            {!waitedTooLong ? (
-              <>
-                <div className="w-6 h-6 rounded-full border-2 border-text-muted border-t-signal animate-spin" aria-hidden="true" />
-                <p className="font-mono text-sm text-text-secondary">
-                  Waiting for opponent…
-                </p>
-                <button
-                  onClick={copyInviteLink}
-                  className="inline-flex items-center justify-center rounded-full px-5 min-h-[44px] border border-border-strong text-text-secondary text-sm hover:border-signal/50 transition-colors"
-                >
-                  {linkCopied ? "Link copied!" : "Copy invite link"}
-                </button>
-              </>
-            ) : (
-              <>
-                <p className="font-mono text-sm text-text-secondary">
-                  Your opponent hasn&apos;t joined yet.
-                </p>
-                <div className="flex flex-col gap-2 items-center">
-                  <button
-                    onClick={copyInviteLink}
-                    className="inline-flex items-center justify-center rounded-full px-5 min-h-[44px] bg-signal text-void font-semibold text-sm hover:brightness-110 transition"
-                  >
-                    {linkCopied ? "Link copied!" : "Copy invite link"}
-                  </button>
-                  <Link
-                    href="/duel"
-                    className="inline-flex items-center justify-center rounded-full px-5 min-h-[44px] border border-border-strong text-text-secondary text-sm hover:border-signal/50 transition-colors"
-                  >
-                    Back to duels
-                  </Link>
-                </div>
-              </>
-            )}
+        {/* Countdown → LIVE release beat: a single bold "GO" flash as the climb
+            begins, then it fades (the LIVE pill in the HUD carries on). */}
+        {liveBeat && (
+          <div
+            className="absolute inset-0 flex items-center justify-center pointer-events-none"
+            aria-live="assertive"
+            aria-atomic="true"
+          >
+            <span className="font-display text-7xl font-black uppercase text-ember motion-safe:animate-rise [text-shadow:0_0_44px_rgb(255_90_44/0.5)]">
+              Go
+            </span>
           </div>
+        )}
+
+        {/* Touch controls (mobile). useRace feeds these into the sim via
+            setTouch → sampleInput, exactly like the solo climb. */}
+        {touchDevice && (
+          <TouchControls active={touchControlsActive} onInput={setTouch} />
         )}
       </div>
     </div>
@@ -635,11 +1029,6 @@ export function DuelRoom({ duelId }: DuelRoomProps) {
     );
   }
 
-  const opponentId =
-    mySlot === 0
-      ? (meta.player2?.id ?? "opponent")
-      : (meta.player1?.id ?? "opponent");
-
   const player1Name = meta.player1?.displayName ?? "Player 1";
   const player2Name = meta.player2?.displayName ?? "Player 2";
   const player1Id = meta.player1?.id ?? "";
@@ -649,9 +1038,9 @@ export function DuelRoom({ duelId }: DuelRoomProps) {
     <DuelGame
       duelId={duelId}
       seed={meta.seed}
+      categorySlug={meta.categorySlug}
       myId={myId}
       guestId={myGuestId}
-      opponentId={opponentId}
       mySlot={mySlot}
       realtime={realtime}
       player1Name={player1Name}

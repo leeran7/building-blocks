@@ -724,6 +724,9 @@ model Duel {
   created_at          DateTime   @default(now())
   started_at          DateTime?
   completed_at        DateTime?
+  /** Set on a completed duel when a rematch is created; lets the opponent
+      discover the new room even if the realtime "rematch" event is dropped. */
+  rematch_duel_id     String?
 
   player1 User  @relation("DuelPlayer1", fields: [player1_id], references: [id], onDelete: Restrict)
   player2 User? @relation("DuelPlayer2", fields: [player2_id], references: [id], onDelete: SetNull)

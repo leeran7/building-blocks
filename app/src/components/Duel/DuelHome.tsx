@@ -1,11 +1,12 @@
 "use client";
 
 /**
- * /duel home: create challenge link + random queue + W-L display.
+ * /duel home: matchmaking + private challenge + W-L display.
  *
- * Two surfaces:
- *   1. "Challenge a friend" — create a link-based duel; copy to clipboard.
- *   2. "Find opponent" — join the random matchmaking queue; poll for a match.
+ * Canonical primary action = "Find opponent" (queue up). Creating a private
+ * challenge link is a de-emphasized secondary path (one primary per surface,
+ * per DESIGN.md). Signed-out users see a SINGLE sign-in gate that replaces the
+ * actions entirely — no repeated ask.
  *
  * W-L record shown below when the user is signed in.
  */
@@ -32,6 +33,7 @@ type CreateState =
 type QueueState =
   | { status: "idle" }
   | { status: "searching" }
+  | { status: "timeout" }
   | { status: "error"; message: string };
 
 // ─────────────────────────────── Component ────────────────────────────────
@@ -157,7 +159,9 @@ export function DuelHome() {
     setQueueState({ status: "searching" });
 
     // Poll the read-only status endpoint every 2s (GET, not a re-POST:
-    // re-joining would blow the join rate limit and re-enqueue us).
+    // re-joining would blow the join rate limit and re-enqueue us). The queue
+    // has a TTL server-side; once it lapses the endpoint returns `expired`, so
+    // we surface a "timed out" state instead of spinning forever.
     const beginPolling = () => {
       if (pollRef.current) clearInterval(pollRef.current);
       pollRef.current = setInterval(async () => {
@@ -171,6 +175,13 @@ export function DuelHome() {
             if (pollRef.current) clearInterval(pollRef.current);
             setQueueState({ status: "idle" });
             router.push(`/duel/${pollBody.duelId}`);
+            return;
+          }
+          if (pollBody.status === "expired") {
+            // TTL lapsed with no match — stop polling and offer a retry rather
+            // than leaving the spinner running indefinitely.
+            if (pollRef.current) clearInterval(pollRef.current);
+            setQueueState({ status: "timeout" });
           }
         } catch {
           // Ignore poll errors — the next tick recovers.
@@ -204,6 +215,10 @@ export function DuelHome() {
       if (body.status === "matched" && body.duelId) {
         setQueueState({ status: "idle" });
         router.push(`/duel/${body.duelId}`);
+        return;
+      }
+      if (body.status === "expired") {
+        setQueueState({ status: "timeout" });
         return;
       }
 
@@ -250,6 +265,22 @@ export function DuelHome() {
       </div>
 
       <div className="max-w-md mx-auto px-4 pb-16 flex flex-col gap-6">
+        {/* Single sign-in gate: signed-out users get ONE ask that stands in for
+            every action, rather than the same prompt repeated per section. */}
+        {!user && (
+          <section className="bg-surface rounded-xl border border-border-subtle p-6 text-center">
+            <p className="text-text-secondary text-sm mb-4">
+              Sign in to get matched, challenge a friend, and save your record.
+            </p>
+            <a
+              href="/auth/signin"
+              className="inline-flex items-center justify-center rounded-full px-6 min-h-[44px] bg-signal text-void font-semibold text-sm tracking-tight hover:brightness-110 active:scale-[0.98] transition-[filter,transform] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void"
+            >
+              Sign in to play
+            </a>
+          </section>
+        )}
+
         {/* W-L Record */}
         {stats && (
           <div className="bg-surface rounded-xl border border-border-subtle p-4">
@@ -279,171 +310,166 @@ export function DuelHome() {
           </div>
         )}
 
-        {/* Challenge a friend */}
-        <section className="bg-surface rounded-xl border border-border-subtle p-5">
-          <h2 className="font-mono text-xs uppercase tracking-[0.14em] text-text-muted mb-1">
-            Challenge a friend
-          </h2>
-          <p className="text-text-secondary text-sm mb-4">
-            Create a private challenge link and share it.
-          </p>
-
-          {!user && (
-            <p className="text-text-muted text-sm">
-              <a href="/auth/signin" className="text-signal underline underline-offset-2">
-                Sign in
-              </a>{" "}
-              to create a challenge.
+        {/* ── Canonical primary action: Find opponent (matchmaking queue). One
+              primary CTA per surface; the private-challenge path below is a
+              de-emphasized secondary. Rendered only when signed in — the gate
+              above stands in otherwise. ── */}
+        {user && (
+          <section className="bg-surface rounded-xl border border-border-subtle p-6">
+            <h2 className="font-mono text-xs uppercase tracking-[0.14em] text-text-muted mb-1">
+              Find opponent
+            </h2>
+            <p className="text-text-secondary text-sm mb-5">
+              Get matched with a random player and race up the same tower.
             </p>
-          )}
 
-          {user && createState.status === "idle" && (
-            <button
-              onClick={handleCreate}
-              className="inline-flex items-center justify-center rounded-full px-6 min-h-[44px] bg-signal text-void font-semibold text-sm tracking-tight hover:brightness-110 active:scale-[0.98] transition-[filter,transform]"
-            >
-              Create challenge
-            </button>
-          )}
+            {queueState.status === "idle" && (
+              <button
+                onClick={handleSearch}
+                className="inline-flex items-center justify-center rounded-full px-8 min-h-[48px] w-full bg-signal text-void font-semibold text-base tracking-tight hover:brightness-110 active:scale-[0.98] shadow-signal transition-[filter,transform] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void"
+              >
+                Find match
+              </button>
+            )}
 
-          {user && createState.status === "loading" && (
-            <div className="flex items-center gap-2 text-text-muted text-sm">
-              <span
-                className="w-4 h-4 rounded-full border-2 border-text-muted border-t-signal animate-spin"
-                aria-hidden="true"
-              />
-              Creating…
-            </div>
-          )}
-
-          {user && createState.status === "done" && (
-            <div className="flex flex-col gap-3">
-              <p className="font-mono text-xs text-text-muted break-all">
-                {createState.link}
-              </p>
-              <div className="flex gap-2">
+            {queueState.status === "searching" && (
+              <div className="flex flex-col gap-3" aria-live="polite">
+                <div className="flex items-center gap-2 text-text-secondary text-sm">
+                  <span
+                    className="w-4 h-4 rounded-full border-2 border-text-muted border-t-signal animate-spin"
+                    aria-hidden="true"
+                  />
+                  Searching for an opponent…
+                </div>
                 <button
-                  onClick={() => handleCopyLink(createState.link)}
-                  className="inline-flex items-center justify-center rounded-full px-5 min-h-[44px] bg-signal text-void font-semibold text-sm hover:brightness-110 active:scale-[0.98] transition-[filter,transform]"
+                  onClick={handleCancelSearch}
+                  className="inline-flex items-center justify-center rounded-full px-5 min-h-[44px] border border-border-strong text-text-secondary text-sm hover:border-ember/50 transition-colors w-fit focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void"
                 >
-                  {copied ? "Copied!" : "Copy link"}
-                </button>
-                <button
-                  onClick={() => setCreateState({ status: "idle" })}
-                  className="inline-flex items-center justify-center rounded-full px-4 min-h-[44px] border border-border-strong text-text-secondary text-sm hover:border-signal/50 transition-colors"
-                >
-                  New
+                  Cancel
                 </button>
               </div>
-            </div>
-          )}
+            )}
 
-          {user && createState.status === "existing" && (
-            <div className="flex flex-col gap-2">
-              <p className="text-warning text-sm">
-                You already have an open challenge. Reopen it, or cancel it to
-                create a new one.
-              </p>
-              <a
-                href={`/duel/${createState.existingId}`}
-                className="inline-flex items-center justify-center rounded-full px-5 min-h-[44px] border border-border-strong text-text-secondary text-sm hover:border-signal/50 transition-colors"
-              >
-                Go to existing duel
-              </a>
-              <button
-                onClick={() => handleCancelExisting(createState.existingId)}
-                className="inline-flex items-center justify-center rounded-full px-5 min-h-[44px] border border-border-strong text-text-secondary text-sm hover:border-ember/50 transition-colors"
-              >
-                Cancel challenge
-              </button>
-              <button
-                onClick={() => setCreateState({ status: "idle" })}
-                className="text-text-muted text-xs underline underline-offset-2 text-left"
-              >
-                Dismiss
-              </button>
-            </div>
-          )}
+            {queueState.status === "timeout" && (
+              <div className="flex flex-col gap-3" role="status">
+                <p className="text-text-secondary text-sm">
+                  Search timed out — no opponent found. Try again.
+                </p>
+                <button
+                  onClick={handleSearch}
+                  className="inline-flex items-center justify-center rounded-full px-8 min-h-[48px] w-full bg-signal text-void font-semibold text-base tracking-tight hover:brightness-110 active:scale-[0.98] shadow-signal transition-[filter,transform] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void"
+                >
+                  Search again
+                </button>
+              </div>
+            )}
 
-          {user && createState.status === "error" && (
-            <div className="flex flex-col gap-2">
-              <p className="text-ember text-sm">{createState.message}</p>
-              <button
-                onClick={() => setCreateState({ status: "idle" })}
-                className="inline-flex items-center justify-center rounded-full px-5 min-h-[44px] border border-border-strong text-text-secondary text-sm hover:border-signal/50 transition-colors"
-              >
-                Try again
-              </button>
-            </div>
-          )}
-        </section>
+            {queueState.status === "error" && (
+              <div className="flex flex-col gap-2" role="alert">
+                <p className="text-ember text-sm">{queueState.message}</p>
+                <button
+                  onClick={() => setQueueState({ status: "idle" })}
+                  className="inline-flex items-center justify-center rounded-full px-5 min-h-[44px] border border-border-strong text-text-secondary text-sm hover:border-signal/50 transition-colors w-fit focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void"
+                >
+                  Try again
+                </button>
+              </div>
+            )}
+          </section>
+        )}
 
-        {/* Find opponent */}
-        <section className="bg-surface rounded-xl border border-border-subtle p-5">
-          <h2 className="font-mono text-xs uppercase tracking-[0.14em] text-text-muted mb-1">
-            Find opponent
-          </h2>
-          <p className="text-text-secondary text-sm mb-4">
-            Join the queue and get matched with a random player.
-          </p>
-
-          {!user && (
-            <p className="text-text-muted text-sm">
-              <a href="/auth/signin" className="text-signal underline underline-offset-2">
-                Sign in
-              </a>{" "}
-              to join the queue.
+        {/* ── Secondary path: challenge a friend by private link. De-emphasized
+              (ghost/border affordances, no bg-signal primary) so the surface has
+              a single canonical primary above. ── */}
+        {user && (
+          <section className="bg-surface-raised rounded-xl border border-border-subtle p-5">
+            <h2 className="font-mono text-xs uppercase tracking-[0.14em] text-text-muted mb-1">
+              Challenge a friend
+            </h2>
+            <p className="text-text-secondary text-sm mb-4">
+              Prefer a specific opponent? Create a private challenge link to share.
             </p>
-          )}
 
-          {user && queueState.status === "idle" && (
-            <button
-              onClick={handleSearch}
-              className="inline-flex items-center justify-center rounded-full px-6 min-h-[44px] bg-signal text-void font-semibold text-sm hover:brightness-110 active:scale-[0.98] transition-[filter,transform]"
-            >
-              Search
-            </button>
-          )}
+            {createState.status === "idle" && (
+              <button
+                onClick={handleCreate}
+                className="inline-flex items-center justify-center rounded-full px-6 min-h-[44px] border border-border-strong bg-surface/60 text-text-secondary text-sm hover:border-signal/50 hover:text-text-primary active:scale-[0.98] transition-[color,border-color,transform] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void"
+              >
+                Create challenge link
+              </button>
+            )}
 
-          {user && queueState.status === "searching" && (
-            <div className="flex flex-col gap-3">
-              <div className="flex items-center gap-2 text-text-secondary text-sm">
+            {createState.status === "loading" && (
+              <div className="flex items-center gap-2 text-text-muted text-sm">
                 <span
                   className="w-4 h-4 rounded-full border-2 border-text-muted border-t-signal animate-spin"
                   aria-hidden="true"
                 />
-                Searching…
+                Creating…
               </div>
-              <button
-                onClick={handleCancelSearch}
-                className="inline-flex items-center justify-center rounded-full px-5 min-h-[44px] border border-border-strong text-text-secondary text-sm hover:border-ember/50 transition-colors w-fit"
-              >
-                Cancel
-              </button>
-            </div>
-          )}
+            )}
 
-          {user && queueState.status === "error" && (
-            <div className="flex flex-col gap-2">
-              <p className="text-ember text-sm">{queueState.message}</p>
-              <button
-                onClick={() => setQueueState({ status: "idle" })}
-                className="inline-flex items-center justify-center rounded-full px-5 min-h-[44px] border border-border-strong text-text-secondary text-sm hover:border-signal/50 transition-colors w-fit"
-              >
-                Try again
-              </button>
-            </div>
-          )}
-        </section>
+            {createState.status === "done" && (
+              <div className="flex flex-col gap-3">
+                <p className="font-mono text-xs text-text-muted break-all">
+                  {createState.link}
+                </p>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => handleCopyLink(createState.link)}
+                    className="inline-flex items-center justify-center rounded-full px-5 min-h-[44px] border border-border-strong bg-surface/60 text-text-secondary text-sm hover:border-signal/50 hover:text-text-primary active:scale-[0.98] transition-[color,border-color,transform]"
+                  >
+                    {copied ? "Copied!" : "Copy link"}
+                  </button>
+                  <button
+                    onClick={() => setCreateState({ status: "idle" })}
+                    className="inline-flex items-center justify-center rounded-full px-4 min-h-[44px] border border-border-strong text-text-secondary text-sm hover:border-signal/50 transition-colors"
+                  >
+                    New
+                  </button>
+                </div>
+              </div>
+            )}
 
-        {/* Sign-in CTA for anon users */}
-        {!user && (
-          <p className="text-center text-text-muted text-sm">
-            <a href="/auth/signin" className="text-signal underline underline-offset-2">
-              Sign in
-            </a>{" "}
-            to save your record and get matched.
-          </p>
+            {createState.status === "existing" && (
+              <div className="flex flex-col gap-2">
+                <p className="text-warning text-sm">
+                  You already have an open challenge. Reopen it, or cancel it to
+                  create a new one.
+                </p>
+                <a
+                  href={`/duel/${createState.existingId}`}
+                  className="inline-flex items-center justify-center rounded-full px-5 min-h-[44px] border border-border-strong text-text-secondary text-sm hover:border-signal/50 transition-colors"
+                >
+                  Go to existing duel
+                </a>
+                <button
+                  onClick={() => handleCancelExisting(createState.existingId)}
+                  className="inline-flex items-center justify-center rounded-full px-5 min-h-[44px] border border-border-strong text-text-secondary text-sm hover:border-ember/50 transition-colors"
+                >
+                  Cancel challenge
+                </button>
+                <button
+                  onClick={() => setCreateState({ status: "idle" })}
+                  className="text-text-muted text-xs underline underline-offset-2 text-left"
+                >
+                  Dismiss
+                </button>
+              </div>
+            )}
+
+            {createState.status === "error" && (
+              <div className="flex flex-col gap-2" role="alert">
+                <p className="text-ember text-sm">{createState.message}</p>
+                <button
+                  onClick={() => setCreateState({ status: "idle" })}
+                  className="inline-flex items-center justify-center rounded-full px-5 min-h-[44px] border border-border-strong text-text-secondary text-sm hover:border-signal/50 transition-colors"
+                >
+                  Try again
+                </button>
+              </div>
+            )}
+          </section>
         )}
       </div>
     </div>

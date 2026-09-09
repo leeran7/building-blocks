@@ -17,13 +17,32 @@
 // error under next-swc-loader).
 import type Ably from "ably";
 import { auth } from "../lib/firebase";
-import { PlayerInput } from "../game/types";
+import { PlayerInput, PlayerStatus } from "../game/types";
 
 export type DuelEvent = "ready" | "start" | "forfeit" | "rematch";
 
 export interface RealtimeInputMessage {
   tick: number;
   input: PlayerInput;
+}
+
+/**
+ * Display-only position broadcast for the independent-sim ("ghost") netcode.
+ * Each client publishes its OWN player's state a few times a second; peers
+ * interpolate these into on-screen ghosts and into the shared-hazard estimate.
+ * Never authoritative — the match result comes from the server re-sim.
+ */
+export interface RealtimeSnapshotMessage {
+  /** Sender's player slot (0-based), the stable per-match identity. */
+  slot: number;
+  /** Sender's climb tick when sampled (for interpolation ordering). */
+  tick: number;
+  x: number;
+  y: number;
+  status: PlayerStatus;
+  peakY: number;
+  /** True if the sender currently has slow-lava active (shared-hazard input). */
+  slowLavaActive: boolean;
 }
 
 export interface RealtimeEventMessage {
@@ -39,6 +58,10 @@ export interface RealtimeHandle {
   publishInput(tick: number, input: PlayerInput): void;
   /** Register a callback for incoming peer input frames. */
   onInput(cb: (msg: RealtimeInputMessage) => void): () => void;
+  /** Broadcast the local player's position snapshot (display-only, ~8 Hz). */
+  publishSnapshot(snap: RealtimeSnapshotMessage): void;
+  /** Register a callback for incoming peer position snapshots. */
+  onSnapshot(cb: (msg: RealtimeSnapshotMessage) => void): () => void;
   /** Publish a control event (ready, start, forfeit, rematch). */
   publishEvent(msg: RealtimeEventMessage): void;
   /** Register a callback for control events. */
@@ -131,11 +154,14 @@ export async function connectRealtime(
 ): Promise<RealtimeHandle> {
   const tokenRequest = await fetchAblyToken(duelId, guestId);
 
-  // webpackIgnore prevents webpack from statically analysing this import, so
-  // the next-flight-client-module-loader never walks into ably's build output
-  // (which contains an arrow-function-super pattern that SWC cannot parse).
-  // At runtime in the browser this resolves normally via the bundle's module map.
-  const AblyModule = await import(/* webpackIgnore: true */ "ably");
+  // Dynamic import so ably is code-split into a browser-only chunk (this module
+  // is "use client"; the page loads it via DuelRoomLoader's ssr:false dynamic
+  // import, so the server bundle never evaluates it). ably's build output uses an
+  // arrow-function-super pattern SWC can't parse — the babel-loader rule in
+  // next.config.js downcompiles it, and serverExternalPackages keeps it off the
+  // RSC pass. (No webpackIgnore: that left the browser with an unresolved bare
+  // "ably" specifier — "does not resolve to a valid URL".)
+  const AblyModule = await import("ably");
   const AblyRealtime =
     (AblyModule as { default?: { Realtime: typeof AblyModule.Realtime } }).default?.Realtime ??
     AblyModule.Realtime;
@@ -191,6 +217,24 @@ export async function connectRealtime(
       };
       channel.subscribe("input", handler);
       return () => channel.unsubscribe("input", handler);
+    },
+
+    publishSnapshot(snap) {
+      channel.publish("snap", snap).catch(() => {
+        // Fire-and-forget — snapshots are display-only; a dropped one just means
+        // the peer's ghost interpolates from the next arrival.
+      });
+    },
+
+    onSnapshot(cb) {
+      const handler = (msg: Ably.Message) => {
+        const data = msg.data as RealtimeSnapshotMessage;
+        if (typeof data?.slot === "number" && typeof data?.tick === "number") {
+          cb(data);
+        }
+      };
+      channel.subscribe("snap", handler);
+      return () => channel.unsubscribe("snap", handler);
     },
 
     publishEvent(msg) {

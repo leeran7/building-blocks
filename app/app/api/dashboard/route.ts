@@ -21,7 +21,7 @@
  * Response 200:
  *   { user: { id, email, username }, blocks: EnrichedBlock[],
  *     freeClimb: FreeClimbData | null, replays: ClimbReplayItem[],
- *     duelStats: DuelStats | null }
+ *     duelStats: DuelStats | null, recentDuels: RecentDuelItem[] }
  *
  * Error responses: { error: string, code: string }
  */
@@ -31,7 +31,7 @@ import { requireAuth, AuthError } from "../../../src/lib/requireAuth";
 import { prisma } from "../../../src/db/client";
 import { getAllActiveSeasons } from "../../../src/db/seasons";
 import { getUserFreeClimbRecord, getUserClimbReplays } from "../../../src/db/climb";
-import { getDuelStats } from "../../../src/db/duel";
+import { getDuelStats, getRecentDuelsForUser } from "../../../src/db/duel";
 import {
   computeGround,
   isBuried,
@@ -94,10 +94,11 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     });
 
     if (userBlocks.length === 0) {
-      const [freeClimb, replays, duelStats] = await Promise.all([
+      const [freeClimb, replays, duelStats, recentDuels] = await Promise.all([
         getUserFreeClimbRecord(decoded.uid).catch(() => null),
         getUserClimbReplays(decoded.uid).catch(() => []),
         getDuelStats(decoded.uid).catch(() => null),
+        getRecentDuelsForUser(decoded.uid).catch(() => []),
       ]);
       return NextResponse.json({
         user: { id: decoded.uid, email: decoded.email ?? "", username },
@@ -105,6 +106,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         freeClimb,
         replays,
         duelStats,
+        recentDuels,
       });
     }
 
@@ -225,10 +227,11 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       })
     );
 
-    const [freeClimb, replays, duelStats] = await Promise.all([
+    const [freeClimb, replays, duelStats, recentDuels] = await Promise.all([
       getUserFreeClimbRecord(decoded.uid).catch(() => null),
       getUserClimbReplays(decoded.uid).catch(() => []),
       getDuelStats(decoded.uid).catch(() => null),
+      getRecentDuelsForUser(decoded.uid).catch(() => []),
     ]);
 
     return NextResponse.json({
@@ -237,6 +240,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       freeClimb,
       replays,
       duelStats,
+      recentDuels,
     });
   } catch (error) {
     console.error("[GET /api/dashboard]", error);

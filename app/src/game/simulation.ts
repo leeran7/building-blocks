@@ -119,6 +119,13 @@ export function spawnPlayer(id: PlayerId, slot: number): PlayerState {
   };
 }
 
+/**
+ * Fixed 3-2-1 countdown length in ticks before "GO". Inputs are locked during
+ * the countdown; the tick counter resets to 0 at the countdown→climb boundary,
+ * so climb-tick 0 is the first scored tick (also where re-sim reads inputLog[0]).
+ */
+export const COUNTDOWN_TICKS = 90;
+
 /** Create an initial match state in the countdown phase. */
 export function createMatch(params: {
   seed: string;
@@ -413,17 +420,30 @@ function integratePlayer(
   if (p.y > p.peakY) { p.peakY = p.y; p.peakTick = tick; }
 }
 
+/** Optional per-tick knobs for stepMatch. */
+export interface StepMatchOptions {
+  /**
+   * Independent-sim client mode: integrate only the player in this slot; treat
+   * all others as ghost-slaved (position/status set by the caller from peer
+   * snapshots). Omit for the authoritative joint sim, which integrates everyone.
+   */
+  localSlot?: number;
+}
+
 /**
  * Advance the match by exactly one tick.
  *
  * @param state  current authoritative state (mutated in place and returned)
- * @param inputs per-player input for this tick (missing = NO_INPUT / idle)
+ * @param inputs per-player input for this tick, keyed by slot (preferred) or
+ *               player id (missing = NO_INPUT / idle)
  * @param cfg    simulation tuning
+ * @param opts   optional per-tick knobs (see StepMatchOptions)
  */
 export function stepMatch(
   state: MatchState,
   inputs: Record<PlayerId, PlayerInput>,
-  cfg: SimConfig = DEFAULT_SIM_CONFIG
+  cfg: SimConfig = DEFAULT_SIM_CONFIG,
+  opts: StepMatchOptions = {}
 ): MatchState {
   // Only countdown and climb advance the sim; lobby/finished/results are inert.
   if (state.phase !== "countdown" && state.phase !== "climb") return state;
@@ -431,7 +451,7 @@ export function stepMatch(
   // Countdown: a fixed 3-2-1 (90 ticks) before "GO"; inputs are locked.
   if (state.phase === "countdown") {
     state.tick += 1;
-    if (state.tick >= 90) {
+    if (state.tick >= COUNTDOWN_TICKS) {
       state.phase = "climb";
       state.tick = 0;
       state.raceSeconds = 0;
@@ -463,7 +483,20 @@ export function stepMatch(
   for (const p of state.players) {
     if (p.status !== "climbing") continue;
 
-    const raw = inputs[p.id] ?? NO_INPUT;
+    // Independent-sim (client ghost netcode): integrate ONLY the local player.
+    // Peers' positions/status are slaved to interpolated ghost snapshots by the
+    // caller, so integrating them here (with no real input) would drift them and
+    // could falsely eliminate them. They still count in the hazard (computed
+    // above from state.players) and in resolveOutcome (their ghost status). The
+    // authoritative joint sim on the server omits localSlot and integrates all.
+    if (opts.localSlot !== undefined && p.slot !== opts.localSlot) continue;
+
+    // Slot-keyed input takes precedence over id-keyed (multiplayer callers key
+    // by slot so two players sharing an id — e.g. same-account testing — never
+    // collide on one input entry). Falls back to id-keyed for the many solo /
+    // test callers that key by player id. Slot keys ("0","1") never collide with
+    // string ids ("p1","you",…), so both schemes coexist safely.
+    const raw = inputs[p.slot] ?? inputs[p.id] ?? NO_INPUT;
     const { input } = validateInput(raw, p, state.tick);
     const prevY = p.y;
 

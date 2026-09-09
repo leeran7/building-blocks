@@ -24,6 +24,7 @@ import { getRedis } from "../../../../src/lib/redis";
 import { newRunSeed } from "../../../../src/game/rng";
 import { CATEGORY_BY_SLUG } from "../../../../src/lib/categories";
 import { createDuel, getActiveDuelForUser } from "../../../../src/db/duel";
+import { ensureUser } from "../../../../src/db/user";
 import { DuelStatus } from "@prisma/client";
 
 export const runtime = "nodejs";
@@ -35,6 +36,11 @@ const RATE_WINDOW_SECONDS = 3600; // 1 hour
 // match hand-off; the next tick recovers).
 const POLL_RATE_MAX = 900;
 const QUEUE_TTL_SECONDS = 300;
+// A longer-lived "was searching" tombstone so the status poll can tell a queue
+// slot that EXPIRED (TTL lapsed while searching) from one that was never
+// created (idle) — otherwise a timed-out search spins forever.
+const SEARCHING_TTL_SECONDS = 900;
+const searchingKey = (uid: string) => `duel:queue:searching:${uid}`;
 
 // Lua script: atomically remove stale members, then either enqueue or pair.
 // Returns [0, ""] when waiting, [1, waitingUid] when matched, [0, "self"] when
@@ -73,12 +79,28 @@ interface PostBody {
 export async function POST(request: NextRequest) {
   // Auth: required
   let uid: string;
+  let userEmail: string | undefined;
+  let emailVerified: boolean | undefined;
   try {
     const decoded = await requireAuth(request);
     uid = decoded.uid;
+    userEmail = decoded.email;
+    emailVerified = decoded.email_verified;
   } catch (err) {
     if (err instanceof AuthError) return err.response;
     return NextResponse.json({ error: "Unauthorized", code: "UNAUTHORIZED" }, { status: 401 });
+  }
+
+  // Ensure the user row exists in the DB — the duels table foreign-keys to
+  // users(id), and auth/sync is fire-and-forget so it may not have run yet.
+  if (userEmail) {
+    await ensureUser({
+      id: uid,
+      email: userEmail,
+      emailVerified: emailVerified ?? false,
+    }).catch(() => {
+      // Best-effort: if this fails, createDuel will fail too and we'll re-enqueue.
+    });
   }
 
   // Rate limit: 30/hour
@@ -143,6 +165,7 @@ export async function POST(request: NextRequest) {
     // For the normal waiting case, override the member lock with categorySlug
     // so DELETE can find the right sorted-set key when the user cancels.
     await redis.set(memberKey, categorySlug, { ex: QUEUE_TTL_SECONDS });
+    await redis.set(searchingKey(uid), "1", { ex: SEARCHING_TTL_SECONDS });
     return NextResponse.json({ status: "waiting" });
   }
 
@@ -151,11 +174,28 @@ export async function POST(request: NextRequest) {
   const newId = nanoid(8);
   const seed = newRunSeed();
 
-  // Create the duel row with both players active immediately
-  await createDuel(waitingUid, categorySlug, newId, seed, {
-    player2Id: uid,
-    status: DuelStatus.active,
-  });
+  // Create the duel row with both players active immediately.
+  // If this fails (e.g. FK violation — waiting user's `users` row missing because
+  // their auth/sync hasn't run yet), re-enqueue them so they're not stranded.
+  try {
+    await createDuel(waitingUid, categorySlug, newId, seed, {
+      player2Id: uid,
+      status: DuelStatus.active,
+    });
+  } catch (err) {
+    console.error("[POST /api/duel/queue] createDuel failed; re-enqueueing waiting user:", err);
+    const reNow = Math.floor(Date.now() / 1000);
+    await redis.zadd(queueKey, { score: reNow, member: waitingUid });
+    await redis.set(`duel:queue:member:${waitingUid}`, categorySlug, { ex: QUEUE_TTL_SECONDS });
+    return NextResponse.json(
+      { error: "Internal server error", code: "INTERNAL_ERROR" },
+      { status: 500 }
+    );
+  }
+
+  // The waiting player is no longer searching — clear their tombstone so their
+  // next poll reads "matched", not "expired".
+  await redis.del(searchingKey(waitingUid));
 
   return NextResponse.json({ status: "matched", duelId: newId });
 }
@@ -196,7 +236,17 @@ export async function GET(request: NextRequest) {
   // Still holding a queue slot?
   const redis = getRedis();
   const inQueue = await redis.get(`duel:queue:member:${uid}`);
-  return NextResponse.json({ status: inQueue ? "waiting" : "idle" });
+  if (inQueue) return NextResponse.json({ status: "waiting" });
+
+  // No live slot: distinguish a search whose slot EXPIRED (tombstone still
+  // present) from one that never started (idle), so the client can surface a
+  // timeout instead of spinning. GETDEL consumes it atomically so concurrent
+  // polls can't both report "expired".
+  const wasSearching = await redis.getdel(searchingKey(uid));
+  if (wasSearching) {
+    return NextResponse.json({ status: "expired" });
+  }
+  return NextResponse.json({ status: "idle" });
 }
 
 export async function DELETE(request: NextRequest) {
@@ -224,6 +274,9 @@ export async function DELETE(request: NextRequest) {
   const queueKey = `duel:queue:${categorySlug}`;
   await redis.zrem(queueKey, uid);
   await redis.del(memberKey);
+  // An explicit cancel is not a timeout — drop the tombstone so the next poll
+  // reads "idle", not "expired".
+  await redis.del(searchingKey(uid));
 
   return NextResponse.json({ status: "cancelled" });
 }

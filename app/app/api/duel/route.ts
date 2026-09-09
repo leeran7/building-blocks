@@ -83,27 +83,35 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // Exactly one pending challenge per user (R: open-duel limit)
-  const existing = await getDuelsByPlayer1(uid, DuelStatus.pending);
-  if (existing.length > 0) {
+  try {
+    // Exactly one pending challenge per user (R: open-duel limit)
+    const existing = await getDuelsByPlayer1(uid, DuelStatus.pending);
+    if (existing.length > 0) {
+      return NextResponse.json(
+        {
+          error: "You have an open challenge",
+          code: "DUEL_ALREADY_PENDING",
+          existingId: existing[0].id,
+        },
+        { status: 409 }
+      );
+    }
+
+    const id = nanoid(8);
+    const seed = newRunSeed();
+
+    await createDuel(uid, categorySlug, id, seed);
+
+    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL ?? process.env.BASE_URL ?? "";
     return NextResponse.json(
-      {
-        error: "You have an open challenge",
-        code: "DUEL_ALREADY_PENDING",
-        existingId: existing[0].id,
-      },
-      { status: 409 }
+      { id, link: `${baseUrl}/duel/${id}` },
+      { status: 201 }
+    );
+  } catch (err) {
+    console.error("[POST /api/duel] DB error:", err);
+    return NextResponse.json(
+      { error: "Internal server error", code: "INTERNAL_ERROR" },
+      { status: 500 }
     );
   }
-
-  const id = nanoid(8);
-  const seed = newRunSeed();
-
-  await createDuel(uid, categorySlug, id, seed);
-
-  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL ?? process.env.BASE_URL ?? "";
-  return NextResponse.json(
-    { id, link: `${baseUrl}/duel/${id}` },
-    { status: 201 }
-  );
 }

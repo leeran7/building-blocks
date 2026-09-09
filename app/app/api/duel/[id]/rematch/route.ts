@@ -12,7 +12,7 @@ import Ably from "ably";
 import { nanoid } from "nanoid";
 import { requireAuth, AuthError } from "../../../../../src/lib/requireAuth";
 import { newRunSeed } from "../../../../../src/game/rng";
-import { getDuel, createDuel } from "../../../../../src/db/duel";
+import { getDuel, createDuel, recordRematch } from "../../../../../src/db/duel";
 
 export const runtime = "nodejs";
 
@@ -59,6 +59,10 @@ export async function POST(
 
   // Preserve original player1/player2 assignment
   await createDuel(duel.player1_id, duel.category_slug, newId, newSeed);
+
+  // Persist the pointer so the opponent can discover the new room by polling
+  // meta — the drop-safe fallback for the fire-and-forget event below.
+  await recordRematch(id, newId);
 
   // Notify the waiting opponent via Ably so they navigate without pressing
   // Rematch themselves. Fire-and-forget: a publish failure is non-fatal since
