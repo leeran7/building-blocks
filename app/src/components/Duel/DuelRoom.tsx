@@ -249,6 +249,8 @@ function DuelGame({
     awaitingResult,
     setTouch,
     duelResult,
+    resultSource,
+    opponentStale,
     opponentForfeited,
     resultError,
     retrySubmit,
@@ -495,14 +497,43 @@ function DuelGame({
     [player2Id]: player2Name,
   };
 
-  // Local player altitude — key by SLOT, not id, so same-account testing (two
-  // tabs sharing one uid) still resolves each tab to its own climber.
-  const localPlayer = state.players.find((p) => p.slot === mySlot) ?? state.players[0];
-  const opponentPlayer = state.players.find((p) => p.slot !== mySlot);
-  const localAlt = localPlayer?.y ?? 0;
-  const opponentAlt = opponentPlayer?.y ?? 0;
-
   const phase = state.phase;
+
+  // Live altitude ordering for the lead bar. Iterate ALL players (not a hardcoded
+  // two) so this generalizes cheaply to the planned group-race (≤4). Sort by
+  // slot for a stable left→right order that matches the versus bar.
+  const racers = [...state.players].sort((a, b) => a.slot - b.slot);
+  const maxAlt = racers.reduce((m, p) => Math.max(m, p.y), 0);
+  const leader = racers.reduce<typeof racers[number] | null>(
+    (best, p) => (best === null || p.y > best.y ? p : best),
+    null
+  );
+
+  // ── Delight beats ──────────────────────────────────────────────────────────
+  // (1) "Opponent joined!" — fired once on the lobby → countdown transition.
+  // (2) Countdown → LIVE release flash — fired once when climb begins.
+  const [joinBeat, setJoinBeat] = useState(false);
+  const [liveBeat, setLiveBeat] = useState(false);
+  const prevPhaseRef = useRef(phase);
+  useEffect(() => {
+    const prev = prevPhaseRef.current;
+    if (prev !== "countdown" && phase === "countdown") {
+      setJoinBeat(true);
+      const t = setTimeout(() => setJoinBeat(false), 1800);
+      prevPhaseRef.current = phase;
+      return () => clearTimeout(t);
+    }
+    if (prev !== "climb" && phase === "climb") {
+      setLiveBeat(true);
+      const t = setTimeout(() => setLiveBeat(false), 900);
+      prevPhaseRef.current = phase;
+      return () => clearTimeout(t);
+    }
+    prevPhaseRef.current = phase;
+  }, [phase]);
+
+  // Countdown numeral (3-2-1). Extracted so we can drive the release beat off it.
+  const countdownNum = Math.max(1, 3 - Math.floor(state.tick / 30));
 
   // Camera clearance under the touch controls (buttons + their safe-area gutter)
   // so the player isn't hidden behind the button bar — mirrors the solo climb.
@@ -531,6 +562,7 @@ function DuelGame({
         resultError={resultError}
         onRetrySubmit={retrySubmit}
         hasReplay={duelResult.hasReplay}
+        resultSource={resultSource}
       />
     );
   }
@@ -611,36 +643,98 @@ function DuelGame({
             <span className="text-[#6bb8ff]">{player2Name}</span>
           </div>
           <div className="flex items-center gap-2">
+            {/* Own connection health: a blip reads as "reconnecting", not a freeze. */}
             {(connectionState === "disconnected" ||
               connectionState === "suspended" ||
               connectionState === "connecting") && (
-              <span className="font-mono text-xs text-warning animate-pulse">
+              <span className="font-mono text-xs text-warning motion-safe:animate-pulse" role="status">
                 reconnecting…
               </span>
             )}
+            {/* Opponent's live line went quiet mid-race — unobtrusive cue, not an
+                alarm; the race never stalls on it. Suppressed while our OWN
+                connection is already flagged above to avoid a double message. */}
+            {phase === "climb" &&
+              opponentStale &&
+              connectionState === "connected" && (
+                <span
+                  className="font-mono text-xs text-text-muted"
+                  role="status"
+                  aria-live="polite"
+                >
+                  opponent reconnecting…
+                </span>
+              )}
             {phase === "climb" && (
               <span className="flex items-center gap-1 font-mono text-xs text-ember">
-                <span className="w-1.5 h-1.5 rounded-full bg-ember animate-pulse" aria-hidden="true" />
+                <span className="w-1.5 h-1.5 rounded-full bg-ember motion-safe:animate-pulse" aria-hidden="true" />
                 LIVE
               </span>
             )}
           </div>
         </div>
 
+        {/* Live altitude race bar — who's ahead as heights change. Iterates
+            state.players so a group-race (≤4) needs no rework. */}
         {(phase === "climb" || phase === "countdown") && (
           <div
             className={
               touchDevice
-                ? "mx-2 flex justify-between rounded-lg bg-void/60 px-4 py-1.5 font-mono text-xs tabular-nums backdrop-blur-sm"
-                : "w-full flex justify-between px-4 py-2 bg-surface-raised font-mono text-xs tabular-nums"
+                ? "mx-2 flex flex-col gap-1 rounded-lg bg-void/60 px-3 py-2 backdrop-blur-sm"
+                : "w-full flex flex-col gap-1 px-4 py-2.5 bg-surface-raised"
             }
           >
-            <span className="text-signal">
-              {player1Name}: {formatAltitude(mySlot === 0 ? localAlt : opponentAlt, 1)}
-            </span>
-            <span className="text-[#6bb8ff]">
-              {player2Name}: {formatAltitude(mySlot === 0 ? opponentAlt : localAlt, 1)}
-            </span>
+            {racers.map((p) => {
+              const isMe = p.slot === mySlot;
+              const isLeader = leader !== null && p.slot === leader.slot && maxAlt > 0;
+              const isOpp = !isMe;
+              const stale = isOpp && phase === "climb" && opponentStale;
+              const pct = maxAlt > 0 ? Math.round((p.y / maxAlt) * 100) : 0;
+              const barColor = p.slot === 0 ? "bg-signal" : "bg-[#6bb8ff]";
+              const nameColor = p.slot === 0 ? "text-signal" : "text-[#6bb8ff]";
+              const name = p.slot === 0 ? player1Name : player2Name;
+              return (
+                <div key={p.slot} className="flex items-center gap-2">
+                  <span
+                    className={`font-mono text-[11px] tabular-nums truncate w-24 shrink-0 ${nameColor} ${
+                      stale ? "opacity-50" : ""
+                    }`}
+                  >
+                    {isLeader && (
+                      <span aria-hidden="true" className="mr-0.5">
+                        ▲
+                      </span>
+                    )}
+                    {name}
+                    {isMe && <span className="text-text-muted ml-1">(you)</span>}
+                  </span>
+                  <div
+                    className="relative flex-1 h-1.5 rounded-full bg-border-subtle overflow-hidden"
+                    role="progressbar"
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                    aria-valuenow={pct}
+                    aria-label={`${name} altitude ${formatAltitude(p.y, 1)}${
+                      isLeader ? ", leading" : ""
+                    }${stale ? ", connection lost" : ""}`}
+                  >
+                    <div
+                      className={`absolute inset-y-0 left-0 rounded-full transition-[width] duration-200 ease-out ${barColor} ${
+                        stale ? "opacity-40" : ""
+                      }`}
+                      style={{ width: `${pct}%` }}
+                    />
+                  </div>
+                  <span
+                    className={`font-mono text-[11px] tabular-nums text-text-secondary w-14 text-right shrink-0 ${
+                      stale ? "opacity-50" : ""
+                    }`}
+                  >
+                    {formatAltitude(p.y, 1)}
+                  </span>
+                </div>
+              );
+            })}
           </div>
         )}
       </div>
@@ -665,7 +759,22 @@ function DuelGame({
           playerNames={playerNames}
         />
 
-        {/* Countdown overlay */}
+        {/* "Opponent joined!" beat — a brief moment when the lobby flips into the
+            countdown so the match start feels like an arrival, not a jump cut. */}
+        {joinBeat && (
+          <div
+            className="absolute inset-x-0 top-[18%] flex justify-center pointer-events-none"
+            role="status"
+            aria-live="polite"
+          >
+            <span className="font-mono text-xs uppercase tracking-[0.18em] text-signal bg-void/70 rounded-full px-4 py-2 backdrop-blur-sm motion-safe:animate-rise [text-shadow:0_0_20px_rgb(203_242_77/0.4)]">
+              Opponent joined
+            </span>
+          </div>
+        )}
+
+        {/* Countdown overlay (3-2-1). Numeral keyed so each beat re-triggers its
+            pop; aria-live announces each number and the release. */}
         {phase === "countdown" && (
           <div
             className="absolute inset-0 flex items-center justify-center pointer-events-none"
@@ -673,11 +782,26 @@ function DuelGame({
             aria-atomic="true"
           >
             <div
-              className="font-display text-8xl font-black text-signal"
+              key={countdownNum}
+              className="font-display text-8xl font-black text-signal motion-safe:animate-rise"
               style={{ textShadow: "0 0 40px rgb(203 242 77 / 0.5)" }}
             >
-              {Math.max(1, 3 - Math.floor(state.tick / 30))}
+              {countdownNum}
             </div>
+          </div>
+        )}
+
+        {/* Countdown → LIVE release beat: a single bold "GO" flash as the climb
+            begins, then it fades (the LIVE pill in the HUD carries on). */}
+        {liveBeat && (
+          <div
+            className="absolute inset-0 flex items-center justify-center pointer-events-none"
+            aria-live="assertive"
+            aria-atomic="true"
+          >
+            <span className="font-display text-7xl font-black uppercase text-ember motion-safe:animate-rise [text-shadow:0_0_44px_rgb(255_90_44/0.5)]">
+              Go
+            </span>
           </div>
         )}
 

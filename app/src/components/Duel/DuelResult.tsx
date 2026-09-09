@@ -11,15 +11,20 @@
  *   the waiting player to the new duel room (AC-8).
  * - Subscribes to presence-leave events so it can surface "Opponent has left"
  *   and disable the Rematch button when the other player closes their tab (AC-9).
+ *
+ * Rematch is also drop-safe: alongside the Ably event we poll the duel meta for
+ * `rematchDuelId`, so a dropped realtime packet can never strand either player
+ * in a lobby they can't leave.
  */
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "../../contexts/AuthContext";
 import { formatAltitude } from "../../lib/units";
 import { buildDuelWatchUrl } from "../../game/runReplay";
 import type { RealtimeHandle } from "../../net/realtime";
+import type { ResultSource } from "../../game/useRace";
 
 // ─────────────────────────────── Types ────────────────────────────────────
 
@@ -44,6 +49,12 @@ export interface DuelResultProps {
   onRetrySubmit?: () => void;
   /** Whether both replay logs were stored (enables the Watch replay button). */
   hasReplay?: boolean;
+  /**
+   * Where the shown result came from. While 'provisional' the winner is the
+   * instant local sim's guess and may still reconcile to the server's truth, so
+   * we show a quiet "confirming…" affordance and hold back the celebration beat.
+   */
+  resultSource?: ResultSource;
 }
 
 function tiebreakLabel(rule: string): string {
@@ -78,18 +89,38 @@ export function DuelResult({
   resultError,
   onRetrySubmit,
   hasReplay = false,
+  resultSource = "authoritative",
 }: DuelResultProps) {
   const { user, token } = useAuth();
   const router = useRouter();
 
   const [rematchLoading, setRematchLoading] = useState(false);
   const [rematchError, setRematchError] = useState<string>("");
+  /**
+   * True once the local player has requested a rematch and we're waiting for the
+   * opponent to arrive (via the Ably "rematch" event or the meta poll). Keeps
+   * the presser on this screen with a clear "waiting" state instead of dropping
+   * them alone into a fresh lobby.
+   */
+  const [rematchPending, setRematchPending] = useState(false);
   const [shared, setShared] = useState(false);
   const [shareFailed, setShareFailed] = useState(false);
   /** AC-9: true when the opponent leaves presence on the result screen. */
   const [opponentLeft, setOpponentLeft] = useState(false);
 
   const opponentId = player1Id === myId ? player2Id : player1Id;
+
+  /** Guard so both the event and the poll can't double-navigate. */
+  const navigatedRef = useRef(false);
+  const goToRematch = useCallback(
+    (newDuelId: string) => {
+      if (navigatedRef.current) return;
+      navigatedRef.current = true;
+      if (onRematch) onRematch(newDuelId);
+      else router.push(`/duel/${newDuelId}`);
+    },
+    [onRematch, router]
+  );
 
   // AC-8: Listen for server-published "rematch" event so the waiting player
   // is automatically redirected when the other player presses Rematch.
@@ -99,13 +130,7 @@ export function DuelResult({
     if (!realtime) return;
 
     const unsubRematch = realtime.onEvent("rematch", (msg) => {
-      if (msg.newDuelId) {
-        if (onRematch) {
-          onRematch(msg.newDuelId);
-        } else {
-          router.push(`/duel/${msg.newDuelId}`);
-        }
-      }
+      if (msg.newDuelId) goToRematch(msg.newDuelId);
     });
 
     const unsubPresence = realtime.onPresence((action, member) => {
@@ -122,10 +147,44 @@ export function DuelResult({
       unsubRematch();
       unsubPresence();
     };
-  }, [realtime, opponentId, onRematch, router]);
+  }, [realtime, opponentId, goToRematch]);
+
+  // Drop-safe rematch fallback: poll the duel meta for `rematchDuelId` so a
+  // dropped Ably "rematch" packet can't strand either player. Covers both sides
+  // — the presser (waiting for the opponent) and the opponent (waiting for the
+  // pointer to land). Cheap (~every 2s) and torn down on unmount / navigation.
+  useEffect(() => {
+    let cancelled = false;
+    const timer = setInterval(async () => {
+      if (navigatedRef.current) return;
+      try {
+        const headers: Record<string, string> = token
+          ? { Authorization: `Bearer ${token}` }
+          : {};
+        const res = await fetch(`/api/duel/${duelId}`, { headers });
+        if (!res.ok || cancelled) return;
+        const meta = (await res.json()) as { rematchDuelId?: string | null };
+        if (meta.rematchDuelId) goToRematch(meta.rematchDuelId);
+      } catch {
+        // Transient — the next tick retries.
+      }
+    }, 2000);
+
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [duelId, token, goToRematch]);
 
   const iWon = winnerId === myId;
   const isDraw = winnerId === null;
+  const provisional = resultSource === "provisional";
+
+  // Margin between the two peaks — the headline "how close was it" number.
+  const myPeak = player1Id === myId ? player1Peak : player2Peak;
+  const theirPeak = player1Id === myId ? player2Peak : player1Peak;
+  const margin =
+    myPeak !== null && theirPeak !== null ? Math.abs(myPeak - theirPeak) : null;
 
   const handleRematch = useCallback(async () => {
     setRematchLoading(true);
@@ -147,20 +206,22 @@ export function DuelResult({
       }
 
       const body = (await res.json()) as { newDuelId: string };
-      // AC-8: Server will publish the Ably "rematch" event to the opponent.
-      // Navigate the pressing player immediately; the opponent will be
-      // redirected by the useEffect listener above.
+      // AC-8: the server publishes the Ably "rematch" event to the opponent and
+      // sets the meta pointer we poll. Rather than dropping the presser alone
+      // into the fresh lobby, show a clear "waiting for opponent" state here and
+      // navigate BOTH players together once the opponent is confirmed en route
+      // (the event / poll fires goToRematch on both sides). If the opponent
+      // never comes, the new lobby's own timeout is the backstop after we go.
       setRematchLoading(false);
-      if (onRematch) {
-        onRematch(body.newDuelId);
-      } else {
-        router.push(`/duel/${body.newDuelId}`);
-      }
+      setRematchPending(true);
+      // The presser still needs to reach the new room; give the opponent a brief
+      // window to receive the pointer, then follow so we're never stuck here.
+      setTimeout(() => goToRematch(body.newDuelId), 1500);
     } catch {
       setRematchError("Network error. Please try again.");
       setRematchLoading(false);
     }
-  }, [duelId, token, onRematch, router]);
+  }, [duelId, token, goToRematch]);
 
   const handleShare = useCallback(async () => {
     // Share the watch link when a replay is available, otherwise the room URL.
@@ -192,50 +253,116 @@ export function DuelResult({
   // ─────────────── Result label ────────────────
 
   const resultLabel = forfeit
-    ? "Opponent disconnected"
+    ? iWon
+      ? "You won"
+      : "You lost"
     : isDraw
     ? "Draw"
     : iWon
     ? "You won!"
-    : "You lost";
+    : "So close";
 
+  // Win = celebratory signal; loss = graceful (warm, not alarming) rather than a
+  // muted "you failed". Forfeit-loss and draw stay neutral.
   const resultColor = forfeit
-    ? "text-signal"
+    ? iWon
+      ? "text-signal"
+      : "text-text-secondary"
     : isDraw
     ? "text-text-secondary"
     : iWon
     ? "text-signal"
-    : "text-text-muted";
+    : "text-text-primary";
+
+  // Human "how it was decided" line under the headline.
+  const decidedLine = forfeit
+    ? iWon
+      ? "Opponent disconnected — you win by forfeit."
+      : "You left the match."
+    : isDraw
+    ? "A dead heat."
+    : tiebreakRule
+    ? tiebreakLabel(tiebreakRule)
+    : null;
 
   // ─────────────── Render ───────────────
 
   return (
-    <div className="min-h-screen bg-void flex flex-col items-center justify-center px-4 py-16 text-text-primary">
+    <div className="relative min-h-screen bg-void flex flex-col items-center justify-center px-4 py-16 text-text-primary overflow-hidden">
+      {/* Flat animated atmosphere: a soft signal (win) / neutral (loss) glow that
+          breathes behind the result. transform/opacity only; disabled under
+          reduced-motion so there is never motion-only meaning. */}
+      <div
+        aria-hidden="true"
+        className={`pointer-events-none absolute inset-x-0 top-[-20%] h-[60%] blur-3xl opacity-[0.18] motion-safe:animate-groundRise ${
+          iWon && !forfeit && !provisional ? "bg-signal/40" : "bg-border-strong/30"
+        }`}
+      />
+
       {/* Result headline */}
-      <div className="text-center mb-8">
+      <div className="relative text-center mb-8">
         <p className="font-mono text-xs uppercase tracking-[0.16em] text-text-muted mb-2">
           match over
         </p>
         <h1
-          className={`font-display text-6xl md:text-7xl font-black uppercase tracking-tight ${resultColor}`}
+          className={`font-display text-6xl md:text-7xl font-black uppercase tracking-tight ${resultColor} ${
+            iWon && !forfeit && !provisional
+              ? "motion-safe:animate-rise [text-shadow:0_0_44px_rgb(203_242_77/0.45)]"
+              : ""
+          }`}
           aria-live="polite"
         >
           {resultLabel}
         </h1>
-        {forfeit && (
-          <p className="mt-2 text-text-secondary text-sm">
-            You win by forfeit.
+
+        {/* Margin — the emotional number. Winning: "by Xm". Losing: "peak Xm behind". */}
+        {!forfeit && !isDraw && margin !== null && (
+          <p className="mt-3 font-mono text-sm tabular-nums text-text-secondary">
+            {iWon ? (
+              <>
+                Won by{" "}
+                <span className="text-signal font-semibold">
+                  {formatAltitude(margin, 1)}
+                </span>
+              </>
+            ) : (
+              <>
+                Just{" "}
+                <span className="text-text-primary font-semibold">
+                  {formatAltitude(margin, 1)}
+                </span>{" "}
+                short
+              </>
+            )}
           </p>
         )}
-        {tiebreakRule && !forfeit && (
+
+        {decidedLine && (
           <p className="mt-2 font-mono text-xs text-text-muted uppercase tracking-[0.12em]">
-            {tiebreakLabel(tiebreakRule)}
+            {decidedLine}
+          </p>
+        )}
+
+        {/* Provisional → authoritative: a quiet, non-alarming "confirming…" cue
+            while the server re-sim reconciles. Kept subtle so the eventual firm
+            never reads as a glitch. */}
+        {provisional && (
+          <p
+            className="mt-3 inline-flex items-center gap-1.5 font-mono text-[11px] uppercase tracking-[0.14em] text-text-muted"
+            role="status"
+            aria-live="polite"
+          >
+            <span
+              className="w-2 h-2 rounded-full border border-text-muted border-t-signal motion-safe:animate-spin"
+              aria-hidden="true"
+            />
+            Confirming result…
           </p>
         )}
       </div>
 
       {/* Player peaks */}
-      <div className="w-full max-w-sm bg-surface rounded-xl border border-border-subtle p-5 mb-6">
+      <div className="relative w-full max-w-sm bg-surface rounded-xl border border-border-subtle p-5 mb-6">
         <div className="flex flex-col gap-3">
           <PlayerRow
             name={player1Name}
@@ -286,23 +413,38 @@ export function DuelResult({
       )}
 
       {/* Actions */}
-      <div className="flex flex-col gap-3 w-full max-w-sm">
-        {/* Rematch */}
-        <button
-          onClick={handleRematch}
-          disabled={rematchLoading || !user || opponentLeft}
-          className="inline-flex items-center justify-center rounded-full px-6 min-h-[44px] bg-signal text-void font-semibold text-sm hover:brightness-110 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed transition-[filter,transform]"
-          aria-label={opponentLeft ? "Rematch unavailable — opponent has left" : "Rematch"}
-        >
-          {rematchLoading ? (
+      <div className="relative flex flex-col gap-3 w-full max-w-sm">
+        {/* Rematch — once requested, the presser waits here (drop-safe) instead
+            of being dropped alone into a fresh lobby. */}
+        {rematchPending ? (
+          <div
+            className="flex items-center justify-center gap-2 rounded-full px-6 min-h-[44px] bg-surface border border-signal/40 text-text-secondary text-sm"
+            role="status"
+            aria-live="polite"
+          >
             <span
-              className="w-4 h-4 rounded-full border-2 border-void/40 border-t-void animate-spin"
+              className="w-4 h-4 rounded-full border-2 border-text-muted border-t-signal motion-safe:animate-spin"
               aria-hidden="true"
             />
-          ) : (
-            "Rematch"
-          )}
-        </button>
+            Rematch requested — waiting for opponent…
+          </div>
+        ) : (
+          <button
+            onClick={handleRematch}
+            disabled={rematchLoading || !user || opponentLeft}
+            className="inline-flex items-center justify-center rounded-full px-6 min-h-[44px] bg-signal text-void font-semibold text-sm hover:brightness-110 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed transition-[filter,transform] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void"
+            aria-label={opponentLeft ? "Rematch unavailable — opponent has left" : "Rematch"}
+          >
+            {rematchLoading ? (
+              <span
+                className="w-4 h-4 rounded-full border-2 border-void/40 border-t-void motion-safe:animate-spin"
+                aria-hidden="true"
+              />
+            ) : (
+              "Rematch"
+            )}
+          </button>
+        )}
 
         {rematchError && (
           <p className="text-ember text-xs text-center">{rematchError}</p>
@@ -350,7 +492,7 @@ export function DuelResult({
 
       {/* Sign in CTA for anon users */}
       {!user && (
-        <p className="mt-8 text-text-muted text-sm text-center">
+        <p className="relative mt-8 text-text-muted text-sm text-center">
           <a href="/auth/signin" className="text-signal underline underline-offset-2">
             Sign in
           </a>{" "}
