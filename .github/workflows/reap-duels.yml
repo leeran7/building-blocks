@@ -1,0 +1,37 @@
+name: Reap paid duels
+
+# Refunds abandoned paid PENDING duels (creator staked, nobody joined) on a
+# schedule. GitHub Cron replaces Vercel Cron here. The endpoint is idempotent
+# (per-duel `refunded` guard), so overlapping or missed runs are harmless.
+#
+# Required repo secrets:
+#   REAP_DUELS_URL     — https://<prod-domain>/api/cron/reap-duels
+#   REAP_DUELS_TOKEN   — must equal the deployment's INTERNAL_TOKEN env var
+on:
+  schedule:
+    - cron: "*/10 * * * *" # every 10 minutes (UTC)
+  workflow_dispatch: {} # allow manual runs from the Actions tab
+
+permissions:
+  contents: read
+
+jobs:
+  reap:
+    name: Reap paid duels
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping reap endpoint
+        env:
+          REAP_DUELS_URL: ${{ secrets.REAP_DUELS_URL }}
+          REAP_DUELS_TOKEN: ${{ secrets.REAP_DUELS_TOKEN }}
+        run: |
+          if [ -z "$REAP_DUELS_URL" ] || [ -z "$REAP_DUELS_TOKEN" ]; then
+            echo "REAP_DUELS_URL / REAP_DUELS_TOKEN not configured — skipping."
+            exit 0
+          fi
+          code=$(curl -sS -o /tmp/reap.out -w "%{http_code}" \
+            -H "x-internal-token: $REAP_DUELS_TOKEN" \
+            "$REAP_DUELS_URL")
+          echo "HTTP $code"
+          cat /tmp/reap.out || true
+          test "$code" = "200"

@@ -12,6 +12,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { Navbar } from "../Navbar";
 import { ClimbCanvas } from "../Game/ClimbCanvas";
 import { createMatch, stepMatch, DEFAULT_SIM_CONFIG } from "../../game/simulation";
 import { buildTower } from "../../game/towers";
@@ -226,23 +227,29 @@ export function DuelWatch({ duelId }: { duelId: string }) {
 
   if (watchPhase === "loading") {
     return (
-      <div className="min-h-screen bg-void flex flex-col items-center justify-center gap-4">
-        <div className="w-8 h-8 rounded-full border-2 border-text-muted border-t-signal animate-spin" aria-hidden="true" />
-        <p className="font-mono text-sm text-text-secondary">Loading replay…</p>
+      <div className="min-h-screen bg-void text-text-primary">
+        <Navbar contextLabel="1v1" />
+        <div className="flex flex-col items-center justify-center gap-4 pt-24">
+          <div className="w-8 h-8 rounded-full border-2 border-text-muted border-t-signal animate-spin" aria-hidden="true" />
+          <p className="font-mono text-sm text-text-secondary">Loading replay…</p>
+        </div>
       </div>
     );
   }
 
   if (watchPhase === "error") {
     return (
-      <div className="min-h-screen bg-void flex flex-col items-center justify-center gap-4 px-4 text-center">
-        <p className="text-ember text-base">{errorMsg}</p>
-        <Link
-          href="/duel"
-          className="inline-flex items-center justify-center rounded-full px-6 min-h-[44px] border border-border-strong text-text-secondary text-sm hover:border-signal/50 transition-colors"
-        >
-          Back to duels
-        </Link>
+      <div className="min-h-screen bg-void text-text-primary">
+        <Navbar contextLabel="1v1" />
+        <div className="flex flex-col items-center justify-center gap-4 px-4 text-center pt-24">
+          <p className="text-ember text-base">{errorMsg}</p>
+          <Link
+            href="/duel"
+            className="inline-flex items-center justify-center rounded-full px-6 min-h-[44px] border border-border-strong text-text-secondary text-sm hover:border-signal/50 transition-colors"
+          >
+            Back to duels
+          </Link>
+        </div>
       </div>
     );
   }
@@ -257,6 +264,7 @@ export function DuelWatch({ duelId }: { duelId: string }) {
 
   return (
     <div className="flex flex-col items-center min-h-screen bg-void text-text-primary">
+      <Navbar contextLabel="1v1" />
       {/* Header bar */}
       <div className="w-full max-w-md flex items-center justify-between px-4 py-3 bg-surface border-b border-border-subtle">
         <div className="font-mono text-xs tabular-nums">

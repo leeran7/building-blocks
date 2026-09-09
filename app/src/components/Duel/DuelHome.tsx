@@ -15,6 +15,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "../../contexts/AuthContext";
 import { shareInvite } from "../../lib/shareInvite";
+import { Navbar } from "../Navbar";
+import { PaidDuelSection } from "./PaidDuelSection";
+import { PAID_DUELS_ENABLED_PUBLIC } from "../../config/paidDuel";
 
 // ─────────────────────────────── Types ────────────────────────────────────
 
@@ -241,8 +244,9 @@ export function DuelHome() {
 
   return (
     <div className="min-h-screen bg-void text-text-primary">
+      <Navbar contextLabel="1v1" />
       {/* Header */}
-      <div className="px-4 pt-16 pb-8 text-center">
+      <div className="px-4 pt-8 pb-8 text-center">
         <p className="font-mono text-xs uppercase tracking-[0.16em] text-text-muted mb-3">
           multiplayer
         </p>
@@ -440,6 +444,9 @@ export function DuelHome() {
             )}
           </section>
         )}
+
+        {/* Paid stakes — parallel to the free actions, gated on sign-in + flag. */}
+        {user && PAID_DUELS_ENABLED_PUBLIC && <PaidDuelSection />}
       </div>
     </div>
   );

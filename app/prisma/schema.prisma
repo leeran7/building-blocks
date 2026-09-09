@@ -36,23 +36,33 @@ enum CreatorPlatform {
 }
 
 model User {
-  id            String        @id // Firebase UID
-  email         String        @unique
-  emailVerified Boolean       @default(false)
-  display_name  String? // profile display name (optional)
+  id                     String              @id // Firebase UID
+  email                  String              @unique
+  emailVerified          Boolean             @default(false)
+  display_name           String? // profile display name (optional)
   // Public, user-chosen handle for the creator page at /c/[username].
   // Slug-safe, unique, moderated. NULL = no public profile yet.
-  username      String?       @unique
-  createdAt     DateTime      @default(now())
-  blocks        Block[]
-  climbRecords  ClimbRecord[]
-  climbRuns     ClimbRun[]
-  savedUrls     SavedUrl[]
-  socialHandles SavedSocialHandle[]
-  duelsAsPlayer1 Duel[]      @relation("DuelPlayer1")
-  duelsAsPlayer2 Duel[]      @relation("DuelPlayer2")
-  duelsWon       Duel[]      @relation("DuelWinner")
-  duelStats      DuelStats?
+  username               String?             @unique
+  createdAt              DateTime            @default(now())
+  // Two-bucket credit wallet for Paid 1v1 Battles. Both are cents (1 credit = 1¢)
+  // and are ALWAYS mutated with increment/decrement, never SET, so concurrent
+  // stakes/payouts stay correct. play_credits are purchased and NON-cashable;
+  // winnings are won and cashable. Cash-out draws only from winnings.
+  play_credits_cents     Int                 @default(0)
+  winnings_credits_cents Int                 @default(0)
+  // 18+ attestation timestamp, set on the user's first paid-duel action.
+  age_confirmed_at       DateTime?
+  blocks                 Block[]
+  climbRecords           ClimbRecord[]
+  climbRuns              ClimbRun[]
+  savedUrls              SavedUrl[]
+  socialHandles          SavedSocialHandle[]
+  duelsAsPlayer1         Duel[]              @relation("DuelPlayer1")
+  duelsAsPlayer2         Duel[]              @relation("DuelPlayer2")
+  duelsWon               Duel[]              @relation("DuelWinner")
+  duelStats              DuelStats?
+  creditPurchases        CreditPurchase[]
+  walletLedger           WalletLedger[]
 
   @@map("users")
 }
@@ -131,20 +141,20 @@ model ClimbRun {
 }
 
 model Block {
-  id           String          @id @default(cuid())
-  slug         String          @unique
+  id           String           @id @default(cuid())
+  slug         String           @unique
   url          String
   display_name String
   owner_email  String
-  altitude     Float           @default(0) // metres; CHECK altitude >= 0 in migration
-  spend_c      Int             @default(0) // cents; display-only; NEVER in ORDER BY
-  views_served Int             @default(0) // above-ground views only
-  clicks       Int             @default(0)
+  altitude     Float            @default(0) // metres; CHECK altitude >= 0 in migration
+  spend_c      Int              @default(0) // cents; display-only; NEVER in ORDER BY
+  views_served Int              @default(0) // above-ground views only
+  clicks       Int              @default(0)
   peak_rank    Int? // best (lowest) rank number achieved
   hidden_at    DateTime? // NULL = visible
-  created_at   DateTime        @default(now())
+  created_at   DateTime         @default(now())
   season_id    String
-  category     String?         @default("tech") // free-form category slug
+  category     String?          @default("tech") // free-form category slug
   userId       String?
   // Optional social account this listing points at. When set, the block
   // renders as a native creator card and `url` is the canonical profile URL
@@ -159,10 +169,6 @@ model Block {
   payments Payment[]
   user     User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
 
-  // Partial index on altitude DESC WHERE hidden_at IS NULL (for rank query)
-  // Raw SQL applied in migration 0002 (Prisma @@index with where clause):
-  @@index([altitude(sort: Desc)], name: "blocks_rank_idx")
-  @@index([category, altitude(sort: Desc)], name: "blocks_category_altitude_idx")
   // One social entry per (user, season, platform): a creator may list all their
   // platforms in a stack, but not two entries for the same one. Postgres treats
   // NULLs as distinct, so this only binds when all three are set — i.e. an
@@ -170,6 +176,10 @@ model Block {
   // hidden + visible rows, so a single tuple owns exactly one block (no
   // create-then-reveal race). See checkout dedup + reuse logic.
   @@unique([userId, season_id, platform], name: "blocks_user_season_platform_key")
+  // Partial index on altitude DESC WHERE hidden_at IS NULL (for rank query)
+  // Raw SQL applied in migration 0002 (Prisma @@index with where clause):
+  @@index([altitude(sort: Desc)], name: "blocks_rank_idx")
+  @@index([category, altitude(sort: Desc)], name: "blocks_category_altitude_idx")
   @@map("blocks")
 }
 
@@ -706,31 +716,52 @@ enum DuelStatus {
 }
 
 model Duel {
-  id                  String     @id
-  seed                String
-  category_slug       String
-  status              DuelStatus @default(pending)
-  player1_id          String
-  player2_id          String?
-  winner_id           String?
-  player1_peak        Float?
-  player2_peak        Float?
-  player1_replay      String?    @db.Text
-  player2_replay      String?    @db.Text
-  player1_submitted   Boolean    @default(false)
-  player2_submitted   Boolean    @default(false)
-  forfeit             Boolean    @default(false)
-  tiebreak_rule       String?
-  created_at          DateTime   @default(now())
-  started_at          DateTime?
-  completed_at        DateTime?
-  /** Set on a completed duel when a rematch is created; lets the opponent
-      discover the new room even if the realtime "rematch" event is dropped. */
-  rematch_duel_id     String?
+  id                String     @id
+  seed              String
+  category_slug     String
+  status            DuelStatus @default(pending)
+  player1_id        String
+  player2_id        String?
+  winner_id         String?
+  player1_peak      Float?
+  player2_peak      Float?
+  player1_replay    String?    @db.Text
+  player2_replay    String?    @db.Text
+  player1_submitted Boolean    @default(false)
+  player2_submitted Boolean    @default(false)
+  forfeit           Boolean    @default(false)
+  tiebreak_rule     String?
+  created_at        DateTime   @default(now())
+  started_at        DateTime?
+  completed_at      DateTime?
+  /**
+   * Set on a completed duel when a rematch is created; lets the opponent
+   * discover the new room even if the realtime "rematch" event is dropped.
+   */
+  rematch_duel_id   String?
 
-  player1 User  @relation("DuelPlayer1", fields: [player1_id], references: [id], onDelete: Restrict)
-  player2 User? @relation("DuelPlayer2", fields: [player2_id], references: [id], onDelete: SetNull)
-  winner  User? @relation("DuelWinner",  fields: [winner_id],  references: [id], onDelete: SetNull)
+  // ── Paid duel escrow (NULL stake_cents = free duel; all free paths untouched) ──
+  // Per-player stake in cents. Both players stake the same amount; the winner
+  // takes floor(stake_cents * 2 * 0.9) (10% rake) into their winnings bucket.
+  stake_cents                  Int?
+  player1_staked               Boolean @default(false)
+  player2_staked               Boolean @default(false)
+  // Bucket split of each player's stake (play-credits vs winnings), recorded at
+  // stake time so a refund restores exactly what was taken from each bucket and
+  // never launders non-cashable play credits into cashable winnings.
+  player1_stake_play_cents     Int     @default(0)
+  player1_stake_winnings_cents Int     @default(0)
+  player2_stake_play_cents     Int     @default(0)
+  player2_stake_winnings_cents Int     @default(0)
+  // Exactly-once settlement guards, flipped inside the resolving SELECT FOR UPDATE tx.
+  payout_settled               Boolean @default(false)
+  payout_cents                 Int?
+  refunded                     Boolean @default(false)
+
+  player1      User           @relation("DuelPlayer1", fields: [player1_id], references: [id], onDelete: Restrict)
+  player2      User?          @relation("DuelPlayer2", fields: [player2_id], references: [id], onDelete: SetNull)
+  winner       User?          @relation("DuelWinner", fields: [winner_id], references: [id], onDelete: SetNull)
+  walletLedger WalletLedger[]
 
   @@index([status, created_at], name: "duel_status_created_idx")
   @@index([player1_id, status], name: "duel_player1_status_idx")
@@ -750,4 +781,61 @@ model DuelStats {
 
   @@index([wins(sort: Desc)], name: "duel_stats_wins_desc_idx")
   @@map("duel_stats")
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Paid 1v1 Battles — prepaid credits wallet
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Which wallet bucket a ledger row affects. PLAY = purchased, non-cashable;
+// WINNINGS = won, cashable. Only WINNINGS can be cashed out.
+enum WalletBucket {
+  PLAY
+  WINNINGS
+}
+
+// Every credit-balance mutation writes one append-only ledger row per bucket it
+// touches (a stake spanning both buckets writes two rows), so the wallet is
+// fully auditable and balance_after can be reconciled against the running total.
+enum WalletLedgerKind {
+  PURCHASE // credits bought via Stripe (PLAY)
+  STAKE // debit into a duel escrow (PLAY and/or WINNINGS)
+  WIN // pot credited to the winner (WINNINGS)
+  REFUND // stake returned when a duel never played (original buckets)
+  CASHOUT_REQUEST // withdrawal requested (WINNINGS debit; admin fulfils off-platform)
+  CASHOUT_REVERSAL // admin could not fulfil a cash-out (WINNINGS credit back)
+  ADJUSTMENT // manual admin correction
+}
+
+// A settled Stripe credit top-up. stripe_session_id is UNIQUE — the webhook's
+// idempotency key, mirroring Payment for paid stacks.
+model CreditPurchase {
+  id                String   @id @default(cuid())
+  user_id           String
+  stripe_session_id String   @unique
+  amount_cents      Int
+  created_at        DateTime @default(now())
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id])
+  @@map("credit_purchases")
+}
+
+model WalletLedger {
+  id            String           @id @default(cuid())
+  user_id       String
+  bucket        WalletBucket
+  amount_cents  Int // signed: positive = credit, negative = debit
+  balance_after Int // that bucket's balance after this row, for auditability
+  kind          WalletLedgerKind
+  duel_id       String? // set for STAKE / WIN / REFUND
+  note          String?
+  created_at    DateTime         @default(now())
+
+  user User  @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  duel Duel? @relation(fields: [duel_id], references: [id], onDelete: SetNull)
+
+  @@index([user_id, created_at(sort: Desc)], name: "wallet_ledger_user_idx")
+  @@map("wallet_ledger")
 }

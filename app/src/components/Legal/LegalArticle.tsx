@@ -30,7 +30,7 @@ export function LegalHeader({
   );
 }
 
-export function LegalNav({ items }: { items: { id: string; label: string }[] }) {
+export function LegalNav({ items }: { items: readonly { id: string; label: string }[] }) {
   return (
     <nav
       aria-label="Table of contents"

@@ -12,6 +12,7 @@
 
 import type React from "react";
 import Link from "next/link";
+import { PAID_DUELS_ENABLED_PUBLIC } from "../../config/paidDuel";
 
 function LinkIcon() {
   return (
@@ -55,6 +56,26 @@ function SwordsIcon() {
   );
 }
 
+function CoinsIcon() {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <circle cx="8" cy="8" r="6" />
+      <path d="M18.09 10.37A6 6 0 1 1 10.34 18" />
+      <path d="M7 6h1v4" />
+      <path d="m16.71 13.88.7.71-2.82 2.82" />
+    </svg>
+  );
+}
+
 interface Mode {
   icon: React.ReactNode;
   title: string;
@@ -87,14 +108,15 @@ export function DuelPromo() {
         <div className="mb-12 flex items-end justify-between gap-4">
           <div>
             <span className="font-mono text-[11px] uppercase tracking-[0.2em] text-signal">
-              [ multiplayer ]
+              {PAID_DUELS_ENABLED_PUBLIC ? "[ multiplayer · real stakes ]" : "[ multiplayer ]"}
             </span>
             <h2 className="font-display text-4xl md:text-5xl text-text-primary mt-3">
               1v1 head-to-head
             </h2>
             <p className="text-sm text-text-secondary mt-2 max-w-xl">
-              Same tower, same rising lava — the last climber standing wins. Free
-              and skill-only, separate from paid stacks.
+              {PAID_DUELS_ENABLED_PUBLIC
+                ? "Same tower, same rising lava — the last climber standing wins. Play free, or stake credits and take the pot. Pure skill: outcomes are decided by your climb, not chance."
+                : "Same tower, same rising lava — the last climber standing wins. Free and skill-only, separate from paid stacks."}
             </p>
           </div>
           <span
@@ -104,6 +126,26 @@ export function DuelPromo() {
             live duel
           </span>
         </div>
+
+        {PAID_DUELS_ENABLED_PUBLIC && (
+          <div className="reveal mb-4 rounded-2xl border border-signal/40 bg-signal/5 p-6 shadow-signal">
+            <div className="flex items-start gap-4">
+              <div className="w-12 h-12 shrink-0 rounded-xl border border-signal/40 bg-signal/10 text-signal flex items-center justify-center [&_svg]:w-6 [&_svg]:h-6">
+                <CoinsIcon />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-text-primary">
+                  Paid 1v1 — winner takes the pot
+                </h3>
+                <p className="text-sm text-text-secondary leading-relaxed mt-2">
+                  Buy credits, stake a friend head-to-head, and the winner takes the pot
+                  (minus a 10% fee) as cashable winnings. Skill-based, 18+, not available
+                  in all states.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {modes.map((mode, i) => (

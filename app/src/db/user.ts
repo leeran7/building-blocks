@@ -34,3 +34,15 @@ export async function ensureUser(input: EnsureUserInput): Promise<void> {
     },
   });
 }
+
+/**
+ * Record the user's 18+ attestation the first time they take a paid-duel action.
+ * Idempotent: only stamps when currently null, so the earliest confirmation is
+ * preserved as an audit record.
+ */
+export async function recordAgeConfirmation(userId: string): Promise<void> {
+  await prisma.user.updateMany({
+    where: { id: userId, age_confirmed_at: null },
+    data: { age_confirmed_at: new Date() },
+  });
+}

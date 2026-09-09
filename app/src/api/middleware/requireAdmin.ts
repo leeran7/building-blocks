@@ -49,8 +49,9 @@ export function requireAdmin(request: NextRequest): NextResponse | null {
 
 /**
  * Constant-time string comparison to prevent timing attacks.
+ * Exported for reuse in any route that compares secret tokens.
  */
-function constantTimeEqual(a: string, b: string): boolean {
+export function constantTimeEqual(a: string, b: string): boolean {
   if (a.length !== b.length) return false;
   let result = 0;
   for (let i = 0; i < a.length; i++) {

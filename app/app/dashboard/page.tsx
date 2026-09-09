@@ -40,6 +40,8 @@ import {
   DuelReplaysSection,
   type DuelReplayItem,
 } from "../../src/components/Dashboard/DuelReplaysSection";
+import { WalletCard } from "../../src/components/Dashboard/WalletCard";
+import { PAID_DUELS_ENABLED_PUBLIC } from "../../src/config/paidDuel";
 import { formatAltitude } from "../../src/lib/units";
 
 interface Payment {
@@ -254,6 +256,8 @@ export default function DashboardPage() {
         {fetchState.status === "success" && (
           <>
             <CreatorPageBand username={fetchState.data.user.username} />
+
+            {PAID_DUELS_ENABLED_PUBLIC && <WalletCard token={token} />}
 
             {fetchState.data.freeClimb ? (
               <FreeClimbCard climb={fetchState.data.freeClimb} />

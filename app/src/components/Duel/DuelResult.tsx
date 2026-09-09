@@ -108,6 +108,12 @@ export function DuelResult({
   const [shareFailed, setShareFailed] = useState(false);
   /** AC-9: true when the opponent leaves presence on the result screen. */
   const [opponentLeft, setOpponentLeft] = useState(false);
+  /** Paid-duel settlement, read once from meta (null for free duels). */
+  const [paid, setPaid] = useState<{
+    stakeCents: number;
+    payoutCents: number | null;
+    refunded: boolean;
+  } | null>(null);
 
   const opponentId = player1Id === myId ? player2Id : player1Id;
 
@@ -180,6 +186,36 @@ export function DuelResult({
   const iWon = winnerId === myId;
   const isDraw = winnerId === null;
   const provisional = resultSource === "provisional";
+
+  // Paid duels: read stake/payout from meta once. payoutCents is set on the
+  // duel by the server the moment it settles, so this reflects the authoritative
+  // credit even though the on-screen result may still be provisional.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/duel/${duelId}`, { cache: "no-store" });
+        if (!res.ok || cancelled) return;
+        const meta = (await res.json()) as {
+          stakeCents: number | null;
+          payoutCents: number | null;
+          refunded: boolean;
+        };
+        if (meta.stakeCents != null && !cancelled) {
+          setPaid({
+            stakeCents: meta.stakeCents,
+            payoutCents: meta.payoutCents,
+            refunded: meta.refunded,
+          });
+        }
+      } catch {
+        // Non-critical — the wallet on the dashboard is the source of truth.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [duelId]);
 
   // Margin between the two peaks — the headline "how close was it" number.
   const myPeak = player1Id === myId ? player1Peak : player2Peak;
@@ -375,6 +411,39 @@ export function DuelResult({
           />
         </div>
       </div>
+
+      {/* Paid-duel settlement banner */}
+      {paid && (
+        <div
+          className={`w-full max-w-sm mb-4 px-4 py-3 rounded-xl border text-center ${
+            iWon && paid.payoutCents
+              ? "bg-signal/10 border-signal/40"
+              : "bg-surface border-border-subtle"
+          }`}
+        >
+          {paid.refunded ? (
+            <p className="font-mono text-sm text-text-secondary">
+              Stake refunded to your credits.
+            </p>
+          ) : iWon && paid.payoutCents ? (
+            <>
+              <p className="font-mono text-lg font-bold tabular-nums text-signal">
+                + ${(paid.payoutCents / 100).toFixed(2)}
+              </p>
+              <p className="font-mono text-xs uppercase tracking-[0.12em] text-text-muted mt-0.5">
+                added to winnings ·{" "}
+                <Link href="/dashboard" className="text-signal underline underline-offset-2">
+                  wallet
+                </Link>
+              </p>
+            </>
+          ) : (
+            <p className="font-mono text-sm text-text-secondary tabular-nums">
+              Staked ${(paid.stakeCents / 100).toFixed(2)}
+            </p>
+          )}
+        </div>
+      )}
 
       {/* AC-9: opponent left notice */}
       {opponentLeft && (

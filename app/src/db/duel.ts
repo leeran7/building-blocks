@@ -8,6 +8,92 @@
 
 import { prisma } from "./client";
 import { DuelStatus, Duel, DuelStats, Prisma } from "@prisma/client";
+import { creditWinningsInTx, creditRefundInTx } from "./credits";
+import { DUEL_RAKE, duelPayoutCents } from "../config/paidDuel";
+
+// Re-export so that existing imports from db/duel continue to work.
+export { DUEL_RAKE, duelPayoutCents };
+
+type TxClientLocal = Prisma.TransactionClient;
+
+/**
+ * Credit a paid duel's pot to the winner's WINNINGS bucket, exactly once.
+ * Called inside the resolving transaction (completeDuel / voidDuelForForfeit),
+ * which already holds the duel row lock. Returns the payout, or null for a free
+ * duel / when already settled with no amount.
+ *
+ * Invariants:
+ *  - free duel (stake_cents == null) → no-op, return null.
+ *  - payout_settled already true → idempotent, return the recorded payout_cents.
+ *  - winnerId == null → caller must refund instead (never pay out a no-winner duel).
+ *  - a "guest:" winner is impossible in a paid duel (guests are barred at stake
+ *    time); if one appears it is a broken invariant, so we throw loudly.
+ */
+async function settlePayoutInTx(
+  tx: TxClientLocal,
+  duel: Duel,
+  winnerId: string | null
+): Promise<number | null> {
+  if (duel.stake_cents == null) return null;
+  if (duel.payout_settled) return duel.payout_cents ?? null;
+  if (winnerId == null) return null;
+  if (winnerId.startsWith("guest:")) {
+    throw new Error(`Paid duel ${duel.id} resolved to a guest winner — invariant violation`);
+  }
+
+  const payout = duelPayoutCents(duel.stake_cents);
+  await creditWinningsInTx(tx, winnerId, payout, duel.id);
+  await tx.duel.update({
+    where: { id: duel.id },
+    data: { payout_settled: true, payout_cents: payout },
+  });
+  return payout;
+}
+
+/**
+ * Return both players' stakes to the exact buckets they came from, exactly once.
+ * Used when a paid duel never produced a played result (cancel / opponent never
+ * joined / stale-reap with no winner). Called inside a transaction holding the
+ * duel row lock.
+ */
+async function claimRefundInTx(tx: TxClientLocal, duel: Duel): Promise<boolean> {
+  if (duel.stake_cents == null || duel.refunded) return false;
+
+  if (duel.player1_staked) {
+    await creditRefundInTx(
+      tx,
+      duel.player1_id,
+      duel.player1_stake_play_cents,
+      duel.player1_stake_winnings_cents,
+      duel.id
+    );
+  }
+  if (duel.player2_staked && duel.player2_id) {
+    await creditRefundInTx(
+      tx,
+      duel.player2_id,
+      duel.player2_stake_play_cents,
+      duel.player2_stake_winnings_cents,
+      duel.id
+    );
+  }
+
+  await tx.duel.update({ where: { id: duel.id }, data: { refunded: true } });
+  return true;
+}
+
+/**
+ * Public wrapper: refund a paid duel by id (used by the cancel path once a
+ * pending challenge is voided). Idempotent via the `refunded` guard.
+ */
+export async function refundPaidDuel(id: string): Promise<boolean> {
+  return prisma.$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT id FROM duels WHERE id = ${id} FOR UPDATE`;
+    const duel = await tx.duel.findUnique({ where: { id } });
+    if (!duel) return false;
+    return claimRefundInTx(tx, duel);
+  });
+}
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -221,7 +307,11 @@ export async function completeDuel(
       await upsertDuelStatsInTx(tx, input.player2Id, input.winnerId === input.player2Id);
     }
 
-    return { outcome: "completed", duel } satisfies CompleteDuelResult;
+    // Paid duels: credit the pot to the winner's cashable winnings bucket,
+    // exactly once, in the same locked transaction as completion.
+    const payoutCents = await settlePayoutInTx(tx, duel, input.winnerId);
+
+    return { outcome: "completed", duel, payoutCents } satisfies CompleteDuelResult;
   });
 }
 
@@ -290,22 +380,76 @@ export async function reapDuelIfStale(
     const startedAt = current.started_at ?? current.created_at;
     if (Date.now() - startedAt.getTime() < graceMs) return false;
 
-    await tx.duel.update({
+    const voided = await tx.duel.update({
       where: { id },
       data: { status: DuelStatus.voided, forfeit: false, completed_at: new Date() },
     });
+    // Paid duel abandoned with no fair winner (no both-submitted) → refund both
+    // stakes to their source buckets in the same locked transaction.
+    if (voided.stake_cents != null) {
+      await claimRefundInTx(tx, voided);
+    }
     return true;
   });
 }
 
-/** Return shape from completeDuel. */
+/** Grace window before a paid PENDING challenge nobody joined is auto-refunded. */
+export const DUEL_PENDING_STALE_GRACE_MS = 30 * 60_000;
+
+/**
+ * Void + refund paid PENDING duels the creator staked but no opponent ever
+ * joined, older than the grace window, so a payer's credits never leak. Each
+ * duel is handled in its own SELECT FOR UPDATE transaction (idempotent via the
+ * `refunded` guard). Returns the number of duels refunded. Invoked from the
+ * reap cron; a lazy call from GET /api/duel/[id] is the backstop.
+ */
+export async function reapStalePendingPaidDuels(
+  graceMs = DUEL_PENDING_STALE_GRACE_MS,
+  limit = 100
+): Promise<number> {
+  const cutoff = new Date(Date.now() - graceMs);
+  const candidates = await prisma.duel.findMany({
+    where: {
+      status: DuelStatus.pending,
+      stake_cents: { not: null },
+      refunded: false,
+      created_at: { lt: cutoff },
+    },
+    select: { id: true },
+    take: limit,
+  });
+
+  let refunded = 0;
+  for (const { id } of candidates) {
+    const didRefund = await prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT id FROM duels WHERE id = ${id} FOR UPDATE`;
+      const duel = await tx.duel.findUnique({ where: { id } });
+      if (!duel || duel.status !== DuelStatus.pending || duel.refunded) return false;
+      await tx.duel.update({
+        where: { id },
+        data: { status: DuelStatus.voided, completed_at: new Date() },
+      });
+      return claimRefundInTx(tx, duel);
+    });
+    if (didRefund) refunded++;
+  }
+  return refunded;
+}
+
+/** Return shape from completeDuel. payoutCents is set for paid duels only. */
 export type CompleteDuelResult =
-  | { outcome: "completed"; duel: Duel }
+  | { outcome: "completed"; duel: Duel; payoutCents: number | null }
   | { outcome: "already_resolved"; duel: Duel };
 
-/** Possible results from voidDuelForForfeit. */
+/** Possible results from voidDuelForForfeit. payoutCents is set for paid duels only. */
 export type VoidForForfeitResult =
-  | { outcome: "voided"; duel: Duel; winnerId: string | null; loserId: string | null }
+  | {
+      outcome: "voided";
+      duel: Duel;
+      winnerId: string | null;
+      loserId: string | null;
+      payoutCents: number | null;
+    }
   | { outcome: "already_resolved" };
 
 /**
@@ -353,11 +497,23 @@ export async function voidDuelForForfeit(
       await upsertDuelStatsInTx(tx, opts.player2Id, winnerId === opts.player2Id);
     }
 
+    // Paid duels: a forfeit still has a winner (the non-forfeiter), so the pot
+    // is paid out to them. If there is somehow no winner, refund both stakes.
+    let payoutCents: number | null = null;
+    if (duel.stake_cents != null) {
+      if (winnerId) {
+        payoutCents = await settlePayoutInTx(tx, duel, winnerId);
+      } else {
+        await claimRefundInTx(tx, duel);
+      }
+    }
+
     return {
       outcome: "voided",
       duel,
       winnerId,
       loserId: winnerId === opts.player1Id ? opts.player2Id : opts.player1Id,
+      payoutCents,
     } satisfies VoidForForfeitResult;
   });
 }
@@ -401,6 +557,9 @@ export async function cancelPendingDuel(
       where: { id },
       data: { status: DuelStatus.voided },
     });
+    // Paid challenge: refund the creator's stake atomically — no second transaction
+    // needed, and a crash between void and refund can never orphan credits.
+    await claimRefundInTx(tx, current);
     return { outcome: "cancelled" } satisfies CancelPendingResult;
   });
 }
