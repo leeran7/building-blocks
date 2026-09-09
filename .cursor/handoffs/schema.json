@@ -52,27 +52,18 @@
     },
     "learnings": {
       "type": "array",
-      "description": "Cross-agent findings pinged at other agents; each is also appended to loop/learnings.jsonl",
+      "description": "Optional cross-agent findings pinged at the next agent(s). Concise; the orchestrator appends new ones to loop/learnings.md Notes.",
       "items": {
         "type": "object",
         "required": ["forAgents", "insight", "action"],
         "properties": {
-          "topic": { "type": "string" },
           "forAgents": {
             "type": "array",
             "items": { "type": "string" },
             "description": "Agents that should apply this learning; use [\"all\"] for global"
           },
-          "kind": {
-            "type": "string",
-            "enum": ["lesson", "pattern", "pitfall", "metric", "question"]
-          },
           "insight": { "type": "string" },
-          "action": { "type": "string" },
-          "confidence": {
-            "type": "string",
-            "enum": ["low", "medium", "high"]
-          }
+          "action": { "type": "string" }
         }
       }
     },

@@ -23,9 +23,9 @@ first (file tree + 5-minute install). Repo-specific facts live in
 2. Read [handoffs.md](handoffs.md) for the handoff contract.
 3. Read [team.md](team.md) — the orchestrator must actually dispatch the team.
    Impersonating a specialist (doing their work in the parent) is a loop defect.
-4. Read [learning-loop.md](learning-loop.md) — the mandatory continuous-learning
-   protocol. Every agent reads the learnings ledger before working and records new
-   learnings before finishing; the orchestrator runs a retro every iteration.
+4. Read [learning-loop.md](learning-loop.md) — the lightweight memory: agents
+   read the top of `loop/learnings.md` before working and, only when they hit
+   something new, add one concise entry to their handoff `learnings` array.
 5. Initialize loop state:
 
 ```bash
@@ -44,7 +44,6 @@ Write `loop/state.json`:
   "dispatched": [],
   "requiredTeam": [
     "product-spec",
-    "architect",
     "implementer",
     "verifier",
     "reviewer",
@@ -76,9 +75,9 @@ Write `loop/state.json`:
 5. **Quality gates** — after verifier succeeds, run `reviewer` **and**
    `security-reviewer` in the same message (parallel), then `qa-acceptance`,
    before integrator. Never skip these gates.
-6. **Retro** — after each iteration/loop-back, fold new `loop/learnings.jsonl`
-   entries into `loop/learnings.md`, promote any lesson seen 2+ times to a
-   standing rule, and surface top learnings in the stage report (see
+6. **Record** — append any new handoff `learnings` to the `loop/learnings.md`
+   Notes section (deduped, capped). No fold or promotion algorithm; occasionally
+   hand-promote a recurring Note to a Standing rule (see
    [learning-loop.md](learning-loop.md)).
 7. **Repeat** until terminal conditions in stages.md are met or `maxIterations` reached.
 8. **Report** — summarize artifacts, PR URL, test results, remaining warnings, and learnings recorded.
@@ -89,23 +88,15 @@ Write `loop/state.json`:
 |-------|----------|------|
 | Loop owner | orchestrator | Coordinate all stages |
 | 1 | product-spec | Turn intent into end-to-end flows + requirements |
-| 2 | architect | System design and contracts |
-| 3 | implementer | Write application code |
-| 4 | verifier | Tests and correctness |
-| 5 | reviewer | Code quality review |
-| 6 | security-reviewer | Security audit |
-| 7 | qa-acceptance | Acceptance criteria validation |
-| 8 | integrator | CI green, PR merge-ready |
-| 9 | devops | Pipelines and infrastructure |
-| 10 | release | Versioning and deployment |
-| 11 | monitor | Production observability |
-| 12 | docs | Documentation |
-| 13 | debugger | Root-cause unclear failures |
-| 14 | github | Stacked PRs, PR/ruleset/merge-queue expertise |
+| 2 | implementer | Design contracts inline, then write application code (owns server, data, perf) |
+| 3 | verifier | Tests and correctness |
+| 4 | reviewer | Code quality review |
+| 5 | security-reviewer | Security audit |
+| 6 | qa-acceptance | Acceptance criteria validation |
+| 7 | integrator | CI green, PR/stack merge-ready (owns GitHub platform strategy) |
+| — | debugger | Root-cause unclear failures (conditional) |
 
-Specialists (delegated from implementer): frontend, backend, data, mobile, design-ux, performance, compliance, cost.
-
-Optional after integrator: devops, docs, **github** (PR stacking / branch policy).
+Specialist (delegated from implementer): **frontend** — UI + inline design.
 
 ## Prompt template for each delegation
 
@@ -114,15 +105,15 @@ Goal: {goal}
 Prior handoff: {json}
 Your stage: {stage}
 
-Before starting: read loop/learnings.md (your section + `all`) and this handoff's
-`learnings` array, and apply every finding aimed at you (learning-loop.md).
+Before starting: read the top of loop/learnings.md (Standing rules + Notes for
+you or `all`) and this handoff's `learnings` array. Apply what fits.
 
 Complete your stage per your agent definition. Before finishing:
 1. Write handoff to loop/handoffs/{stage}-{iso-timestamp}.json
 2. Follow the handoff contract in skills/closed-loop/handoffs.md
 3. Set nextStage and loopBackTo appropriately
-4. Append your new learnings to loop/learnings.jsonl AND put cross-agent findings
-   in the handoff `learnings` array (ping the agents who need them)
+4. Only if you hit something genuinely new, add one concise entry to the handoff
+   `learnings` array. The orchestrator records it — you never write the ledger.
 ```
 
 ## Running the loop

@@ -10,8 +10,8 @@ function baseState(overrides: Partial<LoopState> = {}): LoopState {
     currentStage: "implementer",
     iteration: 1,
     maxIterations: 10,
-    completedStages: ["product-spec", "architect"],
-    dispatched: ["product-spec", "architect"],
+    completedStages: ["product-spec"],
+    dispatched: ["product-spec"],
     requiredTeam: [...REQUIRED_TEAM],
     status: "running",
     ...overrides,
@@ -94,8 +94,8 @@ describe("applyHandoff", () => {
     const next = applyHandoff(
       baseState({
         currentStage: "reviewer",
-        completedStages: ["product-spec", "architect", "implementer", "verifier"],
-        dispatched: ["product-spec", "architect", "implementer", "verifier"],
+        completedStages: ["product-spec", "implementer", "verifier"],
+        dispatched: ["product-spec", "implementer", "verifier"],
       }),
       handoff("reviewer+security-reviewer", "success"),
       ["reviewer", "security-reviewer"],
@@ -128,12 +128,12 @@ describe("applyHandoff", () => {
   it("refuses to complete if required team never ran", () => {
     const next = applyHandoff(
       baseState({
-        currentStage: "monitor",
-        completedStages: ["release"],
-        dispatched: ["release"],
+        currentStage: "integrator",
+        completedStages: ["product-spec"],
+        dispatched: ["product-spec"],
       }),
-      handoff("monitor", "success"),
-      ["monitor"],
+      handoff("integrator", "success"),
+      ["integrator"],
     );
     assert.equal(next.status, "paused");
     assert.match(next.pauseReason ?? "", /required team/);

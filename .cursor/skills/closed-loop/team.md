@@ -8,7 +8,7 @@ A stage counts as run only when **all** of these are true:
 
 1. The orchestrator dispatched that agent via Task / Agent with
    `subagent_type` **exactly equal** to the agent name
-   (`product-spec`, `architect`, `implementer`, `verifier`, `reviewer`,
+   (`product-spec`, `implementer`, `verifier`, `reviewer`,
    `security-reviewer`, `qa-acceptance`, `integrator`, …).
 2. That agent wrote `loop/handoffs/<agent>-<timestamp>.json`.
 3. The orchestrator **read** that handoff before advancing.
@@ -20,22 +20,20 @@ without `subagent_type`) does **not** count.
 ## Required team (cannot skip)
 
 ```
-product-spec → architect → implementer → verifier
-                                              ↓
-                          reviewer + security-reviewer (same message, parallel)
-                                              ↓
-                                       qa-acceptance → integrator
+product-spec → implementer → verifier
+                                 ↓
+           reviewer + security-reviewer (same message, parallel)
+                                 ↓
+                  qa-acceptance → integrator (terminal)
 ```
 
-Release and monitor still run after integrator (default sequence). Optional
-inserts: `design-ux` after architect; `devops` / `docs` / `github` after
-integrator.
+`integrator` is the terminal required stage — its success completes the loop.
+There are no optional inserts: the implementer designs contracts inline (no
+architect stage), and the integrator owns GitHub platform strategy.
 
-Specialists (`frontend`, `backend`, `data`, `mobile`, …) are **not**
-pipeline stages. The implementer may delegate to them with matching
-`subagent_type` and still owns the implementer handoff. `github` is an
-**optional stage** after integrator (and may be dispatched by integrator for
-stacking / ruleset strategy) — not an implementer layer specialist.
+`frontend` is the only specialist — it is **not** a pipeline stage. The
+implementer may delegate UI to it with `subagent_type: frontend` and still
+owns the implementer handoff.
 
 ## Missing handoff
 
@@ -48,8 +46,8 @@ After verifier succeeds, dispatch `reviewer` and `security-reviewer` in
 **one message** (two Task calls). Both must pass before `qa-acceptance`.
 Critical items in `findings` **or** `feedback` (or
 `exitCriteria.no_critical_findings === false`) → `needs_revision` →
-implementer. `loopBackTo` is clamped to product-spec / architect /
-implementer / debugger — never forward to integrator or release.
+implementer. `loopBackTo` is clamped to product-spec / implementer /
+debugger — never forward to integrator.
 
 ## Prompt-loop vs programmatic loop
 

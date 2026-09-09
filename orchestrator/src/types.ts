@@ -21,12 +21,9 @@ export interface HandoffFeedback {
 }
 
 export interface HandoffLearning {
-  topic?: string;
   forAgents: string[];
-  kind?: "lesson" | "pattern" | "pitfall" | "metric" | "question";
   insight: string;
   action: string;
-  confidence?: "low" | "medium" | "high";
 }
 
 export interface Handoff {
@@ -77,25 +74,17 @@ export interface LoopState {
 
 export type Stage =
   | "product-spec"
-  | "architect"
-  | "design-ux"
   | "implementer"
   | "verifier"
   | "reviewer"
   | "security-reviewer"
   | "qa-acceptance"
   | "integrator"
-  | "devops"
-  | "github"
-  | "release"
-  | "monitor"
-  | "docs"
   | "debugger";
 
 /** Required team members the orchestrator must actually dispatch. Cannot skip. */
 export const REQUIRED_TEAM: Stage[] = [
   "product-spec",
-  "architect",
   "implementer",
   "verifier",
   "reviewer",
@@ -106,31 +95,26 @@ export const REQUIRED_TEAM: Stage[] = [
 
 /**
  * Sequential backbone. `security-reviewer` is not listed here because it
- * runs in parallel with `reviewer` — see `stagesToDispatch`.
+ * runs in parallel with `reviewer` — see `stagesToDispatch`. `integrator`
+ * is the terminal required stage; its success completes the loop.
  */
 export const REQUIRED_SEQUENCE: Stage[] = [
   "product-spec",
-  "architect",
   "implementer",
   "verifier",
   "reviewer",
   "qa-acceptance",
   "integrator",
-  "release",
-  "monitor",
 ];
 
 export const PRIMARY_PIPELINE: Stage[] = [
   "product-spec",
-  "architect",
   "implementer",
   "verifier",
   "reviewer",
   "security-reviewer",
   "qa-acceptance",
   "integrator",
-  "release",
-  "monitor",
 ];
 
 export function normalizeState(state: LoopState): LoopState {

@@ -44,7 +44,7 @@ Read `context/README.md` first, then every file it lists. Write the spec to
 
 ## Don't
 
-- Choose stack, database, or framework (architect)
+- Choose stack, database, or framework (implementer designs that)
 - Write implementation code or schemas
 - Leave ACs that qa-acceptance cannot test mechanically
 - Ship a feature AC without its surrounding flow (how users find it, enter it,
@@ -54,5 +54,5 @@ Read `context/README.md` first, then every file it lists. Write the spec to
 ## Handoff
 
 `loop/handoffs/product-spec-<ISO-timestamp>.json` per
-`skills/closed-loop/handoffs.md`. `nextStage`: architect. `blocked` when a
+`skills/closed-loop/handoffs.md`. `nextStage`: implementer. `blocked` when a
 critical ambiguity needs the user. Artifact must include the Flows section.

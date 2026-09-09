@@ -20,7 +20,6 @@
   "doNotCopy": [
     "app/**",
     "loop/learnings.md",
-    "loop/learnings.jsonl",
     "closed-loop.profile.json",
     "context/**",
     "CLAUDE.md",

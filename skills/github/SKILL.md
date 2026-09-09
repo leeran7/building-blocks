@@ -17,7 +17,8 @@ not application feature code.
 
 1. `context/git.md` — trunk, remote, required checks, PR policy for **this**
    repo.
-2. Agent entry `agents/github.md` and the partial that matches the task:
+2. The `integrator` agent owns GitHub platform work; read the partial that
+   matches the task:
    - `agents/github/stacked-prs.md`
    - `agents/github/pull-requests.md`
    - `agents/github/rulesets-ci.md`

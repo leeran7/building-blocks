@@ -15,7 +15,7 @@ here.
 | This product’s facts | `context/README.md` |
 | Protocol | `skills/closed-loop/protocol.md` |
 | Kernel gates | `skills/closed-loop/gates.md` |
-| Memory | `loop/learnings.md` + `loop/learnings.jsonl` |
+| Memory | `loop/learnings.md` |
 | Roles | `agents/*.md` (sync to `.cursor/agents/` and `.claude/agents/`) |
 
 Edit `agents/` or `skills/`, then run `node scripts/sync.mjs`.
@@ -38,7 +38,7 @@ Read the ledger → implement → dispatch reviewers in parallel → fix
 Read-only reviewers cannot write `loop/`. The caller persists their
 `learnings` arrays.
 
-Do not paste new standing rules into all 22 agent files. Product facts go
+Do not paste new standing rules into every agent file. Product facts go
 in `context/` or `loop/learnings.md`. Kernel-generic `[all]` lessons are
 proposed for `skills/closed-loop/gates.md`.
 
@@ -52,7 +52,7 @@ missing handoff is **failed**. After verifier: `reviewer` and
 ## Loop runtime
 
 `loop/state.json` and `loop/handoffs/` are per-run (gitignored).
-`loop/learnings.md` and `loop/learnings.jsonl` are persistent memory.
+`loop/learnings.md` is persistent memory.
 
 ## Start a whole-app loop
 
