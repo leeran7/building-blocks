@@ -40,7 +40,7 @@ const RING_SIZE = 4;
  * stalled peer (no snapshots arriving) doesn't drift off-screen.
  * ~3 snapshot intervals at 15 Hz = 6 ticks ≈ 200 ms.
  */
-const MAX_EXTRAPOLATE_TICKS = 6;
+export const MAX_EXTRAPOLATE_TICKS = 6;
 
 export class GhostStore {
   /** Per-slot ring of the last RING_SIZE samples, oldest first. */

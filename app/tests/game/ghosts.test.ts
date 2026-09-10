@@ -3,7 +3,11 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { GhostStore, GHOST_RENDER_DELAY_TICKS } from "../../src/game/ghosts";
+import {
+  GhostStore,
+  GHOST_RENDER_DELAY_TICKS,
+  MAX_EXTRAPOLATE_TICKS,
+} from "../../src/game/ghosts";
 import type { RealtimeSnapshotMessage } from "../../src/net/realtime";
 
 const D = GHOST_RENDER_DELAY_TICKS;
@@ -54,14 +58,25 @@ describe("GhostStore", () => {
     expect(s!.y).toBe(100);
   });
 
-  it("clamps to the latest sample (never extrapolates past newest)", () => {
+  it("dead-reckons a short way past the newest sample using last-two velocity", () => {
     const store = new GhostStore();
     store.ingest(snap({ slot: 1, tick: 0, x: 0, y: 100 }));
     store.ingest(snap({ slot: 1, tick: 8, x: 8, y: 180 }));
-    // target well beyond the newest tick → clamp to newest.
+    // Velocity is +1 x/tick, +10 y/tick. Aim a few ticks past newest (tick 8),
+    // within the extrapolation cap: target = 11 → 3 ticks of overshoot.
+    const s = store.sampleAt(1, 11 + D);
+    expect(s!.x).toBeCloseTo(11); // 8 + 1×3
+    expect(s!.y).toBeCloseTo(210); // 180 + 10×3
+  });
+
+  it("caps dead-reckoning at MAX_EXTRAPOLATE_TICKS so a stalled peer can't drift off", () => {
+    const store = new GhostStore();
+    store.ingest(snap({ slot: 1, tick: 0, x: 0, y: 100 }));
+    store.ingest(snap({ slot: 1, tick: 8, x: 8, y: 180 }));
+    // target far beyond newest → extrapolation clamps to the cap, not the target.
     const s = store.sampleAt(1, 100 + D);
-    expect(s!.x).toBe(8);
-    expect(s!.y).toBe(180);
+    expect(s!.x).toBeCloseTo(8 + MAX_EXTRAPOLATE_TICKS); // 8 + 1×6 = 14
+    expect(s!.y).toBeCloseTo(180 + 10 * MAX_EXTRAPOLATE_TICKS); // 180 + 60 = 240
   });
 
   it("holds the terminal position once a peer is eliminated/finished", () => {
