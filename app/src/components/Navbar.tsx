@@ -64,14 +64,14 @@ export function Navbar({ contextLabel, contextDot }: NavbarProps) {
       </div>
 
       <div className="flex items-center gap-1 sm:gap-2">
-        <Link href="/#towers" className={`${GHOST} hidden sm:inline-flex`}>
-          Browse
+        <Link href={DUEL_HREF} className={`${GHOST} hidden sm:inline-flex`}>
+          1v1
         </Link>
         <Link href={FREE_CLIMB_HREF} className={`${GHOST} hidden sm:inline-flex`}>
           Free climb
         </Link>
-        <Link href={DUEL_HREF} className={`${GHOST} hidden sm:inline-flex`}>
-          1v1
+        <Link href="/#towers" className={`${GHOST} hidden sm:inline-flex`}>
+          Browse
         </Link>
         {loading ? (
           // Stable placeholder — no flash of wrong auth state

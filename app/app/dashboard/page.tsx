@@ -217,14 +217,14 @@ export default function DashboardPage() {
             Dashboard
           </h1>
           <p className="text-sm text-text-secondary mt-1">
-            Your paid blocks, free climb rank, and saved replays.
+            Your duels, climb record, wallet, and paid blocks.
           </p>
         </div>
         <Link
-          href="/submit"
+          href="/duel"
           className="flex-shrink-0 bg-signal text-void font-semibold rounded-lg px-5 py-2.5 hover:brightness-110 transition min-h-[44px] inline-flex items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void"
         >
-          Submit a block
+          Start a duel
         </Link>
       </div>
 
@@ -255,17 +255,7 @@ export default function DashboardPage() {
 
         {fetchState.status === "success" && (
           <>
-            <CreatorPageBand username={fetchState.data.user.username} />
-
             {PAID_DUELS_ENABLED_PUBLIC && <WalletCard token={token} />}
-
-            {fetchState.data.freeClimb ? (
-              <FreeClimbCard climb={fetchState.data.freeClimb} />
-            ) : (
-              <FreeClimbEmpty />
-            )}
-
-            <ClimbReplaysSection replays={fetchState.data.replays ?? []} />
 
             {fetchState.data.duelStats ? (
               <DuelRecordCard record={fetchState.data.duelStats} />
@@ -280,6 +270,16 @@ export default function DashboardPage() {
               />
             )}
 
+            {fetchState.data.freeClimb ? (
+              <FreeClimbCard climb={fetchState.data.freeClimb} />
+            ) : (
+              <FreeClimbEmpty />
+            )}
+
+            <ClimbReplaysSection replays={fetchState.data.replays ?? []} />
+
+            <CreatorPageBand username={fetchState.data.user.username} />
+
             {fetchState.data.blocks.length === 0 && (
               <div className="flex flex-col items-center justify-center min-h-[30vh] text-center">
                 <div className="text-border-subtle">
@@ -289,8 +289,7 @@ export default function DashboardPage() {
                   No paid blocks yet
                 </h2>
                 <p className="text-sm text-text-secondary mt-2 max-w-sm">
-                  You haven&apos;t claimed any paid stack blocks. Browse a category
-                  to buy altitude, or keep climbing on the free leaderboard above.
+                  No paid stack blocks yet. Browse a category to claim a rank — or keep dueling.
                 </p>
                 <Link
                   href="/#towers"

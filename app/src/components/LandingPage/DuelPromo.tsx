@@ -102,33 +102,11 @@ export function DuelPromo() {
     <section
       id="duel"
       aria-label="1v1 duel"
-      className="scroll-mt-20 py-20 px-4 border-t border-border-subtle bg-surface/30"
+      className="scroll-mt-20 py-20 px-4 border-t-2 border-t-signal/20 border-x-0 border-b border-border-subtle bg-surface/30"
     >
       <div className="max-w-6xl mx-auto">
-        <div className="mb-12 flex items-end justify-between gap-4">
-          <div>
-            <span className="font-mono text-[11px] uppercase tracking-[0.2em] text-signal">
-              {PAID_DUELS_ENABLED_PUBLIC ? "[ multiplayer · real stakes ]" : "[ multiplayer ]"}
-            </span>
-            <h2 className="font-display text-4xl md:text-5xl text-text-primary mt-3">
-              1v1 head-to-head
-            </h2>
-            <p className="text-sm text-text-secondary mt-2 max-w-xl">
-              {PAID_DUELS_ENABLED_PUBLIC
-                ? "Same tower, same rising lava — the last climber standing wins. Play free, or stake credits and take the pot. Pure skill: outcomes are decided by your climb, not chance."
-                : "Same tower, same rising lava — the last climber standing wins. Free and skill-only, separate from paid stacks."}
-            </p>
-          </div>
-          <span
-            className="hidden md:block font-mono text-[11px] uppercase tracking-[0.14em] text-text-muted"
-            aria-hidden="true"
-          >
-            live duel
-          </span>
-        </div>
-
         {PAID_DUELS_ENABLED_PUBLIC && (
-          <div className="reveal mb-4 rounded-2xl border border-signal/40 bg-signal/5 p-6 shadow-signal">
+          <div className="reveal mb-8 rounded-2xl border border-signal/40 bg-signal/5 p-6 shadow-signal">
             <div className="flex items-start gap-4">
               <div className="w-12 h-12 shrink-0 rounded-xl border border-signal/40 bg-signal/10 text-signal flex items-center justify-center [&_svg]:w-6 [&_svg]:h-6">
                 <CoinsIcon />
@@ -146,6 +124,28 @@ export function DuelPromo() {
             </div>
           </div>
         )}
+
+        <div className="mb-12 flex items-end justify-between gap-4">
+          <div>
+            <span className="font-mono text-[11px] uppercase tracking-[0.2em] text-signal">
+              {PAID_DUELS_ENABLED_PUBLIC ? "[ multiplayer · real stakes ]" : "[ multiplayer ]"}
+            </span>
+            <h2 className="font-display text-4xl md:text-5xl text-text-primary mt-3">
+              1v1 Duels
+            </h2>
+            <p className="text-sm text-text-secondary mt-2 max-w-xl">
+              {PAID_DUELS_ENABLED_PUBLIC
+                ? "Same tower, same rising lava — the last climber standing wins. Play free, or stake credits and take the pot. Pure skill: outcomes are decided by your climb, not chance."
+                : "Same tower, same rising lava — the last climber standing wins. Free and skill-only, separate from paid stacks."}
+            </p>
+          </div>
+          <span
+            className="hidden md:block font-mono text-[11px] uppercase tracking-[0.14em] text-text-muted"
+            aria-hidden="true"
+          >
+            live duel
+          </span>
+        </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {modes.map((mode, i) => (

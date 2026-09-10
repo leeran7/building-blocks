@@ -127,7 +127,7 @@ export function TowerDirectory({ counts, minEntryUsd }: TowerDirectoryProps) {
             <span className="rounded-full bg-signal text-void px-2 py-0.5 text-[10px] font-bold shadow-signal">
               Paid
             </span>
-            real stakes · buy your way up
+            stacks · leaderboard
           </span>
           <h2 className="font-display text-5xl md:text-6xl text-text-primary mt-3">
             Pick your stack

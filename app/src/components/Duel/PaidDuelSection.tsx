@@ -141,11 +141,13 @@ export function PaidDuelSection() {
   }
 
   return (
-    <section className="bg-surface-raised rounded-xl border border-border-subtle p-6">
+    <section className="bg-surface-raised rounded-xl border border-signal/30 shadow-signal p-6">
+      <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-signal mb-0.5">[ real stakes ]</p>
+      <h2 className="font-semibold text-text-primary mb-1">Paid 1v1 — winner takes the pot</h2>
       <div className="flex items-center justify-between mb-1">
-        <h2 className="font-mono text-xs uppercase tracking-[0.14em] text-text-muted">
+        <span className="font-mono text-xs uppercase tracking-[0.14em] text-text-muted">
           Play for stakes
-        </h2>
+        </span>
         {wallet && (
           <span className="font-mono text-xs tabular-nums text-text-muted">
             <span className="text-signal font-semibold">{dollars(wallet.winningsCents)}</span> won

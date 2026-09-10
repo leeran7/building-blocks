@@ -305,6 +305,9 @@ export function DuelHome() {
           </div>
         )}
 
+        {/* Paid stakes — leads when flag is on; free actions follow below. */}
+        {user && PAID_DUELS_ENABLED_PUBLIC && <PaidDuelSection />}
+
         {/* ── Canonical primary action: Find opponent (matchmaking queue). One
               primary CTA per surface; the private-challenge path below is a
               de-emphasized secondary. Rendered only when signed in — the gate
@@ -445,8 +448,7 @@ export function DuelHome() {
           </section>
         )}
 
-        {/* Paid stakes — parallel to the free actions, gated on sign-in + flag. */}
-        {user && PAID_DUELS_ENABLED_PUBLIC && <PaidDuelSection />}
+        {/* Paid stakes section moved above; renders nothing when flag is off. */}
       </div>
     </div>
   );

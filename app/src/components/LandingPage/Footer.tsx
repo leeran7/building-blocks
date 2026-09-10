@@ -42,11 +42,11 @@ export function Footer() {
               [ your move ]
             </span>
             <h2 className="font-display text-4xl md:text-5xl text-text-primary mt-3">
-              Claim your altitude.
+              Your move. Their lava.
             </h2>
             <p className="text-sm text-text-secondary mt-3 max-w-sm">
-              Pick a stack, buy your way up, and outlast everyone before the ground
-              swallows them.
+              Race a random opponent or challenge a friend. Free to play, real stakes
+              when you want them.
             </p>
           </div>
           <Link
@@ -72,8 +72,8 @@ export function Footer() {
           </p>
         </div>
 
-        <nav aria-label="Stacks">
-          <p className={COL_HEAD}>Stacks</p>
+        <nav aria-label="Leaderboards">
+          <p className={COL_HEAD}>Leaderboards</p>
           <ul className="space-y-1">
             {FEATURED_GAME_CATEGORIES.map((c) => (
               <li key={c.slug}>
@@ -85,9 +85,14 @@ export function Footer() {
           </ul>
         </nav>
 
-        <nav aria-label="Free climb">
-          <p className={COL_HEAD}>Free climb</p>
+        <nav aria-label="Play">
+          <p className={COL_HEAD}>Play</p>
           <ul className="space-y-1">
+            <li>
+              <Link href="/duel" className={LINK}>
+                1v1 duel
+              </Link>
+            </li>
             <li>
               <Link href="/play" className={LINK}>
                 Play
@@ -96,11 +101,6 @@ export function Footer() {
             <li>
               <Link href="/climb" className={LINK}>
                 Leaderboard
-              </Link>
-            </li>
-            <li>
-              <Link href="/duel" className={LINK}>
-                1v1 duel
               </Link>
             </li>
           </ul>

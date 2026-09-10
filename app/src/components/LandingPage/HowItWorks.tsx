@@ -124,7 +124,7 @@ export function HowItWorks({
         <div className="mb-12 flex items-end justify-between gap-4">
           <div>
             <span className="font-mono text-[11px] uppercase tracking-[0.2em] text-signal">
-              [ the rules ]
+              [ paid stacks ]
             </span>
             <h2 className="font-display text-4xl md:text-5xl text-text-primary mt-3">
               How paid stacks work

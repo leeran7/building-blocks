@@ -60,14 +60,10 @@ async function SocialProofStrip() {
             <span className="font-bold text-signal tabular-nums">
               {proof.totalBlocks}
             </span>
-            {" blocks live across "}
-            <span className="font-bold text-signal tabular-nums">
-              {proof.arenaCount}
-            </span>
-            {" stacks"}
+            {" blocks live · free duels always on"}
           </>
         ) : (
-          "Join the leaderboard"
+          "Free duels always on"
         )}
       </p>
     </div>
@@ -123,6 +119,8 @@ export default async function HomePage() {
         <SocialProofStrip />
       </Suspense>
 
+      <DuelPromo />
+
       <HowItWorks
         minEntryUsd={constants.MIN_ENTRY_USD}
         minSpendUsd={constants.MIN_SPEND_USD}
@@ -131,8 +129,6 @@ export default async function HomePage() {
       <TowerDirectory counts={counts} minEntryUsd={constants.MIN_ENTRY_USD} />
 
       <FreeLeaderboard />
-
-      <DuelPromo />
 
       <Faq
         minEntryUsd={constants.MIN_ENTRY_USD}

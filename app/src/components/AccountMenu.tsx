@@ -167,14 +167,14 @@ export function AccountMenu() {
           {/* Mobile-only: the navbar hides these below sm. */}
           <div className="sm:hidden">
             <div className="my-1.5 border-t border-border-subtle" aria-hidden="true" />
-            <Link href="/#towers" className={ITEM} onClick={() => setOpen(false)}>
-              Browse
+            <Link href={DUEL_HREF} className={ITEM} onClick={() => setOpen(false)}>
+              1v1
             </Link>
             <Link href={FREE_CLIMB_HREF} className={ITEM} onClick={() => setOpen(false)}>
               Free climb
             </Link>
-            <Link href={DUEL_HREF} className={ITEM} onClick={() => setOpen(false)}>
-              1v1
+            <Link href="/#towers" className={ITEM} onClick={() => setOpen(false)}>
+              Browse
             </Link>
           </div>
 
