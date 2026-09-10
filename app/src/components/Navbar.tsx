@@ -70,9 +70,6 @@ export function Navbar({ contextLabel, contextDot }: NavbarProps) {
         <Link href={FREE_CLIMB_HREF} className={`${GHOST} hidden sm:inline-flex`}>
           Free climb
         </Link>
-        <Link href="/#towers" className={`${GHOST} hidden sm:inline-flex`}>
-          Browse
-        </Link>
         {loading ? (
           // Stable placeholder — no flash of wrong auth state
           <div

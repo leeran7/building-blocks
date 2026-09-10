@@ -113,10 +113,6 @@ function DuelViz() {
 }
 
 export interface HeroStats {
-  /** Live paid blocks across all stacks. */
-  totalBlocks: number;
-  /** Minimum entry price (USD) — the honest "claim #1" floor. */
-  minEntryUsd: number;
   /** Distinct free-climb players. */
   climberCount: number;
   /** Highest free-climb peak, or null if nobody has climbed. */
@@ -125,11 +121,7 @@ export interface HeroStats {
 
 
 export function Hero({ stats }: { stats: HeroStats }) {
-  const paidStats = [
-    { label: "Blocks climbing", value: stats.totalBlocks.toLocaleString() },
-    { label: "Claim #1", value: `from $${stats.minEntryUsd.toFixed(0)}` },
-  ];
-  const freeStats = [
+  const climbStats = [
     { label: "Climbers", value: stats.climberCount.toLocaleString() },
     {
       label: "Top climb",
@@ -207,79 +199,35 @@ export function Hero({ stats }: { stats: HeroStats }) {
               </span>
             </Link>
             <Link
-              href="/#towers"
+              href="/play"
               className="w-full sm:w-auto rounded-full border border-border-strong bg-surface/60 px-7 py-3.5 text-base font-medium text-text-primary inline-flex items-center justify-center hover:border-signal/50 hover:bg-surface transition-colors min-h-[52px]"
             >
-              Browse stacks →
+              Free climb →
             </Link>
           </div>
 
-          {/* instrument stat strip — paid dominant, free secondary */}
+          {/* instrument stat strip */}
           <div
-            className="reveal mt-8 space-y-2.5 max-w-md mx-auto md:mx-0"
+            className="reveal mt-8 max-w-md mx-auto md:mx-0"
             style={{ animationDelay: "280ms" }}
+            data-climb-chrome
           >
-            {/* PAID — the prominent tier */}
-            <div>
-              <div className="flex items-center gap-2 mb-1.5 justify-center md:justify-start">
-                <span className="rounded-full bg-signal text-void px-2 py-0.5 font-mono text-[9px] font-bold uppercase tracking-[0.12em] shadow-signal">
-                  Paid
-                </span>
-                <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-text-muted">
-                  real stakes · 74 stacks
-                </span>
-              </div>
-              <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-signal/30 bg-border-subtle">
-                {paidStats.map((s) => (
-                  <div key={s.label} className="bg-surface px-3 py-2.5 text-center md:text-left">
-                    <dt className="font-mono text-[10px] uppercase tracking-[0.12em] text-text-muted">
-                      {s.label}
-                    </dt>
-                    <dd className="font-mono text-lg font-bold tabular-nums text-signal mt-0.5">
-                      {s.value}
-                    </dd>
-                  </div>
-                ))}
-              </dl>
-            </div>
-
-            {/* FREE — warm-up game, secondary to paid (climb forks only) */}
-            <div data-climb-chrome className="climb-reveal space-y-2">
-              <div className="flex items-center gap-2 justify-center md:justify-start">
-                <span className="rounded-full border border-border-strong px-2 py-0.5 font-mono text-[9px] uppercase tracking-[0.12em] text-text-secondary">
-                  Free
-                </span>
-                <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-text-muted">
-                  warm-up game
-                </span>
-              </div>
-              <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-border-subtle bg-border-subtle">
-                {freeStats.map((s, i) => (
-                  <div
-                    key={s.label}
-                    className="animate-climbPunch bg-surface px-3 py-2 text-center md:text-left"
-                    style={{ animationDelay: `${i * 90}ms` }}
-                  >
-                    <dt className="font-mono text-[10px] uppercase tracking-[0.12em] text-text-muted">
-                      {s.label}
-                    </dt>
-                    <dd className="font-mono text-base font-bold tabular-nums text-text-secondary mt-0.5">
-                      {s.value}
-                    </dd>
-                  </div>
-                ))}
-              </dl>
-              {/* Own row under free stats — avoids 44×44 crowding the badge pills */}
-              <div className="flex justify-center md:justify-start">
-                <Link
-                  href="/play"
-                  aria-label="Play free climb"
-                  className="inline-flex items-center justify-center gap-1 rounded-full border border-border-strong bg-surface/60 px-4 min-h-[44px] min-w-[44px] font-mono text-[11px] uppercase tracking-[0.12em] text-text-secondary hover:border-signal/50 hover:text-signal transition-colors focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void"
+            <dl className="climb-reveal grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-border-subtle bg-border-subtle">
+              {climbStats.map((s, i) => (
+                <div
+                  key={s.label}
+                  className="animate-climbPunch bg-surface px-3 py-2.5 text-center md:text-left"
+                  style={{ animationDelay: `${i * 90}ms` }}
                 >
-                  Free climb
-                </Link>
-              </div>
-            </div>
+                  <dt className="font-mono text-[10px] uppercase tracking-[0.12em] text-text-muted">
+                    {s.label}
+                  </dt>
+                  <dd className="font-mono text-lg font-bold tabular-nums text-text-primary mt-0.5">
+                    {s.value}
+                  </dd>
+                </div>
+              ))}
+            </dl>
           </div>
 
           <p

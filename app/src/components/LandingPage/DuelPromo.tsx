@@ -136,7 +136,7 @@ export function DuelPromo() {
             <p className="text-sm text-text-secondary mt-2 max-w-xl">
               {PAID_DUELS_ENABLED_PUBLIC
                 ? "Same tower, same rising lava — the last climber standing wins. Play free, or stake credits and take the pot. Pure skill: outcomes are decided by your climb, not chance."
-                : "Same tower, same rising lava — the last climber standing wins. Free and skill-only, separate from paid stacks."}
+                : "Same tower, same rising lava — the last climber standing wins. Free and skill-only."}
             </p>
           </div>
           <span

@@ -173,9 +173,6 @@ export function AccountMenu() {
             <Link href={FREE_CLIMB_HREF} className={ITEM} onClick={() => setOpen(false)}>
               Free climb
             </Link>
-            <Link href="/#towers" className={ITEM} onClick={() => setOpen(false)}>
-              Browse
-            </Link>
           </div>
 
           <div className="my-1.5 border-t border-border-subtle" aria-hidden="true" />
