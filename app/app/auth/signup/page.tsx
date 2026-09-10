@@ -289,10 +289,19 @@ function SignUpForm() {
         className="relative overflow-hidden bg-surface rounded-2xl border border-border-strong p-8 shadow-lifted edge-signal w-full max-w-sm"
         aria-labelledby="auth-card-title"
       >
-        <p className="text-2xl font-bold text-text-primary mb-1 md:hidden">Stack</p>
+        {/* Logo — mobile only; desktop shows the brand panel */}
+        <div className="flex items-center gap-2.5 mb-5 md:hidden">
+          <span className="h-6 w-[3px] rounded-full bg-signal" aria-hidden="true" />
+          <span className="font-display text-xl tracking-tight text-text-primary">DOOMSTACK</span>
+        </div>
+
+        {/* Title */}
+        <span className="font-mono text-[11px] uppercase tracking-[0.2em] text-signal">
+          [ sign up ]
+        </span>
         <h1
           id="auth-card-title"
-          className="font-display text-2xl text-text-primary mb-1"
+          className="font-display text-3xl text-text-primary mt-2 mb-1"
         >
           Create account
         </h1>

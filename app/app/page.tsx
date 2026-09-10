@@ -88,9 +88,9 @@ export default async function HomePage() {
 
       <DuelPromo />
 
-      <FreeLeaderboard />
-
       <RankedLeaderboard />
+
+      <FreeLeaderboard />
 
       <Faq />
     </main>
