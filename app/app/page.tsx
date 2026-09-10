@@ -17,6 +17,7 @@ import { Faq, buildFaqs } from "../src/components/LandingPage/Faq";
 import { Navbar } from "../src/components/Navbar";
 import { JsonLd } from "../src/components/JsonLd";
 import { getGlobalClimbStats } from "../src/db/climb";
+import { getChipDuelStats } from "../src/db/chips";
 import { organizationJsonLd, websiteJsonLd } from "../src/lib/seo";
 import { Suspense } from "react";
 
@@ -47,10 +48,10 @@ async function SocialProofStrip() {
 }
 
 export default async function HomePage() {
-  const climbStats = await getGlobalClimbStats().catch(() => ({
-    climberCount: 0,
-    topPeak: null,
-  }));
+  const [climbStats, chipStats] = await Promise.all([
+    getGlobalClimbStats().catch(() => ({ climberCount: 0, topPeak: null })),
+    getChipDuelStats().catch(() => ({ totalDuels: 0, topEarner: null })),
+  ]);
 
   const faqJsonLd = {
     "@type": "FAQPage",
@@ -70,6 +71,8 @@ export default async function HomePage() {
         stats={{
           climberCount: climbStats.climberCount,
           topPeak: climbStats.topPeak,
+          rankedDuels: chipStats.totalDuels,
+          topEarner: chipStats.topEarner,
         }}
       />
 

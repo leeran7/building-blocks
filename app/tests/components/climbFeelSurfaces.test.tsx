@@ -41,6 +41,8 @@ const HERO_STATS = {
   minEntryUsd: 5,
   climberCount: 3,
   topPeak: 420,
+  rankedDuels: 0,
+  topEarner: null,
 };
 
 /** Anchors whose href is /play and class list includes filled bg-signal. */

@@ -307,3 +307,39 @@ export async function chipLeaderboard(limit = 50): Promise<ChipLeaderboardRow[]>
     .sort((a, b) => b.chipWins - a.chipWins || b.totalChipsWon - a.totalChipsWon)
     .slice(0, limit);
 }
+
+export async function getChipDuelStats(): Promise<{ totalDuels: number; topEarner: string | null }> {
+  const [count, top] = await Promise.all([
+    prisma.duel.count({
+      where: { is_chip_duel: true, status: DuelStatus.completed },
+    }),
+    prisma.duel.findMany({
+      where: {
+        is_chip_duel: true,
+        status: DuelStatus.completed,
+        payout_settled: true,
+        winner_id: { not: null },
+      },
+      select: { winner_id: true, payout_cents: true, winner: { select: { display_name: true } } },
+    }),
+  ]);
+
+  let topName: string | null = null;
+  if (top.length > 0) {
+    const earningsMap = new Map<string, { name: string | null; total: number }>();
+    for (const d of top) {
+      if (!d.winner_id) continue;
+      const prev = earningsMap.get(d.winner_id) ?? { name: null, total: 0 };
+      prev.name = d.winner?.display_name ?? prev.name;
+      prev.total += d.payout_cents ?? 0;
+      earningsMap.set(d.winner_id, prev);
+    }
+    let best: { name: string | null; total: number } | null = null;
+    for (const v of earningsMap.values()) {
+      if (!best || v.total > best.total) best = v;
+    }
+    topName = best?.name ?? null;
+  }
+
+  return { totalDuels: count, topEarner: topName };
+}

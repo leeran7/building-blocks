@@ -39,7 +39,6 @@ export function BuyCreditsModal({ open, onClose, token }: BuyCreditsModalProps) 
   if (!open) return null;
 
   const chips = chipCount(amountUsd);
-  const isPackage = PACKAGES.some((p) => p.usd === amountUsd);
 
   async function handleBuy() {
     if (!token || !ageConfirmed || amountUsd <= 0) return;
@@ -99,10 +98,10 @@ export function BuyCreditsModal({ open, onClose, token }: BuyCreditsModalProps) 
                 <span
                   className={`absolute -top-2 right-2 text-[10px] font-bold rounded-full px-2 py-0.5 ${
                     amountUsd === pkg.usd
-                      ? "bg-void/20 text-void"
+                      ? "bg-void/30 text-void"
                       : pkg.usd === 50
-                        ? "bg-signal/20 text-signal"
-                        : "bg-signal/10 text-signal"
+                        ? "bg-signal/40 text-signal"
+                        : "bg-signal/30 text-signal"
                   }`}
                 >
                   {pkg.tag}
@@ -115,32 +114,6 @@ export function BuyCreditsModal({ open, onClose, token }: BuyCreditsModalProps) 
             </button>
           ))}
         </div>
-
-        <label className="block mb-4">
-          <span className="font-mono text-xs uppercase tracking-[0.12em] text-text-muted">
-            Custom amount (USD)
-          </span>
-          <input
-            type="number"
-            min={5}
-            max={500}
-            value={isPackage ? "" : amountUsd}
-            placeholder={isPackage ? String(amountUsd) : undefined}
-            onChange={(e) => {
-              const v = Number(e.target.value);
-              if (v > 0) setAmountUsd(v);
-            }}
-            onFocus={() => {
-              if (isPackage) setAmountUsd(amountUsd);
-            }}
-            className="mt-1 w-full rounded-lg border border-border-strong bg-surface px-3 py-2 text-text-primary tabular-nums focus:border-signal focus:outline-none"
-          />
-          {!isPackage && amountUsd > 0 && (
-            <span className="block mt-1 text-xs text-text-muted tabular-nums">
-              = {chips.toLocaleString()} chips (base rate)
-            </span>
-          )}
-        </label>
 
         <label className="flex items-start gap-2 mb-4 text-sm text-text-secondary">
           <input
