@@ -10,6 +10,7 @@ import { prisma } from "./client";
 import { DuelStatus, Duel, DuelStats, Prisma } from "@prisma/client";
 import { creditWinningsInTx, creditRefundInTx, stakeInTx } from "./credits";
 import { DUEL_RAKE, duelPayoutCents } from "../config/paidDuel";
+import { hasSkewedPairing } from "../lib/pairingSkew";
 
 // Re-export so that existing imports from db/duel continue to work.
 export { DUEL_RAKE, duelPayoutCents };
@@ -1096,4 +1097,30 @@ export async function getOwnPaidRoomStatus(
     select: { id: true, status: true, stake_cents: true },
   });
   return d ? { id: d.id, status: d.status, stakeCents: d.stake_cents as number } : null;
+}
+
+/**
+ * Chip-dumping check for the cash-out gate: does this user have a settled
+ * paid-duel history skewed toward one specific repeat opponent? See
+ * hasSkewedPairing (src/lib/pairingSkew.ts) for the scoring and
+ * config/paidDuel.ts for the thresholds and reasoning.
+ */
+export async function getSuspiciousPairingForUser(userId: string): Promise<boolean> {
+  const duels = await prisma.duel.findMany({
+    where: {
+      status: DuelStatus.completed,
+      stake_cents: { not: null },
+      payout_settled: true,
+      OR: [{ player1_id: userId }, { player2_id: userId }],
+    },
+    select: { player1_id: true, player2_id: true, winner_id: true },
+  });
+  return hasSkewedPairing(
+    duels.map((d) => ({
+      player1Id: d.player1_id,
+      player2Id: d.player2_id,
+      winnerId: d.winner_id,
+    })),
+    userId
+  );
 }

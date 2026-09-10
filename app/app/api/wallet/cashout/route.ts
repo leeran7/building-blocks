@@ -4,6 +4,12 @@
  * Draws ONLY from the cashable winnings bucket (purchased play credits are never
  * withdrawable). Debits immediately and records a CASHOUT_REQUEST ledger row; an
  * admin fulfils the payout off-platform at MVP (no automated Stripe payout yet).
+ *
+ * Before that manual fulfilment, requests from an account with a skewed
+ * repeat-pairing history (see getSuspiciousPairingForUser) are tagged for
+ * review — same debit + ledger row as any other request (there's no
+ * automated payout to block), but flagged so whoever fulfils it manually
+ * knows to look closer before wiring real money.
  */
 
 import { NextRequest, NextResponse } from "next/server";
@@ -11,6 +17,7 @@ import { z } from "zod";
 import { requireAuth, AuthError } from "../../../../src/lib/requireAuth";
 import { checkRateLimit } from "../../../../src/lib/rateLimit";
 import { requestCashout } from "../../../../src/db/credits";
+import { getSuspiciousPairingForUser } from "../../../../src/db/duel";
 import { CASHOUT_MIN_CENTS, PAID_DUELS_ENABLED } from "../../../../src/config/paidDuel";
 
 export const runtime = "nodejs";
@@ -53,7 +60,19 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: "amountCents is required", code: "BAD_REQUEST" }, { status: 400 });
   }
 
-  const result = await requestCashout(uid, parsed.data.amountCents, CASHOUT_MIN_CENTS);
+  // Heuristic-only, non-blocking: still let the request through (there's no
+  // automated payout to gate at MVP either way), just tag it for review.
+  const flagged = await getSuspiciousPairingForUser(uid).catch((err) => {
+    console.error("[POST /api/wallet/cashout] pairing-skew check failed:", err);
+    return false; // fail open — never strand a legitimate cash-out on this check
+  });
+
+  const result = await requestCashout(
+    uid,
+    parsed.data.amountCents,
+    CASHOUT_MIN_CENTS,
+    flagged ? "FLAGGED: repeat-pairing win-rate skew — review before payout" : undefined
+  );
 
   switch (result.outcome) {
     case "below_min":
@@ -73,13 +92,18 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       // Admin fulfils manually at MVP — surface a structured line to act on.
       console.log(
         JSON.stringify({
-          type: "wallet_cashout_request",
+          type: flagged ? "wallet_cashout_flagged" : "wallet_cashout_request",
           user_id: uid,
           amount_cents: parsed.data.amountCents,
           winnings_after: result.winningsAfter,
+          flagged_for_review: flagged,
           timestamp: new Date().toISOString(),
         })
       );
-      return NextResponse.json({ ok: true, winningsAfter: result.winningsAfter });
+      return NextResponse.json({
+        ok: true,
+        winningsAfter: result.winningsAfter,
+        flaggedForReview: flagged,
+      });
   }
 }

@@ -91,9 +91,14 @@ export function WalletCard({ token }: { token: string | null }) {
         setBusy(false);
         return;
       }
+      const body = (await res.json().catch(() => ({}))) as { flaggedForReview?: boolean };
       setCashoutOpen(false);
       setBusy(false);
-      setNotice("Cash-out requested — we'll process it shortly.");
+      setNotice(
+        body.flaggedForReview
+          ? "Cash-out requested — this one needs a closer look before it's processed."
+          : "Cash-out requested — we'll process it shortly."
+      );
       refresh();
     } catch {
       setError("Network error. Please try again.");

@@ -37,3 +37,26 @@ export const CASHOUT_MIN_CENTS = Number(process.env.CASHOUT_MIN_CENTS ?? 1000);
 /** Credit top-up bounds (fee-efficient floor, sane ceiling). */
 export const CREDITS_MIN_TOPUP_CENTS = Number(process.env.CREDITS_MIN_TOPUP_CENTS ?? 500);
 export const CREDITS_MAX_TOPUP_CENTS = Number(process.env.CREDITS_MAX_TOPUP_CENTS ?? 50000);
+
+/**
+ * Repeat-pairing fraud heuristic (chip-dumping detection): a cash-out is held
+ * for manual review when the requester has faced ONE specific opponent at
+ * least this many times in settled paid duels, with at least this fraction of
+ * those matches won. Two people playing each other occasionally and roughly
+ * evenly is normal; one account consistently feeding money to the same
+ * opponent is the classic laundering pattern this is meant to catch.
+ *
+ * This applies regardless of how the pair was matched — a public queue pairing
+ * and a private challenge link both hit this check equally. Proximity (same
+ * IP) isn't the signal here on purpose: legitimate players (roommates,
+ * friends) can share a network and deliberately challenge each other via a
+ * private link, so IP-based blocking would false-positive on them. Outcome
+ * skew against a specific repeat opponent is a much better signal and doesn't
+ * care how they found each other.
+ *
+ * These are conservative starting thresholds, not a validated fraud model —
+ * expected to be tuned (or replaced with a real case-management process) once
+ * there's real cash-out volume to calibrate against.
+ */
+export const PAIRING_SKEW_MIN_MATCHES = 5;
+export const PAIRING_SKEW_WIN_RATE = 0.8;

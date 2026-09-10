@@ -322,11 +322,15 @@ export type CashoutResult =
  * Request a withdrawal. Draws EXCLUSIVELY from the cashable WINNINGS bucket —
  * purchased play credits are never withdrawable. Debits immediately and records
  * a CASHOUT_REQUEST ledger row; an admin fulfils the payout off-platform at MVP.
+ *
+ * `note` tags the ledger row (e.g. a fraud-review flag) — this function has no
+ * opinion on fraud signals itself, so the caller decides what to write.
  */
 export async function requestCashout(
   userId: string,
   amountCents: number,
-  minCents: number
+  minCents: number,
+  note?: string
 ): Promise<CashoutResult> {
   if (amountCents < minCents) return { outcome: "below_min" };
 
@@ -352,6 +356,7 @@ export async function requestCashout(
         amount_cents: -amountCents,
         balance_after: newWinnings,
         kind: WalletLedgerKind.CASHOUT_REQUEST,
+        note,
       },
     });
 
