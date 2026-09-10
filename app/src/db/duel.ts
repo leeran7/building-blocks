@@ -13,7 +13,7 @@ import { settleChipDuelInTx, refundChipDuelInTx } from "./chips";
 type TxClientLocal = Prisma.TransactionClient;
 
 /**
- * Credit a paid duel's pot to the winner's WINNINGS bucket, exactly once.
+ * Credit a chip duel's pot to the winner's chip (PLAY) balance, exactly once.
  * Called inside the resolving transaction (completeDuel / voidDuelForForfeit),
  * which already holds the duel row lock. Returns the payout, or null for a free
  * duel / when already settled with no amount.

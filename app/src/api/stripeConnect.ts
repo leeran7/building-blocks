@@ -72,16 +72,22 @@ export async function createPrizeTransfer(
   entryId: string
 ): Promise<string> {
   const stripe = getStripe();
-  const transfer = await stripe.transfers.create({
-    amount: amountCents,
-    currency: "usd",
-    destination: connectedAccountId,
-    metadata: {
-      tournament_id: tournamentId,
-      entry_id: entryId,
-      type: "tournament_prize",
+  const transfer = await stripe.transfers.create(
+    {
+      amount: amountCents,
+      currency: "usd",
+      destination: connectedAccountId,
+      metadata: {
+        tournament_id: tournamentId,
+        entry_id: entryId,
+        type: "tournament_prize",
+      },
     },
-  });
+    // Defense in depth alongside the row lock in disbursePrize(): a retried
+    // call for the same entry hits Stripe's own dedupe instead of a second
+    // real transfer.
+    { idempotencyKey: `tournament_prize:${entryId}` }
+  );
   return transfer.id;
 }
 
