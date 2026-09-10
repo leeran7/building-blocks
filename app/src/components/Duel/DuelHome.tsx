@@ -11,7 +11,7 @@
  * W-L record shown below when the user is signed in.
  */
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "../../contexts/AuthContext";
@@ -27,6 +27,9 @@ interface DuelStats {
   losses: number;
   streak: number;
 }
+
+/** The three ways into a match, presented as a gamified mode menu. */
+type DuelMode = "quick" | "challenge" | "paid";
 
 /**
  * Creating a challenge navigates straight into the duel lobby (the canonical
@@ -54,6 +57,7 @@ export function DuelHome() {
   const [createState, setCreateState] = useState<CreateState>({ status: "idle" });
   const [queueState, setQueueState] = useState<QueueState>({ status: "idle" });
   const [stats, setStats] = useState<DuelStats | null>(null);
+  const [mode, setMode] = useState<DuelMode>("quick");
 
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -243,6 +247,10 @@ export function DuelHome() {
 
   // ─────────────── Render ───────────────
 
+  const paidEnabled = PAID_DUELS_ENABLED_PUBLIC;
+  // Keep the selected mode valid if paid is off (or a signed-out teaser lands on it).
+  const activeMode: DuelMode = mode === "paid" && !paidEnabled ? "quick" : mode;
+
   return (
     <div className="grain topo min-h-screen bg-void text-text-primary">
       <Navbar contextLabel="1v1" />
@@ -276,24 +284,70 @@ export function DuelHome() {
         </div>
       </div>
 
-      {/* Header */}
-      <div className="px-4 pt-8 pb-8 text-center">
-        <p className="font-mono text-xs uppercase tracking-[0.16em] text-text-muted mb-3">
-          multiplayer
-        </p>
-        <h1 className="font-display text-5xl md:text-6xl font-black tracking-tight uppercase text-text-primary">
-          1v1 Duel
-        </h1>
-        <p className="mt-4 text-text-secondary text-base max-w-sm mx-auto">
-          Race a friend or a random opponent up the same tower. Outclimb the
-          rising lava — the last one standing wins.
-        </p>
-      </div>
+      <div className="max-w-2xl mx-auto px-4 pt-7 pb-16 flex flex-col gap-6">
+        {/* Player card: title + live record, the gamified hub header. */}
+        <header className="flex items-end justify-between gap-4">
+          <div>
+            <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-text-muted mb-1.5">
+              multiplayer
+            </p>
+            <h1 className="font-display text-4xl md:text-5xl font-black tracking-tight uppercase text-text-primary leading-none">
+              1v1 Arena
+            </h1>
+          </div>
+          {stats && (
+            <div className="flex items-center gap-3 font-mono tabular-nums shrink-0">
+              <RecordStat value={stats.wins} label="W" tone="signal" />
+              <RecordStat value={stats.losses} label="L" tone="muted" />
+              {stats.streak !== 0 && (
+                <RecordStat
+                  value={stats.streak > 0 ? `+${stats.streak}` : stats.streak}
+                  label="streak"
+                  tone={stats.streak > 0 ? "signal" : "ember"}
+                />
+              )}
+            </div>
+          )}
+        </header>
 
-      <div className="max-w-2xl mx-auto px-4 pb-16 flex flex-col gap-6">
-        {/* Single sign-in gate: signed-out users get ONE ask that stands in for
-            every action, rather than the same prompt repeated per section. */}
-        {!user && (
+        {/* Mode menu — pick a way into a match, then act in the panel below. */}
+        <div
+          className="grid gap-3"
+          role="tablist"
+          aria-label="Duel modes"
+        >
+          <ModeCard
+            icon={<BoltIcon />}
+            title="Quick Play"
+            subtitle="Match a random climber, race up the same tower."
+            badge="free"
+            selected={activeMode === "quick"}
+            onSelect={() => setMode("quick")}
+          />
+          <ModeCard
+            icon={<TargetIcon />}
+            title="Challenge"
+            subtitle="Invite a specific opponent with a private link."
+            badge="invite"
+            selected={activeMode === "challenge"}
+            onSelect={() => setMode("challenge")}
+          />
+          {paidEnabled && (
+            <ModeCard
+              icon={<CoinsIcon />}
+              title="Paid Arena"
+              subtitle="Stake credits — winner takes the pot."
+              badge="$1–$10"
+              badgeTone="signal"
+              selected={activeMode === "paid"}
+              onSelect={() => setMode("paid")}
+            />
+          )}
+        </div>
+
+        {/* Action panel — the selected mode's flow. Signed-out users get ONE
+            sign-in gate here that stands in for every mode. */}
+        {!user ? (
           <section className="bg-surface rounded-xl border border-border-subtle p-6 text-center">
             <p className="text-text-secondary text-sm mb-4">
               Sign in to get matched, challenge a friend, and save your record.
@@ -305,46 +359,12 @@ export function DuelHome() {
               Sign in to play
             </a>
           </section>
-        )}
-
-        {/* W-L Record */}
-        {stats && (
-          <div className="bg-surface rounded-xl border border-border-subtle p-4">
-            <p className="font-mono text-xs uppercase tracking-[0.14em] text-text-muted mb-3">
-              Your record
-            </p>
-            <div className="flex gap-6 font-mono tabular-nums">
-              <div>
-                <span className="text-2xl font-bold text-signal">{stats.wins}</span>
-                <span className="text-text-muted text-xs ml-1">W</span>
-              </div>
-              <div>
-                <span className="text-2xl font-bold text-text-secondary">{stats.losses}</span>
-                <span className="text-text-muted text-xs ml-1">L</span>
-              </div>
-              {stats.streak !== 0 && (
-                <div>
-                  <span
-                    className={`text-2xl font-bold ${stats.streak > 0 ? "text-signal" : "text-ember"}`}
-                  >
-                    {stats.streak > 0 ? `+${stats.streak}` : stats.streak}
-                  </span>
-                  <span className="text-text-muted text-xs ml-1">streak</span>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* Paid stakes — leads when flag is on; free actions follow below. */}
-        {user && PAID_DUELS_ENABLED_PUBLIC && <PaidDuelSection />}
-
-        {/* ── Canonical primary action: Find opponent (matchmaking queue). One
-              primary CTA per surface; the private-challenge path below is a
-              de-emphasized secondary. Rendered only when signed in — the gate
-              above stands in otherwise. ── */}
-        {user && (
-          <section id="free-duel" className="bg-surface rounded-xl border border-border-subtle p-6 scroll-mt-20">
+        ) : activeMode === "quick" ? (
+          <section
+            id="free-duel"
+            role="tabpanel"
+            className="bg-surface rounded-xl border border-signal/30 shadow-signal p-6 scroll-mt-20"
+          >
             <h2 className="font-mono text-xs uppercase tracking-[0.14em] text-text-muted mb-1">
               Find opponent
             </h2>
@@ -405,24 +425,22 @@ export function DuelHome() {
               </div>
             )}
           </section>
-        )}
-
-        {/* ── Secondary path: challenge a friend by private link. De-emphasized
-              (ghost/border affordances, no bg-signal primary) so the surface has
-              a single canonical primary above. ── */}
-        {user && (
-          <section className="bg-surface-raised rounded-xl border border-border-subtle p-5">
+        ) : activeMode === "challenge" ? (
+          <section
+            role="tabpanel"
+            className="bg-surface rounded-xl border border-border-subtle p-6"
+          >
             <h2 className="font-mono text-xs uppercase tracking-[0.14em] text-text-muted mb-1">
               Challenge a friend
             </h2>
-            <p className="text-text-secondary text-sm mb-4">
-              Prefer a specific opponent? Create a private challenge link to share.
+            <p className="text-text-secondary text-sm mb-5">
+              Create a private challenge link and share it with a specific opponent.
             </p>
 
             {createState.status === "idle" && (
               <button
                 onClick={handleCreate}
-                className="inline-flex items-center justify-center rounded-full px-6 min-h-[44px] border border-border-strong bg-surface/60 text-text-secondary text-sm hover:border-signal/50 hover:text-text-primary active:scale-[0.98] transition-[color,border-color,transform] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void"
+                className="inline-flex items-center justify-center rounded-full px-8 min-h-[48px] w-full bg-signal text-void font-semibold text-base tracking-tight hover:brightness-110 active:scale-[0.98] shadow-signal transition-[filter,transform] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void"
               >
                 Create challenge link
               </button>
@@ -477,10 +495,134 @@ export function DuelHome() {
               </div>
             )}
           </section>
+        ) : (
+          // Paid Arena. Slice 1 reuses the existing staked-challenge surface;
+          // Slice 2 replaces this with the per-tier lobby.
+          <PaidDuelSection />
         )}
-
-        {/* Paid stakes section moved above; renders nothing when flag is off. */}
       </div>
     </div>
+  );
+}
+
+// ─────────────────────────── Presentational ────────────────────────────────
+
+function RecordStat({
+  value,
+  label,
+  tone,
+}: {
+  value: number | string;
+  label: string;
+  tone: "signal" | "ember" | "muted";
+}) {
+  const color =
+    tone === "signal" ? "text-signal" : tone === "ember" ? "text-ember" : "text-text-secondary";
+  return (
+    <div className="text-right leading-none">
+      <span className={`text-xl font-bold ${color}`}>{value}</span>
+      <span className="text-text-muted text-[10px] uppercase tracking-[0.12em] ml-1">{label}</span>
+    </div>
+  );
+}
+
+function ModeCard({
+  icon,
+  title,
+  subtitle,
+  badge,
+  badgeTone = "muted",
+  selected,
+  onSelect,
+}: {
+  icon: ReactNode;
+  title: string;
+  subtitle: string;
+  badge: string;
+  badgeTone?: "muted" | "signal";
+  selected: boolean;
+  onSelect: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      role="tab"
+      aria-selected={selected}
+      onClick={onSelect}
+      className={
+        "group flex items-center gap-4 rounded-xl border p-4 text-left transition-[border-color,background-color,transform] active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void " +
+        (selected
+          ? "border-signal/60 bg-surface shadow-signal"
+          : "border-border-subtle bg-surface-raised hover:border-signal/40")
+      }
+    >
+      <span
+        className={
+          "flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border transition-colors " +
+          (selected
+            ? "border-signal/50 bg-signal/10 text-signal"
+            : "border-border-strong text-text-secondary group-hover:text-text-primary")
+        }
+        aria-hidden="true"
+      >
+        {icon}
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="flex items-center gap-2">
+          <span className="font-display text-lg font-bold tracking-tight text-text-primary">
+            {title}
+          </span>
+          <span
+            className={
+              "font-mono text-[10px] uppercase tracking-[0.12em] rounded-full px-2 py-0.5 " +
+              (badgeTone === "signal"
+                ? "bg-signal/15 text-signal"
+                : "bg-void/60 text-text-muted")
+            }
+          >
+            {badge}
+          </span>
+        </span>
+        <span className="block text-sm text-text-secondary mt-0.5 truncate">{subtitle}</span>
+      </span>
+      <span
+        className={
+          "shrink-0 text-text-muted transition-transform " +
+          (selected ? "translate-x-0.5 text-signal" : "group-hover:translate-x-0.5")
+        }
+        aria-hidden="true"
+      >
+        →
+      </span>
+    </button>
+  );
+}
+
+function BoltIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M13 2 3 14h7l-1 8 10-12h-7l1-8Z" />
+    </svg>
+  );
+}
+
+function TargetIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="9" />
+      <circle cx="12" cy="12" r="5" />
+      <circle cx="12" cy="12" r="1.5" fill="currentColor" />
+    </svg>
+  );
+}
+
+function CoinsIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <ellipse cx="9" cy="7" rx="6" ry="3" />
+      <path d="M3 7v5c0 1.66 2.7 3 6 3s6-1.34 6-3V7" />
+      <path d="M15 12.5c2.5-.2 6-1.2 6-3.5" />
+      <path d="M9 15v2c0 1.66 2.7 3 6 3s6-1.34 6-3v-5" />
+    </svg>
   );
 }
