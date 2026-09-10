@@ -333,7 +333,7 @@ export function DuelHome() {
               Sign in to get matched, challenge a friend, and save your record.
             </p>
             <Link
-              href="/auth/signin"
+              href="/auth/signin?redirect=%2Fduel"
               className="inline-flex items-center justify-center rounded-full px-6 min-h-[44px] bg-signal text-void font-semibold text-sm tracking-tight hover:brightness-110 active:scale-[0.98] motion-reduce:active:scale-100 transition-[filter,transform] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void"
             >
               Sign in to play
