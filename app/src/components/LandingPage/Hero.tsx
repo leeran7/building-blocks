@@ -200,7 +200,8 @@ export function Hero({ stats }: { stats: HeroStats }) {
             </Link>
             <Link
               href="/play"
-              className="w-full sm:w-auto rounded-full border border-border-strong bg-surface/60 px-7 py-3.5 text-base font-medium text-text-primary inline-flex items-center justify-center hover:border-signal/50 hover:bg-surface transition-colors min-h-[52px]"
+              aria-label="Play free climb"
+              className="w-full sm:w-auto rounded-full border border-border-strong bg-surface/60 px-7 py-3.5 text-base font-medium text-text-primary inline-flex items-center justify-center hover:border-signal/50 hover:bg-surface transition-colors min-h-[44px] min-w-[44px]"
             >
               Free climb →
             </Link>
