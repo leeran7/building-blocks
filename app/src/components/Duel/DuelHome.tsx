@@ -33,13 +33,15 @@ type DuelMode = "quick" | "challenge" | "paid";
 
 /**
  * Creating a challenge navigates straight into the duel lobby (the canonical
- * home for the invite), so there is no post-create "here is your link" state —
- * only the in-flight, already-have-one, and failure cases live here.
+ * home for the invite), so there is no post-create "here is your link" state.
+ * An already-open challenge is resolved automatically (see handleCreate) —
+ * it's just as good as a fresh one (no seed committed until someone joins),
+ * so re-sharing it and dropping the creator back into that lobby needs no
+ * decision from them. Only the in-flight and failure cases live here.
  */
 type CreateState =
   | { status: "idle" }
   | { status: "loading" }
-  | { status: "existing"; existingId: string }
   | { status: "error"; message: string };
 
 type QueueState =
@@ -108,8 +110,14 @@ export function DuelHome() {
       });
 
       if (res.status === 409) {
+        // Already have an open challenge — it's just as good as a fresh one
+        // (no seed is committed until someone joins), so resolve this
+        // automatically rather than asking the creator to choose: re-share
+        // that link and drop them into its lobby, exactly like a new create.
         const body = (await res.json()) as { existingId: string };
-        setCreateState({ status: "existing", existingId: body.existingId });
+        const link = `${window.location.origin}/duel/${body.existingId}`;
+        await shareInvite(link).catch(() => {});
+        router.push(`/duel/${body.existingId}`);
         return;
       }
 
@@ -135,33 +143,6 @@ export function DuelHome() {
       setCreateState({ status: "error", message: "Network error. Please try again." });
     }
   }, [token, router]);
-
-  const handleCancelExisting = useCallback(
-    async (existingId: string) => {
-      if (!token) return;
-      setCreateState({ status: "loading" });
-      try {
-        const res = await fetch(`/api/duel/${existingId}`, {
-          method: "DELETE",
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        if (!res.ok && res.status !== 404) {
-          const body = (await res.json().catch(() => ({}))) as { error?: string };
-          setCreateState({
-            status: "error",
-            message: body.error ?? "Could not cancel the open challenge.",
-          });
-          return;
-        }
-        // Cancelled (or already gone) — back to a clean slate so a new
-        // challenge can be created.
-        setCreateState({ status: "idle" });
-      } catch {
-        setCreateState({ status: "error", message: "Network error. Please try again." });
-      }
-    },
-    [token]
-  );
 
   // ─────────────── Queue ───────────────
 
@@ -448,11 +429,9 @@ export function DuelHome() {
             <p className="sr-only" aria-live="polite">
               {createState.status === "loading"
                 ? "Creating challenge…"
-                : createState.status === "existing"
-                  ? "You already have an open challenge."
-                  : createState.status === "error"
-                    ? createState.message
-                    : ""}
+                : createState.status === "error"
+                  ? createState.message
+                  : ""}
             </p>
 
             {createState.status === "idle" && (
@@ -472,33 +451,6 @@ export function DuelHome() {
                   aria-hidden="true"
                 />
                 Creating…
-              </div>
-            )}
-
-            {createState.status === "existing" && (
-              <div className="flex flex-col gap-2" role="status">
-                <p className="text-warning text-sm">
-                  You already have an open challenge. Reopen it, or cancel it to
-                  create a new one.
-                </p>
-                <Link
-                  href={`/duel/${createState.existingId}`}
-                  className="inline-flex items-center justify-center rounded-full px-5 min-h-[44px] border border-border-strong text-text-secondary text-sm hover:border-signal/50 transition-colors"
-                >
-                  Go to existing duel
-                </Link>
-                <button
-                  onClick={() => handleCancelExisting(createState.existingId)}
-                  className="inline-flex items-center justify-center rounded-full px-5 min-h-[44px] border border-border-strong text-text-secondary text-sm hover:border-ember/50 transition-colors"
-                >
-                  Cancel challenge
-                </button>
-                <button
-                  onClick={() => setCreateState({ status: "idle" })}
-                  className="text-text-muted text-xs underline underline-offset-2 text-left"
-                >
-                  Dismiss
-                </button>
               </div>
             )}
 
