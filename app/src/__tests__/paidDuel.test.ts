@@ -19,7 +19,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { splitStake } from "../db/credits";
 import { duelPayoutCents, DUEL_RAKE } from "../db/duel";
 import { isValidStakeCents, STAKE_TIERS_CENTS } from "../config/paidDuel";
-import { assertPaidDuelAllowed, BLOCKED_US_REGIONS } from "../lib/paidDuelGeo";
+import { assertPaidDuelAllowed, ALLOWED_US_REGIONS, ALLOWED_COUNTRIES } from "../lib/paidDuelGeo";
 
 // ── Stake split (PLAY first, then WINNINGS) ────────────────────────────────
 
@@ -107,7 +107,7 @@ function req(headers: Record<string, string>): Request {
   return new Request("https://example.com/api/duel/paid", { headers });
 }
 
-describe("assertPaidDuelAllowed — enforcement on", () => {
+describe("assertPaidDuelAllowed — enforcement on, default-deny allow-list", () => {
   let prev: string | undefined;
   beforeEach(() => {
     prev = process.env.PAID_DUEL_GEO_ENFORCE;
@@ -118,27 +118,20 @@ describe("assertPaidDuelAllowed — enforcement on", () => {
     else process.env.PAID_DUEL_GEO_ENFORCE = prev;
   });
 
-  it("blocks each restricted US state", () => {
-    for (const region of BLOCKED_US_REGIONS) {
+  it("denies every US state by default — the allow-list starts empty", () => {
+    for (const region of ["NY", "CA", "TX", "FL", "AZ"]) {
       const d = assertPaidDuelAllowed(
         req({ "x-vercel-ip-country": "US", "x-vercel-ip-country-region": region })
       );
       expect(d.allowed).toBe(false);
-      expect(d.reason).toBe("blocked_region");
+      expect(d.reason).toBe("not_allowlisted");
     }
   });
 
-  it("allows a permitted US state", () => {
-    const d = assertPaidDuelAllowed(
-      req({ "x-vercel-ip-country": "US", "x-vercel-ip-country-region": "NY" })
-    );
-    expect(d.allowed).toBe(true);
-  });
-
-  it("blocks US traffic with no region (fail-closed)", () => {
+  it("denies US traffic with no region (fail-closed)", () => {
     const d = assertPaidDuelAllowed(req({ "x-vercel-ip-country": "US" }));
     expect(d.allowed).toBe(false);
-    expect(d.reason).toBe("blocked_region");
+    expect(d.reason).toBe("not_allowlisted");
   });
 
   it("fails closed when the country header is missing", () => {
@@ -147,9 +140,40 @@ describe("assertPaidDuelAllowed — enforcement on", () => {
     expect(d.reason).toBe("missing_geo");
   });
 
-  it("allows non-US traffic at MVP", () => {
+  it("denies non-US traffic by default — the country allow-list also starts empty", () => {
     const d = assertPaidDuelAllowed(req({ "x-vercel-ip-country": "GB" }));
-    expect(d.allowed).toBe(true);
+    expect(d.allowed).toBe(false);
+    expect(d.reason).toBe("not_allowlisted");
+  });
+
+  it("allows a US state once it's explicitly added to the allow-list, and only that one", () => {
+    ALLOWED_US_REGIONS.add("NY");
+    try {
+      const cleared = assertPaidDuelAllowed(
+        req({ "x-vercel-ip-country": "US", "x-vercel-ip-country-region": "NY" })
+      );
+      expect(cleared.allowed).toBe(true);
+
+      const stillDenied = assertPaidDuelAllowed(
+        req({ "x-vercel-ip-country": "US", "x-vercel-ip-country-region": "CA" })
+      );
+      expect(stillDenied.allowed).toBe(false);
+    } finally {
+      ALLOWED_US_REGIONS.delete("NY");
+    }
+  });
+
+  it("allows a country once it's explicitly added to the allow-list, and only that one", () => {
+    ALLOWED_COUNTRIES.add("GB");
+    try {
+      const cleared = assertPaidDuelAllowed(req({ "x-vercel-ip-country": "GB" }));
+      expect(cleared.allowed).toBe(true);
+
+      const stillDenied = assertPaidDuelAllowed(req({ "x-vercel-ip-country": "FR" }));
+      expect(stillDenied.allowed).toBe(false);
+    } finally {
+      ALLOWED_COUNTRIES.delete("GB");
+    }
   });
 });
 
@@ -164,7 +188,7 @@ describe("assertPaidDuelAllowed — enforcement off (dev)", () => {
     else process.env.PAID_DUEL_GEO_ENFORCE = prev;
   });
 
-  it("allows even a restricted region when enforcement is off", () => {
+  it("allows even an uncleared region when enforcement is off", () => {
     const d = assertPaidDuelAllowed(
       req({ "x-vercel-ip-country": "US", "x-vercel-ip-country-region": "AZ" })
     );

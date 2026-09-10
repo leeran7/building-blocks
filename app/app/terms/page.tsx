@@ -195,16 +195,19 @@ export default function TermsPage() {
           <List>
             <li>
               <strong>Eligibility &amp; location.</strong> You must be 18 or older
-              and physically located outside the restricted states to buy credits
-              or enter a paid duel. When you buy credits or stake, you represent and
-              confirm that you are at least 18 — we rely on your confirmation and do
-              not independently verify your age at that step. Paid duels are{" "}
-              <strong>not available</strong> in Arizona, Iowa, Louisiana, Montana,
-              or Washington. We infer your approximate location from your IP address
-              to enforce this and may block or deny access; this method is not exact.
-              Using a VPN, proxy, or any other means to disguise your location or
-              circumvent these controls is prohibited and may result in suspension
-              and forfeiture of credits and winnings.
+              to buy credits or enter a paid duel. When you buy credits or stake, you
+              represent and confirm that you are at least 18 — we rely on your
+              confirmation and do not independently verify your age at that step.
+              Paid duels require your location to be specifically and affirmatively
+              cleared for this feature; they are{" "}
+              <strong>not currently available in any location</strong>, pending
+              jurisdiction-by-jurisdiction legal review. We will publish and update
+              the list of cleared jurisdictions here as any are added. We infer your
+              approximate location from your IP address to enforce this and may block
+              or deny access; this method is not exact. Using a VPN, proxy, or any
+              other means to disguise your location or circumvent these controls is
+              prohibited and may result in suspension and forfeiture of credits and
+              winnings.
             </li>
             <li>
               <strong>Credits are stored value for play only — not a deposit
