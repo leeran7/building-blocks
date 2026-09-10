@@ -6,14 +6,20 @@
  * Design spec: design.md §6.12, §7.5
  * AC-51: Shows "Check your inbox" + Resend button when emailVerified=false
  * AC-52: After Firebase verification link clicked, next sign-in upserts emailVerified=true
- * AC-53: Shows "Already verified" + /dashboard link when emailVerified=true
+ * AC-53: Shows "Already verified" + /dashboard (or redirect param target) link
+ *   when emailVerified=true
+ *
+ * useSearchParams requires a Suspense boundary in Next.js 14.
+ * VerifyEmailForm is the inner component; VerifyEmailPage wraps it in Suspense.
  */
 
-import { useState } from "react";
+import { useState, Suspense } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { sendEmailVerification } from "firebase/auth";
 import { useAuth } from "../../../src/contexts/AuthContext";
 import { AuthShell } from "../../../src/components/Auth/AuthShell";
+import { safeInternalPath } from "../../../src/lib/safeRedirect";
 
 function EnvelopeIcon() {
   return (
@@ -57,13 +63,20 @@ function CheckCircleIcon() {
 
 type ResendState = "idle" | "loading" | "success" | "error";
 
-export default function VerifyEmailPage() {
+/** Inner form that reads useSearchParams — must be wrapped in Suspense */
+function VerifyEmailForm() {
   const { user, loading } = useAuth();
+  const searchParams = useSearchParams();
   const [resendState, setResendState] = useState<ResendState>("idle");
   const [resendError, setResendError] = useState<string | null>(null);
 
   // Already verified — AC-53
   const isVerified = user?.emailVerified === true;
+
+  // The eventual destination once verification is done (or already was) —
+  // carried forward from signup so "sign up to do X" actually lands on X.
+  const redirectTo = safeInternalPath(searchParams.get("redirect"), "/dashboard");
+  const continueLabel = redirectTo === "/dashboard" ? "Go to dashboard" : "Continue";
 
   const handleResend = async () => {
     if (!user || resendState === "loading") return;
@@ -110,10 +123,10 @@ export default function VerifyEmailPage() {
               Your email is already verified
             </h1>
             <Link
-              href="/dashboard"
+              href={redirectTo}
               className="w-full bg-signal text-void font-semibold rounded-lg py-3 text-base transition-all hover:brightness-110 inline-flex items-center justify-center min-h-[44px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus"
             >
-              Go to dashboard
+              {continueLabel}
             </Link>
           </>
         ) : (
@@ -177,15 +190,30 @@ export default function VerifyEmailPage() {
                 Already verified?
               </p>
               <Link
-                href="/dashboard"
+                href={redirectTo}
                 className="text-sm text-signal hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus rounded-sm"
               >
-                Go to dashboard →
+                {continueLabel} →
               </Link>
             </div>
           </>
         )}
       </section>
     </AuthShell>
+  );
+}
+
+/** Page export — wraps VerifyEmailForm in Suspense (required for useSearchParams) */
+export default function VerifyEmailPage() {
+  return (
+    <Suspense
+      fallback={
+        <main id="main-content" className="min-h-screen bg-void flex items-center justify-center px-4">
+          <div className="w-8 h-8 border-2 border-text-muted/30 border-t-signal rounded-full animate-spin" />
+        </main>
+      }
+    >
+      <VerifyEmailForm />
+    </Suspense>
   );
 }

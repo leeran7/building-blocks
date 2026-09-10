@@ -5,20 +5,27 @@
  *
  * Design spec: design.md §6.11, §7.4
  * AC-7: Valid email+password → Firebase account → POST /api/auth/sync → /auth/verify-email
+ *   (forwarding the redirect param, or the /dashboard default target)
  * AC-8: Duplicate email → inline error "An account with this email already exists"
- * AC-48: Google OAuth → /dashboard
+ * AC-48: Google OAuth → /dashboard (or redirect param target)
  * AC-49: Dismissed popup → silent
- * AC-50: Google OAuth always sets emailVerified=true
+ * AC-50: Google OAuth always sets emailVerified=true, so it skips verify-email
+ *   and navigates straight to the target — the email/password path can't (a
+ *   fresh account is always unverified), so it always stops at verify-email
+ *   first, carrying the target forward for verify-email to finish the trip.
  *
  * WCAG:
  * - All fields have <label>
  * - Errors role="alert" aria-live="assertive"
  * - Password strength bar decorative (no color-only info)
+ *
+ * useSearchParams requires a Suspense boundary in Next.js 14.
+ * SignUpForm is the inner component; SignUpPage wraps it in Suspense.
  */
 
-import { type FormEvent, useEffect, useId, useRef, useState } from "react";
+import { type FormEvent, useEffect, useId, useRef, useState, Suspense } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   createUserWithEmailAndPassword,
   sendEmailVerification,
@@ -30,6 +37,7 @@ import {
 import { auth } from "../../../src/lib/firebase";
 import { AuthShell } from "../../../src/components/Auth/AuthShell";
 import { setTokenCookie } from "../../../src/lib/authCookie";
+import { safeInternalPath } from "../../../src/lib/safeRedirect";
 
 function EyeIcon({ open }: { open: boolean }) {
   return open ? (
@@ -156,8 +164,10 @@ async function syncUserToDb(token: string, email: string) {
   });
 }
 
-export default function SignUpPage() {
+/** Inner form that reads useSearchParams — must be wrapped in Suspense */
+function SignUpForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const emailId = useId();
   const passwordId = useId();
   const formId = useId();
@@ -171,6 +181,17 @@ export default function SignUpPage() {
   const [error, setError] = useState<string | null>(null);
 
   const strength = getPasswordStrength(password);
+
+  // Raw param (forwarded onward to verify-email / signin) vs. the validated
+  // target we actually navigate to for paths that skip verify-email.
+  const redirectParam = searchParams.get("redirect");
+  const redirectTo = safeInternalPath(redirectParam, "/dashboard");
+  const verifyEmailHref = redirectParam
+    ? `/auth/verify-email?redirect=${encodeURIComponent(redirectParam)}`
+    : "/auth/verify-email";
+  const signinHref = redirectParam
+    ? `/auth/signin?redirect=${encodeURIComponent(redirectParam)}`
+    : "/auth/signin";
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -194,8 +215,8 @@ export default function SignUpPage() {
       // AC-7b: Sync user to DB
       const token = await userCredential.user.getIdToken();
       await syncUserToDb(token, email);
-      // AC-7c: Redirect to verify-email
-      router.push("/auth/verify-email");
+      // AC-7c: Redirect to verify-email, carrying the eventual target forward.
+      router.push(verifyEmailHref);
     } catch (err: unknown) {
       const code =
         err instanceof Error && "code" in err
@@ -241,7 +262,8 @@ export default function SignUpPage() {
         const token = await result.user.getIdToken();
         await syncUserToDb(token, result.user.email ?? "");
         setTokenCookie(token);
-        router.push("/dashboard");
+        // Google accounts are pre-verified (AC-50) — no verify-email stop needed.
+        router.push(redirectTo);
       })
       .catch((err: unknown) => {
         const code =
@@ -259,7 +281,7 @@ export default function SignUpPage() {
     return () => {
       live = false;
     };
-  }, [router]);
+  }, [router, redirectTo]);
 
   return (
     <AuthShell>
@@ -412,12 +434,12 @@ export default function SignUpPage() {
         </button>
 
         {/* Continue as guest */}
-        <GuestButton />
+        <GuestButton redirectParam={redirectParam} />
 
         {/* Toggle to sign in */}
         <p className="text-sm text-text-muted text-center mt-4">
           Already have an account?{" "}
-          <Link href="/auth/signin" className="text-signal hover:underline">
+          <Link href={signinHref} className="text-signal hover:underline">
             Sign in
           </Link>
         </p>
@@ -438,10 +460,28 @@ export default function SignUpPage() {
   );
 }
 
-function GuestButton() {
+/** Page export — wraps SignUpForm in Suspense (required for useSearchParams) */
+export default function SignUpPage() {
+  return (
+    <Suspense
+      fallback={
+        <main id="main-content" className="min-h-screen bg-void flex items-center justify-center">
+          <div className="w-8 h-8 border-2 border-text-muted/30 border-t-signal rounded-full animate-spin" />
+        </main>
+      }
+    >
+      <SignUpForm />
+    </Suspense>
+  );
+}
+
+function GuestButton({ redirectParam }: { redirectParam: string | null }) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Guests default to /browse (unchanged), but still honor an explicit
+  // redirect target — e.g. "continue as guest" from a duel invite link.
+  const redirectTo = safeInternalPath(redirectParam, "/browse");
 
   return (
     <>
@@ -455,7 +495,7 @@ function GuestButton() {
           setLoading(true);
           setError(null);
           signInAnonymously(auth)
-            .then(() => router.push("/browse"))
+            .then(() => router.push(redirectTo))
             .catch(() => setError("Could not sign in as guest. Please try again."))
             .finally(() => setLoading(false));
         }}
