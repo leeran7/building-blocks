@@ -12,7 +12,6 @@
 import { Hero } from "../src/components/LandingPage/Hero";
 import { FreeLeaderboard } from "../src/components/LandingPage/FreeLeaderboard";
 import { DuelPromo } from "../src/components/LandingPage/DuelPromo";
-import { Footer } from "../src/components/LandingPage/Footer";
 import { Faq, buildFaqs } from "../src/components/LandingPage/Faq";
 import { Navbar } from "../src/components/Navbar";
 import { JsonLd } from "../src/components/JsonLd";
@@ -109,8 +108,6 @@ export default async function HomePage() {
       <FreeLeaderboard />
 
       <Faq />
-
-      <Footer />
     </main>
   );
 }

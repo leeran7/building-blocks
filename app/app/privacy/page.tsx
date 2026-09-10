@@ -23,7 +23,6 @@
  */
 
 import { Navbar } from "../../src/components/Navbar";
-import { Footer } from "../../src/components/LandingPage/Footer";
 import {
   LegalHeader,
   LegalNav,
@@ -485,8 +484,6 @@ export default function PrivacyPage() {
           </p>
         </Section>
       </div>
-
-      <Footer />
     </main>
   );
 }

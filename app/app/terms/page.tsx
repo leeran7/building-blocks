@@ -20,7 +20,6 @@
  */
 
 import { Navbar } from "../../src/components/Navbar";
-import { Footer } from "../../src/components/LandingPage/Footer";
 import {
   LegalHeader,
   LegalNav,
@@ -527,8 +526,6 @@ export default function TermsPage() {
           </p>
         </Section>
       </div>
-
-      <Footer />
     </main>
   );
 }
