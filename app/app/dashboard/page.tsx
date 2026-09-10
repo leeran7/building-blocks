@@ -40,6 +40,8 @@ import {
   DuelReplaysSection,
   type DuelReplayItem,
 } from "../../src/components/Dashboard/DuelReplaysSection";
+import { WalletCard } from "../../src/components/Dashboard/WalletCard";
+import { PAID_DUELS_ENABLED_PUBLIC } from "../../src/config/paidDuel";
 import { formatAltitude } from "../../src/lib/units";
 
 interface Payment {
@@ -92,26 +94,6 @@ type FetchState =
   | { status: "error"; message: string }
   | { status: "success"; data: DashboardData };
 
-function TowerIcon() {
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      width="64"
-      height="64"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.5"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <rect x="3" y="8" width="18" height="14" rx="1" />
-      <path d="M10 22v-6a2 2 0 0 1 4 0v6" />
-      <path d="M6 8V6a6 6 0 0 1 12 0v2" />
-    </svg>
-  );
-}
 
 function SkeletonCard() {
   return (
@@ -215,14 +197,14 @@ export default function DashboardPage() {
             Dashboard
           </h1>
           <p className="text-sm text-text-secondary mt-1">
-            Your paid blocks, free climb rank, and saved replays.
+            Your duels, climb record, and wallet.
           </p>
         </div>
         <Link
-          href="/submit"
+          href="/duel"
           className="flex-shrink-0 bg-signal text-void font-semibold rounded-lg px-5 py-2.5 hover:brightness-110 transition min-h-[44px] inline-flex items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void"
         >
-          Submit a block
+          Start a duel
         </Link>
       </div>
 
@@ -253,15 +235,7 @@ export default function DashboardPage() {
 
         {fetchState.status === "success" && (
           <>
-            <CreatorPageBand username={fetchState.data.user.username} />
-
-            {fetchState.data.freeClimb ? (
-              <FreeClimbCard climb={fetchState.data.freeClimb} />
-            ) : (
-              <FreeClimbEmpty />
-            )}
-
-            <ClimbReplaysSection replays={fetchState.data.replays ?? []} />
+            {PAID_DUELS_ENABLED_PUBLIC && <WalletCard token={token} />}
 
             {fetchState.data.duelStats ? (
               <DuelRecordCard record={fetchState.data.duelStats} />
@@ -276,27 +250,19 @@ export default function DashboardPage() {
               />
             )}
 
-            {fetchState.data.blocks.length === 0 && (
-              <div className="flex flex-col items-center justify-center min-h-[30vh] text-center">
-                <div className="text-border-subtle">
-                  <TowerIcon />
-                </div>
-                <h2 className="text-xl font-semibold text-text-primary mt-4">
-                  No paid blocks yet
-                </h2>
-                <p className="text-sm text-text-secondary mt-2 max-w-sm">
-                  You haven&apos;t claimed any paid stack blocks. Browse a category
-                  to buy altitude, or keep climbing on the free leaderboard above.
-                </p>
-                <Link
-                  href="/#towers"
-                  className="mt-6 bg-surface border border-border-subtle rounded-lg px-6 py-3 text-sm text-text-primary hover:bg-elevated transition-colors min-h-[44px] inline-flex items-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus"
-                >
-                  Browse paid stacks
-                </Link>
-              </div>
+            {fetchState.data.freeClimb ? (
+              <FreeClimbCard climb={fetchState.data.freeClimb} />
+            ) : (
+              <FreeClimbEmpty />
             )}
 
+            <ClimbReplaysSection replays={fetchState.data.replays ?? []} />
+
+            <CreatorPageBand username={fetchState.data.user.username} />
+
+            {/* Legacy paid-stack blocks still render for owners who have them;
+                the paid-stacks surface is retired, so there's no empty-state
+                prompt to acquire new ones. */}
             {fetchState.data.blocks.length > 0 && (
               <>
                 {fetchState.data.blocks.some((b) => !b.pending) && (

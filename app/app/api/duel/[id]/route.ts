@@ -11,7 +11,12 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { getDuel, cancelPendingDuel, reapDuelIfStale } from "../../../../src/db/duel";
+import {
+  getDuel,
+  cancelPendingDuel,
+  reapDuelIfStale,
+  reapStalePendingPaidDuels,
+} from "../../../../src/db/duel";
 import { requireAuth, AuthError } from "../../../../src/lib/requireAuth";
 
 export const runtime = "nodejs";
@@ -28,6 +33,19 @@ export async function GET(
   let duel = await getDuel(id);
   if (duel && duel.status === "active" && (await reapDuelIfStale(id))) {
     duel = await getDuel(id);
+  }
+  // Lazy backstop for the cron: a paid pending challenge nobody joined is
+  // auto-voided + refunded once stale, so the creator's polling room reflects it.
+  if (
+    duel &&
+    duel.status === "pending" &&
+    duel.stake_cents != null &&
+    !duel.refunded &&
+    Date.now() - duel.created_at.getTime() >= 30 * 60_000
+  ) {
+    if ((await reapStalePendingPaidDuels()) > 0) {
+      duel = await getDuel(id);
+    }
   }
   if (!duel) {
     return NextResponse.json({ error: "Duel not found", code: "NOT_FOUND" }, { status: 404 });
@@ -57,6 +75,13 @@ export async function GET(
     // Drop-safe rematch discovery: the opponent polls this as a fallback when
     // the fire-and-forget Ably "rematch" event doesn't arrive.
     rematchDuelId: duel.rematch_duel_id ?? null,
+    // Paid-duel metadata (safe subset — never expose ledger/balances/intents).
+    // stakeCents is null for free duels, so clients treat those exactly as today.
+    stakeCents: duel.stake_cents ?? null,
+    player1Staked: duel.player1_staked,
+    player2Staked: duel.player2_staked,
+    payoutCents: duel.payout_cents ?? null,
+    refunded: duel.refunded,
   });
 }
 

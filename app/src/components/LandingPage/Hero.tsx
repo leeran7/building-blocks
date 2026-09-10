@@ -3,9 +3,8 @@
  *
  * The product's core mechanic drives the whole composition: you rise, the ground
  * rises to bury you. Left = the pitch (huge duotone display headline + CTAs +
- * an instrument stat strip). Right = an altimeter "elevation profile": a ranked
- * stack of blocks with a glowing signal leader at the summit and a molten ember
- * ground creeping up to bury the bottom two. Pure CSS — no canvas, no new deps.
+ * an instrument stat strip). Right = DuelViz: two player bars racing up the same
+ * tower with a lava line, replaced ElevationProfile for duel-primary IA.
  *
  * Server component. WCAG: primary CTA is void text on signal lime (~15:1).
  * The visualization is decorative (aria-hidden); all meaning lives in the pitch.
@@ -14,40 +13,14 @@
 
 import Link from "next/link";
 import { ALTITUDE_UNIT, formatAltitude } from "../../lib/units";
+import { PAID_DUELS_ENABLED_PUBLIC } from "../../config/paidDuel";
 
-interface DemoBlock {
-  name: string;
-  altitude: string;
-  width: number; // % of track
-  buried?: boolean;
-}
-
-// Illustrative — not live data. Ordered top (leader) to bottom (buried).
-const DEMO_BLOCKS: DemoBlock[] = [
-  { name: "linear.app", altitude: "418.2", width: 96 },
-  { name: "figma.com", altitude: "331.0", width: 78 },
-  { name: "stripe.com", altitude: "270.4", width: 64 },
-  { name: "raycast.com", altitude: "205.1", width: 49 },
-  { name: "old-startup.io", altitude: "121.7", width: 30, buried: true },
-  { name: "abandoned.dev", altitude: "77.3", width: 18, buried: true },
-];
-
-export interface HeroStats {
-  /** Live paid blocks across all stacks. */
-  totalBlocks: number;
-  /** Minimum entry price (USD) — the honest "claim #1" floor. */
-  minEntryUsd: number;
-  /** Distinct free-climb players. */
-  climberCount: number;
-  /** Highest free-climb peak, or null if nobody has climbed. */
-  topPeak: number | null;
-}
-
-function ElevationProfile() {
-  const groundAfterIndex = 3; // ember ground sits below the 4th block
+// DuelViz — decorative 1v1 visualization for the hero right column.
+// aria-hidden; all meaning lives in the left-column pitch text.
+function DuelViz() {
   return (
     <div
-      className="relative w-full rounded-2xl border border-border-strong bg-surface/80 shadow-lifted overflow-hidden"
+      className="sheen relative w-full rounded-2xl border border-border-strong bg-surface/80 shadow-lifted overflow-hidden"
       aria-hidden="true"
     >
       {/* survey grid backdrop */}
@@ -56,100 +29,99 @@ function ElevationProfile() {
       {/* header — instrument readout */}
       <div className="relative flex items-center justify-between border-b border-border-subtle px-4 py-3">
         <span className="inline-flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.18em] text-text-secondary">
-          <span className="w-1.5 h-1.5 rounded-full bg-signal" />
-          Paid stack · live
+          <span className="w-1.5 h-1.5 rounded-full bg-signal animate-pulse" />
+          Live 1v1 · same tower
         </span>
         <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-ember">
-          ▲ ground +2.4{ALTITUDE_UNIT}/day
+          ▲ lava rising
         </span>
       </div>
 
-      <div className="relative flex gap-3 px-4 py-4">
-        {/* altimeter ruler */}
-        <div className="relative flex-shrink-0 w-9 flex flex-col justify-between py-1 text-right">
-          {["500", "400", "300", "200", "100"].map((n) => (
-            <span
-              key={n}
-              className="font-mono text-[9px] tabular-nums text-text-muted leading-none"
-            >
-              {n}
+      <div className="relative px-4 py-5 space-y-3">
+        {/* Player A — leading */}
+        <div>
+          <div className="flex items-center justify-between mb-1.5">
+            <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-text-muted">
+              You
             </span>
-          ))}
+            <span className="font-mono text-[11px] tabular-nums text-signal font-semibold">
+              312{ALTITUDE_UNIT}
+            </span>
+          </div>
+          <div className="relative h-7 rounded-lg overflow-hidden bg-elevated border border-signal/20">
+            <div
+              className="animate-climb absolute inset-y-0 left-0 rounded-lg"
+              style={{
+                width: "80%",
+                background: "linear-gradient(90deg, rgb(203 242 77 / 0.28), rgb(203 242 77 / 0.10))",
+                animationDelay: "0ms",
+              }}
+            />
+            <span className="absolute right-2 top-1/2 -translate-y-1/2 font-mono text-[10px] text-signal font-bold">
+              #1
+            </span>
+          </div>
         </div>
-        <div className="w-px altimeter flex-shrink-0" />
 
-        {/* ranked stack */}
-        <div className="relative flex-1 space-y-1.5">
-          {DEMO_BLOCKS.map((b, i) => {
-            const leader = i === 0;
-            return (
-              <div key={b.name}>
-                <div
-                  className={`animate-climb relative flex items-center gap-2.5 rounded-lg border px-2.5 py-2 overflow-hidden ${
-                    b.buried
-                      ? "border-ember/25 opacity-55"
-                      : leader
-                        ? "border-signal/50 shadow-signal"
-                        : "border-border-subtle"
-                  }`}
-                  style={{ animationDelay: `${i * 90}ms` }}
-                >
-                  <span
-                    className="absolute inset-y-0 left-0"
-                    style={{
-                      width: `${b.width}%`,
-                      background: b.buried
-                        ? "linear-gradient(90deg, rgb(255 90 44 / 0.16), transparent)"
-                        : leader
-                          ? "linear-gradient(90deg, rgb(203 242 77 / 0.22), transparent)"
-                          : "linear-gradient(90deg, rgb(203 242 77 / 0.10), transparent)",
-                    }}
-                  />
-                  <span
-                    className={`relative z-10 flex-shrink-0 w-6 h-6 rounded-md flex items-center justify-center font-mono text-[11px] font-bold ${
-                      b.buried
-                        ? "border border-ember/40 text-ember"
-                        : leader
-                          ? "bg-signal text-void"
-                          : "border border-border-strong text-text-secondary"
-                    }`}
-                  >
-                    {i + 1}
-                  </span>
-                  <span className="relative z-10 flex-1 text-xs font-medium text-text-primary truncate">
-                    {b.name}
-                  </span>
-                  <span className="relative z-10 font-mono text-[11px] tabular-nums text-text-muted flex-shrink-0">
-                    {b.altitude}{ALTITUDE_UNIT}
-                  </span>
-                </div>
-
-                {i === groundAfterIndex && (
-                  <div className="relative flex items-center gap-2 my-2">
-                    <span className="font-mono text-[9px] uppercase tracking-[0.14em] text-ember flex-shrink-0">
-                      ground 158.0{ALTITUDE_UNIT}
-                    </span>
-                    <div className="flex-1 h-px bg-gradient-to-r from-ember/70 to-ember/10" />
-                  </div>
-                )}
-              </div>
-            );
-          })}
+        {/* Player B — trailing */}
+        <div>
+          <div className="flex items-center justify-between mb-1.5">
+            <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-text-muted">
+              Opponent
+            </span>
+            <span className="font-mono text-[11px] tabular-nums text-text-secondary">
+              278{ALTITUDE_UNIT}
+            </span>
+          </div>
+          <div className="relative h-7 rounded-lg overflow-hidden bg-elevated border border-border-subtle">
+            <div
+              className="animate-climb absolute inset-y-0 left-0 rounded-lg"
+              style={{
+                width: "65%",
+                background: "linear-gradient(90deg, rgb(168 164 178 / 0.20), rgb(168 164 178 / 0.06))",
+                animationDelay: "90ms",
+              }}
+            />
+            <span className="absolute right-2 top-1/2 -translate-y-1/2 font-mono text-[10px] text-text-muted">
+              #2
+            </span>
+          </div>
         </div>
+
+        {/* Lava / ground line */}
+        <div className="relative flex items-center gap-2 py-1">
+          <span className="font-mono text-[9px] uppercase tracking-[0.14em] text-ember flex-shrink-0">
+            lava 210{ALTITUDE_UNIT}
+          </span>
+          <div className="flex-1 h-px bg-gradient-to-r from-ember/70 to-ember/10" />
+        </div>
+
+        {/* Winner-takes-pot badge — paid flag only */}
+        {PAID_DUELS_ENABLED_PUBLIC && (
+          <div className="flex justify-center pt-1">
+            <span className="bg-signal/5 border border-signal/30 rounded-lg px-2 py-1 font-mono text-[11px] text-signal uppercase tracking-[0.1em]">
+              Winner takes $3.60
+            </span>
+          </div>
+        )}
       </div>
 
       {/* molten ground creeping up from the base */}
-      <div className="ground-gradient animate-groundRise pointer-events-none absolute inset-x-0 bottom-0 h-16" />
+      <div className="ground-gradient animate-groundRise pointer-events-none absolute inset-x-0 bottom-0 h-12" />
     </div>
   );
 }
 
+export interface HeroStats {
+  /** Distinct free-climb players. */
+  climberCount: number;
+  /** Highest free-climb peak, or null if nobody has climbed. */
+  topPeak: number | null;
+}
+
+
 export function Hero({ stats }: { stats: HeroStats }) {
-  const paidStats = [
-    { label: "Blocks climbing", value: stats.totalBlocks.toLocaleString() },
-    { label: "Claim #1", value: `from $${stats.minEntryUsd.toFixed(0)}` },
-  ];
-  const freeStats = [
+  const climbStats = [
     { label: "Climbers", value: stats.climberCount.toLocaleString() },
     {
       label: "Top climb",
@@ -180,7 +152,9 @@ export function Hero({ stats }: { stats: HeroStats }) {
             style={{ animationDelay: "0ms" }}
           >
             <span className="w-1.5 h-1.5 rounded-full bg-signal animate-pulse" />
-            Season 01 · 74 stacks live
+            {PAID_DUELS_ENABLED_PUBLIC
+              ? "Live duels · free & real stakes"
+              : "Live duels · free to play"}
           </span>
 
           <h1
@@ -204,10 +178,11 @@ export function Hero({ stats }: { stats: HeroStats }) {
             className="reveal text-lg text-text-secondary max-w-md mx-auto md:mx-0 mt-7 leading-relaxed"
             style={{ animationDelay: "140ms" }}
           >
-            Buy altitude on a public leaderboard and get your brand seen. Your
-            height is{" "}
-            <span className="text-text-primary font-medium">permanent</span> — but
-            the ground rises with every view. Top up, or sink beneath it.
+            Challenge a friend or find a random opponent. Race the same tower —
+            same rising lava — and outlast them.
+            {PAID_DUELS_ENABLED_PUBLIC && (
+              <> Free always. Stake credits when you want the pot.</>
+            )}
           </p>
 
           <div
@@ -215,88 +190,45 @@ export function Hero({ stats }: { stats: HeroStats }) {
             style={{ animationDelay: "210ms" }}
           >
             <Link
-              href="/auth/signup"
+              href="/duel"
               className="group w-full sm:w-auto bg-signal text-void font-semibold rounded-full px-7 py-3.5 text-base inline-flex items-center justify-center gap-2 shadow-signal transition-[filter,transform] hover:brightness-110 active:scale-[0.98] focus-visible:outline-none min-h-[52px]"
             >
-              Enter the arena
+              Start a duel
               <span className="transition-transform group-hover:translate-x-0.5">
                 →
               </span>
             </Link>
             <Link
-              href="/#towers"
-              className="w-full sm:w-auto rounded-full border border-border-strong bg-surface/60 px-7 py-3.5 text-base font-medium text-text-primary inline-flex items-center justify-center hover:border-signal/50 hover:bg-surface transition-colors min-h-[52px]"
+              href="/play"
+              aria-label="Play free climb"
+              className="w-full sm:w-auto rounded-full border border-border-strong bg-surface/60 px-7 py-3.5 text-base font-medium text-text-primary inline-flex items-center justify-center hover:border-signal/50 hover:bg-surface transition-colors min-h-[44px] min-w-[44px]"
             >
-              Browse stacks
+              Free climb →
             </Link>
           </div>
 
-          {/* instrument stat strip — paid dominant, free secondary */}
+          {/* instrument stat strip */}
           <div
-            className="reveal mt-8 space-y-2.5 max-w-md mx-auto md:mx-0"
+            className="reveal mt-8 max-w-md mx-auto md:mx-0"
             style={{ animationDelay: "280ms" }}
+            data-climb-chrome
           >
-            {/* PAID — the prominent tier */}
-            <div>
-              <div className="flex items-center gap-2 mb-1.5 justify-center md:justify-start">
-                <span className="rounded-full bg-signal text-void px-2 py-0.5 font-mono text-[9px] font-bold uppercase tracking-[0.12em] shadow-signal">
-                  Paid
-                </span>
-                <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-text-muted">
-                  real stakes · 74 stacks
-                </span>
-              </div>
-              <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-signal/30 bg-border-subtle">
-                {paidStats.map((s) => (
-                  <div key={s.label} className="bg-surface px-3 py-2.5 text-center md:text-left">
-                    <dt className="font-mono text-[10px] uppercase tracking-[0.12em] text-text-muted">
-                      {s.label}
-                    </dt>
-                    <dd className="font-mono text-lg font-bold tabular-nums text-signal mt-0.5">
-                      {s.value}
-                    </dd>
-                  </div>
-                ))}
-              </dl>
-            </div>
-
-            {/* FREE — warm-up game, secondary to paid (climb forks only) */}
-            <div data-climb-chrome className="climb-reveal space-y-2">
-              <div className="flex items-center gap-2 justify-center md:justify-start">
-                <span className="rounded-full border border-border-strong px-2 py-0.5 font-mono text-[9px] uppercase tracking-[0.12em] text-text-secondary">
-                  Free
-                </span>
-                <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-text-muted">
-                  warm-up game
-                </span>
-              </div>
-              <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-border-subtle bg-border-subtle">
-                {freeStats.map((s, i) => (
-                  <div
-                    key={s.label}
-                    className="animate-climbPunch bg-surface px-3 py-2 text-center md:text-left"
-                    style={{ animationDelay: `${i * 90}ms` }}
-                  >
-                    <dt className="font-mono text-[10px] uppercase tracking-[0.12em] text-text-muted">
-                      {s.label}
-                    </dt>
-                    <dd className="font-mono text-base font-bold tabular-nums text-text-secondary mt-0.5">
-                      {s.value}
-                    </dd>
-                  </div>
-                ))}
-              </dl>
-              {/* Own row under free stats — avoids 44×44 crowding the badge pills */}
-              <div className="flex justify-center md:justify-start">
-                <Link
-                  href="/play"
-                  aria-label="Play free climb"
-                  className="inline-flex items-center justify-center gap-1 rounded-full border border-border-strong bg-surface/60 px-4 min-h-[44px] min-w-[44px] font-mono text-[11px] uppercase tracking-[0.12em] text-text-secondary hover:border-signal/50 hover:text-signal transition-colors focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void"
+            <dl className="climb-reveal grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-border-subtle bg-border-subtle">
+              {climbStats.map((s, i) => (
+                <div
+                  key={s.label}
+                  className="animate-climbPunch bg-surface px-3 py-2.5 text-center md:text-left"
+                  style={{ animationDelay: `${i * 90}ms` }}
                 >
-                  Free climb
-                </Link>
-              </div>
-            </div>
+                  <dt className="font-mono text-[10px] uppercase tracking-[0.12em] text-text-muted">
+                    {s.label}
+                  </dt>
+                  <dd className="font-mono text-lg font-bold tabular-nums text-text-primary mt-0.5">
+                    {s.value}
+                  </dd>
+                </div>
+              ))}
+            </dl>
           </div>
 
           <p
@@ -313,12 +245,12 @@ export function Hero({ stats }: { stats: HeroStats }) {
           </p>
         </div>
 
-        {/* Visualization */}
+        {/* Visualization — decorative DuelViz, aria-hidden */}
         <div
           className="reveal relative"
           style={{ animationDelay: "180ms" }}
         >
-          <ElevationProfile />
+          <DuelViz />
         </div>
       </div>
     </section>

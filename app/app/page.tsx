@@ -10,8 +10,6 @@
  */
 
 import { Hero } from "../src/components/LandingPage/Hero";
-import { HowItWorks } from "../src/components/LandingPage/HowItWorks";
-import { TowerDirectory } from "../src/components/LandingPage/TowerDirectory";
 import { FreeLeaderboard } from "../src/components/LandingPage/FreeLeaderboard";
 import { DuelPromo } from "../src/components/LandingPage/DuelPromo";
 import { Footer } from "../src/components/LandingPage/Footer";
@@ -21,7 +19,6 @@ import { JsonLd } from "../src/components/JsonLd";
 import { getBlockCountsByCategory } from "../src/db/blocks";
 import { getGlobalClimbStats } from "../src/db/climb";
 import { GAME_CATEGORIES } from "../src/game/categories";
-import { loadConstants } from "../src/engine/constants";
 import { organizationJsonLd, websiteJsonLd } from "../src/lib/seo";
 import { Suspense } from "react";
 
@@ -60,14 +57,10 @@ async function SocialProofStrip() {
             <span className="font-bold text-signal tabular-nums">
               {proof.totalBlocks}
             </span>
-            {" blocks live across "}
-            <span className="font-bold text-signal tabular-nums">
-              {proof.arenaCount}
-            </span>
-            {" stacks"}
+            {" blocks live · free duels always on"}
           </>
         ) : (
-          "Join the leaderboard"
+          "Free duels always on"
         )}
       </p>
     </div>
@@ -75,24 +68,14 @@ async function SocialProofStrip() {
 }
 
 export default async function HomePage() {
-  const [counts, climbStats, constants] = await Promise.all([
-    getBlockCountsByCategory().catch(() => ({}) as Record<string, number>),
-    getGlobalClimbStats().catch(() => ({ climberCount: 0, topPeak: null })),
-    Promise.resolve(loadConstants()),
-  ]);
+  const climbStats = await getGlobalClimbStats().catch(() => ({
+    climberCount: 0,
+    topPeak: null,
+  }));
 
-  // Real, live figures — count blocks the same way the directory does (over the
-  // game-category stacks) so the hero matches what the directory shows.
-  const totalBlocks = GAME_CATEGORIES.reduce(
-    (a, c) => a + (counts[c.slug] ?? 0),
-    0
-  );
-
-  // Generated from the exact same call the <Faq> component below renders from,
-  // so the JSON-LD can never drift from the visible <details>/<summary> content.
   const faqJsonLd = {
     "@type": "FAQPage",
-    mainEntity: buildFaqs(constants.MIN_ENTRY_USD, constants.MIN_SPEND_USD).map((faq) => ({
+    mainEntity: buildFaqs().map((faq) => ({
       "@type": "Question",
       name: faq.q,
       acceptedAnswer: { "@type": "Answer", text: faq.a },
@@ -106,8 +89,6 @@ export default async function HomePage() {
 
       <Hero
         stats={{
-          totalBlocks,
-          minEntryUsd: constants.MIN_ENTRY_USD,
           climberCount: climbStats.climberCount,
           topPeak: climbStats.topPeak,
         }}
@@ -123,21 +104,11 @@ export default async function HomePage() {
         <SocialProofStrip />
       </Suspense>
 
-      <HowItWorks
-        minEntryUsd={constants.MIN_ENTRY_USD}
-        minSpendUsd={constants.MIN_SPEND_USD}
-      />
-
-      <TowerDirectory counts={counts} minEntryUsd={constants.MIN_ENTRY_USD} />
+      <DuelPromo />
 
       <FreeLeaderboard />
 
-      <DuelPromo />
-
-      <Faq
-        minEntryUsd={constants.MIN_ENTRY_USD}
-        minSpendUsd={constants.MIN_SPEND_USD}
-      />
+      <Faq />
 
       <Footer />
     </main>

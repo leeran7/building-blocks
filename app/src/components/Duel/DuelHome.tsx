@@ -15,6 +15,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "../../contexts/AuthContext";
 import { shareInvite } from "../../lib/shareInvite";
+import { Navbar } from "../Navbar";
+import { PaidDuelSection } from "./PaidDuelSection";
+import { PAID_DUELS_ENABLED_PUBLIC } from "../../config/paidDuel";
 
 // ─────────────────────────────── Types ────────────────────────────────────
 
@@ -241,8 +244,9 @@ export function DuelHome() {
 
   return (
     <div className="min-h-screen bg-void text-text-primary">
+      <Navbar contextLabel="1v1" />
       {/* Header */}
-      <div className="px-4 pt-16 pb-8 text-center">
+      <div className="px-4 pt-8 pb-8 text-center">
         <p className="font-mono text-xs uppercase tracking-[0.16em] text-text-muted mb-3">
           multiplayer
         </p>
@@ -301,12 +305,15 @@ export function DuelHome() {
           </div>
         )}
 
+        {/* Paid stakes — leads when flag is on; free actions follow below. */}
+        {user && PAID_DUELS_ENABLED_PUBLIC && <PaidDuelSection />}
+
         {/* ── Canonical primary action: Find opponent (matchmaking queue). One
               primary CTA per surface; the private-challenge path below is a
               de-emphasized secondary. Rendered only when signed in — the gate
               above stands in otherwise. ── */}
         {user && (
-          <section className="bg-surface rounded-xl border border-border-subtle p-6">
+          <section id="free-duel" className="bg-surface rounded-xl border border-border-subtle p-6 scroll-mt-20">
             <h2 className="font-mono text-xs uppercase tracking-[0.14em] text-text-muted mb-1">
               Find opponent
             </h2>
@@ -440,6 +447,8 @@ export function DuelHome() {
             )}
           </section>
         )}
+
+        {/* Paid stakes section moved above; renders nothing when flag is off. */}
       </div>
     </div>
   );

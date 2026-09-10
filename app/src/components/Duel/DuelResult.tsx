@@ -24,6 +24,7 @@ import { useAuth } from "../../contexts/AuthContext";
 import { formatAltitude } from "../../lib/units";
 import { buildDuelWatchUrl } from "../../game/runReplay";
 import { shareInvite } from "../../lib/shareInvite";
+import { PAID_DUELS_ENABLED_PUBLIC } from "../../config/paidDuel";
 import type { RealtimeHandle } from "../../net/realtime";
 import type { ResultSource } from "../../game/useRace";
 
@@ -108,6 +109,12 @@ export function DuelResult({
   const [shareFailed, setShareFailed] = useState(false);
   /** AC-9: true when the opponent leaves presence on the result screen. */
   const [opponentLeft, setOpponentLeft] = useState(false);
+  /** Paid-duel settlement, read once from meta (null for free duels). */
+  const [paid, setPaid] = useState<{
+    stakeCents: number;
+    payoutCents: number | null;
+    refunded: boolean;
+  } | null>(null);
 
   const opponentId = player1Id === myId ? player2Id : player1Id;
 
@@ -180,6 +187,36 @@ export function DuelResult({
   const iWon = winnerId === myId;
   const isDraw = winnerId === null;
   const provisional = resultSource === "provisional";
+
+  // Paid duels: read stake/payout from meta once. payoutCents is set on the
+  // duel by the server the moment it settles, so this reflects the authoritative
+  // credit even though the on-screen result may still be provisional.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/duel/${duelId}`, { cache: "no-store" });
+        if (!res.ok || cancelled) return;
+        const meta = (await res.json()) as {
+          stakeCents: number | null;
+          payoutCents: number | null;
+          refunded: boolean;
+        };
+        if (meta.stakeCents != null && !cancelled) {
+          setPaid({
+            stakeCents: meta.stakeCents,
+            payoutCents: meta.payoutCents,
+            refunded: meta.refunded,
+          });
+        }
+      } catch {
+        // Non-critical — the wallet on the dashboard is the source of truth.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [duelId]);
 
   // Margin between the two peaks — the headline "how close was it" number.
   const myPeak = player1Id === myId ? player1Peak : player2Peak;
@@ -376,6 +413,39 @@ export function DuelResult({
         </div>
       </div>
 
+      {/* Paid-duel settlement banner */}
+      {paid && (
+        <div
+          className={`w-full max-w-sm mb-4 px-4 py-3 rounded-xl border text-center ${
+            iWon && paid.payoutCents
+              ? "bg-signal/10 border-signal/40"
+              : "bg-surface border-border-subtle"
+          }`}
+        >
+          {paid.refunded ? (
+            <p className="font-mono text-sm text-text-secondary">
+              Stake refunded to your credits.
+            </p>
+          ) : iWon && paid.payoutCents ? (
+            <>
+              <p className="font-mono text-lg font-bold tabular-nums text-signal">
+                + ${(paid.payoutCents / 100).toFixed(2)}
+              </p>
+              <p className="font-mono text-xs uppercase tracking-[0.12em] text-text-muted mt-0.5">
+                added to winnings ·{" "}
+                <Link href="/dashboard" className="text-signal underline underline-offset-2">
+                  wallet
+                </Link>
+              </p>
+            </>
+          ) : (
+            <p className="font-mono text-sm text-text-secondary tabular-nums">
+              Staked ${(paid.stakeCents / 100).toFixed(2)}
+            </p>
+          )}
+        </div>
+      )}
+
       {/* AC-9: opponent left notice */}
       {opponentLeft && (
         <div
@@ -423,21 +493,34 @@ export function DuelResult({
             Rematch requested — waiting for opponent…
           </div>
         ) : (
-          <button
-            onClick={handleRematch}
-            disabled={rematchLoading || !user || opponentLeft}
-            className="inline-flex items-center justify-center rounded-full px-6 min-h-[44px] bg-signal text-void font-semibold text-sm hover:brightness-110 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed transition-[filter,transform] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void"
-            aria-label={opponentLeft ? "Rematch unavailable — opponent has left" : "Rematch"}
-          >
-            {rematchLoading ? (
-              <span
-                className="w-4 h-4 rounded-full border-2 border-void/40 border-t-void motion-safe:animate-spin"
-                aria-hidden="true"
-              />
-            ) : (
-              "Rematch"
+          <div className={paid ? "flex gap-2" : ""}>
+            <button
+              onClick={handleRematch}
+              disabled={rematchLoading || !user || opponentLeft}
+              className={`inline-flex items-center justify-center rounded-full px-6 min-h-[44px] bg-signal text-void font-semibold text-sm hover:brightness-110 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed transition-[filter,transform] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void ${paid ? "flex-1" : "w-full"}`}
+              aria-label={opponentLeft ? "Rematch unavailable — opponent has left" : paid ? "Rematch (free)" : "Rematch"}
+            >
+              {rematchLoading ? (
+                <span
+                  className="w-4 h-4 rounded-full border-2 border-void/40 border-t-void motion-safe:animate-spin"
+                  aria-hidden="true"
+                />
+              ) : paid ? (
+                "Rematch (free)"
+              ) : (
+                "Rematch"
+              )}
+            </button>
+            {/* Paid rematch: link back to /duel with the same tier pre-indicated */}
+            {paid && (
+              <Link
+                href={`/duel?stake=${paid.stakeCents / 100}`}
+                className="flex-1 inline-flex items-center justify-center rounded-full px-4 min-h-[44px] border border-border-strong text-text-secondary text-sm hover:border-signal/50 transition-colors"
+              >
+                Paid rematch →
+              </Link>
             )}
-          </button>
+          </div>
         )}
 
         {rematchError && (
@@ -473,6 +556,18 @@ export function DuelResult({
         </button>
         {shareFailed && (
           <p className="text-ember text-xs text-center">Couldn&apos;t copy the link.</p>
+        )}
+
+        {/* Post-free-duel: low-key nudge toward paid at the highest-intent moment.
+            Only shown when the duel was free, the flag is on, and the user is signed in.
+            Not a primary CTA — Rematch holds that role. */}
+        {paid === null && PAID_DUELS_ENABLED_PUBLIC && user && (
+          <Link
+            href="/duel"
+            className="inline-flex items-center justify-center px-6 min-h-[40px] font-mono text-xs text-text-muted hover:text-signal transition-colors"
+          >
+            Want to play for the pot? →
+          </Link>
         )}
 
         {/* Play again */}

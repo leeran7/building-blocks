@@ -19,7 +19,7 @@ export async function FreeLeaderboard() {
       id="free"
       aria-label="Free climb leaderboard"
       data-climb-chrome
-      className="relative scroll-mt-20 py-20 px-4 border-t border-border-subtle bg-surface/30"
+      className="scroll-reveal relative scroll-mt-20 py-20 px-4 border-t border-border-subtle bg-surface/30"
     >
       <div
         className="ground-gradient animate-climbGroundRise pointer-events-none absolute inset-x-0 bottom-0 h-20 opacity-35"

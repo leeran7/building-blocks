@@ -4,9 +4,19 @@
  * Florida governing law, binding arbitration + class-action waiver (with a
  * 30-day opt-out, standard for enforceability), reflecting the actual
  * product: free "Free Climb" game, paid leaderboard "Stacks" purchased via
- * Stripe Checkout, and public block submissions. Doomstack currently
- * operates as a sole proprietorship (no formed entity) based in Florida,
- * USA — see the note in privacy/page.tsx if that changes.
+ * Stripe Checkout, public block submissions, and paid 1v1 duels backed by a
+ * prepaid credits wallet (Section 5). Doomstack currently operates as a sole
+ * proprietorship (no formed entity) based in Florida, USA — see the note in
+ * privacy/page.tsx if that changes.
+ *
+ * Paid duels are framed as skill-based competition (not gambling). Compliance
+ * controls that live in code: an 18+ *attestation* (self-confirmation, not
+ * verified age — see recordAgeConfirmation / age_confirmed_at), an IP-based
+ * geoblock of AZ/IA/LA/MT/WA (paidDuelGeo.ts, region-level and fail-closed),
+ * and a PAID_DUELS_ENABLED kill switch. The copy must not overstate these
+ * (e.g. do not claim we "verify" age or location). This is drafted text for
+ * human legal review, not a final legal opinion — the skill-game framing,
+ * money-transmitter posture, and state list need attorney sign-off.
  */
 
 import { Navbar } from "../../src/components/Navbar";
@@ -21,12 +31,13 @@ import {
 } from "../../src/components/Legal/LegalArticle";
 import { buildMetadata } from "../../src/lib/seo";
 
-const UPDATED = "September 4, 2026";
+const UPDATED = "September 9, 2026";
 const CONTACT_EMAIL = "hello@doomstack.lol";
 
 export const metadata = buildMetadata({
   title: "Doomstack — Terms of Service",
-  description: "The rules for using Doomstack, Free Climb, and paid Stacks.",
+  description:
+    "The rules for using Doomstack, Free Climb, paid Stacks, and paid 1v1 duels.",
   path: "/terms",
 });
 
@@ -35,6 +46,7 @@ const TOC = [
   { id: "the-service", label: "The service" },
   { id: "eligibility", label: "Eligibility & accounts" },
   { id: "payments", label: "Payments & purchases" },
+  { id: "paid-duels", label: "Paid 1v1 duels & credits" },
   { id: "acceptable-use", label: "Acceptable use" },
   { id: "content", label: "User content & submissions" },
   { id: "ip", label: "Intellectual property" },
@@ -46,7 +58,7 @@ const TOC = [
   { id: "changes", label: "Changes to these terms" },
   { id: "misc", label: "General terms" },
   { id: "contact", label: "Contact us" },
-];
+] as const;
 
 export default function TermsPage() {
   return (
@@ -165,7 +177,112 @@ export default function TermsPage() {
           </List>
         </Section>
 
-        <Section id="acceptable-use" title="5. Acceptable use">
+        <Section id="paid-duels" title="5. Paid 1v1 duels & credits">
+          <p>
+            <strong>
+              Paid 1v1 duels are skill-based competitions, not gambling.
+            </strong>{" "}
+            A duel is won by climbing the same deterministic tower faster and
+            farther than your opponent: the tower each player faces is identical,
+            it is generated the same way for both players, and the outcome is
+            determined by the players’ skill and inputs — not by chance, a random
+            draw, or the operator. This feature is offered only where staking on a
+            skill-based competition is permitted, and it is not offered where it is
+            restricted or prohibited by law. Nothing in this section is a promise
+            that participation is lawful in your location; that is your
+            responsibility to determine, and you agree not to participate where you
+            may not lawfully do so.
+          </p>
+          <List>
+            <li>
+              <strong>Eligibility &amp; location.</strong> You must be 18 or older
+              and physically located outside the restricted states to buy credits
+              or enter a paid duel. When you buy credits or stake, you represent and
+              confirm that you are at least 18 — we rely on your confirmation and do
+              not independently verify your age at that step. Paid duels are{" "}
+              <strong>not available</strong> in Arizona, Iowa, Louisiana, Montana,
+              or Washington. We infer your approximate location from your IP address
+              to enforce this and may block or deny access; this method is not exact.
+              Using a VPN, proxy, or any other means to disguise your location or
+              circumvent these controls is prohibited and may result in suspension
+              and forfeiture of credits and winnings.
+            </li>
+            <li>
+              <strong>Credits are stored value for play only — not a deposit
+              account.</strong> Credits are a prepaid, in-app balance
+              (1 credit = US$0.01) usable only inside the Service to enter paid
+              duels. Purchased credits are <strong>play credits</strong>: they are{" "}
+              <strong>non-refundable</strong> and{" "}
+              <strong>cannot be withdrawn, cashed out, or transferred</strong> to
+              you, to another user, or to anyone else. They have no cash value
+              outside the Service, are not a bank deposit, are not insured, and earn
+              no interest. We are not a bank, money transmitter, or money services
+              business, and credits are not a stored-value instrument you can redeem
+              for cash. See “Payments &amp; purchases” above; all sales of credits
+              are final.
+            </li>
+            <li>
+              <strong>Staking &amp; the pot.</strong> Entering or joining a paid
+              duel debits your stake from your balance and holds it while the match
+              is set up and played. Stakes are fixed tiers shown before you commit.
+              When a match resolves, the winner receives the combined pot (both
+              players’ stakes) minus a <strong>platform fee of 10%</strong> of the
+              pot, credited to the winner as <strong>winnings</strong>. The platform
+              fee is retained by us as compensation for operating the competition
+              and is non-refundable.
+            </li>
+            <li>
+              <strong>Winnings &amp; cash-out.</strong> Only your winnings balance is
+              cashable; purchased play credits never are. Cash-out requests are
+              subject to a stated minimum, are reviewed and processed manually, may
+              take time, and may require identity, age, or eligibility verification
+              (including information needed to comply with tax and anti-fraud
+              obligations) before we release funds. You are solely responsible for
+              any taxes on winnings. We may hold, delay, reduce, or decline a payout,
+              and may reverse credited winnings, where we reasonably believe it
+              results from fraud, collusion, multi-accounting, cheating, a payment
+              dispute or chargeback, a violation of these Terms, or where required to
+              comply with law.
+            </li>
+            <li>
+              <strong>When stakes are committed, and when they are refunded.</strong>{" "}
+              If a duel never starts — for example, you cancel a challenge before an
+              opponent joins, or no opponent stakes and joins — your stake is
+              returned to the same balance (play or winnings) it was drawn from. Once
+              both players have staked and the match begins, the stake is committed
+              and the result of a completed match is final, except as stated in
+              “Fair play” below or as required by law.
+            </li>
+            <li>
+              <strong>Chargebacks &amp; payment disputes.</strong> Because credits
+              are consumed in play and are non-refundable, initiating a chargeback or
+              payment dispute on a credit purchase — rather than contacting us first
+              at <MailLink address={CONTACT_EMAIL} /> — is a breach of these Terms.
+              We may respond to a chargeback by suspending your account, freezing or
+              reversing the disputed credits and any winnings derived from them, and
+              recovering amounts owed, without limiting our other remedies.
+            </li>
+            <li>
+              <strong>Fair play &amp; server-authoritative results.</strong> Every
+              duel result is re-computed on our servers from both players’ recorded
+              inputs, and the server’s result is authoritative and final. Cheating,
+              automation, botting, exploiting a defect, collusion, or otherwise
+              manipulating a match voids the result and may forfeit the stakes and
+              any winnings involved and result in account termination.
+            </li>
+            <li>
+              <strong>We may pause or withdraw the feature.</strong> We may modify,
+              suspend, or discontinue paid duels, credits, or cash-out at any time,
+              including in a specific jurisdiction. If we permanently discontinue the
+              feature, we will return unused purchased credits and cashable winnings
+              to affected users by a reasonable method, except where prohibited by
+              law or where an amount is subject to a fraud, dispute, or eligibility
+              hold.
+            </li>
+          </List>
+        </Section>
+
+        <Section id="acceptable-use" title="6. Acceptable use">
           <p>You agree not to, and not to help anyone else:</p>
           <List>
             <li>
@@ -221,7 +338,7 @@ export default function TermsPage() {
           </p>
         </Section>
 
-        <Section id="content" title="6. User content & submissions">
+        <Section id="content" title="7. User content & submissions">
           <p>
             &ldquo;User Content&rdquo; means anything you submit to the
             Service, including a block’s display name and destination URL, the
@@ -243,12 +360,12 @@ export default function TermsPage() {
             User Content and grant this license, and that it doesn’t violate
             these Terms, any law, or any third party’s rights. We may
             remove, hide, or refuse any User Content at our discretion,
-            including without a refund if it violates Section 5 (Acceptable
+            including without a refund if it violates Section 6 (Acceptable
             Use).
           </p>
         </Section>
 
-        <Section id="ip" title="7. Intellectual property">
+        <Section id="ip" title="8. Intellectual property">
           <p>
             The Service — including its code, game mechanics, design,
             graphics, the Doomstack name and logo, and all related
@@ -263,7 +380,7 @@ export default function TermsPage() {
           </p>
         </Section>
 
-        <Section id="termination" title="8. Termination & suspension">
+        <Section id="termination" title="9. Termination & suspension">
           <p>
             You may stop using the Service, or request account deletion, at
             any time by contacting <MailLink address={CONTACT_EMAIL} />. We
@@ -271,13 +388,17 @@ export default function TermsPage() {
             content, or restrict features at any time, with or without
             notice, if we reasonably believe you’ve violated these Terms,
             created risk or legal exposure for us, engaged in fraud or abuse,
-            or if we discontinue the Service. Sections that by their nature
-            should survive termination (including Sections 6–14) will
-            survive.
+            or if we discontinue the Service. If your account is terminated,
+            purchased play credits are forfeited and non-refundable; we will
+            return cashable winnings not subject to a fraud, dispute, or
+            eligibility hold, except where you were terminated for a violation
+            of these Terms or where prohibited by law. Sections that by their
+            nature should survive termination (including Sections 5 and 7–15)
+            will survive.
           </p>
         </Section>
 
-        <Section id="disclaimer" title="9. Disclaimer of warranties">
+        <Section id="disclaimer" title="10. Disclaimer of warranties">
           <p className="uppercase text-xs tracking-wide text-text-muted">
             Please read this section carefully
           </p>
@@ -294,7 +415,7 @@ export default function TermsPage() {
           </p>
         </Section>
 
-        <Section id="liability" title="10. Limitation of liability">
+        <Section id="liability" title="11. Limitation of liability">
           <p>
             TO THE MAXIMUM EXTENT PERMITTED BY LAW, DOOMSTACK AND ITS
             OPERATOR WILL NOT BE LIABLE FOR ANY INDIRECT, INCIDENTAL,
@@ -310,7 +431,7 @@ export default function TermsPage() {
           </p>
         </Section>
 
-        <Section id="indemnification" title="11. Indemnification">
+        <Section id="indemnification" title="12. Indemnification">
           <p>
             You agree to defend, indemnify, and hold harmless Doomstack and
             its operator from any claims, damages, losses, liabilities, and
@@ -321,7 +442,7 @@ export default function TermsPage() {
           </p>
         </Section>
 
-        <Section id="disputes" title="12. Governing law & dispute resolution">
+        <Section id="disputes" title="13. Governing law & dispute resolution">
           <SubHeading>Governing law</SubHeading>
           <p>
             These Terms are governed by the laws of the State of Florida,
@@ -361,7 +482,7 @@ export default function TermsPage() {
           </p>
         </Section>
 
-        <Section id="changes" title="13. Changes to these terms">
+        <Section id="changes" title="14. Changes to these terms">
           <p>
             We may update these Terms from time to time. If we make material
             changes, we’ll update the &ldquo;Last updated&rdquo; date above
@@ -371,7 +492,7 @@ export default function TermsPage() {
           </p>
         </Section>
 
-        <Section id="misc" title="14. General terms">
+        <Section id="misc" title="15. General terms">
           <List>
             <li>
               <strong>Entire agreement.</strong> These Terms and our Privacy
@@ -399,7 +520,7 @@ export default function TermsPage() {
           </List>
         </Section>
 
-        <Section id="contact" title="15. Contact us">
+        <Section id="contact" title="16. Contact us">
           <p>
             Questions about these Terms? Reach us at{" "}
             <MailLink address={CONTACT_EMAIL} />.

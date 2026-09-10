@@ -297,7 +297,47 @@ button:focus-visible,
   animation: enter 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
+/* Scroll-driven reveal — sections rise + fade as they enter the viewport.
+   Pure CSS via scroll-linked animations; gated behind @supports so browsers
+   without animation-timeline simply render the content statically (no JS, no
+   hidden-content risk). Suppressed under reduced-motion. */
+@keyframes scrollReveal {
+  from { opacity: 0; transform: translateY(32px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@supports (animation-timeline: view()) {
+  @media (prefers-reduced-motion: no-preference) {
+    .scroll-reveal {
+      animation: scrollReveal linear both;
+      animation-timeline: view();
+      animation-range: entry 4% cover 20%;
+    }
+  }
+}
+
+/* Premium sheen — a slow diagonal highlight sweeping a feature panel. */
+@keyframes sheen {
+  0%   { transform: translateX(-140%) skewX(-14deg); }
+  100% { transform: translateX(240%)  skewX(-14deg); }
+}
+.sheen::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 2;
+  background: linear-gradient(
+    100deg,
+    transparent 32%,
+    rgb(255 255 255 / 0.07) 50%,
+    transparent 68%
+  );
+  transform: translateX(-140%) skewX(-14deg);
+  animation: sheen 7s ease-in-out 1.4s infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
+  .sheen::after { display: none; }
   .reveal,
   .climb-reveal,
   .animate-enter,

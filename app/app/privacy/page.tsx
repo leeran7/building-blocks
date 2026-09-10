@@ -3,15 +3,23 @@
  *
  * Reflects the actual data flows in this codebase: Firebase Auth (email/password
  * + Google OAuth + anonymous guest sessions), Stripe Checkout for paid leaderboard
- * blocks, Postgres/Prisma for storage, Upstash Redis for caching/rate-limiting,
- * Vercel hosting, and an OpenAI-backed social media agent (internal/business use,
- * not applied to end-user personal data). It also covers the public creator
- * surface: user-chosen public usernames (/c/[username]), the social platform +
- * handle a paid listing can point at (typed by the buyer, no OAuth into their
- * social account), and the /go/[slug] tracked outbound redirect that counts
- * clicks before forwarding. Doomstack currently operates as a sole
- * proprietorship (no formed entity) based in Florida, USA — update the operator
- * name in CONTACT_EMAIL/entity references below if/when that changes.
+ * blocks and for prepaid duel credits, Postgres/Prisma for storage, Upstash Redis
+ * for caching/rate-limiting, Vercel hosting, and an OpenAI-backed social media
+ * agent (internal/business use, not applied to end-user personal data). It also
+ * covers the public creator surface: user-chosen public usernames (/c/[username]),
+ * the social platform + handle a paid listing can point at (typed by the buyer,
+ * no OAuth into their social account), and the /go/[slug] tracked outbound
+ * redirect that counts clicks before forwarding.
+ *
+ * Paid 1v1 duels add: an 18+ attestation timestamp (age_confirmed_at), a
+ * two-bucket credit wallet (play/winnings balances) with a WalletLedger audit
+ * trail, CreditPurchase rows (Stripe session ids), and an IP-derived, region-
+ * level geo signal (x-vercel-ip-country-region) used to enforce the state
+ * geoblock. Disclose these consistently with the existing Stripe/payment
+ * language; do not imply we verify age or precisely locate users. Doomstack
+ * currently operates as a sole proprietorship (no formed entity) based in
+ * Florida, USA — update the operator name in CONTACT_EMAIL/entity references
+ * below if/when that changes.
  */
 
 import { Navbar } from "../../src/components/Navbar";
@@ -26,7 +34,7 @@ import {
 } from "../../src/components/Legal/LegalArticle";
 import { buildMetadata } from "../../src/lib/seo";
 
-const UPDATED = "September 4, 2026";
+const UPDATED = "September 9, 2026";
 const CONTACT_EMAIL = "hello@doomstack.lol";
 
 export const metadata = buildMetadata({
@@ -83,9 +91,10 @@ export default function PrivacyPage() {
         <Section id="who-we-are" title="1. Who we are">
           <p>
             Doomstack is a leaderboard game: a free endless-climbing game
-            (&ldquo;Free Climb&rdquo;) plus paid leaderboards (&ldquo;
-            Stacks&rdquo;) where anyone can submit a link and buy their way up
-            a public ranking. We are the &ldquo;data controller&rdquo; (GDPR)
+            (&ldquo;Free Climb&rdquo;), paid leaderboards (&ldquo;Stacks&rdquo;)
+            where anyone can submit a link and buy their way up a public ranking,
+            and paid 1v1 skill duels backed by a prepaid credit wallet. We are
+            the &ldquo;data controller&rdquo; (GDPR)
             or &ldquo;business&rdquo; (CCPA/CPRA) responsible for the personal
             information described in this policy. If we form a corporate
             entity to hold the Doomstack business, this policy will be
@@ -141,11 +150,34 @@ export default function PrivacyPage() {
               . The owner email is not shown publicly.
             </li>
             <li>
-              <strong>Payment information</strong> — payments are handled by
-              Stripe. We receive confirmation that a payment succeeded, the
-              amount, and a Stripe transaction/session identifier. We never
-              receive or store your full card number, CVC, or bank details —
-              those go directly to Stripe.
+              <strong>Payment information</strong> — payments (paid Stack
+              blocks and prepaid duel credits) are handled by Stripe. We receive
+              confirmation that a payment succeeded, the amount, and a Stripe
+              transaction/session identifier. For credit purchases we store a
+              record of the purchase (the Stripe session id, amount, and
+              timestamp). We never receive or store your full card number, CVC,
+              or bank details — those go directly to Stripe.
+            </li>
+            <li>
+              <strong>Age confirmation (paid 1v1 duels)</strong> — paid duels
+              are restricted to users 18 and older. The first time you buy
+              credits or enter a paid duel, you confirm you are 18+ and we store
+              the date and time of that confirmation. This is your
+              self-confirmation; we rely on it and do not independently verify
+              your age at that step. If you never use paid duels, we don’t
+              collect this.
+            </li>
+            <li>
+              <strong>Credit wallet &amp; activity (paid 1v1 duels)</strong> —
+              if you use paid duels, we maintain a prepaid, in-app credit balance
+              for your account (a “play” balance from purchases and a “winnings”
+              balance from wins) and keep a ledger of the entries that change it —
+              credit purchases, stakes, wins, refunds, and cash-out requests —
+              with amounts, timestamps, and the related duel. We keep this as a
+              financial and anti-fraud record. If you request a cash-out of
+              winnings, we may collect information needed to verify your identity
+              and eligibility and to meet tax and anti-fraud obligations before we
+              release funds.
             </li>
             <li>
               <strong>Correspondence</strong> — if you email us or contact
@@ -166,6 +198,15 @@ export default function PrivacyPage() {
               and device type, pages and features used, timestamps, and
               general (city/region-level) location inferred from IP address,
               collected via server logs and our hosting/CDN provider.
+            </li>
+            <li>
+              <strong>Approximate location for paid-duel eligibility</strong> —
+              when you take a paid-duel action, our hosting provider (Vercel)
+              gives us a coarse, IP-derived country and US state/region signal.
+              We use it only to enforce the age and state restrictions on paid
+              duels (paid duels are not offered in certain US states). It is an
+              approximation, not precise or GPS-level location. If you don’t use
+              paid duels, we don’t rely on it for this purpose.
             </li>
             <li>
               <strong>Click &amp; view counts</strong> — when someone clicks a
@@ -198,11 +239,18 @@ export default function PrivacyPage() {
             <li>Create and secure your account, and authenticate sign-in.</li>
             <li>
               Operate the Service: run gameplay, compute and display
-              leaderboard rankings, and process paid Stack purchases.
+              leaderboard rankings, process paid Stack purchases, and run paid
+              1v1 duels (maintaining your credit wallet, settling stakes and
+              winnings, and handling cash-out requests).
             </li>
             <li>
-              Process payments and prevent fraudulent or duplicate
-              transactions.
+              Process payments, maintain the credit-wallet ledger, and prevent
+              fraudulent, duplicate, or disputed transactions.
+            </li>
+            <li>
+              Enforce eligibility for paid duels — confirm the 18+ attestation
+              and apply the state-level geoblock — and comply with related legal
+              and anti-fraud obligations.
             </li>
             <li>
               Send transactional communications: email verification, password
@@ -364,7 +412,11 @@ export default function PrivacyPage() {
             active, plus a reasonable period afterward in case you return or
             to resolve disputes, and as needed to meet legal, tax, or
             accounting obligations (typically up to 7 years for financial
-            records related to payments).
+            records related to payments). Credit-purchase records, the wallet
+            ledger, cash-out records, and your 18+ confirmation are treated as
+            financial and compliance records and are retained on that same basis
+            even after your account is closed, to the extent needed to meet
+            legal, tax, accounting, and anti-fraud obligations.
           </p>
           <p>
             Leaderboard altitude is, by design, a permanent record — that’s

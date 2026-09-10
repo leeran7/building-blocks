@@ -12,6 +12,7 @@
 
 import type React from "react";
 import Link from "next/link";
+import { PAID_DUELS_ENABLED_PUBLIC } from "../../config/paidDuel";
 
 function LinkIcon() {
   return (
@@ -55,6 +56,26 @@ function SwordsIcon() {
   );
 }
 
+function CoinsIcon() {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <circle cx="8" cy="8" r="6" />
+      <path d="M18.09 10.37A6 6 0 1 1 10.34 18" />
+      <path d="M7 6h1v4" />
+      <path d="m16.71 13.88.7.71-2.82 2.82" />
+    </svg>
+  );
+}
+
 interface Mode {
   icon: React.ReactNode;
   title: string;
@@ -81,20 +102,41 @@ export function DuelPromo() {
     <section
       id="duel"
       aria-label="1v1 duel"
-      className="scroll-mt-20 py-20 px-4 border-t border-border-subtle bg-surface/30"
+      className="scroll-reveal scroll-mt-20 py-20 px-4 border-t-2 border-t-signal/20 border-x-0 border-b border-border-subtle bg-surface/30"
     >
       <div className="max-w-6xl mx-auto">
+        {PAID_DUELS_ENABLED_PUBLIC && (
+          <div className="reveal mb-8 rounded-2xl border border-signal/40 bg-signal/5 p-6 shadow-signal">
+            <div className="flex items-start gap-4">
+              <div className="w-12 h-12 shrink-0 rounded-xl border border-signal/40 bg-signal/10 text-signal flex items-center justify-center [&_svg]:w-6 [&_svg]:h-6">
+                <CoinsIcon />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-text-primary">
+                  Paid 1v1 — winner takes the pot
+                </h3>
+                <p className="text-sm text-text-secondary leading-relaxed mt-2">
+                  Buy credits, stake a friend head-to-head, and the winner takes the pot
+                  (minus a 10% fee) as cashable winnings. Skill-based, 18+, not available
+                  in all states.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
         <div className="mb-12 flex items-end justify-between gap-4">
           <div>
             <span className="font-mono text-[11px] uppercase tracking-[0.2em] text-signal">
-              [ multiplayer ]
+              {PAID_DUELS_ENABLED_PUBLIC ? "[ multiplayer · real stakes ]" : "[ multiplayer ]"}
             </span>
             <h2 className="font-display text-4xl md:text-5xl text-text-primary mt-3">
-              1v1 head-to-head
+              1v1 Duels
             </h2>
             <p className="text-sm text-text-secondary mt-2 max-w-xl">
-              Same tower, same rising lava — the last climber standing wins. Free
-              and skill-only, separate from paid stacks.
+              {PAID_DUELS_ENABLED_PUBLIC
+                ? "Same tower, same rising lava — the last climber standing wins. Play free, or stake credits and take the pot. Pure skill: outcomes are decided by your climb, not chance."
+                : "Same tower, same rising lava — the last climber standing wins. Free and skill-only."}
             </p>
           </div>
           <span
@@ -109,16 +151,17 @@ export function DuelPromo() {
           {modes.map((mode, i) => (
             <div
               key={mode.title}
-              className="reveal group relative overflow-hidden rounded-2xl border border-border-subtle bg-surface p-6 transition-colors hover:border-signal/45"
+              className="reveal group relative overflow-hidden rounded-2xl border border-border-subtle bg-surface p-6 transition-[transform,border-color,box-shadow] duration-300 ease-out hover:-translate-y-1 hover:border-signal/45 hover:shadow-lifted"
               style={{ animationDelay: `${i * 70}ms` }}
             >
-              <div className="w-12 h-12 rounded-xl border border-signal/30 bg-signal/10 text-signal flex items-center justify-center [&_svg]:w-6 [&_svg]:h-6">
+              <div className="pointer-events-none absolute inset-0 survey-grid opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+              <div className="relative w-12 h-12 rounded-xl border border-signal/30 bg-signal/10 text-signal flex items-center justify-center [&_svg]:w-6 [&_svg]:h-6 transition-transform duration-300 group-hover:scale-105">
                 {mode.icon}
               </div>
-              <h3 className="text-lg font-bold text-text-primary mt-5">
+              <h3 className="relative text-lg font-bold text-text-primary mt-5">
                 {mode.title}
               </h3>
-              <p className="text-sm text-text-secondary leading-relaxed mt-2">
+              <p className="relative text-sm text-text-secondary leading-relaxed mt-2">
                 {mode.description}
               </p>
             </div>

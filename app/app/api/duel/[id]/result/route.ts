@@ -206,6 +206,9 @@ export async function POST(
       status: "completed",
       winnerId,
       forfeit: true,
+      // Paid duels: surface the winnings credit so DuelResult can show it.
+      payoutCents: forfeitResult.payoutCents,
+      payoutToMe: uid != null && winnerId === uid,
     });
   }
 
@@ -366,5 +369,8 @@ export async function POST(
     tiebreakRule: result.tiebreakRule,
     hasReplay: true,
     myStats,
+    // Paid duels: winnings credited to the winner (null for free duels).
+    payoutCents: completeResult.payoutCents,
+    payoutToMe: uid != null && result.winnerId === uid,
   });
 }

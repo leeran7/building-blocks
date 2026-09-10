@@ -14,7 +14,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { verifyWebhookSignature } from "../../../../src/api/stripe";
-import { classifyStripeCredit } from "../../../../src/api/stripeCredit";
+import { classifyStripeCredit, PAID_STATUSES, CREDITING_EVENTS } from "../../../../src/api/stripeCredit";
 import {
   findPaymentByStripeSession,
   applyPaymentTransaction,
@@ -24,6 +24,7 @@ import { getOrCreateActiveSeason } from "../../../../src/db/seasons";
 import { computeMetres } from "../../../../src/engine/index";
 import { updatePeakRank, getRankedBlocks, getBlockById } from "../../../../src/db/blocks";
 import { parseSeasonSlug } from "../../../../src/game/categories";
+import { addPurchasedCredits } from "../../../../src/db/credits";
 
 // Disable body parsing — need raw body for Stripe signature verification
 export const runtime = "nodejs";
@@ -59,10 +60,19 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   const session = event.data.object as unknown as {
     id: string;
-    metadata: { block_id: string; season_id: string; category?: string } | null;
+    currency?: string | null;
+    metadata:
+      | { block_id?: string; season_id?: string; category?: string; type?: string; user_id?: string }
+      | null;
     amount_total: number | null;
     payment_status?: string | null;
   };
+
+  // Paid-duel credit top-ups are funded here and settled to the PLAY bucket.
+  // Routed before the block-payment classifier, which is keyed on block_id.
+  if (session.metadata?.type === "credits_topup") {
+    return handleCreditsTopup(event.type, session);
+  }
 
   const decision = classifyStripeCredit(event.type, session);
 
@@ -178,6 +188,76 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       { error: "Payment processing failed" },
       { status: 500 }
     );
+  }
+}
+
+/**
+ * Settle a credits top-up into the buyer's PLAY bucket.
+ *
+ * Mirrors the block-payment invariants: only credit on a genuinely paid status,
+ * idempotent via CreditPurchase.stripe_session_id (unique), and dead-letter an
+ * unattributable event rather than 4xx/5xx (Stripe must not silently lose or
+ * endlessly retry a deterministic miss).
+ */
+async function handleCreditsTopup(
+  eventType: string,
+  session: {
+    id: string;
+    currency?: string | null;
+    amount_total: number | null;
+    payment_status?: string | null;
+    metadata: { user_id?: string } | null;
+  }
+): Promise<NextResponse> {
+  if (!CREDITING_EVENTS.has(eventType)) {
+    return NextResponse.json({ received: true });
+  }
+  if (!PAID_STATUSES.has(session.payment_status ?? "")) {
+    console.log(
+      JSON.stringify({
+        type: "credits_topup_unpaid",
+        stripe_session_id: session.id,
+        payment_status: session.payment_status ?? null,
+      })
+    );
+    return NextResponse.json({ received: true, credited: false });
+  }
+
+  if ((session.currency ?? "usd").toLowerCase() !== "usd") {
+    return deadLetter(eventType, session.id, 0, `credits_topup: unexpected currency ${session.currency}`);
+  }
+
+  const userId = session.metadata?.user_id;
+  const amountCents = session.amount_total ?? 0;
+
+  if (!session.id) {
+    return deadLetter(eventType, "", amountCents, "credits_topup: missing session id");
+  }
+  if (!userId) {
+    return deadLetter(eventType, session.id, amountCents, "credits_topup: missing user_id");
+  }
+  if (!Number.isFinite(amountCents) || amountCents <= 0) {
+    return deadLetter(eventType, session.id, amountCents, "credits_topup: invalid amount");
+  }
+
+  try {
+    const result = await addPurchasedCredits(userId, session.id, amountCents);
+    console.log(
+      JSON.stringify({
+        type: "credits_topup",
+        stripe_session_id: session.id,
+        user_id: userId,
+        amount_cents: amountCents,
+        outcome: result.outcome,
+        timestamp: new Date().toISOString(),
+      })
+    );
+    return NextResponse.json({ received: true });
+  } catch (err) {
+    // Transient DB failure — 500 so Stripe retries (the unique guard keeps the
+    // retry idempotent).
+    console.error("[webhook/stripe] credits_topup transaction failed:", err);
+    return NextResponse.json({ error: "Credit top-up processing failed" }, { status: 500 });
   }
 }
 

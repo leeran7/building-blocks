@@ -8,7 +8,6 @@
  */
 
 import Link from "next/link";
-import { FEATURED_GAME_CATEGORIES } from "../../game/categories";
 import { StackMark } from "../Brand/StackMark";
 
 const LINK =
@@ -42,11 +41,11 @@ export function Footer() {
               [ your move ]
             </span>
             <h2 className="font-display text-4xl md:text-5xl text-text-primary mt-3">
-              Claim your altitude.
+              Your move. Their lava.
             </h2>
             <p className="text-sm text-text-secondary mt-3 max-w-sm">
-              Pick a stack, buy your way up, and outlast everyone before the ground
-              swallows them.
+              Race a random opponent or challenge a friend. Free to play, real stakes
+              when you want them.
             </p>
           </div>
           <Link
@@ -59,7 +58,7 @@ export function Footer() {
       </div>
 
       {/* Links */}
-      <div className="max-w-6xl mx-auto px-4 py-12 grid grid-cols-2 md:grid-cols-5 gap-8">
+      <div className="max-w-6xl mx-auto px-4 py-12 grid grid-cols-2 md:grid-cols-4 gap-8">
         <div className="col-span-2 md:col-span-1">
           <div className="flex items-center gap-2.5">
             <StackMark className="h-6 w-6" />
@@ -72,35 +71,22 @@ export function Footer() {
           </p>
         </div>
 
-        <nav aria-label="Stacks">
-          <p className={COL_HEAD}>Stacks</p>
-          <ul className="space-y-1">
-            {FEATURED_GAME_CATEGORIES.map((c) => (
-              <li key={c.slug}>
-                <Link href={`/stack/${c.slug}`} className={LINK}>
-                  {c.label}
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </nav>
-
-        <nav aria-label="Free climb">
-          <p className={COL_HEAD}>Free climb</p>
+        <nav aria-label="Play">
+          <p className={COL_HEAD}>Play</p>
           <ul className="space-y-1">
             <li>
+              <Link href="/duel" className={LINK}>
+                1v1 duel
+              </Link>
+            </li>
+            <li>
               <Link href="/play" className={LINK}>
-                Play
+                Free climb
               </Link>
             </li>
             <li>
               <Link href="/climb" className={LINK}>
                 Leaderboard
-              </Link>
-            </li>
-            <li>
-              <Link href="/duel" className={LINK}>
-                1v1 duel
               </Link>
             </li>
           </ul>
@@ -130,11 +116,6 @@ export function Footer() {
         <nav aria-label="Learn">
           <p className={COL_HEAD}>Learn</p>
           <ul className="space-y-1">
-            <li>
-              <Link href="/#how-it-works" className={LINK}>
-                How it works
-              </Link>
-            </li>
             <li>
               <Link href="/rules" className={LINK}>
                 Rules

@@ -14,6 +14,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "../contexts/AuthContext";
 import { FREE_CLIMB_HREF, DUEL_HREF } from "./navLinks";
+import { PAID_DUELS_ENABLED_PUBLIC } from "../config/paidDuel";
 
 const ITEM =
   "flex items-center gap-2.5 rounded-lg px-3 min-h-[44px] text-sm text-text-secondary hover:bg-elevated hover:text-text-primary transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal";
@@ -30,6 +31,10 @@ export function AccountMenu() {
   const [open, setOpen] = useState(false);
   const [username, setUsername] = useState<string | null>(null);
   const [usernameLoaded, setUsernameLoaded] = useState(false);
+  const [walletBalance, setWalletBalance] = useState<{
+    playCents: number;
+    winningsCents: number;
+  } | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuId = useId();
@@ -50,6 +55,22 @@ export function AccountMenu() {
       live = false;
     };
   }, [token]);
+
+  // Fetch wallet balance once when the menu opens (display-only, not a CTA).
+  useEffect(() => {
+    if (!open || !token || !PAID_DUELS_ENABLED_PUBLIC) return;
+    let live = true;
+    fetch("/api/wallet", { headers: { Authorization: `Bearer ${token}` } })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data: { playCents: number; winningsCents: number } | null) => {
+        if (!live || !data) return;
+        setWalletBalance({ playCents: data.playCents, winningsCents: data.winningsCents });
+      })
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [open, token]);
 
   // Close on click-outside and Escape (returning focus to the trigger).
   useEffect(() => {
@@ -108,6 +129,22 @@ export function AccountMenu() {
           aria-label="Account"
           className="reveal absolute right-0 mt-2 w-56 rounded-xl border border-border-strong bg-surface-raised shadow-lifted p-1.5"
         >
+          {/* Wallet balance — display-only, shown when paid duels are on */}
+          {PAID_DUELS_ENABLED_PUBLIC && walletBalance && (
+            <>
+              <div className="px-3 pt-1.5 pb-2">
+                <p className="font-mono text-[11px] tabular-nums">
+                  <span className="text-signal font-semibold">
+                    ${(walletBalance.winningsCents / 100).toFixed(2)} won
+                  </span>
+                  <span className="text-text-muted">
+                    {" · "}${(walletBalance.playCents / 100).toFixed(2)} credits
+                  </span>
+                </p>
+              </div>
+              <div className="my-1 border-t border-border-subtle" aria-hidden="true" />
+            </>
+          )}
           <Link href="/dashboard" className={ITEM} onClick={() => setOpen(false)}>
             Dashboard
           </Link>
@@ -130,14 +167,11 @@ export function AccountMenu() {
           {/* Mobile-only: the navbar hides these below sm. */}
           <div className="sm:hidden">
             <div className="my-1.5 border-t border-border-subtle" aria-hidden="true" />
-            <Link href="/#towers" className={ITEM} onClick={() => setOpen(false)}>
-              Browse
+            <Link href={DUEL_HREF} className={ITEM} onClick={() => setOpen(false)}>
+              1v1
             </Link>
             <Link href={FREE_CLIMB_HREF} className={ITEM} onClick={() => setOpen(false)}>
               Free climb
-            </Link>
-            <Link href={DUEL_HREF} className={ITEM} onClick={() => setOpen(false)}>
-              1v1
             </Link>
           </div>
 
