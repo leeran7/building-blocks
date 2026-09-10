@@ -35,7 +35,7 @@ export function FreeStackShell({
         aria-hidden="true"
       />
 
-      <div className="relative z-10 shrink-0">
+      <div className="shrink-0">
         <Navbar contextLabel="Free climb" />
       </div>
 

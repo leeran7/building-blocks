@@ -15,12 +15,18 @@ const LINK =
 const COL_HEAD =
   "font-mono text-[11px] uppercase tracking-[0.16em] text-text-muted mb-3";
 
-export function Footer() {
+/**
+ * `showCta` gates the marketing "Get started" band. It's a conversion prompt
+ * for signed-out visitors; on authenticated / in-app screens we render the
+ * compact footer (links + legal baseline) only. See SiteFooter.
+ */
+export function Footer({ showCta = true }: { showCta?: boolean }) {
   const year = new Date().getFullYear();
 
   return (
     <footer role="contentinfo" className="border-t border-border-subtle bg-surface">
       {/* CTA band */}
+      {showCta && (
       <div className="relative overflow-hidden border-b border-border-subtle edge-signal">
         {/* ground creeping up */}
         <div
@@ -56,6 +62,7 @@ export function Footer() {
           </Link>
         </div>
       </div>
+      )}
 
       {/* Links */}
       <div className="max-w-6xl mx-auto px-4 py-12 grid grid-cols-2 md:grid-cols-4 gap-8">

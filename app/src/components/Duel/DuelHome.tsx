@@ -13,6 +13,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { useAuth } from "../../contexts/AuthContext";
 import { shareInvite } from "../../lib/shareInvite";
 import { Navbar } from "../Navbar";
@@ -243,8 +244,38 @@ export function DuelHome() {
   // ─────────────── Render ───────────────
 
   return (
-    <div className="min-h-screen bg-void text-text-primary">
+    <div className="grain topo min-h-screen bg-void text-text-primary">
       <Navbar contextLabel="1v1" />
+
+      {/* Tab band */}
+      <div className="border-b border-border-subtle">
+        <div className="max-w-2xl mx-auto w-full px-4 py-2">
+          <div
+            className="inline-flex items-center gap-1 rounded-full border border-border-strong bg-surface p-1"
+            role="tablist"
+            aria-label="1v1 sections"
+          >
+            {/* Order matches the free-climb shell: Leaderboard, then Play. */}
+            <Link
+              href="/duel/leaderboard"
+              role="tab"
+              aria-selected={false}
+              className="inline-flex items-center justify-center px-4 min-h-[44px] rounded-full text-sm font-semibold whitespace-nowrap text-text-secondary hover:text-text-primary transition-colors focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void"
+            >
+              Leaderboard
+            </Link>
+            <span
+              role="tab"
+              aria-selected={true}
+              aria-current="page"
+              className="inline-flex items-center justify-center px-4 min-h-[44px] rounded-full text-sm font-semibold whitespace-nowrap bg-signal text-void"
+            >
+              Play
+            </span>
+          </div>
+        </div>
+      </div>
+
       {/* Header */}
       <div className="px-4 pt-8 pb-8 text-center">
         <p className="font-mono text-xs uppercase tracking-[0.16em] text-text-muted mb-3">
@@ -259,7 +290,7 @@ export function DuelHome() {
         </p>
       </div>
 
-      <div className="max-w-md mx-auto px-4 pb-16 flex flex-col gap-6">
+      <div className="max-w-2xl mx-auto px-4 pb-16 flex flex-col gap-6">
         {/* Single sign-in gate: signed-out users get ONE ask that stands in for
             every action, rather than the same prompt repeated per section. */}
         {!user && (

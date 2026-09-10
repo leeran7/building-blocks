@@ -113,7 +113,7 @@ function SubmitForm() {
     return (
       <>
         <Navbar contextLabel={breadcrumb} />
-        <div className="max-w-md mx-auto px-4 py-16 text-center">
+        <div className="max-w-2xl mx-auto px-4 py-16 text-center">
         <h1 className="text-2xl font-bold text-text-primary tracking-tight">
           Create an account first
         </h1>
@@ -172,7 +172,7 @@ function SubmitForm() {
   return (
     <>
       <Navbar contextLabel={breadcrumb} />
-      <div className="max-w-lg mx-auto px-4 py-10">
+      <div className="max-w-2xl mx-auto px-4 py-10">
       <div className="mb-8">
         <p className="text-xs uppercase tracking-[0.15em] text-text-muted">
           New listing
@@ -411,7 +411,7 @@ function SubmitForm() {
 
 export default function SubmitPage() {
   return (
-    <main id="main-content" className="min-h-screen bg-void">
+    <main id="main-content" className="grain topo min-h-screen bg-void">
       <Suspense
         fallback={
           <>

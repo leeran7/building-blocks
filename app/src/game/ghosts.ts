@@ -26,14 +26,24 @@ export interface GhostSample {
 
 /**
  * How far behind local time peers are rendered, in ticks (~200 ms at 30 Hz).
- * Must comfortably exceed one snapshot interval (~3.75 ticks at 8 Hz) plus
- * network jitter so the interpolation target normally lands between the two
- * buffered samples rather than clamping to the latest.
+ * With 15 Hz snapshots (every 2 ticks) this gives 3 snapshot intervals of
+ * buffer, so the interpolation target reliably lands between two known samples
+ * even under typical network jitter.
  */
 export const GHOST_RENDER_DELAY_TICKS = 6;
 
+/** How many samples to keep per slot. 4 gives a richer velocity history. */
+const RING_SIZE = 4;
+
+/**
+ * Max extrapolation past the latest sample, in ticks. Caps dead-reckoning so a
+ * stalled peer (no snapshots arriving) doesn't drift off-screen.
+ * ~3 snapshot intervals at 15 Hz = 6 ticks ≈ 200 ms.
+ */
+export const MAX_EXTRAPOLATE_TICKS = 6;
+
 export class GhostStore {
-  /** Per-slot ring of the last two samples, oldest first. */
+  /** Per-slot ring of the last RING_SIZE samples, oldest first. */
   private readonly bySlot = new Map<number, GhostSample[]>();
 
   /** Absorb a peer snapshot. Out-of-order (stale) arrivals are dropped. */
@@ -52,37 +62,75 @@ export class GhostStore {
       return;
     }
     const last = arr[arr.length - 1];
-    if (sample.tick < last.tick) return; // stale / reordered — ignore
+    if (sample.tick <= last.tick) return; // stale / reordered — ignore
     arr.push(sample);
-    if (arr.length > 2) arr.shift();
+    if (arr.length > RING_SIZE) arr.shift();
   }
 
   /**
-   * Interpolated position for `slot` at `localClimbTick`, rendered
-   * GHOST_RENDER_DELAY_TICKS behind. Returns null when nothing has arrived yet
-   * (caller should leave that player at its spawn / last-known local state).
+   * Interpolated (or dead-reckoned) position for `slot` at `localClimbTick`,
+   * rendered GHOST_RENDER_DELAY_TICKS behind. Returns null when nothing has
+   * arrived yet (caller leaves the player at last-known local state).
+   *
+   * Interpolation: linear between the two samples bracketing `target`.
+   * Extrapolation: dead-reckoning past the latest sample using the velocity of
+   *   the last two samples, capped at MAX_EXTRAPOLATE_TICKS to avoid divergence.
    */
   sampleAt(slot: number, localClimbTick: number): GhostSample | null {
     const arr = this.bySlot.get(slot);
     if (!arr || arr.length === 0) return null;
+
+    const last = arr[arr.length - 1];
+
+    // Once a peer reports finished/eliminated, hold that terminal position.
+    if (last.status !== "climbing") return last;
+
     if (arr.length === 1) return arr[0];
 
-    const [a, b] = arr;
-    // Once a peer reports finished/eliminated, hold that terminal position.
-    if (b.status !== "climbing") return b;
-
     const target = localClimbTick - GHOST_RENDER_DELAY_TICKS;
-    if (target <= a.tick) return a; // clamp behind the older sample
-    if (target >= b.tick) return b; // clamp — never extrapolate past the latest
+
+    // Find the two samples that bracket `target`.
+    let a = arr[0];
+    let b = arr[1];
+    for (let i = 1; i < arr.length - 1; i++) {
+      if (arr[i].tick <= target && arr[i + 1].tick >= target) {
+        a = arr[i];
+        b = arr[i + 1];
+        break;
+      }
+      // No bracket found yet — use the last two for interpolation/extrapolation.
+      a = arr[arr.length - 2];
+      b = arr[arr.length - 1];
+    }
+
+    if (target <= a.tick) return a; // clamp behind oldest relevant sample
 
     const span = b.tick - a.tick;
-    const t = span > 0 ? (target - a.tick) / span : 1;
+
+    // Interpolation: target is between a and b.
+    if (target <= b.tick) {
+      const t = span > 0 ? (target - a.tick) / span : 1;
+      return {
+        tick: target,
+        x: a.x + (b.x - a.x) * t,
+        y: a.y + (b.y - a.y) * t,
+        status: "climbing",
+        peakY: Math.max(a.peakY, b.peakY),
+        slowLavaActive: b.slowLavaActive,
+      };
+    }
+
+    // Dead-reckoning: target is past the latest sample.
+    // Extrapolate using b-a velocity, capped to avoid divergence.
+    const overshot = Math.min(target - b.tick, MAX_EXTRAPOLATE_TICKS);
+    if (span <= 0 || overshot <= 0) return b;
+    const t = overshot / span;
     return {
-      tick: target,
-      x: a.x + (b.x - a.x) * t,
-      y: a.y + (b.y - a.y) * t,
+      tick: b.tick + overshot,
+      x: b.x + (b.x - a.x) * t,
+      y: b.y + (b.y - a.y) * t,
       status: "climbing",
-      peakY: Math.max(a.peakY, b.peakY),
+      peakY: b.peakY,
       slowLavaActive: b.slowLavaActive,
     };
   }

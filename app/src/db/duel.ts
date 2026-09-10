@@ -143,6 +143,15 @@ export interface DuelStatsRow {
   winPct: number;
 }
 
+export interface PaidDuelStatsRow {
+  userId: string;
+  displayName: string | null;
+  paidWins: number;
+  paidLosses: number;
+  winPct: number;
+  totalPayoutCents: number;
+}
+
 // ── Helpers ────────────────────────────────────────────────────────────────
 
 /** Shared select shape for player display names. */
@@ -768,6 +777,66 @@ export async function getRecentDuelsForUser(
       mySlot: isP1 ? 1 : 2,
     };
   });
+}
+
+/**
+ * Top paid-duel leaderboard by paid wins. Aggregates directly from the duels
+ * table (stake_cents IS NOT NULL) so free and paid records are kept separate.
+ * Only settled (payout_settled=true) completed duels count.
+ */
+export async function topPaidDuelStats(limit = 50): Promise<PaidDuelStatsRow[]> {
+  const duels = await prisma.duel.findMany({
+    where: {
+      stake_cents: { not: null },
+      status: DuelStatus.completed,
+      payout_settled: true,
+      winner_id: { not: null },
+    },
+    select: {
+      player1_id: true,
+      player2_id: true,
+      winner_id: true,
+      payout_cents: true,
+      player1: { select: { id: true, display_name: true } },
+      player2: { select: { id: true, display_name: true } },
+    },
+  });
+
+  const map = new Map<string, { displayName: string | null; wins: number; losses: number; payout: number }>();
+
+  for (const d of duels) {
+    const players = [
+      { id: d.player1_id, name: d.player1.display_name },
+      ...(d.player2_id && d.player2 ? [{ id: d.player2_id, name: d.player2.display_name }] : []),
+    ];
+    for (const p of players) {
+      if (!map.has(p.id)) map.set(p.id, { displayName: p.name, wins: 0, losses: 0, payout: 0 });
+      const s = map.get(p.id)!;
+      if (p.name !== null) s.displayName = p.name;
+      if (d.winner_id === p.id) {
+        s.wins++;
+        s.payout += d.payout_cents ?? 0;
+      } else {
+        s.losses++;
+      }
+    }
+  }
+
+  return Array.from(map.entries())
+    .filter(([, v]) => v.displayName !== null && v.wins > 0)
+    .map(([userId, v]) => {
+      const total = v.wins + v.losses;
+      return {
+        userId,
+        displayName: v.displayName,
+        paidWins: v.wins,
+        paidLosses: v.losses,
+        winPct: total > 0 ? Math.round((v.wins / total) * 1000) / 10 : 0,
+        totalPayoutCents: v.payout,
+      };
+    })
+    .sort((a, b) => b.paidWins - a.paidWins || b.totalPayoutCents - a.totalPayoutCents)
+    .slice(0, limit);
 }
 
 /**
