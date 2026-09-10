@@ -57,19 +57,9 @@ export function ChipDuelLobby() {
     <div className="grain topo min-h-screen bg-void text-text-primary">
       <Navbar contextLabel="1v1" />
 
-      {/* Tab band — same pill as /duel */}
+      {/* Tab band */}
       <div className="border-b border-border-subtle">
-        <div className="max-w-2xl mx-auto w-full px-4 py-2 flex items-center gap-3">
-          <Link
-            href="/duel"
-            className="inline-flex items-center justify-center w-9 h-9 rounded-full border border-border-strong text-text-secondary hover:text-text-primary hover:border-signal/50 transition-colors shrink-0"
-            aria-label="Back to duels"
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M19 12H5" />
-              <path d="m12 19-7-7 7-7" />
-            </svg>
-          </Link>
+        <div className="max-w-2xl mx-auto w-full px-4 py-2">
           <div
             className="inline-flex items-center gap-1 rounded-full border border-border-strong bg-surface p-1"
             role="tablist"
@@ -84,14 +74,11 @@ export function ChipDuelLobby() {
       <div className="max-w-2xl mx-auto px-4 pt-7 pb-16 flex flex-col gap-6">
         <header>
           <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-text-muted mb-1.5">
-            ranked
+            multiplayer · ranked
           </p>
           <h1 className="font-display text-4xl md:text-5xl font-black tracking-tight uppercase text-text-primary leading-none">
             Chip Duels
           </h1>
-          <p className="mt-2 text-sm text-text-secondary">
-            Stake non-cashable chips against another player. Winner takes all — zero-sum, no house cut.
-          </p>
         </header>
 
         {!user ? (

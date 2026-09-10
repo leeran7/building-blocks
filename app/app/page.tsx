@@ -11,6 +11,7 @@
 
 import { Hero } from "../src/components/LandingPage/Hero";
 import { FreeLeaderboard } from "../src/components/LandingPage/FreeLeaderboard";
+import { RankedLeaderboard } from "../src/components/LandingPage/RankedLeaderboard";
 import { DuelPromo } from "../src/components/LandingPage/DuelPromo";
 import { Faq, buildFaqs } from "../src/components/LandingPage/Faq";
 import { Navbar } from "../src/components/Navbar";
@@ -85,6 +86,8 @@ export default async function HomePage() {
       <DuelPromo />
 
       <FreeLeaderboard />
+
+      <RankedLeaderboard />
 
       <Faq />
     </main>

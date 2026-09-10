@@ -99,7 +99,7 @@ function DuelViz() {
         {PAID_DUELS_ENABLED_PUBLIC && (
           <div className="flex justify-center pt-1">
             <span className="bg-signal/5 border border-signal/30 rounded-lg px-2 py-1 font-mono text-[11px] text-signal uppercase tracking-[0.1em]">
-              Ranked chips + tournaments
+              Ranked chips · winner takes all
             </span>
           </div>
         )}
@@ -152,7 +152,7 @@ export function Hero({ stats }: { stats: HeroStats }) {
           >
             <span className="w-1.5 h-1.5 rounded-full bg-signal animate-pulse" />
             {PAID_DUELS_ENABLED_PUBLIC
-              ? "Live duels · free & real stakes"
+              ? "Live duels · free & ranked"
               : "Live duels · free to play"}
           </span>
 
@@ -180,7 +180,7 @@ export function Hero({ stats }: { stats: HeroStats }) {
             Challenge a friend or find a random opponent. Race the same tower —
             same rising lava — and outlast them.
             {PAID_DUELS_ENABLED_PUBLIC && (
-              <> Free always. Go ranked with chips or compete in tournaments.</>
+              <> Free always. Go ranked by staking chips — winner takes all.</>
             )}
           </p>
 

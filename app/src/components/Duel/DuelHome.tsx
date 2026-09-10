@@ -17,6 +17,7 @@ import Link from "next/link";
 import { useAuth } from "../../contexts/AuthContext";
 import { shareInvite } from "../../lib/shareInvite";
 import { Navbar } from "../Navbar";
+import { BuyCreditsModal } from "../Wallet/BuyCreditsModal";
 import { PAID_DUELS_ENABLED_PUBLIC } from "../../config/paidDuel";
 
 // ─────────────────────────────── Types ────────────────────────────────────
@@ -59,6 +60,8 @@ export function DuelHome() {
   const [queueState, setQueueState] = useState<QueueState>({ status: "idle" });
   const [stats, setStats] = useState<DuelStats | null>(null);
   const [mode, setMode] = useState<DuelMode>("quick");
+  const [buyOpen, setBuyOpen] = useState(false);
+  const [chipBalance, setChipBalance] = useState<number | null>(null);
 
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const createButtonRef = useRef<HTMLButtonElement>(null);
@@ -84,6 +87,17 @@ export function DuelHome() {
       })
       .catch(() => {});
   }, [user, token]);
+
+  // Fetch chip balance
+  useEffect(() => {
+    if (!user || !token || !PAID_DUELS_ENABLED_PUBLIC) return;
+    fetch("/api/wallet", { headers: { Authorization: `Bearer ${token}` } })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data: { playCents?: number } | null) => {
+        if (data) setChipBalance(data.playCents ?? 0);
+      })
+      .catch(() => {});
+  }, [user, token, buyOpen]);
 
   // Stop polling on unmount
   useEffect(() => {
@@ -241,7 +255,7 @@ export function DuelHome() {
 
   const paidEnabled = PAID_DUELS_ENABLED_PUBLIC;
   const activeMode: DuelMode =
-    (mode === "chips" || mode === "tournaments") && !paidEnabled ? "quick" : mode;
+    mode === "tournaments" || (mode === "chips" && !paidEnabled) ? "quick" : mode;
 
   return (
     <div className="grain topo min-h-screen bg-void text-text-primary">
@@ -325,11 +339,12 @@ export function DuelHome() {
               <ModeCard
                 icon={<TrophyIcon />}
                 title="Tournaments"
-                subtitle="Enter a bracket, compete for cash prizes."
-                badge="prizes"
-                badgeTone="signal"
-                selected={activeMode === "tournaments"}
-                onSelect={() => setMode("tournaments")}
+                subtitle="Bracket competitions for cash prizes."
+                badge="coming soon"
+                badgeTone="muted"
+                selected={false}
+                disabled
+                onSelect={() => {}}
               />
             </>
           )}
@@ -478,35 +493,36 @@ export function DuelHome() {
           </section>
         ) : activeMode === "chips" ? (
           <section className="bg-surface rounded-xl border border-signal/30 shadow-signal p-6">
-            <h2 className="font-mono text-xs uppercase tracking-[0.14em] text-text-muted mb-1">
-              Chip Duels
-            </h2>
+            <div className="flex items-start justify-between mb-1">
+              <h2 className="font-mono text-xs uppercase tracking-[0.14em] text-text-muted">
+                Chip Duels
+              </h2>
+              {chipBalance !== null && (
+                <span className="font-mono text-xs tabular-nums text-signal">
+                  {chipBalance.toLocaleString()} chips
+                </span>
+              )}
+            </div>
             <p className="text-text-secondary text-sm mb-5">
               Stake non-cashable chips against another player. Winner takes all — zero-sum, no house cut.
             </p>
-            <Link
-              href="/duel/chips"
-              className="inline-flex items-center justify-center rounded-full px-8 min-h-[48px] w-full bg-signal text-void font-semibold text-base tracking-tight hover:brightness-110 active:scale-[0.98] motion-reduce:active:scale-100 shadow-signal transition-[filter,transform] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void"
-            >
-              Find chip match
-            </Link>
+            <div className="flex flex-col gap-3">
+              <Link
+                href="/duel/chips"
+                className="inline-flex items-center justify-center rounded-full px-8 min-h-[48px] w-full bg-signal text-void font-semibold text-base tracking-tight hover:brightness-110 active:scale-[0.98] motion-reduce:active:scale-100 shadow-signal transition-[filter,transform] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void"
+              >
+                Find chip match
+              </Link>
+              <button
+                onClick={() => setBuyOpen(true)}
+                className="inline-flex items-center justify-center rounded-full px-5 min-h-[44px] w-full border border-border-strong text-text-secondary text-sm font-semibold hover:border-signal/50 hover:text-text-primary transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void"
+              >
+                Buy chips
+              </button>
+            </div>
+            <BuyCreditsModal open={buyOpen} onClose={() => setBuyOpen(false)} token={token} />
           </section>
-        ) : (
-          <section className="bg-surface rounded-xl border border-signal/30 shadow-signal p-6">
-            <h2 className="font-mono text-xs uppercase tracking-[0.14em] text-text-muted mb-1">
-              Tournaments
-            </h2>
-            <p className="text-text-secondary text-sm mb-5">
-              Enter a bracket tournament with a paid entry fee. Compete for predetermined cash prizes.
-            </p>
-            <Link
-              href="/tournaments"
-              className="inline-flex items-center justify-center rounded-full px-8 min-h-[48px] w-full bg-signal text-void font-semibold text-base tracking-tight hover:brightness-110 active:scale-[0.98] motion-reduce:active:scale-100 shadow-signal transition-[filter,transform] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void"
-            >
-              Browse tournaments
-            </Link>
-          </section>
-        )}
+        ) : null}
       </div>
     </div>
   );
@@ -540,6 +556,7 @@ function ModeCard({
   badge,
   badgeTone = "muted",
   selected,
+  disabled,
   onSelect,
 }: {
   icon: ReactNode;
@@ -548,18 +565,22 @@ function ModeCard({
   badge: string;
   badgeTone?: "muted" | "signal";
   selected: boolean;
+  disabled?: boolean;
   onSelect: () => void;
 }) {
   return (
     <button
       type="button"
       aria-pressed={selected}
+      disabled={disabled}
       onClick={onSelect}
       className={
-        "group flex items-center gap-4 rounded-xl border p-4 text-left transition-[border-color,background-color,transform] active:scale-[0.99] motion-reduce:active:scale-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void " +
-        (selected
-          ? "border-signal/60 bg-surface shadow-signal"
-          : "border-border-subtle bg-surface-raised hover:border-signal/40")
+        "group flex items-center gap-4 rounded-xl border p-4 text-left transition-[border-color,background-color,transform] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void " +
+        (disabled
+          ? "border-border-subtle bg-surface-raised opacity-50 cursor-default"
+          : selected
+            ? "border-signal/60 bg-surface shadow-signal active:scale-[0.99] motion-reduce:active:scale-100"
+            : "border-border-subtle bg-surface-raised hover:border-signal/40 active:scale-[0.99] motion-reduce:active:scale-100")
       }
     >
       <span

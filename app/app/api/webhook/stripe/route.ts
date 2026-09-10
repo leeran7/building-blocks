@@ -64,7 +64,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const session = event.data.object as unknown as {
     id: string;
     currency?: string | null;
-    metadata: { type?: string; user_id?: string; tournament_id?: string } | null;
+    metadata: { type?: string; user_id?: string; tournament_id?: string; chip_amount?: string } | null;
     amount_total: number | null;
     payment_status?: string | null;
   };
@@ -145,7 +145,7 @@ async function handleCreditsTopup(
     currency?: string | null;
     amount_total: number | null;
     payment_status?: string | null;
-    metadata: { user_id?: string } | null;
+    metadata: { user_id?: string; chip_amount?: string } | null;
   }
 ): Promise<NextResponse> {
   if (!CREDITING_EVENTS.has(eventType)) {
@@ -167,34 +167,38 @@ async function handleCreditsTopup(
   }
 
   const userId = session.metadata?.user_id;
-  const amountCents = session.amount_total ?? 0;
+  // chip_amount includes volume bonuses; fall back to charge amount for
+  // sessions created before the bonus system was added.
+  const chipAmount = session.metadata?.chip_amount
+    ? parseInt(session.metadata.chip_amount, 10)
+    : (session.amount_total ?? 0);
+  const chargeCents = session.amount_total ?? 0;
 
   if (!session.id) {
-    return deadLetter(eventType, "", amountCents, "credits_topup: missing session id");
+    return deadLetter(eventType, "", chargeCents, "credits_topup: missing session id");
   }
   if (!userId) {
-    return deadLetter(eventType, session.id, amountCents, "credits_topup: missing user_id");
+    return deadLetter(eventType, session.id, chargeCents, "credits_topup: missing user_id");
   }
-  if (!Number.isFinite(amountCents) || amountCents <= 0) {
-    return deadLetter(eventType, session.id, amountCents, "credits_topup: invalid amount");
+  if (!Number.isFinite(chipAmount) || chipAmount <= 0) {
+    return deadLetter(eventType, session.id, chargeCents, "credits_topup: invalid amount");
   }
 
   try {
-    const result = await addPurchasedCredits(userId, session.id, amountCents);
+    const result = await addPurchasedCredits(userId, session.id, chipAmount);
     console.log(
       JSON.stringify({
         type: "credits_topup",
         stripe_session_id: session.id,
         user_id: userId,
-        amount_cents: amountCents,
+        charge_cents: chargeCents,
+        chip_amount: chipAmount,
         outcome: result.outcome,
         timestamp: new Date().toISOString(),
       })
     );
     return NextResponse.json({ received: true });
   } catch (err) {
-    // Transient DB failure — 500 so Stripe retries (the unique guard keeps the
-    // retry idempotent).
     console.error("[webhook/stripe] credits_topup transaction failed:", err);
     return NextResponse.json({ error: "Credit top-up processing failed" }, { status: 500 });
   }

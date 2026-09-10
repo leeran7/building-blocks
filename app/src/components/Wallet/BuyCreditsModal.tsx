@@ -1,16 +1,28 @@
 "use client";
 
 /**
- * BuyCreditsModal — top up the prepaid credit balance via Stripe.
+ * BuyCreditsModal — buy non-cashable chips via Stripe Checkout.
  *
- * The only Stripe touchpoint in the paid-duel loop. Quick-pick amounts plus a
- * custom entry; an 18+ checkbox gates the action (also enforced server-side).
+ * Packages give volume bonuses: $5 = 500 (base), $10 = 1,100 (+10%),
+ * $20 = 2,400 (+20%), $50 = 6,500 (+30%). Custom amounts use base rate.
  * On submit we POST /api/credits/checkout and redirect to Stripe Checkout.
  */
 
 import { useState } from "react";
+import {
+  CHIP_PACKAGES,
+  chipsForUsd as chipCount,
+} from "../../config/chipPackages";
 
-const QUICK_USD = [5, 10, 20, 50];
+const PACKAGES = CHIP_PACKAGES.map((p) => ({
+  ...p,
+  tag:
+    p.bonusPct === 0
+      ? undefined
+      : p.usd === 50
+        ? "Best value"
+        : `+${p.bonusPct}%`,
+}));
 
 interface BuyCreditsModalProps {
   open: boolean;
@@ -25,6 +37,9 @@ export function BuyCreditsModal({ open, onClose, token }: BuyCreditsModalProps) 
   const [error, setError] = useState<string | null>(null);
 
   if (!open) return null;
+
+  const chips = chipCount(amountUsd);
+  const isPackage = PACKAGES.some((p) => p.usd === amountUsd);
 
   async function handleBuy() {
     if (!token || !ageConfirmed || amountUsd <= 0) return;
@@ -55,7 +70,7 @@ export function BuyCreditsModal({ open, onClose, token }: BuyCreditsModalProps) 
       className="fixed inset-0 z-50 flex items-center justify-center bg-void/80 backdrop-blur-sm p-4"
       role="dialog"
       aria-modal="true"
-      aria-label="Buy credits"
+      aria-label="Buy chips"
       onClick={onClose}
     >
       <div
@@ -66,21 +81,37 @@ export function BuyCreditsModal({ open, onClose, token }: BuyCreditsModalProps) 
           wallet
         </p>
         <h2 className="font-display text-2xl font-black tracking-tight text-text-primary mb-4">
-          Buy credits
+          Buy chips
         </h2>
 
-        <div className="grid grid-cols-4 gap-2 mb-4">
-          {QUICK_USD.map((usd) => (
+        <div className="grid grid-cols-2 gap-2 mb-4">
+          {PACKAGES.map((pkg) => (
             <button
-              key={usd}
-              onClick={() => setAmountUsd(usd)}
-              className={`inline-flex items-center justify-center rounded-full min-h-[44px] text-sm font-semibold tabular-nums transition-colors ${
-                amountUsd === usd
+              key={pkg.usd}
+              onClick={() => setAmountUsd(pkg.usd)}
+              className={`relative flex flex-col items-center justify-center rounded-xl min-h-[72px] text-sm font-semibold tabular-nums transition-colors ${
+                amountUsd === pkg.usd
                   ? "bg-signal text-void"
                   : "border border-border-strong text-text-secondary hover:border-signal/50"
               }`}
             >
-              ${usd}
+              {pkg.tag && (
+                <span
+                  className={`absolute -top-2 right-2 text-[10px] font-bold rounded-full px-2 py-0.5 ${
+                    amountUsd === pkg.usd
+                      ? "bg-void/20 text-void"
+                      : pkg.usd === 50
+                        ? "bg-signal/20 text-signal"
+                        : "bg-signal/10 text-signal"
+                  }`}
+                >
+                  {pkg.tag}
+                </span>
+              )}
+              <span className="text-lg font-bold">${pkg.usd}</span>
+              <span className={`text-xs font-normal ${amountUsd === pkg.usd ? "text-void/70" : "text-text-muted"}`}>
+                {pkg.chips.toLocaleString()} chips
+              </span>
             </button>
           ))}
         </div>
@@ -93,10 +124,22 @@ export function BuyCreditsModal({ open, onClose, token }: BuyCreditsModalProps) 
             type="number"
             min={5}
             max={500}
-            value={amountUsd}
-            onChange={(e) => setAmountUsd(Number(e.target.value))}
+            value={isPackage ? "" : amountUsd}
+            placeholder={isPackage ? String(amountUsd) : undefined}
+            onChange={(e) => {
+              const v = Number(e.target.value);
+              if (v > 0) setAmountUsd(v);
+            }}
+            onFocus={() => {
+              if (isPackage) setAmountUsd(amountUsd);
+            }}
             className="mt-1 w-full rounded-lg border border-border-strong bg-surface px-3 py-2 text-text-primary tabular-nums focus:border-signal focus:outline-none"
           />
+          {!isPackage && amountUsd > 0 && (
+            <span className="block mt-1 text-xs text-text-muted tabular-nums">
+              = {chips.toLocaleString()} chips (base rate)
+            </span>
+          )}
         </label>
 
         <label className="flex items-start gap-2 mb-4 text-sm text-text-secondary">
@@ -111,7 +154,7 @@ export function BuyCreditsModal({ open, onClose, token }: BuyCreditsModalProps) 
             <a href="/terms" className="text-signal underline underline-offset-2" target="_blank">
               Terms
             </a>
-            . Credits are non-refundable play credits; only winnings are cashable.
+            . Chips are non-refundable and non-cashable.
           </span>
         </label>
 
@@ -129,7 +172,7 @@ export function BuyCreditsModal({ open, onClose, token }: BuyCreditsModalProps) 
             disabled={!ageConfirmed || loading || amountUsd <= 0 || !token}
             className="flex-1 inline-flex items-center justify-center rounded-full px-6 min-h-[44px] bg-signal text-void font-semibold text-sm tracking-tight hover:brightness-110 active:scale-[0.98] transition-[filter,transform] disabled:opacity-40 disabled:cursor-not-allowed"
           >
-            {loading ? "Starting…" : `Buy $${amountUsd} in credits`}
+            {loading ? "Starting..." : `Buy ${chips.toLocaleString()} chips · $${amountUsd}`}
           </button>
         </div>
       </div>
