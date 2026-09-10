@@ -1,16 +1,10 @@
 "use client";
 
 /**
- * Dashboard page — /dashboard
+ * Dashboard — /dashboard
  *
- * Design spec: design.md §7.7
- * AC-17: Unauthenticated → redirect to /auth/signin?redirect=%2Fdashboard
- * AC-18: Shows each owned block with category, rank, altitude, views
- * AC-19: Recharts LineChart per block
- * AC-26: Empty state with CTA to browse categories
- *
- * Client component — needs useAuth() for token-gated fetch.
- * Middleware handles the redirect for unauthenticated users.
+ * "Duels | Climb" tab shell matching the /climb design language.
+ * Same data fetch as before; tabs split the content client-side.
  */
 
 import { useCallback, useEffect, useState } from "react";
@@ -42,7 +36,8 @@ import {
 } from "../../src/components/Dashboard/DuelReplaysSection";
 import { WalletCard } from "../../src/components/Dashboard/WalletCard";
 import { PAID_DUELS_ENABLED_PUBLIC } from "../../src/config/paidDuel";
-import { formatAltitude } from "../../src/lib/units";
+
+type Tab = "duels" | "climb";
 
 interface Payment {
   id: string;
@@ -76,7 +71,6 @@ interface DashboardBlock {
   payments: Payment[];
   platform: CreatorPlatform | null;
   handle: string | null;
-  /** Paid but not yet revealed by the webhook — shown as a "processing" card. */
   pending: boolean;
 }
 
@@ -94,31 +88,11 @@ type FetchState =
   | { status: "error"; message: string }
   | { status: "success"; data: DashboardData };
 
-
-function SkeletonCard() {
-  return (
-    <div className="bg-surface rounded-xl border border-border-subtle p-5 animate-pulse">
-      <div className="flex items-center justify-between mb-3">
-        <div className="h-6 w-20 bg-border-subtle rounded-full" />
-        <div className="h-8 w-16 bg-border-subtle rounded-lg" />
-      </div>
-      <div className="h-6 w-48 bg-border-subtle rounded mt-3" />
-      <div className="h-4 w-24 bg-border-subtle rounded mt-2" />
-      <div className="h-8 w-32 bg-border-subtle rounded mt-2 mb-3" />
-      <div className="h-[120px] bg-border-subtle rounded" />
-      <div className="border-t border-border-subtle my-4" />
-      <div className="h-4 w-16 bg-border-subtle rounded mb-2" />
-      <div className="h-2 w-full bg-border-subtle rounded" />
-      <div className="border-t border-border-subtle my-4" />
-      <div className="h-16 bg-border-subtle rounded-lg" />
-    </div>
-  );
-}
-
 export default function DashboardPage() {
   const router = useRouter();
   const { user, token, loading: authLoading } = useAuth();
   const [fetchState, setFetchState] = useState<FetchState>({ status: "loading" });
+  const [tab, setTab] = useState<Tab>("duels");
 
   const fetchDashboard = useCallback(async () => {
     if (!token) return;
@@ -131,19 +105,13 @@ export default function DashboardPage() {
         return;
       }
       if (!res.ok) {
-        setFetchState({
-          status: "error",
-          message: "Failed to load dashboard. Please try refreshing.",
-        });
+        setFetchState({ status: "error", message: "Failed to load. Please refresh." });
         return;
       }
       const data: DashboardData = await res.json();
       setFetchState({ status: "success", data });
     } catch {
-      setFetchState({
-        status: "error",
-        message: "Network error. Please check your connection and refresh.",
-      });
+      setFetchState({ status: "error", message: "Network error. Please refresh." });
     }
   }, [token, router]);
 
@@ -156,8 +124,6 @@ export default function DashboardPage() {
     fetchDashboard();
   }, [authLoading, user, token, router, fetchDashboard]);
 
-  // While any block is still "processing" (paid, awaiting webhook reveal), poll
-  // so it flips to a real card on its own.
   const hasPending =
     fetchState.status === "success" &&
     fetchState.data.blocks.some((b) => b.pending);
@@ -167,7 +133,6 @@ export default function DashboardPage() {
     return () => clearInterval(id);
   }, [hasPending, fetchDashboard]);
 
-  // Auth loading state
   if (authLoading) {
     return (
       <div className="min-h-screen bg-void flex items-center justify-center">
@@ -176,57 +141,47 @@ export default function DashboardPage() {
     );
   }
 
-  // Not authenticated — redirect happening
-  if (!user) {
-    return null;
-  }
+  if (!user) return null;
 
   return (
-    <div className="min-h-screen bg-void">
-      {/* Shared, auth-aware nav with a "Dashboard" breadcrumb — consistent with
-          the rest of the app (submit, settings, rules, stack/climb/play). */}
+    <main id="main-content" className="grain topo min-h-screen bg-void flex flex-col">
       <Navbar contextLabel="Dashboard" />
 
-      {/* Page heading — context → heading → supporting → action */}
-      <div className="px-4 md:px-6 pt-8 pb-6 max-w-7xl mx-auto flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
-        <div>
-          <p className="text-xs uppercase tracking-[0.15em] text-text-muted">
-            Your account
-          </p>
-          <h1 className="text-2xl md:text-3xl font-bold text-text-primary tracking-tight mt-1">
-            Dashboard
-          </h1>
-          <p className="text-sm text-text-secondary mt-1">
-            Your duels, climb record, and wallet.
-          </p>
+      {/* Tab band */}
+      <div className="border-b border-border-subtle shrink-0">
+        <div className="max-w-2xl mx-auto w-full px-4 py-2 flex items-center justify-between gap-4">
+          <div
+            className="inline-flex items-center gap-1 rounded-full border border-border-strong bg-surface p-1"
+            role="tablist"
+            aria-label="Dashboard sections"
+          >
+            <DashTab label="Duels" active={tab === "duels"} onClick={() => setTab("duels")} />
+            <DashTab label="Climb" active={tab === "climb"} onClick={() => setTab("climb")} />
+          </div>
+          <Link
+            href="/duel"
+            className="inline-flex items-center justify-center rounded-full px-5 min-h-[40px] bg-signal text-void text-sm font-semibold hover:brightness-110 active:scale-[0.98] transition-[filter,transform] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void"
+          >
+            Start a duel
+          </Link>
         </div>
-        <Link
-          href="/duel"
-          className="flex-shrink-0 bg-signal text-void font-semibold rounded-lg px-5 py-2.5 hover:brightness-110 transition min-h-[44px] inline-flex items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void"
-        >
-          Start a duel
-        </Link>
       </div>
 
       {/* Content */}
-      <main id="main-content" className="px-4 md:px-6 pb-16 max-w-7xl mx-auto">
+      <div className="max-w-2xl mx-auto w-full px-4 py-6 flex flex-col gap-5">
         {fetchState.status === "loading" && (
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+          <>
             <SkeletonCard />
             <SkeletonCard />
-            <SkeletonCard />
-          </div>
+          </>
         )}
 
         {fetchState.status === "error" && (
-          <div
-            role="alert"
-            className="bg-surface border border-danger/30 rounded-2xl p-8 text-center"
-          >
-            <p className="text-text-secondary mb-2">{fetchState.message}</p>
+          <div role="alert" className="bg-surface border border-ember/30 rounded-xl p-8 text-center">
+            <p className="text-text-secondary text-sm mb-3">{fetchState.message}</p>
             <button
               onClick={() => window.location.reload()}
-              className="text-sm text-signal hover:underline"
+              className="font-mono text-xs uppercase tracking-[0.12em] text-signal hover:brightness-110 transition"
             >
               Refresh
             </button>
@@ -235,108 +190,103 @@ export default function DashboardPage() {
 
         {fetchState.status === "success" && (
           <>
-            {PAID_DUELS_ENABLED_PUBLIC && <WalletCard token={token} />}
-
-            {fetchState.data.duelStats ? (
-              <DuelRecordCard record={fetchState.data.duelStats} />
-            ) : (
-              <DuelRecordEmpty />
-            )}
-
-            {(fetchState.data.recentDuels?.length ?? 0) > 0 && (
-              <DuelReplaysSection
-                duels={fetchState.data.recentDuels!}
-                userId={fetchState.data.user.id}
-              />
-            )}
-
-            {fetchState.data.freeClimb ? (
-              <FreeClimbCard climb={fetchState.data.freeClimb} />
-            ) : (
-              <FreeClimbEmpty />
-            )}
-
-            <ClimbReplaysSection replays={fetchState.data.replays ?? []} />
-
-            <CreatorPageBand username={fetchState.data.user.username} />
-
-            {/* Legacy paid-stack blocks still render for owners who have them;
-                the paid-stacks surface is retired, so there's no empty-state
-                prompt to acquire new ones. */}
-            {fetchState.data.blocks.length > 0 && (
+            {/* ── Duels tab ─────────────────────────────── */}
+            {tab === "duels" && (
               <>
-                {fetchState.data.blocks.some((b) => !b.pending) && (
-                  <DashboardStats
-                    blocks={fetchState.data.blocks.filter((b) => !b.pending)}
+                {PAID_DUELS_ENABLED_PUBLIC && <WalletCard token={token} />}
+
+                {fetchState.data.duelStats ? (
+                  <DuelRecordCard record={fetchState.data.duelStats} />
+                ) : (
+                  <DuelRecordEmpty />
+                )}
+
+                {(fetchState.data.recentDuels?.length ?? 0) > 0 && (
+                  <DuelReplaysSection
+                    duels={fetchState.data.recentDuels!}
+                    userId={fetchState.data.user.id}
                   />
                 )}
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
-                  {fetchState.data.blocks
-                    .filter((b) => b.pending)
-                    .map((block) => (
-                      <PendingBlockCard
-                        key={block.id}
-                        displayName={block.display_name}
-                        platform={block.platform}
-                        handle={block.handle}
-                        onRefresh={fetchDashboard}
-                      />
-                    ))}
-                  {fetchState.data.blocks
-                    .filter((b) => !b.pending)
-                    .map((block) => (
-                      <BlockCard key={block.id} block={block} />
-                    ))}
-                </div>
               </>
+            )}
+
+            {/* ── Climb tab ─────────────────────────────── */}
+            {tab === "climb" && (
+              <>
+                {fetchState.data.freeClimb ? (
+                  <FreeClimbCard climb={fetchState.data.freeClimb} />
+                ) : (
+                  <FreeClimbEmpty />
+                )}
+
+                <ClimbReplaysSection replays={fetchState.data.replays ?? []} />
+              </>
+            )}
+
+            {/* ── Below-fold: creator page + legacy blocks ── */}
+            <div className="mt-2">
+              <CreatorPageBand username={fetchState.data.user.username} />
+            </div>
+
+            {fetchState.data.blocks.length > 0 && (
+              <div className="flex flex-col gap-4">
+                {fetchState.data.blocks
+                  .filter((b) => b.pending)
+                  .map((block) => (
+                    <PendingBlockCard
+                      key={block.id}
+                      displayName={block.display_name}
+                      platform={block.platform}
+                      handle={block.handle}
+                      onRefresh={fetchDashboard}
+                    />
+                  ))}
+                {fetchState.data.blocks
+                  .filter((b) => !b.pending)
+                  .map((block) => (
+                    <BlockCard key={block.id} block={block} />
+                  ))}
+              </div>
             )}
           </>
         )}
-      </main>
+      </div>
+    </main>
+  );
+}
+
+function DashTab({
+  label,
+  active,
+  onClick,
+}: {
+  label: string;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      role="tab"
+      aria-selected={active}
+      onClick={onClick}
+      className={
+        "inline-flex items-center justify-center px-4 min-h-[44px] rounded-full text-sm font-semibold whitespace-nowrap transition-[color,filter] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void " +
+        (active
+          ? "bg-signal text-void hover:brightness-110"
+          : "text-text-secondary hover:text-text-primary")
+      }
+    >
+      {label}
+    </button>
+  );
+}
+
+function SkeletonCard() {
+  return (
+    <div className="bg-surface rounded-xl border border-border-subtle p-5 animate-pulse">
+      <div className="h-3 w-20 bg-border-subtle rounded mb-4" />
+      <div className="h-6 w-40 bg-border-subtle rounded mb-2" />
+      <div className="h-4 w-28 bg-border-subtle rounded" />
     </div>
   );
 }
-
-/**
- * DashboardStats — overview band (Tailwind UI "Stats" pattern), derived from the
- * owner's real blocks. Above-ground count, best rank, total altitude, total spend.
- */
-function DashboardStats({ blocks }: { blocks: DashboardBlock[] }) {
-  const aboveGround = blocks.filter((b) => !b.buried).length;
-  const bestRank = blocks.reduce(
-    (min, b) => (b.rank < min ? b.rank : min),
-    Infinity
-  );
-  const totalAltitude = blocks.reduce((sum, b) => sum + b.altitude, 0);
-  const totalSpend = blocks.reduce((sum, b) => sum + b.spend_c, 0) / 100;
-
-  const stats = [
-    { label: "Blocks owned", value: String(blocks.length) },
-    { label: "Above ground", value: `${aboveGround}/${blocks.length}` },
-    {
-      label: "Best rank",
-      value: Number.isFinite(bestRank) ? `#${bestRank}` : "—",
-    },
-    { label: "Total altitude", value: formatAltitude(totalAltitude, 0) },
-    { label: "Total invested", value: `$${totalSpend.toFixed(0)}` },
-  ];
-
-  return (
-    <dl className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 mb-8">
-      {stats.map((s) => (
-        <div
-          key={s.label}
-          className="bg-surface border border-border-subtle rounded-2xl shadow-card px-5 py-4"
-        >
-          <dt className="text-[11px] uppercase tracking-[0.12em] text-text-muted">
-            {s.label}
-          </dt>
-          <dd className="font-mono text-2xl font-bold text-text-primary tabular-nums mt-1">
-            {s.value}
-          </dd>
-        </div>
-      ))}
-    </dl>
-  );
-}
-

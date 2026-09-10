@@ -37,7 +37,7 @@ function SectionHeading({ children }: { children: React.ReactNode }) {
 
 export default function RulesPage() {
   return (
-    <main id="main-content" className="min-h-screen bg-void">
+    <main id="main-content" className="grain topo min-h-screen bg-void">
       <Navbar contextLabel="Rules" />
 
       <div className="max-w-2xl mx-auto px-4 py-12">

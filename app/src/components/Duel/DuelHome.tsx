@@ -244,7 +244,7 @@ export function DuelHome() {
   // ─────────────── Render ───────────────
 
   return (
-    <div className="min-h-screen bg-void text-text-primary">
+    <div className="grain topo min-h-screen bg-void text-text-primary">
       <Navbar contextLabel="1v1" />
 
       {/* Tab band */}

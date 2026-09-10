@@ -411,7 +411,7 @@ function SubmitForm() {
 
 export default function SubmitPage() {
   return (
-    <main id="main-content" className="min-h-screen bg-void">
+    <main id="main-content" className="grain topo min-h-screen bg-void">
       <Suspense
         fallback={
           <>

@@ -62,7 +62,7 @@ const TOC = [
 
 export default function TermsPage() {
   return (
-    <main id="main-content" className="min-h-screen bg-void">
+    <main id="main-content" className="grain min-h-screen bg-void">
       <Navbar contextLabel="Terms" />
 
       <div className="max-w-2xl mx-auto px-4 py-12">
