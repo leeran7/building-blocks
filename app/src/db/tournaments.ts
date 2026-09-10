@@ -96,6 +96,11 @@ export async function getTournamentBracket(tournamentId: string) {
   });
 }
 
+// ── Queue defaults ────────────────────────────────────────────────────────
+
+const DEFAULT_QUEUE_BRACKET_SIZE = 4;
+const QUEUE_REG_WINDOW_MS = 24 * 60 * 60 * 1000;
+
 // ── Writes ─────────────────────────────────────────────────────────────────
 
 export async function createTournament(input: CreateTournamentInput) {
@@ -111,6 +116,188 @@ export async function createTournament(input: CreateTournamentInput) {
       created_by_uid: input.createdByUid,
     },
   });
+}
+
+export type QueueResult =
+  | { outcome: "queued"; tournamentId: string; entrantCount: number; bracketSize: number }
+  | { outcome: "started"; tournamentId: string }
+  | { outcome: "duplicate"; tournamentId: string }
+  | { outcome: "insufficient_chips"; shortfall: number };
+
+/**
+ * Queue-based tournament matching. One open tournament per entry-fee tier.
+ * Finds or creates a REGISTRATION tournament at the requested tier, registers
+ * the user, and auto-seeds+starts the bracket once it fills.
+ */
+export async function queueForTournament(
+  userId: string,
+  entryFeeCents: number,
+  generateSeed: () => string
+): Promise<QueueResult> {
+  return prisma.$transaction(async (tx) => {
+    // Lock-then-read: find an open tournament at this tier
+    let tournament = await tx.tournament.findFirst({
+      where: {
+        entry_fee_cents: entryFeeCents,
+        status: TournamentStatus.REGISTRATION,
+      },
+      include: { _count: { select: { entries: true } } },
+    });
+
+    if (!tournament) {
+      const now = new Date();
+      const closes = new Date(now.getTime() + QUEUE_REG_WINDOW_MS);
+      const bracketSize = DEFAULT_QUEUE_BRACKET_SIZE;
+      const prize = entryFeeCents * bracketSize;
+      tournament = await tx.tournament.create({
+        data: {
+          name: `${entryFeeCents} Chip Tournament`,
+          category_slug: "random",
+          entry_fee_cents: entryFeeCents,
+          prize_structure: [
+            { placement: 1, amount_cents: Math.round(prize * 0.6) },
+            { placement: 2, amount_cents: Math.round(prize * 0.4) },
+          ] as unknown as Prisma.JsonArray,
+          bracket_size: bracketSize,
+          registration_opens_at: now,
+          registration_closes_at: closes,
+          created_by_uid: userId,
+        },
+        include: { _count: { select: { entries: true } } },
+      });
+    }
+
+    if (tournament._count.entries >= tournament.bracket_size) {
+      return { outcome: "duplicate", tournamentId: tournament.id };
+    }
+
+    // Debit chips for entry
+    await tx.$executeRaw`SELECT id FROM users WHERE id = ${userId} FOR UPDATE`;
+    const u = await tx.user.findUniqueOrThrow({
+      where: { id: userId },
+      select: { play_credits_cents: true },
+    });
+    if (u.play_credits_cents < entryFeeCents) {
+      return {
+        outcome: "insufficient_chips",
+        shortfall: entryFeeCents - u.play_credits_cents,
+      };
+    }
+
+    try {
+      await tx.tournamentEntry.create({
+        data: { tournament_id: tournament.id, user_id: userId },
+      });
+    } catch (err) {
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
+        return { outcome: "duplicate", tournamentId: tournament.id };
+      }
+      throw err;
+    }
+
+    const afterChips = u.play_credits_cents - entryFeeCents;
+    await tx.user.update({
+      where: { id: userId },
+      data: { play_credits_cents: afterChips },
+    });
+
+    const newCount = tournament._count.entries + 1;
+
+    if (newCount >= tournament.bracket_size) {
+      // Auto-seed and start
+      const entries = await tx.tournamentEntry.findMany({
+        where: { tournament_id: tournament.id },
+      });
+      const shuffled = shuffle(entries);
+      for (let i = 0; i < shuffled.length; i++) {
+        await tx.tournamentEntry.update({
+          where: { id: shuffled[i].id },
+          data: { seed_position: i + 1 },
+        });
+      }
+
+      const matchCount = tournament.bracket_size / 2;
+      for (let pos = 0; pos < matchCount; pos++) {
+        const p1Entry = shuffled[pos * 2];
+        const p2Entry = shuffled[pos * 2 + 1];
+        const isBye = !p1Entry || !p2Entry;
+        const duelId = nanoid();
+        const seed = generateSeed();
+
+        if (isBye) {
+          const realPlayer = p1Entry ?? p2Entry;
+          await tx.duel.create({
+            data: {
+              id: duelId,
+              seed,
+              category_slug: tournament.category_slug,
+              player1_id: realPlayer.user_id,
+              status: DuelStatus.completed,
+              tournament_id: tournament.id,
+              tournament_round: 1,
+              bracket_position: pos,
+              is_bye: true,
+              winner_id: realPlayer.user_id,
+              completed_at: new Date(),
+            },
+          });
+        } else {
+          await tx.duel.create({
+            data: {
+              id: duelId,
+              seed,
+              category_slug: tournament.category_slug,
+              player1_id: p1Entry.user_id,
+              player2_id: p2Entry.user_id,
+              status: DuelStatus.active,
+              started_at: new Date(),
+              tournament_id: tournament.id,
+              tournament_round: 1,
+              bracket_position: pos,
+            },
+          });
+        }
+      }
+
+      await tx.tournament.update({
+        where: { id: tournament.id },
+        data: {
+          status: TournamentStatus.IN_PROGRESS,
+          current_round: 1,
+          started_at: new Date(),
+        },
+      });
+
+      return { outcome: "started", tournamentId: tournament.id };
+    }
+
+    return {
+      outcome: "queued",
+      tournamentId: tournament.id,
+      entrantCount: newCount,
+      bracketSize: tournament.bracket_size,
+    };
+  });
+}
+
+/**
+ * Get queue status per tier: how many players are waiting in each active
+ * REGISTRATION tournament.
+ */
+export async function getQueueStatus(): Promise<
+  { entryFeeCents: number; entrantCount: number; bracketSize: number; tournamentId: string }[]
+> {
+  const open = await prisma.tournament.findMany({
+    where: { status: TournamentStatus.REGISTRATION },
+    include: { _count: { select: { entries: true } } },
+    orderBy: { entry_fee_cents: "asc" },
+  });
+  return open.map((t) => ({
+    entryFeeCents: t.entry_fee_cents,
+    entrantCount: t._count.entries,
+    bracketSize: t.bracket_size,
+    tournamentId: t.id,
+  }));
 }
 
 export async function registerForTournament(

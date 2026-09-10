@@ -51,7 +51,7 @@ export async function GET(_request: NextRequest): Promise<ImageResponse | Respon
               marginBottom: 16,
             }}
           >
-            Climb higher. Duel for the pot.
+            Climb higher. Outlast everyone.
           </div>
 
           <div
