@@ -30,7 +30,7 @@ import {
 } from "../../src/components/Legal/LegalArticle";
 import { buildMetadata } from "../../src/lib/seo";
 
-const UPDATED = "September 9, 2026";
+const UPDATED = "September 10, 2026";
 const CONTACT_EMAIL = "hello@doomstack.lol";
 
 export const metadata = buildMetadata({
@@ -229,6 +229,14 @@ export default function TermsPage() {
               pot, credited to the winner as <strong>winnings</strong>. The platform
               fee is retained by us as compensation for operating the competition
               and is non-refundable.
+            </li>
+            <li>
+              <strong>How you’re matched.</strong> A paid duel can be entered
+              two ways: you can send a private challenge link to a specific
+              opponent, or you can join the public queue at a stake tier,
+              which automatically pairs you with another eligible player
+              waiting at that same tier. When you use the public queue, you do
+              not choose or know your opponent in advance.
             </li>
             <li>
               <strong>Winnings &amp; cash-out.</strong> Only your winnings balance is

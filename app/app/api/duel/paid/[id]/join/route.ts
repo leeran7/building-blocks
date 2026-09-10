@@ -12,7 +12,11 @@ import { z } from "zod";
 import { checkRateLimit } from "../../../../../../src/lib/rateLimit";
 import { guardPaidDuelRequest } from "../../../../../../src/lib/paidDuelGuards";
 import { recordAgeConfirmation } from "../../../../../../src/db/user";
-import { joinPaidDuel, type JoinPaidCode } from "../../../../../../src/db/duel";
+import {
+  joinPaidDuel,
+  getActivePaidDuelForUser,
+  type JoinPaidCode,
+} from "../../../../../../src/db/duel";
 import { InsufficientCreditsError } from "../../../../../../src/db/credits";
 
 export const runtime = "nodejs";
@@ -66,6 +70,15 @@ export async function POST(
   }
 
   await recordAgeConfirmation(uid);
+
+  // Already mid-match? Don't let a second stake go down while one is in play.
+  const activeDuel = await getActivePaidDuelForUser(uid);
+  if (activeDuel) {
+    return NextResponse.json(
+      { error: "You already have an active paid duel", code: "DUEL_ALREADY_ACTIVE", duelId: activeDuel.id },
+      { status: 409 }
+    );
+  }
 
   try {
     const outcome = await joinPaidDuel(id, uid);

@@ -20,7 +20,11 @@ import { recordAgeConfirmation } from "../../../../src/db/user";
 import { newRunSeed } from "../../../../src/game/rng";
 import { CATEGORY_BY_SLUG } from "../../../../src/lib/categories";
 import { prisma } from "../../../../src/db/client";
-import { createPaidRoom } from "../../../../src/db/duel";
+import {
+  createPaidRoom,
+  DuplicateOpenPaidRoomError,
+  getActivePaidDuelForUser,
+} from "../../../../src/db/duel";
 import { InsufficientCreditsError } from "../../../../src/db/credits";
 import { isValidStakeCents } from "../../../../src/config/paidDuel";
 import { DuelStatus } from "@prisma/client";
@@ -90,7 +94,18 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   await recordAgeConfirmation(uid);
 
-  // One open paid pending challenge per user.
+  // Already mid-match? Don't let a second stake go down while one is in play.
+  const activeDuel = await getActivePaidDuelForUser(uid);
+  if (activeDuel) {
+    return NextResponse.json(
+      { error: "You already have an active paid duel", code: "DUEL_ALREADY_ACTIVE", duelId: activeDuel.id },
+      { status: 409 }
+    );
+  }
+
+  // One open paid pending challenge per user. This is a fast-path check for
+  // the common case; createPaidRoom's DB constraint is the race-proof backstop
+  // (see DuplicateOpenPaidRoomError below) for two concurrent creates.
   const existing = await prisma.duel.findFirst({
     where: { player1_id: uid, status: DuelStatus.pending, stake_cents: { not: null } },
     select: { id: true },
@@ -116,6 +131,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           shortfallCents: err.shortfallCents,
         },
         { status: 402 }
+      );
+    }
+    if (err instanceof DuplicateOpenPaidRoomError) {
+      return NextResponse.json(
+        { error: "You have an open paid challenge", code: "DUEL_ALREADY_PENDING", existingId: err.existingId },
+        { status: 409 }
       );
     }
     console.error("[POST /api/duel/paid]", err);

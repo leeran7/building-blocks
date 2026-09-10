@@ -3,8 +3,16 @@
  *
  * Covers the pure, deterministic pieces that don't need a database: the stake
  * bucket split (play-first), payout math, the stake allow-list, and geoblocking.
- * The transactional DB helpers (stakeInTx / settlePayoutInTx / claimRefundInTx)
- * are exercised in integration testing against a real Postgres.
+ *
+ * NOT covered here: the transactional DB helpers (stakeInTx / joinPaidDuel /
+ * createPaidRoom / settlePayoutInTx / claimRefundInTx) and the DB-level
+ * one-open-paid-room-per-user constraint. This repo's src/db/* unit tests run
+ * against a hand-built in-memory Prisma fake (tests/db/fakePrisma.ts), which
+ * has no row-locking or unique-constraint semantics — extending it would test
+ * the fake, not the actual concurrency guarantee. Real coverage for those
+ * paths needs an integration test against a live Postgres (CI already
+ * provisions one for `tower_test`; the test harness doesn't yet wire vitest to
+ * it). Tracked as a follow-up, not silently assumed to exist.
  */
 
 import { describe, it, expect, beforeEach, afterEach } from "vitest";

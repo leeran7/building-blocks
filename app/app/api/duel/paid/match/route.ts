@@ -26,8 +26,11 @@ import {
   joinPaidDuel,
   createPaidRoom,
   getOpenPaidDuelForUser,
-  getActiveDuelForUser,
+  getOwnPaidRoomStatus,
+  getActivePaidDuelForUser,
+  DuplicateOpenPaidRoomError,
 } from "../../../../../src/db/duel";
+import { DuelStatus } from "@prisma/client";
 import { isValidStakeCents } from "../../../../../src/config/paidDuel";
 import {
   hashIp,
@@ -93,8 +96,18 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   await recordAgeConfirmation(uid);
 
-  // Already waiting in a room? Return it rather than opening a second (one open
-  // paid room per user). The client surfaces the actual tier.
+  // Already mid-match? Don't let a second stake go down while one is in play.
+  const activeDuel = await getActivePaidDuelForUser(uid);
+  if (activeDuel) {
+    return NextResponse.json(
+      { error: "You already have an active paid duel", code: "DUEL_ALREADY_ACTIVE", duelId: activeDuel.id },
+      { status: 409 }
+    );
+  }
+
+  // Already waiting in a room? Return it rather than opening a second. This is
+  // a fast-path check for the common case; createPaidRoom's DB constraint
+  // (DuplicateOpenPaidRoomError) is the race-proof backstop below.
   const mine = await getOpenPaidDuelForUser(uid);
   if (mine) {
     return NextResponse.json({ status: "waiting", duelId: mine.id, stakeCents: mine.stakeCents });
@@ -142,6 +155,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         { status: 402 }
       );
     }
+    if (err instanceof DuplicateOpenPaidRoomError) {
+      // Lost a create race against ourself (e.g. a double-click) — the DB
+      // constraint caught it; surface the room that actually won.
+      return NextResponse.json({ status: "waiting", duelId: err.existingId, stakeCents });
+    }
     console.error("[POST /api/duel/paid/match] createPaidRoom failed:", err);
     return NextResponse.json({ error: "Internal server error", code: "INTERNAL_ERROR" }, { status: 500 });
   }
@@ -166,17 +184,22 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: "Too many requests", code: "RATE_LIMITED" }, { status: 429 });
   }
 
-  // Matched? Our waiting room was joined by someone (it flips to active with us
-  // as a participant), or we joined one.
-  const active = await getActiveDuelForUser(uid);
-  if (active && active.stake_cents != null) {
-    return NextResponse.json({ status: "matched", duelId: active.id });
+  // Poll the specific room WE created and are waiting on — not "any active
+  // duel the caller happens to be in." Joining someone else's room already
+  // returns "matched" synchronously from the POST that performs the join, so
+  // polling only ever needs to answer "has MY room been joined yet?". Checking
+  // any recent active duel instead could report an unrelated match (e.g. one
+  // that just finished) as if it were this wait resolving.
+  const own = await getOwnPaidRoomStatus(uid);
+  if (!own) {
+    return NextResponse.json({ status: "idle" });
   }
-
-  const mine = await getOpenPaidDuelForUser(uid);
-  if (mine) {
-    return NextResponse.json({ status: "waiting", duelId: mine.id, stakeCents: mine.stakeCents });
+  if (own.status === DuelStatus.active) {
+    return NextResponse.json({ status: "matched", duelId: own.id });
   }
-
+  if (own.status === DuelStatus.pending) {
+    return NextResponse.json({ status: "waiting", duelId: own.id, stakeCents: own.stakeCents });
+  }
+  // Voided (cancelled/refunded) or completed — nothing to report.
   return NextResponse.json({ status: "idle" });
 }

@@ -266,6 +266,24 @@ export async function getActiveDuelForUser(
 }
 
 /**
+ * The user's currently in-progress PAID duel, if any — used to block staking
+ * into a second match while one is still being played. A much longer window
+ * than getActiveDuelForUser's matchmaking default: an active game can run for
+ * several minutes, and this check must cover the whole match, not just the
+ * few seconds right after pairing.
+ */
+export async function getActivePaidDuelForUser(userId: string): Promise<Duel | null> {
+  return prisma.duel.findFirst({
+    where: {
+      status: DuelStatus.active,
+      stake_cents: { not: null },
+      OR: [{ player1_id: userId }, { player2_id: userId }],
+    },
+    orderBy: { created_at: "desc" },
+  });
+}
+
+/**
  * Complete a duel atomically. Uses SELECT FOR UPDATE so concurrent result
  * submissions (e.g. both players submit at the same millisecond) are
  * serialized and only the first write wins.
@@ -938,10 +956,27 @@ export async function joinPaidDuel(id: string, uid: string): Promise<JoinPaidOut
 }
 
 /**
+ * Thrown when the creator already has another open paid room. The DB-level
+ * partial unique index (duel_one_open_paid_room_per_user) is the actual
+ * enforcement — this wraps that constraint violation so callers get the
+ * existing room id instead of a raw Postgres error. A pre-check in the route
+ * handles the common case; this is the race-proof backstop.
+ */
+export class DuplicateOpenPaidRoomError extends Error {
+  constructor(public readonly existingId: string) {
+    super("DUEL_ALREADY_PENDING");
+  }
+}
+
+/**
  * Create a pending paid challenge (a public waiting room) with the creator's
  * stake escrowed. Escrow row is created first so the STAKE ledger can reference
  * it, then the debit + bucket split are recorded. Throws
- * InsufficientCreditsError (rolling back) when the creator is short.
+ * InsufficientCreditsError (rolling back) when the creator is short, or
+ * DuplicateOpenPaidRoomError (rolling back, no debit) when the creator already
+ * has an open room — two concurrent create calls both pass the app-level
+ * pre-check, but only one wins the DB constraint; the loser gets a clean error
+ * instead of a second stake.
  */
 export async function createPaidRoom(
   uid: string,
@@ -950,27 +985,35 @@ export async function createPaidRoom(
   id: string,
   seed: string
 ): Promise<void> {
-  await prisma.$transaction(async (tx) => {
-    await tx.duel.create({
-      data: {
-        id,
-        seed,
-        category_slug: categorySlug,
-        player1_id: uid,
-        status: DuelStatus.pending,
-        stake_cents: stakeCents,
-      },
+  try {
+    await prisma.$transaction(async (tx) => {
+      await tx.duel.create({
+        data: {
+          id,
+          seed,
+          category_slug: categorySlug,
+          player1_id: uid,
+          status: DuelStatus.pending,
+          stake_cents: stakeCents,
+        },
+      });
+      const split = await stakeInTx(tx, uid, stakeCents, id);
+      await tx.duel.update({
+        where: { id },
+        data: {
+          player1_staked: true,
+          player1_stake_play_cents: split.playDebited,
+          player1_stake_winnings_cents: split.winningsDebited,
+        },
+      });
     });
-    const split = await stakeInTx(tx, uid, stakeCents, id);
-    await tx.duel.update({
-      where: { id },
-      data: {
-        player1_staked: true,
-        player1_stake_play_cents: split.playDebited,
-        player1_stake_winnings_cents: split.winningsDebited,
-      },
-    });
-  });
+  } catch (err) {
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
+      const existing = await getOpenPaidDuelForUser(uid);
+      throw new DuplicateOpenPaidRoomError(existing?.id ?? id);
+    }
+    throw err;
+  }
 }
 
 export interface OpenPaidDuel {
@@ -1031,4 +1074,26 @@ export async function getOpenPaidDuelForUser(
     select: { id: true, stake_cents: true },
   });
   return d ? { id: d.id, stakeCents: d.stake_cents as number } : null;
+}
+
+/**
+ * Status of the paid room this user most recently CREATED (as player1), for
+ * the matchmaker's waiting-room poll.
+ *
+ * Deliberately scoped to rooms the user created, not "any active duel they're
+ * in": joining an opponent's room already returns "matched" synchronously from
+ * the POST that performs the join, so polling is only ever needed for the
+ * other half — waiting for someone to join *your* room. Checking the specific
+ * room you created (rather than any recent active duel you're a participant
+ * in) avoids reporting an unrelated stale match as "matched".
+ */
+export async function getOwnPaidRoomStatus(
+  uid: string
+): Promise<{ id: string; status: DuelStatus; stakeCents: number } | null> {
+  const d = await prisma.duel.findFirst({
+    where: { player1_id: uid, stake_cents: { not: null } },
+    orderBy: { created_at: "desc" },
+    select: { id: true, status: true, stake_cents: true },
+  });
+  return d ? { id: d.id, status: d.status, stakeCents: d.stake_cents as number } : null;
 }

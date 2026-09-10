@@ -715,6 +715,11 @@ enum DuelStatus {
   voided
 }
 
+// Partial unique index (Prisma schema can't express a WHERE-qualified unique
+// index) — one open paid waiting room per user, enforced at the DB layer so a
+// check-then-create race can't stake a second room. See migration
+// 20260910050000_one_open_paid_room_per_user.
+// CREATE UNIQUE INDEX duel_one_open_paid_room_per_user ON duels (player1_id) WHERE (status = 'pending' AND stake_cents IS NOT NULL AND player2_id IS NULL)
 model Duel {
   id                String     @id
   seed              String

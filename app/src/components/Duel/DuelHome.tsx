@@ -60,6 +60,18 @@ export function DuelHome() {
   const [mode, setMode] = useState<DuelMode>("quick");
 
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const createButtonRef = useRef<HTMLButtonElement>(null);
+  const prevCreateStatus = useRef(createState.status);
+
+  // Restore focus to the Create button when dismissing the "existing
+  // challenge" / error states back to idle, so keyboard focus doesn't fall
+  // into the void when that content disappears.
+  useEffect(() => {
+    if (prevCreateStatus.current !== "idle" && createState.status === "idle") {
+      createButtonRef.current?.focus();
+    }
+    prevCreateStatus.current = createState.status;
+  }, [createState.status]);
 
   // Fetch W-L stats on mount when signed in
   useEffect(() => {
@@ -263,23 +275,11 @@ export function DuelHome() {
             role="tablist"
             aria-label="1v1 sections"
           >
-            {/* Order matches the free-climb shell: Leaderboard, then Play. */}
-            <Link
-              href="/duel/leaderboard"
-              role="tab"
-              aria-selected={false}
-              className="inline-flex items-center justify-center px-4 min-h-[44px] rounded-full text-sm font-semibold whitespace-nowrap text-text-secondary hover:text-text-primary transition-colors focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void"
-            >
-              Leaderboard
-            </Link>
-            <span
-              role="tab"
-              aria-selected={true}
-              aria-current="page"
-              className="inline-flex items-center justify-center px-4 min-h-[44px] rounded-full text-sm font-semibold whitespace-nowrap bg-signal text-void"
-            >
-              Play
-            </span>
+            {/* Order matches the free-climb shell: Leaderboard, then Play.
+                Both entries are Links (mirroring FreeStackShell's FreeTab) so
+                the pattern doesn't diverge across the two nav-tab surfaces. */}
+            <DuelNavTab href="/duel/leaderboard" label="Leaderboard" active={false} />
+            <DuelNavTab href="/duel" label="Play" active={true} />
           </div>
         </div>
       </div>
@@ -310,12 +310,11 @@ export function DuelHome() {
           )}
         </header>
 
-        {/* Mode menu — pick a way into a match, then act in the panel below. */}
-        <div
-          className="grid gap-3"
-          role="tablist"
-          aria-label="Duel modes"
-        >
+        {/* Mode menu — a segmented control, not a tabs widget: selecting a mode
+            swaps the panel below via React state, but there's no roving
+            tabIndex / arrow-key navigation, so it doesn't get to claim the
+            role="tab" contract. aria-pressed communicates selection instead. */}
+        <div className="grid gap-3" role="group" aria-label="Duel modes">
           <ModeCard
             icon={<BoltIcon />}
             title="Quick Play"
@@ -352,17 +351,16 @@ export function DuelHome() {
             <p className="text-text-secondary text-sm mb-4">
               Sign in to get matched, challenge a friend, and save your record.
             </p>
-            <a
+            <Link
               href="/auth/signin"
-              className="inline-flex items-center justify-center rounded-full px-6 min-h-[44px] bg-signal text-void font-semibold text-sm tracking-tight hover:brightness-110 active:scale-[0.98] transition-[filter,transform] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void"
+              className="inline-flex items-center justify-center rounded-full px-6 min-h-[44px] bg-signal text-void font-semibold text-sm tracking-tight hover:brightness-110 active:scale-[0.98] motion-reduce:active:scale-100 transition-[filter,transform] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void"
             >
               Sign in to play
-            </a>
+            </Link>
           </section>
         ) : activeMode === "quick" ? (
           <section
             id="free-duel"
-            role="tabpanel"
             className="bg-surface rounded-xl border border-signal/30 shadow-signal p-6 scroll-mt-20"
           >
             <h2 className="font-mono text-xs uppercase tracking-[0.14em] text-text-muted mb-1">
@@ -372,20 +370,33 @@ export function DuelHome() {
               Get matched with a random player and race up the same tower.
             </p>
 
+            {/* Always-mounted live region — a region that only appears
+                alongside its own content can miss the announcement on some
+                SR/browser combos. */}
+            <p className="sr-only" aria-live="polite">
+              {queueState.status === "searching"
+                ? "Searching for an opponent…"
+                : queueState.status === "timeout"
+                  ? "Search timed out — no opponent found."
+                  : queueState.status === "error"
+                    ? queueState.message
+                    : ""}
+            </p>
+
             {queueState.status === "idle" && (
               <button
                 onClick={handleSearch}
-                className="inline-flex items-center justify-center rounded-full px-8 min-h-[48px] w-full bg-signal text-void font-semibold text-base tracking-tight hover:brightness-110 active:scale-[0.98] shadow-signal transition-[filter,transform] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void"
+                className="inline-flex items-center justify-center rounded-full px-8 min-h-[48px] w-full bg-signal text-void font-semibold text-base tracking-tight hover:brightness-110 active:scale-[0.98] motion-reduce:active:scale-100 shadow-signal transition-[filter,transform] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void"
               >
                 Find match
               </button>
             )}
 
             {queueState.status === "searching" && (
-              <div className="flex flex-col gap-3" aria-live="polite">
+              <div className="flex flex-col gap-3">
                 <div className="flex items-center gap-2 text-text-secondary text-sm">
                   <span
-                    className="w-4 h-4 rounded-full border-2 border-text-muted border-t-signal animate-spin"
+                    className="w-4 h-4 rounded-full border-2 border-text-muted border-t-signal animate-spin motion-reduce:animate-none"
                     aria-hidden="true"
                   />
                   Searching for an opponent…
@@ -406,7 +417,7 @@ export function DuelHome() {
                 </p>
                 <button
                   onClick={handleSearch}
-                  className="inline-flex items-center justify-center rounded-full px-8 min-h-[48px] w-full bg-signal text-void font-semibold text-base tracking-tight hover:brightness-110 active:scale-[0.98] shadow-signal transition-[filter,transform] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void"
+                  className="inline-flex items-center justify-center rounded-full px-8 min-h-[48px] w-full bg-signal text-void font-semibold text-base tracking-tight hover:brightness-110 active:scale-[0.98] motion-reduce:active:scale-100 shadow-signal transition-[filter,transform] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void"
                 >
                   Search again
                 </button>
@@ -426,10 +437,7 @@ export function DuelHome() {
             )}
           </section>
         ) : activeMode === "challenge" ? (
-          <section
-            role="tabpanel"
-            className="bg-surface rounded-xl border border-border-subtle p-6"
-          >
+          <section className="bg-surface rounded-xl border border-border-subtle p-6">
             <h2 className="font-mono text-xs uppercase tracking-[0.14em] text-text-muted mb-1">
               Challenge a friend
             </h2>
@@ -437,10 +445,21 @@ export function DuelHome() {
               Create a private challenge link and share it with a specific opponent.
             </p>
 
+            <p className="sr-only" aria-live="polite">
+              {createState.status === "loading"
+                ? "Creating challenge…"
+                : createState.status === "existing"
+                  ? "You already have an open challenge."
+                  : createState.status === "error"
+                    ? createState.message
+                    : ""}
+            </p>
+
             {createState.status === "idle" && (
               <button
+                ref={createButtonRef}
                 onClick={handleCreate}
-                className="inline-flex items-center justify-center rounded-full px-8 min-h-[48px] w-full bg-signal text-void font-semibold text-base tracking-tight hover:brightness-110 active:scale-[0.98] shadow-signal transition-[filter,transform] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void"
+                className="inline-flex items-center justify-center rounded-full px-8 min-h-[48px] w-full bg-signal text-void font-semibold text-base tracking-tight hover:brightness-110 active:scale-[0.98] motion-reduce:active:scale-100 shadow-signal transition-[filter,transform] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void"
               >
                 Create challenge link
               </button>
@@ -449,7 +468,7 @@ export function DuelHome() {
             {createState.status === "loading" && (
               <div className="flex items-center gap-2 text-text-muted text-sm">
                 <span
-                  className="w-4 h-4 rounded-full border-2 border-text-muted border-t-signal animate-spin"
+                  className="w-4 h-4 rounded-full border-2 border-text-muted border-t-signal animate-spin motion-reduce:animate-none"
                   aria-hidden="true"
                 />
                 Creating…
@@ -457,17 +476,17 @@ export function DuelHome() {
             )}
 
             {createState.status === "existing" && (
-              <div className="flex flex-col gap-2">
+              <div className="flex flex-col gap-2" role="status">
                 <p className="text-warning text-sm">
                   You already have an open challenge. Reopen it, or cancel it to
                   create a new one.
                 </p>
-                <a
+                <Link
                   href={`/duel/${createState.existingId}`}
                   className="inline-flex items-center justify-center rounded-full px-5 min-h-[44px] border border-border-strong text-text-secondary text-sm hover:border-signal/50 transition-colors"
                 >
                   Go to existing duel
-                </a>
+                </Link>
                 <button
                   onClick={() => handleCancelExisting(createState.existingId)}
                   className="inline-flex items-center justify-center rounded-full px-5 min-h-[44px] border border-border-strong text-text-secondary text-sm hover:border-ember/50 transition-colors"
@@ -545,11 +564,10 @@ function ModeCard({
   return (
     <button
       type="button"
-      role="tab"
-      aria-selected={selected}
+      aria-pressed={selected}
       onClick={onSelect}
       className={
-        "group flex items-center gap-4 rounded-xl border p-4 text-left transition-[border-color,background-color,transform] active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void " +
+        "group flex items-center gap-4 rounded-xl border p-4 text-left transition-[border-color,background-color,transform] active:scale-[0.99] motion-reduce:active:scale-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void " +
         (selected
           ? "border-signal/60 bg-surface shadow-signal"
           : "border-border-subtle bg-surface-raised hover:border-signal/40")
@@ -582,7 +600,7 @@ function ModeCard({
             {badge}
           </span>
         </span>
-        <span className="block text-sm text-text-secondary mt-0.5 truncate">{subtitle}</span>
+        <span className="block text-sm text-text-secondary mt-0.5 line-clamp-2">{subtitle}</span>
       </span>
       <span
         className={
@@ -623,5 +641,37 @@ function CoinsIcon() {
       <path d="M15 12.5c2.5-.2 6-1.2 6-3.5" />
       <path d="M9 15v2c0 1.66 2.7 3 6 3s6-1.34 6-3v-5" />
     </svg>
+  );
+}
+
+/**
+ * Route links, not a WAI-ARIA tabs widget — mirrors FreeStackShell's FreeTab
+ * exactly so the two nav-tab surfaces don't diverge. Both entries render as
+ * Links (even the active one) rather than swapping to a <span> for "self".
+ */
+function DuelNavTab({
+  href,
+  label,
+  active,
+}: {
+  href: "/duel" | "/duel/leaderboard";
+  label: string;
+  active: boolean;
+}) {
+  return (
+    <Link
+      href={href}
+      role="tab"
+      aria-selected={active}
+      aria-current={active ? "page" : undefined}
+      className={
+        "inline-flex items-center justify-center px-4 min-h-[44px] rounded-full text-sm font-semibold whitespace-nowrap transition-[color,filter] focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void " +
+        (active
+          ? "bg-signal text-void hover:brightness-110"
+          : "text-text-secondary hover:text-text-primary")
+      }
+    >
+      {label}
+    </Link>
   );
 }

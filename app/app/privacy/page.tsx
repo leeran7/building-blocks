@@ -33,7 +33,7 @@ import {
 } from "../../src/components/Legal/LegalArticle";
 import { buildMetadata } from "../../src/lib/seo";
 
-const UPDATED = "September 9, 2026";
+const UPDATED = "September 10, 2026";
 const CONTACT_EMAIL = "hello@doomstack.lol";
 
 export const metadata = buildMetadata({
@@ -208,6 +208,15 @@ export default function PrivacyPage() {
               paid duels, we don’t rely on it for this purpose.
             </li>
             <li>
+              <strong>Collusion &amp; abuse detection for paid duels</strong> —
+              to deter self-play and chip-dumping when you’re matched
+              automatically at a stake tier, we compare a one-way hash of your
+              IP address against other waiting rooms’ creator-IP hashes; we
+              never store or compare the raw address for this purpose, and
+              each hash is kept only for the roughly two-hour life of a
+              matchmaking room.
+            </li>
+            <li>
               <strong>Click &amp; view counts</strong> — when someone clicks a
               listing, the link routes through our server (<code>/go/…</code>)
               so we can count the click before forwarding to the destination.
@@ -294,7 +303,10 @@ export default function PrivacyPage() {
             destination URL (or the social platform and handle it points at),
             category, altitude/rank, and (for the free climb board) your chosen
             display name are visible to anyone who visits the Service — that’s
-            the product. If you set a public username, your creator page at{" "}
+            the product. Your display name is also shown to other signed-in
+            players in the public paid-duel matchmaking lobby while your
+            challenge is open and waiting for an opponent. If you set a public
+            username, your creator page at{" "}
             <code>/c/your-username</code> aggregates that already-public data:
             your visible listings and your public climbing-record standing. It
             never exposes your email or other private account details. Do not

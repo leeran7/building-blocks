@@ -275,7 +275,7 @@ export function PaidArena() {
           Paid Arena
         </h2>
         {wallet && (
-          <span className="font-mono text-xs tabular-nums text-text-muted">
+          <span className="font-mono text-xs tabular-nums text-text-secondary">
             <span className="text-signal font-semibold">{dollars(wallet.winningsCents)}</span> won
             {" · "}
             {dollars(wallet.playCents)} credits
@@ -285,7 +285,17 @@ export function PaidArena() {
       <p className="text-text-secondary text-sm mt-1 mb-4">
         Stake credits head-to-head. Winner takes{" "}
         <span className="text-signal font-semibold">{dollars(payoutCents)}</span>{" "}
-        <span className="text-text-muted">(10% fee)</span>.
+        <span className="text-text-secondary">(10% fee)</span>.
+      </p>
+
+      {/* Always-mounted live region — a region that only appears alongside its
+          own content can miss the announcement on some SR/browser combos. */}
+      <p className="sr-only" aria-live="polite">
+        {status === "waiting" && waitingRoom
+          ? `Waiting for a ${dollars(waitingRoom.stakeCents)} opponent…`
+          : status === "finding"
+            ? "Finding a match…"
+            : ""}
       </p>
 
       {/* Stake tier picker */}
@@ -296,9 +306,9 @@ export function PaidArena() {
             onClick={() => setStakeCents(cents)}
             disabled={status !== "idle"}
             aria-pressed={stakeCents === cents}
-            className={`inline-flex items-center justify-center rounded-full min-h-[44px] text-sm font-semibold tabular-nums transition-colors disabled:opacity-50 ${
+            className={`inline-flex items-center justify-center rounded-full min-h-[44px] text-sm font-semibold tabular-nums transition-colors disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void ${
               stakeCents === cents
-                ? "bg-signal text-void"
+                ? "border border-signal text-signal bg-signal/10"
                 : "border border-border-strong text-text-secondary hover:border-signal/50"
             }`}
           >
@@ -312,7 +322,7 @@ export function PaidArena() {
           type="checkbox"
           checked={ageConfirmed}
           onChange={(e) => setAgeConfirmed(e.target.checked)}
-          className="mt-0.5 accent-signal"
+          className="mt-0.5 accent-signal focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void"
         />
         <span>
           I confirm I am 18+ and agree to the{" "}
@@ -324,15 +334,15 @@ export function PaidArena() {
       </label>
 
       {status === "waiting" && waitingRoom ? (
-        <div className="rounded-lg border border-signal/40 bg-surface-raised p-4" aria-live="polite">
+        <div className="rounded-lg border border-signal/40 bg-surface-raised p-4">
           <div className="flex items-center gap-2 text-text-secondary text-sm mb-3">
             <span
-              className="w-4 h-4 rounded-full border-2 border-text-muted border-t-signal animate-spin"
+              className="w-4 h-4 rounded-full border-2 border-text-muted border-t-signal animate-spin motion-reduce:animate-none"
               aria-hidden="true"
             />
             Waiting for a {dollars(waitingRoom.stakeCents)} opponent…
           </div>
-          <p className="text-text-muted text-xs mb-3">
+          <p className="text-text-secondary text-xs mb-3">
             Your {dollars(waitingRoom.stakeCents)} stake is held in escrow. Cancel to refund it.
           </p>
           <button
@@ -346,7 +356,7 @@ export function PaidArena() {
         <button
           onClick={findMatch}
           disabled={status === "finding" || !ageConfirmed}
-          className="inline-flex items-center justify-center rounded-full px-8 min-h-[48px] w-full bg-signal text-void font-semibold text-base tracking-tight hover:brightness-110 active:scale-[0.98] shadow-signal transition-[filter,transform] disabled:opacity-40 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void"
+          className="inline-flex items-center justify-center rounded-full px-8 min-h-[48px] w-full bg-signal text-void font-semibold text-base tracking-tight hover:brightness-110 active:scale-[0.98] motion-reduce:active:scale-100 shadow-signal transition-[filter,transform] disabled:opacity-40 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void"
         >
           {status === "finding" ? "Finding a match…" : `Find ${dollars(stakeCents)} match`}
         </button>
@@ -369,14 +379,14 @@ export function PaidArena() {
                   <span className="block text-sm text-text-primary truncate">
                     {room.creatorName ?? "Anonymous climber"}
                   </span>
-                  <span className="block font-mono text-[11px] text-text-muted tabular-nums">
+                  <span className="block font-mono text-[11px] text-text-secondary tabular-nums">
                     {dollars(room.stakeCents)} · waiting {ageLabel(room.ageSeconds)}
                   </span>
                 </span>
                 <button
                   onClick={() => joinRoom(room.id)}
                   disabled={joiningId === room.id}
-                  className="shrink-0 inline-flex items-center justify-center rounded-full px-4 min-h-[40px] border border-signal/50 text-signal text-sm font-semibold hover:bg-signal/10 active:scale-[0.98] transition-[background-color,transform] disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void"
+                  className="shrink-0 inline-flex items-center justify-center rounded-full px-4 min-h-[44px] border border-signal/50 text-signal text-sm font-semibold hover:bg-signal/10 active:scale-[0.98] motion-reduce:active:scale-100 transition-[background-color,transform] disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void"
                 >
                   {joiningId === room.id ? "Joining…" : "Join"}
                 </button>
@@ -393,7 +403,7 @@ export function PaidArena() {
         >
           + Buy credits
         </button>
-        <span className="font-mono text-[11px] text-text-muted tabular-nums">
+        <span className="font-mono text-[11px] text-text-secondary tabular-nums">
           balance {dollars(balanceCents)}
         </span>
       </div>
