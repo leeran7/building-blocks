@@ -290,7 +290,7 @@ export function DuelHome() {
         </p>
       </div>
 
-      <div className="max-w-md mx-auto px-4 pb-16 flex flex-col gap-6">
+      <div className="max-w-2xl mx-auto px-4 pb-16 flex flex-col gap-6">
         {/* Single sign-in gate: signed-out users get ONE ask that stands in for
             every action, rather than the same prompt repeated per section. */}
         {!user && (

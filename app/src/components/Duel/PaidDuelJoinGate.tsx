@@ -110,7 +110,7 @@ export function PaidDuelJoinGate({
   return (
     <div className="min-h-screen bg-void text-text-primary">
       <Navbar contextLabel="1v1 · paid" />
-      <div className="max-w-md mx-auto px-4 pt-16 pb-16">
+      <div className="max-w-2xl mx-auto px-4 pt-16 pb-16">
         <div className="text-center mb-8">
           <p className="font-mono text-xs uppercase tracking-[0.16em] text-text-muted mb-3">
             paid duel · real stakes
