@@ -2,7 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Bricolage_Grotesque, Hanken_Grotesk, Space_Mono } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "../src/contexts/AuthContext";
-import { Footer } from "../src/components/LandingPage/Footer";
+import { SiteFooter } from "../src/components/SiteFooter";
 import { resolveBaseUrl } from "../src/config/public";
 import { formatAltitude } from "../src/lib/units";
 import { DEFAULT_DESCRIPTION, DEFAULT_TITLE, SITE_URL, ogImageUrl } from "../src/lib/seo";
@@ -135,7 +135,7 @@ export default function RootLayout({
         </a>
         <AuthProvider>
           {children}
-          <Footer />
+          <SiteFooter />
         </AuthProvider>
       </body>
     </html>
