@@ -9,29 +9,17 @@ import { resolveBaseUrl } from "../config/public";
 
 export const SITE_URL = resolveBaseUrl();
 export const SITE_NAME = "Doomstack";
-export const DEFAULT_TITLE = "Doomstack — Altitude is permanent";
+export const DEFAULT_TITLE = "Doomstack — Climb higher, outlast everyone";
 export const DEFAULT_DESCRIPTION =
-  "Your altitude is permanent. The ground rises instead. The price of #1 falls with every thousand views — until someone buys it.";
+  "A skill-based endless climb. Race the rising lava to the top of the global leaderboard, compete in ranked chip duels, or enter tournaments for cash prizes.";
 
 export function absoluteUrl(path: string): string {
   return `${SITE_URL}${path.startsWith("/") ? path : `/${path}`}`;
 }
 
-/**
- * Builds an absolute /api/og URL. Always goes through URLSearchParams so
- * every param is percent-encoded — user-submitted block names and category
- * labels can contain spaces/&/quotes and must never be concatenated raw into
- * the query string (see api/checkout/route.ts's display_name sanitization,
- * which strips control/bidi chars but does not URL-encode).
- */
-export function ogImageUrl(params: { name?: string; alt?: string; rank?: string; v?: string } = {}): string {
-  const sp = new URLSearchParams();
-  if (params.name) sp.set("name", params.name);
-  if (params.alt) sp.set("alt", params.alt);
-  if (params.rank) sp.set("rank", params.rank);
-  if (params.v) sp.set("v", params.v);
-  const qs = sp.toString();
-  return absoluteUrl(`/api/og${qs ? `?${qs}` : ""}`);
+/** Absolute URL for the (static, brand) OG image. */
+export function ogImageUrl(): string {
+  return absoluteUrl("/api/og");
 }
 
 export function buildMetadata({

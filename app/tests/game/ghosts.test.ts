@@ -48,6 +48,19 @@ describe("GhostStore", () => {
     expect(s!.y).toBeCloseTo(140);
   });
 
+  it("brackets the correct pair among 4 buffered samples, including the oldest pair", () => {
+    const store = new GhostStore();
+    // Four samples spanning ticks 0/4/8/12. A target that falls in the FIRST
+    // pair (0-4) regressed to the wrong segment when the bracket loop started
+    // at i=1 instead of i=0 — it would fall through to the last-two samples.
+    store.ingest(snap({ slot: 1, tick: 0, x: 0, y: 0 }));
+    store.ingest(snap({ slot: 1, tick: 4, x: 40, y: 0 }));
+    store.ingest(snap({ slot: 1, tick: 8, x: 80, y: 0 }));
+    store.ingest(snap({ slot: 1, tick: 12, x: 120, y: 0 }));
+    const s = store.sampleAt(1, 2 + D); // target = 2, inside the 0-4 pair
+    expect(s!.x).toBeCloseTo(20); // interpolated within [0,40], not the 8-12 pair
+  });
+
   it("clamps behind the older sample (no backward extrapolation)", () => {
     const store = new GhostStore();
     store.ingest(snap({ slot: 1, tick: 10, x: 10, y: 100 }));

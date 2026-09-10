@@ -1,11 +1,8 @@
 // prisma/schema.prisma
-// Tower data model
-// Critical constraints:
-// - altitude has CHECK (altitude >= 0) — applied in migration
-// - views_k has CHECK (views_k >= 0) — applied in migration
-// - NO position/rank column (AC-20) — rank is derived via ORDER BY altitude DESC
-// - spend_c is NEVER in ORDER BY (AC-17) — display only
-// - stripe_session_id is UNIQUE — idempotency mechanism (NFR-D1)
+// Doomstack data model: free Climb game, 1v1 Duels, prepaid-credits wallet,
+// creator profiles, and the single-tenant social-media agent.
+// The original paid-stacks monetization (Block/Season/Payment) was removed in
+// favour of Paid 1v1 Battles; see migration <ts>_drop_paid_stacks.
 
 generator client {
   provider = "prisma-client-js"
@@ -20,12 +17,12 @@ datasource db {
   directUrl = env("DIRECT_URL")
 }
 
-// Category is now a free-form slug (String), not a fixed enum: every subcategory
-// (74+, per src/game/categories) gets its own paid tower + season, not just 6.
+// Categories are a free-form slug (String), data-driven from src/game/categories
+// (74+ subcategories), not a fixed enum — new categories ship without a migration.
 
-// Platforms a paid listing may point at (buyer-facing). Deliberately separate
+// Platforms a creator can save a handle for (buyer-facing). Deliberately separate
 // from SocialPlatform (the single-tenant posting agent's enum) so the two evolve
-// independently — a listing can link to Twitch even though the agent can't post
+// independently — a creator can list Twitch even though the agent can't post
 // there. Adding one is one enum value + one PLATFORM_META entry + one glyph.
 enum CreatorPlatform {
   TIKTOK
@@ -52,7 +49,8 @@ model User {
   winnings_credits_cents Int                 @default(0)
   // 18+ attestation timestamp, set on the user's first paid-duel action.
   age_confirmed_at       DateTime?
-  blocks                 Block[]
+  // Stripe Connect Express account for receiving tournament prize payouts.
+  stripe_connect_account_id String?
   climbRecords           ClimbRecord[]
   climbRuns              ClimbRun[]
   savedUrls              SavedUrl[]
@@ -63,6 +61,7 @@ model User {
   duelStats              DuelStats?
   creditPurchases        CreditPurchase[]
   walletLedger           WalletLedger[]
+  tournamentEntries      TournamentEntry[]
 
   @@map("users")
 }
@@ -138,77 +137,6 @@ model ClimbRun {
   @@index([category_slug, created_at], name: "climb_run_category_idx")
   @@index([userId, created_at(sort: Desc)], name: "climb_run_user_idx")
   @@map("climb_runs")
-}
-
-model Block {
-  id           String           @id @default(cuid())
-  slug         String           @unique
-  url          String
-  display_name String
-  owner_email  String
-  altitude     Float            @default(0) // metres; CHECK altitude >= 0 in migration
-  spend_c      Int              @default(0) // cents; display-only; NEVER in ORDER BY
-  views_served Int              @default(0) // above-ground views only
-  clicks       Int              @default(0)
-  peak_rank    Int? // best (lowest) rank number achieved
-  hidden_at    DateTime? // NULL = visible
-  created_at   DateTime         @default(now())
-  season_id    String
-  category     String?          @default("tech") // free-form category slug
-  userId       String?
-  // Optional social account this listing points at. When set, the block
-  // renders as a native creator card and `url` is the canonical profile URL
-  // built from (platform, handle). NULL = a plain website listing.
-  // Separate from the agent's SocialPlatform enum: this is the buyer-facing set
-  // of platforms a listing may link to, evolved independently of what the
-  // single-tenant posting agent supports.
-  platform     CreatorPlatform?
-  handle       String?
-
-  season   Season    @relation(fields: [season_id], references: [id])
-  payments Payment[]
-  user     User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
-
-  // One social entry per (user, season, platform): a creator may list all their
-  // platforms in a stack, but not two entries for the same one. Postgres treats
-  // NULLs as distinct, so this only binds when all three are set — i.e. an
-  // owned social listing. Website blocks (platform NULL) are unaffected. Covers
-  // hidden + visible rows, so a single tuple owns exactly one block (no
-  // create-then-reveal race). See checkout dedup + reuse logic.
-  @@unique([userId, season_id, platform], name: "blocks_user_season_platform_key")
-  // Partial index on altitude DESC WHERE hidden_at IS NULL (for rank query)
-  // Raw SQL applied in migration 0002 (Prisma @@index with where clause):
-  @@index([altitude(sort: Desc)], name: "blocks_rank_idx")
-  @@index([category, altitude(sort: Desc)], name: "blocks_category_altitude_idx")
-  @@map("blocks")
-}
-
-model Season {
-  id        String   @id @default(cuid())
-  views_k   Float    @default(0) // cumulative qualified views / 1000; CHECK views_k >= 0
-  starts_at DateTime
-  ends_at   DateTime
-  is_active Boolean  @default(false)
-  category  String   @default("tech") // free-form category slug
-
-  blocks Block[]
-
-  // Partial unique index enforced in migration SQL:
-  // CREATE UNIQUE INDEX season_one_active_per_category ON season_state (category) WHERE (is_active = true)
-  @@map("season_state")
-}
-
-model Payment {
-  id                String   @id @default(cuid())
-  block_id          String
-  stripe_session_id String   @unique // idempotency key (NFR-D1)
-  amount_cents      Int
-  metres_added      Float
-  created_at        DateTime @default(now())
-
-  block Block @relation(fields: [block_id], references: [id])
-
-  @@map("payments")
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -715,6 +643,11 @@ enum DuelStatus {
   voided
 }
 
+// Partial unique index (Prisma schema can't express a WHERE-qualified unique
+// index) — one open paid waiting room per user, enforced at the DB layer so a
+// check-then-create race can't stake a second room. See migration
+// 20260910050000_one_open_paid_room_per_user.
+// CREATE UNIQUE INDEX duel_one_open_paid_room_per_user ON duels (player1_id) WHERE (status = 'pending' AND stake_cents IS NOT NULL AND player2_id IS NULL)
 model Duel {
   id                String     @id
   seed              String
@@ -740,6 +673,15 @@ model Duel {
    */
   rematch_duel_id   String?
 
+  // ── Tournament bracket (NULL tournament_id = standalone duel, not part of a bracket) ──
+  tournament_id     String?
+  tournament_round  Int?
+  bracket_position  Int?
+  is_bye            Boolean    @default(false)
+
+  // ── Ranked chip duel (zero-sum, non-cashable — chips only, no real money) ──
+  is_chip_duel          Boolean    @default(false)
+
   // ── Paid duel escrow (NULL stake_cents = free duel; all free paths untouched) ──
   // Per-player stake in cents. Both players stake the same amount; the winner
   // takes floor(stake_cents * 2 * 0.9) (10% rake) into their winnings bucket.
@@ -761,11 +703,13 @@ model Duel {
   player1      User           @relation("DuelPlayer1", fields: [player1_id], references: [id], onDelete: Restrict)
   player2      User?          @relation("DuelPlayer2", fields: [player2_id], references: [id], onDelete: SetNull)
   winner       User?          @relation("DuelWinner", fields: [winner_id], references: [id], onDelete: SetNull)
+  tournament   Tournament?    @relation(fields: [tournament_id], references: [id], onDelete: SetNull)
   walletLedger WalletLedger[]
 
   @@index([status, created_at], name: "duel_status_created_idx")
   @@index([player1_id, status], name: "duel_player1_status_idx")
   @@index([player2_id, status], name: "duel_player2_status_idx")
+  @@index([tournament_id, tournament_round], name: "duel_tournament_round_idx")
   @@map("duels")
 }
 
@@ -781,6 +725,65 @@ model DuelStats {
 
   @@index([wins(sort: Desc)], name: "duel_stats_wins_desc_idx")
   @@map("duel_stats")
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Tournaments — bracket of 1v1 duels, paid entry, company-guaranteed prizes
+// ═══════════════════════════════════════════════════════════════════════════
+
+enum TournamentStatus {
+  REGISTRATION
+  SEEDED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+model Tournament {
+  id                      String           @id @default(cuid())
+  name                    String
+  category_slug           String
+  entry_fee_cents         Int
+  prize_structure         Json
+  bracket_size            Int
+  status                  TournamentStatus @default(REGISTRATION)
+  current_round           Int              @default(0)
+  registration_opens_at   DateTime
+  registration_closes_at  DateTime
+  started_at              DateTime?
+  completed_at            DateTime?
+  created_by_uid          String
+  created_at              DateTime         @default(now())
+  updated_at              DateTime         @updatedAt
+
+  entries TournamentEntry[]
+  duels   Duel[]
+
+  @@index([status, registration_closes_at], name: "tournament_status_reg_close_idx")
+  @@index([category_slug, status], name: "tournament_category_status_idx")
+  @@map("tournaments")
+}
+
+model TournamentEntry {
+  id                       String   @id @default(cuid())
+  tournament_id            String
+  user_id                  String
+  seed_position            Int?
+  placement                Int?
+  prize_cents              Int?
+  eliminated_in_round      Int?
+  stripe_connect_account_id String?
+  stripe_transfer_id       String?
+  payout_status            String?
+  registered_at            DateTime @default(now())
+
+  tournament Tournament @relation(fields: [tournament_id], references: [id], onDelete: Cascade)
+  user       User       @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@unique([tournament_id, user_id], name: "tournament_entry_user")
+  @@index([tournament_id], name: "tournament_entry_tournament_idx")
+  @@index([user_id], name: "tournament_entry_user_idx")
+  @@map("tournament_entries")
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

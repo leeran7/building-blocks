@@ -31,6 +31,8 @@ import {
   markPlayerSubmitted,
   getDuelStats,
 } from "../../../../../src/db/duel";
+import { advanceRound, assignPrizes } from "../../../../../src/db/tournaments";
+import { newRunSeed } from "../../../../../src/game/rng";
 
 export const runtime = "nodejs";
 
@@ -202,6 +204,10 @@ export async function POST(
       );
     }
 
+    if (duel.tournament_id) {
+      tryAdvanceTournament(duel.tournament_id).catch(() => {});
+    }
+
     return NextResponse.json({
       status: "completed",
       winnerId,
@@ -357,6 +363,10 @@ export async function POST(
     );
   }
 
+  if (freshDuel.tournament_id) {
+    tryAdvanceTournament(freshDuel.tournament_id).catch(() => {});
+  }
+
   // Fetch the requesting player's updated stats
   const myStats = uid ? await getDuelStats(uid) : null;
 
@@ -373,4 +383,11 @@ export async function POST(
     payoutCents: completeResult.payoutCents,
     payoutToMe: uid != null && result.winnerId === uid,
   });
+}
+
+async function tryAdvanceTournament(tournamentId: string): Promise<void> {
+  const result = await advanceRound(tournamentId, newRunSeed);
+  if (result.outcome === "tournament_complete") {
+    await assignPrizes(tournamentId);
+  }
 }

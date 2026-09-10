@@ -20,6 +20,7 @@ import {
   CREDITS_MIN_TOPUP_CENTS,
   CREDITS_MAX_TOPUP_CENTS,
 } from "../../../../src/config/paidDuel";
+import { chipsForUsd } from "../../../../src/config/chipPackages";
 
 export const runtime = "nodejs";
 
@@ -82,6 +83,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
     const stripe = getStripe();
     const baseUrl = resolveBaseUrl();
+    const chipAmount = chipsForUsd(parsed.data.amountUsd);
     const session = await stripe.checkout.sessions.create({
       mode: "payment",
       client_reference_id: uid,
@@ -91,15 +93,19 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
             currency: "usd",
             unit_amount: amountCents,
             product_data: {
-              name: `Doomstack credits — $${(amountCents / 100).toFixed(2)}`,
+              name: `${chipAmount.toLocaleString()} Doomstack chips`,
               description:
-                "Prepaid credits for 1v1 duel stakes. Credits are non-refundable play credits and are not withdrawable; only winnings can be cashed out.",
+                "Non-cashable chips for ranked duels and tournament entries. Chips are non-refundable and cannot be withdrawn.",
             },
           },
           quantity: 1,
         },
       ],
-      metadata: { type: "credits_topup", user_id: uid },
+      metadata: {
+        type: "credits_topup",
+        user_id: uid,
+        chip_amount: String(chipAmount),
+      },
       success_url: `${baseUrl}/duel?topup=1`,
       cancel_url: `${baseUrl}/duel?topup=0`,
     });

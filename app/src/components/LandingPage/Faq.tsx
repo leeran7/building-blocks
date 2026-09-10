@@ -31,6 +31,14 @@ export function buildFaqs(): QA[] {
       a: "The free climb at /play is a solo endless tower with one global leaderboard. No opponent, no lava catch-up mechanic — just you and the tower. Best peak height is your rank. Free, no account required to play.",
     },
     {
+      q: "What are chips?",
+      a: "Chips are non-cashable virtual currency you can buy and stake in ranked 1v1 duels. Winner takes the loser's stake — zero-sum, no house cut. Chips can never be cashed out or transferred.",
+    },
+    {
+      q: "How do I get chips?",
+      a: "Open your wallet and pick a package. Larger packages give bonus chips: $5 gets 500, $10 gets 1,100 (+10%), $20 gets 2,400 (+20%), and $50 gets 6,500 (+30%). You can also win chips from other players in ranked duels.",
+    },
+    {
       q: "Can I watch a replay?",
       a: "Yes — after a duel finishes you can watch a full replay of both players' runs side by side. Replays are also accessible from your dashboard.",
     },

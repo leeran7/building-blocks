@@ -142,8 +142,15 @@ function SignInForm() {
   const [guestLoading, setGuestLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Validate the redirect target — never push to an attacker-supplied off-site URL.
-  const redirectTo = safeInternalPath(searchParams.get("redirect"), "/dashboard");
+  // Raw param (for forwarding onward to signup) vs. the validated target we
+  // actually navigate to — never push to an attacker-supplied off-site URL.
+  const redirectParam = searchParams.get("redirect");
+  const redirectTo = safeInternalPath(redirectParam, "/dashboard");
+  // Someone without an account yet who followed a "sign in to do X" link
+  // shouldn't lose that destination when they toggle to sign up instead.
+  const signupHref = redirectParam
+    ? `/auth/signup?redirect=${encodeURIComponent(redirectParam)}`
+    : "/auth/signup";
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -239,7 +246,7 @@ function SignInForm() {
         <h1 id="auth-card-title" className="font-display text-3xl text-text-primary mt-2 mb-1">
           Welcome back
         </h1>
-        <p className="text-sm text-text-muted mb-6">Climb back into your stacks.</p>
+        <p className="text-sm text-text-muted mb-6">Climb back in.</p>
 
         <form
           id={formId}
@@ -389,7 +396,7 @@ function SignInForm() {
         <p className="text-sm text-text-muted text-center mt-4">
           Don&apos;t have an account?{" "}
           <Link
-            href="/auth/signup"
+            href={signupHref}
             className="text-signal hover:underline"
           >
             Sign up

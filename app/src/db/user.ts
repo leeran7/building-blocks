@@ -28,6 +28,7 @@ export async function ensureUser(input: EnsureUserInput): Promise<void> {
       id: input.id,
       email: input.email,
       emailVerified: input.emailVerified ?? false,
+      play_credits_cents: 500,
     },
     update: {
       emailVerified: input.emailVerified ?? false,

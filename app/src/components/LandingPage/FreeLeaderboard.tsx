@@ -1,9 +1,8 @@
 /**
  * FreeLeaderboard — the standalone free stack top climbers on the landing page.
  *
- * ONE global leaderboard (not per paid category). Placed after the paid stack
- * directory so paid remains the primary conversion path. Server component;
- * cached with the landing's ISR.
+ * ONE global leaderboard for the free climb. Server component; cached with the
+ * landing's ISR.
  */
 
 import Link from "next/link";

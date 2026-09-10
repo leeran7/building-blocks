@@ -1,22 +1,19 @@
 "use client";
 
 /**
- * Entry point for /duel/[id]. Two responsibilities:
+ * Entry point for /duel/[id].
  *
- * 1. Paid-duel funding gate: before touching realtime or revealing the tower,
- *    fetch duel meta. If the duel has a stake and both players have not yet
- *    staked, render PaidDuelJoinGate (polling for the opponent). Only once both
- *    stakes are held does the real room load. Free duels (stakeCents == null)
- *    skip the gate entirely and behave exactly as before.
+ * DuelRoom is dynamically imported with ssr: false — it pulls in Ably (a
+ * browser-only client whose bundle the server SWC pass cannot parse).
  *
- * 2. DuelRoom is dynamically imported with ssr: false — it pulls in Ably (a
- *    browser-only client whose bundle the server SWC pass cannot parse).
+ * For chip duels (is_chip_duel), both players' chips are already escrowed at
+ * room-creation / join time, so no funding gate is needed — the room loads
+ * immediately, same as a free duel.
  */
 
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { useCallback, useEffect, useRef, useState } from "react";
-import { PaidDuelJoinGate, PaidDuelMeta } from "./PaidDuelJoinGate";
+import { useEffect, useState } from "react";
 
 const DuelRoomInner = dynamic(() => import("./DuelRoom").then((m) => m.DuelRoom), {
   ssr: false,
@@ -27,89 +24,36 @@ const DuelRoomInner = dynamic(() => import("./DuelRoom").then((m) => m.DuelRoom)
   ),
 });
 
-interface DuelMetaResponse {
-  id: string;
-  status: string;
-  stakeCents: number | null;
-  player1: { id: string; displayName: string | null } | null;
-  player2: { id: string; displayName: string | null } | null;
-  player1Staked: boolean;
-  player2Staked: boolean;
-}
-
-type GateState =
+type LoadState =
   | { phase: "loading" }
-  | { phase: "gate"; meta: PaidDuelMeta }
   | { phase: "room" }
   | { phase: "error"; message: string };
 
 export function DuelRoomLoader({ duelId }: { duelId: string }) {
-  const [state, setState] = useState<GateState>({ phase: "loading" });
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  const evaluate = useCallback(async () => {
-    try {
-      const res = await fetch(`/api/duel/${duelId}`, { cache: "no-store" });
-      if (!res.ok) {
-        setState({ phase: "error", message: "Could not load this duel." });
-        return "stop";
-      }
-      const meta = (await res.json()) as DuelMetaResponse;
-      const stakeCents = meta.stakeCents;
-
-      // Free duel, or paid duel with both stakes held → enter the real room.
-      if (stakeCents == null || (meta.player1Staked && meta.player2Staked)) {
-        setState({ phase: "room" });
-        return "stop";
-      }
-      // A cancelled/refunded paid challenge should not sit on the gate forever.
-      if (meta.status === "voided") {
-        setState({ phase: "error", message: "This challenge was cancelled." });
-        return "stop";
-      }
-      setState({
-        phase: "gate",
-        meta: {
-          id: meta.id,
-          stakeCents,
-          player1: meta.player1,
-          player2: meta.player2,
-          player1Staked: meta.player1Staked,
-          player2Staked: meta.player2Staked,
-        },
-      });
-      return "continue";
-    } catch {
-      setState({ phase: "error", message: "Network error loading the duel." });
-      return "stop";
-    }
-  }, [duelId]);
+  const [state, setState] = useState<LoadState>({ phase: "loading" });
 
   useEffect(() => {
     let cancelled = false;
-    const tick = async () => {
-      const outcome = await evaluate();
-      if (cancelled) return;
-      // Keep polling only while the gate is showing (waiting on the opponent).
-      if (outcome === "continue" && !pollRef.current) {
-        pollRef.current = setInterval(async () => {
-          const o = await evaluate();
-          if (o === "stop" && pollRef.current) {
-            clearInterval(pollRef.current);
-            pollRef.current = null;
-          }
-        }, 3000);
+    (async () => {
+      try {
+        const res = await fetch(`/api/duel/${duelId}`, { cache: "no-store" });
+        if (cancelled) return;
+        if (!res.ok) {
+          setState({ phase: "error", message: "Could not load this duel." });
+          return;
+        }
+        const meta = (await res.json()) as { status: string };
+        if (meta.status === "voided") {
+          setState({ phase: "error", message: "This challenge was cancelled." });
+          return;
+        }
+        setState({ phase: "room" });
+      } catch {
+        if (!cancelled) setState({ phase: "error", message: "Network error loading the duel." });
       }
-    };
-    tick();
-    return () => {
-      cancelled = true;
-      if (pollRef.current) {
-        clearInterval(pollRef.current);
-        pollRef.current = null;
-      }
-    };
-  }, [evaluate]);
+    })();
+    return () => { cancelled = true; };
+  }, [duelId]);
 
   if (state.phase === "loading") {
     return (
@@ -131,10 +75,6 @@ export function DuelRoomLoader({ duelId }: { duelId: string }) {
         </Link>
       </div>
     );
-  }
-
-  if (state.phase === "gate") {
-    return <PaidDuelJoinGate meta={state.meta} onStaked={() => setState({ phase: "room" })} />;
   }
 
   return <DuelRoomInner duelId={duelId} />;

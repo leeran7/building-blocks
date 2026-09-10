@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Removed
+
+- **Paid Stacks fully deprecated & removed** — the original Stripe monetization
+  (paid listings buying permanent altitude on per-category towers) is gone,
+  superseded by Paid 1v1 Battles. Dropped the `blocks`, `season_state`, and
+  `payments` tables (migration `20260910060000_drop_paid_stacks`); deleted the
+  `blocks`/`seasons`/`payments` data layer, the `src/engine` economics and
+  `src/views` view-crediting modules, and the paid routes (`/stack`, `/submit`,
+  `/go`, `/b`, `/browse`, `/tower`, `/api/checkout`, `/api/tower`,
+  `/api/internal/credit-view`, admin hide/refund/season-rollover) plus their UI
+  (TowerDirectory, CategoryShell, InlineTower, HowItWorks, RecordPage,
+  `Tower/*`). The Stripe webhook now only handles credits top-ups (the
+  dead-letter path is preserved); creator profiles, the homepage, sitemap,
+  `/rules`, and the terms/privacy copy were updated to reflect duels-only
+  monetization. The free Climb game, Duels, credits wallet, and creator handles
+  are untouched.
+
 ### Changed
 
 - **Climb Feel 1.25× (presentation only)** — amplify The Climb identity on

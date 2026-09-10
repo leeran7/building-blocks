@@ -8,7 +8,7 @@
  *
  * - FAIL OPEN (revenue / UX paths): if Redis is unavailable, ALLOW the request.
  *   A Redis outage must never block a legitimate purchase or a settings save.
- *   Used by /api/checkout, /api/settings, /api/climb/result.
+ *   Used by /api/credits/checkout, /api/settings, /api/climb/result.
  *
  * The window is a simple INCR + EXPIRE fixed window: the first request in a
  * window sets the TTL; every request increments the counter; over the max → 429.

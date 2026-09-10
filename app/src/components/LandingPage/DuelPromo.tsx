@@ -113,12 +113,11 @@ export function DuelPromo() {
               </div>
               <div>
                 <h3 className="text-lg font-bold text-text-primary">
-                  Paid 1v1 — winner takes the pot
+                  Ranked chip duels + tournaments
                 </h3>
                 <p className="text-sm text-text-secondary leading-relaxed mt-2">
-                  Buy credits, stake a friend head-to-head, and the winner takes the pot
-                  (minus a 10% fee) as cashable winnings. Skill-based, 18+, not available
-                  in all states.
+                  Stake non-cashable chips in ranked 1v1s, or enter bracket tournaments
+                  for real cash prizes. Skill-based, 18+, not available in all states.
                 </p>
               </div>
             </div>
@@ -128,14 +127,14 @@ export function DuelPromo() {
         <div className="mb-12 flex items-end justify-between gap-4">
           <div>
             <span className="font-mono text-[11px] uppercase tracking-[0.2em] text-signal">
-              {PAID_DUELS_ENABLED_PUBLIC ? "[ multiplayer · real stakes ]" : "[ multiplayer ]"}
+              {PAID_DUELS_ENABLED_PUBLIC ? "[ multiplayer · ranked ]" : "[ multiplayer ]"}
             </span>
             <h2 className="font-display text-4xl md:text-5xl text-text-primary mt-3">
               1v1 Duels
             </h2>
             <p className="text-sm text-text-secondary mt-2 max-w-xl">
               {PAID_DUELS_ENABLED_PUBLIC
-                ? "Same tower, same rising lava — the last climber standing wins. Play free, or stake credits and take the pot. Pure skill: outcomes are decided by your climb, not chance."
+                ? "Same tower, same rising lava — the last climber standing wins. Play free, stake chips in ranked duels, or enter a tournament for cash prizes. Pure skill."
                 : "Same tower, same rising lava — the last climber standing wins. Free and skill-only."}
             </p>
           </div>

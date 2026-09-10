@@ -8,11 +8,7 @@
 
 import { prisma } from "./client";
 import { DuelStatus, Duel, DuelStats, Prisma } from "@prisma/client";
-import { creditWinningsInTx, creditRefundInTx } from "./credits";
-import { DUEL_RAKE, duelPayoutCents } from "../config/paidDuel";
-
-// Re-export so that existing imports from db/duel continue to work.
-export { DUEL_RAKE, duelPayoutCents };
+import { settleChipDuelInTx, refundChipDuelInTx } from "./chips";
 
 type TxClientLocal = Prisma.TransactionClient;
 
@@ -38,16 +34,11 @@ async function settlePayoutInTx(
   if (duel.payout_settled) return duel.payout_cents ?? null;
   if (winnerId == null) return null;
   if (winnerId.startsWith("guest:")) {
-    throw new Error(`Paid duel ${duel.id} resolved to a guest winner — invariant violation`);
+    throw new Error(`Chip duel ${duel.id} resolved to a guest winner — invariant violation`);
   }
 
-  const payout = duelPayoutCents(duel.stake_cents);
-  await creditWinningsInTx(tx, winnerId, payout, duel.id);
-  await tx.duel.update({
-    where: { id: duel.id },
-    data: { payout_settled: true, payout_cents: payout },
-  });
-  return payout;
+  await settleChipDuelInTx(tx, duel.id, winnerId, duel.stake_cents);
+  return duel.stake_cents * 2;
 }
 
 /**
@@ -59,26 +50,14 @@ async function settlePayoutInTx(
 async function claimRefundInTx(tx: TxClientLocal, duel: Duel): Promise<boolean> {
   if (duel.stake_cents == null || duel.refunded) return false;
 
-  if (duel.player1_staked) {
-    await creditRefundInTx(
-      tx,
-      duel.player1_id,
-      duel.player1_stake_play_cents,
-      duel.player1_stake_winnings_cents,
-      duel.id
-    );
-  }
-  if (duel.player2_staked && duel.player2_id) {
-    await creditRefundInTx(
-      tx,
-      duel.player2_id,
-      duel.player2_stake_play_cents,
-      duel.player2_stake_winnings_cents,
-      duel.id
-    );
-  }
-
-  await tx.duel.update({ where: { id: duel.id }, data: { refunded: true } });
+  await refundChipDuelInTx(
+    tx,
+    duel.id,
+    duel.player1_id,
+    duel.player1_stake_play_cents,
+    duel.player2_id,
+    duel.player2_stake_play_cents
+  );
   return true;
 }
 
@@ -141,15 +120,6 @@ export interface DuelStatsRow {
   wins: number;
   losses: number;
   winPct: number;
-}
-
-export interface PaidDuelStatsRow {
-  userId: string;
-  displayName: string | null;
-  paidWins: number;
-  paidLosses: number;
-  winPct: number;
-  totalPayoutCents: number;
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -316,8 +286,8 @@ export async function completeDuel(
       await upsertDuelStatsInTx(tx, input.player2Id, input.winnerId === input.player2Id);
     }
 
-    // Paid duels: credit the pot to the winner's cashable winnings bucket,
-    // exactly once, in the same locked transaction as completion.
+    // Chip duels: settle the zero-sum chip transfer, exactly once, in the
+    // same locked transaction as completion.
     const payoutCents = await settlePayoutInTx(tx, duel, input.winnerId);
 
     return { outcome: "completed", duel, payoutCents } satisfies CompleteDuelResult;
@@ -780,66 +750,6 @@ export async function getRecentDuelsForUser(
 }
 
 /**
- * Top paid-duel leaderboard by paid wins. Aggregates directly from the duels
- * table (stake_cents IS NOT NULL) so free and paid records are kept separate.
- * Only settled (payout_settled=true) completed duels count.
- */
-export async function topPaidDuelStats(limit = 50): Promise<PaidDuelStatsRow[]> {
-  const duels = await prisma.duel.findMany({
-    where: {
-      stake_cents: { not: null },
-      status: DuelStatus.completed,
-      payout_settled: true,
-      winner_id: { not: null },
-    },
-    select: {
-      player1_id: true,
-      player2_id: true,
-      winner_id: true,
-      payout_cents: true,
-      player1: { select: { id: true, display_name: true } },
-      player2: { select: { id: true, display_name: true } },
-    },
-  });
-
-  const map = new Map<string, { displayName: string | null; wins: number; losses: number; payout: number }>();
-
-  for (const d of duels) {
-    const players = [
-      { id: d.player1_id, name: d.player1.display_name },
-      ...(d.player2_id && d.player2 ? [{ id: d.player2_id, name: d.player2.display_name }] : []),
-    ];
-    for (const p of players) {
-      if (!map.has(p.id)) map.set(p.id, { displayName: p.name, wins: 0, losses: 0, payout: 0 });
-      const s = map.get(p.id)!;
-      if (p.name !== null) s.displayName = p.name;
-      if (d.winner_id === p.id) {
-        s.wins++;
-        s.payout += d.payout_cents ?? 0;
-      } else {
-        s.losses++;
-      }
-    }
-  }
-
-  return Array.from(map.entries())
-    .filter(([, v]) => v.displayName !== null && v.wins > 0)
-    .map(([userId, v]) => {
-      const total = v.wins + v.losses;
-      return {
-        userId,
-        displayName: v.displayName,
-        paidWins: v.wins,
-        paidLosses: v.losses,
-        winPct: total > 0 ? Math.round((v.wins / total) * 1000) / 10 : 0,
-        totalPayoutCents: v.payout,
-      };
-    })
-    .sort((a, b) => b.paidWins - a.paidWins || b.totalPayoutCents - a.totalPayoutCents)
-    .slice(0, limit);
-}
-
-/**
  * Top duel leaderboard by wins. Excludes anonymous users (no display_name).
  * winPct = wins / (wins + losses) * 100, rounded to 1 decimal.
  */
@@ -870,3 +780,4 @@ export async function topDuelStats(limit = 50): Promise<DuelStatsRow[]> {
     };
   });
 }
+

@@ -41,6 +41,8 @@ const HERO_STATS = {
   minEntryUsd: 5,
   climberCount: 3,
   topPeak: 420,
+  rankedDuels: 0,
+  topEarner: null,
 };
 
 /** Anchors whose href is /play and class list includes filled bg-signal. */
@@ -204,7 +206,7 @@ describe("ClimbPanelIntro title (AC-8)", () => {
     );
     expect(html).toContain(CLIMB_PANEL_INTRO_TITLE_CLASS);
     expect(html).toMatch(/font-mono[^"]*text-signal|text-signal[^"]*font-mono/);
-    expect(html).toContain("Free stack · no payment");
+    expect(html).toContain("Free climb · no payment");
     expect(html).toMatch(/\bclimb-reveal\b/);
   });
 });

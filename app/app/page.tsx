@@ -11,52 +11,33 @@
 
 import { Hero } from "../src/components/LandingPage/Hero";
 import { FreeLeaderboard } from "../src/components/LandingPage/FreeLeaderboard";
+import { RankedLeaderboard } from "../src/components/LandingPage/RankedLeaderboard";
 import { DuelPromo } from "../src/components/LandingPage/DuelPromo";
 import { Faq, buildFaqs } from "../src/components/LandingPage/Faq";
 import { Navbar } from "../src/components/Navbar";
 import { JsonLd } from "../src/components/JsonLd";
-import { getBlockCountsByCategory } from "../src/db/blocks";
 import { getGlobalClimbStats } from "../src/db/climb";
-import { GAME_CATEGORIES } from "../src/game/categories";
+import { getChipDuelStats } from "../src/db/chips";
 import { organizationJsonLd, websiteJsonLd } from "../src/lib/seo";
 import { Suspense } from "react";
 
 // ISR: serve the landing from cache and regenerate at most once per 60s, so the
-// highest-traffic page doesn't hit the DB (block counts + social proof) on every
-// request. Live tower data still updates via the polled API on the stack views.
+// highest-traffic page doesn't hit the DB (climb stats) on every request.
 export const revalidate = 60;
 
-async function getSocialProofData(): Promise<{
-  totalBlocks: number;
-  arenaCount: number;
-} | null> {
-  try {
-    // Count real blocks across the game-category stacks (the legacy broad slugs
-    // this used to fetch no longer resolve). One grouped query, ISR-cached.
-    const counts = await getBlockCountsByCategory();
-    const totalBlocks = GAME_CATEGORIES.reduce(
-      (acc, c) => acc + (counts[c.slug] ?? 0),
-      0
-    );
-    return { totalBlocks, arenaCount: GAME_CATEGORIES.length };
-  } catch {
-    return null;
-  }
-}
-
 async function SocialProofStrip() {
-  const proof = await getSocialProofData();
+  const stats = await getGlobalClimbStats().catch(() => null);
 
   return (
     <div className="border-y border-border-subtle bg-surface/40 py-3">
       <p className="font-mono text-xs uppercase tracking-[0.14em] text-text-secondary text-center flex items-center justify-center gap-2">
         <span className="w-1.5 h-1.5 rounded-full bg-signal animate-pulse" aria-hidden="true" />
-        {proof ? (
+        {stats && stats.climberCount > 0 ? (
           <>
             <span className="font-bold text-signal tabular-nums">
-              {proof.totalBlocks}
+              {stats.climberCount}
             </span>
-            {" blocks live · free duels always on"}
+            {" climbers · free duels always on"}
           </>
         ) : (
           "Free duels always on"
@@ -67,10 +48,10 @@ async function SocialProofStrip() {
 }
 
 export default async function HomePage() {
-  const climbStats = await getGlobalClimbStats().catch(() => ({
-    climberCount: 0,
-    topPeak: null,
-  }));
+  const [climbStats, chipStats] = await Promise.all([
+    getGlobalClimbStats().catch(() => ({ climberCount: 0, topPeak: null })),
+    getChipDuelStats().catch(() => ({ totalDuels: 0, topEarner: null })),
+  ]);
 
   const faqJsonLd = {
     "@type": "FAQPage",
@@ -90,6 +71,8 @@ export default async function HomePage() {
         stats={{
           climberCount: climbStats.climberCount,
           topPeak: climbStats.topPeak,
+          rankedDuels: chipStats.totalDuels,
+          topEarner: chipStats.topEarner,
         }}
       />
 
@@ -104,6 +87,8 @@ export default async function HomePage() {
       </Suspense>
 
       <DuelPromo />
+
+      <RankedLeaderboard />
 
       <FreeLeaderboard />
 

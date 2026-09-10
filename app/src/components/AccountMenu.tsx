@@ -33,7 +33,6 @@ export function AccountMenu() {
   const [usernameLoaded, setUsernameLoaded] = useState(false);
   const [walletBalance, setWalletBalance] = useState<{
     playCents: number;
-    winningsCents: number;
   } | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -62,9 +61,9 @@ export function AccountMenu() {
     let live = true;
     fetch("/api/wallet", { headers: { Authorization: `Bearer ${token}` } })
       .then((r) => (r.ok ? r.json() : null))
-      .then((data: { playCents: number; winningsCents: number } | null) => {
+      .then((data: { playCents: number } | null) => {
         if (!live || !data) return;
-        setWalletBalance({ playCents: data.playCents, winningsCents: data.winningsCents });
+        setWalletBalance({ playCents: data.playCents });
       })
       .catch(() => {});
     return () => {
@@ -129,17 +128,12 @@ export function AccountMenu() {
           aria-label="Account"
           className="reveal absolute right-0 mt-2 w-56 rounded-xl border border-border-strong bg-surface-raised shadow-lifted p-1.5"
         >
-          {/* Wallet balance — display-only, shown when paid duels are on */}
+          {/* Chip balance — display-only, shown when paid features are on */}
           {PAID_DUELS_ENABLED_PUBLIC && walletBalance && (
             <>
               <div className="px-3 pt-1.5 pb-2">
-                <p className="font-mono text-[11px] tabular-nums">
-                  <span className="text-signal font-semibold">
-                    ${(walletBalance.winningsCents / 100).toFixed(2)} won
-                  </span>
-                  <span className="text-text-muted">
-                    {" · "}${(walletBalance.playCents / 100).toFixed(2)} credits
-                  </span>
+                <p className="font-mono text-[11px] tabular-nums text-signal font-semibold">
+                  {(walletBalance.playCents / 100).toLocaleString()} chips
                 </p>
               </div>
               <div className="my-1 border-t border-border-subtle" aria-hidden="true" />

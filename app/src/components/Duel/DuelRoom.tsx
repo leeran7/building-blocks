@@ -113,9 +113,48 @@ function PracticeGame({
       className={
         touchDevice
           ? "fixed inset-0 z-40 bg-void text-text-primary"
-          : "flex flex-col items-center min-h-screen bg-void text-text-primary"
+          : "flex flex-col items-center gap-3 min-h-screen bg-void text-text-primary py-4"
       }
     >
+      {/* Desktop-only placeholder HUD, same shape as DuelGame's real one (name
+          bar + altitude row) so the moment an opponent joins and this swaps
+          for the real match doesn't insert/resize this block — that swap was
+          a visible layout shift. Touch never had this problem (DuelGame's HUD
+          is an absolute overlay there), so it's skipped on touch. */}
+      {!touchDevice && (
+        <div
+          className="flex flex-col overflow-hidden rounded-xl border border-border-subtle"
+          style={{ width: canvasSize.width }}
+        >
+          <div className="w-full flex items-center justify-between px-4 py-3 bg-surface border-b border-border-subtle">
+            <div className="font-mono text-xs tabular-nums">
+              <span className="text-signal">You</span>
+              <span className="text-text-muted mx-1">vs</span>
+              <span className="text-text-muted">Waiting…</span>
+            </div>
+          </div>
+          <div className="w-full flex flex-col gap-1 px-4 py-2.5 bg-surface-raised">
+            {[
+              { key: "you", name: "You", color: "text-signal" },
+              { key: "opp", name: "Opponent", color: "text-text-muted" },
+            ].map((row) => (
+              <div key={row.key} className="flex items-center gap-2">
+                <span className={`font-mono text-[11px] tabular-nums truncate w-24 shrink-0 ${row.color}`}>
+                  {row.name}
+                </span>
+                <div
+                  className="relative flex-1 h-1.5 rounded-full bg-border-subtle overflow-hidden"
+                  aria-hidden="true"
+                />
+                <span className="font-mono text-[11px] tabular-nums text-text-muted w-14 text-right shrink-0">
+                  —
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div
         ref={canvasBoxRef}
         data-climb-surface
@@ -280,8 +319,6 @@ function DuelGame({
 
   const startedRef = useRef(false);
   const [connectionState, setConnectionState] = useState<string>("connected");
-  const [waitedTooLong, setWaitedTooLong] = useState(false);
-  const [linkCopied, setLinkCopied] = useState(false);
 
   // Handshake (presence-authoritative):
   // - Subscribe to control events + presence BEFORE announcing ourselves, so we
@@ -449,45 +486,6 @@ function DuelGame({
     return unsub;
   }, [realtime]);
 
-  // Lobby timeout: if the match hasn't started after a while, the opponent
-  // probably isn't coming (or this is an un-resumable reload). Offer a way out
-  // instead of an indefinite spinner.
-  useEffect(() => {
-    if (state.phase !== "lobby") return;
-    const t = setTimeout(() => {
-      if (!startedRef.current) setWaitedTooLong(true);
-    }, 75_000);
-    return () => clearTimeout(t);
-  }, [state.phase]);
-
-  /** Invite: native share sheet first, clipboard/prompt as fallback. */
-  const copyInviteLink = useCallback(async () => {
-    const url = `${window.location.origin}/duel/${duelId}`;
-    const outcome = await shareInvite(url);
-    if (outcome === "copied") {
-      setLinkCopied(true);
-      setTimeout(() => setLinkCopied(false), 2000);
-    }
-  }, [duelId]);
-
-  // Leaving the waiting lobby must cancel the still-pending challenge, otherwise
-  // the creator's one-open-challenge slot is stranded and the next "Create
-  // challenge" is blocked by the 409 guard. Best-effort: only the creator (slot 0)
-  // can cancel a pending duel; navigate away regardless of the DELETE outcome.
-  const handleLeave = useCallback(async () => {
-    if (mySlot === 0) {
-      try {
-        await fetch(`/api/duel/${duelId}`, {
-          method: "DELETE",
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
-        });
-      } catch {
-        // Ignore — the lobby is being abandoned either way.
-      }
-    }
-    router.push("/duel");
-  }, [mySlot, duelId, token, router]);
-
   const playerNames: Record<string, string> = {
     [player1Id]: player1Name,
     [player2Id]: player2Name,
@@ -584,21 +582,13 @@ function DuelGame({
     );
   }
 
-  // Lobby: the practice warm-up owns the whole stage (its own full-bleed canvas
-  // + waiting overlay), so render it directly — same responsive shell as below.
-  if (phase === "lobby" && !startedRef.current) {
-    return (
-      <PracticeGame
-        categorySlug={categorySlug}
-        touchDevice={touchDevice}
-        linkCopied={linkCopied}
-        waitedTooLong={waitedTooLong}
-        onCopyLink={copyInviteLink}
-        onLeave={handleLeave}
-      />
-    );
-  }
-
+  // Lobby (both players known, presence handshake in flight — normally
+  // sub-second): render the real stage immediately rather than swapping to a
+  // separate throwaway warm-up component. That swap-and-swap-back was a
+  // structural DOM change (different container, an inserted HUD block) right
+  // as the match starts, which showed up as a visible layout shift. The real
+  // canvas already renders the lobby-phase spawn state safely (ClimbCanvas
+  // doesn't branch on phase), so there's nothing it's missing by starting here.
   return (
     <div
       className={
@@ -670,69 +660,70 @@ function DuelGame({
           </div>
         </div>
 
-        {/* Live altitude race bar — who's ahead as heights change. Iterates
+        {/* Live altitude race bar — always rendered (not gated to climb/countdown)
+            so the HUD's height is stable from the moment the match starts;
+            during lobby every racer is at spawn (y=0), which renders as a
+            harmless 0% bar rather than an inserted block later. Iterates
             state.players so a group-race (≤4) needs no rework. */}
-        {(phase === "climb" || phase === "countdown") && (
-          <div
-            className={
-              touchDevice
-                ? "mx-2 flex flex-col gap-1 rounded-lg bg-void/60 px-3 py-2 backdrop-blur-sm"
-                : "w-full flex flex-col gap-1 px-4 py-2.5 bg-surface-raised"
-            }
-          >
-            {racers.map((p) => {
-              const isMe = p.slot === mySlot;
-              const isLeader = leader !== null && p.slot === leader.slot && maxAlt > 0;
-              const isOpp = !isMe;
-              const stale = isOpp && phase === "climb" && opponentStale;
-              const pct = maxAlt > 0 ? Math.round((p.y / maxAlt) * 100) : 0;
-              const barColor = p.slot === 0 ? "bg-signal" : "bg-[#6bb8ff]";
-              const nameColor = p.slot === 0 ? "text-signal" : "text-[#6bb8ff]";
-              const name = p.slot === 0 ? player1Name : player2Name;
-              return (
-                <div key={p.slot} className="flex items-center gap-2">
-                  <span
-                    className={`font-mono text-[11px] tabular-nums truncate w-24 shrink-0 ${nameColor} ${
-                      stale ? "opacity-50" : ""
-                    }`}
-                  >
-                    {isLeader && (
-                      <span aria-hidden="true" className="mr-0.5">
-                        ▲
-                      </span>
-                    )}
-                    {name}
-                    {isMe && <span className="text-text-muted ml-1">(you)</span>}
-                  </span>
+        <div
+          className={
+            touchDevice
+              ? "mx-2 flex flex-col gap-1 rounded-lg bg-void/60 px-3 py-2 backdrop-blur-sm"
+              : "w-full flex flex-col gap-1 px-4 py-2.5 bg-surface-raised"
+          }
+        >
+          {racers.map((p) => {
+            const isMe = p.slot === mySlot;
+            const isLeader = leader !== null && p.slot === leader.slot && maxAlt > 0;
+            const isOpp = !isMe;
+            const stale = isOpp && phase === "climb" && opponentStale;
+            const pct = maxAlt > 0 ? Math.round((p.y / maxAlt) * 100) : 0;
+            const barColor = p.slot === 0 ? "bg-signal" : "bg-[#6bb8ff]";
+            const nameColor = p.slot === 0 ? "text-signal" : "text-[#6bb8ff]";
+            const name = p.slot === 0 ? player1Name : player2Name;
+            return (
+              <div key={p.slot} className="flex items-center gap-2">
+                <span
+                  className={`font-mono text-[11px] tabular-nums truncate w-24 shrink-0 ${nameColor} ${
+                    stale ? "opacity-50" : ""
+                  }`}
+                >
+                  {isLeader && (
+                    <span aria-hidden="true" className="mr-0.5">
+                      ▲
+                    </span>
+                  )}
+                  {name}
+                  {isMe && <span className="text-text-muted ml-1">(you)</span>}
+                </span>
+                <div
+                  className="relative flex-1 h-1.5 rounded-full bg-border-subtle overflow-hidden"
+                  role="progressbar"
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  aria-valuenow={pct}
+                  aria-label={`${name} altitude ${formatAltitude(p.y, 1)}${
+                    isLeader ? ", leading" : ""
+                  }${stale ? ", connection lost" : ""}`}
+                >
                   <div
-                    className="relative flex-1 h-1.5 rounded-full bg-border-subtle overflow-hidden"
-                    role="progressbar"
-                    aria-valuemin={0}
-                    aria-valuemax={100}
-                    aria-valuenow={pct}
-                    aria-label={`${name} altitude ${formatAltitude(p.y, 1)}${
-                      isLeader ? ", leading" : ""
-                    }${stale ? ", connection lost" : ""}`}
-                  >
-                    <div
-                      className={`absolute inset-y-0 left-0 rounded-full transition-[width] duration-200 ease-out ${barColor} ${
-                        stale ? "opacity-40" : ""
-                      }`}
-                      style={{ width: `${pct}%` }}
-                    />
-                  </div>
-                  <span
-                    className={`font-mono text-[11px] tabular-nums text-text-secondary w-14 text-right shrink-0 ${
-                      stale ? "opacity-50" : ""
+                    className={`absolute inset-y-0 left-0 rounded-full transition-[width] duration-200 ease-out ${barColor} ${
+                      stale ? "opacity-40" : ""
                     }`}
-                  >
-                    {formatAltitude(p.y, 1)}
-                  </span>
+                    style={{ width: `${pct}%` }}
+                  />
                 </div>
-              );
-            })}
-          </div>
-        )}
+                <span
+                  className={`font-mono text-[11px] tabular-nums text-text-secondary w-14 text-right shrink-0 ${
+                    stale ? "opacity-50" : ""
+                  }`}
+                >
+                  {formatAltitude(p.y, 1)}
+                </span>
+              </div>
+            );
+          })}
+        </div>
       </div>
 
       {/* Play stage: full-bleed on touch, framed 9:16 column on desktop. */}

@@ -1,13 +1,13 @@
 /**
  * Public creator profiles.
  *
- * A creator page (/c/[username]) ties together a person's paid listings and
- * their climbing record. It surfaces only already-public data (visible blocks +
- * the public climb leaderboard), keyed by the user-chosen `username`.
+ * A creator page (/c/[username]) surfaces a person's public climbing record and
+ * saved social handles — only already-public data, keyed by the user-chosen
+ * `username`.
  */
 
 import { prisma } from "./client";
-import { Prisma, type CreatorPlatform } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import { climberDisplay } from "../lib/handle";
 import {
   getUserFreeClimbRecord,
@@ -17,22 +17,12 @@ import {
 } from "./climb";
 import { getUserSocialHandles, type SocialHandleMap } from "./settings";
 
-export interface CreatorBlock {
-  slug: string;
-  display_name: string;
-  category: string | null;
-  altitude: number;
-  platform: CreatorPlatform | null;
-  handle: string | null;
-}
-
 export interface CreatorProfile {
   username: string;
   /** Display name (profile name, else deterministic pseudonym). Never the email. */
   name: string;
   /** Saved social handles → chip row (only platforms the creator has set). */
   social: SocialHandleMap;
-  blocks: CreatorBlock[];
   freeClimb: UserFreeClimbRecord | null;
   replays: ClimbReplaySummary[];
 }
@@ -89,7 +79,6 @@ export async function getCreatorIdentity(
 
 /**
  * Full public profile for a username, or null if no such user.
- * Blocks are the user's visible (non-hidden) listings, altitude DESC.
  */
 export async function getCreatorProfileByUsername(
   username: string
@@ -100,19 +89,7 @@ export async function getCreatorProfileByUsername(
   });
   if (!user || !user.username) return null;
 
-  const [blocks, freeClimb, replays, social] = await Promise.all([
-    prisma.block.findMany({
-      where: { userId: user.id, hidden_at: null },
-      orderBy: { altitude: "desc" },
-      select: {
-        slug: true,
-        display_name: true,
-        category: true,
-        altitude: true,
-        platform: true,
-        handle: true,
-      },
-    }),
+  const [freeClimb, replays, social] = await Promise.all([
     getUserFreeClimbRecord(user.id).catch(() => null),
     getUserClimbReplays(user.id).catch(() => []),
     getUserSocialHandles(user.id).catch(() => ({})),
@@ -122,7 +99,6 @@ export async function getCreatorProfileByUsername(
     username: user.username,
     name: climberDisplay(user.id, user.display_name),
     social,
-    blocks,
     freeClimb,
     replays,
   };

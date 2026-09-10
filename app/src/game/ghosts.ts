@@ -88,22 +88,29 @@ export class GhostStore {
     if (arr.length === 1) return arr[0];
 
     const target = localClimbTick - GHOST_RENDER_DELAY_TICKS;
+    const oldest = arr[0];
+    const newest = arr[arr.length - 1];
 
-    // Find the two samples that bracket `target`.
-    let a = arr[0];
+    if (target <= oldest.tick) return oldest; // clamp behind oldest relevant sample
+
+    let a = oldest;
     let b = arr[1];
-    for (let i = 1; i < arr.length - 1; i++) {
-      if (arr[i].tick <= target && arr[i + 1].tick >= target) {
-        a = arr[i];
-        b = arr[i + 1];
-        break;
-      }
-      // No bracket found yet — use the last two for interpolation/extrapolation.
+    if (target > newest.tick) {
+      // Past the latest sample — use the last two for extrapolation velocity.
       a = arr[arr.length - 2];
-      b = arr[arr.length - 1];
+      b = newest;
+    } else {
+      // Interpolation: scan for the two consecutive samples bracketing target.
+      // target is known to be within [oldest, newest] here, so this always
+      // finds a pair before exiting the loop.
+      for (let i = 0; i < arr.length - 1; i++) {
+        if (arr[i].tick <= target && arr[i + 1].tick >= target) {
+          a = arr[i];
+          b = arr[i + 1];
+          break;
+        }
+      }
     }
-
-    if (target <= a.tick) return a; // clamp behind oldest relevant sample
 
     const span = b.tick - a.tick;
 

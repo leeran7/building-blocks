@@ -2,24 +2,24 @@
  * /privacy — Privacy Policy.
  *
  * Reflects the actual data flows in this codebase: Firebase Auth (email/password
- * + Google OAuth + anonymous guest sessions), Stripe Checkout for paid leaderboard
- * blocks and for prepaid duel credits, Postgres/Prisma for storage, Upstash Redis
- * for caching/rate-limiting, Vercel hosting, and an OpenAI-backed social media
- * agent (internal/business use, not applied to end-user personal data). It also
- * covers the public creator surface: user-chosen public usernames (/c/[username]),
- * the social platform + handle a paid listing can point at (typed by the buyer,
- * no OAuth into their social account), and the /go/[slug] tracked outbound
- * redirect that counts clicks before forwarding.
+ * + Google OAuth + anonymous guest sessions), Stripe Checkout for chip purchases
+ * and tournament entry fees, Stripe Connect for tournament prize payouts,
+ * Postgres/Prisma for storage, Upstash Redis for caching/rate-limiting,
+ * Vercel hosting, and an OpenAI-backed social media agent (internal/business use,
+ * not applied to end-user personal data). It also covers the public creator
+ * surface: user-chosen public usernames (/c/[username]) and the social platform
+ * handles a creator can save (typed by the user, no OAuth into their social
+ * account).
  *
- * Paid 1v1 duels add: an 18+ attestation timestamp (age_confirmed_at), a
- * two-bucket credit wallet (play/winnings balances) with a WalletLedger audit
- * trail, CreditPurchase rows (Stripe session ids), and an IP-derived, region-
- * level geo signal (x-vercel-ip-country-region) used to enforce the state
- * geoblock. Disclose these consistently with the existing Stripe/payment
- * language; do not imply we verify age or precisely locate users. Doomstack
- * currently operates as a sole proprietorship (no formed entity) based in
- * Florida, USA — update the operator name in CONTACT_EMAIL/entity references
- * below if/when that changes.
+ * Paid features add: an 18+ attestation timestamp (age_confirmed_at), a chip
+ * balance (play_credits_cents) with a WalletLedger audit trail, CreditPurchase
+ * rows (Stripe session ids), tournament entries with Stripe Connect account ids,
+ * and an IP-derived, region-level geo signal (x-vercel-ip-country-region) used
+ * to enforce the geo allow-list. Disclose these consistently with the existing
+ * Stripe/payment language; do not imply we verify age or precisely locate users.
+ * Doomstack currently operates as a sole proprietorship (no formed entity)
+ * based in Florida, USA — update the operator name in CONTACT_EMAIL/entity
+ * references below if/when that changes.
  */
 
 import { Navbar } from "../../src/components/Navbar";
@@ -33,7 +33,7 @@ import {
 } from "../../src/components/Legal/LegalArticle";
 import { buildMetadata } from "../../src/lib/seo";
 
-const UPDATED = "September 9, 2026";
+const UPDATED = "September 10, 2026";
 const CONTACT_EMAIL = "hello@doomstack.lol";
 
 export const metadata = buildMetadata({
@@ -89,11 +89,10 @@ export default function PrivacyPage() {
 
         <Section id="who-we-are" title="1. Who we are">
           <p>
-            Doomstack is a leaderboard game: a free endless-climbing game
-            (&ldquo;Free Climb&rdquo;), paid leaderboards (&ldquo;Stacks&rdquo;)
-            where anyone can submit a link and buy their way up a public ranking,
-            and paid 1v1 skill duels backed by a prepaid credit wallet. We are
-            the &ldquo;data controller&rdquo; (GDPR)
+            Doomstack is a skill-based climbing game: a free endless-climbing
+            game (&ldquo;Free Climb&rdquo;) with a public leaderboard, ranked
+            chip duels, and bracket tournaments with cash prizes. We are the
+            &ldquo;data controller&rdquo; (GDPR)
             or &ldquo;business&rdquo; (CCPA/CPRA) responsible for the personal
             information described in this policy. If we form a corporate
             entity to hold the Doomstack business, this policy will be
@@ -114,7 +113,7 @@ export default function PrivacyPage() {
             <li>
               <strong>Public username</strong> — if you choose one, we store a
               unique, user-chosen handle that creates a public creator page at{" "}
-              <code>/c/your-username</code> aggregating your visible listings
+              <code>/c/your-username</code> showing your saved social handles
               and public climbing record. It’s optional; you can clear it at any
               time, which removes the page. Choose a username you’re comfortable
               being public — see{" "}
@@ -134,49 +133,45 @@ export default function PrivacyPage() {
               unlinked identifier with no email or personal profile attached.
             </li>
             <li>
-              <strong>Leaderboard submissions (&ldquo;blocks&rdquo;)</strong>{" "}
-              — if you buy a spot on a paid Stack, we collect the destination
-              URL, display name, and owner email you submit. A listing may
-              instead point at a social account: you type a platform (TikTok,
-              X, YouTube, Instagram, or Twitch) and a handle, and we build the
-              public profile link from them. This is a handle you type — we do
-              not connect to, log into, or access your social account. The
-              destination URL or the platform and handle, and the display name,
-              are shown publicly as part of the leaderboard — see{" "}
+              <strong>Saved social handles</strong> — you can save a handle for
+              a social platform (TikTok, X, YouTube, Instagram, or Twitch), which
+              we show as a link on your public creator page. This is a handle you
+              type — we do not connect to, log into, or access your social
+              account. Saved handles are shown publicly on your creator page —
+              see{" "}
               <a href="#sharing" className="text-signal hover:underline">
                 Sharing &amp; disclosure
               </a>
-              . The owner email is not shown publicly.
+              .
             </li>
             <li>
-              <strong>Payment information</strong> — payments (paid Stack
-              blocks and prepaid duel credits) are handled by Stripe. We receive
+              <strong>Payment information</strong> — payments (chip purchases
+              and tournament entry fees) are handled by Stripe. We receive
               confirmation that a payment succeeded, the amount, and a Stripe
-              transaction/session identifier. For credit purchases we store a
-              record of the purchase (the Stripe session id, amount, and
-              timestamp). We never receive or store your full card number, CVC,
-              or bank details — those go directly to Stripe.
+              transaction/session identifier. For chip purchases we store a record
+              (the Stripe session id, amount, and timestamp). Tournament prize
+              payouts are processed via Stripe Connect — winners complete
+              Stripe&apos;s onboarding, and we store the Stripe Connect account id
+              and transfer status. We never receive or store your full card
+              number, CVC, or bank details — those go directly to Stripe.
             </li>
             <li>
-              <strong>Age confirmation (paid 1v1 duels)</strong> — paid duels
-              are restricted to users 18 and older. The first time you buy
-              credits or enter a paid duel, you confirm you are 18+ and we store
-              the date and time of that confirmation. This is your
+              <strong>Age confirmation (chip duels &amp; tournaments)</strong> —
+              these features are restricted to users 18 and older. The first time
+              you buy chips or enter a tournament, you confirm you are 18+ and we
+              store the date and time of that confirmation. This is your
               self-confirmation; we rely on it and do not independently verify
-              your age at that step. If you never use paid duels, we don’t
+              your age at that step. If you never use paid features, we don&apos;t
               collect this.
             </li>
             <li>
-              <strong>Credit wallet &amp; activity (paid 1v1 duels)</strong> —
-              if you use paid duels, we maintain a prepaid, in-app credit balance
-              for your account (a “play” balance from purchases and a “winnings”
-              balance from wins) and keep a ledger of the entries that change it —
-              credit purchases, stakes, wins, refunds, and cash-out requests —
-              with amounts, timestamps, and the related duel. We keep this as a
-              financial and anti-fraud record. If you request a cash-out of
-              winnings, we may collect information needed to verify your identity
-              and eligibility and to meet tax and anti-fraud obligations before we
-              release funds.
+              <strong>Chip balance &amp; activity</strong> — if you use chip
+              duels, we maintain a non-cashable chip balance for your account and
+              keep a ledger of the entries that change it — chip purchases,
+              stakes, wins, and refunds — with amounts, timestamps, and the
+              related duel. For tournament participants, we store your entry,
+              placement, and prize information. We keep this as a financial and
+              anti-fraud record.
             </li>
             <li>
               <strong>Correspondence</strong> — if you email us or contact
@@ -188,9 +183,9 @@ export default function PrivacyPage() {
           <SubHeading>Information collected automatically</SubHeading>
           <List>
             <li>
-              <strong>Gameplay data</strong> — climb runs, peak
-              altitude/height reached per category, and (for ranked runs) a
-              replay token used to verify results.
+              <strong>Gameplay data</strong> — climb runs, peak height reached
+              per category, duel results, and (for ranked runs) a replay token
+              used to verify results.
             </li>
             <li>
               <strong>Device &amp; usage data</strong> — IP address, browser
@@ -199,22 +194,20 @@ export default function PrivacyPage() {
               collected via server logs and our hosting/CDN provider.
             </li>
             <li>
-              <strong>Approximate location for paid-duel eligibility</strong> —
-              when you take a paid-duel action, our hosting provider (Vercel)
-              gives us a coarse, IP-derived country and US state/region signal.
-              We use it only to enforce the age and state restrictions on paid
-              duels (paid duels are not offered in certain US states). It is an
-              approximation, not precise or GPS-level location. If you don’t use
-              paid duels, we don’t rely on it for this purpose.
+              <strong>Approximate location for eligibility</strong> — when you
+              take a paid action (buying chips, entering a tournament), our
+              hosting provider (Vercel) gives us a coarse, IP-derived country
+              and US state/region signal. We use it only to enforce the geo
+              allow-list for paid features. It is an approximation, not precise
+              or GPS-level location. If you don&apos;t use paid features, we
+              don&apos;t rely on it for this purpose.
             </li>
             <li>
-              <strong>Click &amp; view counts</strong> — when someone clicks a
-              listing, the link routes through our server (<code>/go/…</code>)
-              so we can count the click before forwarding to the destination.
-              We filter out automated traffic (bots and link previewers) and
-              keep an aggregate per-listing tally; we likewise count above-ground
-              views. These are counts shown to a listing’s owner and used to
-              price ranks, not a per-visitor browsing history.
+              <strong>Abuse detection</strong> — to deter multi-accounting and
+              manipulation in chip duels and tournaments, we may compare
+              session and device signals. We do not store raw IP addresses for
+              this purpose beyond what is needed for the life of a matchmaking
+              session.
             </li>
             <li>
               <strong>Session &amp; security identifiers</strong> — an
@@ -238,18 +231,18 @@ export default function PrivacyPage() {
             <li>Create and secure your account, and authenticate sign-in.</li>
             <li>
               Operate the Service: run gameplay, compute and display
-              leaderboard rankings, process paid Stack purchases, and run paid
-              1v1 duels (maintaining your credit wallet, settling stakes and
-              winnings, and handling cash-out requests).
+              leaderboard rankings, run chip duels and tournaments (maintaining
+              your chip balance, settling stakes, and processing tournament
+              prizes).
             </li>
             <li>
-              Process payments, maintain the credit-wallet ledger, and prevent
+              Process payments, maintain the chip ledger, and prevent
               fraudulent, duplicate, or disputed transactions.
             </li>
             <li>
-              Enforce eligibility for paid duels — confirm the 18+ attestation
-              and apply the state-level geoblock — and comply with related legal
-              and anti-fraud obligations.
+              Enforce eligibility for paid features — confirm the 18+
+              attestation and apply the geo allow-list — and comply with related
+              legal and anti-fraud obligations.
             </li>
             <li>
               Send transactional communications: email verification, password
@@ -290,17 +283,17 @@ export default function PrivacyPage() {
           </p>
           <SubHeading>Public by design</SubHeading>
           <p>
-            Doomstack’s leaderboards are public. A block’s display name,
-            destination URL (or the social platform and handle it points at),
-            category, altitude/rank, and (for the free climb board) your chosen
-            display name are visible to anyone who visits the Service — that’s
-            the product. If you set a public username, your creator page at{" "}
-            <code>/c/your-username</code> aggregates that already-public data:
-            your visible listings and your public climbing-record standing. It
+            Doomstack&apos;s leaderboards are public. Your chosen display name and
+            your peak height/rank are visible to anyone who visits the Service —
+            that&apos;s the product. Your display name is also shown to other
+            signed-in players in chip-duel lobbies and tournament brackets. If
+            you set a
+            public username, your creator page at{" "}
+            <code>/c/your-username</code> shows that already-public data: your
+            saved social handles and your public climbing-record standing. It
             never exposes your email or other private account details. Do not
-            submit information in these fields — or choose a username — that you
-            don’t want to be public. Your account email and the owner email
-            associated with a block are <em>not</em> displayed publicly.
+            save a handle — or choose a username — that you don’t want to be
+            public. Your account email is <em>not</em> displayed publicly.
           </p>
           <SubHeading>Service providers</SubHeading>
           <p>
@@ -411,23 +404,19 @@ export default function PrivacyPage() {
             active, plus a reasonable period afterward in case you return or
             to resolve disputes, and as needed to meet legal, tax, or
             accounting obligations (typically up to 7 years for financial
-            records related to payments). Credit-purchase records, the wallet
-            ledger, cash-out records, and your 18+ confirmation are treated as
-            financial and compliance records and are retained on that same basis
-            even after your account is closed, to the extent needed to meet
-            legal, tax, accounting, and anti-fraud obligations.
+            records related to payments). Chip-purchase records, the wallet
+            ledger, tournament entry and prize records, and your 18+
+            confirmation are treated as financial and compliance records and are
+            retained on that same basis even after your account is closed, to
+            the extent needed to meet legal, tax, accounting, and anti-fraud
+            obligations.
           </p>
           <p>
-            Leaderboard altitude is, by design, a permanent record — that’s
-            the core mechanic of the game. If you delete your account, we
-            will delete or de-identify your personal information (email,
-            display name), but historical leaderboard rank/altitude data may
-            be retained in de-identified or aggregated form as part of the
-            Service’s competitive record. Public block content you purchased
-            (URL, display name) may also remain visible on a leaderboard
-            after account deletion unless you separately request its
-            removal, since it was purchased and published as a product
-            feature, not merely stored as account data.
+            Your peak climbing height is, by design, a lasting competitive
+            record. If you delete your account, we will delete or de-identify
+            your personal information (email, display name), but historical
+            leaderboard rank/height data may be retained in de-identified or
+            aggregated form as part of the Service’s competitive record.
           </p>
         </Section>
 
