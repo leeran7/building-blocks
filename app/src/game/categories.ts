@@ -161,42 +161,6 @@ export function resolveGameCategory(slug: string): GameCategory {
   return make(key, titleFromSlug(key), "Gaming & Interactive");
 }
 
-/**
- * Default paid stack when a flow has no valid category. MUST be a curated
- * subcategory — never a legacy broad slug like "tech", which has no /stack
- * page and would swallow a payment into an invisible season.
- */
-export const DEFAULT_STACK_SLUG = GAME_CATEGORIES[0].slug;
-
-/** A paid-stack slug, or null if the value is missing / not a real stack. */
-export function parsePaidStackSlug(
-  raw: string | undefined | null
-): string | null {
-  if (!raw) return null;
-  const slug = raw.toLowerCase();
-  return isGameCategory(slug) ? slug : null;
-}
-
-/**
- * Shape-valid season slug, including leftover legacy rows like "tech".
- * Use parsePaidStackSlug for new money; this only gates format so an
- * existing block can still credit the season it already lives in.
- */
-const SEASON_SLUG_RE = /^[a-z0-9][a-z0-9-]{0,63}$/;
-const OBJECT_PROTO_KEYS = new Set(
-  Object.getOwnPropertyNames(Object.prototype).map((k) => k.toLowerCase())
-);
-OBJECT_PROTO_KEYS.add("__proto__");
-
-export function parseSeasonSlug(
-  raw: string | undefined | null
-): string | null {
-  if (!raw) return null;
-  const slug = raw.toLowerCase();
-  if (!SEASON_SLUG_RE.test(slug) || OBJECT_PROTO_KEYS.has(slug)) return null;
-  return slug;
-}
-
 /** One representative subcategory per family — used for the landing "featured" grid. */
 export const FEATURED_GAME_CATEGORIES: GameCategory[] = FAMILIES.map(
   (f) => GAME_CATEGORIES.find((c) => c.family === f) as GameCategory

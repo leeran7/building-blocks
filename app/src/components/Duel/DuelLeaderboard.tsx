@@ -1,8 +1,8 @@
 /**
- * Shared leaderboard table for 1v1 duels — free (overall W-L) and paid (paid-only W-L + earnings).
+ * Shared leaderboard table for 1v1 duels — free (overall W-L) and chip (chip W-L).
  */
 
-import type { DuelStatsRow, PaidDuelStatsRow } from "../../db/duel";
+import type { DuelStatsRow } from "../../db/duel";
 
 // ─────────────── Free leaderboard ──────────────────────────────────────────
 
@@ -84,17 +84,25 @@ export function FreeDuelLeaderboard({
   );
 }
 
-// ─────────────── Paid leaderboard ──────────────────────────────────────────
+// ─────────────── Chip leaderboard ─────────────────────────────────────────
 
-export function PaidDuelLeaderboard({
+export interface ChipLeaderboardEntry {
+  userId: string;
+  displayName: string | null;
+  chipWins: number;
+  chipLosses: number;
+  netChips: number;
+}
+
+export function ChipDuelLeaderboard({
   entries,
   unavailable = false,
 }: {
-  entries: PaidDuelStatsRow[];
+  entries: ChipLeaderboardEntry[];
   unavailable?: boolean;
 }) {
   if (unavailable) {
-    return <LeaderboardUnavailable label="paid duel standings unavailable" />;
+    return <LeaderboardUnavailable label="chip duel standings unavailable" />;
   }
 
   if (entries.length === 0) {
@@ -102,24 +110,23 @@ export function PaidDuelLeaderboard({
       <div className="relative overflow-hidden rounded-xl border border-border-strong bg-surface p-10 text-center">
         <div className="pointer-events-none absolute inset-0 survey-grid opacity-50" aria-hidden="true" />
         <p className="relative font-mono text-[11px] uppercase tracking-[0.2em] text-signal">
-          [ no paid matches yet ]
+          [ no chip matches yet ]
         </p>
         <p className="relative text-text-secondary text-sm mt-3">
-          First paid duel to finish will claim the top spot.
+          First chip duel to finish will claim the top spot.
         </p>
       </div>
     );
   }
 
-  const top = Math.max(1, entries[0].paidWins);
+  const top = Math.max(1, entries[0].chipWins);
 
   return (
-    <ol className="flex flex-col gap-1.5" aria-label="Paid 1v1 leaderboard">
+    <ol className="flex flex-col gap-1.5" aria-label="Chip duel leaderboard">
       {entries.map((e, i) => {
         const rank = i + 1;
         const isFirst = rank === 1;
-        const pct = Math.max(4, Math.round((e.paidWins / top) * 100));
-        const earned = (e.totalPayoutCents / 100).toFixed(2);
+        const pct = Math.max(4, Math.round((e.chipWins / top) * 100));
         return (
           <li
             key={e.userId}
@@ -146,15 +153,15 @@ export function PaidDuelLeaderboard({
                 {e.displayName ?? "—"}
               </span>
               <span className="font-mono text-xs text-text-muted tabular-nums whitespace-nowrap">
-                {e.paidWins}W&nbsp;{e.paidLosses}L
+                {e.chipWins}W&nbsp;{e.chipLosses}L
               </span>
               <span
                 className={
                   "font-mono tabular-nums font-bold text-sm " +
-                  (isFirst ? "text-signal" : "text-text-primary")
+                  (e.netChips > 0 ? "text-signal" : e.netChips < 0 ? "text-ember" : "text-text-primary")
                 }
               >
-                ${earned}
+                {e.netChips > 0 ? "+" : ""}{(e.netChips / 100).toLocaleString()}
               </span>
             </div>
           </li>

@@ -130,9 +130,8 @@ the same pass — the `learning-loop.md` bar for a permanent guardrail.
   while `experimental.trustHostHeader` is unset — one common proxy fix away from
   being an exfiltration primitive.
 - **Pattern worth keeping:** replacing permissive defaults with allow-list parsers
-  that return `null` (`parsePaidStackSlug`/`parseSeasonSlug`) plus `Object.hasOwn`
-  for user-keyed lookups eliminated a whole bug class. Reject, never substitute a
-  default.
+  that return `null` plus `Object.hasOwn` for user-keyed lookups eliminated a
+  whole bug class. Reject, never substitute a default.
 
 ### Architecture & contracts
 
@@ -266,17 +265,14 @@ the same pass — the `learning-loop.md` bar for a permanent guardrail.
 
 - **[security-reviewer → product-spec, architect] Is the free leaderboard a trust
   boundary?** `climb/result/route.ts` argues its self-reported `peakY` is
-  acceptable because it "never pays out", but the leaderboard renders on the
-  landing page beside the paid stacks, and the ranked re-simulation path its
-  docstring defers to does not exist. If it is displayed next to paid stacks,
-  spec an AC requiring server-derived peaks for it too.
+  acceptable because it "never pays out", but the ranked re-simulation path its
+  docstring defers to does not exist. Spec an AC requiring server-derived peaks
+  for it too. _(Paid Stacks removed 2026-09-10; the original "beside paid stacks"
+  context is gone — question still open for the free leaderboard itself.)_
 - **[reviewer, verifier → architect] One slot or stacking for power-ups?**
   `powerups.ts:18-19` documents one slot; production stacks all five types and
   `powerups.test.ts:236` asserts stacking is correct. The endless-run balance
   argument depends on the answer, and so does the fix for the duplicate-entry bug.
-- **[backend → architect] Is `/api/tower` (unscoped) still a supported contract?**
-  Its `season`/`engine`/`cost_of_rank1_usd` fields are meaningless once stacks are
-  partitioned. Scope the endpoint or drop the fields.
 - **[dispatcher → user] Which of the proposed doc updates in
   `docs/reviews/2026-08-29.md` are approved?** The `.gitignore` change is applied
   in this branch; the rest await approval per the standing rule.
@@ -288,6 +284,7 @@ the same pass — the `learning-loop.md` bar for a permanent guardrail.
 - **[implementer, qa-acceptance]** A motion fork without a non-test production caller fails AC delivery (AC-17 iter1). Wire or delete before QA.
 - **[security-reviewer, orchestrator]** OQ-1 free-leaderboard trust boundary stays OPEN through feel passes; scoreBounds freeze ≠ closing F-1.
 - **[design-ux]** Band midpoints (grain 0.042, topo 0.060, HUD 16, shake 2.64) are the contract; implementer must not invent alternate magnitudes.
+- **[implementer, reviewer]** When you change an API route's JSON response shape, grep for the client that consumes it — `fetch(...).json()` cast to an interface (`const data: T = await res.json()`) is unchecked, so `tsc` stays green while the page throws at runtime. Removing `blocks` from `/api/dashboard` left `dashboard/page.tsx` dereferencing `data.blocks` (crash for every user); typecheck + 629 tests all passed. Route-shape edits need a consumer sweep, not just a compile.
 
 _Last curated: 2026-09-06T05:28:18Z — Climb Feel 1.2× closed loop._
 

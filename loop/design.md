@@ -23,7 +23,7 @@ Band rule: target ≈ baseline × 1.2 inside AC bands; NFR caps override. Chosen
 | **climbEnter** | `enter`: translateY `16px`, `0.7s` | translateY **`19px`**, duration **`0.58s`** | keyframe `climbEnter`; util `animate-climbEnter` | Travel mid of 18–20; duration mid of 0.56–0.61 (≥200 ms) |
 | **climb-reveal** | `.reveal` → `enter 0.7s …` | same travel/duration as climbEnter | class `.climb-reveal` | Use instead of `.reveal` on climb chrome only |
 | **climbPunch** | `climb`: translateY `6px`, `0.8s` | translateY **`7.2px`**, duration **`0.67s`** | keyframe `climbPunch`; util `animate-climbPunch` | Replace `animate-climb` on Hero free-tier chips + climb chrome markers |
-| **climbGroundRise** | `groundRise`: period `6s`, amp `4%` | period **`4.8s`**, amp **`4.8%`** | keyframe `climbGroundRise`; util `animate-climbGroundRise` | ≤20% shorter; ≥4 s (NFR-3). Paid `GroundRow` keeps `animate-groundRise` |
+| **climbGroundRise** | `groundRise`: period `6s`, amp `4%` | period **`4.8s`**, amp **`4.8%`** | keyframe `climbGroundRise`; util `animate-climbGroundRise` | ≤20% shorter; ≥4 s (NFR-3). `animate-groundRise` is the shared baseline; fork is climb-scoped only. |
 
 **Keyframe sketches (implementer):**
 

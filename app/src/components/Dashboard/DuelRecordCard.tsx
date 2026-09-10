@@ -3,9 +3,9 @@
 /**
  * DuelRecordCard — dashboard card showing the user's 1v1 duel win-loss record.
  *
- * Mirrors FreeClimbCard: a per-player record surfaced above the paid-blocks grid.
- * Shows wins–losses plus current/best streak. No public leaderboard — this is the
- * player's own record only.
+ * Mirrors FreeClimbCard: a per-player record on the dashboard. Shows wins–losses
+ * plus current/best streak. No public leaderboard — this is the player's own
+ * record only.
  */
 
 import Link from "next/link";

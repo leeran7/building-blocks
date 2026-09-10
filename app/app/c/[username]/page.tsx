@@ -1,9 +1,8 @@
 /**
  * /c/[username] — public creator profile.
  *
- * Ties a creator's paid listings and their climbing record together — the
- * public identity that block cards and the climb leaderboard link to. Surfaces
- * only already-public data (visible blocks + the public climb leaderboard).
+ * The public identity the climb leaderboard links to: a creator's saved social
+ * handles and their public climbing record. Surfaces only already-public data.
  */
 
 import { notFound } from "next/navigation";
@@ -21,14 +20,14 @@ export async function generateMetadata({ params }: CreatorPageProps) {
   const { username } = await params;
   const norm = normalizeUsername(username);
   if (!norm.valid || !norm.username) {
-    return { title: "Creator not found — Stack", robots: { index: false } };
+    return { title: "Creator not found — Doomstack", robots: { index: false } };
   }
   const profile = await getCreatorProfileByUsername(norm.username);
   if (!profile) {
-    return { title: "Creator not found — Stack", robots: { index: false } };
+    return { title: "Creator not found — Doomstack", robots: { index: false } };
   }
-  const title = `${profile.name} (@${profile.username}) — Stack`;
-  const description = `${profile.name}'s listings and climbing record on Stack.`;
+  const title = `${profile.name} (@${profile.username}) — Doomstack`;
+  const description = `${profile.name}'s climbing record on Doomstack.`;
   return buildMetadata({ title, description, path: `/c/${profile.username}` });
 }
 

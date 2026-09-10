@@ -1,8 +1,7 @@
 /**
  * ContentItem data access — the core entity (Epics D-I). Includes the
  * conditional-UPDATE publish claim (ADR-3) that guarantees at-most-once
- * publish (AC-36), mirroring this repo's existing
- * `incrementViewsServed`/`updatePeakRank` raw-SQL idiom in src/db/blocks.ts.
+ * publish (AC-36).
  */
 
 import { prisma } from "../client";

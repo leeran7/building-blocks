@@ -1,30 +1,23 @@
 /**
  * POST /api/webhook/stripe
  *
- * Handle Stripe checkout.session.completed events.
+ * Handle Stripe checkout.session.completed events. The only funded flow today
+ * is prepaid-credit top-ups for Paid 1v1 Battles; they settle into the buyer's
+ * PLAY bucket. (The legacy paid-stacks block-payment flow was removed.)
  *
  * CRITICAL invariants:
  * 1. Verify stripe-signature FIRST — reject 400 if invalid (NFR-S1)
- * 2. Check stripe_session_id duplicate BEFORE any write (AC-32 idempotency)
- * 3. Compute metres from LIVE views_k (not checkout-time rate) (spec §3.7)
- * 4. UPDATE altitude = altitude + metres (additive, never set) (ADR-7)
- * 5. All writes in a single DB transaction (AC-33)
- * 6. Server NEVER trusts client-supplied rate/metres/growth (NFR-S2)
+ * 2. Credit only on a genuinely paid status (PAID_STATUSES)
+ * 3. Idempotent via CreditPurchase.stripe_session_id (unique)
+ * 4. Dead-letter an unattributable captured payment rather than 4xx/5xx
  */
 
 import { NextRequest, NextResponse } from "next/server";
 import { verifyWebhookSignature } from "../../../../src/api/stripe";
-import { classifyStripeCredit, PAID_STATUSES, CREDITING_EVENTS } from "../../../../src/api/stripeCredit";
-import {
-  findPaymentByStripeSession,
-  applyPaymentTransaction,
-  recordDeadLetter,
-} from "../../../../src/db/payments";
-import { getOrCreateActiveSeason } from "../../../../src/db/seasons";
-import { computeMetres } from "../../../../src/engine/index";
-import { updatePeakRank, getRankedBlocks, getBlockById } from "../../../../src/db/blocks";
-import { parseSeasonSlug } from "../../../../src/game/categories";
+import { PAID_STATUSES, CREDITING_EVENTS } from "../../../../src/api/stripeCredit";
+import { recordDeadLetter } from "../../../../src/db/deadLetter";
 import { addPurchasedCredits } from "../../../../src/db/credits";
+import { settleEntryFee, updatePayoutStatus } from "../../../../src/db/tournaments";
 
 // Disable body parsing — need raw body for Stripe signature verification
 export const runtime = "nodejs";
@@ -58,146 +51,92 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     );
   }
 
+  const eventType = event.type as string;
+
+  // Stripe Connect: transfer status updates for tournament prize payouts.
+  if (eventType === "transfer.paid" || eventType === "transfer.failed") {
+    const transfer = event.data.object as unknown as { id: string };
+    const status = eventType === "transfer.paid" ? "transfer_paid" : "transfer_failed";
+    await updatePayoutStatus(transfer.id, status);
+    return NextResponse.json({ received: true });
+  }
+
   const session = event.data.object as unknown as {
     id: string;
     currency?: string | null;
-    metadata:
-      | { block_id?: string; season_id?: string; category?: string; type?: string; user_id?: string }
-      | null;
+    metadata: { type?: string; user_id?: string; tournament_id?: string } | null;
     amount_total: number | null;
     payment_status?: string | null;
   };
 
   // Paid-duel credit top-ups are funded here and settled to the PLAY bucket.
-  // Routed before the block-payment classifier, which is keyed on block_id.
   if (session.metadata?.type === "credits_topup") {
-    return handleCreditsTopup(event.type, session);
+    return handleCreditsTopup(eventType, session);
   }
 
-  const decision = classifyStripeCredit(event.type, session);
+  // Tournament entry fee — register the user on successful payment.
+  if (session.metadata?.type === "tournament_entry") {
+    return handleTournamentEntry(eventType, session);
+  }
 
-  if (decision.kind === "ignore") {
+  // Any other session type is not something we fund anymore — acknowledge so
+  // Stripe stops retrying. (Historic paid-stack sessions land here and are
+  // intentionally ignored.)
+  return NextResponse.json({ received: true });
+}
+
+/**
+ * Register a user for a tournament after their entry fee is paid.
+ */
+async function handleTournamentEntry(
+  eventType: string,
+  session: {
+    id: string;
+    amount_total: number | null;
+    payment_status?: string | null;
+    metadata: { user_id?: string; tournament_id?: string } | null;
+  }
+): Promise<NextResponse> {
+  if (!CREDITING_EVENTS.has(eventType)) {
     return NextResponse.json({ received: true });
   }
-
-  if (decision.kind === "unpaid") {
-    console.log(
-      JSON.stringify({
-        type: "payment_webhook_unpaid",
-        stripe_session_id: decision.stripeSessionId,
-        payment_status: decision.paymentStatus,
-        event: decision.eventType,
-      })
-    );
-    return NextResponse.json({ received: true, credited: false });
+  if (!PAID_STATUSES.has(session.payment_status ?? "")) {
+    return NextResponse.json({ received: true, registered: false });
   }
 
-  if (decision.kind === "dead_letter") {
-    return await deadLetter(
-      decision.eventType,
-      decision.stripeSessionId,
-      decision.amountCents,
-      decision.reason
-    );
+  const userId = session.metadata?.user_id;
+  const tournamentId = session.metadata?.tournament_id;
+
+  if (!userId || !tournamentId) {
+    return deadLetter(eventType, session.id, session.amount_total ?? 0, "tournament_entry: missing metadata");
   }
 
-  const { stripeSessionId, blockId, amountCents } = decision;
-
-  // Step 2: Idempotency check — check for existing payment BEFORE any write (AC-32)
-  const existingPayment = await findPaymentByStripeSession(stripeSessionId);
-  if (existingPayment) {
-    return NextResponse.json({ received: true });
-  }
-
-  const blockRow = await getBlockById(blockId);
-  if (!blockRow) {
-    return await deadLetter(
-      event.type,
-      stripeSessionId,
-      amountCents,
-      `unknown block_id ${blockId}`
-    );
-  }
-
-  // Season comes from the block row, not checkout metadata.
-  const category =
-    parseSeasonSlug(blockRow.category) ??
-    parseSeasonSlug(session.metadata?.category);
-
-  if (!category) {
-    return await deadLetter(
-      event.type,
-      stripeSessionId,
-      amountCents,
-      `unparseable stack "${blockRow.category}" on block ${blockId}`
-    );
-  }
-
-  // Step 3-5: Atomic transaction (AC-33)
   try {
-    const activeSeason = await getOrCreateActiveSeason(category);
-    const V = activeSeason.views_k;
-
-    // Server computes metres from LIVE rate — never trusts client-supplied value
-    const amountDollars = amountCents / 100;
-    // CRITICAL: computeMetres uses server-side V, not anything from the client
-    const metresAdded = computeMetres(amountDollars, V);
-
-    // Apply payment in a single transaction (AC-33):
-    // UPDATE altitude = altitude + metresAdded (additive)
-    // INSERT payment row
-    const { block } = await applyPaymentTransaction(
-      blockId,
-      stripeSessionId,
-      amountCents,
-      metresAdded
-    );
-
-    // Update peak_rank (best-effort, not in the main transaction)
-    try {
-      const allBlocks = await getRankedBlocks(category);
-      const rank = allBlocks.findIndex((b) => b.id === blockId) + 1;
-      if (rank > 0) {
-        await updatePeakRank(blockId, rank);
-      }
-    } catch (err) {
-      // Non-critical — don't fail the webhook for peak_rank update failure
-      console.warn("[webhook/stripe] peak_rank update failed:", err);
-    }
-
+    const result = await settleEntryFee(tournamentId, userId, session.id);
     console.log(
       JSON.stringify({
-        type: "payment_webhook",
-        block_id: blockId,
-        stripe_session_id: stripeSessionId,
-        amount_cents: amountCents,
-        metres_added: metresAdded,
-        new_altitude: block.altitude,
+        type: "tournament_entry",
+        stripe_session_id: session.id,
+        user_id: userId,
+        tournament_id: tournamentId,
+        outcome: result.outcome,
         timestamp: new Date().toISOString(),
       })
     );
-
     return NextResponse.json({ received: true });
-  } catch (error) {
-    // 500 is correct here and only here: a failed transaction is plausibly
-    // transient (database unavailable, lock timeout), so Stripe's retry is
-    // exactly what we want. The deterministic failures above cannot benefit
-    // from a retry and are dead-lettered instead.
-    console.error("[webhook/stripe] Transaction failed:", error);
-    return NextResponse.json(
-      { error: "Payment processing failed" },
-      { status: 500 }
-    );
+  } catch (err) {
+    console.error("[webhook/stripe] tournament_entry settlement failed:", err);
+    return NextResponse.json({ error: "Entry settlement failed" }, { status: 500 });
   }
 }
 
 /**
  * Settle a credits top-up into the buyer's PLAY bucket.
  *
- * Mirrors the block-payment invariants: only credit on a genuinely paid status,
- * idempotent via CreditPurchase.stripe_session_id (unique), and dead-letter an
- * unattributable event rather than 4xx/5xx (Stripe must not silently lose or
- * endlessly retry a deterministic miss).
+ * Only credit on a genuinely paid status, idempotent via
+ * CreditPurchase.stripe_session_id (unique), and dead-letter an unattributable
+ * event rather than 4xx/5xx (Stripe must not silently lose or endlessly retry a
+ * deterministic miss).
  */
 async function handleCreditsTopup(
   eventType: string,

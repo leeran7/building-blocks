@@ -96,11 +96,10 @@ function DuelViz() {
           <div className="flex-1 h-px bg-gradient-to-r from-ember/70 to-ember/10" />
         </div>
 
-        {/* Winner-takes-pot badge — paid flag only */}
         {PAID_DUELS_ENABLED_PUBLIC && (
           <div className="flex justify-center pt-1">
             <span className="bg-signal/5 border border-signal/30 rounded-lg px-2 py-1 font-mono text-[11px] text-signal uppercase tracking-[0.1em]">
-              Winner takes $3.60
+              Ranked chips + tournaments
             </span>
           </div>
         )}
@@ -181,7 +180,7 @@ export function Hero({ stats }: { stats: HeroStats }) {
             Challenge a friend or find a random opponent. Race the same tower —
             same rising lava — and outlast them.
             {PAID_DUELS_ENABLED_PUBLIC && (
-              <> Free always. Stake credits when you want the pot.</>
+              <> Free always. Go ranked with chips or compete in tournaments.</>
             )}
           </p>
 

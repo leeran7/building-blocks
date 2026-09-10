@@ -1,6 +1,5 @@
 /**
  * FreeStackShell — shared frame for the standalone free climb stack (/climb, /play).
- * Separate from CategoryShell, which wraps the 74 paid category stacks.
  *
  * Navbar + a tab-only header band are identical on both routes. Title, CTA and
  * meta live in the panel below the hairline so switching Leaderboard/Play does

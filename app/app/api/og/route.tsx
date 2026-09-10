@@ -1,25 +1,18 @@
 /**
  * GET /api/og
  *
- * Dynamic OG image of the current top block.
+ * Static brand OG image for Doomstack (free climb + duels + tournaments).
  * Edge runtime for fast response at CDN.
- * Cache-Control: s-maxage=60, stale-while-revalidate=300
- * Cache-busted by ?v={top_block_id}
+ * Cache-Control: s-maxage=3600, stale-while-revalidate=86400
  */
 
 import { ImageResponse } from "@vercel/og";
 import { NextRequest } from "next/server";
-import { formatAltitude } from "../../../src/lib/units";
 
 export const runtime = "edge";
 
-export async function GET(request: NextRequest): Promise<ImageResponse | Response> {
+export async function GET(_request: NextRequest): Promise<ImageResponse | Response> {
   try {
-    const { searchParams } = new URL(request.url);
-    const blockName = searchParams.get("name") ?? "Stack";
-    const altitude = searchParams.get("alt") ?? "0";
-    const rank = searchParams.get("rank") ?? "1";
-
     const image = new ImageResponse(
       (
         <div
@@ -35,7 +28,6 @@ export async function GET(request: NextRequest): Promise<ImageResponse | Respons
             color: "#f8fafc",
           }}
         >
-          {/* Tower wordmark */}
           <div
             style={{
               fontSize: 28,
@@ -43,65 +35,34 @@ export async function GET(request: NextRequest): Promise<ImageResponse | Respons
               letterSpacing: "0.3em",
               color: "#0ea5e9",
               textTransform: "uppercase",
-              marginBottom: 20,
+              marginBottom: 24,
             }}
           >
             DOOMSTACK
           </div>
 
-          {/* Rank badge */}
           <div
             style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              background: "#0ea5e9",
-              color: "#0f172a",
-              borderRadius: 8,
-              padding: "4px 16px",
-              fontSize: 20,
-              fontWeight: 700,
-              marginBottom: 16,
-            }}
-          >
-            #{rank}
-          </div>
-
-          {/* Block name */}
-          <div
-            style={{
-              fontSize: 48,
+              fontSize: 56,
               fontWeight: 800,
               textAlign: "center",
               maxWidth: "80%",
-              lineHeight: 1.2,
-              marginBottom: 12,
+              lineHeight: 1.15,
+              marginBottom: 16,
             }}
           >
-            {blockName}
+            Climb higher. Duel for the pot.
           </div>
 
-          {/* Altitude */}
           <div
             style={{
               fontSize: 20,
               color: "#94a3b8",
-              marginBottom: 24,
-            }}
-          >
-            {formatAltitude(parseFloat(altitude), 1)} altitude
-          </div>
-
-          {/* Tagline */}
-          <div
-            style={{
-              fontSize: 16,
-              color: "#64748b",
               textAlign: "center",
-              maxWidth: "60%",
+              maxWidth: "70%",
             }}
           >
-            Your altitude is permanent. The ground rises instead.
+            A skill-based endless climb — free leaderboard, ranked duels, and tournaments.
           </div>
         </div>
       ),
@@ -111,9 +72,8 @@ export async function GET(request: NextRequest): Promise<ImageResponse | Respons
       }
     );
 
-    // Set cache headers on the response
     const headers = new Headers(image.headers);
-    headers.set("Cache-Control", "s-maxage=60, stale-while-revalidate=300");
+    headers.set("Cache-Control", "s-maxage=3600, stale-while-revalidate=86400");
 
     return new Response(await image.arrayBuffer(), {
       status: 200,

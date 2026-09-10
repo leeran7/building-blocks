@@ -42,14 +42,14 @@ export function AuthShell({ children }: { children: ReactNode }) {
             [ enlist ]
           </span>
           <h2 className="font-display text-5xl text-text-primary mt-3 leading-[0.95]">
-            Buy altitude.
+            Climb higher.
             <br />
             Outlast{" "}
             <span className="text-signal">everyone.</span>
           </h2>
           <p className="text-sm text-text-secondary mt-4">
-            Your height is permanent — but the ground keeps rising. Claim your
-            block before someone buries it.
+            Race the rising lava for the top of the leaderboard — or go
+            head-to-head in ranked chip duels and tournaments.
           </p>
 
           {/* Mini elevation deco */}

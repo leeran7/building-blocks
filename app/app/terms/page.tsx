@@ -3,20 +3,22 @@
  *
  * Florida governing law, binding arbitration + class-action waiver (with a
  * 30-day opt-out, standard for enforceability), reflecting the actual
- * product: free "Free Climb" game, paid leaderboard "Stacks" purchased via
- * Stripe Checkout, public block submissions, and paid 1v1 duels backed by a
- * prepaid credits wallet (Section 5). Doomstack currently operates as a sole
- * proprietorship (no formed entity) based in Florida, USA — see the note in
- * privacy/page.tsx if that changes.
+ * product: the free "Free Climb" game, public creator profiles (username +
+ * saved social handles + climbing record), chip duels (non-cashable ranked
+ * play, Section 5a), and bracket tournaments with company-guaranteed cash
+ * prizes (Section 5b). Doomstack currently operates as a sole proprietorship
+ * (no formed entity) based in Florida, USA — see the note in privacy/page.tsx
+ * if that changes.
  *
- * Paid duels are framed as skill-based competition (not gambling). Compliance
- * controls that live in code: an 18+ *attestation* (self-confirmation, not
- * verified age — see recordAgeConfirmation / age_confirmed_at), an IP-based
- * geoblock of AZ/IA/LA/MT/WA (paidDuelGeo.ts, region-level and fail-closed),
- * and a PAID_DUELS_ENABLED kill switch. The copy must not overstate these
- * (e.g. do not claim we "verify" age or location). This is drafted text for
- * human legal review, not a final legal opinion — the skill-game framing,
- * money-transmitter posture, and state list need attorney sign-off.
+ * Chip duels and tournaments are framed as skill-based competition (not
+ * gambling). Compliance controls that live in code: an 18+ *attestation*
+ * (self-confirmation, not verified age — see recordAgeConfirmation /
+ * age_confirmed_at), an IP-based geo allow-list (paidDuelGeo.ts, default-deny,
+ * fail-closed), and a PAID_DUELS_ENABLED kill switch. The copy must not
+ * overstate these (e.g. do not claim we "verify" age or location). This is
+ * drafted text for human legal review, not a final legal opinion — the
+ * skill-game framing, money-transmitter posture, and state list need attorney
+ * sign-off.
  */
 
 import { Navbar } from "../../src/components/Navbar";
@@ -36,7 +38,7 @@ const CONTACT_EMAIL = "hello@doomstack.lol";
 export const metadata = buildMetadata({
   title: "Doomstack — Terms of Service",
   description:
-    "The rules for using Doomstack, Free Climb, paid Stacks, and paid 1v1 duels.",
+    "The rules for using Doomstack, Free Climb, chip duels, and tournaments.",
   path: "/terms",
 });
 
@@ -45,9 +47,9 @@ const TOC = [
   { id: "the-service", label: "The service" },
   { id: "eligibility", label: "Eligibility & accounts" },
   { id: "payments", label: "Payments & purchases" },
-  { id: "paid-duels", label: "Paid 1v1 duels & credits" },
+  { id: "competitive-play", label: "Competitive play: chips & tournaments" },
   { id: "acceptable-use", label: "Acceptable use" },
-  { id: "content", label: "User content & submissions" },
+  { id: "content", label: "User content & profiles" },
   { id: "ip", label: "Intellectual property" },
   { id: "termination", label: "Termination & suspension" },
   { id: "disclaimer", label: "Disclaimer of warranties" },
@@ -86,9 +88,9 @@ export default function TermsPage() {
         <Section id="acceptance" title="1. Acceptance of terms">
           <p>
             By creating an account, playing Free Climb (including as a
-            guest), purchasing a spot on a Stack, or otherwise using the
-            Service, you agree to be bound by these Terms. If you don’t
-            agree, don’t use the Service. If you’re using the Service on
+            guest), buying chips, entering a tournament, or otherwise using the
+            Service, you agree to be bound by these Terms. If you don&apos;t
+            agree, don&apos;t use the Service. If you&apos;re using the Service on
             behalf of a company or other entity, you represent that you have
             authority to bind that entity, and &ldquo;you&rdquo; refers to
             both you and that entity.
@@ -97,24 +99,20 @@ export default function TermsPage() {
 
         <Section id="the-service" title="2. The service">
           <p>
-            Doomstack is a leaderboard game. <strong>Free Climb</strong> is a
-            free, browser-based endless-climbing game where your peak
-            altitude per category is recorded permanently on a public
-            leaderboard. <strong>Stacks</strong> are paid leaderboards where
-            you can submit a link (a &ldquo;block&rdquo;) and pay, via Stripe
-            Checkout, to raise its position. As described on the Service,
-            the cost to claim or hold a given rank can change over time
-            (for example, based on views a block receives), and rank is
-            always computed from the current leaderboard state at the time
-            you view it — we don’t promise a rank will stay fixed after
-            purchase.
+            Doomstack is a skill-based climbing game. <strong>Free Climb</strong>{" "}
+            is a free, browser-based endless-climbing game where your peak
+            height is recorded on a public leaderboard. <strong>Chip duels</strong>{" "}
+            are ranked head-to-head matches where players stake non-cashable chips
+            (see Section 5a). <strong>Tournaments</strong> are bracket competitions
+            with a paid entry fee and predetermined cash prizes (see Section 5b).
+            Rank and duel results are always computed from play — never from how
+            much you spend.
           </p>
           <p>
             The Service, including gameplay formulas, is provided as a
-            competitive, for-entertainment product. Buying a block does not
-            create any ownership interest, guaranteed traffic, guaranteed
-            revenue, investment, or security, and past leaderboard
-            performance is not a promise of future results.
+            competitive, for-entertainment product. Participation does not create
+            any ownership interest, investment, or security, and past performance
+            is not a promise of future results.
           </p>
         </Section>
 
@@ -122,11 +120,11 @@ export default function TermsPage() {
           <List>
             <li>
               You must be at least 13 years old to create an account. If
-              you’re under the age of majority in your jurisdiction, you may
-              only use the Service with a parent or guardian’s consent.
+              you&apos;re under the age of majority in your jurisdiction, you may
+              only use the Service with a parent or guardian&apos;s consent.
             </li>
             <li>
-              You’re responsible for maintaining the confidentiality of your
+              You&apos;re responsible for maintaining the confidentiality of your
               account credentials and for all activity under your account.
               Notify us promptly at <MailLink address={CONTACT_EMAIL} /> if
               you suspect unauthorized use.
@@ -141,7 +139,7 @@ export default function TermsPage() {
               to persist or be recoverable.
             </li>
             <li>
-              Accounts are for individual use. Don’t create accounts through
+              Accounts are for individual use. Don&apos;t create accounts through
               unauthorized automated means, or sell, trade, or transfer your
               account to another person.
             </li>
@@ -152,11 +150,11 @@ export default function TermsPage() {
           <List>
             <li>
               All payments are processed by Stripe. By making a purchase, you
-              agree to Stripe’s terms in addition to ours, and you represent
-              that you’re authorized to use the payment method provided.
+              agree to Stripe&apos;s terms in addition to ours, and you represent
+              that you&apos;re authorized to use the payment method provided.
             </li>
             <li>
-              Prices and the cost to claim or hold a leaderboard position may
+              Chip prices, tournament entry fees, and any applicable fees may
               change at any time and are shown to you before you complete a
               purchase.
             </li>
@@ -169,125 +167,136 @@ export default function TermsPage() {
               charge.
             </li>
             <li>
-              We may cancel or reverse a transaction and remove a block if we
-              reasonably believe it was fraudulent, violated these Terms, or
-              resulted from a payment dispute (e.g., a chargeback).
+              We may cancel or reverse a transaction, and freeze or reverse the
+              associated chips or entry, if we reasonably believe it was
+              fraudulent, violated these Terms, or resulted from a payment
+              dispute (e.g., a chargeback).
             </li>
           </List>
         </Section>
 
-        <Section id="paid-duels" title="5. Paid 1v1 duels & credits">
+        <Section id="competitive-play" title="5. Competitive play: chips & tournaments">
           <p>
             <strong>
-              Paid 1v1 duels are skill-based competitions, not gambling.
+              Chip duels and tournaments are skill-based competitions, not gambling.
             </strong>{" "}
-            A duel is won by climbing the same deterministic tower faster and
+            A match is won by climbing the same deterministic tower faster and
             farther than your opponent: the tower each player faces is identical,
             it is generated the same way for both players, and the outcome is
-            determined by the players’ skill and inputs — not by chance, a random
-            draw, or the operator. This feature is offered only where staking on a
-            skill-based competition is permitted, and it is not offered where it is
+            determined by the players&apos; skill and inputs — not by chance, a random
+            draw, or the operator. These features are offered only where
+            skill-based competition is permitted, and are not offered where
             restricted or prohibited by law. Nothing in this section is a promise
             that participation is lawful in your location; that is your
-            responsibility to determine, and you agree not to participate where you
-            may not lawfully do so.
+            responsibility to determine, and you agree not to participate where
+            you may not lawfully do so.
           </p>
+
+          <SubHeading>5a. Chip duels (ranked, non-cashable)</SubHeading>
+          <List>
+            <li>
+              <strong>Chips are non-cashable virtual currency.</strong> Chips are
+              a prepaid, in-app balance usable only inside the Service to stake
+              on ranked 1v1 duels. Chips are{" "}
+              <strong>non-refundable</strong> and{" "}
+              <strong>can never be withdrawn, cashed out, converted to real
+              money, or transferred</strong> to another user or any third party.
+              They have no cash value outside the Service, are not a bank deposit,
+              are not insured, and earn no interest. We are not a bank, money
+              transmitter, or money services business. All chip sales are final.
+            </li>
+            <li>
+              <strong>Zero-sum matches, no house cut.</strong> In a chip duel,
+              both players stake the same number of chips at a fixed tier. The
+              winner receives exactly the loser&apos;s stake — there is no platform
+              fee or rake on chip duels.
+            </li>
+            <li>
+              <strong>Refunds on unplayed matches.</strong> If a chip duel never
+              starts (e.g. you cancel before an opponent joins, or no opponent
+              joins), your staked chips are returned. Once both players have
+              staked and the match begins, the result of a completed match is
+              final, except as stated in &ldquo;Fair play&rdquo; below.
+            </li>
+            <li>
+              <strong>No secondary market.</strong> Selling, trading, gifting,
+              or otherwise transferring chips outside the Service — including
+              via any secondary market, forum, or external arrangement — is
+              strictly prohibited and may result in account termination and
+              forfeiture of all chips.
+            </li>
+          </List>
+
+          <SubHeading>5b. Tournaments (real-money prizes)</SubHeading>
+          <List>
+            <li>
+              <strong>Entry fees &amp; prizes.</strong> Tournament entry fees are
+              paid via Stripe Checkout. Prize amounts are predetermined and
+              company-guaranteed before registration opens — they are not pooled
+              or derived from entry fees. Prizes are paid to eligible winners via
+              Stripe Connect.
+            </li>
+            <li>
+              <strong>Payout &amp; identity.</strong> To receive a tournament
+              prize, you must complete Stripe Connect Express onboarding, which
+              may include identity and tax-information verification required by
+              Stripe and applicable law. You are solely responsible for any taxes
+              on prize winnings.
+            </li>
+            <li>
+              <strong>Bracket &amp; format.</strong> Tournaments are single-
+              elimination brackets. Bracket sizes, round schedules, and
+              placement rules are shown before registration. Non-power-of-2
+              entrant counts are padded with byes.
+            </li>
+            <li>
+              <strong>Entry refunds.</strong> If a tournament is cancelled before
+              it begins, entry fees are refunded. Once a tournament is seeded
+              and play begins, entry fees are non-refundable except as required
+              by law.
+            </li>
+          </List>
+
+          <SubHeading>Shared rules</SubHeading>
           <List>
             <li>
               <strong>Eligibility &amp; location.</strong> You must be 18 or older
-              to buy credits or enter a paid duel. When you buy credits or stake, you
-              represent and confirm that you are at least 18 — we rely on your
-              confirmation and do not independently verify your age at that step.
-              Paid duels require your location to be specifically and affirmatively
-              cleared for this feature; they are{" "}
+              to buy chips or enter a tournament. When you buy chips or register,
+              you represent and confirm that you are at least 18 — we rely on
+              your confirmation and do not independently verify your age.
+              These features require your location to be specifically and
+              affirmatively cleared; they are{" "}
               <strong>not currently available in any location</strong>, pending
-              jurisdiction-by-jurisdiction legal review. We will publish and update
-              the list of cleared jurisdictions here as any are added. We infer your
-              approximate location from your IP address to enforce this and may block
-              or deny access; this method is not exact. Using a VPN, proxy, or any
-              other means to disguise your location or circumvent these controls is
-              prohibited and may result in suspension and forfeiture of credits and
-              winnings.
+              jurisdiction-by-jurisdiction legal review. We will publish and
+              update the list of cleared jurisdictions here as any are added.
+              We infer your approximate location from your IP address; this
+              method is not exact. Using a VPN, proxy, or any other means to
+              disguise your location is prohibited and may result in suspension
+              and forfeiture of chips and prizes.
             </li>
             <li>
-              <strong>Credits are stored value for play only — not a deposit
-              account.</strong> Credits are a prepaid, in-app balance
-              (1 credit = US$0.01) usable only inside the Service to enter paid
-              duels. Purchased credits are <strong>play credits</strong>: they are{" "}
-              <strong>non-refundable</strong> and{" "}
-              <strong>cannot be withdrawn, cashed out, or transferred</strong> to
-              you, to another user, or to anyone else. They have no cash value
-              outside the Service, are not a bank deposit, are not insured, and earn
-              no interest. We are not a bank, money transmitter, or money services
-              business, and credits are not a stored-value instrument you can redeem
-              for cash. See “Payments &amp; purchases” above; all sales of credits
-              are final.
-            </li>
-            <li>
-              <strong>Staking &amp; the pot.</strong> Entering or joining a paid
-              duel debits your stake from your balance and holds it while the match
-              is set up and played. Stakes are fixed tiers shown before you commit.
-              When a match resolves, the winner receives the combined pot (both
-              players’ stakes) minus a <strong>platform fee of 10%</strong> of the
-              pot, credited to the winner as <strong>winnings</strong>. The platform
-              fee is retained by us as compensation for operating the competition
-              and is non-refundable.
-            </li>
-            <li>
-              <strong>How you’re matched.</strong> A paid duel can be entered
-              two ways: you can send a private challenge link to a specific
-              opponent, or you can join the public queue at a stake tier,
-              which automatically pairs you with another eligible player
-              waiting at that same tier. When you use the public queue, you do
-              not choose or know your opponent in advance.
-            </li>
-            <li>
-              <strong>Winnings &amp; cash-out.</strong> Only your winnings balance is
-              cashable; purchased play credits never are. Cash-out requests are
-              subject to a stated minimum, are reviewed and processed manually, may
-              take time, and may require identity, age, or eligibility verification
-              (including information needed to comply with tax and anti-fraud
-              obligations) before we release funds. You are solely responsible for
-              any taxes on winnings. We may hold, delay, reduce, or decline a payout,
-              and may reverse credited winnings, where we reasonably believe it
-              results from fraud, collusion, multi-accounting, cheating, a payment
-              dispute or chargeback, a violation of these Terms, or where required to
-              comply with law.
-            </li>
-            <li>
-              <strong>When stakes are committed, and when they are refunded.</strong>{" "}
-              If a duel never starts — for example, you cancel a challenge before an
-              opponent joins, or no opponent stakes and joins — your stake is
-              returned to the same balance (play or winnings) it was drawn from. Once
-              both players have staked and the match begins, the stake is committed
-              and the result of a completed match is final, except as stated in
-              “Fair play” below or as required by law.
-            </li>
-            <li>
-              <strong>Chargebacks &amp; payment disputes.</strong> Because credits
-              are consumed in play and are non-refundable, initiating a chargeback or
-              payment dispute on a credit purchase — rather than contacting us first
-              at <MailLink address={CONTACT_EMAIL} /> — is a breach of these Terms.
-              We may respond to a chargeback by suspending your account, freezing or
-              reversing the disputed credits and any winnings derived from them, and
-              recovering amounts owed, without limiting our other remedies.
+              <strong>Chargebacks &amp; payment disputes.</strong> Initiating a
+              chargeback or payment dispute — rather than contacting us first
+              at <MailLink address={CONTACT_EMAIL} /> — is a breach of these
+              Terms. We may respond by suspending your account, freezing or
+              reversing disputed chips or entries, and recovering amounts owed.
             </li>
             <li>
               <strong>Fair play &amp; server-authoritative results.</strong> Every
-              duel result is re-computed on our servers from both players’ recorded
-              inputs, and the server’s result is authoritative and final. Cheating,
-              automation, botting, exploiting a defect, collusion, or otherwise
-              manipulating a match voids the result and may forfeit the stakes and
-              any winnings involved and result in account termination.
+              match result is re-computed on our servers from both players&apos;
+              recorded inputs, and the server&apos;s result is authoritative and
+              final. Cheating, automation, botting, exploiting a defect,
+              collusion, or otherwise manipulating a match voids the result and
+              may forfeit chips and prizes and result in account termination.
             </li>
             <li>
-              <strong>We may pause or withdraw the feature.</strong> We may modify,
-              suspend, or discontinue paid duels, credits, or cash-out at any time,
-              including in a specific jurisdiction. If we permanently discontinue the
-              feature, we will return unused purchased credits and cashable winnings
-              to affected users by a reasonable method, except where prohibited by
-              law or where an amount is subject to a fraud, dispute, or eligibility
-              hold.
+              <strong>We may pause or withdraw features.</strong> We may modify,
+              suspend, or discontinue chip duels, chips, tournaments, or
+              related features at any time, including in a specific jurisdiction.
+              If we permanently discontinue a feature, we will return unused
+              purchased chips and unfulfilled tournament prizes to affected users
+              by a reasonable method, except where prohibited by law or where an
+              amount is subject to a fraud, dispute, or eligibility hold.
             </li>
           </List>
         </Section>
@@ -297,12 +306,12 @@ export default function TermsPage() {
           <List>
             <li>
               Submit, link to, or promote content that is illegal, fraudulent,
-              deceptive, defamatory, obscene, or infringes another person’s
+              deceptive, defamatory, obscene, or infringes another person&apos;s
               rights (including intellectual property or privacy rights).
             </li>
             <li>
               Submit a destination URL that distributes malware, conducts
-              phishing, or otherwise attempts to compromise a visitor’s
+              phishing, or otherwise attempts to compromise a visitor&apos;s
               device or accounts.
             </li>
             <li>
@@ -311,29 +320,20 @@ export default function TermsPage() {
             </li>
             <li>
               Scrape, crawl, or harvest data from the Service using automated
-              means beyond what’s needed for normal, individual gameplay, or
+              means beyond what&apos;s needed for normal, individual gameplay, or
               bypass rate limits, CAPTCHAs, or other technical protections.
             </li>
             <li>
-              Manipulate leaderboard results, gameplay scoring, or view/click
-              counts through bots, scripts, click farms, or other artificial
-              means.
+              Manipulate leaderboard results, gameplay scoring, or match outcomes
+              through bots, scripts, automation, or other artificial means.
             </li>
             <li>
-              Offer players any reward, incentive, or compensation in exchange
-              for following, subscribing to, or engaging with a linked social
-              account. Listings that point at a social profile (TikTok, X,
-              YouTube, Instagram, or Twitch) must rely on genuine, organic
-              discovery. Incentivized engagement violates those platforms’ own
-              terms and is not allowed here.
-            </li>
-            <li>
-              Link to a social account you do not own or are not authorized to
-              promote, or choose a public username or handle that impersonates
+              Save a social handle you do not own or are not authorized to
+              represent, or choose a public username or handle that impersonates
               another person, brand, or the Service itself.
             </li>
             <li>
-              Interfere with or disrupt the Service’s infrastructure, or
+              Interfere with or disrupt the Service&apos;s infrastructure, or
               attempt to gain unauthorized access to any account, system, or
               network connected to it.
             </li>
@@ -348,27 +348,23 @@ export default function TermsPage() {
           </p>
         </Section>
 
-        <Section id="content" title="7. User content & submissions">
+        <Section id="content" title="7. User content & profiles">
           <p>
             &ldquo;User Content&rdquo; means anything you submit to the
-            Service, including a block’s display name and destination URL, the
-            social platform and handle a listing points at, and a public
-            username you choose (which creates a public creator page at{" "}
-            <code>/c/your-username</code> that aggregates your visible listings
-            and public climbing record). You retain ownership of your User
+            Service, including your display name, the social platform handles you
+            save, and a public username you choose (which creates a public creator
+            page at <code>/c/your-username</code> that shows your saved social
+            handles and public climbing record). You retain ownership of your User
             Content. By submitting it, you grant Doomstack a non-exclusive,
             worldwide, royalty-free license to host, display, and distribute it
             as part of operating the public leaderboard and creator pages — for
-            example, showing your block’s name, handle, and rank to other
-            visitors and in leaderboard-related images (such as social share
-            cards). When a visitor clicks your listing, we route them through a
-            tracked link that counts the click before forwarding them to your
-            destination.
+            example, showing your name, handles, and rank to other visitors and
+            in leaderboard-related images (such as social share cards).
           </p>
           <p>
             You represent that you have the rights necessary to submit your
-            User Content and grant this license, and that it doesn’t violate
-            these Terms, any law, or any third party’s rights. We may
+            User Content and grant this license, and that it doesn&apos;t violate
+            these Terms, any law, or any third party&apos;s rights. We may
             remove, hide, or refuse any User Content at our discretion,
             including without a refund if it violates Section 6 (Acceptable
             Use).
@@ -396,15 +392,13 @@ export default function TermsPage() {
             any time by contacting <MailLink address={CONTACT_EMAIL} />. We
             may suspend or terminate your access to the Service, remove
             content, or restrict features at any time, with or without
-            notice, if we reasonably believe you’ve violated these Terms,
+            notice, if we reasonably believe you&apos;ve violated these Terms,
             created risk or legal exposure for us, engaged in fraud or abuse,
             or if we discontinue the Service. If your account is terminated,
-            purchased play credits are forfeited and non-refundable; we will
-            return cashable winnings not subject to a fraud, dispute, or
-            eligibility hold, except where you were terminated for a violation
-            of these Terms or where prohibited by law. Sections that by their
-            nature should survive termination (including Sections 5 and 7–15)
-            will survive.
+            purchased chips are forfeited and non-refundable; outstanding
+            tournament prizes will be handled as described in Section 5b.
+            Sections that by their nature should survive termination
+            (including Sections 5 and 7–15) will survive.
           </p>
         </Section>
 
@@ -418,10 +412,10 @@ export default function TermsPage() {
             IMPLIED, OR STATUTORY, INCLUDING WARRANTIES OF MERCHANTABILITY,
             FITNESS FOR A PARTICULAR PURPOSE, NON-INFRINGEMENT, OR THAT THE
             SERVICE WILL BE UNINTERRUPTED, ERROR-FREE, OR SECURE. WE DO NOT
-            WARRANT THAT PURCHASING A LEADERBOARD POSITION WILL RESULT IN ANY
-            PARTICULAR AMOUNT OF TRAFFIC, VIEWS, OR OTHER BENEFIT. SOME
-            JURISDICTIONS DON’T ALLOW THE EXCLUSION OF CERTAIN WARRANTIES, SO
-            SOME OF THE ABOVE EXCLUSIONS MAY NOT APPLY TO YOU.
+            WARRANT THAT BUYING CHIPS OR ENTERING A TOURNAMENT WILL RESULT IN
+            ANY WINNINGS OR OTHER BENEFIT. SOME JURISDICTIONS DON&apos;T ALLOW THE
+            EXCLUSION OF CERTAIN WARRANTIES, SO SOME OF THE ABOVE EXCLUSIONS MAY
+            NOT APPLY TO YOU.
           </p>
         </Section>
 
@@ -431,11 +425,11 @@ export default function TermsPage() {
             OPERATOR WILL NOT BE LIABLE FOR ANY INDIRECT, INCIDENTAL,
             SPECIAL, CONSEQUENTIAL, OR PUNITIVE DAMAGES, OR ANY LOSS OF
             PROFITS, REVENUE, DATA, OR GOODWILL, ARISING FROM YOUR USE OF THE
-            SERVICE, EVEN IF WE’VE BEEN ADVISED OF THE POSSIBILITY OF SUCH
+            SERVICE, EVEN IF WE&apos;VE BEEN ADVISED OF THE POSSIBILITY OF SUCH
             DAMAGES. OUR TOTAL LIABILITY FOR ANY CLAIM ARISING OUT OF OR
             RELATING TO THE SERVICE OR THESE TERMS WILL NOT EXCEED THE
             GREATER OF (A) THE AMOUNT YOU PAID US IN THE 12 MONTHS BEFORE THE
-            CLAIM AROSE, OR (B) $100 USD. SOME JURISDICTIONS DON’T ALLOW
+            CLAIM AROSE, OR (B) $100 USD. SOME JURISDICTIONS DON&apos;T ALLOW
             CERTAIN LIABILITY LIMITATIONS, SO SOME OF THE ABOVE MAY NOT APPLY
             TO YOU.
           </p>
@@ -445,7 +439,7 @@ export default function TermsPage() {
           <p>
             You agree to defend, indemnify, and hold harmless Doomstack and
             its operator from any claims, damages, losses, liabilities, and
-            expenses (including reasonable attorneys’ fees) arising out of or
+            expenses (including reasonable attorneys&apos; fees) arising out of or
             related to: your use of the Service; your User Content; your
             violation of these Terms; or your violation of any law or
             third-party right.
@@ -495,10 +489,10 @@ export default function TermsPage() {
         <Section id="changes" title="14. Changes to these terms">
           <p>
             We may update these Terms from time to time. If we make material
-            changes, we’ll update the &ldquo;Last updated&rdquo; date above
+            changes, we&apos;ll update the &ldquo;Last updated&rdquo; date above
             and, where appropriate, provide additional notice. Continuing to
             use the Service after changes take effect means you accept the
-            updated Terms; if you don’t agree, stop using the Service.
+            updated Terms; if you don&apos;t agree, stop using the Service.
           </p>
         </Section>
 
@@ -516,7 +510,7 @@ export default function TermsPage() {
             </li>
             <li>
               <strong>No waiver.</strong> Our failure to enforce a right or
-              provision isn’t a waiver of it.
+              provision isn&apos;t a waiver of it.
             </li>
             <li>
               <strong>Assignment.</strong> You may not assign these Terms
@@ -524,7 +518,7 @@ export default function TermsPage() {
               merger, acquisition, or sale of assets.
             </li>
             <li>
-              <strong>Force majeure.</strong> We’re not liable for delays or
+              <strong>Force majeure.</strong> We&apos;re not liable for delays or
               failures caused by events outside our reasonable control.
             </li>
           </List>

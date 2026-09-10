@@ -58,11 +58,11 @@ function PlayIntro() {
         </Link>{" "}
         — you can also play as a guest, though guest runs aren&rsquo;t recorded. Every run can be
         shared as a replay link so someone else can watch exactly how you climbed. The free climb
-        is entirely skill-based: no payment, no altitude to buy, and no way to pay for a better
-        rank. That&rsquo;s the paid stacks&rsquo; job — 74 separate category leaderboards where
-        players buy altitude and compete to avoid being buried by the rising ground. See{" "}
-        <Link href="/rules" className="text-signal hover:underline">the rules</Link> for the paid
-        stacks&rsquo; exact growth, burial, and season formulas.
+        is entirely skill-based: no payment, no way to pay for a better rank. If you want to play
+        competitive, try{" "}
+        <Link href="/duel" className="text-signal hover:underline">1v1 duels</Link> — play free,
+        stake chips in ranked matches, or enter tournaments for cash prizes. See{" "}
+        <Link href="/rules" className="text-signal hover:underline">the rules</Link> for details.
       </p>
     </details>
   );

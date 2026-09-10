@@ -246,7 +246,7 @@ function SignInForm() {
         <h1 id="auth-card-title" className="font-display text-3xl text-text-primary mt-2 mb-1">
           Welcome back
         </h1>
-        <p className="text-sm text-text-muted mb-6">Climb back into your stacks.</p>
+        <p className="text-sm text-text-muted mb-6">Climb back in.</p>
 
         <form
           id={formId}

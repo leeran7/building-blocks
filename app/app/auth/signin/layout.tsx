@@ -5,7 +5,7 @@ import { buildMetadata } from "../../../src/lib/seo";
 // segment layout.
 export const metadata: Metadata = buildMetadata({
   title: "Sign In — Doomstack",
-  description: "Sign in to Doomstack to save your free-climb peak height and manage your paid stacks.",
+  description: "Sign in to Doomstack to save your free-climb peak height and compete in duels and tournaments.",
   path: "/auth/signin",
 });
 

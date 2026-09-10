@@ -3,8 +3,6 @@ import { Bricolage_Grotesque, Hanken_Grotesk, Space_Mono } from "next/font/googl
 import "./globals.css";
 import { AuthProvider } from "../src/contexts/AuthContext";
 import { SiteFooter } from "../src/components/SiteFooter";
-import { resolveBaseUrl } from "../src/config/public";
-import { formatAltitude } from "../src/lib/units";
 import { DEFAULT_DESCRIPTION, DEFAULT_TITLE, SITE_URL, ogImageUrl } from "../src/lib/seo";
 
 // ── ASCENT type system ────────────────────────────────────────────────────
@@ -37,9 +35,6 @@ const mono = Space_Mono({
   display: "swap",
 });
 
-// Localhost in dev, the prod domain in production (see resolveBaseUrl).
-const BASE_URL = resolveBaseUrl();
-
 // viewport-fit: cover lets the climb game go truly edge-to-edge on notched
 // iPhones — the canvas fills under the status bar / home indicator and the HUD
 // and touch controls inset themselves with env(safe-area-inset-*). Without it
@@ -50,28 +45,7 @@ export const viewport: Viewport = {
 };
 
 export async function generateMetadata(): Promise<Metadata> {
-  let topBlockId = "";
-  let topBlockName = "Stack";
-  let topAlt = "0";
-
-  try {
-    const res = await fetch(`${BASE_URL}/api/tower`, {
-      next: { revalidate: 60 },
-    });
-    if (res.ok) {
-      const data = await res.json();
-      const topBlock = data.blocks?.[0];
-      if (topBlock) {
-        topBlockId = topBlock.id;
-        topBlockName = topBlock.display_name;
-        topAlt = String(topBlock.altitude);
-      }
-    }
-  } catch {
-    // Fail silently — metadata is not critical path
-  }
-
-  const ogUrl = ogImageUrl({ v: topBlockId, name: topBlockName, alt: topAlt, rank: "1" });
+  const ogUrl = ogImageUrl();
 
   // Inert until the real tokens exist — set after creating the Google Search
   // Console / Bing Webmaster Tools properties for this domain. No fabricated
@@ -94,7 +68,7 @@ export async function generateMetadata(): Promise<Metadata> {
       : {}),
     openGraph: {
       title: DEFAULT_TITLE,
-      description: "Your altitude is permanent. The ground rises instead.",
+      description: DEFAULT_DESCRIPTION,
       url: SITE_URL,
       siteName: "Doomstack",
       images: [
@@ -102,7 +76,7 @@ export async function generateMetadata(): Promise<Metadata> {
           url: ogUrl,
           width: 1200,
           height: 630,
-          alt: `Doomstack — ${topBlockName} leads at ${formatAltitude(parseFloat(topAlt), 1)}`,
+          alt: "Doomstack — climb higher, duel for the pot",
         },
       ],
       type: "website",
@@ -110,7 +84,7 @@ export async function generateMetadata(): Promise<Metadata> {
     twitter: {
       card: "summary_large_image",
       title: DEFAULT_TITLE,
-      description: "Your altitude is permanent. The ground rises instead.",
+      description: DEFAULT_DESCRIPTION,
       images: [ogUrl],
     },
   };

@@ -2,9 +2,8 @@
  * Single source of truth for Tower categories.
  *
  * Previously the category list (slug, label, accent) was duplicated across
- * CategoryTabBar, CategoryGrid, the /tower/[category] page, and the dashboard.
- * That drift is why the stack chrome was hardcoded to cyan regardless of
- * category. Everything now reads from here.
+ * several surfaces, and that drift is why the chrome was hardcoded to cyan
+ * regardless of category. Everything now reads from here.
  *
  * Accent colors are chosen to pass WCAG 2.1 AA (>= 4.5:1) as TEXT on the void
  * background (#0a0a0f). Bright colors on near-black are high-contrast — the old

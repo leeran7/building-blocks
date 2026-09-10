@@ -169,7 +169,7 @@ Repo root `package.json` stays scripts-only. Do not add runtime deps there.
 | Next 15.5.24 ↔ `next lint` | Command still exists. Keep `--max-warnings=0`. |
 | Next 15.5.24 ↔ `middleware.ts` at `app/middleware.ts` | Still the Edge middleware file. Do not rename to `proxy.ts`. |
 | Next 15.5.24 ↔ `params` / `searchParams` | **Typed as `Promise<>` in 15.5.** Sync access still *runs* (compat + warning). `tsc` will fail until the four files in §4 await them. |
-| Next 15.5.24 ↔ `fetch` caching | `fetch` is **no-store by default**. This repo already passes `next: { revalidate }` in `app/layout.tsx` and `app/stack/[category]/page.tsx`. Client `fetch` is unchanged. GET route handlers are no longer implicitly cached — our JSON APIs already set `runtime = "nodejs"` and are dynamic. **Prove** via `next build` route table, do not reason. |
+| Next 15.5.24 ↔ `fetch` caching | `fetch` is **no-store by default**. This repo already passes `next: { revalidate }` in `app/layout.tsx`. Client `fetch` is unchanged. GET route handlers are no longer implicitly cached — our JSON APIs already set `runtime = "nodejs"` and are dynamic. **Prove** via `next build` route table, do not reason. |
 | Next 15.5.24 ↔ `next/font/google` | Already used (`Bricolage_Grotesque`, `Hanken_Grotesk`, `Space_Mono`). Keep `adjustFontFallback: false` unless `next build` shows the size-adjust metrics now exist. |
 | Next 15.5.24 ↔ `runtime = "nodejs"` / `"edge"` | `experimental-edge` is gone; this repo already uses `"edge"` only on `/api/og`. |
 | Prisma 6.19.3 ↔ Node 20 | Engines `>=18.18`. |
@@ -210,12 +210,12 @@ const sp = await searchParams
 
 | File | New contract |
 |---|---|
-| `app/app/b/[slug]/page.tsx` | `RecordPageProps.params` and `.searchParams` become `Promise<...>`. `generateMetadata` and `RecordPage` `await` them before `params.slug` / `searchParams.payment`. |
-| `app/app/stack/[category]/page.tsx` | `TowerPageProps.params` becomes `Promise<{ category: string }>`. Await in `generateMetadata` and `CategoryTowerPage`. |
-| `app/app/tower/[category]/page.tsx` | Sync `LegacyTowerRedirect` must become `async` and `await params` before `params.category`. |
-| `app/app/api/tower/[category]/route.ts` | Second GET arg: `{ params }: { params: Promise<{ category: string }> }`, then `const { category } = await params`. |
+| ~~`app/app/b/[slug]/page.tsx`~~ | **Deleted** (Paid Stacks removed 2026-09-10) |
+| ~~`app/app/stack/[category]/page.tsx`~~ | **Deleted** (Paid Stacks removed 2026-09-10) |
+| ~~`app/app/tower/[category]/page.tsx`~~ | **Deleted** (Paid Stacks removed 2026-09-10) |
+| ~~`app/app/api/tower/[category]/route.ts`~~ | **Deleted** (Paid Stacks removed 2026-09-10) |
 
-Client `useSearchParams()` in `app/app/auth/signin/page.tsx` and `app/app/submit/page.tsx` is **unchanged**. `new URL(request.url).searchParams` in `/api/og` is **unchanged**.
+Client `useSearchParams()` in `app/app/auth/signin/page.tsx` is **unchanged**. ~~`app/app/submit/page.tsx`~~ — **deleted**. `new URL(request.url).searchParams` in `/api/og` is **unchanged**.
 
 ### Must change (webpack alias robustness)
 

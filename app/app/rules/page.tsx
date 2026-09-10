@@ -1,23 +1,22 @@
 /**
- * /rules — Engine formulas page (AC-47).
- *
- * Tower Dark Editorial: system tokens, editorial header, monospace "code well"
- * cards for formulas. All data-testids and formula text preserved exactly
- * (rules-max-growth, rules-season-days, rules-growth-formula, rules-season-reset;
- * MAX_GROWTH=8, DOUBLE_EVERY_K, 500, 90-day season).
+ * /rules — how Doomstack works: the free climb, chip duels, and tournaments.
  */
 
 import Link from "next/link";
 import { Navbar } from "../../src/components/Navbar";
-import { ALTITUDE_UNIT, SEASON_START_RATE } from "../../src/lib/units";
 import { buildMetadata } from "../../src/lib/seo";
+import { CREDITS_MIN_TOPUP_CENTS } from "../../src/config/paidDuel";
+import { CHIP_TIERS } from "../../src/db/chips";
 
 export const metadata = buildMetadata({
-  title: "Stack — Rules & Formulas",
+  title: "Doomstack — Rules",
   description:
-    "The complete Stack engine formulas: altitude permanence, growth cap, burial mechanics, and season reset.",
+    "How Doomstack works: the free skill-based climb, chip duels, and bracket tournaments.",
   path: "/rules",
 });
+
+const usd = (cents: number) =>
+  `$${(cents / 100).toFixed(cents % 100 === 0 ? 0 : 2)}`;
 
 function Well({ children }: { children: React.ReactNode }) {
   return (
@@ -36,169 +35,104 @@ function SectionHeading({ children }: { children: React.ReactNode }) {
 }
 
 export default function RulesPage() {
+  const chipTiers = CHIP_TIERS.map((c) => (c / 100).toLocaleString()).join(" · ");
+
   return (
     <main id="main-content" className="grain topo min-h-screen bg-void">
       <Navbar contextLabel="Rules" />
 
       <div className="max-w-2xl mx-auto px-4 py-12">
-        {/* Editorial header */}
         <header className="mb-10">
           <p className="text-xs uppercase tracking-[0.2em] text-signal font-medium">
-            The engine
+            How it works
           </p>
           <h1 className="text-3xl md:text-4xl font-bold text-text-primary tracking-tight mt-2">
-            Rules &amp; formulas
+            Rules
           </h1>
           <p className="text-text-secondary mt-2">
-            Every number the stack runs on — altitude permanence, the growth cap,
-            burial mechanics, and the season reset.
+            Doomstack has three modes: a free skill-based climb, ranked chip
+            duels, and bracket tournaments. All are decided entirely by how high
+            you climb — never by how much you spend.
           </p>
         </header>
 
-        {/* Constants */}
+        {/* Free climb */}
         <section className="mb-8">
-          <SectionHeading>Constants</SectionHeading>
-          <Well>
-            <div className="text-text-primary">
-              <span className="text-text-muted">DOUBLE_EVERY_K</span> = 500{" "}
-              <span className="text-text-muted"># thousand views per rate doubling</span>
-            </div>
-            <div className="text-text-primary" data-testid="rules-max-growth">
-              <span className="text-text-muted">MAX_GROWTH</span> = 8{" "}
-              <span className="text-text-muted"># hard cap on growth multiplier</span>
-            </div>
-            <div className="text-text-primary">
-              <span className="text-text-muted">R0</span> = 1.0{" "}
-              <span className="text-text-muted">{`# ${ALTITUDE_UNIT} per dollar at season start`}</span>
-            </div>
-            <div className="text-text-primary">
-              <span className="text-text-muted">G0</span> = 0.65{" "}
-              <span className="text-text-muted">{`# ground ${ALTITUDE_UNIT} at season start (tuned for ~1.5M view burial)`}</span>
-            </div>
-            <div className="text-text-primary">
-              <span className="text-text-muted">MIN_ENTRY_USD</span> = $5.00
-            </div>
-            <div className="text-text-primary">
-              <span className="text-text-muted">MIN_SPEND_USD</span> = $2.00
-            </div>
-            <div className="text-text-primary" data-testid="rules-season-days">
-              <span className="text-text-muted">SEASON_DAYS</span> = 90{" "}
-              <span className="text-text-muted"># season length</span>
-            </div>
-            <div className="text-text-primary">
-              <span className="text-text-muted">CEIL_PER_HOUR</span> = 40,000{" "}
-              <span className="text-text-muted"># qualified view ceiling per hour</span>
-            </div>
-          </Well>
-        </section>
-
-        {/* Growth formula */}
-        <section className="mb-8">
-          <SectionHeading>Growth &amp; rate</SectionHeading>
-          <Well>
-            <div className="text-text-muted text-xs mb-1">
-              V = cumulative qualified views (thousands)
-            </div>
-            <div className="text-text-primary">λ = ln(2) / DOUBLE_EVERY_K</div>
-            <div className="text-text-primary" data-testid="rules-growth-formula">
-              growth = min( exp(λ · V),{" "}
-              <span className="text-signal font-bold">MAX_GROWTH</span> ){" "}
-              <span className="text-text-muted">← capped at 8 (non-negotiable)</span>
-            </div>
-            <div className="text-text-primary">
-              rate = R0 · growth <span className="text-text-muted">{`# ${ALTITUDE_UNIT} per dollar`}</span>
-            </div>
-            <div className="text-text-primary">
-              ground = G0 · growth <span className="text-text-muted">{`# burial threshold (${ALTITUDE_UNIT})`}</span>
-            </div>
-          </Well>
-        </section>
-
-        {/* Payment formula */}
-        <section className="mb-8">
-          <SectionHeading>Altitude (payments)</SectionHeading>
-          <Well>
-            <div className="text-text-primary">
-              height = dollars · rate{" "}
-              <span className="text-text-muted">{`# altitude added (${ALTITUDE_UNIT})`}</span>
-            </div>
-            <div className="text-text-primary">
-              altitude += height{" "}
-              <span className="text-text-muted"># additive only; never decreases</span>
-            </div>
-          </Well>
-          <p className="text-text-muted text-xs mt-2">
-            Altitude is monotonically increasing. No code path can decrease it. The
-            database has a CHECK constraint enforcing altitude ≥ 0.
-          </p>
-        </section>
-
-        {/* Burial */}
-        <section className="mb-8">
-          <SectionHeading>Burial &amp; amber edge</SectionHeading>
-          <Well>
-            <div className="text-text-primary">buried = altitude &lt; ground</div>
-            <div className="text-text-primary">clearance = altitude − ground</div>
-            <div className="text-text-primary">
-              amber_edge = clearance &lt; 1.6 · ground{" "}
-              <span className="text-text-muted"># warning zone</span>
-            </div>
-          </Well>
-          <p className="text-text-muted text-xs mt-2">
-            Buried blocks remain in the stack and are still clickable, but they&apos;re
-            greyed out. A $5 entry at season start stays above ground for approximately
-            1.5 million views.
-          </p>
-        </section>
-
-        {/* Pricing */}
-        <section className="mb-8">
-          <SectionHeading>Pricing a climb</SectionHeading>
-          <Well>
-            <div className="text-text-primary">
-              target_alt = altitude_of_target_rank · 1.02
-            </div>
-            <div className="text-text-primary">delta = target_alt − my_altitude</div>
-            <div className="text-text-primary">
-              cost = max(delta / rate, MIN_SPEND_USD)
-            </div>
-          </Well>
-          <p className="text-text-muted text-xs mt-2">
-            The 2% buffer means you beat the target block by a small margin. Positions
-            are live; your rank is calculated when payment completes.
-          </p>
-        </section>
-
-        {/* Season reset — AC-47 requires this */}
-        <section className="mb-8" data-testid="rules-season-reset">
-          <SectionHeading>Season reset (90 days)</SectionHeading>
+          <SectionHeading>The free climb</SectionHeading>
           <p className="text-text-secondary text-sm mb-2">
-            Each season runs for{" "}
-            <strong className="text-text-primary">90 days</strong>. At rollover:
+            One global leaderboard, no payment required. Climb an endless,
+            procedurally generated tower — ladders, platforms, and rising lava —
+            and reach the highest point you can before the lava catches you.
           </p>
           <ul className="text-text-secondary text-sm space-y-1.5 list-disc list-inside ml-1">
-            <li>The current stack is archived to a permanent standings page</li>
-            <li>V resets to 0 (rate drops back to R0 = {SEASON_START_RATE})</li>
-            <li>New blocks start at altitude 0</li>
-            <li>Record pages at /b/[slug] remain permanent and show all seasons</li>
-            <li>The exchange rate caps, holds, then resets — creating a recurring launch moment</li>
+            <li>Your best peak height is saved as your all-time rank.</li>
+            <li>Play without an account; sign in to record your peak and appear on the leaderboard.</li>
+            <li>Runs are shareable as deterministic replays.</li>
           </ul>
         </section>
 
-        {/* View counting rules */}
+        {/* Chip duels */}
         <section className="mb-8">
-          <SectionHeading>Qualified view definition</SectionHeading>
+          <SectionHeading>Chip duels (ranked)</SectionHeading>
+          <p className="text-text-secondary text-sm mb-3">
+            A head-to-head match on the same seed: both players climb, and the
+            higher peak wins the opponent&apos;s chips. It is a game of skill —
+            identical starting conditions, outcome determined by play.
+          </p>
+          <Well>
+            <div className="text-text-primary">
+              tiers = {chipTiers}{" "}
+              <span className="text-text-muted"># chips staked per player</span>
+            </div>
+            <div className="text-text-primary">
+              rake = 0%{" "}
+              <span className="text-text-muted"># zero-sum, no house cut</span>
+            </div>
+            <div className="text-text-primary">
+              winner gets = loser&apos;s stake exactly
+            </div>
+          </Well>
+          <p className="text-text-muted text-xs mt-2">
+            A tie or an unplayed match refunds both players&apos; chips. Chips
+            are non-cashable — they can never be converted back into real money.
+          </p>
+        </section>
+
+        {/* Tournaments */}
+        <section className="mb-8">
+          <SectionHeading>Tournaments</SectionHeading>
           <p className="text-text-secondary text-sm mb-2">
-            A qualified view is one server-rendered homepage load that passes:
+            Bracket competitions with a paid entry fee and predetermined cash
+            prizes. Enter, get seeded into a bracket, and play each round
+            head-to-head until a champion is crowned.
           </p>
           <ul className="text-text-secondary text-sm space-y-1.5 list-disc list-inside ml-1">
-            <li>Not a known bot or headless browser</li>
-            <li>Session not counted in the last 30 minutes (per cookie)</li>
-            <li>IP not exceeding 20 views per hour</li>
-            <li>Global ceiling not exceeded (max 40,000 credits per hour)</li>
+            <li>
+              Entry fees are paid via Stripe Checkout. Prizes are
+              company-guaranteed and paid out via Stripe Connect.
+            </li>
+            <li>
+              Prize amounts are set before registration opens — they are not
+              pooled from entry fees.
+            </li>
+            <li>
+              Bracket sizes: 4, 8, 16, or 32 players. Non-power-of-2 counts are
+              padded with byes.
+            </li>
           </ul>
-          <p className="text-text-secondary text-sm mt-2">
-            View counting is server-side only. No client beacons.
+        </section>
+
+        {/* Chips */}
+        <section className="mb-8">
+          <SectionHeading>Buying chips</SectionHeading>
+          <p className="text-text-secondary text-sm mb-2">
+            Chips are purchased with Stripe (minimum top-up{" "}
+            {usd(CREDITS_MIN_TOPUP_CENTS)}). They are used for chip duel stakes.
+          </p>
+          <p className="text-text-muted text-xs mt-2">
+            Chips have no cash value and cannot be withdrawn, transferred, or
+            sold. You must confirm you are 18+ before your first paid match or
+            tournament entry.
           </p>
         </section>
 
@@ -207,7 +141,7 @@ export default function RulesPage() {
             href="/"
             className="text-text-muted hover:text-text-primary text-sm transition-colors"
           >
-            ← Back to Stack
+            ← Back to Doomstack
           </Link>
         </div>
       </div>

@@ -1,5 +1,5 @@
 /**
- * /duel/leaderboard — 1v1 duel standings (free + paid when flag on).
+ * /duel/leaderboard — 1v1 duel standings (free + chip when flag on).
  *
  * Server component. Reads from the DB directly (same pattern as /climb).
  * force-dynamic so a new match shows up immediately after result is saved.
@@ -8,8 +8,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Navbar } from "../../../src/components/Navbar";
-import { FreeDuelLeaderboard, PaidDuelLeaderboard } from "../../../src/components/Duel/DuelLeaderboard";
-import { topDuelStats, topPaidDuelStats } from "../../../src/db/duel";
+import { FreeDuelLeaderboard, ChipDuelLeaderboard } from "../../../src/components/Duel/DuelLeaderboard";
+import { topDuelStats } from "../../../src/db/duel";
+import { chipLeaderboard } from "../../../src/db/chips";
 import { PAID_DUELS_ENABLED } from "../../../src/config/paidDuel";
 import { buildMetadata } from "../../../src/lib/seo";
 
@@ -17,22 +18,22 @@ export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = buildMetadata({
   title: "1v1 Leaderboard — Doomstack",
-  description: "Top 1v1 duel players ranked by wins. Free and paid match records.",
+  description: "Top 1v1 duel players ranked by wins. Free and chip match records.",
   path: "/duel/leaderboard",
 });
 
 export default async function DuelLeaderboardPage() {
-  const [freeEntries, paidEntries] = await Promise.all([
-    topDuelStats(50).catch((err) => {
+  const [freeEntries, chipEntries] = await Promise.all([
+    topDuelStats(50).catch((err: unknown) => {
       console.error("[/duel/leaderboard] free standings read failed:", err);
       return null;
     }),
     PAID_DUELS_ENABLED
-      ? topPaidDuelStats(25).catch((err) => {
-          console.error("[/duel/leaderboard] paid standings read failed:", err);
+      ? chipLeaderboard(25).catch((err: unknown) => {
+          console.error("[/duel/leaderboard] chip standings read failed:", err);
           return null;
         })
-      : Promise.resolve([] as Awaited<ReturnType<typeof topPaidDuelStats>>),
+      : Promise.resolve([]),
   ]);
 
   return (
@@ -47,7 +48,6 @@ export default async function DuelLeaderboardPage() {
             role="tablist"
             aria-label="1v1 sections"
           >
-            {/* Order matches the free-climb shell: Leaderboard, then Play. */}
             <DuelTab href="/duel/leaderboard" label="Leaderboard" active={true} />
             <DuelTab href="/duel" label="Play" active={false} />
           </div>
@@ -69,18 +69,24 @@ export default async function DuelLeaderboardPage() {
           />
         </section>
 
-        {/* Paid 1v1 — only rendered when flag is on */}
+        {/* Chip duels — only rendered when paid features are on */}
         {PAID_DUELS_ENABLED && (
           <section>
             <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-signal mb-1">
-              [ real stakes ]
+              [ ranked chips ]
             </p>
             <h2 className="font-display text-2xl font-bold text-text-primary mb-5">
-              Paid 1v1
+              Chip Duels
             </h2>
-            <PaidDuelLeaderboard
-              entries={paidEntries ?? []}
-              unavailable={paidEntries === null}
+            <ChipDuelLeaderboard
+              entries={(chipEntries ?? []).map((e) => ({
+                userId: e.userId,
+                displayName: e.displayName,
+                chipWins: e.chipWins,
+                chipLosses: e.chipLosses,
+                netChips: e.totalChipsWon,
+              }))}
+              unavailable={chipEntries === null}
             />
           </section>
         )}

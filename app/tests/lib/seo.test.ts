@@ -19,43 +19,25 @@ describe("absoluteUrl", () => {
 });
 
 describe("ogImageUrl", () => {
-  it("defaults to a bare /api/og URL when no params are given", () => {
+  it("returns the bare /api/og brand image URL", () => {
     expect(ogImageUrl()).toBe(`${SITE_URL}/api/og`);
-  });
-
-  it("percent-encodes every param via URLSearchParams — never raw string concat", () => {
-    // block display_name / category labels are user-submitted or contain
-    // spaces/&; a manual template-string build would corrupt the query string
-    // or the resulting <meta> tag (this replaced exactly that pattern).
-    const url = ogImageUrl({ name: "Ampersand & <script> Co" });
-    expect(url).not.toContain("<script>");
-    expect(url).not.toContain(" ");
-    const parsed = new URL(url);
-    expect(parsed.searchParams.get("name")).toBe("Ampersand & <script> Co");
-  });
-
-  it("omits params that were not provided", () => {
-    const url = ogImageUrl({ name: "Stack" });
-    const parsed = new URL(url);
-    expect(parsed.searchParams.has("alt")).toBe(false);
-    expect(parsed.searchParams.has("rank")).toBe(false);
   });
 });
 
 describe("buildMetadata", () => {
   it("sets a matching canonical, OG url, and OG/Twitter title+description", () => {
     const meta = buildMetadata({
-      title: "Indie Games Stack — Stack",
-      description: "The Indie Games leaderboard.",
-      path: "/stack/indie-games",
+      title: "Free climb leaderboard — Doomstack",
+      description: "The global free-climb leaderboard.",
+      path: "/climb",
     });
 
-    expect(meta.alternates?.canonical).toBe(`${SITE_URL}/stack/indie-games`);
-    expect(meta.openGraph?.url).toBe(`${SITE_URL}/stack/indie-games`);
-    expect(meta.openGraph?.title).toBe("Indie Games Stack — Stack");
+    expect(meta.alternates?.canonical).toBe(`${SITE_URL}/climb`);
+    expect(meta.openGraph?.url).toBe(`${SITE_URL}/climb`);
+    expect(meta.openGraph?.title).toBe("Free climb leaderboard — Doomstack");
     expect(meta.twitter).toMatchObject({
       card: "summary_large_image",
-      title: "Indie Games Stack — Stack",
+      title: "Free climb leaderboard — Doomstack",
     });
   });
 
@@ -70,7 +52,7 @@ describe("buildMetadata", () => {
     const meta = buildMetadata({
       title: "T",
       description: "D",
-      path: "/b/some-slug",
+      path: "/duel",
       image: "https://example.test/custom.png",
     });
     const images = meta.openGraph?.images as Array<{ url: string }>;
@@ -86,7 +68,7 @@ describe("buildMetadata", () => {
     const meta = buildMetadata({
       title: "T",
       description: "D",
-      path: "/b/hidden-slug",
+      path: "/c/hidden-user",
       robots: { index: false },
     });
     expect(meta.robots).toEqual({ index: false });

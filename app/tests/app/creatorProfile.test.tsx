@@ -8,16 +8,6 @@ const base: CreatorProfileData = {
   username: "elena-voss",
   name: "Elena Voss",
   social: { TIKTOK: "elenacooks", YOUTUBE: "elenavoss" },
-  blocks: [
-    {
-      slug: "cooking-shorts",
-      display_name: "Cooking shorts",
-      category: "creative",
-      altitude: 412,
-      platform: "TIKTOK",
-      handle: "elenacooks",
-    },
-  ],
   freeClimb: { peakY: 1204, rank: 7, wins: 3, totalClimbers: 50, handle: "Elena Voss" },
   replays: [],
 };
@@ -35,19 +25,17 @@ describe("CreatorProfile — social chip row", () => {
     expect(html).not.toContain('data-social-platform="TWITCH"');
   });
 
-  it("renders the header identity and a listing", () => {
+  it("renders the header identity and the climbing record", () => {
     const html = renderToStaticMarkup(createElement(CreatorProfile, { profile: base }));
     expect(html).toContain("Elena Voss");
     expect(html).toContain("@elena-voss");
-    expect(html).toContain("Cooking shorts");
-    expect(html).toContain("/b/cooking-shorts");
+    expect(html).toContain("Climbing");
   });
 
-  it("shows an empty state when there are no blocks and no climb", () => {
+  it("shows an empty state when there is no climb", () => {
     const empty: CreatorProfileData = {
       ...base,
       social: {},
-      blocks: [],
       freeClimb: null,
     };
     const html = renderToStaticMarkup(createElement(CreatorProfile, { profile: empty }));

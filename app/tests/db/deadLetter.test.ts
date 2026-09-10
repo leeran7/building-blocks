@@ -7,7 +7,7 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { recordDeadLetter } from "../../src/db/payments";
+import { recordDeadLetter } from "../../src/db/deadLetter";
 import { store, resetStore } from "./fakePrisma";
 
 vi.mock("../../src/db/client", async () => {

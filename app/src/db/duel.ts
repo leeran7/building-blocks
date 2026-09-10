@@ -8,12 +8,7 @@
 
 import { prisma } from "./client";
 import { DuelStatus, Duel, DuelStats, Prisma } from "@prisma/client";
-import { creditWinningsInTx, creditRefundInTx, stakeInTx } from "./credits";
-import { DUEL_RAKE, duelPayoutCents } from "../config/paidDuel";
-import { hasSkewedPairing } from "../lib/pairingSkew";
-
-// Re-export so that existing imports from db/duel continue to work.
-export { DUEL_RAKE, duelPayoutCents };
+import { settleChipDuelInTx, refundChipDuelInTx } from "./chips";
 
 type TxClientLocal = Prisma.TransactionClient;
 
@@ -39,16 +34,11 @@ async function settlePayoutInTx(
   if (duel.payout_settled) return duel.payout_cents ?? null;
   if (winnerId == null) return null;
   if (winnerId.startsWith("guest:")) {
-    throw new Error(`Paid duel ${duel.id} resolved to a guest winner — invariant violation`);
+    throw new Error(`Chip duel ${duel.id} resolved to a guest winner — invariant violation`);
   }
 
-  const payout = duelPayoutCents(duel.stake_cents);
-  await creditWinningsInTx(tx, winnerId, payout, duel.id);
-  await tx.duel.update({
-    where: { id: duel.id },
-    data: { payout_settled: true, payout_cents: payout },
-  });
-  return payout;
+  await settleChipDuelInTx(tx, duel.id, winnerId, duel.stake_cents);
+  return duel.stake_cents * 2;
 }
 
 /**
@@ -60,26 +50,14 @@ async function settlePayoutInTx(
 async function claimRefundInTx(tx: TxClientLocal, duel: Duel): Promise<boolean> {
   if (duel.stake_cents == null || duel.refunded) return false;
 
-  if (duel.player1_staked) {
-    await creditRefundInTx(
-      tx,
-      duel.player1_id,
-      duel.player1_stake_play_cents,
-      duel.player1_stake_winnings_cents,
-      duel.id
-    );
-  }
-  if (duel.player2_staked && duel.player2_id) {
-    await creditRefundInTx(
-      tx,
-      duel.player2_id,
-      duel.player2_stake_play_cents,
-      duel.player2_stake_winnings_cents,
-      duel.id
-    );
-  }
-
-  await tx.duel.update({ where: { id: duel.id }, data: { refunded: true } });
+  await refundChipDuelInTx(
+    tx,
+    duel.id,
+    duel.player1_id,
+    duel.player1_stake_play_cents,
+    duel.player2_id,
+    duel.player2_stake_play_cents
+  );
   return true;
 }
 
@@ -142,15 +120,6 @@ export interface DuelStatsRow {
   wins: number;
   losses: number;
   winPct: number;
-}
-
-export interface PaidDuelStatsRow {
-  userId: string;
-  displayName: string | null;
-  paidWins: number;
-  paidLosses: number;
-  winPct: number;
-  totalPayoutCents: number;
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -267,24 +236,6 @@ export async function getActiveDuelForUser(
 }
 
 /**
- * The user's currently in-progress PAID duel, if any — used to block staking
- * into a second match while one is still being played. A much longer window
- * than getActiveDuelForUser's matchmaking default: an active game can run for
- * several minutes, and this check must cover the whole match, not just the
- * few seconds right after pairing.
- */
-export async function getActivePaidDuelForUser(userId: string): Promise<Duel | null> {
-  return prisma.duel.findFirst({
-    where: {
-      status: DuelStatus.active,
-      stake_cents: { not: null },
-      OR: [{ player1_id: userId }, { player2_id: userId }],
-    },
-    orderBy: { created_at: "desc" },
-  });
-}
-
-/**
  * Complete a duel atomically. Uses SELECT FOR UPDATE so concurrent result
  * submissions (e.g. both players submit at the same millisecond) are
  * serialized and only the first write wins.
@@ -335,8 +286,8 @@ export async function completeDuel(
       await upsertDuelStatsInTx(tx, input.player2Id, input.winnerId === input.player2Id);
     }
 
-    // Paid duels: credit the pot to the winner's cashable winnings bucket,
-    // exactly once, in the same locked transaction as completion.
+    // Chip duels: settle the zero-sum chip transfer, exactly once, in the
+    // same locked transaction as completion.
     const payoutCents = await settlePayoutInTx(tx, duel, input.winnerId);
 
     return { outcome: "completed", duel, payoutCents } satisfies CompleteDuelResult;
@@ -799,66 +750,6 @@ export async function getRecentDuelsForUser(
 }
 
 /**
- * Top paid-duel leaderboard by paid wins. Aggregates directly from the duels
- * table (stake_cents IS NOT NULL) so free and paid records are kept separate.
- * Only settled (payout_settled=true) completed duels count.
- */
-export async function topPaidDuelStats(limit = 50): Promise<PaidDuelStatsRow[]> {
-  const duels = await prisma.duel.findMany({
-    where: {
-      stake_cents: { not: null },
-      status: DuelStatus.completed,
-      payout_settled: true,
-      winner_id: { not: null },
-    },
-    select: {
-      player1_id: true,
-      player2_id: true,
-      winner_id: true,
-      payout_cents: true,
-      player1: { select: { id: true, display_name: true } },
-      player2: { select: { id: true, display_name: true } },
-    },
-  });
-
-  const map = new Map<string, { displayName: string | null; wins: number; losses: number; payout: number }>();
-
-  for (const d of duels) {
-    const players = [
-      { id: d.player1_id, name: d.player1.display_name },
-      ...(d.player2_id && d.player2 ? [{ id: d.player2_id, name: d.player2.display_name }] : []),
-    ];
-    for (const p of players) {
-      if (!map.has(p.id)) map.set(p.id, { displayName: p.name, wins: 0, losses: 0, payout: 0 });
-      const s = map.get(p.id)!;
-      if (p.name !== null) s.displayName = p.name;
-      if (d.winner_id === p.id) {
-        s.wins++;
-        s.payout += d.payout_cents ?? 0;
-      } else {
-        s.losses++;
-      }
-    }
-  }
-
-  return Array.from(map.entries())
-    .filter(([, v]) => v.displayName !== null && v.wins > 0)
-    .map(([userId, v]) => {
-      const total = v.wins + v.losses;
-      return {
-        userId,
-        displayName: v.displayName,
-        paidWins: v.wins,
-        paidLosses: v.losses,
-        winPct: total > 0 ? Math.round((v.wins / total) * 1000) / 10 : 0,
-        totalPayoutCents: v.payout,
-      };
-    })
-    .sort((a, b) => b.paidWins - a.paidWins || b.totalPayoutCents - a.totalPayoutCents)
-    .slice(0, limit);
-}
-
-/**
  * Top duel leaderboard by wins. Excludes anonymous users (no display_name).
  * winPct = wins / (wins + losses) * 100, rounded to 1 decimal.
  */
@@ -890,237 +781,3 @@ export async function topDuelStats(limit = 50): Promise<DuelStatsRow[]> {
   });
 }
 
-// ─────────────────────── Paid per-tier queue / lobby ───────────────────────
-//
-// A pending paid duel row (stake_cents set, player2_id null) IS a queue slot:
-// the creator's stake is already escrowed and refundable, and joining it is the
-// same atomic SELECT FOR UPDATE that starts any paid match. So the "queue" is
-// just these rows, matched oldest-first per stake tier — no separate escrow.
-
-/** Discriminated join failures, so callers map to precise HTTP codes. */
-export type JoinPaidCode =
-  | "NOT_FOUND"
-  | "NOT_PAID"
-  | "NOT_PENDING"
-  | "SELF_JOIN"
-  | "ALREADY_TAKEN";
-
-export type JoinPaidOutcome = { ok: true } | { ok: false; code: JoinPaidCode };
-
-class JoinPaidError extends Error {
-  constructor(public readonly code: JoinPaidCode) {
-    super(code);
-  }
-}
-
-/**
- * Bind `uid` as player2 of a pending paid duel: stake their credits and flip it
- * to `active` in ONE SELECT FOR UPDATE transaction, so both stakes are escrowed
- * the instant the match starts. Shared by the direct-link join route and the
- * public per-tier matchmaker.
- *
- * Returns a discriminated outcome for expected states; throws
- * InsufficientCreditsError (rolling back) when the joiner is short.
- */
-export async function joinPaidDuel(id: string, uid: string): Promise<JoinPaidOutcome> {
-  try {
-    await prisma.$transaction(async (tx) => {
-      await tx.$executeRaw`SELECT id FROM duels WHERE id = ${id} FOR UPDATE`;
-      const duel = await tx.duel.findUnique({ where: { id } });
-
-      if (!duel) throw new JoinPaidError("NOT_FOUND");
-      if (duel.stake_cents == null) throw new JoinPaidError("NOT_PAID");
-      if (duel.player1_id === uid) throw new JoinPaidError("SELF_JOIN");
-      if (duel.status !== DuelStatus.pending) throw new JoinPaidError("NOT_PENDING");
-      if (duel.player2_id !== null && duel.player2_id !== uid) {
-        throw new JoinPaidError("ALREADY_TAKEN");
-      }
-
-      const split = await stakeInTx(tx, uid, duel.stake_cents, id);
-      await tx.duel.update({
-        where: { id },
-        data: {
-          player2_id: uid,
-          player2_staked: true,
-          player2_stake_play_cents: split.playDebited,
-          player2_stake_winnings_cents: split.winningsDebited,
-          status: DuelStatus.active,
-          started_at: new Date(),
-        },
-      });
-    });
-    return { ok: true };
-  } catch (err) {
-    if (err instanceof JoinPaidError) return { ok: false, code: err.code };
-    throw err; // InsufficientCreditsError or unexpected — caller handles.
-  }
-}
-
-/**
- * Thrown when the creator already has another open paid room. The DB-level
- * partial unique index (duel_one_open_paid_room_per_user) is the actual
- * enforcement — this wraps that constraint violation so callers get the
- * existing room id instead of a raw Postgres error. A pre-check in the route
- * handles the common case; this is the race-proof backstop.
- */
-export class DuplicateOpenPaidRoomError extends Error {
-  constructor(public readonly existingId: string) {
-    super("DUEL_ALREADY_PENDING");
-  }
-}
-
-/**
- * Create a pending paid challenge (a public waiting room) with the creator's
- * stake escrowed. Escrow row is created first so the STAKE ledger can reference
- * it, then the debit + bucket split are recorded. Throws
- * InsufficientCreditsError (rolling back) when the creator is short, or
- * DuplicateOpenPaidRoomError (rolling back, no debit) when the creator already
- * has an open room — two concurrent create calls both pass the app-level
- * pre-check, but only one wins the DB constraint; the loser gets a clean error
- * instead of a second stake.
- */
-export async function createPaidRoom(
-  uid: string,
-  stakeCents: number,
-  categorySlug: string,
-  id: string,
-  seed: string
-): Promise<void> {
-  try {
-    await prisma.$transaction(async (tx) => {
-      await tx.duel.create({
-        data: {
-          id,
-          seed,
-          category_slug: categorySlug,
-          player1_id: uid,
-          status: DuelStatus.pending,
-          stake_cents: stakeCents,
-        },
-      });
-      const split = await stakeInTx(tx, uid, stakeCents, id);
-      await tx.duel.update({
-        where: { id },
-        data: {
-          player1_staked: true,
-          player1_stake_play_cents: split.playDebited,
-          player1_stake_winnings_cents: split.winningsDebited,
-        },
-      });
-    });
-  } catch (err) {
-    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
-      const existing = await getOpenPaidDuelForUser(uid);
-      throw new DuplicateOpenPaidRoomError(existing?.id ?? id);
-    }
-    throw err;
-  }
-}
-
-export interface OpenPaidDuel {
-  id: string;
-  stakeCents: number;
-  createdAt: Date;
-  creatorId: string;
-  creatorName: string | null;
-}
-
-/**
- * Open (pending, unjoined) paid challenges, oldest first — the joinable lobby.
- * Optionally filtered to a stake tier and excluding one user (yourself).
- */
-export async function findOpenPaidDuels(opts: {
-  stakeCents?: number;
-  excludeUserId?: string;
-  limit?: number;
-}): Promise<OpenPaidDuel[]> {
-  const rows = await prisma.duel.findMany({
-    where: {
-      status: DuelStatus.pending,
-      player2_id: null,
-      stake_cents: opts.stakeCents != null ? opts.stakeCents : { not: null },
-      ...(opts.excludeUserId ? { player1_id: { not: opts.excludeUserId } } : {}),
-    },
-    orderBy: { created_at: "asc" },
-    take: opts.limit ?? 20,
-    select: {
-      id: true,
-      stake_cents: true,
-      created_at: true,
-      player1_id: true,
-      player1: { select: { display_name: true } },
-    },
-  });
-  return rows.map((r) => ({
-    id: r.id,
-    stakeCents: r.stake_cents as number,
-    createdAt: r.created_at,
-    creatorId: r.player1_id,
-    creatorName: r.player1.display_name,
-  }));
-}
-
-/** The user's own open paid waiting room, if any (one-open-per-user invariant). */
-export async function getOpenPaidDuelForUser(
-  uid: string
-): Promise<{ id: string; stakeCents: number } | null> {
-  const d = await prisma.duel.findFirst({
-    where: {
-      player1_id: uid,
-      status: DuelStatus.pending,
-      stake_cents: { not: null },
-      player2_id: null,
-    },
-    orderBy: { created_at: "desc" },
-    select: { id: true, stake_cents: true },
-  });
-  return d ? { id: d.id, stakeCents: d.stake_cents as number } : null;
-}
-
-/**
- * Status of the paid room this user most recently CREATED (as player1), for
- * the matchmaker's waiting-room poll.
- *
- * Deliberately scoped to rooms the user created, not "any active duel they're
- * in": joining an opponent's room already returns "matched" synchronously from
- * the POST that performs the join, so polling is only ever needed for the
- * other half — waiting for someone to join *your* room. Checking the specific
- * room you created (rather than any recent active duel you're a participant
- * in) avoids reporting an unrelated stale match as "matched".
- */
-export async function getOwnPaidRoomStatus(
-  uid: string
-): Promise<{ id: string; status: DuelStatus; stakeCents: number } | null> {
-  const d = await prisma.duel.findFirst({
-    where: { player1_id: uid, stake_cents: { not: null } },
-    orderBy: { created_at: "desc" },
-    select: { id: true, status: true, stake_cents: true },
-  });
-  return d ? { id: d.id, status: d.status, stakeCents: d.stake_cents as number } : null;
-}
-
-/**
- * Chip-dumping check for the cash-out gate: does this user have a settled
- * paid-duel history skewed toward one specific repeat opponent? See
- * hasSkewedPairing (src/lib/pairingSkew.ts) for the scoring and
- * config/paidDuel.ts for the thresholds and reasoning.
- */
-export async function getSuspiciousPairingForUser(userId: string): Promise<boolean> {
-  const duels = await prisma.duel.findMany({
-    where: {
-      status: DuelStatus.completed,
-      stake_cents: { not: null },
-      payout_settled: true,
-      OR: [{ player1_id: userId }, { player2_id: userId }],
-    },
-    select: { player1_id: true, player2_id: true, winner_id: true },
-  });
-  return hasSkewedPairing(
-    duels.map((d) => ({
-      player1Id: d.player1_id,
-      player2Id: d.player2_id,
-      winnerId: d.winner_id,
-    })),
-    userId
-  );
-}

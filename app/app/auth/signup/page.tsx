@@ -479,10 +479,9 @@ function GuestButton({ redirectParam }: { redirectParam: string | null }) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // /browse is a deprecated legacy-link redirect shim (-> /#towers, the old
-  // paid-stacks directory) — new flows shouldn't route through it. Default to
-  // /dashboard, matching the guest button on /auth/signin, but still honor an
-  // explicit redirect target — e.g. "continue as guest" from a duel invite link.
+  // Default to /dashboard, matching the guest button on /auth/signin, but still
+  // honor an explicit redirect target — e.g. "continue as guest" from a duel
+  // invite link.
   const redirectTo = safeInternalPath(redirectParam, "/dashboard");
 
   return (

@@ -17,7 +17,6 @@ import Link from "next/link";
 import { useAuth } from "../../contexts/AuthContext";
 import { shareInvite } from "../../lib/shareInvite";
 import { Navbar } from "../Navbar";
-import { PaidArena } from "./PaidArena";
 import { PAID_DUELS_ENABLED_PUBLIC } from "../../config/paidDuel";
 
 // ─────────────────────────────── Types ────────────────────────────────────
@@ -28,8 +27,8 @@ interface DuelStats {
   streak: number;
 }
 
-/** The three ways into a match, presented as a gamified mode menu. */
-type DuelMode = "quick" | "challenge" | "paid";
+/** The ways into a match, presented as a gamified mode menu. */
+type DuelMode = "quick" | "challenge" | "chips" | "tournaments";
 
 /**
  * Creating a challenge navigates straight into the duel lobby (the canonical
@@ -241,8 +240,8 @@ export function DuelHome() {
   // ─────────────── Render ───────────────
 
   const paidEnabled = PAID_DUELS_ENABLED_PUBLIC;
-  // Keep the selected mode valid if paid is off (or a signed-out teaser lands on it).
-  const activeMode: DuelMode = mode === "paid" && !paidEnabled ? "quick" : mode;
+  const activeMode: DuelMode =
+    (mode === "chips" || mode === "tournaments") && !paidEnabled ? "quick" : mode;
 
   return (
     <div className="grain topo min-h-screen bg-void text-text-primary">
@@ -313,15 +312,26 @@ export function DuelHome() {
             onSelect={() => setMode("challenge")}
           />
           {paidEnabled && (
-            <ModeCard
-              icon={<CoinsIcon />}
-              title="Paid Arena"
-              subtitle="Stake credits — winner takes the pot."
-              badge="$1–$10"
-              badgeTone="signal"
-              selected={activeMode === "paid"}
-              onSelect={() => setMode("paid")}
-            />
+            <>
+              <ModeCard
+                icon={<CoinsIcon />}
+                title="Chip Duels"
+                subtitle="Stake chips — winner takes all. Non-cashable."
+                badge="ranked"
+                badgeTone="signal"
+                selected={activeMode === "chips"}
+                onSelect={() => setMode("chips")}
+              />
+              <ModeCard
+                icon={<TrophyIcon />}
+                title="Tournaments"
+                subtitle="Enter a bracket, compete for cash prizes."
+                badge="prizes"
+                badgeTone="signal"
+                selected={activeMode === "tournaments"}
+                onSelect={() => setMode("tournaments")}
+              />
+            </>
           )}
         </div>
 
@@ -466,9 +476,36 @@ export function DuelHome() {
               </div>
             )}
           </section>
+        ) : activeMode === "chips" ? (
+          <section className="bg-surface rounded-xl border border-signal/30 shadow-signal p-6">
+            <h2 className="font-mono text-xs uppercase tracking-[0.14em] text-text-muted mb-1">
+              Chip Duels
+            </h2>
+            <p className="text-text-secondary text-sm mb-5">
+              Stake non-cashable chips against another player. Winner takes all — zero-sum, no house cut.
+            </p>
+            <Link
+              href="/duel/chips"
+              className="inline-flex items-center justify-center rounded-full px-8 min-h-[48px] w-full bg-signal text-void font-semibold text-base tracking-tight hover:brightness-110 active:scale-[0.98] motion-reduce:active:scale-100 shadow-signal transition-[filter,transform] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void"
+            >
+              Find chip match
+            </Link>
+          </section>
         ) : (
-          // Paid Arena — public per-tier queue: find a match or join an open room.
-          <PaidArena />
+          <section className="bg-surface rounded-xl border border-signal/30 shadow-signal p-6">
+            <h2 className="font-mono text-xs uppercase tracking-[0.14em] text-text-muted mb-1">
+              Tournaments
+            </h2>
+            <p className="text-text-secondary text-sm mb-5">
+              Enter a bracket tournament with a paid entry fee. Compete for predetermined cash prizes.
+            </p>
+            <Link
+              href="/tournaments"
+              className="inline-flex items-center justify-center rounded-full px-8 min-h-[48px] w-full bg-signal text-void font-semibold text-base tracking-tight hover:brightness-110 active:scale-[0.98] motion-reduce:active:scale-100 shadow-signal transition-[filter,transform] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void"
+            >
+              Browse tournaments
+            </Link>
+          </section>
         )}
       </div>
     </div>
@@ -592,6 +629,19 @@ function CoinsIcon() {
       <path d="M3 7v5c0 1.66 2.7 3 6 3s6-1.34 6-3V7" />
       <path d="M15 12.5c2.5-.2 6-1.2 6-3.5" />
       <path d="M9 15v2c0 1.66 2.7 3 6 3s6-1.34 6-3v-5" />
+    </svg>
+  );
+}
+
+function TrophyIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6" />
+      <path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18" />
+      <path d="M4 22h16" />
+      <path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20 7 22" />
+      <path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20 17 22" />
+      <path d="M18 2H6v7a6 6 0 0 0 12 0V2Z" />
     </svg>
   );
 }

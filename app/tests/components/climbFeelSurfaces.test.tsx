@@ -204,7 +204,7 @@ describe("ClimbPanelIntro title (AC-8)", () => {
     );
     expect(html).toContain(CLIMB_PANEL_INTRO_TITLE_CLASS);
     expect(html).toMatch(/font-mono[^"]*text-signal|text-signal[^"]*font-mono/);
-    expect(html).toContain("Free stack · no payment");
+    expect(html).toContain("Free climb · no payment");
     expect(html).toMatch(/\bclimb-reveal\b/);
   });
 });
