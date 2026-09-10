@@ -102,7 +102,7 @@ export function DuelPromo() {
     <section
       id="duel"
       aria-label="1v1 duel"
-      className="scroll-mt-20 py-20 px-4 border-t-2 border-t-signal/20 border-x-0 border-b border-border-subtle bg-surface/30"
+      className="scroll-reveal scroll-mt-20 py-20 px-4 border-t-2 border-t-signal/20 border-x-0 border-b border-border-subtle bg-surface/30"
     >
       <div className="max-w-6xl mx-auto">
         {PAID_DUELS_ENABLED_PUBLIC && (
@@ -151,16 +151,17 @@ export function DuelPromo() {
           {modes.map((mode, i) => (
             <div
               key={mode.title}
-              className="reveal group relative overflow-hidden rounded-2xl border border-border-subtle bg-surface p-6 transition-colors hover:border-signal/45"
+              className="reveal group relative overflow-hidden rounded-2xl border border-border-subtle bg-surface p-6 transition-[transform,border-color,box-shadow] duration-300 ease-out hover:-translate-y-1 hover:border-signal/45 hover:shadow-lifted"
               style={{ animationDelay: `${i * 70}ms` }}
             >
-              <div className="w-12 h-12 rounded-xl border border-signal/30 bg-signal/10 text-signal flex items-center justify-center [&_svg]:w-6 [&_svg]:h-6">
+              <div className="pointer-events-none absolute inset-0 survey-grid opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+              <div className="relative w-12 h-12 rounded-xl border border-signal/30 bg-signal/10 text-signal flex items-center justify-center [&_svg]:w-6 [&_svg]:h-6 transition-transform duration-300 group-hover:scale-105">
                 {mode.icon}
               </div>
-              <h3 className="text-lg font-bold text-text-primary mt-5">
+              <h3 className="relative text-lg font-bold text-text-primary mt-5">
                 {mode.title}
               </h3>
-              <p className="text-sm text-text-secondary leading-relaxed mt-2">
+              <p className="relative text-sm text-text-secondary leading-relaxed mt-2">
                 {mode.description}
               </p>
             </div>

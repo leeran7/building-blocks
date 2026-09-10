@@ -48,7 +48,7 @@ export function Faq(_props: FaqProps = {}) {
   return (
     <section
       aria-label="Frequently asked questions"
-      className="py-20 px-4 border-t border-border-subtle"
+      className="scroll-reveal py-20 px-4 border-t border-border-subtle"
     >
       <div className="max-w-3xl mx-auto">
         <div className="mb-10">

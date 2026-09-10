@@ -94,26 +94,6 @@ type FetchState =
   | { status: "error"; message: string }
   | { status: "success"; data: DashboardData };
 
-function TowerIcon() {
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      width="64"
-      height="64"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.5"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <rect x="3" y="8" width="18" height="14" rx="1" />
-      <path d="M10 22v-6a2 2 0 0 1 4 0v6" />
-      <path d="M6 8V6a6 6 0 0 1 12 0v2" />
-    </svg>
-  );
-}
 
 function SkeletonCard() {
   return (
@@ -217,7 +197,7 @@ export default function DashboardPage() {
             Dashboard
           </h1>
           <p className="text-sm text-text-secondary mt-1">
-            Your duels, climb record, wallet, and paid blocks.
+            Your duels, climb record, and wallet.
           </p>
         </div>
         <Link
@@ -280,26 +260,9 @@ export default function DashboardPage() {
 
             <CreatorPageBand username={fetchState.data.user.username} />
 
-            {fetchState.data.blocks.length === 0 && (
-              <div className="flex flex-col items-center justify-center min-h-[30vh] text-center">
-                <div className="text-border-subtle">
-                  <TowerIcon />
-                </div>
-                <h2 className="text-xl font-semibold text-text-primary mt-4">
-                  No paid blocks yet
-                </h2>
-                <p className="text-sm text-text-secondary mt-2 max-w-sm">
-                  No paid stack blocks yet. Browse a category to claim a rank — or keep dueling.
-                </p>
-                <Link
-                  href="/#towers"
-                  className="mt-6 bg-surface border border-border-subtle rounded-lg px-6 py-3 text-sm text-text-primary hover:bg-elevated transition-colors min-h-[44px] inline-flex items-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus"
-                >
-                  Browse paid stacks
-                </Link>
-              </div>
-            )}
-
+            {/* Legacy paid-stack blocks still render for owners who have them;
+                the paid-stacks surface is retired, so there's no empty-state
+                prompt to acquire new ones. */}
             {fetchState.data.blocks.length > 0 && (
               <>
                 {fetchState.data.blocks.some((b) => !b.pending) && (

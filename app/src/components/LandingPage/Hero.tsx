@@ -20,7 +20,7 @@ import { PAID_DUELS_ENABLED_PUBLIC } from "../../config/paidDuel";
 function DuelViz() {
   return (
     <div
-      className="relative w-full rounded-2xl border border-border-strong bg-surface/80 shadow-lifted overflow-hidden"
+      className="sheen relative w-full rounded-2xl border border-border-strong bg-surface/80 shadow-lifted overflow-hidden"
       aria-hidden="true"
     >
       {/* survey grid backdrop */}
@@ -161,12 +161,12 @@ export function Hero({ stats }: { stats: HeroStats }) {
             className="reveal font-display text-6xl sm:text-7xl lg:text-8xl text-text-primary mt-6"
             style={{ animationDelay: "70ms" }}
           >
-            RACE.
+            CLIMB.
             <br />
             OR GET
             <br />
             <span className="relative inline-block text-ember">
-              LEFT BEHIND.
+              BURIED.
               <span
                 className="absolute -bottom-1 left-0 h-1 w-full bg-gradient-to-r from-ember to-ember/0"
                 aria-hidden="true"
