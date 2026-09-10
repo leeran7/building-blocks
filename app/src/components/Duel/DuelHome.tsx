@@ -255,14 +255,7 @@ export function DuelHome() {
             role="tablist"
             aria-label="1v1 sections"
           >
-            <span
-              role="tab"
-              aria-selected={true}
-              aria-current="page"
-              className="inline-flex items-center justify-center px-4 min-h-[44px] rounded-full text-sm font-semibold whitespace-nowrap bg-signal text-void"
-            >
-              Play
-            </span>
+            {/* Order matches the free-climb shell: Leaderboard, then Play. */}
             <Link
               href="/duel/leaderboard"
               role="tab"
@@ -271,6 +264,14 @@ export function DuelHome() {
             >
               Leaderboard
             </Link>
+            <span
+              role="tab"
+              aria-selected={true}
+              aria-current="page"
+              className="inline-flex items-center justify-center px-4 min-h-[44px] rounded-full text-sm font-semibold whitespace-nowrap bg-signal text-void"
+            >
+              Play
+            </span>
           </div>
         </div>
       </div>

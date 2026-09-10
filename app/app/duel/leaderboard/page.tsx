@@ -47,8 +47,9 @@ export default async function DuelLeaderboardPage() {
             role="tablist"
             aria-label="1v1 sections"
           >
-            <DuelTab href="/duel" label="Play" active={false} />
+            {/* Order matches the free-climb shell: Leaderboard, then Play. */}
             <DuelTab href="/duel/leaderboard" label="Leaderboard" active={true} />
+            <DuelTab href="/duel" label="Play" active={false} />
           </div>
         </div>
       </div>
