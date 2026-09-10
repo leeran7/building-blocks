@@ -43,6 +43,19 @@ export function packInputLog(inputs: PlayerInput[]): Uint8Array {
   return out;
 }
 
+/**
+ * Pack, deflate-compress, and standard-base64-encode an input log for POSTing
+ * to /api/duel/[id]/result. The server decompresses with zlib.inflateSync
+ * (RFC 1950 / zlib format), which matches CompressionStream("deflate").
+ */
+export async function packAndEncodeInputLog(inputs: PlayerInput[]): Promise<string> {
+  const packed = packInputLog(inputs);
+  const compressed = await deflate(packed);
+  let binary = "";
+  for (let i = 0; i < compressed.length; i++) binary += String.fromCharCode(compressed[i]);
+  return btoa(binary);
+}
+
 export function unpackInputLog(bytes: Uint8Array): PlayerInput[] {
   const out: PlayerInput[] = new Array(bytes.length);
   for (let i = 0; i < bytes.length; i++) out[i] = unpackInput(bytes[i]);

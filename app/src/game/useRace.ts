@@ -30,13 +30,13 @@ import { applyRunSeed } from "./towers";
 import { GhostStore } from "./ghosts";
 import { RealtimeHandle } from "../net/realtime";
 import { TouchInput, NO_TOUCH } from "./useClimb";
-import { packInputLog } from "./runReplay";
+import { packAndEncodeInputLog } from "./runReplay";
 import { auth } from "../lib/firebase";
 
 const TICK_DT_MS = TICK_DT * 1000;
 
-/** Publish the local player's snapshot this often (~7.5 Hz at 30 Hz sim). */
-const SNAPSHOT_EVERY_TICKS = 4;
+/** Publish the local player's snapshot this often (~15 Hz at 30 Hz sim). */
+const SNAPSHOT_EVERY_TICKS = 2;
 
 /** No peer snapshot for this long mid-race → surface the opponent as "dropped". */
 const OPPONENT_STALE_MS = 2500;
@@ -392,8 +392,7 @@ export function useRace({
       resultSubmittedRef.current = true;
       lastOutcomeRef.current = claimedOutcome;
 
-      const packed = packInputLog(localInputLog.current);
-      const base64 = btoa(String.fromCharCode(...packed));
+      const base64 = await packAndEncodeInputLog(localInputLog.current);
       const token = await getFirebaseToken();
       const body = JSON.stringify({
         seed,
