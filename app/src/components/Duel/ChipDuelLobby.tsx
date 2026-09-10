@@ -5,11 +5,18 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "../../contexts/AuthContext";
 import { Navbar } from "../Navbar";
-import { CHIP_TIERS } from "../../db/chips";
+import { CHIP_TIERS, DAILY_CHIP_GRANT_CENTS } from "../../db/chips";
 
 type MatchState =
   | { status: "idle" }
   | { status: "matching" }
+  | { status: "error"; message: string };
+
+type ClaimState =
+  | { status: "idle" }
+  | { status: "claiming" }
+  | { status: "claimed" }
+  | { status: "already-claimed" }
   | { status: "error"; message: string };
 
 export function ChipDuelLobby() {
@@ -17,6 +24,29 @@ export function ChipDuelLobby() {
   const router = useRouter();
   const [tier, setTier] = useState<number>(CHIP_TIERS[0]);
   const [matchState, setMatchState] = useState<MatchState>({ status: "idle" });
+  const [claimState, setClaimState] = useState<ClaimState>({ status: "idle" });
+
+  const handleClaim = useCallback(async () => {
+    if (!token) return;
+    setClaimState({ status: "claiming" });
+    try {
+      const res = await fetch("/api/duel/chips/claim", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.status === 429) {
+        setClaimState({ status: "already-claimed" });
+        return;
+      }
+      if (!res.ok) {
+        setClaimState({ status: "error", message: "Could not claim. Try again." });
+        return;
+      }
+      setClaimState({ status: "claimed" });
+    } catch {
+      setClaimState({ status: "error", message: "Network error. Try again." });
+    }
+  }, [token]);
 
   const handleMatch = useCallback(async () => {
     if (!token) return;
@@ -79,6 +109,9 @@ export function ChipDuelLobby() {
           <h1 className="font-display text-4xl md:text-5xl font-black tracking-tight uppercase text-text-primary leading-none">
             Chip Duels
           </h1>
+          <p className="text-xs text-text-muted mt-2">
+            Chips have no cash value and can&apos;t be redeemed, transferred, or sold.
+          </p>
         </header>
 
         {!user ? (
@@ -95,6 +128,37 @@ export function ChipDuelLobby() {
           </section>
         ) : (
           <>
+            {/* Daily free chips — ongoing no-purchase way to play, not just a one-time signup grant */}
+            <section className="bg-surface rounded-xl border border-border-subtle p-5 flex items-center justify-between gap-4">
+              <div>
+                <h2 className="font-mono text-xs uppercase tracking-[0.14em] text-text-muted mb-1">
+                  Daily free chips
+                </h2>
+                <p className="text-sm text-text-secondary">
+                  Claim {DAILY_CHIP_GRANT_CENTS.toLocaleString()} free chips every day — no purchase required.
+                </p>
+                {claimState.status === "already-claimed" && (
+                  <p className="text-xs text-text-muted mt-1">Already claimed today. Come back tomorrow.</p>
+                )}
+                {claimState.status === "error" && (
+                  <p className="text-xs text-ember mt-1">{claimState.message}</p>
+                )}
+              </div>
+              <button
+                onClick={handleClaim}
+                disabled={claimState.status === "claiming" || claimState.status === "claimed" || claimState.status === "already-claimed"}
+                className="flex-shrink-0 inline-flex items-center justify-center rounded-full px-5 min-h-[44px] border border-signal/40 text-signal font-semibold text-sm hover:bg-signal/10 active:scale-[0.98] motion-reduce:active:scale-100 transition-[filter,transform,background-color] disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void"
+              >
+                {claimState.status === "claiming"
+                  ? "Claiming..."
+                  : claimState.status === "claimed"
+                    ? "Claimed"
+                    : claimState.status === "already-claimed"
+                      ? "Come back tomorrow"
+                      : "Claim free chips"}
+              </button>
+            </section>
+
             {/* Tier picker */}
             <section className="bg-surface rounded-xl border border-border-subtle p-5">
               <h2 className="font-mono text-xs uppercase tracking-[0.14em] text-text-muted mb-3">

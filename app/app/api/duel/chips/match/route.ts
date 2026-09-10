@@ -9,6 +9,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { PAID_DUELS_ENABLED } from "../../../../../src/config/paidDuel";
 import { requireAuth, AuthError } from "../../../../../src/lib/requireAuth";
+import { assertPaidDuelAllowed } from "../../../../../src/lib/paidDuelGeo";
 import { checkRateLimit } from "../../../../../src/lib/rateLimit";
 import { newRunSeed } from "../../../../../src/game/rng";
 import { CATEGORY_BY_SLUG } from "../../../../../src/lib/categories";
@@ -39,6 +40,28 @@ export async function POST(request: NextRequest) {
   } catch (err) {
     if (err instanceof AuthError) return err.response;
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  // Geoblock every chip stake, not just the purchase — a user who bought
+  // chips from an allowed region must not be able to spend them from a
+  // blocked one. Logged for the compliance audit trail.
+  const geo = assertPaidDuelAllowed(request);
+  console.log(
+    JSON.stringify({
+      type: "chip_stake_geo_check",
+      uid,
+      allowed: geo.allowed,
+      country: geo.country,
+      region: geo.region,
+      reason: geo.reason,
+      timestamp: new Date().toISOString(),
+    })
+  );
+  if (!geo.allowed) {
+    return NextResponse.json(
+      { error: "Chip duels aren't available in your region", code: "GEO_BLOCKED", reason: geo.reason },
+      { status: 403 }
+    );
   }
 
   const rl = await checkRateLimit({

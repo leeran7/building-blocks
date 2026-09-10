@@ -49,6 +49,9 @@ model User {
   winnings_credits_cents Int                 @default(0)
   // 18+ attestation timestamp, set on the user's first paid-duel action.
   age_confirmed_at       DateTime?
+  // Last time this user claimed the daily free-chip grant — the ongoing
+  // free-play alternative to purchase (compliance requirement, not a promo).
+  last_daily_chips_claim_at DateTime?
   // Stripe Connect Express account for receiving tournament prize payouts.
   stripe_connect_account_id String?
   climbRecords           ClimbRecord[]
@@ -802,6 +805,7 @@ enum WalletBucket {
 // fully auditable and balance_after can be reconciled against the running total.
 enum WalletLedgerKind {
   PURCHASE // credits bought via Stripe (PLAY)
+  DAILY_GRANT // free daily chip grant — the ongoing no-purchase play path (PLAY)
   STAKE // debit into a duel escrow (PLAY and/or WINNINGS)
   WIN // pot credited to the winner (WINNINGS)
   REFUND // stake returned when a duel never played (original buckets)

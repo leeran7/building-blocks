@@ -115,6 +115,17 @@ export function BuyCreditsModal({ open, onClose, token }: BuyCreditsModalProps) 
           ))}
         </div>
 
+        {/* Conspicuous, standalone disclosure — must be seen before the age/Terms
+            checkbox, not buried inside it as fine print. */}
+        <div className="rounded-lg border border-border-strong bg-surface px-3 py-2.5 mb-4">
+          <p className="text-sm font-semibold text-text-primary">
+            Chips have no cash value.
+          </p>
+          <p className="text-xs text-text-muted mt-0.5">
+            Non-refundable, non-cashable, and can&apos;t be redeemed, transferred, gifted, or sold — inside or outside the game.
+          </p>
+        </div>
+
         <label className="flex items-start gap-2 mb-4 text-sm text-text-secondary">
           <input
             type="checkbox"
@@ -127,7 +138,7 @@ export function BuyCreditsModal({ open, onClose, token }: BuyCreditsModalProps) 
             <a href="/terms" className="text-signal underline underline-offset-2" target="_blank">
               Terms
             </a>
-            . Chips are non-refundable and non-cashable.
+            .
           </span>
         </label>
 
@@ -148,6 +159,10 @@ export function BuyCreditsModal({ open, onClose, token }: BuyCreditsModalProps) 
             {loading ? "Starting..." : `Buy ${chips.toLocaleString()} chips · $${amountUsd}`}
           </button>
         </div>
+
+        <p className="text-[11px] text-text-muted text-center mt-3">
+          Play responsibly. Problem gambling help: 1-800-522-4700.
+        </p>
       </div>
     </div>
   );
