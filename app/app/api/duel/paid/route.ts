@@ -13,13 +13,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { nanoid } from "nanoid";
 import { z } from "zod";
-import { checkRateLimit } from "../../../../src/lib/rateLimit";
+import { checkRateLimit, clientIp } from "../../../../src/lib/rateLimit";
 import { guardPaidDuelRequest } from "../../../../src/lib/paidDuelGuards";
+import { hashIp, rememberRoomCreatorIp } from "../../../../src/lib/paidDuelCollusion";
 import { recordAgeConfirmation } from "../../../../src/db/user";
 import { newRunSeed } from "../../../../src/game/rng";
 import { CATEGORY_BY_SLUG } from "../../../../src/lib/categories";
 import { prisma } from "../../../../src/db/client";
-import { stakeInTx, InsufficientCreditsError } from "../../../../src/db/credits";
+import { createPaidRoom } from "../../../../src/db/duel";
+import { InsufficientCreditsError } from "../../../../src/db/credits";
 import { isValidStakeCents } from "../../../../src/config/paidDuel";
 import { DuelStatus } from "@prisma/client";
 
@@ -104,31 +106,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const seed = newRunSeed();
 
   try {
-    await prisma.$transaction(async (tx) => {
-      // Create the escrow row first so the STAKE ledger can reference it, then
-      // debit the creator's stake and record the bucket split on the duel.
-      await tx.duel.create({
-        data: {
-          id,
-          seed,
-          category_slug: categorySlug,
-          player1_id: uid,
-          status: DuelStatus.pending,
-          stake_cents: stakeCents,
-        },
-      });
-
-      const split = await stakeInTx(tx, uid, stakeCents, id);
-
-      await tx.duel.update({
-        where: { id },
-        data: {
-          player1_staked: true,
-          player1_stake_play_cents: split.playDebited,
-          player1_stake_winnings_cents: split.winningsDebited,
-        },
-      });
-    });
+    await createPaidRoom(uid, stakeCents, categorySlug, id, seed);
   } catch (err) {
     if (err instanceof InsufficientCreditsError) {
       return NextResponse.json(
@@ -143,6 +121,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     console.error("[POST /api/duel/paid]", err);
     return NextResponse.json({ error: "Internal server error", code: "INTERNAL_ERROR" }, { status: 500 });
   }
+
+  // These rooms are publicly joinable via the per-tier queue, so guard them the
+  // same way the matchmaker guards its own rooms: remember the creator IP hash.
+  await rememberRoomCreatorIp(id, hashIp(clientIp(request)));
 
   return NextResponse.json({ duelId: id }, { status: 201 });
 }

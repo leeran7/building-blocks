@@ -17,7 +17,7 @@ import Link from "next/link";
 import { useAuth } from "../../contexts/AuthContext";
 import { shareInvite } from "../../lib/shareInvite";
 import { Navbar } from "../Navbar";
-import { PaidDuelSection } from "./PaidDuelSection";
+import { PaidArena } from "./PaidArena";
 import { PAID_DUELS_ENABLED_PUBLIC } from "../../config/paidDuel";
 
 // ─────────────────────────────── Types ────────────────────────────────────
@@ -496,9 +496,8 @@ export function DuelHome() {
             )}
           </section>
         ) : (
-          // Paid Arena. Slice 1 reuses the existing staked-challenge surface;
-          // Slice 2 replaces this with the per-tier lobby.
-          <PaidDuelSection />
+          // Paid Arena — public per-tier queue: find a match or join an open room.
+          <PaidArena />
         )}
       </div>
     </div>

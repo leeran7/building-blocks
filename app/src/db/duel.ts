@@ -8,7 +8,7 @@
 
 import { prisma } from "./client";
 import { DuelStatus, Duel, DuelStats, Prisma } from "@prisma/client";
-import { creditWinningsInTx, creditRefundInTx } from "./credits";
+import { creditWinningsInTx, creditRefundInTx, stakeInTx } from "./credits";
 import { DUEL_RAKE, duelPayoutCents } from "../config/paidDuel";
 
 // Re-export so that existing imports from db/duel continue to work.
@@ -869,4 +869,166 @@ export async function topDuelStats(limit = 50): Promise<DuelStatsRow[]> {
       winPct,
     };
   });
+}
+
+// ─────────────────────── Paid per-tier queue / lobby ───────────────────────
+//
+// A pending paid duel row (stake_cents set, player2_id null) IS a queue slot:
+// the creator's stake is already escrowed and refundable, and joining it is the
+// same atomic SELECT FOR UPDATE that starts any paid match. So the "queue" is
+// just these rows, matched oldest-first per stake tier — no separate escrow.
+
+/** Discriminated join failures, so callers map to precise HTTP codes. */
+export type JoinPaidCode =
+  | "NOT_FOUND"
+  | "NOT_PAID"
+  | "NOT_PENDING"
+  | "SELF_JOIN"
+  | "ALREADY_TAKEN";
+
+export type JoinPaidOutcome = { ok: true } | { ok: false; code: JoinPaidCode };
+
+class JoinPaidError extends Error {
+  constructor(public readonly code: JoinPaidCode) {
+    super(code);
+  }
+}
+
+/**
+ * Bind `uid` as player2 of a pending paid duel: stake their credits and flip it
+ * to `active` in ONE SELECT FOR UPDATE transaction, so both stakes are escrowed
+ * the instant the match starts. Shared by the direct-link join route and the
+ * public per-tier matchmaker.
+ *
+ * Returns a discriminated outcome for expected states; throws
+ * InsufficientCreditsError (rolling back) when the joiner is short.
+ */
+export async function joinPaidDuel(id: string, uid: string): Promise<JoinPaidOutcome> {
+  try {
+    await prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT id FROM duels WHERE id = ${id} FOR UPDATE`;
+      const duel = await tx.duel.findUnique({ where: { id } });
+
+      if (!duel) throw new JoinPaidError("NOT_FOUND");
+      if (duel.stake_cents == null) throw new JoinPaidError("NOT_PAID");
+      if (duel.player1_id === uid) throw new JoinPaidError("SELF_JOIN");
+      if (duel.status !== DuelStatus.pending) throw new JoinPaidError("NOT_PENDING");
+      if (duel.player2_id !== null && duel.player2_id !== uid) {
+        throw new JoinPaidError("ALREADY_TAKEN");
+      }
+
+      const split = await stakeInTx(tx, uid, duel.stake_cents, id);
+      await tx.duel.update({
+        where: { id },
+        data: {
+          player2_id: uid,
+          player2_staked: true,
+          player2_stake_play_cents: split.playDebited,
+          player2_stake_winnings_cents: split.winningsDebited,
+          status: DuelStatus.active,
+          started_at: new Date(),
+        },
+      });
+    });
+    return { ok: true };
+  } catch (err) {
+    if (err instanceof JoinPaidError) return { ok: false, code: err.code };
+    throw err; // InsufficientCreditsError or unexpected — caller handles.
+  }
+}
+
+/**
+ * Create a pending paid challenge (a public waiting room) with the creator's
+ * stake escrowed. Escrow row is created first so the STAKE ledger can reference
+ * it, then the debit + bucket split are recorded. Throws
+ * InsufficientCreditsError (rolling back) when the creator is short.
+ */
+export async function createPaidRoom(
+  uid: string,
+  stakeCents: number,
+  categorySlug: string,
+  id: string,
+  seed: string
+): Promise<void> {
+  await prisma.$transaction(async (tx) => {
+    await tx.duel.create({
+      data: {
+        id,
+        seed,
+        category_slug: categorySlug,
+        player1_id: uid,
+        status: DuelStatus.pending,
+        stake_cents: stakeCents,
+      },
+    });
+    const split = await stakeInTx(tx, uid, stakeCents, id);
+    await tx.duel.update({
+      where: { id },
+      data: {
+        player1_staked: true,
+        player1_stake_play_cents: split.playDebited,
+        player1_stake_winnings_cents: split.winningsDebited,
+      },
+    });
+  });
+}
+
+export interface OpenPaidDuel {
+  id: string;
+  stakeCents: number;
+  createdAt: Date;
+  creatorId: string;
+  creatorName: string | null;
+}
+
+/**
+ * Open (pending, unjoined) paid challenges, oldest first — the joinable lobby.
+ * Optionally filtered to a stake tier and excluding one user (yourself).
+ */
+export async function findOpenPaidDuels(opts: {
+  stakeCents?: number;
+  excludeUserId?: string;
+  limit?: number;
+}): Promise<OpenPaidDuel[]> {
+  const rows = await prisma.duel.findMany({
+    where: {
+      status: DuelStatus.pending,
+      player2_id: null,
+      stake_cents: opts.stakeCents != null ? opts.stakeCents : { not: null },
+      ...(opts.excludeUserId ? { player1_id: { not: opts.excludeUserId } } : {}),
+    },
+    orderBy: { created_at: "asc" },
+    take: opts.limit ?? 20,
+    select: {
+      id: true,
+      stake_cents: true,
+      created_at: true,
+      player1_id: true,
+      player1: { select: { display_name: true } },
+    },
+  });
+  return rows.map((r) => ({
+    id: r.id,
+    stakeCents: r.stake_cents as number,
+    createdAt: r.created_at,
+    creatorId: r.player1_id,
+    creatorName: r.player1.display_name,
+  }));
+}
+
+/** The user's own open paid waiting room, if any (one-open-per-user invariant). */
+export async function getOpenPaidDuelForUser(
+  uid: string
+): Promise<{ id: string; stakeCents: number } | null> {
+  const d = await prisma.duel.findFirst({
+    where: {
+      player1_id: uid,
+      status: DuelStatus.pending,
+      stake_cents: { not: null },
+      player2_id: null,
+    },
+    orderBy: { created_at: "desc" },
+    select: { id: true, stake_cents: true },
+  });
+  return d ? { id: d.id, stakeCents: d.stake_cents as number } : null;
 }

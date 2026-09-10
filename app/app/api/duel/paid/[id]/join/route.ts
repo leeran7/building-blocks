@@ -12,9 +12,8 @@ import { z } from "zod";
 import { checkRateLimit } from "../../../../../../src/lib/rateLimit";
 import { guardPaidDuelRequest } from "../../../../../../src/lib/paidDuelGuards";
 import { recordAgeConfirmation } from "../../../../../../src/db/user";
-import { prisma } from "../../../../../../src/db/client";
-import { stakeInTx, InsufficientCreditsError } from "../../../../../../src/db/credits";
-import { DuelStatus } from "@prisma/client";
+import { joinPaidDuel, type JoinPaidCode } from "../../../../../../src/db/duel";
+import { InsufficientCreditsError } from "../../../../../../src/db/credits";
 
 export const runtime = "nodejs";
 
@@ -23,19 +22,14 @@ const RATE_WINDOW_SECONDS = 3600;
 
 const BodySchema = z.object({ ageConfirmed: z.literal(true) });
 
-/** Discriminated failure so the transaction can reject with a precise HTTP code. */
-type JoinFailure =
-  | { code: "NOT_FOUND"; status: 404 }
-  | { code: "NOT_PAID"; status: 400 }
-  | { code: "NOT_PENDING"; status: 409 }
-  | { code: "SELF_JOIN"; status: 409 }
-  | { code: "ALREADY_TAKEN"; status: 409 };
-
-class JoinError extends Error {
-  constructor(public readonly failure: JoinFailure) {
-    super(failure.code);
-  }
-}
+/** Map the shared join outcome codes to user-facing messages + HTTP status. */
+const JOIN_FAILURES: Record<JoinPaidCode, { status: number; message: string }> = {
+  NOT_FOUND: { status: 404, message: "Duel not found" },
+  NOT_PAID: { status: 400, message: "This is not a paid duel" },
+  NOT_PENDING: { status: 409, message: "This challenge is no longer open" },
+  SELF_JOIN: { status: 409, message: "You cannot join your own challenge" },
+  ALREADY_TAKEN: { status: 409, message: "Someone else already joined this challenge" },
+};
 
 export async function POST(
   request: NextRequest,
@@ -74,53 +68,16 @@ export async function POST(
   await recordAgeConfirmation(uid);
 
   try {
-    await prisma.$transaction(async (tx) => {
-      await tx.$executeRaw`SELECT id FROM duels WHERE id = ${id} FOR UPDATE`;
-      const duel = await tx.duel.findUnique({ where: { id } });
-
-      if (!duel) throw new JoinError({ code: "NOT_FOUND", status: 404 });
-      if (duel.stake_cents == null) throw new JoinError({ code: "NOT_PAID", status: 400 });
-      if (duel.player1_id === uid) throw new JoinError({ code: "SELF_JOIN", status: 409 });
-      if (duel.status !== DuelStatus.pending) {
-        throw new JoinError({ code: "NOT_PENDING", status: 409 });
-      }
-      // Allow the same invitee to resume an interrupted join; block a different one.
-      if (duel.player2_id !== null && duel.player2_id !== uid) {
-        throw new JoinError({ code: "ALREADY_TAKEN", status: 409 });
-      }
-
-      const split = await stakeInTx(tx, uid, duel.stake_cents, id);
-
-      await tx.duel.update({
-        where: { id },
-        data: {
-          player2_id: uid,
-          player2_staked: true,
-          player2_stake_play_cents: split.playDebited,
-          player2_stake_winnings_cents: split.winningsDebited,
-          status: DuelStatus.active,
-          started_at: new Date(),
-        },
-      });
-    });
+    const outcome = await joinPaidDuel(id, uid);
+    if (!outcome.ok) {
+      const f = JOIN_FAILURES[outcome.code];
+      return NextResponse.json({ error: f.message, code: outcome.code }, { status: f.status });
+    }
   } catch (err) {
     if (err instanceof InsufficientCreditsError) {
       return NextResponse.json(
         { error: "Not enough credits", code: "INSUFFICIENT_CREDITS", shortfallCents: err.shortfallCents },
         { status: 402 }
-      );
-    }
-    if (err instanceof JoinError) {
-      const messages: Record<JoinFailure["code"], string> = {
-        NOT_FOUND: "Duel not found",
-        NOT_PAID: "This is not a paid duel",
-        NOT_PENDING: "This challenge is no longer open",
-        SELF_JOIN: "You cannot join your own challenge",
-        ALREADY_TAKEN: "Someone else already joined this challenge",
-      };
-      return NextResponse.json(
-        { error: messages[err.failure.code], code: err.failure.code },
-        { status: err.failure.status }
       );
     }
     console.error("[POST /api/duel/paid/[id]/join]", err);
