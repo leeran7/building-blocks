@@ -6,17 +6,11 @@ import Link from "next/link";
 import { useAuth } from "../../contexts/AuthContext";
 import { Navbar } from "../Navbar";
 import { CHIP_TIERS, DAILY_CHIP_GRANT_CENTS } from "../../db/chips";
+import { useClaimDailyChips } from "../../hooks/useClaimDailyChips";
 
 type MatchState =
   | { status: "idle" }
   | { status: "matching" }
-  | { status: "error"; message: string };
-
-type ClaimState =
-  | { status: "idle" }
-  | { status: "claiming" }
-  | { status: "claimed" }
-  | { status: "already-claimed" }
   | { status: "error"; message: string };
 
 export function ChipDuelLobby() {
@@ -24,29 +18,7 @@ export function ChipDuelLobby() {
   const router = useRouter();
   const [tier, setTier] = useState<number>(CHIP_TIERS[0]);
   const [matchState, setMatchState] = useState<MatchState>({ status: "idle" });
-  const [claimState, setClaimState] = useState<ClaimState>({ status: "idle" });
-
-  const handleClaim = useCallback(async () => {
-    if (!token) return;
-    setClaimState({ status: "claiming" });
-    try {
-      const res = await fetch("/api/duel/chips/claim", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (res.status === 429) {
-        setClaimState({ status: "already-claimed" });
-        return;
-      }
-      if (!res.ok) {
-        setClaimState({ status: "error", message: "Could not claim. Try again." });
-        return;
-      }
-      setClaimState({ status: "claimed" });
-    } catch {
-      setClaimState({ status: "error", message: "Network error. Try again." });
-    }
-  }, [token]);
+  const { state: claimState, claim: handleClaim } = useClaimDailyChips(token);
 
   const handleMatch = useCallback(async () => {
     if (!token) return;

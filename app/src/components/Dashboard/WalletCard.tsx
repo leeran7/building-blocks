@@ -9,10 +9,11 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { BuyCreditsModal } from "../Wallet/BuyCreditsModal";
+import { useClaimDailyChips } from "../../hooks/useClaimDailyChips";
 
 interface LedgerRow {
   id: string;
-  bucket: "PLAY" | "WINNINGS";
+  bucket: "PLAY";
   amountCents: number;
   kind: string;
   createdAt: string;
@@ -25,6 +26,7 @@ interface WalletData {
 
 const KIND_LABEL: Record<string, string> = {
   PURCHASE: "Bought chips",
+  DAILY_GRANT: "Claimed daily chips",
   STAKE: "Staked a duel",
   WIN: "Won a duel",
   REFUND: "Stake refunded",
@@ -39,6 +41,7 @@ function kindColor(kind: string): string {
 export function WalletCard({ token }: { token: string | null }) {
   const [wallet, setWallet] = useState<WalletData | null>(null);
   const [buyOpen, setBuyOpen] = useState(false);
+  const { state: claimState, claim } = useClaimDailyChips(token);
 
   const refresh = useCallback(async () => {
     if (!token) return;
@@ -54,18 +57,43 @@ export function WalletCard({ token }: { token: string | null }) {
     refresh();
   }, [refresh]);
 
+  useEffect(() => {
+    if (claimState.status === "claimed") refresh();
+  }, [claimState.status, refresh]);
+
   const chips = wallet?.playCents ?? 0;
+  const claimDisabled =
+    claimState.status === "claiming" ||
+    claimState.status === "claimed" ||
+    claimState.status === "already-claimed";
+  const claimLabel =
+    claimState.status === "claiming"
+      ? "Claiming..."
+      : claimState.status === "claimed"
+        ? "Claimed"
+        : claimState.status === "already-claimed"
+          ? "Claimed today"
+          : "Claim daily";
 
   return (
     <div className="bg-surface rounded-xl border border-border-subtle p-5 mb-6">
       <div className="flex items-center justify-between mb-4">
         <p className="font-mono text-xs uppercase tracking-[0.14em] text-text-muted">Chips</p>
-        <button
-          onClick={() => setBuyOpen(true)}
-          className="font-mono text-xs uppercase tracking-[0.12em] text-text-muted hover:text-text-primary transition-colors"
-        >
-          + Buy chips
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={claim}
+            disabled={claimDisabled}
+            className="font-mono text-xs uppercase tracking-[0.12em] text-signal hover:brightness-110 transition-[filter] disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {claimLabel}
+          </button>
+          <button
+            onClick={() => setBuyOpen(true)}
+            className="font-mono text-xs uppercase tracking-[0.12em] text-text-muted hover:text-text-primary transition-colors"
+          >
+            + Buy chips
+          </button>
+        </div>
       </div>
 
       <div>
@@ -75,6 +103,9 @@ export function WalletCard({ token }: { token: string | null }) {
         <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-text-muted">
           chips · non-cashable
         </span>
+        {claimState.status === "error" && (
+          <p className="text-xs text-ember mt-1" role="alert">{claimState.message}</p>
+        )}
       </div>
 
       {wallet && wallet.ledger.length > 0 && (

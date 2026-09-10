@@ -6,7 +6,8 @@
  * Groups Dashboard · Creator page · Settings · Sign out (plus Browse / Free
  * climb on mobile, where the navbar hides them). Fetches the user's public
  * username so "Creator page" deep-links to /c/[username] — shown only once a
- * username is claimed. Keyboard + click-outside dismissible.
+ * username is claimed. When paid features are on, also shows the chip
+ * balance and a daily-chip-claim button. Keyboard + click-outside dismissible.
  */
 
 import { useEffect, useId, useRef, useState } from "react";
@@ -15,6 +16,7 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "../contexts/AuthContext";
 import { FREE_CLIMB_HREF, DUEL_HREF } from "./navLinks";
 import { PAID_DUELS_ENABLED_PUBLIC } from "../config/paidDuel";
+import { useClaimDailyChips } from "../hooks/useClaimDailyChips";
 
 const ITEM =
   "flex items-center gap-2.5 rounded-lg px-3 min-h-[44px] text-sm text-text-secondary hover:bg-elevated hover:text-text-primary transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal";
@@ -37,6 +39,7 @@ export function AccountMenu() {
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuId = useId();
+  const { state: claimState, claim } = useClaimDailyChips(token);
 
   // Fetch the public username once so "My creator page" can deep-link.
   useEffect(() => {
@@ -55,7 +58,8 @@ export function AccountMenu() {
     };
   }, [token]);
 
-  // Fetch wallet balance once when the menu opens (display-only, not a CTA).
+  // Fetch wallet balance when the menu opens, and again after a successful
+  // daily-chip claim so the displayed balance stays current.
   useEffect(() => {
     if (!open || !token || !PAID_DUELS_ENABLED_PUBLIC) return;
     let live = true;
@@ -69,7 +73,7 @@ export function AccountMenu() {
     return () => {
       live = false;
     };
-  }, [open, token]);
+  }, [open, token, claimState.status]);
 
   // Close on click-outside and Escape (returning focus to the trigger).
   useEffect(() => {
@@ -136,6 +140,27 @@ export function AccountMenu() {
                   {(walletBalance.playCents / 100).toLocaleString()} chips
                 </p>
               </div>
+              <button
+                type="button"
+                onClick={claim}
+                disabled={
+                  claimState.status === "claiming" ||
+                  claimState.status === "claimed" ||
+                  claimState.status === "already-claimed"
+                }
+                className={`${ITEM} w-full text-left disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent`}
+              >
+                {claimState.status === "claiming"
+                  ? "Claiming..."
+                  : claimState.status === "claimed"
+                    ? "Claimed daily chips"
+                    : claimState.status === "already-claimed"
+                      ? "Already claimed today"
+                      : "Claim daily chips"}
+              </button>
+              {claimState.status === "error" && (
+                <p className="px-3 py-1 text-xs text-ember" role="alert">{claimState.message}</p>
+              )}
               <div className="my-1 border-t border-border-subtle" aria-hidden="true" />
             </>
           )}
