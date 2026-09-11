@@ -125,6 +125,12 @@ async function handleTournamentEntry(
     );
     return NextResponse.json({ received: true });
   } catch (err) {
+    // A "not found" error is deterministic — retrying will not fix it.
+    // Dead-letter so Stripe stops retrying and the payment is preserved for manual review.
+    const msg = err instanceof Error ? err.message : String(err);
+    if (/not found/i.test(msg)) {
+      return deadLetter(eventType, session.id, session.amount_total ?? 0, `tournament_entry: ${msg}`);
+    }
     console.error("[webhook/stripe] tournament_entry settlement failed:", err);
     return NextResponse.json({ error: "Entry settlement failed" }, { status: 500 });
   }
@@ -167,11 +173,14 @@ async function handleCreditsTopup(
   }
 
   const userId = session.metadata?.user_id;
-  // chip_amount includes volume bonuses; fall back to charge amount for
-  // sessions created before the bonus system was added.
-  const chipAmount = session.metadata?.chip_amount
+  // chip_amount in metadata is the display chip count (e.g. 500 for a $5 purchase).
+  // play_credits_cents uses 100 units per display chip, so multiply by 100.
+  // Fall back to amount_total (USD cents, $1 = 100 chips = 10000 play_credits_cents)
+  // for legacy sessions predating the chip_amount metadata field.
+  const chipDisplayCount = session.metadata?.chip_amount
     ? parseInt(session.metadata.chip_amount, 10)
     : (session.amount_total ?? 0);
+  const chipAmountCents = chipDisplayCount * 100;
   const chargeCents = session.amount_total ?? 0;
 
   if (!session.id) {
@@ -180,19 +189,20 @@ async function handleCreditsTopup(
   if (!userId) {
     return deadLetter(eventType, session.id, chargeCents, "credits_topup: missing user_id");
   }
-  if (!Number.isFinite(chipAmount) || chipAmount <= 0) {
+  if (!Number.isFinite(chipAmountCents) || chipAmountCents <= 0) {
     return deadLetter(eventType, session.id, chargeCents, "credits_topup: invalid amount");
   }
 
   try {
-    const result = await addPurchasedCredits(userId, session.id, chipAmount);
+    const result = await addPurchasedCredits(userId, session.id, chipAmountCents);
     console.log(
       JSON.stringify({
         type: "credits_topup",
         stripe_session_id: session.id,
         user_id: userId,
         charge_cents: chargeCents,
-        chip_amount: chipAmount,
+        chip_display_count: chipDisplayCount,
+        chip_amount_cents: chipAmountCents,
         outcome: result.outcome,
         timestamp: new Date().toISOString(),
       })

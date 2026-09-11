@@ -8,8 +8,9 @@
  */
 
 import type { ReactNode } from "react";
-import Link from "next/link";
 import { Navbar } from "./Navbar";
+import { NavTab } from "./ui/NavTab";
+import { FREE_CLIMB_HREF } from "./navLinks";
 
 export function FreeStackShell({
   section,
@@ -45,12 +46,12 @@ export function FreeStackShell({
             role="tablist"
             aria-label="Free stack sections"
           >
-            <FreeTab
+            <NavTab
               href="/climb"
               label="Leaderboard"
               active={section === "leaderboard"}
             />
-            <FreeTab href="/play" label="Play" active={section === "play"} />
+            <NavTab href={FREE_CLIMB_HREF} label="Play" active={section === "play"} />
           </div>
         </div>
       </div>
@@ -69,37 +70,6 @@ export function FreeStackShell({
         </div>
       )}
     </main>
-  );
-}
-
-/**
- * Route links, not a WAI-ARIA tabs widget. Do not bind ArrowLeft/ArrowRight —
- * those keys move the climber on /play. Enter/Space follow the native Link.
- */
-function FreeTab({
-  href,
-  label,
-  active,
-}: {
-  href: "/climb" | "/play";
-  label: string;
-  active: boolean;
-}) {
-  return (
-    <Link
-      href={href}
-      role="tab"
-      aria-selected={active}
-      aria-current={active ? "page" : undefined}
-      className={
-        "inline-flex items-center justify-center px-4 min-h-[44px] rounded-full text-sm font-semibold whitespace-nowrap transition-[color,filter] focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void " +
-        (active
-          ? "bg-signal text-void hover:brightness-110"
-          : "text-text-secondary hover:text-text-primary")
-      }
-    >
-      {label}
-    </Link>
   );
 }
 

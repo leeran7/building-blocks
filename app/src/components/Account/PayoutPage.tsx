@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useAuth } from "../../contexts/AuthContext";
 import { Navbar } from "../Navbar";
+import { authedFetch } from "../../lib/authedFetch";
 
 interface PrizeEntry {
   tournamentId: string;
@@ -40,9 +41,7 @@ export function PayoutPage() {
   const load = useCallback(async () => {
     if (!token) return;
     try {
-      const res = await fetch("/api/account/payout", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await authedFetch("/api/account/payout", token);
       if (res.ok) setData(await res.json());
     } catch {
       // best-effort; leave prior data on screen
@@ -60,9 +59,8 @@ export function PayoutPage() {
     setConnecting(true);
     setError(null);
     try {
-      const res = await fetch("/api/connect/onboard", {
+      const res = await authedFetch("/api/connect/onboard", token, {
         method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) {
         setError("Could not start payout setup. Try again.");

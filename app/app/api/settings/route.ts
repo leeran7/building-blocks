@@ -8,6 +8,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth, AuthError } from "../../../src/lib/requireAuth";
+import { withAuth } from "../../../src/lib/api/withAuth";
 import { ensureUser } from "../../../src/db/user";
 import {
   getUserSettings,
@@ -33,21 +34,14 @@ const MAX_NAME = 60;
 const SETTINGS_RATE_MAX = 30;
 const SETTINGS_RATE_WINDOW_SECONDS = 60;
 
-export async function GET(request: NextRequest): Promise<NextResponse> {
-  let decoded;
+export const GET = withAuth(async (_request: NextRequest, uid: string) => {
   try {
-    decoded = await requireAuth(request);
-  } catch (err) {
-    if (err instanceof AuthError) return err.response;
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-  try {
-    return NextResponse.json(await getUserSettings(decoded.uid));
+    return NextResponse.json(await getUserSettings(uid));
   } catch (err) {
     console.error("[GET /api/settings]", err);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return NextResponse.json({ error: "Could not load your settings. Please try again." }, { status: 500 });
   }
-}
+});
 
 export async function PUT(request: NextRequest): Promise<NextResponse> {
   let decoded;
@@ -248,6 +242,6 @@ export async function PUT(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json(settings);
   } catch (err) {
     console.error("[PUT /api/settings]", err);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return NextResponse.json({ error: "Could not save your settings. Please try again." }, { status: 500 });
   }
 }

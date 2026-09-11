@@ -8,7 +8,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { PAID_DUELS_ENABLED } from "../../../../../src/config/paidDuel";
-import { requireAuth, AuthError } from "../../../../../src/lib/requireAuth";
+import { withAuth } from "../../../../../src/lib/api/withAuth";
 import { assertPaidDuelAllowed } from "../../../../../src/lib/paidDuelGeo";
 import { checkRateLimit } from "../../../../../src/lib/rateLimit";
 import { newRunSeed } from "../../../../../src/game/rng";
@@ -28,18 +28,9 @@ interface Body {
   categorySlug?: unknown;
 }
 
-export async function POST(request: NextRequest) {
+export const POST = withAuth(async (request: NextRequest, uid: string) => {
   if (!PAID_DUELS_ENABLED) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
-  }
-
-  let uid: string;
-  try {
-    const decoded = await requireAuth(request);
-    uid = decoded.uid;
-  } catch (err) {
-    if (err instanceof AuthError) return err.response;
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   // Geoblock every chip stake, not just the purchase — a user who bought
@@ -92,26 +83,16 @@ export async function POST(request: NextRequest) {
       ? body.categorySlug
       : "random";
 
-  const open = await findOpenChipDuels({ stakeCents, excludeUserId: uid, limit: 1 });
+  try {
+    const open = await findOpenChipDuels({ stakeCents, excludeUserId: uid, limit: 1 });
 
-  if (open.length > 0) {
-    try {
+    if (open.length > 0) {
       const result = await joinChipDuel(open[0].id, uid);
       if (result.ok) {
         return NextResponse.json({ matched: true, duelId: open[0].id });
       }
-    } catch (err) {
-      if (err instanceof InsufficientChipsError) {
-        return NextResponse.json(
-          { error: "Not enough chips", code: "INSUFFICIENT_CHIPS", shortfall: err.shortfallCents },
-          { status: 402 }
-        );
-      }
-      throw err;
     }
-  }
 
-  try {
     const duelId = await createChipRoom(uid, stakeCents, categorySlug, newRunSeed());
     return NextResponse.json({ matched: false, duelId, waiting: true }, { status: 201 });
   } catch (err) {
@@ -121,6 +102,10 @@ export async function POST(request: NextRequest) {
         { status: 402 }
       );
     }
-    throw err;
+    console.error("[POST /api/duel/chips/match]", err);
+    return NextResponse.json(
+      { error: "Could not find or create a chip match. Please try again.", code: "INTERNAL_ERROR" },
+      { status: 500 }
+    );
   }
-}
+});

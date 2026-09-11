@@ -8,6 +8,9 @@
  */
 
 import { prisma } from "./client";
+import { CHIP_TO_CENTS_RATIO } from "../config/chipPackages";
+
+const SIGNUP_CHIP_GRANT_CHIPS = 5;
 
 export interface EnsureUserInput {
   /** Firebase UID — becomes users.id. */
@@ -28,11 +31,33 @@ export async function ensureUser(input: EnsureUserInput): Promise<void> {
       id: input.id,
       email: input.email,
       emailVerified: input.emailVerified ?? false,
-      play_credits_cents: 500,
+      play_credits_cents: SIGNUP_CHIP_GRANT_CHIPS * CHIP_TO_CENTS_RATIO,
     },
     update: {
       emailVerified: input.emailVerified ?? false,
     },
+  });
+}
+
+/**
+ * Placeholder row for a "guest:<nanoid>" duel participant. Guests have no
+ * Firebase account and no persistent profile (stats/wallet code explicitly
+ * skips anything "guest:"-prefixed), but `duels.player1_id`/`player2_id`
+ * still foreign-key to `users(id)`, so a row must exist to write the join.
+ * The synthesized email uses the `.invalid` TLD (RFC 2606) to make clear
+ * it's not a deliverable address. No credits are granted — the row exists
+ * only to satisfy the FK, never to unlock wallet/credit surfaces.
+ */
+export async function ensureGuestUser(guestId: string): Promise<void> {
+  await prisma.user.upsert({
+    where: { id: guestId },
+    create: {
+      id: guestId,
+      email: `${guestId}@guest.invalid`,
+      emailVerified: false,
+      play_credits_cents: 0,
+    },
+    update: {},
   });
 }
 

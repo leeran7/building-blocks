@@ -20,11 +20,20 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { Spinner } from "../ui/Spinner";
 import { useAuth } from "../../contexts/AuthContext";
 import { formatAltitude } from "../../lib/units";
 import { buildDuelWatchUrl } from "../../game/runReplay";
 import { shareInvite } from "../../lib/shareInvite";
 import { PAID_DUELS_ENABLED_PUBLIC } from "../../config/paidDuel";
+import { formatChipCents } from "../../config/chipPackages";
+import { authedFetch } from "../../lib/authedFetch";
+import {
+  SIGNIN_HREF,
+  CHIP_DUELS_HREF,
+  DASHBOARD_HREF,
+  DUEL_HREF,
+} from "../navLinks";
 import type { RealtimeHandle } from "../../net/realtime";
 import type { ResultSource } from "../../game/useRace";
 
@@ -114,6 +123,7 @@ export function DuelResult({
     stakeCents: number;
     payoutCents: number | null;
     refunded: boolean;
+    isChipDuel: boolean;
   } | null>(null);
 
   const opponentId = player1Id === myId ? player2Id : player1Id;
@@ -201,12 +211,14 @@ export function DuelResult({
           stakeCents: number | null;
           payoutCents: number | null;
           refunded: boolean;
+          isChipDuel: boolean;
         };
         if (meta.stakeCents != null && !cancelled) {
           setPaid({
             stakeCents: meta.stakeCents,
             payoutCents: meta.payoutCents,
             refunded: meta.refunded,
+            isChipDuel: meta.isChipDuel,
           });
         }
       } catch {
@@ -225,15 +237,13 @@ export function DuelResult({
     myPeak !== null && theirPeak !== null ? Math.abs(myPeak - theirPeak) : null;
 
   const handleRematch = useCallback(async () => {
+    if (!token) return;
     setRematchLoading(true);
     setRematchError("");
     try {
-      const res = await fetch(`/api/duel/${duelId}/rematch`, {
+      const res = await authedFetch(`/api/duel/${duelId}/rematch`, token, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
+        headers: { "Content-Type": "application/json" },
       });
 
       if (!res.ok) {
@@ -424,23 +434,23 @@ export function DuelResult({
         >
           {paid.refunded ? (
             <p className="font-mono text-sm text-text-secondary">
-              Stake refunded to your credits.
+              Stake refunded to your chips.
             </p>
           ) : iWon && paid.payoutCents ? (
             <>
               <p className="font-mono text-lg font-bold tabular-nums text-signal">
-                + ${(paid.payoutCents / 100).toFixed(2)}
+                + {formatChipCents(paid.payoutCents)} chips
               </p>
               <p className="font-mono text-xs uppercase tracking-[0.12em] text-text-muted mt-0.5">
-                added to winnings ·{" "}
-                <Link href="/dashboard" className="text-signal underline underline-offset-2">
+                added to your chips ·{" "}
+                <Link href={DASHBOARD_HREF} className="text-signal underline underline-offset-2">
                   wallet
                 </Link>
               </p>
             </>
           ) : (
             <p className="font-mono text-sm text-text-secondary tabular-nums">
-              Staked ${(paid.stakeCents / 100).toFixed(2)}
+              Staked {formatChipCents(paid.stakeCents)} chips
             </p>
           )}
         </div>
@@ -486,10 +496,7 @@ export function DuelResult({
             role="status"
             aria-live="polite"
           >
-            <span
-              className="w-4 h-4 rounded-full border-2 border-text-muted border-t-signal motion-safe:animate-spin"
-              aria-hidden="true"
-            />
+            <Spinner aria-hidden="true" />
             Rematch requested — waiting for opponent…
           </div>
         ) : (
@@ -511,13 +518,12 @@ export function DuelResult({
                 "Rematch"
               )}
             </button>
-            {/* Paid rematch: link back to /duel with the same tier pre-indicated */}
-            {paid && (
+            {paid?.isChipDuel && (
               <Link
-                href={`/duel?stake=${paid.stakeCents / 100}`}
+                href={CHIP_DUELS_HREF}
                 className="flex-1 inline-flex items-center justify-center rounded-full px-4 min-h-[44px] border border-border-strong text-text-secondary text-sm hover:border-signal/50 transition-colors"
               >
-                Paid rematch →
+                Chip rematch →
               </Link>
             )}
           </div>
@@ -530,7 +536,7 @@ export function DuelResult({
         {/* Guest can't rematch — point them to sign-in instead of a dead button */}
         {!user && !opponentLeft && (
           <p className="text-text-muted text-xs text-center">
-            <a href="/auth/signin" className="text-signal underline underline-offset-2">
+            <a href={SIGNIN_HREF} className="text-signal underline underline-offset-2">
               Sign in
             </a>{" "}
             to rematch.
@@ -563,7 +569,7 @@ export function DuelResult({
             Not a primary CTA — Rematch holds that role. */}
         {paid === null && PAID_DUELS_ENABLED_PUBLIC && user && (
           <Link
-            href="/duel"
+            href={DUEL_HREF}
             className="inline-flex items-center justify-center px-6 min-h-[40px] font-mono text-xs text-text-muted hover:text-signal transition-colors"
           >
             Want to play for the pot? →
@@ -572,7 +578,7 @@ export function DuelResult({
 
         {/* Play again */}
         <Link
-          href="/duel"
+          href={DUEL_HREF}
           className="inline-flex items-center justify-center rounded-full px-6 min-h-[44px] font-mono text-xs uppercase tracking-[0.12em] text-text-muted hover:text-text-primary transition-colors"
         >
           Play again
@@ -582,7 +588,7 @@ export function DuelResult({
       {/* Sign in CTA for anon users */}
       {!user && (
         <p className="relative mt-8 text-text-muted text-sm text-center">
-          <a href="/auth/signin" className="text-signal underline underline-offset-2">
+          <a href={SIGNIN_HREF} className="text-signal underline underline-offset-2">
             Sign in
           </a>{" "}
           to save your record.

@@ -21,18 +21,26 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const [prizes, user] = await Promise.all([
-    getUserPrizeEntries(uid),
-    prisma.user.findUniqueOrThrow({ where: { id: uid }, select: { stripe_connect_account_id: true } }),
-  ]);
+  try {
+    const [prizes, user] = await Promise.all([
+      getUserPrizeEntries(uid),
+      prisma.user.findUnique({ where: { id: uid }, select: { stripe_connect_account_id: true } }),
+    ]);
 
-  const payoutReady = user.stripe_connect_account_id
-    ? await isPayoutReady(user.stripe_connect_account_id)
-    : false;
+    const payoutReady = user?.stripe_connect_account_id
+      ? await isPayoutReady(user.stripe_connect_account_id)
+      : false;
 
-  return NextResponse.json({
-    prizes,
-    connected: !!user.stripe_connect_account_id,
-    payoutReady,
-  });
+    return NextResponse.json({
+      prizes,
+      connected: !!user?.stripe_connect_account_id,
+      payoutReady,
+    });
+  } catch (err) {
+    console.error("[GET /api/account/payout]", err);
+    return NextResponse.json(
+      { error: "Could not load your payout info. Please try again.", code: "INTERNAL_ERROR" },
+      { status: 500 }
+    );
+  }
 }

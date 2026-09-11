@@ -6,22 +6,20 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth, AuthError } from "../../../../src/lib/requireAuth";
+import { withAuth } from "../../../../src/lib/api/withAuth";
 import { getDuelStats } from "../../../../src/db/duel";
 
 export const runtime = "nodejs";
 
-export async function GET(request: NextRequest) {
-  // Auth: required
-  let uid: string;
+export const GET = withAuth(async (_request: NextRequest, uid: string) => {
   try {
-    const decoded = await requireAuth(request);
-    uid = decoded.uid;
+    const stats = await getDuelStats(uid);
+    return NextResponse.json(stats ?? null);
   } catch (err) {
-    if (err instanceof AuthError) return err.response;
-    return NextResponse.json({ error: "Unauthorized", code: "UNAUTHORIZED" }, { status: 401 });
+    console.error("[GET /api/duel/stats]", err);
+    return NextResponse.json(
+      { error: "Could not load your duel stats. Please try again.", code: "INTERNAL_ERROR" },
+      { status: 500 }
+    );
   }
-
-  const stats = await getDuelStats(uid);
-  return NextResponse.json(stats ?? null);
-}
+});

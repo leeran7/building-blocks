@@ -6,6 +6,12 @@ import Link from "next/link";
 import { useAuth } from "../../contexts/AuthContext";
 import { Navbar } from "../Navbar";
 import { CHIP_TIERS } from "../../db/chips";
+import { formatChipCents } from "../../config/chipPackages";
+import { authedFetch } from "../../lib/authedFetch";
+import { DUEL_LEADERBOARD_HREF, DUEL_HREF } from "../navLinks";
+import { Spinner } from "../ui/Spinner";
+import { NavTab } from "../ui/NavTab";
+import { SignInGate } from "../ui/SignInGate";
 
 type JoinState =
   | { status: "idle" }
@@ -23,12 +29,9 @@ export function TournamentList() {
     if (!token) return;
     setJoinState({ status: "joining" });
     try {
-      const res = await fetch("/api/tournaments/queue", {
+      const res = await authedFetch("/api/tournaments/queue", token, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ entryFeeCents: tier }),
       });
       if (res.status === 402) {
@@ -92,8 +95,8 @@ export function TournamentList() {
             role="tablist"
             aria-label="1v1 sections"
           >
-            <NavTab href="/duel/leaderboard" label="Leaderboard" active={false} />
-            <NavTab href="/duel" label="Play" active={false} />
+            <NavTab href={DUEL_LEADERBOARD_HREF} label="Leaderboard" active={false} />
+            <NavTab href={DUEL_HREF} label="Play" active={false} />
           </div>
         </div>
       </div>
@@ -109,17 +112,7 @@ export function TournamentList() {
         </header>
 
         {!user ? (
-          <section className="bg-surface rounded-xl border border-border-subtle p-6 text-center">
-            <p className="text-text-secondary text-sm mb-4">
-              Sign in to enter tournaments.
-            </p>
-            <Link
-              href="/auth/signin?redirect=%2Ftournaments"
-              className="inline-flex items-center justify-center rounded-full px-6 min-h-[44px] bg-signal text-void font-semibold text-sm tracking-tight hover:brightness-110 active:scale-[0.98] motion-reduce:active:scale-100 transition-[filter,transform] focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void"
-            >
-              Sign in to play
-            </Link>
-          </section>
+          <SignInGate message="Sign in to enter tournaments." redirectPath="/tournaments" />
         ) : (
           <>
             {/* Tier picker */}
@@ -137,13 +130,13 @@ export function TournamentList() {
                         setJoinState({ status: "idle" });
                       }}
                       className={
-                        "flex flex-col items-center justify-center rounded-lg border p-3 min-h-[56px] text-sm font-semibold transition-[border-color,background-color] focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void " +
+                        "flex flex-col items-center justify-center rounded-lg border p-3 min-h-[56px] text-sm font-semibold transition-[border-color,background-color] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void " +
                         (tier === t
                           ? "border-signal bg-signal/10 text-signal"
                           : "border-border-strong text-text-secondary hover:border-signal/40")
                       }
                     >
-                      <span className="tabular-nums">{t.toLocaleString()}</span>
+                      <span className="tabular-nums">{formatChipCents(t)}</span>
                       <span className="text-[10px] text-text-muted font-normal mt-0.5">chips</span>
                     </button>
                 ))}
@@ -165,7 +158,7 @@ export function TournamentList() {
               {joinState.status === "idle" && (
                 <button
                   onClick={handleJoin}
-                  className="inline-flex items-center justify-center rounded-full px-8 min-h-[48px] w-full bg-signal text-void font-semibold text-base tracking-tight hover:brightness-110 active:scale-[0.98] motion-reduce:active:scale-100 shadow-signal transition-[filter,transform] focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void"
+                  className="inline-flex items-center justify-center rounded-full px-8 min-h-[48px] w-full bg-signal text-void font-semibold text-base tracking-tight hover:brightness-110 active:scale-[0.98] motion-reduce:active:scale-100 shadow-signal transition-[filter,transform] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void"
                 >
                   Join queue · {tier.toLocaleString()} chips
                 </button>
@@ -173,10 +166,7 @@ export function TournamentList() {
 
               {joinState.status === "joining" && (
                 <div className="flex items-center justify-center gap-2 text-text-secondary text-sm py-3">
-                  <span
-                    className="w-4 h-4 rounded-full border-2 border-text-muted border-t-signal animate-spin motion-reduce:animate-none"
-                    aria-hidden="true"
-                  />
+                  <Spinner />
                   Joining queue...
                 </div>
               )}
@@ -204,7 +194,7 @@ export function TournamentList() {
                   <p className="text-ember text-sm text-center">{joinState.message}</p>
                   <button
                     onClick={() => setJoinState({ status: "idle" })}
-                    className="inline-flex items-center justify-center rounded-full px-8 min-h-[48px] w-full border border-border-strong text-text-secondary text-sm hover:border-signal/50 transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void"
+                    className="inline-flex items-center justify-center rounded-full px-8 min-h-[48px] w-full border border-border-strong text-text-secondary text-sm hover:border-signal/50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void"
                   >
                     Try again
                   </button>
@@ -218,29 +208,3 @@ export function TournamentList() {
   );
 }
 
-function NavTab({
-  href,
-  label,
-  active,
-}: {
-  href: string;
-  label: string;
-  active: boolean;
-}) {
-  return (
-    <Link
-      href={href}
-      role="tab"
-      aria-selected={active}
-      aria-current={active ? "page" : undefined}
-      className={
-        "inline-flex items-center justify-center px-4 min-h-[44px] rounded-full text-sm font-semibold whitespace-nowrap transition-[color,filter] focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void " +
-        (active
-          ? "bg-signal text-void hover:brightness-110"
-          : "text-text-secondary hover:text-text-primary")
-      }
-    >
-      {label}
-    </Link>
-  );
-}

@@ -13,6 +13,7 @@ import {
   CHIP_PACKAGES,
   chipsForUsd as chipCount,
 } from "../../config/chipPackages";
+import { TERMS_HREF } from "../navLinks";
 
 const PACKAGES = CHIP_PACKAGES.map((p) => ({
   ...p,
@@ -135,7 +136,7 @@ export function BuyCreditsModal({ open, onClose, token }: BuyCreditsModalProps) 
           />
           <span>
             I confirm I am 18 or older and agree to the{" "}
-            <a href="/terms" className="text-signal underline underline-offset-2" target="_blank">
+            <a href={TERMS_HREF} className="text-signal underline underline-offset-2" target="_blank">
               Terms
             </a>
             .

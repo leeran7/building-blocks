@@ -2,11 +2,18 @@
 
 import { useCallback, useState } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { useAuth } from "../../contexts/AuthContext";
 import { Navbar } from "../Navbar";
 import { CHIP_TIERS, DAILY_CHIP_GRANT_CENTS } from "../../db/chips";
+import { formatChipCents } from "../../config/chipPackages";
 import { useClaimDailyChips } from "../../hooks/useClaimDailyChips";
+import { authedFetch } from "../../lib/authedFetch";
+import { DUEL_LEADERBOARD_HREF, DUEL_HREF } from "../navLinks";
+import { Spinner } from "../ui/Spinner";
+import { NavTab } from "../ui/NavTab";
+import { SignInGate } from "../ui/SignInGate";
+import { Button } from "../ui/Button";
+import { DailyChipClaimButton } from "../ui/DailyChipClaimButton";
 
 type MatchState =
   | { status: "idle" }
@@ -24,19 +31,16 @@ export function ChipDuelLobby() {
     if (!token) return;
     setMatchState({ status: "matching" });
     try {
-      const res = await fetch("/api/duel/chips/match", {
+      const res = await authedFetch("/api/duel/chips/match", token, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ stakeCents: tier, categorySlug: "random" }),
       });
       if (res.status === 402) {
         const body = (await res.json()) as { shortfall?: number };
         setMatchState({
           status: "error",
-          message: `Not enough chips. You need ${body.shortfall ?? tier} more.`,
+          message: `Not enough chips. You need ${formatChipCents(body.shortfall ?? tier)} more.`,
         });
         return;
       }
@@ -67,8 +71,8 @@ export function ChipDuelLobby() {
             role="tablist"
             aria-label="1v1 sections"
           >
-            <DuelNavTab href="/duel/leaderboard" label="Leaderboard" active={false} />
-            <DuelNavTab href="/duel" label="Play" active={false} />
+            <NavTab href={DUEL_LEADERBOARD_HREF} label="Leaderboard" active={false} />
+            <NavTab href={DUEL_HREF} label="Play" active={false} />
           </div>
         </div>
       </div>
@@ -87,17 +91,7 @@ export function ChipDuelLobby() {
         </header>
 
         {!user ? (
-          <section className="bg-surface rounded-xl border border-border-subtle p-6 text-center">
-            <p className="text-text-secondary text-sm mb-4">
-              Sign in to play chip duels.
-            </p>
-            <Link
-              href="/auth/signin?redirect=%2Fduel%2Fchips"
-              className="inline-flex items-center justify-center rounded-full px-6 min-h-[44px] bg-signal text-void font-semibold text-sm tracking-tight hover:brightness-110 active:scale-[0.98] motion-reduce:active:scale-100 transition-[filter,transform] focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void"
-            >
-              Sign in to play
-            </Link>
-          </section>
+          <SignInGate message="Sign in to play chip duels." redirectPath="/duel/chips" />
         ) : (
           <>
             {/* Daily free chips — ongoing no-purchase way to play, not just a one-time signup grant */}
@@ -107,28 +101,18 @@ export function ChipDuelLobby() {
                   Daily free chips
                 </h2>
                 <p className="text-sm text-text-secondary">
-                  Claim {(DAILY_CHIP_GRANT_CENTS / 100).toLocaleString()} free chips every day — no purchase required.
+                  Claim {formatChipCents(DAILY_CHIP_GRANT_CENTS)} free chips every day — no purchase required.
                 </p>
                 {claimState.status === "already-claimed" && (
                   <p className="text-xs text-text-muted mt-1">Already claimed today. Come back tomorrow.</p>
                 )}
-                {claimState.status === "error" && (
-                  <p className="text-xs text-ember mt-1">{claimState.message}</p>
-                )}
               </div>
-              <button
-                onClick={handleClaim}
-                disabled={claimState.status === "claiming" || claimState.status === "claimed" || claimState.status === "already-claimed"}
-                className="shrink-0 inline-flex items-center justify-center rounded-full px-5 min-h-[44px] border border-signal/40 text-signal font-semibold text-sm hover:bg-signal/10 active:scale-[0.98] motion-reduce:active:scale-100 transition-[filter,transform,background-color] disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void"
-              >
-                {claimState.status === "claiming"
-                  ? "Claiming..."
-                  : claimState.status === "claimed"
-                    ? "Claimed"
-                    : claimState.status === "already-claimed"
-                      ? "Come back tomorrow"
-                      : "Claim free chips"}
-              </button>
+              <DailyChipClaimButton
+                state={claimState}
+                onClaim={handleClaim}
+                labels={{ idle: "Claim free chips", claimed: "Claimed", alreadyClaimed: "Come back tomorrow" }}
+                className="flex-shrink-0 inline-flex items-center justify-center rounded-full px-5 min-h-[44px] border border-signal/40 text-signal font-semibold text-sm hover:bg-signal/10 active:scale-[0.98] motion-reduce:active:scale-100 transition-[filter,transform,background-color] disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void"
+              />
             </section>
 
             {/* Tier picker */}
@@ -143,13 +127,13 @@ export function ChipDuelLobby() {
                     type="button"
                     onClick={() => setTier(t)}
                     className={
-                      "flex flex-col items-center justify-center rounded-lg border p-3 min-h-[56px] text-sm font-semibold transition-[border-color,background-color] focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void " +
+                      "flex flex-col items-center justify-center rounded-lg border p-3 min-h-[56px] text-sm font-semibold transition-[border-color,background-color] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void " +
                       (tier === t
                         ? "border-signal bg-signal/10 text-signal"
                         : "border-border-strong text-text-secondary hover:border-signal/40")
                     }
                   >
-                    <span className="tabular-nums">{t.toLocaleString()}</span>
+                    <span className="tabular-nums">{formatChipCents(t)}</span>
                     <span className="text-[10px] text-text-muted font-normal mt-0.5">chips</span>
                   </button>
                 ))}
@@ -167,20 +151,14 @@ export function ChipDuelLobby() {
               </p>
 
               {matchState.status === "idle" && (
-                <button
-                  onClick={handleMatch}
-                  className="inline-flex items-center justify-center rounded-full px-8 min-h-[48px] w-full bg-signal text-void font-semibold text-base tracking-tight hover:brightness-110 active:scale-[0.98] motion-reduce:active:scale-100 shadow-signal transition-[filter,transform] focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void"
-                >
-                  Find match · {tier.toLocaleString()} chips
-                </button>
+                <Button variant="primary" size="lg" fullWidth onClick={handleMatch}>
+                  Find match · {formatChipCents(tier)} chips
+                </Button>
               )}
 
               {matchState.status === "matching" && (
                 <div className="flex items-center justify-center gap-2 text-text-secondary text-sm py-3">
-                  <span
-                    className="w-4 h-4 rounded-full border-2 border-text-muted border-t-signal animate-spin motion-reduce:animate-none"
-                    aria-hidden="true"
-                  />
+                  <Spinner />
                   Searching for an opponent...
                 </div>
               )}
@@ -188,12 +166,9 @@ export function ChipDuelLobby() {
               {matchState.status === "error" && (
                 <div className="flex flex-col gap-3" role="alert">
                   <p className="text-ember text-sm text-center">{matchState.message}</p>
-                  <button
-                    onClick={() => setMatchState({ status: "idle" })}
-                    className="inline-flex items-center justify-center rounded-full px-8 min-h-[48px] w-full border border-border-strong text-text-secondary text-sm hover:border-signal/50 transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void"
-                  >
+                  <Button variant="ghost" size="lg" fullWidth onClick={() => setMatchState({ status: "idle" })}>
                     Try again
-                  </button>
+                  </Button>
                 </div>
               )}
             </section>
@@ -204,29 +179,3 @@ export function ChipDuelLobby() {
   );
 }
 
-function DuelNavTab({
-  href,
-  label,
-  active,
-}: {
-  href: string;
-  label: string;
-  active: boolean;
-}) {
-  return (
-    <Link
-      href={href}
-      role="tab"
-      aria-selected={active}
-      aria-current={active ? "page" : undefined}
-      className={
-        "inline-flex items-center justify-center px-4 min-h-[44px] rounded-full text-sm font-semibold whitespace-nowrap transition-[color,filter] focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void " +
-        (active
-          ? "bg-signal text-void hover:brightness-110"
-          : "text-text-secondary hover:text-text-primary")
-      }
-    >
-      {label}
-    </Link>
-  );
-}
