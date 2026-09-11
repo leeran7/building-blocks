@@ -288,6 +288,9 @@ the same pass — the `learning-loop.md` bar for a permanent guardrail.
 
 _Last curated: 2026-09-06T05:28:18Z — Climb Feel 1.2× closed loop._
 
+### Duel invite join (2026-09-10) — auth-init race
+- **[implementer, frontend, reviewer]** Any effect that derives player identity from `useAuth()` and then writes (join/stake/realtime) must gate on `loading` — early-return while `authLoading` and include it in deps. On first mount `user`/`token` are null with `loading:true`; running then makes a signed-in user (incl. the invite creator) look like an anonymous guest. The join route's self-join guard is `if (uid && duel.player1_id === uid)` — the `uid &&` short-circuits with no auth header, so the creator guest-joins their own pending duel and the real opponent then gets "Could not join duel." Same class as the earlier "Could not load duel seed" fix (bce6276).
+
 ## Recently applied (last 20)
 
 - 2026-08-29 — `.gitignore` switched from `loop/` to `loop/*` plus negations so the
