@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useState } from "react";
+import { authedFetch } from "../lib/authedFetch";
 
 export type ClaimDailyChipsState =
   | { status: "idle" }
@@ -30,9 +31,8 @@ export function useClaimDailyChips(token: string | null) {
     if (!token) return;
     setState({ status: "claiming" });
     try {
-      const res = await fetch("/api/duel/chips/claim", {
+      const res = await authedFetch("/api/duel/chips/claim", token, {
         method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
       });
       const body = (await res.json().catch(() => ({}))) as ClaimResponseBody;
 

@@ -13,7 +13,7 @@ import Link from "next/link";
 import { useAuth } from "../contexts/AuthContext";
 import { StackMark } from "./Brand/StackMark";
 import { AccountMenu } from "./AccountMenu";
-import { FREE_CLIMB_HREF, DUEL_HREF } from "./navLinks";
+import { FREE_CLIMB_HREF, DUEL_HREF, SIGNIN_HREF, SIGNUP_HREF } from "./navLinks";
 
 interface NavbarProps {
   /** Optional breadcrumb shown after the wordmark (e.g. "Dashboard", "Tech stack"). */
@@ -82,10 +82,10 @@ export function Navbar({ contextLabel, contextDot }: NavbarProps) {
           <AccountMenu />
         ) : (
           <>
-            <Link href="/auth/signin" className={GHOST}>
+            <Link href={SIGNIN_HREF} className={GHOST}>
               Sign in
             </Link>
-            <Link href="/auth/signup" className={`${PILL} bg-signal text-void`}>
+            <Link href={SIGNUP_HREF} className={`${PILL} bg-signal text-void`}>
               Get started
             </Link>
           </>

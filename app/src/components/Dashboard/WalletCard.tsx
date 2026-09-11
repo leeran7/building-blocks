@@ -10,6 +10,9 @@
 import { useCallback, useEffect, useState } from "react";
 import { BuyCreditsModal } from "../Wallet/BuyCreditsModal";
 import { useClaimDailyChips } from "../../hooks/useClaimDailyChips";
+import { DailyChipClaimButton } from "../ui/DailyChipClaimButton";
+import { formatChipCents } from "../../config/chipPackages";
+import { authedFetch } from "../../lib/authedFetch";
 
 interface LedgerRow {
   id: string;
@@ -46,7 +49,7 @@ export function WalletCard({ token }: { token: string | null }) {
   const refresh = useCallback(async () => {
     if (!token) return;
     try {
-      const res = await fetch("/api/wallet", { headers: { Authorization: `Bearer ${token}` } });
+      const res = await authedFetch("/api/wallet", token);
       if (res.ok) setWallet((await res.json()) as WalletData);
     } catch {
       // Non-critical.
@@ -62,31 +65,18 @@ export function WalletCard({ token }: { token: string | null }) {
   }, [claimState.status, refresh]);
 
   const chips = wallet?.playCents ?? 0;
-  const claimDisabled =
-    claimState.status === "claiming" ||
-    claimState.status === "claimed" ||
-    claimState.status === "already-claimed";
-  const claimLabel =
-    claimState.status === "claiming"
-      ? "Claiming..."
-      : claimState.status === "claimed"
-        ? "Claimed"
-        : claimState.status === "already-claimed"
-          ? "Claimed today"
-          : "Claim daily";
 
   return (
     <div className="bg-surface rounded-xl border border-border-subtle p-5 mb-6">
       <div className="flex items-center justify-between mb-4">
         <p className="font-mono text-xs uppercase tracking-[0.14em] text-text-muted">Chips</p>
         <div className="flex items-center gap-3">
-          <button
-            onClick={claim}
-            disabled={claimDisabled}
+          <DailyChipClaimButton
+            state={claimState}
+            onClaim={claim}
+            labels={{ idle: "Claim daily", claiming: "Claiming...", claimed: "Claimed", alreadyClaimed: "Claimed today" }}
             className="font-mono text-xs uppercase tracking-[0.12em] text-signal hover:brightness-110 transition-[filter] disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {claimLabel}
-          </button>
+          />
           <button
             onClick={() => setBuyOpen(true)}
             className="font-mono text-xs uppercase tracking-[0.12em] text-text-muted hover:text-text-primary transition-colors"
@@ -98,14 +88,11 @@ export function WalletCard({ token }: { token: string | null }) {
 
       <div>
         <span className="block font-mono text-3xl font-bold tabular-nums text-signal">
-          {(chips / 100).toLocaleString()}
+          {formatChipCents(chips)}
         </span>
         <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-text-muted">
           chips · non-cashable
         </span>
-        {claimState.status === "error" && (
-          <p className="text-xs text-ember mt-1" role="alert">{claimState.message}</p>
-        )}
       </div>
 
       {wallet && wallet.ledger.length > 0 && (
@@ -119,7 +106,7 @@ export function WalletCard({ token }: { token: string | null }) {
                 <span className={kindColor(row.kind)}>{KIND_LABEL[row.kind] ?? row.kind}</span>
                 <span className="font-mono tabular-nums text-text-secondary">
                   {row.amountCents >= 0 ? "+" : ""}
-                  {(Math.abs(row.amountCents) / 100).toLocaleString()}
+                  {formatChipCents(Math.abs(row.amountCents))}
                 </span>
               </li>
             ))}

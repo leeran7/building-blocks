@@ -16,6 +16,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { Spinner } from "../ui/Spinner";
 import { useAuth } from "../../contexts/AuthContext";
 import { useRace, RaceParticipant } from "../../game/useRace";
 import { useClimb } from "../../game/useClimb";
@@ -204,10 +205,7 @@ function PracticeGame({
           {!waitedTooLong ? (
             <div className="flex flex-col items-center gap-2 text-center">
               <div className="flex items-center gap-2">
-                <span
-                  className="w-3 h-3 rounded-full border-2 border-text-muted border-t-signal animate-spin shrink-0"
-                  aria-hidden="true"
-                />
+                <Spinner size="sm" />
                 <p className="font-mono text-xs text-text-secondary">
                   Waiting for opponent…
                 </p>
@@ -602,7 +600,7 @@ function DuelGame({
   if (awaitingResult && !duelResult) {
     return (
       <div className="min-h-screen bg-void flex flex-col items-center justify-center gap-4 px-4 text-center">
-        <div className="w-8 h-8 rounded-full border-2 border-text-muted border-t-signal animate-spin" aria-hidden="true" />
+        <Spinner size="lg" />
         <p className="font-mono text-sm text-text-secondary">Computing result…</p>
         {resultError && (
           <button
@@ -1129,7 +1127,7 @@ export function DuelRoom({ duelId }: DuelRoomProps) {
   if (phase === "loading") {
     return (
       <div className="min-h-screen bg-void flex flex-col items-center justify-center gap-4">
-        <div className="w-8 h-8 rounded-full border-2 border-text-muted border-t-signal animate-spin" aria-hidden="true" />
+        <Spinner size="lg" />
         <p className="font-mono text-sm text-text-secondary">Loading duel…</p>
       </div>
     );
@@ -1152,7 +1150,7 @@ export function DuelRoom({ duelId }: DuelRoomProps) {
   if (!meta || !realtime) {
     return (
       <div className="min-h-screen bg-void flex items-center justify-center">
-        <div className="w-8 h-8 rounded-full border-2 border-text-muted border-t-signal animate-spin" aria-hidden="true" />
+        <Spinner size="lg" />
       </div>
     );
   }

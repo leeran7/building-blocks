@@ -57,7 +57,11 @@ export function withSocialAdmin(
       return await handler(request, decoded);
     } catch (err) {
       console.error(`[social-api] ${request.method} ${request.nextUrl.pathname}`, err);
-      return jsonError("Internal server error", 500, "INTERNAL_ERROR");
+      return jsonError(
+        "This action failed unexpectedly. It's been logged — please retry, and escalate if it keeps failing.",
+        500,
+        "INTERNAL_ERROR"
+      );
     }
   };
 }
@@ -79,7 +83,11 @@ export function withSocialAdminParams<P>(
       return await handler(request, decoded, params);
     } catch (err) {
       console.error(`[social-api] ${request.method} ${request.nextUrl.pathname}`, err);
-      return jsonError("Internal server error", 500, "INTERNAL_ERROR");
+      return jsonError(
+        "This action failed unexpectedly. It's been logged — please retry, and escalate if it keeps failing.",
+        500,
+        "INTERNAL_ERROR"
+      );
     }
   };
 }

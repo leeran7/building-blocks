@@ -3,6 +3,7 @@
  */
 
 import type { DuelStatsRow } from "../../db/duel";
+import { formatChipCents } from "../../config/chipPackages";
 
 // ─────────────── Free leaderboard ──────────────────────────────────────────
 
@@ -161,7 +162,7 @@ export function ChipDuelLeaderboard({
                   (e.netChips > 0 ? "text-signal" : e.netChips < 0 ? "text-ember" : "text-text-primary")
                 }
               >
-                {e.netChips > 0 ? "+" : ""}{(e.netChips / 100).toLocaleString()}
+                {e.netChips > 0 ? "+" : ""}{formatChipCents(e.netChips)}
               </span>
             </div>
           </li>

@@ -386,8 +386,12 @@ export async function POST(
 }
 
 async function tryAdvanceTournament(tournamentId: string): Promise<void> {
-  const result = await advanceRound(tournamentId, newRunSeed);
-  if (result.outcome === "tournament_complete") {
-    await assignPrizes(tournamentId);
+  try {
+    const result = await advanceRound(tournamentId, newRunSeed);
+    if (result.outcome === "tournament_complete") {
+      await assignPrizes(tournamentId);
+    }
+  } catch (err) {
+    console.error("[result] tryAdvanceTournament failed", tournamentId, err);
   }
 }

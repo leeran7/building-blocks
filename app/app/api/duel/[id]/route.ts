@@ -82,6 +82,7 @@ export async function GET(
     player2Staked: duel.player2_staked,
     payoutCents: duel.payout_cents ?? null,
     refunded: duel.refunded,
+    isChipDuel: duel.is_chip_duel,
   });
 }
 

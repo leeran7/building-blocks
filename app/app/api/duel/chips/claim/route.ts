@@ -9,24 +9,15 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { PAID_DUELS_ENABLED } from "../../../../../src/config/paidDuel";
-import { requireAuth, AuthError } from "../../../../../src/lib/requireAuth";
+import { withAuth } from "../../../../../src/lib/api/withAuth";
 import { checkRateLimit } from "../../../../../src/lib/rateLimit";
 import { claimDailyChips, DailyGrantAlreadyClaimedError } from "../../../../../src/db/chips";
 
 export const runtime = "nodejs";
 
-export async function POST(request: NextRequest) {
+export const POST = withAuth(async (_request: NextRequest, uid: string) => {
   if (!PAID_DUELS_ENABLED) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
-  }
-
-  let uid: string;
-  try {
-    const decoded = await requireAuth(request);
-    uid = decoded.uid;
-  } catch (err) {
-    if (err instanceof AuthError) return err.response;
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   const rl = await checkRateLimit({
@@ -54,6 +45,10 @@ export async function POST(request: NextRequest) {
         { status: 429 }
       );
     }
-    throw err;
+    console.error("[POST /api/duel/chips/claim]", err);
+    return NextResponse.json(
+      { error: "Could not claim your daily chips. Please try again.", code: "INTERNAL_ERROR" },
+      { status: 500 }
+    );
   }
-}
+});

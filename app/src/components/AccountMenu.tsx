@@ -14,9 +14,11 @@ import { useEffect, useId, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "../contexts/AuthContext";
-import { FREE_CLIMB_HREF, DUEL_HREF } from "./navLinks";
+import { FREE_CLIMB_HREF, DUEL_HREF, DASHBOARD_HREF, SETTINGS_HREF } from "./navLinks";
 import { PAID_DUELS_ENABLED_PUBLIC } from "../config/paidDuel";
 import { useClaimDailyChips } from "../hooks/useClaimDailyChips";
+import { useWalletBalance } from "../hooks/useWalletBalance";
+import { formatChipCents } from "../config/chipPackages";
 
 const ITEM =
   "flex items-center gap-2.5 rounded-lg px-3 min-h-[44px] text-sm text-text-secondary hover:bg-elevated hover:text-text-primary transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal";
@@ -33,13 +35,14 @@ export function AccountMenu() {
   const [open, setOpen] = useState(false);
   const [username, setUsername] = useState<string | null>(null);
   const [usernameLoaded, setUsernameLoaded] = useState(false);
-  const [walletBalance, setWalletBalance] = useState<{
-    playCents: number;
-  } | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuId = useId();
   const { state: claimState, claim } = useClaimDailyChips(token);
+  const { playCents: walletPlayCents } = useWalletBalance(
+    open && PAID_DUELS_ENABLED_PUBLIC ? token : null,
+    claimState.status
+  );
 
   // Fetch the public username once so "My creator page" can deep-link.
   useEffect(() => {
@@ -57,23 +60,6 @@ export function AccountMenu() {
       live = false;
     };
   }, [token]);
-
-  // Fetch wallet balance when the menu opens, and again after a successful
-  // daily-chip claim so the displayed balance stays current.
-  useEffect(() => {
-    if (!open || !token || !PAID_DUELS_ENABLED_PUBLIC) return;
-    let live = true;
-    fetch("/api/wallet", { headers: { Authorization: `Bearer ${token}` } })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data: { playCents: number } | null) => {
-        if (!live || !data) return;
-        setWalletBalance({ playCents: data.playCents });
-      })
-      .catch(() => {});
-    return () => {
-      live = false;
-    };
-  }, [open, token, claimState.status]);
 
   // Close on click-outside and Escape (returning focus to the trigger).
   useEffect(() => {
@@ -133,11 +119,11 @@ export function AccountMenu() {
           className="reveal absolute right-0 mt-2 w-56 rounded-xl border border-border-strong bg-surface-raised shadow-lifted p-1.5"
         >
           {/* Chip balance — display-only, shown when paid features are on */}
-          {PAID_DUELS_ENABLED_PUBLIC && walletBalance && (
+          {PAID_DUELS_ENABLED_PUBLIC && walletPlayCents !== null && (
             <>
               <div className="px-3 pt-1.5 pb-2">
                 <p className="font-mono text-[11px] tabular-nums text-signal font-semibold">
-                  {(walletBalance.playCents / 100).toLocaleString()} chips
+                  {formatChipCents(walletPlayCents)} chips
                 </p>
               </div>
               <button
@@ -164,7 +150,7 @@ export function AccountMenu() {
               <div className="my-1 border-t border-border-subtle" aria-hidden="true" />
             </>
           )}
-          <Link href="/dashboard" className={ITEM} onClick={() => setOpen(false)}>
+          <Link href={DASHBOARD_HREF} className={ITEM} onClick={() => setOpen(false)}>
             Dashboard
           </Link>
           {/* Creator page is a plain deep-link, shown only once a username is
@@ -179,7 +165,7 @@ export function AccountMenu() {
             </Link>
           )}
 
-          <Link href="/settings" className={ITEM} onClick={() => setOpen(false)}>
+          <Link href={SETTINGS_HREF} className={ITEM} onClick={() => setOpen(false)}>
             Settings
           </Link>
 

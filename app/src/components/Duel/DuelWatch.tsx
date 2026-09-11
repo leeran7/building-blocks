@@ -13,6 +13,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Navbar } from "../Navbar";
+import { Spinner } from "../ui/Spinner";
 import { ClimbCanvas } from "../Game/ClimbCanvas";
 import { FullscreenButton } from "../Game/FullscreenButton";
 import { useCanvasSize } from "../../hooks/useCanvasSize";
@@ -250,7 +251,7 @@ export function DuelWatch({ duelId }: { duelId: string }) {
       <div className="min-h-screen bg-void text-text-primary">
         <Navbar contextLabel="1v1" />
         <div className="flex flex-col items-center justify-center gap-4 pt-24">
-          <div className="w-8 h-8 rounded-full border-2 border-text-muted border-t-signal animate-spin" aria-hidden="true" />
+          <Spinner size="lg" />
           <p className="font-mono text-sm text-text-secondary">Loading replay…</p>
         </div>
       </div>

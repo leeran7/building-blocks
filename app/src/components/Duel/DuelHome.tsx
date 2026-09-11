@@ -19,7 +19,19 @@ import { shareInvite } from "../../lib/shareInvite";
 import { Navbar } from "../Navbar";
 import { BuyCreditsModal } from "../Wallet/BuyCreditsModal";
 import { PAID_DUELS_ENABLED_PUBLIC } from "../../config/paidDuel";
+import { formatChipCents } from "../../config/chipPackages";
 import { useClaimDailyChips } from "../../hooks/useClaimDailyChips";
+import { useWalletBalance } from "../../hooks/useWalletBalance";
+import { authedFetch } from "../../lib/authedFetch";
+import {
+  DUEL_LEADERBOARD_HREF,
+  DUEL_HREF,
+  CHIP_DUELS_HREF,
+} from "../navLinks";
+import { Spinner } from "../ui/Spinner";
+import { NavTab } from "../ui/NavTab";
+import { SignInGate } from "../ui/SignInGate";
+import { Button } from "../ui/Button";
 
 // ─────────────────────────────── Types ────────────────────────────────────
 
@@ -54,7 +66,7 @@ type QueueState =
 // ─────────────────────────────── Component ────────────────────────────────
 
 export function DuelHome() {
-  const { user, token } = useAuth();
+  const { user, token, isAnonymous } = useAuth();
   const router = useRouter();
 
   const [createState, setCreateState] = useState<CreateState>({ status: "idle" });
@@ -62,8 +74,11 @@ export function DuelHome() {
   const [stats, setStats] = useState<DuelStats | null>(null);
   const [mode, setMode] = useState<DuelMode>("quick");
   const [buyOpen, setBuyOpen] = useState(false);
-  const [chipBalance, setChipBalance] = useState<number | null>(null);
   const { state: claimState, claim } = useClaimDailyChips(token);
+  const { playCents: chipBalance } = useWalletBalance(
+    PAID_DUELS_ENABLED_PUBLIC ? token : null,
+    `${Number(buyOpen)}-${claimState.status}`
+  );
 
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const createButtonRef = useRef<HTMLButtonElement>(null);
@@ -82,24 +97,13 @@ export function DuelHome() {
   // Fetch W-L stats on mount when signed in
   useEffect(() => {
     if (!user || !token) return;
-    fetch("/api/duel/stats", { headers: { Authorization: `Bearer ${token}` } })
+    authedFetch("/api/duel/stats", token)
       .then((r) => (r.ok ? r.json() : null))
       .then((data: DuelStats | null) => {
         if (data) setStats(data);
       })
       .catch(() => {});
   }, [user, token]);
-
-  // Fetch chip balance
-  useEffect(() => {
-    if (!user || !token || !PAID_DUELS_ENABLED_PUBLIC) return;
-    fetch("/api/wallet", { headers: { Authorization: `Bearer ${token}` } })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data: { playCents?: number } | null) => {
-        if (data) setChipBalance(data.playCents ?? 0);
-      })
-      .catch(() => {});
-  }, [user, token, buyOpen, claimState.status]);
 
   // Stop polling on unmount
   useEffect(() => {
@@ -115,12 +119,9 @@ export function DuelHome() {
     setCreateState({ status: "loading" });
 
     try {
-      const res = await fetch("/api/duel", {
+      const res = await authedFetch("/api/duel", token, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ categorySlug: "tech" }),
       });
 
@@ -173,9 +174,7 @@ export function DuelHome() {
       if (pollRef.current) clearInterval(pollRef.current);
       pollRef.current = setInterval(async () => {
         try {
-          const pollRes = await fetch("/api/duel/queue", {
-            headers: { Authorization: `Bearer ${token}` },
-          });
+          const pollRes = await authedFetch("/api/duel/queue", token);
           if (!pollRes.ok) return;
           const pollBody = (await pollRes.json()) as { status: string; duelId?: string };
           if (pollBody.status === "matched" && pollBody.duelId) {
@@ -197,12 +196,9 @@ export function DuelHome() {
     };
 
     try {
-      const res = await fetch("/api/duel/queue", {
+      const res = await authedFetch("/api/duel/queue", token, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ categorySlug: "tech" }),
       });
 
@@ -244,10 +240,7 @@ export function DuelHome() {
     setQueueState({ status: "idle" });
     if (!token) return;
     try {
-      await fetch("/api/duel/queue", {
-        method: "DELETE",
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      await authedFetch("/api/duel/queue", token, { method: "DELETE" });
     } catch {
       // Best-effort
     }
@@ -274,8 +267,8 @@ export function DuelHome() {
             {/* Order matches the free-climb shell: Leaderboard, then Play.
                 Both entries are Links (mirroring FreeStackShell's FreeTab) so
                 the pattern doesn't diverge across the two nav-tab surfaces. */}
-            <DuelNavTab href="/duel/leaderboard" label="Leaderboard" active={false} />
-            <DuelNavTab href="/duel" label="Play" active={true} />
+            <NavTab href={DUEL_LEADERBOARD_HREF} label="Leaderboard" active={false} />
+            <NavTab href={DUEL_HREF} label="Play" active={true} />
           </div>
         </div>
       </div>
@@ -353,19 +346,12 @@ export function DuelHome() {
         </div>
 
         {/* Action panel — the selected mode's flow. Signed-out users get ONE
-            sign-in gate here that stands in for every mode. */}
-        {!user ? (
-          <section className="bg-surface rounded-xl border border-border-subtle p-6 text-center">
-            <p className="text-text-secondary text-sm mb-4">
-              Sign in to get matched, challenge a friend, and save your record.
-            </p>
-            <Link
-              href="/auth/signin?redirect=%2Fduel"
-              className="inline-flex items-center justify-center rounded-full px-6 min-h-[44px] bg-signal text-void font-semibold text-sm tracking-tight hover:brightness-110 active:scale-[0.98] motion-reduce:active:scale-100 transition-[filter,transform] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void"
-            >
-              Sign in to play
-            </Link>
-          </section>
+            sign-in gate here that stands in for every mode. Anonymous Firebase
+            sessions get the same gate: they have no email, so ensureUser can't
+            provision a `users` row and creating/queuing would 500 on the
+            duels FK (see ClimbScene's identical isAnonymous exclusion). */}
+        {!user || isAnonymous ? (
+          <SignInGate message="Sign in to get matched, challenge a friend, and save your record." redirectPath="/duel" />
         ) : activeMode === "quick" ? (
           <section
             id="free-duel"
@@ -392,29 +378,20 @@ export function DuelHome() {
             </p>
 
             {queueState.status === "idle" && (
-              <button
-                onClick={handleSearch}
-                className="inline-flex items-center justify-center rounded-full px-8 min-h-[48px] w-full bg-signal text-void font-semibold text-base tracking-tight hover:brightness-110 active:scale-[0.98] motion-reduce:active:scale-100 shadow-signal transition-[filter,transform] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void"
-              >
+              <Button variant="primary" size="lg" fullWidth onClick={handleSearch}>
                 Find match
-              </button>
+              </Button>
             )}
 
             {queueState.status === "searching" && (
               <div className="flex flex-col gap-3">
                 <div className="flex items-center gap-2 text-text-secondary text-sm">
-                  <span
-                    className="w-4 h-4 rounded-full border-2 border-text-muted border-t-signal animate-spin motion-reduce:animate-none"
-                    aria-hidden="true"
-                  />
+                  <Spinner />
                   Searching for an opponent…
                 </div>
-                <button
-                  onClick={handleCancelSearch}
-                  className="inline-flex items-center justify-center rounded-full px-5 min-h-[44px] border border-border-strong text-text-secondary text-sm hover:border-ember/50 transition-colors w-fit focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void"
-                >
+                <Button variant="ghost" size="sm" onClick={handleCancelSearch} className="w-fit">
                   Cancel
-                </button>
+                </Button>
               </div>
             )}
 
@@ -423,24 +400,18 @@ export function DuelHome() {
                 <p className="text-text-secondary text-sm">
                   Search timed out — no opponent found. Try again.
                 </p>
-                <button
-                  onClick={handleSearch}
-                  className="inline-flex items-center justify-center rounded-full px-8 min-h-[48px] w-full bg-signal text-void font-semibold text-base tracking-tight hover:brightness-110 active:scale-[0.98] motion-reduce:active:scale-100 shadow-signal transition-[filter,transform] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void"
-                >
+                <Button variant="primary" size="lg" fullWidth onClick={handleSearch}>
                   Search again
-                </button>
+                </Button>
               </div>
             )}
 
             {queueState.status === "error" && (
               <div className="flex flex-col gap-2" role="alert">
                 <p className="text-ember text-sm">{queueState.message}</p>
-                <button
-                  onClick={() => setQueueState({ status: "idle" })}
-                  className="inline-flex items-center justify-center rounded-full px-5 min-h-[44px] border border-border-strong text-text-secondary text-sm hover:border-signal/50 transition-colors w-fit focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void"
-                >
+                <Button variant="ghost" size="sm" onClick={() => setQueueState({ status: "idle" })} className="w-fit">
                   Try again
-                </button>
+                </Button>
               </div>
             )}
           </section>
@@ -462,21 +433,20 @@ export function DuelHome() {
             </p>
 
             {createState.status === "idle" && (
-              <button
+              <Button
                 ref={createButtonRef}
+                variant="primary"
+                size="lg"
+                fullWidth
                 onClick={handleCreate}
-                className="inline-flex items-center justify-center rounded-full px-8 min-h-[48px] w-full bg-signal text-void font-semibold text-base tracking-tight hover:brightness-110 active:scale-[0.98] motion-reduce:active:scale-100 shadow-signal transition-[filter,transform] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void"
               >
                 Create challenge link
-              </button>
+              </Button>
             )}
 
             {createState.status === "loading" && (
               <div className="flex items-center gap-2 text-text-muted text-sm">
-                <span
-                  className="w-4 h-4 rounded-full border-2 border-text-muted border-t-signal animate-spin motion-reduce:animate-none"
-                  aria-hidden="true"
-                />
+                <Spinner />
                 Creating…
               </div>
             )}
@@ -484,12 +454,9 @@ export function DuelHome() {
             {createState.status === "error" && (
               <div className="flex flex-col gap-2" role="alert">
                 <p className="text-ember text-sm">{createState.message}</p>
-                <button
-                  onClick={() => setCreateState({ status: "idle" })}
-                  className="inline-flex items-center justify-center rounded-full px-5 min-h-[44px] border border-border-strong text-text-secondary text-sm hover:border-signal/50 transition-colors"
-                >
+                <Button variant="ghost" size="sm" onClick={() => setCreateState({ status: "idle" })}>
                   Try again
-                </button>
+                </Button>
               </div>
             )}
           </section>
@@ -501,7 +468,7 @@ export function DuelHome() {
               </h2>
               {chipBalance !== null && (
                 <span className="font-mono text-xs tabular-nums text-signal">
-                  {chipBalance.toLocaleString()} chips
+                  {formatChipCents(chipBalance)} chips
                 </span>
               )}
             </div>
@@ -510,17 +477,14 @@ export function DuelHome() {
             </p>
             <div className="flex flex-col gap-3">
               <Link
-                href="/duel/chips"
+                href={CHIP_DUELS_HREF}
                 className="inline-flex items-center justify-center rounded-full px-8 min-h-[48px] w-full bg-signal text-void font-semibold text-base tracking-tight hover:brightness-110 active:scale-[0.98] motion-reduce:active:scale-100 shadow-signal transition-[filter,transform] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void"
               >
                 Find chip match
               </Link>
-              <button
-                onClick={() => setBuyOpen(true)}
-                className="inline-flex items-center justify-center rounded-full px-5 min-h-[44px] w-full border border-border-strong text-text-secondary text-sm font-semibold hover:border-signal/50 hover:text-text-primary transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void"
-              >
+              <Button variant="ghost" size="sm" fullWidth onClick={() => setBuyOpen(true)}>
                 Buy chips
-              </button>
+              </Button>
               <button
                 onClick={claim}
                 disabled={
@@ -689,34 +653,3 @@ function TrophyIcon() {
   );
 }
 
-/**
- * Route links, not a WAI-ARIA tabs widget — mirrors FreeStackShell's FreeTab
- * exactly so the two nav-tab surfaces don't diverge. Both entries render as
- * Links (even the active one) rather than swapping to a <span> for "self".
- */
-function DuelNavTab({
-  href,
-  label,
-  active,
-}: {
-  href: "/duel" | "/duel/leaderboard";
-  label: string;
-  active: boolean;
-}) {
-  return (
-    <Link
-      href={href}
-      role="tab"
-      aria-selected={active}
-      aria-current={active ? "page" : undefined}
-      className={
-        "inline-flex items-center justify-center px-4 min-h-[44px] rounded-full text-sm font-semibold whitespace-nowrap transition-[color,filter] focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void " +
-        (active
-          ? "bg-signal text-void hover:brightness-110"
-          : "text-text-secondary hover:text-text-primary")
-      }
-    >
-      {label}
-    </Link>
-  );
-}
