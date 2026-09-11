@@ -1,8 +1,10 @@
 /**
  * POST /api/duel/[id]/join — Join an open duel as player2.
  *
- * Auth is optional (anonymous Firebase token accepted). Anonymous users get
- * a guest-id derived from their IP so they are loosely deduped.
+ * Auth is optional (anonymous Firebase token accepted). Unauthenticated users
+ * get an unguessable server-minted guest id (`guest:<nanoid>`) — never an
+ * IP-derived one, since x-forwarded-for is client-spoofable on Vercel (see the
+ * inline note below). The client must re-present that token on write paths.
  *
  * The seed is returned here for the first time so both players can load the
  * same tower. It is withheld from the GET /api/duel/[id] endpoint while the

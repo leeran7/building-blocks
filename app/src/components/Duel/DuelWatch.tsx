@@ -14,6 +14,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Navbar } from "../Navbar";
 import { ClimbCanvas } from "../Game/ClimbCanvas";
+import { FullscreenButton } from "../Game/FullscreenButton";
+import { useCanvasSize } from "../../hooks/useCanvasSize";
+import { useBodyScrollLock } from "../../hooks/useBodyScrollLock";
+import { useFullscreen } from "../../hooks/useFullscreen";
 import { createMatch, stepMatch, DEFAULT_SIM_CONFIG } from "../../game/simulation";
 import { buildTower } from "../../game/towers";
 import { buildDuelWatchUrl } from "../../game/runReplay";
@@ -59,6 +63,22 @@ export function DuelWatch({ duelId }: { duelId: string }) {
   const lastTsRef = useRef(0);
   const tickRef = useRef(0);
   const playingRef = useRef(false);
+
+  // Responsive stage so the replay canvas fills the column (and the screen in
+  // full screen) instead of a fixed 360×600 box.
+  const canvasBoxRef = useRef<HTMLDivElement>(null);
+  const sceneRef = useRef<HTMLDivElement>(null);
+  const {
+    isFullscreen,
+    supported: fullscreenSupported,
+    toggle: toggleFullscreen,
+  } = useFullscreen(sceneRef);
+  // Cap the width to the column normally; let it fill the screen in fullscreen.
+  const canvasSize = useCanvasSize(canvasBoxRef, {
+    maxWidth: isFullscreen ? undefined : 420,
+  });
+  // Kill page scroll while the replay is actively playing.
+  useBodyScrollLock(isFullscreen || watchPhase === "playing");
 
   // Fetch replay data on mount
   useEffect(() => {
@@ -263,8 +283,15 @@ export function DuelWatch({ duelId }: { duelId: string }) {
   const playerNames: Record<string, string> = { [p1Id]: p1Name, [p2Id]: p2Name };
 
   return (
-    <div className="flex flex-col items-center min-h-screen bg-void text-text-primary">
-      <Navbar contextLabel="1v1" />
+    <div
+      ref={sceneRef}
+      className={
+        isFullscreen
+          ? "flex h-screen w-screen flex-col items-center overflow-hidden bg-void text-text-primary"
+          : "flex flex-col items-center min-h-screen bg-void text-text-primary"
+      }
+    >
+      {!isFullscreen && <Navbar contextLabel="1v1" />}
       {/* Header bar */}
       <div className="w-full max-w-md flex items-center justify-between px-4 py-3 bg-surface border-b border-border-subtle">
         <div className="font-mono text-xs tabular-nums">
@@ -278,7 +305,7 @@ export function DuelWatch({ duelId }: { duelId: string }) {
           </span>
           {watchPhase === "playing" && (
             <span className="flex items-center gap-1 font-mono text-xs text-ember">
-              <span className="w-1.5 h-1.5 rounded-full bg-ember animate-pulse" aria-hidden="true" />
+              <span className="w-1.5 h-1.5 rounded-full bg-ember motion-safe:animate-pulse" aria-hidden="true" />
               LIVE
             </span>
           )}
@@ -298,15 +325,30 @@ export function DuelWatch({ duelId }: { duelId: string }) {
       )}
 
       {/* Canvas */}
-      <div className="relative flex-1 flex items-start justify-center pt-4">
-        {state && (
-          <ClimbCanvas
-            state={state}
-            width={360}
-            height={600}
-            playerNames={playerNames}
-          />
-        )}
+      <div className="relative flex-1 flex items-start justify-center pt-4 w-full">
+        <div
+          ref={canvasBoxRef}
+          data-climb-surface
+          className="relative"
+          style={{ width: canvasSize.width }}
+        >
+          {state && (
+            <ClimbCanvas
+              state={state}
+              width={canvasSize.width}
+              height={canvasSize.height}
+              playerNames={playerNames}
+            />
+          )}
+
+          {fullscreenSupported && (
+            <FullscreenButton
+              isFullscreen={isFullscreen}
+              onToggle={toggleFullscreen}
+              className="absolute right-2 top-2 z-30"
+            />
+          )}
+        </div>
       </div>
 
       {/* Bottom actions */}

@@ -39,6 +39,9 @@ import { useAuth } from "../../contexts/AuthContext";
 import { useCanvasSize } from "../../hooks/useCanvasSize";
 import { useCoarsePointer } from "../../hooks/useCoarsePointer";
 import { useSafeAreaInsets } from "../../hooks/useSafeAreaInsets";
+import { useBodyScrollLock } from "../../hooks/useBodyScrollLock";
+import { useFullscreen } from "../../hooks/useFullscreen";
+import { FullscreenButton } from "./FullscreenButton";
 import { climberHandle } from "../../lib/handle";
 import { ALTITUDE_UNIT, formatAltitudeLabel } from "../../lib/units";
 import { ShareRun } from "./ShareRun";
@@ -129,6 +132,13 @@ export function ClimbScene({ tower, categoryLabel, replay = null }: ClimbScenePr
   // and matches the device aspect. Desktop keeps the framed 9:16 column.
   const canvasSize = useCanvasSize(canvasBoxRef, { fill: touchDevice });
   const safeArea = useSafeAreaInsets();
+  // Desktop full-screen stage (Fullscreen API). Touch already runs full-bleed.
+  const sceneRef = useRef<HTMLDivElement>(null);
+  const {
+    isFullscreen,
+    supported: fullscreenSupported,
+    toggle: toggleFullscreen,
+  } = useFullscreen(sceneRef);
   const { user, token } = useAuth();
   const [posted, setPosted] = useState(false);
   const [saveInfo, setSaveInfo] = useState<SaveInfo | null>(null);
@@ -141,6 +151,13 @@ export function ClimbScene({ tower, categoryLabel, replay = null }: ClimbScenePr
   const phase = state.phase;
   const touchControlsActive =
     touchDevice && !finished && (phase === "countdown" || phase === "climb");
+  // Kill page scroll while a run is live so a stray wheel tick / Space / arrow
+  // can't scroll the page out from under the stage. Touch runs the full-bleed
+  // fixed stage (locked throughout); on desktop the lobby + results phases stay
+  // unlocked so the how-to card and About copy below the canvas stay reachable.
+  useBodyScrollLock(
+    touchDevice || isFullscreen || phase === "countdown" || phase === "climb"
+  );
   // Camera clearance under the touch controls = the buttons + their bottom gutter
   // (which grows into the home-indicator safe area). Replay never mounts those
   // buttons, so the inset is 0 — otherwise lava in that band is visible on the
@@ -254,15 +271,17 @@ export function ClimbScene({ tower, categoryLabel, replay = null }: ClimbScenePr
         setShareUrl(buildReplayUrl(replayToken, window.location.origin));
       }
       setEncodingShare(false);
+      const payload = replayToken ? { ...run, replayToken } : run;
 
       if (token) {
-        const payload = replayToken ? { ...run, replayToken } : run;
         postRun(payload, token).then(setSaveInfo).finally(() => setSavingRun(false));
       } else {
         setSaveInfo({ saved: false });
         setSavingRun(false);
         try {
-          sessionStorage.setItem(PENDING_CLIMB_KEY, JSON.stringify(run));
+          // Stash the replayToken too — otherwise the retroactive save after
+          // sign-in (below) persists this run with no replay link at all.
+          sessionStorage.setItem(PENDING_CLIMB_KEY, JSON.stringify(payload));
         } catch {
           /* storage unavailable */
         }
@@ -333,10 +352,13 @@ export function ClimbScene({ tower, categoryLabel, replay = null }: ClimbScenePr
 
   return (
     <div
+      ref={sceneRef}
       className={
         touchDevice
           ? "fixed inset-0 z-40 bg-void"
-          : "flex flex-col items-center gap-4 w-full"
+          : isFullscreen
+            ? "flex h-screen w-screen flex-col items-center gap-4 overflow-hidden bg-void py-4"
+            : "flex flex-col items-center gap-4 w-full"
       }
     >
       {savedBanner?.saved && (
@@ -582,6 +604,16 @@ export function ClimbScene({ tower, categoryLabel, replay = null }: ClimbScenePr
 
         {touchDevice && !replaying && (
           <TouchControls active={touchControlsActive} onInput={setTouch} />
+        )}
+
+        {/* Desktop full-screen toggle. Rendered last so it stays above the
+            lobby/results overlays and is clickable in every phase. */}
+        {!touchDevice && fullscreenSupported && (
+          <FullscreenButton
+            isFullscreen={isFullscreen}
+            onToggle={toggleFullscreen}
+            className="absolute right-2 top-2 z-30"
+          />
         )}
       </div>
 

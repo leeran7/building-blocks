@@ -312,7 +312,11 @@ export function useClimb({
       while (accumulatorRef.current >= TICK_DT) {
         accumulatorRef.current -= TICK_DT;
         const input = inputForTick(cur.phase, cur.tick);
-        if (!replayInputsRef.current?.length) {
+        // Only climb ticks are scored/replayed (simulation.ts: tick resets to 0
+        // at the countdown→climb boundary, so inputLog[0] must be climb-tick 0).
+        // Recording countdown ticks here would shift every real input forward
+        // by the countdown length once replayed.
+        if (!replayInputsRef.current?.length && cur.phase === "climb") {
           inputLogRef.current.push(input);
         }
         cur = stepMatch(cur, { [PLAYER_ID]: input }, cfg);

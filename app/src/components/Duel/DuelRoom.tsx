@@ -28,6 +28,9 @@ import {
 import { useCoarsePointer } from "../../hooks/useCoarsePointer";
 import { useCanvasSize } from "../../hooks/useCanvasSize";
 import { useSafeAreaInsets } from "../../hooks/useSafeAreaInsets";
+import { useBodyScrollLock } from "../../hooks/useBodyScrollLock";
+import { useFullscreen } from "../../hooks/useFullscreen";
+import { FullscreenButton } from "../Game/FullscreenButton";
 import { DuelResult } from "./DuelResult";
 import { connectRealtime, RealtimeHandle } from "../../net/realtime";
 import { buildTower } from "../../game/towers";
@@ -95,12 +98,21 @@ function PracticeGame({
   const canvasBoxRef = useRef<HTMLDivElement>(null);
   const canvasSize = useCanvasSize(canvasBoxRef, { fill: touchDevice });
   const safeArea = useSafeAreaInsets();
+  const sceneRef = useRef<HTMLDivElement>(null);
+  const {
+    isFullscreen,
+    supported: fullscreenSupported,
+    toggle: toggleFullscreen,
+  } = useFullscreen(sceneRef);
   const bottomInset = touchDevice
     ? TOUCH_CONTROLS_INSET + Math.max(TOUCH_CONTROLS_MIN_BOTTOM, safeArea.bottom)
     : 0;
   const phase = state.phase;
   const touchControlsActive =
     touchDevice && (phase === "countdown" || phase === "climb");
+  // Warm-up loops continuously, so lock scroll for the whole scene on desktop
+  // too (there is no idle lobby to scroll here).
+  useBodyScrollLock(true);
 
   // Start on mount and restart when the warm-up run ends
   useEffect(() => { start(); }, [start]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -110,10 +122,13 @@ function PracticeGame({
 
   return (
     <div
+      ref={sceneRef}
       className={
         touchDevice
           ? "fixed inset-0 z-40 bg-void text-text-primary"
-          : "flex flex-col items-center gap-3 min-h-screen bg-void text-text-primary py-4"
+          : isFullscreen
+            ? "flex h-screen w-screen flex-col items-center gap-3 overflow-hidden bg-void py-4 text-text-primary"
+            : "flex flex-col items-center gap-3 min-h-screen bg-void text-text-primary py-4"
       }
     >
       {/* Desktop-only placeholder HUD, same shape as DuelGame's real one (name
@@ -235,6 +250,14 @@ function PracticeGame({
         {touchDevice && (
           <TouchControls active={touchControlsActive} onInput={setTouch} />
         )}
+
+        {!touchDevice && fullscreenSupported && (
+          <FullscreenButton
+            isFullscreen={isFullscreen}
+            onToggle={toggleFullscreen}
+            className="absolute right-2 top-2 z-30"
+          />
+        )}
       </div>
     </div>
   );
@@ -316,6 +339,12 @@ function DuelGame({
   const canvasBoxRef = useRef<HTMLDivElement>(null);
   const canvasSize = useCanvasSize(canvasBoxRef, { fill: touchDevice });
   const safeArea = useSafeAreaInsets();
+  const sceneRef = useRef<HTMLDivElement>(null);
+  const {
+    isFullscreen,
+    supported: fullscreenSupported,
+    toggle: toggleFullscreen,
+  } = useFullscreen(sceneRef);
 
   const startedRef = useRef(false);
   const [connectionState, setConnectionState] = useState<string>("connected");
@@ -492,6 +521,11 @@ function DuelGame({
   };
 
   const phase = state.phase;
+  // Lock scroll while the race is live (touch is already full-bleed); the
+  // finished/results phase unlocks so a tall result card can scroll if needed.
+  useBodyScrollLock(
+    touchDevice || isFullscreen || phase === "countdown" || phase === "climb"
+  );
 
   // Live altitude ordering for the lead bar. Iterate ALL players (not a hardcoded
   // two) so this generalizes cheaply to the planned group-race (≤4). Sort by
@@ -591,10 +625,13 @@ function DuelGame({
   // doesn't branch on phase), so there's nothing it's missing by starting here.
   return (
     <div
+      ref={sceneRef}
       className={
         touchDevice
           ? "fixed inset-0 z-40 bg-void text-text-primary"
-          : "flex flex-col items-center gap-3 min-h-screen bg-void text-text-primary py-4"
+          : isFullscreen
+            ? "flex h-screen w-screen flex-col items-center gap-3 overflow-hidden bg-void py-4 text-text-primary"
+            : "flex flex-col items-center gap-3 min-h-screen bg-void text-text-primary py-4"
       }
     >
       {/* Versus HUD: desktop bars in-flow above the canvas (width tracks the
@@ -797,6 +834,14 @@ function DuelGame({
         {touchDevice && (
           <TouchControls active={touchControlsActive} onInput={setTouch} />
         )}
+
+        {!touchDevice && fullscreenSupported && (
+          <FullscreenButton
+            isFullscreen={isFullscreen}
+            onToggle={toggleFullscreen}
+            className="absolute right-2 top-2 z-30"
+          />
+        )}
       </div>
     </div>
   );
@@ -805,7 +850,7 @@ function DuelGame({
 // ─────────────────────────────── Room orchestrator ────────────────────────
 
 export function DuelRoom({ duelId }: DuelRoomProps) {
-  const { user, token } = useAuth();
+  const { user, token, loading: authLoading } = useAuth();
   const router = useRouter();
 
   const [phase, setPhase] = useState<RoomPhase>("loading");
@@ -828,6 +873,15 @@ export function DuelRoom({ duelId }: DuelRoomProps) {
 
   // Load duel and connect
   useEffect(() => {
+    // Wait until Firebase auth has resolved before deciding who we are. If we
+    // run while auth is still initializing (user/token both null), a signed-in
+    // visitor — including the creator opening their own invite link — is
+    // mistaken for an anonymous guest, and the join below binds the duel to a
+    // throwaway guest identity. That corrupts the duel ("could not join duel"
+    // for the real opponent) the instant an invite link is opened. Once
+    // authLoading is false, a null user is a genuine anonymous guest.
+    if (authLoading) return;
+
     let cancelled = false;
 
     const authHeaders: Record<string, string> = token
@@ -986,7 +1040,7 @@ export function DuelRoom({ duelId }: DuelRoomProps) {
     return () => {
       cancelled = true;
     };
-  }, [duelId, user, token]);
+  }, [duelId, user, token, authLoading]);
 
   const handleRematch = useCallback(
     (newDuelId: string) => {
