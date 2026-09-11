@@ -199,7 +199,7 @@ export function Hero({ stats }: { stats: HeroStats }) {
           >
             <Link
               href="/duel"
-              className="group w-full sm:w-auto bg-signal text-void font-semibold rounded-full px-7 py-3.5 text-base inline-flex items-center justify-center gap-2 shadow-signal transition-[filter,transform] hover:brightness-110 active:scale-[0.98] focus-visible:outline-hidden min-h-[52px]"
+              className="group w-full sm:w-auto bg-signal text-void font-semibold rounded-full px-7 py-3.5 text-base inline-flex items-center justify-center gap-2 shadow-signal transition-[filter,transform,scale] hover:brightness-110 active:scale-[0.98] focus-visible:outline-hidden min-h-[52px]"
             >
               Start a duel
               <span className="transition-transform group-hover:translate-x-0.5">

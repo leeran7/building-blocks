@@ -8,11 +8,11 @@ const BASE = "inline-flex items-center justify-center rounded-full font-semibold
 
 const VARIANT: Record<Variant, string> = {
   primary:
-    "bg-signal text-void tracking-tight hover:brightness-110 active:scale-[0.98] motion-reduce:active:scale-100 shadow-signal transition-[filter,transform]",
+    "bg-signal text-void tracking-tight hover:brightness-110 active:scale-[0.98] motion-reduce:active:scale-100 shadow-signal transition-[filter,transform,scale]",
   ghost:
     "border border-border-strong text-text-secondary hover:border-signal/50 hover:text-text-primary transition-colors",
   "signal-outline":
-    "border border-signal/40 text-signal hover:bg-signal/10 active:scale-[0.98] motion-reduce:active:scale-100 transition-[filter,transform,background-color]",
+    "border border-signal/40 text-signal hover:bg-signal/10 active:scale-[0.98] motion-reduce:active:scale-100 transition-[filter,transform,scale,background-color]",
 };
 
 const SIZE: Record<Size, string> = {

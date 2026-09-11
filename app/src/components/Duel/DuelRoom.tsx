@@ -214,7 +214,7 @@ function PracticeGame({
                   home. Native share sheet first, clipboard as fallback. */}
               <button
                 onClick={onCopyLink}
-                className="inline-flex items-center justify-center rounded-full px-3 min-h-[36px] bg-signal text-void font-semibold text-xs hover:brightness-110 active:scale-[0.98] transition-[filter,transform] w-full focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void"
+                className="inline-flex items-center justify-center rounded-full px-3 min-h-[36px] bg-signal text-void font-semibold text-xs hover:brightness-110 active:scale-[0.98] transition-[filter,transform,scale] w-full focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void"
               >
                 {linkCopied ? "Copied!" : "Share invite"}
               </button>
@@ -226,7 +226,7 @@ function PracticeGame({
               </p>
               <button
                 onClick={onCopyLink}
-                className="inline-flex items-center justify-center rounded-full px-3 min-h-[36px] bg-signal text-void font-semibold text-xs hover:brightness-110 active:scale-[0.98] transition-[filter,transform] w-full focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void"
+                className="inline-flex items-center justify-center rounded-full px-3 min-h-[36px] bg-signal text-void font-semibold text-xs hover:brightness-110 active:scale-[0.98] transition-[filter,transform,scale] w-full focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void"
               >
                 {linkCopied ? "Copied!" : "Share invite"}
               </button>

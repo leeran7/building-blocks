@@ -116,7 +116,7 @@ export function PayoutPage() {
                 <button
                   onClick={handleConnect}
                   disabled={connecting}
-                  className="mt-3 inline-flex items-center justify-center rounded-full px-6 min-h-[44px] bg-signal text-void font-semibold text-sm hover:brightness-110 active:scale-[0.98] transition-[filter,transform] disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="mt-3 inline-flex items-center justify-center rounded-full px-6 min-h-[44px] bg-signal text-void font-semibold text-sm hover:brightness-110 active:scale-[0.98] transition-[filter,transform,scale] disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   {connecting ? "Redirecting..." : data?.connected ? "Continue setup" : "Set up payouts"}
                 </button>

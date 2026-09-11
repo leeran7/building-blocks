@@ -1,5 +1,18 @@
 @import 'tailwindcss';
 
+/*
+  Tailwind v4 moved scale/rotate/translate to individual CSS properties.
+  `transition-property: transform` no longer animates them, so we extend
+  transition-transform to cover the full set of individual transform properties.
+*/
+@layer utilities {
+  .transition-transform {
+    transition-property: transform, scale, rotate, translate;
+    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+    transition-duration: 150ms;
+  }
+}
+
 @theme {
   --color-tower-sky: #0ea5e9;
   --color-tower-ground: #92400e;

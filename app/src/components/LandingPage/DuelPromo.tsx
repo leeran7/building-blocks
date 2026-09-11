@@ -150,7 +150,7 @@ export function DuelPromo() {
           {modes.map((mode, i) => (
             <div
               key={mode.title}
-              className="reveal group relative overflow-hidden rounded-2xl border border-border-subtle bg-surface p-6 transition-[transform,border-color,box-shadow] duration-300 ease-out hover:-translate-y-1 hover:border-signal/45 hover:shadow-lifted"
+              className="reveal group relative overflow-hidden rounded-2xl border border-border-subtle bg-surface p-6 transition-[transform,translate,border-color,box-shadow] duration-300 ease-out hover:-translate-y-1 hover:border-signal/45 hover:shadow-lifted"
               style={{ animationDelay: `${i * 70}ms` }}
             >
               <div className="pointer-events-none absolute inset-0 survey-grid opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
@@ -170,7 +170,7 @@ export function DuelPromo() {
         <div className="mt-8 flex flex-col sm:flex-row sm:items-center gap-4">
           <Link
             href="/duel"
-            className="inline-flex items-center justify-center gap-2 rounded-full bg-signal text-void font-semibold px-7 py-3.5 shadow-signal hover:brightness-110 active:scale-[0.98] transition-[filter,transform] min-h-[52px] focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
+            className="inline-flex items-center justify-center gap-2 rounded-full bg-signal text-void font-semibold px-7 py-3.5 shadow-signal hover:brightness-110 active:scale-[0.98] transition-[filter,transform,scale] min-h-[52px] focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
           >
             Start a duel
             <span aria-hidden="true">→</span>

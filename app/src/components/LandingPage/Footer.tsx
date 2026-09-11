@@ -56,7 +56,7 @@ export function Footer({ showCta = true }: { showCta?: boolean }) {
           </div>
           <Link
             href="/auth/signup"
-            className="shrink-0 bg-signal text-void font-semibold rounded-full px-7 py-3.5 shadow-signal hover:brightness-110 active:scale-[0.98] transition-[filter,transform] min-h-[52px] inline-flex items-center gap-2 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
+            className="shrink-0 bg-signal text-void font-semibold rounded-full px-7 py-3.5 shadow-signal hover:brightness-110 active:scale-[0.98] transition-[filter,transform,scale] min-h-[52px] inline-flex items-center gap-2 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
           >
             Get started →
           </Link>

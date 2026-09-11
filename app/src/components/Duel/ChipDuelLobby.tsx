@@ -111,7 +111,7 @@ export function ChipDuelLobby() {
                 state={claimState}
                 onClaim={handleClaim}
                 labels={{ idle: "Claim free chips", claimed: "Claimed", alreadyClaimed: "Come back tomorrow" }}
-                className="flex-shrink-0 inline-flex items-center justify-center rounded-full px-5 min-h-[44px] border border-signal/40 text-signal font-semibold text-sm hover:bg-signal/10 active:scale-[0.98] motion-reduce:active:scale-100 transition-[filter,transform,background-color] disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void"
+                className="shrink-0 inline-flex items-center justify-center rounded-full px-5 min-h-[44px] border border-signal/40 text-signal font-semibold text-sm hover:bg-signal/10 active:scale-[0.98] motion-reduce:active:scale-100 transition-[filter,transform,scale,background-color] disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void"
               />
             </section>
 

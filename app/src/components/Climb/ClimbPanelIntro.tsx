@@ -75,7 +75,7 @@ export function PlayTheClimbCta() {
   return (
     <Link
       href="/play"
-      className="inline-flex items-center justify-center rounded-full bg-signal text-void font-semibold px-6 min-h-[44px] shadow-signal hover:brightness-110 focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void active:scale-[0.98] transition-[filter,transform] whitespace-nowrap"
+      className="inline-flex items-center justify-center rounded-full bg-signal text-void font-semibold px-6 min-h-[44px] shadow-signal hover:brightness-110 focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void active:scale-[0.98] transition-[filter,transform,scale] whitespace-nowrap"
     >
       Play the climb
     </Link>

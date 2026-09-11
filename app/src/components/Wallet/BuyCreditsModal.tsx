@@ -155,7 +155,7 @@ export function BuyCreditsModal({ open, onClose, token }: BuyCreditsModalProps) 
           <button
             onClick={handleBuy}
             disabled={!ageConfirmed || loading || amountUsd <= 0 || !token}
-            className="flex-1 inline-flex items-center justify-center rounded-full px-6 min-h-[44px] bg-signal text-void font-semibold text-sm tracking-tight hover:brightness-110 active:scale-[0.98] transition-[filter,transform] disabled:opacity-40 disabled:cursor-not-allowed"
+            className="flex-1 inline-flex items-center justify-center rounded-full px-6 min-h-[44px] bg-signal text-void font-semibold text-sm tracking-tight hover:brightness-110 active:scale-[0.98] transition-[filter,transform,scale] disabled:opacity-40 disabled:cursor-not-allowed"
           >
             {loading ? "Starting..." : `Buy ${chips.toLocaleString()} chips · $${amountUsd}`}
           </button>

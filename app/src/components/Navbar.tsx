@@ -23,7 +23,7 @@ interface NavbarProps {
 }
 
 const PILL =
-  "inline-flex items-center justify-center rounded-full px-4 min-h-[38px] text-sm font-semibold tracking-tight transition-[filter,transform] hover:brightness-110 active:scale-[0.98] focus-visible:outline-hidden";
+  "inline-flex items-center justify-center rounded-full px-4 min-h-[38px] text-sm font-semibold tracking-tight transition-[filter,transform,scale] hover:brightness-110 active:scale-[0.98] focus-visible:outline-hidden";
 const GHOST =
   "inline-flex items-center justify-center px-3 min-h-[38px] font-mono text-xs uppercase tracking-[0.14em] text-text-muted hover:text-text-primary transition-colors";
 

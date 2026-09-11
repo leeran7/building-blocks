@@ -388,7 +388,7 @@ export function DuelWatch({ duelId }: { duelId: string }) {
         <div className="flex gap-2">
           <button
             onClick={handleWatchAgain}
-            className="flex-1 inline-flex items-center justify-center rounded-full px-4 min-h-[44px] bg-signal text-void font-semibold text-sm hover:brightness-110 active:scale-[0.98] transition-[filter,transform]"
+            className="flex-1 inline-flex items-center justify-center rounded-full px-4 min-h-[44px] bg-signal text-void font-semibold text-sm hover:brightness-110 active:scale-[0.98] transition-[filter,transform,scale]"
           >
             Watch again
           </button>

@@ -127,7 +127,7 @@ function TouchButton({
       className={
         "relative flex flex-col items-center justify-center rounded-2xl border font-mono font-bold " +
         "min-h-[104px] min-w-[44px] backdrop-blur-xs " +
-        "transition-[filter,transform,background-color] " +
+        "transition-[filter,transform,scale,background-color] " +
         // One ternary per state rather than appending the held colour: competing
         // background utilities are resolved by stylesheet order, not by the
         // order they appear here, so an appended override silently loses.

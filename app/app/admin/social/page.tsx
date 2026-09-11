@@ -162,7 +162,7 @@ export default function SocialDashboardPage() {
       <section className="flex flex-col gap-2 sm:flex-row">
         <Link
           href="/admin/social/content"
-          className="inline-flex min-h-[44px] items-center justify-center rounded-full bg-signal px-5 text-sm font-semibold text-void shadow-signal transition-[filter,transform] hover:brightness-110 active:scale-[0.98] focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void"
+          className="inline-flex min-h-[44px] items-center justify-center rounded-full bg-signal px-5 text-sm font-semibold text-void shadow-signal transition-[filter,transform,scale] hover:brightness-110 active:scale-[0.98] focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void"
         >
           + New idea (Quick Create)
         </Link>

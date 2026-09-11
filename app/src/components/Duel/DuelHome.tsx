@@ -478,7 +478,7 @@ export function DuelHome() {
             <div className="flex flex-col gap-3">
               <Link
                 href={CHIP_DUELS_HREF}
-                className="inline-flex items-center justify-center rounded-full px-8 min-h-[48px] w-full bg-signal text-void font-semibold text-base tracking-tight hover:brightness-110 active:scale-[0.98] motion-reduce:active:scale-100 shadow-signal transition-[filter,transform] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void"
+                className="inline-flex items-center justify-center rounded-full px-8 min-h-[48px] w-full bg-signal text-void font-semibold text-base tracking-tight hover:brightness-110 active:scale-[0.98] motion-reduce:active:scale-100 shadow-signal transition-[filter,transform,scale] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void"
               >
                 Find chip match
               </Link>
@@ -561,7 +561,7 @@ function ModeCard({
       disabled={disabled}
       onClick={onSelect}
       className={
-        "group flex items-center gap-4 rounded-xl border p-4 text-left transition-[border-color,background-color,transform] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void " +
+        "group flex items-center gap-4 rounded-xl border p-4 text-left transition-[border-color,background-color,transform,scale] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void " +
         (disabled
           ? "border-border-subtle bg-surface-raised opacity-50 cursor-default"
           : selected

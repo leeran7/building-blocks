@@ -240,7 +240,7 @@ export function SettingsForm({ initialData }: Props) {
                   className="grid grid-cols-[7rem_1fr] items-center gap-3 py-2.5 border-b border-border-subtle last:border-0"
                 >
                   <span className="flex items-center gap-2 text-text-secondary">
-                    <SocialMark platform={p} className="h-4 w-4 flex-shrink-0" />
+                    <SocialMark platform={p} className="h-4 w-4 shrink-0" />
                     <span className="text-sm">{PLATFORM_META[p].label}</span>
                   </span>
                   <div className="flex items-center gap-2">
@@ -296,7 +296,7 @@ export function SettingsForm({ initialData }: Props) {
                 key={u}
                 className="flex items-center gap-3 rounded-lg border border-border-subtle bg-surface-raised px-3 py-2.5"
               >
-                <span className="w-1.5 h-1.5 rounded-full bg-signal flex-shrink-0" />
+                <span className="w-1.5 h-1.5 rounded-full bg-signal shrink-0" />
                 <span className="flex-1 min-w-0">
                   <span className="block text-sm text-text-primary truncate">
                     {domainOf(u)}
@@ -308,7 +308,7 @@ export function SettingsForm({ initialData }: Props) {
                 <button
                   type="button"
                   onClick={() => removeUrl(u)}
-                  className="flex-shrink-0 font-mono text-[11px] uppercase tracking-[0.12em] text-text-muted hover:text-ember transition-colors min-h-[36px] px-2"
+                  className="shrink-0 font-mono text-[11px] uppercase tracking-[0.12em] text-text-muted hover:text-ember transition-colors min-h-[36px] px-2"
                   aria-label={`Remove ${u}`}
                 >
                   Remove
@@ -334,7 +334,7 @@ export function SettingsForm({ initialData }: Props) {
             <button
               type="button"
               onClick={addUrl}
-              className="flex-shrink-0 rounded-lg border border-border-strong bg-surface-raised px-4 text-sm font-semibold text-text-primary hover:border-signal/50 transition-colors min-h-[44px]"
+              className="shrink-0 rounded-lg border border-border-strong bg-surface-raised px-4 text-sm font-semibold text-text-primary hover:border-signal/50 transition-colors min-h-[44px]"
             >
               Add
             </button>
@@ -347,7 +347,7 @@ export function SettingsForm({ initialData }: Props) {
             type="button"
             onClick={save}
             disabled={saving}
-            className="bg-signal text-void font-semibold rounded-full px-7 min-h-[48px] shadow-signal hover:brightness-110 active:scale-[0.98] transition-[filter,transform] disabled:opacity-50 inline-flex items-center gap-2"
+            className="bg-signal text-void font-semibold rounded-full px-7 min-h-[48px] shadow-signal hover:brightness-110 active:scale-[0.98] transition-[filter,transform,scale] disabled:opacity-50 inline-flex items-center gap-2"
           >
             {saving ? (
               <>

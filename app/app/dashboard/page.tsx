@@ -112,7 +112,7 @@ export default function DashboardPage() {
           </div>
           <Link
             href="/duel"
-            className="inline-flex items-center justify-center rounded-full px-5 min-h-[40px] bg-signal text-void text-sm font-semibold hover:brightness-110 active:scale-[0.98] transition-[filter,transform] focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void"
+            className="inline-flex items-center justify-center rounded-full px-5 min-h-[40px] bg-signal text-void text-sm font-semibold hover:brightness-110 active:scale-[0.98] transition-[filter,transform,scale] focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void"
           >
             Start a duel
           </Link>
