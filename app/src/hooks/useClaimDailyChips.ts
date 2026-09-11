@@ -10,6 +10,28 @@ export type ClaimDailyChipsState =
   | { status: "already-claimed" }
   | { status: "error"; message: string };
 
+/**
+ * Derive what the daily-chip claim UI should show, so every surface (dashboard,
+ * account menu, chip lobby) hides the button the moment the grant's been claimed
+ * today instead of duplicating the same three-way check.
+ *
+ * `canClaimDailyChips` is the server's view from /api/wallet — `null` while it's
+ * still loading. We only surface the button once the grant is *confirmed*
+ * available (`=== true`) and only surface the "claimed today" note once it's
+ * *confirmed* claimed (`=== false`), so neither flashes during the initial load.
+ */
+export function dailyClaimVisibility(
+  canClaimDailyChips: boolean | null,
+  claimStatus: ClaimDailyChipsState["status"]
+): { showClaim: boolean; claimedToday: boolean } {
+  const claimedThisSession =
+    claimStatus === "claimed" || claimStatus === "already-claimed";
+  return {
+    showClaim: canClaimDailyChips === true && !claimedThisSession,
+    claimedToday: canClaimDailyChips === false || claimedThisSession,
+  };
+}
+
 interface ClaimResponseBody {
   claimed?: boolean;
   balanceAfter?: number;
