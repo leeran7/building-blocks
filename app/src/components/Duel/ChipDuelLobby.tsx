@@ -6,7 +6,8 @@ import { useAuth } from "../../contexts/AuthContext";
 import { Navbar } from "../Navbar";
 import { CHIP_TIERS, DAILY_CHIP_GRANT_CENTS } from "../../db/chips";
 import { formatChipCents } from "../../config/chipPackages";
-import { useClaimDailyChips } from "../../hooks/useClaimDailyChips";
+import { useClaimDailyChips, dailyClaimVisibility } from "../../hooks/useClaimDailyChips";
+import { useWalletBalance } from "../../hooks/useWalletBalance";
 import { authedFetch } from "../../lib/authedFetch";
 import { DUEL_LEADERBOARD_HREF, DUEL_HREF } from "../navLinks";
 import { Spinner } from "../ui/Spinner";
@@ -26,6 +27,11 @@ export function ChipDuelLobby() {
   const [tier, setTier] = useState<number>(CHIP_TIERS[0]);
   const [matchState, setMatchState] = useState<MatchState>({ status: "idle" });
   const { state: claimState, claim: handleClaim } = useClaimDailyChips(token);
+  const { canClaimDailyChips } = useWalletBalance(token, claimState.status);
+  const { showClaim, claimedToday } = dailyClaimVisibility(
+    canClaimDailyChips,
+    claimState.status
+  );
 
   const handleMatch = useCallback(async () => {
     if (!token) return;
@@ -103,16 +109,18 @@ export function ChipDuelLobby() {
                 <p className="text-sm text-text-secondary">
                   Claim {formatChipCents(DAILY_CHIP_GRANT_CENTS)} free chips every day — no purchase required.
                 </p>
-                {claimState.status === "already-claimed" && (
+                {claimedToday && (
                   <p className="text-xs text-text-muted mt-1">Already claimed today. Come back tomorrow.</p>
                 )}
               </div>
-              <DailyChipClaimButton
-                state={claimState}
-                onClaim={handleClaim}
-                labels={{ idle: "Claim free chips", claimed: "Claimed", alreadyClaimed: "Come back tomorrow" }}
-                className="shrink-0 inline-flex items-center justify-center rounded-full px-5 min-h-[44px] border border-signal/40 text-signal font-semibold text-sm hover:bg-signal/10 active:scale-[0.98] motion-reduce:active:scale-100 transition-[filter,transform,scale,background-color] disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void"
-              />
+              {showClaim && (
+                <DailyChipClaimButton
+                  state={claimState}
+                  onClaim={handleClaim}
+                  labels={{ idle: "Claim free chips", claimed: "Claimed", alreadyClaimed: "Come back tomorrow" }}
+                  className="shrink-0 inline-flex items-center justify-center rounded-full px-5 min-h-[44px] border border-signal/40 text-signal font-semibold text-sm hover:bg-signal/10 active:scale-[0.98] motion-reduce:active:scale-100 transition-[filter,transform,scale,background-color] disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void"
+                />
+              )}
             </section>
 
             {/* Tier picker */}

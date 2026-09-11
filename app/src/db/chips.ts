@@ -31,7 +31,21 @@ export function isValidChipTier(n: number): n is ChipTier {
 // doesn't hold up (Kater v. Churchill Downs, 886 F.3d 784 (9th Cir. 2018)).
 // 100 chips/day = enough to enter multiple low-tier duels without purchasing.
 export const DAILY_CHIP_GRANT_CENTS = 10_000; // 100 chips
-const DAILY_GRANT_COOLDOWN_MS = 24 * 60 * 60 * 1000;
+export const DAILY_GRANT_COOLDOWN_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Whether a user is eligible to claim the daily free chip grant right now — the
+ * same rolling-24h rule claimDailyChips() enforces, exposed for read paths (the
+ * wallet view) so the UI can hide the claim button once it's been claimed today.
+ */
+export function canClaimDailyChips(
+  lastClaimAt: Date | null,
+  now: Date = new Date()
+): boolean {
+  return (
+    !lastClaimAt || now.getTime() - lastClaimAt.getTime() >= DAILY_GRANT_COOLDOWN_MS
+  );
+}
 
 export class DailyGrantAlreadyClaimedError extends Error {
   constructor(public readonly nextClaimAt: Date) {

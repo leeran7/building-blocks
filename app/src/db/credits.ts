@@ -12,6 +12,7 @@
 
 import { prisma } from "./client";
 import { WalletBucket, WalletLedgerKind } from "@prisma/client";
+import { canClaimDailyChips } from "./chips";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -28,6 +29,8 @@ export interface LedgerRow {
 
 export interface WalletView {
   playCents: number;
+  /** True when the daily free-chip grant is available (not claimed in the last 24h). */
+  canClaimDailyChips: boolean;
   ledger: LedgerRow[];
 }
 
@@ -37,7 +40,7 @@ export async function getWallet(userId: string, ledgerLimit = 25): Promise<Walle
   const [user, ledger] = await Promise.all([
     prisma.user.findUnique({
       where: { id: userId },
-      select: { play_credits_cents: true },
+      select: { play_credits_cents: true, last_daily_chips_claim_at: true },
     }),
     prisma.walletLedger.findMany({
       where: { user_id: userId },
@@ -48,6 +51,7 @@ export async function getWallet(userId: string, ledgerLimit = 25): Promise<Walle
 
   return {
     playCents: user?.play_credits_cents ?? 0,
+    canClaimDailyChips: canClaimDailyChips(user?.last_daily_chips_claim_at ?? null),
     ledger: ledger.map((r) => ({
       id: r.id,
       bucket: r.bucket,

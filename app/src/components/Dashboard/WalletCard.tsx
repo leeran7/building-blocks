@@ -9,7 +9,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { BuyCreditsModal } from "../Wallet/BuyCreditsModal";
-import { useClaimDailyChips } from "../../hooks/useClaimDailyChips";
+import { useClaimDailyChips, dailyClaimVisibility } from "../../hooks/useClaimDailyChips";
 import { DailyChipClaimButton } from "../ui/DailyChipClaimButton";
 import { formatChipCents } from "../../config/chipPackages";
 import { authedFetch } from "../../lib/authedFetch";
@@ -24,6 +24,7 @@ interface LedgerRow {
 
 interface WalletData {
   playCents: number;
+  canClaimDailyChips: boolean;
   ledger: LedgerRow[];
 }
 
@@ -66,17 +67,24 @@ export function WalletCard({ token }: { token: string | null }) {
 
   const chips = wallet?.playCents ?? 0;
 
+  const { showClaim } = dailyClaimVisibility(
+    wallet?.canClaimDailyChips ?? null,
+    claimState.status
+  );
+
   return (
     <div className="bg-surface rounded-xl border border-border-subtle p-5 mb-6">
       <div className="flex items-center justify-between mb-4">
         <p className="font-mono text-xs uppercase tracking-[0.14em] text-text-muted">Chips</p>
         <div className="flex items-center gap-3">
-          <DailyChipClaimButton
-            state={claimState}
-            onClaim={claim}
-            labels={{ idle: "Claim daily", claiming: "Claiming...", claimed: "Claimed", alreadyClaimed: "Claimed today" }}
-            className="font-mono text-xs uppercase tracking-[0.12em] text-signal hover:brightness-110 transition-[filter] disabled:opacity-50 disabled:cursor-not-allowed"
-          />
+          {showClaim && (
+            <DailyChipClaimButton
+              state={claimState}
+              onClaim={claim}
+              labels={{ idle: "Claim daily", claiming: "Claiming...", claimed: "Claimed", alreadyClaimed: "Claimed today" }}
+              className="font-mono text-xs uppercase tracking-[0.12em] text-signal hover:brightness-110 transition-[filter] disabled:opacity-50 disabled:cursor-not-allowed"
+            />
+          )}
           <button
             onClick={() => setBuyOpen(true)}
             className="font-mono text-xs uppercase tracking-[0.12em] text-text-muted hover:text-text-primary transition-colors"
