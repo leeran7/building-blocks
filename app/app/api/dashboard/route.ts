@@ -76,7 +76,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   } catch (error) {
     console.error("[GET /api/dashboard]", error);
     return NextResponse.json(
-      { error: "Internal server error", code: "INTERNAL_ERROR" },
+      { error: "Could not load your dashboard. Please try again.", code: "INTERNAL_ERROR" },
       { status: 500 }
     );
   }

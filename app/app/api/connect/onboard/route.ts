@@ -22,13 +22,21 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const origin = new URL(request.url).origin;
-  const accountId = await getOrCreateConnectAccount(uid);
-  const url = await createOnboardingLink(
-    accountId,
-    `${origin}/account/payout?onboarded=true`,
-    `${origin}/account/payout?refresh=true`
-  );
+  try {
+    const origin = new URL(request.url).origin;
+    const accountId = await getOrCreateConnectAccount(uid);
+    const url = await createOnboardingLink(
+      accountId,
+      `${origin}/account/payout?onboarded=true`,
+      `${origin}/account/payout?refresh=true`
+    );
 
-  return NextResponse.json({ url });
+    return NextResponse.json({ url });
+  } catch (err) {
+    console.error("[POST /api/connect/onboard]", err);
+    return NextResponse.json(
+      { error: "Could not start payout setup. Please try again.", code: "INTERNAL_ERROR" },
+      { status: 500 }
+    );
+  }
 }

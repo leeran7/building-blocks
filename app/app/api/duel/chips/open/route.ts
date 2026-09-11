@@ -13,16 +13,24 @@ export async function GET(request: NextRequest) {
   const tier = url.searchParams.get("tier");
   const stakeCents = tier ? parseInt(tier, 10) : undefined;
 
-  const duels = await findOpenChipDuels({
-    stakeCents: stakeCents && !isNaN(stakeCents) ? stakeCents : undefined,
-  });
+  try {
+    const duels = await findOpenChipDuels({
+      stakeCents: stakeCents && !isNaN(stakeCents) ? stakeCents : undefined,
+    });
 
-  return NextResponse.json({
-    duels: duels.map((d) => ({
-      id: d.id,
-      stakeCents: d.stakeCents,
-      createdAt: d.createdAt.toISOString(),
-      creatorName: d.creatorName,
-    })),
-  });
+    return NextResponse.json({
+      duels: duels.map((d) => ({
+        id: d.id,
+        stakeCents: d.stakeCents,
+        createdAt: d.createdAt.toISOString(),
+        creatorName: d.creatorName,
+      })),
+    });
+  } catch (err) {
+    console.error("[GET /api/duel/chips/open]", err);
+    return NextResponse.json(
+      { error: "Could not load open chip duels. Please try again.", code: "INTERNAL_ERROR" },
+      { status: 500 }
+    );
+  }
 }

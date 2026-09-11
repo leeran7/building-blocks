@@ -86,51 +86,59 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const duel = await getDuel(duelId);
-  if (!duel) {
-    return NextResponse.json({ error: "Duel not found", code: "NOT_FOUND" }, { status: 404 });
-  }
+  try {
+    const duel = await getDuel(duelId);
+    if (!duel) {
+      return NextResponse.json({ error: "Duel not found", code: "NOT_FOUND" }, { status: 404 });
+    }
 
-  // AC-31: authenticated participants match by verified uid; guests by the
-  // unguessable token issued at join (trusted only when there is no uid). The
-  // Ably clientId is the matched identity, so it always equals a stored id.
-  const submittedGuestId =
-    typeof body.guestId === "string" && body.guestId.startsWith("guest:")
-      ? body.guestId
-      : null;
+    // AC-31: authenticated participants match by verified uid; guests by the
+    // unguessable token issued at join (trusted only when there is no uid). The
+    // Ably clientId is the matched identity, so it always equals a stored id.
+    const submittedGuestId =
+      typeof body.guestId === "string" && body.guestId.startsWith("guest:")
+        ? body.guestId
+        : null;
 
-  let identity: string | null = null;
-  if (uid !== null && (duel.player1_id === uid || duel.player2_id === uid)) {
-    identity = uid;
-  } else if (
-    uid === null &&
-    submittedGuestId !== null &&
-    (duel.player1_id === submittedGuestId || duel.player2_id === submittedGuestId)
-  ) {
-    identity = submittedGuestId;
-  }
+    let identity: string | null = null;
+    if (uid !== null && (duel.player1_id === uid || duel.player2_id === uid)) {
+      identity = uid;
+    } else if (
+      uid === null &&
+      submittedGuestId !== null &&
+      (duel.player1_id === submittedGuestId || duel.player2_id === submittedGuestId)
+    ) {
+      identity = submittedGuestId;
+    }
 
-  if (identity === null) {
+    if (identity === null) {
+      return NextResponse.json(
+        { error: "Not a participant in this duel", code: "FORBIDDEN" },
+        { status: 403 }
+      );
+    }
+
+    const apiKey = process.env.ABLY_API_KEY;
+    if (!apiKey) {
+      console.error("[realtime/token] ABLY_API_KEY not configured");
+      return NextResponse.json(
+        { error: "Realtime connection is unavailable right now. Please try again shortly.", code: "INTERNAL_ERROR" },
+        { status: 500 }
+      );
+    }
+
+    const ably = new Ably.Rest(apiKey);
+    const tokenRequest = await ably.auth.createTokenRequest({
+      clientId: identity,
+      capability: { [`duel:${duelId}`]: ["subscribe", "publish", "presence"] },
+    });
+
+    return NextResponse.json(tokenRequest);
+  } catch (err) {
+    console.error("[POST /api/realtime/token]", err);
     return NextResponse.json(
-      { error: "Not a participant in this duel", code: "FORBIDDEN" },
-      { status: 403 }
-    );
-  }
-
-  const apiKey = process.env.ABLY_API_KEY;
-  if (!apiKey) {
-    console.error("[realtime/token] ABLY_API_KEY not configured");
-    return NextResponse.json(
-      { error: "Realtime not configured", code: "INTERNAL_ERROR" },
+      { error: "Could not connect to the realtime service. Please try again.", code: "INTERNAL_ERROR" },
       { status: 500 }
     );
   }
-
-  const ably = new Ably.Rest(apiKey);
-  const tokenRequest = await ably.auth.createTokenRequest({
-    clientId: identity,
-    capability: { [`duel:${duelId}`]: ["subscribe", "publish", "presence"] },
-  });
-
-  return NextResponse.json(tokenRequest);
 }

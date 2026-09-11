@@ -117,7 +117,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   } catch (error) {
     console.error("[POST /api/auth/sync] DB upsert failed:", error);
     return NextResponse.json(
-      { error: "Internal server error", code: "INTERNAL_ERROR" },
+      { error: "Could not sync your account. Please try again.", code: "INTERNAL_ERROR" },
       { status: 500 }
     );
   }

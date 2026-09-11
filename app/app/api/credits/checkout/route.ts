@@ -78,9 +78,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     );
   }
 
-  await recordAgeConfirmation(uid);
-
   try {
+    await recordAgeConfirmation(uid);
     const stripe = getStripe();
     const baseUrl = resolveBaseUrl();
     const chipAmount = chipsForUsd(parsed.data.amountUsd);

@@ -16,6 +16,7 @@ import { nanoid } from "nanoid";
 import { verifyIdToken } from "../../../../../src/lib/firebaseAdmin";
 import { checkRateLimit, clientIp } from "../../../../../src/lib/rateLimit";
 import { getDuel, joinDuel } from "../../../../../src/db/duel";
+import { ensureUser } from "../../../../../src/db/user";
 
 export const runtime = "nodejs";
 
@@ -30,6 +31,8 @@ export async function POST(
 
   // Auth: optional — fall back to IP-based guest id
   let uid: string | null = null;
+  let userEmail: string | undefined;
+  let emailVerified: boolean | undefined;
   const authHeader = request.headers.get("authorization");
   const token = authHeader?.startsWith("Bearer ")
     ? authHeader.slice(7).trim()
@@ -45,6 +48,8 @@ export async function POST(
         decoded.firebase?.sign_in_provider === "anonymous";
       if (!isFirebaseAnon) {
         uid = decoded.uid;
+        userEmail = decoded.email;
+        emailVerified = decoded.email_verified;
       }
       // If anonymous, uid stays null and falls through to guest:<ip> below.
     } catch {
@@ -95,7 +100,30 @@ export async function POST(
   // (it appends rather than replaces), so an IP-based guest id would let an
   // attacker impersonate a guest participant and grief their match.
   const guestOrUid = uid ?? `guest:${nanoid(24)}`;
-  const joinResult = await joinDuel(id, guestOrUid);
+
+  // Ensure a users row exists for authenticated players before joinDuel writes
+  // the FK. auth/sync is fire-and-forget and may not have run yet.
+  // Guests have no Firebase account; joinDuel handles the guest FK path.
+  if (uid && userEmail) {
+    await ensureUser({
+      id: uid,
+      email: userEmail,
+      emailVerified: emailVerified ?? false,
+    }).catch(() => {
+      // Best-effort: if this fails, joinDuel will fail too and surface a 500.
+    });
+  }
+
+  let joinResult;
+  try {
+    joinResult = await joinDuel(id, guestOrUid);
+  } catch (err) {
+    console.error("[POST /api/duel/[id]/join] DB error:", err);
+    return NextResponse.json(
+      { error: "Could not join this duel. Please try again.", code: "INTERNAL_ERROR" },
+      { status: 500 }
+    );
+  }
 
   // W-1: joinDuel acquires SELECT FOR UPDATE and re-checks status inside the
   // lock, so two concurrent requests cannot both win the PENDING check.
