@@ -1,6 +1,13 @@
 @import 'tailwindcss';
 
 /*
+  Tailwind v4 wraps hover: in @media (hover: hover), which suppresses hover
+  effects on touch devices and in Chrome DevTools device emulation. Restore
+  v3 behavior so hover effects fire on all pointer types.
+*/
+@custom-variant hover (&:hover);
+
+/*
   Tailwind v4 moved scale/rotate/translate to individual CSS properties.
   `transition-property: transform` no longer animates them, so we extend
   transition-transform to cover the full set of individual transform properties.
@@ -223,12 +230,14 @@
 }
 
 /*
-  The default border color has changed to `currentcolor` in Tailwind CSS v4,
-  so we've added these compatibility styles to make sure everything still
-  looks the same as it did with Tailwind CSS v3.
+  Default border color. Tailwind v4 changed the default to `currentcolor`, so we
+  pin it back to our theme border token to match v3.
 
-  If we ever want to remove these styles, we need to add an explicit border
-  color utility to any element that depends on these defaults.
+  This MUST live inside `@layer base`: in v4 `@import 'tailwindcss'` wraps all
+  utilities in `@layer utilities`, and an *unlayered* `* { border-color }` rule
+  would beat every layered utility (unlayered CSS outranks any cascade layer),
+  silently killing `border-signal`, `hover:border-*`, etc. Keeping it in
+  `@layer base` lets border utilities override it as intended.
 */
 @layer base {
   *,
@@ -236,7 +245,17 @@
   ::before,
   ::backdrop,
   ::file-selector-button {
-    border-color: var(--color-gray-200, currentcolor);
+    border-color: var(--color-border, currentcolor);
+  }
+
+  /*
+    Tailwind v4 dropped the Preflight rule that gave buttons `cursor: pointer`
+    (v4 defers to the browser default of `cursor: default`). Restore the v3
+    behavior so buttons and button-role elements show the pointer cursor.
+  */
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
   }
 }
 
@@ -271,10 +290,6 @@
 
   /* Active accent — default signal lime; categoryTheme() overrides per tower */
   --accent-rgb: 203 242 77;
-}
-
-* {
-  border-color: var(--color-border);
 }
 
 html {
