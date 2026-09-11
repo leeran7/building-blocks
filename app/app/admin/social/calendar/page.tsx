@@ -160,7 +160,7 @@ export default function CalendarPage() {
         ) : approved.length === 0 ? (
           <EmptySection>
             Nothing approved yet — check{" "}
-            <Link href="/admin/social/approvals" className={`text-signal underline ${FOCUS_RING} rounded`}>
+            <Link href="/admin/social/approvals" className={`text-signal underline ${FOCUS_RING} rounded-sm`}>
               Approvals
             </Link>
             .
@@ -196,7 +196,7 @@ export default function CalendarPage() {
                       {eligibleAccounts.length === 0 ? (
                         <p className="text-xs text-warning">
                           No connected {item.platform} account.{" "}
-                          <Link href="/admin/social/settings" className={`underline ${FOCUS_RING} rounded`}>
+                          <Link href="/admin/social/settings" className={`underline ${FOCUS_RING} rounded-sm`}>
                             Connect one in Settings →
                           </Link>
                         </p>
@@ -208,7 +208,7 @@ export default function CalendarPage() {
                               type="datetime-local"
                               value={scheduleWhen}
                               onChange={(e) => setScheduleWhen(e.target.value)}
-                              className={`rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text-primary focus:outline-none ${FOCUS_RING}`}
+                              className={`rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text-primary focus:outline-hidden ${FOCUS_RING}`}
                             />
                           </label>
                           <div className="flex flex-col gap-1 text-xs text-text-secondary">
@@ -233,7 +233,7 @@ export default function CalendarPage() {
                           {rowError.reconnect && (
                             <>
                               {" "}
-                              <Link href="/admin/social/settings" className={`underline ${FOCUS_RING} rounded`}>
+                              <Link href="/admin/social/settings" className={`underline ${FOCUS_RING} rounded-sm`}>
                                 Reconnect →
                               </Link>
                             </>
@@ -323,7 +323,7 @@ export default function CalendarPage() {
                       {rowError.reconnect && (
                         <>
                           {" "}
-                          <Link href="/admin/social/settings" className={`underline ${FOCUS_RING} rounded`}>
+                          <Link href="/admin/social/settings" className={`underline ${FOCUS_RING} rounded-sm`}>
                             Reconnect →
                           </Link>
                         </>
@@ -347,7 +347,7 @@ export default function CalendarPage() {
             <button
               type="button"
               onClick={() => setShowAllPublished((v) => !v)}
-              className={`text-xs text-signal hover:underline ${FOCUS_RING} rounded`}
+              className={`text-xs text-signal hover:underline ${FOCUS_RING} rounded-sm`}
             >
               {showAllPublished ? "Show less" : "See all →"}
             </button>

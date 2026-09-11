@@ -2,13 +2,13 @@
 const path = require("path");
 const { createRequire } = require("module");
 
-// Node's package "exports" block require.resolve of dist/esm2017/index.js.
+// Node's package "exports" block require.resolve of dist/esm/index.js.
 // Resolve the package root, then join the browser ESM file the webpack alias
 // needs (Next SWC cannot parse undici private fields in the Node ESM entry).
 function resolveFirebaseAuthBrowserEsm() {
   const firebaseRequire = createRequire(require.resolve("firebase/package.json"));
   const authRoot = path.dirname(firebaseRequire.resolve("@firebase/auth/package.json"));
-  return path.join(authRoot, "dist/esm2017/index.js");
+  return path.join(authRoot, "dist/esm/index.js");
 }
 
 const securityHeaders = [

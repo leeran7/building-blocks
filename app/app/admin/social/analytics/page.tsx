@@ -51,7 +51,7 @@ export default function AnalyticsPage() {
       {error && <p className="text-danger text-sm">{error}</p>}
 
       {data ? (
-        <pre className="rounded-xl border border-border bg-void p-4 text-xs overflow-auto max-h-[32rem] font-mono text-text-muted">
+        <pre className="rounded-xl border border-border bg-void p-4 text-xs overflow-auto max-h-128 font-mono text-text-muted">
           {JSON.stringify(data, null, 2)}
         </pre>
       ) : (

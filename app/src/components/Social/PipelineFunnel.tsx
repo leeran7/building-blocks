@@ -77,7 +77,7 @@ export function PipelineFunnel({
           >
             <p className="text-[11px] uppercase tracking-wide text-text-secondary">{seg.label}</p>
             {loading || value === null ? (
-              <div className="mt-2 h-8 w-10 rounded bg-elevated/60 animate-pulse motion-reduce:animate-none" />
+              <div className="mt-2 h-8 w-10 rounded-sm bg-elevated/60 animate-pulse motion-reduce:animate-none" />
             ) : (
               <p
                 className={`mt-1 font-mono text-2xl tabular-nums ${

@@ -19,7 +19,7 @@ import { PAID_DUELS_ENABLED_PUBLIC } from "../config/paidDuel";
 import { useClaimDailyChips } from "../hooks/useClaimDailyChips";
 
 const ITEM =
-  "flex items-center gap-2.5 rounded-lg px-3 min-h-[44px] text-sm text-text-secondary hover:bg-elevated hover:text-text-primary transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal";
+  "flex items-center gap-2.5 rounded-lg px-3 min-h-[44px] text-sm text-text-secondary hover:bg-elevated hover:text-text-primary transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-signal";
 
 function initials(name: string): string {
   const parts = name.replace(/^@/, "").trim().split(/[\s._-]+/).filter(Boolean);
@@ -114,7 +114,7 @@ export function AccountMenu() {
         aria-expanded={open}
         aria-controls={open ? menuId : undefined}
         aria-label="Account menu"
-        className="inline-flex items-center gap-1.5 rounded-full border border-border-strong bg-surface/60 pl-1 pr-2 min-h-[44px] hover:border-signal/50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal"
+        className="inline-flex items-center gap-1.5 rounded-full border border-border-strong bg-surface/60 pl-1 pr-2 min-h-[44px] hover:border-signal/50 transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-signal"
       >
         <span className="flex h-8 w-8 items-center justify-center rounded-full bg-elevated font-mono text-xs font-bold text-text-primary">
           {initials(label)}

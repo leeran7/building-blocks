@@ -62,7 +62,7 @@ export function ClimbLeaderboard({
             className={
               "relative overflow-hidden rounded-xl border px-3 py-2.5 min-h-[52px] flex items-center " +
               (isFirst
-                ? "border-signal/50 bg-accent/[0.06] shadow-signal"
+                ? "border-signal/50 bg-accent/6 shadow-signal"
                 : "border-border-subtle bg-surface/40")
             }
           >
@@ -80,7 +80,7 @@ export function ClimbLeaderboard({
             <div className="relative flex items-center gap-3 w-full">
               <span
                 className={
-                  "flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center font-mono text-sm font-bold tabular-nums " +
+                  "shrink-0 w-8 h-8 rounded-lg flex items-center justify-center font-mono text-sm font-bold tabular-nums " +
                   (isFirst
                     ? "bg-signal text-void"
                     : "border border-border-strong text-text-secondary")

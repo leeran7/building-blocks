@@ -80,7 +80,7 @@ export default async function HomePage() {
       <Suspense
         fallback={
           <div className="border-y border-border-subtle bg-surface/40 py-3">
-            <div className="h-4 bg-border-subtle rounded w-48 mx-auto animate-pulse" />
+            <div className="h-4 bg-border-subtle rounded-sm w-48 mx-auto animate-pulse" />
           </div>
         }
       >

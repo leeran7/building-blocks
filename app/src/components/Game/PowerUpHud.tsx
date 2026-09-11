@@ -84,7 +84,7 @@ export function PowerUpHud({
           >
             <span
               aria-hidden="true"
-              className="inline-flex h-[14px] w-[14px] flex-shrink-0"
+              className="inline-flex h-[14px] w-[14px] shrink-0"
             >
               <PowerUpTypeIcon type={a.type} />
             </span>
@@ -111,7 +111,7 @@ export function PowerUpHud({
         onClick={onToggleMute}
         onContextMenu={(e) => e.preventDefault()}
         aria-pressed={muted}
-        className="flex-shrink-0 min-h-[44px] min-w-[44px] rounded-full border border-border-strong bg-surface px-2.5 py-1.5 font-mono text-[10px] uppercase tracking-[0.12em] text-text-secondary hover:text-text-primary hover:border-signal/50 transition-colors"
+        className="shrink-0 min-h-[44px] min-w-[44px] rounded-full border border-border-strong bg-surface px-2.5 py-1.5 font-mono text-[10px] uppercase tracking-[0.12em] text-text-secondary hover:text-text-primary hover:border-signal/50 transition-colors"
       >
         <span aria-hidden="true">{muted ? "🔇" : "🔊"}</span>
         <span className="sr-only">
@@ -134,7 +134,7 @@ export function PowerUpHud({
 
 function chipClassName(fresh: boolean, urgent: boolean): string {
   const base =
-    "relative inline-flex flex-shrink-0 items-center gap-1.5 overflow-hidden whitespace-nowrap rounded-full border px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.12em] transition-[box-shadow,transform] duration-200";
+    "relative inline-flex shrink-0 items-center gap-1.5 overflow-hidden whitespace-nowrap rounded-full border px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.12em] transition-[box-shadow,transform] duration-200";
   if (fresh) return `${base} animate-powerUpEnter motion-reduce:animate-none`;
   if (urgent) return `${base} animate-powerUpUrgent motion-reduce:animate-none`;
   return base;

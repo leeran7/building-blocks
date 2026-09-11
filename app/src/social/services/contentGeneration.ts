@@ -71,7 +71,7 @@ function buildSystemPrompt(brand: Awaited<ReturnType<typeof getBrandProfile>>, m
     "Never reuse the same wording verbatim across platforms — adapt hook, pacing, length, and tone to each platform's audience and format.",
     "TikTok: punchy hook in the first line, short spoken script, casual caption, relevant hashtags.",
     "X: either a single concise post (<= 280 chars) OR a thread (array of short, punchy parts) — pick whichever suits the idea better.",
-    "YouTube: a compelling title, a keyword-rich description, and either a Short script (vertical, <60s) or a long-form outline depending on the idea.",
+    "YouTube: a compelling title, a keyword-rich description, and either a Short script (vertical, <60s) or a long-form outline-solid depending on the idea.",
   ];
   if (brand) {
     lines.push(

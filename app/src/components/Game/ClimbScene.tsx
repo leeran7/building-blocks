@@ -365,8 +365,8 @@ export function ClimbScene({ tower, categoryLabel, replay = null }: ClimbScenePr
         <div
           className={
             touchDevice
-              ? "absolute left-1/2 z-30 w-[min(92%,28rem)] -translate-x-1/2 rounded-xl border border-signal/40 bg-signal/[0.06] px-4 py-2.5 text-center"
-              : "w-full rounded-xl border border-signal/40 bg-signal/[0.06] px-4 py-2.5 text-center"
+              ? "absolute left-1/2 z-30 w-[min(92%,28rem)] -translate-x-1/2 rounded-xl border border-signal/40 bg-signal/6 px-4 py-2.5 text-center"
+              : "w-full rounded-xl border border-signal/40 bg-signal/6 px-4 py-2.5 text-center"
           }
           style={
             touchDevice
@@ -631,7 +631,7 @@ export function ClimbScene({ tower, categoryLabel, replay = null }: ClimbScenePr
 
 function Overlay({ children }: { children: ReactNode }) {
   return (
-    <div className="absolute inset-0 flex flex-col items-center justify-center overflow-y-auto rounded-xl bg-void/70 backdrop-blur-sm p-4 text-center">
+    <div className="absolute inset-0 flex flex-col items-center justify-center overflow-y-auto rounded-xl bg-void/70 backdrop-blur-xs p-4 text-center">
       <div className="my-auto flex w-full max-w-sm flex-col items-center py-2">
         {children}
       </div>

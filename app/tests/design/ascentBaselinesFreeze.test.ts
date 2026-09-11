@@ -1,10 +1,14 @@
 /**
  * AC-17 / OQ-3 — shared ASCENT motion baselines stay frozen; climb forks amplify.
- * Assert by importing the live Tailwind config (production animation source).
+ * Asserts against the live production animation source. That source moved from
+ * tailwind.config.ts to the `@theme` block in app/globals.css when the project
+ * migrated to Tailwind v4 (CSS-first config), so we parse the CSS here.
  */
 
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { dirname, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
-import config from "../../tailwind.config";
 import {
   CLIMB_ENTER_DURATION_S,
   CLIMB_ENTER_TRANSLATE_Y_PX,
@@ -19,12 +23,36 @@ import {
   POWER_UP_URGENT_SCALE_PEAK,
 } from "../../src/design/climbFeelTokens";
 
-const theme = config.theme!.extend!;
-const keyframes = theme.keyframes as Record<
-  string,
-  Record<string, { transform?: string; opacity?: string }>
->;
-const animation = theme.animation as Record<string, string>;
+type Frame = { transform?: string; opacity?: string };
+
+const css = readFileSync(
+  resolve(dirname(fileURLToPath(import.meta.url)), "../../app/globals.css"),
+  "utf8"
+);
+
+// animation[name] = the `--animate-<name>` value (e.g. "enter 0.7s cubic-bezier(...)").
+const animation: Record<string, string> = {};
+for (const m of css.matchAll(/--animate-(\w+):\s*([^;]+);/g)) {
+  animation[m[1]] = m[2].replace(/\s+/g, " ").trim();
+}
+
+// keyframes[name][step] = { transform?, opacity? }. The block regex allows one
+// level of nested braces (the step blocks); selectors like `0%,\n 100%` are
+// normalised to the canonical "0%, 100%" key the assertions use.
+const keyframes: Record<string, Record<string, Frame>> = {};
+for (const block of css.matchAll(/@keyframes\s+(\w+)\s*\{((?:[^{}]|\{[^}]*\})*)\}/g)) {
+  const steps: Record<string, Frame> = {};
+  for (const step of block[2].matchAll(/([^{}]+?)\s*\{([^}]*)\}/g)) {
+    const selector = step[1].split(",").map((s) => s.trim()).filter(Boolean).join(", ");
+    const frame: Frame = {};
+    const t = step[2].match(/transform:\s*([^;]+);/);
+    const o = step[2].match(/opacity:\s*([^;]+);/);
+    if (t) frame.transform = t[1].trim();
+    if (o) frame.opacity = o[1].trim();
+    steps[selector] = frame;
+  }
+  keyframes[block[1]] = steps;
+}
 
 function translateYPx(frame: { transform?: string } | undefined): number {
   const m = frame?.transform?.match(/translateY\(([-\d.]+)px\)/);

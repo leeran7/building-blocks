@@ -118,7 +118,7 @@ function WarningIcon() {
       strokeLinecap="round"
       strokeLinejoin="round"
       aria-hidden="true"
-      className="flex-shrink-0"
+      className="shrink-0"
     >
       <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
       <line x1="12" y1="9" x2="12" y2="13" />
@@ -151,7 +151,7 @@ const STRENGTH_COLORS = [
 const STRENGTH_LABELS = ["Weak", "Fair", "Good", "Strong"];
 
 const INPUT_BASE =
-  "w-full bg-surface-raised border border-border-strong rounded-lg px-4 py-3 text-base text-text-primary placeholder-text-muted focus:outline-none focus:border-signal focus:ring-1 focus:ring-signal transition-colors";
+  "w-full bg-surface-raised border border-border-strong rounded-lg px-4 py-3 text-base text-text-primary placeholder-text-muted focus:outline-hidden focus:border-signal focus:ring-1 focus:ring-signal transition-colors";
 
 async function syncUserToDb(token: string, email: string) {
   await fetch("/api/auth/sync", {

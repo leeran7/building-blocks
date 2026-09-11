@@ -142,7 +142,7 @@ export default function SettingsPage() {
                 <button
                   type="button"
                   onClick={() => disconnect(a.id)}
-                  className="text-xs text-danger hover:underline focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void rounded"
+                  className="text-xs text-danger hover:underline focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void rounded-sm"
                 >
                   Disconnect
                 </button>
@@ -217,7 +217,7 @@ function Field({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         required={required}
-        className="w-full rounded-lg border border-border bg-void px-3 py-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void"
+        className="w-full rounded-lg border border-border bg-void px-3 py-2 text-sm focus:outline-hidden focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void"
       />
     </div>
   );

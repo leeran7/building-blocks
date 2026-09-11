@@ -54,7 +54,7 @@ export function CreatorProfile({ profile }: { profile: CreatorProfileData }) {
                       aria-label={`${name} on ${PLATFORM_META[p].label}, ${handleDisplay(h)} (opens in new tab)`}
                       className="inline-flex items-center gap-1.5 rounded-full border border-border-strong bg-surface/60 px-3 min-h-[44px] font-mono text-xs text-text-secondary hover:text-signal hover:border-signal/50 transition-colors"
                     >
-                      <SocialMark platform={p} className="h-4 w-4 flex-shrink-0" />
+                      <SocialMark platform={p} className="h-4 w-4 shrink-0" />
                       {handleDisplay(h)}
                     </a>
                   </li>

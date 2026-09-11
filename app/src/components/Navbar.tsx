@@ -23,7 +23,7 @@ interface NavbarProps {
 }
 
 const PILL =
-  "inline-flex items-center justify-center rounded-full px-4 min-h-[38px] text-sm font-semibold tracking-tight transition-[filter,transform] hover:brightness-110 active:scale-[0.98] focus-visible:outline-none";
+  "inline-flex items-center justify-center rounded-full px-4 min-h-[38px] text-sm font-semibold tracking-tight transition-[filter,transform] hover:brightness-110 active:scale-[0.98] focus-visible:outline-hidden";
 const GHOST =
   "inline-flex items-center justify-center px-3 min-h-[38px] font-mono text-xs uppercase tracking-[0.14em] text-text-muted hover:text-text-primary transition-colors";
 
@@ -36,7 +36,7 @@ export function Navbar({ contextLabel, contextDot }: NavbarProps) {
         <Link
           href="/"
           aria-label="Doomstack — home"
-          className="group flex items-center gap-2.5 flex-shrink-0"
+          className="group flex items-center gap-2.5 shrink-0"
         >
           {/* Doomstack logo mark */}
           <StackMark className="h-6 w-6 group-hover:scale-105 transition-transform" />
@@ -52,7 +52,7 @@ export function Navbar({ contextLabel, contextDot }: NavbarProps) {
             <span className="inline-flex items-center gap-1.5 font-mono text-xs uppercase tracking-[0.12em] text-text-secondary truncate">
               {contextDot && (
                 <span
-                  className="w-1.5 h-1.5 rounded-full flex-shrink-0"
+                  className="w-1.5 h-1.5 rounded-full shrink-0"
                   style={{ backgroundColor: contextDot }}
                   aria-hidden="true"
                 />
