@@ -3,7 +3,7 @@ import { TournamentDetail } from "../../../src/components/Tournament/TournamentD
 import { buildMetadata } from "../../../src/lib/seo";
 
 export const metadata: Metadata = buildMetadata({
-  title: "Tournament — The Climb",
+  title: "Tournament — Doomstack",
   description: "Live tournament bracket.",
   path: "/tournaments",
 });

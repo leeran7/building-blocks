@@ -30,7 +30,7 @@ export async function shareInvite(
   url: string,
   opts: ShareInviteOptions = {}
 ): Promise<InviteShareOutcome> {
-  const title = opts.title ?? "1v1 duel — The Climb";
+  const title = opts.title ?? "1v1 duel — Doomstack";
   const text = opts.text ?? "Race me to the top.";
 
   if (typeof navigator !== "undefined" && typeof navigator.share === "function") {

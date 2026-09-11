@@ -12,7 +12,7 @@ import { topFreeClimbers } from "../../src/db/climb";
 import { buildMetadata } from "../../src/lib/seo";
 
 export const metadata: Metadata = buildMetadata({
-  title: "Free Climb Leaderboard — Stack",
+  title: "Free Climb Leaderboard — Doomstack",
   description:
     "The free endless climb leaderboard. Play for practice and bragging rights — your best peak height is your rank.",
   path: "/climb",

@@ -18,7 +18,8 @@ import { Navbar } from "../src/components/Navbar";
 import { JsonLd } from "../src/components/JsonLd";
 import { getGlobalClimbStats } from "../src/db/climb";
 import { getChipDuelStats } from "../src/db/chips";
-import { organizationJsonLd, websiteJsonLd } from "../src/lib/seo";
+import { AboutDoomstack } from "../src/components/LandingPage/AboutDoomstack";
+import { organizationJsonLd, websiteJsonLd, videoGameJsonLd } from "../src/lib/seo";
 import { Suspense } from "react";
 
 // ISR: serve the landing from cache and regenerate at most once per 60s, so the
@@ -64,7 +65,7 @@ export default async function HomePage() {
 
   return (
     <main id="main-content" className="grain min-h-screen bg-void">
-      <JsonLd data={[organizationJsonLd(), websiteJsonLd(), faqJsonLd]} />
+      <JsonLd data={[organizationJsonLd(), websiteJsonLd(), videoGameJsonLd(), faqJsonLd]} />
       <Navbar />
 
       <Hero
@@ -91,6 +92,8 @@ export default async function HomePage() {
       <RankedLeaderboard />
 
       <FreeLeaderboard />
+
+      <AboutDoomstack />
 
       <Faq />
     </main>

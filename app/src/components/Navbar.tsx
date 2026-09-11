@@ -35,7 +35,7 @@ export function Navbar({ contextLabel, contextDot }: NavbarProps) {
       <div className="flex items-center gap-3 min-w-0">
         <Link
           href="/"
-          aria-label="Stack — home"
+          aria-label="Doomstack — home"
           className="group flex items-center gap-2.5 flex-shrink-0"
         >
           {/* Doomstack logo mark */}
