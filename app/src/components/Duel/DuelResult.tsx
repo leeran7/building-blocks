@@ -270,7 +270,7 @@ export function DuelResult({
     setShareFailed(false);
     // Native share sheet first, clipboard/prompt as fallback (shareInvite).
     const outcome = await shareInvite(url, {
-      title: "The Climb — 1v1 duel",
+      title: "Doomstack — 1v1 duel",
       text: hasReplay ? "Watch how this duel went." : "Race me to the top.",
     });
     if (outcome === "copied") {

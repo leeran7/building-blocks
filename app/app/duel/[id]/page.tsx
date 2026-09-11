@@ -3,7 +3,7 @@ import { DuelRoomLoader } from "../../../src/components/Duel/DuelRoomLoader";
 import { buildMetadata } from "../../../src/lib/seo";
 
 export const metadata: Metadata = buildMetadata({
-  title: "Duel Room — The Climb",
+  title: "Duel Room — Doomstack",
   description: "Live 1v1 duel. Climb higher than your opponent before the ground rises.",
   path: "/duel",
 });

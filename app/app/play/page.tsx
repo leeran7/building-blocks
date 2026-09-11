@@ -13,7 +13,7 @@ import { Chevron } from "../../src/components/Chevron";
 import { buildMetadata } from "../../src/lib/seo";
 
 export const metadata: Metadata = buildMetadata({
-  title: "Play the Free Climb — Stack",
+  title: "Play the Free Climb — Doomstack",
   description:
     "Endless climb — go as high as you can before the rising lava catches you. Your peak height ranks on the free leaderboard.",
   path: "/play",

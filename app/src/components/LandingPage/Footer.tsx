@@ -65,7 +65,7 @@ export function Footer({ showCta = true }: { showCta?: boolean }) {
       )}
 
       {/* Links */}
-      <div className="max-w-6xl mx-auto px-4 py-12 grid grid-cols-2 md:grid-cols-4 gap-8">
+      <div className="max-w-6xl mx-auto px-4 py-12 grid grid-cols-2 md:grid-cols-5 gap-8">
         <div className="col-span-2 md:col-span-1">
           <div className="flex items-center gap-2.5">
             <StackMark className="h-6 w-6" />
@@ -137,6 +137,42 @@ export function Footer({ showCta = true }: { showCta?: boolean }) {
               <Link href="/terms" className={LINK}>
                 Terms
               </Link>
+            </li>
+          </ul>
+        </nav>
+
+        <nav aria-label="Follow">
+          <p className={COL_HEAD}>Follow</p>
+          <ul className="space-y-1">
+            <li>
+              <a
+                href="https://x.com/DoomStacklol"
+                className={LINK}
+                target="_blank"
+                rel="me noopener noreferrer"
+              >
+                X / Twitter
+              </a>
+            </li>
+            <li>
+              <a
+                href="https://www.tiktok.com/@doomstack_lol"
+                className={LINK}
+                target="_blank"
+                rel="me noopener noreferrer"
+              >
+                TikTok
+              </a>
+            </li>
+            <li>
+              <a
+                href="https://www.youtube.com/channel/UCm9RfzK29xO1dAYhGa3_bdA"
+                className={LINK}
+                target="_blank"
+                rel="me noopener noreferrer"
+              >
+                YouTube
+              </a>
             </li>
           </ul>
         </nav>

@@ -1,11 +1,14 @@
 import { describe, it, expect } from "vitest";
 import {
   SITE_URL,
+  SITE_LOGO,
+  SOCIAL_PROFILES,
   absoluteUrl,
   ogImageUrl,
   buildMetadata,
   organizationJsonLd,
   websiteJsonLd,
+  videoGameJsonLd,
 } from "../../src/lib/seo";
 
 describe("absoluteUrl", () => {
@@ -82,5 +85,33 @@ describe("organizationJsonLd / websiteJsonLd", () => {
     expect(org["@type"]).toBe("Organization");
     expect(site["@type"]).toBe("WebSite");
     expect(site.publisher).toEqual({ "@id": org["@id"] });
+  });
+
+  it("gives the Organization brand-entity signals (logo + alternateName)", () => {
+    const org = organizationJsonLd();
+    expect(org.logo).toBe(SITE_LOGO);
+    expect(SITE_LOGO).toBe(`${SITE_URL}/logo-1024.png`);
+    expect(org.alternateName).toContain("Doomstack game");
+  });
+
+  it("omits sameAs while no real brand profiles exist (empty is a no-op, wrong is negative)", () => {
+    // Guard: an accidental placeholder URL in SOCIAL_PROFILES would be a
+    // negative entity signal. Only emit sameAs when the list is non-empty.
+    if (SOCIAL_PROFILES.length === 0) {
+      expect(organizationJsonLd()).not.toHaveProperty("sameAs");
+    } else {
+      expect(organizationJsonLd().sameAs).toEqual([...SOCIAL_PROFILES]);
+    }
+  });
+});
+
+describe("videoGameJsonLd", () => {
+  it("classifies Doomstack as a free, playable browser game entity", () => {
+    const game = videoGameJsonLd();
+    expect(game["@type"]).toBe("VideoGame");
+    expect(game["@id"]).toBe(absoluteUrl("/#game"));
+    expect(game.applicationCategory).toBe("GameApplication");
+    expect(game.publisher).toEqual({ "@id": absoluteUrl("/#organization") });
+    expect(game.offers).toMatchObject({ price: "0", priceCurrency: "USD" });
   });
 });
