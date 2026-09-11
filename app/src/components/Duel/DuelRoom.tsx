@@ -850,7 +850,7 @@ function DuelGame({
 // ─────────────────────────────── Room orchestrator ────────────────────────
 
 export function DuelRoom({ duelId }: DuelRoomProps) {
-  const { user, token } = useAuth();
+  const { user, token, loading: authLoading } = useAuth();
   const router = useRouter();
 
   const [phase, setPhase] = useState<RoomPhase>("loading");
@@ -873,6 +873,15 @@ export function DuelRoom({ duelId }: DuelRoomProps) {
 
   // Load duel and connect
   useEffect(() => {
+    // Wait until Firebase auth has resolved before deciding who we are. If we
+    // run while auth is still initializing (user/token both null), a signed-in
+    // visitor — including the creator opening their own invite link — is
+    // mistaken for an anonymous guest, and the join below binds the duel to a
+    // throwaway guest identity. That corrupts the duel ("could not join duel"
+    // for the real opponent) the instant an invite link is opened. Once
+    // authLoading is false, a null user is a genuine anonymous guest.
+    if (authLoading) return;
+
     let cancelled = false;
 
     const authHeaders: Record<string, string> = token
@@ -1031,7 +1040,7 @@ export function DuelRoom({ duelId }: DuelRoomProps) {
     return () => {
       cancelled = true;
     };
-  }, [duelId, user, token]);
+  }, [duelId, user, token, authLoading]);
 
   const handleRematch = useCallback(
     (newDuelId: string) => {
