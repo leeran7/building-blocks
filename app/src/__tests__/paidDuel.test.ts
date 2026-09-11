@@ -26,13 +26,22 @@ describe("assertPaidDuelAllowed — enforcement on, default-deny allow-list", ()
     else process.env.PAID_DUEL_GEO_ENFORCE = prev;
   });
 
-  it("denies every US state by default — the allow-list starts empty", () => {
-    for (const region of ["NY", "CA", "TX", "FL", "AZ"]) {
+  it("denies US states that are not on the allow-list (NY, FL, AZ, NV, WA)", () => {
+    for (const region of ["NY", "FL", "AZ", "NV", "WA"]) {
       const d = assertPaidDuelAllowed(
         req({ "x-vercel-ip-country": "US", "x-vercel-ip-country-region": region })
       );
       expect(d.allowed).toBe(false);
       expect(d.reason).toBe("not_allowlisted");
+    }
+  });
+
+  it("allows cleared US states (CA, TX, OH, VA, WI)", () => {
+    for (const region of ["CA", "TX", "OH", "VA", "WI"]) {
+      const d = assertPaidDuelAllowed(
+        req({ "x-vercel-ip-country": "US", "x-vercel-ip-country-region": region })
+      );
+      expect(d.allowed).toBe(true);
     }
   });
 
@@ -54,7 +63,7 @@ describe("assertPaidDuelAllowed — enforcement on, default-deny allow-list", ()
     expect(d.reason).toBe("not_allowlisted");
   });
 
-  it("allows a US state once it's explicitly added to the allow-list, and only that one", () => {
+  it("allows a denied state once it's explicitly added to the allow-list, and does not allow other denied states", () => {
     ALLOWED_US_REGIONS.add("NY");
     try {
       const cleared = assertPaidDuelAllowed(
@@ -62,8 +71,9 @@ describe("assertPaidDuelAllowed — enforcement on, default-deny allow-list", ()
       );
       expect(cleared.allowed).toBe(true);
 
+      // AZ is not on the allow-list and was not added above
       const stillDenied = assertPaidDuelAllowed(
-        req({ "x-vercel-ip-country": "US", "x-vercel-ip-country-region": "CA" })
+        req({ "x-vercel-ip-country": "US", "x-vercel-ip-country-region": "AZ" })
       );
       expect(stillDenied.allowed).toBe(false);
     } finally {
