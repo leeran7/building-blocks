@@ -19,6 +19,7 @@ import { shareInvite } from "../../lib/shareInvite";
 import { Navbar } from "../Navbar";
 import { BuyCreditsModal } from "../Wallet/BuyCreditsModal";
 import { PAID_DUELS_ENABLED_PUBLIC } from "../../config/paidDuel";
+import { useClaimDailyChips } from "../../hooks/useClaimDailyChips";
 
 // ─────────────────────────────── Types ────────────────────────────────────
 
@@ -62,6 +63,7 @@ export function DuelHome() {
   const [mode, setMode] = useState<DuelMode>("quick");
   const [buyOpen, setBuyOpen] = useState(false);
   const [chipBalance, setChipBalance] = useState<number | null>(null);
+  const { state: claimState, claim } = useClaimDailyChips(token);
 
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const createButtonRef = useRef<HTMLButtonElement>(null);
@@ -97,7 +99,7 @@ export function DuelHome() {
         if (data) setChipBalance(data.playCents ?? 0);
       })
       .catch(() => {});
-  }, [user, token, buyOpen]);
+  }, [user, token, buyOpen, claimState.status]);
 
   // Stop polling on unmount
   useEffect(() => {
@@ -519,6 +521,26 @@ export function DuelHome() {
               >
                 Buy chips
               </button>
+              <button
+                onClick={claim}
+                disabled={
+                  claimState.status === "claiming" ||
+                  claimState.status === "claimed" ||
+                  claimState.status === "already-claimed"
+                }
+                className="text-center text-xs text-text-muted underline underline-offset-2 hover:text-text-primary transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {claimState.status === "claiming"
+                  ? "Claiming..."
+                  : claimState.status === "claimed"
+                    ? "Claimed today's free chips"
+                    : claimState.status === "already-claimed"
+                      ? "Already claimed today"
+                      : "Claim your free daily chips"}
+              </button>
+              {claimState.status === "error" && (
+                <p className="text-center text-xs text-ember" role="alert">{claimState.message}</p>
+              )}
             </div>
             <BuyCreditsModal open={buyOpen} onClose={() => setBuyOpen(false)} token={token} />
           </section>

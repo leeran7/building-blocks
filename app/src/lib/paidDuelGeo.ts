@@ -23,8 +23,40 @@
  * defaults off there (PAID_DUEL_GEO_ENFORCE).
  */
 
-/** US states explicitly cleared for money-moving paid features. Starts empty. */
-export const ALLOWED_US_REGIONS = new Set<string>([]);
+/**
+ * US states explicitly cleared for chip duels (legal signoff received).
+ * Denied states include AZ, FL, IA, LA, NV, NJ, NY, SC, TN, WA and others
+ * not listed below — add only after state-specific counsel review.
+ */
+export const ALLOWED_US_REGIONS = new Set<string>([
+  "AL", // Alabama
+  "AK", // Alaska
+  "CA", // California
+  "CO", // Colorado
+  "GA", // Georgia
+  "IL", // Illinois
+  "IN", // Indiana
+  "KS", // Kansas
+  "KY", // Kentucky
+  "MA", // Massachusetts
+  "MN", // Minnesota
+  "MO", // Missouri
+  "NE", // Nebraska
+  "NH", // New Hampshire
+  "NM", // New Mexico
+  "NC", // North Carolina
+  "ND", // North Dakota
+  "OH", // Ohio
+  "OK", // Oklahoma
+  "OR", // Oregon
+  "RI", // Rhode Island
+  "TX", // Texas
+  "VT", // Vermont
+  "VA", // Virginia
+  "WV", // West Virginia
+  "WI", // Wisconsin
+  "WY", // Wyoming
+]);
 
 /** Countries explicitly cleared for money-moving paid features. Starts empty — non-US is denied by default, same as every US state. */
 export const ALLOWED_COUNTRIES = new Set<string>([]);

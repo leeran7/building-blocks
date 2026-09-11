@@ -577,52 +577,70 @@ export type DisburseResult =
   | { outcome: "already_transferred" }
   | { outcome: "not_payout_ready" };
 
+/**
+ * Disburse a tournament prize exactly once. Holds a row lock across both the
+ * live Stripe payout-readiness check and the transfer call itself — two
+ * overlapping invocations (a manual internal-token trigger racing the cron,
+ * or a slow retry) must not both pass the `stripe_transfer_id == null` check
+ * and both call Stripe. Same SELECT-FOR-UPDATE-around-the-transaction shape
+ * as refundPaidDuel in src/db/duel.ts.
+ */
 export async function disbursePrize(
   tournamentId: string,
   userId: string,
   transferFn: (connectAccountId: string, amountCents: number, tournamentId: string, entryId: string) => Promise<string>,
   isReadyFn: (connectAccountId: string) => Promise<boolean>
 ): Promise<DisburseResult> {
-  const entry = await prisma.tournamentEntry.findFirst({
+  const existing = await prisma.tournamentEntry.findFirst({
     where: { tournament_id: tournamentId, user_id: userId },
+    select: { id: true },
   });
-  if (!entry || !entry.prize_cents || entry.prize_cents <= 0) {
+  if (!existing) {
     return { outcome: "no_prize" };
   }
-  if (entry.stripe_transfer_id) {
-    return { outcome: "already_transferred" };
-  }
 
-  const user = await prisma.user.findUniqueOrThrow({
-    where: { id: userId },
-    select: { stripe_connect_account_id: true },
+  return prisma.$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT id FROM tournament_entries WHERE id = ${existing.id} FOR UPDATE`;
+    const entry = await tx.tournamentEntry.findUniqueOrThrow({ where: { id: existing.id } });
+
+    if (!entry.prize_cents || entry.prize_cents <= 0) {
+      return { outcome: "no_prize" };
+    }
+    if (entry.stripe_transfer_id) {
+      return { outcome: "already_transferred" };
+    }
+
+    const user = await tx.user.findUniqueOrThrow({
+      where: { id: userId },
+      select: { stripe_connect_account_id: true },
+    });
+    if (!user.stripe_connect_account_id) {
+      return { outcome: "no_connect_account" };
+    }
+
+    const ready = await isReadyFn(user.stripe_connect_account_id);
+    if (!ready) {
+      return { outcome: "not_payout_ready" };
+    }
+
+    const transferId = await transferFn(
+      user.stripe_connect_account_id,
+      entry.prize_cents,
+      tournamentId,
+      entry.id
+    );
+
+    await tx.tournamentEntry.update({
+      where: { id: entry.id },
+      data: {
+        stripe_connect_account_id: user.stripe_connect_account_id,
+        stripe_transfer_id: transferId,
+        payout_status: "transfer_created",
+      },
+    });
+
+    return { outcome: "transferred", transferId };
   });
-  if (!user.stripe_connect_account_id) {
-    return { outcome: "no_connect_account" };
-  }
-
-  const ready = await isReadyFn(user.stripe_connect_account_id);
-  if (!ready) {
-    return { outcome: "not_payout_ready" };
-  }
-
-  const transferId = await transferFn(
-    user.stripe_connect_account_id,
-    entry.prize_cents,
-    tournamentId,
-    entry.id
-  );
-
-  await prisma.tournamentEntry.update({
-    where: { id: entry.id },
-    data: {
-      stripe_connect_account_id: user.stripe_connect_account_id,
-      stripe_transfer_id: transferId,
-      payout_status: "transfer_created",
-    },
-  });
-
-  return { outcome: "transferred", transferId };
 }
 
 export async function updatePayoutStatus(
@@ -633,6 +651,54 @@ export async function updatePayoutStatus(
     where: { stripe_transfer_id: transferId },
     data: { payout_status: status },
   });
+}
+
+export interface PrizeEntryView {
+  tournamentId: string;
+  tournamentName: string;
+  placement: number | null;
+  prizeCents: number;
+  payoutStatus: string | null;
+}
+
+/**
+ * Prize-bearing entries for a user, across all tournaments — feeds the
+ * /account/payout page.
+ */
+export async function getUserPrizeEntries(userId: string): Promise<PrizeEntryView[]> {
+  const entries = await prisma.tournamentEntry.findMany({
+    where: { user_id: userId, prize_cents: { gt: 0 } },
+    include: { tournament: { select: { name: true } } },
+    orderBy: { registered_at: "desc" },
+  });
+
+  return entries.map((e) => ({
+    tournamentId: e.tournament_id,
+    tournamentName: e.tournament.name,
+    placement: e.placement,
+    prizeCents: e.prize_cents ?? 0,
+    payoutStatus: e.payout_status,
+  }));
+}
+
+/**
+ * Prize-bearing entries still awaiting disbursement, across all users —
+ * polled by the reap-pending-payouts cron. Excludes entries already
+ * transferred or hard-failed (failures need manual/support follow-up, not
+ * an endless retry loop).
+ */
+export async function getPendingPayoutEntries(): Promise<
+  { tournamentId: string; userId: string }[]
+> {
+  const entries = await prisma.tournamentEntry.findMany({
+    where: {
+      prize_cents: { gt: 0 },
+      stripe_transfer_id: null,
+      payout_status: { notIn: ["transfer_failed"] },
+    },
+    select: { tournament_id: true, user_id: true },
+  });
+  return entries.map((e) => ({ tournamentId: e.tournament_id, userId: e.user_id }));
 }
 
 /**

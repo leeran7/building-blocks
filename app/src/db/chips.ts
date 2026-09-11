@@ -27,6 +27,60 @@ export function isValidChipTier(n: number): n is ChipTier {
   return (CHIP_TIERS as readonly number[]).includes(n);
 }
 
+// Ongoing free-play alternative to purchase — a one-time signup grant alone
+// doesn't hold up (Kater v. Churchill Downs, 886 F.3d 784 (9th Cir. 2018)).
+// 100 chips/day = enough to enter multiple low-tier duels without purchasing.
+export const DAILY_CHIP_GRANT_CENTS = 10_000; // 100 chips
+const DAILY_GRANT_COOLDOWN_MS = 24 * 60 * 60 * 1000;
+
+export class DailyGrantAlreadyClaimedError extends Error {
+  constructor(public readonly nextClaimAt: Date) {
+    super("DAILY_GRANT_ALREADY_CLAIMED");
+    this.name = "DailyGrantAlreadyClaimedError";
+  }
+}
+
+/**
+ * Claim the daily free chip grant. One claim per rolling 24h window per user,
+ * enforced by row lock so concurrent requests can't double-grant.
+ */
+export async function claimDailyChips(userId: string): Promise<{ balanceAfter: number }> {
+  return prisma.$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT id FROM users WHERE id = ${userId} FOR UPDATE`;
+    const u = await tx.user.findUniqueOrThrow({
+      where: { id: userId },
+      select: { play_credits_cents: true, last_daily_chips_claim_at: true },
+    });
+
+    const now = new Date();
+    if (
+      u.last_daily_chips_claim_at &&
+      now.getTime() - u.last_daily_chips_claim_at.getTime() < DAILY_GRANT_COOLDOWN_MS
+    ) {
+      throw new DailyGrantAlreadyClaimedError(
+        new Date(u.last_daily_chips_claim_at.getTime() + DAILY_GRANT_COOLDOWN_MS)
+      );
+    }
+
+    const after = u.play_credits_cents + DAILY_CHIP_GRANT_CENTS;
+    await tx.user.update({
+      where: { id: userId },
+      data: { play_credits_cents: after, last_daily_chips_claim_at: now },
+    });
+    await tx.walletLedger.create({
+      data: {
+        user_id: userId,
+        bucket: WalletBucket.PLAY,
+        amount_cents: DAILY_CHIP_GRANT_CENTS,
+        balance_after: after,
+        kind: WalletLedgerKind.DAILY_GRANT,
+      },
+    });
+
+    return { balanceAfter: after };
+  });
+}
+
 // ── Staking ──────────────────────────────────────────────────────────────────
 
 async function debitChipsInTx(

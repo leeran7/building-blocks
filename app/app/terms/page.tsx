@@ -204,6 +204,15 @@ export default function TermsPage() {
               They have no cash value outside the Service, are not a bank deposit,
               are not insured, and earn no interest. We are not a bank, money
               transmitter, or money services business. All chip sales are final.
+              Chips are a limited, revocable license to use a Service feature —
+              not property, a financial instrument, or an asset you own — and
+              have no value outside that license.
+            </li>
+            <li>
+              <strong>Free chips.</strong> New accounts receive a one-time free
+              chip grant, and every account may claim an additional free chip
+              grant once per day at no cost. Buying chips is never required to
+              play.
             </li>
             <li>
               <strong>Zero-sum matches, no house cut.</strong> In a chip duel,
@@ -297,6 +306,12 @@ export default function TermsPage() {
               purchased chips and unfulfilled tournament prizes to affected users
               by a reasonable method, except where prohibited by law or where an
               amount is subject to a fraud, dispute, or eligibility hold.
+            </li>
+            <li>
+              <strong>Play responsibly.</strong> If gameplay or spending on
+              chips or tournament entries feels out of your control, please
+              seek help. In the US, contact the National Council on Problem
+              Gambling at 1-800-522-4700.
             </li>
           </List>
         </Section>
