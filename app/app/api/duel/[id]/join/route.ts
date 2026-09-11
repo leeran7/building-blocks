@@ -16,7 +16,7 @@ import { nanoid } from "nanoid";
 import { verifyIdToken } from "../../../../../src/lib/firebaseAdmin";
 import { checkRateLimit, clientIp } from "../../../../../src/lib/rateLimit";
 import { getDuel, joinDuel } from "../../../../../src/db/duel";
-import { ensureUser, ensureGuestUser } from "../../../../../src/db/user";
+import { ensureUser } from "../../../../../src/db/user";
 
 export const runtime = "nodejs";
 
@@ -101,22 +101,15 @@ export async function POST(
   // attacker impersonate a guest participant and grief their match.
   const guestOrUid = uid ?? `guest:${nanoid(24)}`;
 
-  // Ensure a `users` row exists for whoever we're about to write into
-  // player2_id — the duels table foreign-keys to users(id), so this must
-  // complete before joinDuel or the FK constraint rejects the update.
-  // Authenticated: auth/sync is fire-and-forget and may not have run yet.
-  // Guest: there is no Firebase account at all, so a placeholder row is the
-  // only way to satisfy the FK (see ensureGuestUser).
+  // Ensure a users row exists for authenticated players before joinDuel writes
+  // the FK. auth/sync is fire-and-forget and may not have run yet.
+  // Guests have no Firebase account; joinDuel handles the guest FK path.
   if (uid && userEmail) {
     await ensureUser({
       id: uid,
       email: userEmail,
       emailVerified: emailVerified ?? false,
     }).catch(() => {
-      // Best-effort: if this fails, joinDuel will fail too and surface a 500.
-    });
-  } else if (!uid) {
-    await ensureGuestUser(guestOrUid).catch(() => {
       // Best-effort: if this fails, joinDuel will fail too and surface a 500.
     });
   }
