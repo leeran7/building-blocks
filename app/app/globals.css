@@ -1,6 +1,231 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import 'tailwindcss';
+
+@theme {
+  --color-tower-sky: #0ea5e9;
+  --color-tower-ground: #92400e;
+  --color-tower-buried: #9ca3af;
+  --color-tower-amber: #f59e0b;
+  --color-tower-gold: #eab308;
+  --color-tower-base: #0f172a;
+  --color-tower-surface: #1e293b;
+  --color-tower-border: #334155;
+  --color-tower-text: #f8fafc;
+  --color-tower-muted: #94a3b8;
+
+  --color-void: #0a0a0c;
+  --color-surface: #121116;
+  --color-surface-raised: #17161c;
+  --color-elevated: #1e1c24;
+  --color-border-subtle: #24222c;
+  --color-border-strong: #37343f;
+  --color-border-focus: #4a4656;
+  --color-text-primary: #f4f2ec;
+  --color-text-secondary: #a8a4b2;
+  --color-text-muted: #74707e;
+  --color-text-disabled: #4a4656;
+
+  --color-accent: rgb(var(--accent-rgb, 203 242 77));
+  --color-accent-tech: #00d4ff;
+  --color-accent-design: #ff6b9d;
+  --color-accent-business: #ffd700;
+  --color-accent-creative: #b07cd6;
+  --color-accent-gaming: #00ff88;
+  --color-accent-science: #ff8c00;
+
+  --color-signal: #cbf24d;
+  --color-ember: #ff5a2c;
+  --color-brand: #cbf24d;
+  --color-danger: #ff5a2c;
+  --color-warning: #ffb020;
+  --color-success: #8fd14f;
+
+  --shadow-card: 0 1px 2px 0 rgb(0 0 0 / 0.25);
+  --shadow-lifted: 0 18px 40px -20px rgb(0 0 0 / 0.75);
+  --shadow-signal:
+    0 0 0 1px rgb(203 242 77 / 0.15), 0 12px 40px -12px rgb(203 242 77 / 0.35);
+  --shadow-ember:
+    0 0 0 1px rgb(255 90 44 / 0.18), 0 12px 40px -14px rgb(255 90 44 / 0.4);
+
+  --font-display: var(--font-display), system-ui, sans-serif;
+  --font-sans: var(--font-sans), system-ui, sans-serif;
+  --font-mono: var(--font-mono), ui-monospace, monospace;
+
+  --animate-sway: sway 4s ease-in-out infinite;
+  --animate-slideOut: slideOut 0.4s ease-in forwards;
+  --animate-slideIn: slideIn 0.4s ease-out forwards;
+  --animate-crossFade: crossFade 0.4s ease-in-out;
+  --animate-rise: rise 0.6s ease-out;
+  --animate-enter: enter 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
+  --animate-groundRise: groundRise 6s ease-in-out infinite;
+  --animate-climb: climb 0.8s cubic-bezier(0.16, 1, 0.3, 1) both;
+  --animate-climbEnter: climbEnter 0.56s cubic-bezier(0.16, 1, 0.3, 1) both;
+  --animate-climbPunch: climbPunch 0.64s cubic-bezier(0.16, 1, 0.3, 1) both;
+  --animate-climbGroundRise: climbGroundRise 4.8s ease-in-out infinite;
+  --animate-marquee: marquee 40s linear infinite;
+  --animate-powerUpEnter: powerUpEnter 0.36s cubic-bezier(0.16, 1, 0.3, 1) both;
+  --animate-powerUpUrgent: powerUpUrgent 0.6s ease-in-out infinite;
+
+  @keyframes sway {
+    0%,
+    100% {
+      transform: translateX(0px);
+    }
+    50% {
+      transform: translateX(2px);
+    }
+  }
+  @keyframes slideOut {
+    0% {
+      transform: translateX(0);
+      opacity: 1;
+    }
+    100% {
+      transform: translateX(-100%);
+      opacity: 0;
+    }
+  }
+  @keyframes slideIn {
+    0% {
+      transform: translateX(100%);
+      opacity: 0;
+    }
+    100% {
+      transform: translateX(0);
+      opacity: 1;
+    }
+  }
+  @keyframes crossFade {
+    0% {
+      opacity: 0;
+    }
+    100% {
+      opacity: 1;
+    }
+  }
+  @keyframes rise {
+    0% {
+      transform: translateY(4px);
+      opacity: 0;
+    }
+    100% {
+      transform: translateY(0);
+      opacity: 1;
+    }
+  }
+  @keyframes enter {
+    0% {
+      transform: translateY(16px);
+      opacity: 0;
+    }
+    100% {
+      transform: translateY(0);
+      opacity: 1;
+    }
+  }
+  @keyframes groundRise {
+    0%,
+    100% {
+      transform: translateY(4%);
+      opacity: 0.85;
+    }
+    50% {
+      transform: translateY(0);
+      opacity: 1;
+    }
+  }
+  @keyframes climb {
+    0% {
+      transform: translateY(6px);
+      opacity: 0.4;
+    }
+    100% {
+      transform: translateY(0);
+      opacity: 1;
+    }
+  }
+  @keyframes climbEnter {
+    0% {
+      transform: translateY(20px);
+      opacity: 0;
+    }
+    100% {
+      transform: translateY(0);
+      opacity: 1;
+    }
+  }
+  @keyframes climbPunch {
+    0% {
+      transform: translateY(7.5px);
+      opacity: 0.4;
+    }
+    100% {
+      transform: translateY(0);
+      opacity: 1;
+    }
+  }
+  @keyframes climbGroundRise {
+    0%,
+    100% {
+      transform: translateY(5%);
+      opacity: 0.85;
+    }
+    50% {
+      transform: translateY(0);
+      opacity: 1;
+    }
+  }
+  @keyframes marquee {
+    0% {
+      transform: translateX(0);
+    }
+    100% {
+      transform: translateX(-50%);
+    }
+  }
+  @keyframes powerUpEnter {
+    0% {
+      transform: scale(0.775);
+      opacity: 0;
+    }
+    55% {
+      transform: scale(1.075);
+      opacity: 1;
+    }
+    100% {
+      transform: scale(1);
+      opacity: 1;
+    }
+  }
+  @keyframes powerUpUrgent {
+    0%,
+    100% {
+      transform: scale(1);
+      opacity: 1;
+    }
+    50% {
+      transform: scale(1.05);
+      opacity: 0.92;
+    }
+  }
+}
+
+/*
+  The default border color has changed to `currentcolor` in Tailwind CSS v4,
+  so we've added these compatibility styles to make sure everything still
+  looks the same as it did with Tailwind CSS v3.
+
+  If we ever want to remove these styles, we need to add an explicit border
+  color utility to any element that depends on these defaults.
+*/
+@layer base {
+  *,
+  ::after,
+  ::before,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: var(--color-gray-200, currentcolor);
+  }
+}
 
 /* ─────────────────────────────────────────────────────────────────────────
    Tower — dark editorial design system

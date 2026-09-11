@@ -77,7 +77,7 @@ export async function RankedLeaderboard() {
                         : "border-border-subtle bg-surface/40")
                     }
                   >
-                    <span className="flex-shrink-0 w-7 h-7 rounded-lg flex items-center justify-center font-mono text-xs font-bold tabular-nums border border-border-strong text-text-secondary">
+                    <span className="shrink-0 w-7 h-7 rounded-lg flex items-center justify-center font-mono text-xs font-bold tabular-nums border border-border-strong text-text-secondary">
                       {rank}
                     </span>
                     <span className="flex-1 min-w-0 text-sm font-medium text-text-primary truncate">

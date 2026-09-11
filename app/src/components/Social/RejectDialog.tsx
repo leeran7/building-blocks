@@ -83,7 +83,7 @@ export function RejectDialog({
           onChange={(e) => setReason(e.target.value)}
           placeholder="Reason (optional)"
           rows={3}
-          className={`w-full rounded-lg border border-border bg-void px-3 py-2 text-sm text-text-primary placeholder:text-text-secondary focus:outline-none ${FOCUS_RING}`}
+          className={`w-full rounded-lg border border-border bg-void px-3 py-2 text-sm text-text-primary placeholder:text-text-secondary focus:outline-hidden ${FOCUS_RING}`}
         />
         {error && (
           <p className="text-xs text-danger" role="alert">

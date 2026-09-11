@@ -12,8 +12,8 @@
  * safe as text; all others already pass comfortably.
  *
  * `rgb` is the space-separated form consumed by `rgb(var(--accent-rgb) / <a>)`
- * in tailwind.config.ts, which is what makes `text-accent`, `bg-accent/10`,
- * `border-accent/40`, etc. resolve to the active tower's color.
+ * in the `@theme` block of app/globals.css, which is what makes `text-accent`,
+ * `bg-accent/10`, `border-accent/40`, etc. resolve to the active tower's color.
  */
 
 import type { CSSProperties } from "react";

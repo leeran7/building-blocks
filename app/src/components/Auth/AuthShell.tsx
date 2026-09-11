@@ -16,7 +16,7 @@ const DECO_BARS = [94, 72, 58, 40];
 
 export function AuthShell({ children }: { children: ReactNode }) {
   return (
-    <div className="grain min-h-[100dvh] bg-void md:grid md:grid-cols-[1.1fr_1fr]">
+    <div className="grain min-h-dvh bg-void md:grid md:grid-cols-[1.1fr_1fr]">
       {/* Brand panel — desktop only */}
       <aside className="topo relative hidden md:flex flex-col justify-between p-10 lg:p-14 border-r border-border-subtle overflow-hidden">
         <div
@@ -100,7 +100,7 @@ export function AuthShell({ children }: { children: ReactNode }) {
       </aside>
 
       {/* Form column */}
-      <main id="main-content" className="flex items-center justify-center px-4 py-10 min-h-[100dvh] md:min-h-0">
+      <main id="main-content" className="flex items-center justify-center px-4 py-10 min-h-dvh md:min-h-0">
         {children}
       </main>
     </div>

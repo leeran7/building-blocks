@@ -70,7 +70,7 @@ export function ShareRun({ peakY, shareUrl, encoding }: ShareRunProps) {
               <button
                 type="button"
                 onClick={handleCopy}
-                className="text-sm font-medium border border-border-strong text-text-secondary hover:bg-elevated hover:text-text-primary px-3.5 py-2 rounded-lg transition min-h-[40px] inline-flex items-center min-w-[7.5rem] justify-center"
+                className="text-sm font-medium border border-border-strong text-text-secondary hover:bg-elevated hover:text-text-primary px-3.5 py-2 rounded-lg transition min-h-[40px] inline-flex items-center min-w-30 justify-center"
                 aria-label="Copy replay link"
               >
                 {copied ? "Copied!" : "Copy link"}

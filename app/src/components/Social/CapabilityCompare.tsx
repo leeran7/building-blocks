@@ -17,7 +17,7 @@ export function CapabilityCompare() {
   return (
     <details className="group rounded-xl border border-border bg-elevated px-4 py-3 open:pb-4">
       <summary
-        className="flex min-h-[44px] cursor-pointer list-none items-center justify-between gap-3 text-sm text-text-secondary [&::-webkit-details-marker]:hidden focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void rounded"
+        className="flex min-h-[44px] cursor-pointer list-none items-center justify-between gap-3 text-sm text-text-secondary [&::-webkit-details-marker]:hidden focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void rounded-sm"
       >
         <span>Not sure which to use?</span>
         <span className="flex items-center gap-1 font-mono text-xs uppercase tracking-wide">

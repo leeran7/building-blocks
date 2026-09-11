@@ -129,7 +129,7 @@ export default function AgentChatPage() {
         <ToolReferencePanel />
       </header>
 
-      <div className="rounded-xl border border-border bg-elevated flex flex-col h-[32rem]">
+      <div className="rounded-xl border border-border bg-elevated flex flex-col h-128">
         <div className="flex-1 overflow-y-auto p-4 space-y-3">
           {messages.length === 0 && (
             <p className="text-text-secondary text-sm">
@@ -158,7 +158,7 @@ export default function AgentChatPage() {
             value={replayUrl}
             onChange={(e) => setReplayUrl(e.target.value)}
             placeholder="Replay link — https://www.doomstack.lol/play?r=…"
-            className={`w-full rounded-lg border border-border bg-void px-3 py-2 text-sm focus:outline-none ${FOCUS_RING}`}
+            className={`w-full rounded-lg border border-border bg-void px-3 py-2 text-sm focus:outline-hidden ${FOCUS_RING}`}
             disabled={loading}
           />
           <div className="flex gap-2">
@@ -166,7 +166,7 @@ export default function AgentChatPage() {
               value={message}
               onChange={(e) => setMessage(e.target.value)}
               placeholder="Optional: angle or platform (e.g. hype TikTok)"
-              className={`flex-1 rounded-lg border border-border bg-void px-3 py-2 text-sm focus:outline-none ${FOCUS_RING}`}
+              className={`flex-1 rounded-lg border border-border bg-void px-3 py-2 text-sm focus:outline-hidden ${FOCUS_RING}`}
               disabled={loading}
             />
             <button

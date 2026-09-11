@@ -24,7 +24,7 @@ import {
 type SocialState = Partial<Record<CreatorPlatform, string>>;
 
 const INPUT =
-  "w-full bg-surface-raised border border-border-strong rounded-lg px-4 py-3 text-base text-text-primary placeholder-text-muted focus:outline-none focus:border-signal focus:ring-1 focus:ring-signal transition-colors";
+  "w-full bg-surface-raised border border-border-strong rounded-lg px-4 py-3 text-base text-text-primary placeholder-text-muted focus:outline-hidden focus:border-signal focus:ring-1 focus:ring-signal transition-colors";
 
 function domainOf(url: string): string {
   return url.replace(/^https?:\/\//, "").replace(/\/.*$/, "");
@@ -244,7 +244,7 @@ export default function SettingsPage() {
                   className="grid grid-cols-[7rem_1fr] items-center gap-3 py-2.5 border-b border-border-subtle last:border-0"
                 >
                   <span className="flex items-center gap-2 text-text-secondary">
-                    <SocialMark platform={p} className="h-4 w-4 flex-shrink-0" />
+                    <SocialMark platform={p} className="h-4 w-4 shrink-0" />
                     <span className="text-sm">{PLATFORM_META[p].label}</span>
                   </span>
                   <div className="flex items-center gap-2">
@@ -300,7 +300,7 @@ export default function SettingsPage() {
                 key={u}
                 className="flex items-center gap-3 rounded-lg border border-border-subtle bg-surface-raised px-3 py-2.5"
               >
-                <span className="w-1.5 h-1.5 rounded-full bg-signal flex-shrink-0" />
+                <span className="w-1.5 h-1.5 rounded-full bg-signal shrink-0" />
                 <span className="flex-1 min-w-0">
                   <span className="block text-sm text-text-primary truncate">
                     {domainOf(u)}
@@ -312,7 +312,7 @@ export default function SettingsPage() {
                 <button
                   type="button"
                   onClick={() => removeUrl(u)}
-                  className="flex-shrink-0 font-mono text-[11px] uppercase tracking-[0.12em] text-text-muted hover:text-ember transition-colors min-h-[36px] px-2"
+                  className="shrink-0 font-mono text-[11px] uppercase tracking-[0.12em] text-text-muted hover:text-ember transition-colors min-h-[36px] px-2"
                   aria-label={`Remove ${u}`}
                 >
                   Remove
@@ -339,7 +339,7 @@ export default function SettingsPage() {
             <button
               type="button"
               onClick={addUrl}
-              className="flex-shrink-0 rounded-lg border border-border-strong bg-surface-raised px-4 text-sm font-semibold text-text-primary hover:border-signal/50 transition-colors min-h-[44px]"
+              className="shrink-0 rounded-lg border border-border-strong bg-surface-raised px-4 text-sm font-semibold text-text-primary hover:border-signal/50 transition-colors min-h-[44px]"
             >
               Add
             </button>

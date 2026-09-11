@@ -4,6 +4,7 @@ import "./globals.css";
 import { AuthProvider } from "../src/contexts/AuthContext";
 import { SiteFooter } from "../src/components/SiteFooter";
 import { DEFAULT_DESCRIPTION, DEFAULT_TITLE, SITE_URL, ogImageUrl } from "../src/lib/seo";
+import { Analytics } from "@vercel/analytics/next";
 
 // ── ASCENT type system ────────────────────────────────────────────────────
 // Display: Bricolage Grotesque — architectural, contemporary, characterful.
@@ -111,6 +112,7 @@ export default function RootLayout({
           {children}
           <SiteFooter />
         </AuthProvider>
+        <Analytics />
       </body>
     </html>
   );

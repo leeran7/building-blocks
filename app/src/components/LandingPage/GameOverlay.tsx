@@ -95,7 +95,7 @@ export function GameOverlay({
         type="button"
         aria-label="Close climb"
         onClick={onClose}
-        className="absolute inset-0 bg-void/85 backdrop-blur-sm"
+        className="absolute inset-0 bg-void/85 backdrop-blur-xs"
       />
 
       {/* header */}
@@ -110,7 +110,7 @@ export function GameOverlay({
           ref={closeButtonRef}
           type="button"
           onClick={onClose}
-          className="inline-flex items-center gap-1.5 font-mono text-xs uppercase tracking-[0.14em] text-text-secondary hover:text-signal transition-colors min-h-[40px] px-2 focus-visible:outline-none focus-visible:text-signal"
+          className="inline-flex items-center gap-1.5 font-mono text-xs uppercase tracking-[0.14em] text-text-secondary hover:text-signal transition-colors min-h-[40px] px-2 focus-visible:outline-hidden focus-visible:text-signal"
         >
           Close ✕
         </button>

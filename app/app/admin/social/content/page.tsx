@@ -165,7 +165,7 @@ export default function ContentStudioPage() {
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
             rows={4}
-            className="w-full rounded-lg border border-border bg-void px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:border-border-focus"
+            className="w-full rounded-lg border border-border bg-void px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:outline-hidden focus:border-border-focus"
             placeholder="e.g. A 15-second vertical clip showing a clutch Doomstack comeback with hype energy"
             required
           />
@@ -196,7 +196,7 @@ export default function ContentStudioPage() {
             type="checkbox"
             checked={generateVideo}
             onChange={(e) => setGenerateVideo(e.target.checked)}
-            className="rounded border-border"
+            className="rounded-sm border-border"
           />
           Generate AI videos for TikTok / YouTube Shorts
         </label>

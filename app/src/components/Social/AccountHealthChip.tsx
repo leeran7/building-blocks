@@ -26,8 +26,8 @@ export function AccountHealthChip({ platform, handle, status, loading }: Account
   if (loading) {
     return (
       <div className="flex flex-col gap-2 rounded-xl border border-border bg-elevated p-4">
-        <div className="h-3 w-16 rounded bg-elevated/60 animate-pulse motion-reduce:animate-none" />
-        <div className="h-4 w-24 rounded bg-elevated/60 animate-pulse motion-reduce:animate-none" />
+        <div className="h-3 w-16 rounded-sm bg-elevated/60 animate-pulse motion-reduce:animate-none" />
+        <div className="h-4 w-24 rounded-sm bg-elevated/60 animate-pulse motion-reduce:animate-none" />
       </div>
     );
   }

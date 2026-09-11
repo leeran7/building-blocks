@@ -90,15 +90,15 @@ function DuelViz() {
 
         {/* Lava / ground line */}
         <div className="relative flex items-center gap-2 py-1">
-          <span className="font-mono text-[9px] uppercase tracking-[0.14em] text-ember flex-shrink-0">
+          <span className="font-mono text-[9px] uppercase tracking-[0.14em] text-ember shrink-0">
             lava 210{ALTITUDE_UNIT}
           </span>
-          <div className="flex-1 h-px bg-gradient-to-r from-ember/70 to-ember/10" />
+          <div className="flex-1 h-px bg-linear-to-r from-ember/70 to-ember/10" />
         </div>
 
         {PAID_DUELS_ENABLED_PUBLIC && (
           <div className="flex justify-center pt-1">
-            <span className="bg-signal/5 border border-signal/30 rounded-lg px-2 py-1 font-mono text-[11px] text-signal uppercase tracking-[0.1em]">
+            <span className="bg-signal/5 border border-signal/30 rounded-lg px-2 py-1 font-mono text-[11px] text-signal uppercase tracking-widest">
               Ranked chips · winner takes all
             </span>
           </div>
@@ -175,7 +175,7 @@ export function Hero({ stats }: { stats: HeroStats }) {
             <span className="relative inline-block text-ember">
               BURIED.
               <span
-                className="absolute -bottom-1 left-0 h-1 w-full bg-gradient-to-r from-ember to-ember/0"
+                className="absolute -bottom-1 left-0 h-1 w-full bg-linear-to-r from-ember to-ember/0"
                 aria-hidden="true"
               />
             </span>
@@ -199,7 +199,7 @@ export function Hero({ stats }: { stats: HeroStats }) {
           >
             <Link
               href="/duel"
-              className="group w-full sm:w-auto bg-signal text-void font-semibold rounded-full px-7 py-3.5 text-base inline-flex items-center justify-center gap-2 shadow-signal transition-[filter,transform] hover:brightness-110 active:scale-[0.98] focus-visible:outline-none min-h-[52px]"
+              className="group w-full sm:w-auto bg-signal text-void font-semibold rounded-full px-7 py-3.5 text-base inline-flex items-center justify-center gap-2 shadow-signal transition-[filter,transform] hover:brightness-110 active:scale-[0.98] focus-visible:outline-hidden min-h-[52px]"
             >
               Start a duel
               <span className="transition-transform group-hover:translate-x-0.5">

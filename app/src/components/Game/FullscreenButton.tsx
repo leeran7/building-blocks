@@ -25,7 +25,7 @@ export function FullscreenButton({
       aria-label={isFullscreen ? "Exit full screen" : "Play full screen"}
       title={isFullscreen ? "Exit full screen (Esc)" : "Full screen"}
       className={
-        "inline-flex h-9 w-9 items-center justify-center rounded-lg border border-border-strong bg-void/70 text-text-secondary backdrop-blur-sm transition-colors hover:border-signal/50 hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void " +
+        "inline-flex h-9 w-9 items-center justify-center rounded-lg border border-border-strong bg-void/70 text-text-secondary backdrop-blur-xs transition-colors hover:border-signal/50 hover:text-text-primary focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void " +
         (className ?? "")
       }
     >

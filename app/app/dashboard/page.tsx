@@ -112,7 +112,7 @@ export default function DashboardPage() {
           </div>
           <Link
             href="/duel"
-            className="inline-flex items-center justify-center rounded-full px-5 min-h-[40px] bg-signal text-void text-sm font-semibold hover:brightness-110 active:scale-[0.98] transition-[filter,transform] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void"
+            className="inline-flex items-center justify-center rounded-full px-5 min-h-[40px] bg-signal text-void text-sm font-semibold hover:brightness-110 active:scale-[0.98] transition-[filter,transform] focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void"
           >
             Start a duel
           </Link>
@@ -201,7 +201,7 @@ function DashTab({
       aria-selected={active}
       onClick={onClick}
       className={
-        "inline-flex items-center justify-center px-4 min-h-[44px] rounded-full text-sm font-semibold whitespace-nowrap transition-[color,filter] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void " +
+        "inline-flex items-center justify-center px-4 min-h-[44px] rounded-full text-sm font-semibold whitespace-nowrap transition-[color,filter] focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void " +
         (active
           ? "bg-signal text-void hover:brightness-110"
           : "text-text-secondary hover:text-text-primary")
@@ -215,9 +215,9 @@ function DashTab({
 function SkeletonCard() {
   return (
     <div className="bg-surface rounded-xl border border-border-subtle p-5 animate-pulse">
-      <div className="h-3 w-20 bg-border-subtle rounded mb-4" />
-      <div className="h-6 w-40 bg-border-subtle rounded mb-2" />
-      <div className="h-4 w-28 bg-border-subtle rounded" />
+      <div className="h-3 w-20 bg-border-subtle rounded-sm mb-4" />
+      <div className="h-6 w-40 bg-border-subtle rounded-sm mb-2" />
+      <div className="h-4 w-28 bg-border-subtle rounded-sm" />
     </div>
   );
 }

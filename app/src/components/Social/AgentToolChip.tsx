@@ -29,7 +29,7 @@ function readStringField(value: unknown, field: string): string | undefined {
 }
 
 function focusRing() {
-  return "focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void rounded";
+  return "focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void rounded-sm";
 }
 
 export function AgentToolChip({ task }: { task: AgentToolChipTask }) {

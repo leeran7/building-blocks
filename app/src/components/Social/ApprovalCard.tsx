@@ -42,7 +42,7 @@ export function ApprovalCard({
             <p className="mt-2 text-xs text-warning">⚠ Contains avoid-listed terms — cannot approve until edited.</p>
           )}
         </div>
-        <div className="flex flex-shrink-0 gap-2">
+        <div className="flex shrink-0 gap-2">
           <button
             type="button"
             disabled={acting || item.blockedByAvoidTerm}

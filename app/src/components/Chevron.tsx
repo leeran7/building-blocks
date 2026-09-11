@@ -2,7 +2,7 @@
 export function Chevron() {
   return (
     <svg
-      className="w-5 h-5 text-text-muted transition-transform duration-200 group-open:rotate-45 group-open:text-signal flex-shrink-0"
+      className="w-5 h-5 text-text-muted transition-transform duration-200 group-open:rotate-45 group-open:text-signal shrink-0"
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"

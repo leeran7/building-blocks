@@ -497,7 +497,7 @@ export function DuelResult({
             <button
               onClick={handleRematch}
               disabled={rematchLoading || !user || opponentLeft}
-              className={`inline-flex items-center justify-center rounded-full px-6 min-h-[44px] bg-signal text-void font-semibold text-sm hover:brightness-110 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed transition-[filter,transform] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void ${paid ? "flex-1" : "w-full"}`}
+              className={`inline-flex items-center justify-center rounded-full px-6 min-h-[44px] bg-signal text-void font-semibold text-sm hover:brightness-110 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed transition-[filter,transform] focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void ${paid ? "flex-1" : "w-full"}`}
               aria-label={opponentLeft ? "Rematch unavailable — opponent has left" : paid ? "Rematch (free)" : "Rematch"}
             >
               {rematchLoading ? (

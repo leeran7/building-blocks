@@ -282,7 +282,11 @@ function integratePlayer(
   p.vx = input.moveX * moveSpeed;
 
   if (p.onLadder) {
-    p.x = wrapX(p.x + p.vx * dt, tower.widthM);
+    // Ladders are vertical-only channels. Horizontal input is ignored while
+    // climbing — x stays pinned to the snapped position set on grab. This
+    // prevents diagonal input (common on mobile) from drifting the player off
+    // the grab radius mid-climb. Jump still carries vx from input so the player
+    // can leap sideways off a ladder.
     const l =
       p.ladderIx !== null && p.ladderSlot !== null
         ? laddersForFloor(tower, p.ladderIx)[p.ladderSlot]
@@ -291,15 +295,14 @@ function integratePlayer(
       // Hop off (jump) or lost the ladder reference → let go.
       releaseLadder(p);
       p.vy = input.jump && l ? tower.jumpSpeed * 0.7 : 0;
-    } else if (Math.abs(p.x - l.x) > grabRadius) {
-      // Walked off the side of the ladder → let go and fall.
-      releaseLadder(p);
-      p.vy = 0;
     } else {
       p.vy = input.climbY * climbSpeed;
       p.y += p.vy * dt;
       if (p.y >= l.y1) {
         // Reached the top → step onto the platform there.
+        // Snap x back to the ladder centre: platforms guarantee solid ground
+        // within 1.5 m of the anchor, but drift could have taken x further.
+        p.x = l.x;
         p.y = l.y1;
         p.vy = 0;
         releaseLadder(p);
@@ -309,6 +312,7 @@ function integratePlayer(
         p.grabSuppressedUntilRelease = true;
       } else if (p.y <= l.y0) {
         // Back down onto the lower platform.
+        p.x = l.x;
         p.y = l.y0;
         p.vy = 0;
         releaseLadder(p);

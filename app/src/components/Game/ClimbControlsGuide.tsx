@@ -62,7 +62,7 @@ export function ClimbControlsGuide({ variant = "card" }: { variant?: Variant }) 
         {touch
           ? TOUCH_CONTROLS.map((c) => (
               <p key={c.label} className="flex flex-wrap items-baseline gap-x-2 text-sm">
-                <span className="w-14 flex-shrink-0 text-text-primary">{c.label}</span>
+                <span className="w-14 shrink-0 text-text-primary">{c.label}</span>
                 <span className="text-text-secondary leading-snug">{c.detail}</span>
               </p>
             ))
@@ -71,7 +71,7 @@ export function ClimbControlsGuide({ variant = "card" }: { variant?: Variant }) 
                 key={c.label}
                 className="flex flex-wrap items-baseline gap-x-2 gap-y-1 text-sm"
               >
-                <span className="w-14 flex-shrink-0 text-text-primary">{c.label}</span>
+                <span className="w-14 shrink-0 text-text-primary">{c.label}</span>
                 <span className="inline-flex items-center gap-1">
                   {c.keys.map((k) => (
                     <Key key={k}>{k}</Key>
@@ -94,7 +94,7 @@ export function ClimbControlsGuide({ variant = "card" }: { variant?: Variant }) 
           {touch
             ? TOUCH_CONTROLS.map((c) => (
                 <li key={c.label} className="flex items-start gap-2.5">
-                  <span className="flex-shrink-0 w-14 font-mono text-[10px] uppercase tracking-[0.1em] text-text-secondary pt-0.5">
+                  <span className="shrink-0 w-14 font-mono text-[10px] uppercase tracking-widest text-text-secondary pt-0.5">
                     {c.label}
                   </span>
                   <p className="text-[11px] text-text-secondary leading-snug">{c.detail}</p>
@@ -102,7 +102,7 @@ export function ClimbControlsGuide({ variant = "card" }: { variant?: Variant }) 
               ))
             : KEYBOARD_CONTROLS.map((c) => (
                 <li key={c.label} className="flex items-start gap-2.5">
-                  <span className="flex-shrink-0 w-14 font-mono text-[10px] uppercase tracking-[0.1em] text-text-secondary pt-1">
+                  <span className="shrink-0 w-14 font-mono text-[10px] uppercase tracking-widest text-text-secondary pt-1">
                     {c.label}
                   </span>
                   <div className="min-w-0">
@@ -170,7 +170,7 @@ export function ClimbControlsGuide({ variant = "card" }: { variant?: Variant }) 
             return (
               <li key={type} className="flex items-start gap-2.5">
                 <span
-                  className="mt-0.5 flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-md border"
+                  className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-md border"
                   style={{ borderColor: spec.color, color: spec.color }}
                   aria-hidden="true"
                 >
@@ -197,7 +197,7 @@ export function ClimbControlsGuide({ variant = "card" }: { variant?: Variant }) 
       <ul className="mt-5 space-y-2 border-t border-border-subtle pt-4">
         {TIPS.map((tip) => (
           <li key={tip} className="flex gap-2 text-xs text-text-secondary leading-relaxed">
-            <span className="text-signal flex-shrink-0" aria-hidden="true">
+            <span className="text-signal shrink-0" aria-hidden="true">
               ·
             </span>
             {tip}
@@ -229,7 +229,7 @@ function durationSuffix(spec: PowerUpSpec): string {
 
 function Key({ children }: { children: ReactNode }) {
   return (
-    <kbd className="inline-flex items-center justify-center min-w-[1.75rem] h-7 px-1.5 rounded-md border border-border-strong bg-surface font-mono text-[11px] font-semibold text-text-primary shadow-[0_1px_0_0_rgb(55_52_63)]">
+    <kbd className="inline-flex items-center justify-center min-w-7 h-7 px-1.5 rounded-md border border-border-strong bg-surface font-mono text-[11px] font-semibold text-text-primary shadow-[0_1px_0_0_rgb(55_52_63)]">
       {children}
     </kbd>
   );
