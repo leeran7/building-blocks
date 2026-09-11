@@ -29,8 +29,8 @@ export function isValidChipTier(n: number): n is ChipTier {
 
 // Ongoing free-play alternative to purchase — a one-time signup grant alone
 // doesn't hold up (Kater v. Churchill Downs, 886 F.3d 784 (9th Cir. 2018)).
-// Enough to enter one duel at the lowest tier every day, indefinitely.
-export const DAILY_CHIP_GRANT_CENTS = CHIP_TIERS[0];
+// 100 chips/day = enough to enter multiple low-tier duels without purchasing.
+export const DAILY_CHIP_GRANT_CENTS = 10_000; // 100 chips
 const DAILY_GRANT_COOLDOWN_MS = 24 * 60 * 60 * 1000;
 
 export class DailyGrantAlreadyClaimedError extends Error {
