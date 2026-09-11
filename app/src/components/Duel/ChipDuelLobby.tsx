@@ -107,7 +107,7 @@ export function ChipDuelLobby() {
                   Daily free chips
                 </h2>
                 <p className="text-sm text-text-secondary">
-                  Claim {DAILY_CHIP_GRANT_CENTS.toLocaleString()} free chips every day — no purchase required.
+                  Claim {(DAILY_CHIP_GRANT_CENTS / 100).toLocaleString()} free chips every day — no purchase required.
                 </p>
                 {claimState.status === "already-claimed" && (
                   <p className="text-xs text-text-muted mt-1">Already claimed today. Come back tomorrow.</p>
