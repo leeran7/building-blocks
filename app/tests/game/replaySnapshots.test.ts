@@ -7,7 +7,11 @@ import {
   ReplaySnapshotCache,
   headlessReplayAtTick,
 } from "../../src/game/replaySnapshots";
-import { createMatch, stepMatch, DEFAULT_SIM_CONFIG } from "../../src/game/simulation";
+import {
+  createMatch,
+  stepMatch,
+  DEFAULT_SIM_CONFIG,
+} from "../../src/game/simulation";
 import { applyRunSeed, buildTower } from "../../src/game/towers";
 import { NO_INPUT, type PlayerInput } from "../../src/game/types";
 import { SNAPSHOT_INTERVAL_TICKS } from "../../src/game/replayTransport";
@@ -132,5 +136,97 @@ describe("ReplaySnapshotCache", () => {
     expect(atN.players[0].peakY).toBe(atLast.players[0].peakY);
     const oracle = oracleAt(inputs, n - 1);
     expect(atN.tick).toBe(oracle.tick);
+  });
+});
+
+/**
+ * Regression: useClimb's live rAF loop must only push a tick's input onto
+ * inputLog while phase === "climb". simulation.ts documents the contract
+ * (COUNTDOWN_TICKS docblock) that inputLog[0] is climb-tick 0 — recording
+ * during countdown too shifts every real input forward by COUNTDOWN_TICKS,
+ * so a shared/saved replay desyncs from what actually happened live (a run
+ * that climbed hundreds of feet would die almost immediately on replay).
+ */
+describe("live-recording contract (AC-11): inputLog excludes countdown ticks", () => {
+  /**
+   * Mirrors useClimb's rAF loop: one continuous stepMatch per tick across
+   * countdown + climb. Snapshots are keyed by climb-tick T = number of climb
+   * steps taken so far, matching ReplaySnapshotCache.seek(T)'s contract.
+   */
+  function recordLiveRun(
+    seed: string,
+    maxTicks: number,
+    input: (climbTick: number) => PlayerInput,
+    onlyClimbPhase: boolean
+  ) {
+    const state = createMatch({
+      seed,
+      mode: "solo",
+      tower: applyRunSeed(TOWER, seed),
+      playerIds: [PLAYER],
+    });
+    const inputLog: PlayerInput[] = [];
+    const snapshotsByClimbTick: { y: number; peakY: number }[] = [];
+    for (let i = 0; i < maxTicks; i++) {
+      if (state.phase === "finished" || state.phase === "results") break;
+      if (state.phase === "climb") {
+        snapshotsByClimbTick[state.tick] = {
+          y: state.players[0].y,
+          peakY: state.players[0].peakY,
+        };
+      }
+      const tickInput = state.phase === "climb" ? input(state.tick) : NO_INPUT;
+      if (state.phase === "climb" || !onlyClimbPhase) inputLog.push(tickInput);
+      stepMatch(state, { [PLAYER]: tickInput }, DEFAULT_SIM_CONFIG);
+    }
+    return { inputLog, snapshotsByClimbTick };
+  }
+
+  const seed = "live-record-contract";
+  const walkClimb = (t: number): PlayerInput => ({
+    moveX: t % 40 < 8 ? 1 : 0,
+    jump: t % 25 === 0,
+    climbY: 1,
+    usePowerUp: false,
+  });
+
+  it("a correctly-recorded log replays to the same end state via ReplaySnapshotCache", () => {
+    const { inputLog, snapshotsByClimbTick } = recordLiveRun(
+      seed,
+      2000,
+      walkClimb,
+      true
+    );
+    const cache = new ReplaySnapshotCache({
+      tower: TOWER,
+      seed,
+      inputs: inputLog,
+    });
+    const target = inputLog.length - 1;
+    const replayed = cache.seek(target);
+    const expected = snapshotsByClimbTick[target];
+    expect(replayed.players[0].y).toBe(expected.y);
+    expect(replayed.players[0].peakY).toBe(expected.peakY);
+  });
+
+  it("recording countdown ticks too (the bug) desyncs the replay from the live run", () => {
+    const { inputLog: buggyLog, snapshotsByClimbTick } = recordLiveRun(
+      seed,
+      2000,
+      walkClimb,
+      false
+    );
+    const cache = new ReplaySnapshotCache({
+      tower: TOWER,
+      seed,
+      inputs: buggyLog,
+    });
+    const target = buggyLog.length - 1;
+    const replayed = cache.seek(target);
+    // The buggy log is padded with COUNTDOWN_TICKS leading NO_INPUTs, so
+    // every real input lands COUNTDOWN_TICKS late — the replay ends up
+    // somewhere else entirely than what actually happened live.
+    const expected = snapshotsByClimbTick[Math.min(target, snapshotsByClimbTick.length - 1)];
+    expect(replayed.players[0].y).not.toBe(expected.y);
   });
 });
