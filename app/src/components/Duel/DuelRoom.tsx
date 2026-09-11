@@ -201,7 +201,7 @@ function PracticeGame({
             : undefined
         }
       >
-        <div className="bg-void/80 backdrop-blur-sm rounded-xl border border-border-subtle px-3 py-2 pointer-events-auto max-w-[200px]">
+        <div className="bg-void/80 backdrop-blur-xs rounded-xl border border-border-subtle px-3 py-2 pointer-events-auto max-w-[200px]">
           {!waitedTooLong ? (
             <div className="flex flex-col items-center gap-2 text-center">
               <div className="flex items-center gap-2">
@@ -214,7 +214,7 @@ function PracticeGame({
                   home. Native share sheet first, clipboard as fallback. */}
               <button
                 onClick={onCopyLink}
-                className="inline-flex items-center justify-center rounded-full px-3 min-h-[36px] bg-signal text-void font-semibold text-xs hover:brightness-110 active:scale-[0.98] transition-[filter,transform] w-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void"
+                className="inline-flex items-center justify-center rounded-full px-3 min-h-[36px] bg-signal text-void font-semibold text-xs hover:brightness-110 active:scale-[0.98] transition-[filter,transform] w-full focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void"
               >
                 {linkCopied ? "Copied!" : "Share invite"}
               </button>
@@ -226,7 +226,7 @@ function PracticeGame({
               </p>
               <button
                 onClick={onCopyLink}
-                className="inline-flex items-center justify-center rounded-full px-3 min-h-[36px] bg-signal text-void font-semibold text-xs hover:brightness-110 active:scale-[0.98] transition-[filter,transform] w-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void"
+                className="inline-flex items-center justify-center rounded-full px-3 min-h-[36px] bg-signal text-void font-semibold text-xs hover:brightness-110 active:scale-[0.98] transition-[filter,transform] w-full focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void"
               >
                 {linkCopied ? "Copied!" : "Share invite"}
               </button>
@@ -239,7 +239,7 @@ function PracticeGame({
             </div>
           )}
         </div>
-        <p className="font-mono text-[10px] text-text-muted bg-void/70 rounded px-2 py-1 pointer-events-none">
+        <p className="font-mono text-[10px] text-text-muted bg-void/70 rounded-sm px-2 py-1 pointer-events-none">
           warm-up • not ranked
         </p>
       </div>
@@ -654,7 +654,7 @@ function DuelGame({
         <div
           className={
             touchDevice
-              ? "mx-2 flex items-center justify-between rounded-lg bg-void/70 px-3 py-2 backdrop-blur-sm"
+              ? "mx-2 flex items-center justify-between rounded-lg bg-void/70 px-3 py-2 backdrop-blur-xs"
               : "w-full flex items-center justify-between px-4 py-3 bg-surface border-b border-border-subtle"
           }
         >
@@ -703,7 +703,7 @@ function DuelGame({
         <div
           className={
             touchDevice
-              ? "mx-2 flex flex-col gap-1 rounded-lg bg-void/60 px-3 py-2 backdrop-blur-sm"
+              ? "mx-2 flex flex-col gap-1 rounded-lg bg-void/60 px-3 py-2 backdrop-blur-xs"
               : "w-full flex flex-col gap-1 px-4 py-2.5 bg-surface-raised"
           }
         >
@@ -789,7 +789,7 @@ function DuelGame({
             role="status"
             aria-live="polite"
           >
-            <span className="font-mono text-xs uppercase tracking-[0.18em] text-signal bg-void/70 rounded-full px-4 py-2 backdrop-blur-sm motion-safe:animate-rise [text-shadow:0_0_20px_rgb(203_242_77/0.4)]">
+            <span className="font-mono text-xs uppercase tracking-[0.18em] text-signal bg-void/70 rounded-full px-4 py-2 backdrop-blur-xs motion-safe:animate-rise [text-shadow:0_0_20px_rgb(203_242_77/0.4)]">
               Opponent joined
             </span>
           </div>

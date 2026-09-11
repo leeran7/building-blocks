@@ -38,7 +38,7 @@ export function CreatorPageBand({ username }: { username: string | null }) {
         </p>
         <p className="font-mono text-sm text-text-primary truncate mt-1">{path}</p>
       </div>
-      <div className="flex items-center gap-2 flex-shrink-0">
+      <div className="flex items-center gap-2 shrink-0">
         <Link
           href={path}
           className="rounded-full border border-border-strong bg-surface/60 px-4 min-h-[44px] inline-flex items-center text-sm text-text-secondary hover:text-signal hover:border-signal/50 transition-colors"
@@ -48,7 +48,7 @@ export function CreatorPageBand({ username }: { username: string | null }) {
         <button
           type="button"
           onClick={copy}
-          className="rounded-full border border-border-strong bg-surface/60 px-4 min-h-[44px] inline-flex items-center text-sm text-text-secondary hover:text-text-primary transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal"
+          className="rounded-full border border-border-strong bg-surface/60 px-4 min-h-[44px] inline-flex items-center text-sm text-text-secondary hover:text-text-primary transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-signal"
         >
           {copied ? "✓ Copied" : "Copy"}
         </button>

@@ -124,7 +124,7 @@ function VerifyEmailForm() {
             </h1>
             <Link
               href={redirectTo}
-              className="w-full bg-signal text-void font-semibold rounded-lg py-3 text-base transition-all hover:brightness-110 inline-flex items-center justify-center min-h-[44px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus"
+              className="w-full bg-signal text-void font-semibold rounded-lg py-3 text-base transition-all hover:brightness-110 inline-flex items-center justify-center min-h-[44px] focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-border-focus"
             >
               {continueLabel}
             </Link>
@@ -191,7 +191,7 @@ function VerifyEmailForm() {
               </p>
               <Link
                 href={redirectTo}
-                className="text-sm text-signal hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus rounded-sm"
+                className="text-sm text-signal hover:underline focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-border-focus rounded-xs"
               >
                 {continueLabel} →
               </Link>

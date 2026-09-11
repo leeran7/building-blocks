@@ -46,7 +46,7 @@ export function FreeDuelLeaderboard({
             className={
               "relative overflow-hidden rounded-xl border px-3 py-2.5 min-h-[52px] flex items-center " +
               (isFirst
-                ? "border-signal/50 bg-accent/[0.06] shadow-signal"
+                ? "border-signal/50 bg-accent/6 shadow-signal"
                 : "border-border-subtle bg-surface/40")
             }
           >
@@ -134,7 +134,7 @@ export function ChipDuelLeaderboard({
             className={
               "relative overflow-hidden rounded-xl border px-3 py-2.5 min-h-[52px] flex items-center " +
               (isFirst
-                ? "border-signal/50 bg-accent/[0.06] shadow-signal"
+                ? "border-signal/50 bg-accent/6 shadow-signal"
                 : "border-border-subtle bg-surface/40")
             }
           >
@@ -178,7 +178,7 @@ function RankBadge({ rank }: { rank: number }) {
   return (
     <span
       className={
-        "flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center font-mono text-sm font-bold tabular-nums " +
+        "shrink-0 w-8 h-8 rounded-lg flex items-center justify-center font-mono text-sm font-bold tabular-nums " +
         (rank === 1
           ? "bg-signal text-void"
           : "border border-border-strong text-text-secondary")

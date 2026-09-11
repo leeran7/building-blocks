@@ -158,7 +158,7 @@ export function ReplayTransportBar({
       className="pointer-events-auto absolute inset-x-0 bottom-0 z-30 px-2 pb-[max(8px,env(safe-area-inset-bottom))]"
       data-climb-transport
     >
-      <div className="mx-auto flex max-w-lg flex-col gap-2 rounded-xl border border-border-strong/80 bg-void/85 px-3 py-2 backdrop-blur-sm">
+      <div className="mx-auto flex max-w-lg flex-col gap-2 rounded-xl border border-border-strong/80 bg-void/85 px-3 py-2 backdrop-blur-xs">
         <div className="flex items-center gap-2">
           <input
             type="range"

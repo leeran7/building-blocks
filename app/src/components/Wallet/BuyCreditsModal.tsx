@@ -67,7 +67,7 @@ export function BuyCreditsModal({ open, onClose, token }: BuyCreditsModalProps) 
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-void/80 backdrop-blur-sm p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-void/80 backdrop-blur-xs p-4"
       role="dialog"
       aria-modal="true"
       aria-label="Buy chips"

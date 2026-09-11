@@ -57,7 +57,7 @@ type SelectProps = {
 };
 
 const TRIGGER_BASE =
-  "w-full flex items-center justify-between gap-2 bg-surface border border-border-subtle rounded-lg text-left text-text-primary transition-colors focus:outline-none focus:border-signal focus:ring-1 focus:ring-signal disabled:opacity-50 disabled:cursor-not-allowed";
+  "w-full flex items-center justify-between gap-2 bg-surface border border-border-subtle rounded-lg text-left text-text-primary transition-colors focus:outline-hidden focus:border-signal focus:ring-1 focus:ring-signal disabled:opacity-50 disabled:cursor-not-allowed";
 
 const TRIGGER_SIZE = {
   md: "px-4 py-3 text-base",
@@ -264,7 +264,7 @@ export function Select({
         <span className="truncate">{opt.label}</span>
         {isSelected && (
           <svg
-            className="w-4 h-4 flex-shrink-0 text-signal"
+            className="w-4 h-4 shrink-0 text-signal"
             viewBox="0 0 24 24"
             fill="none"
             stroke="currentColor"
@@ -302,7 +302,7 @@ export function Select({
           {selected ? selected.label : placeholder}
         </span>
         <svg
-          className={`w-5 h-5 flex-shrink-0 text-text-muted transition-transform duration-200 motion-reduce:transition-none ${
+          className={`w-5 h-5 shrink-0 text-text-muted transition-transform duration-200 motion-reduce:transition-none ${
             open ? "rotate-180" : ""
           }`}
           viewBox="0 0 24 24"
@@ -327,7 +327,7 @@ export function Select({
           aria-labelledby={ariaLabelledby}
           aria-multiselectable={false}
           aria-activedescendant={activeOptionId}
-          className="absolute z-50 mt-1.5 max-h-64 w-full overflow-auto rounded-lg border border-border-strong bg-surface-raised py-1 shadow-lifted focus:outline-none"
+          className="absolute z-50 mt-1.5 max-h-64 w-full overflow-auto rounded-lg border border-border-strong bg-surface-raised py-1 shadow-lifted focus:outline-hidden"
         >
           {isGrouped(options)
             ? (() => {

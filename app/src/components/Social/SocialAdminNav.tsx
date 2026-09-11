@@ -54,7 +54,7 @@ export function SocialAdminNav() {
   }
 
   return (
-    <nav className="flex min-w-[11rem] flex-col gap-1">
+    <nav className="flex min-w-44 flex-col gap-1">
       <Link href={HOME.href} className={linkClass(isActive(HOME))}>
         {HOME.label}
       </Link>
