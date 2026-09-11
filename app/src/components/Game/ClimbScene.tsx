@@ -271,15 +271,17 @@ export function ClimbScene({ tower, categoryLabel, replay = null }: ClimbScenePr
         setShareUrl(buildReplayUrl(replayToken, window.location.origin));
       }
       setEncodingShare(false);
+      const payload = replayToken ? { ...run, replayToken } : run;
 
       if (token) {
-        const payload = replayToken ? { ...run, replayToken } : run;
         postRun(payload, token).then(setSaveInfo).finally(() => setSavingRun(false));
       } else {
         setSaveInfo({ saved: false });
         setSavingRun(false);
         try {
-          sessionStorage.setItem(PENDING_CLIMB_KEY, JSON.stringify(run));
+          // Stash the replayToken too — otherwise the retroactive save after
+          // sign-in (below) persists this run with no replay link at all.
+          sessionStorage.setItem(PENDING_CLIMB_KEY, JSON.stringify(payload));
         } catch {
           /* storage unavailable */
         }
