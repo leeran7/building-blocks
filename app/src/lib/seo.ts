@@ -25,7 +25,11 @@ export const SITE_LOGO = absoluteUrl("/logo-1024.png");
  * Discord, Product Hunt, itch.io, Steam). Only real, live, brand-owned URLs —
  * a `sameAs` pointing at a 404 or an unrelated page is a negative signal.
  */
-export const SOCIAL_PROFILES: readonly string[] = [];
+export const SOCIAL_PROFILES: readonly string[] = [
+  "https://x.com/DoomStacklol",
+  "https://www.tiktok.com/@doomstack_lol",
+  "https://www.youtube.com/channel/UCm9RfzK29xO1dAYhGa3_bdA",
+];
 
 export function absoluteUrl(path: string): string {
   return `${SITE_URL}${path.startsWith("/") ? path : `/${path}`}`;
