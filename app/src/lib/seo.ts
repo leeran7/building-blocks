@@ -37,7 +37,7 @@ export function absoluteUrl(path: string): string {
 
 /** Absolute URL for the (static, brand) OG image. */
 export function ogImageUrl(): string {
-  return absoluteUrl("/api/og");
+  return absoluteUrl("/logo-1024.png");
 }
 
 export function buildMetadata({
@@ -51,7 +51,7 @@ export function buildMetadata({
   title: string;
   description: string;
   path: string;
-  /** Absolute image URL. Defaults to /api/og with no params (its own built-in defaults). */
+  /** Absolute image URL. Defaults to /logo-1024.png. */
   image?: string;
   imageAlt?: string;
   robots?: Metadata["robots"];
@@ -70,7 +70,7 @@ export function buildMetadata({
       url,
       siteName: SITE_NAME,
       type: "website",
-      images: [{ url: ogImage, width: 1200, height: 630, alt: imageAlt ?? title }],
+      images: [{ url: ogImage, width: 1024, height: 1024, alt: imageAlt ?? title }],
     },
     twitter: {
       card: "summary_large_image",

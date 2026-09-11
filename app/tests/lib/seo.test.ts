@@ -22,8 +22,8 @@ describe("absoluteUrl", () => {
 });
 
 describe("ogImageUrl", () => {
-  it("returns the bare /api/og brand image URL", () => {
-    expect(ogImageUrl()).toBe(`${SITE_URL}/api/og`);
+  it("returns the logo PNG URL", () => {
+    expect(ogImageUrl()).toBe(`${SITE_URL}/logo-1024.png`);
   });
 });
 
@@ -44,11 +44,11 @@ describe("buildMetadata", () => {
     });
   });
 
-  it("defaults the OG/Twitter image to the bare /api/og route when none is given", () => {
+  it("defaults the OG/Twitter image to the logo PNG when none is given", () => {
     const meta = buildMetadata({ title: "T", description: "D", path: "/climb" });
     const images = meta.openGraph?.images as Array<{ url: string }>;
-    expect(images[0]!.url).toBe(`${SITE_URL}/api/og`);
-    expect(meta.twitter?.images).toEqual([`${SITE_URL}/api/og`]);
+    expect(images[0]!.url).toBe(`${SITE_URL}/logo-1024.png`);
+    expect(meta.twitter?.images).toEqual([`${SITE_URL}/logo-1024.png`]);
   });
 
   it("uses a caller-supplied image over the default", () => {

@@ -29,5 +29,5 @@ test("brand OG image meta tag exists on the homepage", async ({ page }) => {
     .locator('meta[property="og:image"]')
     .getAttribute("content");
   expect(ogImage).toBeTruthy();
-  expect(ogImage).toContain("/api/og");
+  expect(ogImage).toContain("/logo-1024.png");
 });
