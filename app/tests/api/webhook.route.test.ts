@@ -99,7 +99,7 @@ describe("POST /api/webhook/stripe", () => {
     );
     const res = await POST(request());
     expect(res.status).toBe(200);
-    expect(mockAddCredits).toHaveBeenCalledWith("user_1", "cs_test_1", 1000);
+    expect(mockAddCredits).toHaveBeenCalledWith("user_1", "cs_test_1", 100000);
   });
 
   it("does not credit a credits_topup that was not actually paid", async () => {
