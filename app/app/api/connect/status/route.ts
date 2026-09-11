@@ -20,15 +20,23 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const user = await prisma.user.findUniqueOrThrow({
-    where: { id: uid },
-    select: { stripe_connect_account_id: true },
-  });
+  try {
+    const user = await prisma.user.findUniqueOrThrow({
+      where: { id: uid },
+      select: { stripe_connect_account_id: true },
+    });
 
-  if (!user.stripe_connect_account_id) {
-    return NextResponse.json({ connected: false, payoutReady: false });
+    if (!user.stripe_connect_account_id) {
+      return NextResponse.json({ connected: false, payoutReady: false });
+    }
+
+    const payoutReady = await isPayoutReady(user.stripe_connect_account_id);
+    return NextResponse.json({ connected: true, payoutReady });
+  } catch (err) {
+    console.error("[GET /api/connect/status]", err);
+    return NextResponse.json(
+      { error: "Could not check payout status. Please try again.", code: "INTERNAL_ERROR" },
+      { status: 500 }
+    );
   }
-
-  const payoutReady = await isPayoutReady(user.stripe_connect_account_id);
-  return NextResponse.json({ connected: true, payoutReady });
 }

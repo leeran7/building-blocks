@@ -16,6 +16,7 @@ import { checkRateLimit } from "../../../src/lib/rateLimit";
 import { newRunSeed } from "../../../src/game/rng";
 import { CATEGORY_BY_SLUG } from "../../../src/lib/categories";
 import { createDuel, getDuelsByPlayer1 } from "../../../src/db/duel";
+import { ensureUser } from "../../../src/db/user";
 import { DuelStatus } from "@prisma/client";
 
 export const runtime = "nodejs";
@@ -30,12 +31,28 @@ interface Body {
 export async function POST(request: NextRequest) {
   // Auth: required
   let uid: string;
+  let userEmail: string | undefined;
+  let emailVerified: boolean | undefined;
   try {
     const decoded = await requireAuth(request);
     uid = decoded.uid;
+    userEmail = decoded.email;
+    emailVerified = decoded.email_verified;
   } catch (err) {
     if (err instanceof AuthError) return err.response;
     return NextResponse.json({ error: "Unauthorized", code: "UNAUTHORIZED" }, { status: 401 });
+  }
+
+  // Ensure the user row exists in the DB — the duels table foreign-keys to
+  // users(id), and auth/sync is fire-and-forget so it may not have run yet.
+  if (userEmail) {
+    await ensureUser({
+      id: uid,
+      email: userEmail,
+      emailVerified: emailVerified ?? false,
+    }).catch(() => {
+      // Best-effort: if this fails, createDuel will fail too and surface a 500.
+    });
   }
 
   // Rate limit: 10 per hour per uid
@@ -110,7 +127,7 @@ export async function POST(request: NextRequest) {
   } catch (err) {
     console.error("[POST /api/duel] DB error:", err);
     return NextResponse.json(
-      { error: "Internal server error", code: "INTERNAL_ERROR" },
+      { error: "Could not create your challenge. Please try again.", code: "INTERNAL_ERROR" },
       { status: 500 }
     );
   }

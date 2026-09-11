@@ -20,18 +20,26 @@ export async function GET(request: NextRequest) {
     MAX_LIMIT
   );
 
-  const entries = await topDuelStats(limit);
+  try {
+    const entries = await topDuelStats(limit);
 
-  return NextResponse.json({
-    entries: entries.map((entry, i) => ({
-      rank: i + 1,
-      userId: entry.userId,
-      displayName: entry.displayName,
-      wins: entry.wins,
-      losses: entry.losses,
-      winPct: entry.wins + entry.losses > 0
-        ? Math.round((entry.wins / (entry.wins + entry.losses)) * 1000) / 10
-        : 0,
-    })),
-  });
+    return NextResponse.json({
+      entries: entries.map((entry, i) => ({
+        rank: i + 1,
+        userId: entry.userId,
+        displayName: entry.displayName,
+        wins: entry.wins,
+        losses: entry.losses,
+        winPct: entry.wins + entry.losses > 0
+          ? Math.round((entry.wins / (entry.wins + entry.losses)) * 1000) / 10
+          : 0,
+      })),
+    });
+  } catch (err) {
+    console.error("[GET /api/duel/leaderboard]", err);
+    return NextResponse.json(
+      { error: "Could not load the leaderboard. Please try again.", code: "INTERNAL_ERROR" },
+      { status: 500 }
+    );
+  }
 }

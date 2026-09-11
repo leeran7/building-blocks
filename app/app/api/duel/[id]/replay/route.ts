@@ -37,7 +37,10 @@ export async function GET(
 ) {
   const { id } = await params;
 
-  const duel = await getDuel(id).catch(() => null);
+  const duel = await getDuel(id).catch((err) => {
+    console.error("[GET /api/duel/[id]/replay] DB error:", err);
+    return null;
+  });
   if (!duel) {
     return NextResponse.json({ error: "Duel not found", code: "NOT_FOUND" }, { status: 404 });
   }

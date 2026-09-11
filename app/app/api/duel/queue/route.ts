@@ -188,7 +188,7 @@ export async function POST(request: NextRequest) {
     await redis.zadd(queueKey, { score: reNow, member: waitingUid });
     await redis.set(`duel:queue:member:${waitingUid}`, categorySlug, { ex: QUEUE_TTL_SECONDS });
     return NextResponse.json(
-      { error: "Internal server error", code: "INTERNAL_ERROR" },
+      { error: "Could not match you with an opponent. Please try searching again.", code: "INTERNAL_ERROR" },
       { status: 500 }
     );
   }
@@ -226,27 +226,35 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  // Matched? The pairing happens in the other player's POST and creates an
-  // active duel with this user as a participant.
-  const match = await getActiveDuelForUser(uid);
-  if (match) {
-    return NextResponse.json({ status: "matched", duelId: match.id });
-  }
+  try {
+    // Matched? The pairing happens in the other player's POST and creates an
+    // active duel with this user as a participant.
+    const match = await getActiveDuelForUser(uid);
+    if (match) {
+      return NextResponse.json({ status: "matched", duelId: match.id });
+    }
 
-  // Still holding a queue slot?
-  const redis = getRedis();
-  const inQueue = await redis.get(`duel:queue:member:${uid}`);
-  if (inQueue) return NextResponse.json({ status: "waiting" });
+    // Still holding a queue slot?
+    const redis = getRedis();
+    const inQueue = await redis.get(`duel:queue:member:${uid}`);
+    if (inQueue) return NextResponse.json({ status: "waiting" });
 
-  // No live slot: distinguish a search whose slot EXPIRED (tombstone still
-  // present) from one that never started (idle), so the client can surface a
-  // timeout instead of spinning. GETDEL consumes it atomically so concurrent
-  // polls can't both report "expired".
-  const wasSearching = await redis.getdel(searchingKey(uid));
-  if (wasSearching) {
-    return NextResponse.json({ status: "expired" });
+    // No live slot: distinguish a search whose slot EXPIRED (tombstone still
+    // present) from one that never started (idle), so the client can surface a
+    // timeout instead of spinning. GETDEL consumes it atomically so concurrent
+    // polls can't both report "expired".
+    const wasSearching = await redis.getdel(searchingKey(uid));
+    if (wasSearching) {
+      return NextResponse.json({ status: "expired" });
+    }
+    return NextResponse.json({ status: "idle" });
+  } catch (err) {
+    console.error("[GET /api/duel/queue]", err);
+    return NextResponse.json(
+      { error: "Could not check matchmaking status. Please try again.", code: "INTERNAL_ERROR" },
+      { status: 500 }
+    );
   }
-  return NextResponse.json({ status: "idle" });
 }
 
 export async function DELETE(request: NextRequest) {
@@ -260,23 +268,31 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized", code: "UNAUTHORIZED" }, { status: 401 });
   }
 
-  const redis = getRedis();
-  const memberKey = `duel:queue:member:${uid}`;
-  const categorySlug = await redis.get<string>(memberKey);
+  try {
+    const redis = getRedis();
+    const memberKey = `duel:queue:member:${uid}`;
+    const categorySlug = await redis.get<string>(memberKey);
 
-  if (!categorySlug) {
+    if (!categorySlug) {
+      return NextResponse.json(
+        { error: "Not in queue", code: "NOT_IN_QUEUE" },
+        { status: 404 }
+      );
+    }
+
+    const queueKey = `duel:queue:${categorySlug}`;
+    await redis.zrem(queueKey, uid);
+    await redis.del(memberKey);
+    // An explicit cancel is not a timeout — drop the tombstone so the next poll
+    // reads "idle", not "expired".
+    await redis.del(searchingKey(uid));
+
+    return NextResponse.json({ status: "cancelled" });
+  } catch (err) {
+    console.error("[DELETE /api/duel/queue]", err);
     return NextResponse.json(
-      { error: "Not in queue", code: "NOT_IN_QUEUE" },
-      { status: 404 }
+      { error: "Could not leave the queue. Please try again.", code: "INTERNAL_ERROR" },
+      { status: 500 }
     );
   }
-
-  const queueKey = `duel:queue:${categorySlug}`;
-  await redis.zrem(queueKey, uid);
-  await redis.del(memberKey);
-  // An explicit cancel is not a timeout — drop the tombstone so the next poll
-  // reads "idle", not "expired".
-  await redis.del(searchingKey(uid));
-
-  return NextResponse.json({ status: "cancelled" });
 }
