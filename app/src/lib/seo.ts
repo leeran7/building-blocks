@@ -13,6 +13,20 @@ export const DEFAULT_TITLE = "Doomstack — Climb higher, outlast everyone";
 export const DEFAULT_DESCRIPTION =
   "A skill-based endless climb. Race the rising lava to the top of the global leaderboard, compete in ranked chip duels, or enter tournaments for cash prizes.";
 
+/** Absolute URL of the square brand logo (used by Organization/VideoGame JSON-LD). */
+export const SITE_LOGO = absoluteUrl("/logo-1024.png");
+
+/**
+ * Owned, verified brand profiles for the Organization `sameAs` array — the
+ * strongest structured signal Google uses to build the brand *entity* and
+ * disambiguate "Doomstack" (the game) from the generic strategy-gaming term.
+ *
+ * Add each profile URL here the moment it exists (X, TikTok, YouTube, Instagram,
+ * Discord, Product Hunt, itch.io, Steam). Only real, live, brand-owned URLs —
+ * a `sameAs` pointing at a 404 or an unrelated page is a negative signal.
+ */
+export const SOCIAL_PROFILES: readonly string[] = [];
+
 export function absoluteUrl(path: string): string {
   return `${SITE_URL}${path.startsWith("/") ? path : `/${path}`}`;
 }
@@ -69,8 +83,14 @@ export function organizationJsonLd() {
     "@type": "Organization",
     "@id": absoluteUrl("/#organization"),
     name: SITE_NAME,
+    // Helps Google reconcile the brand across how people actually type it.
+    alternateName: ["Doomstack game", "doomstack.lol"],
     url: SITE_URL,
+    logo: SITE_LOGO,
     description: DEFAULT_DESCRIPTION,
+    // Only emit sameAs once real brand profiles exist — an empty array is a
+    // no-op, a wrong URL is a negative signal. See SOCIAL_PROFILES.
+    ...(SOCIAL_PROFILES.length > 0 ? { sameAs: [...SOCIAL_PROFILES] } : {}),
   };
 }
 
@@ -80,7 +100,47 @@ export function websiteJsonLd() {
     "@id": absoluteUrl("/#website"),
     url: SITE_URL,
     name: SITE_NAME,
+    // Lets Google show "Doomstack (game)" and match brand-intent queries.
+    alternateName: "Doomstack game",
     description: DEFAULT_DESCRIPTION,
+    publisher: { "@id": absoluteUrl("/#organization") },
+    // NOTE: no SearchAction (sitelinks searchbox) yet — the site has no
+    // query-param search endpoint, and a target that doesn't resolve a search
+    // is misleading structured data. Add potentialAction once /browse (or a
+    // dedicated /search) reads `?q=`.
+  };
+}
+
+/**
+ * VideoGame node — the single most important disambiguation signal. "Doomstack"
+ * is entrenched strategy-gaming jargon (Total War / Stellaris / Paradox) and a
+ * Steam title ("Doomstacker"); this node tells Google our entity is *a free,
+ * browser, playable game*, not the term. Emitted on the home graph alongside
+ * Organization + WebSite.
+ */
+export function videoGameJsonLd() {
+  return {
+    "@type": "VideoGame",
+    "@id": absoluteUrl("/#game"),
+    name: SITE_NAME,
+    alternateName: "Doomstack",
+    url: SITE_URL,
+    description: DEFAULT_DESCRIPTION,
+    image: SITE_LOGO,
+    applicationCategory: "GameApplication",
+    genre: ["Arcade", "Action", "Competitive"],
+    gamePlatform: ["Web browser", "Desktop", "Mobile"],
+    operatingSystem: "Web browser",
+    playMode: ["SinglePlayer", "MultiPlayer"],
+    browserRequirements: "Requires a modern web browser. No download or install.",
+    inLanguage: "en",
+    offers: {
+      "@type": "Offer",
+      price: "0",
+      priceCurrency: "USD",
+      availability: "https://schema.org/InStock",
+    },
+    author: { "@id": absoluteUrl("/#organization") },
     publisher: { "@id": absoluteUrl("/#organization") },
   };
 }

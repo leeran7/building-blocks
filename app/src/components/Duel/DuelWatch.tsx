@@ -211,7 +211,7 @@ export function DuelWatch({ duelId }: { duelId: string }) {
     const url = buildDuelWatchUrl(duelId, window.location.origin);
     try {
       if (navigator.share && /Mobi|Android/i.test(navigator.userAgent)) {
-        await navigator.share({ title: "The Climb — duel replay", url });
+        await navigator.share({ title: "Doomstack — duel replay", url });
         return;
       }
       if (!navigator.clipboard) throw new Error("no clipboard");

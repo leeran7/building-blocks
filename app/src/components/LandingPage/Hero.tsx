@@ -185,8 +185,9 @@ export function Hero({ stats }: { stats: HeroStats }) {
             className="reveal text-lg text-text-secondary max-w-md mx-auto md:mx-0 mt-7 leading-relaxed"
             style={{ animationDelay: "140ms" }}
           >
-            Challenge a friend or find a random opponent. Race the same tower —
-            same rising lava — and outlast them.
+            <strong className="font-semibold text-text-primary">Doomstack</strong>{" "}
+            is a free browser climbing game. Challenge a friend or find a random
+            opponent. Race the same tower — same rising lava — and outlast them.
             {PAID_DUELS_ENABLED_PUBLIC && (
               <> Free always. Go ranked by staking chips — winner takes all.</>
             )}
