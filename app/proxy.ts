@@ -1,5 +1,8 @@
 /**
- * Next.js Edge Middleware — at project root (not in /app/)
+ * Next.js Proxy (formerly Edge Middleware) — at project root (not in /app/)
+ *
+ * Renamed from middleware.ts → proxy.ts for Next.js 16 (the `middleware` file
+ * convention is deprecated in favor of `proxy`).
  *
  * Presence-only auth guards (cookie/header existence). Actual token
  * verification happens inside route handlers via requireAuth() /
@@ -17,7 +20,7 @@ export const config = {
   matcher: ["/dashboard/:path*", "/admin/social/:path*"],
 };
 
-export default function middleware(request: NextRequest): NextResponse {
+export default function proxy(request: NextRequest): NextResponse {
   const { pathname } = request.nextUrl;
 
   const token =
