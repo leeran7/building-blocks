@@ -1,6 +1,13 @@
 @import 'tailwindcss';
 
 /*
+  Tailwind v4 wraps hover: in @media (hover: hover), which suppresses hover
+  effects on touch devices and in Chrome DevTools device emulation. Restore
+  v3 behavior so hover effects fire on all pointer types.
+*/
+@custom-variant hover (&:hover);
+
+/*
   Tailwind v4 moved scale/rotate/translate to individual CSS properties.
   `transition-property: transform` no longer animates them, so we extend
   transition-transform to cover the full set of individual transform properties.
