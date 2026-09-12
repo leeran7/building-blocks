@@ -8,6 +8,9 @@
  */
 
 import { cache } from "react";
+import { unstable_cache } from "next/cache";
+
+import { nanoid } from "nanoid";
 
 import { prisma } from "./client";
 import { climberDisplay } from "../lib/handle";
@@ -140,36 +143,36 @@ export interface ClimberRank {
 /**
  * The free-stack skill leaderboard: highest peak-height record per player,
  * ranked descending. Ties broken by who reached it first (earliest updated_at).
+ *
+ * Wrapped with `unstable_cache` (60 s revalidation) so concurrent API/RSC
+ * callers share one DB round-trip per minute rather than one per request.
  */
-export async function topFreeClimbers(limit = 50): Promise<ClimberRank[]> {
-  const rows = await prisma.climbRecord.findMany({
-    where: { category_slug: FREE_STACK_SLUG },
-    orderBy: [{ peak_y: "desc" }, { updated_at: "asc" }],
-    take: limit,
-    select: {
-      userId: true,
-      peak_y: true,
-      wins: true,
-      user: { select: { display_name: true, username: true } },
-    },
-  });
-  return rows.map((r, i) => ({
-    rank: i + 1,
-    userId: r.userId,
-    handle: climberDisplay(r.userId, r.user.display_name),
-    username: r.user.username,
-    peakY: r.peak_y,
-    wins: r.wins,
-  }));
-}
+export const topFreeClimbers = unstable_cache(
+  async (limit: number = 50): Promise<ClimberRank[]> => {
+    const rows = await prisma.climbRecord.findMany({
+      where: { category_slug: FREE_STACK_SLUG },
+      orderBy: [{ peak_y: "desc" }, { updated_at: "asc" }],
+      take: limit,
+      select: {
+        userId: true,
+        peak_y: true,
+        wins: true,
+        user: { select: { display_name: true, username: true } },
+      },
+    });
+    return rows.map((r, i) => ({
+      rank: i + 1,
+      userId: r.userId,
+      handle: climberDisplay(r.userId, r.user.display_name),
+      username: r.user.username,
+      peakY: r.peak_y,
+      wins: r.wins,
+    }));
+  },
+  ["topFreeClimbers"],
+  { revalidate: 60 }
+);
 
-/** @deprecated Use topFreeClimbers — kept for tests referencing the old name. */
-export async function topClimbers(
-  _categorySlug?: string,
-  limit = 50
-): Promise<ClimberRank[]> {
-  return topFreeClimbers(limit);
-}
 
 /** Aggregate free-climb stats for the landing: distinct climbers + best peak.
  *
@@ -236,10 +239,6 @@ export async function getUserFreeClimbRecord(
   };
 }
 
-/** @deprecated Use topFreeClimbers — landing previously used cross-category rows. */
-export async function topClimbersGlobal(limit = 8): Promise<ClimberRank[]> {
-  return topFreeClimbers(limit);
-}
 
 export interface ClimbReplaySummary {
   id: string;

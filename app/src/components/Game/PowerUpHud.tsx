@@ -14,6 +14,7 @@
  * so chips appearing and expiring mid-climb can never resize the play area.
  */
 
+import { memo } from "react";
 import {
   POWER_UP_SPECS,
   isExpired,
@@ -24,7 +25,7 @@ import {
 import { TICK_HZ, type ActivePowerUp, type PlayerState } from "../../game/types";
 import { PowerUpTypeIcon } from "./PowerUpTypeIcon";
 
-export function PowerUpHud({
+export const PowerUpHud = memo(function PowerUpHud({
   player,
   tick,
   muted,
@@ -130,7 +131,7 @@ export function PowerUpHud({
       </div>
     </div>
   );
-}
+});
 
 function chipClassName(fresh: boolean, urgent: boolean): string {
   const base =

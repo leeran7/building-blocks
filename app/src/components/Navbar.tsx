@@ -1,19 +1,15 @@
-"use client";
-
 /**
- * Navbar — shared, auth-aware top navigation (ASCENT design).
+ * Navbar -- shared top navigation (ASCENT design).
  *
- * Reads as an instrument header: wide display wordmark preceded by an altimeter
- * tick, mono/uppercase nav labels, and a signal-lime pill CTA. Auth behaviour is
- * unchanged — signed-in users get Dashboard + Sign out; signed-out get Sign in +
- * Get started. A stable skeleton renders while auth resolves (no wrong-state flash).
+ * Server component: the logo, wordmark, and static nav links are rendered on
+ * the server. The auth-dependent section (loading skeleton / AccountMenu /
+ * Sign in + Get started) is a client island in NavbarAuth.
  */
 
 import Link from "next/link";
-import { useAuth } from "../contexts/AuthContext";
 import { StackMark } from "./Brand/StackMark";
-import { AccountMenu } from "./AccountMenu";
-import { FREE_CLIMB_HREF, DUEL_HREF, SIGNIN_HREF, SIGNUP_HREF } from "./navLinks";
+import { NavbarAuth } from "./NavbarAuth";
+import { FREE_CLIMB_HREF, DUEL_HREF } from "./navLinks";
 
 interface NavbarProps {
   /** Optional breadcrumb shown after the wordmark (e.g. "Dashboard", "Tech stack"). */
@@ -22,14 +18,10 @@ interface NavbarProps {
   contextDot?: string;
 }
 
-const PILL =
-  "inline-flex items-center justify-center rounded-full px-4 min-h-[38px] text-sm font-semibold tracking-tight transition-[filter,transform,scale] hover:brightness-110 active:scale-[0.98] focus-visible:outline-hidden";
 const GHOST =
   "inline-flex items-center justify-center px-3 min-h-[38px] font-mono text-xs uppercase tracking-[0.14em] text-text-muted hover:text-text-primary transition-colors";
 
 export function Navbar({ contextLabel, contextDot }: NavbarProps) {
-  const { user, loading } = useAuth();
-
   return (
     <nav className="sticky top-0 z-30 h-14 bg-void/80 backdrop-blur-md border-b border-border-subtle px-4 md:px-6 flex items-center justify-between">
       <div className="flex items-center gap-3 min-w-0">
@@ -70,26 +62,7 @@ export function Navbar({ contextLabel, contextDot }: NavbarProps) {
         <Link href={FREE_CLIMB_HREF} className={`${GHOST} hidden sm:inline-flex`}>
           Free climb
         </Link>
-        {loading ? (
-          // Stable placeholder — no flash of wrong auth state
-          <div
-            className="h-9 w-40 rounded-full bg-elevated animate-pulse"
-            aria-hidden="true"
-          />
-        ) : user ? (
-          // The account menu is the sole signed-in surface: it groups dashboard,
-          // creator page, settings, sign out and folds in mobile nav.
-          <AccountMenu />
-        ) : (
-          <>
-            <Link href={SIGNIN_HREF} className={GHOST}>
-              Sign in
-            </Link>
-            <Link href={SIGNUP_HREF} className={`${PILL} bg-signal text-void`}>
-              Get started
-            </Link>
-          </>
-        )}
+        <NavbarAuth />
       </div>
     </nav>
   );

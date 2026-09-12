@@ -14,7 +14,7 @@
  * cover the lava band well below the climber, who is held at ~62% of the view.
  */
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { NO_TOUCH, type TouchInput } from "../../game/useClimb";
 import {
   initialHoldMemo,
@@ -105,7 +105,7 @@ export function TouchControls({
   );
 }
 
-function TouchButton({
+const TouchButton = memo(function TouchButton({
   control,
   held,
   onEvent,
@@ -195,7 +195,7 @@ function TouchButton({
       )}
     </button>
   );
-}
+});
 
 interface Control {
   id: ControlId;
