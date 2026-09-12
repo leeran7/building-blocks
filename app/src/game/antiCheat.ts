@@ -17,6 +17,7 @@ import {
   JETPACK_MAX_VY,
   isPowerUpActive,
   jetpackFuelRemaining,
+  superJumpChargesRemaining,
 } from "./powerups";
 
 /** Result of validating a single player's input for one tick. */
@@ -55,10 +56,11 @@ export function validateInput(
   let reason: string | undefined;
 
   // Jump is only legal from the ground — an air-jump is the classic spoof.
-  // Super-jump allows air jumps; a live jetpack with fuel lets
-  // the player hold jump to thrust. Both are the allowance those pickups buy.
+  // Super-jump allows air jumps up to its per-activation charge budget (see
+  // SUPER_JUMP_AIR_JUMPS); a live jetpack with fuel lets the player hold jump
+  // to thrust. Both are the allowance those pickups buy, no more.
   const mayAirJump =
-    isPowerUpActive(player, "super-jump", tick) ||
+    superJumpChargesRemaining(player, tick) > 0 ||
     jetpackFuelRemaining(player, tick) > 0;
   if (jump && !player.onGround && !player.onLadder && !mayAirJump) {
     rejected = true;

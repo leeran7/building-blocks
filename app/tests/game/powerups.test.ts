@@ -49,6 +49,7 @@ import {
   GIANT_GRAB_MULT,
   GIANT_PLATFORM_MARGIN_M,
   GIANT_VISUAL_SCALE,
+  SUPER_JUMP_AIR_JUMPS,
   canActivate,
   cooldownRemaining,
   cooldownTicks,
@@ -68,6 +69,8 @@ import {
   remainingTicks,
   ladderGrabMultiplier,
   platformReachMargin,
+  superJumpChargesRemaining,
+  consumeSuperJumpAirJump,
 } from "../../src/game/powerups";
 import { validateInput } from "../../src/game/antiCheat";
 import {
@@ -361,12 +364,19 @@ describe("pickup: touching an orb auto-activates it immediately", () => {
       expect(p.activePowerUps.filter((a) => a.type === type)).toHaveLength(1);
     });
 
-    it("a second super-jump orb refreshes the timer instead of stacking", () => {
+    it("a second super-jump orb refreshes the timer and air-jump budget instead of stacking", () => {
       const m = climbingMatch();
       const p = m.players[0];
 
       placeOrb(m, "super-jump", p.x, p.y);
       stepMatch(m, { p1: NO_INPUT }, SLOW);
+
+      // Spend an air jump so the budget is partially used before refreshing.
+      stepMatch(m, { p1: move(0, true) }, SLOW);
+      for (let i = 0; i < 10; i++) stepMatch(m, { p1: NO_INPUT }, SLOW);
+      stepMatch(m, { p1: move(0, true) }, SLOW);
+      expect(superJumpChargesRemaining(p, m.tick)).toBe(SUPER_JUMP_AIR_JUMPS - 1);
+
       placeOrb(m, "super-jump", p.x, p.y);
       stepMatch(m, { p1: NO_INPUT }, SLOW);
 
@@ -375,6 +385,9 @@ describe("pickup: touching an orb auto-activates it immediately", () => {
       expect(remainingTicks(p, "super-jump", m.tick)).toBe(
         durationTicks("super-jump")
       );
+      // The refresh also refills the air-jump budget — a stale, near-spent
+      // count surviving a fresh pickup would be confusing and unfair.
+      expect(superJumpChargesRemaining(p, m.tick)).toBe(SUPER_JUMP_AIR_JUMPS);
     });
 
     it.each(ZERO_COOLDOWN_TYPES)("restarts the %s countdown on refresh", (type) => {
@@ -465,7 +478,7 @@ describe("effects: each power-up does what its label claims", () => {
     expect(p.onLadder).toBe(true);
   });
 
-  it("super-jump allows unlimited air jumps during the 10s window", () => {
+  it(`super-jump grants ${SUPER_JUMP_AIR_JUMPS} air jumps per activation, then no more`, () => {
     const m = climbingMatch();
     const p = m.players[0];
     placeOrb(m, "super-jump", p.x, p.y);
@@ -474,14 +487,24 @@ describe("effects: each power-up does what its label claims", () => {
     stepMatch(m, { p1: move(0, true) }, SLOW);
     expect(p.onGround).toBe(false);
 
-    // Multiple air jumps all succeed while the effect is active.
-    for (let hop = 0; hop < 4; hop++) {
+    // The budgeted air jumps all succeed while the effect is active.
+    for (let hop = 0; hop < SUPER_JUMP_AIR_JUMPS; hop++) {
       for (let i = 0; i < 10; i++) stepMatch(m, { p1: NO_INPUT }, SLOW);
       const vyBefore = p.vy;
       stepMatch(m, { p1: move(0, true) }, SLOW);
       expect(p.vy).toBeGreaterThan(vyBefore);
       expect(isPowerUpActive(p, "super-jump", m.tick)).toBe(true);
     }
+
+    // Budget spent — the window is still running, but another tap must not
+    // reset vy upward. This is the jetpack-hover exploit the cap closes:
+    // without it, rapid tapping could reset vy indefinitely.
+    expect(superJumpChargesRemaining(p, m.tick)).toBe(0);
+    for (let i = 0; i < 10; i++) stepMatch(m, { p1: NO_INPUT }, SLOW);
+    const vyBeforeExtra = p.vy;
+    stepMatch(m, { p1: move(0, true) }, SLOW);
+    expect(p.vy).toBeLessThan(vyBeforeExtra);
+    expect(isPowerUpActive(p, "super-jump", m.tick)).toBe(true);
   });
 
   it("does not let a held jump key trigger super-jump mid-air", () => {
@@ -858,6 +881,18 @@ describe("anti-cheat: power-ups widen the rules only as far as they should", () 
     const v = validateInput({ moveX: 0, jump: true, climbY: 0, usePowerUp: false }, p, 0);
     expect(v.rejected).toBe(false);
     expect(v.input.jump).toBe(true);
+  });
+
+  it("rejects an air jump once the super-jump charge budget is spent, even mid-window", () => {
+    const p = airborne();
+    grantPowerUp(p, "super-jump", 0);
+    for (let i = 0; i < SUPER_JUMP_AIR_JUMPS; i++) {
+      expect(consumeSuperJumpAirJump(p, 0)).toBe(true);
+    }
+    expect(isPowerUpActive(p, "super-jump", 0)).toBe(true); // window still running
+    const v = validateInput({ moveX: 0, jump: true, climbY: 0, usePowerUp: false }, p, 0);
+    expect(v.rejected).toBe(true);
+    expect(v.input.jump).toBe(false);
   });
 
   it("rejects air jumps after super-jump expires", () => {
