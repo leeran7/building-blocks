@@ -104,6 +104,18 @@ describe("draw budget", () => {
     expect(wide.counts.radial).toBe(0);
   });
 
+  it("slides the tile down-screen as you climb, matching sy()'s direction for fixed geometry", () => {
+    // paintClimbFrame's sy(worldY) = height - (worldY - camWorldY) * pxPerM:
+    // for any fixed world point, a larger camWorldY yields a larger screen y
+    // (drifts toward the bottom). The backdrop must move the same way, or the
+    // scenery reads as descending while the platforms read as climbing.
+    const low = recordingContext();
+    const high = recordingContext();
+    drawClimbBackground(low.ctx, 360, 640, 10, 0, false, STUB_TILE);
+    drawClimbBackground(high.ctx, 360, 640, 20, 0, false, STUB_TILE);
+    expect(high.images[0]).toBeGreaterThan(low.images[0]);
+  });
+
   it("paints embers as fillRects, not paths, and freezes them under reduced motion", () => {
     const live = recordingContext();
     const still = recordingContext();
@@ -116,7 +128,11 @@ describe("draw budget", () => {
   });
 });
 
-function recordingContext(): { ctx: CanvasRenderingContext2D; counts: DrawCounts } {
+function recordingContext(): {
+  ctx: CanvasRenderingContext2D;
+  counts: DrawCounts;
+  images: number[];
+} {
   const counts: DrawCounts = {
     save: 0,
     restore: 0,
@@ -126,6 +142,7 @@ function recordingContext(): { ctx: CanvasRenderingContext2D; counts: DrawCounts
     linear: 0,
     radial: 0,
   };
+  const images: number[] = [];
   const ctx = {
     save: () => {
       counts.save += 1;
@@ -136,8 +153,13 @@ function recordingContext(): { ctx: CanvasRenderingContext2D; counts: DrawCounts
     fillRect: () => {
       counts.fillRect += 1;
     },
-    drawImage: () => {
+    drawImage: (
+      _src: CanvasImageSource,
+      _sx: number,
+      sy: number
+    ) => {
       counts.drawImage += 1;
+      images.push(sy);
     },
     beginPath: () => {
       counts.beginPath += 1;
@@ -154,7 +176,7 @@ function recordingContext(): { ctx: CanvasRenderingContext2D; counts: DrawCounts
     globalAlpha: 1,
     globalCompositeOperation: "source-over",
   };
-  return { ctx: ctx as unknown as CanvasRenderingContext2D, counts };
+  return { ctx: ctx as unknown as CanvasRenderingContext2D, counts, images };
 }
 
 type DrawCounts = {

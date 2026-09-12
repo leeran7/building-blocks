@@ -8,10 +8,12 @@
  * Sprites are decoded once; a tick only drawImages them. The orange lake that
  * read as "you spawned in the lava" is gone.
  *
- * camWorldY scrolls the tile (slow parallax) and eases a cool overlay as you
- * climb away from the caldera. Embers thin with altitude. Vertex counts do
- * not scale with width. The body is wrapped in save/restore so fill state
- * cannot leak onto gameplay.
+ * camWorldY scrolls the tile down-screen as you climb (slow parallax) — the
+ * same direction sy() moves fixed world geometry in paintClimbFrame, so the
+ * backdrop reads as ascending rather than falling — and eases a cool overlay
+ * as you climb away from the caldera. Embers thin with altitude. Vertex
+ * counts do not scale with width. The body is wrapped in save/restore so
+ * fill state cannot leak onto gameplay.
  */
 
 import { EMBER_MAX as CLIMB_EMBER_MAX } from "../../design/climbFeelTokens";
@@ -159,7 +161,11 @@ function drawTiles(
   const tileH = width * (nh / nw);
   const scroll = tileScrollY(camWorldY, tileH);
   const repeats = tileRepeatCount(height, tileH);
-  let y = -scroll;
+  // Positive climb (larger camWorldY) must slide the tile down the screen —
+  // same direction as sy() moves fixed world geometry — so the backdrop reads
+  // as ascending, not falling. Start one tile above the viewport so the loop
+  // still covers the canvas at scroll = 0.
+  let y = scroll - tileH;
   for (let i = 0; i < repeats; i++) {
     ctx.drawImage(src, 0, y, width, tileH);
     y += tileH;
