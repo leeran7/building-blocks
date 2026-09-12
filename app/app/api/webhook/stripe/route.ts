@@ -173,14 +173,12 @@ async function handleCreditsTopup(
   }
 
   const userId = session.metadata?.user_id;
-  // chip_amount in metadata is the display chip count (e.g. 500 for a $5 purchase).
-  // play_credits_cents uses 100 units per display chip, so multiply by 100.
-  // Fall back to amount_total (USD cents, $1 = 100 chips = 10000 play_credits_cents)
-  // for legacy sessions predating the chip_amount metadata field.
-  const chipDisplayCount = session.metadata?.chip_amount
+  // chip_amount in metadata is play_credits_cents (e.g. 50000 for a $5 purchase).
+  // Fall back to amount_total (USD cents) × 100 for legacy sessions predating
+  // the chip_amount metadata field.
+  const chipAmountCents = session.metadata?.chip_amount
     ? parseInt(session.metadata.chip_amount, 10)
-    : (session.amount_total ?? 0);
-  const chipAmountCents = chipDisplayCount * 100;
+    : (session.amount_total ?? 0) * 100;
   const chargeCents = session.amount_total ?? 0;
 
   if (!session.id) {
@@ -201,7 +199,6 @@ async function handleCreditsTopup(
         stripe_session_id: session.id,
         user_id: userId,
         charge_cents: chargeCents,
-        chip_display_count: chipDisplayCount,
         chip_amount_cents: chipAmountCents,
         outcome: result.outcome,
         timestamp: new Date().toISOString(),
