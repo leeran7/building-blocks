@@ -295,6 +295,7 @@ function integratePlayer(
       // Hop off (jump) or lost the ladder reference → let go.
       releaseLadder(p);
       p.vy = input.jump && l ? tower.jumpSpeed * 0.7 : 0;
+      p.grabSuppressedUntilRelease = true;
     } else {
       p.vy = input.climbY * climbSpeed;
       p.y += p.vy * dt;
@@ -328,13 +329,10 @@ function integratePlayer(
     const wrappedPrevX = prevX + (p.x - nextX);
 
     // Grab a ladder if the player is asking to climb and one is in reach. Right
-    // after stepping off a ladder, a grab is suppressed only while the player is
-    // also walking (moveX ≠ 0) — that is the "let me walk away" intent, and
-    // without it a held climb snapped them straight back onto an aligned ladder
-    // and they couldn't move. Holding climb with no direction still re-grabs, so
-    // vertically-stacked ladders can still be chained (tower stays solvable).
-    const escapingDismount = p.grabSuppressedUntilRelease && input.moveX !== 0;
-    if (input.climbY !== 0 && !escapingDismount) {
+    // after stepping off or jumping off a ladder, grabs are suppressed until the
+    // climb button is released — without it a held climb snapped the player
+    // straight back onto the same ladder and they couldn't move.
+    if (input.climbY !== 0 && !p.grabSuppressedUntilRelease) {
       const g = grabbableLadder(tower, p.x, p.y, input.climbY, grabRadius);
       if (g) {
         p.onLadder = true;
