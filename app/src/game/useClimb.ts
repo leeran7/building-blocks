@@ -68,6 +68,12 @@ export interface ReplayTransportView {
 
 export interface UseClimbResult {
   state: MatchState;
+  /**
+   * Mutable ref holding the authoritative simulation state. Canvas renderers
+   * should read from this via requestAnimationFrame for smooth 60 fps drawing,
+   * rather than from React state (which updates at ~10 Hz).
+   */
+  simRef: { readonly current: MatchState };
   /** Start / restart the run from countdown. */
   start: () => void;
   /** Whether the run has ended (finished/results). */
@@ -109,6 +115,15 @@ export interface UseClimbOptions {
   autoStart?: boolean;
 }
 
+/**
+ * React state is updated every REACT_UPDATE_INTERVAL simulation ticks (~10 Hz
+ * at 30 Hz sim) instead of every tick. The authoritative simulation state lives
+ * in a mutable ref for rAF-driven canvas rendering; React state is a periodic
+ * immutable snapshot for HUD components. Phase transitions always flush
+ * immediately.
+ */
+const REACT_UPDATE_INTERVAL = 3;
+
 const PLAYER_ID = "you";
 
 export function useClimb({
@@ -140,8 +155,10 @@ export function useClimb({
   }));
   const state = view.match;
   const runId = view.runId;
+  // stateRef is the authoritative mutable simulation state. It is NOT synced
+  // from React state on every render — the rAF loop mutates it directly via
+  // stepMatch, and React only receives periodic immutable snapshots.
   const stateRef = useRef(state);
-  stateRef.current = state;
 
   const keysRef = useRef<Set<string>>(new Set());
   const touchRef = useRef<TouchInput>(NO_TOUCH);
@@ -153,6 +170,9 @@ export function useClimb({
   replayInputsRef.current = replayInputs;
   const inputLogRef = useRef<PlayerInput[]>([]);
   const [inputLog, setInputLog] = useState<PlayerInput[]>([]);
+  // Mutable input object reused every tick to avoid per-frame allocations.
+  // Cloned only when stored in the input log for replay.
+  const mutableInputRef = useRef<PlayerInput>({ moveX: 0, jump: false, climbY: 0, usePowerUp: false });
   const replaying = Boolean(replayInputs?.length);
 
   // Replay transport refs — only read when replaying (NFR-8).
@@ -241,7 +261,13 @@ export function useClimb({
     const climbY: -1 | 0 | 1 =
       upKey && !downKey ? 1 : downKey && !upKey ? -1 : 0;
 
-    return { moveX, jump, climbY, usePowerUp: false };
+    // Reuse a single mutable object instead of allocating a new one every tick.
+    const inp = mutableInputRef.current;
+    inp.moveX = moveX;
+    inp.jump = jump;
+    inp.climbY = climbY;
+    inp.usePowerUp = false;
+    return inp;
   }, []);
 
   const inputForTick = useCallback(
@@ -309,6 +335,7 @@ export function useClimb({
 
       let cur = stateRef.current;
       let advanced = false;
+      const prevPhase = cur.phase;
       while (accumulatorRef.current >= TICK_DT) {
         accumulatorRef.current -= TICK_DT;
         const input = inputForTick(cur.phase, cur.tick);
@@ -317,7 +344,8 @@ export function useClimb({
         // Recording countdown ticks here would shift every real input forward
         // by the countdown length once replayed.
         if (!replayInputsRef.current?.length && cur.phase === "climb") {
-          inputLogRef.current.push(input);
+          // Clone the mutable input for immutable storage in the replay log.
+          inputLogRef.current.push({ ...input });
         }
         cur = stepMatch(cur, { [PLAYER_ID]: input }, cfg);
         advanced = true;
@@ -327,10 +355,16 @@ export function useClimb({
         }
       }
       if (advanced) {
-        setView((v) => ({
-          ...v,
-          match: { ...cur, players: cur.players.map((p) => ({ ...p })) },
-        }));
+        // Flush an immutable snapshot to React state every REACT_UPDATE_INTERVAL
+        // ticks (~10 Hz) instead of every tick. Always flush on phase transitions
+        // so lifecycle-dependent UI (countdown, finished) updates immediately.
+        const phaseChanged = cur.phase !== prevPhase;
+        if (phaseChanged || cur.tick % REACT_UPDATE_INTERVAL === 0) {
+          setView((v) => ({
+            ...v,
+            match: { ...cur, players: cur.players.map((p) => ({ ...p })) },
+          }));
+        }
       }
     };
     raf = requestAnimationFrame(loop);
@@ -456,6 +490,7 @@ export function useClimb({
 
   return {
     state,
+    simRef: stateRef,
     start,
     finished,
     setTouch,

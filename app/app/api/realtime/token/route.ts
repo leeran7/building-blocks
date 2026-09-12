@@ -20,6 +20,16 @@ import { getDuel } from "../../../../src/db/duel";
 
 export const runtime = "nodejs";
 
+// Module-level singleton — avoid re-parsing the REST client on every token
+// renewal within the same serverless instance.
+let ablyRest: Ably.Rest | null = null;
+function getAblyRest(apiKey: string): Ably.Rest {
+  if (!ablyRest) {
+    ablyRest = new Ably.Rest(apiKey);
+  }
+  return ablyRest;
+}
+
 // Authenticated callers: 60/hour. Unauthenticated (guest) callers: 10/hour.
 const AUTH_RATE_MAX = 60;
 const GUEST_RATE_MAX = 10;
@@ -127,7 +137,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const ably = new Ably.Rest(apiKey);
+    const ably = getAblyRest(apiKey);
     const tokenRequest = await ably.auth.createTokenRequest({
       clientId: identity,
       capability: { [`duel:${duelId}`]: ["subscribe", "publish", "presence"] },

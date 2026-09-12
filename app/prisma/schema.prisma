@@ -448,6 +448,9 @@ model SocialContentItem {
   @@index([promptBatchId], name: "social_content_prompt_batch_idx")
   @@index([generatedForIsoWeek], name: "social_content_iso_week_idx")
   @@index([createdAt], name: "social_content_created_at_idx")
+  @@index([socialAccountId], name: "social_content_account_idx")
+  @@index([deletedAt], name: "social_content_deleted_at_idx")
+  @@index([status, publishedAt], name: "social_content_status_published_idx")
   @@map("social_content_items")
 }
 

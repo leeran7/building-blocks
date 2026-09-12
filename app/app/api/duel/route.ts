@@ -15,9 +15,8 @@ import { requireAuth, AuthError } from "../../../src/lib/requireAuth";
 import { checkRateLimit } from "../../../src/lib/rateLimit";
 import { newRunSeed } from "../../../src/game/rng";
 import { CATEGORY_BY_SLUG } from "../../../src/lib/categories";
-import { createDuel, getDuelsByPlayer1 } from "../../../src/db/duel";
+import { createDuel, hasAnyPendingDuel } from "../../../src/db/duel";
 import { ensureUser } from "../../../src/db/user";
-import { DuelStatus } from "@prisma/client";
 
 export const runtime = "nodejs";
 
@@ -102,13 +101,13 @@ export async function POST(request: NextRequest) {
 
   try {
     // Exactly one pending challenge per user (R: open-duel limit)
-    const existing = await getDuelsByPlayer1(uid, DuelStatus.pending);
-    if (existing.length > 0) {
+    const existing = await hasAnyPendingDuel(uid);
+    if (existing) {
       return NextResponse.json(
         {
           error: "You have an open challenge",
           code: "DUEL_ALREADY_PENDING",
-          existingId: existing[0].id,
+          existingId: existing.id,
         },
         { status: 409 }
       );

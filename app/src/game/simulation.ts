@@ -180,10 +180,15 @@ function ensurePowerUps(state: MatchState): void {
   if (hi >= state.powerUpFloorHi) state.powerUpFloorHi = hi + 1;
 
   // Anything on a floor fully sealed under the death line is unreachable for good.
+  // Only allocate a new filtered array when items actually need removal — most
+  // ticks the cutoff hasn't advanced enough to eliminate anything.
   const belowHazard = Math.max(0, floorIndexAt(tower, state.hazardY) - 1);
   const cutoff = floorHeight(tower, belowHazard);
   if (state.powerUps.length > 0 && cutoff > 0) {
-    state.powerUps = state.powerUps.filter((pu) => pu.y >= cutoff);
+    const hasDead = state.powerUps.some((pu) => pu.y < cutoff);
+    if (hasDead) {
+      state.powerUps = state.powerUps.filter((pu) => pu.y >= cutoff);
+    }
   }
 }
 

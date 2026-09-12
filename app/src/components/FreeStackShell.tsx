@@ -35,9 +35,11 @@ export function FreeStackShell({
         aria-hidden="true"
       />
 
-      <div className="shrink-0">
-        <Navbar contextLabel="Free climb" />
-      </div>
+      {!play && (
+        <div className="shrink-0">
+          <Navbar contextLabel="Free climb" />
+        </div>
+      )}
 
       <div className="relative z-10 border-b border-border-subtle shrink-0">
         <div className="max-w-2xl mx-auto w-full px-4 py-2">

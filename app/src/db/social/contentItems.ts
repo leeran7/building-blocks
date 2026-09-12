@@ -81,7 +81,54 @@ export interface ContentItemQuery {
   promptBatchId?: string;
 }
 
-export async function listContentItems(query: ContentItemQuery): Promise<SocialContentItem[]> {
+/** Lightweight projection returned by `listContentItems` — excludes large
+ *  @db.Text body fields (script, caption, description, visualDirection, prompt,
+ *  hook) and JSON blobs (threadParts, validationErrors) to cut wire size. */
+export interface ContentItemListRow {
+  id: string;
+  platform: string;
+  contentType: string;
+  status: string;
+  title: string | null;
+  scheduledAt: Date | null;
+  publishedAt: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+  socialAccountId: string | null;
+  promptBatchId: string | null;
+  sourceItemId: string | null;
+  hashtags: string[];
+  cta: string | null;
+  blockedByAvoidTerm: boolean;
+  externalPostId: string | null;
+  generatedForIsoWeek: string | null;
+  version: number;
+  deletedAt: Date | null;
+}
+
+const CONTENT_ITEM_LIST_SELECT = {
+  id: true,
+  platform: true,
+  contentType: true,
+  status: true,
+  title: true,
+  scheduledAt: true,
+  publishedAt: true,
+  createdAt: true,
+  updatedAt: true,
+  socialAccountId: true,
+  promptBatchId: true,
+  sourceItemId: true,
+  hashtags: true,
+  cta: true,
+  blockedByAvoidTerm: true,
+  externalPostId: true,
+  generatedForIsoWeek: true,
+  version: true,
+  deletedAt: true,
+} as const;
+
+export async function listContentItems(query: ContentItemQuery): Promise<ContentItemListRow[]> {
   return prisma.socialContentItem.findMany({
     where: {
       deletedAt: query.includeDeleted ? undefined : null,
@@ -98,6 +145,7 @@ export async function listContentItems(query: ContentItemQuery): Promise<SocialC
           }
         : {}),
     },
+    select: CONTENT_ITEM_LIST_SELECT,
     orderBy: [{ scheduledAt: "asc" }, { createdAt: "desc" }],
   });
 }

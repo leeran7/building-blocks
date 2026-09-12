@@ -87,12 +87,20 @@ export function usePowerUpFeedback(
     if (musicEnabled) musicEngine.setIntensity(musicIntensity);
   }, [musicEnabled, musicIntensity, musicEngine]);
 
+  // Derive a stable string key from the active power-up types so the memo
+  // caches across frames. `player` is a new shallow clone every tick, but the
+  // set of non-expired types changes far less often.
+  const activeKey =
+    player?.activePowerUps
+      ?.filter((a) => !isExpired(a, tick))
+      .map((a) => a.type)
+      .sort()
+      .join(",") ?? "";
+
   const activeTypes = useMemo((): readonly PowerUpType[] => {
-    if (!player) return [];
-    return player.activePowerUps
-      .filter((a) => !isExpired(a, tick))
-      .map((a) => a.type);
-  }, [player, tick]);
+    if (!activeKey) return [];
+    return activeKey.split(",") as PowerUpType[];
+  }, [activeKey]);
 
   useEffect(() => {
     const { memo, out } = stepCues(memoRef.current, {

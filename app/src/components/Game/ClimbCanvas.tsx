@@ -7,7 +7,7 @@
  * so export can share the same painter without DOM chrome (ADR-3).
  */
 
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { HUD_ALTITUDE_FONT_UI } from "../../design/climbFeelTokens";
 import { MatchState } from "../../game/types";
 import {
@@ -75,43 +75,55 @@ export function ClimbCanvas({
     tick: null,
   });
 
-  useEffect(() => {
+  // Store state in a ref so the rAF loop always reads the latest without
+  // running React's effect cleanup+setup every tick (~30 Hz).
+  const stateRef = useRef(state);
+  stateRef.current = state;
+
+  const optsRef = useRef({ width, height, reducedMotion, bottomInset, hudInsetTop, myId, playerNames });
+  optsRef.current = { width, height, reducedMotion, bottomInset, hudInsetTop, myId, playerNames };
+
+  const paint = useCallback(() => {
     const canvas = ref.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
+    const opts = optsRef.current;
     const dpr = clampDevicePixelRatio(
       typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1
     );
-    const target = backingStoreSize(width, height, dpr);
+    const target = backingStoreSize(opts.width, opts.height, dpr);
     if (canvasNeedsResize(canvas.width, canvas.height, target.width, target.height)) {
       canvas.width = target.width;
       canvas.height = target.height;
     }
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-    paintClimbFrame(ctx, state, {
-      width,
-      height,
-      reducedMotion,
-      bottomInset,
-      hudInsetTop,
+    paintClimbFrame(ctx, stateRef.current, {
+      width: opts.width,
+      height: opts.height,
+      reducedMotion: opts.reducedMotion,
+      bottomInset: opts.bottomInset,
+      hudInsetTop: opts.hudInsetTop,
       includeHud: true,
       camera: camRef.current,
-      myId,
-      playerNames,
+      myId: opts.myId,
+      playerNames: opts.playerNames,
     });
-  }, [
-    state,
-    width,
-    height,
-    reducedMotion,
-    bottomInset,
-    hudInsetTop,
-    myId,
-    playerNames,
-  ]);
+  }, []);
+
+  // Single rAF loop: paint at the browser's refresh rate, reading the latest
+  // state from refs. Starts once on mount, cleaned up on unmount.
+  useEffect(() => {
+    let rafId: number;
+    function loop() {
+      paint();
+      rafId = requestAnimationFrame(loop);
+    }
+    rafId = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(rafId);
+  }, [paint]);
 
 
   return (

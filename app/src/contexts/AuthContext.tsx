@@ -12,10 +12,12 @@
 
 import React, {
   createContext,
+  useCallback,
   useContext,
   useEffect,
+  useMemo,
+  useRef,
   useState,
-  useCallback,
 } from "react";
 import type { User as FirebaseUser } from "firebase/auth";
 import { auth } from "../lib/firebase";
@@ -43,6 +45,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<FirebaseUser | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const hasSynced = useRef(false);
 
   useEffect(() => {
     // onIdTokenChanged fires on: sign-in, sign-out, token refresh (~every 1h)
@@ -53,11 +56,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setToken(idToken);
         setTokenCookie(idToken); // unblock the /dashboard middleware guard
 
-        // Provision the DB `users` row on EVERY sign-in path (email, Google
-        // OAuth, returning session) — not just email/password signup. Anything
-        // that foreign-keys to users(id) (climb saves, blocks) fails without it.
+        // Provision the DB `users` row once per session — on the first token
+        // event (sign-in / returning session), not on subsequent ~1h refreshes
+        // which would POST to /api/auth/sync every hour with no change.
         // Anonymous sessions have no email and can't be provisioned; skip them.
-        if (!firebaseUser.isAnonymous && firebaseUser.email) {
+        if (!hasSynced.current && !firebaseUser.isAnonymous && firebaseUser.email) {
+          hasSynced.current = true;
           fetch("/api/auth/sync", {
             method: "POST",
             headers: { Authorization: `Bearer ${idToken}` },
@@ -69,6 +73,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(null);
         setToken(null);
         clearTokenCookie();
+        hasSynced.current = false;
       }
       setLoading(false);
     });
@@ -83,8 +88,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     clearTokenCookie();
   }, []);
 
+  const isAnonymous = user?.isAnonymous ?? false;
+  const value = useMemo(
+    () => ({ user, token, loading, isAnonymous, signOut }),
+    [user, token, loading, isAnonymous, signOut]
+  );
+
   return (
-    <AuthContext.Provider value={{ user, token, loading, isAnonymous: user?.isAnonymous ?? false, signOut }}>
+    <AuthContext.Provider value={value}>
       {children}
     </AuthContext.Provider>
   );

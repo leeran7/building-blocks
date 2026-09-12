@@ -55,7 +55,7 @@ export async function GET(
   const log1 = duel.player1_replay ? decodeReplay(duel.player1_replay) : null;
   const log2 = duel.player2_replay ? decodeReplay(duel.player2_replay) : null;
 
-  return NextResponse.json({
+  const res = NextResponse.json({
     seed: duel.seed,
     categorySlug: duel.category_slug,
     player1: duel.player1
@@ -78,4 +78,6 @@ export async function GET(
     tiebreakRule: duel.tiebreak_rule ?? null,
     forfeit: duel.forfeit ?? false,
   });
+  res.headers.set("Cache-Control", "public, max-age=86400, immutable");
+  return res;
 }

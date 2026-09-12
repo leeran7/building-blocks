@@ -58,6 +58,20 @@ const FLAG = "#cbf24d";
 
 const BASE_WIDTH = 360;
 
+// ── Cached font strings ──────────────────────────────────────────────────────
+// Avoids template-literal allocation every frame; rebuilt only on ui change.
+let _cachedFontUi = 0;
+let _fontFloor = "";
+let _fontOppIndicator = "";
+let _fontHud = "";
+function ensureFontCache(ui: number): void {
+  if (ui === _cachedFontUi) return;
+  _cachedFontUi = ui;
+  _fontFloor = `${Math.round(10 * ui)}px monospace`;
+  _fontOppIndicator = `${Math.round(9 * ui)}px monospace`;
+  _fontHud = `bold ${Math.round(HUD_ALTITUDE_FONT_UI * ui)}px monospace`;
+}
+
 /** Canvas 2D context used by the live viewer and detached export canvas. */
 export type PaintCtx = CanvasRenderingContext2D;
 
@@ -111,6 +125,7 @@ export function paintClimbFrame(
   const ui = Math.max(1, width / BASE_WIDTH);
 
   const { pxPerM, viewH } = climbView(width, height, tower.widthM);
+  ensureFontCache(ui);
   const camTarget = cameraTargetY(playerY, viewH, bottomInset, pxPerM);
   const camWorldY = followCamY(
     camBag.y,
@@ -144,7 +159,7 @@ export function paintClimbFrame(
   const yLow = camWorldY - tower.floorGap;
   const yHigh = camWorldY + viewH + tower.floorGap;
 
-  ctx.font = `${Math.round(10 * ui)}px monospace`;
+  ctx.font = _fontFloor;
   const loFloor = Math.max(0, floorIndexAt(tower, camWorldY));
   const hiFloor = floorIndexAt(tower, camWorldY + viewH) + 1;
   for (let i = loFloor; i <= hiFloor; i++) {
@@ -203,6 +218,9 @@ export function paintClimbFrame(
   }
 
   for (const pu of state.powerUps) {
+    // World-space pre-filter: skip power-ups far outside the camera viewport.
+    // yLow/yHigh already include a floorGap margin, matching the other entities.
+    if (pu.y < yLow || pu.y > yHigh) continue;
     const oy = sy(pu.y);
     if (oy < -40 || oy > height + 40) continue;
     const ox = sx(pu.x);
@@ -300,7 +318,7 @@ export function paintClimbFrame(
     // Nameplate for opponents (the local player is obvious as the camera focus).
     if (!isLocal) {
       const nameLabel = (opts.playerNames ? opts.playerNames[p.id] : null) ?? "Guest";
-      ctx.font = `${Math.round(10 * ui)}px monospace`;
+      ctx.font = _fontFloor;
       ctx.textAlign = "center";
       ctx.fillStyle = OPPONENT_COLOR;
       ctx.fillText(nameLabel, pxScreen, pFeetY - (2.4 * pS + 6 * ui));
@@ -338,7 +356,7 @@ export function paintClimbFrame(
     ctx.closePath();
     ctx.fill();
 
-    ctx.font = `${Math.round(9 * ui)}px monospace`;
+    ctx.font = _fontOppIndicator;
     ctx.textAlign = "center";
     ctx.fillStyle = OPPONENT_COLOR;
     ctx.fillText(
@@ -364,7 +382,7 @@ export function paintClimbFrame(
     ctx.lineTo(width, hudTop + hudH);
     ctx.stroke();
     ctx.fillStyle = "#f4f2ec";
-    ctx.font = `bold ${Math.round(HUD_ALTITUDE_FONT_UI * ui)}px monospace`;
+    ctx.font = _fontHud;
     ctx.textAlign = "left";
     ctx.fillText(formatAltitude(playerY, 1), 10 * ui, hudTop + 22 * ui);
     ctx.fillStyle = lavaSlowed ? LAVA_SLOWED : TEXT_SECONDARY;

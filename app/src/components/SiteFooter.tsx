@@ -1,18 +1,13 @@
-"use client";
-
 /**
- * SiteFooter — auth-aware wrapper rendered once in the root layout.
+ * SiteFooter -- server component wrapper rendered once in the root layout.
  *
- * Shows the full Footer with its "Get started" marketing band to signed-out
- * visitors, and the compact footer (links + legal only) once a user is signed
- * in. Gated on !loading too so the CTA never flashes on authenticated screens
- * before auth resolves.
+ * The auth-dependent CTA visibility is handled by SiteFooterAuth (client
+ * island). This wrapper stays a server component so the static Footer
+ * shell can be server-rendered when the auth island is not needed.
  */
 
-import { useAuth } from "../contexts/AuthContext";
-import { Footer } from "./LandingPage/Footer";
+import { SiteFooterAuth } from "./SiteFooterAuth";
 
 export function SiteFooter() {
-  const { user, loading } = useAuth();
-  return <Footer showCta={!loading && !user} />;
+  return <SiteFooterAuth />;
 }

@@ -321,93 +321,112 @@ export interface ChipLeaderboardRow {
   totalChipsWon: number;
 }
 
+interface WinsRow {
+  user_id: string;
+  display_name: string | null;
+  wins: bigint;
+  chips_won: bigint;
+}
+
+interface LossRow {
+  user_id: string;
+  losses: bigint;
+}
+
 export async function chipLeaderboard(limit = 50): Promise<ChipLeaderboardRow[]> {
-  const duels = await prisma.duel.findMany({
-    where: {
-      is_chip_duel: true,
-      status: DuelStatus.completed,
-      payout_settled: true,
-      winner_id: { not: null },
-    },
-    select: {
-      player1_id: true,
-      player2_id: true,
-      winner_id: true,
-      payout_cents: true,
-      player1: { select: { id: true, display_name: true } },
-      player2: { select: { id: true, display_name: true } },
-    },
-  });
+  // 1. Top winners aggregated in SQL — no unbounded scan.
+  const winsRows = await prisma.$queryRaw<WinsRow[]>`
+    SELECT d.winner_id AS user_id,
+           u.display_name,
+           COUNT(*)            AS wins,
+           COALESCE(SUM(d.payout_cents), 0) AS chips_won
+      FROM duels d
+      JOIN users u ON u.id = d.winner_id
+     WHERE d.is_chip_duel   = true
+       AND d.status         = 'completed'
+       AND d.payout_settled = true
+       AND d.winner_id IS NOT NULL
+       AND u.display_name IS NOT NULL
+     GROUP BY d.winner_id, u.display_name
+    HAVING COUNT(*) > 0
+     ORDER BY wins DESC, chips_won DESC
+     LIMIT ${limit}
+  `;
 
-  const map = new Map<string, { displayName: string | null; wins: number; losses: number; chipsWon: number }>();
+  if (winsRows.length === 0) return [];
 
-  for (const d of duels) {
-    const players = [
-      { id: d.player1_id, name: d.player1.display_name },
-      ...(d.player2_id && d.player2 ? [{ id: d.player2_id, name: d.player2.display_name }] : []),
-    ];
-    for (const p of players) {
-      if (!map.has(p.id)) map.set(p.id, { displayName: p.name, wins: 0, losses: 0, chipsWon: 0 });
-      const s = map.get(p.id)!;
-      if (p.name !== null) s.displayName = p.name;
-      if (d.winner_id === p.id) {
-        s.wins++;
-        s.chipsWon += d.payout_cents ?? 0;
-      } else {
-        s.losses++;
-      }
-    }
+  const winnerIds = winsRows.map((r) => r.user_id);
+
+  // 2. Count losses for those users — a user loses when they participated
+  //    but were NOT the winner.
+  const lossRows = await prisma.$queryRaw<LossRow[]>`
+    SELECT sub.user_id, COUNT(*) AS losses
+      FROM (
+        SELECT d.player1_id AS user_id FROM duels d
+         WHERE d.is_chip_duel   = true
+           AND d.status         = 'completed'
+           AND d.payout_settled = true
+           AND d.winner_id IS NOT NULL
+           AND d.player1_id != d.winner_id
+           AND d.player1_id IN (${Prisma.join(winnerIds)})
+        UNION ALL
+        SELECT d.player2_id AS user_id FROM duels d
+         WHERE d.is_chip_duel   = true
+           AND d.status         = 'completed'
+           AND d.payout_settled = true
+           AND d.winner_id IS NOT NULL
+           AND d.player2_id IS NOT NULL
+           AND d.player2_id != d.winner_id
+           AND d.player2_id IN (${Prisma.join(winnerIds)})
+      ) sub
+     GROUP BY sub.user_id
+  `;
+
+  const lossMap = new Map<string, number>();
+  for (const r of lossRows) {
+    lossMap.set(r.user_id, Number(r.losses));
   }
 
-  return Array.from(map.entries())
-    .filter(([, v]) => v.displayName !== null && v.wins > 0)
-    .map(([userId, v]) => {
-      const total = v.wins + v.losses;
-      return {
-        userId,
-        displayName: v.displayName,
-        chipWins: v.wins,
-        chipLosses: v.losses,
-        winPct: total > 0 ? Math.round((v.wins / total) * 1000) / 10 : 0,
-        totalChipsWon: v.chipsWon,
-      };
-    })
-    .sort((a, b) => b.chipWins - a.chipWins || b.totalChipsWon - a.totalChipsWon)
-    .slice(0, limit);
+  return winsRows.map((r) => {
+    const wins = Number(r.wins);
+    const losses = lossMap.get(r.user_id) ?? 0;
+    const total = wins + losses;
+    return {
+      userId: r.user_id,
+      displayName: r.display_name,
+      chipWins: wins,
+      chipLosses: losses,
+      winPct: total > 0 ? Math.round((wins / total) * 1000) / 10 : 0,
+      totalChipsWon: Number(r.chips_won),
+    };
+  });
+}
+
+interface TopEarnerRow {
+  display_name: string | null;
 }
 
 export async function getChipDuelStats(): Promise<{ totalDuels: number; topEarner: string | null }> {
-  const [count, top] = await Promise.all([
+  const [count, topRows] = await Promise.all([
     prisma.duel.count({
       where: { is_chip_duel: true, status: DuelStatus.completed },
     }),
-    prisma.duel.findMany({
-      where: {
-        is_chip_duel: true,
-        status: DuelStatus.completed,
-        payout_settled: true,
-        winner_id: { not: null },
-      },
-      select: { winner_id: true, payout_cents: true, winner: { select: { display_name: true } } },
-    }),
+    prisma.$queryRaw<TopEarnerRow[]>`
+      SELECT u.display_name
+        FROM duels d
+        JOIN users u ON u.id = d.winner_id
+       WHERE d.is_chip_duel   = true
+         AND d.status         = 'completed'
+         AND d.payout_settled = true
+         AND d.winner_id IS NOT NULL
+       GROUP BY d.winner_id, u.display_name
+       ORDER BY SUM(d.payout_cents) DESC
+       LIMIT 1
+    `,
   ]);
 
-  let topName: string | null = null;
-  if (top.length > 0) {
-    const earningsMap = new Map<string, { name: string | null; total: number }>();
-    for (const d of top) {
-      if (!d.winner_id) continue;
-      const prev = earningsMap.get(d.winner_id) ?? { name: null, total: 0 };
-      prev.name = d.winner?.display_name ?? prev.name;
-      prev.total += d.payout_cents ?? 0;
-      earningsMap.set(d.winner_id, prev);
-    }
-    let best: { name: string | null; total: number } | null = null;
-    for (const v of earningsMap.values()) {
-      if (!best || v.total > best.total) best = v;
-    }
-    topName = best?.name ?? null;
-  }
-
-  return { totalDuels: count, topEarner: topName };
+  return {
+    totalDuels: count,
+    topEarner: topRows.length > 0 ? topRows[0].display_name : null,
+  };
 }

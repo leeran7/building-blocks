@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
       stakeCents: stakeCents && !isNaN(stakeCents) ? stakeCents : undefined,
     });
 
-    return NextResponse.json({
+    const res = NextResponse.json({
       duels: duels.map((d) => ({
         id: d.id,
         stakeCents: d.stakeCents,
@@ -26,6 +26,8 @@ export async function GET(request: NextRequest) {
         creatorName: d.creatorName,
       })),
     });
+    res.headers.set("Cache-Control", "public, s-maxage=5, stale-while-revalidate=15");
+    return res;
   } catch (err) {
     console.error("[GET /api/duel/chips/open]", err);
     return NextResponse.json(

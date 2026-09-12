@@ -2,6 +2,10 @@
 const path = require("path");
 const { createRequire } = require("module");
 
+const withBundleAnalyzer = require("@next/bundle-analyzer")({
+  enabled: process.env.ANALYZE === "true",
+});
+
 // Node's package "exports" block require.resolve of dist/esm/index.js.
 // Resolve the package root, then join the browser ESM file the webpack alias
 // needs (Next SWC cannot parse undici private fields in the Node ESM entry).
@@ -127,4 +131,4 @@ const nextConfig = {
   },
 };
 
-module.exports = nextConfig;
+module.exports = withBundleAnalyzer(nextConfig);

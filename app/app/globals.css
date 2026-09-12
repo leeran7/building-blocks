@@ -359,27 +359,8 @@ body {
    Animations (V1 preserved — FLIP + sway, AC-29/AC-38/AC-39)
    ───────────────────────────────────────────────────────────────────────── */
 
-@keyframes sway {
-  0%, 100% { transform: translateX(0px); }
-  50% { transform: translateX(2px); }
-}
-@keyframes slideOut {
-  0% { transform: translateX(0); opacity: 1; }
-  100% { transform: translateX(-100%); opacity: 0; }
-}
-@keyframes slideIn {
-  0%   { transform: translateX(100%); opacity: 0; }
-  70%  { transform: translateX(-6px); opacity: 1; }
-  100% { transform: translateX(0);   opacity: 1; }
-}
-@keyframes crossFade {
-  0% { opacity: 0; }
-  100% { opacity: 1; }
-}
-@keyframes rise {
-  0% { transform: translateY(4px); opacity: 0; }
-  100% { transform: translateY(0); opacity: 1; }
-}
+/* Keyframes sway, slideOut, slideIn, crossFade, rise are defined in @theme
+   (Tailwind v4 utilities: --animate-sway, --animate-slideIn, etc.). */
 
 @media (prefers-reduced-motion: reduce) {
   .block-slide-out { animation: crossFade 0.3s ease-in-out reverse !important; }
@@ -489,18 +470,8 @@ button:focus-visible,
   --climb-topo-signal-alpha: 0.0625;
 }
 
-@keyframes climbEnter {
-  0%   { transform: translateY(20px); opacity: 0; }
-  100% { transform: translateY(0);    opacity: 1; }
-}
-@keyframes climbPunch {
-  0%   { transform: translateY(7.5px); opacity: 0.4; }
-  100% { transform: translateY(0);     opacity: 1; }
-}
-@keyframes climbGroundRise {
-  0%, 100% { transform: translateY(5%); opacity: 0.85; }
-  50%      { transform: translateY(0);  opacity: 1; }
-}
+/* Keyframes climbEnter, climbPunch, climbGroundRise are defined in @theme
+   (Tailwind v4 utilities: --animate-climbEnter, etc.). */
 
 .climb-reveal {
   animation: climbEnter 0.56s cubic-bezier(0.16, 1, 0.3, 1) both;

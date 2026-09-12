@@ -7,6 +7,11 @@
  * "altitude is permanent" invariant.
  */
 
+import { cache } from "react";
+import { unstable_cache } from "next/cache";
+
+import { nanoid } from "nanoid";
+
 import { prisma } from "./client";
 import { climberDisplay } from "../lib/handle";
 import { FREE_STACK_SLUG } from "../game/freeStack";
@@ -60,49 +65,42 @@ export async function recordClimb(
 ): Promise<ClimbRecordResult> {
   const peakY = Math.max(0, input.peakY);
   const stackSlug = FREE_STACK_SLUG;
+  const recordId = nanoid();
+  const winsIncrement = input.finished ? 1 : 0;
 
-  // Always store the raw run (history / future audit).
-  await prisma.climbRun.create({
-    data: {
-      userId: input.userId,
-      category_slug: stackSlug,
-      peak_y: peakY,
-      finished: input.finished,
-      finished_tick: input.finishedTick,
-      seed: input.seed,
-      replay_token: input.replayToken ?? null,
-    },
-  });
-
-  const existing = await prisma.climbRecord.findUnique({
-    where: {
-      climb_record_user_category: {
+  // Store the raw run and upsert the monotonic peak record in parallel.
+  // The upsert uses GREATEST in a single round-trip, eliminating a prior
+  // findUnique + separate upsert. A CTE captures the old peak_y so we can
+  // derive the `improved` flag without an extra read.
+  const [, upsertRows] = await Promise.all([
+    prisma.climbRun.create({
+      data: {
         userId: input.userId,
         category_slug: stackSlug,
+        peak_y: peakY,
+        finished: input.finished,
+        finished_tick: input.finishedTick,
+        seed: input.seed,
+        replay_token: input.replayToken ?? null,
       },
-    },
-  });
+    }),
+    prisma.$queryRaw<{ peak_y: number; improved: boolean }[]>`
+      WITH old AS (
+        SELECT peak_y FROM climb_records
+        WHERE "userId" = ${input.userId} AND category_slug = ${stackSlug}
+      )
+      INSERT INTO climb_records (id, "userId", category_slug, peak_y, wins, updated_at)
+      VALUES (${recordId}, ${input.userId}, ${stackSlug}, ${peakY}, ${winsIncrement}, now())
+      ON CONFLICT ("userId", category_slug)
+      DO UPDATE SET
+        peak_y = GREATEST(climb_records.peak_y, EXCLUDED.peak_y),
+        wins = climb_records.wins + ${winsIncrement},
+        updated_at = now()
+      RETURNING peak_y, (peak_y > COALESCE((SELECT peak_y FROM old), 0)) as improved
+    `,
+  ]);
 
-  const { peakY: newBest, improved } = nextPeak(existing?.peak_y ?? 0, peakY);
-
-  await prisma.climbRecord.upsert({
-    where: {
-      climb_record_user_category: {
-        userId: input.userId,
-        category_slug: stackSlug,
-      },
-    },
-    create: {
-      userId: input.userId,
-      category_slug: stackSlug,
-      peak_y: newBest,
-      wins: input.finished ? 1 : 0,
-    },
-    update: {
-      peak_y: newBest,
-      ...(input.finished ? { wins: { increment: 1 } } : {}),
-    },
-  });
+  const { peak_y: newBest, improved } = upsertRows[0];
 
   const [above, totalClimbers, player] = await Promise.all([
     prisma.climbRecord.count({
@@ -138,42 +136,47 @@ export interface ClimberRank {
 /**
  * The free-stack skill leaderboard: highest peak-height record per player,
  * ranked descending. Ties broken by who reached it first (earliest updated_at).
+ *
+ * Wrapped with `unstable_cache` (60 s revalidation) so concurrent API/RSC
+ * callers share one DB round-trip per minute rather than one per request.
  */
-export async function topFreeClimbers(limit = 50): Promise<ClimberRank[]> {
-  const rows = await prisma.climbRecord.findMany({
-    where: { category_slug: FREE_STACK_SLUG },
-    orderBy: [{ peak_y: "desc" }, { updated_at: "asc" }],
-    take: limit,
-    select: {
-      userId: true,
-      peak_y: true,
-      wins: true,
-      user: { select: { display_name: true, username: true } },
-    },
-  });
-  return rows.map((r, i) => ({
-    rank: i + 1,
-    userId: r.userId,
-    handle: climberDisplay(r.userId, r.user.display_name),
-    username: r.user.username,
-    peakY: r.peak_y,
-    wins: r.wins,
-  }));
-}
+export const topFreeClimbers = unstable_cache(
+  async (limit: number = 50): Promise<ClimberRank[]> => {
+    const rows = await prisma.climbRecord.findMany({
+      where: { category_slug: FREE_STACK_SLUG },
+      orderBy: [{ peak_y: "desc" }, { updated_at: "asc" }],
+      take: limit,
+      select: {
+        userId: true,
+        peak_y: true,
+        wins: true,
+        user: { select: { display_name: true, username: true } },
+      },
+    });
+    return rows.map((r, i) => ({
+      rank: i + 1,
+      userId: r.userId,
+      handle: climberDisplay(r.userId, r.user.display_name),
+      username: r.user.username,
+      peakY: r.peak_y,
+      wins: r.wins,
+    }));
+  },
+  ["topFreeClimbers"],
+  { revalidate: 60 }
+);
 
-/** @deprecated Use topFreeClimbers — kept for tests referencing the old name. */
-export async function topClimbers(
-  _categorySlug?: string,
-  limit = 50
-): Promise<ClimberRank[]> {
-  return topFreeClimbers(limit);
-}
 
-/** Aggregate free-climb stats for the landing: distinct climbers + best peak. */
-export async function getGlobalClimbStats(): Promise<{
+/** Aggregate free-climb stats for the landing: distinct climbers + best peak.
+ *
+ * Wrapped with React `cache()` so multiple RSC callers in the same render pass
+ * (SocialProofStrip + HomePage) share a single DB round-trip per ISR
+ * regeneration.
+ */
+export const getGlobalClimbStats = cache(async (): Promise<{
   climberCount: number;
   topPeak: number | null;
-}> {
+}> => {
   const rows = await prisma.$queryRaw<{ climbers: number; top: number | null }[]>`
     SELECT COUNT(*)::int AS climbers, MAX(peak_y) AS top
     FROM climb_records
@@ -181,7 +184,7 @@ export async function getGlobalClimbStats(): Promise<{
   `;
   const row = rows[0] ?? { climbers: 0, top: null };
   return { climberCount: Number(row.climbers ?? 0), topPeak: row.top };
-}
+});
 
 export interface UserFreeClimbRecord {
   peakY: number;
@@ -229,10 +232,6 @@ export async function getUserFreeClimbRecord(
   };
 }
 
-/** @deprecated Use topFreeClimbers — landing previously used cross-category rows. */
-export async function topClimbersGlobal(limit = 8): Promise<ClimberRank[]> {
-  return topFreeClimbers(limit);
-}
 
 export interface ClimbReplaySummary {
   id: string;
