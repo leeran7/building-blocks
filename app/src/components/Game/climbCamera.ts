@@ -12,6 +12,8 @@
  * above the overlay. Desktop has a zero inset, so the two coincide.
  */
 
+import { TICK_DT } from "../../game/types";
+
 export const CAMERA_FOCUS_FRAC = 0.62;
 /** How fast the eased camera closes on the target each tick (1 = snap). */
 export const CAMERA_FOLLOW = 0.3;
@@ -69,22 +71,26 @@ export function isLavaThreatening(fill: number): boolean {
 
 /**
  * Ease the camera toward `target`. Snaps on a new run, a seek, or a gap
- * bigger than half a view (respawn). Tick-keyed so a React re-render at the
- * same tick does not ease twice.
+ * bigger than half a view (respawn).
+ *
+ * CAMERA_FOLLOW is the fraction closed per TICK_DT, so the ease is rescaled to
+ * the frame's own elapsed time: the camera then lags by the same wall-clock
+ * amount on a 60 Hz and a 144 Hz display. Applying it raw per frame made the
+ * follow twice as tight on a 120 Hz panel as the feel was tuned for.
  */
 export function followCamY(
   current: number | null,
   target: number,
   viewH: number,
-  tick: number,
-  prevTick: number | null
+  dtSec: number,
+  snap: boolean
 ): number {
-  if (current === null || prevTick === null || tick < prevTick || tick === 0) {
-    return target;
-  }
+  if (current === null || snap) return target;
   const err = target - current;
   if (Math.abs(err) > viewH * 0.55) return target;
-  return current + err * CAMERA_FOLLOW;
+  if (!(dtSec > 0)) return current;
+  const closed = 1 - Math.pow(1 - CAMERA_FOLLOW, dtSec / TICK_DT);
+  return current + err * closed;
 }
 
 export interface ClimbView {

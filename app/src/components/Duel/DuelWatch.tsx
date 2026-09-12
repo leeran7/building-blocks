@@ -24,6 +24,11 @@ import { buildTower } from "../../game/towers";
 import { buildDuelWatchUrl } from "../../game/runReplay";
 import { formatAltitude } from "../../lib/units";
 import type { MatchState, PlayerInput } from "../../game/types";
+import {
+  emptySample,
+  sampleInterp,
+  type RenderFrame,
+} from "../../game/renderFeed";
 
 // ─────────────────────────────── Types ────────────────────────────────────
 
@@ -49,6 +54,13 @@ type WatchPhase = "loading" | "ready" | "playing" | "done" | "error";
 
 const TICK_DT_MS = (1 / 30) * 1000;
 
+/**
+ * React state is a ~10 Hz snapshot for the altitude HUD; the canvas tracks the
+ * sim through the render feed, so re-rendering this page every tick bought
+ * nothing but layout work.
+ */
+const REACT_UPDATE_INTERVAL = 3;
+
 // ─────────────────────────────── Component ────────────────────────────────
 
 export function DuelWatch({ duelId }: { duelId: string }) {
@@ -59,6 +71,10 @@ export function DuelWatch({ duelId }: { duelId: string }) {
   const [linkCopied, setLinkCopied] = useState(false);
 
   const stateRef = useRef<MatchState | null>(null);
+  // Render handle for the canvas: latest tick plus the one before it, so the
+  // painter can interpolate to the display's refresh rate.
+  const renderRef = useRef<RenderFrame | null>(null);
+  const prevSampleRef = useRef(emptySample());
   const rafRef = useRef(0);
   const accRef = useRef(0);
   const lastTsRef = useRef(0);
@@ -128,6 +144,7 @@ export function DuelWatch({ duelId }: { duelId: string }) {
       cancelAnimationFrame(rafRef.current);
       const initial = buildInitialState(data);
       stateRef.current = initial;
+      renderRef.current = { state: initial, prev: null, stepTs: 0 };
       setState(initial);
       accRef.current = 0;
       lastTsRef.current = 0;
@@ -159,6 +176,10 @@ export function DuelWatch({ duelId }: { duelId: string }) {
 
         while (accRef.current >= TICK_DT_MS) {
           accRef.current -= TICK_DT_MS;
+          // Snapshot the outgoing tick's positions for the renderer to
+          // interpolate from. Overwritten each step, so after the loop it holds
+          // the tick immediately before `cur`.
+          sampleInterp(cur, prevSampleRef.current);
 
           if (cur.phase === "countdown") {
             cur = stepMatch(cur, {}, DEFAULT_SIM_CONFIG);
@@ -180,6 +201,7 @@ export function DuelWatch({ duelId }: { duelId: string }) {
           if (cur.phase === "finished" || cur.phase === "results") {
             playingRef.current = false;
             stateRef.current = cur;
+            renderRef.current = { state: cur, prev: null, stepTs: 0 };
             setState({ ...cur, players: cur.players.map((p) => ({ ...p })) });
             setWatchPhase("done");
             return;
@@ -190,6 +212,7 @@ export function DuelWatch({ duelId }: { duelId: string }) {
           if (cur.phase === "climb" && climbTick > log1.length && climbTick > log2.length) {
             playingRef.current = false;
             stateRef.current = cur;
+            renderRef.current = { state: cur, prev: null, stepTs: 0 };
             setState({ ...cur, players: cur.players.map((p) => ({ ...p })) });
             setWatchPhase("done");
             return;
@@ -198,7 +221,15 @@ export function DuelWatch({ duelId }: { duelId: string }) {
 
         if (advanced) {
           stateRef.current = cur;
-          setState({ ...cur, players: cur.players.map((p) => ({ ...p })) });
+          const frame = renderRef.current;
+          if (frame) {
+            frame.state = cur;
+            frame.prev = prevSampleRef.current;
+            frame.stepTs = ts - accRef.current;
+          }
+          if (cur.tick % REACT_UPDATE_INTERVAL === 0) {
+            setState({ ...cur, players: cur.players.map((p) => ({ ...p })) });
+          }
         }
       };
 
@@ -336,6 +367,7 @@ export function DuelWatch({ duelId }: { duelId: string }) {
           {state && (
             <ClimbCanvas
               state={state}
+              feed={renderRef}
               width={canvasSize.width}
               height={canvasSize.height}
               playerNames={playerNames}

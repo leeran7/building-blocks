@@ -17,7 +17,7 @@ import {
   lavaThreatFill,
 } from "../../src/components/Game/climbCamera";
 import { createMatch, stepMatch } from "../../src/game/simulation";
-import { NO_INPUT } from "../../src/game/types";
+import { NO_INPUT, TICK_DT } from "../../src/game/types";
 import { buildTower } from "../../src/game/towers";
 
 const WIDTH = 360;
@@ -102,15 +102,34 @@ describe("lavaThreatFill: 0 until the line clears the overlay", () => {
 
 describe("followCamY: snaps on a new run, eases otherwise", () => {
   it("snaps when there is no previous camera", () => {
-    expect(followCamY(null, 40, 100, 1, null)).toBe(40);
+    expect(followCamY(null, 40, 100, TICK_DT, false)).toBe(40);
   });
 
-  it("eases a small error by CAMERA_FOLLOW", () => {
-    expect(followCamY(0, 10, 100, 2, 1)).toBeCloseTo(10 * CAMERA_FOLLOW);
+  it("snaps when the caller asks for it (new run / replay seek)", () => {
+    expect(followCamY(0, 40, 100, TICK_DT, true)).toBe(40);
+  });
+
+  it("eases a small error by CAMERA_FOLLOW over one tick", () => {
+    expect(followCamY(0, 10, 100, TICK_DT, false)).toBeCloseTo(
+      10 * CAMERA_FOLLOW
+    );
   });
 
   it("snaps a gap bigger than half a view (seek / respawn)", () => {
-    expect(followCamY(0, 80, 100, 2, 1)).toBe(80);
+    expect(followCamY(0, 80, 100, TICK_DT, false)).toBe(80);
+  });
+
+  it("closes the same fraction per tick however often it is called", () => {
+    // One tick's worth of ease, taken in four 120 Hz frames, must land where a
+    // single tick-sized step lands — otherwise the follow tightens with refresh
+    // rate and the camera feels different on a 120 Hz panel than a 30 Hz one.
+    let cam = 0;
+    for (let i = 0; i < 4; i++) cam = followCamY(cam, 10, 100, TICK_DT / 4, false);
+    expect(cam).toBeCloseTo(followCamY(0, 10, 100, TICK_DT, false), 10);
+  });
+
+  it("holds still across a zero-length frame", () => {
+    expect(followCamY(4, 10, 100, 0, false)).toBe(4);
   });
 });
 

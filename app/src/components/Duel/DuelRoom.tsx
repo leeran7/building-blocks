@@ -93,7 +93,7 @@ function PracticeGame({
   // never reveals the duel's actual layout (no pre-scouting the real seed).
   const [tower] = useState(() => buildTower(categorySlug));
 
-  const { state, start, finished, setTouch } = useClimb({ tower });
+  const { state, renderFeed, start, finished, setTouch } = useClimb({ tower });
 
   // Same responsive stage as the live match / solo climb.
   const canvasBoxRef = useRef<HTMLDivElement>(null);
@@ -182,6 +182,7 @@ function PracticeGame({
       {/* Warm-up canvas (solo, throwaway) */}
       <ClimbCanvas
         state={state}
+        feed={renderFeed}
         width={canvasSize.width}
         height={canvasSize.height}
         bottomInset={bottomInset}
@@ -307,6 +308,7 @@ function DuelGame({
 
   const {
     state,
+    renderFeed,
     start,
     finished,
     awaitingResult,
@@ -772,6 +774,7 @@ function DuelGame({
       >
         <ClimbCanvas
           state={state}
+          feed={renderFeed}
           width={canvasSize.width}
           height={canvasSize.height}
           bottomInset={bottomInset}

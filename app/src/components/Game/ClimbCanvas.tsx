@@ -10,6 +10,7 @@
 import { useCallback, useEffect, useRef } from "react";
 import { HUD_ALTITUDE_FONT_UI } from "../../design/climbFeelTokens";
 import { MatchState } from "../../game/types";
+import { interpolateFrame, type RenderFeed } from "../../game/renderFeed";
 import {
   backingStoreSize,
   canvasNeedsResize,
@@ -29,7 +30,18 @@ const BASE_WIDTH = 360;
 const BASE_HEIGHT = 640;
 
 export interface ClimbCanvasProps {
+  /**
+   * Fallback state, painted when no `feed` is supplied. React state updates at
+   * ~10 Hz, so anything live should pass `feed` as well — this is the lobby /
+   * one-shot path.
+   */
   state: MatchState;
+  /**
+   * Live simulation handle. When present the rAF loop paints from it, so the
+   * canvas tracks the 30 Hz sim interpolated to the display's refresh rate
+   * instead of the ~10 Hz React snapshot.
+   */
+  feed?: RenderFeed;
   width?: number;
   height?: number;
   reducedMotion?: boolean;
@@ -60,6 +72,7 @@ export interface ClimbCanvasProps {
 
 export function ClimbCanvas({
   state,
+  feed,
   width = BASE_WIDTH,
   height = BASE_HEIGHT,
   reducedMotion = false,
@@ -70,23 +83,32 @@ export function ClimbCanvas({
   playerNames,
 }: ClimbCanvasProps) {
   const ref = useRef<HTMLCanvasElement>(null);
+  const ctxRef = useRef<CanvasRenderingContext2D | null>(null);
   const camRef = useRef<{ y: number | null; tick: number | null }>({
     y: null,
     tick: null,
   });
+  const lastPaintTsRef = useRef(0);
 
   // Store state in a ref so the rAF loop always reads the latest without
   // running React's effect cleanup+setup every tick (~30 Hz).
   const stateRef = useRef(state);
   stateRef.current = state;
 
+  const feedRef = useRef(feed);
+  feedRef.current = feed;
+
   const optsRef = useRef({ width, height, reducedMotion, bottomInset, hudInsetTop, myId, playerNames });
   optsRef.current = { width, height, reducedMotion, bottomInset, hudInsetTop, myId, playerNames };
 
-  const paint = useCallback(() => {
+  const paint = useCallback((ts: number) => {
     const canvas = ref.current;
     if (!canvas) return;
-    const ctx = canvas.getContext("2d");
+    let ctx = ctxRef.current;
+    if (!ctx || ctx.canvas !== canvas) {
+      ctx = canvas.getContext("2d");
+      ctxRef.current = ctx;
+    }
     if (!ctx) return;
 
     const opts = optsRef.current;
@@ -100,7 +122,17 @@ export function ClimbCanvas({
     }
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-    paintClimbFrame(ctx, stateRef.current, {
+    // Live play reads the sim through the feed; everything else (lobby, replay
+    // viewers without a feed) paints the React snapshot as before.
+    const frame = feedRef.current?.current;
+    const painted = frame ? interpolateFrame(frame, ts) : stateRef.current;
+
+    const last = lastPaintTsRef.current;
+    lastPaintTsRef.current = ts;
+    // Clamp so a backgrounded tab does not resume with one enormous ease step.
+    const dtSec = last > 0 ? Math.min(0.25, (ts - last) / 1000) : undefined;
+
+    paintClimbFrame(ctx, painted, {
       width: opts.width,
       height: opts.height,
       reducedMotion: opts.reducedMotion,
@@ -108,6 +140,7 @@ export function ClimbCanvas({
       hudInsetTop: opts.hudInsetTop,
       includeHud: true,
       camera: camRef.current,
+      dtSec,
       myId: opts.myId,
       playerNames: opts.playerNames,
     });
@@ -117,8 +150,8 @@ export function ClimbCanvas({
   // state from refs. Starts once on mount, cleaned up on unmount.
   useEffect(() => {
     let rafId: number;
-    function loop() {
-      paint();
+    function loop(ts: number) {
+      paint(ts);
       rafId = requestAnimationFrame(loop);
     }
     rafId = requestAnimationFrame(loop);
