@@ -14,6 +14,7 @@ import {
   chipsForUsd as chipCount,
   formatChipCents,
 } from "../../config/chipPackages";
+import { useRankedEligibility } from "../../hooks/useRankedEligibility";
 import { TERMS_HREF } from "../navLinks";
 
 const PACKAGES = CHIP_PACKAGES.map((p) => ({
@@ -37,6 +38,7 @@ export function BuyCreditsModal({ open, onClose, token }: BuyCreditsModalProps) 
   const [ageConfirmed, setAgeConfirmed] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { allowed: geoAllowed } = useRankedEligibility(open);
 
   if (!open) return null;
 
@@ -85,82 +87,106 @@ export function BuyCreditsModal({ open, onClose, token }: BuyCreditsModalProps) 
           Buy chips
         </h2>
 
-        <div className="grid grid-cols-2 gap-2 mb-4">
-          {PACKAGES.map((pkg) => (
-            <button
-              key={pkg.usd}
-              onClick={() => setAmountUsd(pkg.usd)}
-              className={`relative flex flex-col items-center justify-center rounded-xl min-h-[72px] text-sm font-semibold tabular-nums transition-colors ${
-                amountUsd === pkg.usd
-                  ? "bg-signal text-void"
-                  : "border border-border-strong text-text-secondary hover:border-signal/50"
-              }`}
-            >
-              {pkg.tag && (
-                <span
-                  className={`absolute -top-2 right-2 text-[10px] font-bold rounded-full px-2 py-0.5 ${
+        {geoAllowed === false ? (
+          <>
+            <div className="rounded-lg border border-ember/30 bg-surface px-3 py-2.5 mb-4" role="status">
+              <p className="font-mono text-xs uppercase tracking-[0.14em] text-ember mb-1">
+                Region restricted
+              </p>
+              <p className="text-text-secondary text-sm">
+                Chip purchases aren&apos;t available in your region. This feature is
+                restricted to approved markets only.
+              </p>
+            </div>
+            <div className="flex justify-end">
+              <button
+                onClick={onClose}
+                className="inline-flex items-center justify-center rounded-full px-5 min-h-[44px] border border-border-strong text-text-secondary text-sm hover:border-text-muted transition-colors"
+              >
+                Close
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="grid grid-cols-2 gap-2 mb-4">
+              {PACKAGES.map((pkg) => (
+                <button
+                  key={pkg.usd}
+                  onClick={() => setAmountUsd(pkg.usd)}
+                  className={`relative flex flex-col items-center justify-center rounded-xl min-h-[72px] text-sm font-semibold tabular-nums transition-colors ${
                     amountUsd === pkg.usd
-                      ? "bg-void/30 text-void"
-                      : pkg.usd === 50
-                        ? "bg-signal/40 text-signal"
-                        : "bg-signal/30 text-signal"
+                      ? "bg-signal text-void"
+                      : "border border-border-strong text-text-secondary hover:border-signal/50"
                   }`}
                 >
-                  {pkg.tag}
-                </span>
-              )}
-              <span className="text-lg font-bold">${pkg.usd}</span>
-              <span className={`text-xs font-normal ${amountUsd === pkg.usd ? "text-void/70" : "text-text-muted"}`}>
-                {formatChipCents(pkg.chips)} chips
+                  {pkg.tag && (
+                    <span
+                      className={`absolute -top-2 right-2 text-[10px] font-bold rounded-full px-2 py-0.5 ${
+                        amountUsd === pkg.usd
+                          ? "bg-void/30 text-void"
+                          : pkg.usd === 50
+                            ? "bg-signal/40 text-signal"
+                            : "bg-signal/30 text-signal"
+                      }`}
+                    >
+                      {pkg.tag}
+                    </span>
+                  )}
+                  <span className="text-lg font-bold">${pkg.usd}</span>
+                  <span className={`text-xs font-normal ${amountUsd === pkg.usd ? "text-void/70" : "text-text-muted"}`}>
+                    {formatChipCents(pkg.chips)} chips
+                  </span>
+                </button>
+              ))}
+            </div>
+
+            {/* Conspicuous, standalone disclosure — must be seen before the age/Terms
+                checkbox, not buried inside it as fine print. */}
+            <div className="rounded-lg border border-border-strong bg-surface px-3 py-2.5 mb-4">
+              <p className="text-sm font-semibold text-text-primary">
+                Chips have no cash value.
+              </p>
+              <p className="text-xs text-text-muted mt-0.5">
+                Non-refundable, non-cashable, and can&apos;t be redeemed, transferred, gifted, or sold — inside or outside the game.
+              </p>
+            </div>
+
+            <label className="flex items-start gap-2 mb-4 text-sm text-text-secondary">
+              <input
+                type="checkbox"
+                checked={ageConfirmed}
+                onChange={(e) => setAgeConfirmed(e.target.checked)}
+                className="mt-0.5 accent-signal"
+              />
+              <span>
+                I confirm I am 18 or older and agree to the{" "}
+                <a href={TERMS_HREF} className="text-signal underline underline-offset-2" target="_blank">
+                  Terms
+                </a>
+                .
               </span>
-            </button>
-          ))}
-        </div>
+            </label>
 
-        {/* Conspicuous, standalone disclosure — must be seen before the age/Terms
-            checkbox, not buried inside it as fine print. */}
-        <div className="rounded-lg border border-border-strong bg-surface px-3 py-2.5 mb-4">
-          <p className="text-sm font-semibold text-text-primary">
-            Chips have no cash value.
-          </p>
-          <p className="text-xs text-text-muted mt-0.5">
-            Non-refundable, non-cashable, and can&apos;t be redeemed, transferred, gifted, or sold — inside or outside the game.
-          </p>
-        </div>
+            {error && <p className="text-ember text-sm mb-3" role="alert">{error}</p>}
 
-        <label className="flex items-start gap-2 mb-4 text-sm text-text-secondary">
-          <input
-            type="checkbox"
-            checked={ageConfirmed}
-            onChange={(e) => setAgeConfirmed(e.target.checked)}
-            className="mt-0.5 accent-signal"
-          />
-          <span>
-            I confirm I am 18 or older and agree to the{" "}
-            <a href={TERMS_HREF} className="text-signal underline underline-offset-2" target="_blank">
-              Terms
-            </a>
-            .
-          </span>
-        </label>
-
-        {error && <p className="text-ember text-sm mb-3" role="alert">{error}</p>}
-
-        <div className="flex gap-2">
-          <button
-            onClick={onClose}
-            className="inline-flex items-center justify-center rounded-full px-5 min-h-[44px] border border-border-strong text-text-secondary text-sm hover:border-text-muted transition-colors"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleBuy}
-            disabled={!ageConfirmed || loading || amountUsd <= 0 || !token}
-            className="flex-1 inline-flex items-center justify-center rounded-full px-6 min-h-[44px] bg-signal text-void font-semibold text-sm tracking-tight hover:brightness-110 active:scale-[0.98] transition-[filter,transform,scale] disabled:opacity-40 disabled:cursor-not-allowed"
-          >
-            {loading ? "Starting..." : `Buy ${formatChipCents(chips)} chips · $${amountUsd}`}
-          </button>
-        </div>
+            <div className="flex gap-2">
+              <button
+                onClick={onClose}
+                className="inline-flex items-center justify-center rounded-full px-5 min-h-[44px] border border-border-strong text-text-secondary text-sm hover:border-text-muted transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleBuy}
+                disabled={!ageConfirmed || loading || amountUsd <= 0 || !token}
+                className="flex-1 inline-flex items-center justify-center rounded-full px-6 min-h-[44px] bg-signal text-void font-semibold text-sm tracking-tight hover:brightness-110 active:scale-[0.98] transition-[filter,transform,scale] disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                {loading ? "Starting..." : `Buy ${formatChipCents(chips)} chips · $${amountUsd}`}
+              </button>
+            </div>
+          </>
+        )}
 
         <p className="text-[11px] text-text-muted text-center mt-3">
           Play responsibly. Problem gambling help: 1-800-522-4700.
