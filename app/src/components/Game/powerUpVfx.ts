@@ -283,8 +283,8 @@ export function drawActivePowerUpEffect(
     case "sprint-burst":
       drawSprintBurstEffect(ctx, px, pyScreen, s, facing, pulse, tick, spec, reducedMotion);
       break;
-    case "double-jump":
-      drawDoubleJumpEffect(ctx, px, pyScreen - 1.25 * s, s, pulse, spec, reducedMotion);
+    case "super-jump":
+      drawSuperJumpEffect(ctx, px, pyScreen - 1.25 * s, s, pulse, spec, reducedMotion);
       break;
     case "giant":
       drawGiantEffect(ctx, px, pyScreen - 1.25 * s, s, pulse, tick, spec, reducedMotion);
@@ -391,7 +391,7 @@ function drawSprintBurstEffect(
   ctx.restore();
 }
 
-function drawDoubleJumpEffect(
+function drawSuperJumpEffect(
   ctx: CanvasRenderingContext2D,
   px: number,
   py: number,

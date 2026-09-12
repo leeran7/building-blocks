@@ -93,12 +93,12 @@ const HOLD_SAMPLE_TICKS = 12;
 const LADDER_CLIMB_TICKS = 8;
 const SETTLE_TICKS = 200;
 
-describe("specs: six live types, including double-jump and jetpack", () => {
+describe("specs: six live types, including super-jump and jetpack", () => {
   it("lists POWER_UP_TYPES in spawn-key order with jetpack in slot 5", () => {
     expect(POWER_UP_TYPES).toEqual([
       "rapid-climb",
       "sprint-burst",
-      "double-jump",
+      "super-jump",
       "giant",
       "jetpack",
       "slow-lava",
@@ -331,7 +331,7 @@ describe("pickup: touching an orb auto-activates it immediately", () => {
 
   // The pre-existing same-type duplicate tests all used slow-lava, the one type
   // whose cooldown blocks the second pickup outright. That left the
-  // zero-cooldown types — and the double-jump charge exploit — uncovered.
+  // zero-cooldown types — and the super-jump charge exploit — uncovered.
   describe("a second orb of a live type refreshes it instead of stacking", () => {
     const ZERO_COOLDOWN_TYPES = POWER_UP_TYPES.filter(
       (t) => cooldownTicks(t) === 0
@@ -361,19 +361,19 @@ describe("pickup: touching an orb auto-activates it immediately", () => {
       expect(p.activePowerUps.filter((a) => a.type === type)).toHaveLength(1);
     });
 
-    it("a second double-jump orb refreshes the timer instead of stacking", () => {
+    it("a second super-jump orb refreshes the timer instead of stacking", () => {
       const m = climbingMatch();
       const p = m.players[0];
 
-      placeOrb(m, "double-jump", p.x, p.y);
+      placeOrb(m, "super-jump", p.x, p.y);
       stepMatch(m, { p1: NO_INPUT }, SLOW);
-      placeOrb(m, "double-jump", p.x, p.y);
+      placeOrb(m, "super-jump", p.x, p.y);
       stepMatch(m, { p1: NO_INPUT }, SLOW);
 
-      expect(isPowerUpActive(p, "double-jump", m.tick)).toBe(true);
-      expect(liveEntryCount(p, "double-jump", m.tick)).toBe(1);
-      expect(remainingTicks(p, "double-jump", m.tick)).toBe(
-        durationTicks("double-jump")
+      expect(isPowerUpActive(p, "super-jump", m.tick)).toBe(true);
+      expect(liveEntryCount(p, "super-jump", m.tick)).toBe(1);
+      expect(remainingTicks(p, "super-jump", m.tick)).toBe(
+        durationTicks("super-jump")
       );
     });
 
@@ -465,10 +465,10 @@ describe("effects: each power-up does what its label claims", () => {
     expect(p.onLadder).toBe(true);
   });
 
-  it("double-jump allows unlimited air jumps during the 10s window", () => {
+  it("super-jump allows unlimited air jumps during the 10s window", () => {
     const m = climbingMatch();
     const p = m.players[0];
-    placeOrb(m, "double-jump", p.x, p.y);
+    placeOrb(m, "super-jump", p.x, p.y);
     stepMatch(m, { p1: NO_INPUT }, SLOW);
 
     stepMatch(m, { p1: move(0, true) }, SLOW);
@@ -480,20 +480,20 @@ describe("effects: each power-up does what its label claims", () => {
       const vyBefore = p.vy;
       stepMatch(m, { p1: move(0, true) }, SLOW);
       expect(p.vy).toBeGreaterThan(vyBefore);
-      expect(isPowerUpActive(p, "double-jump", m.tick)).toBe(true);
+      expect(isPowerUpActive(p, "super-jump", m.tick)).toBe(true);
     }
   });
 
-  it("does not let a held jump key trigger double-jump mid-air", () => {
+  it("does not let a held jump key trigger super-jump mid-air", () => {
     const m = climbingMatch();
     const p = m.players[0];
-    placeOrb(m, "double-jump", p.x, p.y);
+    placeOrb(m, "super-jump", p.x, p.y);
     stepMatch(m, { p1: NO_INPUT }, SLOW);
     stepMatch(m, { p1: move(0, true) }, SLOW);
     const vyAfterLaunch = p.vy;
-    // Holding jump continuously should not re-trigger double-jump (edge-trigger).
+    // Holding jump continuously should not re-trigger super-jump (edge-trigger).
     for (let i = 0; i < 6; i++) stepMatch(m, { p1: move(0, true) }, SLOW);
-    expect(isPowerUpActive(p, "double-jump", m.tick)).toBe(true);
+    expect(isPowerUpActive(p, "super-jump", m.tick)).toBe(true);
     // vy should be decreasing from gravity, not boosted again by held jump.
     expect(p.vy).toBeLessThan(vyAfterLaunch);
   });
@@ -852,18 +852,18 @@ describe("jetpack: hold-to-thrust with a fuel tank inside a window", () => {
 });
 
 describe("anti-cheat: power-ups widen the rules only as far as they should", () => {
-  it("allows an air jump while double-jump is active", () => {
+  it("allows an air jump while super-jump is active", () => {
     const p = airborne();
-    grantPowerUp(p, "double-jump", 0);
+    grantPowerUp(p, "super-jump", 0);
     const v = validateInput({ moveX: 0, jump: true, climbY: 0, usePowerUp: false }, p, 0);
     expect(v.rejected).toBe(false);
     expect(v.input.jump).toBe(true);
   });
 
-  it("rejects air jumps after double-jump expires", () => {
+  it("rejects air jumps after super-jump expires", () => {
     const p = airborne();
-    grantPowerUp(p, "double-jump", 0);
-    const expiredTick = durationTicks("double-jump") + 1;
+    grantPowerUp(p, "super-jump", 0);
+    const expiredTick = durationTicks("super-jump") + 1;
     const v = validateInput({ moveX: 0, jump: true, climbY: 0, usePowerUp: false }, p, expiredTick);
     expect(v.rejected).toBe(true);
     expect(v.input.jump).toBe(false);
@@ -1148,7 +1148,7 @@ function hazardTrace(slowed: boolean, alsoActivate?: PowerUpType): number[] {
 /** The greedy ladder-seeking bot from the simulation suite. */
 function botInput(p: PlayerState, tower: TowerSpec, tick = 0): PlayerInput {
   if (p.onLadder) return { moveX: 0, jump: false, climbY: 1, usePowerUp: false };
-  const canDoubleJump = isPowerUpActive(p, "double-jump", tick);
+  const canSuperJump = isPowerUpActive(p, "super-jump", tick);
   if (isOnObstacle(tower, p.x, p.y)) {
     const nextStep = obstaclesNearY(tower, p.y + 0.1, p.y + 3)
       .filter((o) => o.y1 > p.y + 0.15)
@@ -1160,7 +1160,7 @@ function botInput(p: PlayerState, tower: TowerSpec, tick = 0): PlayerInput {
         moveX: dir,
         jump:
           p.onGround ||
-          (canDoubleJump && !p.jumpHeldPrev && nextStep.y0 > p.y + 0.2),
+          (canSuperJump && !p.jumpHeldPrev && nextStep.y0 > p.y + 0.2),
         climbY: 0,
         usePowerUp: false,
       };
@@ -1199,7 +1199,7 @@ function botInput(p: PlayerState, tower: TowerSpec, tick = 0): PlayerInput {
     moveX: dir,
     jump:
       (p.onGround && (!ahead || crate)) ||
-      (!p.onGround && crate && canDoubleJump && !p.jumpHeldPrev),
+      (!p.onGround && crate && canSuperJump && !p.jumpHeldPrev),
     climbY: 0,
     usePowerUp: false,
   };

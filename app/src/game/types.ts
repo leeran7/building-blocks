@@ -15,7 +15,7 @@ export type PlayerId = string;
 /**
  * The six power-ups. Each is a deliberate counter to one of the ways the
  * endless tower kills you: the ladder grind (rapid-climb), long sideways
- * traverses (sprint-burst), a missed gap or crate stair (double-jump), a
+ * traverses (sprint-burst), a missed gap or crate stair (super-jump), a
  * sloppy ladder grab or platform edge (giant), a bad ladder detour (jetpack),
  * and the lava simply outpacing you late in a run (slow-lava).
  * Tuning lives in powerups.ts.
@@ -23,7 +23,7 @@ export type PlayerId = string;
 export type PowerUpType =
   | "rapid-climb"
   | "sprint-burst"
-  | "double-jump"
+  | "super-jump"
   | "giant"
   | "jetpack"
   | "slow-lava";
@@ -58,7 +58,7 @@ export interface ActivePowerUp {
   durationTicks: number;
   /** Charge-based only: the charge has been spent. */
   used?: boolean;
-  /** Double-jump only: mid-air jumps remaining in this window. */
+  /** Super-jump only: mid-air jumps remaining in this window. */
   chargesRemaining?: number;
   /** Jetpack only: ticks of thrust remaining in this window. */
   fuelRemainingTicks?: number;
@@ -132,7 +132,7 @@ export interface PlayerState {
   lastPickupType: PowerUpType | null;
   /**
    * Previous tick's jump button, so it can be edge-triggered. Without this a
-   * held jump key would spend a double-jump charge on the tick after the
+   * held jump key would spend a super-jump charge on the tick after the
    * ground launch (and would fight the jetpack's hold-to-thrust).
    */
   jumpHeldPrev: boolean;

@@ -157,7 +157,7 @@ export const POWER_UP_ICON_GEOMETRY: Record<PowerUpType, PowerUpIconGeometry> = 
       },
     ],
   },
-  "double-jump": {
+  "super-jump": {
     viewBox: ICON_VIEWBOX,
     layers: [
       {
@@ -309,7 +309,7 @@ export const POWER_UP_ORB_BODIES: Record<PowerUpType, OrbBodyGeometry> = {
       { t: "Z" },
     ],
   },
-  "double-jump": {
+  "super-jump": {
     fill: ORB_BODY_FILL,
     strokeWidthFrac: ORB_STROKE_WIDTH_FRAC,
     commands: [
