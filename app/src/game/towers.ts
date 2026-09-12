@@ -622,26 +622,44 @@ function uniqueSorted(xs: number[]): number[] {
   return [...new Set(xs)].sort((a, b) => a - b);
 }
 
-/** Platforms whose surfaces lie within [yLow, yHigh] (a generation window). */
+/**
+ * Platforms whose surfaces lie within [yLow, yHigh] (a generation window).
+ *
+ * Returns a shared reusable buffer — callers must not store references across
+ * ticks. The buffer is cleared and refilled on each call.
+ */
+const _platformBuf: Platform[] = [];
 export function platformsNearY(tower: TowerSpec, yLow: number, yHigh: number): Platform[] {
+  _platformBuf.length = 0;
   const lo = Math.max(0, floorIndexAt(tower, yLow) - 1);
   const hi = floorIndexAt(tower, yHigh) + 1;
-  const out: Platform[] = [];
-  for (let i = lo; i <= hi; i++) out.push(...platformsForFloor(tower, i));
-  return out;
+  for (let i = lo; i <= hi; i++) {
+    const floors = platformsForFloor(tower, i);
+    for (let j = 0; j < floors.length; j++) _platformBuf.push(floors[j]!);
+  }
+  return _platformBuf;
 }
 
-/** Ladders (with floor index + slot on that floor) intersecting [yLow, yHigh]. */
+/**
+ * Ladders (with floor index + slot on that floor) intersecting [yLow, yHigh].
+ *
+ * Returns a shared reusable buffer — callers must not store references across
+ * ticks. The buffer is cleared and refilled on each call.
+ */
+const _ladderBuf: { ix: number; slot: number; ladder: Ladder }[] = [];
 export function laddersNearY(
   tower: TowerSpec,
   yLow: number,
   yHigh: number
 ): { ix: number; slot: number; ladder: Ladder }[] {
+  _ladderBuf.length = 0;
   const lo = Math.max(0, floorIndexAt(tower, yLow) - 1);
   const hi = floorIndexAt(tower, yHigh) + 1;
-  const out: { ix: number; slot: number; ladder: Ladder }[] = [];
   for (let i = lo; i <= hi; i++) {
-    laddersForFloor(tower, i).forEach((ladder, slot) => out.push({ ix: i, slot, ladder }));
+    const ladders = laddersForFloor(tower, i);
+    for (let j = 0; j < ladders.length; j++) {
+      _ladderBuf.push({ ix: i, slot: j, ladder: ladders[j]! });
+    }
   }
-  return out;
+  return _ladderBuf;
 }

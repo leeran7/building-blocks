@@ -6,6 +6,8 @@
  * SQL — every raw query uses tagged-template $queryRaw / $executeRaw.
  */
 
+import { unstable_cache } from "next/cache";
+
 import { prisma } from "./client";
 import { DuelStatus, Duel, DuelStats, Prisma } from "@prisma/client";
 import { settleChipDuelInTx, refundChipDuelInTx } from "./chips";
@@ -410,21 +412,23 @@ export async function reapStalePendingPaidDuels(
     take: limit,
   });
 
-  let refunded = 0;
-  for (const { id } of candidates) {
-    const didRefund = await prisma.$transaction(async (tx) => {
-      await tx.$executeRaw`SELECT id FROM duels WHERE id = ${id} FOR UPDATE`;
-      const duel = await tx.duel.findUnique({ where: { id } });
-      if (!duel || duel.status !== DuelStatus.pending || duel.refunded) return false;
-      await tx.duel.update({
-        where: { id },
-        data: { status: DuelStatus.voided, completed_at: new Date() },
-      });
-      return claimRefundInTx(tx, duel);
-    });
-    if (didRefund) refunded++;
-  }
-  return refunded;
+  // Each transaction is independent (idempotent via the refunded guard),
+  // so process them all in parallel rather than sequentially.
+  const results = await Promise.all(
+    candidates.map(({ id }) =>
+      prisma.$transaction(async (tx) => {
+        await tx.$executeRaw`SELECT id FROM duels WHERE id = ${id} FOR UPDATE`;
+        const duel = await tx.duel.findUnique({ where: { id } });
+        if (!duel || duel.status !== DuelStatus.pending || duel.refunded) return false;
+        await tx.duel.update({
+          where: { id },
+          data: { status: DuelStatus.voided, completed_at: new Date() },
+        });
+        return claimRefundInTx(tx, duel);
+      })
+    )
+  );
+  return results.filter(Boolean).length;
 }
 
 /** Return shape from completeDuel. payoutCents is set for paid duels only. */
@@ -764,32 +768,39 @@ export async function getRecentDuelsForUser(
 /**
  * Top duel leaderboard by wins. Excludes anonymous users (no display_name).
  * winPct = wins / (wins + losses) * 100, rounded to 1 decimal.
+ *
+ * Wrapped with `unstable_cache` (60 s revalidation) so concurrent callers
+ * share one DB round-trip per minute rather than one per request.
  */
-export async function topDuelStats(limit = 50): Promise<DuelStatsRow[]> {
-  const rows = await prisma.duelStats.findMany({
-    where: {
-      user: { display_name: { not: null } },
-    },
-    orderBy: { wins: "desc" },
-    take: limit,
-    select: {
-      user_id: true,
-      wins: true,
-      losses: true,
-      user: { select: { display_name: true } },
-    },
-  });
+export const topDuelStats = unstable_cache(
+  async (limit: number = 50): Promise<DuelStatsRow[]> => {
+    const rows = await prisma.duelStats.findMany({
+      where: {
+        user: { display_name: { not: null } },
+      },
+      orderBy: { wins: "desc" },
+      take: limit,
+      select: {
+        user_id: true,
+        wins: true,
+        losses: true,
+        user: { select: { display_name: true } },
+      },
+    });
 
-  return rows.map((r) => {
-    const total = r.wins + r.losses;
-    const winPct = total > 0 ? Math.round((r.wins / total) * 1000) / 10 : 0;
-    return {
-      userId: r.user_id,
-      displayName: r.user.display_name,
-      wins: r.wins,
-      losses: r.losses,
-      winPct,
-    };
-  });
-}
+    return rows.map((r) => {
+      const total = r.wins + r.losses;
+      const winPct = total > 0 ? Math.round((r.wins / total) * 1000) / 10 : 0;
+      return {
+        userId: r.user_id,
+        displayName: r.user.display_name,
+        wins: r.wins,
+        losses: r.losses,
+        winPct,
+      };
+    });
+  },
+  ["topDuelStats"],
+  { revalidate: 60 }
+);
 

@@ -209,40 +209,48 @@ export async function queueForTournament(
         where: { tournament_id: tournament.id },
       });
       const shuffled = shuffle(entries);
-      for (let i = 0; i < shuffled.length; i++) {
-        await tx.tournamentEntry.update({
-          where: { id: shuffled[i].id },
-          data: { seed_position: i + 1 },
-        });
-      }
+
+      // Assign seed positions in parallel — each targets a distinct entry row.
+      await Promise.all(
+        shuffled.map((entry, i) =>
+          tx.tournamentEntry.update({
+            where: { id: entry.id },
+            data: { seed_position: i + 1 },
+          })
+        )
+      );
 
       const matchCount = tournament.bracket_size / 2;
-      for (let pos = 0; pos < matchCount; pos++) {
-        const p1Entry = shuffled[pos * 2];
-        const p2Entry = shuffled[pos * 2 + 1];
-        const isBye = !p1Entry || !p2Entry;
-        const duelId = nanoid();
-        const seed = generateSeed();
+      const now = new Date();
 
-        if (isBye) {
-          const realPlayer = p1Entry ?? p2Entry;
-          await tx.duel.create({
-            data: {
-              id: duelId,
-              seed,
-              category_slug: tournament.category_slug,
-              player1_id: realPlayer.user_id,
-              status: DuelStatus.completed,
-              tournament_id: tournament.id,
-              tournament_round: 1,
-              bracket_position: pos,
-              is_bye: true,
-              winner_id: realPlayer.user_id,
-              completed_at: new Date(),
-            },
-          });
-        } else {
-          await tx.duel.create({
+      // Create all round-1 duel rows in parallel.
+      await Promise.all(
+        Array.from({ length: matchCount }, (_, pos) => {
+          const p1Entry = shuffled[pos * 2];
+          const p2Entry = shuffled[pos * 2 + 1];
+          const isBye = !p1Entry || !p2Entry;
+          const duelId = nanoid();
+          const seed = generateSeed();
+
+          if (isBye) {
+            const realPlayer = p1Entry ?? p2Entry;
+            return tx.duel.create({
+              data: {
+                id: duelId,
+                seed,
+                category_slug: tournament.category_slug,
+                player1_id: realPlayer.user_id,
+                status: DuelStatus.completed,
+                tournament_id: tournament.id,
+                tournament_round: 1,
+                bracket_position: pos,
+                is_bye: true,
+                winner_id: realPlayer.user_id,
+                completed_at: now,
+              },
+            });
+          }
+          return tx.duel.create({
             data: {
               id: duelId,
               seed,
@@ -250,14 +258,14 @@ export async function queueForTournament(
               player1_id: p1Entry.user_id,
               player2_id: p2Entry.user_id,
               status: DuelStatus.active,
-              started_at: new Date(),
+              started_at: now,
               tournament_id: tournament.id,
               tournament_round: 1,
               bracket_position: pos,
             },
           });
-        }
-      }
+        })
+      );
 
       await tx.tournament.update({
         where: { id: tournament.id },
@@ -361,40 +369,48 @@ export async function seedBracket(
     }
 
     const shuffled = shuffle(entries);
-    for (let i = 0; i < shuffled.length; i++) {
-      await tx.tournamentEntry.update({
-        where: { id: shuffled[i].id },
-        data: { seed_position: i + 1 },
-      });
-    }
+
+    // Assign seed positions in parallel — each targets a distinct entry row.
+    await Promise.all(
+      shuffled.map((entry, i) =>
+        tx.tournamentEntry.update({
+          where: { id: entry.id },
+          data: { seed_position: i + 1 },
+        })
+      )
+    );
 
     const matchCount = t.bracket_size / 2;
-    for (let pos = 0; pos < matchCount; pos++) {
-      const p1Entry = shuffled[pos * 2];
-      const p2Entry = shuffled[pos * 2 + 1];
-      const isBye = !p1Entry || !p2Entry;
-      const duelId = nanoid();
-      const seed = generateSeed();
+    const now = new Date();
 
-      if (isBye) {
-        const realPlayer = p1Entry ?? p2Entry;
-        await tx.duel.create({
-          data: {
-            id: duelId,
-            seed,
-            category_slug: t.category_slug,
-            player1_id: realPlayer.user_id,
-            status: DuelStatus.completed,
-            tournament_id: tournamentId,
-            tournament_round: 1,
-            bracket_position: pos,
-            is_bye: true,
-            winner_id: realPlayer.user_id,
-            completed_at: new Date(),
-          },
-        });
-      } else {
-        await tx.duel.create({
+    // Create all round-1 duel rows in parallel — each has a distinct id/position.
+    await Promise.all(
+      Array.from({ length: matchCount }, (_, pos) => {
+        const p1Entry = shuffled[pos * 2];
+        const p2Entry = shuffled[pos * 2 + 1];
+        const isBye = !p1Entry || !p2Entry;
+        const duelId = nanoid();
+        const seed = generateSeed();
+
+        if (isBye) {
+          const realPlayer = p1Entry ?? p2Entry;
+          return tx.duel.create({
+            data: {
+              id: duelId,
+              seed,
+              category_slug: t.category_slug,
+              player1_id: realPlayer.user_id,
+              status: DuelStatus.completed,
+              tournament_id: tournamentId,
+              tournament_round: 1,
+              bracket_position: pos,
+              is_bye: true,
+              winner_id: realPlayer.user_id,
+              completed_at: now,
+            },
+          });
+        }
+        return tx.duel.create({
           data: {
             id: duelId,
             seed,
@@ -402,21 +418,21 @@ export async function seedBracket(
             player1_id: p1Entry.user_id,
             player2_id: p2Entry.user_id,
             status: DuelStatus.active,
-            started_at: new Date(),
+            started_at: now,
             tournament_id: tournamentId,
             tournament_round: 1,
             bracket_position: pos,
           },
         });
-      }
-    }
+      })
+    );
 
     await tx.tournament.update({
       where: { id: tournamentId },
       data: {
         status: TournamentStatus.IN_PROGRESS,
         current_round: 1,
-        started_at: new Date(),
+        started_at: now,
       },
     });
 
@@ -468,33 +484,36 @@ export async function advanceRound(
 
     const nextRound = round + 1;
     const nextMatchCount = winners.length / 2;
+    const now = new Date();
 
-    for (let pos = 0; pos < nextMatchCount; pos++) {
-      const p1 = winners[pos * 2];
-      const p2 = winners[pos * 2 + 1];
-      const isBye = !p1 || !p2;
-      const duelId = nanoid();
-      const seed = generateSeed();
+    // Create all next-round duel rows in parallel — each has a distinct position.
+    await Promise.all(
+      Array.from({ length: nextMatchCount }, (_, pos) => {
+        const p1 = winners[pos * 2];
+        const p2 = winners[pos * 2 + 1];
+        const isBye = !p1 || !p2;
+        const duelId = nanoid();
+        const seed = generateSeed();
 
-      if (isBye) {
-        const realPlayer = p1 ?? p2;
-        await tx.duel.create({
-          data: {
-            id: duelId,
-            seed,
-            category_slug: t.category_slug,
-            player1_id: realPlayer,
-            status: DuelStatus.completed,
-            tournament_id: tournamentId,
-            tournament_round: nextRound,
-            bracket_position: pos,
-            is_bye: true,
-            winner_id: realPlayer,
-            completed_at: new Date(),
-          },
-        });
-      } else {
-        await tx.duel.create({
+        if (isBye) {
+          const realPlayer = p1 ?? p2;
+          return tx.duel.create({
+            data: {
+              id: duelId,
+              seed,
+              category_slug: t.category_slug,
+              player1_id: realPlayer,
+              status: DuelStatus.completed,
+              tournament_id: tournamentId,
+              tournament_round: nextRound,
+              bracket_position: pos,
+              is_bye: true,
+              winner_id: realPlayer,
+              completed_at: now,
+            },
+          });
+        }
+        return tx.duel.create({
           data: {
             id: duelId,
             seed,
@@ -502,14 +521,14 @@ export async function advanceRound(
             player1_id: p1,
             player2_id: p2,
             status: DuelStatus.active,
-            started_at: new Date(),
+            started_at: now,
             tournament_id: tournamentId,
             tournament_round: nextRound,
             bracket_position: pos,
           },
         });
-      }
-    }
+      })
+    );
 
     await tx.tournament.update({
       where: { id: tournamentId },
@@ -712,12 +731,15 @@ export async function assignPrizes(tournamentId: string): Promise<void> {
   });
   const structure = t.prize_structure as unknown as PrizeSlot[];
 
-  for (const slot of structure) {
-    await prisma.tournamentEntry.updateMany({
-      where: { tournament_id: tournamentId, placement: slot.placement },
-      data: { prize_cents: slot.amount_cents, payout_status: "pending_onboarding" },
-    });
-  }
+  // Each prize slot targets a distinct placement — write them all in parallel.
+  await Promise.all(
+    structure.map((slot) =>
+      prisma.tournamentEntry.updateMany({
+        where: { tournament_id: tournamentId, placement: slot.placement },
+        data: { prize_cents: slot.amount_cents, payout_status: "pending_onboarding" },
+      })
+    )
+  );
 }
 
 // ── Internals ──────────────────────────────────────────────────────────────
@@ -799,12 +821,15 @@ async function assignPlacements(
     }
   }
 
-  for (const p of placements) {
-    await tx.tournamentEntry.updateMany({
-      where: { tournament_id: tournamentId, user_id: p.userId },
-      data: { placement: p.placement },
-    });
-  }
+  // Each placement targets a distinct user — write them all in parallel.
+  await Promise.all(
+    placements.map((p) =>
+      tx.tournamentEntry.updateMany({
+        where: { tournament_id: tournamentId, user_id: p.userId },
+        data: { placement: p.placement },
+      })
+    )
+  );
 
   return placements;
 }

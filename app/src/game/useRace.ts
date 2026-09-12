@@ -35,8 +35,16 @@ import { auth } from "../lib/firebase";
 
 const TICK_DT_MS = TICK_DT * 1000;
 
-/** Publish the local player's snapshot this often (~15 Hz at 30 Hz sim). */
-const SNAPSHOT_EVERY_TICKS = 2;
+/** Publish the local player's snapshot this often (~8 Hz at 30 Hz sim). */
+const SNAPSHOT_EVERY_TICKS = 4;
+
+/**
+ * React state is updated every REACT_UPDATE_INTERVAL simulation ticks (~10 Hz
+ * at 30 Hz sim). The authoritative simulation state lives in a mutable ref;
+ * React state is a periodic immutable snapshot for HUD components. Phase
+ * transitions always flush immediately.
+ */
+const REACT_UPDATE_INTERVAL = 3;
 
 /** No peer snapshot for this long mid-race → surface the opponent as "dropped". */
 const OPPONENT_STALE_MS = 2500;
@@ -80,6 +88,12 @@ export interface UseRaceOptions {
 
 export interface UseRaceResult {
   state: MatchState;
+  /**
+   * Mutable ref holding the authoritative simulation state. Canvas renderers
+   * should read from this via requestAnimationFrame for smooth 60 fps drawing,
+   * rather than from React state (which updates at ~10 Hz).
+   */
+  simRef: { readonly current: MatchState };
   myId: string;
   /** Start the countdown (call after the "start" event is received). */
   start: () => void;
@@ -146,8 +160,10 @@ export function useRace({
   }, [tower, seed]);
 
   const [state, setState] = useState<MatchState>(() => makeMatch());
+  // stateRef is the authoritative mutable simulation state. It is NOT synced
+  // from React state on every render — the rAF loop mutates it directly via
+  // stepMatch, and React only receives periodic immutable snapshots.
   const stateRef = useRef(state);
-  stateRef.current = state;
 
   const [duelResult, setDuelResult] = useState<DuelResult | null>(null);
   const [awaitingResult, setAwaitingResult] = useState(false);
@@ -162,6 +178,9 @@ export function useRace({
 
   // Loop state.
   const localInputLog = useRef<PlayerInput[]>([]);
+  // Mutable input object reused every tick to avoid per-frame allocations.
+  // Cloned only when stored in the input log for replay.
+  const mutableInputRef = useRef<PlayerInput>({ moveX: 0, jump: false, climbY: 0, usePowerUp: false });
   const keysRef = useRef<Set<string>>(new Set());
   const touchRef = useRef<TouchInput>(NO_TOUCH);
   const runningRef = useRef(false);
@@ -211,7 +230,13 @@ export function useRace({
     const jump = t.jump || hasAny(keys, KEY_JUMP);
     const moveX: -1 | 0 | 1 = left && !right ? -1 : right && !left ? 1 : 0;
     const climbY: -1 | 0 | 1 = upKey && !downKey ? 1 : downKey && !upKey ? -1 : 0;
-    return { moveX, jump, climbY, usePowerUp: false };
+    // Reuse a single mutable object instead of allocating a new one every tick.
+    const inp = mutableInputRef.current;
+    inp.moveX = moveX;
+    inp.jump = jump;
+    inp.climbY = climbY;
+    inp.usePowerUp = false;
+    return inp;
   }, []);
 
   // ── Peer snapshots → ghost store ────────────────────────────────────────────
@@ -517,6 +542,7 @@ export function useRace({
 
       let cur = stateRef.current;
       let advanced = false;
+      const prevPhase = cur.phase;
 
       while (accumulatorRef.current >= TICK_DT_MS) {
         accumulatorRef.current -= TICK_DT_MS;
@@ -532,7 +558,8 @@ export function useRace({
         advanced = true;
 
         if (cur.phase === "climb") {
-          localInputLog.current.push(localInput);
+          // Clone the mutable input for immutable storage in the replay log.
+          localInputLog.current.push({ ...localInput });
         }
 
         // Publish our own snapshot a few times a second. Modulo the tick (not a
@@ -587,7 +614,13 @@ export function useRace({
       setOpponentStale(stale);
 
       if (advanced) {
-        setState({ ...cur, players: cur.players.map((p) => ({ ...p })) });
+        // Flush an immutable snapshot to React state every REACT_UPDATE_INTERVAL
+        // ticks (~10 Hz) instead of every tick. Always flush on phase transitions
+        // so lifecycle-dependent UI (countdown, finished) updates immediately.
+        const phaseChanged = cur.phase !== prevPhase;
+        if (phaseChanged || cur.tick % REACT_UPDATE_INTERVAL === 0) {
+          setState({ ...cur, players: cur.players.map((p) => ({ ...p })) });
+        }
       }
     };
 
@@ -627,6 +660,7 @@ export function useRace({
 
   return {
     state,
+    simRef: stateRef,
     myId,
     start,
     finished,

@@ -43,6 +43,49 @@ export type LavaOptions = {
 const clamp01 = (v: number) => (v < 0 ? 0 : v > 1 ? 1 : v);
 const frac = (v: number) => v - Math.floor(v);
 
+// ── Cached body gradient ─────────────────────────────────────────────────────
+// The body gradient color stops depend only on (ui, slowed). Coordinates use a
+// y-origin of 0 and the caller translates by minCrest, so the same gradient
+// object is reused across frames until the canvas resizes or slowed toggles.
+let _bodyGrad: CanvasGradient | null = null;
+let _bodyGradUi = 0;
+let _bodyGradSlowed: boolean | null = null;
+let _bodyGradCtx: CanvasRenderingContext2D | null = null;
+
+function getBodyGradient(
+  ctx: CanvasRenderingContext2D,
+  ui: number,
+  slowed: boolean
+): CanvasGradient {
+  if (
+    _bodyGrad !== null &&
+    _bodyGradCtx === ctx &&
+    _bodyGradUi === ui &&
+    _bodyGradSlowed === slowed
+  ) {
+    return _bodyGrad;
+  }
+  const grad = ctx.createLinearGradient(0, 0, 0, BODY_DEPTH * ui);
+  if (slowed) {
+    grad.addColorStop(0, "#ffc2e6");
+    grad.addColorStop(0.3, LAVA_SLOWED);
+    grad.addColorStop(1, "#7a2f5e");
+  } else {
+    grad.addColorStop(0, "#ffcf5a");
+    grad.addColorStop(0.28, LAVA);
+    grad.addColorStop(1, "#6e1a0d");
+  }
+  _bodyGrad = grad;
+  _bodyGradCtx = ctx;
+  _bodyGradUi = ui;
+  _bodyGradSlowed = slowed;
+  return grad;
+}
+
+// Haze color constants — avoid per-frame template-literal allocations.
+const HAZE_COLOR_OPAQUE = "rgb(255,150,70)";
+const HAZE_COLOR_TRANSPARENT = "rgba(255,150,70,0)";
+
 /** Seeded, stable pseudo-random in [0,1). Mirrors climbBackground's hash. */
 export function hash(x: number, y: number): number {
   let h = (x | 0) * 374761393 + (y | 0) * 668265263;
@@ -101,26 +144,21 @@ export function drawLava(ctx: CanvasRenderingContext2D, opts: LavaOptions): void
   }
 
   // 1) Molten body — vertical gradient under the crest.
-  const grad = ctx.createLinearGradient(0, minCrest, 0, minCrest + BODY_DEPTH * ui);
-  if (slowed) {
-    grad.addColorStop(0, "#ffc2e6");
-    grad.addColorStop(0.3, LAVA_SLOWED);
-    grad.addColorStop(1, "#7a2f5e");
-  } else {
-    grad.addColorStop(0, "#ffcf5a");
-    grad.addColorStop(0.28, LAVA);
-    grad.addColorStop(1, "#6e1a0d");
-  }
+  // The gradient is cached at y-origin 0; translate shifts it to minCrest.
+  const grad = getBodyGradient(ctx, ui, slowed);
+  ctx.save();
+  ctx.translate(0, minCrest);
   ctx.beginPath();
-  ctx.moveTo(0, crestY[0]);
-  for (let i = 1; i <= CREST_SEGMENTS; i++) ctx.lineTo(i * step, crestY[i]);
-  ctx.lineTo(width, height);
-  ctx.lineTo(0, height);
+  ctx.moveTo(0, crestY[0]! - minCrest);
+  for (let i = 1; i <= CREST_SEGMENTS; i++) ctx.lineTo(i * step, crestY[i]! - minCrest);
+  ctx.lineTo(width, height - minCrest);
+  ctx.lineTo(0, height - minCrest);
   ctx.closePath();
   ctx.globalAlpha = slowed ? 0.6 : reducedMotion ? 0.9 : 0.82;
   ctx.fillStyle = grad;
   ctx.fill();
   ctx.globalAlpha = 1;
+  ctx.restore();
 
   // 2) Glowing hot rim along the crest — additive so it reads as heat.
   ctx.globalCompositeOperation = "lighter";
@@ -158,11 +196,13 @@ export function drawLava(ctx: CanvasRenderingContext2D, opts: LavaOptions): void
     const r = (36 + 30 * hash(i, 13)) * ui;
     const a = (0.05 + 0.04 * (0.5 + 0.5 * Math.sin(tick * 0.05 + i))) * (slowed ? 0.4 : 1);
     const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
-    g.addColorStop(0, `rgba(255,150,70,${a.toFixed(3)})`);
-    g.addColorStop(1, "rgba(255,150,70,0)");
+    g.addColorStop(0, HAZE_COLOR_OPAQUE);
+    g.addColorStop(1, HAZE_COLOR_TRANSPARENT);
+    ctx.globalAlpha = a;
     ctx.fillStyle = g;
     ctx.fillRect(cx - r, cy - r * 1.4, r * 2, r * 2.4);
   }
+  ctx.globalAlpha = 1;
   ctx.globalCompositeOperation = "source-over";
 
   // 4) Surface bubbles — swell and pop near the crest on a seeded cadence.

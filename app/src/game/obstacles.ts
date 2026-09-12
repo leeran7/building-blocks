@@ -69,17 +69,26 @@ export function obstaclesForFloor(tower: TowerSpec, i: number): Obstacle[] {
   return placeHurdles(tower, i, rng, kind, d);
 }
 
-/** Obstacles whose crates intersect [yLow, yHigh]. */
+/**
+ * Obstacles whose crates intersect [yLow, yHigh].
+ *
+ * Returns a shared reusable buffer — callers must not store references across
+ * ticks. The buffer is cleared and refilled on each call.
+ */
+const _obstacleBuf: Obstacle[] = [];
 export function obstaclesNearY(
   tower: TowerSpec,
   yLow: number,
   yHigh: number
 ): Obstacle[] {
+  _obstacleBuf.length = 0;
   const lo = Math.max(0, floorIndexAt(tower, yLow) - 1);
   const hi = floorIndexAt(tower, yHigh) + 1;
-  const out: Obstacle[] = [];
-  for (let i = lo; i <= hi; i++) out.push(...obstaclesForFloor(tower, i));
-  return out;
+  for (let i = lo; i <= hi; i++) {
+    const obs = obstaclesForFloor(tower, i);
+    for (let j = 0; j < obs.length; j++) _obstacleBuf.push(obs[j]!);
+  }
+  return _obstacleBuf;
 }
 
 /**
