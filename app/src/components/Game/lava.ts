@@ -128,7 +128,6 @@ export function crestOffset(
 export function drawLava(ctx: CanvasRenderingContext2D, opts: LavaOptions): void {
   const { width, height, top, ui, reducedMotion, slowed } = opts;
   const tick = reducedMotion ? 0 : opts.tick;
-  const base = slowed ? LAVA_SLOWED : LAVA;
 
   ctx.save();
 
