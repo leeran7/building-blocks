@@ -13,8 +13,8 @@
 import { PlayerInput, PlayerState, TowerSpec, TICK_DT, NO_INPUT } from "./types";
 import {
   RAPID_CLIMB_MULT,
+  DOUBLE_JUMP_MULT,
   JETPACK_MAX_VY,
-  doubleJumpChargesRemaining,
   isPowerUpActive,
   jetpackFuelRemaining,
 } from "./powerups";
@@ -58,7 +58,7 @@ export function validateInput(
   // Double-jump spends a charge on the edge; a live jetpack with fuel lets
   // the player hold jump to thrust. Both are the allowance those pickups buy.
   const mayAirJump =
-    doubleJumpChargesRemaining(player, tick) > 0 ||
+    isPowerUpActive(player, "double-jump", tick) ||
     jetpackFuelRemaining(player, tick) > 0;
   if (jump && !player.onGround && !player.onLadder && !mayAirJump) {
     rejected = true;
@@ -98,11 +98,12 @@ export function isHeightDeltaLegal(
   nextY: number,
   tower: TowerSpec,
   toleranceM = 0.01,
-  climbSpeedMult = 1
+  climbSpeedMult = 1,
+  jumpSpeedMult = 1
 ): boolean {
   const maxRise = Math.max(
     tower.maxClimbSpeed * climbSpeedMult,
-    tower.jumpSpeed,
+    tower.jumpSpeed * jumpSpeedMult,
     JETPACK_MAX_VY
   );
   return nextY - prevY <= maxRise * TICK_DT + toleranceM;
@@ -115,6 +116,10 @@ export function isHeightDeltaLegal(
  */
 export function legalClimbSpeedMult(player: PlayerState, tick: number): number {
   return isPowerUpActive(player, "rapid-climb", tick) ? RAPID_CLIMB_MULT : 1;
+}
+
+export function legalJumpSpeedMult(player: PlayerState, tick: number): number {
+  return isPowerUpActive(player, "double-jump", tick) ? DOUBLE_JUMP_MULT : 1;
 }
 
 /** Per-player rolling sentinel state for the K-consecutive-tick rule (AC-16). */

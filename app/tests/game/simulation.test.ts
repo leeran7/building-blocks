@@ -43,7 +43,7 @@ import {
   platformsNearY,
 } from "../../src/game/towers";
 import { obstacleAhead, isOnObstacle, obstaclesNearY } from "../../src/game/obstacles";
-import { doubleJumpChargesRemaining } from "../../src/game/powerups";
+import { isPowerUpActive } from "../../src/game/powerups";
 
 const TOWER: TowerSpec = buildTower("indie-games");
 
@@ -310,7 +310,7 @@ describe("AC-7 / AC-8: caught by the death line eliminates and retains peak", ()
 describe("endless completability: a greedy bot climbs far up a generated tower", () => {
   function botInput(p: PlayerState, tower: TowerSpec, tick = 0): PlayerInput {
     if (p.onLadder) return UP;
-    const hops = doubleJumpChargesRemaining(p, tick);
+    const canDoubleJump = isPowerUpActive(p, "double-jump", tick);
     if (isOnObstacle(tower, p.x, p.y)) {
       const nextStep = obstaclesNearY(tower, p.y + 0.1, p.y + 3)
         .filter((o) => o.y1 > p.y + 0.15)
@@ -322,7 +322,7 @@ describe("endless completability: a greedy bot climbs far up a generated tower",
           moveX: dir,
           jump:
             p.onGround ||
-            (hops > 0 && !p.jumpHeldPrev && nextStep.y0 > p.y + 0.2),
+            (canDoubleJump && !p.jumpHeldPrev && nextStep.y0 > p.y + 0.2),
           climbY: 0,
           usePowerUp: false,
         };
@@ -362,7 +362,7 @@ describe("endless completability: a greedy bot climbs far up a generated tower",
       moveX: dir,
       jump:
         (p.onGround && (!ahead || crate)) ||
-        (!p.onGround && crate && hops > 0 && !p.jumpHeldPrev),
+        (!p.onGround && crate && canDoubleJump && !p.jumpHeldPrev),
       climbY: 0,
       usePowerUp: false,
     };
