@@ -48,9 +48,9 @@ export interface PowerUpPickup {
 
 /**
  * A power-up the player has activated. Duration-based effects run until
- * `startTick + durationTicks`; charge-based ones (double-jump) are consumed
- * by the move they enable and expire unused when the window closes. Jetpack
- * is duration-based with a separate fuel budget spent while jump is held.
+ * `startTick + durationTicks`; charge-based ones are consumed by the move
+ * they enable and expire unused when the window closes. Jetpack is
+ * duration-based with a separate fuel budget spent while jump is held.
  */
 export interface ActivePowerUp {
   type: PowerUpType;

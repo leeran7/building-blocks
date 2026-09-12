@@ -28,7 +28,6 @@ import {
   type PathSink,
 } from "../../src/components/Game/powerUpVisuals";
 import {
-  DOUBLE_JUMP_CHARGES,
   JETPACK_FUEL_SECONDS,
   JETPACK_MAX_VY,
   POWER_UP_SPECS,
@@ -328,9 +327,9 @@ describe("AC-16 locked durations, fuel, and cooldown", () => {
 
     expect(POWER_UP_SPECS["double-jump"].label).toBe("Double Jump");
     expect(POWER_UP_SPECS["double-jump"].description).toBe(
-      `${DOUBLE_JUMP_CHARGES} extra jumps in mid-air`
+      "Jump 3× higher for 10 s"
     );
-    expect(POWER_UP_SPECS["double-jump"].durationSeconds).toBe(18);
+    expect(POWER_UP_SPECS["double-jump"].durationSeconds).toBe(10);
 
     expect(POWER_UP_SPECS.giant.label).toBe("Giant");
     expect(POWER_UP_SPECS.giant.description).toBe(
@@ -463,9 +462,6 @@ function activeEntry(type: PowerUpType): ActivePowerUp {
   };
   if (type === "jetpack") {
     entry.fuelRemainingTicks = jetpackFuelTicks();
-  }
-  if (type === "double-jump") {
-    entry.chargesRemaining = DOUBLE_JUMP_CHARGES;
   }
   return entry;
 }

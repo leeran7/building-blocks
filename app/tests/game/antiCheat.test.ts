@@ -14,6 +14,7 @@ import {
   validateInput,
   isHeightDeltaLegal,
   legalClimbSpeedMult,
+  legalJumpSpeedMult,
   newSentinel,
   updateSentinel,
 } from "../../src/game/antiCheat";
@@ -155,7 +156,8 @@ describe("AC-16: the sentinel stays silent on honest play", () => {
         match.players[0]!.y,
         tower,
         0.01,
-        legalClimbSpeedMult(match.players[0]!, match.tick)
+        legalClimbSpeedMult(match.players[0]!, match.tick),
+        legalJumpSpeedMult(match.players[0]!, match.tick)
       );
       sentinel = updateSentinel(sentinel, legal);
       worstStreak = Math.max(worstStreak, sentinel.consecutiveViolations);
