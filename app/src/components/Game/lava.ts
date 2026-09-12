@@ -44,28 +44,32 @@ const clamp01 = (v: number) => (v < 0 ? 0 : v > 1 ? 1 : v);
 const frac = (v: number) => v - Math.floor(v);
 
 // ── Cached body gradient ─────────────────────────────────────────────────────
-// The body gradient color stops depend only on (ui, slowed). Coordinates use a
-// y-origin of 0 and the caller translates by minCrest, so the same gradient
-// object is reused across frames until the canvas resizes or slowed toggles.
+// The body gradient's color stops depend only on `slowed`. The coordinates
+// depend on (minCrest, ui). Cache the whole gradient and recreate only when
+// any of these inputs change — covers reduced-motion (static crest), paused,
+// and same-frame re-draw scenarios.
 let _bodyGrad: CanvasGradient | null = null;
 let _bodyGradUi = 0;
 let _bodyGradSlowed: boolean | null = null;
 let _bodyGradCtx: CanvasRenderingContext2D | null = null;
+let _bodyGradMinCrest = NaN;
 
 function getBodyGradient(
   ctx: CanvasRenderingContext2D,
   ui: number,
-  slowed: boolean
+  slowed: boolean,
+  minCrest: number
 ): CanvasGradient {
   if (
     _bodyGrad !== null &&
     _bodyGradCtx === ctx &&
     _bodyGradUi === ui &&
-    _bodyGradSlowed === slowed
+    _bodyGradSlowed === slowed &&
+    _bodyGradMinCrest === minCrest
   ) {
     return _bodyGrad;
   }
-  const grad = ctx.createLinearGradient(0, 0, 0, BODY_DEPTH * ui);
+  const grad = ctx.createLinearGradient(0, minCrest, 0, minCrest + BODY_DEPTH * ui);
   if (slowed) {
     grad.addColorStop(0, "#ffc2e6");
     grad.addColorStop(0.3, LAVA_SLOWED);
@@ -79,6 +83,7 @@ function getBodyGradient(
   _bodyGradCtx = ctx;
   _bodyGradUi = ui;
   _bodyGradSlowed = slowed;
+  _bodyGradMinCrest = minCrest;
   return grad;
 }
 
@@ -143,21 +148,17 @@ export function drawLava(ctx: CanvasRenderingContext2D, opts: LavaOptions): void
   }
 
   // 1) Molten body — vertical gradient under the crest.
-  // The gradient is cached at y-origin 0; translate shifts it to minCrest.
-  const grad = getBodyGradient(ctx, ui, slowed);
-  ctx.save();
-  ctx.translate(0, minCrest);
+  const grad = getBodyGradient(ctx, ui, slowed, minCrest);
   ctx.beginPath();
-  ctx.moveTo(0, crestY[0]! - minCrest);
-  for (let i = 1; i <= CREST_SEGMENTS; i++) ctx.lineTo(i * step, crestY[i]! - minCrest);
-  ctx.lineTo(width, height - minCrest);
-  ctx.lineTo(0, height - minCrest);
+  ctx.moveTo(0, crestY[0]);
+  for (let i = 1; i <= CREST_SEGMENTS; i++) ctx.lineTo(i * step, crestY[i]);
+  ctx.lineTo(width, height);
+  ctx.lineTo(0, height);
   ctx.closePath();
   ctx.globalAlpha = slowed ? 0.6 : reducedMotion ? 0.9 : 0.82;
   ctx.fillStyle = grad;
   ctx.fill();
   ctx.globalAlpha = 1;
-  ctx.restore();
 
   // 2) Glowing hot rim along the crest — additive so it reads as heat.
   ctx.globalCompositeOperation = "lighter";
