@@ -21,6 +21,7 @@ import { BuyCreditsModal } from "../Wallet/BuyCreditsModal";
 import { PAID_DUELS_ENABLED_PUBLIC } from "../../config/paidDuel";
 import { formatChipCents } from "../../config/chipPackages";
 import { useClaimDailyChips } from "../../hooks/useClaimDailyChips";
+import { useRankedEligibility } from "../../hooks/useRankedEligibility";
 import { useWalletBalance } from "../../hooks/useWalletBalance";
 import { authedFetch } from "../../lib/authedFetch";
 import {
@@ -75,6 +76,7 @@ export function DuelHome() {
   const [mode, setMode] = useState<DuelMode>("quick");
   const [buyOpen, setBuyOpen] = useState(false);
   const { state: claimState, claim } = useClaimDailyChips(token);
+  const { allowed: geoAllowed } = useRankedEligibility(PAID_DUELS_ENABLED_PUBLIC);
   const { playCents: chipBalance } = useWalletBalance(
     PAID_DUELS_ENABLED_PUBLIC ? token : null,
     `${Number(buyOpen)}-${claimState.status}`
@@ -249,8 +251,9 @@ export function DuelHome() {
   // ─────────────── Render ───────────────
 
   const paidEnabled = PAID_DUELS_ENABLED_PUBLIC;
+  const geoBlocked = paidEnabled && geoAllowed === false;
   const activeMode: DuelMode =
-    mode === "tournaments" || (mode === "chips" && !paidEnabled) ? "quick" : mode;
+    mode === "tournaments" || (mode === "chips" && (!paidEnabled || geoBlocked)) ? "quick" : mode;
 
   return (
     <div className="grain topo min-h-screen bg-void text-text-primary">
@@ -325,18 +328,27 @@ export function DuelHome() {
               <ModeCard
                 icon={<CoinsIcon />}
                 title="Chip Duels"
-                subtitle="Stake chips — winner takes all. Non-cashable."
-                badge="ranked"
-                badgeTone="signal"
-                selected={activeMode === "chips"}
+                subtitle={
+                  geoBlocked
+                    ? "Not available in your region."
+                    : "Stake chips — winner takes all. Non-cashable."
+                }
+                badge={geoBlocked ? "unavailable" : "ranked"}
+                badgeTone={geoBlocked ? "blocked" : "signal"}
+                selected={!geoBlocked && activeMode === "chips"}
+                disabled={geoBlocked}
                 onSelect={() => setMode("chips")}
               />
               <ModeCard
                 icon={<TrophyIcon />}
                 title="Tournaments"
-                subtitle="Bracket competitions for cash prizes."
-                badge="coming soon"
-                badgeTone="muted"
+                subtitle={
+                  geoBlocked
+                    ? "Not available in your region."
+                    : "Bracket competitions for cash prizes."
+                }
+                badge={geoBlocked ? "unavailable" : "coming soon"}
+                badgeTone={geoBlocked ? "blocked" : "muted"}
                 selected={false}
                 disabled
                 onSelect={() => {}}
@@ -549,32 +561,38 @@ function ModeCard({
   title: string;
   subtitle: string;
   badge: string;
-  badgeTone?: "muted" | "signal";
+  badgeTone?: "muted" | "signal" | "blocked";
   selected: boolean;
   disabled?: boolean;
   onSelect: () => void;
 }) {
+  const isBlocked = badgeTone === "blocked";
   return (
     <button
       type="button"
       aria-pressed={selected}
+      aria-disabled={disabled || undefined}
       disabled={disabled}
       onClick={onSelect}
       className={
         "group flex items-center gap-4 rounded-xl border p-4 text-left transition-[border-color,background-color,transform,scale] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void " +
-        (disabled
-          ? "border-border-subtle bg-surface-raised opacity-50 cursor-default"
-          : selected
-            ? "border-signal/60 bg-surface shadow-signal active:scale-[0.99] motion-reduce:active:scale-100"
-            : "border-border-subtle bg-surface-raised hover:border-signal/40 active:scale-[0.99] motion-reduce:active:scale-100")
+        (isBlocked
+          ? "border-ember/30 bg-surface-raised opacity-60 cursor-not-allowed"
+          : disabled
+            ? "border-border-subtle bg-surface-raised opacity-50 cursor-default"
+            : selected
+              ? "border-signal/60 bg-surface shadow-signal active:scale-[0.99] motion-reduce:active:scale-100"
+              : "border-border-subtle bg-surface-raised hover:border-signal/40 active:scale-[0.99] motion-reduce:active:scale-100")
       }
     >
       <span
         className={
           "flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border transition-colors " +
-          (selected
-            ? "border-signal/50 bg-signal/10 text-signal"
-            : "border-border-strong text-text-secondary group-hover:text-text-primary")
+          (isBlocked
+            ? "border-ember/30 text-ember/60"
+            : selected
+              ? "border-signal/50 bg-signal/10 text-signal"
+              : "border-border-strong text-text-secondary group-hover:text-text-primary")
         }
         aria-hidden="true"
       >
@@ -590,7 +608,9 @@ function ModeCard({
               "font-mono text-[10px] uppercase tracking-[0.12em] rounded-full px-2 py-0.5 " +
               (badgeTone === "signal"
                 ? "bg-signal/15 text-signal"
-                : "bg-void/60 text-text-muted")
+                : badgeTone === "blocked"
+                  ? "bg-ember/15 text-ember"
+                  : "bg-void/60 text-text-muted")
             }
           >
             {badge}
@@ -601,11 +621,15 @@ function ModeCard({
       <span
         className={
           "shrink-0 text-text-muted transition-transform " +
-          (selected ? "translate-x-0.5 text-signal" : "group-hover:translate-x-0.5")
+          (isBlocked
+            ? ""
+            : selected
+              ? "translate-x-0.5 text-signal"
+              : "group-hover:translate-x-0.5")
         }
         aria-hidden="true"
       >
-        →
+        {isBlocked ? "✕" : "→"}
       </span>
     </button>
   );
