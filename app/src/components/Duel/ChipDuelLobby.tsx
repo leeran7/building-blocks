@@ -7,6 +7,7 @@ import { Navbar } from "../Navbar";
 import { CHIP_TIERS, DAILY_CHIP_GRANT_CENTS } from "../../db/chips";
 import { formatChipCents } from "../../config/chipPackages";
 import { useClaimDailyChips, dailyClaimVisibility } from "../../hooks/useClaimDailyChips";
+import { useRankedEligibility } from "../../hooks/useRankedEligibility";
 import { useWalletBalance } from "../../hooks/useWalletBalance";
 import { authedFetch } from "../../lib/authedFetch";
 import { DUEL_LEADERBOARD_HREF, DUEL_HREF } from "../navLinks";
@@ -26,6 +27,7 @@ export function ChipDuelLobby() {
   const router = useRouter();
   const [tier, setTier] = useState<number>(CHIP_TIERS[0]);
   const [matchState, setMatchState] = useState<MatchState>({ status: "idle" });
+  const { allowed: geoAllowed } = useRankedEligibility(true);
   const { state: claimState, claim: handleClaim } = useClaimDailyChips(token);
   const { canClaimDailyChips } = useWalletBalance(token, claimState.status);
   const { showClaim, claimedToday } = dailyClaimVisibility(
@@ -98,6 +100,19 @@ export function ChipDuelLobby() {
 
         {!user ? (
           <SignInGate message="Sign in to play chip duels." redirectPath="/duel/chips" />
+        ) : geoAllowed === false ? (
+          <section
+            className="bg-surface rounded-xl border border-ember/30 p-6 text-center"
+            role="status"
+          >
+            <p className="font-mono text-xs uppercase tracking-[0.14em] text-ember mb-2">
+              Region restricted
+            </p>
+            <p className="text-text-secondary text-sm">
+              Chip duels are not available in your region. This feature is restricted
+              to approved markets only.
+            </p>
+          </section>
         ) : (
           <>
             {/* Daily free chips — ongoing no-purchase way to play, not just a one-time signup grant */}
