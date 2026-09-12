@@ -55,7 +55,6 @@ import {
   JETPACK_THRUST,
   canActivate,
   climbSpeedMultiplier,
-  consumeCharge,
   consumeJetpackFuel,
   cooldownTicks,
   durationTicks,
@@ -72,6 +71,7 @@ import { isOnObstacle, resolveObstacleMotion } from "./obstacles";
 import {
   isHeightDeltaLegal,
   legalClimbSpeedMult,
+  legalJumpSpeedMult,
   updateSentinel,
   validateInput,
 } from "./antiCheat";
@@ -359,7 +359,7 @@ function integratePlayer(
         input.jump &&
         !p.jumpHeldPrev &&
         !p.onGround &&
-        consumeCharge(p, "double-jump", tick)
+        isPowerUpActive(p, "double-jump", tick)
       ) {
         p.vy = tower.jumpSpeed * DOUBLE_JUMP_MULT;
       }
@@ -515,7 +515,8 @@ export function stepMatch(
         p.y,
         state.tower,
         0.01,
-        legalClimbSpeedMult(p, state.tick)
+        legalClimbSpeedMult(p, state.tick),
+        legalJumpSpeedMult(p, state.tick)
       )
     );
     p.cheatViolations = sentinel.consecutiveViolations;

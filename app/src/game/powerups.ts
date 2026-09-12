@@ -108,10 +108,8 @@ export const GIANT_VISUAL_SCALE = 2;
 export const GIANT_GRAB_MULT = 1.5;
 /** Extra horizontal metres allowed for platform landings while giant runs. */
 export const GIANT_PLATFORM_MARGIN_M = 0.75;
-/** Fraction of a normal jump a double-jump gives (a recovery, not a second launch). */
-export const DOUBLE_JUMP_MULT = 0.92;
-/** Mid-air jumps granted per double-jump activation. */
-export const DOUBLE_JUMP_CHARGES = 2;
+/** Multiplier on a normal jump while double-jump is active (3× height boost). */
+export const DOUBLE_JUMP_MULT = 3.0;
 /**
  * Fraction of the lava's rise cancelled while slow-lava runs. 0.4 so the
  * line visibly slows without stalling the way 0.75 did.
@@ -182,12 +180,10 @@ export const POWER_UP_SPECS: Record<PowerUpType, PowerUpSpec> = {
   "double-jump": {
     type: "double-jump",
     label: "Double Jump",
-    description: `${DOUBLE_JUMP_CHARGES} extra jumps in mid-air`,
+    description: "Jump 3× higher for 10 s",
     color: "#a98cf5",
-    durationSeconds: 18,
+    durationSeconds: 10,
     cooldownSeconds: 0,
-    charge: true,
-    chargeCount: DOUBLE_JUMP_CHARGES,
     weight: 22,
     altitudeWeightMult: 1,
   },
@@ -496,9 +492,6 @@ export function isExpired(a: ActivePowerUp, tick: number): boolean {
     return (a.fuelRemainingTicks ?? 0) <= 0;
   }
   const spec = POWER_UP_SPECS[a.type];
-  if (spec.charge && a.type === "double-jump") {
-    return (a.chargesRemaining ?? 0) <= 0;
-  }
   return spec.charge ? a.used === true : false;
 }
 
@@ -617,24 +610,8 @@ export function consumeCharge(
 ): boolean {
   const a = activeEntry(p, type, tick);
   if (!a) return false;
-  if (type === "double-jump") {
-    const left = a.chargesRemaining ?? 0;
-    if (left <= 0) return false;
-    a.chargesRemaining = left - 1;
-    return true;
-  }
   a.used = true;
   return true;
-}
-
-/** Mid-air jumps still available from an active double-jump. */
-export function doubleJumpChargesRemaining(
-  p: PlayerState,
-  tick: number
-): number {
-  const a = activeEntry(p, "double-jump", tick);
-  if (!a) return 0;
-  return Math.max(0, a.chargesRemaining ?? 0);
 }
 
 /** Drop entries that have expired or been spent, so the list stays small. */
@@ -674,7 +651,6 @@ export function grantPowerUp(
   type: PowerUpType,
   tick: number
 ): void {
-  const charges = type === "double-jump" ? DOUBLE_JUMP_CHARGES : undefined;
   const fuel = type === "jetpack" ? jetpackFuelTicks() : undefined;
   const existing = activeEntry(p, type, tick);
 
@@ -684,7 +660,6 @@ export function grantPowerUp(
     existing.startTick = tick;
     existing.durationTicks = durationTicks(type);
     existing.used = false;
-    existing.chargesRemaining = charges;
     existing.fuelRemainingTicks = fuel;
     return;
   }
@@ -694,7 +669,6 @@ export function grantPowerUp(
     startTick: tick,
     durationTicks: durationTicks(type),
     used: false,
-    chargesRemaining: charges,
     fuelRemainingTicks: fuel,
   });
 }
