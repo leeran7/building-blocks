@@ -3,8 +3,8 @@
 /**
  * BuyCreditsModal — buy non-cashable chips via Stripe Checkout.
  *
- * Packages give volume bonuses: $5 = 500 (base), $10 = 1,100 (+10%),
- * $20 = 2,400 (+20%), $50 = 6,500 (+30%). Custom amounts use base rate.
+ * Packages give volume bonuses: $5 = 50,000 (base), $10 = 110,000 (+10%),
+ * $20 = 240,000 (+20%), $50 = 650,000 (+30%). Custom amounts use base rate.
  * On submit we POST /api/credits/checkout and redirect to Stripe Checkout.
  */
 
@@ -12,6 +12,7 @@ import { useState } from "react";
 import {
   CHIP_PACKAGES,
   chipsForUsd as chipCount,
+  formatChipCents,
 } from "../../config/chipPackages";
 import { TERMS_HREF } from "../navLinks";
 
@@ -110,7 +111,7 @@ export function BuyCreditsModal({ open, onClose, token }: BuyCreditsModalProps) 
               )}
               <span className="text-lg font-bold">${pkg.usd}</span>
               <span className={`text-xs font-normal ${amountUsd === pkg.usd ? "text-void/70" : "text-text-muted"}`}>
-                {pkg.chips.toLocaleString()} chips
+                {formatChipCents(pkg.chips)} chips
               </span>
             </button>
           ))}
@@ -157,7 +158,7 @@ export function BuyCreditsModal({ open, onClose, token }: BuyCreditsModalProps) 
             disabled={!ageConfirmed || loading || amountUsd <= 0 || !token}
             className="flex-1 inline-flex items-center justify-center rounded-full px-6 min-h-[44px] bg-signal text-void font-semibold text-sm tracking-tight hover:brightness-110 active:scale-[0.98] transition-[filter,transform,scale] disabled:opacity-40 disabled:cursor-not-allowed"
           >
-            {loading ? "Starting..." : `Buy ${chips.toLocaleString()} chips · $${amountUsd}`}
+            {loading ? "Starting..." : `Buy ${formatChipCents(chips)} chips · $${amountUsd}`}
           </button>
         </div>
 
