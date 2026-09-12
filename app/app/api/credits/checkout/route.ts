@@ -20,7 +20,7 @@ import {
   CREDITS_MIN_TOPUP_CENTS,
   CREDITS_MAX_TOPUP_CENTS,
 } from "../../../../src/config/paidDuel";
-import { chipsForUsd } from "../../../../src/config/chipPackages";
+import { chipsForUsd, formatChipCents } from "../../../../src/config/chipPackages";
 
 export const runtime = "nodejs";
 
@@ -92,7 +92,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
             currency: "usd",
             unit_amount: amountCents,
             product_data: {
-              name: `${chipAmount.toLocaleString()} Doomstack chips`,
+              name: `${formatChipCents(chipAmount)} Doomstack chips`,
               description:
                 "Non-cashable chips for ranked duels and tournament entries. Chips are non-refundable and cannot be withdrawn.",
             },
