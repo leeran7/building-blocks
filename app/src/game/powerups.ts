@@ -5,7 +5,7 @@
  *
  *   rapid-climb   ladders are the fastest way up, so make them faster
  *   sprint-burst  ladders drift further apart with altitude — cover the traverse
- *   double-jump   recover a missed gap or climb a crate stair
+ *   super-jump    recover a missed gap or climb a crate stair
  *   giant         grow 2× — wider ladder grabs and platform landings
  *   jetpack       skip a ladder detour — hold jump to thrust, fuel is short
  *   slow-lava     the lava eventually outpaces any climber; buy back seconds
@@ -18,7 +18,7 @@
  * WELL rather than by collecting:
  *
  *   - one live entry per type. A second orb of the same type refreshes the
- *     running effect rather than stacking charges, so double-jump cannot be
+ *     running effect rather than stacking charges, so super-jump cannot be
  *     hoarded. Different types may overlap; that is a separate product choice
  *     from same-type stacking, which the HUD and the charge counter both
  *     assume cannot happen;
@@ -108,8 +108,8 @@ export const GIANT_VISUAL_SCALE = 2;
 export const GIANT_GRAB_MULT = 1.5;
 /** Extra horizontal metres allowed for platform landings while giant runs. */
 export const GIANT_PLATFORM_MARGIN_M = 0.75;
-/** Multiplier on a normal jump while double-jump is active (3× height boost). */
-export const DOUBLE_JUMP_MULT = 3.0;
+/** Multiplier on a normal jump while super-jump is active (2× height boost). */
+export const SUPER_JUMP_MULT = 2.0;
 /**
  * Fraction of the lava's rise cancelled while slow-lava runs. 0.4 so the
  * line visibly slows without stalling the way 0.75 did.
@@ -143,7 +143,7 @@ export interface PowerUpSpec {
    * The duration is then just the window in which it may be spent.
    */
   charge?: boolean;
-  /** Charge-based with multiple spends (double-jump). */
+  /** Charge-based with multiple spends (super-jump). */
   chargeCount?: number;
   /**
    * Jetpack only: seconds of thrust in the tank. The duration is the window
@@ -177,10 +177,10 @@ export const POWER_UP_SPECS: Record<PowerUpType, PowerUpSpec> = {
     weight: 22,
     altitudeWeightMult: 1,
   },
-  "double-jump": {
-    type: "double-jump",
-    label: "Double Jump",
-    description: "Jump 3× higher for 10 s",
+  "super-jump": {
+    type: "super-jump",
+    label: "Super Jump",
+    description: "Jump 2× higher for 10 s",
     color: "#a98cf5",
     durationSeconds: 10,
     cooldownSeconds: 0,
@@ -632,10 +632,10 @@ export function pruneActive(p: PlayerState, tick: number): void {
  *     jumps back up when that entry is pruned;
  *   - PowerUpHud and ClimbCanvas key their rows by type, so React sees
  *     duplicate keys;
- *   - for double-jump it is an exploit. consumeCharge drains the first entry,
+ *   - for super-jump it is an exploit. consumeCharge drains the first entry,
  *     isExpired then reports it spent, and activeEntry falls through to the
- *     second — granting DOUBLE_JUMP_CHARGES again while
- *     doubleJumpChargesRemaining, reading the same first entry, never showed
+ *     second — granting charges again while
+ *     chargesRemaining, reading the same first entry, never showed
  *     more than the original two. Four to five mid-air jumps from a counter
  *     that says two.
  *

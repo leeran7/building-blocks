@@ -13,7 +13,7 @@
 import { PlayerInput, PlayerState, TowerSpec, TICK_DT, NO_INPUT } from "./types";
 import {
   RAPID_CLIMB_MULT,
-  DOUBLE_JUMP_MULT,
+  SUPER_JUMP_MULT,
   JETPACK_MAX_VY,
   isPowerUpActive,
   jetpackFuelRemaining,
@@ -55,10 +55,10 @@ export function validateInput(
   let reason: string | undefined;
 
   // Jump is only legal from the ground — an air-jump is the classic spoof.
-  // Double-jump spends a charge on the edge; a live jetpack with fuel lets
+  // Super-jump allows air jumps; a live jetpack with fuel lets
   // the player hold jump to thrust. Both are the allowance those pickups buy.
   const mayAirJump =
-    isPowerUpActive(player, "double-jump", tick) ||
+    isPowerUpActive(player, "super-jump", tick) ||
     jetpackFuelRemaining(player, tick) > 0;
   if (jump && !player.onGround && !player.onLadder && !mayAirJump) {
     rejected = true;
@@ -119,7 +119,7 @@ export function legalClimbSpeedMult(player: PlayerState, tick: number): number {
 }
 
 export function legalJumpSpeedMult(player: PlayerState, tick: number): number {
-  return isPowerUpActive(player, "double-jump", tick) ? DOUBLE_JUMP_MULT : 1;
+  return isPowerUpActive(player, "super-jump", tick) ? SUPER_JUMP_MULT : 1;
 }
 
 /** Per-player rolling sentinel state for the K-consecutive-tick rule (AC-16). */

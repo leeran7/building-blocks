@@ -341,7 +341,7 @@ describe("AC-7 / AC-8: caught by the death line eliminates and retains peak", ()
 describe("endless completability: a greedy bot climbs far up a generated tower", () => {
   function botInput(p: PlayerState, tower: TowerSpec, tick = 0): PlayerInput {
     if (p.onLadder) return UP;
-    const canDoubleJump = isPowerUpActive(p, "double-jump", tick);
+    const canSuperJump = isPowerUpActive(p, "super-jump", tick);
     if (isOnObstacle(tower, p.x, p.y)) {
       const nextStep = obstaclesNearY(tower, p.y + 0.1, p.y + 3)
         .filter((o) => o.y1 > p.y + 0.15)
@@ -353,7 +353,7 @@ describe("endless completability: a greedy bot climbs far up a generated tower",
           moveX: dir,
           jump:
             p.onGround ||
-            (canDoubleJump && !p.jumpHeldPrev && nextStep.y0 > p.y + 0.2),
+            (canSuperJump && !p.jumpHeldPrev && nextStep.y0 > p.y + 0.2),
           climbY: 0,
           usePowerUp: false,
         };
@@ -393,7 +393,7 @@ describe("endless completability: a greedy bot climbs far up a generated tower",
       moveX: dir,
       jump:
         (p.onGround && (!ahead || crate)) ||
-        (!p.onGround && crate && canDoubleJump && !p.jumpHeldPrev),
+        (!p.onGround && crate && canSuperJump && !p.jumpHeldPrev),
       climbY: 0,
       usePowerUp: false,
     };

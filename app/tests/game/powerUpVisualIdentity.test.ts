@@ -60,7 +60,7 @@ describe("AC-2 only rapid-climb active", () => {
     expect(dataPowerUpTypes(html)).toEqual(["rapid-climb"]);
     expect(html).not.toContain('data-power-up-type="jetpack"');
     expect(html).not.toContain('data-power-up-type="sprint-burst"');
-    expect(html).not.toContain('data-power-up-type="double-jump"');
+    expect(html).not.toContain('data-power-up-type="super-jump"');
     expect(html).not.toContain('data-power-up-type="giant"');
     expect(html).not.toContain('data-power-up-type="slow-lava"');
   });
@@ -299,14 +299,14 @@ describe("AC-15 locked type set and hex colors", () => {
     expect(POWER_UP_TYPES).toEqual([
       "rapid-climb",
       "sprint-burst",
-      "double-jump",
+      "super-jump",
       "giant",
       "jetpack",
       "slow-lava",
     ]);
     expect(POWER_UP_SPECS["rapid-climb"].color).toBe("#4dd9f2");
     expect(POWER_UP_SPECS["sprint-burst"].color).toBe("#f2d24d");
-    expect(POWER_UP_SPECS["double-jump"].color).toBe("#a98cf5");
+    expect(POWER_UP_SPECS["super-jump"].color).toBe("#a98cf5");
     expect(POWER_UP_SPECS.giant.color).toBe("#b8f57c");
     expect(POWER_UP_SPECS.jetpack.color).toBe("#ff9a4a");
     expect(POWER_UP_SPECS["slow-lava"].color).toBe("#ff8ad4");
@@ -325,11 +325,11 @@ describe("AC-16 locked durations, fuel, and cooldown", () => {
     expect(POWER_UP_SPECS["sprint-burst"].description).toBe("Run 1.5x faster");
     expect(POWER_UP_SPECS["sprint-burst"].durationSeconds).toBe(10);
 
-    expect(POWER_UP_SPECS["double-jump"].label).toBe("Double Jump");
-    expect(POWER_UP_SPECS["double-jump"].description).toBe(
-      "Jump 3× higher for 10 s"
+    expect(POWER_UP_SPECS["super-jump"].label).toBe("Super Jump");
+    expect(POWER_UP_SPECS["super-jump"].description).toBe(
+      "Jump 2× higher for 10 s"
     );
-    expect(POWER_UP_SPECS["double-jump"].durationSeconds).toBe(10);
+    expect(POWER_UP_SPECS["super-jump"].durationSeconds).toBe(10);
 
     expect(POWER_UP_SPECS.giant.label).toBe("Giant");
     expect(POWER_UP_SPECS.giant.description).toBe(
@@ -399,7 +399,7 @@ const FORMER_GLYPHS = ["⇈", "»", "⇡", "◉", "▲", "◷"] as const;
 const LOCKED_COLORS: Record<PowerUpType, string> = {
   "rapid-climb": "#4dd9f2",
   "sprint-burst": "#f2d24d",
-  "double-jump": "#a98cf5",
+  "super-jump": "#a98cf5",
   giant: "#b8f57c",
   jetpack: "#ff9a4a",
   "slow-lava": "#ff8ad4",

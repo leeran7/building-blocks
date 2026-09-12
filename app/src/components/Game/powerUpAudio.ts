@@ -73,8 +73,8 @@ const ACTIVATE: Record<PowerUpType, Note[]> = {
     { at: 0, freq: 300, to: 620, dur: 0.07, wave: "square", gain: 0.5 },
     { at: 0.09, freq: 380, to: 760, dur: 0.09, wave: "square", gain: 0.5 },
   ],
-  // Two rising hops — "jump jump".
-  "double-jump": [
+  // Rising hop — super jump.
+  "super-jump": [
     { at: 0, freq: 420, to: 700, dur: 0.09, wave: "triangle" },
     { at: 0.12, freq: 620, to: 980, dur: 0.11, wave: "triangle", gain: 0.75 },
   ],
@@ -99,7 +99,7 @@ const ACTIVATE: Record<PowerUpType, Note[]> = {
 const PICKUP_PITCH: Record<PowerUpType, number> = {
   "rapid-climb": 880,
   "sprint-burst": 740,
-  "double-jump": 990,
+  "super-jump": 990,
   giant: 320,
   jetpack: 420,
   "slow-lava": 620,
