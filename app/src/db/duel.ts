@@ -198,6 +198,18 @@ export async function getDuel(id: string): Promise<DuelWithPlayers | null> {
 }
 
 /**
+ * Check whether a player already has a pending duel (as creator). Returns the
+ * id of the first match, or null. Used by the one-pending-challenge guard so
+ * we avoid fetching up to 50 rows when only existence matters.
+ */
+export async function hasAnyPendingDuel(player1Id: string): Promise<{ id: string } | null> {
+  return prisma.duel.findFirst({
+    where: { player1_id: player1Id, status: DuelStatus.pending },
+    select: { id: true },
+  });
+}
+
+/**
  * Fetch all duels where the user is player1, optionally filtered by status.
  */
 export async function getDuelsByPlayer1(

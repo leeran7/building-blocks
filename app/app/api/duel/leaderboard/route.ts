@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
   try {
     const entries = await topDuelStats(limit);
 
-    return NextResponse.json({
+    const res = NextResponse.json({
       entries: entries.map((entry, i) => ({
         rank: i + 1,
         userId: entry.userId,
@@ -35,6 +35,8 @@ export async function GET(request: NextRequest) {
           : 0,
       })),
     });
+    res.headers.set("Cache-Control", "public, s-maxage=10, stale-while-revalidate=30");
+    return res;
   } catch (err) {
     console.error("[GET /api/duel/leaderboard]", err);
     return NextResponse.json(

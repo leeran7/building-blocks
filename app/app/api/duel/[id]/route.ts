@@ -15,7 +15,7 @@ import {
   getDuel,
   cancelPendingDuel,
   reapDuelIfStale,
-  reapStalePendingPaidDuels,
+  refundPaidDuel,
 } from "../../../../src/db/duel";
 import { requireAuth, AuthError } from "../../../../src/lib/requireAuth";
 
@@ -43,7 +43,7 @@ export async function GET(
     !duel.refunded &&
     Date.now() - duel.created_at.getTime() >= 30 * 60_000
   ) {
-    if ((await reapStalePendingPaidDuels()) > 0) {
+    if (await refundPaidDuel(id)) {
       duel = await getDuel(id);
     }
   }

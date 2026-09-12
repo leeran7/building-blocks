@@ -17,7 +17,6 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth, AuthError } from "../../../../src/lib/requireAuth";
-import { prisma } from "../../../../src/db/client";
 import { ensureUser } from "../../../../src/db/user";
 import { getRedis } from "../../../../src/lib/redis";
 
@@ -86,19 +85,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
     // Upsert: create if not exists, update emailVerified on every sign-in.
     // Shared with the climb route so provisioning stays a single code path.
-    await ensureUser({
+    const user = await ensureUser({
       id: decoded.uid,
       email: decoded.email,
       emailVerified: decoded.email_verified ?? false,
-    });
-    const user = await prisma.user.findUniqueOrThrow({
-      where: { id: decoded.uid },
-      select: {
-        id: true,
-        email: true,
-        emailVerified: true,
-        createdAt: true,
-      },
     });
 
     console.log(

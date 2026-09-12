@@ -7,6 +7,8 @@
  * "altitude is permanent" invariant.
  */
 
+import { cache } from "react";
+
 import { prisma } from "./client";
 import { climberDisplay } from "../lib/handle";
 import { FREE_STACK_SLUG } from "../game/freeStack";
@@ -169,11 +171,16 @@ export async function topClimbers(
   return topFreeClimbers(limit);
 }
 
-/** Aggregate free-climb stats for the landing: distinct climbers + best peak. */
-export async function getGlobalClimbStats(): Promise<{
+/** Aggregate free-climb stats for the landing: distinct climbers + best peak.
+ *
+ * Wrapped with React `cache()` so multiple RSC callers in the same render pass
+ * (SocialProofStrip + HomePage) share a single DB round-trip per ISR
+ * regeneration.
+ */
+export const getGlobalClimbStats = cache(async (): Promise<{
   climberCount: number;
   topPeak: number | null;
-}> {
+}> => {
   const rows = await prisma.$queryRaw<{ climbers: number; top: number | null }[]>`
     SELECT COUNT(*)::int AS climbers, MAX(peak_y) AS top
     FROM climb_records
@@ -181,7 +188,7 @@ export async function getGlobalClimbStats(): Promise<{
   `;
   const row = rows[0] ?? { climbers: 0, top: null };
   return { climberCount: Number(row.climbers ?? 0), topPeak: row.top };
-}
+});
 
 export interface UserFreeClimbRecord {
   peakY: number;

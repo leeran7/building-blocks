@@ -22,10 +22,10 @@ export interface EnsureUserInput {
 
 /**
  * Create the user row if missing, or refresh emailVerified on every sign-in.
- * Returns nothing — callers only need the side effect (row exists afterward).
+ * Returns the upserted user so callers can skip a redundant re-read.
  */
-export async function ensureUser(input: EnsureUserInput): Promise<void> {
-  await prisma.user.upsert({
+export async function ensureUser(input: EnsureUserInput) {
+  return prisma.user.upsert({
     where: { id: input.id },
     create: {
       id: input.id,
@@ -35,6 +35,12 @@ export async function ensureUser(input: EnsureUserInput): Promise<void> {
     },
     update: {
       emailVerified: input.emailVerified ?? false,
+    },
+    select: {
+      id: true,
+      email: true,
+      emailVerified: true,
+      createdAt: true,
     },
   });
 }
