@@ -269,6 +269,37 @@ describe("ladder dismount: a held climb button does not re-stick you to a ladder
   });
 });
 
+describe("ladder jump-off: jumping off mid-climb does not re-grab", () => {
+  const JUMP_CLIMB: PlayerInput = { moveX: 0, jump: true, climbY: 1, usePowerUp: false };
+
+  it("lets the climber jump off a ladder while holding climb", () => {
+    const tower = buildTower("indie-games");
+    const l0 = ladderForFloor(tower, 0);
+    const m = climbingMatch("solo", ["p1"], tower);
+    const p = m.players[0];
+    p.x = l0.x;
+    p.y = 0;
+    p.onGround = true;
+
+    // Grab the ladder and climb partway up.
+    for (let t = 0; t < 30; t++) stepMatch(m, { p1: UP }, SLOW);
+    expect(p.onLadder).toBe(true);
+    const yOnLadder = p.y;
+
+    // Jump off while still holding climb — should not re-grab.
+    stepMatch(m, { p1: JUMP_CLIMB }, SLOW);
+    expect(p.onLadder).toBe(false);
+    expect(p.vy).toBeGreaterThan(0);
+
+    // Subsequent ticks with climb held should stay off the ladder.
+    for (let t = 0; t < 10; t++) {
+      stepMatch(m, { p1: UP }, SLOW);
+      expect(p.onLadder).toBe(false);
+    }
+    expect(p.y).toBeGreaterThan(yOnLadder);
+  });
+});
+
 describe("AC-7 / AC-8: caught by the death line eliminates and retains peak", () => {
   it("eliminates a caught climber but keeps peakY (solo & multiplayer)", () => {
     for (const mode of ["solo", "multiplayer"] as const) {
