@@ -25,6 +25,12 @@ import {
   TICK_DT,
 } from "./types";
 import { createMatch, stepMatch, DEFAULT_SIM_CONFIG } from "./simulation";
+import {
+  emptySample,
+  sampleInterp,
+  type RenderFeed,
+  type RenderFrame,
+} from "./renderFeed";
 import { isPowerUpActive } from "./powerups";
 import { applyRunSeed } from "./towers";
 import { GhostStore } from "./ghosts";
@@ -94,6 +100,12 @@ export interface UseRaceResult {
    * rather than from React state (which updates at ~10 Hz).
    */
   simRef: { readonly current: MatchState };
+  /**
+   * Live render handle for the canvas: the latest tick plus the one before it,
+   * so drawing can interpolate between them at the display's refresh rate
+   * instead of stepping at the sim's 30 Hz (or React's ~10 Hz).
+   */
+  renderFeed: RenderFeed;
   myId: string;
   /** Start the countdown (call after the "start" event is received). */
   start: () => void;
@@ -164,6 +176,10 @@ export function useRace({
   // from React state on every render — the rAF loop mutates it directly via
   // stepMatch, and React only receives periodic immutable snapshots.
   const stateRef = useRef(state);
+  // Render handle for the canvas. `prev` is a single buffer reused every tick;
+  // the sim writes it and the renderer reads it, one pass each per frame.
+  const renderRef = useRef<RenderFrame>({ state, prev: null, stepTs: 0 });
+  const prevSampleRef = useRef(emptySample());
 
   const [duelResult, setDuelResult] = useState<DuelResult | null>(null);
   const [awaitingResult, setAwaitingResult] = useState(false);
@@ -547,6 +563,11 @@ export function useRace({
       while (accumulatorRef.current >= TICK_DT_MS) {
         accumulatorRef.current -= TICK_DT_MS;
 
+        // Snapshot the outgoing tick's positions so the renderer has something
+        // to interpolate from. Overwritten each step, so after the loop it holds
+        // the tick immediately before `cur`.
+        sampleInterp(cur, prevSampleRef.current);
+
         // Slave peers to their ghosts BEFORE stepping so the shared hazard sees
         // approximately-correct peer heights this tick.
         applyGhosts(cur);
@@ -614,6 +635,14 @@ export function useRace({
       setOpponentStale(stale);
 
       if (advanced) {
+        // Hand the canvas the new tick, dated by when it actually completed:
+        // whatever is left in the accumulator is time already spent in the tick
+        // after it, which is exactly the interpolation the renderer needs.
+        const frame = renderRef.current;
+        frame.state = cur;
+        frame.prev = prevSampleRef.current;
+        frame.stepTs = ts - accumulatorRef.current;
+
         // Flush an immutable snapshot to React state every REACT_UPDATE_INTERVAL
         // ticks (~10 Hz) instead of every tick. Always flush on phase transitions
         // so lifecycle-dependent UI (countdown, finished) updates immediately.
@@ -647,6 +676,9 @@ export function useRace({
     setResultSource(null);
     setOpponentStale(false);
     stateRef.current = fresh;
+    renderRef.current.state = fresh;
+    renderRef.current.prev = null;
+    renderRef.current.stepTs = 0;
     setState(fresh);
     runningRef.current = true;
   }, [makeMatch]);
@@ -661,6 +693,7 @@ export function useRace({
   return {
     state,
     simRef: stateRef,
+    renderFeed: renderRef,
     myId,
     start,
     finished,

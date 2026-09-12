@@ -96,6 +96,7 @@ export function ClimbScene({ tower, categoryLabel, replay = null }: ClimbScenePr
   const touchDevice = useCoarsePointer();
   const {
     state,
+    renderFeed,
     start,
     finished,
     setTouch,
@@ -430,6 +431,7 @@ export function ClimbScene({ tower, categoryLabel, replay = null }: ClimbScenePr
       >
         <ClimbCanvas
           state={state}
+          feed={renderFeed}
           reducedMotion={reducedMotion}
           width={canvasSize.width}
           height={canvasSize.height}

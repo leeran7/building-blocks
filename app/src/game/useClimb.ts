@@ -22,6 +22,12 @@ import {
   NO_INPUT,
 } from "./types";
 import { createMatch, stepMatch, SimConfig, DEFAULT_SIM_CONFIG } from "./simulation";
+import {
+  emptySample,
+  sampleInterp,
+  type RenderFeed,
+  type RenderFrame,
+} from "./renderFeed";
 import { HazardConfig, DEFAULT_HAZARD_CONFIG } from "./hazard";
 import { applyRunSeed } from "./towers";
 import { newRunSeed } from "./rng";
@@ -74,6 +80,12 @@ export interface UseClimbResult {
    * rather than from React state (which updates at ~10 Hz).
    */
   simRef: { readonly current: MatchState };
+  /**
+   * Live render handle for the canvas: the latest tick plus the one before it,
+   * so drawing can interpolate between them at the display's refresh rate
+   * instead of stepping at the sim's 30 Hz (or React's ~10 Hz).
+   */
+  renderFeed: RenderFeed;
   /** Start / restart the run from countdown. */
   start: () => void;
   /** Whether the run has ended (finished/results). */
@@ -159,6 +171,18 @@ export function useClimb({
   // from React state on every render — the rAF loop mutates it directly via
   // stepMatch, and React only receives periodic immutable snapshots.
   const stateRef = useRef(state);
+  // Render handle for the canvas. `prev` is a single buffer reused every tick;
+  // the sim writes it and the renderer reads it, one pass each per frame.
+  const renderRef = useRef<RenderFrame>({ state, prev: null, stepTs: 0 });
+  const prevSampleRef = useRef(emptySample());
+
+  /** Point the renderer at `next` with no interpolation across the seam. */
+  const resetRenderFrame = useCallback((next: MatchState) => {
+    const frame = renderRef.current;
+    frame.state = next;
+    frame.prev = null;
+    frame.stepTs = 0;
+  }, []);
 
   const keysRef = useRef<Set<string>>(new Set());
   const touchRef = useRef<TouchInput>(NO_TOUCH);
@@ -212,6 +236,7 @@ export function useClimb({
     if (stateRef.current.phase !== "lobby") return;
     const fresh = makeMatch(newRunSeed(), "lobby");
     stateRef.current = fresh;
+    resetRenderFrame(fresh);
     setView((v) => ({ ...v, match: fresh }));
     // Mount-only.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -280,13 +305,17 @@ export function useClimb({
     [sampleInput]
   );
 
-  const publishMatch = useCallback((cur: MatchState) => {
-    stateRef.current = cur;
-    setView((v) => ({
-      ...v,
-      match: { ...cur, players: cur.players.map((p) => ({ ...p })) },
-    }));
-  }, []);
+  const publishMatch = useCallback(
+    (cur: MatchState) => {
+      stateRef.current = cur;
+      resetRenderFrame(cur);
+      setView((v) => ({
+        ...v,
+        match: { ...cur, players: cur.players.map((p) => ({ ...p })) },
+      }));
+    },
+    [resetRenderFrame]
+  );
 
   const applySeek = useCallback(
     (target: number) => {
@@ -338,6 +367,10 @@ export function useClimb({
       const prevPhase = cur.phase;
       while (accumulatorRef.current >= TICK_DT) {
         accumulatorRef.current -= TICK_DT;
+        // Snapshot the outgoing tick's positions so the renderer has something
+        // to interpolate from. Overwritten each step, so after the loop it holds
+        // the tick immediately before `cur`.
+        sampleInterp(cur, prevSampleRef.current);
         const input = inputForTick(cur.phase, cur.tick);
         // Only climb ticks are scored/replayed (simulation.ts: tick resets to 0
         // at the countdown→climb boundary, so inputLog[0] must be climb-tick 0).
@@ -355,6 +388,14 @@ export function useClimb({
         }
       }
       if (advanced) {
+        // Hand the canvas the new tick, dated by when it actually completed:
+        // whatever is left in the accumulator is time already spent in the tick
+        // after it, which is exactly the interpolation the renderer needs.
+        const frame = renderRef.current;
+        frame.state = cur;
+        frame.prev = prevSampleRef.current;
+        frame.stepTs = ts - accumulatorRef.current * 1000;
+
         // Flush an immutable snapshot to React state every REACT_UPDATE_INTERVAL
         // ticks (~10 Hz) instead of every tick. Always flush on phase transitions
         // so lifecycle-dependent UI (countdown, finished) updates immediately.
@@ -388,9 +429,10 @@ export function useClimb({
     inputLogRef.current = [];
     setInputLog([]);
     stateRef.current = fresh;
+    resetRenderFrame(fresh);
     setView((v) => ({ match: fresh, runId: v.runId + 1 }));
     runningRef.current = true;
-  }, [makeMatch, seedLock]);
+  }, [makeMatch, seedLock, resetRenderFrame]);
 
   useEffect(() => {
     if (!autoStart || !replayInputsRef.current?.length) return;
@@ -491,6 +533,7 @@ export function useClimb({
   return {
     state,
     simRef: stateRef,
+    renderFeed: renderRef,
     start,
     finished,
     setTouch,

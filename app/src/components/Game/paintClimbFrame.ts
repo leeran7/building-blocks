@@ -3,7 +3,7 @@
  * Draws world + optional HUD; never draws transport chrome (ADR-3).
  */
 
-import { MatchState, Obstacle } from "../../game/types";
+import { MatchState, Obstacle, TICK_DT } from "../../game/types";
 import {
   platformsNearY,
   laddersNearY,
@@ -89,6 +89,12 @@ export type PaintClimbFrameOptions = {
    */
   camera?: { y: number | null; tick: number | null };
   /**
+   * Seconds of wall clock since the previous paint, so the camera ease is tied
+   * to elapsed time rather than to how often this runs. Defaults to one tick —
+   * the rate the export encoder paints at, and the rate the ease is tuned for.
+   */
+  dtSec?: number;
+  /**
    * Local player's id (Firebase UID). Determines which climber gets the lime
    * sprite + camera; everyone else is drawn as an opponent (blue). Falls back
    * to slot 0 when absent (solo play / export).
@@ -127,12 +133,17 @@ export function paintClimbFrame(
   const { pxPerM, viewH } = climbView(width, height, tower.widthM);
   ensureFontCache(ui);
   const camTarget = cameraTargetY(playerY, viewH, bottomInset, pxPerM);
+  // Snap on the first paint of a run, and on any backward jump (replay seek).
+  // `state.tick` is fractional under render interpolation, so the opening tick
+  // is "< 1" rather than "=== 0".
+  const camSnap =
+    camBag.tick === null || state.tick < camBag.tick || state.tick < 1;
   const camWorldY = followCamY(
     camBag.y,
     camTarget,
     viewH,
-    state.tick,
-    camBag.tick
+    opts.dtSec ?? TICK_DT,
+    camSnap
   );
   camBag.y = camWorldY;
   camBag.tick = state.tick;
