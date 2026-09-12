@@ -56,6 +56,7 @@ import {
   canActivate,
   climbSpeedMultiplier,
   consumeJetpackFuel,
+  consumeSuperJumpAirJump,
   cooldownTicks,
   durationTicks,
   hazardTimeScale,
@@ -355,6 +356,9 @@ function integratePlayer(
       // Jump from the ground is a normal launch. While a jetpack has fuel,
       // holding jump in the air burns one tick of thrust instead of the
       // super jump — the pack is the spend, the extra hop waits for a tap.
+      // Air jumps are capped at SUPER_JUMP_AIR_JUMPS per activation
+      // (consumeSuperJumpAirJump) — otherwise edge-triggering (release + tap)
+      // is fast enough to reset vy every tick and hover like a jetpack.
       if (input.jump && p.onGround) {
         const jumpMult = isPowerUpActive(p, "super-jump", tick) ? SUPER_JUMP_MULT : 1;
         p.vy = tower.jumpSpeed * jumpMult;
@@ -365,7 +369,7 @@ function integratePlayer(
         input.jump &&
         !p.jumpHeldPrev &&
         !p.onGround &&
-        isPowerUpActive(p, "super-jump", tick)
+        consumeSuperJumpAirJump(p, tick)
       ) {
         p.vy = tower.jumpSpeed * SUPER_JUMP_MULT;
       }

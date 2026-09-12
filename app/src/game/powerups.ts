@@ -111,6 +111,14 @@ export const GIANT_PLATFORM_MARGIN_M = 0.75;
 /** Multiplier on a normal jump while super-jump is active (2× height boost). */
 export const SUPER_JUMP_MULT = 2.0;
 /**
+ * Mid-air jumps allowed per super-jump activation. The ground jump and the
+ * 10s window are unlimited, but air jumps needed a cap: edge-triggering only
+ * requires releasing and re-pressing jump, which is trivially fast, so an
+ * unbounded air-jump count let a player reset vy every tap and hover like a
+ * jetpack instead of recovering a single missed gap.
+ */
+export const SUPER_JUMP_AIR_JUMPS = 3;
+/**
  * Fraction of the lava's rise cancelled while slow-lava runs. 0.4 so the
  * line visibly slows without stalling the way 0.75 did.
  */
@@ -184,6 +192,7 @@ export const POWER_UP_SPECS: Record<PowerUpType, PowerUpSpec> = {
     color: "#a98cf5",
     durationSeconds: 10,
     cooldownSeconds: 0,
+    chargeCount: SUPER_JUMP_AIR_JUMPS,
     weight: 22,
     altitudeWeightMult: 1,
   },
@@ -602,6 +611,27 @@ export function consumeJetpackFuel(p: PlayerState, tick: number): boolean {
   return true;
 }
 
+/** Mid-air jumps still available on the live super-jump entry (0 if not active). */
+export function superJumpChargesRemaining(p: PlayerState, tick: number): number {
+  const a = activeEntry(p, "super-jump", tick);
+  if (!a) return 0;
+  return Math.max(0, a.chargesRemaining ?? 0);
+}
+
+/**
+ * Spend one mid-air jump from the live super-jump entry. Returns false when
+ * super-jump isn't active or the window's air-jump budget is already spent,
+ * so the caller can fall through to plain gravity instead of granting a hop.
+ */
+export function consumeSuperJumpAirJump(p: PlayerState, tick: number): boolean {
+  const a = activeEntry(p, "super-jump", tick);
+  if (!a) return false;
+  const left = a.chargesRemaining ?? 0;
+  if (left <= 0) return false;
+  a.chargesRemaining = left - 1;
+  return true;
+}
+
 /** Spend a charge-based power-up, returning whether one was available. */
 export function consumeCharge(
   p: PlayerState,
@@ -632,12 +662,10 @@ export function pruneActive(p: PlayerState, tick: number): void {
  *     jumps back up when that entry is pruned;
  *   - PowerUpHud and ClimbCanvas key their rows by type, so React sees
  *     duplicate keys;
- *   - for super-jump it is an exploit. consumeCharge drains the first entry,
- *     isExpired then reports it spent, and activeEntry falls through to the
- *     second — granting charges again while
- *     chargesRemaining, reading the same first entry, never showed
- *     more than the original two. Four to five mid-air jumps from a counter
- *     that says two.
+ *   - for super-jump it is an exploit. consumeSuperJumpAirJump drains the
+ *     first (oldest) entry via activeEntry's .find(); a second untouched
+ *     entry sitting behind it would hand back a whole extra
+ *     SUPER_JUMP_AIR_JUMPS budget instead of the intended single pool.
  *
  * Refreshing in place is the fix rather than re-keying the HUD, because the
  * duplication is in the simulation, not the view. This is deliberately the only
@@ -652,15 +680,19 @@ export function grantPowerUp(
   tick: number
 ): void {
   const fuel = type === "jetpack" ? jetpackFuelTicks() : undefined;
+  const airJumps = type === "super-jump" ? SUPER_JUMP_AIR_JUMPS : undefined;
   const existing = activeEntry(p, type, tick);
 
   if (existing) {
     // Second orb of a live type extends it and tops it back up, which is what
-    // a player picking up an orb expects, without adding a second entry.
+    // a player picking up an orb expects, without adding a second entry. That
+    // includes refilling super-jump's air-jump count — otherwise a refresh
+    // would restart the window but leave a nearly-spent charge count in place.
     existing.startTick = tick;
     existing.durationTicks = durationTicks(type);
     existing.used = false;
     existing.fuelRemainingTicks = fuel;
+    existing.chargesRemaining = airJumps;
     return;
   }
 
@@ -670,6 +702,7 @@ export function grantPowerUp(
     durationTicks: durationTicks(type),
     used: false,
     fuelRemainingTicks: fuel,
+    chargesRemaining: airJumps,
   });
 }
 
