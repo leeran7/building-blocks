@@ -313,14 +313,17 @@ function integratePlayer(
         p.vy = 0;
         releaseLadder(p);
         p.onGround = true;
-        p.grabSuppressedUntilRelease = { ix: curIx!, slot: curSlot! };
+        // Do NOT suppress grabs here: a held Up must be able to chain straight
+        // onto the next floor's ladder (towers stack ladder-per-floor, so
+        // ascending means re-grabbing at every platform). The grabbableLadder
+        // BOUNDARY_BUFFER already blocks re-latching *this* ladder at its top,
+        // so releasing is not required to avoid snapping back.
       } else if (p.y <= l.y0) {
         p.x = l.x;
         p.y = l.y0;
         p.vy = 0;
         releaseLadder(p);
         p.onGround = true;
-        p.grabSuppressedUntilRelease = { ix: curIx!, slot: curSlot! };
       }
     }
   } else {
