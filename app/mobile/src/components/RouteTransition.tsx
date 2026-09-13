@@ -1,5 +1,5 @@
 import { useLocation, useNavigate } from "react-router-dom";
-import { useEffect, useLayoutEffect, useRef, useState, type ReactNode, type TouchEvent } from "react";
+import { useEffect, useRef, useState, type ReactNode, type TouchEvent } from "react";
 import { tapLight } from "../lib/haptics";
 import { prefersReducedMotion } from "../lib/motion";
 
@@ -7,16 +7,14 @@ import { prefersReducedMotion } from "../lib/motion";
  * iOS-style navigation feel over the persistent game backdrop.
  *
  * Push (hub → screen):
- *   - Entering screen slides in from right, ON TOP.
- *   - Outgoing hub slides slightly left underneath (classic iOS depth cue).
+ *   - Entering screen slides in from right, on top of the static hub.
+ *   - Hub unmounts cleanly once the push finishes. No overlay needed —
+ *     the animated backdrop is always visible underneath, so there's no
+ *     jarring blank gap. Two things moving in opposite directions felt chaotic.
  *
  * Pop (screen → hub):
  *   - Swipe gesture: PushScreen tracks touch, screen exits right on release.
  *   - Tap back button: pushed screen unmounts, hub fades in.
- *
- * Snapshot trick: savedChildrenRef is updated by a no-deps layout effect
- * (runs AFTER the snapshot-capture effect, so it always holds the previous
- * render's children when a pathname change is detected).
  *
  * All motion respects prefers-reduced-motion.
  */
@@ -24,60 +22,15 @@ export function RouteTransition({ children }: { children: ReactNode }) {
   const { pathname } = useLocation();
   const isHub = pathname === "/";
 
-  // The correctly-timed snapshot of the PREVIOUS screen's children.
-  const savedChildrenRef = useRef<ReactNode>(null);
-  const prevPathRef = useRef(pathname);
-  // Only show exit-left for forward pushes (hub → screen), not backwards.
-  const [exitingHub, setExitingHub] = useState<ReactNode>(null);
-
-  // Step 1: detect route change and capture snapshot of PREVIOUS children.
-  // savedChildrenRef holds last render's children (updated by Step 2 below).
-  useLayoutEffect(() => {
-    if (prevPathRef.current !== pathname) {
-      const wasHub = prevPathRef.current === "/";
-      prevPathRef.current = pathname;
-      if (wasHub && !isHub) {
-        // Forward push: hub exits left under the incoming screen.
-        setExitingHub(savedChildrenRef.current);
-        const id = window.setTimeout(() => setExitingHub(null), 320);
-        return () => window.clearTimeout(id);
-      }
-      // Backward to hub: PushScreen handles its own exit (swipe) or just
-      // unmounts (tap back). No overlay needed.
-    }
-  }, [pathname, isHub]);
-
-  // Step 2: update savedChildrenRef AFTER Step 1 reads it.
-  // No deps = runs every render, always after Step 1 in the same commit.
-  useLayoutEffect(() => {
-    savedChildrenRef.current = children;
-  });
-
   if (isHub) {
     return (
-      <>
-        {exitingHub && (
-          <div className="route-exit-left route-overlay">
-            {exitingHub}
-          </div>
-        )}
-        <div key={pathname} className="route-fade route-scene">
-          {children}
-          <TransitionStyles />
-        </div>
-      </>
+      <div key={pathname} className="route-fade route-scene">
+        {children}
+        <TransitionStyles />
+      </div>
     );
   }
-  return (
-    <>
-      {exitingHub && (
-        <div className="route-exit-left route-overlay">
-          {exitingHub}
-        </div>
-      )}
-      <PushScreen key={pathname}>{children}</PushScreen>
-    </>
-  );
+  return <PushScreen key={pathname}>{children}</PushScreen>;
 }
 
 const EDGE_PX = 28;
