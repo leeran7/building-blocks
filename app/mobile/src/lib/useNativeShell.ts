@@ -5,6 +5,10 @@ import { App as CapApp } from "@capacitor/app";
 import { StatusBar, Style } from "@capacitor/status-bar";
 import { SplashScreen } from "@capacitor/splash-screen";
 import { Keyboard } from "@capacitor/keyboard";
+import { API_BASE } from "./api";
+
+// Only links on our own verified origin are allowed to drive in-app routing.
+const CANONICAL_HOST = new URL(API_BASE).host;
 
 /**
  * Native shell wiring — makes the app behave like a native binary rather than
@@ -13,11 +17,39 @@ import { Keyboard } from "@capacitor/keyboard";
  *    we say so, so there's no flash of empty WebView);
  *  - dark, edge-to-edge status bar to match the ASCENT void background;
  *  - Android hardware back button: navigate back through the in-app history,
- *    and only background the app from the home screen — never exit mid-run.
+ *    and only background the app from the home screen — never exit mid-run;
+ *  - universal / app links: a shared https challenge link (…/duel/:id) opens
+ *    straight into the in-app race room instead of the browser.
  */
 export function useNativeShell() {
   const navigate = useNavigate();
   const location = useLocation();
+
+  // Deep links (iOS Universal Links / Android App Links). The OS hands us the
+  // full https URL that launched (or foregrounded) the app; we route the path
+  // into the HashRouter. Only paths we own map to a screen — anything else is
+  // ignored so a stray link can't push the shell somewhere broken.
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return;
+    let remove = () => {};
+    CapApp.addListener("appUrlOpen", ({ url }) => {
+      let parsed: URL;
+      try {
+        parsed = new URL(url);
+      } catch {
+        return;
+      }
+      // Don't trust the OS association layer alone: only route https links on
+      // our own host, so a link with a matching path on any other origin (or a
+      // custom scheme) can't drive in-app navigation.
+      if (parsed.protocol !== "https:" || parsed.host !== CANONICAL_HOST) return;
+      const duel = parsed.pathname.match(/^\/duel\/([A-Za-z0-9_-]+)\/?$/);
+      if (duel) navigate(`/duel/${duel[1]}`);
+    }).then((handle) => {
+      remove = () => handle.remove();
+    });
+    return () => remove();
+  }, [navigate]);
 
   // One-time native chrome setup.
   useEffect(() => {

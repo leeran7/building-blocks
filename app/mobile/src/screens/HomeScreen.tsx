@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { tapLight, tapHeavy } from "../lib/haptics";
-import { apiFetch } from "../lib/api";
+import { apiFetch, API_BASE } from "../lib/api";
+import { shareInvite } from "@app/lib/shareInvite";
 import { LogoMark } from "../components/LogoMark";
 import { dailySummary, msUntilReset, formatReset, type DailySummary } from "../lib/daily";
 
@@ -71,6 +72,49 @@ export function HomeScreen() {
     navigate("/climb?daily=1");
   };
 
+  // Challenge = create a private 1v1 race on a server-seeded tower, hand the
+  // invite link to the OS share sheet, then drop into the native race room to
+  // wait for the friend. A shared https link opens straight into this room on
+  // devices that have the app (universal/app links) and the web otherwise.
+  const [challengeBusy, setChallengeBusy] = useState(false);
+  const [challengeError, setChallengeError] = useState(false);
+  const startChallenge = useCallback(async () => {
+    if (challengeBusy) return;
+    void tapLight();
+    setChallengeBusy(true);
+    setChallengeError(false);
+    try {
+      const res = await apiFetch("/api/duel", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ categorySlug: "tech" }),
+      });
+      // 409 = this user already has an open challenge; reuse it rather than
+      // orphaning a second row.
+      if (res.status === 409) {
+        const body = (await res.json()) as { existingId: string };
+        await shareInvite(`${API_BASE}/duel/${body.existingId}`).catch(() => {});
+        navigate(`/duel/${body.existingId}`);
+        return;
+      }
+      if (!res.ok) {
+        setChallengeError(true);
+        return;
+      }
+      const body = (await res.json()) as { id: string };
+      // Build the invite from the app's canonical origin rather than the
+      // server-returned `link`: the server derives that from BASE_URL, which is
+      // localhost in dev/unset envs and would not deep-link. A canonical
+      // https://<host>/duel/:id is what the universal/app links verify.
+      await shareInvite(`${API_BASE}/duel/${body.id}`).catch(() => {});
+      navigate(`/duel/${body.id}`);
+    } catch {
+      setChallengeError(true);
+    } finally {
+      setChallengeBusy(false);
+    }
+  }, [challengeBusy, navigate]);
+
   return (
     <main className="flex min-h-[100dvh] flex-col items-center justify-between px-6 pb-[calc(env(safe-area-inset-bottom)+2.5rem)] pt-[calc(env(safe-area-inset-top)+3.5rem)] text-center">
       {/* Wordmark */}
@@ -110,12 +154,13 @@ export function HomeScreen() {
 
         <StandingLine standing={standing} />
 
-        {/* Secondary game modes — a stack of ModeCards sharing one card
-            language. Extensibility: 1v1 Duels drop in as another <ModeCard>
-            here (e.g. tint="signal", title="1v1 Duel", onPress → "/duel"); the
-            list already stacks, so no layout rework is needed. */}
         <div className="flex w-full max-w-xs flex-col gap-2.5">
           <DailyCard daily={daily} resetMs={resetMs} onPress={playDaily} />
+          <ChallengeCard
+            busy={challengeBusy}
+            error={challengeError}
+            onPress={startChallenge}
+          />
         </div>
       </div>
 
@@ -129,9 +174,6 @@ export function HomeScreen() {
           }}
         >
           <TrophyIcon />
-        </HudButton>
-        <HudButton label="Duel" onPress={() => { void tapLight(); navigate("/duel"); }}>
-          <SwordsIcon />
         </HudButton>
         <HudButton
           label="Profile"
@@ -397,6 +439,37 @@ function ChevronRight() {
   );
 }
 
+/**
+ * Challenge = create a private 1v1 race and share the invite link, then race a
+ * friend on the same server-seeded tower in the native room. Deliberately NOT
+ * ranked/1v1-arena — no matchmaking, stakes, or W/L in the app.
+ */
+function ChallengeCard({
+  busy,
+  error,
+  onPress,
+}: {
+  busy: boolean;
+  error: boolean;
+  onPress: () => void;
+}) {
+  const subtitle = busy
+    ? "Creating your challenge…"
+    : error
+      ? "Couldn't start — tap to retry"
+      : "Race a friend on the same tower";
+  return (
+    <ModeCard
+      icon={<SwordsIcon />}
+      tint="signal"
+      title="Challenge"
+      subtitle={subtitle}
+      ariaLabel="Challenge a friend to a race"
+      onPress={onPress}
+    />
+  );
+}
+
 function TrophyIcon() {
   return (
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -421,7 +494,7 @@ function UserIcon() {
 
 function SwordsIcon() {
   return (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-signal" aria-hidden>
       <path d="M14.5 17.5 3 6V3h3l11.5 11.5" />
       <path d="M13 19l6-6" />
       <path d="M16 16l4 4" />

@@ -41,6 +41,33 @@ The Firebase ID token from sign-in is sent as a `Bearer` header by
 `mobile/src/lib/api.ts`; every Doomstack API route already verifies it
 (`src/lib/requireAuth.ts`), so no backend change is needed.
 
+## Challenge deep links (Universal / App Links)
+
+The **Challenge** card creates a private 1v1 race and shares an `https://www.doomstack.lol/duel/:id`
+link. On devices with the app installed, that link opens straight into the
+native race room (`DuelRoomScreen`) via verified deep links; elsewhere it falls
+back to the web. Routing is handled by the `appUrlOpen` listener in
+`mobile/src/lib/useNativeShell.ts`.
+
+To make verification pass in production, two things are needed:
+
+1. **Association files** (already scaffolded, served by the Next app):
+   - `/.well-known/apple-app-site-association` — set env `APPLE_APP_ID_PREFIX`
+     to the Apple Developer **Team ID** (full appID becomes `<TeamID>.lol.doomstack.app`).
+   - `/.well-known/assetlinks.json` — set env `ANDROID_SHA256_FINGERPRINTS` to a
+     comma-separated list of the app-signing **SHA-256** fingerprints (include
+     both the Play App Signing cert and the upload cert if they differ).
+
+   Both serve placeholders until these env vars are set, so a **web deploy with
+   the real values is required** before links verify.
+
+2. **Native capability**:
+   - iOS: `applinks:www.doomstack.lol` is in the three `App*.entitlements`;
+     enable the **Associated Domains** capability for the App ID in the Apple
+     Developer portal / Xcode signing.
+   - Android: the `autoVerify` intent-filter is in `AndroidManifest.xml`; no
+     extra step beyond `assetlinks.json` being reachable.
+
 ## Free-to-play
 
 All real-money features (chips, chip duels, tournaments, payouts) stay hidden on

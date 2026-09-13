@@ -5,6 +5,7 @@ import { SignInScreen } from "./screens/SignInScreen";
 import { LeaderboardScreen } from "./screens/LeaderboardScreen";
 import { ProfileScreen } from "./screens/ProfileScreen";
 import { SettingsScreen } from "./screens/SettingsScreen";
+import { DuelRoomScreen } from "./screens/DuelRoomScreen";
 import { AnimatedBackdrop } from "./components/AnimatedBackdrop";
 import { RouteTransition } from "./components/RouteTransition";
 import { useNativeShell } from "./lib/useNativeShell";
@@ -43,9 +44,11 @@ export function App() {
           <SignInScreen />
         ) : (
           <Routes>
-            {/* Climb is a full-bleed fixed game surface — it owns its own
-                entrance, so it stays outside the route push/fade wrapper. */}
+            {/* Climb and the challenge race room are full-bleed fixed game
+                surfaces — they own their own entrance, so they stay outside
+                the route push/fade wrapper. */}
             <Route path="/climb" element={<ClimbScreen />} />
+            <Route path="/duel/:id" element={<DuelRoomScreen />} />
             <Route
               path="*"
               element={

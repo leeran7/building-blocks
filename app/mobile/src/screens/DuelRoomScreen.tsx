@@ -435,8 +435,6 @@ function DuelGame({
   onRematch: (newDuelId: string) => void;
 }) {
   const [tower] = useState(() => buildTower(categorySlug));
-  const navigate = useNavigate();
-  const { user } = useAuth();
 
   const participants: RaceParticipant[] = [
     { slot: 0, id: player1Id },
