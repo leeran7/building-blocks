@@ -42,7 +42,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       await Promise.all([
         prisma.user.findUnique({
           where: { id: decoded.uid },
-          select: { username: true },
+          select: { username: true, beta_waitlist_joined_at: true },
         }),
         getUserFreeClimbRecord(decoded.uid).catch(() => null),
         getUserClimbReplays(decoded.uid).catch(() => []),
@@ -67,6 +67,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         id: decoded.uid,
         email: decoded.email ?? "",
         username: dbUser?.username ?? null,
+        betaJoined: dbUser?.beta_waitlist_joined_at != null,
       },
       freeClimb,
       replays,

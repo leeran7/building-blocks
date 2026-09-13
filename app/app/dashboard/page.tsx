@@ -32,12 +32,13 @@ import {
   type DuelReplayItem,
 } from "../../src/components/Dashboard/DuelReplaysSection";
 import { WalletCard } from "../../src/components/Dashboard/WalletCard";
+import { BetaBanner } from "../../src/components/BetaBanner";
 import { PAID_DUELS_ENABLED_PUBLIC } from "../../src/config/paidDuel";
 
 type Tab = "duels" | "climb";
 
 interface DashboardData {
-  user: { id: string; email: string; username: string | null };
+  user: { id: string; email: string; username: string | null; betaJoined: boolean };
   freeClimb: FreeClimbData | null;
   replays: ClimbReplayItem[];
   duelStats: DuelRecordData | null;
@@ -142,6 +143,18 @@ export default function DashboardPage() {
 
         {fetchState.status === "success" && (
           <>
+            {/* Beta banner / badge */}
+            {fetchState.data.user.betaJoined ? (
+              <div className="flex items-center gap-2 px-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-signal shrink-0" aria-hidden="true" />
+                <p className="font-mono text-[11px] uppercase tracking-[0.14em] text-signal">
+                  Signed up for beta
+                </p>
+              </div>
+            ) : (
+              token && <BetaBanner token={token} />
+            )}
+
             {/* ── Duels tab ─────────────────────────────── */}
             {tab === "duels" && (
               <>

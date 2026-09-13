@@ -27,17 +27,27 @@ export function SignInScreen() {
       navigate("/");
     } catch (e: unknown) {
       void notifyError();
-      const msg = e instanceof Error ? e.message : "";
-      if (msg.includes("wrong-password") || msg.includes("invalid-credential")) {
+      // Capacitor Firebase plugin surfaces the error code on a `.code` property
+      // (e.g. "auth/email-already-in-use") rather than embedding it in the message
+      // string like the web SDK does — check both so one handler covers all platforms.
+      const code = (e as Record<string, unknown>)?.code as string ?? "";
+      const msg = (e instanceof Error ? e.message : String(e)).toLowerCase();
+      const haystack = `${code} ${msg}`;
+      if (haystack.includes("wrong-password") || haystack.includes("invalid-credential")) {
         setError("Incorrect email or password.");
-      } else if (msg.includes("email-already-in-use")) {
+      } else if (haystack.includes("email-already-in-use")) {
         setError("An account with that email already exists.");
-      } else if (msg.includes("weak-password")) {
+      } else if (haystack.includes("weak-password")) {
         setError("Password must be at least 6 characters.");
-      } else if (msg.includes("invalid-email")) {
+      } else if (haystack.includes("invalid-email")) {
         setError("Enter a valid email address.");
+      } else if (haystack.includes("operation-not-allowed")) {
+        setError("Email sign-in is not enabled — contact support.");
+      } else if (haystack.includes("network") || haystack.includes("network-request-failed")) {
+        setError("Network error — check your connection and try again.");
       } else {
         setError("Something went wrong. Try again.");
+        console.error("[auth] unhandled error:", e);
       }
     } finally {
       setBusy(null);

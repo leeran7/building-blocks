@@ -57,6 +57,10 @@ model User {
   last_daily_chips_claim_at DateTime?
   // Stripe Connect Express account for receiving tournament prize payouts.
   stripe_connect_account_id String?
+  // Beta app waitlist — set when the user opts in to the native iOS/Android beta.
+  beta_waitlist_joined_at  DateTime?
+  beta_platform            String?   // "ios" | "android" | "any"
+  apple_tester_added       Boolean   @default(false)
   climbRecords           ClimbRecord[]
   climbRuns              ClimbRun[]
   savedUrls              SavedUrl[]
