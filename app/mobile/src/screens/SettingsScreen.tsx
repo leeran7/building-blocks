@@ -4,7 +4,7 @@ import type { CreatorPlatform } from "@prisma/client";
 import { apiFetch, API_BASE } from "../lib/api";
 import { openExternal } from "../lib/external";
 import { useAuth } from "../contexts/AuthContext";
-import { tapLight, notifySuccess, notifyError } from "../lib/haptics";
+import { tapLight, notifySuccess, notifyError, isHapticsEnabled, setHapticsEnabled } from "../lib/haptics";
 import { ScreenHeader, ScreenBody, Card, Button } from "../components/ui";
 import { normalizeUsername } from "@app/lib/username";
 import {
@@ -38,6 +38,7 @@ export function SettingsScreen() {
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [haptics, setHaptics] = useState(isHapticsEnabled);
 
   useEffect(() => {
     if (!user || isAnonymous) {
@@ -224,6 +225,38 @@ export function SettingsScreen() {
                     </label>
                   );
                 })}
+              </div>
+            </Card>
+
+            {/* Preferences */}
+            <Card>
+              <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-text-secondary">
+                Preferences
+              </p>
+              <div className="mt-3 flex items-center justify-between gap-4 py-1">
+                <div>
+                  <p className="text-sm font-medium text-text-primary">Haptic feedback</p>
+                  <p className="mt-0.5 text-xs text-text-muted">Vibration on taps and game events</p>
+                </div>
+                <button
+                  role="switch"
+                  aria-checked={haptics}
+                  onClick={() => {
+                    const next = !haptics;
+                    setHaptics(next);
+                    setHapticsEnabled(next);
+                    if (next) void tapLight();
+                  }}
+                  className={`relative h-7 w-13 shrink-0 overflow-hidden rounded-full transition-colors duration-200 ${
+                    haptics ? "bg-signal" : "bg-border-strong"
+                  }`}
+                >
+                  <span
+                    className={`absolute top-0.5 h-6 w-6 rounded-full bg-void shadow transition-transform duration-200 ${
+                      haptics ? "translate-x-6.5" : "translate-x-0.5"
+                    }`}
+                  />
+                </button>
               </div>
             </Card>
 

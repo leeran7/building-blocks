@@ -1,14 +1,31 @@
 import { Capacitor } from "@capacitor/core";
 import { Haptics, ImpactStyle, NotificationType } from "@capacitor/haptics";
 
-/**
- * Thin haptics wrapper — no-ops on web/SSR, fires native taptic feedback on
- * device. Wrap in try/catch so a missing plugin never breaks interaction.
- */
+const HAPTICS_KEY = "haptics_enabled";
 const isNative = Capacitor.isNativePlatform();
 
+export function isHapticsEnabled(): boolean {
+  try {
+    return localStorage.getItem(HAPTICS_KEY) !== "false";
+  } catch {
+    return true;
+  }
+}
+
+export function setHapticsEnabled(enabled: boolean): void {
+  try {
+    localStorage.setItem(HAPTICS_KEY, enabled ? "true" : "false");
+  } catch {
+    /* ignore */
+  }
+}
+
+function canHaptic(): boolean {
+  return isNative && isHapticsEnabled();
+}
+
 export async function tapLight() {
-  if (!isNative) return;
+  if (!canHaptic()) return;
   try {
     await Haptics.impact({ style: ImpactStyle.Light });
   } catch {
@@ -17,7 +34,7 @@ export async function tapLight() {
 }
 
 export async function tapMedium() {
-  if (!isNative) return;
+  if (!canHaptic()) return;
   try {
     await Haptics.impact({ style: ImpactStyle.Medium });
   } catch {
@@ -27,7 +44,7 @@ export async function tapMedium() {
 
 /** The heaviest thud — reserve for the single dominant action (PLAY). */
 export async function tapHeavy() {
-  if (!isNative) return;
+  if (!canHaptic()) return;
   try {
     await Haptics.impact({ style: ImpactStyle.Heavy });
   } catch {
@@ -36,7 +53,7 @@ export async function tapHeavy() {
 }
 
 export async function notifySuccess() {
-  if (!isNative) return;
+  if (!canHaptic()) return;
   try {
     await Haptics.notification({ type: NotificationType.Success });
   } catch {
@@ -45,7 +62,7 @@ export async function notifySuccess() {
 }
 
 export async function notifyError() {
-  if (!isNative) return;
+  if (!canHaptic()) return;
   try {
     await Haptics.notification({ type: NotificationType.Error });
   } catch {

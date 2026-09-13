@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { tapLight, tapHeavy } from "../lib/haptics";
 import { apiFetch, API_BASE } from "../lib/api";
 import { shareInvite } from "@app/lib/shareInvite";
+import { ALTITUDE_UNIT } from "@app/lib/units";
 import { LogoMark } from "../components/LogoMark";
 import { dailySummary, msUntilReset, formatReset, type DailySummary } from "../lib/daily";
 
@@ -217,7 +218,7 @@ function StandingLine({ standing }: { standing: Standing | null }) {
         <span>
           Best{" "}
           <span className="tabular-nums text-text-primary">
-            {standing.peakY.toLocaleString()}m
+            {standing.peakY.toLocaleString()}{ALTITUDE_UNIT}
           </span>
         </span>
         <span className="h-1 w-1 rounded-full bg-border-strong" />
@@ -302,8 +303,8 @@ function DailyCard({
   onPress: () => void;
 }) {
   const sub = daily.playedToday
-    ? `Today ${daily.todayBest.toLocaleString()}m · resets ${formatReset(resetMs)}`
-    : `Same tower for everyone · resets ${formatReset(resetMs)}`;
+    ? `Today ${daily.todayBest.toLocaleString()}${ALTITUDE_UNIT} · map changes ${formatReset(resetMs)}`
+    : `Same tower for everyone · map changes ${formatReset(resetMs)}`;
   return (
     <ModeCard
       icon={<FlameIcon />}
@@ -321,7 +322,7 @@ function DailyCard({
       trailing={
         daily.playedToday ? (
           <span className="shrink-0 font-mono text-[10px] uppercase tracking-[0.2em] text-signal">
-            Retry
+            Play again
           </span>
         ) : undefined
       }
