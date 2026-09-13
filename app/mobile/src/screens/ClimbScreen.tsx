@@ -175,15 +175,30 @@ export function ClimbScreen() {
 
   return (
     <div className="fixed inset-0 z-40 bg-void">
-      {/* Power-up strip — overlaid at the top of the full-bleed stage. */}
+      {/* Top HUD bar — home button + power-up strip */}
       <div
         className="pointer-events-none absolute inset-x-0 top-0 z-20"
         style={{
-          paddingTop: safeArea.top + MOBILE_HUD_BAR_PX,
+          paddingTop: safeArea.top,
           paddingLeft: `max(8px, ${safeArea.left}px)`,
           paddingRight: `max(8px, ${safeArea.right}px)`,
         }}
       >
+        {/* Bar row: home button on the left, height matches MOBILE_HUD_BAR_PX */}
+        <div
+          className="flex items-center pointer-events-auto"
+          style={{ height: MOBILE_HUD_BAR_PX }}
+        >
+          <button
+            aria-label="Back to home"
+            onClick={() => { void tapLight(); navigate("/"); }}
+            className="flex h-8 w-8 items-center justify-center rounded-full bg-void/50 text-text-muted transition-transform active:scale-90"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+              <path d="M15 18l-6-6 6-6" />
+            </svg>
+          </button>
+        </div>
         <div className="pointer-events-auto">
           <PowerUpHud
             player={player}

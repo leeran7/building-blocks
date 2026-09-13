@@ -31,7 +31,7 @@ interface SettingsData {
 
 export function ProfileScreen() {
   const navigate = useNavigate();
-  const { user, isAnonymous, signOut } = useAuth();
+  const { user, isAnonymous } = useAuth();
   const [data, setData] = useState<DashboardData | null>(null);
   const [settings, setSettings] = useState<SettingsData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -58,12 +58,6 @@ export function ProfileScreen() {
     };
   }, [user, isAnonymous]);
 
-  const handleSignOut = async () => {
-    void tapLight();
-    await signOut();
-    navigate("/");
-  };
-
   const climb = data?.freeClimb ?? null;
   const displayName =
     settings?.displayName || climb?.handle || data?.user.email || "Player";
@@ -80,7 +74,7 @@ export function ProfileScreen() {
       : null;
 
   return (
-    <main className="flex min-h-[100dvh] flex-col">
+    <main className="flex h-[100dvh] flex-col">
       <ScreenHeader
         eyebrow="your climb"
         title="Profile"
@@ -212,20 +206,6 @@ export function ProfileScreen() {
                 View public page ↗
               </Button>
             )}
-            <Button variant="secondary" onPress={() => navigate("/settings")}>
-              Edit Profile &amp; Settings
-            </Button>
-            <div className="pt-2">
-              {/* Opaque (secondary) so it stays legible over the bright lava
-                  backdrop; ember label keeps the destructive cue. */}
-              <Button
-                variant="secondary"
-                onPress={handleSignOut}
-                style={{ color: "var(--color-ember)" }}
-              >
-                Sign Out
-              </Button>
-            </div>
           </div>
         )}
       </ScreenBody>

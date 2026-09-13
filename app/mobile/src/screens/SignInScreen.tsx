@@ -27,17 +27,27 @@ export function SignInScreen() {
       navigate("/");
     } catch (e: unknown) {
       void notifyError();
-      const msg = e instanceof Error ? e.message : "";
-      if (msg.includes("wrong-password") || msg.includes("invalid-credential")) {
+      // Capacitor Firebase plugin surfaces the error code on a `.code` property
+      // (e.g. "auth/email-already-in-use") rather than embedding it in the message
+      // string like the web SDK does — check both so one handler covers all platforms.
+      const code = (e as Record<string, unknown>)?.code as string ?? "";
+      const msg = (e instanceof Error ? e.message : String(e)).toLowerCase();
+      const haystack = `${code} ${msg}`;
+      if (haystack.includes("wrong-password") || haystack.includes("invalid-credential")) {
         setError("Incorrect email or password.");
-      } else if (msg.includes("email-already-in-use")) {
+      } else if (haystack.includes("email-already-in-use")) {
         setError("An account with that email already exists.");
-      } else if (msg.includes("weak-password")) {
+      } else if (haystack.includes("weak-password")) {
         setError("Password must be at least 6 characters.");
-      } else if (msg.includes("invalid-email")) {
+      } else if (haystack.includes("invalid-email")) {
         setError("Enter a valid email address.");
+      } else if (haystack.includes("operation-not-allowed")) {
+        setError("Email sign-in is not enabled — contact support.");
+      } else if (haystack.includes("network") || haystack.includes("network-request-failed")) {
+        setError("Network error — check your connection and try again.");
       } else {
         setError("Something went wrong. Try again.");
+        console.error("[auth] unhandled error:", e);
       }
     } finally {
       setBusy(null);
@@ -47,7 +57,7 @@ export function SignInScreen() {
   if (mode === "email-signin" || mode === "email-signup") {
     const isSignup = mode === "email-signup";
     return (
-      <main className="app-fade flex min-h-[100dvh] flex-col px-8 pt-[calc(env(safe-area-inset-top)+3.5rem)]">
+      <main className="app-fade flex h-[100dvh] flex-col px-8 pt-[calc(env(safe-area-inset-top)+3.5rem)]">
         <button
           onClick={() => { setMode("options"); setError(null); }}
           className="font-mono text-xs uppercase tracking-[0.2em] text-text-muted transition-transform active:scale-95"
@@ -113,7 +123,7 @@ export function SignInScreen() {
   }
 
   return (
-    <main className="app-fade flex min-h-[100dvh] flex-col items-center justify-center gap-10 px-8 pb-[calc(env(safe-area-inset-bottom)+2rem)] pt-[calc(env(safe-area-inset-top)+2rem)] text-center">
+    <main className="app-fade flex h-[100dvh] flex-col items-center justify-center gap-10 px-8 pb-[calc(env(safe-area-inset-bottom)+2rem)] pt-[calc(env(safe-area-inset-top)+2rem)] text-center">
       <div className="flex flex-col items-center gap-3">
         <LogoMark size={72} card className="mb-2" />
         <span className="font-mono text-[10px] uppercase tracking-[0.5em] text-text-muted">

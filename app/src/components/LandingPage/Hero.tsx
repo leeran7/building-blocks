@@ -286,6 +286,13 @@ export function Hero({ stats }: { stats: HeroStats }) {
             >
               Sign in
             </Link>
+            {" · "}
+            <Link
+              href="/beta"
+              className="text-text-secondary underline underline-offset-4 decoration-border-strong hover:text-signal hover:decoration-signal transition-colors"
+            >
+              Join the app beta
+            </Link>
           </p>
         </div>
 

@@ -78,3 +78,26 @@ export async function recordAgeConfirmation(userId: string): Promise<void> {
     data: { age_confirmed_at: new Date() },
   });
 }
+
+/**
+ * Opt a user into the native app beta. Idempotent — if already set, returns
+ * the existing record unchanged (update block is empty).
+ */
+export async function joinBeta(
+  userId: string,
+  platform: string
+): Promise<{ beta_waitlist_joined_at: Date | null }> {
+  return prisma.user.update({
+    where: { id: userId },
+    data: { beta_waitlist_joined_at: new Date(), beta_platform: platform },
+    select: { beta_waitlist_joined_at: true },
+  });
+}
+
+/** Mark that the Apple ASC invite was sent successfully. */
+export async function markAppleTesterAdded(userId: string): Promise<void> {
+  await prisma.user.update({
+    where: { id: userId },
+    data: { apple_tester_added: true },
+  });
+}

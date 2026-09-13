@@ -4,7 +4,7 @@ import type { CreatorPlatform } from "@prisma/client";
 import { apiFetch, API_BASE } from "../lib/api";
 import { openExternal } from "../lib/external";
 import { useAuth } from "../contexts/AuthContext";
-import { tapLight, notifySuccess, notifyError } from "../lib/haptics";
+import { tapLight, notifySuccess, notifyError, isHapticsEnabled, setHapticsEnabled } from "../lib/haptics";
 import { ScreenHeader, ScreenBody, Card, Button } from "../components/ui";
 import { normalizeUsername } from "@app/lib/username";
 import {
@@ -27,7 +27,7 @@ const EMPTY: Settings = { displayName: null, username: null, social: null, urls:
 
 export function SettingsScreen() {
   const navigate = useNavigate();
-  const { user, isAnonymous } = useAuth();
+  const { user, isAnonymous, signOut } = useAuth();
 
   const [loaded, setLoaded] = useState<Settings>(EMPTY);
   const [displayName, setDisplayName] = useState("");
@@ -38,6 +38,7 @@ export function SettingsScreen() {
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [haptics, setHaptics] = useState(isHapticsEnabled);
 
   useEffect(() => {
     if (!user || isAnonymous) {
@@ -130,7 +131,7 @@ export function SettingsScreen() {
   const canSave = dirty && !saving && (!usernameCheck || usernameCheck.valid);
 
   return (
-    <main className="flex min-h-[100dvh] flex-col">
+    <main className="flex h-[100dvh] flex-col">
       <ScreenHeader eyebrow="your profile" title="Settings" onBack={() => navigate("/profile")} />
 
       <ScreenBody>
@@ -227,6 +228,37 @@ export function SettingsScreen() {
               </div>
             </Card>
 
+            {/* Preferences */}
+            <Card>
+              <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-text-secondary">
+                Preferences
+              </p>
+              <div className="mt-3 flex items-center justify-between gap-4 py-1">
+                <div>
+                  <p className="text-sm font-medium text-text-primary">Haptic feedback</p>
+                  <p className="mt-0.5 text-xs text-text-muted">Vibration on taps and game events</p>
+                </div>
+                <button
+                  role="switch"
+                  aria-checked={haptics}
+                  onClick={() => {
+                    const next = !haptics;
+                    setHaptics(next);
+                    setHapticsEnabled(next);
+                    if (next) void tapLight();
+                  }}
+                  className={`relative h-7 w-13 shrink-0 rounded-full transition-colors duration-200 ${
+                    haptics ? "bg-signal" : "bg-border-strong"
+                  }`}
+                >
+                  <span
+                    className="absolute top-0.5 h-6 w-6 rounded-full bg-white shadow-sm transition-[left] duration-200"
+                    style={{ left: haptics ? 26 : 2 }}
+                  />
+                </button>
+              </div>
+            </Card>
+
             {error && (
               <p role="alert" className="px-1 text-sm text-ember">
                 {error}
@@ -235,6 +267,18 @@ export function SettingsScreen() {
 
             <Button onPress={save} disabled={!canSave} busy={saving}>
               {saved ? "Saved!" : "Save Changes"}
+            </Button>
+
+            <Button
+              variant="secondary"
+              onPress={async () => {
+                void tapLight();
+                await signOut();
+                navigate("/");
+              }}
+              style={{ color: "var(--color-ember)" }}
+            >
+              Sign Out
             </Button>
           </div>
         )}

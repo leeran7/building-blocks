@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { apiFetch } from "../lib/api";
 import { useAuth } from "../contexts/AuthContext";
+import { ALTITUDE_UNIT } from "@app/lib/units";
 import { ScreenHeader, ScreenBody, ListRow, StateMessage } from "../components/ui";
 
 interface ClimberRank {
@@ -29,7 +30,7 @@ export function LeaderboardScreen() {
   }, []);
 
   return (
-    <main className="flex min-h-[100dvh] flex-col">
+    <main className="flex h-[100dvh] flex-col">
       <ScreenHeader
         eyebrow="global"
         title="Leaderboard"
@@ -76,7 +77,7 @@ export function LeaderboardScreen() {
                       )}
                     </span>
                     <span className="font-mono text-sm tabular-nums text-text-secondary">
-                      {c.peakY.toLocaleString()}m
+                      {c.peakY.toLocaleString()}{ALTITUDE_UNIT}
                     </span>
                   </ListRow>
                 </li>
