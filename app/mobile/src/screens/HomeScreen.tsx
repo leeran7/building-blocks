@@ -133,32 +133,29 @@ export function HomeScreen() {
           Doom<span className="text-signal">stack</span>
         </h1>
         <span className="h-px w-16 bg-border-strong" />
+        <StandingLine standing={standing} />
       </div>
 
       {/* Dominant, molten PLAY (endless quick-play) + live standing */}
       <div className="flex flex-col items-center gap-5">
-        <button onClick={play} aria-label="Play" className="hm-play">
-          <span className="hm-play-inner">
-            <span className="hm-play-halo" />
-            <span className="hm-play-ring" />
-            <span className="hm-play-core">
-              <span
-                className="hm-play-glyph"
-                style={{ filter: "drop-shadow(0 0 12px rgba(203,242,77,0.55))" }}
-              >
-                <PlayGlyph />
-              </span>
-              <span
-                className="font-display text-base font-black uppercase tracking-[0.22em] text-signal"
-                style={{ textShadow: "0 0 18px rgba(203,242,77,0.5)" }}
-              >
-                Play
-              </span>
+        <button
+          onClick={play}
+          aria-label="Play"
+          className="flex w-full max-w-xs items-center gap-4 rounded-2xl border border-signal/50 bg-surface/80 px-5 py-4 text-left shadow-[0_0_28px_-6px_rgba(203,242,77,0.35)] transition-transform active:scale-[0.97]"
+        >
+          <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-signal/40 bg-signal/10">
+            <PlayGlyph />
+          </span>
+          <span className="flex-1">
+            <span className="block font-display text-xl font-black uppercase tracking-wide text-signal" style={{ textShadow: "0 0 18px rgba(203,242,77,0.45)" }}>
+              Play
+            </span>
+            <span className="block font-mono text-[11px] uppercase tracking-[0.06em] text-text-secondary">
+              Endless quick climb
             </span>
           </span>
+          <ChevronRight />
         </button>
-
-        <StandingLine standing={standing} />
 
         <div className="flex w-full max-w-xs flex-col gap-2.5">
           <DailyCard daily={daily} resetMs={resetMs} onPress={playDaily} />
@@ -202,71 +199,8 @@ export function HomeScreen() {
       </nav>
 
       <style>{`
-        /* Faint heat-shimmer glow on the wordmark — identity, not decoration. */
         .hm-wordmark {
           text-shadow: 0 0 34px rgba(203, 242, 77, 0.14);
-        }
-
-        /* Molten PLAY: a slowly spinning lava→lime energy ring wrapped around a
-           dark core lit by lava from below — the same molten palette as the
-           game hazard. Floats at rest; presses in. */
-        .hm-play {
-          position: relative;
-          display: grid; place-items: center;
-          height: 11.5rem; width: 11.5rem;
-          transition: transform 0.15s ease;
-          -webkit-tap-highlight-color: transparent;
-        }
-        .hm-play:active { transform: scale(0.95); }
-        .hm-play-inner {
-          position: relative;
-          display: grid; place-items: center;
-          height: 11.5rem; width: 11.5rem;
-          animation: hmFloat 4.8s ease-in-out infinite;
-        }
-        /* Pulsing heat halo behind the whole button. */
-        .hm-play-halo {
-          position: absolute; inset: -12px; border-radius: 9999px;
-          background: radial-gradient(circle, rgba(203,242,77,0.28), rgba(255,90,44,0.14) 45%, transparent 70%);
-          animation: hmHalo 2.8s ease-out infinite;
-        }
-        /* Rotating conic energy ring in the molten palette. */
-        .hm-play-ring {
-          position: absolute; inset: 0; border-radius: 9999px;
-          background: conic-gradient(from 90deg,
-            #ff5a2c, #ffcf5a, #cbf24d, #ffffff, #cbf24d, #ffcf5a, #ff5a2c);
-          animation: hmSpin 5.5s linear infinite;
-          box-shadow:
-            0 0 46px -8px rgba(255,90,44,0.55),
-            0 0 34px -10px rgba(203,242,77,0.55);
-        }
-        /* Dark core: lava glow rising from the bottom, cool lime cast at the top. */
-        .hm-play-core {
-          position: absolute; inset: 8px; border-radius: 9999px;
-          display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
-          background:
-            radial-gradient(circle at 50% 130%, rgba(255,90,44,0.60) 0%, rgba(255,90,44,0.12) 42%, transparent 62%),
-            radial-gradient(circle at 50% -20%, rgba(203,242,77,0.22) 0%, transparent 46%),
-            #0b0a0f;
-          box-shadow:
-            inset 0 2px 16px rgba(0,0,0,0.65),
-            inset 0 -6px 28px rgba(255,90,44,0.20);
-        }
-        .hm-play-glyph { margin-left: 4px; line-height: 0; } /* optical-center the triangle */
-
-        @keyframes hmSpin { to { transform: rotate(1turn); } }
-        @keyframes hmFloat {
-          0%, 100% { transform: translateY(0); }
-          50%      { transform: translateY(-6px); }
-        }
-        @keyframes hmHalo {
-          0%   { transform: scale(0.92); opacity: 0.7; }
-          70%  { transform: scale(1.28); opacity: 0; }
-          100% { transform: scale(1.28); opacity: 0; }
-        }
-        @media (prefers-reduced-motion: reduce) {
-          .hm-play-inner, .hm-play-ring, .hm-play-halo { animation: none; }
-          .hm-play-halo { opacity: 0.4; }
         }
       `}</style>
     </main>
@@ -349,7 +283,7 @@ function ModeCard({
           </span>
           {badge}
         </span>
-        <span className="mt-0.5 block truncate font-mono text-[10px] uppercase tracking-[0.15em] text-text-secondary">
+        <span className="mt-0.5 block font-mono text-[11px] uppercase tracking-[0.06em] text-text-secondary leading-snug line-clamp-2">
           {subtitle}
         </span>
       </span>
@@ -423,7 +357,7 @@ function HudButton({
 
 function PlayGlyph() {
   return (
-    <svg width="34" height="34" viewBox="0 0 24 24" fill="currentColor" className="text-signal">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" className="text-signal" aria-hidden>
       <path d="M8 5.14v13.72a1 1 0 0 0 1.53.85l10.79-6.86a1 1 0 0 0 0-1.7L9.53 4.29A1 1 0 0 0 8 5.14Z" />
     </svg>
   );
