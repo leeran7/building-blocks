@@ -198,7 +198,7 @@ function DuelRoomInner({ duelId }: { duelId: string }) {
 
   if (phase === "loading") {
     return (
-      <div className="flex min-h-[100dvh] flex-col items-center justify-center gap-4 bg-void">
+      <div className="flex h-[100dvh] flex-col items-center justify-center gap-4 bg-void">
         <Spinner />
         <p className="font-mono text-sm text-text-secondary">Loading duel&hellip;</p>
       </div>
@@ -207,7 +207,7 @@ function DuelRoomInner({ duelId }: { duelId: string }) {
 
   if (phase === "error") {
     return (
-      <div className="flex min-h-[100dvh] flex-col items-center justify-center gap-4 bg-void px-6 text-center">
+      <div className="flex h-[100dvh] flex-col items-center justify-center gap-4 bg-void px-6 text-center">
         <p className="text-base text-ember">{errorMsg}</p>
         <button
           onClick={() => { void tapLight(); navigate("/duel"); }}
@@ -221,7 +221,7 @@ function DuelRoomInner({ duelId }: { duelId: string }) {
 
   if (!meta || !realtime) {
     return (
-      <div className="flex min-h-[100dvh] items-center justify-center bg-void">
+      <div className="flex h-[100dvh] items-center justify-center bg-void">
         <Spinner />
       </div>
     );
@@ -638,7 +638,7 @@ function DuelGame({
 
   if (awaitingResult && !duelResult) {
     return (
-      <div className="flex min-h-[100dvh] flex-col items-center justify-center gap-4 bg-void px-4 text-center">
+      <div className="flex h-[100dvh] flex-col items-center justify-center gap-4 bg-void px-4 text-center">
         <Spinner />
         <p className="font-mono text-sm text-text-secondary">Computing result&hellip;</p>
         {resultError && (

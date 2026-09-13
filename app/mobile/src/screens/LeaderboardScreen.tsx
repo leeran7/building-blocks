@@ -29,7 +29,7 @@ export function LeaderboardScreen() {
   }, []);
 
   return (
-    <main className="flex min-h-[100dvh] flex-col">
+    <main className="flex h-[100dvh] flex-col">
       <ScreenHeader
         eyebrow="global"
         title="Leaderboard"

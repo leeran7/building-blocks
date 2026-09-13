@@ -1,5 +1,5 @@
 import { useLocation, useNavigate } from "react-router-dom";
-import { useEffect, useRef, useState, type ReactNode, type TouchEvent } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode, type TouchEvent } from "react";
 import { tapLight } from "../lib/haptics";
 import { prefersReducedMotion } from "../lib/motion";
 
@@ -18,15 +18,50 @@ import { prefersReducedMotion } from "../lib/motion";
 export function RouteTransition({ children }: { children: ReactNode }) {
   const { pathname } = useLocation();
   const isHub = pathname === "/";
+
+  // Capture the outgoing screen so it can exit-left while the new one enters.
+  const prevRef = useRef<ReactNode>(null);
+  const prevPathRef = useRef(pathname);
+  const [exiting, setExiting] = useState<ReactNode>(null);
+
+  // Snapshot children just before pathname flips (layout effect fires before paint).
+  useLayoutEffect(() => {
+    if (prevPathRef.current !== pathname) {
+      setExiting(prevRef.current);
+      prevPathRef.current = pathname;
+      const id = window.setTimeout(() => setExiting(null), 380);
+      return () => window.clearTimeout(id);
+    }
+  }, [pathname]);
+
+  // Always keep ref current with the latest children for next transition snapshot.
+  prevRef.current = children;
+
   if (isHub) {
     return (
-      <div key={pathname} className="route-fade">
-        {children}
-        <TransitionStyles />
-      </div>
+      <>
+        {exiting && (
+          <div key="exit" className="route-exit-left route-overlay">
+            {exiting}
+          </div>
+        )}
+        <div key={pathname} className="route-fade">
+          {children}
+          <TransitionStyles />
+        </div>
+      </>
     );
   }
-  return <PushScreen key={pathname}>{children}</PushScreen>;
+  return (
+    <>
+      {exiting && (
+        <div key="exit" className="route-exit-left route-overlay">
+          {exiting}
+        </div>
+      )}
+      <PushScreen key={pathname}>{children}</PushScreen>
+    </>
+  );
 }
 
 const EDGE_PX = 28; // how close to the left edge a back-swipe must start
@@ -181,19 +216,31 @@ function TransitionStyles() {
   return (
     <style>{`
       .route-fade { animation: routeFade 0.32s ease-out both; }
-      .route-push { animation: routePush 0.34s cubic-bezier(0.16, 1, 0.3, 1) both; }
+      .route-push { animation: routePush 0.38s cubic-bezier(0.16, 1, 0.3, 1) both; }
       /* While a live drag owns the transform, don't run the entrance keyframe. */
       .route-push-live { will-change: transform; }
+      /* Outgoing screen exits left as the new one enters — canvas feel. */
+      .route-overlay {
+        position: fixed; inset: 0; z-index: 9;
+        pointer-events: none;
+      }
+      .route-exit-left {
+        animation: routeExitLeft 0.38s cubic-bezier(0.16, 1, 0.3, 1) both;
+      }
       @keyframes routeFade {
         from { opacity: 0; }
         to   { opacity: 1; }
       }
       @keyframes routePush {
-        from { transform: translate3d(100%, 0, 0); }
+        from { transform: translate3d(100%, 0, 0); box-shadow: -22px 0 60px -8px rgba(0,0,0,0.55); }
         to   { transform: translate3d(0, 0, 0); }
       }
+      @keyframes routeExitLeft {
+        from { transform: translate3d(0, 0, 0); opacity: 1; }
+        to   { transform: translate3d(-28%, 0, 0); opacity: 0; }
+      }
       @media (prefers-reduced-motion: reduce) {
-        .route-fade, .route-push { animation: none; }
+        .route-fade, .route-push, .route-exit-left { animation: none; }
       }
     `}</style>
   );

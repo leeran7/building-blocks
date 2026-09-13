@@ -130,7 +130,7 @@ export function SettingsScreen() {
   const canSave = dirty && !saving && (!usernameCheck || usernameCheck.valid);
 
   return (
-    <main className="flex min-h-[100dvh] flex-col">
+    <main className="flex h-[100dvh] flex-col">
       <ScreenHeader eyebrow="your profile" title="Settings" onBack={() => navigate("/profile")} />
 
       <ScreenBody>

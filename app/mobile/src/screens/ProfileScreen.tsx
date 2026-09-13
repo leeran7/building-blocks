@@ -80,7 +80,7 @@ export function ProfileScreen() {
       : null;
 
   return (
-    <main className="flex min-h-[100dvh] flex-col">
+    <main className="flex h-[100dvh] flex-col">
       <ScreenHeader
         eyebrow="your climb"
         title="Profile"

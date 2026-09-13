@@ -122,7 +122,7 @@ export function HomeScreen() {
   }, [challengeBusy, navigate]);
 
   return (
-    <main className="flex min-h-[100dvh] flex-col items-center justify-between px-6 pb-[calc(env(safe-area-inset-bottom)+2.5rem)] pt-[calc(env(safe-area-inset-top)+3.5rem)] text-center">
+    <main className="flex h-[100dvh] flex-col items-center justify-between px-6 pb-[calc(env(safe-area-inset-bottom)+2.5rem)] pt-[calc(env(safe-area-inset-top)+3.5rem)] text-center">
       {/* Wordmark */}
       <div className="mt-1 flex flex-col items-center gap-2">
         <LogoMark size={48} card className="mb-1" />

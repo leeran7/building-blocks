@@ -57,7 +57,7 @@ export function SignInScreen() {
   if (mode === "email-signin" || mode === "email-signup") {
     const isSignup = mode === "email-signup";
     return (
-      <main className="app-fade flex min-h-[100dvh] flex-col px-8 pt-[calc(env(safe-area-inset-top)+3.5rem)]">
+      <main className="app-fade flex h-[100dvh] flex-col px-8 pt-[calc(env(safe-area-inset-top)+3.5rem)]">
         <button
           onClick={() => { setMode("options"); setError(null); }}
           className="font-mono text-xs uppercase tracking-[0.2em] text-text-muted transition-transform active:scale-95"
@@ -123,7 +123,7 @@ export function SignInScreen() {
   }
 
   return (
-    <main className="app-fade flex min-h-[100dvh] flex-col items-center justify-center gap-10 px-8 pb-[calc(env(safe-area-inset-bottom)+2rem)] pt-[calc(env(safe-area-inset-top)+2rem)] text-center">
+    <main className="app-fade flex h-[100dvh] flex-col items-center justify-center gap-10 px-8 pb-[calc(env(safe-area-inset-bottom)+2rem)] pt-[calc(env(safe-area-inset-top)+2rem)] text-center">
       <div className="flex flex-col items-center gap-3">
         <LogoMark size={72} card className="mb-2" />
         <span className="font-mono text-[10px] uppercase tracking-[0.5em] text-text-muted">

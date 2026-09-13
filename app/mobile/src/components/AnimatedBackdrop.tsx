@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef } from "react";
+import { useLocation } from "react-router-dom";
 import { drawLava } from "@app/components/Game/lava";
 import { prefersReducedMotion } from "../lib/motion";
 
@@ -19,6 +20,10 @@ const DUST_COUNT = 10;
 const LAVA_FPS = 30;
 
 export function AnimatedBackdrop() {
+  // Re-key the world div on every route change so the bdWorldPan keyframe
+  // replays — the backdrop slides with the screen, not behind it.
+  const { pathname } = useLocation();
+
   const embers = useMemo(
     () =>
       Array.from({ length: EMBER_COUNT }, (_, i) => {
@@ -51,6 +56,8 @@ export function AnimatedBackdrop() {
 
   return (
     <div aria-hidden className="pointer-events-none fixed inset-0 z-0 bg-void">
+      {/* World layer — re-keyed on route so bdWorldPan fires on every navigation */}
+      <div key={pathname} className="bd-world">
       {/* Cool summit energy, top-left — breathes gently */}
       <div className="bd-blob bd-blob-summit" />
 
@@ -108,6 +115,7 @@ export function AnimatedBackdrop() {
       <div className="bd-grain" />
       {/* Bottom scrim keeps controls legible */}
       <div className="bd-vignette" />
+      </div> {/* end bd-world */}
 
       <style>{`
         .bd-blob {
@@ -207,7 +215,18 @@ export function AnimatedBackdrop() {
           100% { transform: translate3d(var(--drift), -105vh, 0); opacity: 0; }
         }
 
+        /* World pan — fires on every route change via key prop */
+        .bd-world {
+          position: absolute; inset: 0;
+          animation: bdWorldPan 0.38s cubic-bezier(0.16, 1, 0.3, 1) both;
+        }
+        @keyframes bdWorldPan {
+          from { transform: translate3d(5%, 0, 0); }
+          to   { transform: translate3d(0, 0, 0); }
+        }
+
         @media (prefers-reduced-motion: reduce) {
+          .bd-world { animation: none; }
           .bd-blob, .bd-lava-bloom { animation: none; }
           .bd-blob-summit { opacity: 0.22; }
           .bd-blob-warm   { opacity: 0.12; }
