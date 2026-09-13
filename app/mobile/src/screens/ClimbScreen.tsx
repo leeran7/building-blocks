@@ -25,6 +25,7 @@ import { ALTITUDE_UNIT } from "@app/lib/units";
 
 import { API_BASE, postClimbResult, type ClimbSaveResult } from "../lib/api";
 import { tapMedium, tapLight, notifyError, notifySuccess } from "../lib/haptics";
+import { useGameHaptics } from "../lib/useGameHaptics";
 import {
   dailySeed,
   commitDailyRun,
@@ -52,6 +53,7 @@ export function ClimbScreen() {
   const towerRef = useRef(buildFreeTower());
   const {
     state,
+    simRef,
     renderFeed,
     start,
     finished,
@@ -59,6 +61,9 @@ export function ClimbScreen() {
     runId,
     inputLog,
   } = useClimb({ tower: towerRef.current, seed });
+
+  // In-run taptics: jump / land / power-up / ladder (solo player is slot 0).
+  useGameHaptics(simRef, 0, runId);
 
   const canvasBoxRef = useRef<HTMLDivElement>(null);
   const canvasSize = useCanvasSize(canvasBoxRef, { fill: true });

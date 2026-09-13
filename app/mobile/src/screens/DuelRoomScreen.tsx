@@ -3,6 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { apiFetch, API_BASE } from "../lib/api";
 import { tapLight, tapMedium, notifySuccess } from "../lib/haptics";
+import { useGameHaptics } from "../lib/useGameHaptics";
 
 import { useRace, RaceParticipant } from "@app/game/useRace";
 import { useClimb } from "@app/game/useClimb";
@@ -443,6 +444,7 @@ function DuelGame({
 
   const {
     state,
+    simRef,
     renderFeed,
     start,
     finished,
@@ -463,6 +465,9 @@ function DuelGame({
     duelId,
     guestId,
   });
+
+  // In-run taptics for the local racer: jump / land / power-up / ladder.
+  useGameHaptics(simRef, mySlot, duelId);
 
   const canvasBoxRef = useRef<HTMLDivElement>(null);
   const canvasSize = useCanvasSize(canvasBoxRef, { fill: true });
