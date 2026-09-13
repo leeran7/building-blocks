@@ -267,6 +267,25 @@ describe("ladder dismount: a held climb button does not re-stick you to a ladder
     }
     expect(grabbed).toBe(true);
   });
+
+  it("chains onto an aligned next-floor ladder with Up held (no release needed)", () => {
+    // Regression for #112: topping out set grabSuppressedUntilRelease, so a
+    // player holding Up stalled at every platform and could not keep ascending.
+    const tower = buildTower("indie-games");
+    const { floor, climbX, grabX } = findLandingWithUpLadder(tower);
+    // Only meaningful when the next ladder sits under the landing spot; nudge
+    // toward it but keep Up held the entire time (never releasing climbY).
+    const { m, p } = climbOntoFloor(tower, floor, climbX);
+    const topOfFirst = floorHeight(tower, floor + 1);
+    let regrabbed = false;
+    for (let k = 0; k < 240 && !regrabbed; k++) {
+      const dir: -1 | 0 | 1 =
+        Math.abs(grabX - p.x) <= 0.2 ? 0 : grabX > p.x ? 1 : -1;
+      stepMatch(m, { p1: { moveX: dir, jump: false, climbY: 1, usePowerUp: false } }, SLOW);
+      regrabbed = p.onLadder && p.y > topOfFirst + 0.5;
+    }
+    expect(regrabbed).toBe(true);
+  });
 });
 
 describe("ladder jump-off: jumping off mid-climb does not re-grab", () => {
