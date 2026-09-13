@@ -7,6 +7,7 @@
 @source "./";
 @source "../../src/components/Game";
 @source "../../src/components";
+@source "../../src/components/Duel";
 
 /*
   ASCENT palette — mirrors the tokens in app/app/globals.css so the reused

@@ -5,6 +5,8 @@ import { SignInScreen } from "./screens/SignInScreen";
 import { LeaderboardScreen } from "./screens/LeaderboardScreen";
 import { ProfileScreen } from "./screens/ProfileScreen";
 import { SettingsScreen } from "./screens/SettingsScreen";
+import { DuelScreen } from "./screens/DuelScreen";
+import { DuelRoomScreen } from "./screens/DuelRoomScreen";
 import { AnimatedBackdrop } from "./components/AnimatedBackdrop";
 import { useNativeShell } from "./lib/useNativeShell";
 
@@ -26,6 +28,8 @@ export function App() {
           <Route path="/leaderboard" element={<LeaderboardScreen />} />
           <Route path="/profile" element={<ProfileScreen />} />
           <Route path="/settings" element={<SettingsScreen />} />
+          <Route path="/duel" element={<DuelScreen />} />
+          <Route path="/duel/:id" element={<DuelRoomScreen />} />
         </Routes>
       </div>
     </div>
