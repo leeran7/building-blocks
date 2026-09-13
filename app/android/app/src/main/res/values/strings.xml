@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Doomstack</string>
+    <string name="title_activity_main">Doomstack</string>
+    <string name="package_name">lol.doomstack.app</string>
+    <string name="custom_url_scheme">lol.doomstack.app</string>
+</resources>

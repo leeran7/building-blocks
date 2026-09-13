@@ -20,6 +20,24 @@ import { EMBER_MAX as CLIMB_EMBER_MAX } from "../../design/climbFeelTokens";
 
 export const VOLCANO_TILE_SRC = "/climb/volcano-tile.jpg";
 
+/**
+ * Resolved tile URL. Defaults to the web `public/` path; the bundled native app
+ * (Capacitor) has no server root for absolute asset paths, so it overrides this
+ * once at startup with a Vite-bundled, relative asset URL via
+ * {@link setVolcanoTileSrc}. Without that override the native build 404s the
+ * tile and falls back to a flat dark fill.
+ */
+let tileSrc: string = VOLCANO_TILE_SRC;
+
+/** Point the climb backdrop at a bundled asset URL (native app). Idempotent;
+ *  resets the decode cache so the new source is (re)loaded. */
+export function setVolcanoTileSrc(src: string): void {
+  if (!src || src === tileSrc) return;
+  tileSrc = src;
+  decoded = null;
+  decodeFailed = false;
+}
+
 /** Camera altitudes (metres) at the five biome anchors. */
 export const BIOME_ALTITUDES = [0, 140, 300, 560, 900] as const;
 
@@ -145,7 +163,7 @@ function ensureTile(): HTMLImageElement | null {
     decoded.onerror = () => {
       decodeFailed = true;
     };
-    decoded.src = VOLCANO_TILE_SRC;
+    decoded.src = tileSrc;
   }
   return decoded.complete && decoded.naturalWidth > 0 ? decoded : null;
 }

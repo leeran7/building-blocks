@@ -1,0 +1,108 @@
+@import "tailwindcss";
+
+/*
+  Scan the SPA screens AND the reused Next component/game tree so Tailwind
+  emits every class name those files use (they live outside this folder).
+*/
+@source "./";
+@source "../../src/components/Game";
+@source "../../src/components";
+
+/*
+  ASCENT palette — mirrors the tokens in app/app/globals.css so the reused
+  game components render with identical colors inside the SPA. Keep in sync.
+*/
+@theme {
+  --color-void: #0a0a0c;
+  --color-surface: #121116;
+  --color-surface-raised: #17161c;
+  --color-elevated: #1e1c24;
+  --color-border-subtle: #24222c;
+  --color-border-strong: #37343f;
+  --color-border-focus: #4a4656;
+  --color-text-primary: #f4f2ec;
+  --color-text-secondary: #a8a4b2;
+  --color-text-muted: #74707e;
+  --color-text-disabled: #4a4656;
+
+  --color-accent: #cbf24d;
+  --color-signal: #cbf24d;
+  --color-ember: #ff5a2c;
+  --color-brand: #cbf24d;
+  --color-danger: #ff5a2c;
+  --color-warning: #ffb020;
+  --color-success: #8fd14f;
+
+  --shadow-signal:
+    0 0 0 1px rgb(203 242 77 / 0.15), 0 12px 40px -12px rgb(203 242 77 / 0.35);
+  --shadow-ember:
+    0 0 0 1px rgb(255 90 44 / 0.18), 0 12px 40px -14px rgb(255 90 44 / 0.4);
+
+  --font-display: system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-sans: system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, monospace;
+}
+
+/*
+  Native feel: no browser affordances. Kill overscroll bounce, pull-to-refresh,
+  text selection, tap highlight, and long-press callout so nothing reads as a
+  web page. (Task: native shell polish.)
+*/
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  background: var(--color-void);
+  color: var(--color-text-primary);
+  overscroll-behavior: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+}
+
+body {
+  font-family: var(--font-sans);
+  /* Respect the notch / home indicator everywhere. */
+  padding: env(safe-area-inset-top) env(safe-area-inset-right)
+    env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
+
+/* Allow selection only where it's genuinely useful (inputs). */
+input,
+textarea {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+/* No visual scrollbars anywhere — this is a native game shell, not a web page.
+   Scrolling still works (momentum scroll on ScreenBody); only the bar is hidden. */
+* {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* legacy Edge/IE */
+}
+*::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none; /* WebKit — iOS/Android WebView, Safari, Chrome */
+}
+
+/* Reusable soft fade-in for root-level swaps (auth splash → sign in → app) so
+   the first launch never hard-cuts. Reduced-motion users get it instantly. */
+.app-fade {
+  animation: appFade 0.3s ease-out both;
+}
+@keyframes appFade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .app-fade {
+    animation: none;
+  }
+}

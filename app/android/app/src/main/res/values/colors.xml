@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- ASCENT void. Keep in sync with --color-void (mobile/src/styles.css)
+         and backgroundColor in capacitor.config.ts. Used as the window/WebView
+         background so no white shows behind the keyboard or during boot. -->
+    <color name="void">#0a0a0c</color>
+</resources>

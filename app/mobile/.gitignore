@@ -1,0 +1,2 @@
+# Vite build output — bundled into the native projects by `cap sync`, not committed.
+dist/
