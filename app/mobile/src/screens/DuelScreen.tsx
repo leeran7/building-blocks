@@ -162,8 +162,8 @@ export function DuelScreen() {
   }, []);
 
   return (
-    <main className="flex min-h-[100dvh] flex-col">
-      <header className="flex items-center gap-3 px-5 pb-3 pt-14">
+    <main className="flex h-[100dvh] flex-col overflow-hidden">
+      <header className="flex shrink-0 items-center gap-3 px-5 pb-3 pt-14">
         <button
           onClick={() => { void tapLight(); navigate("/"); }}
           className="font-mono text-xs uppercase tracking-widest text-text-muted"
@@ -186,7 +186,7 @@ export function DuelScreen() {
         )}
       </header>
 
-      <div className="flex-1 overflow-y-auto px-4 pb-10">
+      <div className="flex flex-1 flex-col justify-center px-4 pb-10">
         {!signedIn ? (
           <div className="flex flex-col items-center gap-5 pt-16 text-center">
             <p className="text-sm text-text-secondary">

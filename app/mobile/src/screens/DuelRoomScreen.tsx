@@ -900,12 +900,12 @@ function MobileResult({
   const margin = myPeak !== null && theirPeak !== null ? Math.abs(myPeak - theirPeak) : null;
 
   return (
-    <div className="flex min-h-[100dvh] flex-col items-center justify-center bg-void px-6 py-16 text-text-primary">
+    <div className="flex h-[100dvh] flex-col items-center justify-center overflow-hidden bg-void px-6 text-text-primary">
       <div className="text-center">
         <p className="font-mono text-[11px] uppercase tracking-[0.16em] text-text-muted">
           match over
         </p>
-        <h1 className={`mt-2 font-display text-6xl font-black uppercase tracking-tight ${resultColor}`}>
+        <h1 className={`mt-2 font-display text-5xl font-black uppercase tracking-tight ${resultColor}`}>
           {resultLabel}
         </h1>
 
@@ -928,7 +928,7 @@ function MobileResult({
       </div>
 
       {/* Player peaks */}
-      <div className="mt-6 w-full max-w-xs rounded-2xl border border-border-subtle bg-surface p-5">
+      <div className="mt-5 w-full max-w-xs rounded-2xl border border-border-subtle bg-surface p-4">
         <PlayerRow name={player1Name} peak={duelResult.player1Peak} isWinner={duelResult.winnerId === player1Id} isLocal={player1Id === myId} color="signal" />
         <div className="my-3 h-px bg-border-subtle" />
         <PlayerRow name={player2Name} peak={duelResult.player2Peak} isWinner={duelResult.winnerId === player2Id} isLocal={player2Id === myId} color="blue" />
@@ -955,7 +955,7 @@ function MobileResult({
       )}
 
       {/* Actions */}
-      <div className="mt-6 flex w-full max-w-xs flex-col gap-3">
+      <div className="mt-5 flex w-full max-w-xs flex-col gap-2.5">
         {rematchPending ? (
           <div className="flex items-center justify-center gap-2 rounded-full border border-signal/40 bg-surface px-6 py-3.5 text-sm text-text-secondary">
             <Spinner size="sm" />
