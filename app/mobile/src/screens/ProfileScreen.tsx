@@ -144,7 +144,7 @@ export function ProfileScreen() {
                 <p className="text-center font-mono text-[10px] uppercase tracking-[0.3em] text-text-secondary">
                   Best climb
                 </p>
-                <p className="mt-2 text-center font-mono text-[3.5rem] font-bold leading-none tabular-nums text-signal">
+                <p className="mt-2 text-center font-mono text-5xl font-bold leading-none tabular-nums text-signal">
                   {climb.peakY.toLocaleString()}
                   <span className="ml-1 align-baseline text-xl font-normal text-text-secondary">
                     {ALTITUDE_UNIT}
@@ -216,7 +216,13 @@ export function ProfileScreen() {
               Edit Profile &amp; Settings
             </Button>
             <div className="pt-2">
-              <Button variant="danger" onPress={handleSignOut}>
+              {/* Opaque (secondary) so it stays legible over the bright lava
+                  backdrop; ember label keeps the destructive cue. */}
+              <Button
+                variant="secondary"
+                onPress={handleSignOut}
+                style={{ color: "var(--color-ember)" }}
+              >
                 Sign Out
               </Button>
             </div>

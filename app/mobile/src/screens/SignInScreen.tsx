@@ -60,7 +60,7 @@ export function SignInScreen() {
             <span className="font-mono text-[10px] uppercase tracking-[0.4em] text-text-muted">
               {isSignup ? "join the climb" : "welcome back"}
             </span>
-            <h2 className="font-display text-3xl font-black uppercase tracking-tight text-text-primary">
+            <h2 className="font-display text-2xl font-black uppercase tracking-tight text-text-primary">
               {isSignup ? "Create Account" : "Sign In"}
             </h2>
           </div>
@@ -119,7 +119,7 @@ export function SignInScreen() {
         <span className="font-mono text-[10px] uppercase tracking-[0.5em] text-text-muted">
           endless&nbsp;climb
         </span>
-        <h1 className="font-display text-5xl font-black uppercase leading-none tracking-tight text-text-primary">
+        <h1 className="font-display text-4xl font-black uppercase leading-none tracking-tight text-text-primary">
           Doom<span className="text-signal">stack</span>
         </h1>
         <p className="max-w-[270px] text-sm leading-relaxed text-text-secondary">

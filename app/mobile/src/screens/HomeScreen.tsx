@@ -79,7 +79,7 @@ export function HomeScreen() {
         <span className="font-mono text-[11px] uppercase tracking-[0.5em] text-text-muted">
           endless&nbsp;climb
         </span>
-        <h1 className="hm-wordmark font-display text-[3.75rem] font-black uppercase leading-[0.9] tracking-tight text-text-primary">
+        <h1 className="hm-wordmark font-display text-[2.75rem] font-black uppercase leading-none tracking-tight text-text-primary">
           Doom<span className="text-signal">stack</span>
         </h1>
         <span className="h-px w-16 bg-border-strong" />
@@ -99,7 +99,7 @@ export function HomeScreen() {
                 <PlayGlyph />
               </span>
               <span
-                className="font-display text-xl font-black uppercase tracking-[0.22em] text-signal"
+                className="font-display text-base font-black uppercase tracking-[0.22em] text-signal"
                 style={{ textShadow: "0 0 18px rgba(203,242,77,0.5)" }}
               >
                 Play

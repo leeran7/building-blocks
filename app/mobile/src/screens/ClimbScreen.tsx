@@ -213,7 +213,7 @@ export function ClimbScreen() {
             </p>
             <p
               key={countdownValue}
-              className="cd-pop mt-3 font-display text-8xl font-black tabular-nums text-text-primary"
+              className="cd-pop mt-3 font-display text-7xl font-black tabular-nums text-text-primary"
             >
               {countdownValue}
             </p>
@@ -368,7 +368,7 @@ function ResultsCard({
       )}
 
       <h2
-        className={`mt-3 text-center font-mono text-[4.5rem] font-bold leading-none tabular-nums text-signal${isBest ? " rc-best-glow" : ""}`}
+        className={`mt-3 text-center font-mono text-6xl font-bold leading-none tabular-nums text-signal${isBest ? " rc-best-glow" : ""}`}
       >
         {Math.round(shown).toLocaleString()}
         <span className="ml-1 align-baseline text-2xl font-normal text-text-muted">

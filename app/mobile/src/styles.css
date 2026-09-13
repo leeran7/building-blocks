@@ -77,6 +77,18 @@ textarea {
   user-select: text;
 }
 
+/* No visual scrollbars anywhere — this is a native game shell, not a web page.
+   Scrolling still works (momentum scroll on ScreenBody); only the bar is hidden. */
+* {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* legacy Edge/IE */
+}
+*::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none; /* WebKit — iOS/Android WebView, Safari, Chrome */
+}
+
 /* Reusable soft fade-in for root-level swaps (auth splash → sign in → app) so
    the first launch never hard-cuts. Reduced-motion users get it instantly. */
 .app-fade {

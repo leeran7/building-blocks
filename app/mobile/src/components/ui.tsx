@@ -71,8 +71,8 @@ export function Button({
         onPress?.();
       }}
       className={cx(
-        "inline-flex min-h-[52px] items-center justify-center gap-2 rounded-full px-6",
-        "font-display text-base uppercase tracking-widest",
+        "inline-flex min-h-[50px] items-center justify-center gap-2 rounded-full px-6",
+        "font-display text-sm uppercase tracking-wide",
         "transition-transform duration-150 active:scale-[0.97]",
         "disabled:active:scale-100",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void",
@@ -149,7 +149,7 @@ export function ScreenHeader({
             {eyebrow}
           </p>
         )}
-        <h1 className="truncate font-display text-2xl font-black uppercase leading-tight tracking-tight text-text-primary">
+        <h1 className="truncate font-display text-lg font-black uppercase leading-tight tracking-tight text-text-primary">
           {title}
         </h1>
       </div>
