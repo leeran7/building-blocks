@@ -18,8 +18,16 @@ import {
   refundPaidDuel,
 } from "../../../../src/db/duel";
 import { requireAuth, AuthError } from "../../../../src/lib/requireAuth";
+import { checkRateLimit } from "../../../../src/lib/rateLimit";
 
 export const runtime = "nodejs";
+
+// Cancel is a write (SELECT FOR UPDATE + a paid-duel refund path), and the
+// inverse of create — leaving it unmetered lets a create→cancel→create loop
+// churn duel rows around the create limit. Fails CLOSED to protect the money
+// path even during a Redis outage; a blocked leave is best-effort client-side.
+const CANCEL_RATE_MAX = 60;
+const CANCEL_RATE_WINDOW_SECONDS = 3600; // 1 hour
 
 export async function GET(
   _request: NextRequest,
@@ -99,6 +107,20 @@ export async function DELETE(
   } catch (err) {
     if (err instanceof AuthError) return err.response;
     return NextResponse.json({ error: "Unauthorized", code: "UNAUTHORIZED" }, { status: 401 });
+  }
+
+  const rl = await checkRateLimit({
+    namespace: "duel:cancel",
+    identifier: uid,
+    max: CANCEL_RATE_MAX,
+    windowSeconds: CANCEL_RATE_WINDOW_SECONDS,
+    failMode: "closed",
+  });
+  if (!rl.allowed) {
+    return NextResponse.json(
+      { error: "Too many requests", code: "RATE_LIMITED" },
+      { status: 429 }
+    );
   }
 
   const result = await cancelPendingDuel(id, uid);

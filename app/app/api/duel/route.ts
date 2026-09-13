@@ -20,7 +20,7 @@ import { ensureUser } from "../../../src/db/user";
 
 export const runtime = "nodejs";
 
-const RATE_MAX = 10;
+const RATE_MAX = 30;
 const RATE_WINDOW_SECONDS = 3600; // 1 hour
 
 interface Body {
@@ -54,21 +54,6 @@ export async function POST(request: NextRequest) {
     });
   }
 
-  // Rate limit: 10 per hour per uid
-  const rl = await checkRateLimit({
-    namespace: "duel:create",
-    identifier: uid,
-    max: RATE_MAX,
-    windowSeconds: RATE_WINDOW_SECONDS,
-    failMode: "closed",
-  });
-  if (!rl.allowed) {
-    return NextResponse.json(
-      { error: "Too many requests", code: "RATE_LIMITED" },
-      { status: 429 }
-    );
-  }
-
   // Parse + validate body
   let body: Body;
   try {
@@ -100,7 +85,10 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    // Exactly one pending challenge per user (R: open-duel limit)
+    // Exactly one pending challenge per user (R: open-duel limit). Checked
+    // BEFORE the rate limit so re-tapping Challenge with an open challenge
+    // just reuses it (409) instead of burning create budget — the one-pending
+    // guard already caps concurrent open challenges at one.
     const existing = await hasAnyPendingDuel(uid);
     if (existing) {
       return NextResponse.json(
@@ -110,6 +98,24 @@ export async function POST(request: NextRequest) {
           existingId: existing.id,
         },
         { status: 409 }
+      );
+    }
+
+    // Rate limit: only genuine new-duel creation counts against the budget.
+    // Free-duel creation is a UX path (no money changes hands here), so it
+    // fails OPEN — a Redis outage must not take challenge creation down with it.
+    // The one-pending-per-user guard above still bounds abuse when Redis is up.
+    const rl = await checkRateLimit({
+      namespace: "duel:create",
+      identifier: uid,
+      max: RATE_MAX,
+      windowSeconds: RATE_WINDOW_SECONDS,
+      failMode: "open",
+    });
+    if (!rl.allowed) {
+      return NextResponse.json(
+        { error: "Too many requests", code: "RATE_LIMITED" },
+        { status: 429 }
       );
     }
 

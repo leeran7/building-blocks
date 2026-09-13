@@ -77,12 +77,12 @@ export function HomeScreen() {
   // wait for the friend. A shared https link opens straight into this room on
   // devices that have the app (universal/app links) and the web otherwise.
   const [challengeBusy, setChallengeBusy] = useState(false);
-  const [challengeError, setChallengeError] = useState(false);
+  const [challengeError, setChallengeError] = useState<string | null>(null);
   const startChallenge = useCallback(async () => {
     if (challengeBusy) return;
     void tapLight();
     setChallengeBusy(true);
-    setChallengeError(false);
+    setChallengeError(null);
     try {
       const res = await apiFetch("/api/duel", {
         method: "POST",
@@ -97,8 +97,14 @@ export function HomeScreen() {
         navigate(`/duel/${body.existingId}`);
         return;
       }
+      // 429 = rate limited. Don't frame this as "tap to retry" — hammering the
+      // button just burns more budget and deepens the cooldown.
+      if (res.status === 429) {
+        setChallengeError("Too many challenges — give it a minute");
+        return;
+      }
       if (!res.ok) {
-        setChallengeError(true);
+        setChallengeError("Couldn't start — tap to retry");
         return;
       }
       const body = (await res.json()) as { id: string };
@@ -109,7 +115,7 @@ export function HomeScreen() {
       await shareInvite(`${API_BASE}/duel/${body.id}`).catch(() => {});
       navigate(`/duel/${body.id}`);
     } catch {
-      setChallengeError(true);
+      setChallengeError("Couldn't start — tap to retry");
     } finally {
       setChallengeBusy(false);
     }
@@ -450,13 +456,13 @@ function ChallengeCard({
   onPress,
 }: {
   busy: boolean;
-  error: boolean;
+  error: string | null;
   onPress: () => void;
 }) {
   const subtitle = busy
     ? "Creating your challenge…"
     : error
-      ? "Couldn't start — tap to retry"
+      ? error
       : "Race a friend on the same tower";
   return (
     <ModeCard
