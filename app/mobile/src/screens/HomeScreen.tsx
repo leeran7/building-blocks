@@ -142,7 +142,7 @@ export function HomeScreen() {
         <button
           onClick={play}
           aria-label="Play"
-          className="flex w-full max-w-xs items-center gap-4 rounded-2xl border border-signal/50 bg-surface/80 px-5 py-4 text-left shadow-[0_0_28px_-6px_rgba(203,242,77,0.35)] transition-transform active:scale-[0.97]"
+          className="flex w-full items-center gap-4 rounded-2xl border border-signal/50 bg-surface/80 px-5 py-4 text-left shadow-[0_0_28px_-6px_rgba(203,242,77,0.35)] transition-transform active:scale-[0.97]"
         >
           <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-signal/40 bg-signal/10">
             <PlayGlyph />
@@ -158,7 +158,7 @@ export function HomeScreen() {
           <ChevronRight />
         </button>
 
-        <div className="flex w-full max-w-xs flex-col gap-2.5">
+        <div className="flex w-full flex-col gap-2.5">
           <DailyCard daily={daily} resetMs={resetMs} onPress={playDaily} />
           <ChallengeCard
             busy={challengeBusy}

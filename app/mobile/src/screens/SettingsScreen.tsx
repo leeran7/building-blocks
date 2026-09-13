@@ -27,7 +27,7 @@ const EMPTY: Settings = { displayName: null, username: null, social: null, urls:
 
 export function SettingsScreen() {
   const navigate = useNavigate();
-  const { user, isAnonymous } = useAuth();
+  const { user, isAnonymous, signOut } = useAuth();
 
   const [loaded, setLoaded] = useState<Settings>(EMPTY);
   const [displayName, setDisplayName] = useState("");
@@ -247,14 +247,13 @@ export function SettingsScreen() {
                     setHapticsEnabled(next);
                     if (next) void tapLight();
                   }}
-                  className={`relative h-7 w-13 shrink-0 overflow-hidden rounded-full transition-colors duration-200 ${
+                  className={`relative h-7 w-13 shrink-0 rounded-full transition-colors duration-200 ${
                     haptics ? "bg-signal" : "bg-border-strong"
                   }`}
                 >
                   <span
-                    className={`absolute top-0.5 h-6 w-6 rounded-full bg-void shadow transition-transform duration-200 ${
-                      haptics ? "translate-x-6.5" : "translate-x-0.5"
-                    }`}
+                    className="absolute top-0.5 h-6 w-6 rounded-full bg-white shadow-sm transition-[left] duration-200"
+                    style={{ left: haptics ? 26 : 2 }}
                   />
                 </button>
               </div>
@@ -268,6 +267,18 @@ export function SettingsScreen() {
 
             <Button onPress={save} disabled={!canSave} busy={saving}>
               {saved ? "Saved!" : "Save Changes"}
+            </Button>
+
+            <Button
+              variant="secondary"
+              onPress={async () => {
+                void tapLight();
+                await signOut();
+                navigate("/");
+              }}
+              style={{ color: "var(--color-ember)" }}
+            >
+              Sign Out
             </Button>
           </div>
         )}
