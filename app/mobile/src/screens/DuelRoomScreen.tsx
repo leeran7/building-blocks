@@ -210,7 +210,7 @@ function DuelRoomInner({ duelId }: { duelId: string }) {
       <div className="flex h-[100dvh] flex-col items-center justify-center gap-4 bg-void px-6 text-center">
         <p className="text-base text-ember">{errorMsg}</p>
         <button
-          onClick={() => { void tapLight(); navigate("/duel"); }}
+          onClick={() => { void tapLight(); navigate("/"); }}
           className="rounded-full border border-border-strong px-6 py-3 text-sm text-text-secondary active:scale-95"
         >
           Back to duels
@@ -236,7 +236,7 @@ function DuelRoomInner({ duelId }: { duelId: string }) {
         onSeedReady={(fresh) => setMeta(fresh)}
         onLeave={() => {
           apiFetch(`/api/duel/${duelId}`, { method: "DELETE" }).catch(() => {});
-          navigate("/duel");
+          navigate("/");
         }}
       />
     );
@@ -360,40 +360,26 @@ function WaitingLobby({
           style={{ paddingTop: `max(16px, ${safeArea.top + 8}px)` }}
         >
           <div className="pointer-events-auto max-w-[200px] rounded-xl border border-border-subtle bg-void/80 px-3 py-2 backdrop-blur-sm">
-            {!waitedTooLong ? (
-              <div className="flex flex-col items-center gap-2 text-center">
-                <div className="flex items-center gap-2">
-                  <Spinner size="sm" />
-                  <p className="font-mono text-xs text-text-secondary">
-                    Waiting for opponent&hellip;
-                  </p>
-                </div>
-                <button
-                  onClick={shareInviteLink}
-                  className="flex w-full items-center justify-center rounded-full bg-signal px-3 py-2 font-display text-xs font-bold text-void active:scale-95"
-                >
-                  {linkCopied ? "Copied!" : "Share invite"}
-                </button>
-              </div>
-            ) : (
-              <div className="flex flex-col items-center gap-2 text-center">
+            <div className="flex flex-col items-center gap-2 text-center">
+              <div className="flex items-center gap-2">
+                <Spinner size="sm" />
                 <p className="font-mono text-xs text-text-secondary">
-                  Opponent hasn&apos;t joined yet.
+                  {waitedTooLong ? "Opponent hasn't joined yet." : "Waiting for opponent…"}
                 </p>
-                <button
-                  onClick={shareInviteLink}
-                  className="flex w-full items-center justify-center rounded-full bg-signal px-3 py-2 font-display text-xs font-bold text-void active:scale-95"
-                >
-                  {linkCopied ? "Copied!" : "Share invite"}
-                </button>
-                <button
-                  onClick={() => { void tapLight(); onLeave(); }}
-                  className="text-xs text-text-muted underline underline-offset-2"
-                >
-                  Back to duels
-                </button>
               </div>
-            )}
+              <button
+                onClick={shareInviteLink}
+                className="flex w-full items-center justify-center rounded-full bg-signal px-3 py-2 font-display text-xs font-bold text-void active:scale-95"
+              >
+                {linkCopied ? "Copied!" : "Share invite"}
+              </button>
+              <button
+                onClick={() => { void tapLight(); onLeave(); }}
+                className="text-xs text-text-muted underline underline-offset-2"
+              >
+                Cancel
+              </button>
+            </div>
           </div>
           <p className="mt-2 rounded-sm bg-void/70 px-2 py-1 font-mono text-[10px] text-text-muted pointer-events-none">
             warm-up &middot; not ranked
@@ -993,7 +979,7 @@ function MobileResult({
         </button>
 
         <button
-          onClick={() => { void tapLight(); navigate("/duel"); }}
+          onClick={() => { void tapLight(); navigate("/"); }}
           className="py-3 font-mono text-xs uppercase tracking-[0.12em] text-text-muted"
         >
           Play again
