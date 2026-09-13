@@ -8,7 +8,7 @@
  *
  * On device this requires the native Firebase config files to be dropped in
  * (see mobile/README) — until then these calls no-op/reject gracefully and the
- * app stays in guest mode.
+ * auth gate keeps the player on the Sign In screen (there is no guest play).
  */
 import "@app/lib/firebase";
 import {
@@ -59,10 +59,6 @@ export async function signInWithEmail(email: string, password: string): Promise<
 
 export async function createAccountWithEmail(email: string, password: string): Promise<void> {
   await FirebaseAuthentication.createUserWithEmailAndPassword({ email, password });
-}
-
-export async function continueAsGuest(): Promise<void> {
-  await FirebaseAuthentication.signInAnonymously();
 }
 
 export async function signOut(): Promise<void> {

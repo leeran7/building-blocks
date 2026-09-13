@@ -15,7 +15,6 @@ import {
   signInWithGoogle,
   signInWithEmail,
   createAccountWithEmail,
-  continueAsGuest,
   signOut as fbSignOut,
   type AuthUser,
 } from "../lib/firebaseAuth";
@@ -30,7 +29,6 @@ interface AuthState {
   signInGoogle: () => Promise<void>;
   signInEmail: (email: string, password: string) => Promise<void>;
   createAccount: (email: string, password: string) => Promise<void>;
-  continueGuest: () => Promise<void>;
   signOut: () => Promise<void>;
 }
 
@@ -42,7 +40,6 @@ const Ctx = createContext<AuthState>({
   signInGoogle: async () => {},
   signInEmail: async () => {},
   createAccount: async () => {},
-  continueGuest: async () => {},
   signOut: async () => {},
 });
 
@@ -95,7 +92,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       signInGoogle: signInWithGoogle,
       signInEmail: signInWithEmail,
       createAccount: createAccountWithEmail,
-      continueGuest: continueAsGuest,
       signOut,
     }),
     [user, loading, signOut],

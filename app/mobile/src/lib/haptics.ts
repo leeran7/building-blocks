@@ -25,6 +25,16 @@ export async function tapMedium() {
   }
 }
 
+/** The heaviest thud — reserve for the single dominant action (PLAY). */
+export async function tapHeavy() {
+  if (!isNative) return;
+  try {
+    await Haptics.impact({ style: ImpactStyle.Heavy });
+  } catch {
+    /* ignore */
+  }
+}
+
 export async function notifySuccess() {
   if (!isNative) return;
   try {

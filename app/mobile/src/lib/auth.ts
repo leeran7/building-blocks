@@ -2,9 +2,9 @@
  * Minimal token store for the native client.
  *
  * The game/API layer only needs the current Firebase ID token (as a Bearer).
- * Native sign-in (Apple / Google via Firebase) will call `setIdToken` when the
- * session changes; until that lands the app runs as a guest (token = null),
- * which the backend already tolerates for climb saves.
+ * Native sign-in (Apple / Google via Firebase) calls `setIdToken` when the
+ * session changes. Before sign-in the token is null and the auth gate keeps the
+ * player on the Sign In screen, so no API calls are made unauthenticated.
  */
 let currentToken: string | null = null;
 

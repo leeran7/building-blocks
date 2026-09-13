@@ -1,65 +1,350 @@
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { tapLight, tapMedium } from "../lib/haptics";
-import { useAuth } from "../contexts/AuthContext";
+import { tapLight, tapHeavy } from "../lib/haptics";
+import { apiFetch } from "../lib/api";
+import { LogoMark } from "../components/LogoMark";
+import { dailySummary, msUntilReset, formatReset, type DailySummary } from "../lib/daily";
 
 /**
- * Home = the game title screen. Play-first and hub-centric: a dominant PLAY
- * button drops straight into a fresh random climb (no level select), with the
- * secondary destinations as HUD-style icon buttons. Deliberately NOT a
- * bottom-tab content layout — this reads as a game main menu.
+ * Home = the game title screen. Play-first and hub-centric: a dominant, molten
+ * PLAY button drops straight into a fresh random climb (no level select), with
+ * the player's live standing underneath and the secondary destinations as
+ * HUD-style icon buttons. Deliberately NOT a bottom-tab content layout — this
+ * reads as a game main menu.
  */
+interface Standing {
+  peakY: number;
+  rank: number;
+  totalClimbers: number;
+}
+
 export function HomeScreen() {
   const navigate = useNavigate();
-  const { user, isAnonymous } = useAuth();
-  const signedIn = Boolean(user) && !isAnonymous;
+  const [standing, setStanding] = useState<Standing | null>(null);
+
+  // Pull the player's best + rank so the hub feels personal. The app is
+  // auth-gated, so a real account is always present here.
+  useEffect(() => {
+    let alive = true;
+    apiFetch("/api/dashboard")
+      .then((r) => r.json())
+      .then((d) => {
+        if (alive && d?.freeClimb) setStanding(d.freeClimb);
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  // Daily challenge state — refreshes each time Home mounts (after a run) and
+  // the reset countdown re-renders on a slow tick.
+  const [daily, setDaily] = useState<DailySummary>(() => dailySummary());
+  const [resetMs, setResetMs] = useState<number>(() => msUntilReset());
+  useEffect(() => {
+    // Recompute the whole summary (not just the countdown) so the card doesn't
+    // show a stale streak / "resets in" across a local-midnight rollover while
+    // the app sits foregrounded, and refresh on return-to-foreground.
+    const refresh = () => {
+      setDaily(dailySummary());
+      setResetMs(msUntilReset());
+    };
+    refresh();
+    const id = window.setInterval(refresh, 30_000);
+    const onVisible = () => {
+      if (document.visibilityState === "visible") refresh();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      window.clearInterval(id);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, []);
 
   const play = () => {
-    void tapMedium();
+    void tapHeavy();
     navigate("/climb");
   };
 
+  const playDaily = () => {
+    void tapHeavy();
+    navigate("/climb?daily=1");
+  };
+
   return (
-    <main className="flex min-h-[100dvh] flex-col items-center justify-between px-6 pb-10 pt-16 text-center">
+    <main className="flex min-h-[100dvh] flex-col items-center justify-between px-6 pb-[calc(env(safe-area-inset-bottom)+2.5rem)] pt-[calc(env(safe-area-inset-top)+3.5rem)] text-center">
       {/* Wordmark */}
-      <div className="mt-6 flex flex-col items-center gap-2">
-        <p className="font-mono text-[11px] uppercase tracking-[0.4em] text-text-muted">
-          endless climb
-        </p>
-        <h1 className="font-display text-6xl font-black uppercase leading-none tracking-tight text-text-primary">
+      <div className="mt-1 flex flex-col items-center gap-2">
+        <LogoMark size={48} card className="mb-1" />
+        <span className="font-mono text-[11px] uppercase tracking-[0.5em] text-text-muted">
+          endless&nbsp;climb
+        </span>
+        <h1 className="hm-wordmark font-display text-[3.75rem] font-black uppercase leading-[0.9] tracking-tight text-text-primary">
           Doom<span className="text-signal">stack</span>
         </h1>
+        <span className="h-px w-16 bg-border-strong" />
       </div>
 
-      {/* Dominant PLAY */}
-      <button
-        onClick={play}
-        className="group relative mt-4 flex h-40 w-40 items-center justify-center rounded-full border-2 border-signal/70 bg-signal/10 shadow-signal transition-transform active:scale-95"
-      >
-        <span className="font-display text-2xl font-black uppercase tracking-widest text-signal">
-          Play
-        </span>
-        <span className="absolute inset-0 animate-ping rounded-full border border-signal/30" />
-      </button>
+      {/* Dominant, molten PLAY (endless quick-play) + live standing */}
+      <div className="flex flex-col items-center gap-5">
+        <button onClick={play} aria-label="Play" className="hm-play">
+          <span className="hm-play-inner">
+            <span className="hm-play-halo" />
+            <span className="hm-play-ring" />
+            <span className="hm-play-core">
+              <span
+                className="hm-play-glyph"
+                style={{ filter: "drop-shadow(0 0 12px rgba(203,242,77,0.55))" }}
+              >
+                <PlayGlyph />
+              </span>
+              <span
+                className="font-display text-xl font-black uppercase tracking-[0.22em] text-signal"
+                style={{ textShadow: "0 0 18px rgba(203,242,77,0.5)" }}
+              >
+                Play
+              </span>
+            </span>
+          </span>
+        </button>
+
+        <StandingLine standing={standing} />
+
+        {/* Secondary game modes — a stack of ModeCards sharing one card
+            language. Extensibility: 1v1 Duels drop in as another <ModeCard>
+            here (e.g. tint="signal", title="1v1 Duel", onPress → "/duel"); the
+            list already stacks, so no layout rework is needed. */}
+        <div className="flex w-full max-w-xs flex-col gap-2.5">
+          <DailyCard daily={daily} resetMs={resetMs} onPress={playDaily} />
+        </div>
+      </div>
 
       {/* HUD icon row */}
-      <nav className="mb-2 flex items-center gap-8">
-        <HudButton label="Ranks" onPress={() => { void tapLight(); navigate("/leaderboard"); }}>
+      <nav className="flex items-center justify-center gap-10">
+        <HudButton
+          label="Ranks"
+          onPress={() => {
+            void tapLight();
+            navigate("/leaderboard");
+          }}
+        >
           <TrophyIcon />
         </HudButton>
         <HudButton label="Duel" onPress={() => { void tapLight(); navigate("/duel"); }}>
           <SwordsIcon />
         </HudButton>
         <HudButton
-          label={signedIn ? "Profile" : "Sign in"}
-          onPress={() => { void tapLight(); navigate(signedIn ? "/profile" : "/signin"); }}
+          label="Profile"
+          onPress={() => {
+            void tapLight();
+            navigate("/profile");
+          }}
         >
           <UserIcon />
         </HudButton>
-        <HudButton label="Settings" onPress={() => { void tapLight(); navigate(signedIn ? "/settings" : "/signin"); }}>
+        <HudButton
+          label="Settings"
+          onPress={() => {
+            void tapLight();
+            navigate("/settings");
+          }}
+        >
           <GearIcon />
         </HudButton>
       </nav>
+
+      <style>{`
+        /* Faint heat-shimmer glow on the wordmark — identity, not decoration. */
+        .hm-wordmark {
+          text-shadow: 0 0 34px rgba(203, 242, 77, 0.14);
+        }
+
+        /* Molten PLAY: a slowly spinning lava→lime energy ring wrapped around a
+           dark core lit by lava from below — the same molten palette as the
+           game hazard. Floats at rest; presses in. */
+        .hm-play {
+          position: relative;
+          display: grid; place-items: center;
+          height: 11.5rem; width: 11.5rem;
+          transition: transform 0.15s ease;
+          -webkit-tap-highlight-color: transparent;
+        }
+        .hm-play:active { transform: scale(0.95); }
+        .hm-play-inner {
+          position: relative;
+          display: grid; place-items: center;
+          height: 11.5rem; width: 11.5rem;
+          animation: hmFloat 4.8s ease-in-out infinite;
+        }
+        /* Pulsing heat halo behind the whole button. */
+        .hm-play-halo {
+          position: absolute; inset: -12px; border-radius: 9999px;
+          background: radial-gradient(circle, rgba(203,242,77,0.28), rgba(255,90,44,0.14) 45%, transparent 70%);
+          animation: hmHalo 2.8s ease-out infinite;
+        }
+        /* Rotating conic energy ring in the molten palette. */
+        .hm-play-ring {
+          position: absolute; inset: 0; border-radius: 9999px;
+          background: conic-gradient(from 90deg,
+            #ff5a2c, #ffcf5a, #cbf24d, #ffffff, #cbf24d, #ffcf5a, #ff5a2c);
+          animation: hmSpin 5.5s linear infinite;
+          box-shadow:
+            0 0 46px -8px rgba(255,90,44,0.55),
+            0 0 34px -10px rgba(203,242,77,0.55);
+        }
+        /* Dark core: lava glow rising from the bottom, cool lime cast at the top. */
+        .hm-play-core {
+          position: absolute; inset: 8px; border-radius: 9999px;
+          display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+          background:
+            radial-gradient(circle at 50% 130%, rgba(255,90,44,0.60) 0%, rgba(255,90,44,0.12) 42%, transparent 62%),
+            radial-gradient(circle at 50% -20%, rgba(203,242,77,0.22) 0%, transparent 46%),
+            #0b0a0f;
+          box-shadow:
+            inset 0 2px 16px rgba(0,0,0,0.65),
+            inset 0 -6px 28px rgba(255,90,44,0.20);
+        }
+        .hm-play-glyph { margin-left: 4px; line-height: 0; } /* optical-center the triangle */
+
+        @keyframes hmSpin { to { transform: rotate(1turn); } }
+        @keyframes hmFloat {
+          0%, 100% { transform: translateY(0); }
+          50%      { transform: translateY(-6px); }
+        }
+        @keyframes hmHalo {
+          0%   { transform: scale(0.92); opacity: 0.7; }
+          70%  { transform: scale(1.28); opacity: 0; }
+          100% { transform: scale(1.28); opacity: 0; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .hm-play-inner, .hm-play-ring, .hm-play-halo { animation: none; }
+          .hm-play-halo { opacity: 0.4; }
+        }
+      `}</style>
     </main>
+  );
+}
+
+function StandingLine({ standing }: { standing: Standing | null }) {
+  if (standing) {
+    return (
+      <p
+        aria-live="polite"
+        className="flex items-center gap-2.5 font-mono text-[11px] uppercase tracking-[0.2em] text-text-secondary"
+      >
+        <span>
+          Best{" "}
+          <span className="tabular-nums text-text-primary">
+            {standing.peakY.toLocaleString()}m
+          </span>
+        </span>
+        <span className="h-1 w-1 rounded-full bg-border-strong" />
+        <span className="tabular-nums text-signal">#{standing.rank}</span>
+      </p>
+    );
+  }
+  // No climbs yet (or still loading).
+  return (
+    <p
+      aria-live="polite"
+      className="font-mono text-[11px] uppercase tracking-[0.2em] text-text-secondary"
+    >
+      Your first climb awaits
+    </p>
+  );
+}
+
+/**
+ * Generic game-mode row on the home hub. Every secondary mode (Daily Climb now;
+ * 1v1 Duel later) renders through this one card so they share an identical
+ * language — a tinted icon chip, title + optional badge, subtitle, and a
+ * trailing affordance. Adding a mode is a single <ModeCard/> with no new layout.
+ */
+type ModeTint = "ember" | "signal";
+
+function ModeCard({
+  icon,
+  tint,
+  title,
+  subtitle,
+  badge,
+  trailing,
+  onPress,
+  ariaLabel,
+}: {
+  icon: React.ReactNode;
+  tint: ModeTint;
+  title: string;
+  subtitle: string;
+  badge?: React.ReactNode;
+  trailing?: React.ReactNode;
+  onPress: () => void;
+  ariaLabel?: string;
+}) {
+  const chip =
+    tint === "ember"
+      ? "border-ember/40 bg-ember/10"
+      : "border-signal/40 bg-signal/10";
+  return (
+    <button
+      onClick={onPress}
+      aria-label={ariaLabel ?? title}
+      className="flex w-full items-center gap-3 rounded-2xl border border-border-subtle bg-surface/70 px-4 py-3 text-left transition-transform active:scale-[0.98]"
+    >
+      <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border ${chip}`}>
+        {icon}
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="flex items-center gap-2">
+          <span className="font-display text-sm font-black uppercase tracking-wide text-text-primary">
+            {title}
+          </span>
+          {badge}
+        </span>
+        <span className="mt-0.5 block truncate font-mono text-[10px] uppercase tracking-[0.15em] text-text-secondary">
+          {subtitle}
+        </span>
+      </span>
+      {trailing ?? <ChevronRight />}
+    </button>
+  );
+}
+
+function DailyCard({
+  daily,
+  resetMs,
+  onPress,
+}: {
+  daily: DailySummary;
+  resetMs: number;
+  onPress: () => void;
+}) {
+  const sub = daily.playedToday
+    ? `Today ${daily.todayBest.toLocaleString()}m · resets ${formatReset(resetMs)}`
+    : `Same tower for everyone · resets ${formatReset(resetMs)}`;
+  return (
+    <ModeCard
+      icon={<FlameIcon />}
+      tint="ember"
+      title="Daily Climb"
+      subtitle={sub}
+      ariaLabel="Play the daily climb"
+      badge={
+        daily.streak > 0 ? (
+          <span className="rounded-full bg-ember/15 px-1.5 py-0.5 font-mono text-[10px] font-bold tabular-nums text-ember">
+            {daily.streak}🔥
+          </span>
+        ) : undefined
+      }
+      trailing={
+        daily.playedToday ? (
+          <span className="shrink-0 font-mono text-[10px] uppercase tracking-[0.2em] text-signal">
+            Retry
+          </span>
+        ) : undefined
+      }
+      onPress={onPress}
+    />
   );
 }
 
@@ -75,21 +360,46 @@ function HudButton({
   return (
     <button
       onClick={onPress}
-      className="flex flex-col items-center gap-1.5 text-text-muted transition-transform active:scale-90"
+      aria-label={label}
+      className="flex flex-col items-center gap-2 transition-transform active:scale-90"
     >
-      <span className="flex h-12 w-12 items-center justify-center rounded-2xl border border-border-strong bg-surface/70">
+      <span className="flex h-14 w-14 items-center justify-center rounded-2xl border border-border-subtle bg-surface/70 text-text-secondary">
         {children}
       </span>
-      <span className="font-mono text-[10px] uppercase tracking-[0.15em]">
+      <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-text-muted">
         {label}
       </span>
     </button>
   );
 }
 
+function PlayGlyph() {
+  return (
+    <svg width="34" height="34" viewBox="0 0 24 24" fill="currentColor" className="text-signal">
+      <path d="M8 5.14v13.72a1 1 0 0 0 1.53.85l10.79-6.86a1 1 0 0 0 0-1.7L9.53 4.29A1 1 0 0 0 8 5.14Z" />
+    </svg>
+  );
+}
+
+function FlameIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" className="text-ember" aria-hidden>
+      <path d="M12 2c.5 3-1.5 4.5-3 6.5C7.4 10.6 6.5 12.3 6.5 14a5.5 5.5 0 0 0 11 0c0-1.7-.8-3.2-2-4.5-.6 1-1.6 1.6-2.6 1.6 1-2 .3-4.4-1.4-6.1C11.6 5 12 3.4 12 2Z" />
+    </svg>
+  );
+}
+
+function ChevronRight() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 text-text-muted" aria-hidden>
+      <path d="m9 18 6-6-6-6" />
+    </svg>
+  );
+}
+
 function TrophyIcon() {
   return (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6" />
       <path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18" />
       <path d="M4 22h16" />
@@ -102,7 +412,7 @@ function TrophyIcon() {
 
 function UserIcon() {
   return (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <circle cx="12" cy="8" r="4" />
       <path d="M4 21v-1a7 7 0 0 1 14 0v1" />
     </svg>
@@ -125,7 +435,7 @@ function SwordsIcon() {
 
 function GearIcon() {
   return (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <circle cx="12" cy="12" r="3" />
       <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z" />
     </svg>
