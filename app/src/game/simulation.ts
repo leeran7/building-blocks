@@ -314,9 +314,11 @@ function integratePlayer(
         p.vy = 0;
         releaseLadder(p);
         p.onGround = true;
-        // Don't re-grab a ladder on this new surface until the climb button is
-        // released — otherwise a held climb snaps the player straight back on.
-        p.grabSuppressedUntilRelease = true;
+        // Do NOT suppress grabs here: a held Up must be able to chain straight
+        // onto the next floor's ladder (towers stack ladder-per-floor, so
+        // ascending means re-grabbing at every platform). The grabbableLadder
+        // BOUNDARY_BUFFER already blocks re-latching *this* ladder at its top,
+        // so releasing is not required to avoid snapping back.
       } else if (p.y <= l.y0) {
         // Back down onto the lower platform.
         p.x = l.x;
@@ -324,7 +326,6 @@ function integratePlayer(
         p.vy = 0;
         releaseLadder(p);
         p.onGround = true;
-        p.grabSuppressedUntilRelease = true;
       }
     }
   } else {
