@@ -317,6 +317,50 @@ describe("ladder jump-off: jumping off mid-climb does not re-grab", () => {
     }
     expect(p.y).toBeGreaterThan(yOnLadder);
   });
+
+  it("re-arms Up after a jump-off without releasing it (jetpack/jump bug)", () => {
+    // Bug: the re-grab block was cleared only when climbY hit 0, but a climber
+    // holds Up continuously and taps Jump separately — so after a jump (or
+    // jetpack thrust) off a ladder, Up stayed "dead" until physically released.
+    // The block must instead clear once the player leaves the ladder's reach,
+    // with Up held the entire time.
+    const tower = buildTower("indie-games");
+    const l0 = ladderForFloor(tower, 0);
+    const m = climbingMatch("solo", ["p1"], tower);
+    const p = m.players[0];
+    p.x = l0.x;
+    p.y = 0;
+    p.onGround = true;
+
+    for (let t = 0; t < 30; t++) stepMatch(m, { p1: UP }, SLOW);
+    expect(p.onLadder).toBe(true);
+
+    // Jump off toward open space (moveX drifts us off the rungs) while holding Up.
+    const away = l0.x < tower.widthM / 2 ? 1 : -1;
+    const JUMP_AWAY: PlayerInput = { moveX: away, jump: true, climbY: 1, usePowerUp: false };
+    stepMatch(m, { p1: JUMP_AWAY }, SLOW);
+    expect(p.onLadder).toBe(false);
+    expect(p.regrabBlockedLadder).not.toBeNull();
+
+    // Keep Up held (never release) and keep drifting away. The block must clear
+    // on its own — proving Up is no longer stuck dead after the jump-off.
+    const HOLD: PlayerInput = { moveX: away, jump: false, climbY: 1, usePowerUp: false };
+    let cleared = false;
+    for (let t = 0; t < 20 && !cleared; t++) {
+      stepMatch(m, { p1: HOLD }, SLOW);
+      cleared = p.regrabBlockedLadder === null;
+    }
+    expect(cleared).toBe(true);
+
+    // With the block gone and Up still held, dropping the player onto a ladder's
+    // rungs grabs it — no Up release required.
+    p.onLadder = false;
+    p.onGround = false;
+    p.x = l0.x;
+    p.y = (l0.y0 + l0.y1) / 2;
+    stepMatch(m, { p1: UP }, SLOW);
+    expect(p.onLadder).toBe(true);
+  });
 });
 
 describe("AC-7 / AC-8: caught by the death line eliminates and retains peak", () => {

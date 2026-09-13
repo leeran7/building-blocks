@@ -116,7 +116,7 @@ export function spawnPlayer(id: PlayerId, slot: number): PlayerState {
     lastPickupType: null,
     jumpHeldPrev: false,
     jetpackThrusting: false,
-    grabSuppressedUntilRelease: false,
+    regrabBlockedLadder: null,
   };
 }
 
@@ -241,13 +241,16 @@ function grabbableLadder(
   x: number,
   y: number,
   climbY: number,
-  grabRadius: number
+  grabRadius: number,
+  exclude?: { ix: number; slot: number } | null
 ): { ix: number; slot: number; ladder: Ladder } | null {
   const BOUNDARY_BUFFER = 0.1; // Prevent immediate re-grab at ladder boundaries
   // Floors can carry several ladders, so prefer the nearest reachable one.
   let best: { ix: number; slot: number; ladder: Ladder } | null = null;
   let bestDx = Infinity;
   for (const { ix, slot, ladder: l } of laddersNearY(tower, y, y)) {
+    // Skip the ladder just jumped off so a held Up does not instantly re-latch it.
+    if (exclude && ix === exclude.ix && slot === exclude.slot) continue;
     const dx = Math.abs(x - l.x);
     if (dx > grabRadius) continue;
     if (y < l.y0 - EPS || y > l.y1 + EPS) continue;
@@ -280,10 +283,6 @@ function integratePlayer(
   const platformMargin = platformReachMargin(p, tick);
   p.jetpackThrusting = false;
 
-  // Releasing the climb intent clears the post-dismount grab suppression, so the
-  // next deliberate press can grab a ladder again (see grabSuppressedUntilRelease).
-  if (input.climbY === 0) p.grabSuppressedUntilRelease = false;
-
   // Horizontal movement (walk / ladder-slide is ignored while attached).
   p.vx = input.moveX * moveSpeed;
 
@@ -298,10 +297,16 @@ function integratePlayer(
         ? laddersForFloor(tower, p.ladderIx)[p.ladderSlot]
         : undefined;
     if (!l || input.jump) {
-      // Hop off (jump) or lost the ladder reference → let go.
+      // Hop off (jump) or lost the ladder reference → let go. On a deliberate
+      // jump-off, block re-grabbing THIS ladder (capture its id before release)
+      // so a still-held Up does not instantly re-latch the rungs we just left.
+      const jumpedOff =
+        input.jump && l && p.ladderIx !== null && p.ladderSlot !== null
+          ? { ix: p.ladderIx, slot: p.ladderSlot }
+          : null;
       releaseLadder(p);
       p.vy = input.jump && l ? tower.jumpSpeed * 0.7 : 0;
-      p.grabSuppressedUntilRelease = true;
+      p.regrabBlockedLadder = jumpedOff;
     } else {
       p.vy = input.climbY * climbSpeed;
       p.y += p.vy * dt;
@@ -335,12 +340,35 @@ function integratePlayer(
     // Keep obstacle collision continuous across the seam (prevX shifts with the wrap).
     const wrappedPrevX = prevX + (p.x - nextX);
 
-    // Grab a ladder if the player is asking to climb and one is in reach. Right
-    // after stepping off or jumping off a ladder, grabs are suppressed until the
-    // climb button is released — without it a held climb snapped the player
-    // straight back onto the same ladder and they couldn't move.
-    if (input.climbY !== 0 && !p.grabSuppressedUntilRelease) {
-      const g = grabbableLadder(tower, p.x, p.y, input.climbY, grabRadius);
+    // Release the post-jump-off re-grab block once we have left that ladder's
+    // reach (moved out of x-radius or above/below its span). This is keyed to
+    // leaving the ladder, NOT to releasing Up — a climber holds Up the whole
+    // time, so keying it to Up left Up dead after a jump/jetpack.
+    if (p.regrabBlockedLadder) {
+      const b = p.regrabBlockedLadder;
+      const bl = laddersForFloor(tower, b.ix)[b.slot];
+      if (
+        !bl ||
+        Math.abs(p.x - bl.x) > grabRadius ||
+        p.y < bl.y0 - EPS ||
+        p.y > bl.y1 + EPS
+      ) {
+        p.regrabBlockedLadder = null;
+      }
+    }
+
+    // Grab a ladder if the player is asking to climb and one is in reach. The
+    // ladder just jumped off (regrabBlockedLadder) is excluded so a held Up does
+    // not instantly re-latch it, but any OTHER ladder can be grabbed at once.
+    if (input.climbY !== 0) {
+      const g = grabbableLadder(
+        tower,
+        p.x,
+        p.y,
+        input.climbY,
+        grabRadius,
+        p.regrabBlockedLadder
+      );
       if (g) {
         p.onLadder = true;
         p.ladderIx = g.ix;
@@ -350,6 +378,7 @@ function integratePlayer(
         p.vy = 0;
         p.x = g.ladder.x; // snap to the rungs for clean vertical climbing
         p.y = clamp(p.y, g.ladder.y0, g.ladder.y1);
+        p.regrabBlockedLadder = null;
       }
     }
 
