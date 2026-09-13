@@ -52,7 +52,7 @@ export function LeaderboardScreen() {
 
         {error && (
           <p className="pt-10 text-center text-sm text-text-muted">
-            Couldn't load the leaderboard. Check your connection.
+            Couldn&apos;t load the leaderboard. Check your connection.
           </p>
         )}
 
