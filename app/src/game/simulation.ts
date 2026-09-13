@@ -283,6 +283,12 @@ function integratePlayer(
   const platformMargin = platformReachMargin(p, tick);
   p.jetpackThrusting = false;
 
+  // Releasing Up re-arms the ladder just jumped off: the block exists only to
+  // stop a still-held Up from re-latching the same rungs on the very next tick
+  // (which would negate the hop). A fresh press should climb it again right
+  // away — no need to walk away and come back.
+  if (input.climbY === 0) p.regrabBlockedLadder = null;
+
   // Horizontal movement (walk / ladder-slide is ignored while attached).
   p.vx = input.moveX * moveSpeed;
 

@@ -361,6 +361,35 @@ describe("ladder jump-off: jumping off mid-climb does not re-grab", () => {
     stepMatch(m, { p1: UP }, SLOW);
     expect(p.onLadder).toBe(true);
   });
+
+  it("re-grabs the SAME ladder after jump-off on a fresh Up press (no walk-away)", () => {
+    // The jump-off block must clear the instant Up is released, so tapping Up
+    // again climbs the same ladder without having to move off it and back.
+    const tower = buildTower("indie-games");
+    const l0 = ladderForFloor(tower, 0);
+    const m = climbingMatch("solo", ["p1"], tower);
+    const p = m.players[0];
+    p.x = l0.x;
+    p.y = 0;
+    p.onGround = true;
+
+    for (let t = 0; t < 30; t++) stepMatch(m, { p1: UP }, SLOW);
+    expect(p.onLadder).toBe(true);
+
+    // Jump straight off (no horizontal) while holding Up — stays within the
+    // ladder's reach, so only an Up release can re-arm it.
+    stepMatch(m, { p1: { moveX: 0, jump: true, climbY: 1, usePowerUp: false } }, SLOW);
+    expect(p.onLadder).toBe(false);
+    expect(p.regrabBlockedLadder).not.toBeNull();
+
+    // Release Up for a tick (fingers off the climb button) — re-arms the ladder.
+    stepMatch(m, { p1: IDLE }, SLOW);
+    expect(p.regrabBlockedLadder).toBeNull();
+
+    // Fresh Up press grabs the same ladder again, still in its reach.
+    for (let t = 0; t < 5 && !p.onLadder; t++) stepMatch(m, { p1: UP }, SLOW);
+    expect(p.onLadder).toBe(true);
+  });
 });
 
 describe("AC-7 / AC-8: caught by the death line eliminates and retains peak", () => {

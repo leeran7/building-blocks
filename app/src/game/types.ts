@@ -143,12 +143,11 @@ export interface PlayerState {
   jetpackThrusting: boolean;
   /**
    * The ladder (floor index + slot) a player just JUMPED off mid-climb, or null.
-   * Re-grabbing only this ladder is blocked — so a held Up jump-off does not
-   * instantly re-latch the same rungs — and the block clears the moment the
-   * player leaves that ladder's reach. It is deliberately NOT keyed to releasing
-   * the Up button: a climber holds Up continuously and taps Jump as a separate
-   * button, so keying it to Up release stuck Up "dead" after a jump/jetpack.
-   * A different ladder can be grabbed immediately (ladder chaining stays fluid).
+   * Only this ladder is blocked from re-grab, so a still-held Up cannot re-latch
+   * the same rungs on the very next tick and negate the hop. The block clears as
+   * soon as Up is released (a fresh press climbs it again immediately — no need
+   * to walk away) OR the player leaves that ladder's reach. Any OTHER ladder is
+   * always grabbable, so chaining and post-jetpack climbing stay fluid.
    */
   regrabBlockedLadder: { ix: number; slot: number } | null;
 }
