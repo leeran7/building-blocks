@@ -10,7 +10,7 @@
 import type { ReactNode } from "react";
 import { Navbar } from "./Navbar";
 import { NavTab } from "./ui/NavTab";
-import { FREE_CLIMB_HREF } from "./navLinks";
+import { FREE_CLIMB_HREF, DAILY_HREF } from "./navLinks";
 
 export function FreeStackShell({
   section,
@@ -21,7 +21,9 @@ export function FreeStackShell({
   title: string;
   children: ReactNode;
 }) {
-  const play = section === "play";
+  // Both Play and Daily render the full-bleed ClimbScene stage, so they share
+  // the navbar-hidden / flex-1 game layout; Leaderboard keeps the scrolling panel.
+  const gameSection = section === "play" || section === "daily";
 
   return (
     <main
@@ -35,7 +37,7 @@ export function FreeStackShell({
         aria-hidden="true"
       />
 
-      {!play && (
+      {!gameSection && (
         <div className="shrink-0">
           <Navbar contextLabel="Free climb" />
         </div>
@@ -54,11 +56,12 @@ export function FreeStackShell({
               active={section === "leaderboard"}
             />
             <NavTab href={FREE_CLIMB_HREF} label="Play" active={section === "play"} />
+            <NavTab href={DAILY_HREF} label="Daily" active={section === "daily"} />
           </div>
         </div>
       </div>
 
-      {play ? (
+      {gameSection ? (
         // Do NOT put climb-reveal (transform animation) on this wrapper —
         // ClimbScene is `fixed inset-0` on touch, and a transformed ancestor
         // becomes its containing block, breaking mobile fullscreen layout.
@@ -75,4 +78,4 @@ export function FreeStackShell({
   );
 }
 
-export type FreeStackSection = "leaderboard" | "play";
+export type FreeStackSection = "leaderboard" | "play" | "daily";

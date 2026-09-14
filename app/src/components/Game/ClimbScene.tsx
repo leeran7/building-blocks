@@ -53,12 +53,24 @@ import {
 import { shouldCaptureReplayKey } from "../../game/replayTransport";
 import { ReplayTransportBar } from "./ReplayTransportBar";
 import { useReplayExport } from "./useReplayExport";
+import { GameExitButton } from "./GameExitButton";
 
 export interface ClimbSceneProps {
   tower: TowerSpec;
   categoryLabel: string;
   /** When set, the scene plays back a shared run instead of live controls. */
   replay?: RunReplay | null;
+  /**
+   * Locks the tower to a deterministic seed (e.g. Daily Climb's per-day seed).
+   * Ignored during replay, which carries its own seed.
+   */
+  seed?: string;
+  /** Fired once when a live run finishes (not during replay). For Daily Climb. */
+  onFinish?: (peakY: number) => void;
+  /** Extra content rendered in the lobby overlay (e.g. daily streak card). */
+  lobbyExtra?: ReactNode;
+  /** Extra content rendered in the results overlay (e.g. daily streak result). */
+  resultExtra?: ReactNode;
 }
 
 interface SaveInfo {
@@ -91,7 +103,15 @@ function usePrefersReducedMotion(): boolean {
   return reduced;
 }
 
-export function ClimbScene({ tower, categoryLabel, replay = null }: ClimbSceneProps) {
+export function ClimbScene({
+  tower,
+  categoryLabel,
+  replay = null,
+  seed,
+  onFinish,
+  lobbyExtra,
+  resultExtra,
+}: ClimbSceneProps) {
   const reducedMotion = usePrefersReducedMotion();
   const touchDevice = useCoarsePointer();
   const {
@@ -111,7 +131,8 @@ export function ClimbScene({ tower, categoryLabel, replay = null }: ClimbScenePr
     restartReplay,
   } = useClimb({
     tower,
-    seed: replay?.seed,
+    // Replay carries its own seed; otherwise honor the optional daily seed lock.
+    seed: replay?.seed ?? seed,
     replayInputs: replay?.inputs,
     autoStart: Boolean(replay),
   });
@@ -147,6 +168,8 @@ export function ClimbScene({ tower, categoryLabel, replay = null }: ClimbScenePr
   const [shareUrl, setShareUrl] = useState<string | null>(null);
   const [encodingShare, setEncodingShare] = useState(false);
   const [savingRun, setSavingRun] = useState(false);
+  // Guards onFinish so it fires exactly once per live run (reset on each start).
+  const firedFinishRef = useRef(false);
 
   const player = state.players[0];
   const phase = state.phase;
@@ -244,6 +267,7 @@ export function ClimbScene({ tower, categoryLabel, replay = null }: ClimbScenePr
 
   function handleStart() {
     unlockAudio();
+    firedFinishRef.current = false;
     setPosted(false);
     setSaveInfo(null);
     setSavedBanner(null);
@@ -291,6 +315,15 @@ export function ClimbScene({ tower, categoryLabel, replay = null }: ClimbScenePr
 
     finishRun();
   }, [finished, posted, replaying, inputLog, buildRun, token, postRun]);
+
+  // Fire onFinish once per live run (Daily Climb commits its streak here).
+  const finishPeakY = player?.peakY ?? 0;
+  useEffect(() => {
+    if (!finished || replaying || firedFinishRef.current) return;
+    if (inputLog.length === 0) return;
+    firedFinishRef.current = true;
+    onFinish?.(finishPeakY);
+  }, [finished, replaying, inputLog, onFinish, finishPeakY]);
 
   useEffect(() => {
     if (!user || !token || user.isAnonymous) return;
@@ -362,6 +395,12 @@ export function ClimbScene({ tower, categoryLabel, replay = null }: ClimbScenePr
             : "flex flex-col items-center gap-4 w-full"
       }
     >
+      {/* Full-bleed mobile stage covers the navbar, so give the player a way out.
+          Not shown while replaying (its own transport owns the top band). */}
+      {touchDevice && !replaying && (
+        <GameExitButton safeArea={safeArea} />
+      )}
+
       {savedBanner?.saved && (
         <div
           className={
@@ -456,14 +495,18 @@ export function ClimbScene({ tower, categoryLabel, replay = null }: ClimbScenePr
             <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-signal">
               [ {categoryLabel} climb ]
             </p>
-            <h2 className="font-display text-4xl text-text-primary mt-2">
-              Endless climb
-            </h2>
-            <p className="text-text-secondary text-sm mt-3 max-w-[280px] text-center leading-relaxed">
-              Climb as high as you can before the rising lava catches you. It gets
-              harder the higher you go — your peak height is your score. Grab
-              glowing orbs to trigger their power-ups instantly.
-            </p>
+            {lobbyExtra ?? (
+              <>
+                <h2 className="font-display text-4xl text-text-primary mt-2">
+                  Endless climb
+                </h2>
+                <p className="text-text-secondary text-sm mt-3 max-w-[280px] text-center leading-relaxed">
+                  Climb as high as you can before the rising lava catches you. It
+                  gets harder the higher you go — your peak height is your score.
+                  Grab glowing orbs to trigger their power-ups instantly.
+                </p>
+              </>
+            )}
             <ClimbControlsGuide variant="overlay" />
             <StartButton onClick={handleStart} label="Start climb" />
             <Link
@@ -487,6 +530,8 @@ export function ClimbScene({ tower, categoryLabel, replay = null }: ClimbScenePr
             <p className="font-mono text-[11px] uppercase tracking-[0.16em] text-text-muted mt-2">
               your highest climb
             </p>
+
+            {!replaying && resultExtra ? resultExtra : null}
 
             {user ? (
               saveInfo?.saved && saveInfo.rank ? (

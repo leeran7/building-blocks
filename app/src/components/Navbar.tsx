@@ -9,7 +9,7 @@
 import Link from "next/link";
 import { StackMark } from "./Brand/StackMark";
 import { NavbarAuth } from "./NavbarAuth";
-import { FREE_CLIMB_HREF, DUEL_HREF } from "./navLinks";
+import { FREE_CLIMB_HREF, DUEL_HREF, DAILY_HREF } from "./navLinks";
 
 interface NavbarProps {
   /** Optional breadcrumb shown after the wordmark (e.g. "Dashboard", "Tech stack"). */
@@ -58,6 +58,9 @@ export function Navbar({ contextLabel, contextDot }: NavbarProps) {
       <div className="flex items-center gap-1 sm:gap-2">
         <Link href={DUEL_HREF} className={`${GHOST} hidden sm:inline-flex`}>
           1v1
+        </Link>
+        <Link href={DAILY_HREF} className={`${GHOST} hidden sm:inline-flex`}>
+          Daily
         </Link>
         <Link href={FREE_CLIMB_HREF} className={`${GHOST} hidden sm:inline-flex`}>
           Free climb
