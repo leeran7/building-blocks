@@ -124,48 +124,51 @@ export function HomeScreen() {
   }, [challengeBusy, navigate]);
 
   return (
-    <main className="flex h-[100dvh] flex-col items-center justify-between px-6 pb-0 pt-[calc(env(safe-area-inset-top)+3.5rem)] text-center">
-      {/* Wordmark */}
-      <div className="mt-1 flex flex-col items-center gap-2">
-        <LogoMark size={48} card className="mb-1" />
-        <span className="font-mono text-[11px] uppercase tracking-[0.5em] text-text-muted">
-          endless&nbsp;climb
-        </span>
-        <h1 className="hm-wordmark font-display text-[2.75rem] font-black uppercase leading-none tracking-tight text-text-primary">
-          Doom<span className="text-signal">stack</span>
-        </h1>
-        <span className="h-px w-16 bg-border-strong" />
-        <StandingLine standing={standing} />
-      </div>
-
-      {/* Dominant, molten PLAY (endless quick-play) + live standing */}
-      <div className="flex flex-col items-center gap-5">
-        <button
-          onClick={play}
-          aria-label="Play"
-          className="flex w-full items-center gap-4 rounded-2xl border border-signal/50 bg-surface/80 px-5 py-4 text-left shadow-[0_0_28px_-6px_rgba(203,242,77,0.35)] transition-transform active:scale-[0.97]"
-        >
-          <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-signal/40 bg-signal/10">
-            <PlayGlyph />
+    <main className="flex h-[100dvh] flex-col pt-[calc(env(safe-area-inset-top)+3.5rem)]">
+      {/* Game content — flex-1 keeps BottomNav pinned at the bottom */}
+      <div className="flex flex-1 flex-col items-center justify-between px-6 text-center">
+        {/* Wordmark */}
+        <div className="mt-1 flex flex-col items-center gap-2">
+          <LogoMark size={48} card className="mb-1" />
+          <span className="font-mono text-[11px] uppercase tracking-[0.5em] text-text-muted">
+            endless&nbsp;climb
           </span>
-          <span className="flex-1">
-            <span className="block font-display text-xl font-black uppercase tracking-wide text-signal" style={{ textShadow: "0 0 18px rgba(203,242,77,0.45)" }}>
-              Play
-            </span>
-            <span className="block font-mono text-[11px] uppercase tracking-[0.06em] text-text-secondary">
-              Endless quick climb
-            </span>
-          </span>
-          <ChevronRight />
-        </button>
+          <h1 className="hm-wordmark font-display text-[2.75rem] font-black uppercase leading-none tracking-tight text-text-primary">
+            Doom<span className="text-signal">stack</span>
+          </h1>
+          <span className="h-px w-16 bg-border-strong" />
+          <StandingLine standing={standing} />
+        </div>
 
-        <div className="flex w-full flex-col gap-2.5">
-          <DailyCard daily={daily} resetMs={resetMs} onPress={playDaily} />
-          <ChallengeCard
-            busy={challengeBusy}
-            error={challengeError}
-            onPress={startChallenge}
-          />
+        {/* Dominant, molten PLAY (endless quick-play) + live standing */}
+        <div className="flex w-full flex-col items-center gap-5 pb-4">
+          <button
+            onClick={play}
+            aria-label="Play"
+            className="flex w-full items-center gap-4 rounded-2xl border border-signal/50 bg-surface/80 px-5 py-4 text-left shadow-[0_0_28px_-6px_rgba(203,242,77,0.35)] transition-transform active:scale-[0.97]"
+          >
+            <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-signal/40 bg-signal/10">
+              <PlayGlyph />
+            </span>
+            <span className="flex-1">
+              <span className="block font-display text-xl font-black uppercase tracking-wide text-signal" style={{ textShadow: "0 0 18px rgba(203,242,77,0.45)" }}>
+                Play
+              </span>
+              <span className="block font-mono text-[11px] uppercase tracking-[0.06em] text-text-secondary">
+                Endless quick climb
+              </span>
+            </span>
+            <ChevronRight />
+          </button>
+
+          <div className="flex w-full flex-col gap-2.5">
+            <DailyCard daily={daily} resetMs={resetMs} onPress={playDaily} />
+            <ChallengeCard
+              busy={challengeBusy}
+              error={challengeError}
+              onPress={startChallenge}
+            />
+          </div>
         </div>
       </div>
 
