@@ -39,6 +39,9 @@ export function SettingsScreen() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [haptics, setHaptics] = useState(isHapticsEnabled);
+  const [deleteConfirm, setDeleteConfirm] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!user || isAnonymous) {
@@ -129,6 +132,29 @@ export function SettingsScreen() {
   };
 
   const canSave = dirty && !saving && (!usernameCheck || usernameCheck.valid);
+
+  const deleteAccount = async () => {
+    void tapLight();
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      const res = await apiFetch("/api/account/delete", { method: "DELETE" });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        setDeleteError((d as { error?: string }).error ?? "Could not delete account. Try again.");
+        void notifyError();
+        return;
+      }
+      await signOut();
+      navigate("/");
+    } catch {
+      setDeleteError("Could not delete account. Check your connection.");
+      void notifyError();
+    } finally {
+      setDeleting(false);
+      setDeleteConfirm(false);
+    }
+  };
 
   return (
     <main className="flex h-[100dvh] flex-col">
@@ -280,6 +306,43 @@ export function SettingsScreen() {
             >
               Sign Out
             </Button>
+
+            {!deleteConfirm ? (
+              <button
+                type="button"
+                onClick={() => { void tapLight(); setDeleteConfirm(true); setDeleteError(null); }}
+                className="py-2 text-center font-mono text-xs uppercase tracking-[0.15em] text-text-muted underline underline-offset-2 transition-colors active:text-ember"
+              >
+                Delete Account
+              </button>
+            ) : (
+              <Card>
+                <p className="text-sm font-medium text-text-primary">Delete account?</p>
+                <p className="mt-1 text-xs leading-relaxed text-text-secondary">
+                  Your profile, climb history, and social links will be permanently removed. This cannot be undone.
+                </p>
+                {deleteError && (
+                  <p role="alert" className="mt-2 text-xs text-ember">{deleteError}</p>
+                )}
+                <div className="mt-4 flex gap-2">
+                  <Button
+                    variant="secondary"
+                    onPress={() => { void tapLight(); setDeleteConfirm(false); setDeleteError(null); }}
+                    disabled={deleting}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    onPress={deleteAccount}
+                    busy={deleting}
+                    disabled={deleting}
+                    style={{ background: "var(--color-ember)", color: "#fff", flexShrink: 0 }}
+                  >
+                    Delete
+                  </Button>
+                </div>
+              </Card>
+            )}
           </div>
         )}
       </ScreenBody>
