@@ -340,10 +340,10 @@ function HudButton({
       aria-label={label}
       className="flex flex-col items-center gap-2 transition-transform active:scale-90"
     >
-      <span className="flex h-14 w-14 items-center justify-center rounded-2xl border border-border-subtle bg-surface/70 text-text-secondary">
+      <span className="flex h-14 w-14 items-center justify-center rounded-2xl border border-border-subtle bg-surface/70 text-signal">
         {children}
       </span>
-      <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-text-muted">
+      <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-text-secondary">
         {label}
       </span>
     </button>

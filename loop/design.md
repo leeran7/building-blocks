@@ -1675,3 +1675,499 @@ Tasks are ordered: highest user-visible impact first, lowest risk/effort last.
 
 _Artifact: `loop/design.md` (this section appended)._
 _nextStage: implementer._
+
+---
+
+# Backdrop & Navigation Redesign — "Thermal Column"
+
+_Design-ux pass · 2026-09-13. Informs frontend (AnimatedBackdrop + RouteTransition) only. No code._
+_Live tokens: `app/DESIGN.md`. ASCENT palette — no new hex values introduced._
+
+---
+
+## 0. Design Intent
+
+The current backdrop reads as a SaaS dark-mode UI with particles. The goal is
+**molten standstill**: the player is perched on a crumbling tower suspended over
+a rising sea of lava. The backdrop should feel like the pause before the fall —
+heavy and hot below, cold and sharp above, with micro-motion that says the world
+is alive and barely holding together.
+
+Reference feel: Hades' main menu (deep atmospheric light, embers, restrained
+motion), Dead Cells inventory screen (grain, glow, minimal particle drift), Alto's
+Odyssey (one clean atmospheric gradient, slow particle layer, silence
+underneath). Think AAA game main menu, not a startup SaaS dark mode.
+
+---
+
+## 1. Core Principle Changes
+
+### Removed from current design
+
+- Two circular radial gradient blobs with `filter: blur(80px)` and horizontal
+  drift keyframes — the blur + drift produces a "floating orb" aesthetic that
+  reads as generative-art screensaver rather than a specific environment.
+- 18 vertically rising ember particles — vertical particles are the most
+  overused atmospheric effect in games and apps. They read as "generic particle
+  system" rather than "thermal column."
+- 10 dust particles — redundant with particles above, adds noise without
+  meaning.
+- `bd-sheen` top highlight — redundant with the new summit corona.
+- `bdWorldPan` on route change — the world should not re-key. See Navigation
+  section.
+
+### Core metaphor change
+
+Vertical rising particles → horizontal ash drift. In a real thermal column
+inside an enclosed tower, rising heat pushes particles sideways. Ash drifts
+across the field of view, not straight up. This is the single motion change that
+moves the aesthetic from "generic ambient" to "specific hot environment."
+
+---
+
+## 2. Animated Backdrop — "Thermal Column"
+
+### 2.1 Layer stack
+
+All layers: `position: absolute; inset: 0; pointer-events: none`.
+
+| # | Class | z | Role |
+|---|---|---|---|
+| 0 | `bd-void` (the parent `div.bg-void`) | 0 | Pure `#0a0a0c` base fill |
+| 1 | `LavaCanvas` (unchanged) | 1 | Game engine lava — non-negotiable |
+| 2 | `bd-thermal` | 2 | Ember-orange bloom rising from lava band |
+| 3 | `bd-summit` | 3 | Signal-lime corona at top |
+| 4 | `bd-haze` | 4 | Amber midzone bridge (barely perceptible) |
+| 5 | `bd-ash` (12 spans) | 5 | Horizontal-drifting ash flakes |
+| 6 | `bd-grain` | 6 | Static SVG fractalNoise at 2.8% opacity |
+| 7 | `bd-vignette` | 7 | Full-edge radial darkening |
+
+### 2.2 Layer specifications
+
+#### bd-thermal
+
+Replaces `bd-blob-warm` + `bd-lava-bloom`. No `filter: blur`. Uses a CSS
+gradient falloff — GPU-composited, zero repaint.
+
+```css
+.bd-thermal {
+  position: absolute;
+  inset-inline: 0;
+  bottom: 0;
+  height: 80vh;
+  background: radial-gradient(
+    ellipse 90% 70% at 50% 105%,
+    rgba(255, 90, 44, 0.28) 0%,
+    rgba(255, 176, 32, 0.10) 38%,
+    transparent 65%
+  );
+  will-change: opacity;
+  animation: bdThermalPulse 11s ease-in-out infinite alternate;
+}
+
+@keyframes bdThermalPulse {
+  from { opacity: 0.82; }
+  to   { opacity: 1.0;  }
+}
+```
+
+Duration 11s, no delay, infinite alternate. Simulates the lava surface brightening
+and dimming as it churns — very slow, not a heartbeat.
+
+#### bd-summit
+
+Replaces `bd-blob-summit`. Does NOT drift horizontally. The summit energy is
+fixed — cool and stable.
+
+```css
+.bd-summit {
+  position: absolute;
+  inset-inline: 0;
+  top: 0;
+  height: 55vh;
+  background: radial-gradient(
+    ellipse 75% 60% at 50% -5%,
+    rgba(203, 242, 77, 0.13) 0%,
+    rgba(203, 242, 77, 0.04) 45%,
+    transparent 70%
+  );
+  will-change: opacity;
+  animation: bdSummitBreathe 17s ease-in-out infinite alternate;
+}
+
+@keyframes bdSummitBreathe {
+  from { opacity: 0.80; }
+  to   { opacity: 1.0;  }
+}
+```
+
+Duration 17s — noticeably slower than the thermal layer, matching the cold/stable
+vs hot/churning contrast between summit and lava.
+
+#### bd-haze
+
+New layer. Barely visible amber strip in the middle of the screen. The 4px
+vertical drift is imperceptible at rest but creates a sense that the column
+breathes as one system.
+
+```css
+.bd-haze {
+  position: absolute;
+  inset-inline: 0;
+  top: 38vh;
+  height: 26vh;
+  background: linear-gradient(
+    to bottom,
+    transparent 0%,
+    rgba(255, 176, 32, 0.045) 40%,
+    rgba(255, 176, 32, 0.055) 60%,
+    transparent 100%
+  );
+  will-change: opacity, transform;
+  animation: bdHazeDrift 23s ease-in-out infinite alternate;
+}
+
+@keyframes bdHazeDrift {
+  from { opacity: 0.70; transform: translate3d(0, 0, 0);   }
+  to   { opacity: 1.0;  transform: translate3d(0, 4px, 0); }
+}
+```
+
+#### bd-ash (12 spans, replaces 18 embers + 10 dust)
+
+Ash drifts sideways, not up. Each span starts off one edge of the screen and
+drifts to the other. The motion window is 20%–75% vertically, concentrated in
+the thermal column zone.
+
+Per-span CSS class:
+
+```css
+.bd-ash {
+  position: absolute;
+  border-radius: 9999px;
+  opacity: 0;
+  will-change: transform, opacity;
+  animation-name: bdAshDrift;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+
+@keyframes bdAshDrift {
+  0%   { transform: translate3d(0, 0, 0); opacity: 0; }
+  8%   { opacity: 0.55; }
+  88%  { opacity: 0.30; }
+  100% {
+    transform: translate3d(
+      calc(var(--drift-x) * var(--dir)),
+      var(--drift-y),
+      0
+    );
+    opacity: 0;
+  }
+}
+```
+
+Per-span inline styles (computed in `useMemo`):
+
+| Property | Range | Notes |
+|---|---|---|
+| `width` / `height` | 1–3px | Weighted toward 1–2px — most are tiny |
+| `top` | 20%–75% | Vertical position, distributed in the thermal zone |
+| `left` | `-2%` when `--dir: 1`; `102%` when `--dir: -1` | Starts off-screen |
+| `animationDuration` | 18s–38s | Random in range |
+| `animationDelay` | `-38s`–`0s` | Negative delay for pre-running |
+| `--drift-x` | `40vw`–`70vw` | Distance to travel across |
+| `--drift-y` | `-8px`–`8px` | Slight vertical wobble during drift |
+| `--dir` | `1` or `-1` | 8 drift right, 4 drift left (asymmetric, like a slight draft) |
+
+Color distribution (computed in `useMemo`):
+
+- 9 of 12: `background: rgba(244, 228, 196, 0.85)` — pale warm ash
+- 3 of 12: `background: rgba(203, 242, 77, 0.55)` — distant cooling ember
+
+Opacity peak is 0.55 (cooler and dimmer than the previous ember 0.85 — ash has
+traveled far from the heat source and is fading).
+
+#### bd-grain (unchanged from current, opacity reduced slightly)
+
+```css
+.bd-grain {
+  position: absolute;
+  inset: 0;
+  opacity: 0.028; /* down from 0.032 */
+  background-image: url("data:image/svg+xml,..."); /* same fractalNoise SVG */
+  background-size: 180px 180px;
+}
+```
+
+No animation. Zero repaint cost. The 2.8% opacity (from 3.2%) slightly reduces
+the salt-and-pepper texture that competed with the grain on `bd-summit`.
+
+#### bd-vignette (full-edge radial, replaces bottom-only linear)
+
+```css
+.bd-vignette {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    ellipse 120% 110% at 50% 50%,
+    transparent 40%,
+    rgba(10, 10, 12, 0.35) 70%,
+    rgba(10, 10, 12, 0.70) 100%
+  );
+}
+```
+
+The full-edge darkening anchors all four corners against the void container and
+keeps screen content (centered) reading against a slightly lighter center zone.
+Combined with the lava canvas at the bottom, the bottom-edge darkening creates
+a depth divide without a visible seam.
+
+### 2.3 What the user feels at rest
+
+Standing at any menu screen: the lava glows below, visibly alive (engine canvas,
+30fps). A slow ember-orange warmth breathes up from the bottom — you feel the
+heat. The top of the screen has a barely-perceptible cool-lime corona, like
+looking up through the top of the tower at sky. A dozen pale ash flakes drift
+sideways at varying speeds across the middle of the screen — carried by the heat
+column outward. The world feels thick and heavy. Nothing flickers or pulses
+quickly. Motion is geologic — slow, massive, alive.
+
+---
+
+## 3. Navigation Transitions
+
+### 3.1 Core principle: the backdrop does not move during navigation
+
+The current `bdWorldPan` re-keys the entire world `div` on every route change,
+causing the lava canvas to restart, the gradient layers to jump, and the grain
+to shift. This reads as a web SPA refreshing a page.
+
+New principle: **the backdrop is the world, and the world does not move when you
+navigate**. The backdrop — lava canvas, thermal bloom, summit corona, ash drift
+— continues uninterrupted. Screens push in front of the world. The world was
+already there.
+
+**Remove**: `key={pathname}` from the world `div` in `AnimatedBackdrop`.  
+**Remove**: `bdWorldPan` keyframe and `.bd-world` animation entirely.
+
+### 3.2 Push transition (non-hub screens)
+
+**Entering screen (`routePush`, 320ms):**
+
+```css
+@keyframes routePush {
+  from {
+    transform: translate3d(100%, 0, 0);
+    opacity: 0.92;
+  }
+  to {
+    transform: translate3d(0, 0, 0);
+    opacity: 1;
+  }
+}
+.route-push {
+  animation: routePush 0.32s cubic-bezier(0.25, 0.46, 0.45, 0.94) both;
+}
+```
+
+Duration: 320ms (from 380ms — tighter). Easing: `cubic-bezier(0.25, 0.46, 0.45, 0.94)` — Apple's standard UINavigationController push curve. Has no overshoot. The current `cubic-bezier(0.16, 1, 0.3, 1)` has a pronounced spring tail that reads as a bounce on push; this curve eliminates it.
+
+No `box-shadow` in the keyframe. The current `-22px 0 60px -8px rgba(0,0,0,0.55)` shadow in the `from` keyframe triggers inconsistent compositing layer promotion on iOS WebKit and reads as a floating sheet of paper rather than a native screen. The backdrop's edge vignette and the screen's own surface color create sufficient visual separation.
+
+**Exiting screen (`routeExitLeft`, 280ms):**
+
+```css
+@keyframes routeExitLeft {
+  from {
+    transform: translate3d(0, 0, 0);
+    opacity: 1;
+  }
+  to {
+    transform: translate3d(-22%, 0, 0);
+    opacity: 0;
+  }
+}
+.route-exit-left {
+  animation: routeExitLeft 0.28s cubic-bezier(0.55, 0, 1, 0.45) both;
+}
+```
+
+Duration: 280ms. Easing: `cubic-bezier(0.55, 0, 1, 0.45)` — accelerating exit
+(screen picks up speed as it leaves, does not decelerate). The exit is 40ms
+faster than the entrance, so the new screen begins arriving before the old one
+fully disappears. This slight overlap is how native iOS navigation feels — two
+motions co-existing briefly, not sequential.
+
+Translate distance on exit: -22% (unchanged — this is correct depth cue).
+Opacity fades to 0 revealing the persistent backdrop.
+
+The exit overlay timeout in `useLayoutEffect` can stay at 380ms — it gives the
+280ms exit animation headroom to finish without a race condition.
+
+### 3.3 Pop transition (swipe-to-go-back)
+
+The `PushScreen` interactive gesture implementation is correct and should be
+preserved exactly:
+- `EDGE_PX = 28` left-edge arming zone
+- `POP_RATIO = 0.35` commit threshold
+- `POP_VELOCITY = 0.55` flick shortcut
+- Instantaneous velocity sampling from most recent move
+- Signal-lime left-edge glow during drag
+- Graceful history fallback (`navigate(-1)` vs `navigate("/")`)
+
+One change: the snap-back spring when the user releases below the commit
+threshold. Current code sets `x = 0` and plays the same spring curve as a
+committed pop. Change the cancel path to use a distinct spring:
+
+```
+// Cancel snap-back:
+transition: transform 0.36s cubic-bezier(0.34, 1.56, 0.64, 1)
+```
+
+This spring overshoot (`1.56` Y2) gives a slight rebound, signaling "the screen
+resisted being dismissed." The committed pop uses the non-overshooting curve.
+Only the cancel path bounces.
+
+The committed pop and dismiss animation remain:
+```
+// Committed dismiss (unchanged):
+transition: transform 0.22s cubic-bezier(0.25, 0.46, 0.45, 0.94)
+```
+
+### 3.4 Hub (`/`) cross-fade
+
+Home screen stays cross-fade. Add a subtle 6px rise to make the hub settle onto
+the screen:
+
+```css
+@keyframes routeFade {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 6px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+.route-fade {
+  animation: routeFade 0.28s ease-out both;
+}
+```
+
+Duration: 280ms (from 320ms). The 6px rise is a settle cue — like ground
+stabilizing beneath you after lava has pushed you upward. Subtle at this speed;
+do not increase the pixel value.
+
+### 3.5 What the user feels navigating
+
+**Push**: tap a destination and the new screen slides in without bounce. The
+backdrop — lava, thermal bloom, ash — continues without disruption behind the
+incoming screen. The old screen retreats at speed. Total motion resolves in
+under 330ms.
+
+**Swipe back**: finger from left edge, screen tracks the finger instantly
+(linear, no lag). The lime indicator glows at the left edge. Drag past 35% or
+flick and the screen peels away. The backdrop has been there all along — as the
+screen peels back the world is revealed, not re-summoned or restarted.
+
+**Hub return**: the home screen settles softly down, like landing on a platform
+above the lava. No bounce, just a clean arrival.
+
+---
+
+## 4. Reduced Motion
+
+### Backdrop degradation
+
+```css
+@media (prefers-reduced-motion: reduce) {
+  .bd-thermal,
+  .bd-summit    { animation: none; opacity: 1; }
+  .bd-haze      { animation: none; opacity: 0.85; }
+  .bd-ash       { display: none; }
+  /* LavaCanvas: prefersReducedMotion() already draws a static frame — no change */
+}
+```
+
+Result: a static atmospheric image. Thermal bloom and summit corona at full
+opacity, frozen. No ash. Lava draws one static frame. The backdrop still reads
+as "atmospheric" — just motionless.
+
+### Navigation degradation
+
+```css
+@media (prefers-reduced-motion: reduce) {
+  .route-fade,
+  .route-push,
+  .route-exit-left { animation: none; }
+}
+```
+
+`PushScreen` already branches on `prefersReducedMotion()` for gesture resolution
+— that logic is unchanged.
+
+---
+
+## 5. Component State Specs
+
+### AnimatedBackdrop states
+
+| State | Behavior |
+|---|---|
+| Default | All layers active; bd-thermal and bd-summit breathing; bd-haze drifting; 12 ash spans drifting |
+| Reduced motion | All animations stopped; bd-ash hidden; lava canvas static frame |
+| Tab hidden (`visibilitychange`) | LavaCanvas already pauses RAF — no other change needed |
+
+### RouteTransition states
+
+| State | Duration | Easing | Notes |
+|---|---|---|---|
+| Push enter | 320ms | `cubic-bezier(0.25, 0.46, 0.45, 0.94)` | No box-shadow in keyframe |
+| Push exit | 280ms | `cubic-bezier(0.55, 0, 1, 0.45)` | Accelerating exit |
+| Hub fade enter | 280ms | `ease-out` | +6px rise to 0 |
+| Drag (active) | n/a | Linear | Screen tracks finger, lime edge glow |
+| Drag commit pop | 220ms | `cubic-bezier(0.25, 0.46, 0.45, 0.94)` | No bounce |
+| Drag cancel snap-back | 360ms | `cubic-bezier(0.34, 1.56, 0.64, 1)` | Spring overshoot = resistance cue |
+| Reduced motion, any route | instant | n/a | CSS rule + component path both apply |
+
+---
+
+## 6. Contrast (unchanged — backdrop is aria-hidden, behind content)
+
+The backdrop is `aria-hidden` and `pointer-events: none`. All foreground/background
+contrast ratios remain those established in `app/DESIGN.md`. The full-edge
+vignette darkens the backdrop at screen edges, which increases rather than
+decreases effective contrast for edge-positioned UI elements. No new pairs.
+
+---
+
+## 7. Implementer Checklist
+
+1. Remove `key={pathname}` from the world `div` in `AnimatedBackdrop.tsx`.
+2. Remove `bdWorldPan` keyframe and `.bd-world` animation rule.
+3. Replace `bd-blob-summit` and `bd-blob-warm` with `bd-summit` and `bd-thermal`
+   (gradient-only divs, no `filter: blur`).
+4. Replace 18 ember spans + 10 dust spans with 12 ash spans. The `useMemo`
+   computes horizontal drift direction (`--dir`), distance (`--drift-x`),
+   wobble (`--drift-y`), and color (9 warm ash, 3 lime ember).
+5. Add `bd-haze` div between thermal and summit layers.
+6. Replace bottom linear vignette with full-edge radial vignette.
+7. Update `bdThermalPulse` (opacity only, 11s), `bdSummitBreathe` (opacity
+   only, 17s), `bdHazeDrift` (opacity + 4px translate, 23s), `bdAshDrift`
+   (horizontal drift with CSS vars) in the component's `<style>` block.
+8. In `RouteTransition.tsx` `TransitionStyles`: update `routePush` (320ms,
+   new easing, no box-shadow), `routeExitLeft` (280ms, accelerating easing),
+   `routeFade` (280ms, adds 6px rise).
+9. In `PushScreen` cancel path: change transition to
+   `transform 0.36s cubic-bezier(0.34, 1.56, 0.64, 1)`.
+10. Add `will-change: opacity` only to animating layers (`bd-thermal`,
+    `bd-summit`, `bd-haze`). Do not add it to static layers
+    (`bd-grain`, `bd-vignette`).
+
+---
+
+_Artifact: `loop/design.md` — "Thermal Column" section._
+_nextStage: implementer._
+_Files to implement: `app/mobile/src/components/AnimatedBackdrop.tsx`, `app/mobile/src/components/RouteTransition.tsx`._
