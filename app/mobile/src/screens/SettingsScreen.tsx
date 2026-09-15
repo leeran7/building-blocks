@@ -309,7 +309,7 @@ export function SettingsScreen() {
               <button
                 type="button"
                 onClick={() => { void tapLight(); setDeleteConfirm(true); setDeleteError(null); }}
-                className="py-2 text-center font-mono text-xs uppercase tracking-[0.15em] text-white underline underline-offset-2 transition-colors active:text-ember"
+                className="mt-20 py-2 text-center font-mono text-[11px] uppercase tracking-[0.15em] text-text-secondary/70 transition-colors active:text-ember"
               >
                 Delete Account
               </button>
