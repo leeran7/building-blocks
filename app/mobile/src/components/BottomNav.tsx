@@ -36,16 +36,12 @@ export function BottomNav() {
               className="flex flex-col items-center gap-1.5 px-4 py-1 transition-transform active:scale-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void"
             >
               <span
-                className={
-                  active
-                    ? "flex h-10 w-10 items-center justify-center rounded-xl border border-signal/30 bg-signal/15 text-signal"
-                    : "flex h-8 w-8 items-center justify-center text-text-muted"
-                }
+                className={`flex h-10 w-10 items-center justify-center rounded-xl border transition-colors ${active ? "border-signal/30 bg-signal/15 text-signal" : "border-transparent text-text-secondary"}`}
               >
                 <Icon active={active} />
               </span>
               <span
-                className={`font-mono text-[9px] uppercase tracking-[0.15em] transition-colors ${active ? "text-signal" : "text-text-muted"}`}
+                className={`font-mono text-[9px] uppercase tracking-[0.15em] transition-colors ${active ? "text-signal" : "text-text-secondary"}`}
               >
                 {label}
               </span>
@@ -57,10 +53,10 @@ export function BottomNav() {
   );
 }
 
-function HomeIcon({ active }: { active: boolean }) {
+function HomeIcon({ active: _ }: { active: boolean }) {
   return (
     <span aria-hidden="true">
-      <LogoMark size={active ? 20 : 18} />
+      <LogoMark size={20} />
     </span>
   );
 }
