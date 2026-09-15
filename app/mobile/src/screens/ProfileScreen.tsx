@@ -37,7 +37,7 @@ import { SocialMark } from "@app/components/Social/SocialMark";
  */
 export function ProfileScreen() {
   const navigate = useNavigate();
-  const { user, isAnonymous, signOut } = useAuth();
+  const { signOut } = useAuth();
   const dash = useDashboard();
   const settingsSlice = useSettings();
   const clearAll = useClearAppData();
@@ -74,6 +74,18 @@ export function ProfileScreen() {
     setSavedUsername(settingsData.username ?? "");
     setSocial(settingsData.social ?? {});
   }, [settingsData]);
+
+  // Delete-confirm focus management: move focus into the warning when it opens
+  // (so it's announced to VoiceOver/switch users) and restore it to the trigger
+  // on cancel. Guarded so it never steals focus on the initial render.
+  const confirmRef = useRef<HTMLDivElement>(null);
+  const deleteTriggerRef = useRef<HTMLButtonElement>(null);
+  const prevConfirm = useRef(false);
+  useEffect(() => {
+    if (deleteConfirm) confirmRef.current?.focus();
+    else if (prevConfirm.current) deleteTriggerRef.current?.focus();
+    prevConfirm.current = deleteConfirm;
+  }, [deleteConfirm]);
 
   const usernameCheck = username.trim() ? normalizeUsername(username) : null;
 
@@ -121,6 +133,11 @@ export function ProfileScreen() {
           urls: s.urls ?? null,
         };
         setLoaded(next);
+        // Re-seed the input buffer from the server-normalized values (it strips
+        // "@", lowercases, trims) so `dirty` doesn't stay true after a save when
+        // the raw input differed from its normalized form.
+        setDisplayName(next.displayName ?? "");
+        setUsername(next.username ?? "");
         setSavedUsername(next.username ?? "");
         setSocial(next.social ?? {});
         setSettings(next); // update the shared cache so the identity card reflects it
@@ -172,9 +189,9 @@ export function ProfileScreen() {
       ? Math.max(1, Math.round((climb.rank / climb.totalClimbers) * 100))
       : null;
 
-  // Cold-load skeleton only; warm revisits render straight from cache.
-  const loading =
-    !isAnonymous && Boolean(user) && (dash.loading || settingsSlice.loading);
+  // Cold-load skeleton only; warm revisits render straight from cache. (The app
+  // is auth-gated in App.tsx, so this screen only ever renders for a real user.)
+  const loading = dash.loading || settingsSlice.loading;
 
   return (
     <main className="flex h-full flex-col">
@@ -362,7 +379,7 @@ export function ProfileScreen() {
                     setHapticsEnabled(next);
                     if (next) void tapLight();
                   }}
-                  className={`relative h-7 w-13 shrink-0 rounded-full transition-colors duration-200 ${haptics ? "bg-signal" : "bg-border-strong"
+                  className={`relative h-7 w-13 shrink-0 rounded-full transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void ${haptics ? "bg-signal" : "bg-border-strong"
                     }`}
                 >
                   <span
@@ -410,6 +427,7 @@ export function ProfileScreen() {
 
             {!deleteConfirm ? (
               <button
+                ref={deleteTriggerRef}
                 type="button"
                 onClick={() => { void tapLight(); setDeleteConfirm(true); setDeleteError(null); }}
                 className="my-12 py-2 text-center font-mono text-[11px] uppercase tracking-[0.15em] text-white transition-colors active:text-ember"
@@ -417,6 +435,14 @@ export function ProfileScreen() {
                 Delete Account
               </button>
             ) : (
+              <div
+                ref={confirmRef}
+                tabIndex={-1}
+                role="alertdialog"
+                aria-modal="false"
+                aria-label="Confirm account deletion"
+                className="outline-none"
+              >
               <Card>
                 <p className="text-sm font-medium text-text-primary">Delete account?</p>
                 <p className="mt-1 text-xs leading-relaxed text-text-secondary">
@@ -443,6 +469,7 @@ export function ProfileScreen() {
                   </Button>
                 </div>
               </Card>
+              </div>
             )}
           </div>
         )}

@@ -78,9 +78,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signOut = useCallback(async () => {
-    await fbSignOut();
-    setIdToken(null);
-    setUser(null);
+    // Null the local Bearer no matter what: after an account delete the server
+    // row is already gone, so if fbSignOut() rejects (e.g. offline) we must not
+    // leave a live cached token that could still authenticate calls.
+    try {
+      await fbSignOut();
+    } finally {
+      setIdToken(null);
+      setUser(null);
+    }
   }, []);
 
   const value = useMemo<AuthState>(

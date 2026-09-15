@@ -96,12 +96,20 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     inflight.current = { dashboard: false, settings: false, leaderboard: false };
   }, []);
 
-  // Wipe the cache whenever the signed-in account changes (incl. sign-out), so
-  // one user never sees another's cached profile/leaderboard-you row.
+  // Wipe the cache the instant the signed-in account changes (incl. sign-out).
+  // Done as a set-state-during-render reset — NOT a useEffect — so the cleared
+  // slices are committed before any consumer screen renders in this same pass;
+  // an effect is eventual and would let the previous account's data show for a
+  // frame. Covers every path (Sign Out button, delete, silent Firebase re-auth).
   const uid = user?.uid ?? null;
-  useEffect(() => {
-    clearAll();
-  }, [uid, clearAll]);
+  const prevUid = useRef<string | null>(uid);
+  if (prevUid.current !== uid) {
+    prevUid.current = uid;
+    setDashboard(EMPTY_SLICE);
+    setSettingsSlice(EMPTY_SLICE);
+    setLeaderboard(EMPTY_SLICE);
+    inflight.current = { dashboard: false, settings: false, leaderboard: false };
+  }
 
   const authed = Boolean(user) && !isAnonymous;
 
@@ -120,12 +128,15 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       try {
         const data = await fetcher();
         if (data === null) {
-          set({ data: slice.data, loading: false, error: slice.data === null, fetchedAt: slice.fetchedAt });
+          // Failed fetch: keep any prior data (mark error only when cold), and
+          // stamp fetchedAt so the TTL throttles retries into a backoff instead
+          // of hammering the endpoint every render while it's down.
+          set({ data: slice.data, loading: false, error: slice.data === null, fetchedAt: Date.now() });
         } else {
           set({ data, loading: false, error: false, fetchedAt: Date.now() });
         }
       } catch {
-        set({ ...slice, loading: false, error: cold });
+        set({ ...slice, loading: false, error: cold, fetchedAt: Date.now() });
       } finally {
         inflight.current[key] = false;
       }
@@ -138,7 +149,10 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
 
   const ensureDashboard = useCallback(() => {
     if (!authed) return;
-    if (!isStale(dashboard) && !dashboard.error) return;
+    // Gate on staleness only — a failed fetch stamps fetchedAt, so the TTL backs
+    // off retries. Gating on `error` here would refetch every render (no data
+    // means each failure yields a new slice identity → effect re-fires → loop).
+    if (!isStale(dashboard)) return;
     void load("dashboard", dashboard, setDashboard, () =>
       apiFetch("/api/dashboard").then((r) => (r.ok ? (r.json() as Promise<DashboardData>) : null)).catch(() => null),
     );
@@ -146,7 +160,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
 
   const ensureSettings = useCallback(() => {
     if (!authed) return;
-    if (!isStale(settings) && !settings.error) return;
+    if (!isStale(settings)) return;
     void load("settings", settings, setSettingsSlice, () =>
       apiFetch("/api/settings")
         .then((r) => (r.ok ? (r.json() as Promise<SettingsData>) : null))
@@ -165,14 +179,15 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   }, [authed, settings, load]);
 
   const ensureLeaderboard = useCallback(() => {
-    if (!isStale(leaderboard) && !leaderboard.error) return;
+    if (!authed) return;
+    if (!isStale(leaderboard)) return;
     void load("leaderboard", leaderboard, setLeaderboard, () =>
       apiFetch("/api/climb/leaderboard")
         .then((r) => (r.ok ? r.json() : null))
         .then((d) => (d ? (d.climbers ?? []) : null))
         .catch(() => null),
     );
-  }, [leaderboard, load]);
+  }, [authed, leaderboard, load]);
 
   const refreshSettings = useCallback(async () => {
     await load("settings", { ...settings, fetchedAt: null }, setSettingsSlice, () =>
