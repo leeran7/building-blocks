@@ -180,8 +180,10 @@ function TransitionStyles() {
   return (
     <style>{`
       /* Stacking: scene sits at z:1 so the exiting hub overlay (z:0) is underneath.
-         The incoming screen slides on TOP of the outgoing hub — iOS native depth. */
-      .route-scene   { position: relative; z-index: 1; }
+         The incoming screen slides on TOP of the outgoing hub — iOS native depth.
+         height:100% propagates the App's flex-1 bound down to each screen's
+         h-full main so ScreenBody's overflow-y-auto has a height to scroll in. */
+      .route-scene   { position: relative; z-index: 1; height: 100%; }
       .route-overlay { position: fixed; inset: 0; z-index: 0; pointer-events: none; }
 
       /* Hub: fades in with a 6px settle — the screen lands, not just appears. */
