@@ -24,6 +24,7 @@ import { useSafeAreaInsets } from "@app/hooks/useSafeAreaInsets";
 import { ALTITUDE_UNIT } from "@app/lib/units";
 
 import { API_BASE, postClimbResult, type ClimbSaveResult } from "../lib/api";
+import { useInvalidateAppData } from "../contexts/AppDataContext";
 import { tapMedium, tapLight, notifyError, notifySuccess } from "../lib/haptics";
 import { useGameHaptics } from "../lib/useGameHaptics";
 import {
@@ -44,6 +45,7 @@ const MOBILE_HUD_BAR_PX = 40;
  */
 export function ClimbScreen() {
   const navigate = useNavigate();
+  const invalidateAppData = useInvalidateAppData();
   const [searchParams] = useSearchParams();
   // Daily mode: lock the tower to today's shared seed so every player climbs
   // the exact same tower. Endless mode leaves the seed free (fresh each start).
@@ -155,9 +157,14 @@ export function ClimbScreen() {
       const payload = replayToken ? { ...run, replayToken } : run;
       const result = await postClimbResult(payload);
       setSaveInfo(result);
-      if (result.saved && result.improved) void notifySuccess();
+      if (result.saved) {
+        // Standing + leaderboard changed — mark them stale so Ranks / Profile
+        // show the new score immediately on return, not after the cache TTL.
+        invalidateAppData(["dashboard", "leaderboard"]);
+        if (result.improved) void notifySuccess();
+      }
     })();
-  }, [finished, posted, inputLog, player, state.seed, state.tick]);
+  }, [finished, posted, inputLog, player, state.seed, state.tick, invalidateAppData]);
 
   const share = useCallback(async () => {
     if (!shareUrl) return;

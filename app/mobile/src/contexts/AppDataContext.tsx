@@ -74,6 +74,12 @@ interface AppDataState {
   refreshSettings: () => Promise<void>;
   /** Optimistically update the cached settings after a successful save. */
   setSettings: (next: SettingsData) => void;
+  /**
+   * Mark the given slices stale (keeping any cached data for a stale-while-
+   * revalidate paint) so the next screen that reads them refetches immediately —
+   * e.g. after a climb run changes your standing and the leaderboard.
+   */
+  invalidate: (keys: Array<"dashboard" | "settings" | "leaderboard">) => void;
   /** Drop all cached data (sign-out, account delete, account switch). */
   clearAll: () => void;
 }
@@ -201,6 +207,16 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     setSettingsSlice({ data: next, loading: false, error: false, fetchedAt: Date.now() });
   }, []);
 
+  const invalidate = useCallback(
+    (keys: Array<"dashboard" | "settings" | "leaderboard">) => {
+      const markStale = <T,>(s: Slice<T>): Slice<T> => ({ ...s, fetchedAt: null });
+      if (keys.includes("dashboard")) setDashboard(markStale);
+      if (keys.includes("settings")) setSettingsSlice(markStale);
+      if (keys.includes("leaderboard")) setLeaderboard(markStale);
+    },
+    [],
+  );
+
   const value = useMemo<AppDataState>(
     () => ({
       dashboard,
@@ -211,6 +227,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       ensureLeaderboard,
       refreshSettings,
       setSettings,
+      invalidate,
       clearAll,
     }),
     [
@@ -222,6 +239,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       ensureLeaderboard,
       refreshSettings,
       setSettings,
+      invalidate,
       clearAll,
     ],
   );
@@ -282,4 +300,13 @@ export function useLeaderboard() {
 /** Escape hatch for the auth flow to drop cache on sign-out / delete. */
 export function useClearAppData() {
   return useAppData().clearAll;
+}
+
+/**
+ * Mark cached slices stale so the next screen that reads them refetches. Call
+ * after a climb run so the leaderboard + standing reflect the new score the
+ * moment the player returns to Ranks / Profile, instead of within the TTL.
+ */
+export function useInvalidateAppData() {
+  return useAppData().invalidate;
 }

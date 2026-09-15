@@ -1,25 +1,34 @@
 /**
- * DELETE /api/account/delete — permanently remove the signed-in user's account.
+ * DELETE /api/account/delete — erase the signed-in user's personal + gameplay
+ * data, then revoke all access.
  *
- * Steps:
- * 1. Cancel any open/pending duels where this user is player1 (Restrict FK would
- *    otherwise block the user-row anonymization step).
- * 2. Anonymize PII in the users row: replace email with a tombstone address and
- *    clear the display name. The row is kept because completed duel records
- *    (financial history) still reference player1_id. Access is revoked by
- *    deleting the Firebase account in step 4.
- * 3. Clear the public creator username so the handle is freed immediately.
- * 4. Delete the Firebase account — all issued tokens for this UID become invalid
- *    and the client is signed out.
+ * Deletes everything that is personal or gameplay identity:
+ *   - ClimbRun (run history), ClimbRecord (leaderboard peak scores),
+ *   - DuelStats (win/loss record),
+ *   - SavedUrl + SavedSocialHandle (creator-page links).
  *
- * Auth required (Firebase Bearer token). Rate-limited to 3 requests / hour per UID.
+ * Retains — deliberately — the financial/audit trail, because destroying it
+ * would breach money-record retention obligations for a paid product:
+ *   - CreditPurchase (Stripe purchase records),
+ *   - WalletLedger (append-only money ledger),
+ *   - Duel rows (stakes/settlement history; also shared with the opponent).
+ *
+ * Because those tables `onDelete: Cascade` off the user row, the row itself is
+ * NOT hard-deleted — it is anonymized instead (tombstone email, null
+ * display_name / username), so the financial FKs survive while all PII is gone.
+ * Access is revoked by deleting the Firebase account (step 4), so the tombstone
+ * row can never be signed into again. Duels are left untouched — no refund is
+ * issued and no in-flight match is destroyed, so an opponent's stake is never
+ * stranded.
+ *
+ * Steps 1–2 run in one transaction. Auth required (Firebase Bearer token).
+ * Rate-limited to 3 requests / hour per UID.
  */
 
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth, AuthError } from "../../../../src/lib/requireAuth";
 import { adminAuth } from "../../../../src/lib/firebaseAdmin";
 import { prisma } from "../../../../src/db/client";
-import { clearUsername } from "../../../../src/db/creator";
 import { checkRateLimit } from "../../../../src/lib/rateLimit";
 
 export const runtime = "nodejs";
@@ -50,34 +59,33 @@ export async function DELETE(request: NextRequest): Promise<NextResponse> {
   }
 
   try {
-    // 1. Cancel open duels where this user is player1 (non-settled; Restrict FK).
-    await prisma.duel.deleteMany({
-      where: {
-        player1_id: uid,
-        status: { in: ["pending", "active"] },
-      },
-    });
-
-    // 2. Anonymize PII. Email gets a deterministic tombstone so the unique
-    //    constraint is preserved without leaking the original address.
     const tombstoneEmail = `deleted-${uid}@deleted.invalid`;
-    await prisma.user.update({
-      where: { id: uid },
-      data: {
-        email: tombstoneEmail,
-        emailVerified: false,
-        display_name: null,
-        username: null,
-        savedUrls: { deleteMany: {} },
-        socialHandles: { deleteMany: {} },
-      },
+
+    // 1. Delete all personal + gameplay records; 2. anonymize the retained row.
+    //    One transaction so a mid-way failure can't leave a half-scrubbed account.
+    await prisma.$transaction([
+      prisma.climbRun.deleteMany({ where: { userId: uid } }),
+      prisma.climbRecord.deleteMany({ where: { userId: uid } }),
+      prisma.duelStats.deleteMany({ where: { user_id: uid } }),
+      prisma.savedUrl.deleteMany({ where: { userId: uid } }),
+      prisma.savedSocialHandle.deleteMany({ where: { userId: uid } }),
+      prisma.user.updateMany({
+        where: { id: uid },
+        data: {
+          email: tombstoneEmail,
+          emailVerified: false,
+          display_name: null,
+          username: null,
+        },
+      }),
+    ]);
+
+    // Delete the Firebase account — all tokens for this UID become invalid, so
+    // the anonymized row can never be accessed again. Tolerate an already-absent
+    // account so the endpoint is idempotent.
+    await adminAuth.deleteUser(uid).catch((err) => {
+      if ((err as { code?: string })?.code !== "auth/user-not-found") throw err;
     });
-
-    // 3. Free the public creator username so it can be claimed by another user.
-    await clearUsername(uid).catch(() => {});
-
-    // 4. Delete the Firebase account — all tokens for this UID become invalid.
-    await adminAuth.deleteUser(uid);
 
     console.info(
       JSON.stringify({

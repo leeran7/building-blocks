@@ -17,7 +17,7 @@ import {
   isHapticsEnabled,
   setHapticsEnabled,
 } from "../lib/haptics";
-import { dailySummary } from "../lib/daily";
+import { dailySummary, clearDailyStore } from "../lib/daily";
 import { ScreenHeader, ScreenBody, Card, StatCard, Button } from "../components/ui";
 import { ALTITUDE_UNIT } from "@app/lib/units";
 import { normalizeUsername } from "@app/lib/username";
@@ -168,6 +168,7 @@ export function ProfileScreen() {
         return;
       }
       clearAll();
+      clearDailyStore(); // device-local streak isn't account-scoped; wipe on delete
       await signOut();
       navigate("/");
     } catch {
