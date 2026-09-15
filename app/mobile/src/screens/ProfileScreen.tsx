@@ -454,16 +454,20 @@ export function ProfileScreen() {
                 <div className="mt-4 flex gap-2">
                   <Button
                     variant="secondary"
+                    fullWidth={false}
+                    className="flex-1"
                     onPress={() => { void tapLight(); setDeleteConfirm(false); setDeleteError(null); }}
                     disabled={deleting}
                   >
                     Cancel
                   </Button>
                   <Button
+                    fullWidth={false}
+                    className="flex-1"
                     onPress={deleteAccount}
                     busy={deleting}
                     disabled={deleting}
-                    style={{ background: "var(--color-ember)", color: "#fff", flexShrink: 0 }}
+                    style={{ background: "var(--color-ember)", color: "#fff" }}
                   >
                     Delete
                   </Button>
