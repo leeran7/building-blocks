@@ -319,13 +319,7 @@ function DailyCard({
           </span>
         ) : undefined
       }
-      trailing={
-        daily.playedToday ? (
-          <span className="shrink-0 font-mono text-[10px] uppercase tracking-[0.2em] text-signal">
-            Play again
-          </span>
-        ) : undefined
-      }
+      trailing={undefined}
       onPress={onPress}
     />
   );

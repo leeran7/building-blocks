@@ -167,7 +167,7 @@ export function SettingsScreen() {
             <div className="h-40 animate-pulse rounded-3xl border border-border-subtle bg-surface/60" />
           </div>
         ) : (
-          <div className="flex flex-col gap-4 pt-1">
+          <div className="flex flex-col gap-4 pb-8 pt-1">
             {/* Identity */}
             <Card>
               <div className="flex flex-col gap-4">
