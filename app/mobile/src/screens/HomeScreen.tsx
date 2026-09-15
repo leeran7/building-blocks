@@ -125,7 +125,7 @@ export function HomeScreen() {
   return (
     <main className="flex h-full flex-col pt-[calc(env(safe-area-inset-top)+3.5rem)]">
       {/* Game content — flex-1 keeps BottomNav pinned at the bottom */}
-      <div className="flex flex-1 flex-col items-center justify-between px-6 text-center">
+      <div className="flex flex-1 flex-col items-center justify-center gap-9 px-6 text-center">
         {/* Wordmark */}
         <div className="mt-1 flex flex-col items-center gap-2">
           <LogoMark size={48} card className="mb-1" />
@@ -139,25 +139,25 @@ export function HomeScreen() {
           <StandingLine standing={standing} />
         </div>
 
-        {/* Dominant, molten PLAY (endless quick-play) + live standing */}
-        <div className="flex w-full flex-col items-center gap-5 pb-4">
+        {/* PLAY = filled-signal hero (the one primary action) + secondary modes */}
+        <div className="flex w-full flex-col items-center gap-3">
           <button
             onClick={play}
             aria-label="Play"
-            className="flex w-full items-center gap-4 rounded-2xl border border-signal/50 bg-surface/80 px-5 py-4 text-left shadow-[0_0_28px_-6px_rgba(203,242,77,0.35)] transition-transform active:scale-[0.97]"
+            className="flex w-full items-center gap-4 rounded-2xl bg-signal px-5 py-5 text-left text-void shadow-signal transition-transform active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void"
           >
-            <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-signal/40 bg-signal/10">
+            <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-void/15">
               <PlayGlyph />
             </span>
             <span className="flex-1">
-              <span className="block font-display text-xl font-black uppercase tracking-wide text-signal" style={{ textShadow: "0 0 18px rgba(203,242,77,0.45)" }}>
+              <span className="block font-display text-2xl font-black uppercase tracking-wide text-void">
                 Play
               </span>
-              <span className="block font-mono text-[11px] uppercase tracking-[0.06em] text-text-secondary">
+              <span className="block font-mono text-[11px] uppercase tracking-[0.06em] text-void/70">
                 Endless quick climb
               </span>
             </span>
-            <ChevronRight />
+            <ChevronRight className="text-void/60" />
           </button>
 
           <div className="flex w-full flex-col gap-2.5">
@@ -244,9 +244,9 @@ function ModeCard({
     <button
       onClick={onPress}
       aria-label={ariaLabel ?? title}
-      className="flex w-full items-center gap-3 rounded-2xl border border-border-subtle bg-surface/70 px-4 py-3 text-left transition-transform active:scale-[0.98]"
+      className="flex w-full items-center gap-3 rounded-2xl border border-border-subtle bg-surface/70 px-4 py-3.5 text-left transition-transform active:scale-[0.98]"
     >
-      <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border ${chip}`}>
+      <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border ${chip}`}>
         {icon}
       </span>
       <span className="min-w-0 flex-1">
@@ -299,7 +299,7 @@ function DailyCard({
 
 function PlayGlyph() {
   return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" className="text-signal" aria-hidden>
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
       <path d="M8 5.14v13.72a1 1 0 0 0 1.53.85l10.79-6.86a1 1 0 0 0 0-1.7L9.53 4.29A1 1 0 0 0 8 5.14Z" />
     </svg>
   );
@@ -313,9 +313,9 @@ function FlameIcon() {
   );
 }
 
-function ChevronRight() {
+function ChevronRight({ className = "text-text-muted" }: { className?: string }) {
   return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 text-text-muted" aria-hidden>
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={`shrink-0 ${className}`} aria-hidden>
       <path d="m9 18 6-6-6-6" />
     </svg>
   );
