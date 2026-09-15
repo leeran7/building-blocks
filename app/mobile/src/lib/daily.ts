@@ -95,6 +95,19 @@ function write(store: DailyStore): void {
   }
 }
 
+/**
+ * Wipe the local daily state (streak + per-day bests). The store is device-local
+ * and not keyed by account, so it must be cleared on account deletion — otherwise
+ * a new account created on the same phone inherits the previous user's streak.
+ */
+export function clearDailyStore(): void {
+  try {
+    localStorage.removeItem(STORE_KEY);
+  } catch {
+    /* storage unavailable — nothing to clear */
+  }
+}
+
 export interface DailySummary {
   /** Consecutive-day streak, or 0 if the chain is already broken. */
   streak: number;
