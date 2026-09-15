@@ -6,6 +6,7 @@ import { openExternal } from "../lib/external";
 import { useAuth } from "../contexts/AuthContext";
 import { tapLight, notifySuccess, notifyError, isHapticsEnabled, setHapticsEnabled } from "../lib/haptics";
 import { ScreenHeader, ScreenBody, Card, Button } from "../components/ui";
+import { BottomNav } from "../components/BottomNav";
 import { normalizeUsername } from "@app/lib/username";
 import {
   SOCIAL_PLATFORMS,
@@ -158,7 +159,7 @@ export function SettingsScreen() {
 
   return (
     <main className="flex h-[100dvh] flex-col">
-      <ScreenHeader eyebrow="your profile" title="Settings" onBack={() => navigate("/profile")} />
+      <ScreenHeader eyebrow="your profile" title="Settings" />
 
       <ScreenBody>
         {loading ? (
@@ -344,6 +345,7 @@ export function SettingsScreen() {
           </div>
         )}
       </ScreenBody>
+      <BottomNav />
     </main>
   );
 }

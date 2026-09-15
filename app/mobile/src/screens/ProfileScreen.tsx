@@ -7,6 +7,7 @@ import { useAuth } from "../contexts/AuthContext";
 import { tapLight } from "../lib/haptics";
 import { dailySummary } from "../lib/daily";
 import { ScreenHeader, ScreenBody, Card, StatCard, Button } from "../components/ui";
+import { BottomNav } from "../components/BottomNav";
 import { ALTITUDE_UNIT } from "@app/lib/units";
 import { SocialMark } from "@app/components/Social/SocialMark";
 import { PLATFORM_META } from "@app/lib/socialHandle";
@@ -75,23 +76,7 @@ export function ProfileScreen() {
 
   return (
     <main className="flex h-[100dvh] flex-col">
-      <ScreenHeader
-        eyebrow="your climb"
-        title="Profile"
-        onBack={() => navigate("/")}
-        trailing={
-          <button
-            aria-label="Settings"
-            onClick={() => {
-              void tapLight();
-              navigate("/settings");
-            }}
-            className="flex h-11 w-11 items-center justify-center rounded-full border border-border-subtle bg-surface/70 text-text-secondary transition-transform active:scale-90"
-          >
-            <GearIcon />
-          </button>
-        }
-      />
+      <ScreenHeader eyebrow="your climb" title="Profile" />
 
       <ScreenBody>
         {loading ? (
@@ -209,15 +194,8 @@ export function ProfileScreen() {
           </div>
         )}
       </ScreenBody>
+      <BottomNav />
     </main>
   );
 }
 
-function GearIcon() {
-  return (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <circle cx="12" cy="12" r="3" />
-      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z" />
-    </svg>
-  );
-}

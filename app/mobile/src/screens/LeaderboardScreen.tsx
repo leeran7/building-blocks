@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { apiFetch } from "../lib/api";
 import { useAuth } from "../contexts/AuthContext";
 import { ALTITUDE_UNIT } from "@app/lib/units";
 import { ScreenHeader, ScreenBody, ListRow, StateMessage } from "../components/ui";
+import { BottomNav } from "../components/BottomNav";
 
 interface ClimberRank {
   rank: number;
@@ -15,7 +15,6 @@ interface ClimberRank {
 }
 
 export function LeaderboardScreen() {
-  const navigate = useNavigate();
   const { user } = useAuth();
   const [climbers, setClimbers] = useState<ClimberRank[]>([]);
   const [loading, setLoading] = useState(true);
@@ -31,11 +30,7 @@ export function LeaderboardScreen() {
 
   return (
     <main className="flex h-[100dvh] flex-col">
-      <ScreenHeader
-        eyebrow="global"
-        title="Leaderboard"
-        onBack={() => navigate("/")}
-      />
+      <ScreenHeader eyebrow="global" title="Leaderboard" />
 
       <ScreenBody>
         {loading && (
@@ -86,6 +81,7 @@ export function LeaderboardScreen() {
           </ol>
         )}
       </ScreenBody>
+      <BottomNav />
     </main>
   );
 }
