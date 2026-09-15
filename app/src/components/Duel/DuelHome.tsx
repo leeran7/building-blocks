@@ -14,6 +14,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "../../contexts/AuthContext";
+import { auth } from "../../lib/firebase";
 
 // ─────────────────────────────── Types ────────────────────────────────────
 
@@ -166,9 +167,25 @@ export function DuelHome() {
       if (pollRef.current) clearInterval(pollRef.current);
       pollRef.current = setInterval(async () => {
         try {
+          // Fetch a FRESH token each tick. Firebase ID tokens expire ~hourly;
+          // the token captured when the search started goes stale and every poll
+          // then 401s in a tight loop. getIdToken() returns a cached valid token
+          // and auto-refreshes when needed.
+          const freshToken = await auth.currentUser?.getIdToken();
+          if (!freshToken) {
+            if (pollRef.current) clearInterval(pollRef.current);
+            setQueueState({ status: "error", message: "Session expired. Please sign in again." });
+            return;
+          }
           const pollRes = await fetch("/api/duel/queue", {
-            headers: { Authorization: `Bearer ${token}` },
+            headers: { Authorization: `Bearer ${freshToken}` },
           });
+          // A real auth failure won't recover on the next tick — stop, don't spin.
+          if (pollRes.status === 401) {
+            if (pollRef.current) clearInterval(pollRef.current);
+            setQueueState({ status: "error", message: "Session expired. Please sign in again." });
+            return;
+          }
           if (!pollRes.ok) return;
           const pollBody = (await pollRes.json()) as { status: string; duelId?: string };
           if (pollBody.status === "matched" && pollBody.duelId) {
