@@ -282,7 +282,7 @@ export function ListRow({
 export function ScreenBody({ children }: { children: ReactNode }) {
   return (
     <div
-      className="flex-1 overflow-y-auto px-4 pb-[calc(env(safe-area-inset-bottom)+2.5rem)]"
+      className="flex-1 overflow-y-auto px-4 pb-4"
       // Native iOS momentum scroll with a contained rubber-band so the bounce
       // never leaks to the page (which would read as a web view).
       style={{

@@ -78,9 +78,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signOut = useCallback(async () => {
-    await fbSignOut();
+    // Sign out optimistically: drop the local session first so the UI returns to
+    // the auth gate immediately (critical for account delete — the row is
+    // already gone server-side), then let the Firebase SDK sign-out settle in
+    // the background. Nulling the token first also means a rejected fbSignOut()
+    // (e.g. offline) can never leave a live cached token behind.
     setIdToken(null);
     setUser(null);
+    try {
+      await fbSignOut();
+    } catch {
+      // Already locally signed out; the onAuthChange listener reconciles later.
+    }
   }, []);
 
   const value = useMemo<AuthState>(

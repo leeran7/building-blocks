@@ -5,6 +5,7 @@ import { apiFetch, API_BASE } from "../lib/api";
 import { shareInvite } from "@app/lib/shareInvite";
 import { ALTITUDE_UNIT } from "@app/lib/units";
 import { LogoMark } from "../components/LogoMark";
+import { useHubPrefetch } from "../contexts/AppDataContext";
 import { dailySummary, msUntilReset, formatReset, type DailySummary } from "../lib/daily";
 
 /**
@@ -14,30 +15,13 @@ import { dailySummary, msUntilReset, formatReset, type DailySummary } from "../l
  * HUD-style icon buttons. Deliberately NOT a bottom-tab content layout — this
  * reads as a game main menu.
  */
-interface Standing {
-  peakY: number;
-  rank: number;
-  totalClimbers: number;
-}
-
 export function HomeScreen() {
   const navigate = useNavigate();
-  const [standing, setStanding] = useState<Standing | null>(null);
 
-  // Pull the player's best + rank so the hub feels personal. The app is
-  // auth-gated, so a real account is always present here.
-  useEffect(() => {
-    let alive = true;
-    apiFetch("/api/dashboard")
-      .then((r) => r.json())
-      .then((d) => {
-        if (alive && d?.freeClimb) setStanding(d.freeClimb);
-      })
-      .catch(() => {});
-    return () => {
-      alive = false;
-    };
-  }, []);
+  // Warm the shared cache from the landing screen so Profile / Ranks are instant
+  // on first visit; the returned dashboard slice also feeds the standing line,
+  // deduping what used to be a separate Home /api/dashboard fetch.
+  const standing = useHubPrefetch().data?.freeClimb ?? null;
 
   // Daily challenge state — refreshes each time Home mounts (after a run) and
   // the reset countdown re-renders on a slow tick.
@@ -123,81 +107,53 @@ export function HomeScreen() {
   }, [challengeBusy, navigate]);
 
   return (
-    <main className="flex h-[100dvh] flex-col items-center justify-between px-6 pb-[calc(env(safe-area-inset-bottom)+2.5rem)] pt-[calc(env(safe-area-inset-top)+3.5rem)] text-center">
-      {/* Wordmark */}
-      <div className="mt-1 flex flex-col items-center gap-2">
-        <LogoMark size={48} card className="mb-1" />
-        <span className="font-mono text-[11px] uppercase tracking-[0.5em] text-text-muted">
-          endless&nbsp;climb
-        </span>
-        <h1 className="hm-wordmark font-display text-[2.75rem] font-black uppercase leading-none tracking-tight text-text-primary">
-          Doom<span className="text-signal">stack</span>
-        </h1>
-        <span className="h-px w-16 bg-border-strong" />
-        <StandingLine standing={standing} />
-      </div>
-
-      {/* Dominant, molten PLAY (endless quick-play) + live standing */}
-      <div className="flex flex-col items-center gap-5">
-        <button
-          onClick={play}
-          aria-label="Play"
-          className="flex w-full items-center gap-4 rounded-2xl border border-signal/50 bg-surface/80 px-5 py-4 text-left shadow-[0_0_28px_-6px_rgba(203,242,77,0.35)] transition-transform active:scale-[0.97]"
-        >
-          <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-signal/40 bg-signal/10">
-            <PlayGlyph />
+    <main className="flex h-full flex-col pt-[calc(env(safe-area-inset-top)+3.5rem)]">
+      {/* Game content — flex-1 keeps BottomNav pinned at the bottom */}
+      <div className="flex flex-1 flex-col items-center justify-center gap-9 px-6 text-center">
+        {/* Wordmark */}
+        <div className="mt-1 flex flex-col items-center gap-2">
+          <LogoMark size={48} card className="mb-1" />
+          <span className="font-mono text-[11px] uppercase tracking-[0.5em] text-text-muted">
+            endless&nbsp;climb
           </span>
-          <span className="flex-1">
-            <span className="block font-display text-xl font-black uppercase tracking-wide text-signal" style={{ textShadow: "0 0 18px rgba(203,242,77,0.45)" }}>
-              Play
-            </span>
-            <span className="block font-mono text-[11px] uppercase tracking-[0.06em] text-text-secondary">
-              Endless quick climb
-            </span>
-          </span>
-          <ChevronRight />
-        </button>
+          <h1 className="hm-wordmark font-display text-[2.75rem] font-black uppercase leading-none tracking-tight text-text-primary">
+            Doom<span className="text-signal">stack</span>
+          </h1>
+          <span className="h-px w-16 bg-border-strong" />
+          <StandingLine standing={standing} />
+        </div>
 
-        <div className="flex w-full flex-col gap-2.5">
-          <DailyCard daily={daily} resetMs={resetMs} onPress={playDaily} />
-          <ChallengeCard
-            busy={challengeBusy}
-            error={challengeError}
-            onPress={startChallenge}
-          />
+        {/* PLAY = filled-signal hero (the one primary action) + secondary modes */}
+        <div className="flex w-full flex-col items-center gap-3">
+          <button
+            onClick={play}
+            aria-label="Play"
+            className="flex w-full items-center gap-4 rounded-2xl bg-signal px-5 py-5 text-left text-void shadow-signal transition-transform active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void"
+          >
+            <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-void/15">
+              <PlayGlyph />
+            </span>
+            <span className="flex-1">
+              <span className="block font-display text-2xl font-black uppercase tracking-wide text-void">
+                Play
+              </span>
+              <span className="block font-mono text-[11px] uppercase tracking-[0.06em] text-void/70">
+                Endless quick climb
+              </span>
+            </span>
+            <ChevronRight className="text-void/60" />
+          </button>
+
+          <div className="flex w-full flex-col gap-2.5">
+            <DailyCard daily={daily} resetMs={resetMs} onPress={playDaily} />
+            <ChallengeCard
+              busy={challengeBusy}
+              error={challengeError}
+              onPress={startChallenge}
+            />
+          </div>
         </div>
       </div>
-
-      {/* HUD icon row */}
-      <nav className="flex items-center justify-center gap-10">
-        <HudButton
-          label="Ranks"
-          onPress={() => {
-            void tapLight();
-            navigate("/leaderboard");
-          }}
-        >
-          <TrophyIcon />
-        </HudButton>
-        <HudButton
-          label="Profile"
-          onPress={() => {
-            void tapLight();
-            navigate("/profile");
-          }}
-        >
-          <UserIcon />
-        </HudButton>
-        <HudButton
-          label="Settings"
-          onPress={() => {
-            void tapLight();
-            navigate("/settings");
-          }}
-        >
-          <GearIcon />
-        </HudButton>
-      </nav>
 
       <style>{`
         .hm-wordmark {
@@ -208,7 +164,7 @@ export function HomeScreen() {
   );
 }
 
-function StandingLine({ standing }: { standing: Standing | null }) {
+function StandingLine({ standing }: { standing: { peakY: number; rank: number } | null }) {
   if (standing) {
     return (
       <p
@@ -272,9 +228,9 @@ function ModeCard({
     <button
       onClick={onPress}
       aria-label={ariaLabel ?? title}
-      className="flex w-full items-center gap-3 rounded-2xl border border-border-subtle bg-surface/70 px-4 py-3 text-left transition-transform active:scale-[0.98]"
+      className="flex w-full items-center gap-3 rounded-2xl border border-border-subtle bg-surface/70 px-4 py-3.5 text-left transition-transform active:scale-[0.98]"
     >
-      <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border ${chip}`}>
+      <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border ${chip}`}>
         {icon}
       </span>
       <span className="min-w-0 flex-1">
@@ -284,7 +240,7 @@ function ModeCard({
           </span>
           {badge}
         </span>
-        <span className="mt-0.5 block font-mono text-[11px] uppercase tracking-[0.06em] text-text-secondary leading-snug line-clamp-2">
+        <span className="mt-0.5 block font-mono text-[11px] uppercase tracking-[0.06em] text-text-secondary leading-snug whitespace-pre-line">
           {subtitle}
         </span>
       </span>
@@ -303,8 +259,8 @@ function DailyCard({
   onPress: () => void;
 }) {
   const sub = daily.playedToday
-    ? `Today ${daily.todayBest.toLocaleString()}${ALTITUDE_UNIT} · map changes ${formatReset(resetMs)}`
-    : `Same tower for everyone · map changes ${formatReset(resetMs)}`;
+    ? `Today ${daily.todayBest.toLocaleString()}${ALTITUDE_UNIT}\nMap changes ${formatReset(resetMs)}`
+    : `Same tower for everyone\nMap changes ${formatReset(resetMs)}`;
   return (
     <ModeCard
       icon={<FlameIcon />}
@@ -319,46 +275,15 @@ function DailyCard({
           </span>
         ) : undefined
       }
-      trailing={
-        daily.playedToday ? (
-          <span className="shrink-0 font-mono text-[10px] uppercase tracking-[0.2em] text-signal">
-            Play again
-          </span>
-        ) : undefined
-      }
+      trailing={undefined}
       onPress={onPress}
     />
   );
 }
 
-function HudButton({
-  children,
-  label,
-  onPress,
-}: {
-  children: React.ReactNode;
-  label: string;
-  onPress: () => void;
-}) {
-  return (
-    <button
-      onClick={onPress}
-      aria-label={label}
-      className="flex flex-col items-center gap-2 transition-transform active:scale-90"
-    >
-      <span className="flex h-14 w-14 items-center justify-center rounded-2xl border border-border-subtle bg-surface/70 text-text-secondary">
-        {children}
-      </span>
-      <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-text-muted">
-        {label}
-      </span>
-    </button>
-  );
-}
-
 function PlayGlyph() {
   return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" className="text-signal" aria-hidden>
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
       <path d="M8 5.14v13.72a1 1 0 0 0 1.53.85l10.79-6.86a1 1 0 0 0 0-1.7L9.53 4.29A1 1 0 0 0 8 5.14Z" />
     </svg>
   );
@@ -372,9 +297,9 @@ function FlameIcon() {
   );
 }
 
-function ChevronRight() {
+function ChevronRight({ className = "text-text-muted" }: { className?: string }) {
   return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 text-text-muted" aria-hidden>
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={`shrink-0 ${className}`} aria-hidden>
       <path d="m9 18 6-6-6-6" />
     </svg>
   );
@@ -411,28 +336,6 @@ function ChallengeCard({
   );
 }
 
-function TrophyIcon() {
-  return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6" />
-      <path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18" />
-      <path d="M4 22h16" />
-      <path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20 7 22" />
-      <path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20 17 22" />
-      <path d="M18 2H6v7a6 6 0 0 0 12 0V2Z" />
-    </svg>
-  );
-}
-
-function UserIcon() {
-  return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="12" cy="8" r="4" />
-      <path d="M4 21v-1a7 7 0 0 1 14 0v1" />
-    </svg>
-  );
-}
-
 function SwordsIcon() {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-signal" aria-hidden>
@@ -447,11 +350,3 @@ function SwordsIcon() {
   );
 }
 
-function GearIcon() {
-  return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="12" cy="12" r="3" />
-      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z" />
-    </svg>
-  );
-}

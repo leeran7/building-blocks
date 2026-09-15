@@ -66,9 +66,8 @@ body,
 
 body {
   font-family: var(--font-sans);
-  /* Respect the notch / home indicator everywhere. */
-  padding: env(safe-area-inset-top) env(safe-area-inset-right)
-    env(safe-area-inset-bottom) env(safe-area-inset-left);
+  /* Safe areas are handled per-screen (ScreenHeader top, ScreenBody bottom,
+     HomeScreen inset props) — no body-level padding needed. */
 }
 
 /* Allow selection only where it's genuinely useful (inputs). */

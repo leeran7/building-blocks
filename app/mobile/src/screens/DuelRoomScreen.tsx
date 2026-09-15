@@ -461,11 +461,26 @@ function DuelGame({
   const bottomInset =
     TOUCH_CONTROLS_INSET + Math.max(TOUCH_CONTROLS_MIN_BOTTOM, safeArea.bottom);
 
+  const navigate = useNavigate();
   const startedRef = useRef(false);
   const [connectionState, setConnectionState] = useState("connected");
 
   const phase = state.phase;
   const touchActive = phase === "countdown" || phase === "climb";
+
+  // Leaving mid-race forfeits (opponent wins immediately, not stranded on a
+  // ghost); mirrors the beforeunload forfeit. After the match it's just nav.
+  const handleLeave = useCallback(() => {
+    void tapLight();
+    if (!finished) {
+      try {
+        realtime.publishEvent({ type: "forfeit", slot: mySlot, reason: "disconnect" });
+      } catch {
+        /* realtime down — navigate away regardless */
+      }
+    }
+    navigate("/");
+  }, [finished, realtime, mySlot, navigate]);
 
   // Handshake: subscribe first, then enter presence.
   useEffect(() => {
@@ -641,11 +656,34 @@ function DuelGame({
 
   return (
     <div className="fixed inset-0 z-40 bg-void text-text-primary">
-      {/* Versus HUD */}
+      {/* Escape hatch — top-left home button. Forfeits if the match is still
+          live so the opponent isn't stranded. Matches ClimbScreen's back button. */}
+      <div
+        className="pointer-events-none absolute inset-x-0 top-0 z-30"
+        style={{
+          paddingTop: safeArea.top,
+          paddingLeft: `max(8px, ${safeArea.left}px)`,
+          paddingRight: `max(8px, ${safeArea.right}px)`,
+        }}
+      >
+        <div className="flex items-center pointer-events-auto" style={{ height: 40 }}>
+          <button
+            aria-label="Leave duel"
+            onClick={handleLeave}
+            className="flex h-8 w-8 items-center justify-center rounded-full bg-void/50 text-text-muted transition-transform active:scale-90"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+              <path d="M15 18l-6-6 6-6" />
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      {/* Versus HUD — pushed below the exit-button band. */}
       <div
         className="pointer-events-none absolute inset-x-0 top-0 z-20 flex flex-col gap-1"
         style={{
-          paddingTop: `max(8px, ${safeArea.top}px)`,
+          paddingTop: safeArea.top + 40,
           paddingLeft: `max(8px, ${safeArea.left}px)`,
           paddingRight: `max(8px, ${safeArea.right}px)`,
         }}

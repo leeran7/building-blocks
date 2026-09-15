@@ -32,6 +32,7 @@ import { useSafeAreaInsets } from "../../hooks/useSafeAreaInsets";
 import { useBodyScrollLock } from "../../hooks/useBodyScrollLock";
 import { useFullscreen } from "../../hooks/useFullscreen";
 import { FullscreenButton } from "../Game/FullscreenButton";
+import { GameExitButton, GAME_EXIT_BAR_PX } from "../Game/GameExitButton";
 import { DuelResult } from "./DuelResult";
 import { connectRealtime, RealtimeHandle } from "../../net/realtime";
 import { buildTower } from "../../game/towers";
@@ -190,6 +191,12 @@ function PracticeGame({
         hudInsetTop={touchDevice ? safeArea.top : 0}
       />
 
+      {/* Escape hatch — the full-bleed stage covers the navbar on mobile. Left
+          side; the waiting/invite HUD sits on the right, so they don't collide. */}
+      {touchDevice && (
+        <GameExitButton safeArea={safeArea} onLeave={onLeave} label="Leave duel" />
+      )}
+
       {/* Waiting HUD overlay */}
       <div
         className="absolute inset-x-0 top-0 flex flex-col items-end justify-start p-4 gap-2 pointer-events-none"
@@ -277,6 +284,8 @@ interface GameProps {
   player1Id: string;
   player2Id: string;
   onRematch: (newDuelId: string) => void;
+  /** Leave the room (navigate away). DuelGame forfeits first if still live. */
+  onExit: () => void;
 }
 
 function DuelGame({
@@ -292,6 +301,7 @@ function DuelGame({
   player1Id,
   player2Id,
   onRematch,
+  onExit,
 }: GameProps) {
   // Canonical tower for this category — useRace applies the run seed internally,
   // producing a tower bit-identical to the server's simulateDuel re-sim
@@ -328,6 +338,20 @@ function DuelGame({
     duelId,
     guestId,
   });
+
+  // Leaving mid-race forfeits so the opponent isn't stranded waiting on a ghost
+  // (mirrors the beforeunload forfeit below); once the match is over it's just
+  // navigation.
+  const handleLeave = useCallback(() => {
+    if (!finished) {
+      try {
+        realtime.publishEvent({ type: "forfeit", slot: mySlot, reason: "disconnect" });
+      } catch {
+        /* realtime may be down — navigate away regardless */
+      }
+    }
+    onExit();
+  }, [finished, realtime, mySlot, onExit]);
 
   const { token } = useAuth();
   const router = useRouter();
@@ -634,9 +658,15 @@ function DuelGame({
             : "flex flex-col items-center gap-3 min-h-screen bg-void text-text-primary py-4"
       }
     >
+      {/* Escape hatch — the full-bleed stage covers the navbar on mobile.
+          Forfeits if the match is still live so the opponent isn't stranded. */}
+      {touchDevice && (
+        <GameExitButton safeArea={safeArea} onLeave={handleLeave} label="Leave duel" />
+      )}
+
       {/* Versus HUD: desktop bars in-flow above the canvas (width tracks the
           canvas so they line up); mobile overlaid at the top of the full-bleed
-          stage, inside the safe area. */}
+          stage, inside the safe area — pushed below the exit-button band. */}
       <div
         className={
           touchDevice
@@ -646,7 +676,7 @@ function DuelGame({
         style={
           touchDevice
             ? {
-                paddingTop: `max(8px, ${safeArea.top}px)`,
+                paddingTop: safeArea.top + GAME_EXIT_BAR_PX,
                 paddingLeft: `max(8px, ${safeArea.left}px)`,
                 paddingRight: `max(8px, ${safeArea.right}px)`,
               }
@@ -1193,6 +1223,7 @@ export function DuelRoom({ duelId }: DuelRoomProps) {
       player1Id={player1Id}
       player2Id={player2Id}
       onRematch={handleRematch}
+      onExit={() => router.push("/")}
     />
   );
 }

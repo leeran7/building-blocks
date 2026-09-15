@@ -5,6 +5,7 @@ import { createRoot } from "react-dom/client";
 import { HashRouter } from "react-router-dom";
 import { App } from "./App";
 import { AuthProvider } from "./contexts/AuthContext";
+import { AppDataProvider } from "./contexts/AppDataContext";
 import { setVolcanoTileSrc } from "@app/components/Game/climbBackground";
 import volcanoTile from "@app/../public/climb/volcano-tile.jpg";
 import "./styles.css";
@@ -26,7 +27,9 @@ createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <HashRouter>
       <AuthProvider>
-        <App />
+        <AppDataProvider>
+          <App />
+        </AppDataProvider>
       </AuthProvider>
     </HashRouter>
   </React.StrictMode>,
