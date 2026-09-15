@@ -65,7 +65,7 @@ export function SettingsScreen() {
         setSavedUsername(s.username ?? "");
         setSocial(s.social ?? {});
       })
-      .catch(() => {})
+      .catch(() => { })
       .finally(() => alive && setLoading(false));
     return () => {
       alive = false;
@@ -167,7 +167,7 @@ export function SettingsScreen() {
             <div className="h-40 animate-pulse rounded-3xl border border-border-subtle bg-surface/60" />
           </div>
         ) : (
-          <div className="flex flex-col gap-4 pt-1" style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 5rem)" }}>
+          <div className="flex flex-col gap-4 pt-1 pb-8">
             {/* Identity */}
             <Card>
               <div className="flex flex-col gap-4">
@@ -226,9 +226,8 @@ export function SettingsScreen() {
                         <span className="truncate text-xs">{PLATFORM_META[p].label}</span>
                       </span>
                       <span
-                        className={`flex min-h-[44px] flex-1 items-center gap-1 rounded-xl border bg-elevated px-3 focus-within:border-signal ${
-                          invalid ? "border-ember/60" : "border-border-strong"
-                        }`}
+                        className={`flex min-h-[44px] flex-1 items-center gap-1 rounded-xl border bg-elevated px-3 focus-within:border-signal ${invalid ? "border-ember/60" : "border-border-strong"
+                          }`}
                       >
                         <span aria-hidden className="font-mono text-sm text-text-muted">
                           @
@@ -273,9 +272,8 @@ export function SettingsScreen() {
                     setHapticsEnabled(next);
                     if (next) void tapLight();
                   }}
-                  className={`relative h-7 w-13 shrink-0 rounded-full transition-colors duration-200 ${
-                    haptics ? "bg-signal" : "bg-border-strong"
-                  }`}
+                  className={`relative h-7 w-13 shrink-0 rounded-full transition-colors duration-200 ${haptics ? "bg-signal" : "bg-border-strong"
+                    }`}
                 >
                   <span
                     className="absolute top-0.5 h-6 w-6 rounded-full bg-white shadow-sm transition-[left] duration-200"

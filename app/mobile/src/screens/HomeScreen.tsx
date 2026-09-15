@@ -284,7 +284,7 @@ function ModeCard({
           </span>
           {badge}
         </span>
-        <span className="mt-0.5 block font-mono text-[11px] uppercase tracking-[0.06em] text-text-secondary leading-snug line-clamp-2">
+        <span className="mt-0.5 block font-mono text-[11px] uppercase tracking-[0.06em] text-text-secondary leading-snug whitespace-pre-line">
           {subtitle}
         </span>
       </span>
@@ -303,8 +303,8 @@ function DailyCard({
   onPress: () => void;
 }) {
   const sub = daily.playedToday
-    ? `Today ${daily.todayBest.toLocaleString()}${ALTITUDE_UNIT} · map changes ${formatReset(resetMs)}`
-    : `Same tower for everyone · map changes ${formatReset(resetMs)}`;
+    ? `Today ${daily.todayBest.toLocaleString()}${ALTITUDE_UNIT}\nMap changes ${formatReset(resetMs)}`
+    : `Same tower for everyone\nMap changes ${formatReset(resetMs)}`;
   return (
     <ModeCard
       icon={<FlameIcon />}
