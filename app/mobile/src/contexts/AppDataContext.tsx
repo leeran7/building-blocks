@@ -244,6 +244,23 @@ export function useDashboard() {
   return dashboard;
 }
 
+/**
+ * Warm the whole hub cache from the landing (Home) screen: dashboard, settings
+ * and leaderboard all fetch on mount so navigating to Profile / Ranks is instant
+ * on the first visit, not just on revisit. Returns the dashboard slice since
+ * Home already renders the player's standing from it (and this dedupes what was
+ * a separate Home /api/dashboard fetch).
+ */
+export function useHubPrefetch() {
+  const { dashboard, ensureDashboard, ensureSettings, ensureLeaderboard } = useAppData();
+  useEffect(() => {
+    ensureDashboard();
+    ensureSettings();
+    ensureLeaderboard();
+  }, [ensureDashboard, ensureSettings, ensureLeaderboard]);
+  return dashboard;
+}
+
 /** Cached settings slice + mutators for the You page save/refresh. */
 export function useSettings() {
   const { settings, ensureSettings, refreshSettings, setSettings } = useAppData();

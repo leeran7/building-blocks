@@ -5,6 +5,7 @@ import { apiFetch, API_BASE } from "../lib/api";
 import { shareInvite } from "@app/lib/shareInvite";
 import { ALTITUDE_UNIT } from "@app/lib/units";
 import { LogoMark } from "../components/LogoMark";
+import { useHubPrefetch } from "../contexts/AppDataContext";
 import { dailySummary, msUntilReset, formatReset, type DailySummary } from "../lib/daily";
 
 /**
@@ -14,30 +15,13 @@ import { dailySummary, msUntilReset, formatReset, type DailySummary } from "../l
  * HUD-style icon buttons. Deliberately NOT a bottom-tab content layout — this
  * reads as a game main menu.
  */
-interface Standing {
-  peakY: number;
-  rank: number;
-  totalClimbers: number;
-}
-
 export function HomeScreen() {
   const navigate = useNavigate();
-  const [standing, setStanding] = useState<Standing | null>(null);
 
-  // Pull the player's best + rank so the hub feels personal. The app is
-  // auth-gated, so a real account is always present here.
-  useEffect(() => {
-    let alive = true;
-    apiFetch("/api/dashboard")
-      .then((r) => r.json())
-      .then((d) => {
-        if (alive && d?.freeClimb) setStanding(d.freeClimb);
-      })
-      .catch(() => {});
-    return () => {
-      alive = false;
-    };
-  }, []);
+  // Warm the shared cache from the landing screen so Profile / Ranks are instant
+  // on first visit; the returned dashboard slice also feeds the standing line,
+  // deduping what used to be a separate Home /api/dashboard fetch.
+  const standing = useHubPrefetch().data?.freeClimb ?? null;
 
   // Daily challenge state — refreshes each time Home mounts (after a run) and
   // the reset countdown re-renders on a slow tick.
@@ -180,7 +164,7 @@ export function HomeScreen() {
   );
 }
 
-function StandingLine({ standing }: { standing: Standing | null }) {
+function StandingLine({ standing }: { standing: { peakY: number; rank: number } | null }) {
   if (standing) {
     return (
       <p
