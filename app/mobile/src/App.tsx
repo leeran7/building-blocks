@@ -4,7 +4,6 @@ import { ClimbScreen } from "./screens/ClimbScreen";
 import { SignInScreen } from "./screens/SignInScreen";
 import { LeaderboardScreen } from "./screens/LeaderboardScreen";
 import { ProfileScreen } from "./screens/ProfileScreen";
-import { SettingsScreen } from "./screens/SettingsScreen";
 import { DuelRoomScreen } from "./screens/DuelRoomScreen";
 import { AnimatedBackdrop } from "./components/AnimatedBackdrop";
 import { RouteTransition } from "./components/RouteTransition";
@@ -13,7 +12,7 @@ import { useNativeShell } from "./lib/useNativeShell";
 import { useAuth } from "./contexts/AuthContext";
 import { LogoMark } from "./components/LogoMark";
 
-const NAV_ROUTES = new Set(["/", "/leaderboard", "/profile", "/settings"]);
+const NAV_ROUTES = new Set(["/", "/leaderboard", "/profile"]);
 
 /**
  * Root of the native game shell. The animated backdrop is persistent behind
@@ -53,7 +52,9 @@ export function App() {
                     <Route path="/" element={<HomeScreen />} />
                     <Route path="/leaderboard" element={<LeaderboardScreen />} />
                     <Route path="/profile" element={<ProfileScreen />} />
-                    <Route path="/settings" element={<SettingsScreen />} />
+                    {/* Settings merged into Profile — keep the path as a redirect
+                        for any stray deep links / bookmarks. */}
+                    <Route path="/settings" element={<Navigate to="/profile" replace />} />
                     <Route path="*" element={<Navigate to="/" replace />} />
                   </Routes>
                 </RouteTransition>

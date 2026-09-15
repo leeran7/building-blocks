@@ -1,31 +1,14 @@
-import { useEffect, useState } from "react";
-import { apiFetch } from "../lib/api";
 import { useAuth } from "../contexts/AuthContext";
+import { useLeaderboard } from "../contexts/AppDataContext";
 import { ALTITUDE_UNIT } from "@app/lib/units";
 import { ScreenHeader, ScreenBody, ListRow, StateMessage } from "../components/ui";
 
-interface ClimberRank {
-  rank: number;
-  userId: string;
-  handle: string;
-  username: string | null;
-  peakY: number;
-  wins: number;
-}
-
 export function LeaderboardScreen() {
   const { user } = useAuth();
-  const [climbers, setClimbers] = useState<ClimberRank[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(false);
-
-  useEffect(() => {
-    apiFetch("/api/climb/leaderboard")
-      .then((r) => r.json())
-      .then((d) => setClimbers(d.climbers ?? []))
-      .catch(() => setError(true))
-      .finally(() => setLoading(false));
-  }, []);
+  const { data, loading: sliceLoading, error } = useLeaderboard();
+  const climbers = data ?? [];
+  // Skeleton only on the cold load; a warm cache renders rows immediately.
+  const loading = sliceLoading && data === null;
 
   return (
     <main className="flex h-full flex-col">
