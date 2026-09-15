@@ -8,9 +8,12 @@ import { SettingsScreen } from "./screens/SettingsScreen";
 import { DuelRoomScreen } from "./screens/DuelRoomScreen";
 import { AnimatedBackdrop } from "./components/AnimatedBackdrop";
 import { RouteTransition } from "./components/RouteTransition";
+import { BottomNav } from "./components/BottomNav";
 import { useNativeShell } from "./lib/useNativeShell";
 import { useAuth } from "./contexts/AuthContext";
 import { LogoMark } from "./components/LogoMark";
+
+const NAV_ROUTES = new Set(["/", "/leaderboard", "/profile", "/settings"]);
 
 /**
  * Root of the native game shell. The animated backdrop is persistent behind
@@ -25,28 +28,21 @@ export function App() {
   const { user, loading, isAnonymous } = useAuth();
   const authed = Boolean(user) && !isAnonymous;
 
-  // The Climb screen is a full-bleed opaque game surface. Unmounting the
-  // decorative backdrop while it's covered stops its blur/ember animation from
-  // burning GPU + battery during the most performance-sensitive moment.
-  // NOTE: call useLocation() unconditionally — never behind a short-circuit, or
-  // the hook count changes between the loading and authed renders and crashes.
+  // NOTE: call useLocation() unconditionally — never behind a short-circuit.
   const location = useLocation();
   const onClimb = authed && location.pathname === "/climb";
+  const showNav = authed && NAV_ROUTES.has(location.pathname);
 
   return (
-    <div className="relative min-h-full w-full overflow-hidden bg-void">
+    <div className="relative flex h-[100dvh] w-full flex-col overflow-hidden bg-void">
       {!onClimb && <AnimatedBackdrop />}
-      <div className="relative z-10 min-h-full">
+      <div className="relative z-10 flex-1 overflow-hidden">
         {loading ? (
           <AuthSplash />
         ) : !authed ? (
-          // Auth gate — the only screen a signed-out user can reach.
           <SignInScreen />
         ) : (
           <Routes>
-            {/* Climb and the challenge race room are full-bleed fixed game
-                surfaces — they own their own entrance, so they stay outside
-                the route push/fade wrapper. */}
             <Route path="/climb" element={<ClimbScreen />} />
             <Route path="/duel/:id" element={<DuelRoomScreen />} />
             <Route
@@ -58,7 +54,6 @@ export function App() {
                     <Route path="/leaderboard" element={<LeaderboardScreen />} />
                     <Route path="/profile" element={<ProfileScreen />} />
                     <Route path="/settings" element={<SettingsScreen />} />
-                    {/* Signed in — /signin and any stray path go home. */}
                     <Route path="*" element={<Navigate to="/" replace />} />
                   </Routes>
                 </RouteTransition>
@@ -67,6 +62,8 @@ export function App() {
           </Routes>
         )}
       </div>
+      {/* Single BottomNav instance — never unmounts on hub route changes */}
+      {showNav && <BottomNav />}
     </div>
   );
 }

@@ -5,7 +5,6 @@ import { apiFetch, API_BASE } from "../lib/api";
 import { shareInvite } from "@app/lib/shareInvite";
 import { ALTITUDE_UNIT } from "@app/lib/units";
 import { LogoMark } from "../components/LogoMark";
-import { BottomNav } from "../components/BottomNav";
 import { dailySummary, msUntilReset, formatReset, type DailySummary } from "../lib/daily";
 
 /**
@@ -124,7 +123,7 @@ export function HomeScreen() {
   }, [challengeBusy, navigate]);
 
   return (
-    <main className="flex h-[100dvh] flex-col pt-[calc(env(safe-area-inset-top)+3.5rem)]">
+    <main className="flex h-full flex-col pt-[calc(env(safe-area-inset-top)+3.5rem)]">
       {/* Game content — flex-1 keeps BottomNav pinned at the bottom */}
       <div className="flex flex-1 flex-col items-center justify-between px-6 text-center">
         {/* Wordmark */}
@@ -171,8 +170,6 @@ export function HomeScreen() {
           </div>
         </div>
       </div>
-
-      <BottomNav />
 
       <style>{`
         .hm-wordmark {

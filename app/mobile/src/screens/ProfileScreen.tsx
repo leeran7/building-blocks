@@ -7,7 +7,6 @@ import { useAuth } from "../contexts/AuthContext";
 import { tapLight } from "../lib/haptics";
 import { dailySummary } from "../lib/daily";
 import { ScreenHeader, ScreenBody, Card, StatCard, Button } from "../components/ui";
-import { BottomNav } from "../components/BottomNav";
 import { ALTITUDE_UNIT } from "@app/lib/units";
 import { SocialMark } from "@app/components/Social/SocialMark";
 import { PLATFORM_META } from "@app/lib/socialHandle";
@@ -75,7 +74,7 @@ export function ProfileScreen() {
       : null;
 
   return (
-    <main className="flex h-[100dvh] flex-col">
+    <main className="flex h-full flex-col">
       <ScreenHeader eyebrow="your climb" title="Profile" />
 
       <ScreenBody>
@@ -194,7 +193,6 @@ export function ProfileScreen() {
           </div>
         )}
       </ScreenBody>
-      <BottomNav />
     </main>
   );
 }

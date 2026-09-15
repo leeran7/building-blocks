@@ -3,7 +3,6 @@ import { apiFetch } from "../lib/api";
 import { useAuth } from "../contexts/AuthContext";
 import { ALTITUDE_UNIT } from "@app/lib/units";
 import { ScreenHeader, ScreenBody, ListRow, StateMessage } from "../components/ui";
-import { BottomNav } from "../components/BottomNav";
 
 interface ClimberRank {
   rank: number;
@@ -29,7 +28,7 @@ export function LeaderboardScreen() {
   }, []);
 
   return (
-    <main className="flex h-[100dvh] flex-col">
+    <main className="flex h-full flex-col">
       <ScreenHeader eyebrow="global" title="Leaderboard" />
 
       <ScreenBody>
@@ -81,7 +80,6 @@ export function LeaderboardScreen() {
           </ol>
         )}
       </ScreenBody>
-      <BottomNav />
     </main>
   );
 }
