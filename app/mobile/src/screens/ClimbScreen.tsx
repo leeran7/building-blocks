@@ -6,7 +6,7 @@ import { buildFreeTower } from "@app/game/freeStack";
 import { useClimb } from "@app/game/useClimb";
 import { encodeRunReplay, buildReplayUrl } from "@app/game/runReplay";
 import { ClimbCanvas } from "@app/components/Game/ClimbCanvas";
-import { PowerUpHud } from "@app/components/Game/PowerUpHud";
+import { ExpeditionHud } from "@app/components/Game/ExpeditionHud";
 import {
   TouchControls,
   TOUCH_CONTROLS_INSET,
@@ -35,7 +35,7 @@ import {
   type DailyRunResult,
 } from "../lib/daily";
 
-const MOBILE_HUD_BAR_PX = 40;
+
 
 /**
  * Native Climb — the core arcade loop. Reuses the shared deterministic engine
@@ -182,46 +182,10 @@ export function ClimbScreen() {
 
   return (
     <div className="fixed inset-0 z-40 bg-void">
-      {/* Top HUD bar — home button + power-up strip */}
-      <div
-        className="pointer-events-none absolute inset-x-0 top-0 z-20"
-        style={{
-          paddingTop: safeArea.top,
-          paddingLeft: `max(8px, ${safeArea.left}px)`,
-          paddingRight: `max(8px, ${safeArea.right}px)`,
-        }}
-      >
-        {/* Bar row: home button on the left, height matches MOBILE_HUD_BAR_PX */}
-        <div
-          className="flex items-center pointer-events-auto"
-          style={{ height: MOBILE_HUD_BAR_PX }}
-        >
-          <button
-            aria-label="Back to home"
-            onClick={() => { void tapLight(); navigate("/"); }}
-            className="flex h-8 w-8 items-center justify-center rounded-full bg-void/50 text-text-muted transition-transform active:scale-90"
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-              <path d="M15 18l-6-6 6-6" />
-            </svg>
-          </button>
-        </div>
-        <div className="pointer-events-auto">
-          <PowerUpHud
-            player={player}
-            tick={state.tick}
-            muted={muted}
-            onToggleMute={() => setMuted(!muted)}
-            announcement={announcement}
-            runId={runId}
-          />
-        </div>
-      </div>
-
       <div
         ref={canvasBoxRef}
         data-climb-surface
-        className="relative h-full w-full overflow-hidden"
+        className="exp-stage relative h-full w-full overflow-hidden"
       >
         <ClimbCanvas
           state={state}
@@ -231,6 +195,14 @@ export function ClimbScreen() {
           bottomInset={bottomInset}
           fullBleed
           hudInsetTop={safeArea.top}
+          includeHud={false}
+          floorMarkerInsetTop={safeArea.top + 80}
+        />
+
+        <ExpeditionHud player={player} hazardY={state.hazardY} tick={state.tick}
+          muted={muted} onToggleMute={() => setMuted(!muted)} announcement={announcement} runId={runId}
+          topInset={safeArea.top} leftInset={safeArea.left} rightInset={safeArea.right}
+          backControl={<button type="button" data-game-control className="exp-utility" aria-label="Back to home" title="Back to home" onClick={() => { void tapLight(); navigate("/"); }}>←</button>}
         />
 
         {phase === "countdown" && (

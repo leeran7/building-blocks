@@ -15,7 +15,6 @@ import {
   POWER_UP_SPECS,
   GIANT_VISUAL_SCALE,
   cooldownRemaining,
-  isExpired,
   isPowerUpActive,
 } from "../../game/powerups";
 import { HUD_ALTITUDE_FONT_UI } from "../../design/climbFeelTokens";
@@ -25,12 +24,12 @@ import {
   climbView,
   followCamY,
 } from "./climbCamera";
+import { drawFloorMarker } from "./FloorMarker";
 import { drawClimbBackground } from "./climbBackground";
 import { drawLava, LAVA_SLOWED } from "./lava";
 import {
   PICKUP_BURST_TICKS,
   PICKUP_FLASH_TICKS,
-  drawActivePowerUpEffect,
   drawJetpackFlame,
   drawPickupBanner,
   drawPickupBurst,
@@ -43,12 +42,12 @@ const VOID = "#0a0a0c";
 const SURFACE = "#17161c";
 const BORDER = "#37343f";
 const ACCENT = "#cbf24d";
-const PLATFORM = "#38353f";
-const PLATFORM_TOP = "#4a4656";
+const PLATFORM = "#373638";
+const PLATFORM_TOP = "#b8b3ab";
 const CRATE = "#2a2730";
 const CRATE_TOP = "#4a4656";
 const CRATE_FACE = "#3a3644";
-const LADDER = "#8a86a0";
+const LADDER = "#aaa9ad";
 const OPPONENT_COLOR = "#6bb8ff"; // wayfinding blue — opponent in a duel
 /** Decorative / eliminated only — never body or lava HUD (AC-1 / AC-13). */
 const TEXT_MUTED = "#74707e";
@@ -81,6 +80,8 @@ export type PaintClimbFrameOptions = {
   reducedMotion?: boolean;
   bottomInset?: number;
   hudInsetTop?: number;
+  /** Screen-space exclusion for floor labels behind the instrument row. */
+  floorMarkerInsetTop?: number;
   /** Export/viewer: still draw world HUD; never receives transport chrome. */
   includeHud?: boolean;
   /**
@@ -177,15 +178,8 @@ export function paintClimbFrame(
     const fy = floorHeight(tower, i);
     const y = sy(fy);
     if (y < -20 || y > height + 20) continue;
-    ctx.strokeStyle = BORDER;
-    ctx.globalAlpha = 0.22;
-    ctx.beginPath();
-    ctx.moveTo(0, y);
-    ctx.lineTo(width, y);
-    ctx.stroke();
-    ctx.globalAlpha = 1;
-    ctx.fillStyle = TEXT_SECONDARY;
-    ctx.fillText(formatAltitude(Math.round(fy), 0), 4 * ui, y - 3 * ui);
+    if (y < (opts.floorMarkerInsetTop ?? 0) + 18 * ui) continue;
+    drawFloorMarker(ctx, { y, altitude: fy, scale: ui });
   }
 
   for (const { ladder: l } of laddersNearY(tower, yLow, yHigh)) {
@@ -221,7 +215,12 @@ export function paintClimbFrame(
     ctx.fillStyle = PLATFORM;
     ctx.fillRect(x0, top, w, slab);
     ctx.fillStyle = PLATFORM_TOP;
-    ctx.fillRect(x0, top, w, 2 * ui);
+    ctx.fillRect(x0, top, w, Math.max(1, ui * 0.65));
+    ctx.fillStyle = "rgba(244,242,236,0.12)";
+    ctx.fillRect(x0 + ui, top + ui, Math.max(0, w - 2 * ui), 1.1 * ui);
+    ctx.fillStyle = "rgba(10,10,12,0.55)";
+    ctx.fillRect(x0, top + slab - 1.5 * ui, w, 1.5 * ui);
+    ctx.fillRect(x0 + w - ui, top + ui, ui, slab - ui);
   }
 
   for (const o of obstaclesNearY(tower, yLow, yHigh)) {
@@ -301,25 +300,8 @@ export function paintClimbFrame(
       Math.max(5, pxPerM * 1.7) *
       (isPowerUpActive(p, "giant", state.tick) ? GIANT_VISUAL_SCALE : 1);
 
-    // Auras are local-only — keeps the opponent read clean.
-    if (isLocal) {
-      const live = p.activePowerUps.filter((a) => !isExpired(a, state.tick));
-      live.forEach((a) => {
-        drawActivePowerUpEffect(
-          ctx,
-          a.type,
-          pxScreen,
-          pFeetY,
-          pS,
-          pFacing,
-          state.tick,
-          a,
-          p,
-          reducedMotion
-        );
-      });
-    }
-
+    // Power status belongs in the instrument stack; keep the player silhouette
+    // clear of rings and orbiting effects in the traversal path.
     drawClimber(ctx, pxScreen, pFeetY, pS, pFacing, pPose, state.tick, pColor, reducedMotion);
 
     if (isLocal && p.jetpackThrusting) {
@@ -497,6 +479,19 @@ function drawClimber(
 
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
+  // Draw a dark silhouette first, so lime stays readable over lava and rock.
+  ctx.strokeStyle = VOID;
+  ctx.lineWidth = limbW + Math.max(2, s * 0.2);
+  limb(ctx, fx - 0.12 * s, hipY, leftFoot);
+  limb(ctx, fx + 0.12 * s, hipY, rightFoot);
+  limb(ctx, fx - 0.1 * s, shoulderY + 0.2 * s, leftHand);
+  limb(ctx, fx + 0.1 * s, shoulderY + 0.2 * s, rightHand);
+  ctx.beginPath();
+  ctx.ellipse(fx, (hipY + shoulderY) / 2, 0.34 * s, 0.55 * s, 0, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(fx, headY, headR, 0, Math.PI * 2);
+  ctx.stroke();
   ctx.strokeStyle = color;
   ctx.lineWidth = limbW;
 

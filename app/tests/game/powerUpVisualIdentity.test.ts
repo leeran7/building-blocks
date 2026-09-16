@@ -1,5 +1,5 @@
 /**
- * AC-1–AC-17 power-up visual identity. Invokes PowerUpHud, ClimbControlsGuide,
+ * AC-1–AC-17 power-up visual identity. Invokes ActivePowerStack, ClimbControlsGuide,
  * drawPowerUpOrb, and drawPickupBanner. Imports production catalogs — does not
  * clone them or grep app/src for former glyphs.
  */
@@ -14,7 +14,7 @@ vi.mock("../../src/hooks/useCoarsePointer", () => ({
 
 import { useCoarsePointer } from "../../src/hooks/useCoarsePointer";
 import { ClimbControlsGuide } from "../../src/components/Game/ClimbControlsGuide";
-import { PowerUpHud } from "../../src/components/Game/PowerUpHud";
+import { ActivePowerStack } from "../../src/components/Game/PowerUpHud";
 import {
   PICKUP_FLASH_TICKS,
   drawPickupBanner,
@@ -93,9 +93,9 @@ describe("AC-3 decorative mark and jetpack fuel/window copy", () => {
 });
 
 describe("AC-4 empty HUD and former-glyph retirement", () => {
-  it("empty HUD shows copy, zero type marks, and no former-glyph text", () => {
+  it("empty HUD renders nothing and has zero type marks", () => {
     const html = renderHudWithActive([], 0);
-    expect(textContent(html)).toContain("climbing — grab a glowing orb");
+    expect(html).toBe("");
     expect(dataPowerUpTypes(html)).toEqual([]);
     expect(formerGlyphsInText(chipRowText(html))).toEqual([]);
   });
@@ -304,12 +304,12 @@ describe("AC-15 locked type set and hex colors", () => {
       "jetpack",
       "slow-lava",
     ]);
-    expect(POWER_UP_SPECS["rapid-climb"].color).toBe("#4dd9f2");
-    expect(POWER_UP_SPECS["sprint-burst"].color).toBe("#f2d24d");
-    expect(POWER_UP_SPECS["super-jump"].color).toBe("#a98cf5");
-    expect(POWER_UP_SPECS.giant.color).toBe("#b8f57c");
-    expect(POWER_UP_SPECS.jetpack.color).toBe("#ff9a4a");
-    expect(POWER_UP_SPECS["slow-lava"].color).toBe("#ff8ad4");
+    expect(POWER_UP_SPECS["rapid-climb"].color).toBe("#00e5ff");
+    expect(POWER_UP_SPECS["sprint-burst"].color).toBe("#ffe600");
+    expect(POWER_UP_SPECS["super-jump"].color).toBe("#b84dff");
+    expect(POWER_UP_SPECS.giant.color).toBe("#66ff33");
+    expect(POWER_UP_SPECS.jetpack.color).toBe("#ff7a00");
+    expect(POWER_UP_SPECS["slow-lava"].color).toBe("#ff2bd6");
   });
 });
 
@@ -353,7 +353,7 @@ describe("AC-16 locked durations, fuel, and cooldown", () => {
     expect(POWER_UP_SPECS["slow-lava"].cooldownSeconds).toBe(40);
 
     const empty = renderHudWithActive([], 0);
-    expect(textContent(empty)).toContain("climbing — grab a glowing orb");
+    expect(empty).toBe("");
     const guide = renderGuide();
     expect(guide).toContain("7.5s fuel");
     expect(guide).toContain("30s window");
@@ -397,12 +397,12 @@ describe("former-glyph matcher (negative-guard fixture)", () => {
 const FORMER_GLYPHS = ["⇈", "»", "⇡", "◉", "▲", "◷"] as const;
 
 const LOCKED_COLORS: Record<PowerUpType, string> = {
-  "rapid-climb": "#4dd9f2",
-  "sprint-burst": "#f2d24d",
-  "super-jump": "#a98cf5",
-  giant: "#b8f57c",
-  jetpack: "#ff9a4a",
-  "slow-lava": "#ff8ad4",
+  "rapid-climb": "#00e5ff",
+  "sprint-burst": "#ffe600",
+  "super-jump": "#b84dff",
+  giant: "#66ff33",
+  jetpack: "#ff7a00",
+  "slow-lava": "#ff2bd6",
 };
 
 const PATH_GEOMETRY_METHODS = new Set([
@@ -433,15 +433,11 @@ type Recording = {
 
 function renderHudWithActive(active: ActivePowerUp[], tick: number): string {
   return renderToStaticMarkup(
-    createElement(PowerUpHud, {
+    createElement(ActivePowerStack, {
       player: { activePowerUps: active } as Parameters<
-        typeof PowerUpHud
+        typeof ActivePowerStack
       >[0]["player"],
       tick,
-      muted: false,
-      onToggleMute: () => {},
-      announcement: "",
-      runId: 1,
     })
   );
 }
@@ -467,23 +463,11 @@ function activeEntry(type: PowerUpType): ActivePowerUp {
 }
 
 function hudChips(html: string): { ariaLabel: string; html: string }[] {
-  const chips: { ariaLabel: string; html: string }[] = [];
-  const re = /aria-label="([^"]+)"/g;
-  let match: RegExpExecArray | null;
-  while ((match = re.exec(html))) {
-    const ariaLabel = match[1]!;
-    const spanStart = html.lastIndexOf("<span", match.index);
-    if (spanStart < 0) continue;
-    const innerStart = html.indexOf(">", spanStart) + 1;
-    const tabular = html.indexOf('class="tabular-nums"', innerStart);
-    if (tabular < 0) continue;
-    const chipEnd = html.indexOf("</span>", tabular);
-    chips.push({
-      ariaLabel,
-      html: html.slice(spanStart, chipEnd + "</span>".length),
-    });
-  }
-  return chips;
+  const starts = [...html.matchAll(/<div class="exp-cartridge"[^>]*aria-label="([^"]+)"[^>]*>/g)];
+  return starts.map((match, index) => ({
+    ariaLabel: decodeEntities(match[1]!),
+    html: html.slice(match.index, starts[index + 1]?.index ?? html.length),
+  }));
 }
 
 function dataPowerUpTypes(html: string): string[] {
@@ -516,9 +500,13 @@ function chipRowText(html: string): string {
 }
 
 function visibleChipSeconds(html: string): string[] {
-  return [...html.matchAll(/class="[^"]*tabular-nums[^"]*">([^<]+)</g)].map(
-    (match) => match[1]!
+  const fuel = [...html.matchAll(/class="exp-fuel-value">([\s\S]*?)<\/span>/g)].map(
+    match => match[1]!.replace(/<[^>]+>/g, "").trim().toLowerCase()
   );
+  const seconds = [...html.matchAll(/<strong>([0-9.]+)<small>s<\/small><\/strong>/g)].map(
+    match => `${match[1]}s`
+  );
+  return [...fuel, ...seconds];
 }
 
 function everySvgIsDecorative(html: string): boolean {

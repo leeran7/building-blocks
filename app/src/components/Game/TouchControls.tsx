@@ -14,6 +14,8 @@
  * cover the lava band well below the climber, who is held at ~62% of the view.
  */
 
+import "./expedition.css";
+
 import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { NO_TOUCH, type TouchInput } from "../../game/useClimb";
 import {
@@ -79,7 +81,7 @@ export function TouchControls({
   return (
     <div
       role="group"
-      className="absolute inset-x-0 bottom-0 z-10 select-none"
+      className="exp-mobile-controls absolute inset-x-0 bottom-0 z-10 select-none"
       style={{
         touchAction: "none",
         // Sit inside the safe area so the buttons clear the home indicator and
@@ -124,23 +126,8 @@ const TouchButton = memo(function TouchButton({
       aria-pressed={held}
       style={{ touchAction: "none" }}
       onContextMenu={(e) => e.preventDefault()}
-      className={
-        "relative flex flex-col items-center justify-center rounded-2xl border font-mono font-bold " +
-        "min-h-[104px] min-w-[44px] backdrop-blur-xs " +
-        "transition-[filter,transform,scale,background-color] " +
-        // One ternary per state rather than appending the held colour: competing
-        // background utilities are resolved by stylesheet order, not by the
-        // order they appear here, so an appended override silently loses.
-        // Backgrounds stay opaque enough to read over the orange lava band, and
-        // the pressed accent flips the glyph to dark for contrast on lime.
-        (held
-          ? accent
-            ? "border-signal bg-signal/90 text-void scale-95 "
-            : "border-border-strong bg-elevated/95 text-text-primary scale-95 "
-          : accent
-          ? "border-signal/70 bg-void/85 text-signal shadow-signal "
-          : "border-border-strong bg-void/80 text-text-primary ")
-      }
+      data-primary={Boolean(accent)}
+      className="exp-touch-button relative flex min-w-[44px] flex-col items-center justify-center font-mono font-bold"
       onPointerDown={(e) => {
         // Do not preventDefault: scrolling is already killed by
         // touch-action: none, and a cancelled pointerdown can skip pointerup
@@ -230,3 +217,6 @@ const ALL_CONTROLS: readonly Control[] = [
 export const TOUCH_CONTROLS_INSET = 112;
 /** Minimum bottom gutter under the buttons, matched to the container padding. */
 export const TOUCH_CONTROLS_MIN_BOTTOM = 10;
+
+/** Responsive presentation alias; the established input reducer is unchanged. */
+export const MobileControls = TouchControls;
