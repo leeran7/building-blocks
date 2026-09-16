@@ -22,7 +22,7 @@ import {
 import { TowerSpec } from "../../game/types";
 import { ClimbCanvas } from "./ClimbCanvas";
 import { ClimbControlsGuide } from "./ClimbControlsGuide";
-import { PowerUpHud } from "./PowerUpHud";
+import { ExpeditionHud } from "./ExpeditionHud";
 import { usePowerUpFeedback } from "./usePowerUpFeedback";
 import {
   cameraTargetY,
@@ -41,7 +41,7 @@ import { useCoarsePointer } from "../../hooks/useCoarsePointer";
 import { useSafeAreaInsets } from "../../hooks/useSafeAreaInsets";
 import { useBodyScrollLock } from "../../hooks/useBodyScrollLock";
 import { useFullscreen } from "../../hooks/useFullscreen";
-import { FullscreenButton } from "./FullscreenButton";
+
 import { climberHandle } from "../../lib/handle";
 import { ALTITUDE_UNIT, formatAltitudeLabel } from "../../lib/units";
 import { ShareRun } from "./ShareRun";
@@ -53,7 +53,7 @@ import {
 import { shouldCaptureReplayKey } from "../../game/replayTransport";
 import { ReplayTransportBar } from "./ReplayTransportBar";
 import { useReplayExport } from "./useReplayExport";
-import { GameExitButton } from "./GameExitButton";
+import { useRouter } from "next/navigation";
 
 export interface ClimbSceneProps {
   tower: TowerSpec;
@@ -112,6 +112,7 @@ export function ClimbScene({
   lobbyExtra,
   resultExtra,
 }: ClimbSceneProps) {
+  const router = useRouter();
   const reducedMotion = usePrefersReducedMotion();
   const touchDevice = useCoarsePointer();
   const {
@@ -395,12 +396,6 @@ export function ClimbScene({
             : "flex flex-col items-center gap-4 w-full"
       }
     >
-      {/* Full-bleed mobile stage covers the navbar, so give the player a way out.
-          Not shown while replaying (its own transport owns the top band). */}
-      {touchDevice && !replaying && (
-        <GameExitButton safeArea={safeArea} />
-      )}
-
       {savedBanner?.saved && (
         <div
           className={
@@ -427,44 +422,13 @@ export function ClimbScene({
         </div>
       )}
 
-      {/* Power-up strip. Desktop: in-flow above the canvas (see the note in
-          PowerUpHud on why it must not sit below it). Mobile: overlaid at the top
-          of the full-bleed stage, tucked just under the safe area + HUD bar. */}
-      <div
-        className={
-          touchDevice
-            ? "pointer-events-none absolute inset-x-0 top-0 z-20"
-            : undefined
-        }
-        style={
-          touchDevice
-            ? {
-                paddingTop: safeArea.top + MOBILE_HUD_BAR_PX,
-                paddingLeft: `max(8px, ${safeArea.left}px)`,
-                paddingRight: `max(8px, ${safeArea.right}px)`,
-              }
-            : { width: canvasSize.width }
-        }
-      >
-        <div className={touchDevice ? "pointer-events-auto" : undefined}>
-          <PowerUpHud
-            player={player}
-            tick={state.tick}
-            muted={muted}
-            onToggleMute={() => setMuted(!muted)}
-            announcement={announcement}
-            runId={runId}
-          />
-        </div>
-      </div>
-
       {/* Desktop: width tracks the canvas so overlays line up. Mobile: the box
           fills the whole full-bleed stage. */}
       <div
         ref={canvasBoxRef}
         data-climb-surface
         className={
-          touchDevice ? "relative h-full w-full overflow-hidden" : "relative"
+          touchDevice ? "exp-stage relative h-full w-full overflow-hidden" : "exp-stage relative"
         }
         style={touchDevice ? undefined : { width: canvasSize.width }}
       >
@@ -477,6 +441,20 @@ export function ClimbScene({
           bottomInset={bottomInset}
           fullBleed={touchDevice}
           hudInsetTop={touchDevice ? safeArea.top : 0}
+          includeHud={false}
+          floorMarkerInsetTop={(touchDevice ? safeArea.top : 0) + 80}
+        />
+
+        <ExpeditionHud
+          player={player} hazardY={state.hazardY} tick={state.tick}
+          muted={muted} onToggleMute={() => setMuted(!muted)}
+          announcement={announcement} runId={runId}
+          topInset={touchDevice ? safeArea.top : 0}
+          leftInset={touchDevice ? safeArea.left : 0}
+          rightInset={touchDevice ? safeArea.right : 0}
+          fullscreenSupported={!touchDevice && fullscreenSupported}
+          isFullscreen={isFullscreen} onToggleFullscreen={toggleFullscreen}
+          backControl={touchDevice && !replaying ? <button type="button" data-game-control className="exp-utility" aria-label="Back to home" title="Back to home" onClick={() => router.push("/")}>←</button> : undefined}
         />
 
         {phase === "countdown" && (
@@ -653,15 +631,7 @@ export function ClimbScene({
           <TouchControls active={touchControlsActive} onInput={setTouch} />
         )}
 
-        {/* Desktop full-screen toggle. Rendered last so it stays above the
-            lobby/results overlays and is clickable in every phase. */}
-        {!touchDevice && fullscreenSupported && (
-          <FullscreenButton
-            isFullscreen={isFullscreen}
-            onToggle={toggleFullscreen}
-            className="absolute right-2 top-2 z-30"
-          />
-        )}
+
       </div>
 
       <div className="sr-only" role="status" aria-live="polite">

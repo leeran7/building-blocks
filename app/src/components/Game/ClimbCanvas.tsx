@@ -62,6 +62,8 @@ export interface ClimbCanvasProps {
    * Local player's Firebase UID — determines which sprite gets lime vs blue.
    * When absent, slot 0 is treated as the local player.
    */
+  includeHud?: boolean;
+  floorMarkerInsetTop?: number;
   myId?: string;
   /**
    * Display names keyed by player id — used for nameplates drawn above each
@@ -79,6 +81,8 @@ export function ClimbCanvas({
   bottomInset = 0,
   fullBleed = false,
   hudInsetTop = 0,
+  includeHud = true,
+  floorMarkerInsetTop = 0,
   myId,
   playerNames,
 }: ClimbCanvasProps) {
@@ -98,8 +102,8 @@ export function ClimbCanvas({
   const feedRef = useRef(feed);
   feedRef.current = feed;
 
-  const optsRef = useRef({ width, height, reducedMotion, bottomInset, hudInsetTop, myId, playerNames });
-  optsRef.current = { width, height, reducedMotion, bottomInset, hudInsetTop, myId, playerNames };
+  const optsRef = useRef({ width, height, reducedMotion, bottomInset, hudInsetTop, includeHud, floorMarkerInsetTop, myId, playerNames });
+  optsRef.current = { width, height, reducedMotion, bottomInset, hudInsetTop, includeHud, floorMarkerInsetTop, myId, playerNames };
 
   const paint = useCallback((ts: number) => {
     const canvas = ref.current;
@@ -138,7 +142,8 @@ export function ClimbCanvas({
       reducedMotion: opts.reducedMotion,
       bottomInset: opts.bottomInset,
       hudInsetTop: opts.hudInsetTop,
-      includeHud: true,
+      includeHud: opts.includeHud,
+      floorMarkerInsetTop: opts.floorMarkerInsetTop,
       camera: camRef.current,
       dtSec,
       myId: opts.myId,

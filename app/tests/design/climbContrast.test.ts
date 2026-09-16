@@ -8,6 +8,7 @@ import {
   TEXT_MUTED,
   TEXT_SECONDARY,
 } from "../../src/components/Game/ClimbCanvas";
+import { POWER_UP_SPECS, POWER_UP_TYPES } from "../../src/game/powerups";
 
 const VOID = "#0a0a0c";
 const SURFACE = "#121116";
@@ -50,5 +51,16 @@ describe("climb text contrast tokens (AC-13)", () => {
     // Ledger: muted is for labels/glyphs only — body must not use it.
     expect(TEXT_MUTED).toBe("#74707e");
     expect(contrastRatio(TEXT_MUTED, VOID)).toBeLessThan(4.5);
+  });
+});
+
+describe("power-up palette contrast", () => {
+  it("every power-up color meets ≥4.5:1 on void", () => {
+    // The hot palette is decorative (icons, orbs, HUD chips) but it also
+    // colors chip labels and the slowed-lava altimeter text — keep it AA.
+    for (const type of POWER_UP_TYPES) {
+      expect(contrastRatio(POWER_UP_SPECS[type].color, VOID), type)
+        .toBeGreaterThanOrEqual(4.5);
+    }
   });
 });

@@ -15,9 +15,11 @@
  * composite / lineDash state leaks onto gameplay.
  */
 
+import { POWER_UP_SPECS } from "../../game/powerups";
+
 const LAVA = "#ff5a2c"; // ember — the rising hazard
-/** Matches the slow-lava orb; also used by the HUD label in ClimbCanvas. */
-export const LAVA_SLOWED = "#ff8ad4";
+/** Matches the slow-lava orb; also colors the slowed altimeter label in paintClimbFrame. */
+export const LAVA_SLOWED = POWER_UP_SPECS["slow-lava"].color;
 
 /** Fixed number of crest samples across the width — cost is width-independent. */
 const CREST_SEGMENTS = 40;
@@ -175,9 +177,9 @@ export function drawLava(ctx: CanvasRenderingContext2D, opts: LavaOptions): void
   ctx.beginPath();
   ctx.moveTo(0, crestY[0]);
   for (let i = 1; i <= CREST_SEGMENTS; i++) ctx.lineTo(i * step, crestY[i]);
-  ctx.strokeStyle = slowed ? "#ffffff" : "#fff0c0";
+  ctx.strokeStyle = slowed ? "#ffffff" : "#fff8dc";
   ctx.lineWidth = (slowed ? 1.6 : 2) * ui;
-  ctx.globalAlpha = slowed ? 0.5 : 0.75;
+  ctx.globalAlpha = slowed ? 0.65 : 0.95;
   ctx.stroke();
   ctx.globalAlpha = 1;
   ctx.globalCompositeOperation = "source-over";
@@ -223,7 +225,7 @@ export function drawLava(ctx: CanvasRenderingContext2D, opts: LavaOptions): void
     ctx.fill();
     // Bright highlight on the bubble crown.
     ctx.globalAlpha = 0.6 * swell;
-    ctx.fillStyle = slowed ? "#ffffff" : "#fff0c0";
+    ctx.fillStyle = slowed ? "#ffffff" : "#fff8dc";
     ctx.beginPath();
     ctx.arc(bx - r * 0.3, by - r * 0.3, r * 0.4, 0, 6.283);
     ctx.fill();

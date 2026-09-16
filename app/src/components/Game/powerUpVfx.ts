@@ -89,7 +89,7 @@ export function drawPowerUpOrb(
   const phase = tick * 0.08 + pu.floorIndex * 1.7;
   const bob = reducedMotion ? 0 : Math.sin(phase) * pxPerM * 0.45;
   const cy = baseY + bob;
-  const r = Math.max(9, pxPerM * 1.35);
+  const r = Math.max(11, pxPerM * 1.55);
   const spin = reducedMotion ? 0 : tick * 0.045 + pu.floorIndex * 0.31;
   const pulse = reducedMotion ? 0.35 : 0.28 + 0.16 * (0.5 + 0.5 * Math.sin(phase * 1.6));
   const dim = cooling ? 0.45 : 1;
@@ -145,13 +145,33 @@ export function drawPowerUpOrb(
   drawPowerUpIcon(ctx, pu.type, 0, 0, r * ORB_ICON_SIZE_FRAC, spec.color);
   ctx.restore();
 
-  // Name plate.
-  ctx.font = `${Math.round(8 * ui)}px monospace`;
+  // Name plate — bold label on a faint dark backing so it reads over the
+  // molten backdrop. Sized off the orb radius (not `ui`) so it stays a small
+  // world-space tag rather than blowing up into a HUD-scale button.
+  const label = spec.label.toUpperCase();
+  const labelPx = Math.round(Math.max(8, Math.min(9 * ui, r)));
+  ctx.font = `bold ${labelPx}px monospace`;
+  const labelW = ctx.measureText(label).width;
+  const plateY = cy + r * 1.95;
+  const padX = labelPx * 0.5;
+  const plateH = labelPx * 1.5;
+  ctx.globalAlpha = 0.6 * dim;
+  ctx.fillStyle = "#0a0a0c";
+  ctx.beginPath();
+  roundRect(
+    ctx,
+    cx - labelW / 2 - padX,
+    plateY - plateH * 0.72,
+    labelW + padX * 2,
+    plateH,
+    plateH * 0.3
+  );
+  ctx.fill();
+  ctx.globalAlpha = dim;
   ctx.fillStyle = spec.color;
-  ctx.globalAlpha = 0.85 * dim;
   ctx.textAlign = "center";
   ctx.textBaseline = "alphabetic";
-  ctx.fillText(spec.label.toUpperCase(), cx, cy + r * 1.95);
+  ctx.fillText(label, cx, plateY);
 
   ctx.restore();
   ctx.textAlign = "left";

@@ -52,7 +52,7 @@ const OVERLAY: readonly Rgb[] = [
   [10, 14, 22],
   [12, 18, 28],
 ];
-const OVERLAY_A = [0.18, 0.26, 0.34, 0.4, 0.46] as const;
+const OVERLAY_A = [0.3, 0.34, 0.39, 0.44, 0.49] as const;
 const EMBER = ["255,74,36", "255,102,48", "255,132,64", "255,176,80"] as const;
 /** Climb Feel 1.2× — re-export from climbFeelTokens (≤+20% of baseline 88). */
 export const EMBER_MAX = CLIMB_EMBER_MAX;
@@ -123,7 +123,10 @@ export function drawClimbBackground(
   ctx.save();
 
   if (src) {
+    // Desaturate only distant scenery; molten foreground keeps its heat.
+    ctx.filter = "saturate(0.72)";
     drawTiles(ctx, width, height, camWorldY, src);
+    ctx.filter = "none";
   } else {
     ctx.fillStyle = FALLBACK;
     ctx.fillRect(0, 0, width, height);
@@ -260,7 +263,7 @@ function drawEmber(
   const drift = Math.sin((reducedMotion ? 0 : t * (0.025 + 0.02 * hash(i, 29))) + phase * 6.283);
   const x = hash(i, 77) * w + drift * w * (0.012 + 0.03 * hash(i, 31));
   const tw = reducedMotion ? 0.85 : 0.45 + 0.55 * Math.sin(t * (0.16 + 0.08 * hash(i, 37)) + i);
-  const a = clamp01(0.85 * Math.sin(clamp01(p) * Math.PI) * tw) * heat;
+  const a = clamp01(0.48 * Math.sin(clamp01(p) * Math.PI) * tw) * heat;
   if (a <= 0.01) return;
 
   const spin = reducedMotion ? 0 : t * (0.04 + 0.08 * hash(i, 41)) + phase * 6.283;

@@ -1,7 +1,7 @@
 /**
  * AC-J11 / AC-J12 presentation: HUD fuel chip, guide copy, and audio type gate.
  *
- * powerUpChipMeter is not a contract until PowerUpHud calls it. Guide copy is
+ * powerUpChipMeter is not a contract until ActivePowerStack calls it. Guide copy is
  * not a contract until ClimbControlsGuide renders it. These tests invoke the
  * production components rather than grepping their source.
  */
@@ -16,7 +16,7 @@ vi.mock("../../src/hooks/useCoarsePointer", () => ({
 
 import { useCoarsePointer } from "../../src/hooks/useCoarsePointer";
 import { ClimbControlsGuide } from "../../src/components/Game/ClimbControlsGuide";
-import { PowerUpHud } from "../../src/components/Game/PowerUpHud";
+import { ActivePowerStack } from "../../src/components/Game/PowerUpHud";
 import {
   DEATH_HIT_ATTACK,
   DEATH_HIT_PEAK,
@@ -75,18 +75,14 @@ function renderHud(
   tick: number
 ): string {
   return renderToStaticMarkup(
-    createElement(PowerUpHud, {
+    createElement(ActivePowerStack, {
       player,
       tick,
-      muted: false,
-      onToggleMute: () => {},
-      announcement: "",
-      runId: 1,
     })
   );
 }
 
-describe("AC-J11 PowerUpHud calls powerUpChipMeter", () => {
+describe("AC-J11 ActivePowerStack calls powerUpChipMeter", () => {
   it("shows fuel on the chip and names fuel plus window in the aria-label", () => {
     const m = climbingHudMatch();
     const p = m.players[0]!;
@@ -195,7 +191,11 @@ describe("world SFX: jetpack loop, lava doom, death hit", () => {
 });
 
 function visibleChipSeconds(html: string): string[] {
-  return [...html.matchAll(/class="[^"]*tabular-nums[^"]*">([^<]+)</g)].map(
-    (match) => match[1]!
+  const fuel = [...html.matchAll(/class="exp-fuel-value">([\s\S]*?)<\/span>/g)].map(
+    match => match[1]!.replace(/<[^>]+>/g, "").trim().toLowerCase()
   );
+  const seconds = [...html.matchAll(/<strong>([0-9.]+)<small>s<\/small><\/strong>/g)].map(
+    match => `${match[1]}s`
+  );
+  return [...fuel, ...seconds];
 }

@@ -1,6 +1,5 @@
 import { useNavigate, useLocation } from "react-router-dom";
 import { tapLight } from "../lib/haptics";
-import { LogoMark } from "./LogoMark";
 
 const TABS = [
   { label: "Home", path: "/", icon: HomeIcon },
@@ -19,7 +18,7 @@ export function BottomNav() {
     >
       <nav
         aria-label="Main navigation"
-        className="flex items-center justify-around rounded-[28px] border border-border-subtle bg-surface/85 px-2 py-3 backdrop-blur-sm"
+        className="flex items-center justify-around gap-1 rounded-full border border-white/10 bg-void/55 px-2 py-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_8px_32px_-8px_rgba(0,0,0,0.55)] backdrop-blur-2xl backdrop-saturate-150"
       >
         {TABS.map(({ label, path, icon: Icon }) => {
           const active = pathname === path;
@@ -32,16 +31,10 @@ export function BottomNav() {
               }}
               aria-label={label}
               aria-current={active ? "page" : undefined}
-              className="flex flex-col items-center gap-1.5 px-4 py-1 transition-transform active:scale-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void"
+              className={`flex flex-col items-center gap-1 rounded-full px-5 py-2 transition-[transform,colors] active:scale-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void ${active ? "bg-signal/20 text-signal ring-1 ring-inset ring-signal/25" : "text-text-secondary"}`}
             >
-              <span
-                className={`flex h-10 w-10 items-center justify-center rounded-xl border transition-colors ${active ? "border-signal/30 bg-signal/15 text-signal" : "border-transparent text-text-secondary"}`}
-              >
-                <Icon active={active} />
-              </span>
-              <span
-                className={`font-mono text-[9px] uppercase tracking-[0.15em] transition-colors ${active ? "text-signal" : "text-text-secondary"}`}
-              >
+              <Icon />
+              <span className="font-mono text-[9px] uppercase tracking-[0.15em]">
                 {label}
               </span>
             </button>
@@ -52,15 +45,16 @@ export function BottomNav() {
   );
 }
 
-function HomeIcon({ active: _ }: { active: boolean }) {
+function HomeIcon() {
   return (
-    <span aria-hidden="true">
-      <LogoMark size={20} />
-    </span>
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+      <path d="M9 22V12h6v10" />
+    </svg>
   );
 }
 
-function TrophyIcon({ active: _ }: { active: boolean }) {
+function TrophyIcon() {
   return (
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
       <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6" />
@@ -73,7 +67,7 @@ function TrophyIcon({ active: _ }: { active: boolean }) {
   );
 }
 
-function UserIcon({ active: _ }: { active: boolean }) {
+function UserIcon() {
   return (
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
       <circle cx="12" cy="8" r="4" />
