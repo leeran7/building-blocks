@@ -72,6 +72,9 @@ model User {
   creditPurchases        CreditPurchase[]
   walletLedger           WalletLedger[]
   tournamentEntries      TournamentEntry[]
+  challengesSent         Challenge[]         @relation("ChallengeSender")
+  challengesReceived     Challenge[]         @relation("ChallengeRecipient")
+  notifications          Notification[]
 
   @@map("users")
 }
@@ -147,6 +150,65 @@ model ClimbRun {
   @@index([category_slug, created_at], name: "climb_run_category_idx")
   @@index([userId, created_at(sort: Desc)], name: "climb_run_user_idx")
   @@map("climb_runs")
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// In-app challenges & notifications
+// ═══════════════════════════════════════════════════════════════════════════
+
+enum ChallengeStatus {
+  pending
+  accepted
+  declined
+  expired
+  cancelled
+}
+
+// A targeted 1v1 invitation from one user to another. Decoupled from Duel
+// until accepted — a Duel is only created when the recipient accepts.
+model Challenge {
+  id             String          @id @default(cuid())
+  sender_id      String
+  recipient_id   String
+  category_slug  String
+  status         ChallengeStatus @default(pending)
+  duel_id        String?
+  expires_at     DateTime
+  created_at     DateTime        @default(now())
+  updated_at     DateTime        @updatedAt
+
+  sender    User  @relation("ChallengeSender", fields: [sender_id], references: [id], onDelete: Cascade)
+  recipient User  @relation("ChallengeRecipient", fields: [recipient_id], references: [id], onDelete: Cascade)
+
+  @@index([sender_id, status], name: "challenge_sender_status_idx")
+  @@index([recipient_id, status], name: "challenge_recipient_status_idx")
+  @@index([expires_at], name: "challenge_expires_at_idx")
+  @@map("challenges")
+}
+
+enum NotificationType {
+  challenge_received
+  challenge_accepted
+  challenge_declined
+  challenge_expired
+  duel_result
+  system
+}
+
+model Notification {
+  id         String           @id @default(cuid())
+  user_id    String
+  type       NotificationType
+  title      String
+  body       String
+  data       Json?
+  read       Boolean          @default(false)
+  created_at DateTime         @default(now())
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id, read, created_at(sort: Desc)], name: "notification_user_read_idx")
+  @@map("notifications")
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

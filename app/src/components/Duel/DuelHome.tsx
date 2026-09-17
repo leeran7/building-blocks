@@ -33,6 +33,8 @@ import { Spinner } from "../ui/Spinner";
 import { NavTab } from "../ui/NavTab";
 import { SignInGate } from "../ui/SignInGate";
 import { Button } from "../ui/Button";
+import { UserSearch } from "../Challenge/UserSearch";
+import { PendingChallenges } from "../Challenge/PendingChallenges";
 
 // ─────────────────────────────── Types ────────────────────────────────────
 
@@ -248,6 +250,35 @@ export function DuelHome() {
     }
   }, [token]);
 
+  // ─────────────── In-app challenge ───────────────
+
+  const [challengeSending, setChallengeSending] = useState(false);
+
+  const handleInAppChallenge = useCallback(
+    async (userId: string, displayName: string) => {
+      if (!token) return;
+      setChallengeSending(true);
+      try {
+        const res = await authedFetch("/api/challenge", token, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ recipientId: userId, categorySlug: "tech" }),
+        });
+        if (!res.ok) {
+          const body = (await res.json().catch(() => ({}))) as { error?: string };
+          setCreateState({
+            status: "error",
+            message: body.error ?? `Could not challenge ${displayName}.`,
+          });
+        }
+      } catch {
+        setCreateState({ status: "error", message: "Network error. Please try again." });
+      }
+      setChallengeSending(false);
+    },
+    [token]
+  );
+
   // ─────────────── Render ───────────────
 
   const paidEnabled = PAID_DUELS_ENABLED_PUBLIC;
@@ -428,49 +459,63 @@ export function DuelHome() {
             )}
           </section>
         ) : activeMode === "challenge" ? (
-          <section className="bg-surface rounded-xl border border-border-subtle p-6">
-            <h2 className="font-mono text-xs uppercase tracking-[0.14em] text-text-muted mb-1">
-              Challenge a friend
-            </h2>
-            <p className="text-text-secondary text-sm mb-5">
-              Create a private challenge link and share it with a specific opponent.
-            </p>
+          <section className="bg-surface rounded-xl border border-border-subtle p-6 flex flex-col gap-5">
+            <div>
+              <h2 className="font-mono text-xs uppercase tracking-[0.14em] text-text-muted mb-1">
+                Challenge a player
+              </h2>
+              <p className="text-text-secondary text-sm mb-3">
+                Search for a player by username to send them a challenge.
+              </p>
+              <UserSearch onChallenge={handleInAppChallenge} disabled={challengeSending} />
+            </div>
 
-            <p className="sr-only" aria-live="polite">
-              {createState.status === "loading"
-                ? "Creating challenge…"
-                : createState.status === "error"
-                  ? createState.message
-                  : ""}
-            </p>
+            <PendingChallenges />
 
-            {createState.status === "idle" && (
-              <Button
-                ref={createButtonRef}
-                variant="primary"
-                size="lg"
-                fullWidth
-                onClick={handleCreate}
-              >
-                Create challenge link
-              </Button>
-            )}
+            <div className="border-t border-border-subtle pt-4">
+              <h3 className="font-mono text-[11px] uppercase tracking-[0.14em] text-text-muted mb-1">
+                Or share a link
+              </h3>
+              <p className="text-text-secondary text-xs mb-3">
+                Create a private challenge link to share outside the app.
+              </p>
 
-            {createState.status === "loading" && (
-              <div className="flex items-center gap-2 text-text-muted text-sm">
-                <Spinner />
-                Creating…
-              </div>
-            )}
+              <p className="sr-only" aria-live="polite">
+                {createState.status === "loading"
+                  ? "Creating challenge…"
+                  : createState.status === "error"
+                    ? createState.message
+                    : ""}
+              </p>
 
-            {createState.status === "error" && (
-              <div className="flex flex-col gap-2" role="alert">
-                <p className="text-ember text-sm">{createState.message}</p>
-                <Button variant="ghost" size="sm" onClick={() => setCreateState({ status: "idle" })}>
-                  Try again
+              {createState.status === "idle" && (
+                <Button
+                  ref={createButtonRef}
+                  variant="ghost"
+                  size="sm"
+                  fullWidth
+                  onClick={handleCreate}
+                >
+                  Create challenge link
                 </Button>
-              </div>
-            )}
+              )}
+
+              {createState.status === "loading" && (
+                <div className="flex items-center gap-2 text-text-muted text-sm">
+                  <Spinner />
+                  Creating…
+                </div>
+              )}
+
+              {createState.status === "error" && (
+                <div className="flex flex-col gap-2" role="alert">
+                  <p className="text-ember text-sm">{createState.message}</p>
+                  <Button variant="ghost" size="sm" onClick={() => setCreateState({ status: "idle" })}>
+                    Try again
+                  </Button>
+                </div>
+              )}
+            </div>
           </section>
         ) : activeMode === "chips" ? (
           <section className="bg-surface rounded-xl border border-signal/30 shadow-signal p-6">
