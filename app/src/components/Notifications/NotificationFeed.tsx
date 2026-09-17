@@ -82,7 +82,7 @@ export function NotificationFeed({ onClose, onMarkRead }: NotificationFeedProps)
         router.push(`/duel/${data.duelId}`);
         onClose();
       } else if (data?.challengeId && item.type === "challenge_received") {
-        router.push("/duel");
+        router.push("/duel?mode=challenge");
         onClose();
       }
     },
@@ -90,7 +90,7 @@ export function NotificationFeed({ onClose, onMarkRead }: NotificationFeedProps)
   );
 
   return (
-    <div className="reveal absolute right-0 mt-2 w-80 max-h-[28rem] overflow-y-auto rounded-xl border border-border-strong bg-surface-raised shadow-lifted">
+    <div className="reveal absolute right-0 mt-2 w-[calc(100vw-2rem)] sm:w-80 max-h-[28rem] overflow-y-auto rounded-xl border border-border-strong bg-surface-raised shadow-lifted">
       <div className="sticky top-0 z-10 bg-surface-raised border-b border-border-subtle px-4 py-3 flex items-center justify-between">
         <h2 className="font-mono text-xs uppercase tracking-[0.14em] text-text-muted">
           Notifications

@@ -12,7 +12,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "../../contexts/AuthContext";
 import { shareInvite } from "../../lib/shareInvite";
@@ -71,11 +71,18 @@ type QueueState =
 export function DuelHome() {
   const { user, token, isAnonymous } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
+
+  const initialMode = ((): DuelMode => {
+    const param = searchParams.get("mode");
+    if (param === "challenge" || param === "quick" || param === "chips" || param === "tournaments") return param;
+    return "quick";
+  })();
 
   const [createState, setCreateState] = useState<CreateState>({ status: "idle" });
   const [queueState, setQueueState] = useState<QueueState>({ status: "idle" });
   const [stats, setStats] = useState<DuelStats | null>(null);
-  const [mode, setMode] = useState<DuelMode>("quick");
+  const [mode, setMode] = useState<DuelMode>(initialMode);
   const [buyOpen, setBuyOpen] = useState(false);
   const { state: claimState, claim } = useClaimDailyChips(token);
   const { allowed: geoAllowed } = useRankedEligibility(PAID_DUELS_ENABLED_PUBLIC);
