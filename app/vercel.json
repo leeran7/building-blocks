@@ -3,9 +3,6 @@
   "buildCommand": "export DIRECT_URL=\"${DIRECT_URL:-$DATABASE_URL}\" && pnpm db:migrate && pnpm build",
   "installCommand": "pnpm install",
   "outputDirectory": ".next",
-  "crons": [
-    { "path": "/api/cron/reap-challenges", "schedule": "0 * * * *" }
-  ],
   "functions": {
     "app/api/social/agent/runs/route.js": { "maxDuration": 60 },
     "app/api/social/agent/runs/[id]/step/route.js": { "maxDuration": 60 },
