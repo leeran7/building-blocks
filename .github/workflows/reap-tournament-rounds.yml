@@ -1,0 +1,38 @@
+name: Reap tournament rounds
+
+# Sweeps stale active duels in in-progress tournaments and advances
+# rounds when all matches are resolved. Idempotent (reap guards per
+# duel, advance is a no-op when pending matches remain), so overlapping
+# or missed runs are harmless.
+#
+# Required repo secrets:
+#   REAP_TOURNAMENT_ROUNDS_URL   — https://<prod-domain>/api/cron/reap-tournament-rounds
+#   REAP_TOURNAMENT_ROUNDS_TOKEN — must equal the deployment's INTERNAL_TOKEN env var
+on:
+  schedule:
+    - cron: "*/5 * * * *" # every 5 minutes (UTC)
+  workflow_dispatch: {} # allow manual runs from the Actions tab
+
+permissions:
+  contents: read
+
+jobs:
+  reap:
+    name: Reap tournament rounds
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping reap endpoint
+        env:
+          REAP_TOURNAMENT_ROUNDS_URL: ${{ secrets.REAP_TOURNAMENT_ROUNDS_URL }}
+          REAP_TOURNAMENT_ROUNDS_TOKEN: ${{ secrets.REAP_TOURNAMENT_ROUNDS_TOKEN }}
+        run: |
+          if [ -z "$REAP_TOURNAMENT_ROUNDS_URL" ] || [ -z "$REAP_TOURNAMENT_ROUNDS_TOKEN" ]; then
+            echo "REAP_TOURNAMENT_ROUNDS_URL / REAP_TOURNAMENT_ROUNDS_TOKEN not configured — skipping."
+            exit 0
+          fi
+          code=$(curl -sS -o /tmp/reap.out -w "%{http_code}" \
+            -H "x-internal-token: $REAP_TOURNAMENT_ROUNDS_TOKEN" \
+            "$REAP_TOURNAMENT_ROUNDS_URL")
+          echo "HTTP $code"
+          cat /tmp/reap.out || true
+          test "$code" = "200"
