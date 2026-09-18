@@ -34,6 +34,7 @@ import {
   DASHBOARD_HREF,
   DUEL_HREF,
 } from "../navLinks";
+import { AddFriendButton } from "../Challenge/AddFriendButton";
 import type { RealtimeHandle } from "../../net/realtime";
 import type { ResultSource } from "../../game/useRace";
 
@@ -562,6 +563,14 @@ export function DuelResult({
         </button>
         {shareFailed && (
           <p className="text-ember text-xs text-center">Couldn&apos;t copy the link.</p>
+        )}
+
+        {/* Add friend — shown when signed in and opponent is not already a friend */}
+        {user && opponentId && (
+          <AddFriendButton
+            opponentId={opponentId}
+            opponentName={player1Id === myId ? player2Name : player1Name}
+          />
         )}
 
         {/* Post-free-duel: low-key nudge toward paid at the highest-intent moment.
