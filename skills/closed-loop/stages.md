@@ -2,16 +2,46 @@
 
 ## Primary loop (always run)
 
+```mermaid
+graph LR
+  PS([product-spec]) --> A([architect])
+  A --> I([implementer])
+  I --> V([verifier])
+
+  V --> R([reviewer])
+  V --> SR([security-reviewer])
+
+  R --> QA([qa-acceptance])
+  SR --> QA
+
+  QA --> INT([integrator])
+
+  R -. "critical findings" .-> I
+  SR -. "critical findings" .-> I
+  V -. "test failures" .-> I
+  QA -. "acceptance failures" .-> I
+  QA -. "spec wrong" .-> PS
 ```
-product-spec → architect → implementer → verifier
-                                              ↓
-                        reviewer + security-reviewer (parallel)
-                                              ↓
-                                   qa-acceptance → integrator
-                                    ↑         ↑
-                                    └─────────┘
-                                    (failures loop back)
+
+<details><summary>Text fallback</summary>
+
 ```
+  product-spec ──▶ architect ──▶ implementer ◀─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┐
+                                      │                              │
+                                      ▼                              │
+                                  verifier ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┤
+                                 ╱        ╲                          │
+                                ▼          ▼                         │
+                           reviewer    security-reviewer             │
+                                ╲          ╱          findings / failures
+                                 ▼        ▼                          │
+                              qa-acceptance ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─┘
+                                      │
+                                      ▼
+                                 integrator
+```
+
+</details>
 
 ## Parallel quality gates (after verifier)
 

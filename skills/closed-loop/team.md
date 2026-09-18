@@ -19,12 +19,16 @@ without `subagent_type`) does **not** count.
 
 ## Required team (cannot skip)
 
-```
-product-spec → architect → implementer → verifier
-                                              ↓
-                          reviewer + security-reviewer (same message, parallel)
-                                              ↓
-                                       qa-acceptance → integrator
+```mermaid
+graph LR
+  PS([product-spec]) --> A([architect])
+  A --> I([implementer])
+  I --> V([verifier])
+  V --> R([reviewer])
+  V --> SR([security-reviewer])
+  R --> QA([qa-acceptance])
+  SR --> QA
+  QA --> INT([integrator])
 ```
 
 These 8 agents are the full team. The implementer owns all code — frontend,

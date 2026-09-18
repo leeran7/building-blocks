@@ -20,13 +20,71 @@ All work goes through `@orchestrator` (or `/closed-loop`). Do not implement
 directly — dispatch the closed-loop team. The orchestrator coordinates the
 8 required agents:
 
+```mermaid
+graph LR
+  PS([product-spec]) --> A([architect])
+  A --> I([implementer])
+  I --> V([verifier])
+
+  V --> R([reviewer])
+  V --> SR([security-reviewer])
+
+  R --> QA([qa-acceptance])
+  SR --> QA
+
+  QA --> INT([integrator])
+
+  R -. "critical findings" .-> I
+  SR -. "critical findings" .-> I
+  V -. "test failures" .-> I
+  QA -. "acceptance failures" .-> I
+
+  style PS fill:#1e1c24,stroke:#cbf24d,color:#f4f2ec
+  style A fill:#1e1c24,stroke:#cbf24d,color:#f4f2ec
+  style I fill:#1e1c24,stroke:#cbf24d,color:#f4f2ec
+  style V fill:#1e1c24,stroke:#cbf24d,color:#f4f2ec
+  style R fill:#1e1c24,stroke:#a8a4b2,color:#f4f2ec
+  style SR fill:#1e1c24,stroke:#a8a4b2,color:#f4f2ec
+  style QA fill:#1e1c24,stroke:#a8a4b2,color:#f4f2ec
+  style INT fill:#1e1c24,stroke:#cbf24d,color:#f4f2ec
 ```
-product-spec → architect → implementer → verifier
-                                              ↓
-                        reviewer + security-reviewer (parallel)
-                                              ↓
-                                   qa-acceptance → integrator
+
+<details><summary>Text version</summary>
+
 ```
+                    ┌─────────────────────────────────────────────────────────┐
+                    │                     ORCHESTRATOR                        │
+                    │                                                         │
+                    │   ┌──────────┐   ┌───────────┐   ┌──────────────┐       │
+                    │   │ product- │──▶│ architect  │──▶│ implementer  │◀──┐   │
+                    │   │   spec   │   └───────────┘   └──────┬───────┘   │   │
+                    │   └──────────┘                          │            │   │
+                    │                                         ▼            │   │
+                    │                                  ┌───────────┐       │   │
+                    │                                  │ verifier  │───────┤   │
+                    │                                  └─────┬─────┘       │   │
+                    │                          ┌─────────────┼─────────┐   │   │
+                    │                          ▼                       ▼   │   │
+                    │                   ┌───────────┐          ┌──────────┐│   │
+                    │                   │ reviewer  │──┐       │ security-││   │
+                    │                   └───────────┘  │       │ reviewer ││   │
+                    │                                  │       └─────┬────┘│   │
+                    │                                  ▼             │     │   │
+                    │                           ┌──────────────┐     │     │   │
+                    │              findings ····│qa-acceptance │◀────┘     │   │
+                    │              loop back    └──────┬───────┘           │   │
+                    │                ·                 │                   │   │
+                    │                · · · · · · · · · · · · · · · · · · ·┘   │
+                    │                                 ▼                       │
+                    │                          ┌───────────┐                  │
+                    │                          │integrator │                  │
+                    │                          └───────────┘                  │
+                    └─────────────────────────────────────────────────────────┘
+
+  ──▶  forward flow        · · · ·  loop-back (critical findings / failures)
+```
+
+</details>
 
 Fix critical findings and re-run until `status: success`. Persist read-only
 agents' `learnings` into `loop/learnings.jsonl`.
