@@ -78,7 +78,7 @@ The orchestrator stops the loop when ALL are true:
 | Platform | Delegate to subagent |
 |----------|---------------------|
 | Cursor | Task tool with `subagent_type` **equal to the agent name** |
-| Claude Code | Agent tool with `subagent_type` matching the agent name |
+| Codex | Agent tool with `subagent_type` matching the agent name |
 
 `custom` / `generalPurpose` / implementing the stage yourself is a loop defect.
 See [team.md](team.md).

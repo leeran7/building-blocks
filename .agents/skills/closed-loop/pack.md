@@ -109,7 +109,7 @@ product memory.
 
 ## Runtime: how an agent sees the layers
 
-1. **Cursor / Claude Code** — platform agent file = protocol (prepended by
+1. **Cursor / Codex** — platform agent file = protocol (prepended by
    sync) + role body. Skills live under `skills/closed-loop/` or
    `.claude/skills/closed-loop/`. The agent reads `context/` and the ledger.
 2. **`yarn loop`** — `buildStagePrompt` wraps goal, **repo `context/`**,

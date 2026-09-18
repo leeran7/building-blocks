@@ -34,6 +34,32 @@ function extractName(frontmatterRaw) {
   return match?.[1]?.trim();
 }
 
+function extractDescription(frontmatterRaw) {
+  const single = frontmatterRaw.match(/^description:\s+(.+)$/m);
+  if (single && !single[1].startsWith(">")) return single[1].trim();
+  const folded = frontmatterRaw.match(/^description:\s*>-?\n((?:[ \t]+.*\n?)*)/m);
+  if (!folded) return "";
+  return folded[1].replace(/\n\s*/g, " ").trim();
+}
+
+function toCodexToml(name, description, composedBody) {
+  const trimmed = composedBody.replace(/\n+$/, "");
+  const escaped = trimmed.replaceAll('\\', '\\\\').replaceAll('"""', '\\"\\"\\"');
+  return `name = ${JSON.stringify(name)}\ndescription = ${JSON.stringify(description)}\ndeveloper_instructions = """\n${escaped}"""\n`;
+}
+
+const CODEX_REPLACEMENTS = [
+  [/Claude Code/g, "Codex"],
+];
+
+function codexify(text) {
+  let result = text;
+  for (const [pattern, replacement] of CODEX_REPLACEMENTS) {
+    result = result.replace(pattern, replacement);
+  }
+  return result;
+}
+
 function buildClaudeFrontmatter(frontmatterRaw, claudeConfig) {
   const lines = [frontmatterRaw.trim()];
   if (claudeConfig.tools?.length) {
@@ -79,6 +105,7 @@ async function syncAgents(claudeConfig, protocolBody) {
 
   await mkdir(join(ROOT, ".cursor", "agents"), { recursive: true });
   await mkdir(join(ROOT, ".claude", "agents"), { recursive: true });
+  await mkdir(join(ROOT, ".codex", "agents"), { recursive: true });
 
   for (const file of files) {
     const raw = neutralizePaths(await readFile(join(AGENTS_SRC, file), "utf-8"));
@@ -96,9 +123,13 @@ async function syncAgents(claudeConfig, protocolBody) {
     const claudeFrontmatter = buildClaudeFrontmatter(frontmatterRaw, config);
     const claudeOut = `---\n${claudeFrontmatter}\n---\n${composed}`;
     await writeFile(join(ROOT, ".claude", "agents", file), claudeOut);
+
+    const description = extractDescription(frontmatterRaw);
+    const tomlOut = toCodexToml(agentName, description, composed);
+    await writeFile(join(ROOT, ".codex", "agents", file.replace(".md", ".toml")), tomlOut);
   }
 
-  console.log(`Synced ${files.length} agents → .cursor/agents/ and .claude/agents/ (protocol prepended)`);
+  console.log(`Synced ${files.length} agents → .cursor/agents/, .claude/agents/, .codex/agents/ (protocol prepended)`);
 }
 
 async function syncSkills() {
@@ -111,20 +142,23 @@ async function syncSkills() {
     const skillDir = join(SKILLS_SRC, name);
     const cursorDest = join(ROOT, ".cursor", "skills", name);
     const claudeDest = join(ROOT, ".claude", "skills", name);
+    const codexDest = join(ROOT, ".agents", "skills", name);
 
     await mkdir(cursorDest, { recursive: true });
     await mkdir(claudeDest, { recursive: true });
+    await mkdir(codexDest, { recursive: true });
 
     for (const file of await readdir(skillDir)) {
       const srcPath = join(skillDir, file);
       const neutral = neutralizePaths(await readFile(srcPath, "utf-8"));
       await writeFile(join(cursorDest, file), neutral);
       await writeFile(join(claudeDest, file), neutral);
+      await writeFile(join(codexDest, file), codexify(neutral));
     }
     synced += 1;
   }
 
-  console.log(`Synced ${synced} skill pack(s) → .cursor/skills/ and .claude/skills/`);
+  console.log(`Synced ${synced} skill pack(s) → .cursor/skills/, .claude/skills/, .agents/skills/`);
 }
 
 async function syncHandoffsSchema() {
@@ -136,6 +170,16 @@ async function syncHandoffsSchema() {
   console.log("Synced handoffs/schema.json");
 }
 
+async function syncAgentsMd() {
+  await cp(join(ROOT, "CLAUDE.md"), join(ROOT, "AGENTS.md"));
+  console.log("Synced CLAUDE.md → AGENTS.md");
+}
+
+async function syncClaudeConfig() {
+  await cp(CLAUDE_CONFIG_PATH, join(ROOT, ".claude", "agents", "claude.config.json"));
+  console.log("Synced claude.config.json → .claude/agents/");
+}
+
 async function main() {
   await runHygiene();
   const claudeConfig = JSON.parse(await readFile(CLAUDE_CONFIG_PATH, "utf-8"));
@@ -143,6 +187,8 @@ async function main() {
   await syncAgents(claudeConfig, protocolBody);
   await syncSkills();
   await syncHandoffsSchema();
+  await syncAgentsMd();
+  await syncClaudeConfig();
 }
 
 main().catch((err) => {
