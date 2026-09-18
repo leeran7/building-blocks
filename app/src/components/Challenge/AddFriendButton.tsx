@@ -53,7 +53,7 @@ export function AddFriendButton({ opponentId, opponentName }: AddFriendButtonPro
     }
   }, [token, opponentId]);
 
-  if (status === "loading" || status === "friends") return null;
+  if (status === "friends") return null;
 
   if (status === "sent") {
     return (
@@ -74,9 +74,10 @@ export function AddFriendButton({ opponentId, opponentName }: AddFriendButtonPro
   return (
     <button
       onClick={handleAdd}
-      className="inline-flex items-center justify-center rounded-full px-6 min-h-[44px] w-full border border-border-strong text-text-secondary text-sm hover:border-signal/50 hover:text-signal transition-colors"
+      disabled={status === "loading"}
+      className="inline-flex items-center justify-center rounded-full px-6 min-h-[44px] w-full border border-border-strong text-text-secondary text-sm hover:border-signal/50 hover:text-signal transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
     >
-      Add {opponentName} as friend
+      {status === "loading" ? "Loading…" : `Add ${opponentName} as friend`}
     </button>
   );
 }

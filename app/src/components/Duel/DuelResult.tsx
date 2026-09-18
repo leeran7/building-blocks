@@ -424,6 +424,16 @@ export function DuelResult({
         </div>
       </div>
 
+      {/* Add friend — shown right after the scoreboard so it's visible on mobile */}
+      {user && opponentId && (
+        <div className="w-full max-w-sm mb-4">
+          <AddFriendButton
+            opponentId={opponentId}
+            opponentName={player1Id === myId ? player2Name : player1Name}
+          />
+        </div>
+      )}
+
       {/* Paid-duel settlement banner */}
       {paid && (
         <div
@@ -563,14 +573,6 @@ export function DuelResult({
         </button>
         {shareFailed && (
           <p className="text-ember text-xs text-center">Couldn&apos;t copy the link.</p>
-        )}
-
-        {/* Add friend — shown when signed in and opponent is not already a friend */}
-        {user && opponentId && (
-          <AddFriendButton
-            opponentId={opponentId}
-            opponentName={player1Id === myId ? player2Name : player1Name}
-          />
         )}
 
         {/* Post-free-duel: low-key nudge toward paid at the highest-intent moment.
