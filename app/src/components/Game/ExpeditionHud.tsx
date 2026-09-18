@@ -2,6 +2,7 @@
 
 import type { CSSProperties, ReactNode } from "react";
 import type { PlayerState } from "../../game/types";
+import type { HazardPhaseName } from "../../game/hazard";
 import { ALTITUDE_UNIT } from "../../lib/units";
 import { ActivePowerStack } from "./PowerUpHud";
 import { FullscreenButton } from "./FullscreenButton";
@@ -25,6 +26,29 @@ export function LavaClearanceInstrument({ clearance }: { clearance: number }) {
       </svg>
       <strong>{clearance.toFixed(1)}</strong><span>{ALTITUDE_UNIT}</span>
     </div>
+  </section>;
+}
+
+const PHASE_LABEL: Record<HazardPhaseName, string> = {
+  grace: "HOLDING",
+  surge: "SURGING",
+  stumble: "STUMBLING",
+};
+
+export function LavaPhaseInstrument({ phase, progress }: { phase: HazardPhaseName; progress: number }) {
+  return <section className="exp-lava-phase" data-phase={phase} aria-label={`Lava ${PHASE_LABEL[phase]}`}>
+    <span className="exp-label">LAVA</span>
+    <div className="exp-phase-tag">
+      <svg className="exp-phase-icon" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+        {phase === "surge"
+          ? <path d="M8 1l2.5 5H11l2 4H10l1 5H7l1-5H3l2-4H4.5z" />
+          : phase === "stumble"
+            ? <path d="M4 5h8v2H4zm0 4h8v2H4z" />
+            : <path d="M8 2a6 6 0 100 12A6 6 0 008 2zm0 2a4 4 0 110 8A4 4 0 018 4z" />}
+      </svg>
+      <strong>{PHASE_LABEL[phase]}</strong>
+    </div>
+    <span className="exp-track exp-phase-track"><i style={{ width: `${(1 - progress) * 100}%` }} /></span>
   </section>;
 }
 
@@ -52,8 +76,9 @@ export function UtilityControls({ muted, onToggleMute, fullscreenSupported, isFu
   </div>;
 }
 
-export function ExpeditionHud({ player, hazardY, tick, muted, onToggleMute, announcement, runId, topInset = 0, leftInset = 0, rightInset = 0, ...utilities }: UtilitiesProps & {
+export function ExpeditionHud({ player, hazardY, tick, lavaPhase, lavaPhaseProgress, muted, onToggleMute, announcement, runId, topInset = 0, leftInset = 0, rightInset = 0, ...utilities }: UtilitiesProps & {
   player: PlayerState | undefined; hazardY: number; tick: number;
+  lavaPhase: HazardPhaseName; lavaPhaseProgress: number;
   announcement: string; runId: number; topInset?: number; leftInset?: number; rightInset?: number;
 }) {
   const style = { "--exp-top": `${topInset}px`, "--exp-left": `${leftInset}px`, "--exp-right": `${rightInset}px` } as CSSProperties;
@@ -62,6 +87,7 @@ export function ExpeditionHud({ player, hazardY, tick, muted, onToggleMute, anno
     <LavaClearanceInstrument clearance={(player?.y ?? 0) - hazardY} />
     <UtilityControls muted={muted} onToggleMute={onToggleMute} {...utilities} />
     <ActivePowerStack player={player} tick={tick} />
+    <LavaPhaseInstrument phase={lavaPhase} progress={lavaPhaseProgress} />
     <div key={runId} className="sr-only" role="status" aria-live="polite" aria-atomic="true">{announcement}</div>
   </div>;
 }

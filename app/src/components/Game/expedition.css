@@ -61,6 +61,7 @@
   .exp-clearance { grid-column: 3; padding: 8px 10px; }
   .exp-utilities { grid-column: 4; }
   .exp-powers { grid-column: 2; grid-row: 1; width: 100%; max-height: min(150px, 18dvh); }
+  .exp-lava-phase { grid-column: 3; grid-row: 2; max-width: 220px; }
   .exp-height { padding-left: 20px; }
   .exp-label { font-size: 12px; }
   .exp-clearance .exp-label { font-size: 11px; }
@@ -79,5 +80,20 @@
   .exp-reading strong { font-size: 22px; }
   .exp-clearance .exp-reading strong { font-size: 20px; }
 }
+.exp-lava-phase { grid-column: 1 / 3; grid-row: 2; display: flex; align-items: center; gap: 6px; max-width: 180px; padding: 4px 8px; border: 1px solid #655045; border-radius: var(--exp-radius); background: linear-gradient(110deg, #25221fe6, #101012ed 45%); }
+.exp-lava-phase .exp-label { font-size: 9px; letter-spacing: .035em; white-space: nowrap; }
+.exp-phase-tag { display: flex; align-items: center; gap: 3px; }
+.exp-phase-icon { width: 12px; height: 12px; flex-shrink: 0; }
+.exp-phase-tag strong { font: 600 11px var(--exp-label-font); letter-spacing: .06em; text-transform: uppercase; white-space: nowrap; }
+.exp-phase-track { flex: 1; min-width: 32px; height: 3px; }
+.exp-lava-phase[data-phase="surge"] { border-left: 2px solid var(--exp-danger); }
+.exp-lava-phase[data-phase="surge"] .exp-phase-icon, .exp-lava-phase[data-phase="surge"] .exp-phase-tag strong { color: var(--exp-danger); }
+.exp-lava-phase[data-phase="surge"] .exp-phase-track i { background: var(--exp-danger); }
+.exp-lava-phase[data-phase="stumble"] { border-left: 2px solid var(--exp-signal); }
+.exp-lava-phase[data-phase="stumble"] .exp-phase-icon, .exp-lava-phase[data-phase="stumble"] .exp-phase-tag strong { color: var(--exp-signal); }
+.exp-lava-phase[data-phase="stumble"] .exp-phase-track i { background: var(--exp-signal); }
+.exp-lava-phase[data-phase="grace"] { border-left: 2px solid var(--exp-muted); }
+.exp-lava-phase[data-phase="grace"] .exp-phase-icon, .exp-lava-phase[data-phase="grace"] .exp-phase-tag strong { color: var(--exp-muted); }
+.exp-lava-phase[data-phase="grace"] .exp-phase-track i { background: var(--exp-muted); }
 @keyframes expedition-danger { 50% { opacity: .55; } }
 @media (prefers-reduced-motion: reduce) { .exp-clearance[data-danger="true"] .exp-wave { animation: none; } .exp-touch-button { transition: none; } }

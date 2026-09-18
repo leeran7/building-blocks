@@ -1,7 +1,7 @@
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { ExpeditionHud, HeightInstrument, LavaClearanceInstrument, UtilityControls } from "../../src/components/Game/ExpeditionHud";
+import { ExpeditionHud, HeightInstrument, LavaClearanceInstrument, LavaPhaseInstrument, UtilityControls } from "../../src/components/Game/ExpeditionHud";
 import { ActivePowerStack } from "../../src/components/Game/PowerUpHud";
 import { createMatch } from "../../src/game/simulation";
 import { buildTower } from "../../src/game/towers";
@@ -25,9 +25,19 @@ describe("live expedition instruments", () => {
     const p = player();
     p.y = 57.25;
     for (const [hazardY, expected] of [[12, "45.3"], [60, "-2.8"]] as const) {
-      const html = renderToStaticMarkup(createElement(ExpeditionHud, { player: p, hazardY, tick: 0, muted: false, onToggleMute: noop, announcement: "", runId: 1 }));
+      const html = renderToStaticMarkup(createElement(ExpeditionHud, { player: p, hazardY, tick: 0, lavaPhase: "surge", lavaPhaseProgress: 0.5, muted: false, onToggleMute: noop, announcement: "", runId: 1 }));
       expect(html).toContain(`Lava clearance ${expected} feet`);
       expect(html).toContain("Height 57.3 feet");
+    }
+  });
+
+  it("shows the current lava phase (surge/stumble/grace) with a countdown track", () => {
+    for (const [phase, label] of [["surge", "SURGING"], ["stumble", "STUMBLING"], ["grace", "HOLDING"]] as const) {
+      const html = renderToStaticMarkup(createElement(LavaPhaseInstrument, { phase, progress: 0.4 }));
+      expect(html).toContain(`data-phase="${phase}"`);
+      expect(html).toContain(label);
+      expect(html).toContain(`aria-label="Lava ${label}"`);
+      expect(html).toContain("width:60%");
     }
   });
 
