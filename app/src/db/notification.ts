@@ -5,6 +5,7 @@
 import { prisma } from "./client";
 import { NotificationType, Notification } from "@prisma/client";
 import type { JsonValue } from "@prisma/client/runtime/library";
+import { sendPushToUser } from "../lib/pushNotify";
 
 // ── Writes ─────────────────────────────────────────────────────────────────
 
@@ -15,7 +16,7 @@ export async function createNotification(input: {
   body: string;
   data?: JsonValue;
 }): Promise<Notification> {
-  return prisma.notification.create({
+  const notification = await prisma.notification.create({
     data: {
       user_id: input.userId,
       type: input.type,
@@ -24,6 +25,16 @@ export async function createNotification(input: {
       data: input.data ?? undefined,
     },
   });
+
+  sendPushToUser(input.userId, {
+    title: input.title,
+    body: input.body,
+    data: { type: input.type, notificationId: notification.id },
+  }).catch((err) => {
+    console.error("[push] failed to send:", err);
+  });
+
+  return notification;
 }
 
 export async function markNotificationsRead(

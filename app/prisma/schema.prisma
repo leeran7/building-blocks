@@ -77,6 +77,7 @@ model User {
   notifications          Notification[]
   friendshipsSent        Friendship[]        @relation("FriendshipSender")
   friendshipsReceived    Friendship[]        @relation("FriendshipReceiver")
+  pushTokens             PushToken[]
 
   @@map("users")
 }
@@ -236,6 +237,19 @@ model Notification {
 
   @@index([user_id, read, created_at(sort: Desc)], name: "notification_user_read_idx")
   @@map("notifications")
+}
+
+model PushToken {
+  id         String   @id @default(cuid())
+  user_id    String
+  token      String   @unique
+  platform   String   // "ios" | "android"
+  created_at DateTime @default(now())
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id], name: "push_token_user_idx")
+  @@map("push_tokens")
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
