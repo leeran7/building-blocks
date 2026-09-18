@@ -90,22 +90,12 @@ Write `loop/state.json`:
 | Loop owner | orchestrator | Coordinate all stages |
 | 1 | product-spec | Turn intent into end-to-end flows + requirements |
 | 2 | architect | System design and contracts |
-| 3 | implementer | Write application code |
+| 3 | implementer | Write application code (frontend, backend, data, mobile) |
 | 4 | verifier | Tests and correctness |
 | 5 | reviewer | Code quality review |
 | 6 | security-reviewer | Security audit |
 | 7 | qa-acceptance | Acceptance criteria validation |
 | 8 | integrator | CI green, PR merge-ready |
-| 9 | devops | Pipelines and infrastructure |
-| 10 | release | Versioning and deployment |
-| 11 | monitor | Production observability |
-| 12 | docs | Documentation |
-| 13 | debugger | Root-cause unclear failures |
-| 14 | github | Stacked PRs, PR/ruleset/merge-queue expertise |
-
-Specialists (delegated from implementer): frontend, backend, data, mobile, design-ux, performance, compliance, cost.
-
-Optional after integrator: devops, docs, **github** (PR stacking / branch policy).
 
 ## Prompt template for each delegation
 
