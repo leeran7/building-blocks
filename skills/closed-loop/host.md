@@ -58,4 +58,5 @@ missing handoff is **failed**. After verifier: `reviewer` and
 
 - Cursor: `@orchestrator` or the closed-loop skill
 - Claude Code: `/closed-loop`
+- Codex: `/closed-loop`
 - Programmatic: `yarn loop "…"` (`CURSOR_API_KEY`)

@@ -14,7 +14,7 @@ A stage counts as run only when **all** of these are true:
 3. The orchestrator **read** that handoff before advancing.
 
 Doing the work in the parent conversation does **not** count.
-Using `subagent_type: "custom"` or `"generalPurpose"` (or Claude Code
+Using `subagent_type: "custom"` or `"generalPurpose"` (or Claude Code / Codex
 without `subagent_type`) does **not** count.
 
 ## Required team (cannot skip)

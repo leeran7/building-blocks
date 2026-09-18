@@ -4,8 +4,8 @@ description: >-
   Orchestrates the closed-loop: spec → architecture → implementation →
   verification → review → CI → release → monitor. Use for any scoped product
   goal — a feature, a visual pass, a fix, or a full app — whenever the agent
-  loop should run or multiple subagents should coordinate. Works in Cursor
-  and Claude Code.
+  loop should run or multiple subagents should coordinate. Works in Cursor,
+  Claude Code, and Codex.
 ---
 
 # Closed Loop
@@ -64,6 +64,7 @@ Write `loop/state.json`:
    - **Cursor**: Task tool with `subagent_type` matching the agent name
      (`product-spec`, not `custom` / `generalPurpose`)
    - **Claude Code**: Agent tool with `subagent_type` matching the agent name
+   - **Codex**: Agent tool with `subagent_type` matching the agent name
    - Record the agent on `loop/state.json` `dispatched`
    - **Never do that stage's work in the orchestrator turn**
 3. Pass the user goal, prior handoff contents, and handoff write instructions.
@@ -121,6 +122,7 @@ Complete your stage per your agent definition. Before finishing:
 |----------|--------------|
 | **Cursor** | "Use the closed-loop skill to build …" or invoke `@orchestrator` |
 | **Claude Code** | `/closed-loop` or "Use the orchestrator agent to build …" |
+| **Codex** | `/closed-loop` or "Use the orchestrator agent to build …" |
 | **Programmatic** | `yarn loop "Build a todo app"` (Cursor SDK orchestrator) |
 
 ## Iteration limits
