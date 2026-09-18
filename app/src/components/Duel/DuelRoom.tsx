@@ -372,14 +372,22 @@ function DuelGame({
 
   const startedRef = useRef(false);
   const [connectionState, setConnectionState] = useState<string>("connected");
+  // Persisted across effect re-runs so intermittent presence blips don't reset
+  // the slot-1 fallback clock.
+  const bothPresentSinceRef = useRef(0);
+  // Track which slots have published "ready" (explicit subscription proof).
+  const readySlotsRef = useRef<Set<number>>(new Set());
 
-  // Handshake (presence-authoritative):
+  // Handshake (ready-event authoritative):
   // - Subscribe to control events + presence BEFORE announcing ourselves, so we
   //   can never miss the coordinator's "start" (Ably does not replay channel
   //   messages to subscribers that attach after publish).
-  // - Slot-0 is the coordinator: once BOTH players are present it publishes
-  //   "start" and begins locally. Presence is Ably's reliable synced primitive,
-  //   so readiness is gated on it rather than on echo-prone "ready" counters.
+  // - Both players publish a "ready" event after subscribing + entering presence.
+  //   This is an explicit proof of subscription, more reliable than presence
+  //   alone (which can have stale entries or sync delays).
+  // - Slot-0 (coordinator) waits until it receives a "ready" from the other
+  //   slot, then publishes "start" (re-broadcast a few times for reliability).
+  //   Presence is still checked as a prerequisite, but "ready" is the gate.
   useEffect(() => {
     let disposed = false;
 
@@ -404,7 +412,7 @@ function DuelGame({
       }
     };
 
-    // Coordinator re-broadcasts "start" (~6 publishes over ~2s) so a single
+    // Coordinator re-broadcasts "start" (~8 publishes over ~2.8s) so a single
     // dropped packet can't strand the opponent; the receiver is idempotent.
     let rebroadcasts = 0;
     let rebroadcastTimer: ReturnType<typeof setInterval> | null = null;
@@ -416,7 +424,7 @@ function DuelGame({
     };
 
     // Both slots poll presence as a safety net against a stale presence read or
-    // a missed "enter" event, until the match starts.
+    // a missed "enter"/"ready" event, until the match starts.
     let pollTimer: ReturnType<typeof setInterval> | null = null;
     function stopPoll() {
       if (pollTimer) {
@@ -429,9 +437,30 @@ function DuelGame({
     // "start" arriving (i.e. every coordinator broadcast dropped), begin anyway
     // rather than dead-end in the lobby. Generous so it never fires in normal
     // operation (start arrives in well under a second); the countdown absorbs the
-    // small resulting offset.
+    // small resulting offset. Uses a ref so effect re-runs don't reset the clock.
     const SLOT1_FALLBACK_MS = 5000;
-    let bothPresentSince = 0;
+
+    const tryCoordinatorStart = () => {
+      if (startedRef.current || disposed) return;
+      // Gate on both "ready" signals, not just presence.
+      if (readySlotsRef.current.size < 2) return;
+
+      if (mySlot === 0) {
+        const startTs = Date.now();
+        beginMatch();
+        realtime.publishEvent({ type: "start", serverTimestamp: startTs });
+        stopRebroadcast();
+        rebroadcasts = 0;
+        rebroadcastTimer = setInterval(() => {
+          rebroadcasts += 1;
+          if (disposed || rebroadcasts > 7) {
+            stopRebroadcast();
+            return;
+          }
+          realtime.publishEvent({ type: "start", serverTimestamp: startTs });
+        }, 400);
+      }
+    };
 
     const evaluateStart = async () => {
       if (startedRef.current || disposed) return;
@@ -441,36 +470,30 @@ function DuelGame({
       // per connection, so two participants = two entries even when they share a
       // clientId (e.g. two tabs on the same account, or same-account testing).
       // Deduping by clientId would collapse that to 1 and hang the lobby forever.
-      if (members.length < 2) {
-        bothPresentSince = 0; // opponent not present yet
-        return;
-      }
+      if (members.length < 2) return;
 
       if (mySlot === 0) {
-        // Coordinator: set the local guard first, then tell the opponent
-        // (retrying briefly so a dropped "start" can't strand them).
-        beginMatch();
-        realtime.publishEvent({ type: "start", serverTimestamp: Date.now() });
-        stopRebroadcast();
-        rebroadcasts = 0;
-        rebroadcastTimer = setInterval(() => {
-          rebroadcasts += 1;
-          if (disposed || rebroadcasts > 5) {
-            stopRebroadcast();
-            return;
-          }
-          realtime.publishEvent({ type: "start", serverTimestamp: Date.now() });
-        }, 400);
+        // Coordinator: check if we have both readies.
+        tryCoordinatorStart();
       } else {
         // Slot-1 normally begins on the "start" event; this is only the
-        // all-broadcasts-dropped rescue.
-        if (bothPresentSince === 0) bothPresentSince = Date.now();
-        else if (Date.now() - bothPresentSince >= SLOT1_FALLBACK_MS) beginMatch();
+        // all-broadcasts-dropped rescue. The ref survives effect re-runs.
+        if (bothPresentSinceRef.current === 0) bothPresentSinceRef.current = Date.now();
+        else if (Date.now() - bothPresentSinceRef.current >= SLOT1_FALLBACK_MS) beginMatch();
       }
     };
 
     // 1) Subscribe first — before we enter presence.
     const unsubStart = realtime.onEvent("start", () => beginMatch());
+
+    // Peer "ready" — explicit proof that the other player's subscriptions are
+    // live. The coordinator gates "start" on this instead of presence alone.
+    const unsubReady = realtime.onEvent("ready", (msg) => {
+      if (typeof msg.slot === "number") {
+        readySlotsRef.current.add(msg.slot);
+        tryCoordinatorStart();
+      }
+    });
 
     // Opponent forfeited (explicit leave / beforeunload) — we win immediately,
     // no need to wait for the stall clock.
@@ -501,14 +524,29 @@ function DuelGame({
       evaluateStart(); // fast path
     });
 
-    // 2) Announce ourselves.
+    // 2) Announce ourselves in presence.
     realtime.enterPresence({
       uid: myId,
       displayName: mySlot === 0 ? player1Name : player2Name,
       slot: mySlot,
     });
 
-    // 3) Kick off immediately (covers the already-present opponent) and then
+    // 3) Publish "ready" — explicit signal that our subscriptions are live.
+    //    Re-publish a few times to survive a dropped message; receivers dedup
+    //    via the Set. Mark ourselves ready locally as well.
+    readySlotsRef.current.add(mySlot);
+    realtime.publishEvent({ type: "ready", slot: mySlot });
+    let readyRebroadcasts = 0;
+    const readyTimer = setInterval(() => {
+      readyRebroadcasts += 1;
+      if (disposed || startedRef.current || readyRebroadcasts > 3) {
+        clearInterval(readyTimer);
+        return;
+      }
+      realtime.publishEvent({ type: "ready", slot: mySlot });
+    }, 500);
+
+    // 4) Kick off immediately (covers the already-present opponent) and then
     //    poll until the match starts — coordinator elects/broadcasts start,
     //    slot-1 uses it as the dropped-broadcast rescue.
     evaluateStart();
@@ -523,11 +561,13 @@ function DuelGame({
     return () => {
       disposed = true;
       unsubStart();
+      unsubReady();
       unsubForfeit();
       unsubRematch();
       unsubPresence();
       window.removeEventListener("beforeunload", handleBeforeUnload);
       clearLeaveTimer();
+      clearInterval(readyTimer);
       stopPoll();
       stopRebroadcast();
     };

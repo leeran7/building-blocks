@@ -3,13 +3,19 @@
  *
  * Each client runs its OWN climb at full speed and broadcasts periodic position
  * snapshots (see RealtimeSnapshotMessage). This store buffers each peer's last
- * two snapshots and interpolates a smoothed position for a given local tick,
+ * few snapshots and interpolates a smoothed position for a given local tick,
  * rendered a fixed delay behind "now" so we interpolate between two known
  * samples instead of extrapolating into the unknown.
  *
  * Ghosts are display-only: they drive the on-screen opponents and the local
  * shared-hazard estimate, never the authoritative result (that comes from the
  * server re-sim of every player's input log).
+ *
+ * Smoothing: raw interpolation/extrapolation is blended toward the previously
+ * displayed position via an exponential smoothing factor. This absorbs snap-
+ * backs from dead-reckoning corrections and segment jumps when a new snapshot
+ * shifts the interpolation window, trading a tiny bit of responsiveness for
+ * much less visible jitter.
  */
 
 import type { PlayerStatus } from "./types";
@@ -25,26 +31,42 @@ export interface GhostSample {
 }
 
 /**
- * How far behind local time peers are rendered, in ticks (~200 ms at 30 Hz).
- * With 15 Hz snapshots (every 2 ticks) this gives 3 snapshot intervals of
+ * How far behind local time peers are rendered, in ticks (~267 ms at 30 Hz).
+ * With ~15 Hz snapshots (every 2 ticks) this gives 4 snapshot intervals of
  * buffer, so the interpolation target reliably lands between two known samples
  * even under typical network jitter.
  */
-export const GHOST_RENDER_DELAY_TICKS = 6;
+export const GHOST_RENDER_DELAY_TICKS = 8;
 
-/** How many samples to keep per slot. 4 gives a richer velocity history. */
-const RING_SIZE = 4;
+/** How many samples to keep per slot. 6 widens the interpolation window. */
+const RING_SIZE = 6;
 
 /**
  * Max extrapolation past the latest sample, in ticks. Caps dead-reckoning so a
  * stalled peer (no snapshots arriving) doesn't drift off-screen.
- * ~3 snapshot intervals at 15 Hz = 6 ticks ≈ 200 ms.
+ * ~4 snapshot intervals at ~15 Hz = 8 ticks ≈ 267 ms.
  */
-export const MAX_EXTRAPOLATE_TICKS = 6;
+export const MAX_EXTRAPOLATE_TICKS = 8;
+
+/**
+ * Exponential smoothing factor applied each tick (0 = no smoothing, 1 = frozen).
+ * 0.35 absorbs snap-backs from dead-reckoning correction and segment jumps
+ * without adding perceptible lag.
+ */
+const SMOOTH_FACTOR = 0.35;
+
+/**
+ * If the raw sample jumps more than this many world-units from the last
+ * displayed position, skip smoothing and snap immediately (e.g. a teleport or
+ * the very first sample). Prevents the ghost from "dragging" across the map.
+ */
+const SNAP_THRESHOLD = 3;
 
 export class GhostStore {
   /** Per-slot ring of the last RING_SIZE samples, oldest first. */
   private readonly bySlot = new Map<number, GhostSample[]>();
+  /** Per-slot last displayed (smoothed) position, for exponential blending. */
+  private readonly lastDisplayed = new Map<number, { x: number; y: number }>();
 
   /** Absorb a peer snapshot. Out-of-order (stale) arrivals are dropped. */
   ingest(m: RealtimeSnapshotMessage): void {
@@ -75,6 +97,10 @@ export class GhostStore {
    * Interpolation: linear between the two samples bracketing `target`.
    * Extrapolation: dead-reckoning past the latest sample using the velocity of
    *   the last two samples, capped at MAX_EXTRAPOLATE_TICKS to avoid divergence.
+   *
+   * The result is exponentially smoothed toward the previously displayed
+   * position so direction changes and snapshot-arrival jitter don't produce
+   * visible snap-backs.
    */
   sampleAt(slot: number, localClimbTick: number): GhostSample | null {
     const arr = this.bySlot.get(slot);
@@ -83,15 +109,24 @@ export class GhostStore {
     const last = arr[arr.length - 1];
 
     // Once a peer reports finished/eliminated, hold that terminal position.
-    if (last.status !== "climbing") return last;
+    if (last.status !== "climbing") {
+      this.lastDisplayed.set(slot, { x: last.x, y: last.y });
+      return last;
+    }
 
-    if (arr.length === 1) return arr[0];
+    if (arr.length === 1) {
+      this.lastDisplayed.set(slot, { x: arr[0].x, y: arr[0].y });
+      return arr[0];
+    }
 
     const target = localClimbTick - GHOST_RENDER_DELAY_TICKS;
     const oldest = arr[0];
     const newest = arr[arr.length - 1];
 
-    if (target <= oldest.tick) return oldest; // clamp behind oldest relevant sample
+    if (target <= oldest.tick) {
+      this.lastDisplayed.set(slot, { x: oldest.x, y: oldest.y });
+      return oldest;
+    }
 
     let a = oldest;
     let b = arr[1];
@@ -113,31 +148,50 @@ export class GhostStore {
     }
 
     const span = b.tick - a.tick;
+    let rawX: number;
+    let rawY: number;
+    let rawTick: number;
 
     // Interpolation: target is between a and b.
     if (target <= b.tick) {
       const t = span > 0 ? (target - a.tick) / span : 1;
-      return {
-        tick: target,
-        x: a.x + (b.x - a.x) * t,
-        y: a.y + (b.y - a.y) * t,
-        status: "climbing",
-        peakY: Math.max(a.peakY, b.peakY),
-        slowLavaActive: b.slowLavaActive,
-      };
+      rawX = a.x + (b.x - a.x) * t;
+      rawY = a.y + (b.y - a.y) * t;
+      rawTick = target;
+    } else {
+      // Dead-reckoning: target is past the latest sample.
+      const overshot = Math.min(target - b.tick, MAX_EXTRAPOLATE_TICKS);
+      if (span <= 0 || overshot <= 0) {
+        this.lastDisplayed.set(slot, { x: b.x, y: b.y });
+        return b;
+      }
+      const t = overshot / span;
+      rawX = b.x + (b.x - a.x) * t;
+      rawY = b.y + (b.y - a.y) * t;
+      rawTick = b.tick + overshot;
     }
 
-    // Dead-reckoning: target is past the latest sample.
-    // Extrapolate using b-a velocity, capped to avoid divergence.
-    const overshot = Math.min(target - b.tick, MAX_EXTRAPOLATE_TICKS);
-    if (span <= 0 || overshot <= 0) return b;
-    const t = overshot / span;
+    // Exponential smoothing: blend toward the last displayed position to absorb
+    // snap-backs from dead-reckoning correction and segment jumps.
+    const prev = this.lastDisplayed.get(slot);
+    let smoothX = rawX;
+    let smoothY = rawY;
+    if (prev) {
+      const dx = Math.abs(rawX - prev.x);
+      const dy = Math.abs(rawY - prev.y);
+      if (dx < SNAP_THRESHOLD && dy < SNAP_THRESHOLD) {
+        smoothX = prev.x + (rawX - prev.x) * (1 - SMOOTH_FACTOR);
+        smoothY = prev.y + (rawY - prev.y) * (1 - SMOOTH_FACTOR);
+      }
+    }
+    this.lastDisplayed.set(slot, { x: smoothX, y: smoothY });
+
     return {
-      tick: b.tick + overshot,
-      x: b.x + (b.x - a.x) * t,
-      y: b.y + (b.y - a.y) * t,
+      tick: rawTick,
+      x: smoothX,
+      y: smoothY,
       status: "climbing",
-      peakY: b.peakY,
+      peakY: Math.max(a.peakY, b.peakY),
       slowLavaActive: b.slowLavaActive,
     };
   }
@@ -145,5 +199,6 @@ export class GhostStore {
   /** Drop all buffered ghosts (e.g. on rematch / new race). */
   clear(): void {
     this.bySlot.clear();
+    this.lastDisplayed.clear();
   }
 }
