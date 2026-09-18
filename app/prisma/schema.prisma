@@ -75,6 +75,8 @@ model User {
   challengesSent         Challenge[]         @relation("ChallengeSender")
   challengesReceived     Challenge[]         @relation("ChallengeRecipient")
   notifications          Notification[]
+  friendshipsSent        Friendship[]        @relation("FriendshipSender")
+  friendshipsReceived    Friendship[]        @relation("FriendshipReceiver")
 
   @@map("users")
 }
@@ -186,12 +188,37 @@ model Challenge {
   @@map("challenges")
 }
 
+enum FriendshipStatus {
+  pending
+  accepted
+  declined
+  blocked
+}
+
+model Friendship {
+  id          String           @id @default(cuid())
+  sender_id   String
+  receiver_id String
+  status      FriendshipStatus @default(pending)
+  created_at  DateTime         @default(now())
+  updated_at  DateTime         @updatedAt
+
+  sender   User @relation("FriendshipSender", fields: [sender_id], references: [id], onDelete: Cascade)
+  receiver User @relation("FriendshipReceiver", fields: [receiver_id], references: [id], onDelete: Cascade)
+
+  @@unique([sender_id, receiver_id], name: "friendship_pair")
+  @@index([receiver_id, status], name: "friendship_receiver_status_idx")
+  @@map("friendships")
+}
+
 enum NotificationType {
   challenge_received
   challenge_accepted
   challenge_declined
   challenge_expired
   duel_result
+  friend_request
+  friend_accepted
   system
 }
 

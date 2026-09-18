@@ -1,7 +1,10 @@
 "use client";
 
 /**
- * UserSearch — typeahead search to find and challenge a user by username.
+ * UserSearch — typeahead search to find a user by username and perform an action.
+ *
+ * Generic: the caller decides the action label (default "Add") and receives
+ * the selected user via `onSelect`.
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -16,11 +19,18 @@ interface SearchResult {
 }
 
 interface UserSearchProps {
-  onChallenge: (userId: string, displayName: string) => void;
+  onSelect: (userId: string, displayName: string) => void;
   disabled?: boolean;
+  placeholder?: string;
+  actionLabel?: string;
 }
 
-export function UserSearch({ onChallenge, disabled }: UserSearchProps) {
+export function UserSearch({
+  onSelect,
+  disabled,
+  placeholder = "Search by username…",
+  actionLabel = "Add",
+}: UserSearchProps) {
   const { token } = useAuth();
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
@@ -84,7 +94,7 @@ export function UserSearch({ onChallenge, disabled }: UserSearchProps) {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onFocus={() => results.length > 0 && setOpen(true)}
-          placeholder="Search by username…"
+          placeholder={placeholder}
           disabled={disabled}
           className="w-full rounded-lg border border-border-strong bg-void px-3 py-2.5 pr-9 text-sm text-text-primary placeholder:text-text-muted focus:border-signal/50 focus:outline-none focus:ring-1 focus:ring-signal/30 transition-colors disabled:opacity-50"
         />
@@ -103,7 +113,7 @@ export function UserSearch({ onChallenge, disabled }: UserSearchProps) {
                 type="button"
                 onClick={() => {
                   const name = user.displayName ?? user.username ?? "User";
-                  onChallenge(user.id, name);
+                  onSelect(user.id, name);
                   setQuery("");
                   setOpen(false);
                   setResults([]);
@@ -119,7 +129,7 @@ export function UserSearch({ onChallenge, disabled }: UserSearchProps) {
                   )}
                 </div>
                 <span className="shrink-0 text-xs font-mono text-signal uppercase tracking-wider">
-                  Challenge
+                  {actionLabel}
                 </span>
               </button>
             </li>

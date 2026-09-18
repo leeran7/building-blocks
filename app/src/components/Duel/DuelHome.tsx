@@ -35,6 +35,8 @@ import { SignInGate } from "../ui/SignInGate";
 import { Button } from "../ui/Button";
 import { UserSearch } from "../Challenge/UserSearch";
 import { PendingChallenges } from "../Challenge/PendingChallenges";
+import { FriendsList } from "../Challenge/FriendsList";
+import { FriendRequests } from "../Challenge/FriendRequests";
 
 // ─────────────────────────────── Types ────────────────────────────────────
 
@@ -260,6 +262,32 @@ export function DuelHome() {
   // ─────────────── In-app challenge ───────────────
 
   const [challengeSending, setChallengeSending] = useState(false);
+  const [addingFriend, setAddingFriend] = useState(false);
+
+  const handleAddFriend = useCallback(
+    async (userId: string, displayName: string) => {
+      if (!token) return;
+      setAddingFriend(true);
+      try {
+        const res = await authedFetch("/api/friends", token, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ receiverId: userId }),
+        });
+        if (!res.ok) {
+          const body = (await res.json().catch(() => ({}))) as { error?: string };
+          setCreateState({
+            status: "error",
+            message: body.error ?? `Could not add ${displayName}.`,
+          });
+        }
+      } catch {
+        setCreateState({ status: "error", message: "Network error. Please try again." });
+      }
+      setAddingFriend(false);
+    },
+    [token]
+  );
 
   const handleInAppChallenge = useCallback(
     async (userId: string, displayName: string) => {
@@ -467,18 +495,39 @@ export function DuelHome() {
           </section>
         ) : activeMode === "challenge" ? (
           <section className="bg-surface rounded-xl border border-border-subtle p-6 flex flex-col gap-5">
+            {/* Add Friend */}
             <div>
               <h2 className="font-mono text-xs uppercase tracking-[0.14em] text-text-muted mb-1">
-                Challenge a player
+                Add friend
               </h2>
               <p className="text-text-secondary text-sm mb-3">
-                Search for a player by username to send them a challenge.
+                Find players by username.
               </p>
-              <UserSearch onChallenge={handleInAppChallenge} disabled={challengeSending} />
+              <UserSearch
+                onSelect={handleAddFriend}
+                actionLabel="Add"
+                placeholder="Search by username…"
+                disabled={addingFriend}
+              />
+            </div>
+
+            {/* Incoming / outgoing friend requests */}
+            <FriendRequests />
+
+            {/* Challenge a friend */}
+            <div>
+              <h2 className="font-mono text-xs uppercase tracking-[0.14em] text-text-muted mb-1">
+                Challenge a friend
+              </h2>
+              <p className="text-text-secondary text-sm mb-3">
+                Pick a friend to challenge to a 1v1.
+              </p>
+              <FriendsList onChallenge={handleInAppChallenge} disabled={challengeSending} />
             </div>
 
             <PendingChallenges />
 
+            {/* Share a link */}
             <div className="border-t border-border-subtle pt-4">
               <h3 className="font-mono text-[11px] uppercase tracking-[0.14em] text-text-muted mb-1">
                 Or share a link
@@ -510,7 +559,7 @@ export function DuelHome() {
               {createState.status === "loading" && (
                 <div className="flex items-center gap-2 text-text-muted text-sm">
                   <Spinner />
-                  Creating…
+                  Creating...
                 </div>
               )}
 
