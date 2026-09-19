@@ -87,7 +87,7 @@ function GuestHome({
             <ChevronRight />
           </button>
 
-          <p className="max-w-[260px] text-xs leading-relaxed text-text-secondary">
+          <p className="max-w-[260px] text-xs leading-relaxed text-white [text-shadow:0_1px_3px_rgba(0,0,0,0.6)]">
             Sign in to save your climbs, rank on the global leaderboard, and
             challenge friends.
           </p>
