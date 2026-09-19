@@ -34,6 +34,7 @@ import {
   DASHBOARD_HREF,
   DUEL_HREF,
 } from "../navLinks";
+import { AddFriendButton } from "../Challenge/AddFriendButton";
 import type { RealtimeHandle } from "../../net/realtime";
 import type { ResultSource } from "../../game/useRace";
 
@@ -422,6 +423,16 @@ export function DuelResult({
           />
         </div>
       </div>
+
+      {/* Add friend — shown right after the scoreboard so it's visible on mobile */}
+      {user && opponentId && (
+        <div className="w-full max-w-sm mb-4">
+          <AddFriendButton
+            opponentId={opponentId}
+            opponentName={player1Id === myId ? player2Name : player1Name}
+          />
+        </div>
+      )}
 
       {/* Paid-duel settlement banner */}
       {paid && (

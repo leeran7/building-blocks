@@ -11,6 +11,7 @@ import {
 import type { CreatorPlatform } from "@prisma/client";
 import { apiFetch } from "../lib/api";
 import { useAuth } from "./AuthContext";
+import { setLeaderboardConsent } from "../lib/consent";
 
 /**
  * In-memory data cache for the read-heavy hub screens (You / Ranks).
@@ -41,6 +42,7 @@ export interface SettingsData {
   username: string | null;
   social: SocialState | null;
   urls: string[] | null;
+  leaderboardConsent: boolean;
 }
 
 export interface ClimberRank {
@@ -169,17 +171,19 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     if (!isStale(settings)) return;
     void load("settings", settings, setSettingsSlice, () =>
       apiFetch("/api/settings")
-        .then((r) => (r.ok ? (r.json() as Promise<SettingsData>) : null))
-        .then((d) =>
-          d
-            ? {
-                displayName: d.displayName ?? null,
-                username: d.username ?? null,
-                social: d.social && typeof d.social === "object" ? d.social : null,
-                urls: Array.isArray(d.urls) ? d.urls : null,
-              }
-            : null,
-        )
+        .then((r) => (r.ok ? (r.json() as Promise<SettingsData & { leaderboardConsent?: boolean }>) : null))
+        .then((d) => {
+          if (!d) return null;
+          const consent = Boolean(d.leaderboardConsent);
+          setLeaderboardConsent(consent);
+          return {
+            displayName: d.displayName ?? null,
+            username: d.username ?? null,
+            social: d.social && typeof d.social === "object" ? d.social : null,
+            urls: Array.isArray(d.urls) ? d.urls : null,
+            leaderboardConsent: consent,
+          };
+        })
         .catch(() => null),
     );
   }, [authed, settings, load]);

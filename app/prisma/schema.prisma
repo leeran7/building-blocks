@@ -61,6 +61,7 @@ model User {
   beta_waitlist_joined_at  DateTime?
   beta_platform            String?   // "ios" | "android" | "any"
   apple_tester_added       Boolean   @default(false)
+  leaderboard_consent_at   DateTime? @map("leaderboard_consent_at")
   climbRecords           ClimbRecord[]
   climbRuns              ClimbRun[]
   savedUrls              SavedUrl[]
@@ -72,6 +73,12 @@ model User {
   creditPurchases        CreditPurchase[]
   walletLedger           WalletLedger[]
   tournamentEntries      TournamentEntry[]
+  challengesSent         Challenge[]         @relation("ChallengeSender")
+  challengesReceived     Challenge[]         @relation("ChallengeRecipient")
+  notifications          Notification[]
+  friendshipsSent        Friendship[]        @relation("FriendshipSender")
+  friendshipsReceived    Friendship[]        @relation("FriendshipReceiver")
+  pushTokens             PushToken[]
 
   @@map("users")
 }
@@ -147,6 +154,108 @@ model ClimbRun {
   @@index([category_slug, created_at], name: "climb_run_category_idx")
   @@index([userId, created_at(sort: Desc)], name: "climb_run_user_idx")
   @@map("climb_runs")
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// In-app challenges & notifications
+// ═══════════════════════════════════════════════════════════════════════════
+
+enum ChallengeStatus {
+  pending
+  accepted
+  declined
+  expired
+  cancelled
+}
+
+// A targeted 1v1 invitation from one user to another. Decoupled from Duel
+// until accepted — a Duel is only created when the recipient accepts.
+model Challenge {
+  id             String          @id @default(cuid())
+  sender_id      String
+  recipient_id   String
+  category_slug  String
+  status         ChallengeStatus @default(pending)
+  duel_id        String?
+  expires_at     DateTime
+  created_at     DateTime        @default(now())
+  updated_at     DateTime        @updatedAt
+
+  sender    User  @relation("ChallengeSender", fields: [sender_id], references: [id], onDelete: Cascade)
+  recipient User  @relation("ChallengeRecipient", fields: [recipient_id], references: [id], onDelete: Cascade)
+
+  @@index([sender_id, status], name: "challenge_sender_status_idx")
+  @@index([recipient_id, status], name: "challenge_recipient_status_idx")
+  @@index([expires_at], name: "challenge_expires_at_idx")
+  @@map("challenges")
+}
+
+enum FriendshipStatus {
+  pending
+  accepted
+  declined
+  blocked
+}
+
+model Friendship {
+  id          String           @id @default(cuid())
+  sender_id   String
+  receiver_id String
+  status      FriendshipStatus @default(pending)
+  created_at  DateTime         @default(now())
+  updated_at  DateTime         @updatedAt
+
+  sender   User @relation("FriendshipSender", fields: [sender_id], references: [id], onDelete: Cascade)
+  receiver User @relation("FriendshipReceiver", fields: [receiver_id], references: [id], onDelete: Cascade)
+
+  @@unique([sender_id, receiver_id], name: "friendship_pair")
+  @@index([receiver_id, status], name: "friendship_receiver_status_idx")
+  @@map("friendships")
+}
+
+enum NotificationType {
+  challenge_received
+  challenge_accepted
+  challenge_declined
+  challenge_expired
+  duel_result
+  duel_rematch
+  friend_request
+  friend_accepted
+  tournament_started
+  tournament_round_ready
+  tournament_complete
+  daily_chips
+  system
+}
+
+model Notification {
+  id         String           @id @default(cuid())
+  user_id    String
+  type       NotificationType
+  title      String
+  body       String
+  data       Json?
+  read       Boolean          @default(false)
+  created_at DateTime         @default(now())
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id, read, created_at(sort: Desc)], name: "notification_user_read_idx")
+  @@map("notifications")
+}
+
+model PushToken {
+  id         String   @id @default(cuid())
+  user_id    String
+  token      String   @unique
+  platform   String   // "ios" | "android"
+  created_at DateTime @default(now())
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id], name: "push_token_user_idx")
+  @@map("push_tokens")
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

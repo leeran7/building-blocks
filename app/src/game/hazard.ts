@@ -253,6 +253,40 @@ function envelopeIntegral(
   );
 }
 
+export type HazardPhaseName = "grace" | "surge" | "stumble";
+
+export interface HazardPhaseInfo {
+  phase: HazardPhaseName;
+  /** 0 → just entered this phase, 1 → about to leave it. */
+  progress: number;
+}
+
+/**
+ * Which phase the lava is in at `seconds` of effective hazard time (i.e.
+ * `raceSeconds − hazardSlowSeconds`): grace (holding still), surge (full
+ * envelope speed), or stumble (reduced speed).
+ */
+export function hazardPhase(
+  seconds: number,
+  cfg: HazardConfig = DEFAULT_HAZARD_CONFIG
+): HazardPhaseInfo {
+  const t = seconds - cfg.graceSeconds;
+  if (t <= 0) {
+    const graceDur = Math.max(1e-6, cfg.graceSeconds);
+    return { phase: "grace", progress: Math.max(0, seconds) / graceDur };
+  }
+  const { period, duration } = stumbleWindow(cfg);
+  if (period <= 0 || duration <= 0) {
+    return { phase: "surge", progress: 0 };
+  }
+  const surgeDur = period - duration;
+  const phase = t - Math.floor(t / period) * period;
+  if (phase < surgeDur) {
+    return { phase: "surge", progress: phase / surgeDur };
+  }
+  return { phase: "stumble", progress: (phase - surgeDur) / duration };
+}
+
 /**
  * Clock multiplier so lava can close a large gap. Evaluated from the
  * current lead every tick — it does not latch. At or under the threshold

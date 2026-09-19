@@ -26,6 +26,14 @@ vi.mock("../../src/db/user", () => ({
   ensureUser: vi.fn(),
 }));
 
+vi.mock("../../src/db/client", () => ({
+  prisma: {
+    user: {
+      findUnique: vi.fn(async () => ({ leaderboard_consent_at: new Date() })),
+    },
+  },
+}));
+
 vi.mock("next/cache", () => ({
   revalidatePath: vi.fn(),
 }));

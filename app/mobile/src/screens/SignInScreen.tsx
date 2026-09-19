@@ -7,7 +7,7 @@ import { LogoMark } from "../components/LogoMark";
 
 type Mode = "options" | "email-signin" | "email-signup";
 
-export function SignInScreen() {
+export function SignInScreen({ onGuestContinue }: { onGuestContinue?: () => void } = {}) {
   const navigate = useNavigate();
   // This screen is only ever rendered by the auth gate for signed-out users;
   // once a real account signs in, the gate swaps to the app automatically.
@@ -132,9 +132,9 @@ export function SignInScreen() {
         <h1 className="font-display text-4xl font-black uppercase leading-none tracking-tight text-text-primary">
           Doom<span className="text-signal">stack</span>
         </h1>
-        <p className="max-w-[270px] text-sm leading-relaxed text-text-secondary">
-          Create an account to play — save every climb, rank on the global
-          leaderboard, and keep your daily streak alive.
+        <p className="max-w-[270px] text-sm leading-relaxed text-white [text-shadow:0_1px_3px_rgba(0,0,0,0.6)]">
+          Sign in to save your climbs, rank on the leaderboard, and challenge
+          friends.
         </p>
       </div>
 
@@ -169,6 +169,15 @@ export function SignInScreen() {
           <p role="alert" className="text-sm text-ember">{error}</p>
         )}
       </div>
+
+      {onGuestContinue && (
+        <button
+          onClick={() => { void tapMedium(); onGuestContinue(); }}
+          className="mt-2 inline-flex min-h-[44px] items-center px-4 font-mono text-[11px] uppercase tracking-[0.15em] text-white underline underline-offset-2 [text-shadow:0_1px_3px_rgba(0,0,0,0.6)] transition-colors active:text-white/70"
+        >
+          Continue as Guest
+        </button>
+      )}
     </main>
   );
 }

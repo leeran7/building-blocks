@@ -79,5 +79,15 @@
   .exp-reading strong { font-size: 22px; }
   .exp-clearance .exp-reading strong { font-size: 20px; }
 }
+.exp-phase-row { display: flex; align-items: center; gap: 4px; margin-top: 3px; }
+.exp-phase-icon { width: 10px; height: 10px; flex-shrink: 0; }
+.exp-phase-label { font: 600 9px var(--exp-label-font); letter-spacing: .06em; text-transform: uppercase; white-space: nowrap; }
+.exp-phase-track { flex: 1; min-width: 20px; height: 2px; }
+.exp-phase-row[data-phase="surge"] .exp-phase-icon, .exp-phase-row[data-phase="surge"] .exp-phase-label { color: var(--exp-danger); }
+.exp-phase-row[data-phase="surge"] .exp-phase-track i { background: var(--exp-danger); }
+.exp-phase-row[data-phase="stumble"] .exp-phase-icon, .exp-phase-row[data-phase="stumble"] .exp-phase-label { color: var(--exp-signal); }
+.exp-phase-row[data-phase="stumble"] .exp-phase-track i { background: var(--exp-signal); }
+.exp-phase-row[data-phase="grace"] .exp-phase-icon, .exp-phase-row[data-phase="grace"] .exp-phase-label { color: var(--exp-muted); }
+.exp-phase-row[data-phase="grace"] .exp-phase-track i { background: var(--exp-muted); }
 @keyframes expedition-danger { 50% { opacity: .55; } }
 @media (prefers-reduced-motion: reduce) { .exp-clearance[data-danger="true"] .exp-wave { animation: none; } .exp-touch-button { transition: none; } }

@@ -6,6 +6,7 @@ import { checkRateLimit } from "../../../../src/lib/rateLimit";
 import { queueForTournament, getQueueStatus } from "../../../../src/db/tournaments";
 import { isValidChipTier } from "../../../../src/db/chips";
 import { newRunSeed } from "../../../../src/game/rng";
+import { createNotification } from "../../../../src/db/notification";
 
 export const runtime = "nodejs";
 
@@ -79,6 +80,15 @@ export async function POST(request: NextRequest) {
         { status: 201 }
       );
     case "started":
+      for (const pid of result.entrantUserIds) {
+        createNotification({
+          userId: pid,
+          type: "tournament_started",
+          title: "Tournament started!",
+          body: "Your tournament has started! Round 1 is ready.",
+          data: { tournamentId: result.tournamentId },
+        }).catch(() => {});
+      }
       return NextResponse.json({
         status: "started",
         tournamentId: result.tournamentId,

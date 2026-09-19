@@ -13,6 +13,7 @@ import { nanoid } from "nanoid";
 import { requireAuth, AuthError } from "../../../../../src/lib/requireAuth";
 import { newRunSeed } from "../../../../../src/game/rng";
 import { getDuel, createDuel, recordRematch } from "../../../../../src/db/duel";
+import { createNotification } from "../../../../../src/db/notification";
 
 export const runtime = "nodejs";
 
@@ -65,9 +66,20 @@ export async function POST(
     // meta — the drop-safe fallback for the fire-and-forget event below.
     await recordRematch(id, newId);
 
-    // Notify the waiting opponent via Ably so they navigate without pressing
-    // Rematch themselves. Fire-and-forget: a publish failure is non-fatal since
-    // both players can still find the new room by refreshing.
+    const opponentId = duel.player1_id === uid ? duel.player2_id : duel.player1_id;
+    if (opponentId && !opponentId.startsWith("guest:")) {
+      const requesterName = (duel.player1_id === uid
+        ? duel.player1.display_name
+        : duel.player2?.display_name) ?? "Your opponent";
+      createNotification({
+        userId: opponentId,
+        type: "duel_rematch",
+        title: "Rematch!",
+        body: `${requesterName} wants a rematch!`,
+        data: { duelId: newId, originalDuelId: id },
+      }).catch(() => {});
+    }
+
     try {
       const ablyRest = new Ably.Rest(process.env.ABLY_API_KEY!);
       await ablyRest.channels.get(`duel:${id}`).publish("rematch", { newDuelId: newId });

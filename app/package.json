@@ -30,6 +30,7 @@
   "dependencies": {
     "@ai-sdk/openai": "^4.0.65",
     "@capacitor-firebase/authentication": "8.5.1",
+    "@capacitor-firebase/messaging": "8.5.1",
     "@capacitor/android": "^8.5.2",
     "@capacitor/app": "^8.1.1",
     "@capacitor/browser": "^8.0.4",
