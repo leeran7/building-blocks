@@ -36,8 +36,8 @@ export function FriendsList({ onChallenge, disabled }: FriendsListProps) {
     try {
       const res = await authedFetch("/api/friends", token);
       if (res.ok) {
-        const data = (await res.json()) as Friend[];
-        setFriends(data);
+        const data = (await res.json()) as { friends: Friend[] };
+        setFriends(data.friends);
       } else {
         setError("Could not load friends.");
       }
