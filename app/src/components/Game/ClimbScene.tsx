@@ -30,6 +30,7 @@ import {
   isLavaThreatening,
   lavaThreatFill,
 } from "./climbCamera";
+import { hazardPhase } from "../../game/hazard";
 import {
   TouchControls,
   TOUCH_CONTROLS_INSET,
@@ -209,6 +210,8 @@ export function ClimbScene({
     view.viewH,
     view.pxPerM > 0 ? bottomInset / view.pxPerM : 0
   );
+  const lavaPhaseInfo = hazardPhase(state.raceSeconds - state.hazardSlowSeconds);
+
   // World one-shots call into the SFX engine; skip them on autoStart replay
   // the same way music is gated — there is no Start click to unlock Web Audio.
   const worldLive = !replaying;
@@ -447,6 +450,7 @@ export function ClimbScene({
 
         <ExpeditionHud
           player={player} hazardY={state.hazardY} tick={state.tick}
+          lavaPhase={lavaPhaseInfo.phase} lavaPhaseProgress={lavaPhaseInfo.progress}
           muted={muted} onToggleMute={() => setMuted(!muted)}
           announcement={announcement} runId={runId}
           topInset={touchDevice ? safeArea.top : 0}

@@ -17,6 +17,7 @@ import {
   hazardSpeedFracAt,
   hazardMeanSpeedFrac,
   hazardCatchupTimeScale,
+  hazardPhase,
   HAZARD_CATCHUP_LEAD_M,
   HAZARD_CATCHUP_TIME_SCALE,
   DEFAULT_HAZARD_CONFIG,
@@ -182,6 +183,35 @@ describe("AC-7: hazardHasReached detects catching a climber", () => {
     expect(hazardHasReached(h, t, CLIMB, CFG)).toBe(true);
     expect(hazardHasReached(h - 0.001, t, CLIMB, CFG)).toBe(true);
     expect(hazardHasReached(h + 0.001, t, CLIMB, CFG)).toBe(false);
+  });
+});
+
+describe("hazardPhase: reports surge/stumble/grace with progress", () => {
+  it("returns grace during the opening grace window", () => {
+    const info = hazardPhase(2, CFG);
+    expect(info.phase).toBe("grace");
+    expect(info.progress).toBeCloseTo(2 / CFG.graceSeconds, 6);
+  });
+
+  it("returns surge at the start of a cycle (right after grace)", () => {
+    const info = hazardPhase(CFG.graceSeconds + 0.1, CFG);
+    expect(info.phase).toBe("surge");
+    expect(info.progress).toBeGreaterThan(0);
+    expect(info.progress).toBeLessThan(0.05);
+  });
+
+  it("returns stumble in the last portion of a cycle", () => {
+    const stumbleStart = CFG.graceSeconds + CFG.stumblePeriodSeconds - CFG.stumbleDurationSeconds;
+    const info = hazardPhase(stumbleStart + 1, CFG);
+    expect(info.phase).toBe("stumble");
+    expect(info.progress).toBeCloseTo(1 / CFG.stumbleDurationSeconds, 5);
+  });
+
+  it("progress reaches ~1 at the end of each phase", () => {
+    const cycleEnd = CFG.graceSeconds + CFG.stumblePeriodSeconds - 0.001;
+    const info = hazardPhase(cycleEnd, CFG);
+    expect(info.phase).toBe("stumble");
+    expect(info.progress).toBeGreaterThan(0.99);
   });
 });
 
