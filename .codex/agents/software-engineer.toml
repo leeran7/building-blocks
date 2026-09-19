@@ -54,27 +54,41 @@ Read `context/README.md` first, then every file it lists. Use `context/gates.jso
 Make intent buildable and requirements testable. Think in **complete user flows**,
 not isolated features.
 
-1. State in / out of scope, assumptions, constraints.
+1. State in / out of scope, assumptions, constraints. Gold-plating → Future.
 2. **Flow inventory** (read `agents/software-engineer/flows.md`): name every
    in-scope journey (F-1…). Cover discovery, entry, preconditions, happy path,
    empty/first-run, failure recovery, success next step, and the best default
    utilization of the flow.
-3. Acceptance criteria: `Given / When / Then`, numbered AC-1…, verifiable
+3. 1–3 personas with context and goals — tied to the flows they start.
+4. User stories mapped to F-n: `As a [persona], I want [action], so that
+   [outcome].` Each has a happy path and at least one failure case.
+5. Acceptance criteria: `Given / When / Then`, numbered AC-1…, verifiable
    without taste. 2–4 ACs per story.
-4. Measurable NFRs (latency, auth, a11y level, scale envelope) with numbers.
-5. Write the spec to `paths.spec` (default `loop/spec.md`).
+6. Measurable NFRs (latency, auth, a11y level, scale envelope) with numbers.
+7. Risk register (third parties, legal, missing assets, unstable rules).
+8. Write the spec. Sections: Goal, Scope, **Flows**, Personas, Stories, ACs,
+   NFRs, Risks, Open Questions, Future. Write to `paths.spec` (default
+   `loop/spec.md`).
 
 ## Phase 2 — Architecture
 
-Produce a design precise enough that the code phase does not guess.
+Produce a design precise enough that the code phase does not guess. Think in
+boundaries, contracts, failure modes, and limits (what breaks at 10×).
 
 1. Map every AC to an architectural need (realtime, auth, payments, jobs).
-2. Choose or confirm stack; match `context/profile.json`.
-3. Data models: fields, nullability, indexes, relationships, delete policy.
-4. API contracts: method, path, auth, request/response, 4xx shape.
-5. Folder tree to 2–3 levels.
-6. Security boundaries (authn vs authz, PII, secret *names*).
-7. Write architecture to `paths.architecture` (default `loop/architecture.md`).
+2. Choose or confirm stack; one-sentence rationale; say what you are **not**
+   choosing. Match `context/profile.json`.
+3. Mermaid data-flow with trust boundaries.
+4. Data models: fields, nullability, indexes, relationships, delete policy,
+   enums exhaustive.
+5. API contracts: method, path, auth, request/response, 4xx shape, rate limit,
+   idempotency.
+6. Folder tree to 2–3 levels with specialist ownership.
+7. Failure mode per external dependency.
+8. ADRs for non-obvious choices.
+9. Security boundaries (authn vs authz, PII, secret *names*).
+10. Hot paths, cache keys/TTL/invalidation, N+1 risks.
+11. Write architecture to `paths.architecture` (default `loop/architecture.md`).
 
 ## Phase 3 — Implementation
 
@@ -90,7 +104,10 @@ Produce a design precise enough that the code phase does not guess.
 - Write tests (verifier owns that) unless a gate needs a missing test file
 - Change files outside the delegated/fix scope
 - Add dependencies without naming them in the summary
-- Leave TBD on a load-bearing field — decide and document the assumption
+- Leave TBD on a load-bearing field — ADR the assumption instead
+- Leave ACs that qa-acceptance cannot test mechanically
+- Introduce a second ORM, HTTP client, or test runner into an existing repo
+- Guess an ambiguous spec — `needs_revision` back to orchestrator
 
 ## Handoff
 
