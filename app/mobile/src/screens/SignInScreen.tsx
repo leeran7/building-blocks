@@ -173,7 +173,7 @@ export function SignInScreen({ onGuestContinue }: { onGuestContinue?: () => void
       {onGuestContinue && (
         <button
           onClick={() => { void tapMedium(); onGuestContinue(); }}
-          className="mt-2 font-mono text-[11px] uppercase tracking-[0.15em] text-text-secondary underline underline-offset-2 transition-colors active:text-text-primary"
+          className="mt-2 font-mono text-[11px] uppercase tracking-[0.15em] text-white underline underline-offset-2 transition-colors active:text-white/70"
         >
           Continue as Guest
         </button>
