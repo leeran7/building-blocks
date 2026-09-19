@@ -8,6 +8,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { constantTimeEqual } from "../../../../src/api/middleware/requireAdmin";
 import { checkRateLimit, clientIp } from "../../../../src/lib/rateLimit";
 import { reapExpiredChallenges } from "../../../../src/db/challenge";
+import { createNotification } from "../../../../src/db/notification";
 
 export const runtime = "nodejs";
 
@@ -44,7 +45,19 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   }
 
   try {
-    const expired = await reapExpiredChallenges();
+    const { count: expired, challenges } = await reapExpiredChallenges();
+
+    for (const c of challenges) {
+      const recipientName = c.recipient.display_name ?? "your opponent";
+      createNotification({
+        userId: c.sender_id,
+        type: "challenge_expired",
+        title: "Challenge expired",
+        body: `Your challenge to ${recipientName} expired`,
+        data: { challengeId: c.id },
+      }).catch(() => {});
+    }
+
     return NextResponse.json({ ok: true, expired });
   } catch (err) {
     console.error("[cron/reap-challenges]", err);

@@ -200,13 +200,40 @@ export async function getPendingChallengesForUser(
 
 // ── Cron ───────────────────────────────────────────────────────────────────
 
-export async function reapExpiredChallenges(limit = 200): Promise<number> {
-  const result = await prisma.challenge.updateMany({
+export interface ExpiredChallenge {
+  id: string;
+  sender_id: string;
+  recipient_id: string;
+  sender: { display_name: string | null };
+  recipient: { display_name: string | null };
+}
+
+export async function reapExpiredChallenges(limit = 200): Promise<{
+  count: number;
+  challenges: ExpiredChallenge[];
+}> {
+  const expired = await prisma.challenge.findMany({
     where: {
       status: ChallengeStatus.pending,
       expires_at: { lt: new Date() },
     },
+    select: {
+      id: true,
+      sender_id: true,
+      recipient_id: true,
+      sender: { select: { display_name: true } },
+      recipient: { select: { display_name: true } },
+    },
+    take: limit,
+  });
+
+  if (expired.length === 0) return { count: 0, challenges: [] };
+
+  const ids = expired.map((c) => c.id);
+  await prisma.challenge.updateMany({
+    where: { id: { in: ids } },
     data: { status: ChallengeStatus.expired },
   });
-  return result.count;
+
+  return { count: expired.length, challenges: expired };
 }

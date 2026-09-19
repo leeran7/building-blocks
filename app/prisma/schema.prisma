@@ -218,8 +218,13 @@ enum NotificationType {
   challenge_declined
   challenge_expired
   duel_result
+  duel_rematch
   friend_request
   friend_accepted
+  tournament_started
+  tournament_round_ready
+  tournament_complete
+  daily_chips
   system
 }
 
