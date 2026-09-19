@@ -52,7 +52,7 @@ export async function POST(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
-    const { uid: _uid } = await requireAuth(request);
+    const { uid } = await requireAuth(request);
 
     const body = (await request.json()) as { token?: unknown };
     const token = typeof body.token === "string" ? body.token.trim() : "";
@@ -63,7 +63,7 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    await unregisterPushToken(token);
+    await unregisterPushToken(token, uid);
     return NextResponse.json({ ok: true });
   } catch (err) {
     if (err instanceof AuthError) {

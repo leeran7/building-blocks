@@ -12,8 +12,13 @@ export async function registerPushToken(
   });
 }
 
-export async function unregisterPushToken(token: string): Promise<void> {
-  await prisma.pushToken.deleteMany({ where: { token } });
+export async function unregisterPushToken(
+  token: string,
+  userId?: string
+): Promise<void> {
+  await prisma.pushToken.deleteMany({
+    where: { token, ...(userId ? { user_id: userId } : {}) },
+  });
 }
 
 export async function getPushTokensForUser(
