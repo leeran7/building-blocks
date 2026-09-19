@@ -4,7 +4,9 @@
  * UserSearch — typeahead search to find a user by username and perform an action.
  *
  * Generic: the caller decides the action label (default "Add") and receives
- * the selected user via `onSelect`.
+ * the selected user via `onSelect`, which returns whether the action
+ * succeeded so this component can show inline per-row feedback (rather than
+ * relying on the parent to surface it somewhere else).
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -19,10 +21,11 @@ interface SearchResult {
 }
 
 interface UserSearchProps {
-  onSelect: (userId: string, displayName: string) => void;
+  onSelect: (userId: string, displayName: string) => Promise<boolean>;
   disabled?: boolean;
   placeholder?: string;
   actionLabel?: string;
+  sentLabel?: string;
 }
 
 export function UserSearch({
@@ -30,12 +33,16 @@ export function UserSearch({
   disabled,
   placeholder = "Search by username…",
   actionLabel = "Add",
+  sentLabel = "Sent",
 }: UserSearchProps) {
   const { token } = useAuth();
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
+  const [actioningId, setActioningId] = useState<string | null>(null);
+  const [sentIds, setSentIds] = useState<Set<string>>(new Set());
+  const [errorIds, setErrorIds] = useState<Set<string>>(new Set());
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const rootRef = useRef<HTMLDivElement>(null);
 
@@ -86,6 +93,27 @@ export function UserSearch({
     return () => document.removeEventListener("mousedown", onDown);
   }, [open]);
 
+  const handleSelect = useCallback(
+    async (user: SearchResult) => {
+      setActioningId(user.id);
+      setErrorIds((prev) => {
+        if (!prev.has(user.id)) return prev;
+        const next = new Set(prev);
+        next.delete(user.id);
+        return next;
+      });
+      const name = user.displayName ?? user.username ?? "User";
+      const ok = await onSelect(user.id, name);
+      if (ok) {
+        setSentIds((prev) => new Set(prev).add(user.id));
+      } else {
+        setErrorIds((prev) => new Set(prev).add(user.id));
+      }
+      setActioningId(null);
+    },
+    [onSelect]
+  );
+
   return (
     <div ref={rootRef} className="relative">
       <div className="relative">
@@ -107,33 +135,42 @@ export function UserSearch({
 
       {open && results.length > 0 && (
         <ul className="absolute z-20 mt-1 w-full rounded-lg border border-border-strong bg-surface-raised shadow-lifted overflow-hidden">
-          {results.map((user) => (
-            <li key={user.id}>
-              <button
-                type="button"
-                onClick={() => {
-                  const name = user.displayName ?? user.username ?? "User";
-                  onSelect(user.id, name);
-                  setQuery("");
-                  setOpen(false);
-                  setResults([]);
-                }}
-                className="w-full text-left px-3 py-2.5 hover:bg-elevated transition-colors flex items-center justify-between gap-2"
-              >
-                <div className="min-w-0">
-                  <p className="text-sm font-semibold text-text-primary truncate">
-                    {user.displayName ?? user.username}
-                  </p>
-                  {user.username && user.displayName && (
-                    <p className="text-xs text-text-muted truncate">@{user.username}</p>
-                  )}
-                </div>
-                <span className="shrink-0 text-xs font-mono text-signal uppercase tracking-wider">
-                  {actionLabel}
-                </span>
-              </button>
-            </li>
-          ))}
+          {results.map((user) => {
+            const sent = sentIds.has(user.id);
+            const errored = errorIds.has(user.id);
+            const actioning = actioningId === user.id;
+            return (
+              <li key={user.id}>
+                <button
+                  type="button"
+                  onClick={() => !sent && !actioning && handleSelect(user)}
+                  disabled={disabled || sent || actioning}
+                  className="w-full text-left px-3 py-2.5 hover:bg-elevated transition-colors flex items-center justify-between gap-2 disabled:cursor-default disabled:hover:bg-transparent"
+                >
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-text-primary truncate">
+                      {user.displayName ?? user.username}
+                    </p>
+                    {user.username && user.displayName && (
+                      <p className="text-xs text-text-muted truncate">@{user.username}</p>
+                    )}
+                  </div>
+                  <span
+                    className={
+                      "shrink-0 text-xs font-mono uppercase tracking-wider " +
+                      (sent
+                        ? "text-signal"
+                        : errored
+                          ? "text-ember"
+                          : "text-signal")
+                    }
+                  >
+                    {sent ? sentLabel : actioning ? "…" : errored ? "Retry" : actionLabel}
+                  </span>
+                </button>
+              </li>
+            );
+          })}
         </ul>
       )}
     </div>

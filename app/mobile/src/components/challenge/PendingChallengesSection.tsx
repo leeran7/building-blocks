@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { apiFetch } from "../../lib/api";
-import { notifyError, tapMedium } from "../../lib/haptics";
-import { Card } from "../ui";
+import { notifyError } from "../../lib/haptics";
+import { Button, Card } from "../ui";
 
 interface ChallengeItem {
   id: string;
@@ -26,34 +26,63 @@ function timeLeft(expiresAt: string): string {
   return `${minutes}m left`;
 }
 
+function isExpired(expiresAt: string): boolean {
+  return new Date(expiresAt).getTime() - Date.now() <= 0;
+}
+
+export interface PendingChallengesSectionProps {
+  /** Bump this to force a refetch (e.g. after sending a new challenge). */
+  refreshKey?: number;
+}
+
 /** Incoming (accept/decline) and outgoing (cancel) in-app challenge invitations. */
-export function PendingChallengesSection() {
+export function PendingChallengesSection({ refreshKey }: PendingChallengesSectionProps = {}) {
   const navigate = useNavigate();
   const [challenges, setChallenges] = useState<ChallengeItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [actioning, setActioning] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [acceptingId, setAcceptingId] = useState<string | null>(null);
+  const [decliningId, setDecliningId] = useState<string | null>(null);
+  const [cancelingId, setCancelingId] = useState<string | null>(null);
+  const [actionErrors, setActionErrors] = useState<Record<string, string>>({});
 
   const fetchChallenges = useCallback(async () => {
+    setLoading(true);
+    setError(null);
     try {
       const res = await apiFetch("/api/challenge");
       if (res.ok) {
         const data = (await res.json()) as ChallengeItem[];
         setChallenges(data);
+      } else {
+        setError("Could not load challenges.");
       }
     } catch {
-      /* section simply won't render */
+      setError("Network error loading challenges.");
     }
     setLoading(false);
   }, []);
 
   useEffect(() => {
     fetchChallenges();
-  }, [fetchChallenges]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fetchChallenges, refreshKey]);
+
+  const clearActionError = useCallback((id: string) => {
+    setActionErrors((prev) => {
+      if (!(id in prev)) return prev;
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
+  }, []);
+
+  const busyId = acceptingId ?? decliningId ?? cancelingId;
 
   const handleAccept = useCallback(
     async (id: string) => {
-      void tapMedium();
-      setActioning(id);
+      setAcceptingId(id);
+      clearActionError(id);
       try {
         const res = await apiFetch(`/api/challenge/${id}/accept`, { method: "POST" });
         if (res.ok) {
@@ -61,38 +90,79 @@ export function PendingChallengesSection() {
           navigate(`/duel/${data.duelId}`);
           return;
         }
+        setActionErrors((prev) => ({ ...prev, [id]: "Could not accept. Try again." }));
         void notifyError();
       } catch {
+        setActionErrors((prev) => ({ ...prev, [id]: "Network error. Try again." }));
         void notifyError();
       }
-      setActioning(null);
+      setAcceptingId(null);
     },
-    [navigate],
+    [navigate, clearActionError],
   );
 
-  const handleDecline = useCallback(async (id: string) => {
-    setActioning(id);
-    try {
-      const res = await apiFetch(`/api/challenge/${id}/decline`, { method: "POST" });
-      if (res.ok) setChallenges((prev) => prev.filter((c) => c.id !== id));
-    } catch {
-      /* best-effort */
-    }
-    setActioning(null);
-  }, []);
+  const handleDecline = useCallback(
+    async (id: string) => {
+      setDecliningId(id);
+      clearActionError(id);
+      try {
+        const res = await apiFetch(`/api/challenge/${id}/decline`, { method: "POST" });
+        if (res.ok) {
+          setChallenges((prev) => prev.filter((c) => c.id !== id));
+        } else {
+          setActionErrors((prev) => ({ ...prev, [id]: "Could not decline. Try again." }));
+          void notifyError();
+        }
+      } catch {
+        setActionErrors((prev) => ({ ...prev, [id]: "Network error. Try again." }));
+        void notifyError();
+      }
+      setDecliningId(null);
+    },
+    [clearActionError],
+  );
 
-  const handleCancel = useCallback(async (id: string) => {
-    setActioning(id);
-    try {
-      const res = await apiFetch(`/api/challenge/${id}/cancel`, { method: "POST" });
-      if (res.ok) setChallenges((prev) => prev.filter((c) => c.id !== id));
-    } catch {
-      /* best-effort */
-    }
-    setActioning(null);
-  }, []);
+  const handleCancel = useCallback(
+    async (id: string) => {
+      setCancelingId(id);
+      clearActionError(id);
+      try {
+        const res = await apiFetch(`/api/challenge/${id}/cancel`, { method: "POST" });
+        if (res.ok) {
+          setChallenges((prev) => prev.filter((c) => c.id !== id));
+        } else {
+          setActionErrors((prev) => ({ ...prev, [id]: "Could not cancel. Try again." }));
+          void notifyError();
+        }
+      } catch {
+        setActionErrors((prev) => ({ ...prev, [id]: "Network error. Try again." }));
+        void notifyError();
+      }
+      setCancelingId(null);
+    },
+    [clearActionError],
+  );
 
-  if (loading || challenges.length === 0) return null;
+  if (loading) {
+    return (
+      <p className="py-2 text-center font-mono text-xs text-text-muted" aria-live="polite">
+        Loading challenges…
+      </p>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center gap-2 py-2" role="alert">
+        <p className="text-sm text-ember">{error}</p>
+        <Button variant="ghost" fullWidth={false} onPress={fetchChallenges}>
+          Retry
+        </Button>
+      </div>
+    );
+  }
+
+  if (challenges.length === 0) return null;
 
   const received = challenges.filter((c) => c.direction === "received");
   const sent = challenges.filter((c) => c.direction === "sent");
@@ -106,6 +176,7 @@ export function PendingChallengesSection() {
           </h2>
           {received.map((c) => {
             const name = c.sender.displayName ?? c.sender.username ?? "Someone";
+            const expired = isExpired(c.expiresAt);
             return (
               <Card key={c.id} highlight>
                 <div className="flex items-center justify-between gap-3">
@@ -117,25 +188,32 @@ export function PendingChallengesSection() {
                       {timeLeft(c.expiresAt)}
                     </p>
                   </div>
-                  <div className="flex shrink-0 items-center gap-3">
-                    <button
-                      type="button"
-                      disabled={actioning === c.id}
-                      onClick={() => handleAccept(c.id)}
-                      className="font-mono text-xs uppercase tracking-[0.12em] text-signal disabled:text-text-muted"
+                  <div className="flex shrink-0 items-center gap-2">
+                    <Button
+                      variant="primary"
+                      fullWidth={false}
+                      busy={acceptingId === c.id}
+                      disabled={(busyId !== null && busyId !== c.id) || expired}
+                      onPress={() => handleAccept(c.id)}
                     >
-                      {actioning === c.id ? "…" : "Accept"}
-                    </button>
-                    <button
-                      type="button"
-                      disabled={actioning === c.id}
-                      onClick={() => handleDecline(c.id)}
-                      className="font-mono text-xs uppercase tracking-[0.12em] text-text-muted"
+                      Accept
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      fullWidth={false}
+                      busy={decliningId === c.id}
+                      disabled={busyId !== null && busyId !== c.id}
+                      onPress={() => handleDecline(c.id)}
                     >
                       Decline
-                    </button>
+                    </Button>
                   </div>
                 </div>
+                {actionErrors[c.id] && (
+                  <p className="mt-2 font-mono text-xs text-ember" role="alert">
+                    {actionErrors[c.id]}
+                  </p>
+                )}
               </Card>
             );
           })}
@@ -160,15 +238,21 @@ export function PendingChallengesSection() {
                       {timeLeft(c.expiresAt)}
                     </p>
                   </div>
-                  <button
-                    type="button"
-                    disabled={actioning === c.id}
-                    onClick={() => handleCancel(c.id)}
-                    className="shrink-0 font-mono text-xs uppercase tracking-[0.12em] text-text-muted"
+                  <Button
+                    variant="ghost"
+                    fullWidth={false}
+                    busy={cancelingId === c.id}
+                    disabled={busyId !== null && busyId !== c.id}
+                    onPress={() => handleCancel(c.id)}
                   >
                     Cancel
-                  </button>
+                  </Button>
                 </div>
+                {actionErrors[c.id] && (
+                  <p className="mt-2 font-mono text-xs text-ember" role="alert">
+                    {actionErrors[c.id]}
+                  </p>
+                )}
               </Card>
             );
           })}

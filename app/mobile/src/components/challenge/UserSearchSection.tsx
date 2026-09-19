@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { apiFetch } from "../../lib/api";
 import { notifyError, notifySuccess } from "../../lib/haptics";
-import { ListRow } from "../ui";
+import { Button, ListRow } from "../ui";
 
 interface SearchResult {
   id: string;
@@ -111,7 +111,9 @@ export function UserSearchSection({ onFriendRequestSent }: UserSearchSectionProp
       </div>
 
       {loading && (
-        <p className="text-center font-mono text-xs text-text-muted">Searching…</p>
+        <p className="text-center font-mono text-xs text-text-muted" aria-live="polite">
+          Searching…
+        </p>
       )}
 
       {!loading && query.length >= 2 && results.length === 0 && (
@@ -131,14 +133,20 @@ export function UserSearchSection({ onFriendRequestSent }: UserSearchSectionProp
                     <p className="truncate text-xs text-text-muted">@{u.username}</p>
                   )}
                 </div>
-                <button
-                  type="button"
-                  disabled={sent || addingId === u.id}
-                  onClick={() => handleAdd(u.id)}
-                  className="shrink-0 font-mono text-xs uppercase tracking-[0.12em] text-signal disabled:text-text-muted"
-                >
-                  {sent ? "Sent" : addingId === u.id ? "…" : "Add"}
-                </button>
+                {sent ? (
+                  <span className="shrink-0 font-mono text-xs uppercase tracking-[0.12em] text-signal">
+                    Sent
+                  </span>
+                ) : (
+                  <Button
+                    variant="secondary"
+                    fullWidth={false}
+                    busy={addingId === u.id}
+                    onPress={() => handleAdd(u.id)}
+                  >
+                    Add
+                  </Button>
+                )}
               </ListRow>
             );
           })}

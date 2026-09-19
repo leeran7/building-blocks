@@ -22,6 +22,7 @@ export function ChallengeScreen() {
   const navigate = useNavigate();
   const [friendsRefreshKey, setFriendsRefreshKey] = useState(0);
   const [requestsRefreshKey, setRequestsRefreshKey] = useState(0);
+  const [challengesRefreshKey, setChallengesRefreshKey] = useState(0);
   const [shareState, setShareState] = useState<ShareState>({ status: "idle" });
 
   const handleFriendAccepted = useCallback(() => {
@@ -30,6 +31,10 @@ export function ChallengeScreen() {
 
   const handleRequestSent = useCallback(() => {
     setRequestsRefreshKey((k) => k + 1);
+  }, []);
+
+  const handleChallengeSent = useCallback(() => {
+    setChallengesRefreshKey((k) => k + 1);
   }, []);
 
   const handleShareLink = useCallback(async () => {
@@ -69,14 +74,17 @@ export function ChallengeScreen() {
       <ScreenHeader eyebrow="1v1" title="Challenge" onBack={() => navigate(-1)} />
       <ScreenBody>
         <div className="flex flex-col gap-6 pt-1 pb-4">
-          <PendingChallengesSection />
+          <PendingChallengesSection refreshKey={challengesRefreshKey} />
 
           <FriendRequestsSection
             refreshKey={requestsRefreshKey}
             onAccepted={handleFriendAccepted}
           />
 
-          <FriendsListSection refreshKey={friendsRefreshKey} />
+          <FriendsListSection
+            refreshKey={friendsRefreshKey}
+            onChallengeSent={handleChallengeSent}
+          />
 
           <UserSearchSection onFriendRequestSent={handleRequestSent} />
 

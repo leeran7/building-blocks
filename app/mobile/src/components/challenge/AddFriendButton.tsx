@@ -58,7 +58,10 @@ export function AddFriendButton({ opponentId, opponentName }: AddFriendButtonPro
 
   if (status === "sent") {
     return (
-      <p className="text-center font-mono text-xs uppercase tracking-[0.12em] text-signal">
+      <p
+        className="text-center font-mono text-xs uppercase tracking-[0.12em] text-signal"
+        aria-live="polite"
+      >
         Friend request sent to {opponentName}
       </p>
     );

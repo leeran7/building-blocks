@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { apiFetch } from "../../lib/api";
-import { notifyError, notifySuccess, tapLight } from "../../lib/haptics";
-import { Card } from "../ui";
+import { notifyError, notifySuccess } from "../../lib/haptics";
+import { Button, Card } from "../ui";
 
 interface FriendRequest {
   id: string;
@@ -27,9 +27,15 @@ export function FriendRequestsSection({ refreshKey, onAccepted }: FriendRequests
   const [incoming, setIncoming] = useState<FriendRequest[]>([]);
   const [outgoing, setOutgoing] = useState<OutgoingRequest[]>([]);
   const [loading, setLoading] = useState(true);
-  const [actioning, setActioning] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [acceptingId, setAcceptingId] = useState<string | null>(null);
+  const [decliningId, setDecliningId] = useState<string | null>(null);
+  const [cancelingId, setCancelingId] = useState<string | null>(null);
+  const [actionErrors, setActionErrors] = useState<Record<string, string>>({});
 
   const fetchRequests = useCallback(async () => {
+    setLoading(true);
+    setError(null);
     try {
       const res = await apiFetch("/api/friends/requests");
       if (res.ok) {
@@ -39,9 +45,11 @@ export function FriendRequestsSection({ refreshKey, onAccepted }: FriendRequests
         };
         setIncoming(data.incoming);
         setOutgoing(data.outgoing);
+      } else {
+        setError("Could not load friend requests.");
       }
     } catch {
-      /* section simply won't render */
+      setError("Network error loading friend requests.");
     }
     setLoading(false);
   }, []);
@@ -51,10 +59,21 @@ export function FriendRequestsSection({ refreshKey, onAccepted }: FriendRequests
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fetchRequests, refreshKey]);
 
+  const clearActionError = useCallback((id: string) => {
+    setActionErrors((prev) => {
+      if (!(id in prev)) return prev;
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
+  }, []);
+
+  const busyId = acceptingId ?? decliningId ?? cancelingId;
+
   const handleAccept = useCallback(
     async (id: string) => {
-      void tapLight();
-      setActioning(id);
+      setAcceptingId(id);
+      clearActionError(id);
       try {
         const res = await apiFetch(`/api/friends/${id}/accept`, { method: "POST" });
         if (res.ok) {
@@ -62,42 +81,77 @@ export function FriendRequestsSection({ refreshKey, onAccepted }: FriendRequests
           void notifySuccess();
           onAccepted?.();
         } else {
+          setActionErrors((prev) => ({ ...prev, [id]: "Could not accept. Try again." }));
           void notifyError();
         }
       } catch {
+        setActionErrors((prev) => ({ ...prev, [id]: "Network error. Try again." }));
         void notifyError();
       }
-      setActioning(null);
+      setAcceptingId(null);
     },
-    [onAccepted],
+    [onAccepted, clearActionError],
   );
 
-  const handleDecline = useCallback(async (id: string) => {
-    void tapLight();
-    setActioning(id);
-    try {
-      const res = await apiFetch(`/api/friends/${id}/decline`, { method: "POST" });
-      if (res.ok) setIncoming((prev) => prev.filter((r) => r.id !== id));
-    } catch {
-      /* best-effort */
-    }
-    setActioning(null);
-  }, []);
+  const handleDecline = useCallback(
+    async (id: string) => {
+      setDecliningId(id);
+      clearActionError(id);
+      try {
+        const res = await apiFetch(`/api/friends/${id}/decline`, { method: "POST" });
+        if (res.ok) {
+          setIncoming((prev) => prev.filter((r) => r.id !== id));
+        } else {
+          setActionErrors((prev) => ({ ...prev, [id]: "Could not decline. Try again." }));
+          void notifyError();
+        }
+      } catch {
+        setActionErrors((prev) => ({ ...prev, [id]: "Network error. Try again." }));
+        void notifyError();
+      }
+      setDecliningId(null);
+    },
+    [clearActionError],
+  );
 
-  const handleCancel = useCallback(async (id: string) => {
-    void tapLight();
-    setActioning(id);
-    try {
-      const res = await apiFetch(`/api/friends/${id}`, { method: "DELETE" });
-      if (res.ok) setOutgoing((prev) => prev.filter((r) => r.id !== id));
-    } catch {
-      /* best-effort */
-    }
-    setActioning(null);
-  }, []);
+  const handleCancel = useCallback(
+    async (id: string) => {
+      setCancelingId(id);
+      clearActionError(id);
+      try {
+        const res = await apiFetch(`/api/friends/${id}`, { method: "DELETE" });
+        if (res.ok) {
+          setOutgoing((prev) => prev.filter((r) => r.id !== id));
+        } else {
+          setActionErrors((prev) => ({ ...prev, [id]: "Could not cancel. Try again." }));
+          void notifyError();
+        }
+      } catch {
+        setActionErrors((prev) => ({ ...prev, [id]: "Network error. Try again." }));
+        void notifyError();
+      }
+      setCancelingId(null);
+    },
+    [clearActionError],
+  );
 
   if (loading) {
-    return <p className="py-2 text-center font-mono text-xs text-text-muted">Loading requests…</p>;
+    return (
+      <p className="py-2 text-center font-mono text-xs text-text-muted" aria-live="polite">
+        Loading requests…
+      </p>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center gap-2 py-2" role="alert">
+        <p className="text-sm text-ember">{error}</p>
+        <Button variant="ghost" fullWidth={false} onPress={fetchRequests}>
+          Retry
+        </Button>
+      </div>
+    );
   }
 
   if (incoming.length === 0 && outgoing.length === 0) return null;
@@ -120,25 +174,32 @@ export function FriendRequestsSection({ refreshKey, onAccepted }: FriendRequests
                       <p className="truncate text-xs text-text-muted">@{req.sender.username}</p>
                     )}
                   </div>
-                  <div className="flex shrink-0 items-center gap-3">
-                    <button
-                      type="button"
-                      disabled={actioning === req.id}
-                      onClick={() => handleAccept(req.id)}
-                      className="font-mono text-xs uppercase tracking-[0.12em] text-signal disabled:text-text-muted"
+                  <div className="flex shrink-0 items-center gap-2">
+                    <Button
+                      variant="primary"
+                      fullWidth={false}
+                      busy={acceptingId === req.id}
+                      disabled={busyId !== null && busyId !== req.id}
+                      onPress={() => handleAccept(req.id)}
                     >
-                      {actioning === req.id ? "…" : "Accept"}
-                    </button>
-                    <button
-                      type="button"
-                      disabled={actioning === req.id}
-                      onClick={() => handleDecline(req.id)}
-                      className="font-mono text-xs uppercase tracking-[0.12em] text-text-muted"
+                      Accept
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      fullWidth={false}
+                      busy={decliningId === req.id}
+                      disabled={busyId !== null && busyId !== req.id}
+                      onPress={() => handleDecline(req.id)}
                     >
                       Decline
-                    </button>
+                    </Button>
                   </div>
                 </div>
+                {actionErrors[req.id] && (
+                  <p className="mt-2 font-mono text-xs text-ember" role="alert">
+                    {actionErrors[req.id]}
+                  </p>
+                )}
               </Card>
             );
           })}
@@ -156,15 +217,21 @@ export function FriendRequestsSection({ refreshKey, onAccepted }: FriendRequests
               <Card key={req.id}>
                 <div className="flex items-center justify-between gap-3">
                   <p className="min-w-0 flex-1 truncate text-sm text-text-secondary">{name}</p>
-                  <button
-                    type="button"
-                    disabled={actioning === req.id}
-                    onClick={() => handleCancel(req.id)}
-                    className="shrink-0 font-mono text-xs uppercase tracking-[0.12em] text-text-muted"
+                  <Button
+                    variant="ghost"
+                    fullWidth={false}
+                    busy={cancelingId === req.id}
+                    disabled={busyId !== null && busyId !== req.id}
+                    onPress={() => handleCancel(req.id)}
                   >
                     Cancel
-                  </button>
+                  </Button>
                 </div>
+                {actionErrors[req.id] && (
+                  <p className="mt-2 font-mono text-xs text-ember" role="alert">
+                    {actionErrors[req.id]}
+                  </p>
+                )}
               </Card>
             );
           })}

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { apiFetch } from "../../lib/api";
-import { notifyError, notifySuccess, tapMedium } from "../../lib/haptics";
+import { notifyError, notifySuccess } from "../../lib/haptics";
 import { Button, ListRow } from "../ui";
 
 interface Friend {
@@ -11,10 +11,13 @@ interface Friend {
 export interface FriendsListSectionProps {
   /** Bump this to force a refetch (e.g. after a friend request is accepted). */
   refreshKey?: number;
+  /** Fired after a challenge is successfully sent, so the parent can refresh
+   * the pending-challenges section. */
+  onChallengeSent?: () => void;
 }
 
 /** Accepted friends, each with a "Challenge" action that sends an in-app challenge. */
-export function FriendsListSection({ refreshKey }: FriendsListSectionProps) {
+export function FriendsListSection({ refreshKey, onChallengeSent }: FriendsListSectionProps) {
   const [friends, setFriends] = useState<Friend[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -43,26 +46,29 @@ export function FriendsListSection({ refreshKey }: FriendsListSectionProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fetchFriends, refreshKey]);
 
-  const handleChallenge = useCallback(async (friendUserId: string) => {
-    void tapMedium();
-    setChallengingId(friendUserId);
-    try {
-      const res = await apiFetch("/api/challenge", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ recipientId: friendUserId, categorySlug: "tech" }),
-      });
-      if (res.ok) {
-        setChallengeSent((prev) => new Set(prev).add(friendUserId));
-        void notifySuccess();
-      } else {
+  const handleChallenge = useCallback(
+    async (friendUserId: string) => {
+      setChallengingId(friendUserId);
+      try {
+        const res = await apiFetch("/api/challenge", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ recipientId: friendUserId, categorySlug: "tech" }),
+        });
+        if (res.ok) {
+          setChallengeSent((prev) => new Set(prev).add(friendUserId));
+          void notifySuccess();
+          onChallengeSent?.();
+        } else {
+          void notifyError();
+        }
+      } catch {
         void notifyError();
       }
-    } catch {
-      void notifyError();
-    }
-    setChallengingId(null);
-  }, []);
+      setChallengingId(null);
+    },
+    [onChallengeSent],
+  );
 
   return (
     <div className="flex flex-col gap-3">
@@ -71,11 +77,13 @@ export function FriendsListSection({ refreshKey }: FriendsListSectionProps) {
       </h2>
 
       {loading && (
-        <p className="py-2 text-center font-mono text-xs text-text-muted">Loading friends…</p>
+        <p className="py-2 text-center font-mono text-xs text-text-muted" aria-live="polite">
+          Loading friends…
+        </p>
       )}
 
       {!loading && error && (
-        <div className="flex flex-col items-center gap-2 py-2">
+        <div className="flex flex-col items-center gap-2 py-2" role="alert">
           <p className="text-sm text-ember">{error}</p>
           <Button variant="ghost" fullWidth={false} onPress={fetchFriends}>
             Retry
@@ -102,14 +110,20 @@ export function FriendsListSection({ refreshKey }: FriendsListSectionProps) {
                     <p className="truncate text-xs text-text-muted">@{f.user.username}</p>
                   )}
                 </div>
-                <button
-                  type="button"
-                  disabled={sent || challengingId === f.user.id}
-                  onClick={() => handleChallenge(f.user.id)}
-                  className="shrink-0 font-mono text-xs uppercase tracking-[0.12em] text-signal disabled:text-text-muted"
-                >
-                  {sent ? "Sent" : challengingId === f.user.id ? "…" : "Challenge"}
-                </button>
+                {sent ? (
+                  <span className="shrink-0 font-mono text-xs uppercase tracking-[0.12em] text-signal">
+                    Sent
+                  </span>
+                ) : (
+                  <Button
+                    variant="primary"
+                    fullWidth={false}
+                    busy={challengingId === f.user.id}
+                    onPress={() => handleChallenge(f.user.id)}
+                  >
+                    Challenge
+                  </Button>
+                )}
               </ListRow>
             );
           })}

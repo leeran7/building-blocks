@@ -4,7 +4,8 @@
  * FriendsList -- displays the user's friends with a "Challenge" button next
  * to each. Fetches from GET /api/friends on mount.
  *
- * States: loading, empty, populated, error (network).
+ * States: loading, empty, populated, error (network), per-row challenge
+ * sent/error feedback.
  */
 
 import { useCallback, useEffect, useState } from "react";
@@ -19,15 +20,20 @@ interface Friend {
 }
 
 interface FriendsListProps {
-  onChallenge: (userId: string, displayName: string) => void;
+  onChallenge: (userId: string, displayName: string) => Promise<boolean>;
   disabled?: boolean;
+  /** Bump this to force a refetch (e.g. after a friend request is accepted). */
+  refreshKey?: number;
 }
 
-export function FriendsList({ onChallenge, disabled }: FriendsListProps) {
+export function FriendsList({ onChallenge, disabled, refreshKey }: FriendsListProps) {
   const { token } = useAuth();
   const [friends, setFriends] = useState<Friend[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [challengingId, setChallengingId] = useState<string | null>(null);
+  const [challengeSent, setChallengeSent] = useState<Set<string>>(new Set());
+  const [challengeErrors, setChallengeErrors] = useState<Set<string>>(new Set());
 
   const fetchFriends = useCallback(async () => {
     if (!token) return;
@@ -49,7 +55,28 @@ export function FriendsList({ onChallenge, disabled }: FriendsListProps) {
 
   useEffect(() => {
     fetchFriends();
-  }, [fetchFriends]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fetchFriends, refreshKey]);
+
+  const handleChallenge = useCallback(
+    async (userId: string, displayName: string) => {
+      setChallengingId(userId);
+      setChallengeErrors((prev) => {
+        if (!prev.has(userId)) return prev;
+        const next = new Set(prev);
+        next.delete(userId);
+        return next;
+      });
+      const ok = await onChallenge(userId, displayName);
+      if (ok) {
+        setChallengeSent((prev) => new Set(prev).add(userId));
+      } else {
+        setChallengeErrors((prev) => new Set(prev).add(userId));
+      }
+      setChallengingId(null);
+    },
+    [onChallenge]
+  );
 
   if (loading) {
     return (
@@ -85,37 +112,46 @@ export function FriendsList({ onChallenge, disabled }: FriendsListProps) {
           friend.user.displayName ?? friend.user.username ?? "Friend";
         const showUsername =
           friend.user.displayName && friend.user.username;
+        const sent = challengeSent.has(friend.user.id);
+        const errored = challengeErrors.has(friend.user.id);
+        const challenging = challengingId === friend.user.id;
 
         return (
           <div
             key={friend.id}
-            className="rounded-lg border border-border-subtle bg-surface p-3 flex items-center justify-between gap-3"
+            className="rounded-lg border border-border-subtle bg-surface p-3 flex flex-col gap-1.5"
           >
-            <div className="min-w-0">
-              <p className="text-sm font-semibold text-text-primary truncate">
-                {name}
-              </p>
-              {showUsername && (
-                <p className="text-xs text-text-muted truncate">
-                  @{friend.user.username}
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-text-primary truncate">
+                  {name}
                 </p>
+                {showUsername && (
+                  <p className="text-xs text-text-muted truncate">
+                    @{friend.user.username}
+                  </p>
+                )}
+              </div>
+              {sent ? (
+                <span className="shrink-0 font-mono text-xs uppercase tracking-wider text-signal">
+                  Sent
+                </span>
+              ) : (
+                <Button
+                  variant="primary"
+                  size="sm"
+                  disabled={disabled || challenging}
+                  onClick={() => handleChallenge(friend.user.id, name)}
+                >
+                  {challenging ? "…" : errored ? "Retry" : "Challenge"}
+                </Button>
               )}
             </div>
-            <Button
-              variant="primary"
-              size="sm"
-              disabled={disabled}
-              onClick={() =>
-                onChallenge(
-                  friend.user.id,
-                  friend.user.displayName ??
-                    friend.user.username ??
-                    "Friend"
-                )
-              }
-            >
-              Challenge
-            </Button>
+            {errored && (
+              <p className="text-ember text-xs" role="alert">
+                Could not send challenge. Try again.
+              </p>
+            )}
           </div>
         );
       })}
