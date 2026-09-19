@@ -57,7 +57,7 @@ competent user should take:
 
 If two designs both satisfy the ACs, pick the one that makes the primary path
 obvious without a tutorial. Record the choice in the flow notes so architect and
-design-ux do not reverse it.
+the architect does not reverse it.
 
 ## Finishing-touch checklist (reject the spec if any fail)
 

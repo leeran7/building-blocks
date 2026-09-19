@@ -46,8 +46,8 @@ describe("clampNextStage — never skip the team", () => {
     assert.equal(clampNextStage("verifier", "integrator"), "reviewer");
   });
 
-  it("blocks verifier from jumping to release", () => {
-    assert.equal(clampNextStage("verifier", "release"), "reviewer");
+  it("blocks verifier from jumping past reviewer", () => {
+    assert.equal(clampNextStage("verifier", "integrator"), "reviewer");
   });
 
   it("after reviewer, next is qa-acceptance (security-reviewer already parallel)", () => {
@@ -56,25 +56,8 @@ describe("clampNextStage — never skip the team", () => {
     assert.equal(nextInSequence("reviewer"), "qa-acceptance");
   });
 
-  it("allows optional design-ux after architect", () => {
-    assert.equal(clampNextStage("architect", "design-ux"), "design-ux");
-  });
-
-  it("allows optional github after integrator", () => {
-    assert.equal(clampNextStage("integrator", "github"), "github");
-    assert.equal(nextInSequence("github"), "release");
-  });
-
-  it("keeps devops and docs optional after integrator", () => {
-    assert.equal(clampNextStage("integrator", "devops"), "devops");
-    assert.equal(clampNextStage("integrator", "docs"), "docs");
-    assert.equal(nextInSequence("devops"), "release");
-    assert.equal(nextInSequence("docs"), "release");
-  });
-
-  it("does not treat github as a required-sequence skip target", () => {
-    assert.equal(clampNextStage("verifier", "github"), "reviewer");
-    assert.equal(clampNextStage("qa-acceptance", "github"), "integrator");
+  it("integrator is the final stage", () => {
+    assert.equal(nextInSequence("integrator"), null);
   });
 
   it("does not treat frontend as a pipeline skip", () => {
@@ -87,22 +70,21 @@ describe("clampNextStage — never skip the team", () => {
   });
 
   it("keeps qa-acceptance from skipping integrator", () => {
-    assert.equal(clampNextStage("qa-acceptance", "release"), "integrator");
+    assert.equal(clampNextStage("qa-acceptance", "integrator"), "integrator");
   });
 });
 
 describe("clampLoopBackTo", () => {
   it("rejects a forward skip to integrator", () => {
     assert.equal(clampLoopBackTo("integrator"), "implementer");
-    assert.equal(clampLoopBackTo("release"), "implementer");
+    assert.equal(clampLoopBackTo("reviewer"), "implementer");
     assert.equal(clampLoopBackTo("qa-acceptance"), "implementer");
   });
 
-  it("allows product-spec, architect, implementer, debugger", () => {
+  it("allows product-spec, architect, implementer", () => {
     assert.equal(clampLoopBackTo("product-spec"), "product-spec");
     assert.equal(clampLoopBackTo("architect"), "architect");
     assert.equal(clampLoopBackTo("implementer"), "implementer");
-    assert.equal(clampLoopBackTo("debugger"), "debugger");
   });
 });
 

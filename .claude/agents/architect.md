@@ -86,4 +86,4 @@ Think in boundaries, contracts, failure modes, and limits (what breaks at 10×).
 
 ## Handoff
 
-`loop/handoffs/architect-<ISO-timestamp>.json`. `nextStage`: implementer (or design-ux if the spec is novel UI and no design system exists — check `paths.design`).
+`loop/handoffs/architect-<ISO-timestamp>.json`. `nextStage`: implementer.

@@ -128,12 +128,12 @@ describe("applyHandoff", () => {
   it("refuses to complete if required team never ran", () => {
     const next = applyHandoff(
       baseState({
-        currentStage: "monitor",
-        completedStages: ["release"],
-        dispatched: ["release"],
+        currentStage: "integrator",
+        completedStages: ["implementer"],
+        dispatched: ["implementer"],
       }),
-      handoff("monitor", "success"),
-      ["monitor"],
+      handoff("integrator", "success"),
+      ["integrator"],
     );
     assert.equal(next.status, "paused");
     assert.match(next.pauseReason ?? "", /required team/);

@@ -46,7 +46,7 @@ After verifier succeeds, dispatch `reviewer` and `security-reviewer` in
 Critical items in `findings` **or** `feedback` (or
 `exitCriteria.no_critical_findings === false`) → `needs_revision` →
 implementer. `loopBackTo` is clamped to product-spec / architect /
-implementer / debugger — never forward to integrator or release.
+implementer — never forward past qa-acceptance.
 
 ## Prompt-loop vs programmatic loop
 

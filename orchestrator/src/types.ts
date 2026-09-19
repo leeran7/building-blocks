@@ -78,19 +78,12 @@ export interface LoopState {
 export type Stage =
   | "product-spec"
   | "architect"
-  | "design-ux"
   | "implementer"
   | "verifier"
   | "reviewer"
   | "security-reviewer"
   | "qa-acceptance"
-  | "integrator"
-  | "devops"
-  | "github"
-  | "release"
-  | "monitor"
-  | "docs"
-  | "debugger";
+  | "integrator";
 
 /** Required team members the orchestrator must actually dispatch. Cannot skip. */
 export const REQUIRED_TEAM: Stage[] = [
@@ -116,8 +109,6 @@ export const REQUIRED_SEQUENCE: Stage[] = [
   "reviewer",
   "qa-acceptance",
   "integrator",
-  "release",
-  "monitor",
 ];
 
 export const PRIMARY_PIPELINE: Stage[] = [
@@ -129,8 +120,6 @@ export const PRIMARY_PIPELINE: Stage[] = [
   "security-reviewer",
   "qa-acceptance",
   "integrator",
-  "release",
-  "monitor",
 ];
 
 export function normalizeState(state: LoopState): LoopState {

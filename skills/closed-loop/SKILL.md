@@ -2,10 +2,10 @@
 name: closed-loop
 description: >-
   Orchestrates the closed-loop: spec → architecture → implementation →
-  verification → review → CI → release → monitor. Use for any scoped product
-  goal — a feature, a visual pass, a fix, or a full app — whenever the agent
-  loop should run or multiple subagents should coordinate. Works in Cursor,
-  Claude Code, and Codex.
+  verification → review + security-review → qa-acceptance → integration.
+  Use for any scoped product goal — a feature, a visual pass, a fix, or a
+  full app — whenever the agent loop should run or multiple subagents should
+  coordinate. Works in Cursor, Claude Code, and Codex.
 ---
 
 # Closed Loop

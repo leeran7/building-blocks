@@ -91,10 +91,6 @@ export function resolveNextStage(
     return { nextStage: target, paused: false, complete: false };
   }
 
-  if (state.currentStage === "monitor" && normalized.status === "success") {
-    return { nextStage: null, paused: false, complete: true };
-  }
-
   const next = clampNextStage(state.currentStage, normalized.nextStage);
   if (next === null) {
     return { nextStage: null, paused: false, complete: true };

@@ -13,10 +13,7 @@ export const SPECIALIST_NAMES = [
   "cost",
 ] as const;
 
-export const OPTIONAL_AFTER: Partial<Record<Stage, Stage[]>> = {
-  architect: ["design-ux"],
-  integrator: ["devops", "docs", "github"],
-};
+export const OPTIONAL_AFTER: Partial<Record<Stage, Stage[]>> = {};
 
 export const PARALLEL_WITH: Partial<Record<Stage, Stage[]>> = {
   reviewer: ["security-reviewer"],
@@ -26,7 +23,6 @@ export const LOOP_BACK_TARGETS: Stage[] = [
   "product-spec",
   "architect",
   "implementer",
-  "debugger",
 ];
 
 const STATUS_RANK: Record<HandoffStatus, number> = {
@@ -42,11 +38,6 @@ export function stagesToDispatch(current: Stage): Stage[] {
 }
 
 export function nextInSequence(current: Stage): Stage | null {
-  if (current === "design-ux") return "implementer";
-  if (current === "devops" || current === "docs" || current === "github") {
-    return "release";
-  }
-  if (current === "debugger") return "implementer";
   if (current === "security-reviewer") return "qa-acceptance";
   const idx = REQUIRED_SEQUENCE.indexOf(current);
   if (idx === -1) return "implementer";

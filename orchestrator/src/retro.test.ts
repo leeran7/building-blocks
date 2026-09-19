@@ -1,9 +1,14 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "node:test";
-import { foldLearnings, loadLearningsExcerpt, loadLearningsForStage, persistHandoffLearnings, runRetro, normalizeLearning } from "./retro.js";
+import {
+  loadLearningsExcerpt,
+  loadLearningsForStage,
+  normalizeLearning,
+  runRetro,
+} from "./retro.js";
 import type { Handoff, HandoffLearning } from "./types.js";
 
 function handoff(
@@ -21,210 +26,93 @@ function handoff(
 }
 
 describe("retro", () => {
-  it("persists read-only reviewer learnings into jsonl and folds them", async () => {
-    const dir = await mkdtemp(join(tmpdir(), "loop-retro-"));
-    const handoff: Handoff = {
-      agent: "reviewer",
-      status: "success",
-      summary: "ok",
-      timestamp: "2026-08-29T00:00:00.000Z",
-      learnings: [
-        {
-          forAgents: ["implementer"],
-          insight: "Missing handoff was treated as success",
-          action: "Fail the stage when the handoff file is absent",
-          kind: "pitfall",
-        },
-      ],
-    };
-
-    await runRetro(dir, [handoff], 1);
-
-    const jsonl = await readFile(join(dir, "learnings.jsonl"), "utf-8");
-    assert.match(jsonl, /Missing handoff was treated as success/);
-    assert.match(jsonl, /"status":"curated"/);
-
-    const md = await readFile(join(dir, "learnings.md"), "utf-8");
-    assert.match(md, /orchestrator retro \(iteration 1\)/);
-    assert.match(md, /Fail the stage when the handoff file is absent/);
-  });
-
-  it("does not duplicate an insight already in the ledger", async () => {
-    const dir = await mkdtemp(join(tmpdir(), "loop-retro-"));
-    const handoff: Handoff = {
-      agent: "security-reviewer",
-      status: "success",
-      summary: "ok",
-      timestamp: "2026-08-29T00:00:00.000Z",
-      learnings: [
-        {
-          forAgents: ["all"],
-          insight: "same insight",
-          action: "do the thing",
-        },
-      ],
-    };
-    await persistHandoffLearnings(handoff, dir);
-    await persistHandoffLearnings(handoff, dir);
-    const jsonl = await readFile(join(dir, "learnings.jsonl"), "utf-8");
-    const lines = jsonl.trim().split("\n");
-    assert.equal(lines.length, 1);
-  });
-
-  it("returns a placeholder when the ledger is missing", async () => {
-    const dir = await mkdtemp(join(tmpdir(), "loop-retro-"));
-    const excerpt = await loadLearningsExcerpt(dir);
-    assert.match(excerpt, /no learnings yet/);
-  });
-
-  it("folds an open entry under the matching topic heading, not only Recently applied", async () => {
-    const dir = await mkdtemp(join(tmpdir(), "loop-retro-"));
-    await persistHandoffLearnings(
-      handoff("verifier", {
-        forAgents: ["implementer"],
-        topic: "testing",
-        insight: "source greps are not tests",
-        action: "Invoke the unit and assert its output",
-      }),
-      dir,
-      1,
-    );
-    await foldLearnings(dir, 1);
-
-    const md = await readFile(join(dir, "learnings.md"), "utf-8");
-    const testing = md.split("### Testing")[1]?.split("### ")[0] ?? "";
-    assert.match(testing, /source greps are not tests/);
-    assert.match(md, /## Recently applied \(last 20\)[\s\S]*source greps are not tests/);
-  });
-
-  it("trims Recently applied to the 20 newest entries and keeps the rest under the topic", async () => {
-    const dir = await mkdtemp(join(tmpdir(), "loop-retro-"));
-    for (let i = 0; i < 25; i++) {
-      await persistHandoffLearnings(
-        handoff(
-          "verifier",
-          {
-            forAgents: ["all"],
-            topic: "testing",
-            insight: `insight ${i}`,
-            action: `action ${i}`,
-          },
-          `2026-08-29T00:00:${String(i).padStart(2, "0")}.000Z`,
-        ),
-        dir,
-        1,
-      );
-    }
-    await foldLearnings(dir, 1);
-
-    const md = await readFile(join(dir, "learnings.md"), "utf-8");
-    const recent = md.split("## Recently applied (last 20)")[1] ?? "";
-    const recentBullets = recent.split("\n").filter((line) => line.startsWith("- "));
-    assert.equal(recentBullets.length, 20);
-    assert.match(recent, /insight 24/);
-    assert.doesNotMatch(recent, /insight 0/);
-    const testing = md.split("### Testing")[1]?.split("### ")[0] ?? "";
-    assert.match(testing, /insight 0/);
-    assert.match(testing, /insight 24/);
-  });
-
-  it("promotes a lesson reported by two agents to standing rules", async () => {
-    const dir = await mkdtemp(join(tmpdir(), "loop-retro-"));
-    const learning = {
-      forAgents: ["implementer"],
-      topic: "security",
-      insight: "unpaid checkout sessions were credited",
-      action: "Gate credit on payment_status paid",
-    };
-    await persistHandoffLearnings(handoff("reviewer", learning), dir, 1);
-    await persistHandoffLearnings(handoff("security-reviewer", learning), dir, 1);
-    await foldLearnings(dir, 1);
-
-    const md = await readFile(join(dir, "learnings.md"), "utf-8");
-    const standing = md.split("## Standing rules (always apply)")[1]?.split("## ")[0] ?? "";
-    assert.match(standing, /unpaid checkout sessions were credited/);
-    assert.match(standing, /reviewer/);
-    assert.match(standing, /security-reviewer/);
-  });
-
-  it("promotes a lesson that recurs in a second iteration", async () => {
-    const dir = await mkdtemp(join(tmpdir(), "loop-retro-"));
-    const learning = {
-      forAgents: ["all"],
-      topic: "orchestration",
-      insight: "missing handoff was treated as success",
-      action: "Fail the stage when the handoff file is absent",
-    };
-    await runRetro(dir, [handoff("reviewer", learning)], 1);
-    await persistHandoffLearnings(handoff("reviewer", learning), dir, 2);
-    await foldLearnings(dir, 2);
-
-    const md = await readFile(join(dir, "learnings.md"), "utf-8");
-    const standing = md.split("## Standing rules (always apply)")[1]?.split("## ")[0] ?? "";
-    assert.match(standing, /missing handoff was treated as success/);
-  });
-
-  it("does not promote a single-agent, single-iteration lesson", async () => {
+  it("routes a question to loop/learnings.md", async () => {
     const dir = await mkdtemp(join(tmpdir(), "loop-retro-"));
     await runRetro(
       dir,
       [
         handoff("reviewer", {
           forAgents: ["implementer"],
-          insight: "one-off observation",
-          action: "do not promote me",
+          insight: "Is the free leaderboard a trust boundary?",
+          action: "Need a decision before implementing auth",
+          kind: "question",
         }),
       ],
       1,
     );
+
     const md = await readFile(join(dir, "learnings.md"), "utf-8");
-    const standing = md.split("## Standing rules (always apply)")[1]?.split("## ")[0] ?? "";
-    assert.doesNotMatch(standing, /one-off observation/);
+    assert.match(md, /Open Questions/);
+    assert.match(md, /Is the free leaderboard a trust boundary/);
+    assert.match(md, /reviewer → implementer/);
   });
 
-  it("keeps wrapped Recently applied bullets and standing prose when folding a new entry", async () => {
+  it("does not duplicate a question already in learnings.md", async () => {
     const dir = await mkdtemp(join(tmpdir(), "loop-retro-"));
     await writeFile(
       join(dir, "learnings.md"),
-      `# Learnings Ledger
-
-_Last curated: 2026-08-29T13:40:00Z — retro over the 2026-08-29 review pass
-(\`3385d3f..f76090a\`)._
-
-## Standing rules (always apply)
-
-- **[all] A quality gate is not a gate until it has been proven to fail.**
-
-## By topic
-### Testing
-- existing testing bullet that must survive
-
-## Recently applied (last 20)
-- 2026-08-29 — .gitignore switched from \`loop/\` to \`loop/*\` plus negations so the
-  learnings ledger is version-controlled (F-16). Applied.
-`,
+      "# Open Questions\n\n- [reviewer → implementer] Is the free leaderboard a trust boundary?\n",
     );
-    await persistHandoffLearnings(
-      handoff("verifier", {
-        forAgents: ["all"],
-        topic: "testing",
-        insight: "fresh insight this iteration",
-        action: "assert the handler, not the helper",
-      }),
+    await runRetro(
       dir,
+      [
+        handoff("reviewer", {
+          forAgents: ["implementer"],
+          insight: "Is the free leaderboard a trust boundary?",
+          action: "Need decision",
+          kind: "question",
+        }),
+      ],
       2,
     );
-    await foldLearnings(dir, 2);
 
     const md = await readFile(join(dir, "learnings.md"), "utf-8");
-    assert.match(md, /version-controlled \(F-16\)\. Applied/);
-    assert.match(md, /A quality gate is not a gate until it has been proven to fail/);
-    assert.match(md, /existing testing bullet that must survive/);
-    assert.match(md, /orchestrator retro \(iteration 2\)/);
-    assert.match(md, /fresh insight this iteration/);
+    const count = md.split("Is the free leaderboard a trust boundary").length - 1;
+    assert.equal(count, 1, "question must not be duplicated");
   });
 
-  it("normalises alias learning schemas (lesson/type → insight/kind)", async () => {
+  it("drops a one-off single-agent lesson (no target file)", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "loop-retro-"));
+    await runRetro(
+      dir,
+      [
+        handoff("reviewer", {
+          forAgents: ["all"],
+          insight: "one-off observation not worth promoting",
+          action: "noted",
+          topic: "general",
+        }),
+      ],
+      1,
+    );
+
+    let md: string;
+    try {
+      md = await readFile(join(dir, "learnings.md"), "utf-8");
+    } catch {
+      md = "";
+    }
+    assert.doesNotMatch(md, /one-off observation/);
+  });
+
+  it("returns a placeholder when learnings.md is missing", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "loop-retro-"));
+    const excerpt = await loadLearningsExcerpt(dir);
+    assert.match(excerpt, /no learnings yet/);
+  });
+
+  it("loadLearningsForStage returns open questions", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "loop-retro-"));
+    await writeFile(
+      join(dir, "learnings.md"),
+      "# Open Questions\n\n- [security-reviewer → architect] One slot or stacking?\n",
+    );
+    const result = await loadLearningsForStage(dir, "architect");
+    assert.match(result, /Open Questions/);
+    assert.match(result, /One slot or stacking/);
+  });
+
+  it("normalises alias learning schemas (lesson/type → insight/kind)", () => {
     const canonical = normalizeLearning({
       type: "pitfall",
       lesson: "Grep tests went green while the bug was live",
@@ -235,62 +123,69 @@ _Last curated: 2026-08-29T13:40:00Z — retro over the 2026-08-29 review pass
     assert.equal(canonical?.action, "Invoke the unit and assert output");
     assert.equal(canonical?.kind, "pitfall");
     assert.deepEqual(canonical?.forAgents, ["verifier"]);
-
-    const dir = await mkdtemp(join(tmpdir(), "loop-alias-"));
-    await persistHandoffLearnings(
-      {
-        agent: "reviewer",
-        status: "success",
-        summary: "ok",
-        timestamp: "2026-08-29T00:00:00.000Z",
-        learnings: [
-          {
-            forAgents: ["all"],
-            lesson: "alias insight",
-            fix: "use the canonical fields",
-          } as unknown as HandoffLearning,
-        ],
-      },
-      dir,
-    );
-    const jsonl = await readFile(join(dir, "learnings.jsonl"), "utf-8");
-    assert.match(jsonl, /alias insight/);
-    assert.match(jsonl, /use the canonical fields/);
   });
 
-  it("loadLearningsForStage appends forAgents-scoped learnings for the agent", async () => {
+  it("normalizeLearning returns null for missing required fields", () => {
+    assert.equal(normalizeLearning(null), null);
+    assert.equal(normalizeLearning({}), null);
+    assert.equal(normalizeLearning({ insight: "no action" }), null);
+    assert.equal(normalizeLearning({ action: "no insight" }), null);
+  });
+
+  it("handles handoffs with no learnings gracefully", async () => {
     const dir = await mkdtemp(join(tmpdir(), "loop-retro-"));
-    await persistHandoffLearnings(
-      handoff("security-reviewer", {
-        forAgents: ["security-reviewer", "implementer"],
-        topic: "Security",
-        kind: "pitfall",
-        insight: "Security control had no production callers.",
-        action: "Assert the control is reachable from a request handler.",
-      }),
+    await runRetro(
       dir,
+      [
+        {
+          agent: "verifier",
+          status: "success",
+          summary: "all tests pass",
+          timestamp: "2026-08-29T00:00:00.000Z",
+        },
+      ],
       1,
     );
-    await persistHandoffLearnings(
-      handoff("frontend", {
-        forAgents: ["frontend"],
-        topic: "Performance",
-        kind: "lesson",
-        insight: "Unrelated frontend-only note should stay out of security excerpt.",
-        action: "Ignore for other stages.",
-      }),
+    const excerpt = await loadLearningsExcerpt(dir);
+    assert.match(excerpt, /no learnings yet/);
+  });
+
+  it("deduplicates the same insight from multiple handoffs", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "loop-retro-"));
+    const learning: HandoffLearning = {
+      forAgents: ["implementer"],
+      insight: "same insight from two agents",
+      action: "do the thing",
+      kind: "question",
+    };
+    await runRetro(
       dir,
+      [handoff("reviewer", learning), handoff("security-reviewer", learning)],
       1,
-    );
-    await writeFile(
-      join(dir, "learnings.md"),
-      `# Learnings Ledger\n\n## Standing rules (always apply)\n\n- Keep secrets out of prompts.\n\n## Recently applied (last 20)\n`,
     );
 
-    const excerpt = await loadLearningsForStage(dir, "security-reviewer");
-    assert.match(excerpt, /Standing rules/);
-    assert.match(excerpt, /Learnings for security-reviewer/);
-    assert.match(excerpt, /Security control had no production callers/);
-    assert.doesNotMatch(excerpt, /Unrelated frontend-only note/);
+    const md = await readFile(join(dir, "learnings.md"), "utf-8");
+    const count = md.split("same insight from two agents").length - 1;
+    assert.equal(count, 1, "insight must appear only once even from two agents");
+  });
+
+  it("creates learnings.md from scratch when it does not exist", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "loop-retro-"));
+    await runRetro(
+      dir,
+      [
+        handoff("architect", {
+          forAgents: ["product-spec"],
+          insight: "Need to clarify auth flow",
+          action: "Ask product about SSO requirement",
+          kind: "question",
+        }),
+      ],
+      1,
+    );
+
+    const md = await readFile(join(dir, "learnings.md"), "utf-8");
+    assert.match(md, /# Open Questions/);
+    assert.match(md, /Need to clarify auth flow/);
   });
 });
