@@ -64,15 +64,16 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       take: BATCH_SIZE,
     });
 
-    let sent = 0;
-    for (const user of eligible) {
-      sendPushToUser(user.id, {
-        title: "Free chips!",
-        body: "Your daily free chips are ready to claim!",
-        data: { type: "daily_chips" },
-      }).catch(() => {});
-      sent++;
-    }
+    const results = await Promise.allSettled(
+      eligible.map((user) =>
+        sendPushToUser(user.id, {
+          title: "Free chips!",
+          body: "Your daily free chips are ready to claim!",
+          data: { type: "daily_chips" },
+        })
+      )
+    );
+    const sent = results.filter((r) => r.status === "fulfilled").length;
 
     return NextResponse.json({ ok: true, sent });
   } catch (err) {

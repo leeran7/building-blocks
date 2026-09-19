@@ -47,16 +47,18 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   try {
     const { count: expired, challenges } = await reapExpiredChallenges();
 
-    for (const c of challenges) {
-      const recipientName = c.recipient.display_name ?? "your opponent";
-      createNotification({
-        userId: c.sender_id,
-        type: "challenge_expired",
-        title: "Challenge expired",
-        body: `Your challenge to ${recipientName} expired`,
-        data: { challengeId: c.id },
-      }).catch(() => {});
-    }
+    await Promise.allSettled(
+      challenges.map((c) => {
+        const recipientName = c.recipient.display_name ?? "your opponent";
+        return createNotification({
+          userId: c.sender_id,
+          type: "challenge_expired",
+          title: "Challenge expired",
+          body: `Your challenge to ${recipientName} expired`,
+          data: { challengeId: c.id },
+        });
+      })
+    );
 
     return NextResponse.json({ ok: true, expired });
   } catch (err) {

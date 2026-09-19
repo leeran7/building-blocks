@@ -53,6 +53,16 @@ export async function POST(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   try {
     const { uid } = await requireAuth(request);
+    const rl = await checkRateLimit({
+      namespace: "push:unregister",
+      identifier: uid,
+      max: 20,
+      windowSeconds: 60,
+      failMode: "open",
+    });
+    if (!rl.allowed) {
+      return NextResponse.json({ error: "Too many requests" }, { status: 429 });
+    }
 
     const body = (await request.json()) as { token?: unknown };
     const token = typeof body.token === "string" ? body.token.trim() : "";

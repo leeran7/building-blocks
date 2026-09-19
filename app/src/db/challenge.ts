@@ -231,7 +231,7 @@ export async function reapExpiredChallenges(limit = 200): Promise<{
 
   const ids = expired.map((c) => c.id);
   await prisma.challenge.updateMany({
-    where: { id: { in: ids } },
+    where: { id: { in: ids }, status: ChallengeStatus.pending },
     data: { status: ChallengeStatus.expired },
   });
 
