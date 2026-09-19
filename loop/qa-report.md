@@ -1,68 +1,109 @@
-# QA Acceptance Report — share-first export (no download when canShare)
+# QA Acceptance Report: Duel HUD Unification
 
-**Goal:** Native share immediately after encode; no download when `canShare`  
-**Branch:** `cursor/share-immediate-b391`  
-**Date:** 2026-09-06T18:29:28Z  
-**Agent:** qa-acceptance  
-**Spec:** `loop/spec-share-immediate.md` (AC-SI-1…5)  
-**Verdict:** **PASS** → integrator
+**Date:** 2026-09-19
+**Goal:** Unify 1v1 duel game UI with Free Climb / Daily pattern (ClimbScene + ExpeditionHud)
+**Verdict:** PASS -- all ACs met, all flows validated, quality gates green
 
-## Method
+## Acceptance Criteria
 
-1. Re-ran production-invoking vitest (22/22 related) + `pnpm typecheck` (pass).
-2. Code inspection: `onstop` File-only; `startExport` awaits `encodePromise` then `deliverExportFile`; click sites ClimbScene + ReplayTransportBar; Share ≥44×44 + “Share complete” wiring.
-3. Playwright Chromium (iPhone 12) smoke on live `/play?r=` with injectable `canShare`/`share` mocks and `<a download>` click spy — assert download **not** triggered when canShare true.
-4. No source-text greps as AC proof (kernel gate).
+### AC-1: ExpeditionHud renders height, lava clearance, utilities identically in duel
 
-## Unit evidence
+- **Method:** Automated tests (2 tests in expeditionHudDuel.test.tsx)
+- **Expected:** HeightInstrument, LavaClearanceInstrument, UtilityControls render identically in both solo and duel modes.
+- **Actual:** Same components render in both modes. Duel instruments are additive (exp-duel-strip below main HUD). Tests assert height "100.0 feet", clearance "50.0 feet", mute control, surge phase all appear identically in both solo and duel renders.
+- **Evidence:** expeditionHudDuel.test.tsx lines 62-89.
+- **Result:** PASS
 
-| Suite | Result |
-| --- | --- |
-| `exportDelivery.test.ts` | 8 pass |
-| `shareVideoFile.test.ts` | 9 pass |
-| `exportMime.test.ts` | 5 pass |
-| **Total** | **22/22** |
-| `pnpm typecheck` | pass |
+### AC-2: Duel instruments only mount when duel prop provided; solo never renders them
 
-## Browser smoke highlights
+- **Method:** Structural code review (call sites) + automated tests (2 tests)
+- **Expected:** No exp-duel-strip, exp-versus, or exp-race-progress in solo; all present in duel.
+- **Actual:** ClimbScene.tsx (solo) does NOT pass duel prop. ExpeditionHud.tsx conditional {duel && (...)} gates duel instruments. Tests confirm no duel classes render without the prop.
+- **Evidence:** ClimbScene.tsx:451-462 (no duel prop). expeditionHudDuel.test.tsx lines 94-110.
+- **Result:** PASS
 
-Base: `http://127.0.0.1:3010/play?r=<qa-export token>` · device: iPhone 12 · mocks: `navigator.canShare` / `navigator.share` + patched `HTMLAnchorElement.click` for `[download]`.
+### AC-3: VersusInstrument shows player names + LIVE badge; RaceProgressInstrument shows altitude race bars
 
-| Partition | Label | share() calls | `<a download>` clicks | Share btn | Notes |
-| --- | --- | --- | --- | --- | --- |
-| canShare→true | READY TO SHARE MP4 | 1 (auto after Export) | **0** | visible 48.5×44 | createObjectURL count 0; Share click → aria-live `Share complete 3`; file `climb-99m-20260906.mp4` / `video/mp4` |
-| canShare→false | DOWNLOADED MP4 | 0 | **1** | hidden | download `climb-99m-20260906.mp4` blob URL |
+- **Method:** Automated tests (11 tests)
+- **Expected:** Player names with vs separator, LIVE badge during climb, race bars with percentages, leader marker, (you) marker, slot-specific colors, aria-labels.
+- **Actual:** All elements render correctly. LIVE badge appears only during climb phase. Race bar percentages correctly computed (50/50=100%, 30/50=60%). Leader gets triangle marker. Local player gets (you) suffix.
+- **Evidence:** expeditionHudDuel.test.tsx lines 116-208.
+- **Result:** PASS
 
-## AC matrix
+### AC-4: opponentStale=true during climb phase shows "opponent reconnecting..."
 
-| AC | Status | Expected | Actual / evidence |
-| --- | --- | --- | --- |
-| AC-SI-1 | **pass** | canShare true → no downloadBlob / `<a download>` | Unit: `deliverExportFile` download not called; Playwright: downloadClicks=0, createObjectURLs=0 when mocked canShare true |
-| AC-SI-2 | **pass** | canShare false → download still occurs | Unit: download once, share never; Playwright: downloadClicks=1, DOWNLOADED MP4 |
-| AC-SI-3 | **pass** | share once in Export click async chain after await encode; Share ≥44×44 on abort/unsupported | Inspection: onstop File-only; await encodePromise → deliverExportFile; Playwright: shareCalls=1 after Export before retry click; Share 48.5×44 remains |
-| AC-SI-4 | **pass** | Share click after share-first success → aria-live Share complete | Playwright: Share click → `Share complete 3`; unit+wiring: exportSuccessLabel Ready to share; speak on shared/ok |
-| AC-SI-5 | **pass** | WebM/MP4 MIME honesty unchanged (AC-NS-8) | Unit pickExportMime never labels WebM as MP4; Playwright fileType `video/mp4` for MP4 path |
+- **Method:** Automated tests (4 tests)
+- **Expected:** "opponent reconnecting" text during climb+stale; hidden when false; hidden outside climb; stale opacity on race bar.
+- **Actual:** Guard duel.phase === "climb" && duel.opponentStale && !showReconnecting properly gates. Stale racer bar shows opacity-50/opacity-40 and aria-label includes "connection lost".
+- **Evidence:** expeditionHudDuel.test.tsx lines 213-248.
+- **Result:** PASS
 
-## Residuals / risk
+### AC-5: connectionState disconnected/suspended/connecting shows "reconnecting..."
 
-| Item | Risk | Why not fail |
-| --- | --- | --- |
-| Physical iOS/Android OS sheet | Low | Product contract is Web Share Level 2; mocked navigator.share proves no-download + share wiring |
-| UA activation loss after long encode | Low | Spec allows Share retry; AC-SI-3 structural await chain + Share ≥44×44 proven |
-| Delivery re-entry / late setStatus (reviewer warnings) | Low | Not AC-SI; note for follow-up — Export enabled during deliverExportFile settlement |
-| Delta spec has no Flows F-n inventory | Low | Intentional UX delta on native-share; primary Export→share-first path walked end-to-end |
+- **Method:** Automated tests (5 tests)
+- **Expected:** Reconnecting for disconnected/suspended/connecting; hidden when connected; own reconnecting suppresses opponent stale.
+- **Actual:** All three states trigger reconnecting. Connected does not. Priority logic correct: own reconnecting suppresses opponent stale via !showReconnecting guard.
+- **Evidence:** expeditionHudDuel.test.tsx lines 254-285.
+- **Result:** PASS
 
-## Exploratory
+### AC-6: Countdown uses same pattern as solo climb
 
-- canShare true: success copy is Ready to share (not Downloaded); Share + Dismiss present.
-- canShare false: Downloaded + Dismiss only; Share absent (negative partition).
-- Double Export while delivery in flight: known reviewer warning (session cleared early) — not an AC fail.
-- Abort path covered by unit (`aborted` shareResult → no download); Share retry chrome remains when canShare.
+- **Method:** Structural code comparison
+- **Expected:** Same outer/inner wrapper classes, "[ get ready ]" tag, font-display text-7xl numeral.
+- **Actual:** Identical class strings. Outer: "absolute inset-0 flex flex-col items-center justify-center overflow-y-auto rounded-xl bg-void/70 backdrop-blur-xs p-4 text-center". Inner: "my-auto flex w-full max-w-sm flex-col items-center py-2". Content matches.
+- **Evidence:** DuelRoom.tsx:810-821 vs ClimbScene.tsx:653-656 + 464-472.
+- **Result:** PASS
 
-## Applied learnings
+## NFRs
 
-- Invoked `deliverExportFile` / `resolveExportDelivery` / `shareVideoFile` / `pickExportMime` — no source greps.
-- Mocked canShare/share in Playwright (desktop Chromium lacks file share) per prior QA lesson.
-- Confirmed AC-SI-3 against startExport await order (onstop File-only), not superseded onstop-share.
-- Did not loopBack for activation survival or announce unit residuals once Playwright closed them.
-- Did not reopen free-leaderboard trust boundary.
+| NFR | Result | Evidence |
+|-----|--------|----------|
+| NFR-1: No new dependencies | PASS | No new package imports |
+| NFR-2: TypeScript strict | PASS | pnpm typecheck clean |
+| NFR-3: Quality gates | PASS | typecheck, lint 0 warnings, 688/688 tests |
+| NFR-4: Touch targets >= 44x44 | PASS | exp-utility 44x44 min-width/min-height |
+
+## Flow Validation
+
+### F-1: Duel match (critical)
+- Discovery via /duel/[id] deep link
+- Entry: DuelRoom -> DuelGame with ExpeditionHud + duel prop
+- Countdown matches solo pattern (AC-6)
+- Climb: shared HUD (AC-1) + duel instruments (AC-3)
+- Failure: reconnecting states (AC-4, AC-5)
+- Success next: DuelResult (unchanged, out of scope)
+- Mid-flow: forfeit beacon (unchanged)
+
+### F-2: Solo climb (regression guard)
+- No duel instruments in solo mode (AC-2)
+- ClimbScene does not pass duel prop
+- No behavioral regression
+
+## Exploratory Checks
+
+- Connection status priority: own reconnecting suppresses opponent stale (verified by test)
+- Zero maxAlt boundary: handled without NaN/Infinity (test verified)
+- Empty racers array: structure renders without rows (test verified)
+- Long player names: CSS truncation via text-overflow: ellipsis with responsive max-widths
+- prefers-reduced-motion: animate-pulse uses motion-safe: prefix; existing animations have media query
+- "GO" flash uses aria-live="assertive" and aria-atomic="true"
+
+## Non-blocking Notes
+
+1. Countdown aria-live gap (pre-existing): both duel and solo countdown overlays lack aria-live="assertive". Inherited from solo Overlay, not introduced by this change.
+2. DuelHudInfo.phase and connectionState typed as string rather than unions (reviewer warning).
+3. Player-2 color #6bb8ff hardcoded in 4 locations (reviewer info).
+
+## Quality Gates
+
+| Gate | Result |
+|------|--------|
+| app-typecheck | PASS |
+| app-lint | PASS (0 warnings) |
+| app-test | PASS (688/688, 77 files) |
+
+## Applied Learnings
+
+- Reviewer learning 1 (countdown aria-live): Noted as pre-existing gap, not a regression from this change.
+- Reviewer learning 2 (connection status priority): Verified the !showReconnecting guard correctly suppresses opponent stale when own connection is down.
+- Security reviewer learning (player names): React JSX auto-escapes player names. CSS truncation handles long names.
