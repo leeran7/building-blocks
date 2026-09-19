@@ -5,7 +5,7 @@
  * 429 rate limit, timeout on expired, network error, cancel with DELETE,
  * interval cleanup on unmount, and reset from terminal states.
  *
- * @vitest-environment jsdom
+ * @vitest-environment happy-dom
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
