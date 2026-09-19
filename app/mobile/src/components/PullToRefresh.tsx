@@ -14,6 +14,7 @@ export function PullToRefresh({
   children: ReactNode;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
   const startY = useRef(0);
   const isPulling = useRef(false);
   const pullYRef = useRef(0);
@@ -29,10 +30,11 @@ export function PullToRefresh({
 
     const onTouchStart = (e: TouchEvent) => {
       if (refreshingRef.current) return;
-      if (el.scrollTop <= 0) {
-        startY.current = e.touches[0].clientY;
-        isPulling.current = true;
-      }
+      if (el.scrollTop > 0) return;
+      const target = e.target as Node;
+      if (!contentRef.current?.contains(target)) return;
+      startY.current = e.touches[0].clientY;
+      isPulling.current = true;
     };
 
     const onTouchMove = (e: TouchEvent) => {
@@ -108,7 +110,7 @@ export function PullToRefresh({
           <PullArrow progress={progress} ready={displayY >= THRESHOLD} />
         ) : null}
       </div>
-      {children}
+      <div ref={contentRef}>{children}</div>
     </div>
   );
 }
