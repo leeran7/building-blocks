@@ -407,11 +407,17 @@ export function ProfileScreen() {
                     setLeaderboardConsent(next);
                     if (next) void tapLight();
                     try {
-                      await apiFetch("/api/settings", {
+                      const res = await apiFetch("/api/settings", {
                         method: "PUT",
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({ leaderboardConsent: next }),
                       });
+                      if (!res.ok) throw new Error("save failed");
+                      // Keep the shared cache in sync so a remount within the TTL
+                      // window re-seeds from the value just saved, not a stale one.
+                      if (settingsData) {
+                        setSettings({ ...settingsData, leaderboardConsent: next });
+                      }
                     } catch {
                       setLeaderboardVisible(!next);
                       setLeaderboardConsent(!next);
