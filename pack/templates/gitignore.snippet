@@ -1,9 +1,10 @@
 # Closed-loop runtime (pack gitignore snippet)
-# Ignore per-run artifacts. Re-include the ledger — a directory ignore of
-# `loop/` cannot be negated. See skills/closed-loop/gates.md (memory).
+# Ignore per-run artifacts. Re-include learnings.md (open questions only)
+# and handoffs/ (orchestrator retro promotes findings to permanent docs).
 loop/*
 !loop/learnings.md
-!loop/learnings.jsonl
+!loop/handoffs/
+!loop/*.md
 .cursor/loop/handoffs/*.json
 .cursor/loop/state.json
 .claude/handoffs/*.json

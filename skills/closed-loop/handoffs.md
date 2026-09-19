@@ -6,7 +6,7 @@ Every agent in the closed loop writes a handoff file to `loop/handoffs/<agent>-<
 
 ```json
 {
-  "agent": "implementer",
+  "agent": "software-engineer",
   "status": "success",
   "summary": "Implemented user auth with JWT and login endpoint.",
   "timestamp": "2026-08-22T12:00:00Z",
@@ -32,7 +32,7 @@ agents continuously learn from each other. See
 | Status | Meaning | Loop action |
 |--------|---------|-------------|
 | `success` | Exit criteria met | Proceed to `nextStage` |
-| `needs_revision` | Fixable issues found | Route to `loopBackTo` (usually implementer) |
+| `needs_revision` | Fixable issues found | Route to `loopBackTo` (usually software-engineer) |
 | `blocked` | Cannot proceed without input | Pause loop, surface to user |
 | `failed` | Unrecoverable error | Pause loop, surface to user |
 
@@ -78,7 +78,7 @@ reads both.
 ```json
 {
   "topic": "testing",
-  "forAgents": ["implementer", "architect"],
+  "forAgents": ["software-engineer"],
   "kind": "lesson",
   "insight": "Webhook handler read the raw body twice; the second read was empty.",
   "action": "Buffer the raw body once, pass it to constructEvent; never re-read req.body.",
@@ -86,13 +86,13 @@ reads both.
 }
 ```
 
-Each learning here MUST also be appended (one line) to `loop/learnings.jsonl`.
-See [learning-loop.md](learning-loop.md).
+The orchestrator retro promotes these to their permanent file — see
+[learning-loop.md](learning-loop.md).
 
 ## Reading prior handoffs
 
 Before starting work, read the latest handoff from the upstream agent listed in
 `loop/state.json` — **including its `learnings` array**, which are findings the
-previous agent aimed directly at you. Also read `loop/learnings.md` (your section
-+ `all`). Answer every ping addressed to you: apply it, or record an explicit
-exception. See [learning-loop.md](learning-loop.md).
+previous agent aimed directly at you. Also read `loop/learnings.md` for open
+questions that may affect your work. Answer every ping addressed to you: apply
+it, or record an explicit exception. See [learning-loop.md](learning-loop.md).

@@ -1,22 +1,4 @@
-# Learnings Ledger
+# Open Questions
 
-_Last curated: never._
-
-Kernel quality gates (every repo): `skills/closed-loop/gates.md`.
-This file is **this repo's** memory. Do not copy it into other products.
-
-## Standing rules (always apply)
-
-## By topic
-### Testing
-### Security
-### Architecture & contracts
-### Performance
-### Spec quality
-### Build / CI
-### GitHub / PRs / stacks
-### Orchestration
-
-## Open questions (unresolved, need a decision)
-
-## Recently applied (last 20)
+Questions that need a human decision before agents can proceed.
+Resolved questions are removed — the answer lives in the target file.

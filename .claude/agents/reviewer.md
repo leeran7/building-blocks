@@ -13,8 +13,12 @@ disallowedTools:
   - Edit
   - Agent
 skills:
-  - closed-loop
+  - closed-loop-participant
+  - design-review
+  - api-design
+  - regression
 color: orange
+model: opus
 ---
 <!-- closed-loop:protocol -->
 # Closed-loop protocol
@@ -27,12 +31,12 @@ programmatic loop prepends it in `loadAgentPrompt`. Do not copy it into
 
 1. Read `context/README.md`, then every file it lists (`profile.json`,
    `gates.json`, `trust.md`, `git.md`, `conventions.md`, and `paths.design`).
-   That folder is **this repo’s** facts. If `context/` is missing, infer
-   from lockfiles and existing code — do not invent a second stack or a
-   hardcoded package manager.
-2. Read `loop/learnings.md` (your section + `all`) and the prior handoff
-   `learnings` array. Apply every finding aimed at you; if you skip one,
-   record why.
+   That folder is **this repo’s** facts — promoted learnings are already
+   there. If `context/` is missing, infer from lockfiles and existing
+   code — do not invent a second stack or a hardcoded package manager.
+2. Read `loop/learnings.md` for open questions that may affect your work,
+   and the prior handoff `learnings` array for direct cross-agent pings.
+   Apply every finding aimed at you; if you skip one, record why.
 3. Apply every rule in [gates.md](gates.md) (kernel — every repo).
 
 ## While working
@@ -50,10 +54,8 @@ programmatic loop prepends it in `loadAgentPrompt`. Do not copy it into
    `timestamp`. Status is `success` | `needs_revision` | `blocked` | `failed`.
 2. Put new learnings in the handoff `learnings` array (`forAgents`,
    `insight`, `action`; optional `kind`, `topic`, `confidence`). At least
-   one entry (a `metric` is enough).
-3. Append those lines to `loop/learnings.jsonl` unless you are read-only.
-   Read-only agents put learnings only in the handoff; the dispatcher
-   persists them. Never duplicate an existing insight — bump confidence.
+   one entry (a `metric` is enough). The orchestrator retro promotes
+   these to the right permanent file — see [learning-loop.md](learning-loop.md).
 
 A missing handoff file means the stage **failed**. It is not success.
 
@@ -80,8 +82,19 @@ Read `context/README.md` first, then every file it lists. Diff against the defau
 - Implement fixes
 - Expand into untouched files
 - Report style nits as critical
-- Trust the implementer’s file list
+- Trust the software-engineer’s file list
+
+## Adversarial self-verification
+
+Before marking any finding as `critical`:
+
+1. Write the exact input, state, or call sequence that triggers the defect.
+2. Trace the code path — does the failure actually occur on this stack?
+3. Check if an existing test, guard, type constraint, or framework default already prevents it.
+4. If you cannot construct a concrete failure scenario, downgrade to `warning`.
+
+A finding without a concrete failure scenario is not critical.
 
 ## Handoff
 
-`loop/handoffs/reviewer-<ISO-timestamp>.json` with a `findings` array (`severity`, `location`, `issue`, `fix`). Critical → `needs_revision`, `loopBackTo: implementer`. You are read-only: put learnings in the handoff only.
+`loop/handoffs/reviewer-<ISO-timestamp>.json` with a `findings` array (`severity`, `location`, `issue`, `fix`). Critical → `needs_revision`, `loopBackTo: software-engineer`. You are read-only: put learnings in the handoff only.

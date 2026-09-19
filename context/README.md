@@ -16,6 +16,26 @@ If you are an agent, read these files **in order** before doing work:
 | Design file in `profile.json` `paths.design` | Live tokens — never copy them into an agent |
 | `loop/learnings.md` | This repo’s memory (your section + `all`) |
 
+## Domain context
+
+Domain-specific patterns and rules live in `context/<domain>.md`. These files
+describe **how** to build (patterns, states, a11y rules) — not **what** to build
+with (tokens, hex values, config). Live values stay in the codebase files that
+`profile.json` `paths` points to.
+
+| File | Relevant to | What it covers |
+|------|-------------|----------------|
+| `context/ux.md` | software-engineer, reviewer, qa-acceptance | Principles, component states, visual design bar |
+| `context/ux-process.md` | software-engineer (new screens) | Design process, screen states, critique checklist |
+| `context/ux-patterns.md` | software-engineer (interactions) | Motion, microinteractions, UX writing, flow patterns |
+| `context/ux-accessibility.md` | software-engineer, reviewer | WCAG 2.1 AA, responsive breakpoints, mobile UX |
+
+Add a `context/<domain>.md` when a deleted specialist’s knowledge needs to
+survive for the software-engineer or reviewers. Don’t add domain files for knowledge
+that already lives in codebase files (design tokens, API schemas, DB migrations).
+
+## Notes
+
 Kernel protocol (every repo): `skills/closed-loop/protocol.md` and
 `skills/closed-loop/gates.md`. Do not confuse kernel gates with
 `context/gates.json` (this repo’s CI commands).

@@ -55,9 +55,8 @@ your-repo/
 │   └── conventions.md            how to match this codebase
 │
 ├── loop/                         ← YOU (memory) + runtime (gitignored)
-│   ├── learnings.md              this repo’s ledger (version this)
-│   ├── learnings.jsonl           append-only events (version this)
-│   ├── handoffs/                 per-run; gitignored
+│   ├── learnings.md              open questions only (version this)
+│   ├── handoffs/                 orchestrator reads these (tracked)
 │   └── state.json                per-run; gitignored
 │
 ├── agents/                       ← PACK. Generic roles. No product facts.
@@ -79,7 +78,6 @@ your-repo/
 │   ├── pack.md                   design of the pack
 │   └── host.md                   generic CLAUDE.md body
 │
-├── skills/github/                ← PACK. GitHub platform skill (stacks, PRs)
 │   └── SKILL.md
 │
 ├── pack/                         ← PACK. Schemas, templates, this file.
@@ -102,10 +100,8 @@ your-repo/
 │
 ├── .cursor/agents/               ← GENERATED. Do not edit.
 ├── .cursor/skills/closed-loop/   ← GENERATED.
-├── .cursor/skills/github/        ← GENERATED.
 ├── .claude/agents/               ← GENERATED.
 ├── .claude/skills/closed-loop/   ← GENERATED.
-└── .claude/skills/github/        ← GENERATED.
 ```
 
 Product code (`app/`, libraries, DESIGN.md, etc.) stays wherever the host
@@ -122,8 +118,8 @@ cd /path/to/your-repo
 ```
 
 `init-pack` copies the **pack** files, writes `context/` from templates if
-missing, writes an empty learnings ledger if missing, appends the gitignore
-snippet (ignore `loop/*`, keep the two ledger files), and runs `sync`.
+missing, writes an empty `loop/learnings.md` if missing, appends the gitignore
+snippet (ignore `loop/*`, keep `learnings.md`), and runs `sync`.
 
 Then fill in **your** context — this is the only required human step:
 
@@ -152,7 +148,7 @@ is `loop/learnings.md`. Kernel rules are `skills/closed-loop/gates.md`.
 context/          →  this product
 protocol + gates  →  every product
 agents/*.md       →  the job (verifier, frontend, …)
-loop/learnings.md →  what this product already burned itself on
+loop/learnings.md →  open questions needing a decision
 ```
 
 If `context/` is missing, agents infer from lockfiles and existing code.

@@ -11,7 +11,10 @@ tools:
   - Grep
   - Glob
 skills:
-  - closed-loop
+  - closed-loop-participant
+  - debugging
+  - performance
+  - regression
 color: yellow
 ---
 <!-- closed-loop:protocol -->
@@ -25,12 +28,12 @@ programmatic loop prepends it in `loadAgentPrompt`. Do not copy it into
 
 1. Read `context/README.md`, then every file it lists (`profile.json`,
    `gates.json`, `trust.md`, `git.md`, `conventions.md`, and `paths.design`).
-   That folder is **this repo’s** facts. If `context/` is missing, infer
-   from lockfiles and existing code — do not invent a second stack or a
-   hardcoded package manager.
-2. Read `loop/learnings.md` (your section + `all`) and the prior handoff
-   `learnings` array. Apply every finding aimed at you; if you skip one,
-   record why.
+   That folder is **this repo’s** facts — promoted learnings are already
+   there. If `context/` is missing, infer from lockfiles and existing
+   code — do not invent a second stack or a hardcoded package manager.
+2. Read `loop/learnings.md` for open questions that may affect your work,
+   and the prior handoff `learnings` array for direct cross-agent pings.
+   Apply every finding aimed at you; if you skip one, record why.
 3. Apply every rule in [gates.md](gates.md) (kernel — every repo).
 
 ## While working
@@ -48,10 +51,8 @@ programmatic loop prepends it in `loadAgentPrompt`. Do not copy it into
    `timestamp`. Status is `success` | `needs_revision` | `blocked` | `failed`.
 2. Put new learnings in the handoff `learnings` array (`forAgents`,
    `insight`, `action`; optional `kind`, `topic`, `confidence`). At least
-   one entry (a `metric` is enough).
-3. Append those lines to `loop/learnings.jsonl` unless you are read-only.
-   Read-only agents put learnings only in the handoff; the dispatcher
-   persists them. Never duplicate an existing insight — bump confidence.
+   one entry (a `metric` is enough). The orchestrator retro promotes
+   these to the right permanent file — see [learning-loop.md](learning-loop.md).
 
 A missing handoff file means the stage **failed**. It is not success.
 
@@ -75,7 +76,7 @@ Read `context/README.md` first, then every file it lists. Run the commands in `c
 
 ## Don't
 
-- Fix production code (report for implementer)
+- Fix production code (report for software-engineer)
 - Weaken assertions to go green
 - Grep source text as proof of behaviour
 - Re-implement production logic in the test
@@ -83,4 +84,4 @@ Read `context/README.md` first, then every file it lists. Run the commands in `c
 
 ## Handoff
 
-`loop/handoffs/verifier-<ISO-timestamp>.json`. `nextStage`: reviewer. `needs_revision` → implementer with exact failure output.
+`loop/handoffs/verifier-<ISO-timestamp>.json`. `nextStage`: reviewer. `needs_revision` → software-engineer with exact failure output.

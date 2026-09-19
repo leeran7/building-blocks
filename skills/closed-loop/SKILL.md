@@ -2,10 +2,10 @@
 name: closed-loop
 description: >-
   Orchestrates the closed-loop: spec → architecture → implementation →
-  verification → review → CI → release → monitor. Use for any scoped product
-  goal — a feature, a visual pass, a fix, or a full app — whenever the agent
-  loop should run or multiple subagents should coordinate. Works in Cursor
-  and Claude Code.
+  verification → review + security-review → qa-acceptance → integration.
+  Use for any scoped product goal — a feature, a visual pass, a fix, or a
+  full app — whenever the agent loop should run or multiple subagents should
+  coordinate. Works in Cursor, Claude Code, and Codex.
 ---
 
 # Closed Loop
@@ -37,15 +37,13 @@ Write `loop/state.json`:
 ```json
 {
   "goal": "<user's goal>",
-  "currentStage": "product-spec",
+  "currentStage": "software-engineer",
   "iteration": 1,
   "maxIterations": 10,
   "completedStages": [],
   "dispatched": [],
   "requiredTeam": [
-    "product-spec",
-    "architect",
-    "implementer",
+    "software-engineer",
     "verifier",
     "reviewer",
     "security-reviewer",
@@ -62,8 +60,9 @@ Write `loop/state.json`:
    stage (including its `learnings` array), and `loop/learnings.md`.
 2. **Delegate** — invoke the subagent matching `currentStage`:
    - **Cursor**: Task tool with `subagent_type` matching the agent name
-     (`product-spec`, not `custom` / `generalPurpose`)
+     (`software-engineer`, not `custom` / `generalPurpose`)
    - **Claude Code**: Agent tool with `subagent_type` matching the agent name
+   - **Codex**: Agent tool with `subagent_type` matching the agent name
    - Record the agent on `loop/state.json` `dispatched`
    - **Never do that stage's work in the orchestrator turn**
 3. Pass the user goal, prior handoff contents, and handoff write instructions.
@@ -76,10 +75,10 @@ Write `loop/state.json`:
 5. **Quality gates** — after verifier succeeds, run `reviewer` **and**
    `security-reviewer` in the same message (parallel), then `qa-acceptance`,
    before integrator. Never skip these gates.
-6. **Retro** — after each iteration/loop-back, fold new `loop/learnings.jsonl`
-   entries into `loop/learnings.md`, promote any lesson seen 2+ times to a
-   standing rule, and surface top learnings in the stage report (see
-   [learning-loop.md](learning-loop.md)).
+6. **Retro** — after each iteration, collect learnings from handoff arrays,
+   promote each to its permanent file per the routing table in
+   [learning-loop.md](learning-loop.md), and prune. Surface top findings in
+   the stage report.
 7. **Repeat** until terminal conditions in stages.md are met or `maxIterations` reached.
 8. **Report** — summarize artifacts, PR URL, test results, remaining warnings, and learnings recorded.
 
@@ -88,24 +87,12 @@ Write `loop/state.json`:
 | Stage | Subagent | When |
 |-------|----------|------|
 | Loop owner | orchestrator | Coordinate all stages |
-| 1 | product-spec | Turn intent into end-to-end flows + requirements |
-| 2 | architect | System design and contracts |
-| 3 | implementer | Write application code |
-| 4 | verifier | Tests and correctness |
-| 5 | reviewer | Code quality review |
-| 6 | security-reviewer | Security audit |
-| 7 | qa-acceptance | Acceptance criteria validation |
-| 8 | integrator | CI green, PR merge-ready |
-| 9 | devops | Pipelines and infrastructure |
-| 10 | release | Versioning and deployment |
-| 11 | monitor | Production observability |
-| 12 | docs | Documentation |
-| 13 | debugger | Root-cause unclear failures |
-| 14 | github | Stacked PRs, PR/ruleset/merge-queue expertise |
-
-Specialists (delegated from implementer): frontend, backend, data, mobile, design-ux, performance, compliance, cost.
-
-Optional after integrator: devops, docs, **github** (PR stacking / branch policy).
+| 1 | software-engineer | Spec, architecture, and implementation |
+| 2 | verifier | Tests and correctness |
+| 3 | reviewer | Code quality review |
+| 4 | security-reviewer | Security audit |
+| 5 | qa-acceptance | Acceptance criteria validation |
+| 6 | integrator | CI green, PR merge-ready |
 
 ## Prompt template for each delegation
 
@@ -114,15 +101,16 @@ Goal: {goal}
 Prior handoff: {json}
 Your stage: {stage}
 
-Before starting: read loop/learnings.md (your section + `all`) and this handoff's
-`learnings` array, and apply every finding aimed at you (learning-loop.md).
+Before starting: read loop/learnings.md for open questions that may affect your
+work, and this handoff's `learnings` array. Apply every finding aimed at you
+(learning-loop.md).
 
 Complete your stage per your agent definition. Before finishing:
 1. Write handoff to loop/handoffs/{stage}-{iso-timestamp}.json
 2. Follow the handoff contract in skills/closed-loop/handoffs.md
 3. Set nextStage and loopBackTo appropriately
-4. Append your new learnings to loop/learnings.jsonl AND put cross-agent findings
-   in the handoff `learnings` array (ping the agents who need them)
+4. Put your learnings in the handoff `learnings` array (the orchestrator retro
+   promotes them to their permanent files)
 ```
 
 ## Running the loop
@@ -131,6 +119,7 @@ Complete your stage per your agent definition. Before finishing:
 |----------|--------------|
 | **Cursor** | "Use the closed-loop skill to build …" or invoke `@orchestrator` |
 | **Claude Code** | `/closed-loop` or "Use the orchestrator agent to build …" |
+| **Codex** | `/closed-loop` or "Use the orchestrator agent to build …" |
 | **Programmatic** | `yarn loop "Build a todo app"` (Cursor SDK orchestrator) |
 
 ## Iteration limits

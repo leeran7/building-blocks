@@ -8,5 +8,38 @@
       "Bash(npx tsc --noEmit *)",
       "Bash(pnpm test *)"
     ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash(git commit*)",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd app && pnpm lint --quiet && pnpm tsc --noEmit 2>&1 | head -20"
+          }
+        ]
+      },
+      {
+        "matcher": "Bash(git push*)",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd app && pnpm tsc --noEmit 2>&1 | head -20"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if echo \"$TOOL_INPUT\" | grep -q 'app/'; then cd app && npx prettier --write \"$(echo \"$TOOL_INPUT\" | grep -o 'app/[^\"]*')\" 2>/dev/null; fi; exit 0"
+          }
+        ]
+      }
+    ]
   }
 }

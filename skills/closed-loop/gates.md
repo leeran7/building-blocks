@@ -81,7 +81,7 @@ ledger.
 ## Memory, CI, and the loop
 
 20. **A memory that version control deletes is not memory.** Ignore
-    `loop/*` and re-include the ledger files with negations. A directory
+    `loop/*` and re-include `learnings.md` with a negation. A directory
     ignore of `loop/` cannot be re-included.
 21. **Do not supply production secrets to a `pull_request`-triggered job.**
     Same-repo branch PRs plus install lifecycle scripts are an exfil path.
@@ -91,12 +91,11 @@ ledger.
     protection) requires those check names on the default branch. Job
     `name:` values are load-bearing; renaming a job without updating the
     ruleset silently drops the requirement.
-23. **Handoff `learnings` must match the canonical schema.** The dispatcher
-    normalises a small set of aliases (`lesson`→`insight`, `type`→`kind`)
-    and drops entries that still lack `insight` + `action`. Do not invent
-    a third shape.
-24. **Read-only agents cannot write the ledger.** Inline dispatchers persist
-    their `learnings` arrays or the loop silently loses the finding.
+23. **Handoff `learnings` must match the canonical schema.** Required fields
+    are `forAgents`, `insight`, `action`. The orchestrator retro promotes
+    each finding to its permanent home — see `learning-loop.md`.
+24. **Read-only agents cannot write docs.** The orchestrator retro promotes
+    their handoff `learnings` arrays or the loop silently loses the finding.
 
 ## Promotion into this file
 

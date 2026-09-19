@@ -76,27 +76,16 @@ export interface LoopState {
 }
 
 export type Stage =
-  | "product-spec"
-  | "architect"
-  | "design-ux"
-  | "implementer"
+  | "software-engineer"
   | "verifier"
   | "reviewer"
   | "security-reviewer"
   | "qa-acceptance"
-  | "integrator"
-  | "devops"
-  | "github"
-  | "release"
-  | "monitor"
-  | "docs"
-  | "debugger";
+  | "integrator";
 
 /** Required team members the orchestrator must actually dispatch. Cannot skip. */
 export const REQUIRED_TEAM: Stage[] = [
-  "product-spec",
-  "architect",
-  "implementer",
+  "software-engineer",
   "verifier",
   "reviewer",
   "security-reviewer",
@@ -109,28 +98,20 @@ export const REQUIRED_TEAM: Stage[] = [
  * runs in parallel with `reviewer` — see `stagesToDispatch`.
  */
 export const REQUIRED_SEQUENCE: Stage[] = [
-  "product-spec",
-  "architect",
-  "implementer",
+  "software-engineer",
   "verifier",
   "reviewer",
   "qa-acceptance",
   "integrator",
-  "release",
-  "monitor",
 ];
 
 export const PRIMARY_PIPELINE: Stage[] = [
-  "product-spec",
-  "architect",
-  "implementer",
+  "software-engineer",
   "verifier",
   "reviewer",
   "security-reviewer",
   "qa-acceptance",
   "integrator",
-  "release",
-  "monitor",
 ];
 
 export function normalizeState(state: LoopState): LoopState {
@@ -155,7 +136,7 @@ export async function writeState(state: LoopState): Promise<void> {
 export async function initState(goal: string): Promise<LoopState> {
   const state: LoopState = {
     goal,
-    currentStage: "product-spec",
+    currentStage: "software-engineer",
     iteration: 1,
     maxIterations: 10,
     completedStages: [],

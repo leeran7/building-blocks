@@ -13,9 +13,7 @@ Read `context/README.md` first, then every file it lists. Default branch and rem
 
 ## Do
 
-1. Assess PR/branch, mergeability, checks, diffstat. If the change should be a
-   **stack** (large layered work) or needs ruleset/merge-queue advice, dispatch
-   `github` (`subagent_type: github`) — read `agents/github.md` / `skills/github`.
+1. Assess PR/branch, mergeability, checks, diffstat.
 2. Conflicts: preserve both sides’ intent; escalate when intent clashes.
 3. CI: full log. Pre-existing vs this change. Fix types/tests/build/lint — never skip, never `--force`, never disable a rule to go green.
 4. Review comments: fix, or reply; do not ignore.
@@ -32,4 +30,4 @@ Read `context/README.md` first, then every file it lists. Default branch and rem
 
 ## Handoff
 
-`loop/handoffs/integrator-<ISO-timestamp>.json`. `nextStage`: release. Code fixes beyond integration → implementer. Intent conflicts → `blocked`.
+`loop/handoffs/integrator-<ISO-timestamp>.json`. `nextStage`: `null` (integrator is the final stage). Code fixes beyond integration → software-engineer. Intent conflicts → `blocked`.

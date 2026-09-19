@@ -13,7 +13,10 @@ tools:
   - Grep
   - Glob
 skills:
-  - closed-loop
+  - closed-loop-participant
+  - design-review
+  - accessibility
+  - regression
 color: yellow
 ---
 <!-- closed-loop:protocol -->
@@ -27,12 +30,12 @@ programmatic loop prepends it in `loadAgentPrompt`. Do not copy it into
 
 1. Read `context/README.md`, then every file it lists (`profile.json`,
    `gates.json`, `trust.md`, `git.md`, `conventions.md`, and `paths.design`).
-   That folder is **this repo’s** facts. If `context/` is missing, infer
-   from lockfiles and existing code — do not invent a second stack or a
-   hardcoded package manager.
-2. Read `loop/learnings.md` (your section + `all`) and the prior handoff
-   `learnings` array. Apply every finding aimed at you; if you skip one,
-   record why.
+   That folder is **this repo’s** facts — promoted learnings are already
+   there. If `context/` is missing, infer from lockfiles and existing
+   code — do not invent a second stack or a hardcoded package manager.
+2. Read `loop/learnings.md` for open questions that may affect your work,
+   and the prior handoff `learnings` array for direct cross-agent pings.
+   Apply every finding aimed at you; if you skip one, record why.
 3. Apply every rule in [gates.md](gates.md) (kernel — every repo).
 
 ## While working
@@ -50,10 +53,8 @@ programmatic loop prepends it in `loadAgentPrompt`. Do not copy it into
    `timestamp`. Status is `success` | `needs_revision` | `blocked` | `failed`.
 2. Put new learnings in the handoff `learnings` array (`forAgents`,
    `insight`, `action`; optional `kind`, `topic`, `confidence`). At least
-   one entry (a `metric` is enough).
-3. Append those lines to `loop/learnings.jsonl` unless you are read-only.
-   Read-only agents put learnings only in the handoff; the dispatcher
-   persists them. Never duplicate an existing insight — bump confidence.
+   one entry (a `metric` is enough). The orchestrator retro promotes
+   these to the right permanent file — see [learning-loop.md](learning-loop.md).
 
 A missing handoff file means the stage **failed**. It is not success.
 
@@ -75,7 +76,7 @@ Read `context/README.md` first, then every file it lists. ACs live at `paths.spe
 3. Prefer automated API/unit evidence; then scripted user flows; then static checks for structural ACs.
 4. Negative paths and partitions (valid / invalid / boundary) for critical flows.
 5. Short exploratory pass: double-submit, navigate away, empty state, missing data, refresh mid-flow.
-6. Structural spec gate — loop back to product-spec (do not invent finishing
+6. Structural spec gate — loop back to software-engineer (do not invent finishing
    touches) when any of these fail:
    - No **Flows** section, or an F-n missing `critical: yes|no`
    - A **critical** F-n lacks empty/failure/success-next/mid-flow fields (or
@@ -83,15 +84,16 @@ Read `context/README.md` first, then every file it lists. ACs live at `paths.spe
    - A trust-boundary / auth-gated F-n lacks unauthorized or irreversible-write
      negative ACs
    - An F-n has no utilization note (primary path)
+   Route spec failures back to software-engineer (spec is phase 1 of that role).
 7. Write `loop/qa-report.md` with method, expected, actual, evidence.
 
 ## Don't
 
 - Fix bugs
 - Pass because it “seems fine”
-- Treat an untestable AC as an implementation failure — loop back to product-spec
+- Treat an untestable AC as an implementation failure — loop back to software-engineer
 - Pass a feature that works only when the user already knows a hidden URL
 
 ## Handoff
 
-`loop/handoffs/qa-acceptance-<ISO-timestamp>.json`. `nextStage`: integrator. Failed ACs → implementer. Untestable ACs → product-spec.
+`loop/handoffs/qa-acceptance-<ISO-timestamp>.json`. `nextStage`: integrator. Failed ACs → software-engineer. Untestable ACs → software-engineer.

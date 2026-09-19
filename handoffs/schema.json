@@ -50,9 +50,29 @@
         }
       }
     },
+    "findings": {
+      "type": "array",
+      "description": "Structured findings from review and security agents",
+      "items": {
+        "type": "object",
+        "required": ["severity"],
+        "properties": {
+          "severity": {
+            "type": "string",
+            "enum": ["critical", "warning", "info"]
+          },
+          "location": { "type": "string" },
+          "issue": { "type": "string" },
+          "message": { "type": "string" },
+          "fix": { "type": "string" },
+          "owasp": { "type": "string" },
+          "reproduction": { "type": "string" }
+        }
+      }
+    },
     "learnings": {
       "type": "array",
-      "description": "Cross-agent findings pinged at other agents; each is also appended to loop/learnings.jsonl",
+      "description": "Cross-agent findings pinged at other agents; the orchestrator retro promotes each to its permanent file",
       "items": {
         "type": "object",
         "required": ["forAgents", "insight", "action"],

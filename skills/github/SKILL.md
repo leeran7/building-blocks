@@ -1,58 +1,40 @@
 ---
 name: github
 description: >-
-  GitHub platform expertise: stacked PRs (gh stack), creating and merging
-  PRs, rulesets vs honor-system CI, merge queues (merge_group), Issues
-  types/fields/sub-issues, Dependabot auto-triage, and CODEOWNERS. Use
-  whenever opening PRs, designing branch policy, or choosing stack vs single
-  PR. Pair with the `github` agent for closed-loop handoffs.
+  GitHub platform expertise. Stacked PRs, rulesets, merge queue, Actions CI,
+  issues/Projects, and supply-chain security. Use when opening or stacking
+  PRs, designing branch policy, or advising on GitHub workflows.
 ---
 
-# GitHub skill
+# GitHub Platform Skill
 
-Use this skill whenever the task involves GitHub collaboration mechanics —
-not application feature code.
+How work lands on the remote. Prefer small, reviewable layers; never weaken
+merge gates to go faster. Read `context/git.md` before any push, PR, stack,
+or ruleset advice.
 
-## Read first
+## Deep references
 
-1. `context/git.md` — trunk, remote, required checks, PR policy for **this**
-   repo.
-2. Agent entry `agents/github.md` and the partial that matches the task:
-   - `agents/github/stacked-prs.md`
-   - `agents/github/pull-requests.md`
-   - `agents/github/rulesets-ci.md`
-   - `agents/github/merge-queue.md`
-   - `agents/github/issues-projects.md`
-   - `agents/github/security-supply-chain.md`
+| Topic | File |
+|-------|------|
+| Stacked PRs + `gh stack` | `skills/github/stacked-prs.md` |
+| PR creation / review / merge | `skills/github/pull-requests.md` |
+| Rulesets, required checks, Actions | `skills/github/rulesets-ci.md` |
+| Merge queue + `merge_group` | `skills/github/merge-queue.md` |
+| Issues, types, fields, Projects | `skills/github/issues-projects.md` |
+| Dependabot, CODEOWNERS, secrets | `skills/github/security-supply-chain.md` |
 
-## Decision: stack or single PR?
+Read the relevant partial before advising on that topic.
 
-| Choose | When |
-|--------|------|
-| **Single PR** | One reviewable concern; independent of other open branches |
-| **Stacked PRs** | Large/layered work; later commits need unmerged foundations; avoid mega-PRs from agents |
+## Key rules
 
-Install tooling: `gh extension install github/gh-stack`.
-
-## Decision: is CI a merge gate?
-
-Only if a **ruleset** (or classic protection) requires the check **names**.
-`on: pull_request` alone is not a gate. Merge queues additionally need those
-checks on `merge_group`.
-
-## Fast commands
-
-```bash
-gh pr create / gh pr checks / gh pr merge
-gh stack init && gh stack add && gh stack submit
-gh stack rebase && gh stack sync --prune
-gh api repos/{owner}/{repo}/rulesets
-gh issue create --type ... --parent ... --blocked-by ...
-```
-
-## Closed-loop
-
-Dispatch the `github` agent (`subagent_type: github`) for stacking strategy,
-PR cut plans, or ruleset/merge-queue advice. Integrator still owns green-CI
-triage; devops owns workflow file edits; github owns the platform playbook
-and `loop/github.md` when policy or a multi-PR stack is involved.
+1. Required status checks must be **ruleset-gated**, not merely `on:
+   pull_request`. Check names must match `jobs.*.name` in workflows.
+2. Never give production secrets to any `pull_request` job.
+3. Pin third-party Actions by full commit SHA.
+4. Prefer **stacked PRs** when a change is large, layered, or blocked on an
+   unmerged foundation. Prefer a **single PR** when the diff is one reviewable
+   concern.
+5. If a merge queue exists, required workflows must also run on
+   `merge_group`.
+6. Never force-push the default branch, merge red/missing/skipped required
+   checks, or disable rules to go green.

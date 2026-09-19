@@ -1,138 +1,94 @@
-# Learning Loop — Continuous Cross-Agent Improvement
+# Learning Loop — Promote Then Prune
 
-The closed loop is not just a pipeline; it is a **learning system**. Every agent
-pings findings off the others and records what it learned so the *next* run —
-and the next agent in *this* run — is smarter. This is mandatory, not optional.
-No stage is "done" until it has both **read** prior learnings and **recorded** new
-ones.
+Learnings are a **pipeline**, not a store. Every finding either gets promoted
+to its permanent home or gets dropped. Zero steady-state size.
 
-## The shared learning ledger
+## The pipeline
 
-Two files under `loop/`, both persistent across runs (never deleted between builds):
-
-| File | Format | Purpose |
-|------|--------|---------|
-| `loop/learnings.md` | Human-readable | Curated, deduplicated lessons grouped by topic. The canonical memory. |
-| `loop/learnings.jsonl` | One JSON object per line | Append-only event log every agent writes to. Source data for the ledger. |
-
-If either file is missing, the first agent to run creates it (empty `learnings.md`
-with the section headers below; empty `learnings.jsonl`).
-
-### `learnings.jsonl` entry schema
-
-Append exactly one line per learning:
-
-```json
-{"ts":"2026-08-24T12:00:00Z","agent":"verifier","iteration":3,"stage":"verify","kind":"lesson","topic":"testing","forAgents":["implementer","architect"],"insight":"Stripe webhook handler was untestable because it read the raw request body twice; the first read consumed the stream.","evidence":"src/api/webhook.ts:34","action":"Buffer the raw body once and pass it to constructEvent; never re-read req.body.","confidence":"high","status":"open"}
+```
+Agent handoff → orchestrator retro → promote to docs → prune the entry
 ```
 
-Fields:
-- `kind` — one of `lesson` (something to do differently next time), `pattern` (reusable good approach), `pitfall` (recurring failure mode), `metric` (a measured fact, e.g. p95 latency), `question` (an unresolved cross-agent question).
-- `forAgents` — which agents should apply this. Use `["all"]` for global lessons.
-- `action` — the concrete, imperative change to make. No vague advice.
-- `confidence` — `low` | `medium` | `high` (raised when the lesson recurs).
-- `status` — `open` (not yet folded into `learnings.md`) | `applied` | `curated`.
+Agents record findings in their handoff `learnings` array. The orchestrator
+evaluates each one, routes it to the right permanent file, and deletes it.
+Nothing accumulates in `loop/learnings.md`.
 
-## The four-step protocol (every agent, every run)
+## Where findings go
 
-### 1. READ — before doing any work
-- Open `loop/learnings.md` and read the sections tagged for your agent and `all`.
-- Grep `loop/learnings.jsonl` for `"forAgents"` containing your agent name or `"all"` with `"status":"open"`.
-- Read the latest upstream handoff (as before). **Also** read that handoff's
-  `learnings` array (see handoff contract) — these are findings the previous
-  agent is pinging directly at you.
+| Finding type | Promote to |
+|---|---|
+| Product-agnostic, found by 2+ agents | `skills/closed-loop/gates.md` |
+| Testing / security / architecture pattern | `.claude/rules/<category>.md` |
+| Product-specific trust or security | `context/trust.md` |
+| Product-specific convention | `context/conventions.md` |
+| UX / design pattern | `context/ux*.md` |
+| Agent-specific technique | `agents/<agent>.md` |
+| Spec / flow pattern | `agents/software-engineer/flows.md` |
+| Unresolved question needing a decision | `loop/learnings.md` (open questions only) |
+| One-off observation, not recurring | Drop |
 
-### 2. APPLY — while working
-- Act on every `high`-confidence lesson addressed to you. If you deliberately do
-  NOT apply one, record why (a new entry with `kind:"lesson"` explaining the
-  exception) — silent non-application is not allowed.
+## What agents do
 
-### 3. CROSS-CHECK (ping) — before finishing
-- Ask: "What did I discover that a *different* agent needs to know?" Route it to
-  them explicitly via `forAgents`. Examples:
-  - verifier → implementer: "this class of bug keeps recurring, add a guard."
-  - security-reviewer → architect: "this contract shape invites injection."
-  - qa-acceptance → product-spec: "AC-14 is ambiguous, tighten the Given/When."
-  - monitor → implementer + architect: "prod p95 regressed on this endpoint."
-- Put the same findings in your handoff's `learnings` array so the immediate next
-  agent sees them without grepping.
+### Before working
 
-### 4. RECORD — at handoff time
-- Append your new learnings to `loop/learnings.jsonl` (one line each).
-- If a learning already exists (same `topic` + `action`), do NOT duplicate —
-  bump its `confidence` and, if it recurred, mark it a `pitfall`.
+1. Read `context/README.md` and every file it lists — the promoted learnings
+   are already there.
+2. Read the prior handoff `learnings` array for direct cross-agent pings.
+3. Read `loop/learnings.md` for open questions that may affect your work.
 
-**Read-only agents** (reviewer, security-reviewer, monitor, compliance, cost —
-those without Write/Edit) cannot append to the ledger themselves. They RECORD by
-putting every learning in their handoff `learnings` array; the orchestrator's retro
-appends those to `loop/learnings.jsonl` on their behalf. Their obligation to READ
-and to PING is unchanged.
+### Before finishing
 
-## Retro step (orchestrator, end of every iteration)
+1. Write `loop/handoffs/<agent>-<ISO-timestamp>.json` per `handoffs.md`.
+2. Put new learnings in the handoff `learnings` array (`forAgents`, `insight`,
+   `action`; optional `kind`, `topic`, `confidence`).
+3. Cross-check: "What did I discover that a *different* agent needs to know?"
+   Route it via `forAgents`.
 
-After each full pass (or each loop-back), the orchestrator runs a lightweight
-**retro** before advancing:
+Read-only agents (reviewer, security-reviewer) put learnings only in the
+handoff. The orchestrator promotes them.
 
-1. Collect all `learnings.jsonl` entries added this iteration (`"status":"open"`).
-2. Deduplicate and fold them into `loop/learnings.md` under the matching
-   `## By topic` heading (or `## Open questions` for `kind: question`),
-   setting their jsonl `status` to `curated`.
-3. Promote any lesson that has now appeared in **2+ iterations** or from
-   **2+ distinct agents** to `## Standing rules (always apply)` — this is how
-   repeated pain becomes a permanent guardrail. Metrics and open questions are
-   not promoted.
-4. Replace `## Recently applied (last 20)` with the 20 newest folded bullets
-   and surface the top new learnings in the one-line stage report to the user.
+## Retro step (orchestrator, every iteration)
 
-`orchestrator/src/retro.ts` (`foldLearnings`) implements these steps; the
-assertions live in `orchestrator/src/retro.test.ts`. Do not document a folding
-step that the code does not perform.
+After each pass or loop-back:
 
-The retro is what makes learning *consistent*: it happens every iteration, not
-just at the end.
+1. Collect all `learnings` arrays from this iteration's handoffs.
+2. For each finding, decide: promote or drop.
+3. If promoting, append it to the target file with a one-line entry.
+4. If it's a question, add it to `loop/learnings.md` under `## Open questions`.
+5. Answered questions get removed from `loop/learnings.md`.
 
-## `learnings.md` structure
+The retro is what keeps the docs current. Every iteration, the permanent
+files get smarter and the learnings file stays near-empty.
+
+## `loop/learnings.md` structure
 
 ```markdown
-# Learnings Ledger
+# Open Questions
 
-_Last curated: <ISO timestamp> by orchestrator retro (iteration N)._
+Questions that need a human decision before agents can proceed.
 
-## Standing rules (always apply)
-- [all] ...
-- [implementer] ...
-
-## By topic
-### Testing
-### Security
-### Architecture & contracts
-### Performance
-### Spec quality
-### Build / CI
-### Orchestration
-
-## Open questions (unresolved, need a decision)
-- [qa-acceptance → product-spec] ...
-
-## Recently applied (last 20)
+- [security-reviewer → software-engineer] Is the free leaderboard a trust boundary?
+- [reviewer → software-engineer] One slot or stacking for power-ups?
 ```
 
-## Feedback = a ping that must be answered
+That's it. No topic sections, no standing rules (those live in `gates.md`),
+no recently applied (the git log is the record).
 
-When an agent addresses a `forAgents` learning at you, the receiving agent MUST,
-in its own handoff, either:
-- reference the learning id/insight and state how it was applied, or
-- record an explicit exception entry saying why it was not.
+## Handoff learnings schema
 
-An unanswered cross-agent ping is a loop defect — the orchestrator flags it in the
-retro and routes it back.
+```json
+{"forAgents":["software-engineer"],"insight":"...","action":"...","kind":"lesson","topic":"testing","confidence":"high"}
+```
+
+- `kind` — `lesson` | `pattern` | `pitfall` | `metric` | `question`
+- `forAgents` — which agents should see this. `["all"]` for global.
+- `action` — concrete, imperative. "Be careful with auth" is rejected.
+- `confidence` — `low` | `medium` | `high`
 
 ## Hard rules
 
-- No stage completes without a READ and a RECORD step. If you learned nothing new,
-  append one `metric` entry (something you measured) — you always record at least one line.
-- Never delete `learnings.md` or `learnings.jsonl` between runs; they are the memory.
-- Actions must be concrete and imperative. "Be careful with auth" is rejected;
-  "verify the Firebase token before any DB query in every /api route" is accepted.
-- Lessons that recur across runs become standing rules — the system must get
-  stricter over time, never re-learn the same pitfall twice.
+- Learnings must be concrete and imperative. Vague advice is dropped.
+- A finding that recurs in 2+ iterations or from 2+ agents gets promoted
+  immediately — the system must get stricter, never re-learn a pitfall.
+- Never delete the open questions without resolving them.
+- Cross-agent pings must be answered. An unanswered ping is a loop defect.

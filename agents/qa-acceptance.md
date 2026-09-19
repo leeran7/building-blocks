@@ -22,7 +22,7 @@ Read `context/README.md` first, then every file it lists. ACs live at `paths.spe
 3. Prefer automated API/unit evidence; then scripted user flows; then static checks for structural ACs.
 4. Negative paths and partitions (valid / invalid / boundary) for critical flows.
 5. Short exploratory pass: double-submit, navigate away, empty state, missing data, refresh mid-flow.
-6. Structural spec gate — loop back to product-spec (do not invent finishing
+6. Structural spec gate — loop back to software-engineer (do not invent finishing
    touches) when any of these fail:
    - No **Flows** section, or an F-n missing `critical: yes|no`
    - A **critical** F-n lacks empty/failure/success-next/mid-flow fields (or
@@ -30,15 +30,16 @@ Read `context/README.md` first, then every file it lists. ACs live at `paths.spe
    - A trust-boundary / auth-gated F-n lacks unauthorized or irreversible-write
      negative ACs
    - An F-n has no utilization note (primary path)
+   Route spec failures back to software-engineer (spec is phase 1 of that role).
 7. Write `loop/qa-report.md` with method, expected, actual, evidence.
 
 ## Don't
 
 - Fix bugs
 - Pass because it “seems fine”
-- Treat an untestable AC as an implementation failure — loop back to product-spec
+- Treat an untestable AC as an implementation failure — loop back to software-engineer
 - Pass a feature that works only when the user already knows a hidden URL
 
 ## Handoff
 
-`loop/handoffs/qa-acceptance-<ISO-timestamp>.json`. `nextStage`: integrator. Failed ACs → implementer. Untestable ACs → product-spec.
+`loop/handoffs/qa-acceptance-<ISO-timestamp>.json`. `nextStage`: integrator. Failed ACs → software-engineer. Untestable ACs → software-engineer.

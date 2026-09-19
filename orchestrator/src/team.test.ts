@@ -32,22 +32,22 @@ describe("stagesToDispatch", () => {
   });
 
   it("runs a single specialist stage as itself", () => {
-    assert.deepEqual(stagesToDispatch("implementer"), ["implementer"]);
+    assert.deepEqual(stagesToDispatch("software-engineer"), ["software-engineer"]);
     assert.deepEqual(stagesToDispatch("verifier"), ["verifier"]);
   });
 });
 
 describe("clampNextStage — never skip the team", () => {
-  it("blocks implementer from jumping to integrator", () => {
-    assert.equal(clampNextStage("implementer", "integrator"), "verifier");
+  it("blocks software-engineer from jumping to integrator", () => {
+    assert.equal(clampNextStage("software-engineer", "integrator"), "verifier");
   });
 
   it("blocks verifier from jumping to integrator", () => {
     assert.equal(clampNextStage("verifier", "integrator"), "reviewer");
   });
 
-  it("blocks verifier from jumping to release", () => {
-    assert.equal(clampNextStage("verifier", "release"), "reviewer");
+  it("blocks verifier from jumping past reviewer", () => {
+    assert.equal(clampNextStage("verifier", "integrator"), "reviewer");
   });
 
   it("after reviewer, next is qa-acceptance (security-reviewer already parallel)", () => {
@@ -56,53 +56,28 @@ describe("clampNextStage — never skip the team", () => {
     assert.equal(nextInSequence("reviewer"), "qa-acceptance");
   });
 
-  it("allows optional design-ux after architect", () => {
-    assert.equal(clampNextStage("architect", "design-ux"), "design-ux");
-  });
-
-  it("allows optional github after integrator", () => {
-    assert.equal(clampNextStage("integrator", "github"), "github");
-    assert.equal(nextInSequence("github"), "release");
-  });
-
-  it("keeps devops and docs optional after integrator", () => {
-    assert.equal(clampNextStage("integrator", "devops"), "devops");
-    assert.equal(clampNextStage("integrator", "docs"), "docs");
-    assert.equal(nextInSequence("devops"), "release");
-    assert.equal(nextInSequence("docs"), "release");
-  });
-
-  it("does not treat github as a required-sequence skip target", () => {
-    assert.equal(clampNextStage("verifier", "github"), "reviewer");
-    assert.equal(clampNextStage("qa-acceptance", "github"), "integrator");
+  it("integrator is the final stage", () => {
+    assert.equal(nextInSequence("integrator"), null);
   });
 
   it("does not treat frontend as a pipeline skip", () => {
-    assert.equal(clampNextStage("implementer", "frontend"), "verifier");
-  });
-
-  it("advances architect to implementer when no optional insert requested", () => {
-    assert.equal(clampNextStage("architect", "implementer"), "implementer");
-    assert.equal(clampNextStage("architect", undefined), "implementer");
+    assert.equal(clampNextStage("software-engineer", "frontend"), "verifier");
   });
 
   it("keeps qa-acceptance from skipping integrator", () => {
-    assert.equal(clampNextStage("qa-acceptance", "release"), "integrator");
+    assert.equal(clampNextStage("qa-acceptance", "integrator"), "integrator");
   });
 });
 
 describe("clampLoopBackTo", () => {
   it("rejects a forward skip to integrator", () => {
-    assert.equal(clampLoopBackTo("integrator"), "implementer");
-    assert.equal(clampLoopBackTo("release"), "implementer");
-    assert.equal(clampLoopBackTo("qa-acceptance"), "implementer");
+    assert.equal(clampLoopBackTo("integrator"), "software-engineer");
+    assert.equal(clampLoopBackTo("reviewer"), "software-engineer");
+    assert.equal(clampLoopBackTo("qa-acceptance"), "software-engineer");
   });
 
-  it("allows product-spec, architect, implementer, debugger", () => {
-    assert.equal(clampLoopBackTo("product-spec"), "product-spec");
-    assert.equal(clampLoopBackTo("architect"), "architect");
-    assert.equal(clampLoopBackTo("implementer"), "implementer");
-    assert.equal(clampLoopBackTo("debugger"), "debugger");
+  it("allows software-engineer", () => {
+    assert.equal(clampLoopBackTo("software-engineer"), "software-engineer");
   });
 });
 
@@ -124,7 +99,7 @@ describe("combineHandoffs", () => {
       handoff("security-reviewer", "success"),
     ]);
     assert.equal(combined.status, "needs_revision");
-    assert.equal(combined.loopBackTo, "implementer");
+    assert.equal(combined.loopBackTo, "software-engineer");
     assert.equal(combined.nextStage, undefined);
     assert.equal(combined.findings?.length, 1);
   });
@@ -180,16 +155,14 @@ describe("combineHandoffs", () => {
 describe("teamMissing", () => {
   it("lists every required member not yet dispatched", () => {
     const state = {
-      dispatched: ["product-spec", "architect"] as Stage[],
-      completedStages: ["product-spec"] as Stage[],
+      dispatched: ["software-engineer"] as Stage[],
+      completedStages: [] as Stage[],
     };
     const missing = teamMissing(state);
-    assert.ok(missing.includes("implementer"));
     assert.ok(missing.includes("verifier"));
     assert.ok(missing.includes("reviewer"));
     assert.ok(missing.includes("security-reviewer"));
-    assert.ok(!missing.includes("product-spec"));
-    assert.ok(!missing.includes("architect"));
+    assert.ok(!missing.includes("software-engineer"));
   });
 
   it("is empty when the required team all ran", () => {

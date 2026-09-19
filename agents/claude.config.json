@@ -2,127 +2,42 @@
   "orchestrator": {
     "tools": ["Read", "Write", "Edit", "Bash", "Grep", "Glob", "Agent"],
     "skills": ["closed-loop"],
-    "color": "purple"
+    "color": "purple",
+    "model": "opus"
   },
-  "product-spec": {
-    "tools": ["Read", "Write", "Edit", "Grep", "Glob"],
-    "skills": ["closed-loop"],
-    "color": "blue"
-  },
-  "architect": {
-    "tools": ["Read", "Write", "Edit", "Grep", "Glob"],
-    "skills": ["closed-loop"],
-    "color": "blue"
-  },
-  "design-ux": {
-    "tools": ["Read", "Write", "Edit", "Grep", "Glob"],
-    "skills": ["closed-loop"],
-    "color": "cyan"
-  },
-  "implementer": {
-    "tools": ["Read", "Write", "Edit", "Bash", "Grep", "Glob", "Agent"],
-    "skills": ["closed-loop"],
-    "color": "green"
-  },
-  "frontend": {
+  "software-engineer": {
     "tools": ["Read", "Write", "Edit", "Bash", "Grep", "Glob"],
-    "skills": ["closed-loop"],
-    "color": "green"
-  },
-  "backend": {
-    "tools": ["Read", "Write", "Edit", "Bash", "Grep", "Glob"],
-    "skills": ["closed-loop"],
-    "color": "green"
-  },
-  "data": {
-    "tools": ["Read", "Write", "Edit", "Bash", "Grep", "Glob"],
-    "skills": ["closed-loop"],
-    "color": "green"
-  },
-  "mobile": {
-    "tools": ["Read", "Write", "Edit", "Bash", "Grep", "Glob"],
-    "skills": ["closed-loop"],
-    "color": "green"
+    "skills": ["closed-loop-participant", "api-design", "monorepo", "debugging", "performance", "migration", "accessibility"],
+    "color": "green",
+    "model": "opus"
   },
   "verifier": {
     "tools": ["Read", "Write", "Edit", "Bash", "Grep", "Glob"],
-    "skills": ["closed-loop"],
+    "skills": ["closed-loop-participant", "debugging", "performance", "regression"],
     "color": "yellow"
   },
   "reviewer": {
     "tools": ["Read", "Grep", "Glob", "Bash"],
     "disallowedTools": ["Write", "Edit", "Agent"],
-    "skills": ["closed-loop"],
-    "color": "orange"
+    "skills": ["closed-loop-participant", "design-review", "api-design", "regression"],
+    "color": "orange",
+    "model": "opus"
   },
   "security-reviewer": {
     "tools": ["Read", "Grep", "Glob", "Bash"],
     "disallowedTools": ["Write", "Edit", "Agent"],
-    "skills": ["closed-loop"],
+    "skills": ["closed-loop-participant"],
     "color": "red",
     "model": "opus"
   },
   "qa-acceptance": {
     "tools": ["Read", "Write", "Edit", "Bash", "Grep", "Glob"],
-    "skills": ["closed-loop"],
+    "skills": ["closed-loop-participant", "design-review", "accessibility", "regression"],
     "color": "yellow"
-  },
-  "debugger": {
-    "tools": ["Read", "Write", "Edit", "Bash", "Grep", "Glob"],
-    "skills": ["closed-loop"],
-    "color": "red"
   },
   "integrator": {
     "tools": ["Read", "Write", "Edit", "Bash", "Grep", "Glob", "Agent"],
-    "skills": ["closed-loop"],
+    "skills": ["closed-loop-participant", "github", "ci-cd", "monorepo"],
     "color": "orange"
-  },
-  "devops": {
-    "tools": ["Read", "Write", "Edit", "Bash", "Grep", "Glob"],
-    "skills": ["closed-loop"],
-    "color": "orange"
-  },
-  "github": {
-    "tools": ["Read", "Write", "Edit", "Bash", "Grep", "Glob"],
-    "skills": ["closed-loop", "github"],
-    "color": "orange"
-  },
-  "release": {
-    "tools": ["Read", "Write", "Edit", "Bash", "Grep", "Glob"],
-    "skills": ["closed-loop"],
-    "color": "purple"
-  },
-  "monitor": {
-    "tools": ["Read", "Bash", "Grep", "Glob"],
-    "disallowedTools": ["Write", "Edit"],
-    "skills": ["closed-loop"],
-    "color": "pink"
-  },
-  "docs": {
-    "tools": ["Read", "Write", "Edit", "Grep", "Glob"],
-    "skills": ["closed-loop"],
-    "color": "blue"
-  },
-  "performance": {
-    "tools": ["Read", "Write", "Edit", "Bash", "Grep", "Glob"],
-    "skills": ["closed-loop"],
-    "color": "yellow"
-  },
-  "compliance": {
-    "tools": ["Read", "Grep", "Glob", "Bash"],
-    "disallowedTools": ["Write", "Edit", "Agent"],
-    "skills": ["closed-loop"],
-    "color": "red"
-  },
-  "cost": {
-    "tools": ["Read", "Grep", "Glob", "Bash"],
-    "disallowedTools": ["Write", "Edit", "Agent"],
-    "skills": ["closed-loop"],
-    "color": "yellow"
-  },
-  "legal": {
-    "tools": ["Read", "Write", "Edit", "Grep", "Glob"],
-    "skills": ["closed-loop"],
-    "color": "blue"
   }
 }
