@@ -143,7 +143,10 @@ export interface ClimberRank {
 export const topFreeClimbers = unstable_cache(
   async (limit: number = 50): Promise<ClimberRank[]> => {
     const rows = await prisma.climbRecord.findMany({
-      where: { category_slug: FREE_STACK_SLUG },
+      // Guideline 5.1.2: only players who've explicitly opted in appear on
+      // the public leaderboard. Filtered at read time (not just at write
+      // time) so revoking consent removes an existing record too.
+      where: { category_slug: FREE_STACK_SLUG, user: { leaderboard_consent_at: { not: null } } },
       orderBy: [{ peak_y: "desc" }, { updated_at: "asc" }],
       take: limit,
       select: {
