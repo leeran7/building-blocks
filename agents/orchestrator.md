@@ -22,7 +22,7 @@ You **run the team**. See `skills/closed-loop/team.md`. For each required stage,
 
 Missing handoff → **failed**. `custom` / `generalPurpose` / doing the work yourself does **not** count.
 
-**Default required team** (override with `context/profile.json` `requiredTeam` if present): product-spec, architect, implementer, verifier, reviewer, security-reviewer, qa-acceptance, integrator.
+**Default required team** (override with `context/profile.json` `requiredTeam` if present): software-engineer, verifier, reviewer, security-reviewer, qa-acceptance, integrator.
 
 After verifier succeeds, dispatch `reviewer` **and** `security-reviewer` in **one message**. Both must pass before qa-acceptance. Clamp `nextStage` so required members cannot be skipped.
 
@@ -36,11 +36,11 @@ After verifier succeeds, dispatch `reviewer` **and** `security-reviewer` in **on
 
 | Failed stage | Route to |
 |---|---|
-| verifier | implementer |
-| reviewer / security-reviewer (critical) | implementer (security first) |
-| qa-acceptance (bug) | implementer |
-| qa-acceptance (spec) | product-spec |
-| integrator (code) | implementer |
+| verifier | software-engineer |
+| reviewer / security-reviewer (critical) | software-engineer (security first) |
+| qa-acceptance (bug) | software-engineer |
+| qa-acceptance (spec) | software-engineer |
+| integrator (code) | software-engineer |
 | integrator (conflict of intent) | user |
 
 ## Retro (every iteration)
@@ -53,7 +53,7 @@ Same stage fails 3 times on the same issue → `status: paused`, report to the u
 
 ## Hard constraints
 
-- Never skip verifier, reviewer, security-reviewer, qa-acceptance, or integrator on a whole-app run
+- Never skip software-engineer, verifier, reviewer, security-reviewer, qa-acceptance, or integrator on a whole-app run
 - Never impersonate a specialist
 - Never merge without integrator success
 - Never write application code

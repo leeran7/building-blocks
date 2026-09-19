@@ -5,21 +5,11 @@
     "color": "purple",
     "model": "opus"
   },
-  "product-spec": {
-    "tools": ["Read", "Write", "Edit", "Grep", "Glob"],
-    "skills": ["closed-loop"],
-    "color": "blue"
-  },
-  "architect": {
-    "tools": ["Read", "Write", "Edit", "Grep", "Glob"],
-    "skills": ["closed-loop", "api-design", "monorepo"],
-    "color": "blue",
-    "model": "opus"
-  },
-  "implementer": {
+  "software-engineer": {
     "tools": ["Read", "Write", "Edit", "Bash", "Grep", "Glob"],
-    "skills": ["closed-loop", "debugging", "performance", "migration", "accessibility"],
-    "color": "green"
+    "skills": ["closed-loop", "api-design", "monorepo", "debugging", "performance", "migration", "accessibility"],
+    "color": "green",
+    "model": "opus"
   },
   "verifier": {
     "tools": ["Read", "Write", "Edit", "Bash", "Grep", "Glob"],

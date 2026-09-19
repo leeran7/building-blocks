@@ -1,9 +1,8 @@
 export const meta = {
   name: "closed-loop",
-  description: "Full agent pipeline: spec, architect, implement, verify, review, QA, integrate",
+  description: "Full agent pipeline: software-engineer, verify, review, QA, integrate",
   phases: [
-    { title: "Spec & Architecture" },
-    { title: "Implementation" },
+    { title: "Software Engineering" },
     { title: "Verification" },
     { title: "Quality Gates" },
     { title: "Integration" }
@@ -46,46 +45,30 @@ function hasCritical(handoff) {
   );
 }
 
-// Phase 1: Spec & Architecture
-phase("Spec & Architecture");
-const spec = await agent(stagePrompt("product-spec", args, null), {
-  label: "product-spec",
-  phase: "Spec & Architecture",
-  schema: HANDOFF_SCHEMA
-});
-if (spec.status !== "success") return { status: "failed", stage: "product-spec", handoff: spec };
-
-const arch = await agent(stagePrompt("architect", args, spec), {
-  label: "architect",
-  phase: "Spec & Architecture",
-  schema: HANDOFF_SCHEMA
-});
-if (arch.status !== "success") return { status: "failed", stage: "architect", handoff: arch };
-
-// Implementation → Verification → Quality Gates loop
-let implHandoff = null;
+// Software Engineering → Verification → Quality Gates loop
+let seHandoff = null;
 let retries = 0;
 
 while (retries < MAX_RETRIES) {
-  // Phase 2: Implementation
-  phase("Implementation");
-  const impl = await agent(
-    stagePrompt("implementer", args, implHandoff || arch),
-    { label: `implementer-${retries}`, phase: "Implementation", schema: HANDOFF_SCHEMA }
+  // Phase 1: Software Engineering (spec + architecture + implementation)
+  phase("Software Engineering");
+  const se = await agent(
+    stagePrompt("software-engineer", args, seHandoff),
+    { label: `software-engineer-${retries}`, phase: "Software Engineering", schema: HANDOFF_SCHEMA }
   );
-  if (impl.status === "failed" || impl.status === "blocked") {
-    return { status: "paused", stage: "implementer", handoff: impl, retries };
+  if (se.status === "failed" || se.status === "blocked") {
+    return { status: "paused", stage: "software-engineer", handoff: se, retries };
   }
 
-  // Phase 3: Verification
+  // Phase 2: Verification
   phase("Verification");
-  const verify = await agent(stagePrompt("verifier", args, impl), {
+  const verify = await agent(stagePrompt("verifier", args, se), {
     label: `verifier-${retries}`,
     phase: "Verification",
     schema: HANDOFF_SCHEMA
   });
   if (verify.status === "needs_revision") {
-    implHandoff = verify;
+    seHandoff = verify;
     retries++;
     continue;
   }
@@ -93,7 +76,7 @@ while (retries < MAX_RETRIES) {
     return { status: "paused", stage: "verifier", handoff: verify, retries };
   }
 
-  // Phase 4: Quality Gates (reviewer + security-reviewer in parallel, then QA)
+  // Phase 3: Quality Gates (reviewer + security-reviewer in parallel, then QA)
   phase("Quality Gates");
   const [review, secReview] = await parallel([
     () =>
@@ -111,7 +94,7 @@ while (retries < MAX_RETRIES) {
   ]);
 
   if (hasCritical(review) || hasCritical(secReview)) {
-    implHandoff = {
+    seHandoff = {
       agent: "quality-gates",
       status: "needs_revision",
       summary: "Critical findings from review",
@@ -130,7 +113,7 @@ while (retries < MAX_RETRIES) {
   });
 
   if (qa.status === "needs_revision") {
-    implHandoff = qa;
+    seHandoff = qa;
     retries++;
     continue;
   }
@@ -138,7 +121,7 @@ while (retries < MAX_RETRIES) {
     return { status: "paused", stage: "qa-acceptance", handoff: qa, retries };
   }
 
-  // Phase 5: Integration
+  // Phase 4: Integration
   phase("Integration");
   const integrate = await agent(stagePrompt("integrator", args, qa), {
     label: "integrator",

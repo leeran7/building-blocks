@@ -31,7 +31,7 @@ Two concrete failures in this repo:
    live design file does not.
 2. **Standing rules had nowhere to go except longer agents.** The Aug 29
    review proposed pasting new bullets into `verifier.md`, `reviewer.md`,
-   and `implementer.md`. Those lessons already belong in the ledger. Kernel
+   and `software-engineer.md`. Those lessons already belong in the ledger. Kernel
    lessons now graduate to `gates.md`. Product lessons stay in the repo
    ledger. Agent files stop growing.
 
@@ -175,10 +175,10 @@ files.
 
 Required on a **whole-app** closed-loop run:
 
-`product-spec → architect → implementer → verifier → reviewer +
+`software-engineer → verifier → reviewer +
 security-reviewer → qa-acceptance → integrator`
 
-The implementer owns all code directly — no specialist delegation.
+The software-engineer owns spec, architecture, and all code directly.
 
 Incremental work in an existing repo uses the host review classification
 (substantial / minor / trivial) — not the eight-agent clamp. The clamp is

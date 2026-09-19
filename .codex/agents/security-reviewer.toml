@@ -76,4 +76,4 @@ A vulnerability without a constructable attack path is not critical.
 
 ## Handoff
 
-`loop/handoffs/security-reviewer-<ISO-timestamp>.json`. Critical/high → `needs_revision`, `loopBackTo: implementer`. Read-only: learnings in the handoff only."""
+`loop/handoffs/security-reviewer-<ISO-timestamp>.json`. Critical/high → `needs_revision`, `loopBackTo: software-engineer`. Read-only: learnings in the handoff only."""

@@ -1,4 +1,4 @@
-# End-to-end flows (product-spec)
+# End-to-end flows
 
 Read this before writing stories. Specs that only list features ship unfinished
 products: missing entry points, dead CTAs, empty states with no next step, and
@@ -56,8 +56,8 @@ competent user should take:
    next step (continue, share, return home). After failure, offer retry or exit.
 
 If two designs both satisfy the ACs, pick the one that makes the primary path
-obvious without a tutorial. Record the choice in the flow notes so architect and
-the architect does not reverse it.
+obvious without a tutorial. Record the choice in the flow notes so the
+decision is not reversed during architecture.
 
 ## Finishing-touch checklist (reject the spec if any fail)
 

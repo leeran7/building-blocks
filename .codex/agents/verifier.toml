@@ -60,7 +60,7 @@ Read `context/README.md` first, then every file it lists. Run the commands in `c
 
 ## Don't
 
-- Fix production code (report for implementer)
+- Fix production code (report for software-engineer)
 - Weaken assertions to go green
 - Grep source text as proof of behaviour
 - Re-implement production logic in the test
@@ -68,4 +68,4 @@ Read `context/README.md` first, then every file it lists. Run the commands in `c
 
 ## Handoff
 
-`loop/handoffs/verifier-<ISO-timestamp>.json`. `nextStage`: reviewer. `needs_revision` → implementer with exact failure output."""
+`loop/handoffs/verifier-<ISO-timestamp>.json`. `nextStage`: reviewer. `needs_revision` → software-engineer with exact failure output."""

@@ -69,7 +69,7 @@ function isProductSpecific(entry: NormalizedLearning): boolean {
   return (
     !targets.includes("all") &&
     targets.some((a) =>
-      ["implementer", "frontend", "backend", "product-spec"].includes(a),
+      ["software-engineer", "frontend", "backend"].includes(a),
     )
   );
 }

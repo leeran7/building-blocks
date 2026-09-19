@@ -25,12 +25,12 @@ with (tokens, hex values, config). Live values stay in the codebase files that
 
 | File | Relevant to | What it covers |
 |------|-------------|----------------|
-| `context/ux.md` | implementer, reviewer, qa-acceptance | Principles, component states, visual design bar |
-| `context/ux-process.md` | implementer (new screens) | Design process, screen states, critique checklist |
-| `context/ux-patterns.md` | implementer (interactions) | Motion, microinteractions, UX writing, flow patterns |
-| `context/ux-accessibility.md` | implementer, reviewer | WCAG 2.1 AA, responsive breakpoints, mobile UX |
+| `context/ux.md` | software-engineer, reviewer, qa-acceptance | Principles, component states, visual design bar |
+| `context/ux-process.md` | software-engineer (new screens) | Design process, screen states, critique checklist |
+| `context/ux-patterns.md` | software-engineer (interactions) | Motion, microinteractions, UX writing, flow patterns |
+| `context/ux-accessibility.md` | software-engineer, reviewer | WCAG 2.1 AA, responsive breakpoints, mobile UX |
 
-Add a `context/<domain>.md` when a domain has rules the implementer or
+Add a `context/<domain>.md` when a domain has rules the software-engineer or
 reviewers need. Don’t duplicate what’s already in codebase files.
 
 ## Notes

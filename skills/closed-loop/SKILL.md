@@ -37,15 +37,13 @@ Write `loop/state.json`:
 ```json
 {
   "goal": "<user's goal>",
-  "currentStage": "product-spec",
+  "currentStage": "software-engineer",
   "iteration": 1,
   "maxIterations": 10,
   "completedStages": [],
   "dispatched": [],
   "requiredTeam": [
-    "product-spec",
-    "architect",
-    "implementer",
+    "software-engineer",
     "verifier",
     "reviewer",
     "security-reviewer",
@@ -62,7 +60,7 @@ Write `loop/state.json`:
    stage (including its `learnings` array), and `loop/learnings.md`.
 2. **Delegate** — invoke the subagent matching `currentStage`:
    - **Cursor**: Task tool with `subagent_type` matching the agent name
-     (`product-spec`, not `custom` / `generalPurpose`)
+     (`software-engineer`, not `custom` / `generalPurpose`)
    - **Claude Code**: Agent tool with `subagent_type` matching the agent name
    - **Codex**: Agent tool with `subagent_type` matching the agent name
    - Record the agent on `loop/state.json` `dispatched`
@@ -89,14 +87,12 @@ Write `loop/state.json`:
 | Stage | Subagent | When |
 |-------|----------|------|
 | Loop owner | orchestrator | Coordinate all stages |
-| 1 | product-spec | Turn intent into end-to-end flows + requirements |
-| 2 | architect | System design and contracts |
-| 3 | implementer | Write application code (frontend, backend, data, mobile) |
-| 4 | verifier | Tests and correctness |
-| 5 | reviewer | Code quality review |
-| 6 | security-reviewer | Security audit |
-| 7 | qa-acceptance | Acceptance criteria validation |
-| 8 | integrator | CI green, PR merge-ready |
+| 1 | software-engineer | Spec, architecture, and implementation |
+| 2 | verifier | Tests and correctness |
+| 3 | reviewer | Code quality review |
+| 4 | security-reviewer | Security audit |
+| 5 | qa-acceptance | Acceptance criteria validation |
+| 6 | integrator | CI green, PR merge-ready |
 
 ## Prompt template for each delegation
 

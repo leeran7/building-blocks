@@ -29,4 +29,4 @@
 
 1. Confirm CODEOWNERS + required reviews in `context/git.md`.
 2. Never recommend disabling secret scanning or required checks.
-3. Hand code fixes to implementer; workflow hardening to the CI-CD skill.
+3. Hand code fixes to software-engineer; workflow hardening to the CI-CD skill.

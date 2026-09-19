@@ -63,7 +63,7 @@ Read `context/README.md` first, then every file it lists. Diff against the defau
 - Implement fixes
 - Expand into untouched files
 - Report style nits as critical
-- Trust the implementer’s file list
+- Trust the software-engineer’s file list
 
 ## Adversarial self-verification
 
@@ -78,4 +78,4 @@ A finding without a concrete failure scenario is not critical.
 
 ## Handoff
 
-`loop/handoffs/reviewer-<ISO-timestamp>.json` with a `findings` array (`severity`, `location`, `issue`, `fix`). Critical → `needs_revision`, `loopBackTo: implementer`. You are read-only: put learnings in the handoff only."""
+`loop/handoffs/reviewer-<ISO-timestamp>.json` with a `findings` array (`severity`, `location`, `issue`, `fix`). Critical → `needs_revision`, `loopBackTo: software-engineer`. You are read-only: put learnings in the handoff only."""

@@ -4,9 +4,7 @@
 
 ```mermaid
 graph LR
-  PS([product-spec]) --> A([architect])
-  A --> I([implementer])
-  I --> V([verifier])
+  SE([software-engineer]) --> V([verifier])
 
   V --> R([reviewer])
   V --> SR([security-reviewer])
@@ -16,29 +14,28 @@ graph LR
 
   QA --> INT([integrator])
 
-  R -. "critical findings" .-> I
-  SR -. "critical findings" .-> I
-  V -. "test failures" .-> I
-  QA -. "acceptance failures" .-> I
-  QA -. "spec wrong" .-> PS
+  R -. "critical findings" .-> SE
+  SR -. "critical findings" .-> SE
+  V -. "test failures" .-> SE
+  QA -. "acceptance failures" .-> SE
 ```
 
 <details><summary>Text fallback</summary>
 
 ```
-  product-spec ──▶ architect ──▶ implementer ◀─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┐
-                                      │                              │
-                                      ▼                              │
-                                  verifier ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┤
-                                 ╱        ╲                          │
-                                ▼          ▼                         │
-                           reviewer    security-reviewer             │
-                                ╲          ╱          findings / failures
-                                 ▼        ▼                          │
-                              qa-acceptance ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─┘
-                                      │
-                                      ▼
-                                 integrator
+  software-engineer ◀─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┐
+          │                                                          │
+          ▼                                                          │
+      verifier ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┤
+     ╱        ╲                                                      │
+    ▼          ▼                                                     │
+ reviewer    security-reviewer                    findings / failures
+    ╲          ╱                                                      │
+     ▼        ▼                                                      │
+  qa-acceptance ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─┘
+          │
+          ▼
+     integrator
 ```
 
 </details>
@@ -71,13 +68,13 @@ The orchestrator stops the loop when ALL are true:
 
 | Failure source | Route to |
 |----------------|----------|
-| Verifier test failures | implementer |
-| Reviewer critical findings | implementer |
-| Security critical findings | implementer |
-| QA acceptance failures | implementer (or product-spec if spec/flows are wrong) |
-| CI failures in PR scope | implementer |
+| Verifier test failures | software-engineer |
+| Reviewer critical findings | software-engineer |
+| Security critical findings | software-engineer |
+| QA acceptance failures | software-engineer |
+| CI failures in PR scope | software-engineer |
 | CI failures unrelated to PR | integrator (merge base first) |
-| Flaky/unclear failures | implementer (root-cause first) |
+| Flaky/unclear failures | software-engineer (root-cause first) |
 
 ## Platform delegation
 

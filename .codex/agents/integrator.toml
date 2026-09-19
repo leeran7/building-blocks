@@ -68,4 +68,4 @@ Read `context/README.md` first, then every file it lists. Default branch and rem
 
 ## Handoff
 
-`loop/handoffs/integrator-<ISO-timestamp>.json`. `nextStage`: `null` (integrator is the final stage). Code fixes beyond integration → implementer. Intent conflicts → `blocked`."""
+`loop/handoffs/integrator-<ISO-timestamp>.json`. `nextStage`: `null` (integrator is the final stage). Code fixes beyond integration → software-engineer. Intent conflicts → `blocked`."""

@@ -8,7 +8,7 @@ A stage counts as run only when **all** of these are true:
 
 1. The orchestrator dispatched that agent via Task / Agent with
    `subagent_type` **exactly equal** to the agent name
-   (`product-spec`, `architect`, `implementer`, `verifier`, `reviewer`,
+   (`software-engineer`, `verifier`, `reviewer`,
    `security-reviewer`, `qa-acceptance`, `integrator`, …).
 2. That agent wrote `loop/handoffs/<agent>-<timestamp>.json`.
 3. The orchestrator **read** that handoff before advancing.
@@ -21,9 +21,7 @@ without `subagent_type`) does **not** count.
 
 ```mermaid
 graph LR
-  PS([product-spec]) --> A([architect])
-  A --> I([implementer])
-  I --> V([verifier])
+  SE([software-engineer]) --> V([verifier])
   V --> R([reviewer])
   V --> SR([security-reviewer])
   R --> QA([qa-acceptance])
@@ -31,8 +29,8 @@ graph LR
   QA --> INT([integrator])
 ```
 
-These 8 agents are the full team. The implementer owns all code — frontend,
-backend, data, mobile — directly.
+These 6 agents are the full team. The software-engineer owns spec,
+architecture, and all code — frontend, backend, data, mobile — directly.
 
 ## Missing handoff
 
@@ -45,8 +43,8 @@ After verifier succeeds, dispatch `reviewer` and `security-reviewer` in
 **one message** (two Task calls). Both must pass before `qa-acceptance`.
 Critical items in `findings` **or** `feedback` (or
 `exitCriteria.no_critical_findings === false`) → `needs_revision` →
-implementer. `loopBackTo` is clamped to product-spec / architect /
-implementer — never forward past qa-acceptance.
+software-engineer. `loopBackTo` is clamped to software-engineer — never
+forward past qa-acceptance.
 
 ## Prompt-loop vs programmatic loop
 

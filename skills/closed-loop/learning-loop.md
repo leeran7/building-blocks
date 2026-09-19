@@ -23,7 +23,7 @@ Nothing accumulates in `loop/learnings.md`.
 | Product-specific convention | `context/conventions.md` |
 | UX / design pattern | `context/ux*.md` |
 | Agent-specific technique | `agents/<agent>.md` |
-| Spec / flow pattern | `agents/product-spec/flows.md` |
+| Spec / flow pattern | `agents/software-engineer/flows.md` |
 | Unresolved question needing a decision | `loop/learnings.md` (open questions only) |
 | One-off observation, not recurring | Drop |
 
@@ -67,8 +67,8 @@ files get smarter and the learnings file stays near-empty.
 
 Questions that need a human decision before agents can proceed.
 
-- [security-reviewer → product-spec] Is the free leaderboard a trust boundary?
-- [reviewer → architect] One slot or stacking for power-ups?
+- [security-reviewer → software-engineer] Is the free leaderboard a trust boundary?
+- [reviewer → software-engineer] One slot or stacking for power-ups?
 ```
 
 That's it. No topic sections, no standing rules (those live in `gates.md`),
@@ -77,7 +77,7 @@ no recently applied (the git log is the record).
 ## Handoff learnings schema
 
 ```json
-{"forAgents":["implementer"],"insight":"...","action":"...","kind":"lesson","topic":"testing","confidence":"high"}
+{"forAgents":["software-engineer"],"insight":"...","action":"...","kind":"lesson","topic":"testing","confidence":"high"}
 ```
 
 - `kind` — `lesson` | `pattern` | `pitfall` | `metric` | `question`

@@ -6,7 +6,7 @@ Every agent in the closed loop writes a handoff file to `loop/handoffs/<agent>-<
 
 ```json
 {
-  "agent": "implementer",
+  "agent": "software-engineer",
   "status": "success",
   "summary": "Implemented user auth with JWT and login endpoint.",
   "timestamp": "2026-08-22T12:00:00Z",
@@ -32,7 +32,7 @@ agents continuously learn from each other. See
 | Status | Meaning | Loop action |
 |--------|---------|-------------|
 | `success` | Exit criteria met | Proceed to `nextStage` |
-| `needs_revision` | Fixable issues found | Route to `loopBackTo` (usually implementer) |
+| `needs_revision` | Fixable issues found | Route to `loopBackTo` (usually software-engineer) |
 | `blocked` | Cannot proceed without input | Pause loop, surface to user |
 | `failed` | Unrecoverable error | Pause loop, surface to user |
 
@@ -78,7 +78,7 @@ reads both.
 ```json
 {
   "topic": "testing",
-  "forAgents": ["implementer", "architect"],
+  "forAgents": ["software-engineer"],
   "kind": "lesson",
   "insight": "Webhook handler read the raw body twice; the second read was empty.",
   "action": "Buffer the raw body once, pass it to constructEvent; never re-read req.body.",

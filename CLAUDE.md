@@ -31,13 +31,11 @@ Assess every task before starting. Use the full closed-loop pipeline
 When in doubt, use the orchestrator — it is cheaper to over-verify than to
 ship a regression. The user can always say "just do it directly" to skip.
 
-The orchestrator coordinates the 8 required agents:
+The orchestrator coordinates the 6 required agents:
 
 ```mermaid
 graph LR
-  PS([product-spec]) --> A([architect])
-  A --> I([implementer])
-  I --> V([verifier])
+  SE([software-engineer]) --> V([verifier])
 
   V --> R([reviewer])
   V --> SR([security-reviewer])
@@ -47,14 +45,12 @@ graph LR
 
   QA --> INT([integrator])
 
-  R -. "critical findings" .-> I
-  SR -. "critical findings" .-> I
-  V -. "test failures" .-> I
-  QA -. "acceptance failures" .-> I
+  R -. "critical findings" .-> SE
+  SR -. "critical findings" .-> SE
+  V -. "test failures" .-> SE
+  QA -. "acceptance failures" .-> SE
 
-  style PS fill:#1e1c24,stroke:#cbf24d,color:#f4f2ec
-  style A fill:#1e1c24,stroke:#cbf24d,color:#f4f2ec
-  style I fill:#1e1c24,stroke:#cbf24d,color:#f4f2ec
+  style SE fill:#1e1c24,stroke:#cbf24d,color:#f4f2ec
   style V fill:#1e1c24,stroke:#cbf24d,color:#f4f2ec
   style R fill:#1e1c24,stroke:#a8a4b2,color:#f4f2ec
   style SR fill:#1e1c24,stroke:#a8a4b2,color:#f4f2ec
@@ -68,30 +64,29 @@ graph LR
                     ┌─────────────────────────────────────────────────────────┐
                     │                     ORCHESTRATOR                        │
                     │                                                         │
-                    │   ┌──────────┐   ┌───────────┐   ┌──────────────┐       │
-                    │   │ product- │──▶│ architect  │──▶│ implementer  │◀──┐   │
-                    │   │   spec   │   └───────────┘   └──────┬───────┘   │   │
-                    │   └──────────┘                          │            │   │
-                    │                                         ▼            │   │
-                    │                                  ┌───────────┐       │   │
-                    │                                  │ verifier  │───────┤   │
-                    │                                  └─────┬─────┘       │   │
-                    │                          ┌─────────────┼─────────┐   │   │
-                    │                          ▼                       ▼   │   │
-                    │                   ┌───────────┐          ┌──────────┐│   │
-                    │                   │ reviewer  │──┐       │ security-││   │
-                    │                   └───────────┘  │       │ reviewer ││   │
-                    │                                  │       └─────┬────┘│   │
-                    │                                  ▼             │     │   │
-                    │                           ┌──────────────┐     │     │   │
-                    │              findings ····│qa-acceptance │◀────┘     │   │
-                    │              loop back    └──────┬───────┘           │   │
-                    │                ·                 │                   │   │
-                    │                · · · · · · · · · · · · · · · · · · ·┘   │
-                    │                                 ▼                       │
-                    │                          ┌───────────┐                  │
-                    │                          │integrator │                  │
-                    │                          └───────────┘                  │
+                    │        ┌───────────────────┐                            │
+                    │        │ software-engineer  │◀─────────────────────┐    │
+                    │        └────────┬──────────┘                      │    │
+                    │                 │                                  │    │
+                    │                 ▼                                  │    │
+                    │          ┌───────────┐                             │    │
+                    │          │ verifier  │─────────────────────────────┤    │
+                    │          └─────┬─────┘                             │    │
+                    │       ┌────────┼─────────┐                        │    │
+                    │       ▼                   ▼                        │    │
+                    │  ┌───────────┐     ┌──────────┐                   │    │
+                    │  │ reviewer  │──┐  │ security- │                  │    │
+                    │  └───────────┘  │  │ reviewer  │                  │    │
+                    │                 │  └─────┬─────┘                  │    │
+                    │                 ▼        │       findings / failures    │
+                    │          ┌──────────────┐│                        │    │
+                    │          │qa-acceptance │◀┘                       │    │
+                    │          └──────┬───────┘                         │    │
+                    │                 │  · · · · · · · · · · · · · · · ·┘    │
+                    │                 ▼                                      │
+                    │          ┌───────────┐                                 │
+                    │          │integrator │                                 │
+                    │          └───────────┘                                 │
                     └─────────────────────────────────────────────────────────┘
 
   ──▶  forward flow        · · · ·  loop-back (critical findings / failures)

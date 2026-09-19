@@ -120,7 +120,7 @@ export function applyHandoff(
     return {
       ...state,
       dispatched,
-      currentStage: nextStage ?? "implementer",
+      currentStage: nextStage ?? "software-engineer",
       iteration: state.iteration + 1,
     };
   }

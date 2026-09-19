@@ -32,7 +32,7 @@ describe("retro", () => {
       dir,
       [
         handoff("reviewer", {
-          forAgents: ["implementer"],
+          forAgents: ["software-engineer"],
           insight: "Is the free leaderboard a trust boundary?",
           action: "Need a decision before implementing auth",
           kind: "question",
@@ -44,20 +44,20 @@ describe("retro", () => {
     const md = await readFile(join(dir, "learnings.md"), "utf-8");
     assert.match(md, /Open Questions/);
     assert.match(md, /Is the free leaderboard a trust boundary/);
-    assert.match(md, /reviewer → implementer/);
+    assert.match(md, /reviewer → software-engineer/);
   });
 
   it("does not duplicate a question already in learnings.md", async () => {
     const dir = await mkdtemp(join(tmpdir(), "loop-retro-"));
     await writeFile(
       join(dir, "learnings.md"),
-      "# Open Questions\n\n- [reviewer → implementer] Is the free leaderboard a trust boundary?\n",
+      "# Open Questions\n\n- [reviewer → software-engineer] Is the free leaderboard a trust boundary?\n",
     );
     await runRetro(
       dir,
       [
         handoff("reviewer", {
-          forAgents: ["implementer"],
+          forAgents: ["software-engineer"],
           insight: "Is the free leaderboard a trust boundary?",
           action: "Need decision",
           kind: "question",
@@ -105,9 +105,9 @@ describe("retro", () => {
     const dir = await mkdtemp(join(tmpdir(), "loop-retro-"));
     await writeFile(
       join(dir, "learnings.md"),
-      "# Open Questions\n\n- [security-reviewer → architect] One slot or stacking?\n",
+      "# Open Questions\n\n- [security-reviewer → software-engineer] One slot or stacking?\n",
     );
-    const result = await loadLearningsForStage(dir, "architect");
+    const result = await loadLearningsForStage(dir, "software-engineer");
     assert.match(result, /Open Questions/);
     assert.match(result, /One slot or stacking/);
   });
@@ -153,7 +153,7 @@ describe("retro", () => {
   it("deduplicates the same insight from multiple handoffs", async () => {
     const dir = await mkdtemp(join(tmpdir(), "loop-retro-"));
     const learning: HandoffLearning = {
-      forAgents: ["implementer"],
+      forAgents: ["software-engineer"],
       insight: "same insight from two agents",
       action: "do the thing",
       kind: "question",
@@ -174,8 +174,8 @@ describe("retro", () => {
     await runRetro(
       dir,
       [
-        handoff("architect", {
-          forAgents: ["product-spec"],
+        handoff("software-engineer", {
+          forAgents: ["software-engineer"],
           insight: "Need to clarify auth flow",
           action: "Ask product about SSO requirement",
           kind: "question",
