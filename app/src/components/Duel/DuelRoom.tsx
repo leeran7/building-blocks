@@ -532,6 +532,9 @@ function DuelGame({
       if (member.clientId !== myId) {
         clearLeaveTimer();
         setOpponentPresent(true);
+        if (bothPresentSinceRef.current === 0) {
+          bothPresentSinceRef.current = Date.now();
+        }
         if (
           !joinBeatFiredRef.current &&
           (action === "enter" || action === "present")
@@ -613,6 +616,7 @@ function DuelGame({
     return () => {
       clearTimeout(nudgeTimer);
       clearTimeout(forfeitTimer);
+      setReadyNudge(false);
     };
   }, [state.phase, opponentPresent, handleLeave]);
 
@@ -923,7 +927,7 @@ function DuelGame({
                 {!opponentReady && (
                   <button
                     onClick={handleUnready}
-                    className="inline-flex items-center justify-center rounded-full px-6 min-h-[36px] border border-border-strong text-text-secondary text-xs hover:border-signal/50 transition-colors"
+                    className="inline-flex items-center justify-center rounded-full px-6 min-h-[44px] border border-border-strong text-text-secondary text-xs hover:border-signal/50 transition-colors"
                     aria-label="Cancel ready"
                   >
                     Unready

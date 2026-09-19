@@ -262,7 +262,7 @@ describe("AC-1/AC-2: readySlots and hiddenSlots sets", () => {
   });
 
   it("hiddenSlots is undefined outside lobby phase", () => {
-    const phase = "climb";
+    const phase: string = "climb";
     const opponentPresent = false;
     const opponentSlot = 1;
 
