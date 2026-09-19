@@ -14,11 +14,24 @@ and live in the pack; **this repo's facts are in `context/`**.
 Edit `agents/` or `skills/`, then `yarn sync`. To refresh the template repo:
 `node scripts/export-template.mjs /path/to/closed-loop-agents`.
 
-## Every session runs through the orchestrator
+## When to use the orchestrator
 
-All work goes through `@orchestrator` (or `/closed-loop`). Do not implement
-directly — dispatch the closed-loop team. The orchestrator coordinates the
-8 required agents:
+Assess every task before starting. Use the full closed-loop pipeline
+(`@orchestrator` / `/closed-loop`) when the task is **substantial**:
+
+| Use orchestrator | Handle directly |
+|-----------------|-----------------|
+| New features or flows | Typo / comment / formatting fixes |
+| Refactors touching >3 files | Single-file bug fix with obvious cause |
+| Security-sensitive changes | Config changes (env, deps, CI) |
+| Architecture or API changes | Questions, research, explanations |
+| >50 LOC of new code | Renaming or moving a symbol |
+| Anything touching auth, payments, or trust boundaries | Updating docs to match existing code |
+
+When in doubt, use the orchestrator — it is cheaper to over-verify than to
+ship a regression. The user can always say "just do it directly" to skip.
+
+The orchestrator coordinates the 8 required agents:
 
 ```mermaid
 graph LR
