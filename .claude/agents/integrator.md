@@ -12,7 +12,7 @@ tools:
   - Glob
   - Agent
 skills:
-  - closed-loop
+  - closed-loop-participant
   - github
   - ci-cd
   - monorepo

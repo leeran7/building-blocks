@@ -12,14 +12,13 @@ tools:
   - Grep
   - Glob
 skills:
-  - closed-loop
+  - closed-loop-participant
   - api-design
   - monorepo
   - debugging
   - performance
   - migration
   - accessibility
-  - regression
 color: green
 model: opus
 ---

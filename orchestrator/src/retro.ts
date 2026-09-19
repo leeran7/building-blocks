@@ -250,7 +250,37 @@ export async function loadLearningsExcerpt(loopDir: string): Promise<string> {
 
 export async function loadLearningsForStage(
   loopDir: string,
-  _stage: string,
+  stage: string,
 ): Promise<string> {
-  return loadLearningsExcerpt(loopDir);
+  let md: string;
+  try {
+    md = await readFile(join(loopDir, "learnings.md"), "utf-8");
+  } catch {
+    return "(no learnings yet — create loop/learnings.md on first run)";
+  }
+
+  const trimmed = md.trim();
+  if (!trimmed) return "(no open questions)";
+
+  const lines = trimmed.split("\n");
+  const filtered: string[] = [];
+
+  for (const line of lines) {
+    if (!line.startsWith("- [")) {
+      filtered.push(line);
+      continue;
+    }
+    const match = line.match(/^- \[.+?→\s*(.+?)\]/);
+    if (!match) {
+      filtered.push(line);
+      continue;
+    }
+    const targets = match[1].split(",").map((t) => t.trim().toLowerCase());
+    if (targets.includes("all") || targets.includes(stage.toLowerCase())) {
+      filtered.push(line);
+    }
+  }
+
+  const result = filtered.join("\n").trim();
+  return result.slice(0, 8000) || "(no open questions)";
 }

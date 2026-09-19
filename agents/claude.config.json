@@ -7,37 +7,37 @@
   },
   "software-engineer": {
     "tools": ["Read", "Write", "Edit", "Bash", "Grep", "Glob"],
-    "skills": ["closed-loop", "api-design", "monorepo", "debugging", "performance", "migration", "accessibility", "regression"],
+    "skills": ["closed-loop-participant", "api-design", "monorepo", "debugging", "performance", "migration", "accessibility"],
     "color": "green",
     "model": "opus"
   },
   "verifier": {
     "tools": ["Read", "Write", "Edit", "Bash", "Grep", "Glob"],
-    "skills": ["closed-loop", "debugging", "performance", "regression"],
+    "skills": ["closed-loop-participant", "debugging", "performance", "regression"],
     "color": "yellow"
   },
   "reviewer": {
     "tools": ["Read", "Grep", "Glob", "Bash"],
     "disallowedTools": ["Write", "Edit", "Agent"],
-    "skills": ["closed-loop", "design-review", "api-design", "regression"],
+    "skills": ["closed-loop-participant", "design-review", "api-design", "regression"],
     "color": "orange",
     "model": "opus"
   },
   "security-reviewer": {
     "tools": ["Read", "Grep", "Glob", "Bash"],
     "disallowedTools": ["Write", "Edit", "Agent"],
-    "skills": ["closed-loop"],
+    "skills": ["closed-loop-participant"],
     "color": "red",
     "model": "opus"
   },
   "qa-acceptance": {
     "tools": ["Read", "Write", "Edit", "Bash", "Grep", "Glob"],
-    "skills": ["closed-loop", "design-review", "accessibility", "regression"],
+    "skills": ["closed-loop-participant", "design-review", "accessibility", "regression"],
     "color": "yellow"
   },
   "integrator": {
     "tools": ["Read", "Write", "Edit", "Bash", "Grep", "Glob", "Agent"],
-    "skills": ["closed-loop", "github", "ci-cd", "monorepo"],
+    "skills": ["closed-loop-participant", "github", "ci-cd", "monorepo"],
     "color": "orange"
   }
 }

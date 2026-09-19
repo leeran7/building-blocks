@@ -13,7 +13,7 @@ tools:
   - Grep
   - Glob
 skills:
-  - closed-loop
+  - closed-loop-participant
   - design-review
   - accessibility
   - regression

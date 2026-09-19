@@ -11,7 +11,7 @@ tools:
   - Grep
   - Glob
 skills:
-  - closed-loop
+  - closed-loop-participant
   - debugging
   - performance
   - regression

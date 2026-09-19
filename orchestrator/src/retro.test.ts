@@ -101,15 +101,55 @@ describe("retro", () => {
     assert.match(excerpt, /no learnings yet/);
   });
 
-  it("loadLearningsForStage returns open questions", async () => {
+  it("loadLearningsForStage returns entries addressed to that stage", async () => {
     const dir = await mkdtemp(join(tmpdir(), "loop-retro-"));
     await writeFile(
       join(dir, "learnings.md"),
-      "# Open Questions\n\n- [security-reviewer → software-engineer] One slot or stacking?\n",
+      [
+        "# Open Questions",
+        "",
+        "- [security-reviewer → software-engineer] One slot or stacking?",
+        "- [reviewer → verifier] Add edge-case test for empty input",
+        "- [reviewer → all] Always validate at the boundary",
+        "",
+      ].join("\n"),
+    );
+    const result = await loadLearningsForStage(dir, "software-engineer");
+    assert.match(result, /One slot or stacking/);
+    assert.doesNotMatch(result, /Add edge-case test/);
+    assert.match(result, /Always validate at the boundary/);
+  });
+
+  it("loadLearningsForStage excludes entries for other stages", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "loop-retro-"));
+    await writeFile(
+      join(dir, "learnings.md"),
+      [
+        "# Open Questions",
+        "",
+        "- [reviewer → verifier] Need more coverage on auth paths",
+        "- [security-reviewer → integrator] Check CI secrets rotation",
+        "",
+      ].join("\n"),
     );
     const result = await loadLearningsForStage(dir, "software-engineer");
     assert.match(result, /Open Questions/);
-    assert.match(result, /One slot or stacking/);
+    assert.doesNotMatch(result, /Need more coverage/);
+    assert.doesNotMatch(result, /Check CI secrets rotation/);
+  });
+
+  it("loadLearningsForStage handles multi-target entries", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "loop-retro-"));
+    await writeFile(
+      join(dir, "learnings.md"),
+      "# Open Questions\n\n- [reviewer → software-engineer, verifier] Shared concern\n",
+    );
+    const se = await loadLearningsForStage(dir, "software-engineer");
+    assert.match(se, /Shared concern/);
+    const v = await loadLearningsForStage(dir, "verifier");
+    assert.match(v, /Shared concern/);
+    const r = await loadLearningsForStage(dir, "reviewer");
+    assert.doesNotMatch(r, /Shared concern/);
   });
 
   it("normalises alias learning schemas (lesson/type → insight/kind)", () => {

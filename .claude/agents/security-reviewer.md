@@ -13,7 +13,7 @@ disallowedTools:
   - Edit
   - Agent
 skills:
-  - closed-loop
+  - closed-loop-participant
 color: red
 model: opus
 ---
