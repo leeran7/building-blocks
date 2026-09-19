@@ -14,6 +14,7 @@ tools:
   - Glob
 skills:
   - closed-loop
+  - design-review
 color: yellow
 ---
 <!-- closed-loop:protocol -->

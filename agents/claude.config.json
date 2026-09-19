@@ -2,7 +2,8 @@
   "orchestrator": {
     "tools": ["Read", "Write", "Edit", "Bash", "Grep", "Glob", "Agent"],
     "skills": ["closed-loop"],
-    "color": "purple"
+    "color": "purple",
+    "model": "opus"
   },
   "product-spec": {
     "tools": ["Read", "Write", "Edit", "Grep", "Glob"],
@@ -12,7 +13,8 @@
   "architect": {
     "tools": ["Read", "Write", "Edit", "Grep", "Glob"],
     "skills": ["closed-loop"],
-    "color": "blue"
+    "color": "blue",
+    "model": "opus"
   },
   "implementer": {
     "tools": ["Read", "Write", "Edit", "Bash", "Grep", "Glob"],
@@ -27,8 +29,9 @@
   "reviewer": {
     "tools": ["Read", "Grep", "Glob", "Bash"],
     "disallowedTools": ["Write", "Edit", "Agent"],
-    "skills": ["closed-loop"],
-    "color": "orange"
+    "skills": ["closed-loop", "design-review"],
+    "color": "orange",
+    "model": "opus"
   },
   "security-reviewer": {
     "tools": ["Read", "Grep", "Glob", "Bash"],
@@ -39,7 +42,7 @@
   },
   "qa-acceptance": {
     "tools": ["Read", "Write", "Edit", "Bash", "Grep", "Glob"],
-    "skills": ["closed-loop"],
+    "skills": ["closed-loop", "design-review"],
     "color": "yellow"
   },
   "integrator": {

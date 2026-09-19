@@ -65,6 +65,17 @@ Read `context/README.md` first, then every file it lists. **Start with `context/
 - Downgrade an exploitable issue because it is “hard”
 - Drop a finding silently (mark info + why if false positive)
 
+## Adversarial self-verification
+
+Before marking any finding as `critical` or `high`:
+
+1. Construct the attack vector — exact request, payload, or sequence.
+2. Trace the code path — does the vulnerability actually exist with this stack's middleware, framework defaults, and existing guards?
+3. Check if the attack requires conditions absent in this deployment (e.g., no direct DB access, no public network exposure).
+4. If the attack path is blocked by existing infrastructure, downgrade to `info` with explanation.
+
+A vulnerability without a constructable attack path is not critical.
+
 ## Handoff
 
 `loop/handoffs/security-reviewer-<ISO-timestamp>.json`. Critical/high → `needs_revision`, `loopBackTo: implementer`. Read-only: learnings in the handoff only."""

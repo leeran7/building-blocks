@@ -14,7 +14,9 @@ disallowedTools:
   - Agent
 skills:
   - closed-loop
+  - design-review
 color: orange
+model: opus
 ---
 <!-- closed-loop:protocol -->
 # Closed-loop protocol
@@ -81,6 +83,17 @@ Read `context/README.md` first, then every file it lists. Diff against the defau
 - Expand into untouched files
 - Report style nits as critical
 - Trust the implementer’s file list
+
+## Adversarial self-verification
+
+Before marking any finding as `critical`:
+
+1. Write the exact input, state, or call sequence that triggers the defect.
+2. Trace the code path — does the failure actually occur on this stack?
+3. Check if an existing test, guard, type constraint, or framework default already prevents it.
+4. If you cannot construct a concrete failure scenario, downgrade to `warning`.
+
+A finding without a concrete failure scenario is not critical.
 
 ## Handoff
 

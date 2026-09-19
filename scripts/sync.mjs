@@ -186,6 +186,24 @@ async function syncHandoffsSchema() {
   console.log("Synced handoffs/schema.json (symlinked)");
 }
 
+async function syncRules() {
+  const rulesDir = join(ROOT, ".claude", "rules");
+  try {
+    const entries = await readdir(rulesDir);
+    if (entries.length > 0) {
+      const cursorRules = join(ROOT, ".cursor", "rules");
+      await mkdir(cursorRules, { recursive: true });
+      for (const file of entries) {
+        await ensureSymlink(
+          relative(cursorRules, join(rulesDir, file)),
+          join(cursorRules, file),
+        );
+      }
+      console.log(`Synced ${entries.length} rule(s) → .cursor/rules/ (symlinked)`);
+    }
+  } catch {}
+}
+
 async function syncAgentsMd() {
   await ensureSymlink("CLAUDE.md", join(ROOT, "AGENTS.md"));
   console.log("Synced CLAUDE.md → AGENTS.md (symlinked)");
@@ -198,6 +216,7 @@ async function main() {
   await syncAgents(claudeConfig, protocolBody);
   await syncSkills();
   await syncHandoffsSchema();
+  await syncRules();
   await syncAgentsMd();
 }
 

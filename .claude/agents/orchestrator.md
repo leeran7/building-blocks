@@ -15,6 +15,7 @@ tools:
 skills:
   - closed-loop
 color: purple
+model: opus
 ---
 <!-- closed-loop:protocol -->
 # Closed-loop protocol

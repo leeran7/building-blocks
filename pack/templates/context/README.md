@@ -25,7 +25,10 @@ with (tokens, hex values, config). Live values stay in the codebase files that
 
 | File | Relevant to | What it covers |
 |------|-------------|----------------|
-| `context/ux.md` | implementer, reviewer, qa-acceptance | Component states, a11y baseline, flow patterns |
+| `context/ux.md` | implementer, reviewer, qa-acceptance | Principles, component states, visual design bar |
+| `context/ux-process.md` | implementer (new screens) | Design process, screen states, critique checklist |
+| `context/ux-patterns.md` | implementer (interactions) | Motion, microinteractions, UX writing, flow patterns |
+| `context/ux-accessibility.md` | implementer, reviewer | WCAG 2.1 AA, responsive breakpoints, mobile UX |
 
 Add a `context/<domain>.md` when a domain has rules the implementer or
 reviewers need. Don’t duplicate what’s already in codebase files.
