@@ -28,6 +28,7 @@ import { checkRateLimit, clientIp } from "../../../../src/lib/rateLimit";
 import { checkClimbResult } from "../../../../src/game/scoreBounds";
 import { MAX_REPLAY_TOKEN_LENGTH } from "../../../../src/game/runReplay";
 import { revalidateClimbLeaderboard } from "../../../../src/lib/revalidateClimbLeaderboard";
+import { prisma } from "../../../../src/db/client";
 
 export const runtime = "nodejs";
 
@@ -145,6 +146,16 @@ export async function POST(request: NextRequest) {
     // would otherwise hit a FK violation here. Upsert the row from the verified
     // token before recording so saves succeed regardless of sign-in path.
     await ensureUser({ id: uid, email, emailVerified });
+
+    // Guideline 5.1.2: only persist scores for users who explicitly consented
+    // to appearing on the public leaderboard.
+    const dbUser = await prisma.user.findUnique({
+      where: { id: uid },
+      select: { leaderboard_consent_at: true },
+    });
+    if (!dbUser?.leaderboard_consent_at) {
+      return NextResponse.json({ saved: false, reason: "no_consent" }, { status: 200 });
+    }
 
     const result = await recordClimb({
       userId: uid,

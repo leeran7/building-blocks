@@ -16,13 +16,14 @@ export interface UserSettings {
   username: string | null;
   urls: string[];
   social: SocialHandleMap;
+  leaderboardConsent: boolean;
 }
 
 export async function getUserSettings(userId: string): Promise<UserSettings> {
   const [user, urls, social] = await Promise.all([
     prisma.user.findUnique({
       where: { id: userId },
-      select: { display_name: true, username: true },
+      select: { display_name: true, username: true, leaderboard_consent_at: true },
     }),
     prisma.savedUrl.findMany({
       where: { userId },
@@ -39,6 +40,7 @@ export async function getUserSettings(userId: string): Promise<UserSettings> {
     username: user?.username ?? null,
     urls: urls.map((u) => u.url),
     social: Object.fromEntries(social.map((s) => [s.platform, s.handle])),
+    leaderboardConsent: Boolean(user?.leaderboard_consent_at),
   };
 }
 
@@ -94,15 +96,22 @@ export async function updateUserSocialHandles(
   if (ops.length) await prisma.$transaction(ops);
 }
 
-/** Update display name and/or replace the saved-URL list (add new, drop removed). */
+/** Update display name, leaderboard consent, and/or replace the saved-URL list. */
 export async function updateUserSettings(
   userId: string,
-  input: { displayName?: string | null; urls?: string[] }
+  input: { displayName?: string | null; urls?: string[]; leaderboardConsent?: boolean }
 ): Promise<UserSettings> {
+  const userPatch: Record<string, unknown> = {};
   if (input.displayName !== undefined) {
+    userPatch.display_name = input.displayName?.trim() || null;
+  }
+  if (input.leaderboardConsent !== undefined) {
+    userPatch.leaderboard_consent_at = input.leaderboardConsent ? new Date() : null;
+  }
+  if (Object.keys(userPatch).length) {
     await prisma.user.update({
       where: { id: userId },
-      data: { display_name: input.displayName?.trim() || null },
+      data: userPatch,
     });
   }
 

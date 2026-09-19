@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { HomeScreen } from "./screens/HomeScreen";
 import { ClimbScreen } from "./screens/ClimbScreen";
@@ -10,6 +11,7 @@ import { RouteTransition } from "./components/RouteTransition";
 import { BottomNav } from "./components/BottomNav";
 import { useNativeShell } from "./lib/useNativeShell";
 import { useAuth } from "./contexts/AuthContext";
+import { GuestShell } from "./components/GuestShell";
 import { LogoMark } from "./components/LogoMark";
 
 const NAV_ROUTES = new Set(["/", "/leaderboard", "/profile"]);
@@ -27,20 +29,31 @@ export function App() {
   const { user, loading, isAnonymous } = useAuth();
   const authed = Boolean(user) && !isAnonymous;
 
+  const [guestMode, setGuestMode] = useState(() => {
+    try { return sessionStorage.getItem("doomstack:guest") === "1"; } catch { return false; }
+  });
+  const enterGuest = () => {
+    setGuestMode(true);
+    try { sessionStorage.setItem("doomstack:guest", "1"); } catch {}
+  };
+  const exitGuest = () => {
+    setGuestMode(false);
+    try { sessionStorage.removeItem("doomstack:guest"); } catch {}
+  };
+
   // NOTE: call useLocation() unconditionally — never behind a short-circuit.
   const location = useLocation();
   const onClimb = authed && location.pathname === "/climb";
   const showNav = authed && NAV_ROUTES.has(location.pathname);
+  const guestActive = guestMode && !authed;
 
   return (
     <div className="relative flex h-[100dvh] w-full flex-col overflow-hidden bg-void">
-      {!onClimb && <AnimatedBackdrop />}
+      {!onClimb && !guestActive && <AnimatedBackdrop />}
       <div className="relative z-10 flex-1 overflow-hidden">
         {loading ? (
           <AuthSplash />
-        ) : !authed ? (
-          <SignInScreen />
-        ) : (
+        ) : authed ? (
           <Routes>
             <Route path="/climb" element={<ClimbScreen />} />
             <Route path="/duel/:id" element={<DuelRoomScreen />} />
@@ -61,6 +74,10 @@ export function App() {
               }
             />
           </Routes>
+        ) : guestActive ? (
+          <GuestShell onSignIn={exitGuest} />
+        ) : (
+          <SignInScreen onGuestContinue={enterGuest} />
         )}
       </div>
       {/* Single BottomNav instance — never unmounts on hub route changes */}

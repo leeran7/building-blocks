@@ -61,6 +61,7 @@ model User {
   beta_waitlist_joined_at  DateTime?
   beta_platform            String?   // "ios" | "android" | "any"
   apple_tester_added       Boolean   @default(false)
+  leaderboard_consent_at   DateTime? @map("leaderboard_consent_at")
   climbRecords           ClimbRecord[]
   climbRuns              ClimbRun[]
   savedUrls              SavedUrl[]
