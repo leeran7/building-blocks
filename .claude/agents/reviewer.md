@@ -16,6 +16,7 @@ skills:
   - closed-loop
   - design-review
   - api-design
+  - regression
 color: orange
 model: opus
 ---

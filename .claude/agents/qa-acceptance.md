@@ -16,6 +16,7 @@ skills:
   - closed-loop
   - design-review
   - accessibility
+  - regression
 color: yellow
 ---
 <!-- closed-loop:protocol -->

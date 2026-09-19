@@ -19,6 +19,7 @@ skills:
   - performance
   - migration
   - accessibility
+  - regression
 color: green
 model: opus
 ---

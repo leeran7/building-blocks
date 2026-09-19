@@ -14,6 +14,7 @@ skills:
   - closed-loop
   - debugging
   - performance
+  - regression
 color: yellow
 ---
 <!-- closed-loop:protocol -->
