@@ -88,8 +88,8 @@ function GuestHome({
           </button>
 
           <p className="max-w-[260px] text-xs leading-relaxed text-white [text-shadow:0_1px_3px_rgba(0,0,0,0.6)]">
-            Sign in to save your climbs, rank on the global leaderboard, and
-            challenge friends.
+            Sign in to add friends, challenge them to 1v1 races, climb the
+            leaderboard, and save your progress.
           </p>
         </div>
       </div>

@@ -425,7 +425,7 @@ export function DuelResult({
       </div>
 
       {/* Add friend — shown right after the scoreboard so it's visible on mobile */}
-      {user && opponentId && (
+      {user && opponentId && !opponentId.startsWith("guest:") && (
         <div className="w-full max-w-sm mb-4">
           <AddFriendButton
             opponentId={opponentId}

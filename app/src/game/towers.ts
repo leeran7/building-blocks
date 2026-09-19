@@ -120,6 +120,19 @@ export const MVP_TOWER: TowerSpec = buildTower("indie-games");
 // ── Deterministic per-floor geometry ───────────────────────────────────────
 
 /**
+ * Cumulative floor heights per tower seed: prefix[i] is floor i's surface, so
+ * prefix[0] is always 0 and the array grows lazily as the climb goes higher.
+ *
+ * Bounded because tower seeds now include a per-run id, so an unbounded map
+ * retains one growing array per game ever played. Eight is generous: a session
+ * climbs one tower, and the menu may preview a couple more.
+ */
+const FLOOR_PREFIX_CACHE = createSeedCache<number[]>(8, () => [0]);
+
+/** Floors to extend by when searching past the cached range. */
+const PREFIX_GROWTH_BLOCK = 64;
+
+/**
  * Height (metres) of floor i's walking surface.
  *
  * Backed by a cached prefix sum. Floor gaps became per-floor seeded, which made
@@ -167,15 +180,6 @@ function ladderMargin(tower: TowerSpec): number {
 }
 
 /**
- * Cumulative floor heights per tower seed: prefix[i] is floor i's surface, so
- * prefix[0] is always 0 and the array grows lazily as the climb goes higher.
- *
- * Bounded because tower seeds now include a per-run id, so an unbounded map
- * retains one growing array per game ever played. Eight is generous: a session
- * climbs one tower, and the menu may preview a couple more.
- */
-const FLOOR_PREFIX_CACHE = createSeedCache<number[]>(8, () => [0]);
-/**
  * Ladder x positions per floor, grown in order so floor i can offset from the
  * real xs on i-1 / i-2 / i-3. Recursing `ladderXsForFloor(i-1)` would be
  * exponential; this cache is O(floors) like the height prefix.
@@ -185,9 +189,6 @@ const LADDER_XS_CACHE = createSeedCache<number[][]>(8, () => []);
 /** Centre-to-centre keep-out vs ladders on the floor below (then fading). */
 const STACK_CLEAR_M = 14;
 const STACK_LOOKBACK = 3;
-
-/** Floors to extend by when searching past the cached range. */
-const PREFIX_GROWTH_BLOCK = 64;
 
 /** Extend a prefix sum so index `floor` exists. */
 function growPrefixTo(tower: TowerSpec, prefix: number[], floor: number): void {

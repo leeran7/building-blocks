@@ -146,9 +146,10 @@ export async function createDuel(
   categorySlug: string,
   id: string,
   seed: string,
-  opts: CreateDuelOptions = {}
+  opts: CreateDuelOptions = {},
+  client: TxClientLocal | typeof prisma = prisma
 ): Promise<Duel> {
-  return prisma.duel.create({
+  return client.duel.create({
     data: {
       id,
       seed,

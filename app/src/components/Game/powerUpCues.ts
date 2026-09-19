@@ -16,6 +16,8 @@
 import type { PowerUpType } from "../../game/types";
 import { POWER_UP_SPECS } from "../../game/powerups";
 
+const ZERO_WIDTH_SPACE = "​";
+
 /**
  * Folds one frame of player state into the cues to fire.
  *
@@ -146,8 +148,6 @@ export function cueKey(types: readonly PowerUpType[]): string {
 export function announcementText(announcement: string): string {
   return announcement.split(ZERO_WIDTH_SPACE).join("");
 }
-
-const ZERO_WIDTH_SPACE = "\u200b";
 
 export type PowerCueKind = "pickup" | "activate" | "expire";
 export type WorldCueKind = "lava-sting" | "death";

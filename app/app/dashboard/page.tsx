@@ -120,6 +120,18 @@ export default function DashboardPage() {
         </div>
       </div>
 
+      {/* Always-visible secondary entry point — narrow viewports don't get
+          the Navbar's "1v1" link (hidden below `sm`), so this closes that
+          discoverability gap without competing with "Start a duel" above. */}
+      <div className="max-w-2xl mx-auto w-full px-4 pt-3">
+        <Link
+          href="/duel?mode=challenge"
+          className="inline-flex items-center gap-1 font-mono text-[11px] uppercase tracking-[0.14em] text-text-secondary hover:text-signal transition-colors"
+        >
+          Challenge a friend →
+        </Link>
+      </div>
+
       {/* Content */}
       <div className="max-w-2xl mx-auto w-full px-4 py-6 flex flex-col gap-5">
         {fetchState.status === "loading" && (

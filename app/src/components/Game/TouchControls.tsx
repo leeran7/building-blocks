@@ -28,85 +28,6 @@ import {
   type HoldMemo,
 } from "./touchHold";
 
-export function TouchControls({
-  active,
-  onInput,
-}: {
-  active: boolean;
-  onInput: (input: TouchInput) => void;
-}) {
-  const memoRef = useRef<HoldMemo>(initialHoldMemo());
-  const [pressed, setPressed] = useState<ReadonlySet<ControlId>>(new Set());
-
-  const apply = useCallback(
-    (event: HoldEvent) => {
-      const next = reduceHold(memoRef.current, event, performance.now());
-      memoRef.current = next;
-      setPressed(next.held);
-      onInput(touchInputFromHeld(next.held));
-    },
-    [onInput]
-  );
-
-  const reset = useCallback(() => {
-    memoRef.current = initialHoldMemo();
-    setPressed(new Set());
-    onInput(NO_TOUCH);
-  }, [onInput]);
-
-  useEffect(() => {
-    if (active) return;
-    reset();
-  }, [active, reset]);
-
-  // A finger still down when the tab hides never gets pointerup. Without this
-  // the control stays held and the climber keeps walking after the user returns.
-  useEffect(() => {
-    if (!active) return;
-    const onHide = () => {
-      if (document.visibilityState === "hidden") reset();
-    };
-    document.addEventListener("visibilitychange", onHide);
-    window.addEventListener("pagehide", reset);
-    return () => {
-      document.removeEventListener("visibilitychange", onHide);
-      window.removeEventListener("pagehide", reset);
-    };
-  }, [active, reset]);
-
-  // Absolutely positioned, so unmounting between runs costs the canvas no
-  // height and cannot resize the game mid-transition.
-  if (!active) return null;
-
-  return (
-    <div
-      role="group"
-      className="exp-mobile-controls absolute inset-x-0 bottom-0 z-10 select-none"
-      style={{
-        touchAction: "none",
-        // Sit inside the safe area so the buttons clear the home indicator and
-        // the rounded display corners, but never less than a comfortable gutter.
-        paddingTop: 8,
-        paddingLeft: "max(10px, env(safe-area-inset-left))",
-        paddingRight: "max(10px, env(safe-area-inset-right))",
-        paddingBottom: "max(10px, env(safe-area-inset-bottom))",
-      }}
-      aria-label="Touch game controls"
-    >
-      <div className="grid grid-cols-4 gap-2.5">
-        {ALL_CONTROLS.map((control) => (
-          <TouchButton
-            key={control.id}
-            control={control}
-            held={pressed.has(control.id)}
-            onEvent={apply}
-          />
-        ))}
-      </div>
-    </div>
-  );
-}
-
 const TouchButton = memo(function TouchButton({
   control,
   held,
@@ -202,6 +123,85 @@ const ALL_CONTROLS: readonly Control[] = [
   { id: "climb", label: "Climb up ladder", glyph: "↑", sub: "climb" },
   { id: "jump", label: "Jump", glyph: "JMP", accent: true, wordGlyph: true },
 ];
+
+export function TouchControls({
+  active,
+  onInput,
+}: {
+  active: boolean;
+  onInput: (input: TouchInput) => void;
+}) {
+  const memoRef = useRef<HoldMemo>(initialHoldMemo());
+  const [pressed, setPressed] = useState<ReadonlySet<ControlId>>(new Set());
+
+  const apply = useCallback(
+    (event: HoldEvent) => {
+      const next = reduceHold(memoRef.current, event, performance.now());
+      memoRef.current = next;
+      setPressed(next.held);
+      onInput(touchInputFromHeld(next.held));
+    },
+    [onInput]
+  );
+
+  const reset = useCallback(() => {
+    memoRef.current = initialHoldMemo();
+    setPressed(new Set());
+    onInput(NO_TOUCH);
+  }, [onInput]);
+
+  useEffect(() => {
+    if (active) return;
+    reset();
+  }, [active, reset]);
+
+  // A finger still down when the tab hides never gets pointerup. Without this
+  // the control stays held and the climber keeps walking after the user returns.
+  useEffect(() => {
+    if (!active) return;
+    const onHide = () => {
+      if (document.visibilityState === "hidden") reset();
+    };
+    document.addEventListener("visibilitychange", onHide);
+    window.addEventListener("pagehide", reset);
+    return () => {
+      document.removeEventListener("visibilitychange", onHide);
+      window.removeEventListener("pagehide", reset);
+    };
+  }, [active, reset]);
+
+  // Absolutely positioned, so unmounting between runs costs the canvas no
+  // height and cannot resize the game mid-transition.
+  if (!active) return null;
+
+  return (
+    <div
+      role="group"
+      className="exp-mobile-controls absolute inset-x-0 bottom-0 z-10 select-none"
+      style={{
+        touchAction: "none",
+        // Sit inside the safe area so the buttons clear the home indicator and
+        // the rounded display corners, but never less than a comfortable gutter.
+        paddingTop: 8,
+        paddingLeft: "max(10px, env(safe-area-inset-left))",
+        paddingRight: "max(10px, env(safe-area-inset-right))",
+        paddingBottom: "max(10px, env(safe-area-inset-bottom))",
+      }}
+      aria-label="Touch game controls"
+    >
+      <div className="grid grid-cols-4 gap-2.5">
+        {ALL_CONTROLS.map((control) => (
+          <TouchButton
+            key={control.id}
+            control={control}
+            held={pressed.has(control.id)}
+            onEvent={apply}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
 
 /**
  * Height these controls cover ABOVE the safe area: the `min-h-[104px]` button

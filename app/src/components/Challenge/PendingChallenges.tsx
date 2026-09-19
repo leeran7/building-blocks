@@ -33,33 +33,61 @@ function timeLeft(expiresAt: string): string {
   return `${minutes}m left`;
 }
 
-export function PendingChallenges() {
-  const { token, user } = useAuth();
+function isExpired(expiresAt: string): boolean {
+  return new Date(expiresAt).getTime() - Date.now() <= 0;
+}
+
+export interface PendingChallengesProps {
+  /** Bump this to force a refetch (e.g. after sending a new challenge). */
+  refreshKey?: number;
+}
+
+export function PendingChallenges({ refreshKey }: PendingChallengesProps = {}) {
+  const { token } = useAuth();
   const router = useRouter();
   const [challenges, setChallenges] = useState<ChallengeItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [actioning, setActioning] = useState<string | null>(null);
+  const [actionErrors, setActionErrors] = useState<Record<string, string>>({});
 
   const fetchChallenges = useCallback(async () => {
     if (!token) return;
+    setLoading(true);
+    setError(null);
     try {
       const res = await authedFetch("/api/challenge", token);
       if (res.ok) {
         const data = (await res.json()) as ChallengeItem[];
         setChallenges(data);
+      } else {
+        setError("Could not load challenges.");
       }
-    } catch {}
+    } catch {
+      setError("Network error loading challenges.");
+    }
     setLoading(false);
   }, [token]);
 
   useEffect(() => {
     fetchChallenges();
-  }, [fetchChallenges]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fetchChallenges, refreshKey]);
+
+  const clearActionError = useCallback((id: string) => {
+    setActionErrors((prev) => {
+      if (!(id in prev)) return prev;
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
+  }, []);
 
   const handleAccept = useCallback(
     async (id: string) => {
       if (!token) return;
       setActioning(id);
+      clearActionError(id);
       try {
         const res = await authedFetch(`/api/challenge/${id}/accept`, token, {
           method: "POST",
@@ -67,51 +95,76 @@ export function PendingChallenges() {
         if (res.ok) {
           const data = (await res.json()) as { duelId: string };
           router.push(`/duel/${data.duelId}`);
+          return;
         }
-      } catch {}
+        setActionErrors((prev) => ({ ...prev, [id]: "Could not accept. Try again." }));
+      } catch {
+        setActionErrors((prev) => ({ ...prev, [id]: "Network error. Try again." }));
+      }
       setActioning(null);
     },
-    [token, router]
+    [token, router, clearActionError]
   );
 
   const handleDecline = useCallback(
     async (id: string) => {
       if (!token) return;
       setActioning(id);
+      clearActionError(id);
       try {
         const res = await authedFetch(`/api/challenge/${id}/decline`, token, {
           method: "POST",
         });
         if (res.ok) {
           setChallenges((prev) => prev.filter((c) => c.id !== id));
+        } else {
+          setActionErrors((prev) => ({ ...prev, [id]: "Could not decline. Try again." }));
         }
-      } catch {}
+      } catch {
+        setActionErrors((prev) => ({ ...prev, [id]: "Network error. Try again." }));
+      }
       setActioning(null);
     },
-    [token]
+    [token, clearActionError]
   );
 
   const handleCancel = useCallback(
     async (id: string) => {
       if (!token) return;
       setActioning(id);
+      clearActionError(id);
       try {
         const res = await authedFetch(`/api/challenge/${id}/cancel`, token, {
           method: "POST",
         });
         if (res.ok) {
           setChallenges((prev) => prev.filter((c) => c.id !== id));
+        } else {
+          setActionErrors((prev) => ({ ...prev, [id]: "Could not cancel. Try again." }));
         }
-      } catch {}
+      } catch {
+        setActionErrors((prev) => ({ ...prev, [id]: "Network error. Try again." }));
+      }
       setActioning(null);
     },
-    [token]
+    [token, clearActionError]
   );
 
   if (loading) {
     return (
       <div className="flex items-center gap-2 text-text-muted text-sm py-2">
         <Spinner /> Loading challenges…
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col gap-2" role="alert">
+        <p className="text-ember text-sm">{error}</p>
+        <Button variant="ghost" size="sm" onClick={fetchChallenges} className="w-fit">
+          Retry
+        </Button>
       </div>
     );
   }
@@ -131,37 +184,45 @@ export function PendingChallenges() {
           <div className="flex flex-col gap-2">
             {received.map((c) => {
               const name = c.sender.displayName ?? c.sender.username ?? "Someone";
+              const expired = isExpired(c.expiresAt);
               return (
                 <div
                   key={c.id}
-                  className="rounded-lg border border-signal/30 bg-signal/5 p-3 flex items-center justify-between gap-3"
+                  className="rounded-lg border border-signal/30 bg-signal/5 p-3 flex flex-col gap-2"
                 >
-                  <div className="min-w-0">
-                    <p className="text-sm font-semibold text-text-primary truncate">
-                      {name} challenged you
-                    </p>
-                    <p className="text-xs text-text-muted font-mono mt-0.5">
-                      {timeLeft(c.expiresAt)}
-                    </p>
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-text-primary truncate">
+                        {name} challenged you
+                      </p>
+                      <p className="text-xs text-text-muted font-mono mt-0.5">
+                        {timeLeft(c.expiresAt)}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <Button
+                        variant="primary"
+                        size="sm"
+                        onClick={() => handleAccept(c.id)}
+                        disabled={actioning === c.id || expired}
+                      >
+                        {actioning === c.id ? "…" : "Accept"}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleDecline(c.id)}
+                        disabled={actioning === c.id}
+                      >
+                        Decline
+                      </Button>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    <Button
-                      variant="primary"
-                      size="sm"
-                      onClick={() => handleAccept(c.id)}
-                      disabled={actioning === c.id}
-                    >
-                      {actioning === c.id ? "…" : "Accept"}
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleDecline(c.id)}
-                      disabled={actioning === c.id}
-                    >
-                      Decline
-                    </Button>
-                  </div>
+                  {actionErrors[c.id] && (
+                    <p className="text-ember text-xs" role="alert">
+                      {actionErrors[c.id]}
+                    </p>
+                  )}
                 </div>
               );
             })}
@@ -180,24 +241,31 @@ export function PendingChallenges() {
               return (
                 <div
                   key={c.id}
-                  className="rounded-lg border border-border-subtle bg-surface p-3 flex items-center justify-between gap-3"
+                  className="rounded-lg border border-border-subtle bg-surface p-3 flex flex-col gap-2"
                 >
-                  <div className="min-w-0">
-                    <p className="text-sm text-text-secondary truncate">
-                      Waiting for <span className="font-semibold text-text-primary">{name}</span>
-                    </p>
-                    <p className="text-xs text-text-muted font-mono mt-0.5">
-                      {timeLeft(c.expiresAt)}
-                    </p>
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-sm text-text-secondary truncate">
+                        Waiting for <span className="font-semibold text-text-primary">{name}</span>
+                      </p>
+                      <p className="text-xs text-text-muted font-mono mt-0.5">
+                        {timeLeft(c.expiresAt)}
+                      </p>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleCancel(c.id)}
+                      disabled={actioning === c.id}
+                    >
+                      Cancel
+                    </Button>
                   </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => handleCancel(c.id)}
-                    disabled={actioning === c.id}
-                  >
-                    Cancel
-                  </Button>
+                  {actionErrors[c.id] && (
+                    <p className="text-ember text-xs" role="alert">
+                      {actionErrors[c.id]}
+                    </p>
+                  )}
                 </div>
               );
             })}

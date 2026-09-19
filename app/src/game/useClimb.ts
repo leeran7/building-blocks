@@ -62,6 +62,31 @@ const KEY_UP = new Set(["ArrowUp", "w", "W"]);
 const KEY_DOWN = new Set(["ArrowDown", "s", "S"]);
 const KEY_JUMP = new Set([" ", "Spacebar"]);
 
+const INTERACTIVE_SELECTOR = [
+  "button",
+  "a[href]",
+  "input",
+  "select",
+  "textarea",
+  "summary",
+  "[contenteditable]:not([contenteditable='false'])",
+  "[role='button']",
+  "[role='link']",
+  "[role='checkbox']",
+  "[role='radio']",
+  "[role='switch']",
+  "[role='tab']",
+  "[role='menuitem']",
+  "[role='textbox']",
+  "[role='slider']",
+  "[role='spinbutton']",
+].join(",");
+
+const PHASES_CONSUMING_INPUT: ReadonlySet<MatchPhase> = new Set<MatchPhase>([
+  "countdown",
+  "climb",
+]);
+
 export type ReplayPhaseLabel = "playing" | "paused" | "finished";
 
 export interface ReplayTransportView {
@@ -597,28 +622,3 @@ export function isInteractiveTarget(target: EventTarget | null): boolean {
   if (target.closest("[data-climb-capture-keys]")) return false;
   return target.closest(INTERACTIVE_SELECTOR) !== null;
 }
-
-const INTERACTIVE_SELECTOR = [
-  "button",
-  "a[href]",
-  "input",
-  "select",
-  "textarea",
-  "summary",
-  "[contenteditable]:not([contenteditable='false'])",
-  "[role='button']",
-  "[role='link']",
-  "[role='checkbox']",
-  "[role='radio']",
-  "[role='switch']",
-  "[role='tab']",
-  "[role='menuitem']",
-  "[role='textbox']",
-  "[role='slider']",
-  "[role='spinbutton']",
-].join(",");
-
-const PHASES_CONSUMING_INPUT: ReadonlySet<MatchPhase> = new Set<MatchPhase>([
-  "countdown",
-  "climb",
-]);

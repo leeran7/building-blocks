@@ -354,6 +354,7 @@ function DuelGame({
   const [opponentPresent, setOpponentPresent] = useState(false);
   const [readyNudge, setReadyNudge] = useState(false);
   const joinBeatFiredRef = useRef(false);
+  const [joinBeat, setJoinBeat] = useState(false);
 
   // ── Wall-clock countdown ────────────────────────────────────────────────────
   const countdownStartsAtRef = useRef(0);
@@ -643,6 +644,13 @@ function DuelGame({
   // Compute lava phase info for the HUD (same as solo climb).
   const lavaPhaseInfo = hazardPhase(state.raceSeconds - state.hazardSlowSeconds);
 
+  const readySlotsSet = useMemo(() => {
+    const s = new Set<number>();
+    if (localReady) s.add(mySlot);
+    if (opponentReady) s.add(opponentSlot);
+    return s;
+  }, [localReady, opponentReady, mySlot, opponentSlot]);
+
   // Build the duel HUD info for ExpeditionHud's duel instruments.
   const duelHudInfo: DuelHudInfo = {
     player1Name,
@@ -668,7 +676,6 @@ function DuelGame({
   };
 
   // ── Delight beats ──────────────────────────────────────────────────────────
-  const [joinBeat, setJoinBeat] = useState(false);
   const [liveBeat, setLiveBeat] = useState(false);
   const prevPhaseRef = useRef(phase);
   useEffect(() => {
@@ -694,13 +701,6 @@ function DuelGame({
     touchDevice && (phase === "countdown" || phase === "climb");
 
   const myPlayer = state.players.find((p) => p.slot === mySlot);
-
-  const readySlotsSet = useMemo(() => {
-    const s = new Set<number>();
-    if (localReady) s.add(mySlot);
-    if (opponentReady) s.add(opponentSlot);
-    return s;
-  }, [localReady, opponentReady, mySlot, opponentSlot]);
 
   const hiddenSlotsSet = useMemo(() => {
     if (phase !== "lobby" || opponentPresent) return undefined;

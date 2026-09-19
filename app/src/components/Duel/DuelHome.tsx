@@ -43,7 +43,7 @@ import { FriendRequests } from "../Challenge/FriendRequests";
 interface DuelStats {
   wins: number;
   losses: number;
-  streak: number;
+  current_streak: number;
 }
 
 /** The ways into a match, presented as a gamified mode menu. */
@@ -264,52 +264,57 @@ export function DuelHome() {
   const [challengeSending, setChallengeSending] = useState(false);
   const [addingFriend, setAddingFriend] = useState(false);
 
+  // Cross-section refresh: each key is bumped when a related write succeeds
+  // elsewhere on this screen, so siblings refetch instead of going stale
+  // until the user switches mode tabs away and back.
+  const [friendsRefreshKey, setFriendsRefreshKey] = useState(0);
+  const [requestsRefreshKey, setRequestsRefreshKey] = useState(0);
+  const [challengesRefreshKey, setChallengesRefreshKey] = useState(0);
+
+  const handleFriendAccepted = useCallback(() => {
+    setFriendsRefreshKey((k) => k + 1);
+  }, []);
+
   const handleAddFriend = useCallback(
-    async (userId: string, displayName: string) => {
-      if (!token) return;
+    async (userId: string): Promise<boolean> => {
+      if (!token) return false;
       setAddingFriend(true);
+      let ok = false;
       try {
         const res = await authedFetch("/api/friends", token, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ receiverId: userId }),
         });
-        if (!res.ok) {
-          const body = (await res.json().catch(() => ({}))) as { error?: string };
-          setCreateState({
-            status: "error",
-            message: body.error ?? `Could not add ${displayName}.`,
-          });
-        }
+        ok = res.ok;
       } catch {
-        setCreateState({ status: "error", message: "Network error. Please try again." });
+        ok = false;
       }
       setAddingFriend(false);
+      if (ok) setRequestsRefreshKey((k) => k + 1);
+      return ok;
     },
     [token]
   );
 
   const handleInAppChallenge = useCallback(
-    async (userId: string, displayName: string) => {
-      if (!token) return;
+    async (userId: string): Promise<boolean> => {
+      if (!token) return false;
       setChallengeSending(true);
+      let ok = false;
       try {
         const res = await authedFetch("/api/challenge", token, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ recipientId: userId, categorySlug: "tech" }),
         });
-        if (!res.ok) {
-          const body = (await res.json().catch(() => ({}))) as { error?: string };
-          setCreateState({
-            status: "error",
-            message: body.error ?? `Could not challenge ${displayName}.`,
-          });
-        }
+        ok = res.ok;
       } catch {
-        setCreateState({ status: "error", message: "Network error. Please try again." });
+        ok = false;
       }
       setChallengeSending(false);
+      if (ok) setChallengesRefreshKey((k) => k + 1);
+      return ok;
     },
     [token]
   );
@@ -357,11 +362,11 @@ export function DuelHome() {
             <div className="flex items-center gap-3 font-mono tabular-nums shrink-0">
               <RecordStat value={stats.wins} label="W" tone="signal" />
               <RecordStat value={stats.losses} label="L" tone="muted" />
-              {stats.streak !== 0 && (
+              {stats.current_streak !== 0 && (
                 <RecordStat
-                  value={stats.streak > 0 ? `+${stats.streak}` : stats.streak}
+                  value={stats.current_streak > 0 ? `+${stats.current_streak}` : stats.current_streak}
                   label="streak"
-                  tone={stats.streak > 0 ? "signal" : "ember"}
+                  tone={stats.current_streak > 0 ? "signal" : "ember"}
                 />
               )}
             </div>
@@ -501,18 +506,18 @@ export function DuelHome() {
                 Add friend
               </h2>
               <p className="text-text-secondary text-sm mb-3">
-                Find players by username.
+                Find players by email.
               </p>
               <UserSearch
                 onSelect={handleAddFriend}
                 actionLabel="Add"
-                placeholder="Search by username…"
+                placeholder="Search by email…"
                 disabled={addingFriend}
               />
             </div>
 
             {/* Incoming / outgoing friend requests */}
-            <FriendRequests />
+            <FriendRequests refreshKey={requestsRefreshKey} onAccepted={handleFriendAccepted} />
 
             {/* Challenge a friend */}
             <div>
@@ -522,10 +527,14 @@ export function DuelHome() {
               <p className="text-text-secondary text-sm mb-3">
                 Pick a friend to challenge to a 1v1.
               </p>
-              <FriendsList onChallenge={handleInAppChallenge} disabled={challengeSending} />
+              <FriendsList
+                onChallenge={handleInAppChallenge}
+                disabled={challengeSending}
+                refreshKey={friendsRefreshKey}
+              />
             </div>
 
-            <PendingChallenges />
+            <PendingChallenges refreshKey={challengesRefreshKey} />
 
             {/* Share a link */}
             <div className="border-t border-border-subtle pt-4">

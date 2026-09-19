@@ -6,9 +6,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { nanoid } from "nanoid";
 import { requireAuth, AuthError } from "../../../../../src/lib/requireAuth";
 import { checkRateLimit } from "../../../../../src/lib/rateLimit";
-import { acceptChallenge, linkDuelToChallenge } from "../../../../../src/db/challenge";
+import { acceptChallenge } from "../../../../../src/db/challenge";
 import { createNotification } from "../../../../../src/db/notification";
-import { createDuel } from "../../../../../src/db/duel";
 import { newRunSeed } from "../../../../../src/game/rng";
 
 export const runtime = "nodejs";
@@ -40,7 +39,9 @@ export async function POST(
   }
 
   try {
-    const result = await acceptChallenge(id, uid);
+    const duelId = nanoid(8);
+    const seed = newRunSeed();
+    const result = await acceptChallenge(id, uid, duelId, seed);
 
     switch (result.outcome) {
       case "not_found":
@@ -52,26 +53,23 @@ export async function POST(
       case "accepted": {
         const c = result.challenge;
 
-        const duelId = nanoid(8);
-        const seed = newRunSeed();
-        await createDuel(c.sender_id, c.category_slug, duelId, seed, {
-          player2Id: uid,
-          status: "active",
-        });
-        await linkDuelToChallenge(c.id, duelId);
+        // A replay (the earlier accept already committed but its response
+        // never reached the client) already sent this notification — don't
+        // duplicate it.
+        if (!result.replay) {
+          const recipientName = c.recipient.display_name ?? c.recipient.username ?? "Your opponent";
+          await createNotification({
+            userId: c.sender_id,
+            type: "challenge_accepted",
+            title: "Challenge accepted!",
+            body: `${recipientName} accepted your challenge. The duel is ready!`,
+            data: { challengeId: c.id, duelId: result.duelId, recipientName },
+          }).catch((err) => {
+            console.error("[POST /api/challenge/accept] notification error:", err);
+          });
+        }
 
-        const recipientName = c.recipient.display_name ?? c.recipient.username ?? "Your opponent";
-        await createNotification({
-          userId: c.sender_id,
-          type: "challenge_accepted",
-          title: "Challenge accepted!",
-          body: `${recipientName} accepted your challenge. The duel is ready!`,
-          data: { challengeId: c.id, duelId, recipientName },
-        }).catch((err) => {
-          console.error("[POST /api/challenge/accept] notification error:", err);
-        });
-
-        return NextResponse.json({ accepted: true, duelId }, { status: 200 });
+        return NextResponse.json({ accepted: true, duelId: result.duelId }, { status: 200 });
       }
     }
   } catch (err) {

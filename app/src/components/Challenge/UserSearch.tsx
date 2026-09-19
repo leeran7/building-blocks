@@ -1,16 +1,24 @@
 "use client";
 
 /**
- * UserSearch — typeahead search to find a user by username and perform an action.
+ * UserSearch — look up a user by their exact email and perform an action.
  *
  * Generic: the caller decides the action label (default "Add") and receives
- * the selected user via `onSelect`.
+ * the selected user via `onSelect`, which returns whether the action
+ * succeeded so this component can show inline per-row feedback (rather than
+ * relying on the parent to surface it somewhere else).
+ *
+ * Search only fires once the input looks like a complete email — a partial
+ * email wouldn't match anything server-side anyway (the API is exact-match
+ * only), so there's no point querying on every keystroke.
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useAuth } from "../../contexts/AuthContext";
 import { authedFetch } from "../../lib/authedFetch";
 import { Spinner } from "../ui/Spinner";
+
+const EMAIL_SHAPE = /^\S+@\S+\.\S+$/;
 
 interface SearchResult {
   id: string;
@@ -19,29 +27,35 @@ interface SearchResult {
 }
 
 interface UserSearchProps {
-  onSelect: (userId: string, displayName: string) => void;
+  onSelect: (userId: string, displayName: string) => Promise<boolean>;
   disabled?: boolean;
   placeholder?: string;
   actionLabel?: string;
+  sentLabel?: string;
 }
 
 export function UserSearch({
   onSelect,
   disabled,
-  placeholder = "Search by username…",
+  placeholder = "Search by email…",
   actionLabel = "Add",
+  sentLabel = "Sent",
 }: UserSearchProps) {
   const { token } = useAuth();
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(false);
+  const [searched, setSearched] = useState(false);
   const [open, setOpen] = useState(false);
+  const [actioningId, setActioningId] = useState<string | null>(null);
+  const [sentIds, setSentIds] = useState<Set<string>>(new Set());
+  const [errorIds, setErrorIds] = useState<Set<string>>(new Set());
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const rootRef = useRef<HTMLDivElement>(null);
 
   const search = useCallback(
     async (q: string) => {
-      if (!token || q.length < 2) {
+      if (!token || !EMAIL_SHAPE.test(q)) {
         setResults([]);
         return;
       }
@@ -54,7 +68,8 @@ export function UserSearch({
         if (res.ok) {
           const data = (await res.json()) as { users: SearchResult[] };
           setResults(data.users);
-          setOpen(data.users.length > 0);
+          setOpen(true);
+          setSearched(true);
         }
       } catch {}
       setLoading(false);
@@ -64,7 +79,8 @@ export function UserSearch({
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
-    if (query.length < 2) {
+    setSearched(false);
+    if (!EMAIL_SHAPE.test(query)) {
       setResults([]);
       setOpen(false);
       return;
@@ -86,16 +102,39 @@ export function UserSearch({
     return () => document.removeEventListener("mousedown", onDown);
   }, [open]);
 
+  const handleSelect = useCallback(
+    async (user: SearchResult) => {
+      setActioningId(user.id);
+      setErrorIds((prev) => {
+        if (!prev.has(user.id)) return prev;
+        const next = new Set(prev);
+        next.delete(user.id);
+        return next;
+      });
+      const name = user.displayName ?? user.username ?? "User";
+      const ok = await onSelect(user.id, name);
+      if (ok) {
+        setSentIds((prev) => new Set(prev).add(user.id));
+      } else {
+        setErrorIds((prev) => new Set(prev).add(user.id));
+      }
+      setActioningId(null);
+    },
+    [onSelect]
+  );
+
   return (
     <div ref={rootRef} className="relative">
       <div className="relative">
         <input
-          type="text"
+          type="email"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onFocus={() => results.length > 0 && setOpen(true)}
           placeholder={placeholder}
           disabled={disabled}
+          autoCapitalize="none"
+          autoCorrect="off"
           className="w-full rounded-lg border border-border-strong bg-void px-3 py-2.5 pr-9 text-sm text-text-primary placeholder:text-text-muted focus:border-signal/50 focus:outline-none focus:ring-1 focus:ring-signal/30 transition-colors disabled:opacity-50"
         />
         {loading && (
@@ -105,35 +144,48 @@ export function UserSearch({
         )}
       </div>
 
+      {open && !loading && searched && results.length === 0 && (
+        <p className="mt-1.5 text-xs text-text-muted">No user found with that email.</p>
+      )}
+
       {open && results.length > 0 && (
         <ul className="absolute z-20 mt-1 w-full rounded-lg border border-border-strong bg-surface-raised shadow-lifted overflow-hidden">
-          {results.map((user) => (
-            <li key={user.id}>
-              <button
-                type="button"
-                onClick={() => {
-                  const name = user.displayName ?? user.username ?? "User";
-                  onSelect(user.id, name);
-                  setQuery("");
-                  setOpen(false);
-                  setResults([]);
-                }}
-                className="w-full text-left px-3 py-2.5 hover:bg-elevated transition-colors flex items-center justify-between gap-2"
-              >
-                <div className="min-w-0">
-                  <p className="text-sm font-semibold text-text-primary truncate">
-                    {user.displayName ?? user.username}
-                  </p>
-                  {user.username && user.displayName && (
-                    <p className="text-xs text-text-muted truncate">@{user.username}</p>
-                  )}
-                </div>
-                <span className="shrink-0 text-xs font-mono text-signal uppercase tracking-wider">
-                  {actionLabel}
-                </span>
-              </button>
-            </li>
-          ))}
+          {results.map((user) => {
+            const sent = sentIds.has(user.id);
+            const errored = errorIds.has(user.id);
+            const actioning = actioningId === user.id;
+            return (
+              <li key={user.id}>
+                <button
+                  type="button"
+                  onClick={() => !sent && !actioning && handleSelect(user)}
+                  disabled={disabled || sent || actioning}
+                  className="w-full text-left px-3 py-2.5 hover:bg-elevated transition-colors flex items-center justify-between gap-2 disabled:cursor-default disabled:hover:bg-transparent"
+                >
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-text-primary truncate">
+                      {user.displayName ?? user.username}
+                    </p>
+                    {user.username && user.displayName && (
+                      <p className="text-xs text-text-muted truncate">@{user.username}</p>
+                    )}
+                  </div>
+                  <span
+                    className={
+                      "shrink-0 text-xs font-mono uppercase tracking-wider " +
+                      (sent
+                        ? "text-signal"
+                        : errored
+                          ? "text-ember"
+                          : "text-signal")
+                    }
+                  >
+                    {sent ? sentLabel : actioning ? "…" : errored ? "Retry" : actionLabel}
+                  </span>
+                </button>
+              </li>
+            );
+          })}
         </ul>
       )}
     </div>

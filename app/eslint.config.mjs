@@ -33,6 +33,21 @@ const config = [
     ],
   },
   {
+    // Catches a class of bug tsc does NOT: a `const`/`let` read before its own
+    // declaration executes in the same scope throws `ReferenceError: Cannot
+    // access 'x' before initialization` at runtime (the temporal dead zone).
+    // This shipped to production once (a `useMemo` value referenced earlier in
+    // the same component body, crashing every render of the 1v1 duel screen)
+    // and typechecked clean the whole time. `functions`/`classes` stay off:
+    // hoisted `function` declarations referenced above their textual position
+    // are genuinely safe and are this codebase's normal "helper declared below
+    // its caller" style; only `const`/`let`/`var` — the actual TDZ hazard — are
+    // checked.
+    rules: {
+      "no-use-before-define": ["error", { functions: false, classes: false, variables: true }],
+    },
+  },
+  {
     // eslint-config-next 16 pulls react-hooks v6, which enables the new
     // React-Compiler-era rules as ERRORS. This codebase does not use the React
     // Compiler, and these rules flag long-standing, working effect/ref patterns
@@ -50,9 +65,14 @@ const config = [
   {
     // Test files were not covered by `next lint` (it scoped to app/src). They
     // intentionally construct elements with a `children` prop via createElement.
+    // no-use-before-define stays off here too: test fixtures/helpers commonly
+    // declare shared constants below the cases that use them, and a fixture
+    // ordering mistake has none of the production blast radius that justifies
+    // the rule elsewhere.
     files: ["tests/**"],
     rules: {
       "react/no-children-prop": "off",
+      "no-use-before-define": "off",
     },
   },
 ];

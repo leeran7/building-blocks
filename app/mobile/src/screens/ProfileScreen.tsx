@@ -30,6 +30,9 @@ import {
 } from "@app/lib/socialHandle";
 import { SocialMark } from "@app/components/Social/SocialMark";
 
+const INPUT =
+  "min-h-[48px] rounded-xl border border-border-strong bg-elevated px-3.5 text-sm text-text-primary placeholder:text-text-muted focus:border-signal focus:outline-none";
+
 /**
  * "You" — the merged profile + settings screen. Shows the player's saved
  * identity and standing up top (read), then editable identity / socials /
@@ -560,9 +563,6 @@ function UsernameHint({
     </p>
   );
 }
-
-const INPUT =
-  "min-h-[48px] rounded-xl border border-border-strong bg-elevated px-3.5 text-sm text-text-primary placeholder:text-text-muted focus:border-signal focus:outline-none";
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (

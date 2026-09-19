@@ -24,6 +24,17 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized", code: "UNAUTHORIZED" }, { status: 401 });
   }
 
+  const rl = await checkRateLimit({
+    namespace: "notifications:list",
+    identifier: uid,
+    max: 60,
+    windowSeconds: 60,
+    failMode: "open",
+  });
+  if (!rl.allowed) {
+    return NextResponse.json({ error: "Too many requests", code: "RATE_LIMITED" }, { status: 429 });
+  }
+
   const { searchParams } = new URL(request.url);
   const cursor = searchParams.get("cursor") ?? undefined;
   const take = Math.min(Number(searchParams.get("take")) || 20, 50);
