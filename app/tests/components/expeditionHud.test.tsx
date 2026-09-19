@@ -1,7 +1,7 @@
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { ExpeditionHud, HeightInstrument, LavaClearanceInstrument, LavaPhaseInstrument, UtilityControls } from "../../src/components/Game/ExpeditionHud";
+import { ExpeditionHud, HeightInstrument, LavaClearanceInstrument, UtilityControls } from "../../src/components/Game/ExpeditionHud";
 import { ActivePowerStack } from "../../src/components/Game/PowerUpHud";
 import { createMatch } from "../../src/game/simulation";
 import { buildTower } from "../../src/game/towers";
@@ -31,19 +31,18 @@ describe("live expedition instruments", () => {
     }
   });
 
-  it("shows the current lava phase (surge/stumble/grace) with a countdown track", () => {
+  it("shows the current lava phase (surge/stumble/grace) inside the clearance instrument", () => {
     for (const [phase, label] of [["surge", "SURGING"], ["stumble", "STUMBLING"], ["grace", "HOLDING"]] as const) {
-      const html = renderToStaticMarkup(createElement(LavaPhaseInstrument, { phase, progress: 0.4 }));
+      const html = renderToStaticMarkup(createElement(LavaClearanceInstrument, { clearance: 30, phase, progress: 0.4 }));
       expect(html).toContain(`data-phase="${phase}"`);
       expect(html).toContain(label);
-      expect(html).toContain(`aria-label="Lava ${label}"`);
       expect(html).toContain("width:60%");
     }
   });
 
   it("marks low clearance as danger without making it a health meter", () => {
     for (const [clearance, danger] of [[12, true], [-1, true], [12.1, false]] as const) {
-      const html = renderToStaticMarkup(createElement(LavaClearanceInstrument, { clearance }));
+      const html = renderToStaticMarkup(createElement(LavaClearanceInstrument, { clearance, phase: "surge", progress: 0.5 }));
       expect(html).toContain(`data-danger="${danger}"`);
       expect(html).not.toContain('role="progressbar"');
     }

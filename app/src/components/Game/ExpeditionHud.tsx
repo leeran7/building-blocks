@@ -15,10 +15,15 @@ export function HeightInstrument({ height }: { height: number }) {
   </section>;
 }
 
-export function LavaClearanceInstrument({ clearance }: { clearance: number }) {
-  // Presentation threshold only; collision and hazard timing remain in the engine.
+const PHASE_LABEL: Record<HazardPhaseName, string> = {
+  grace: "HOLDING",
+  surge: "SURGING",
+  stumble: "STUMBLING",
+};
+
+export function LavaClearanceInstrument({ clearance, phase, progress }: { clearance: number; phase: HazardPhaseName; progress: number }) {
   const danger = clearance <= 12;
-  return <section className="exp-clearance" data-danger={danger} aria-label={`Lava clearance ${clearance.toFixed(1)} feet`}>
+  return <section className="exp-clearance" data-danger={danger} data-phase={phase} aria-label={`Lava clearance ${clearance.toFixed(1)} feet, lava ${PHASE_LABEL[phase]}`}>
     <span className="exp-label">LAVA CLEARANCE</span>
     <div className="exp-reading">
       <svg className="exp-wave" viewBox="0 0 32 28" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden="true">
@@ -26,19 +31,7 @@ export function LavaClearanceInstrument({ clearance }: { clearance: number }) {
       </svg>
       <strong>{clearance.toFixed(1)}</strong><span>{ALTITUDE_UNIT}</span>
     </div>
-  </section>;
-}
-
-const PHASE_LABEL: Record<HazardPhaseName, string> = {
-  grace: "HOLDING",
-  surge: "SURGING",
-  stumble: "STUMBLING",
-};
-
-export function LavaPhaseInstrument({ phase, progress }: { phase: HazardPhaseName; progress: number }) {
-  return <section className="exp-lava-phase" data-phase={phase} aria-label={`Lava ${PHASE_LABEL[phase]}`}>
-    <span className="exp-label">LAVA</span>
-    <div className="exp-phase-tag">
+    <div className="exp-phase-row" data-phase={phase}>
       <svg className="exp-phase-icon" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
         {phase === "surge"
           ? <path d="M8 1l2.5 5H11l2 4H10l1 5H7l1-5H3l2-4H4.5z" />
@@ -46,9 +39,9 @@ export function LavaPhaseInstrument({ phase, progress }: { phase: HazardPhaseNam
             ? <path d="M4 5h8v2H4zm0 4h8v2H4z" />
             : <path d="M8 2a6 6 0 100 12A6 6 0 008 2zm0 2a4 4 0 110 8A4 4 0 018 4z" />}
       </svg>
-      <strong>{PHASE_LABEL[phase]}</strong>
+      <span className="exp-phase-label">{PHASE_LABEL[phase]}</span>
+      <span className="exp-track exp-phase-track"><i style={{ width: `${(1 - progress) * 100}%` }} /></span>
     </div>
-    <span className="exp-track exp-phase-track"><i style={{ width: `${(1 - progress) * 100}%` }} /></span>
   </section>;
 }
 
@@ -84,10 +77,9 @@ export function ExpeditionHud({ player, hazardY, tick, lavaPhase, lavaPhaseProgr
   const style = { "--exp-top": `${topInset}px`, "--exp-left": `${leftInset}px`, "--exp-right": `${rightInset}px` } as CSSProperties;
   return <div className="exp-hud" style={style}>
     <HeightInstrument height={player?.y ?? 0} />
-    <LavaClearanceInstrument clearance={(player?.y ?? 0) - hazardY} />
+    <LavaClearanceInstrument clearance={(player?.y ?? 0) - hazardY} phase={lavaPhase} progress={lavaPhaseProgress} />
     <UtilityControls muted={muted} onToggleMute={onToggleMute} {...utilities} />
     <ActivePowerStack player={player} tick={tick} />
-    <LavaPhaseInstrument phase={lavaPhase} progress={lavaPhaseProgress} />
     <div key={runId} className="sr-only" role="status" aria-live="polite" aria-atomic="true">{announcement}</div>
   </div>;
 }
