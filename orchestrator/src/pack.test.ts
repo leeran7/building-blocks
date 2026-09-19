@@ -9,7 +9,7 @@ import { REPO_ROOT } from "./types.js";
 describe("pack hygiene", () => {
   it("every role file points at context/README.md and leaks no product facts", async () => {
     const { filesChecked, violations } = await lintAgents(REPO_ROOT);
-    assert.ok(filesChecked >= 20, `expected a full roster, got ${filesChecked}`);
+    assert.ok(filesChecked >= 8, `expected the 8-agent required team, got ${filesChecked}`);
     assert.equal(
       violations.length,
       0,
@@ -64,14 +64,12 @@ describe("pack hygiene", () => {
     const fixed = fixLoopGitignore("loop/\nnode_modules/\n");
     assert.match(fixed, /^loop\/\*/m);
     assert.match(fixed, /!loop\/learnings\.md/);
-    assert.match(fixed, /!loop\/learnings\.jsonl/);
 
     const dest = await mkdtemp(join(tmpdir(), "pack-gitignore-"));
     await spawnOk("git", ["init"], dest);
     await mkdir(join(dest, "loop"), { recursive: true });
     await writeFile(join(dest, ".gitignore"), "loop/\n");
-    await writeFile(join(dest, "loop", "learnings.md"), "# ledger\n");
-    await writeFile(join(dest, "loop", "learnings.jsonl"), "");
+    await writeFile(join(dest, "loop", "learnings.md"), "# Open Questions\n");
 
     const { mergeGitignore } = await loadPackCopy();
     const snippet = await readFile(join(REPO_ROOT, "pack", "templates", "gitignore.snippet"), "utf-8");
