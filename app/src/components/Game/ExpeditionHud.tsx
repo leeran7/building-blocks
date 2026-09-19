@@ -3,7 +3,7 @@
 import type { CSSProperties, ReactNode } from "react";
 import type { PlayerState } from "../../game/types";
 import type { HazardPhaseName } from "../../game/hazard";
-import { ALTITUDE_UNIT } from "../../lib/units";
+import { ALTITUDE_UNIT, formatAltitude } from "../../lib/units";
 import { ActivePowerStack } from "./PowerUpHud";
 import { FullscreenButton } from "./FullscreenButton";
 import "./expedition.css";
@@ -69,10 +69,122 @@ export function UtilityControls({ muted, onToggleMute, fullscreenSupported, isFu
   </div>;
 }
 
-export function ExpeditionHud({ player, hazardY, tick, lavaPhase, lavaPhaseProgress, muted, onToggleMute, announcement, runId, topInset = 0, leftInset = 0, rightInset = 0, ...utilities }: UtilitiesProps & {
+// ─────────────────────────── Duel instruments ────────────────────────────────
+
+/** Racer entry for the duel altitude race bar. */
+export interface DuelRacer {
+  slot: number;
+  name: string;
+  y: number;
+  isMe: boolean;
+  isLeader: boolean;
+  stale: boolean;
+}
+
+/** Optional duel-specific data. When provided, duel instruments render. */
+export interface DuelHudInfo {
+  player1Name: string;
+  player2Name: string;
+  racers: DuelRacer[];
+  maxAlt: number;
+  /** Current match phase (used to gate LIVE badge to "climb"). */
+  phase: string;
+  /** Own connection state from the realtime transport. */
+  connectionState: string;
+  /** True when the opponent's live snapshots have gone quiet mid-race. */
+  opponentStale: boolean;
+}
+
+/** Versus display: both player names + LIVE badge + connection status. */
+function VersusInstrument({ duel }: { duel: DuelHudInfo }) {
+  const showReconnecting =
+    duel.connectionState === "disconnected" ||
+    duel.connectionState === "suspended" ||
+    duel.connectionState === "connecting";
+
+  return (
+    <div className="exp-versus" role="status">
+      <div className="exp-versus-names">
+        <span className="exp-versus-p1">{duel.player1Name}</span>
+        <span className="exp-versus-sep">vs</span>
+        <span className="exp-versus-p2">{duel.player2Name}</span>
+      </div>
+      <div className="exp-versus-status">
+        {showReconnecting && (
+          <span className="exp-versus-reconnecting motion-safe:animate-pulse" aria-live="polite">
+            reconnecting&hellip;
+          </span>
+        )}
+        {duel.phase === "climb" && duel.opponentStale && !showReconnecting && (
+          <span className="exp-versus-opp-stale" role="status" aria-live="polite">
+            opponent reconnecting&hellip;
+          </span>
+        )}
+        {duel.phase === "climb" && (
+          <span className="exp-versus-live">
+            <span className="exp-versus-live-dot motion-safe:animate-pulse" aria-hidden="true" />
+            LIVE
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** Altitude race bars: both players' relative progress. */
+function RaceProgressInstrument({ duel }: { duel: DuelHudInfo }) {
+  return (
+    <div className="exp-race-progress" aria-label="Altitude race">
+      {duel.racers.map((racer) => {
+        const pct = duel.maxAlt > 0 ? Math.round((racer.y / duel.maxAlt) * 100) : 0;
+        const barColor = racer.slot === 0 ? "bg-signal" : "bg-[#6bb8ff]";
+        const nameColor = racer.slot === 0 ? "text-signal" : "text-[#6bb8ff]";
+        return (
+          <div key={racer.slot} className="exp-race-row">
+            <span
+              className={`exp-race-name ${nameColor} ${racer.stale ? "opacity-50" : ""}`}
+            >
+              {racer.isLeader && (
+                <span aria-hidden="true" className="mr-0.5">
+                  &#9650;
+                </span>
+              )}
+              {racer.name}
+              {racer.isMe && <span className="text-text-muted ml-1">(you)</span>}
+            </span>
+            <div
+              className="exp-race-bar"
+              role="progressbar"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={pct}
+              aria-label={`${racer.name} altitude ${formatAltitude(racer.y, 1)}${racer.isLeader ? ", leading" : ""}${racer.stale ? ", connection lost" : ""}`}
+            >
+              <div
+                className={`exp-race-fill ${barColor} ${racer.stale ? "opacity-40" : ""}`}
+                style={{ width: `${pct}%` }}
+              />
+            </div>
+            <span
+              className={`exp-race-alt ${racer.stale ? "opacity-50" : ""}`}
+            >
+              {formatAltitude(racer.y, 1)}
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ─────────────────────────── Main HUD ────────────────────────────────────────
+
+export function ExpeditionHud({ player, hazardY, tick, lavaPhase, lavaPhaseProgress, muted, onToggleMute, announcement, runId, topInset = 0, leftInset = 0, rightInset = 0, duel, ...utilities }: UtilitiesProps & {
   player: PlayerState | undefined; hazardY: number; tick: number;
   lavaPhase: HazardPhaseName; lavaPhaseProgress: number;
   announcement: string; runId: number; topInset?: number; leftInset?: number; rightInset?: number;
+  /** Optional duel-specific data. When provided, duel instruments render below the main HUD. */
+  duel?: DuelHudInfo;
 }) {
   const style = { "--exp-top": `${topInset}px`, "--exp-left": `${leftInset}px`, "--exp-right": `${rightInset}px` } as CSSProperties;
   return <div className="exp-hud" style={style}>
@@ -80,6 +192,12 @@ export function ExpeditionHud({ player, hazardY, tick, lavaPhase, lavaPhaseProgr
     <LavaClearanceInstrument clearance={(player?.y ?? 0) - hazardY} phase={lavaPhase} progress={lavaPhaseProgress} />
     <UtilityControls muted={muted} onToggleMute={onToggleMute} {...utilities} />
     <ActivePowerStack player={player} tick={tick} />
+    {duel && (
+      <div className="exp-duel-strip">
+        <VersusInstrument duel={duel} />
+        <RaceProgressInstrument duel={duel} />
+      </div>
+    )}
     <div key={runId} className="sr-only" role="status" aria-live="polite" aria-atomic="true">{announcement}</div>
   </div>;
 }

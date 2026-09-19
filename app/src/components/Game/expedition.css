@@ -89,5 +89,93 @@
 .exp-phase-row[data-phase="stumble"] .exp-phase-track i { background: var(--exp-signal); }
 .exp-phase-row[data-phase="grace"] .exp-phase-icon, .exp-phase-row[data-phase="grace"] .exp-phase-label { color: var(--exp-muted); }
 .exp-phase-row[data-phase="grace"] .exp-phase-track i { background: var(--exp-muted); }
+/* ── Duel instruments (conditional — only rendered when duel props provided) ── */
+.exp-duel-strip {
+  grid-column: 1 / -1;
+  display: flex; flex-direction: column; gap: 4px;
+  pointer-events: none;
+}
+.exp-versus {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 8px; padding: 4px 8px;
+  border-radius: var(--exp-radius);
+  background: linear-gradient(90deg, #0a0a0cb8, #0a0a0c80);
+  backdrop-filter: blur(2px);
+}
+.exp-versus-names {
+  font-family: var(--exp-number-font);
+  font-size: 12px; font-variant-numeric: tabular-nums;
+  display: flex; align-items: baseline; gap: 4px;
+  min-width: 0;
+}
+.exp-versus-p1 { color: var(--exp-signal); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100px; }
+.exp-versus-sep { color: var(--exp-muted); font-size: 10px; flex-shrink: 0; }
+.exp-versus-p2 { color: #6bb8ff; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100px; }
+.exp-versus-status {
+  display: flex; align-items: center; gap: 6px;
+  flex-shrink: 0;
+}
+.exp-versus-reconnecting {
+  font-family: var(--exp-number-font);
+  font-size: 11px; color: var(--color-warning, #ffb020);
+}
+.exp-versus-opp-stale {
+  font-family: var(--exp-number-font);
+  font-size: 11px; color: var(--exp-muted);
+}
+.exp-versus-live {
+  display: flex; align-items: center; gap: 4px;
+  font-family: var(--exp-number-font);
+  font-size: 11px; font-weight: 600; color: var(--exp-danger);
+}
+.exp-versus-live-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--exp-danger);
+}
+.exp-race-progress {
+  display: flex; flex-direction: column; gap: 3px;
+  padding: 4px 8px;
+  border-radius: var(--exp-radius);
+  background: linear-gradient(90deg, #0a0a0ca0, #0a0a0c60);
+  backdrop-filter: blur(2px);
+}
+.exp-race-row {
+  display: flex; align-items: center; gap: 6px;
+}
+.exp-race-name {
+  font-family: var(--exp-number-font);
+  font-size: 11px; font-variant-numeric: tabular-nums;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  width: 96px; flex-shrink: 0;
+}
+.exp-race-bar {
+  position: relative; flex: 1;
+  height: 6px; border-radius: 999px;
+  background: #ffffff18; overflow: hidden;
+}
+.exp-race-fill {
+  position: absolute; inset: 0 auto 0 0;
+  border-radius: 999px;
+  transition: width .2s ease-out;
+}
+.exp-race-alt {
+  font-family: var(--exp-number-font);
+  font-size: 11px; font-variant-numeric: tabular-nums;
+  color: var(--exp-muted);
+  width: 56px; text-align: right; flex-shrink: 0;
+}
+@container (min-width: 620px) {
+  .exp-duel-strip { grid-column: 1 / -1; }
+  .exp-versus-p1, .exp-versus-p2 { max-width: 140px; }
+  .exp-race-name { width: 120px; }
+}
+@container (max-width: 350px) {
+  .exp-versus { padding: 3px 5px; }
+  .exp-versus-names { font-size: 10px; }
+  .exp-versus-p1, .exp-versus-p2 { max-width: 70px; }
+  .exp-race-name { width: 64px; font-size: 10px; }
+  .exp-race-alt { width: 44px; font-size: 10px; }
+}
+/* ── End duel instruments ── */
 @keyframes expedition-danger { 50% { opacity: .55; } }
 @media (prefers-reduced-motion: reduce) { .exp-clearance[data-danger="true"] .exp-wave { animation: none; } .exp-touch-button { transition: none; } }

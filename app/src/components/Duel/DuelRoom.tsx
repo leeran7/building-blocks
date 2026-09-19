@@ -21,6 +21,7 @@ import { useAuth } from "../../contexts/AuthContext";
 import { useRace, RaceParticipant } from "../../game/useRace";
 import { useClimb } from "../../game/useClimb";
 import { ClimbCanvas } from "../Game/ClimbCanvas";
+import { ExpeditionHud, type DuelHudInfo } from "../Game/ExpeditionHud";
 import {
   TouchControls,
   TOUCH_CONTROLS_INSET,
@@ -31,12 +32,12 @@ import { useCanvasSize } from "../../hooks/useCanvasSize";
 import { useSafeAreaInsets } from "../../hooks/useSafeAreaInsets";
 import { useBodyScrollLock } from "../../hooks/useBodyScrollLock";
 import { useFullscreen } from "../../hooks/useFullscreen";
+import { GameExitButton } from "../Game/GameExitButton";
 import { FullscreenButton } from "../Game/FullscreenButton";
-import { GameExitButton, GAME_EXIT_BAR_PX } from "../Game/GameExitButton";
 import { DuelResult } from "./DuelResult";
 import { connectRealtime, RealtimeHandle } from "../../net/realtime";
 import { buildTower } from "../../game/towers";
-import { formatAltitude } from "../../lib/units";
+import { hazardPhase } from "../../game/hazard";
 import { shareInvite } from "../../lib/shareInvite";
 
 // ─────────────────────────────── Types ────────────────────────────────────
@@ -591,6 +592,10 @@ function DuelGame({
     touchDevice || isFullscreen || phase === "countdown" || phase === "climb"
   );
 
+  // Duel-mode mute state (matches solo pattern — simple toggle, no audio engine
+  // integration needed since the duel doesn't play music yet).
+  const [muted, setMuted] = useState(false);
+
   // Live altitude ordering for the lead bar. Iterate ALL players (not a hardcoded
   // two) so this generalizes cheaply to the planned group-race (≤4). Sort by
   // slot for a stable left→right order that matches the versus bar.
@@ -600,6 +605,31 @@ function DuelGame({
     (best, p) => (best === null || p.y > best.y ? p : best),
     null
   );
+
+  // Compute lava phase info for the HUD (same as solo climb).
+  const lavaPhaseInfo = hazardPhase(state.raceSeconds - state.hazardSlowSeconds);
+
+  // Build the duel HUD info for ExpeditionHud's duel instruments.
+  const duelHudInfo: DuelHudInfo = {
+    player1Name,
+    player2Name,
+    racers: racers.map((p) => {
+      const isMe = p.slot === mySlot;
+      const isOpp = !isMe;
+      return {
+        slot: p.slot,
+        name: p.slot === 0 ? player1Name : player2Name,
+        y: p.y,
+        isMe,
+        isLeader: leader !== null && p.slot === leader.slot && maxAlt > 0,
+        stale: isOpp && phase === "climb" && opponentStale,
+      };
+    }),
+    maxAlt,
+    phase,
+    connectionState,
+    opponentStale,
+  };
 
   // ── Delight beats ──────────────────────────────────────────────────────────
   // (1) "Opponent joined!" — fired once on the lobby → countdown transition.
@@ -634,6 +664,9 @@ function DuelGame({
     : 0;
   const touchControlsActive =
     touchDevice && (phase === "countdown" || phase === "climb");
+
+  // The local player for ExpeditionHud's height/clearance instruments.
+  const myPlayer = state.players.find((p) => p.slot === mySlot);
 
   if (finished && duelResult) {
     return (
@@ -698,147 +731,12 @@ function DuelGame({
             : "flex flex-col items-center gap-3 min-h-screen bg-void text-text-primary py-4"
       }
     >
-      {/* Escape hatch — the full-bleed stage covers the navbar on mobile.
-          Forfeits if the match is still live so the opponent isn't stranded. */}
-      {touchDevice && (
-        <GameExitButton safeArea={safeArea} onLeave={handleLeave} label="Leave duel" />
-      )}
-
-      {/* Versus HUD: desktop bars in-flow above the canvas (width tracks the
-          canvas so they line up); mobile overlaid at the top of the full-bleed
-          stage, inside the safe area — pushed below the exit-button band. */}
-      <div
-        className={
-          touchDevice
-            ? "pointer-events-none absolute inset-x-0 top-0 z-20 flex flex-col gap-1"
-            : "flex flex-col overflow-hidden rounded-xl border border-border-subtle"
-        }
-        style={
-          touchDevice
-            ? {
-                paddingTop: safeArea.top + GAME_EXIT_BAR_PX,
-                paddingLeft: `max(8px, ${safeArea.left}px)`,
-                paddingRight: `max(8px, ${safeArea.right}px)`,
-              }
-            : { width: canvasSize.width }
-        }
-      >
-        <div
-          className={
-            touchDevice
-              ? "mx-2 flex items-center justify-between rounded-lg bg-void/70 px-3 py-2 backdrop-blur-xs"
-              : "w-full flex items-center justify-between px-4 py-3 bg-surface border-b border-border-subtle"
-          }
-        >
-          <div className="font-mono text-xs tabular-nums">
-            <span className="text-signal">{player1Name}</span>
-            <span className="text-text-muted mx-1">vs</span>
-            <span className="text-[#6bb8ff]">{player2Name}</span>
-          </div>
-          <div className="flex items-center gap-2">
-            {/* Own connection health: a blip reads as "reconnecting", not a freeze. */}
-            {(connectionState === "disconnected" ||
-              connectionState === "suspended" ||
-              connectionState === "connecting") && (
-              <span className="font-mono text-xs text-warning motion-safe:animate-pulse" role="status">
-                reconnecting…
-              </span>
-            )}
-            {/* Opponent's live line went quiet mid-race — unobtrusive cue, not an
-                alarm; the race never stalls on it. Suppressed while our OWN
-                connection is already flagged above to avoid a double message. */}
-            {phase === "climb" &&
-              opponentStale &&
-              connectionState === "connected" && (
-                <span
-                  className="font-mono text-xs text-text-muted"
-                  role="status"
-                  aria-live="polite"
-                >
-                  opponent reconnecting…
-                </span>
-              )}
-            {phase === "climb" && (
-              <span className="flex items-center gap-1 font-mono text-xs text-ember">
-                <span className="w-1.5 h-1.5 rounded-full bg-ember motion-safe:animate-pulse" aria-hidden="true" />
-                LIVE
-              </span>
-            )}
-          </div>
-        </div>
-
-        {/* Live altitude race bar — always rendered (not gated to climb/countdown)
-            so the HUD's height is stable from the moment the match starts;
-            during lobby every racer is at spawn (y=0), which renders as a
-            harmless 0% bar rather than an inserted block later. Iterates
-            state.players so a group-race (≤4) needs no rework. */}
-        <div
-          className={
-            touchDevice
-              ? "mx-2 flex flex-col gap-1 rounded-lg bg-void/60 px-3 py-2 backdrop-blur-xs"
-              : "w-full flex flex-col gap-1 px-4 py-2.5 bg-surface-raised"
-          }
-        >
-          {racers.map((p) => {
-            const isMe = p.slot === mySlot;
-            const isLeader = leader !== null && p.slot === leader.slot && maxAlt > 0;
-            const isOpp = !isMe;
-            const stale = isOpp && phase === "climb" && opponentStale;
-            const pct = maxAlt > 0 ? Math.round((p.y / maxAlt) * 100) : 0;
-            const barColor = p.slot === 0 ? "bg-signal" : "bg-[#6bb8ff]";
-            const nameColor = p.slot === 0 ? "text-signal" : "text-[#6bb8ff]";
-            const name = p.slot === 0 ? player1Name : player2Name;
-            return (
-              <div key={p.slot} className="flex items-center gap-2">
-                <span
-                  className={`font-mono text-[11px] tabular-nums truncate w-24 shrink-0 ${nameColor} ${
-                    stale ? "opacity-50" : ""
-                  }`}
-                >
-                  {isLeader && (
-                    <span aria-hidden="true" className="mr-0.5">
-                      ▲
-                    </span>
-                  )}
-                  {name}
-                  {isMe && <span className="text-text-muted ml-1">(you)</span>}
-                </span>
-                <div
-                  className="relative flex-1 h-1.5 rounded-full bg-border-subtle overflow-hidden"
-                  role="progressbar"
-                  aria-valuemin={0}
-                  aria-valuemax={100}
-                  aria-valuenow={pct}
-                  aria-label={`${name} altitude ${formatAltitude(p.y, 1)}${
-                    isLeader ? ", leading" : ""
-                  }${stale ? ", connection lost" : ""}`}
-                >
-                  <div
-                    className={`absolute inset-y-0 left-0 rounded-full transition-[width] duration-200 ease-out ${barColor} ${
-                      stale ? "opacity-40" : ""
-                    }`}
-                    style={{ width: `${pct}%` }}
-                  />
-                </div>
-                <span
-                  className={`font-mono text-[11px] tabular-nums text-text-secondary w-14 text-right shrink-0 ${
-                    stale ? "opacity-50" : ""
-                  }`}
-                >
-                  {formatAltitude(p.y, 1)}
-                </span>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
       {/* Play stage: full-bleed on touch, framed 9:16 column on desktop. */}
       <div
         ref={canvasBoxRef}
         data-climb-surface
         className={
-          touchDevice ? "relative h-full w-full overflow-hidden" : "relative"
+          touchDevice ? "exp-stage relative h-full w-full overflow-hidden" : "exp-stage relative"
         }
         style={touchDevice ? undefined : { width: canvasSize.width }}
       >
@@ -850,8 +748,47 @@ function DuelGame({
           bottomInset={bottomInset}
           fullBleed={touchDevice}
           hudInsetTop={touchDevice ? safeArea.top : 0}
+          includeHud={false}
           myId={myId}
           playerNames={playerNames}
+        />
+
+        {/* Shared ExpeditionHud with duel-specific instruments. Matches the solo
+            climb's HUD layout (height, lava clearance, utilities) plus versus bar,
+            altitude race bars, LIVE badge, and connection status. */}
+        <ExpeditionHud
+          player={myPlayer}
+          hazardY={state.hazardY}
+          tick={state.tick}
+          lavaPhase={lavaPhaseInfo.phase}
+          lavaPhaseProgress={lavaPhaseInfo.progress}
+          muted={muted}
+          onToggleMute={() => setMuted(!muted)}
+          announcement=""
+          runId={0}
+          topInset={touchDevice ? safeArea.top : 0}
+          leftInset={touchDevice ? safeArea.left : 0}
+          rightInset={touchDevice ? safeArea.right : 0}
+          fullscreenSupported={!touchDevice && fullscreenSupported}
+          isFullscreen={isFullscreen}
+          onToggleFullscreen={toggleFullscreen}
+          backControl={
+            touchDevice ? (
+              <button
+                type="button"
+                data-game-control
+                className="exp-utility"
+                aria-label="Leave duel"
+                title="Leave duel"
+                onClick={handleLeave}
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M15 18l-6-6 6-6" />
+                </svg>
+              </button>
+            ) : undefined
+          }
+          duel={duelHudInfo}
         />
 
         {/* "Opponent joined!" beat — a brief moment when the lobby flips into the
@@ -868,20 +805,17 @@ function DuelGame({
           </div>
         )}
 
-        {/* Countdown overlay (3-2-1). Numeral keyed so each beat re-triggers its
-            pop; aria-live announces each number and the release. */}
+        {/* Countdown overlay (3-2-1) — matches the solo climb's Overlay pattern:
+            centered, backdrop blur, same font classes and structure. */}
         {phase === "countdown" && (
-          <div
-            className="absolute inset-0 flex items-center justify-center pointer-events-none"
-            aria-live="assertive"
-            aria-atomic="true"
-          >
-            <div
-              key={countdownNum}
-              className="font-display text-8xl font-black text-signal motion-safe:animate-rise"
-              style={{ textShadow: "0 0 40px rgb(203 242 77 / 0.5)" }}
-            >
-              {countdownNum}
+          <div className="absolute inset-0 flex flex-col items-center justify-center overflow-y-auto rounded-xl bg-void/70 backdrop-blur-xs p-4 text-center">
+            <div className="my-auto flex w-full max-w-sm flex-col items-center py-2">
+              <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-signal">
+                [ get ready ]
+              </p>
+              <p className="font-display text-7xl text-text-primary mt-3 tabular-nums">
+                {countdownNum}
+              </p>
             </div>
           </div>
         )}
@@ -904,14 +838,6 @@ function DuelGame({
             setTouch → sampleInput, exactly like the solo climb. */}
         {touchDevice && (
           <TouchControls active={touchControlsActive} onInput={setTouch} />
-        )}
-
-        {!touchDevice && fullscreenSupported && (
-          <FullscreenButton
-            isFullscreen={isFullscreen}
-            onToggle={toggleFullscreen}
-            className="absolute right-2 top-2 z-30"
-          />
         )}
       </div>
     </div>
