@@ -5,6 +5,7 @@ const THRESHOLD = 60;
 const MAX_PULL = 120;
 const DAMPING = 0.4;
 const SPINNER_H = 48;
+const SCROLL_TOP_TOLERANCE = 2;
 
 export function PullToRefresh({
   onRefresh,
@@ -30,7 +31,7 @@ export function PullToRefresh({
 
     const onTouchStart = (e: TouchEvent) => {
       if (refreshingRef.current) return;
-      if (el.scrollTop > 0) return;
+      if (el.scrollTop > SCROLL_TOP_TOLERANCE) return;
       const target = e.target as Node;
       if (!contentRef.current?.contains(target)) return;
       startY.current = e.touches[0].clientY;
@@ -40,12 +41,13 @@ export function PullToRefresh({
     const onTouchMove = (e: TouchEvent) => {
       if (!isPulling.current || refreshingRef.current) return;
       const delta = e.touches[0].clientY - startY.current;
-      if (delta > 0 && el.scrollTop <= 0) {
+      if (delta > 0 && el.scrollTop <= SCROLL_TOP_TOLERANCE) {
         e.preventDefault();
+        el.scrollTop = 0;
         const d = Math.min(delta * DAMPING, MAX_PULL);
         pullYRef.current = d;
         setDisplayY(d);
-      } else {
+      } else if (delta <= 0) {
         isPulling.current = false;
         pullYRef.current = 0;
         setDisplayY(0);
