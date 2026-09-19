@@ -77,10 +77,10 @@ Write `loop/state.json`:
 5. **Quality gates** — after verifier succeeds, run `reviewer` **and**
    `security-reviewer` in the same message (parallel), then `qa-acceptance`,
    before integrator. Never skip these gates.
-6. **Retro** — after each iteration/loop-back, fold new `loop/learnings.jsonl`
-   entries into `loop/learnings.md`, promote any lesson seen 2+ times to a
-   standing rule, and surface top learnings in the stage report (see
-   [learning-loop.md](learning-loop.md)).
+6. **Retro** — after each iteration, collect learnings from handoff arrays,
+   promote each to its permanent file per the routing table in
+   [learning-loop.md](learning-loop.md), and prune. Surface top findings in
+   the stage report.
 7. **Repeat** until terminal conditions in stages.md are met or `maxIterations` reached.
 8. **Report** — summarize artifacts, PR URL, test results, remaining warnings, and learnings recorded.
 
@@ -105,15 +105,16 @@ Goal: {goal}
 Prior handoff: {json}
 Your stage: {stage}
 
-Before starting: read loop/learnings.md (your section + `all`) and this handoff's
-`learnings` array, and apply every finding aimed at you (learning-loop.md).
+Before starting: read loop/learnings.md for open questions that may affect your
+work, and this handoff's `learnings` array. Apply every finding aimed at you
+(learning-loop.md).
 
 Complete your stage per your agent definition. Before finishing:
 1. Write handoff to loop/handoffs/{stage}-{iso-timestamp}.json
 2. Follow the handoff contract in skills/closed-loop/handoffs.md
 3. Set nextStage and loopBackTo appropriately
-4. Append your new learnings to loop/learnings.jsonl AND put cross-agent findings
-   in the handoff `learnings` array (ping the agents who need them)
+4. Put your learnings in the handoff `learnings` array (the orchestrator retro
+   promotes them to their permanent files)
 ```
 
 ## Running the loop

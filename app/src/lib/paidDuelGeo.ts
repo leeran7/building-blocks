@@ -8,7 +8,7 @@
  * automatic matching and real-money payouts carry different legal exposure
  * than the original private-wager model this was first built for, and no
  * jurisdiction should be treated as safe without an actual legal
- * determination. See loop/learnings.jsonl for the review that prompted this.
+ * determination.
  *
  * Starts EMPTY on purpose: nothing is cleared yet. Add a state/country only
  * once counsel has actually signed off on it for the current product

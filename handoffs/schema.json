@@ -52,7 +52,7 @@
     },
     "learnings": {
       "type": "array",
-      "description": "Cross-agent findings pinged at other agents; each is also appended to loop/learnings.jsonl",
+      "description": "Cross-agent findings pinged at other agents; the orchestrator retro promotes each to its permanent file",
       "items": {
         "type": "object",
         "required": ["forAgents", "insight", "action"],

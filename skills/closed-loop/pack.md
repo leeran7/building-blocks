@@ -17,7 +17,7 @@ Everything lived in one blob:
 
 | Mixed in | Example | Breaks reuse because |
 |----------|---------|----------------------|
-| Protocol | Learning loop + handoff JSON copied into all 22 agents | Drift; 20–30% of each file is identical |
+| Protocol | Learning loop + handoff JSON copied into all agents | Drift; 20–30% of each file is identical |
 | Role | "You are the verifier" | This *should* travel |
 | Product | Tower Dark Editorial tokens, `#00d4ff`, BlockRow | Wrong the moment the design system moves |
 | Host policy | `git push building-blocks main`, dual remotes | Other repos have different git |
@@ -39,9 +39,9 @@ Two concrete failures in this repo:
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│  4. MEMORY     loop/learnings.md + learnings.jsonl              │
-│                Per-repo. Version the ledger, gitignore the rest │
-│                of loop/. Product-specific. Never ships in pack. │
+│  4. MEMORY     loop/learnings.md (open questions only)          │
+│                Per-repo. Version it, gitignore the rest of      │
+│                loop/. Product-specific. Never ships in pack.    │
 ├─────────────────────────────────────────────────────────────────┤
 │  3. CONTEXT    context/                                         │
 │                Per-repo folder: profile, gates, trust, git,     │
@@ -78,7 +78,7 @@ from layers 1–2 and points at 3–4.
 
 - `app/` and any product code
 - `context/` (write from `pack/templates/context/`)
-- `loop/learnings.md` + `loop/learnings.jsonl`
+- `loop/learnings.md` (open questions only)
 - Host git policy, remotes, trunk vs PR
 - `CLAUDE.md` / `AGENTS.md` once customized
 
@@ -121,14 +121,14 @@ Either path: missing handoff file → stage **failed**.
 
 | Kind | Lives in | Example |
 |------|----------|---------|
-| Product | `loop/learnings.md` | Power-up stacking vs one slot; `canvas.width` clears the bitmap |
-| Kernel | `skills/closed-loop/gates.md` | Prove a gate fails; never grep-assert behaviour |
+| Product-specific | `context/conventions.md` | Auth effects gate on loading; canvas width clears bitmap |
+| Kernel-generic | `skills/closed-loop/gates.md` | Prove a gate fails; never grep-assert behaviour |
 | Role invariant | that agent's `## Hard rules` | Verifier does not fix production code |
+| Auto-loaded rules | `.claude/rules/*.md` | Distilled gates for every conversation |
 
-Promote a ledger standing rule into `gates.md` only when it is
-product-agnostic **and** either seen in two repos or independently found
-by two agents with `forAgents: ["all"]`. That is a pack change, not a
-drive-by edit of 22 agent files.
+Learnings follow a **promote-then-prune** pipeline: the orchestrator retro
+routes each finding to its permanent file (see `learning-loop.md`) and
+prunes it. `loop/learnings.md` holds only open questions.
 
 Do not paste kernel gates back into every agent. Point at `gates.md`. Keep each
 `agents/` markdown file under 200 lines; split into `agents/<role>/*.md` partials
@@ -141,7 +141,7 @@ lint` with no ESLint config exited 0). Each `context/gates.json`
 `gates[]` entry should include `proveFail`: a command that must fail on a
 known-bad input.
 
-The verifier and devops agents read this list. They do not invent
+The verifier reads this list. Agents do not invent
 `pnpm lint` because a template once said so.
 
 ## Hygiene
@@ -178,15 +178,7 @@ Required on a **whole-app** closed-loop run:
 `product-spec → architect → implementer → verifier → reviewer +
 security-reviewer → qa-acceptance → integrator`
 
-Optional: `design-ux`, `devops`, `docs`, `github`, `release`, `monitor`,
-`debugger`.
-
-Specialists (delegated from implementer, not pipeline stages): `frontend`,
-`backend`, `data`, `mobile`, `performance`, `compliance`, `cost`.
-
-`github` may also be dispatched after integrator (or by integrator) for
-stacked PRs, rulesets, and merge-queue advice — see `agents/github.md` and
-`skills/github/SKILL.md`.
+The implementer owns all code directly — no specialist delegation.
 
 Incremental work in an existing repo uses the host review classification
 (substantial / minor / trivial) — not the eight-agent clamp. The clamp is
@@ -205,7 +197,6 @@ for `@orchestrator` / `yarn loop`.
 | `skills/closed-loop/team.md` | Dispatch contract |
 | `skills/closed-loop/stages.md` | Stage graph |
 | `skills/closed-loop/host.md` | Generic CLAUDE/AGENTS body |
-| `skills/github/SKILL.md` | GitHub platform skill (stacks, PRs, rulesets) |
 | `agents/*.md` | Roles (point at `context/`) |
 | `context/` | This repo's facts |
 | `pack/templates/context/` | Empty context for a new repo |

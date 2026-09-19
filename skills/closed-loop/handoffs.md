@@ -86,13 +86,13 @@ reads both.
 }
 ```
 
-Each learning here MUST also be appended (one line) to `loop/learnings.jsonl`.
-See [learning-loop.md](learning-loop.md).
+The orchestrator retro promotes these to their permanent file — see
+[learning-loop.md](learning-loop.md).
 
 ## Reading prior handoffs
 
 Before starting work, read the latest handoff from the upstream agent listed in
 `loop/state.json` — **including its `learnings` array**, which are findings the
-previous agent aimed directly at you. Also read `loop/learnings.md` (your section
-+ `all`). Answer every ping addressed to you: apply it, or record an explicit
-exception. See [learning-loop.md](learning-loop.md).
+previous agent aimed directly at you. Also read `loop/learnings.md` for open
+questions that may affect your work. Answer every ping addressed to you: apply
+it, or record an explicit exception. See [learning-loop.md](learning-loop.md).

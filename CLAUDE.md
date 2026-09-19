@@ -86,8 +86,8 @@ graph LR
 
 </details>
 
-Fix critical findings and re-run until `status: success`. Persist read-only
-agents' `learnings` into `loop/learnings.jsonl`.
+Fix critical findings and re-run until `status: success`. The orchestrator
+retro promotes read-only agents' `learnings` to their permanent files.
 
 Product facts go in `context/` or the ledger. Kernel-generic `[all]` lessons
 are proposed for `skills/closed-loop/gates.md`. Keep each agent markdown file

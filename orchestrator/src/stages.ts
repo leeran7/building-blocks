@@ -66,7 +66,7 @@ export function buildStagePrompt(
     `2. Write handoff JSON to loop/handoffs/${stage}-<ISO-timestamp>.json`,
     `3. Follow the handoff contract in skills/closed-loop/handoffs.md`,
     `4. Set nextStage and loopBackTo appropriately for your stage.`,
-    `5. Append new learnings to loop/learnings.jsonl and the handoff learnings array.`,
+    `5. Put your learnings in the handoff \`learnings\` array (the orchestrator retro promotes them).`,
     `6. If you delegate, Task subagent_type MUST equal the agent name (not custom or generalPurpose).`,
     "",
     "The orchestrator treats a missing handoff as FAILED, not success.",

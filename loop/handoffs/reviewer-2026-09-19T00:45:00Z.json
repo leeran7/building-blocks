@@ -1,0 +1,52 @@
+{
+  "agent": "reviewer",
+  "status": "success",
+  "summary": "Reviewed scripts/sync.mjs and agents/claude.config.json for correctness. The sync script runs successfully, all 9 agents have 1:1 mapping between source files, config, and generated output. extractDescription() correctly parses the >- YAML folded block format used by all agents. All symlinks resolve. Two warnings found: integrator.md references deleted agents/github.md and skills/github; sync script lacks stale output cleanup.",
+  "timestamp": "2026-09-19T00:45:00Z",
+  "nextStage": "qa-acceptance",
+  "findings": [
+    {
+      "severity": "warning",
+      "location": "agents/integrator.md:18",
+      "issue": "Stale reference to deleted agents/github.md and skills/github. The integrator agent instructs dispatching a 'github' subagent and reading agents/github.md / skills/github, but both were deleted in this PR. If the integrator tries to follow this instruction for stacked PRs, it will reference non-existent files.",
+      "fix": "Remove or update the reference in agents/integrator.md line 18. Either delete the sentence about dispatching github or replace it with equivalent guidance inline."
+    },
+    {
+      "severity": "warning",
+      "location": "scripts/sync.mjs:97-127 (syncAgents function)",
+      "issue": "No stale output cleanup. The script generates files into .claude/agents/, .cursor/agents/, .codex/agents/ from agents/*.md sources but never removes outputs whose source was deleted. This PR manually cleaned up stale outputs, but future agent deletions would leave orphaned generated files unless manually handled.",
+      "fix": "Add a cleanup step that reads existing output files and removes any that don't have a corresponding source in agents/*.md. For example, after syncing, diff the set of generated filenames against source filenames and unlink orphans."
+    },
+    {
+      "severity": "info",
+      "location": "scripts/sync.mjs:192",
+      "issue": "syncRules() symlinks all entries from .claude/rules/ without filtering by file extension. Currently only contains 3 .md files so no practical issue.",
+      "fix": "Consider filtering entries to only .md files if rules must always be markdown."
+    }
+  ],
+  "learnings": [
+    {
+      "forAgents": ["implementer"],
+      "insight": "agents/integrator.md line 18 references agents/github.md and skills/github which were deleted. This stale reference should be cleaned up.",
+      "action": "Update agents/integrator.md to remove or replace the reference to the deleted github agent.",
+      "kind": "defect",
+      "topic": "stale-references",
+      "confidence": 0.95
+    },
+    {
+      "forAgents": ["implementer"],
+      "insight": "sync.mjs does not clean up stale generated files when source agents are deleted. The current output directories are clean because this PR manually deleted them, but the script should automate this for future agent removals.",
+      "action": "Add cleanup logic to syncAgents() that removes generated files without a corresponding source.",
+      "kind": "improvement",
+      "topic": "sync-script",
+      "confidence": 0.9
+    },
+    {
+      "forAgents": ["all"],
+      "insight": "extractDescription() correctly handles all current frontmatter formats (>- YAML folded block). All 9 agent source files use identical frontmatter structure.",
+      "kind": "metric",
+      "topic": "sync-script-validation",
+      "confidence": 1.0
+    }
+  ]
+}
