@@ -1,8 +1,10 @@
 /**
- * GET /api/users/search?q=<query> — Search users by username or display name.
+ * GET /api/users/search?q=<email> — Look up a user by their exact email.
  *
- * Returns up to 10 matches. Only users with a username are searchable.
- * Rate-limited to prevent enumeration.
+ * Exact match only (never a partial/substring match): an email is PII, and
+ * `contains`-style matching would let a caller enumerate other users' full
+ * addresses one character at a time. Finding someone requires already
+ * knowing their complete email.
  */
 
 import { NextRequest, NextResponse } from "next/server";
@@ -14,6 +16,11 @@ export const runtime = "nodejs";
 
 const RATE_MAX = 60;
 const RATE_WINDOW = 3600;
+
+// Simple shape check — good enough to short-circuit obviously-incomplete
+// input without hitting the DB. The real validation is the exact-match
+// query itself: no shape of malformed input can ever match a real row.
+const EMAIL_SHAPE = /^\S+@\S+\.\S+$/;
 
 export async function GET(request: NextRequest) {
   let uid: string;
@@ -38,35 +45,27 @@ export async function GET(request: NextRequest) {
 
   const { searchParams } = new URL(request.url);
   const q = (searchParams.get("q") ?? "").trim();
-  if (q.length < 2) {
+  if (!EMAIL_SHAPE.test(q)) {
     return NextResponse.json({ users: [] });
   }
 
   try {
-    const users = await prisma.user.findMany({
+    const user = await prisma.user.findFirst({
       where: {
-        username: { not: null },
+        email: { equals: q, mode: "insensitive" },
         id: { not: uid },
-        OR: [
-          { username: { contains: q, mode: "insensitive" } },
-          { display_name: { contains: q, mode: "insensitive" } },
-        ],
       },
       select: {
         id: true,
         username: true,
         display_name: true,
       },
-      take: 10,
-      orderBy: { username: "asc" },
     });
 
     return NextResponse.json({
-      users: users.map((u) => ({
-        id: u.id,
-        username: u.username,
-        displayName: u.display_name,
-      })),
+      users: user
+        ? [{ id: user.id, username: user.username, displayName: user.display_name }]
+        : [],
     });
   } catch (err) {
     console.error("[GET /api/users/search] error:", err);

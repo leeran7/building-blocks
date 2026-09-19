@@ -3,6 +3,8 @@ import { apiFetch } from "../../lib/api";
 import { notifyError, notifySuccess } from "../../lib/haptics";
 import { Button, ListRow } from "../ui";
 
+const EMAIL_SHAPE = /^\S+@\S+\.\S+$/;
+
 interface SearchResult {
   id: string;
   username: string | null;
@@ -16,20 +18,25 @@ export interface UserSearchSectionProps {
 }
 
 /**
- * Typeahead search to find a user by username and send a friend request.
- * Results render inline below the input rather than in a dropdown overlay,
- * which avoids z-index / keyboard-dismiss issues on mobile.
+ * Look up a user by their exact email and send a friend request. Results
+ * render inline below the input rather than in a dropdown overlay, which
+ * avoids z-index / keyboard-dismiss issues on mobile.
+ *
+ * Search only fires once the input looks like a complete email — a partial
+ * email wouldn't match anything server-side anyway (the API is exact-match
+ * only).
  */
 export function UserSearchSection({ onFriendRequestSent }: UserSearchSectionProps) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(false);
+  const [searched, setSearched] = useState(false);
   const [addingId, setAddingId] = useState<string | null>(null);
   const [sentIds, setSentIds] = useState<Set<string>>(new Set());
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   const search = useCallback(async (q: string) => {
-    if (q.length < 2) {
+    if (!EMAIL_SHAPE.test(q)) {
       setResults([]);
       return;
     }
@@ -39,6 +46,7 @@ export function UserSearchSection({ onFriendRequestSent }: UserSearchSectionProp
       if (res.ok) {
         const data = (await res.json()) as { users: SearchResult[] };
         setResults(data.users);
+        setSearched(true);
       }
     } catch {
       /* next keystroke recovers */
@@ -48,7 +56,8 @@ export function UserSearchSection({ onFriendRequestSent }: UserSearchSectionProp
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
-    if (query.length < 2) {
+    setSearched(false);
+    if (!EMAIL_SHAPE.test(query)) {
       setResults([]);
       return;
     }
@@ -90,10 +99,10 @@ export function UserSearchSection({ onFriendRequestSent }: UserSearchSectionProp
 
       <div className="relative">
         <input
-          type="text"
+          type="email"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search by username…"
+          placeholder="Search by email…"
           autoCapitalize="none"
           autoCorrect="off"
           className="w-full rounded-2xl border border-border-strong bg-surface-raised px-4 py-3.5 text-sm text-text-primary placeholder:text-text-muted focus:border-signal/50 focus:outline-none"
@@ -116,8 +125,8 @@ export function UserSearchSection({ onFriendRequestSent }: UserSearchSectionProp
         </p>
       )}
 
-      {!loading && query.length >= 2 && results.length === 0 && (
-        <p className="py-1 text-center text-sm text-text-secondary">No users found.</p>
+      {!loading && searched && results.length === 0 && (
+        <p className="py-1 text-center text-sm text-text-secondary">No user found with that email.</p>
       )}
 
       {results.length > 0 && (

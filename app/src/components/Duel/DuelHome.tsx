@@ -506,12 +506,12 @@ export function DuelHome() {
                 Add friend
               </h2>
               <p className="text-text-secondary text-sm mb-3">
-                Find players by username.
+                Find players by email.
               </p>
               <UserSearch
                 onSelect={handleAddFriend}
                 actionLabel="Add"
-                placeholder="Search by username…"
+                placeholder="Search by email…"
                 disabled={addingFriend}
               />
             </div>
