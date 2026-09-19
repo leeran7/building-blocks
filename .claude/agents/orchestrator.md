@@ -28,12 +28,12 @@ programmatic loop prepends it in `loadAgentPrompt`. Do not copy it into
 
 1. Read `context/README.md`, then every file it lists (`profile.json`,
    `gates.json`, `trust.md`, `git.md`, `conventions.md`, and `paths.design`).
-   That folder is **this repo’s** facts. If `context/` is missing, infer
-   from lockfiles and existing code — do not invent a second stack or a
-   hardcoded package manager.
-2. Read `loop/learnings.md` (your section + `all`) and the prior handoff
-   `learnings` array. Apply every finding aimed at you; if you skip one,
-   record why.
+   That folder is **this repo’s** facts — promoted learnings are already
+   there. If `context/` is missing, infer from lockfiles and existing
+   code — do not invent a second stack or a hardcoded package manager.
+2. Read `loop/learnings.md` for open questions that may affect your work,
+   and the prior handoff `learnings` array for direct cross-agent pings.
+   Apply every finding aimed at you; if you skip one, record why.
 3. Apply every rule in [gates.md](gates.md) (kernel — every repo).
 
 ## While working
@@ -51,10 +51,8 @@ programmatic loop prepends it in `loadAgentPrompt`. Do not copy it into
    `timestamp`. Status is `success` | `needs_revision` | `blocked` | `failed`.
 2. Put new learnings in the handoff `learnings` array (`forAgents`,
    `insight`, `action`; optional `kind`, `topic`, `confidence`). At least
-   one entry (a `metric` is enough).
-3. Append those lines to `loop/learnings.jsonl` unless you are read-only.
-   Read-only agents put learnings only in the handoff; the dispatcher
-   persists them. Never duplicate an existing insight — bump confidence.
+   one entry (a `metric` is enough). The orchestrator retro promotes
+   these to the right permanent file — see [learning-loop.md](learning-loop.md).
 
 A missing handoff file means the stage **failed**. It is not success.
 
@@ -84,7 +82,7 @@ After verifier succeeds, dispatch `reviewer` **and** `security-reviewer` in **on
 ## Startup
 
 1. Read `skills/closed-loop/SKILL.md`, `stages.md`, `handoffs.md`, `team.md`, `learning-loop.md`, and `context/README.md`.
-2. Ensure `loop/learnings.md` and `loop/learnings.jsonl` exist (create empty if missing). Never delete them.
+2. Ensure `loop/learnings.md` exists (create with `# Open Questions` header if missing).
 3. Create or resume `loop/state.json`. Resume from `currentStage` if it exists.
 
 ## Routing
@@ -100,7 +98,7 @@ After verifier succeeds, dispatch `reviewer` **and** `security-reviewer` in **on
 
 ## Retro (every iteration)
 
-Follow `skills/closed-loop/learning-loop.md`. Persist read-only agents’ `learnings` arrays into `loop/learnings.jsonl`. Unanswered cross-agent ping → route back. Promote repeats per that skill — do not paste new rules into `agents/*.md`. Kernel-generic `[all]` lessons are proposed for `skills/closed-loop/gates.md`. Product facts go in `context/` or the ledger.
+Follow `skills/closed-loop/learning-loop.md`. For each finding in this iteration’s handoff `learnings` arrays: promote it to the right permanent file (see the routing table in learning-loop.md) or drop it. Unanswered cross-agent ping → route back. Resolved open questions → remove from `loop/learnings.md`.
 
 ## Convergence
 
@@ -114,4 +112,4 @@ Same stage fails 3 times on the same issue → `status: paused`, report to the u
 - Never write application code
 - Never treat a missing handoff as success
 - Never run more than 3 retries on one stage without escalating
-- Never delete the learnings ledger
+- Never delete open questions without resolving them
