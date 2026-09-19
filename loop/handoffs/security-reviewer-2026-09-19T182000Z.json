@@ -1,0 +1,49 @@
+{
+  "agent": "security-reviewer",
+  "status": "success",
+  "nextStage": "qa-acceptance",
+  "timestamp": "2026-09-19T18:20:00Z",
+  "summary": "Security audit of the duel HUD unification change (ExpeditionHud duel instruments, DuelRoom refactor, expedition.css, tests). No security findings. This is a client-side UI-only refactor with no new API routes, no new data fetching, no new auth surface, no new dependencies, and no secrets in the diff. Player names are rendered via React JSX text content (auto-escaped, no dangerouslySetInnerHTML). Connection state values come from the Ably SDK, not user input. Style attributes interpolate only numeric values. The opponent-stale suppression priority logic (verifier learning) is correctly implemented.",
+  "artifacts": [
+    "app/src/components/Game/ExpeditionHud.tsx",
+    "app/src/components/Game/expedition.css",
+    "app/src/components/Duel/DuelRoom.tsx",
+    "app/tests/components/expeditionHudDuel.test.tsx"
+  ],
+  "exitCriteria": {
+    "no_critical_security_findings": true,
+    "secret_scan": "clean — no secrets, tokens, or API keys in the diff",
+    "xss_injection": "clean — all user-controlled strings (player names) rendered via React JSX text content, auto-escaped; no dangerouslySetInnerHTML, no innerHTML, no eval",
+    "new_dependencies": "none — hazardPhase and formatAltitude are pre-existing internal modules",
+    "new_api_surface": "none — no new fetch calls, no new API routes, no new auth surfaces",
+    "pnpm_audit": "4 pre-existing vulnerabilities (1 high deepmerge-ts in Prisma, 3 moderate uuid/fflate) — none introduced by this change"
+  },
+  "findings": [],
+  "feedback": [],
+  "learnings": [
+    {
+      "forAgents": ["qa-acceptance"],
+      "insight": "Player names originate from the server API response (meta.player1?.displayName ?? 'Player 1') and are rendered via React's auto-escaping JSX. No injection risk, but QA should verify that names with special characters (quotes, angle brackets, unicode) display correctly without breaking the versus bar layout.",
+      "action": "Include a display-name edge case (e.g., special characters) in acceptance testing if feasible.",
+      "kind": "lesson",
+      "topic": "player-name-rendering",
+      "confidence": 0.9
+    },
+    {
+      "forAgents": ["all"],
+      "insight": "The duel HUD unification is a pure client-side UI refactor with zero new attack surface. No new API routes, no new data fetching, no new dependencies, no secrets in the diff. pnpm audit shows 4 pre-existing vulnerabilities unrelated to this change.",
+      "action": "No action needed.",
+      "kind": "metric",
+      "topic": "security-audit-result",
+      "confidence": 1.0
+    },
+    {
+      "forAgents": ["software-engineer"],
+      "insight": "The CSS max-width truncation on player name spans (100px default, 140px at 620px+, 70px at 350px-) is a good defense-in-depth against long names breaking layout, but the current code does not enforce a server-side name length limit that is visible in this diff. If names can be arbitrarily long, the 'overflow: hidden; text-overflow: ellipsis' in CSS handles it, but a server-side cap (e.g., 32 chars) would be cleaner.",
+      "action": "Verify or add a server-side displayName length limit if one does not exist.",
+      "kind": "lesson",
+      "topic": "name-length-limit",
+      "confidence": 0.75
+    }
+  ]
+}

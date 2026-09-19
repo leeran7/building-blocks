@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { apiFetch, API_BASE } from "../lib/api";
@@ -8,6 +8,7 @@ import { useGameHaptics } from "../lib/useGameHaptics";
 import { useRace, RaceParticipant } from "@app/game/useRace";
 import { useClimb } from "@app/game/useClimb";
 import { ClimbCanvas } from "@app/components/Game/ClimbCanvas";
+import { ExpeditionHud, type DuelHudInfo } from "@app/components/Game/ExpeditionHud";
 import {
   TouchControls,
   TOUCH_CONTROLS_INSET,
@@ -17,8 +18,18 @@ import { useCanvasSize } from "@app/hooks/useCanvasSize";
 import { useSafeAreaInsets } from "@app/hooks/useSafeAreaInsets";
 import { connectRealtime, RealtimeHandle } from "@app/net/realtime";
 import { buildTower } from "@app/game/towers";
+import { hazardPhase } from "@app/game/hazard";
 import { formatAltitude } from "@app/lib/units";
 import { shareInvite } from "@app/lib/shareInvite";
+
+/** Wall-clock buffer before countdown numerals begin (ms). */
+const COUNTDOWN_BUFFER_MS = 500;
+/** Wall-clock countdown duration (ms). */
+const COUNTDOWN_DURATION_MS = 3000;
+/** Both present, no ready for this long → "Ready up!" nudge. */
+const READY_NUDGE_MS = 60_000;
+/** AFK in lobby this long → auto-forfeit. */
+const AFK_FORFEIT_MS = 120_000;
 
 interface DuelMeta {
   id: string;
@@ -467,6 +478,7 @@ function DuelGame({
 
   const phase = state.phase;
   const touchActive = phase === "countdown" || phase === "climb";
+  const [muted, setMuted] = useState(false);
 
   // Leaving mid-race forfeits (opponent wins immediately, not stranded on a
   // ghost); mirrors the beforeunload forfeit. After the match it's just nav.
@@ -482,15 +494,64 @@ function DuelGame({
     navigate("/");
   }, [finished, realtime, mySlot, navigate]);
 
-  // Handshake: subscribe first, then enter presence.
+  // ── Lobby ready-up state ────────────────────────────────────────────────────
+  const bothPresentSinceRef = useRef(0);
+  const readySlotsRef = useRef<Set<number>>(new Set());
+  const [localReady, setLocalReady] = useState(false);
+  const [opponentReady, setOpponentReady] = useState(false);
+  const [opponentPresent, setOpponentPresent] = useState(false);
+  const [readyNudge, setReadyNudge] = useState(false);
+  const joinBeatFiredRef = useRef(false);
+
+  const countdownStartsAtRef = useRef(0);
+  const [countdownStartsAt, setCountdownStartsAt] = useState(0);
+  const [wallClockCountdown, setWallClockCountdown] = useState(0);
+
+  const opponentSlot = mySlot === 0 ? 1 : 0;
+
+  const handleReady = useCallback(() => {
+    void tapLight();
+    setLocalReady(true);
+    readySlotsRef.current.add(mySlot);
+    realtime.publishEvent({ type: "ready", slot: mySlot });
+    realtime.updatePresence({
+      uid: myId,
+      displayName: mySlot === 0 ? player1Name : player2Name,
+      slot: mySlot,
+      ready: true,
+    });
+  }, [realtime, myId, mySlot, player1Name, player2Name]);
+
+  const handleUnready = useCallback(() => {
+    void tapLight();
+    setLocalReady(false);
+    readySlotsRef.current.delete(mySlot);
+    realtime.publishEvent({ type: "unready", slot: mySlot });
+    realtime.updatePresence({
+      uid: myId,
+      displayName: mySlot === 0 ? player1Name : player2Name,
+      slot: mySlot,
+      ready: false,
+    });
+  }, [realtime, myId, mySlot, player1Name, player2Name]);
+
+  // ── Handshake (manual ready-up, coordinator-driven start) ─────────────────
   useEffect(() => {
     let disposed = false;
 
-    const beginMatch = () => {
+    const beginMatch = (startTimestamp: number) => {
       if (startedRef.current) return;
       startedRef.current = true;
       stopPoll();
-      start();
+      countdownStartsAtRef.current = startTimestamp;
+      setCountdownStartsAt(startTimestamp);
+
+      const delay = Math.max(0, startTimestamp - Date.now());
+      if (delay > 0) {
+        setTimeout(() => { if (!disposed) start(); }, delay);
+      } else {
+        start();
+      }
     };
 
     const LEAVE_GRACE_MS = 12_000;
@@ -505,31 +566,68 @@ function DuelGame({
     function stopPoll() { if (pollTimer) { clearInterval(pollTimer); pollTimer = null; } }
 
     const SLOT1_FALLBACK_MS = 5000;
-    let bothPresentSince = 0;
+
+    const tryCoordinatorStart = () => {
+      if (startedRef.current || disposed) return;
+      if (readySlotsRef.current.size < 2) return;
+
+      if (mySlot === 0) {
+        const countdownTs = Date.now() + COUNTDOWN_BUFFER_MS;
+        beginMatch(countdownTs);
+        realtime.publishEvent({ type: "start", serverTimestamp: countdownTs });
+        stopRebroadcast();
+        rebroadcasts = 0;
+        rebroadcastTimer = setInterval(() => {
+          rebroadcasts += 1;
+          if (disposed || rebroadcasts > 7) { stopRebroadcast(); return; }
+          realtime.publishEvent({ type: "start", serverTimestamp: countdownTs });
+        }, 400);
+      }
+    };
 
     const evaluateStart = async () => {
       if (startedRef.current || disposed) return;
       const members = await realtime.getPresence().catch(() => []);
       if (disposed || startedRef.current) return;
-      if (members.length < 2) { bothPresentSince = 0; return; }
+      if (members.length < 2) return;
+
+      if (bothPresentSinceRef.current === 0) {
+        bothPresentSinceRef.current = Date.now();
+      }
 
       if (mySlot === 0) {
-        beginMatch();
-        realtime.publishEvent({ type: "start", serverTimestamp: Date.now() });
-        stopRebroadcast();
-        rebroadcasts = 0;
-        rebroadcastTimer = setInterval(() => {
-          rebroadcasts += 1;
-          if (disposed || rebroadcasts > 5) { stopRebroadcast(); return; }
-          realtime.publishEvent({ type: "start", serverTimestamp: Date.now() });
-        }, 400);
+        tryCoordinatorStart();
       } else {
-        if (bothPresentSince === 0) bothPresentSince = Date.now();
-        else if (Date.now() - bothPresentSince >= SLOT1_FALLBACK_MS) beginMatch();
+        if (
+          readySlotsRef.current.size >= 2 &&
+          bothPresentSinceRef.current > 0 &&
+          Date.now() - bothPresentSinceRef.current >= SLOT1_FALLBACK_MS
+        ) {
+          beginMatch(Date.now());
+        }
       }
     };
 
-    const unsubStart = realtime.onEvent("start", () => beginMatch());
+    const unsubStart = realtime.onEvent("start", (msg) => {
+      const ts = msg.serverTimestamp ?? Date.now();
+      beginMatch(ts);
+    });
+
+    const unsubReady = realtime.onEvent("ready", (msg) => {
+      if (typeof msg.slot === "number") {
+        readySlotsRef.current.add(msg.slot);
+        if (msg.slot !== mySlot) setOpponentReady(true);
+        tryCoordinatorStart();
+      }
+    });
+
+    const unsubUnready = realtime.onEvent("unready", (msg) => {
+      if (typeof msg.slot === "number") {
+        readySlotsRef.current.delete(msg.slot);
+        if (msg.slot !== mySlot) setOpponentReady(false);
+      }
+    });
+
     const unsubForfeit = realtime.onEvent("forfeit", () => opponentForfeited());
     const unsubRematch = realtime.onEvent("rematch", (msg) => {
       if (msg.newDuelId) onRematch(msg.newDuelId);
@@ -537,7 +635,14 @@ function DuelGame({
 
     const unsubPresence = realtime.onPresence((action, member) => {
       if (action === "leave" || action === "absent") {
-        if (member.clientId === myId || !startedRef.current) return;
+        if (member.clientId === myId) return;
+        if (!startedRef.current) {
+          setOpponentReady(false);
+          setOpponentPresent(false);
+          readySlotsRef.current.delete(opponentSlot);
+          bothPresentSinceRef.current = 0;
+          return;
+        }
         clearLeaveTimer();
         leaveTimer = setTimeout(async () => {
           const members = await realtime.getPresence().catch(() => []);
@@ -546,8 +651,23 @@ function DuelGame({
         }, LEAVE_GRACE_MS);
         return;
       }
-      if (action !== "enter" && action !== "present") return;
-      if (member.clientId !== myId) clearLeaveTimer();
+      if (action !== "enter" && action !== "present" && action !== "update") return;
+      if (member.clientId !== myId) {
+        clearLeaveTimer();
+        setOpponentPresent(true);
+        if (bothPresentSinceRef.current === 0) {
+          bothPresentSinceRef.current = Date.now();
+        }
+        if (
+          !joinBeatFiredRef.current &&
+          (action === "enter" || action === "present")
+        ) {
+          joinBeatFiredRef.current = true;
+          setJoinBeat(true);
+          void notifySuccess();
+          setTimeout(() => setJoinBeat(false), 1800);
+        }
+      }
       evaluateStart();
     });
 
@@ -555,6 +675,7 @@ function DuelGame({
       uid: myId,
       displayName: mySlot === 0 ? player1Name : player2Name,
       slot: mySlot,
+      ready: false,
     });
 
     evaluateStart();
@@ -568,6 +689,8 @@ function DuelGame({
     return () => {
       disposed = true;
       unsubStart();
+      unsubReady();
+      unsubUnready();
       unsubForfeit();
       unsubRematch();
       unsubPresence();
@@ -576,12 +699,45 @@ function DuelGame({
       stopPoll();
       stopRebroadcast();
     };
-  }, [realtime, myId, mySlot, player1Name, player2Name, start, onRematch, opponentForfeited]);
+  }, [realtime, myId, mySlot, opponentSlot, player1Name, player2Name, start, onRematch, opponentForfeited]);
 
   useEffect(() => {
     const unsub = realtime.onConnectionState((s) => setConnectionState(s));
     return unsub;
   }, [realtime]);
+
+  // ── Wall-clock countdown timer ──────────────────────────────────────────────
+  useEffect(() => {
+    if (countdownStartsAt === 0) return;
+    const update = () => {
+      const elapsed = Date.now() - countdownStartsAt;
+      const remaining = Math.max(0, Math.ceil((COUNTDOWN_DURATION_MS - elapsed) / 1000));
+      setWallClockCountdown(remaining);
+    };
+    update();
+    const timer = setInterval(update, 50);
+    return () => clearInterval(timer);
+  }, [countdownStartsAt]);
+
+  // ── Unready timeout: 60s nudge, 120s auto-forfeit ─────────────────────────
+  useEffect(() => {
+    const curPhase = state.phase;
+    if (curPhase !== "lobby" || !opponentPresent) return;
+    const since = bothPresentSinceRef.current;
+    if (since === 0) return;
+
+    const nudgeDelay = Math.max(0, READY_NUDGE_MS - (Date.now() - since));
+    const forfeitDelay = Math.max(0, AFK_FORFEIT_MS - (Date.now() - since));
+
+    const nudgeTimer = setTimeout(() => setReadyNudge(true), nudgeDelay);
+    const forfeitTimer = setTimeout(() => handleLeave(), forfeitDelay);
+
+    return () => {
+      clearTimeout(nudgeTimer);
+      clearTimeout(forfeitTimer);
+      setReadyNudge(false);
+    };
+  }, [state.phase, opponentPresent, handleLeave]);
 
   const playerNames: Record<string, string> = {
     [player1Id]: player1Name,
@@ -595,17 +751,48 @@ function DuelGame({
     null,
   );
 
+  const myPlayer = racers.find((p) => p.slot === mySlot);
+  const lavaPhaseInfo = hazardPhase(state.raceSeconds - state.hazardSlowSeconds);
+
+  const readySlotsSet = useMemo(() => {
+    const s = new Set<number>();
+    if (localReady) s.add(mySlot);
+    if (opponentReady) s.add(opponentSlot);
+    return s;
+  }, [localReady, opponentReady, mySlot, opponentSlot]);
+
+  const hiddenSlotsSet = useMemo(() => {
+    if (phase !== "lobby" || opponentPresent) return undefined;
+    return new Set([opponentSlot]);
+  }, [phase, opponentPresent, opponentSlot]);
+
+  const duelHudInfo: DuelHudInfo = {
+    player1Name,
+    player2Name,
+    racers: racers.map((p) => {
+      const isMe = p.slot === mySlot;
+      return {
+        slot: p.slot,
+        name: p.slot === 0 ? player1Name : player2Name,
+        y: p.y,
+        isMe,
+        isLeader: leader !== null && p.slot === leader.slot && maxAlt > 0,
+        stale: !isMe && phase === "climb" && opponentStale,
+        ready: readySlotsSet.has(p.slot),
+      };
+    }),
+    maxAlt,
+    phase,
+    connectionState,
+    opponentStale,
+    opponentPresent,
+  };
+
   const [joinBeat, setJoinBeat] = useState(false);
   const [liveBeat, setLiveBeat] = useState(false);
   const prevPhaseRef = useRef(phase);
   useEffect(() => {
     const prev = prevPhaseRef.current;
-    if (prev !== "countdown" && phase === "countdown") {
-      setJoinBeat(true);
-      const t = setTimeout(() => setJoinBeat(false), 1800);
-      prevPhaseRef.current = phase;
-      return () => clearTimeout(t);
-    }
     if (prev !== "climb" && phase === "climb") {
       setLiveBeat(true);
       const t = setTimeout(() => setLiveBeat(false), 900);
@@ -615,7 +802,9 @@ function DuelGame({
     prevPhaseRef.current = phase;
   }, [phase]);
 
-  const countdownNum = Math.max(1, 3 - Math.floor(state.tick / 30));
+  const countdownNum = countdownStartsAt > 0
+    ? wallClockCountdown
+    : Math.max(1, 3 - Math.floor(state.tick / 30));
 
   // Finished: show result inline
   if (finished && duelResult) {
@@ -656,103 +845,11 @@ function DuelGame({
 
   return (
     <div className="fixed inset-0 z-40 bg-void text-text-primary">
-      {/* Escape hatch — top-left home button. Forfeits if the match is still
-          live so the opponent isn't stranded. Matches ClimbScreen's back button. */}
-      <div
-        className="pointer-events-none absolute inset-x-0 top-0 z-30"
-        style={{
-          paddingTop: safeArea.top,
-          paddingLeft: `max(8px, ${safeArea.left}px)`,
-          paddingRight: `max(8px, ${safeArea.right}px)`,
-        }}
-      >
-        <div className="flex items-center pointer-events-auto" style={{ height: 40 }}>
-          <button
-            aria-label="Leave duel"
-            onClick={handleLeave}
-            className="flex h-8 w-8 items-center justify-center rounded-full bg-void/50 text-text-muted transition-transform active:scale-90"
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-              <path d="M15 18l-6-6 6-6" />
-            </svg>
-          </button>
-        </div>
-      </div>
-
-      {/* Versus HUD — pushed below the exit-button band. */}
-      <div
-        className="pointer-events-none absolute inset-x-0 top-0 z-20 flex flex-col gap-1"
-        style={{
-          paddingTop: safeArea.top + 40,
-          paddingLeft: `max(8px, ${safeArea.left}px)`,
-          paddingRight: `max(8px, ${safeArea.right}px)`,
-        }}
-      >
-        <div className="mx-2 flex items-center justify-between rounded-lg bg-void/70 px-3 py-2 backdrop-blur-sm">
-          <div className="font-mono text-xs tabular-nums">
-            <span className="text-signal">{player1Name}</span>
-            <span className="mx-1 text-text-muted">vs</span>
-            <span className="text-[#6bb8ff]">{player2Name}</span>
-          </div>
-          <div className="flex items-center gap-2">
-            {(connectionState === "disconnected" ||
-              connectionState === "suspended" ||
-              connectionState === "connecting") && (
-              <span className="font-mono text-xs text-warning animate-pulse">
-                reconnecting&hellip;
-              </span>
-            )}
-            {phase === "climb" && opponentStale && connectionState === "connected" && (
-              <span className="font-mono text-xs text-text-muted">
-                opponent reconnecting&hellip;
-              </span>
-            )}
-            {phase === "climb" && (
-              <span className="flex items-center gap-1 font-mono text-xs text-ember">
-                <span className="h-1.5 w-1.5 rounded-full bg-ember animate-pulse" />
-                LIVE
-              </span>
-            )}
-          </div>
-        </div>
-
-        {/* Altitude race bars */}
-        <div className="mx-2 flex flex-col gap-1 rounded-lg bg-void/60 px-3 py-2 backdrop-blur-sm">
-          {racers.map((p) => {
-            const isMe = p.slot === mySlot;
-            const isLeader = leader !== null && p.slot === leader.slot && maxAlt > 0;
-            const stale = !isMe && phase === "climb" && opponentStale;
-            const pct = maxAlt > 0 ? Math.round((p.y / maxAlt) * 100) : 0;
-            const barColor = p.slot === 0 ? "bg-signal" : "bg-[#6bb8ff]";
-            const nameColor = p.slot === 0 ? "text-signal" : "text-[#6bb8ff]";
-            const name = p.slot === 0 ? player1Name : player2Name;
-            return (
-              <div key={p.slot} className="flex items-center gap-2">
-                <span className={`w-20 shrink-0 truncate font-mono text-[11px] tabular-nums ${nameColor} ${stale ? "opacity-50" : ""}`}>
-                  {isLeader && <span className="mr-0.5">&#9650;</span>}
-                  {name}
-                  {isMe && <span className="ml-1 text-text-muted">(you)</span>}
-                </span>
-                <div className="relative h-1.5 flex-1 overflow-hidden rounded-full bg-border-subtle">
-                  <div
-                    className={`absolute inset-y-0 left-0 rounded-full transition-[width] duration-200 ease-out ${barColor} ${stale ? "opacity-40" : ""}`}
-                    style={{ width: `${pct}%` }}
-                  />
-                </div>
-                <span className={`w-12 shrink-0 text-right font-mono text-[11px] tabular-nums text-text-secondary ${stale ? "opacity-50" : ""}`}>
-                  {formatAltitude(p.y, 1)}
-                </span>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
       {/* Game canvas */}
       <div
         ref={canvasBoxRef}
         data-climb-surface
-        className="relative h-full w-full overflow-hidden"
+        className="exp-stage relative h-full w-full overflow-hidden"
       >
         <ClimbCanvas
           state={state}
@@ -762,9 +859,77 @@ function DuelGame({
           bottomInset={bottomInset}
           fullBleed
           hudInsetTop={safeArea.top}
+          includeHud={false}
           myId={myId}
           playerNames={playerNames}
+          readySlots={readySlotsSet}
+          hiddenSlots={hiddenSlotsSet}
         />
+
+        <ExpeditionHud
+          player={myPlayer}
+          hazardY={state.hazardY}
+          tick={state.tick}
+          lavaPhase={lavaPhaseInfo.phase}
+          lavaPhaseProgress={lavaPhaseInfo.progress}
+          muted={muted}
+          onToggleMute={() => setMuted(!muted)}
+          announcement=""
+          runId={0}
+          topInset={safeArea.top}
+          leftInset={safeArea.left}
+          rightInset={safeArea.right}
+          duel={duelHudInfo}
+          backControl={
+            <button
+              type="button"
+              data-game-control
+              className="exp-utility"
+              aria-label="Leave duel"
+              title="Leave duel"
+              onClick={handleLeave}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                <path d="M15 18l-6-6 6-6" />
+              </svg>
+            </button>
+          }
+        />
+
+        {/* Lobby Ready button overlay */}
+        {phase === "lobby" && opponentPresent && !startedRef.current && (
+          <div className="absolute inset-x-0 bottom-[15%] flex flex-col items-center gap-3 pointer-events-none">
+            {readyNudge && !localReady && (
+              <span className="font-mono text-xs text-warning animate-pulse pointer-events-none">
+                Ready up!
+              </span>
+            )}
+            {!localReady ? (
+              <button
+                onClick={handleReady}
+                className="pointer-events-auto rounded-full px-8 py-4 bg-signal text-void font-display font-bold text-lg uppercase tracking-wider active:scale-95 shadow-signal"
+                aria-label="Ready for match"
+              >
+                Ready
+              </button>
+            ) : (
+              <div className="flex flex-col items-center gap-2 pointer-events-auto">
+                <span className="font-mono text-xs text-signal">
+                  {opponentReady ? "Starting…" : "Waiting for opponent…"}
+                </span>
+                {!opponentReady && (
+                  <button
+                    onClick={handleUnready}
+                    className="rounded-full px-6 py-3 border border-border-strong text-text-secondary text-xs active:scale-95"
+                    aria-label="Cancel ready"
+                  >
+                    Unready
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        )}
 
         {joinBeat && (
           <div className="pointer-events-none absolute inset-x-0 top-[18%] flex justify-center">
