@@ -15,6 +15,7 @@ disallowedTools:
 skills:
   - closed-loop
   - design-review
+  - api-design
 color: orange
 model: opus
 ---

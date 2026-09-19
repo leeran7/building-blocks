@@ -14,6 +14,7 @@ skills:
   - closed-loop
   - debugging
   - performance
+  - testing-strategy
 color: yellow
 ---
 <!-- closed-loop:protocol -->

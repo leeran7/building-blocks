@@ -14,6 +14,8 @@ skills:
   - closed-loop
   - debugging
   - performance
+  - migration
+  - accessibility
 color: green
 ---
 <!-- closed-loop:protocol -->

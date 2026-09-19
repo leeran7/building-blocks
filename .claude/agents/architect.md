@@ -12,6 +12,8 @@ tools:
   - Glob
 skills:
   - closed-loop
+  - api-design
+  - monorepo
 color: blue
 model: opus
 ---

@@ -15,6 +15,7 @@ skills:
   - closed-loop
   - github
   - ci-cd
+  - monorepo
 color: orange
 ---
 <!-- closed-loop:protocol -->

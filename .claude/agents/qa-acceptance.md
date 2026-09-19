@@ -15,6 +15,7 @@ tools:
 skills:
   - closed-loop
   - design-review
+  - accessibility
 color: yellow
 ---
 <!-- closed-loop:protocol -->
