@@ -1,0 +1,71 @@
+{
+  "agent": "security-reviewer",
+  "status": "success",
+  "summary": "Security audit of the 1v1 Quick Play matchmaking implementation (useMatchmakingQueue hook and HomeScreen modifications) found no critical or high severity issues. Auth reuses the established apiFetch Bearer token pattern correctly. categorySlug is hardcoded client-side and allow-list validated server-side. duelId originates from server-generated nanoid(8) and is used in React Router navigation (no XSS risk). Cleanup on unmount fires a best-effort DELETE, and server-side TTL (300s) prevents ghost entries. Rate limiting is present on all server endpoints and the client handles 429 correctly without retry loops. Three informational findings noted for defense-in-depth.",
+  "timestamp": "2026-09-19T19:15:00Z",
+  "goal": "Security audit the 1v1 Quick Play matchmaking implementation for OWASP and trust boundary concerns",
+  "artifacts": [
+    "app/mobile/src/hooks/useMatchmakingQueue.ts",
+    "app/mobile/src/screens/HomeScreen.tsx"
+  ],
+  "exitCriteria": {
+    "no_critical_security_findings": true,
+    "secret_scan_clean": true,
+    "auth_pattern_verified": true,
+    "input_validation_verified": true,
+    "cleanup_verified": true
+  },
+  "findings": [
+    {
+      "severity": "info",
+      "owasp": "A07",
+      "location": "app/mobile/src/hooks/useMatchmakingQueue.ts:97",
+      "issue": "Missing client-side debounce on join(). Unlike startChallenge (HomeScreen:68) which guards with 'if (challengeBusy) return', the join() callback has no re-entrancy guard. Rapid taps fire multiple POSTs before the first completes, burning rate-limit tokens.",
+      "reproduction": "Tap Quick Play rapidly 5 times in <1 second. Five POSTs fire; four return 409 and each consumes a rate-limit token (30/hour budget).",
+      "fix": "Add a joinBusy ref guard at the top of join() matching the startChallenge pattern, or disable the QuickPlayCard button when status !== 'idle'."
+    },
+    {
+      "severity": "info",
+      "owasp": "A05",
+      "location": "app/mobile/src/hooks/useMatchmakingQueue.ts:68",
+      "issue": "Poll silently swallows 429 and retries on next 2s tick. If the GET poll is rate-limited, the client does not back off -- it retries in 2 seconds indefinitely. In practice, the queue TTL (300s) expires the search before the poll rate limit (900/hour) is hit at normal 2s cadence, so this is not exploitable under current parameters.",
+      "reproduction": "Theoretical: if POLL_RATE_MAX were lowered or queue TTL raised, the client would hammer a 429 endpoint. Under current server config (900/hour, 300s TTL), the queue expires after ~150 polls, well under the 900 limit.",
+      "fix": "Defense-in-depth: check res.status === 429 in the poll handler and stop polling with a user-visible error, matching the POST handler pattern."
+    },
+    {
+      "severity": "info",
+      "location": "app/mobile/src/screens/HomeScreen.tsx:117",
+      "issue": "No client-side shape validation on duelId before navigation. The duelId from the poll response is used directly in navigate(`/duel/${duelId}`) without verifying it matches the expected nanoid pattern ([A-Za-z0-9_-]{8}). Since the server generates the ID and the deep-link handler already validates this pattern, the risk is negligible.",
+      "reproduction": "Would require a compromised API server returning a crafted duelId. React Router would route to a non-matching path and DuelRoomScreen would show an error -- no escalation path.",
+      "fix": "Optional defense-in-depth: validate duelId against /^[A-Za-z0-9_-]+$/ before navigation, matching the regex in useNativeShell.ts:46."
+    }
+  ],
+  "feedback": [],
+  "learnings": [
+    {
+      "topic": "matchmaking-auth",
+      "forAgents": ["qa-acceptance"],
+      "kind": "observation",
+      "insight": "All three matchmaking endpoints (POST/GET/DELETE /api/duel/queue) require auth via requireAuth(). The client uses the shared apiFetch which attaches the Bearer token from the in-memory token store. The auth gate keeps unauthenticated users on the Sign In screen, so unauthenticated queue operations are not reachable from the normal UI flow.",
+      "action": "When testing, verify that the Quick Play card is not rendered or not tappable when the user is not signed in.",
+      "confidence": "high"
+    },
+    {
+      "topic": "client-debounce",
+      "forAgents": ["software-engineer"],
+      "kind": "lesson",
+      "insight": "The join() callback in useMatchmakingQueue lacks the re-entrancy guard that startChallenge has (challengeBusy check). Rapid taps can fire multiple POSTs, wasting rate-limit tokens even though the server correctly returns 409.",
+      "action": "Add a ref-based busy guard at the top of join(), or pass the queue status to QuickPlayCard so it can disable the button during non-idle states.",
+      "confidence": "high"
+    },
+    {
+      "topic": "dependency-audit",
+      "forAgents": ["software-engineer", "integrator"],
+      "kind": "observation",
+      "insight": "pnpm audit shows 4 pre-existing vulnerabilities (1 high in deepmerge-ts via prisma, 3 moderate in uuid and fflate via transitive deps). None are introduced by this change.",
+      "action": "Track these for a future dependency bump, especially deepmerge-ts once @prisma/config updates.",
+      "confidence": "high"
+    }
+  ],
+  "nextStage": "qa-acceptance"
+}

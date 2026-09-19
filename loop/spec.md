@@ -1,151 +1,205 @@
-# Spec: Unify Duel Game UI with Free Climb / Daily Pattern
+# Spec: 1v1 Quick Play on Mobile
 
 **Product:** The Climb (building-blocks)
-**Goal ID:** duel-ui-unification
+**Goal ID:** mobile-quick-play
+**Status:** draft
 **Date:** 2026-09-19
 
 ## Goal
 
-Refactor the 1v1 duel game UI to share the same visual structure as Free
-Climb / Daily (ClimbScene + ExpeditionHud), while preserving all duel-specific
-information (opponent name, altitude comparison, connection status, LIVE
-badge). DuelResult and useRace stay as-is.
+Port the web random matchmaking queue flow to the mobile Capacitor SPA so
+players can find a random opponent and race them in a 1v1 duel, using the
+existing `/api/duel/queue` backend and the existing `DuelRoomScreen`.
 
 ## Scope
 
 ### In scope
 
-- Extend ExpeditionHud to accept optional duel-specific instruments
-  (opponent info, altitude race bars, connection status, LIVE badge).
-- Refactor DuelGame to use ExpeditionHud instead of the bespoke versus HUD.
-- Use the same countdown overlay component as ClimbScene in duel mode.
-- Clean up the old bespoke duel HUD code from DuelRoom.tsx.
+- QuickPlayCard on HomeScreen (new ModeCard row)
+- Queue state management hook (join, poll, cancel, timeout, error)
+- Searching overlay (full-screen modal with spinner, status text, cancel)
+- Navigation to `/duel/:id` on match
+- Haptic feedback on join, cancel, match found
 
 ### Out of scope
 
-- Changes to DuelResult component or useRace hook.
-- Changes to PracticeGame lobby (pre-game warm-up).
-- Changes to game simulation, networking, or scoring.
-- ClimbScene internal refactoring (it already handles solo well).
-- New game modes or features.
+- Paid/chip duel features (excluded per mobile/README.md)
+- Backend changes (queue API already exists and works)
+- Tournament mode
+- W/L stats display on mobile home
+- Challenge a friend via in-app search (separate feature)
+- Sound effects
 
 ### Assumptions
 
-- useRace and useClimb produce compatible MatchState that ClimbCanvas renders.
-- ExpeditionHud CSS grid can accommodate additional instruments via
-  conditional rendering without breaking existing solo layout.
+- The user is signed in (non-anonymous) -- the app is auth-gated
+- Category is hardcoded to "tech" (same as web and challenge card)
+- Queue TTL is 300s server-side; client treats "expired" as timeout
 
 ### Constraints
 
-- No new dependencies.
-- Preserve all existing duel information visibility.
-- Match existing design tokens (DESIGN.md, tailwind.config.ts).
+- No `any` types -- `unknown` + narrowing
+- Auth effects gate on `loading`
+- Structured `{ error, code }` at HTTP boundaries
+- Match existing ModeCard / apiFetch / haptics patterns exactly
 
 ## Flows
 
-### F-1: Duel match (critical: yes)
+### F-1: Join Queue (Happy Path)
 
-- **Who:** A player who has joined a 1v1 duel.
-- **Trigger:** Both players present in room, "start" event received.
-- **Discovery:** /duel/[id] deep link or invite.
-- **Entry:** DuelRoom -> DuelGame component.
-- **Preconditions:** Both players connected, duel seed received.
-- **Steps:**
-  1. Countdown overlay (3-2-1) uses same component as solo climb.
-  2. "GO" flash on climb start with LIVE badge in ExpeditionHud.
-  3. During climb: ExpeditionHud shows height, lava clearance, active powers
-     (same as solo), PLUS opponent name/vs display, altitude race bars,
-     connection status, LIVE badge (duel-specific instruments).
-  4. On finish: DuelResult renders (unchanged).
-- **Empty/first-run:** N/A (duel always has two players).
-- **Failure:** Connection loss shows "reconnecting..." in HUD. Opponent
-  disconnection shows "opponent reconnecting..." status.
-- **Success next:** DuelResult with rematch/share options (unchanged).
-- **Mid-flow interrupt:** Tab close triggers forfeit beacon (unchanged).
-- **Utilization:** Shared HUD makes duel feel like a natural extension of
-  solo climb, not a separate product.
+1. Player taps "Quick Play" ModeCard on HomeScreen
+2. Searching overlay appears with spinner + "Searching for opponent..."
+3. POST to `/api/duel/queue` with `{ categorySlug: "tech" }`
+4. If response is `{ status: "waiting" }`, begin polling GET every ~2s
+5. On poll response `{ status: "matched", duelId }`, navigate to `/duel/:id`
+6. DuelRoomScreen takes over the full duel lifecycle
 
-### F-2: Solo climb (critical: yes, regression guard)
+### F-2: Instant Match
 
-- **Who:** A player doing free climb or daily climb.
-- **Trigger:** User clicks "Start climb" on /play or /daily.
-- **Steps:** Unchanged - ClimbScene with ExpeditionHud.
-- **Verification:** No visual or behavioral regression.
-- **Empty/first-run:** N/A (existing flows unchanged).
-- **Failure:** N/A (existing error handling unchanged).
+1. Player taps "Quick Play"
+2. POST returns `{ status: "matched", duelId }` immediately
+3. Navigate to `/duel/:id` -- no polling needed
+
+### F-3: Cancel Search
+
+1. Player is in searching overlay
+2. Player taps "Cancel"
+3. DELETE to `/api/duel/queue` (best-effort)
+4. Overlay dismisses, player returns to HomeScreen
+
+### F-4: Timeout
+
+1. Player is searching, poll returns `{ status: "expired" }`
+2. Overlay shows "No opponent found" with "Search again" and "Back" buttons
+3. Player can retry (back to F-1) or dismiss (back to HomeScreen)
+
+### F-5: Error Recovery
+
+1. POST to join queue fails (network, 429, 500)
+2. Overlay shows error message with "Try again" button
+3. Player can retry or dismiss
+
+### F-6: Already In Queue (409)
+
+1. Player taps Quick Play while already holding a queue slot
+2. POST returns 409 ALREADY_QUEUED
+3. Resume polling (the prior slot is still alive)
 
 ## Personas
 
-1. **Climber (solo)** - plays free climb / daily, expects consistent UI.
-2. **Duelist** - plays 1v1, needs opponent info alongside climb data.
+### P-1: Casual Climber (Alex)
+
+Plays 2-3 sessions per day. Wants a quick competitive hit without coordinating
+with a specific friend. Taps Quick Play, waits, races, done.
+
+### P-2: Returning Player (Jordan)
+
+Comes back after app was backgrounded mid-search. Expects the search state to
+resolve cleanly (timeout or match) without getting stuck.
 
 ## Stories
 
-### S-1: Shared HUD (F-1, F-2)
+### S-1 (P-1, F-1, F-2): Quick Match
 
-As a duelist, I want the duel game HUD to match the solo climb HUD, so the
-game feels cohesive regardless of mode.
+As Alex, I want to tap one button and get matched with a random opponent, so I
+can start a 1v1 race without sharing a link or waiting for a friend.
 
-- Happy: Duel shows ExpeditionHud with height, lava clearance, utilities.
-- Failure: Solo climb regresses visually.
+- Happy: Tap Quick Play -> searching -> matched -> race starts
+- Failure: Network down -> error message -> retry
 
-**AC-1:** Given a duel match in progress, when ExpeditionHud renders, then
-height instrument, lava clearance instrument, and utility controls display
-identically to solo climb.
+### S-2 (P-1, F-3): Cancel Search
 
-**AC-2:** Given a solo climb, when ExpeditionHud renders, then no duel-
-specific instruments are visible (no vs display, no race bars, no LIVE badge).
+As Alex, I want to cancel my search at any time, so I am not locked in if I
+change my mind.
 
-### S-2: Duel-specific HUD instruments (F-1)
+- Happy: Tap Cancel -> overlay dismisses, returns to home
+- Failure: DELETE fails -> UI still dismisses (best-effort cancel)
 
-As a duelist, I want to see opponent name, altitude comparison, connection
-status, and LIVE badge, so I know how the race is going.
+### S-3 (P-2, F-4): Timeout Recovery
 
-- Happy: HUD shows vs display, race bars, LIVE badge, connection status.
-- Failure: Duel information hidden or unreadable.
+As Jordan, I want to be told when no opponent was found, so I can choose to
+search again or do something else instead of staring at a spinner forever.
 
-**AC-3:** Given a duel match in progress, when ExpeditionHud renders with
-duel props, then it shows: opponent vs display (both player names), altitude
-race bars for both players with relative progress, and LIVE badge during
-climb phase.
+- Happy: Timeout -> "No opponent found" -> tap "Search again"
+- Failure: Already covered by error states
 
-**AC-4:** Given a duel with stale opponent snapshots, when ExpeditionHud
-renders, then "opponent reconnecting..." appears in the HUD.
+## Acceptance Criteria
 
-**AC-5:** Given a duel with own connection issues, when ExpeditionHud
-renders, then "reconnecting..." appears in the HUD.
+### AC-1: Quick Play card visible on HomeScreen
 
-### S-3: Countdown consistency (F-1)
+Given the player is signed in and on HomeScreen,
+When the screen renders,
+Then a "Quick Play" ModeCard is visible between the Daily Climb and Challenge
+cards, with a bolt icon, "signal" tint, and subtitle "Find a random opponent".
 
-As a duelist, I want the countdown to look the same as solo climb, so the
-game start feels consistent across modes.
+### AC-2: Tapping Quick Play joins the queue
 
-- Happy: Duel countdown uses same Overlay component and styling.
-- Failure: Countdown looks different between modes.
+Given the player taps Quick Play,
+When the POST to `/api/duel/queue` succeeds with `{ status: "waiting" }`,
+Then a full-screen searching overlay appears with a spinner, "Searching for
+opponent..." text, and a Cancel button.
 
-**AC-6:** Given a duel countdown starts, then the overlay matches solo climb
-in structure (centered overlay, "get ready" tag, large numeral, same font
-classes).
+### AC-3: Polling finds a match
+
+Given the player is in the searching state,
+When a GET poll returns `{ status: "matched", duelId: "abc123" }`,
+Then the app navigates to `/duel/abc123` and the searching overlay is dismissed.
+
+### AC-4: Cancel leaves queue
+
+Given the player is searching,
+When the player taps Cancel,
+Then a DELETE is sent to `/api/duel/queue` (best-effort), the overlay dismisses,
+and the player sees the HomeScreen.
+
+### AC-5: Timeout shows retry
+
+Given the player is searching,
+When a GET poll returns `{ status: "expired" }`,
+Then the overlay shows "No opponent found" with a "Search again" button and a
+"Back" button to dismiss.
+
+### AC-6: Errors show actionable message
+
+Given a POST/GET fails with a network error or non-2xx status,
+Then an error message is shown in the overlay with a "Try again" button.
+
+### AC-7: Haptic feedback on actions
+
+Given haptics are enabled,
+When the player taps Quick Play (tapMedium), a match is found (notifySuccess),
+or they cancel (tapLight), appropriate haptic feedback fires.
+
+### AC-8: 409 resumes polling
+
+Given the player is already in the queue,
+When POST returns 409 ALREADY_QUEUED,
+Then the app resumes polling GET without showing an error.
 
 ## NFRs
 
-- NFR-1: No new runtime dependencies added.
-- NFR-2: TypeScript strict mode passes (no any).
-- NFR-3: Existing quality gates pass (lint, typecheck, test).
-- NFR-4: Touch targets >= 44x44 CSS px for all HUD controls.
+| ID | Requirement | Measure |
+|----|-------------|---------|
+| NFR-1 | Poll interval | ~2000ms (matches web) |
+| NFR-2 | Overlay response | Appears within 100ms of tap (perceived instant) |
+| NFR-3 | No leaked intervals | All polling stops on unmount |
+| NFR-4 | Touch targets | >= 44px per DESIGN.md and a11y skill |
+| NFR-5 | Queue cleanup | DELETE on component unmount if still searching (best-effort) |
 
 ## Risks
 
-- R-1: CSS grid changes in ExpeditionHud could break solo layout. Mitigated
-  by conditional rendering (duel instruments only mount when props provided).
-- R-2: Responsive behavior on touch devices. Mitigated by using same
-  breakpoints and safe-area handling.
+1. **Queue TTL mismatch** -- server TTL is 300s. If the client does not handle
+   "expired", the user sees a spinner forever. Mitigated by AC-5.
+2. **Race condition on navigate** -- match found while user taps cancel. The
+   interval is cleared synchronously on cancel. Acceptable: cancel means cancel.
 
 ## Open Questions
 
-None.
+None -- the backend API is stable and the web flow is the reference.
 
 ## Future
 
-- Shared spectator mode using unified stage.
-- Group race (3-4 players) extending same HUD pattern.
+- Show estimated wait time
+- Animate the searching overlay with the game backdrop
+- Sound effect on match found
+- Quick Play from duel result screen ("Play again" -> re-queue)
