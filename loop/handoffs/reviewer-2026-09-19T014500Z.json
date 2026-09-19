@@ -1,70 +1,74 @@
 {
   "agent": "reviewer",
   "status": "needs_revision",
-  "loopBackTo": "implementer",
-  "summary": "Re-review of PR #129 focused on orchestrator/src vs docs mismatch. Found 2 critical CI-blocking test failures in pack.test.ts (stale jsonl gitignore assertion at line 67, stale roster count >= 20 at line 11) introduced by this PR's changes to fixLoopGitignore, .gitignore, and agent file deletions. Also found that retro.ts still implements the old learning model (jsonl -> fold into learnings.md with Standing rules/By topic/Recently applied) while the docs now describe promote-then-prune. The stages.ts line 69 fix is correct. The retro.ts/retro.test.ts code-vs-docs gap is a warning, not a blocker for this PR, but the pack.test.ts failures are critical because they fail the orchestrator-test CI gate.",
-  "timestamp": "2026-09-19T01:45:00.000Z",
-  "nextStage": "implementer",
+  "summary": "Final consistency re-review of PR #129. The learnings.jsonl and deleted-agent path references are clean in md/json/mjs/toml files (those fixes landed). However, found 4 stale deleted-agent NAME references in agent definitions and skill docs that the previous fix missed because the grep patterns only matched path-style references. The orchestrator TypeScript runtime has extensive stale references to deleted agents but was not modified by this PR (separate scope). One workflow script issue with QA context passing.",
+  "timestamp": "2026-09-19T01:45:00Z",
+  "goal": "Final consistency re-review of PR #129",
+  "artifacts": [],
+  "exitCriteria": {
+    "no_critical_findings": true,
+    "cross_file_consistency": false,
+    "learnings_jsonl_clean": true,
+    "deleted_agents_clean": false,
+    "symlinks_healthy": true
+  },
   "findings": [
     {
-      "severity": "critical",
-      "location": "orchestrator/src/pack.test.ts:67",
-      "issue": "Test asserts fixLoopGitignore output contains '!loop/learnings.jsonl', but this PR changed fixLoopGitignore in scripts/pack-copy.mjs to no longer emit that line. Test fails: 'The input did not match the regular expression /!loop\\/learnings\\.jsonl/'. This blocks the orchestrator-test CI gate.",
-      "fix": "Remove the assertion for !loop/learnings.jsonl from the test. The gitignore no longer un-ignores jsonl because the promote-then-prune model does not persist jsonl to version control."
-    },
-    {
-      "severity": "critical",
-      "location": "orchestrator/src/pack.test.ts:11-12",
-      "issue": "Test asserts filesChecked >= 20, but this PR deleted 18 specialist agent files (backend.md, compliance.md, cost.md, data.md, debugger.md, design-ux.md, devops.md, docs.md, frontend.md, github.md, legal.md, mobile.md, monitor.md, performance.md, release.md), leaving only 9 in agents/. The assertion 'expected a full roster, got 10' fails. This blocks the orchestrator-test CI gate.",
-      "fix": "Lower the threshold to match the new 8-agent required team (e.g., filesChecked >= 8). The PR intentionally consolidated to the 8 required agents."
+      "severity": "warning",
+      "location": "agents/architect.md:38",
+      "issue": "Handoff section references deleted agent 'design-ux' as a valid nextStage target: 'nextStage: implementer (or design-ux if the spec is novel UI...)'. Propagated to .claude/agents/architect.md:89 and .codex/agents/architect.toml:75. If architect follows this instruction in the programmatic path, loadAgentPrompt('design-ux') will ENOENT because agents/design-ux.md was deleted.",
+      "fix": "Remove the '(or design-ux if...)' parenthetical. The implementer now owns all code including UI. Re-run yarn sync to propagate."
     },
     {
       "severity": "warning",
-      "location": "orchestrator/src/retro.ts (entire file)",
-      "issue": "retro.ts implements the old learning model: persistHandoffLearnings writes to learnings.jsonl (line 93), foldLearnings folds jsonl entries into learnings.md using Standing rules / By topic / Recently applied sections (lines 127-196), EMPTY_LEDGER (line 5) describes the old format. The docs (learning-loop.md) now describe promote-then-prune: promote each finding to its permanent file (gates.md, .claude/rules/*.md, context/*.md, agents/*.md), then delete the entry. learnings.md should hold only open questions. The code does not crash but silently produces wrong output: it will inject old-format sections (## Standing rules, ### Testing, ## Recently applied) into the new-format learnings.md.",
-      "fix": "Rewrite foldLearnings to route findings to their permanent files per the routing table in learning-loop.md, and update EMPTY_LEDGER to match the new learnings.md format. This is a significant change best done as a follow-up PR rather than patched into this one."
+      "location": "skills/closed-loop/team.md:49",
+      "issue": "loopBackTo clamped targets list includes 'debugger' (deleted agent) and says 'never forward to integrator or release' (release is deleted). Line reads: 'loopBackTo is clamped to product-spec / architect / implementer / debugger'. This is a kernel file shared across repos.",
+      "fix": "Change to: 'loopBackTo is clamped to product-spec / architect / implementer — never forward past qa-acceptance.'"
     },
     {
       "severity": "warning",
-      "location": "orchestrator/src/retro.test.ts (all 11 tests)",
-      "issue": "All tests pass but they validate the old model: they assert Standing rules promotion into learnings.md (lines 144, 163, 181), topic-heading folding (line 95), Recently applied trimming (line 121), and jsonl read/write (lines 43, 69, 256). None of these behaviors match the docs. The tests are internally consistent with retro.ts but inconsistent with learning-loop.md.",
-      "fix": "When retro.ts is rewritten to match the docs, the tests must be rewritten too. For now they accurately test what the code does, so they are not broken — just testing the wrong contract."
-    },
-    {
-      "severity": "warning",
-      "location": "orchestrator/src/retro.ts:210-221 (loadLearningsExcerpt)",
-      "issue": "loadLearningsExcerpt extracts '## Standing rules' and '## Recently applied' sections from learnings.md. With the new learnings.md format (only open questions), these sections do not exist. The function falls back to returning the full md text, so it does not crash, but it does not provide the intended curated excerpt either.",
-      "fix": "Update to extract '## Open Questions' instead, or simply return the full learnings.md since it is now expected to be small."
+      "location": "skills/closed-loop/SKILL.md:5",
+      "issue": "YAML frontmatter description says 'verification -> review -> CI -> release -> monitor' but 'release' and 'monitor' are deleted agents. Also omits security-reviewer and qa-acceptance from the pipeline description. This description is what platforms use to decide when to invoke the skill.",
+      "fix": "Update to: 'spec -> architecture -> implementation -> verification -> review -> QA -> integration'"
     },
     {
       "severity": "info",
-      "location": "orchestrator/src/stages.ts:69",
-      "issue": "The stages.ts prompt fix is correct. Line 69 now reads 'Put your learnings in the handoff learnings array (the orchestrator retro promotes them).' This matches learning-loop.md and protocol.md.",
-      "fix": "No fix needed — this is the correct change."
+      "location": "agents/product-spec/flows.md:60",
+      "issue": "Prose mention of 'design-ux' in guidance text: 'so architect and design-ux do not reverse it'. Not functional, but references a deleted agent role.",
+      "fix": "Change to 'so the architect does not reverse it' (implementer now owns UI work)."
     },
     {
-      "severity": "info",
-      "location": ".gitignore:7-10",
-      "issue": "learnings.jsonl is now gitignored (matched by loop/* with no negation). This is consistent with the promote-then-prune docs (jsonl should not persist across clones). However, retro.ts still writes to it as its primary data store. Until retro.ts is updated, cross-run memory via jsonl is lost on clone — but within a single loop run, the ephemeral jsonl still works for the retro step.",
-      "fix": "Acceptable as-is for this PR. When retro.ts is rewritten, it should stop using jsonl entirely."
+      "severity": "warning",
+      "location": ".claude/workflows/closed-loop.js:126",
+      "issue": "QA-acceptance receives the verifier handoff as prior context (line: stagePrompt('qa-acceptance', args, verify)) instead of the reviewer/security-reviewer results. Per the flow diagram (stages.md: R -> QA, SR -> QA), QA follows the quality gates and should receive their context. Non-critical review findings are invisible to QA.",
+      "fix": "Pass a combined review context to QA. For example: stagePrompt('qa-acceptance', args, { ...verify, findings: [...(review.findings||[]), ...(secReview.findings||[])] })"
+    },
+    {
+      "severity": "warning",
+      "location": "orchestrator/src/types.ts:111-134",
+      "issue": "REQUIRED_SEQUENCE and PRIMARY_PIPELINE include 'release' and 'monitor' after 'integrator'. In the yarn loop path, after integrator succeeds, nextInSequence('integrator') returns 'release', which has no agent file. Stage type union (line 78-93) also includes 6 deleted agents. Not introduced by this PR but was not cleaned up when agents were deleted.",
+      "fix": "Remove 'release' and 'monitor' from REQUIRED_SEQUENCE and PRIMARY_PIPELINE. Remove deleted agents from the Stage union. Update OPTIONAL_AFTER and LOOP_BACK_TARGETS in team.ts accordingly."
     }
   ],
+  "feedback": [],
   "learnings": [
     {
-      "forAgents": ["implementer", "verifier"],
-      "insight": "When docs describe a new model (promote-then-prune) but code still implements the old model (jsonl fold), the tests pass because they test the code, not the docs. The mismatch is invisible to CI.",
-      "action": "After rewriting docs to describe a new behavior contract, update the code and tests in the same PR. At minimum, add a test that asserts the new contract (e.g., learnings.md stays in open-questions-only format after a retro run).",
+      "forAgents": ["implementer", "reviewer"],
+      "insight": "Grep patterns for deleted-agent cleanup matched path-style references (agents/design-ux) but missed role-name references in prose (nextStage: design-ux). TypeScript files were excluded from file-type globs entirely.",
+      "action": "When deleting an agent, grep for the agent name as a bare word across ALL file types (*.ts, *.md, *.json, *.toml, *.js, *.mjs), not just path-style references or a subset of extensions.",
       "kind": "pitfall",
-      "topic": "testing",
+      "topic": "orchestration",
       "confidence": "high"
     },
     {
-      "forAgents": ["implementer"],
-      "insight": "pack.test.ts line 11 hardcodes a roster count (>= 20) that breaks when specialist agents are deleted. The PR deleted 18 agents but did not update the threshold.",
-      "action": "When deleting agent files, update all assertions that reference the agent count (pack.test.ts filesChecked threshold).",
-      "kind": "pitfall",
-      "topic": "testing",
+      "forAgents": ["orchestrator"],
+      "insight": "The orchestrator TypeScript runtime (types.ts, team.ts, stages.ts) still models a 10+ agent pipeline including deleted agents. The documentation and agent definitions now describe an 8-agent pipeline. These are out of sync.",
+      "action": "After the doc-layer cleanup is merged, schedule a follow-up to align the orchestrator TypeScript runtime types and routing logic with the 8-agent pipeline.",
+      "kind": "lesson",
+      "topic": "architecture",
       "confidence": "high"
     }
-  ]
+  ],
+  "nextStage": "implementer",
+  "loopBackTo": "implementer"
 }
