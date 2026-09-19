@@ -23,7 +23,7 @@
   },
   "verifier": {
     "tools": ["Read", "Write", "Edit", "Bash", "Grep", "Glob"],
-    "skills": ["closed-loop", "debugging", "performance", "testing-strategy"],
+    "skills": ["closed-loop", "debugging", "performance"],
     "color": "yellow"
   },
   "reviewer": {
