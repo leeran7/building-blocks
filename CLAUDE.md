@@ -14,9 +14,9 @@ and live in the pack; **this repo's facts are in `context/`**.
 Edit `agents/` or `skills/`, then `yarn sync`. To refresh the template repo:
 `node scripts/export-template.mjs /path/to/closed-loop-agents`.
 
-New skills: `node scripts/create-skill.mjs <name> [--link <skill/file.md> ...]`.
+New skills: follow the `create-skill` skill (`skills/create-skill/SKILL.md`).
 Shared files between skills **must** be symlinks, never copies — single source
-of truth. The `create-skill` script enforces this via `--link`.
+of truth.
 
 ## When to use the orchestrator
 
