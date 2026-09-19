@@ -41,8 +41,8 @@ import { auth } from "../lib/firebase";
 
 const TICK_DT_MS = TICK_DT * 1000;
 
-/** Publish the local player's snapshot this often (~15 Hz at 30 Hz sim). */
-const SNAPSHOT_EVERY_TICKS = 2;
+/** Publish the local player's snapshot every tick (~30 Hz at 30 Hz sim). */
+const SNAPSHOT_EVERY_TICKS = 1;
 
 /**
  * React state is updated every REACT_UPDATE_INTERVAL simulation ticks (~10 Hz

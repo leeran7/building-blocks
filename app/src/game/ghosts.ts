@@ -31,12 +31,12 @@ export interface GhostSample {
 }
 
 /**
- * How far behind local time peers are rendered, in ticks (~267 ms at 30 Hz).
- * With ~15 Hz snapshots (every 2 ticks) this gives 4 snapshot intervals of
+ * How far behind local time peers are rendered, in ticks (~133 ms at 30 Hz).
+ * With ~30 Hz snapshots (every tick) this gives 4 snapshot intervals of
  * buffer, so the interpolation target reliably lands between two known samples
  * even under typical network jitter.
  */
-export const GHOST_RENDER_DELAY_TICKS = 8;
+export const GHOST_RENDER_DELAY_TICKS = 4;
 
 /** How many samples to keep per slot. 6 widens the interpolation window. */
 const RING_SIZE = 6;
@@ -50,10 +50,10 @@ export const MAX_EXTRAPOLATE_TICKS = 8;
 
 /**
  * Exponential smoothing factor applied each tick (0 = no smoothing, 1 = frozen).
- * 0.35 absorbs snap-backs from dead-reckoning correction and segment jumps
- * without adding perceptible lag.
+ * 0.20 absorbs snap-backs from dead-reckoning correction and segment jumps
+ * while keeping opponent motion responsive at ~30 Hz snapshot rate.
  */
-const SMOOTH_FACTOR = 0.35;
+const SMOOTH_FACTOR = 0.20;
 
 /**
  * If the raw sample jumps more than this many world-units from the last

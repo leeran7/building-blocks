@@ -106,6 +106,16 @@ export type PaintClimbFrameOptions = {
    * Falls back to "Guest" for ids not present.
    */
   playerNames?: Record<string, string>;
+  /**
+   * Slots that have readied up in the lobby — draws a signal-glow ring behind
+   * the climber to indicate ready state.
+   */
+  readySlots?: ReadonlySet<number>;
+  /**
+   * Slots to hide from rendering. Used in lobby phase to suppress the opponent's
+   * character before they enter presence.
+   */
+  hiddenSlots?: ReadonlySet<number>;
 };
 
 export function paintClimbFrame(
@@ -271,9 +281,8 @@ export function paintClimbFrame(
     });
   }
 
-  // Draw every climber — local gets signal-lime + auras; opponents get
-  // wayfinding blue and a nameplate. Camera/HUD stay keyed to the local player.
   for (const p of state.players) {
+    if (opts.hiddenSlots?.has(p.slot)) continue;
     const isLocal = p.id === localPlayerId;
     const pxScreen = sx(p.x);
     const pFeetY = sy(p.y);
@@ -300,30 +309,39 @@ export function paintClimbFrame(
       Math.max(5, pxPerM * 1.7) *
       (isPowerUpActive(p, "giant", state.tick) ? GIANT_VISUAL_SCALE : 1);
 
-    // Power status belongs in the instrument stack; keep the player silhouette
-    // clear of rings and orbiting effects in the traversal path.
+    const isReady = opts.readySlots?.has(p.slot) ?? false;
+    if (isReady && (state.phase === "lobby" || state.phase === "countdown")) {
+      const glowR = pS * 2.8;
+      const grad = ctx.createRadialGradient(pxScreen, pFeetY - pS, pS * 0.3, pxScreen, pFeetY - pS, glowR);
+      grad.addColorStop(0, "rgba(203,242,77,0.25)");
+      grad.addColorStop(1, "rgba(203,242,77,0)");
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(pxScreen, pFeetY - pS, glowR, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
     drawClimber(ctx, pxScreen, pFeetY, pS, pFacing, pPose, state.tick, pColor, reducedMotion);
 
     if (isLocal && p.jetpackThrusting) {
       drawJetpackFlame(ctx, pxScreen, pFeetY, pS, state.tick, reducedMotion);
     }
 
-    // Nameplate for opponents (the local player is obvious as the camera focus).
-    if (!isLocal) {
-      const nameLabel = (opts.playerNames ? opts.playerNames[p.id] : null) ?? "Guest";
+    const nameLabel = (opts.playerNames ? opts.playerNames[p.id] : null) ?? "Guest";
+    const inLobby = state.phase === "lobby" || state.phase === "countdown";
+    if (!isLocal || inLobby) {
+      const nameColor = isLocal ? ACCENT : OPPONENT_COLOR;
       ctx.font = _fontFloor;
       ctx.textAlign = "center";
-      ctx.fillStyle = OPPONENT_COLOR;
+      ctx.fillStyle = nameColor;
       ctx.fillText(nameLabel, pxScreen, pFeetY - (2.4 * pS + 6 * ui));
       ctx.textAlign = "left";
     }
   }
 
-  // Off-screen indicator for opponents outside the camera view — a small arrow
-  // at the top/bottom edge with the opponent's altitude, so you always know
-  // where they are relative to you.
   for (const p of state.players) {
     if (p.id === localPlayerId) continue;
+    if (opts.hiddenSlots?.has(p.slot)) continue;
     const oppScreenY = sy(p.y);
     if (oppScreenY >= 0 && oppScreenY <= height) continue;
 
