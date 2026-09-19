@@ -23,8 +23,11 @@ import { useCanvasSize } from "@app/hooks/useCanvasSize";
 import { useSafeAreaInsets } from "@app/hooks/useSafeAreaInsets";
 import { ALTITUDE_UNIT } from "@app/lib/units";
 
-import { API_BASE, postClimbResult, type ClimbSaveResult } from "../lib/api";
+import { API_BASE, apiFetch, postClimbResult, type ClimbSaveResult } from "../lib/api";
+import { useAuth } from "../contexts/AuthContext";
 import { useInvalidateAppData } from "../contexts/AppDataContext";
+import { hasLeaderboardConsent, setLeaderboardConsent } from "../lib/consent";
+import { LeaderboardConsentModal } from "../components/LeaderboardConsentModal";
 import { tapMedium, tapLight, notifyError, notifySuccess } from "../lib/haptics";
 import { useGameHaptics } from "../lib/useGameHaptics";
 import {
@@ -43,8 +46,10 @@ import {
  * wrapped in a native, full-bleed game shell with haptics and a slide-up
  * results card. PLAY drops straight into a fresh random tower (no level select).
  */
-export function ClimbScreen() {
+export function ClimbScreen({ onSignIn }: { onSignIn?: () => void } = {}) {
   const navigate = useNavigate();
+  const { user, isAnonymous } = useAuth();
+  const isAuthed = Boolean(user) && !isAnonymous;
   const invalidateAppData = useInvalidateAppData();
   const [searchParams] = useSearchParams();
   // Daily mode: lock the tower to today's shared seed so every player climbs
@@ -75,6 +80,9 @@ export function ClimbScreen() {
   const [shareUrl, setShareUrl] = useState<string | null>(null);
   const [posted, setPosted] = useState(false);
   const [dailyResult, setDailyResult] = useState<DailyRunResult | null>(null);
+  const [showConsent, setShowConsent] = useState(false);
+  const [pendingSave, setPendingSave] = useState<Record<string, unknown> | null>(null);
+  const [consentBusy, setConsentBusy] = useState(false);
 
   const player = state.players[0];
   const phase = state.phase;
@@ -152,19 +160,23 @@ export function ClimbScreen() {
         peakY: run.peakY,
         inputs: inputLog,
       });
-      // Share URLs point at the public site, not the capacitor:// origin.
       if (replayToken) setShareUrl(buildReplayUrl(replayToken, API_BASE));
       const payload = replayToken ? { ...run, replayToken } : run;
+
+      if (isAuthed && !hasLeaderboardConsent()) {
+        setPendingSave(payload);
+        setShowConsent(true);
+        return;
+      }
+
       const result = await postClimbResult(payload);
       setSaveInfo(result);
       if (result.saved) {
-        // Standing + leaderboard changed — mark them stale so Ranks / Profile
-        // show the new score immediately on return, not after the cache TTL.
         invalidateAppData(["dashboard", "leaderboard"]);
         if (result.improved) void notifySuccess();
       }
     })();
-  }, [finished, posted, inputLog, player, state.seed, state.tick, invalidateAppData]);
+  }, [finished, posted, inputLog, player, state.seed, state.tick, invalidateAppData, isAuthed]);
 
   const share = useCallback(async () => {
     if (!shareUrl) return;
@@ -179,6 +191,37 @@ export function ClimbScreen() {
       /* user cancelled / unavailable */
     }
   }, [shareUrl]);
+
+  const handleConsentAccept = useCallback(async () => {
+    setConsentBusy(true);
+    try {
+      setLeaderboardConsent(true);
+      await apiFetch("/api/settings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ leaderboardConsent: true }),
+      });
+      if (pendingSave) {
+        const result = await postClimbResult(pendingSave);
+        setSaveInfo(result);
+        if (result.saved) {
+          invalidateAppData(["dashboard", "leaderboard"]);
+          if (result.improved) void notifySuccess();
+        }
+      }
+    } catch {
+      /* consent save failed — don't block the game */
+    } finally {
+      setShowConsent(false);
+      setPendingSave(null);
+      setConsentBusy(false);
+    }
+  }, [pendingSave, invalidateAppData]);
+
+  const handleConsentDecline = useCallback(() => {
+    setShowConsent(false);
+    setPendingSave(null);
+  }, []);
 
   return (
     <div className="fixed inset-0 z-40 bg-void">
@@ -256,12 +299,22 @@ export function ClimbScreen() {
             saveInfo={saveInfo}
             dailyResult={isDaily ? dailyResult : null}
             shareable={Boolean(shareUrl)}
+            isGuest={!isAuthed}
             onPlayAgain={handleStart}
             onShare={share}
             onHome={() => {
               void tapLight();
               navigate("/");
             }}
+            onSignIn={onSignIn}
+          />
+        )}
+
+        {showConsent && (
+          <LeaderboardConsentModal
+            onAccept={handleConsentAccept}
+            onDecline={handleConsentDecline}
+            busy={consentBusy}
           />
         )}
       </div>
@@ -319,17 +372,21 @@ function ResultsCard({
   saveInfo,
   dailyResult,
   shareable,
+  isGuest,
   onPlayAgain,
   onShare,
   onHome,
+  onSignIn,
 }: {
   peakY: number;
   saveInfo: ClimbSaveResult | null;
   dailyResult: DailyRunResult | null;
   shareable: boolean;
+  isGuest?: boolean;
   onPlayAgain: () => void;
   onShare: () => void;
   onHome: () => void;
+  onSignIn?: () => void;
 }) {
   const shown = useCountUp(peakY);
   const isBest = Boolean(saveInfo?.saved && saveInfo.improved);
@@ -338,9 +395,11 @@ function ResultsCard({
     saveInfo?.saved && saveInfo.rank && saveInfo.totalClimbers
       ? Math.max(1, Math.round((saveInfo.rank / saveInfo.totalClimbers) * 100))
       : null;
-  const rankLine = saveInfo?.saved && saveInfo.rank
-    ? `#${saveInfo.rank}${saveInfo.totalClimbers ? ` of ${saveInfo.totalClimbers.toLocaleString()}` : ""}${topPct ? ` · top ${topPct}%` : ""}`
-    : "your highest climb";
+  const rankLine = isGuest
+    ? "sign in to save your score"
+    : saveInfo?.saved && saveInfo.rank
+      ? `#${saveInfo.rank}${saveInfo.totalClimbers ? ` of ${saveInfo.totalClimbers.toLocaleString()}` : ""}${topPct ? ` · top ${topPct}%` : ""}`
+      : "your highest climb";
   return (
     <div className="rc-card absolute inset-x-0 bottom-0 z-30 animate-[resultsUp_0.28s_cubic-bezier(0.16,1,0.3,1)] rounded-t-3xl border-t border-border-strong bg-surface/95 px-6 pb-[calc(env(safe-area-inset-bottom)+1.75rem)] pt-3 backdrop-blur-xl">
       {/* iOS sheet grabber */}
@@ -397,6 +456,14 @@ function ResultsCard({
         >
           Play again
         </button>
+        {isGuest && onSignIn && (
+          <button
+            onClick={onSignIn}
+            className="min-h-[52px] rounded-full border border-signal/40 bg-signal/10 font-display text-sm font-bold uppercase tracking-widest text-signal transition-transform duration-150 active:scale-[0.97]"
+          >
+            Sign in to save
+          </button>
+        )}
         <div className="flex gap-3">
           {shareable && (
             <button

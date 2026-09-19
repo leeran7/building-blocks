@@ -17,6 +17,7 @@ import {
   isHapticsEnabled,
   setHapticsEnabled,
 } from "../lib/haptics";
+import { hasLeaderboardConsent, setLeaderboardConsent } from "../lib/consent";
 import { dailySummary, clearDailyStore } from "../lib/daily";
 import { ScreenHeader, ScreenBody, Card, StatCard, Button } from "../components/ui";
 import { ALTITUDE_UNIT } from "@app/lib/units";
@@ -60,6 +61,7 @@ export function ProfileScreen() {
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [haptics, setHaptics] = useState(isHapticsEnabled);
+  const [leaderboardVisible, setLeaderboardVisible] = useState(hasLeaderboardConsent);
   const [deleteConfirm, setDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
@@ -73,6 +75,7 @@ export function ProfileScreen() {
     setUsername(settingsData.username ?? "");
     setSavedUsername(settingsData.username ?? "");
     setSocial(settingsData.social ?? {});
+    setLeaderboardVisible(settingsData.leaderboardConsent ?? false);
   }, [settingsData]);
 
   // Delete-confirm focus management: move focus into the warning when it opens
@@ -131,6 +134,7 @@ export function ProfileScreen() {
           username: s.username ?? null,
           social: s.social ?? null,
           urls: s.urls ?? null,
+          leaderboardConsent: Boolean((s as Record<string, unknown>).leaderboardConsent),
         };
         setLoaded(next);
         // Re-seed the input buffer from the server-normalized values (it strips
@@ -386,6 +390,40 @@ export function ProfileScreen() {
                   <span
                     className="absolute top-0.5 h-6 w-6 rounded-full bg-white shadow-sm transition-[left] duration-200"
                     style={{ left: haptics ? 26 : 2 }}
+                  />
+                </button>
+              </div>
+              <div className="mt-3 flex items-center justify-between gap-4 border-t border-border-subtle py-3">
+                <div>
+                  <p className="text-sm font-medium text-text-primary">Leaderboard visibility</p>
+                  <p className="mt-0.5 text-xs text-text-muted">Show your name and peak height on the public leaderboard</p>
+                </div>
+                <button
+                  role="switch"
+                  aria-checked={leaderboardVisible}
+                  onClick={async () => {
+                    const next = !leaderboardVisible;
+                    setLeaderboardVisible(next);
+                    setLeaderboardConsent(next);
+                    if (next) void tapLight();
+                    try {
+                      await apiFetch("/api/settings", {
+                        method: "PUT",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ leaderboardConsent: next }),
+                      });
+                    } catch {
+                      setLeaderboardVisible(!next);
+                      setLeaderboardConsent(!next);
+                      void notifyError();
+                    }
+                  }}
+                  className={`relative h-7 w-13 shrink-0 rounded-full transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void ${leaderboardVisible ? "bg-signal" : "bg-border-strong"
+                    }`}
+                >
+                  <span
+                    className="absolute top-0.5 h-6 w-6 rounded-full bg-white shadow-sm transition-[left] duration-200"
+                    style={{ left: leaderboardVisible ? 26 : 2 }}
                   />
                 </button>
               </div>

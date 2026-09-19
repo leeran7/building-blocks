@@ -81,6 +81,7 @@ export async function PUT(request: NextRequest): Promise<NextResponse> {
     username?: unknown;
     urls?: unknown;
     social?: unknown;
+    leaderboardConsent?: unknown;
   };
   try {
     body = await request.json();
@@ -88,7 +89,14 @@ export async function PUT(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  const patch: { displayName?: string | null; urls?: string[] } = {};
+  const patch: { displayName?: string | null; urls?: string[]; leaderboardConsent?: boolean } = {};
+
+  if (body.leaderboardConsent !== undefined) {
+    if (typeof body.leaderboardConsent !== "boolean") {
+      return NextResponse.json({ error: "leaderboardConsent must be a boolean" }, { status: 400 });
+    }
+    patch.leaderboardConsent = body.leaderboardConsent;
+  }
 
   // Social handles: a { platform: handle } map. Normalize + moderate each;
   // an empty/null value clears that platform. Built here, applied after the
