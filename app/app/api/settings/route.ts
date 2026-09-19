@@ -7,6 +7,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { revalidateTag } from "next/cache";
 import { requireAuth, AuthError } from "../../../src/lib/requireAuth";
 import { withAuth } from "../../../src/lib/api/withAuth";
 import { ensureUser } from "../../../src/db/user";
@@ -16,6 +17,7 @@ import {
   updateUserSocialHandles,
   type SocialHandleMap,
 } from "../../../src/db/settings";
+import { LEADERBOARD_CACHE_TAG } from "../../../src/db/climb";
 import { normalizeHandle, isSocialPlatform } from "../../../src/lib/socialHandle";
 import { validateUrl } from "../../../src/lib/validateUrl";
 import { checkRateLimit } from "../../../src/lib/rateLimit";
@@ -234,6 +236,13 @@ export async function PUT(request: NextRequest): Promise<NextResponse> {
     }
 
     const settings = await updateUserSettings(decoded.uid, patch);
+    // A change here decides whether this player's record shows on the public
+    // leaderboard, and topFreeClimbers' unstable_cache only naturally expires
+    // every 60s — revalidate on demand so revoking (or granting) consent
+    // takes effect on the next fetch, not up to a minute later.
+    if (patch.leaderboardConsent !== undefined) {
+      revalidateTag(LEADERBOARD_CACHE_TAG, { expire: 60 });
+    }
     // Audit trail for display-name changes: the name is public and
     // impersonation-capable, so keep it traceable. Log uid + timestamp only —
     // never the raw value, to avoid logging PII.

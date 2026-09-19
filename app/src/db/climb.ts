@@ -134,6 +134,14 @@ export interface ClimberRank {
 }
 
 /**
+ * Tag for topFreeClimbers' unstable_cache entry. Time-based revalidation
+ * alone (60s) means a consent change wouldn't visibly take effect for up to
+ * a minute; revalidateTag(LEADERBOARD_CACHE_TAG) after a consent change
+ * (see PUT /api/settings) clears it immediately instead.
+ */
+export const LEADERBOARD_CACHE_TAG = "leaderboard";
+
+/**
  * The free-stack skill leaderboard: highest peak-height record per player,
  * ranked descending. Ties broken by who reached it first (earliest updated_at).
  *
@@ -166,7 +174,7 @@ export const topFreeClimbers = unstable_cache(
     }));
   },
   ["topFreeClimbers"],
-  { revalidate: 60 }
+  { revalidate: 60, tags: [LEADERBOARD_CACHE_TAG] }
 );
 
 
