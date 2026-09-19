@@ -96,7 +96,7 @@ export function PullToRefresh({
       className="flex-1 overflow-y-auto px-4 pb-4"
       style={{
         WebkitOverflowScrolling: "touch",
-        overscrollBehavior: "contain",
+        overscrollBehavior: "none",
       }}
     >
       <div
