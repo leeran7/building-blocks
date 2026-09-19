@@ -19,7 +19,7 @@ import type Ably from "ably";
 import { auth } from "../lib/firebase";
 import { PlayerInput, PlayerStatus } from "../game/types";
 
-export type DuelEvent = "ready" | "start" | "forfeit" | "rematch";
+export type DuelEvent = "ready" | "unready" | "start" | "forfeit" | "rematch";
 
 export interface RealtimeInputMessage {
   tick: number;
@@ -67,7 +67,9 @@ export interface RealtimeHandle {
   /** Register a callback for control events. */
   onEvent(type: DuelEvent, cb: (msg: RealtimeEventMessage) => void): () => void;
   /** Ably presence: enter with client data. */
-  enterPresence(data: { uid: string; displayName: string; slot: number }): void;
+  enterPresence(data: { uid: string; displayName: string; slot: number; ready?: boolean }): void;
+  /** Ably presence: update data for the current member (e.g. ready state). */
+  updatePresence(data: { uid: string; displayName: string; slot: number; ready?: boolean }): void;
   /** Subscribe to presence changes. */
   onPresence(cb: (action: string, member: { clientId: string; data: unknown }) => void): () => void;
   /** Get current presence members. */
@@ -256,6 +258,12 @@ export async function connectRealtime(
 
     enterPresence(data) {
       channel.presence.enter(data).catch(() => {
+        // Best effort
+      });
+    },
+
+    updatePresence(data) {
+      channel.presence.update(data).catch(() => {
         // Best effort
       });
     },
