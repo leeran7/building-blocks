@@ -1,0 +1,89 @@
+{
+  "agent": "security-reviewer",
+  "status": "success",
+  "summary": "Security audit of the shared lobby + ready button implementation found no critical or high-severity findings. All game-critical trust boundaries are preserved: server-authoritative results via re-simulation, seed oracle (R-5) prevention, Ably token scoping to authenticated participants, and rate-limited result submission. The ready-up mechanism is a client-side UX coordination layer — no game outcome can be influenced through Ably event spoofing. Two informational findings documented: (1) incoming ready/start events lack slot-to-clientId validation (impact: UX disruption only, no competitive advantage), (2) pre-existing dep vulnerabilities in transitive dependencies (not introduced by this change). No hardcoded secrets, no new API routes, no injection vectors.",
+  "timestamp": "2026-09-19T17:45:00Z",
+  "goal": "Security audit the shared lobby + ready button implementation for 1v1 duels, focusing on auth, trust boundaries, injection, and protocol safety",
+  "artifacts": [
+    "app/src/components/Duel/DuelRoom.tsx",
+    "app/src/net/realtime.ts",
+    "app/src/components/Game/paintClimbFrame.ts",
+    "app/src/components/Game/ClimbCanvas.tsx",
+    "app/src/game/ghosts.ts",
+    "app/src/game/useRace.ts"
+  ],
+  "exitCriteria": {
+    "no_critical_security_findings": true,
+    "no_hardcoded_secrets": true,
+    "trust_boundaries_preserved": true,
+    "dependency_audit_run": true
+  },
+  "findings": [
+    {
+      "severity": "info",
+      "owasp": "A01",
+      "location": "app/src/components/Duel/DuelRoom.tsx:488-501",
+      "issue": "Ready/unready event handlers trust msg.slot without validating it matches the sender's clientId. A malicious participant could publish a ready event with the opponent's slot number, making the coordinator believe both players are ready and triggering match start.",
+      "reproduction": "A modified client publishes { type: 'ready', slot: opponentSlot } to the duel channel. The coordinator's tryCoordinatorStart() sees readySlotsRef.current.size >= 2 and sends the start event.",
+      "fix": "The onEvent handler could cross-reference msg.slot against the Ably message's clientId (available on the Ably Message object but not currently exposed by the RealtimeHandle). However, impact is limited to UX disruption: the game outcome is server-authoritative via re-simulation, the opponent still receives the countdown and can play, and no competitive advantage is gained. Acceptable risk for a friend-play lobby; consider adding validation if ranked play is introduced.",
+      "blocked_by": "Server re-simulation is the trust anchor. Ably token scoping restricts the channel to authenticated participants only. Both clients receive the same events simultaneously. No outcome manipulation possible."
+    },
+    {
+      "severity": "info",
+      "owasp": "A01",
+      "location": "app/src/components/Duel/DuelRoom.tsx:483-486",
+      "issue": "Any participant can send a 'start' event — there is no check that it originates from the coordinator (slot-0). A slot-1 player could force-start the match before both players ready up.",
+      "reproduction": "A modified slot-1 client publishes { type: 'start', serverTimestamp: Date.now() } to the channel. Both clients (including slot-0) call beginMatch() and start the countdown.",
+      "fix": "The start event handler could verify that the message's clientId matches the slot-0 player's id. However, impact is UX-only: both clients see the same countdown, and the server re-sim determines the winner. Acceptable risk.",
+      "blocked_by": "Server re-simulation. Countdown is wall-clock synchronized so both clients start simultaneously. No timing advantage possible."
+    },
+    {
+      "severity": "info",
+      "location": "app/src/components/Duel/DuelRoom.tsx:443",
+      "issue": "countdownStartsAt is set by the coordinator (slot-0 client) using Date.now() and broadcast to the opponent. A malicious coordinator could send a manipulated timestamp.",
+      "reproduction": "Coordinator sends { type: 'start', serverTimestamp: Date.now() - 3000 } to skip the countdown.",
+      "fix": "Both clients derive their countdown from the same timestamp and call start() at the same time. The server re-simulation is tick-based, not time-based — the number of wall-clock seconds before the match started has no effect on the authoritative outcome. No fix needed.",
+      "blocked_by": "The re-simulation replays both input logs from tick 0. Wall-clock skew cannot influence the authoritative outcome."
+    },
+    {
+      "severity": "info",
+      "location": "pnpm audit output",
+      "issue": "Pre-existing transitive dependency vulnerabilities: deepmerge-ts stack exhaustion (via @prisma/client), uuid buffer bounds (via firebase-admin, @capacitor/cli), fflate infinite loop (via @vercel/og). None introduced by this change.",
+      "fix": "Monitor upstream releases of Prisma, firebase-admin, @vercel/og for patched versions. deepmerge-ts is Prisma-internal and not exposed to user input. uuid bounds check requires passing a custom buffer (not used here). fflate is @vercel/og internal (OG image generation, not user-controlled ZIP input)."
+    },
+    {
+      "severity": "info",
+      "location": "app/src/components/Game/paintClimbFrame.ts:330-338",
+      "issue": "Player display names are rendered via Canvas 2D ctx.fillText(). Confirmed: Canvas text rendering does not interpret HTML/JS — no XSS risk from arbitrary name strings.",
+      "fix": "No fix needed. Canvas fillText is inherently safe from injection."
+    }
+  ],
+  "feedback": [],
+  "nextStage": "qa-acceptance",
+  "learnings": [
+    {
+      "forAgents": ["software-engineer"],
+      "insight": "Ably pub/sub events (ready, unready, start) carry a self-reported slot field but the handler does not validate it against the Ably message's clientId. A participant can spoof events for the opponent's slot. Impact is UX-only because game outcomes are server-authoritative.",
+      "action": "If ranked/competitive play is added, consider exposing msg.clientId from the Ably Message object in the RealtimeHandle.onEvent callback and validating that the event's slot matches the known participant mapping.",
+      "kind": "risk",
+      "topic": "ably-event-trust",
+      "confidence": 0.9
+    },
+    {
+      "forAgents": ["qa-acceptance"],
+      "insight": "The ready-up mechanism is entirely client-side coordination over Ably. No server-side ready state exists. The server only cares about the result submission (replay + claimed outcome). QA should verify that the game functions correctly even if ready/start events arrive in unexpected order.",
+      "action": "Test the happy path (both ready, countdown, play) and the edge case where one player disconnects during countdown.",
+      "kind": "lesson",
+      "topic": "lobby-trust-model",
+      "confidence": 1.0
+    },
+    {
+      "forAgents": ["all"],
+      "insight": "Ably presence actions (enter/leave/present/absent) cannot be spoofed by publishing messages — they are managed by Ably's infrastructure and tied to the authenticated clientId. This is a reliable signal for opponent connectivity. Regular pub/sub events, however, carry self-reported data and should be treated as untrusted for anything beyond UX.",
+      "action": "Use presence for identity-sensitive state (who is connected) and pub/sub only for display-only or server-verified data.",
+      "kind": "lesson",
+      "topic": "ably-presence-vs-pubsub-trust",
+      "confidence": 1.0
+    }
+  ]
+}

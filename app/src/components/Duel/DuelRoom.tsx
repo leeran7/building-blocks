@@ -2,24 +2,24 @@
 
 /**
  * /duel/[id] room — orchestrates the full match lifecycle.
- * Lobby → Countdown → Live race → Finished → Result
+ * Lobby → Ready-up → Countdown → Live race → Finished → Result
  *
  * Lifecycle:
  *   1. Fetch duel metadata. If pending, POST /join first.
  *   2. Connect Ably. Subscribe to control events + presence, then enter presence.
- *   3. Slot-0 (coordinator) waits until both players are present, then publishes
- *      "start" (re-broadcast a few times for reliability).
- *   4. On "start" → call useRace.start() → countdown → climb.
+ *   3. Both players manually tap Ready in the shared lobby. Coordinator (slot-0)
+ *      waits for both "ready" events, then publishes "start" with a wall-clock
+ *      countdown timestamp (`countdownStartsAt`).
+ *   4. On "start" → call useRace.start() → wall-clock countdown → climb.
  *   5. On finish → show DuelResult.
  */
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Spinner } from "../ui/Spinner";
 import { useAuth } from "../../contexts/AuthContext";
 import { useRace, RaceParticipant } from "../../game/useRace";
-import { useClimb } from "../../game/useClimb";
 import { ClimbCanvas } from "../Game/ClimbCanvas";
 import { ExpeditionHud, type DuelHudInfo } from "../Game/ExpeditionHud";
 import {
@@ -38,6 +38,7 @@ import { DuelResult } from "./DuelResult";
 import { connectRealtime, RealtimeHandle } from "../../net/realtime";
 import { buildTower } from "../../game/towers";
 import { hazardPhase } from "../../game/hazard";
+import { createMatch } from "../../game/simulation";
 import { shareInvite } from "../../lib/shareInvite";
 
 // ─────────────────────────────── Types ────────────────────────────────────
@@ -68,15 +69,25 @@ interface DuelRoomProps {
   duelId: string;
 }
 
-// ─────────────────────────────── Practice lobby ───────────────────────────
+/** Wall-clock buffer before countdown numerals begin (ms). */
+const COUNTDOWN_BUFFER_MS = 500;
+/** Wall-clock countdown duration (ms). */
+const COUNTDOWN_DURATION_MS = 3000;
+/** Both present, no ready for this long → "Ready up!" nudge. */
+const READY_NUDGE_MS = 60_000;
+/** AFK in lobby this long → auto-forfeit. */
+const AFK_FORFEIT_MS = 120_000;
+
+// ─────────────────────────────── Waiting lobby ───────────────────────────
 
 /**
- * Warm-up solo climb shown while waiting for the opponent to join.
- * Runs on a fresh random seed (never the duel seed — no pre-scouting).
- * Tear it down by unmounting (parent replaces it on duel start).
+ * Static lobby scene shown while waiting for an opponent to accept the invite.
+ * Renders a single idle character at the tower base (no playable warm-up). The
+ * invite/share UX overlays the scene. Replaced by DuelGame once the seed lands.
  */
-function PracticeGame({
+function WaitingLobby({
   categorySlug,
+  myName,
   touchDevice,
   linkCopied,
   waitedTooLong,
@@ -84,20 +95,25 @@ function PracticeGame({
   onLeave,
 }: {
   categorySlug: string;
+  myName: string;
   touchDevice: boolean;
   linkCopied: boolean;
   waitedTooLong: boolean;
   onCopyLink: () => void;
   onLeave: () => void;
 }) {
-  // Same tower archetype as the real duel category, but with NO seed lock so
-  // useClimb rolls a fresh random map each run — a representative warm-up that
-  // never reveals the duel's actual layout (no pre-scouting the real seed).
-  const [tower] = useState(() => buildTower(categorySlug));
+  const [lobbyState] = useState(() => {
+    const tower = buildTower(categorySlug);
+    const m = createMatch({
+      seed: "lobby-" + Date.now(),
+      mode: "solo",
+      tower,
+      playerIds: ["me"],
+    });
+    m.phase = "lobby";
+    return m;
+  });
 
-  const { state, renderFeed, start, finished, setTouch } = useClimb({ tower });
-
-  // Same responsive stage as the live match / solo climb.
   const canvasBoxRef = useRef<HTMLDivElement>(null);
   const canvasSize = useCanvasSize(canvasBoxRef, { fill: touchDevice });
   const safeArea = useSafeAreaInsets();
@@ -107,21 +123,9 @@ function PracticeGame({
     supported: fullscreenSupported,
     toggle: toggleFullscreen,
   } = useFullscreen(sceneRef);
-  const bottomInset = touchDevice
-    ? TOUCH_CONTROLS_INSET + Math.max(TOUCH_CONTROLS_MIN_BOTTOM, safeArea.bottom)
-    : 0;
-  const phase = state.phase;
-  const touchControlsActive =
-    touchDevice && (phase === "countdown" || phase === "climb");
-  // Warm-up loops continuously, so lock scroll for the whole scene on desktop
-  // too (there is no idle lobby to scroll here).
   useBodyScrollLock(true);
 
-  // Start on mount and restart when the warm-up run ends
-  useEffect(() => { start(); }, [start]); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => {
-    if (finished) start();
-  }, [finished, start]);
+  const playerNames: Record<string, string> = { me: myName };
 
   return (
     <div
@@ -134,11 +138,8 @@ function PracticeGame({
             : "flex flex-col items-center gap-3 min-h-screen bg-void text-text-primary py-4"
       }
     >
-      {/* Desktop-only placeholder HUD, same shape as DuelGame's real one (name
-          bar + altitude row) so the moment an opponent joins and this swaps
-          for the real match doesn't insert/resize this block — that swap was
-          a visible layout shift. Touch never had this problem (DuelGame's HUD
-          is an absolute overlay there), so it's skipped on touch. */}
+      {/* Desktop-only placeholder HUD, same shape as DuelGame's real one so
+          the transition into the real match doesn't cause a layout shift. */}
       {!touchDevice && (
         <div
           className="flex flex-col overflow-hidden rounded-xl border border-border-subtle"
@@ -181,82 +182,69 @@ function PracticeGame({
         }
         style={touchDevice ? undefined : { width: canvasSize.width }}
       >
-      {/* Warm-up canvas (solo, throwaway) */}
-      <ClimbCanvas
-        state={state}
-        feed={renderFeed}
-        width={canvasSize.width}
-        height={canvasSize.height}
-        bottomInset={bottomInset}
-        fullBleed={touchDevice}
-        hudInsetTop={touchDevice ? safeArea.top : 0}
-      />
+        <ClimbCanvas
+          state={lobbyState}
+          width={canvasSize.width}
+          height={canvasSize.height}
+          fullBleed={touchDevice}
+          hudInsetTop={touchDevice ? safeArea.top : 0}
+          myId="me"
+          playerNames={playerNames}
+        />
 
-      {/* Escape hatch — the full-bleed stage covers the navbar on mobile. Left
-          side; the waiting/invite HUD sits on the right, so they don't collide. */}
-      {touchDevice && (
-        <GameExitButton safeArea={safeArea} onLeave={onLeave} label="Leave duel" />
-      )}
-
-      {/* Waiting HUD overlay */}
-      <div
-        className="absolute inset-x-0 top-0 flex flex-col items-end justify-start p-4 gap-2 pointer-events-none"
-        style={
-          touchDevice
-            ? {
-                paddingTop: `max(16px, ${safeArea.top + 8}px)`,
-                paddingRight: `max(16px, ${safeArea.right}px)`,
-              }
-            : undefined
-        }
-      >
-        <div className="bg-void/80 backdrop-blur-xs rounded-xl border border-border-subtle px-3 py-2 pointer-events-auto max-w-[200px]">
-          {!waitedTooLong ? (
-            <div className="flex flex-col items-center gap-2 text-center">
-              <div className="flex items-center gap-2">
-                <Spinner size="sm" />
-                <p className="font-mono text-xs text-text-secondary">
-                  Waiting for opponent…
-                </p>
-              </div>
-              {/* Invite is the primary action here — this lobby is its canonical
-                  home. Native share sheet first, clipboard as fallback. */}
-              <button
-                onClick={onCopyLink}
-                className="inline-flex items-center justify-center rounded-full px-3 min-h-[36px] bg-signal text-void font-semibold text-xs hover:brightness-110 active:scale-[0.98] transition-[filter,transform,scale] w-full focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void"
-              >
-                {linkCopied ? "Copied!" : "Share invite"}
-              </button>
-            </div>
-          ) : (
-            <div className="flex flex-col items-center gap-2 text-center">
-              <p className="font-mono text-xs text-text-secondary">
-                Opponent hasn&apos;t joined yet.
-              </p>
-              <button
-                onClick={onCopyLink}
-                className="inline-flex items-center justify-center rounded-full px-3 min-h-[36px] bg-signal text-void font-semibold text-xs hover:brightness-110 active:scale-[0.98] transition-[filter,transform,scale] w-full focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void"
-              >
-                {linkCopied ? "Copied!" : "Share invite"}
-              </button>
-              <button
-                onClick={onLeave}
-                className="text-text-muted text-xs underline underline-offset-2"
-              >
-                Back to duels
-              </button>
-            </div>
-          )}
-        </div>
-        <p className="font-mono text-[10px] text-text-muted bg-void/70 rounded-sm px-2 py-1 pointer-events-none">
-          warm-up • not ranked
-        </p>
-      </div>
-
-        {/* Touch controls: the warm-up climb is playable while you wait. */}
         {touchDevice && (
-          <TouchControls active={touchControlsActive} onInput={setTouch} />
+          <GameExitButton safeArea={safeArea} onLeave={onLeave} label="Leave duel" />
         )}
+
+        {/* Waiting HUD overlay */}
+        <div
+          className="absolute inset-x-0 top-0 flex flex-col items-end justify-start p-4 gap-2 pointer-events-none"
+          style={
+            touchDevice
+              ? {
+                  paddingTop: `max(16px, ${safeArea.top + 8}px)`,
+                  paddingRight: `max(16px, ${safeArea.right}px)`,
+                }
+              : undefined
+          }
+        >
+          <div className="bg-void/80 backdrop-blur-xs rounded-xl border border-border-subtle px-3 py-2 pointer-events-auto max-w-[200px]">
+            {!waitedTooLong ? (
+              <div className="flex flex-col items-center gap-2 text-center">
+                <div className="flex items-center gap-2">
+                  <Spinner size="sm" />
+                  <p className="font-mono text-xs text-text-secondary">
+                    Waiting for opponent…
+                  </p>
+                </div>
+                <button
+                  onClick={onCopyLink}
+                  className="inline-flex items-center justify-center rounded-full px-3 min-h-[44px] bg-signal text-void font-semibold text-xs hover:brightness-110 active:scale-[0.98] transition-[filter,transform,scale] w-full focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void"
+                >
+                  {linkCopied ? "Copied!" : "Share invite"}
+                </button>
+              </div>
+            ) : (
+              <div className="flex flex-col items-center gap-2 text-center">
+                <p className="font-mono text-xs text-text-secondary">
+                  Opponent hasn&apos;t joined yet.
+                </p>
+                <button
+                  onClick={onCopyLink}
+                  className="inline-flex items-center justify-center rounded-full px-3 min-h-[44px] bg-signal text-void font-semibold text-xs hover:brightness-110 active:scale-[0.98] transition-[filter,transform,scale] w-full focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void"
+                >
+                  {linkCopied ? "Copied!" : "Share invite"}
+                </button>
+                <button
+                  onClick={onLeave}
+                  className="text-text-muted text-xs underline underline-offset-2"
+                >
+                  Back to duels
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
 
         {!touchDevice && fullscreenSupported && (
           <FullscreenButton
@@ -285,7 +273,6 @@ interface GameProps {
   player1Id: string;
   player2Id: string;
   onRematch: (newDuelId: string) => void;
-  /** Leave the room (navigate away). DuelGame forfeits first if still live. */
   onExit: () => void;
 }
 
@@ -304,14 +291,8 @@ function DuelGame({
   onRematch,
   onExit,
 }: GameProps) {
-  // Canonical tower for this category — useRace applies the run seed internally,
-  // producing a tower bit-identical to the server's simulateDuel re-sim
-  // (buildTower(categorySlug, { runSeed: seed })). Anything else diverges and
-  // gets cheat-flagged.
   const [tower] = useState(() => buildTower(categorySlug));
 
-  // Slot→id map for the race sim (slot 0 = player1, slot 1 = player2). The sim,
-  // renderer, and useRace are all slot-indexed, so this generalizes to N.
   const participants: RaceParticipant[] = [
     { slot: 0, id: player1Id },
     { slot: 1, id: player2Id },
@@ -340,26 +321,17 @@ function DuelGame({
     guestId,
   });
 
-  // Leaving mid-race forfeits so the opponent isn't stranded waiting on a ghost
-  // (mirrors the beforeunload forfeit below); once the match is over it's just
-  // navigation.
   const handleLeave = useCallback(() => {
     if (!finished) {
       try {
         realtime.publishEvent({ type: "forfeit", slot: mySlot, reason: "disconnect" });
       } catch {
-        /* realtime may be down — navigate away regardless */
+        /* realtime may be down */
       }
     }
     onExit();
   }, [finished, realtime, mySlot, onExit]);
 
-  const { token } = useAuth();
-  const router = useRouter();
-
-  // Same responsive stage as the solo climb ("The Climb"): full-bleed on touch
-  // devices (canvas fills the viewport, HUD overlaid within the safe area, touch
-  // controls at the bottom), framed 9:16 column on desktop with keyboard input.
   const touchDevice = useCoarsePointer();
   const canvasBoxRef = useRef<HTMLDivElement>(null);
   const canvasSize = useCanvasSize(canvasBoxRef, { fill: touchDevice });
@@ -373,37 +345,69 @@ function DuelGame({
 
   const startedRef = useRef(false);
   const [connectionState, setConnectionState] = useState<string>("connected");
-  // Persisted across effect re-runs so intermittent presence blips don't reset
-  // the slot-1 fallback clock.
   const bothPresentSinceRef = useRef(0);
-  // Track which slots have published "ready" (explicit subscription proof).
   const readySlotsRef = useRef<Set<number>>(new Set());
 
-  // Handshake (ready-event authoritative):
-  // - Subscribe to control events + presence BEFORE announcing ourselves, so we
-  //   can never miss the coordinator's "start" (Ably does not replay channel
-  //   messages to subscribers that attach after publish).
-  // - Both players publish a "ready" event after subscribing + entering presence.
-  //   This is an explicit proof of subscription, more reliable than presence
-  //   alone (which can have stale entries or sync delays).
-  // - Slot-0 (coordinator) waits until it receives a "ready" from the other
-  //   slot, then publishes "start" (re-broadcast a few times for reliability).
-  //   Presence is still checked as a prerequisite, but "ready" is the gate.
+  // ── Lobby ready-up state ────────────────────────────────────────────────────
+  const [localReady, setLocalReady] = useState(false);
+  const [opponentReady, setOpponentReady] = useState(false);
+  const [opponentPresent, setOpponentPresent] = useState(false);
+  const [readyNudge, setReadyNudge] = useState(false);
+  const joinBeatFiredRef = useRef(false);
+
+  // ── Wall-clock countdown ────────────────────────────────────────────────────
+  const countdownStartsAtRef = useRef(0);
+  const [countdownStartsAt, setCountdownStartsAt] = useState(0);
+  const [wallClockCountdown, setWallClockCountdown] = useState(0);
+
+  const opponentSlot = mySlot === 0 ? 1 : 0;
+
+  // Ready button: publish event + update presence data.
+  const handleReady = useCallback(() => {
+    setLocalReady(true);
+    readySlotsRef.current.add(mySlot);
+    realtime.publishEvent({ type: "ready", slot: mySlot });
+    realtime.updatePresence({
+      uid: myId,
+      displayName: mySlot === 0 ? player1Name : player2Name,
+      slot: mySlot,
+      ready: true,
+    });
+  }, [realtime, myId, mySlot, player1Name, player2Name]);
+
+  const handleUnready = useCallback(() => {
+    setLocalReady(false);
+    readySlotsRef.current.delete(mySlot);
+    realtime.publishEvent({ type: "unready", slot: mySlot });
+    realtime.updatePresence({
+      uid: myId,
+      displayName: mySlot === 0 ? player1Name : player2Name,
+      slot: mySlot,
+      ready: false,
+    });
+  }, [realtime, myId, mySlot, player1Name, player2Name]);
+
+  // ── Handshake (manual ready-up, coordinator-driven start) ─────────────────
   useEffect(() => {
     let disposed = false;
 
-    const beginMatch = () => {
+    const beginMatch = (startTimestamp: number) => {
       if (startedRef.current) return;
       startedRef.current = true;
       stopPoll();
-      start();
+      countdownStartsAtRef.current = startTimestamp;
+      setCountdownStartsAt(startTimestamp);
+
+      const delay = Math.max(0, startTimestamp - Date.now());
+      if (delay > 0) {
+        setTimeout(() => {
+          if (!disposed) start();
+        }, delay);
+      } else {
+        start();
+      }
     };
 
-    // A presence "leave" can fire on a transient Ably blip or a phone briefly
-    // backgrounding the tab, so don't award the win instantly — wait a while and
-    // re-check presence; a real departure stays gone, a blip/return re-enters and
-    // clears this timer. (The explicit "forfeit" event below is the fast,
-    // unambiguous path for an intentional leave / tab close.)
     const LEAVE_GRACE_MS = 12_000;
     let leaveTimer: ReturnType<typeof setTimeout> | null = null;
     const clearLeaveTimer = () => {
@@ -413,8 +417,6 @@ function DuelGame({
       }
     };
 
-    // Coordinator re-broadcasts "start" (~8 publishes over ~2.8s) so a single
-    // dropped packet can't strand the opponent; the receiver is idempotent.
     let rebroadcasts = 0;
     let rebroadcastTimer: ReturnType<typeof setInterval> | null = null;
     const stopRebroadcast = () => {
@@ -424,8 +426,6 @@ function DuelGame({
       }
     };
 
-    // Both slots poll presence as a safety net against a stale presence read or
-    // a missed "enter"/"ready" event, until the match starts.
     let pollTimer: ReturnType<typeof setInterval> | null = null;
     function stopPoll() {
       if (pollTimer) {
@@ -434,22 +434,16 @@ function DuelGame({
       }
     }
 
-    // Slot-1 fallback: if both players have been present this long without a
-    // "start" arriving (i.e. every coordinator broadcast dropped), begin anyway
-    // rather than dead-end in the lobby. Generous so it never fires in normal
-    // operation (start arrives in well under a second); the countdown absorbs the
-    // small resulting offset. Uses a ref so effect re-runs don't reset the clock.
     const SLOT1_FALLBACK_MS = 5000;
 
     const tryCoordinatorStart = () => {
       if (startedRef.current || disposed) return;
-      // Gate on both "ready" signals, not just presence.
       if (readySlotsRef.current.size < 2) return;
 
       if (mySlot === 0) {
-        const startTs = Date.now();
-        beginMatch();
-        realtime.publishEvent({ type: "start", serverTimestamp: startTs });
+        const countdownTs = Date.now() + COUNTDOWN_BUFFER_MS;
+        beginMatch(countdownTs);
+        realtime.publishEvent({ type: "start", serverTimestamp: countdownTs });
         stopRebroadcast();
         rebroadcasts = 0;
         rebroadcastTimer = setInterval(() => {
@@ -458,7 +452,7 @@ function DuelGame({
             stopRebroadcast();
             return;
           }
-          realtime.publishEvent({ type: "start", serverTimestamp: startTs });
+          realtime.publishEvent({ type: "start", serverTimestamp: countdownTs });
         }, 400);
       }
     };
@@ -467,42 +461,50 @@ function DuelGame({
       if (startedRef.current || disposed) return;
       const members = await realtime.getPresence().catch(() => []);
       if (disposed || startedRef.current) return;
-      // Count presence ENTRIES, not distinct clientIds: Ably returns one entry
-      // per connection, so two participants = two entries even when they share a
-      // clientId (e.g. two tabs on the same account, or same-account testing).
-      // Deduping by clientId would collapse that to 1 and hang the lobby forever.
       if (members.length < 2) return;
 
+      if (bothPresentSinceRef.current === 0) {
+        bothPresentSinceRef.current = Date.now();
+      }
+
       if (mySlot === 0) {
-        // Coordinator: check if we have both readies.
         tryCoordinatorStart();
       } else {
-        // Slot-1 normally begins on the "start" event; this is only the
-        // all-broadcasts-dropped rescue. The ref survives effect re-runs.
-        if (bothPresentSinceRef.current === 0) bothPresentSinceRef.current = Date.now();
-        else if (Date.now() - bothPresentSinceRef.current >= SLOT1_FALLBACK_MS) beginMatch();
+        if (
+          readySlotsRef.current.size >= 2 &&
+          bothPresentSinceRef.current > 0 &&
+          Date.now() - bothPresentSinceRef.current >= SLOT1_FALLBACK_MS
+        ) {
+          beginMatch(Date.now());
+        }
       }
     };
 
     // 1) Subscribe first — before we enter presence.
-    const unsubStart = realtime.onEvent("start", () => beginMatch());
+    const unsubStart = realtime.onEvent("start", (msg) => {
+      const ts = msg.serverTimestamp ?? Date.now();
+      beginMatch(ts);
+    });
 
-    // Peer "ready" — explicit proof that the other player's subscriptions are
-    // live. The coordinator gates "start" on this instead of presence alone.
     const unsubReady = realtime.onEvent("ready", (msg) => {
       if (typeof msg.slot === "number") {
         readySlotsRef.current.add(msg.slot);
+        if (msg.slot !== mySlot) setOpponentReady(true);
         tryCoordinatorStart();
       }
     });
 
-    // Opponent forfeited (explicit leave / beforeunload) — we win immediately,
-    // no need to wait for the stall clock.
+    const unsubUnready = realtime.onEvent("unready", (msg) => {
+      if (typeof msg.slot === "number") {
+        readySlotsRef.current.delete(msg.slot);
+        if (msg.slot !== mySlot) setOpponentReady(false);
+      }
+    });
+
     const unsubForfeit = realtime.onEvent("forfeit", () => {
       opponentForfeited();
     });
 
-    // Handle rematch
     const unsubRematch = realtime.onEvent("rematch", (msg) => {
       if (msg.newDuelId) {
         onRematch(msg.newDuelId);
@@ -511,7 +513,14 @@ function DuelGame({
 
     const unsubPresence = realtime.onPresence((action, member) => {
       if (action === "leave" || action === "absent") {
-        if (member.clientId === myId || !startedRef.current) return;
+        if (member.clientId === myId) return;
+        if (!startedRef.current) {
+          setOpponentReady(false);
+          setOpponentPresent(false);
+          readySlotsRef.current.delete(opponentSlot);
+          bothPresentSinceRef.current = 0;
+          return;
+        }
         clearLeaveTimer();
         leaveTimer = setTimeout(async () => {
           const members = await realtime.getPresence().catch(() => []);
@@ -520,40 +529,39 @@ function DuelGame({
         }, LEAVE_GRACE_MS);
         return;
       }
-      if (action !== "enter" && action !== "present") return;
-      if (member.clientId !== myId) clearLeaveTimer(); // opponent (re)appeared
-      evaluateStart(); // fast path
+      if (action !== "enter" && action !== "present" && action !== "update") return;
+      if (member.clientId !== myId) {
+        clearLeaveTimer();
+        setOpponentPresent(true);
+        if (bothPresentSinceRef.current === 0) {
+          bothPresentSinceRef.current = Date.now();
+        }
+        if (
+          !joinBeatFiredRef.current &&
+          (action === "enter" || action === "present")
+        ) {
+          joinBeatFiredRef.current = true;
+          setJoinBeat(true);
+          setTimeout(() => setJoinBeat(false), 1800);
+        }
+      }
+      evaluateStart();
     });
 
-    // 2) Announce ourselves in presence.
+    // 2) Enter presence with ready: false.
     realtime.enterPresence({
       uid: myId,
       displayName: mySlot === 0 ? player1Name : player2Name,
       slot: mySlot,
+      ready: false,
     });
 
-    // 3) Publish "ready" — explicit signal that our subscriptions are live.
-    //    Re-publish a few times to survive a dropped message; receivers dedup
-    //    via the Set. Mark ourselves ready locally as well.
-    readySlotsRef.current.add(mySlot);
-    realtime.publishEvent({ type: "ready", slot: mySlot });
-    let readyRebroadcasts = 0;
-    const readyTimer = setInterval(() => {
-      readyRebroadcasts += 1;
-      if (disposed || startedRef.current || readyRebroadcasts > 3) {
-        clearInterval(readyTimer);
-        return;
-      }
-      realtime.publishEvent({ type: "ready", slot: mySlot });
-    }, 500);
+    // NO auto-ready: user must tap the Ready button.
 
-    // 4) Kick off immediately (covers the already-present opponent) and then
-    //    poll until the match starts — coordinator elects/broadcasts start,
-    //    slot-1 uses it as the dropped-broadcast rescue.
+    // 3) Poll presence as a safety net.
     evaluateStart();
     pollTimer = setInterval(evaluateStart, 600);
 
-    // beforeunload: publish forfeit on disconnect
     const handleBeforeUnload = () => {
       realtime.publishEvent({ type: "forfeit", slot: mySlot, reason: "disconnect" });
     };
@@ -563,22 +571,55 @@ function DuelGame({
       disposed = true;
       unsubStart();
       unsubReady();
+      unsubUnready();
       unsubForfeit();
       unsubRematch();
       unsubPresence();
       window.removeEventListener("beforeunload", handleBeforeUnload);
       clearLeaveTimer();
-      clearInterval(readyTimer);
       stopPoll();
       stopRebroadcast();
     };
-  }, [realtime, myId, mySlot, player1Name, player2Name, start, onRematch, opponentForfeited]);
+  }, [realtime, myId, mySlot, opponentSlot, player1Name, player2Name, start, onRematch, opponentForfeited]);
 
-  // Surface connection health so a blip reads as "reconnecting", not a freeze.
+  // Surface connection health.
   useEffect(() => {
     const unsub = realtime.onConnectionState((s) => setConnectionState(s));
     return unsub;
   }, [realtime]);
+
+  // ── Wall-clock countdown timer ──────────────────────────────────────────────
+  useEffect(() => {
+    if (countdownStartsAt === 0) return;
+    const update = () => {
+      const elapsed = Date.now() - countdownStartsAt;
+      const remaining = Math.max(0, Math.ceil((COUNTDOWN_DURATION_MS - elapsed) / 1000));
+      setWallClockCountdown(remaining);
+    };
+    update();
+    const timer = setInterval(update, 50);
+    return () => clearInterval(timer);
+  }, [countdownStartsAt]);
+
+  // ── Unready timeout: 60s nudge, 120s auto-forfeit ─────────────────────────
+  useEffect(() => {
+    const phase = state.phase;
+    if (phase !== "lobby" || !opponentPresent) return;
+    const since = bothPresentSinceRef.current;
+    if (since === 0) return;
+
+    const nudgeDelay = Math.max(0, READY_NUDGE_MS - (Date.now() - since));
+    const forfeitDelay = Math.max(0, AFK_FORFEIT_MS - (Date.now() - since));
+
+    const nudgeTimer = setTimeout(() => setReadyNudge(true), nudgeDelay);
+    const forfeitTimer = setTimeout(() => handleLeave(), forfeitDelay);
+
+    return () => {
+      clearTimeout(nudgeTimer);
+      clearTimeout(forfeitTimer);
+      setReadyNudge(false);
+    };
+  }, [state.phase, opponentPresent, handleLeave]);
 
   const playerNames: Record<string, string> = {
     [player1Id]: player1Name,
@@ -586,19 +627,12 @@ function DuelGame({
   };
 
   const phase = state.phase;
-  // Lock scroll while the race is live (touch is already full-bleed); the
-  // finished/results phase unlocks so a tall result card can scroll if needed.
   useBodyScrollLock(
-    touchDevice || isFullscreen || phase === "countdown" || phase === "climb"
+    touchDevice || isFullscreen || phase === "lobby" || phase === "countdown" || phase === "climb"
   );
 
-  // Duel-mode mute state (matches solo pattern — simple toggle, no audio engine
-  // integration needed since the duel doesn't play music yet).
   const [muted, setMuted] = useState(false);
 
-  // Live altitude ordering for the lead bar. Iterate ALL players (not a hardcoded
-  // two) so this generalizes cheaply to the planned group-race (≤4). Sort by
-  // slot for a stable left→right order that matches the versus bar.
   const racers = [...state.players].sort((a, b) => a.slot - b.slot);
   const maxAlt = racers.reduce((m, p) => Math.max(m, p.y), 0);
   const leader = racers.reduce<typeof racers[number] | null>(
@@ -623,28 +657,22 @@ function DuelGame({
         isMe,
         isLeader: leader !== null && p.slot === leader.slot && maxAlt > 0,
         stale: isOpp && phase === "climb" && opponentStale,
+        ready: readySlotsSet.has(p.slot),
       };
     }),
     maxAlt,
     phase,
     connectionState,
     opponentStale,
+    opponentPresent,
   };
 
   // ── Delight beats ──────────────────────────────────────────────────────────
-  // (1) "Opponent joined!" — fired once on the lobby → countdown transition.
-  // (2) Countdown → LIVE release flash — fired once when climb begins.
   const [joinBeat, setJoinBeat] = useState(false);
   const [liveBeat, setLiveBeat] = useState(false);
   const prevPhaseRef = useRef(phase);
   useEffect(() => {
     const prev = prevPhaseRef.current;
-    if (prev !== "countdown" && phase === "countdown") {
-      setJoinBeat(true);
-      const t = setTimeout(() => setJoinBeat(false), 1800);
-      prevPhaseRef.current = phase;
-      return () => clearTimeout(t);
-    }
     if (prev !== "climb" && phase === "climb") {
       setLiveBeat(true);
       const t = setTimeout(() => setLiveBeat(false), 900);
@@ -654,19 +682,30 @@ function DuelGame({
     prevPhaseRef.current = phase;
   }, [phase]);
 
-  // Countdown numeral (3-2-1). Extracted so we can drive the release beat off it.
-  const countdownNum = Math.max(1, 3 - Math.floor(state.tick / 30));
+  // Countdown numeral derived from wall-clock for cross-client sync.
+  const countdownNum = countdownStartsAt > 0
+    ? wallClockCountdown
+    : Math.max(1, 3 - Math.floor(state.tick / 30));
 
-  // Camera clearance under the touch controls (buttons + their safe-area gutter)
-  // so the player isn't hidden behind the button bar — mirrors the solo climb.
   const bottomInset = touchDevice
     ? TOUCH_CONTROLS_INSET + Math.max(TOUCH_CONTROLS_MIN_BOTTOM, safeArea.bottom)
     : 0;
   const touchControlsActive =
     touchDevice && (phase === "countdown" || phase === "climb");
 
-  // The local player for ExpeditionHud's height/clearance instruments.
   const myPlayer = state.players.find((p) => p.slot === mySlot);
+
+  const readySlotsSet = useMemo(() => {
+    const s = new Set<number>();
+    if (localReady) s.add(mySlot);
+    if (opponentReady) s.add(opponentSlot);
+    return s;
+  }, [localReady, opponentReady, mySlot, opponentSlot]);
+
+  const hiddenSlotsSet = useMemo(() => {
+    if (phase !== "lobby" || opponentPresent) return undefined;
+    return new Set([opponentSlot]);
+  }, [phase, opponentPresent, opponentSlot]);
 
   if (finished && duelResult) {
     return (
@@ -692,10 +731,6 @@ function DuelGame({
     );
   }
 
-  // Local run ended; the authoritative winner is being re-simulated server-side
-  // (and, on the pending path, we're waiting for the opponent's replay). Show a
-  // clear interstitial instead of freezing on the finished canvas or flashing a
-  // provisional local result.
   if (awaitingResult && !duelResult) {
     return (
       <div className="min-h-screen bg-void flex flex-col items-center justify-center gap-4 px-4 text-center">
@@ -713,13 +748,6 @@ function DuelGame({
     );
   }
 
-  // Lobby (both players known, presence handshake in flight — normally
-  // sub-second): render the real stage immediately rather than swapping to a
-  // separate throwaway warm-up component. That swap-and-swap-back was a
-  // structural DOM change (different container, an inserted HUD block) right
-  // as the match starts, which showed up as a visible layout shift. The real
-  // canvas already renders the lobby-phase spawn state safely (ClimbCanvas
-  // doesn't branch on phase), so there's nothing it's missing by starting here.
   return (
     <div
       ref={sceneRef}
@@ -751,11 +779,10 @@ function DuelGame({
           includeHud={false}
           myId={myId}
           playerNames={playerNames}
+          readySlots={readySlotsSet}
+          hiddenSlots={hiddenSlotsSet}
         />
 
-        {/* Shared ExpeditionHud with duel-specific instruments. Matches the solo
-            climb's HUD layout (height, lava clearance, utilities) plus versus bar,
-            altitude race bars, LIVE badge, and connection status. */}
         <ExpeditionHud
           player={myPlayer}
           hazardY={state.hazardY}
@@ -791,8 +818,7 @@ function DuelGame({
           duel={duelHudInfo}
         />
 
-        {/* "Opponent joined!" beat — a brief moment when the lobby flips into the
-            countdown so the match start feels like an arrival, not a jump cut. */}
+        {/* "Opponent joined!" beat — fires when opponent enters presence. */}
         {joinBeat && (
           <div
             className="absolute inset-x-0 top-[18%] flex justify-center pointer-events-none"
@@ -805,9 +831,49 @@ function DuelGame({
           </div>
         )}
 
-        {/* Countdown overlay (3-2-1) — matches the solo climb's Overlay pattern:
-            centered, backdrop blur, same font classes and structure. */}
-        {phase === "countdown" && (
+        {/* Lobby Ready button overlay */}
+        {phase === "lobby" && opponentPresent && !startedRef.current && (
+          <div className="absolute inset-x-0 bottom-[15%] flex flex-col items-center gap-3 pointer-events-none">
+            {readyNudge && !localReady && (
+              <span
+                className="font-mono text-xs text-warning motion-safe:animate-pulse pointer-events-none"
+                role="status"
+                aria-live="polite"
+              >
+                Ready up!
+              </span>
+            )}
+            {!localReady ? (
+              <button
+                onClick={handleReady}
+                className="pointer-events-auto inline-flex items-center justify-center rounded-full px-8 min-h-[48px] bg-signal text-void font-display font-bold text-lg uppercase tracking-wider hover:brightness-110 active:scale-[0.98] transition-[filter,transform,scale] shadow-signal focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void"
+                aria-label="Ready for match"
+              >
+                Ready
+              </button>
+            ) : (
+              <div className="flex flex-col items-center gap-2 pointer-events-auto">
+                <span className="font-mono text-xs text-signal">
+                  {opponentReady
+                    ? "Starting…"
+                    : "Waiting for opponent…"}
+                </span>
+                {!opponentReady && (
+                  <button
+                    onClick={handleUnready}
+                    className="inline-flex items-center justify-center rounded-full px-6 min-h-[44px] border border-border-strong text-text-secondary text-xs hover:border-signal/50 transition-colors"
+                    aria-label="Cancel ready"
+                  >
+                    Unready
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Countdown overlay (3-2-1) — matches the solo climb's Overlay pattern. */}
+        {phase === "countdown" && countdownNum > 0 && (
           <div className="absolute inset-0 flex flex-col items-center justify-center overflow-y-auto rounded-xl bg-void/70 backdrop-blur-xs p-4 text-center">
             <div className="my-auto flex w-full max-w-sm flex-col items-center py-2">
               <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-signal">
@@ -820,8 +886,7 @@ function DuelGame({
           </div>
         )}
 
-        {/* Countdown → LIVE release beat: a single bold "GO" flash as the climb
-            begins, then it fades (the LIVE pill in the HUD carries on). */}
+        {/* "GO" flash */}
         {liveBeat && (
           <div
             className="absolute inset-0 flex items-center justify-center pointer-events-none"
@@ -834,8 +899,6 @@ function DuelGame({
           </div>
         )}
 
-        {/* Touch controls (mobile). useRace feeds these into the sim via
-            setTouch → sampleInput, exactly like the solo climb. */}
         {touchDevice && (
           <TouchControls active={touchControlsActive} onInput={setTouch} />
         )}
@@ -856,12 +919,10 @@ export function DuelRoom({ duelId }: DuelRoomProps) {
   const [realtime, setRealtime] = useState<RealtimeHandle | null>(null);
   const [myId, setMyId] = useState<string>("");
   const [mySlot, setMySlot] = useState<0 | 1>(0);
-  /** Opaque guest token when the local player is an unauthenticated guest. */
   const [myGuestId, setMyGuestId] = useState<string | null>(null);
 
   const realtimeRef = useRef<RealtimeHandle | null>(null);
 
-  // Cleanup realtime on unmount
   useEffect(() => {
     return () => {
       realtimeRef.current?.dispose();
@@ -870,13 +931,6 @@ export function DuelRoom({ duelId }: DuelRoomProps) {
 
   // Load duel and connect
   useEffect(() => {
-    // Wait until Firebase auth has resolved before deciding who we are. If we
-    // run while auth is still initializing (user/token both null), a signed-in
-    // visitor — including the creator opening their own invite link — is
-    // mistaken for an anonymous guest, and the join below binds the duel to a
-    // throwaway guest identity. That corrupts the duel ("could not join duel"
-    // for the real opponent) the instant an invite link is opened. Once
-    // authLoading is false, a null user is a genuine anonymous guest.
     if (authLoading) return;
 
     let cancelled = false;
@@ -886,7 +940,6 @@ export function DuelRoom({ duelId }: DuelRoomProps) {
       : {};
 
     async function init() {
-      // Fetch duel metadata (auth header lets the server resolve our identity).
       const metaRes = await fetch(`/api/duel/${duelId}`, { headers: authHeaders });
       if (!metaRes.ok) {
         if (cancelled) return;
@@ -899,10 +952,6 @@ export function DuelRoom({ duelId }: DuelRoomProps) {
       const duelMeta = (await metaRes.json()) as DuelMeta;
       if (cancelled) return;
 
-      // Identity: a signed-in user is their uid; a guest uses the opaque token
-      // issued at join (persisted per-duel so a reload re-presents it). Player1
-      // is always authenticated (create/queue require auth), so only a joiner
-      // can be a guest.
       const guestKey = `duel-guest:${duelId}`;
       let guestToken: string | null = user?.uid
         ? null
@@ -911,15 +960,12 @@ export function DuelRoom({ duelId }: DuelRoomProps) {
           : null;
       let localId = user?.uid ?? guestToken ?? "";
 
-      // Reload after the match already ended → don't drop into an un-startable
-      // lobby; show a clear terminal state.
       if (duelMeta.status === "completed" || duelMeta.status === "voided") {
         setErrorMsg("This duel has already ended.");
         setPhase("error");
         return;
       }
 
-      // If pending and we're not already player1, join as player2.
       let finalMeta = duelMeta;
       if (duelMeta.status === "pending" && duelMeta.player1?.id !== localId) {
         const joinRes = await fetch(`/api/duel/${duelId}/join`, {
@@ -932,7 +978,6 @@ export function DuelRoom({ duelId }: DuelRoomProps) {
           if (cancelled) return;
           const body = (await joinRes.json().catch(() => ({}))) as { error?: string; code?: string };
           if (body.code === "DUEL_NOT_PENDING" || body.code === "ALREADY_JOINED") {
-            // Already active — re-fetch meta with seed
             const refetch = await fetch(`/api/duel/${duelId}`, { headers: authHeaders });
             if (refetch.ok) finalMeta = (await refetch.json()) as DuelMeta;
           } else {
@@ -949,13 +994,11 @@ export function DuelRoom({ duelId }: DuelRoomProps) {
           };
           if (joinBody.youId) {
             localId = joinBody.youId;
-            // Persist a freshly-issued guest token so a reload re-identifies us.
             if (!user?.uid && localId.startsWith("guest:") && typeof window !== "undefined") {
               guestToken = localId;
               window.sessionStorage.setItem(guestKey, localId);
             }
           }
-          // Merge seed and names into meta
           finalMeta = {
             ...duelMeta,
             seed: joinBody.seed,
@@ -970,25 +1013,17 @@ export function DuelRoom({ duelId }: DuelRoomProps) {
 
       if (cancelled) return;
 
-      // A guest who couldn't establish an identity (e.g. reload with no stored
-      // token on an active duel they never joined) cannot participate.
       if (!localId) {
         setErrorMsg("This duel is no longer open to join.");
         setPhase("error");
         return;
       }
 
-      // Re-fetch to get seed if still missing
       if (!finalMeta.seed) {
         const refetch = await fetch(`/api/duel/${duelId}`, { headers: authHeaders });
         if (refetch.ok) finalMeta = (await refetch.json()) as DuelMeta;
       }
 
-      // A pending duel withholds the seed (seed-oracle prevention, R-5) — it is
-      // only issued once an opponent joins. The CREATOR opening their own
-      // challenge link is therefore seedless BY DESIGN: they wait in the lobby
-      // on a throwaway warm-up map until someone joins, at which point the poll
-      // below picks the seed up. Only a genuinely unobtainable seed is an error.
       const awaitingJoin =
         !finalMeta.seed &&
         finalMeta.status === "pending" &&
@@ -1004,11 +1039,9 @@ export function DuelRoom({ duelId }: DuelRoomProps) {
       setMyGuestId(guestToken);
       setMeta(finalMeta);
 
-      // Determine slot
       const slot: 0 | 1 = finalMeta.player1?.id === localId ? 0 : 1;
       setMySlot(slot);
 
-      // Connect Ably (guests present their opaque token for the capability token)
       try {
         const handle = await connectRealtime(duelId, localId, guestToken);
         if (cancelled) {
@@ -1047,18 +1080,12 @@ export function DuelRoom({ duelId }: DuelRoomProps) {
   );
 
   // ── Waiting lobby (creator of a still-pending challenge) ──────────────────
-  // The seed is withheld until an opponent joins (see init), so the creator sits
-  // here on the warm-up climb. Everything below only runs while `meta.seed` is
-  // empty; once it lands, DuelGame takes over.
 
   const awaitingOpponent = Boolean(meta && !meta.seed);
   const touchDevice = useCoarsePointer();
   const [linkCopied, setLinkCopied] = useState(false);
   const [waitedTooLong, setWaitedTooLong] = useState(false);
 
-  // Poll for the seed — plus a presence fast-path, since realtime is already
-  // connected — so the room flips into the real match the moment the opponent
-  // joins and the duel goes active.
   useEffect(() => {
     if (!awaitingOpponent) return;
     let cancelled = false;
@@ -1091,15 +1118,12 @@ export function DuelRoom({ duelId }: DuelRoomProps) {
     };
   }, [awaitingOpponent, realtime, duelId, token]);
 
-  // After a while the invite probably isn't being accepted — surface the
-  // stronger invite + a way out instead of an endless spinner.
   useEffect(() => {
     if (!awaitingOpponent) return;
     const t = setTimeout(() => setWaitedTooLong(true), 75_000);
     return () => clearTimeout(t);
   }, [awaitingOpponent]);
 
-  /** Invite: native share sheet first, clipboard/prompt as fallback. */
   const shareInviteLink = useCallback(async () => {
     const url = `${window.location.origin}/duel/${duelId}`;
     const outcome = await shareInvite(url);
@@ -1109,8 +1133,6 @@ export function DuelRoom({ duelId }: DuelRoomProps) {
     }
   }, [duelId]);
 
-  // Leaving cancels the still-pending challenge, otherwise the creator's
-  // one-open-challenge slot is stranded and the next "Create challenge" 409s.
   const handleLeaveLobby = useCallback(async () => {
     try {
       await fetch(`/api/duel/${duelId}`, {
@@ -1118,7 +1140,7 @@ export function DuelRoom({ duelId }: DuelRoomProps) {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
     } catch {
-      // Ignore — the lobby is being abandoned either way.
+      // Ignore
     }
     router.push("/duel");
   }, [duelId, token, router]);
@@ -1154,13 +1176,12 @@ export function DuelRoom({ duelId }: DuelRoomProps) {
     );
   }
 
-  // Pending challenge whose seed hasn't been issued yet → the creator waits here
-  // (playable warm-up + invite). The seed poll above swaps this for the real
-  // match as soon as an opponent joins.
   if (!meta.seed) {
+    const myName = meta.player1?.displayName ?? "You";
     return (
-      <PracticeGame
+      <WaitingLobby
         categorySlug={meta.categorySlug}
+        myName={myName}
         touchDevice={touchDevice}
         linkCopied={linkCopied}
         waitedTooLong={waitedTooLong}

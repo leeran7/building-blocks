@@ -25,13 +25,14 @@ function baseDuelInfo(overrides: Partial<DuelHudInfo> = {}): DuelHudInfo {
     player1Name: "Alice",
     player2Name: "Bob",
     racers: [
-      { slot: 0, name: "Alice", y: 50, isMe: true, isLeader: true, stale: false },
-      { slot: 1, name: "Bob", y: 30, isMe: false, isLeader: false, stale: false },
+      { slot: 0, name: "Alice", y: 50, isMe: true, isLeader: true, stale: false, ready: false },
+      { slot: 1, name: "Bob", y: 30, isMe: false, isLeader: false, stale: false, ready: false },
     ],
     maxAlt: 50,
     phase: "climb",
     connectionState: "connected",
     opponentStale: false,
+    opponentPresent: true,
     ...overrides,
   };
 }
@@ -158,8 +159,8 @@ describe("AC-3 — versus instrument and race progress", () => {
       baseDuelInfo({
         maxAlt: 0,
         racers: [
-          { slot: 0, name: "Alice", y: 0, isMe: true, isLeader: false, stale: false },
-          { slot: 1, name: "Bob", y: 0, isMe: false, isLeader: false, stale: false },
+          { slot: 0, name: "Alice", y: 0, isMe: true, isLeader: false, stale: false, ready: false },
+          { slot: 1, name: "Bob", y: 0, isMe: false, isLeader: false, stale: false, ready: false },
         ],
       }),
     );
@@ -236,8 +237,8 @@ describe("AC-4 — opponent stale indicator", () => {
 
   it("applies stale opacity to opponent racer in the race bar", () => {
     const racers: DuelRacer[] = [
-      { slot: 0, name: "Alice", y: 50, isMe: true, isLeader: true, stale: false },
-      { slot: 1, name: "Bob", y: 30, isMe: false, isLeader: false, stale: true },
+      { slot: 0, name: "Alice", y: 50, isMe: true, isLeader: true, stale: false, ready: false },
+      { slot: 1, name: "Bob", y: 30, isMe: false, isLeader: false, stale: true, ready: false },
     ];
     const html = renderHud(baseDuelInfo({ racers, opponentStale: true }));
     expect(html).toContain("opacity-50");
@@ -327,7 +328,7 @@ describe("duel instruments — boundary values", () => {
     const html = renderHud(
       baseDuelInfo({
         racers: [
-          { slot: 0, name: "Alice", y: 75, isMe: true, isLeader: true, stale: false },
+          { slot: 0, name: "Alice", y: 75, isMe: true, isLeader: true, stale: false, ready: false },
         ],
         maxAlt: 75,
       }),
@@ -338,8 +339,8 @@ describe("duel instruments — boundary values", () => {
 
   it("handles very large altitude values without formatting errors", () => {
     const racers: DuelRacer[] = [
-      { slot: 0, name: "Alice", y: 999999.9, isMe: true, isLeader: true, stale: false },
-      { slot: 1, name: "Bob", y: 1, isMe: false, isLeader: false, stale: false },
+      { slot: 0, name: "Alice", y: 999999.9, isMe: true, isLeader: true, stale: false, ready: false },
+      { slot: 1, name: "Bob", y: 1, isMe: false, isLeader: false, stale: false, ready: false },
     ];
     const html = renderHud(baseDuelInfo({ racers, maxAlt: 999999.9 }));
     expect(html).toContain('aria-valuenow="100"');

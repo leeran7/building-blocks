@@ -1,0 +1,90 @@
+{
+  "agent": "reviewer",
+  "status": "success",
+  "summary": "Reviewed the shared lobby + ready button implementation across 7 files (ghosts.ts, useRace.ts, realtime.ts, paintClimbFrame.ts, ClimbCanvas.tsx, DuelRoom.tsx, duelLobby.test.ts). No critical findings. Two warnings: (1) readyNudge state not reset on opponent leave/return, (2) timeout effect race condition with bothPresentSinceRef — both have backstops. Four info items. Architecture and conventions are preserved. Safe to proceed.",
+  "timestamp": "2026-09-19T17:45:00Z",
+  "goal": "Code review the shared lobby + ready button implementation for 1v1 duels",
+  "nextStage": "qa-acceptance",
+  "exitCriteria": {
+    "no_critical_findings": true
+  },
+  "findings": [
+    {
+      "severity": "warning",
+      "location": "app/src/components/Duel/DuelRoom.tsx:601-617",
+      "issue": "Timeout effect race condition: bothPresentSinceRef.current is set asynchronously inside evaluateStart (after getPresence() resolves), but the timeout effect reads it synchronously at setup time. When the opponent joins, the presence handler calls setOpponentPresent(true) then evaluateStart(). React re-renders before getPresence resolves, so the timeout effect reads since === 0 and exits early. The nudge and forfeit timers are never set up because no subsequent dep change triggers the effect to re-run.",
+      "fix": "Set bothPresentSinceRef.current = Date.now() synchronously in the presence handler (line 534, right after setOpponentPresent(true)) when the opponent enters and the ref is 0. This ensures the ref is set before the timeout effect runs on the next render. Keep the existing assignment in evaluateStart as a safety net."
+    },
+    {
+      "severity": "warning",
+      "location": "app/src/components/Duel/DuelRoom.tsx:354,610",
+      "issue": "readyNudge state is set to true by the timeout (line 610) but never reset to false. If the nudge fires (60s AFK), then the opponent leaves and re-enters, the nudge text re-appears immediately without waiting 60s. The effect cleanup clears the timers but does not call setReadyNudge(false).",
+      "fix": "Add setReadyNudge(false) in the effect cleanup (line 613-616) or in the presence leave handler (line 516-521) where the opponent's state is reset."
+    },
+    {
+      "severity": "warning",
+      "location": "app/src/components/Duel/DuelRoom.tsx:924-930",
+      "issue": "Unready button uses min-h-[36px], which is below the design system's 44px minimum touch target (DESIGN.md: 'min target 44px'). On mobile this makes the button harder to tap.",
+      "fix": "Change min-h-[36px] to min-h-[44px] on the Unready button."
+    },
+    {
+      "severity": "info",
+      "location": "app/src/components/Duel/DuelRoom.tsx:401-403",
+      "issue": "The setTimeout inside beginMatch (delay before calling start()) is not tracked for cleanup. If the component unmounts during the delay, the disposed check prevents start() from firing, but the timer ID leaks. Harmless due to the guard, but not fully clean.",
+      "fix": "Store the timer ID and clear it in the effect cleanup."
+    },
+    {
+      "severity": "info",
+      "location": "app/src/components/Duel/DuelRoom.tsx:652-654",
+      "issue": "Wall-clock countdown derivation can briefly show '4' (instead of 3) when the client clock is behind the coordinator. The 500ms COUNTDOWN_BUFFER_MS absorbs typical skew, so this is cosmetic.",
+      "fix": "Optionally clamp: Math.min(3, wallClockCountdown)."
+    },
+    {
+      "severity": "info",
+      "location": "app/tests/game/duelLobby.test.ts",
+      "issue": "14 of 24 tests (AC-1/AC-2/AC-3/AC-4/AC-5 groups) re-implement production logic rather than importing and invoking it. These tests verify isolated math/Set operations, not the production code path. Their only failure mode is if the test copy diverges from production. The 10 GhostStore tests (AC-6) correctly import and test production code.",
+      "fix": "Where possible, export the countdown derivation formula and timeout constants so tests can import them. For React-component logic (readySlotsSet, hiddenSlotsSet, joinBeat guard), consider extracting into pure utility functions that can be tested without a DOM."
+    },
+    {
+      "severity": "info",
+      "location": "app/src/components/Duel/DuelRoom.tsx:758,809",
+      "issue": "Hardcoded text-[#6bb8ff] for opponent color in the Tailwind classes. This matches OPPONENT_COLOR in paintClimbFrame.ts but is not a design token. Pre-existing pattern from before this change, not introduced here.",
+      "fix": "Consider defining an 'opponent' color token in the design system for consistency."
+    }
+  ],
+  "feedback": [],
+  "learnings": [
+    {
+      "forAgents": ["software-engineer"],
+      "insight": "The timeout effect (DuelRoom.tsx:601-617) depends on bothPresentSinceRef, a ref that is set asynchronously inside evaluateStart. Since refs don't trigger re-renders, the timeout effect reads stale data (since === 0) and exits early on the render triggered by setOpponentPresent(true). The nudge/forfeit timers are never set up.",
+      "action": "Set bothPresentSinceRef.current synchronously in the presence handler (before evaluateStart) when the opponent enters. This ensures the ref is set before React re-renders and the timeout effect runs.",
+      "kind": "lesson",
+      "topic": "react-ref-effect-timing",
+      "confidence": 0.9
+    },
+    {
+      "forAgents": ["software-engineer"],
+      "insight": "readyNudge state is only set to true (line 610), never reset. When the opponent leaves and re-enters, the stale nudge appears immediately.",
+      "action": "Reset readyNudge to false either in the timeout effect cleanup or in the opponent-leave handler.",
+      "kind": "lesson",
+      "topic": "state-reset-on-reconnect",
+      "confidence": 0.95
+    },
+    {
+      "forAgents": ["qa-acceptance"],
+      "insight": "The AC-5 timeout (60s nudge, 120s forfeit) has a race condition that may prevent timers from being set up on the common path (opponent joins after local player). The server-side reaper is the backstop for abandoned duels.",
+      "action": "When testing AC-5, verify the nudge and forfeit timers actually fire by checking the bothPresentSinceRef is set before the timeout effect runs. If testing in a real browser, the poll timer (600ms) may eventually trigger the right conditions, but timing is unreliable.",
+      "kind": "risk",
+      "topic": "lobby-timeout-reliability",
+      "confidence": 0.85
+    },
+    {
+      "forAgents": ["all"],
+      "insight": "When a React useEffect depends on a ref value that is set asynchronously (e.g., inside an awaited function), the effect may read stale data because the ref update doesn't trigger a re-render. The effect only sees the ref's value at setup time, and won't re-run when the ref changes.",
+      "action": "If an effect needs to react to a value, use state (which triggers re-renders) instead of a ref, or set the ref synchronously before the state update that triggers the effect.",
+      "kind": "lesson",
+      "topic": "react-ref-vs-state-in-effects",
+      "confidence": 0.95
+    }
+  ]
+}

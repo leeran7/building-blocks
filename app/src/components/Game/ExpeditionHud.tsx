@@ -79,6 +79,7 @@ export interface DuelRacer {
   isMe: boolean;
   isLeader: boolean;
   stale: boolean;
+  ready: boolean;
 }
 
 /** Optional duel-specific data. When provided, duel instruments render. */
@@ -93,6 +94,8 @@ export interface DuelHudInfo {
   connectionState: string;
   /** True when the opponent's live snapshots have gone quiet mid-race. */
   opponentStale: boolean;
+  /** True when the opponent is present in the lobby. */
+  opponentPresent: boolean;
 }
 
 /** Versus display: both player names + LIVE badge + connection status. */
@@ -118,6 +121,12 @@ function VersusInstrument({ duel }: { duel: DuelHudInfo }) {
         {duel.phase === "climb" && duel.opponentStale && !showReconnecting && (
           <span className="exp-versus-opp-stale" role="status" aria-live="polite">
             opponent reconnecting&hellip;
+          </span>
+        )}
+        {duel.phase === "lobby" && (
+          <span className="exp-versus-lobby">
+            <span className={`exp-versus-lobby-dot ${duel.opponentPresent ? "bg-signal" : "bg-text-muted motion-safe:animate-pulse"}`} aria-hidden="true" />
+            {duel.opponentPresent ? "lobby" : "waiting"}
           </span>
         )}
         {duel.phase === "climb" && (
@@ -151,6 +160,9 @@ function RaceProgressInstrument({ duel }: { duel: DuelHudInfo }) {
               )}
               {racer.name}
               {racer.isMe && <span className="text-text-muted ml-1">(you)</span>}
+              {duel.phase === "lobby" && racer.ready && (
+                <span className="text-signal ml-1" aria-label="ready">&#10003;</span>
+              )}
             </span>
             <div
               className="exp-race-bar"

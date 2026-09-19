@@ -123,6 +123,14 @@
   font-family: var(--exp-number-font);
   font-size: 11px; color: var(--exp-muted);
 }
+.exp-versus-lobby {
+  display: flex; align-items: center; gap: 4px;
+  font-family: var(--exp-number-font);
+  font-size: 11px; color: var(--exp-muted);
+}
+.exp-versus-lobby-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+}
 .exp-versus-live {
   display: flex; align-items: center; gap: 4px;
   font-family: var(--exp-number-font);

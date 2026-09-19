@@ -70,6 +70,15 @@ export interface ClimbCanvasProps {
    * climber. Falls back to "Guest" when a player id is not present.
    */
   playerNames?: Record<string, string>;
+  /**
+   * Slots that have readied up — passed through to the painter for lobby glow.
+   */
+  readySlots?: ReadonlySet<number>;
+  /**
+   * Slots to hide from rendering — used in lobby to suppress opponents not yet
+   * present.
+   */
+  hiddenSlots?: ReadonlySet<number>;
 }
 
 export function ClimbCanvas({
@@ -85,6 +94,8 @@ export function ClimbCanvas({
   floorMarkerInsetTop = 0,
   myId,
   playerNames,
+  readySlots,
+  hiddenSlots,
 }: ClimbCanvasProps) {
   const ref = useRef<HTMLCanvasElement>(null);
   const ctxRef = useRef<CanvasRenderingContext2D | null>(null);
@@ -102,8 +113,8 @@ export function ClimbCanvas({
   const feedRef = useRef(feed);
   feedRef.current = feed;
 
-  const optsRef = useRef({ width, height, reducedMotion, bottomInset, hudInsetTop, includeHud, floorMarkerInsetTop, myId, playerNames });
-  optsRef.current = { width, height, reducedMotion, bottomInset, hudInsetTop, includeHud, floorMarkerInsetTop, myId, playerNames };
+  const optsRef = useRef({ width, height, reducedMotion, bottomInset, hudInsetTop, includeHud, floorMarkerInsetTop, myId, playerNames, readySlots, hiddenSlots });
+  optsRef.current = { width, height, reducedMotion, bottomInset, hudInsetTop, includeHud, floorMarkerInsetTop, myId, playerNames, readySlots, hiddenSlots };
 
   const paint = useCallback((ts: number) => {
     const canvas = ref.current;
@@ -148,6 +159,8 @@ export function ClimbCanvas({
       dtSec,
       myId: opts.myId,
       playerNames: opts.playerNames,
+      readySlots: opts.readySlots,
+      hiddenSlots: opts.hiddenSlots,
     });
   }, []);
 
