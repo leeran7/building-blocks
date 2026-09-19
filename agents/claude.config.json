@@ -18,12 +18,12 @@
   },
   "implementer": {
     "tools": ["Read", "Write", "Edit", "Bash", "Grep", "Glob"],
-    "skills": ["closed-loop"],
+    "skills": ["closed-loop", "debugging", "performance"],
     "color": "green"
   },
   "verifier": {
     "tools": ["Read", "Write", "Edit", "Bash", "Grep", "Glob"],
-    "skills": ["closed-loop"],
+    "skills": ["closed-loop", "debugging", "performance"],
     "color": "yellow"
   },
   "reviewer": {
@@ -47,7 +47,7 @@
   },
   "integrator": {
     "tools": ["Read", "Write", "Edit", "Bash", "Grep", "Glob", "Agent"],
-    "skills": ["closed-loop"],
+    "skills": ["closed-loop", "github", "ci-cd"],
     "color": "orange"
   }
 }

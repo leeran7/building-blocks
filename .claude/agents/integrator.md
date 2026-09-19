@@ -13,6 +13,8 @@ tools:
   - Agent
 skills:
   - closed-loop
+  - github
+  - ci-cd
 color: orange
 ---
 <!-- closed-loop:protocol -->

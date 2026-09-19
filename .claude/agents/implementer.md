@@ -12,6 +12,8 @@ tools:
   - Glob
 skills:
   - closed-loop
+  - debugging
+  - performance
 color: green
 ---
 <!-- closed-loop:protocol -->
