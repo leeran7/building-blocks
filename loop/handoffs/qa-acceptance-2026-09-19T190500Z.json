@@ -22,6 +22,23 @@
     "success_next_step": true
   },
   "feedback": [],
-  "learnings": [],
+  "learnings": [
+    {
+      "topic": "overlay-matched-state",
+      "forAgents": ["software-engineer"],
+      "kind": "lesson",
+      "insight": "When useMatchmakingQueue transitions to matched, queueActive (status !== 'idle') is true, so SearchingOverlay briefly renders as an empty dialog div before the navigate effect fires. None of the three inner blocks (searching/timeout/error) match the 'matched' status.",
+      "action": "Consider adding status !== 'matched' to the queueActive condition. Not user-visible but eliminates an unnecessary DOM node.",
+      "confidence": "medium"
+    },
+    {
+      "topic": "test-coverage-metric",
+      "forAgents": ["all"],
+      "kind": "metric",
+      "insight": "useMatchmakingQueue has 26 dedicated tests covering all state transitions, error paths, boundary cases (matched without duelId), cleanup behaviors, and haptic assertions. Full suite at 707 tests across 78 files, all passing.",
+      "action": "No action needed.",
+      "confidence": "high"
+    }
+  ],
   "nextStage": "integrator"
 }
