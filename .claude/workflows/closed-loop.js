@@ -93,20 +93,22 @@ while (retries < MAX_RETRIES) {
       })
   ]);
 
+  const combinedReview = {
+    agent: "quality-gates",
+    status: (review.status === "success" && secReview.status === "success") ? "success" : "needs_revision",
+    summary: [review.summary, secReview.summary].filter(Boolean).join(" | "),
+    timestamp: new Date().toISOString(),
+    findings: [...(review.findings || []), ...(secReview.findings || [])],
+    feedback: [...(review.feedback || []), ...(secReview.feedback || [])]
+  };
+
   if (hasCritical(review) || hasCritical(secReview)) {
-    seHandoff = {
-      agent: "quality-gates",
-      status: "needs_revision",
-      summary: "Critical findings from review",
-      timestamp: new Date().toISOString(),
-      findings: [...(review.findings || []), ...(secReview.findings || [])],
-      feedback: [...(review.feedback || []), ...(secReview.feedback || [])]
-    };
+    seHandoff = combinedReview;
     retries++;
     continue;
   }
 
-  const qa = await agent(stagePrompt("qa-acceptance", args, verify), {
+  const qa = await agent(stagePrompt("qa-acceptance", args, combinedReview), {
     label: `qa-acceptance-${retries}`,
     phase: "Quality Gates",
     schema: HANDOFF_SCHEMA
