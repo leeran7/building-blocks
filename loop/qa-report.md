@@ -1,150 +1,181 @@
-# QA Acceptance Report -- Shared Lobby + Ready Button
+# QA Acceptance Report -- 1v1 Quick Play (mobile-quick-play)
 
 **Date:** 2026-09-19
-**Feature:** Shared lobby with manual ready-up for 1v1 duels
-**ACs:** AC-1 through AC-6
+**Feature:** Quick Play random 1v1 matchmaking on mobile HomeScreen
+**ACs:** AC-1 through AC-11
 **Verdict:** PASS -> integrator
 
 ## Quality Gates
 
 | Gate | Status | Evidence |
 |------|--------|----------|
-| app-lint | PASS | `pnpm lint` exits 0, zero warnings |
-| app-typecheck | PASS | `pnpm exec tsc --noEmit` exits 0, no output |
-| app-test | PASS | 74 files, 674 tests, 0 failures |
+| app-typecheck | PASS | `pnpm typecheck` exits 0, no output |
+| app-test | PASS | 78 files, 707 tests, 0 failures |
+| hook tests | PASS | 26 tests in useMatchmakingQueue.test.ts, all pass |
 
 ## Acceptance Criteria
 
-### AC-1: Ready Button -- PASS
+### AC-1: Quick Play card visible on HomeScreen -- PASS
 
 | Check | Method | Expected | Actual | Evidence |
 |-------|--------|----------|--------|----------|
-| Signal-lime Ready pill | Static read | `bg-signal text-void rounded-full` | Matches | DuelRoom.tsx:915 |
-| Toggleable Unready | Static read | Secondary border style, toggles localReady | Matches | DuelRoom.tsx:929-931, handleUnready at 377-387 |
-| 44px min touch target | Static read | Ready >= 44px, Unready >= 44px | Ready: 48px, Unready: 44px | DuelRoom.tsx:915 min-h-[48px], :930 min-h-[44px] |
-| Ready glow behind characters | Static read | Radial gradient rgba(203,242,77,0.25) in lobby/countdown | Matches | paintClimbFrame.ts:312-322 |
-| Checkmark in HUD | Static read | Checkmark with aria-label="ready" | Matches | DuelRoom.tsx:831 |
+| Position | Static read | Between Daily Climb and Challenge | DailyCard, QuickPlayCard, ChallengeCard in order | HomeScreen.tsx:162-168 |
+| ModeCard usage | Static read | Uses ModeCard component | QuickPlayCard renders ModeCard | HomeScreen.tsx:393-401 |
+| BoltIcon | Static read | Bolt/lightning icon | BoltIcon SVG with lightning path | HomeScreen.tsx:379-385 |
+| tint="signal" | Static read | Signal-lime tint | tint="signal" | HomeScreen.tsx:395 |
+| Title | Static read | "Quick Play" | "Quick Play" | HomeScreen.tsx:396 |
+| Subtitle | Static read | "Find a random opponent" | "Find a random opponent" | HomeScreen.tsx:397 |
 
-### AC-2: Opponent Presence -- PASS
-
-| Check | Method | Expected | Actual | Evidence |
-|-------|--------|----------|--------|----------|
-| Full fidelity render | Static read | Opponents through standard player loop | Matches | paintClimbFrame.ts:284 iterates all players |
-| Hidden when absent | Static read | hiddenSlots skips absent opponent | Matches | paintClimbFrame.ts:285, DuelRoom.tsx:674-677 |
-| Join beat on enter | Static read | Fires once, guarded by ref | Matches | DuelRoom.tsx:538-545 |
-| Name tags in lobby | Static read | Shown for all players in lobby/countdown | Matches | paintClimbFrame.ts:330-339 |
-| Unit tests | Automated | Tests for hiddenSlots, joinBeat guard | Pass | duelLobby.test.ts: 5 AC-2 tests, 2 AC-4 tests |
-
-### AC-3: Wall-Clock Countdown -- PASS
+### AC-2: Tapping Quick Play joins queue and shows SearchingOverlay -- PASS
 
 | Check | Method | Expected | Actual | Evidence |
 |-------|--------|----------|--------|----------|
-| countdownStartsAt timing | Static read | Date.now() + 500ms | Matches | DuelRoom.tsx:443, COUNTDOWN_BUFFER_MS=500 at line 72 |
-| 50ms setInterval | Static read | setInterval(update, 50) | Matches | DuelRoom.tsx:599 |
-| Math.max(0,...) clamp | Static read | Math.max(0, Math.ceil(...)) | Matches | DuelRoom.tsx:595 |
-| No sim-tick dependency | Static read | Wall-clock path used when countdownStartsAt > 0 | Matches | DuelRoom.tsx:656-658 |
-| Unit tests | Automated | 8 boundary tests for countdown derivation | Pass | duelLobby.test.ts AC-3 group |
+| POST endpoint | Automated | /api/duel/queue | /api/duel/queue | Hook line 102, test line 156 |
+| POST body | Automated | { categorySlug: "tech" } | Matches | Hook line 105, test line 159 |
+| Overlay renders | Static read | Full-screen overlay | fixed inset-0 z-50 bg-void/95 | HomeScreen.tsx:424 |
+| Spinner | Static read | Animated spinner | animate-spin rounded-full border | HomeScreen.tsx:443 |
+| Status text | Static read | "Searching for opponent" | "Searching for opponent" | HomeScreen.tsx:447 |
+| Cancel button | Static read | Cancel button present | Cancel button with onCancel | HomeScreen.tsx:452-457 |
 
-### AC-4: Entrance Beat -- PASS
-
-| Check | Method | Expected | Actual | Evidence |
-|-------|--------|----------|--------|----------|
-| Fires once | Static read | joinBeatFiredRef guard | Matches | DuelRoom.tsx:538-539 |
-| Only on enter/present | Static read | action === "enter" OR "present" | Matches | DuelRoom.tsx:540 |
-| Banner display | Static read | 1.8s timeout auto-dismiss | Matches | DuelRoom.tsx:544, 888-897 |
-| Unit tests | Automated | 2 tests: fire-once guard, non-fire actions | Pass | duelLobby.test.ts AC-4 group |
-
-### AC-5: Unready Timeout -- PASS
+### AC-3: Polling finds match and navigates -- PASS
 
 | Check | Method | Expected | Actual | Evidence |
 |-------|--------|----------|--------|----------|
-| 60s nudge constant | Static read | READY_NUDGE_MS = 60_000 | Matches | DuelRoom.tsx:76 |
-| 120s forfeit constant | Static read | AFK_FORFEIT_MS = 120_000 | Matches | DuelRoom.tsx:78 |
-| bothPresentSinceRef sync (W-1) | Static read | Set synchronously in presence handler | Applied | DuelRoom.tsx:535-537 |
-| readyNudge cleanup reset (W-2) | Static read | setReadyNudge(false) in effect cleanup | Applied | DuelRoom.tsx:619 |
-| Nudge hidden when ready | Static read | readyNudge && !localReady | Matches | DuelRoom.tsx:903 |
-| Timer Math.max(0,...) | Static read | Prevents negative timeouts | Matches | DuelRoom.tsx:610-611 |
-| Unit tests | Automated | 2 tests: ordering invariant, negative prevention | Pass | duelLobby.test.ts AC-5 group |
+| Poll interval | Automated | 2000ms | POLL_INTERVAL_MS = 2000 | Hook line 38, test advances 2000ms |
+| Poll endpoint | Automated | GET /api/duel/queue | apiFetch("/api/duel/queue") | Hook line 66 |
+| Match detection | Automated | status=matched + duelId | Checked at hook line 72 | Test line 176-181 |
+| Navigation | Static read | navigate(/duel/:duelId) | navigate(`/duel/${duelId}`) | HomeScreen.tsx:117 |
+| Route exists | Static read | /duel/:id -> DuelRoomScreen | Route at App.tsx:59 | App.tsx |
 
-### AC-6: Full-Character Rendering -- PASS
+### AC-4: Cancel leaves queue -- PASS
 
 | Check | Method | Expected | Actual | Evidence |
 |-------|--------|----------|--------|----------|
-| SNAPSHOT_EVERY_TICKS=1 | Static read + test | Every tick broadcast | Matches | useRace.ts:45, duelLobby.test.ts |
-| GHOST_RENDER_DELAY_TICKS=4 | Static read + test | ~133ms at 30Hz | Matches | ghosts.ts:39, duelLobby.test.ts |
-| SMOOTH_FACTOR=0.20 | Static read + test | Tighter smoothing | Matches | ghosts.ts:56, duelLobby.test.ts |
-| Full-fidelity rendering | Static read | Standard player loop, no simplified draw | Matches | paintClimbFrame.ts:284-339 |
-| Unit tests | Automated | 6 tests: constants, interpolation quality | Pass | duelLobby.test.ts AC-6 groups |
+| Stops polling | Automated | Interval cleared | stopPolling() called | Hook line 177, test line 454-459 |
+| DELETE sent | Automated | DELETE /api/duel/queue | Best-effort DELETE | Hook line 182, test line 449-451 |
+| Returns idle | Automated | status=idle | setState(IDLE_STATE) | Hook line 178, test line 443-446 |
+| No DELETE from idle | Automated | No DELETE when not in queue | inQueueRef guard | Test line 466-480 |
+
+### AC-5: Timeout shows retry -- PASS
+
+| Check | Method | Expected | Actual | Evidence |
+|-------|--------|----------|--------|----------|
+| Expired -> timeout | Automated | status=timeout | Hook lines 80-84 | Test line 309-341 |
+| Idle -> timeout | Automated | status=timeout | Hook lines 80-84 | Test line 345-374 |
+| "No opponent found" | Static read | Text present | "No opponent found" | HomeScreen.tsx:464 |
+| "Search again" button | Static read | Retry button | onRetry callback | HomeScreen.tsx:470-475 |
+| "Back" button | Static read | Dismiss button | onDismiss callback | HomeScreen.tsx:476-481 |
+
+### AC-6: Error states show messages -- PASS
+
+| Check | Method | Expected | Actual | Evidence |
+|-------|--------|----------|--------|----------|
+| 429 message | Automated | Rate limit message | "Too many searches -- give it a minute" | Test line 256-259 |
+| Network error | Automated | Connection message | "Network error -- check your connection" | Test line 409-413 |
+| Server error body | Automated | Server message | Uses body.error string | Test line 276-280 |
+| Fallback message | Automated | Default message | "Could not join queue" | Test line 301-302 |
+| "Try again" button | Static read | Retry button present | onRetry callback | HomeScreen.tsx:492-496 |
+| "Back" button | Static read | Dismiss button present | onDismiss callback | HomeScreen.tsx:498-503 |
+
+### AC-7: Haptic feedback -- PASS
+
+| Check | Method | Expected | Actual | Evidence |
+|-------|--------|----------|--------|----------|
+| tapMedium on join | Automated | Called once | void tapMedium() | Hook line 98, test line 754 |
+| tapLight on cancel | Automated | Called once | void tapLight() | Hook line 175, test line 776 |
+| notifySuccess on match | Automated | Called on match | void notifySuccess() | Hook lines 75,145, test line 181 |
+| notifyError on error | Automated | Called on error | void notifyError() | Hook lines 119,130,163, test line 261 |
+
+### AC-8: Accessibility -- PASS
+
+| Check | Method | Expected | Actual | Evidence |
+|-------|--------|----------|--------|----------|
+| role="dialog" | Static read | Present on overlay | role="dialog" | HomeScreen.tsx:425 |
+| aria-modal="true" | Static read | Present on overlay | aria-modal="true" | HomeScreen.tsx:426 |
+| sr-only live region | Static read | assertive live region | sr-only p aria-live="assertive" | HomeScreen.tsx:430 |
+| Cancel min-h-[48px] | Static read | >= 48px | min-h-[48px] | HomeScreen.tsx:454 |
+| Search again min-h-[48px] | Static read | >= 48px | min-h-[48px] | HomeScreen.tsx:472 |
+| Back (timeout) min-h-[48px] | Static read | >= 48px | min-h-[48px] | HomeScreen.tsx:478 |
+| Try again min-h-[48px] | Static read | >= 48px | min-h-[48px] | HomeScreen.tsx:494 |
+| Back (error) min-h-[48px] | Static read | >= 48px | min-h-[48px] | HomeScreen.tsx:500 |
+
+### AC-9: Cleanup on unmount -- PASS
+
+| Check | Method | Expected | Actual | Evidence |
+|-------|--------|----------|--------|----------|
+| Interval cleared | Automated | clearInterval called | Hook line 201-203 | Test line 509-511 |
+| DELETE on unmount | Automated | DELETE sent | Hook lines 205-208 | Test line 503-506 |
+| No DELETE when idle | Automated | Guard on inQueueRef | Hook line 205 | Test line 516-526 |
+| No DELETE after match | Automated | inQueueRef=false on match | Hook line 74 | Test line 530-550 |
+
+### AC-10: Instant match on POST -- PASS
+
+| Check | Method | Expected | Actual | Evidence |
+|-------|--------|----------|--------|----------|
+| Direct to matched | Automated | No polling started | Hook lines 142-148 | Test line 189-208 |
+| notifySuccess fires | Automated | Haptic on instant match | Hook line 145 | Test line 205 |
+| duelId set | Automated | duelId from response | "instant-456" | Test line 201-204 |
+
+### AC-11: 409 resumes polling -- PASS
+
+| Check | Method | Expected | Actual | Evidence |
+|-------|--------|----------|--------|----------|
+| Searching state | Automated | status=searching | Hook line 113 | Test line 221 |
+| Polling starts | Automated | startPolling called | Hook line 114 | Test lines 224-239 |
+| No error shown | Automated | No error state | No errorMessage set | Test line 221 |
 
 ## User Flow Validation
 
-### F-1: Solo wait (discovery)
-**Method:** Code trace
-**Result:** PASS -- WaitingLobby renders frozen MatchState with single idle character. Share invite UI overlays. No practice game (by design).
+### F-1: Join Queue (Happy Path) -- PASS
+**Method:** Code trace + automated test
+**Result:** QuickPlayCard.onPress -> queue.join -> POST /api/duel/queue -> SearchingOverlay -> poll every 2s -> matched -> navigate(/duel/:id). Full path verified by test "transitions through joining -> searching -> matched when polled".
 
-### F-2: Opponent joins
-**Method:** Code trace
-**Result:** PASS -- Presence handler fires setOpponentPresent(true), joinBeat banner shows for 1.8s, hiddenSlotsSet becomes undefined so opponent character appears, both name tags render.
+### F-2: Instant Match -- PASS
+**Method:** Code trace + automated test
+**Result:** POST returns matched+duelId -> direct to matched state -> navigate. Verified by test "goes directly to matched when POST returns matched with duelId".
 
-### F-3: Ready up
-**Method:** Code trace
-**Result:** PASS -- handleReady publishes "ready" event + updatePresence. readySlotsSet includes mySlot for glow + checkmark. handleUnready reverses all state.
+### F-3: Cancel Search -- PASS
+**Method:** Code trace + automated test
+**Result:** Cancel -> stopPolling -> DELETE (best-effort) -> idle. Verified by test "stops polling and sends DELETE on cancel".
 
-### F-4: Both ready (coordinator start)
-**Method:** Code trace
-**Result:** PASS -- tryCoordinatorStart checks readySlotsRef.size >= 2. Coordinator (slot-0) sends start event with countdownStartsAt = Date.now() + 500ms. Both clients derive countdown from same timestamp via 50ms setInterval. "GO" flash fires on climb phase transition.
+### F-4: Timeout -- PASS
+**Method:** Code trace + automated test
+**Result:** Poll returns expired/idle -> timeout state -> "No opponent found" with retry/back. Verified by two timeout tests.
 
-### F-5: Nudge after 60s
-**Method:** Code trace
-**Result:** PASS -- Timeout effect fires setReadyNudge(true) after 60s. "Ready up!" text shown only when !localReady (gated at line 903). Reset on cleanup (W-2 fix at line 619).
+### F-5: Error Recovery -- PASS
+**Method:** Code trace + automated test
+**Result:** Network/429/500 -> error state -> message + retry/back. Verified by four error-path tests.
 
-### F-6: AFK forfeit after 120s
-**Method:** Code trace
-**Result:** PASS -- forfeitTimer fires handleLeave() after 120s. Server-side reaper is the backstop.
+### F-6: Already In Queue (409) -- PASS
+**Method:** Code trace + automated test
+**Result:** POST 409 -> searching -> resume polling -> match. Verified by test "resumes polling when POST returns 409".
 
-### F-7: Opponent leaves during lobby
-**Method:** Code trace
-**Result:** PASS -- Before start: resets opponentReady, opponentPresent, readySlotsRef, bothPresentSinceRef to clean state (lines 516-521). After start: 12s grace period then forfeit check.
+## Negative/Boundary Cases
 
-### F-8: Race rendering
-**Method:** Code trace
-**Result:** PASS -- Opponents rendered at ~30Hz snapshot rate through standard paintClimbFrame player loop with tighter smoothing (SMOOTH_FACTOR=0.20) and reduced delay (4 ticks).
+| Case | Test | Result |
+|------|------|--------|
+| matched without duelId (poll) | Automated | Stays searching (test line 782) |
+| matched without duelId (POST) | Automated | Falls to searching (test line 811) |
+| Cancel from idle | Automated | No DELETE sent (test line 466) |
+| Unmount when idle | Automated | No DELETE sent (test line 516) |
+| Unmount after match | Automated | No DELETE sent (test line 530) |
+| Poll network error | Automated | Swallowed, retries next tick (test line 651) |
+| Poll 500 | Automated | Ignored, keeps polling (test line 695) |
+| POST JSON parse failure | Automated | Fallback error message (test line 724) |
+| Continued polling on "waiting" | Automated | Keeps polling until matched (test line 606) |
+| POST returns expired | Automated | Direct to timeout (test line 378) |
 
-## Regression Checks
-
-| Area | Status | Evidence |
-|------|--------|----------|
-| Matchmaking flow | No regression | Room orchestrator fetch/join/connect unchanged |
-| Challenge links | No regression | /duel/[id] route preserved, seed oracle (R-5) intact |
-| Result submission | No regression | useRace submitResult path unchanged |
-| Independent sim | No regression | stepMatch uses localSlot, peers ghost-slaved |
-| Server-authoritative | No regression | Server re-sim is source of truth |
-| Ably transport | No regression | connectRealtime + RealtimeHandle extended (updatePresence, unready event), no breaking changes |
-| 60fps rendering | No regression | rAF loop unchanged in ClimbCanvas.tsx |
-
-## Reviewer Fixes Verified
-
-| Fix | Status | Evidence |
-|-----|--------|----------|
-| W-1: bothPresentSinceRef sync | Applied | Line 535-537 in presence handler |
-| W-2: readyNudge cleanup reset | Applied | Line 619 in timeout effect cleanup |
-| W-3: Unready button 44px | Applied | Line 930 min-h-[44px] |
-
-## Exploratory Testing
+## Exploratory Pass
 
 | Scenario | Result |
 |----------|--------|
-| Double-click Ready | Set.add is idempotent; no double-start |
-| Navigate away (beforeunload) | Forfeit event sent (line 564-566) |
-| Refresh mid-lobby | Reinitializes from loading phase, reconnects |
-| Empty state (no opponent) | WaitingLobby renders with share invite UI |
-| Missing/failed data | Error phase renders with "Back to duels" link |
-| Opponent leaves and returns | State properly resets (lines 516-521), timers restart |
+| Double-submit | Overlay covers HomeScreen, preventing re-tap on QuickPlayCard |
+| Navigate away mid-search | Unmount cleanup fires: interval cleared, DELETE sent |
+| Empty state | QuickPlayCard renders normally in idle; no broken state |
+| Refresh mid-flow | Component re-mounts idle; old queue entry expires server-side (300s TTL) |
 
 ## Informational Notes
 
-1. WaitingLobby "Share invite" buttons use min-h-[36px] (lines 221, 233), below the design system 44px minimum. Not an AC violation (AC-1 specifies 44px for Ready/Unready), but inconsistent with design conventions.
+1. **Brief empty overlay on match:** When status transitions to "matched", queueActive (status !== "idle") is true, so SearchingOverlay renders momentarily with no inner content (no branch for "matched"). The useEffect navigate fires immediately, unmounting the component. Not visible to the user but could be eliminated by gating overlay on `status !== "matched"` as well.
 
-2. Some unit tests (14 of 24 per reviewer) re-implement production logic rather than importing it. Acceptable for React-component logic requiring DOM/canvas; GhostStore tests correctly import production code.
-
-3. The 120s auto-forfeit runs from bothPresentSinceRef regardless of ready state, serving as a hard lobby timeout. Verifier accepted this as reasonable.
+2. **Spec structural format:** Flows F-1 through F-6 do not carry `critical: yes|no` annotations. The spec is functionally complete (all flows have matching ACs, stories cover paths, recovery documented) but does not use the structured field format from the QA gate checklist. Noted for future spec authoring.

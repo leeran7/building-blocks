@@ -1,0 +1,74 @@
+{
+  "agent": "reviewer",
+  "status": "success",
+  "summary": "Code review of useMatchmakingQueue hook and HomeScreen Quick Play additions. No critical issues found. The state machine is correct, cleanup is thorough, and the implementation follows existing patterns. Two warnings: (1) missing double-tap guard on join() unlike the adjacent startChallenge, (2) missing focus-visible styles on ModeCard and overlay buttons. Three informational notes on reduced-motion, empty matched-state overlay frame, and duplicated category slug constant.",
+  "timestamp": "2026-09-19T19:20:00Z",
+  "goal": "Review 1v1 Quick Play implementation for correctness, conventions, race conditions, resource leaks, and accessibility",
+  "artifacts": [],
+  "exitCriteria": {
+    "correctness": true,
+    "conventions": true,
+    "edge_cases_handled": true,
+    "no_critical_findings": true
+  },
+  "findings": [
+    {
+      "severity": "warning",
+      "location": "app/mobile/src/hooks/useMatchmakingQueue.ts:97 (join function)",
+      "issue": "No double-tap guard on join(). Unlike startChallenge which checks `if (challengeBusy) return`, join() can be called multiple times before React re-renders to show the overlay. A rapid double-tap fires two POSTs, wasting a rate limit token (30/hour budget). The server handles the second call gracefully (409) and startPolling is idempotent, so no resource leak or state corruption — just unnecessary rate limit consumption.",
+      "fix": "Add an early return when status is not idle: `if (state.status !== 'idle' && state.status !== 'timeout' && state.status !== 'error') return;` at the top of join(), or use a ref-based busy guard like challengeBusy."
+    },
+    {
+      "severity": "warning",
+      "location": "app/mobile/src/screens/HomeScreen.tsx:253-275 (ModeCard) and lines 452-506 (SearchingOverlay buttons)",
+      "issue": "Missing focus-visible styles on ModeCard button and all SearchingOverlay buttons (Cancel, Search again, Try again, Back). The mobile CSS has no global button:focus-visible rule. Other mobile buttons (Play hero at line 145, ProfileScreen toggles, BottomNav) consistently include explicit focus-visible:ring-* classes. This violates the project's WCAG 2.1 AA standard per context/ux-accessibility.md.",
+      "fix": "Add `focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void` to the ModeCard button className and each SearchingOverlay button className."
+    },
+    {
+      "severity": "info",
+      "location": "app/mobile/src/screens/HomeScreen.tsx:443 (spinner element)",
+      "issue": "The spinner uses bare animate-spin without motion-reduce:animate-none. The web Spinner.tsx component includes this guard, but existing mobile spinners (DuelRoomScreen) also omit it. Consistent with mobile patterns but violates DESIGN.md's stated 'all motion is prefers-reduced-motion guarded' rule.",
+      "fix": "Add `motion-reduce:animate-none` to the spinner className. Consider a shared mobile Spinner component."
+    },
+    {
+      "severity": "info",
+      "location": "app/mobile/src/screens/HomeScreen.tsx:121,174 (queueActive and overlay render)",
+      "issue": "The 'matched' status renders an empty overlay for one React frame before the navigation effect fires, since queueActive includes all non-idle statuses but SearchingOverlay has no visual handler for 'matched'.",
+      "fix": "Either exclude 'matched' from queueActive (`const queueActive = !['idle','matched'].includes(queue.state.status)`) or add a brief 'Matched!' visual state to the overlay."
+    },
+    {
+      "severity": "info",
+      "location": "app/mobile/src/hooks/useMatchmakingQueue.ts:39 and app/mobile/src/screens/HomeScreen.tsx:77",
+      "issue": "CATEGORY_SLUG = 'tech' is hardcoded in both the hook and the ChallengeCard callback. A shared constant would prevent divergence.",
+      "fix": "Extract to a shared constant in a lib file, or pass categorySlug as a parameter to the hook."
+    }
+  ],
+  "feedback": [],
+  "learnings": [
+    {
+      "topic": "mobile-focus-visible",
+      "forAgents": ["software-engineer"],
+      "kind": "lesson",
+      "insight": "The mobile CSS has no global button:focus-visible fallback (unlike globals.css in the web app). Every interactive element in the mobile app needs explicit focus-visible:ring-* Tailwind classes. ModeCard and SearchingOverlay buttons are missing them.",
+      "action": "Add focus-visible classes to ModeCard and all SearchingOverlay buttons to match the pattern used by Play hero, ProfileScreen toggles, and BottomNav.",
+      "confidence": "high"
+    },
+    {
+      "topic": "mobile-queue",
+      "forAgents": ["software-engineer"],
+      "kind": "lesson",
+      "insight": "The join() function lacks the double-tap guard that startChallenge has (challengeBusy check). On rapid double-tap, two POSTs fire before the overlay renders to block further taps.",
+      "action": "Add a status or ref guard at the top of join() to prevent concurrent calls, matching the challengeBusy pattern.",
+      "confidence": "high"
+    },
+    {
+      "topic": "metric",
+      "forAgents": ["all"],
+      "kind": "metric",
+      "insight": "Reviewed 2 changed files (useMatchmakingQueue.ts: 213 lines new, HomeScreen.tsx: 510 lines total). 0 critical, 2 warning, 3 info findings.",
+      "action": "No action needed.",
+      "confidence": "high"
+    }
+  ],
+  "nextStage": "qa-acceptance"
+}
