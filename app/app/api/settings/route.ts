@@ -18,6 +18,7 @@ import {
   type SocialHandleMap,
 } from "../../../src/db/settings";
 import { LEADERBOARD_CACHE_TAG } from "../../../src/db/climb";
+import { DUEL_LEADERBOARD_CACHE_TAG } from "../../../src/db/duel";
 import { normalizeHandle, isSocialPlatform } from "../../../src/lib/socialHandle";
 import { validateUrl } from "../../../src/lib/validateUrl";
 import { checkRateLimit } from "../../../src/lib/rateLimit";
@@ -243,10 +244,14 @@ export async function PUT(request: NextRequest): Promise<NextResponse> {
     if (patch.leaderboardConsent !== undefined) {
       revalidateTag(LEADERBOARD_CACHE_TAG, { expire: 60 });
     }
-    // Audit trail for display-name changes: the name is public and
-    // impersonation-capable, so keep it traceable. Log uid + timestamp only —
-    // never the raw value, to avoid logging PII.
     if (patch.displayName !== undefined) {
+      // topDuelStats gates visibility on display_name being non-null, so
+      // clearing or setting it also needs an on-demand revalidation, same
+      // reasoning as the leaderboard consent tag above.
+      revalidateTag(DUEL_LEADERBOARD_CACHE_TAG, { expire: 60 });
+      // Audit trail: the name is public and impersonation-capable, so keep
+      // it traceable. Log uid + timestamp only — never the raw value, to
+      // avoid logging PII.
       console.info(
         JSON.stringify({
           type: "display_name_changed",

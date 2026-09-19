@@ -1,11 +1,14 @@
 /**
- * PUT /api/settings — leaderboard cache revalidation on consent change.
+ * PUT /api/settings — leaderboard cache revalidation on consent / display
+ * name changes.
  *
- * topFreeClimbers (the public leaderboard read) is cached for up to 60s.
- * Without an on-demand revalidateTag call here, a consent toggle wouldn't
- * visibly take effect until that window rolled over — this proves the tag
- * fires exactly when leaderboardConsent is part of the patch, not on every
- * unrelated save.
+ * Both topFreeClimbers and topDuelStats are cached for up to 60s
+ * (unstable_cache, time-based only). Without an on-demand revalidateTag
+ * call here, changing what gates a player's visibility on either public
+ * leaderboard — leaderboard consent for the climb board, display_name for
+ * the duel board — wouldn't visibly take effect until that window rolled
+ * over. This proves each tag fires exactly when its gating field is part
+ * of the patch, not on every save.
  */
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -44,14 +47,15 @@ vi.mock("../../src/db/settings", () => ({
 const { revalidateTag } = vi.hoisted(() => ({ revalidateTag: vi.fn() }));
 vi.mock("next/cache", () => ({
   revalidateTag,
-  // ../../src/db/climb (imported below for LEADERBOARD_CACHE_TAG) wraps
-  // topFreeClimbers in unstable_cache at module load — a passthrough here
-  // keeps that import side-effect-free for this test.
+  // ../../src/db/climb and ../../src/db/duel (imported below for their cache
+  // tag constants) each wrap a query in unstable_cache at module load — a
+  // passthrough here keeps those imports side-effect-free for this test.
   unstable_cache: (fn: unknown) => fn,
 }));
 
 import { PUT } from "../../app/api/settings/route";
 import { LEADERBOARD_CACHE_TAG } from "../../src/db/climb";
+import { DUEL_LEADERBOARD_CACHE_TAG } from "../../src/db/duel";
 
 function put(body: unknown): Promise<Response> {
   return PUT(
@@ -68,14 +72,22 @@ describe("PUT /api/settings leaderboard revalidation", () => {
     revalidateTag.mockClear();
   });
 
-  it("revalidates the leaderboard cache tag when leaderboardConsent changes", async () => {
+  it("revalidates the climb leaderboard tag when leaderboardConsent changes, not the duel one", async () => {
     const res = await put({ leaderboardConsent: true });
     expect(res.status).toBe(200);
     expect(revalidateTag).toHaveBeenCalledWith(LEADERBOARD_CACHE_TAG, { expire: 60 });
+    expect(revalidateTag).not.toHaveBeenCalledWith(DUEL_LEADERBOARD_CACHE_TAG, expect.anything());
   });
 
-  it("does not revalidate the leaderboard on an unrelated save", async () => {
+  it("revalidates the duel leaderboard tag when displayName changes, not the climb one", async () => {
     const res = await put({ displayName: "Aria" });
+    expect(res.status).toBe(200);
+    expect(revalidateTag).toHaveBeenCalledWith(DUEL_LEADERBOARD_CACHE_TAG, { expire: 60 });
+    expect(revalidateTag).not.toHaveBeenCalledWith(LEADERBOARD_CACHE_TAG, expect.anything());
+  });
+
+  it("does not revalidate either leaderboard on an unrelated save", async () => {
+    const res = await put({ social: {} });
     expect(res.status).toBe(200);
     expect(revalidateTag).not.toHaveBeenCalled();
   });

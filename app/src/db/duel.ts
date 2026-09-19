@@ -766,6 +766,15 @@ export async function getRecentDuelsForUser(
 }
 
 /**
+ * Tag for topDuelStats' unstable_cache entry. Visibility is gated on
+ * display_name being non-null, so clearing/setting it (PUT /api/settings)
+ * or an account deletion (DELETE /api/account/delete) changes who's listed —
+ * revalidateTag(DUEL_LEADERBOARD_CACHE_TAG) there makes that take effect on
+ * the next fetch instead of waiting out the 60s time-based revalidation.
+ */
+export const DUEL_LEADERBOARD_CACHE_TAG = "duel-leaderboard";
+
+/**
  * Top duel leaderboard by wins. Excludes anonymous users (no display_name).
  * winPct = wins / (wins + losses) * 100, rounded to 1 decimal.
  *
@@ -801,6 +810,6 @@ export const topDuelStats = unstable_cache(
     });
   },
   ["topDuelStats"],
-  { revalidate: 60 }
+  { revalidate: 60, tags: [DUEL_LEADERBOARD_CACHE_TAG] }
 );
 
