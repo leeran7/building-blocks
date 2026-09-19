@@ -25,15 +25,24 @@ describe("live expedition instruments", () => {
     const p = player();
     p.y = 57.25;
     for (const [hazardY, expected] of [[12, "45.3"], [60, "-2.8"]] as const) {
-      const html = renderToStaticMarkup(createElement(ExpeditionHud, { player: p, hazardY, tick: 0, muted: false, onToggleMute: noop, announcement: "", runId: 1 }));
+      const html = renderToStaticMarkup(createElement(ExpeditionHud, { player: p, hazardY, tick: 0, lavaPhase: "surge", lavaPhaseProgress: 0.5, muted: false, onToggleMute: noop, announcement: "", runId: 1 }));
       expect(html).toContain(`Lava clearance ${expected} feet`);
       expect(html).toContain("Height 57.3 feet");
     }
   });
 
+  it("shows the current lava phase (surge/stumble/grace) inside the clearance instrument", () => {
+    for (const [phase, label] of [["surge", "SURGING"], ["stumble", "STUMBLING"], ["grace", "HOLDING"]] as const) {
+      const html = renderToStaticMarkup(createElement(LavaClearanceInstrument, { clearance: 30, phase, progress: 0.4 }));
+      expect(html).toContain(`data-phase="${phase}"`);
+      expect(html).toContain(label);
+      expect(html).toContain("width:60%");
+    }
+  });
+
   it("marks low clearance as danger without making it a health meter", () => {
     for (const [clearance, danger] of [[12, true], [-1, true], [12.1, false]] as const) {
-      const html = renderToStaticMarkup(createElement(LavaClearanceInstrument, { clearance }));
+      const html = renderToStaticMarkup(createElement(LavaClearanceInstrument, { clearance, phase: "surge", progress: 0.5 }));
       expect(html).toContain(`data-danger="${danger}"`);
       expect(html).not.toContain('role="progressbar"');
     }
