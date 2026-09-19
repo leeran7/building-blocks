@@ -73,6 +73,7 @@ interface AppDataState {
   ensureDashboard: () => void;
   ensureSettings: () => void;
   ensureLeaderboard: () => void;
+  refreshLeaderboard: () => Promise<void>;
   refreshSettings: () => Promise<void>;
   /** Optimistically update the cached settings after a successful save. */
   setSettings: (next: SettingsData) => void;
@@ -199,6 +200,15 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     );
   }, [authed, leaderboard, load]);
 
+  const refreshLeaderboard = useCallback(async () => {
+    await load("leaderboard", { ...leaderboard, fetchedAt: null }, setLeaderboard, () =>
+      apiFetch("/api/climb/leaderboard")
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d) => (d ? (d.climbers ?? []) : null))
+        .catch(() => null),
+    );
+  }, [leaderboard, load]);
+
   const refreshSettings = useCallback(async () => {
     await load("settings", { ...settings, fetchedAt: null }, setSettingsSlice, () =>
       apiFetch("/api/settings")
@@ -229,6 +239,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       ensureDashboard,
       ensureSettings,
       ensureLeaderboard,
+      refreshLeaderboard,
       refreshSettings,
       setSettings,
       invalidate,
@@ -241,6 +252,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       ensureDashboard,
       ensureSettings,
       ensureLeaderboard,
+      refreshLeaderboard,
       refreshSettings,
       setSettings,
       invalidate,
@@ -294,11 +306,11 @@ export function useSettings() {
 
 /** Cached leaderboard slice; fetches on mount if cold, revalidates if stale. */
 export function useLeaderboard() {
-  const { leaderboard, ensureLeaderboard } = useAppData();
+  const { leaderboard, ensureLeaderboard, refreshLeaderboard } = useAppData();
   useEffect(() => {
     ensureLeaderboard();
   }, [ensureLeaderboard]);
-  return leaderboard;
+  return { ...leaderboard, refreshLeaderboard };
 }
 
 /** Escape hatch for the auth flow to drop cache on sign-out / delete. */

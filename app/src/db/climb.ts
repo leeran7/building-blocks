@@ -134,6 +134,14 @@ export interface ClimberRank {
 }
 
 /**
+ * Tag for topFreeClimbers' unstable_cache entry. Time-based revalidation
+ * alone (60s) means a consent change wouldn't visibly take effect for up to
+ * a minute; revalidateTag(LEADERBOARD_CACHE_TAG) after a consent change
+ * (see PUT /api/settings) clears it immediately instead.
+ */
+export const LEADERBOARD_CACHE_TAG = "leaderboard";
+
+/**
  * The free-stack skill leaderboard: highest peak-height record per player,
  * ranked descending. Ties broken by who reached it first (earliest updated_at).
  *
@@ -143,7 +151,10 @@ export interface ClimberRank {
 export const topFreeClimbers = unstable_cache(
   async (limit: number = 50): Promise<ClimberRank[]> => {
     const rows = await prisma.climbRecord.findMany({
-      where: { category_slug: FREE_STACK_SLUG },
+      // Guideline 5.1.2: only players who've explicitly opted in appear on
+      // the public leaderboard. Filtered at read time (not just at write
+      // time) so revoking consent removes an existing record too.
+      where: { category_slug: FREE_STACK_SLUG, user: { leaderboard_consent_at: { not: null } } },
       orderBy: [{ peak_y: "desc" }, { updated_at: "asc" }],
       take: limit,
       select: {
@@ -163,7 +174,7 @@ export const topFreeClimbers = unstable_cache(
     }));
   },
   ["topFreeClimbers"],
-  { revalidate: 60 }
+  { revalidate: 60, tags: [LEADERBOARD_CACHE_TAG] }
 );
 
 

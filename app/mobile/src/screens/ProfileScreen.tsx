@@ -7,6 +7,7 @@ import {
   useDashboard,
   useSettings,
   useClearAppData,
+  useInvalidateAppData,
   type SettingsData,
   type SocialState,
 } from "../contexts/AppDataContext";
@@ -42,6 +43,7 @@ export function ProfileScreen() {
   const dash = useDashboard();
   const settingsSlice = useSettings();
   const clearAll = useClearAppData();
+  const invalidate = useInvalidateAppData();
 
   const dashData = dash.data;
   const settingsData = settingsSlice.data;
@@ -144,7 +146,8 @@ export function ProfileScreen() {
         setUsername(next.username ?? "");
         setSavedUsername(next.username ?? "");
         setSocial(next.social ?? {});
-        setSettings(next); // update the shared cache so the identity card reflects it
+        setSettings(next);
+        invalidate(["leaderboard"]);
         setSaved(true);
         void notifySuccess();
         setTimeout(() => setSaved(false), 2000);
@@ -407,11 +410,16 @@ export function ProfileScreen() {
                     setLeaderboardConsent(next);
                     if (next) void tapLight();
                     try {
-                      await apiFetch("/api/settings", {
+                      const res = await apiFetch("/api/settings", {
                         method: "PUT",
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({ leaderboardConsent: next }),
                       });
+                      if (!res.ok) throw new Error("save failed");
+                      if (settingsData) {
+                        setSettings({ ...settingsData, leaderboardConsent: next });
+                      }
+                      invalidate(["leaderboard"]);
                     } catch {
                       setLeaderboardVisible(!next);
                       setLeaderboardConsent(!next);
