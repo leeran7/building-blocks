@@ -132,7 +132,7 @@ export function SignInScreen({ onGuestContinue }: { onGuestContinue?: () => void
         <h1 className="font-display text-4xl font-black uppercase leading-none tracking-tight text-text-primary">
           Doom<span className="text-signal">stack</span>
         </h1>
-        <p className="max-w-[270px] text-sm leading-relaxed text-text-secondary">
+        <p className="max-w-[270px] text-sm leading-relaxed text-white [text-shadow:0_1px_3px_rgba(0,0,0,0.6)]">
           Sign in to save your climbs, rank on the leaderboard, and challenge
           friends.
         </p>
