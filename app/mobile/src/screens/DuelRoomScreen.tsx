@@ -503,6 +503,7 @@ function DuelGame({
   const [opponentPresent, setOpponentPresent] = useState(false);
   const [readyNudge, setReadyNudge] = useState(false);
   const joinBeatFiredRef = useRef(false);
+  const [joinBeat, setJoinBeat] = useState(false);
 
   const countdownStartsAtRef = useRef(0);
   const [countdownStartsAt, setCountdownStartsAt] = useState(0);
@@ -789,7 +790,6 @@ function DuelGame({
     opponentPresent,
   };
 
-  const [joinBeat, setJoinBeat] = useState(false);
   const [liveBeat, setLiveBeat] = useState(false);
   const prevPhaseRef = useRef(phase);
   useEffect(() => {

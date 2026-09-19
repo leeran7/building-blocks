@@ -16,6 +16,15 @@
  * `now` is injected so tests can drive the window without fake timers.
  */
 
+/**
+ * Compatibility-click window after a pointer/key cycle.
+ *
+ * Must cover the historic iOS ~300 ms click delay and the more common case of
+ * a click dispatched in a later task than pointerup (which a microtask clear
+ * cannot wait for).
+ */
+export const GHOST_CLICK_WINDOW_MS = 500;
+
 export function initialHoldMemo(): HoldMemo {
   return { held: new Set(), suppressUntil: new Map() };
 }
@@ -67,15 +76,6 @@ export function touchInputFromHeld(held: ReadonlySet<ControlId>): {
     jump: held.has("jump"),
   };
 }
-
-/**
- * Compatibility-click window after a pointer/key cycle.
- *
- * Must cover the historic iOS ~300 ms click delay and the more common case of
- * a click dispatched in a later task than pointerup (which a microtask clear
- * cannot wait for).
- */
-export const GHOST_CLICK_WINDOW_MS = 500;
 
 export type ControlId = "left" | "right" | "climb" | "jump";
 

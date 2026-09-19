@@ -209,14 +209,6 @@ function LavaCanvas() {
     let last = 0;
     const start = performance.now();
 
-    const resize = () => {
-      cssW = canvas.clientWidth;
-      cssH = canvas.clientHeight;
-      canvas.width = Math.max(1, Math.round(cssW * dpr));
-      canvas.height = Math.max(1, Math.round(cssH * dpr));
-      if (reduce) paint(0);
-    };
-
     const paint = (now: number) => {
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.clearRect(0, 0, cssW, cssH);
@@ -232,6 +224,14 @@ function LavaCanvas() {
         reducedMotion: reduce,
         slowed: false,
       });
+    };
+
+    const resize = () => {
+      cssW = canvas.clientWidth;
+      cssH = canvas.clientHeight;
+      canvas.width = Math.max(1, Math.round(cssW * dpr));
+      canvas.height = Math.max(1, Math.round(cssH * dpr));
+      if (reduce) paint(0);
     };
 
     const frame = (now: number) => {

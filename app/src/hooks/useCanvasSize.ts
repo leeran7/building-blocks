@@ -2,6 +2,20 @@
 
 import { useCallback, useEffect, useState, type RefObject } from "react";
 
+/** Locked play-area aspect ratio — see the note on useCanvasSize. */
+const ASPECT = 360 / 640;
+/** Server-render / pre-measurement size; also the historical desktop size. */
+const BASE_SIZE: CanvasSize = { width: 360, height: 640 };
+/**
+ * Sanity guard against a degenerate canvas, not a comfortable minimum: it is
+ * clamped to the height budget below, because a canvas taller than the viewport
+ * drags the touch controls overlaid on it off screen.
+ */
+const MIN_WIDTH = 120;
+const MAX_WIDTH = 2560;
+/** Keeps the canvas off the very bottom edge of the viewport. */
+const EDGE_MARGIN = 12;
+
 /**
  * Responsive canvas dimensions for the climb game.
  *
@@ -93,20 +107,6 @@ export interface UseCanvasSizeOptions {
    */
   fill?: boolean;
 }
-
-/** Locked play-area aspect ratio — see the note on useCanvasSize. */
-const ASPECT = 360 / 640;
-/** Server-render / pre-measurement size; also the historical desktop size. */
-const BASE_SIZE: CanvasSize = { width: 360, height: 640 };
-/**
- * Sanity guard against a degenerate canvas, not a comfortable minimum: it is
- * clamped to the height budget below, because a canvas taller than the viewport
- * drags the touch controls overlaid on it off screen.
- */
-const MIN_WIDTH = 120;
-const MAX_WIDTH = 2560;
-/** Keeps the canvas off the very bottom edge of the viewport. */
-const EDGE_MARGIN = 12;
 
 /**
  * Usable height from the element's top edge down to the bottom of the viewport.

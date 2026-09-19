@@ -43,7 +43,7 @@ import { FriendRequests } from "../Challenge/FriendRequests";
 interface DuelStats {
   wins: number;
   losses: number;
-  streak: number;
+  current_streak: number;
 }
 
 /** The ways into a match, presented as a gamified mode menu. */
@@ -362,11 +362,11 @@ export function DuelHome() {
             <div className="flex items-center gap-3 font-mono tabular-nums shrink-0">
               <RecordStat value={stats.wins} label="W" tone="signal" />
               <RecordStat value={stats.losses} label="L" tone="muted" />
-              {stats.streak !== 0 && (
+              {stats.current_streak !== 0 && (
                 <RecordStat
-                  value={stats.streak > 0 ? `+${stats.streak}` : stats.streak}
+                  value={stats.current_streak > 0 ? `+${stats.current_streak}` : stats.current_streak}
                   label="streak"
-                  tone={stats.streak > 0 ? "signal" : "ember"}
+                  tone={stats.current_streak > 0 ? "signal" : "ember"}
                 />
               )}
             </div>

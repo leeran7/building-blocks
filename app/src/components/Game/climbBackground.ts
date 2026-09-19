@@ -28,6 +28,8 @@ export const VOLCANO_TILE_SRC = "/climb/volcano-tile.jpg";
  * tile and falls back to a flat dark fill.
  */
 let tileSrc: string = VOLCANO_TILE_SRC;
+let decoded: HTMLImageElement | null = null;
+let decodeFailed = false;
 
 /** Point the climb backdrop at a bundled asset URL (native app). Idempotent;
  *  resets the decode cache so the new source is (re)loaded. */
@@ -152,9 +154,6 @@ export type ClimbBiome =
   | "mountains"
   | "leaving"
   | "summit";
-
-let decoded: HTMLImageElement | null = null;
-let decodeFailed = false;
 
 function ensureTile(): HTMLImageElement | null {
   if (decodeFailed) return null;
