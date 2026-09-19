@@ -23,6 +23,7 @@ export function FriendsListSection({ refreshKey, onChallengeSent }: FriendsListS
   const [error, setError] = useState<string | null>(null);
   const [challengingId, setChallengingId] = useState<string | null>(null);
   const [challengeSent, setChallengeSent] = useState<Set<string>>(new Set());
+  const [challengeErrors, setChallengeErrors] = useState<Set<string>>(new Set());
 
   const fetchFriends = useCallback(async () => {
     setLoading(true);
@@ -49,6 +50,12 @@ export function FriendsListSection({ refreshKey, onChallengeSent }: FriendsListS
   const handleChallenge = useCallback(
     async (friendUserId: string) => {
       setChallengingId(friendUserId);
+      setChallengeErrors((prev) => {
+        if (!prev.has(friendUserId)) return prev;
+        const next = new Set(prev);
+        next.delete(friendUserId);
+        return next;
+      });
       try {
         const res = await apiFetch("/api/challenge", {
           method: "POST",
@@ -60,9 +67,11 @@ export function FriendsListSection({ refreshKey, onChallengeSent }: FriendsListS
           void notifySuccess();
           onChallengeSent?.();
         } else {
+          setChallengeErrors((prev) => new Set(prev).add(friendUserId));
           void notifyError();
         }
       } catch {
+        setChallengeErrors((prev) => new Set(prev).add(friendUserId));
         void notifyError();
       }
       setChallengingId(null);
@@ -102,28 +111,38 @@ export function FriendsListSection({ refreshKey, onChallengeSent }: FriendsListS
           {friends.map((f) => {
             const name = f.user.displayName ?? f.user.username ?? "Friend";
             const sent = challengeSent.has(f.user.id);
+            const errored = challengeErrors.has(f.user.id);
             return (
               <ListRow key={f.id}>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-semibold text-text-primary">{name}</p>
-                  {f.user.username && f.user.displayName && (
-                    <p className="truncate text-xs text-text-muted">@{f.user.username}</p>
+                <div className="flex w-full flex-col gap-1.5">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-semibold text-text-primary">{name}</p>
+                      {f.user.username && f.user.displayName && (
+                        <p className="truncate text-xs text-text-muted">@{f.user.username}</p>
+                      )}
+                    </div>
+                    {sent ? (
+                      <span className="shrink-0 font-mono text-xs uppercase tracking-[0.12em] text-signal">
+                        Sent
+                      </span>
+                    ) : (
+                      <Button
+                        variant="primary"
+                        fullWidth={false}
+                        busy={challengingId === f.user.id}
+                        onPress={() => handleChallenge(f.user.id)}
+                      >
+                        {errored ? "Retry" : "Challenge"}
+                      </Button>
+                    )}
+                  </div>
+                  {errored && (
+                    <p className="font-mono text-xs text-ember" role="alert">
+                      Could not send challenge. Try again.
+                    </p>
                   )}
                 </div>
-                {sent ? (
-                  <span className="shrink-0 font-mono text-xs uppercase tracking-[0.12em] text-signal">
-                    Sent
-                  </span>
-                ) : (
-                  <Button
-                    variant="primary"
-                    fullWidth={false}
-                    busy={challengingId === f.user.id}
-                    onPress={() => handleChallenge(f.user.id)}
-                  >
-                    Challenge
-                  </Button>
-                )}
               </ListRow>
             );
           })}

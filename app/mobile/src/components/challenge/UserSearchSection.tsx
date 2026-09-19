@@ -33,6 +33,7 @@ export function UserSearchSection({ onFriendRequestSent }: UserSearchSectionProp
   const [searched, setSearched] = useState(false);
   const [addingId, setAddingId] = useState<string | null>(null);
   const [sentIds, setSentIds] = useState<Set<string>>(new Set());
+  const [errorIds, setErrorIds] = useState<Set<string>>(new Set());
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   const search = useCallback(async (q: string) => {
@@ -70,6 +71,12 @@ export function UserSearchSection({ onFriendRequestSent }: UserSearchSectionProp
   const handleAdd = useCallback(
     async (userId: string) => {
       setAddingId(userId);
+      setErrorIds((prev) => {
+        if (!prev.has(userId)) return prev;
+        const next = new Set(prev);
+        next.delete(userId);
+        return next;
+      });
       try {
         const res = await apiFetch("/api/friends", {
           method: "POST",
@@ -81,9 +88,11 @@ export function UserSearchSection({ onFriendRequestSent }: UserSearchSectionProp
           void notifySuccess();
           onFriendRequestSent?.();
         } else {
+          setErrorIds((prev) => new Set(prev).add(userId));
           void notifyError();
         }
       } catch {
+        setErrorIds((prev) => new Set(prev).add(userId));
         void notifyError();
       }
       setAddingId(null);
@@ -134,28 +143,38 @@ export function UserSearchSection({ onFriendRequestSent }: UserSearchSectionProp
           {results.map((u) => {
             const name = u.displayName ?? u.username ?? "User";
             const sent = sentIds.has(u.id);
+            const errored = errorIds.has(u.id);
             return (
               <ListRow key={u.id}>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-semibold text-text-primary">{name}</p>
-                  {u.username && u.displayName && (
-                    <p className="truncate text-xs text-text-muted">@{u.username}</p>
+                <div className="flex w-full flex-col gap-1.5">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-semibold text-text-primary">{name}</p>
+                      {u.username && u.displayName && (
+                        <p className="truncate text-xs text-text-muted">@{u.username}</p>
+                      )}
+                    </div>
+                    {sent ? (
+                      <span className="shrink-0 font-mono text-xs uppercase tracking-[0.12em] text-signal">
+                        Sent
+                      </span>
+                    ) : (
+                      <Button
+                        variant="secondary"
+                        fullWidth={false}
+                        busy={addingId === u.id}
+                        onPress={() => handleAdd(u.id)}
+                      >
+                        {errored ? "Retry" : "Add"}
+                      </Button>
+                    )}
+                  </div>
+                  {errored && (
+                    <p className="font-mono text-xs text-ember" role="alert">
+                      Could not send request. Try again.
+                    </p>
                   )}
                 </div>
-                {sent ? (
-                  <span className="shrink-0 font-mono text-xs uppercase tracking-[0.12em] text-signal">
-                    Sent
-                  </span>
-                ) : (
-                  <Button
-                    variant="secondary"
-                    fullWidth={false}
-                    busy={addingId === u.id}
-                    onPress={() => handleAdd(u.id)}
-                  >
-                    Add
-                  </Button>
-                )}
               </ListRow>
             );
           })}

@@ -1128,7 +1128,7 @@ function MobileResult({
         <PlayerRow name={player2Name} peak={duelResult.player2Peak} isWinner={duelResult.winnerId === player2Id} isLocal={player2Id === myId} color="blue" />
       </div>
 
-      {user && (
+      {user && !opponentId.startsWith("guest:") && (
         <div className="mt-3 w-full max-w-xs">
           <AddFriendButton opponentId={opponentId} opponentName={opponentName} />
         </div>
