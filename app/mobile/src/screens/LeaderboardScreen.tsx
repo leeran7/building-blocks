@@ -1,20 +1,23 @@
+import { useCallback } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import { useLeaderboard } from "../contexts/AppDataContext";
 import { ALTITUDE_UNIT } from "@app/lib/units";
-import { ScreenHeader, ScreenBody, ListRow, StateMessage } from "../components/ui";
+import { ScreenHeader, ListRow, StateMessage } from "../components/ui";
+import { PullToRefresh } from "../components/PullToRefresh";
 
 export function LeaderboardScreen() {
   const { user } = useAuth();
-  const { data, loading: sliceLoading, error } = useLeaderboard();
+  const { data, loading: sliceLoading, error, refreshLeaderboard } = useLeaderboard();
   const climbers = data ?? [];
-  // Skeleton only on the cold load; a warm cache renders rows immediately.
   const loading = sliceLoading && data === null;
+
+  const handleRefresh = useCallback(() => refreshLeaderboard(), [refreshLeaderboard]);
 
   return (
     <main className="flex h-full flex-col">
       <ScreenHeader eyebrow="global" title="Leaderboard" />
 
-      <ScreenBody>
+      <PullToRefresh onRefresh={handleRefresh}>
         {loading && (
           <div className="flex flex-col gap-2.5 pt-1">
             {Array.from({ length: 10 }).map((_, i) => (
@@ -62,7 +65,7 @@ export function LeaderboardScreen() {
             })}
           </ol>
         )}
-      </ScreenBody>
+      </PullToRefresh>
     </main>
   );
 }
