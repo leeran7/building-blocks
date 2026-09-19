@@ -1,0 +1,37 @@
+name: Daily chip reminder
+
+# Push-notifies users whose daily free chips are claimable. The endpoint
+# uses sendPushToUser directly (not createNotification) to avoid cluttering
+# the in-app feed with daily reminders.
+#
+# Required repo secrets:
+#   DAILY_CHIP_REMINDER_URL   — https://<prod-domain>/api/cron/daily-chip-reminder
+#   DAILY_CHIP_REMINDER_TOKEN — must equal the deployment's INTERNAL_TOKEN env var
+on:
+  schedule:
+    - cron: "0 */4 * * *" # every 4 hours (UTC)
+  workflow_dispatch: {} # allow manual runs from the Actions tab
+
+permissions:
+  contents: read
+
+jobs:
+  remind:
+    name: Send daily chip reminders
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping reminder endpoint
+        env:
+          DAILY_CHIP_REMINDER_URL: ${{ secrets.DAILY_CHIP_REMINDER_URL }}
+          DAILY_CHIP_REMINDER_TOKEN: ${{ secrets.DAILY_CHIP_REMINDER_TOKEN }}
+        run: |
+          if [ -z "$DAILY_CHIP_REMINDER_URL" ] || [ -z "$DAILY_CHIP_REMINDER_TOKEN" ]; then
+            echo "DAILY_CHIP_REMINDER_URL / DAILY_CHIP_REMINDER_TOKEN not configured — skipping."
+            exit 0
+          fi
+          code=$(curl -sS -o /tmp/reminder.out -w "%{http_code}" \
+            -H "x-internal-token: $DAILY_CHIP_REMINDER_TOKEN" \
+            "$DAILY_CHIP_REMINDER_URL")
+          echo "HTTP $code"
+          cat /tmp/reminder.out || true
+          test "$code" = "200"

@@ -11,6 +11,7 @@
 import Link from "next/link";
 import { useAuth } from "../contexts/AuthContext";
 import { AccountMenu } from "./AccountMenu";
+import { NotificationBell } from "./Notifications/NotificationBell";
 import { SIGNIN_HREF, SIGNUP_HREF } from "./navLinks";
 
 const PILL =
@@ -31,7 +32,12 @@ export function NavbarAuth() {
   }
 
   if (user) {
-    return <AccountMenu />;
+    return (
+      <div className="flex items-center gap-1">
+        <NotificationBell />
+        <AccountMenu />
+      </div>
+    );
   }
 
   return (

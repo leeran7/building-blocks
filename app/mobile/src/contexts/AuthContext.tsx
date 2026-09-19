@@ -20,6 +20,7 @@ import {
 } from "../lib/firebaseAuth";
 import { setIdToken } from "../lib/auth";
 import { apiFetch } from "../lib/api";
+import { initPushNotifications, unregisterPush } from "../lib/pushNotifications";
 
 interface AuthState {
   user: AuthUser | null;
@@ -64,8 +65,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setIdToken(token);
         if (!synced.current && !u.isAnonymous && u.email && token) {
           synced.current = true;
-          // Best-effort DB provisioning; the climb save self-heals otherwise.
           apiFetch("/api/auth/sync", { method: "POST" }).catch(() => {});
+          initPushNotifications().catch(() => {});
         }
       } else {
         setIdToken(null);
@@ -78,11 +79,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signOut = useCallback(async () => {
-    // Sign out optimistically: drop the local session first so the UI returns to
-    // the auth gate immediately (critical for account delete — the row is
-    // already gone server-side), then let the Firebase SDK sign-out settle in
-    // the background. Nulling the token first also means a rejected fbSignOut()
-    // (e.g. offline) can never leave a live cached token behind.
+    await unregisterPush().catch(() => {});
     setIdToken(null);
     setUser(null);
     try {

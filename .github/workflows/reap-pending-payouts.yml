@@ -1,0 +1,37 @@
+name: Reap pending payouts
+
+# Retries prize disbursement for tournament winners awaiting Stripe
+# Connect onboarding. Idempotent via TournamentEntry.stripe_transfer_id,
+# so overlapping or missed runs are harmless.
+#
+# Required repo secrets:
+#   REAP_PENDING_PAYOUTS_URL   — https://<prod-domain>/api/cron/reap-pending-payouts
+#   REAP_PENDING_PAYOUTS_TOKEN — must equal the deployment's INTERNAL_TOKEN env var
+on:
+  schedule:
+    - cron: "0 * * * *" # every hour (UTC)
+  workflow_dispatch: {} # allow manual runs from the Actions tab
+
+permissions:
+  contents: read
+
+jobs:
+  reap:
+    name: Reap pending payouts
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping reap endpoint
+        env:
+          REAP_PENDING_PAYOUTS_URL: ${{ secrets.REAP_PENDING_PAYOUTS_URL }}
+          REAP_PENDING_PAYOUTS_TOKEN: ${{ secrets.REAP_PENDING_PAYOUTS_TOKEN }}
+        run: |
+          if [ -z "$REAP_PENDING_PAYOUTS_URL" ] || [ -z "$REAP_PENDING_PAYOUTS_TOKEN" ]; then
+            echo "REAP_PENDING_PAYOUTS_URL / REAP_PENDING_PAYOUTS_TOKEN not configured — skipping."
+            exit 0
+          fi
+          code=$(curl -sS -o /tmp/reap.out -w "%{http_code}" \
+            -H "x-internal-token: $REAP_PENDING_PAYOUTS_TOKEN" \
+            "$REAP_PENDING_PAYOUTS_URL")
+          echo "HTTP $code"
+          cat /tmp/reap.out || true
+          test "$code" = "200"

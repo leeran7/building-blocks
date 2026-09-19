@@ -1,0 +1,37 @@
+name: Reap expired challenges
+
+# Expires stale pending challenge invitations on a schedule. The endpoint
+# is idempotent (status guard on each row), so overlapping or missed runs
+# are harmless.
+#
+# Required repo secrets:
+#   REAP_CHALLENGES_URL   — https://<prod-domain>/api/cron/reap-challenges
+#   REAP_CHALLENGES_TOKEN — must equal the deployment's INTERNAL_TOKEN env var
+on:
+  schedule:
+    - cron: "0 * * * *" # every hour (UTC)
+  workflow_dispatch: {} # allow manual runs from the Actions tab
+
+permissions:
+  contents: read
+
+jobs:
+  reap:
+    name: Reap expired challenges
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping reap endpoint
+        env:
+          REAP_CHALLENGES_URL: ${{ secrets.REAP_CHALLENGES_URL }}
+          REAP_CHALLENGES_TOKEN: ${{ secrets.REAP_CHALLENGES_TOKEN }}
+        run: |
+          if [ -z "$REAP_CHALLENGES_URL" ] || [ -z "$REAP_CHALLENGES_TOKEN" ]; then
+            echo "REAP_CHALLENGES_URL / REAP_CHALLENGES_TOKEN not configured — skipping."
+            exit 0
+          fi
+          code=$(curl -sS -o /tmp/reap.out -w "%{http_code}" \
+            -H "x-internal-token: $REAP_CHALLENGES_TOKEN" \
+            "$REAP_CHALLENGES_URL")
+          echo "HTTP $code"
+          cat /tmp/reap.out || true
+          test "$code" = "200"

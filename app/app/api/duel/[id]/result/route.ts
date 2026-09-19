@@ -33,6 +33,7 @@ import {
 } from "../../../../../src/db/duel";
 import { advanceRound, assignPrizes } from "../../../../../src/db/tournaments";
 import { newRunSeed } from "../../../../../src/game/rng";
+import { createNotification } from "../../../../../src/db/notification";
 
 export const runtime = "nodejs";
 
@@ -208,11 +209,20 @@ export async function POST(
       tryAdvanceTournament(duel.tournament_id).catch(() => {});
     }
 
+    if (!winnerId.startsWith("guest:")) {
+      createNotification({
+        userId: winnerId,
+        type: "duel_result",
+        title: "You won!",
+        body: "Your opponent disconnected — victory is yours!",
+        data: { duelId: id },
+      }).catch(() => {});
+    }
+
     return NextResponse.json({
       status: "completed",
       winnerId,
       forfeit: true,
-      // Paid duels: surface the winnings credit so DuelResult can show it.
       payoutCents: forfeitResult.payoutCents,
       payoutToMe: uid != null && winnerId === uid,
     });
@@ -367,6 +377,24 @@ export async function POST(
     tryAdvanceTournament(freshDuel.tournament_id).catch(() => {});
   }
 
+  const p1Name = freshDuel.player1.display_name ?? "Opponent";
+  const p2Name = freshDuel.player2?.display_name ?? "Opponent";
+  const margin = Math.abs((result.player1Peak ?? 0) - (result.player2Peak ?? 0)).toFixed(1);
+  for (const pid of [freshDuel.player1_id, freshDuel.player2_id]) {
+    if (!pid || pid.startsWith("guest:")) continue;
+    const isWinner = pid === result.winnerId;
+    const opponentName = pid === freshDuel.player1_id ? p2Name : p1Name;
+    createNotification({
+      userId: pid,
+      type: "duel_result",
+      title: isWinner ? "You won!" : "Duel complete",
+      body: isWinner
+        ? `${opponentName} couldn't keep up — you won!`
+        : `So close — ${opponentName} won by ${margin}m`,
+      data: { duelId: id },
+    }).catch(() => {});
+  }
+
   // Fetch the requesting player's updated stats
   const myStats = uid ? await getDuelStats(uid) : null;
 
@@ -388,8 +416,31 @@ export async function POST(
 async function tryAdvanceTournament(tournamentId: string): Promise<void> {
   try {
     const result = await advanceRound(tournamentId, newRunSeed);
-    if (result.outcome === "tournament_complete") {
+    if (result.outcome === "advanced") {
+      for (const pid of result.playerIds) {
+        if (pid.startsWith("guest:")) continue;
+        createNotification({
+          userId: pid,
+          type: "tournament_round_ready",
+          title: "Next round!",
+          body: `Round ${result.round} is ready — your match is waiting!`,
+          data: { tournamentId, round: result.round },
+        }).catch(() => {});
+      }
+    } else if (result.outcome === "tournament_complete") {
       await assignPrizes(tournamentId);
+      for (const p of result.placements) {
+        if (p.userId.startsWith("guest:")) continue;
+        createNotification({
+          userId: p.userId,
+          type: "tournament_complete",
+          title: p.placement === 1 ? "Tournament champion!" : "Tournament complete",
+          body: p.placement === 1
+            ? "You won the tournament!"
+            : `You placed #${p.placement} in the tournament`,
+          data: { tournamentId, placement: p.placement },
+        }).catch(() => {});
+      }
     }
   } catch (err) {
     console.error("[result] tryAdvanceTournament failed", tournamentId, err);

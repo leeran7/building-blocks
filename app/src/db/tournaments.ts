@@ -2,6 +2,7 @@ import { prisma } from "./client";
 import { DuelStatus, TournamentStatus, Prisma } from "@prisma/client";
 import { nanoid } from "nanoid";
 import { totalRounds } from "../config/tournaments";
+import { createNotification } from "./notification";
 
 type TxClient = Prisma.TransactionClient;
 
@@ -51,7 +52,7 @@ export type SeedBracketResult =
   | { outcome: "insufficient_entrants" };
 
 export type AdvanceRoundResult =
-  | { outcome: "advanced"; round: number; matchCount: number }
+  | { outcome: "advanced"; round: number; matchCount: number; playerIds: string[] }
   | { outcome: "tournament_complete"; placements: { userId: string; placement: number }[] }
   | { outcome: "round_incomplete"; pending: number }
   | { outcome: "wrong_status" };
@@ -120,7 +121,7 @@ export async function createTournament(input: CreateTournamentInput) {
 
 export type QueueResult =
   | { outcome: "queued"; tournamentId: string; entrantCount: number; bracketSize: number }
-  | { outcome: "started"; tournamentId: string }
+  | { outcome: "started"; tournamentId: string; entrantUserIds: string[] }
   | { outcome: "duplicate"; tournamentId: string }
   | { outcome: "insufficient_chips"; shortfall: number };
 
@@ -276,7 +277,11 @@ export async function queueForTournament(
         },
       });
 
-      return { outcome: "started", tournamentId: tournament.id };
+      return {
+        outcome: "started",
+        tournamentId: tournament.id,
+        entrantUserIds: shuffled.map((e) => e.user_id),
+      };
     }
 
     return {
@@ -535,7 +540,7 @@ export async function advanceRound(
       data: { current_round: nextRound },
     });
 
-    return { outcome: "advanced", round: nextRound, matchCount: nextMatchCount };
+    return { outcome: "advanced", round: nextRound, matchCount: nextMatchCount, playerIds: winners };
   });
 }
 

@@ -12,7 +12,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "../../contexts/AuthContext";
 import { shareInvite } from "../../lib/shareInvite";
@@ -33,6 +33,10 @@ import { Spinner } from "../ui/Spinner";
 import { NavTab } from "../ui/NavTab";
 import { SignInGate } from "../ui/SignInGate";
 import { Button } from "../ui/Button";
+import { UserSearch } from "../Challenge/UserSearch";
+import { PendingChallenges } from "../Challenge/PendingChallenges";
+import { FriendsList } from "../Challenge/FriendsList";
+import { FriendRequests } from "../Challenge/FriendRequests";
 
 // ─────────────────────────────── Types ────────────────────────────────────
 
@@ -69,11 +73,18 @@ type QueueState =
 export function DuelHome() {
   const { user, token, isAnonymous } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
+
+  const initialMode = ((): DuelMode => {
+    const param = searchParams.get("mode");
+    if (param === "challenge" || param === "quick" || param === "chips" || param === "tournaments") return param;
+    return "quick";
+  })();
 
   const [createState, setCreateState] = useState<CreateState>({ status: "idle" });
   const [queueState, setQueueState] = useState<QueueState>({ status: "idle" });
   const [stats, setStats] = useState<DuelStats | null>(null);
-  const [mode, setMode] = useState<DuelMode>("quick");
+  const [mode, setMode] = useState<DuelMode>(initialMode);
   const [buyOpen, setBuyOpen] = useState(false);
   const { state: claimState, claim } = useClaimDailyChips(token);
   const { allowed: geoAllowed } = useRankedEligibility(PAID_DUELS_ENABLED_PUBLIC);
@@ -247,6 +258,61 @@ export function DuelHome() {
       // Best-effort
     }
   }, [token]);
+
+  // ─────────────── In-app challenge ───────────────
+
+  const [challengeSending, setChallengeSending] = useState(false);
+  const [addingFriend, setAddingFriend] = useState(false);
+
+  const handleAddFriend = useCallback(
+    async (userId: string, displayName: string) => {
+      if (!token) return;
+      setAddingFriend(true);
+      try {
+        const res = await authedFetch("/api/friends", token, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ receiverId: userId }),
+        });
+        if (!res.ok) {
+          const body = (await res.json().catch(() => ({}))) as { error?: string };
+          setCreateState({
+            status: "error",
+            message: body.error ?? `Could not add ${displayName}.`,
+          });
+        }
+      } catch {
+        setCreateState({ status: "error", message: "Network error. Please try again." });
+      }
+      setAddingFriend(false);
+    },
+    [token]
+  );
+
+  const handleInAppChallenge = useCallback(
+    async (userId: string, displayName: string) => {
+      if (!token) return;
+      setChallengeSending(true);
+      try {
+        const res = await authedFetch("/api/challenge", token, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ recipientId: userId, categorySlug: "tech" }),
+        });
+        if (!res.ok) {
+          const body = (await res.json().catch(() => ({}))) as { error?: string };
+          setCreateState({
+            status: "error",
+            message: body.error ?? `Could not challenge ${displayName}.`,
+          });
+        }
+      } catch {
+        setCreateState({ status: "error", message: "Network error. Please try again." });
+      }
+      setChallengeSending(false);
+    },
+    [token]
+  );
 
   // ─────────────── Render ───────────────
 
@@ -428,49 +494,84 @@ export function DuelHome() {
             )}
           </section>
         ) : activeMode === "challenge" ? (
-          <section className="bg-surface rounded-xl border border-border-subtle p-6">
-            <h2 className="font-mono text-xs uppercase tracking-[0.14em] text-text-muted mb-1">
-              Challenge a friend
-            </h2>
-            <p className="text-text-secondary text-sm mb-5">
-              Create a private challenge link and share it with a specific opponent.
-            </p>
+          <section className="bg-surface rounded-xl border border-border-subtle p-6 flex flex-col gap-5">
+            {/* Add Friend */}
+            <div>
+              <h2 className="font-mono text-xs uppercase tracking-[0.14em] text-text-muted mb-1">
+                Add friend
+              </h2>
+              <p className="text-text-secondary text-sm mb-3">
+                Find players by username.
+              </p>
+              <UserSearch
+                onSelect={handleAddFriend}
+                actionLabel="Add"
+                placeholder="Search by username…"
+                disabled={addingFriend}
+              />
+            </div>
 
-            <p className="sr-only" aria-live="polite">
-              {createState.status === "loading"
-                ? "Creating challenge…"
-                : createState.status === "error"
-                  ? createState.message
-                  : ""}
-            </p>
+            {/* Incoming / outgoing friend requests */}
+            <FriendRequests />
 
-            {createState.status === "idle" && (
-              <Button
-                ref={createButtonRef}
-                variant="primary"
-                size="lg"
-                fullWidth
-                onClick={handleCreate}
-              >
-                Create challenge link
-              </Button>
-            )}
+            {/* Challenge a friend */}
+            <div>
+              <h2 className="font-mono text-xs uppercase tracking-[0.14em] text-text-muted mb-1">
+                Challenge a friend
+              </h2>
+              <p className="text-text-secondary text-sm mb-3">
+                Pick a friend to challenge to a 1v1.
+              </p>
+              <FriendsList onChallenge={handleInAppChallenge} disabled={challengeSending} />
+            </div>
 
-            {createState.status === "loading" && (
-              <div className="flex items-center gap-2 text-text-muted text-sm">
-                <Spinner />
-                Creating…
-              </div>
-            )}
+            <PendingChallenges />
 
-            {createState.status === "error" && (
-              <div className="flex flex-col gap-2" role="alert">
-                <p className="text-ember text-sm">{createState.message}</p>
-                <Button variant="ghost" size="sm" onClick={() => setCreateState({ status: "idle" })}>
-                  Try again
+            {/* Share a link */}
+            <div className="border-t border-border-subtle pt-4">
+              <h3 className="font-mono text-[11px] uppercase tracking-[0.14em] text-text-muted mb-1">
+                Or share a link
+              </h3>
+              <p className="text-text-secondary text-xs mb-3">
+                Create a private challenge link to share outside the app.
+              </p>
+
+              <p className="sr-only" aria-live="polite">
+                {createState.status === "loading"
+                  ? "Creating challenge…"
+                  : createState.status === "error"
+                    ? createState.message
+                    : ""}
+              </p>
+
+              {createState.status === "idle" && (
+                <Button
+                  ref={createButtonRef}
+                  variant="ghost"
+                  size="sm"
+                  fullWidth
+                  onClick={handleCreate}
+                >
+                  Create challenge link
                 </Button>
-              </div>
-            )}
+              )}
+
+              {createState.status === "loading" && (
+                <div className="flex items-center gap-2 text-text-muted text-sm">
+                  <Spinner />
+                  Creating...
+                </div>
+              )}
+
+              {createState.status === "error" && (
+                <div className="flex flex-col gap-2" role="alert">
+                  <p className="text-ember text-sm">{createState.message}</p>
+                  <Button variant="ghost" size="sm" onClick={() => setCreateState({ status: "idle" })}>
+                    Try again
+                  </Button>
+                </div>
+              )}
+            </div>
           </section>
         ) : activeMode === "chips" ? (
           <section className="bg-surface rounded-xl border border-signal/30 shadow-signal p-6">

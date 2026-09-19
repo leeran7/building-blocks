@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { DuelHome } from "../../src/components/Duel/DuelHome";
 import { buildMetadata } from "../../src/lib/seo";
 
@@ -10,5 +11,9 @@ export const metadata: Metadata = buildMetadata({
 });
 
 export default function DuelPage() {
-  return <DuelHome />;
+  return (
+    <Suspense>
+      <DuelHome />
+    </Suspense>
+  );
 }
