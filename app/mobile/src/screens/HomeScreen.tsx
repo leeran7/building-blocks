@@ -1,8 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { tapLight, tapHeavy } from "../lib/haptics";
-import { apiFetch, API_BASE } from "../lib/api";
-import { shareInvite } from "@app/lib/shareInvite";
+import { tapHeavy } from "../lib/haptics";
 import { ALTITUDE_UNIT } from "@app/lib/units";
 import { LogoMark } from "../components/LogoMark";
 import { useHubPrefetch } from "../contexts/AppDataContext";
@@ -58,54 +56,11 @@ export function HomeScreen() {
     navigate("/climb?daily=1");
   };
 
-  // Challenge = create a private 1v1 race on a server-seeded tower, hand the
-  // invite link to the OS share sheet, then drop into the native race room to
-  // wait for the friend. A shared https link opens straight into this room on
-  // devices that have the app (universal/app links) and the web otherwise.
-  const [challengeBusy, setChallengeBusy] = useState(false);
-  const [challengeError, setChallengeError] = useState<string | null>(null);
-  const startChallenge = useCallback(async () => {
-    if (challengeBusy) return;
-    void tapLight();
-    setChallengeBusy(true);
-    setChallengeError(null);
-    try {
-      const res = await apiFetch("/api/duel", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ categorySlug: "tech" }),
-      });
-      // 409 = this user already has an open challenge; reuse it rather than
-      // orphaning a second row.
-      if (res.status === 409) {
-        const body = (await res.json()) as { existingId: string };
-        await shareInvite(`${API_BASE}/duel/${body.existingId}`).catch(() => {});
-        navigate(`/duel/${body.existingId}`);
-        return;
-      }
-      // 429 = rate limited. Don't frame this as "tap to retry" — hammering the
-      // button just burns more budget and deepens the cooldown.
-      if (res.status === 429) {
-        setChallengeError("Too many challenges — give it a minute");
-        return;
-      }
-      if (!res.ok) {
-        setChallengeError("Couldn't start — tap to retry");
-        return;
-      }
-      const body = (await res.json()) as { id: string };
-      // Build the invite from the app's canonical origin rather than the
-      // server-returned `link`: the server derives that from BASE_URL, which is
-      // localhost in dev/unset envs and would not deep-link. A canonical
-      // https://<host>/duel/:id is what the universal/app links verify.
-      await shareInvite(`${API_BASE}/duel/${body.id}`).catch(() => {});
-      navigate(`/duel/${body.id}`);
-    } catch {
-      setChallengeError("Couldn't start — tap to retry");
-    } finally {
-      setChallengeBusy(false);
-    }
-  }, [challengeBusy, navigate]);
+  // Challenge = friends, in-app challenges, and a share-link fallback, all on
+  // the dedicated /challenge screen (see ChallengeScreen).
+  const openChallenge = useCallback(() => {
+    navigate("/challenge");
+  }, [navigate]);
 
   // Quick Play = random matchmaking queue. The hook encapsulates POST (join),
   // GET polling, DELETE (cancel), and cleanup on unmount.
@@ -161,11 +116,7 @@ export function HomeScreen() {
           <div className="flex w-full flex-col gap-2.5">
             <DailyCard daily={daily} resetMs={resetMs} onPress={playDaily} />
             <QuickPlayCard onPress={queue.join} />
-            <ChallengeCard
-              busy={challengeBusy}
-              error={challengeError}
-              onPress={startChallenge}
-            />
+            <ChallengeCard onPress={openChallenge} />
           </div>
         </div>
       </div>
@@ -332,30 +283,17 @@ function ChevronRight({ className = "text-text-muted" }: { className?: string })
 }
 
 /**
- * Challenge = create a private 1v1 race and share the invite link, then race a
- * friend on the same server-seeded tower in the native room. Deliberately NOT
- * ranked/1v1-arena — no matchmaking, stakes, or W/L in the app.
+ * Challenge = add friends, send in-app challenges, and manage requests on the
+ * dedicated Challenge screen. Deliberately NOT ranked/1v1-arena — no
+ * matchmaking, stakes, or W/L in the app.
  */
-function ChallengeCard({
-  busy,
-  error,
-  onPress,
-}: {
-  busy: boolean;
-  error: string | null;
-  onPress: () => void;
-}) {
-  const subtitle = busy
-    ? "Creating your challenge…"
-    : error
-      ? error
-      : "Race a friend on the same tower";
+function ChallengeCard({ onPress }: { onPress: () => void }) {
   return (
     <ModeCard
       icon={<SwordsIcon />}
       tint="signal"
       title="Challenge"
-      subtitle={subtitle}
+      subtitle="Add friends & race them"
       ariaLabel="Challenge a friend to a race"
       onPress={onPress}
     />

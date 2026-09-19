@@ -21,6 +21,7 @@ import { buildTower } from "@app/game/towers";
 import { hazardPhase } from "@app/game/hazard";
 import { formatAltitude } from "@app/lib/units";
 import { shareInvite } from "@app/lib/shareInvite";
+import { AddFriendButton } from "../components/challenge/AddFriendButton";
 
 /** Wall-clock buffer before countdown numerals begin (ms). */
 const COUNTDOWN_BUFFER_MS = 500;
@@ -1003,6 +1004,7 @@ function MobileResult({
   const [opponentLeft, setOpponentLeft] = useState(false);
 
   const opponentId = player1Id === myId ? player2Id : player1Id;
+  const opponentName = player1Id === myId ? player2Name : player1Name;
   const navigatedRef = useRef(false);
 
   const goToRematch = useCallback(
@@ -1125,6 +1127,12 @@ function MobileResult({
         <div className="my-3 h-px bg-border-subtle" />
         <PlayerRow name={player2Name} peak={duelResult.player2Peak} isWinner={duelResult.winnerId === player2Id} isLocal={player2Id === myId} color="blue" />
       </div>
+
+      {user && (
+        <div className="mt-3 w-full max-w-xs">
+          <AddFriendButton opponentId={opponentId} opponentName={opponentName} />
+        </div>
+      )}
 
       {opponentLeft && (
         <div className="mt-3 w-full max-w-xs rounded-2xl border border-border-subtle bg-surface px-4 py-2 text-center">
