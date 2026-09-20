@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { climberDisplay } from "@app/lib/handle";
 import { isSearchableQuery, searchFailureMessage } from "@app/lib/userSearchQuery";
+import { UsernameHandle } from "@app/components/Challenge/UsernameHandle";
 import { apiFetch } from "../../lib/api";
 import { notifyError, notifySuccess } from "../../lib/haptics";
 import { Button, ListRow } from "../ui";
@@ -169,9 +170,7 @@ export function UserSearchSection({ onFriendRequestSent }: UserSearchSectionProp
                   <div className="flex items-center justify-between gap-3">
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-semibold text-text-primary">{name}</p>
-                      {u.username && (
-                        <p className="truncate text-xs text-text-muted">@{u.username}</p>
-                      )}
+                      <UsernameHandle username={u.username} />
                     </div>
                     {sent ? (
                       <span className="shrink-0 font-mono text-xs uppercase tracking-[0.12em] text-signal">

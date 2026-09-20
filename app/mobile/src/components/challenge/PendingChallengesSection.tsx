@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { climberDisplay } from "@app/lib/handle";
+import { UsernameHandle } from "@app/components/Challenge/UsernameHandle";
 import { apiFetch } from "../../lib/api";
 import { notifyError } from "../../lib/haptics";
 import { Button, Card } from "../ui";
@@ -185,9 +186,7 @@ export function PendingChallengesSection({ refreshKey }: PendingChallengesSectio
                     <p className="truncate text-sm font-semibold text-text-primary">
                       {name} challenged you
                     </p>
-                    {c.sender.username && (
-                      <p className="truncate text-xs text-text-muted">@{c.sender.username}</p>
-                    )}
+                    <UsernameHandle username={c.sender.username} />
                     <p className="mt-0.5 font-mono text-xs text-text-muted">
                       {timeLeft(c.expiresAt)}
                     </p>
@@ -238,9 +237,7 @@ export function PendingChallengesSection({ refreshKey }: PendingChallengesSectio
                     <p className="truncate text-sm text-text-secondary">
                       Waiting for <span className="font-semibold text-text-primary">{name}</span>
                     </p>
-                    {c.recipient.username && (
-                      <p className="truncate text-xs text-text-muted">@{c.recipient.username}</p>
-                    )}
+                    <UsernameHandle username={c.recipient.username} />
                     <p className="mt-0.5 font-mono text-xs text-text-muted">
                       {timeLeft(c.expiresAt)}
                     </p>

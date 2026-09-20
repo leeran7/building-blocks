@@ -10,6 +10,7 @@ import { useAuth } from "../../contexts/AuthContext";
 import { authedFetch } from "../../lib/authedFetch";
 import { climberDisplay } from "../../lib/handle";
 import { Button } from "../ui/Button";
+import { UsernameHandle } from "./UsernameHandle";
 import { Spinner } from "../ui/Spinner";
 
 interface ChallengeItem {
@@ -196,11 +197,7 @@ export function PendingChallenges({ refreshKey }: PendingChallengesProps = {}) {
                       <p className="text-sm font-semibold text-text-primary truncate">
                         {name} challenged you
                       </p>
-                      {c.sender.username && (
-                        <p className="text-xs text-text-muted truncate">
-                          @{c.sender.username}
-                        </p>
-                      )}
+                      <UsernameHandle username={c.sender.username} />
                       <p className="text-xs text-text-muted font-mono mt-0.5">
                         {timeLeft(c.expiresAt)}
                       </p>
@@ -254,11 +251,7 @@ export function PendingChallenges({ refreshKey }: PendingChallengesProps = {}) {
                       <p className="text-sm text-text-secondary truncate">
                         Waiting for <span className="font-semibold text-text-primary">{name}</span>
                       </p>
-                      {c.recipient.username && (
-                        <p className="text-xs text-text-muted truncate">
-                          @{c.recipient.username}
-                        </p>
-                      )}
+                      <UsernameHandle username={c.recipient.username} />
                       <p className="text-xs text-text-muted font-mono mt-0.5">
                         {timeLeft(c.expiresAt)}
                       </p>

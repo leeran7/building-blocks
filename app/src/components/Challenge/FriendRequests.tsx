@@ -16,6 +16,7 @@ import { useAuth } from "../../contexts/AuthContext";
 import { authedFetch } from "../../lib/authedFetch";
 import { climberDisplay } from "../../lib/handle";
 import { Button } from "../ui/Button";
+import { UsernameHandle } from "./UsernameHandle";
 import { Spinner } from "../ui/Spinner";
 
 interface FriendRequest {
@@ -196,11 +197,7 @@ export function FriendRequests({ refreshKey, onAccepted }: FriendRequestsProps =
                       <p className="text-sm font-semibold text-text-primary truncate">
                         {name}
                       </p>
-                      {req.sender.username && (
-                        <p className="text-xs text-text-muted truncate">
-                          @{req.sender.username}
-                        </p>
-                      )}
+                      <UsernameHandle username={req.sender.username} />
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
                       <Button
@@ -251,11 +248,7 @@ export function FriendRequests({ refreshKey, onAccepted }: FriendRequestsProps =
                       <p className="text-sm text-text-secondary truncate">
                         {name}
                       </p>
-                      {req.receiver.username && (
-                        <p className="text-xs text-text-muted truncate">
-                          @{req.receiver.username}
-                        </p>
-                      )}
+                      <UsernameHandle username={req.receiver.username} />
                     </div>
                     <Button
                       variant="ghost"

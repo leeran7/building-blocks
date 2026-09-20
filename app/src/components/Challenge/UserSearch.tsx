@@ -18,6 +18,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useAuth } from "../../contexts/AuthContext";
 import { authedFetch } from "../../lib/authedFetch";
 import { climberDisplay } from "../../lib/handle";
+import { UsernameHandle } from "./UsernameHandle";
 import { isSearchableQuery, searchFailureMessage } from "../../lib/userSearchQuery";
 import { Spinner } from "../ui/Spinner";
 
@@ -189,9 +190,7 @@ export function UserSearch({
                     <p className="text-sm font-semibold text-text-primary truncate">
                       {climberDisplay(user.id, user.displayName)}
                     </p>
-                    {user.username && (
-                      <p className="text-xs text-text-muted truncate">@{user.username}</p>
-                    )}
+                    <UsernameHandle username={user.username} />
                   </div>
                   <span
                     className={

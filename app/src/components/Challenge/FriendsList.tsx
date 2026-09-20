@@ -14,6 +14,7 @@ import { authedFetch } from "../../lib/authedFetch";
 import { climberDisplay } from "../../lib/handle";
 import { Button } from "../ui/Button";
 import { Spinner } from "../ui/Spinner";
+import { UsernameHandle } from "./UsernameHandle";
 
 interface Friend {
   id: string; // friendship id
@@ -110,7 +111,6 @@ export function FriendsList({ onChallenge, disabled, refreshKey }: FriendsListPr
     <div className="flex flex-col gap-2">
       {friends.map((friend) => {
         const name = climberDisplay(friend.user.id, friend.user.displayName);
-        const showUsername = Boolean(friend.user.username);
         const sent = challengeSent.has(friend.user.id);
         const errored = challengeErrors.has(friend.user.id);
         const challenging = challengingId === friend.user.id;
@@ -125,11 +125,7 @@ export function FriendsList({ onChallenge, disabled, refreshKey }: FriendsListPr
                 <p className="text-sm font-semibold text-text-primary truncate">
                   {name}
                 </p>
-                {showUsername && (
-                  <p className="text-xs text-text-muted truncate">
-                    @{friend.user.username}
-                  </p>
-                )}
+                <UsernameHandle username={friend.user.username} />
               </div>
               {sent ? (
                 <span className="shrink-0 font-mono text-xs uppercase tracking-wider text-signal">

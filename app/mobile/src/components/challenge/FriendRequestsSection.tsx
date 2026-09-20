@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { climberDisplay } from "@app/lib/handle";
+import { UsernameHandle } from "@app/components/Challenge/UsernameHandle";
 import { apiFetch } from "../../lib/api";
 import { notifyError, notifySuccess } from "../../lib/haptics";
 import { Button, Card } from "../ui";
@@ -171,9 +172,7 @@ export function FriendRequestsSection({ refreshKey, onAccepted }: FriendRequests
                 <div className="flex items-center justify-between gap-3">
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-semibold text-text-primary">{name}</p>
-                    {req.sender.username && (
-                      <p className="truncate text-xs text-text-muted">@{req.sender.username}</p>
-                    )}
+                    <UsernameHandle username={req.sender.username} />
                   </div>
                   <div className="flex shrink-0 items-center gap-2">
                     <Button
@@ -219,9 +218,7 @@ export function FriendRequestsSection({ refreshKey, onAccepted }: FriendRequests
                 <div className="flex items-center justify-between gap-3">
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm text-text-secondary">{name}</p>
-                    {req.receiver.username && (
-                      <p className="truncate text-xs text-text-muted">@{req.receiver.username}</p>
-                    )}
+                    <UsernameHandle username={req.receiver.username} />
                   </div>
                   <Button
                     variant="ghost"

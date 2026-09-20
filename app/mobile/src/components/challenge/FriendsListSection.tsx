@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { climberDisplay } from "@app/lib/handle";
+import { UsernameHandle } from "@app/components/Challenge/UsernameHandle";
 import { apiFetch } from "../../lib/api";
 import { notifyError, notifySuccess } from "../../lib/haptics";
 import { Button, ListRow } from "../ui";
@@ -119,9 +120,7 @@ export function FriendsListSection({ refreshKey, onChallengeSent }: FriendsListS
                   <div className="flex items-center justify-between gap-3">
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-semibold text-text-primary">{name}</p>
-                      {f.user.username && (
-                        <p className="truncate text-xs text-text-muted">@{f.user.username}</p>
-                      )}
+                      <UsernameHandle username={f.user.username} />
                     </div>
                     {sent ? (
                       <span className="shrink-0 font-mono text-xs uppercase tracking-[0.12em] text-signal">
