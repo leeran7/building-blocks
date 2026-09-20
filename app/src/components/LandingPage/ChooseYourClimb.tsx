@@ -4,16 +4,16 @@
  * Three ways to play, side by side, directly under the hero: Solo, 1v1, Daily.
  * This is the canonical home for the Daily entry and for the "pick a mode"
  * moment; the hero above keeps exactly one filled primary (1v1) and one plain
- * secondary (free climb), and DuelPromo further down is an explainer with a
- * plain link — so no destination is pitched twice as a filled CTA
- * (app/DESIGN.md, "Calls to action").
+ * secondary (free climb), so no destination is pitched twice as a filled CTA
+ * (app/DESIGN.md, "Calls to action"). Each card carries its mode's distinct
+ * one-liner — it does not restate the hero pitch.
  *
  * Server component. Each card is a single anchor so the whole surface is the
  * target (≥44px); the arrow and the altimeter ticks are decorative.
  */
 
 import Link from "next/link";
-import { FREE_CLIMB_HREF, DUEL_HREF, DAILY_HREF, SIGNIN_HREF } from "../navLinks";
+import { FREE_CLIMB_HREF, DUEL_HREF, DAILY_HREF } from "../navLinks";
 
 interface ClimbMode {
   href: string;
@@ -41,7 +41,7 @@ const MODES: ClimbMode[] = [
   {
     href: DUEL_HREF,
     title: "1v1",
-    description: "One tower, one lava front, two climbers. Last above wins.",
+    description: "Challenge a friend or queue a random rival for a live head-to-head.",
     action: "Enter the arena",
     label: "Open 1v1 duels",
     tone: "neutral",
@@ -122,16 +122,12 @@ export function ChooseYourClimb() {
           ))}
         </ul>
 
+        {/* Sign-in is the nav's job (and the footer's end-of-page ask); this
+            line stays only for the native-app beta — a distinct destination not
+            pitched anywhere else on the landing (app/DESIGN.md: one canonical
+            home per destination). */}
         <p className="mt-8 text-center text-sm text-text-muted">
-          Already climbing?{" "}
-          <Link
-            href={SIGNIN_HREF}
-            className="text-text-secondary underline underline-offset-4 decoration-border-strong hover:text-signal hover:decoration-signal transition-colors"
-          >
-            Sign in
-          </Link>{" "}
-          to keep your records
-          {" · "}
+          Want it on your phone?{" "}
           <Link
             href="/beta"
             className="text-text-secondary underline underline-offset-4 decoration-border-strong hover:text-signal hover:decoration-signal transition-colors"

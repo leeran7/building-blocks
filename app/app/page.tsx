@@ -1,19 +1,24 @@
 /**
- * Landing page — Stack v2
+ * Landing page — Doomstack hub (ASCENT design).
  *
- * AC-27: DOM contains hero, how-it-works (3 steps), category grid (6 cards), footer
- * AC-28: Live data in category cards
- * AC-29: API failures degrade gracefully — card shows "--"
- * AC-30: Footer has <a href="/auth/signup"> with "Get started" text
- * AC-31: 375px layout works, no horizontal overflow
- * AC-32: Background = #0a0a0f (set on body in layout.tsx)
+ * Composition, in DOM order: Navbar → Hero (pitch + CTAs + stat strip) →
+ * ChooseYourClimb (three mode cards: Solo /play, 1v1 /duel, Daily /daily) →
+ * LeaderboardTeaser (merged top-3 free + top-3 ranked-when-paid) →
+ * AboutDoomstack (crawlable SEO prose) → Faq → Footer.
+ *
+ * CTA invariant (app/DESIGN.md, "Calls to action"): exactly one filled
+ * bg-signal CTA points at /duel (the Hero primary) and zero filled bg-signal
+ * CTAs point at /play across the whole landing.
+ *
+ * SEO: organization / website / VideoGame / FAQPage JSON-LD are emitted from
+ * this server component; the FAQPage node is generated from buildFaqs() so it
+ * always matches the rendered <Faq />. Background #0a0a0c is set on <body> in
+ * layout.tsx. Renders under ISR (revalidate below) — do not flip to dynamic.
  */
 
 import { Hero } from "../src/components/LandingPage/Hero";
 import { ChooseYourClimb } from "../src/components/LandingPage/ChooseYourClimb";
-import { FreeLeaderboard } from "../src/components/LandingPage/FreeLeaderboard";
-import { RankedLeaderboard } from "../src/components/LandingPage/RankedLeaderboard";
-import { DuelPromo } from "../src/components/LandingPage/DuelPromo";
+import { LeaderboardTeaser } from "../src/components/LandingPage/LeaderboardTeaser";
 import { Faq, buildFaqs } from "../src/components/LandingPage/Faq";
 import { Navbar } from "../src/components/Navbar";
 import { JsonLd } from "../src/components/JsonLd";
@@ -21,33 +26,10 @@ import { getGlobalClimbStats } from "../src/db/climb";
 import { getChipDuelStats } from "../src/db/chips";
 import { AboutDoomstack } from "../src/components/LandingPage/AboutDoomstack";
 import { organizationJsonLd, websiteJsonLd, videoGameJsonLd } from "../src/lib/seo";
-import { Suspense } from "react";
 
 // ISR: serve the landing from cache and regenerate at most once per 60s, so the
 // highest-traffic page doesn't hit the DB (climb stats) on every request.
 export const revalidate = 60;
-
-async function SocialProofStrip() {
-  const stats = await getGlobalClimbStats().catch(() => null);
-
-  return (
-    <div className="border-y border-border-subtle bg-surface/40 py-3">
-      <p className="font-mono text-xs uppercase tracking-[0.14em] text-text-secondary text-center flex items-center justify-center gap-2">
-        <span className="w-1.5 h-1.5 rounded-full bg-signal animate-pulse" aria-hidden="true" />
-        {stats && stats.climberCount > 0 ? (
-          <>
-            <span className="font-bold text-signal tabular-nums">
-              {stats.climberCount}
-            </span>
-            {" climbers · free duels always on"}
-          </>
-        ) : (
-          "Free duels always on"
-        )}
-      </p>
-    </div>
-  );
-}
 
 export default async function HomePage() {
   const [climbStats, chipStats] = await Promise.all([
@@ -82,21 +64,9 @@ export default async function HomePage() {
           "choose your climb" is the whole first-screen story. */}
       <ChooseYourClimb />
 
-      <Suspense
-        fallback={
-          <div className="border-y border-border-subtle bg-surface/40 py-3">
-            <div className="h-4 bg-border-subtle rounded-sm w-48 mx-auto animate-pulse" />
-          </div>
-        }
-      >
-        <SocialProofStrip />
-      </Suspense>
-
-      <DuelPromo />
-
-      <RankedLeaderboard />
-
-      <FreeLeaderboard />
+      {/* Merged leaderboard block: top-3 free (+ top-3 ranked when paid duels
+          are on). Both boards keep their own server reads + empty states. */}
+      <LeaderboardTeaser />
 
       <AboutDoomstack />
 

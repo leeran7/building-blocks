@@ -1,0 +1,96 @@
+{
+  "agent": "software-engineer",
+  "status": "success",
+  "timestamp": "2026-09-20T18:47:12Z",
+  "goal": "Aggressive redundancy reduction of the Doomstack landing page (app/app/page.tsx + LandingPage components) using only existing Tower/ASCENT tokens, preserving all data fetching, business logic, auth, paid-duels flag branches, and SEO.",
+  "summary": "Cut the six approved redundancies. Removed DuelPromo (component + usage), relocating its single paid-only ranked-chips/tournaments callout into the merged leaderboard block (gated on PAID_DUELS_ENABLED_PUBLIC). Deleted the duplicate climber-count SocialProofStrip (and its duplicate getGlobalClimbStats read). Trimmed the core-mechanic restatement from the ChooseYourClimb 1v1 card. Merged RankedLeaderboard + FreeLeaderboard into one compact LeaderboardTeaser block showing top-3 per board (was top-8) as a server-rendered responsive pair (no tab widget). Collapsed the sign-in ask by removing ChooseYourClimb's 'Already climbing? Sign in' line (nav + footer remain canonical), keeping only the distinct native-app beta link. Rewrote the stale AC-27..AC-32 page.tsx docstring to match today's DOM. All seven gates pass; / stays ISR (static, revalidate 1m). No frozen-test assertions needed changing.",
+  "artifacts": [
+    "app/app/page.tsx",
+    "app/src/components/LandingPage/LeaderboardTeaser.tsx",
+    "app/src/components/LandingPage/FreeLeaderboard.tsx",
+    "app/src/components/LandingPage/RankedLeaderboard.tsx",
+    "app/src/components/LandingPage/ChooseYourClimb.tsx",
+    "app/src/components/LandingPage/DuelPromo.tsx (DELETED)",
+    "app/tests/components/landingLeaderboardTeaser.paidOff.test.tsx (NEW)",
+    "app/tests/components/landingLeaderboardTeaser.paidOn.test.tsx (NEW)"
+  ],
+  "decisions": [
+    {
+      "item": "1 — Remove DuelPromo",
+      "what": "Deleted DuelPromo.tsx and its <DuelPromo/> usage. Confirmed only page.tsx (usage) and ChooseYourClimb.tsx (a stale docstring comment, updated) referenced it. Paid-only exception: relocated the single 'Ranked chip duels + tournaments … 18+, not available in all states' callout verbatim into LeaderboardTeaser, rendered above the boards and gated on PAID_DUELS_ENABLED_PUBLIC (same flag DuelPromo used). When the flag is off (default) nothing renders — no relocation visible, matching prior behaviour."
+    },
+    {
+      "item": "2 — SocialProofStrip",
+      "what": "Removed entirely. Its 'N climbers · free duels always on' duplicated the Hero stat strip's climber count one screen up, and 'free duels' is already in the Hero eyebrow. Deletion also removed a second independent getGlobalClimbStats() DB read (perf win); the Hero's read via HomePage is untouched."
+    },
+    {
+      "item": "3 — Dedupe core-mechanic sentence",
+      "what": "Trimmed the ChooseYourClimb 1v1 card from 'One tower, one lava front, two climbers. Last above wins.' to 'Challenge a friend or queue a random rival for a live head-to-head.' — its distinct value (multiplayer entry modes) rather than a restatement of the shared mechanic. Left the Hero pitch and FAQ #1 as the two canonical mechanic statements; did NOT touch AboutDoomstack (intentional SEO)."
+    },
+    {
+      "item": "4 — Merge leaderboards",
+      "what": "New LeaderboardTeaser server component. Chose a SIMPLE responsive server-rendered pair (side-by-side at lg, stacked below) over a tab-widget client island. Rationale: the landing is the ISR/static high-traffic surface — a stacked/side-by-side pair keeps both async server reads (topFreeClimbers / chipLeaderboard, each .catch(()=>[])) in the same server tree with zero client JS and no new endpoint, and paid-off default renders the free board alone (no lone tab — same 'one option isn't a choice' principle as the tier pills). Each board now fetches top-3 (was 8) and keeps its exact empty state. The child components are AWAITED inside LeaderboardTeaser (const board = await FreeLeaderboard()) so the merged block renders as one already-resolved tree — required because legacy renderToStaticMarkup (and the frozen test) can't resolve nested async server-component elements, and it keeps FreeLeaderboard/RankedLeaderboard as self-fetching no-arg async components (the shape the frozen test invokes)."
+    },
+    {
+      "item": "5 — Collapse sign-in ask",
+      "what": "Removed ChooseYourClimb's 'Already climbing? Sign in to keep your records' line. Navbar 'Sign in' (NavbarAuth) and the Footer 'Get started' band remain the canonical asks. Kept the 'Join the app beta' link (→/beta): verified beta is pitched nowhere else on the landing (BetaBanner is dashboard-only), so it's a distinct destination that may stay per DESIGN.md. Removed the now-unused SIGNIN_HREF import."
+    },
+    {
+      "item": "6 — Hero ↔ ChooseYourClimb overlap",
+      "what": "Left Hero copy UNCHANGED (task: 'the Hero pitch is fine'; it is also a frozen contract). Tightened only the ChooseYourClimb 1v1 card (item 3) so each card is a distinct one-liner (Solo/1v1/Daily) that does not re-pitch the hero. Both sections retained."
+    }
+  ],
+  "deviations": [
+    {
+      "topic": "Frozen contract test",
+      "note": "NO assertions in app/tests/components/climbFeelSurfaces.test.tsx were changed. My FreeLeaderboard edits only altered the outer section wrapper classes (py-20/px-4/border-t → rounded-2xl/overflow-hidden/h-full/p-6), removed the inner max-w-3xl mx-auto, and changed the fetch limit 8→3. Every substring the test asserts is preserved: data-climb-chrome, FREE_LEADERBOARD_HEADING_CLASS, 'Top climbers', /climber/i, climb-reveal, animate-climbGroundRise, the /play text link (playAnchors), zero filled bg-signal /play, and the empty-state 'Play the free climb'. Hero was untouched so its assertions are unaffected. The frozen test passes as-is."
+    },
+    {
+      "topic": "Stale AC docstring",
+      "note": "The 'AC-27: hero, how-it-works (3 steps), category grid (6 cards)' contract lived only in the page.tsx top docstring (a 'Stack v2' remnant) and never matched today's DOM. Rewrote that docstring to describe the real composition + the CTA invariant + the JSON-LD/ISR facts. spec-doomstack-layout.md's own AC-27 (375px overflow) is a DIFFERENT criterion and still holds — not edited."
+    },
+    {
+      "topic": "CTA invariant",
+      "note": "Verified after DuelPromo removal: exactly 1 filled bg-signal CTA points at /duel (Hero primary) and 0 at /play across the landing. Confirmed by scanning bg-signal usage in LandingPage — the only filled bg-signal ANCHOR to a play destination is Hero.tsx:202 (/duel); Footer's filled bg-signal points at /auth/signup; the relocated callout uses bg-signal/5 and bg-signal/10 on divs, not anchors."
+    }
+  ],
+  "exitCriteria": {
+    "code_compiles": true,
+    "tests_exist": true,
+    "app_lint": true,
+    "app_typecheck": true,
+    "app_test": "798 passed (was 794; +4 from the two new LeaderboardTeaser test files)",
+    "app_build": "compiles; / stays ISR (Static, revalidate 1m) — rendering mode unchanged",
+    "orchestrator_typecheck": true,
+    "orchestrator_test": "58 pass",
+    "hygiene": true
+  },
+  "feedback": [],
+  "learnings": [
+    {
+      "topic": "testing",
+      "forAgents": ["software-engineer", "verifier"],
+      "kind": "lesson",
+      "insight": "Legacy react-dom/server renderToStaticMarkup (used by every LandingPage DOM-contract test) does NOT resolve nested async server-component ELEMENTS (<Child/> where Child is async). It only renders an already-resolved tree. The frozen climbFeelSurfaces test works because it invokes the leaf directly: `const el = await FreeLeaderboard()`.",
+      "action": "When composing async server components inside another async server component that must stay unit-testable this way, AWAIT the children into the parent (`const board = await FreeLeaderboard(); return <section>{board}</section>`) instead of `<FreeLeaderboard/>`. This is also valid at runtime in Next and preserves each leaf as a self-fetching no-arg component (so the leaf's own frozen test keeps passing).",
+      "confidence": "high"
+    },
+    {
+      "topic": "process",
+      "forAgents": ["qa-acceptance", "reviewer"],
+      "kind": "lesson",
+      "insight": "The landing DOM contract lives in TWO places with overlapping AC numbers: page.tsx's top docstring (an old 'Stack v2' AC-27..AC-32 about how-it-works/category-grid — now stale) and spec-doomstack-layout.md (AC-27 = 375px overflow — current). Composition changed to Navbar→Hero→ChooseYourClimb→LeaderboardTeaser→AboutDoomstack→Faq→Footer.",
+      "action": "qa-acceptance: acceptance-check the landing against the REWRITTEN page.tsx docstring + spec-doomstack-layout.md's real ACs, not the old category-grid wording. Verify the CTA invariant (1 filled bg-signal /duel, 0 filled /play) which is the load-bearing one.",
+      "confidence": "high"
+    },
+    {
+      "topic": "metric",
+      "forAgents": ["verifier"],
+      "kind": "metric",
+      "insight": "Baseline moved: app now 798 tests (was 794) across 90 files (was 88) — two new files landingLeaderboardTeaser.paidOff/paidOn each add 2 behavioral tests (positive fixture + negative guard: paid-off asserts absence of ranked heading/callout and chipLeaderboard NOT called; degrade paths assert empty-state copy). No frozen assertions changed.",
+      "action": "Expect 798/90 as the new green baseline; both new files reproduce a fail-first if the paid branch or degrade catch is broken.",
+      "confidence": "high"
+    }
+  ],
+  "nextStage": "verifier"
+}
