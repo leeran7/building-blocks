@@ -1,0 +1,89 @@
+{
+  "agent": "integrator",
+  "status": "success",
+  "timestamp": "2026-09-20T21:05:00Z",
+  "nextStage": "done",
+  "branch": "claude/blissful-ramanujan-tcniuq",
+  "prNumber": 138,
+  "goal": "Make branch claude/blissful-ramanujan-tcniuq (combined change set: app-wide redundancy reduction + navbar/HUD fix, change set d5bb5e3..HEAD) merge-ready against main and report status. Confirm mergeability, verify required CI is green and ruleset-gated, do a final clean-tree sanity check. Do NOT merge, do NOT un-draft, do NOT push unless resolving a conflict.",
+  "summary": "Branch is merge-ready. Mergeability: fetched origin/main -> d5bb5e3, which is exactly the merge-base with HEAD (037c701). Branch is a strict fast-forward: 24 commits ahead / 0 behind main. No divergence, no possible conflict, no merge commit created (none needed). GitHub reports mergeable:true, mergeable_state:clean after checks completed. CI: at first read the head's required checks were still running ('Lint, Typecheck, and Test' in_progress, 'CI' aggregator not yet started because it needs [test, orchestrator], Vercel pending). I polled the REST API until settled; all required checks are now green on head 037c701 -- 'Lint, Typecheck, and Test' success, 'Orchestrator loop' success, 'CI' (if:always aggregator) success -- plus required_deployments Vercel status success and Vercel Preview Comments success. Verified the gate is real, not honor-system: the LIVE repository ruleset on main (rules/branches/main) is enforcement=active and lists required_status_checks for exactly those three contexts (strict_required_status_checks_policy=true), plus deletion, non_fast_forward, and required_deployments rules. Strict policy is satisfied because the branch is 0 behind main. No failing checks, so nothing in this change set's scope to diagnose. Final sanity: working tree clean (git status --porcelain empty); ran no build, so no next-env.d.ts / AGENTS.md / CLAUDE.md churn to revert. I did NOT merge the PR, did NOT change its draft state (already draft:false from the orchestrator's separate PR refresh), and pushed nothing.",
+  "mergeable": true,
+  "ciStatus": {
+    "gate": "ruleset-enforced on main (LIVE rules/branches/main, enforcement=active, required_status_checks, strict=true) -- not honor-system",
+    "headSha": "037c7019a9ed64f875d651602ed6ea200c5df409",
+    "requiredChecks": [
+      { "name": "Lint, Typecheck, and Test", "state": "completed", "conclusion": "success", "rulesetRequired": true },
+      { "name": "Orchestrator loop", "state": "completed", "conclusion": "success", "rulesetRequired": true },
+      { "name": "CI", "state": "completed", "conclusion": "success", "rulesetRequired": true }
+    ],
+    "otherChecks": [
+      { "name": "Vercel Preview Comments", "state": "completed", "conclusion": "success" },
+      { "name": "Vercel", "type": "commit-status", "state": "success", "note": "satisfies required_deployments ruleset rule" }
+    ],
+    "allRequiredGreen": true,
+    "failingInScope": [],
+    "failingOutOfScope": [],
+    "note": "On first read the checks were mid-flight (mergeable_state:blocked, Lint in_progress, CI not started); polled REST API until all completed green before declaring success."
+  },
+  "mergeAnalysis": {
+    "mergeBase": "d5bb5e3a3e166960b27f2f33b7d6e136b68c8f5e",
+    "originMainHead": "d5bb5e3a3e166960b27f2f33b7d6e136b68c8f5e",
+    "branchHead": "037c7019a9ed64f875d651602ed6ea200c5df409",
+    "aheadOfMain": 24,
+    "behindMain": 0,
+    "relationship": "fast-forward (main head == merge-base); no divergence, no conflict, no merge commit created",
+    "changeSetBoundary": "d5bb5e3..HEAD is this branch's work (layout pass + jitter/UX pass + home/cross-app redundancy reduction + navbar/HUD fix); commits at/before d5bb5e3 are pre-existing and untouched"
+  },
+  "actionsTaken": [
+    "Read context/git.md, context/README.md, context/gates.json, .github/workflows/ci.yml, .github/rulesets/require-ci-on-main.json",
+    "Read prior handoffs (qa-acceptance 20:33Z success 24/24; prior integrator 16:53Z) and loop/learnings.md",
+    "git fetch origin main; computed merge-base -> confirmed clean fast-forward (0 behind, 24 ahead)",
+    "curl GitHub REST API for PR #138 metadata (mergeable/mergeable_state/draft/merged)",
+    "Polled /commits/037c701/check-runs and /commits/037c701/status until all required checks completed green",
+    "curl /rules/branches/main to confirm the three checks are ruleset-required with active enforcement (live, not just the committed json)",
+    "Confirmed working tree clean; ran no build, so nothing to revert"
+  ],
+  "pushed": false,
+  "merged": false,
+  "draftChanged": false,
+  "exitCriteria": {
+    "mergeable_clean": true,
+    "required_ci_green_and_ruleset_gated": true,
+    "no_conflicts": true,
+    "no_merge_commit_created": true,
+    "working_tree_clean": true,
+    "did_not_merge": true,
+    "did_not_undraft": true,
+    "did_not_push": true
+  },
+  "carryForwardNotes": [
+    "Two open questions remain in loop/learnings.md (free-leaderboard trust boundary; power-up one-slot vs stacking) -- both pre-existing, neither touched or introduced by this change set, so not merge blockers. Human decision items.",
+    "PR #138 already shows draft:false (orchestrator's separate PR refresh). Safe for the human to merge now that all required checks are green and the branch is a clean fast-forward."
+  ],
+  "learnings": [
+    {
+      "forAgents": ["integrator"],
+      "kind": "pattern",
+      "topic": "ci-aggregator-timing-poll",
+      "insight": "The 'CI' required check is an if:always() aggregator job that needs:[test, orchestrator], so it does not appear/report until 'Lint, Typecheck, and Test' finishes. A first API read right after a push can show mergeable_state:blocked with 'Lint' in_progress and 'CI' entirely absent from check-runs -- this is mid-flight, NOT a missing/failing gate.",
+      "action": "Do not declare blocked on a first read; poll /commits/{sha}/check-runs and /commits/{sha}/status until all three required contexts reach completed and the Vercel commit status settles, then re-read the PR's mergeable_state (it flips blocked->clean).",
+      "confidence": "high"
+    },
+    {
+      "forAgents": ["integrator", "orchestrator"],
+      "kind": "metric",
+      "topic": "integration-clean-138",
+      "insight": "claude/blissful-ramanujan-tcniuq (PR #138) is merge-ready at head 037c701: clean fast-forward over main (24 ahead / 0 behind, main head == merge-base d5bb5e3), mergeable_state:clean, all three ruleset-required checks (Lint, Typecheck, and Test; Orchestrator loop; CI) green plus Vercel required_deployments green. Live ruleset on main is enforcement=active with strict policy. No conflicts, no in-scope CI failures, no push required.",
+      "action": "Safe for the human to merge; no further integration work needed. Loop terminal.",
+      "confidence": "high"
+    },
+    {
+      "forAgents": ["integrator"],
+      "kind": "fact",
+      "topic": "tooling-no-gh-cli",
+      "insight": "Confirms prior integrator note: gh CLI and mcp__github__* are unavailable in this Cloud Agent sandbox, but GITHUB_TOKEN is present and the agent HTTPS proxy reaches api.github.com, so curl against the REST API works for PR/check/status/ruleset state. Nested shell quoting of python -c inside a curl loop breaks in run_in_background (eval syntax error); write the poller as a standalone .py in the scratchpad and run that instead.",
+      "action": "Use a standalone python poller script (urllib + $GITHUB_TOKEN) for check-run polling rather than inline nested-quoted one-liners.",
+      "confidence": "high"
+    }
+  ]
+}
