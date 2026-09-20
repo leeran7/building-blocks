@@ -1,0 +1,178 @@
+{
+  "agent": "security-reviewer",
+  "status": "success",
+  "summary": "Re-reviewed my own SEC-4 finding against the change that claims to close it. BOTH halves are genuinely closed, verified independently rather than by trusting the prior two handoffs. (a) Queue-route guard: I byte-compared the seven-line guard block in app/app/api/tournaments/queue/route.ts against both app/app/api/tournaments/[id]/checkout/route.ts and .../register/route.ts programmatically — the blocks are string-identical (same call assertPaidDuelAllowed(request), same 403 envelope {error,code:'GEO_BLOCKED',reason}), and the relative ordering requireAuth -> geo -> checkRateLimit is identical in all three files (character offsets between the three landmarks match exactly across the trio). Import depth (4 levels vs siblings' 5) is correct for queue/route.ts not being under [id]/, and — importantly, since @ts-nocheck suppresses even TS2307 module-resolution errors — my own successful production build resolved that import and emitted the route, so the path is proven correct by webpack, not by tsc. (b) Static-prerender: I ran my own `pnpm build` in app/ and read .next/prerender-manifest.json directly. `/tournaments` is NOT in the static routes list (25 entries, zero containing 'tournament' or 'duel'), and the build route table shows `f /tournaments` alongside `f /duel` and `f /duel/chips`. This is an independent reproduction of the software-engineer's and verifier's claim, derived from my own artifacts. (2) Blast radius: confirmed via `git diff HEAD` that app/src/lib/paidDuelGeo.ts, app/src/lib/rankedEligibility.ts, app/src/hooks/useRankedEligibility.ts and app/app/api/geo/ranked/ are ALL byte-untouched by this diff (empty diff), last modified in 6c47ae1 — the already-reviewed prior cycle. This is pure reuse; no re-verification of the geo decision core was required and SEC-1/SEC-2/SEC-3 are unchanged in posture. (3) Dead-code safety: read the whole POST handler past the new guard. The guard's failure direction under future drift is fail-CLOSED (if GeoDecision.allowed were ever renamed/made async, `!geo.allowed` evaluates truthy and over-blocks rather than opening the money path), so @ts-nocheck hiding it from the compiler is a robustness cost, not a security one. entryFeeCents' `: 0` fallback is not a reject-never-default violation because isValidChipTier(0) is false (CHIP_TIERS = [100,250,500,1000,2500]) so the defaulted value is rejected with a 400. Rate limit is uid-keyed, failMode 'closed'. GET /api/tournaments/queue remains ungated by design: getQueueStatus() returns only aggregate {entryFeeCents,entrantCount,bracketSize,tournamentId} — no identities, no PII, no money movement — and checkout/register are POST-only too, so the asymmetry is consistent, not a gap. (4) No new attack surface in TournamentList.tsx: the component never destructures or renders `reason`, `country` or `region` (the hook only exposes {allowed}, and page.tsx discards `reason` from resolveRankedEligibility rather than passing it down), the region-restricted copy is a static string, there is no dangerouslySetInnerHTML / console / storage / cookie access anywhere in the three changed files, the diff contains no secret-like strings, adds no dependency (package.json and both lockfiles untouched; pnpm audit still reports the same pre-existing 1 high / 3 moderate from SEC-6, all build/CLI transitives off the request path), and the single caller supplies the required prop. (5) Residual scope: I found ONE genuine fourth spot my prior review did not name — /tournaments/[id] (TournamentDetail.tsx) renders an 'Enter tournament — $X' button that POSTs to the real-money Stripe entry-fee checkout with no geo awareness at all. Filed as SEC-8, info severity, NOT a blocker: the server route it calls already carries assertPaidDuelAllowed, the page is dynamic (not prerendered), and the button is unreachable today because its data fetch gets 503 COMING_SOON so `tournament` stays null. Also confirmed the SEC-4 open-question entry was in fact removed from loop/learnings.md (only the two unrelated pre-existing questions remain) — the software-engineer's claim checks out, and I re-file SEC-8 as its replacement ledger entry per the same pattern. No critical, high, medium or low findings. Read-only: I changed no code; I reverted the app/next-env.d.ts churn my own build caused and confirmed the tree is back to exactly the four intended file changes.",
+  "timestamp": "2026-09-20T04:45:00Z",
+  "goal": "Confirm SEC-4 (filed by this role on 2026-09-20 against the /duel change) is actually and fully closed by the /tournaments change, that the money-relevant geo core was not modified, that the new dead-code guard introduces no latent risk, and that no fourth surface in this defect class remains unnamed.",
+  "artifacts": [
+    "app/app/tournaments/page.tsx",
+    "app/src/components/Tournament/TournamentList.tsx",
+    "app/app/api/tournaments/queue/route.ts",
+    "app/app/api/tournaments/[id]/checkout/route.ts",
+    "app/app/api/tournaments/[id]/register/route.ts",
+    "app/app/tournaments/[id]/page.tsx",
+    "app/src/components/Tournament/TournamentDetail.tsx",
+    "app/src/lib/paidDuelGeo.ts",
+    "app/src/lib/rankedEligibility.ts",
+    "app/src/hooks/useRankedEligibility.ts",
+    "loop/learnings.md",
+    "loop/handoffs/security-reviewer-2026-09-20T044500Z.json"
+  ],
+  "findings": [
+    {
+      "id": "SEC-4-CLOSED-A",
+      "severity": "info",
+      "owasp": "A01 Broken Access Control",
+      "location": "app/app/api/tournaments/queue/route.ts:46-52",
+      "issue": "RESOLVED (verification result, not a defect). Half (a) of SEC-4: the queue POST handler had no assertPaidDuelAllowed call, unlike its checkout/register siblings.",
+      "reproduction": "Programmatic byte-comparison of the guard block extracted from all three route files: queue == checkout and queue == register, both True. Landmark offsets show requireAuth -> geo -> checkRateLimit in the same order with the same inter-landmark spacing in all three. Import '../../../../src/lib/paidDuelGeo' (4 levels) is correct for a route not nested under [id]/ and was proven resolvable by my own successful `pnpm build`, which matters because the file's @ts-nocheck suppresses TS2307 so typecheck alone would NOT have caught a wrong path.",
+      "fix": "None required. Guard matches siblings in call, position and envelope exactly."
+    },
+    {
+      "id": "SEC-4-CLOSED-B",
+      "severity": "info",
+      "owasp": "A01 Broken Access Control / A05 Security Misconfiguration",
+      "location": "app/app/tournaments/page.tsx:13-27, app/src/components/Tournament/TournamentList.tsx:23-39,127-141",
+      "issue": "RESOLVED (verification result, not a defect). Half (b) of SEC-4: /tournaments was statically prerendered and TournamentList rendered the cash-prize entry-fee picker and 'Join queue' with no geo gate at all.",
+      "reproduction": "Independent spot-check: ran my own `pnpm build` in app/ and read .next/prerender-manifest.json directly. Static prerendered routes = 25 entries, of which ZERO contain 'tournament' or 'duel'; `'/tournaments' in routes` is False, and dynamicRoutes contains no tournament entry either. Build route table confirms `f /tournaments` (dynamic), sitting alongside `f /duel` and `f /duel/chips` and `f /tournaments/[id]`. Component read confirms a single top-level ternary: !user -> SignInGate, !geoAllowed -> region block, else the paid UI; the tier picker and Join queue button exist on no other branch. Page pattern (headers() + resolveRankedEligibility + force-dynamic + required prop) is character-for-character the same shape as the already-reviewed app/app/duel/chips/page.tsx.",
+      "fix": "None required. Matches the /duel and /duel/chips pattern exactly."
+    },
+    {
+      "id": "SEC-8",
+      "severity": "info",
+      "owasp": "A01 Broken Access Control",
+      "location": "app/app/tournaments/[id]/page.tsx (whole file), app/src/components/Tournament/TournamentDetail.tsx:63-83,173-195",
+      "issue": "NEW scope gap, pre-existing and NOT a regression from this diff — the fourth surface in the SEC-4 defect class, which my own prior review did not name. /tournaments/[id] renders an 'Enter tournament — $X' button that POSTs to /api/tournaments/[id]/checkout, i.e. a real-money Stripe entry-fee path, with no geo awareness whatsoever: the page does not call resolveRankedEligibility, does not export force-dynamic, and TournamentDetail takes only a tournamentId prop with no initialGeoAllowed and no useRankedEligibility call. It is the /tournaments defect that this change just fixed, one level deeper. Importantly, the SERVER side is already correct — app/app/api/tournaments/[id]/checkout/route.ts carries assertPaidDuelAllowed — so this is a UI-parity / defense-in-depth gap, never an authorization bypass.",
+      "reproduction": "Not reachable today, by three independent conditions. (1) TournamentDetail's only data source is GET /api/tournaments/[id], which unconditionally returns 503 {code:'COMING_SOON'} before any logic, so `r.ok` is false, `tournament` stays null, and the component renders 'Tournament not found.' — the Enter button is never mounted. (2) The Enter button is additionally gated on `isOpen` (status REGISTRATION and registration window open). (3) Even if a blocked-region user reached and clicked it, POST /api/tournaments/[id]/checkout answers 503 today and 403 GEO_BLOCKED once enabled, before any Stripe session is created. Confirmed the page is NOT statically prerendered: my build shows `f /tournaments/[id]` and the prerender manifest holds no tournament entry, so there is no build-time HTML baking a paid CTA for a blocked jurisdiction — that part of the SEC-4 concern does not apply here. The residual once tournaments launch is purely that a blocked-region user would see a cash CTA and get an alert() with the 403 body instead of the 'Region restricted' block their /tournaments and /duel/chips experience gives them.",
+      "fix": "For whoever removes the comingSoon() early returns to launch tournaments (same checklist item as SEC-4's, one level deeper): make app/app/tournaments/[id]/page.tsx async, call resolveRankedEligibility(await headers()), export const dynamic = 'force-dynamic', and give TournamentDetail a REQUIRED initialGeoAllowed: boolean prop feeding useRankedEligibility(true, initialGeoAllowed), gating the isOpen block behind it with the same 'Region restricted' section. The required-prop-with-no-default discipline is what makes the compiler enforce this, per the software-engineer's own learning from this cycle. Explicitly NOT blocking this change: it is a different route, unreachable today, and its money path is already server-guarded. Filed as a ledger open question in the same way SEC-4 itself was filed last cycle."
+    },
+    {
+      "id": "SEC-9",
+      "severity": "info",
+      "owasp": "A04 Insecure Design",
+      "location": "app/app/api/tournaments/queue/route.ts:1,31,46-52",
+      "issue": "Observation on the new dead-code guard's latent risk, since it is invisible to the compiler. The file's top-level @ts-nocheck means the new assertPaidDuelAllowed call and its GeoDecision destructure are NOT typechecked, and the unconditional `return comingSoon()` means they are never executed. If a future refactor changed GeoDecision's shape (renamed `allowed`, made the function async), nothing in the gate suite would go red.",
+      "reproduction": "No attack path. I traced the failure direction deliberately: every plausible drift makes `geo.allowed` undefined, so `!geo.allowed` is truthy and the handler returns 403 — it over-blocks. There is no drift that silently opens the money path, because opening would require the shared, fully-tested decidePaidDuelGeo to return allowed:true wrongly, which is a library-level concern already covered by app/src/__tests__/rankedEligibility.test.ts and unchanged here.",
+      "fix": "No action this cycle — fail-closed is the right direction and removing @ts-nocheck is coupled to removing the comingSoon() early return, which is a product decision. When that PR lands, dropping @ts-nocheck from all four tournament route files in the same change restores compiler coverage of this guard, and a runtime test asserting 403 GEO_BLOCKED on POST /api/tournaments/queue becomes both possible and required (the verifier already recorded this as a testGap with the same recommendation)."
+    },
+    {
+      "id": "SEC-10",
+      "severity": "info",
+      "owasp": "n/a",
+      "location": "the diff as a whole",
+      "issue": "Positive results, recorded so they are not re-litigated. (1) Geo core is pure reuse: git diff HEAD for app/src/lib/paidDuelGeo.ts, app/src/lib/rankedEligibility.ts, app/src/hooks/useRankedEligibility.ts and app/app/api/geo/ranked/ is EMPTY; all last touched in 6c47ae1, the prior reviewed cycle. Blast radius of this review is therefore the three changed files only, and SEC-1/2/3 need no re-derivation. (2) No information leak in the new render path: page.tsx destructures only `allowed` and discards `reason`, the hook exposes only {allowed}, and TournamentList never references reason/country/region (the single grep hit is prose in the region-restricted copy). (3) No dangerous sink added: zero dangerouslySetInnerHTML, console.*, localStorage/sessionStorage, document.cookie, eval or innerHTML across the three changed files. (4) Secret scan of the app diff for sk_live/pk_live/sk_test/AKIA/ghp_/xox*/PRIVATE KEY/api_key/secret/password/bearer returns nothing. (5) Zero dependencies added — neither app/package.json nor either lockfile appears in git diff --name-only HEAD; pnpm audit still reports exactly the pre-existing 1 high (deepmerge-ts via prisma CLI) + 3 moderate (uuid x2, fflate) from SEC-6, all build/CLI transitives off the request path. (6) entryFeeCents' `: 0` fallback does not violate the repo's reject-never-default rule: isValidChipTier(0) is false against CHIP_TIERS [100,250,500,1000,2500], so the defaulted value is rejected with 400. (7) Unauthenticated GET /api/tournaments/queue leaks nothing: getQueueStatus returns aggregate {entryFeeCents,entrantCount,bracketSize,tournamentId} only — no identities, no PII — and checkout/register are POST-only too, so the POST-only guard placement is consistent rather than a gap. (8) This change slightly REDUCES SEC-1's practical impact for tournaments: the client probe could always loosen the /tournaments UI gate, but now a loosened UI hits a server-side assertPaidDuelAllowed on the queue route that previously did not exist.",
+      "reproduction": "n/a",
+      "fix": "None required."
+    }
+  ],
+  "exitCriteria": {
+    "no_critical_security_findings": true,
+    "no_critical_findings": true,
+    "sec4_half_a_queue_guard_confirmed_closed": true,
+    "sec4_half_b_prerender_confirmed_closed": true,
+    "prerender_manifest_independently_reproduced": true,
+    "guard_block_byte_identical_to_both_siblings": true,
+    "guard_position_order_identical_to_both_siblings": true,
+    "queue_import_path_proven_resolvable_by_build": true,
+    "geo_core_confirmed_untouched": true,
+    "geo_probe_and_hook_confirmed_untouched": true,
+    "dead_code_guard_fails_closed_under_drift": true,
+    "rest_of_post_handler_reviewed_for_latent_issues": true,
+    "no_reason_or_geo_internals_leaked_to_client": true,
+    "no_new_dangerous_sink_in_changed_files": true,
+    "no_secrets_in_diff": true,
+    "no_dependencies_added": true,
+    "audit_unchanged_from_prior_baseline": true,
+    "sec4_ledger_entry_confirmed_removed": true,
+    "residual_scope_gap_filed_as_SEC8": true,
+    "read_only_no_code_modified": true,
+    "next_env_d_ts_churn_reverted": true,
+    "committed": false
+  },
+  "gatesRun": [
+    { "name": "app-build (for prerender-manifest evidence)", "cwd": "app", "command": "pnpm build", "result": "pass — exit 0; used as the source of my independent prerender-manifest and route-table check, not as a correctness gate" },
+    { "name": "pnpm audit", "cwd": "app", "command": "pnpm audit --audit-level=low", "result": "4 vulnerabilities (1 high / 3 moderate) — byte-identical to the SEC-6 baseline; zero introduced by this diff, which touches no manifest or lockfile" }
+  ],
+  "renderingModeEvidence": {
+    "method": "Own `pnpm build` in the working tree carrying the three uncommitted changes; read .next/prerender-manifest.json directly with a JSON parser and grepped the printed route table",
+    "staticPrerenderedRouteCount": 25,
+    "tournamentRoutesInStaticList": "NONE — '/tournaments' in routes === False",
+    "duelRoutesInStaticList": "NONE — matches the already-shipped /duel and /duel/chips baseline",
+    "dynamicRoutesEntriesForTournaments": "NONE",
+    "routeTable": "f /tournaments, f /tournaments/[id], f /duel, f /duel/chips",
+    "independentOfPriorHandoffs": true,
+    "nextEnvDtsRevertedAfterBuild": true
+  },
+  "feedback": [],
+  "feedbackAddressed": [
+    {
+      "source": "software-engineer learning (testing / caveat) — verify the queue guard by structural equivalence, not by invoking it",
+      "item": "Do not add or expect a runtime 403 test on /api/tournaments/queue while comingSoon() stands; verify structurally instead.",
+      "resolution": "Applied. Verified by programmatic byte-comparison of the guard block against both siblings plus landmark-offset ordering, and separately confirmed the import resolves via my own build (the point the caveat did not cover: @ts-nocheck also hides module-resolution errors, so the build — not typecheck — is what proves the 4-level path). Did not request any runtime test."
+    },
+    {
+      "source": "software-engineer learning (build / lesson) — pnpm build dirties app/next-env.d.ts",
+      "item": "Revert app/next-env.d.ts after any build in app/; sixth consecutive cycle this has bitten an agent.",
+      "resolution": "Applied. Confirmed dirty via git status after my build, reverted with git checkout --, and re-confirmed the tree holds exactly the four intended changes plus the two untracked upstream handoffs."
+    },
+    {
+      "source": "software-engineer learning (architecture / lesson) — required prop, no default",
+      "item": "A money-moving surface's server-resolved gate must be a required prop so the compiler enforces every call site.",
+      "resolution": "Applied and reused as the prescribed fix in SEC-8 for TournamentDetail, which is the next component in this family to need it."
+    },
+    {
+      "source": "verifier learning (verification-method / lesson) — do not treat route-table line counts as a checksum",
+      "item": "Compare WHICH route changed, not raw line totals, across differently-shaped capture scripts.",
+      "resolution": "Applied. I did not compare totals at all; I asserted the load-bearing facts directly — membership of '/tournaments' in the parsed prerender manifest, and its marker in the route table."
+    },
+    {
+      "source": "verifier learning (testing / lesson) — new caller of already-tested pure function needs caller-correctness verification, not a duplicate unit test",
+      "item": "Do not demand a parallel unit test of resolveRankedEligibility for this change.",
+      "resolution": "Accepted. I confirmed the geo core is byte-untouched and scoped my review to caller correctness and the new render/guard surfaces; I request no new test of the shared library."
+    }
+  ],
+  "learnings": [
+    {
+      "topic": "security",
+      "kind": "lesson",
+      "forAgents": ["security-reviewer", "reviewer", "verifier"],
+      "insight": "A `// @ts-nocheck` pragma suppresses TS2307 'cannot find module', not just type errors. The new guard in app/app/api/tournaments/queue/route.ts imports paidDuelGeo with a 4-level relative path where its siblings use 5, and a wrong path there would have passed `pnpm typecheck` silently while breaking the money gate the moment the route was enabled. Typecheck was structurally incapable of catching it; the production build was, because webpack must resolve the import to emit the route.",
+      "action": "When reviewing a security guard added to a @ts-nocheck'd file, never accept a green typecheck as evidence the import resolves. Confirm it with a build that emits the route (or by resolving the path by hand against the file's own directory depth). Prefer this any time relative-import depth differs from a sibling being copied from.",
+      "confidence": "high"
+    },
+    {
+      "topic": "security",
+      "kind": "lesson",
+      "forAgents": ["security-reviewer", "software-engineer"],
+      "insight": "When auditing a guard that is deliberately dead code, the load-bearing question is not 'is it correct today' but 'which direction does it fail when the code around it drifts'. For this guard every plausible drift (renamed GeoDecision.allowed, function made async) leaves `geo.allowed` undefined, so `!geo.allowed` is truthy and the route over-blocks. That fail-closed direction is what makes shipping unreachable-but-present security code a net win rather than a false sense of safety — the same pattern would be unacceptable for a guard written as `if (geo.allowed === false) return 403`, which fails OPEN under the identical drift.",
+      "action": "Review forward-compat security guards by the drift direction of their boolean test, not only by structural equivalence to a sibling. Insist on the `if (!allowed) deny` form over `if (allowed === false) deny` for any gate that the compiler cannot currently check.",
+      "confidence": "high"
+    },
+    {
+      "topic": "architecture",
+      "kind": "lesson",
+      "forAgents": ["software-engineer", "security-reviewer", "qa-acceptance"],
+      "insight": "Closing a defect class on a list page does not close it on the corresponding detail page. /tournaments is now correctly gated, but /tournaments/[id] (TournamentDetail) still renders a real-money 'Enter tournament — $X' Stripe CTA with zero geo awareness — a surface my own prior SEC-4 did not enumerate because I stopped at the routes the finding's repro touched. The list/detail pair is a recurring shape: whenever a gate is added to an index route that links to per-item routes, the per-item route is the default next gap.",
+      "action": "When gating a paid index surface, grep for sibling detail routes under the same path segment (app/<feature>/[id]/page.tsx) and the components they render, and either gate them in the same change or file them explicitly in the same finding. Do not let the finding's scope be defined by the reproduction you happened to write.",
+      "confidence": "high"
+    },
+    {
+      "topic": "security",
+      "kind": "insight",
+      "forAgents": ["orchestrator", "integrator"],
+      "insight": "This change measurably shrank SEC-1's residual impact rather than just adding a new gate. SEC-1/SEC-2 established that the client probe at /api/geo/ranked can loosen the UI gate from false to true; on /tournaments that previously bottomed out at an ungated POST /api/tournaments/queue, so a loosened UI met no server check at all. It now meets assertPaidDuelAllowed. The server-side half of a defense-in-depth pair is what converts an accepted-info client-side finding into a genuinely non-exploitable one.",
+      "action": "When weighing whether an info-severity client-gate finding can stay deferred, check whether every route its UI can reach carries the server-side equivalent. SEC-1 and SEC-2 remain correctly deferred for the tournaments surface specifically because that is now true; re-open them if any future paid surface ships UI-only gating.",
+      "confidence": "medium"
+    },
+    {
+      "topic": "process",
+      "kind": "metric",
+      "forAgents": ["orchestrator"],
+      "insight": "Third consecutive clean close of a security-reviewer-filed ledger open question, and the first where the reviewing agent re-audited its own prior finding. Re-auditing my own finding surfaced something a fresh reviewer might have missed and a self-congratulatory one certainly would have: the finding's original scope (SEC-4) was itself incomplete, missing /tournaments/[id]. The close-out was correct; the original finding was not exhaustive.",
+      "action": "When routing a close-out review, prefer the role that filed the finding AND explicitly task it with re-deriving the finding's scope, not just its remediation. 'Is the fix complete' and 'was the finding complete' are different questions and the second one is where the remaining risk lives.",
+      "confidence": "medium"
+    }
+  ],
+  "nextStage": "qa-acceptance",
+  "loopBackTo": null
+}

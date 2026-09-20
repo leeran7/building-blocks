@@ -1,0 +1,100 @@
+{
+  "agent": "software-engineer",
+  "status": "success",
+  "summary": "Extended the server-side paid-feature region gating already shipped for /duel and /duel/chips (6c47ae1) to /tournaments, closing SEC-4 from the prior security review. Three files changed, all replicating the existing pattern with zero new geo logic. (1) app/app/tournaments/page.tsx is now an async server component: imports headers from next/headers, calls resolveRankedEligibility(await headers()), passes the resolved boolean as initialGeoAllowed to <TournamentList/>, and adds `export const dynamic = \"force-dynamic\"` with the same comment used on /duel and /duel/chips. The existing metadata export is byte-identical to before. (2) app/src/components/Tournament/TournamentList.tsx gained a required `initialGeoAllowed: boolean` prop (documented TournamentListProps interface mirroring ChipDuelLobbyProps) and calls useRankedEligibility(true, initialGeoAllowed) — `true` for the enabled param matching ChipDuelLobby, since tournaments has no separate mode-card reachability toggle the way DuelHome does. The render is restructured to the same three-way ternary as ChipDuelLobby: !user ? <SignInGate/> : !geoAllowed ? <region-restricted section> : <existing tier-picker + queue UI>. The region block copies ChipDuelLobby's exact classes (bg-surface rounded-xl border border-ember/30 p-6 text-center), role=\"status\", and \"Region restricted\" eyebrow, with copy adapted to tournaments. The entry-fee picker and Join queue button are now unreachable for a blocked region on first paint, not just after a client probe. (3) app/app/api/tournaments/queue/route.ts POST now calls assertPaidDuelAllowed(request) and returns the identical 403 { error, code: \"GEO_BLOCKED\", reason } envelope as its checkout/register siblings, positioned after the requireAuth block and before checkRateLimit — the same position both siblings use. Import path is ../../../../src/lib/paidDuelGeo (four levels, one shallower than the siblings' five, since queue/route.ts is not under [id]/ — verified against the file's own existing imports). Did NOT touch checkout/register, did NOT remove any comingSoon() early return or @ts-nocheck pragma; the new queue guard is deliberately unreachable dead code today and exists so that enabling tournaments is a one-line decision that cannot silently ship an ungated money path. Verified the rendering-mode flip by the route-table method the prior fix used: detached `git worktree add <scratch> HEAD --detach`, symlinked app/node_modules, ran pnpm build in both trees and diffed. Baseline HEAD shows `o /tournaments` (static); the modified tree shows `f /tournaments` (dynamic), matching /duel and /duel/chips. Diffing all 136 route-table entries between the two builds shows exactly one line moved (/tournaments static group -> dynamic group) and nothing else changed. The prerender-manifest.json comparison agrees: /tournaments is the only route removed from the static route list, with zero routes added. Also removed the now-resolved /tournaments open-question entry from loop/learnings.md (the entry itself said to remove it once this work landed, and that file's header states resolved questions are removed). All six context/gates.json gates green. Working tree left uncommitted for the verifier; app/next-env.d.ts churn from pnpm build was reverted (the pitfall four upstream agents flagged last cycle) and typecheck re-run clean afterwards.",
+  "timestamp": "2026-09-20T04:04:51Z",
+  "goal": "Extend server-resolved paid-feature region gating from /duel and /duel/chips to /tournaments: force-dynamic page + server-resolved initialGeoAllowed prop + region-restricted block on TournamentList, and bring /api/tournaments/queue to parity with its checkout/register siblings' assertPaidDuelAllowed guard.",
+  "artifacts": [
+    "app/app/tournaments/page.tsx",
+    "app/src/components/Tournament/TournamentList.tsx",
+    "app/app/api/tournaments/queue/route.ts",
+    "loop/learnings.md",
+    "loop/handoffs/software-engineer-2026-09-20T040451Z.json"
+  ],
+  "exitCriteria": {
+    "tournaments_page_is_async_server_component": true,
+    "tournaments_page_resolves_geo_from_request_headers": true,
+    "tournaments_page_exports_force_dynamic": true,
+    "tournaments_page_metadata_unchanged": true,
+    "tournament_list_has_required_initialGeoAllowed_prop": true,
+    "tournament_list_renders_region_restricted_block": true,
+    "queue_route_has_assertPaidDuelAllowed": true,
+    "queue_route_guard_position_matches_siblings": true,
+    "queue_route_error_envelope_matches_siblings": true,
+    "checkout_and_register_untouched": true,
+    "coming_soon_early_returns_preserved": true,
+    "ts_nocheck_pragmas_preserved": true,
+    "geo_logic_reused_not_forked": true,
+    "route_flipped_static_to_dynamic_in_build_table": true,
+    "no_other_route_changed_rendering_mode": true,
+    "next_env_d_ts_reverted": true,
+    "app_lint": true,
+    "app_typecheck": true,
+    "app_test": true,
+    "orchestrator_typecheck": true,
+    "orchestrator_test": true,
+    "pack_hygiene": true,
+    "committed": false
+  },
+  "gatesRun": [
+    { "name": "app-lint", "cwd": "app", "command": "pnpm lint", "result": "pass — clean at --max-warnings=0" },
+    { "name": "app-typecheck", "cwd": "app", "command": "pnpm typecheck", "result": "pass — clean, re-run after reverting next-env.d.ts" },
+    { "name": "app-test", "cwd": "app", "command": "pnpm test", "result": "pass — 80 files / 745 tests" },
+    { "name": "orchestrator-typecheck", "cwd": "orchestrator", "command": "yarn typecheck", "result": "pass" },
+    { "name": "orchestrator-test", "cwd": "orchestrator", "command": "yarn test", "result": "pass — 15 suites / 58 tests" },
+    { "name": "pack-hygiene", "cwd": ".", "command": "node scripts/hygiene.mjs", "result": "pass — 8 agent files, 0 violations" }
+  ],
+  "renderingModeEvidence": {
+    "method": "detached git worktree at HEAD (412f6f3) with symlinked app/node_modules, pnpm build in both trees, route table + prerender-manifest.json diffed",
+    "baselineRouteTable": "o /tournaments (static)",
+    "modifiedRouteTable": "f /tournaments (dynamic)",
+    "routeTableDiff": "exactly 1 of 136 entries moved; /tournaments static group -> dynamic group; no other route changed",
+    "prerenderManifestDiff": "removed: ['/tournaments']; added: []",
+    "worktreeRemoved": true
+  },
+  "dependenciesAdded": [],
+  "feedback": [],
+  "feedbackAddressed": [
+    {
+      "source": "security-reviewer SEC-4 (2026-09-20) / loop/learnings.md open question",
+      "item": "/tournaments shares the static-prerender + no-geo-gate defect class fixed on /duel, and /api/tournaments/queue lacks the assertPaidDuelAllowed call its checkout/register siblings have.",
+      "resolution": "Both halves fixed. (a) queue POST now has the same guard in the same position with the same 403 envelope as its siblings. (b) /tournaments now resolves eligibility server-side, is force-dynamic (confirmed out of the prerender manifest), and TournamentList requires a server-derived initialGeoAllowed. Removed the corresponding open-question entry from loop/learnings.md."
+    }
+  ],
+  "learnings": [
+    {
+      "topic": "testing",
+      "kind": "caveat",
+      "forAgents": ["verifier", "qa-acceptance"],
+      "insight": "The new assertPaidDuelAllowed guard in app/app/api/tournaments/queue/route.ts is genuinely unreachable at runtime: POST unconditionally `return comingSoon()` (503) before it, and the file carries a top-level `// @ts-nocheck`, so the new code is neither executed by any request nor typechecked by tsc. A test that POSTs to the handler will observe 503, never 403 GEO_BLOCKED — that is correct current behaviour, not a regression, and asserting 403 there would fail. The guard is intentional forward-compat so that enabling tournaments cannot silently ship an ungated money path.",
+      "action": "Verify this guard by structural equivalence to the already-reviewed checkout/register siblings (same call, same position after requireAuth and before checkRateLimit, same 403 envelope, correct 4-level import depth) rather than by invoking the handler. Do not add a runtime test asserting 403 on /api/tournaments/queue while the comingSoon() early return stands, and do not 'fix' the unreachability by removing that early return — enabling tournaments is a separate product decision.",
+      "confidence": "high"
+    },
+    {
+      "topic": "build",
+      "kind": "lesson",
+      "forAgents": ["verifier", "reviewer", "qa-acceptance", "integrator"],
+      "insight": "Running `pnpm build` in app/ rewrites app/next-env.d.ts from the dev type paths (./.next/dev/types/...) to the prod ones (./.next/types/...), dirtying a tracked file that has nothing to do with the change. This is the fifth consecutive cycle this has bitten an agent. Reverting it with `git checkout -- next-env.d.ts` is safe even though .next/dev/types no longer exists afterwards: tsc --noEmit still passes (re-verified this cycle), so the revert does not trade a clean diff for a red gate.",
+      "action": "After any pnpm build in app/, run `git status --short` and revert app/next-env.d.ts, then re-run pnpm typecheck once to confirm the revert is clean. Treat a dirty next-env.d.ts in the handoff diff as build churn, not as part of the change.",
+      "confidence": "high"
+    },
+    {
+      "topic": "architecture",
+      "kind": "lesson",
+      "forAgents": ["software-engineer", "security-reviewer"],
+      "insight": "Making a page's paid-feature gate correct requires the prop to be REQUIRED, not optional with a default. TournamentList had zero geo awareness and compiled fine; a `initialGeoAllowed?: boolean` with a `= true` default would also have compiled fine and silently reintroduced the optimistic-available defect at every future call site. Because the prop is required and has no default, TypeScript forces any new route rendering this component to supply a server-derived answer. The same reasoning is why useRankedEligibility takes serverAllowed as a required positional param.",
+      "action": "When gating a money-moving surface on a server-resolved decision, make the prop required with no default so the compiler — not a reviewer's memory — enforces that every render site resolves it server-side. Verify the flip with the next build route table and prerender-manifest.json, never by reasoning about whether headers() 'should' have opted the route out.",
+      "confidence": "high"
+    },
+    {
+      "topic": "process",
+      "kind": "metric",
+      "forAgents": ["orchestrator"],
+      "insight": "The prior cycle's security-reviewer filed SEC-4 as a non-blocking info finding plus a loop/learnings.md open question rather than looping back, and this cycle closed it in three files with no new logic and all gates green on the first run. The deferral was correctly scoped: the defect was unreachable (503) and the fix depended on a pattern that did not exist until the /duel change landed.",
+      "action": "Continue letting security-reviewer file same-defect-class findings on out-of-scope routes as ledger open questions rather than blocking the current change, provided the finding records the exact reachability condition that makes it non-urgent. Prune the ledger entry in the cycle that closes it.",
+      "confidence": "medium"
+    }
+  ],
+  "nextStage": "verifier",
+  "loopBackTo": null
+}

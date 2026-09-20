@@ -1,194 +1,206 @@
-# QA Acceptance Report — Server-side paid-duel region eligibility
+# QA Acceptance Report — SEC-4 close-out (/tournaments region gating)
 
 **Date:** 2026-09-20
-**Stage:** qa-acceptance
-**Prior stages:** software-engineer, verifier, reviewer, security-reviewer — all `success`, no critical findings.
+**Scope:** Extend server-resolved paid-feature region gating from `/duel` and
+`/duel/chips` to `/tournaments` — page (`app/app/tournaments/page.tsx`),
+component (`app/src/components/Tournament/TournamentList.tsx`), and the
+`/api/tournaments/queue` POST guard.
 
-## Method
+## Note on `paths.spec` (`loop/spec.md`)
 
-Local build + start (`pnpm build` then `pnpm start -p <port>`), with
-`PAID_DUEL_GEO_ENFORCE=true` so the geo allow-list is enforced outside
-production. Spoofed Vercel's edge geo headers (`x-vercel-ip-country`,
-`x-vercel-ip-country-region`) via curl against the running local server and
-inspected the **raw HTML response bytes** (no JS execution) plus response
-headers. No live preview deployment was available, so AC-3's authenticated
-case is validated by code-path reading rather than a real session — called
-out explicitly below, per the task's caveat.
+`loop/spec.md` currently documents an unrelated feature ("1v1 Quick Play on
+Mobile" / mobile Capacitor Quick Play card), not this SEC-4 close-out. There
+is no Flows/AC section in the repo's spec file for the tournaments
+region-gating work. This is consistent with how the prior four agents
+(software-engineer, verifier, reviewer, security-reviewer) scoped this cycle —
+against the security-reviewer's SEC-4 finding and the already-reviewed
+`/duel`/`/duel/chips` pattern, not against `loop/spec.md`. I am validating
+against the AC-1..AC-5 given directly in this stage's task (mirroring the
+established practice from the prior `/duel`/`/duel/chips` cycle), and flagging
+the spec/reality mismatch as a process note rather than a blocking structural
+gate failure, since: (a) no new user-facing flow was introduced — the existing
+join-queue UX is unchanged, only a region gate was added; (b) this is a
+narrow, well-specified security hardening task, not a new feature requiring
+Flows definition; (c) three independent prior agents already treated this
+scope as authoritative without objection. Recommend the orchestrator eventually
+reconcile `loop/spec.md` so it doesn't silently drift from what stages are
+actually shipping — see learnings.
 
-`PAID_DUELS_ENABLED=true` and `NEXT_PUBLIC_PAID_DUELS_ENABLED=true` were
-already present in the shell environment and were baked into the one
-production build I ran. A second `pnpm start` (no rebuild) with
-`PAID_DUELS_ENABLED=false` let me exercise one more kill-switch combination
-without a second full build, since that var is read server-side at process
-start; `NEXT_PUBLIC_PAID_DUELS_ENABLED` is inlined at build time, so the two
-combinations with it `false` are validated by code inspection only (documented
-below), to avoid a second full rebuild for marginal gain that upstream agents
-had already logically covered.
+## Method summary
 
-## AC-1: `/duel`, blocked region, first paint shows unavailable, no flash
+Live/build evidence (this run, independent of prior handoffs):
+- Fresh `pnpm build` in `app/` (own run, not reused from prior agents).
+- Read `.next/prerender-manifest.json` directly with a JSON parser.
+- Started `pnpm start` locally, curled `/tournaments` anonymously, inspected
+  raw HTML and response headers.
+- Independently re-ran `pnpm typecheck`, `pnpm lint`, `pnpm test` (745/745
+  passing) after reverting build-caused `app/next-env.d.ts` churn.
+- `git diff HEAD` on the shared geo core and sibling routes.
 
-**PASS — verified by live request.**
+Code-inspection evidence (authenticated-blocked / authenticated-allowed
+cases — no live authenticated session available in this environment, per the
+task's documented caveat and the established practice from the prior cycle's
+qa-acceptance on `ChipDuelLobby`):
+- Full read of `TournamentList.tsx`'s render ternary and `useRankedEligibility`.
+- Structural side-by-side read of the queue route guard vs. `checkout`/`register`.
 
-`curl -H 'x-vercel-ip-country: US' -H 'x-vercel-ip-country-region: NY' http://localhost:3900/duel`
+## AC-1: Blocked region never sees tier picker / Join queue at any point (incl. first frame); allowed region sees it correctly
 
-Raw HTML response contains, twice, genuine markup (not a JSON blob):
-```
-<span class="...">Not available in your region.</span>
-```
-and badge text `unavailable` (x2), for both the "Chip Duels" and
-"Tournaments" mode cards. The embedded RSC payload in the same response
-carries `"initialGeoAllowed":false` — i.e. the value serialized to the
-client for hydration is already the correct, final answer, not an
-optimistic `true` that gets corrected afterwards. `Cache-Control: private,
-no-cache, no-store, max-age=0, must-revalidate` — not shared-cacheable, so
-this can't be a stale cached "allowed" response either. No `x-vercel-cache`
-or `age` header present (expected locally; the Cache-Control header alone
-rules out heuristic shared-cache reuse per RFC 9111 §4.2.2, matching the
-security-reviewer's SEC-1 analysis).
+**Result: PASS (code inspection; live-verified for the SignInGate/anonymous
+sub-case only — see caveat 1 below, which is expected, not a gap)**
 
-## AC-2: `/duel`, allowed region, first paint shows available, no flash
+- `TournamentList.tsx:127-141` is a single top-level ternary:
+  `!user ? <SignInGate/> : !geoAllowed ? <region-block/> : <tier-picker + Join queue>`.
+  There is no other return path, branch, or effect that renders the tier
+  picker or Join queue button outside this final `else`.
+- `geoAllowed` comes from `useRankedEligibility(true, initialGeoAllowed)`
+  (`useRankedEligibility.ts:31`): `useState<boolean>(serverAllowed)` —
+  the value is seeded synchronously from the server-resolved prop, so the
+  **first client render already reflects the server decision**. There is no
+  `null`/optimistic-`true` window before hydration; a client-side re-probe
+  (`/api/geo/ranked`) can only ever replace the server value with another
+  server-derived value (comment at `useRankedEligibility.ts:18-22`,
+  confirmed by reading the effect body at lines 39-53 — it only calls
+  `setAllowed` from the fetch response, never defaults to `true` on error).
+- `initialGeoAllowed` is a **required** prop with no default
+  (`TournamentListProps` interface, `TournamentList.tsx:23-32`) and is
+  supplied only by `app/app/tournaments/page.tsx:27`, which resolves it via
+  `resolveRankedEligibility(await headers())` at request time
+  (`page.tsx:25`). Grepped the repo — `TournamentList` has exactly one
+  caller.
+- Allowed-region case: same ternary's final branch renders the tier picker
+  (`CHIP_TIERS` grid) and the idle-state "Join queue" button — unaffected by
+  this diff (see AC-5).
 
-**PASS — verified by live request.**
+## AC-2: `/tournaments` absent from `.next/prerender-manifest.json`'s static list; first HTML has no paid markup in any case
 
-Same request with region `CA`. Raw HTML shows, in the Chip Duels card:
-```
-Chip Duels</span><span class="...bg-signal/15 text-signal">ranked</span>...
-<span class="...">Stake chips — winner takes all. Non-cashable.</span>
-```
-— the available/ranked state, on the first byte, with none of the blocked
-copy present anywhere in the response. Tournaments card shows `coming soon`
-(not `unavailable`). Same non-cacheable `Cache-Control`.
+**Result: PASS — live-verified**
 
-## AC-3: `/duel/chips`, stake picker/Find match never visible to a blocked user, correct for allowed user
+- Ran `pnpm build` in `app/` myself. Route table shows `ƒ /tournaments`
+  (dynamic), alongside `ƒ /duel` and `ƒ /duel/chips`.
+- Parsed `.next/prerender-manifest.json` directly:
+  `'/tournaments' in routes` → `false`; no `tournament` substring in either
+  the static `routes` map or `dynamicRoutes` map. Total static routes: 25,
+  none tournament/duel-related.
+- Started `pnpm start` and curled `http://localhost:3411/tournaments`
+  anonymously:
+  - `Cache-Control: private, no-cache, no-store, max-age=0, must-revalidate`
+    — confirms the response is not shared-cacheable.
+  - Response body: `grep -c "Join queue"` → 0, `grep -c "Choose entry fee"` →
+    0, tier-chip markup → 0 occurrences. `grep -c "Sign in to enter
+    tournaments"` → 1 (SignInGate, as expected for an anonymous request).
+  - This directly proves the negative claim required by AC-2 (no paid markup
+    in the first HTML, in the anonymous case) without relying on the
+    known-false-alarming "curl and check for region copy" method.
+- Per the documented caveat, I did **not** attempt to prove the
+  authenticated+allowed / authenticated+blocked first-HTML cases live (no
+  real Firebase session available in this environment). Those are covered by
+  the code-inspection evidence under AC-1 (required prop, no default,
+  `useState` seeded synchronously from the server value — there is no
+  server-rendered "optimistic" HTML variant to curl for, since the page
+  itself is `force-dynamic` and always resolves `allowed` server-side before
+  rendering `TournamentList`).
+- Reverted the `app/next-env.d.ts` churn from my own `pnpm build` run
+  (`git checkout -- app/next-env.d.ts`) and re-ran `pnpm typecheck` clean
+  afterward, per the known repeat pitfall recorded in `loop/learnings.md`.
+  Killed the local `pnpm start` process after curling; final `git status`
+  is byte-identical to the intended 4-file diff plus the four untracked
+  upstream handoff JSONs.
 
-**PASS — verified by code inspection (auth-gated case) + live request (anonymous case, confirms the reviewer's documented caveat rather than a false pass).**
+## AC-3: Queue-route guard structurally identical to checkout/register siblings
 
-Live anonymous curl to `/duel/chips` for both NY and CA returns the
-SignInGate ("Sign in...") regardless of region — exactly as the reviewer's
-open item predicted: `ChipDuelLobby` checks `!user` before `!geoAllowed`,
-and `useAuth()` resolves client-side only (default context value
-`{ user: null, ... }`, confirmed by reading `AuthContext.tsx`), so an
-anonymous SSR request can never reach the geo branch. I did **not** treat
-this as a passing (or failing) assertion of AC-3 — a naive "curl and check
-for absence of the stake picker" here would trivially pass for the wrong
-reason and was explicitly flagged as a trap to avoid.
+**Result: PASS — independent spot-check by direct read (not solely citing upstream)**
 
-Verified the actual load-bearing property by reading
-`app/src/components/Duel/ChipDuelLobby.tsx:111-125` directly: the render is
-a single ternary chain with no other code path to the stake
-picker/"Find match" button:
-```tsx
-{!user ? (
-  <SignInGate .../>
-) : !geoAllowed ? (
-  <section>Region restricted...</section>
-) : (
-  <>...tier picker + "Find match" button...</>
-)}
-```
-This is exactly `user && geoAllowed` gating the money-moving markup — there
-is no other branch, no fallthrough, and no separate loading state that
-renders the third branch. `geoAllowed` comes from `useRankedEligibility(true,
-initialGeoAllowed)`, whose internal state is `useState<boolean>(serverAllowed)`
-(never `null`) and is only ever overwritten by a value that is itself
-`typeof === "boolean"` from the identical server-derived
-`/api/geo/ranked` helper — so there is no reachable path where the third
-branch renders before the true geo answer is known, for either an
-already-hydrated or a still-hydrating authenticated session. `user` starts
-`null` in `AuthContext`'s default value and its own `useState`, so even a
-legitimately authenticated visitor sees the SignInGate (not the stake
-picker) until Firebase resolves client-side — pre-existing, unrelated to
-this diff, and not a path that can leak the money UI early.
+Read all three files myself side by side:
 
-I could not stand up a real authenticated session (no Firebase ID token
-available in this environment) to additionally observe this live; this
-finding is code-inspection only, as anticipated by the task's own guidance.
-
-## AC-4: `/api/geo/ranked` JSON shape unchanged
-
-**PASS — verified by live request (own independent check) + upstream diff confirmation.**
-
-```
-GET /api/geo/ranked (NY)  -> {"allowed":false,"reason":"not_allowlisted"}
-GET /api/geo/ranked (CA)  -> {"allowed":true,"reason":null}
-```
-Shape is `{ allowed: boolean, reason: string | null }` in both cases,
-matching the pre-existing contract. Verifier and reviewer already diffed
-the route source against HEAD and confirmed byte-identical response
-construction; this is my own independent live confirmation on top of that.
-
-## AC-5: No regression to money-movement enforcement
-
-**PASS — verified by one independent live spot-check + upstream diff/grep confirmation (already exhaustively done by verifier/reviewer/security-reviewer).**
-
-`git diff --name-only HEAD` (re-checked myself) touches none of
-`paidDuelGuards.ts`, `api/duel/chips/match/route.ts`,
-`api/tournaments/[id]/checkout/route.ts`,
-`api/tournaments/[id]/register/route.ts`, or `api/credits/checkout/route.ts`.
-Live spot-check of my own: `POST /api/duel/chips/match` with no auth header
-(and blocked-region headers) returns `401` — confirming `withAuth` still
-gates the handler before `assertPaidDuelAllowed` is ever reached, unaffected
-by this diff. Full ordering/behavior-preservation of `assertPaidDuelAllowed`
-→ `decidePaidDuelGeo` was already mechanically diffed line-for-line by the
-security-reviewer; I re-read `paidDuelGeo.ts` myself and agree the delegate
-is a one-line passthrough with unchanged allow-lists and ordering.
-
-## Flows walked (F-n)
-
-`loop/spec.md` is the "1v1 Quick Play on Mobile" spec — an unrelated,
-separate feature (mobile Capacitor Quick Play queue). It has no Flows
-section describing this paid-duel-geo change, and this change's five ACs
-were supplied directly in the QA task rather than derived from that spec.
-This is not a structural spec gate failure to loop back on — the geo
-eligibility change is a targeted fix to an existing surface, not a new
-Flows-bearing feature, and the task explicitly enumerated the ACs to
-validate. I did still walk the actual end-to-end flow for both `/duel` and
-`/duel/chips` (discovery → entry → act → success/blocked-next) as part of
-AC-1 through AC-3 above: a blocked-region visitor lands on `/duel`, sees the
-mode cards already marked unavailable with an explanation (no dead end — the
-free "Quick Play" and "Challenge" modes remain fully usable), and never
-reaches a live "Find match" button on `/duel/chips`. An allowed-region
-visitor sees the same surfaces as fully live from the first frame.
-
-## Discovery / kill-switch combination pass
-
-Walked the rendered UX (not just the boolean logic, which the reviewer
-already covered) for the kill-switch combinations:
-
-| `PAID_DUELS_ENABLED` (server) | `NEXT_PUBLIC_PAID_DUELS_ENABLED` (client) | Verified how | Result |
+| | queue/route.ts | [id]/checkout/route.ts | [id]/register/route.ts |
 |---|---|---|---|
-| true | true | live, both NY and CA | AC-1/AC-2 above — correct, no flash |
-| false | true | live (CA, allowed region) | Chip Duels/Tournaments cards **still show "Not available in your region." / "unavailable"** even though the true reason is the kill switch, not geo. Confirmed live. **Pre-existing, non-blocking** — this is exactly the reviewer's warning finding (`app/app/duel/page.tsx:27` etc. destructuring only `{ allowed }` and discarding `reason`), not a regression introduced by this diff (the old client-only probe had the same blind spot), and it is not a flash/first-paint defect — the (misleading) copy is consistent from the first byte. No broken/missing badge; the state is internally consistent, just mislabeled. |
-| true | false | code inspection only (requires a rebuild; not exercised live) | `DuelHome`'s paid mode cards are gated by `{paidEnabled && (...)}` where `paidEnabled = PAID_DUELS_ENABLED_PUBLIC` — with this false, the Chip Duels/Tournaments cards render **not at all** (clean hidden state, no broken UI). `ChipDuelLobby` does not consult `PAID_DUELS_ENABLED_PUBLIC` at all (pre-existing, per reviewer's finding it hardcodes `enabled=true` for the revalidation probe) — a user who navigates directly to `/duel/chips` would still see a fully working lobby if the server-side kill switch is on and geo allows. This is a pre-existing entry-point-vs-page inconsistency, **unrelated to this diff** (same hardcoded `true` existed before), not a flash bug, not a money-movement bypass (enforcement is still server-checked independently at `/api/duel/chips/match`). |
-| false | false | code inspection only | Mode cards hidden entirely on `/duel` (clean). `/duel/chips` shows "Region restricted" copy (same reason-collapsing issue as row 2) instead of a kill-switch-specific message, but again consistent from first paint, no flash, no broken state. |
+| Call | `assertPaidDuelAllowed(request)` | same | same |
+| Check | `if (!geo.allowed)` | same | same |
+| Envelope | `{ error: "Not available in your region", code: "GEO_BLOCKED", reason: geo.reason }`, status 403 | identical | identical |
+| Position | after `requireAuth` block, before `checkRateLimit` | same | same |
+| Import path | `../../../../src/lib/paidDuelGeo` (4 levels — file is not under `[id]/`) | `../../../../../src/lib/paidDuelGeo` (5 levels) | same 5 levels |
 
-None of the four combinations produces a missing badge, a mismatched
-subtitle/badge pairing, or an observable flash. The one real UX issue
-(kill-switch-off mislabeled as "region restricted") is the reviewer's
-already-filed non-blocking warning, not a new defect, and does not fail any
-of AC-1 through AC-5.
+Import depth difference (4 vs 5) is correct given `queue/route.ts` sits one
+directory shallower than the `[id]/`-nested siblings. Confirmed by hand-
+counting `..` segments against the file's own directory
+(`app/app/api/tournaments/queue/route.ts` → 4×`..` → `app/`, and
+`app/src/lib/paidDuelGeo.ts` exists).
 
-## Exploratory pass
+Positive, independent proof that the import actually resolves (not just
+"looks right by counting dots," and not solely relying on typecheck, which
+is blind here due to `@ts-nocheck` — confirmed the file still carries
+`@ts-nocheck` at line 1): my own fresh `pnpm build` run (for AC-2 evidence)
+emitted `ƒ /api/tournaments/queue` in the route table. Webpack cannot emit a
+route whose import fails to resolve, so the build is positive evidence the
+path is correct — independent of the three upstream agents' builds.
 
-- **Refresh mid-flow / direct navigation:** every request tested was a
-  fresh `curl` (no session/cookie reuse), which is equivalent to a hard
-  refresh or direct URL entry — the correct decision showed on every single
-  one, with no cross-request caching. No stale state observed.
-- **Empty/missing geo headers:** already covered by upstream unit tests
-  (`missing_geo` → deny) and is exercised on every real request that lacks
-  the two Vercel headers (e.g. any request through a non-Vercel front door)
-  — fail-closed, consistent with `context/trust.md`'s posture.
-- **Double-submit / navigate-away:** out of scope for this diff (display-only
-  change); the money-moving submit handlers (`handleMatch` in
-  `ChipDuelLobby.tsx`) were not touched and were not re-tested here since
-  AC-5 scopes them as unchanged, already confirmed by diff.
+Confirmed unreachability (so no runtime 403 test was expected or written,
+per the task's explicit caveat): `POST` unconditionally `return comingSoon()`
+at line 31, before the guard at line 46. `GET` does the same at line 20.
+
+## AC-4: No regression to checkout/register or the shared geo core
+
+**Result: PASS — live-verified via `git diff HEAD`**
+
+Ran independently:
+```
+git diff HEAD -- app/src/lib/paidDuelGeo.ts            → 0 lines
+git diff HEAD -- app/src/lib/rankedEligibility.ts       → 0 lines
+git diff HEAD -- app/src/hooks/useRankedEligibility.ts  → 0 lines
+git diff HEAD -- app/app/api/tournaments/[id]/checkout/route.ts → 0 lines
+git diff HEAD -- app/app/api/tournaments/[id]/register/route.ts → 0 lines
+```
+All five are byte-untouched by this diff. `git diff HEAD --stat` confirms
+the changeset is exactly `app/app/api/tournaments/queue/route.ts`,
+`app/app/tournaments/page.tsx`, `app/src/components/Tournament/TournamentList.tsx`,
+and `loop/learnings.md` (ledger-only edit).
+
+## AC-5: Coherent UX for signed-in + allowed region; existing queue-join flow otherwise unaffected
+
+**Result: PASS — by reading, not by exercising real chip-purchase flows (per task instruction)**
+
+Read the full diff on `TournamentList.tsx` (`git diff HEAD`): the only
+changes are (1) one new import, (2) the new `TournamentListProps` interface
+and required prop, (3) one new hook call, (4) one new ternary branch (the
+region-restricted block) inserted between the existing `!user` and `else`
+branches. `handleJoin`, the tier-picker grid, and the four-way `joinState`
+render (idle/joining/queued/error) are byte-identical to before — confirmed
+by diff, not re-typed from memory. Double-submit protection (button only
+renders in the `idle` sub-state) is pre-existing and untouched.
+
+Confirmed the underlying queue-join business logic is untouched:
+`git diff HEAD -- app/src/db/tournaments.ts` → 0 lines,
+`git diff HEAD -- app/src/config/tournaments.ts` → 0 lines (chip debit,
+bracket-fill logic, and the `TOURNAMENTS_ENABLED` kill switch itself are
+all outside this diff's blast radius).
+
+## Flows check
+
+No dedicated Flows/F-n exist for this change in `loop/spec.md` (see note
+above). Walking the join-queue flow end-to-end by reading (discovery →
+`/tournaments` route → entry via tier picker → "Join queue" action →
+success/queued state → "View bracket" link) shows it is unaffected by this
+diff outside of the new region gate sitting in front of it — consistent with
+the software-engineer's stated intent (gating-only change, zero new business
+logic).
+
+## Known caveats — respected, not treated as failures
+
+1. Anonymous curl always shows SignInGate — expected, confirmed live, not
+   scored as an AC-1 failure.
+2. Did not POST to `/api/tournaments/queue` expecting 403 — confirmed via
+   reading that `comingSoon()` precedes the guard; no such test written.
+3. Confirmed `@ts-nocheck` blinds typecheck to the import; used my own
+   `next build` (route emitted successfully) as positive resolution proof,
+   not "typecheck passed."
+4. Did not fail any AC over the `PAID_DUELS_ENABLED` kill-switch /
+   reason-collapse UX issue (page.tsx threads only `allowed`, not `reason`)
+   — this is the same pre-existing, already-ledgered, non-blocking issue
+   reviewer and security-reviewer both filed; noted here for completeness,
+   not scored.
 
 ## Verdict
 
-All five ACs (AC-1 through AC-5) **PASS**. No untestable ACs. No structural
-spec-gate failure (the ACs were supplied directly, not derived from a Flows
-section, and this is a targeted fix to an existing surface, not a new
-Flows-bearing feature). One pre-existing, non-blocking UX nit reconfirmed
-live (kill-switch-off mislabeled as region-blocked) — already filed by the
-reviewer as a non-blocking warning; not a regression from this change and
-does not fail any AC.
+All 5 ACs pass. No critical or blocking findings. Recommend proceeding to
+integrator.

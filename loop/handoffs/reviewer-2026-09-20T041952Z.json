@@ -1,0 +1,135 @@
+{
+  "agent": "reviewer",
+  "status": "success",
+  "summary": "Code-quality review of the SEC-4 close-out (extending server-resolved paid-feature region gating from /duel and /duel/chips to /tournaments). Read the working-tree diff myself (git diff HEAD; `git diff main...HEAD` is useless here — 408 files of pack churn, as the prior reviewer noted) and read all three changed files plus their siblings in full. No critical findings; the change is a faithful, minimal replication of the /duel/chips pattern with zero new geo logic. Independently re-ran app-lint and app-typecheck (both clean). Verified all six items I was asked to check. (1) The region-restricted block in TournamentList is genuinely consistent with ChipDuelLobby's, not merely close: identical element (section), identical classes (bg-surface rounded-xl border border-ember/30 p-6 text-center), identical role=\"status\", identical eyebrow markup and copy (\"Region restricted\"), only the body sentence adapted. Contrast checked against app/globals.css tokens: ember #ff5a2c on surface #121116 = 6.0:1, text-secondary #a8a4b2 = 7.7:1, both AA. (2) useRankedEligibility(true, initialGeoAllowed) is correct here and does not meaningfully worsen the inconsistency the prior reviewer filed: the split is coherent (DuelHome is a hub where the paid UI can be hidden entirely, so it passes PAID_DUELS_ENABLED_PUBLIC to skip the probe; the two dedicated paid pages you can only reach deliberately pass true). /tournaments has no reachability toggle of its own — DuelHome's Tournaments ModeCard gates the LINK on PAID_DUELS_ENABLED_PUBLIC and is permanently disabled, but the page must still resolve eligibility for a direct-URL or sitemap visitor. Passing the public flag instead of true would change no outcome, only save one edge request while the kill switch is off. The real gap is that the hook's otherwise-thorough JSDoc still never documents `enabled` (info). (3) Re-read the queue route: `return comingSoon()` is unconditional at line 31 of POST (and line 20 of GET), so the new guard at 46-52 is genuinely unreachable — confirmed by reading, not by trusting upstream. (4) Import path verified by arithmetic, not by 'gates passed': from app/app/api/tournaments/queue/, four `..` resolve to app/, and app/src/lib/paidDuelGeo.ts exists; the same file's five pre-existing imports use the same depth, and the [id]/ siblings' five levels are consistent with being one directory deeper. Important caveat recorded as a finding: `@ts-nocheck` on that file means tsc CANNOT have validated this import (proved it: tsc --noEmit exits 0 on a @ts-nocheck file containing both an unresolvable import and a type error), and no configured gate runs `next build` (context/gates.json and .github/workflows/ci.yml run lint/typecheck/test only) — so the only evidence is my manual resolution plus the two ad-hoc local builds. The path is right; the reasoning chain just isn't 'typecheck passed'. (5) On duplication: the region block is now a second verbatim copy of an 11-line compliance notice, and the repo's own ui/SignInGate is the precedent for extracting exactly this shape (message prop). I am NOT flagging it as blocking — two sites with divergent copy is defensible copy-paste-adapt — but it is the natural vehicle for fixing the `reason` finding below, which otherwise has to be applied in three places. (6) No new instance of the useRankedEligibility stale-fetch race: the hook is untouched, TournamentList passes a constant `enabled`, adds no effect, and its first client render equals the server render (useState seeded from the prop), so no hydration mismatch. I did find one NEW state hazard specific to TournamentList that ChipDuelLobby does not have — it holds post-action `queued` state inside the geo-gated subtree — filed as info since it is unreachable until tournaments launch. Two warnings: the 'disabled' kill-switch reason being rendered as region-restriction copy (third surface now, and on /tournaments it is the EXPECTED reason today), and the test-gap justification (a render harness does in fact exist; I proved a TournamentList render test is ~28 lines and runs in 0.5s). Read-only: created one throwaway probe test to prove that claim, ran it, deleted it; git status is byte-identical to what the verifier left.",
+  "timestamp": "2026-09-20T04:19:52Z",
+  "goal": "Code-quality review (correctness, design, maintainability, regression, design-review lens) of the /tournaments region-gating change, running in parallel with security-reviewer.",
+  "artifacts": [
+    "app/app/tournaments/page.tsx",
+    "app/src/components/Tournament/TournamentList.tsx",
+    "app/app/api/tournaments/queue/route.ts",
+    "app/src/components/Duel/ChipDuelLobby.tsx",
+    "app/src/components/Duel/DuelHome.tsx",
+    "app/src/hooks/useRankedEligibility.ts",
+    "app/src/lib/rankedEligibility.ts",
+    "app/src/lib/paidDuelGeo.ts",
+    "app/app/api/tournaments/[id]/checkout/route.ts",
+    "app/app/api/tournaments/[id]/register/route.ts",
+    "app/src/components/ui/SignInGate.tsx",
+    "app/tests/components/expeditionHud.test.tsx",
+    "loop/learnings.md",
+    "loop/handoffs/reviewer-2026-09-20T041952Z.json"
+  ],
+  "findings": [
+    {
+      "severity": "warning",
+      "location": "app/src/components/Tournament/TournamentList.tsx:129-141 (with app/app/tournaments/page.tsx:25)",
+      "issue": "Third instance of the reason-blind region copy the prior reviewer filed on /duel and /duel/chips, and the first one where the misleading branch is the EXPECTED production path. Concrete scenario: PAID_DUELS_ENABLED is not set to \"true\" (it is absent from app/.env.example, and the whole tournaments surface still ships dark behind an unconditional comingSoon() 503, so this is the live configuration) -> resolveRankedEligibility returns { allowed: false, reason: \"disabled\" } before it ever looks at geo -> page.tsx:25 destructures only { allowed } -> every signed-in visitor, including one in an explicitly allow-listed region such as CA, is told \"Tournaments are not available in your region. This feature is restricted to approved markets only.\" That is a false statement about the user's jurisdiction shown to 100% of signed-in visitors, not an edge case. Not critical: the gate itself is correct and fail-closed, no money or data is at risk, and it is a knowingly-deferred pre-existing defect class — but the deferral is now on its third surface and this is the route where 'disabled' dominates.",
+      "fix": "Thread `reason` alongside `allowed` from page.tsx into the component and branch the copy: 'disabled' -> a neutral 'Tournaments are temporarily unavailable.'; 'not_allowlisted' | 'missing_geo' -> the existing region copy. Doing it once in a shared notice component (see the info finding on duplication) fixes all three surfaces. If the kill switch is deliberately meant to be indistinguishable from a region block, say so in a comment at the destructuring site so the next reader does not re-file this a fourth time."
+    },
+    {
+      "severity": "warning",
+      "location": "app/src/components/Tournament/TournamentList.tsx:23-39 / verifier handoff testGaps[0]",
+      "issue": "I disagree with the stated reason for the test gap, though not necessarily with the conclusion. The verifier justified skipping a render test with 'no prior harness to build on'. That is factually wrong: app/tests/components/*.tsx already render production components with renderToStaticMarkup from react-dom/server, .tsx files are in the vitest include globs, and happy-dom is a devDependency. I proved the cost by writing a throwaway probe (mock next/navigation + the AuthContext module, render TournamentList twice): 28 lines, both directions asserted (initialGeoAllowed:false -> contains 'Region restricted', does NOT contain 'Join queue'; true -> the inverse), passing in 542ms, no DB, no firebase. Deleted it after running. So the compliance invariant asserted in the new prop's own docblock ('the entry-fee picker and Join queue are never rendered on an optimistic assumption') is still enforced only by human reading, which kernel gate rule 5 says is a comment and not a contract — and it could have been a contract for half a page of test code.",
+      "fix": "Backfill render tests for TournamentList and ChipDuelLobby (and DuelHome's mode cards) in one small follow-up: signed-out -> SignInGate; signed-in + blocked -> region block and no paid control; signed-in + allowed -> paid control. Not blocking this merge (the prop is required, the render is a single ternary, and the verifier proved typecheck goes red (TS2741) when a caller omits the prop), but the 'no harness' rationale should not be reused to defer it again."
+    },
+    {
+      "severity": "info",
+      "location": "app/src/components/Tournament/TournamentList.tsx:130-141 vs app/src/components/Duel/ChipDuelLobby.tsx:114-125",
+      "issue": "The region-restricted block is now a second verbatim copy: same <section>, same six utility classes, same role=\"status\", same eyebrow markup and text, only the body sentence differs. The codebase's own answer to this exact shape is app/src/components/ui/SignInGate.tsx — a shared gate component with a `message` prop, rendered one line above this block in both files. Asked to judge: copy-paste-adapt is acceptable today at two sites with divergent copy, so this is info, not a warning. It stops being acceptable the moment the `reason` fix above lands, because that fix would otherwise be hand-applied to two (three counting DuelHome's ModeCard subtitles) drifting copies of compliance messaging.",
+      "fix": "When the reason-threading fix is done, extract app/src/components/ui/RegionRestrictedNotice.tsx taking { message } (or { reason }) and shaped exactly like SignInGate. Do not extract it as a standalone refactor now — there is no defect to fix today and the churn would touch an already-reviewed file."
+    },
+    {
+      "severity": "info",
+      "location": "app/src/components/Tournament/TournamentList.tsx:39 vs app/src/components/Duel/DuelHome.tsx:100-103",
+      "issue": "Answering the question carried over from last cycle: hardcoding `true` for `enabled` is correct here and does not make the call-site inconsistency worse in any behavioural sense. /tournaments has no reachability toggle analogous to DuelHome's mode-card conditional — DuelHome gates the Tournaments ModeCard on PAID_DUELS_ENABLED_PUBLIC (and it is permanently `disabled` with a 'coming soon' badge), but that gates the LINK, not this page; a direct-URL or sitemap visitor still lands here and must get a resolved answer. Passing PAID_DUELS_ENABLED_PUBLIC instead of `true` would be strictly a saved edge request when the kill switch is off (the probe calls the same resolveRankedEligibility and would return the same `false`), never a different outcome. The split that now exists — hub passes the flag, dedicated paid pages pass true — is coherent; what is missing is anyone writing it down.",
+      "fix": "Add one JSDoc line to useRankedEligibility documenting `enabled`: 'pass the flag that decides whether the gated UI can render at all; a dedicated paid-feature page passes true'. The hook documents `serverAllowed` thoroughly and `enabled` not at all, which is why this keeps getting re-litigated."
+    },
+    {
+      "severity": "info",
+      "location": "app/app/api/tournaments/queue/route.ts:1,6,46-52",
+      "issue": "Re-verified the dead-code claim by reading rather than trusting two upstream handoffs: POST returns comingSoon() unconditionally at line 31 and GET at line 20, so the guard at 46-52 is unreachable — confirmed. Separately: the `@ts-nocheck` at line 1 means app-typecheck did NOT validate the new import at line 6. I proved this rather than assuming it — `tsc --noEmit` exits 0 on a file whose first line is @ts-nocheck even when it contains both an unresolvable import and `const x: number = \"str\"`. No configured gate runs `next build` either (context/gates.json lists six gates, none is a build; .github/workflows/ci.yml runs typecheck, lint, vitest). So a wrong relative path in this file would pass every merge gate and first fail on the Vercel deploy build. The path here is correct — four `..` from app/app/api/tournaments/queue/ lands on app/, app/src/lib/paidDuelGeo.ts exists, and the file's five pre-existing imports use the same depth — but the justification is manual resolution plus two ad-hoc local builds, not 'the gates were green'.",
+      "fix": "No change needed to this diff. For the loop: treat any edit inside a @ts-nocheck file as untyped and unverified by CI, and say which non-gate evidence covers it. A repo-level follow-up would be adding `pnpm build` to CI (or to context/gates.json), which is also the only thing that currently proves the rendering-mode claim this pipeline keeps re-deriving by hand."
+    },
+    {
+      "severity": "info",
+      "location": "app/src/components/Tournament/TournamentList.tsx:83-88,129,200-216",
+      "issue": "New-state hazard that ChipDuelLobby does not have, answering check 6. TournamentList keeps post-action state inside the geo-gated subtree: joinState 'queued' holds entrantCount/bracketSize/tournamentId and the only 'View bracket' link. ChipDuelLobby navigates away on success, so it has nothing to lose. Sequence: user is allowed at first paint, joins the queue (chips debited), then the /api/geo/ranked revalidation resolves `allowed: false` -> the ternary at :129 swaps the whole panel for the region block and the user loses the link to the bracket they just paid into, with no explanation. Unreachable today (the queue POST 503s before anything is debited) and unlikely even after launch (the probe fires on mount, long before a click), which is why this is info and not a warning — but it becomes real the day tournaments launch.",
+      "fix": "When tournaments launch, keep an existing queue entry visible: gate the region block on `joinState.status === \"idle\"` (or render the queued panel above it). Showing an entry the user already paid for is not a money-moving action, so the compliance gate does not need to hide it."
+    },
+    {
+      "severity": "info",
+      "location": "app/src/components/Tournament/TournamentList.tsx:127-129",
+      "issue": "For qa-acceptance: the curl-based acceptance check ('fetch the page and assert the first HTML contains the region copy') will false-alarm on /tournaments exactly as the prior reviewer warned it does on /duel/chips. `!user` is evaluated before `!geoAllowed`, and useAuth() is client-only Firebase state, so the server-rendered HTML for any unauthenticated request is always the SignInGate, never 'Region restricted' — regardless of geo.",
+      "fix": "Assert the server-side observable that actually holds: the first HTML for /tournaments contains no 'Join queue' / entry-fee tier markup, and the route is absent from .next/prerender-manifest.json's static list. Assert the region copy only with an authenticated client-side render (or the render test recommended above)."
+    },
+    {
+      "severity": "info",
+      "location": "loop/learnings.md (entry removed) / app/app/api/tournaments/queue/route.ts:1",
+      "issue": "The ledger entry removal is correct — both halves the entry demanded, (a) the queue guard and (b) the page/component treatment, are now done, and the entry instructed its own removal. Noting one small loss: the follow-up obligation the verifier recorded (when the comingSoon() early return goes, drop the @ts-nocheck and add a runtime 403 GEO_BLOCKED test for POST /api/tournaments/queue) now survives only in a handoff JSON. The route's line-1 comment already couples @ts-nocheck to the early return, so the durable part is covered; the test obligation is not.",
+      "fix": "Optional: have the retro keep a one-line ledger note, or extend the line-1 comment to '...remove with the early return when enabling; add the 403 GEO_BLOCKED test for the geo guard below at the same time.' Not a defect in this diff."
+    }
+  ],
+  "exitCriteria": {
+    "no_critical_findings": true,
+    "diff_read_independently": true,
+    "every_changed_file_read_in_full": true,
+    "region_block_parity_with_chipduellobby_verified": true,
+    "region_block_contrast_checked_against_tokens": true,
+    "enabled_param_question_answered": true,
+    "queue_guard_dead_code_reverified_by_reading": true,
+    "import_path_resolved_manually_not_assumed": true,
+    "typecheck_blindspot_on_ts_nocheck_proven": true,
+    "duplication_judged_not_nitpicked": true,
+    "no_new_stale_fetch_or_hydration_hazard": true,
+    "changed_control_has_non_test_caller": true,
+    "learnings_ledger_entry_removal_confirmed": true,
+    "app_lint": true,
+    "app_typecheck": true,
+    "read_only_no_residue": true
+  },
+  "gatesRun": [
+    { "name": "app-lint", "cwd": "app", "command": "pnpm lint", "result": "pass — clean at --max-warnings=0" },
+    { "name": "app-typecheck", "cwd": "app", "command": "pnpm typecheck", "result": "pass — clean" },
+    { "name": "ad-hoc", "cwd": "app", "command": "pnpm vitest run <throwaway TournamentList render probe>", "result": "pass — 2/2 in 542ms; probe deleted, git status unchanged" },
+    { "name": "ad-hoc", "cwd": "scratchpad", "command": "tsc --noEmit on a @ts-nocheck file with a bad import + type error", "result": "exit 0 — proves app-typecheck cannot validate anything in app/app/api/tournaments/queue/route.ts" }
+  ],
+  "feedback": [],
+  "learnings": [
+    {
+      "topic": "testing",
+      "kind": "caveat",
+      "forAgents": ["verifier", "qa-acceptance", "software-engineer"],
+      "insight": "'There is no component-test harness in this repo' is false and was used twice now to defer a render test. app/tests/components/*.tsx render real production components with renderToStaticMarkup from react-dom/server; .tsx is in the vitest include globs and happy-dom is installed. A full branch test for TournamentList (mock next/navigation + the AuthContext module, render with initialGeoAllowed false and true, assert 'Region restricted' vs 'Join queue' in both directions) is 28 lines and runs in 542ms with no DB and no firebase — I wrote it, ran it green, and deleted it.",
+      "action": "Before writing 'no harness exists' in a testGaps entry, grep tests/ for the file extension you need (`ls tests/components/*.tsx`) and check the vitest include globs. If a component pulls in next/navigation or a firebase-backed context, vi.mock those two modules — that is the entire cost.",
+      "confidence": "high"
+    },
+    {
+      "topic": "verification-method",
+      "kind": "caveat",
+      "forAgents": ["verifier", "security-reviewer", "reviewer", "integrator"],
+      "insight": "A `// @ts-nocheck` file is invisible to app-typecheck for EVERY error class, including module resolution (proved: tsc --noEmit exits 0 on a @ts-nocheck file with both an unresolvable import and `const x: number = \"str\"`). Three of the tournaments route files carry that pragma. No configured gate runs `next build` — context/gates.json has six gates and .github/workflows/ci.yml runs typecheck/lint/vitest only — so a broken import added to one of those files passes every merge gate and first fails on the Vercel deploy build.",
+      "action": "When a diff edits a @ts-nocheck file, never cite 'typecheck passed' as evidence. Resolve relative import paths by hand (count the `..` against the file's own directory, confirm the target exists, compare with the file's existing imports) and say a local `next build` is the only thing that covered it. Consider proposing `pnpm build` as a CI job — it is also the only real proof of the rendering-mode claims this pipeline keeps re-deriving in scratch worktrees.",
+      "confidence": "high"
+    },
+    {
+      "topic": "architecture",
+      "kind": "lesson",
+      "forAgents": ["software-engineer", "reviewer", "qa-acceptance"],
+      "insight": "A three-way eligibility answer collapsed to a boolean at the page boundary produces a confidently wrong UI string. resolveRankedEligibility returns reason 'disabled' | 'not_allowlisted' | 'missing_geo'; all three pages destructure only { allowed } and all three render region-restriction copy. On /tournaments the kill switch is the expected reason (PAID_DUELS_ENABLED is absent from .env.example and the routes still 503), so in the live configuration every signed-in visitor — including one in an allow-listed state — is told their region is blocked. This has now been filed by a reviewer on three surfaces in two cycles.",
+      "action": "When a resolver already returns a discriminant explaining WHY, thread it to the render site in the same change; dropping it costs one destructured field now and a multi-file edit later. If collapsing is deliberate, put the reason in a comment at the destructuring site so the next reviewer does not re-file it.",
+      "confidence": "high"
+    },
+    {
+      "topic": "process",
+      "kind": "metric",
+      "forAgents": ["orchestrator"],
+      "insight": "Repeat-warning signal: this cycle produced zero critical findings and no new defects, but two of my findings (reason-blind copy, deferred component test) are re-files of warnings from the 2026-09-20T033845Z reviewer handoff that were accepted as non-blocking and then replicated verbatim onto a third surface by the very next change. The pattern of 'replicate the established pattern exactly' faithfully copies known warnings along with the correct parts.",
+      "action": "When a cycle's stated goal is 'extend pattern X to surface Y', pass the prior reviewer's open warnings on pattern X into the software-engineer's brief. Otherwise each extension multiplies the cost of the eventual fix by one more call site.",
+      "confidence": "medium"
+    }
+  ],
+  "nextStage": "qa-acceptance",
+  "nextStageParallel": ["reviewer", "security-reviewer"],
+  "loopBackTo": null
+}
