@@ -44,6 +44,7 @@ import { useBodyScrollLock } from "../../hooks/useBodyScrollLock";
 import { useFullscreen } from "../../hooks/useFullscreen";
 
 import { climberHandle } from "../../lib/handle";
+import { climbEyebrowLabel } from "../../lib/climbEyebrow";
 import { ALTITUDE_UNIT, formatAltitudeLabel } from "../../lib/units";
 import { ShareRun } from "./ShareRun";
 import {
@@ -475,7 +476,7 @@ export function ClimbScene({
         {phase === "lobby" && !replaying && (
           <Overlay>
             <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-signal">
-              [ {categoryLabel} climb ]
+              [ {climbEyebrowLabel(categoryLabel)} ]
             </p>
             {lobbyExtra ?? (
               <>

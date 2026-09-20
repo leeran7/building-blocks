@@ -6,8 +6,7 @@
  */
 
 import type { Metadata } from "next";
-import Link from "next/link";
-import { Navbar } from "../../../src/components/Navbar";
+import { DuelStackShell } from "../../../src/components/Duel/DuelStackShell";
 import { FreeDuelLeaderboard, ChipDuelLeaderboard } from "../../../src/components/Duel/DuelLeaderboard";
 import { topDuelStats } from "../../../src/db/duel";
 import { chipLeaderboard } from "../../../src/db/chips";
@@ -37,24 +36,8 @@ export default async function DuelLeaderboardPage() {
   ]);
 
   return (
-    <div className="grain topo min-h-screen bg-void text-text-primary">
-      <Navbar contextLabel="1v1" />
-
-      {/* Tab band */}
-      <div className="border-b border-border-subtle">
-        <div className="max-w-2xl mx-auto w-full px-4 py-2">
-          <div
-            className="inline-flex items-center gap-1 rounded-full border border-border-strong bg-surface p-1"
-            role="tablist"
-            aria-label="1v1 sections"
-          >
-            <DuelTab href="/duel/leaderboard" label="Leaderboard" active={true} />
-            <DuelTab href="/duel" label="Play" active={false} />
-          </div>
-        </div>
-      </div>
-
-      <div className="max-w-2xl mx-auto w-full px-4 py-8 flex flex-col gap-10">
+    <DuelStackShell section="leaderboard">
+      <div className="py-8 flex flex-col gap-10">
         {/* Free 1v1 */}
         <section>
           <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-text-muted mb-1">
@@ -91,33 +74,6 @@ export default async function DuelLeaderboardPage() {
           </section>
         )}
       </div>
-    </div>
-  );
-}
-
-function DuelTab({
-  href,
-  label,
-  active,
-}: {
-  href: string;
-  label: string;
-  active: boolean;
-}) {
-  return (
-    <Link
-      href={href}
-      role="tab"
-      aria-selected={active}
-      aria-current={active ? "page" : undefined}
-      className={
-        "inline-flex items-center justify-center px-4 min-h-[44px] rounded-full text-sm font-semibold whitespace-nowrap transition-[color,filter] focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void " +
-        (active
-          ? "bg-signal text-void hover:brightness-110"
-          : "text-text-secondary hover:text-text-primary")
-      }
-    >
-      {label}
-    </Link>
+    </DuelStackShell>
   );
 }

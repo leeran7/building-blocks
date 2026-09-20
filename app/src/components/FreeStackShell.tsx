@@ -37,11 +37,14 @@ export function FreeStackShell({
         aria-hidden="true"
       />
 
-      {!gameSection && (
-        <div className="shrink-0">
-          <Navbar contextLabel="Free climb" />
-        </div>
-      )}
+      {/* Navbar renders on every section (Leaderboard / Play / Daily), matching
+          the duel stack, so the tab band below sits at the same top position on
+          all three routes instead of jumping up 56px on the game sections. The
+          true-fullscreen game is unaffected: ClimbScene goes `fixed inset-0` on
+          touch once a run starts and escapes this shell entirely. */}
+      <div className="shrink-0">
+        <Navbar contextLabel="Free climb" />
+      </div>
 
       {/* One container width for the band across every section, so the tabs
           don't shift horizontally when switching Leaderboard / Play / Daily. */}

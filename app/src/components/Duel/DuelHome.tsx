@@ -30,7 +30,7 @@ import Link from "next/link";
 import { useAuth } from "../../contexts/AuthContext";
 import { shareInvite } from "../../lib/shareInvite";
 import { parseDuelInvite } from "../../lib/duelInvite";
-import { Navbar } from "../Navbar";
+import { DuelStackShell } from "./DuelStackShell";
 import { BuyCreditsModal } from "../Wallet/BuyCreditsModal";
 import { PAID_DUELS_ENABLED_PUBLIC } from "../../config/paidDuel";
 import { formatChipCents } from "../../config/chipPackages";
@@ -38,13 +38,8 @@ import { useClaimDailyChips } from "../../hooks/useClaimDailyChips";
 import { useRankedEligibility } from "../../hooks/useRankedEligibility";
 import { useWalletBalance } from "../../hooks/useWalletBalance";
 import { authedFetch } from "../../lib/authedFetch";
-import {
-  DUEL_LEADERBOARD_HREF,
-  DUEL_HREF,
-  CHIP_DUELS_HREF,
-} from "../navLinks";
+import { CHIP_DUELS_HREF } from "../navLinks";
 import { Spinner } from "../ui/Spinner";
-import { NavTab } from "../ui/NavTab";
 import { SignInGate } from "../ui/SignInGate";
 import { Button } from "../ui/Button";
 import { UserSearch } from "../Challenge/UserSearch";
@@ -378,27 +373,8 @@ export function DuelHome() {
   const signedOut = !user || isAnonymous;
 
   return (
-    <div className="grain topo min-h-screen bg-void text-text-primary">
-      <Navbar contextLabel="1v1" />
-
-      {/* Tab band */}
-      <div className="border-b border-border-subtle">
-        <div className="max-w-4xl mx-auto w-full px-4 py-2">
-          <div
-            className="inline-flex items-center gap-1 rounded-full border border-border-strong bg-surface p-1"
-            role="tablist"
-            aria-label="1v1 sections"
-          >
-            {/* Order matches the free-climb shell: Leaderboard, then Play.
-                Both entries are Links (mirroring FreeStackShell's FreeTab) so
-                the pattern doesn't diverge across the two nav-tab surfaces. */}
-            <NavTab href={DUEL_LEADERBOARD_HREF} label="Leaderboard" active={false} />
-            <NavTab href={DUEL_HREF} label="Play" active={true} />
-          </div>
-        </div>
-      </div>
-
-      <div className="max-w-4xl mx-auto px-4 pt-7 pb-16 flex flex-col gap-6">
+    <DuelStackShell section="play">
+      <div className="pt-7 pb-16 flex flex-col gap-6">
         <header>
           <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-text-muted mb-1.5">
             multiplayer
@@ -725,7 +701,7 @@ export function DuelHome() {
           </div>
         )}
       </div>
-    </div>
+    </DuelStackShell>
   );
 }
 
