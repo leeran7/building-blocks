@@ -1,0 +1,145 @@
+{
+  "agent": "software-engineer",
+  "status": "success",
+  "timestamp": "2026-09-20T15:19:00Z",
+  "iteration": 2,
+  "goal": "Revision pass on the Doomstack layout change: fix the two production bugs the verifier reproduced (parseDuelInvite accepting cross-origin URLs, formatElapsed not clamping NaN), make the verifier's two failing fixtures pass without weakening the rest of its suite, and re-run every gate.",
+  "summary": "Fixed both defects in production code — no spec amendment, per the instruction and .claude/rules/security.md ('reject, never substitute a default'). (1) src/lib/duelInvite.ts: parseDuelInvite gained an optional second parameter `expectedOrigin` (defaults to a new private appOrigin(): window.location.origin in the browser, new URL(resolveBaseUrl()).origin under SSR/tests, and null when the origin is opaque/unparseable). extractPath now rejects any absolute URL whose url.origin !== expectedOrigin, and rejects every absolute URL when expectedOrigin is null — an unknown app origin fails closed rather than accepting any host. Root-relative paths and bare ids are unaffected, so the only live call site (DuelHome.tsx:292, which passes one argument and therefore uses the live browser origin) keeps working for real same-origin links and now rejects https://evil.dev/duel/<id>. (2) src/components/Duel/DuelHome.tsx: formatElapsed now computes `Number.isFinite(totalSeconds) ? Math.max(0, Math.floor(totalSeconds)) : 0`, so NaN/Infinity read as '0:00' instead of 'NaN:NaN', matching the function's stated contract. Both guards were proven to fail before being trusted: I temporarily removed the origin check, the null-origin check and the isFinite guard (backups via cp, restored by cp, `git diff` on both files then matched the intended fix exactly) and confirmed all four corresponding assertions flipped red. All gates green: app 85 files / 779 tests pass (up from 777 with 2 failures; +2 assertions I added, see the one test-file edit below), lint, typecheck, orchestrator typecheck + test, pack hygiene, and `next build` with the four route rendering modes unchanged (/ ISR 1m, /climb dynamic, /daily static, /duel static). Navbar.tsx untouched and clean; no stray _verify_tmp.mjs in the tree.",
+  "artifacts": [
+    "app/src/lib/duelInvite.ts",
+    "app/src/components/Duel/DuelHome.tsx",
+    "app/tests/lib/duelInvite.test.ts"
+  ],
+  "feedbackAddressed": [
+    {
+      "from": "verifier-2026-09-20T150144Z",
+      "finding": "findings[0] — parseDuelInvite does not reject cross-origin absolute URLs (AC-10 non-conformance)",
+      "resolution": "Fixed in code (option (a) in the verifier's suggested fix), not by amending AC-10. extractPath now compares url.origin against an expectedOrigin threaded from the caller or resolved from the app's own origin, and returns null on mismatch or when the origin is unknown. AC-10's wording in loop/spec-doomstack-layout.md is unchanged and now matches shipped behavior.",
+      "status": "resolved"
+    },
+    {
+      "from": "verifier-2026-09-20T150144Z",
+      "finding": "findings[1] — formatElapsed(NaN) returns 'NaN:NaN'",
+      "resolution": "Fixed with an explicit Number.isFinite guard before the clamp, exactly as suggested.",
+      "status": "resolved"
+    },
+    {
+      "from": "verifier-2026-09-20T150144Z",
+      "finding": "findings[2] — process anomaly: uncommitted Navbar.tsx edit + stray app/_verify_tmp.mjs",
+      "resolution": "Not mine and not touched. The orchestrator confirmed it authored both out-of-band and had already reverted Navbar.tsx and deleted the script before this iteration; I verified the working tree shows neither. The Navbar mobile-overlap issue is known and explicitly deferred out of this PR.",
+      "status": "acknowledged — out of scope"
+    }
+  ],
+  "exitCriteria": {
+    "code_compiles": true,
+    "all_tests_pass": true,
+    "both_reported_bugs_fixed": true,
+    "new_guards_proven_to_fail": true,
+    "no_verifier_assertion_weakened": true,
+    "no_new_endpoints": true,
+    "no_new_db_queries": true,
+    "rendering_modes_unchanged": true,
+    "scope_limited_to_two_production_files": true
+  },
+  "gates": [
+    { "name": "app-lint", "command": "pnpm lint", "cwd": "app", "result": "pass (eslint . --max-warnings=0, clean)" },
+    { "name": "app-typecheck", "command": "pnpm typecheck", "cwd": "app", "result": "pass (tsc --noEmit, clean)" },
+    { "name": "app-test", "command": "pnpm test", "cwd": "app", "result": "pass — 85 files / 779 tests, 0 failures, 12.3s. Includes all 6 verifier-added files; the 2 previously-failing fixtures now pass." },
+    { "name": "orchestrator-typecheck", "command": "yarn typecheck", "cwd": "orchestrator", "result": "pass" },
+    { "name": "orchestrator-test", "command": "yarn test", "cwd": "orchestrator", "result": "pass (fail 0)" },
+    { "name": "pack-hygiene", "command": "node scripts/hygiene.mjs", "cwd": ".", "result": "pass — 8 source agent files scanned, 0 violations" },
+    { "name": "next-build", "command": "pnpm build", "cwd": "app", "result": "pass — 'Compiled successfully in 10.3s'; route table unchanged: / ○ with 1m revalidate, /climb ƒ, /daily ○, /duel ○. prisma:error lines during static generation are the pre-existing no-DB-in-sandbox behavior the verifier already characterized, not a build failure." }
+  ],
+  "proveFail": [
+    {
+      "guard": "extractPath origin check (url.origin !== expectedOrigin)",
+      "method": "Deleted the line from src/lib/duelInvite.ts, re-ran the suite.",
+      "result": "RED — 'cross-origin URL with an otherwise-valid /duel/<id> path' and 'URL whose origin differs from the injected app origin' both failed. Restored by cp from a pre-edit backup; the file now contains the intended fix verbatim."
+    },
+    {
+      "guard": "extractPath fail-closed on unknown origin (expectedOrigin === null)",
+      "method": "Deleted the line, re-ran the suite.",
+      "result": "RED — 'absolute URL when no app origin can be determined' failed."
+    },
+    {
+      "guard": "formatElapsed Number.isFinite clamp",
+      "method": "Reverted the expression to the old Math.max(0, Math.floor(totalSeconds)), re-ran the suite.",
+      "result": "RED — 'NaN input clamps to 0:00' failed with 'NaN:NaN'. Restored by cp."
+    }
+  ],
+  "testFileEdit": {
+    "file": "app/tests/lib/duelInvite.test.ts",
+    "why": "One of the verifier's 18 assertions was structurally incompatible with AC-10 as written, and this could not be resolved in production code alone. The positive fixture `parseDuelInvite('https://doomstack.example/duel/<id>')` used a stand-in host to mean 'our own origin', but passed no origin — under a same-origin rule, that exact call is indistinguishable from the sibling REJECT fixture `parseDuelInvite('https://evil.dev/duel/<id>')`, since in the node test environment the app origin resolves to http://localhost:3000 and neither host matches it. No implementation can accept one and reject the other from a single string argument without a brand-substring hostname heuristic (which an attacker could satisfy by registering the domain).",
+    "change": "Introduced `const APP_ORIGIN = 'https://doomstack.example'` and changed that one positive fixture to `parseDuelInvite(`${APP_ORIGIN}/duel/${ID}`, APP_ORIGIN)` — same host, same expected return value, origin now stated instead of assumed. Renamed the case to 'absolute app-origin URL + /duel/<id>'.",
+    "notWeakened": "No assertion was removed, relaxed or inverted. The default-origin cross-origin rejection (`https://evil.dev/duel/<id>` with one argument) is untouched and still passes. I added 2 assertions rather than only editing: a cross-origin rejection against an explicitly injected expectedOrigin (proves the parameter is enforced, not ignored), and an absolute-URL rejection when expectedOrigin is null (proves the unknown-origin path fails closed). File went from 18 to 20 assertions, all passing.",
+    "flag": "Calling this out loudly because the orchestrator's instruction was 'don't regress the other 17'. The intent (every other case keeps asserting the same behavior) is met; the letter (touch nothing else in the file) was not achievable. Verifier should re-check this edit first."
+  },
+  "decisions": [
+    "ADR-6: parseDuelInvite takes `expectedOrigin` as an optional injected parameter rather than reading window.location.origin inline. The function stays pure and testable under node, the single production call site is unchanged (one argument -> live browser origin), and SSR/test callers get a deterministic origin from resolveBaseUrl() instead of an implicit global.",
+    "ADR-7: an unresolvable app origin rejects every absolute URL instead of falling back to accept-any. Root-relative paths and bare ids still parse, so the pasted-link flow degrades to 'paste the code or the /duel/... path' rather than failing entirely, and a missing origin can never widen the allow-list.",
+    "Kept the fix inside extractPath (the verifier's suggested location) rather than adding a second validation layer in parseDuelInvite, so there remains exactly one place that decides whether an absolute URL is acceptable."
+  ],
+  "verificationTargets": [
+    "parseDuelInvite(raw, expectedOrigin?) — the new parameter. Worth an independent check that the DEFAULT path (one argument) is not accidentally permissive: under vitest's node environment appOrigin() resolves via resolveBaseUrl() to http://localhost:3000, so `parseDuelInvite('http://localhost:3000/duel/<id>')` should return the id with no second argument, while any other host returns null. I deliberately did not add that assertion because it couples the test to the environment's BASE_URL/NODE_ENV; if you want it, set process.env.BASE_URL in the test rather than hardcoding localhost.",
+    "appOrigin()'s browser branch is the one path no node test exercises (typeof window === 'undefined' there). A happy-dom-pragma test that stubs window.location.origin would cover it; the opaque-origin case ('null' string) and empty-origin case are handled but likewise unexercised.",
+    "formatElapsed: Infinity and -Infinity now also return '0:00' (Number.isFinite rejects both) — the verifier's file only asserts NaN. Not a gap I consider load-bearing, noting it for completeness."
+  ],
+  "dependencies": [],
+  "learnings": [
+    {
+      "topic": "testing",
+      "forAgents": ["software-engineer", "verifier"],
+      "kind": "lesson",
+      "insight": "Answering the verifier's ping to audit other NaN-unsafe clamps: I grepped every Math.max(0, ...) / Math.min(0, ...) in app/src and app/app (≈40 sites). formatElapsed was the only one whose stated contract covered non-finite input without a guard. The repo's own external-input clamps already do it right — src/game/replayTransport.ts:40-57 (rewindTargetTick, tickFromSeekRatio) both early-return 0 on !Number.isFinite before clamping. Every remaining site operates on internally-derived finite numbers (tick counters, camera/world coordinates, floor indices, duration ticks), so no further fixes were warranted.",
+      "action": "Treat replayTransport.ts's `if (!Number.isFinite(x)) return 0;` prologue as this repo's established pattern for any clamp whose input can come from outside the module. Do not ship a bare Math.max(0, ...) as a NaN clamp.",
+      "confidence": "high"
+    },
+    {
+      "topic": "security",
+      "forAgents": ["security-reviewer", "reviewer"],
+      "kind": "lesson",
+      "insight": "Answering the verifier's second ping: the gap was exactly as it described — the module docstring's claim ('no open redirect is reachable, because the caller uses the parsed id') was true, while the spec's stronger claim ('cross-origin URLs are rejected') was false. I closed the gap at the stronger bar and rewrote the docstring to state the rule the code now actually enforces, including the fail-closed behavior when the app origin is unknown. A docstring that argues a threat is unreachable via a DOWNSTREAM property is a smell: it makes the parser's safety depend on every future caller behaving like the current one.",
+      "action": "When reviewing a parser or validator, check whether its safety argument is local (this function rejects X) or downstream (nobody uses the result dangerously). Downstream arguments should be rewritten as local guards, not documented.",
+      "confidence": "high"
+    },
+    {
+      "topic": "testing",
+      "forAgents": ["verifier", "qa-acceptance"],
+      "kind": "lesson",
+      "insight": "A positive fixture that hardcodes a stand-in host for 'our origin' silently encodes an origin-agnostic contract. `parseDuelInvite('https://doomstack.example/duel/<id>') === id` looks like a same-origin test but is really an any-origin test, and it became unsatisfiable the moment the same-origin rule landed — its accept case and the evil.dev reject case are the same call shape with a different string. Origin/tenant/host-sensitive units need the expected value injected as an argument, not assumed from the fixture's spelling.",
+      "action": "When writing fixtures for a function whose behavior depends on ambient context (origin, tenant, clock, locale), pass that context in explicitly so the accept and reject cases differ by the rule under test, not by an unstated environment assumption.",
+      "confidence": "high"
+    },
+    {
+      "topic": "testing",
+      "forAgents": ["verifier"],
+      "kind": "lesson",
+      "insight": "Acknowledging the referential-stability ping: understood and applied, though it did not bite this iteration — I added no mounting tests, only two pure-function assertions in a node-environment file. The two tests you wrote that mount (climbBoardViewerPanel, climbBoardSmoke) both pass unchanged against the fixed code, so nothing about this fix disturbed the stable-mock setup.",
+      "action": "If a future iteration adds a component test that mounts, hoist any mocked context value to a module-level constant per the verifier's note — a spinning worker reads as a hang, not a red test.",
+      "confidence": "high"
+    },
+    {
+      "topic": "process",
+      "forAgents": ["verifier", "reviewer", "integrator"],
+      "kind": "metric",
+      "insight": "Post-revision baseline: app 85 test files / 779 tests, all passing in ~12.3s (previous handoff: 777 with 2 failures). lint, typecheck, pack hygiene, orchestrator typecheck + test all clean. `next build` compiles and the four flow routes keep their rendering modes (/ static with 1m revalidate, /climb dynamic, /daily static, /duel static).",
+      "action": "Treat any drop below 779 passing, or any of those four routes flipping rendering mode, as a regression introduced after this handoff.",
+      "confidence": "high"
+    },
+    {
+      "topic": "process",
+      "forAgents": ["orchestrator", "integrator", "verifier"],
+      "kind": "lesson",
+      "insight": "The sandbox auto-commit the verifier flagged is real and recurring: while I was still working, my working-tree changes were committed as a2f3a51 ('Fix verifier-found bugs: cross-origin duel invites, NaN elapsed timer', authored 'Claude', co-authored 'Claude Sonnet 5'), which also swept in the verifier's two previously-untracked test files. I ran no git commit and no git push. `git status` is now clean except for app/next-env.d.ts (regenerated by next build) and the untracked app/AGENTS.md / app/CLAUDE.md that next dev writes.",
+      "action": "Integrator: do not assume an uncommitted working tree at the start of your stage, and verify a2f3a51's contents match this handoff's artifact list before building on it. Verifier: `git diff HEAD` will look empty for my changes — diff against b63dd6a instead.",
+      "confidence": "high"
+    }
+  ],
+  "openQuestions": [
+    "OQ-1 (hub CTA priority: play-free-primary vs duel-primary) remains a product decision, unchanged from iteration 1 — see loop/spec-doomstack-layout.md.",
+    "The verifier's AC-10 open question is now CLOSED: implemented in code, spec wording unchanged.",
+    "Navbar.tsx mobile-width overlap: known, pre-existing, deliberately out of scope for this PR per the orchestrator.",
+    "The two pre-existing loop/learnings.md open questions (free-leaderboard trust boundary; power-up stacking) are still untouched by this layout pass."
+  ],
+  "nextStage": "verifier"
+}
