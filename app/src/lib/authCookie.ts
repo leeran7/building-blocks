@@ -29,3 +29,15 @@ export function clearTokenCookie(): void {
   if (typeof document === "undefined") return;
   document.cookie = `${TOKEN_COOKIE}=; Path=/; Max-Age=0; SameSite=Lax`;
 }
+
+/**
+ * Presence-only, synchronous check for the cookie — read on the client to
+ * optimistically render the signed-in UI shape before Firebase's async
+ * `onAuthStateChanged` resolves, instead of a loading skeleton. Never treat
+ * this as proof of a valid session (see the file header); callers must still
+ * fall back cleanly once real auth state disagrees.
+ */
+export function hasTokenCookie(): boolean {
+  if (typeof document === "undefined") return false;
+  return document.cookie.split("; ").some((c) => c.startsWith(`${TOKEN_COOKIE}=`));
+}
