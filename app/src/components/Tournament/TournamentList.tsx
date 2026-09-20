@@ -8,6 +8,7 @@ import { Navbar } from "../Navbar";
 import { CHIP_TIERS } from "../../db/chips";
 import { formatChipCents } from "../../config/chipPackages";
 import { authedFetch } from "../../lib/authedFetch";
+import { useRankedEligibility } from "../../hooks/useRankedEligibility";
 import { DUEL_LEADERBOARD_HREF, DUEL_HREF } from "../navLinks";
 import { Spinner } from "../ui/Spinner";
 import { NavTab } from "../ui/NavTab";
@@ -19,11 +20,23 @@ type JoinState =
   | { status: "queued"; entrantCount: number; bracketSize: number; tournamentId: string }
   | { status: "error"; message: string };
 
-export function TournamentList() {
+interface TournamentListProps {
+  /**
+   * Ranked/tournament eligibility resolved SERVER-SIDE at request time by
+   * `app/tournaments/page.tsx` (`resolveRankedEligibility`). Required so the
+   * entry-fee picker and "Join queue" (a money-moving action into a
+   * cash-prize bracket) are never rendered on an optimistic assumption while
+   * a client probe is in flight.
+   */
+  initialGeoAllowed: boolean;
+}
+
+export function TournamentList({ initialGeoAllowed }: TournamentListProps) {
   const { user, token } = useAuth();
   const router = useRouter();
   const [tier, setTier] = useState<number>(CHIP_TIERS[0]);
   const [joinState, setJoinState] = useState<JoinState>({ status: "idle" });
+  const { allowed: geoAllowed } = useRankedEligibility(true, initialGeoAllowed);
 
   const handleJoin = useCallback(async () => {
     if (!token) return;
@@ -113,6 +126,19 @@ export function TournamentList() {
 
         {!user ? (
           <SignInGate message="Sign in to enter tournaments." redirectPath="/tournaments" />
+        ) : !geoAllowed ? (
+          <section
+            className="bg-surface rounded-xl border border-ember/30 p-6 text-center"
+            role="status"
+          >
+            <p className="font-mono text-xs uppercase tracking-[0.14em] text-ember mb-2">
+              Region restricted
+            </p>
+            <p className="text-text-secondary text-sm">
+              Tournaments are not available in your region. This feature is
+              restricted to approved markets only.
+            </p>
+          </section>
         ) : (
           <>
             {/* Tier picker */}
