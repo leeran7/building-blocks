@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { climberDisplay } from "@app/lib/handle";
+import { isSearchableQuery, searchFailureMessage } from "@app/lib/userSearchQuery";
+import { UsernameHandle } from "@app/components/Challenge/UsernameHandle";
 import { apiFetch } from "../../lib/api";
 import { notifyError, notifySuccess } from "../../lib/haptics";
 import { Button, ListRow } from "../ui";
-
-const EMAIL_SHAPE = /^\S+@\S+\.\S+$/;
 
 interface SearchResult {
   id: string;
@@ -18,26 +19,27 @@ export interface UserSearchSectionProps {
 }
 
 /**
- * Look up a user by their exact email and send a friend request. Results
- * render inline below the input rather than in a dropdown overlay, which
- * avoids z-index / keyboard-dismiss issues on mobile.
+ * Look up a user by their exact email or exact username and send a friend
+ * request. Results render inline below the input rather than in a dropdown
+ * overlay, which avoids z-index / keyboard-dismiss issues on mobile.
  *
- * Search only fires once the input looks like a complete email — a partial
- * email wouldn't match anything server-side anyway (the API is exact-match
- * only).
+ * Search only fires once the input looks like a complete email or a valid
+ * username — a partial value wouldn't match anything server-side anyway (the
+ * API is exact-match only).
  */
 export function UserSearchSection({ onFriendRequestSent }: UserSearchSectionProps) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
   const [addingId, setAddingId] = useState<string | null>(null);
   const [sentIds, setSentIds] = useState<Set<string>>(new Set());
   const [errorIds, setErrorIds] = useState<Set<string>>(new Set());
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   const search = useCallback(async (q: string) => {
-    if (!EMAIL_SHAPE.test(q)) {
+    if (!isSearchableQuery(q)) {
       setResults([]);
       return;
     }
@@ -48,9 +50,17 @@ export function UserSearchSection({ onFriendRequestSent }: UserSearchSectionProp
         const data = (await res.json()) as { users: SearchResult[] };
         setResults(data.users);
         setSearched(true);
+      } else {
+        // Never leave the previous query's row (and its Add button) on screen
+        // next to a different query — one tap would add the wrong person.
+        setResults([]);
+        setSearchError(searchFailureMessage(res.status));
+        void notifyError();
       }
     } catch {
-      /* next keystroke recovers */
+      setResults([]);
+      setSearchError(searchFailureMessage(null));
+      void notifyError();
     }
     setLoading(false);
   }, []);
@@ -58,7 +68,8 @@ export function UserSearchSection({ onFriendRequestSent }: UserSearchSectionProp
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     setSearched(false);
-    if (!EMAIL_SHAPE.test(query)) {
+    setSearchError(null);
+    if (!isSearchableQuery(query)) {
       setResults([]);
       return;
     }
@@ -108,10 +119,11 @@ export function UserSearchSection({ onFriendRequestSent }: UserSearchSectionProp
 
       <div className="relative">
         <input
-          type="email"
+          type="text"
+          inputMode="email"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search by email…"
+          placeholder="Search by email or username…"
           autoCapitalize="none"
           autoCorrect="off"
           className="w-full rounded-2xl border border-border-strong bg-surface-raised px-4 py-3.5 text-sm text-text-primary placeholder:text-text-muted focus:border-signal/50 focus:outline-none"
@@ -134,14 +146,22 @@ export function UserSearchSection({ onFriendRequestSent }: UserSearchSectionProp
         </p>
       )}
 
-      {!loading && searched && results.length === 0 && (
-        <p className="py-1 text-center text-sm text-text-secondary">No user found with that email.</p>
+      {!loading && searchError && (
+        <p className="py-1 text-center font-mono text-xs text-ember" role="alert">
+          {searchError}
+        </p>
+      )}
+
+      {!loading && !searchError && searched && results.length === 0 && (
+        <p className="py-1 text-center text-sm text-text-secondary">
+          No user found with that email or username.
+        </p>
       )}
 
       {results.length > 0 && (
         <div className="flex flex-col gap-2">
           {results.map((u) => {
-            const name = u.displayName ?? u.username ?? "User";
+            const name = climberDisplay(u.id, u.displayName);
             const sent = sentIds.has(u.id);
             const errored = errorIds.has(u.id);
             return (
@@ -150,9 +170,7 @@ export function UserSearchSection({ onFriendRequestSent }: UserSearchSectionProp
                   <div className="flex items-center justify-between gap-3">
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-semibold text-text-primary">{name}</p>
-                      {u.username && u.displayName && (
-                        <p className="truncate text-xs text-text-muted">@{u.username}</p>
-                      )}
+                      <UsernameHandle username={u.username} />
                     </div>
                     {sent ? (
                       <span className="shrink-0 font-mono text-xs uppercase tracking-[0.12em] text-signal">

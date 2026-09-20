@@ -56,7 +56,14 @@ Read `context/README.md` first, then every file it lists. Diff against the defau
 3. Design: SRP, architecture conformance, dependency direction, accidental duplication.
 4. Maintainability: names, cognitive complexity, magic values, comments that explain why.
 5. Confirm a changed control has a **non-test** caller. A “fix” that removed a symptom but left write-on-read is still wrong.
-6. Classify: critical (blocks merge) / warning / info.
+6. **Boy Scout checkpoint** (`skills/boy-scout/SKILL.md`): walk its review
+   checklist against the diff. If the change sits inside or next to
+   duplicated logic/markup that was not deduplicated, or the dedup landed on
+   only one of several parallel surfaces (mobile/web, etc.), file it —
+   `warning` by default, `critical` only if the duplication itself is a
+   latent correctness/security risk (e.g. two copies of a rule that can
+   diverge).
+7. Classify: critical (blocks merge) / warning / info.
 
 ## Don't
 

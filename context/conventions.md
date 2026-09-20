@@ -29,3 +29,12 @@ runner, or component library.
 - **Static vs dynamic:** verify Next.js rendering mode from the `next build`
   route table, not by reasoning. A server component awaiting a DB read with
   no `dynamic`/`revalidate` export freezes empty data forever.
+- **Dead-code claims:** never conclude a module is orphaned from one import
+  path spelling. `app/src/components/Challenge/*` looked dead to a grep for
+  `components/Challenge/…` but `src/components/Duel/DuelHome.tsx` imports it
+  relatively (`../Challenge/UserSearch`) and `app/duel/page.tsx` renders it.
+  Grep the bare basename, then walk importers up to an `app/` route file.
+- **Challenge UI is duplicated:** `app/mobile/src/components/challenge/*`
+  (mobile screen) and `app/src/components/Challenge/*` (web `/duel`) are both
+  live and render the same friend-request, pending-challenge, and user-search
+  flows. Change both trees in one commit and exercise both surfaces in QA.
