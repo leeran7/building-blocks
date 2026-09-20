@@ -1,0 +1,67 @@
+{
+  "agent": "qa-acceptance",
+  "status": "success",
+  "summary": "Validated the friend/challenge identity fix (climberDisplay everywhere 'Someone' used to be) and the email-or-username search extension end-to-end against the original bug report and its clarification. Re-ran all gates myself rather than trusting prior handoffs: pnpm lint clean, pnpm typecheck clean, pnpm test 85 files / 799 tests passed — matches the verifier's and reviewer's reported numbers exactly. Read every touched production file in both trees (mobile UserSearchSection/FriendRequestsSection/FriendsListSection/PendingChallengesSection and web UserSearch/FriendRequests/FriendsList/PendingChallenges, plus DuelHome.tsx, ChallengeScreen.tsx, all 5 notification call sites, users/search/route.ts, userSearchQuery.ts, and createChallenge in src/db/challenge.ts) rather than trusting the handoff summaries. Independently reproduced a prove-fail cycle myself (flipped the @username sub-line gate to `false &&` in PendingChallenges.tsx, reran tests/components/pendingChallengesIdentity.test.tsx -> 2/4 red with the exact reported assertion failure, restored, git diff --stat empty, suite green again) instead of accepting the verifier's and reviewer's mutation-testing claims on faith. All 5 golden/edge/consistency scenarios in my dispatch PASS. Two non-blocking, already-known gaps re-confirmed present but out of this diff's scope: (1) DuelRoom.tsx/DuelRoomScreen.tsx still fall back to literal 'Player 1'/'Player 2' when displayName is null, producing a real identity discontinuity between the challenge card (now correctly named) and the duel room after accept -- flagged by the reviewer in a prior round, untouched by this diff, degrades to a generic label rather than a broken/wrong-person state, does not block; (2) neither search component has request sequencing (AbortController), so a fast 429 can be overwritten by a slower success for an earlier keystroke -- also already logged by the reviewer as a pre-existing, non-regressive gap. Full findings and evidence in loop/qa-report.md.",
+  "timestamp": "2026-09-20T02:35:00Z",
+  "goal": "Validate the actual end-to-end user-facing flows for the friend/challenge identity fix and email-or-username search against the original bug report, using the repo's own test/dev tooling, and give a go/no-go for merge.",
+  "artifacts": [
+    "loop/qa-report.md",
+    "loop/handoffs/qa-acceptance-2026-09-20T023500Z.json"
+  ],
+  "method": "No running dev server or browser automation available in this environment; validated via (a) re-running the real quality gates, (b) reading production code end-to-end on both trees, (c) invoking/reading the existing component and unit tests (which mount real components with stubbed fetch and assert against real imported helpers, not re-implemented logic or text greps), and (d) one independent mutation/prove-fail cycle I ran myself rather than trusting a prior stage's claim.",
+  "scenarios": [
+    { "id": "F-1 golden path: add friend by username", "result": "pass", "evidence": "UserSearch.tsx/UserSearchSection.tsx preview climberDisplay+@username before Add; FriendRequestsSection/FriendRequests show the SAME name in Sent requests via the same helper on the same id; tests/components/challengeIdentity.test.tsx" },
+    { "id": "F-2 golden path: challenge a stranger", "result": "pass", "note": "createChallenge has no friendship check (src/db/challenge.ts); PendingChallenges/PendingChallengesSection correctly render pseudonym+@handle for a sender id absent from any friends list, proven by mutation test on both trees. Scoping note (non-blocking): the live UI only exposes challenge-sending via the Friends list button, so a human cannot reach a same-session true-stranger Challenge-row invite without an intervening friend request; the only live true-stranger path is the separate 'share a link' -> Duel-lobby flow, whose DuelRoom screen still shows Player 1/2 placeholders (see F-6)." },
+    { "id": "F-3 discovery of username search", "result": "pass", "evidence": "Placeholder 'Search by email or username…' on both trees; web has additional persistent hint 'Find players by email or username.' (DuelHome.tsx:508-509); single field, no mode toggle, no user-facing distinction between email vs username lookup" },
+    { "id": "F-4 empty/edge states", "result": "pass", "evidence": "No-match, 429, network-error, no-name/no-username, username-only-no-name all covered by tests/api/usersSearch.route.test.ts, tests/lib/userSearchQuery.test.ts, tests/components/userSearchFailureBranch.test.tsx, and the 4 identity render-test files; 429 mutation-proven to fail without the fix (stale row survives)" },
+    { "id": "F-5 mobile/web consistency", "result": "pass", "evidence": "Read all 4 component pairs line-by-line; behaviorally byte-equivalent, both trees import the identical shared helpers via the @app alias (no duplicated copy), equal automated coverage on both trees for the exact defect class the reviewer caught last round" },
+    { "id": "F-6 duel-room identity mismatch after accept", "result": "non-blocking gap, confirmed present, out of scope", "evidence": "DuelRoom.tsx:1194-1195, DuelRoomScreen.tsx:257-258 still use `?? \"Player 1\"/\"Player 2\"`; untouched by this diff; already logged by reviewer as follow-up" }
+  ],
+  "exitCriteria": {
+    "all_acs_pass": true,
+    "gates_rerun_by_qa_not_just_read": true,
+    "mobile_web_consistency_verified_by_reading_both_trees": true,
+    "own_prove_fail_cycle_executed": true,
+    "empty_and_failure_states_verified": true,
+    "no_raw_someone_or_email_found_in_flow": true,
+    "structural_spec_gate": "no_spec_doc_for_this_feature_but_dispatch_ac_list_used_instead_not_blocking",
+    "critical_findings": 0,
+    "non_blocking_findings": 2,
+    "working_tree_left_clean": true
+  },
+  "learnings": [
+    {
+      "topic": "process",
+      "forAgents": ["orchestrator", "software-engineer"],
+      "kind": "gap",
+      "insight": "This loop had no persisted loop/spec.md for the friend/challenge-identity feature -- paths.spec (loop/spec.md) points at an unrelated in-flight spec ('1v1 Quick Play on Mobile'). The bug-fix ran end-to-end from the user's bug report carried verbatim in each stage's dispatch message, which worked fine here because the AC list was explicit and small, but there is no durable Flows/AC document a future reader (or a future qa-acceptance run) can point to independent of handoff JSON archaeology.",
+      "action": "For small identity/bug-fix loops that skip product-spec, have software-engineer or orchestrator drop a short (10-20 line) spec snippet under loop/ capturing the Flows and ACs actually being built against, even when skipping the full product-spec/architect stages. Not a blocker for this merge.",
+      "confidence": "medium"
+    },
+    {
+      "topic": "testing",
+      "forAgents": ["qa-acceptance", "reviewer"],
+      "kind": "practice",
+      "insight": "Re-running one prove-fail mutation cycle myself (rather than trusting the verifier's and reviewer's own mutation-testing claims) took under two minutes and reproduced the exact same failure mode they reported (2/4 red, same assertion text). This is cheap insurance against a handoff summary that overstates what was actually tested, and should be standard practice for qa-acceptance whenever a critical finding's fix is the thing being signed off on, not just for reviewer.",
+      "action": "qa-acceptance: when a critical finding's fix is central to the acceptance decision, spend one mutation cycle reproducing the reported red/green yourself before writing PASS, even if the reviewer already did it.",
+      "confidence": "high"
+    },
+    {
+      "topic": "product",
+      "forAgents": ["software-engineer", "orchestrator"],
+      "kind": "gap",
+      "insight": "The live product has no UI path to send a Challenge-model invite to a true stranger (non-friend) -- FriendsList/FriendsListSection's 'Challenge' button only lists accepted friends, so every challenge a real user can send through a button click today goes to someone already added. The identity-resolution code correctly handles a true-stranger sender/recipient (proven by tests using ids absent from any friends list), so this fix is not undermined, but the 'challenge a stranger' framing in the original ask is currently only reachable via the separate share-link -> Duel-lobby flow, which is a different data model (Duel, not Challenge) and still has the unrelated Player-1/2 placeholder gap.",
+      "action": "If product intends a real 'challenge anyone by username, no friendship required' flow (implied by the original bug report's framing), it needs a UI entry point wired to the existing POST /api/challenge with a search-selected non-friend recipient -- the backend already supports it with no schema change. File as a product follow-up, not a defect in this diff.",
+      "confidence": "medium"
+    },
+    {
+      "topic": "metric",
+      "forAgents": ["integrator", "orchestrator"],
+      "kind": "metric",
+      "insight": "Final gate snapshot at hand-off: pnpm lint 0 warnings, pnpm typecheck 0 errors, pnpm test 85 files / 799 tests passed in 8.67s (matches verifier's 799 and reviewer's 799 exactly -- no drift since their sign-off). Working tree clean, HEAD at 97551c8, not pushed further by qa-acceptance.",
+      "action": "integrator: safe to proceed with merge/push as-is; no code changes made during this QA pass.",
+      "confidence": "high"
+    }
+  ],
+  "nextStage": "integrator"
+}
