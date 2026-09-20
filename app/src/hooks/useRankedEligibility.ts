@@ -16,10 +16,14 @@ interface RankedEligibility {
  * correct — there is no `null`/"assume available" window to flash out of.
  *
  * The `/api/geo/ranked` fetch below is revalidation only: it covers a stale
- * client router cache entry (a cached RSC payload rendered for an earlier
- * request) and network changes during a long-lived session. It can only ever
- * replace the server value with another server-derived value — it never
- * defaults to allowed.
+ * client router cache entry (e.g. Next's back/forward navigation, which
+ * restores a cached RSC segment and deliberately bypasses `staleTimes` —
+ * see the `/dashboard` fix for the same class of bug) and geo-signal
+ * variance between this route's server render and the probe's own request.
+ * It is monotonic: it can only tighten the gate (allowed → blocked), never
+ * loosen it. A blocked-then-corrected-to-allowed flash would be a compliance
+ * regression; a spurious allowed-then-blocked correction is merely
+ * conservative.
  *
  * `serverAllowed` is a required parameter on purpose: a caller cannot render
  * this gate without a server-derived answer.
@@ -42,7 +46,16 @@ export function useRankedEligibility(
     fetch("/api/geo/ranked")
       .then((r) => (r.ok ? r.json() : null))
       .then((data: { allowed: boolean } | null) => {
-        if (!cancelled && typeof data?.allowed === "boolean") setAllowed(data.allowed);
+        // Monotonic: this probe can only tighten the gate, never loosen it.
+        // It hits the same server-side decision this component was already
+        // seeded with, so a `true` here is never new information — but a
+        // stale client router cache (e.g. restored on browser back/forward,
+        // which bypasses Next's staleTimes entirely) or ordinary edge-network
+        // timing variance could otherwise flip an already-correct "blocked"
+        // paint to "allowed" for a moment before a later correction lands.
+        // Letting the fetch move the gate to false is still worth doing —
+        // that's a real self-heal — but it must never move it back to true.
+        if (!cancelled && data?.allowed === false) setAllowed(false);
       })
       .catch(() => {
         // Best-effort: on failure we keep the server-rendered decision.
