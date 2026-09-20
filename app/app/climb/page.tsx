@@ -6,7 +6,7 @@
 
 import type { Metadata } from "next";
 import { FreeStackShell } from "../../src/components/FreeStackShell";
-import { ClimbLeaderboard } from "../../src/components/Climb/ClimbLeaderboard";
+import { ClimbBoard } from "../../src/components/Climb/ClimbBoard";
 import { ClimbAbout, ClimbPanelIntro } from "../../src/components/Climb/ClimbPanelIntro";
 import { topFreeClimbers } from "../../src/db/climb";
 import { buildMetadata } from "../../src/lib/seo";
@@ -34,14 +34,13 @@ export default async function FreeClimbPage() {
   });
 
   return (
-    <FreeStackShell section="leaderboard" title="Free climb leaderboard">
-      <ClimbPanelIntro title="Free climb leaderboard" />
-      <div className="mt-6">
-        <ClimbLeaderboard
-          climbers={climbers ?? []}
-          unavailable={climbers === null}
-        />
-      </div>
+    <FreeStackShell section="leaderboard" title="Global leaderboard">
+      {/* H1 drops "Free climb": the navbar breadcrumb ("Free climb") and the
+          eyebrow ("Free climb · no payment") already carry it, so repeating it a
+          third time in the top ~100px was redundant. The <title> metadata keeps
+          the full "Free Climb Leaderboard" phrase for search. */}
+      <ClimbPanelIntro title="Global leaderboard" />
+      <ClimbBoard climbers={climbers ?? []} unavailable={climbers === null} />
       <ClimbAbout />
     </FreeStackShell>
   );

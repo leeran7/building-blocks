@@ -91,19 +91,20 @@ function PlayShell({
 }: {
   children: ReactNode;
 }) {
+  // The canvas is aspect-locked 9:16 and sized by useCanvasSize from the width its
+  // PARENT gives it, so it MUST keep a full-width (height-constrained) parent — a
+  // side-by-side layout that width-constrains the canvas column collapses it to a
+  // short, narrow strip. So the canvas stays centered here at its full,
+  // height-derived size, identical to the pre-layout-pass baseline (never shrunk,
+  // lobby overlay still fits with no HUD overlap). To use more of the desktop width
+  // and shrink the empty black margins, the content-rich how-to/controls card below
+  // it is widened (max-w-lg -> max-w-3xl) rather than squeezed beside the stage.
+  // Touch is unaffected: ClimbScene goes `fixed inset-0` on coarse pointers.
   return (
     <div className="flex flex-col items-center gap-6">
       {children}
-      <div className="w-full max-w-lg">
-        <p className="text-text-secondary text-sm mb-4 text-center">
-          Endless climb — go as high as you can. Your peak height is your score
-          on the{" "}
-          <Link href="/climb" className="text-accent underline underline-offset-2">
-            free leaderboard
-          </Link>
-          .
-        </p>
-        <ClimbControlsGuide />
+      <div className="w-full max-w-3xl">
+        <ClimbControlsGuide collapsible />
       </div>
     </div>
   );

@@ -1,36 +1,43 @@
 "use client";
 
 /**
- * /duel home: matchmaking + private challenge + W-L display.
+ * /duel home: matchmaking + private challenge + W-L record.
  *
- * Canonical primary action = "Find opponent" (queue up). Creating a private
- * challenge link is a de-emphasized secondary path (one primary per surface,
- * per DESIGN.md). Signed-out users see a SINGLE sign-in gate that replaces the
- * actions entirely — no repeated ask.
+ * Composition (mockup 1): tier pills (Free / Ranked / Tournaments) → the two
+ * free entries side by side (Quick Match, Challenge a friend) → a matchmaking
+ * status bar that exists only while a search is live → friends & pending
+ * challenges → your record strip.
  *
- * W-L record shown below when the user is signed in.
+ * Canonical primary action = "Find opponent" (filled signal). Creating a
+ * private challenge link is the secondary path (signal outline), so the
+ * surface still has one dominant action per DESIGN.md. Signed-out users see a
+ * SINGLE sign-in gate that replaces the actions entirely — no repeated ask.
+ *
+ * The record strip deliberately carries no leaderboard link: the tab band at
+ * the top of this same screen already points at /duel/leaderboard.
  */
 
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type FormEvent,
+  type ReactNode,
+} from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "../../contexts/AuthContext";
 import { shareInvite } from "../../lib/shareInvite";
-import { Navbar } from "../Navbar";
-import { BuyCreditsModal } from "../Wallet/BuyCreditsModal";
+import { parseDuelInvite } from "../../lib/duelInvite";
+import { DuelStackShell } from "./DuelStackShell";
 import { PAID_DUELS_ENABLED_PUBLIC } from "../../config/paidDuel";
 import { formatChipCents } from "../../config/chipPackages";
-import { useClaimDailyChips } from "../../hooks/useClaimDailyChips";
 import { useRankedEligibility } from "../../hooks/useRankedEligibility";
 import { useWalletBalance } from "../../hooks/useWalletBalance";
 import { authedFetch } from "../../lib/authedFetch";
-import {
-  DUEL_LEADERBOARD_HREF,
-  DUEL_HREF,
-  CHIP_DUELS_HREF,
-} from "../navLinks";
+import { CHIP_DUELS_HREF } from "../navLinks";
 import { Spinner } from "../ui/Spinner";
-import { NavTab } from "../ui/NavTab";
 import { SignInGate } from "../ui/SignInGate";
 import { Button } from "../ui/Button";
 import { UserSearch } from "../Challenge/UserSearch";
@@ -46,8 +53,12 @@ interface DuelStats {
   current_streak: number;
 }
 
-/** The ways into a match, presented as a gamified mode menu. */
-type DuelMode = "quick" | "challenge" | "chips" | "tournaments";
+/**
+ * Which tier of 1v1 the player is looking at. Free shows both entries (quick
+ * match + private challenge) at once; the paid tiers each own a panel.
+ * Tournaments is never selectable yet — its pill is disabled.
+ */
+type DuelTier = "free" | "chips" | "tournaments";
 
 /**
  * Creating a challenge navigates straight into the duel lobby (the canonical
@@ -85,25 +96,24 @@ export function DuelHome({ initialGeoAllowed }: DuelHomeProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  const initialMode = ((): DuelMode => {
+  // ?mode= predates the tier split; the two free entries now live on one
+  // panel, so both legacy values resolve to the free tier.
+  const initialTier = ((): DuelTier => {
     const param = searchParams.get("mode");
-    if (param === "challenge" || param === "quick" || param === "chips" || param === "tournaments") return param;
-    return "quick";
+    if (param === "chips" || param === "tournaments") return param;
+    return "free";
   })();
 
   const [createState, setCreateState] = useState<CreateState>({ status: "idle" });
   const [queueState, setQueueState] = useState<QueueState>({ status: "idle" });
   const [stats, setStats] = useState<DuelStats | null>(null);
-  const [mode, setMode] = useState<DuelMode>(initialMode);
-  const [buyOpen, setBuyOpen] = useState(false);
-  const { state: claimState, claim } = useClaimDailyChips(token);
+  const [tier, setTier] = useState<DuelTier>(initialTier);
   const { allowed: geoAllowed } = useRankedEligibility(
     PAID_DUELS_ENABLED_PUBLIC,
     initialGeoAllowed
   );
   const { playCents: chipBalance } = useWalletBalance(
-    PAID_DUELS_ENABLED_PUBLIC ? token : null,
-    `${Number(buyOpen)}-${claimState.status}`
+    PAID_DUELS_ENABLED_PUBLIC ? token : null
   );
 
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -272,6 +282,27 @@ export function DuelHome({ initialGeoAllowed }: DuelHomeProps) {
     }
   }, [token]);
 
+  // ─────────────── Open a challenge link ───────────────
+
+  const [inviteInput, setInviteInput] = useState("");
+  const [inviteError, setInviteError] = useState<string | null>(null);
+
+  const handleOpenInvite = useCallback(
+    (event: FormEvent<HTMLFormElement>) => {
+      event.preventDefault();
+      // Allow-list parse: anything that isn't provably a duel id is rejected,
+      // and the route is rebuilt from the parsed id, never from the raw input.
+      const duelId = parseDuelInvite(inviteInput);
+      if (!duelId) {
+        setInviteError("That doesn’t look like a Doomstack challenge link.");
+        return;
+      }
+      setInviteError(null);
+      router.push(`/duel/${duelId}`);
+    },
+    [inviteInput, router]
+  );
+
   // ─────────────── In-app challenge ───────────────
 
   const [challengeSending, setChallengeSending] = useState(false);
@@ -338,131 +369,65 @@ export function DuelHome({ initialGeoAllowed }: DuelHomeProps) {
   // geoAllowed is always a resolved boolean (server-derived on first paint), so
   // this is correct from the very first render rather than after a roundtrip.
   const geoBlocked = paidEnabled && !geoAllowed;
-  const activeMode: DuelMode =
-    mode === "tournaments" || (mode === "chips" && (!paidEnabled || geoBlocked)) ? "quick" : mode;
+  // Tournaments is never selectable yet, and the chips tier collapses back to
+  // free when the kill switch is off or the region is blocked.
+  const activeTier: DuelTier =
+    tier === "tournaments" || (tier === "chips" && (!paidEnabled || geoBlocked))
+      ? "free"
+      : tier;
+  const searching = queueState.status === "searching";
+  const elapsed = useElapsedSeconds(searching);
+  // Anonymous Firebase sessions have no email, so ensureUser can't provision a
+  // `users` row and creating/queuing would 500 on the duels FK (same exclusion
+  // as ClimbScene). They get the sign-in gate like signed-out visitors.
+  const signedOut = !user || isAnonymous;
 
   return (
-    <div className="grain topo min-h-screen bg-void text-text-primary">
-      <Navbar contextLabel="1v1" />
-
-      {/* Tab band */}
-      <div className="border-b border-border-subtle">
-        <div className="max-w-2xl mx-auto w-full px-4 py-2">
-          <div
-            className="inline-flex items-center gap-1 rounded-full border border-border-strong bg-surface p-1"
-            role="tablist"
-            aria-label="1v1 sections"
-          >
-            {/* Order matches the free-climb shell: Leaderboard, then Play.
-                Both entries are Links (mirroring FreeStackShell's FreeTab) so
-                the pattern doesn't diverge across the two nav-tab surfaces. */}
-            <NavTab href={DUEL_LEADERBOARD_HREF} label="Leaderboard" active={false} />
-            <NavTab href={DUEL_HREF} label="Play" active={true} />
-          </div>
-        </div>
-      </div>
-
-      <div className="max-w-2xl mx-auto px-4 pt-7 pb-16 flex flex-col gap-6">
-        {/* Player card: title + live record, the gamified hub header. */}
-        <header className="flex items-end justify-between gap-4">
-          <div>
-            <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-text-muted mb-1.5">
-              multiplayer
-            </p>
-            <h1 className="font-display text-4xl md:text-5xl font-black tracking-tight uppercase text-text-primary leading-none">
-              1v1 Arena
-            </h1>
-          </div>
-          {stats && (
-            <div className="flex items-center gap-3 font-mono tabular-nums shrink-0">
-              <RecordStat value={stats.wins} label="W" tone="signal" />
-              <RecordStat value={stats.losses} label="L" tone="muted" />
-              {stats.current_streak !== 0 && (
-                <RecordStat
-                  value={stats.current_streak > 0 ? `+${stats.current_streak}` : stats.current_streak}
-                  label="streak"
-                  tone={stats.current_streak > 0 ? "signal" : "ember"}
-                />
-              )}
-            </div>
-          )}
+    <DuelStackShell section="play">
+      <div className="pt-7 pb-16 flex flex-col gap-6">
+        <header>
+          <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-text-muted mb-1.5">
+            multiplayer
+          </p>
+          <h1 className="font-display text-4xl md:text-5xl font-black tracking-tight uppercase text-text-primary leading-none">
+            1v1 Arena
+          </h1>
+          <p className="text-sm text-text-secondary mt-3 max-w-md">
+            Same tower. Same rising lava. Outclimb your rival.
+          </p>
         </header>
 
-        {/* Mode menu — a segmented control, not a tabs widget: selecting a mode
-            swaps the panel below via React state, but there's no roving
+        {/* Tier pills — a segmented control, not a tabs widget: selecting a
+            tier swaps the panel below via React state, but there's no roving
             tabIndex / arrow-key navigation, so it doesn't get to claim the
-            role="tab" contract. aria-pressed communicates selection instead. */}
-        <div className="grid gap-3" role="group" aria-label="Duel modes">
-          <ModeCard
-            icon={<BoltIcon />}
-            title="Quick Play"
-            subtitle="Match a random climber, race up the same tower."
-            badge="free"
-            selected={activeMode === "quick"}
-            onSelect={() => setMode("quick")}
-          />
-          <ModeCard
-            icon={<TargetIcon />}
-            title="Challenge"
-            subtitle="Invite a specific opponent with a private link."
-            badge="invite"
-            selected={activeMode === "challenge"}
-            onSelect={() => setMode("challenge")}
-          />
-          {paidEnabled && (
-            <>
-              <ModeCard
-                icon={<CoinsIcon />}
-                title="Chip Duels"
-                subtitle={
-                  geoBlocked
-                    ? "Not available in your region."
-                    : "Stake chips — winner takes all. Non-cashable."
-                }
-                badge={geoBlocked ? "unavailable" : "ranked"}
-                badgeTone={geoBlocked ? "blocked" : "signal"}
-                selected={!geoBlocked && activeMode === "chips"}
-                disabled={geoBlocked}
-                onSelect={() => setMode("chips")}
-              />
-              <ModeCard
-                icon={<TrophyIcon />}
-                title="Tournaments"
-                subtitle={
-                  geoBlocked
-                    ? "Not available in your region."
-                    : "Bracket competitions for cash prizes."
-                }
-                badge={geoBlocked ? "unavailable" : "coming soon"}
-                badgeTone={geoBlocked ? "blocked" : "muted"}
-                selected={false}
-                disabled
-                onSelect={() => {}}
-              />
-            </>
-          )}
-        </div>
+            role="tab" contract. aria-pressed communicates selection instead.
+            With paid duels off there is exactly one tier, so the row renders
+            nothing rather than a lone decorative pill. */}
+        {paidEnabled && (
+          <div className="flex flex-wrap gap-2" role="group" aria-label="1v1 tiers">
+            <TierPill
+              label="Free 1v1"
+              selected={activeTier === "free"}
+              onSelect={() => setTier("free")}
+            />
+            <TierPill
+              label="Ranked chips"
+              note={geoBlocked ? "region limited" : "18+ · stake chips"}
+              selected={activeTier === "chips"}
+              disabled={geoBlocked}
+              onSelect={() => setTier("chips")}
+            />
+            <TierPill label="Tournaments" note="coming soon" selected={false} disabled />
+          </div>
+        )}
 
-        {/* Action panel — the selected mode's flow. Signed-out users get ONE
-            sign-in gate here that stands in for every mode. Anonymous Firebase
-            sessions get the same gate: they have no email, so ensureUser can't
-            provision a `users` row and creating/queuing would 500 on the
-            duels FK (see ClimbScene's identical isAnonymous exclusion). */}
-        {!user || isAnonymous ? (
+        {/* Signed-out users get ONE sign-in gate that stands in for every
+            entry — no repeated ask. */}
+        {signedOut ? (
           <SignInGate message="Sign in to get matched, challenge a friend, and save your record." redirectPath="/duel" />
-        ) : activeMode === "quick" ? (
-          <section
-            id="free-duel"
-            className="bg-surface rounded-xl border border-signal/30 shadow-signal p-6 scroll-mt-20"
-          >
-            <h2 className="font-mono text-xs uppercase tracking-[0.14em] text-text-muted mb-1">
-              Find opponent
-            </h2>
-            <p className="text-text-secondary text-sm mb-5">
-              Get matched with a random player and race up the same tower.
-            </p>
-
-            {/* Always-mounted live region — a region that only appears
+        ) : activeTier === "free" ? (
+          <>
+            {/* Always-mounted live regions — a region that only appears
                 alongside its own content can miss the announcement on some
                 SR/browser combos. */}
             <p className="sr-only" aria-live="polite">
@@ -474,129 +439,202 @@ export function DuelHome({ initialGeoAllowed }: DuelHomeProps) {
                     ? queueState.message
                     : ""}
             </p>
+            <p className="sr-only" aria-live="polite">
+              {createState.status === "loading"
+                ? "Creating challenge…"
+                : createState.status === "error"
+                  ? createState.message
+                  : ""}
+            </p>
 
-            {queueState.status === "idle" && (
-              <Button variant="primary" size="lg" fullWidth onClick={handleSearch}>
-                Find match
-              </Button>
-            )}
+            {/* The two ways into a free match, side by side. */}
+            <div className="grid gap-4 md:grid-cols-2">
+              <EntryCard
+                id="free-duel"
+                icon={<BoltIcon />}
+                title="Quick Match"
+                badge="free"
+                tone="primary"
+                description="Find a random rival."
+                footnote="Cancel anytime while searching."
+              >
+                {queueState.status === "timeout" ? (
+                  <div className="flex flex-col gap-3" role="status">
+                    <p className="text-text-secondary text-sm">
+                      Search timed out — no opponent found.
+                    </p>
+                    <Button variant="primary" size="lg" fullWidth onClick={handleSearch}>
+                      Search again
+                    </Button>
+                  </div>
+                ) : queueState.status === "error" ? (
+                  <div className="flex flex-col gap-2" role="alert">
+                    <p className="text-ember text-sm">{queueState.message}</p>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setQueueState({ status: "idle" })}
+                      className="w-fit"
+                    >
+                      Try again
+                    </Button>
+                  </div>
+                ) : (
+                  <Button
+                    variant="primary"
+                    size="lg"
+                    fullWidth
+                    onClick={handleSearch}
+                    disabled={searching}
+                  >
+                    {searching ? "Finding a rival…" : "Find opponent"}
+                  </Button>
+                )}
+              </EntryCard>
 
-            {queueState.status === "searching" && (
-              <div className="flex flex-col gap-3">
-                <div className="flex items-center gap-2 text-text-secondary text-sm">
-                  <Spinner />
-                  Searching for an opponent…
-                </div>
-                <Button variant="ghost" size="sm" onClick={handleCancelSearch} className="w-fit">
-                  Cancel
-                </Button>
-              </div>
-            )}
+              <EntryCard
+                icon={<TargetIcon />}
+                title="Challenge a friend"
+                badge="private"
+                tone="secondary"
+                description="Create a link, challenge a friend."
+                footnote="Your friend can join as a guest."
+              >
+                {createState.status === "loading" ? (
+                  <div className="flex items-center gap-2 text-text-secondary text-sm min-h-[48px]">
+                    <Spinner />
+                    Creating…
+                  </div>
+                ) : createState.status === "error" ? (
+                  <div className="flex flex-col gap-2" role="alert">
+                    <p className="text-ember text-sm">{createState.message}</p>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setCreateState({ status: "idle" })}
+                      className="w-fit"
+                    >
+                      Try again
+                    </Button>
+                  </div>
+                ) : (
+                  <Button
+                    ref={createButtonRef}
+                    variant="signal-outline"
+                    size="lg"
+                    fullWidth
+                    onClick={handleCreate}
+                  >
+                    Create invite link
+                  </Button>
+                )}
 
-            {queueState.status === "timeout" && (
-              <div className="flex flex-col gap-3" role="status">
-                <p className="text-text-secondary text-sm">
-                  Search timed out — no opponent found. Try again.
+                {/* Entry point for the other side of the invite. */}
+                <form onSubmit={handleOpenInvite} className="mt-4 border-t border-border-subtle pt-4">
+                  <label
+                    htmlFor="duel-invite"
+                    className="block font-mono text-[10px] uppercase tracking-[0.14em] text-text-muted"
+                  >
+                    Have an invite?
+                  </label>
+                  <div className="mt-2 flex gap-2">
+                    <input
+                      id="duel-invite"
+                      name="invite"
+                      type="text"
+                      inputMode="url"
+                      autoComplete="off"
+                      value={inviteInput}
+                      onChange={(e) => {
+                        setInviteInput(e.target.value);
+                        if (inviteError) setInviteError(null);
+                      }}
+                      placeholder="Paste a challenge link"
+                      aria-invalid={inviteError ? true : undefined}
+                      aria-describedby={inviteError ? "duel-invite-error" : undefined}
+                      className="min-w-0 flex-1 rounded-lg border border-border-strong bg-void px-3 min-h-[44px] text-sm text-text-primary placeholder:text-text-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
+                    />
+                    <Button type="submit" variant="ghost" size="sm" className="shrink-0">
+                      Open
+                    </Button>
+                  </div>
+                  {inviteError && (
+                    <p id="duel-invite-error" className="mt-2 text-xs text-ember" role="alert">
+                      {inviteError}
+                    </p>
+                  )}
+                </form>
+              </EntryCard>
+            </div>
+
+            {/* Matchmaking state — exists only while a search is live. */}
+            {searching && (
+              <section
+                aria-label="Matchmaking state"
+                className="rounded-xl border border-signal/30 bg-surface p-4 sm:px-5"
+              >
+                <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-text-muted">
+                  Matchmaking state
                 </p>
-                <Button variant="primary" size="lg" fullWidth onClick={handleSearch}>
-                  Search again
-                </Button>
-              </div>
-            )}
-
-            {queueState.status === "error" && (
-              <div className="flex flex-col gap-2" role="alert">
-                <p className="text-ember text-sm">{queueState.message}</p>
-                <Button variant="ghost" size="sm" onClick={() => setQueueState({ status: "idle" })} className="w-fit">
-                  Try again
-                </Button>
-              </div>
-            )}
-          </section>
-        ) : activeMode === "challenge" ? (
-          <section className="bg-surface rounded-xl border border-border-subtle p-6 flex flex-col gap-5">
-            {/* Add Friend */}
-            <div>
-              <h2 className="font-mono text-xs uppercase tracking-[0.14em] text-text-muted mb-1">
-                Add friend
-              </h2>
-              <p className="text-text-secondary text-sm mb-3">
-                Find players by email or username.
-              </p>
-              <UserSearch
-                onSelect={handleAddFriend}
-                actionLabel="Add"
-                disabled={addingFriend}
-              />
-            </div>
-
-            {/* Incoming / outgoing friend requests */}
-            <FriendRequests refreshKey={requestsRefreshKey} onAccepted={handleFriendAccepted} />
-
-            {/* Challenge a friend */}
-            <div>
-              <h2 className="font-mono text-xs uppercase tracking-[0.14em] text-text-muted mb-1">
-                Challenge a friend
-              </h2>
-              <p className="text-text-secondary text-sm mb-3">
-                Pick a friend to challenge to a 1v1.
-              </p>
-              <FriendsList
-                onChallenge={handleInAppChallenge}
-                disabled={challengeSending}
-                refreshKey={friendsRefreshKey}
-              />
-            </div>
-
-            <PendingChallenges refreshKey={challengesRefreshKey} />
-
-            {/* Share a link */}
-            <div className="border-t border-border-subtle pt-4">
-              <h3 className="font-mono text-[11px] uppercase tracking-[0.14em] text-text-muted mb-1">
-                Or share a link
-              </h3>
-              <p className="text-text-secondary text-xs mb-3">
-                Create a private challenge link to share outside the app.
-              </p>
-
-              <p className="sr-only" aria-live="polite">
-                {createState.status === "loading"
-                  ? "Creating challenge…"
-                  : createState.status === "error"
-                    ? createState.message
-                    : ""}
-              </p>
-
-              {createState.status === "idle" && (
-                <Button
-                  ref={createButtonRef}
-                  variant="ghost"
-                  size="sm"
-                  fullWidth
-                  onClick={handleCreate}
-                >
-                  Create challenge link
-                </Button>
-              )}
-
-              {createState.status === "loading" && (
-                <div className="flex items-center gap-2 text-text-muted text-sm">
-                  <Spinner />
-                  Creating...
-                </div>
-              )}
-
-              {createState.status === "error" && (
-                <div className="flex flex-col gap-2" role="alert">
-                  <p className="text-ember text-sm">{createState.message}</p>
-                  <Button variant="ghost" size="sm" onClick={() => setCreateState({ status: "idle" })}>
-                    Try again
+                <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-3">
+                  <Spinner size="lg" />
+                  <span className="text-sm text-text-secondary">Finding a rival…</span>
+                  <span className="h-5 w-px bg-border-strong" aria-hidden="true" />
+                  <span className="font-mono text-sm tabular-nums text-signal">
+                    {formatElapsed(elapsed)}
+                  </span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleCancelSearch}
+                    className="ml-auto shrink-0"
+                  >
+                    Cancel search
                   </Button>
                 </div>
-              )}
-            </div>
-          </section>
-        ) : activeMode === "chips" ? (
+                <div
+                  className="mt-4 h-px w-full bg-linear-to-r from-signal/60 via-signal/20 to-transparent"
+                  aria-hidden="true"
+                />
+              </section>
+            )}
+
+            {/* Friends, requests, and challenges you've been sent. */}
+            <section className="bg-surface rounded-xl border border-border-subtle p-6 flex flex-col gap-5">
+              <div>
+                <h2 className="font-mono text-xs uppercase tracking-[0.14em] text-text-muted mb-1">
+                  Add friend
+                </h2>
+                <p className="text-text-secondary text-sm mb-3">
+                  Find players by email or username.
+                </p>
+                <UserSearch
+                  onSelect={handleAddFriend}
+                  actionLabel="Add"
+                  disabled={addingFriend}
+                />
+              </div>
+
+              <FriendRequests refreshKey={requestsRefreshKey} onAccepted={handleFriendAccepted} />
+
+              <div>
+                <h2 className="font-mono text-xs uppercase tracking-[0.14em] text-text-muted mb-1">
+                  Your friends
+                </h2>
+                <p className="text-text-secondary text-sm mb-3">
+                  Pick a friend to challenge to a 1v1.
+                </p>
+                <FriendsList
+                  onChallenge={handleInAppChallenge}
+                  disabled={challengeSending}
+                  refreshKey={friendsRefreshKey}
+                />
+              </div>
+
+              <PendingChallenges refreshKey={challengesRefreshKey} />
+            </section>
+          </>
+        ) : activeTier === "chips" ? (
           <section className="bg-surface rounded-xl border border-signal/30 shadow-signal p-6">
             <div className="flex items-start justify-between mb-1">
               <h2 className="font-mono text-xs uppercase tracking-[0.14em] text-text-muted">
@@ -611,43 +649,79 @@ export function DuelHome({ initialGeoAllowed }: DuelHomeProps) {
             <p className="text-text-secondary text-sm mb-5">
               Stake non-cashable chips against another player. Winner takes all — zero-sum, no house cut.
             </p>
-            <div className="flex flex-col gap-3">
-              <Link
-                href={CHIP_DUELS_HREF}
-                className="inline-flex items-center justify-center rounded-full px-8 min-h-[48px] w-full bg-signal text-void font-semibold text-base tracking-tight hover:brightness-110 active:scale-[0.98] motion-reduce:active:scale-100 shadow-signal transition-[filter,transform,scale] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void"
-              >
-                Find chip match
-              </Link>
-              <Button variant="ghost" size="sm" fullWidth onClick={() => setBuyOpen(true)}>
-                Buy chips
-              </Button>
-              <button
-                onClick={claim}
-                disabled={
-                  claimState.status === "claiming" ||
-                  claimState.status === "claimed" ||
-                  claimState.status === "already-claimed"
-                }
-                className="text-center text-xs text-text-muted underline underline-offset-2 hover:text-text-primary transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {claimState.status === "claiming"
-                  ? "Claiming..."
-                  : claimState.status === "claimed"
-                    ? "Claimed today's free chips"
-                    : claimState.status === "already-claimed"
-                      ? "Already claimed today"
-                      : "Claim your free daily chips"}
-              </button>
-              {claimState.status === "error" && (
-                <p className="text-center text-xs text-ember" role="alert">{claimState.message}</p>
-              )}
-            </div>
-            <BuyCreditsModal open={buyOpen} onClose={() => setBuyOpen(false)} token={token} />
+            {/* Lean teaser only: buying and claiming chips live on their canonical
+                home, /duel/chips. This tier just routes there. */}
+            <Link
+              href={CHIP_DUELS_HREF}
+              className="inline-flex items-center justify-center rounded-full px-8 min-h-[48px] w-full bg-signal text-void font-semibold text-base tracking-tight hover:brightness-110 active:scale-[0.98] motion-reduce:active:scale-100 shadow-signal transition-[filter,transform,scale] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void"
+            >
+              Ranked chips →
+            </Link>
           </section>
         ) : null}
+
+        {/* Your record — the closing line of the page. No leaderboard link:
+            the tab band above already points at /duel/leaderboard, and
+            DESIGN.md forbids the same ask twice on one screen. */}
+        {stats && (
+          <div className="mt-2 flex flex-wrap items-center gap-x-6 gap-y-3 border-t border-border-subtle pt-5">
+            <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-text-muted">
+              Your free 1v1 record
+            </p>
+            <div className="flex items-center gap-5 font-mono tabular-nums">
+              <RecordStat value={stats.wins} label="W" tone="signal" />
+              <RecordStat value={stats.losses} label="L" tone="muted" />
+              {stats.current_streak !== 0 && (
+                <RecordStat
+                  value={
+                    stats.current_streak > 0
+                      ? `+${stats.current_streak}`
+                      : stats.current_streak
+                  }
+                  label="streak"
+                  tone={stats.current_streak > 0 ? "signal" : "ember"}
+                />
+              )}
+            </div>
+          </div>
+        )}
       </div>
-    </div>
+    </DuelStackShell>
   );
+}
+
+// ─────────────────────────────── Hooks ─────────────────────────────────────
+
+/**
+ * Seconds since `active` last became true, ticking at 1 Hz. Resets to 0 on
+ * every transition and clears its interval on unmount — the matchmaking bar
+ * mounts and unmounts with the search, so a leaked interval would survive the
+ * queue it was timing.
+ */
+function useElapsedSeconds(active: boolean): number {
+  const [seconds, setSeconds] = useState(0);
+
+  useEffect(() => {
+    setSeconds(0);
+    if (!active) return;
+    const id = setInterval(() => setSeconds((s) => s + 1), 1000);
+    return () => clearInterval(id);
+  }, [active]);
+
+  return seconds;
+}
+
+/**
+ * `m:ss` for an elapsed-seconds count (no hour component — queues are short).
+ *
+ * Non-finite input reads as 0, not `NaN:NaN`: `Math.max`/`Math.min` propagate
+ * NaN through any argument, so the clamp needs an explicit finiteness guard.
+ */
+export function formatElapsed(totalSeconds: number): string {
+  const safe = Number.isFinite(totalSeconds) ? Math.max(0, Math.floor(totalSeconds)) : 0;
+  const minutes = Math.floor(safe / 60);
+  const seconds = safe % 60;
+  return `${minutes}:${String(seconds).padStart(2, "0")}`;
 }
 
 // ─────────────────────────── Presentational ────────────────────────────────
@@ -671,26 +745,24 @@ function RecordStat({
   );
 }
 
-function ModeCard({
-  icon,
-  title,
-  subtitle,
-  badge,
-  badgeTone = "muted",
+/**
+ * One tier in the segmented tier row. A button with `aria-pressed` — not a
+ * `role="tab"` widget, since there is no roving tabIndex / arrow-key nav.
+ */
+function TierPill({
+  label,
+  note,
   selected,
   disabled,
   onSelect,
 }: {
-  icon: ReactNode;
-  title: string;
-  subtitle: string;
-  badge: string;
-  badgeTone?: "muted" | "signal" | "blocked";
+  label: string;
+  /** Small qualifier under the label (age gate, region, availability). */
+  note?: string;
   selected: boolean;
   disabled?: boolean;
-  onSelect: () => void;
+  onSelect?: () => void;
 }) {
-  const isBlocked = badgeTone === "blocked";
   return (
     <button
       type="button"
@@ -699,64 +771,99 @@ function ModeCard({
       disabled={disabled}
       onClick={onSelect}
       className={
-        "group flex items-center gap-4 rounded-xl border p-4 text-left transition-[border-color,background-color,transform,scale] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void " +
-        (isBlocked
-          ? "border-ember/30 bg-surface-raised opacity-60 cursor-not-allowed"
-          : disabled
-            ? "border-border-subtle bg-surface-raised opacity-50 cursor-default"
-            : selected
-              ? "border-signal/60 bg-surface shadow-signal active:scale-[0.99] motion-reduce:active:scale-100"
-              : "border-border-subtle bg-surface-raised hover:border-signal/40 active:scale-[0.99] motion-reduce:active:scale-100")
+        "inline-flex min-h-[44px] flex-col items-center justify-center rounded-full border px-5 py-1.5 transition-[border-color,background-color,color] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void " +
+        (disabled
+          ? "border-border-subtle bg-surface-raised opacity-50 cursor-not-allowed"
+          : selected
+            ? "border-signal/60 bg-signal/10 text-signal"
+            : "border-border-strong bg-surface text-text-secondary hover:border-signal/40 hover:text-text-primary")
       }
     >
-      <span
-        className={
-          "flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border transition-colors " +
-          (isBlocked
-            ? "border-ember/30 text-ember/60"
-            : selected
-              ? "border-signal/50 bg-signal/10 text-signal"
-              : "border-border-strong text-text-secondary group-hover:text-text-primary")
-        }
-        aria-hidden="true"
-      >
-        {icon}
-      </span>
-      <span className="min-w-0 flex-1">
-        <span className="flex items-center gap-2">
-          <span className="font-display text-lg font-bold tracking-tight text-text-primary">
-            {title}
-          </span>
-          <span
-            className={
-              "font-mono text-[10px] uppercase tracking-[0.12em] rounded-full px-2 py-0.5 " +
-              (badgeTone === "signal"
-                ? "bg-signal/15 text-signal"
-                : badgeTone === "blocked"
-                  ? "bg-ember/15 text-ember"
-                  : "bg-void/60 text-text-muted")
-            }
-          >
-            {badge}
-          </span>
+      <span className="text-sm font-semibold tracking-tight">{label}</span>
+      {note && (
+        <span className="font-mono text-[9px] uppercase tracking-[0.14em] text-text-muted">
+          {note}
         </span>
-        <span className="block text-sm text-text-secondary mt-0.5 line-clamp-2">{subtitle}</span>
-      </span>
-      <span
-        className={
-          "shrink-0 text-text-muted transition-transform " +
-          (isBlocked
-            ? ""
-            : selected
-              ? "translate-x-0.5 text-signal"
-              : "group-hover:translate-x-0.5")
-        }
-        aria-hidden="true"
-      >
-        {isBlocked ? "✕" : "→"}
-      </span>
+      )}
     </button>
   );
+}
+
+/**
+ * One way into a match. `primary` carries the dominant action of the screen
+ * (signal ring + glow); `secondary` is the same card at a lower weight, so the
+ * pair reads as one primary + one alternative rather than two equal asks.
+ */
+function EntryCard({
+  id,
+  icon,
+  title,
+  badge,
+  tone,
+  description,
+  footnote,
+  children,
+}: {
+  id?: string;
+  icon: ReactNode;
+  title: string;
+  badge: string;
+  tone: "primary" | "secondary";
+  description: string;
+  /** Quiet line under the action — expectation setting, not a second CTA. */
+  footnote: string;
+  children: ReactNode;
+}) {
+  const isPrimary = tone === "primary";
+  return (
+    <section
+      id={id}
+      aria-labelledby={`${slugify(title)}-title`}
+      className={
+        "flex flex-col rounded-xl border bg-surface p-6 scroll-mt-20 " +
+        (isPrimary ? "border-signal/30 shadow-signal" : "border-border-subtle")
+      }
+    >
+      <div className="flex items-center gap-3">
+        <span
+          className={
+            "flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border " +
+            (isPrimary
+              ? "border-signal/50 bg-signal/10 text-signal"
+              : "border-border-strong text-text-secondary")
+          }
+          aria-hidden="true"
+        >
+          {icon}
+        </span>
+        <h2
+          id={`${slugify(title)}-title`}
+          className="font-display text-2xl font-bold tracking-tight text-text-primary"
+        >
+          {title}
+        </h2>
+        <span
+          className={
+            "ml-auto shrink-0 rounded-full px-2 py-0.5 font-mono text-[10px] uppercase tracking-[0.12em] " +
+            (isPrimary ? "bg-signal/15 text-signal" : "bg-void/60 text-text-muted")
+          }
+        >
+          {badge}
+        </span>
+      </div>
+
+      <p className="text-sm text-text-secondary mt-3">{description}</p>
+
+      <div className="mt-5">{children}</div>
+
+      <p className="mt-3 text-xs text-text-muted">{footnote}</p>
+    </section>
+  );
+}
+
+/** Lowercase, hyphenated id fragment for aria-labelledby wiring. */
+function slugify(value: string): string {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 }
 
 function BoltIcon() {
@@ -777,27 +884,4 @@ function TargetIcon() {
   );
 }
 
-function CoinsIcon() {
-  return (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <ellipse cx="9" cy="7" rx="6" ry="3" />
-      <path d="M3 7v5c0 1.66 2.7 3 6 3s6-1.34 6-3V7" />
-      <path d="M15 12.5c2.5-.2 6-1.2 6-3.5" />
-      <path d="M9 15v2c0 1.66 2.7 3 6 3s6-1.34 6-3v-5" />
-    </svg>
-  );
-}
-
-function TrophyIcon() {
-  return (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6" />
-      <path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18" />
-      <path d="M4 22h16" />
-      <path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20 7 22" />
-      <path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20 17 22" />
-      <path d="M18 2H6v7a6 6 0 0 0 12 0V2Z" />
-    </svg>
-  );
-}
 

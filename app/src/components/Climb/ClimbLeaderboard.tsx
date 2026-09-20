@@ -3,15 +3,22 @@
  * category (free, earned by playing the endless climb). Rank 1 gets the signal
  * glow; altitude bars are proportional to the top score. Handles are pseudonyms —
  * emails are never shown.
+ *
+ * `highlightUserId` marks the viewer's own row (mockup 2) with the signal
+ * treatment and a stable id, so the board's "Find me" control can scroll to it.
  */
 
 import Link from "next/link";
 import type { ClimberRank } from "../../db/climb";
 import { ALTITUDE_UNIT } from "../../lib/units";
 
+/** DOM id of the viewer's row — the anchor "Find me" scrolls to. */
+export const YOUR_ROW_ID = "your-climb-row";
+
 export function ClimbLeaderboard({
   climbers,
   unavailable = false,
+  highlightUserId = null,
 }: {
   climbers: ClimberRank[];
   /**
@@ -20,6 +27,8 @@ export function ClimbLeaderboard({
    * is what a swallowed error used to look like.
    */
   unavailable?: boolean;
+  /** The signed-in viewer, when their row is on this board. */
+  highlightUserId?: string | null;
 }) {
   if (unavailable) {
     return (
@@ -56,14 +65,18 @@ export function ClimbLeaderboard({
       {climbers.map((c) => {
         const pct = Math.max(4, Math.round((c.peakY / top) * 100));
         const isFirst = c.rank === 1;
+        const isYou = highlightUserId !== null && c.userId === highlightUserId;
         return (
           <li
             key={c.userId}
+            id={isYou ? YOUR_ROW_ID : undefined}
             className={
-              "relative overflow-hidden rounded-xl border px-3 py-2.5 min-h-[52px] flex items-center " +
-              (isFirst
-                ? "border-signal/50 bg-accent/6 shadow-signal"
-                : "border-border-subtle bg-surface/40")
+              "relative overflow-hidden rounded-xl border px-3 py-2.5 min-h-[52px] flex items-center scroll-mt-20 " +
+              (isYou
+                ? "border-signal/60 bg-accent/10 shadow-signal"
+                : isFirst
+                  ? "border-signal/50 bg-accent/6 shadow-signal"
+                  : "border-border-subtle bg-surface/40")
             }
           >
             {/* Altitude bar. */}
@@ -71,9 +84,10 @@ export function ClimbLeaderboard({
               className="absolute inset-y-0 left-0"
               style={{
                 width: `${pct}%`,
-                background: isFirst
-                  ? "linear-gradient(90deg, rgb(203 242 77 / 0.20), transparent)"
-                  : "linear-gradient(90deg, rgb(203 242 77 / 0.10), transparent)",
+                background:
+                  isFirst || isYou
+                    ? "linear-gradient(90deg, rgb(203 242 77 / 0.20), transparent)"
+                    : "linear-gradient(90deg, rgb(203 242 77 / 0.10), transparent)",
               }}
               aria-hidden="true"
             />
@@ -81,7 +95,7 @@ export function ClimbLeaderboard({
               <span
                 className={
                   "shrink-0 w-8 h-8 rounded-lg flex items-center justify-center font-mono text-sm font-bold tabular-nums " +
-                  (isFirst
+                  (isFirst || isYou
                     ? "bg-signal text-void"
                     : "border border-border-strong text-text-secondary")
                 }
@@ -101,15 +115,34 @@ export function ClimbLeaderboard({
                   {c.handle}
                 </span>
               )}
+              {isYou && (
+                <span className="shrink-0 rounded-full bg-signal px-2 py-0.5 font-mono text-[10px] font-bold uppercase tracking-[0.12em] text-void">
+                  You
+                </span>
+              )}
               {c.wins > 0 && (
                 <span className="font-mono text-xs text-text-secondary tabular-nums">
                   {c.wins}★
                 </span>
               )}
+              {/* Explicit bar-chart column on wide screens; below sm the row's
+                  own altitude bar carries the same comparison. */}
+              <span
+                className="hidden sm:block h-1.5 w-16 shrink-0 overflow-hidden rounded-full bg-elevated"
+                aria-hidden="true"
+              >
+                <span
+                  className="block h-full rounded-full bg-signal"
+                  style={{
+                    width: `${pct}%`,
+                    opacity: isFirst || isYou ? 1 : 0.55,
+                  }}
+                />
+              </span>
               <span
                 className={
                   "font-mono tabular-nums font-bold " +
-                  (isFirst ? "text-signal" : "text-text-primary")
+                  (isFirst || isYou ? "text-signal" : "text-text-primary")
                 }
               >
                 {c.peakY.toFixed(0)}

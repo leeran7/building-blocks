@@ -18,14 +18,13 @@ export function ClimbPanelIntro({ title }: { title: string }) {
       >
         Free climb · no payment
       </p>
-      <div
-        className="climb-reveal mt-1 flex items-end justify-between gap-3 flex-wrap"
-        style={{ animationDelay: "70ms" }}
-      >
+      {/* The "Play the climb" primary lives in the board's "your best" panel —
+          its canonical home in the new composition, so this header carries the
+          title alone rather than a second copy of the same ask. */}
+      <div className="climb-reveal mt-1" style={{ animationDelay: "70ms" }}>
         <h1 className={CLIMB_PANEL_INTRO_TITLE_CLASS}>
           {title}
         </h1>
-        <PlayTheClimbCta />
       </div>
       <p
         className="climb-reveal mt-3 text-sm text-text-secondary max-w-lg"
@@ -71,11 +70,15 @@ export function ClimbAbout() {
   );
 }
 
-export function PlayTheClimbCta() {
+/** The single primary CTA of the /climb surface. */
+export function PlayTheClimbCta({ fullWidth = false }: { fullWidth?: boolean }) {
   return (
     <Link
       href="/play"
-      className="inline-flex items-center justify-center rounded-full bg-signal text-void font-semibold px-6 min-h-[44px] shadow-signal hover:brightness-110 focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void active:scale-[0.98] transition-[filter,transform,scale] whitespace-nowrap"
+      className={
+        "inline-flex items-center justify-center rounded-full bg-signal text-void font-semibold px-6 min-h-[44px] shadow-signal hover:brightness-110 focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void active:scale-[0.98] motion-reduce:active:scale-100 transition-[filter,transform,scale] whitespace-nowrap" +
+        (fullWidth ? " w-full" : "")
+      }
     >
       Play the climb
     </Link>

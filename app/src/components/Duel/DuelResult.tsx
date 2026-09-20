@@ -544,15 +544,9 @@ export function DuelResult({
           <p className="text-ember text-xs text-center">{rematchError}</p>
         )}
 
-        {/* Guest can't rematch — point them to sign-in instead of a dead button */}
-        {!user && !opponentLeft && (
-          <p className="text-text-muted text-xs text-center">
-            <a href={SIGNIN_HREF} className="text-signal underline underline-offset-2">
-              Sign in
-            </a>{" "}
-            to rematch.
-          </p>
-        )}
+        {/* Anon rematch is disabled above (a guest has no account to rematch
+            from); the single sign-in line at the foot of the card is the one
+            canonical ask — no second inline "sign in to rematch" prompt here. */}
 
         {/* Watch replay */}
         {hasReplay && (

@@ -58,10 +58,10 @@ function PlayIntro() {
         </Link>{" "}
         — you can also play as a guest, though guest runs aren&rsquo;t recorded. Every run can be
         shared as a replay link so someone else can watch exactly how you climbed. The free climb
-        is entirely skill-based: no payment, no way to pay for a better rank. If you want to play
-        competitive, try{" "}
-        <Link href="/duel" className="text-signal hover:underline">1v1 duels</Link> — play free,
-        stake chips in ranked matches, or enter tournaments for cash prizes. See{" "}
+        is entirely skill-based: no payment, no way to pay for a better rank. Prefer a head-to-head?
+        Race another climber in{" "}
+        <Link href="/duel" className="text-signal hover:underline">1v1 duels</Link> — same tower,
+        same rising lava, one winner. See{" "}
         <Link href="/rules" className="text-signal hover:underline">the rules</Link> for details.
       </p>
     </details>

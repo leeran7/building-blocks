@@ -18,8 +18,12 @@ interface NavbarProps {
   contextDot?: string;
 }
 
+// No `display` utility in the base: each link sets its own (`hidden sm:inline-flex`)
+// so it is genuinely hidden below `sm`. A baked-in `inline-flex` here collided
+// with the appended `hidden` at the same specificity and won, leaking the links
+// under the wordmark on phones.
 const GHOST =
-  "inline-flex items-center justify-center px-3 min-h-[38px] font-mono text-xs uppercase tracking-[0.14em] text-text-muted hover:text-text-primary transition-colors";
+  "items-center justify-center px-3 min-h-[38px] font-mono text-xs uppercase tracking-[0.14em] text-text-muted hover:text-text-primary transition-colors";
 
 export function Navbar({ contextLabel, contextDot }: NavbarProps) {
   return (
@@ -37,21 +41,22 @@ export function Navbar({ contextLabel, contextDot }: NavbarProps) {
           </span>
         </Link>
         {contextLabel && (
-          <>
-            <span className="font-mono text-text-disabled" aria-hidden="true">
+          // min-w-0 down the chain lets the breadcrumb label truncate instead of
+          // pushing the wordmark into the auth buttons at 375px. The wordmark
+          // stays shrink-0; only this label ellipsizes when space runs out.
+          <div className="flex min-w-0 items-center gap-1.5 font-mono text-xs uppercase tracking-[0.12em] text-text-secondary">
+            <span className="text-text-disabled shrink-0" aria-hidden="true">
               /
             </span>
-            <span className="inline-flex items-center gap-1.5 font-mono text-xs uppercase tracking-[0.12em] text-text-secondary truncate">
-              {contextDot && (
-                <span
-                  className="w-1.5 h-1.5 rounded-full shrink-0"
-                  style={{ backgroundColor: contextDot }}
-                  aria-hidden="true"
-                />
-              )}
-              {contextLabel}
-            </span>
-          </>
+            {contextDot && (
+              <span
+                className="w-1.5 h-1.5 rounded-full shrink-0"
+                style={{ backgroundColor: contextDot }}
+                aria-hidden="true"
+              />
+            )}
+            <span className="truncate">{contextLabel}</span>
+          </div>
         )}
       </div>
 
