@@ -31,6 +31,14 @@ describe("formatElapsed", () => {
     expect(formatElapsed(NaN)).toBe("0:00");
   });
 
+  it("Infinity input clamps to 0:00", () => {
+    expect(formatElapsed(Infinity)).toBe("0:00");
+  });
+
+  it("-Infinity input clamps to 0:00", () => {
+    expect(formatElapsed(-Infinity)).toBe("0:00");
+  });
+
   it("fractional seconds are floored, not rounded", () => {
     expect(formatElapsed(72.9)).toBe("1:12");
   });
