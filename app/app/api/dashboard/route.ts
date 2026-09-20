@@ -7,19 +7,20 @@
  * Request:
  *   Authorization: Bearer <firebase-id-token>
  *
- * Response 200:
- *   { user: { id, email, username },
+ * Response 200: the `DashboardData` payload built by buildDashboardPayload —
+ *   { user: { id, email, username, betaJoined },
  *     freeClimb: FreeClimbData | null, replays: ClimbReplayItem[],
- *     duelStats: DuelStats | null, recentDuels: RecentDuelItem[] }
+ *     duelStats: DuelRecordData | null, recentDuels: DuelReplayItem[] }
+ *
+ * The same builder backs the /dashboard server component, so this response and
+ * that page's `initialData` cannot drift.
  *
  * Error responses: { error: string, code: string }
  */
 
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth, AuthError } from "../../../src/lib/requireAuth";
-import { prisma } from "../../../src/db/client";
-import { getUserFreeClimbRecord, getUserClimbReplays } from "../../../src/db/climb";
-import { getDuelStats, getRecentDuelsForUser } from "../../../src/db/duel";
+import { buildDashboardPayload } from "../../../src/db/dashboard";
 
 export const runtime = "nodejs";
 
@@ -38,17 +39,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   }
 
   try {
-    const [dbUser, freeClimb, replays, duelStats, recentDuels] =
-      await Promise.all([
-        prisma.user.findUnique({
-          where: { id: decoded.uid },
-          select: { username: true, beta_waitlist_joined_at: true },
-        }),
-        getUserFreeClimbRecord(decoded.uid).catch(() => null),
-        getUserClimbReplays(decoded.uid).catch(() => []),
-        getDuelStats(decoded.uid).catch(() => null),
-        getRecentDuelsForUser(decoded.uid).catch(() => []),
-      ]);
+    const payload = await buildDashboardPayload(decoded.uid, decoded.email ?? "");
 
     console.log(
       JSON.stringify({
@@ -62,18 +53,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       })
     );
 
-    return NextResponse.json({
-      user: {
-        id: decoded.uid,
-        email: decoded.email ?? "",
-        username: dbUser?.username ?? null,
-        betaJoined: dbUser?.beta_waitlist_joined_at != null,
-      },
-      freeClimb,
-      replays,
-      duelStats,
-      recentDuels,
-    });
+    return NextResponse.json(payload);
   } catch (error) {
     console.error("[GET /api/dashboard]", error);
     return NextResponse.json(

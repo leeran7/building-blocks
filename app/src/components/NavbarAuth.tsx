@@ -8,10 +8,12 @@
  * Navbar shell (logo, static nav links) can remain a server component.
  */
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "../contexts/AuthContext";
 import { AccountMenu } from "./AccountMenu";
 import { NotificationBell } from "./Notifications/NotificationBell";
+import { hasTokenCookie } from "../lib/authCookie";
 import { SIGNIN_HREF, SIGNUP_HREF } from "./navLinks";
 
 const PILL =
@@ -21,8 +23,22 @@ const GHOST =
 
 export function NavbarAuth() {
   const { user, loading } = useAuth();
+  // `document.cookie` doesn't exist during the server render (or the
+  // client's hydration pass, which must match it), so this starts false —
+  // same as the server — and flips in an effect right after mount, well
+  // before Firebase's async onIdTokenChanged typically resolves `loading`.
+  // Presence-only (see authCookie.ts); it only picks which UI SHAPE to paint
+  // first, never an auth decision. AccountMenu/NotificationBell already
+  // render safely with a null user/token and pick up the real values once
+  // `loading` clears, so a stale/invalid cookie just means that optimistic
+  // shape corrects itself a moment later instead of a skeleton resolving
+  // into it.
+  const [likelySignedIn, setLikelySignedIn] = useState(false);
+  useEffect(() => {
+    setLikelySignedIn(hasTokenCookie());
+  }, []);
 
-  if (loading) {
+  if (loading && !likelySignedIn) {
     return (
       <div
         className="h-9 w-40 rounded-full bg-elevated animate-pulse"
@@ -31,7 +47,7 @@ export function NavbarAuth() {
     );
   }
 
-  if (user) {
+  if (user || (loading && likelySignedIn)) {
     return (
       <div className="flex items-center gap-1">
         <NotificationBell />

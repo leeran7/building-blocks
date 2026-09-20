@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { TOURNAMENTS_ENABLED } from "../../../../src/config/tournaments";
 import { requireAuth, AuthError } from "../../../../src/lib/requireAuth";
 import { checkRateLimit } from "../../../../src/lib/rateLimit";
+import { assertPaidDuelAllowed } from "../../../../src/lib/paidDuelGeo";
 import { queueForTournament, getQueueStatus } from "../../../../src/db/tournaments";
 import { isValidChipTier } from "../../../../src/db/chips";
 import { newRunSeed } from "../../../../src/game/rng";
@@ -40,6 +41,14 @@ export async function POST(request: NextRequest) {
   } catch (err) {
     if (err instanceof AuthError) return err.response;
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const geo = assertPaidDuelAllowed(request);
+  if (!geo.allowed) {
+    return NextResponse.json(
+      { error: "Not available in your region", code: "GEO_BLOCKED", reason: geo.reason },
+      { status: 403 }
+    );
   }
 
   const rl = await checkRateLimit({

@@ -5,7 +5,15 @@ import { useState } from "react";
 type Platform = "ios" | "android" | "any";
 type State = "idle" | "loading" | "success" | "error";
 
-export function BetaBanner({ token }: { token: string }) {
+/**
+ * Beta opt-in banner.
+ *
+ * `token` is nullable so the banner can paint in the same frame as the rest of
+ * the dashboard (whose payload is server-resolved) instead of waiting on the
+ * client Firebase session and shifting the layout when it arrives. Only the
+ * Join action needs the token, so only that button waits.
+ */
+export function BetaBanner({ token }: { token: string | null }) {
   const [platform, setPlatform] = useState<Platform>("ios");
   const [state, setState] = useState<State>("idle");
   const [dismissed, setDismissed] = useState(false);
@@ -34,6 +42,7 @@ export function BetaBanner({ token }: { token: string }) {
   }
 
   const handleSubmit = async () => {
+    if (!token) return;
     setState("loading");
     try {
       const res = await fetch("/api/beta/join", {
@@ -89,7 +98,7 @@ export function BetaBanner({ token }: { token: string }) {
 
         <button
           onClick={handleSubmit}
-          disabled={state === "loading"}
+          disabled={state === "loading" || token === null}
           className="bg-signal text-void text-sm font-semibold rounded-lg px-4 min-h-[36px] hover:brightness-110 active:scale-[0.98] transition-[filter,transform,scale] disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
         >
           {state === "loading" ? (
