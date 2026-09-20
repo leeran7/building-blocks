@@ -10,6 +10,7 @@
  */
 
 import { Hero } from "../src/components/LandingPage/Hero";
+import { ChooseYourClimb } from "../src/components/LandingPage/ChooseYourClimb";
 import { FreeLeaderboard } from "../src/components/LandingPage/FreeLeaderboard";
 import { RankedLeaderboard } from "../src/components/LandingPage/RankedLeaderboard";
 import { DuelPromo } from "../src/components/LandingPage/DuelPromo";
@@ -76,6 +77,10 @@ export default async function HomePage() {
           topEarner: chipStats.topEarner,
         }}
       />
+
+      {/* Mode index sits immediately under the hero: headline → CTA →
+          "choose your climb" is the whole first-screen story. */}
+      <ChooseYourClimb />
 
       <Suspense
         fallback={

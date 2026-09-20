@@ -122,6 +122,72 @@ export function dailySummary(): DailySummary {
   };
 }
 
+/** One cell of the streak strip — the current local week, Sunday → Saturday. */
+export interface DailyWeekDay {
+  /** Local calendar day key, "YYYY-MM-DD". */
+  key: string;
+  /** Single-letter strip label (duplicates across the week by design). */
+  label: string;
+  /** Full weekday name — the accessible label, never truncated. */
+  weekday: string;
+  /** True when this day's climb was recorded on this device. */
+  played: boolean;
+  isToday: boolean;
+  /** Later this week — rendered inert, never as a missed day. */
+  isFuture: boolean;
+}
+
+const WEEKDAYS = [
+  "Sunday",
+  "Monday",
+  "Tuesday",
+  "Wednesday",
+  "Thursday",
+  "Friday",
+  "Saturday",
+] as const;
+
+/**
+ * The current week's streak cells. Pure and total: always 7 entries in
+ * Sunday→Saturday order for the week containing `now`, exactly one `isToday`,
+ * and no reads or writes of its own.
+ *
+ * A day counts as played when it has a recorded best OR is the last played
+ * day — a run that never beat 0 still stores `lastPlayedKey` but no best.
+ * Days pruned by the store's retention window simply read `played: false`.
+ */
+export function computeWeekDays(
+  best: Record<string, number>,
+  lastPlayedKey: string | null,
+  now: Date
+): DailyWeekDay[] {
+  const todayStr = dateKey(now);
+
+  const sunday = new Date(now);
+  sunday.setHours(0, 0, 0, 0);
+  sunday.setDate(sunday.getDate() - sunday.getDay());
+
+  return WEEKDAYS.map((weekday, i) => {
+    const day = new Date(sunday);
+    day.setDate(sunday.getDate() + i);
+    const key = dateKey(day);
+    return {
+      key,
+      label: weekday.charAt(0),
+      weekday,
+      played: Object.hasOwn(best, key) || lastPlayedKey === key,
+      isToday: key === todayStr,
+      isFuture: key > todayStr,
+    };
+  });
+}
+
+/** The current week's streak cells for this device. Client-only (localStorage). */
+export function dailyWeek(): DailyWeekDay[] {
+  const store = read();
+  return computeWeekDays(store.best, store.lastPlayedKey, new Date());
+}
+
 export interface DailyRunResult {
   streak: number;
   todayBest: number;

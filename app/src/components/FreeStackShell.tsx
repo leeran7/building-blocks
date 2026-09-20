@@ -43,8 +43,10 @@ export function FreeStackShell({
         </div>
       )}
 
+      {/* One container width for the band across every section, so the tabs
+          don't shift horizontally when switching Leaderboard / Play / Daily. */}
       <div className="relative z-10 border-b border-border-subtle shrink-0">
-        <div className="max-w-2xl mx-auto w-full px-4 py-2">
+        <div className="max-w-5xl mx-auto w-full px-4 py-2">
           <div
             className="climb-reveal inline-flex items-center gap-1 rounded-full border border-border-strong bg-surface p-1"
             role="tablist"
@@ -70,7 +72,7 @@ export function FreeStackShell({
           {children}
         </div>
       ) : (
-        <div className="climb-reveal relative z-10 max-w-2xl mx-auto w-full px-4 py-6">
+        <div className="climb-reveal relative z-10 max-w-5xl mx-auto w-full px-4 py-6">
           {children}
         </div>
       )}

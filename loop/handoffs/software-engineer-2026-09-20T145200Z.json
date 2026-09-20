@@ -1,0 +1,122 @@
+{
+  "agent": "software-engineer",
+  "status": "success",
+  "timestamp": "2026-09-20T14:52:00Z",
+  "goal": "Layout-only pass on 4 Doomstack flows (hub /, 1v1 /duel, leaderboard /climb, daily /daily) to match the composition and hierarchy of 4 reference mockups, using only the existing Tower/ASCENT design system. Preserve all data fetching, business logic, auth, and API calls.",
+  "summary": "Re-composed all four flows with markup/layout changes only. Hub: hero gained the 'No account. No download.' sub-line and a new ChooseYourClimb 3-card mode index (Solo/1v1/Daily) with the sign-in line moved under it; DuelPromo's duplicate filled CTA downgraded to a plain link so /duel keeps exactly one filled CTA on the page. 1v1: the 4-way mode list became tier pills (Free/Ranked/Tournaments, row omitted when the paid flag is off) plus a two-column Quick Match / Challenge-a-friend grid, an 'open a challenge link' entry backed by a new pure allow-list parser, a matchmaking status bar with a 1 Hz elapsed timer that exists only while searching, and a bottom 'your free 1v1 record' strip. Leaderboard: new ClimbBoard client island adds a board-scope row, search + 'Find me' filter, a bar-chart column, viewer-row highlight and a pinned own-row, and a 'your best' side panel that carries the page's single primary CTA; it reads the EXISTING GET /api/dashboard and degrades to CTA-only on any failure. Daily: page-level header strip (date, title, next-tower countdown), post-run result panel, a 7-day streak strip derived from data already in localStorage, and a 'Keep climbing until it resets' section. Zero new API routes, DB queries, colors, or assets; no game/canvas/ClimbScene, auth, or payments code touched.",
+  "artifacts": [
+    "loop/spec-doomstack-layout.md",
+    "loop/architecture-doomstack-layout.md",
+    "app/app/page.tsx",
+    "app/app/climb/page.tsx",
+    "app/app/daily/page.tsx",
+    "app/src/components/LandingPage/Hero.tsx",
+    "app/src/components/LandingPage/ChooseYourClimb.tsx",
+    "app/src/components/LandingPage/DuelPromo.tsx",
+    "app/src/components/Duel/DuelHome.tsx",
+    "app/src/components/Climb/ClimbBoard.tsx",
+    "app/src/components/Climb/ClimbLeaderboard.tsx",
+    "app/src/components/Climb/ClimbPanelIntro.tsx",
+    "app/src/components/FreeStackShell.tsx",
+    "app/src/components/Game/DailyClimbClient.tsx",
+    "app/src/lib/duelInvite.ts",
+    "app/src/lib/daily.ts"
+  ],
+  "exitCriteria": {
+    "code_compiles": true,
+    "tests_exist": true,
+    "gates_pass": true,
+    "no_new_endpoints": true,
+    "no_new_db_queries": true,
+    "rendering_modes_unchanged": true
+  },
+  "gates": [
+    { "name": "app-lint", "command": "pnpm lint", "cwd": "app", "result": "pass" },
+    { "name": "app-typecheck", "command": "pnpm typecheck", "cwd": "app", "result": "pass" },
+    { "name": "app-test", "command": "pnpm test", "cwd": "app", "result": "pass (79 files, 738 tests)" },
+    { "name": "orchestrator-typecheck", "command": "yarn typecheck", "cwd": "orchestrator", "result": "pass" },
+    { "name": "orchestrator-test", "command": "yarn test", "cwd": "orchestrator", "result": "pass (15 suites, 58 tests)" },
+    { "name": "pack-hygiene", "command": "node scripts/hygiene.mjs", "cwd": ".", "result": "pass" },
+    { "name": "next-build", "command": "pnpm build", "cwd": "app", "result": "pass — route table unchanged: / ISR 1m, /climb dynamic, /daily static, /duel static" }
+  ],
+  "feedback": [],
+  "verificationTargets": [
+    "AC-1..AC-29 in loop/spec-doomstack-layout.md. Mechanically testable without a browser: AC-10 (parseDuelInvite, src/lib/duelInvite.ts), AC-26 (computeWeekDays, src/lib/daily.ts), and every DOM-composition AC via renderToStaticMarkup on the production components.",
+    "parseDuelInvite: exported pure allow-list parser. Negative fixtures worth asserting — 'javascript:alert(1)', '//evil.dev/duel/abcdef123456', 'https://x.dev/play', '/duel/abc' (too short), '/duel/a/b', '' — all must return null. Positive: '<origin>/duel/<id>', '/duel/<id>?x=1', bare id.",
+    "formatElapsed (exported from Duel/DuelHome.tsx): 0 -> '0:00', 72 -> '1:12', negative/NaN clamps to '0:00'.",
+    "computeWeekDays(best, lastPlayedKey, now): always 7 entries Sunday->Saturday for the week containing now, exactly one isToday, played true only for keys in best or equal to lastPlayedKey. NOTE: it is a CALENDAR week, so a day outside the current week (e.g. last Wednesday) is correctly absent — verified during implementation.",
+    "ClimbBoard viewer panel: assert the CTA-only fallback renders on non-200 and on a rejected fetch, and that the standings <ol> is byte-identical in both cases.",
+    "No test currently covers DuelHome or ClimbBoard rendering at all; a smoke render of each (with AuthContext and next/navigation mocked) would be the highest-value addition."
+  ],
+  "decisions": [
+    "ADR-1: the daily result is composed at page level (DailyClimbClient), NOT in ClimbScene, because that overlay is shared with /play and replay playback. Consequence: share / watch-replay controls from mockup 3 stay in the overlay and are deliberately not duplicated in the page panel.",
+    "ADR-2: /climb's 'your best' panel is a client island over the existing GET /api/dashboard. No new endpoint was added; the payload is over-fetched (replays + duel stats) and narrowed with a validating parser rather than an unchecked json() cast.",
+    "ADR-4: app/DESIGN.md's one-canonical-home CTA rule outranked literal mockup fidelity. DuelPromo's filled 'Start a duel' became a plain '1v1 arena' link, and /climb's 'Play the climb' primary moved out of ClimbPanelIntro's header into the your-best panel, so the landing has exactly one filled /duel CTA and zero filled /play CTAs, and /climb has exactly one primary.",
+    "ADR-5: the 1v1 record strip carries no 'View duel leaderboard' link (mockup 1 has one) because the tab band at the top of the same screen already links /duel/leaderboard.",
+    "FreeStackShell's tab band and leaderboard panel went from max-w-2xl to max-w-5xl together, so the two-column board fits and the tabs do not shift horizontally when switching Leaderboard / Play / Daily."
+  ],
+  "deviationsFromMockups": [
+    "Hub: the mockup makes 'Play free' the filled primary and 'Start a 1v1' secondary. Shipped IA (and tests/components/climbFeelSurfaces.test.tsx AC-7: zero filled bg-signal /play CTAs) is the reverse, so the priority was left as shipped. Flipping it is a product decision.",
+    "Leaderboard: the mockup's 'Daily' and 'Ranked' category tabs were not built — no daily-scoped board exists and ranked is flag-gated. The scope row ships with Solo and 1v1 only, as separate pages.",
+    "Leaderboard: no time-range ('All time') filter — climb_records has no time dimension to filter on. Omitted rather than faked.",
+    "Daily: 'today's rank', 'climbers today' and the 'who's ahead of you' rail need a per-day board the product does not have. Replaced with the viewer's own week history, which is already stored locally.",
+    "Daily: share + watch-replay buttons were not duplicated at page level (see ADR-1).",
+    "Leaderboard rows keep the existing full-row altitude gradient AND gain an explicit mini bar column at sm and above; below sm only the row gradient shows, to protect the 375px layout."
+  ],
+  "dependencies": [],
+  "learnings": [
+    {
+      "topic": "testing",
+      "forAgents": ["verifier", "reviewer"],
+      "kind": "lesson",
+      "insight": "tests/components/climbFeelSurfaces.test.tsx asserts exact class substrings and copy on Hero, FreeLeaderboard, ClimbPanelIntro, ClimbLeaderboard and FreeStackShell (e.g. the literal 'class=\"reveal font-display', aria-label=\"Play free climb\" with min-h-[44px]/min-w-[44px], 'Free climb · no payment'). Any layout change to those five components must treat those strings as a frozen contract — I read the test before editing and every one still passes unchanged.",
+      "action": "When reviewing a UI diff, diff the asserted substrings first; a passing suite after a layout change is evidence the contract held, not that the test is weak.",
+      "confidence": "high"
+    },
+    {
+      "topic": "architecture",
+      "forAgents": ["reviewer", "qa-acceptance"],
+      "kind": "lesson",
+      "insight": "Mockup-driven composition and app/DESIGN.md's 'one canonical home per destination' rule conflict by construction: a hero CTA row plus a mode-card row pitches the same destination twice. Resolving it required a net CTA-inventory edit elsewhere on the page (downgrading DuelPromo's filled CTA, moving /climb's primary into the new panel), not just adding the new section.",
+      "action": "Review a CTA addition by counting filled bg-signal anchors per destination across the WHOLE page, not per component. Current landing invariant: exactly 1 filled /duel CTA, 0 filled /play CTAs.",
+      "confidence": "high"
+    },
+    {
+      "topic": "security",
+      "forAgents": ["security-reviewer"],
+      "kind": "lesson",
+      "insight": "The only new untrusted input in this change is the pasted challenge link in DuelHome. src/lib/duelInvite.ts is an allow-list parser that returns null (never a default), rejects non-http(s) schemes and protocol-relative input, and the caller builds the route from the PARSED id (`/duel/${id}`) rather than the raw string, so no open redirect or javascript: navigation is reachable.",
+      "action": "Verify the parser against positive fixtures of the strings it must reject, and confirm no call site ever passes the raw input to router.push.",
+      "confidence": "high"
+    },
+    {
+      "topic": "architecture",
+      "forAgents": ["software-engineer", "reviewer"],
+      "kind": "constraint",
+      "insight": "/climb is an RSC and Firebase identity is client-only, so any 'your rank' UI on a public server page needs a client island. GET /api/dashboard is the only existing endpoint that returns a user's free-climb rank; reusing it costs an over-fetch (replays + duel stats) but adds zero new surface area.",
+      "action": "If a leaner per-user climb endpoint is ever added, swap ClimbBoard's fetch to it and drop the narrowing helper's tolerance for the extra fields.",
+      "confidence": "medium"
+    },
+    {
+      "topic": "process",
+      "forAgents": ["verifier"],
+      "kind": "metric",
+      "insight": "Baseline after this change: app 79 test files / 738 tests pass in ~11s; orchestrator 15 suites / 58 tests pass; lint, typecheck, hygiene and `next build` all clean. Route rendering modes are unchanged (/ ISR 1m, /climb dynamic, /daily static, /duel static).",
+      "action": "Treat a >10x suite-runtime jump or any route flipping from static to dynamic as a regression introduced after this handoff.",
+      "confidence": "high"
+    },
+    {
+      "topic": "process",
+      "forAgents": ["qa-acceptance"],
+      "kind": "lesson",
+      "insight": "/duel cannot be acceptance-checked from server HTML: app/duel/page.tsx wraps DuelHome in <Suspense> and DuelHome calls useSearchParams, so Next bails out to client rendering and the SSR response contains no page content. This predates this change.",
+      "action": "Test /duel with a browser (Playwright) or a component render with next/navigation mocked — a curl of the route will look empty and is not evidence of a failure.",
+      "confidence": "high"
+    }
+  ],
+  "openQuestions": [
+    "OQ-1 (hub CTA priority: play-free-primary vs duel-primary) is a product decision, deferred — see loop/spec-doomstack-layout.md.",
+    "The two pre-existing entries in loop/learnings.md (free-leaderboard trust boundary; power-up one-slot vs stacking) were read and are untouched by this layout pass — neither affects presentation."
+  ],
+  "nextStage": "verifier"
+}

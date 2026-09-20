@@ -167,12 +167,15 @@ export function DuelPromo() {
           ))}
         </div>
 
+        {/* Plain link, not a second filled CTA: the hero primary and the
+            "Choose your climb" 1v1 card already own this destination higher up
+            the page (app/DESIGN.md — one canonical home per destination). */}
         <div className="mt-8 flex flex-col sm:flex-row sm:items-center gap-4">
           <Link
             href="/duel"
-            className="inline-flex items-center justify-center gap-2 rounded-full bg-signal text-void font-semibold px-7 py-3.5 shadow-signal hover:brightness-110 active:scale-[0.98] transition-[filter,transform,scale] min-h-[52px] focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
+            className="inline-flex items-center justify-center gap-2 rounded-full border border-border-strong bg-surface/60 px-7 min-h-[44px] min-w-[44px] font-medium text-text-primary hover:border-signal/50 hover:bg-surface transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
           >
-            Start a duel
+            1v1 arena
             <span aria-hidden="true">→</span>
           </Link>
           <p className="text-xs text-text-secondary max-w-xs">

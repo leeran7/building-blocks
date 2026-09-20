@@ -215,6 +215,14 @@ export function Hero({ stats }: { stats: HeroStats }) {
             </Link>
           </div>
 
+          {/* The two objections, answered in four words — mockup sub-line. */}
+          <p
+            className="reveal mt-4 font-mono text-[11px] uppercase tracking-[0.16em] text-text-muted"
+            style={{ animationDelay: "245ms" }}
+          >
+            No account. No download.
+          </p>
+
           {/* instrument stat strip — ranked dominant, free secondary */}
           <div
             className="reveal mt-8 space-y-2.5 max-w-md mx-auto md:mx-0"
@@ -275,25 +283,9 @@ export function Hero({ stats }: { stats: HeroStats }) {
             </div>
           </div>
 
-          <p
-            className="reveal text-sm text-text-muted mt-5"
-            style={{ animationDelay: "340ms" }}
-          >
-            Already climbing?{" "}
-            <Link
-              href="/auth/signin"
-              className="text-text-secondary underline underline-offset-4 decoration-border-strong hover:text-signal hover:decoration-signal transition-colors"
-            >
-              Sign in
-            </Link>
-            {" · "}
-            <Link
-              href="/beta"
-              className="text-text-secondary underline underline-offset-4 decoration-border-strong hover:text-signal hover:decoration-signal transition-colors"
-            >
-              Join the app beta
-            </Link>
-          </p>
+          {/* The "already climbing? sign in" line lives under the mode cards
+              (ChooseYourClimb) — one sign-in ask per screen, at the end of the
+              choose-a-mode moment rather than in the middle of the pitch. */}
         </div>
 
         {/* Visualization — decorative DuelViz, aria-hidden */}
