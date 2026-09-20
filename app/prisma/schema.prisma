@@ -64,7 +64,6 @@ model User {
   leaderboard_consent_at   DateTime? @map("leaderboard_consent_at")
   climbRecords           ClimbRecord[]
   climbRuns              ClimbRun[]
-  savedUrls              SavedUrl[]
   socialHandles          SavedSocialHandle[]
   duelsAsPlayer1         Duel[]              @relation("DuelPlayer1")
   duelsAsPlayer2         Duel[]              @relation("DuelPlayer2")
@@ -97,21 +96,6 @@ model SavedSocialHandle {
   @@unique([userId, platform], name: "saved_social_user_platform")
   @@index([userId])
   @@map("saved_social_handles")
-}
-
-// A URL the user has saved (from settings or a previous submission) so they can
-// pick it again instead of retyping. Unique per (user, url).
-model SavedUrl {
-  id         String   @id @default(cuid())
-  userId     String
-  url        String
-  created_at DateTime @default(now())
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, url], name: "saved_url_user_url")
-  @@index([userId])
-  @@map("saved_urls")
 }
 
 // Tower v3 "The Climb": permanent peak-height record per user per category.

@@ -21,10 +21,6 @@ type SocialState = Partial<Record<CreatorPlatform, string>>;
 const INPUT =
   "w-full bg-surface-raised border border-border-strong rounded-lg px-4 py-3 text-base text-text-primary placeholder-text-muted focus:outline-none focus:border-signal focus:ring-1 focus:ring-signal transition-colors";
 
-function domainOf(url: string): string {
-  return url.replace(/^https?:\/\//, "").replace(/\/.*$/, "");
-}
-
 interface Props {
   initialData: UserSettings | null;
 }
@@ -41,10 +37,6 @@ export function SettingsForm({ initialData }: Props) {
   const [social, setSocial] = useState<SocialState>(
     (initialData?.social as SocialState | undefined) ?? {}
   );
-  const [urls, setUrls] = useState<string[]>(initialData?.urls ?? []);
-  const [newUrl, setNewUrl] = useState("");
-  // If the server pre-populated data we're already loaded; otherwise wait for client fetch.
-  const [loaded, setLoaded] = useState(initialData !== null);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<{ type: "ok" | "err"; text: string } | null>(null);
 
@@ -66,30 +58,15 @@ export function SettingsForm({ initialData }: Props) {
           setUsername(s.username ?? suggestUsername(s.displayName ?? ""));
           setSavedUsername(s.username ?? "");
           setSocial(s.social && typeof s.social === "object" ? s.social : {});
-          setUrls(Array.isArray(s.urls) ? s.urls : []);
         }
-        if (live) setLoaded(true);
       })
-      .catch(() => live && setLoaded(true));
+      .catch(() => {});
     return () => {
       live = false;
     };
   }, [token, initialData]);
 
   const usernameCheck = username.trim() ? normalizeUsername(username) : null;
-
-  function addUrl() {
-    const u = newUrl.trim();
-    if (!u) return;
-    if (!urls.includes(u)) setUrls([...urls, u]);
-    setNewUrl("");
-    setMsg(null);
-  }
-
-  function removeUrl(u: string) {
-    setUrls(urls.filter((x) => x !== u));
-    setMsg(null);
-  }
 
   async function save() {
     if (!token) return;
@@ -102,7 +79,7 @@ export function SettingsForm({ initialData }: Props) {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ displayName, username, social, urls }),
+        body: JSON.stringify({ displayName, username, social }),
       });
       if (res.ok) {
         const s = await res.json();
@@ -110,7 +87,6 @@ export function SettingsForm({ initialData }: Props) {
         setUsername(s.username ?? "");
         setSavedUsername(s.username ?? "");
         setSocial(s.social && typeof s.social === "object" ? s.social : {});
-        setUrls(Array.isArray(s.urls) ? s.urls : []);
         setMsg({ type: "ok", text: "Settings saved." });
       } else {
         const e = await res.json().catch(() => ({}));
@@ -148,7 +124,7 @@ export function SettingsForm({ initialData }: Props) {
         </h1>
         <p className="text-sm text-text-secondary mt-2">
           Set your display name, create your creator page, and save the social
-          accounts and URLs you list often.
+          accounts you list often.
         </p>
 
         {/* Display name */}
@@ -272,72 +248,6 @@ export function SettingsForm({ initialData }: Props) {
                 </div>
               );
             })}
-          </div>
-        </section>
-
-        {/* Saved URLs */}
-        <section className="mt-6 rounded-2xl border border-border-strong bg-surface p-6 shadow-lifted">
-          <p className="font-mono text-[11px] uppercase tracking-[0.16em] text-text-muted">
-            Saved URLs
-          </p>
-          <p className="text-xs text-text-secondary mt-1">
-            Pick these at submit time instead of retyping. New URLs you submit are
-            added here automatically.
-          </p>
-
-          <ul className="mt-4 space-y-2">
-            {urls.length === 0 && loaded && (
-              <li className="font-mono text-xs text-text-muted uppercase tracking-[0.12em] py-2">
-                — no saved URLs yet
-              </li>
-            )}
-            {urls.map((u) => (
-              <li
-                key={u}
-                className="flex items-center gap-3 rounded-lg border border-border-subtle bg-surface-raised px-3 py-2.5"
-              >
-                <span className="w-1.5 h-1.5 rounded-full bg-signal shrink-0" />
-                <span className="flex-1 min-w-0">
-                  <span className="block text-sm text-text-primary truncate">
-                    {domainOf(u)}
-                  </span>
-                  <span className="block font-mono text-[11px] text-text-secondary truncate">
-                    {u}
-                  </span>
-                </span>
-                <button
-                  type="button"
-                  onClick={() => removeUrl(u)}
-                  className="shrink-0 font-mono text-[11px] uppercase tracking-[0.12em] text-text-muted hover:text-ember transition-colors min-h-[36px] px-2"
-                  aria-label={`Remove ${u}`}
-                >
-                  Remove
-                </button>
-              </li>
-            ))}
-          </ul>
-
-          <div className="mt-4 flex gap-2">
-            <input
-              type="url"
-              value={newUrl}
-              onChange={(e) => setNewUrl(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  addUrl();
-                }
-              }}
-              placeholder="https://example.com"
-              className={INPUT}
-            />
-            <button
-              type="button"
-              onClick={addUrl}
-              className="shrink-0 rounded-lg border border-border-strong bg-surface-raised px-4 text-sm font-semibold text-text-primary hover:border-signal/50 transition-colors min-h-[44px]"
-            >
-              Add
-            </button>
           </div>
         </section>
 

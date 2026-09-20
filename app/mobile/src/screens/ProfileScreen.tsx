@@ -138,7 +138,6 @@ export function ProfileScreen() {
           displayName: s.displayName ?? null,
           username: s.username ?? null,
           social: s.social ?? null,
-          urls: s.urls ?? null,
           leaderboardConsent: Boolean((s as Record<string, unknown>).leaderboardConsent),
         };
         setLoaded(next);

@@ -5,7 +5,7 @@
  * Deletes everything that is personal or gameplay identity:
  *   - ClimbRun (run history), ClimbRecord (leaderboard peak scores),
  *   - DuelStats (win/loss record),
- *   - SavedUrl + SavedSocialHandle (creator-page links).
+ *   - SavedSocialHandle (creator-page links).
  *
  * Retains — deliberately — the financial/audit trail, because destroying it
  * would breach money-record retention obligations for a paid product:
@@ -70,7 +70,6 @@ export async function DELETE(request: NextRequest): Promise<NextResponse> {
       prisma.climbRun.deleteMany({ where: { userId: uid } }),
       prisma.climbRecord.deleteMany({ where: { userId: uid } }),
       prisma.duelStats.deleteMany({ where: { user_id: uid } }),
-      prisma.savedUrl.deleteMany({ where: { userId: uid } }),
       prisma.savedSocialHandle.deleteMany({ where: { userId: uid } }),
       prisma.user.updateMany({
         where: { id: uid },
