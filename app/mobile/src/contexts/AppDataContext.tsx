@@ -41,7 +41,6 @@ export interface SettingsData {
   displayName: string | null;
   username: string | null;
   social: SocialState | null;
-  urls: string[] | null;
   leaderboardConsent: boolean;
 }
 
@@ -181,7 +180,6 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
             displayName: d.displayName ?? null,
             username: d.username ?? null,
             social: d.social && typeof d.social === "object" ? d.social : null,
-            urls: Array.isArray(d.urls) ? d.urls : null,
             leaderboardConsent: consent,
           };
         })

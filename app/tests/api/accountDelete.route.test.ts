@@ -25,7 +25,6 @@ vi.mock("../../src/db/client", () => ({
     climbRun: { deleteMany: vi.fn(() => ({})) },
     climbRecord: { deleteMany: vi.fn(() => ({})) },
     duelStats: { deleteMany: vi.fn(() => ({})) },
-    savedUrl: { deleteMany: vi.fn(() => ({})) },
     savedSocialHandle: { deleteMany: vi.fn(() => ({})) },
     user: { updateMany: vi.fn(() => ({})) },
     $transaction: vi.fn(async () => {}),

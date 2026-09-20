@@ -23,13 +23,11 @@ vi.mock("../../src/db/settings", () => ({
   getUserSettings: vi.fn(async () => ({
     displayName: null,
     username: null,
-    urls: [],
     social: {},
   })),
   updateUserSettings: vi.fn(async () => ({
     displayName: null,
     username: null,
-    urls: [],
     social: {},
   })),
   updateUserSocialHandles: vi.fn(async () => {}),

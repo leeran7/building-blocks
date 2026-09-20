@@ -1,9 +1,8 @@
 /**
- * GET  /api/settings — the signed-in user's display name + saved URLs.
- * PUT  /api/settings — update display name and/or the saved-URL list.
+ * GET  /api/settings — the signed-in user's display name + social handles.
+ * PUT  /api/settings — update display name, username, and/or social handles.
  *
- * Auth required (Firebase Bearer token). URLs are validated + sanitised the same
- * way as submissions before being stored.
+ * Auth required (Firebase Bearer token).
  */
 
 import { NextRequest, NextResponse } from "next/server";
@@ -20,7 +19,6 @@ import {
 import { LEADERBOARD_CACHE_TAG } from "../../../src/db/climb";
 import { DUEL_LEADERBOARD_CACHE_TAG } from "../../../src/db/duel";
 import { normalizeHandle, isSocialPlatform } from "../../../src/lib/socialHandle";
-import { validateUrl } from "../../../src/lib/validateUrl";
 import { checkRateLimit } from "../../../src/lib/rateLimit";
 import { sanitizeDisplayName } from "../../../src/lib/sanitizeName";
 import { isHatefulName } from "../../../src/lib/nameModeration";
@@ -29,7 +27,6 @@ import { setUsername, clearUsername } from "../../../src/db/creator";
 
 export const runtime = "nodejs";
 
-const MAX_URLS = 25;
 const MAX_NAME = 60;
 
 // Per-user cap on settings writes. Fails OPEN so a Redis outage never blocks a
@@ -82,7 +79,6 @@ export async function PUT(request: NextRequest): Promise<NextResponse> {
   let body: {
     displayName?: unknown;
     username?: unknown;
-    urls?: unknown;
     social?: unknown;
     leaderboardConsent?: unknown;
   };
@@ -92,7 +88,7 @@ export async function PUT(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  const patch: { displayName?: string | null; urls?: string[]; leaderboardConsent?: boolean } = {};
+  const patch: { displayName?: string | null; leaderboardConsent?: boolean } = {};
 
   if (body.leaderboardConsent !== undefined) {
     if (typeof body.leaderboardConsent !== "boolean") {
@@ -170,33 +166,8 @@ export async function PUT(request: NextRequest): Promise<NextResponse> {
     }
   }
 
-  if (body.urls !== undefined) {
-    if (!Array.isArray(body.urls)) {
-      return NextResponse.json({ error: "urls must be an array" }, { status: 400 });
-    }
-    if (body.urls.length > MAX_URLS) {
-      return NextResponse.json(
-        { error: `At most ${MAX_URLS} URLs` },
-        { status: 400 }
-      );
-    }
-    const clean: string[] = [];
-    for (const raw of body.urls) {
-      if (typeof raw !== "string" || !raw.trim()) continue;
-      const v = validateUrl(raw);
-      if (!v.valid || !v.sanitised) {
-        return NextResponse.json(
-          { error: `Invalid URL: ${raw}` },
-          { status: 400 }
-        );
-      }
-      clean.push(v.sanitised);
-    }
-    patch.urls = clean;
-  }
-
   try {
-    // Provision the user row if needed (blocks/saved_urls FK to users(id)).
+    // Provision the user row if needed (social handles / creator FK to users(id)).
     if (decoded.email) {
       await ensureUser({
         id: decoded.uid,
