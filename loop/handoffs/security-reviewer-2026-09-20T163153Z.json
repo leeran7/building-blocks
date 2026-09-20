@@ -1,0 +1,74 @@
+{
+  "agent": "security-reviewer",
+  "status": "success",
+  "summary": "Security audit of layout/UX change set d5bb5e3..HEAD (20 files, no api/db/auth changes). The one new untrusted-input surface, parseDuelInvite(), is a correct fail-closed allow-list parser; its only caller navigates from the parsed id, not the raw paste. ClimbBoard reads the existing /api/dashboard with the viewer's own token (no IDOR), fully narrows the response at runtime, and degrades safely. No secrets, no dangerouslySetInnerHTML/eval, no untrusted redirects/hrefs, no dependency changes. No critical or high findings.",
+  "timestamp": "2026-09-20T16:31:53Z",
+  "goal": "Audit the branch change set for auth, secrets, injection, open redirects, untrusted input, and dependency issues per .claude/rules/security.md and context/trust.md.",
+  "artifacts": [
+    "app/src/lib/duelInvite.ts",
+    "app/src/components/Duel/DuelHome.tsx",
+    "app/src/components/Climb/ClimbBoard.tsx",
+    "app/src/lib/daily.ts",
+    "app/src/lib/climbEyebrow.ts"
+  ],
+  "exitCriteria": {
+    "no_critical_security_findings": true,
+    "secret_scan_clean": true,
+    "untrusted_input_allowlisted": true,
+    "no_new_dependencies": true
+  },
+  "findings": [
+    {
+      "severity": "info",
+      "owasp": "A01",
+      "location": "app/src/lib/duelInvite.ts:33-91",
+      "issue": "parseDuelInvite() reviewed against all four adversarial vectors: bare id is strict allow-list [A-Za-z0-9_-]{6,64}; protocol-relative //host rejected (line 56); javascript:/data: rejected by http(s)-only check (line 67); cross-origin absolute URLs rejected by url.origin !== expectedOrigin (line 68); fails CLOSED when origin is opaque/unresolvable (appOrigin returns null -> expectedOrigin null -> all absolute URLs rejected). Returns null, never a substituted default. Confirmed HARDENED.",
+      "reproduction": "Paste `javascript:alert(1)`, `//evil.com/duel/abcdef`, `https://evil.com/duel/abcdef`, or `data:...` into /duel invite box -> all yield null -> inline error, no navigation.",
+      "fix": "None required."
+    },
+    {
+      "severity": "info",
+      "owasp": "A01",
+      "location": "app/src/components/Duel/DuelHome.tsx:282-296",
+      "issue": "Sole caller handleOpenInvite builds the navigation target as `/duel/${duelId}` from the PARSED id (matched by DUEL_ID/DUEL_PATH regex), never from the raw pasted string. No open-redirect or javascript:-navigation path reachable. Other router.push sites (162,164,185,211,248) use own-API response ids, not the invite input. Share link at :162 uses window.location.origin (browser-trusted) + own-API existingId, carries no secret.",
+      "reproduction": "N/A - no attack path.",
+      "fix": "None required."
+    },
+    {
+      "severity": "info",
+      "owasp": "A01",
+      "location": "app/src/components/Climb/ClimbBoard.tsx:59-99,346-374",
+      "issue": "Reads existing GET /api/dashboard via authedFetch with the VIEWER'S OWN token - no user-controlled id in the request, so no IDOR/cross-user leak. Response is runtime-narrowed by toViewerRecord (typeof/Number.isFinite checks), not cast, matching conventions.md. Failure (non-ok, throw, or unparseable) degrades to status 'unavailable' -> CTA-only panel. Client-side search filters already-rendered rows via React text interpolation (no XSS). No new endpoint introduced.",
+      "reproduction": "N/A - own-token read only.",
+      "fix": "None required."
+    },
+    {
+      "severity": "info",
+      "owasp": "A03",
+      "location": "app/src/components/Duel/DuelHome.tsx:89-97",
+      "issue": "searchParams.get('mode') is allow-listed to 'chips'|'tournaments' and otherwise resolves to 'free'. This defaults rather than returning null, but it is cosmetic UI tab state (not a write path or trust boundary), 'free' is the LEAST-privileged value, and actual paid-duel gating is enforced server-side. The reject-never-default rule targets write/lookup paths; not a violation here. No injection - value only selects a UI branch, never reaches a DOM/URL sink.",
+      "reproduction": "Visit /duel?mode=<payload> -> falls to 'free' tab; value never reflected into markup or a request.",
+      "fix": "None required."
+    }
+  ],
+  "feedback": [],
+  "learnings": [
+    {
+      "topic": "security",
+      "forAgents": ["qa-acceptance", "integrator"],
+      "kind": "metric",
+      "insight": "Security audit of d5bb5e3..HEAD clean: 0 critical/0 high. Only new untrusted-input surface is parseDuelInvite (fail-closed allow-list, caller navigates from parsed id). ClimbBoard uses own-token /api/dashboard read with runtime narrowing + safe degradation. No secrets, no dangerouslySetInnerHTML/eval, no untrusted redirects, no dependency/lockfile changes, no api/db/auth changes.",
+      "action": "Proceed to qa-acceptance; no security loop-back required.",
+      "confidence": "high"
+    },
+    {
+      "topic": "security",
+      "forAgents": ["software-engineer", "reviewer"],
+      "kind": "lesson",
+      "insight": "parseDuelInvite is the reference pattern for accepting a pasted link: allow-list regex for the bare id, reject protocol-relative (//), reject non-http(s) schemes, reject cross-origin by comparing url.origin to a browser/config-derived expectedOrigin, and fail CLOSED (return null) when origin is opaque. The caller MUST rebuild the target from the returned id, never the raw input.",
+      "action": "Reuse this shape for any future pasted-URL/user-supplied-link feature; never pass a raw pasted string to router.push/fetch.",
+      "confidence": "high"
+    }
+  ],
+  "nextStage": "qa-acceptance"
+}
