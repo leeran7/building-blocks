@@ -1,0 +1,63 @@
+{
+  "agent": "security-reviewer",
+  "status": "success",
+  "timestamp": "2026-09-20T19:33:49Z",
+  "nextStage": "qa-acceptance",
+  "summary": "Security audit of the app-wide REDUNDANCY-REDUCTION change set (aa6c1af..HEAD: 626173b home-page + 0b0d642 cross-app). Presentation/layout only, confirmed against trust boundaries. No security-relevant surface changed: no new endpoint/fetch/payload, no auth change, chips/wallet claim+buy authorization untouched, required legal disclosures preserved, leaderboards expose fewer records (top-8 -> top-3) with no new fields/PII, no injection/redirect/secret. Zero critical/high/medium findings.",
+  "scope": "git diff aa6c1af..HEAD -- app/src app/app",
+  "exitCriteria": {
+    "no_critical_security_findings": true
+  },
+  "findings": [
+    {
+      "severity": "info",
+      "owasp": "A08",
+      "location": "app/src/components/Duel/ChipDuelLobby.tsx, app/src/components/Dashboard/WalletCard.tsx, app/src/components/Duel/DuelHome.tsx",
+      "issue": "Chips/wallet sensitive area — verified presentation-only. WalletCard change is label text only (DailyChipClaimButton labels). ChipDuelLobby only removed the hand-rolled Navbar/tab band and wrapped content in <DuelStackShell section=\"chips\">; the match action still POSTs authedFetch('/api/duel/chips/match', token, { body: {stakeCents: tier, categorySlug:'random'} }) unchanged, claim handler (useClaimDailyChips) unchanged, CHIP_TIERS/DAILY_CHIP_GRANT_CENTS unchanged. DuelHome dropped the redundant Buy/Claim entry points (BuyCreditsModal + useClaimDailyChips) from the teaser; those flows remain on their canonical routes with unchanged payloads. No amount, idempotency, or server-side gating altered.",
+      "reproduction": "N/A — no authorization or payload path changed.",
+      "fix": "None required."
+    },
+    {
+      "severity": "info",
+      "owasp": "A09",
+      "location": "app/src/components/LandingPage/LeaderboardTeaser.tsx, app/src/components/Duel/ChipDuelLobby.tsx",
+      "issue": "Compliance disclosures preserved. DuelPromo's sole legal line 'Skill-based, 18+, not available in all states.' relocated to LeaderboardTeaser behind the SAME gate (PAID_DUELS_ENABLED_PUBLIC), matching the deleted DuelPromo's visibility condition. ChipDuelLobby retains 'Chips have no cash value and can't be redeemed, transferred, or sold.' and the region-gating line ('Chip duels are not available in your region...'). No disclosure lost.",
+      "reproduction": "N/A",
+      "fix": "None required."
+    },
+    {
+      "severity": "info",
+      "owasp": "A03",
+      "location": "app/src/components/LandingPage/LeaderboardTeaser.tsx and all moved components",
+      "issue": "No new untrusted-input/injection/redirect surface. New LeaderboardTeaser is a server component that awaits the existing server reads (topFreeClimbers/chipLeaderboard, each .catch(()=>[])); it fetches top-3 (was top-8) so it exposes FEWER records with identical fields and no PII added. No dangerouslySetInnerHTML, no user-controlled href (all hrefs are static nav constants: CHIP_DUELS_HREF, SIGNIN_HREF, DUEL_HREF), no template-injected URL, no window.location/redirect, no new process.env read in components.",
+      "reproduction": "N/A",
+      "fix": "None required."
+    },
+    {
+      "severity": "info",
+      "owasp": "A05",
+      "location": "commits 626173b, 0b0d642 (aa6c1af..HEAD)",
+      "issue": "No secrets and no env files in scope. Diff adds no api-key/secret/token/password/bearer literals. app/.env.local is untracked (git ls-files returns nothing) and appears in no commit in the range. No secret-bearing URL, constant-time compare, or rate limiter touched (per .claude/rules/security.md).",
+      "reproduction": "N/A",
+      "fix": "None required."
+    }
+  ],
+  "learnings": [
+    {
+      "forAgents": ["qa-acceptance"],
+      "kind": "note",
+      "topic": "chips-wallet-parity",
+      "insight": "The redundancy cut removed the /duel (DuelHome) teaser's Buy chips + Claim daily buttons; those actions now only exist on their canonical routes (/duel/chips lobby retains claim; BuyCreditsModal retains buy). This is intentional dedup, not a lost capability.",
+      "action": "In acceptance, confirm a user can still claim daily chips and buy chips via /duel/chips and the wallet, not via the /duel landing teaser.",
+      "confidence": "high"
+    },
+    {
+      "forAgents": ["software-engineer", "reviewer"],
+      "kind": "pattern",
+      "topic": "disclosure-gating-parity",
+      "insight": "When relocating a legal disclosure (18+/state restriction) between components, the visibility gate must move with it. Here DuelPromo showed it under PAID_DUELS_ENABLED_PUBLIC and LeaderboardTeaser reproduces the exact same gate — verified byte-for-byte. A relocation that changed the gate would silently hide/show a required disclosure.",
+      "action": "On any future disclosure move, diff both the string AND its enclosing conditional.",
+      "confidence": "high"
+    }
+  ]
+}
