@@ -750,9 +750,14 @@ function useElapsedSeconds(active: boolean): number {
   return seconds;
 }
 
-/** `m:ss` for an elapsed-seconds count (no hour component — queues are short). */
+/**
+ * `m:ss` for an elapsed-seconds count (no hour component — queues are short).
+ *
+ * Non-finite input reads as 0, not `NaN:NaN`: `Math.max`/`Math.min` propagate
+ * NaN through any argument, so the clamp needs an explicit finiteness guard.
+ */
 export function formatElapsed(totalSeconds: number): string {
-  const safe = Math.max(0, Math.floor(totalSeconds));
+  const safe = Number.isFinite(totalSeconds) ? Math.max(0, Math.floor(totalSeconds)) : 0;
   const minutes = Math.floor(safe / 60);
   const seconds = safe % 60;
   return `${minutes}:${String(seconds).padStart(2, "0")}`;

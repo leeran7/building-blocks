@@ -10,6 +10,10 @@ import { describe, it, expect } from "vitest";
 import { parseDuelInvite } from "../../src/lib/duelInvite";
 
 const ID = "abcdef123456"; // 12 chars, within [A-Za-z0-9_-]{6,64}
+// Stands in for the app's own origin. Injected explicitly so the same-origin
+// fixtures assert the rule, not whatever origin this environment happens to
+// resolve to (node tests resolve http://localhost:3000, prod www.doomstack.lol).
+const APP_ORIGIN = "https://doomstack.example";
 
 describe("parseDuelInvite — rejects (returns null, not a default)", () => {
   it("javascript: URL", () => {
@@ -26,6 +30,14 @@ describe("parseDuelInvite — rejects (returns null, not a default)", () => {
 
   it("cross-origin URL with an otherwise-valid /duel/<id> path", () => {
     expect(parseDuelInvite(`https://evil.dev/duel/${ID}`)).toBeNull();
+  });
+
+  it("URL whose origin differs from the injected app origin", () => {
+    expect(parseDuelInvite(`https://evil.dev/duel/${ID}`, APP_ORIGIN)).toBeNull();
+  });
+
+  it("absolute URL when no app origin can be determined", () => {
+    expect(parseDuelInvite(`${APP_ORIGIN}/duel/${ID}`, null)).toBeNull();
   });
 
   it("id segment too short (below the 6-char floor)", () => {
@@ -62,8 +74,8 @@ describe("parseDuelInvite — rejects (returns null, not a default)", () => {
 });
 
 describe("parseDuelInvite — accepts (returns the parsed id)", () => {
-  it("absolute origin + /duel/<id>", () => {
-    expect(parseDuelInvite(`https://doomstack.example/duel/${ID}`)).toBe(ID);
+  it("absolute app-origin URL + /duel/<id>", () => {
+    expect(parseDuelInvite(`${APP_ORIGIN}/duel/${ID}`, APP_ORIGIN)).toBe(ID);
   });
 
   it("root-relative /duel/<id> with a query string", () => {
