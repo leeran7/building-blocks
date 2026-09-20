@@ -1,0 +1,110 @@
+{
+  "agent": "reviewer",
+  "status": "success",
+  "summary": "Code-quality review of the /dashboard skeleton-flash fix (app/app/dashboard/page.tsx, new DashboardBody.tsx, deleted layout.tsx). Read the working-tree diff against HEAD myself rather than trusting the two upstream handoffs, and independently re-diffed `git show HEAD:app/app/dashboard/page.tsx` against DashboardBody.tsx: the byte-identical-JSX claim holds — every hunk is above `return (`, and from `<main id=\"main-content\">` through the closing SkeletonCard there is zero diff. Metadata moved correctly: the deleted layout's `robots: { index: false, follow: false }` is present verbatim at page.tsx:9-11 (and /dashboard is already in app/robots.ts's disallow list, so the belt-and-braces holds either way). No other file in the repo referenced the deleted layout, and DashboardBody's only non-test caller is page.tsx. Payload correctness: the server page's five reads and per-read .catch() fallbacks match /api/dashboard/route.ts:41-51 exactly, nothing un-serializable crosses the RSC boundary (createdAt/completedAt are .toISOString()'d in src/db/climb.ts:273 and src/db/duel.ts:761; freeClimb is all scalars), and `duelStats && {…}` correctly yields null for a missing stats row. The duelStats narrowing is the RIGHT call, not a concern: DuelRecordData is the declared prop type of the field, so dropping a field DuelRecordCard needs is a typecheck error in page.tsx, and the narrowing makes the server path strictly cleaner than the API path (which ships user_id/updated_at nobody reads). No critical findings — nothing here blocks merge. Eight non-blocking findings, three of them warnings worth fixing before or shortly after merge: (a) the payload assembly is now duplicated verbatim in two producers and only one of them is type-checked against DashboardData; (b) BetaBanner mounts late on the server-populated path and shifts the whole content column down; (c) initialData only SEEDS useState, so a restored router-cache payload (back/forward) never revalidates — the old code refetched on every mount. All are display/maintainability issues, not correctness or trust-boundary defects.",
+  "timestamp": "2026-09-20T14:08:00Z",
+  "goal": "Review the /dashboard server-side payload resolution for correctness, design, and maintainability; classify findings and confirm the changed control has a non-test caller.",
+  "artifacts": [
+    "app/app/dashboard/page.tsx",
+    "app/app/dashboard/DashboardBody.tsx",
+    "app/app/dashboard/layout.tsx (deleted)",
+    "app/tests/components/dashboardBody.test.tsx"
+  ],
+  "exitCriteria": {
+    "diff_read_independently": true,
+    "byte_identical_jsx_claim_reverified": true,
+    "metadata_move_reverified": true,
+    "changed_control_has_non_test_caller": true,
+    "data_boundary_assessed": true,
+    "null_token_render_paths_assessed": true,
+    "auth_redirect_race_traced": true,
+    "no_critical_findings": true
+  },
+  "findings": [
+    {
+      "severity": "warning",
+      "location": "app/app/dashboard/page.tsx:37-66 vs app/app/api/dashboard/route.ts:41-76",
+      "issue": "The dashboard payload now has two producers and only one is type-checked. page.tsx builds a `DashboardData`-typed object (so tsc enforces the shape); route.ts builds an untyped literal inside NextResponse.json() and the client casts `await res.json()` to DashboardData with no runtime check (DashboardBody.tsx:88). The five reads, their .catch() fallbacks, and the user{id,email,username,betaJoined} construction are duplicated verbatim. They agree today (I diffed them field by field), but a future field add/rename in DashboardData will fail the build in page.tsx and silently pass in route.ts — breaking only the fallback path, which is exactly the path nobody exercises locally. This is the failure mode context/conventions.md already calls out for route-shape changes.",
+      "fix": "Extract one `buildDashboardPayload(uid): Promise<DashboardData>` (e.g. app/src/db/dashboard.ts or src/lib/dashboardPayload.ts), call it from both page.tsx and route.ts, move `DashboardData` out of the client component into that module, and annotate the route's response so tsc checks it: `const payload: DashboardData = await buildDashboardPayload(decoded.uid); return NextResponse.json(payload);`."
+    },
+    {
+      "severity": "warning",
+      "location": "app/app/dashboard/DashboardBody.tsx:191",
+      "issue": "Layout shift newly introduced on the server-populated path. `{token && <BetaBanner token={token} />}` is the first child of the content column (a flex-col gap-5), and on the first paint `token` is always null — the server renders inside AuthProvider's initial state, and hydration keeps it null until onIdTokenChanged resolves. So a user with betaJoined=false and a valid cookie sees the real dashboard paint, then ~100-500ms later the beta banner inserts itself above WalletCard/DuelRecordCard and pushes the whole column down (~56px at sm+, ~110px stacked on mobile where the banner is flex-col). Before this change the banner and the cards appeared in the same frame, so there was no shift. The new test at tests/components/dashboardBody.test.tsx:39 renders exactly this state (token null, betaJoined false) and its markup contains no banner, which confirms the first-paint half of the sequence.",
+      "fix": "`betaJoined` is already known server-side — use it. Either reserve the slot when `!fetchState.data.user.betaJoined` (wrap the banner in a `min-h-[…]` container so the late mount fills reserved space instead of displacing content), or give BetaBanner a `token: string | null` prop and render it immediately with its Join button disabled until the token arrives. Same treatment applies to any other `token &&` child added to this column later."
+    },
+    {
+      "severity": "warning",
+      "location": "app/app/dashboard/DashboardBody.tsx:67-71,105-109",
+      "issue": "`initialData` only seeds useState and the client fetch is permanently suppressed while it is non-null, so the component has no revalidation path at all. Two concrete consequences. (1) Back/forward: user is on /dashboard (record 3-1) -> navigates to /duel -> wins -> presses Back. Next 16 serves back/forward navigations from the client router cache, so the restored RSC payload carries the pre-duel initialData; DashboardBody remounts, seeds from it, and the fetch effect early-returns on `initialData !== null` -> the stale 3-1 record is displayed with nothing to correct it short of a reload. The old code refetched /api/dashboard on every mount, so back-nav always self-healed. (2) Same-URL re-navigation (clicking the Navbar's Dashboard link while already on /dashboard) or any future `router.refresh()` delivers fresh `initialData` as a prop to a still-mounted component, where the seed is ignored — the server does the work and the UI shows the old numbers. Nothing calls router.refresh() today (grepped), so (2) is latent; (1) is reachable now. Not critical: it is stale display of the user's own already-correct data, no write path and no cross-user exposure.",
+      "fix": "Either sync the prop instead of only seeding it — `useEffect(() => { if (initialData) setFetchState({ status: 'success', data: initialData }); }, [initialData]);` — which fixes (2) and costs one extra render, or make the client fetch a post-paint background revalidate (drop the `initialData !== null` early-return but keep the seeded state so nothing flashes), which fixes both at the cost of one extra /api/dashboard call per view. Worth a browser check by qa-acceptance before choosing: repro is dashboard -> duel -> complete -> browser Back."
+    },
+    {
+      "severity": "info",
+      "location": "app/app/dashboard/DashboardBody.tsx:197 -> app/src/components/Dashboard/WalletCard.tsx:50-68,88-93",
+      "issue": "Crash-safety of the new WalletCard-with-null-token path checks out (refresh() early-returns at WalletCard.tsx:51, useClaimDailyChips's claim() early-returns on !token, dailyClaimVisibility(null, 'idle') hides the claim button, and BuyCreditsModal disables its Buy button on !token) — but the UX is weaker than the verifier's 'renders 0 chips, no crash' summary implies. `const chips = wallet?.playCents ?? 0` renders a confident '0 chips' in 3xl bold as its loading state, and the window in which a user with a real balance sees that has grown: it used to be just the /api/wallet round-trip (after auth had already resolved), now it is auth-resolution + round-trip, and it starts on the very first painted frame instead of after a spinner. Secondary: '+ Buy chips' is clickable during that window and opens a modal whose Buy button is disabled with no explanation until the token lands.",
+      "fix": "Pre-existing pattern, so not this change's to fix — but this change is what makes it visible. Render a neutral placeholder while `wallet === null` (e.g. '—' or a tabular-nums skeleton of the same width) instead of a numeric 0, so a real balance is never misreported as zero."
+    },
+    {
+      "severity": "info",
+      "location": "app/app/dashboard/DashboardBody.tsx:98-101,112-121",
+      "issue": "Traced the flash-then-redirect edge case. It is reachable, but benign. initialData is non-null only when the firebaseToken cookie holds an ID token that verifyIdToken accepts, i.e. minted within ~1h (the cookie's Max-Age is 7 days per authCookie.ts:25, so most idle returns land on the null/fallback path instead — the fix only pays off inside the token's validity window, which qa-acceptance should account for when measuring). Within that window the client can still resolve to signed-out: refresh-token revocation or account deletion (verifyIdToken is called without checkRevoked, matching requireAuth, so the ID token stays valid for the rest of its hour), or blocked/cleared Firebase IndexedDB persistence with document.cookie intact. In that case real dashboard content paints, then the auth effect pushes to /auth/signin. No cross-user exposure: initialData is derived from the verified uid inside that same cookie, so the content is the cookie-holder's own. Signing out in another tab is NOT such a case — clearTokenCookie() runs in the same callback, so the next server render sees no cookie. One behaviour delta worth naming: because `if (!user) return null` is now nested under `initialData === null`, the content stays on screen during the redirect instead of blanking first.",
+      "fix": "No change required. If the team wants the stricter behaviour, gate the content render on `!(authResolved && !user)` rather than on initialData alone — but that reintroduces a blank frame for the common case and is not worth it."
+    },
+    {
+      "severity": "info",
+      "location": "app/app/settings/layout.tsx",
+      "issue": "Consistency follow-up in an untouched file, flagged not fixed. Deleting app/app/dashboard/layout.tsx was correct, but its twin now survives with a comment that this cycle's sibling change falsified: 'settings' page.tsx is \"use client\" and cannot export metadata directly' — settings/page.tsx has been an async server component since the precedent this change mirrors. The two mirrored routes now carry the same metadata by two different mechanisms.",
+      "fix": "Separate change, not this one: move `robots: { index: false, follow: false }` onto app/app/settings/page.tsx and delete app/app/settings/layout.tsx, exactly as was done here."
+    },
+    {
+      "severity": "info",
+      "location": "app/app/dashboard/page.tsx:37-46",
+      "issue": "Perf shape of the trade, for qa-acceptance to measure rather than a defect to fix. The five reads are the same ones the API route already ran (no N+1 introduced, and the client fetch is correctly suppressed so total query count per view is unchanged), but they have moved from a post-paint XHR into the blocking TTFB path — and getUserFreeClimbRecord alone is three queries, two of them COUNTs over climb_records. Those are index-served (climb_record_leaderboard_idx on [category_slug, peak_y desc], declared in schema.prisma:132, so the architecture rule on schema-declared indexes is satisfied), but the total-climbers COUNT is still O(rows-in-category) and grows with the leaderboard. There is no loading.tsx for the segment (none anywhere in app/, consistent with the /settings precedent), which is the right call — a route-level fallback would just reintroduce a skeleton — but it does mean a cold navigation shows the previous page/blank until the server responds.",
+      "fix": "No code change. Measure server render time for /dashboard under a realistic climb_records row count; if the total-climbers COUNT dominates, cache it (it is category-global, not per-user) rather than adding a loading.tsx."
+    },
+    {
+      "severity": "info",
+      "location": "git status (working tree)",
+      "issue": "app/app/dashboard/DashboardBody.tsx and app/tests/components/dashboardBody.test.tsx are untracked, and the layout.tsx deletion is unstaged. A `git commit -a` would capture the deletion and the page.tsx edit but silently drop the two new files, producing a commit that cannot build.",
+      "fix": "Integrator: stage explicitly — `git add app/app/dashboard/DashboardBody.tsx app/tests/components/dashboardBody.test.tsx` plus `git rm app/app/dashboard/layout.tsx` — and confirm `git status --short` is clean before committing. Branch is claude/amazing-pascal-xjxhdl; per context/git.md open a PR against main."
+    }
+  ],
+  "feedback": [],
+  "learnings": [
+    {
+      "topic": "architecture",
+      "kind": "caveat",
+      "forAgents": ["software-engineer", "reviewer", "qa-acceptance"],
+      "insight": "The server-resolves-payload-then-hand-to-client-component pattern (settings/SettingsForm, now dashboard/DashboardBody) has a structural side effect nobody has written down: `initialData` is a useState SEED, not a binding. Once the component is mounted, fresh server data arriving as a prop — from a same-URL navigation, a router.refresh(), or a restored router-cache entry on back/forward — is ignored, and because the client fetch is deliberately suppressed while initialData is non-null, there is no second source of truth either. The pre-fix code refetched on every mount, so it self-healed; the fixed code does not. Every future page converted to this pattern inherits the same blind spot.",
+      "action": "When applying this pattern, decide explicitly between (a) syncing the prop — `useEffect(() => { if (initialData) setState(seed(initialData)); }, [initialData])` — and (b) a post-paint background revalidate that keeps the seeded first paint. Do not leave seed-only as an unexamined default, and add a back/forward-after-a-mutation step to the acceptance script for the converted route.",
+      "confidence": "high"
+    },
+    {
+      "topic": "ux",
+      "kind": "lesson",
+      "forAgents": ["software-engineer", "qa-acceptance", "reviewer"],
+      "insight": "Moving a page's first paint server-side splits what used to be one frame into two: server-known data paints immediately, but every child gated on a client-only value (`token && <X/>`, `user && <Y/>`) now mounts a few hundred ms later. If any of those children sit in normal flow above other content — BetaBanner is the first child of the dashboard's flex column — the fix for a skeleton flash buys a layout shift in its place. The crash-safety review of newly-null-token children (which both upstream agents did) does not catch this; only asking 'where does this child sit in the flow, and what moves when it appears?' does.",
+      "action": "When converting a page to server-resolved initialData, list every `token &&` / `user &&` child in the render tree, and for each one either reserve its space or drive its visibility from a field the server already knows (here: user.betaJoined). Check the resulting first-paint markup against the post-auth markup, not just for crashes.",
+      "confidence": "high"
+    },
+    {
+      "topic": "architecture",
+      "kind": "lesson",
+      "forAgents": ["software-engineer", "security-reviewer", "verifier"],
+      "insight": "This conversion creates a second producer of an existing API route's response shape, and the two are asymmetrically type-checked: the server component builds a typed object (tsc enforces it), while the route handler builds a bare literal inside NextResponse.json() (tsc enforces nothing) and the client casts the JSON. The shapes match today only because the developer copied the block by hand. The route.ts side is also the one that will silently rot, because once the server path works, the fallback path is the one nobody exercises locally.",
+      "action": "Treat 'server component duplicates an API route's read block' as a refactor trigger, not an acceptable copy: extract one payload builder returning the shared interface, call it from both, and annotate the route's response with that interface so the compiler guards the fallback path too.",
+      "confidence": "high"
+    },
+    {
+      "topic": "build",
+      "kind": "caveat",
+      "forAgents": ["qa-acceptance", "integrator"],
+      "insight": "The firebaseToken cookie lives 7 days (authCookie.ts:25) but the ID token inside it is valid ~1h, and the server path calls verifyIdToken on the cookie value. So the flash fix only engages when the cookie was last written within the token's validity window; a cold return after an idle period falls back to the old spinner-then-fetch path by design. Separately, the guest ('Continue as guest') sign-in at app/auth/signin/page.tsx:381-382 pushes to the redirect target without calling setTokenCookie first — unlike the email and Google paths, which set it explicitly before pushing — so the first /dashboard render after a guest sign-in also takes the fallback path.",
+      "action": "Acceptance-test the fix on a freshly signed-in email/Google session (cookie written seconds ago) AND on a >1h-idle return; expect server-populated first paint only in the former. Do not file the idle case as a regression — it is the designed fallback.",
+      "confidence": "high"
+    }
+  ],
+  "nextStage": "qa-acceptance",
+  "loopBackTo": null
+}

@@ -1,0 +1,150 @@
+{
+  "agent": "security-reviewer",
+  "status": "success",
+  "timestamp": "2026-09-20T15:02:00Z",
+  "iteration": 2,
+  "revisionOf": "loop/handoffs/software-engineer-2026-09-20T145500Z.json",
+  "goal": "Security-review iteration 2 of the /dashboard skeleton-flash change: the new shared src/db/dashboard.ts::buildDashboardPayload and both of its call sites, the narrowed /api/dashboard response shape, the now-unconditional client revalidation in DashboardBody (rate-limit / DoS-adjacent question), BetaBanner's nullable token prop across the whole component, the four protected auth files, and a lighter-touch re-proof of cross-user isolation through the new data path.",
+  "summary": "No critical or high findings; nothing blocks merge. Iteration 2 is security-neutral-to-positive relative to iteration 1. (1) buildDashboardPayload(uid, email) correctly takes both as TRUSTED parameters and performs no verification of its own — verification stays at the two call sites, which is the right layering. Verified there are exactly two callers in the tree (grep for the symbol across app/: src/db/dashboard.ts definition, app/app/dashboard/page.tsx:40, app/app/api/dashboard/route.ts:42 — no third caller, no test caller passing an arbitrary uid). page.tsx derives uid/email from `await verifyIdToken(cookieStore.get('firebaseToken')?.value)` in the same request; route.ts from `await requireAuth(request)` which is the unchanged Bearer path. Neither call site accepts a uid from a query param, header, body, or route segment; there is no `searchParams`/`params` usage on the page at all. The extraction moved code verbatim — the five reads, their per-read .catch() fallbacks and the duelStats narrowing are byte-equivalent to iteration 1's page.tsx block and to HEAD's route.ts block. All five reads are still plain uid-keyed Prisma reads with no unstable_cache, no React cache(), and no write-on-read: prisma.user.findUnique({where:{id: uid}}), getUserFreeClimbRecord (climb.ts:209 findUnique + two counts), getUserClimbReplays (climb.ts:255 findMany where userId), getDuelStats (duel.ts:697 findUnique where user_id — note this is findUnique, NOT the findUniqueOrThrow/upsert siblings at 632/652/691), getRecentDuelsForUser. No ghost-record creation path (trust.md rule 6 clear). (2) The /api/dashboard duelStats narrowing is a data-minimization IMPROVEMENT, not a regression: user_id and updated_at are dropped and nothing consumes them. Grepped every duelStats reference in app/: the only response consumers are DashboardBody (types it as DashboardData, renders DuelRecordCard which declares exactly {wins, losses, current_streak, best_streak}) and app/mobile/src/contexts/AppDataContext.tsx, whose own DashboardData declares only {user{id,email,username}, freeClimb} and contains zero duelStats references. No client-side authorization consumed the dropped user_id — DuelReplaysSection's `userId` prop comes from user.id (which is unchanged and is display/slot logic, not authz; all authorization is server-side in the route handlers). The dropped user_id was also redundant with user.id, so nothing left the response that the client could not already see about itself. (3) The unconditional background revalidation is frequency-NEUTRAL on the client and does NOT change any attacker ceiling, but it IS net-new server load on cold loads — measured, not assumed. `git show HEAD:app/app/dashboard/page.tsx` confirms the shipping version already called fetchDashboard() from a mount effect with deps [authLoading, user, token, router, fetchDashboard] and no suppression, i.e. one /api/dashboard call per mount — byte-identical frequency to iteration 2. So rapid back/forward cycling produces exactly the request rate production already sustains. What IS new versus HEAD: a cold (non-history-traversal) /dashboard load now builds the payload TWICE — once in the server component and once in the client revalidation — so 10 DB queries instead of 5, including 4 instead of 2 table-wide COUNTs on climbRecord inside getUserFreeClimbRecord. /api/dashboard has NO rate limiter and never had one (confirmed against `git show HEAD:app/app/api/dashboard/route.ts` — no checkRateLimit import at HEAD either, so nothing was removed). That is consistent with this repo's convention rather than an outlier: of the 33 rate-limited handlers, the read analogue /api/settings limits only its PUT (route.ts:49/60), not a GET. Both the SSR and the API path require a *valid* Firebase ID token before any DB work happens (a forged cookie throws inside verifyIdToken before buildDashboardPayload is reached; a forged Bearer 401s), so an unauthenticated attacker cannot reach the queries at all, and an authenticated one gains nothing from the browser doing two requests — they would curl /api/dashboard in a loop, which was equally unbounded at HEAD. Filed low (capacity, pre-existing gap surfaced by a 2x legitimate-load increase), not high: the amplification factor per HTTP request is unchanged at 1. (4) BetaBanner null-handling is safe across the WHOLE component, read end to end (127 lines), not just the described lines. `token` appears exactly twice: the new `if (!token) return;` first statement of handleSubmit (before setState('loading'), so a null-token click cannot even strand the button in a spinner) and the Authorization header at line 52, which is unreachable past that guard. The Join button is additionally `disabled={state === 'loading' || token === null}`. The other three interactive paths (platform toggle, dismiss, success-state dismiss) never touch token and fire no requests. There is exactly ONE call site in the entire repo (DashboardBody.tsx:201) — grepped app/ and app/mobile/ — so no other caller can be affected by widening the prop type; widening string -> string|null is variance-safe for callers regardless. No Bearer-null/`Bearer undefined` request to /api/beta/join is constructable, and that route would 401 via requireAuth anyway. (5) Protected auth files: `git diff HEAD --stat` over app/app/api/dashboard/route.ts, src/lib/requireAuth.ts, src/lib/firebaseAdmin.ts and src/lib/authCookie.ts returns route.ts alone (9 insertions / 29 deletions); requireAuth.ts, firebaseAdmin.ts and authCookie.ts produce NO output at all, i.e. zero diff. Reading route.ts's diff hunk by hunk: the auth block (requireAuth + AuthError handling + the 401 fallback), the runtime export, the structured success log including `uid: decoded.uid`, the 500 envelope and console.error are all untouched; the only changes are the import swap and replacing the inline Promise.all with the builder call. (6) Cross-user isolation re-proved END TO END through the new data path rather than by inspection, against the current production build (.next BUILD_ID 14:44, newer than every changed source): started `next start -p 3977` with throwaway Firebase env + a dead DATABASE_URL, minted a fresh structurally-valid RS256 JWT (correct iss/aud/iat/exp/auth_time, sub and user_id = victim-uid-SECREV2, email = victim-secrev2@example.com, signed with a throwaway key so the signature is garbage against Google's JWKS) and replayed iteration 1's probe on BOTH consumers of the new builder. GET /dashboard with that cookie: 200, `initialData\":null` in the flight payload, 0 occurrences of victim-uid-SECREV2, 0 of victim-secrev2@example.com, 0 occurrences of the raw token anywhere in the body, and the server log contains neither the forged identity nor the raw token. GET /api/dashboard with the same token as Bearer: 401 {\"error\":\"Invalid or expired token\",\"code\":\"UNAUTHORIZED\"}. Headers on the PII-bearing route re-measured and unchanged from iteration 1: `Cache-Control: private, no-cache, no-store, max-age=0, must-revalidate` on both the HTML response and the RSC navigation payload (`/dashboard?_rsc`, which also carried `initialData\":null` and `Vary: rsc, next-router-state-tree, next-router-prefetch, next-router-segment-prefetch, Accept-Encoding`), `X-Frame-Options: SAMEORIGIN`, `X-Content-Type-Options: nosniff`, and the `noindex, nofollow` robots meta still present after the layout.tsx deletion. Separately traced the one way a wrong-user first paint could occur — a firebaseToken cookie belonging to a previous account while the client Firebase session is a different one — and confirmed it is not constructable: AuthContext clears the cookie on the null branch of onIdTokenChanged and in signOut (AuthContext.tsx:75,88), and re-sets it on every token event, so the cookie tracks the current session. Worth recording that iteration 2 strictly IMPROVES this hypothetical: the unconditional revalidation would now overwrite any mismatched first paint with the Bearer-token user's own data, whereas iteration 1's suppressed fetch would have left it on screen indefinitely. Secret scan of every changed and new file (src/db/dashboard.ts, page.tsx, DashboardBody.tsx, route.ts, BetaBanner.tsx, both test files) for key/secret/private-key/sk_live/AIza/Bearer-literal/JWT patterns: clean. `pnpm audit` in app/: 4 vulnerabilities (1 high deepmerge-ts via prisma > @prisma/config, 3 moderate: uuid via @capacitor/cli>xcode and via firebase-admin>@google-cloud/storage>gaxios, fflate via @vercel/og>satori) — identical to iteration 1, and `git diff HEAD --stat app/package.json app/pnpm-lock.yaml` is empty, so zero introduced. Read-only review: I changed no repo files, committed nothing, pushed nothing; the throwaway server was stopped, the forged key and scratch files live outside the repo, and `git status --porcelain` afterwards shows exactly the same working tree the software-engineer left (no AGENTS.md/CLAUDE.md/next-env.d.ts churn from my run).",
+  "artifacts": [
+    "app/src/db/dashboard.ts",
+    "app/app/dashboard/page.tsx",
+    "app/app/api/dashboard/route.ts",
+    "app/app/dashboard/DashboardBody.tsx",
+    "app/src/components/BetaBanner.tsx",
+    "app/tests/components/dashboardBodyRevalidate.test.tsx"
+  ],
+  "exitCriteria": {
+    "no_critical_security_findings": true,
+    "no_high_security_findings": true,
+    "no_hardcoded_secrets_in_diff": true,
+    "shared_builder_takes_uid_email_as_trusted_params_by_design": true,
+    "both_call_sites_derive_uid_from_a_freshly_verified_token": true,
+    "no_third_caller_of_buildDashboardPayload": true,
+    "no_uid_reachable_from_query_params_headers_or_body": true,
+    "five_reads_still_uid_keyed_uncached_and_read_only": true,
+    "no_write_on_read_or_getOrCreate_in_the_builder": true,
+    "duelstats_narrowing_is_data_minimization_not_regression": true,
+    "no_consumer_of_dropped_user_id_or_updated_at": true,
+    "no_client_side_authorization_depended_on_dropped_fields": true,
+    "client_fetch_frequency_identical_to_HEAD_one_per_mount": true,
+    "api_dashboard_had_no_rate_limiter_at_HEAD_either": true,
+    "unauthenticated_requests_cannot_reach_the_db_reads": true,
+    "attacker_request_amplification_factor_unchanged": true,
+    "betabanner_null_token_safe_in_whole_component": true,
+    "betabanner_single_call_site_confirmed": true,
+    "no_bearer_null_request_constructable": true,
+    "protected_auth_files_zero_diff_except_sanctioned_route_refactor": true,
+    "route_auth_block_status_codes_and_logging_unchanged": true,
+    "forged_jwt_yields_null_initial_data_on_page": true,
+    "forged_jwt_yields_401_on_api": true,
+    "forged_identity_and_raw_token_absent_from_body_and_logs": true,
+    "cache_control_private_no_store_on_html_and_rsc_payload": true,
+    "noindex_and_x_frame_options_still_present": true,
+    "cookie_session_mismatch_not_constructable_signout_clears_cookie": true,
+    "no_new_dependencies": true,
+    "audit_findings_all_preexisting_and_identical_to_iteration_1": true,
+    "read_only_no_commits_working_tree_unchanged": true
+  },
+  "findings": [
+    {
+      "severity": "low",
+      "owasp": "A04 Insecure Design",
+      "location": "app/app/api/dashboard/route.ts (no checkRateLimit) + app/app/dashboard/page.tsx:40 / app/app/dashboard/DashboardBody.tsx:111-115 (two payload builds per cold load)",
+      "issue": "GET /api/dashboard has no rate limiter, and a cold /dashboard load now builds the payload twice — once in the server component and once in the client background revalidation — so 10 DB queries per page load instead of HEAD's 5, including 4 instead of 2 table-wide COUNT queries on climbRecord inside getUserFreeClimbRecord (src/db/climb.ts:227-235). The missing limiter is pre-existing (confirmed absent at HEAD too, so nothing was removed) and consistent with repo convention — the read analogue /api/settings rate-limits only its PUT — but the doubled legitimate load lands on an unmetered endpoint.",
+      "reproduction": "Authenticate normally, then load /dashboard repeatedly (or hold a session and curl `GET /api/dashboard` with a valid Bearer token in a loop): no 429 is ever returned, and each request runs five Prisma reads including two full COUNTs over climbRecord. Back/forward cycling is NOT the amplifier — that path restores the RSC segment and issues exactly one API call per mount, the same as HEAD.",
+      "fix": "Non-blocking. If the orchestrator wants it closed: add `checkRateLimit({namespace: 'dashboard', identifier: decoded.uid, max: <n>, windowSeconds: 60, failMode: 'open'})` after requireAuth in route.ts, matching the /api/settings PUT pattern (fail-open, UX path). The cheaper win is the doubled cost itself — the server component could pass its already-resolved payload age to the client so the first revalidation after a fresh SSR render is skipped, but that reintroduces exactly the staleness class qa-acceptance loop-backed on, so it should not be attempted without the Playwright back-navigation repro.",
+      "falsePositiveNote": "Deliberately NOT raised to high: the per-request amplification factor is 1, unchanged from HEAD, so an attacker's achievable query rate is identical to what shipping code already allows — they would hit /api/dashboard directly rather than drive a browser. Both the SSR and API paths require a valid Firebase ID token before any DB work (proved: a forged cookie throws in verifyIdToken before buildDashboardPayload is reached; a forged Bearer 401s), so there is no unauthenticated path to the queries. This is a capacity note about legitimate traffic, not a new attack ceiling."
+    },
+    {
+      "severity": "low",
+      "owasp": "A09 Security Logging and Monitoring Failures",
+      "location": "app/app/dashboard/page.tsx:42-44",
+      "issue": "CARRIED FORWARD, UNCHANGED from my iteration-1 finding — the catch body is still comment-only. A persistent server-side failure (Firebase Admin degradation, Prisma pool exhaustion) silently downgrades every /dashboard to the client fallback with no server-side signal attributable to the page.",
+      "reproduction": "Make verifyIdToken or the builder's prisma.user.findUnique throw in production; /dashboard quietly serves initialData=null with no log line from the page.",
+      "fix": "Optional, non-blocking, unchanged recommendation: log the error constructor name only (never the token, never the decoded claims) in the catch. Detection is partially preserved because the client fallback immediately calls /api/dashboard, which does log — and iteration 2 strengthens that, since the client fetch now always runs. Deviates from the /settings precedent, so it stays a judgement call, not a security requirement.",
+      "falsePositiveNote": "Fail-closed (no data rendered), so this costs observability, not confidentiality or integrity."
+    },
+    {
+      "severity": "info",
+      "owasp": "A01 Broken Access Control",
+      "location": "app/src/db/dashboard.ts:36-39",
+      "issue": "By design and correctly, buildDashboardPayload trusts its `uid` and `email` arguments completely — every one of the five reads is keyed on the caller-supplied uid and the returned user.id/user.email are echoes of the arguments. It is therefore an IDOR primitive for any future caller that passes a non-token-derived value. Today both callers are safe (page.tsx:40 from verifyIdToken on this request's cookie; route.ts:42 from requireAuth) and there is no third caller anywhere in the tree, including tests. Recording it so the property is explicit rather than incidental.",
+      "reproduction": "Not reachable today. Would become reachable the moment someone writes e.g. `buildDashboardPayload(searchParams.uid, ...)` or an admin/impersonation route that forwards a client-supplied id.",
+      "fix": "No code change required — verification correctly stayed at the call sites rather than migrating into the data-access helper. Optionally strengthen the existing JSDoc from its current note about `email` to an explicit contract line: 'uid and email MUST come from a token verified on this request (verifyIdToken or requireAuth). Never pass a request-supplied value.' Reviewers of any future caller should treat a non-`decoded.uid` argument as a blocking finding.",
+      "falsePositiveNote": "No constructable attack path with the current two callers — verified by grepping the symbol across app/."
+    },
+    {
+      "severity": "info",
+      "owasp": "A03 Injection",
+      "location": "app/app/api/dashboard/route.ts:56 (response shape) vs HEAD",
+      "issue": "Confirmed IMPROVEMENT, not a regression: the response's duelStats is now the four-field DuelRecordData instead of the raw Prisma DuelStats row, dropping user_id and updated_at. Checked every consumer — DashboardBody types the response as DashboardData and renders DuelRecordCard, which declares exactly those four fields, and app/mobile/src/contexts/AppDataContext.tsx declares its own narrower DashboardData (user + freeClimb only) with zero duelStats references. No client-side authorization check consumed user_id (there is none — all authorization is server-side in route handlers per trust.md rule 5), and it was redundant with user.id anyway.",
+      "reproduction": "n/a — strictly fewer fields leave the server.",
+      "fix": "None. This also makes the two producers' payloads identical, so the exposure question for /dashboard's SSR output stays a trivial subset check rather than a field-by-field argument.",
+      "falsePositiveNote": "Explicitly checked for the red flag the task called out (a dropped field used client-side for an authorization decision) and found none."
+    },
+    {
+      "severity": "info",
+      "owasp": "A07 Identification and Authentication Failures",
+      "location": "app/app/dashboard/page.tsx:38 (and app/app/settings/page.tsx, app/src/lib/requireAuth.ts:52)",
+      "issue": "CARRIED FORWARD, UNCHANGED: verifyIdToken is still called without `{ checkRevoked: true }`, so a server-side-revoked session stays renderable until the ID token's own exp (~1h). Exact parity with requireAuth, which every existing authenticated route relies on.",
+      "reproduction": "Revoke a user's refresh tokens via the Admin SDK, then reload /dashboard within the unexpired ID token's lifetime.",
+      "fix": "No action for this change. If ever deemed unacceptable it must be closed in firebaseAdmin.ts for all callers at once, never forked here.",
+      "falsePositiveNote": "Requires already possessing the victim's unexpired ID token, which is itself the bearer credential for /api/dashboard — no escalation."
+    },
+    {
+      "severity": "info",
+      "owasp": "A06 Vulnerable and Outdated Components",
+      "location": "app/ dependency tree (pre-existing)",
+      "issue": "`pnpm audit` reports 4 vulnerabilities (1 high, 3 moderate), identical to iteration 1: high deepmerge-ts (GHSA-ggr8-5vv4-36mx, via prisma > @prisma/config), moderate uuid@7.0.3/@9.0.1 (GHSA-w5hq-g745-h8pq / CVE-2026-41907, via @capacitor/cli > xcode and via firebase-admin > @google-cloud/storage > gaxios), moderate fflate@0.7.3 (GHSA-px8p-9vwx-vf98, via @vercel/og > satori).",
+      "reproduction": "cd app && pnpm audit",
+      "fix": "Out of scope: `git diff HEAD --stat app/package.json app/pnpm-lock.yaml` is empty — this change adds, removes and upgrades nothing. The uuid advisory affects only v3/v5/v6 generation, which the gaxios path does not use for anything reachable from /dashboard; deepmerge-ts and the capacitor uuid are CLI/build-time; fflate's unzipSync is not reached from this path. Track in a separate dependency-refresh cycle.",
+      "falsePositiveNote": "None introduced by this diff."
+    }
+  ],
+  "feedback": [],
+  "learnings": [
+    {
+      "topic": "security",
+      "kind": "lesson",
+      "forAgents": ["security-reviewer", "reviewer", "software-engineer"],
+      "insight": "When a refactor extracts a data-access helper that takes `uid` as a parameter (here src/db/dashboard.ts::buildDashboardPayload), the security question is not 'does the helper verify?' — it must NOT, verification belongs at the call sites — but 'is the set of callers closed, and does every one of them derive uid from a token verified on THIS request?'. The cheap, complete check is to grep the exported symbol across the whole product directory (including tests and any second app such as app/mobile/) and read each call site's uid expression. Two callers here, both `decoded.uid` from verifyIdToken/requireAuth, zero test callers passing an arbitrary id. That grep is also the regression guard: the helper is a ready-made IDOR primitive for any future caller that forwards a query param, so the caller list — not the helper body — is what a later reviewer must re-check.",
+      "action": "For every extracted uid-taking data helper, record the closed caller list in the review and state the contract explicitly ('uid MUST be token-derived'). Treat any future call site whose argument is not a verified-token field as a blocking finding, and prefer that contract be written into the helper's JSDoc so it survives the next refactor.",
+      "confidence": "high"
+    },
+    {
+      "topic": "security",
+      "kind": "lesson",
+      "forAgents": ["security-reviewer", "reviewer", "qa-acceptance"],
+      "insight": "A 'we now fetch on every mount' change reads like a rate-limit/DoS question but usually is not one, and the way to settle it is to separate client REQUEST FREQUENCY from server WORK PER PAGE LOAD and compare each against HEAD rather than against the previous iteration. Here `git show HEAD:app/app/dashboard/page.tsx` showed the shipping version already fetched once per mount with no suppression, so frequency is byte-identical and back/forward cycling buys an attacker nothing; what actually changed versus HEAD is that a cold load now builds the payload twice (server render + client revalidation), i.e. 2x DB work for legitimate traffic only. Since the per-HTTP-request amplification factor stayed at 1 and both paths require a valid ID token before any query runs, that is a capacity finding, not a security-ceiling one. The generalisable test for 'is this DoS-adjacent?' is: does the change raise the amount of server work an attacker can cause PER REQUEST THEY SEND? If not, it is capacity planning.",
+      "action": "When reviewing a fetch-frequency change, diff the effect's guard against HEAD (not against the previous iteration), then state the attacker's per-request amplification factor explicitly. Only escalate past low when that factor increases or when an unauthenticated path reaches the expensive work.",
+      "confidence": "high"
+    },
+    {
+      "topic": "security",
+      "kind": "caveat",
+      "forAgents": ["security-reviewer", "verifier", "qa-acceptance"],
+      "insight": "Re-running the forged-JWT probe on Next 16 against an RSC payload (not just the HTML) has a sharp edge: a request carrying `RSC: 1` gets a 307 to `/dashboard?_rsc` and you must request that exact normalised URL — `?_rsc` with NO value — to get a 200. Adding your own value (`?_rsc=abc12`) keeps redirecting, and adding `Next-Router-Prefetch: 1` sends curl into an unfollowable redirect loop (`/dashboard?_rsc&_rsc=<hash>`, a fresh hash each hop), so hand-rolled curl cannot exercise the prefetch path at all on this version — that one needs a real browser. The navigation-RSC payload IS reachable and is worth checking separately from the HTML, because it is the response a client-side navigation actually receives: here it carried `initialData\":null` for a forged cookie and the same `Cache-Control: private, no-cache, no-store` plus `Vary: rsc, next-router-state-tree, next-router-prefetch, next-router-segment-prefetch`.",
+      "action": "When probing an RSC route with curl, request `<path>?_rsc` with an empty value and the `RSC: 1` header, and assert on the flight payload as well as the HTML. Do not try to reproduce prefetch behaviour with curl on Next 16 — use Playwright, or state the prefetch question as unresolved rather than guessing.",
+      "confidence": "high"
+    },
+    {
+      "topic": "security",
+      "kind": "lesson",
+      "forAgents": ["software-engineer", "reviewer", "security-reviewer"],
+      "insight": "The 'seed from server-resolved initialData, then suppress the client fetch' pattern has a confidentiality dimension nobody raised during the staleness debate: the seed comes from a COOKIE-derived identity while the client fetch comes from a BEARER-derived one, so any divergence between the two (a cookie left behind by a previous account on a shared device) shows the wrong user's first paint. On this repo it is not constructable — AuthContext clears the firebaseToken cookie on the null branch of onIdTokenChanged and in signOut, and re-sets it on every token event — but the iteration-2 fix makes it self-correcting regardless, because an unconditional revalidation overwrites a mismatched paint with the Bearer user's own data, whereas the suppressed version would leave it on screen for the life of the page. That is a security argument for the unconditional-revalidate pattern that stands independently of the back/forward UX argument.",
+      "action": "When reviewing any page that seeds client state from a cookie-derived server render, check what clears that cookie on sign-out and confirm the client fetch can overwrite the seed. Cite the self-correction property as a reason to prefer unconditional revalidation over seed-and-suppress, not just the staleness one — and flag /settings (still seed-and-suppress, per loop/learnings.md) as carrying this variant too, though its exposure is also the user's own data.",
+      "confidence": "medium"
+    },
+    {
+      "topic": "security",
+      "kind": "metric",
+      "forAgents": ["orchestrator", "integrator"],
+      "insight": "Iteration-2 security review of the /dashboard change: 0 critical, 0 high, 2 low (unmetered /api/dashboard now serving 2x payload builds per cold load — pre-existing gap, attacker ceiling unchanged; and the still-empty SSR catch block carried forward from iteration 1), 4 info. Diff scope unchanged from iteration 1 plus one new file: 3 files modified, 1 deleted, 2 new source/test files, 0 dependency changes (package.json and pnpm-lock.yaml have no diff). Secret scan clean. pnpm audit identical to iteration 1 (1 high, 3 moderate, all pre-existing). requireAuth.ts, firebaseAdmin.ts and authCookie.ts still have zero diff; route.ts changed only by the sanctioned buildDashboardPayload refactor with its auth block, status codes and logging untouched. Cross-user isolation re-proved end to end with a fresh forged RS256 JWT against both consumers of the new builder.",
+      "action": "No loop-back required; proceed to qa-acceptance. Neither low finding is a merge blocker — the rate-limit one is a pre-existing gap worth a separate ticket rather than another iteration on this change.",
+      "confidence": "high"
+    }
+  ],
+  "nextStage": "qa-acceptance",
+  "loopBackTo": null
+}

@@ -1,0 +1,57 @@
+{
+  "agent": "verifier",
+  "status": "success",
+  "summary": "Independently re-verified every claim in the software-engineer handoff for the /dashboard skeleton-flash fix, and added the one meaningful test that was missing. (1) Rendering mode: ran my own detached-worktree method (git worktree add ... HEAD --detach twice — 'baseline' at HEAD, 'modified' with the working tree's page.tsx/DashboardBody.tsx/layout.tsx-deletion copied in, node_modules symlinked), built both with pnpm build, diffed the full route tables and diffed prerender-manifest.json route keys. Confirmed: exactly one route-table line differs (`○ /dashboard` at baseline -> `ƒ /dashboard` modified), and `/dashboard` is the only route removed from the static prerender manifest (0 added). (2) Confirmed `/settings/page.tsx` at HEAD uses the identical cookies()-read-then-verifyIdToken pattern with no `export const dynamic` anywhere in the file (grepped for 'force-dynamic'/'export const dynamic' — no hits) and is `ƒ` in both my baseline and modified builds, which is the entire premise for omitting force-dynamic on /dashboard. (3) Diffed old HEAD:page.tsx against the new DashboardBody.tsx directly: every hunk is above the `return (` statement (header comment, DashboardData export, Props/SIGNIN_REDIRECT additions, FetchState seed, the auth-redirect effect split from the fetch effect, and the loading-guard restructure into `if (initialData === null) { ... }`). From `<main id=\"main-content\" ...>` through the closing `SkeletonCard` function at end of file, there is zero diff — confirmed byte-identical, not eyeballed. (4) Traced the DashboardData shape field-by-field: `duelStats` narrowing in page.tsx emits exactly {wins, losses, current_streak, best_streak}, which is exactly DuelRecordCard's DuelRecordData interface (checked DuelRecordCard.tsx:14-19) — the raw getDuelStats()/Prisma DuelStats row also carries user_id and an updated_at DateTime (checked schema.prisma:835-841 and the API route, which passes the RAW un-narrowed row to NextResponse.json — so the server path is actually stricter/cleaner than the existing client-fallback API response, not a regression). freeClimb maps 1:1 to UserFreeClimbRecord/FreeClimbData (peakY, rank, totalClimbers, wins, handle — verified both interfaces match exactly). replays/recentDuels: ClimbReplaySummary.createdAt and RecentDuelItem.completedAt are declared and produced as `string`, not Date, by src/db/climb.ts and src/db/duel.ts respectively, so nothing un-serializable crosses the RSC server->client boundary. (5) Confirmed via `git show HEAD:app/app/dashboard/layout.tsx` that the deleted file was only the Metadata-workaround pass-through (11 lines, no other logic) and the identical `robots: {index:false,follow:false}` now lives in page.tsx. Grepped the whole app/ tree: nothing else imports the deleted layout.tsx, and DashboardBody is imported only by the new page.tsx. (6) Confirmed verifyIdToken is the single shared function (src/lib/firebaseAdmin.ts) also used by requireAuth.ts and by settings/page.tsx — not forked. (7) Confirmed /api/dashboard/route.ts, requireAuth.ts, firebaseAdmin.ts, authCookie.ts have zero diff vs HEAD. (8) Added app/tests/components/dashboardBody.test.tsx (3 tests, renderToStaticMarkup + mocked useAuth/useRouter, same pattern as tests/components/climbFeelSurfaces.test.tsx) asserting: real DuelRecordCard content renders on first paint when initialData is provided even while authLoading=true and token=null (the actual defect); the fallback path still shows the loading spinner when initialData is null and authLoading is true; and the signed-out-with-no-initialData path renders nothing (redirect in flight). Proved this is a real gate, not a placebo: temporarily reverted the FetchState seed to always start at {status:'loading'} (pre-fix behaviour) and re-ran the suite — test 1 went red with the exact defect symptom (two SkeletonCards render instead of the duel record), then restored the file and re-ran clean. Confirmed a non-test caller exists for DashboardBody (page.tsx) before trusting this test as coverage. All 6 context/gates.json gates re-run by me and green: app-lint (0 warnings), app-typecheck (clean), app-test (81 files / 748 tests, up from 80/745 — my new file), orchestrator-typecheck, orchestrator-test (58/58), pack-hygiene (0 violations). No app/next-env.d.ts churn in the main repo (all builds ran in separate detached worktrees, which I removed afterward via `git worktree remove --force`). Did not commit or push.",
+  "timestamp": "2026-09-20T13:56:29Z",
+  "goal": "Verify the /dashboard skeleton-flash fix: independently confirm rendering-mode claims, confirm JSX/data-shape correctness by diffing source directly, confirm no missed callers, add missing test coverage for the actual defect, and prove the full gate suite is genuinely green.",
+  "artifacts": [
+    "app/app/dashboard/page.tsx",
+    "app/app/dashboard/DashboardBody.tsx",
+    "app/app/dashboard/layout.tsx (deleted)",
+    "app/tests/components/dashboardBody.test.tsx (new)"
+  ],
+  "coverageMatrix": [
+    { "item": "page.tsx is an async server component reading firebaseToken cookie via next/headers cookies()", "evidence": "app/app/dashboard/page.tsx:2,28,32-33", "result": "pass" },
+    { "item": "Same verifyIdToken reused (not forked), matches requireAuth.ts and settings/page.tsx", "evidence": "app/app/dashboard/page.tsx:3,35; app/src/lib/requireAuth.ts:14,52; app/app/settings/page.tsx:2,14", "result": "pass" },
+    { "item": "Same 5 DB reads with same .catch() fallbacks as GET /api/dashboard, in one Promise.all/try-catch, no internal fetch of own API route", "evidence": "app/app/dashboard/page.tsx:37-46 vs app/app/api/dashboard/route.ts:41-51", "result": "pass" },
+    { "item": "duelStats narrowed to exactly the 4 fields DuelRecordCard reads; nothing extra leaks, nothing needed missing", "evidence": "app/app/dashboard/page.tsx:59-64 vs app/src/components/Dashboard/DuelRecordCard.tsx:14-19 vs app/prisma/schema.prisma:835-841", "result": "pass" },
+    { "item": "freeClimb/replays/recentDuels shapes are RSC-boundary-serializable and match child component prop types exactly", "evidence": "app/src/db/climb.ts:200-206,247-252; app/src/components/Dashboard/FreeClimbCard.tsx:11-17; app/src/components/Dashboard/ClimbReplaysSection.tsx:13-18; app/src/db/duel.ts:701-714", "result": "pass" },
+    { "item": "DashboardBody JSX is byte-identical to old page.tsx JSX below the state/effect block", "evidence": "diff of git show HEAD:app/app/dashboard/page.tsx vs app/app/dashboard/DashboardBody.tsx — zero diff from `return (` through EOF", "result": "pass" },
+    { "item": "layout.tsx deletion is safe (was purely the metadata workaround, no other importers)", "evidence": "git show HEAD:app/app/dashboard/layout.tsx (11 lines); grep for 'dashboard/layout' across app/ — no hits besides the deleted file itself", "result": "pass" },
+    { "item": "No other caller of DashboardBody missed", "evidence": "grep DashboardBody across app/ — only page.tsx (import) and DashboardBody.tsx (definition) and the new test file", "result": "pass" },
+    { "item": "/dashboard flipped static (○) to dynamic (ƒ); no other route changed; /settings confirmed ƒ with no force-dynamic export", "evidence": "detached-worktree pnpm build x2, route-table diff (1 line changed), prerender-manifest.json route-set diff (1 removed, 0 added), grep for force-dynamic in settings/page.tsx (no hits)", "result": "pass" },
+    { "item": "New: real content paints on first frame with initialData set, even while authLoading=true (the actual defect)", "evidence": "app/tests/components/dashboardBody.test.tsx — 'renders real duel-record content on first render even while auth is still loading'", "result": "pass; proven to fail against pre-fix seed logic, then restored" },
+    { "item": "New: fallback loading spinner still shows when initialData is null and authLoading is true", "evidence": "app/tests/components/dashboardBody.test.tsx — 'shows the loading skeleton...'", "result": "pass" },
+    { "item": "New: signed-out with no initialData renders nothing (redirect in flight)", "evidence": "app/tests/components/dashboardBody.test.tsx — 'renders nothing once auth resolves to signed-out...'", "result": "pass" },
+    { "item": "Protected files untouched: /api/dashboard/route.ts, requireAuth.ts, firebaseAdmin.ts, authCookie.ts", "evidence": "git diff --stat HEAD -- <those 4 files> — empty output", "result": "pass" }
+  ],
+  "gatesRun": [
+    { "name": "app-lint", "cwd": "app", "command": "pnpm lint", "result": "pass — clean at --max-warnings=0" },
+    { "name": "app-typecheck", "cwd": "app", "command": "pnpm typecheck", "result": "pass — clean, re-run after worktree cleanup, no next-env.d.ts churn in main repo" },
+    { "name": "app-test", "cwd": "app", "command": "pnpm test", "result": "pass — 81 files / 748 tests (was 80/745; +1 file / +3 tests from my dashboardBody.test.tsx)" },
+    { "name": "orchestrator-typecheck", "cwd": "orchestrator", "command": "yarn typecheck", "result": "pass" },
+    { "name": "orchestrator-test", "cwd": "orchestrator", "command": "yarn test", "result": "pass — 15 suites / 58 tests" },
+    { "name": "pack-hygiene", "cwd": ".", "command": "node scripts/hygiene.mjs", "result": "pass — 8 agent files, 0 violations" }
+  ],
+  "feedback": [],
+  "learnings": [
+    {
+      "topic": "testing",
+      "kind": "lesson",
+      "forAgents": ["reviewer", "qa-acceptance", "security-reviewer"],
+      "insight": "app/tests/components/dashboardBody.test.tsx now exists and directly asserts the fixed defect (real content on first paint while authLoading, via renderToStaticMarkup with mocked useAuth/useRouter). It also confirmed something the handoff didn't call out explicitly: NEXT_PUBLIC_PAID_DUELS_ENABLED is 'true' in this shell's process.env (not from a repo .env file — no .env.example entry, must be exported by the runner environment), so WalletCard actually renders (with token=null) in the server-populated first-paint case during local/CI test runs, not just in a hypothetical prod config. This is a real exercise of the caveat the software-engineer flagged (WalletCard mounting with a null token) and it renders safely (0 chips, no crash) — verified live, not just reasoned about.",
+      "action": "If NEXT_PUBLIC_PAID_DUELS_ENABLED ever flips in a given environment, re-run app/tests/components/dashboardBody.test.tsx — it exercises the WalletCard-with-null-token path for real whenever that flag is true, so it's a live canary for that interaction, not just a reasoning argument.",
+      "confidence": "high"
+    },
+    {
+      "topic": "process",
+      "kind": "lesson",
+      "forAgents": ["verifier"],
+      "insight": "For rendering-mode verification, building in two separate `git worktree add <dir> HEAD --detach` trees (one left untouched as baseline, one with the working tree's uncommitted files copied on top) and symlinking node_modules into each worked cleanly and left the main repo's app/next-env.d.ts untouched — no churn to revert. This is a strictly better pattern than building directly in the main repo (which the prior six cycles all had to revert next-env.d.ts for).",
+      "action": "Prefer the two-worktree-build pattern for all future rendering-mode verification; it avoids the recurring next-env.d.ts churn entirely instead of reverting it after the fact.",
+      "confidence": "high"
+    }
+  ],
+  "nextStage": ["reviewer", "security-reviewer"],
+  "loopBackTo": null
+}
