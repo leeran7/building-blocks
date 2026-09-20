@@ -1,0 +1,88 @@
+{
+  "agent": "verifier",
+  "status": "success",
+  "timestamp": "2026-09-20T16:45:00Z",
+  "iteration": 3,
+  "goal": "Verify iteration-3 Doomstack layout pass (jitter fix + UX pass, items A-F) on branch claude/blissful-ramanujan-tcniuq (4f78609 + 0282530 over verifier-approved base 505bc86). Re-run every gate independently, scrutinize the two new test files per .claude/rules/testing.md with fail-first proofs, and guard against shared-component regressions.",
+  "summary": "All seven gates pass independently. App: pnpm lint clean, pnpm typecheck clean, pnpm test = 88 files / 794 tests, 0 failures (matches expected count exactly), pnpm build compiled with the four flow routes UNCHANGED (/ static-1m, /climb dynamic, /daily static, /duel static; /play and /duel/leaderboard pre-existing dynamic). The build's prisma:error lines are the pre-existing no-DB-sandbox behavior, not a failure. Orchestrator: yarn typecheck clean, yarn test = 15 suites / 58 tests. node scripts/hygiene.mjs = 0 violations. Both new test files were scrutinized and independently proven fail-first (I broke production, watched them go red, restored via git checkout). The frozen contract test climbFeelSurfaces.test.tsx is NOT in the diff (unchanged) and passes in the full run. ClimbScene's touch fullscreen path (fixed inset-0, line 397) is untouched; the eyebrow change is display-text-only (line 479). No unit-level evidence contradicts the orchestrator's browser measurements. Working tree restored clean. Proceed to reviewer.",
+  "gatesReRun": [
+    { "name": "app-lint", "command": "pnpm lint", "cwd": "app", "result": "pass (eslint . --max-warnings=0, clean)" },
+    { "name": "app-typecheck", "command": "pnpm typecheck", "cwd": "app", "result": "pass (tsc --noEmit, clean)" },
+    { "name": "app-test", "command": "pnpm test", "cwd": "app", "result": "pass — 88 files / 794 tests, 0 failures (12.26s). Matches expected 88/794." },
+    { "name": "next-build", "command": "pnpm build", "cwd": "app", "result": "pass — Compiled successfully. Verified route modes: / ○ 1m, /climb ƒ, /daily ○, /duel ○, /play ƒ, /duel/leaderboard ƒ — ALL unchanged. prisma:error is pre-existing no-DB sandbox behavior, not a build failure." },
+    { "name": "orchestrator-typecheck", "command": "yarn typecheck", "cwd": "orchestrator", "result": "pass (tsc --noEmit + tsconfig.test.json)" },
+    { "name": "orchestrator-test", "command": "yarn test", "cwd": "orchestrator", "result": "pass — 15 suites / 58 tests, 0 fail" },
+    { "name": "pack-hygiene", "command": "node scripts/hygiene.mjs", "cwd": ".", "result": "pass — 8 source agent files scanned, 0 violations" }
+  ],
+  "testFileScrutiny": [
+    {
+      "file": "app/tests/lib/climbEyebrow.test.ts",
+      "invokesUnit": true,
+      "note": "Imports and calls the real climbEyebrowLabel() (not a source grep). Fixtures pin the ACTUAL production caller labels: ClimbPlayClient passes 'Free climb' / 'Shared replay' (ClimbPlayClient.tsx:82), DailyClimbClient passes 'Daily' (DailyClimbClient.tsx:82), GameOverlay passes cat.label — verified against categories.ts where label is 'Tech'/'Design' etc. (GameOverlay.tsx:123).",
+      "nonTestCaller": "ClimbScene.tsx:47 imports, line 479 renders [ {climbEyebrowLabel(categoryLabel)} ]; ClimbScene is consumed by ClimbPlayClient, DailyClimbClient, GameOverlay — all production.",
+      "proveFail": "Temporarily replaced the whole-word ternary with an unconditional `${label} climb`, ran vitest on the file: RED — 3 of 4 tests failed including 'Free climb'->'Free climb climb' and the trimmed '  Free climb  ' case; the append-only test ('Daily'/'Tech'/'Design'/'Shared replay') stayed GREEN, proving the whole-word guard is load-bearing and the suite is not tautological. Restored via git checkout; tree clean."
+    },
+    {
+      "file": "app/tests/components/navbarResponsive.test.tsx",
+      "invokesUnit": true,
+      "note": "Renders the real Navbar via renderToStaticMarkup and asserts on the actual rendered <a> tags (not a source-text grep). For each of DUEL/DAILY/FREE_CLIMB hrefs it asserts the class list contains 'hidden' (display:none) AND 'sm:inline-flex' (shows at >=640px) AND does NOT match the BARE_INLINE_FLEX regex /(?<![-\\w:])inline-flex(?![-\\w])/ which correctly distinguishes a bare display utility from the sm: variant. These map to real Tailwind CSS behavior; happy-dom cannot compute layout so this class contract is the correct unit-level proxy, and the orchestrator already browser-confirmed the 375px behavior. This is NOT a rename-only test: its failure mode is exactly the same-specificity display bug that caused the original leak.",
+      "nonTestCaller": "Navbar is the shared top nav rendered across the app (imported by FreeStackShell, DuelStackShell, and pages).",
+      "proveFail": "Temporarily re-added a bare `inline-flex ` to the GHOST base, ran vitest on the file: RED — all 3 nav-link assertions failed on the BARE_INLINE_FLEX matcher; the breadcrumb-truncate assertion stayed GREEN. Proves removing inline-flex is what keeps the links hidden below sm. Restored via git checkout; tree clean."
+    }
+  ],
+  "regressionGuards": [
+    "Frozen contract app/tests/components/climbFeelSurfaces.test.tsx: confirmed NOT in the diff vs 505bc86 (git diff --stat) and unchanged; passes inside the full 794 run. SE's claim (edited:false) is accurate — the /climb page's new 'Global leaderboard' title is orthogonal because the test passes its own hardcoded title='Free climb leaderboard' to ClimbPanelIntro, and the test never asserts navbar presence/absence.",
+    "ClimbScene touch-fullscreen path: root className `fixed inset-0 z-40 bg-void` on coarse pointer (ClimbScene.tsx:397) is untouched by the diff; the only ClimbScene change is line 479 (eyebrow now uses climbEyebrowLabel) — display-text only, no transform added, no layout wrapper change. Fullscreen containing-block behavior is preserved.",
+    "Diff scope confirmed via git: only the 11 source/test files listed in the SE handoffs plus the 2 handoff JSONs. No API route, DB query, or auth code changed. climbEyebrowLabel is a pure string helper; Navbar/FreeStackShell/DuelStackShell changes are presentational.",
+    "No unit-level evidence contradicts the orchestrator's Playwright measurements (duel band left=203 both routes; free band top=64 all three; 375px no overflow; /play canvas 423x752 with no HUD overlap). happy-dom computes no layout, consistent with the positional fixes being untestable at unit level."
+  ],
+  "coverageMatrix": [
+    { "item": "A duel jitter (DuelStackShell)", "evidence": "structural extraction + orchestrator Playwright (band left=203 identical). No unit test — positional.", "verdict": "pass" },
+    { "item": "B free jitter (FreeStackShell always-Navbar)", "evidence": "orchestrator Playwright (band top=64 all three); climbFeelSurfaces still green.", "verdict": "pass" },
+    { "item": "C doubled 'climb' copy (climbEyebrowLabel)", "evidence": "app/tests/lib/climbEyebrow.test.ts:12-35, fail-first proven, real caller labels.", "verdict": "pass" },
+    { "item": "D mobile navbar overlap (GHOST display + breadcrumb truncate)", "evidence": "app/tests/components/navbarResponsive.test.tsx:44-60, fail-first proven; 375px browser-confirmed.", "verdict": "pass" },
+    { "item": "E /play width (PlayShell reverted to full-size canvas + max-w-3xl how-to)", "evidence": "orchestrator Playwright canvas 423x752 (not 270), no overlay/HUD overlap; ClimbPlayClient-only change.", "verdict": "pass" },
+    { "item": "F /climb H1 'Global leaderboard'", "evidence": "app/app/climb/page.tsx H1 changed; climbFeelSurfaces frozen title assertion is orthogonal and still green.", "verdict": "pass" }
+  ],
+  "exitCriteria": {
+    "all_gates_pass": true,
+    "test_count_794": true,
+    "route_modes_unchanged": true,
+    "new_tests_legitimate": true,
+    "new_tests_prove_fail_first": true,
+    "frozen_contract_unchanged": true,
+    "no_regression_found": true,
+    "working_tree_clean": true
+  },
+  "learnings": [
+    {
+      "topic": "testing",
+      "forAgents": ["reviewer", "software-engineer"],
+      "kind": "lesson",
+      "insight": "navbarResponsive.test.tsx asserts a Tailwind display CONTRACT (has `hidden`, has `sm:inline-flex`, and NOT a bare inline-flex via /(?<![-\\w:])inline-flex(?![-\\w])/) rather than a computed style, because happy-dom/renderToStaticMarkup does not run the CSS engine. This is a legitimate unit-level proxy AS LONG AS the negative guard (no bare inline-flex) is present — that guard is what makes the failure mode behavioral (the exact same-specificity leak) instead of a rename. A class-presence-only assertion without the negative guard WOULD be rename-only and rejectable. Both fail-first proofs pass this bar.",
+      "action": "reviewer: when a test asserts responsive CSS via class strings, confirm it also asserts the ABSENCE of the conflicting utility, not just presence of the intended one — presence alone survives the very bug it should catch.",
+      "confidence": "high"
+    },
+    {
+      "topic": "process",
+      "forAgents": ["reviewer", "security-reviewer", "qa-acceptance", "integrator"],
+      "kind": "metric",
+      "insight": "Verifier re-confirmed iteration-3 baseline INDEPENDENTLY: app 88 files / 794 tests all pass; lint/typecheck/hygiene clean; orchestrator 15 suites / 58; next build compiles with the four flow routes UNCHANGED (/ static-1m, /climb dynamic, /daily static, /duel static). Both new test files (climbEyebrow, navbarResponsive) reproduced fail-first by the verifier. Frozen contract climbFeelSurfaces.test.tsx confirmed unedited (not in diff). Diff touches 11 files + 2 handoffs; no endpoint/DB/auth change.",
+      "action": "Treat any drop below 794 passing, any of the four routes flipping rendering mode, or any edit to climbFeelSurfaces.test.tsx as a regression introduced after this handoff.",
+      "confidence": "high"
+    },
+    {
+      "topic": "build",
+      "forAgents": ["integrator", "reviewer"],
+      "kind": "lesson",
+      "insight": "Running `pnpm build` in the app rewrites app/next-env.d.ts (flips `.next/dev/types/...` <-> `.next/types/...` depending on last dev-vs-build run). This is a generated artifact, not a source change; I restored it via git checkout so the tree stays clean. Do not treat a next-env.d.ts diff after a build as a code change.",
+      "action": "integrator: ignore/discard next-env.d.ts churn produced by running the build gate; it is not part of the change set.",
+      "confidence": "high"
+    }
+  ],
+  "openQuestions": [
+    "The two pre-existing loop/learnings.md open questions (free-leaderboard trust boundary; power-up stacking) are untouched by this layout pass and remain open.",
+    "Items A/B/E are positional/visual and have NO unit-level coverage by design (happy-dom computes no layout); their correctness rests on the orchestrator's Playwright measurements, which I did not reproduce but found no unit evidence against."
+  ],
+  "nextStage": "reviewer"
+}
