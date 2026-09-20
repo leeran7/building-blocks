@@ -1,0 +1,93 @@
+{
+  "agent": "verifier",
+  "status": "success",
+  "summary": "Re-verified the fix in 50e04c0 against reviewer-2026-09-20T015000Z.json's critical finding and all 4 warnings from software-engineer-2026-09-20T020500Z.json. All 6 dispatched checks pass. The critical PendingChallenges @username-sub-line fix is real, present at all 4 render sites in BOTH trees, and the mobile test (mobilePendingChallengesIdentity.test.tsx) was re-proven to fail for the right reason (2/4 red, same assertion the implementer reported) by temporarily removing the sub-line and restoring it (clean diff after). The web tree had NO automated test despite the reviewer's finding explicitly covering both trees — added tests/components/pendingChallengesIdentity.test.tsx (4 cases mirroring the mobile file, real climberHandle output, real mounted PendingChallenges) and proved it red/green the same way. isSearchableQuery(q) === (exactMatchFilter(q) !== null) holds by construction (isSearchableQuery's body literally is that expression) and I locked it in with a 14-fixture equivalence table plus the anti-enumeration property re-derived directly against the new module (never against the route only). Added tests/lib/userSearchQuery.test.ts (41 cases: searchFailureMessage 429/500/null/other + distinctness, the equivalence table, anti-enumeration/no-contains-operator checks, an adversarial fixture set from security-reviewer-2026-09-20T021500Z.json's learning ping, EMAIL_SHAPE checks) and proved 3 different failure modes red (weakening searchFailureMessage, weakening exactMatchFilter's exactness, and removing 'admin' from the reserved list) before restoring each. Added tests/components/userSearchFailureBranch.test.tsx covering the previously-flagged untested gap: a 429 after a successful search clears the stale result row and its Add button and shows the exact searchFailureMessage(429) copy, for BOTH UserSearch (web) and UserSearchSection (mobile); proved both red by removing each component's else-branch, then restored. @app tsconfig fix re-verified load-bearing: removing the paths entry reproduces the exact TS2307 the implementer described (PendingChallengesSection.tsx + the mobile test file); restored, clean diff. `npx tsc --noEmit -p mobile/tsconfig.json` reproduces exactly the claimed 4 pre-existing errors (GuestShell TS6133, ClimbScreen TS2739, ProfileScreen TS2352), unrelated to this diff. Full regression: pnpm lint clean, pnpm typecheck clean, pnpm test 85 files / 799 passed in 8.85s (752 baseline + 47 new: 4 web PendingChallenges + 41 userSearchQuery + 2 failure-branch), node scripts/hygiene.mjs clean. Every temporary break-then-restore left git diff --stat empty on the touched production file before moving to the next check. Working tree now has exactly 3 new untracked test files and no production code changes, per the 'leave uncommitted for review' convention.",
+  "timestamp": "2026-09-20T02:07:57Z",
+  "goal": "Re-verify software-engineer-2026-09-20T020500Z.json's fix of reviewer-2026-09-20T015000Z.json's critical finding (PendingChallenges missing @username sub-line, both trees) plus its 4 warnings, close the test gaps the implementer's own handoff flagged as missing, and confirm no regression before returning to the reviewer for final sign-off.",
+  "artifacts": [
+    "app/tests/components/pendingChallengesIdentity.test.tsx",
+    "app/tests/components/userSearchFailureBranch.test.tsx",
+    "app/tests/lib/userSearchQuery.test.ts",
+    "loop/handoffs/verifier-2026-09-20T020757Z.json"
+  ],
+  "coverageMatrix": [
+    {
+      "item": "1. Critical fix real + tested in BOTH trees",
+      "evidence": "app/src/components/Challenge/PendingChallenges.tsx:199-203,257-261 and app/mobile/src/components/challenge/PendingChallengesSection.tsx:188-190,241-243 both have the @username sub-line at all 4 rows. Mobile: app/tests/components/mobilePendingChallengesIdentity.test.tsx (4/4 pass; re-proven red 2/4 by removing the sub-line, restored, git diff clean). Web: NEW app/tests/components/pendingChallengesIdentity.test.tsx (4/4 pass; proven red 2/4 the same way, restored, git diff clean) — this test did not exist before this verification pass.",
+      "result": "pass"
+    },
+    {
+      "item": "2. isSearchableQuery(q) === (exactMatchFilter(q) !== null)",
+      "evidence": "app/src/lib/userSearchQuery.ts:60-62 — isSearchableQuery's body is literally `return exactMatchFilter(q) !== null`, so the equivalence cannot diverge by construction. Locked in with a 14-value it.each table (empty, email variants, username variants, malformed, reserved, over-length) in app/tests/lib/userSearchQuery.test.ts, all passing.",
+      "result": "pass"
+    },
+    {
+      "item": "3. Anti-enumeration invariant survives the extraction",
+      "evidence": "app/tests/lib/userSearchQuery.test.ts direct assertions: exactMatchFilter('bobsmit') !== exactMatchFilter('bobsmith') (equality shape, not substring), no filter ever contains contains/startsWith/endsWith/search (checked via JSON.stringify regex over valid + 9 adversarial fixtures incl. SQL-injection and NoSQL-operator-shaped strings), plus the pre-existing tests/api/usersSearch.route.test.ts (unchanged, still passing) exercising the same property through the route's Prisma mock. Proved the anti-enumeration test can fail by loosening exactMatchFilter to accept any 3+ char string as a username match — 3 tests went red for the right reason; restored, git diff clean.",
+      "result": "pass"
+    },
+    {
+      "item": "4. Flagged test gaps closed",
+      "evidence": "searchFailureMessage(429)/(500)/(null)/(other) direct unit tests + distinctness check (userSearchQuery.test.ts); isSearchableQuery/exactMatchFilter fixture-agreement table (same file); 429-after-success stale-row-clearing component test for BOTH UserSearch (web) and UserSearchSection (mobile) in NEW app/tests/components/userSearchFailureBranch.test.tsx, each proven red by removing the component's else-branch and restored clean. All 3 gaps named in software-engineer-2026-09-20T020500Z.json learnings[3] are now covered.",
+      "result": "pass"
+    },
+    {
+      "item": "5. @app tsconfig fix + mobile tsc baseline",
+      "evidence": "Removed app/tsconfig.json's @app/* paths entry -> pnpm typecheck fails with TS2307 on PendingChallengesSection.tsx and the mobile test file (exact reproduction of the implementer's claim); restored, git diff clean, pnpm typecheck green again. npx tsc --noEmit -p mobile/tsconfig.json reproduces exactly the 4 claimed pre-existing errors (GuestShell TS6133, ClimbScreen TS2739, ProfileScreen TS2352), none touched by this diff.",
+      "result": "pass"
+    },
+    {
+      "item": "6. Full regression: lint, typecheck, test",
+      "evidence": "pnpm lint: clean (0 warnings, --max-warnings=0). pnpm typecheck: clean. pnpm test: 85 files / 799 passed in 8.85s (baseline 752, +47 from this pass's 3 new files; no runtime regression, well under the 10x threshold). node scripts/hygiene.mjs: clean.",
+      "result": "pass"
+    },
+    {
+      "item": "7. Every new test proven to fail (testing.md rule)",
+      "evidence": "Each of the 3 new test files had at least one deliberate break-and-restore cycle logged above (sub-line removal x2 trees, searchFailureMessage weakening, exactMatchFilter exactness weakening, reserved-word removal, else-branch removal x2 components, tsconfig paths removal). Every restore was verified via `git diff --stat` returning empty before moving on.",
+      "result": "pass"
+    }
+  ],
+  "exitCriteria": {
+    "critical_finding_confirmed_fixed_both_trees": true,
+    "web_tree_now_has_automated_coverage": true,
+    "isSearchableQuery_equivalence_verified": true,
+    "anti_enumeration_invariant_reverified_on_new_module": true,
+    "429_failure_branch_now_tested_both_trees": true,
+    "searchFailureMessage_directly_unit_tested": true,
+    "app_alias_reconfirmed_load_bearing": true,
+    "mobile_tsc_baseline_unchanged": true,
+    "lint_clean": true,
+    "typecheck_clean": true,
+    "full_suite_green_no_regression": true,
+    "every_new_test_proven_to_fail_and_restored": true,
+    "no_production_code_changed": true,
+    "committed": false
+  },
+  "learnings": [
+    {
+      "topic": "testing",
+      "forAgents": ["reviewer", "orchestrator"],
+      "kind": "lesson",
+      "insight": "The critical finding's fix commit added a render test for only ONE of the two trees it fixed (mobile), even though the reviewer's original finding, the fix's own exit criteria ('critical_finding_fixed_both_trees': true), and context/conventions.md all say both trees are live and must be exercised. Nothing in CI or the handoff schema forces test-count parity between trees when a fix commit's own description says 'both'. This is the second time in this loop a 'both trees' claim was true for the code change but not for its test coverage (first time: the original implementation before the reviewer caught it).",
+      "action": "When a fix handoff claims 'fixed in both trees' but lists a test artifact for only one, treat the untested tree as an open item, not as covered-by-analogy — even a reviewer's own prior finding said as much about 'verified by code reading' claims. Verifier: grep the test artifacts list against both tree paths before accepting a cross-tree fix as fully verified.",
+      "confidence": "high"
+    },
+    {
+      "topic": "testing",
+      "forAgents": ["software-engineer", "verifier"],
+      "kind": "lesson",
+      "insight": "isSearchableQuery(q) === (exactMatchFilter(q) !== null) is true by construction today (one function calls the other), so a fixture-equivalence test on it can look thorough while actually only re-confirming a tautology. The test still has value — it locks the two functions from ever being independently reimplemented without a compensating test failure, and doubles as an isSearchableQuery regression suite — but a reviewer should not read 'the equivalence test passes' as evidence the two code paths were independently implemented and cross-checked. They are the same code path.",
+      "action": "When a 'client gate == server gate' claim rests on one function delegating to the other, say so explicitly in the test's own docstring (done here) so a future reader doesn't mistake the equivalence test for an independent-implementation cross-check.",
+      "confidence": "high"
+    },
+    {
+      "topic": "metric",
+      "forAgents": ["orchestrator", "reviewer"],
+      "kind": "metric",
+      "insight": "Verification pass added 3 test files / 47 tests (789 after the mobile-only count from the fix commit -> 799 total here, since the fix commit's own 4 mobile tests were already in the 752->752 baseline this pass started from... concretely: started at 752, +4 web PendingChallenges +41 userSearchQuery +2 failure-branch = 799). 8 distinct break/restore prove-fail cycles executed, each confirmed red for the stated reason and confirmed `git diff --stat` empty on restore. No production code left modified. Suite runtime 8.35s -> 8.85s (+6%, no regression).",
+      "action": "reviewer: the critical finding is resolved with test evidence in both trees now; no further verifier action expected unless review surfaces something new. qa-acceptance (once dispatched): the manual pass for a non-friend, display_name-null challenger on both /duel and the native Challenge screen, plus the 429 search path, still stands per prior handoffs.",
+      "confidence": "high"
+    }
+  ],
+  "nextStage": "reviewer"
+}
