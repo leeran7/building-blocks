@@ -1,181 +1,194 @@
-# QA Acceptance Report -- 1v1 Quick Play (mobile-quick-play)
+# QA Acceptance Report — Server-side paid-duel region eligibility
 
-**Date:** 2026-09-19
-**Feature:** Quick Play random 1v1 matchmaking on mobile HomeScreen
-**ACs:** AC-1 through AC-11
-**Verdict:** PASS -> integrator
+**Date:** 2026-09-20
+**Stage:** qa-acceptance
+**Prior stages:** software-engineer, verifier, reviewer, security-reviewer — all `success`, no critical findings.
 
-## Quality Gates
+## Method
 
-| Gate | Status | Evidence |
-|------|--------|----------|
-| app-typecheck | PASS | `pnpm typecheck` exits 0, no output |
-| app-test | PASS | 78 files, 707 tests, 0 failures |
-| hook tests | PASS | 26 tests in useMatchmakingQueue.test.ts, all pass |
+Local build + start (`pnpm build` then `pnpm start -p <port>`), with
+`PAID_DUEL_GEO_ENFORCE=true` so the geo allow-list is enforced outside
+production. Spoofed Vercel's edge geo headers (`x-vercel-ip-country`,
+`x-vercel-ip-country-region`) via curl against the running local server and
+inspected the **raw HTML response bytes** (no JS execution) plus response
+headers. No live preview deployment was available, so AC-3's authenticated
+case is validated by code-path reading rather than a real session — called
+out explicitly below, per the task's caveat.
 
-## Acceptance Criteria
+`PAID_DUELS_ENABLED=true` and `NEXT_PUBLIC_PAID_DUELS_ENABLED=true` were
+already present in the shell environment and were baked into the one
+production build I ran. A second `pnpm start` (no rebuild) with
+`PAID_DUELS_ENABLED=false` let me exercise one more kill-switch combination
+without a second full build, since that var is read server-side at process
+start; `NEXT_PUBLIC_PAID_DUELS_ENABLED` is inlined at build time, so the two
+combinations with it `false` are validated by code inspection only (documented
+below), to avoid a second full rebuild for marginal gain that upstream agents
+had already logically covered.
 
-### AC-1: Quick Play card visible on HomeScreen -- PASS
+## AC-1: `/duel`, blocked region, first paint shows unavailable, no flash
 
-| Check | Method | Expected | Actual | Evidence |
-|-------|--------|----------|--------|----------|
-| Position | Static read | Between Daily Climb and Challenge | DailyCard, QuickPlayCard, ChallengeCard in order | HomeScreen.tsx:162-168 |
-| ModeCard usage | Static read | Uses ModeCard component | QuickPlayCard renders ModeCard | HomeScreen.tsx:393-401 |
-| BoltIcon | Static read | Bolt/lightning icon | BoltIcon SVG with lightning path | HomeScreen.tsx:379-385 |
-| tint="signal" | Static read | Signal-lime tint | tint="signal" | HomeScreen.tsx:395 |
-| Title | Static read | "Quick Play" | "Quick Play" | HomeScreen.tsx:396 |
-| Subtitle | Static read | "Find a random opponent" | "Find a random opponent" | HomeScreen.tsx:397 |
+**PASS — verified by live request.**
 
-### AC-2: Tapping Quick Play joins queue and shows SearchingOverlay -- PASS
+`curl -H 'x-vercel-ip-country: US' -H 'x-vercel-ip-country-region: NY' http://localhost:3900/duel`
 
-| Check | Method | Expected | Actual | Evidence |
-|-------|--------|----------|--------|----------|
-| POST endpoint | Automated | /api/duel/queue | /api/duel/queue | Hook line 102, test line 156 |
-| POST body | Automated | { categorySlug: "tech" } | Matches | Hook line 105, test line 159 |
-| Overlay renders | Static read | Full-screen overlay | fixed inset-0 z-50 bg-void/95 | HomeScreen.tsx:424 |
-| Spinner | Static read | Animated spinner | animate-spin rounded-full border | HomeScreen.tsx:443 |
-| Status text | Static read | "Searching for opponent" | "Searching for opponent" | HomeScreen.tsx:447 |
-| Cancel button | Static read | Cancel button present | Cancel button with onCancel | HomeScreen.tsx:452-457 |
+Raw HTML response contains, twice, genuine markup (not a JSON blob):
+```
+<span class="...">Not available in your region.</span>
+```
+and badge text `unavailable` (x2), for both the "Chip Duels" and
+"Tournaments" mode cards. The embedded RSC payload in the same response
+carries `"initialGeoAllowed":false` — i.e. the value serialized to the
+client for hydration is already the correct, final answer, not an
+optimistic `true` that gets corrected afterwards. `Cache-Control: private,
+no-cache, no-store, max-age=0, must-revalidate` — not shared-cacheable, so
+this can't be a stale cached "allowed" response either. No `x-vercel-cache`
+or `age` header present (expected locally; the Cache-Control header alone
+rules out heuristic shared-cache reuse per RFC 9111 §4.2.2, matching the
+security-reviewer's SEC-1 analysis).
 
-### AC-3: Polling finds match and navigates -- PASS
+## AC-2: `/duel`, allowed region, first paint shows available, no flash
 
-| Check | Method | Expected | Actual | Evidence |
-|-------|--------|----------|--------|----------|
-| Poll interval | Automated | 2000ms | POLL_INTERVAL_MS = 2000 | Hook line 38, test advances 2000ms |
-| Poll endpoint | Automated | GET /api/duel/queue | apiFetch("/api/duel/queue") | Hook line 66 |
-| Match detection | Automated | status=matched + duelId | Checked at hook line 72 | Test line 176-181 |
-| Navigation | Static read | navigate(/duel/:duelId) | navigate(`/duel/${duelId}`) | HomeScreen.tsx:117 |
-| Route exists | Static read | /duel/:id -> DuelRoomScreen | Route at App.tsx:59 | App.tsx |
+**PASS — verified by live request.**
 
-### AC-4: Cancel leaves queue -- PASS
+Same request with region `CA`. Raw HTML shows, in the Chip Duels card:
+```
+Chip Duels</span><span class="...bg-signal/15 text-signal">ranked</span>...
+<span class="...">Stake chips — winner takes all. Non-cashable.</span>
+```
+— the available/ranked state, on the first byte, with none of the blocked
+copy present anywhere in the response. Tournaments card shows `coming soon`
+(not `unavailable`). Same non-cacheable `Cache-Control`.
 
-| Check | Method | Expected | Actual | Evidence |
-|-------|--------|----------|--------|----------|
-| Stops polling | Automated | Interval cleared | stopPolling() called | Hook line 177, test line 454-459 |
-| DELETE sent | Automated | DELETE /api/duel/queue | Best-effort DELETE | Hook line 182, test line 449-451 |
-| Returns idle | Automated | status=idle | setState(IDLE_STATE) | Hook line 178, test line 443-446 |
-| No DELETE from idle | Automated | No DELETE when not in queue | inQueueRef guard | Test line 466-480 |
+## AC-3: `/duel/chips`, stake picker/Find match never visible to a blocked user, correct for allowed user
 
-### AC-5: Timeout shows retry -- PASS
+**PASS — verified by code inspection (auth-gated case) + live request (anonymous case, confirms the reviewer's documented caveat rather than a false pass).**
 
-| Check | Method | Expected | Actual | Evidence |
-|-------|--------|----------|--------|----------|
-| Expired -> timeout | Automated | status=timeout | Hook lines 80-84 | Test line 309-341 |
-| Idle -> timeout | Automated | status=timeout | Hook lines 80-84 | Test line 345-374 |
-| "No opponent found" | Static read | Text present | "No opponent found" | HomeScreen.tsx:464 |
-| "Search again" button | Static read | Retry button | onRetry callback | HomeScreen.tsx:470-475 |
-| "Back" button | Static read | Dismiss button | onDismiss callback | HomeScreen.tsx:476-481 |
+Live anonymous curl to `/duel/chips` for both NY and CA returns the
+SignInGate ("Sign in...") regardless of region — exactly as the reviewer's
+open item predicted: `ChipDuelLobby` checks `!user` before `!geoAllowed`,
+and `useAuth()` resolves client-side only (default context value
+`{ user: null, ... }`, confirmed by reading `AuthContext.tsx`), so an
+anonymous SSR request can never reach the geo branch. I did **not** treat
+this as a passing (or failing) assertion of AC-3 — a naive "curl and check
+for absence of the stake picker" here would trivially pass for the wrong
+reason and was explicitly flagged as a trap to avoid.
 
-### AC-6: Error states show messages -- PASS
+Verified the actual load-bearing property by reading
+`app/src/components/Duel/ChipDuelLobby.tsx:111-125` directly: the render is
+a single ternary chain with no other code path to the stake
+picker/"Find match" button:
+```tsx
+{!user ? (
+  <SignInGate .../>
+) : !geoAllowed ? (
+  <section>Region restricted...</section>
+) : (
+  <>...tier picker + "Find match" button...</>
+)}
+```
+This is exactly `user && geoAllowed` gating the money-moving markup — there
+is no other branch, no fallthrough, and no separate loading state that
+renders the third branch. `geoAllowed` comes from `useRankedEligibility(true,
+initialGeoAllowed)`, whose internal state is `useState<boolean>(serverAllowed)`
+(never `null`) and is only ever overwritten by a value that is itself
+`typeof === "boolean"` from the identical server-derived
+`/api/geo/ranked` helper — so there is no reachable path where the third
+branch renders before the true geo answer is known, for either an
+already-hydrated or a still-hydrating authenticated session. `user` starts
+`null` in `AuthContext`'s default value and its own `useState`, so even a
+legitimately authenticated visitor sees the SignInGate (not the stake
+picker) until Firebase resolves client-side — pre-existing, unrelated to
+this diff, and not a path that can leak the money UI early.
 
-| Check | Method | Expected | Actual | Evidence |
-|-------|--------|----------|--------|----------|
-| 429 message | Automated | Rate limit message | "Too many searches -- give it a minute" | Test line 256-259 |
-| Network error | Automated | Connection message | "Network error -- check your connection" | Test line 409-413 |
-| Server error body | Automated | Server message | Uses body.error string | Test line 276-280 |
-| Fallback message | Automated | Default message | "Could not join queue" | Test line 301-302 |
-| "Try again" button | Static read | Retry button present | onRetry callback | HomeScreen.tsx:492-496 |
-| "Back" button | Static read | Dismiss button present | onDismiss callback | HomeScreen.tsx:498-503 |
+I could not stand up a real authenticated session (no Firebase ID token
+available in this environment) to additionally observe this live; this
+finding is code-inspection only, as anticipated by the task's own guidance.
 
-### AC-7: Haptic feedback -- PASS
+## AC-4: `/api/geo/ranked` JSON shape unchanged
 
-| Check | Method | Expected | Actual | Evidence |
-|-------|--------|----------|--------|----------|
-| tapMedium on join | Automated | Called once | void tapMedium() | Hook line 98, test line 754 |
-| tapLight on cancel | Automated | Called once | void tapLight() | Hook line 175, test line 776 |
-| notifySuccess on match | Automated | Called on match | void notifySuccess() | Hook lines 75,145, test line 181 |
-| notifyError on error | Automated | Called on error | void notifyError() | Hook lines 119,130,163, test line 261 |
+**PASS — verified by live request (own independent check) + upstream diff confirmation.**
 
-### AC-8: Accessibility -- PASS
+```
+GET /api/geo/ranked (NY)  -> {"allowed":false,"reason":"not_allowlisted"}
+GET /api/geo/ranked (CA)  -> {"allowed":true,"reason":null}
+```
+Shape is `{ allowed: boolean, reason: string | null }` in both cases,
+matching the pre-existing contract. Verifier and reviewer already diffed
+the route source against HEAD and confirmed byte-identical response
+construction; this is my own independent live confirmation on top of that.
 
-| Check | Method | Expected | Actual | Evidence |
-|-------|--------|----------|--------|----------|
-| role="dialog" | Static read | Present on overlay | role="dialog" | HomeScreen.tsx:425 |
-| aria-modal="true" | Static read | Present on overlay | aria-modal="true" | HomeScreen.tsx:426 |
-| sr-only live region | Static read | assertive live region | sr-only p aria-live="assertive" | HomeScreen.tsx:430 |
-| Cancel min-h-[48px] | Static read | >= 48px | min-h-[48px] | HomeScreen.tsx:454 |
-| Search again min-h-[48px] | Static read | >= 48px | min-h-[48px] | HomeScreen.tsx:472 |
-| Back (timeout) min-h-[48px] | Static read | >= 48px | min-h-[48px] | HomeScreen.tsx:478 |
-| Try again min-h-[48px] | Static read | >= 48px | min-h-[48px] | HomeScreen.tsx:494 |
-| Back (error) min-h-[48px] | Static read | >= 48px | min-h-[48px] | HomeScreen.tsx:500 |
+## AC-5: No regression to money-movement enforcement
 
-### AC-9: Cleanup on unmount -- PASS
+**PASS — verified by one independent live spot-check + upstream diff/grep confirmation (already exhaustively done by verifier/reviewer/security-reviewer).**
 
-| Check | Method | Expected | Actual | Evidence |
-|-------|--------|----------|--------|----------|
-| Interval cleared | Automated | clearInterval called | Hook line 201-203 | Test line 509-511 |
-| DELETE on unmount | Automated | DELETE sent | Hook lines 205-208 | Test line 503-506 |
-| No DELETE when idle | Automated | Guard on inQueueRef | Hook line 205 | Test line 516-526 |
-| No DELETE after match | Automated | inQueueRef=false on match | Hook line 74 | Test line 530-550 |
+`git diff --name-only HEAD` (re-checked myself) touches none of
+`paidDuelGuards.ts`, `api/duel/chips/match/route.ts`,
+`api/tournaments/[id]/checkout/route.ts`,
+`api/tournaments/[id]/register/route.ts`, or `api/credits/checkout/route.ts`.
+Live spot-check of my own: `POST /api/duel/chips/match` with no auth header
+(and blocked-region headers) returns `401` — confirming `withAuth` still
+gates the handler before `assertPaidDuelAllowed` is ever reached, unaffected
+by this diff. Full ordering/behavior-preservation of `assertPaidDuelAllowed`
+→ `decidePaidDuelGeo` was already mechanically diffed line-for-line by the
+security-reviewer; I re-read `paidDuelGeo.ts` myself and agree the delegate
+is a one-line passthrough with unchanged allow-lists and ordering.
 
-### AC-10: Instant match on POST -- PASS
+## Flows walked (F-n)
 
-| Check | Method | Expected | Actual | Evidence |
-|-------|--------|----------|--------|----------|
-| Direct to matched | Automated | No polling started | Hook lines 142-148 | Test line 189-208 |
-| notifySuccess fires | Automated | Haptic on instant match | Hook line 145 | Test line 205 |
-| duelId set | Automated | duelId from response | "instant-456" | Test line 201-204 |
+`loop/spec.md` is the "1v1 Quick Play on Mobile" spec — an unrelated,
+separate feature (mobile Capacitor Quick Play queue). It has no Flows
+section describing this paid-duel-geo change, and this change's five ACs
+were supplied directly in the QA task rather than derived from that spec.
+This is not a structural spec gate failure to loop back on — the geo
+eligibility change is a targeted fix to an existing surface, not a new
+Flows-bearing feature, and the task explicitly enumerated the ACs to
+validate. I did still walk the actual end-to-end flow for both `/duel` and
+`/duel/chips` (discovery → entry → act → success/blocked-next) as part of
+AC-1 through AC-3 above: a blocked-region visitor lands on `/duel`, sees the
+mode cards already marked unavailable with an explanation (no dead end — the
+free "Quick Play" and "Challenge" modes remain fully usable), and never
+reaches a live "Find match" button on `/duel/chips`. An allowed-region
+visitor sees the same surfaces as fully live from the first frame.
 
-### AC-11: 409 resumes polling -- PASS
+## Discovery / kill-switch combination pass
 
-| Check | Method | Expected | Actual | Evidence |
-|-------|--------|----------|--------|----------|
-| Searching state | Automated | status=searching | Hook line 113 | Test line 221 |
-| Polling starts | Automated | startPolling called | Hook line 114 | Test lines 224-239 |
-| No error shown | Automated | No error state | No errorMessage set | Test line 221 |
+Walked the rendered UX (not just the boolean logic, which the reviewer
+already covered) for the kill-switch combinations:
 
-## User Flow Validation
+| `PAID_DUELS_ENABLED` (server) | `NEXT_PUBLIC_PAID_DUELS_ENABLED` (client) | Verified how | Result |
+|---|---|---|---|
+| true | true | live, both NY and CA | AC-1/AC-2 above — correct, no flash |
+| false | true | live (CA, allowed region) | Chip Duels/Tournaments cards **still show "Not available in your region." / "unavailable"** even though the true reason is the kill switch, not geo. Confirmed live. **Pre-existing, non-blocking** — this is exactly the reviewer's warning finding (`app/app/duel/page.tsx:27` etc. destructuring only `{ allowed }` and discarding `reason`), not a regression introduced by this diff (the old client-only probe had the same blind spot), and it is not a flash/first-paint defect — the (misleading) copy is consistent from the first byte. No broken/missing badge; the state is internally consistent, just mislabeled. |
+| true | false | code inspection only (requires a rebuild; not exercised live) | `DuelHome`'s paid mode cards are gated by `{paidEnabled && (...)}` where `paidEnabled = PAID_DUELS_ENABLED_PUBLIC` — with this false, the Chip Duels/Tournaments cards render **not at all** (clean hidden state, no broken UI). `ChipDuelLobby` does not consult `PAID_DUELS_ENABLED_PUBLIC` at all (pre-existing, per reviewer's finding it hardcodes `enabled=true` for the revalidation probe) — a user who navigates directly to `/duel/chips` would still see a fully working lobby if the server-side kill switch is on and geo allows. This is a pre-existing entry-point-vs-page inconsistency, **unrelated to this diff** (same hardcoded `true` existed before), not a flash bug, not a money-movement bypass (enforcement is still server-checked independently at `/api/duel/chips/match`). |
+| false | false | code inspection only | Mode cards hidden entirely on `/duel` (clean). `/duel/chips` shows "Region restricted" copy (same reason-collapsing issue as row 2) instead of a kill-switch-specific message, but again consistent from first paint, no flash, no broken state. |
 
-### F-1: Join Queue (Happy Path) -- PASS
-**Method:** Code trace + automated test
-**Result:** QuickPlayCard.onPress -> queue.join -> POST /api/duel/queue -> SearchingOverlay -> poll every 2s -> matched -> navigate(/duel/:id). Full path verified by test "transitions through joining -> searching -> matched when polled".
+None of the four combinations produces a missing badge, a mismatched
+subtitle/badge pairing, or an observable flash. The one real UX issue
+(kill-switch-off mislabeled as "region restricted") is the reviewer's
+already-filed non-blocking warning, not a new defect, and does not fail any
+of AC-1 through AC-5.
 
-### F-2: Instant Match -- PASS
-**Method:** Code trace + automated test
-**Result:** POST returns matched+duelId -> direct to matched state -> navigate. Verified by test "goes directly to matched when POST returns matched with duelId".
+## Exploratory pass
 
-### F-3: Cancel Search -- PASS
-**Method:** Code trace + automated test
-**Result:** Cancel -> stopPolling -> DELETE (best-effort) -> idle. Verified by test "stops polling and sends DELETE on cancel".
+- **Refresh mid-flow / direct navigation:** every request tested was a
+  fresh `curl` (no session/cookie reuse), which is equivalent to a hard
+  refresh or direct URL entry — the correct decision showed on every single
+  one, with no cross-request caching. No stale state observed.
+- **Empty/missing geo headers:** already covered by upstream unit tests
+  (`missing_geo` → deny) and is exercised on every real request that lacks
+  the two Vercel headers (e.g. any request through a non-Vercel front door)
+  — fail-closed, consistent with `context/trust.md`'s posture.
+- **Double-submit / navigate-away:** out of scope for this diff (display-only
+  change); the money-moving submit handlers (`handleMatch` in
+  `ChipDuelLobby.tsx`) were not touched and were not re-tested here since
+  AC-5 scopes them as unchanged, already confirmed by diff.
 
-### F-4: Timeout -- PASS
-**Method:** Code trace + automated test
-**Result:** Poll returns expired/idle -> timeout state -> "No opponent found" with retry/back. Verified by two timeout tests.
+## Verdict
 
-### F-5: Error Recovery -- PASS
-**Method:** Code trace + automated test
-**Result:** Network/429/500 -> error state -> message + retry/back. Verified by four error-path tests.
-
-### F-6: Already In Queue (409) -- PASS
-**Method:** Code trace + automated test
-**Result:** POST 409 -> searching -> resume polling -> match. Verified by test "resumes polling when POST returns 409".
-
-## Negative/Boundary Cases
-
-| Case | Test | Result |
-|------|------|--------|
-| matched without duelId (poll) | Automated | Stays searching (test line 782) |
-| matched without duelId (POST) | Automated | Falls to searching (test line 811) |
-| Cancel from idle | Automated | No DELETE sent (test line 466) |
-| Unmount when idle | Automated | No DELETE sent (test line 516) |
-| Unmount after match | Automated | No DELETE sent (test line 530) |
-| Poll network error | Automated | Swallowed, retries next tick (test line 651) |
-| Poll 500 | Automated | Ignored, keeps polling (test line 695) |
-| POST JSON parse failure | Automated | Fallback error message (test line 724) |
-| Continued polling on "waiting" | Automated | Keeps polling until matched (test line 606) |
-| POST returns expired | Automated | Direct to timeout (test line 378) |
-
-## Exploratory Pass
-
-| Scenario | Result |
-|----------|--------|
-| Double-submit | Overlay covers HomeScreen, preventing re-tap on QuickPlayCard |
-| Navigate away mid-search | Unmount cleanup fires: interval cleared, DELETE sent |
-| Empty state | QuickPlayCard renders normally in idle; no broken state |
-| Refresh mid-flow | Component re-mounts idle; old queue entry expires server-side (300s TTL) |
-
-## Informational Notes
-
-1. **Brief empty overlay on match:** When status transitions to "matched", queueActive (status !== "idle") is true, so SearchingOverlay renders momentarily with no inner content (no branch for "matched"). The useEffect navigate fires immediately, unmounting the component. Not visible to the user but could be eliminated by gating overlay on `status !== "matched"` as well.
-
-2. **Spec structural format:** Flows F-1 through F-6 do not carry `critical: yes|no` annotations. The spec is functionally complete (all flows have matching ACs, stories cover paths, recovery documented) but does not use the structured field format from the QA gate checklist. Noted for future spec authoring.
+All five ACs (AC-1 through AC-5) **PASS**. No untestable ACs. No structural
+spec-gate failure (the ACs were supplied directly, not derived from a Flows
+section, and this is a targeted fix to an existing surface, not a new
+Flows-bearing feature). One pre-existing, non-blocking UX nit reconfirmed
+live (kill-switch-off mislabeled as region-blocked) — already filed by the
+reviewer as a non-blocking warning; not a regression from this change and
+does not fail any AC.

@@ -1,0 +1,151 @@
+{
+  "agent": "verifier",
+  "status": "success",
+  "summary": "Wrote the missing unit tests for resolveRankedEligibility and the GeoHeaderSource contract of decidePaidDuelGeo (7 new tests, all invoking real exported functions, no source-text greps, no reimplemented logic). Ran a deliberate mutation (dropped the US-region allow-list check) and confirmed 5 tests across both rankedEligibility.test.ts and the pre-existing paidDuel.test.ts went red, then reverted and confirmed all green again — the gate is proven, not just claimed. Ran the full app (80 files / 745 tests) and orchestrator (15 suites / 58 tests) suites, app lint, app typecheck, orchestrator typecheck, and pack hygiene: all green. Independently reproduced the rendering-mode claim myself rather than trusting the handoff: built the working tree (ranked /duel and /duel/chips as f, dynamic) and, separately, built a detached git worktree at HEAD (ranked /duel and /duel/chips as o, static) — confirms the handoff's before/after claim byte-for-byte. Confirmed via grep that DuelHome and ChipDuelLobby have exactly one caller each (app/duel/page.tsx and app/duel/chips/page.tsx respectively) and no other caller was missed. Confirmed via diff that paidDuelGeo.ts's assertPaidDuelAllowed is a pure one-line delegate to the new decidePaidDuelGeo with zero logic change, and that all four real callers (guardPaidDuelRequest -> credits/checkout, plus direct calls from tournaments checkout/register and chips/match routes) are untouched by this diff. Confirmed the /api/geo/ranked JSON shape is unchanged (only a stale doc comment was corrected). Reverted the next-env.d.ts churn my own `pnpm build` run caused, per the prior handoff's flagged pitfall, and removed the temporary detached worktree and its symlinked node_modules. Did not commit or push; working tree carries only the software-engineer's original diff plus my new test file.",
+  "timestamp": "2026-09-20T03:31:05Z",
+  "goal": "Verify server-side paid-duel region eligibility (resolveRankedEligibility / decidePaidDuelGeo) on /duel and /duel/chips: true region decision on first paint, no optimistic 'available' default, no flash; shared edge-compatible headers-based helper; fail-closed posture and kill-switch gating intact. Add the unit tests the software-engineer explicitly left for the verifier.",
+  "artifacts": [
+    "app/src/__tests__/rankedEligibility.test.ts",
+    "loop/handoffs/verifier-2026-09-20T033105Z.json"
+  ],
+  "exitCriteria": {
+    "tests_written_for_resolveRankedEligibility": true,
+    "tests_written_for_decidePaidDuelGeo_GeoHeaderSource_contract": true,
+    "tests_invoke_real_exports_not_source_greps": true,
+    "negative_guard_proven_against_positive_fixture": true,
+    "gate_proven_to_fail_red_before_trusted_green": true,
+    "app_test_suite_green": true,
+    "app_lint_clean": true,
+    "app_typecheck_clean": true,
+    "orchestrator_typecheck_clean": true,
+    "orchestrator_test_green": true,
+    "pack_hygiene_clean": true,
+    "rendering_mode_independently_reverified": true,
+    "duel_page_callers_confirmed_single_source": true,
+    "chips_page_callers_confirmed_single_source": true,
+    "money_moving_callers_of_assertPaidDuelAllowed_confirmed_unchanged": true,
+    "api_response_shape_confirmed_unchanged": true,
+    "next_env_d_ts_churn_reverted": true,
+    "worktree_cleaned_up": true,
+    "committed": false,
+    "pushed": false
+  },
+  "coverageMatrix": [
+    {
+      "requirement": "Kill switch off -> {allowed:false, reason:'disabled'}, before geo is even consulted",
+      "test": "app/src/__tests__/rankedEligibility.test.ts:84-92 (\"kill switch off -> disabled, before any geo header is even consulted\")",
+      "implementation": "app/src/lib/rankedEligibility.ts:39-44",
+      "result": "pass"
+    },
+    {
+      "requirement": "Enforcement on + missing country header -> missing_geo (fail-closed)",
+      "test": "app/src/__tests__/rankedEligibility.test.ts:94-98",
+      "implementation": "app/src/lib/paidDuelGeo.ts:111-114 via app/src/lib/rankedEligibility.ts:46-47",
+      "result": "pass"
+    },
+    {
+      "requirement": "Enforcement on + US region not on allow-list (NY) -> not_allowlisted",
+      "test": "app/src/__tests__/rankedEligibility.test.ts:100-106 AND app/src/__tests__/paidDuel.test.ts:29-37 (pre-existing, still exercises the same code path through assertPaidDuelAllowed)",
+      "implementation": "app/src/lib/paidDuelGeo.ts:117-120",
+      "result": "pass"
+    },
+    {
+      "requirement": "Enforcement on + US region on allow-list (CA) -> {allowed:true, reason:null}",
+      "test": "app/src/__tests__/rankedEligibility.test.ts:108-114",
+      "implementation": "app/src/lib/rankedEligibility.ts:46-47",
+      "result": "pass"
+    },
+    {
+      "requirement": "Negative guard (not_allowlisted / missing_geo) proven against a positive fixture of the value it must reject",
+      "test": "app/src/__tests__/rankedEligibility.test.ts:46-52 (NY denied) and :54-60 (CA allowed) — same decidePaidDuelGeo call with a plain GeoHeaderSource object (not a Request), proving the guard actually distinguishes the two rather than always returning one branch",
+      "implementation": "app/src/lib/paidDuelGeo.ts:103-131",
+      "result": "pass"
+    },
+    {
+      "requirement": "decidePaidDuelGeo honors the GeoHeaderSource structural contract (not just Request/Headers) — the property the whole refactor depends on for server-component compatibility",
+      "test": "app/src/__tests__/rankedEligibility.test.ts:35-67",
+      "implementation": "app/src/lib/paidDuelGeo.ts:78-80, 103",
+      "result": "pass"
+    },
+    {
+      "requirement": "Non-test caller exists for rankedEligibility.ts before trusting its test coverage",
+      "verification": "grep-confirmed 3 production callers: app/app/api/geo/ranked/route.ts:15,20; app/app/duel/page.tsx:5,27; app/app/duel/chips/page.tsx:5,26",
+      "result": "confirmed"
+    },
+    {
+      "requirement": "next build route table shows /duel and /duel/chips as dynamic (f) in the working tree, static (o) at HEAD",
+      "verification": "Independently built both: working tree pnpm build showed 'f /duel' and 'f /duel/chips'; a detached worktree at HEAD (d5bb5e3) showed 'o /duel' and 'o /duel/chips'",
+      "result": "confirmed, matches handoff claim exactly"
+    },
+    {
+      "requirement": "DuelHome / ChipDuelLobby compile with the new required initialGeoAllowed prop and have no missed callers",
+      "verification": "pnpm typecheck clean; grep for DuelHome|ChipDuelLobby|useRankedEligibility across app/ returns exactly the 5 expected files (2 page.tsx, 2 components, 1 hook) — no other caller exists",
+      "result": "confirmed"
+    }
+  ],
+  "gatesRun": [
+    { "name": "app-test (new file only, first pass)", "cwd": "app", "command": "pnpm exec vitest run src/__tests__/rankedEligibility.test.ts", "result": "pass — 7/7" },
+    { "name": "mutation proof (deliberate red)", "cwd": "app", "command": "pnpm exec vitest run src/__tests__/rankedEligibility.test.ts src/__tests__/paidDuel.test.ts (with US-region allow-list check removed from paidDuelGeo.ts)", "result": "5 failed / 10 passed — proves the gate actually detects a broken allow-list, then reverted" },
+    { "name": "app-test (full suite, post-revert)", "cwd": "app", "command": "pnpm test", "result": "pass — 80 files / 745 tests (was 79/738 before my addition)" },
+    { "name": "app-lint", "cwd": "app", "command": "pnpm lint", "result": "pass" },
+    { "name": "app-typecheck", "cwd": "app", "command": "pnpm typecheck", "result": "pass" },
+    { "name": "orchestrator-typecheck", "cwd": "orchestrator", "command": "yarn typecheck", "result": "pass" },
+    { "name": "orchestrator-test", "cwd": "orchestrator", "command": "yarn test", "result": "pass — 15 suites / 58 tests" },
+    { "name": "pack-hygiene", "cwd": ".", "command": "node scripts/hygiene.mjs", "result": "pass — 8 agent files, 0 violations" },
+    { "name": "next build (working tree, evidence)", "cwd": "app", "command": "pnpm build", "result": "pass — route table shows f /duel and f /duel/chips" },
+    { "name": "next build (HEAD baseline, evidence)", "cwd": "<detached worktree at HEAD d5bb5e3>/app", "command": "pnpm build", "result": "pass — route table shows o /duel and o /duel/chips" }
+  ],
+  "feedback": [],
+  "findings": [],
+  "openItemsForDownstream": [
+    {
+      "severity": "info",
+      "for": "reviewer",
+      "message": "The GeoHeaderSource.get() is documented as case-insensitive lookup in paidDuelGeo.ts's comment, but the underlying implementation (a real Headers object or next/headers()'s ReadonlyHeaders) provides that case-insensitivity, not decidePaidDuelGeo itself — decidePaidDuelGeo just calls .get(name) with the exact literal 'x-vercel-ip-country'. My test's headersFrom() helper reimplements case-insensitive lookup purely to mimic that real contract for the test double; it is not exercising a code path inside paidDuelGeo.ts. Worth a second look that no caller ever passes a header source that ISN'T case-insensitive.",
+      "action": "Confirm both call sites (request.headers is a Fetch API Headers, and next/headers() headers() is Next's ReadonlyHeaders) really do normalize case, since decidePaidDuelGeo relies on that guarantee rather than doing its own toLowerCase()."
+    },
+    {
+      "severity": "info",
+      "for": "reviewer, qa-acceptance",
+      "message": "No component-level test exists (and none existed before this change) for DuelHome or ChipDuelLobby rendering with initialGeoAllowed. The prop threading was verified by typecheck + full test suite + manual code read, not by a render test. This is a gap but matches pre-existing test coverage depth for these two components (neither had render tests before).",
+      "action": "If a future change touches the geoBlocked/!geoAllowed branch again, a render test asserting the blocked-state UI actually appears for initialGeoAllowed=false would close this gap. Not blocking for this change since it's a pure prop-threading refactor with unchanged conditional logic (geoAllowed === false -> !geoAllowed is behaviorally identical once geoAllowed can never be null)."
+    }
+  ],
+  "learnings": [
+    {
+      "topic": "testing",
+      "kind": "lesson",
+      "forAgents": ["software-engineer", "verifier"],
+      "insight": "A module-level const gated by an env var read at import time (PAID_DUELS_ENABLED) is testable in the same vitest process as call-time env reads (PAID_DUEL_GEO_ENFORCE) by combining vi.resetModules() + vi.stubEnv() + a dynamic `await import()` per test case, with vi.unstubAllEnvs() + vi.resetModules() in afterEach. No test helper or injectable parameter was needed, so the kill switch stayed genuinely un-bypassable while still being covered.",
+      "action": "Reuse this pattern (resetModules + stubEnv + dynamic import) for any future module-level-const kill switch that must not gain an injectable bypass parameter.",
+      "confidence": "high"
+    },
+    {
+      "topic": "testing",
+      "kind": "lesson",
+      "forAgents": ["verifier", "reviewer"],
+      "insight": "Feeding a deliberate mutation (removing the US-region allow-list branch) to the new AND pre-existing test files in the same run caught 5 failures across both files, confirming the new tests aren't redundant with the old ones — they cover the GeoHeaderSource/next-headers()-shaped input path specifically, which the Request-based paidDuel.test.ts never exercises.",
+      "action": "When adding tests alongside an existing suite that covers overlapping logic through a different call path, run the mutation-proof against both files together, not just the new one — it demonstrates the new tests add real coverage rather than just re-asserting what was already proven.",
+      "confidence": "high"
+    },
+    {
+      "topic": "process",
+      "kind": "pitfall",
+      "forAgents": ["orchestrator"],
+      "insight": "loop/learnings.md still carries an open question ('Subagent dispatch is disabled in this session — how should the duel geo fix proceed?') dated 2026-09-20 from earlier in this same run, but subagent dispatch (Agent tool with subagent_type=verifier) worked normally for this stage. That open question is now stale.",
+      "action": "Remove the 'Subagent dispatch is disabled' open question from loop/learnings.md once the orchestrator confirms dispatch is working in the current session — leaving it in place will cause a future agent to needlessly re-litigate a resolved blocker.",
+      "confidence": "medium"
+    },
+    {
+      "topic": "build",
+      "kind": "lesson",
+      "forAgents": ["verifier", "integrator"],
+      "insight": "A detached `git worktree add <scratch> HEAD --detach` plus a symlinked node_modules (`ln -s <main-repo>/app/node_modules <worktree>/app/node_modules`) gives a from-scratch `next build` baseline in ~seconds instead of a full pnpm install, with zero risk to the working tree. Typing real DB credentials into a Bash command (even to `export` them) gets blocked by the permission classifier as credential materialization — rely on the profile-initialized shell environment instead (it's already present in every new Bash call in this environment) rather than re-exporting secret values yourself.",
+      "action": "For any future before/after `next build` comparison, use a detached worktree with a symlinked node_modules, and never retype a DATABASE_URL/secret value into a command — let the shell's own profile-provided env vars carry it.",
+      "confidence": "high"
+    }
+  ],
+  "nextStage": "reviewer",
+  "parallelNextStage": "security-reviewer",
+  "loopBackTo": null
+}

@@ -1,0 +1,236 @@
+{
+  "agent": "security-reviewer",
+  "status": "success",
+  "summary": "Security review of the server-side paid-duel region eligibility change. No critical and no high findings; 7 info findings, none blocking. Verified all six items the orchestrator asked me to confirm, mechanically rather than by reading claims: (1) money-movement enforcement is untouched — git diff touches none of paidDuelGuards.ts, api/duel/chips/match, api/tournaments/[id]/checkout, api/tournaments/[id]/register, api/credits/checkout, and all still call assertPaidDuelAllowed; (2) the refactor is provably behaviour-preserving — a mechanical diff of the OLD assertPaidDuelAllowed body against the NEW decidePaidDuelGeo body from `if (!enforcementOn())` onward is byte-identical, and ALLOWED_US_REGIONS / ALLOWED_COUNTRIES / enforcementOn() are byte-identical too; (3) no new trust in Vercel geo headers — the same two headers already gate the money paths pre-change, no middleware.ts exists to rewrite them, and grep of .next/static confirms zero leakage of the geo logic, allow-lists, or the kill switch into the client bundle; (4) no bypass path in resolveRankedEligibility — the kill switch returns a literal before geo is consulted, and the only other allowed:true source is the pre-existing !enforcementOn() dev escape; (5) force-dynamic is the right mechanism on Next 16.3.4 (no cacheComponents/dynamicIO/ppr, no staleTimes, no \"use cache\", no revalidate, no loading.tsx, no parent-layout segment config) and, critically, I read Next's own source to establish that the worst-case regression is FAIL-CLOSED: next/headers' headers() returns an empty sealed Headers under forceStatic, so a future dynamic=\"force-static\" yields missing_geo -> deny, while \"use cache\"/unstable_cache/generateStaticParams around headers() all throw loudly; (6) case-insensitivity is guaranteed by Next's HeadersAdapter (get bound to a real WHATWG Headers, plus a lowercasing proxy) — I agree with the verifier, no disagreement. I additionally ran 18 adversarial probes against the real decidePaidDuelGeo export (temp test file, since removed; working tree restored byte-for-byte) covering case variants, whitespace, empty values, and prototype-key smuggling; every deviation from the happy path denies. pnpm audit: 1 high / 3 moderate, all pre-existing transitive build/CLI deps, zero dependencies added by this change. Secret scan of the diff: clean. Read-only: I changed no production code.",
+  "timestamp": "2026-09-20T03:42:00Z",
+  "goal": "Security review (auth / trust-boundary / injection / fail-safety) of moving paid-duel region eligibility to server-side determination at request time on /duel and /duel/chips, with a shared edge-compatible headers-based helper and fail-closed posture preserved.",
+  "artifacts": [
+    "loop/handoffs/security-reviewer-2026-09-20T034200Z.json"
+  ],
+  "exitCriteria": {
+    "no_critical_security_findings": true,
+    "no_critical_findings": true,
+    "no_high_findings": true,
+    "secret_scan_clean": true,
+    "dependency_audit_run": true,
+    "no_new_dependencies": true,
+    "money_movement_enforcement_confirmed_untouched": true,
+    "geo_decision_refactor_proven_behaviour_identical": true,
+    "fail_closed_ordering_preserved": true,
+    "no_new_header_trust_introduced": true,
+    "no_kill_switch_bypass_path": true,
+    "force_dynamic_verified_for_next_16_3_4": true,
+    "worst_case_rendering_regression_is_fail_closed": true,
+    "header_case_insensitivity_confirmed_both_call_sites": true,
+    "no_server_geo_logic_leaked_to_client_bundle": true,
+    "adversarial_probes_run_against_real_exports": true,
+    "working_tree_restored_read_only": true,
+    "committed": false,
+    "pushed": false
+  },
+  "confirmationsRequested": [
+    {
+      "item": "1. Money-movement enforcement untouched and assertPaidDuelAllowed byte-identical",
+      "verdict": "CONFIRMED",
+      "evidence": "`git diff --name-only HEAD` touches 7 files, none of which is app/src/lib/paidDuelGuards.ts, app/app/api/duel/chips/match/route.ts, app/app/api/tournaments/[id]/checkout/route.ts, app/app/api/tournaments/[id]/register/route.ts, or app/app/api/credits/checkout/route.ts. Grep confirms all five still reach assertPaidDuelAllowed (three directly, credits/checkout via guardPaidDuelRequest). Read both enforcement sites: chips/match returns 403 GEO_BLOCKED after a kill-switch 404 and an audited geo log; guardPaidDuelRequest returns 404 DISABLED then 451 GEO_BLOCKED before auth. Neither is on the diff's call path."
+    },
+    {
+      "item": "2. decidePaidDuelGeo preserves exact fail-closed ordering and every branch",
+      "verdict": "CONFIRMED (mechanically, not by reading)",
+      "evidence": "Extracted the old assertPaidDuelAllowed body from `git show HEAD:app/src/lib/paidDuelGeo.ts` and the new decidePaidDuelGeo body from the working tree, dropped the signature + the two `const country/region` lines (the only lines that differ: `request.headers.get(...)` -> `headers.get(...)`), and diffed: IDENTICAL. Separately diffed ALLOWED_US_REGIONS, ALLOWED_COUNTRIES and enforcementOn(): IDENTICAL. Ordering intact: read country/region -> !enforcementOn() passthrough -> !country missing_geo -> country===\"US\" region allow-list -> ALLOWED_COUNTRIES allow-list -> allow."
+    },
+    {
+      "item": "3. No new attack surface / no new trust in x-vercel-ip-country(-region)",
+      "verdict": "CONFIRMED",
+      "evidence": "Both real call sites are request-header-derived: app/app/api/geo/ranked/route.ts passes request.headers (NextRequest, edge), and the two page components pass `await headers()` from next/headers, which reads the same incoming request. The trust that these headers are platform-set and not client-settable is PRE-EXISTING: the identical two headers already gate the money paths (chips/match 403, guardPaidDuelRequest 451) at HEAD. No app middleware.ts exists (only .next build artifacts and node_modules matches), so nothing rewrites or merges headers before the handler. Next.config's rewrites/redirects do not touch these routes. No client-bundle leakage: grep of .next/static for `x-vercel-ip-country`, `not_allowlisted`, and `process.env.PAID_DUELS_ENABLED` all return zero matches — the allow-lists, the geo logic and the server kill switch stay server-only. Only a boolean crosses into the RSC payload."
+    },
+    {
+      "item": "4. No code path yields allowed while PAID_DUELS_ENABLED is false, or while enforcement is on and geo says no",
+      "verdict": "CONFIRMED",
+      "evidence": "resolveRankedEligibility (app/src/lib/rankedEligibility.ts:39-48) has exactly two return statements: a literal `{ allowed: false, reason: 'disabled' }` guarded by `!PAID_DUELS_ENABLED` first, and `{ allowed: geo.allowed, ... }` second. No parameter, no options object, no default argument — a caller cannot inject an `enabled`. PAID_DUELS_ENABLED is a module-level const (`process.env.PAID_DUELS_ENABLED === 'true'`), so it is not re-readable or stubbable at call time in production. Within decidePaidDuelGeo the only allowed:true paths are (a) !enforcementOn(), the pre-existing dev escape, and (b) an explicit allow-list hit. Probed empirically: PAID_DUEL_GEO_ENFORCE='TRUE' (wrong case) with US/NY still DENIES — only the exact string 'false' disables enforcement, so a typo cannot silently open the gate."
+    },
+    {
+      "item": "5. force-dynamic is the right mechanism and survives Next 16.3.4's caching layers",
+      "verdict": "CONFIRMED, and the worst-case regression is fail-closed",
+      "evidence": "Next 16.3.4 (app/package.json + installed). next.config.js has `experimental: {}` — no cacheComponents, no dynamicIO, no ppr, no staleTimes override, so `export const dynamic` is fully honoured (and under cacheComponents Next 16 errors at build rather than silently ignoring it, i.e. a loud failure mode). Grepped app/duel for revalidate / \"use cache\" / staleTimes: zero hits. No loading.tsx, no route.ts, no nested layout in app/duel or app/duel/chips. app/layout.tsx exports only `viewport` (and metadata) — no competing segment config. Empirical proof independent of the build log: .next/prerender-manifest.json's static route list contains /, /daily, /dashboard, /tournaments, etc. but NOT /duel and NOT /duel/chips, and dynamicRoutes is empty — so neither page is in the full route cache. STRONGEST evidence: I read node_modules/next/dist/server/request/headers.js — under `workStore.forceStatic` (i.e. dynamic=\"force-static\") headers() returns `HeadersAdapter.seal(new Headers({}))`, an EMPTY header bag. A future refactor to force-static therefore produces country===null -> missing_geo -> DENY, not allow. And headers() inside \"use cache\" (E833), unstable_cache (E838) or generateStaticParams (E1134) throws. Every reachable misconfiguration of this page fails closed or fails loudly."
+    },
+    {
+      "item": "6. Case-sensitivity of headers.get(name) at both real call sites",
+      "verdict": "CONFIRMED — I agree with the verifier, no disagreement",
+      "evidence": "Fetch API Headers is WHATWG-spec case-insensitive. For next/headers: node_modules/next/dist/server/web/spec-extension/adapters/headers.js's HeadersAdapter.seal builds createPassThroughMethods with `get: target.get.bind(target)` where target is a real Headers, and the HeadersAdapter proxy itself lowercases every prop before lookup (`const lowercased = prop.toLowerCase(); Object.keys(headers).find(o => o.toLowerCase() === lowercased)`). Probed end-to-end: `X-Vercel-IP-Country: US` + `X-Vercel-IP-Country-Region: CA` (mixed case) -> allowed=true through the real decidePaidDuelGeo. Note there is also a `createHidingMethods` path that can omit header names from reads; if x-vercel-* were ever hidden, get() returns null -> missing_geo -> deny. Fail-closed either way."
+    }
+  ],
+  "adversarialProbes": {
+    "method": "Temporarily added app/src/__tests__/zz-secreview-probe.test.ts invoking the real exported decidePaidDuelGeo with real WHATWG Headers objects (no source-text greps, no reimplemented logic), ran it with pnpm exec vitest, then deleted it. `git status --porcelain` afterwards is identical to before — working tree carries only the software-engineer's diff plus the verifier's test file.",
+    "results": "16/18 passed as expected; the 2 'failures' were MY expectations being wrong, not the code (see whitespace note).",
+    "cases": [
+      { "input": "US / CA", "result": "allowed" },
+      { "input": "US / NY", "result": "denied" },
+      { "input": "lowercase country 'us' / CA", "result": "DENIED — country uses strict === 'US' while region is .toUpperCase()d. Fail-closed asymmetry; see finding SEC-5." },
+      { "input": "US / lowercase 'ca'", "result": "allowed (region is uppercased before the Set lookup)" },
+      { "input": "empty country header", "result": "denied (missing_geo)" },
+      { "input": "no headers at all", "result": "denied (missing_geo)" },
+      { "input": "US with no region header", "result": "denied (not_allowlisted)" },
+      { "input": "non-US 'GB'", "result": "denied (ALLOWED_COUNTRIES is empty)" },
+      { "input": "region '__proto__' / 'constructor' / 'toString'", "result": "denied — the allow-lists are Sets, so Set.prototype.has is immune to prototype-key smuggling. This satisfies .claude/rules/security.md's 'user-keyed lookups use Object.hasOwn (or equivalent)'; Set.has IS the equivalent." },
+      { "input": "country '__proto__' / 'toString'", "result": "denied" },
+      { "input": "whitespace-padded ' US ' / ' CA '", "result": "ALLOWED — my probe expected denial and failed. The WHATWG Headers constructor trims leading/trailing whitespace from values per spec, so the padding never reaches the comparison. Correct behaviour; my expectation was wrong. Recorded so a future reviewer does not re-raise it." },
+      { "input": "PAID_DUEL_GEO_ENFORCE='false' with US/NY", "result": "allowed — the documented dev escape; see finding SEC-5" },
+      { "input": "PAID_DUEL_GEO_ENFORCE unset + NODE_ENV=production, no headers", "result": "denied — prod default is enforce" },
+      { "input": "PAID_DUEL_GEO_ENFORCE='TRUE' (wrong case) + NODE_ENV=production, US/NY", "result": "denied — a typo falls back to the NODE_ENV default rather than silently disabling" }
+    ]
+  },
+  "findings": [
+    {
+      "id": "SEC-1",
+      "severity": "info",
+      "owasp": "A01 Broken Access Control / A05 Security Misconfiguration",
+      "location": "app/app/api/geo/ranked/route.ts:18-21",
+      "issue": "The geo probe returns a region-varying body from an unauthenticated endpoint with no explicit Cache-Control and no Vary on the geo headers it keys off. Because useRankedEligibility now OVERWRITES the correct server-derived seed with whatever this endpoint returns, a shared cache that served one region's answer to another would flip a correctly-blocked page to unblocked.",
+      "reproduction": "Constructed attack: client A in an allowed region requests /api/geo/ranked through a shared forward proxy; the proxy stores the 200 application/json body {\"allowed\":true,\"reason\":null}; client B in a blocked region requests the same URL, receives the stored body, and useRankedEligibility's revalidation effect calls setAllowed(true), replacing the server-rendered false. The stake picker and 'Find match' then render.",
+      "whyNotHigher": "Traced the path and it is blocked twice over. (a) Vercel's default response header for an uncached function is `cache-control: public, max-age=0, must-revalidate`, which forbids serving a stored response without revalidating, so heuristic freshness (RFC 9111 4.2.2) never applies. (b) .next/prerender-manifest.json confirms the route is not in Next's full route cache, and Next 16 route handlers are dynamic by default. (c) Even on success the attacker gains zero capability: POST /api/duel/chips/match independently re-runs assertPaidDuelAllowed and returns 403 GEO_BLOCKED, and guardPaidDuelRequest returns 451, so no money moves. This is a compliance-display concern, not an exploitable one. Per my own downgrade rule: no constructable attack path that survives existing infrastructure -> info.",
+      "fix": "Defense in depth, one line: return NextResponse.json(result, { headers: { 'Cache-Control': 'private, no-store', 'Vary': 'x-vercel-ip-country, x-vercel-ip-country-region' } }). Makes the no-shared-cache property explicit in the repo instead of implicit in a platform default."
+    },
+    {
+      "id": "SEC-2",
+      "severity": "info",
+      "owasp": "A04 Insecure Design",
+      "location": "app/src/hooks/useRankedEligibility.ts:38-51",
+      "issue": "The client revalidation fetch is now the ONLY thing that can move this gate off the server-derived answer, and the justification in its own doc comment ('covers a stale client router cache entry') no longer holds on this Next version. A strictly-fail-closed design would let the fetch flip true->false but never false->true.",
+      "reproduction": "Not an exploit — client-side UI state is never an access-control boundary, and the attacker already owns their own DevTools. This is a design-posture observation about the residual trust the orchestrator explicitly asked me to assess.",
+      "whyNotHigher": "Assessed as ACCEPTABLE. The fetch hits /api/geo/ranked, which calls the identical resolveRankedEligibility against the identical platform-set headers for the identical client — it cannot substitute an attacker-controlled source, cannot default to allowed, and the typeof data?.allowed === 'boolean' guard correctly rejects a malformed body (a hijacked body could still send a valid `true`, but see SEC-1: that yields no capability, only UI). MITM is out of scope: HTTPS plus the CSP in next.config.js, and again no capability is gained.",
+      "fix": "Optional hardening: `if (data.allowed === false) setAllowed(false)` — revalidation can then only tighten, never loosen. Alternatively drop the fetch entirely: Next 15+ defaults staleTimes.dynamic to 0, next.config.js sets no staleTimes override, and both pages are force-dynamic, so the stale-router-cache scenario the comment cites cannot occur here. Either change removes an unauthenticated request per page view AND removes the last loosening path. Not blocking."
+    },
+    {
+      "id": "SEC-3",
+      "severity": "info",
+      "owasp": "A04 Insecure Design",
+      "location": "app/src/lib/paidDuelGeo.ts:72-80",
+      "issue": "GeoHeaderSource structurally widens the accepted input from a Request to anything shaped { get(name: string): string | null }. The doc comment specifies case-insensitivity but says nothing about PROVENANCE, so nothing in the type or the comment stops a future caller from satisfying it with a fabricated bag built from x-forwarded-* , a query string, or a request body — which would turn a platform-set value into a client-set one.",
+      "reproduction": "No current exploit. Grep confirms exactly three production callers (app/app/api/geo/ranked/route.ts:20, app/app/duel/page.tsx:27, app/app/duel/chips/page.tsx:26), all passing real request headers, plus test doubles. Verified by grep and by the clean typecheck/build.",
+      "whyNotHigher": "Hypothetical future-caller risk with zero present instance. The trade this buys (one shared decision function instead of two drifting copies) is a clear net security win and is the correct pattern.",
+      "fix": "Add one contract line to the GeoHeaderSource doc comment: 'Callers MUST pass headers exactly as received from the platform edge (request.headers or next/headers headers()). Never a derived, merged, or client-influenced bag — these values are a trust boundary.' Cheap, and it is the kind of comment .claude/rules/security.md says must correspond to a real path."
+    },
+    {
+      "id": "SEC-4",
+      "severity": "info",
+      "owasp": "A01 Broken Access Control",
+      "location": "app/app/tournaments/page.tsx, app/src/components/Tournament/TournamentList.tsx, app/app/api/tournaments/queue/route.ts:18-35",
+      "issue": "Scope gap, PRE-EXISTING and not a regression from this diff, but it is the same vulnerability class this change was created to fix. /tournaments is still STATICALLY PRERENDERED (it appears in .next/prerender-manifest.json's static route list, unlike /duel and /duel/chips which correctly do not) and TournamentList renders the entry-fee tier picker and a 'Join queue' button for a cash-prize feature with NO geo gate at all — not even the client-side probe that /duel had. Separately, app/app/api/tournaments/queue/route.ts contains no assertPaidDuelAllowed call anywhere in its body, unlike its sibling checkout and register routes which both do.",
+      "reproduction": "GET /tournaments from a blocked jurisdiction -> build-time HTML shows the cash-prize entry UI. Then POST /api/tournaments/queue -> 503 {\"error\":\"Tournaments are coming soon\",\"code\":\"COMING_SOON\"}, because both GET and POST return comingSoon() unconditionally before any logic (the file is @ts-nocheck'd for exactly this reason).",
+      "whyNotHigher": "No money can move: the unconditional 503 precedes everything, and TOURNAMENTS_ENABLED gating sits behind it. Per my downgrade rule, an unreachable code path is not a vulnerability. Filed as info so it is not lost.",
+      "fix": "Two items for whoever re-enables tournaments: (a) add assertPaidDuelAllowed (or guardPaidDuelRequest) to /api/tournaments/queue alongside the existing checkout/register checks, and (b) give /tournaments the same treatment this change gave /duel — resolveRankedEligibility(await headers()) + force-dynamic + a required initialGeoAllowed prop on TournamentList. Consider tracking (a) as a checklist item attached to the 'remove the early return' comment."
+    },
+    {
+      "id": "SEC-5",
+      "severity": "info",
+      "owasp": "A05 Security Misconfiguration",
+      "location": "app/src/lib/paidDuelGeo.ts:82-88",
+      "issue": "PAID_DUEL_GEO_ENFORCE='false' in the production environment disables the geo allow-list for BOTH the new display path and every existing money-movement path, from a single env var with no production guard. Pre-existing, unchanged by this diff, and now slightly higher blast radius because the same function also drives what the page renders.",
+      "reproduction": "Set PAID_DUEL_GEO_ENFORCE=false in the Vercel production environment; decidePaidDuelGeo returns { allowed: true } for every request regardless of country/region. Probe-confirmed against the real function: US/NY -> allowed=true.",
+      "whyNotHigher": "Requires production environment-variable write access, which is already full compromise of the deployment. Pre-existing and deliberately designed for local dev. Probe also confirmed there is no accidental path in: only the exact literal 'false' disables enforcement; 'TRUE', 'FALSE', '0', or any typo falls through to NODE_ENV === 'production' and still enforces.",
+      "fix": "Optional: make the kill-the-killswitch impossible in prod — `if (process.env.NODE_ENV === 'production') return raw !== 'false' ? true : (() => { throw new Error('geo enforcement cannot be disabled in production') })()`, or simply ignore the override when NODE_ENV === 'production'. Also worth a second look (availability, not security): country is compared with a strict === 'US' while region is .toUpperCase()d first. If Vercel ever emitted a lowercase country code, ALL US traffic would silently deny. Fail-closed, so not a security bug, but an asymmetry worth normalising with country.toUpperCase()."
+    },
+    {
+      "id": "SEC-6",
+      "severity": "info",
+      "owasp": "A06 Vulnerable and Outdated Components",
+      "location": "app/pnpm-lock.yaml (unchanged by this diff)",
+      "issue": "pnpm audit reports 4 vulnerabilities: 1 high, 3 moderate. All are pre-existing transitive dependencies of build/CLI tooling. This change adds ZERO dependencies — neither app/package.json nor the lockfile appears in git diff --name-only HEAD.",
+      "reproduction": "cd app && pnpm audit --audit-level=low. HIGH: deepmerge-ts@7.1.5 (<8.0.0, GHSA-ggr8-5vv4-36mx, stack exhaustion on recursive object graphs) via @prisma/client > prisma > @prisma/config — Prisma CLI config loading, not on any request path, and its input is the repo's own prisma config, not user data. MODERATE: uuid@7.0.3 via @capacitor/cli > xcode; uuid@9.0.1 via firebase-admin > @google-cloud/storage > gaxios (GHSA-w5hq-g745-h8pq, v3/v5/v6 buffer bounds — this repo uses v4 random UUIDs, not the buf-taking namespace variants); fflate@0.7.3 via @vercel/og > satori (GHSA-px8p-9vwx-vf98, unzipSync infinite loop on malformed ZIP64 — @vercel/og does not unzip attacker-supplied archives).",
+      "whyNotHigher": "None is reachable from a user- or network-controlled input on this deployment, and none was introduced here. Not this change's responsibility.",
+      "fix": "Backlog item for the integrator, not a blocker for this PR: bump prisma to a release carrying deepmerge-ts >=8, and re-audit. Do not let this gate the merge."
+    },
+    {
+      "id": "SEC-7",
+      "severity": "info",
+      "owasp": "n/a",
+      "location": "the diff as a whole",
+      "issue": "Positive result, recorded so it is not re-litigated: secret scan of the full diff (including the two new files) for api key / secret / password / bearer / private key / sk_live / pk_live / sk_test / AKIA / ghp_ / xox[baprs]- patterns returns only `token` identifiers destructured from useAuth() — no hardcoded credentials, no new outbound URLs, no new logging of PII, no new SSRF sink, no new injection sink (the only value crossing into the render is a boolean; country/region are never interpolated into HTML by this change).",
+      "reproduction": "n/a",
+      "whyNotHigher": "n/a — this is a clean result.",
+      "fix": "None required."
+    }
+  ],
+  "feedback": [],
+  "openItemsForDownstream": [
+    {
+      "severity": "info",
+      "for": "qa-acceptance",
+      "message": "Endorsing and sharpening the software-engineer's preview-deploy item. The security-relevant assertion is not just that the copy appears, but that it appears WITHOUT executing JavaScript — that is what distinguishes a genuinely server-rendered gate from the old client-corrected one. Add a check that the response is not shared-cacheable.",
+      "action": "On a preview deploy: `curl -sSD- -H 'x-vercel-ip-country: US' -H 'x-vercel-ip-country-region: NY' https://<preview>/duel/chips` and assert the raw HTML body already contains 'Region restricted' / 'not available in your region'. Repeat with region CA and assert the stake picker markup is present. On BOTH, assert the response headers show no `x-vercel-cache: HIT` and no `s-maxage`. Then separately `curl -sSD- .../api/geo/ranked` twice with different geo headers and confirm the two bodies differ and that no intermediary returned an `age:` header (SEC-1)."
+    },
+    {
+      "severity": "info",
+      "for": "reviewer",
+      "message": "Answering the verifier's case-sensitivity ping directly so you do not have to duplicate the work: I read Next 16.3.4's HeadersAdapter source and confirmed both call sites are case-insensitive (get bound to a real WHATWG Headers, plus a lowercasing proxy), and I probed mixed-case header names end-to-end through the real decidePaidDuelGeo. Also, the WHATWG Headers constructor trims whitespace from values, so ' CA ' normalises to 'CA' before the Set lookup — I initially expected that to deny and was wrong. No disagreement with the verifier on either point.",
+      "action": "Treat items 6 and the whitespace question as closed. If you want to spend review budget on this area, SEC-3 (document the provenance contract on GeoHeaderSource) and SEC-2 (make revalidation only able to tighten) are the two highest-value non-blocking nits."
+    },
+    {
+      "severity": "info",
+      "for": "integrator",
+      "message": "Two things to carry forward. (a) SEC-6: pnpm audit is 1 high / 3 moderate, all pre-existing transitive build tooling with no request-path reachability — do not block this merge on it, but do not let it silently become the new normal either. (b) /duel and /duel/chips are now force-dynamic, so every request to them is a server render instead of a CDN-cached static file. That is inherent to and required by the fix, but it changes the cost and availability profile of two user-facing pages; worth a glance at function invocation metrics after deploy.",
+      "action": "File the prisma/deepmerge-ts bump as a separate backlog item. After deploy, spot-check function invocation counts for /duel and /duel/chips against the prior static-serve baseline."
+    }
+  ],
+  "learnings": [
+    {
+      "topic": "security",
+      "kind": "lesson",
+      "forAgents": ["security-reviewer", "reviewer", "software-engineer"],
+      "insight": "When a change adds `export const dynamic = \"force-dynamic\"` as a compliance control, the question that actually matters is not 'is the directive honoured today' but 'what happens when it is not'. For Next.js App Router I established the answer from framework source rather than docs: next/headers' headers() returns an EMPTY sealed Headers bag under workStore.forceStatic (server/request/headers.js), so a regression to dynamic=\"force-static\" makes every header lookup return null. A gate built on `if (!country) deny` therefore degrades to deny-all, while a gate built on `if (country === 'XX') deny` would degrade to allow-all. The fail-closed shape of the surrounding check is what makes the directive safe to rely on, not the directive itself.",
+      "action": "Whenever a rendering-mode or cache directive is load-bearing for a security decision, trace what the underlying data source returns when the directive is absent or inverted, and require that the decision function fail closed on the empty/undefined input. Prefer `if (!value) deny` over `if (value === bad) deny` for any platform-injected signal.",
+      "confidence": "high"
+    },
+    {
+      "topic": "security",
+      "kind": "lesson",
+      "forAgents": ["security-reviewer", "reviewer"],
+      "insight": "A refactor that claims to be behaviour-preserving can be PROVEN in seconds instead of argued line-by-line: extract the old function body with `git show HEAD:<file> | sed -n '/^export function old/,/^}/p'`, extract the new one from the working tree, drop the lines that legitimately differ, and diff. Here it reduced 'does decidePaidDuelGeo preserve all four branches of assertPaidDuelAllowed' from a careful read to a one-command IDENTICAL, and did the same for the allow-list Sets and the enforcement helper. Reading and reasoning about two similar function bodies is exactly where a reviewer's attention silently fails.",
+      "action": "For any extract-function or move-function refactor touching a security control, mechanically diff the old and new bodies before reviewing anything else. Only spend attention on the lines the diff actually reports.",
+      "confidence": "high"
+    },
+    {
+      "topic": "security",
+      "kind": "pitfall",
+      "forAgents": ["software-engineer", "security-reviewer"],
+      "insight": "Moving a decision server-side does not finish the job if a client effect is still allowed to overwrite the result in BOTH directions. useRankedEligibility correctly rejects a malformed body (typeof data?.allowed === 'boolean') but still accepts a well-formed `true` that replaces a server-rendered `false`. Here that is acceptable because the source is the same helper over the same headers and the money path re-checks independently — but the asymmetric version costs one line and removes the loosening path entirely.",
+      "action": "When seeding client state from a server-derived security decision and keeping a revalidation fetch, make the revalidation monotonic in the safe direction: allow it to tighten (true -> false) and ignore it when it would loosen (false -> true). Also check whether the revalidation is still justified at all — on Next 15+ with force-dynamic and the default staleTimes.dynamic of 0, the 'stale router cache' rationale usually no longer applies.",
+      "confidence": "high"
+    },
+    {
+      "topic": "security",
+      "kind": "lesson",
+      "forAgents": ["security-reviewer", "reviewer", "software-engineer"],
+      "insight": "`.claude/rules/security.md` requires user-keyed lookups to use Object.hasOwn 'or equivalent'. A `Set` allow-list IS the equivalent and is strictly better: Set.prototype.has has no prototype chain, so '__proto__', 'constructor' and 'toString' as header values all return false. I verified this by probe rather than assuming. A plain object literal allow-list with `ALLOWED[region]` would have been truthy for 'constructor' and 'toString'.",
+      "action": "When reviewing an allow-list, check the container type first. Set/Map: safe. Object with `in` or bracket access: probe '__proto__', 'constructor', 'toString' before passing it. Add the probe to the test file rather than only noting it in review.",
+      "confidence": "high"
+    },
+    {
+      "topic": "security",
+      "kind": "pitfall",
+      "forAgents": ["software-engineer", "qa-acceptance", "orchestrator"],
+      "insight": "Fixing the prerender-plus-optimistic-default defect on /duel and /duel/chips left an identical instance one route away: /tournaments is still in .next/prerender-manifest.json's static route list and renders a cash-prize entry-fee picker with no geo gate of any kind, and /api/tournaments/queue has no assertPaidDuelAllowed call at all (only its checkout and register siblings do). It is harmless today solely because the route returns an unconditional 503. The prerender manifest is a cheap, exhaustive way to enumerate the remaining instances of this class: anything money- or compliance-gated that appears in the static route list is suspect.",
+      "action": "After fixing a rendering-mode compliance defect, read .next/prerender-manifest.json's full static route list and check every money- or jurisdiction-adjacent page on it for the same pattern, rather than only the routes named in the task. Attach the missing geo check to the 'remove this early return to enable' comment so re-enabling cannot forget it.",
+      "confidence": "high"
+    },
+    {
+      "topic": "security",
+      "kind": "metric",
+      "forAgents": ["verifier", "integrator", "security-reviewer"],
+      "insight": "Confirming that server-only security material stays server-only is one grep, and this change passes it: `grep -rl 'x-vercel-ip-country' app/.next/static`, plus the same for 'not_allowlisted' and 'process.env.PAID_DUELS_ENABLED', all return zero matches — the geo logic, the jurisdiction allow-lists, and the server kill switch never reach the client bundle. Worth running because app/src/config/paidDuel.ts exports both the server const and the NEXT_PUBLIC_ mirror from the same module, which is exactly the shape that leaks when a client component imports the wrong symbol.",
+      "action": "Whenever a module exports both a server-only and a NEXT_PUBLIC_ value, grep the built client chunks (.next/static) for a distinctive string from the server side before signing off. Zero matches is the pass condition.",
+      "confidence": "high"
+    },
+    {
+      "topic": "process",
+      "kind": "lesson",
+      "forAgents": ["security-reviewer"],
+      "insight": "A read-only reviewer can still run adversarial probes against real exports without violating read-only: drop a temp test file into the suite's include glob, run it, delete it, and confirm `git status --porcelain` matches the pre-review state. Note this repo's vitest include is `tests/**/*.test.ts, tests/**/*.test.tsx, src/__tests__/**/*.test.ts` — a probe placed anywhere else ('No test files found') silently does nothing, which would have let me report unverified reasoning as verified.",
+      "action": "Probe security decision functions by invoking them, not by reasoning about them. Check the runner's include glob before concluding a probe 'passed', and diff git status before and after to prove read-only was preserved. Two of my 18 probe expectations turned out to be wrong about the code's behaviour — reasoning alone would have produced two false findings.",
+      "confidence": "high"
+    }
+  ],
+  "nextStage": "qa-acceptance",
+  "loopBackTo": null
+}
