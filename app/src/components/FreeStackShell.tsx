@@ -1,10 +1,13 @@
 /**
- * FreeStackShell — shared frame for the standalone free climb stack (/climb, /play).
+ * FreeStackShell — shared frame for the standalone free climb stack
+ * (/climb leaderboard, /play, /daily).
  *
- * Navbar + a tab-only header band are identical on both routes. Title, CTA and
- * meta live in the panel below the hairline so switching Leaderboard/Play does
- * not jump the tabs. The play panel scrolls (canvas + controls card); it is not
- * a fill-viewport overflow-hidden stage.
+ * A tab-only header band (Leaderboard / Play / Daily) renders on every section.
+ * The Navbar renders ONLY on the leaderboard section: the game sections go
+ * navbar-less so the sticky navbar never paints over ClimbScene's touch
+ * `fixed inset-0` fullscreen HUD. Trade: on desktop the tab band sits ~56px
+ * higher on the game sections than on the leaderboard (intentional per product
+ * — a navbar-less game was chosen over a jitter-free tab band).
  */
 
 import type { ReactNode } from "react";
@@ -37,14 +40,21 @@ export function FreeStackShell({
         aria-hidden="true"
       />
 
-      {/* Navbar renders on every section (Leaderboard / Play / Daily), matching
-          the duel stack, so the tab band below sits at the same top position on
-          all three routes instead of jumping up 56px on the game sections. The
-          true-fullscreen game is unaffected: ClimbScene goes `fixed inset-0` on
-          touch once a run starts and escapes this shell entirely. */}
-      <div className="shrink-0">
-        <Navbar contextLabel="Free climb" />
-      </div>
+      {/* Navbar renders ONLY on the non-game (leaderboard) section. The game
+          sections (/play, /daily) go navbar-less: on touch, ClimbScene mounts
+          its stage as `fixed inset-0 z-40` inside this shell's `relative z-10`
+          game wrapper, which caps that z below the navbar's sibling `sticky
+          z-30`, so a rendered navbar paints OVER the top of the fullscreen game
+          and covers the HUD ("HEIGHT" / "LAVA CLEARANCE"). Dropping the navbar
+          on the game restores the original navbar-less game screens on every
+          device. Tradeoff (intentional, per product): on desktop the tab band
+          below sits ~56px higher on /play & /daily than on /climb, so it shifts
+          vertically when switching between the leaderboard and game tabs. */}
+      {!gameSection && (
+        <div className="shrink-0">
+          <Navbar contextLabel="Free climb" />
+        </div>
+      )}
 
       {/* One container width for the band across every section, so the tabs
           don't shift horizontally when switching Leaderboard / Play / Daily. */}

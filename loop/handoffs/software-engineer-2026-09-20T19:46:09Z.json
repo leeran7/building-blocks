@@ -1,0 +1,50 @@
+{
+  "agent": "software-engineer",
+  "status": "success",
+  "timestamp": "2026-09-20T19:46:09Z",
+  "nextStage": "verifier",
+  "branch": "claude/blissful-ramanujan-tcniuq",
+  "summary": "Fixed the mobile HUD-cover regression on /play and /daily. Per the coordinator's mid-task simplification, the navbar is now REMOVED on the game sections outright (both desktop and mobile), restoring the original `!gameSection && <Navbar>` behavior — the navbar renders only on the /climb leaderboard section. Root cause confirmed as briefed: FreeStackShell's game wrapper is `relative z-10` (a stacking context), which caps ClimbScene's touch `fixed inset-0 z-40` stage below the navbar's sibling `sticky z-30`, so the navbar painted over the fullscreen game HUD (HEIGHT / LAVA CLEARANCE). Dropping the navbar on the game removes the overlap entirely and restores navbar-less game screens on every device. ClimbScene fullscreen logic and HUD insets were NOT touched. All gates green.",
+  "changes": [
+    "app/src/components/FreeStackShell.tsx — navbar wrapped in `{!gameSection && (...)}` so it renders only on the leaderboard section; game sections (/play, /daily) render navbar-less. Tab band still renders on every section. Updated the file docstring and added an in-line comment explaining the fix and the intentional desktop tab-band shift tradeoff.",
+    "app/tests/components/climbFeelSurfaces.test.tsx — added one test in the FreeStackShell describe: asserts the Navbar landmark (`<nav ... sticky ... top-0>`) is ABSENT on section play/daily and PRESENT on leaderboard, and that the tab band (`aria-label=\"Free stack sections\"`) still renders on the game sections. Landmark/attribute assertions, not source-text greps."
+  ],
+  "decisions": [
+    "Tab band: NOT hidden on the game sections. The coordinator's revised instruction was 'just remove the navbar; no spacer, no media-query hide.' The tab band is the primary Leaderboard/Play/Daily navigation and was navbar-less-but-present in the original design, so it stays on all sections. On touch the fixed stage covers it (cosmetic-neutral); on desktop it is the top chrome on the game sections.",
+    "Breadcrumb-label secondary: SKIPPED as now moot. The navbar only renders on the leaderboard section, where contextLabel is correctly 'Free climb'. /daily no longer shows a navbar breadcrumb at all, so there is no 'FREE CLIMB' vs 'Daily' mislabel left to fix. Reverted the earlier per-section-label change I had briefly staged under the original (media-query) approach.",
+    "Frozen contract climbFeelSurfaces.test.tsx: no EXISTING assertion required weakening or changing. No prior test asserted navbar presence on the game sections, and the two 'Free climb' string assertions live in the Hero (line 130) and ClimbPanelIntro (line 209) suites, not the FreeStackShell navbar — both untouched. I only ADDED a test for the new contract; net test count 802 -> 803."
+  ],
+  "gates": {
+    "app-lint": "pass",
+    "app-typecheck": "pass",
+    "app-test": "pass (91 files, 803 tests, >=802)",
+    "app-build": "pass — route modes unchanged (/daily static, /play & /climb dynamic as before; no route-mode flips)",
+    "orchestrator-typecheck": "pass",
+    "orchestrator-test": "pass (58 tests)",
+    "pack-hygiene": "pass (0 violations)"
+  },
+  "verifyNotes": [
+    "TOUCH /play & /daily: no navbar over the game; HUD (HEIGHT / LAVA CLEARANCE) fully visible; game is truly fullscreen (fixed inset-0) again.",
+    "DESKTOP /play, /daily: navbar-less; the tab band sits ~56px higher than on /climb — this is the INTENTIONAL, product-chosen tradeoff (navbar-less game over jitter-free tab band). Not a regression; flag for QA so the desktop tab-band vertical shift between /climb and /play|/daily is not re-filed as a bug.",
+    "TOUCH & DESKTOP /climb (leaderboard): navbar still present and unchanged.",
+    "Playwright touch-viewport check (recommended by coordinator): at 393x852, confirm no <nav sticky> overlaps the stage and the HEIGHT label sits at the true top, not clipped."
+  ],
+  "learnings": [
+    {
+      "forAgents": ["verifier", "reviewer", "qa-acceptance"],
+      "kind": "context",
+      "topic": "freestackshell-navbar-tradeoff",
+      "insight": "FreeStackShell now renders the Navbar ONLY on the /climb leaderboard section; /play and /daily are navbar-less by design. This is a reversal of the earlier 'always render navbar to kill tab-band jitter' change. Consequence: on desktop the tab band sits ~56px higher on the game sections than on /climb, so it shifts when switching between the leaderboard and game tabs.",
+      "action": "Do NOT flag the desktop tab-band vertical shift between /climb and /play|/daily as a regression — it is the explicit product tradeoff (navbar-less game > jitter-free tab band). Verify the touch HUD is uncovered instead.",
+      "confidence": "high"
+    },
+    {
+      "forAgents": ["software-engineer", "reviewer"],
+      "kind": "pattern",
+      "topic": "stacking-context-zindex-cap",
+      "insight": "A child's high z-index (ClimbScene stage z-40) is capped by its nearest positioned ancestor that forms a stacking context (FreeStackShell's `relative z-10` game wrapper). A sibling `sticky z-30` navbar then wins the paint order regardless of the child's z-40. When a descendant must escape sibling chrome, the fix is at the ANCESTOR/sibling layer (render/omit the chrome), not by bumping the descendant's z-index.",
+      "action": "When a fixed/overlay element is covered by sibling chrome, check for an intermediate positioned ancestor creating a capped stacking context before touching z-index values.",
+      "confidence": "high"
+    }
+  ]
+}
