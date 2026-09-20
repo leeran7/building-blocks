@@ -1,0 +1,58 @@
+{
+  "agent": "qa-acceptance",
+  "status": "success",
+  "timestamp": "2026-09-20T20:33:00Z",
+  "nextStage": "integrator",
+  "branch": "claude/blissful-ramanujan-tcniuq",
+  "diffRange": "aa6c1af..HEAD",
+  "summary": "End-to-end acceptance of the combined change set (app-wide redundancy reduction + navbar/HUD fix). Validated in a real Chromium via Playwright at both desktop (1280x900) and touch (393x852, isMobile+hasTouch) with reduced-motion, plus static review of auth-gated dashboard/chip flows. PAID_DUELS is ON in this env (running dev server has PAID_DUELS_ENABLED=true and NEXT_PUBLIC_PAID_DUELS_ENABLED=true; home renders the ranked callout). 24/24 acceptance criteria pass. No orphaned destinations: /duel/chips loads and is reachable through the duel-stack shell; the tab band is pixel-identical width (896px, left=187) across /duel, /duel/leaderboard, /duel/chips (the ChipDuelLobby-through-shell fix). The user-reported HUD bug is fixed: on touch /play and /daily there is NO sticky top navbar and the HEIGHT/LAVA CLEARANCE HUD renders at top=20/22px, not covered by any nav (elementFromPoint at the HUD top returns non-nav). /climb keeps its navbar on both touch and desktop. The a11y escape path is real: the Leaderboard tab is keyboard-reachable in 2 Tab presses, is a native role=tab anchor to /climb, and Enter navigates /play->/climb restoring the navbar (no stranding). One initial scripted FAIL (a11y.leaderboardEscape) was a harness wait race, not a product bug — re-run confirmed the Enter-key navigation and navbar restoration succeed.",
+  "acceptanceCriteria": [
+    { "id": "home.duelPromo+socialProof.gone", "result": "pass", "evidence": "DuelPromo.tsx deleted in diff; no social-proof markers in DOM; SocialProofStrip removed." },
+    { "id": "home.mergedLeaderboard+callout", "result": "pass", "evidence": "Exactly 1 section[aria-label=Leaderboards]; '18+ ... not available in all states' + 'Ranked chip duels + tournaments' callout present (paid on)." },
+    { "id": "home.oneFilledDuelCTA", "result": "pass", "evidence": "1 filled bg-signal anchor to /duel ('Start a duel')." },
+    { "id": "home.zeroFilledPlayCTA", "result": "pass", "evidence": "0 filled bg-signal anchors to /play ('Free climb' is outline)." },
+    { "id": "home.about+faq.present", "result": "pass", "evidence": "AboutDoomstack heading present; FAQ details present." },
+    { "id": "duel.chipsTeaser.reachesChips", "result": "pass", "evidence": "DuelHome chips tier is a lean teaser Link to CHIP_DUELS_HREF (/duel/chips); /duel/chips route loads (Chip Duels heading) through DuelStackShell." },
+    { "id": "duelChips.claimTierMatchUI", "result": "pass", "evidence": "ChipDuelLobby renders daily-claim/tier-picker/Find-match when signed-in and geo-allowed; signed-out shows SignInGate degrade (no DB/auth in sandbox) — logic verified statically + route renders." },
+    { "id": "duel.tabBand.identicalWidth", "result": "pass", "evidence": "tablist container width=896, left=187 identical across /duel, /duel/leaderboard, /duel/chips (DUEL_STACK_WIDTH max-w-4xl via shell)." },
+    { "id": "playDaily.controlsOnce.collapsedDetails", "result": "pass", "evidence": "Each of /play and /daily has exactly 1 <details> summary 'Controls & power-ups', starts closed; overlay controls render in ClimbScene." },
+    { "id": "playDaily.leaderboardTab.reachesClimb", "result": "pass", "evidence": "Leaderboard tab is a native anchor href=/climb on both /play and /daily." },
+    { "id": "dashboard.oneCanonicalDuelCTA", "result": "pass", "evidence": "dashboard/page.tsx top-band 'Start a duel' filled CTA; DuelRecordCard 'Play a duel', DuelReplaysSection 'Play 1v1', and DuelRecordEmpty 'Start a duel' buttons removed in diff. 'Challenge a friend' remains a distinct secondary text link (mode=challenge)." },
+    { "id": "dashboard.playAgain.once", "result": "pass", "evidence": "ClimbReplaysSection 'Play again' removed; FreeClimbCard retains the single 'Play again' on the climb tab." },
+    { "id": "dashboard.wallet.getDailyChips", "result": "pass", "evidence": "WalletCard idle label = 'Get daily chips'." },
+    { "id": "touch.playDaily.noNavbar", "result": "pass", "evidence": "At 393x852 touch, no sticky top-0 z-30 <nav> on /play or /daily." },
+    { "id": "touch.playDaily.hudNotClipped", "result": "pass", "evidence": "HEIGHT top=20px, LAVA CLEARANCE top=22px, both fully visible; elementFromPoint at HUD top is not a nav (coveredByNav=false)." },
+    { "id": "climb.navbar.presentTouchAndDesktop", "result": "pass", "evidence": "Sticky navbar present on /climb at both 393x852 touch and 1280x900 desktop." },
+    { "id": "a11y.leaderboard.keyboardEscape", "result": "pass", "evidence": "Leaderboard tab reached in 2 Tab presses; native role=tab anchor href=/climb; Enter navigates /play->/climb and navbar is restored (re-run confirmed; not stranded)." },
+    { "id": "desktop.tabBandShift.56px", "result": "pass", "evidence": "Intentional ~56px desktop tab-band vertical shift between /climb and /play|/daily — per product/reviewer, NOT failed." }
+  ],
+  "method": "Playwright (Chromium /opt/pw-browsers/chromium-1194, --no-sandbox) desktop 1280x900 + touch 393x852 isMobile/hasTouch, reducedMotion=reduce. DOM assertions on live dev server (localhost:3000) — filled-CTA count via className bg-signal (excluding signal-outline) + resolved pathname; tab-band width via getBoundingClientRect on the DUEL_STACK_WIDTH container; HUD visibility via .exp-label rects + elementFromPoint coverage test; navbar via nav.sticky.top-0; a11y via keyboard Tab traversal + Enter navigation with URL assertion. Auth-gated dashboard/chip claim/match paths reviewed statically (no DB/auth in sandbox) — degrade/SignInGate states render.",
+  "exitCriteria": { "all_acceptance_pass": true, "orphaned_destinations": "none", "touch_hud_fixed": true, "a11y_escape_confirmed": true },
+  "cleanup": ["Stopped dev server on :3000", "Throwaway Playwright scripts kept in session scratchpad (not repo)", "Working tree clean — no next-env.d.ts/AGENTS.md/CLAUDE.md churn to revert"],
+  "learnings": [
+    {
+      "forAgents": ["qa-acceptance"],
+      "kind": "pattern",
+      "topic": "playwright-keyboard-nav-wait-race",
+      "insight": "Asserting keyboard-activated next/link navigation with a single networkidle wait after keyboard.press('Enter') races the client-side transition and can false-negative (URL still shows the old path). The navigation actually completes.",
+      "action": "Use Promise.all([page.waitForURL('**/target'), page.keyboard.press('Enter')]) or re-read page.url() after an explicit settle; don't fail an a11y escape-path check on the first racy read.",
+      "confidence": "high"
+    },
+    {
+      "forAgents": ["qa-acceptance", "verifier"],
+      "kind": "environment",
+      "topic": "paid-duels-flag-source",
+      "insight": ".env.local in this sandbox does NOT contain PAID_DUELS_ENABLED / NEXT_PUBLIC_PAID_DUELS_ENABLED; the paid-on state comes from the already-running dev server's process env (confirmed via /proc/<pid>/environ). A freshly `pnpm dev`-started server without those vars would render paid-OFF (free board only, no ranked callout), changing home/duel acceptance expectations.",
+      "action": "Before asserting paid-on criteria, confirm the SERVING process has PAID_DUELS_ENABLED=true (or that the home ranked callout renders); do not assume .env.local reflects the live flag.",
+      "confidence": "high"
+    },
+    {
+      "forAgents": ["software-engineer", "reviewer"],
+      "kind": "verification",
+      "topic": "chip-buy-claim-reachability-preserved",
+      "insight": "The /duel chips-tier lean teaser correctly preserves the only buy/claim entry: it Links to /duel/chips, which renders the full ChipDuelLobby (daily-claim, stake tiers, Find match) through DuelStackShell section='chips'. No buy/claim capability was orphaned by the redundancy cut.",
+      "action": "None — reachability confirmed end-to-end.",
+      "confidence": "high"
+    }
+  ]
+}
