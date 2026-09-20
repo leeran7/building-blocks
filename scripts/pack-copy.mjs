@@ -98,7 +98,10 @@ export function fixLoopGitignore(content) {
   for (const line of lines) {
     const trimmed = line.trim();
     if (!replacedLoop && (trimmed === "loop/" || trimmed === "loop/**")) {
-      out.push("loop/*", "!loop/learnings.md", "!loop/handoffs/", "!loop/*.md");
+      // Handoff JSONs are transient scratch (promoted by the retro into
+      // docs/agents/skills), so they stay ignored — only the ledger and
+      // loop markdown are tracked.
+      out.push("loop/*", "!loop/learnings.md", "!loop/*.md");
       replacedLoop = true;
       continue;
     }
