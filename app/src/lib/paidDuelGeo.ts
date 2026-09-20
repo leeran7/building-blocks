@@ -69,6 +69,16 @@ export interface GeoDecision {
   reason?: "not_allowlisted" | "missing_geo";
 }
 
+/**
+ * The only thing this module needs from a request: a case-insensitive header
+ * lookup. Both a `Request`/`NextRequest`'s `Headers` and the object returned by
+ * `next/headers` `headers()` satisfy this, so route handlers and server
+ * components share one decision function instead of two drifting copies.
+ */
+export interface GeoHeaderSource {
+  get(name: string): string | null;
+}
+
 function enforcementOn(): boolean {
   // Default ON in production, OFF elsewhere; overridable via env for testing.
   const raw = process.env.PAID_DUEL_GEO_ENFORCE;
@@ -82,8 +92,17 @@ function enforcementOn(): boolean {
  * Reads `x-vercel-ip-country` and `x-vercel-ip-country-region` (set by Vercel).
  */
 export function assertPaidDuelAllowed(request: Request): GeoDecision {
-  const country = request.headers.get("x-vercel-ip-country");
-  const region = request.headers.get("x-vercel-ip-country-region");
+  return decidePaidDuelGeo(request.headers);
+}
+
+/**
+ * Header-level core of the geo decision. Edge-runtime safe (no Node APIs, no
+ * `next/*` imports) so the edge probe route, Node route handlers, and server
+ * components can all call it.
+ */
+export function decidePaidDuelGeo(headers: GeoHeaderSource): GeoDecision {
+  const country = headers.get("x-vercel-ip-country");
+  const region = headers.get("x-vercel-ip-country-region");
 
   if (!enforcementOn()) {
     return { allowed: true, country, region };

@@ -3,17 +3,42 @@
 import { useEffect, useState } from "react";
 
 interface RankedEligibility {
-  /** null while loading; true/false once resolved. */
-  allowed: boolean | null;
+  /** Always a resolved boolean — seeded from the server render, never optimistic. */
+  allowed: boolean;
 }
 
 /**
- * Probes /api/geo/ranked to determine whether the current user's region
- * permits ranked (chip duel / tournament) features. Best-effort: network
- * failures resolve to `allowed: null` so callers can fall back gracefully.
+ * Ranked (chip duel / tournament) eligibility for the current visitor.
+ *
+ * The authoritative decision is made SERVER-SIDE at request time
+ * (`resolveRankedEligibility` in the `/duel` and `/duel/chips` page
+ * components) and handed in as `serverAllowed`, so the first paint is already
+ * correct — there is no `null`/"assume available" window to flash out of.
+ *
+ * The `/api/geo/ranked` fetch below is revalidation only: it covers a stale
+ * client router cache entry (e.g. Next's back/forward navigation, which
+ * restores a cached RSC segment and deliberately bypasses `staleTimes` —
+ * see the `/dashboard` fix for the same class of bug) and geo-signal
+ * variance between this route's server render and the probe's own request.
+ * It is monotonic: it can only tighten the gate (allowed → blocked), never
+ * loosen it. A blocked-then-corrected-to-allowed flash would be a compliance
+ * regression; a spurious allowed-then-blocked correction is merely
+ * conservative.
+ *
+ * `serverAllowed` is a required parameter on purpose: a caller cannot render
+ * this gate without a server-derived answer.
  */
-export function useRankedEligibility(enabled: boolean): RankedEligibility {
-  const [allowed, setAllowed] = useState<boolean | null>(null);
+export function useRankedEligibility(
+  enabled: boolean,
+  serverAllowed: boolean
+): RankedEligibility {
+  const [allowed, setAllowed] = useState<boolean>(serverAllowed);
+
+  // Re-seed if the server sends down a different answer (e.g. a client-side
+  // navigation re-renders the page component for a new request).
+  useEffect(() => {
+    setAllowed(serverAllowed);
+  }, [serverAllowed]);
 
   useEffect(() => {
     if (!enabled) return;
@@ -21,9 +46,20 @@ export function useRankedEligibility(enabled: boolean): RankedEligibility {
     fetch("/api/geo/ranked")
       .then((r) => (r.ok ? r.json() : null))
       .then((data: { allowed: boolean } | null) => {
-        if (!cancelled && data) setAllowed(data.allowed);
+        // Monotonic: this probe can only tighten the gate, never loosen it.
+        // It hits the same server-side decision this component was already
+        // seeded with, so a `true` here is never new information — but a
+        // stale client router cache (e.g. restored on browser back/forward,
+        // which bypasses Next's staleTimes entirely) or ordinary edge-network
+        // timing variance could otherwise flip an already-correct "blocked"
+        // paint to "allowed" for a moment before a later correction lands.
+        // Letting the fetch move the gate to false is still worth doing —
+        // that's a real self-heal — but it must never move it back to true.
+        if (!cancelled && data?.allowed === false) setAllowed(false);
       })
-      .catch(() => {});
+      .catch(() => {
+        // Best-effort: on failure we keep the server-rendered decision.
+      });
     return () => {
       cancelled = true;
     };
