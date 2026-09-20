@@ -14,6 +14,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "../../contexts/AuthContext";
 import { authedFetch } from "../../lib/authedFetch";
+import { climberDisplay } from "../../lib/handle";
 import { Button } from "../ui/Button";
 import { Spinner } from "../ui/Spinner";
 
@@ -184,8 +185,7 @@ export function FriendRequests({ refreshKey, onAccepted }: FriendRequestsProps =
           </h3>
           <div className="flex flex-col gap-2">
             {incoming.map((req) => {
-              const name =
-                req.sender.displayName ?? req.sender.username ?? "Someone";
+              const name = climberDisplay(req.sender.id, req.sender.displayName);
               return (
                 <div
                   key={req.id}
@@ -196,7 +196,7 @@ export function FriendRequests({ refreshKey, onAccepted }: FriendRequestsProps =
                       <p className="text-sm font-semibold text-text-primary truncate">
                         {name}
                       </p>
-                      {req.sender.displayName && req.sender.username && (
+                      {req.sender.username && (
                         <p className="text-xs text-text-muted truncate">
                           @{req.sender.username}
                         </p>
@@ -240,10 +240,7 @@ export function FriendRequests({ refreshKey, onAccepted }: FriendRequestsProps =
           </h3>
           <div className="flex flex-col gap-2">
             {outgoing.map((req) => {
-              const name =
-                req.receiver.displayName ??
-                req.receiver.username ??
-                "Someone";
+              const name = climberDisplay(req.receiver.id, req.receiver.displayName);
               return (
                 <div
                   key={req.id}
@@ -254,7 +251,7 @@ export function FriendRequests({ refreshKey, onAccepted }: FriendRequestsProps =
                       <p className="text-sm text-text-secondary truncate">
                         {name}
                       </p>
-                      {req.receiver.displayName && req.receiver.username && (
+                      {req.receiver.username && (
                         <p className="text-xs text-text-muted truncate">
                           @{req.receiver.username}
                         </p>

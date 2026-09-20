@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { climberDisplay } from "@app/lib/handle";
 import { apiFetch } from "../../lib/api";
 import { notifyError, notifySuccess } from "../../lib/haptics";
 import { Button, Card } from "../ui";
@@ -164,13 +165,13 @@ export function FriendRequestsSection({ refreshKey, onAccepted }: FriendRequests
             Friend requests
           </h2>
           {incoming.map((req) => {
-            const name = req.sender.displayName ?? req.sender.username ?? "Someone";
+            const name = climberDisplay(req.sender.id, req.sender.displayName);
             return (
               <Card key={req.id} highlight>
                 <div className="flex items-center justify-between gap-3">
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-semibold text-text-primary">{name}</p>
-                    {req.sender.username && req.sender.displayName && (
+                    {req.sender.username && (
                       <p className="truncate text-xs text-text-muted">@{req.sender.username}</p>
                     )}
                   </div>
@@ -212,11 +213,16 @@ export function FriendRequestsSection({ refreshKey, onAccepted }: FriendRequests
             Sent requests
           </h2>
           {outgoing.map((req) => {
-            const name = req.receiver.displayName ?? req.receiver.username ?? "Someone";
+            const name = climberDisplay(req.receiver.id, req.receiver.displayName);
             return (
               <Card key={req.id}>
                 <div className="flex items-center justify-between gap-3">
-                  <p className="min-w-0 flex-1 truncate text-sm text-text-secondary">{name}</p>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm text-text-secondary">{name}</p>
+                    {req.receiver.username && (
+                      <p className="truncate text-xs text-text-muted">@{req.receiver.username}</p>
+                    )}
+                  </div>
                   <Button
                     variant="ghost"
                     fullWidth={false}

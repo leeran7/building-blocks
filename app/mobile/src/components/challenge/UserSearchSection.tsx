@@ -1,9 +1,21 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { climberDisplay } from "@app/lib/handle";
+import { normalizeUsername } from "@app/lib/username";
 import { apiFetch } from "../../lib/api";
 import { notifyError, notifySuccess } from "../../lib/haptics";
 import { Button, ListRow } from "../ui";
 
 const EMAIL_SHAPE = /^\S+@\S+\.\S+$/;
+
+/**
+ * Does the input look like something the exact-match API could possibly find —
+ * a complete email or a valid username? Mirrors the server's gate in
+ * app/api/users/search/route.ts so we don't burn a rate-limited request (60/hr)
+ * on a half-typed query.
+ */
+function isSearchable(q: string): boolean {
+  return EMAIL_SHAPE.test(q) || normalizeUsername(q).valid;
+}
 
 interface SearchResult {
   id: string;
@@ -18,13 +30,13 @@ export interface UserSearchSectionProps {
 }
 
 /**
- * Look up a user by their exact email and send a friend request. Results
- * render inline below the input rather than in a dropdown overlay, which
- * avoids z-index / keyboard-dismiss issues on mobile.
+ * Look up a user by their exact email or exact username and send a friend
+ * request. Results render inline below the input rather than in a dropdown
+ * overlay, which avoids z-index / keyboard-dismiss issues on mobile.
  *
- * Search only fires once the input looks like a complete email — a partial
- * email wouldn't match anything server-side anyway (the API is exact-match
- * only).
+ * Search only fires once the input looks like a complete email or a valid
+ * username — a partial value wouldn't match anything server-side anyway (the
+ * API is exact-match only).
  */
 export function UserSearchSection({ onFriendRequestSent }: UserSearchSectionProps) {
   const [query, setQuery] = useState("");
@@ -37,7 +49,7 @@ export function UserSearchSection({ onFriendRequestSent }: UserSearchSectionProp
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   const search = useCallback(async (q: string) => {
-    if (!EMAIL_SHAPE.test(q)) {
+    if (!isSearchable(q)) {
       setResults([]);
       return;
     }
@@ -58,7 +70,7 @@ export function UserSearchSection({ onFriendRequestSent }: UserSearchSectionProp
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     setSearched(false);
-    if (!EMAIL_SHAPE.test(query)) {
+    if (!isSearchable(query)) {
       setResults([]);
       return;
     }
@@ -108,10 +120,11 @@ export function UserSearchSection({ onFriendRequestSent }: UserSearchSectionProp
 
       <div className="relative">
         <input
-          type="email"
+          type="text"
+          inputMode="email"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search by email…"
+          placeholder="Search by email or username…"
           autoCapitalize="none"
           autoCorrect="off"
           className="w-full rounded-2xl border border-border-strong bg-surface-raised px-4 py-3.5 text-sm text-text-primary placeholder:text-text-muted focus:border-signal/50 focus:outline-none"
@@ -135,13 +148,15 @@ export function UserSearchSection({ onFriendRequestSent }: UserSearchSectionProp
       )}
 
       {!loading && searched && results.length === 0 && (
-        <p className="py-1 text-center text-sm text-text-secondary">No user found with that email.</p>
+        <p className="py-1 text-center text-sm text-text-secondary">
+          No user found with that email or username.
+        </p>
       )}
 
       {results.length > 0 && (
         <div className="flex flex-col gap-2">
           {results.map((u) => {
-            const name = u.displayName ?? u.username ?? "User";
+            const name = climberDisplay(u.id, u.displayName);
             const sent = sentIds.has(u.id);
             const errored = errorIds.has(u.id);
             return (
@@ -150,7 +165,7 @@ export function UserSearchSection({ onFriendRequestSent }: UserSearchSectionProp
                   <div className="flex items-center justify-between gap-3">
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-semibold text-text-primary">{name}</p>
-                      {u.username && u.displayName && (
+                      {u.username && (
                         <p className="truncate text-xs text-text-muted">@{u.username}</p>
                       )}
                     </div>

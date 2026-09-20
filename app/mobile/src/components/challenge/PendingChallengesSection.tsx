@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { climberDisplay } from "@app/lib/handle";
 import { apiFetch } from "../../lib/api";
 import { notifyError } from "../../lib/haptics";
 import { Button, Card } from "../ui";
@@ -175,7 +176,7 @@ export function PendingChallengesSection({ refreshKey }: PendingChallengesSectio
             Incoming challenges
           </h2>
           {received.map((c) => {
-            const name = c.sender.displayName ?? c.sender.username ?? "Someone";
+            const name = climberDisplay(c.sender.id, c.sender.displayName);
             const expired = isExpired(c.expiresAt);
             return (
               <Card key={c.id} highlight>
@@ -226,7 +227,7 @@ export function PendingChallengesSection({ refreshKey }: PendingChallengesSectio
             Sent challenges
           </h2>
           {sent.map((c) => {
-            const name = c.recipient.displayName ?? c.recipient.username ?? "Someone";
+            const name = climberDisplay(c.recipient.id, c.recipient.displayName);
             return (
               <Card key={c.id}>
                 <div className="flex items-center justify-between gap-3">

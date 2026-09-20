@@ -1,15 +1,17 @@
 /**
- * GET /api/users/search?q=<email> — Look up a user by their exact email.
+ * GET /api/users/search?q=<email|username> — Look up a user by their exact
+ * email or their exact public username.
  *
- * Exact match only (never a partial/substring match): an email is PII, and
- * `contains`-style matching would let a caller enumerate other users' full
- * addresses one character at a time. Finding someone requires already
- * knowing their complete email.
+ * Exact match only (never a partial/substring match) on BOTH fields: an email
+ * is PII, and `contains`-style matching would let a caller enumerate other
+ * users' full addresses (or handles) one character at a time. Finding someone
+ * requires already knowing their complete email or complete username.
  */
 
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth, AuthError } from "../../../../src/lib/requireAuth";
 import { checkRateLimit } from "../../../../src/lib/rateLimit";
+import { normalizeUsername } from "../../../../src/lib/username";
 import { prisma } from "../../../../src/db/client";
 
 export const runtime = "nodejs";
@@ -21,6 +23,28 @@ const RATE_WINDOW = 3600;
 // input without hitting the DB. The real validation is the exact-match
 // query itself: no shape of malformed input can ever match a real row.
 const EMAIL_SHAPE = /^\S+@\S+\.\S+$/;
+
+/**
+ * The exact-match filter for a raw query, or null when the input is neither a
+ * complete email nor a valid username (in which case we never touch the DB).
+ *
+ * Email is matched case-insensitively. Usernames are stored already normalised
+ * (see `setUsername` in src/db/creator.ts, which only ever persists the output
+ * of `normalizeUsername`), so normalising the query is what makes the username
+ * lookup case-insensitive — `@Creator-1` and `creator-1` find the same row.
+ */
+function exactMatchFilter(
+  q: string
+): { email: { equals: string; mode: "insensitive" } } | { username: string } | null {
+  if (EMAIL_SHAPE.test(q)) {
+    return { email: { equals: q, mode: "insensitive" } };
+  }
+  const norm = normalizeUsername(q);
+  if (norm.valid && norm.username) {
+    return { username: norm.username };
+  }
+  return null;
+}
 
 export async function GET(request: NextRequest) {
   let uid: string;
@@ -45,14 +69,15 @@ export async function GET(request: NextRequest) {
 
   const { searchParams } = new URL(request.url);
   const q = (searchParams.get("q") ?? "").trim();
-  if (!EMAIL_SHAPE.test(q)) {
+  const filter = exactMatchFilter(q);
+  if (!filter) {
     return NextResponse.json({ users: [] });
   }
 
   try {
     const user = await prisma.user.findFirst({
       where: {
-        email: { equals: q, mode: "insensitive" },
+        ...filter,
         id: { not: uid },
       },
       select: {

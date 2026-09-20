@@ -8,6 +8,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "../../contexts/AuthContext";
 import { authedFetch } from "../../lib/authedFetch";
+import { climberDisplay } from "../../lib/handle";
 import { Button } from "../ui/Button";
 import { Spinner } from "../ui/Spinner";
 
@@ -183,7 +184,7 @@ export function PendingChallenges({ refreshKey }: PendingChallengesProps = {}) {
           </h3>
           <div className="flex flex-col gap-2">
             {received.map((c) => {
-              const name = c.sender.displayName ?? c.sender.username ?? "Someone";
+              const name = climberDisplay(c.sender.id, c.sender.displayName);
               const expired = isExpired(c.expiresAt);
               return (
                 <div
@@ -237,7 +238,7 @@ export function PendingChallenges({ refreshKey }: PendingChallengesProps = {}) {
           </h3>
           <div className="flex flex-col gap-2">
             {sent.map((c) => {
-              const name = c.recipient.displayName ?? c.recipient.username ?? "Someone";
+              const name = climberDisplay(c.recipient.id, c.recipient.displayName);
               return (
                 <div
                   key={c.id}
