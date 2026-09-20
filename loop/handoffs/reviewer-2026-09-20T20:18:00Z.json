@@ -1,0 +1,49 @@
+{
+  "agent": "reviewer",
+  "status": "success",
+  "timestamp": "2026-09-20T20:18:00Z",
+  "nextStage": "qa-acceptance",
+  "branch": "claude/blissful-ramanujan-tcniuq",
+  "diffRange": "a3c8562..HEAD",
+  "commitsReviewed": ["f80c8c8", "edbda33"],
+  "summary": "Reviewed the navbar-removal fix on /play and /daily. The `{!gameSection && <Navbar/>}` guard is correct: gameSection = section === 'play' || section === 'daily' (FreeStackShell.tsx:29), so the navbar renders ONLY on the leaderboard and is dropped on both game sections — exactly the intended scope. Root cause confirmed against live code: Navbar is `<nav sticky top-0 z-30>` (Navbar.tsx:30), ClimbScene mounts `fixed inset-0 z-40` on touch (ClimbScene.tsx:397) inside the shell's `relative z-10` game wrapper (FreeStackShell.tsx:83), capping z-40 below the navbar sibling so the navbar painted over the HUD; removing it eliminates the overlap. No dead code: Navbar import (line 14) is still used on the leaderboard branch; lint green per verifier. Tab band (role=tablist, lines 61-77) renders UNCONDITIONALLY outside the guard on all three sections, so game pages retain a nav affordance. Non-test callers confirmed: play/page.tsx, daily/page.tsx, climb/page.tsx. No critical findings.",
+  "exitCriteria": {
+    "no_critical_findings": true
+  },
+  "findings": [
+    {
+      "severity": "info",
+      "location": "app/src/components/FreeStackShell.tsx:53-57 (navbar guard) + 68-74 (tab band)",
+      "issue": "Game pages (/play, /daily) no longer render the site <nav> landmark. The only off-page navigation left is the tab band. This is a reachable escape, NOT a stranding: NavTab renders a real next/link <a> (role=tab, min-h-44px, focus-visible ring) for 'Leaderboard' -> /climb, which restores the full Navbar. A desktop/keyboard user on /play can Tab to the Leaderboard tab and reach the site nav; the in-game touch back control lives in ClimbScene (untouched). Acceptable product tradeoff (fullscreen game).",
+      "fix": "None required. If product later wants a persistent home affordance on the game itself, add a small home/back link inside the game wrapper — out of scope for this fix."
+    },
+    {
+      "severity": "info",
+      "location": "app/src/components/Duel/DuelStackShell.tsx:7 (comment)",
+      "issue": "Comment says DuelStackShell 'Mirrors FreeStackShell' — the two shells now differ in navbar behavior (Free hides navbar on game sections, Duel does not per its own comment). Cosmetic doc drift only; no functional impact and outside the diff's edited lines.",
+      "fix": "Optional: none needed for this fix."
+    }
+  ],
+  "verifiedClaims": [
+    "gameSection covers exactly play+daily, excludes leaderboard (FreeStackShell.tsx:29).",
+    "Navbar renders only when !gameSection; Navbar import still used, no orphaned import.",
+    "Tab band renders on all sections (unconditional, lines 61-77) — off-page nav preserved on game pages.",
+    "Navbar sticky z-30 vs ClimbScene fixed z-40 inside relative z-10 wrapper — root cause and comment accurate.",
+    "Frozen-test edit is a pure ADD (one new it block); test invokes real FreeStackShell and asserts the nav landmark, not source text; verifier mutation-confirmed red-when-guard-removed.",
+    "Non-test callers exist: app/app/{play,daily,climb}/page.tsx."
+  ],
+  "notes": [
+    "Did NOT flag the intentional ~56px desktop tab-band vertical shift between /climb and /play|/daily — confirmed product decision per verifier learning and code comment.",
+    "Did not re-run gates (verifier owns that); review was read/grep only."
+  ],
+  "learnings": [
+    {
+      "forAgents": ["qa-acceptance"],
+      "kind": "pattern",
+      "topic": "navbar-removal-a11y-escape-path",
+      "insight": "Removing the site <nav> landmark from a page is only safe if another keyboard-reachable off-page control remains. Here the tab band (role=tablist with real next/link anchors, min-h-44px, focus-visible ring) provides the escape: Leaderboard tab -> /climb restores the navbar. No stranding on desktop or touch.",
+      "action": "QA: on /play and /daily confirm the Leaderboard tab is Tab-focusable and navigates to /climb (which shows the navbar), and that the touch in-game back control still appears. Treat the ~56px tab-band shift as expected, not a bug.",
+      "confidence": "high"
+    }
+  ]
+}
