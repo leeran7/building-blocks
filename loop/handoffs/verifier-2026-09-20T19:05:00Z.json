@@ -1,0 +1,54 @@
+{
+  "agent": "verifier",
+  "status": "success",
+  "timestamp": "2026-09-20T19:05:00Z",
+  "goal": "Independently verify the home-page redundancy reduction (branch claude/blissful-ramanujan-tcniuq, commit 626173b): re-run all gates, scrutinize the two new LeaderboardTeaser tests against .claude/rules/testing.md, and confirm the frozen contract, CTA invariant, data-fetching, and JSON-LD invariants.",
+  "summary": "All seven gates re-run independently and pass. App: lint clean, typecheck clean, test 798 passed / 90 files (was 794/88; +4 exactly as claimed, 0 failures), build compiles and / stays Static/ISR (Revalidate 1m, ○ — NOT flipped to ƒ dynamic). Orchestrator: typecheck clean, test 58 pass. Hygiene: 0 violations. The two new tests are legitimate behavioral tests (renderToStaticMarkup of the real LeaderboardTeaser, asserting actual DOM — no source grep, no re-implemented logic); proved fail-first by mutating the callout gate, which turned the paidOff test red on the compliance-line absence guard, then reverted. Compliance line '18+, not available in all states' and the 'Ranked chip duels + tournaments' heading are preserved verbatim from the deleted DuelPromo. Both boards keep .catch(()=>[]) degrade + empty states ('[ no climbers yet ]', 'Play the free climb', '[ no chip matches yet ]'). Frozen test climbFeelSurfaces.test.tsx is byte-for-byte unmodified (empty diff) and passes in the full run. CTA invariant holds in code: exactly 1 filled bg-signal anchor → /duel (Hero.tsx:202), 0 → /play; callout uses bg-signal/5 + /10 on divs, not anchors. No new fetch/useEffect/route handler introduced; boards remain server reads. page.tsx builds all four JSON-LD nodes and reads getGlobalClimbStats + getChipDuelStats for the Hero with no orphaned imports. Working tree left clean (no next-env.d.ts / config churn).",
+  "artifacts": [
+    "app/src/components/LandingPage/LeaderboardTeaser.tsx",
+    "app/src/components/LandingPage/FreeLeaderboard.tsx",
+    "app/src/components/LandingPage/RankedLeaderboard.tsx",
+    "app/src/components/LandingPage/ChooseYourClimb.tsx",
+    "app/app/page.tsx",
+    "app/tests/components/landingLeaderboardTeaser.paidOff.test.tsx",
+    "app/tests/components/landingLeaderboardTeaser.paidOn.test.tsx"
+  ],
+  "coverageMatrix": [
+    { "criterion": "Gate: app lint", "evidence": "cd app && pnpm lint", "result": "pass" },
+    { "criterion": "Gate: app typecheck", "evidence": "cd app && pnpm typecheck", "result": "pass" },
+    { "criterion": "Gate: app test = 798/90, 0 fail", "evidence": "cd app && pnpm test → 798 passed (90 files)", "result": "pass" },
+    { "criterion": "Gate: app build, / stays ISR/static (revalidate 1m)", "evidence": "next build route table: '○ /  Revalidate 1m'", "result": "pass" },
+    { "criterion": "Gate: orchestrator typecheck", "evidence": "cd orchestrator && yarn typecheck", "result": "pass" },
+    { "criterion": "Gate: orchestrator test = 58 pass", "evidence": "cd orchestrator && yarn test → 58 pass 0 fail", "result": "pass" },
+    { "criterion": "Gate: hygiene", "evidence": "node scripts/hygiene.mjs → 0 violations", "result": "pass" },
+    { "criterion": "paidOff renders ONLY free board (no ranked, no callout, chipLeaderboard not called)", "evidence": "landingLeaderboardTeaser.paidOff.test.tsx:44-55 invokes real LeaderboardTeaser", "result": "pass" },
+    { "criterion": "paidOff fail-first proof", "evidence": "mutated callout gate to always render → test went red on 'not available in all states' absence guard; reverted", "result": "pass" },
+    { "criterion": "paidOn renders both boards + relocated callout with compliance line", "evidence": "landingLeaderboardTeaser.paidOn.test.tsx:54-66", "result": "pass" },
+    { "criterion": "Compliance line '18+, not available in all states' preserved from DuelPromo", "evidence": "git show 626173b~:DuelPromo.tsx line 120 == LeaderboardTeaser.tsx:68-72", "result": "pass" },
+    { "criterion": "Degrade + empty states preserved on both boards", "evidence": "FreeLeaderboard.tsx:16,67,72 + RankedLeaderboard.tsx:8,54; asserted in both test files", "result": "pass" },
+    { "criterion": "Frozen test climbFeelSurfaces.test.tsx unmodified + passes", "evidence": "git diff 626173b~ 626173b -- <file> is empty; part of the 798 pass; invokes await FreeLeaderboard()", "result": "pass" },
+    { "criterion": "CTA invariant: 1 filled bg-signal anchor → /duel, 0 → /play", "evidence": "Hero.tsx:201-202 (only filled bg-signal anchor→/duel); Footer→/auth/signup; callout=div bg-signal/5,/10", "result": "pass" },
+    { "criterion": "No new fetch/useEffect/route handler; boards stay server reads", "evidence": "grep of diff + LandingPage: only pre-existing GameOverlay useEffect; no fetch()/route.ts added", "result": "pass" },
+    { "criterion": "page.tsx JSON-LD (org/website/videoGame/faq from buildFaqs) intact + Hero stat reads unbroken", "evidence": "page.tsx:40-51 builds all four; :35-38 reads getGlobalClimbStats + getChipDuelStats; no orphaned imports after SocialProofStrip/DuelPromo removal", "result": "pass" }
+  ],
+  "feedback": [],
+  "learnings": [
+    {
+      "topic": "testing",
+      "forAgents": ["reviewer", "software-engineer"],
+      "kind": "note",
+      "insight": "In LeaderboardTeaser, the paidOff 'chipLeaderboard not called' guard is protected by two independent layers: the teaser's `PAID_DUELS_ENABLED ? await RankedLeaderboard() : null` gate AND RankedLeaderboard's own `if (!PAID_DUELS_ENABLED) return null`. A single-layer mutation of only the teaser gate does not turn that specific assertion red because RankedLeaderboard still early-returns before its fetch.",
+      "action": "reviewer: this belt-and-suspenders is fine, not a defect. If judging test strength, note the callout absence guard is the crisp single-layer fail-first proof (verified red under mutation); the chip-not-called assertion is defended in depth.",
+      "confidence": "high"
+    },
+    {
+      "topic": "metric",
+      "forAgents": ["reviewer", "qa-acceptance"],
+      "kind": "metric",
+      "insight": "Confirmed new green baseline: app 798 tests / 90 files (0 fail), orchestrator 58 pass, all 7 gates green. / renders Static/ISR (Revalidate 1m) in the next build route table — rendering mode unchanged, not dynamic. Working tree clean after verification (mutation for fail-first proof was reverted).",
+      "action": "Treat 798/90 + 58 as the baseline. If a later stage sees / flip to ƒ (dynamic), that is a regression against this checkpoint.",
+      "confidence": "high"
+    }
+  ],
+  "nextStage": "reviewer"
+}
