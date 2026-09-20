@@ -1,0 +1,54 @@
+{
+  "agent": "reviewer",
+  "status": "success",
+  "timestamp": "2026-09-20T16:33:01Z",
+  "summary": "Reviewed the layout + jitter/UX change set (d5bb5e3..HEAD): 4 pages, 3 new components, 3 new libs, and modifications to DuelHome, FreeStackShell, Navbar, ClimbScene, ClimbLeaderboard, ClimbPlayClient, DailyClimbClient, ClimbPanelIntro, Hero, DuelPromo. No critical findings. Shared-shell refactor is correct and behavior-preserving; every caller of FreeStackShell (climb/play/daily), DuelStackShell (duel + duel/leaderboard), and Navbar GHOST links verified. climbEyebrowLabel is correct for all category labels. Landing CTA invariant holds (1 filled /duel, 0 filled /play). ClimbBoard id spaces align (Firebase uid throughout) and the /api/dashboard payload shape matches toViewerRecord. Daily streak date math is local-time consistent. All new lib functions have non-test callers and unit tests that invoke the unit.",
+  "exitCriteria": { "no_critical_findings": true },
+  "nextStage": "qa-acceptance",
+  "findings": [
+    {
+      "severity": "warning",
+      "location": "app/src/components/Climb/ClimbBoard.tsx:330-338 (handleFindMe)",
+      "issue": "setQuery(\"\") followed by a single requestAnimationFrame to scroll to #your-climb-row. If the viewer's row was filtered out by an active search, clearing the query re-mounts it on the next React commit, but the single rAF callback can run before that commit paints, so scrollIntoView finds nothing and the scroll silently no-ops. Best-effort only — the row is still visible after the clear — so not a correctness defect.",
+      "fix": "Drive the scroll from an effect keyed on the row becoming present/visible (or use a double requestAnimationFrame / queueMicrotask + rAF) so the scroll runs after the row is committed to the DOM."
+    },
+    {
+      "severity": "info",
+      "location": "app/src/components/FreeStackShell.tsx:40-47",
+      "issue": "Navbar now renders on all sections including the game sections (play/daily). On desktop this consumes ~56px of vertical space above the aspect-locked canvas. The comment documents that touch fullscreen is unaffected (ClimbScene goes fixed inset-0 on coarse pointers). Intentional and Playwright-verified by the orchestrator; noted for awareness only.",
+      "fix": "None required."
+    },
+    {
+      "severity": "info",
+      "location": "app/src/components/Navbar.tsx:25-27 (GHOST)",
+      "issue": "GHOST base class dropped `inline-flex`; each of the 3 consuming links now appends `hidden sm:inline-flex`. Verified all 3 usages supply the display utility, so the below-sm hide works and there is no dangling usage. Correct fix for the wordmark/link overlap.",
+      "fix": "None required. If a future link reuses GHOST, remember it must supply its own display utility."
+    }
+  ],
+  "learnings": [
+    {
+      "forAgents": ["software-engineer"],
+      "kind": "pattern",
+      "topic": "client-scroll-after-filter-clear",
+      "insight": "A single requestAnimationFrame after a setState that re-mounts a target node can fire before React commits, so scrollIntoView misses. ClimbBoard.handleFindMe is best-effort so it degrades gracefully, but the pattern is fragile.",
+      "action": "Prefer an effect keyed on the target's presence (or double-rAF) when scrolling to a node that a state update must first mount.",
+      "confidence": 0.7
+    },
+    {
+      "forAgents": ["reviewer", "qa-acceptance"],
+      "kind": "fact",
+      "topic": "id-space-alignment",
+      "insight": "In app/, users.id == Firebase uid: dashboard queries prisma.user by decoded.uid and returns user.id = decoded.uid; climb_records.userId FKs to users.id. So ClimberRank.userId, dashboard user.id, and getUserFreeClimbRecord all share one id space — highlightUserId matching in ClimbBoard/ClimbLeaderboard is sound.",
+      "action": "When reviewing viewer-row highlight/find logic, confirm the id spaces match; here they do.",
+      "confidence": 0.9
+    },
+    {
+      "forAgents": ["software-engineer", "reviewer"],
+      "kind": "metric",
+      "topic": "landing-cta-invariant",
+      "insight": "Landing page after this change: exactly 1 filled signal CTA to /duel (Hero 'Start a duel'), 0 filled CTAs to /play (Hero secondary is outline; ChooseYourClimb Solo card is bordered surface, not filled; DuelPromo downgraded to outline). Invariant from app/DESIGN.md 'Calls to action' holds.",
+      "action": "Keep this 1-filled-per-destination rule in mind when adding landing CTAs.",
+      "confidence": 0.9
+    }
+  ]
+}
