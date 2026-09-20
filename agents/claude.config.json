@@ -19,7 +19,7 @@
   "reviewer": {
     "tools": ["Read", "Grep", "Glob", "Bash"],
     "disallowedTools": ["Write", "Edit", "Agent"],
-    "skills": ["closed-loop-participant", "design-review", "api-design", "regression"],
+    "skills": ["closed-loop-participant", "design-review", "api-design", "regression", "boy-scout"],
     "color": "orange",
     "model": "opus"
   },
