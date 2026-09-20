@@ -1,21 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { climberDisplay } from "@app/lib/handle";
-import { normalizeUsername } from "@app/lib/username";
+import { isSearchableQuery, searchFailureMessage } from "@app/lib/userSearchQuery";
 import { apiFetch } from "../../lib/api";
 import { notifyError, notifySuccess } from "../../lib/haptics";
 import { Button, ListRow } from "../ui";
-
-const EMAIL_SHAPE = /^\S+@\S+\.\S+$/;
-
-/**
- * Does the input look like something the exact-match API could possibly find —
- * a complete email or a valid username? Mirrors the server's gate in
- * app/api/users/search/route.ts so we don't burn a rate-limited request (60/hr)
- * on a half-typed query.
- */
-function isSearchable(q: string): boolean {
-  return EMAIL_SHAPE.test(q) || normalizeUsername(q).valid;
-}
 
 interface SearchResult {
   id: string;
@@ -43,13 +31,14 @@ export function UserSearchSection({ onFriendRequestSent }: UserSearchSectionProp
   const [results, setResults] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
   const [addingId, setAddingId] = useState<string | null>(null);
   const [sentIds, setSentIds] = useState<Set<string>>(new Set());
   const [errorIds, setErrorIds] = useState<Set<string>>(new Set());
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   const search = useCallback(async (q: string) => {
-    if (!isSearchable(q)) {
+    if (!isSearchableQuery(q)) {
       setResults([]);
       return;
     }
@@ -60,9 +49,17 @@ export function UserSearchSection({ onFriendRequestSent }: UserSearchSectionProp
         const data = (await res.json()) as { users: SearchResult[] };
         setResults(data.users);
         setSearched(true);
+      } else {
+        // Never leave the previous query's row (and its Add button) on screen
+        // next to a different query — one tap would add the wrong person.
+        setResults([]);
+        setSearchError(searchFailureMessage(res.status));
+        void notifyError();
       }
     } catch {
-      /* next keystroke recovers */
+      setResults([]);
+      setSearchError(searchFailureMessage(null));
+      void notifyError();
     }
     setLoading(false);
   }, []);
@@ -70,7 +67,8 @@ export function UserSearchSection({ onFriendRequestSent }: UserSearchSectionProp
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     setSearched(false);
-    if (!isSearchable(query)) {
+    setSearchError(null);
+    if (!isSearchableQuery(query)) {
       setResults([]);
       return;
     }
@@ -147,7 +145,13 @@ export function UserSearchSection({ onFriendRequestSent }: UserSearchSectionProp
         </p>
       )}
 
-      {!loading && searched && results.length === 0 && (
+      {!loading && searchError && (
+        <p className="py-1 text-center font-mono text-xs text-ember" role="alert">
+          {searchError}
+        </p>
+      )}
+
+      {!loading && !searchError && searched && results.length === 0 && (
         <p className="py-1 text-center text-sm text-text-secondary">
           No user found with that email or username.
         </p>

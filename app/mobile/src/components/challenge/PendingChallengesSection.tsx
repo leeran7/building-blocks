@@ -185,6 +185,9 @@ export function PendingChallengesSection({ refreshKey }: PendingChallengesSectio
                     <p className="truncate text-sm font-semibold text-text-primary">
                       {name} challenged you
                     </p>
+                    {c.sender.username && (
+                      <p className="truncate text-xs text-text-muted">@{c.sender.username}</p>
+                    )}
                     <p className="mt-0.5 font-mono text-xs text-text-muted">
                       {timeLeft(c.expiresAt)}
                     </p>
@@ -235,6 +238,9 @@ export function PendingChallengesSection({ refreshKey }: PendingChallengesSectio
                     <p className="truncate text-sm text-text-secondary">
                       Waiting for <span className="font-semibold text-text-primary">{name}</span>
                     </p>
+                    {c.recipient.username && (
+                      <p className="truncate text-xs text-text-muted">@{c.recipient.username}</p>
+                    )}
                     <p className="mt-0.5 font-mono text-xs text-text-muted">
                       {timeLeft(c.expiresAt)}
                     </p>

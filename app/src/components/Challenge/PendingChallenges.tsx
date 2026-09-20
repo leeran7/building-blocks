@@ -196,6 +196,11 @@ export function PendingChallenges({ refreshKey }: PendingChallengesProps = {}) {
                       <p className="text-sm font-semibold text-text-primary truncate">
                         {name} challenged you
                       </p>
+                      {c.sender.username && (
+                        <p className="text-xs text-text-muted truncate">
+                          @{c.sender.username}
+                        </p>
+                      )}
                       <p className="text-xs text-text-muted font-mono mt-0.5">
                         {timeLeft(c.expiresAt)}
                       </p>
@@ -249,6 +254,11 @@ export function PendingChallenges({ refreshKey }: PendingChallengesProps = {}) {
                       <p className="text-sm text-text-secondary truncate">
                         Waiting for <span className="font-semibold text-text-primary">{name}</span>
                       </p>
+                      {c.recipient.username && (
+                        <p className="text-xs text-text-muted truncate">
+                          @{c.recipient.username}
+                        </p>
+                      )}
                       <p className="text-xs text-text-muted font-mono mt-0.5">
                         {timeLeft(c.expiresAt)}
                       </p>

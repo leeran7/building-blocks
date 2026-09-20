@@ -18,20 +18,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useAuth } from "../../contexts/AuthContext";
 import { authedFetch } from "../../lib/authedFetch";
 import { climberDisplay } from "../../lib/handle";
-import { normalizeUsername } from "../../lib/username";
+import { isSearchableQuery, searchFailureMessage } from "../../lib/userSearchQuery";
 import { Spinner } from "../ui/Spinner";
-
-const EMAIL_SHAPE = /^\S+@\S+\.\S+$/;
-
-/**
- * Does the input look like something the exact-match API could possibly find —
- * a complete email or a valid username? Mirrors the server's gate in
- * app/api/users/search/route.ts so we don't burn a rate-limited request (60/hr)
- * on a half-typed query.
- */
-function isSearchable(q: string): boolean {
-  return EMAIL_SHAPE.test(q) || normalizeUsername(q).valid;
-}
 
 interface SearchResult {
   id: string;
@@ -59,6 +47,7 @@ export function UserSearch({
   const [results, setResults] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
   const [actioningId, setActioningId] = useState<string | null>(null);
   const [sentIds, setSentIds] = useState<Set<string>>(new Set());
@@ -68,7 +57,7 @@ export function UserSearch({
 
   const search = useCallback(
     async (q: string) => {
-      if (!token || !isSearchable(q)) {
+      if (!token || !isSearchableQuery(q)) {
         setResults([]);
         return;
       }
@@ -83,8 +72,19 @@ export function UserSearch({
           setResults(data.users);
           setOpen(true);
           setSearched(true);
+        } else {
+          // Never leave the previous query's row (and its action button) on
+          // screen next to a different query — one click would act on the
+          // wrong person.
+          setResults([]);
+          setSearchError(searchFailureMessage(res.status));
+          setOpen(true);
         }
-      } catch {}
+      } catch {
+        setResults([]);
+        setSearchError(searchFailureMessage(null));
+        setOpen(true);
+      }
       setLoading(false);
     },
     [token]
@@ -93,7 +93,8 @@ export function UserSearch({
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     setSearched(false);
-    if (!isSearchable(query)) {
+    setSearchError(null);
+    if (!isSearchableQuery(query)) {
       setResults([]);
       setOpen(false);
       return;
@@ -158,7 +159,13 @@ export function UserSearch({
         )}
       </div>
 
-      {open && !loading && searched && results.length === 0 && (
+      {open && !loading && searchError && (
+        <p className="mt-1.5 text-xs text-ember" role="alert">
+          {searchError}
+        </p>
+      )}
+
+      {open && !loading && !searchError && searched && results.length === 0 && (
         <p className="mt-1.5 text-xs text-text-muted">
           No user found with that email or username.
         </p>

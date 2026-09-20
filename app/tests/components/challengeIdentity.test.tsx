@@ -117,9 +117,14 @@ describe("FriendRequests — username-only-no-displayname rendering", () => {
       await Promise.resolve();
     });
 
-    const html = container.innerHTML;
-    expect(html).toContain(climberHandle("sender-2"));
-    expect(html).not.toContain("@");
+    // Assert on the sub-line element itself, not on the absence of "@" from the
+    // whole subtree (which any future @-bearing class or mailto would break).
+    const name = climberHandle("sender-2");
+    const lines = Array.from(container.querySelectorAll("p")).map(
+      (p) => p.textContent?.trim() ?? ""
+    );
+    expect(lines).toContain(name);
+    expect(lines.filter((text) => text.startsWith("@"))).toEqual([]);
 
     unmount();
   });

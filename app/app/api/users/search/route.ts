@@ -11,40 +11,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth, AuthError } from "../../../../src/lib/requireAuth";
 import { checkRateLimit } from "../../../../src/lib/rateLimit";
-import { normalizeUsername } from "../../../../src/lib/username";
+import { exactMatchFilter } from "../../../../src/lib/userSearchQuery";
 import { prisma } from "../../../../src/db/client";
 
 export const runtime = "nodejs";
 
 const RATE_MAX = 60;
 const RATE_WINDOW = 3600;
-
-// Simple shape check — good enough to short-circuit obviously-incomplete
-// input without hitting the DB. The real validation is the exact-match
-// query itself: no shape of malformed input can ever match a real row.
-const EMAIL_SHAPE = /^\S+@\S+\.\S+$/;
-
-/**
- * The exact-match filter for a raw query, or null when the input is neither a
- * complete email nor a valid username (in which case we never touch the DB).
- *
- * Email is matched case-insensitively. Usernames are stored already normalised
- * (see `setUsername` in src/db/creator.ts, which only ever persists the output
- * of `normalizeUsername`), so normalising the query is what makes the username
- * lookup case-insensitive — `@Creator-1` and `creator-1` find the same row.
- */
-function exactMatchFilter(
-  q: string
-): { email: { equals: string; mode: "insensitive" } } | { username: string } | null {
-  if (EMAIL_SHAPE.test(q)) {
-    return { email: { equals: q, mode: "insensitive" } };
-  }
-  const norm = normalizeUsername(q);
-  if (norm.valid && norm.username) {
-    return { username: norm.username };
-  }
-  return null;
-}
 
 export async function GET(request: NextRequest) {
   let uid: string;

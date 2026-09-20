@@ -511,7 +511,6 @@ export function DuelHome() {
               <UserSearch
                 onSelect={handleAddFriend}
                 actionLabel="Add"
-                placeholder="Search by email or username…"
                 disabled={addingFriend}
               />
             </div>

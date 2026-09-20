@@ -110,7 +110,7 @@ export function FriendsList({ onChallenge, disabled, refreshKey }: FriendsListPr
     <div className="flex flex-col gap-2">
       {friends.map((friend) => {
         const name = climberDisplay(friend.user.id, friend.user.displayName);
-        const showUsername = friend.user.username !== null;
+        const showUsername = Boolean(friend.user.username);
         const sent = challengeSent.has(friend.user.id);
         const errored = challengeErrors.has(friend.user.id);
         const challenging = challengingId === friend.user.id;
