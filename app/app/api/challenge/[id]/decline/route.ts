@@ -7,6 +7,7 @@ import { requireAuth, AuthError } from "../../../../../src/lib/requireAuth";
 import { checkRateLimit } from "../../../../../src/lib/rateLimit";
 import { declineChallenge, getChallenge } from "../../../../../src/db/challenge";
 import { createNotification } from "../../../../../src/db/notification";
+import { climberDisplay } from "../../../../../src/lib/handle";
 
 export const runtime = "nodejs";
 
@@ -49,10 +50,12 @@ export async function POST(
         return NextResponse.json({ error: "Challenge is no longer pending", code: "NOT_PENDING" }, { status: 409 });
       case "declined": {
         if (challengeBefore) {
-          const declinerName =
-            challengeBefore.recipient.display_name ??
-            challengeBefore.recipient.username ??
-            "Your opponent";
+          // Same identity rule as challenge_received / challenge_accepted: the
+          // decliner is the recipient, named by display name or pseudonym.
+          const declinerName = climberDisplay(
+            challengeBefore.recipient.id,
+            challengeBefore.recipient.display_name
+          );
           await createNotification({
             userId: challengeBefore.sender_id,
             type: "challenge_declined",

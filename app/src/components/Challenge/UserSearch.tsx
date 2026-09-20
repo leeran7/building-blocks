@@ -1,24 +1,26 @@
 "use client";
 
 /**
- * UserSearch — look up a user by their exact email and perform an action.
+ * UserSearch — look up a user by their exact email or exact username and
+ * perform an action.
  *
  * Generic: the caller decides the action label (default "Add") and receives
  * the selected user via `onSelect`, which returns whether the action
  * succeeded so this component can show inline per-row feedback (rather than
  * relying on the parent to surface it somewhere else).
  *
- * Search only fires once the input looks like a complete email — a partial
- * email wouldn't match anything server-side anyway (the API is exact-match
- * only), so there's no point querying on every keystroke.
+ * Search only fires once the input looks like a complete email or a valid
+ * username — a partial value wouldn't match anything server-side anyway (the
+ * API is exact-match only), so there's no point querying on every keystroke.
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useAuth } from "../../contexts/AuthContext";
 import { authedFetch } from "../../lib/authedFetch";
+import { climberDisplay } from "../../lib/handle";
+import { UsernameHandle } from "./UsernameHandle";
+import { isSearchableQuery, searchFailureMessage } from "../../lib/userSearchQuery";
 import { Spinner } from "../ui/Spinner";
-
-const EMAIL_SHAPE = /^\S+@\S+\.\S+$/;
 
 interface SearchResult {
   id: string;
@@ -37,7 +39,7 @@ interface UserSearchProps {
 export function UserSearch({
   onSelect,
   disabled,
-  placeholder = "Search by email…",
+  placeholder = "Search by email or username…",
   actionLabel = "Add",
   sentLabel = "Sent",
 }: UserSearchProps) {
@@ -46,6 +48,7 @@ export function UserSearch({
   const [results, setResults] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
   const [actioningId, setActioningId] = useState<string | null>(null);
   const [sentIds, setSentIds] = useState<Set<string>>(new Set());
@@ -55,7 +58,7 @@ export function UserSearch({
 
   const search = useCallback(
     async (q: string) => {
-      if (!token || !EMAIL_SHAPE.test(q)) {
+      if (!token || !isSearchableQuery(q)) {
         setResults([]);
         return;
       }
@@ -70,8 +73,19 @@ export function UserSearch({
           setResults(data.users);
           setOpen(true);
           setSearched(true);
+        } else {
+          // Never leave the previous query's row (and its action button) on
+          // screen next to a different query — one click would act on the
+          // wrong person.
+          setResults([]);
+          setSearchError(searchFailureMessage(res.status));
+          setOpen(true);
         }
-      } catch {}
+      } catch {
+        setResults([]);
+        setSearchError(searchFailureMessage(null));
+        setOpen(true);
+      }
       setLoading(false);
     },
     [token]
@@ -80,7 +94,8 @@ export function UserSearch({
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     setSearched(false);
-    if (!EMAIL_SHAPE.test(query)) {
+    setSearchError(null);
+    if (!isSearchableQuery(query)) {
       setResults([]);
       setOpen(false);
       return;
@@ -111,7 +126,7 @@ export function UserSearch({
         next.delete(user.id);
         return next;
       });
-      const name = user.displayName ?? user.username ?? "User";
+      const name = climberDisplay(user.id, user.displayName);
       const ok = await onSelect(user.id, name);
       if (ok) {
         setSentIds((prev) => new Set(prev).add(user.id));
@@ -127,7 +142,8 @@ export function UserSearch({
     <div ref={rootRef} className="relative">
       <div className="relative">
         <input
-          type="email"
+          type="text"
+          inputMode="email"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onFocus={() => results.length > 0 && setOpen(true)}
@@ -144,8 +160,16 @@ export function UserSearch({
         )}
       </div>
 
-      {open && !loading && searched && results.length === 0 && (
-        <p className="mt-1.5 text-xs text-text-muted">No user found with that email.</p>
+      {open && !loading && searchError && (
+        <p className="mt-1.5 text-xs text-ember" role="alert">
+          {searchError}
+        </p>
+      )}
+
+      {open && !loading && !searchError && searched && results.length === 0 && (
+        <p className="mt-1.5 text-xs text-text-muted">
+          No user found with that email or username.
+        </p>
       )}
 
       {open && results.length > 0 && (
@@ -164,11 +188,9 @@ export function UserSearch({
                 >
                   <div className="min-w-0">
                     <p className="text-sm font-semibold text-text-primary truncate">
-                      {user.displayName ?? user.username}
+                      {climberDisplay(user.id, user.displayName)}
                     </p>
-                    {user.username && user.displayName && (
-                      <p className="text-xs text-text-muted truncate">@{user.username}</p>
-                    )}
+                    <UsernameHandle username={user.username} />
                   </div>
                   <span
                     className={

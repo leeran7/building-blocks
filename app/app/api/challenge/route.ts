@@ -13,6 +13,7 @@ import {
   getPendingChallengesForUser,
 } from "../../../src/db/challenge";
 import { createNotification } from "../../../src/db/notification";
+import { climberDisplay } from "../../../src/lib/handle";
 
 export const runtime = "nodejs";
 
@@ -103,7 +104,7 @@ export async function POST(request: NextRequest) {
         );
       case "created": {
         const c = result.challenge;
-        const senderName = c.sender.display_name ?? c.sender.username ?? "Someone";
+        const senderName = climberDisplay(c.sender_id, c.sender.display_name);
 
         await createNotification({
           userId: recipientId,

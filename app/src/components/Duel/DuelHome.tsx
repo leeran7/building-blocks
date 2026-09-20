@@ -521,12 +521,11 @@ export function DuelHome({ initialGeoAllowed }: DuelHomeProps) {
                 Add friend
               </h2>
               <p className="text-text-secondary text-sm mb-3">
-                Find players by email.
+                Find players by email or username.
               </p>
               <UserSearch
                 onSelect={handleAddFriend}
                 actionLabel="Add"
-                placeholder="Search by email…"
                 disabled={addingFriend}
               />
             </div>

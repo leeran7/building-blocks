@@ -17,11 +17,17 @@ export default defineConfig({
     exclude: ["tests/e2e/**"],
     alias: {
       "@": resolve(rootDir, "."),
+      // Mirrors mobile/vite.config.mts + mobile/tsconfig.json: the Capacitor
+      // SPA under mobile/src reaches shared Next code through "@app/*". Without
+      // this, any test of a mobile/src module that imports a shared lib
+      // (e.g. challenge components -> @app/lib/handle) fails to resolve.
+      "@app": resolve(rootDir, "src"),
     },
   },
   resolve: {
     alias: {
       "@": resolve(rootDir, "."),
+      "@app": resolve(rootDir, "src"),
     },
   },
 });

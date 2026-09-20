@@ -3,10 +3,12 @@
 .cursor/loop/state.json
 .cursor/loop/*.md
 # loop/* with negation to keep learnings.md (open questions only).
-# Handoff JSONs are tracked so the orchestrator retro can promote findings.
+# Handoff JSONs are transient scratch — written to disk during a run, read by
+# the next stage and the retro, then no longer needed. The retro promotes their
+# findings into docs/agents/skills, so nothing durable is lost by not tracking
+# them. Keeping them out of git avoids bloating every PR diff.
 loop/*
 !loop/learnings.md
-!loop/handoffs/
 !loop/*.md
 .claude/handoffs/*.json
 

@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
+import { climberDisplay } from "@app/lib/handle";
+import { UsernameHandle } from "@app/components/Challenge/UsernameHandle";
 import { apiFetch } from "../../lib/api";
 import { notifyError, notifySuccess } from "../../lib/haptics";
 import { Button, ListRow } from "../ui";
@@ -109,7 +111,7 @@ export function FriendsListSection({ refreshKey, onChallengeSent }: FriendsListS
       {!loading && !error && friends.length > 0 && (
         <div className="flex flex-col gap-2">
           {friends.map((f) => {
-            const name = f.user.displayName ?? f.user.username ?? "Friend";
+            const name = climberDisplay(f.user.id, f.user.displayName);
             const sent = challengeSent.has(f.user.id);
             const errored = challengeErrors.has(f.user.id);
             return (
@@ -118,9 +120,7 @@ export function FriendsListSection({ refreshKey, onChallengeSent }: FriendsListS
                   <div className="flex items-center justify-between gap-3">
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-semibold text-text-primary">{name}</p>
-                      {f.user.username && f.user.displayName && (
-                        <p className="truncate text-xs text-text-muted">@{f.user.username}</p>
-                      )}
+                      <UsernameHandle username={f.user.username} />
                     </div>
                     {sent ? (
                       <span className="shrink-0 font-mono text-xs uppercase tracking-[0.12em] text-signal">
