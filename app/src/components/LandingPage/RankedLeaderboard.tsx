@@ -5,15 +5,15 @@ import { PAID_DUELS_ENABLED } from "../../config/paidDuel";
 export async function RankedLeaderboard() {
   if (!PAID_DUELS_ENABLED) return null;
 
-  const entries = await chipLeaderboard(8).catch(() => []);
+  const entries = await chipLeaderboard(3).catch(() => []);
 
   return (
     <section
       id="ranked"
       aria-label="Ranked chip duel leaderboard"
-      className="scroll-reveal relative scroll-mt-20 py-20 px-4 border-t border-border-subtle"
+      className="scroll-reveal relative h-full overflow-hidden scroll-mt-20 rounded-2xl border border-border-subtle bg-surface/30 p-6"
     >
-      <div className="relative z-10 max-w-3xl mx-auto">
+      <div className="relative z-10">
         <div
           className="climb-reveal flex items-end justify-between gap-4 mb-8"
           style={{ animationDelay: "0ms" }}

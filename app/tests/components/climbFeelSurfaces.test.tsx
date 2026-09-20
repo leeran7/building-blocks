@@ -94,6 +94,37 @@ describe("FreeStackShell climb chrome (AC-3)", () => {
     expect(html).not.toMatch(/\banimate-groundRise\b/);
   });
 
+  it("renders the navbar on the leaderboard only, never on the game sections", () => {
+    // The game sections (/play, /daily) are navbar-less: on touch, ClimbScene
+    // mounts `fixed inset-0 z-40` inside this shell's `relative z-10` wrapper
+    // (z capped below the navbar's sticky z-30), so a rendered navbar paints
+    // over the fullscreen game HUD. Product choice: drop the navbar on the game
+    // outright on every device (accepting a ~56px desktop tab-band shift vs
+    // /climb). The Navbar renders a top-level <nav class="sticky top-0 z-30 …">
+    // — assert that landmark's presence, not source text.
+    const navMarker = /<nav\b[^>]*\bsticky\b[^>]*\btop-0\b/;
+    for (const section of ["play", "daily"] as const) {
+      const html = renderToStaticMarkup(
+        createElement(FreeStackShell, {
+          section,
+          title: section,
+          children: createElement("div", null, "canvas"),
+        })
+      );
+      expect(html).not.toMatch(navMarker);
+      // Tab band navigation still renders on the game sections.
+      expect(html).toContain('aria-label="Free stack sections"');
+    }
+    const lbHtml = renderToStaticMarkup(
+      createElement(FreeStackShell, {
+        section: "leaderboard",
+        title: "Climb",
+        children: createElement("div", null, "lb"),
+      })
+    );
+    expect(lbHtml).toMatch(navMarker);
+  });
+
   it("does not put climb-reveal on the play stage (mobile fullscreen)", () => {
     // climb-reveal uses transform; a transformed ancestor becomes the containing
     // block for ClimbScene's `fixed inset-0` touch layout and breaks fullscreen.

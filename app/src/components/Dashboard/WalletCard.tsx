@@ -81,7 +81,7 @@ export function WalletCard({ token }: { token: string | null }) {
             <DailyChipClaimButton
               state={claimState}
               onClaim={claim}
-              labels={{ idle: "Claim daily", claiming: "Claiming...", claimed: "Claimed", alreadyClaimed: "Claimed today" }}
+              labels={{ idle: "Get daily chips", claiming: "Adding…", claimed: "Added", alreadyClaimed: "Got today’s chips" }}
               className="font-mono text-xs uppercase tracking-[0.12em] text-signal hover:brightness-110 transition-[filter] disabled:opacity-50 disabled:cursor-not-allowed"
             />
           )}

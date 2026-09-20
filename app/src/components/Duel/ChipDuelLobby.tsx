@@ -3,16 +3,14 @@
 import { useCallback, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "../../contexts/AuthContext";
-import { Navbar } from "../Navbar";
 import { CHIP_TIERS, DAILY_CHIP_GRANT_CENTS } from "../../db/chips";
 import { formatChipCents } from "../../config/chipPackages";
 import { useClaimDailyChips, dailyClaimVisibility } from "../../hooks/useClaimDailyChips";
 import { useRankedEligibility } from "../../hooks/useRankedEligibility";
 import { useWalletBalance } from "../../hooks/useWalletBalance";
 import { authedFetch } from "../../lib/authedFetch";
-import { DUEL_LEADERBOARD_HREF, DUEL_HREF } from "../navLinks";
+import { DuelStackShell } from "./DuelStackShell";
 import { Spinner } from "../ui/Spinner";
-import { NavTab } from "../ui/NavTab";
 import { SignInGate } from "../ui/SignInGate";
 import { Button } from "../ui/Button";
 import { DailyChipClaimButton } from "../ui/DailyChipClaimButton";
@@ -68,24 +66,8 @@ export function ChipDuelLobby() {
   }, [token, tier, router]);
 
   return (
-    <div className="grain topo min-h-screen bg-void text-text-primary">
-      <Navbar contextLabel="1v1" />
-
-      {/* Tab band */}
-      <div className="border-b border-border-subtle">
-        <div className="max-w-2xl mx-auto w-full px-4 py-2">
-          <div
-            className="inline-flex items-center gap-1 rounded-full border border-border-strong bg-surface p-1"
-            role="tablist"
-            aria-label="1v1 sections"
-          >
-            <NavTab href={DUEL_LEADERBOARD_HREF} label="Leaderboard" active={false} />
-            <NavTab href={DUEL_HREF} label="Play" active={false} />
-          </div>
-        </div>
-      </div>
-
-      <div className="max-w-2xl mx-auto px-4 pt-7 pb-16 flex flex-col gap-6">
+    <DuelStackShell section="chips">
+      <div className="max-w-2xl mx-auto pt-7 pb-16 flex flex-col gap-6">
         <header>
           <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-text-muted mb-1.5">
             multiplayer · ranked
@@ -125,7 +107,7 @@ export function ChipDuelLobby() {
                   Claim {formatChipCents(DAILY_CHIP_GRANT_CENTS)} free chips every day — no purchase required.
                 </p>
                 {claimedToday && (
-                  <p className="text-xs text-text-muted mt-1">Already claimed today. Come back tomorrow.</p>
+                  <p className="text-xs text-text-muted mt-1">Already claimed today.</p>
                 )}
               </div>
               {showClaim && (
@@ -198,7 +180,7 @@ export function ChipDuelLobby() {
           </>
         )}
       </div>
-    </div>
+    </DuelStackShell>
   );
 }
 

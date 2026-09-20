@@ -24,8 +24,48 @@ export default function DailyPage() {
   return (
     <FreeStackShell section="daily" title="Daily Climb">
       <DailyClimbClient />
+      <KeepClimbing />
       <DailyIntro />
     </FreeStackShell>
+  );
+}
+
+/**
+ * Where to go until the next tower. This is the canonical home for both asks
+ * on this page — the About prose below links to the leaderboard only, so
+ * neither destination is pitched twice (app/DESIGN.md).
+ */
+function KeepClimbing() {
+  return (
+    <section
+      aria-labelledby="keep-climbing"
+      className="mx-auto mt-8 w-full max-w-4xl border-t border-border-subtle pt-6"
+    >
+      <h2
+        id="keep-climbing"
+        className="font-display text-2xl md:text-3xl font-bold tracking-tight text-text-primary"
+      >
+        Keep climbing until it resets.
+      </h2>
+      <p className="mt-2 max-w-lg text-sm text-text-secondary">
+        Today&rsquo;s tower is one seed for everyone. Practice on a fresh random
+        tower, or put a friend on the same rise.
+      </p>
+      <div className="mt-4 flex flex-col gap-3 sm:flex-row">
+        <Link
+          href="/play"
+          className="inline-flex min-h-[44px] items-center justify-center rounded-full border border-border-strong bg-surface/60 px-6 text-sm font-medium text-text-primary transition-colors hover:border-signal/50 hover:bg-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void"
+        >
+          Free climb →
+        </Link>
+        <Link
+          href="/duel"
+          className="inline-flex min-h-[44px] items-center justify-center rounded-full border border-border-strong bg-surface/60 px-6 text-sm font-medium text-text-primary transition-colors hover:border-signal/50 hover:bg-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void"
+        >
+          Challenge a friend →
+        </Link>
+      </div>
+    </section>
   );
 }
 
@@ -50,15 +90,8 @@ function DailyIntro() {
         </Link>
         . Play it every day to build a streak — miss a day and the streak resets.
         The daily tower rolls over at your local midnight. Prefer an endless run
-        on a fresh random tower each time? Play the{" "}
-        <Link href="/play" className="text-signal hover:underline">
-          free climb
-        </Link>{" "}
-        instead, or challenge someone in{" "}
-        <Link href="/duel" className="text-signal hover:underline">
-          1v1 duels
-        </Link>
-        .
+        on a fresh random tower each time, or a head-to-head race? Both are one
+        tap away in &ldquo;Keep climbing until it resets&rdquo; above.
       </p>
     </details>
   );

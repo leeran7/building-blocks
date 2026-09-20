@@ -1,8 +1,10 @@
 /**
- * FreeLeaderboard — the standalone free stack top climbers on the landing page.
+ * FreeLeaderboard — the free-stack top climbers teaser on the landing page.
  *
- * ONE global leaderboard for the free climb. Server component; cached with the
- * landing's ISR.
+ * ONE global leaderboard for the free climb, shown as a top-3 teaser inside the
+ * merged LeaderboardTeaser block (side-by-side with the ranked board when paid
+ * duels are on). Self-fetching async server component; cached with the landing's
+ * ISR. Renders as a compact card so it composes in the teaser grid.
  */
 
 import Link from "next/link";
@@ -11,20 +13,20 @@ import { topFreeClimbers } from "../../db/climb";
 import { ALTITUDE_UNIT } from "../../lib/units";
 
 export async function FreeLeaderboard() {
-  const climbers = await topFreeClimbers(8).catch(() => []);
+  const climbers = await topFreeClimbers(3).catch(() => []);
 
   return (
     <section
       id="free"
       aria-label="Free climb leaderboard"
       data-climb-chrome
-      className="scroll-reveal relative scroll-mt-20 py-20 px-4 border-t border-border-subtle bg-surface/30"
+      className="scroll-reveal relative h-full overflow-hidden scroll-mt-20 rounded-2xl border border-border-subtle bg-surface/30 p-6"
     >
       <div
         className="ground-gradient animate-climbGroundRise pointer-events-none absolute inset-x-0 bottom-0 h-20 opacity-35"
         aria-hidden="true"
       />
-      <div className="relative z-10 max-w-3xl mx-auto">
+      <div className="relative z-10">
         <div
           className="climb-reveal flex items-end justify-between gap-4 mb-8"
           style={{ animationDelay: "0ms" }}
