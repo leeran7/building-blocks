@@ -22,12 +22,22 @@ type MatchState =
   | { status: "matching" }
   | { status: "error"; message: string };
 
-export function ChipDuelLobby() {
+interface ChipDuelLobbyProps {
+  /**
+   * Ranked/chip eligibility resolved SERVER-SIDE at request time by
+   * `app/duel/chips/page.tsx` (`resolveRankedEligibility`). Required so the
+   * stake picker and "Find match" (a money-moving action) are never rendered
+   * on an optimistic assumption while a client probe is in flight.
+   */
+  initialGeoAllowed: boolean;
+}
+
+export function ChipDuelLobby({ initialGeoAllowed }: ChipDuelLobbyProps) {
   const { user, token } = useAuth();
   const router = useRouter();
   const [tier, setTier] = useState<number>(CHIP_TIERS[0]);
   const [matchState, setMatchState] = useState<MatchState>({ status: "idle" });
-  const { allowed: geoAllowed } = useRankedEligibility(true);
+  const { allowed: geoAllowed } = useRankedEligibility(true, initialGeoAllowed);
   const { state: claimState, claim: handleClaim } = useClaimDailyChips(token);
   const { canClaimDailyChips } = useWalletBalance(token, claimState.status);
   const { showClaim, claimedToday } = dailyClaimVisibility(
@@ -100,7 +110,7 @@ export function ChipDuelLobby() {
 
         {!user ? (
           <SignInGate message="Sign in to play chip duels." redirectPath="/duel/chips" />
-        ) : geoAllowed === false ? (
+        ) : !geoAllowed ? (
           <section
             className="bg-surface rounded-xl border border-ember/30 p-6 text-center"
             role="status"

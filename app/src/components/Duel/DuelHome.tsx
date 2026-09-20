@@ -70,7 +70,17 @@ type QueueState =
 
 // ─────────────────────────────── Component ────────────────────────────────
 
-export function DuelHome() {
+interface DuelHomeProps {
+  /**
+   * Ranked/chip eligibility resolved SERVER-SIDE at request time by
+   * `app/duel/page.tsx` (`resolveRankedEligibility`). Required so the first
+   * paint shows the true region decision — there is no optimistic
+   * "available" default and therefore no available→blocked flash.
+   */
+  initialGeoAllowed: boolean;
+}
+
+export function DuelHome({ initialGeoAllowed }: DuelHomeProps) {
   const { user, token, isAnonymous } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -87,7 +97,10 @@ export function DuelHome() {
   const [mode, setMode] = useState<DuelMode>(initialMode);
   const [buyOpen, setBuyOpen] = useState(false);
   const { state: claimState, claim } = useClaimDailyChips(token);
-  const { allowed: geoAllowed } = useRankedEligibility(PAID_DUELS_ENABLED_PUBLIC);
+  const { allowed: geoAllowed } = useRankedEligibility(
+    PAID_DUELS_ENABLED_PUBLIC,
+    initialGeoAllowed
+  );
   const { playCents: chipBalance } = useWalletBalance(
     PAID_DUELS_ENABLED_PUBLIC ? token : null,
     `${Number(buyOpen)}-${claimState.status}`
@@ -322,7 +335,9 @@ export function DuelHome() {
   // ─────────────── Render ───────────────
 
   const paidEnabled = PAID_DUELS_ENABLED_PUBLIC;
-  const geoBlocked = paidEnabled && geoAllowed === false;
+  // geoAllowed is always a resolved boolean (server-derived on first paint), so
+  // this is correct from the very first render rather than after a roundtrip.
+  const geoBlocked = paidEnabled && !geoAllowed;
   const activeMode: DuelMode =
     mode === "tournaments" || (mode === "chips" && (!paidEnabled || geoBlocked)) ? "quick" : mode;
 
