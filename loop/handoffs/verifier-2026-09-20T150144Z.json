@@ -1,0 +1,133 @@
+{
+  "agent": "verifier",
+  "status": "needs_revision",
+  "loopBackTo": "software-engineer",
+  "timestamp": "2026-09-20T15:01:44Z",
+  "goal": "Independently re-run all claimed gates and add/verify test coverage for the new pure/exported logic and never-rendered components called out in the software-engineer handoff's verificationTargets.",
+  "summary": "Re-ran every gate the software-engineer claimed (app lint/typecheck/test/build, orchestrator typecheck/test, pack hygiene) from a clean invocation, independent of their claims, and all reproduced exactly as reported EXCEPT app-test, which now fails because of 2 new tests I added that reproduce real production bugs (not test bugs). Added 6 new test files (39 new test cases) covering all 5 verificationTargets: parseDuelInvite (18 cases), formatElapsed (7 cases), computeWeekDays (6 cases), a DuelHome smoke render (3 cases, signed-out/signed-in/anonymous), a ClimbBoard smoke render (3 cases, populated/unavailable/empty), and a ClimbBoard viewer-panel fetch-fallback test (2 cases, non-200 vs rejected fetch, asserting the standings <ol> markup is byte-identical between the two failure modes). Proved the parseDuelInvite negative-fixture gate is not tautological: temporarily loosened src/lib/duelInvite.ts's regexes/protocol-check (diff captured, then reverted via cp from a pre-edit backup — `git diff` on the file is now empty, confirming an exact revert) and confirmed 13 of my 18 assertions correctly flipped red, including the javascript:, protocol-relative, data:, too-short, too-long and disallowed-character fixtures. Found two real gaps while doing this: (1) parseDuelInvite does NOT reject cross-origin absolute URLs whose path matches /duel/<id> (AC-10 explicitly requires rejecting 'cross-origin URLs'; https://evil.dev/duel/<validId> currently returns the id, not null) — low security impact since the caller only ever uses the returned ID to build a same-origin route, never the input URL or its host, but it is a real, reproducible AC-10 non-conformance; (2) formatElapsed(NaN) returns the string 'NaN:NaN' instead of clamping to '0:00' as explicitly specified in the software-engineer's own verificationTargets entry (`Math.max(0, Math.floor(NaN))` is NaN, not 0, so the clamp silently no-ops on non-finite input). Both are genuine defects in current production code, not test artifacts — full detail and repro below.",
+  "artifacts": [
+    "app/tests/lib/duelInvite.test.ts",
+    "app/tests/lib/dailyWeek.test.ts",
+    "app/tests/components/duelHomeFormatElapsed.test.ts",
+    "app/tests/components/duelHomeSmoke.test.tsx",
+    "app/tests/components/climbBoardSmoke.test.tsx",
+    "app/tests/components/climbBoardViewerPanel.test.tsx"
+  ],
+  "exitCriteria": {
+    "code_compiles": true,
+    "gates_reproduced_independently": true,
+    "new_tests_added_for_all_verificationTargets": true,
+    "negative_guard_gate_proven_to_fail": true,
+    "no_test_failures": false,
+    "no_critical_findings": false
+  },
+  "gates": [
+    { "name": "app-lint", "command": "pnpm lint", "cwd": "app", "result": "pass (re-run independently)" },
+    { "name": "app-typecheck", "command": "pnpm typecheck", "cwd": "app", "result": "pass (re-run independently)" },
+    { "name": "app-test", "command": "pnpm test", "cwd": "app", "result": "FAIL — 85 files / 777 tests, 775 pass, 2 fail (both new, both documented production bugs — see findings). Baseline 79 files / 738 tests all still pass unchanged; no regression in pre-existing coverage." },
+    { "name": "orchestrator-typecheck", "command": "yarn typecheck", "cwd": "orchestrator", "result": "pass (re-run independently)" },
+    { "name": "orchestrator-test", "command": "yarn test", "cwd": "orchestrator", "result": "pass (15 suites, 58 tests, re-run independently)" },
+    { "name": "pack-hygiene", "command": "node scripts/hygiene.mjs", "cwd": ".", "result": "pass — 8 source agent files scanned, 0 violations" },
+    { "name": "next-build", "command": "pnpm build", "cwd": "app", "result": "pass — route table confirmed unchanged: / ISR (1m revalidate), /climb dynamic (ƒ), /daily static (○), /duel static (○). Prisma connection errors during static generation are pre-existing sandbox behavior (no DB reachable here), caught and degraded per architecture.md's failure-modes table, not a build failure." }
+  ],
+  "coverageMatrix": [
+    { "ac": "AC-10", "target": "parseDuelInvite", "file": "app/tests/lib/duelInvite.test.ts:1-90", "callerProof": "app/src/components/Duel/DuelHome.tsx:292 (handleOpenInvite)", "result": "17/18 pass; 1 fail — cross-origin absolute URL with valid /duel/<id> path is NOT rejected (see findings)" },
+    { "ac": "AC-9 (elapsed readout)", "target": "formatElapsed", "file": "app/tests/components/duelHomeFormatElapsed.test.ts:1-38", "callerProof": "app/src/components/Duel/DuelHome.tsx:598", "result": "6/7 pass; 1 fail — NaN input not clamped (see findings)" },
+    { "ac": "AC-22, AC-26", "target": "computeWeekDays", "file": "app/tests/lib/dailyWeek.test.ts:1-83", "callerProof": "app/src/lib/daily.ts:188 (dailyWeek) -> app/src/components/Game/DailyClimbClient.tsx:51,63", "result": "6/6 pass" },
+    { "ac": "AC-17", "target": "ClimbBoard viewer panel fallback (non-200 vs rejected fetch, byte-identical standings)", "file": "app/tests/components/climbBoardViewerPanel.test.tsx:1-138", "callerProof": "app/app/climb/page.tsx:39", "result": "2/2 pass" },
+    { "ac": "smoke / SSR-safety (no prior AC number — a gap the software-engineer flagged)", "target": "DuelHome renders without throwing (signed-out, signed-in, anonymous)", "file": "app/tests/components/duelHomeSmoke.test.tsx:1-56", "callerProof": "app/app/duel/page.tsx:16", "result": "3/3 pass" },
+    { "ac": "smoke / SSR-safety", "target": "ClimbBoard renders without throwing (populated, unavailable, empty)", "file": "app/tests/components/climbBoardSmoke.test.tsx:1-47", "callerProof": "app/app/climb/page.tsx:39", "result": "3/3 pass" },
+    { "ac": "AC-1..AC-8, AC-11..AC-16, AC-18..AC-25, AC-27..AC-28", "target": "not in my scope this pass (outside the software-engineer's stated verificationTargets)", "file": "n/a", "result": "Covered structurally by pre-existing tests/components/climbFeelSurfaces.test.tsx (frozen-contract classes) and tests/design/* (reduced-motion, contrast) to the extent those components/utilities are reused unchanged; AC-9's interval ticking, AC-19's scroll-into-view, and AC-27's 375px overflow check are interaction/viewport behaviors that need a real browser — recommend qa-acceptance run these with Playwright rather than a unit render, per app/tests/e2e/ convention already in the repo." }
+  ],
+  "findings": [
+    {
+      "severity": "warning",
+      "location": "app/src/lib/duelInvite.ts:38-53 (extractPath)",
+      "issue": "AC-10 (loop/spec-doomstack-layout.md) explicitly requires parseDuelInvite to return null for cross-origin URLs. extractPath only validates the URL's scheme (http/https) and takes url.pathname — it never compares the URL's origin/host against the app's own origin. Repro: parseDuelInvite('https://evil.dev/duel/abcdef123456') returns 'abcdef123456' instead of null (see app/tests/lib/duelInvite.test.ts, 'cross-origin URL with an otherwise-valid /duel/<id> path', which fails against current production code — this is a real gap, not a test bug; I proved the gate itself is meaningful by deliberately loosening the parser and watching 13 of 18 assertions correctly flip red first).",
+      "fix": "Either (a) add an origin check in extractPath — e.g. thread window.location.origin (or an injected expectedOrigin param, to keep the function pure/testable) and reject when url.origin differs — or (b) if the product decision is that origin doesn't matter because only the parsed id is ever used to build the same-origin route (the module's own docstring already argues this), amend AC-10's wording in loop/spec-doomstack-layout.md to drop the cross-origin-URL requirement so the spec matches the intended design. Security impact is low either way: the caller (DuelHome.tsx:298) always does router.push('/duel/' + duelId) from the PARSED id, never the raw input or its host, so no open redirect or cross-origin navigation is reachable today — but the written AC and the shipped behavior disagree, and a future caller could reasonably assume parseDuelInvite enforces same-origin because the AC says it does."
+    },
+    {
+      "severity": "warning",
+      "location": "app/src/components/Duel/DuelHome.tsx:754-759 (formatElapsed)",
+      "issue": "The software-engineer's own verificationTargets entry states 'negative/NaN clamps to 0:00', but Math.max(0, Math.floor(NaN)) evaluates to NaN (Math.max propagates NaN regardless of the other argument), so formatElapsed(NaN) returns the string 'NaN:NaN', not '0:00'. Repro in app/tests/components/duelHomeFormatElapsed.test.ts ('NaN input clamps to 0:00'), which fails against current production code.",
+      "fix": "Guard with Number.isFinite before the clamp, e.g. `const safe = Number.isFinite(totalSeconds) ? Math.max(0, Math.floor(totalSeconds)) : 0;`. No production caller currently feeds NaN (useElapsedSeconds always produces a non-negative integer counter), so this has zero live-bug impact today, but the function is exported and the stated contract should hold for any future caller."
+    },
+    {
+      "severity": "critical",
+      "location": "app/src/components/Navbar.tsx:20-22 (GHOST constant) and app/_verify_tmp.mjs",
+      "issue": "Process anomaly, not something I authored: partway through this session, git status showed an UNCOMMITTED modification to app/src/components/Navbar.tsx (removing an unconditional `inline-flex` from the GHOST class string, with a new comment explaining it conflicted with `hidden sm:inline-flex` at every call site — a real, plausible bug fix) and a new untracked script app/_verify_tmp.mjs that launches Playwright against localhost:3000 at a 375px viewport and screenshots /, /duel, /climb, /daily with prefers-reduced-motion:reduce — i.e. exactly an AC-27/AC-28 manual check. Its OUT path embeds this session's own scratchpad directory id, so it originated inside this sandbox, but I did not create either file and have no visibility into who/what did (possibly a concurrently-dispatched agent sharing this checkout). Neither file is in my artifacts list. I confirmed it does not affect any of my test results (no test I wrote or ran asserts on Navbar's GHOST class), but it means unreviewed, uncommitted production-code changes are sitting in the working tree outside the tracked pipeline.",
+      "fix": "Orchestrator/reviewer: attribute and resolve app/src/components/Navbar.tsx and app/_verify_tmp.mjs before this reaches integrator — either credit and properly review the Navbar fix (it looks correct: `hidden sm:inline-flex` plus a base `inline-flex` is a same-specificity Tailwind conflict) as its own change with its own verification pass, or revert it if it's stray. Do not let it ride along silently inside this goal's diff."
+    }
+  ],
+  "feedback": [
+    {
+      "severity": "warning",
+      "message": "2 of my 39 new tests fail against current production code, both documented in findings above with exact repro and suggested fix. Please either fix the two functions or, for the parseDuelInvite case, amend AC-10 in loop/spec-doomstack-layout.md if cross-origin rejection is intentionally not required — then re-run app-test.",
+      "file": "app/src/lib/duelInvite.ts",
+      "line": 47,
+      "action": "See findings[0]."
+    },
+    {
+      "severity": "warning",
+      "message": "formatElapsed does not clamp NaN as its own stated contract requires.",
+      "file": "app/src/components/Duel/DuelHome.tsx",
+      "line": 755,
+      "action": "See findings[1]."
+    }
+  ],
+  "verificationNotes": [
+    "Confirmed the handoff's SSR-bailout note is accurate and accounted for it: app/app/duel/page.tsx wraps DuelHome in <Suspense> and DuelHome calls useSearchParams directly, so a curl/fetch of the /duel route is not evidence of anything — my DuelHome smoke test renders the DuelHome REACT COMPONENT directly (next/navigation and AuthContext mocked) via renderToStaticMarkup instead of hitting the route, which is the approach the handoff asked me to confirm.",
+    "vitest.config.ts runs environment: node by default (renderToStaticMarkup only — no effects execute). ClimbBoard's viewer-panel fetch only runs inside a useEffect, so AC-17 coverage required a real mount: used the existing tests/hooks/useMatchmakingQueue.test.ts pattern (react-dom/client createRoot + act, `@vitest-environment happy-dom` file-level pragma) rather than introducing a new testing-library dependency (none is installed in app/).",
+    "First attempt at the ClimbBoard viewer-panel test hung a vitest worker at 100%+ CPU indefinitely: my AuthContext mock returned a NEW object literal on every call, so ClimbBoard's `useEffect([user, token, authLoading])` saw a new `user` reference every render and looped (setState -> rerender -> new mock object -> effect refires -> setState -> ...). Fixed by hoisting the mock auth state to a stable module-level object. Flagging for reviewer/qa-acceptance: any future test that mocks a hook consumed inside a useEffect dependency array must return a referentially-stable value, or it can hang the whole test run rather than fail fast.",
+    "Confirmed via `git status --short app/api` and `git diff --stat HEAD -- app/api` that no API route files changed in this pass, consistent with the 'no new endpoints' claim.",
+    "Environment note (not a finding, for the record): partway through this session app/tests/lib/duelInvite.test.ts, app/tests/lib/dailyWeek.test.ts, app/tests/components/duelHomeFormatElapsed.test.ts, and app/tests/components/duelHomeSmoke.test.tsx appeared already committed under the software-engineer's existing commit (b63dd6a) without me running `git commit` — some snapshot/auto-commit mechanism in this sandbox folded them in. I did not commit or push anything myself. app/tests/components/climbBoardSmoke.test.tsx and app/tests/components/climbBoardViewerPanel.test.tsx (written later in the session) remain uncommitted/untracked in the working tree, along with unrelated Next.js build artifacts (app/next-env.d.ts, app/AGENTS.md, app/CLAUDE.md) that next dev/build regenerates and are not my changes."
+  ],
+  "dependencies": [],
+  "learnings": [
+    {
+      "topic": "testing",
+      "forAgents": ["software-engineer"],
+      "kind": "lesson",
+      "insight": "parseDuelInvite(NaN-adjacent bug class): Math.max(0, Math.floor(NaN)) is NaN, not 0 — Math.max/Math.min propagate NaN through any argument position. A 'clamp to 0' guard needs an explicit Number.isFinite check, not just Math.max(0, ...).",
+      "action": "Grep this codebase for other `Math.max(0, Math.floor(<external input>))` clamps that claim to handle NaN/negative and verify each one actually does.",
+      "confidence": "high"
+    },
+    {
+      "topic": "security",
+      "forAgents": ["security-reviewer", "software-engineer"],
+      "kind": "lesson",
+      "insight": "parseDuelInvite's own module docstring claims 'no open redirect is reachable' because the caller only uses the parsed id — that claim is true and I verified the only call site (DuelHome.tsx:298) does build the route from the parsed id, never the raw string. But the written spec (AC-10) additionally promises cross-origin URLs are rejected outright, and the code does not do that (it accepts https://any-host/duel/<id> and returns the id). The security claim in the code comment holds; the acceptance-criteria claim in the spec does not. These are two different bars and only the weaker one (no open redirect) is actually met.",
+      "action": "When a module's docstring asserts a security property, verify that claim specifically — it is not automatically equivalent to whatever the acceptance criteria describe with similar-sounding language ('cross-origin URLs ... rejected').",
+      "confidence": "high"
+    },
+    {
+      "topic": "process",
+      "forAgents": ["reviewer", "qa-acceptance"],
+      "kind": "metric",
+      "insight": "Post-verification baseline: app/ now has 85 test files / 777 tests (775 pass, 2 documented production-bug failures — see findings). lint/typecheck/hygiene/orchestrator all clean. next build succeeds with unchanged route rendering modes (/ ISR 1m, /climb dynamic, /daily static, /duel static).",
+      "action": "Treat any test-count drop below 775-passing, or any rendering-mode flip, as a regression introduced after this handoff.",
+      "confidence": "high"
+    },
+    {
+      "topic": "testing",
+      "forAgents": ["software-engineer", "qa-acceptance"],
+      "kind": "lesson",
+      "insight": "Mocking a hook (e.g. useAuth) that is consumed inside another component's useEffect dependency array must return a referentially stable object across renders in tests that actually mount (react-dom/client + act), or the effect re-fires every render and can spin a vitest worker at ~100% CPU indefinitely instead of failing with a normal assertion error — it looks like a hang, not a red test.",
+      "action": "Any new test that mounts (not just renderToStaticMarkup's) a component consuming a mocked context inside a useEffect dep array should hoist the mock's return value to a stable module-level constant.",
+      "confidence": "high"
+    },
+    {
+      "topic": "process",
+      "forAgents": ["reviewer", "qa-acceptance"],
+      "kind": "lesson",
+      "insight": "AC-9 (matchmaking timer ticking), AC-19 (Find-me scrollIntoView), and AC-27 (375px viewport overflow + 44x44 targets) are interaction/viewport behaviors that a unit render (renderToStaticMarkup or a happy-dom mount without a real layout engine) cannot meaningfully assert — happy-dom does not compute layout, so overflow/scroll assertions there would be theater, not evidence.",
+      "action": "qa-acceptance should verify these three with the existing Playwright e2e setup (app/tests/e2e/) or an explicit manual procedure, not accept a unit test as proof for AC-9/19/27.",
+      "confidence": "medium"
+    }
+  ],
+  "openQuestions": [
+    "Should AC-10's cross-origin-URL rejection be implemented in code, or should the spec be amended to match the already-safe (id-only) design? Deferred to software-engineer/product — see findings[0].",
+    "The two pre-existing loop/learnings.md open questions (free-leaderboard trust boundary; power-up stacking) are untouched by this verification pass and remain open."
+  ],
+  "nextStage": "software-engineer"
+}
