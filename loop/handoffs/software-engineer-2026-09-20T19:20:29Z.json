@@ -1,0 +1,74 @@
+{
+  "agent": "software-engineer",
+  "status": "success",
+  "timestamp": "2026-09-20T19:20:29Z",
+  "nextStage": "verifier",
+  "goal": "Cross-app redundancy reduction (Tier 1 + Tier 2) across the Doomstack DUEL flow, FREE-STACK flow, and DASHBOARD on branch claude/blissful-ramanujan-tcniuq. Enforce DESIGN.md 'Calls to action' (ONE canonical home per destination) while preserving all data fetching, business logic, auth, game engine, and paid-duel flag branches.",
+  "summary": "Implemented every Tier-1 CTA-pileup collapse and every Tier-2 copy trim. Dashboard /duel is now pitched once (top-band 'Start a duel'): cut DuelRecordCard 'Play a duel', DuelReplaysSection 'Play 1v1', made DuelRecordEmpty copy-only; kept the inline 'Challenge a friend' narrow-viewport gap-filler (small mono text, visually distinct from the filled button). Dashboard /play pitched once (FreeClimbCard 'Play again' kept, its distinct '/climb View leaderboard' kept): cut ClimbReplaysSection 'Play again' header link. Free stack: the full controls card below the canvas on /play and /daily is now a <details> 'Controls & power-ups' that starts CLOSED (new opt-in `collapsible` prop on ClimbControlsGuide — default DOM unchanged so the two power-up tests still render the expanded card); the concise overlay controls at the moment of play are untouched. /climb over-linking trimmed: dropped the lobby-overlay 'View leaderboard' and the PlayShell/DailyShell captions (which also carried the mechanic sentence + a duplicate free-leaderboard link); kept the result-overlay leaderboard link. Duel: ChipDuelLobby now renders THROUGH DuelStackShell (new neutral 'chips' section value → both tabs inactive), re-fixing the /duel/chips tab-band width jump (band now pinned to DUEL_STACK_WIDTH = max-w-4xl like /duel + /duel/leaderboard); all chip claim/tier/matchmaking logic preserved inside children. The /duel chips tier is now a lean teaser (one-line pitch + single 'Ranked chips →' link to /duel/chips); cut 'Buy chips' + the daily-chip claim control (and their now-unused state/hooks/imports) — buy+claim live only on /duel/chips. Tier-2: trimmed the duel mechanic sentence from the two EntryCard descriptions (keep header canonical); relabeled the lower in-app friends heading to 'Your friends'; trimmed the /duel/chips 'come back tomorrow' subtext; collapsed the DuelResult anon double sign-in ask to the single foot-of-card line; removed the ClimbControlsGuide TIPS sign-in line; dropped the DailyResult 'Streak' stat (StreakStrip stays the canonical streak surface); made PlayIntro's /duel-pitch tail genuinely unique from ClimbAbout's (kept both SEO blocks + their links); renamed WalletCard 'Claim daily' → 'Get daily chips' per DESIGN.md. All 7 gates green: app lint clean, typecheck clean, test 802/91 (was 798/90, +4 new, 0 fail), build compiles and / stays Static/ISR (Revalidate 1m — not flipped to dynamic; no route mode exports changed); orchestrator typecheck clean + test 58 pass; hygiene 0 violations. Frozen contract app/tests/components/climbFeelSurfaces.test.tsx is UNMODIFIED and passing (ClimbPanelIntro/ClimbAbout were not edited — I made the About uniqueness change in play/page.tsx's PlayIntro instead, so no frozen assertion needed touching).",
+  "artifacts": [
+    "app/src/components/Dashboard/DuelRecordCard.tsx",
+    "app/src/components/Dashboard/DuelReplaysSection.tsx",
+    "app/src/components/Dashboard/ClimbReplaysSection.tsx",
+    "app/src/components/Dashboard/WalletCard.tsx",
+    "app/src/components/Game/ClimbScene.tsx",
+    "app/src/components/Game/ClimbControlsGuide.tsx",
+    "app/src/components/Game/ClimbPlayClient.tsx",
+    "app/src/components/Game/DailyClimbClient.tsx",
+    "app/src/components/Duel/DuelStackShell.tsx",
+    "app/src/components/Duel/ChipDuelLobby.tsx",
+    "app/src/components/Duel/DuelHome.tsx",
+    "app/src/components/Duel/DuelResult.tsx",
+    "app/app/play/page.tsx",
+    "app/tests/components/duelRedundancy.test.tsx"
+  ],
+  "decisions": [
+    "TIER1 Dashboard /duel pileup: cut DuelRecordCard 'Play a duel' (removed the CTA column + now-unused Link import; record card is now info-only), cut DuelReplaysSection 'Play 1v1' header link, cut DuelRecordEmpty's second 'Start a duel' button (kept its 'No duels yet…' explainer). Kept the top-band 'Start a duel' as the ONE canonical duel CTA. Kept the inline 'Challenge a friend →' gap-filler in dashboard/page.tsx per its own code comment (below-sm nav gap; small mono uppercase text, does not compete visually with the filled top-band button) — dashboard/page.tsx therefore unchanged.",
+    "TIER1 Dashboard /play double 'Play again': kept FreeClimbCard 'Play again' (canonical, top of Climb tab) and its DISTINCT 'View leaderboard'→/climb; cut ClimbReplaysSection header 'Play again'.",
+    "TIER1 Free-stack controls twice: added an opt-in `collapsible` prop to ClimbControlsGuide. PlayShell (/play) and DailyShell (/daily) now render <ClimbControlsGuide collapsible /> → the full card is inside a <details> 'Controls & power-ups' that starts CLOSED, keeping power-up/tips detail available without a second expanded Move/Jump/Climb block. The concise overlay (variant='overlay') at the moment of play is unchanged. Default card DOM is byte-identical (collapsible defaults false), so powerUpPresentation + powerUpVisualIdentity card tests are unaffected. /climb's single compact instance left as-is.",
+    "TIER1 /climb over-linking: dropped the lobby-overlay 'View leaderboard →' in ClimbScene and the PlayShell + DailyShell captions (each carried a duplicate free-leaderboard link AND the mechanic sentence). Kept the RESULT-overlay 'View leaderboard →' (post-run moment). Tab band still links Leaderboard on both routes.",
+    "TIER1 ChipDuelLobby → DuelStackShell: extended DuelStackSection to 'play' | 'leaderboard' | 'chips'; 'chips' is neutral so both NavTabs render inactive (the existing active={section==='leaderboard'} / active={section==='play'} logic already yields false/false for a third value — no NavTab change needed). ChipDuelLobby's header/compliance/claim/tier/matchmaking now live inside <DuelStackShell section='chips'>; an inner max-w-2xl wrapper preserves the narrow reading column while the CHROME (band) sits at max-w-4xl, so the /duel/chips tab band no longer jumps width vs /duel and /duel/leaderboard. Removed now-unused Navbar/NavTab/DUEL_HREF/DUEL_LEADERBOARD_HREF imports.",
+    "TIER1 /duel chips tier lean teaser: kept the 'Chip Duels' header + balance + one-line pitch and a single 'Ranked chips →' link to /duel/chips (canonical home). Cut 'Buy chips' (+ BuyCreditsModal, buyOpen state) and the daily-chip claim button (+ useClaimDailyChips, claim/claimState). Simplified the useWalletBalance refresh key (it depended on buyOpen/claimState which no longer exist) to the default mount fetch — balance still displays. All claim/buy logic remains fully intact on /duel/chips (ChipDuelLobby).",
+    "TIER2 duel mechanic sentence 3×: kept DuelHome header 'Same tower. Same rising lava. Outclimb your rival.' as canonical; trimmed Quick-Match desc to 'Find a random rival.' and Challenge desc to 'Create a link, challenge a friend.'",
+    "TIER2 'Challenge a friend' twice on /duel: kept the EntryCard title (invite-link path, asserted by duelHomeSmoke); relabeled the lower in-app friends section heading to 'Your friends' (distinct from the Add-friend section above it).",
+    "TIER2 /duel/chips 'come back tomorrow' twice: trimmed the subtext to 'Already claimed today.' (the claim button already says the rest via its alreadyClaimed label).",
+    "TIER2 DuelResult anon double-ask: removed the inline 'Sign in to rematch.' line (the anon Rematch button is already disabled with an aria-label); kept the single foot-of-card 'Sign in to save your record.' line, which renders for ALL anon states (including opponentLeft), guaranteeing exactly one sign-in ask. 'Play again' remains canonical.",
+    "TIER2 free-stack mechanic sentence 3-4×: lobby overlay stays canonical; the PlayShell/DailyShell captions carrying the restatement were removed outright (see /climb over-linking).",
+    "TIER2 'Sign in to save your rank': removed the ClimbControlsGuide TIPS sign-in list item (a genuine duplicate within the controls guide). Kept the sign-in ask at the /play RESULT overlay and, on /climb, at the YourBestPanel anonymous state (the /climb earn-it moment).",
+    "TIER2 /daily streak 3× post-run: dropped the DailyResult 'Streak' stat block; kept the transient result-overlay pill and the StreakStrip (canonical persistent streak surface). StreakStrip sits directly below DailyResult, so the stat was the redundant pair.",
+    "TIER2 /daily 'one seed/same tower' ~5×: kept the lobby overlay statement ('Everyone climbs the same tower today. One seed, one shot…'); removed the DailyShell caption that restated it (same removal as the mechanic/leaderboard caption cut).",
+    "TIER2 ClimbAbout/PlayIntro shared /duel tail: kept ClimbAbout (/climb) as canonical; rewrote PlayIntro's (/play) closing to a genuinely unique 'Prefer a head-to-head? Race another climber in 1v1 duels — same tower, same rising lava, one winner. See the rules for details.' Both SEO <details> blocks and their /duel + /rules links preserved. ClimbPanelIntro.tsx was not touched, so the frozen climbFeelSurfaces contract needed no edits.",
+    "TIER2 WalletCard: renamed the daily-chip button labels away from 'Claim' → idle 'Get daily chips', claiming 'Adding…', claimed 'Added', alreadyClaimed 'Got today’s chips'. Left the ledger HISTORY label 'Claimed daily chips' (descriptive past tense) untouched.",
+    "Added app/tests/components/duelRedundancy.test.tsx (4 tests, all render real components via renderToStaticMarkup — no source greps): (1-3) ChipDuelLobby's tab band is pinned to DUEL_STACK_WIDTH (max-w-4xl) with neither tab active and the old max-w-2xl band gone, chip content + compliance line preserved; (4) /duel chips tier links to CHIP_DUELS_HREF, shows 'Ranked chips', and no longer renders 'Buy chips' or a claim-chips control."
+  ],
+  "deviations": [
+    "SKIPPED the optional ReplayList extraction (shared collapse/toggle/watch/copy-link/toast structure between ClimbReplaysSection and DuelReplaysSection). It is NOT user-facing redundancy, and a shared primitive risks behavior drift across two lists whose item shapes differ (climb run vs duel W/L). Left both as-is per the task's 'if it risks drift or is too invasive, skip and note it' guidance.",
+    "CONSERVATIVE on About-block sign-in prose: MUST-KEEP says the three SEO <details> blocks may only have their SHARED /duel tail trimmed. I therefore did NOT strip the descriptive 'sign in to save your peak height…' sentences inside ClimbAbout / PlayIntro (they are unique crawlable account-model prose, not competing on-screen CTAs). The 'sign in to save your rank' dedup was applied to the real UI asks (TIPS line removed; result-overlay / YourBestPanel kept as the single canonical ask per surface). Flagging for the verifier in case a stricter read of Tier-2 wanted those prose sentences trimmed too.",
+    "Left ChipDuelLobby's own daily-claim button label 'Claim free chips' unchanged: the WalletCard 'Claim' rename was the only one the task scoped. /duel/chips is the canonical claim home; renaming its established action label was out of the named scope. Noting it in case the reviewer wants DESIGN.md's 'avoid Claim' applied there too."
+  ],
+  "learnings": [
+    {
+      "topic": "metric",
+      "kind": "metric",
+      "forAgents": ["verifier", "reviewer", "qa-acceptance"],
+      "insight": "New green baseline after the duel/free-stack/dashboard redundancy pass: app 802 tests / 91 files (was 798/90; +4 from tests/components/duelRedundancy.test.tsx, 0 fail), orchestrator 58 pass, all 7 gates green. next build route table: / stays '○ Revalidate 1m' (Static/ISR, NOT dynamic); /duel, /duel/chips, /daily, /dashboard stay ○; /play, /climb stay ƒ — no rendering-mode export was changed.",
+      "action": "Treat 802/91 + 58 as the baseline. If a later stage sees / flip to ƒ, or the count drop below 802, that is a regression against this checkpoint. The build emits pre-existing prisma:error lines during static generation (build still succeeds) — same as the prior home-page checkpoint, not introduced here.",
+      "confidence": "high"
+    },
+    {
+      "topic": "testing",
+      "kind": "note",
+      "forAgents": ["reviewer", "verifier"],
+      "insight": "ClimbControlsGuide gained an opt-in `collapsible` prop (default false). The default (card) DOM is intentionally unchanged so the existing powerUpPresentation + powerUpVisualIdentity tests — which render createElement(ClimbControlsGuide, {}) and assert power-up rows/copy — keep passing without edits. Only PlayShell/DailyShell pass collapsible, wrapping the SAME body in a <details> that starts closed (content stays in the DOM, so power-up/tips copy remains crawlable/asserted).",
+      "action": "When judging test strength: the redundancy is enforced structurally (details-wrapped below the canvas) not by deleting content. duelRedundancy.test.tsx guards the two highest-risk shared-shell changes (ChipDuelLobby band width via DUEL_STACK_WIDTH; chips-tier buy/claim removal) against a real rendered tree, not a grep.",
+      "confidence": "high"
+    },
+    {
+      "topic": "architecture",
+      "kind": "note",
+      "forAgents": ["reviewer", "software-engineer"],
+      "insight": "DuelStackSection is now 'play' | 'leaderboard' | 'chips'. The shell's active-tab logic (active={section==='leaderboard'} / active={section==='play'}) already produces the correct inactive/inactive state for the new 'chips' value with no branch added — verified DuelHome (section='play') and the leaderboard route still compile and render their correct active tab, and /duel/chips renders both tabs inactive at the canonical max-w-4xl width.",
+      "action": "If any future duel route is added, reuse DuelStackShell + a neutral section rather than hand-rolling a Navbar+band (that hand-rolled band at max-w-2xl was the exact source of the /duel/chips width jitter this pass removed).",
+      "confidence": "high"
+    }
+  ]
+}

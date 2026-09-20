@@ -55,21 +55,13 @@ export function DuelReplaysSection({
 
   return (
     <section aria-label="Recent duels" className="mb-8">
-      <div className="flex items-end justify-between gap-4 mb-4">
-        <div>
-          <p className="font-mono text-[11px] uppercase tracking-[0.16em] text-text-muted">
-            1v1 duels
-          </p>
-          <h2 className="text-lg font-semibold text-text-primary mt-1">
-            Recent duels
-          </h2>
-        </div>
-        <Link
-          href="/duel"
-          className="text-sm text-signal hover:underline underline-offset-4 shrink-0"
-        >
-          Play 1v1
-        </Link>
+      <div className="mb-4">
+        <p className="font-mono text-[11px] uppercase tracking-[0.16em] text-text-muted">
+          1v1 duels
+        </p>
+        <h2 className="text-lg font-semibold text-text-primary mt-1">
+          Recent duels
+        </h2>
       </div>
 
       <ul className="rounded-2xl border border-border-subtle bg-surface divide-y divide-border-subtle overflow-hidden">

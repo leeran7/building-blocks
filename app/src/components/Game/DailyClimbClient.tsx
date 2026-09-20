@@ -16,7 +16,6 @@
  */
 
 import { useCallback, useEffect, useState } from "react";
-import Link from "next/link";
 import { ClimbScene } from "./ClimbScene";
 import { ClimbControlsGuide } from "./ClimbControlsGuide";
 import { buildFreeTower } from "../../game/freeStack";
@@ -144,23 +143,13 @@ function DailyShell({
       {children}
 
       <div className="flex w-full max-w-4xl flex-col gap-3">
-        {result ? (
-          <DailyResult result={result} />
-        ) : (
-          <p className="text-center text-sm text-text-secondary">
-            One tower, one day, everyone. Your peak height still ranks on the{" "}
-            <Link href="/climb" className="text-accent underline underline-offset-2">
-              free leaderboard
-            </Link>
-            .
-          </p>
-        )}
+        {result ? <DailyResult result={result} /> : null}
 
         <StreakStrip streak={streak} week={week} justClimbed={result !== null} />
       </div>
 
       <div className="w-full max-w-lg">
-        <ClimbControlsGuide />
+        <ClimbControlsGuide collapsible />
       </div>
     </div>
   );
@@ -216,17 +205,6 @@ function DailyResult({ result }: { result: DailyRunResult }) {
             {result.todayBest.toFixed(0)}
             <span className="ml-1 text-xl font-normal text-text-secondary">
               {ALTITUDE_UNIT}
-            </span>
-          </p>
-        </div>
-        <div>
-          <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-text-muted">
-            Streak
-          </p>
-          <p className="font-mono text-2xl font-bold tabular-nums text-signal mt-1">
-            {result.streak}
-            <span className="ml-1 text-sm font-normal text-text-secondary">
-              {result.streak === 1 ? "day" : "days"}
             </span>
           </p>
         </div>

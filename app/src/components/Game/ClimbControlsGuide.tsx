@@ -47,10 +47,20 @@ const TIPS = [
   "Walk into a glowing orb to trigger its power-up instantly.",
   "Power-ups activate the instant you touch them — time your route to grab one right when you need it.",
   `Tap jump to leap, then re-hold in the air to burn a jetpack; holding through takeoff caps rise at ${JETPACK_MAX_VY} m/s. Fuel is short, leftover dies with the window.`,
-  "Sign in after a run to save your rank on the free leaderboard.",
 ] as const;
 
-export function ClimbControlsGuide({ variant = "card" }: { variant?: Variant }) {
+export function ClimbControlsGuide({
+  variant = "card",
+  collapsible = false,
+}: {
+  variant?: Variant;
+  /**
+   * Render the card inside a `<details>` that starts closed, so a screen that
+   * already shows the concise overlay controls at the moment of play keeps the
+   * full power-up/tips detail available without a second expanded controls block.
+   */
+  collapsible?: boolean;
+}) {
   const touch = useCoarsePointer();
 
   if (variant === "compact") {
@@ -120,17 +130,8 @@ export function ClimbControlsGuide({ variant = "card" }: { variant?: Variant }) 
     );
   }
 
-  return (
-    <section
-      aria-label="How to play"
-      className="rounded-2xl border border-border-subtle bg-surface/60 p-5"
-    >
-      <div className="flex items-center gap-2 mb-4">
-        <span className="font-mono text-[11px] uppercase tracking-[0.16em] text-signal">
-          [ how to play ]
-        </span>
-      </div>
-
+  const body = (
+    <>
       {touch ? (
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           {TOUCH_CONTROLS.map((c) => (
@@ -210,6 +211,40 @@ export function ClimbControlsGuide({ variant = "card" }: { variant?: Variant }) 
           Keyboard controls · use a desktop for the best experience
         </p>
       )}
+    </>
+  );
+
+  if (collapsible) {
+    return (
+      <details className="group rounded-2xl border border-border-subtle bg-surface/60">
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-2 p-5 [&::-webkit-details-marker]:hidden">
+          <span className="font-mono text-[11px] uppercase tracking-[0.16em] text-signal">
+            Controls &amp; power-ups
+          </span>
+          <span
+            aria-hidden="true"
+            className="text-text-muted transition-transform group-open:rotate-180"
+          >
+            ▾
+          </span>
+        </summary>
+        <div className="px-5 pb-5">{body}</div>
+      </details>
+    );
+  }
+
+  return (
+    <section
+      aria-label="How to play"
+      className="rounded-2xl border border-border-subtle bg-surface/60 p-5"
+    >
+      <div className="flex items-center gap-2 mb-4">
+        <span className="font-mono text-[11px] uppercase tracking-[0.16em] text-signal">
+          [ how to play ]
+        </span>
+      </div>
+
+      {body}
     </section>
   );
 }

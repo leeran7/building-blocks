@@ -14,7 +14,12 @@ import { Navbar } from "../Navbar";
 import { NavTab } from "../ui/NavTab";
 import { DUEL_HREF, DUEL_LEADERBOARD_HREF } from "../navLinks";
 
-export type DuelStackSection = "play" | "leaderboard";
+/**
+ * `chips` is a neutral section: /duel/chips lives inside the duel stack chrome
+ * but is not one of the two tabs, so neither pill is active (both render
+ * inactive, matching the inline band the lobby used to hand-roll).
+ */
+export type DuelStackSection = "play" | "leaderboard" | "chips";
 
 /**
  * The one canonical width for the 1v1 band + content on every duel route. The

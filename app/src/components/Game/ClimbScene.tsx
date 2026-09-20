@@ -492,12 +492,6 @@ export function ClimbScene({
             )}
             <ClimbControlsGuide variant="overlay" />
             <StartButton onClick={handleStart} label="Start climb" />
-            <Link
-              href="/climb"
-              className="mt-4 text-sm text-accent hover:brightness-110 underline underline-offset-4"
-            >
-              View leaderboard →
-            </Link>
           </Overlay>
         )}
 

@@ -31,10 +31,8 @@ import { useAuth } from "../../contexts/AuthContext";
 import { shareInvite } from "../../lib/shareInvite";
 import { parseDuelInvite } from "../../lib/duelInvite";
 import { DuelStackShell } from "./DuelStackShell";
-import { BuyCreditsModal } from "../Wallet/BuyCreditsModal";
 import { PAID_DUELS_ENABLED_PUBLIC } from "../../config/paidDuel";
 import { formatChipCents } from "../../config/chipPackages";
-import { useClaimDailyChips } from "../../hooks/useClaimDailyChips";
 import { useRankedEligibility } from "../../hooks/useRankedEligibility";
 import { useWalletBalance } from "../../hooks/useWalletBalance";
 import { authedFetch } from "../../lib/authedFetch";
@@ -100,12 +98,9 @@ export function DuelHome() {
   const [queueState, setQueueState] = useState<QueueState>({ status: "idle" });
   const [stats, setStats] = useState<DuelStats | null>(null);
   const [tier, setTier] = useState<DuelTier>(initialTier);
-  const [buyOpen, setBuyOpen] = useState(false);
-  const { state: claimState, claim } = useClaimDailyChips(token);
   const { allowed: geoAllowed } = useRankedEligibility(PAID_DUELS_ENABLED_PUBLIC);
   const { playCents: chipBalance } = useWalletBalance(
-    PAID_DUELS_ENABLED_PUBLIC ? token : null,
-    `${Number(buyOpen)}-${claimState.status}`
+    PAID_DUELS_ENABLED_PUBLIC ? token : null
   );
 
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -445,7 +440,7 @@ export function DuelHome() {
                 title="Quick Match"
                 badge="free"
                 tone="primary"
-                description="Find a random rival. Race the same tower and the same lava."
+                description="Find a random rival."
                 footnote="Cancel anytime while searching."
               >
                 {queueState.status === "timeout" ? (
@@ -487,7 +482,7 @@ export function DuelHome() {
                 title="Challenge a friend"
                 badge="private"
                 tone="secondary"
-                description="Create a link. Put a friend against the same rise."
+                description="Create a link, challenge a friend."
                 footnote="Your friend can join as a guest."
               >
                 {createState.status === "loading" ? (
@@ -610,7 +605,7 @@ export function DuelHome() {
 
               <div>
                 <h2 className="font-mono text-xs uppercase tracking-[0.14em] text-text-muted mb-1">
-                  Challenge a friend
+                  Your friends
                 </h2>
                 <p className="text-text-secondary text-sm mb-3">
                   Pick a friend to challenge to a 1v1.
@@ -640,38 +635,14 @@ export function DuelHome() {
             <p className="text-text-secondary text-sm mb-5">
               Stake non-cashable chips against another player. Winner takes all — zero-sum, no house cut.
             </p>
-            <div className="flex flex-col gap-3">
-              <Link
-                href={CHIP_DUELS_HREF}
-                className="inline-flex items-center justify-center rounded-full px-8 min-h-[48px] w-full bg-signal text-void font-semibold text-base tracking-tight hover:brightness-110 active:scale-[0.98] motion-reduce:active:scale-100 shadow-signal transition-[filter,transform,scale] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void"
-              >
-                Find chip match
-              </Link>
-              <Button variant="ghost" size="sm" fullWidth onClick={() => setBuyOpen(true)}>
-                Buy chips
-              </Button>
-              <button
-                onClick={claim}
-                disabled={
-                  claimState.status === "claiming" ||
-                  claimState.status === "claimed" ||
-                  claimState.status === "already-claimed"
-                }
-                className="text-center text-xs text-text-muted underline underline-offset-2 hover:text-text-primary transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {claimState.status === "claiming"
-                  ? "Claiming..."
-                  : claimState.status === "claimed"
-                    ? "Claimed today's free chips"
-                    : claimState.status === "already-claimed"
-                      ? "Already claimed today"
-                      : "Claim your free daily chips"}
-              </button>
-              {claimState.status === "error" && (
-                <p className="text-center text-xs text-ember" role="alert">{claimState.message}</p>
-              )}
-            </div>
-            <BuyCreditsModal open={buyOpen} onClose={() => setBuyOpen(false)} token={token} />
+            {/* Lean teaser only: buying and claiming chips live on their canonical
+                home, /duel/chips. This tier just routes there. */}
+            <Link
+              href={CHIP_DUELS_HREF}
+              className="inline-flex items-center justify-center rounded-full px-8 min-h-[48px] w-full bg-signal text-void font-semibold text-base tracking-tight hover:brightness-110 active:scale-[0.98] motion-reduce:active:scale-100 shadow-signal transition-[filter,transform,scale] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void"
+            >
+              Ranked chips →
+            </Link>
           </section>
         ) : null}
 

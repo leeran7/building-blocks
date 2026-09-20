@@ -45,21 +45,13 @@ export function ClimbReplaysSection({ replays }: { replays: ClimbReplayItem[] })
 
   return (
     <section aria-label="Climb replays" className="mb-8">
-      <div className="flex items-end justify-between gap-4 mb-4">
-        <div>
-          <p className="font-mono text-[11px] uppercase tracking-[0.16em] text-text-muted">
-            Climb replays
-          </p>
-          <h2 className="text-lg font-semibold text-text-primary mt-1">
-            Your runs
-          </h2>
-        </div>
-        <Link
-          href="/play"
-          className="text-sm text-signal hover:underline underline-offset-4 shrink-0"
-        >
-          Play again
-        </Link>
+      <div className="mb-4">
+        <p className="font-mono text-[11px] uppercase tracking-[0.16em] text-text-muted">
+          Climb replays
+        </p>
+        <h2 className="text-lg font-semibold text-text-primary mt-1">
+          Your runs
+        </h2>
       </div>
 
       <ul className="rounded-2xl border border-border-subtle bg-surface divide-y divide-border-subtle overflow-hidden">

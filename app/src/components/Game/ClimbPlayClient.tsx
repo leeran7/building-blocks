@@ -104,15 +104,7 @@ function PlayShell({
     <div className="flex flex-col items-center gap-6">
       {children}
       <div className="w-full max-w-3xl">
-        <p className="text-text-secondary text-sm mb-4 text-center">
-          Endless climb — go as high as you can. Your peak height is your score
-          on the{" "}
-          <Link href="/climb" className="text-accent underline underline-offset-2">
-            free leaderboard
-          </Link>
-          .
-        </p>
-        <ClimbControlsGuide />
+        <ClimbControlsGuide collapsible />
       </div>
     </div>
   );
