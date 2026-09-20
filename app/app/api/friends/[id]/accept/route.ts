@@ -8,6 +8,7 @@ import { checkRateLimit } from "../../../../../src/lib/rateLimit";
 import { acceptFriendRequest } from "../../../../../src/db/friendship";
 import { createNotification } from "../../../../../src/db/notification";
 import { prisma } from "../../../../../src/db/client";
+import { climberDisplay } from "../../../../../src/lib/handle";
 
 export const runtime = "nodejs";
 
@@ -60,9 +61,9 @@ export async function POST(
     if (friendship) {
       const accepter = await prisma.user.findUnique({
         where: { id: uid },
-        select: { display_name: true, username: true },
+        select: { display_name: true },
       });
-      const accepterName = accepter?.display_name ?? accepter?.username ?? "Someone";
+      const accepterName = climberDisplay(uid, accepter?.display_name);
 
       await createNotification({
         userId: friendship.sender_id,

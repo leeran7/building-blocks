@@ -10,6 +10,7 @@ import { ensureUser } from "../../../src/db/user";
 import { sendFriendRequest, getFriends } from "../../../src/db/friendship";
 import { createNotification } from "../../../src/db/notification";
 import { prisma } from "../../../src/db/client";
+import { climberDisplay } from "../../../src/lib/handle";
 
 export const runtime = "nodejs";
 
@@ -97,9 +98,9 @@ export async function POST(request: NextRequest) {
     // Look up sender name for the notification
     const sender = await prisma.user.findUnique({
       where: { id: uid },
-      select: { display_name: true, username: true },
+      select: { display_name: true },
     });
-    const senderName = sender?.display_name ?? sender?.username ?? "Someone";
+    const senderName = climberDisplay(uid, sender?.display_name);
 
     await createNotification({
       userId: receiverId,

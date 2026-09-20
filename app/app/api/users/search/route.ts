@@ -1,26 +1,23 @@
 /**
- * GET /api/users/search?q=<email> — Look up a user by their exact email.
+ * GET /api/users/search?q=<email|username> — Look up a user by their exact
+ * email or their exact public username.
  *
- * Exact match only (never a partial/substring match): an email is PII, and
- * `contains`-style matching would let a caller enumerate other users' full
- * addresses one character at a time. Finding someone requires already
- * knowing their complete email.
+ * Exact match only (never a partial/substring match) on BOTH fields: an email
+ * is PII, and `contains`-style matching would let a caller enumerate other
+ * users' full addresses (or handles) one character at a time. Finding someone
+ * requires already knowing their complete email or complete username.
  */
 
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth, AuthError } from "../../../../src/lib/requireAuth";
 import { checkRateLimit } from "../../../../src/lib/rateLimit";
+import { exactMatchFilter } from "../../../../src/lib/userSearchQuery";
 import { prisma } from "../../../../src/db/client";
 
 export const runtime = "nodejs";
 
 const RATE_MAX = 60;
 const RATE_WINDOW = 3600;
-
-// Simple shape check — good enough to short-circuit obviously-incomplete
-// input without hitting the DB. The real validation is the exact-match
-// query itself: no shape of malformed input can ever match a real row.
-const EMAIL_SHAPE = /^\S+@\S+\.\S+$/;
 
 export async function GET(request: NextRequest) {
   let uid: string;
@@ -45,14 +42,15 @@ export async function GET(request: NextRequest) {
 
   const { searchParams } = new URL(request.url);
   const q = (searchParams.get("q") ?? "").trim();
-  if (!EMAIL_SHAPE.test(q)) {
+  const filter = exactMatchFilter(q);
+  if (!filter) {
     return NextResponse.json({ users: [] });
   }
 
   try {
     const user = await prisma.user.findFirst({
       where: {
-        email: { equals: q, mode: "insensitive" },
+        ...filter,
         id: { not: uid },
       },
       select: {
