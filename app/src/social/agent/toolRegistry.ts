@@ -1,9 +1,11 @@
 /**
- * The closed 19-tool set (AC-20). This file is the SINGLE source of truth
+ * The closed 20-tool set (AC-20). This file is the SINGLE source of truth
  * for tool names, descriptions, and input schemas — the LLM only ever sees
- * these definitions (no `execute` is attached here, see dispatch.ts), and
- * `AGENT_TOOL_NAMES` in ../types.ts is validated against this file's keys
- * by a test to guarantee the two never drift apart.
+ * these definitions (no `execute` is attached here, see dispatch.ts).
+ * TOOL_SCHEMAS and TOOL_DESCRIPTIONS are typed `Record<SocialAgentToolName, …>`,
+ * so a name in `AGENT_TOOL_NAMES` (../types.ts) that is missing here — or an
+ * extra one — fails `tsc` at COMPILE time. The runtime test only asserts the
+ * count; the exhaustiveness guarantee is the type, not a runtime check.
  */
 
 import { tool } from "ai";
@@ -50,6 +52,19 @@ export const TOOL_SCHEMAS = {
   }),
   analyze_climb_replay: z.object({
     replayUrl: z.string().min(1).describe("Doomstack replay URL (/play?r=…) or raw replay token"),
+  }),
+  list_climb_replays: z.object({
+    limit: z
+      .number()
+      .int()
+      .min(1)
+      .max(100)
+      .default(30)
+      .describe("Max replays to return (newest first). Capped at 100."),
+    before: z
+      .string()
+      .optional()
+      .describe("Opaque paging cursor: pass the `nextBefore` string from a prior page verbatim to fetch the next (older) page. Omit for the first page."),
   }),
   generate_script: z.object({
     contentItemId: z.string(),
@@ -132,6 +147,7 @@ export const TOOL_DESCRIPTIONS: Record<SocialAgentToolName, string> = {
   get_content_calendar: "List content items (drafts/scheduled/published/etc.), optionally filtered by status/platform/date range.",
   create_content_idea: "Generate distinct, platform-adapted content drafts for one or more platforms from a natural-language idea. Set generateVideo=true to also create an AI video for TikTok/YouTube Short items. Pass replayUrl to weave in real climb highlights.",
   analyze_climb_replay: "Decode a Doomstack climb replay, re-simulate it, and return the most intense moments (near-death, clutches, milestones) for marketing copy.",
+  list_climb_replays: "List climb replays across all players (newest first) to discover replay tokens. Feed a returned token into analyze_climb_replay. Supports limit (max 100) and a `before` keyset cursor for paging.",
   generate_script: "Regenerate the script field of an existing draft content item.",
   generate_caption: "Regenerate the caption field of an existing draft content item.",
   generate_title: "Regenerate the title field of an existing draft content item.",

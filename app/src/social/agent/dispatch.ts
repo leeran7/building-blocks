@@ -4,7 +4,8 @@
  * through `dispatchTool()`. There is no other code path that turns a tool
  * name + arguments into a DB/provider side effect, and there is no tool
  * here that accepts a raw SQL string, a raw Prisma query object, or an
- * unrestricted "run any function" capability (AC-20).
+ * unrestricted "run any function" capability (AC-20). The closed set is 20
+ * tools.
  *
  * `ctx.uid` must already have passed `requireSocialAdmin()` at the route
  * boundary — this function does not re-verify a Firebase token itself, but
@@ -35,7 +36,7 @@ import {
 } from "./tools/publishingTools";
 import { getSocialAnalyticsTool, analyzeContentPerformanceTool } from "./tools/analyticsTools";
 import { generateWeeklyStrategyTool } from "./tools/strategyTools";
-import { analyzeClimbReplayTool } from "./tools/replayTools";
+import { analyzeClimbReplayTool, listClimbReplaysTool } from "./tools/replayTools";
 import type { SocialAgentTaskStatus, SocialAgentToolName } from "../types";
 
 export interface ToolContext {
@@ -70,6 +71,7 @@ const HANDLERS: Record<SocialAgentToolName, Handler> = {
   analyze_content_performance: (input, _ctx) => analyzeContentPerformanceTool(input as never),
   generate_weekly_strategy: (input, ctx) => generateWeeklyStrategyTool(input as never, ctx),
   analyze_climb_replay: (input, _ctx) => analyzeClimbReplayTool(input as never),
+  list_climb_replays: (input, _ctx) => listClimbReplaysTool(input as never),
 };
 
 function isToolResultShaped(value: unknown): value is { ok: boolean; data?: unknown; reason?: string; detail?: string } {

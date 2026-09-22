@@ -137,6 +137,10 @@ model ClimbRun {
 
   @@index([category_slug, created_at], name: "climb_run_category_idx")
   @@index([userId, created_at(sort: Desc)], name: "climb_run_user_idx")
+  // Global newest-first replay listing across all users (admin
+  // list_climb_replays tool). Neither user- nor category-leading index above
+  // covers an all-rows ORDER BY created_at DESC scan.
+  @@index([created_at(sort: Desc)], name: "climb_run_created_idx")
   @@map("climb_runs")
 }
 
@@ -342,7 +346,7 @@ enum SocialAgentTaskStatus {
   UNSUPPORTED
 }
 
-// The closed 19-tool set (AC-20). No tool or code path accepts raw SQL/Prisma
+// The closed 20-tool set (AC-20). No tool or code path accepts raw SQL/Prisma
 // query objects — this enum IS the exhaustive list of what the agent may call.
 enum SocialAgentToolName {
   get_social_accounts
@@ -364,6 +368,7 @@ enum SocialAgentToolName {
   analyze_content_performance
   generate_weekly_strategy
   analyze_climb_replay
+  list_climb_replays
 }
 
 enum SocialAuditAction {

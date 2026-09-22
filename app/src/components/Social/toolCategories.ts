@@ -44,6 +44,7 @@ export const TOOL_CATEGORIES: Record<SocialAgentToolName, ToolCategoryInfo> = {
   get_brand_profile: { category: "RESEARCH", verb: "Checking your brand voice…", verbDone: "Checked your brand voice" },
   get_content_calendar: { category: "RESEARCH", verb: "Checking your calendar…", verbDone: "Checked your calendar" },
   analyze_climb_replay: { category: "RESEARCH", verb: "Decoding your replay for highlights…", verbDone: "Decoded your replay" },
+  list_climb_replays: { category: "RESEARCH", verb: "Finding recent climb replays…", verbDone: "Found recent climb replays" },
 
   create_content_idea: { category: "CREATE", verb: "Writing platform-adapted drafts…", verbDone: "Wrote your drafts" },
   generate_script: { category: "CREATE", verb: "Writing your script…", verbDone: "Wrote your script" },

@@ -274,3 +274,107 @@ export async function getUserClimbReplays(
     replayToken: r.replay_token,
   }));
 }
+
+/** Default page size for admin replay listing (mirrors getUserClimbReplays). */
+export const ADMIN_REPLAY_DEFAULT_LIMIT = 30;
+/** Hard cap so the admin tool can never request an unbounded scan. */
+export const ADMIN_REPLAY_MAX_LIMIT = 100;
+
+/**
+ * Single source of truth for the replay-listing page size. Clamps to
+ * [1, ADMIN_REPLAY_MAX_LIMIT] and floors fractional input. Shared by the db
+ * query (defense-in-depth) and the tool handler so the two never diverge; the
+ * zod schema also enforces the same bounds at the dispatch boundary.
+ */
+export function clampReplayLimit(requested: number = ADMIN_REPLAY_DEFAULT_LIMIT): number {
+  return Math.min(Math.max(1, Math.floor(requested)), ADMIN_REPLAY_MAX_LIMIT);
+}
+
+export interface AdminClimbReplay {
+  id: string;
+  /** Privacy-safe display name (profile name, else pseudonym). Never the email/uid. */
+  displayName: string;
+  peakY: number;
+  categorySlug: string;
+  createdAt: string;
+  /** Always non-null here — the query only returns runs that have a replay. */
+  replayToken: string;
+}
+
+/**
+ * Composite keyset cursor. created_at is NOT unique, so paging on it alone with
+ * a strict `<` silently skips replays that share the exact same millisecond
+ * across a page boundary. Tie-breaking on the unique `id` makes paging stable.
+ */
+export interface ReplayCursor {
+  createdAt: Date;
+  id: string;
+}
+
+export interface ListAllClimbReplaysInput {
+  limit?: number;
+  /** Keyset cursor: return only replays strictly older than this (createdAt, id). */
+  before?: ReplayCursor;
+}
+
+/**
+ * Admin-scoped listing of climb replays across ALL users, newest first.
+ *
+ * Only rows that actually HAVE a replay_token are returned — a "replay" implies
+ * a decodable token the agent can feed into analyze_climb_replay. The limit is
+ * clamped to [1, ADMIN_REPLAY_MAX_LIMIT] so a caller can never trigger an
+ * unbounded scan. Backed by climb_run_created_idx (created_at DESC).
+ *
+ * Ordering and paging are stable via a composite (created_at, id) keyset: the
+ * `before` cursor selects rows strictly older than (createdAt, id), so two
+ * replays sharing the same created_at are never skipped or duplicated.
+ *
+ * NOT user-scoped: only reachable via dispatchTool after requireSocialAdmin at
+ * the route boundary (AC-21). Prisma only, no raw SQL (AC-20).
+ */
+export async function listAllClimbReplays(
+  input: ListAllClimbReplaysInput = {}
+): Promise<AdminClimbReplay[]> {
+  const limit = clampReplayLimit(input.limit);
+  const cursor = input.before;
+
+  const rows = await prisma.climbRun.findMany({
+    where: {
+      // replay_token != null must apply to EVERY cursor branch, so it is
+      // AND-ed with the whole keyset OR (implicit AND at the object root).
+      replay_token: { not: null },
+      ...(cursor
+        ? {
+            OR: [
+              { created_at: { lt: cursor.createdAt } },
+              { created_at: cursor.createdAt, id: { lt: cursor.id } },
+            ],
+          }
+        : {}),
+    },
+    orderBy: [{ created_at: "desc" }, { id: "desc" }],
+    take: limit,
+    select: {
+      id: true,
+      userId: true,
+      peak_y: true,
+      category_slug: true,
+      created_at: true,
+      replay_token: true,
+      user: { select: { display_name: true } },
+    },
+  });
+
+  return rows.map((r) => ({
+    id: r.id,
+    // Data minimization: the raw internal uid is never egressed to the LLM
+    // transcript — only the privacy-safe pseudonym/display name is.
+    displayName: climberDisplay(r.userId ?? r.id, r.user?.display_name ?? null),
+    peakY: r.peak_y,
+    categorySlug: r.category_slug,
+    createdAt: r.created_at.toISOString(),
+    // Non-null by the `replay_token: { not: null }` filter above; the `?? ""`
+    // only satisfies the nullable Prisma type and is never actually reached.
+    replayToken: r.replay_token ?? "",
+  }));
+}

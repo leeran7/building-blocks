@@ -39,7 +39,7 @@ export type {
   SocialAuditResult,
 };
 
-/** The closed 19-tool set (AC-20) — single source of truth for validation. */
+/** The closed 20-tool set (AC-20) — single source of truth for validation. */
 export const AGENT_TOOL_NAMES: SocialAgentToolName[] = [
   "get_social_accounts",
   "get_brand_profile",
@@ -60,6 +60,7 @@ export const AGENT_TOOL_NAMES: SocialAgentToolName[] = [
   "analyze_content_performance",
   "generate_weekly_strategy",
   "analyze_climb_replay",
+  "list_climb_replays",
 ];
 
 export const SOCIAL_PLATFORMS: SocialPlatform[] = ["TIKTOK", "X", "YOUTUBE"];
