@@ -80,6 +80,26 @@ export async function recordAgeConfirmation(userId: string): Promise<void> {
 }
 
 /**
+ * Grant public-leaderboard consent for a web user.
+ *
+ * Web has no App Store obligation to prompt for consent (unlike iOS, which
+ * collects it explicitly via LeaderboardConsentModal, Guideline 5.1.2), so web
+ * users join the leaderboard as part of accepting Terms at sign-up. Called from
+ * /api/auth/sync only for requests carrying the web-client marker.
+ *
+ * Idempotent and MONOTONIC: stamps only when currently null, so the earliest
+ * grant time is preserved and a later opt-out (should a web opt-out surface be
+ * added) is never silently re-granted on the next sign-in. Mirrors the
+ * write-once shape of recordAgeConfirmation above.
+ */
+export async function grantWebLeaderboardConsent(userId: string): Promise<void> {
+  await prisma.user.updateMany({
+    where: { id: userId, leaderboard_consent_at: null },
+    data: { leaderboard_consent_at: new Date() },
+  });
+}
+
+/**
  * Opt a user into the native app beta. The beta is iOS-only; the caller passes
  * the server-derived platform. Idempotent — if already set, returns the
  * existing record unchanged (update block is empty).
