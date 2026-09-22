@@ -15,10 +15,12 @@
  * (self-confirmation, not verified age — see recordAgeConfirmation /
  * age_confirmed_at), an IP-based geo allow-list (paidDuelGeo.ts, default-deny,
  * fail-closed), and a PAID_DUELS_ENABLED kill switch. The copy must not
- * overstate these (e.g. do not claim we "verify" age or location). This is
- * drafted text for human legal review, not a final legal opinion — the
- * skill-game framing, money-transmitter posture, and state list need attorney
- * sign-off.
+ * overstate these (e.g. do not claim we "verify" age or location). The
+ * cleared-jurisdiction list in §5 is rendered from ALLOWED_US_REGIONS via
+ * clearedUsRegionNames() — never hand-write the states here, or the Terms will
+ * drift from what the geo gate actually enforces. This is drafted text for
+ * human legal review, not a final legal opinion — the skill-game framing,
+ * money-transmitter posture, and state list need attorney sign-off.
  */
 
 import { Navbar } from "../../src/components/Navbar";
@@ -31,9 +33,18 @@ import {
   MailLink,
 } from "../../src/components/Legal/LegalArticle";
 import { buildMetadata } from "../../src/lib/seo";
+import { clearedUsRegionNames } from "../../src/lib/paidDuelGeo";
 
-const UPDATED = "September 10, 2026";
+const UPDATED = "September 22, 2026";
 const CONTACT_EMAIL = "hello@doomstack.lol";
+
+/** Join a list as "A, B, and C" (Oxford comma), for inline prose. */
+function formatList(items: string[]): string {
+  if (items.length === 0) return "";
+  if (items.length === 1) return items[0];
+  if (items.length === 2) return `${items[0]} and ${items[1]}`;
+  return `${items.slice(0, -1).join(", ")}, and ${items[items.length - 1]}`;
+}
 
 export const metadata = buildMetadata({
   title: "Doomstack — Terms of Service",
@@ -62,6 +73,11 @@ const TOC = [
 ] as const;
 
 export default function TermsPage() {
+  // Rendered from the enforced allow-list (paidDuelGeo.ts) so this copy can
+  // never drift from where paid features are actually offered.
+  const clearedStates = clearedUsRegionNames();
+  const clearedStatesText = formatList(clearedStates);
+
   return (
     <main id="main-content" className="grain min-h-screen bg-void">
       <Navbar contextLabel="Terms" />
@@ -272,16 +288,31 @@ export default function TermsPage() {
               <strong>Eligibility &amp; location.</strong> You must be 18 or older
               to buy chips or enter a tournament. When you buy chips or register,
               you represent and confirm that you are at least 18 — we rely on
-              your confirmation and do not independently verify your age.
-              These features require your location to be specifically and
-              affirmatively cleared; they are{" "}
-              <strong>not currently available in any location</strong>, pending
-              jurisdiction-by-jurisdiction legal review. We will publish and
-              update the list of cleared jurisdictions here as any are added.
-              We infer your approximate location from your IP address; this
-              method is not exact. Using a VPN, proxy, or any other means to
-              disguise your location is prohibited and may result in suspension
-              and forfeiture of chips and prizes.
+              your confirmation and do not independently verify your age. These
+              features are available only where we have affirmatively cleared
+              your location after jurisdiction-specific legal review.{" "}
+              {clearedStates.length > 0 ? (
+                <>
+                  They are currently offered only to players physically located
+                  in the following U.S. states:{" "}
+                  <strong>{clearedStatesText}</strong>. They are not available
+                  outside the United States, or in any U.S. state not listed
+                  here.
+                </>
+              ) : (
+                <>
+                  They are{" "}
+                  <strong>not currently available in any location</strong>,
+                  pending that review, and we will list the cleared
+                  jurisdictions here as any are added.
+                </>
+              )}{" "}
+              We update this list as jurisdictions are cleared or removed, and
+              may pause these features in any jurisdiction at any time. We infer
+              your approximate location from your IP address; this method is not
+              exact. Using a VPN, proxy, or any other means to disguise your
+              location is prohibited and may result in suspension and forfeiture
+              of chips and prizes.
             </li>
             <li>
               <strong>Chargebacks &amp; payment disputes.</strong> Initiating a

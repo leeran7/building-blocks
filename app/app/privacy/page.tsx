@@ -5,11 +5,14 @@
  * + Google OAuth + anonymous guest sessions), Stripe Checkout for chip purchases
  * and tournament entry fees, Stripe Connect for tournament prize payouts,
  * Postgres/Prisma for storage, Upstash Redis for caching/rate-limiting,
- * Vercel hosting, and an OpenAI-backed social media agent (internal/business use,
- * not applied to end-user personal data). It also covers the public creator
+ * Vercel hosting, Ably (realtime messaging for live duels), and an
+ * OpenAI-backed social media agent (internal/business use, not applied to
+ * end-user personal data). It also covers the public creator
  * surface: user-chosen public usernames (/c/[username]) and the social platform
  * handles a creator can save (typed by the user, no OAuth into their social
- * account).
+ * account). Public-leaderboard listing is opt-in (leaderboard_consent_at) and
+ * revocable — see the Sharing section; do not describe leaderboards as
+ * automatically public.
  *
  * Paid features add: an 18+ attestation timestamp (age_confirmed_at), a chip
  * balance (play_credits_cents) with a WalletLedger audit trail, CreditPurchase
@@ -33,7 +36,7 @@ import {
 } from "../../src/components/Legal/LegalArticle";
 import { buildMetadata } from "../../src/lib/seo";
 
-const UPDATED = "September 10, 2026";
+const UPDATED = "September 22, 2026";
 const CONTACT_EMAIL = "hello@doomstack.lol";
 
 export const metadata = buildMetadata({
@@ -281,19 +284,20 @@ export default function PrivacyPage() {
             disclose personal information only in the following
             circumstances:
           </p>
-          <SubHeading>Public by design</SubHeading>
+          <SubHeading>Public leaderboards (with your consent)</SubHeading>
           <p>
-            Doomstack&apos;s leaderboards are public. Your chosen display name and
-            your peak height/rank are visible to anyone who visits the Service —
-            that&apos;s the product. Your display name is also shown to other
-            signed-in players in chip-duel lobbies and tournament brackets. If
-            you set a
-            public username, your creator page at{" "}
-            <code>/c/your-username</code> shows that already-public data: your
-            saved social handles and your public climbing-record standing. It
-            never exposes your email or other private account details. Do not
-            save a handle — or choose a username — that you don’t want to be
-            public. Your account email is <em>not</em> displayed publicly.
+            Public leaderboards are part of Doomstack, but you control whether
+            you appear on them. Your peak height and rank appear on the public
+            leaderboard only if you opt in, and you can withdraw that consent at
+            any time — which removes your record from the public leaderboard.
+            Separately, when you play a chip duel or a tournament, your display
+            name is shown to the other players in that lobby or bracket as part
+            of the match. If you set a public username, your creator page at{" "}
+            <code>/c/your-username</code> shows your saved social handles and
+            your public climbing record. It never exposes your email or other
+            private account details. Do not save a handle — or choose a
+            username — that you don’t want to be public. Your account email is{" "}
+            <em>not</em> displayed publicly.
           </p>
           <SubHeading>Service providers</SubHeading>
           <p>
@@ -318,6 +322,11 @@ export default function PrivacyPage() {
             </li>
             <li>
               <strong>Upstash</strong> — Redis caching and rate-limiting.
+            </li>
+            <li>
+              <strong>Ably</strong> — real-time messaging that powers live
+              head-to-head duels, relaying gameplay inputs and presence between
+              matched players for the duration of a match.
             </li>
             <li>
               <strong>OpenAI</strong> — powers an internal AI agent we use to
@@ -386,8 +395,8 @@ export default function PrivacyPage() {
         <Section id="transfers" title="7. International data transfers">
           <p>
             We’re based in the United States, and our service providers
-            (Vercel, Firebase/Google Cloud, Stripe, Neon, Upstash, OpenAI)
-            process data in the US and, in some cases, other countries where
+            (Vercel, Firebase/Google Cloud, Stripe, Neon, Upstash, Ably,
+            OpenAI) process data in the US and, in some cases, other countries where
             they operate infrastructure. If you’re located in the European
             Economic Area, the UK, or Switzerland, your information will be
             transferred outside of those regions. Where required, we rely on
