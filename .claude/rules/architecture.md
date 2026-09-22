@@ -12,3 +12,8 @@ change.
 
 Declare every index application logic depends on in the schema the ORM will not
 drop. Indexes that exist only in a one-off SQL file vanish on db push.
+
+Keyset pagination on a non-unique column (created_at) silently skips or
+duplicates rows when values tie across a page boundary. Order by and cursor on a
+tuple ending in a unique id, and carry that id in the cursor the caller pages
+with.

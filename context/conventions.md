@@ -7,6 +7,9 @@ runner, or component library.
   and in `orchestrator/`; `pnpm` in `app/`. Use the manager for the
   package you are touching. Do not rewrite the other tree’s lockfile.
 - **App root** is `app/` (Next.js). Orchestrator runtime is `orchestrator/`.
+- **Prisma types after an enum/schema change:** run `pnpm install` (or
+  `pnpm db:generate`) in `app/` so `@prisma/client` regenerates before
+  `pnpm typecheck`, or the changed enum union looks stale and tsc fails.
 - **Design:** read `app/DESIGN.md` and `app/tailwind.config.ts` before any
   UI. Never invent a second token set.
 - **Tests:** invoke production units and assert output. Do not grep source

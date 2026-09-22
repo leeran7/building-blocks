@@ -15,3 +15,7 @@ header, origin, redirects).
 
 Do not supply production secrets to a pull_request-triggered job. Same-repo
 branch PRs plus install lifecycle scripts are an exfil path.
+
+A tool result that reaches a third-party LLM transcript is an egress boundary.
+Return only the fields the tool's job needs: drop internal user ids, emails, and
+raw tokens the task never uses. Prefer a display pseudonym over identity.
