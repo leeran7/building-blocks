@@ -3,6 +3,7 @@
 import { useState, FormEvent } from "react";
 import Link from "next/link";
 import { useAuth } from "../../src/contexts/AuthContext";
+import { PUBLIC_CONFIG } from "../../src/config/public";
 
 type State = "idle" | "loading" | "success" | "alreadyJoined" | "error";
 
@@ -60,11 +61,17 @@ export default function BetaPage() {
               <p className="text-signal font-semibold mb-1">
                 {state === "alreadyJoined" ? "You're already on the list" : "You're in!"}
               </p>
-              <p className="text-sm text-text-secondary">
-                {state === "alreadyJoined"
-                  ? "We'll email you when the app is ready."
-                  : "Check your email for a TestFlight invite."}
+              <p className="text-sm text-text-secondary mb-4">
+                Tap below to join the beta in TestFlight.
               </p>
+              <a
+                href={PUBLIC_CONFIG.testflightUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block w-full bg-signal text-void font-semibold rounded-lg py-3 text-base text-center hover:brightness-110 active:scale-[0.98] transition-[filter,transform,scale] min-h-[44px]"
+              >
+                Open in TestFlight →
+              </a>
               <Link
                 href="/dashboard"
                 className="inline-block mt-4 text-sm text-signal underline-offset-4 hover:underline"

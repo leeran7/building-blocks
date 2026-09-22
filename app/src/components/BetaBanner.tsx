@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { PUBLIC_CONFIG } from "../config/public";
 
 type State = "idle" | "loading" | "success" | "error";
 
@@ -25,16 +26,26 @@ export function BetaBanner({ token }: { token: string | null }) {
           <span className="w-2 h-2 rounded-full bg-signal shrink-0" aria-hidden="true" />
           <p className="text-sm text-text-primary font-medium">
             You&apos;re on the list —{" "}
-            <span className="text-text-secondary font-normal">check your email for a TestFlight invite</span>
+            <span className="text-text-secondary font-normal">tap below to join in TestFlight</span>
           </p>
         </div>
-        <button
-          onClick={() => setDismissed(true)}
-          aria-label="Dismiss"
-          className="text-text-muted hover:text-text-primary transition-colors shrink-0 p-1 min-h-[44px] min-w-[44px] flex items-center justify-center"
-        >
-          ✕
-        </button>
+        <div className="flex items-center gap-2 shrink-0">
+          <a
+            href={PUBLIC_CONFIG.testflightUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="bg-signal text-void text-sm font-semibold rounded-lg px-4 min-h-[36px] hover:brightness-110 active:scale-[0.98] transition-[filter,transform,scale] flex items-center"
+          >
+            Open TestFlight
+          </a>
+          <button
+            onClick={() => setDismissed(true)}
+            aria-label="Dismiss"
+            className="text-text-muted hover:text-text-primary transition-colors p-1 min-h-[44px] min-w-[44px] flex items-center justify-center"
+          >
+            ✕
+          </button>
+        </div>
       </div>
     );
   }

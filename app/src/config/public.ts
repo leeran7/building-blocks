@@ -15,6 +15,13 @@ export const PUBLIC_CONFIG = {
   /** Tower leaderboard poll interval (ms). */
   pollIntervalMs: 10000,
 
+  /**
+   * Public TestFlight join link for the native iOS beta. Anyone with this
+   * link can join the beta group directly — no per-user Apple invite email
+   * required, so the UI can send testers straight here after opt-in.
+   */
+  testflightUrl: "https://testflight.apple.com/join/p4ZJbR8U",
+
   /** Firebase web config — public identifiers, not secrets. */
   firebase: {
     apiKey: "AIzaSyCod-vHzZrsckdv9DV47u1KLxToqhzmsi4",
