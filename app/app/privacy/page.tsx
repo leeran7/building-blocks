@@ -188,11 +188,10 @@ export default function PrivacyPage() {
               choose to include in it.
             </li>
             <li>
-              <strong>Native app beta</strong> — if you join our native iOS and
-              Android beta, we record that you joined and your platform
-              preference. To enroll you in the Apple TestFlight beta, we share
-              your email address with Apple so it can add you as a tester and
-              send you an invite. Joining is optional.
+              <strong>Native app beta</strong> — if you join our native iOS
+              beta, we record that you joined. To enroll you in the Apple
+              TestFlight beta, we share your email address with Apple so it can
+              add you as a tester and send you an invite. Joining is optional.
             </li>
             <li>
               <strong>Friends, challenges &amp; notifications</strong> — if you
@@ -286,7 +285,7 @@ export default function PrivacyPage() {
               Operate our native apps and, if you opt in, send push
               notifications about game activity (such as challenges, duel
               results, friend requests, and tournament updates) and run the
-              TestFlight/Play beta program.
+              TestFlight beta program.
             </li>
             <li>
               Maintain security, detect and prevent abuse, and enforce our{" "}

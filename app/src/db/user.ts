@@ -80,8 +80,9 @@ export async function recordAgeConfirmation(userId: string): Promise<void> {
 }
 
 /**
- * Opt a user into the native app beta. Idempotent — if already set, returns
- * the existing record unchanged (update block is empty).
+ * Opt a user into the native app beta. The beta is iOS-only; the caller passes
+ * the server-derived platform. Idempotent — if already set, returns the
+ * existing record unchanged (update block is empty).
  */
 export async function joinBeta(
   userId: string,

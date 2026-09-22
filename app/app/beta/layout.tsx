@@ -3,7 +3,7 @@ import { buildMetadata } from "../../src/lib/seo";
 
 export const metadata: Metadata = buildMetadata({
   title: "Join the Beta — Doomstack",
-  description: "Get early access to the Doomstack native app for iOS and Android.",
+  description: "Get early access to the Doomstack native app for iOS.",
   path: "/beta",
 });
 

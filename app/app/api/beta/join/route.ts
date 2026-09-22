@@ -1,13 +1,12 @@
 /**
  * POST /api/beta/join
  *
- * Opt the authenticated user into the native app beta. Stores their platform
- * preference on the users row and submits them to the TestFlight external group
- * via the App Store Connect API (if iOS or any).
+ * Opt the authenticated user into the native app beta. The beta is iOS-only, so
+ * the join records the user and submits them to the TestFlight external group
+ * via the App Store Connect API. No client-supplied platform is trusted.
  *
  * Request:
  *   Authorization: Bearer <firebase-id-token>
- *   Body: { platform: "ios" | "android" | "any" }
  *
  * Response 200:
  *   { joined: true } | { alreadyJoined: true }
@@ -21,8 +20,6 @@ import { addTesterToGroup } from "../../../../src/lib/appStoreConnect";
 
 export const runtime = "nodejs";
 
-const VALID_PLATFORMS = new Set(["ios", "android", "any"]);
-
 export async function POST(request: NextRequest): Promise<NextResponse> {
   let decoded;
   try {
@@ -30,15 +27,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   } catch (err) {
     if (err instanceof AuthError) return err.response;
     return NextResponse.json({ error: "Authentication failed", code: "UNAUTHORIZED" }, { status: 401 });
-  }
-
-  let platform: string;
-  try {
-    const body = (await request.json()) as { platform?: unknown };
-    platform = typeof body.platform === "string" ? body.platform : "any";
-    if (!VALID_PLATFORMS.has(platform)) platform = "any";
-  } catch {
-    platform = "any";
   }
 
   // Check if already joined
@@ -51,18 +39,17 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ alreadyJoined: true });
   }
 
-  await joinBeta(decoded.uid, platform);
+  // The beta is iOS-only; the platform is server-derived, never client-supplied.
+  await joinBeta(decoded.uid, "ios");
 
-  // Add to TestFlight external group for iOS/any (non-fatal if Apple API fails)
-  if (platform !== "android") {
-    const email = existing?.email ?? decoded.email ?? "";
-    if (email) {
-      const result = await addTesterToGroup(email);
-      if (result.success) {
-        await markAppleTesterAdded(decoded.uid).catch(() => null);
-      } else {
-        console.error("[POST /api/beta/join] ASC API failed:", result.error);
-      }
+  // Add to TestFlight external group (non-fatal if Apple API fails)
+  const email = existing?.email ?? decoded.email ?? "";
+  if (email) {
+    const result = await addTesterToGroup(email);
+    if (result.success) {
+      await markAppleTesterAdded(decoded.uid).catch(() => null);
+    } else {
+      console.error("[POST /api/beta/join] ASC API failed:", result.error);
     }
   }
 

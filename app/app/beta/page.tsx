@@ -1,20 +1,14 @@
 "use client";
 
-import { useState, useId, FormEvent } from "react";
+import { useState, FormEvent } from "react";
 import Link from "next/link";
 import { useAuth } from "../../src/contexts/AuthContext";
 
-type Platform = "ios" | "android" | "any";
 type State = "idle" | "loading" | "success" | "alreadyJoined" | "error";
-
-const INPUT_BASE =
-  "w-full bg-surface-raised border border-border-strong rounded-lg px-4 py-3 text-base text-text-primary placeholder-text-muted focus:outline-hidden focus:border-signal focus:ring-1 focus:ring-signal transition-colors";
 
 export default function BetaPage() {
   const { user, token, loading: authLoading } = useAuth();
-  const [platform, setPlatform] = useState<Platform>("ios");
   const [state, setState] = useState<State>("idle");
-  const platformId = useId();
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -27,7 +21,7 @@ export default function BetaPage() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ platform }),
+        body: JSON.stringify({}),
       });
       if (!res.ok) { setState("error"); return; }
       const data = await res.json() as { joined?: boolean; alreadyJoined?: boolean };
@@ -57,7 +51,7 @@ export default function BetaPage() {
             Join the beta
           </h1>
           <p className="text-sm text-text-muted mb-6">
-            Get early access to the Doomstack iOS & Android app.
+            Get early access to the Doomstack iOS app.
           </p>
 
           {/* success */}
@@ -114,36 +108,9 @@ export default function BetaPage() {
                 </div>
               )}
 
-              {/* Platform */}
-              <fieldset className="mb-5">
-                <legend
-                  id={platformId}
-                  className="block text-sm font-medium text-text-primary mb-2"
-                >
-                  Platform
-                </legend>
-                <div
-                  className="grid grid-cols-3 gap-2"
-                  role="group"
-                  aria-labelledby={platformId}
-                >
-                  {(["ios", "android", "any"] as Platform[]).map((p) => (
-                    <button
-                      key={p}
-                      type="button"
-                      onClick={() => setPlatform(p)}
-                      className={
-                        "rounded-lg border py-2.5 text-sm font-medium transition-colors min-h-[44px] " +
-                        (platform === p
-                          ? "bg-signal text-void border-signal"
-                          : "border-border-strong bg-surface text-text-secondary hover:border-signal/50 hover:bg-elevated")
-                      }
-                    >
-                      {p === "any" ? "Both" : p === "ios" ? "iOS" : "Android"}
-                    </button>
-                  ))}
-                </div>
-              </fieldset>
+              <p className="text-sm text-text-secondary mb-5">
+                Get an invite to the Doomstack iOS beta on TestFlight.
+              </p>
 
               <button
                 type="submit"

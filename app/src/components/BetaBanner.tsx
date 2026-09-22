@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 
-type Platform = "ios" | "android" | "any";
 type State = "idle" | "loading" | "success" | "error";
 
 /**
@@ -14,7 +13,6 @@ type State = "idle" | "loading" | "success" | "error";
  * Join action needs the token, so only that button waits.
  */
 export function BetaBanner({ token }: { token: string | null }) {
-  const [platform, setPlatform] = useState<Platform>("ios");
   const [state, setState] = useState<State>("idle");
   const [dismissed, setDismissed] = useState(false);
 
@@ -51,7 +49,7 @@ export function BetaBanner({ token }: { token: string | null }) {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ platform }),
+        body: JSON.stringify({}),
       });
       if (res.ok) {
         setState("success");
@@ -74,28 +72,6 @@ export function BetaBanner({ token }: { token: string | null }) {
       </div>
 
       <div className="flex items-center gap-2 shrink-0">
-        {/* Platform toggle */}
-        <div
-          className="inline-flex items-center rounded-lg border border-border-strong bg-elevated p-0.5 text-xs font-mono"
-          role="group"
-          aria-label="Platform"
-        >
-          {(["ios", "android", "any"] as Platform[]).map((p) => (
-            <button
-              key={p}
-              onClick={() => setPlatform(p)}
-              className={
-                "px-2.5 py-1 rounded-md transition-colors uppercase tracking-[0.1em] min-h-[32px] " +
-                (platform === p
-                  ? "bg-signal text-void font-semibold"
-                  : "text-text-muted hover:text-text-primary")
-              }
-            >
-              {p === "any" ? "Both" : p === "ios" ? "iOS" : "Android"}
-            </button>
-          ))}
-        </div>
-
         <button
           onClick={handleSubmit}
           disabled={state === "loading" || token === null}
