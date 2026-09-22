@@ -15,7 +15,10 @@
  * automatically public. The native iOS/Android app adds opt-in push
  * notifications (a device token via Firebase Cloud Messaging, delivered through
  * Apple/Google push) and a TestFlight beta that shares the user's email with
- * Apple (App Store Connect) to enroll them as a tester.
+ * Apple (App Store Connect) to enroll them as a tester. Social features add
+ * friend connections, head-to-head challenges, and in-app notifications
+ * (Friendship/Challenge/Notification models). Vercel Web Analytics is a
+ * cookieless, aggregate usage-analytics surface — disclosed under Cookies.
  *
  * Paid features add: an 18+ attestation timestamp (age_confirmed_at), a chip
  * balance (play_credits_cents) with a WalletLedger audit trail, CreditPurchase
@@ -191,6 +194,15 @@ export default function PrivacyPage() {
               your email address with Apple so it can add you as a tester and
               send you an invite. Joining is optional.
             </li>
+            <li>
+              <strong>Friends, challenges &amp; notifications</strong> — if you
+              use our social features, we store the friend requests and friend
+              connections you make, the head-to-head challenges you send and
+              receive, and the in-app notifications we generate about that
+              activity (for example, a challenge or friend request, a duel
+              result, or a tournament update). Other players you add or
+              challenge can see your display name.
+            </li>
           </List>
 
           <SubHeading>Information collected automatically</SubHeading>
@@ -254,7 +266,8 @@ export default function PrivacyPage() {
               Operate the Service: run gameplay, compute and display
               leaderboard rankings, run chip duels and tournaments (maintaining
               your chip balance, settling stakes, and processing tournament
-              prizes).
+              prizes), and power social features — letting you add friends, send
+              and accept challenges, and receive the related notifications.
             </li>
             <li>
               Process payments, maintain the chip ledger, and prevent
@@ -339,8 +352,9 @@ export default function PrivacyPage() {
               compliant).
             </li>
             <li>
-              <strong>Vercel</strong> — application hosting and content
-              delivery.
+              <strong>Vercel</strong> — application hosting, content delivery,
+              and privacy-friendly, cookieless usage analytics (Vercel Web
+              Analytics).
             </li>
             <li>
               <strong>Neon (Postgres) / Prisma</strong> — database storage.
@@ -395,11 +409,18 @@ export default function PrivacyPage() {
             </li>
             <li>
               <strong>Functional</strong> — local storage used to remember
-              preferences (e.g., a previously entered URL) on your device.
+              preferences on your device (for example, your Daily Climb streak
+              progress and your sound on/off setting).
+            </li>
+            <li>
+              <strong>Analytics</strong> — we use Vercel Web Analytics to
+              understand aggregate usage (such as which pages and features are
+              visited). It is privacy-friendly and cookieless — it does not set
+              tracking cookies or follow you across other sites.
             </li>
           </List>
           <p>
-            We don’t currently use third-party advertising or cross-site
+            We don’t use third-party advertising or cross-site
             tracking cookies. If that changes, we’ll update this section and,
             where required, request your consent first. Most browsers let you
             block or delete cookies in their settings; doing so may prevent
