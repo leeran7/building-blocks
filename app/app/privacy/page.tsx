@@ -5,11 +5,20 @@
  * + Google OAuth + anonymous guest sessions), Stripe Checkout for chip purchases
  * and tournament entry fees, Stripe Connect for tournament prize payouts,
  * Postgres/Prisma for storage, Upstash Redis for caching/rate-limiting,
- * Vercel hosting, and an OpenAI-backed social media agent (internal/business use,
- * not applied to end-user personal data). It also covers the public creator
+ * Vercel hosting, Ably (realtime messaging for live duels), and an
+ * OpenAI-backed social media agent (internal/business use, not applied to
+ * end-user personal data). It also covers the public creator
  * surface: user-chosen public usernames (/c/[username]) and the social platform
  * handles a creator can save (typed by the user, no OAuth into their social
- * account).
+ * account). Public-leaderboard listing is opt-in (leaderboard_consent_at) and
+ * revocable — see the Sharing section; do not describe leaderboards as
+ * automatically public. The native iOS/Android app adds opt-in push
+ * notifications (a device token via Firebase Cloud Messaging, delivered through
+ * Apple/Google push) and a TestFlight beta that shares the user's email with
+ * Apple (App Store Connect) to enroll them as a tester. Social features add
+ * friend connections, head-to-head challenges, and in-app notifications
+ * (Friendship/Challenge/Notification models). Vercel Web Analytics is a
+ * cookieless, aggregate usage-analytics surface — disclosed under Cookies.
  *
  * Paid features add: an 18+ attestation timestamp (age_confirmed_at), a chip
  * balance (play_credits_cents) with a WalletLedger audit trail, CreditPurchase
@@ -33,7 +42,7 @@ import {
 } from "../../src/components/Legal/LegalArticle";
 import { buildMetadata } from "../../src/lib/seo";
 
-const UPDATED = "September 10, 2026";
+const UPDATED = "September 22, 2026";
 const CONTACT_EMAIL = "hello@doomstack.lol";
 
 export const metadata = buildMetadata({
@@ -178,6 +187,22 @@ export default function PrivacyPage() {
               support, we keep that correspondence and any information you
               choose to include in it.
             </li>
+            <li>
+              <strong>Native app beta</strong> — if you join our native iOS and
+              Android beta, we record that you joined and your platform
+              preference. To enroll you in the Apple TestFlight beta, we share
+              your email address with Apple so it can add you as a tester and
+              send you an invite. Joining is optional.
+            </li>
+            <li>
+              <strong>Friends, challenges &amp; notifications</strong> — if you
+              use our social features, we store the friend requests and friend
+              connections you make, the head-to-head challenges you send and
+              receive, and the in-app notifications we generate about that
+              activity (for example, a challenge or friend request, a duel
+              result, or a tournament update). Other players you add or
+              challenge can see your display name.
+            </li>
           </List>
 
           <SubHeading>Information collected automatically</SubHeading>
@@ -215,6 +240,14 @@ export default function PrivacyPage() {
               rate-limiting counters (e.g., requests per IP) used to prevent
               abuse.
             </li>
+            <li>
+              <strong>Push notification token</strong> — if you install our
+              native app and allow notifications, your device gives us a push
+              token (via Firebase Cloud Messaging) that we store to send you
+              notifications about your games and account. You can turn
+              notifications off in your device settings, which stops delivery
+              and lets us drop the token.
+            </li>
           </List>
 
           <SubHeading>Information from third parties</SubHeading>
@@ -233,7 +266,8 @@ export default function PrivacyPage() {
               Operate the Service: run gameplay, compute and display
               leaderboard rankings, run chip duels and tournaments (maintaining
               your chip balance, settling stakes, and processing tournament
-              prizes).
+              prizes), and power social features — letting you add friends, send
+              and accept challenges, and receive the related notifications.
             </li>
             <li>
               Process payments, maintain the chip ledger, and prevent
@@ -247,6 +281,12 @@ export default function PrivacyPage() {
             <li>
               Send transactional communications: email verification, password
               resets, and purchase confirmations.
+            </li>
+            <li>
+              Operate our native apps and, if you opt in, send push
+              notifications about game activity (such as challenges, duel
+              results, friend requests, and tournament updates) and run the
+              TestFlight/Play beta program.
             </li>
             <li>
               Maintain security, detect and prevent abuse, and enforce our{" "}
@@ -281,19 +321,20 @@ export default function PrivacyPage() {
             disclose personal information only in the following
             circumstances:
           </p>
-          <SubHeading>Public by design</SubHeading>
+          <SubHeading>Public leaderboards (with your consent)</SubHeading>
           <p>
-            Doomstack&apos;s leaderboards are public. Your chosen display name and
-            your peak height/rank are visible to anyone who visits the Service —
-            that&apos;s the product. Your display name is also shown to other
-            signed-in players in chip-duel lobbies and tournament brackets. If
-            you set a
-            public username, your creator page at{" "}
-            <code>/c/your-username</code> shows that already-public data: your
-            saved social handles and your public climbing-record standing. It
-            never exposes your email or other private account details. Do not
-            save a handle — or choose a username — that you don’t want to be
-            public. Your account email is <em>not</em> displayed publicly.
+            Public leaderboards are part of Doomstack, but you control whether
+            you appear on them. Your peak height and rank appear on the public
+            leaderboard only if you opt in, and you can withdraw that consent at
+            any time — which removes your record from the public leaderboard.
+            Separately, when you play a chip duel or a tournament, your display
+            name is shown to the other players in that lobby or bracket as part
+            of the match. If you set a public username, your creator page at{" "}
+            <code>/c/your-username</code> shows your saved social handles and
+            your public climbing record. It never exposes your email or other
+            private account details. Do not save a handle — or choose a
+            username — that you don’t want to be public. Your account email is{" "}
+            <em>not</em> displayed publicly.
           </p>
           <SubHeading>Service providers</SubHeading>
           <p>
@@ -302,16 +343,18 @@ export default function PrivacyPage() {
           </p>
           <List>
             <li>
-              <strong>Firebase / Google Cloud</strong> — authentication and
-              identity.
+              <strong>Firebase / Google Cloud</strong> — authentication,
+              identity, and push-notification delivery (Firebase Cloud
+              Messaging, which routes to Apple and Google push services).
             </li>
             <li>
               <strong>Stripe</strong> — payment processing (PCI-DSS
               compliant).
             </li>
             <li>
-              <strong>Vercel</strong> — application hosting and content
-              delivery.
+              <strong>Vercel</strong> — application hosting, content delivery,
+              and privacy-friendly, cookieless usage analytics (Vercel Web
+              Analytics).
             </li>
             <li>
               <strong>Neon (Postgres) / Prisma</strong> — database storage.
@@ -320,11 +363,22 @@ export default function PrivacyPage() {
               <strong>Upstash</strong> — Redis caching and rate-limiting.
             </li>
             <li>
+              <strong>Ably</strong> — real-time messaging that powers live
+              head-to-head duels, relaying gameplay inputs and presence between
+              matched players for the duration of a match.
+            </li>
+            <li>
               <strong>OpenAI</strong> — powers an internal AI agent we use to
               help draft and manage our own social media presence. This
               processes content about the product and publicly available
               information; it is not used to profile or make decisions about
               individual users.
+            </li>
+            <li>
+              <strong>Apple</strong> — for our native iOS app: if you join the
+              beta, we share your email with Apple (App Store Connect) to enroll
+              you in TestFlight, and iOS push notifications are delivered through
+              Apple&apos;s push service.
             </li>
           </List>
           <SubHeading>Legal &amp; safety</SubHeading>
@@ -355,11 +409,18 @@ export default function PrivacyPage() {
             </li>
             <li>
               <strong>Functional</strong> — local storage used to remember
-              preferences (e.g., a previously entered URL) on your device.
+              preferences on your device (for example, your Daily Climb streak
+              progress and your sound on/off setting).
+            </li>
+            <li>
+              <strong>Analytics</strong> — we use Vercel Web Analytics to
+              understand aggregate usage (such as which pages and features are
+              visited). It is privacy-friendly and cookieless — it does not set
+              tracking cookies or follow you across other sites.
             </li>
           </List>
           <p>
-            We don’t currently use third-party advertising or cross-site
+            We don’t use third-party advertising or cross-site
             tracking cookies. If that changes, we’ll update this section and,
             where required, request your consent first. Most browsers let you
             block or delete cookies in their settings; doing so may prevent
@@ -386,8 +447,8 @@ export default function PrivacyPage() {
         <Section id="transfers" title="7. International data transfers">
           <p>
             We’re based in the United States, and our service providers
-            (Vercel, Firebase/Google Cloud, Stripe, Neon, Upstash, OpenAI)
-            process data in the US and, in some cases, other countries where
+            (Vercel, Firebase/Google Cloud, Stripe, Neon, Upstash, Ably,
+            OpenAI, Apple) process data in the US and, in some cases, other countries where
             they operate infrastructure. If you’re located in the European
             Economic Area, the UK, or Switzerland, your information will be
             transferred outside of those regions. Where required, we rely on

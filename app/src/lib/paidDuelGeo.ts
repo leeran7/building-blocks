@@ -61,6 +61,39 @@ export const ALLOWED_US_REGIONS = new Set<string>([
 /** Countries explicitly cleared for money-moving paid features. Starts empty — non-US is denied by default, same as every US state. */
 export const ALLOWED_COUNTRIES = new Set<string>([]);
 
+/**
+ * Full display names for US region codes, so user-facing copy (the Terms'
+ * cleared-jurisdiction list) can be rendered FROM this module rather than
+ * duplicated as prose. Duplicating it as prose is exactly how the Terms and
+ * the enforced allow-list drifted apart. Covers all 50 states + DC so
+ * clearing a new region never leaves it nameless.
+ */
+export const US_REGION_NAMES: Record<string, string> = {
+  AL: "Alabama", AK: "Alaska", AZ: "Arizona", AR: "Arkansas", CA: "California",
+  CO: "Colorado", CT: "Connecticut", DE: "Delaware", DC: "District of Columbia",
+  FL: "Florida", GA: "Georgia", HI: "Hawaii", ID: "Idaho", IL: "Illinois",
+  IN: "Indiana", IA: "Iowa", KS: "Kansas", KY: "Kentucky", LA: "Louisiana",
+  ME: "Maine", MD: "Maryland", MA: "Massachusetts", MI: "Michigan",
+  MN: "Minnesota", MS: "Mississippi", MO: "Missouri", MT: "Montana",
+  NE: "Nebraska", NV: "Nevada", NH: "New Hampshire", NJ: "New Jersey",
+  NM: "New Mexico", NY: "New York", NC: "North Carolina", ND: "North Dakota",
+  OH: "Ohio", OK: "Oklahoma", OR: "Oregon", PA: "Pennsylvania",
+  RI: "Rhode Island", SC: "South Carolina", SD: "South Dakota", TN: "Tennessee",
+  TX: "Texas", UT: "Utah", VT: "Vermont", VA: "Virginia", WA: "Washington",
+  WV: "West Virginia", WI: "Wisconsin", WY: "Wyoming",
+};
+
+/**
+ * The cleared US states as full names, alphabetical — the single source for
+ * any user-facing list of where paid features are offered. Falls back to the
+ * raw region code if a cleared region has no name mapping above.
+ */
+export function clearedUsRegionNames(): string[] {
+  return [...ALLOWED_US_REGIONS]
+    .map((code) => US_REGION_NAMES[code] ?? code)
+    .sort((a, b) => a.localeCompare(b));
+}
+
 export interface GeoDecision {
   allowed: boolean;
   country: string | null;
