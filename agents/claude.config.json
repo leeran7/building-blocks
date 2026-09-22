@@ -7,7 +7,7 @@
   },
   "software-engineer": {
     "tools": ["Read", "Write", "Edit", "Bash", "Grep", "Glob"],
-    "skills": ["closed-loop-participant", "api-design", "monorepo", "debugging", "performance", "migration", "database-audit", "accessibility"],
+    "skills": ["closed-loop-participant", "api-design", "monorepo", "debugging", "performance", "migration", "database-engineering", "accessibility"],
     "color": "green",
     "model": "opus"
   },
