@@ -17,7 +17,8 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth, AuthError } from "../../../../src/lib/requireAuth";
-import { ensureUser } from "../../../../src/db/user";
+import { ensureUser, grantWebLeaderboardConsent } from "../../../../src/db/user";
+import { isWebClient } from "../../../../src/lib/webClient";
 import { getRedis } from "../../../../src/lib/redis";
 
 export const runtime = "nodejs";
@@ -90,6 +91,15 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       email: decoded.email,
       emailVerified: decoded.email_verified ?? false,
     });
+
+    // Web users join the public leaderboard as part of accepting Terms at
+    // sign-up — no separate consent prompt (that gate is an iOS store
+    // requirement the web doesn't share). Gated on the server-derived web
+    // marker so an unmarked (iOS/older) client keeps the consent gate.
+    // Idempotent: only stamps when consent is currently unset.
+    if (isWebClient(request.headers)) {
+      await grantWebLeaderboardConsent(decoded.uid);
+    }
 
     console.log(
       JSON.stringify({

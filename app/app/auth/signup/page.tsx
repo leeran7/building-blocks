@@ -38,6 +38,7 @@ import { auth } from "../../../src/lib/firebase";
 import { AuthShell } from "../../../src/components/Auth/AuthShell";
 import { setTokenCookie } from "../../../src/lib/authCookie";
 import { safeInternalPath } from "../../../src/lib/safeRedirect";
+import { WEB_CLIENT_HEADER, WEB_CLIENT_VALUE } from "../../../src/lib/webClient";
 
 function EyeIcon({ open }: { open: boolean }) {
   return open ? (
@@ -159,6 +160,9 @@ async function syncUserToDb(token: string, email: string) {
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${token}`,
+      // Marks this as the browser app so the server grants public leaderboard
+      // consent on provisioning (web has no iOS-style consent prompt).
+      [WEB_CLIENT_HEADER]: WEB_CLIENT_VALUE,
     },
     body: JSON.stringify({ email }),
   });

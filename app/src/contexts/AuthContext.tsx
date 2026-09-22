@@ -23,6 +23,7 @@ import type { User as FirebaseUser } from "firebase/auth";
 import { auth } from "../lib/firebase";
 import { onIdTokenChanged, signOut as firebaseSignOut } from "firebase/auth";
 import { setTokenCookie, clearTokenCookie } from "../lib/authCookie";
+import { WEB_CLIENT_HEADER, WEB_CLIENT_VALUE } from "../lib/webClient";
 
 interface AuthState {
   user: FirebaseUser | null;
@@ -64,7 +65,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           hasSynced.current = true;
           fetch("/api/auth/sync", {
             method: "POST",
-            headers: { Authorization: `Bearer ${idToken}` },
+            headers: {
+              Authorization: `Bearer ${idToken}`,
+              // Marks this as the browser app so the server grants public
+              // leaderboard consent (web has no iOS-style consent prompt).
+              [WEB_CLIENT_HEADER]: WEB_CLIENT_VALUE,
+            },
           }).catch(() => {
             /* best-effort; the climb route also self-heals on save */
           });
