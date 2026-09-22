@@ -18,6 +18,7 @@ skills:
   - debugging
   - performance
   - migration
+  - database-audit
   - accessibility
 color: green
 model: opus
