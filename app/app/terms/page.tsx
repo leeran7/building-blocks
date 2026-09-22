@@ -130,6 +130,17 @@ export default function TermsPage() {
             any ownership interest, investment, or security, and past performance
             is not a promise of future results.
           </p>
+          <p>
+            Doomstack is also offered as native iOS and Android apps distributed
+            through the Apple App Store, Google Play, and — for pre-release
+            builds — Apple TestFlight. Your use of those apps is also subject to
+            the applicable app store&apos;s terms. Beta and pre-release builds
+            are provided on an &ldquo;as is&rdquo; basis and may be unstable or
+            change without notice; if you join the beta, you consent to our
+            sharing your email with Apple to enroll you as a TestFlight tester.
+            The apps can send push notifications about your games and account;
+            you can turn these off at any time in your device settings.
+          </p>
         </Section>
 
         <Section id="eligibility" title="3. Eligibility & accounts">

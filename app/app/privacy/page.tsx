@@ -12,7 +12,10 @@
  * handles a creator can save (typed by the user, no OAuth into their social
  * account). Public-leaderboard listing is opt-in (leaderboard_consent_at) and
  * revocable — see the Sharing section; do not describe leaderboards as
- * automatically public.
+ * automatically public. The native iOS/Android app adds opt-in push
+ * notifications (a device token via Firebase Cloud Messaging, delivered through
+ * Apple/Google push) and a TestFlight beta that shares the user's email with
+ * Apple (App Store Connect) to enroll them as a tester.
  *
  * Paid features add: an 18+ attestation timestamp (age_confirmed_at), a chip
  * balance (play_credits_cents) with a WalletLedger audit trail, CreditPurchase
@@ -181,6 +184,13 @@ export default function PrivacyPage() {
               support, we keep that correspondence and any information you
               choose to include in it.
             </li>
+            <li>
+              <strong>Native app beta</strong> — if you join our native iOS and
+              Android beta, we record that you joined and your platform
+              preference. To enroll you in the Apple TestFlight beta, we share
+              your email address with Apple so it can add you as a tester and
+              send you an invite. Joining is optional.
+            </li>
           </List>
 
           <SubHeading>Information collected automatically</SubHeading>
@@ -218,6 +228,14 @@ export default function PrivacyPage() {
               rate-limiting counters (e.g., requests per IP) used to prevent
               abuse.
             </li>
+            <li>
+              <strong>Push notification token</strong> — if you install our
+              native app and allow notifications, your device gives us a push
+              token (via Firebase Cloud Messaging) that we store to send you
+              notifications about your games and account. You can turn
+              notifications off in your device settings, which stops delivery
+              and lets us drop the token.
+            </li>
           </List>
 
           <SubHeading>Information from third parties</SubHeading>
@@ -250,6 +268,12 @@ export default function PrivacyPage() {
             <li>
               Send transactional communications: email verification, password
               resets, and purchase confirmations.
+            </li>
+            <li>
+              Operate our native apps and, if you opt in, send push
+              notifications about game activity (such as challenges, duel
+              results, friend requests, and tournament updates) and run the
+              TestFlight/Play beta program.
             </li>
             <li>
               Maintain security, detect and prevent abuse, and enforce our{" "}
@@ -306,8 +330,9 @@ export default function PrivacyPage() {
           </p>
           <List>
             <li>
-              <strong>Firebase / Google Cloud</strong> — authentication and
-              identity.
+              <strong>Firebase / Google Cloud</strong> — authentication,
+              identity, and push-notification delivery (Firebase Cloud
+              Messaging, which routes to Apple and Google push services).
             </li>
             <li>
               <strong>Stripe</strong> — payment processing (PCI-DSS
@@ -334,6 +359,12 @@ export default function PrivacyPage() {
               processes content about the product and publicly available
               information; it is not used to profile or make decisions about
               individual users.
+            </li>
+            <li>
+              <strong>Apple</strong> — for our native iOS app: if you join the
+              beta, we share your email with Apple (App Store Connect) to enroll
+              you in TestFlight, and iOS push notifications are delivered through
+              Apple&apos;s push service.
             </li>
           </List>
           <SubHeading>Legal &amp; safety</SubHeading>
@@ -396,7 +427,7 @@ export default function PrivacyPage() {
           <p>
             We’re based in the United States, and our service providers
             (Vercel, Firebase/Google Cloud, Stripe, Neon, Upstash, Ably,
-            OpenAI) process data in the US and, in some cases, other countries where
+            OpenAI, Apple) process data in the US and, in some cases, other countries where
             they operate infrastructure. If you’re located in the European
             Economic Area, the UK, or Switzerland, your information will be
             transferred outside of those regions. Where required, we rely on
