@@ -2,7 +2,7 @@
   "name": "building-blocks",
   "private": true,
   "devDependencies": {
-    "closed-loop-agents": "github:leeran7/closed-loop-agents#main"
+    "closed-loop-agents": "github:leeran7/closed-loop-agents#claude/closed-loop-reusable-package-7tu6mq"
   },
   "scripts": {
     "loop": "yarn --cwd orchestrator loop",

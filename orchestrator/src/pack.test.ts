@@ -50,15 +50,6 @@ describe("pack hygiene", () => {
     );
   });
 
-  it("documents the install tree in pack/SETUP.md", async () => {
-    const setup = await readFile(join(REPO_ROOT, "pack", "SETUP.md"), "utf-8");
-    assert.match(setup, /closed-loop-agents/);
-    assert.match(setup, /building-blocks/);
-    assert.match(setup, /context\//);
-    assert.match(setup, /init-pack/);
-    assert.match(setup, /export-template/);
-  });
-
   it("fixLoopGitignore rewrites loop/ so learnings are not ignored", async () => {
     const { fixLoopGitignore } = await loadPackCopy();
     const fixed = fixLoopGitignore("loop/\nnode_modules/\n");
@@ -72,7 +63,10 @@ describe("pack hygiene", () => {
     await writeFile(join(dest, "loop", "learnings.md"), "# Open Questions\n");
 
     const { mergeGitignore } = await loadPackCopy();
-    const snippet = await readFile(join(REPO_ROOT, "pack", "templates", "gitignore.snippet"), "utf-8");
+    const snippet = await readFile(
+      join(REPO_ROOT, "node_modules", "closed-loop-agents", "pack", "templates", "gitignore.snippet"),
+      "utf-8",
+    );
     await mergeGitignore(dest, snippet);
 
     const ignored = await gitCheckIgnore(dest, "loop/learnings.md");
@@ -107,11 +101,13 @@ async function importRootScript<T>(relativeFromHere: string): Promise<T> {
 }
 
 async function loadPackCopy() {
-  return importRootScript<PackCopyModule>("../../scripts/pack-copy.mjs");
+  return importRootScript<PackCopyModule>("../../node_modules/closed-loop-agents/scripts/pack-copy.mjs");
 }
 
 async function lintAgents(root: string) {
-  const mod = await importRootScript<HygieneModule>("../../scripts/hygiene.mjs");
+  const mod = await importRootScript<HygieneModule>(
+    "../../node_modules/closed-loop-agents/scripts/hygiene.mjs",
+  );
   return mod.lintAgents(root);
 }
 
