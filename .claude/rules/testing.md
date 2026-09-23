@@ -13,3 +13,11 @@ only the test imports prove nothing.
 
 Prove every negative guard against a positive fixture of the string or input it
 must reject.
+
+A loop that skips generated fixtures (`if (!x) continue;`) must end with
+`expect(checked).toBeGreaterThan(0)`. A `done()` predicate the start state
+already satisfies makes the test vacuous. Check both.
+
+After any change to geometry, speeds or constants, re-run every mutant that
+was proven red before. A guard's tests can go dark when the fixtures move.
+Start per-tick tests off the step lattice so edge ticks actually run.
