@@ -1,6 +1,15 @@
 {
   "name": "building-blocks",
   "product": "The Climb (endless climber) with a free global leaderboard, plus 1v1 paid battles (prepaid-credits duel staking). Product code lives in app/.",
+  "agentRoster": [
+    "software-engineer",
+    "orchestrator",
+    "verifier",
+    "reviewer",
+    "security-reviewer",
+    "qa-acceptance",
+    "integrator"
+  ],
   "packageManagers": [
     { "path": ".", "command": "yarn" },
     { "path": "orchestrator", "command": "yarn" },

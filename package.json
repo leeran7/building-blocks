@@ -1,12 +1,14 @@
 {
   "name": "building-blocks",
   "private": true,
+  "devDependencies": {
+    "closed-loop-agents": "github:leeran7/closed-loop-agents#main"
+  },
   "scripts": {
     "loop": "yarn --cwd orchestrator loop",
-    "sync": "node scripts/sync.mjs",
-    "hygiene": "node scripts/hygiene.mjs",
+    "sync": "closed-loop-agents sync",
+    "hygiene": "closed-loop-agents hygiene",
     "test:orchestrator": "yarn --cwd orchestrator test",
-    "test:pack": "node scripts/hygiene.mjs",
-    "export-template": "node scripts/export-template.mjs"
+    "test:pack": "closed-loop-agents hygiene"
   }
 }

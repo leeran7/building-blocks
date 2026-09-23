@@ -4,21 +4,23 @@ Generic body for `CLAUDE.md` / `AGENTS.md`. `init-pack` writes this when
 those files do not already exist. Product facts belong in `context/`, not
 here.
 
-**New repo?** Start at [`pack/SETUP.md`](pack/SETUP.md) (file tree +
-5-minute install).
+**New repo?** Start at [closed-loop-agents `pack/SETUP.md`](https://github.com/leeran7/closed-loop-agents/blob/main/pack/SETUP.md)
+(file tree + 5-minute install).
 
 ## What this repo uses
 
 | | Path |
 |--|------|
-| Setup / file tree | `pack/SETUP.md` |
+| Setup / file tree | closed-loop-agents `pack/SETUP.md` |
 | This product’s facts | `context/README.md` |
-| Protocol | `skills/closed-loop/protocol.md` |
-| Kernel gates | `skills/closed-loop/gates.md` |
+| Protocol | `skills/closed-loop/protocol.md` (local override) |
+| Kernel gates | `skills/closed-loop/gates.md` (local override) |
 | Memory | `loop/learnings.md` (open questions only) |
-| Roles | `agents/*.md` (sync to `.cursor/agents/` and `.claude/agents/`) |
+| Roles | `agents/*.md` — this repo's roster (`context/profile.json` `agentRoster`), sync to `.cursor/`, `.claude/`, `.codex/` |
 
-Edit `agents/` or `skills/`, then run `node scripts/sync.mjs`.
+Roles/skills come from the `closed-loop-agents` package by default; edit
+this repo's own `agents/` or `skills/` to override or add, then run `yarn
+sync`.
 
 ## Agent review is mandatory
 

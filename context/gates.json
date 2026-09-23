@@ -33,7 +33,7 @@
     {
       "name": "pack-hygiene",
       "cwd": ".",
-      "command": "node scripts/hygiene.mjs",
+      "command": "yarn hygiene",
       "proveFail": "An agent file containing a banned product substring, or missing a pointer to context/README.md, must fail hygiene."
     }
   ]
