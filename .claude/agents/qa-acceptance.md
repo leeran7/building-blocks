@@ -14,6 +14,7 @@ tools:
   - Glob
 skills:
   - closed-loop-participant
+  - ux
   - design-review
   - accessibility
   - regression

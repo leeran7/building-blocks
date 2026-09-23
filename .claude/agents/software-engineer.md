@@ -13,6 +13,7 @@ tools:
   - Glob
 skills:
   - closed-loop-participant
+  - ux
   - api-design
   - monorepo
   - debugging

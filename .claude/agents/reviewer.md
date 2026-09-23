@@ -14,6 +14,7 @@ disallowedTools:
   - Agent
 skills:
   - closed-loop-participant
+  - ux
   - design-review
   - api-design
   - regression
