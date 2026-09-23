@@ -62,15 +62,15 @@ export default function BetaPage() {
                 {state === "alreadyJoined" ? "You're already on the list" : "You're in!"}
               </p>
               <p className="text-sm text-text-secondary mb-4">
-                Tap below to join the beta in TestFlight.
+                Tap below to get Doomstack on the App Store.
               </p>
               <a
-                href={PUBLIC_CONFIG.testflightUrl}
+                href={PUBLIC_CONFIG.appStoreUrl}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="block w-full bg-signal text-void font-semibold rounded-lg py-3 text-base text-center hover:brightness-110 active:scale-[0.98] transition-[filter,transform,scale] min-h-[44px]"
               >
-                Open in TestFlight →
+                View on the App Store →
               </a>
               <Link
                 href="/dashboard"
