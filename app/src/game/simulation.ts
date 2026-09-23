@@ -544,7 +544,7 @@ export function stepMatch(
       if (pu.collected) continue;
       if (!overlapsPickup(pu, p.x, p.y)) continue;
       const effectType = pu.type === "random"
-        ? resolveRandom(state.tower.seed, pu.floorIndex, state.tick)
+        ? resolveRandom()
         : pu.type;
       if (!canActivate(p, effectType, state.tick)) continue;
       pu.collected = true;

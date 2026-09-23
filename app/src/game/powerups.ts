@@ -379,13 +379,9 @@ function pickType(rng: Rng, i: number, avoid: PowerUpType | null): PowerUpType {
   return POWER_UP_TYPES[POWER_UP_TYPES.length - 1];
 }
 
-/**
- * Resolve a "random" pickup into a concrete effect type. Deterministic in
- * (seed, floorIndex, tick) so replays stay exact.
- */
-export function resolveRandom(seed: string, floorIndex: number, tick: number): Exclude<PowerUpType, "random"> {
-  const rng = createRng(`${seed}:pu:random:${floorIndex}:${tick}`);
-  const idx = rng.int(0, CONCRETE_POWER_UP_TYPES.length);
+/** Resolve a "random" pickup into a concrete effect type. Truly random every time. */
+export function resolveRandom(): Exclude<PowerUpType, "random"> {
+  const idx = Math.floor(Math.random() * CONCRETE_POWER_UP_TYPES.length);
   return CONCRETE_POWER_UP_TYPES[idx];
 }
 
