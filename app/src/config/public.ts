@@ -16,11 +16,9 @@ export const PUBLIC_CONFIG = {
   pollIntervalMs: 10000,
 
   /**
-   * Public TestFlight join link for the native iOS beta. Anyone with this
-   * link can join the beta group directly — no per-user Apple invite email
-   * required, so the UI can send testers straight here after opt-in.
+   * Public App Store listing for the native iOS app.
    */
-  testflightUrl: "https://testflight.apple.com/join/p4ZJbR8U",
+  appStoreUrl: "https://apps.apple.com/us/app/doomstacklol/id6811639543",
 
   /** Firebase web config — public identifiers, not secrets. */
   firebase: {

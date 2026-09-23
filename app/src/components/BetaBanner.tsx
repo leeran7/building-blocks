@@ -26,17 +26,17 @@ export function BetaBanner({ token }: { token: string | null }) {
           <span className="w-2 h-2 rounded-full bg-signal shrink-0" aria-hidden="true" />
           <p className="text-sm text-text-primary font-medium">
             You&apos;re on the list —{" "}
-            <span className="text-text-secondary font-normal">tap below to join in TestFlight</span>
+            <span className="text-text-secondary font-normal">get the app on the App Store</span>
           </p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
           <a
-            href={PUBLIC_CONFIG.testflightUrl}
+            href={PUBLIC_CONFIG.appStoreUrl}
             target="_blank"
             rel="noopener noreferrer"
             className="bg-signal text-void text-sm font-semibold rounded-lg px-4 min-h-[36px] hover:brightness-110 active:scale-[0.98] transition-[filter,transform,scale] flex items-center"
           >
-            Open TestFlight
+            View on the App Store
           </a>
           <button
             onClick={() => setDismissed(true)}
