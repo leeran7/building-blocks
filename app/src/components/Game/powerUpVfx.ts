@@ -83,7 +83,8 @@ export function drawPowerUpOrb(
   pu: PowerUpPickup,
   tick: number,
   reducedMotion: boolean,
-  cooling: boolean = false
+  cooling: boolean = false,
+  nextFloorScreenY?: number
 ): void {
   const spec = POWER_UP_SPECS[pu.type];
   const phase = tick * 0.08 + pu.floorIndex * 1.7;
@@ -145,16 +146,31 @@ export function drawPowerUpOrb(
   drawPowerUpIcon(ctx, pu.type, 0, 0, r * ORB_ICON_SIZE_FRAC, spec.color);
   ctx.restore();
 
-  // Name plate — bold label on a faint dark backing so it reads over the
-  // molten backdrop. Sized off the orb radius (not `ui`) so it stays a small
-  // world-space tag rather than blowing up into a HUD-scale button.
+  // Name plate — drawn on a vertical stem above the orb, midway between the
+  // current floor and the next floor so it stays visible even when the floor
+  // has a gap underneath. Falls back to a fixed offset above the orb when next
+  // floor screen-Y is not available.
   const label = spec.label.toUpperCase();
   const labelPx = Math.round(Math.max(8, Math.min(9 * ui, r)));
   ctx.font = `bold ${labelPx}px monospace`;
   const labelW = ctx.measureText(label).width;
-  const plateY = cy + r * 1.95;
   const padX = labelPx * 0.5;
   const plateH = labelPx * 1.5;
+
+  const stemTop = nextFloorScreenY != null
+    ? cy + (nextFloorScreenY - cy) / 2
+    : cy - r * 3.5;
+  const stemBottom = cy - r * 1.6;
+
+  ctx.globalAlpha = 0.35 * dim;
+  ctx.strokeStyle = spec.color;
+  ctx.lineWidth = Math.max(1, ui * 0.8);
+  ctx.beginPath();
+  ctx.moveTo(cx, stemBottom);
+  ctx.lineTo(cx, stemTop);
+  ctx.stroke();
+
+  const plateY = stemTop + labelPx * 0.35;
   ctx.globalAlpha = 0.6 * dim;
   ctx.fillStyle = "#0a0a0c";
   ctx.beginPath();
@@ -314,6 +330,8 @@ export function drawActivePowerUpEffect(
       break;
     case "slow-lava":
       drawSlowLavaEffect(ctx, px, pyScreen - 1.25 * s, s, pulse, tick, spec, reducedMotion);
+      break;
+    case "random":
       break;
   }
 }

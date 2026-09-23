@@ -51,6 +51,7 @@ import {
   GIANT_VISUAL_SCALE,
   SUPER_JUMP_AIR_JUMPS,
   canActivate,
+  CONCRETE_POWER_UP_TYPES,
   cooldownRemaining,
   cooldownTicks,
   durationTicks,
@@ -96,7 +97,7 @@ const HOLD_SAMPLE_TICKS = 12;
 const LADDER_CLIMB_TICKS = 8;
 const SETTLE_TICKS = 200;
 
-describe("specs: six live types, including super-jump and jetpack", () => {
+describe("specs: seven live types, including super-jump, jetpack and random", () => {
   it("lists POWER_UP_TYPES in spawn-key order with jetpack in slot 5", () => {
     expect(POWER_UP_TYPES).toEqual([
       "rapid-climb",
@@ -105,6 +106,7 @@ describe("specs: six live types, including super-jump and jetpack", () => {
       "giant",
       "jetpack",
       "slow-lava",
+      "random",
     ]);
   });
 
@@ -234,14 +236,14 @@ describe("spawning: deterministic, reachable, and denser with altitude", () => {
     expect(rate).toBeLessThan(0.4);
   });
 
-  it("offers every type across a long climb, with slow-lava the rarest", () => {
+  it("offers every type across a long climb, with slow-lava the rarest concrete type", () => {
     const counts = new Map<PowerUpType, number>();
     for (const pu of scanFloors(TOWER, 0, 3000)) {
       counts.set(pu.type, (counts.get(pu.type) ?? 0) + 1);
     }
     for (const t of POWER_UP_TYPES) expect(counts.get(t) ?? 0).toBeGreaterThan(0);
     const slowLava = counts.get("slow-lava") ?? 0;
-    for (const t of POWER_UP_TYPES) {
+    for (const t of CONCRETE_POWER_UP_TYPES) {
       if (t !== "slow-lava") expect(slowLava).toBeLessThan(counts.get(t) ?? 0);
     }
   });
@@ -336,7 +338,7 @@ describe("pickup: touching an orb auto-activates it immediately", () => {
   // whose cooldown blocks the second pickup outright. That left the
   // zero-cooldown types — and the super-jump charge exploit — uncovered.
   describe("a second orb of a live type refreshes it instead of stacking", () => {
-    const ZERO_COOLDOWN_TYPES = POWER_UP_TYPES.filter(
+    const ZERO_COOLDOWN_TYPES = CONCRETE_POWER_UP_TYPES.filter(
       (t) => cooldownTicks(t) === 0
     );
 
@@ -411,7 +413,7 @@ describe("pickup: touching an orb auto-activates it immediately", () => {
   });
 
   it("expires each effect after its advertised duration", () => {
-    for (const type of POWER_UP_TYPES) {
+    for (const type of CONCRETE_POWER_UP_TYPES) {
       const m = climbingMatch();
       const p = m.players[0];
       placeOrb(m, type, p.x, p.y);
@@ -1021,7 +1023,7 @@ describe("slow-lava cooldown: the thing that keeps a run finite", () => {
   });
 
   it("no other power-up touches the lava clock", () => {
-    for (const type of POWER_UP_TYPES) {
+    for (const type of CONCRETE_POWER_UP_TYPES) {
       if (type === "slow-lava") continue;
       expect(POWER_UP_SPECS[type].cooldownSeconds).toBe(0);
       const trace = hazardTrace(false, type);

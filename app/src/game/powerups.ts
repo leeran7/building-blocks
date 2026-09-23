@@ -231,9 +231,24 @@ export const POWER_UP_SPECS: Record<PowerUpType, PowerUpSpec> = {
     // the strongest power-up stops being the rarest one on the tower.
     altitudeWeightMult: 1.2,
   },
+  random: {
+    type: "random",
+    label: "Random",
+    description: "Grants a random power-up",
+    color: "#ffffff",
+    durationSeconds: 10,
+    cooldownSeconds: 0,
+    weight: 10,
+    altitudeWeightMult: 1,
+  },
 };
 
 export const POWER_UP_TYPES = Object.keys(POWER_UP_SPECS) as PowerUpType[];
+
+/** The six concrete effect types — excludes "random" which resolves on pickup. */
+export const CONCRETE_POWER_UP_TYPES = POWER_UP_TYPES.filter(
+  (t): t is Exclude<PowerUpType, "random"> => t !== "random"
+);
 
 /** Duration of a power-up in simulation ticks. */
 export function durationTicks(type: PowerUpType): number {
@@ -362,6 +377,16 @@ function pickType(rng: Rng, i: number, avoid: PowerUpType | null): PowerUpType {
     if (acc <= 0) return POWER_UP_TYPES[k];
   }
   return POWER_UP_TYPES[POWER_UP_TYPES.length - 1];
+}
+
+/**
+ * Resolve a "random" pickup into a concrete effect type. Deterministic in
+ * (seed, floorIndex, tick) so replays stay exact.
+ */
+export function resolveRandom(seed: string, floorIndex: number, tick: number): Exclude<PowerUpType, "random"> {
+  const rng = createRng(`${seed}:pu:random:${floorIndex}:${tick}`);
+  const idx = rng.int(0, CONCRETE_POWER_UP_TYPES.length);
+  return CONCRETE_POWER_UP_TYPES[idx];
 }
 
 function clampToPiece(piece: Platform, x: number, margin: number): number {

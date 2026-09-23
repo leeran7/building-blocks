@@ -282,6 +282,34 @@ export const POWER_UP_ICON_GEOMETRY: Record<PowerUpType, PowerUpIconGeometry> = 
       },
     ],
   },
+  // Mystery — bold question mark.
+  random: {
+    viewBox: ICON_VIEWBOX,
+    layers: [
+      {
+        paint: "fill",
+        strokeWidth: 0,
+        commands: [
+          { t: "M", x: 8, y: 2 },
+          { t: "L", x: 16, y: 2 },
+          { t: "Q", x1: 21, y1: 2, x: 21, y: 7 },
+          { t: "Q", x1: 21, y1: 12, x: 14, y: 13 },
+          { t: "L", x: 14, y: 16 },
+          { t: "L", x: 10, y: 16 },
+          { t: "L", x: 10, y: 12 },
+          { t: "Q", x1: 17, y1: 11, x: 17, y: 7 },
+          { t: "Q", x1: 17, y1: 5, x: 14, y: 5 },
+          { t: "L", x: 8, y: 5 },
+          { t: "Z" },
+          { t: "M", x: 10, y: 19 },
+          { t: "L", x: 14, y: 19 },
+          { t: "L", x: 14, y: 23 },
+          { t: "L", x: 10, y: 23 },
+          { t: "Z" },
+        ],
+      },
+    ],
+  },
 };
 
 export const POWER_UP_ORB_BODIES: Record<PowerUpType, OrbBodyGeometry> = {
@@ -351,6 +379,17 @@ export const POWER_UP_ORB_BODIES: Record<PowerUpType, OrbBodyGeometry> = {
       { t: "L", x: -0.72, y: 1 },
       { t: "L", x: -0.22, y: 0.12 },
       { t: "L", x: -0.22, y: -0.12 },
+      { t: "Z" },
+    ],
+  },
+  random: {
+    fill: ORB_BODY_FILL,
+    strokeWidthFrac: ORB_STROKE_WIDTH_FRAC,
+    commands: [
+      { t: "M", x: 0, y: -1 },
+      { t: "L", x: 1, y: 0 },
+      { t: "L", x: 0, y: 1 },
+      { t: "L", x: -1, y: 0 },
       { t: "Z" },
     ],
   },

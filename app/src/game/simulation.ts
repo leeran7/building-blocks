@@ -67,6 +67,7 @@ import {
   platformReachMargin,
   powerUpForFloor,
   pruneActive,
+  resolveRandom,
 } from "./powerups";
 import { isOnObstacle, resolveObstacleMotion } from "./obstacles";
 import {
@@ -542,17 +543,18 @@ export function stepMatch(
     for (const pu of state.powerUps) {
       if (pu.collected) continue;
       if (!overlapsPickup(pu, p.x, p.y)) continue;
-      if (!canActivate(p, pu.type, state.tick)) continue;
+      const effectType = pu.type === "random"
+        ? resolveRandom(state.tower.seed, pu.floorIndex, state.tick)
+        : pu.type;
+      if (!canActivate(p, effectType, state.tick)) continue;
       pu.collected = true;
       pu.collectedTick = state.tick;
-      const dur = durationTicks(pu.type);
-      // Refreshes a live entry of the same type rather than appending a second
-      // one — see grantPowerUp.
-      grantPowerUp(p, pu.type, state.tick);
-      const cd = cooldownTicks(pu.type);
-      if (cd > 0) p.cooldownUntilTick[pu.type] = state.tick + dur + cd;
+      const dur = durationTicks(effectType);
+      grantPowerUp(p, effectType, state.tick);
+      const cd = cooldownTicks(effectType);
+      if (cd > 0) p.cooldownUntilTick[effectType] = state.tick + dur + cd;
       p.lastPickupTick = state.tick;
-      p.lastPickupType = pu.type;
+      p.lastPickupType = effectType;
       break;
     }
 

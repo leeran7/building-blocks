@@ -26,7 +26,8 @@ export type PowerUpType =
   | "super-jump"
   | "giant"
   | "jetpack"
-  | "slow-lava";
+  | "slow-lava"
+  | "random";
 
 /**
  * A power-up sitting in the world, hovering above a floor's surface. Generated

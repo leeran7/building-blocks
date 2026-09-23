@@ -262,7 +262,9 @@ export function paintClimbFrame(
       continue;
     }
     const cooling = player ? cooldownRemaining(player, pu.type, state.tick) > 0 : false;
-    drawPowerUpOrb(ctx, ox, oy, pxPerM, ui, pu, state.tick, reducedMotion, cooling);
+    const nextFloorY = floorHeight(tower, pu.floorIndex + 1);
+    const nextFloorScreenY = sy(nextFloorY);
+    drawPowerUpOrb(ctx, ox, oy, pxPerM, ui, pu, state.tick, reducedMotion, cooling, nextFloorScreenY);
   }
 
   const lavaSlowed = player
