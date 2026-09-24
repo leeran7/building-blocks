@@ -345,8 +345,8 @@ export function useRace({
           ...(g.slowLavaActive
             ? [{ type: "slow-lava" as const, startTick: cur.tick, durationTicks: 4 }]
             : []),
-          ...(g.freezeLavaActive
-            ? [{ type: "freeze-lava" as const, startTick: cur.tick, durationTicks: 4 }]
+          ...(g.hardenLavaActive
+            ? [{ type: "harden-lava" as const, startTick: cur.tick, durationTicks: 4 }]
             : []),
         ];
       }
@@ -364,7 +364,7 @@ export function useRace({
         status: me.status,
         peakY: me.peakY,
         slowLavaActive: isPowerUpActive(me, "slow-lava", cur.tick),
-        freezeLavaActive: isPowerUpActive(me, "freeze-lava", cur.tick),
+        hardenLavaActive: isPowerUpActive(me, "harden-lava", cur.tick),
       });
     },
     [realtime, mySlot]

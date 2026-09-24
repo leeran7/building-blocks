@@ -93,8 +93,8 @@ const ACTIVATE: Record<PowerUpType, Note[]> = {
     { at: 0, freq: 660, to: 300, dur: 0.34, wave: "sine" },
     { at: 0.02, freq: 655, to: 297, dur: 0.34, wave: "sine", gain: 0.5 },
   ],
-  // Sharp crystalline hit — frozen in place.
-  "freeze-lava": [
+  // Deep rumble — lava hardening to rock.
+  "harden-lava": [
     { at: 0, freq: 1200, to: 600, dur: 0.18, wave: "sine", gain: 0.6 },
     { at: 0.02, freq: 1190, to: 595, dur: 0.18, wave: "sine", gain: 0.3 },
     { at: 0.15, freq: 400, dur: 0.12, wave: "triangle", gain: 0.4 },
@@ -116,7 +116,7 @@ const PICKUP_PITCH: Record<PowerUpType, number> = {
   giant: 320,
   jetpack: 420,
   "slow-lava": 620,
-  "freeze-lava": 1100,
+  "harden-lava": 1100,
   random: 560,
 };
 

@@ -9,7 +9,7 @@
  *   giant         grow 2× — wider ladder grabs and platform landings
  *   jetpack       skip a ladder detour — hold jump to thrust, fuel is short
  *   slow-lava     the lava eventually outpaces any climber; buy back seconds
- *   freeze-lava   completely stop the lava for a short burst; long cooldown
+ *   harden-lava   lava turns to rock for a short burst; long cooldown
  *
  * BALANCE. The hazard envelope ramps toward 1.0× (ladder climb speed) and
  * stumbles (2s of 0.25× envelope every 8s), so the time-averaged chase
@@ -126,10 +126,10 @@ export const SUPER_JUMP_AIR_JUMPS = 3;
 export const TIME_SLOW_FRAC = 0.4;
 /** Seconds before slow-lava may be used again — the endless-run guarantee. */
 export const TIME_SLOW_COOLDOWN_SECONDS = 40;
-/** Seconds before freeze-lava may be used again. */
-export const FREEZE_LAVA_COOLDOWN_SECONDS = 55;
-/** Freeze-lava duration in seconds — short burst of total lava stop. */
-export const FREEZE_LAVA_DURATION_SECONDS = 5;
+/** Seconds before harden-lava may be used again. */
+export const HARDEN_LAVA_COOLDOWN_SECONDS = 55;
+/** Harden-lava duration in seconds — short burst where lava turns to rock. */
+export const HARDEN_LAVA_DURATION_SECONDS = 5;
 
 /** Jetpack fuel budget in simulation ticks. */
 export function jetpackFuelTicks(): number {
@@ -232,13 +232,13 @@ export const POWER_UP_SPECS: Record<PowerUpType, PowerUpSpec> = {
     weight: 8,
     altitudeWeightMult: 1.2,
   },
-  "freeze-lava": {
-    type: "freeze-lava",
-    label: "Freeze Lava",
-    description: `Lava stops rising for ${FREEZE_LAVA_DURATION_SECONDS}s`,
-    color: "#00cfff",
-    durationSeconds: FREEZE_LAVA_DURATION_SECONDS,
-    cooldownSeconds: FREEZE_LAVA_COOLDOWN_SECONDS,
+  "harden-lava": {
+    type: "harden-lava",
+    label: "Harden Lava",
+    description: `Lava turns to rock for ${HARDEN_LAVA_DURATION_SECONDS}s`,
+    color: "#8b7355",
+    durationSeconds: HARDEN_LAVA_DURATION_SECONDS,
+    cooldownSeconds: HARDEN_LAVA_COOLDOWN_SECONDS,
     weight: 5,
     altitudeWeightMult: 1.25,
   },
@@ -618,7 +618,7 @@ export function platformReachMargin(p: PlayerState, tick: number): number {
  */
 export function hazardTimeScale(players: PlayerState[], tick: number): number {
   const frozen = players.some(
-    (p) => p.status === "climbing" && isPowerUpActive(p, "freeze-lava", tick)
+    (p) => p.status === "climbing" && isPowerUpActive(p, "harden-lava", tick)
   );
   if (frozen) return 0;
   const slowed = players.some(

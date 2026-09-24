@@ -15,7 +15,9 @@ import {
   POWER_UP_SPECS,
   GIANT_VISUAL_SCALE,
   cooldownRemaining,
+  durationTicks,
   isPowerUpActive,
+  remainingTicks,
 } from "../../game/powerups";
 import { HUD_ALTITUDE_FONT_UI } from "../../design/climbFeelTokens";
 import { formatAltitude } from "../../lib/units";
@@ -267,10 +269,18 @@ export function paintClimbFrame(
     drawPowerUpOrb(ctx, ox, oy, pxPerM, ui, pu, state.tick, reducedMotion, cooling, nextFloorScreenY);
   }
 
-  const lavaSlowed = player
-    ? isPowerUpActive(player, "slow-lava", state.tick) ||
-      isPowerUpActive(player, "freeze-lava", state.tick)
+  const hardenActive = player
+    ? isPowerUpActive(player, "harden-lava", state.tick)
     : false;
+  const lavaSlowed = player
+    ? isPowerUpActive(player, "slow-lava", state.tick) || hardenActive
+    : false;
+  let hardenProgress = 0;
+  if (player && hardenActive) {
+    const rem = remainingTicks(player, "harden-lava", state.tick);
+    const total = durationTicks("harden-lava");
+    hardenProgress = total > 0 ? 1 - rem / total : 0;
+  }
   const hazScreenY = sy(state.hazardY);
   if (hazScreenY < height) {
     drawLava(ctx, {
@@ -281,6 +291,7 @@ export function paintClimbFrame(
       tick: state.tick,
       reducedMotion,
       slowed: lavaSlowed,
+      hardenProgress: hardenActive ? hardenProgress : -1,
     });
   }
 

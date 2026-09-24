@@ -43,8 +43,8 @@ export interface RealtimeSnapshotMessage {
   peakY: number;
   /** True if the sender currently has slow-lava active (shared-hazard input). */
   slowLavaActive: boolean;
-  /** True if the sender currently has freeze-lava active (shared-hazard input). */
-  freezeLavaActive: boolean;
+  /** True if the sender currently has harden-lava active (shared-hazard input). */
+  hardenLavaActive: boolean;
 }
 
 export interface RealtimeEventMessage {

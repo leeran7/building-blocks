@@ -331,8 +331,8 @@ export function drawActivePowerUpEffect(
     case "slow-lava":
       drawSlowLavaEffect(ctx, px, pyScreen - 1.25 * s, s, pulse, tick, spec, reducedMotion);
       break;
-    case "freeze-lava":
-      drawFreezeLavaEffect(ctx, px, pyScreen - 1.25 * s, s, pulse, tick, spec, reducedMotion);
+    case "harden-lava":
+      drawHardenLavaEffect(ctx, px, pyScreen - 1.25 * s, s, pulse, tick, spec, reducedMotion);
       break;
     case "random":
       break;
@@ -561,7 +561,7 @@ function drawSlowLavaEffect(
   ctx.restore();
 }
 
-function drawFreezeLavaEffect(
+function drawHardenLavaEffect(
   ctx: CanvasRenderingContext2D,
   px: number,
   py: number,

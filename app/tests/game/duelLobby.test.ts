@@ -24,7 +24,7 @@ function snap(
     status: "climbing",
     peakY: 0,
     slowLavaActive: false,
-    freezeLavaActive: false,
+    hardenLavaActive: false,
     ...over,
   };
 }

@@ -46,8 +46,8 @@ import {
   JETPACK_WINDOW_SECONDS,
   TIME_SLOW_FRAC,
   TIME_SLOW_COOLDOWN_SECONDS,
-  FREEZE_LAVA_COOLDOWN_SECONDS,
-  FREEZE_LAVA_DURATION_SECONDS,
+  HARDEN_LAVA_COOLDOWN_SECONDS,
+  HARDEN_LAVA_DURATION_SECONDS,
   GIANT_GRAB_MULT,
   GIANT_PLATFORM_MARGIN_M,
   GIANT_VISUAL_SCALE,
@@ -99,7 +99,7 @@ const HOLD_SAMPLE_TICKS = 12;
 const LADDER_CLIMB_TICKS = 8;
 const SETTLE_TICKS = 200;
 
-describe("specs: eight live types, including super-jump, jetpack, freeze-lava and random", () => {
+describe("specs: eight live types, including super-jump, jetpack, harden-lava and random", () => {
   it("lists POWER_UP_TYPES in spawn-key order with jetpack in slot 5", () => {
     expect(POWER_UP_TYPES).toEqual([
       "rapid-climb",
@@ -108,7 +108,7 @@ describe("specs: eight live types, including super-jump, jetpack, freeze-lava an
       "giant",
       "jetpack",
       "slow-lava",
-      "freeze-lava",
+      "harden-lava",
       "random",
     ]);
   });
@@ -246,10 +246,10 @@ describe("spawning: deterministic, reachable, and denser with altitude", () => {
     }
     for (const t of POWER_UP_TYPES) expect(counts.get(t) ?? 0).toBeGreaterThan(0);
     const slowLava = counts.get("slow-lava") ?? 0;
-    const freezeLava = counts.get("freeze-lava") ?? 0;
-    const lavaMin = Math.min(slowLava, freezeLava);
+    const hardenLava = counts.get("harden-lava") ?? 0;
+    const lavaMin = Math.min(slowLava, hardenLava);
     for (const t of CONCRETE_POWER_UP_TYPES) {
-      if (t === "slow-lava" || t === "freeze-lava") continue;
+      if (t === "slow-lava" || t === "harden-lava") continue;
       expect(lavaMin).toBeLessThan(counts.get(t) ?? 0);
     }
   });
@@ -1008,7 +1008,7 @@ describe("slow-lava cooldown: the thing that keeps a run finite", () => {
     expect(isPowerUpActive(p, "slow-lava", m.tick)).toBe(true);
   });
 
-  it("only slow-lava and freeze-lava touch the lava clock", () => {
+  it("only slow-lava and harden-lava touch the lava clock", () => {
     expect(POWER_UP_SPECS["slow-lava"].durationSeconds).toBe(8);
     expect(POWER_UP_SPECS["slow-lava"].cooldownSeconds).toBe(40);
     expect(TIME_SLOW_COOLDOWN_SECONDS).toBe(40);
@@ -1022,10 +1022,10 @@ describe("slow-lava cooldown: the thing that keeps a run finite", () => {
       (1 - TIME_SLOW_FRAC * maxUptime);
     expect(effective).toBeLessThan(1);
 
-    expect(POWER_UP_SPECS["freeze-lava"].durationSeconds).toBe(FREEZE_LAVA_DURATION_SECONDS);
-    expect(POWER_UP_SPECS["freeze-lava"].cooldownSeconds).toBe(FREEZE_LAVA_COOLDOWN_SECONDS);
-    const fd = POWER_UP_SPECS["freeze-lava"].durationSeconds;
-    const fc = POWER_UP_SPECS["freeze-lava"].cooldownSeconds;
+    expect(POWER_UP_SPECS["harden-lava"].durationSeconds).toBe(HARDEN_LAVA_DURATION_SECONDS);
+    expect(POWER_UP_SPECS["harden-lava"].cooldownSeconds).toBe(HARDEN_LAVA_COOLDOWN_SECONDS);
+    const fd = POWER_UP_SPECS["harden-lava"].durationSeconds;
+    const fc = POWER_UP_SPECS["harden-lava"].cooldownSeconds;
     const freezeUptime = fd / (fd + fc);
     const freezeEffective =
       hazardMeanSpeedFrac(DEFAULT_HAZARD_CONFIG) *
@@ -1035,7 +1035,7 @@ describe("slow-lava cooldown: the thing that keeps a run finite", () => {
 
   it("no other power-up touches the lava clock", () => {
     for (const type of CONCRETE_POWER_UP_TYPES) {
-      if (type === "slow-lava" || type === "freeze-lava") continue;
+      if (type === "slow-lava" || type === "harden-lava") continue;
       expect(POWER_UP_SPECS[type].cooldownSeconds).toBe(0);
       const trace = hazardTrace(false, type);
       const plain = hazardTrace(false);
@@ -1064,8 +1064,8 @@ describe("balance: power-ups raise the ceiling without removing the pressure", (
     expect(run.peak).toBeGreaterThan(0);
   });
 
-  it("still ends the run even when fed freeze-lava as fast as the rules allow", () => {
-    const run = fedBotRun("freeze-lava", 200_000);
+  it("still ends the run even when fed harden-lava as fast as the rules allow", () => {
+    const run = fedBotRun("harden-lava", 200_000);
     expect(run.finished).toBe(true);
     expect(run.peak).toBeGreaterThan(0);
   });

@@ -28,7 +28,7 @@ export interface GhostSample {
   status: PlayerStatus;
   peakY: number;
   slowLavaActive: boolean;
-  freezeLavaActive: boolean;
+  hardenLavaActive: boolean;
 }
 
 /**
@@ -78,7 +78,7 @@ export class GhostStore {
       status: m.status,
       peakY: m.peakY,
       slowLavaActive: m.slowLavaActive,
-      freezeLavaActive: m.freezeLavaActive,
+      hardenLavaActive: m.hardenLavaActive,
     };
     const arr = this.bySlot.get(m.slot);
     if (!arr) {
@@ -195,7 +195,7 @@ export class GhostStore {
       status: "climbing",
       peakY: Math.max(a.peakY, b.peakY),
       slowLavaActive: b.slowLavaActive,
-      freezeLavaActive: b.freezeLavaActive,
+      hardenLavaActive: b.hardenLavaActive,
     };
   }
 

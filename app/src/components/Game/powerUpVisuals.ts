@@ -282,30 +282,23 @@ export const POWER_UP_ICON_GEOMETRY: Record<PowerUpType, PowerUpIconGeometry> = 
       },
     ],
   },
-  // Snowflake — six-pointed star for freeze.
-  "freeze-lava": {
+  // Rock shard — angular slab for hardened lava.
+  "harden-lava": {
     viewBox: ICON_VIEWBOX,
     layers: [
       {
         paint: "fill",
         strokeWidth: 0,
         commands: [
-          { t: "M", x: 12, y: 1 },
-          { t: "L", x: 14, y: 7 },
-          { t: "L", x: 20, y: 5 },
-          { t: "L", x: 17, y: 12 },
-          { t: "L", x: 23, y: 12 },
-          { t: "L", x: 17, y: 15 },
-          { t: "L", x: 20, y: 21 },
-          { t: "L", x: 14, y: 17 },
-          { t: "L", x: 12, y: 23 },
-          { t: "L", x: 10, y: 17 },
-          { t: "L", x: 4, y: 21 },
-          { t: "L", x: 7, y: 15 },
-          { t: "L", x: 1, y: 12 },
-          { t: "L", x: 7, y: 12 },
-          { t: "L", x: 4, y: 5 },
-          { t: "L", x: 10, y: 7 },
+          { t: "M", x: 6, y: 2 },
+          { t: "L", x: 16, y: 3 },
+          { t: "L", x: 21, y: 7 },
+          { t: "L", x: 22, y: 14 },
+          { t: "L", x: 19, y: 20 },
+          { t: "L", x: 12, y: 22 },
+          { t: "L", x: 5, y: 19 },
+          { t: "L", x: 2, y: 12 },
+          { t: "L", x: 3, y: 6 },
           { t: "Z" },
         ],
       },
@@ -411,7 +404,7 @@ export const POWER_UP_ORB_BODIES: Record<PowerUpType, OrbBodyGeometry> = {
       { t: "Z" },
     ],
   },
-  "freeze-lava": {
+  "harden-lava": {
     fill: ORB_BODY_FILL,
     strokeWidthFrac: ORB_STROKE_WIDTH_FRAC,
     commands: [
