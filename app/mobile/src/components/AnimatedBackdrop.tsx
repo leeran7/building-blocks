@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef } from "react";
 import { drawLava } from "@app/components/Game/lava";
 import { prefersReducedMotion } from "../lib/motion";
+import volcanoScene from "@app/../public/climb/volcano-tile.jpg";
 
 /**
  * "Thermal Column" backdrop — dark tower above rising lava.
@@ -46,6 +47,7 @@ export function AnimatedBackdrop() {
 
   return (
     <div aria-hidden className="pointer-events-none fixed inset-0 z-0 bg-void">
+      <div className="bd-scene" style={{ backgroundImage: `url(${volcanoScene})` }} />
       {/* Ember-orange thermal bloom rising from the lava band */}
       <div className="bd-thermal" />
       {/* Signal-lime summit corona — cold and stable at the top */}
@@ -86,6 +88,14 @@ export function AnimatedBackdrop() {
       <div className="bd-grain" />
 
       <style>{`
+        .bd-scene {
+          position: absolute; inset: 0;
+          background-size: cover; background-position: center 30%;
+          opacity: 0.75;
+          filter: saturate(1.25) contrast(1.05);
+          -webkit-mask-image: linear-gradient(to bottom, rgba(0,0,0,0.55) 0%, #000 30%, #000 100%);
+          mask-image: linear-gradient(to bottom, rgba(0,0,0,0.55) 0%, #000 30%, #000 100%);
+        }
         .bd-thermal {
           position: absolute; inset-inline: 0; bottom: 0; height: 80vh;
           background: radial-gradient(
@@ -122,7 +132,7 @@ export function AnimatedBackdrop() {
 
         .bd-lava-canvas {
           position: absolute; inset-inline: 0; bottom: 0;
-          width: 100%; height: 42vh;
+          width: 100%; height: 26vh;
           display: block;
         }
 
