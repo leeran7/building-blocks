@@ -38,3 +38,10 @@ runner, or component library.
   (mobile screen) and `app/src/components/Challenge/*` (web `/duel`) are both
   live and render the same friend-request, pending-challenge, and user-search
   flows. Change both trees in one commit and exercise both surfaces in QA.
+- **Game physics (obstacles.ts):** a one-way surface is solid from above at
+  any `vy`. Clamp when feet were on or above it last tick and are below it
+  now; never test only while falling. The collision band spans floors
+  i-1..i+1, so any ramp logic that moves feet down must first check that no
+  slab holds them up. Stuck tests must drive real `stepMatch`, cover jumps
+  into slopes as well as walks and drops, and scope stuck-detection by the
+  obstacle's own x and y band.
