@@ -2,7 +2,7 @@
  * Tower v3 "The Climb" — floor obstacles.
  *
  * Jump-over crates on the traverse, stacked crates that form a stair to the
- * next floor, and 3-, 4- or 6-level hurdle triangles ("hills": up one side,
+ * next floor, and 3- or 4-level hurdle triangles ("hills": up one side,
  * down the other).
  * They tax time the lava spends closing: walking into a lone hurdle stops you;
  * jumping clears it. Stairs/triangles ride a continuous ramp surface (visual
@@ -44,7 +44,7 @@ const HURDLE_CLEAR_M = 2.6;
  * (2·levels − 1 crates). Largest first: placement falls back to a smaller hill
  * when the corridor or headroom is too small for the rolled size.
  */
-export const PYRAMID_LEVEL_OPTIONS = [6, 4, 3] as const;
+export const PYRAMID_LEVEL_OPTIONS = [4, 3] as const;
 export type PyramidLevels = (typeof PYRAMID_LEVEL_OPTIONS)[number];
 /** Smallest hill — the original floor/mid/peak tent. */
 const PYRAMID_MIN_LEVELS = 3;
@@ -111,7 +111,7 @@ function slopeCappedAdvance(
 
 /**
  * Crates on floor `i`, or empty. Deterministic in (tower.seed, i).
- * A floor is a hurdle (one or two crates on the slab), a 3/4/6-level hurdle
+ * A floor is a hurdle (one or two crates on the slab), a 3- or 4-level hurdle
  * triangle, or a stair of stacked crates whose last top meets the next floor.
  */
 export function obstaclesForFloor(tower: TowerSpec, i: number): Obstacle[] {
@@ -129,7 +129,8 @@ export function obstaclesForFloor(tower: TowerSpec, i: number): Obstacle[] {
     const stair = tryStair(tower, i, rng, kind, d);
     if (stair) return stair;
   }
-  const pyramidChance = 0.52 + 0.08 * d;
+  // A bit higher than before now that hills only come in two, cheaper sizes.
+  const pyramidChance = 0.6 + 0.1 * d;
   if (rng.next() < pyramidChance) {
     const pyramid = tryPyramid(tower, i, rng, kind, d);
     if (pyramid) return pyramid;
@@ -344,13 +345,11 @@ function placeHurdles(
 }
 
 /**
- * Roll a hill size from one seeded draw `r` ∈ [0, 1). Bigger hills get
+ * Roll a hill size from one seeded draw `r` ∈ [0, 1). The 4-level hill gets
  * likelier as the difficulty ramp `d` (0→1) climbs:
- * d=0 → 70% 3-level, 22% 4-level, 8% 6-level;
- * d=1 → 30% 3-level, 35% 4-level, 35% 6-level.
+ * d=0 → 70% 3-level, 30% 4-level; d=1 → 30% 3-level, 70% 4-level.
  */
 export function pickPyramidLevels(r: number, d: number): PyramidLevels {
-  if (r < 0.08 + 0.27 * d) return 6;
   if (r < 0.3 + 0.4 * d) return 4;
   return 3;
 }

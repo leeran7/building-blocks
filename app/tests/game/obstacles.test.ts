@@ -123,7 +123,7 @@ function firstHill(levels: number): Hill {
   throw new Error(`expected a ${levels}-level hurdle triangle`);
 }
 
-const HILL_SIZES = [3, 4, 6] as const;
+const HILL_SIZES = [3, 4] as const;
 
 function hillBounds(crates: Obstacle[]) {
   return {
@@ -262,6 +262,24 @@ describe("obstacle spawn", () => {
     expect(ramp).toBeGreaterThan(floors * 0.15);
   });
 
+  it("rolls hills a bit more often now that only two sizes exist", () => {
+    const towers = [
+      TOWER,
+      ...["bottom-a", "bottom-b", "bottom-c", "bottom-d", "bottom-e", "bottom-f", "bottom-g", "bottom-h", "bottom-i", "bottom-j"]
+        .map((s) => applyRunSeed(TOWER, s)),
+    ];
+    let floors = 0;
+    let hills = 0;
+    for (const tower of towers) {
+      for (let i = 2; i < 60; i++) {
+        floors += 1;
+        if (hillLevels(tower, i, obstaclesForFloor(tower, i)) !== null) hills += 1;
+      }
+    }
+    expect(floors).toBeGreaterThan(0);
+    expect(hills).toBeGreaterThan(floors * 0.14);
+  });
+
   it("obstaclesNearY includes crates whose band intersects the window", () => {
     const o = firstHurdle(TOWER);
     const near = obstaclesNearY(TOWER, o.y0 - 1, o.y1 + 1);
@@ -391,9 +409,9 @@ describe("obstacle spawn", () => {
     }
   );
 
-  it("rolls bigger hills more often as difficulty climbs", () => {
+  it("rolls the 4-level hill more often as difficulty climbs", () => {
     const mix = (d: number) => {
-      const counts = { 3: 0, 4: 0, 6: 0 };
+      const counts = { 3: 0, 4: 0 };
       const N = 1000;
       for (let k = 0; k < N; k++) counts[pickPyramidLevels(k / N, d)] += 1;
       return counts;
@@ -404,11 +422,9 @@ describe("obstacle spawn", () => {
     const near = (got: number, want: number) =>
       expect(Math.abs(got - want)).toBeLessThanOrEqual(2);
     near(easy[3], 700);
-    near(easy[4], 220);
-    near(easy[6], 80);
+    near(easy[4], 300);
     near(hard[3], 300);
-    near(hard[4], 350);
-    near(hard[6], 350);
+    near(hard[4], 700);
     for (const d of [0, 0.25, 0.5, 0.75, 1]) {
       for (const r of [0, 0.3, 0.6, 0.999]) {
         expect(PYRAMID_LEVEL_OPTIONS).toContain(pickPyramidLevels(r, d));
@@ -430,7 +446,7 @@ describe("obstacle spawn", () => {
         expect(peak).toBeLessThanOrEqual(floorHeight(tower, i + 1) - 2 + 1e-9);
       }
     }
-    expect([...seen].sort()).toEqual([3, 4, 6]);
+    expect([...seen].sort()).toEqual([3, 4]);
   });
 
   it("keeps every hill size out of ladder grab zones", () => {
@@ -1120,8 +1136,8 @@ describe("ramps never trip the height-rate anti-cheat sentinel", () => {
     "crumble-stairs",
     "wall-jump-chimney",
   ];
-  // Fixed run seeds whose first 120 floors include a (rare) 6-level hill on
-  // every archetype — big hills need a wide between-ladder corridor.
+  // Fixed run seeds whose first 120 floors include a 4-level hill on every
+  // archetype — the bigger hill needs a wide between-ladder corridor.
   const RUN_SEEDS = ["ac-0", "ac-2", "ac-3", "ac-10", "ac-12"];
   const SCAN_FLOORS = 120;
 
@@ -1229,7 +1245,7 @@ describe("ramps never trip the height-rate anti-cheat sentinel", () => {
     }
 
     it("spawns every hill size and a stair to cross", () => {
-      expect([...hills.keys()].sort()).toEqual([3, 4, 6]);
+      expect([...hills.keys()].sort()).toEqual([3, 4]);
       expect(stair).not.toBeNull();
     });
 
