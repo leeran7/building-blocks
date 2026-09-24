@@ -84,7 +84,8 @@ export function drawPowerUpOrb(
   tick: number,
   reducedMotion: boolean,
   cooling: boolean = false,
-  nextFloorScreenY?: number
+  nextFloorScreenY?: number,
+  canvasWidth?: number
 ): void {
   const spec = POWER_UP_SPECS[pu.type];
   const phase = tick * 0.08 + pu.floorIndex * 1.7;
@@ -157,17 +158,29 @@ export function drawPowerUpOrb(
   const padX = labelPx * 0.5;
   const plateH = labelPx * 1.5;
 
-  const stemTop = nextFloorScreenY != null
+  let stemTop = nextFloorScreenY != null
     ? cy + (nextFloorScreenY - cy) / 2
     : cy - r * 3.5;
   const stemBottom = cy - r * 1.6;
+
+  const plateY0 = stemTop + labelPx * 0.35;
+  const plateTop = plateY0 - plateH * 0.72;
+  if (plateTop < 0) stemTop -= plateTop;
+
+  const plateW = labelW + padX * 2;
+  let labelCx = cx;
+  if (canvasWidth != null) {
+    const halfW = plateW / 2;
+    if (labelCx - halfW < 0) labelCx = halfW;
+    else if (labelCx + halfW > canvasWidth) labelCx = canvasWidth - halfW;
+  }
 
   ctx.globalAlpha = 0.35 * dim;
   ctx.strokeStyle = spec.color;
   ctx.lineWidth = Math.max(1, ui * 0.8);
   ctx.beginPath();
   ctx.moveTo(cx, stemBottom);
-  ctx.lineTo(cx, stemTop);
+  ctx.lineTo(labelCx, stemTop);
   ctx.stroke();
 
   const plateY = stemTop + labelPx * 0.35;
@@ -176,9 +189,9 @@ export function drawPowerUpOrb(
   ctx.beginPath();
   roundRect(
     ctx,
-    cx - labelW / 2 - padX,
+    labelCx - labelW / 2 - padX,
     plateY - plateH * 0.72,
-    labelW + padX * 2,
+    plateW,
     plateH,
     plateH * 0.3
   );
@@ -187,7 +200,7 @@ export function drawPowerUpOrb(
   ctx.fillStyle = spec.color;
   ctx.textAlign = "center";
   ctx.textBaseline = "alphabetic";
-  ctx.fillText(label, cx, plateY);
+  ctx.fillText(label, labelCx, plateY);
 
   ctx.restore();
   ctx.textAlign = "left";
