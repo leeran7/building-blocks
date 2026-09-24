@@ -118,16 +118,18 @@ export function obstaclesForFloor(tower: TowerSpec, i: number): Obstacle[] {
   if (i < MIN_SPAWN_FLOOR) return [];
   const d = Math.min(1, i / RAMP_FLOORS);
   const rng = createRng(`${tower.seed}:ob:${i}`);
-  const chance = 0.5 + 0.42 * d;
+  // Raised intercepts, same d=1 ceiling as before: the bottom floors (low d)
+  // read busier while the late-game peak difficulty is unchanged.
+  const chance = 0.68 + 0.24 * d;
   if (rng.next() >= chance) return [];
 
   const kind = resolveGameCategory(tower.categorySlug).fallingHazardType;
-  const stairChance = 0.4 + 0.35 * d;
+  const stairChance = 0.58 + 0.17 * d;
   if (rng.next() < stairChance) {
     const stair = tryStair(tower, i, rng, kind, d);
     if (stair) return stair;
   }
-  const pyramidChance = 0.4 + 0.2 * d;
+  const pyramidChance = 0.52 + 0.08 * d;
   if (rng.next() < pyramidChance) {
     const pyramid = tryPyramid(tower, i, rng, kind, d);
     if (pyramid) return pyramid;

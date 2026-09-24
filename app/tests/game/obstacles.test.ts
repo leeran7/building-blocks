@@ -232,6 +232,36 @@ describe("obstacle spawn", () => {
     expect(n).toBeGreaterThan(floors * 0.4);
   });
 
+  it("spawns obstacles, and specifically ramps, more often near the bottom", () => {
+    // A ramp (stair or hill) reaches the next floor's slab, unlike a lone
+    // hurdle or an empty floor. Same shape check as firstStair/hillLevels.
+    const isRamp = (tower: TowerSpec, i: number, os: Obstacle[]): boolean => {
+      if (hillLevels(tower, i, os) !== null) return true;
+      if (os.length < 3) return false;
+      const last = os.reduce((a, b) => (a.y1 >= b.y1 ? a : b));
+      return Math.abs(last.y1 - floorHeight(tower, i + 1)) < 0.05;
+    };
+    const towers = [
+      TOWER,
+      ...["bottom-a", "bottom-b", "bottom-c", "bottom-d", "bottom-e", "bottom-f", "bottom-g", "bottom-h", "bottom-i", "bottom-j"]
+        .map((s) => applyRunSeed(TOWER, s)),
+    ];
+    let floors = 0;
+    let any = 0;
+    let ramp = 0;
+    for (const tower of towers) {
+      for (let i = 2; i < 25; i++) {
+        floors += 1;
+        const os = obstaclesForFloor(tower, i);
+        if (os.length > 0) any += 1;
+        if (isRamp(tower, i, os)) ramp += 1;
+      }
+    }
+    expect(floors).toBeGreaterThan(0);
+    expect(any).toBeGreaterThan(floors * 0.65);
+    expect(ramp).toBeGreaterThan(floors * 0.15);
+  });
+
   it("obstaclesNearY includes crates whose band intersects the window", () => {
     const o = firstHurdle(TOWER);
     const near = obstaclesNearY(TOWER, o.y0 - 1, o.y1 + 1);
