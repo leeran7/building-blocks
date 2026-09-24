@@ -128,11 +128,15 @@ async function debitChipsInTx(
   });
 }
 
+// `kind` distinguishes a pot WIN (settlement) from a stake REFUND. Both credit
+// play_credits_cents identically, but the append-only ledger must label them
+// correctly — a refund is the return of a player's own stake, never winnings.
 async function creditChipsInTx(
   tx: TxClient,
   userId: string,
   amount: number,
-  duelId: string
+  duelId: string,
+  kind: WalletLedgerKind = WalletLedgerKind.WIN
 ): Promise<void> {
   await tx.$executeRaw`SELECT id FROM users WHERE id = ${userId} FOR UPDATE`;
   const u = await tx.user.findUniqueOrThrow({
@@ -150,7 +154,7 @@ async function creditChipsInTx(
       bucket: WalletBucket.PLAY,
       amount_cents: amount,
       balance_after: after,
-      kind: WalletLedgerKind.WIN,
+      kind,
       duel_id: duelId,
     },
   });
@@ -260,10 +264,10 @@ export async function refundChipDuelInTx(
   player2Stake: number
 ): Promise<void> {
   if (player1Stake > 0) {
-    await creditChipsInTx(tx, player1Id, player1Stake, duelId);
+    await creditChipsInTx(tx, player1Id, player1Stake, duelId, WalletLedgerKind.REFUND);
   }
   if (player2Id && player2Stake > 0) {
-    await creditChipsInTx(tx, player2Id, player2Stake, duelId);
+    await creditChipsInTx(tx, player2Id, player2Stake, duelId, WalletLedgerKind.REFUND);
   }
   await tx.duel.update({
     where: { id: duelId },
