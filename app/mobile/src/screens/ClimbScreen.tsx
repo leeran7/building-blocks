@@ -5,6 +5,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { buildFreeTower } from "@app/game/freeStack";
 import { useClimb } from "@app/game/useClimb";
 import { encodeRunReplay, buildReplayUrl } from "@app/game/runReplay";
+import { hazardPhase } from "@app/game/hazard";
 import { ClimbCanvas } from "@app/components/Game/ClimbCanvas";
 import { ExpeditionHud } from "@app/components/Game/ExpeditionHud";
 import {
@@ -104,6 +105,7 @@ export function ClimbScreen({ onSignIn }: { onSignIn?: () => void } = {}) {
   const musicIntensity = Math.max(0, Math.min(1, (40 - lavaGap) / 40));
   const view = climbView(canvasSize.width, canvasSize.height, state.tower.widthM);
   const camY = cameraTargetY(player?.y ?? 0, view.viewH, bottomInset, view.pxPerM);
+  const lavaPhaseInfo = hazardPhase(state.raceSeconds - state.hazardSlowSeconds);
   const lavaFill = lavaThreatFill(
     state.hazardY,
     camY,
@@ -243,6 +245,7 @@ export function ClimbScreen({ onSignIn }: { onSignIn?: () => void } = {}) {
         />
 
         <ExpeditionHud player={player} hazardY={state.hazardY} tick={state.tick}
+          lavaPhase={lavaPhaseInfo.phase} lavaPhaseProgress={lavaPhaseInfo.progress}
           muted={muted} onToggleMute={() => setMuted(!muted)} announcement={announcement} runId={runId}
           topInset={safeArea.top} leftInset={safeArea.left} rightInset={safeArea.right}
           backControl={<button type="button" data-game-control className="exp-utility" aria-label="Back to home" title="Back to home" onClick={() => { void tapLight(); navigate("/"); }}>←</button>}
