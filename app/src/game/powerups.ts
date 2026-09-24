@@ -172,7 +172,7 @@ export const POWER_UP_SPECS: Record<PowerUpType, PowerUpSpec> = {
     color: "#00e5ff",
     durationSeconds: 10,
     cooldownSeconds: 0,
-    weight: 26,
+    weight: 20,
     altitudeWeightMult: 1.15,
   },
   "sprint-burst": {
@@ -182,7 +182,7 @@ export const POWER_UP_SPECS: Record<PowerUpType, PowerUpSpec> = {
     color: "#ffe600",
     durationSeconds: 10,
     cooldownSeconds: 0,
-    weight: 22,
+    weight: 16,
     altitudeWeightMult: 1,
   },
   "super-jump": {
@@ -193,7 +193,7 @@ export const POWER_UP_SPECS: Record<PowerUpType, PowerUpSpec> = {
     durationSeconds: 10,
     cooldownSeconds: 0,
     chargeCount: SUPER_JUMP_AIR_JUMPS,
-    weight: 22,
+    weight: 16,
     altitudeWeightMult: 1,
   },
   giant: {
@@ -203,7 +203,7 @@ export const POWER_UP_SPECS: Record<PowerUpType, PowerUpSpec> = {
     color: "#66ff33",
     durationSeconds: 20,
     cooldownSeconds: 0,
-    weight: 22,
+    weight: 16,
     altitudeWeightMult: 1,
   },
   jetpack: {
@@ -214,7 +214,7 @@ export const POWER_UP_SPECS: Record<PowerUpType, PowerUpSpec> = {
     durationSeconds: JETPACK_WINDOW_SECONDS,
     cooldownSeconds: 0,
     fuelSeconds: JETPACK_FUEL_SECONDS,
-    weight: 18,
+    weight: 14,
     altitudeWeightMult: 1.1,
   },
   "slow-lava": {
@@ -224,11 +224,7 @@ export const POWER_UP_SPECS: Record<PowerUpType, PowerUpSpec> = {
     color: "#ff2bd6",
     durationSeconds: 8,
     cooldownSeconds: TIME_SLOW_COOLDOWN_SECONDS,
-    // Commoner at the base than the other altitude-scaled drops so a new
-    // climber actually meets it early, without changing its share high up.
-    weight: 12,
-    // Weights up with altitude, where the lava is winning, but not so far that
-    // the strongest power-up stops being the rarest one on the tower.
+    weight: 9,
     altitudeWeightMult: 1.2,
   },
   random: {
@@ -238,7 +234,7 @@ export const POWER_UP_SPECS: Record<PowerUpType, PowerUpSpec> = {
     color: "#ffffff",
     durationSeconds: 10,
     cooldownSeconds: 0,
-    weight: 10,
+    weight: 9,
     altitudeWeightMult: 1,
   },
 };
