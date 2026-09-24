@@ -239,7 +239,7 @@ export const POWER_UP_SPECS: Record<PowerUpType, PowerUpSpec> = {
     color: "#00cfff",
     durationSeconds: FREEZE_LAVA_DURATION_SECONDS,
     cooldownSeconds: FREEZE_LAVA_COOLDOWN_SECONDS,
-    weight: 7,
+    weight: 5,
     altitudeWeightMult: 1.25,
   },
   random: {
@@ -249,7 +249,7 @@ export const POWER_UP_SPECS: Record<PowerUpType, PowerUpSpec> = {
     color: "#ffffff",
     durationSeconds: 10,
     cooldownSeconds: 0,
-    weight: 9,
+    weight: 11,
     altitudeWeightMult: 1,
   },
 };
