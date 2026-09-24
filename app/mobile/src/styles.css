@@ -38,9 +38,9 @@
   --shadow-ember:
     0 0 0 1px rgb(255 90 44 / 0.18), 0 12px 40px -14px rgb(255 90 44 / 0.4);
 
-  --font-display: system-ui, -apple-system, "Segoe UI", sans-serif;
-  --font-sans: system-ui, -apple-system, "Segoe UI", sans-serif;
-  --font-mono: ui-monospace, "SF Mono", Menlo, monospace;
+  --font-display: "Bricolage Grotesque Variable", system-ui, -apple-system, sans-serif;
+  --font-sans: "Hanken Grotesk Variable", system-ui, -apple-system, sans-serif;
+  --font-mono: "Space Mono", ui-monospace, "SF Mono", Menlo, monospace;
 }
 
 /*

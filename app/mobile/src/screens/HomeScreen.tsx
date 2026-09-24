@@ -78,7 +78,7 @@ export function HomeScreen() {
         style={{ overscrollBehavior: "contain", WebkitOverflowScrolling: "touch" }}
       >
         <header className="flex flex-col items-center gap-3 text-center">
-          <h1 className="hm-wordmark font-display text-[2.4rem] font-black uppercase leading-[0.9] tracking-[-0.03em] text-text-primary">
+          <h1 className="hm-wordmark font-display text-[2.6rem] font-black uppercase leading-[0.9] tracking-[-0.03em] text-text-primary">
             Doom<span className="text-signal">stack</span>
           </h1>
           <span className="pl-[0.55em] font-mono text-[11px] uppercase tracking-[0.55em] text-text-secondary">

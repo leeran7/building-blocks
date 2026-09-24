@@ -8,6 +8,12 @@ import { AuthProvider } from "./contexts/AuthContext";
 import { AppDataProvider } from "./contexts/AppDataContext";
 import { setVolcanoTileSrc } from "@app/components/Game/climbBackground";
 import volcanoTile from "@app/../public/climb/volcano-tile.jpg";
+// Brand fonts ship inside the bundle (no Google Fonts request), so the native
+// app matches the web type and still renders correctly offline.
+import "@fontsource-variable/bricolage-grotesque/wght.css";
+import "@fontsource-variable/hanken-grotesk/wght.css";
+import "@fontsource/space-mono/latin-400.css";
+import "@fontsource/space-mono/latin-700.css";
 import "./styles.css";
 
 /*
