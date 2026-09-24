@@ -133,9 +133,9 @@ function getBodyGradient(
     } else {
       const t = (p - 0.7) / 0.3;
       const st = smoothstep(t);
-      grad.addColorStop(0, lerpColor("#b05020", slowed ? "#ffc2e6" : "#ffcf5a", st));
-      grad.addColorStop(0.3, lerpColor("#8a2a0e", slowed ? LAVA_SLOWED : LAVA, st));
-      grad.addColorStop(1, lerpColor("#4a1208", slowed ? "#7a2f5e" : "#6e1a0d", st));
+      grad.addColorStop(0, lerpColor("#b05020", "#ffcf5a", st));
+      grad.addColorStop(0.3, lerpColor("#8a2a0e", LAVA, st));
+      grad.addColorStop(1, lerpColor("#4a1208", "#6e1a0d", st));
     }
   } else if (slowed) {
     grad.addColorStop(0, "#ffc2e6");
@@ -548,11 +548,11 @@ export function drawLava(ctx: CanvasRenderingContext2D, opts: LavaOptions): void
   ctx.moveTo(0, crestY[0]);
   for (let i = 1; i <= CREST_SEGMENTS; i++) ctx.lineTo(i * step, crestY[i]);
   const rimColor = hardened
-    ? lerpColor(ROCK_RIM, slowed ? "#ffd6ef" : "#ffd24d", smoothstep(hardenProgress))
+    ? lerpColor(ROCK_RIM, "#ffd24d", smoothstep(hardenProgress))
     : slowed ? "#ffd6ef" : "#ffd24d";
   ctx.strokeStyle = rimColor;
-  ctx.lineWidth = lerp(slowed ? 5 : 6, 3, rockBlend) * ui;
-  ctx.globalAlpha = lerp(slowed ? 0.28 : 0.4, 0.5, rockBlend);
+  ctx.lineWidth = lerp(hardened ? 6 : slowed ? 5 : 6, 3, rockBlend) * ui;
+  ctx.globalAlpha = lerp(hardened ? 0.4 : slowed ? 0.28 : 0.4, 0.5, rockBlend);
   if (slowed && !hardened) ctx.setLineDash([9 * ui, 6 * ui]);
   ctx.stroke();
   ctx.setLineDash([]);
@@ -561,10 +561,10 @@ export function drawLava(ctx: CanvasRenderingContext2D, opts: LavaOptions): void
   ctx.moveTo(0, crestY[0]);
   for (let i = 1; i <= CREST_SEGMENTS; i++) ctx.lineTo(i * step, crestY[i]);
   const coreColor = hardened
-    ? lerpColor(ROCK_CORE, slowed ? "#ffffff" : "#fff8dc", smoothstep(hardenProgress))
+    ? lerpColor(ROCK_CORE, "#fff8dc", smoothstep(hardenProgress))
     : slowed ? "#ffffff" : "#fff8dc";
   ctx.strokeStyle = coreColor;
-  ctx.lineWidth = lerp(slowed ? 1.6 : 2, 1.2, rockBlend) * ui;
+  ctx.lineWidth = lerp(hardened ? 2 : slowed ? 1.6 : 2, 1.2, rockBlend) * ui;
   ctx.globalAlpha = lerp(slowed ? 0.65 : 0.95, 0.7, rockBlend);
   ctx.stroke();
   ctx.globalAlpha = 1;
@@ -606,7 +606,8 @@ export function drawLava(ctx: CanvasRenderingContext2D, opts: LavaOptions): void
       const cx = ((i + 0.5) / HAZE_COUNT + drift * 0.03) * width;
       const cy = top - (14 + 10 * hash(i, 9)) * ui;
       const r = (36 + 30 * hash(i, 13)) * ui;
-      const a = (0.05 + 0.04 * (0.5 + 0.5 * Math.sin(tick * 0.05 + i))) * (slowed ? 0.4 : 1) * hazeFade * hazeBoost;
+      const slowDim = hardened ? 1 : slowed ? 0.4 : 1;
+      const a = (0.05 + 0.04 * (0.5 + 0.5 * Math.sin(tick * 0.05 + i))) * slowDim * hazeFade * hazeBoost;
       const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
       g.addColorStop(0, HAZE_COLOR_OPAQUE);
       g.addColorStop(1, HAZE_COLOR_TRANSPARENT);
@@ -622,7 +623,7 @@ export function drawLava(ctx: CanvasRenderingContext2D, opts: LavaOptions): void
   const bubbleFade = hardened ? smoothstep(hardenProgress) : 1;
   if (bubbleFade > 0.05) {
     const surgeBoost = hardened && hardenProgress > 0.8 ? 1.8 : 1;
-    const bubbleN = slowed ? 3 : BUBBLE_COUNT;
+    const bubbleN = (slowed && !hardened) ? 3 : BUBBLE_COUNT;
     for (let i = 0; i < bubbleN; i++) {
       const speed = (0.01 + 0.008 * hash(i, 21)) * surgeBoost;
       const p = frac(hash(i, 23) + tick * speed);
@@ -633,13 +634,13 @@ export function drawLava(ctx: CanvasRenderingContext2D, opts: LavaOptions): void
       const by = surfaceY - swell * 4 * ui;
       const r = (2.5 + 4 * hash(i, 29)) * ui * swell;
       ctx.globalAlpha = 0.5 * swell * bubbleFade;
-      ctx.fillStyle = slowed ? "#ffd6ef" : "#ffb24d";
+      ctx.fillStyle = (slowed && !hardened) ? "#ffd6ef" : "#ffb24d";
       ctx.beginPath();
       ctx.arc(bx, by, r, 0, TAU);
       ctx.fill();
       // Bright highlight on the bubble crown.
       ctx.globalAlpha = 0.6 * swell * bubbleFade;
-      ctx.fillStyle = slowed ? "#ffffff" : "#fff8dc";
+      ctx.fillStyle = (slowed && !hardened) ? "#ffffff" : "#fff8dc";
       ctx.beginPath();
       ctx.arc(bx - r * 0.3, by - r * 0.3, r * 0.4, 0, TAU);
       ctx.fill();
@@ -652,7 +653,7 @@ export function drawLava(ctx: CanvasRenderingContext2D, opts: LavaOptions): void
   if (emberFade > 0.05) {
     ctx.globalCompositeOperation = "lighter";
     const surgeBoost = hardened && hardenProgress > 0.8 ? 2 : 1;
-    const emberN = slowed ? 2 : EMBER_COUNT;
+    const emberN = (slowed && !hardened) ? 2 : EMBER_COUNT;
     for (let i = 0; i < emberN; i++) {
       const speed = (0.012 + 0.01 * hash(i, 41)) * surgeBoost;
       const p = frac(hash(i, 43) + tick * speed);
