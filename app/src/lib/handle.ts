@@ -18,7 +18,7 @@ const ANIMALS = [
 ];
 
 /** Simple, portable 32-bit string hash (deterministic across server + client). */
-function hashId(id: string): number {
+export function hashId(id: string): number {
   let h = 2166136261 >>> 0;
   for (let i = 0; i < id.length; i++) {
     h ^= id.charCodeAt(i);
