@@ -22,7 +22,8 @@ const PHASE_LABEL: Record<HazardPhaseName, string> = {
   stumble: "STUMBLING",
 };
 
-export function LavaClearanceInstrument({ clearance, phase, progress, hardenActive = false }: { clearance: number; phase: HazardPhaseName; progress: number; hardenActive?: boolean }) {
+export function LavaClearanceInstrument({ clearance: rawClearance, phase, progress, hardenActive = false }: { clearance: number; phase: HazardPhaseName; progress: number; hardenActive?: boolean }) {
+  const clearance = Math.max(0, rawClearance);
   const danger = clearance <= 12;
   const displayPhase = hardenActive ? "hardened" : phase;
   const displayLabel = hardenActive ? "HARDENED" : PHASE_LABEL[phase];
@@ -30,7 +31,7 @@ export function LavaClearanceInstrument({ clearance, phase, progress, hardenActi
     <span className="exp-label">LAVA CLEARANCE</span>
     <div className="exp-reading">
       <svg className="exp-wave" viewBox="0 0 32 28" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden="true">
-        <path d="M1 6q4-5 8 0t8 0t8 0t6 0M1 14q4-5 8 0t8 0t8 0t6 0M1 22q4-5 8 0t8 0t8 0t6 0" />
+        <path d="M1 6q4-5 8 0t8 0t8 0t8 0t6 0M1 14q4-5 8 0t8 0t8 0t6 0M1 22q4-5 8 0t8 0t8 0t6 0" />
       </svg>
       <strong>{clearance.toFixed(1)}</strong><span>{ALTITUDE_UNIT}</span>
     </div>
