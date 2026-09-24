@@ -282,6 +282,35 @@ export const POWER_UP_ICON_GEOMETRY: Record<PowerUpType, PowerUpIconGeometry> = 
       },
     ],
   },
+  // Snowflake — six-pointed star for freeze.
+  "freeze-lava": {
+    viewBox: ICON_VIEWBOX,
+    layers: [
+      {
+        paint: "fill",
+        strokeWidth: 0,
+        commands: [
+          { t: "M", x: 12, y: 1 },
+          { t: "L", x: 14, y: 7 },
+          { t: "L", x: 20, y: 5 },
+          { t: "L", x: 17, y: 12 },
+          { t: "L", x: 23, y: 12 },
+          { t: "L", x: 17, y: 15 },
+          { t: "L", x: 20, y: 21 },
+          { t: "L", x: 14, y: 17 },
+          { t: "L", x: 12, y: 23 },
+          { t: "L", x: 10, y: 17 },
+          { t: "L", x: 4, y: 21 },
+          { t: "L", x: 7, y: 15 },
+          { t: "L", x: 1, y: 12 },
+          { t: "L", x: 7, y: 12 },
+          { t: "L", x: 4, y: 5 },
+          { t: "L", x: 10, y: 7 },
+          { t: "Z" },
+        ],
+      },
+    ],
+  },
   // Mystery — bold question mark.
   random: {
     viewBox: ICON_VIEWBOX,
@@ -379,6 +408,19 @@ export const POWER_UP_ORB_BODIES: Record<PowerUpType, OrbBodyGeometry> = {
       { t: "L", x: -0.72, y: 1 },
       { t: "L", x: -0.22, y: 0.12 },
       { t: "L", x: -0.22, y: -0.12 },
+      { t: "Z" },
+    ],
+  },
+  "freeze-lava": {
+    fill: ORB_BODY_FILL,
+    strokeWidthFrac: ORB_STROKE_WIDTH_FRAC,
+    commands: [
+      { t: "M", x: 0, y: -1 },
+      { t: "L", x: 0.87, y: -0.5 },
+      { t: "L", x: 0.87, y: 0.5 },
+      { t: "L", x: 0, y: 1 },
+      { t: "L", x: -0.87, y: 0.5 },
+      { t: "L", x: -0.87, y: -0.5 },
       { t: "Z" },
     ],
   },

@@ -331,6 +331,9 @@ export function drawActivePowerUpEffect(
     case "slow-lava":
       drawSlowLavaEffect(ctx, px, pyScreen - 1.25 * s, s, pulse, tick, spec, reducedMotion);
       break;
+    case "freeze-lava":
+      drawFreezeLavaEffect(ctx, px, pyScreen - 1.25 * s, s, pulse, tick, spec, reducedMotion);
+      break;
     case "random":
       break;
   }
@@ -554,6 +557,49 @@ function drawSlowLavaEffect(
   ctx.lineWidth = Math.max(1.5, 0.16 * s);
   ctx.beginPath();
   ctx.ellipse(px, py, (1.02 + pulse * 0.12) * s, (1.68 + pulse * 0.1) * s, 0, 0, TAU);
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawFreezeLavaEffect(
+  ctx: CanvasRenderingContext2D,
+  px: number,
+  py: number,
+  s: number,
+  pulse: number,
+  tick: number,
+  spec: PowerUpSpec,
+  reducedMotion: boolean
+): void {
+  ctx.save();
+  ctx.strokeStyle = spec.color;
+
+  // Crystalline spikes radiating outward.
+  const spikeCount = 6;
+  const baseR = (1.1 + pulse * 0.15) * s;
+  for (let i = 0; i < spikeCount; i++) {
+    const angle = (i / spikeCount) * TAU + (reducedMotion ? 0 : tick * 0.03);
+    const tipR = baseR * (1.2 + pulse * 0.3);
+    ctx.globalAlpha = 0.45 + 0.3 * pulse;
+    ctx.lineWidth = Math.max(1.2, 0.1 * s);
+    ctx.beginPath();
+    ctx.moveTo(px + Math.cos(angle) * baseR * 0.5, py + Math.sin(angle) * baseR * 0.5);
+    ctx.lineTo(px + Math.cos(angle) * tipR, py + Math.sin(angle) * tipR);
+    ctx.stroke();
+  }
+
+  // Pulsing hexagonal ring.
+  ctx.globalAlpha = 0.3 + 0.45 * pulse;
+  ctx.lineWidth = Math.max(1.5, 0.14 * s);
+  ctx.beginPath();
+  for (let i = 0; i <= spikeCount; i++) {
+    const angle = (i / spikeCount) * TAU + (reducedMotion ? 0 : tick * 0.03);
+    const r = (1.15 + pulse * 0.1) * s;
+    const x = px + Math.cos(angle) * r;
+    const y = py + Math.sin(angle) * r;
+    if (i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  }
   ctx.stroke();
   ctx.restore();
 }

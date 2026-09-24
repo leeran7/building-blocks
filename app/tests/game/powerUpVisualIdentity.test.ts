@@ -186,23 +186,23 @@ describe("AC-8 orb fillText is label uppercase, never a former glyph", () => {
 });
 
 describe("AC-9 POWER_UP_ICON_GEOMETRY pairwise unique", () => {
-  it("imports the production catalog: size 7, pairwise deep-unequal", () => {
-    expect(Object.keys(POWER_UP_ICON_GEOMETRY)).toHaveLength(7);
+  it("imports the production catalog: size 8, pairwise deep-unequal", () => {
+    expect(Object.keys(POWER_UP_ICON_GEOMETRY)).toHaveLength(8);
     const serialized = new Set(
       POWER_UP_TYPES.map((type) => JSON.stringify(POWER_UP_ICON_GEOMETRY[type]))
     );
-    expect(serialized.size).toBe(7);
+    expect(serialized.size).toBe(8);
     assertPairwiseUnequal(POWER_UP_TYPES.map((type) => POWER_UP_ICON_GEOMETRY[type]));
   });
 });
 
 describe("AC-10 POWER_UP_ORB_BODIES pairwise unique, not a shared diamond", () => {
-  it("imports the production catalog: size 7, distinct bodies", () => {
-    expect(Object.keys(POWER_UP_ORB_BODIES)).toHaveLength(7);
+  it("imports the production catalog: size 8, distinct bodies", () => {
+    expect(Object.keys(POWER_UP_ORB_BODIES)).toHaveLength(8);
     const bodies = POWER_UP_TYPES.map((type) => POWER_UP_ORB_BODIES[type]);
-    expect(new Set(bodies).size).toBe(7);
+    expect(new Set(bodies).size).toBe(8);
     const serialized = new Set(bodies.map((body) => JSON.stringify(body)));
-    expect(serialized.size).toBe(7);
+    expect(serialized.size).toBe(8);
     assertPairwiseUnequal(bodies);
     const commandLengths = new Set(bodies.map((body) => body.commands.length));
     expect(commandLengths.size).toBeGreaterThan(1);
@@ -295,7 +295,7 @@ describe("AC-14 jetpack banner is not the concatenated glyph title", () => {
 });
 
 describe("AC-15 locked type set and hex colors", () => {
-  it("POWER_UP_TYPES is exactly the seven strings and colors match", () => {
+  it("POWER_UP_TYPES is exactly the eight strings and colors match", () => {
     expect(POWER_UP_TYPES).toEqual([
       "rapid-climb",
       "sprint-burst",
@@ -303,6 +303,7 @@ describe("AC-15 locked type set and hex colors", () => {
       "giant",
       "jetpack",
       "slow-lava",
+      "freeze-lava",
       "random",
     ]);
     expect(POWER_UP_SPECS["rapid-climb"].color).toBe("#00e5ff");
@@ -311,6 +312,7 @@ describe("AC-15 locked type set and hex colors", () => {
     expect(POWER_UP_SPECS.giant.color).toBe("#66ff33");
     expect(POWER_UP_SPECS.jetpack.color).toBe("#ff7a00");
     expect(POWER_UP_SPECS["slow-lava"].color).toBe("#ff2bd6");
+    expect(POWER_UP_SPECS["freeze-lava"].color).toBe("#00cfff");
     expect(POWER_UP_SPECS.random.color).toBe("#ffffff");
   });
 });
@@ -365,9 +367,9 @@ describe("AC-16 locked durations, fuel, and cooldown", () => {
 
 describe("AC-17 decorative SVGs unnamed", () => {
   it("HUD, guide, orb, and banner stay on live types with hidden marks", () => {
-    expect(POWER_UP_TYPES).toHaveLength(7);
+    expect(POWER_UP_TYPES).toHaveLength(8);
     const hud = renderHudWithActive(allActiveEntries(), 0);
-    expect(dataPowerUpTypes(hud)).toHaveLength(7);
+    expect(dataPowerUpTypes(hud)).toHaveLength(8);
     expect(everySvgIsDecorative(hud)).toBe(true);
     for (const chip of hudChips(hud)) {
       expect(chip.ariaLabel.toLowerCase()).not.toContain("svg");
@@ -375,7 +377,7 @@ describe("AC-17 decorative SVGs unnamed", () => {
     }
 
     const guide = renderGuide();
-    expect(dataPowerUpTypes(guide)).toHaveLength(7);
+    expect(dataPowerUpTypes(guide)).toHaveLength(8);
     expect(everySvgIsDecorative(guide)).toBe(true);
 
     for (const type of POWER_UP_TYPES) {
@@ -405,6 +407,7 @@ const LOCKED_COLORS: Record<PowerUpType, string> = {
   giant: "#66ff33",
   jetpack: "#ff7a00",
   "slow-lava": "#ff2bd6",
+  "freeze-lava": "#00cfff",
   random: "#ffffff",
 };
 

@@ -27,6 +27,7 @@ export type PowerUpType =
   | "giant"
   | "jetpack"
   | "slow-lava"
+  | "freeze-lava"
   | "random";
 
 /**

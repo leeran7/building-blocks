@@ -268,7 +268,8 @@ export function paintClimbFrame(
   }
 
   const lavaSlowed = player
-    ? isPowerUpActive(player, "slow-lava", state.tick)
+    ? isPowerUpActive(player, "slow-lava", state.tick) ||
+      isPowerUpActive(player, "freeze-lava", state.tick)
     : false;
   const hazScreenY = sy(state.hazardY);
   if (hazScreenY < height) {
