@@ -129,7 +129,7 @@ export const TIME_SLOW_COOLDOWN_SECONDS = 40;
 /** Seconds before harden-lava may be used again. */
 export const HARDEN_LAVA_COOLDOWN_SECONDS = 55;
 /** Harden-lava duration in seconds — short burst where lava turns to rock. */
-export const HARDEN_LAVA_DURATION_SECONDS = 5;
+export const HARDEN_LAVA_DURATION_SECONDS = 7;
 
 /** Jetpack fuel budget in simulation ticks. */
 export function jetpackFuelTicks(): number {

@@ -410,12 +410,16 @@ export function paintClimbFrame(
     ctx.font = _fontHud;
     ctx.textAlign = "left";
     ctx.fillText(formatAltitude(playerY, 1), 10 * ui, hudTop + 22 * ui);
-    ctx.fillStyle = lavaSlowed ? LAVA_SLOWED : TEXT_SECONDARY;
+    ctx.fillStyle = hardenActive
+      ? POWER_UP_SPECS["harden-lava"].color
+      : lavaSlowed ? LAVA_SLOWED : TEXT_SECONDARY;
     ctx.textAlign = "right";
     ctx.fillText(
-      lavaSlowed
-        ? `lava ${formatAltitude(state.hazardY, 1)} slowed`
-        : `lava ${formatAltitude(state.hazardY, 1)}`,
+      hardenActive
+        ? `lava ${formatAltitude(state.hazardY, 1)} hardened`
+        : lavaSlowed
+          ? `lava ${formatAltitude(state.hazardY, 1)} slowed`
+          : `lava ${formatAltitude(state.hazardY, 1)}`,
       width - 10 * ui,
       hudTop + 22 * ui
     );
