@@ -312,7 +312,7 @@ describe("AC-15 locked type set and hex colors", () => {
     expect(POWER_UP_SPECS.giant.color).toBe("#66ff33");
     expect(POWER_UP_SPECS.jetpack.color).toBe("#ff7a00");
     expect(POWER_UP_SPECS["slow-lava"].color).toBe("#ff2bd6");
-    expect(POWER_UP_SPECS["harden-lava"].color).toBe("#8b7355");
+    expect(POWER_UP_SPECS["harden-lava"].color).toBe("#9a8265");
     expect(POWER_UP_SPECS.random.color).toBe("#ffffff");
   });
 });
@@ -407,7 +407,7 @@ const LOCKED_COLORS: Record<PowerUpType, string> = {
   giant: "#66ff33",
   jetpack: "#ff7a00",
   "slow-lava": "#ff2bd6",
-  "harden-lava": "#8b7355",
+  "harden-lava": "#9a8265",
   random: "#ffffff",
 };
 

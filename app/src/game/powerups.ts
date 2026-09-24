@@ -236,7 +236,7 @@ export const POWER_UP_SPECS: Record<PowerUpType, PowerUpSpec> = {
     type: "harden-lava",
     label: "Harden Lava",
     description: `Lava turns to rock for ${HARDEN_LAVA_DURATION_SECONDS}s`,
-    color: "#8b7355",
+    color: "#9a8265",
     durationSeconds: HARDEN_LAVA_DURATION_SECONDS,
     cooldownSeconds: HARDEN_LAVA_COOLDOWN_SECONDS,
     weight: 5,

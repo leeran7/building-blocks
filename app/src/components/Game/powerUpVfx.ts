@@ -572,35 +572,67 @@ function drawHardenLavaEffect(
   reducedMotion: boolean
 ): void {
   ctx.save();
-  ctx.strokeStyle = spec.color;
 
-  // Crystalline spikes radiating outward.
-  const spikeCount = 6;
-  const baseR = (1.1 + pulse * 0.15) * s;
-  for (let i = 0; i < spikeCount; i++) {
-    const angle = (i / spikeCount) * TAU + (reducedMotion ? 0 : tick * 0.03);
-    const tipR = baseR * (1.2 + pulse * 0.3);
-    ctx.globalAlpha = 0.45 + 0.3 * pulse;
-    ctx.lineWidth = Math.max(1.2, 0.1 * s);
+  const shardCount = 5;
+  const orbitR = (1.2 + pulse * 0.12) * s;
+  const spin = reducedMotion ? 0 : tick * 0.02;
+
+  // Orbiting rock shards with glowing lava edges.
+  for (let i = 0; i < shardCount; i++) {
+    const angle = (i / shardCount) * TAU + spin;
+    const wobble = reducedMotion ? 0 : Math.sin(tick * 0.06 + i * 1.8) * 0.08 * s;
+    const cx = px + Math.cos(angle) * (orbitR + wobble);
+    const cy = py + Math.sin(angle) * (orbitR + wobble);
+    const shardSize = (0.18 + 0.06 * ((i * 37) % 7) / 7) * s;
+    const rot = angle * 1.5 + (reducedMotion ? 0 : tick * 0.04);
+
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(rot);
+
+    // Lava glow behind the shard.
+    ctx.globalAlpha = (0.3 + 0.35 * pulse);
+    ctx.fillStyle = "#ff5500";
     ctx.beginPath();
-    ctx.moveTo(px + Math.cos(angle) * baseR * 0.5, py + Math.sin(angle) * baseR * 0.5);
-    ctx.lineTo(px + Math.cos(angle) * tipR, py + Math.sin(angle) * tipR);
-    ctx.stroke();
+    ctx.moveTo(-shardSize * 1.3, -shardSize * 0.8);
+    ctx.lineTo(shardSize * 0.5, -shardSize * 1.3);
+    ctx.lineTo(shardSize * 1.3, shardSize * 0.3);
+    ctx.lineTo(-shardSize * 0.3, shardSize * 1.1);
+    ctx.closePath();
+    ctx.fill();
+
+    // Rock shard body.
+    ctx.globalAlpha = 0.7 + 0.2 * pulse;
+    ctx.fillStyle = spec.color;
+    ctx.beginPath();
+    ctx.moveTo(-shardSize, -shardSize * 0.6);
+    ctx.lineTo(shardSize * 0.4, -shardSize);
+    ctx.lineTo(shardSize, shardSize * 0.2);
+    ctx.lineTo(-shardSize * 0.2, shardSize * 0.8);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.restore();
   }
 
-  // Pulsing hexagonal ring.
-  ctx.globalAlpha = 0.3 + 0.45 * pulse;
-  ctx.lineWidth = Math.max(1.5, 0.14 * s);
+  // Inner pulsing ring — cracked rock border around the climber.
+  const innerR = (0.85 + pulse * 0.08) * s;
+  const segments = 8;
+  ctx.strokeStyle = spec.color;
+  ctx.lineWidth = Math.max(1.5, 0.12 * s);
+  ctx.globalAlpha = 0.35 + 0.3 * pulse;
   ctx.beginPath();
-  for (let i = 0; i <= spikeCount; i++) {
-    const angle = (i / spikeCount) * TAU + (reducedMotion ? 0 : tick * 0.03);
-    const r = (1.15 + pulse * 0.1) * s;
-    const x = px + Math.cos(angle) * r;
-    const y = py + Math.sin(angle) * r;
+  for (let i = 0; i <= segments; i++) {
+    const a = (i / segments) * TAU + spin * 0.5;
+    const jitter = reducedMotion ? 0 : ((i * 53) % 7) / 7 * 0.1 * s;
+    const r = innerR + jitter;
+    const x = px + Math.cos(a) * r;
+    const y = py + Math.sin(a) * r;
     if (i === 0) ctx.moveTo(x, y);
     else ctx.lineTo(x, y);
   }
   ctx.stroke();
+
   ctx.restore();
 }
 
