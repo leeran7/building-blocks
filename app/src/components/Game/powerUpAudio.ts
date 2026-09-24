@@ -93,6 +93,20 @@ const ACTIVATE: Record<PowerUpType, Note[]> = {
     { at: 0, freq: 660, to: 300, dur: 0.34, wave: "sine" },
     { at: 0.02, freq: 655, to: 297, dur: 0.34, wave: "sine", gain: 0.5 },
   ],
+  // Deep rumble then crack — lava hardening to rock.
+  "harden-lava": [
+    { at: 0, freq: 80, to: 40, dur: 0.3, wave: "sawtooth", gain: 0.5 },
+    { at: 0.02, freq: 90, to: 45, dur: 0.28, wave: "sawtooth", gain: 0.3 },
+    { at: 0.12, freq: 600, dur: 0.06, wave: "square", gain: 0.4 },
+    { at: 0.2, freq: 200, to: 80, dur: 0.2, wave: "triangle", gain: 0.35 },
+  ],
+  // Playful ascending arpeggio — mystery reveal.
+  random: [
+    { at: 0, freq: 440, dur: 0.06, wave: "triangle", gain: 0.5 },
+    { at: 0.06, freq: 554, dur: 0.06, wave: "triangle", gain: 0.5 },
+    { at: 0.12, freq: 659, dur: 0.06, wave: "triangle", gain: 0.5 },
+    { at: 0.18, freq: 880, dur: 0.14, wave: "sine", gain: 0.7 },
+  ],
 };
 
 /** Pickup blips share one shape, pitched per type so each orb still sounds distinct. */
@@ -103,6 +117,8 @@ const PICKUP_PITCH: Record<PowerUpType, number> = {
   giant: 320,
   jetpack: 420,
   "slow-lava": 620,
+  "harden-lava": 220,
+  random: 560,
 };
 
 function pickupMotif(type: PowerUpType): Note[] {

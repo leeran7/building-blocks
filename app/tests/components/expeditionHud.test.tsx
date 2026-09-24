@@ -21,10 +21,10 @@ describe("live expedition instruments", () => {
     expect(html).toMatch(/>FT<|>ft</);
   });
 
-  it("derives clearance from the player's position and hazard, preserving negative values", () => {
+  it("derives clearance from the player's position and hazard, clamping to zero", () => {
     const p = player();
     p.y = 57.25;
-    for (const [hazardY, expected] of [[12, "45.3"], [60, "-2.8"]] as const) {
+    for (const [hazardY, expected] of [[12, "45.3"], [60, "0.0"]] as const) {
       const html = renderToStaticMarkup(createElement(ExpeditionHud, { player: p, hazardY, tick: 0, lavaPhase: "surge", lavaPhaseProgress: 0.5, muted: false, onToggleMute: noop, announcement: "", runId: 1 }));
       expect(html).toContain(`Lava clearance ${expected} feet`);
       expect(html).toContain("Height 57.3 feet");

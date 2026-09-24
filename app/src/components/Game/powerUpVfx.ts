@@ -83,7 +83,9 @@ export function drawPowerUpOrb(
   pu: PowerUpPickup,
   tick: number,
   reducedMotion: boolean,
-  cooling: boolean = false
+  cooling: boolean = false,
+  nextFloorScreenY?: number,
+  canvasWidth?: number
 ): void {
   const spec = POWER_UP_SPECS[pu.type];
   const phase = tick * 0.08 + pu.floorIndex * 1.7;
@@ -145,24 +147,51 @@ export function drawPowerUpOrb(
   drawPowerUpIcon(ctx, pu.type, 0, 0, r * ORB_ICON_SIZE_FRAC, spec.color);
   ctx.restore();
 
-  // Name plate — bold label on a faint dark backing so it reads over the
-  // molten backdrop. Sized off the orb radius (not `ui`) so it stays a small
-  // world-space tag rather than blowing up into a HUD-scale button.
+  // Name plate — drawn on a vertical stem above the orb, midway between the
+  // current floor and the next floor so it stays visible even when the floor
+  // has a gap underneath. Falls back to a fixed offset above the orb when next
+  // floor screen-Y is not available.
   const label = spec.label.toUpperCase();
   const labelPx = Math.round(Math.max(8, Math.min(9 * ui, r)));
   ctx.font = `bold ${labelPx}px monospace`;
   const labelW = ctx.measureText(label).width;
-  const plateY = cy + r * 1.95;
   const padX = labelPx * 0.5;
   const plateH = labelPx * 1.5;
+
+  let stemTop = nextFloorScreenY != null
+    ? cy + (nextFloorScreenY - cy) / 2
+    : cy - r * 3.5;
+  const stemBottom = cy - r * 1.6;
+
+  const plateY0 = stemTop + labelPx * 0.35;
+  const plateTop = plateY0 - plateH * 0.72;
+  if (plateTop < 0) stemTop -= plateTop;
+
+  const plateW = labelW + padX * 2;
+  let labelCx = cx;
+  if (canvasWidth != null) {
+    const halfW = plateW / 2;
+    if (labelCx - halfW < 0) labelCx = halfW;
+    else if (labelCx + halfW > canvasWidth) labelCx = canvasWidth - halfW;
+  }
+
+  ctx.globalAlpha = 0.35 * dim;
+  ctx.strokeStyle = spec.color;
+  ctx.lineWidth = Math.max(1, ui * 0.8);
+  ctx.beginPath();
+  ctx.moveTo(cx, stemBottom);
+  ctx.lineTo(labelCx, stemTop);
+  ctx.stroke();
+
+  const plateY = stemTop + labelPx * 0.35;
   ctx.globalAlpha = 0.6 * dim;
   ctx.fillStyle = "#0a0a0c";
   ctx.beginPath();
   roundRect(
     ctx,
-    cx - labelW / 2 - padX,
+    labelCx - labelW / 2 - padX,
     plateY - plateH * 0.72,
-    labelW + padX * 2,
+    plateW,
     plateH,
     plateH * 0.3
   );
@@ -171,7 +200,7 @@ export function drawPowerUpOrb(
   ctx.fillStyle = spec.color;
   ctx.textAlign = "center";
   ctx.textBaseline = "alphabetic";
-  ctx.fillText(label, cx, plateY);
+  ctx.fillText(label, labelCx, plateY);
 
   ctx.restore();
   ctx.textAlign = "left";
@@ -314,6 +343,11 @@ export function drawActivePowerUpEffect(
       break;
     case "slow-lava":
       drawSlowLavaEffect(ctx, px, pyScreen - 1.25 * s, s, pulse, tick, spec, reducedMotion);
+      break;
+    case "harden-lava":
+      drawHardenLavaEffect(ctx, px, pyScreen - 1.25 * s, s, pulse, tick, spec, reducedMotion);
+      break;
+    case "random":
       break;
   }
 }
@@ -537,6 +571,81 @@ function drawSlowLavaEffect(
   ctx.beginPath();
   ctx.ellipse(px, py, (1.02 + pulse * 0.12) * s, (1.68 + pulse * 0.1) * s, 0, 0, TAU);
   ctx.stroke();
+  ctx.restore();
+}
+
+function drawHardenLavaEffect(
+  ctx: CanvasRenderingContext2D,
+  px: number,
+  py: number,
+  s: number,
+  pulse: number,
+  tick: number,
+  spec: PowerUpSpec,
+  reducedMotion: boolean
+): void {
+  ctx.save();
+
+  const shardCount = 5;
+  const orbitR = (1.2 + pulse * 0.12) * s;
+  const spin = reducedMotion ? 0 : tick * 0.02;
+
+  // Orbiting rock shards with glowing lava edges.
+  for (let i = 0; i < shardCount; i++) {
+    const angle = (i / shardCount) * TAU + spin;
+    const wobble = reducedMotion ? 0 : Math.sin(tick * 0.06 + i * 1.8) * 0.08 * s;
+    const cx = px + Math.cos(angle) * (orbitR + wobble);
+    const cy = py + Math.sin(angle) * (orbitR + wobble);
+    const shardSize = (0.18 + 0.06 * ((i * 37) % 7) / 7) * s;
+    const rot = angle * 1.5 + (reducedMotion ? 0 : tick * 0.04);
+
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(rot);
+
+    // Lava glow behind the shard.
+    ctx.globalAlpha = (0.3 + 0.35 * pulse);
+    ctx.fillStyle = "#ff5500";
+    ctx.beginPath();
+    ctx.moveTo(-shardSize * 1.3, -shardSize * 0.8);
+    ctx.lineTo(shardSize * 0.5, -shardSize * 1.3);
+    ctx.lineTo(shardSize * 1.3, shardSize * 0.3);
+    ctx.lineTo(-shardSize * 0.3, shardSize * 1.1);
+    ctx.closePath();
+    ctx.fill();
+
+    // Rock shard body.
+    ctx.globalAlpha = 0.7 + 0.2 * pulse;
+    ctx.fillStyle = spec.color;
+    ctx.beginPath();
+    ctx.moveTo(-shardSize, -shardSize * 0.6);
+    ctx.lineTo(shardSize * 0.4, -shardSize);
+    ctx.lineTo(shardSize, shardSize * 0.2);
+    ctx.lineTo(-shardSize * 0.2, shardSize * 0.8);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.restore();
+  }
+
+  // Inner pulsing ring — cracked rock border around the climber.
+  const innerR = (0.85 + pulse * 0.08) * s;
+  const segments = 8;
+  ctx.strokeStyle = spec.color;
+  ctx.lineWidth = Math.max(1.5, 0.12 * s);
+  ctx.globalAlpha = 0.35 + 0.3 * pulse;
+  ctx.beginPath();
+  for (let i = 0; i <= segments; i++) {
+    const a = (i / segments) * TAU + spin * 0.5;
+    const jitter = reducedMotion ? 0 : ((i * 53) % 7) / 7 * 0.1 * s;
+    const r = innerR + jitter;
+    const x = px + Math.cos(a) * r;
+    const y = py + Math.sin(a) * r;
+    if (i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  }
+  ctx.stroke();
+
   ctx.restore();
 }
 

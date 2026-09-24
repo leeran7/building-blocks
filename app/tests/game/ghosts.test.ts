@@ -20,6 +20,7 @@ function snap(over: Partial<RealtimeSnapshotMessage> & { slot: number; tick: num
     status: "climbing",
     peakY: 0,
     slowLavaActive: false,
+    hardenLavaActive: false,
     ...over,
   };
 }
