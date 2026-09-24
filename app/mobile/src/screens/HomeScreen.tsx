@@ -7,29 +7,14 @@ import { useHubPrefetch } from "../contexts/AppDataContext";
 import { dailySummary, msUntilReset, formatReset, type DailySummary } from "../lib/daily";
 import { useMatchmakingQueue } from "../hooks/useMatchmakingQueue";
 
-/**
- * Home = the game title screen. Play-first and hub-centric: a dominant, molten
- * PLAY button drops straight into a fresh random climb (no level select), with
- * the player's live standing underneath and the secondary destinations as
- * HUD-style icon buttons. Deliberately NOT a bottom-tab content layout — this
- * reads as a game main menu.
- */
 export function HomeScreen() {
   const navigate = useNavigate();
 
-  // Warm the shared cache from the landing screen so Profile / Ranks are instant
-  // on first visit; the returned dashboard slice also feeds the standing line,
-  // deduping what used to be a separate Home /api/dashboard fetch.
   const standing = useHubPrefetch().data?.freeClimb ?? null;
 
-  // Daily challenge state — refreshes each time Home mounts (after a run) and
-  // the reset countdown re-renders on a slow tick.
   const [daily, setDaily] = useState<DailySummary>(() => dailySummary());
   const [resetMs, setResetMs] = useState<number>(() => msUntilReset());
   useEffect(() => {
-    // Recompute the whole summary (not just the countdown) so the card doesn't
-    // show a stale streak / "resets in" across a local-midnight rollover while
-    // the app sits foregrounded, and refresh on return-to-foreground.
     const refresh = () => {
       setDaily(dailySummary());
       setResetMs(msUntilReset());
@@ -56,17 +41,12 @@ export function HomeScreen() {
     navigate("/climb?daily=1");
   };
 
-  // Challenge = friends, in-app challenges, and a share-link fallback, all on
-  // the dedicated /challenge screen (see ChallengeScreen).
   const openChallenge = useCallback(() => {
     navigate("/challenge");
   }, [navigate]);
 
-  // Quick Play = random matchmaking queue. The hook encapsulates POST (join),
-  // GET polling, DELETE (cancel), and cleanup on unmount.
   const queue = useMatchmakingQueue();
 
-  // Navigate to the duel room as soon as a match is found.
   useEffect(() => {
     if (queue.state.status === "matched" && queue.state.duelId) {
       navigate(`/duel/${queue.state.duelId}`);
@@ -77,10 +57,9 @@ export function HomeScreen() {
 
   return (
     <main className="flex h-full flex-col pt-[calc(env(safe-area-inset-top)+3.5rem)]">
-      {/* Game content — flex-1 keeps BottomNav pinned at the bottom */}
-      <div className="flex flex-1 flex-col items-center justify-center gap-9 px-6 text-center">
-        {/* Wordmark */}
-        <div className="mt-1 flex flex-col items-center gap-2">
+      <div className="flex flex-1 flex-col px-6 overflow-y-auto" style={{ overscrollBehavior: "contain", WebkitOverflowScrolling: "touch" }}>
+        {/* Wordmark — top-aligned */}
+        <div className="flex flex-col items-center gap-2 pt-2 text-center">
           <LogoMark size={48} card className="mb-1" />
           <span className="font-mono text-[11px] uppercase tracking-[0.5em] text-text-muted">
             endless&nbsp;climb
@@ -88,12 +67,15 @@ export function HomeScreen() {
           <h1 className="hm-wordmark font-display text-[2.75rem] font-black uppercase leading-none tracking-tight text-text-primary">
             Doom<span className="text-signal">stack</span>
           </h1>
-          <span className="h-px w-16 bg-border-strong" />
-          <StandingLine standing={standing} />
         </div>
 
-        {/* PLAY = filled-signal hero (the one primary action) + secondary modes */}
-        <div className="flex w-full flex-col items-center gap-3">
+        {/* Spacer — lets the volcanic backdrop show through; BestCard floats here */}
+        <div className="relative flex-1 min-h-[120px]">
+          <BestCard standing={standing} />
+        </div>
+
+        {/* Action cards — anchored at the bottom */}
+        <div className="flex w-full flex-col gap-3 pb-4">
           <button
             onClick={play}
             aria-label="Play"
@@ -107,7 +89,7 @@ export function HomeScreen() {
                 Play
               </span>
               <span className="block font-mono text-[11px] uppercase tracking-[0.06em] text-void/70">
-                Endless quick climb
+                Endless Climb
               </span>
             </span>
             <ChevronRight className="text-void/60" />
@@ -115,13 +97,14 @@ export function HomeScreen() {
 
           <div className="flex w-full flex-col gap-2.5">
             <DailyCard daily={daily} resetMs={resetMs} onPress={playDaily} />
-            <QuickPlayCard onPress={queue.join} />
-            <ChallengeCard onPress={openChallenge} />
+            <div className="flex w-full flex-row gap-2.5">
+              <QuickPlayCard onPress={queue.join} />
+              <ChallengeCard onPress={openChallenge} />
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Searching overlay — full-screen takeover while in the matchmaking queue */}
       {queueActive && (
         <SearchingOverlay
           status={queue.state.status}
@@ -141,41 +124,44 @@ export function HomeScreen() {
   );
 }
 
-function StandingLine({ standing }: { standing: { peakY: number; rank: number } | null }) {
-  if (standing) {
-    return (
-      <p
-        aria-live="polite"
-        className="flex items-center gap-2.5 font-mono text-[11px] uppercase tracking-[0.2em] text-text-secondary"
-      >
-        <span>
-          Best{" "}
-          <span className="tabular-nums text-text-primary">
-            {standing.peakY.toLocaleString()}{ALTITUDE_UNIT}
-          </span>
-        </span>
-        <span className="h-1 w-1 rounded-full bg-border-strong" />
-        <span className="tabular-nums text-signal">#{standing.rank}</span>
-      </p>
-    );
-  }
-  // No climbs yet (or still loading).
+function BestCard({ standing }: { standing: { peakY: number; rank: number } | null }) {
+  if (!standing) return null;
+
   return (
-    <p
+    <div
       aria-live="polite"
-      className="font-mono text-[11px] uppercase tracking-[0.2em] text-text-secondary"
+      className="absolute right-0 top-1/2 -translate-y-1/2 flex flex-col items-end rounded-2xl border border-border-subtle bg-surface/70 px-4 py-3 backdrop-blur-md"
     >
-      Your first climb awaits
-    </p>
+      <span className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.2em] text-text-muted">
+        <TrophyGlyph />
+        Best
+      </span>
+      <span className="font-display text-xl font-black tabular-nums leading-tight text-text-primary">
+        {standing.peakY.toLocaleString()}
+        <span className="ml-0.5 text-sm font-bold text-text-secondary">
+          {ALTITUDE_UNIT.toUpperCase()}
+        </span>
+      </span>
+      <span className="font-mono text-sm font-bold tabular-nums text-signal">
+        #{standing.rank}
+      </span>
+    </div>
   );
 }
 
-/**
- * Generic game-mode row on the home hub. Every secondary mode (Daily Climb now;
- * 1v1 Duel later) renders through this one card so they share an identical
- * language — a tinted icon chip, title + optional badge, subtitle, and a
- * trailing affordance. Adding a mode is a single <ModeCard/> with no new layout.
- */
+function TrophyGlyph() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-text-muted" aria-hidden>
+      <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6" />
+      <path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18" />
+      <path d="M4 22h16" />
+      <path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20 7 22" />
+      <path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20 17 22" />
+      <path d="M18 2H6v7a6 6 0 0 0 12 0V2Z" />
+    </svg>
+  );
+}
+
 type ModeTint = "ember" | "signal";
 
 function ModeCard({
@@ -187,6 +173,7 @@ function ModeCard({
   trailing,
   onPress,
   ariaLabel,
+  compact,
 }: {
   icon: React.ReactNode;
   tint: ModeTint;
@@ -196,6 +183,7 @@ function ModeCard({
   trailing?: React.ReactNode;
   onPress: () => void;
   ariaLabel?: string;
+  compact?: boolean;
 }) {
   const chip =
     tint === "ember"
@@ -205,9 +193,15 @@ function ModeCard({
     <button
       onClick={onPress}
       aria-label={ariaLabel ?? title}
-      className="flex w-full items-center gap-3 rounded-2xl border border-border-subtle bg-surface/70 px-4 py-3.5 text-left transition-transform active:scale-[0.98]"
+      className={`flex items-center rounded-2xl border border-border-subtle bg-surface/70 text-left transition-transform active:scale-[0.98] ${
+        compact
+          ? "flex-1 gap-2.5 px-3 py-3"
+          : "w-full gap-3 px-4 py-3.5"
+      }`}
     >
-      <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border ${chip}`}>
+      <span className={`flex shrink-0 items-center justify-center border ${chip} ${
+        compact ? "h-9 w-9 rounded-lg" : "h-11 w-11 rounded-xl"
+      }`}>
         {icon}
       </span>
       <span className="min-w-0 flex-1">
@@ -217,7 +211,9 @@ function ModeCard({
           </span>
           {badge}
         </span>
-        <span className="mt-0.5 block font-mono text-[11px] uppercase tracking-[0.06em] text-text-secondary leading-snug whitespace-pre-line">
+        <span className={`mt-0.5 block font-mono uppercase tracking-[0.06em] text-text-secondary leading-snug whitespace-pre-line ${
+          compact ? "text-[10px]" : "text-[11px]"
+        }`}>
           {subtitle}
         </span>
       </span>
@@ -236,8 +232,8 @@ function DailyCard({
   onPress: () => void;
 }) {
   const sub = daily.playedToday
-    ? `Today ${daily.todayBest.toLocaleString()}${ALTITUDE_UNIT}\nMap changes ${formatReset(resetMs)}`
-    : `Same tower for everyone\nMap changes ${formatReset(resetMs)}`;
+    ? `Today ${daily.todayBest.toLocaleString()}${ALTITUDE_UNIT}\nResets in ${formatReset(resetMs)}`
+    : `Resets in ${formatReset(resetMs)}`;
   return (
     <ModeCard
       icon={<FlameIcon />}
@@ -246,11 +242,16 @@ function DailyCard({
       subtitle={sub}
       ariaLabel="Play the daily climb"
       badge={
-        daily.streak > 0 ? (
-          <span className="rounded-full bg-ember/15 px-1.5 py-0.5 font-mono text-[10px] font-bold tabular-nums text-ember">
-            {daily.streak}🔥
+        <>
+          <span className="rounded-full bg-signal/15 px-1.5 py-0.5 font-mono text-[10px] font-bold uppercase text-signal">
+            Daily
           </span>
-        ) : undefined
+          {daily.streak > 0 && (
+            <span className="rounded-full bg-ember/15 px-1.5 py-0.5 font-mono text-[10px] font-bold tabular-nums text-ember">
+              {daily.streak}🔥
+            </span>
+          )}
+        </>
       }
       trailing={undefined}
       onPress={onPress}
@@ -282,19 +283,15 @@ function ChevronRight({ className = "text-text-muted" }: { className?: string })
   );
 }
 
-/**
- * Challenge = add friends, send in-app challenges, and manage requests on the
- * dedicated Challenge screen. Deliberately NOT ranked/1v1-arena — no
- * matchmaking, stakes, or W/L in the app.
- */
 function ChallengeCard({ onPress }: { onPress: () => void }) {
   return (
     <ModeCard
       icon={<SwordsIcon />}
       tint="signal"
       title="Challenge"
-      subtitle="Add friends & race them"
+      subtitle="Race your friends"
       ariaLabel="Challenge a friend to a race"
+      compact
       onPress={onPress}
     />
   );
@@ -322,28 +319,20 @@ function BoltIcon() {
   );
 }
 
-/**
- * Quick Play = random 1v1 matchmaking. Tapping this joins the queue; the
- * SearchingOverlay takes over until a match is found or the player cancels.
- */
 function QuickPlayCard({ onPress }: { onPress: () => void }) {
   return (
     <ModeCard
       icon={<BoltIcon />}
       tint="signal"
       title="Quick Play"
-      subtitle="Find a random opponent"
+      subtitle="Find an opponent"
       ariaLabel="Quick play -- find a random opponent"
+      compact
       onPress={onPress}
     />
   );
 }
 
-/**
- * Full-screen overlay shown while the player is in the matchmaking queue.
- * Covers the home screen to prevent accidental navigation and reads as a
- * game loading / matchmaking screen.
- */
 function SearchingOverlay({
   status,
   errorMessage,
@@ -364,7 +353,6 @@ function SearchingOverlay({
       aria-modal="true"
       aria-label="Matchmaking"
     >
-      {/* Live region for screen readers */}
       <p className="sr-only" aria-live="assertive">
         {status === "joining" || status === "searching"
           ? "Searching for an opponent."
@@ -445,4 +433,3 @@ function SearchingOverlay({
     </div>
   );
 }
-
