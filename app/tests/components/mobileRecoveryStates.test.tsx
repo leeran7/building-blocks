@@ -379,6 +379,97 @@ describe("Ranks error and empty states", () => {
   });
 });
 
+const GLOBAL_PATH = "/api/climb/leaderboard";
+const FRIENDS_PATH = "/api/climb/leaderboard/friends";
+
+/** A real pull-to-refresh gesture on the real PullToRefresh (80px damped pull, over the 60px threshold). */
+async function pullToRefresh() {
+  const target = container.querySelector("header");
+  if (!target) throw new Error("header not found");
+  const touch = (kind: string, clientY: number) => {
+    const e = new Event(kind, { bubbles: true, cancelable: true });
+    Object.defineProperty(e, "touches", { value: [{ clientY }] });
+    target.dispatchEvent(e);
+  };
+  await act(async () => {
+    touch("touchstart", 100);
+    touch("touchmove", 300);
+  });
+  await act(async () => {
+    touch("touchend", 300);
+  });
+}
+
+describe.each([
+  { tab: "Global", failing: GLOBAL_PATH, other: FRIENDS_PATH, loaded: "Climber g1" },
+  { tab: "Friends", failing: FRIENDS_PATH, other: GLOBAL_PATH, loaded: "Climber f1" },
+])("Try again on the Ranks $tab board", ({ tab, failing, other, loaded }) => {
+  async function mountFailing() {
+    net.status[failing] = 500;
+    await mount(["/leaderboard"]);
+    if (tab === "Friends") await click(container.querySelector("#lb-tab-friends"));
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain("Couldn't load the leaderboard");
+  }
+
+  it("keeps focus through a retry that fails again, then moves it to the heading on success", async () => {
+    await mountFailing();
+    const otherBefore = calls(other).length;
+    const button = buttonByText("Try again");
+    button?.focus();
+    expect(document.activeElement).toBe(button);
+    const firstAlert = container.querySelector('[role="alert"]');
+
+    net.gate = failing;
+    await click(button);
+
+    // In flight: the same button, busy, still focused; no skeleton swapped in.
+    expect(button?.isConnected).toBe(true);
+    expect(button?.textContent).toBe("Retrying…");
+    expect(button?.getAttribute("aria-busy")).toBe("true");
+    expect(button?.hasAttribute("disabled")).toBe(false);
+    expect(document.activeElement).toBe(button);
+    expect(container.querySelector('[aria-label="Loading leaderboard"]')).toBeNull();
+
+    // A second tap while busy does not refetch.
+    await click(button);
+    expect(calls(failing)).toHaveLength(2);
+
+    await releaseHeld(500);
+
+    expect(button?.isConnected).toBe(true);
+    expect(button?.textContent).toBe("Try again");
+    expect(document.activeElement).toBe(button);
+    const secondAlert = container.querySelector('[role="alert"]');
+    expect(secondAlert?.textContent).toContain("Couldn't load the leaderboard");
+    expect(secondAlert).not.toBe(firstAlert);
+
+    net.status[failing] = 200;
+    await click(button);
+
+    expect(calls(failing)).toHaveLength(3);
+    expect(calls(other).length).toBe(otherBefore);
+    expect(container.textContent).toContain(loaded);
+    expect(buttonByText("Try again")).toBeUndefined();
+    const heading = container.querySelector("h1");
+    expect(heading?.textContent).toBe("Leaderboard");
+    expect(heading?.getAttribute("tabindex")).toBe("-1");
+    expect(document.activeElement).toBe(heading);
+  });
+
+  it("pull-to-refresh still reloads the failed board, and only that board", async () => {
+    await mountFailing();
+    const otherBefore = calls(other).length;
+    net.status[failing] = 200;
+
+    await pullToRefresh();
+
+    expect(calls(failing)).toHaveLength(2);
+    expect(calls(other).length).toBe(otherBefore);
+    expect(container.textContent).toContain(loaded);
+    expect(container.querySelector('[role="alert"]')).toBeNull();
+  });
+});
+
 describe("dashboard failure is not 'no record'", () => {
   it("Home's Best card shows a dash, not Unranked, when the dashboard fails", async () => {
     net.status["/api/dashboard"] = 500;

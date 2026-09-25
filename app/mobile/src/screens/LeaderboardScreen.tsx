@@ -1,4 +1,4 @@
-import { useCallback, useState, type KeyboardEvent, type ReactNode } from "react";
+import { useCallback, useRef, useState, type KeyboardEvent, type ReactNode, type Ref } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import {
@@ -9,11 +9,12 @@ import {
   type ClimberRank,
 } from "../contexts/AppDataContext";
 import { ALTITUDE_UNIT } from "@app/lib/units";
-import { Button, StateMessage } from "../components/ui";
+import { Button, RetryPanel, StateMessage } from "../components/ui";
 import { PullToRefresh } from "../components/PullToRefresh";
 import { tapLight } from "../lib/haptics";
 import { friendsFooter, standingFor, type Standing } from "../lib/leaderboard";
 import { HexAvatar } from "../components/HexAvatar";
+import { useRetry } from "../hooks/useRetry";
 
 type Medal = 1 | 2 | 3;
 
@@ -39,6 +40,7 @@ const SCOPES: Array<{ id: Scope; label: string }> = [
 type BoardView = "loading" | "error" | "empty" | "noFriendsYet" | "ready";
 
 const PANEL_ID = "lb-panel";
+const LOAD_FAILED_MESSAGE = "Couldn't load the leaderboard. Check your connection and try again.";
 const tabId = (scope: Scope) => `lb-tab-${scope}`;
 
 export function LeaderboardScreen() {
@@ -57,7 +59,22 @@ export function LeaderboardScreen() {
     [scope, refreshFriendsLeaderboard, refreshLeaderboard],
   );
 
+  // One per scope: a retry refreshes only its own board, and a Global retry
+  // still in flight never paints "Retrying…" over the Friends tab.
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  const globalRetry = useRetry(refreshLeaderboard, {
+    failed: global.error,
+    hasData: global.data !== null,
+    focusOnRecover: headingRef,
+  });
+  const friendsRetry = useRetry(refreshFriendsLeaderboard, {
+    failed: friends.error,
+    hasData: friends.data !== null,
+    focusOnRecover: headingRef,
+  });
+
   const active = scope === "friends" ? friends : global;
+  const activeRetry = scope === "friends" ? friendsRetry : globalRetry;
   const climbers = (scope === "friends" ? friends.data?.climbers : global.data) ?? [];
 
   const podium = climbers.slice(0, 3);
@@ -71,7 +88,8 @@ export function LeaderboardScreen() {
   const noFriendsYet =
     scope === "friends" && climbers.every((c) => c.userId === meId) && hiddenCount === 0 && notClimbedCount === 0;
 
-  const view: BoardView = active.error
+  // showError stays true through a retry so Try again (and its focus) stays put.
+  const view: BoardView = activeRetry.showError
     ? "error"
     : // Also covers the render before the Friends tab's first fetch starts,
       // which would otherwise flash the "Not ranked yet" banner.
@@ -86,21 +104,19 @@ export function LeaderboardScreen() {
   return (
     <main className="flex h-full flex-col">
       <PullToRefresh onRefresh={handleRefresh}>
-        <Header scope={scope} />
+        <Header scope={scope} headingRef={headingRef} />
         <ScopeTabs scope={scope} onChange={setScope} />
 
         <div role="tabpanel" id={PANEL_ID} aria-labelledby={tabId(scope)}>
           {view === "loading" && <LoadingState />}
 
           {view === "error" && (
-            <div className="flex flex-col items-center gap-4 pb-4">
-              <StateMessage>
-                Couldn&apos;t load the leaderboard. Check your connection and try again.
-              </StateMessage>
-              <Button variant="secondary" fullWidth={false} onPress={() => void handleRefresh()}>
-                Try again
-              </Button>
-            </div>
+            <RetryPanel
+              message={LOAD_FAILED_MESSAGE}
+              retrying={activeRetry.retrying}
+              attempts={activeRetry.attempts}
+              onRetry={() => void activeRetry.retry()}
+            />
           )}
 
           {view === "noFriendsYet" && <RaceFriendsCard />}
@@ -161,7 +177,7 @@ export function LeaderboardScreen() {
   );
 }
 
-function Header({ scope }: { scope: Scope }) {
+function Header({ scope, headingRef }: { scope: Scope; headingRef: Ref<HTMLHeadingElement> }) {
   return (
     <header className="flex flex-col items-center pb-5 pt-[calc(env(safe-area-inset-top)+1rem)] text-center">
       <div className="flex items-center gap-3">
@@ -173,7 +189,9 @@ function Header({ scope }: { scope: Scope }) {
       </div>
       <div className="mt-1.5 flex items-center gap-2">
         <h1
-          className="lb-title font-display font-black uppercase leading-none tracking-[-0.02em]"
+          ref={headingRef}
+          tabIndex={-1}
+          className="lb-title font-display font-black uppercase leading-none tracking-[-0.02em] focus:outline-none"
           style={{ fontSize: "clamp(1.9rem, 10.4vw, 2.6rem)" }}
         >
           Leaderboard
