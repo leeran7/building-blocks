@@ -49,6 +49,7 @@ interface Board {
 
 const net = vi.hoisted(() => ({
   friendsBoard: null as unknown,
+  global: null as unknown[] | null,
   incoming: [] as unknown[],
   /** When set, matching requests stay pending until the test settles them. */
   hold: null as null | "/api/climb/leaderboard/friends" | "/api/settings",
@@ -64,7 +65,7 @@ const apiFetch = vi.fn(async (path: string, _init?: RequestInit): Promise<Respon
     return new Promise<Response>((resolve) => net.held.push((body) => resolve(jsonResponse(body))));
   }
   if (path === "/api/climb/leaderboard/friends") return jsonResponse(net.friendsBoard);
-  if (path === "/api/climb/leaderboard") return jsonResponse({ climbers: GLOBAL });
+  if (path === "/api/climb/leaderboard") return jsonResponse({ climbers: net.global ?? GLOBAL });
   if (path === "/api/dashboard") return jsonResponse({ freeClimb: null });
   if (path === "/api/settings") return jsonResponse({ leaderboardConsent: true });
   if (path === "/api/friends/requests") return jsonResponse({ incoming: net.incoming, outgoing: [] });
@@ -174,6 +175,7 @@ beforeEach(() => {
   auth.uid = "me";
   apiFetch.mockClear();
   net.friendsBoard = null;
+  net.global = null;
   net.incoming = [];
   net.hold = null;
   net.held = [];
@@ -221,6 +223,8 @@ describe("Ranks screen Friends tab", () => {
     expect(c.textContent).not.toContain("Race your friends");
     expect(c.textContent).toContain("Not ranked yet");
     expect(c.textContent).toContain("2 friends haven't climbed yet · 1 hidden");
+    // No one to put on it, so no podium of empty "Open" pedestals either.
+    expect(c.querySelector('[aria-label="Top three climbers"]')).toBeNull();
   });
 
   it.each([
@@ -263,6 +267,17 @@ describe("Ranks screen Friends tab", () => {
 
     expect(c.textContent).toContain("Couldn't load the leaderboard");
     expect(c.textContent).not.toContain("Race your friends");
+  });
+});
+
+describe("Ranks screen Global tab", () => {
+  it("shows the no-climbs message, not a banner or podium, when nobody has climbed", async () => {
+    net.global = [];
+    const c = await mount(screen());
+
+    expect(c.textContent).toContain("No climbs yet. Be the first to the top.");
+    expect(c.textContent).not.toContain("Not ranked yet");
+    expect(c.querySelector('[aria-label="Top three climbers"]')).toBeNull();
   });
 });
 
