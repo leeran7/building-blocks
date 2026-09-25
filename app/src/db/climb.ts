@@ -11,6 +11,7 @@ import { cache } from "react";
 import { unstable_cache } from "next/cache";
 
 import { nanoid } from "nanoid";
+import { FriendshipStatus } from "@prisma/client";
 
 import { prisma } from "./client";
 import { climberDisplay } from "../lib/handle";
@@ -176,6 +177,78 @@ export const topFreeClimbers = unstable_cache(
   ["topFreeClimbers"],
   { revalidate: 60, tags: [LEADERBOARD_CACHE_TAG] }
 );
+
+/** Upper bound on friendships read for one friends board. */
+export const FRIENDS_BOARD_MAX_FRIENDS = 1000;
+
+export interface FriendsBoard {
+  climbers: ClimberRank[];
+  /** Accepted friends who have not consented to appear on leaderboards. */
+  hiddenCount: number;
+  /** Consented friends with no free-stack climb record yet. */
+  notClimbedCount: number;
+}
+
+/**
+ * The caller plus their accepted, leaderboard-consented friends, ranked like
+ * topFreeClimbers. The caller is always included (they may see their own
+ * record even when opted out of the public board); opted-out friends are only
+ * counted. Not wrapped in unstable_cache: keyed per user, so the cache would
+ * grow without bound — the mobile client's TTL covers repeat reads.
+ */
+export async function friendsLeaderboard(userId: string): Promise<FriendsBoard> {
+  const friendships = await prisma.friendship.findMany({
+    where: {
+      status: FriendshipStatus.accepted,
+      OR: [{ sender_id: userId }, { receiver_id: userId }],
+    },
+    select: { sender_id: true, receiver_id: true },
+    take: FRIENDS_BOARD_MAX_FRIENDS,
+  });
+
+  const friendIds = new Set<string>();
+  for (const f of friendships) {
+    const other = f.sender_id === userId ? f.receiver_id : f.sender_id;
+    if (other !== userId) friendIds.add(other);
+  }
+
+  const friends =
+    friendIds.size > 0
+      ? await prisma.user.findMany({
+          where: { id: { in: [...friendIds] } },
+          select: { id: true, leaderboard_consent_at: true },
+        })
+      : [];
+  const consentedIds = friends.filter((u) => u.leaderboard_consent_at !== null).map((u) => u.id);
+  const hiddenCount = friends.length - consentedIds.length;
+
+  const rows = await prisma.climbRecord.findMany({
+    where: { category_slug: FREE_STACK_SLUG, userId: { in: [userId, ...consentedIds] } },
+    orderBy: [{ peak_y: "desc" }, { updated_at: "asc" }],
+    select: {
+      userId: true,
+      peak_y: true,
+      wins: true,
+      user: { select: { display_name: true, username: true } },
+    },
+  });
+
+  const climbed = new Set(rows.map((r) => r.userId));
+  const notClimbedCount = consentedIds.filter((id) => !climbed.has(id)).length;
+
+  return {
+    climbers: rows.map((r, i) => ({
+      rank: i + 1,
+      userId: r.userId,
+      handle: climberDisplay(r.userId, r.user.display_name),
+      username: r.user.username,
+      peakY: r.peak_y,
+      wins: r.wins,
+    })),
+    hiddenCount,
+    notClimbedCount,
+  };
+}
 
 
 /** Aggregate free-climb stats for the landing: distinct climbers + best peak.
