@@ -6,6 +6,7 @@
 
 import { prisma } from "./client";
 import type { CreatorPlatform } from "@prisma/client";
+import { parseAvatarId } from "../lib/avatars";
 
 /** Saved social handles keyed by platform (only platforms the user has set). */
 export type SocialHandleMap = Partial<Record<CreatorPlatform, string>>;
@@ -15,13 +16,15 @@ export interface UserSettings {
   username: string | null;
   social: SocialHandleMap;
   leaderboardConsent: boolean;
+  /** Catalogue avatar id; null = initials badge (also for a retired id). */
+  avatarId: string | null;
 }
 
 export async function getUserSettings(userId: string): Promise<UserSettings> {
   const [user, social] = await Promise.all([
     prisma.user.findUnique({
       where: { id: userId },
-      select: { display_name: true, username: true, leaderboard_consent_at: true },
+      select: { display_name: true, username: true, leaderboard_consent_at: true, avatar_id: true },
     }),
     prisma.savedSocialHandle.findMany({
       where: { userId },
@@ -33,6 +36,7 @@ export async function getUserSettings(userId: string): Promise<UserSettings> {
     username: user?.username ?? null,
     social: Object.fromEntries(social.map((s) => [s.platform, s.handle])),
     leaderboardConsent: Boolean(user?.leaderboard_consent_at),
+    avatarId: parseAvatarId(user?.avatar_id),
   };
 }
 
@@ -88,10 +92,14 @@ export async function updateUserSocialHandles(
   if (ops.length) await prisma.$transaction(ops);
 }
 
-/** Update display name and/or leaderboard consent. */
+/**
+ * Update display name, leaderboard consent, and/or avatar. `avatarId` must
+ * be a catalogue id or null (clears); the settings route rejects anything else
+ * with a 400 before this runs, so the throw here is only a backstop.
+ */
 export async function updateUserSettings(
   userId: string,
-  input: { displayName?: string | null; leaderboardConsent?: boolean }
+  input: { displayName?: string | null; leaderboardConsent?: boolean; avatarId?: string | null }
 ): Promise<UserSettings> {
   const userPatch: Record<string, unknown> = {};
   if (input.displayName !== undefined) {
@@ -99,6 +107,12 @@ export async function updateUserSettings(
   }
   if (input.leaderboardConsent !== undefined) {
     userPatch.leaderboard_consent_at = input.leaderboardConsent ? new Date() : null;
+  }
+  if (input.avatarId !== undefined) {
+    if (input.avatarId !== null && parseAvatarId(input.avatarId) === null) {
+      throw new Error("updateUserSettings: avatarId is not a catalogue id");
+    }
+    userPatch.avatar_id = input.avatarId;
   }
   if (Object.keys(userPatch).length) {
     await prisma.user.update({

@@ -200,6 +200,7 @@ describe("FreeLeaderboard (AC-6)", () => {
         rank: 1,
         wins: 2,
         username: "apex",
+        avatarId: null,
       },
     ]);
     const el = await FreeLeaderboard();

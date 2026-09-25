@@ -18,6 +18,7 @@ interface FakeUser {
   display_name: string | null;
   username: string | null;
   leaderboard_consent_at: Date | null;
+  avatar_id: string | null;
 }
 interface FakeFriendship {
   sender_id: string;
@@ -87,9 +88,11 @@ const { friendshipFindMany, userFindMany, climbRecordFindMany } = vi.hoisted(() 
     async ({
       where,
       orderBy = [],
+      select,
     }: {
       where: { category_slug: string; userId: InFilter; user?: { leaderboard_consent_at?: { not: null } } };
       orderBy?: Array<Partial<Record<"peak_y" | "updated_at", "asc" | "desc">>>;
+      select: { user: { select: Partial<Record<"display_name" | "username" | "avatar_id", boolean>> } };
     }) => {
       const requiresConsent = where.user?.leaderboard_consent_at?.not === null;
       const consented = (id: string) => db.users.find((u) => u.id === id)?.leaderboard_consent_at != null;
@@ -103,7 +106,12 @@ const { friendshipFindMany, userFindMany, climbRecordFindMany } = vi.hoisted(() 
             userId: r.userId,
             peak_y: r.peak_y,
             wins: r.wins,
-            user: { display_name: u.display_name, username: u.username },
+            // Honour the query's user select so a dropped field reads as absent.
+            user: Object.fromEntries(
+              (["display_name", "username", "avatar_id"] as const)
+                .filter((k) => select.user.select[k])
+                .map((k) => [k, u[k]])
+            ),
           };
         });
     }
@@ -122,11 +130,12 @@ vi.mock("../../src/db/client", () => ({
 
 import { friendsLeaderboard } from "../../src/db/climb";
 import { FREE_STACK_SLUG } from "../../src/game/freeStack";
+import { AVATARS } from "../../src/lib/avatars";
 
 const CONSENTED = new Date("2026-01-01");
 
 function user(id: string, consent: boolean, name: string | null = id): FakeUser {
-  return { id, display_name: name, username: null, leaderboard_consent_at: consent ? CONSENTED : null };
+  return { id, display_name: name, username: null, leaderboard_consent_at: consent ? CONSENTED : null, avatar_id: null };
 }
 
 function record(userId: string, peak_y: number, updatedAt = "2026-02-01", slug = FREE_STACK_SLUG): FakeRecord {
@@ -208,7 +217,7 @@ describe("friendsLeaderboard", () => {
     const board = await friendsLeaderboard("me");
 
     expect(board).toEqual({
-      climbers: [{ rank: 1, userId: "me", handle: "me", username: null, peakY: 250, wins: 0 }],
+      climbers: [{ rank: 1, userId: "me", handle: "me", username: null, peakY: 250, wins: 0, avatarId: null }],
       hiddenCount: 0,
       notClimbedCount: 0,
     });
@@ -252,8 +261,34 @@ describe("friendsLeaderboard", () => {
 
     const board = await friendsLeaderboard("me");
 
-    expect(board.climbers[0]).toEqual({ rank: 1, userId: "aria", handle: "aria", username: "aria", peakY: 200, wins: 0 });
+    expect(board.climbers[0]).toEqual({
+      rank: 1,
+      userId: "aria",
+      handle: "aria",
+      username: "aria",
+      peakY: 200,
+      wins: 0,
+      avatarId: null,
+    });
     expect(board.climbers[1].handle).toBe("Golden Heron");
     expect(JSON.stringify(board)).not.toContain("leaderboard_consent_at");
+  });
+
+  it("carries each climber's catalogue avatar and nulls a retired one", async () => {
+    db.users = [
+      { ...user("me", true), avatar_id: AVATARS[0].id },
+      { ...user("aria", true), avatar_id: "retired-avatar" },
+      user("plain", true),
+    ];
+    db.friendships = [accepted("me", "aria"), accepted("plain", "me")];
+    db.records = [record("me", 300), record("aria", 200), record("plain", 100)];
+
+    const board = await friendsLeaderboard("me");
+
+    expect(board.climbers.map((c) => [c.userId, c.avatarId])).toEqual([
+      ["me", AVATARS[0].id],
+      ["aria", null],
+      ["plain", null],
+    ]);
   });
 });

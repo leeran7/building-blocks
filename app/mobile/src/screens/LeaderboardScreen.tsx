@@ -12,7 +12,8 @@ import { ALTITUDE_UNIT } from "@app/lib/units";
 import { Button, StateMessage } from "../components/ui";
 import { PullToRefresh } from "../components/PullToRefresh";
 import { tapLight } from "../lib/haptics";
-import { friendsFooter, initialsOf, standingFor, tintFor, type Standing } from "../lib/leaderboard";
+import { friendsFooter, standingFor, type Standing } from "../lib/leaderboard";
+import { HexAvatar } from "../components/HexAvatar";
 
 type Medal = 1 | 2 | 3;
 
@@ -145,7 +146,6 @@ export function LeaderboardScreen() {
           backdrop-filter: blur(14px);
           box-shadow: inset 0 0 0 1px rgba(203, 242, 77, 0.55), 0 0 28px -6px rgba(203, 242, 77, 0.35);
         }
-        .lb-hex { clip-path: polygon(25% 3%, 75% 3%, 100% 50%, 75% 97%, 25% 97%, 0 50%); }
       `}</style>
     </main>
   );
@@ -232,8 +232,8 @@ function RaceFriendsCard() {
   const navigate = useNavigate();
   return (
     <section className="lb-glass mb-4 flex flex-col items-center gap-3 rounded-3xl border border-white/10 px-6 py-8 text-center">
-      <span className="lb-hex flex h-14 w-14 items-center justify-center bg-signal/80 p-[2px]">
-        <span className="lb-hex flex h-full w-full items-center justify-center bg-[#15170f] text-signal">
+      <span className="hex flex h-14 w-14 items-center justify-center bg-signal/80 p-[2px]">
+        <span className="hex flex h-full w-full items-center justify-center bg-[#15170f] text-signal">
           <PeopleIcon size={24} />
         </span>
       </span>
@@ -278,10 +278,15 @@ function PodiumSpot({
       <div className="relative flex flex-col items-center">
         {isFirst && <CrownGlyph className="-mb-1 h-7 w-9 drop-shadow-[0_0_10px_rgba(245,184,46,0.6)]" />}
         {climber ? (
-          <Avatar climber={climber} size={isFirst ? 68 : 56} />
+          <HexAvatar
+            userId={climber.userId}
+            name={climber.handle}
+            avatarId={climber.avatarId}
+            size={isFirst ? 68 : 56}
+          />
         ) : (
           <span
-            className="lb-hex flex items-center justify-center bg-elevated/80 text-text-muted"
+            className="hex flex items-center justify-center bg-elevated/80 text-text-muted"
             style={{ width: isFirst ? 68 : 56, height: isFirst ? 68 : 56 }}
           >
             ?
@@ -353,8 +358,8 @@ function StandingBanner({ standing, meRowId }: { standing: Standing; meRowId: st
       </span>
       {!ranked && <ChevronRight />}
       {ranked && (
-        <span className="lb-hex flex h-11 w-11 shrink-0 items-center justify-center bg-signal/80 p-[2px]">
-          <span className="lb-hex flex h-full w-full items-center justify-center bg-[#15170f] text-signal">
+        <span className="hex flex h-11 w-11 shrink-0 items-center justify-center bg-signal/80 p-[2px]">
+          <span className="hex flex h-full w-full items-center justify-center bg-[#15170f] text-signal">
             <ChevronUp />
           </span>
         </span>
@@ -420,7 +425,7 @@ function RankTable({ climbers, meId }: { climbers: ClimberRank[]; meId: string |
               <span className="w-6 text-center font-display text-base font-black tabular-nums text-text-secondary">
                 {c.rank}
               </span>
-              <Avatar climber={c} size={38} />
+              <HexAvatar userId={c.userId} name={c.handle} avatarId={c.avatarId} size={38} />
               <span
                 className="min-w-0 flex-1 truncate font-display font-bold text-text-primary"
                 style={{ fontSize: "clamp(13px, calc(2.2vw + 6.5px), 15px)" }}
@@ -445,39 +450,16 @@ function RankTable({ climbers, meId }: { climbers: ClimberRank[]; meId: string |
   );
 }
 
-/** Hex badge with the climber's initials, tinted per player. */
-function Avatar({ climber, size }: { climber: ClimberRank; size: number }) {
-  const tint = tintFor(climber.userId);
-  return (
-    <span
-      aria-hidden
-      className="lb-hex flex shrink-0 items-center justify-center"
-      style={{ width: size, height: size, background: tint, padding: 2 }}
-    >
-      <span
-        className="lb-hex flex h-full w-full items-center justify-center font-display font-black"
-        style={{
-          background: `linear-gradient(160deg, color-mix(in srgb, ${tint} 38%, #17161c), #0f0e12 80%)`,
-          color: tint,
-          fontSize: size * 0.34,
-        }}
-      >
-        {initialsOf(climber.handle)}
-      </span>
-    </span>
-  );
-}
-
 function MedalBadge({ place, className = "" }: { place: Medal; className?: string }) {
   const m = MEDAL[place];
   const size = place === 1 ? 40 : 34;
   return (
     <span
-      className={`lb-hex relative z-10 flex items-center justify-center ${className}`}
+      className={`hex relative z-10 flex items-center justify-center ${className}`}
       style={{ width: size, height: size, background: m.rim, padding: 2 }}
     >
       <span
-        className="lb-hex flex h-full w-full items-center justify-center font-display font-black"
+        className="hex flex h-full w-full items-center justify-center font-display font-black"
         style={{ background: m.face, color: m.text, fontSize: size * 0.48 }}
       >
         {place}

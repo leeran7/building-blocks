@@ -15,7 +15,7 @@ import {
 import type { ClimberRank } from "../../mobile/src/contexts/AppDataContext";
 
 const board = (peaks: number[], ids = peaks.map((_, i) => `u${i}`)): ClimberRank[] =>
-  peaks.map((peakY, i) => ({ rank: i + 1, userId: ids[i], handle: `P${i}`, username: null, peakY, wins: 0 }));
+  peaks.map((peakY, i) => ({ rank: i + 1, userId: ids[i], handle: `P${i}`, username: null, peakY, wins: 0, avatarId: null }));
 
 describe("standingFor", () => {
   it("leads by the gap to #2 when the player is first", () => {
@@ -117,5 +117,23 @@ describe("parseFriendsBoard", () => {
     expect(parseFriendsBoard({ ...valid, hiddenCount: undefined })).toBeNull();
     expect(parseFriendsBoard({ ...valid, notClimbedCount: -1 })).toBeNull();
     expect(parseFriendsBoard({ ...valid, climbers: [{ userId: "a" }] })).toBeNull();
+  });
+
+  it("keeps a climber's avatarId, string or null", () => {
+    const [a, me] = valid.climbers;
+    const body = { ...valid, climbers: [{ ...a, avatarId: "ember-knight" }, { ...me, avatarId: null }] };
+    expect(parseFriendsBoard(body)?.climbers.map((c) => c.avatarId)).toEqual(["ember-knight", null]);
+  });
+
+  it("reads a missing avatarId (older server) as null", () => {
+    const climbers = valid.climbers.map(({ avatarId: _omit, ...rest }) => rest);
+    expect(parseFriendsBoard({ ...valid, climbers })?.climbers.map((c) => c.avatarId)).toEqual([null, null]);
+  });
+
+  it("rejects a mistyped avatarId rather than dropping it", () => {
+    for (const avatarId of [42, true, {}, ["ember-knight"]]) {
+      const climbers = [{ ...valid.climbers[0], avatarId }, valid.climbers[1]];
+      expect(parseFriendsBoard({ ...valid, climbers })).toBeNull();
+    }
   });
 });

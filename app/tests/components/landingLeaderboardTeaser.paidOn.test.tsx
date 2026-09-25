@@ -31,7 +31,7 @@ import { chipLeaderboard } from "../../src/db/chips";
 import { LeaderboardTeaser } from "../../src/components/LandingPage/LeaderboardTeaser";
 
 const CLIMBERS: ClimberRank[] = [
-  { rank: 1, userId: "u1", handle: "apex", username: "apex", peakY: 900, wins: 2 },
+  { rank: 1, userId: "u1", handle: "apex", username: "apex", peakY: 900, wins: 2, avatarId: null },
 ];
 
 const RANKED: ChipLeaderboardRow[] = [

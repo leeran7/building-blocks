@@ -13,6 +13,7 @@ import { apiFetch } from "../lib/api";
 import { useAuth } from "./AuthContext";
 import { setLeaderboardConsent } from "../lib/consent";
 import { parseFriendsBoard } from "../lib/leaderboard";
+import { parseAvatarId } from "@app/lib/avatars";
 
 /**
  * In-memory data cache for the read-heavy hub screens (You / Ranks).
@@ -43,6 +44,21 @@ export interface SettingsData {
   username: string | null;
   social: SocialState | null;
   leaderboardConsent: boolean;
+  /** Catalogue avatar id; null = initials badge. */
+  avatarId: string | null;
+}
+
+/** Normalises a GET/PUT /api/settings body into the cached settings shape. */
+export function settingsFromResponse(body: unknown): SettingsData | null {
+  if (typeof body !== "object" || body === null) return null;
+  const d = body as Record<string, unknown>;
+  return {
+    displayName: typeof d.displayName === "string" ? d.displayName : null,
+    username: typeof d.username === "string" ? d.username : null,
+    social: d.social && typeof d.social === "object" ? (d.social as SocialState) : null,
+    leaderboardConsent: Boolean(d.leaderboardConsent),
+    avatarId: parseAvatarId(d.avatarId),
+  };
 }
 
 export interface ClimberRank {
@@ -52,6 +68,7 @@ export interface ClimberRank {
   username: string | null;
   peakY: number;
   wins: number;
+  avatarId: string | null;
 }
 
 export interface FriendsBoard {
@@ -193,17 +210,11 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     if (!isStale(settings)) return;
     void load("settings", settings, setSettingsSlice, () =>
       apiFetch("/api/settings")
-        .then((r) => (r.ok ? (r.json() as Promise<SettingsData & { leaderboardConsent?: boolean }>) : null))
+        .then((r) => (r.ok ? (r.json() as Promise<unknown>) : null))
         .then((d) => {
-          if (!d) return null;
-          const consent = Boolean(d.leaderboardConsent);
-          setLeaderboardConsent(consent);
-          return {
-            displayName: d.displayName ?? null,
-            username: d.username ?? null,
-            social: d.social && typeof d.social === "object" ? d.social : null,
-            leaderboardConsent: consent,
-          };
+          const next = settingsFromResponse(d);
+          if (next) setLeaderboardConsent(next.leaderboardConsent);
+          return next;
         })
         .catch(() => null),
     );
@@ -256,7 +267,8 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   const refreshSettings = useCallback(async () => {
     await load("settings", { ...settings, fetchedAt: null }, setSettingsSlice, () =>
       apiFetch("/api/settings")
-        .then((r) => (r.ok ? (r.json() as Promise<SettingsData>) : null))
+        .then((r) => (r.ok ? (r.json() as Promise<unknown>) : null))
+        .then(settingsFromResponse)
         .catch(() => null),
     );
   }, [settings, load]);

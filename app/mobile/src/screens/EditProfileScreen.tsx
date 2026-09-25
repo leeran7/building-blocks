@@ -5,6 +5,7 @@ import { openExternal } from "../lib/external";
 import { useAuth } from "../contexts/AuthContext";
 import {
   useSettings,
+  useDashboard,
   useClearAppData,
   useInvalidateAppData,
   type SettingsData,
@@ -26,6 +27,9 @@ import {
   normalizeHandle,
 } from "@app/lib/socialHandle";
 import { SocialMark } from "@app/components/Social/SocialMark";
+import { avatarName, parseAvatarId } from "@app/lib/avatars";
+import { HexAvatar } from "../components/HexAvatar";
+import { identityNameFor } from "../lib/identity";
 
 const INPUT =
   "min-h-[48px] w-full rounded-xl border border-white/10 bg-[#0d0c10]/80 px-3.5 text-[15px] text-text-primary placeholder:text-text-muted focus:border-signal focus:outline-none";
@@ -37,8 +41,9 @@ const INPUT =
  */
 export function EditProfileScreen() {
   const navigate = useNavigate();
-  const { signOut } = useAuth();
+  const { signOut, user } = useAuth();
   const settingsSlice = useSettings();
+  const dashData = useDashboard().data;
   const clearAll = useClearAppData();
   const invalidate = useInvalidateAppData();
 
@@ -127,6 +132,7 @@ export function EditProfileScreen() {
           username: s.username ?? null,
           social: s.social ?? null,
           leaderboardConsent: Boolean((s as unknown as Record<string, unknown>).leaderboardConsent),
+          avatarId: parseAvatarId(s.avatarId),
         };
         setLoaded(next);
         // Re-seed the input buffer from the server-normalized values (it strips
@@ -231,6 +237,15 @@ export function EditProfileScreen() {
           <div className="flex flex-col gap-3 pb-[calc(env(safe-area-inset-bottom)+16vh)]">
             <Section title="Account">
               <div className="flex flex-col gap-4">
+                <AvatarRow
+                  userId={user?.uid ?? identityNameFor(settingsData, dashData)}
+                  name={identityNameFor(settingsData, dashData)}
+                  avatarId={settingsData?.avatarId ?? null}
+                  onOpen={() => {
+                    void tapLight();
+                    navigate("/profile/avatar");
+                  }}
+                />
                 <Field label="Display name">
                   <input
                     type="text"
@@ -420,6 +435,35 @@ function Section({ title, subtitle, children }: { title: string; subtitle?: stri
   );
 }
 
+function AvatarRow({
+  userId,
+  name,
+  avatarId,
+  onOpen,
+}: {
+  userId: string;
+  name: string;
+  avatarId: string | null;
+  onOpen: () => void;
+}) {
+  const current = avatarName(avatarId) ?? "Initials";
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      aria-label={`Avatar: ${current}. Change avatar`}
+      className="-mx-1 flex min-h-[56px] items-center gap-3 rounded-2xl px-1 text-left transition-transform active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal"
+    >
+      <HexAvatar userId={userId} name={name} avatarId={avatarId} size={48} />
+      <span className="min-w-0 flex-1">
+        <span className="block text-sm font-medium text-text-primary">Avatar</span>
+        <span className="block truncate text-[13px] text-text-secondary">{current}</span>
+      </span>
+      <ChevronRight />
+    </button>
+  );
+}
+
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
     <label className="flex flex-col gap-2">
@@ -493,6 +537,14 @@ function UsernameHint({
       </button>
       {!isSaved && " — save to create it."}
     </p>
+  );
+}
+
+function ChevronRight() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 text-text-secondary" aria-hidden>
+      <path d="m9 18 6-6-6-6" />
+    </svg>
   );
 }
 

@@ -7,6 +7,7 @@ import { tapLight, tapHeavy } from "../lib/haptics";
 import { dailySummary, formatReset, msUntilReset } from "../lib/daily";
 import { ALTITUDE_UNIT } from "@app/lib/units";
 import { HexAvatar } from "../components/HexAvatar";
+import { identityNameFor } from "../lib/identity";
 
 /**
  * Profile — the player's identity and standing, plus the daily-climb hook.
@@ -24,8 +25,7 @@ export function ProfileScreen() {
   const daily = dailySummary();
 
   const climb = dashData?.freeClimb ?? null;
-  const identityName =
-    settingsData?.displayName || climb?.handle || dashData?.user.email || "Player";
+  const identityName = identityNameFor(settingsData, dashData);
   const identityUsername = settingsData?.username ?? dashData?.user.username ?? null;
   const topPct =
     climb && climb.totalClimbers
@@ -38,6 +38,11 @@ export function ProfileScreen() {
   const openEdit = () => {
     void tapLight();
     navigate("/profile/edit");
+  };
+
+  const openAvatarPicker = () => {
+    void tapLight();
+    navigate("/profile/avatar");
   };
 
   return (
@@ -67,7 +72,25 @@ export function ProfileScreen() {
         ) : (
           <div className="flex flex-col gap-3 pb-6">
             <section className="glass flex items-center gap-3.5 rounded-3xl border border-white/10 p-4">
-              <HexAvatar userId={user?.uid ?? identityName} name={identityName} size={64} />
+              <button
+                type="button"
+                aria-label="Change avatar"
+                onClick={openAvatarPicker}
+                className="relative shrink-0 rounded-2xl transition-transform active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void"
+              >
+                <HexAvatar
+                  userId={user?.uid ?? identityName}
+                  name={identityName}
+                  avatarId={settingsData?.avatarId ?? null}
+                  size={64}
+                />
+                <span
+                  aria-hidden
+                  className="absolute -bottom-0.5 -right-1 flex h-6 w-6 items-center justify-center rounded-full border-2 border-void bg-signal text-void"
+                >
+                  <BadgePencilIcon />
+                </span>
+              </button>
               <div className="min-w-0 flex-1">
                 <p
                   className="truncate font-display font-black leading-tight text-text-primary"
@@ -251,6 +274,14 @@ function PencilIcon() {
   return (
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 text-text-primary" aria-hidden>
       <path d="M12 20h9" />
+      <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+    </svg>
+  );
+}
+
+function BadgePencilIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
       <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
     </svg>
   );

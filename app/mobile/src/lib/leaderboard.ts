@@ -89,7 +89,9 @@ export function friendsFooter(hiddenCount: number, notClimbedCount: number): str
 
 const isCount = (v: unknown): v is number => typeof v === "number" && Number.isInteger(v) && v >= 0;
 
-function isClimberRank(v: unknown): v is ClimberRank {
+type RawClimber = Omit<ClimberRank, "avatarId"> & { avatarId?: unknown };
+
+function isRawClimber(v: unknown): v is RawClimber {
   if (typeof v !== "object" || v === null) return false;
   const c = v as Record<string, unknown>;
   return (
@@ -102,11 +104,20 @@ function isClimberRank(v: unknown): v is ClimberRank {
   );
 }
 
+// Absent is allowed so a server that predates avatars still parses.
+const isAvatarField = (v: unknown): v is string | null | undefined =>
+  v === undefined || v === null || typeof v === "string";
+
 /** Validates a GET /api/climb/leaderboard/friends body; null if malformed. */
 export function parseFriendsBoard(body: unknown): FriendsBoard | null {
   if (typeof body !== "object" || body === null) return null;
   const b = body as Record<string, unknown>;
-  if (!Array.isArray(b.climbers) || !b.climbers.every(isClimberRank)) return null;
+  if (!Array.isArray(b.climbers)) return null;
+  const climbers: ClimberRank[] = [];
+  for (const raw of b.climbers) {
+    if (!isRawClimber(raw) || !isAvatarField(raw.avatarId)) return null;
+    climbers.push({ ...raw, avatarId: raw.avatarId ?? null });
+  }
   if (!isCount(b.hiddenCount) || !isCount(b.notClimbedCount)) return null;
-  return { climbers: b.climbers, hiddenCount: b.hiddenCount, notClimbedCount: b.notClimbedCount };
+  return { climbers, hiddenCount: b.hiddenCount, notClimbedCount: b.notClimbedCount };
 }

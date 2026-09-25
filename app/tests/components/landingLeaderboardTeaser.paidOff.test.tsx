@@ -30,9 +30,9 @@ import { chipLeaderboard } from "../../src/db/chips";
 import { LeaderboardTeaser } from "../../src/components/LandingPage/LeaderboardTeaser";
 
 const CLIMBERS: ClimberRank[] = [
-  { rank: 1, userId: "u1", handle: "apex", username: "apex", peakY: 900, wins: 2 },
-  { rank: 2, userId: "u2", handle: "rival", username: null, peakY: 700, wins: 0 },
-  { rank: 3, userId: "u3", handle: "third", username: null, peakY: 500, wins: 0 },
+  { rank: 1, userId: "u1", handle: "apex", username: "apex", peakY: 900, wins: 2, avatarId: null },
+  { rank: 2, userId: "u2", handle: "rival", username: null, peakY: 700, wins: 0, avatarId: null },
+  { rank: 3, userId: "u3", handle: "third", username: null, peakY: 500, wins: 0, avatarId: null },
 ];
 
 describe("LeaderboardTeaser — paid duels OFF", () => {

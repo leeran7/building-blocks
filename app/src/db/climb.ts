@@ -15,6 +15,7 @@ import { FriendshipStatus } from "@prisma/client";
 
 import { prisma } from "./client";
 import { climberDisplay } from "../lib/handle";
+import { parseAvatarId } from "../lib/avatars";
 import { FREE_STACK_SLUG } from "../game/freeStack";
 
 export interface ClimbResultInput {
@@ -132,6 +133,8 @@ export interface ClimberRank {
   username: string | null;
   peakY: number;
   wins: number;
+  /** Catalogue avatar id; null = initials badge (also for a retired id). */
+  avatarId: string | null;
 }
 
 /**
@@ -162,7 +165,7 @@ export const topFreeClimbers = unstable_cache(
         userId: true,
         peak_y: true,
         wins: true,
-        user: { select: { display_name: true, username: true } },
+        user: { select: { display_name: true, username: true, avatar_id: true } },
       },
     });
     return rows.map((r, i) => ({
@@ -172,6 +175,7 @@ export const topFreeClimbers = unstable_cache(
       username: r.user.username,
       peakY: r.peak_y,
       wins: r.wins,
+      avatarId: parseAvatarId(r.user.avatar_id),
     }));
   },
   ["topFreeClimbers"],
@@ -229,7 +233,7 @@ export async function friendsLeaderboard(userId: string): Promise<FriendsBoard> 
       userId: true,
       peak_y: true,
       wins: true,
-      user: { select: { display_name: true, username: true } },
+      user: { select: { display_name: true, username: true, avatar_id: true } },
     },
   });
 
@@ -244,6 +248,7 @@ export async function friendsLeaderboard(userId: string): Promise<FriendsBoard> 
       username: r.user.username,
       peakY: r.peak_y,
       wins: r.wins,
+      avatarId: parseAvatarId(r.user.avatar_id),
     })),
     hiddenCount,
     notClimbedCount,

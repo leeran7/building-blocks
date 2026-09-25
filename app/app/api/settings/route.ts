@@ -1,6 +1,7 @@
 /**
  * GET  /api/settings — the signed-in user's display name + social handles.
- * PUT  /api/settings — update display name, username, and/or social handles.
+ * PUT  /api/settings — update display name, username, social handles, leaderboard
+ *                      consent, and/or avatar (`avatarId`: catalogue id or null).
  *
  * Auth required (Firebase Bearer token).
  */
@@ -24,6 +25,7 @@ import { sanitizeDisplayName } from "../../../src/lib/sanitizeName";
 import { isHatefulName } from "../../../src/lib/nameModeration";
 import { normalizeUsername } from "../../../src/lib/username";
 import { setUsername, clearUsername } from "../../../src/db/creator";
+import { parseAvatarId } from "../../../src/lib/avatars";
 
 export const runtime = "nodejs";
 
@@ -81,6 +83,7 @@ export async function PUT(request: NextRequest): Promise<NextResponse> {
     username?: unknown;
     social?: unknown;
     leaderboardConsent?: unknown;
+    avatarId?: unknown;
   };
   try {
     body = await request.json();
@@ -88,13 +91,29 @@ export async function PUT(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  const patch: { displayName?: string | null; leaderboardConsent?: boolean } = {};
+  const patch: { displayName?: string | null; leaderboardConsent?: boolean; avatarId?: string | null } = {};
 
   if (body.leaderboardConsent !== undefined) {
     if (typeof body.leaderboardConsent !== "boolean") {
       return NextResponse.json({ error: "leaderboardConsent must be a boolean" }, { status: 400 });
     }
     patch.leaderboardConsent = body.leaderboardConsent;
+  }
+
+  // Allow-list only: an unknown id is rejected (never mapped to null/default),
+  // and validation runs before any write so a bad id saves nothing at all.
+  if (body.avatarId !== undefined) {
+    if (body.avatarId === null) {
+      patch.avatarId = null;
+    } else if (typeof body.avatarId !== "string") {
+      return NextResponse.json({ error: "avatarId must be a string or null", code: "INVALID_AVATAR" }, { status: 400 });
+    } else {
+      const avatarId = parseAvatarId(body.avatarId);
+      if (avatarId === null) {
+        return NextResponse.json({ error: "Unknown avatar", code: "UNKNOWN_AVATAR" }, { status: 400 });
+      }
+      patch.avatarId = avatarId;
+    }
   }
 
   // Social handles: a { platform: handle } map. Normalize + moderate each;
@@ -212,7 +231,9 @@ export async function PUT(request: NextRequest): Promise<NextResponse> {
     // leaderboard, and topFreeClimbers' unstable_cache only naturally expires
     // every 60s — revalidate on demand so revoking (or granting) consent
     // takes effect on the next fetch, not up to a minute later.
-    if (patch.leaderboardConsent !== undefined) {
+    // The climb leaderboard also renders each row's avatar, so an avatar
+    // change revalidates it for the same reason.
+    if (patch.leaderboardConsent !== undefined || patch.avatarId !== undefined) {
       revalidateTag(LEADERBOARD_CACHE_TAG, { expire: 60 });
     }
     if (patch.displayName !== undefined) {
