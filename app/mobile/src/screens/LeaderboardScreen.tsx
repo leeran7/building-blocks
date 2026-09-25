@@ -1,4 +1,4 @@
-import { useCallback, useState, type KeyboardEvent } from "react";
+import { useCallback, useState, type KeyboardEvent, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import {
@@ -30,6 +30,14 @@ const SCOPES: Array<{ id: Scope; label: string }> = [
   { id: "friends", label: "Friends" },
 ];
 
+/**
+ * What the board panel shows. `empty` is the Global board with no climbs;
+ * `noFriendsYet` is a Friends board with only the caller on it and nobody
+ * hidden or unclimbed. A Friends board with no climbers but hidden or
+ * unclimbed friends is `ready`: the "Not ranked yet" banner plus the footer.
+ */
+type BoardView = "loading" | "error" | "empty" | "noFriendsYet" | "ready";
+
 const PANEL_ID = "lb-panel";
 const tabId = (scope: Scope) => `lb-tab-${scope}`;
 
@@ -51,10 +59,6 @@ export function LeaderboardScreen() {
 
   const active = scope === "friends" ? friends : global;
   const climbers = (scope === "friends" ? friends.data?.climbers : global.data) ?? [];
-  const error = active.error;
-  // Also covers the render before the Friends tab's first fetch starts, which
-  // would otherwise flash the "Not ranked yet" banner.
-  const loading = active.data === null && !error;
 
   const podium = climbers.slice(0, 3);
   const rest = climbers.slice(3);
@@ -65,11 +69,19 @@ export function LeaderboardScreen() {
   const notClimbedCount = friends.data?.notClimbedCount ?? 0;
   const footer = scope === "friends" ? friendsFooter(hiddenCount, notClimbedCount) : null;
   const noFriendsYet =
-    scope === "friends" &&
-    friends.data !== null &&
-    climbers.every((c) => c.userId === meId) &&
-    hiddenCount === 0 &&
-    notClimbedCount === 0;
+    scope === "friends" && climbers.every((c) => c.userId === meId) && hiddenCount === 0 && notClimbedCount === 0;
+
+  const view: BoardView = active.error
+    ? "error"
+    : // Also covers the render before the Friends tab's first fetch starts,
+      // which would otherwise flash the "Not ranked yet" banner.
+      active.data === null
+      ? "loading"
+      : noFriendsYet
+        ? "noFriendsYet"
+        : scope === "global" && climbers.length === 0
+          ? "empty"
+          : "ready";
 
   return (
     <main className="flex h-full flex-col">
@@ -78,39 +90,32 @@ export function LeaderboardScreen() {
         <ScopeTabs scope={scope} onChange={setScope} />
 
         <div role="tabpanel" id={PANEL_ID} aria-labelledby={tabId(scope)}>
-          {loading && <LoadingState />}
+          {view === "loading" && <LoadingState />}
 
-          {error && (
+          {view === "error" && (
             <StateMessage>
               Couldn&apos;t load the leaderboard. Check your connection and try again.
             </StateMessage>
           )}
 
-          {!loading && !error && noFriendsYet && <RaceFriendsCard />}
+          {view === "noFriendsYet" && <RaceFriendsCard />}
 
-          {!loading && !error && !noFriendsYet && scope === "global" && climbers.length === 0 && (
-            <StateMessage>No climbs yet. Be the first to the top.</StateMessage>
-          )}
+          {view === "empty" && <StateMessage>No climbs yet. Be the first to the top.</StateMessage>}
 
-          {!loading && !error && !noFriendsYet && scope === "friends" && climbers.length === 0 && (
-            <div className="flex flex-col gap-4 pb-4">
-              <StandingBanner standing={standing} meRowId={null} />
-            </div>
-          )}
-
-          {!loading && !error && !noFriendsYet && climbers.length > 0 && (
-            <div className="flex flex-col gap-4 pb-4">
-              <Podium climbers={podium} meId={meId} />
-              <StandingBanner standing={standing} meRowId={rest.some((c) => c.userId === meId) ? "lb-me" : null} />
-              {rest.length > 0 && <RankTable climbers={rest} meId={meId} />}
-            </div>
-          )}
-
-          {!loading && !error && !noFriendsYet && footer && (
-            <p className="lb-glass mx-auto mb-4 flex w-fit max-w-full items-center gap-2 rounded-full border border-white/10 px-4 py-2 text-center text-[12px] leading-snug text-text-secondary">
-              <PeopleIcon size={14} />
-              {footer}
-            </p>
+          {view === "ready" && (
+            <>
+              <div className="flex flex-col gap-4 pb-4">
+                {podium.length > 0 && <Podium climbers={podium} meId={meId} />}
+                <StandingBanner standing={standing} meRowId={rest.some((c) => c.userId === meId) ? "lb-me" : null} />
+                {rest.length > 0 && <RankTable climbers={rest} meId={meId} />}
+              </div>
+              {footer && (
+                <p className="lb-glass mx-auto mb-4 flex w-fit max-w-full items-center gap-2 rounded-full border border-white/10 px-4 py-2 text-center text-[12px] leading-snug text-text-secondary">
+                  <PeopleIcon size={14} />
+                  {footer}
+                </p>
+              )}
+            </>
           )}
         </div>
       </PullToRefresh>
@@ -162,7 +167,10 @@ function Header({ scope }: { scope: Scope }) {
         <span className="h-px w-8 bg-signal/70" />
       </div>
       <div className="mt-1.5 flex items-center gap-2">
-        <h1 className="lb-title font-display text-[2.6rem] font-black uppercase leading-none tracking-[-0.02em]">
+        <h1
+          className="lb-title font-display font-black uppercase leading-none tracking-[-0.02em]"
+          style={{ fontSize: "clamp(1.9rem, 10.4vw, 2.6rem)" }}
+        >
           Leaderboard
         </h1>
         <TrophyBadge />
@@ -227,16 +235,25 @@ function ScopeTabs({ scope, onChange }: { scope: Scope; onChange: (next: Scope) 
   );
 }
 
+const HEX_BADGE_SIZE = { md: "h-11 w-11", lg: "h-14 w-14" } as const;
+
+/** Signal-rimmed hex holding a lime icon (ranked banner, "Race your friends" card). */
+function HexIconBadge({ size, children }: { size: keyof typeof HEX_BADGE_SIZE; children: ReactNode }) {
+  return (
+    <span className={`hex flex ${HEX_BADGE_SIZE[size]} shrink-0 items-center justify-center bg-signal/80 p-[2px]`}>
+      <span className="hex flex h-full w-full items-center justify-center bg-[#15170f] text-signal">{children}</span>
+    </span>
+  );
+}
+
 /** Friends tab with no one else on it: point at where friends are added. */
 function RaceFriendsCard() {
   const navigate = useNavigate();
   return (
     <section className="lb-glass mb-4 flex flex-col items-center gap-3 rounded-3xl border border-white/10 px-6 py-8 text-center">
-      <span className="hex flex h-14 w-14 items-center justify-center bg-signal/80 p-[2px]">
-        <span className="hex flex h-full w-full items-center justify-center bg-[#15170f] text-signal">
-          <PeopleIcon size={24} />
-        </span>
-      </span>
+      <HexIconBadge size="lg">
+        <PeopleIcon size={24} />
+      </HexIconBadge>
       <h2 className="font-display text-[1.45rem] font-black uppercase leading-none tracking-tight text-text-primary">
         Race your friends
       </h2>
@@ -358,11 +375,9 @@ function StandingBanner({ standing, meRowId }: { standing: Standing; meRowId: st
       </span>
       {!ranked && <ChevronRight />}
       {ranked && (
-        <span className="hex flex h-11 w-11 shrink-0 items-center justify-center bg-signal/80 p-[2px]">
-          <span className="hex flex h-full w-full items-center justify-center bg-[#15170f] text-signal">
-            <ChevronUp />
-          </span>
-        </span>
+        <HexIconBadge size="md">
+          <ChevronUp />
+        </HexIconBadge>
       )}
     </>
   );

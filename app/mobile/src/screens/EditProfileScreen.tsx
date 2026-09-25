@@ -152,7 +152,8 @@ export function EditProfileScreen() {
         setSavedUsername(next.username ?? "");
         setSocial(next.social ?? {});
         setSettings(next);
-        invalidate(["leaderboard", "dashboard"]);
+        // The caller's own Friends row renders their display name too.
+        invalidate(["leaderboard", "dashboard", "friendsLeaderboard"]);
         setSaved(true);
         void notifySuccess();
         setTimeout(() => setSaved(false), 2000);

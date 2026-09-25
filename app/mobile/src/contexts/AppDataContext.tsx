@@ -133,8 +133,12 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
 
   // Guards against overlapping in-flight fetches per slice.
   const inflight = useRef<Record<SliceKey, boolean>>({ ...IDLE_INFLIGHT });
+  // Bumped on every cache wipe. A fetch started before the wipe belongs to the
+  // previous account (or a signed-out session) and must not land in this one.
+  const accountGen = useRef(0);
 
   const clearAll = useCallback(() => {
+    accountGen.current += 1;
     setDashboard(EMPTY_SLICE);
     setSettingsSlice(EMPTY_SLICE);
     setLeaderboard(EMPTY_SLICE);
@@ -151,6 +155,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   const prevUid = useRef<string | null>(uid);
   if (prevUid.current !== uid) {
     prevUid.current = uid;
+    accountGen.current += 1;
     setDashboard(EMPTY_SLICE);
     setSettingsSlice(EMPTY_SLICE);
     setLeaderboard(EMPTY_SLICE);
@@ -161,19 +166,27 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   const authed = Boolean(user) && !isAnonymous;
 
   // Generic loader: skeleton only on a cold slice; warm slices refresh silently.
+  // `onData` runs only for a result that is committed, so side effects of a
+  // previous account's late response are dropped along with its data.
   const load = useCallback(
     async <T,>(
       key: SliceKey,
       slice: Slice<T>,
       set: (s: Slice<T>) => void,
       fetcher: () => Promise<T | null>,
+      onData?: (data: T) => void,
     ) => {
       if (inflight.current[key]) return;
       inflight.current[key] = true;
+      const gen = accountGen.current;
+      const sameAccount = () => gen === accountGen.current;
       const cold = slice.data === null;
       if (cold) set({ ...slice, loading: true, error: false });
       try {
         const data = await fetcher();
+        // The account changed mid-flight: the wipe already reset this slice and
+        // its inflight flag, and a fetch for the new account may be running.
+        if (!sameAccount()) return;
         if (data === null) {
           // Failed fetch: keep any prior data (mark error only when cold), and
           // stamp fetchedAt so the TTL throttles retries into a backoff instead
@@ -181,11 +194,12 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
           set({ data: slice.data, loading: false, error: slice.data === null, fetchedAt: Date.now() });
         } else {
           set({ data, loading: false, error: false, fetchedAt: Date.now() });
+          onData?.(data);
         }
       } catch {
-        set({ ...slice, loading: false, error: cold, fetchedAt: Date.now() });
+        if (sameAccount()) set({ ...slice, loading: false, error: cold, fetchedAt: Date.now() });
       } finally {
-        inflight.current[key] = false;
+        if (sameAccount()) inflight.current[key] = false;
       }
     },
     [],
@@ -208,15 +222,16 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   const ensureSettings = useCallback(() => {
     if (!authed) return;
     if (!isStale(settings)) return;
-    void load("settings", settings, setSettingsSlice, () =>
-      apiFetch("/api/settings")
-        .then((r) => (r.ok ? (r.json() as Promise<unknown>) : null))
-        .then((d) => {
-          const next = settingsFromResponse(d);
-          if (next) setLeaderboardConsent(next.leaderboardConsent);
-          return next;
-        })
-        .catch(() => null),
+    void load(
+      "settings",
+      settings,
+      setSettingsSlice,
+      () =>
+        apiFetch("/api/settings")
+          .then((r) => (r.ok ? (r.json() as Promise<unknown>) : null))
+          .then(settingsFromResponse)
+          .catch(() => null),
+      (d) => setLeaderboardConsent(d.leaderboardConsent),
     );
   }, [authed, settings, load]);
 

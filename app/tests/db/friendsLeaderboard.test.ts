@@ -21,6 +21,8 @@ interface FakeUser {
   avatar_id: string | null;
 }
 interface FakeFriendship {
+  id: string;
+  created_at: Date;
   sender_id: string;
   receiver_id: string;
   status: "pending" | "accepted" | "declined" | "blocked";
@@ -42,12 +44,33 @@ const db = vi.hoisted(() => ({
   records: [] as FakeRecord[],
 }));
 
+type FriendshipOrderBy = Array<Partial<Record<"created_at" | "id", "asc" | "desc">>>;
+
 const { friendshipFindMany, userFindMany, climbRecordFindMany } = vi.hoisted(() => {
+  // Applies the query's own orderBy (insertion order when absent), so a take
+  // without a deterministic sort keeps whichever rows happen to come first.
+  const compareFriendships =
+    (orderBy: FriendshipOrderBy) =>
+    (a: FakeFriendship, b: FakeFriendship): number => {
+      for (const clause of orderBy) {
+        for (const [field, dir] of Object.entries(clause) as Array<["created_at" | "id", "asc" | "desc"]>) {
+          const av = field === "created_at" ? a.created_at.getTime() : a.id;
+          const bv = field === "created_at" ? b.created_at.getTime() : b.id;
+          if (av !== bv) return (av < bv ? -1 : 1) * (dir === "asc" ? 1 : -1);
+        }
+      }
+      return 0;
+    };
+
   const friendshipFindMany = vi.fn(
     async ({
       where,
+      orderBy = [],
+      take,
     }: {
       where: { status?: string; OR?: Array<{ sender_id?: string; receiver_id?: string }> };
+      orderBy?: FriendshipOrderBy;
+      take?: number;
     }) =>
       db.friendships
         .filter((f) => where.status === undefined || f.status === where.status)
@@ -60,6 +83,8 @@ const { friendshipFindMany, userFindMany, climbRecordFindMany } = vi.hoisted(() 
                 (c.receiver_id === undefined || c.receiver_id === f.receiver_id)
             )
         )
+        .sort(compareFriendships(orderBy))
+        .slice(0, take)
         .map((f) => ({ sender_id: f.sender_id, receiver_id: f.receiver_id }))
   );
 
@@ -128,7 +153,7 @@ vi.mock("../../src/db/client", () => ({
   },
 }));
 
-import { friendsLeaderboard } from "../../src/db/climb";
+import { FRIENDS_BOARD_MAX_FRIENDS, friendsLeaderboard } from "../../src/db/climb";
 import { FREE_STACK_SLUG } from "../../src/game/freeStack";
 import { AVATARS } from "../../src/lib/avatars";
 
@@ -142,11 +167,31 @@ function record(userId: string, peak_y: number, updatedAt = "2026-02-01", slug =
   return { userId, category_slug: slug, peak_y, wins: 0, updated_at: new Date(updatedAt) };
 }
 
-const accepted = (sender_id: string, receiver_id: string): FakeFriendship => ({
-  sender_id,
-  receiver_id,
-  status: "accepted",
-});
+let friendshipSeq = 0;
+
+/** Ids and created_at both ascend with insertion unless a test overrides them. */
+function friendship(
+  sender_id: string,
+  receiver_id: string,
+  status: FakeFriendship["status"],
+  overrides: Partial<Pick<FakeFriendship, "id" | "created_at">> = {}
+): FakeFriendship {
+  friendshipSeq += 1;
+  return {
+    id: `fr-${String(friendshipSeq).padStart(6, "0")}`,
+    created_at: new Date(Date.UTC(2026, 0, 1) + friendshipSeq * 1000),
+    sender_id,
+    receiver_id,
+    status,
+    ...overrides,
+  };
+}
+
+const accepted = (
+  sender_id: string,
+  receiver_id: string,
+  overrides: Partial<Pick<FakeFriendship, "id" | "created_at">> = {}
+): FakeFriendship => friendship(sender_id, receiver_id, "accepted", overrides);
 
 beforeEach(() => {
   db.users = [];
@@ -168,8 +213,8 @@ describe("friendsLeaderboard", () => {
     db.friendships = [
       accepted("me", "sent-by-me"),
       accepted("sent-to-me", "me"),
-      { sender_id: "pending", receiver_id: "me", status: "pending" },
-      { sender_id: "me", receiver_id: "declined", status: "declined" },
+      friendship("pending", "me", "pending"),
+      friendship("me", "declined", "declined"),
       accepted("stranger", "someone-else"),
     ];
     db.records = [
@@ -290,5 +335,52 @@ describe("friendsLeaderboard", () => {
       ["aria", null],
       ["plain", null],
     ]);
+  });
+
+  it("reads at most FRIENDS_BOARD_MAX_FRIENDS friendships, so a huge friend list cannot fan out the queries", async () => {
+    const extra = 5;
+    const ids = Array.from({ length: FRIENDS_BOARD_MAX_FRIENDS + extra }, (_, i) => `f${i}`);
+    db.users = [user("me", true), ...ids.map((id) => user(id, true))];
+    db.friendships = ids.map((id) => accepted("me", id));
+    db.records = [record("me", 100)];
+
+    const board = await friendsLeaderboard("me");
+
+    // Every friend is consented with no record, so each friend read counts once.
+    expect(board.notClimbedCount).toBe(FRIENDS_BOARD_MAX_FRIENDS);
+    expect(board.climbers.map((c) => c.userId)).toEqual(["me"]);
+  });
+
+  it("keeps the same oldest friendships when the cap is hit, whatever order the rows come back in", async () => {
+    const ids = Array.from({ length: FRIENDS_BOARD_MAX_FRIENDS }, (_, i) => `f${i}`);
+    db.users = [user("me", true), user("newest", true), ...ids.map((id) => user(id, true))];
+    // The newest friendship is stored first, so an unordered take would keep it.
+    db.friendships = [
+      accepted("me", "newest", { created_at: new Date("2027-01-01") }),
+      ...ids.map((id) => accepted("me", id)),
+    ];
+    db.records = [record("me", 100), record("newest", 900)];
+
+    const board = await friendsLeaderboard("me");
+
+    expect(board.climbers.map((c) => c.userId)).toEqual(["me"]);
+    expect(board.notClimbedCount).toBe(FRIENDS_BOARD_MAX_FRIENDS);
+  });
+
+  it("breaks a created_at tie at the cap by id, so the cut never flips between requests", async () => {
+    const tie = new Date("2026-06-01");
+    const ids = Array.from({ length: FRIENDS_BOARD_MAX_FRIENDS - 1 }, (_, i) => `f${i}`);
+    db.users = [user("me", true), user("tie-a", true), user("tie-b", true), ...ids.map((id) => user(id, true))];
+    db.friendships = [
+      ...ids.map((id) => accepted("me", id)),
+      // Same instant: the higher id is stored first but must lose the last slot.
+      accepted("me", "tie-b", { id: "zz-b", created_at: tie }),
+      accepted("me", "tie-a", { id: "zz-a", created_at: tie }),
+    ];
+    db.records = [record("me", 100), record("tie-a", 300), record("tie-b", 500)];
+
+    const board = await friendsLeaderboard("me");
+
+    expect(board.climbers.map((c) => c.userId)).toEqual(["tie-a", "me"]);
   });
 });

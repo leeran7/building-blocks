@@ -207,6 +207,9 @@ export async function friendsLeaderboard(userId: string): Promise<FriendsBoard> 
       OR: [{ sender_id: userId }, { receiver_id: userId }],
     },
     select: { sender_id: true, receiver_id: true },
+    // A take without a total order returns an arbitrary subset once the cap is
+    // hit, so the board and both counts would drift between requests.
+    orderBy: [{ created_at: "asc" }, { id: "asc" }],
     take: FRIENDS_BOARD_MAX_FRIENDS,
   });
 
