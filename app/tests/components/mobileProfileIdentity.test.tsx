@@ -97,14 +97,15 @@ function renderProfile() {
 
 /** The identity card: the avatar button's section. */
 function identityCard(): HTMLElement {
-  const card = container.querySelector('button[aria-label="Change avatar"]')?.closest("section");
+  // The avatar button is named "Avatar: <current>. Change avatar".
+  const card = container.querySelector('button[aria-label$=". Change avatar"]')?.closest("section");
   expect(card).toBeTruthy();
   return card as HTMLElement;
 }
 
 /** The header name line: the first text line beside the avatar. */
 function headerName(): string | null | undefined {
-  return identityCard().querySelector("div.min-w-0 > p")?.textContent;
+  return identityCard().querySelector(":scope > div > p")?.textContent;
 }
 
 describe("Profile header name for a player with no display name", () => {
@@ -138,7 +139,7 @@ describe("Profile header name for a player with no display name", () => {
     renderProfile();
 
     expect(headerName()).toBe(climberHandle(UID, AVATAR));
-    const lines = [...identityCard().querySelectorAll("div.min-w-0 > p")].map((p) => p.textContent);
+    const lines = [...identityCard().querySelectorAll(":scope > div > p")].map((p) => p.textContent);
     expect(lines.filter((t) => t?.includes(EMAIL))).toEqual([EMAIL]);
     expect(lines[0]).not.toContain(EMAIL);
   });

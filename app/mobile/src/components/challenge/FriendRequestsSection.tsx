@@ -142,7 +142,7 @@ export function FriendRequestsSection({ refreshKey, onAccepted }: FriendRequests
 
   if (loading) {
     return (
-      <p className="py-2 text-center font-mono text-xs text-text-muted" aria-live="polite">
+      <p className="py-2 text-center font-mono text-meta text-text-muted" aria-live="polite">
         Loading requests…
       </p>
     );
@@ -165,7 +165,7 @@ export function FriendRequestsSection({ refreshKey, onAccepted }: FriendRequests
     <div className="flex flex-col gap-4">
       {incoming.length > 0 && (
         <div className="flex flex-col gap-2">
-          <h2 className="font-mono text-[11px] uppercase tracking-[0.14em] text-text-muted">
+          <h2 className="font-mono text-label uppercase tracking-label text-text-secondary">
             Friend requests
           </h2>
           {incoming.map((req) => {
@@ -176,7 +176,7 @@ export function FriendRequestsSection({ refreshKey, onAccepted }: FriendRequests
                     two buttons left the name about 12px at 320px. */}
                 <div className="flex flex-col gap-3">
                   <div className="min-w-0">
-                    <p className="break-words text-balance text-sm font-semibold text-text-primary">{name}</p>
+                    <p className="break-words text-balance text-body font-semibold text-text-primary">{name}</p>
                     <UsernameHandle username={req.sender.username} />
                   </div>
                   <div className="grid grid-cols-2 gap-2">
@@ -199,7 +199,7 @@ export function FriendRequestsSection({ refreshKey, onAccepted }: FriendRequests
                   </div>
                 </div>
                 {actionErrors[req.id] && (
-                  <p className="mt-2 font-mono text-xs text-ember" role="alert">
+                  <p className="mt-2 font-mono text-meta text-ember" role="alert">
                     {actionErrors[req.id]}
                   </p>
                 )}
@@ -211,7 +211,7 @@ export function FriendRequestsSection({ refreshKey, onAccepted }: FriendRequests
 
       {outgoing.length > 0 && (
         <div className="flex flex-col gap-2">
-          <h2 className="font-mono text-[11px] uppercase tracking-[0.14em] text-text-muted">
+          <h2 className="font-mono text-label uppercase tracking-label text-text-secondary">
             Sent requests
           </h2>
           {outgoing.map((req) => {
@@ -220,7 +220,7 @@ export function FriendRequestsSection({ refreshKey, onAccepted }: FriendRequests
               <Card key={req.id}>
                 <div className="flex items-center justify-between gap-3">
                   <div className="min-w-0 flex-1">
-                    <p className="break-words text-balance text-sm text-text-secondary">{name}</p>
+                    <p className="break-words text-balance text-body text-text-secondary">{name}</p>
                     <UsernameHandle username={req.receiver.username} />
                   </div>
                   <Button
@@ -234,7 +234,7 @@ export function FriendRequestsSection({ refreshKey, onAccepted }: FriendRequests
                   </Button>
                 </div>
                 {actionErrors[req.id] && (
-                  <p className="mt-2 font-mono text-xs text-ember" role="alert">
+                  <p className="mt-2 font-mono text-meta text-ember" role="alert">
                     {actionErrors[req.id]}
                   </p>
                 )}

@@ -34,7 +34,7 @@ export function BottomNav() {
               className={`relative flex flex-1 flex-col items-center gap-1.5 pb-3.5 pt-3 transition-[transform,color] active:scale-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-signal rounded-[22px] ${active ? "text-signal" : "text-text-secondary"}`}
             >
               <Icon active={active} />
-              <span className="font-mono text-[10px] font-bold uppercase tracking-[0.18em]">
+              <span className="font-mono text-label font-bold uppercase tracking-label">
                 {label}
               </span>
               <span

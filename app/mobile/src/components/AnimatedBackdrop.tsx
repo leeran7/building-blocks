@@ -84,6 +84,9 @@ export function AnimatedBackdrop() {
 
       {/* Full-edge radial vignette anchors all corners */}
       <div className="bd-vignette" />
+      {/* Dims the top of the scene, where page titles, eyebrows and taglines sit
+          straight on it: over bare lava cracks they measured under 3:1. */}
+      <div className="bd-top-scrim" />
       {/* Static SVG fractalNoise grain — texture without repaint cost */}
       <div className="bd-grain" />
 
@@ -153,6 +156,14 @@ export function AnimatedBackdrop() {
             transparent 40%,
             rgba(10, 10, 12, 0.35) 70%,
             rgba(10, 10, 12, 0.70) 100%
+          );
+        }
+        .bd-top-scrim {
+          position: absolute; inset-inline: 0; top: 0; height: 42vh;
+          background: linear-gradient(to bottom,
+            rgba(10, 10, 12, 0.74) 0%,
+            rgba(10, 10, 12, 0.5) 50%,
+            transparent 100%
           );
         }
         .bd-grain {

@@ -145,7 +145,7 @@ export function ScreenHeader({
       )}
       <div className="min-w-0 flex-1">
         {eyebrow && (
-          <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-text-muted">
+          <p className="font-mono text-label uppercase tracking-eyebrow text-text-muted">
             {eyebrow}
           </p>
         )}
@@ -193,7 +193,7 @@ export function PushHeader({ title, onBack, headingRef }: PushHeaderProps) {
       <h1
         ref={headingRef}
         tabIndex={headingRef ? -1 : undefined}
-        className="metal-title font-display text-[1.9rem] font-black uppercase leading-none tracking-[-0.02em] focus:outline-none"
+        className="metal-title font-display text-title font-black uppercase tracking-[-0.02em] focus:outline-none"
       >
         {title}
       </h1>
@@ -236,10 +236,13 @@ export function Card({ children, highlight = false, className }: CardProps) {
   return (
     <div
       className={cx(
-        "rounded-3xl border px-5 py-4",
+        // Near-opaque over the lava scene: at /80 the brightest backdrop under a
+        // card pulled its muted meta text under 3:1. The highlight tint is a
+        // gradient over the same base, not a see-through fill.
+        "rounded-3xl border bg-surface/95 px-5 py-4",
         highlight
-          ? "border-signal/40 bg-signal/[0.07]"
-          : "border-border-subtle bg-surface/80",
+          ? "border-signal/40 bg-linear-to-b from-signal/[0.09] to-signal/[0.05]"
+          : "border-border-subtle",
         className,
       )}
     >
@@ -268,7 +271,7 @@ export function StatCard({ label, value, accent = false }: StatCardProps) {
       >
         {value}
       </p>
-      <p className="mt-2 font-mono text-[10px] uppercase tracking-[0.2em] text-text-secondary">
+      <p className="mt-2 font-mono text-label uppercase tracking-label text-text-secondary">
         {label}
       </p>
     </div>
@@ -295,10 +298,10 @@ export function ListRow({
   className,
 }: ListRowProps) {
   const base = cx(
-    "flex items-center gap-3 rounded-2xl border px-4 py-3.5",
+    "flex items-center gap-3 rounded-2xl border bg-surface/95 px-4 py-3.5",
     highlight
-      ? "border-signal/40 bg-signal/[0.08]"
-      : "border-border-subtle bg-surface/70",
+      ? "border-signal/40 bg-linear-to-b from-signal/[0.09] to-signal/[0.05]"
+      : "border-border-subtle",
     className,
   );
   if (onPress) {
@@ -344,7 +347,7 @@ export function ScreenBody({ children }: { children: ReactNode }) {
 /** Centered empty / error message for list screens. */
 export function StateMessage({ children }: { children: ReactNode }) {
   return (
-    <p className="px-6 pt-16 text-center text-sm leading-relaxed text-text-secondary">
+    <p className="px-6 pt-16 text-center text-body leading-relaxed text-text-secondary">
       {children}
     </p>
   );
@@ -387,7 +390,7 @@ export function RetryPanel({ message, retrying, attempts, onRetry, children }: R
           void tapLight();
           onRetry();
         }}
-        className="glass min-h-[48px] rounded-2xl border border-white/10 px-6 text-[15px] font-semibold text-text-primary transition-opacity aria-disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-signal"
+        className="glass min-h-[48px] rounded-2xl border border-white/10 px-6 text-body font-semibold text-text-primary transition-opacity aria-disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-signal"
       >
         {retrying ? "Retrying…" : "Try again"}
       </button>

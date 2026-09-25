@@ -72,7 +72,9 @@ export function ChallengeScreen() {
   }, [navigate]);
 
   return (
-    <main className="flex h-full flex-col">
+    // Dimmed backdrop: the section headings sit on the scene itself, and over
+    // the lava band they measured 1.1-3.3:1 without it.
+    <main className="flex h-full flex-col bg-void/75">
       <ScreenHeader eyebrow="1v1" title="Challenge" onBack={goBack} />
       <ScreenBody>
         <div className="flex flex-col gap-6 pt-1 pb-4">
@@ -92,7 +94,7 @@ export function ChallengeScreen() {
 
           <div className="border-t border-border-subtle pt-5">
             <Card>
-              <h2 className="font-mono text-[11px] uppercase tracking-[0.14em] text-text-muted">
+              <h2 className="font-mono text-label uppercase tracking-label text-text-secondary">
                 Share a link
               </h2>
               <p className="mt-1 text-sm text-text-secondary">
@@ -108,7 +110,7 @@ export function ChallengeScreen() {
                 </Button>
               </div>
               {shareState.status === "error" && (
-                <p className="mt-2 text-center text-xs text-ember">{shareState.message}</p>
+                <p className="mt-2 text-center text-meta text-ember">{shareState.message}</p>
               )}
             </Card>
           </div>

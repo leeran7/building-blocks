@@ -186,7 +186,7 @@ export function AvatarPickerScreen() {
               >
                 {selectedName}
               </p>
-              <p className="mt-1.5 text-center text-[13px] text-text-secondary">
+              <p className="mt-1.5 text-center text-meta text-text-secondary">
                 Shown on your profile and the leaderboards.
               </p>
             </section>
@@ -215,7 +215,7 @@ export function AvatarPickerScreen() {
                   >
                     <HexAvatar userId={userId} name={nameWith(o.id)} avatarId={o.id} size={TILE_HEX} />
                     <span
-                      className={`line-clamp-2 break-words text-center text-[12px] font-semibold leading-tight ${
+                      className={`line-clamp-2 break-words text-center text-meta font-semibold leading-tight ${
                         checked ? "text-signal" : "text-text-primary"
                       }`}
                     >

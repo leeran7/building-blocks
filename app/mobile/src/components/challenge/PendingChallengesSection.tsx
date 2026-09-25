@@ -147,7 +147,7 @@ export function PendingChallengesSection({ refreshKey }: PendingChallengesSectio
 
   if (loading) {
     return (
-      <p className="py-2 text-center font-mono text-xs text-text-muted" aria-live="polite">
+      <p className="py-2 text-center font-mono text-meta text-text-muted" aria-live="polite">
         Loading challenges…
       </p>
     );
@@ -173,7 +173,7 @@ export function PendingChallengesSection({ refreshKey }: PendingChallengesSectio
     <div className="flex flex-col gap-4">
       {received.length > 0 && (
         <div className="flex flex-col gap-2">
-          <h2 className="font-mono text-[11px] uppercase tracking-[0.14em] text-text-muted">
+          <h2 className="font-mono text-label uppercase tracking-label text-text-secondary">
             Incoming challenges
           </h2>
           {received.map((c) => {
@@ -185,11 +185,11 @@ export function PendingChallengesSection({ refreshKey }: PendingChallengesSectio
                     two buttons left the name about 12px at 320px. */}
                 <div className="flex flex-col gap-3">
                   <div className="min-w-0">
-                    <p className="break-words text-balance text-sm font-semibold text-text-primary">
+                    <p className="break-words text-balance text-body font-semibold text-text-primary">
                       {name} challenged you
                     </p>
                     <UsernameHandle username={c.sender.username} />
-                    <p className="mt-0.5 font-mono text-xs text-text-muted">
+                    <p className="mt-0.5 font-mono text-meta text-text-muted">
                       {timeLeft(c.expiresAt)}
                     </p>
                   </div>
@@ -213,7 +213,7 @@ export function PendingChallengesSection({ refreshKey }: PendingChallengesSectio
                   </div>
                 </div>
                 {actionErrors[c.id] && (
-                  <p className="mt-2 font-mono text-xs text-ember" role="alert">
+                  <p className="mt-2 font-mono text-meta text-ember" role="alert">
                     {actionErrors[c.id]}
                   </p>
                 )}
@@ -225,7 +225,7 @@ export function PendingChallengesSection({ refreshKey }: PendingChallengesSectio
 
       {sent.length > 0 && (
         <div className="flex flex-col gap-2">
-          <h2 className="font-mono text-[11px] uppercase tracking-[0.14em] text-text-muted">
+          <h2 className="font-mono text-label uppercase tracking-label text-text-secondary">
             Sent challenges
           </h2>
           {sent.map((c) => {
@@ -234,11 +234,11 @@ export function PendingChallengesSection({ refreshKey }: PendingChallengesSectio
               <Card key={c.id}>
                 <div className="flex items-center justify-between gap-3">
                   <div className="min-w-0 flex-1">
-                    <p className="break-words text-balance text-sm text-text-secondary">
+                    <p className="break-words text-balance text-body text-text-secondary">
                       Waiting for <span className="font-semibold text-text-primary">{name}</span>
                     </p>
                     <UsernameHandle username={c.recipient.username} />
-                    <p className="mt-0.5 font-mono text-xs text-text-muted">
+                    <p className="mt-0.5 font-mono text-meta text-text-muted">
                       {timeLeft(c.expiresAt)}
                     </p>
                   </div>
@@ -253,7 +253,7 @@ export function PendingChallengesSection({ refreshKey }: PendingChallengesSectio
                   </Button>
                 </div>
                 {actionErrors[c.id] && (
-                  <p className="mt-2 font-mono text-xs text-ember" role="alert">
+                  <p className="mt-2 font-mono text-meta text-ember" role="alert">
                     {actionErrors[c.id]}
                   </p>
                 )}

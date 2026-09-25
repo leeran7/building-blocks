@@ -11,5 +11,5 @@ interface UsernameHandleProps {
  */
 export function UsernameHandle({ username }: UsernameHandleProps) {
   if (!username) return null;
-  return <p className="truncate text-xs text-text-muted">@{username}</p>;
+  return <p className="truncate text-sm text-text-muted">@{username}</p>;
 }

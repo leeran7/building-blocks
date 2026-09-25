@@ -15,13 +15,15 @@ import { tapLight } from "../lib/haptics";
 import { friendsFooter, standingFor, type Standing } from "../lib/leaderboard";
 import { HexAvatar } from "../components/HexAvatar";
 import { useRetry } from "../hooks/useRetry";
+import { prefersReducedMotion } from "../lib/motion";
 
 type Medal = 1 | 2 | 3;
 
 const MEDAL: Record<Medal, { face: string; rim: string; text: string }> = {
   1: { face: "linear-gradient(160deg,#ffe58a,#f5b82e 55%,#b8791a)", rim: "#7a4f0e", text: "#3a2604" },
   2: { face: "linear-gradient(160deg,#f4f6f9,#b9c0ca 55%,#7d8591)", rim: "#4a515c", text: "#1f242b" },
-  3: { face: "linear-gradient(160deg,#ffb27a,#d9713a 55%,#8f3f17)", rim: "#5c2508", text: "#2e1204" },
+  // Bronze is lighter at the foot than the old #8f3f17 so the digit clears 4.5:1 across the face.
+  3: { face: "linear-gradient(160deg,#ffb888,#e3834e 55%,#bf6430)", rim: "#5c2508", text: "#1c0a02" },
 };
 
 type Scope = "global" | "friends";
@@ -131,7 +133,7 @@ export function LeaderboardScreen() {
                 {rest.length > 0 && <RankTable climbers={rest} meId={meId} />}
               </div>
               {footer && (
-                <p className="lb-glass mx-auto mb-4 flex w-fit max-w-full items-center gap-2 rounded-full border border-white/10 px-4 py-2 text-center text-[12px] leading-snug text-text-secondary">
+                <p className="glass mx-auto mb-4 flex w-fit max-w-full items-center gap-2 rounded-full border border-white/10 px-4 py-2 text-center text-meta leading-snug text-text-secondary">
                   <PeopleIcon size={14} />
                   {footer}
                 </p>
@@ -142,13 +144,6 @@ export function LeaderboardScreen() {
       </PullToRefresh>
 
       <style>{`
-        .lb-title {
-          background: linear-gradient(180deg, #ffffff 0%, #e4e2dc 38%, #9c98a3 62%, #d9d6cf 100%);
-          -webkit-background-clip: text;
-          background-clip: text;
-          color: transparent;
-          filter: drop-shadow(0 2px 0 rgba(0, 0, 0, 0.55)) drop-shadow(0 0 18px rgba(255, 90, 44, 0.25));
-        }
         .lb-stone {
           background: linear-gradient(180deg, rgba(38, 36, 42, 0.94) 0%, rgba(20, 19, 24, 0.96) 100%);
           -webkit-backdrop-filter: blur(10px);
@@ -157,20 +152,6 @@ export function LeaderboardScreen() {
             inset 0 1px 0 rgba(255, 255, 255, 0.07),
             inset 0 -2px 0 rgba(0, 0, 0, 0.4),
             0 14px 30px -12px rgba(255, 90, 44, 0.45);
-        }
-        .lb-glass {
-          background: rgba(16, 15, 20, 0.88);
-          -webkit-backdrop-filter: blur(14px) saturate(1.2);
-          backdrop-filter: blur(14px) saturate(1.2);
-          box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 10px 30px -14px rgba(0, 0, 0, 0.8);
-        }
-        .lb-banner {
-          background:
-            linear-gradient(90deg, rgba(203, 242, 77, 0.16), rgba(203, 242, 77, 0.04) 60%, rgba(203, 242, 77, 0.1)),
-            rgba(16, 15, 20, 0.9);
-          -webkit-backdrop-filter: blur(14px);
-          backdrop-filter: blur(14px);
-          box-shadow: inset 0 0 0 1px rgba(203, 242, 77, 0.55), 0 0 28px -6px rgba(203, 242, 77, 0.35);
         }
       `}</style>
     </main>
@@ -182,7 +163,7 @@ function Header({ scope, headingRef }: { scope: Scope; headingRef: Ref<HTMLHeadi
     <header className="flex flex-col items-center pb-5 pt-[calc(env(safe-area-inset-top)+1rem)] text-center">
       <div className="flex items-center gap-3">
         <span className="h-px w-8 bg-signal/70" />
-        <span className="pl-[0.45em] font-mono text-[11px] font-bold uppercase tracking-[0.45em] text-signal">
+        <span className="pl-[0.28em] font-mono text-label font-bold uppercase tracking-eyebrow text-signal">
           Doomstack
         </span>
         <span className="h-px w-8 bg-signal/70" />
@@ -191,14 +172,13 @@ function Header({ scope, headingRef }: { scope: Scope; headingRef: Ref<HTMLHeadi
         <h1
           ref={headingRef}
           tabIndex={-1}
-          className="lb-title font-display font-black uppercase leading-none tracking-[-0.02em] focus:outline-none"
-          style={{ fontSize: "clamp(1.9rem, 10.4vw, 2.6rem)" }}
+          className="metal-title font-display text-title font-black uppercase tracking-[-0.02em] focus:outline-none"
         >
           Leaderboard
         </h1>
         <TrophyBadge />
       </div>
-      <p className="mt-2 flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.25em] text-text-muted">
+      <p className="mt-2 flex items-center gap-2 font-mono text-label uppercase tracking-label text-text-muted">
         <span>{scope === "friends" ? "Friends" : "Global"}</span>
         <span aria-hidden className="h-1 w-1 rounded-full bg-text-muted" />
         <span>All time</span>
@@ -229,7 +209,7 @@ function ScopeTabs({ scope, onChange }: { scope: Scope; onChange: (next: Scope) 
       role="tablist"
       aria-label="Leaderboard scope"
       onKeyDown={onKeyDown}
-      className="lb-glass mb-5 grid grid-cols-2 gap-1 rounded-full border border-white/10 p-1"
+      className="glass mb-5 grid grid-cols-2 gap-1 rounded-full border border-white/10 p-1"
     >
       {SCOPES.map(({ id, label }) => {
         const selected = id === scope;
@@ -243,7 +223,7 @@ function ScopeTabs({ scope, onChange }: { scope: Scope; onChange: (next: Scope) 
             aria-controls={PANEL_ID}
             tabIndex={selected ? 0 : -1}
             onClick={() => select(id)}
-            className={`flex min-h-[44px] items-center justify-center gap-2 rounded-full font-display text-[13px] font-black uppercase tracking-[0.14em] transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void ${
+            className={`flex min-h-[44px] items-center justify-center gap-2 rounded-full font-display text-meta font-black uppercase tracking-[0.12em] transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void ${
               selected
                 ? "bg-signal text-void shadow-[0_0_18px_-4px_rgba(203,242,77,0.6)]"
                 : "text-text-secondary active:bg-white/5"
@@ -286,14 +266,14 @@ function EmptyGlobalBoard() {
 function RaceFriendsCard() {
   const navigate = useNavigate();
   return (
-    <section className="lb-glass mb-4 flex flex-col items-center gap-3 rounded-3xl border border-white/10 px-6 py-8 text-center">
+    <section className="glass mb-4 flex flex-col items-center gap-3 rounded-3xl border border-white/10 px-6 py-8 text-center">
       <HexIconBadge size="lg">
         <PeopleIcon size={24} />
       </HexIconBadge>
-      <h2 className="font-display text-[1.45rem] font-black uppercase leading-none tracking-tight text-text-primary">
+      <h2 className="font-display text-name font-black uppercase leading-none tracking-tight text-text-primary">
         Race your friends
       </h2>
-      <p className="max-w-[18rem] text-[13px] leading-relaxed text-text-secondary">
+      <p className="max-w-[18rem] text-meta leading-relaxed text-text-secondary">
         Add friends to see how your best climb stacks up against theirs.
       </p>
       <Button fullWidth={false} onPress={() => navigate("/challenge")}>
@@ -354,27 +334,26 @@ function PodiumSpot({
       >
         {climber ? (
           <>
-            <p className="line-clamp-2 break-words font-display text-[13px] font-bold leading-tight text-text-primary">
+            <p className="line-clamp-3 break-words font-display text-meta font-bold leading-tight text-text-primary">
               {climber.handle}
             </p>
             {isMe && (
-              <p className="mt-0.5 font-display text-[11px] font-black uppercase tracking-[0.12em] text-signal">
+              <p className="mt-0.5 font-display text-label font-black uppercase tracking-[0.12em] text-signal">
                 You
               </p>
             )}
             <span className={`mx-auto mt-1.5 block h-px w-4/5 ${isFirst ? "bg-signal/25" : "bg-white/10"}`} />
             <p
               className={`mt-1.5 font-display font-black leading-none tabular-nums ${
-                isFirst ? "text-signal" : "text-text-primary"
+                isFirst ? "text-body text-signal" : "text-meta text-text-primary"
               }`}
-              style={{ fontSize: isFirst ? "clamp(13px, calc(3.6vw + 1px), 18px)" : "clamp(11px, 3.4vw, 15px)" }}
             >
               {climber.peakY.toLocaleString()}
               <span className="ml-0.5 text-[0.7em] font-bold text-text-secondary">{ALTITUDE_UNIT}</span>
             </p>
           </>
         ) : (
-          <p className="pt-2 font-mono text-[11px] uppercase tracking-[0.2em] text-text-muted">Open</p>
+          <p className="pt-2 font-mono text-label uppercase tracking-label text-text-muted">Open</p>
         )}
       </div>
     </li>
@@ -403,12 +382,12 @@ function StandingBanner({ standing, meRowId }: { standing: Standing; meRowId: st
       <span className={`h-9 w-px shrink-0 ${ranked ? "bg-signal/30" : "bg-white/15"}`} />
       <span className="min-w-0 flex-1">
         <span
-          className={`block font-display text-[1.45rem] font-black uppercase leading-none tracking-tight ${ranked ? "text-signal" : "text-text-primary"}`}
+          className={`block font-display text-headline font-black uppercase tracking-tight ${ranked ? "text-signal" : "text-text-primary"}`}
         >
           {headline}
         </span>
         {/* Wraps rather than truncates: the hidden/unranked detail is the recovery step. */}
-        <span className="mt-1 block text-[13px] leading-snug text-text-secondary">{detail}</span>
+        <span className="mt-1 block text-meta leading-snug text-text-secondary">{detail}</span>
       </span>
       {!ranked && <ChevronRight />}
       {ranked && (
@@ -419,7 +398,7 @@ function StandingBanner({ standing, meRowId }: { standing: Standing; meRowId: st
     </>
   );
 
-  const className = `${ranked ? "lb-banner" : "lb-glass border border-white/10"} flex w-full items-center gap-3.5 rounded-2xl px-4 py-3.5 text-left`;
+  const className = `${ranked ? "glow-card" : "glass border border-white/10"} flex w-full items-center gap-3.5 rounded-2xl px-4 py-3.5 text-left`;
 
   const action =
     standing.kind === "hidden"
@@ -429,7 +408,10 @@ function StandingBanner({ standing, meRowId }: { standing: Standing; meRowId: st
         : meRowId
           ? {
               label: "Show my row",
-              run: () => document.getElementById(meRowId)?.scrollIntoView({ behavior: "smooth", block: "center" }),
+              run: () =>
+                document
+                  .getElementById(meRowId)
+                  ?.scrollIntoView({ behavior: prefersReducedMotion() ? "auto" : "smooth", block: "center" }),
             }
           : null;
 
@@ -457,8 +439,8 @@ function StandingBanner({ standing, meRowId }: { standing: Standing; meRowId: st
 
 function RankTable({ climbers, meId }: { climbers: ClimberRank[]; meId: string | null }) {
   return (
-    <section className="lb-glass rounded-3xl border border-white/10 p-2" aria-label="Rankings">
-      <div className="flex items-center gap-2.5 pb-2 pl-2 pr-3 pt-1.5 font-mono text-[10px] font-bold uppercase tracking-[0.2em] text-text-muted">
+    <section className="glass rounded-3xl border border-white/10 p-2" aria-label="Rankings">
+      <div className="flex items-center gap-2.5 pb-2 pl-2 pr-3 pt-1.5 font-mono text-label font-bold uppercase tracking-label text-text-muted">
         <span className="w-6 text-center">#</span>
         <span className="flex-1 pl-11">Player</span>
         <span>Height ({ALTITUDE_UNIT})</span>
@@ -470,7 +452,7 @@ function RankTable({ climbers, meId }: { climbers: ClimberRank[]; meId: string |
             <li
               key={c.userId}
               id={isMe ? "lb-me" : undefined}
-              className={`flex items-center gap-2.5 rounded-2xl border py-2 pl-2 pr-3 ${
+              className={`flex flex-wrap items-center gap-x-2.5 gap-y-1 rounded-2xl border py-2 pl-2 pr-3 ${
                 isMe ? "border-signal/50 bg-signal/[0.09]" : "border-white/[0.06] bg-white/[0.025]"
               }`}
             >
@@ -478,22 +460,20 @@ function RankTable({ climbers, meId }: { climbers: ClimberRank[]; meId: string |
                 {c.rank}
               </span>
               <HexAvatar userId={c.userId} name={c.handle} avatarId={c.avatarId} size={38} />
-              {/* Up to two lines, not an ellipsis: the longest pseudonym plus YOU is
-                  wider than this column at 320px. The row centres its items, so the
-                  rank and height columns stay aligned when the name wraps. */}
-              <span
-                className="line-clamp-2 min-w-0 flex-1 break-words text-balance font-display font-bold leading-tight text-text-primary"
-                style={{ fontSize: "clamp(13px, calc(2.2vw + 6.5px), 15px)" }}
-              >
-                {c.handle}
-                {isMe && (
-                  <span className="ml-2 font-mono text-[10px] uppercase tracking-[0.2em] text-signal">you</span>
-                )}
+              {/* Wraps, never clamps: at 320px or a large text size the longest
+                  pseudonym needs more than one line, and a clamp would cut it. YOU
+                  sits on its own line, as on the podium, so it never pushes the
+                  name onto an extra one. The row centres its items, so the rank and
+                  height columns stay aligned when the name wraps. Below a 5.5rem
+                  name column (320px at a large text size) the height wraps onto
+                  its own line instead of the name breaking mid-word. */}
+              <span className="flex min-w-[5.5rem] flex-1 flex-col">
+                <span className="break-words text-balance font-display text-meta font-bold leading-tight text-text-primary min-[375px]:text-body">
+                  {c.handle}
+                </span>
+                {isMe && <span className="mt-0.5 font-mono text-label uppercase tracking-label text-signal">you</span>}
               </span>
-              <span
-                className="shrink-0 font-sans font-medium tabular-nums text-text-secondary"
-                style={{ fontSize: "clamp(13px, calc(2.2vw + 6.5px), 15px)" }}
-              >
+              <span className="ml-auto shrink-0 font-sans text-meta font-medium tabular-nums text-text-secondary">
                 {c.peakY.toLocaleString()}
                 <span className="ml-0.5 text-text-muted">{ALTITUDE_UNIT}</span>
               </span>
@@ -543,7 +523,7 @@ function LoadingState() {
 
 function TrophyBadge() {
   return (
-    <svg width="36" height="40" viewBox="0 0 36 40" aria-hidden className="drop-shadow-[0_0_10px_rgba(245,184,46,0.45)]">
+    <svg width="26" height="29" viewBox="0 0 36 40" aria-hidden className="drop-shadow-[0_0_10px_rgba(245,184,46,0.45)]">
       <defs>
         <linearGradient id="lb-gold" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0" stopColor="#ffe58a" />

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useId, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { tapHeavy } from "../lib/haptics";
 import { ALTITUDE_UNIT } from "@app/lib/units";
@@ -82,10 +82,10 @@ export function HomeScreen() {
         style={{ overscrollBehavior: "contain", WebkitOverflowScrolling: "touch" }}
       >
         <header className="flex flex-col items-center gap-3 text-center">
-          <h1 className="hm-wordmark font-display text-[2.6rem] font-black uppercase leading-[0.9] tracking-[-0.03em] text-text-primary">
+          <h1 className="hm-wordmark font-display text-wordmark font-black uppercase tracking-[-0.03em] text-text-primary">
             Doom<span className="text-signal">stack</span>
           </h1>
-          <span className="pl-[0.55em] font-mono text-[11px] uppercase tracking-[0.55em] text-text-secondary">
+          <span className="pl-[0.28em] font-mono text-label uppercase tracking-eyebrow text-text-secondary">
             Endless&nbsp;climb
           </span>
         </header>
@@ -97,7 +97,7 @@ export function HomeScreen() {
         {/* Scene gap — the volcanic backdrop shows through here */}
         <div className="min-h-8 flex-1 [@media(max-height:640px)]:min-h-2" />
 
-        <div className="flex w-full flex-col gap-3 pb-4">
+        <div className="flex w-full flex-col gap-3 pb-4 [@media(max-height:640px)]:pb-2">
           <PlayButton onPress={play} />
           <DailyCard daily={daily} resetMs={resetMs} onPress={playDaily} />
           <div className="grid grid-cols-2 gap-2.5">
@@ -160,7 +160,7 @@ function BestCard({
     >
       <div className="flex items-center gap-2">
         <CrownIcon />
-        <span className="font-mono text-[11px] font-bold uppercase tracking-[0.2em] text-text-secondary">
+        <span className="font-mono text-label font-bold uppercase tracking-label text-text-secondary">
           Best
         </span>
       </div>
@@ -172,15 +172,15 @@ function BestCard({
         </div>
       ) : (
         <>
-          <p className="mt-1 text-right font-display text-[1.4rem] font-black leading-none tabular-nums text-text-primary">
+          <p className="mt-1 text-right font-display text-headline font-black leading-none tabular-nums text-text-primary">
             {standing ? standing.peakY.toLocaleString() : "—"}
-            <span className="ml-1 text-sm font-bold uppercase text-text-secondary">
+            <span className="ml-1 text-meta font-bold uppercase text-text-secondary">
               {ALTITUDE_UNIT}
             </span>
           </p>
           <span className="mt-2 block h-px w-full bg-white/10" />
           <p
-            className={`mt-1.5 text-center font-display font-black tabular-nums ${standing ? "text-lg text-signal" : "font-mono text-[11px] uppercase tracking-[0.2em] text-text-muted"}`}
+            className={`mt-1.5 text-center font-display font-black tabular-nums ${standing ? "text-lg text-signal" : "font-mono text-label uppercase tracking-label text-text-muted"}`}
           >
             {standing ? `#${standing.rank.toLocaleString()}` : failed ? "—" : "Unranked"}
           </p>
@@ -196,16 +196,16 @@ function PlayButton({ onPress }: { onPress: () => void }) {
     <button
       onClick={onPress}
       aria-label="Play endless climb"
-      className="cta-lime flex w-full items-center gap-4 rounded-[22px] py-3.5 pl-3.5 pr-3 text-left text-void transition-transform active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void"
+      className="cta-lime flex min-h-[56px] w-full items-center gap-4 rounded-[22px] py-3 pl-3 pr-3 text-left text-void transition-transform active:scale-[0.97] [@media(max-height:640px)]:py-2.5"
     >
-      <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-[#141612] text-signal shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_4px_12px_rgba(0,0,0,0.35)]">
+      <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#141612] text-signal shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_4px_12px_rgba(0,0,0,0.35)]">
         <PlayGlyph />
       </span>
       <span className="min-w-0 flex-1">
-        <span className="block font-display text-[2.25rem] font-black uppercase leading-[0.9] tracking-[-0.02em] text-void">
+        <span className="block font-display text-cta font-black uppercase tracking-[-0.01em] text-void">
           Play
         </span>
-        <span className="mt-1.5 block font-mono text-[11px] font-bold uppercase tracking-[0.32em] text-void/80">
+        <span className="mt-1 block font-mono text-label font-bold uppercase tracking-label text-void/80">
           Endless climb
         </span>
       </span>
@@ -223,6 +223,7 @@ function DailyCard({
   resetMs: number;
   onPress: () => void;
 }) {
+  const subId = useId();
   const reset = `Resets in ${formatReset(resetMs)}`;
   const sub = daily.playedToday
     ? `Today ${daily.todayBest.toLocaleString()} ${ALTITUDE_UNIT} · ${reset}`
@@ -231,6 +232,7 @@ function DailyCard({
     <button
       onClick={onPress}
       aria-label="Play the daily climb"
+      aria-describedby={subId}
       className="glass relative flex w-full items-center gap-3 overflow-hidden rounded-[20px] border border-white/10 px-3.5 py-3 text-left transition-transform active:scale-[0.98]"
     >
       <span
@@ -243,19 +245,19 @@ function DailyCard({
       </span>
       <span className="relative min-w-0 flex-1">
         <span className="flex flex-wrap items-center gap-2">
-          <span className="whitespace-nowrap font-display text-[15px] font-black uppercase tracking-wide text-text-primary">
+          <span className="whitespace-nowrap font-display text-body font-black uppercase tracking-wide text-text-primary">
             Daily Climb
           </span>
-          <span className="rounded-md border border-ember/60 bg-ember/10 px-1.5 py-0.5 font-mono text-[10px] font-bold uppercase tracking-[0.1em] text-ember">
+          <span className="rounded-md border border-ember/60 bg-void/80 px-1.5 py-0.5 font-mono text-label font-bold uppercase tracking-[0.1em] text-ember">
             Daily
           </span>
           {daily.streak > 0 && (
-            <span className="rounded-md border border-ember/40 bg-ember/10 px-1.5 py-0.5 font-mono text-[10px] font-bold tabular-nums text-ember">
+            <span className="rounded-md border border-ember/40 bg-void/80 px-1.5 py-0.5 font-mono text-label font-bold tabular-nums text-ember">
               {daily.streak}🔥
             </span>
           )}
         </span>
-        <span className="mt-1 block truncate text-[13px] text-text-secondary">{sub}</span>
+        <span id={subId} className="mt-1 block truncate text-meta text-text-secondary">{sub}</span>
       </span>
       <ChevronRight className="relative text-text-secondary" />
     </button>
@@ -280,27 +282,26 @@ function ModeTile({
     <button
       onClick={onPress}
       aria-label={ariaLabel}
-      className="glass flex w-full min-w-0 items-center gap-2 rounded-[20px] border border-white/10 py-3 pl-2.5 pr-1.5 text-left transition-transform active:scale-[0.98]"
+      className="glass @container w-full min-w-0 rounded-[20px] border border-white/10 py-3 pl-2.5 pr-2 text-left transition-transform active:scale-[0.98] [@media(max-height:640px)]:py-2.5"
     >
-      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-signal/50 bg-signal/10">
-        {icon}
-      </span>
-      <span className="min-w-0 flex-1">
-        {/* Sized off the viewport so both tiles hold one line down to ~360pt. */}
-        <span
-          className="block whitespace-nowrap font-display font-black uppercase tracking-[0.02em] text-text-primary"
-          style={{ fontSize: "clamp(10px, calc(7.2vw - 15.6px), 13px)" }}
-        >
-          {title}
+      {/* A container query in rem, not a viewport clamp: the icon sits beside the
+          text only while the tile is wide enough for its longest line (9.5rem of
+          content), so a narrow phone or a large text size stacks it above instead
+          of pushing CHALLENGE past the tile edge. */}
+      <span className="flex flex-col items-start gap-1.5 @min-[9.5rem]:flex-row @min-[9.5rem]:items-center @min-[9.5rem]:gap-2">
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-signal/50 bg-signal/10">
+          {icon}
         </span>
-        <span
-          className="mt-0.5 block leading-snug tracking-[-0.01em] text-text-secondary"
-          style={{ fontSize: "clamp(9.5px, calc(5.8vw - 12.6px), 11px)" }}
-        >
-          {subtitle}
+        <span className="min-w-0 flex-1">
+          <span className="block font-display text-meta font-black uppercase leading-tight tracking-[0.02em] text-text-primary">
+            {title}
+          </span>
+          <span className="mt-0.5 block text-meta leading-snug tracking-[-0.01em] text-text-secondary">
+            {subtitle}
+          </span>
         </span>
+        <ChevronRight size={14} className="hidden text-text-secondary @min-[11rem]:block" />
       </span>
-      <ChevronRight size={14} className="-ml-0.5 text-text-secondary max-[359px]:hidden" />
     </button>
   );
 }
@@ -404,7 +405,7 @@ function SearchingOverlay({
           <p className="font-display text-xl font-black uppercase tracking-wide text-text-primary">
             Searching for opponent
           </p>
-          <p className="mt-2 font-mono text-[11px] uppercase tracking-[0.14em] text-text-secondary">
+          <p className="mt-2 font-mono text-label uppercase tracking-label text-text-secondary">
             This usually takes a few seconds
           </p>
           <button
@@ -421,7 +422,7 @@ function SearchingOverlay({
           <p className="font-display text-xl font-black uppercase tracking-wide text-text-primary">
             No opponent found
           </p>
-          <p className="mt-2 font-mono text-[11px] uppercase tracking-[0.14em] text-text-secondary">
+          <p className="mt-2 font-mono text-label uppercase tracking-label text-text-secondary">
             Try again or come back later
           </p>
           <div className="mt-8 flex w-full max-w-xs flex-col gap-3">

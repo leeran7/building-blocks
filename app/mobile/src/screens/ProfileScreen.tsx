@@ -8,6 +8,7 @@ import { dailySummary, formatReset, msUntilReset } from "../lib/daily";
 import { ALTITUDE_UNIT } from "@app/lib/units";
 import { HexAvatar } from "../components/HexAvatar";
 import { identityNameFor } from "../lib/identity";
+import { avatarName } from "@app/lib/avatars";
 
 /**
  * Profile — the player's identity and standing, plus the daily-climb hook.
@@ -61,10 +62,10 @@ export function ProfileScreen() {
         style={{ WebkitOverflowScrolling: "touch", overscrollBehavior: "contain" }}
       >
         <header className="pb-5 pt-[calc(env(safe-area-inset-top)+1rem)]">
-          <p className="font-display text-xl font-black uppercase leading-none tracking-[-0.02em] text-text-primary">
+          <p className="font-display text-body font-black uppercase leading-none tracking-[-0.01em] text-text-primary">
             Doom<span className="text-signal">stack</span>
           </p>
-          <h1 className="metal-title mt-1 font-display text-[2.6rem] font-black uppercase leading-none tracking-[-0.02em]">
+          <h1 className="metal-title mt-1 font-display text-title font-black uppercase tracking-[-0.02em]">
             Profile
           </h1>
         </header>
@@ -80,10 +81,10 @@ export function ProfileScreen() {
           </div>
         ) : (
           <div className="flex flex-col gap-3 pb-6">
-            <section className="glass flex items-center gap-3.5 rounded-3xl border border-white/10 p-4">
+            <section className="glass flex flex-wrap items-center gap-3.5 rounded-3xl border border-white/10 p-4">
               <button
                 type="button"
-                aria-label="Change avatar"
+                aria-label={`Avatar: ${avatarName(settingsData?.avatarId ?? null) ?? "Initials"}. Change avatar`}
                 onClick={openAvatarPicker}
                 className="relative shrink-0 rounded-2xl transition-transform active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void"
               >
@@ -100,22 +101,25 @@ export function ProfileScreen() {
                   <BadgePencilIcon />
                 </span>
               </button>
-              <div className="min-w-0 flex-1">
-                {/* Wraps to two lines instead of ellipsizing. Beside the avatar and
-                    the pencil, an ellipsis cuts a pseudonym at its animal word at
-                    320px, which is the word the avatar changes. Balanced wrapping
-                    breaks at a space. A single over-long word breaks as a last resort. */}
-                <p
-                  className="line-clamp-2 break-words text-balance font-display font-black leading-[1.15] text-text-primary"
-                  style={{ fontSize: "clamp(1.05rem, calc(4.4vw + 0.25rem), 1.35rem)" }}
-                >
+              {/* min-w in rem: at a large text size on a narrow phone the name and
+                  the pencil wrap under the avatar instead of squeezing the name. */}
+              <div className="min-w-[6.5rem] flex-1">
+                {/* Wraps instead of ellipsizing. Beside the avatar and the pencil, an
+                    ellipsis cuts a pseudonym at its animal word at 320px, which is the
+                    word the avatar changes. No clamp, so a large text size never cuts
+                    it. Balanced wrapping breaks at a space. A single
+                    over-long word breaks as a last resort. */}
+                <p className="break-words text-balance font-display text-name font-black text-text-primary">
                   {identityName}
                 </p>
                 {identityUsername && (
                   <p className="truncate font-mono text-sm text-signal">@{identityUsername}</p>
                 )}
                 {dashData?.user.email && (
-                  <p className="mt-0.5 truncate font-mono text-xs text-text-secondary">{dashData.user.email}</p>
+                  // Wraps rather than ellipsizes; the <wbr> puts the first break after the "@".
+                  <p className="mt-0.5 line-clamp-2 break-words font-mono text-meta text-text-secondary">
+                    <EmailText email={dashData.user.email} />
+                  </p>
                 )}
               </div>
               <button
@@ -137,13 +141,10 @@ export function ProfileScreen() {
                 <CrownIcon muted />
                 <span className="h-12 w-px shrink-0 bg-white/15" />
                 <div className="min-w-0 flex-1">
-                  <p
-                    className="font-display text-lg font-black uppercase tracking-tight text-text-primary"
-                    style={{ fontSize: "clamp(1rem, 4.6vw, 1.125rem)" }}
-                  >
+                  <p className="font-display text-body font-black uppercase tracking-tight text-text-primary">
                     Couldn&apos;t load your climb
                   </p>
-                  <p className="mt-0.5 text-[13px] text-text-secondary">Check your connection</p>
+                  <p className="mt-0.5 text-meta text-text-secondary">Check your connection</p>
                 </div>
                 <button
                   type="button"
@@ -158,17 +159,14 @@ export function ProfileScreen() {
                 <CrownIcon />
                 <span className="h-14 w-px shrink-0 bg-signal/30" />
                 <div className="min-w-0 flex-1 text-center">
-                  <p className="font-mono text-[11px] font-bold uppercase tracking-[0.3em] text-text-secondary">
+                  <p className="font-mono text-label font-bold uppercase tracking-label text-text-secondary">
                     Best climb
                   </p>
-                  <p
-                    className="mt-1 font-display font-black leading-none tabular-nums text-signal"
-                    style={{ fontSize: "clamp(1.9rem, 10vw, 2.6rem)" }}
-                  >
+                  <p className="mt-1 font-display text-hero font-black tabular-nums text-signal">
                     {climb.peakY.toLocaleString()}
                     <span className="ml-1 text-[0.5em] font-bold text-text-secondary">{ALTITUDE_UNIT}</span>
                   </p>
-                  <p className="mt-2 font-mono text-[11px] uppercase tracking-[0.2em] text-text-secondary">
+                  <p className="mt-2 font-mono text-label uppercase tracking-label text-text-secondary">
                     #{climb.rank.toLocaleString()}
                     {climb.totalClimbers ? ` of ${climb.totalClimbers.toLocaleString()}` : ""}
                     {topPct ? ` · top ${topPct}%` : ""}
@@ -183,7 +181,7 @@ export function ProfileScreen() {
                   <p className="font-display text-lg font-black uppercase tracking-tight text-text-primary">
                     No climbs yet
                   </p>
-                  <p className="mt-0.5 text-[13px] text-text-secondary">Hit Play to set your first record</p>
+                  <p className="mt-0.5 text-meta text-text-secondary">Hit Play to set your first record</p>
                 </div>
               </section>
             )}
@@ -204,12 +202,12 @@ export function ProfileScreen() {
                 void tapHeavy();
                 navigate("/climb?daily=1");
               }}
-              className="cta-lime flex min-h-[64px] w-full items-center justify-center gap-3 rounded-[22px] text-void transition-transform active:scale-[0.97]"
+              className="cta-lime flex min-h-[56px] w-full items-center justify-center gap-3 rounded-[22px] py-2 text-void transition-transform active:scale-[0.97]"
             >
               <span className="flex h-10 w-10 items-center justify-center rounded-full bg-[#141612] text-signal">
                 <PlayGlyph />
               </span>
-              <span className="font-display text-[1.6rem] font-black uppercase tracking-[-0.01em]">Daily climb</span>
+              <span className="font-display text-cta font-black uppercase tracking-[-0.01em]">Daily climb</span>
             </button>
 
             {identityUsername && (
@@ -230,7 +228,7 @@ export function ProfileScreen() {
               className="glass flex min-h-[52px] w-full items-center gap-3 rounded-2xl border border-white/10 px-4 text-left transition-transform active:scale-[0.98]"
             >
               <PencilIcon />
-              <span className="flex-1 text-[15px] font-medium text-text-primary">Edit profile &amp; socials</span>
+              <span className="flex-1 text-body font-medium text-text-primary">Edit profile &amp; socials</span>
               <ChevronRight />
             </button>
           </div>
@@ -240,15 +238,27 @@ export function ProfileScreen() {
   );
 }
 
+function EmailText({ email }: { email: string }) {
+  const at = email.indexOf("@");
+  if (at < 0) return <>{email}</>;
+  return (
+    <>
+      {email.slice(0, at + 1)}
+      <wbr />
+      {email.slice(at + 1)}
+    </>
+  );
+}
+
 function StatTile({ label, value, accent = false }: { label: string; value: string; accent?: boolean }) {
   return (
     <div className="glass flex flex-col items-center rounded-3xl border border-white/10 px-3 py-4">
       <span
-        className={`font-display text-[2rem] font-black leading-none tabular-nums ${accent ? "text-signal" : "text-text-primary"}`}
+        className={`font-display text-stat font-black tabular-nums ${accent ? "text-signal" : "text-text-primary"}`}
       >
         {value}
       </span>
-      <span className="mt-2 font-mono text-[10px] font-bold uppercase tracking-[0.22em] text-text-secondary">
+      <span className="mt-2 font-mono text-label font-bold uppercase tracking-label text-text-secondary">
         {label}
       </span>
     </div>
@@ -271,7 +281,7 @@ function StreakCard({ streak, playedToday }: { streak: number; playedToday: bool
       </span>
       <div className="min-w-0 flex-1">
         <p className="font-display text-base font-black uppercase tracking-wide text-text-primary">{title}</p>
-        <p className="mt-0.5 text-[13px] leading-snug text-text-secondary">{detail}</p>
+        <p className="mt-0.5 text-meta leading-snug text-text-secondary">{detail}</p>
       </div>
     </section>
   );

@@ -39,7 +39,7 @@ import { useRetry } from "../hooks/useRetry";
 const LOAD_FAILED_MESSAGE = "Couldn't load your profile. Check your connection and try again.";
 
 const INPUT =
-  "min-h-[48px] w-full rounded-xl border border-white/10 bg-[#0d0c10]/80 px-3.5 text-[15px] text-text-primary placeholder:text-text-muted focus:border-signal focus:outline-none";
+  "min-h-[48px] w-full rounded-xl border border-white/10 bg-[#0d0c10]/80 px-3.5 text-body text-text-primary placeholder:text-text-muted focus:border-signal focus:outline-none";
 
 /**
  * Edit Profile — identity, socials, preferences and the account actions.
@@ -322,14 +322,14 @@ export function EditProfileScreen() {
                     >
                       <span className="flex w-[6.75rem] shrink-0 items-center gap-2.5 text-text-primary">
                         <SocialMark platform={p} className="h-5 w-5 shrink-0" />
-                        <span className="text-sm">{PLATFORM_META[p].label}</span>
+                        <span className="text-meta">{PLATFORM_META[p].label}</span>
                       </span>
                       <span
                         className={`flex min-h-[44px] min-w-0 flex-1 items-center gap-1 rounded-xl border bg-[#0d0c10]/80 px-3 focus-within:border-signal ${
                           invalid ? "border-ember/60" : "border-white/10"
                         }`}
                       >
-                        <span aria-hidden className="font-mono text-sm text-text-muted">
+                        <span aria-hidden className="font-mono text-meta text-text-muted">
                           @
                         </span>
                         <input
@@ -342,7 +342,7 @@ export function EditProfileScreen() {
                           spellCheck={false}
                           aria-label={`${PLATFORM_META[p].label} handle`}
                           aria-invalid={invalid || undefined}
-                          className="min-w-0 flex-1 bg-transparent py-2 font-mono text-sm text-text-primary placeholder:text-text-muted focus:outline-none"
+                          className="min-w-0 flex-1 bg-transparent py-2 font-mono text-meta text-text-primary placeholder:text-text-muted focus:outline-none"
                         />
                       </span>
                     </label>
@@ -373,7 +373,7 @@ export function EditProfileScreen() {
             </Section>
 
             {error && (
-              <p role="alert" className="px-1 text-sm text-ember">
+              <p role="alert" className="px-1 text-meta text-ember">
                 {error}
               </p>
             )}
@@ -397,7 +397,7 @@ export function EditProfileScreen() {
                   setDeleteConfirm(true);
                   setDeleteError(null);
                 }}
-                className="mx-auto min-h-[44px] px-4 text-[15px] font-medium text-ember transition-opacity active:opacity-70"
+                className="mx-auto min-h-[44px] px-4 text-body font-medium text-ember transition-opacity active:opacity-70"
               >
                 Delete account
               </button>
@@ -413,11 +413,11 @@ export function EditProfileScreen() {
                 <p className="font-display text-base font-black uppercase tracking-wide text-text-primary">
                   Delete account?
                 </p>
-                <p className="mt-1 text-[13px] leading-relaxed text-text-secondary">
+                <p className="mt-1 text-meta leading-relaxed text-text-secondary">
                   Your profile, climb history, and social links will be permanently removed. This cannot be undone.
                 </p>
                 {deleteError && (
-                  <p role="alert" className="mt-2 text-xs text-ember">
+                  <p role="alert" className="mt-2 text-meta text-ember">
                     {deleteError}
                   </p>
                 )}
@@ -455,7 +455,7 @@ function SignOutButton({ onPress }: { onPress: () => void }) {
     <button
       type="button"
       onClick={onPress}
-      className="glass min-h-[50px] w-full rounded-2xl border border-white/10 text-[15px] font-semibold text-text-primary transition-transform active:scale-[0.98]"
+      className="glass min-h-[50px] w-full rounded-2xl border border-white/10 text-body font-semibold text-text-primary transition-transform active:scale-[0.98]"
     >
       Sign out
     </button>
@@ -465,8 +465,8 @@ function SignOutButton({ onPress }: { onPress: () => void }) {
 function Section({ title, subtitle, children }: { title: string; subtitle?: string; children: ReactNode }) {
   return (
     <section className="glass rounded-3xl border border-white/10 px-5 pb-5 pt-4">
-      <h2 className="font-mono text-[11px] font-bold uppercase tracking-[0.3em] text-text-secondary">{title}</h2>
-      {subtitle && <p className="mt-1 text-[13px] text-text-secondary">{subtitle}</p>}
+      <h2 className="font-mono text-label font-bold uppercase tracking-label text-text-secondary">{title}</h2>
+      {subtitle && <p className="mt-1 text-meta text-text-secondary">{subtitle}</p>}
       <div className="mt-3">{children}</div>
     </section>
   );
@@ -493,8 +493,8 @@ function AvatarRow({
     >
       <HexAvatar userId={userId} name={name} avatarId={avatarId} size={48} />
       <span className="min-w-0 flex-1">
-        <span className="block text-sm font-medium text-text-primary">Avatar</span>
-        <span className="block truncate text-[13px] text-text-secondary">{current}</span>
+        <span className="block text-body font-medium text-text-primary">Avatar</span>
+        <span className="block truncate text-meta text-text-secondary">{current}</span>
       </span>
       <ChevronRight />
     </button>
@@ -504,7 +504,7 @@ function AvatarRow({
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
     <label className="flex flex-col gap-2">
-      <span className="text-sm font-medium text-text-primary">{label}</span>
+      <span className="text-meta font-medium text-text-primary">{label}</span>
       {children}
     </label>
   );
@@ -524,22 +524,28 @@ function Toggle({
   return (
     <div className="flex items-center justify-between gap-4">
       <div>
-        <p className="text-[15px] font-semibold text-text-primary">{label}</p>
-        <p className="mt-0.5 text-[13px] text-text-secondary">{description}</p>
+        <p className="text-body font-semibold text-text-primary">{label}</p>
+        <p className="mt-0.5 text-meta text-text-secondary">{description}</p>
       </div>
+      {/* The 44px-tall button is the tap target; the 32px track is drawn inside it. */}
       <button
         role="switch"
         aria-checked={on}
         aria-label={label}
         onClick={onToggle}
-        className={`relative h-8 w-14 shrink-0 rounded-full transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void ${
-          on ? "bg-signal shadow-[0_0_14px_rgba(203,242,77,0.45)]" : "bg-border-strong"
-        }`}
+        className="group flex h-11 w-16 shrink-0 items-center justify-center rounded-full focus-visible:outline-none"
       >
         <span
-          className="absolute top-1 h-6 w-6 rounded-full bg-white shadow-sm transition-[left] duration-200"
-          style={{ left: on ? 28 : 4 }}
-        />
+          aria-hidden
+          className={`relative h-8 w-14 rounded-full transition-colors duration-200 group-focus-visible:ring-2 group-focus-visible:ring-signal group-focus-visible:ring-offset-2 group-focus-visible:ring-offset-void ${
+            on ? "bg-signal shadow-[0_0_14px_rgba(203,242,77,0.45)]" : "bg-border-strong"
+          }`}
+        >
+          <span
+            className="absolute top-1 h-6 w-6 rounded-full bg-white shadow-sm transition-[left] duration-200"
+            style={{ left: on ? 28 : 4 }}
+          />
+        </span>
       </button>
     </div>
   );
@@ -554,11 +560,11 @@ function UsernameHint({
 }) {
   if (!check) return null;
   if (!check.valid) {
-    return <p className="text-xs text-ember">{check.error}</p>;
+    return <p className="text-meta text-ember">{check.error}</p>;
   }
   const isSaved = check.username === savedUsername;
   return (
-    <p className="text-[13px] text-text-secondary">
+    <p className="text-meta text-text-secondary">
       {isSaved ? "Your page: " : "Your page will be "}
       <button
         type="button"
