@@ -2,7 +2,8 @@
  * Tower v3 "The Climb" — floor obstacles.
  *
  * Jump-over crates on the traverse, stacked crates that form a stair to the
- * next floor, and three-level hurdle triangles (up one side, down the other).
+ * next floor, and 3- or 4-level hurdle triangles ("hills": up one side,
+ * down the other).
  * They tax time the lava spends closing: walking into a lone hurdle stops you;
  * jumping clears it. Stairs/triangles ride a continuous ramp surface (visual
  * crates stay stepped) so cresting is not a jittery tread snap. Nothing falls
@@ -17,11 +18,13 @@
 import { Obstacle, PlayerState, TowerSpec } from "./types";
 import { createRng } from "./rng";
 import { resolveGameCategory } from "./categories";
+import { SPRINT_BURST_MULT } from "./powerups";
 import {
   floorHeight,
   floorIndexAt,
   laddersForFloor,
   platformsForFloor,
+  platformsNearY,
 } from "./towers";
 
 const EPS = 0.02;
@@ -36,32 +39,98 @@ const LADDER_CLEAR_EXTRA_M = 2.5;
 const CORRIDOR_GAP_M = 2.4;
 /** Clear space reserved around each placed hurdle. */
 const HURDLE_CLEAR_M = 2.6;
-/** Hurdle pyramids: floor, mid, peak — then back down. */
-const PYRAMID_LEVELS = 3;
+/**
+ * Hurdle-triangle ("hill") sizes — crate levels up to the peak, then back down
+ * (2·levels − 1 crates). Largest first: placement falls back to a smaller hill
+ * when the corridor or headroom is too small for the rolled size.
+ */
+export const PYRAMID_LEVEL_OPTIONS = [4, 3] as const;
+export type PyramidLevels = (typeof PYRAMID_LEVEL_OPTIONS)[number];
+/** Smallest hill — the original floor/mid/peak tent. */
+const PYRAMID_MIN_LEVELS = 3;
+/** Minimum clearance between a hill's peak and the slab above it. */
+const PYRAMID_HEADROOM_M = 2;
+/** Crate x-overlap of the smallest hill, before the seeded jitter (0–0.12). */
+const PYRAMID_BASE_OVERLAP = 0.48;
+/** Extra overlap per level above the smallest hill — keeps big hills compact. */
+const PYRAMID_OVERLAP_PER_LEVEL = 0.04;
+/**
+ * Least x-overlap (fraction of crate width) consecutive ramp crates keep once
+ * the slope cap has widened their advance — they must still overlap to read
+ * (and collide) as one continuous stair/hill run.
+ */
+const RAMP_MIN_OVERLAP = 0.15;
+/**
+ * Fraction of the server's legal ascent rate a ramp may demand from a walker at
+ * full ground speed. The headroom absorbs float error and future retunes.
+ */
+const RAMP_ASCENT_SAFETY = 0.9;
 
 export function obstacleLadderKeepOutM(tower: TowerSpec): number {
   return tower.ladderGrabRadius + LADDER_CLEAR_EXTRA_M;
 }
 
 /**
+ * Steepest ramp (rise / run) any stair or hill may have on this tower.
+ *
+ * Ramps turn run speed into climb speed: a grounded walker rises at
+ * slope × moveSpeed × (sprint-burst, the only ground-speed boost). The server
+ * re-sims every duel through the height-rate sentinel (antiCheat.ts
+ * isHeightDeltaLegal), whose envelope is max(climb, jump, jetpack) — never
+ * below tower.jumpSpeed. Honest walking must stay under it with headroom, or
+ * K straight ticks on a steep ramp cheat-flag the player and lock a staked
+ * duel. Obstacle geometry is part of that trust anchor.
+ *
+ * ASSUMPTION: SPRINT_BURST_MULT is the only — and so the maximum — ground-speed
+ * multiplier, and it does not compound (powerups.ts moveSpeedMultiplier). Any
+ * new ground-speed boost, or a compounding one, MUST be folded into
+ * `fastestWalk` below, or honest ramp walking will trip the sentinel again.
+ */
+function maxRampSlope(tower: TowerSpec): number {
+  const fastestWalk = tower.moveSpeed * SPRINT_BURST_MULT;
+  return (RAMP_ASCENT_SAFETY * tower.jumpSpeed) / fastestWalk;
+}
+
+/**
+ * Crate advance for a ramp that climbs `rise` over `(steps × advance + extra)`
+ * metres: the seeded `advance`, widened as far as the slope cap needs. Null if
+ * that pushes crates apart until they would no longer overlap.
+ */
+function slopeCappedAdvance(
+  tower: TowerSpec,
+  advance: number,
+  width: number,
+  rise: number,
+  steps: number,
+  extra: number
+): number | null {
+  const minRun = rise / maxRampSlope(tower);
+  const capped = Math.max(advance, (minRun - extra) / steps);
+  return capped <= width * (1 - RAMP_MIN_OVERLAP) ? capped : null;
+}
+
+/**
  * Crates on floor `i`, or empty. Deterministic in (tower.seed, i).
- * A floor is a hurdle (one or two crates on the slab), a three-level hurdle
+ * A floor is a hurdle (one or two crates on the slab), a 3- or 4-level hurdle
  * triangle, or a stair of stacked crates whose last top meets the next floor.
  */
 export function obstaclesForFloor(tower: TowerSpec, i: number): Obstacle[] {
   if (i < MIN_SPAWN_FLOOR) return [];
   const d = Math.min(1, i / RAMP_FLOORS);
   const rng = createRng(`${tower.seed}:ob:${i}`);
-  const chance = 0.5 + 0.42 * d;
+  // Raised intercepts, same d=1 ceiling as before: the bottom floors (low d)
+  // read busier while the late-game peak difficulty is unchanged.
+  const chance = 0.68 + 0.24 * d;
   if (rng.next() >= chance) return [];
 
   const kind = resolveGameCategory(tower.categorySlug).fallingHazardType;
-  const stairChance = 0.4 + 0.35 * d;
+  const stairChance = 0.58 + 0.17 * d;
   if (rng.next() < stairChance) {
     const stair = tryStair(tower, i, rng, kind, d);
     if (stair) return stair;
   }
-  const pyramidChance = 0.4 + 0.2 * d;
+  // A bit higher than before now that hills only come in two, cheaper sizes.
+  const pyramidChance = 0.6 + 0.1 * d;
   if (rng.next() < pyramidChance) {
     const pyramid = tryPyramid(tower, i, rng, kind, d);
     if (pyramid) return pyramid;
@@ -166,6 +235,10 @@ export function resolveObstacleMotion(
 
   const LANDING_EPS = EPS * 1.5;
 
+  // Ramps are solid from above at any vertical speed — a rising jump into a
+  // slope must not tunnel under it (see blockRampCrossing).
+  blockRampCrossing(band, p, prevX, prevY, LANDING_EPS);
+
   if (p.vy <= 0) {
     const top = landingObstacle(band, p.x, prevY, p.y, marginM);
     if (top) {
@@ -175,7 +248,7 @@ export function resolveObstacleMotion(
     }
     // Ride before the grounded gate — platform landing may have cleared
     // onGround while feet are still on a ramp above the slab.
-    rideStairRamps(band, p, prevX, prevY, LANDING_EPS);
+    rideStairRamps(band, p, prevX, prevY, LANDING_EPS, tower, marginM);
   }
 
   // Hurdle: only the grounded walk is blocked. An airborne climber may clip
@@ -192,14 +265,14 @@ export function resolveObstacleMotion(
     const inX = p.x >= o.x0 && p.x <= o.x1;
     if (!inX) continue;
     if (isStairCrate(band, o)) {
-      const surface = obstacleSurfaceY(band, o, p.x);
-      const run = collectStairRun(band, o);
-      const yHi = Math.max(...run.map((r) => r.y1));
-      const yLo = Math.min(...run.map((r) => r.y0));
-      const stepSlack = Math.max(0.85, (yHi - yLo) / run.length + 0.25);
+      const run = stairRunOf(band, o);
+      const surface = rampSurfaceY(run, p.x);
       // On/near the ramp — don't shove sideways off the climb.
-      if (p.y >= surface - stepSlack) continue;
-      // Tall face under the ramp (approach from the high end at slab height).
+      if (p.y >= surface - run.stepSlack) continue;
+      // Beneath a hill: both ends of a tent meet the slab, so its base crates
+      // would wall a walker in from the inside forever. Let them walk out.
+      if (run.tent) continue;
+      // Tall face under a stair ramp (approach from the high end at slab height).
     } else {
       const atBase = Math.abs(p.y - o.y0) <= LANDING_EPS;
       const canWalkUp =
@@ -271,6 +344,16 @@ function placeHurdles(
   return placed;
 }
 
+/**
+ * Roll a hill size from one seeded draw `r` ∈ [0, 1). The 4-level hill gets
+ * likelier as the difficulty ramp `d` (0→1) climbs:
+ * d=0 → 70% 3-level, 30% 4-level; d=1 → 30% 3-level, 70% 4-level.
+ */
+export function pickPyramidLevels(r: number, d: number): PyramidLevels {
+  if (r < 0.3 + 0.4 * d) return 4;
+  return 3;
+}
+
 function tryPyramid(
   tower: TowerSpec,
   i: number,
@@ -279,14 +362,13 @@ function tryPyramid(
   d: number
 ): Obstacle[] | null {
   const y0 = floorHeight(tower, i);
+  const storey = floorHeight(tower, i + 1) - y0;
   // Shallower levels + higher overlap → tent ramp reads smoother underfoot.
+  // Per-crate height is size-independent, so every tread stays under the apex.
   const height = Math.min(hurdleHeightM(tower) * 0.88, jumpApexM(tower) * 0.55);
   const width = crateWidthM(d);
-  const overlapFrac = 0.48 + rng.next() * 0.12;
-  const advance = width * (1 - overlapFrac);
-  const nCrates = PYRAMID_LEVELS * 2 - 1;
-  // Need side clearance so the triangle sits in a pocket, not flush to ladders.
-  const spanW = (nCrates - 1) * advance + width + HURDLE_CLEAR_M;
+  const overlapJitter = rng.next() * 0.12;
+  const rolled = pickPyramidLevels(rng.next(), d);
   const pieces = platformsForFloor(tower, i);
   const destKeep = obstacleLadderKeepOutM(tower);
   const destLadders = [
@@ -294,9 +376,32 @@ function tryPyramid(
     ...laddersForFloor(tower, i).map((l) => l.x),
     ...laddersForFloor(tower, i + 1).map((l) => l.x),
   ];
-  const footprint = (nCrates - 1) * advance + width;
 
-  const attempt = (spans: Span[]): Obstacle[] | null => {
+  const attempt = (levels: PyramidLevels): Obstacle[] | null => {
+    // Bigger hills overlap their crates more so the footprint stays compact —
+    // unless that would out-climb the slope cap below, which always wins.
+    const overlapFrac =
+      PYRAMID_BASE_OVERLAP +
+      overlapJitter +
+      (levels - PYRAMID_MIN_LEVELS) * PYRAMID_OVERLAP_PER_LEVEL;
+    // The tent ramp climbs levels·height from the base edge to the peak
+    // crate's centre, (levels − 1)·advance + width/2 away. Spread the crates
+    // until that slope is sentinel-safe at full sprint; too spread → smaller.
+    const advance = slopeCappedAdvance(
+      tower,
+      width * (1 - overlapFrac),
+      width,
+      levels * height,
+      levels - 1,
+      width / 2
+    );
+    if (advance === null) return null;
+    const nCrates = levels * 2 - 1;
+    const footprint = (nCrates - 1) * advance + width;
+    // Need side clearance so the triangle sits in a pocket, not flush to ladders.
+    const spanW = footprint + HURDLE_CLEAR_M;
+    // Between-ladder only — same deterministic corridor rule as lone hurdles.
+    const spans = betweenLadderSpans(tower, i, spanW);
     // Longest corridor first — more deterministic than RNG span picks.
     const ranked = [...spans].sort((a, b) => b.hi - b.lo - (a.hi - a.lo));
     for (const span of ranked) {
@@ -322,7 +427,7 @@ function tryPyramid(
           return buildPyramid(
             i,
             origin,
-            nCrates,
+            levels,
             width,
             advance,
             y0,
@@ -335,8 +440,15 @@ function tryPyramid(
     return null;
   };
 
-  // Between-ladder only — same deterministic corridor rule as lone hurdles.
-  return attempt(betweenLadderSpans(tower, i, spanW));
+  // Rolled size first, then smaller hills. A corridor or storey too small for
+  // the big hill still gets a hill (same spirit as tryStair's fallback).
+  for (const levels of PYRAMID_LEVEL_OPTIONS) {
+    if (levels > rolled) continue;
+    if (levels * height > storey - PYRAMID_HEADROOM_M) continue;
+    const hill = attempt(levels);
+    if (hill) return hill;
+  }
+  return null;
 }
 
 function tryStair(
@@ -358,7 +470,18 @@ function tryStair(
 
   const width = crateWidthM(d);
   const overlapFrac = 0.55 + rng.next() * 0.15;
-  const advance = width * (1 - overlapFrac);
+  // The stair ramp climbs the whole storey between the first tread's edge and
+  // the last tread's near edge, (nSteps − 1)·advance away — keep that slope
+  // sentinel-safe at full sprint (see maxRampSlope).
+  const advance = slopeCappedAdvance(
+    tower,
+    width * (1 - overlapFrac),
+    width,
+    gap,
+    nSteps - 1,
+    0
+  );
+  if (advance === null) return null;
   const srcPieces = platformsForFloor(tower, i);
   const destPieces = platformsForFloor(tower, i + 1);
   const destKeep = obstacleLadderKeepOutM(tower);
@@ -606,7 +729,7 @@ function pyramidFits(
 function buildPyramid(
   floorIndex: number,
   origin: number,
-  nCrates: number,
+  levels: PyramidLevels,
   width: number,
   advance: number,
   y0: number,
@@ -614,7 +737,8 @@ function buildPyramid(
   kind: Obstacle["kind"]
 ): Obstacle[] {
   const out: Obstacle[] = [];
-  const peak = PYRAMID_LEVELS - 1;
+  const nCrates = levels * 2 - 1;
+  const peak = levels - 1;
   for (let k = 0; k < nCrates; k++) {
     const level = k <= peak ? k : nCrates - 1 - k;
     const x0 = origin + k * advance;
@@ -643,42 +767,140 @@ function isStairCrate(band: Obstacle[], o: Obstacle): boolean {
   return false;
 }
 
-/** Stick grounded feet to the continuous ramp across each stair/pyramid run. */
-function rideStairRamps(
+/** One connected stair or hill (tent) run plus the metrics motion needs. */
+type StairRun = {
+  /** The crate the run was collected from (a lone crate's own top). */
+  seed: Obstacle;
+  crates: Obstacle[];
+  left: number;
+  right: number;
+  yLo: number;
+  yHi: number;
+  /** How far below the ramp still counts as "on it" (step-up tolerance). */
+  stepSlack: number;
+  /** Both ends meet the slab (hill), vs a monotone stair. */
+  tent: boolean;
+};
+
+function stairRunOf(band: Obstacle[], o: Obstacle): StairRun {
+  const crates = collectStairRun(band, o);
+  const yLo = Math.min(...crates.map((r) => r.y0));
+  const yHi = Math.max(...crates.map((r) => r.y1));
+  const sorted = [...crates].sort(
+    (a, b) => (a.x0 + a.x1) / 2 - (b.x0 + b.x1) / 2
+  );
+  return {
+    seed: o,
+    crates,
+    left: Math.min(...crates.map((r) => r.x0)),
+    right: Math.max(...crates.map((r) => r.x1)),
+    yLo,
+    yHi,
+    stepSlack: Math.max(0.85, (yHi - yLo) / crates.length + 0.25),
+    tent: !isMonotoneY1(sorted),
+  };
+}
+
+/** Every distinct stair/hill run (≥ 2 crates) in the band, once each. */
+function stairRuns(band: Obstacle[]): StairRun[] {
+  const runs: StairRun[] = [];
+  const claimed = new Set<Obstacle>();
+  for (const o of band) {
+    if (claimed.has(o) || !isStairCrate(band, o)) continue;
+    const run = stairRunOf(band, o);
+    for (const c of run.crates) claimed.add(c);
+    if (run.crates.length >= 2) runs.push(run);
+  }
+  return runs;
+}
+
+/**
+ * Feet may not pass from on/above a ramp to below it in one tick, at any
+ * vertical speed. landingObstacle compares only the new x's surface against
+ * prevY, and rideStairRamps runs only while falling — so a jump into a slope
+ * that rose slower than the ramp climbed slipped under it, fell to the slab
+ * inside the hill and was walled in by the base crates. Clamp onto the ramp
+ * instead; a still-rising jump keeps its vy and rides up the slope.
+ */
+function blockRampCrossing(
   band: Obstacle[],
   p: PlayerState,
   prevX: number,
   prevY: number,
   landingEps: number
 ): void {
-  const seen = new Set<string>();
-  for (const o of band) {
-    if (!isStairCrate(band, o)) continue;
-    const run = collectStairRun(band, o);
-    if (run.length < 2) continue;
-    const key = run
-      .map((r) => `${r.x0}:${r.y0}`)
-      .sort()
-      .join("|");
-    if (seen.has(key)) continue;
-    seen.add(key);
+  for (const run of stairRuns(band)) {
+    if (p.x < run.left - EPS || p.x > run.right + EPS) continue;
+    const surface = rampSurfaceY(run, p.x);
+    if (p.y >= surface) continue;
+    const prevSurface = rampSurfaceY(
+      run,
+      Math.max(run.left, Math.min(run.right, prevX))
+    );
+    // Already beneath the ramp last tick (e.g. walking under a stair's high
+    // end): not a crossing — never lift a climber up through it from below.
+    if (prevY < prevSurface - landingEps) continue;
+    p.y = surface;
+    if (p.vy <= 0) {
+      p.vy = 0;
+      p.onGround = true;
+    }
+  }
+}
 
-    const left = Math.min(...run.map((r) => r.x0));
-    const right = Math.max(...run.map((r) => r.x1));
+/**
+ * Feet at (x, y) stand on a floor slab piece.
+ *
+ * DUPLICATE of simulation.ts `isSupported` (the platform support check). Keep
+ * the two in sync. Follow-up (out of this change's scope): move the single
+ * implementation to towers.ts, a cycle-free home both modules can import, and
+ * delete this copy.
+ */
+function standsOnSlab(
+  tower: TowerSpec,
+  x: number,
+  y: number,
+  marginM: number
+): boolean {
+  const GROUND_EPS = EPS * 1.5;
+  for (const s of platformsNearY(tower, y, y)) {
+    if (x < s.x0 - EPS - marginM || x > s.x1 + EPS + marginM) continue;
+    if (Math.abs(s.y - y) <= GROUND_EPS) return true;
+  }
+  return false;
+}
+
+/** Stick grounded feet to the continuous ramp across each stair/pyramid run. */
+function rideStairRamps(
+  band: Obstacle[],
+  p: PlayerState,
+  prevX: number,
+  prevY: number,
+  landingEps: number,
+  tower: TowerSpec,
+  slabMarginM: number
+): void {
+  for (const run of stairRuns(band)) {
+    const { left, right, yLo, yHi, stepSlack } = run;
     const inside = p.x >= left - EPS && p.x <= right + EPS;
-    if (!inside) continue;
-
-    const surface = obstacleSurfaceY(band, o, p.x);
-    const yLo = Math.min(...run.map((r) => r.y0));
-    const yHi = Math.max(...run.map((r) => r.y1));
-    if (p.y < yLo - landingEps || p.y > yHi + landingEps) continue;
-
-    const stepSlack = Math.max(0.85, (yHi - yLo) / run.length + 0.25);
     const wasInside = prevX >= left - EPS && prevX <= right + EPS;
+    // Stepping off an end within one tick still follows the ramp down to its
+    // end height (the slab, for a hill) — no one-tick hop off the last tread.
+    // Load-bearing whenever a walk step ends partway up the slope ("turns
+    // back … without a hop" tests).
+    if (!inside && !wasInside) continue;
+
+    const surface = rampSurfaceY(run, Math.max(left, Math.min(right, p.x)));
+    if (p.y < yLo - landingEps || p.y > yHi + landingEps) continue;
+    // A stair's top treads sit flush under the next floor's slab. Feet the
+    // slab holds up stay on it: never pull them down through it onto the
+    // ramp beneath (a walker on that slab was dragged down a whole storey).
+    const sinks = surface < p.y - landingEps;
+    if (sinks && standsOnSlab(tower, p.x, p.y, slabMarginM)) continue;
+
     if (wasInside) {
-      const prevSurface = obstacleSurfaceY(
-        band,
-        o,
+      const prevSurface = rampSurfaceY(
+        run,
         Math.max(left, Math.min(right, prevX))
       );
       // One-way near-surface only — never yank a mid-air fall down onto the ramp.
@@ -706,21 +928,21 @@ function rideStairRamps(
  */
 function obstacleSurfaceY(band: Obstacle[], o: Obstacle, x: number): number {
   if (!isStairCrate(band, o)) return o.y1;
-  const run = collectStairRun(band, o);
-  if (run.length < 2) return o.y1;
+  return rampSurfaceY(stairRunOf(band, o), x);
+}
 
-  const sorted = [...run].sort(
-    (a, b) => (a.x0 + a.x1) / 2 - (b.x0 + b.x1) / 2
-  );
-  const left = Math.min(...run.map((r) => r.x0));
-  const right = Math.max(...run.map((r) => r.x1));
-  const yBase = Math.min(...run.map((r) => r.y0));
+/**
+ * The continuous ramp height of one stair/hill run at `x`. Run geometry and
+ * the tent-vs-stair classification come only from stairRunOf, so collision
+ * and the surface can never disagree about what shape a run is.
+ */
+function rampSurfaceY(run: StairRun, x: number): number {
+  const { crates, left, right, yLo, yHi } = run;
+  if (crates.length < 2) return run.seed.y1;
 
-  if (isMonotoneY1(sorted)) {
-    const bottom = run.reduce((a, b) => (a.y0 <= b.y0 ? a : b));
-    const top = run.reduce((a, b) => (a.y1 >= b.y1 ? a : b));
-    const yLo = bottom.y0;
-    const yHi = top.y1;
+  if (!run.tent) {
+    const bottom = crates.reduce((a, b) => (a.y0 <= b.y0 ? a : b));
+    const top = crates.reduce((a, b) => (a.y1 >= b.y1 ? a : b));
     const asc = (bottom.x0 + bottom.x1) / 2 <= (top.x0 + top.x1) / 2;
     // Reach full height at the near edge of the last tread so that tread is a
     // flat landing flush with the next slab — walking off needs no jump.
@@ -737,7 +959,8 @@ function obstacleSurfaceY(band: Obstacle[], o: Obstacle, x: number): number {
   }
 
   // Tent ramp: linear up to the peak centre, linear down to the far base.
-  const peak = run.reduce((a, b) => (a.y1 >= b.y1 ? a : b));
+  const yBase = yLo;
+  const peak = crates.reduce((a, b) => (a.y1 >= b.y1 ? a : b));
   const peakX = (peak.x0 + peak.x1) / 2;
   const yPeak = peak.y1;
   if (x <= left) return yBase;

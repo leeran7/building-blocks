@@ -341,12 +341,14 @@ export function useRace({
         p.y = g.y;
         p.status = g.status;
         p.peakY = g.peakY;
-        // Carry the peer's slow-lava into the shared hazard by synthesizing an
-        // active entry (ghosts don't ship full power-up state). Refreshed every
-        // tick, so a short window that always covers "now" is enough.
-        p.activePowerUps = g.slowLavaActive
-          ? [{ type: "slow-lava", startTick: cur.tick, durationTicks: 4 }]
-          : [];
+        p.activePowerUps = [
+          ...(g.slowLavaActive
+            ? [{ type: "slow-lava" as const, startTick: cur.tick, durationTicks: 4 }]
+            : []),
+          ...(g.hardenLavaActive
+            ? [{ type: "harden-lava" as const, startTick: cur.tick, durationTicks: 4 }]
+            : []),
+        ];
       }
     },
     [mySlot]
@@ -362,6 +364,7 @@ export function useRace({
         status: me.status,
         peakY: me.peakY,
         slowLavaActive: isPowerUpActive(me, "slow-lava", cur.tick),
+        hardenLavaActive: isPowerUpActive(me, "harden-lava", cur.tick),
       });
     },
     [realtime, mySlot]

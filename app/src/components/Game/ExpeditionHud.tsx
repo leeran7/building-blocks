@@ -4,6 +4,7 @@ import type { CSSProperties, ReactNode } from "react";
 import type { PlayerState } from "../../game/types";
 import type { HazardPhaseName } from "../../game/hazard";
 import { ALTITUDE_UNIT, formatAltitude } from "../../lib/units";
+import { isPowerUpActive } from "../../game/powerups";
 import { ActivePowerStack } from "./PowerUpHud";
 import { FullscreenButton } from "./FullscreenButton";
 import "./expedition.css";
@@ -21,25 +22,30 @@ const PHASE_LABEL: Record<HazardPhaseName, string> = {
   stumble: "STUMBLING",
 };
 
-export function LavaClearanceInstrument({ clearance, phase, progress }: { clearance: number; phase: HazardPhaseName; progress: number }) {
+export function LavaClearanceInstrument({ clearance: rawClearance, phase, progress, hardenActive = false }: { clearance: number; phase: HazardPhaseName; progress: number; hardenActive?: boolean }) {
+  const clearance = Math.max(0, rawClearance);
   const danger = clearance <= 12;
-  return <section className="exp-clearance" data-danger={danger} data-phase={phase} aria-label={`Lava clearance ${clearance.toFixed(1)} feet, lava ${PHASE_LABEL[phase]}`}>
+  const displayPhase = hardenActive ? "hardened" : phase;
+  const displayLabel = hardenActive ? "HARDENED" : PHASE_LABEL[phase];
+  return <section className="exp-clearance" data-danger={danger} data-phase={displayPhase} aria-label={`Lava clearance ${clearance.toFixed(1)} feet, lava ${displayLabel}`}>
     <span className="exp-label">LAVA CLEARANCE</span>
     <div className="exp-reading">
       <svg className="exp-wave" viewBox="0 0 32 28" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden="true">
-        <path d="M1 6q4-5 8 0t8 0t8 0t6 0M1 14q4-5 8 0t8 0t8 0t6 0M1 22q4-5 8 0t8 0t8 0t6 0" />
+        <path d="M1 6q4-5 8 0t8 0t8 0t8 0t6 0M1 14q4-5 8 0t8 0t8 0t6 0M1 22q4-5 8 0t8 0t8 0t6 0" />
       </svg>
       <strong>{clearance.toFixed(1)}</strong><span>{ALTITUDE_UNIT}</span>
     </div>
-    <div className="exp-phase-row" data-phase={phase}>
+    <div className="exp-phase-row" data-phase={displayPhase}>
       <svg className="exp-phase-icon" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
-        {phase === "surge"
-          ? <path d="M8 1l2.5 5H11l2 4H10l1 5H7l1-5H3l2-4H4.5z" />
-          : phase === "stumble"
-            ? <path d="M4 5h8v2H4zm0 4h8v2H4z" />
-            : <path d="M8 2a6 6 0 100 12A6 6 0 008 2zm0 2a4 4 0 110 8A4 4 0 018 4z" />}
+        {hardenActive
+          ? <path d="M4 14l1-5L2 7l5-1L8 1l1 5 5 1-3 2 1 5-4-3z" />
+          : phase === "surge"
+            ? <path d="M8 1l2.5 5H11l2 4H10l1 5H7l1-5H3l2-4H4.5z" />
+            : phase === "stumble"
+              ? <path d="M4 5h8v2H4zm0 4h8v2H4z" />
+              : <path d="M8 2a6 6 0 100 12A6 6 0 008 2zm0 2a4 4 0 110 8A4 4 0 018 4z" />}
       </svg>
-      <span className="exp-phase-label">{PHASE_LABEL[phase]}</span>
+      <span className="exp-phase-label">{displayLabel}</span>
       <span className="exp-track exp-phase-track"><i style={{ width: `${(1 - progress) * 100}%` }} /></span>
     </div>
   </section>;
@@ -198,10 +204,11 @@ export function ExpeditionHud({ player, hazardY, tick, lavaPhase, lavaPhaseProgr
   /** Optional duel-specific data. When provided, duel instruments render below the main HUD. */
   duel?: DuelHudInfo;
 }) {
+  const hardenActive = player ? isPowerUpActive(player, "harden-lava", tick) : false;
   const style = { "--exp-top": `${topInset}px`, "--exp-left": `${leftInset}px`, "--exp-right": `${rightInset}px` } as CSSProperties;
   return <div className="exp-hud" style={style}>
     <HeightInstrument height={player?.y ?? 0} />
-    <LavaClearanceInstrument clearance={(player?.y ?? 0) - hazardY} phase={lavaPhase} progress={lavaPhaseProgress} />
+    <LavaClearanceInstrument clearance={(player?.y ?? 0) - hazardY} phase={lavaPhase} progress={lavaPhaseProgress} hardenActive={hardenActive} />
     <UtilityControls muted={muted} onToggleMute={onToggleMute} {...utilities} />
     <ActivePowerStack player={player} tick={tick} />
     {duel && (

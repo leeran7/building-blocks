@@ -73,6 +73,7 @@ describe("draw budget", () => {
     tick: 30,
     reducedMotion: false,
     slowed: false,
+    hardenProgress: -1,
     ...over,
   });
 

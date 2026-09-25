@@ -1,7 +1,7 @@
 /**
  * Tower v3 "The Climb" — power-ups.
  *
- * Six pickups, each answering one of the ways the endless tower ends a run:
+ * Eight pickups, each answering one of the ways the endless tower ends a run:
  *
  *   rapid-climb   ladders are the fastest way up, so make them faster
  *   sprint-burst  ladders drift further apart with altitude — cover the traverse
@@ -9,6 +9,7 @@
  *   giant         grow 2× — wider ladder grabs and platform landings
  *   jetpack       skip a ladder detour — hold jump to thrust, fuel is short
  *   slow-lava     the lava eventually outpaces any climber; buy back seconds
+ *   harden-lava   lava turns to rock for a short burst; long cooldown
  *
  * BALANCE. The hazard envelope ramps toward 1.0× (ladder climb speed) and
  * stumbles (2s of 0.25× envelope every 8s), so the time-averaged chase
@@ -125,6 +126,10 @@ export const SUPER_JUMP_AIR_JUMPS = 3;
 export const TIME_SLOW_FRAC = 0.4;
 /** Seconds before slow-lava may be used again — the endless-run guarantee. */
 export const TIME_SLOW_COOLDOWN_SECONDS = 40;
+/** Seconds before harden-lava may be used again. */
+export const HARDEN_LAVA_COOLDOWN_SECONDS = 55;
+/** Harden-lava duration in seconds — short burst where lava turns to rock. */
+export const HARDEN_LAVA_DURATION_SECONDS = 7;
 
 /** Jetpack fuel budget in simulation ticks. */
 export function jetpackFuelTicks(): number {
@@ -172,7 +177,7 @@ export const POWER_UP_SPECS: Record<PowerUpType, PowerUpSpec> = {
     color: "#00e5ff",
     durationSeconds: 10,
     cooldownSeconds: 0,
-    weight: 26,
+    weight: 18,
     altitudeWeightMult: 1.15,
   },
   "sprint-burst": {
@@ -182,7 +187,7 @@ export const POWER_UP_SPECS: Record<PowerUpType, PowerUpSpec> = {
     color: "#ffe600",
     durationSeconds: 10,
     cooldownSeconds: 0,
-    weight: 22,
+    weight: 15,
     altitudeWeightMult: 1,
   },
   "super-jump": {
@@ -193,7 +198,7 @@ export const POWER_UP_SPECS: Record<PowerUpType, PowerUpSpec> = {
     durationSeconds: 10,
     cooldownSeconds: 0,
     chargeCount: SUPER_JUMP_AIR_JUMPS,
-    weight: 22,
+    weight: 15,
     altitudeWeightMult: 1,
   },
   giant: {
@@ -203,7 +208,7 @@ export const POWER_UP_SPECS: Record<PowerUpType, PowerUpSpec> = {
     color: "#66ff33",
     durationSeconds: 20,
     cooldownSeconds: 0,
-    weight: 22,
+    weight: 15,
     altitudeWeightMult: 1,
   },
   jetpack: {
@@ -214,7 +219,7 @@ export const POWER_UP_SPECS: Record<PowerUpType, PowerUpSpec> = {
     durationSeconds: JETPACK_WINDOW_SECONDS,
     cooldownSeconds: 0,
     fuelSeconds: JETPACK_FUEL_SECONDS,
-    weight: 18,
+    weight: 13,
     altitudeWeightMult: 1.1,
   },
   "slow-lava": {
@@ -224,16 +229,37 @@ export const POWER_UP_SPECS: Record<PowerUpType, PowerUpSpec> = {
     color: "#ff2bd6",
     durationSeconds: 8,
     cooldownSeconds: TIME_SLOW_COOLDOWN_SECONDS,
-    // Commoner at the base than the other altitude-scaled drops so a new
-    // climber actually meets it early, without changing its share high up.
-    weight: 12,
-    // Weights up with altitude, where the lava is winning, but not so far that
-    // the strongest power-up stops being the rarest one on the tower.
+    weight: 8,
     altitudeWeightMult: 1.2,
+  },
+  "harden-lava": {
+    type: "harden-lava",
+    label: "Harden Lava",
+    description: `Lava turns to rock for ${HARDEN_LAVA_DURATION_SECONDS}s`,
+    color: "#9a8265",
+    durationSeconds: HARDEN_LAVA_DURATION_SECONDS,
+    cooldownSeconds: HARDEN_LAVA_COOLDOWN_SECONDS,
+    weight: 5,
+    altitudeWeightMult: 1.25,
+  },
+  random: {
+    type: "random",
+    label: "Random",
+    description: "Grants a random power-up",
+    color: "#ffffff",
+    durationSeconds: 10,
+    cooldownSeconds: 0,
+    weight: 11,
+    altitudeWeightMult: 1,
   },
 };
 
 export const POWER_UP_TYPES = Object.keys(POWER_UP_SPECS) as PowerUpType[];
+
+/** Concrete effect types — excludes "random" which resolves on pickup. */
+export const CONCRETE_POWER_UP_TYPES = POWER_UP_TYPES.filter(
+  (t): t is Exclude<PowerUpType, "random"> => t !== "random"
+);
 
 /** Duration of a power-up in simulation ticks. */
 export function durationTicks(type: PowerUpType): number {
@@ -362,6 +388,12 @@ function pickType(rng: Rng, i: number, avoid: PowerUpType | null): PowerUpType {
     if (acc <= 0) return POWER_UP_TYPES[k];
   }
   return POWER_UP_TYPES[POWER_UP_TYPES.length - 1];
+}
+
+/** Resolve a "random" pickup into a concrete effect type. Truly random every time. */
+export function resolveRandom(): Exclude<PowerUpType, "random"> {
+  const idx = Math.floor(Math.random() * CONCRETE_POWER_UP_TYPES.length);
+  return CONCRETE_POWER_UP_TYPES[idx];
 }
 
 function clampToPiece(piece: Platform, x: number, margin: number): number {
@@ -585,6 +617,10 @@ export function platformReachMargin(p: PlayerState, tick: number): number {
  * one hazard, so the slowest clock any live climber has earned applies to all.
  */
 export function hazardTimeScale(players: PlayerState[], tick: number): number {
+  const frozen = players.some(
+    (p) => p.status === "climbing" && isPowerUpActive(p, "harden-lava", tick)
+  );
+  if (frozen) return 0;
   const slowed = players.some(
     (p) => p.status === "climbing" && isPowerUpActive(p, "slow-lava", tick)
   );

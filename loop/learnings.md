@@ -78,3 +78,22 @@ Resolved questions are removed — the answer lives in the target file.
   `powerups.ts:18-19` documents one slot; production stacks all five types
   and `powerups.test.ts:236` asserts stacking is correct. The endless-run
   balance argument and the duplicate-entry bug fix depend on the answer.
+
+- **[reviewer, security-reviewer -> human, filed 2026-09-23] No sim/generator
+  version on duels or replays.** The hills/ramp-hardening change (4/6-level
+  hills, slope cap, slab-drag fix) alters `obstaclesForFloor`/motion, so
+  duels started before the deploy re-simulate against the new layout, and
+  old `/play?r=` replays desync. Decide: drain or void pending duels across
+  the deploy, and/or stamp a sim version on `Duel`/`climb_runs` that
+  `simulateDuel` and the replay decoder reject or branch on. Related,
+  pre-existing: a CHEAT_FLAGGED resim after both replays are submitted
+  leaves a paid duel active with its stake locked (`duel/[id]/result`
+  route + `reapDuelIfStale`). Remove once decided.
+
+- **[reviewer, verifier -> software-engineer, filed 2026-09-23] Follow-ups
+  from the hills change, out of its scope.** (1) `standsOnSlab` in
+  `obstacles.ts` duplicates `simulation.ts` `isSupported`. Move one
+  implementation to `towers.ts`, which is cycle-free. (2) `maxRampSlope`
+  assumes `SPRINT_BURST_MULT` is the max ground-speed multiplier. Export a
+  `MAX_GROUND_SPEED_MULT` from `powerups.ts`, pinned by a test. Remove each
+  item once done.

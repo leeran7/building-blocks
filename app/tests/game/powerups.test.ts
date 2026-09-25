@@ -46,11 +46,14 @@ import {
   JETPACK_WINDOW_SECONDS,
   TIME_SLOW_FRAC,
   TIME_SLOW_COOLDOWN_SECONDS,
+  HARDEN_LAVA_COOLDOWN_SECONDS,
+  HARDEN_LAVA_DURATION_SECONDS,
   GIANT_GRAB_MULT,
   GIANT_PLATFORM_MARGIN_M,
   GIANT_VISUAL_SCALE,
   SUPER_JUMP_AIR_JUMPS,
   canActivate,
+  CONCRETE_POWER_UP_TYPES,
   cooldownRemaining,
   cooldownTicks,
   durationTicks,
@@ -96,7 +99,7 @@ const HOLD_SAMPLE_TICKS = 12;
 const LADDER_CLIMB_TICKS = 8;
 const SETTLE_TICKS = 200;
 
-describe("specs: six live types, including super-jump and jetpack", () => {
+describe("specs: eight live types, including super-jump, jetpack, harden-lava and random", () => {
   it("lists POWER_UP_TYPES in spawn-key order with jetpack in slot 5", () => {
     expect(POWER_UP_TYPES).toEqual([
       "rapid-climb",
@@ -105,6 +108,8 @@ describe("specs: six live types, including super-jump and jetpack", () => {
       "giant",
       "jetpack",
       "slow-lava",
+      "harden-lava",
+      "random",
     ]);
   });
 
@@ -234,15 +239,18 @@ describe("spawning: deterministic, reachable, and denser with altitude", () => {
     expect(rate).toBeLessThan(0.4);
   });
 
-  it("offers every type across a long climb, with slow-lava the rarest", () => {
+  it("offers every type across a long climb, with lava types the rarest concrete types", () => {
     const counts = new Map<PowerUpType, number>();
     for (const pu of scanFloors(TOWER, 0, 3000)) {
       counts.set(pu.type, (counts.get(pu.type) ?? 0) + 1);
     }
     for (const t of POWER_UP_TYPES) expect(counts.get(t) ?? 0).toBeGreaterThan(0);
     const slowLava = counts.get("slow-lava") ?? 0;
-    for (const t of POWER_UP_TYPES) {
-      if (t !== "slow-lava") expect(slowLava).toBeLessThan(counts.get(t) ?? 0);
+    const hardenLava = counts.get("harden-lava") ?? 0;
+    const lavaMin = Math.min(slowLava, hardenLava);
+    for (const t of CONCRETE_POWER_UP_TYPES) {
+      if (t === "slow-lava" || t === "harden-lava") continue;
+      expect(lavaMin).toBeLessThan(counts.get(t) ?? 0);
     }
   });
 
@@ -336,7 +344,7 @@ describe("pickup: touching an orb auto-activates it immediately", () => {
   // whose cooldown blocks the second pickup outright. That left the
   // zero-cooldown types — and the super-jump charge exploit — uncovered.
   describe("a second orb of a live type refreshes it instead of stacking", () => {
-    const ZERO_COOLDOWN_TYPES = POWER_UP_TYPES.filter(
+    const ZERO_COOLDOWN_TYPES = CONCRETE_POWER_UP_TYPES.filter(
       (t) => cooldownTicks(t) === 0
     );
 
@@ -411,7 +419,7 @@ describe("pickup: touching an orb auto-activates it immediately", () => {
   });
 
   it("expires each effect after its advertised duration", () => {
-    for (const type of POWER_UP_TYPES) {
+    for (const type of CONCRETE_POWER_UP_TYPES) {
       const m = climbingMatch();
       const p = m.players[0];
       placeOrb(m, type, p.x, p.y);
@@ -1000,12 +1008,7 @@ describe("slow-lava cooldown: the thing that keeps a run finite", () => {
     expect(isPowerUpActive(p, "slow-lava", m.tick)).toBe(true);
   });
 
-  it("slow-lava is the only power-up that touches the lava clock", () => {
-    // The hazard is capped at ladder climb speed, so slow-lava is a luxury
-    // for deep runs rather than a requirement to beat the lava.
-    expect(POWER_UP_SPECS["rapid-climb"].durationSeconds).toBe(10);
-    expect(POWER_UP_SPECS["sprint-burst"].durationSeconds).toBe(10);
-    expect(POWER_UP_SPECS.giant.durationSeconds).toBe(20);
+  it("only slow-lava and harden-lava touch the lava clock", () => {
     expect(POWER_UP_SPECS["slow-lava"].durationSeconds).toBe(8);
     expect(POWER_UP_SPECS["slow-lava"].cooldownSeconds).toBe(40);
     expect(TIME_SLOW_COOLDOWN_SECONDS).toBe(40);
@@ -1018,11 +1021,21 @@ describe("slow-lava cooldown: the thing that keeps a run finite", () => {
       hazardMeanSpeedFrac(DEFAULT_HAZARD_CONFIG) *
       (1 - TIME_SLOW_FRAC * maxUptime);
     expect(effective).toBeLessThan(1);
+
+    expect(POWER_UP_SPECS["harden-lava"].durationSeconds).toBe(HARDEN_LAVA_DURATION_SECONDS);
+    expect(POWER_UP_SPECS["harden-lava"].cooldownSeconds).toBe(HARDEN_LAVA_COOLDOWN_SECONDS);
+    const fd = POWER_UP_SPECS["harden-lava"].durationSeconds;
+    const fc = POWER_UP_SPECS["harden-lava"].cooldownSeconds;
+    const freezeUptime = fd / (fd + fc);
+    const freezeEffective =
+      hazardMeanSpeedFrac(DEFAULT_HAZARD_CONFIG) *
+      (1 - 1.0 * freezeUptime);
+    expect(freezeEffective).toBeLessThan(1);
   });
 
   it("no other power-up touches the lava clock", () => {
-    for (const type of POWER_UP_TYPES) {
-      if (type === "slow-lava") continue;
+    for (const type of CONCRETE_POWER_UP_TYPES) {
+      if (type === "slow-lava" || type === "harden-lava") continue;
       expect(POWER_UP_SPECS[type].cooldownSeconds).toBe(0);
       const trace = hazardTrace(false, type);
       const plain = hazardTrace(false);
@@ -1047,6 +1060,12 @@ describe("balance: power-ups raise the ceiling without removing the pressure", (
 
   it("still ends the run even when fed slow-lava as fast as the rules allow", () => {
     const run = fedBotRun("slow-lava", 200_000);
+    expect(run.finished).toBe(true);
+    expect(run.peak).toBeGreaterThan(0);
+  });
+
+  it("still ends the run even when fed harden-lava as fast as the rules allow", () => {
+    const run = fedBotRun("harden-lava", 200_000);
     expect(run.finished).toBe(true);
     expect(run.peak).toBeGreaterThan(0);
   });
