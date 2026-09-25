@@ -52,8 +52,13 @@ vi.mock("../../src/db/friendship", async (importOriginal) => {
 });
 vi.mock("../../src/db/challenge", async (importOriginal) => {
   const real = await importOriginal<typeof import("../../src/db/challenge")>();
+  const { challengeBetween } = await import("./fakeSocialPrisma");
   return {
     ...real,
+    createChallenge: vi.fn(async (senderId: string, recipientId: string) => ({
+      outcome: "created",
+      challenge: await real.getChallenge(challengeBetween(senderId, recipientId).id),
+    })),
     acceptChallenge: vi.fn(async (id: string, _uid: string, duelId: string) => ({
       outcome: "accepted",
       challenge: await real.getChallenge(id),
@@ -77,7 +82,7 @@ import { getCreatorIdentity, getCreatorProfileByUsername } from "../../src/db/cr
 import { GET as getFriends, POST as postFriend } from "../../app/api/friends/route";
 import { GET as getFriendRequests } from "../../app/api/friends/requests/route";
 import { POST as acceptFriend } from "../../app/api/friends/[id]/accept/route";
-import { GET as listChallenges } from "../../app/api/challenge/route";
+import { GET as listChallenges, POST as postChallenge } from "../../app/api/challenge/route";
 import { GET as getChallengeById } from "../../app/api/challenge/[id]/route";
 import { POST as acceptChallengeRoute } from "../../app/api/challenge/[id]/accept/route";
 import { POST as declineChallengeRoute } from "../../app/api/challenge/[id]/decline/route";
@@ -249,6 +254,16 @@ describe("notifications name the actor with their avatar", () => {
     const res = await acceptFriend(req(`/api/friends/${f.id}/accept`, { method: "POST" }), params(f.id));
     expect(res.status).toBe(200);
     expect(lastNotification()?.title).toBe(`${WOLF_NAME} accepted your friend request`);
+  });
+
+  it("challenge received (POST /api/challenge)", async () => {
+    auth.uid = WOLF;
+    const res = await postChallenge(req("/api/challenge", { method: "POST", body: { recipientId: ME } }));
+    expect(res.status).toBe(201);
+    expect(lastNotification()?.body).toBe(`${WOLF_NAME} challenged you to a 1v1 duel!`);
+    expect(lastNotification()?.data.senderName).toBe(WOLF_NAME);
+    const body = (await res.json()) as { sender: ClientUser };
+    expect([body.sender.avatarId, clientName(body.sender)]).toEqual(["wolf", WOLF_NAME]);
   });
 
   it("challenge accepted and declined (POST /api/challenge/[id]/accept|decline)", async () => {

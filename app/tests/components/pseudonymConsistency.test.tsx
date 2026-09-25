@@ -191,6 +191,31 @@ describe("a pseudonymous Wolf gets one name everywhere", () => {
     expect(text).toContain(WOLF_NAME);
     expect(text).not.toContain(HASH_NAME);
   });
+
+  // The web lists also hand the name to the /duel parent (challenge / add
+  // confirmations), computed separately from the rendered row.
+  const clickRow = async (label: string) => {
+    const button = Array.from(container!.querySelectorAll("button")).find((b) => b.textContent?.includes(label));
+    expect(button).toBeTruthy();
+    await act(async () => {
+      button!.click();
+      await Promise.resolve();
+    });
+  };
+
+  it("the web user search passes the Wolf name to onSelect", async () => {
+    const onSelect = vi.fn(async () => true);
+    await render(createElement(UserSearch, { onSelect }), search);
+    await clickRow(WOLF_NAME);
+    expect(onSelect).toHaveBeenCalledWith(WOLF, WOLF_NAME);
+  });
+
+  it("the web friends list passes the Wolf name to onChallenge", async () => {
+    const onChallenge = vi.fn(async () => true);
+    await render(createElement(FriendsList, { onChallenge }));
+    await clickRow("Challenge");
+    expect(onChallenge).toHaveBeenCalledWith(WOLF, WOLF_NAME);
+  });
 });
 
 describe("identityNameFor (the player's own Profile header)", () => {
