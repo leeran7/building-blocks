@@ -7,7 +7,7 @@
   },
   "software-engineer": {
     "tools": ["Read", "Write", "Edit", "Bash", "Grep", "Glob"],
-    "skills": ["closed-loop-participant", "api-design", "monorepo", "debugging", "performance", "migration", "accessibility"],
+    "skills": ["closed-loop-participant", "ux", "api-design", "monorepo", "debugging", "performance", "migration", "accessibility"],
     "color": "green",
     "model": "opus"
   },
@@ -19,7 +19,7 @@
   "reviewer": {
     "tools": ["Read", "Grep", "Glob", "Bash"],
     "disallowedTools": ["Write", "Edit", "Agent"],
-    "skills": ["closed-loop-participant", "design-review", "api-design", "regression", "boy-scout"],
+    "skills": ["closed-loop-participant", "ux", "design-review", "api-design", "regression", "boy-scout"],
     "color": "orange",
     "model": "opus"
   },
@@ -32,7 +32,7 @@
   },
   "qa-acceptance": {
     "tools": ["Read", "Write", "Edit", "Bash", "Grep", "Glob"],
-    "skills": ["closed-loop-participant", "design-review", "accessibility", "regression"],
+    "skills": ["closed-loop-participant", "ux", "design-review", "accessibility", "regression"],
     "color": "yellow"
   },
   "integrator": {

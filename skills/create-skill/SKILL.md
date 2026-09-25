@@ -55,7 +55,7 @@ Follow these steps exactly when creating a new skill.
 
 5. **Run `yarn sync`** to propagate to platform directories.
 
-6. **Verify** with `node scripts/hygiene.mjs`.
+6. **Verify** with `yarn hygiene`.
 
 ## Don't
 

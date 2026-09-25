@@ -6,13 +6,15 @@ and live in the pack; **this repo's facts are in `context/`**.
 | | Path |
 |--|------|
 | This product's facts | [`context/README.md`](context/README.md) |
-| File tree + how to vendor the pack | [`pack/SETUP.md`](pack/SETUP.md) |
-| Template repo | [leeran7/closed-loop-agents](https://github.com/leeran7/closed-loop-agents) |
-| Kernel protocol / gates | `skills/closed-loop/protocol.md`, `gates.md` |
+| Agent pack (installed dependency) | [leeran7/closed-loop-agents](https://github.com/leeran7/closed-loop-agents) — see its `pack/SETUP.md` for the file tree and override rules |
+| Kernel protocol / gates | `skills/closed-loop/protocol.md`, `gates.md` (local overrides of the package's defaults) |
 | Memory | `loop/learnings.md` |
 
-Edit `agents/` or `skills/`, then `yarn sync`. To refresh the template repo:
-`node scripts/export-template.mjs /path/to/closed-loop-agents`.
+`agents/` and `skills/` here are **local overrides/additions** on top of the
+`closed-loop-agents` package (`node_modules/closed-loop-agents`): a
+same-named file wins over the package default. `context/profile.json`
+`agentRoster` lists exactly which agents this repo syncs. Edit either, then
+`yarn sync` (delegates to `closed-loop-agents sync`).
 
 New skills: follow the `create-skill` skill (`skills/create-skill/SKILL.md`).
 Shared files between skills **must** be symlinks, never copies — single source

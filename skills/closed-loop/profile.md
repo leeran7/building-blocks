@@ -1,11 +1,12 @@
 # Repo context (`context/`)
 
 Each consuming repo owns a `context/` folder. Agents never embed product
-facts; they read this folder. Schema for `profile.json`:
-[`pack/profile.schema.json`](pack/profile.schema.json).
+facts; they read this folder. Schema for `profile.json` (including the
+`agentRoster` field):
+[closed-loop-agents `pack/profile.schema.json`](https://github.com/leeran7/closed-loop-agents/blob/main/pack/profile.schema.json).
 
-Templates for a new repo: [`pack/templates/context/`](pack/templates/context/).
-Full tree and install steps: [`pack/SETUP.md`](pack/SETUP.md).
+Templates for a new repo: [`pack/templates/context/`](https://github.com/leeran7/closed-loop-agents/tree/main/pack/templates/context).
+Full tree and install steps: [closed-loop-agents `pack/SETUP.md`](https://github.com/leeran7/closed-loop-agents/blob/main/pack/SETUP.md).
 
 ## Files
 

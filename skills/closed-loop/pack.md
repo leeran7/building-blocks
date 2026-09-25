@@ -4,11 +4,14 @@ This file is the overview of the pack: what is kernel, what is a consuming
 repo, how to install it, and how learnings make the kernel stricter without
 making every agent file longer.
 
-The pack is the agent system (`agents/`, `skills/closed-loop/`, `orchestrator/`,
-`scripts/`). It is **not** the product in `app/`. A second repo should be able
-to vendor the pack and run the same loop against a different stack.
+The pack is the agent system (`agents/`, `skills/closed-loop/`,
+`orchestrator/`, `scripts/`), published as the `closed-loop-agents` npm
+package (installed at `node_modules/closed-loop-agents`). It is **not** the
+product in `app/`. This repo's own `agents/` and `skills/` hold only local
+overrides/additions on top of that package — see "What travels vs what
+stays" below.
 
-**File tree and install (start here):** [`pack/SETUP.md`](pack/SETUP.md).
+**File tree and install (start here):** [closed-loop-agents `pack/SETUP.md`](https://github.com/leeran7/closed-loop-agents/blob/main/pack/SETUP.md).
 Repo-owned facts live in `context/`. Agents only point at that folder.
 
 ## Why the old layout did not travel
@@ -55,7 +58,8 @@ Two concrete failures in this repo:
 │  1. KERNEL     skills/closed-loop/{protocol,gates,handoffs,     │
 │                team,stages,learning-loop,SKILL}.md              │
 │                + orchestrator + scripts                         │
-│                Identical in every consuming repo.               │
+│                From node_modules/closed-loop-agents by default; │
+│                this repo overrides roster + orchestrator.       │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -65,43 +69,51 @@ from layers 1–2 and points at 3–4.
 
 ## What travels vs what stays
 
-**Pack (copy into another repo):**
+**Package (`node_modules/closed-loop-agents`, owned by
+[closed-loop-agents](https://github.com/leeran7/closed-loop-agents)):**
 
-- `agents/*.md` and `agents/claude.config.json`
-- `skills/closed-loop/*.md`
-- `handoffs/schema.json`
-- `pack/` (schemas, templates, manifest)
-- `scripts/sync.mjs`, `scripts/init-pack.mjs`, `scripts/export-template.mjs`, `scripts/hygiene.mjs`
+- `agents/*.md` and `agents/claude.config.json` (generic defaults)
+- `skills/closed-loop/*.md` (generic default)
+- `handoffs/schema.json` (generic default)
+- `pack/` (schemas, templates, manifest, hygiene rules)
+- `bin/cli.mjs`, `scripts/{sync,init-pack,hygiene}.mjs`
 - `orchestrator/` (the programmatic loop)
 
-**Consuming repo (never copied from here as "the pack"):**
+**This repo's own `agents/`, `skills/`, `handoffs/schema.json`, `pack/hygiene-rules.json`
+(local overrides/additions — a same-named file wins over the package's):**
+
+- `agents/{software-engineer,orchestrator,verifier,reviewer,security-reviewer,qa-acceptance,integrator}.md` —
+  this repo's roster (`context/profile.json` `agentRoster`), replacing the
+  package's `product-spec`/`architect`/`implementer`/specialist split
+- `skills/closed-loop/*.md` — customized for the roster above, plus every
+  other skill in `skills/` (unrelated to closed loop, purely local)
+- `handoffs/schema.json` — carries this repo's extra `findings` field
+- `pack/hygiene-rules.json` — this repo's own banned-substring list
+- `orchestrator/` — this repo's own CI-ruleset-gated loop runner (diverged
+  from the package's generic one; not fed back automatically)
+
+**Never copied, never part of the package:**
 
 - `app/` and any product code
-- `context/` (write from `pack/templates/context/`)
+- `context/` (write from the package's `pack/templates/context/`)
 - `loop/learnings.md` (open questions only)
 - Host git policy, remotes, trunk vs PR
 - `CLAUDE.md` / `AGENTS.md` once customized
 
 ## Install into another repo
 
-**Canonical steps and file tree:** [`pack/SETUP.md`](pack/SETUP.md).
-
-From a pack clone ([closed-loop-agents](https://github.com/leeran7/closed-loop-agents)
-or this tree):
+**Canonical steps and file tree:** [closed-loop-agents `pack/SETUP.md`](https://github.com/leeran7/closed-loop-agents/blob/main/pack/SETUP.md).
 
 ```bash
-node scripts/init-pack.mjs /path/to/other-repo
+yarn add -D github:leeran7/closed-loop-agents#main
+npx closed-loop-agents sync
 ```
 
-That vendors the pack, writes `context/` from `pack/templates/context/` if
-missing, writes an empty ledger, appends the gitignore snippet, and runs
-sync. Then edit **your** `context/` — not `agents/`.
-
-Refresh the template repo from a product checkout:
-
-```bash
-node scripts/export-template.mjs /path/to/closed-loop-agents
-```
+`sync` reads the package's `agents/`/`skills/closed-loop/` as defaults; a
+same-named file in **your** repo's own `agents/`/`skills/` overrides or
+extends it. Set `context/profile.json` `agentRoster` to the exact agent
+names you want if you don't want every generic role synced. Then edit
+**your** `context/` — not the package's `agents/`.
 
 Do **not** copy this repo's `loop/learnings.md` body or filled-in
 `context/`. Other products inherit `skills/closed-loop/gates.md`, not
@@ -146,10 +158,14 @@ The verifier reads this list. Agents do not invent
 
 ## Hygiene
 
-`scripts/hygiene.mjs` fails the pack if any source agent contains product
-leakage (design hexes, this repo's git remote, hardcoded exclusive package
-manager, the old design-resource URL list) or exceeds **200 lines**.
-`yarn sync` runs hygiene first.
+`yarn hygiene` (→ `closed-loop-agents hygiene`) fails if any agent in this
+repo's own `agents/` contains product leakage (design hexes, this repo's
+git remote, hardcoded exclusive package manager, the old design-resource
+URL list) or exceeds **200 lines** — checked against this repo's own
+`pack/hygiene-rules.json`, which exists specifically so this check runs
+against *our* agents, not just the package's generic ones. `yarn sync` runs
+hygiene against the package's own agents first (a package-integrity check),
+then generates this repo's platform files.
 
 ### Agent file size
 
@@ -188,18 +204,19 @@ for `@orchestrator` / `yarn loop`.
 
 | Path | Layer |
 |------|--------|
-| `pack/SETUP.md` | Install + file tree (start here) |
-| `skills/closed-loop/protocol.md` | Kernel preamble (sync + `loadAgentPrompt` prepend) |
-| `skills/closed-loop/gates.md` | Universal quality gates |
-| `skills/closed-loop/profile.md` | `context/` contract |
-| `skills/closed-loop/handoffs.md` | Handoff JSON contract |
-| `skills/closed-loop/learning-loop.md` | Ledger protocol |
-| `skills/closed-loop/team.md` | Dispatch contract |
-| `skills/closed-loop/stages.md` | Stage graph |
-| `skills/closed-loop/host.md` | Generic CLAUDE/AGENTS body |
-| `agents/*.md` | Roles (point at `context/`) |
+| closed-loop-agents `pack/SETUP.md` | Install + file tree (start here) |
+| `skills/closed-loop/protocol.md` | Kernel preamble (sync + `loadAgentPrompt` prepend) — local override |
+| `skills/closed-loop/gates.md` | Universal quality gates — local override |
+| `skills/closed-loop/profile.md` | `context/` contract — local override |
+| `skills/closed-loop/handoffs.md` | Handoff JSON contract — local override |
+| `skills/closed-loop/learning-loop.md` | Ledger protocol — local override |
+| `skills/closed-loop/team.md` | Dispatch contract — local override |
+| `skills/closed-loop/stages.md` | Stage graph — local override |
+| `skills/closed-loop/host.md` | Generic CLAUDE/AGENTS body — local override |
+| `agents/*.md` | This repo's roster (point at `context/`) — local override |
+| `pack/hygiene-rules.json` | This repo's hygiene bans — local override |
 | `context/` | This repo's facts |
-| `pack/templates/context/` | Empty context for a new repo |
-| `pack/profile.schema.json` | `context/profile.json` schema |
+| closed-loop-agents `pack/templates/context/` | Empty context for a new repo |
+| closed-loop-agents `pack/profile.schema.json` | `context/profile.json` schema |
 | `loop/learnings.md` | This product's memory |
 

@@ -13,7 +13,7 @@ description: >-
 Run the agent loop from intent to merge-ready code. Scope can be a single
 change or a whole product — the team still runs.
 
-**Installing into a new repo?** Read [`pack/SETUP.md`](pack/SETUP.md)
+**Installing into a new repo?** Read [closed-loop-agents `pack/SETUP.md`](https://github.com/leeran7/closed-loop-agents/blob/main/pack/SETUP.md)
 first (file tree + 5-minute install). Repo-specific facts live in
 `context/` — agents only point there.
 
