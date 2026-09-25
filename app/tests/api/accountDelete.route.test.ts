@@ -61,7 +61,7 @@ describe("DELETE /api/account/delete leaderboard revalidation", () => {
   it("revalidates both the climb and duel leaderboard tags after a successful delete", async () => {
     const res = await del();
     expect(res.status).toBe(200);
-    expect(revalidateTag).toHaveBeenCalledWith(LEADERBOARD_CACHE_TAG, { expire: 60 });
-    expect(revalidateTag).toHaveBeenCalledWith(DUEL_LEADERBOARD_CACHE_TAG, { expire: 60 });
+    expect(revalidateTag).toHaveBeenCalledWith(LEADERBOARD_CACHE_TAG, { expire: 0 });
+    expect(revalidateTag).toHaveBeenCalledWith(DUEL_LEADERBOARD_CACHE_TAG, { expire: 0 });
   });
 });

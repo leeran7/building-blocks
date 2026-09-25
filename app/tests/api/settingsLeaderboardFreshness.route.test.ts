@@ -40,66 +40,12 @@ vi.mock("../../src/db/settings", () => ({
   updateUserSocialHandles: vi.fn(async () => {}),
 }));
 
-import { unstable_cache } from "next/cache";
-import { IncrementalCache } from "next/dist/server/lib/incremental-cache";
-import FileSystemCache from "next/dist/server/lib/incremental-cache/file-system-cache";
-import { workAsyncStorage, type WorkStore } from "next/dist/server/app-render/work-async-storage.external";
-import { executeRevalidates } from "next/dist/server/revalidation-utils";
 import { PUT } from "../../app/api/settings/route";
 import { LEADERBOARD_CACHE_TAG } from "../../src/db/climb";
 import { DUEL_LEADERBOARD_CACHE_TAG } from "../../src/db/duel";
 import { AVATARS } from "../../src/lib/avatars";
-
-const CACHE_SECONDS = 60;
-const MEMORY_CACHE_BYTES = 1_000_000;
-// Next stamps entries and tag expiry in whole ms (Date.now), then compares with
-// performance.timeOrigin + performance.now(). Letting a few ms pass between the
-// warm-up, the save and the read keeps the test off that same-ms edge. It
-// cannot hide stale-while-revalidate, which keeps the old body for 60s.
-const CLOCK_SETTLE_MS = 5;
-
-function settle(): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, CLOCK_SETTLE_MS));
-}
-
-function newIncrementalCache(): IncrementalCache {
-  return new IncrementalCache({
-    dev: false,
-    flushToDisk: false,
-    minimalMode: false,
-    requestHeaders: {},
-    maxMemoryCacheSize: MEMORY_CACHE_BYTES,
-    fetchCacheKeyPrefix: "",
-    CurCacheHandler: FileSystemCache,
-    getPrerenderManifest: () => ({
-      version: 4,
-      routes: {},
-      dynamicRoutes: {},
-      notFoundRoutes: [],
-      preview: { previewModeId: "test", previewModeSigningKey: "", previewModeEncryptionKey: "" },
-    }),
-  });
-}
-
-/**
- * Runs `fn` as one request would: inside a work store, then flushes the
- * revalidateTag calls and background revalidations queued during it.
- */
-async function inRequest<T>(incrementalCache: IncrementalCache, fn: () => Promise<T>): Promise<T> {
-  const partial: Partial<WorkStore> = {
-    route: "/api/settings",
-    page: "/api/settings/route",
-    incrementalCache,
-    isStaticGeneration: false,
-    isOnDemandRevalidate: false,
-    isDraftMode: false,
-  };
-  const store = partial as WorkStore;
-  const result = await workAsyncStorage.run(store, fn);
-  await executeRevalidates(store);
-  await Promise.all(Object.values(store.pendingRevalidates ?? {}));
-  return result;
-}
+import { inRequest, newIncrementalCache, warmBoard } from "./realNextCache";
+import type { IncrementalCache } from "next/dist/server/lib/incremental-cache";
 
 function put(body: unknown): Promise<Response> {
   return PUT(
@@ -119,67 +65,47 @@ beforeEach(() => {
   run += 1;
 });
 
-/**
- * A board cached under `tag` whose source the test can change. The first read
- * warms the cache. Changing the source leaves the cached value in place, so
- * any read that sees the change came from a cache miss.
- */
-async function warmBoard(tag: string, initial: string) {
-  let source = initial;
-  const read = unstable_cache(async () => source, [`board-${tag}-${run}`], {
-    tags: [tag],
-    revalidate: CACHE_SECONDS,
-  });
-  expect(await inRequest(incrementalCache, read)).toBe(initial);
-  await settle();
-  return {
-    set(next: string) {
-      source = next;
-    },
-    async read() {
-      await settle();
-      return inRequest(incrementalCache, read);
-    },
-  };
-}
+const ROUTE = "/api/settings";
+const warm = (tag: string, initial: string) => warmBoard(incrementalCache, tag, String(run), initial);
+const save = (body: unknown) => inRequest(incrementalCache, ROUTE, () => put(body));
 
 describe("PUT /api/settings makes the next leaderboard read fresh", () => {
   it("drops a player from the climb board on the next read after consent is revoked", async () => {
-    const board = await warmBoard(LEADERBOARD_CACHE_TAG, "with-player");
+    const board = await warm(LEADERBOARD_CACHE_TAG, "with-player");
     board.set("without-player");
     // Control: without a save the cache still serves the warmed value.
     expect(await board.read()).toBe("with-player");
 
-    const res = await inRequest(incrementalCache, () => put({ leaderboardConsent: false }));
+    const res = await save({ leaderboardConsent: false });
     expect(res.status).toBe(200);
     expect(await board.read()).toBe("without-player");
   });
 
   it("shows the new avatar on the climb board on the next read after an avatar save", async () => {
-    const board = await warmBoard(LEADERBOARD_CACHE_TAG, "avatar:none");
+    const board = await warm(LEADERBOARD_CACHE_TAG, "avatar:none");
     board.set(`avatar:${AVATARS[0].id}`);
 
-    const res = await inRequest(incrementalCache, () => put({ avatarId: AVATARS[0].id }));
+    const res = await save({ avatarId: AVATARS[0].id });
     expect(res.status).toBe(200);
     expect(await board.read()).toBe(`avatar:${AVATARS[0].id}`);
   });
 
   it("drops a player from the duel board on the next read after the display name is cleared", async () => {
-    const board = await warmBoard(DUEL_LEADERBOARD_CACHE_TAG, "named");
+    const board = await warm(DUEL_LEADERBOARD_CACHE_TAG, "named");
     board.set("unnamed");
 
-    const res = await inRequest(incrementalCache, () => put({ displayName: null }));
+    const res = await save({ displayName: null });
     expect(res.status).toBe(200);
     expect(await board.read()).toBe("unnamed");
   });
 
   it("leaves both boards cached on a save that changes neither", async () => {
-    const climb = await warmBoard(LEADERBOARD_CACHE_TAG, "climb-old");
-    const duel = await warmBoard(DUEL_LEADERBOARD_CACHE_TAG, "duel-old");
+    const climb = await warm(LEADERBOARD_CACHE_TAG, "climb-old");
+    const duel = await warm(DUEL_LEADERBOARD_CACHE_TAG, "duel-old");
     climb.set("climb-new");
     duel.set("duel-new");
 
-    const res = await inRequest(incrementalCache, () => put({ social: {} }));
+    const res = await save({ social: {} });
     expect(res.status).toBe(200);
     expect(await climb.read()).toBe("climb-old");
     expect(await duel.read()).toBe("duel-old");
