@@ -141,6 +141,15 @@ describe("HexAvatar", () => {
 });
 
 describe("AvatarPickerScreen", () => {
+  it("announces the loading state as a busy status and offers no Save yet", () => {
+    state.settings = null;
+    renderPicker();
+    const status = container.querySelector('[role="status"]');
+    expect(status?.getAttribute("aria-busy")).toBe("true");
+    expect(status?.getAttribute("aria-label")).toBe("Loading avatars");
+    expect(saveButton()).toBeUndefined();
+  });
+
   it("offers Use initials plus every catalogue avatar, with the saved one checked and Save disabled", () => {
     state.settings = settings(FIRST.id);
     renderPicker();

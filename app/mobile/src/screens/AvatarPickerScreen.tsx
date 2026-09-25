@@ -10,7 +10,7 @@ import {
   useSettings,
 } from "../contexts/AppDataContext";
 import { HexAvatar } from "../components/HexAvatar";
-import { StateMessage } from "../components/ui";
+import { PushHeader, StateMessage } from "../components/ui";
 import { identityNameFor } from "../lib/identity";
 import { notifyError, notifySuccess, tapLight } from "../lib/haptics";
 
@@ -131,21 +131,7 @@ export function AvatarPickerScreen() {
 
   return (
     <main className="flex h-full flex-col">
-      <header className="flex items-center gap-3 px-4 pb-4 pt-[calc(env(safe-area-inset-top)+1rem)]">
-        <button
-          aria-label="Back"
-          onClick={() => {
-            void tapLight();
-            navigate(-1);
-          }}
-          className="glass flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-white/10 text-text-primary transition-transform active:scale-90"
-        >
-          <ChevronLeft />
-        </button>
-        <h1 className="metal-title font-display text-[1.9rem] font-black uppercase leading-none tracking-[-0.02em]">
-          Choose avatar
-        </h1>
-      </header>
+      <PushHeader title="Choose avatar" onBack={() => navigate(-1)} />
 
       <div
         className="min-h-0 flex-1 overflow-y-auto px-4"
@@ -160,14 +146,15 @@ export function AvatarPickerScreen() {
           <div className="flex flex-col items-center gap-4">
             <StateMessage>Couldn&apos;t load your profile. Check your connection and try again.</StateMessage>
             <button
+              type="button"
               onClick={() => void refreshSettings()}
-              className="glass min-h-[48px] rounded-2xl border border-white/10 px-6 text-[15px] font-semibold text-text-primary"
+              className="glass min-h-[48px] rounded-2xl border border-white/10 px-6 text-[15px] font-semibold text-text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-signal"
             >
               Try again
             </button>
           </div>
         ) : !settingsData ? (
-          <div className="flex flex-col gap-3" aria-label="Loading avatars">
+          <div role="status" aria-busy="true" aria-label="Loading avatars" className="flex flex-col gap-3">
             <div className="h-52 animate-pulse rounded-3xl border border-white/10 bg-surface/60" />
             <div className="h-80 animate-pulse rounded-3xl border border-white/10 bg-surface/60" />
           </div>
@@ -236,11 +223,13 @@ export function AvatarPickerScreen() {
         )}
       </div>
 
-      {/* Outside the scroller, and lifted by the same inset Edit Profile uses:
-          the CTA is reachable from any row, and tiles clip above it instead of
-          scrolling over the lava band. */}
+      {/* Outside the scroller so the CTA is reachable from any row and tiles
+          clip above it instead of scrolling over the lava band. The lava line
+          sits 14.56vh up (26vh canvas, line at 44%) and the wave crest rises
+          up to ~18px above it, so 16vh alone lets the crest touch the button;
+          the extra 1.5rem keeps a visible gap at every width. */}
       {settingsData && (
-        <footer className="flex flex-col gap-2 px-4 pb-[calc(env(safe-area-inset-bottom)+16vh)] pt-2">
+        <footer className="flex flex-col gap-2 px-4 pb-[calc(env(safe-area-inset-bottom)+16vh+1.5rem)] pt-2">
           {error && (
             <p role="alert" className="glass rounded-2xl border border-ember/40 px-4 py-2.5 text-sm text-ember">
               {error}
@@ -267,10 +256,3 @@ function CheckIcon() {
   );
 }
 
-function ChevronLeft() {
-  return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <path d="m15 18-6-6 6-6" />
-    </svg>
-  );
-}

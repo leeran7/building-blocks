@@ -158,11 +158,49 @@ export function ScreenHeader({
   );
 }
 
-function ChevronLeft() {
+/* --------------------------------------------------------------- PushHeader */
+
+export interface PushHeaderProps {
+  title: string;
+  /** Called after the haptic when the back button is tapped. */
+  onBack: () => void;
+}
+
+/**
+ * Header for the Profile push screens (Edit Profile, Choose avatar): a 48px
+ * glass back button and the large metal display title.
+ *
+ * The focus indicator is an outline, not a ring: `.glass` is unlayered CSS and
+ * sets box-shadow, which beats Tailwind's layered ring utilities, so a
+ * `focus-visible:ring-*` on a glass element never shows.
+ */
+export function PushHeader({ title, onBack }: PushHeaderProps) {
+  return (
+    <header className="flex items-center gap-3 px-4 pb-4 pt-[calc(env(safe-area-inset-top)+1rem)]">
+      <button
+        type="button"
+        aria-label="Back"
+        onClick={() => {
+          void tapLight();
+          onBack();
+        }}
+        className="glass flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-white/10 text-text-primary transition-transform active:scale-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-signal"
+      >
+        <ChevronLeft size={22} />
+      </button>
+      <h1 className="metal-title font-display text-[1.9rem] font-black uppercase leading-none tracking-[-0.02em]">
+        {title}
+      </h1>
+    </header>
+  );
+}
+
+function ChevronLeft({ size = 20 }: { size?: number }) {
   return (
     <svg
-      width="20"
-      height="20"
+      aria-hidden
+      width={size}
+      height={size}
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
