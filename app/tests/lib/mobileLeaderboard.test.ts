@@ -4,7 +4,14 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { standingFor, initialsOf, tintFor, formatHeight } from "../../mobile/src/lib/leaderboard";
+import {
+  standingFor,
+  initialsOf,
+  tintFor,
+  formatHeight,
+  friendsFooter,
+  parseFriendsBoard,
+} from "../../mobile/src/lib/leaderboard";
 import type { ClimberRank } from "../../mobile/src/contexts/AppDataContext";
 
 const board = (peaks: number[], ids = peaks.map((_, i) => `u${i}`)): ClimberRank[] =>
@@ -73,5 +80,42 @@ describe("tintFor", () => {
     expect(tintFor("abc")).toBe(tintFor("abc"));
     const seen = new Set(Array.from({ length: 40 }, (_, i) => tintFor(`user-${i}`)));
     expect(seen.size).toBeGreaterThan(3);
+  });
+});
+
+describe("friendsFooter", () => {
+  it("is null when every friend is on the board", () => {
+    expect(friendsFooter(0, 0)).toBeNull();
+  });
+
+  it("counts friends who haven't climbed, singular and plural", () => {
+    expect(friendsFooter(0, 1)).toBe("1 friend hasn't climbed yet");
+    expect(friendsFooter(0, 3)).toBe("3 friends haven't climbed yet");
+  });
+
+  it("counts hidden friends on their own, singular and plural", () => {
+    expect(friendsFooter(1, 0)).toBe("1 friend is hidden");
+    expect(friendsFooter(2, 0)).toBe("2 friends are hidden");
+  });
+
+  it("joins both counts on one line", () => {
+    expect(friendsFooter(2, 3)).toBe("3 friends haven't climbed yet · 2 hidden");
+    expect(friendsFooter(1, 1)).toBe("1 friend hasn't climbed yet · 1 hidden");
+  });
+});
+
+describe("parseFriendsBoard", () => {
+  const valid = { climbers: board([300, 100], ["a", "me"]), hiddenCount: 1, notClimbedCount: 0 };
+
+  it("accepts the route's response shape", () => {
+    expect(parseFriendsBoard(valid)).toEqual(valid);
+  });
+
+  it("rejects bodies missing or mistyping a field rather than defaulting", () => {
+    expect(parseFriendsBoard(null)).toBeNull();
+    expect(parseFriendsBoard({ error: "Too many requests" })).toBeNull();
+    expect(parseFriendsBoard({ ...valid, hiddenCount: undefined })).toBeNull();
+    expect(parseFriendsBoard({ ...valid, notClimbedCount: -1 })).toBeNull();
+    expect(parseFriendsBoard({ ...valid, climbers: [{ userId: "a" }] })).toBeNull();
   });
 });

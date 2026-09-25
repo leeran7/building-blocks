@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { climberDisplay } from "@app/lib/handle";
 import { UsernameHandle } from "@app/components/Challenge/UsernameHandle";
 import { apiFetch } from "../../lib/api";
+import { useInvalidateAppData } from "../../contexts/AppDataContext";
 import { notifyError, notifySuccess } from "../../lib/haptics";
 import { Button, Card } from "../ui";
 
@@ -34,6 +35,7 @@ export function FriendRequestsSection({ refreshKey, onAccepted }: FriendRequests
   const [decliningId, setDecliningId] = useState<string | null>(null);
   const [cancelingId, setCancelingId] = useState<string | null>(null);
   const [actionErrors, setActionErrors] = useState<Record<string, string>>({});
+  const invalidateAppData = useInvalidateAppData();
 
   const fetchRequests = useCallback(async () => {
     setLoading(true);
@@ -81,6 +83,7 @@ export function FriendRequestsSection({ refreshKey, onAccepted }: FriendRequests
         if (res.ok) {
           setIncoming((prev) => prev.filter((r) => r.id !== id));
           void notifySuccess();
+          invalidateAppData(["friendsLeaderboard"]);
           onAccepted?.();
         } else {
           setActionErrors((prev) => ({ ...prev, [id]: "Could not accept. Try again." }));
@@ -92,7 +95,7 @@ export function FriendRequestsSection({ refreshKey, onAccepted }: FriendRequests
       }
       setAcceptingId(null);
     },
-    [onAccepted, clearActionError],
+    [onAccepted, clearActionError, invalidateAppData],
   );
 
   const handleDecline = useCallback(

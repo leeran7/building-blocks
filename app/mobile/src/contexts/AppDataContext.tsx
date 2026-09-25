@@ -12,6 +12,7 @@ import type { CreatorPlatform } from "@prisma/client";
 import { apiFetch } from "../lib/api";
 import { useAuth } from "./AuthContext";
 import { setLeaderboardConsent } from "../lib/consent";
+import { parseFriendsBoard } from "../lib/leaderboard";
 
 /**
  * In-memory data cache for the read-heavy hub screens (You / Ranks).
@@ -53,6 +54,21 @@ export interface ClimberRank {
   wins: number;
 }
 
+export interface FriendsBoard {
+  climbers: ClimberRank[];
+  hiddenCount: number;
+  notClimbedCount: number;
+}
+
+type SliceKey = "dashboard" | "settings" | "leaderboard" | "friendsLeaderboard";
+
+const IDLE_INFLIGHT: Record<SliceKey, boolean> = {
+  dashboard: false,
+  settings: false,
+  leaderboard: false,
+  friendsLeaderboard: false,
+};
+
 interface Slice<T> {
   data: T | null;
   loading: boolean;
@@ -69,10 +85,13 @@ interface AppDataState {
   dashboard: Slice<DashboardData>;
   settings: Slice<SettingsData>;
   leaderboard: Slice<ClimberRank[]>;
+  friendsLeaderboard: Slice<FriendsBoard>;
   ensureDashboard: () => void;
   ensureSettings: () => void;
   ensureLeaderboard: () => void;
   refreshLeaderboard: () => Promise<void>;
+  ensureFriendsLeaderboard: () => void;
+  refreshFriendsLeaderboard: () => Promise<void>;
   refreshSettings: () => Promise<void>;
   /** Optimistically update the cached settings after a successful save. */
   setSettings: (next: SettingsData) => void;
@@ -81,7 +100,7 @@ interface AppDataState {
    * revalidate paint) so the next screen that reads them refetches immediately —
    * e.g. after a climb run changes your standing and the leaderboard.
    */
-  invalidate: (keys: Array<"dashboard" | "settings" | "leaderboard">) => void;
+  invalidate: (keys: SliceKey[]) => void;
   /** Drop all cached data (sign-out, account delete, account switch). */
   clearAll: () => void;
 }
@@ -93,15 +112,17 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   const [dashboard, setDashboard] = useState<Slice<DashboardData>>(EMPTY_SLICE);
   const [settings, setSettingsSlice] = useState<Slice<SettingsData>>(EMPTY_SLICE);
   const [leaderboard, setLeaderboard] = useState<Slice<ClimberRank[]>>(EMPTY_SLICE);
+  const [friendsLeaderboard, setFriendsLeaderboard] = useState<Slice<FriendsBoard>>(EMPTY_SLICE);
 
   // Guards against overlapping in-flight fetches per slice.
-  const inflight = useRef({ dashboard: false, settings: false, leaderboard: false });
+  const inflight = useRef<Record<SliceKey, boolean>>({ ...IDLE_INFLIGHT });
 
   const clearAll = useCallback(() => {
     setDashboard(EMPTY_SLICE);
     setSettingsSlice(EMPTY_SLICE);
     setLeaderboard(EMPTY_SLICE);
-    inflight.current = { dashboard: false, settings: false, leaderboard: false };
+    setFriendsLeaderboard(EMPTY_SLICE);
+    inflight.current = { ...IDLE_INFLIGHT };
   }, []);
 
   // Wipe the cache the instant the signed-in account changes (incl. sign-out).
@@ -116,7 +137,8 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     setDashboard(EMPTY_SLICE);
     setSettingsSlice(EMPTY_SLICE);
     setLeaderboard(EMPTY_SLICE);
-    inflight.current = { dashboard: false, settings: false, leaderboard: false };
+    setFriendsLeaderboard(EMPTY_SLICE);
+    inflight.current = { ...IDLE_INFLIGHT };
   }
 
   const authed = Boolean(user) && !isAnonymous;
@@ -124,7 +146,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   // Generic loader: skeleton only on a cold slice; warm slices refresh silently.
   const load = useCallback(
     async <T,>(
-      key: "dashboard" | "settings" | "leaderboard",
+      key: SliceKey,
       slice: Slice<T>,
       set: (s: Slice<T>) => void,
       fetcher: () => Promise<T | null>,
@@ -207,6 +229,30 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     );
   }, [leaderboard, load]);
 
+  const fetchFriendsBoard = useCallback(
+    () =>
+      apiFetch("/api/climb/leaderboard/friends")
+        .then((r) => (r.ok ? (r.json() as Promise<unknown>) : null))
+        .then((d) => (d === null ? null : parseFriendsBoard(d)))
+        .catch(() => null),
+    [],
+  );
+
+  const ensureFriendsLeaderboard = useCallback(() => {
+    if (!authed) return;
+    if (!isStale(friendsLeaderboard)) return;
+    void load("friendsLeaderboard", friendsLeaderboard, setFriendsLeaderboard, fetchFriendsBoard);
+  }, [authed, friendsLeaderboard, load, fetchFriendsBoard]);
+
+  const refreshFriendsLeaderboard = useCallback(async () => {
+    await load(
+      "friendsLeaderboard",
+      { ...friendsLeaderboard, fetchedAt: null },
+      setFriendsLeaderboard,
+      fetchFriendsBoard,
+    );
+  }, [friendsLeaderboard, load, fetchFriendsBoard]);
+
   const refreshSettings = useCallback(async () => {
     await load("settings", { ...settings, fetchedAt: null }, setSettingsSlice, () =>
       apiFetch("/api/settings")
@@ -220,11 +266,12 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const invalidate = useCallback(
-    (keys: Array<"dashboard" | "settings" | "leaderboard">) => {
+    (keys: SliceKey[]) => {
       const markStale = <T,>(s: Slice<T>): Slice<T> => ({ ...s, fetchedAt: null });
       if (keys.includes("dashboard")) setDashboard(markStale);
       if (keys.includes("settings")) setSettingsSlice(markStale);
       if (keys.includes("leaderboard")) setLeaderboard(markStale);
+      if (keys.includes("friendsLeaderboard")) setFriendsLeaderboard(markStale);
     },
     [],
   );
@@ -234,10 +281,13 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       dashboard,
       settings,
       leaderboard,
+      friendsLeaderboard,
       ensureDashboard,
       ensureSettings,
       ensureLeaderboard,
       refreshLeaderboard,
+      ensureFriendsLeaderboard,
+      refreshFriendsLeaderboard,
       refreshSettings,
       setSettings,
       invalidate,
@@ -247,10 +297,13 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       dashboard,
       settings,
       leaderboard,
+      friendsLeaderboard,
       ensureDashboard,
       ensureSettings,
       ensureLeaderboard,
       refreshLeaderboard,
+      ensureFriendsLeaderboard,
+      refreshFriendsLeaderboard,
       refreshSettings,
       setSettings,
       invalidate,
@@ -309,6 +362,18 @@ export function useLeaderboard() {
     ensureLeaderboard();
   }, [ensureLeaderboard]);
   return { ...leaderboard, refreshLeaderboard };
+}
+
+/**
+ * Cached friends board slice. Fetches only while `enabled` (the Friends tab is
+ * open), so players who never open it don't pay for the request.
+ */
+export function useFriendsLeaderboard(enabled: boolean) {
+  const { friendsLeaderboard, ensureFriendsLeaderboard, refreshFriendsLeaderboard } = useAppData();
+  useEffect(() => {
+    if (enabled) ensureFriendsLeaderboard();
+  }, [enabled, ensureFriendsLeaderboard]);
+  return { ...friendsLeaderboard, refreshFriendsLeaderboard };
 }
 
 /** Escape hatch for the auth flow to drop cache on sign-out / delete. */

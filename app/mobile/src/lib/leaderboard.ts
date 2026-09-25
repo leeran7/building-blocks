@@ -1,6 +1,6 @@
 import { hashId } from "@app/lib/handle";
 import { ALTITUDE_UNIT } from "@app/lib/units";
-import type { ClimberRank } from "../contexts/AppDataContext";
+import type { ClimberRank, FriendsBoard } from "../contexts/AppDataContext";
 
 export function formatHeight(ft: number): string {
   return `${ft.toLocaleString(undefined, { maximumFractionDigits: 3 })} ${ALTITUDE_UNIT}`;
@@ -71,4 +71,42 @@ const TINTS = ["#cbf24d", "#ff5a2c", "#ffb020", "#4dd6f2", "#b07cd6", "#ff6b9d",
 /** Stable accent colour for a climber's avatar badge. */
 export function tintFor(userId: string): string {
   return TINTS[hashId(userId) % TINTS.length];
+}
+
+const plural = (n: number, one: string, many: string) => `${n.toLocaleString()} ${n === 1 ? one : many}`;
+
+/**
+ * The line under the Friends board accounting for friends who aren't on it:
+ * opted out of leaderboards (hidden) or no climb yet. Null when there are none.
+ */
+export function friendsFooter(hiddenCount: number, notClimbedCount: number): string | null {
+  const notClimbed =
+    notClimbedCount > 0 ? plural(notClimbedCount, "friend hasn't climbed yet", "friends haven't climbed yet") : null;
+  if (hiddenCount <= 0) return notClimbed;
+  if (notClimbed) return `${notClimbed} · ${hiddenCount.toLocaleString()} hidden`;
+  return plural(hiddenCount, "friend is hidden", "friends are hidden");
+}
+
+const isCount = (v: unknown): v is number => typeof v === "number" && Number.isInteger(v) && v >= 0;
+
+function isClimberRank(v: unknown): v is ClimberRank {
+  if (typeof v !== "object" || v === null) return false;
+  const c = v as Record<string, unknown>;
+  return (
+    typeof c.rank === "number" &&
+    typeof c.userId === "string" &&
+    typeof c.handle === "string" &&
+    (c.username === null || typeof c.username === "string") &&
+    typeof c.peakY === "number" &&
+    typeof c.wins === "number"
+  );
+}
+
+/** Validates a GET /api/climb/leaderboard/friends body; null if malformed. */
+export function parseFriendsBoard(body: unknown): FriendsBoard | null {
+  if (typeof body !== "object" || body === null) return null;
+  const b = body as Record<string, unknown>;
+  if (!Array.isArray(b.climbers) || !b.climbers.every(isClimberRank)) return null;
+  if (!isCount(b.hiddenCount) || !isCount(b.notClimbedCount)) return null;
+  return { climbers: b.climbers, hiddenCount: b.hiddenCount, notClimbedCount: b.notClimbedCount };
 }
