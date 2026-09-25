@@ -296,3 +296,45 @@ describe("EditProfileScreen display name placeholder", () => {
     expect(nameInput()?.placeholder).not.toBe(SAVED_NAME);
   });
 });
+
+describe("Leaderboard visibility counts as saved only when the server echoes it", () => {
+  const visibility = () => container.querySelector<HTMLButtonElement>('[role="switch"][aria-label="Leaderboard visibility"]');
+
+  async function toggleAfter(response: Response) {
+    state.settings = settings({ leaderboardConsent: true });
+    apiFetch.mockResolvedValueOnce(response);
+    renderEditProfile();
+    expect(visibility()?.getAttribute("aria-checked")).toBe("true");
+    await click(visibility());
+  }
+
+  it("keeps the new value and caches the server's when the 200 echoes it", async () => {
+    await toggleAfter(json(settings({ leaderboardConsent: false })));
+    expect(JSON.parse((apiFetch.mock.calls[0] as [string, RequestInit])[1].body as string)).toEqual({
+      leaderboardConsent: false,
+    });
+    expect(visibility()?.getAttribute("aria-checked")).toBe("false");
+    expect(setSettings).toHaveBeenCalledWith(expect.objectContaining({ leaderboardConsent: false }));
+    expect(invalidate).toHaveBeenCalledWith(["leaderboard"]);
+  });
+
+  it("flips back when the 200 carries no leaderboardConsent, which would parse as false", async () => {
+    const { leaderboardConsent: _dropped, ...withoutConsent } = settings();
+    await toggleAfter(json(withoutConsent));
+    expect(visibility()?.getAttribute("aria-checked")).toBe("true");
+    expect(setSettings).not.toHaveBeenCalled();
+    expect(invalidate).not.toHaveBeenCalled();
+  });
+
+  it("flips back when the 200 stored the other value", async () => {
+    await toggleAfter(json(settings({ leaderboardConsent: true })));
+    expect(visibility()?.getAttribute("aria-checked")).toBe("true");
+    expect(setSettings).not.toHaveBeenCalled();
+  });
+
+  it("flips back when the 200 does not parse", async () => {
+    await toggleAfter({ ok: true, status: 200, json: () => Promise.reject(new SyntaxError("bad json")) } as Response);
+    expect(visibility()?.getAttribute("aria-checked")).toBe("true");
+    expect(setSettings).not.toHaveBeenCalled();
+  });
+});

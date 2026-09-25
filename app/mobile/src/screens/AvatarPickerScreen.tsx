@@ -7,6 +7,7 @@ import {
   useDashboard,
   useInvalidateAppData,
   useSettings,
+  type SettingsData,
 } from "../contexts/AppDataContext";
 import { HexAvatar } from "../components/HexAvatar";
 import { PushHeader, RetryPanel } from "../components/ui";
@@ -21,6 +22,8 @@ const TILE_HEX = 64;
 const PREVIEW_HEX = 128;
 const LOAD_FAILED_MESSAGE = "Couldn't load your profile. Check your connection and try again.";
 const SCROLL_FADE = "linear-gradient(to bottom, #000 calc(100% - 18px), transparent)";
+/** A 200 that did not store the pick: an API build older than avatars ignores the field. */
+const AVATAR_NOT_SAVED = "Couldn't save your avatar. Please update the app or try again later.";
 
 const OPTIONS: ReadonlyArray<{ id: string | null; name: string }> = [
   { id: null, name: INITIALS_LABEL },
@@ -45,6 +48,23 @@ function nextIndex(key: string, current: number, count: number): number | null {
     default:
       return null;
   }
+}
+
+/**
+ * The settings a 200 from PUT /api/settings confirms, or null unless they
+ * carry exactly the avatar that was sent. Server truth only: a body without an
+ * avatarId field, with a different one, or that does not parse is a failed
+ * save, never "assume it worked". An API build older than avatars answers 200
+ * and drops the field, and trusting the client there made the avatar look
+ * saved until the next refresh reverted it.
+ */
+export function confirmedAvatarSave(body: unknown, sent: string | null): SettingsData | null {
+  // hasOwnProperty.call, not Object.hasOwn: the SPA targets ES2020 WebViews.
+  if (typeof body !== "object" || body === null || !Object.prototype.hasOwnProperty.call(body, "avatarId")) {
+    return null;
+  }
+  const next = settingsFromResponse(body);
+  return next !== null && next.avatarId === sent ? next : null;
 }
 
 /**
@@ -91,6 +111,13 @@ export function AvatarPickerScreen() {
   }, [settingsData]);
 
   const tiles = useRef<Array<HTMLButtonElement | null>>([]);
+  const saveRef = useRef<HTMLButtonElement>(null);
+  // Save is disabled while in flight, which drops its focus. When the save
+  // fails, hand focus back to it so a keyboard or switch user can retry; the
+  // role=alert above it announces why.
+  useEffect(() => {
+    if (error && !saving) saveRef.current?.focus();
+  }, [error, saving]);
   const selectedIndex = Math.max(
     0,
     OPTIONS.findIndex((o) => o.id === selected),
@@ -129,8 +156,14 @@ export function AvatarPickerScreen() {
         void notifyError();
         return;
       }
-      const next = settingsFromResponse(await res.json().catch(() => null));
-      setSettings(next ?? { ...settingsData, avatarId: selected });
+      const next = confirmedAvatarSave(await res.json().catch(() => null), selected);
+      if (!next) {
+        // The cached avatar stays the saved one and the picker stays open.
+        setError(AVATAR_NOT_SAVED);
+        void notifyError();
+        return;
+      }
+      setSettings(next);
       // An avatar can rename a player with no display name (the pseudonym's
       // animal follows it), so every cached copy of their name goes stale:
       // both boards and the dashboard handle behind the Profile header.
@@ -251,6 +284,7 @@ export function AvatarPickerScreen() {
             </p>
           )}
           <button
+            ref={saveRef}
             onClick={() => void save()}
             disabled={!changed || saving}
             className="cta-lime min-h-[56px] w-full rounded-2xl font-display text-lg font-black uppercase tracking-wide text-void transition-transform active:scale-[0.98] disabled:active:scale-100"

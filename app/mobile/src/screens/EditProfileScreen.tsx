@@ -209,8 +209,15 @@ export function EditProfileScreen() {
         body: JSON.stringify({ leaderboardConsent: next }),
       });
       if (!res.ok) throw new Error("save failed");
+      // Server truth only, as on the avatar picker: a 200 whose settings do not
+      // carry the value sent did not store it, so the toggle flips back.
+      const body: unknown = await res.json().catch(() => null);
+      const confirmed = settingsFromResponse(body);
+      const echoed =
+        typeof body === "object" && body !== null && Object.prototype.hasOwnProperty.call(body, "leaderboardConsent");
+      if (!confirmed || !echoed || confirmed.leaderboardConsent !== next) throw new Error("not saved");
       if (settingsData) {
-        setSettings({ ...settingsData, leaderboardConsent: next });
+        setSettings({ ...settingsData, leaderboardConsent: confirmed.leaderboardConsent });
       }
       invalidate(["leaderboard"]);
     } catch {

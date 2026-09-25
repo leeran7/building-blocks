@@ -273,3 +273,67 @@ describe("AvatarPickerScreen", () => {
     expect(container.textContent).toContain("Profile screen");
   });
 });
+
+/**
+ * The phone build talks to production. An API build older than avatars answers
+ * PUT /api/settings with 200 and settings that have no avatarId, so a picker
+ * that trusted its own pick looked saved and then reverted. Only the server's
+ * echo of the pick counts as saved.
+ */
+describe("a 200 counts as saved only when the server echoes the avatar", () => {
+  const NOT_SAVED = "Couldn't save your avatar. Please update the app or try again later.";
+  /** PUT /api/settings on an API build that predates avatars. */
+  const legacySettings = { displayName: "Aria Stone", username: null, social: {}, leaderboardConsent: true };
+
+  async function saveAfter(response: Response, pick: string, saved: string | null = FIRST.id) {
+    state.settings = settings(saved);
+    apiFetch.mockResolvedValueOnce(response);
+    renderPicker();
+    await click(radio(pick));
+    await click(saveButton());
+  }
+
+  function expectNotSaved() {
+    expect(container.querySelector('[role="alert"]')?.textContent).toBe(NOT_SAVED);
+    expect(setSettings).not.toHaveBeenCalled();
+    expect(invalidate).not.toHaveBeenCalled();
+    expect(container.textContent).not.toContain("Profile screen");
+    expect(saveButton()?.disabled).toBe(false);
+    // Focus goes back to Save (it was disabled, and so blurred, while in flight).
+    expect(document.activeElement).toBe(saveButton());
+  }
+
+  it("(a) caches exactly the server's settings and goes back when the avatar is echoed", async () => {
+    await saveAfter(json(settings(SECOND.id)), SECOND.name);
+    expect(setSettings).toHaveBeenCalledTimes(1);
+    expect(setSettings).toHaveBeenCalledWith(settings(SECOND.id));
+    expect(container.querySelector('[role="alert"]')).toBeNull();
+    expect(container.textContent).toContain("Profile screen");
+  });
+
+  it("(b) treats a 200 without avatarId (an API that predates avatars) as a failed save", async () => {
+    await saveAfter(json(legacySettings), SECOND.name);
+    expectNotSaved();
+  });
+
+  it("(b) also when the pick is Use initials, where a missing field would parse as null", async () => {
+    await saveAfter(json(legacySettings), "Use initials");
+    expectNotSaved();
+  });
+
+  it("(c) treats a 200 that stored a different avatar as a failed save", async () => {
+    await saveAfter(json(settings(FIRST.id)), SECOND.name);
+    expectNotSaved();
+  });
+
+  it("(d) treats an unparseable 200 as a failed save, never the client's own pick", async () => {
+    const unparseable = { ok: true, status: 200, json: () => Promise.reject(new SyntaxError("bad json")) } as Response;
+    await saveAfter(unparseable, SECOND.name);
+    expectNotSaved();
+  });
+
+  it("(d) and a 200 whose body is not an object", async () => {
+    await saveAfter(json("ok"), SECOND.name);
+    expectNotSaved();
+  });
+});
