@@ -24,7 +24,7 @@ vi.mock("../../src/db/creator", () => ({
 const { updateUserSettings, getUserSettings, updateUserSocialHandles } = vi.hoisted(() => {
   const base = { displayName: null, username: null, social: {}, leaderboardConsent: false };
   return {
-    getUserSettings: vi.fn(async () => ({ ...base, avatarId: null })),
+    getUserSettings: vi.fn(async () => ({ ...base, avatarId: null as string | null })),
     updateUserSettings: vi.fn(async (_uid: string, input: { avatarId?: string | null }) => ({
       ...base,
       avatarId: input.avatarId ?? null,
@@ -40,7 +40,7 @@ vi.mock("next/cache", () => ({
   unstable_cache: (fn: unknown) => fn,
 }));
 
-import { PUT } from "../../app/api/settings/route";
+import { GET, PUT } from "../../app/api/settings/route";
 import { LEADERBOARD_CACHE_TAG } from "../../src/db/climb";
 import { AVATARS } from "../../src/lib/avatars";
 
@@ -105,5 +105,22 @@ describe("PUT /api/settings avatarId", () => {
     expect(res.status).toBe(200);
     expect(revalidateTag).not.toHaveBeenCalled();
     expect(updateUserSettings).toHaveBeenCalledWith("u1", {});
+  });
+});
+
+describe("GET /api/settings avatarId", () => {
+  it("returns the stored avatar so the app can seed the picker", async () => {
+    getUserSettings.mockResolvedValueOnce({
+      displayName: null,
+      username: null,
+      social: {},
+      leaderboardConsent: false,
+      avatarId: VALID,
+    });
+    const res = await GET(
+      new NextRequest("http://localhost/api/settings", { headers: { authorization: "Bearer t" } })
+    );
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ avatarId: VALID });
   });
 });
