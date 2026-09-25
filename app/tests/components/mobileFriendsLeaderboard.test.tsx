@@ -270,6 +270,31 @@ describe("Ranks screen Friends tab", () => {
   });
 });
 
+/** Icons sitting in a hex-clipped rim inside a hex-clipped fill (the shared .hex rule). */
+const hexBadgeIcons = (el: Element | null | undefined) =>
+  Array.from(el?.querySelectorAll("svg") ?? []).filter(
+    (svg) => svg.parentElement?.classList.contains("hex") && svg.parentElement.parentElement?.classList.contains("hex"),
+  );
+
+describe("hex icon badge", () => {
+  it("clips the ranked banner's badge and the 'Race your friends' badge with the shared hex shape", async () => {
+    net.friendsBoard = { climbers: [row(1, "me", 250)], hiddenCount: 0, notClimbedCount: 0 } satisfies Board;
+    net.global = [row(1, "g1", 9000), row(2, "me", 100)];
+    const c = await mount(screen());
+
+    // On the podium, so the banner has no "Show my row" action and is a live region.
+    const banner = Array.from(c.querySelectorAll('[aria-live="polite"]')).find((el) =>
+      el.textContent?.includes("You're #2"),
+    );
+    expect(banner).toBeDefined();
+    expect(hexBadgeIcons(banner)).toHaveLength(1);
+
+    await click(friendsTab(c));
+    const card = Array.from(c.querySelectorAll("section")).find((el) => el.textContent?.includes("Race your friends"));
+    expect(hexBadgeIcons(card)).toHaveLength(1);
+  });
+});
+
 describe("Ranks screen Global tab", () => {
   it("shows the no-climbs message, not a banner or podium, when nobody has climbed", async () => {
     net.global = [];

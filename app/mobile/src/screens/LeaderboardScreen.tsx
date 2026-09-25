@@ -1,4 +1,4 @@
-import { useCallback, useState, type KeyboardEvent } from "react";
+import { useCallback, useState, type KeyboardEvent, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import {
@@ -150,7 +150,6 @@ export function LeaderboardScreen() {
           backdrop-filter: blur(14px);
           box-shadow: inset 0 0 0 1px rgba(203, 242, 77, 0.55), 0 0 28px -6px rgba(203, 242, 77, 0.35);
         }
-        .lb-hex { clip-path: polygon(25% 3%, 75% 3%, 100% 50%, 75% 97%, 25% 97%, 0 50%); }
       `}</style>
     </main>
   );
@@ -235,16 +234,25 @@ function ScopeTabs({ scope, onChange }: { scope: Scope; onChange: (next: Scope) 
   );
 }
 
+const HEX_BADGE_SIZE = { md: "h-11 w-11", lg: "h-14 w-14" } as const;
+
+/** Signal-rimmed hex holding a lime icon (ranked banner, "Race your friends" card). */
+function HexIconBadge({ size, children }: { size: keyof typeof HEX_BADGE_SIZE; children: ReactNode }) {
+  return (
+    <span className={`hex flex ${HEX_BADGE_SIZE[size]} shrink-0 items-center justify-center bg-signal/80 p-[2px]`}>
+      <span className="hex flex h-full w-full items-center justify-center bg-[#15170f] text-signal">{children}</span>
+    </span>
+  );
+}
+
 /** Friends tab with no one else on it: point at where friends are added. */
 function RaceFriendsCard() {
   const navigate = useNavigate();
   return (
     <section className="lb-glass mb-4 flex flex-col items-center gap-3 rounded-3xl border border-white/10 px-6 py-8 text-center">
-      <span className="lb-hex flex h-14 w-14 items-center justify-center bg-signal/80 p-[2px]">
-        <span className="lb-hex flex h-full w-full items-center justify-center bg-[#15170f] text-signal">
-          <PeopleIcon size={24} />
-        </span>
-      </span>
+      <HexIconBadge size="lg">
+        <PeopleIcon size={24} />
+      </HexIconBadge>
       <h2 className="font-display text-[1.45rem] font-black uppercase leading-none tracking-tight text-text-primary">
         Race your friends
       </h2>
@@ -289,7 +297,7 @@ function PodiumSpot({
           <Avatar climber={climber} size={isFirst ? 68 : 56} />
         ) : (
           <span
-            className="lb-hex flex items-center justify-center bg-elevated/80 text-text-muted"
+            className="hex flex items-center justify-center bg-elevated/80 text-text-muted"
             style={{ width: isFirst ? 68 : 56, height: isFirst ? 68 : 56 }}
           >
             ?
@@ -361,11 +369,9 @@ function StandingBanner({ standing, meRowId }: { standing: Standing; meRowId: st
       </span>
       {!ranked && <ChevronRight />}
       {ranked && (
-        <span className="lb-hex flex h-11 w-11 shrink-0 items-center justify-center bg-signal/80 p-[2px]">
-          <span className="lb-hex flex h-full w-full items-center justify-center bg-[#15170f] text-signal">
-            <ChevronUp />
-          </span>
-        </span>
+        <HexIconBadge size="md">
+          <ChevronUp />
+        </HexIconBadge>
       )}
     </>
   );
@@ -459,11 +465,11 @@ function Avatar({ climber, size }: { climber: ClimberRank; size: number }) {
   return (
     <span
       aria-hidden
-      className="lb-hex flex shrink-0 items-center justify-center"
+      className="hex flex shrink-0 items-center justify-center"
       style={{ width: size, height: size, background: tint, padding: 2 }}
     >
       <span
-        className="lb-hex flex h-full w-full items-center justify-center font-display font-black"
+        className="hex flex h-full w-full items-center justify-center font-display font-black"
         style={{
           background: `linear-gradient(160deg, color-mix(in srgb, ${tint} 38%, #17161c), #0f0e12 80%)`,
           color: tint,
@@ -481,11 +487,11 @@ function MedalBadge({ place, className = "" }: { place: Medal; className?: strin
   const size = place === 1 ? 40 : 34;
   return (
     <span
-      className={`lb-hex relative z-10 flex items-center justify-center ${className}`}
+      className={`hex relative z-10 flex items-center justify-center ${className}`}
       style={{ width: size, height: size, background: m.rim, padding: 2 }}
     >
       <span
-        className="lb-hex flex h-full w-full items-center justify-center font-display font-black"
+        className="hex flex h-full w-full items-center justify-center font-display font-black"
         style={{ background: m.face, color: m.text, fontSize: size * 0.48 }}
       >
         {place}
