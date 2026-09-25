@@ -35,6 +35,16 @@ describe("parseAvatarId", () => {
 });
 
 describe("AVATARS catalogue", () => {
+  // Ids are persisted in users.avatar_id: renaming or dropping one silently
+  // retires every player who picked it, so the list is a stored contract.
+  it("is the approved gallery, in order, with id = lowercase name", () => {
+    expect(AVATARS.map((a) => a.name)).toEqual([
+      "Ibex", "Falcon", "Marmot", "Gecko", "Panther", "Otter", "Raven", "Lynx", "Heron",
+      "Cobra", "Badger", "Wolf", "Kestrel", "Mantis", "Bison", "Wraith", "Viking", "Sentinel",
+    ]);
+    for (const a of AVATARS) expect(a.id).toBe(a.name.toLowerCase());
+  });
+
   it("has unique, filename-safe ids and non-empty names", () => {
     const ids = AVATARS.map((a) => a.id);
     expect(new Set(ids).size).toBe(ids.length);

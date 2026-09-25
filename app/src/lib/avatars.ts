@@ -30,7 +30,7 @@ export const AVATARS: readonly AvatarEntry[] = [
   { id: "wolf", name: "Wolf" },
   { id: "kestrel", name: "Kestrel" },
   { id: "mantis", name: "Mantis" },
-  { id: "yak", name: "Yak" },
+  { id: "bison", name: "Bison" },
   { id: "wraith", name: "Wraith" },
   { id: "viking", name: "Viking" },
   { id: "sentinel", name: "Sentinel" },
@@ -39,8 +39,9 @@ export const AVATARS: readonly AvatarEntry[] = [
 const BY_ID: Readonly<Record<string, AvatarEntry>> = Object.fromEntries(AVATARS.map((a) => [a.id, a]));
 
 // Own-property check, never `in` (which accepts "__proto__", "toString"...).
-// Not Object.hasOwn: the mobile SPA ships es2020 to iOS 15.0, and hasOwn only
-// landed in Safari 15.4, so it would throw on every avatar render there.
+// Same semantics as Object.hasOwn, which this file cannot use: the mobile SPA
+// compiles it with lib ES2020 (hasOwn is ES2022, a TS2550 there) and ships to
+// iOS WebViews that can predate Safari 15.4, where hasOwn would throw.
 const hasOwn = (o: object, k: string): boolean => Object.prototype.hasOwnProperty.call(o, k);
 
 /** The catalogue id if `v` is exactly one, else null. Never substitutes a default. */
