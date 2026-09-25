@@ -14,6 +14,7 @@ import { PullToRefresh } from "../components/PullToRefresh";
 import { tapLight } from "../lib/haptics";
 import { friendsFooter, standingFor, type Standing } from "../lib/leaderboard";
 import { HexAvatar } from "../components/HexAvatar";
+import { HubHeader } from "../components/HubHeader";
 import { useRetry } from "../hooks/useRetry";
 import { prefersReducedMotion } from "../lib/motion";
 
@@ -160,30 +161,12 @@ export function LeaderboardScreen() {
 
 function Header({ scope, headingRef }: { scope: Scope; headingRef: Ref<HTMLHeadingElement> }) {
   return (
-    <header className="flex flex-col items-center pb-5 pt-[calc(env(safe-area-inset-top)+1rem)] text-center">
-      <div className="flex items-center gap-3">
-        <span className="h-px w-8 bg-signal/70" />
-        <span className="pl-[0.28em] font-mono text-label font-bold uppercase tracking-eyebrow text-signal">
-          Doomstack
-        </span>
-        <span className="h-px w-8 bg-signal/70" />
-      </div>
-      <div className="mt-1.5 flex items-center gap-2">
-        <h1
-          ref={headingRef}
-          tabIndex={-1}
-          className="metal-title font-display text-title font-black uppercase tracking-[-0.02em] focus:outline-none"
-        >
-          Leaderboard
-        </h1>
-        <TrophyBadge />
-      </div>
-      <p className="mt-2 flex items-center gap-2 font-mono text-label uppercase tracking-label text-text-muted">
-        <span>{scope === "friends" ? "Friends" : "Global"}</span>
-        <span aria-hidden className="h-1 w-1 rounded-full bg-text-muted" />
-        <span>All time</span>
-      </p>
-    </header>
+    <HubHeader
+      title="Leaderboard"
+      subtitle={[scope === "friends" ? "Friends" : "Global", "All time"]}
+      trailing={<TrophyBadge />}
+      headingRef={headingRef}
+    />
   );
 }
 

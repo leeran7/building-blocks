@@ -7,6 +7,7 @@ import { tapLight, tapHeavy } from "../lib/haptics";
 import { dailySummary, formatReset, msUntilReset } from "../lib/daily";
 import { ALTITUDE_UNIT } from "@app/lib/units";
 import { HexAvatar } from "../components/HexAvatar";
+import { HubHeader } from "../components/HubHeader";
 import { identityNameFor } from "../lib/identity";
 import { avatarName } from "@app/lib/avatars";
 
@@ -61,14 +62,7 @@ export function ProfileScreen() {
         className="flex-1 overflow-y-auto px-4"
         style={{ WebkitOverflowScrolling: "touch", overscrollBehavior: "contain" }}
       >
-        <header className="pb-5 pt-[calc(env(safe-area-inset-top)+1rem)]">
-          <p className="font-display text-body font-black uppercase leading-none tracking-[-0.01em] text-text-primary">
-            Doom<span className="text-signal">stack</span>
-          </p>
-          <h1 className="metal-title mt-1 font-display text-title font-black uppercase tracking-[-0.02em]">
-            Profile
-          </h1>
-        </header>
+        <HubHeader title="Profile" subtitle={["Your climb"]} />
 
         {loading ? (
           <div className="flex flex-col gap-3" aria-label="Loading profile">

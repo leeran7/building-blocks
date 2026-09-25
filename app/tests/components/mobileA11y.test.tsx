@@ -262,3 +262,52 @@ describe("Backdrop lava under reduced motion", () => {
     expect(raf).toHaveBeenCalled();
   });
 });
+
+describe("Hub header shared by Ranks and Profile", () => {
+  async function headerOf(path: string, screen: ReactElement) {
+    await render(path, screen);
+    const headers = container.querySelectorAll("main > * header, main header");
+    const header = headers[0] as HTMLElement | undefined;
+    expect(header).toBeTruthy();
+    const h1s = container.querySelectorAll("h1");
+    const [eyebrow, titleRow, subtitle] = [...header!.children] as HTMLElement[];
+    return {
+      h1s: [...h1s].map((h) => h.textContent),
+      titleInHeader: header!.contains(h1s[0] ?? null),
+      header: header!.className,
+      eyebrow: eyebrow.outerHTML,
+      h1Class: titleRow.querySelector("h1")?.className,
+      subtitleClass: subtitle?.className,
+      subtitle: subtitle ? [...subtitle.children].map((c) => (c.getAttribute("aria-hidden") ? "·" : c.textContent)) : [],
+    };
+  }
+
+  it("gives each screen exactly one h1, the page title, inside the header", async () => {
+    net.climbers = [climber(1, "a")];
+    const ranks = await headerOf("/leaderboard", createElement(LeaderboardScreen));
+    expect(ranks.h1s).toEqual(["Leaderboard"]);
+    expect(ranks.titleInHeader).toBe(true);
+    act(() => root.unmount());
+    root = createRoot(container);
+    const profile = await headerOf("/profile", createElement(ProfileScreen));
+    expect(profile.h1s).toEqual(["Profile"]);
+    expect(profile.titleInHeader).toBe(true);
+  });
+
+  it("renders the same eyebrow, title and subtitle styling on both, with the rules and dots hidden", async () => {
+    net.climbers = [climber(1, "a")];
+    const ranks = await headerOf("/leaderboard", createElement(LeaderboardScreen));
+    act(() => root.unmount());
+    root = createRoot(container);
+    const profile = await headerOf("/profile", createElement(ProfileScreen));
+
+    expect(profile.header).toBe(ranks.header);
+    expect(profile.eyebrow).toBe(ranks.eyebrow);
+    expect(profile.h1Class).toBe(ranks.h1Class);
+    expect(profile.subtitleClass).toBe(ranks.subtitleClass);
+    expect(ranks.eyebrow).toContain(">Doomstack<");
+    expect(ranks.eyebrow.match(/aria-hidden="true"/g)).toHaveLength(2);
+    expect(ranks.subtitle).toEqual(["Global", "·", "All time"]);
+    expect(profile.subtitle).toEqual(["Your climb"]);
+  });
+});
