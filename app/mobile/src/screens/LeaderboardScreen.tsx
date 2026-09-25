@@ -93,14 +93,19 @@ export function LeaderboardScreen() {
           {view === "loading" && <LoadingState />}
 
           {view === "error" && (
-            <StateMessage>
-              Couldn&apos;t load the leaderboard. Check your connection and try again.
-            </StateMessage>
+            <div className="flex flex-col items-center gap-4 pb-4">
+              <StateMessage>
+                Couldn&apos;t load the leaderboard. Check your connection and try again.
+              </StateMessage>
+              <Button variant="secondary" fullWidth={false} onPress={() => void handleRefresh()}>
+                Try again
+              </Button>
+            </div>
           )}
 
           {view === "noFriendsYet" && <RaceFriendsCard />}
 
-          {view === "empty" && <StateMessage>No climbs yet. Be the first to the top.</StateMessage>}
+          {view === "empty" && <EmptyGlobalBoard />}
 
           {view === "ready" && (
             <>
@@ -247,6 +252,19 @@ function HexIconBadge({ size, children }: { size: keyof typeof HEX_BADGE_SIZE; c
 }
 
 /** Friends tab with no one else on it: point at where friends are added. */
+/** Global board with no climbs: invite the first climb instead of a dead end. */
+function EmptyGlobalBoard() {
+  const navigate = useNavigate();
+  return (
+    <div className="flex flex-col items-center gap-4 pb-4">
+      <StateMessage>No climbs yet. Be the first to the top.</StateMessage>
+      <Button fullWidth={false} onPress={() => navigate("/climb")}>
+        Play
+      </Button>
+    </div>
+  );
+}
+
 function RaceFriendsCard() {
   const navigate = useNavigate();
   return (
@@ -371,7 +389,8 @@ function StandingBanner({ standing, meRowId }: { standing: Standing; meRowId: st
         >
           {headline}
         </span>
-        <span className="mt-1 block truncate text-[13px] text-text-secondary">{detail}</span>
+        {/* Wraps rather than truncates: the hidden/unranked detail is the recovery step. */}
+        <span className="mt-1 block text-[13px] leading-snug text-text-secondary">{detail}</span>
       </span>
       {!ranked && <ChevronRight />}
       {ranked && (

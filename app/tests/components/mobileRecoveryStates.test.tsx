@@ -239,3 +239,42 @@ describe("Back on a push screen", () => {
     expect(hasInAppHistory("k3")).toBe(true);
   });
 });
+
+describe("Ranks error and empty states", () => {
+  it("Try again on a failed Global board refetches it", async () => {
+    net.status["/api/climb/leaderboard"] = 500;
+    await mount(["/leaderboard"]);
+    expect(container.textContent).toContain("Couldn't load the leaderboard");
+    const before = calls("/api/climb/leaderboard").length;
+
+    net.status["/api/climb/leaderboard"] = 200;
+    await click(buttonByText("Try again"));
+
+    expect(calls("/api/climb/leaderboard").length).toBe(before + 1);
+    expect(container.textContent).not.toContain("Couldn't load the leaderboard");
+    expect(container.textContent).toContain("Climber g1");
+  });
+
+  it("Try again on a failed Friends board refetches only the Friends board", async () => {
+    net.status["/api/climb/leaderboard/friends"] = 500;
+    await mount(["/leaderboard"]);
+    await click(container.querySelector("#lb-tab-friends"));
+    expect(container.textContent).toContain("Couldn't load the leaderboard");
+    const globalBefore = calls("/api/climb/leaderboard").length;
+
+    net.status["/api/climb/leaderboard/friends"] = 200;
+    await click(buttonByText("Try again"));
+
+    expect(calls("/api/climb/leaderboard/friends")).toHaveLength(2);
+    expect(calls("/api/climb/leaderboard").length).toBe(globalBefore);
+    expect(container.textContent).toContain("Climber f1");
+  });
+
+  it("an empty Global board offers Play, which opens the climb", async () => {
+    net.global = [];
+    await mount(["/leaderboard"]);
+    expect(container.textContent).toContain("No climbs yet. Be the first to the top.");
+    await click(buttonByText("Play"));
+    expect(path()).toBe("/climb");
+  });
+});
