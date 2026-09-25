@@ -10,7 +10,6 @@ import {
 } from "react";
 import {
   onAuthChange,
-  getFreshToken,
   signInWithApple,
   signInWithGoogle,
   signInWithEmail,
@@ -18,7 +17,6 @@ import {
   signOut as fbSignOut,
   type AuthUser,
 } from "../lib/firebaseAuth";
-import { setIdToken } from "../lib/auth";
 import { apiFetch } from "../lib/api";
 import { initPushNotifications, unregisterPush } from "../lib/pushNotifications";
 
@@ -46,8 +44,8 @@ const Ctx = createContext<AuthState>({
 
 /**
  * SPA auth provider. Mirrors the web AuthContext contract but sources state
- * from the Capacitor Firebase plugin. On every auth change it refreshes the ID
- * token into the shared token store (so apiFetch attaches the Bearer) and
+ * from the Capacitor Firebase plugin. apiFetch obtains a fresh native token on
+ * every request; this provider only tracks the auth state (user / loading) and
  * provisions the backend `users` row once per session for non-anonymous users.
  */
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -61,15 +59,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(u);
       setLoading(false);
       if (u) {
-        const token = await getFreshToken();
-        setIdToken(token);
-        if (!synced.current && !u.isAnonymous && u.email && token) {
+        if (!synced.current && !u.isAnonymous && u.email) {
           synced.current = true;
           apiFetch("/api/auth/sync", { method: "POST" }).catch(() => {});
           initPushNotifications().catch(() => {});
         }
       } else {
-        setIdToken(null);
         synced.current = false;
       }
     }).then((u) => {
@@ -80,7 +75,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signOut = useCallback(async () => {
     await unregisterPush().catch(() => {});
-    setIdToken(null);
     setUser(null);
     try {
       await fbSignOut();
