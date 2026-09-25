@@ -85,6 +85,14 @@ describe("PUT /api/settings avatarId", () => {
     }
   );
 
+  it("rejects a very long id (catalogue id as a prefix) with 400 and saves nothing", async () => {
+    const res = await put({ avatarId: VALID + "x".repeat(10_000) });
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error: "Unknown avatar", code: "UNKNOWN_AVATAR" });
+    expect(updateUserSettings).not.toHaveBeenCalled();
+    expect(revalidateTag).not.toHaveBeenCalled();
+  });
+
   it.each([42, true, {}, [VALID], { id: VALID }])("rejects non-string avatarId %j with 400", async (avatarId) => {
     const res = await put({ avatarId });
     expect(res.status).toBe(400);
