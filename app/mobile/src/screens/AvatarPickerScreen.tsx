@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
-import { useNavigate } from "react-router-dom";
 import { AVATARS } from "@app/lib/avatars";
 import { apiFetch } from "../lib/api";
 import { useAuth } from "../contexts/AuthContext";
@@ -13,6 +12,7 @@ import { HexAvatar } from "../components/HexAvatar";
 import { PushHeader, StateMessage } from "../components/ui";
 import { identityNameFor } from "../lib/identity";
 import { notifyError, notifySuccess, tapLight } from "../lib/haptics";
+import { useBackOr } from "../lib/navigation";
 
 const INITIALS_LABEL = "Initials";
 const COLUMNS = 3;
@@ -50,7 +50,8 @@ function nextIndex(key: string, current: number, count: number): number | null {
  * Avatar row. Saves one field (`avatarId`) and pops back on success.
  */
 export function AvatarPickerScreen() {
-  const navigate = useNavigate();
+  // Opened cold (deep link): there is no Profile / Edit Profile to pop back to.
+  const goBack = useBackOr("/profile");
   const { user } = useAuth();
   const settingsSlice = useSettings();
   const dash = useDashboard();
@@ -118,7 +119,7 @@ export function AvatarPickerScreen() {
       setSettings(next ?? { ...settingsData, avatarId: selected });
       invalidate(["leaderboard", "friendsLeaderboard"]);
       void notifySuccess();
-      navigate(-1);
+      goBack();
     } catch {
       setError("Could not save your avatar. Check your connection.");
       void notifyError();
@@ -131,7 +132,7 @@ export function AvatarPickerScreen() {
 
   return (
     <main className="flex h-full flex-col">
-      <PushHeader title="Choose avatar" onBack={() => navigate(-1)} />
+      <PushHeader title="Choose avatar" onBack={goBack} />
 
       <div
         className="min-h-0 flex-1 overflow-y-auto px-4"

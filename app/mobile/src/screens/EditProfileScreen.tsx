@@ -33,6 +33,7 @@ import { HexAvatar } from "../components/HexAvatar";
 import { PushHeader } from "../components/ui";
 import { identityNameFor } from "../lib/identity";
 import { stashEditProfileDraft, takeEditProfileDraft } from "../lib/editProfileDraft";
+import { useBackOr } from "../lib/navigation";
 
 const INPUT =
   "min-h-[48px] w-full rounded-xl border border-white/10 bg-[#0d0c10]/80 px-3.5 text-[15px] text-text-primary placeholder:text-text-muted focus:border-signal focus:outline-none";
@@ -53,6 +54,7 @@ export function EditProfileScreen() {
 
   const settingsData = settingsSlice.data;
   const { setSettings } = settingsSlice;
+  const goBack = useBackOr("/profile");
   const uid = user?.uid;
   const identityName = identityNameFor(settingsData, dashData);
 
@@ -218,7 +220,7 @@ export function EditProfileScreen() {
 
   return (
     <main className="flex h-full flex-col">
-      <PushHeader title="Edit profile" onBack={() => navigate(-1)} />
+      <PushHeader title="Edit profile" onBack={goBack} />
 
       <div
         className="flex-1 overflow-y-auto px-4"
