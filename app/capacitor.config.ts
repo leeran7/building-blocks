@@ -39,6 +39,9 @@ const config: CapacitorConfig = {
       skipNativeAuth: false,
       providers: ["apple.com", "google.com"],
     },
+    FirebaseMessaging: {
+      presentationOptions: ["badge", "sound", "alert"],
+    },
     // Keep the keyboard on-brand app-wide so no white ever shows at the bottom:
     //  - DARK keyboard (never the white system default);
     //  - resize Native so the WebView shrinks with the keyboard instead of the
