@@ -205,7 +205,7 @@ function StandingBanner({ standing, meRowId }: { standing: Standing; meRowId: st
     standing.kind === "ranked"
       ? standing.detail
       : standing.kind === "hidden"
-        ? "Turn on leaderboard visibility in Profile"
+        ? "Turn on leaderboard visibility in Edit profile"
         : "Finish a climb to get on the board";
 
   const body = (
@@ -235,7 +235,7 @@ function StandingBanner({ standing, meRowId }: { standing: Standing; meRowId: st
 
   const action =
     standing.kind === "hidden"
-      ? { label: "Open Profile", run: () => navigate("/profile") }
+      ? { label: "Edit profile", run: () => navigate("/profile/edit") }
       : standing.kind === "unranked"
         ? { label: "Play", run: () => navigate("/climb") }
         : meRowId

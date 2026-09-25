@@ -129,20 +129,6 @@ export function HomeScreen() {
         .hm-wordmark {
           text-shadow: 0 2px 0 rgba(0, 0, 0, 0.35), 0 0 34px rgba(203, 242, 77, 0.18);
         }
-        .hm-play {
-          background: linear-gradient(180deg, #d9fb6a 0%, var(--color-signal) 45%, #b6dc3c 100%);
-          box-shadow:
-            inset 0 1px 0 rgba(255, 255, 255, 0.55),
-            inset 0 -3px 0 rgba(0, 0, 0, 0.18),
-            0 0 0 1px rgba(203, 242, 77, 0.35),
-            0 14px 44px -12px rgba(203, 242, 77, 0.55);
-        }
-        .hm-glass {
-          background: rgba(16, 15, 20, 0.88);
-          -webkit-backdrop-filter: blur(14px) saturate(1.2);
-          backdrop-filter: blur(14px) saturate(1.2);
-          box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 10px 30px -14px rgba(0, 0, 0, 0.8);
-        }
         .hm-daily-scene {
           -webkit-mask-image: linear-gradient(to right, transparent 0%, #000 70%);
           mask-image: linear-gradient(to right, transparent 0%, #000 70%);
@@ -163,7 +149,7 @@ function BestCard({
   return (
     <div
       aria-live="polite"
-      className="hm-glass min-w-[8rem] rounded-[20px] border border-white/10 px-3.5 pb-2.5 pt-3"
+      className="glass min-w-[8rem] rounded-[20px] border border-white/10 px-3.5 pb-2.5 pt-3"
     >
       <div className="flex items-center gap-2">
         <CrownIcon />
@@ -202,7 +188,7 @@ function PlayButton({ onPress }: { onPress: () => void }) {
     <button
       onClick={onPress}
       aria-label="Play endless climb"
-      className="hm-play flex w-full items-center gap-4 rounded-[22px] py-3.5 pl-3.5 pr-3 text-left text-void transition-transform active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void"
+      className="cta-lime flex w-full items-center gap-4 rounded-[22px] py-3.5 pl-3.5 pr-3 text-left text-void transition-transform active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void"
     >
       <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-[#141612] text-signal shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_4px_12px_rgba(0,0,0,0.35)]">
         <PlayGlyph />
@@ -237,7 +223,7 @@ function DailyCard({
     <button
       onClick={onPress}
       aria-label="Play the daily climb"
-      className="hm-glass relative flex w-full items-center gap-3 overflow-hidden rounded-[20px] border border-white/10 px-3.5 py-3 text-left transition-transform active:scale-[0.98]"
+      className="glass relative flex w-full items-center gap-3 overflow-hidden rounded-[20px] border border-white/10 px-3.5 py-3 text-left transition-transform active:scale-[0.98]"
     >
       <span
         aria-hidden
@@ -286,7 +272,7 @@ function ModeTile({
     <button
       onClick={onPress}
       aria-label={ariaLabel}
-      className="hm-glass flex w-full min-w-0 items-center gap-2 rounded-[20px] border border-white/10 py-3 pl-2.5 pr-1.5 text-left transition-transform active:scale-[0.98]"
+      className="glass flex w-full min-w-0 items-center gap-2 rounded-[20px] border border-white/10 py-3 pl-2.5 pr-1.5 text-left transition-transform active:scale-[0.98]"
     >
       <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-signal/50 bg-signal/10">
         {icon}

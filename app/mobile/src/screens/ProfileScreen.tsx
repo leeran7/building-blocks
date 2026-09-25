@@ -1,575 +1,275 @@
-import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { apiFetch, API_BASE } from "../lib/api";
+import { API_BASE } from "../lib/api";
 import { openExternal } from "../lib/external";
 import { useAuth } from "../contexts/AuthContext";
-import {
-  useDashboard,
-  useSettings,
-  useClearAppData,
-  useInvalidateAppData,
-  type SettingsData,
-  type SocialState,
-} from "../contexts/AppDataContext";
-import {
-  tapLight,
-  notifySuccess,
-  notifyError,
-  isHapticsEnabled,
-  setHapticsEnabled,
-} from "../lib/haptics";
-import { hasLeaderboardConsent, setLeaderboardConsent } from "../lib/consent";
-import { dailySummary, clearDailyStore } from "../lib/daily";
-import { ScreenHeader, ScreenBody, Card, StatCard, Button } from "../components/ui";
+import { useDashboard, useSettings } from "../contexts/AppDataContext";
+import { tapLight, tapHeavy } from "../lib/haptics";
+import { dailySummary, formatReset, msUntilReset } from "../lib/daily";
 import { ALTITUDE_UNIT } from "@app/lib/units";
-import { normalizeUsername } from "@app/lib/username";
-import {
-  SOCIAL_PLATFORMS,
-  PLATFORM_META,
-  normalizeHandle,
-} from "@app/lib/socialHandle";
-import { SocialMark } from "@app/components/Social/SocialMark";
-
-const INPUT =
-  "min-h-[48px] rounded-xl border border-border-strong bg-elevated px-3.5 text-sm text-text-primary placeholder:text-text-muted focus:border-signal focus:outline-none";
+import { HexAvatar } from "../components/HexAvatar";
 
 /**
- * "You" — the merged profile + settings screen. Shows the player's saved
- * identity and standing up top (read), then editable identity / socials /
- * preferences and the account actions (Sign Out, Delete) below. Reads both the
- * dashboard and settings from the shared AppData cache, so the same record is
- * never fetched twice and revisits render instantly.
+ * Profile — the player's identity and standing, plus the daily-climb hook.
+ * Editing (name, socials, preferences, account actions) lives on the pushed
+ * Edit Profile screen so this page reads as a game card, not a form.
  */
 export function ProfileScreen() {
   const navigate = useNavigate();
-  const { signOut } = useAuth();
+  const { user } = useAuth();
   const dash = useDashboard();
   const settingsSlice = useSettings();
-  const clearAll = useClearAppData();
-  const invalidate = useInvalidateAppData();
 
   const dashData = dash.data;
   const settingsData = settingsSlice.data;
-  const { setSettings } = settingsSlice;
-
-  const streak = dailySummary().streak;
-
-  // Editable form buffer + its saved baseline. Seeded once from the cache when
-  // it first arrives (or immediately on a warm revisit) so background refreshes
-  // never clobber an in-progress edit.
-  const [loaded, setLoaded] = useState<SettingsData | null>(null);
-  const [displayName, setDisplayName] = useState("");
-  const [username, setUsername] = useState("");
-  const [social, setSocial] = useState<SocialState>({});
-  const [savedUsername, setSavedUsername] = useState("");
-  const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [haptics, setHaptics] = useState(isHapticsEnabled);
-  const [leaderboardVisible, setLeaderboardVisible] = useState(hasLeaderboardConsent);
-  const [deleteConfirm, setDeleteConfirm] = useState(false);
-  const [deleting, setDeleting] = useState(false);
-  const [deleteError, setDeleteError] = useState<string | null>(null);
-
-  const seeded = useRef(false);
-  useEffect(() => {
-    if (seeded.current || !settingsData) return;
-    seeded.current = true;
-    setLoaded(settingsData);
-    setDisplayName(settingsData.displayName ?? "");
-    setUsername(settingsData.username ?? "");
-    setSavedUsername(settingsData.username ?? "");
-    setSocial(settingsData.social ?? {});
-    setLeaderboardVisible(settingsData.leaderboardConsent ?? false);
-  }, [settingsData]);
-
-  // Delete-confirm focus management: move focus into the warning when it opens
-  // (so it's announced to VoiceOver/switch users) and restore it to the trigger
-  // on cancel. Guarded so it never steals focus on the initial render.
-  const confirmRef = useRef<HTMLDivElement>(null);
-  const deleteTriggerRef = useRef<HTMLButtonElement>(null);
-  const prevConfirm = useRef(false);
-  useEffect(() => {
-    if (deleteConfirm) confirmRef.current?.focus();
-    else if (prevConfirm.current) deleteTriggerRef.current?.focus();
-    prevConfirm.current = deleteConfirm;
-  }, [deleteConfirm]);
-
-  const usernameCheck = username.trim() ? normalizeUsername(username) : null;
-
-  const dirty = useMemo(() => {
-    const socialClean = (o: SocialState) =>
-      JSON.stringify(
-        Object.fromEntries(
-          Object.entries(o)
-            .map(([k, v]) => [k, (v ?? "").trim()])
-            .filter(([, v]) => v),
-        ),
-      );
-    return (
-      displayName.trim() !== (loaded?.displayName ?? "") ||
-      username.trim() !== (loaded?.username ?? "") ||
-      socialClean(social) !== socialClean(loaded?.social ?? {})
-    );
-  }, [displayName, username, social, loaded]);
-
-  const save = async () => {
-    void tapLight();
-    setSaving(true);
-    setError(null);
-    setSaved(false);
-    try {
-      const res = await apiFetch("/api/settings", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          displayName: displayName.trim() || null,
-          username: username.trim() || null,
-          social,
-        }),
-      });
-      if (!res.ok) {
-        const d = await res.json().catch(() => ({}));
-        setError((d as { error?: string }).error ?? "Could not save. Try again.");
-        void notifyError();
-      } else {
-        const s: SettingsData = await res.json();
-        const next: SettingsData = {
-          displayName: s.displayName ?? null,
-          username: s.username ?? null,
-          social: s.social ?? null,
-          leaderboardConsent: Boolean((s as Record<string, unknown>).leaderboardConsent),
-        };
-        setLoaded(next);
-        // Re-seed the input buffer from the server-normalized values (it strips
-        // "@", lowercases, trims) so `dirty` doesn't stay true after a save when
-        // the raw input differed from its normalized form.
-        setDisplayName(next.displayName ?? "");
-        setUsername(next.username ?? "");
-        setSavedUsername(next.username ?? "");
-        setSocial(next.social ?? {});
-        setSettings(next);
-        invalidate(["leaderboard"]);
-        setSaved(true);
-        void notifySuccess();
-        setTimeout(() => setSaved(false), 2000);
-      }
-    } catch {
-      setError("Could not save. Check your connection.");
-      void notifyError();
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const canSave = dirty && !saving && (!usernameCheck || usernameCheck.valid);
-
-  const deleteAccount = async () => {
-    void tapLight();
-    setDeleting(true);
-    setDeleteError(null);
-    try {
-      const res = await apiFetch("/api/account/delete", { method: "DELETE" });
-      if (!res.ok) {
-        const d = await res.json().catch(() => ({}));
-        setDeleteError((d as { error?: string }).error ?? "Could not delete account. Try again.");
-        void notifyError();
-        return;
-      }
-      clearAll();
-      clearDailyStore(); // device-local streak isn't account-scoped; wipe on delete
-      await signOut();
-      navigate("/");
-    } catch {
-      setDeleteError("Could not delete account. Check your connection.");
-      void notifyError();
-    } finally {
-      setDeleting(false);
-      setDeleteConfirm(false);
-    }
-  };
+  const daily = dailySummary();
 
   const climb = dashData?.freeClimb ?? null;
   const identityName =
     settingsData?.displayName || climb?.handle || dashData?.user.email || "Player";
   const identityUsername = settingsData?.username ?? dashData?.user.username ?? null;
-  const initial = identityName.charAt(0).toUpperCase();
   const topPct =
     climb && climb.totalClimbers
       ? Math.max(1, Math.round((climb.rank / climb.totalClimbers) * 100))
       : null;
 
-  // Cold-load skeleton only; warm revisits render straight from cache. (The app
-  // is auth-gated in App.tsx, so this screen only ever renders for a real user.)
-  const loading = dash.loading || settingsSlice.loading;
+  // Cold-load skeleton only; warm revisits render straight from cache.
+  const loading = (dash.loading && !dashData) || (settingsSlice.loading && !settingsData);
+
+  const openEdit = () => {
+    void tapLight();
+    navigate("/profile/edit");
+  };
 
   return (
     <main className="flex h-full flex-col">
-      <ScreenHeader eyebrow="your account" title="Profile" />
+      <div
+        className="flex-1 overflow-y-auto px-4"
+        style={{ WebkitOverflowScrolling: "touch", overscrollBehavior: "contain" }}
+      >
+        <header className="pb-5 pt-[calc(env(safe-area-inset-top)+1rem)]">
+          <p className="font-display text-xl font-black uppercase leading-none tracking-[-0.02em] text-text-primary">
+            Doom<span className="text-signal">stack</span>
+          </p>
+          <h1 className="metal-title mt-1 font-display text-[2.6rem] font-black uppercase leading-none tracking-[-0.02em]">
+            Profile
+          </h1>
+        </header>
 
-      <ScreenBody>
         {loading ? (
-          <div className="flex flex-col gap-3 pt-1">
-            <div className="h-24 animate-pulse rounded-3xl border border-border-subtle bg-surface/60" />
-            <div className="h-40 animate-pulse rounded-3xl border border-border-subtle bg-surface/60" />
-            <div className="h-20 animate-pulse rounded-3xl border border-border-subtle bg-surface/60" />
+          <div className="flex flex-col gap-3" aria-label="Loading profile">
+            <div className="h-24 animate-pulse rounded-3xl border border-white/10 bg-surface/60" />
+            <div className="h-32 animate-pulse rounded-3xl border border-signal/20 bg-surface/60" />
+            <div className="grid grid-cols-2 gap-3">
+              <div className="h-24 animate-pulse rounded-3xl border border-white/10 bg-surface/60" />
+              <div className="h-24 animate-pulse rounded-3xl border border-white/10 bg-surface/60" />
+            </div>
           </div>
         ) : (
-          <div className="flex flex-col gap-4 pt-1 pb-8">
-            {/* Identity (view) */}
-            <Card>
-              <div className="flex items-center gap-4">
-                <span className="hm-avatar flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl font-display text-3xl font-black text-void">
-                  {initial}
-                </span>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate font-display text-xl font-black text-text-primary">
-                    {identityName}
-                  </p>
-                  {identityUsername && (
-                    <p className="truncate font-mono text-xs text-signal">
-                      @{identityUsername}
-                    </p>
-                  )}
-                  {dashData?.user.email && (
-                    <p className="mt-0.5 truncate font-mono text-[11px] text-text-secondary">
-                      {dashData.user.email}
-                    </p>
-                  )}
-                </div>
+          <div className="flex flex-col gap-3 pb-6">
+            <section className="glass flex items-center gap-3.5 rounded-3xl border border-white/10 p-4">
+              <HexAvatar userId={user?.uid ?? identityName} name={identityName} size={64} />
+              <div className="min-w-0 flex-1">
+                <p
+                  className="truncate font-display font-black leading-tight text-text-primary"
+                  style={{ fontSize: "clamp(1.05rem, calc(4.4vw + 0.25rem), 1.35rem)" }}
+                >
+                  {identityName}
+                </p>
+                {identityUsername && (
+                  <p className="truncate font-mono text-sm text-signal">@{identityUsername}</p>
+                )}
+                {dashData?.user.email && (
+                  <p className="mt-0.5 truncate font-mono text-xs text-text-secondary">{dashData.user.email}</p>
+                )}
               </div>
-              <style>{`
-                .hm-avatar {
-                  background: linear-gradient(140deg, var(--color-signal), #a6c93a);
-                  box-shadow: 0 8px 30px -10px color-mix(in srgb, var(--color-signal) 55%, transparent);
-                }
-              `}</style>
-            </Card>
+              <button
+                aria-label="Edit profile"
+                onClick={openEdit}
+                className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04] text-text-primary transition-transform active:scale-90"
+              >
+                <PencilIcon />
+              </button>
+            </section>
 
-            {/* Best-climb spotlight */}
             {climb ? (
-              <Card highlight>
-                <p className="text-center font-mono text-[10px] uppercase tracking-[0.3em] text-text-secondary">
-                  Best climb
-                </p>
-                <p className="mt-2 text-center font-mono text-5xl font-bold leading-none tabular-nums text-signal">
-                  {climb.peakY.toLocaleString()}
-                  <span className="ml-1 align-baseline text-xl font-normal text-text-secondary">
-                    {ALTITUDE_UNIT}
-                  </span>
-                </p>
-                <p className="mt-2 text-center font-mono text-[11px] uppercase tracking-[0.2em] text-text-secondary">
-                  #{climb.rank}
-                  {climb.totalClimbers
-                    ? ` of ${climb.totalClimbers.toLocaleString()}`
-                    : ""}
-                  {topPct ? ` · top ${topPct}%` : ""}
-                </p>
-              </Card>
+              <section className="glow-card flex items-center gap-4 rounded-3xl px-5 py-4" aria-label="Best climb">
+                <CrownIcon />
+                <span className="h-14 w-px shrink-0 bg-signal/30" />
+                <div className="min-w-0 flex-1 text-center">
+                  <p className="font-mono text-[11px] font-bold uppercase tracking-[0.3em] text-text-secondary">
+                    Best climb
+                  </p>
+                  <p
+                    className="mt-1 font-display font-black leading-none tabular-nums text-signal"
+                    style={{ fontSize: "clamp(1.9rem, 10vw, 2.6rem)" }}
+                  >
+                    {climb.peakY.toLocaleString()}
+                    <span className="ml-1 text-[0.5em] font-bold text-text-secondary">{ALTITUDE_UNIT}</span>
+                  </p>
+                  <p className="mt-2 font-mono text-[11px] uppercase tracking-[0.2em] text-text-secondary">
+                    #{climb.rank.toLocaleString()}
+                    {climb.totalClimbers ? ` of ${climb.totalClimbers.toLocaleString()}` : ""}
+                    {topPct ? ` · top ${topPct}%` : ""}
+                  </p>
+                </div>
+              </section>
             ) : (
-              <Card>
-                <p className="py-2 text-center text-sm text-text-secondary">
-                  No climbs yet — hit Play to set your first record.
-                </p>
-                <Button onPress={() => navigate("/climb")}>Play now</Button>
-              </Card>
+              <section className="glass flex items-center gap-4 rounded-3xl border border-white/10 px-5 py-4">
+                <CrownIcon muted />
+                <span className="h-12 w-px shrink-0 bg-white/15" />
+                <div className="min-w-0 flex-1">
+                  <p className="font-display text-lg font-black uppercase tracking-tight text-text-primary">
+                    No climbs yet
+                  </p>
+                  <p className="mt-0.5 text-[13px] text-text-secondary">Hit Play to set your first record</p>
+                </div>
+              </section>
             )}
 
-            {/* Stats */}
-            <div className="grid grid-cols-2 gap-2.5">
-              <StatCard label="Wins" value={String(climb?.wins ?? 0)} />
-              <StatCard
+            <div className="grid grid-cols-2 gap-3">
+              <StatTile label="Wins" value={String(climb?.wins ?? 0)} />
+              <StatTile
                 label="Daily streak"
-                value={streak > 0 ? `${streak}🔥` : "—"}
-                accent={streak > 0}
+                value={daily.streak > 0 ? String(daily.streak) : "—"}
+                accent={daily.streak > 0}
               />
             </div>
 
-            {/* Identity (edit) */}
-            <Card>
-              <div className="flex flex-col gap-4">
-                <Field label="Display Name">
-                  <input
-                    type="text"
-                    value={displayName}
-                    onChange={(e) => setDisplayName(e.target.value)}
-                    placeholder="Your name on the leaderboard"
-                    maxLength={60}
-                    className={INPUT}
-                  />
-                </Field>
+            <StreakCard streak={daily.streak} playedToday={daily.playedToday} />
 
-                <Field label="Public Username">
-                  <div className="flex min-h-[48px] items-center gap-1.5 rounded-xl border border-border-strong bg-elevated px-3.5 focus-within:border-signal">
-                    <span className="font-mono text-sm text-text-muted">/c/</span>
-                    <input
-                      type="text"
-                      value={username}
-                      onChange={(e) => setUsername(e.target.value.toLowerCase())}
-                      placeholder="yourhandle"
-                      maxLength={30}
-                      autoCapitalize="none"
-                      autoCorrect="off"
-                      spellCheck={false}
-                      aria-invalid={usernameCheck ? !usernameCheck.valid : undefined}
-                      className="flex-1 bg-transparent py-3 font-mono text-sm text-text-primary placeholder:text-text-muted focus:outline-none"
-                    />
-                  </div>
-                  <UsernameHint check={usernameCheck} savedUsername={savedUsername} />
-                </Field>
-              </div>
-            </Card>
-
-            {/* Social accounts */}
-            <Card>
-              <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-text-secondary">
-                Social Accounts
-              </p>
-              <p className="mt-1 text-xs leading-relaxed text-text-secondary">
-                Shown as chips on your public creator page.
-              </p>
-              <div className="mt-3 flex flex-col">
-                {SOCIAL_PLATFORMS.map((p) => {
-                  const value = social[p] ?? "";
-                  const check = value.trim() ? normalizeHandle(p, value) : null;
-                  const invalid = check ? !check.valid : false;
-                  return (
-                    <label
-                      key={p}
-                      className="flex items-center gap-3 border-b border-border-subtle py-2.5 last:border-0"
-                    >
-                      <span className="flex w-20 shrink-0 items-center gap-2 text-text-secondary">
-                        <SocialMark platform={p} className="h-4 w-4 shrink-0" />
-                        <span className="truncate text-xs">{PLATFORM_META[p].label}</span>
-                      </span>
-                      <span
-                        className={`flex min-h-[44px] flex-1 items-center gap-1 rounded-xl border bg-elevated px-3 focus-within:border-signal ${invalid ? "border-ember/60" : "border-border-strong"
-                          }`}
-                      >
-                        <span aria-hidden className="font-mono text-sm text-text-muted">
-                          @
-                        </span>
-                        <input
-                          value={value}
-                          onChange={(e) =>
-                            setSocial((s) => ({ ...s, [p]: e.target.value }))
-                          }
-                          placeholder={PLATFORM_META[p].example}
-                          maxLength={PLATFORM_META[p].maxLen + 4}
-                          autoCapitalize="none"
-                          autoCorrect="off"
-                          spellCheck={false}
-                          aria-label={`${PLATFORM_META[p].label} handle`}
-                          aria-invalid={invalid || undefined}
-                          className="min-w-0 flex-1 bg-transparent py-2 font-mono text-sm text-text-primary placeholder:text-text-muted focus:outline-none"
-                        />
-                      </span>
-                    </label>
-                  );
-                })}
-              </div>
-            </Card>
-
-            {/* Preferences */}
-            <Card>
-              <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-text-secondary">
-                Preferences
-              </p>
-              <div className="mt-3 flex items-center justify-between gap-4 py-1">
-                <div>
-                  <p className="text-sm font-medium text-text-primary">Haptic feedback</p>
-                  <p className="mt-0.5 text-xs text-text-muted">Vibration on taps and game events</p>
-                </div>
-                <button
-                  role="switch"
-                  aria-checked={haptics}
-                  onClick={() => {
-                    const next = !haptics;
-                    setHaptics(next);
-                    setHapticsEnabled(next);
-                    if (next) void tapLight();
-                  }}
-                  className={`relative h-7 w-13 shrink-0 rounded-full transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void ${haptics ? "bg-signal" : "bg-border-strong"
-                    }`}
-                >
-                  <span
-                    className="absolute top-0.5 h-6 w-6 rounded-full bg-white shadow-sm transition-[left] duration-200"
-                    style={{ left: haptics ? 26 : 2 }}
-                  />
-                </button>
-              </div>
-              <div className="mt-3 flex items-center justify-between gap-4 border-t border-border-subtle py-3">
-                <div>
-                  <p className="text-sm font-medium text-text-primary">Leaderboard visibility</p>
-                  <p className="mt-0.5 text-xs text-text-muted">Show your name and peak height on the public leaderboard</p>
-                </div>
-                <button
-                  role="switch"
-                  aria-checked={leaderboardVisible}
-                  onClick={async () => {
-                    const next = !leaderboardVisible;
-                    setLeaderboardVisible(next);
-                    setLeaderboardConsent(next);
-                    if (next) void tapLight();
-                    try {
-                      const res = await apiFetch("/api/settings", {
-                        method: "PUT",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ leaderboardConsent: next }),
-                      });
-                      if (!res.ok) throw new Error("save failed");
-                      if (settingsData) {
-                        setSettings({ ...settingsData, leaderboardConsent: next });
-                      }
-                      invalidate(["leaderboard"]);
-                    } catch {
-                      setLeaderboardVisible(!next);
-                      setLeaderboardConsent(!next);
-                      void notifyError();
-                    }
-                  }}
-                  className={`relative h-7 w-13 shrink-0 rounded-full transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void ${leaderboardVisible ? "bg-signal" : "bg-border-strong"
-                    }`}
-                >
-                  <span
-                    className="absolute top-0.5 h-6 w-6 rounded-full bg-white shadow-sm transition-[left] duration-200"
-                    style={{ left: leaderboardVisible ? 26 : 2 }}
-                  />
-                </button>
-              </div>
-            </Card>
-
-            {error && (
-              <p role="alert" className="px-1 text-sm text-ember">
-                {error}
-              </p>
-            )}
-
-            <Button onPress={save} disabled={!canSave} busy={saving}>
-              {saved ? "Saved!" : "Save Changes"}
-            </Button>
+            <button
+              onClick={() => {
+                void tapHeavy();
+                navigate("/climb?daily=1");
+              }}
+              className="cta-lime flex min-h-[64px] w-full items-center justify-center gap-3 rounded-[22px] text-void transition-transform active:scale-[0.97]"
+            >
+              <span className="flex h-10 w-10 items-center justify-center rounded-full bg-[#141612] text-signal">
+                <PlayGlyph />
+              </span>
+              <span className="font-display text-[1.6rem] font-black uppercase tracking-[-0.01em]">Daily climb</span>
+            </button>
 
             {identityUsername && (
-              <Button
-                variant="secondary"
-                onPress={() => {
+              <button
+                onClick={() => {
                   void tapLight();
                   void openExternal(`${API_BASE}/c/${identityUsername}`);
                 }}
+                className="glass flex min-h-[52px] w-full items-center justify-center gap-2.5 rounded-2xl border border-white/10 font-display text-sm font-bold uppercase tracking-[0.14em] text-text-primary transition-transform active:scale-[0.98]"
               >
-                View public page ↗
-              </Button>
-            )}
-
-            <Button
-              variant="secondary"
-              onPress={async () => {
-                void tapLight();
-                clearAll();
-                await signOut();
-                navigate("/");
-              }}
-              style={{ color: "var(--color-ember)" }}
-            >
-              Sign Out
-            </Button>
-
-            {!deleteConfirm ? (
-              <button
-                ref={deleteTriggerRef}
-                type="button"
-                onClick={() => { void tapLight(); setDeleteConfirm(true); setDeleteError(null); }}
-                className="my-12 py-2 text-center font-mono text-[11px] uppercase tracking-[0.15em] text-white transition-colors active:text-ember"
-              >
-                Delete Account
+                <ExternalIcon />
+                View public page
               </button>
-            ) : (
-              <div
-                ref={confirmRef}
-                tabIndex={-1}
-                role="alertdialog"
-                aria-modal="false"
-                aria-label="Confirm account deletion"
-                className="outline-none"
-              >
-              <Card>
-                <p className="text-sm font-medium text-text-primary">Delete account?</p>
-                <p className="mt-1 text-xs leading-relaxed text-text-secondary">
-                  Your profile, climb history, and social links will be permanently removed. This cannot be undone.
-                </p>
-                {deleteError && (
-                  <p role="alert" className="mt-2 text-xs text-ember">{deleteError}</p>
-                )}
-                <div className="mt-4 flex gap-2">
-                  <Button
-                    variant="secondary"
-                    fullWidth={false}
-                    className="flex-1"
-                    onPress={() => { void tapLight(); setDeleteConfirm(false); setDeleteError(null); }}
-                    disabled={deleting}
-                  >
-                    Cancel
-                  </Button>
-                  <Button
-                    fullWidth={false}
-                    className="flex-1"
-                    onPress={deleteAccount}
-                    busy={deleting}
-                    disabled={deleting}
-                    style={{ background: "var(--color-ember)", color: "#fff" }}
-                  >
-                    Delete
-                  </Button>
-                </div>
-              </Card>
-              </div>
             )}
+
+            <button
+              onClick={openEdit}
+              className="glass flex min-h-[52px] w-full items-center gap-3 rounded-2xl border border-white/10 px-4 text-left transition-transform active:scale-[0.98]"
+            >
+              <PencilIcon />
+              <span className="flex-1 text-[15px] font-medium text-text-primary">Edit profile &amp; socials</span>
+              <ChevronRight />
+            </button>
           </div>
         )}
-      </ScreenBody>
+      </div>
     </main>
   );
 }
 
-function UsernameHint({
-  check,
-  savedUsername,
-}: {
-  check: ReturnType<typeof normalizeUsername> | null;
-  savedUsername: string;
-}) {
-  if (!check) return null;
-  if (!check.valid) {
-    return <p className="mt-2 text-xs text-ember">{check.error}</p>;
-  }
-  const isSaved = check.username === savedUsername;
+function StatTile({ label, value, accent = false }: { label: string; value: string; accent?: boolean }) {
   return (
-    <p className="mt-2 text-xs text-text-secondary">
-      {isSaved ? "Your page: " : "Your page will be "}
-      <button
-        type="button"
-        onClick={() => {
-          if (!isSaved) return;
-          void tapLight();
-          void openExternal(`${API_BASE}/c/${check.username}`);
-        }}
-        className={`font-mono ${isSaved ? "text-signal underline underline-offset-2" : "text-text-primary"}`}
+    <div className="glass flex flex-col items-center rounded-3xl border border-white/10 px-3 py-4">
+      <span
+        className={`font-display text-[2rem] font-black leading-none tabular-nums ${accent ? "text-signal" : "text-text-primary"}`}
       >
-        /c/{check.username}
-        {isSaved ? " ↗" : ""}
-      </button>
-      {!isSaved && " — save to create it."}
-    </p>
+        {value}
+      </span>
+      <span className="mt-2 font-mono text-[10px] font-bold uppercase tracking-[0.22em] text-text-secondary">
+        {label}
+      </span>
+    </div>
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+/** Where the player stands on today's daily — status only; the button below plays it. */
+function StreakCard({ streak, playedToday }: { streak: number; playedToday: boolean }) {
+  const reset = formatReset(msUntilReset());
+  const [title, detail] =
+    streak === 0
+      ? ["Start your streak", "Complete a daily climb"]
+      : playedToday
+        ? [`${streak}-day streak`, `Done for today · new map in ${reset}`]
+        : [`Keep your ${streak}-day streak`, `Play today's climb · resets in ${reset}`];
   return (
-    <label className="flex flex-col gap-2">
-      <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-text-secondary">
-        {label}
+    <section className="glass flex items-center gap-3.5 rounded-3xl border border-white/10 px-4 py-3.5">
+      <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-ember/60 bg-ember/15">
+        <FlameIcon />
       </span>
-      {children}
-    </label>
+      <div className="min-w-0 flex-1">
+        <p className="font-display text-base font-black uppercase tracking-wide text-text-primary">{title}</p>
+        <p className="mt-0.5 text-[13px] leading-snug text-text-secondary">{detail}</p>
+      </div>
+    </section>
+  );
+}
+
+function CrownIcon({ muted = false }: { muted?: boolean }) {
+  return (
+    <svg
+      width="40"
+      height="34"
+      viewBox="0 0 24 22"
+      fill="currentColor"
+      className={`shrink-0 ${muted ? "text-text-muted" : "text-signal drop-shadow-[0_0_8px_rgba(203,242,77,0.5)]"}`}
+      aria-hidden
+    >
+      <path d="M2 6 7 10 12 3 17 10 22 6 20 17H4L2 6Z" />
+      <rect x="4" y="18.5" width="16" height="2.5" rx="1" />
+    </svg>
+  );
+}
+
+function FlameIcon() {
+  return (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" className="text-ember" aria-hidden>
+      <path d="M12 2c.5 3-1.5 4.5-3 6.5C7.4 10.6 6.5 12.3 6.5 14a5.5 5.5 0 0 0 11 0c0-1.7-.8-3.2-2-4.5-.6 1-1.6 1.6-2.6 1.6 1-2 .3-4.4-1.4-6.1C11.6 5 12 3.4 12 2Z" />
+    </svg>
+  );
+}
+
+function PlayGlyph() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+      <path d="M8 5.14v13.72a1 1 0 0 0 1.53.85l10.79-6.86a1 1 0 0 0 0-1.7L9.53 4.29A1 1 0 0 0 8 5.14Z" />
+    </svg>
+  );
+}
+
+function PencilIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 text-text-primary" aria-hidden>
+      <path d="M12 20h9" />
+      <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+    </svg>
+  );
+}
+
+function ExternalIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M15 3h6v6" />
+      <path d="M10 14 21 3" />
+      <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+    </svg>
+  );
+}
+
+function ChevronRight() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 text-text-secondary" aria-hidden>
+      <path d="m9 18 6-6-6-6" />
+    </svg>
   );
 }
