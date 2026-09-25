@@ -30,7 +30,7 @@ import {
 import { SocialMark } from "@app/components/Social/SocialMark";
 import { avatarName } from "@app/lib/avatars";
 import { HexAvatar } from "../components/HexAvatar";
-import { PushHeader } from "../components/ui";
+import { PushHeader, StateMessage } from "../components/ui";
 import { identityNameFor } from "../lib/identity";
 import { stashEditProfileDraft, takeEditProfileDraft } from "../lib/editProfileDraft";
 import { useBackOr } from "../lib/navigation";
@@ -43,6 +43,10 @@ const INPUT =
  * Pushed from Profile; seeds its form once from the shared settings cache so a
  * background refresh never clobbers an in-progress edit. Unsaved fields survive
  * a trip to the avatar picker (see lib/editProfileDraft).
+ *
+ * The form only renders once real settings arrived, and Save needs the seed:
+ * a PUT from an unseeded (empty) form would null the saved username and
+ * socials on the server.
  */
 export function EditProfileScreen() {
   const navigate = useNavigate();
@@ -53,7 +57,7 @@ export function EditProfileScreen() {
   const invalidate = useInvalidateAppData();
 
   const settingsData = settingsSlice.data;
-  const { setSettings } = settingsSlice;
+  const { setSettings, refreshSettings } = settingsSlice;
   const goBack = useBackOr("/profile");
   const uid = user?.uid;
   const identityName = identityNameFor(settingsData, dashData);
@@ -120,6 +124,7 @@ export function EditProfileScreen() {
   }, [displayName, username, social, loaded]);
 
   const save = async () => {
+    if (!loaded) return;
     void tapLight();
     setSaving(true);
     setError(null);
@@ -168,7 +173,15 @@ export function EditProfileScreen() {
     }
   };
 
-  const canSave = dirty && !saving && (!usernameCheck || usernameCheck.valid);
+  const canSave = loaded !== null && dirty && !saving && (!usernameCheck || usernameCheck.valid);
+  const loadFailed = settingsSlice.error && !settingsData;
+
+  const signOutNow = async () => {
+    void tapLight();
+    clearAll();
+    await signOut();
+    navigate("/");
+  };
 
   const toggleLeaderboard = async () => {
     const next = !leaderboardVisible;
@@ -226,8 +239,20 @@ export function EditProfileScreen() {
         className="flex-1 overflow-y-auto px-4"
         style={{ WebkitOverflowScrolling: "touch", overscrollBehavior: "contain" }}
       >
-        {settingsSlice.loading && !settingsData ? (
-          <div className="flex flex-col gap-3" aria-label="Loading profile">
+        {loadFailed ? (
+          <div className="flex flex-col items-center gap-4 pb-6">
+            <StateMessage>Couldn&apos;t load your profile. Check your connection and try again.</StateMessage>
+            <button
+              type="button"
+              onClick={() => void refreshSettings()}
+              className="glass min-h-[48px] rounded-2xl border border-white/10 px-6 text-[15px] font-semibold text-text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-signal"
+            >
+              Try again
+            </button>
+            <SignOutButton onPress={() => void signOutNow()} />
+          </div>
+        ) : !settingsData ? (
+          <div role="status" aria-busy="true" className="flex flex-col gap-3" aria-label="Loading profile">
             <div className="h-56 animate-pulse rounded-3xl border border-white/10 bg-surface/60" />
             <div className="h-72 animate-pulse rounded-3xl border border-white/10 bg-surface/60" />
           </div>
@@ -350,17 +375,7 @@ export function EditProfileScreen() {
               {saving ? "Saving…" : saved ? "Saved!" : "Save changes"}
             </button>
 
-            <button
-              onClick={async () => {
-                void tapLight();
-                clearAll();
-                await signOut();
-                navigate("/");
-              }}
-              className="glass min-h-[50px] w-full rounded-2xl border border-white/10 text-[15px] font-semibold text-text-primary transition-transform active:scale-[0.98]"
-            >
-              Sign out
-            </button>
+            <SignOutButton onPress={() => void signOutNow()} />
 
             {!deleteConfirm ? (
               <button
@@ -421,6 +436,18 @@ export function EditProfileScreen() {
         )}
       </div>
     </main>
+  );
+}
+
+function SignOutButton({ onPress }: { onPress: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onPress}
+      className="glass min-h-[50px] w-full rounded-2xl border border-white/10 text-[15px] font-semibold text-text-primary transition-transform active:scale-[0.98]"
+    >
+      Sign out
+    </button>
   );
 }
 

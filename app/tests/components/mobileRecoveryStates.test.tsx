@@ -164,6 +164,50 @@ afterEach(() => {
   window.history.replaceState(null, "");
 });
 
+describe("Edit Profile when settings fail to load", () => {
+  it("shows the error and Try again instead of a form, and sends no PUT", async () => {
+    net.status["/api/settings"] = 500;
+    await mount(["/profile", "/profile/edit"]);
+
+    expect(container.textContent).toContain("Couldn't load your profile");
+    expect(buttonByText("Try again")).toBeTruthy();
+    expect(buttonByText("Save changes")).toBeUndefined();
+    expect(nameInput()).toBeNull();
+    expect(container.querySelector('input[aria-label="X handle"]')).toBeNull();
+    expect(calls("/api/settings", "PUT")).toHaveLength(0);
+  });
+
+  it("Try again refetches now (inside the TTL) and seeds the form from the saved settings", async () => {
+    net.status["/api/settings"] = 500;
+    await mount(["/profile", "/profile/edit"]);
+    expect(calls("/api/settings")).toHaveLength(1);
+
+    net.status["/api/settings"] = 200;
+    await click(buttonByText("Try again"));
+
+    expect(calls("/api/settings")).toHaveLength(2);
+    expect(nameInput()?.value).toBe(SAVED.displayName);
+    expect(container.querySelector<HTMLInputElement>('input[placeholder="yourhandle"]')?.value).toBe(SAVED.username);
+    expect(container.querySelector<HTMLInputElement>('input[aria-label="X handle"]')?.value).toBe("ariaclimbs");
+    expect(buttonByText("Save changes")?.disabled).toBe(true);
+    expect(calls("/api/settings", "PUT")).toHaveLength(0);
+  });
+
+  it("still saves on the happy path, keeping the saved username and socials", async () => {
+    await mount(["/profile", "/profile/edit"]);
+    type(nameInput(), "Aria Summit");
+    await click(buttonByText("Save changes"));
+
+    const puts = calls("/api/settings", "PUT");
+    expect(puts).toHaveLength(1);
+    expect(JSON.parse(puts[0][1]?.body as string)).toEqual({
+      displayName: "Aria Summit",
+      username: "aria",
+      social: { X: "ariaclimbs" },
+    });
+  });
+});
+
 describe("Back on a push screen", () => {
   it("pops to the previous in-app screen when there is one", async () => {
     await mount(["/leaderboard", "/profile/edit"]);
