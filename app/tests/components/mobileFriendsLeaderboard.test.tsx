@@ -50,6 +50,9 @@ interface Board {
 const net = vi.hoisted(() => ({
   friendsBoard: null as unknown,
   incoming: [] as unknown[],
+  /** When set, matching requests stay pending until the test settles them. */
+  hold: null as null | "/api/climb/leaderboard/friends" | "/api/settings",
+  held: [] as Array<(body: unknown) => void>,
 }));
 
 function jsonResponse(body: unknown, status = 200): Response {
@@ -57,6 +60,9 @@ function jsonResponse(body: unknown, status = 200): Response {
 }
 
 const apiFetch = vi.fn(async (path: string, _init?: RequestInit): Promise<Response> => {
+  if (path === net.hold) {
+    return new Promise<Response>((resolve) => net.held.push((body) => resolve(jsonResponse(body))));
+  }
   if (path === "/api/climb/leaderboard/friends") return jsonResponse(net.friendsBoard);
   if (path === "/api/climb/leaderboard") return jsonResponse({ climbers: GLOBAL });
   if (path === "/api/dashboard") return jsonResponse({ freeClimb: null });
@@ -69,7 +75,13 @@ vi.mock("../../mobile/src/lib/api", () => ({
   apiFetch: (path: string, init?: RequestInit) => apiFetch(path, init),
 }));
 
-import { AppDataProvider, useClearAppData, useFriendsLeaderboard } from "../../mobile/src/contexts/AppDataContext";
+import {
+  AppDataProvider,
+  useClearAppData,
+  useFriendsLeaderboard,
+  useSettings,
+} from "../../mobile/src/contexts/AppDataContext";
+import { hasLeaderboardConsent, setLeaderboardConsent } from "../../mobile/src/lib/consent";
 import { LeaderboardScreen } from "../../mobile/src/screens/LeaderboardScreen";
 import { FriendRequestsSection } from "../../mobile/src/components/challenge/FriendRequestsSection";
 
@@ -163,6 +175,8 @@ beforeEach(() => {
   apiFetch.mockClear();
   net.friendsBoard = null;
   net.incoming = [];
+  net.hold = null;
+  net.held = [];
 });
 
 afterEach(() => {
@@ -274,17 +288,30 @@ describe("pull-to-refresh on the Ranks screen", () => {
 });
 
 function FriendsBoardProbe() {
-  const { data } = useFriendsLeaderboard(true);
+  const { data, refreshFriendsLeaderboard } = useFriendsLeaderboard(true);
   const clearAll = useClearAppData();
   return createElement(
     "div",
     null,
     createElement("output", { "data-testid": "friends" }, data ? data.climbers.map((c) => c.userId).join(",") : ""),
     createElement("button", { type: "button", onClick: clearAll }, "Clear cache"),
+    createElement("button", { type: "button", onClick: () => void refreshFriendsLeaderboard() }, "Refresh"),
   );
 }
 
 const probeText = (c: HTMLElement) => c.querySelector("[data-testid=friends]")?.textContent;
+
+function SettingsProbe() {
+  const { data } = useSettings();
+  return createElement("output", { "data-testid": "settings" }, data?.displayName ?? "");
+}
+
+/** Resolve the i-th held request with `body` and let React commit the result. */
+async function settle(i: number, body: unknown) {
+  await act(async () => {
+    net.held[i](body);
+  });
+}
 
 describe("friends board cache and the signed-in account", () => {
   it("drops the previous account's friends board on an account switch and fetches the new one", async () => {
@@ -308,6 +335,57 @@ describe("friends board cache and the signed-in account", () => {
 
     await click(buttonByText(c, "Clear cache"));
     expect(friendsCalls()).toBe(2);
+  });
+
+  it("discards a friends board that lands after the account switched, and keeps one fetch per slice", async () => {
+    net.hold = "/api/climb/leaderboard/friends";
+    const c = await mount(createElement(FriendsBoardProbe));
+    expect(net.held).toHaveLength(1);
+
+    auth.uid = "other";
+    await mounted!.rerender();
+    expect(net.held).toHaveLength(2);
+
+    // The first account's response arrives while the second account's is still pending.
+    await settle(0, { climbers: [row(1, "aria", 400), row(2, "me", 100)], hiddenCount: 0, notClimbedCount: 0 });
+    expect(probeText(c)).toBe("");
+    // The stale response must not free the slot the new account's fetch holds.
+    await click(buttonByText(c, "Refresh"));
+    expect(friendsCalls()).toBe(2);
+
+    await settle(1, { climbers: [row(1, "other", 50)], hiddenCount: 0, notClimbedCount: 0 });
+    expect(probeText(c)).toBe("other");
+  });
+
+  it("discards a friends board that lands after clearAll (sign-out / delete)", async () => {
+    net.hold = "/api/climb/leaderboard/friends";
+    const c = await mount(createElement(FriendsBoardProbe));
+    await click(buttonByText(c, "Clear cache"));
+    expect(net.held).toHaveLength(2);
+
+    await settle(0, { climbers: [row(1, "stale", 999)], hiddenCount: 0, notClimbedCount: 0 });
+    expect(probeText(c)).toBe("");
+
+    await settle(1, { climbers: [row(1, "me", 100)], hiddenCount: 0, notClimbedCount: 0 });
+    expect(probeText(c)).toBe("me");
+  });
+
+  it("does not apply the previous account's leaderboard consent from a late settings response", async () => {
+    setLeaderboardConsent(false);
+    net.hold = "/api/settings";
+    const c = await mount(createElement(SettingsProbe));
+    expect(net.held).toHaveLength(1);
+
+    auth.uid = "other";
+    await mounted!.rerender();
+    await settle(0, { displayName: "Previous", username: null, social: null, leaderboardConsent: true });
+
+    expect(hasLeaderboardConsent()).toBe(false);
+    expect(c.querySelector("[data-testid=settings]")?.textContent).toBe("");
+
+    await settle(1, { displayName: "Current", username: null, social: null, leaderboardConsent: true });
+    expect(hasLeaderboardConsent()).toBe(true);
+    expect(c.querySelector("[data-testid=settings]")?.textContent).toBe("Current");
   });
 });
 
