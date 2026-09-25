@@ -105,7 +105,10 @@ function Header() {
         <span className="h-px w-8 bg-signal/70" />
       </div>
       <div className="mt-1.5 flex items-center gap-2">
-        <h1 className="lb-title font-display text-[2.6rem] font-black uppercase leading-none tracking-[-0.02em]">
+        <h1
+          className="lb-title font-display font-black uppercase leading-none tracking-[-0.02em]"
+          style={{ fontSize: "clamp(1.9rem, 10.4vw, 2.6rem)" }}
+        >
           Leaderboard
         </h1>
         <TrophyBadge />
