@@ -82,18 +82,25 @@ export async function PUT(request: NextRequest): Promise<NextResponse> {
     );
   }
 
-  let body: {
+  let parsed: unknown;
+  try {
+    parsed = await request.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+  }
+  // Valid JSON is not necessarily an object: `null`, a number or an array would
+  // otherwise throw on the field reads below (outside any try) and surface as an
+  // unstructured 500.
+  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+    return NextResponse.json({ error: "Body must be a JSON object", code: "INVALID_BODY" }, { status: 400 });
+  }
+  const body: {
     displayName?: unknown;
     username?: unknown;
     social?: unknown;
     leaderboardConsent?: unknown;
     avatarId?: unknown;
-  };
-  try {
-    body = await request.json();
-  } catch {
-    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
-  }
+  } = parsed;
 
   const patch: { displayName?: string | null; leaderboardConsent?: boolean; avatarId?: string | null } = {};
 

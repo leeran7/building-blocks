@@ -116,6 +116,26 @@ describe("PUT /api/settings avatarId", () => {
   });
 });
 
+describe("PUT /api/settings non-object body", () => {
+  it.each<[string, unknown]>([
+    ["null", null],
+    ["number", 42],
+    ["string", "avatar"],
+    ["boolean", true],
+    ["empty array", []],
+    ["array of objects", [{ avatarId: VALID }]],
+  ])(
+    "rejects a %s JSON body with a structured 400 and saves nothing",
+    async (_label, body) => {
+      const res = await put(body);
+      expect(res.status).toBe(400);
+      expect(await res.json()).toEqual({ error: "Body must be a JSON object", code: "INVALID_BODY" });
+      expect(updateUserSettings).not.toHaveBeenCalled();
+      expect(revalidateTag).not.toHaveBeenCalled();
+    }
+  );
+});
+
 describe("GET /api/settings avatarId", () => {
   it("returns the stored avatar so the app can seed the picker", async () => {
     getUserSettings.mockResolvedValueOnce({
