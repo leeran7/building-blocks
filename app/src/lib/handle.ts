@@ -15,6 +15,7 @@ const ADJECTIVES = [
 const ANIMALS = [
   "Ibex", "Falcon", "Marmot", "Gecko", "Panther", "Otter", "Raven", "Lynx",
   "Bison", "Heron", "Cobra", "Badger", "Wolf", "Kestrel", "Mantis", "Yak",
+  "Wraith", "Viking", "Sentinel",
 ];
 
 /** Simple, portable 32-bit string hash (deterministic across server + client). */
