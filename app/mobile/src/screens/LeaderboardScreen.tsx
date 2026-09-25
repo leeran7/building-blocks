@@ -162,7 +162,10 @@ function Header({ scope }: { scope: Scope }) {
         <span className="h-px w-8 bg-signal/70" />
       </div>
       <div className="mt-1.5 flex items-center gap-2">
-        <h1 className="lb-title font-display text-[2.6rem] font-black uppercase leading-none tracking-[-0.02em]">
+        <h1
+          className="lb-title font-display font-black uppercase leading-none tracking-[-0.02em]"
+          style={{ fontSize: "clamp(1.9rem, 10.4vw, 2.6rem)" }}
+        >
           Leaderboard
         </h1>
         <TrophyBadge />
@@ -336,7 +339,7 @@ function StandingBanner({ standing, meRowId }: { standing: Standing; meRowId: st
     standing.kind === "ranked"
       ? standing.detail
       : standing.kind === "hidden"
-        ? "Turn on leaderboard visibility in Profile"
+        ? "Turn on leaderboard visibility in Edit profile"
         : "Finish a climb to get on the board";
 
   const body = (
@@ -366,7 +369,7 @@ function StandingBanner({ standing, meRowId }: { standing: Standing; meRowId: st
 
   const action =
     standing.kind === "hidden"
-      ? { label: "Open Profile", run: () => navigate("/profile") }
+      ? { label: "Edit profile", run: () => navigate("/profile/edit") }
       : standing.kind === "unranked"
         ? { label: "Play", run: () => navigate("/climb") }
         : meRowId
