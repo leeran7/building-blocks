@@ -1,5 +1,5 @@
 import { Capacitor } from "@capacitor/core";
-import { getIdToken } from "./auth";
+import { getFreshToken } from "./firebaseAuth";
 
 /**
  * The bundled app has no origin of its own, so every API call is absolute to
@@ -20,12 +20,12 @@ export function apiUrl(path: string): string {
   return `${API_BASE}${path.startsWith("/") ? "" : "/"}${path}`;
 }
 
-/** fetch against the Doomstack API, attaching the Bearer token when present. */
+/** fetch against the Doomstack API, attaching a fresh Bearer token. */
 export async function apiFetch(
   path: string,
   init: RequestInit = {},
 ): Promise<Response> {
-  const token = getIdToken();
+  const token = await getFreshToken();
   const headers = new Headers(init.headers);
   if (token) headers.set("Authorization", `Bearer ${token}`);
   return fetch(apiUrl(path), { ...init, headers });
