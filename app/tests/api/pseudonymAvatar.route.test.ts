@@ -78,7 +78,7 @@ import {
   recordClimb,
   topFreeClimbers,
 } from "../../src/db/climb";
-import { getCreatorIdentity, getCreatorProfileByUsername } from "../../src/db/creator";
+import { getCreatorProfileByUsername } from "../../src/db/creator";
 import { GET as getFriends, POST as postFriend } from "../../app/api/friends/route";
 import { GET as getFriendRequests } from "../../app/api/friends/requests/route";
 import { POST as acceptFriend } from "../../app/api/friends/[id]/accept/route";
@@ -178,8 +178,7 @@ describe("server-built names follow the avatar", () => {
     expect((await getUserFreeClimbRecord(NAMED))?.handle).toBe("Aria");
   });
 
-  it("creator identity and public profile", async () => {
-    expect((await getCreatorIdentity(WOLF))?.name).toBe(WOLF_NAME);
+  it("creator public profile (/c/[username])", async () => {
     expect((await getCreatorProfileByUsername("wolfy"))?.name).toBe(WOLF_NAME);
   });
 });

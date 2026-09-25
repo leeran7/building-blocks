@@ -68,12 +68,12 @@ export async function getCreatorIdentity(
   if (!userId) return null;
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    select: { username: true, display_name: true, avatar_id: true },
+    select: { username: true, display_name: true },
   });
   if (!user) return null;
   return {
     username: user.username,
-    name: climberDisplay(userId, user.display_name, user.avatar_id),
+    name: climberDisplay(userId, user.display_name),
   };
 }
 
