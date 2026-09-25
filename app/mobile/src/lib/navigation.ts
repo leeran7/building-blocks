@@ -4,6 +4,22 @@ import { useLocation, useNavigate } from "react-router-dom";
 /** react-router's key for the entry the router started on (no in-app history). */
 const INITIAL_LOCATION_KEY = "default";
 
+const HOME_ROUTE = "/";
+
+/**
+ * Where Back goes from a screen opened cold (no in-app entry behind it). Same
+ * parents as the screens' own header Back; anything unlisted goes Home.
+ */
+const PARENT_ROUTES: ReadonlyMap<string, string> = new Map([
+  ["/profile/edit", "/profile"],
+  ["/profile/avatar", "/profile"],
+  ["/challenge", HOME_ROUTE],
+]);
+
+export function parentRoute(pathname: string): string {
+  return PARENT_ROUTES.get(pathname) ?? HOME_ROUTE;
+}
+
 /**
  * True when there is an in-app entry behind the current one, so `navigate(-1)`
  * stays inside the app. On a cold start or deep link (`#/settings`,

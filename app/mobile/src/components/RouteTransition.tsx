@@ -1,7 +1,8 @@
-import { useLocation, useNavigate } from "react-router-dom";
+import { useLocation } from "react-router-dom";
 import { useEffect, useRef, useState, type ReactNode, type TouchEvent } from "react";
 import { tapLight } from "../lib/haptics";
 import { prefersReducedMotion } from "../lib/motion";
+import { parentRoute, useBackOr } from "../lib/navigation";
 
 /**
  * iOS-style navigation feel over the persistent game backdrop.
@@ -30,15 +31,20 @@ export function RouteTransition({ children }: { children: ReactNode }) {
       </div>
     );
   }
-  return <PushScreen key={pathname}>{children}</PushScreen>;
+  return (
+    <PushScreen key={pathname} pathname={pathname}>
+      {children}
+    </PushScreen>
+  );
 }
 
 const EDGE_PX = 28;
 const POP_RATIO = 0.35;
 const POP_VELOCITY = 0.55;
 
-function PushScreen({ children }: { children: ReactNode }) {
-  const navigate = useNavigate();
+function PushScreen({ pathname, children }: { pathname: string; children: ReactNode }) {
+  // A deep-linked screen has nothing behind it: swipe to its parent instead.
+  const back = useBackOr(parentRoute(pathname));
   const [x, setX] = useState(0);
   const [animating, setAnimating] = useState(false);
   const [animKind, setAnimKind] = useState<"pop" | "snap" | null>(null);
@@ -109,8 +115,7 @@ function PushScreen({ children }: { children: ReactNode }) {
 
     const goBack = () => {
       void tapLight();
-      if (window.history.length > 1) navigate(-1);
-      else navigate("/");
+      back();
     };
 
     if (reduce) {

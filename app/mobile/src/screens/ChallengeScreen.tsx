@@ -2,6 +2,7 @@ import { useCallback, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { shareInvite } from "@app/lib/shareInvite";
 import { apiFetch, API_BASE } from "../lib/api";
+import { parentRoute, useBackOr } from "../lib/navigation";
 import { ScreenHeader, ScreenBody, Card, Button } from "../components/ui";
 import { PendingChallengesSection } from "../components/challenge/PendingChallengesSection";
 import { FriendRequestsSection } from "../components/challenge/FriendRequestsSection";
@@ -20,6 +21,7 @@ type ShareState =
  */
 export function ChallengeScreen() {
   const navigate = useNavigate();
+  const goBack = useBackOr(parentRoute("/challenge"));
   const [friendsRefreshKey, setFriendsRefreshKey] = useState(0);
   const [requestsRefreshKey, setRequestsRefreshKey] = useState(0);
   const [challengesRefreshKey, setChallengesRefreshKey] = useState(0);
@@ -71,7 +73,7 @@ export function ChallengeScreen() {
 
   return (
     <main className="flex h-full flex-col">
-      <ScreenHeader eyebrow="1v1" title="Challenge" onBack={() => navigate(-1)} />
+      <ScreenHeader eyebrow="1v1" title="Challenge" onBack={goBack} />
       <ScreenBody>
         <div className="flex flex-col gap-6 pt-1 pb-4">
           <PendingChallengesSection refreshKey={challengesRefreshKey} />
