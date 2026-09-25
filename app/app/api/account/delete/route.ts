@@ -81,6 +81,10 @@ export async function DELETE(request: NextRequest): Promise<NextResponse> {
           emailVerified: false,
           display_name: null,
           username: null,
+          // Friends and challenge payloads still carry the retained row, and
+          // the pseudonym's animal follows avatar_id: clear it so a deleted
+          // account falls back to the hash-only pseudonym.
+          avatar_id: null,
         },
       }),
     ]);

@@ -41,6 +41,7 @@ vi.mock("next/cache", () => ({
 }));
 
 import { DELETE } from "../../app/api/account/delete/route";
+import { prisma } from "../../src/db/client";
 import { LEADERBOARD_CACHE_TAG } from "../../src/db/climb";
 import { DUEL_LEADERBOARD_CACHE_TAG } from "../../src/db/duel";
 
@@ -63,5 +64,21 @@ describe("DELETE /api/account/delete leaderboard revalidation", () => {
     expect(res.status).toBe(200);
     expect(revalidateTag).toHaveBeenCalledWith(LEADERBOARD_CACHE_TAG, { expire: 0 });
     expect(revalidateTag).toHaveBeenCalledWith(DUEL_LEADERBOARD_CACHE_TAG, { expire: 0 });
+  });
+
+  it("clears every player-chosen identity field on the retained row, avatar included", async () => {
+    vi.mocked(prisma.user.updateMany).mockClear();
+    const res = await del();
+    expect(res.status).toBe(200);
+    expect(prisma.user.updateMany).toHaveBeenCalledWith({
+      where: { id: "u1" },
+      data: {
+        email: "deleted-u1@deleted.invalid",
+        emailVerified: false,
+        display_name: null,
+        username: null,
+        avatar_id: null,
+      },
+    });
   });
 });
