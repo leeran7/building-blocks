@@ -233,6 +233,8 @@ function LavaCanvas() {
         tick,
         reducedMotion: reduce,
         slowed: false,
+        // No freeze power-up behind the menus: -1 is lava's "inactive" value.
+        hardenProgress: -1,
       });
     };
 
