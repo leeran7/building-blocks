@@ -13,7 +13,7 @@ import { requireAuth, AuthError } from "../../../../src/lib/requireAuth";
 import { checkRateLimit } from "../../../../src/lib/rateLimit";
 import { exactMatchFilter } from "../../../../src/lib/userSearchQuery";
 import { prisma } from "../../../../src/db/client";
-import { parseAvatarId } from "../../../../src/lib/avatars";
+import { publicUserJson, publicUserSelect } from "../../../../src/db/publicUser";
 
 export const runtime = "nodejs";
 
@@ -54,27 +54,13 @@ export async function GET(request: NextRequest) {
         ...filter,
         id: { not: uid },
       },
-      select: {
-        id: true,
-        username: true,
-        display_name: true,
-        avatar_id: true,
-      },
+      select: publicUserSelect,
     });
 
     return NextResponse.json({
-      users: user
-        ? [
-            {
-              id: user.id,
-              username: user.username,
-              displayName: user.display_name,
-              // Lets the client name a pseudonymous result the way every other
-              // surface does (climberDisplay). Allow-listed, never the raw column.
-              avatarId: parseAvatarId(user.avatar_id),
-            },
-          ]
-        : [],
+      // Allow-listed public fields only (never the email); avatarId lets the
+      // client name a pseudonymous result the way every other surface does.
+      users: user ? [publicUserJson(user)] : [],
     });
   } catch (err) {
     console.error("[GET /api/users/search] error:", err);

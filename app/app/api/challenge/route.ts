@@ -11,8 +11,8 @@ import { ensureUser } from "../../../src/db/user";
 import {
   createChallenge,
   getPendingChallengesForUser,
-  challengeUserJson,
 } from "../../../src/db/challenge";
+import { publicUserJson } from "../../../src/db/publicUser";
 import { createNotification } from "../../../src/db/notification";
 import { climberDisplay } from "../../../src/lib/handle";
 
@@ -130,8 +130,8 @@ export async function POST(request: NextRequest) {
             categorySlug: c.category_slug,
             status: c.status,
             expiresAt: c.expires_at.toISOString(),
-            sender: challengeUserJson(c.sender),
-            recipient: challengeUserJson(c.recipient),
+            sender: publicUserJson(c.sender),
+            recipient: publicUserJson(c.recipient),
           },
           { status: 201 }
         );
@@ -167,8 +167,8 @@ export async function GET(request: NextRequest) {
         status: c.status,
         expiresAt: c.expires_at.toISOString(),
         createdAt: c.created_at.toISOString(),
-        sender: challengeUserJson(c.sender),
-        recipient: challengeUserJson(c.recipient),
+        sender: publicUserJson(c.sender),
+        recipient: publicUserJson(c.recipient),
         direction: c.sender_id === uid ? "sent" : "received",
       }))
     );

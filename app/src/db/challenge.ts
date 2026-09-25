@@ -9,46 +9,20 @@
 import { prisma } from "./client";
 import { ChallengeStatus, Challenge, Prisma } from "@prisma/client";
 import { createDuel } from "./duel";
-import { parseAvatarId } from "../lib/avatars";
+import { publicUserSelect, type PublicUserRow } from "./publicUser";
 
 const CHALLENGE_TTL_MS = 24 * 60 * 60_000; // 24 hours
 const MAX_PENDING_OUTGOING = 3;
 
-interface ChallengeUserRow {
-  id: string;
-  display_name: string | null;
-  username: string | null;
-  avatar_id: string | null;
-}
-
 export interface ChallengeWithUsers extends Challenge {
-  sender: ChallengeUserRow;
-  recipient: ChallengeUserRow;
+  sender: PublicUserRow;
+  recipient: PublicUserRow;
 }
 
 const userSelect = {
-  sender: { select: { id: true, display_name: true, username: true, avatar_id: true } },
-  recipient: { select: { id: true, display_name: true, username: true, avatar_id: true } },
+  sender: { select: publicUserSelect },
+  recipient: { select: publicUserSelect },
 } as const;
-
-/** A challenge party as the client sees it (it names them via climberDisplay). */
-export interface ChallengeUserJson {
-  id: string;
-  displayName: string | null;
-  username: string | null;
-  /** Catalogue avatar id or null (also for a retired id). */
-  avatarId: string | null;
-}
-
-/** The single mapping from a selected user row to challenge API JSON. */
-export function challengeUserJson(u: ChallengeUserRow): ChallengeUserJson {
-  return {
-    id: u.id,
-    displayName: u.display_name,
-    username: u.username,
-    avatarId: parseAvatarId(u.avatar_id),
-  };
-}
 
 // ── Writes ─────────────────────────────────────────────────────────────────
 
