@@ -9,15 +9,17 @@ import {
   useSettings,
 } from "../contexts/AppDataContext";
 import { HexAvatar } from "../components/HexAvatar";
-import { PushHeader, StateMessage } from "../components/ui";
+import { PushHeader, RetryPanel } from "../components/ui";
 import { identityNameFor } from "../lib/identity";
 import { notifyError, notifySuccess, tapLight } from "../lib/haptics";
 import { useBackOr } from "../lib/navigation";
+import { useRetry } from "../hooks/useRetry";
 
 const INITIALS_LABEL = "Initials";
 const COLUMNS = 3;
 const TILE_HEX = 64;
 const PREVIEW_HEX = 128;
+const LOAD_FAILED_MESSAGE = "Couldn't load your profile. Check your connection and try again.";
 const SCROLL_FADE = "linear-gradient(to bottom, #000 calc(100% - 18px), transparent)";
 
 const OPTIONS: ReadonlyArray<{ id: string | null; name: string }> = [
@@ -59,6 +61,7 @@ export function AvatarPickerScreen() {
 
   const settingsData = settingsSlice.data;
   const { setSettings, refreshSettings } = settingsSlice;
+  const settingsRetry = useRetry(refreshSettings);
   const name = identityNameFor(settingsData, dash.data);
   const userId = user?.uid ?? name;
 
@@ -128,7 +131,8 @@ export function AvatarPickerScreen() {
     }
   };
 
-  const loadFailed = settingsSlice.error && !settingsData;
+  // Stays true through a retry so Try again (and its focus) stays put.
+  const loadFailed = !settingsData && (settingsSlice.error || settingsRetry.retrying);
 
   return (
     <main className="flex h-full flex-col">
@@ -144,16 +148,12 @@ export function AvatarPickerScreen() {
         }}
       >
         {loadFailed ? (
-          <div className="flex flex-col items-center gap-4">
-            <StateMessage>Couldn&apos;t load your profile. Check your connection and try again.</StateMessage>
-            <button
-              type="button"
-              onClick={() => void refreshSettings()}
-              className="glass min-h-[48px] rounded-2xl border border-white/10 px-6 text-[15px] font-semibold text-text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-signal"
-            >
-              Try again
-            </button>
-          </div>
+          <RetryPanel
+            message={LOAD_FAILED_MESSAGE}
+            retrying={settingsRetry.retrying}
+            attempts={settingsRetry.attempts}
+            onRetry={() => void settingsRetry.retry()}
+          />
         ) : !settingsData ? (
           <div role="status" aria-busy="true" aria-label="Loading avatars" className="flex flex-col gap-3">
             <div className="h-52 animate-pulse rounded-3xl border border-white/10 bg-surface/60" />

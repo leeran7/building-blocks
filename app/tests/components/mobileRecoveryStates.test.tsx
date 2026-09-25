@@ -8,7 +8,8 @@
  * failed to load, because that PUT nulls the saved username and socials; the
  * Ranks error and empty states offer an action; a failed dashboard is not
  * shown as "no record"; Back on a deep-linked push screen stays in the app;
- * one Try again is one request.
+ * Try again keeps focus across a retry that fails again; one Try again is one
+ * request.
  *
  * @vitest-environment happy-dom
  */
@@ -217,6 +218,69 @@ describe("Edit Profile when settings fail to load", () => {
       username: "aria",
       social: { X: "ariaclimbs" },
     });
+  });
+});
+
+async function releaseHeld(status: number, body: unknown = { error: "down" }) {
+  const release = net.release;
+  if (!release) throw new Error("no held request");
+  net.release = null;
+  await act(async () => {
+    release(jsonResponse(body, status));
+  });
+}
+
+describe.each([
+  ["Edit Profile", "/profile/edit"],
+  ["the avatar picker", "/profile/avatar"],
+])("Try again on %s when settings fail to load", (_screen, screenPath) => {
+  it("keeps focus on Try again through a retry that fails again, and announces the failure", async () => {
+    net.status["/api/settings"] = 500;
+    await mount(["/profile", screenPath]);
+    const button = buttonByText("Try again");
+    button?.focus();
+    expect(document.activeElement).toBe(button);
+    const firstAlert = container.querySelector('[role="alert"]');
+    expect(firstAlert?.textContent).toContain("Couldn't load your profile");
+
+    net.gate = "/api/settings";
+    await click(button);
+
+    // In flight: the same button, busy, still focused; no skeleton swapped in.
+    expect(button?.isConnected).toBe(true);
+    expect(button?.textContent).toBe("Retrying…");
+    expect(button?.getAttribute("aria-busy")).toBe("true");
+    expect(button?.getAttribute("aria-disabled")).toBe("true");
+    expect(document.activeElement).toBe(button);
+    expect(container.querySelector('[aria-busy="true"][role="status"]')).toBeNull();
+
+    // A second tap while busy neither refetches nor ends the busy state.
+    await click(button);
+    expect(calls("/api/settings")).toHaveLength(2);
+    expect(button?.textContent).toBe("Retrying…");
+
+    await releaseHeld(500);
+
+    expect(button?.isConnected).toBe(true);
+    expect(button?.textContent).toBe("Try again");
+    expect(button?.getAttribute("aria-busy")).toBe("false");
+    expect(document.activeElement).toBe(button);
+    // The alert re-mounts, so assistive tech hears the failure again.
+    const secondAlert = container.querySelector('[role="alert"]');
+    expect(secondAlert?.textContent).toContain("Couldn't load your profile");
+    expect(secondAlert).not.toBe(firstAlert);
+    expect(firstAlert?.isConnected).toBe(false);
+  });
+
+  it("shows the screen once a held retry succeeds", async () => {
+    net.status["/api/settings"] = 500;
+    await mount(["/profile", screenPath]);
+    net.gate = "/api/settings";
+    await click(buttonByText("Try again"));
+    await releaseHeld(200, SAVED);
+
+    expect(buttonByText("Try again")).toBeUndefined();
+    expect(container.querySelector('[role="alert"]')).toBeNull();
   });
 });
 

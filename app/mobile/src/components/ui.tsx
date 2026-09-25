@@ -343,3 +343,49 @@ export function StateMessage({ children }: { children: ReactNode }) {
     </p>
   );
 }
+
+/* -------------------------------------------------------------- RetryPanel */
+
+export interface RetryPanelProps {
+  /** What failed and what to do, in plain words. */
+  message: ReactNode;
+  /** From useRetry: the refresh is in flight. */
+  retrying: boolean;
+  /** From useRetry: bumps once per settled retry, re-announcing the message. */
+  attempts: number;
+  onRetry: () => void;
+  /** Extra actions under Try again (e.g. Sign out). */
+  children?: ReactNode;
+}
+
+/**
+ * Load-failure state with a Try again button that survives its own retry.
+ * The screen keeps this mounted while `retrying` (see useRetry), so the same
+ * button element keeps focus through a retry that fails again, and the alert
+ * re-mounts so screen readers hear the failure again. `aria-disabled` rather
+ * than `disabled` while busy: disabling the focused button would drop focus
+ * to <body>.
+ */
+export function RetryPanel({ message, retrying, attempts, onRetry, children }: RetryPanelProps) {
+  return (
+    <div className="flex flex-col items-center gap-4 pb-6">
+      <div role="alert" key={attempts}>
+        <StateMessage>{message}</StateMessage>
+      </div>
+      <button
+        type="button"
+        aria-disabled={retrying}
+        aria-busy={retrying}
+        onClick={() => {
+          if (retrying) return;
+          void tapLight();
+          onRetry();
+        }}
+        className="glass min-h-[48px] rounded-2xl border border-white/10 px-6 text-[15px] font-semibold text-text-primary transition-opacity aria-disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-signal"
+      >
+        {retrying ? "Retrying…" : "Try again"}
+      </button>
+      {children}
+    </div>
+  );
+}

@@ -30,10 +30,13 @@ import {
 import { SocialMark } from "@app/components/Social/SocialMark";
 import { avatarName } from "@app/lib/avatars";
 import { HexAvatar } from "../components/HexAvatar";
-import { PushHeader, StateMessage } from "../components/ui";
+import { PushHeader, RetryPanel } from "../components/ui";
 import { identityNameFor } from "../lib/identity";
 import { stashEditProfileDraft, takeEditProfileDraft } from "../lib/editProfileDraft";
 import { useBackOr } from "../lib/navigation";
+import { useRetry } from "../hooks/useRetry";
+
+const LOAD_FAILED_MESSAGE = "Couldn't load your profile. Check your connection and try again.";
 
 const INPUT =
   "min-h-[48px] w-full rounded-xl border border-white/10 bg-[#0d0c10]/80 px-3.5 text-[15px] text-text-primary placeholder:text-text-muted focus:border-signal focus:outline-none";
@@ -59,6 +62,7 @@ export function EditProfileScreen() {
   const settingsData = settingsSlice.data;
   const { setSettings, refreshSettings } = settingsSlice;
   const goBack = useBackOr("/profile");
+  const settingsRetry = useRetry(refreshSettings);
   const uid = user?.uid;
   const identityName = identityNameFor(settingsData, dashData);
 
@@ -174,7 +178,8 @@ export function EditProfileScreen() {
   };
 
   const canSave = loaded !== null && dirty && !saving && (!usernameCheck || usernameCheck.valid);
-  const loadFailed = settingsSlice.error && !settingsData;
+  // Stays true through a retry so Try again (and its focus) stays put.
+  const loadFailed = !settingsData && (settingsSlice.error || settingsRetry.retrying);
 
   const signOutNow = async () => {
     void tapLight();
@@ -240,17 +245,14 @@ export function EditProfileScreen() {
         style={{ WebkitOverflowScrolling: "touch", overscrollBehavior: "contain" }}
       >
         {loadFailed ? (
-          <div className="flex flex-col items-center gap-4 pb-6">
-            <StateMessage>Couldn&apos;t load your profile. Check your connection and try again.</StateMessage>
-            <button
-              type="button"
-              onClick={() => void refreshSettings()}
-              className="glass min-h-[48px] rounded-2xl border border-white/10 px-6 text-[15px] font-semibold text-text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-signal"
-            >
-              Try again
-            </button>
+          <RetryPanel
+            message={LOAD_FAILED_MESSAGE}
+            retrying={settingsRetry.retrying}
+            attempts={settingsRetry.attempts}
+            onRetry={() => void settingsRetry.retry()}
+          >
             <SignOutButton onPress={() => void signOutNow()} />
-          </div>
+          </RetryPanel>
         ) : !settingsData ? (
           <div role="status" aria-busy="true" className="flex flex-col gap-3" aria-label="Loading profile">
             <div className="h-56 animate-pulse rounded-3xl border border-white/10 bg-surface/60" />
