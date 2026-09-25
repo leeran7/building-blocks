@@ -14,8 +14,8 @@ interface ChallengeItem {
   status: string;
   expiresAt: string;
   createdAt: string;
-  sender: { id: string; displayName: string | null; username: string | null };
-  recipient: { id: string; displayName: string | null; username: string | null };
+  sender: { id: string; displayName: string | null; username: string | null; avatarId?: string | null };
+  recipient: { id: string; displayName: string | null; username: string | null; avatarId?: string | null };
   direction: "sent" | "received";
 }
 
@@ -177,7 +177,7 @@ export function PendingChallengesSection({ refreshKey }: PendingChallengesSectio
             Incoming challenges
           </h2>
           {received.map((c) => {
-            const name = climberDisplay(c.sender.id, c.sender.displayName);
+            const name = climberDisplay(c.sender.id, c.sender.displayName, c.sender.avatarId);
             const expired = isExpired(c.expiresAt);
             return (
               <Card key={c.id} highlight>
@@ -229,7 +229,7 @@ export function PendingChallengesSection({ refreshKey }: PendingChallengesSectio
             Sent challenges
           </h2>
           {sent.map((c) => {
-            const name = climberDisplay(c.recipient.id, c.recipient.displayName);
+            const name = climberDisplay(c.recipient.id, c.recipient.displayName, c.recipient.avatarId);
             return (
               <Card key={c.id}>
                 <div className="flex items-center justify-between gap-3">

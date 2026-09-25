@@ -8,13 +8,13 @@ import { Button, Card } from "../ui";
 
 interface FriendRequest {
   id: string;
-  sender: { id: string; displayName: string | null; username: string | null };
+  sender: { id: string; displayName: string | null; username: string | null; avatarId?: string | null };
   createdAt: string;
 }
 
 interface OutgoingRequest {
   id: string;
-  receiver: { id: string; displayName: string | null; username: string | null };
+  receiver: { id: string; displayName: string | null; username: string | null; avatarId?: string | null };
   createdAt: string;
 }
 
@@ -169,7 +169,7 @@ export function FriendRequestsSection({ refreshKey, onAccepted }: FriendRequests
             Friend requests
           </h2>
           {incoming.map((req) => {
-            const name = climberDisplay(req.sender.id, req.sender.displayName);
+            const name = climberDisplay(req.sender.id, req.sender.displayName, req.sender.avatarId);
             return (
               <Card key={req.id} highlight>
                 <div className="flex items-center justify-between gap-3">
@@ -215,7 +215,7 @@ export function FriendRequestsSection({ refreshKey, onAccepted }: FriendRequests
             Sent requests
           </h2>
           {outgoing.map((req) => {
-            const name = climberDisplay(req.receiver.id, req.receiver.displayName);
+            const name = climberDisplay(req.receiver.id, req.receiver.displayName, req.receiver.avatarId);
             return (
               <Card key={req.id}>
                 <div className="flex items-center justify-between gap-3">

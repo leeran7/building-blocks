@@ -7,7 +7,7 @@ import { Button, ListRow } from "../ui";
 
 interface Friend {
   id: string; // friendship id
-  user: { id: string; displayName: string | null; username: string | null };
+  user: { id: string; displayName: string | null; username: string | null; avatarId?: string | null };
 }
 
 export interface FriendsListSectionProps {
@@ -111,7 +111,7 @@ export function FriendsListSection({ refreshKey, onChallengeSent }: FriendsListS
       {!loading && !error && friends.length > 0 && (
         <div className="flex flex-col gap-2">
           {friends.map((f) => {
-            const name = climberDisplay(f.user.id, f.user.displayName);
+            const name = climberDisplay(f.user.id, f.user.displayName, f.user.avatarId);
             const sent = challengeSent.has(f.user.id);
             const errored = challengeErrors.has(f.user.id);
             return (

@@ -26,6 +26,7 @@ interface SearchResult {
   id: string;
   username: string | null;
   displayName: string | null;
+  avatarId?: string | null;
 }
 
 interface UserSearchProps {
@@ -126,7 +127,7 @@ export function UserSearch({
         next.delete(user.id);
         return next;
       });
-      const name = climberDisplay(user.id, user.displayName);
+      const name = climberDisplay(user.id, user.displayName, user.avatarId);
       const ok = await onSelect(user.id, name);
       if (ok) {
         setSentIds((prev) => new Set(prev).add(user.id));
@@ -188,7 +189,7 @@ export function UserSearch({
                 >
                   <div className="min-w-0">
                     <p className="text-sm font-semibold text-text-primary truncate">
-                      {climberDisplay(user.id, user.displayName)}
+                      {climberDisplay(user.id, user.displayName, user.avatarId)}
                     </p>
                     <UsernameHandle username={user.username} />
                   </div>

@@ -125,7 +125,10 @@ export function AvatarPickerScreen() {
       }
       const next = settingsFromResponse(await res.json().catch(() => null));
       setSettings(next ?? { ...settingsData, avatarId: selected });
-      invalidate(["leaderboard", "friendsLeaderboard"]);
+      // An avatar can rename a player with no display name (the pseudonym's
+      // animal follows it), so every cached copy of their name goes stale:
+      // both boards and the dashboard handle behind the Profile header.
+      invalidate(["leaderboard", "friendsLeaderboard", "dashboard"]);
       void notifySuccess();
       goBack();
     } catch {

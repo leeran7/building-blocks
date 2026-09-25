@@ -10,6 +10,7 @@ interface SearchResult {
   id: string;
   username: string | null;
   displayName: string | null;
+  avatarId?: string | null;
 }
 
 export interface UserSearchSectionProps {
@@ -161,7 +162,7 @@ export function UserSearchSection({ onFriendRequestSent }: UserSearchSectionProp
       {results.length > 0 && (
         <div className="flex flex-col gap-2">
           {results.map((u) => {
-            const name = climberDisplay(u.id, u.displayName);
+            const name = climberDisplay(u.id, u.displayName, u.avatarId);
             const sent = sentIds.has(u.id);
             const errored = errorIds.has(u.id);
             return (

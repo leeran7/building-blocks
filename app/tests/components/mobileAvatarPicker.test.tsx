@@ -161,7 +161,7 @@ describe("AvatarPickerScreen", () => {
     expect(saveButton()?.disabled).toBe(true);
   });
 
-  it("saves a new pick as {avatarId}, caches it, refreshes both boards and goes back", async () => {
+  it("saves a new pick as {avatarId}, caches it, refreshes both boards and the dashboard and goes back", async () => {
     state.settings = settings(null);
     apiFetch.mockResolvedValueOnce(json(settings(SECOND.id)));
     renderPicker();
@@ -176,7 +176,9 @@ describe("AvatarPickerScreen", () => {
     expect(init.method).toBe("PUT");
     expect(JSON.parse(init.body as string)).toEqual({ avatarId: SECOND.id });
     expect(setSettings).toHaveBeenCalledWith(expect.objectContaining({ avatarId: SECOND.id }));
-    expect(invalidate).toHaveBeenCalledWith(["leaderboard", "friendsLeaderboard"]);
+    // The dashboard too: its handle is the Profile header's name, and the
+    // pseudonym's animal follows the avatar.
+    expect(invalidate).toHaveBeenCalledWith(["leaderboard", "friendsLeaderboard", "dashboard"]);
     expect(container.textContent).toContain("Profile screen");
   });
 
