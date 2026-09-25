@@ -1,4 +1,4 @@
-import type { ButtonHTMLAttributes, ReactNode } from "react";
+import type { ButtonHTMLAttributes, ReactNode, Ref } from "react";
 import { tapLight } from "../lib/haptics";
 
 /**
@@ -164,6 +164,8 @@ export interface PushHeaderProps {
   title: string;
   /** Called after the haptic when the back button is tapped. */
   onBack: () => void;
+  /** Makes the title a programmatic focus target (tabIndex -1), e.g. useRetry's focusOnRecover. */
+  headingRef?: Ref<HTMLHeadingElement>;
 }
 
 /**
@@ -174,7 +176,7 @@ export interface PushHeaderProps {
  * sets box-shadow, which beats Tailwind's layered ring utilities, so a
  * `focus-visible:ring-*` on a glass element never shows.
  */
-export function PushHeader({ title, onBack }: PushHeaderProps) {
+export function PushHeader({ title, onBack, headingRef }: PushHeaderProps) {
   return (
     <header className="flex items-center gap-3 px-4 pb-4 pt-[calc(env(safe-area-inset-top)+1rem)]">
       <button
@@ -188,7 +190,11 @@ export function PushHeader({ title, onBack }: PushHeaderProps) {
       >
         <ChevronLeft size={22} />
       </button>
-      <h1 className="metal-title font-display text-[1.9rem] font-black uppercase leading-none tracking-[-0.02em]">
+      <h1
+        ref={headingRef}
+        tabIndex={headingRef ? -1 : undefined}
+        className="metal-title font-display text-[1.9rem] font-black uppercase leading-none tracking-[-0.02em] focus:outline-none"
+      >
         {title}
       </h1>
     </header>

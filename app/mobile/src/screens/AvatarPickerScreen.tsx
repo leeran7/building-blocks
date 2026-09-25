@@ -61,7 +61,12 @@ export function AvatarPickerScreen() {
 
   const settingsData = settingsSlice.data;
   const { setSettings, refreshSettings } = settingsSlice;
-  const settingsRetry = useRetry(refreshSettings);
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  const settingsRetry = useRetry(refreshSettings, {
+    failed: settingsSlice.error,
+    hasData: settingsData !== null,
+    focusOnRecover: headingRef,
+  });
   const name = identityNameFor(settingsData, dash.data);
   const userId = user?.uid ?? name;
 
@@ -132,11 +137,11 @@ export function AvatarPickerScreen() {
   };
 
   // Stays true through a retry so Try again (and its focus) stays put.
-  const loadFailed = !settingsData && (settingsSlice.error || settingsRetry.retrying);
+  const loadFailed = settingsRetry.showError;
 
   return (
     <main className="flex h-full flex-col">
-      <PushHeader title="Choose avatar" onBack={goBack} />
+      <PushHeader title="Choose avatar" onBack={goBack} headingRef={headingRef} />
 
       <div
         className="min-h-0 flex-1 overflow-y-auto px-4"

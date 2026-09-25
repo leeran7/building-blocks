@@ -62,7 +62,12 @@ export function EditProfileScreen() {
   const settingsData = settingsSlice.data;
   const { setSettings, refreshSettings } = settingsSlice;
   const goBack = useBackOr("/profile");
-  const settingsRetry = useRetry(refreshSettings);
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  const settingsRetry = useRetry(refreshSettings, {
+    failed: settingsSlice.error,
+    hasData: settingsData !== null,
+    focusOnRecover: headingRef,
+  });
   const uid = user?.uid;
   const identityName = identityNameFor(settingsData, dashData);
 
@@ -179,7 +184,7 @@ export function EditProfileScreen() {
 
   const canSave = loaded !== null && dirty && !saving && (!usernameCheck || usernameCheck.valid);
   // Stays true through a retry so Try again (and its focus) stays put.
-  const loadFailed = !settingsData && (settingsSlice.error || settingsRetry.retrying);
+  const loadFailed = settingsRetry.showError;
 
   const signOutNow = async () => {
     void tapLight();
@@ -238,7 +243,7 @@ export function EditProfileScreen() {
 
   return (
     <main className="flex h-full flex-col">
-      <PushHeader title="Edit profile" onBack={goBack} />
+      <PushHeader title="Edit profile" onBack={goBack} headingRef={headingRef} />
 
       <div
         className="flex-1 overflow-y-auto px-4"

@@ -275,15 +275,36 @@ describe.each([
     expect(firstAlert?.isConnected).toBe(false);
   });
 
-  it("shows the screen once a held retry succeeds", async () => {
+  it("shows the screen once a held retry succeeds, and moves focus to its heading", async () => {
     net.status["/api/settings"] = 500;
     await mount(["/profile", screenPath]);
+    const button = buttonByText("Try again");
+    button?.focus();
     net.gate = "/api/settings";
-    await click(buttonByText("Try again"));
+    await click(button);
     await releaseHeld(200, SAVED);
 
     expect(buttonByText("Try again")).toBeUndefined();
     expect(container.querySelector('[role="alert"]')).toBeNull();
+    const heading = container.querySelector("h1");
+    expect(heading?.getAttribute("tabindex")).toBe("-1");
+    expect(document.activeElement).toBe(heading);
+  });
+
+  it("leaves focus on Back if the user moved there before the retry succeeded", async () => {
+    net.status["/api/settings"] = 500;
+    await mount(["/profile", screenPath]);
+    const button = buttonByText("Try again");
+    button?.focus();
+    net.gate = "/api/settings";
+    await click(button);
+    const back = container.querySelector<HTMLButtonElement>('button[aria-label="Back"]');
+    back?.focus();
+    await releaseHeld(200, SAVED);
+
+    expect(buttonByText("Try again")).toBeUndefined();
+    expect(back).toBeTruthy();
+    expect(document.activeElement).toBe(back);
   });
 });
 
