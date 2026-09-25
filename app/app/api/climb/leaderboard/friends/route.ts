@@ -17,14 +17,21 @@ export const runtime = "nodejs";
 
 const NO_STORE = { "Cache-Control": "private, no-store" };
 
+/** Every response from this per-user route is private, errors included. */
+function noStore(res: NextResponse): NextResponse {
+  for (const [name, value] of Object.entries(NO_STORE)) res.headers.set(name, value);
+  return res;
+}
+
 export async function GET(request: NextRequest): Promise<NextResponse> {
   let uid: string;
   try {
     const decoded = await requireAuth(request);
     uid = decoded.uid;
   } catch (err) {
-    if (err instanceof AuthError) return err.response;
-    return NextResponse.json({ error: "Unauthorized", code: "UNAUTHORIZED" }, { status: 401 });
+    // requireAuth builds a fresh response per AuthError, so setting headers on it is safe.
+    if (err instanceof AuthError) return noStore(err.response);
+    return NextResponse.json({ error: "Unauthorized", code: "UNAUTHORIZED" }, { status: 401, headers: NO_STORE });
   }
 
   const rl = await checkRateLimit({
@@ -35,7 +42,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     failMode: "open",
   });
   if (!rl.allowed) {
-    return NextResponse.json({ error: "Too many requests", code: "RATE_LIMITED" }, { status: 429 });
+    return NextResponse.json({ error: "Too many requests", code: "RATE_LIMITED" }, { status: 429, headers: NO_STORE });
   }
 
   try {

@@ -41,6 +41,7 @@ describe("GET /api/climb/leaderboard/friends", () => {
   it("401s without a bearer token and never reads the board", async () => {
     const res = await get(undefined, null);
     expect(res.status).toBe(401);
+    expect(res.headers.get("cache-control")).toBe("private, no-store");
     expect(friendsLeaderboard).not.toHaveBeenCalled();
   });
 
@@ -49,6 +50,7 @@ describe("GET /api/climb/leaderboard/friends", () => {
     vi.spyOn(console, "error").mockImplementationOnce(() => {});
     const res = await get();
     expect(res.status).toBe(401);
+    expect(res.headers.get("cache-control")).toBe("private, no-store");
     expect(friendsLeaderboard).not.toHaveBeenCalled();
   });
 
@@ -56,6 +58,7 @@ describe("GET /api/climb/leaderboard/friends", () => {
     checkRateLimit.mockResolvedValueOnce({ allowed: false, degraded: false });
     const res = await get();
     expect(res.status).toBe(429);
+    expect(res.headers.get("cache-control")).toBe("private, no-store");
     expect(await res.json()).toMatchObject({ code: "RATE_LIMITED" });
     expect(checkRateLimit).toHaveBeenCalledWith(
       expect.objectContaining({ namespace: "leaderboard:friends", identifier: "token-uid", max: 60, windowSeconds: 60 })
