@@ -251,6 +251,9 @@ describe.each([
     expect(button?.textContent).toBe("Retrying…");
     expect(button?.getAttribute("aria-busy")).toBe("true");
     expect(button?.getAttribute("aria-disabled")).toBe("true");
+    // Not `disabled`: a real browser moves focus off a disabled button to
+    // <body>. happy-dom does not, so the activeElement check alone misses it.
+    expect(button?.hasAttribute("disabled")).toBe(false);
     expect(document.activeElement).toBe(button);
     expect(container.querySelector('[aria-busy="true"][role="status"]')).toBeNull();
 

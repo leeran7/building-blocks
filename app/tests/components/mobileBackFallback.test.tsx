@@ -14,7 +14,7 @@
 
 import { act, createElement, type ReactElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { MemoryRouter, Route, Routes, useLocation, useNavigate } from "react-router-dom";
+import { HashRouter, MemoryRouter, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 (globalThis as Record<string, unknown>).IS_REACT_ACT_ENVIRONMENT = true;
@@ -236,6 +236,37 @@ describe("Android hardware back", () => {
     await pressAndroidBack();
     expect(shell.minimizeApp).toHaveBeenCalledTimes(1);
     expect(path()).toBe("/");
+  });
+});
+
+describe("Android back chain from a deep link in the app's HashRouter", () => {
+  // The app runs in a HashRouter, whose `history.state.idx` is what
+  // hasInAppHistory reads. The fallback must replace the deep-linked entry:
+  // pushing the parent would put the deep-linked screen behind it, so the next
+  // Back would pop back into it and Home (and minimise) would be unreachable.
+  afterEach(() => {
+    window.history.replaceState(null, "", "#/");
+  });
+
+  it("walks /profile/edit -> /profile -> / and then minimises, never returning to the deep-linked screen", async () => {
+    window.history.replaceState(null, "", "#/profile/edit");
+    await act(async () => {
+      root = createRoot(container);
+      root.render(createElement(HashRouter, null, createElement(NativeShellProbe), createElement(LocationProbe)));
+    });
+    expect(path()).toBe("/profile/edit");
+    const lengthAtStart = window.history.length;
+
+    await pressAndroidBack();
+    expect(path()).toBe("/profile");
+    await pressAndroidBack();
+    expect(path()).toBe("/");
+    expect(shell.minimizeApp).not.toHaveBeenCalled();
+    await pressAndroidBack();
+    expect(path()).toBe("/");
+    expect(shell.minimizeApp).toHaveBeenCalledTimes(1);
+    // Each fallback replaced the entry in place; nothing was stacked behind Home.
+    expect(window.history.length).toBe(lengthAtStart);
   });
 });
 
