@@ -20,6 +20,8 @@ export function HomeScreen() {
   const hub = useHubPrefetch();
   const standing = hub.data?.freeClimb ?? null;
   const standingLoading = hub.data === null && (hub.loading || hub.fetchedAt === null);
+  // A failed load is not "no record": never tell a ranked player they're unranked.
+  const standingFailed = hub.data === null && hub.error;
 
   // Daily challenge state — refreshes each time Home mounts (after a run) and
   // the reset countdown re-renders on a slow tick.
@@ -87,7 +89,7 @@ export function HomeScreen() {
         </header>
 
         <div className="mt-6 flex justify-end">
-          <BestCard standing={standing} loading={standingLoading} />
+          <BestCard standing={standing} loading={standingLoading} failed={standingFailed} />
         </div>
 
         {/* Scene gap — the volcanic backdrop shows through here */}
@@ -142,9 +144,12 @@ export function HomeScreen() {
 function BestCard({
   standing,
   loading,
+  failed,
 }: {
   standing: { peakY: number; rank: number } | null;
   loading: boolean;
+  /** The dashboard didn't load: show a neutral dash, not "Unranked". */
+  failed: boolean;
 }) {
   return (
     <div
@@ -175,8 +180,9 @@ function BestCard({
           <p
             className={`mt-1.5 text-center font-display font-black tabular-nums ${standing ? "text-lg text-signal" : "font-mono text-[11px] uppercase tracking-[0.2em] text-text-muted"}`}
           >
-            {standing ? `#${standing.rank.toLocaleString()}` : "Unranked"}
+            {standing ? `#${standing.rank.toLocaleString()}` : failed ? "—" : "Unranked"}
           </p>
+          {failed && <span className="sr-only">Couldn&apos;t load your best climb</span>}
         </>
       )}
     </div>

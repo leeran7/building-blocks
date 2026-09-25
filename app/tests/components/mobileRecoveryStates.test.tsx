@@ -278,3 +278,40 @@ describe("Ranks error and empty states", () => {
     expect(path()).toBe("/climb");
   });
 });
+
+describe("dashboard failure is not 'no record'", () => {
+  it("Home's Best card shows a dash, not Unranked, when the dashboard fails", async () => {
+    net.status["/api/dashboard"] = 500;
+    await mount(["/"]);
+    const best = container.querySelector('[aria-live="polite"]');
+    expect(best?.textContent).toContain("Couldn't load your best climb");
+    expect(best?.textContent).not.toContain("Unranked");
+  });
+
+  it("Home still says Unranked for a player with no record", async () => {
+    net.dash = { ...RANKED_DASH, freeClimb: null };
+    await mount(["/"]);
+    expect(container.querySelector('[aria-live="polite"]')?.textContent).toContain("Unranked");
+  });
+
+  it("Profile says it couldn't load the climb, and Try again loads it", async () => {
+    net.status["/api/dashboard"] = 500;
+    await mount(["/profile"]);
+    expect(container.textContent).toContain("Couldn't load your climb");
+    expect(container.textContent).not.toContain("No climbs yet");
+
+    net.status["/api/dashboard"] = 200;
+    await click(buttonByText("Try again"));
+
+    expect(calls("/api/dashboard")).toHaveLength(2);
+    expect(container.textContent).not.toContain("Couldn't load your climb");
+    expect(container.querySelector('[aria-label="Best climb"]')?.textContent).toContain("3,400");
+  });
+
+  it("Profile still says No climbs yet for a player with no record", async () => {
+    net.dash = { ...RANKED_DASH, freeClimb: null };
+    await mount(["/profile"]);
+    expect(container.textContent).toContain("No climbs yet");
+    expect(buttonByText("Try again")).toBeUndefined();
+  });
+});

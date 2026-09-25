@@ -2,7 +2,7 @@ import { useNavigate } from "react-router-dom";
 import { API_BASE } from "../lib/api";
 import { openExternal } from "../lib/external";
 import { useAuth } from "../contexts/AuthContext";
-import { useDashboard, useSettings } from "../contexts/AppDataContext";
+import { useDashboard, useInvalidateAppData, useSettings } from "../contexts/AppDataContext";
 import { tapLight, tapHeavy } from "../lib/haptics";
 import { dailySummary, formatReset, msUntilReset } from "../lib/daily";
 import { ALTITUDE_UNIT } from "@app/lib/units";
@@ -19,6 +19,7 @@ export function ProfileScreen() {
   const { user } = useAuth();
   const dash = useDashboard();
   const settingsSlice = useSettings();
+  const invalidate = useInvalidateAppData();
 
   const dashData = dash.data;
   const settingsData = settingsSlice.data;
@@ -34,6 +35,14 @@ export function ProfileScreen() {
 
   // Cold-load skeleton only; warm revisits render straight from cache.
   const loading = (dash.loading && !dashData) || (settingsSlice.loading && !settingsData);
+  // A failed dashboard load is not "no climbs yet": say so and offer a retry.
+  const dashFailed = dash.error && !dashData;
+
+  const retryDashboard = () => {
+    void tapLight();
+    // Marking the slice stale makes useDashboard refetch now, not after the TTL.
+    invalidate(["dashboard"]);
+  };
 
   const openEdit = () => {
     void tapLight();
@@ -114,7 +123,25 @@ export function ProfileScreen() {
               </button>
             </section>
 
-            {climb ? (
+            {dashFailed ? (
+              <section className="glass flex items-center gap-4 rounded-3xl border border-white/10 px-5 py-4" aria-label="Best climb">
+                <CrownIcon muted />
+                <span className="h-12 w-px shrink-0 bg-white/15" />
+                <div className="min-w-0 flex-1">
+                  <p className="font-display text-lg font-black uppercase tracking-tight text-text-primary">
+                    Couldn&apos;t load your climb
+                  </p>
+                  <p className="mt-0.5 text-[13px] text-text-secondary">Check your connection</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={retryDashboard}
+                  className="min-h-[44px] shrink-0 rounded-2xl border border-white/10 bg-white/[0.04] px-4 text-sm font-semibold text-text-primary transition-transform active:scale-95"
+                >
+                  Try again
+                </button>
+              </section>
+            ) : climb ? (
               <section className="glow-card flex items-center gap-4 rounded-3xl px-5 py-4" aria-label="Best climb">
                 <CrownIcon />
                 <span className="h-14 w-px shrink-0 bg-signal/30" />
@@ -150,7 +177,7 @@ export function ProfileScreen() {
             )}
 
             <div className="grid grid-cols-2 gap-3">
-              <StatTile label="Wins" value={String(climb?.wins ?? 0)} />
+              <StatTile label="Wins" value={dashFailed ? "—" : String(climb?.wins ?? 0)} />
               <StatTile
                 label="Daily streak"
                 value={daily.streak > 0 ? String(daily.streak) : "—"}
