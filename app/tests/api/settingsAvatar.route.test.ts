@@ -102,10 +102,10 @@ describe("PUT /api/settings avatarId", () => {
 
   it("revalidates the climb leaderboard when the avatar is set or cleared", async () => {
     await put({ avatarId: VALID });
-    expect(revalidateTag).toHaveBeenCalledWith(LEADERBOARD_CACHE_TAG, { expire: 60 });
+    expect(revalidateTag).toHaveBeenCalledWith(LEADERBOARD_CACHE_TAG, { expire: 0 });
     revalidateTag.mockClear();
     await put({ avatarId: null });
-    expect(revalidateTag).toHaveBeenCalledWith(LEADERBOARD_CACHE_TAG, { expire: 60 });
+    expect(revalidateTag).toHaveBeenCalledWith(LEADERBOARD_CACHE_TAG, { expire: 0 });
   });
 
   it("does not revalidate the leaderboard or touch the avatar when avatarId is absent", async () => {

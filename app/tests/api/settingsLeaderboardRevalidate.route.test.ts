@@ -73,14 +73,14 @@ describe("PUT /api/settings leaderboard revalidation", () => {
   it("revalidates the climb leaderboard tag when leaderboardConsent changes, not the duel one", async () => {
     const res = await put({ leaderboardConsent: true });
     expect(res.status).toBe(200);
-    expect(revalidateTag).toHaveBeenCalledWith(LEADERBOARD_CACHE_TAG, { expire: 60 });
+    expect(revalidateTag).toHaveBeenCalledWith(LEADERBOARD_CACHE_TAG, { expire: 0 });
     expect(revalidateTag).not.toHaveBeenCalledWith(DUEL_LEADERBOARD_CACHE_TAG, expect.anything());
   });
 
   it("revalidates the duel leaderboard tag when displayName changes, not the climb one", async () => {
     const res = await put({ displayName: "Aria" });
     expect(res.status).toBe(200);
-    expect(revalidateTag).toHaveBeenCalledWith(DUEL_LEADERBOARD_CACHE_TAG, { expire: 60 });
+    expect(revalidateTag).toHaveBeenCalledWith(DUEL_LEADERBOARD_CACHE_TAG, { expire: 0 });
     expect(revalidateTag).not.toHaveBeenCalledWith(LEADERBOARD_CACHE_TAG, expect.anything());
   });
 

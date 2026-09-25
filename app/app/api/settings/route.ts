@@ -36,6 +36,10 @@ const MAX_NAME = 60;
 const SETTINGS_RATE_MAX = 30;
 const SETTINGS_RATE_WINDOW_SECONDS = 60;
 
+// revalidateTag profile that expires the tag now, so the next read misses the
+// cache instead of getting one more stale response.
+const IMMEDIATE_EXPIRY = { expire: 0 } as const;
+
 export const GET = withAuth(async (_request: NextRequest, uid: string) => {
   try {
     return NextResponse.json(await getUserSettings(uid));
@@ -227,20 +231,22 @@ export async function PUT(request: NextRequest): Promise<NextResponse> {
     }
 
     const settings = await updateUserSettings(decoded.uid, patch);
-    // A change here decides whether this player's record shows on the public
-    // leaderboard, and topFreeClimbers' unstable_cache only naturally expires
-    // every 60s — revalidate on demand so revoking (or granting) consent
-    // takes effect on the next fetch, not up to a minute later.
-    // The climb leaderboard also renders each row's avatar, so an avatar
-    // change revalidates it for the same reason.
+    // Consent decides whether this player's record shows on the public
+    // leaderboard, and each row renders the player's avatar. topFreeClimbers'
+    // unstable_cache otherwise lives up to 60s. `expire: 0` expires the tag
+    // immediately, so the next read is a cache miss: revoking consent removes
+    // the player on the very next fetch. Any non-zero profile (e.g.
+    // `{ expire: 60 }`) is stale-while-revalidate in Next 16, which serves the
+    // old body once more. updateTag() would be immediate too, but it throws
+    // outside Server Actions.
     if (patch.leaderboardConsent !== undefined || patch.avatarId !== undefined) {
-      revalidateTag(LEADERBOARD_CACHE_TAG, { expire: 60 });
+      revalidateTag(LEADERBOARD_CACHE_TAG, IMMEDIATE_EXPIRY);
     }
     if (patch.displayName !== undefined) {
       // topDuelStats gates visibility on display_name being non-null, so
-      // clearing or setting it also needs an on-demand revalidation, same
-      // reasoning as the leaderboard consent tag above.
-      revalidateTag(DUEL_LEADERBOARD_CACHE_TAG, { expire: 60 });
+      // clearing it must drop the player from the duel board on the next
+      // fetch too, same immediate expiry as the consent tag above.
+      revalidateTag(DUEL_LEADERBOARD_CACHE_TAG, IMMEDIATE_EXPIRY);
       // Audit trail: the name is public and impersonation-capable, so keep
       // it traceable. Log uid + timestamp only — never the raw value, to
       // avoid logging PII.
