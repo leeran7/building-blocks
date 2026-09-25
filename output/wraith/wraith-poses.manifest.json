@@ -1,0 +1,294 @@
+{
+  "version": 1,
+  "character": "wraith",
+  "image": "wraith-poses.png",
+  "status": "ready-for-integration",
+  "size": {
+    "w": 2048,
+    "h": 1024
+  },
+  "format": "RGBA PNG",
+  "layout": {
+    "columns": 4,
+    "rows": 2,
+    "cellWidth": 512,
+    "cellHeight": 512,
+    "order": "row-major"
+  },
+  "facing": "right",
+  "mirroredFrames": false,
+  "accentColor": "#c6f24d",
+  "anchor": {
+    "x": 256,
+    "y": 460,
+    "units": "cell pixels"
+  },
+  "frames": [
+    {
+      "index": 0,
+      "name": "idle",
+      "rect": {
+        "x": 0,
+        "y": 0,
+        "w": 512,
+        "h": 512
+      },
+      "sourceSize": {
+        "w": 512,
+        "h": 512
+      },
+      "pivot": {
+        "x": 256,
+        "y": 460
+      },
+      "opaqueBounds": {
+        "x": 126,
+        "y": 80,
+        "w": 240,
+        "h": 380
+      }
+    },
+    {
+      "index": 1,
+      "name": "run-a",
+      "rect": {
+        "x": 512,
+        "y": 0,
+        "w": 512,
+        "h": 512
+      },
+      "sourceSize": {
+        "w": 512,
+        "h": 512
+      },
+      "pivot": {
+        "x": 256,
+        "y": 460
+      },
+      "opaqueBounds": {
+        "x": 90,
+        "y": 78,
+        "w": 324,
+        "h": 382
+      }
+    },
+    {
+      "index": 2,
+      "name": "run-b",
+      "rect": {
+        "x": 1024,
+        "y": 0,
+        "w": 512,
+        "h": 512
+      },
+      "sourceSize": {
+        "w": 512,
+        "h": 512
+      },
+      "pivot": {
+        "x": 256,
+        "y": 460
+      },
+      "opaqueBounds": {
+        "x": 98,
+        "y": 75,
+        "w": 275,
+        "h": 385
+      }
+    },
+    {
+      "index": 3,
+      "name": "reach-a",
+      "rect": {
+        "x": 1536,
+        "y": 0,
+        "w": 512,
+        "h": 512
+      },
+      "sourceSize": {
+        "w": 512,
+        "h": 512
+      },
+      "pivot": {
+        "x": 256,
+        "y": 460
+      },
+      "opaqueBounds": {
+        "x": 129,
+        "y": 74,
+        "w": 231,
+        "h": 386
+      }
+    },
+    {
+      "index": 4,
+      "name": "reach-b",
+      "rect": {
+        "x": 0,
+        "y": 512,
+        "w": 512,
+        "h": 512
+      },
+      "sourceSize": {
+        "w": 512,
+        "h": 512
+      },
+      "pivot": {
+        "x": 256,
+        "y": 460
+      },
+      "opaqueBounds": {
+        "x": 130,
+        "y": 75,
+        "w": 262,
+        "h": 385
+      }
+    },
+    {
+      "index": 5,
+      "name": "falling",
+      "rect": {
+        "x": 512,
+        "y": 512,
+        "w": 512,
+        "h": 512
+      },
+      "sourceSize": {
+        "w": 512,
+        "h": 512
+      },
+      "pivot": {
+        "x": 256,
+        "y": 460
+      },
+      "opaqueBounds": {
+        "x": 68,
+        "y": 120,
+        "w": 372,
+        "h": 340
+      }
+    },
+    {
+      "index": 6,
+      "name": "celebrate",
+      "rect": {
+        "x": 1024,
+        "y": 512,
+        "w": 512,
+        "h": 512
+      },
+      "sourceSize": {
+        "w": 512,
+        "h": 512
+      },
+      "pivot": {
+        "x": 256,
+        "y": 460
+      },
+      "opaqueBounds": {
+        "x": 107,
+        "y": 77,
+        "w": 288,
+        "h": 383
+      }
+    },
+    {
+      "index": 7,
+      "name": "down",
+      "rect": {
+        "x": 1536,
+        "y": 512,
+        "w": 512,
+        "h": 512
+      },
+      "sourceSize": {
+        "w": 512,
+        "h": 512
+      },
+      "pivot": {
+        "x": 256,
+        "y": 460
+      },
+      "opaqueBounds": {
+        "x": 99,
+        "y": 162,
+        "w": 285,
+        "h": 298
+      }
+    }
+  ],
+  "animations": {
+    "idle": {
+      "frames": [
+        0
+      ],
+      "frameDurationMs": 1000,
+      "loop": true
+    },
+    "walk": {
+      "frames": [
+        1,
+        2
+      ],
+      "frameDurationMs": 160,
+      "loop": true
+    },
+    "climb": {
+      "frames": [
+        3,
+        4
+      ],
+      "frameDurationMs": 220,
+      "loop": true
+    },
+    "air": {
+      "frames": [
+        5
+      ],
+      "frameDurationMs": 1000,
+      "loop": false
+    },
+    "done": {
+      "frames": [
+        6
+      ],
+      "frameDurationMs": 1000,
+      "loop": false
+    },
+    "dead": {
+      "frames": [
+        7
+      ],
+      "frameDurationMs": 1000,
+      "loop": false
+    }
+  },
+  "reducedMotion": {
+    "idle": 0,
+    "walk": 1,
+    "climb": 3,
+    "air": 5,
+    "done": 6,
+    "dead": 7
+  },
+  "rendering": {
+    "trimmed": false,
+    "premultipliedAlpha": false,
+    "imageSmoothingEnabled": true,
+    "direction": "For left-facing movement, reflect the entire destination around the foot anchor in-engine.",
+    "scale": "Idle visible height is 380px. Use one common scale for all states; do not fit each opaque bounding box independently."
+  },
+  "provenance": {
+    "artwork": "Built-in image generation, followed by user-authorized local chroma extraction and packing.",
+    "reference": "../../app/mobile/src/assets/avatars/wraith.webp",
+    "runB": "Generated separately for the opposite stride. No frames were mirrored."
+  },
+  "validation": {
+    "dimensions": true,
+    "realAlpha": true,
+    "eightFrames": true,
+    "footBaseline": 460,
+    "minimumGutterPx": 30,
+    "inGameIntegration": "Not performed; artwork-only scope."
+  }
+}

@@ -1,0 +1,312 @@
+{
+  "version": 1,
+  "character": "wraith",
+  "accentColor": "#c6f24d",
+  "status": "ready-for-integration",
+  "cellSize": {
+    "width": 512,
+    "height": 512
+  },
+  "root": {
+    "x": 256,
+    "y": 460,
+    "units": "frame pixels"
+  },
+  "alpha": "straight RGBA",
+  "trimmed": false,
+  "mirroredFrames": false,
+  "rendering": {
+    "idleReferenceHeightPx": 380,
+    "scale": "Use a single scale for all frames; preserve animation bob and raised feet.",
+    "destination": "At world/screen root (x,y), draw each full cell at (x-256*s,y-460*s) with size (512*s,512*s).",
+    "walkDirection": "right",
+    "climbView": "back",
+    "imageSmoothingEnabled": true
+  },
+  "animations": {
+    "walk": {
+      "image": "wraith-run.png",
+      "style": "run",
+      "width": 4096,
+      "height": 512,
+      "frameCount": 8,
+      "frameDurationMs": 80,
+      "loop": true,
+      "reducedMotionFrame": 0,
+      "preview": "wraith-run-preview.gif",
+      "exactTimingPreview": "wraith-run-loop.png",
+      "forwardLeanDegrees": 10,
+      "frames": [
+        {
+          "index": 0,
+          "phase": "left-contact",
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "width": 512,
+            "height": 512
+          },
+          "opaqueBounds": {
+            "x": 153,
+            "y": 96,
+            "width": 260,
+            "height": 364
+          },
+          "bodyBobPx": 0,
+          "airborne": false
+        },
+        {
+          "index": 1,
+          "phase": "left-compression",
+          "rect": {
+            "x": 512,
+            "y": 0,
+            "width": 512,
+            "height": 512
+          },
+          "opaqueBounds": {
+            "x": 196,
+            "y": 105,
+            "width": 210,
+            "height": 354
+          },
+          "bodyBobPx": 9,
+          "airborne": false
+        },
+        {
+          "index": 2,
+          "phase": "left-push-off",
+          "rect": {
+            "x": 1024,
+            "y": 0,
+            "width": 512,
+            "height": 512
+          },
+          "opaqueBounds": {
+            "x": 185,
+            "y": 89,
+            "width": 186,
+            "height": 371
+          },
+          "bodyBobPx": -7,
+          "airborne": false
+        },
+        {
+          "index": 3,
+          "phase": "flight-right-leading",
+          "rect": {
+            "x": 1536,
+            "y": 0,
+            "width": 512,
+            "height": 512
+          },
+          "opaqueBounds": {
+            "x": 154,
+            "y": 84,
+            "width": 247,
+            "height": 350
+          },
+          "bodyBobPx": -12,
+          "airborne": true
+        },
+        {
+          "index": 4,
+          "phase": "right-contact",
+          "rect": {
+            "x": 2048,
+            "y": 0,
+            "width": 512,
+            "height": 512
+          },
+          "opaqueBounds": {
+            "x": 153,
+            "y": 96,
+            "width": 256,
+            "height": 364
+          },
+          "bodyBobPx": 0,
+          "airborne": false
+        },
+        {
+          "index": 5,
+          "phase": "right-compression",
+          "rect": {
+            "x": 2560,
+            "y": 0,
+            "width": 512,
+            "height": 512
+          },
+          "opaqueBounds": {
+            "x": 196,
+            "y": 105,
+            "width": 205,
+            "height": 354
+          },
+          "bodyBobPx": 9,
+          "airborne": false
+        },
+        {
+          "index": 6,
+          "phase": "right-push-off",
+          "rect": {
+            "x": 3072,
+            "y": 0,
+            "width": 512,
+            "height": 512
+          },
+          "opaqueBounds": {
+            "x": 185,
+            "y": 89,
+            "width": 186,
+            "height": 371
+          },
+          "bodyBobPx": -7,
+          "airborne": false
+        },
+        {
+          "index": 7,
+          "phase": "flight-left-leading",
+          "rect": {
+            "x": 3584,
+            "y": 0,
+            "width": 512,
+            "height": 512
+          },
+          "opaqueBounds": {
+            "x": 154,
+            "y": 84,
+            "width": 252,
+            "height": 350
+          },
+          "bodyBobPx": -12,
+          "airborne": true
+        }
+      ]
+    },
+    "climb": {
+      "image": "wraith-climb.png",
+      "width": 3072,
+      "height": 512,
+      "frameCount": 6,
+      "frameDurationMs": 125,
+      "loop": true,
+      "reducedMotionFrame": 0,
+      "preview": "wraith-climb-preview.gif",
+      "exactTimingPreview": "wraith-climb-loop.png",
+      "frames": [
+        {
+          "index": 0,
+          "phase": "right-reach-left-foot-up",
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "width": 512,
+            "height": 512
+          },
+          "opaqueBounds": {
+            "x": 136,
+            "y": 81,
+            "width": 237,
+            "height": 379
+          },
+          "bodyBobPx": 0.0
+        },
+        {
+          "index": 1,
+          "phase": "right-pull-left-transfer",
+          "rect": {
+            "x": 512,
+            "y": 0,
+            "width": 512,
+            "height": 512
+          },
+          "opaqueBounds": {
+            "x": 115,
+            "y": 82,
+            "width": 274,
+            "height": 370
+          },
+          "bodyBobPx": 1.7320508075688774
+        },
+        {
+          "index": 2,
+          "phase": "left-reach-preparation",
+          "rect": {
+            "x": 1024,
+            "y": 0,
+            "width": 512,
+            "height": 512
+          },
+          "opaqueBounds": {
+            "x": 117,
+            "y": 79,
+            "width": 274,
+            "height": 373
+          },
+          "bodyBobPx": -1.7320508075688767
+        },
+        {
+          "index": 3,
+          "phase": "left-reach-right-foot-up",
+          "rect": {
+            "x": 1536,
+            "y": 0,
+            "width": 512,
+            "height": 512
+          },
+          "opaqueBounds": {
+            "x": 138,
+            "y": 81,
+            "width": 237,
+            "height": 379
+          },
+          "bodyBobPx": -4.898587196589413e-16
+        },
+        {
+          "index": 4,
+          "phase": "left-pull-right-transfer",
+          "rect": {
+            "x": 2048,
+            "y": 0,
+            "width": 512,
+            "height": 512
+          },
+          "opaqueBounds": {
+            "x": 119,
+            "y": 82,
+            "width": 274,
+            "height": 370
+          },
+          "bodyBobPx": 1.7320508075688783
+        },
+        {
+          "index": 5,
+          "phase": "right-reach-preparation",
+          "rect": {
+            "x": 2560,
+            "y": 0,
+            "width": 512,
+            "height": 512
+          },
+          "opaqueBounds": {
+            "x": 117,
+            "y": 79,
+            "width": 274,
+            "height": 373
+          },
+          "bodyBobPx": -1.7320508075688774
+        }
+      ]
+    }
+  },
+  "provenance": {
+    "artwork": "Built-in image generation: two-view reference of the existing Wraith.",
+    "animation": "User-authorized local extraction and fixed-part 2D rigging; no per-frame regenerated costume and no mirrored frames.",
+    "reference": "../wraith-poses.png",
+    "sourceViews": [
+      "wraith-side-reference.png",
+      "wraith-back-reference.png"
+    ]
+  },
+  "integration": "Artwork only; no game renderer changes were made by this task."
+}
