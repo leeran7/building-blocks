@@ -67,13 +67,14 @@ export function AvatarPickerScreen() {
     hasData: settingsData !== null,
     focusOnRecover: headingRef,
   });
-  const name = identityNameFor(settingsData, dash.data, user?.uid);
-  const userId = user?.uid ?? name;
   // The name the player would have with `avatarId` saved. With no display name
   // the pseudonym's animal follows the avatar, so "Use initials" must preview
-  // the initials of the hash-animal pseudonym, not of the current name.
+  // the initials of the hash-animal pseudonym, not of the current name. Every
+  // badge is named with this, never with the current name.
   const nameWith = (avatarId: string | null) =>
     identityNameFor(settingsData && { ...settingsData, avatarId }, dash.data, user?.uid);
+  // Tint key: the uid; with no signed-in user, the saved name.
+  const userId = user?.uid ?? nameWith(settingsData?.avatarId ?? null);
 
   const [current, setCurrent] = useState<string | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
