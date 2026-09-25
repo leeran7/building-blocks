@@ -1,6 +1,12 @@
 import { parseAvatarId } from "@app/lib/avatars";
 
-const FILES = import.meta.glob<string>("../assets/avatars/*.webp", { eager: true, import: "default" });
+// No type argument: this file is typechecked by both the Vite SPA (vite/client
+// types) and the root Next tsconfig via tests (Next's non-generic
+// ImportMeta.glob). The value is narrowed to a string URL below instead.
+const FILES: Record<string, unknown> = import.meta.glob("../assets/avatars/*.webp", {
+  eager: true,
+  import: "default",
+});
 
 const FILE_ID = /\/([^/]+)\.webp$/;
 
@@ -8,7 +14,7 @@ const FILE_ID = /\/([^/]+)\.webp$/;
 export const AVATAR_IMAGES: ReadonlyMap<string, string> = new Map(
   Object.entries(FILES).flatMap(([path, src]) => {
     const id = FILE_ID.exec(path)?.[1];
-    return id ? [[id, src] as const] : [];
+    return id && typeof src === "string" ? [[id, src] as const] : [];
   }),
 );
 
