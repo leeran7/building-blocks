@@ -9,6 +9,10 @@
  * avatar, and a retired id stored in the column must each survive it, and the
  * row's name and picture must still agree.
  *
+ * Before its first climb a new account has no board row, so its own Profile
+ * header (identityNameFor over the real settings and dashboard reads) must
+ * still name it by that pseudonym, never by its email.
+ *
  * The fake applies Prisma's upsert semantics (create when missing, else merge
  * `update` onto the stored row) to the same in-memory users table that the
  * board reads project through their own `select`.
@@ -47,6 +51,9 @@ import { ANIMALS, climberHandle } from "../../src/lib/handle";
 import { avatarName } from "../../src/lib/avatars";
 import { FREE_STACK_SLUG } from "../../src/game/freeStack";
 import { db, resetDb } from "../api/fakeSocialPrisma";
+import { getUserSettings } from "../../src/db/settings";
+import { buildDashboardPayload } from "../../src/db/dashboard";
+import { identityNameFor } from "../../mobile/src/lib/identity";
 
 const ANIMAL_WORDS: readonly string[] = ANIMALS;
 
@@ -178,5 +185,38 @@ describe("a later sign-in keeps the pick, and name and picture still agree", () 
     const row = await boardRow(ID);
     expect(row.avatarId).toBeNull();
     expect(row.handle).toBe(climberHandle(ID));
+  });
+});
+
+describe("a new account that has not climbed yet, on its own Profile", () => {
+  const ID = "fresh-player-11";
+  const EMAIL = `${ID}@e.com`;
+
+  /** Profile's header name and picture id, from the real settings and dashboard reads. */
+  async function profileOf(id: string) {
+    const settings = await getUserSettings(id);
+    const dash = await buildDashboardPayload(id, EMAIL);
+    return { name: identityNameFor(settings, dash, id), picture: settings.avatarId, dash };
+  }
+
+  it("is named by the pseudonym whose animal is in its default picture, not by its email", async () => {
+    await signIn(ID);
+
+    const { name, picture, dash } = await profileOf(ID);
+    expect(dash.freeClimb).toBeNull();
+    expect(name).not.toBe(EMAIL);
+    expect(name).toBe(climberHandle(ID));
+    expect(animalOf(name)).toBe(pictureAnimal(picture));
+  });
+
+  it("follows a non-default animal pick before the first climb", async () => {
+    await signIn(ID);
+    const pick = ANIMALS.find((a) => a !== animalOf(climberHandle(ID)))!.toLowerCase();
+    db.users.set(ID, { ...db.users.get(ID)!, avatar_id: pick });
+
+    const { name, picture } = await profileOf(ID);
+    expect(picture).toBe(pick);
+    expect(name).toBe(climberHandle(ID, pick));
+    expect(animalOf(name)).toBe(pictureAnimal(picture));
   });
 });

@@ -12,6 +12,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { MemoryRouter, Route, Routes, useNavigate } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AVATARS } from "@app/lib/avatars";
+import { climberHandle } from "@app/lib/handle";
 import type { SettingsData } from "../../mobile/src/contexts/AppDataContext";
 
 (globalThis as Record<string, unknown>).IS_REACT_ACT_ENVIRONMENT = true;
@@ -56,6 +57,7 @@ vi.mock("../../mobile/src/contexts/AppDataContext", async (importOriginal) => {
 import { EditProfileScreen } from "../../mobile/src/screens/EditProfileScreen";
 import { AvatarPickerScreen } from "../../mobile/src/screens/AvatarPickerScreen";
 import { stashEditProfileDraft, takeEditProfileDraft } from "../../mobile/src/lib/editProfileDraft";
+import { initialsOf } from "../../mobile/src/lib/leaderboard";
 
 const [FIRST] = AVATARS;
 const SAVED_NAME = "Aria Stone";
@@ -239,5 +241,16 @@ describe("editProfileDraft", () => {
     stashEditProfileDraft("u1", draft);
     expect(takeEditProfileDraft("u1")).toEqual(draft);
     expect(takeEditProfileDraft("u1")).toBeNull();
+  });
+});
+
+describe("EditProfileScreen avatar row", () => {
+  it("badges a player with no display name by their pseudonym's initials before the dashboard loads", () => {
+    state.settings = settings({ displayName: null, avatarId: null });
+    renderEditProfile();
+
+    const badge = byLabel("Avatar: Initials")?.querySelector(".hex")?.textContent;
+    expect(badge).toBe(initialsOf(climberHandle("u1", null)));
+    expect(badge).not.toBe(initialsOf("Player"));
   });
 });

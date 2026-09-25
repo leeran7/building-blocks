@@ -26,7 +26,7 @@ export function ProfileScreen() {
   const daily = dailySummary();
 
   const climb = dashData?.freeClimb ?? null;
-  const identityName = identityNameFor(settingsData, dashData);
+  const identityName = identityNameFor(settingsData, dashData, user?.uid);
   const identityUsername = settingsData?.username ?? dashData?.user.username ?? null;
   const topPct =
     climb && climb.totalClimbers

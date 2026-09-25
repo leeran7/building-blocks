@@ -244,8 +244,22 @@ describe("identityNameFor (the player's own Profile header)", () => {
     expect(identityNameFor(settings("wolf", "Aria"), dashFor("Aria"))).toBe("Aria");
   });
 
-  it("uses the dashboard handle while settings are not loaded, and the email with no climb", () => {
+  it("uses the dashboard handle while settings are not loaded", () => {
     expect(identityNameFor(null, dashFor("Server Name 1"))).toBe("Server Name 1");
-    expect(identityNameFor(settings("wolf"), { ...dashFor("x"), freeClimb: null })).toBe("w@e.com");
+  });
+
+  it("names a never-climbed account by the pseudonym matching its avatar, never the email", () => {
+    const neverClimbed = { ...dashFor("x"), freeClimb: null };
+    expect(identityNameFor(settings("wolf"), neverClimbed)).toBe(WOLF_NAME);
+    expect(identityNameFor(settings(null), neverClimbed)).toBe(HASH_NAME);
+    // Settings not loaded either: the badge falls back to initials, so the
+    // name is the avatar-less pseudonym those initials spell.
+    expect(identityNameFor(null, neverClimbed)).toBe(HASH_NAME);
+  });
+
+  it("uses the signed-in uid while the dashboard is not loaded, and Player only with no id at all", () => {
+    expect(identityNameFor(settings("wolf"), null, WOLF)).toBe(WOLF_NAME);
+    expect(identityNameFor(settings("wolf"), null)).toBe("Player");
+    expect(identityNameFor(null, null, null)).toBe("Player");
   });
 });

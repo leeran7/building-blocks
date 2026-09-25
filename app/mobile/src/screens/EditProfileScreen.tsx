@@ -69,7 +69,7 @@ export function EditProfileScreen() {
     focusOnRecover: headingRef,
   });
   const uid = user?.uid;
-  const identityName = identityNameFor(settingsData, dashData);
+  const identityName = identityNameFor(settingsData, dashData, uid);
 
   const [loaded, setLoaded] = useState<SettingsData | null>(null);
   const [displayName, setDisplayName] = useState("");
