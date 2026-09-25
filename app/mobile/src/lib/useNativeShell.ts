@@ -7,6 +7,7 @@ import { SplashScreen } from "@capacitor/splash-screen";
 import { Keyboard } from "@capacitor/keyboard";
 import { API_BASE } from "./api";
 import { parentRoute, useBackOr } from "./navigation";
+import { isTabRoot } from "../components/BottomNav";
 
 // Only links on our own verified origin are allowed to drive in-app routing.
 const CANONICAL_HOST = new URL(API_BASE).host;
@@ -17,9 +18,10 @@ const CANONICAL_HOST = new URL(API_BASE).host;
  *  - hides the native splash once the SPA has painted (config keeps it up until
  *    we say so, so there's no flash of empty WebView);
  *  - dark, edge-to-edge status bar to match the ASCENT void background;
- *  - Android hardware back button: navigate back through the in-app history
- *    (or to the screen's parent on a deep link, where there is none), and only
- *    background the app from the home screen — never exit mid-run;
+ *  - Android hardware back button: on a pushed screen, navigate back through
+ *    the in-app history (or to the screen's parent on a deep link, where there
+ *    is none); on a tab root (Home, Ranks, Profile), background the app —
+ *    never exit mid-run;
  *  - universal / app links: a shared https challenge link (…/duel/:id) opens
  *    straight into the in-app race room instead of the browser.
  */
@@ -75,8 +77,9 @@ export function useNativeShell() {
     if (Capacitor.getPlatform() !== "android") return;
     let remove = () => {};
     CapApp.addListener("backButton", () => {
-      const atHome = location.pathname === "/";
-      if (atHome) {
+      // The tabs are peers: back from any tab root leaves the app, as on Home,
+      // rather than popping through tab switches to another tab.
+      if (isTabRoot(location.pathname)) {
         void CapApp.minimizeApp();
       } else {
         back();

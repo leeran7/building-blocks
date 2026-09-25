@@ -11,13 +11,11 @@ import { DuelRoomScreen } from "./screens/DuelRoomScreen";
 import { ChallengeScreen } from "./screens/ChallengeScreen";
 import { AnimatedBackdrop } from "./components/AnimatedBackdrop";
 import { RouteTransition } from "./components/RouteTransition";
-import { BottomNav } from "./components/BottomNav";
+import { BottomNav, isTabRoot } from "./components/BottomNav";
 import { useNativeShell } from "./lib/useNativeShell";
 import { useAuth } from "./contexts/AuthContext";
 import { GuestShell } from "./components/GuestShell";
 import { LogoMark } from "./components/LogoMark";
-
-const NAV_ROUTES = new Set(["/", "/leaderboard", "/profile"]);
 
 /**
  * Root of the native game shell. The animated backdrop is persistent behind
@@ -47,7 +45,7 @@ export function App() {
   // NOTE: call useLocation() unconditionally — never behind a short-circuit.
   const location = useLocation();
   const onClimb = authed && location.pathname === "/climb";
-  const showNav = authed && NAV_ROUTES.has(location.pathname);
+  const showNav = authed && isTabRoot(location.pathname);
   const guestActive = guestMode && !authed;
 
   return (

@@ -3,11 +3,16 @@ import { useEffect, useRef, useState, type ReactNode, type TouchEvent } from "re
 import { tapLight } from "../lib/haptics";
 import { prefersReducedMotion } from "../lib/motion";
 import { parentRoute, useBackOr } from "../lib/navigation";
+import { isTabRoot } from "./BottomNav";
 
 /**
  * iOS-style navigation feel over the persistent game backdrop.
  *
- * Push (hub → screen):
+ * Hub (the bottom-nav tab roots: Home, Ranks, Profile — see isTabRoot):
+ *   - Fades in with a 6px settle, the same on every tab switch. The tabs are
+ *     peers, not a stack, so there is no slide and no edge-swipe back.
+ *
+ * Push (hub → screen: Edit Profile, Avatar, Challenge):
  *   - Entering screen slides in from right, on top of the static hub.
  *   - Hub unmounts cleanly once the push finishes. No overlay needed —
  *     the animated backdrop is always visible underneath, so there's no
@@ -21,7 +26,7 @@ import { parentRoute, useBackOr } from "../lib/navigation";
  */
 export function RouteTransition({ children }: { children: ReactNode }) {
   const { pathname } = useLocation();
-  const isHub = pathname === "/";
+  const isHub = isTabRoot(pathname);
 
   if (isHub) {
     return (

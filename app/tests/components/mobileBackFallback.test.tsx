@@ -3,8 +3,9 @@
  * universal link) has no in-app entry behind it. The swipe-back gesture
  * (RouteTransition), the Android hardware back button (useNativeShell) and the
  * Challenge header must go to the screen's parent instead of leaving the app,
- * and must still pop normally when there is in-app history. Android back on
- * Home keeps minimising the app.
+ * and must still pop normally when there is in-app history. The bottom-nav
+ * tab roots (Home, Ranks, Profile) are hubs: they fade in with no swipe-back,
+ * and Android back on any of them minimises the app.
  *
  * Renders the real components in a MemoryRouter; only Capacitor, auth,
  * haptics, the network and reduced motion are mocked.
@@ -159,6 +160,40 @@ afterEach(() => {
   container.remove();
 });
 
+/** The wrapper RouteTransition draws around the route whose label is `route`. */
+const sceneOf = (route: string) =>
+  [...container.querySelectorAll("p")].find((p) => p.textContent === route)?.parentElement ?? null;
+
+describe("RouteTransition: tab roots fade in as hubs, other screens push", () => {
+  it.each(["/", "/leaderboard", "/profile"])("wraps the %s tab root in the hub fade", async (tab) => {
+    await mount([tab], transitionTree());
+    const scene = sceneOf(tab);
+    expect(scene?.classList.contains("route-fade")).toBe(true);
+    expect(scene?.classList.contains("route-scene")).toBe(true);
+    expect(scene?.classList.contains("route-push")).toBe(false);
+  });
+
+  it("gives Ranks and Profile exactly the wrapper Home gets", async () => {
+    const wrappers: Array<string | undefined> = [];
+    for (const tab of ["/", "/leaderboard", "/profile"]) {
+      await mount([tab], transitionTree());
+      wrappers.push(sceneOf(tab)?.className);
+      const r = root;
+      if (r) act(() => r.unmount());
+      root = null;
+    }
+    expect(wrappers[0]).toBe("route-fade route-scene");
+    expect(wrappers).toEqual([wrappers[0], wrappers[0], wrappers[0]]);
+  });
+
+  it.each(["/profile/edit", "/profile/avatar", "/challenge"])("slides %s in as a pushed screen", async (screen) => {
+    await mount([screen], transitionTree());
+    const scene = sceneOf(screen);
+    expect(scene?.classList.contains("route-push")).toBe(true);
+    expect(scene?.classList.contains("route-fade")).toBe(false);
+  });
+});
+
 describe("parentRoute", () => {
   it("maps each pushed screen to the parent its header Back uses, and anything else to Home", () => {
     expect(parentRoute("/profile/edit")).toBe("/profile");
@@ -177,11 +212,23 @@ describe("swipe-back on a pushed screen", () => {
     ["/profile/edit", "/profile"],
     ["/profile/avatar", "/profile"],
     ["/challenge", "/"],
-    ["/leaderboard", "/"],
   ])("from a deep-linked %s goes to %s instead of leaving the app", async (from, to) => {
     await mount([from], transitionTree());
     await swipeBack();
     expect(path()).toBe(to);
+  });
+
+  it.each(["/leaderboard", "/profile"])("does nothing on the %s tab root, even with a tab behind it", async (tab) => {
+    await mount(["/", tab], transitionTree());
+    await swipeBack();
+    expect(path()).toBe(tab);
+  });
+
+  it("pops back to the tab it was pushed from, which fades in as a hub", async () => {
+    await mount(["/profile", "/profile/edit"], transitionTree());
+    await swipeBack();
+    expect(path()).toBe("/profile");
+    expect(sceneOf("/profile")?.classList.contains("route-fade")).toBe(true);
   });
 
   it("pops to the previous in-app screen when there is one", async () => {
@@ -207,7 +254,6 @@ describe("Android hardware back", () => {
     ["/profile/edit", "/profile"],
     ["/profile/avatar", "/profile"],
     ["/challenge", "/"],
-    ["/profile", "/"],
   ])("from a deep-linked %s goes to %s instead of leaving the app", async (from, to) => {
     await mount([from], createElement(NativeShellProbe));
     await pressAndroidBack();
@@ -237,6 +283,18 @@ describe("Android hardware back", () => {
     expect(shell.minimizeApp).toHaveBeenCalledTimes(1);
     expect(path()).toBe("/");
   });
+
+  it.each([
+    [["/leaderboard"]],
+    [["/profile"]],
+    [["/", "/leaderboard"]],
+    [["/leaderboard", "/profile"]],
+  ])("minimises on a tab root like Home, never popping to another tab (%j)", async (entries) => {
+    await mount(entries, createElement(NativeShellProbe));
+    await pressAndroidBack();
+    expect(shell.minimizeApp).toHaveBeenCalledTimes(1);
+    expect(path()).toBe(entries[entries.length - 1]);
+  });
 });
 
 describe("Android back chain from a deep link in the app's HashRouter", () => {
@@ -248,7 +306,7 @@ describe("Android back chain from a deep link in the app's HashRouter", () => {
     window.history.replaceState(null, "", "#/");
   });
 
-  it("walks /profile/edit -> /profile -> / and then minimises, never returning to the deep-linked screen", async () => {
+  it("walks /profile/edit -> /profile and then minimises, never returning to the deep-linked screen", async () => {
     window.history.replaceState(null, "", "#/profile/edit");
     await act(async () => {
       root = createRoot(container);
@@ -259,13 +317,12 @@ describe("Android back chain from a deep link in the app's HashRouter", () => {
 
     await pressAndroidBack();
     expect(path()).toBe("/profile");
-    await pressAndroidBack();
-    expect(path()).toBe("/");
     expect(shell.minimizeApp).not.toHaveBeenCalled();
+    // Profile is a tab root: Back leaves the app from it, as from Home.
     await pressAndroidBack();
-    expect(path()).toBe("/");
+    expect(path()).toBe("/profile");
     expect(shell.minimizeApp).toHaveBeenCalledTimes(1);
-    // Each fallback replaced the entry in place; nothing was stacked behind Home.
+    // The fallback replaced the entry in place; nothing was stacked behind Profile.
     expect(window.history.length).toBe(lengthAtStart);
   });
 });

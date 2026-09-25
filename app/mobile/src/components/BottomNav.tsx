@@ -7,6 +7,18 @@ const TABS = [
   { label: "Profile", path: "/profile", icon: UserIcon },
 ] as const;
 
+const TAB_PATHS: ReadonlySet<string> = new Set(TABS.map((t) => t.path));
+
+/**
+ * True for a bottom-nav tab root (Home, Ranks, Profile), taken from TABS so a
+ * new tab cannot be missed. The tabs are peers, not a stack: App shows the nav
+ * on them, RouteTransition fades them in with no swipe-back, and Android back
+ * leaves the app from any of them instead of popping to another tab.
+ */
+export function isTabRoot(pathname: string): boolean {
+  return TAB_PATHS.has(pathname);
+}
+
 export function BottomNav() {
   const navigate = useNavigate();
   const { pathname } = useLocation();
