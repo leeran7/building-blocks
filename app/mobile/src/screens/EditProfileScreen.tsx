@@ -8,6 +8,7 @@ import {
   useDashboard,
   useClearAppData,
   useInvalidateAppData,
+  settingsFromResponse,
   type SettingsData,
   type SocialState,
 } from "../contexts/AppDataContext";
@@ -27,9 +28,11 @@ import {
   normalizeHandle,
 } from "@app/lib/socialHandle";
 import { SocialMark } from "@app/components/Social/SocialMark";
-import { avatarName, parseAvatarId } from "@app/lib/avatars";
+import { avatarName } from "@app/lib/avatars";
 import { HexAvatar } from "../components/HexAvatar";
+import { PushHeader } from "../components/ui";
 import { identityNameFor } from "../lib/identity";
+import { stashEditProfileDraft, takeEditProfileDraft } from "../lib/editProfileDraft";
 
 const INPUT =
   "min-h-[48px] w-full rounded-xl border border-white/10 bg-[#0d0c10]/80 px-3.5 text-[15px] text-text-primary placeholder:text-text-muted focus:border-signal focus:outline-none";
@@ -37,7 +40,8 @@ const INPUT =
 /**
  * Edit Profile — identity, socials, preferences and the account actions.
  * Pushed from Profile; seeds its form once from the shared settings cache so a
- * background refresh never clobbers an in-progress edit.
+ * background refresh never clobbers an in-progress edit. Unsaved fields survive
+ * a trip to the avatar picker (see lib/editProfileDraft).
  */
 export function EditProfileScreen() {
   const navigate = useNavigate();
@@ -49,6 +53,8 @@ export function EditProfileScreen() {
 
   const settingsData = settingsSlice.data;
   const { setSettings } = settingsSlice;
+  const uid = user?.uid;
+  const identityName = identityNameFor(settingsData, dashData);
 
   const [loaded, setLoaded] = useState<SettingsData | null>(null);
   const [displayName, setDisplayName] = useState("");
@@ -68,13 +74,18 @@ export function EditProfileScreen() {
   useEffect(() => {
     if (seeded.current || !settingsData) return;
     seeded.current = true;
+    // Coming back from the avatar picker: restore what was typed before it.
+    // `loaded` stays the saved values, so the restored edits still read dirty.
+    // Taking the draft clears it, so leaving via Back (or saving) and opening
+    // Edit Profile again starts from the saved values.
+    const draft = uid ? takeEditProfileDraft(uid) : null;
     setLoaded(settingsData);
-    setDisplayName(settingsData.displayName ?? "");
-    setUsername(settingsData.username ?? "");
+    setDisplayName(draft?.displayName ?? settingsData.displayName ?? "");
+    setUsername(draft?.username ?? settingsData.username ?? "");
     setSavedUsername(settingsData.username ?? "");
-    setSocial(settingsData.social ?? {});
+    setSocial(draft?.social ?? settingsData.social ?? {});
     setLeaderboardVisible(settingsData.leaderboardConsent ?? false);
-  }, [settingsData]);
+  }, [settingsData, uid]);
 
   // Delete-confirm focus management: move focus into the warning when it opens
   // (so it's announced to VoiceOver/switch users) and restore it to the trigger
@@ -126,14 +137,12 @@ export function EditProfileScreen() {
         setError((d as { error?: string }).error ?? "Could not save. Try again.");
         void notifyError();
       } else {
-        const s: SettingsData = await res.json();
-        const next: SettingsData = {
-          displayName: s.displayName ?? null,
-          username: s.username ?? null,
-          social: s.social ?? null,
-          leaderboardConsent: Boolean((s as unknown as Record<string, unknown>).leaderboardConsent),
-          avatarId: parseAvatarId(s.avatarId),
-        };
+        const next = settingsFromResponse(await res.json().catch(() => null));
+        if (!next) {
+          setError("Could not save. Try again.");
+          void notifyError();
+          return;
+        }
         setLoaded(next);
         // Re-seed the input buffer from the server-normalized values (it strips
         // "@", lowercases, trims) so `dirty` doesn't stay true after a save when
@@ -208,21 +217,7 @@ export function EditProfileScreen() {
 
   return (
     <main className="flex h-full flex-col">
-      <header className="flex items-center gap-3 px-4 pb-4 pt-[calc(env(safe-area-inset-top)+1rem)]">
-        <button
-          aria-label="Back"
-          onClick={() => {
-            void tapLight();
-            navigate(-1);
-          }}
-          className="glass flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-white/10 text-text-primary transition-transform active:scale-90"
-        >
-          <ChevronLeft />
-        </button>
-        <h1 className="metal-title font-display text-[1.9rem] font-black uppercase leading-none tracking-[-0.02em]">
-          Edit profile
-        </h1>
-      </header>
+      <PushHeader title="Edit profile" onBack={() => navigate(-1)} />
 
       <div
         className="flex-1 overflow-y-auto px-4"
@@ -238,11 +233,12 @@ export function EditProfileScreen() {
             <Section title="Account">
               <div className="flex flex-col gap-4">
                 <AvatarRow
-                  userId={user?.uid ?? identityNameFor(settingsData, dashData)}
-                  name={identityNameFor(settingsData, dashData)}
+                  userId={uid ?? identityName}
+                  name={identityName}
                   avatarId={settingsData?.avatarId ?? null}
                   onOpen={() => {
                     void tapLight();
+                    if (uid && dirty) stashEditProfileDraft(uid, { displayName, username, social });
                     navigate("/profile/avatar");
                   }}
                 />
@@ -548,10 +544,3 @@ function ChevronRight() {
   );
 }
 
-function ChevronLeft() {
-  return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <path d="m15 18-6-6 6-6" />
-    </svg>
-  );
-}
