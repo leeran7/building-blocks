@@ -1,5 +1,6 @@
 import { hashId } from "@app/lib/handle";
 import { ALTITUDE_UNIT } from "@app/lib/units";
+import { parseAvatarId } from "@app/lib/avatars";
 import type { ClimberRank, FriendsBoard } from "../contexts/AppDataContext";
 
 export function formatHeight(ft: number): string {
@@ -116,7 +117,9 @@ export function parseFriendsBoard(body: unknown): FriendsBoard | null {
   const climbers: ClimberRank[] = [];
   for (const raw of b.climbers) {
     if (!isRawClimber(raw) || !isAvatarField(raw.avatarId)) return null;
-    climbers.push({ ...raw, avatarId: raw.avatarId ?? null });
+    // A string that is not a catalogue id (retired, or never valid) reads as
+    // null here, the same allow-list settingsFromResponse applies.
+    climbers.push({ ...raw, avatarId: parseAvatarId(raw.avatarId) });
   }
   if (!isCount(b.hiddenCount) || !isCount(b.notClimbedCount)) return null;
   return { climbers, hiddenCount: b.hiddenCount, notClimbedCount: b.notClimbedCount };

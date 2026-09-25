@@ -13,6 +13,7 @@ import {
   parseFriendsBoard,
 } from "../../mobile/src/lib/leaderboard";
 import type { ClimberRank } from "../../mobile/src/contexts/AppDataContext";
+import { AVATARS } from "@app/lib/avatars";
 
 const board = (peaks: number[], ids = peaks.map((_, i) => `u${i}`)): ClimberRank[] =>
   peaks.map((peakY, i) => ({ rank: i + 1, userId: ids[i], handle: `P${i}`, username: null, peakY, wins: 0, avatarId: null }));
@@ -119,11 +120,20 @@ describe("parseFriendsBoard", () => {
     expect(parseFriendsBoard({ ...valid, climbers: [{ userId: "a" }] })).toBeNull();
   });
 
-  it("keeps a climber's avatarId, string or null", () => {
+  it("keeps a climber's catalogue avatarId, or null", () => {
     const [a, me] = valid.climbers;
-    const body = { ...valid, climbers: [{ ...a, avatarId: "ember-knight" }, { ...me, avatarId: null }] };
-    expect(parseFriendsBoard(body)?.climbers.map((c) => c.avatarId)).toEqual(["ember-knight", null]);
+    const body = { ...valid, climbers: [{ ...a, avatarId: AVATARS[0].id }, { ...me, avatarId: null }] };
+    expect(parseFriendsBoard(body)?.climbers.map((c) => c.avatarId)).toEqual([AVATARS[0].id, null]);
   });
+
+  it.each(["ember-knight", "", "__proto__", "constructor", AVATARS[0].id.toUpperCase(), `${AVATARS[0].id} `])(
+    "reads a non-catalogue avatarId %j as null and keeps the board",
+    (avatarId) => {
+      const [a, me] = valid.climbers;
+      const board = parseFriendsBoard({ ...valid, climbers: [{ ...a, avatarId }, me] });
+      expect(board?.climbers.map((c) => c.avatarId)).toEqual([null, null]);
+    }
+  );
 
   it("reads a missing avatarId (older server) as null", () => {
     const climbers = valid.climbers.map(({ avatarId: _omit, ...rest }) => rest);
