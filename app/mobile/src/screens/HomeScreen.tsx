@@ -74,7 +74,9 @@ export function HomeScreen() {
   const queueActive = queue.state.status !== "idle";
 
   return (
-    <main className="flex h-full flex-col pt-[calc(env(safe-area-inset-top)+2rem)]">
+    // Short phones (320x568): tighter top spacing so Quick Play / Challenge sit
+    // fully above the tab bar without scrolling.
+    <main className="flex h-full flex-col pt-[calc(env(safe-area-inset-top)+2rem)] [@media(max-height:640px)]:pt-[calc(env(safe-area-inset-top)+1rem)]">
       <div
         className="flex flex-1 flex-col overflow-y-auto px-4"
         style={{ overscrollBehavior: "contain", WebkitOverflowScrolling: "touch" }}
@@ -88,12 +90,12 @@ export function HomeScreen() {
           </span>
         </header>
 
-        <div className="mt-6 flex justify-end">
+        <div className="mt-6 flex justify-end [@media(max-height:640px)]:mt-2">
           <BestCard standing={standing} loading={standingLoading} failed={standingFailed} />
         </div>
 
         {/* Scene gap — the volcanic backdrop shows through here */}
-        <div className="min-h-8 flex-1" />
+        <div className="min-h-8 flex-1 [@media(max-height:640px)]:min-h-2" />
 
         <div className="flex w-full flex-col gap-3 pb-4">
           <PlayButton onPress={play} />
