@@ -121,7 +121,11 @@ function renderEditProfile() {
   );
 }
 
-const nameInput = () => container.querySelector<HTMLInputElement>('input[placeholder="Your name on the leaderboard"]');
+/** The text input inside the "Display name" field label. */
+const nameInput = () =>
+  [...container.querySelectorAll("label")]
+    .find((l) => l.firstElementChild?.textContent === "Display name")
+    ?.querySelector<HTMLInputElement>("input") ?? null;
 const button = (re: RegExp) => [...container.querySelectorAll("button")].find((b) => re.test(b.textContent ?? ""));
 const byLabel = (label: string) => container.querySelector<HTMLButtonElement>(`button[aria-label^="${label}"]`);
 const heading = () => container.querySelector("h1")?.textContent;
@@ -252,5 +256,43 @@ describe("EditProfileScreen avatar row", () => {
     const badge = byLabel("Avatar: Initials")?.querySelector(".hex")?.textContent;
     expect(badge).toBe(initialsOf(climberHandle("u1", null)));
     expect(badge).not.toBe(initialsOf("Player"));
+  });
+});
+
+describe("EditProfileScreen display name placeholder", () => {
+  const PICKED = "wolf";
+
+  it("uses a fixture whose picked animal differs from the uid's hash animal", () => {
+    expect(climberHandle("u1", PICKED)).not.toBe(climberHandle("u1", null));
+    expect(climberHandle("u1", PICKED)).toContain("Wolf");
+  });
+
+  it("shows a pseudonymous player the name others see, without prefilling it", () => {
+    state.settings = settings({ displayName: null, avatarId: PICKED });
+    renderEditProfile();
+
+    expect(nameInput()?.placeholder).toBe(climberHandle("u1", PICKED));
+    expect(nameInput()?.value).toBe("");
+    expect(button(/save changes/i)?.disabled).toBe(true);
+  });
+
+  it("still saves a null display name for a pseudonymous player who edits another field", async () => {
+    state.settings = settings({ displayName: null, avatarId: PICKED });
+    renderEditProfile();
+    type(container.querySelector<HTMLInputElement>('input[placeholder="yourhandle"]'), "wolfy");
+
+    apiFetch.mockResolvedValueOnce(json(settings({ displayName: null, username: "wolfy", avatarId: PICKED })));
+    await click(button(/save changes/i));
+    expect(putBody(0)).toMatchObject({ displayName: null, username: "wolfy" });
+  });
+
+  it("shows a named player the pseudonym their name reverts to once they clear it", () => {
+    state.settings = settings({ displayName: SAVED_NAME, avatarId: PICKED });
+    renderEditProfile();
+    expect(nameInput()?.value).toBe(SAVED_NAME);
+
+    type(nameInput(), "");
+    expect(nameInput()?.placeholder).toBe(climberHandle("u1", PICKED));
+    expect(nameInput()?.placeholder).not.toBe(SAVED_NAME);
   });
 });

@@ -154,7 +154,11 @@ const buttonByText = (text: string) =>
 const path = () => container.querySelector("[data-testid=path]")?.textContent;
 const calls = (p: string, method = "GET") =>
   apiFetch.mock.calls.filter(([cp, init]) => cp === p && (init?.method ?? "GET") === method);
-const nameInput = () => container.querySelector<HTMLInputElement>('input[placeholder="Your name on the leaderboard"]');
+/** The text input inside the "Display name" field label (its placeholder is the player's pseudonym). */
+const nameInput = () =>
+  [...container.querySelectorAll("label")]
+    .find((l) => l.firstElementChild?.textContent === "Display name")
+    ?.querySelector<HTMLInputElement>("input") ?? null;
 
 beforeEach(() => {
   apiFetch.mockClear();

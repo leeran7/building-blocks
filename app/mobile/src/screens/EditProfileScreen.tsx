@@ -70,6 +70,10 @@ export function EditProfileScreen() {
   });
   const uid = user?.uid;
   const identityName = identityNameFor(settingsData, dashData, uid);
+  // The name an empty Display name saves as (the server stores null): the
+  // pseudonym, whose animal follows the saved avatar. It is only the placeholder,
+  // never the value, so saving a pseudonymous player still sends null.
+  const pseudonym = identityNameFor(settingsData && { ...settingsData, displayName: null }, dashData, uid);
 
   const [loaded, setLoaded] = useState<SettingsData | null>(null);
   const [displayName, setDisplayName] = useState("");
@@ -282,7 +286,7 @@ export function EditProfileScreen() {
                     type="text"
                     value={displayName}
                     onChange={(e) => setDisplayName(e.target.value)}
-                    placeholder="Your name on the leaderboard"
+                    placeholder={pseudonym}
                     maxLength={60}
                     className={INPUT}
                   />

@@ -94,7 +94,11 @@ async function mount(): Promise<HTMLElement> {
 }
 
 function displayNameInput(c: HTMLElement): HTMLInputElement {
-  const input = c.querySelector<HTMLInputElement>('input[placeholder="Your name on the leaderboard"]');
+  // The input inside the "Display name" field label (its placeholder is the player's pseudonym).
+  const input =
+    [...c.querySelectorAll("label")]
+      .find((l) => l.firstElementChild?.textContent === "Display name")
+      ?.querySelector<HTMLInputElement>("input") ?? null;
   if (!input) throw new Error("display name input not found");
   return input;
 }
