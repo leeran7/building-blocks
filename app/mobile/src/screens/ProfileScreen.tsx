@@ -124,11 +124,19 @@ export function ProfileScreen() {
             </section>
 
             {dashFailed ? (
-              <section className="glass flex items-center gap-4 rounded-3xl border border-white/10 px-5 py-4" aria-label="Best climb">
+              // Below ~380px the text column beside the crown and Try again is
+              // a word wide, so Try again wraps onto its own full-width row.
+              <section
+                className="glass flex flex-wrap items-center gap-x-4 gap-y-3 rounded-3xl border border-white/10 px-5 py-4"
+                aria-label="Best climb"
+              >
                 <CrownIcon muted />
                 <span className="h-12 w-px shrink-0 bg-white/15" />
                 <div className="min-w-0 flex-1">
-                  <p className="font-display text-lg font-black uppercase tracking-tight text-text-primary">
+                  <p
+                    className="font-display text-lg font-black uppercase tracking-tight text-text-primary"
+                    style={{ fontSize: "clamp(1rem, 4.6vw, 1.125rem)" }}
+                  >
                     Couldn&apos;t load your climb
                   </p>
                   <p className="mt-0.5 text-[13px] text-text-secondary">Check your connection</p>
@@ -136,7 +144,7 @@ export function ProfileScreen() {
                 <button
                   type="button"
                   onClick={retryDashboard}
-                  className="min-h-[44px] shrink-0 rounded-2xl border border-white/10 bg-white/[0.04] px-4 text-sm font-semibold text-text-primary transition-transform active:scale-95"
+                  className="min-h-[44px] shrink-0 rounded-2xl border border-white/10 bg-white/[0.04] px-4 text-sm font-semibold text-text-primary transition-transform active:scale-95 max-[379px]:w-full"
                 >
                   Try again
                 </button>
