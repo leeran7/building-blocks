@@ -16,6 +16,9 @@ export interface AvatarEntry {
 }
 
 export const AVATARS: readonly AvatarEntry[] = [
+  { id: "wraith", name: "Wraith" },
+  { id: "viking", name: "Viking" },
+  { id: "sentinel", name: "Sentinel" },
   { id: "ibex", name: "Ibex" },
   { id: "falcon", name: "Falcon" },
   { id: "marmot", name: "Marmot" },
@@ -24,16 +27,14 @@ export const AVATARS: readonly AvatarEntry[] = [
   { id: "otter", name: "Otter" },
   { id: "raven", name: "Raven" },
   { id: "lynx", name: "Lynx" },
+  { id: "bison", name: "Bison" },
   { id: "heron", name: "Heron" },
   { id: "cobra", name: "Cobra" },
   { id: "badger", name: "Badger" },
   { id: "wolf", name: "Wolf" },
   { id: "kestrel", name: "Kestrel" },
   { id: "mantis", name: "Mantis" },
-  { id: "bison", name: "Bison" },
-  { id: "wraith", name: "Wraith" },
-  { id: "viking", name: "Viking" },
-  { id: "sentinel", name: "Sentinel" },
+  { id: "yak", name: "Yak" },
 ];
 
 const BY_ID: Readonly<Record<string, AvatarEntry>> = Object.fromEntries(AVATARS.map((a) => [a.id, a]));

@@ -39,8 +39,8 @@ describe("AVATARS catalogue", () => {
   // retires every player who picked it, so the list is a stored contract.
   it("is the approved gallery, in order, with id = lowercase name", () => {
     expect(AVATARS.map((a) => a.name)).toEqual([
-      "Ibex", "Falcon", "Marmot", "Gecko", "Panther", "Otter", "Raven", "Lynx", "Heron",
-      "Cobra", "Badger", "Wolf", "Kestrel", "Mantis", "Bison", "Wraith", "Viking", "Sentinel",
+      "Wraith", "Viking", "Sentinel", "Ibex", "Falcon", "Marmot", "Gecko", "Panther", "Otter", "Raven",
+      "Lynx", "Bison", "Heron", "Cobra", "Badger", "Wolf", "Kestrel", "Mantis", "Yak",
     ]);
     for (const a of AVATARS) expect(a.id).toBe(a.name.toLowerCase());
   });

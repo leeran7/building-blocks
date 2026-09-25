@@ -13,7 +13,7 @@ import { AVATAR_IMAGES, avatarSrc } from "../../mobile/src/lib/avatarImages";
 
 const ASSET_DIR = resolve(import.meta.dirname, "../../mobile/src/assets/avatars");
 /** The approved gallery size; a dropped or extra file must fail, not shrink the loop. */
-const AVATAR_COUNT = 18;
+const AVATAR_COUNT = 19;
 
 describe("mobile avatar images", () => {
   it("resolves every catalogue id to a bundled image", () => {
