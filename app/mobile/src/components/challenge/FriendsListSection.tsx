@@ -95,7 +95,7 @@ export function FriendsListSection({ refreshKey, onChallengeSent }: FriendsListS
 
       {!loading && error && (
         <div className="flex flex-col items-center gap-2 py-2" role="alert">
-          <p className="text-sm text-ember">{error}</p>
+          <p className="text-meta leading-5 text-ember">{error}</p>
           <Button variant="ghost" fullWidth={false} onPress={fetchFriends}>
             Retry
           </Button>
@@ -103,7 +103,7 @@ export function FriendsListSection({ refreshKey, onChallengeSent }: FriendsListS
       )}
 
       {!loading && !error && friends.length === 0 && (
-        <p className="py-1 text-sm text-text-secondary">
+        <p className="py-1 text-meta leading-5 text-text-secondary">
           No friends yet — search below to add some.
         </p>
       )}
@@ -122,10 +122,10 @@ export function FriendsListSection({ refreshKey, onChallengeSent }: FriendsListS
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div className="min-w-[6rem] flex-1">
                       <p className="break-words text-balance text-body font-semibold text-text-primary">{name}</p>
-                      <UsernameHandle username={f.user.username} />
+                      <UsernameHandle username={f.user.username} sizeClass="text-meta" />
                     </div>
                     {sent ? (
-                      <span className="shrink-0 font-mono text-meta uppercase tracking-[0.12em] text-signal">
+                      <span className="shrink-0 font-mono text-meta uppercase tracking-chip text-signal">
                         Sent
                       </span>
                     ) : (

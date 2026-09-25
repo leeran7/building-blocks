@@ -2,21 +2,14 @@ import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { AVATARS } from "@app/lib/avatars";
 import { apiFetch } from "../lib/api";
 import { useAuth } from "../contexts/AuthContext";
-import {
-  settingsFromResponse,
-  useDashboard,
-  useInvalidateAppData,
-  useSettings,
-  type SettingsData,
-} from "../contexts/AppDataContext";
+import { echoedSetting, useDashboard, useInvalidateAppData, useSettings } from "../contexts/AppDataContext";
 import { HexAvatar } from "../components/HexAvatar";
 import { PushHeader, RetryPanel } from "../components/ui";
-import { identityNameFor } from "../lib/identity";
+import { identityNameFor, INITIALS_LABEL } from "../lib/identity";
 import { notifyError, notifySuccess, tapLight } from "../lib/haptics";
 import { useBackOr } from "../lib/navigation";
 import { useRetry } from "../hooks/useRetry";
 
-const INITIALS_LABEL = "Initials";
 const COLUMNS = 3;
 const TILE_HEX = 64;
 const PREVIEW_HEX = 128;
@@ -48,23 +41,6 @@ function nextIndex(key: string, current: number, count: number): number | null {
     default:
       return null;
   }
-}
-
-/**
- * The settings a 200 from PUT /api/settings confirms, or null unless they
- * carry exactly the avatar that was sent. Server truth only: a body without an
- * avatarId field, with a different one, or that does not parse is a failed
- * save, never "assume it worked". An API build older than avatars answers 200
- * and drops the field, and trusting the client there made the avatar look
- * saved until the next refresh reverted it.
- */
-export function confirmedAvatarSave(body: unknown, sent: string | null): SettingsData | null {
-  // hasOwnProperty.call, not Object.hasOwn: the SPA targets ES2020 WebViews.
-  if (typeof body !== "object" || body === null || !Object.prototype.hasOwnProperty.call(body, "avatarId")) {
-    return null;
-  }
-  const next = settingsFromResponse(body);
-  return next !== null && next.avatarId === sent ? next : null;
 }
 
 /**
@@ -156,7 +132,7 @@ export function AvatarPickerScreen() {
         void notifyError();
         return;
       }
-      const next = confirmedAvatarSave(await res.json().catch(() => null), selected);
+      const next = echoedSetting(await res.json().catch(() => null), "avatarId", selected);
       if (!next) {
         // The cached avatar stays the saved one and the picker stays open.
         setError(AVATAR_NOT_SAVED);
@@ -279,7 +255,7 @@ export function AvatarPickerScreen() {
       {settingsData && (
         <footer className="flex flex-col gap-2 px-4 pb-[calc(env(safe-area-inset-bottom)+16vh+1.5rem)] pt-2">
           {error && (
-            <p role="alert" className="glass rounded-2xl border border-ember/40 px-4 py-2.5 text-sm text-ember">
+            <p role="alert" className="glass rounded-2xl border border-ember/40 px-4 py-2.5 text-meta leading-5 text-ember">
               {error}
             </p>
           )}
@@ -287,7 +263,7 @@ export function AvatarPickerScreen() {
             ref={saveRef}
             onClick={() => void save()}
             disabled={!changed || saving}
-            className="cta-lime min-h-[56px] w-full rounded-2xl font-display text-lg font-black uppercase tracking-wide text-void transition-transform active:scale-[0.98] disabled:active:scale-100"
+            className="cta-lime min-h-[56px] w-full rounded-2xl font-display text-lead font-black uppercase tracking-wide text-void transition-transform active:scale-[0.98] disabled:active:scale-100"
           >
             {saving ? "Saving…" : "Save avatar"}
           </button>

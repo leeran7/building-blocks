@@ -67,6 +67,8 @@
   --text-headline--line-height: 1.1;
   --text-name: 1.25rem; /* Profile header name */
   --text-name--line-height: 1.15;
+  --text-lead: 1.125rem; /* Save CTA labels, Profile empty-state heading, Home best-card rank */
+  --text-lead--line-height: calc(1.75 / 1.125);
   --text-body: 1rem;
   --text-body--line-height: 1.4;
   --text-meta: 0.875rem; /* secondary copy, units, row meta */
@@ -75,7 +77,8 @@
   --text-label--line-height: 1.2;
 
   --tracking-label: 0.14em; /* BEST CLIMB, PLAYER, WINS, nav labels */
-  --tracking-eyebrow: 0.28em; /* wordmark eyebrows and taglines */
+  --tracking-chip: 0.12em; /* Global|Friends tabs, YOU and SENT chips */
+  --tracking-eyebrow: 0.28em; /* wordmark eyebrows and taglines; also their pl- centring pad */
 }
 
 /*

@@ -8,6 +8,7 @@ import {
   useDashboard,
   useClearAppData,
   useInvalidateAppData,
+  echoedSetting,
   settingsFromResponse,
   type SettingsData,
   type SocialState,
@@ -28,15 +29,16 @@ import {
   normalizeHandle,
 } from "@app/lib/socialHandle";
 import { SocialMark } from "@app/components/Social/SocialMark";
-import { avatarName } from "@app/lib/avatars";
 import { HexAvatar } from "../components/HexAvatar";
 import { PushHeader, RetryPanel } from "../components/ui";
-import { identityNameFor } from "../lib/identity";
+import { avatarButtonLabel, avatarLabel, identityNameFor } from "../lib/identity";
 import { stashEditProfileDraft, takeEditProfileDraft } from "../lib/editProfileDraft";
 import { useBackOr } from "../lib/navigation";
 import { useRetry } from "../hooks/useRetry";
 
 const LOAD_FAILED_MESSAGE = "Couldn't load your profile. Check your connection and try again.";
+/** The visibility toggle flipped back: the PUT failed, or its 200 did not echo the value. */
+export const VISIBILITY_NOT_SAVED = "Couldn't save your leaderboard visibility. Try again.";
 
 const INPUT =
   "min-h-[48px] w-full rounded-xl border border-white/10 bg-[#0d0c10]/80 px-3.5 text-body text-text-primary placeholder:text-text-muted focus:border-signal focus:outline-none";
@@ -85,6 +87,7 @@ export function EditProfileScreen() {
   const [error, setError] = useState<string | null>(null);
   const [haptics, setHaptics] = useState(isHapticsEnabled);
   const [leaderboardVisible, setLeaderboardVisible] = useState(hasLeaderboardConsent);
+  const [visibilityError, setVisibilityError] = useState<string | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
@@ -201,6 +204,7 @@ export function EditProfileScreen() {
     const next = !leaderboardVisible;
     setLeaderboardVisible(next);
     setLeaderboardConsent(next);
+    setVisibilityError(null);
     if (next) void tapLight();
     try {
       const res = await apiFetch("/api/settings", {
@@ -211,11 +215,8 @@ export function EditProfileScreen() {
       if (!res.ok) throw new Error("save failed");
       // Server truth only, as on the avatar picker: a 200 whose settings do not
       // carry the value sent did not store it, so the toggle flips back.
-      const body: unknown = await res.json().catch(() => null);
-      const confirmed = settingsFromResponse(body);
-      const echoed =
-        typeof body === "object" && body !== null && Object.prototype.hasOwnProperty.call(body, "leaderboardConsent");
-      if (!confirmed || !echoed || confirmed.leaderboardConsent !== next) throw new Error("not saved");
+      const confirmed = echoedSetting(await res.json().catch(() => null), "leaderboardConsent", next);
+      if (!confirmed) throw new Error("not saved");
       if (settingsData) {
         setSettings({ ...settingsData, leaderboardConsent: confirmed.leaderboardConsent });
       }
@@ -223,6 +224,7 @@ export function EditProfileScreen() {
     } catch {
       setLeaderboardVisible(!next);
       setLeaderboardConsent(!next);
+      setVisibilityError(VISIBILITY_NOT_SAVED);
       void notifyError();
     }
   };
@@ -377,6 +379,11 @@ export function EditProfileScreen() {
                 on={leaderboardVisible}
                 onToggle={() => void toggleLeaderboard()}
               />
+              {visibilityError && (
+                <p role="alert" className="mt-2 text-meta text-ember">
+                  {visibilityError}
+                </p>
+              )}
             </Section>
 
             {error && (
@@ -388,7 +395,7 @@ export function EditProfileScreen() {
             <button
               onClick={save}
               disabled={!canSave}
-              className="cta-lime mt-1 min-h-[56px] w-full rounded-2xl font-display text-lg font-black uppercase tracking-wide text-void transition-transform active:scale-[0.98] disabled:active:scale-100"
+              className="cta-lime mt-1 min-h-[56px] w-full rounded-2xl font-display text-lead font-black uppercase tracking-wide text-void transition-transform active:scale-[0.98] disabled:active:scale-100"
             >
               {saving ? "Saving…" : saved ? "Saved!" : "Save changes"}
             </button>
@@ -436,14 +443,14 @@ export function EditProfileScreen() {
                       setDeleteError(null);
                     }}
                     disabled={deleting}
-                    className="min-h-[48px] flex-1 rounded-2xl border border-white/10 text-sm font-semibold text-text-primary"
+                    className="min-h-[48px] flex-1 rounded-2xl border border-white/10 text-meta font-semibold text-text-primary"
                   >
                     Cancel
                   </button>
                   <button
                     onClick={deleteAccount}
                     disabled={deleting}
-                    className="min-h-[48px] flex-1 rounded-2xl bg-ember text-sm font-bold uppercase tracking-wide text-white disabled:opacity-60"
+                    className="min-h-[48px] flex-1 rounded-2xl bg-ember text-meta font-bold uppercase tracking-wide text-white disabled:opacity-60"
                   >
                     {deleting ? "Deleting…" : "Delete"}
                   </button>
@@ -490,12 +497,12 @@ function AvatarRow({
   avatarId: string | null;
   onOpen: () => void;
 }) {
-  const current = avatarName(avatarId) ?? "Initials";
+  const current = avatarLabel(avatarId);
   return (
     <button
       type="button"
       onClick={onOpen}
-      aria-label={`Avatar: ${current}. Change avatar`}
+      aria-label={avatarButtonLabel(avatarId)}
       className="-mx-1 flex min-h-[56px] items-center gap-3 rounded-2xl px-1 text-left transition-transform active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal"
     >
       <HexAvatar userId={userId} name={name} avatarId={avatarId} size={48} />

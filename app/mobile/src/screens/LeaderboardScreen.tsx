@@ -206,7 +206,7 @@ function ScopeTabs({ scope, onChange }: { scope: Scope; onChange: (next: Scope) 
             aria-controls={PANEL_ID}
             tabIndex={selected ? 0 : -1}
             onClick={() => select(id)}
-            className={`flex min-h-[44px] items-center justify-center gap-2 rounded-full font-display text-meta font-black uppercase tracking-[0.12em] transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void ${
+            className={`flex min-h-[44px] items-center justify-center gap-2 rounded-full font-display text-meta font-black uppercase tracking-chip transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void ${
               selected
                 ? "bg-signal text-void shadow-[0_0_18px_-4px_rgba(203,242,77,0.6)]"
                 : "text-text-secondary active:bg-white/5"
@@ -317,11 +317,17 @@ function PodiumSpot({
       >
         {climber ? (
           <>
-            <p className="line-clamp-3 break-words font-display text-meta font-bold leading-tight text-text-primary">
+            {/* Three lines hold a 60-character display name (MAX_NAME) at 320px without
+                stretching the column. A longer wrap ends in an ellipsis; the title carries
+                the full name, and screen readers read the full text regardless. */}
+            <p
+              title={climber.handle}
+              className="line-clamp-3 break-words font-display text-meta font-bold leading-tight text-text-primary"
+            >
               {climber.handle}
             </p>
             {isMe && (
-              <p className="mt-0.5 font-display text-label font-black uppercase tracking-[0.12em] text-signal">
+              <p className="mt-0.5 font-display text-label font-black uppercase tracking-chip text-signal">
                 You
               </p>
             )}

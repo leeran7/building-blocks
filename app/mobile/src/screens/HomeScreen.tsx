@@ -85,7 +85,7 @@ export function HomeScreen() {
           <h1 className="hm-wordmark font-display text-wordmark font-black uppercase tracking-[-0.03em] text-text-primary">
             Doom<span className="text-signal">stack</span>
           </h1>
-          <span className="pl-[0.28em] font-mono text-label uppercase tracking-eyebrow text-text-secondary">
+          <span className="pl-(--tracking-eyebrow) font-mono text-label uppercase tracking-eyebrow text-text-secondary">
             Endless&nbsp;climb
           </span>
         </header>
@@ -180,7 +180,7 @@ function BestCard({
           </p>
           <span className="mt-2 block h-px w-full bg-white/10" />
           <p
-            className={`mt-1.5 text-center font-display font-black tabular-nums ${standing ? "text-lg text-signal" : "font-mono text-label uppercase tracking-label text-text-muted"}`}
+            className={`mt-1.5 text-center font-display font-black tabular-nums ${standing ? "text-lead text-signal" : "font-mono text-label uppercase tracking-label text-text-muted"}`}
           >
             {standing ? `#${standing.rank.toLocaleString()}` : failed ? "—" : "Unranked"}
           </p>

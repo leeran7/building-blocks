@@ -55,6 +55,21 @@ function mount(el: React.ReactElement) {
   };
 }
 
+/** The rendered @handle line, found by its text, never by its class. */
+function handleLine(container: HTMLElement, username: string): HTMLElement | undefined {
+  return Array.from(container.querySelectorAll<HTMLElement>("p")).find(
+    (p) => p.textContent?.trim() === `@${username}`
+  );
+}
+
+/** Web /duel keeps its text-xs handle under text-sm names; only mobile passes its own token. */
+function expectWebHandleSize(line: HTMLElement | undefined) {
+  expect(line).toBeTruthy();
+  expect(line!.classList.contains("text-xs")).toBe(true);
+  expect(line!.classList.contains("text-sm")).toBe(false);
+  expect(line!.classList.contains("text-meta")).toBe(false);
+}
+
 describe("FriendRequests — username-only-no-displayname rendering", () => {
   let fetchMock: ReturnType<typeof vi.fn>;
 
@@ -93,6 +108,7 @@ describe("FriendRequests — username-only-no-displayname rendering", () => {
     const expectedName = climberHandle("sender-1"); // no display name → pseudonym
     expect(html).toContain(expectedName);
     expect(html).toContain("@bobsmith");
+    expectWebHandleSize(handleLine(container, "bobsmith"));
 
     unmount();
   });
@@ -184,6 +200,10 @@ describe("UserSearch — result preview renders name + @username + action button
     expect(html).toContain(climberHandle("found-1")); // no display name → pseudonym
     expect(html).toContain("@creator-1");
     expect(html).toContain("Add");
+    expectWebHandleSize(handleLine(container, "creator-1"));
+    // The typed query has replaced the placeholder; the field keeps its name.
+    expect(input.value).toBe("creator-1");
+    expect(input.getAttribute("aria-label")).toBe("Search by email or username");
 
     unmount();
   });

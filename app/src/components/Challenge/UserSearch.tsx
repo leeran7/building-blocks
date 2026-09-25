@@ -33,6 +33,8 @@ interface UserSearchProps {
   onSelect: (userId: string, displayName: string) => Promise<boolean>;
   disabled?: boolean;
   placeholder?: string;
+  /** The field's accessible name. It stays when the placeholder goes, once the user types. */
+  label?: string;
   actionLabel?: string;
   sentLabel?: string;
 }
@@ -41,6 +43,7 @@ export function UserSearch({
   onSelect,
   disabled,
   placeholder = "Search by email or username…",
+  label = "Search by email or username",
   actionLabel = "Add",
   sentLabel = "Sent",
 }: UserSearchProps) {
@@ -149,6 +152,7 @@ export function UserSearch({
           onChange={(e) => setQuery(e.target.value)}
           onFocus={() => results.length > 0 && setOpen(true)}
           placeholder={placeholder}
+          aria-label={label}
           disabled={disabled}
           autoCapitalize="none"
           autoCorrect="off"

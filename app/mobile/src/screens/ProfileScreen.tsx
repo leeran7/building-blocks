@@ -8,8 +8,7 @@ import { dailySummary, formatReset, msUntilReset } from "../lib/daily";
 import { ALTITUDE_UNIT } from "@app/lib/units";
 import { HexAvatar } from "../components/HexAvatar";
 import { HubHeader } from "../components/HubHeader";
-import { identityNameFor } from "../lib/identity";
-import { avatarName } from "@app/lib/avatars";
+import { avatarButtonLabel, identityNameFor } from "../lib/identity";
 
 /**
  * Profile — the player's identity and standing, plus the daily-climb hook.
@@ -78,7 +77,7 @@ export function ProfileScreen() {
             <section className="glass flex flex-wrap items-center gap-3.5 rounded-3xl border border-white/10 p-4">
               <button
                 type="button"
-                aria-label={`Avatar: ${avatarName(settingsData?.avatarId ?? null) ?? "Initials"}. Change avatar`}
+                aria-label={avatarButtonLabel(settingsData?.avatarId ?? null)}
                 onClick={openAvatarPicker}
                 className="relative shrink-0 rounded-2xl transition-transform active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void"
               >
@@ -107,7 +106,7 @@ export function ProfileScreen() {
                   {identityName}
                 </p>
                 {identityUsername && (
-                  <p className="truncate font-mono text-sm text-signal">@{identityUsername}</p>
+                  <p className="truncate font-mono text-meta text-signal">@{identityUsername}</p>
                 )}
                 {dashData?.user.email && (
                   // Wraps rather than ellipsizes; the <wbr> puts the first break after the "@".
@@ -143,7 +142,7 @@ export function ProfileScreen() {
                 <button
                   type="button"
                   onClick={retryDashboard}
-                  className="min-h-[44px] shrink-0 rounded-2xl border border-white/10 bg-white/[0.04] px-4 text-sm font-semibold text-text-primary transition-transform active:scale-95 max-[379px]:w-full"
+                  className="min-h-[44px] shrink-0 rounded-2xl border border-white/10 bg-white/[0.04] px-4 text-meta font-semibold text-text-primary transition-transform active:scale-95 max-[379px]:w-full"
                 >
                   Try again
                 </button>
@@ -172,7 +171,7 @@ export function ProfileScreen() {
                 <CrownIcon muted />
                 <span className="h-12 w-px shrink-0 bg-white/15" />
                 <div className="min-w-0 flex-1">
-                  <p className="font-display text-lg font-black uppercase tracking-tight text-text-primary">
+                  <p className="font-display text-lead font-black uppercase tracking-tight text-text-primary">
                     No climbs yet
                   </p>
                   <p className="mt-0.5 text-meta text-text-secondary">Hit Play to set your first record</p>
@@ -210,7 +209,7 @@ export function ProfileScreen() {
                   void tapLight();
                   void openExternal(`${API_BASE}/c/${identityUsername}`);
                 }}
-                className="glass flex min-h-[52px] w-full items-center justify-center gap-2.5 rounded-2xl border border-white/10 font-display text-sm font-bold uppercase tracking-[0.14em] text-text-primary transition-transform active:scale-[0.98]"
+                className="glass flex min-h-[52px] w-full items-center justify-center gap-2.5 rounded-2xl border border-white/10 font-display text-meta font-bold uppercase tracking-label text-text-primary transition-transform active:scale-[0.98]"
               >
                 <ExternalIcon />
                 View public page

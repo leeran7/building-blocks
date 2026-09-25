@@ -97,7 +97,7 @@ export function ChallengeScreen() {
               <h2 className="font-mono text-label uppercase tracking-label text-text-secondary">
                 Share a link
               </h2>
-              <p className="mt-1 text-sm text-text-secondary">
+              <p className="mt-1 text-meta leading-5 text-text-secondary">
                 Create a private challenge link to share outside the app.
               </p>
               <div className="mt-3">

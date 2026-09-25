@@ -155,7 +155,7 @@ export function UserSearchSection({ onFriendRequestSent }: UserSearchSectionProp
       )}
 
       {!loading && !searchError && searched && results.length === 0 && (
-        <p className="py-1 text-center text-sm text-text-secondary">
+        <p className="py-1 text-center text-meta leading-5 text-text-secondary">
           No user found with that email or username.
         </p>
       )}
@@ -172,10 +172,10 @@ export function UserSearchSection({ onFriendRequestSent }: UserSearchSectionProp
                   <div className="flex items-center justify-between gap-3">
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-body font-semibold text-text-primary">{name}</p>
-                      <UsernameHandle username={u.username} />
+                      <UsernameHandle username={u.username} sizeClass="text-meta" />
                     </div>
                     {sent ? (
-                      <span className="shrink-0 font-mono text-meta uppercase tracking-[0.12em] text-signal">
+                      <span className="shrink-0 font-mono text-meta uppercase tracking-chip text-signal">
                         Sent
                       </span>
                     ) : (

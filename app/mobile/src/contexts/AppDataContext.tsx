@@ -51,6 +51,35 @@ export interface SettingsData {
 /** Normalises a GET/PUT /api/settings body into the cached settings shape. */
 export function settingsFromResponse(body: unknown): SettingsData | null {
   if (typeof body !== "object" || body === null) return null;
+  return settingsFromObject(body);
+}
+
+/** A settings field that a single-field PUT sends and compares by value. */
+export type EchoedSettingKey = Exclude<keyof SettingsData, "social">;
+
+/**
+ * The settings a 200 from PUT /api/settings confirms, or null unless the body
+ * echoes exactly the value sent for `key`. Server truth only: a body that is
+ * not an object, has no own `key` field, or carries a different value did not
+ * store the write. The own-field check matters as much as the equality:
+ * settingsFromResponse coerces a missing field to its default (false or null),
+ * so an API build that drops the field would look saved whenever the value
+ * sent is that default.
+ */
+export function echoedSetting<K extends EchoedSettingKey>(
+  body: unknown,
+  key: K,
+  sent: SettingsData[K],
+): SettingsData | null {
+  // hasOwnProperty.call, not Object.hasOwn: the SPA targets ES2020 WebViews.
+  if (typeof body !== "object" || body === null || !Object.prototype.hasOwnProperty.call(body, key)) {
+    return null;
+  }
+  const next = settingsFromObject(body);
+  return next[key] === sent ? next : null;
+}
+
+function settingsFromObject(body: object): SettingsData {
   const d = body as Record<string, unknown>;
   return {
     displayName: typeof d.displayName === "string" ? d.displayName : null,

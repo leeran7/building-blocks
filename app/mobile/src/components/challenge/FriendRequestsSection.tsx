@@ -151,7 +151,7 @@ export function FriendRequestsSection({ refreshKey, onAccepted }: FriendRequests
   if (error) {
     return (
       <div className="flex flex-col items-center gap-2 py-2" role="alert">
-        <p className="text-sm text-ember">{error}</p>
+        <p className="text-meta leading-5 text-ember">{error}</p>
         <Button variant="ghost" fullWidth={false} onPress={fetchRequests}>
           Retry
         </Button>
@@ -177,7 +177,7 @@ export function FriendRequestsSection({ refreshKey, onAccepted }: FriendRequests
                 <div className="flex flex-col gap-3">
                   <div className="min-w-0">
                     <p className="break-words text-balance text-body font-semibold text-text-primary">{name}</p>
-                    <UsernameHandle username={req.sender.username} />
+                    <UsernameHandle username={req.sender.username} sizeClass="text-meta" />
                   </div>
                   <div className="grid grid-cols-2 gap-2">
                     <Button
@@ -221,7 +221,7 @@ export function FriendRequestsSection({ refreshKey, onAccepted }: FriendRequests
                 <div className="flex items-center justify-between gap-3">
                   <div className="min-w-0 flex-1">
                     <p className="break-words text-balance text-body text-text-secondary">{name}</p>
-                    <UsernameHandle username={req.receiver.username} />
+                    <UsernameHandle username={req.receiver.username} sizeClass="text-meta" />
                   </div>
                   <Button
                     variant="ghost"

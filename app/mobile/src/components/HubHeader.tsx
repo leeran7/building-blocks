@@ -23,7 +23,7 @@ export function HubHeader({ title, subtitle, trailing, headingRef }: HubHeaderPr
     <header className="flex flex-col items-center pb-5 pt-[calc(env(safe-area-inset-top)+1rem)] text-center">
       <div className="flex items-center gap-3">
         <span aria-hidden className="h-px w-8 bg-signal/70" />
-        <span className="pl-[0.28em] font-mono text-label font-bold uppercase tracking-eyebrow text-signal">
+        <span className="pl-(--tracking-eyebrow) font-mono text-label font-bold uppercase tracking-eyebrow text-signal">
           Doomstack
         </span>
         <span aria-hidden className="h-px w-8 bg-signal/70" />
@@ -41,7 +41,7 @@ export function HubHeader({ title, subtitle, trailing, headingRef }: HubHeaderPr
       {subtitle && subtitle.length > 0 && (
         <p className="mt-2 flex items-center gap-2 font-mono text-label uppercase tracking-label text-text-muted">
           {subtitle.map((part, i) => (
-            <SubtitlePart key={part} part={part} first={i === 0} />
+            <SubtitlePart key={i} part={part} first={i === 0} />
           ))}
         </p>
       )}

@@ -72,7 +72,7 @@ export function Button({
       }}
       className={cx(
         "inline-flex min-h-[50px] items-center justify-center gap-2 rounded-full px-6",
-        "font-display text-sm uppercase tracking-wide",
+        "font-display text-meta uppercase tracking-wide",
         "transition-transform duration-150 active:scale-[0.97]",
         "disabled:active:scale-100",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void",

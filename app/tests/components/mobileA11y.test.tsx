@@ -70,6 +70,7 @@ import { UserSearchSection } from "../../mobile/src/components/challenge/UserSea
 import { HomeScreen } from "../../mobile/src/screens/HomeScreen";
 import { LeaderboardScreen } from "../../mobile/src/screens/LeaderboardScreen";
 import { ProfileScreen } from "../../mobile/src/screens/ProfileScreen";
+import { HubHeader } from "../../mobile/src/components/HubHeader";
 
 let container: HTMLDivElement;
 let root: Root;
@@ -240,6 +241,23 @@ describe("Ranks 'Show my row' under reduced motion", () => {
   });
 });
 
+describe("Ranks podium with a 60-character display name", () => {
+  // MAX_NAME in the settings route. The podium clamps at three lines, so the
+  // full name must still be available to anyone who sees the ellipsis.
+  const LONG = "Maximilian Alexander Montgomery Fitzgerald the Third of York";
+
+  it("keeps the whole name in the text and in the title of each podium name", async () => {
+    expect(LONG).toHaveLength(60);
+    net.climbers = [{ ...climber(1, "a"), handle: LONG }, climber(2, "b"), climber(3, "c")];
+    await render("/leaderboard", createElement(LeaderboardScreen));
+    const podium = container.querySelector('[aria-label="Top three climbers"]');
+    // Each pedestal's first line is the climber's name.
+    const names = [...(podium?.querySelectorAll("li") ?? [])].map((li) => li.querySelector("p"));
+    expect(names.map((n) => n?.textContent)).toEqual([climber(2, "b").handle, LONG, climber(3, "c").handle]);
+    expect(names.map((n) => n?.getAttribute("title"))).toEqual(names.map((n) => n?.textContent));
+  });
+});
+
 describe("Backdrop lava under reduced motion", () => {
   function stubCanvas() {
     const ctx = { setTransform: vi.fn(), clearRect: vi.fn() };
@@ -309,5 +327,19 @@ describe("Hub header shared by Ranks and Profile", () => {
     expect(ranks.eyebrow.match(/aria-hidden="true"/g)).toHaveLength(2);
     expect(ranks.subtitle).toEqual(["Global", "·", "All time"]);
     expect(profile.subtitle).toEqual(["Your climb"]);
+  });
+
+  it("renders repeated subtitle segments with distinct keys", () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      act(() => root.render(createElement(HubHeader, { title: "Leaderboard", subtitle: ["All time", "All time"] })));
+      const subtitle = container.querySelector("header > p");
+      const parts = [...(subtitle?.children ?? [])].map((c) => (c.getAttribute("aria-hidden") ? "·" : c.textContent));
+      expect(parts).toEqual(["All time", "·", "All time"]);
+      const keyWarnings = error.mock.calls.filter((args) => args.some((a) => String(a).includes("same key")));
+      expect(keyWarnings).toEqual([]);
+    } finally {
+      error.mockRestore();
+    }
   });
 });

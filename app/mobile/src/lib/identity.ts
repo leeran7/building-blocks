@@ -1,8 +1,22 @@
 import { climberHandle } from "@app/lib/handle";
+import { avatarName } from "@app/lib/avatars";
 import type { DashboardData, SettingsData } from "../contexts/AppDataContext";
 
 /** Shown only when no user id is known at all (neither dashboard nor auth). */
 const NO_IDENTITY_NAME = "Player";
+
+/** The avatar picker's name for "no avatar": the badge shows the name's initials. */
+export const INITIALS_LABEL = "Initials";
+
+/** The current avatar as the picker names it: its catalogue name, or Initials. */
+export function avatarLabel(avatarId: string | null): string {
+  return avatarName(avatarId) ?? INITIALS_LABEL;
+}
+
+/** Accessible name of a button that opens the avatar picker (Profile, Edit Profile). */
+export function avatarButtonLabel(avatarId: string | null): string {
+  return `Avatar: ${avatarLabel(avatarId)}. Change avatar`;
+}
 
 /**
  * The name the player is shown under: profile name, else their pseudonym.

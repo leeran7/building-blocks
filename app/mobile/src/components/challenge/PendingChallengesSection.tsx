@@ -156,7 +156,7 @@ export function PendingChallengesSection({ refreshKey }: PendingChallengesSectio
   if (error) {
     return (
       <div className="flex flex-col items-center gap-2 py-2" role="alert">
-        <p className="text-sm text-ember">{error}</p>
+        <p className="text-meta leading-5 text-ember">{error}</p>
         <Button variant="ghost" fullWidth={false} onPress={fetchChallenges}>
           Retry
         </Button>
@@ -188,7 +188,7 @@ export function PendingChallengesSection({ refreshKey }: PendingChallengesSectio
                     <p className="break-words text-balance text-body font-semibold text-text-primary">
                       {name} challenged you
                     </p>
-                    <UsernameHandle username={c.sender.username} />
+                    <UsernameHandle username={c.sender.username} sizeClass="text-meta" />
                     <p className="mt-0.5 font-mono text-meta text-text-muted">
                       {timeLeft(c.expiresAt)}
                     </p>
@@ -237,7 +237,7 @@ export function PendingChallengesSection({ refreshKey }: PendingChallengesSectio
                     <p className="break-words text-balance text-body text-text-secondary">
                       Waiting for <span className="font-semibold text-text-primary">{name}</span>
                     </p>
-                    <UsernameHandle username={c.recipient.username} />
+                    <UsernameHandle username={c.recipient.username} sizeClass="text-meta" />
                     <p className="mt-0.5 font-mono text-meta text-text-muted">
                       {timeLeft(c.expiresAt)}
                     </p>
