@@ -9,18 +9,19 @@
 import { prisma } from "./client";
 import { ChallengeStatus, Challenge, Prisma } from "@prisma/client";
 import { createDuel } from "./duel";
+import { publicUserSelect, type PublicUserRow } from "./publicUser";
 
 const CHALLENGE_TTL_MS = 24 * 60 * 60_000; // 24 hours
 const MAX_PENDING_OUTGOING = 3;
 
 export interface ChallengeWithUsers extends Challenge {
-  sender: { id: string; display_name: string | null; username: string | null };
-  recipient: { id: string; display_name: string | null; username: string | null };
+  sender: PublicUserRow;
+  recipient: PublicUserRow;
 }
 
 const userSelect = {
-  sender: { select: { id: true, display_name: true, username: true } },
-  recipient: { select: { id: true, display_name: true, username: true } },
+  sender: { select: publicUserSelect },
+  recipient: { select: publicUserSelect },
 } as const;
 
 // ── Writes ─────────────────────────────────────────────────────────────────

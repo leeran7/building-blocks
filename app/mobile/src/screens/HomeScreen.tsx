@@ -1,26 +1,27 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useId, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { tapHeavy } from "../lib/haptics";
 import { ALTITUDE_UNIT } from "@app/lib/units";
-import { LogoMark } from "../components/LogoMark";
 import { useHubPrefetch } from "../contexts/AppDataContext";
 import { dailySummary, msUntilReset, formatReset, type DailySummary } from "../lib/daily";
 import { useMatchmakingQueue } from "../hooks/useMatchmakingQueue";
+import volcanoScene from "@app/../public/climb/volcano-tile.jpg";
 
 /**
- * Home = the game title screen. Play-first and hub-centric: a dominant, molten
- * PLAY button drops straight into a fresh random climb (no level select), with
- * the player's live standing underneath and the secondary destinations as
- * HUD-style icon buttons. Deliberately NOT a bottom-tab content layout — this
- * reads as a game main menu.
+ * Home = the game title screen. Play-first and hub-centric: the wordmark and
+ * the player's standing sit up top over the volcanic scene, and a dominant
+ * PLAY button plus the secondary modes are anchored above the tab bar.
  */
 export function HomeScreen() {
   const navigate = useNavigate();
 
   // Warm the shared cache from the landing screen so Profile / Ranks are instant
-  // on first visit; the returned dashboard slice also feeds the standing line,
-  // deduping what used to be a separate Home /api/dashboard fetch.
-  const standing = useHubPrefetch().data?.freeClimb ?? null;
+  // on first visit; the returned dashboard slice also feeds the Best card.
+  const hub = useHubPrefetch();
+  const standing = hub.data?.freeClimb ?? null;
+  const standingLoading = hub.data === null && (hub.loading || hub.fetchedAt === null);
+  // A failed load is not "no record": never tell a ranked player they're unranked.
+  const standingFailed = hub.data === null && hub.error;
 
   // Daily challenge state — refreshes each time Home mounts (after a run) and
   // the reset countdown re-renders on a slow tick.
@@ -56,8 +57,6 @@ export function HomeScreen() {
     navigate("/climb?daily=1");
   };
 
-  // Challenge = friends, in-app challenges, and a share-link fallback, all on
-  // the dedicated /challenge screen (see ChallengeScreen).
   const openChallenge = useCallback(() => {
     navigate("/challenge");
   }, [navigate]);
@@ -66,7 +65,6 @@ export function HomeScreen() {
   // GET polling, DELETE (cancel), and cleanup on unmount.
   const queue = useMatchmakingQueue();
 
-  // Navigate to the duel room as soon as a match is found.
   useEffect(() => {
     if (queue.state.status === "matched" && queue.state.duelId) {
       navigate(`/duel/${queue.state.duelId}`);
@@ -76,52 +74,51 @@ export function HomeScreen() {
   const queueActive = queue.state.status !== "idle";
 
   return (
-    <main className="flex h-full flex-col pt-[calc(env(safe-area-inset-top)+3.5rem)]">
-      {/* Game content — flex-1 keeps BottomNav pinned at the bottom */}
-      <div className="flex flex-1 flex-col items-center justify-center gap-9 px-6 text-center">
-        {/* Wordmark */}
-        <div className="mt-1 flex flex-col items-center gap-2">
-          <LogoMark size={48} card className="mb-1" />
-          <span className="font-mono text-[11px] uppercase tracking-[0.5em] text-text-muted">
-            endless&nbsp;climb
-          </span>
-          <h1 className="hm-wordmark font-display text-[2.75rem] font-black uppercase leading-none tracking-tight text-text-primary">
+    // Short phones (320x568): tighter top spacing so Quick Play / Challenge sit
+    // fully above the tab bar without scrolling.
+    <main className="flex h-full flex-col pt-[calc(env(safe-area-inset-top)+2rem)] [@media(max-height:640px)]:pt-[calc(env(safe-area-inset-top)+1rem)]">
+      <div
+        className="flex flex-1 flex-col overflow-y-auto px-4"
+        style={{ overscrollBehavior: "contain", WebkitOverflowScrolling: "touch" }}
+      >
+        <header className="flex flex-col items-center gap-3 text-center">
+          <h1 className="hm-wordmark font-display text-wordmark font-black uppercase tracking-[-0.03em] text-text-primary">
             Doom<span className="text-signal">stack</span>
           </h1>
-          <span className="h-px w-16 bg-border-strong" />
-          <StandingLine standing={standing} />
+          <span className="pl-(--tracking-eyebrow) font-mono text-label uppercase tracking-eyebrow text-text-secondary">
+            Endless&nbsp;climb
+          </span>
+        </header>
+
+        <div className="mt-6 flex justify-end [@media(max-height:640px)]:mt-2">
+          <BestCard standing={standing} loading={standingLoading} failed={standingFailed} />
         </div>
 
-        {/* PLAY = filled-signal hero (the one primary action) + secondary modes */}
-        <div className="flex w-full flex-col items-center gap-3">
-          <button
-            onClick={play}
-            aria-label="Play"
-            className="flex w-full items-center gap-4 rounded-2xl bg-signal px-5 py-5 text-left text-void shadow-signal transition-transform active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void"
-          >
-            <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-void/15">
-              <PlayGlyph />
-            </span>
-            <span className="flex-1">
-              <span className="block font-display text-2xl font-black uppercase tracking-wide text-void">
-                Play
-              </span>
-              <span className="block font-mono text-[11px] uppercase tracking-[0.06em] text-void/70">
-                Endless quick climb
-              </span>
-            </span>
-            <ChevronRight className="text-void/60" />
-          </button>
+        {/* Scene gap — the volcanic backdrop shows through here */}
+        <div className="min-h-8 flex-1 [@media(max-height:640px)]:min-h-2" />
 
-          <div className="flex w-full flex-col gap-2.5">
-            <DailyCard daily={daily} resetMs={resetMs} onPress={playDaily} />
-            <QuickPlayCard onPress={queue.join} />
-            <ChallengeCard onPress={openChallenge} />
+        <div className="flex w-full flex-col gap-3 pb-4 [@media(max-height:640px)]:pb-2">
+          <PlayButton onPress={play} />
+          <DailyCard daily={daily} resetMs={resetMs} onPress={playDaily} />
+          <div className="grid grid-cols-2 gap-2.5">
+            <ModeTile
+              icon={<BoltIcon />}
+              title="Quick Play"
+              subtitle="Find an opponent"
+              ariaLabel="Quick play, find a random opponent"
+              onPress={queue.join}
+            />
+            <ModeTile
+              icon={<SwordsIcon />}
+              title="Challenge"
+              subtitle="Race your friends"
+              ariaLabel="Challenge a friend to a race"
+              onPress={openChallenge}
+            />
           </div>
         </div>
       </div>
 
-      {/* Searching overlay — full-screen takeover while in the matchmaking queue */}
       {queueActive && (
         <SearchingOverlay
           status={queue.state.status}
@@ -134,94 +131,85 @@ export function HomeScreen() {
 
       <style>{`
         .hm-wordmark {
-          text-shadow: 0 0 34px rgba(203, 242, 77, 0.14);
+          text-shadow: 0 2px 0 rgba(0, 0, 0, 0.35), 0 0 34px rgba(203, 242, 77, 0.18);
+        }
+        .hm-daily-scene {
+          -webkit-mask-image: linear-gradient(to right, transparent 0%, #000 70%);
+          mask-image: linear-gradient(to right, transparent 0%, #000 70%);
         }
       `}</style>
     </main>
   );
 }
 
-function StandingLine({ standing }: { standing: { peakY: number; rank: number } | null }) {
-  if (standing) {
-    return (
-      <p
-        aria-live="polite"
-        className="flex items-center gap-2.5 font-mono text-[11px] uppercase tracking-[0.2em] text-text-secondary"
-      >
-        <span>
-          Best{" "}
-          <span className="tabular-nums text-text-primary">
-            {standing.peakY.toLocaleString()}{ALTITUDE_UNIT}
-          </span>
-        </span>
-        <span className="h-1 w-1 rounded-full bg-border-strong" />
-        <span className="tabular-nums text-signal">#{standing.rank}</span>
-      </p>
-    );
-  }
-  // No climbs yet (or still loading).
+/** The player's standing: best height + global rank, top-right over the scene. */
+function BestCard({
+  standing,
+  loading,
+  failed,
+}: {
+  standing: { peakY: number; rank: number } | null;
+  loading: boolean;
+  /** The dashboard didn't load: show a neutral dash, not "Unranked". */
+  failed: boolean;
+}) {
   return (
-    <p
+    <div
       aria-live="polite"
-      className="font-mono text-[11px] uppercase tracking-[0.2em] text-text-secondary"
+      className="glass min-w-[8rem] rounded-[20px] border border-white/10 px-3.5 pb-2.5 pt-3"
     >
-      Your first climb awaits
-    </p>
+      <div className="flex items-center gap-2">
+        <CrownIcon />
+        <span className="font-mono text-label font-bold uppercase tracking-label text-text-secondary">
+          Best
+        </span>
+      </div>
+      {loading ? (
+        <div className="mt-2 flex flex-col items-center gap-3" aria-label="Loading your best climb">
+          <span className="h-6 w-24 animate-pulse rounded-md bg-elevated" />
+          <span className="h-px w-full bg-white/10" />
+          <span className="h-5 w-10 animate-pulse rounded-md bg-elevated" />
+        </div>
+      ) : (
+        <>
+          <p className="mt-1 text-right font-display text-headline font-black leading-none tabular-nums text-text-primary">
+            {standing ? standing.peakY.toLocaleString() : "—"}
+            <span className="ml-1 text-meta font-bold uppercase text-text-secondary">
+              {ALTITUDE_UNIT}
+            </span>
+          </p>
+          <span className="mt-2 block h-px w-full bg-white/10" />
+          <p
+            className={`mt-1.5 text-center font-display font-black tabular-nums ${standing ? "text-lead text-signal" : "font-mono text-label uppercase tracking-label text-text-muted"}`}
+          >
+            {standing ? `#${standing.rank.toLocaleString()}` : failed ? "—" : "Unranked"}
+          </p>
+          {failed && <span className="sr-only">Couldn&apos;t load your best climb</span>}
+        </>
+      )}
+    </div>
   );
 }
 
-/**
- * Generic game-mode row on the home hub. Every secondary mode (Daily Climb now;
- * 1v1 Duel later) renders through this one card so they share an identical
- * language — a tinted icon chip, title + optional badge, subtitle, and a
- * trailing affordance. Adding a mode is a single <ModeCard/> with no new layout.
- */
-type ModeTint = "ember" | "signal";
-
-function ModeCard({
-  icon,
-  tint,
-  title,
-  subtitle,
-  badge,
-  trailing,
-  onPress,
-  ariaLabel,
-}: {
-  icon: React.ReactNode;
-  tint: ModeTint;
-  title: string;
-  subtitle: string;
-  badge?: React.ReactNode;
-  trailing?: React.ReactNode;
-  onPress: () => void;
-  ariaLabel?: string;
-}) {
-  const chip =
-    tint === "ember"
-      ? "border-ember/40 bg-ember/10"
-      : "border-signal/40 bg-signal/10";
+function PlayButton({ onPress }: { onPress: () => void }) {
   return (
     <button
       onClick={onPress}
-      aria-label={ariaLabel ?? title}
-      className="flex w-full items-center gap-3 rounded-2xl border border-border-subtle bg-surface/70 px-4 py-3.5 text-left transition-transform active:scale-[0.98]"
+      aria-label="Play endless climb"
+      className="cta-lime flex min-h-[56px] w-full items-center gap-4 rounded-[22px] py-3 pl-3 pr-3 text-left text-void transition-transform active:scale-[0.97] [@media(max-height:640px)]:py-2.5"
     >
-      <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border ${chip}`}>
-        {icon}
+      <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#141612] text-signal shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_4px_12px_rgba(0,0,0,0.35)]">
+        <PlayGlyph />
       </span>
       <span className="min-w-0 flex-1">
-        <span className="flex items-center gap-2">
-          <span className="font-display text-sm font-black uppercase tracking-wide text-text-primary">
-            {title}
-          </span>
-          {badge}
+        <span className="block font-display text-cta font-black uppercase tracking-[-0.01em] text-void">
+          Play
         </span>
-        <span className="mt-0.5 block font-mono text-[11px] uppercase tracking-[0.06em] text-text-secondary leading-snug whitespace-pre-line">
-          {subtitle}
+        <span className="mt-1 block font-mono text-label font-bold uppercase tracking-label text-void/80">
+          Endless climb
         </span>
       </span>
-      {trailing ?? <ChevronRight />}
+      <ChevronRight size={24} className="text-void" />
     </button>
   );
 }
@@ -235,32 +223,101 @@ function DailyCard({
   resetMs: number;
   onPress: () => void;
 }) {
+  const subId = useId();
+  const reset = `Resets in ${formatReset(resetMs)}`;
   const sub = daily.playedToday
-    ? `Today ${daily.todayBest.toLocaleString()}${ALTITUDE_UNIT}\nMap changes ${formatReset(resetMs)}`
-    : `Same tower for everyone\nMap changes ${formatReset(resetMs)}`;
+    ? `Today ${daily.todayBest.toLocaleString()} ${ALTITUDE_UNIT} · ${reset}`
+    : reset;
   return (
-    <ModeCard
-      icon={<FlameIcon />}
-      tint="ember"
-      title="Daily Climb"
-      subtitle={sub}
-      ariaLabel="Play the daily climb"
-      badge={
-        daily.streak > 0 ? (
-          <span className="rounded-full bg-ember/15 px-1.5 py-0.5 font-mono text-[10px] font-bold tabular-nums text-ember">
-            {daily.streak}🔥
+    <button
+      onClick={onPress}
+      aria-label="Play the daily climb"
+      aria-describedby={subId}
+      className="glass relative flex w-full items-center gap-3 overflow-hidden rounded-[20px] border border-white/10 px-3.5 py-3 text-left transition-transform active:scale-[0.98]"
+    >
+      <span
+        aria-hidden
+        className="hm-daily-scene pointer-events-none absolute inset-y-0 right-0 w-3/5 bg-cover bg-center opacity-60"
+        style={{ backgroundImage: `url(${volcanoScene})` }}
+      />
+      <span className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-ember/60 bg-ember/15">
+        <FlameIcon />
+      </span>
+      <span className="relative min-w-0 flex-1">
+        <span className="flex flex-wrap items-center gap-2">
+          <span className="whitespace-nowrap font-display text-body font-black uppercase tracking-wide text-text-primary">
+            Daily Climb
           </span>
-        ) : undefined
-      }
-      trailing={undefined}
-      onPress={onPress}
-    />
+          <span className="rounded-md border border-ember/60 bg-void/80 px-1.5 py-0.5 font-mono text-label font-bold uppercase tracking-[0.1em] text-ember">
+            Daily
+          </span>
+          {daily.streak > 0 && (
+            <span className="rounded-md border border-ember/40 bg-void/80 px-1.5 py-0.5 font-mono text-label font-bold tabular-nums text-ember">
+              {daily.streak}🔥
+            </span>
+          )}
+        </span>
+        <span id={subId} className="mt-1 block truncate text-meta text-text-secondary">{sub}</span>
+      </span>
+      <ChevronRight className="relative text-text-secondary" />
+    </button>
+  );
+}
+
+/** Half-width secondary mode (Quick Play, Challenge). */
+function ModeTile({
+  icon,
+  title,
+  subtitle,
+  ariaLabel,
+  onPress,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  subtitle: string;
+  ariaLabel: string;
+  onPress: () => void;
+}) {
+  return (
+    <button
+      onClick={onPress}
+      aria-label={ariaLabel}
+      className="glass @container w-full min-w-0 rounded-[20px] border border-white/10 py-3 pl-2.5 pr-2 text-left transition-transform active:scale-[0.98] [@media(max-height:640px)]:py-2.5"
+    >
+      {/* A container query in rem, not a viewport clamp: the icon sits beside the
+          text only while the tile is wide enough for its longest line (9.5rem of
+          content), so a narrow phone or a large text size stacks it above instead
+          of pushing CHALLENGE past the tile edge. */}
+      <span className="flex flex-col items-start gap-1.5 @min-[9.5rem]:flex-row @min-[9.5rem]:items-center @min-[9.5rem]:gap-2">
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-signal/50 bg-signal/10">
+          {icon}
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block font-display text-meta font-black uppercase leading-tight tracking-[0.02em] text-text-primary">
+            {title}
+          </span>
+          <span className="mt-0.5 block text-meta leading-snug tracking-[-0.01em] text-text-secondary">
+            {subtitle}
+          </span>
+        </span>
+        <ChevronRight size={14} className="hidden text-text-secondary @min-[11rem]:block" />
+      </span>
+    </button>
+  );
+}
+
+function CrownIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" className="text-signal" aria-hidden>
+      <path d="M3 7.5 7.5 11 12 4.5 16.5 11 21 7.5 19 18H5L3 7.5Z" />
+      <rect x="5" y="19.5" width="14" height="2" rx="1" />
+    </svg>
   );
 }
 
 function PlayGlyph() {
   return (
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+    <svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
       <path d="M8 5.14v13.72a1 1 0 0 0 1.53.85l10.79-6.86a1 1 0 0 0 0-1.7L9.53 4.29A1 1 0 0 0 8 5.14Z" />
     </svg>
   );
@@ -268,41 +325,23 @@ function PlayGlyph() {
 
 function FlameIcon() {
   return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" className="text-ember" aria-hidden>
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" className="text-ember" aria-hidden>
       <path d="M12 2c.5 3-1.5 4.5-3 6.5C7.4 10.6 6.5 12.3 6.5 14a5.5 5.5 0 0 0 11 0c0-1.7-.8-3.2-2-4.5-.6 1-1.6 1.6-2.6 1.6 1-2 .3-4.4-1.4-6.1C11.6 5 12 3.4 12 2Z" />
     </svg>
   );
 }
 
-function ChevronRight({ className = "text-text-muted" }: { className?: string }) {
+function ChevronRight({ className = "text-text-muted", size = 18 }: { className?: string; size?: number }) {
   return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={`shrink-0 ${className}`} aria-hidden>
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={`shrink-0 ${className}`} aria-hidden>
       <path d="m9 18 6-6-6-6" />
     </svg>
   );
 }
 
-/**
- * Challenge = add friends, send in-app challenges, and manage requests on the
- * dedicated Challenge screen. Deliberately NOT ranked/1v1-arena — no
- * matchmaking, stakes, or W/L in the app.
- */
-function ChallengeCard({ onPress }: { onPress: () => void }) {
-  return (
-    <ModeCard
-      icon={<SwordsIcon />}
-      tint="signal"
-      title="Challenge"
-      subtitle="Add friends & race them"
-      ariaLabel="Challenge a friend to a race"
-      onPress={onPress}
-    />
-  );
-}
-
 function SwordsIcon() {
   return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-signal" aria-hidden>
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-signal" aria-hidden>
       <path d="M14.5 17.5 3 6V3h3l11.5 11.5" />
       <path d="M13 19l6-6" />
       <path d="M16 16l4 4" />
@@ -316,26 +355,9 @@ function SwordsIcon() {
 
 function BoltIcon() {
   return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-signal" aria-hidden>
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" className="text-signal" aria-hidden>
       <path d="M13 2 3 14h7l-1 8 10-12h-7l1-8Z" />
     </svg>
-  );
-}
-
-/**
- * Quick Play = random 1v1 matchmaking. Tapping this joins the queue; the
- * SearchingOverlay takes over until a match is found or the player cancels.
- */
-function QuickPlayCard({ onPress }: { onPress: () => void }) {
-  return (
-    <ModeCard
-      icon={<BoltIcon />}
-      tint="signal"
-      title="Quick Play"
-      subtitle="Find a random opponent"
-      ariaLabel="Quick play -- find a random opponent"
-      onPress={onPress}
-    />
   );
 }
 
@@ -364,7 +386,6 @@ function SearchingOverlay({
       aria-modal="true"
       aria-label="Matchmaking"
     >
-      {/* Live region for screen readers */}
       <p className="sr-only" aria-live="assertive">
         {status === "joining" || status === "searching"
           ? "Searching for an opponent."
@@ -384,7 +405,7 @@ function SearchingOverlay({
           <p className="font-display text-xl font-black uppercase tracking-wide text-text-primary">
             Searching for opponent
           </p>
-          <p className="mt-2 font-mono text-[11px] uppercase tracking-[0.14em] text-text-secondary">
+          <p className="mt-2 font-mono text-label uppercase tracking-label text-text-secondary">
             This usually takes a few seconds
           </p>
           <button
@@ -401,7 +422,7 @@ function SearchingOverlay({
           <p className="font-display text-xl font-black uppercase tracking-wide text-text-primary">
             No opponent found
           </p>
-          <p className="mt-2 font-mono text-[11px] uppercase tracking-[0.14em] text-text-secondary">
+          <p className="mt-2 font-mono text-label uppercase tracking-label text-text-secondary">
             Try again or come back later
           </p>
           <div className="mt-8 flex w-full max-w-xs flex-col gap-3">
@@ -445,4 +466,3 @@ function SearchingOverlay({
     </div>
   );
 }
-

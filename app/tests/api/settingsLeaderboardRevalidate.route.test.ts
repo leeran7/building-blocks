@@ -7,8 +7,10 @@
  * call here, changing what gates a player's visibility on either public
  * leaderboard — leaderboard consent for the climb board, display_name for
  * the duel board — wouldn't visibly take effect until that window rolled
- * over. This proves each tag fires exactly when its gating field is part
- * of the patch, not on every save.
+ * over. The climb board also renders each player's name (display name, else
+ * the avatar-aware pseudonym), so a display-name save expires it too. This
+ * proves each tag fires exactly when a field it depends on is part of the
+ * patch, not on every save.
  */
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -73,15 +75,21 @@ describe("PUT /api/settings leaderboard revalidation", () => {
   it("revalidates the climb leaderboard tag when leaderboardConsent changes, not the duel one", async () => {
     const res = await put({ leaderboardConsent: true });
     expect(res.status).toBe(200);
-    expect(revalidateTag).toHaveBeenCalledWith(LEADERBOARD_CACHE_TAG, { expire: 60 });
+    expect(revalidateTag).toHaveBeenCalledWith(LEADERBOARD_CACHE_TAG, { expire: 0 });
     expect(revalidateTag).not.toHaveBeenCalledWith(DUEL_LEADERBOARD_CACHE_TAG, expect.anything());
   });
 
-  it("revalidates the duel leaderboard tag when displayName changes, not the climb one", async () => {
-    const res = await put({ displayName: "Aria" });
-    expect(res.status).toBe(200);
-    expect(revalidateTag).toHaveBeenCalledWith(DUEL_LEADERBOARD_CACHE_TAG, { expire: 60 });
-    expect(revalidateTag).not.toHaveBeenCalledWith(LEADERBOARD_CACHE_TAG, expect.anything());
+  it("expires both leaderboard tags when displayName changes or clears (both boards render the name)", async () => {
+    let checked = 0;
+    for (const displayName of ["Aria", null]) {
+      revalidateTag.mockClear();
+      const res = await put({ displayName });
+      expect(res.status).toBe(200);
+      expect(revalidateTag).toHaveBeenCalledWith(DUEL_LEADERBOARD_CACHE_TAG, { expire: 0 });
+      expect(revalidateTag).toHaveBeenCalledWith(LEADERBOARD_CACHE_TAG, { expire: 0 });
+      checked++;
+    }
+    expect(checked).toBe(2);
   });
 
   it("does not revalidate either leaderboard on an unrelated save", async () => {

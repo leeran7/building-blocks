@@ -5,17 +5,17 @@ import { ClimbScreen } from "./screens/ClimbScreen";
 import { SignInScreen } from "./screens/SignInScreen";
 import { LeaderboardScreen } from "./screens/LeaderboardScreen";
 import { ProfileScreen } from "./screens/ProfileScreen";
+import { EditProfileScreen } from "./screens/EditProfileScreen";
+import { AvatarPickerScreen } from "./screens/AvatarPickerScreen";
 import { DuelRoomScreen } from "./screens/DuelRoomScreen";
 import { ChallengeScreen } from "./screens/ChallengeScreen";
 import { AnimatedBackdrop } from "./components/AnimatedBackdrop";
 import { RouteTransition } from "./components/RouteTransition";
-import { BottomNav } from "./components/BottomNav";
+import { BottomNav, isTabRoot } from "./components/BottomNav";
 import { useNativeShell } from "./lib/useNativeShell";
 import { useAuth } from "./contexts/AuthContext";
 import { GuestShell } from "./components/GuestShell";
 import { LogoMark } from "./components/LogoMark";
-
-const NAV_ROUTES = new Set(["/", "/leaderboard", "/profile"]);
 
 /**
  * Root of the native game shell. The animated backdrop is persistent behind
@@ -45,7 +45,7 @@ export function App() {
   // NOTE: call useLocation() unconditionally — never behind a short-circuit.
   const location = useLocation();
   const onClimb = authed && location.pathname === "/climb";
-  const showNav = authed && NAV_ROUTES.has(location.pathname);
+  const showNav = authed && isTabRoot(location.pathname);
   const guestActive = guestMode && !authed;
 
   return (
@@ -66,10 +66,12 @@ export function App() {
                     <Route path="/" element={<HomeScreen />} />
                     <Route path="/leaderboard" element={<LeaderboardScreen />} />
                     <Route path="/profile" element={<ProfileScreen />} />
+                    <Route path="/profile/edit" element={<EditProfileScreen />} />
+                    <Route path="/profile/avatar" element={<AvatarPickerScreen />} />
                     <Route path="/challenge" element={<ChallengeScreen />} />
-                    {/* Settings merged into Profile — keep the path as a redirect
+                    {/* Settings live on Edit Profile — keep the path as a redirect
                         for any stray deep links / bookmarks. */}
-                    <Route path="/settings" element={<Navigate to="/profile" replace />} />
+                    <Route path="/settings" element={<Navigate to="/profile/edit" replace />} />
                     <Route path="*" element={<Navigate to="/" replace />} />
                   </Routes>
                 </RouteTransition>

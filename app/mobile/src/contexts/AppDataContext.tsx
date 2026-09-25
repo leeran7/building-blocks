@@ -12,6 +12,8 @@ import type { CreatorPlatform } from "@prisma/client";
 import { apiFetch } from "../lib/api";
 import { useAuth } from "./AuthContext";
 import { setLeaderboardConsent } from "../lib/consent";
+import { parseFriendsBoard } from "../lib/leaderboard";
+import { parseAvatarId } from "@app/lib/avatars";
 
 /**
  * In-memory data cache for the read-heavy hub screens (You / Ranks).
@@ -42,6 +44,50 @@ export interface SettingsData {
   username: string | null;
   social: SocialState | null;
   leaderboardConsent: boolean;
+  /** Catalogue avatar id; null = initials badge. */
+  avatarId: string | null;
+}
+
+/** Normalises a GET/PUT /api/settings body into the cached settings shape. */
+export function settingsFromResponse(body: unknown): SettingsData | null {
+  if (typeof body !== "object" || body === null) return null;
+  return settingsFromObject(body);
+}
+
+/** A settings field that a single-field PUT sends and compares by value. */
+export type EchoedSettingKey = Exclude<keyof SettingsData, "social">;
+
+/**
+ * The settings a 200 from PUT /api/settings confirms, or null unless the body
+ * echoes exactly the value sent for `key`. Server truth only: a body that is
+ * not an object, has no own `key` field, or carries a different value did not
+ * store the write. The own-field check matters as much as the equality:
+ * settingsFromResponse coerces a missing field to its default (false or null),
+ * so an API build that drops the field would look saved whenever the value
+ * sent is that default.
+ */
+export function echoedSetting<K extends EchoedSettingKey>(
+  body: unknown,
+  key: K,
+  sent: SettingsData[K],
+): SettingsData | null {
+  // hasOwnProperty.call, not Object.hasOwn: the SPA targets ES2020 WebViews.
+  if (typeof body !== "object" || body === null || !Object.prototype.hasOwnProperty.call(body, key)) {
+    return null;
+  }
+  const next = settingsFromObject(body);
+  return next[key] === sent ? next : null;
+}
+
+function settingsFromObject(body: object): SettingsData {
+  const d = body as Record<string, unknown>;
+  return {
+    displayName: typeof d.displayName === "string" ? d.displayName : null,
+    username: typeof d.username === "string" ? d.username : null,
+    social: d.social && typeof d.social === "object" ? (d.social as SocialState) : null,
+    leaderboardConsent: Boolean(d.leaderboardConsent),
+    avatarId: parseAvatarId(d.avatarId),
+  };
 }
 
 export interface ClimberRank {
@@ -51,7 +97,23 @@ export interface ClimberRank {
   username: string | null;
   peakY: number;
   wins: number;
+  avatarId: string | null;
 }
+
+export interface FriendsBoard {
+  climbers: ClimberRank[];
+  hiddenCount: number;
+  notClimbedCount: number;
+}
+
+type SliceKey = "dashboard" | "settings" | "leaderboard" | "friendsLeaderboard";
+
+const IDLE_INFLIGHT: Record<SliceKey, boolean> = {
+  dashboard: false,
+  settings: false,
+  leaderboard: false,
+  friendsLeaderboard: false,
+};
 
 interface Slice<T> {
   data: T | null;
@@ -62,6 +124,13 @@ interface Slice<T> {
 
 const EMPTY_SLICE = { data: null, loading: false, error: false, fetchedAt: null };
 
+const NEVER_SETTLED: Record<SliceKey, number | null> = {
+  dashboard: null,
+  settings: null,
+  leaderboard: null,
+  friendsLeaderboard: null,
+};
+
 /** Background revalidate window — cached data older than this refetches silently. */
 const TTL_MS = 30_000;
 
@@ -69,10 +138,13 @@ interface AppDataState {
   dashboard: Slice<DashboardData>;
   settings: Slice<SettingsData>;
   leaderboard: Slice<ClimberRank[]>;
+  friendsLeaderboard: Slice<FriendsBoard>;
   ensureDashboard: () => void;
   ensureSettings: () => void;
   ensureLeaderboard: () => void;
   refreshLeaderboard: () => Promise<void>;
+  ensureFriendsLeaderboard: () => void;
+  refreshFriendsLeaderboard: () => Promise<void>;
   refreshSettings: () => Promise<void>;
   /** Optimistically update the cached settings after a successful save. */
   setSettings: (next: SettingsData) => void;
@@ -81,7 +153,7 @@ interface AppDataState {
    * revalidate paint) so the next screen that reads them refetches immediately —
    * e.g. after a climb run changes your standing and the leaderboard.
    */
-  invalidate: (keys: Array<"dashboard" | "settings" | "leaderboard">) => void;
+  invalidate: (keys: SliceKey[]) => void;
   /** Drop all cached data (sign-out, account delete, account switch). */
   clearAll: () => void;
 }
@@ -93,15 +165,28 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   const [dashboard, setDashboard] = useState<Slice<DashboardData>>(EMPTY_SLICE);
   const [settings, setSettingsSlice] = useState<Slice<SettingsData>>(EMPTY_SLICE);
   const [leaderboard, setLeaderboard] = useState<Slice<ClimberRank[]>>(EMPTY_SLICE);
+  const [friendsLeaderboard, setFriendsLeaderboard] = useState<Slice<FriendsBoard>>(EMPTY_SLICE);
 
   // Guards against overlapping in-flight fetches per slice.
-  const inflight = useRef({ dashboard: false, settings: false, leaderboard: false });
+  const inflight = useRef<Record<SliceKey, boolean>>({ ...IDLE_INFLIGHT });
+  // When each slice's last fetch settled (success or failure); null = refetch
+  // on the next ensure. The ensure* staleness check reads this, not the slice
+  // state: a fast failure can settle (and clear `inflight`) between a commit
+  // and that commit's effects, and those effects still hold the render's
+  // "never fetched" slice, so they would fetch again, once per consumer.
+  const settledAt = useRef<Record<SliceKey, number | null>>({ ...NEVER_SETTLED });
+  // Bumped on every cache wipe. A fetch started before the wipe belongs to the
+  // previous account (or a signed-out session) and must not land in this one.
+  const accountGen = useRef(0);
 
   const clearAll = useCallback(() => {
+    accountGen.current += 1;
     setDashboard(EMPTY_SLICE);
     setSettingsSlice(EMPTY_SLICE);
     setLeaderboard(EMPTY_SLICE);
-    inflight.current = { dashboard: false, settings: false, leaderboard: false };
+    setFriendsLeaderboard(EMPTY_SLICE);
+    inflight.current = { ...IDLE_INFLIGHT };
+    settledAt.current = { ...NEVER_SETTLED };
   }, []);
 
   // Wipe the cache the instant the signed-in account changes (incl. sign-out).
@@ -113,28 +198,40 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   const prevUid = useRef<string | null>(uid);
   if (prevUid.current !== uid) {
     prevUid.current = uid;
+    accountGen.current += 1;
     setDashboard(EMPTY_SLICE);
     setSettingsSlice(EMPTY_SLICE);
     setLeaderboard(EMPTY_SLICE);
-    inflight.current = { dashboard: false, settings: false, leaderboard: false };
+    setFriendsLeaderboard(EMPTY_SLICE);
+    inflight.current = { ...IDLE_INFLIGHT };
+    settledAt.current = { ...NEVER_SETTLED };
   }
 
   const authed = Boolean(user) && !isAnonymous;
 
   // Generic loader: skeleton only on a cold slice; warm slices refresh silently.
+  // `onData` runs only for a result that is committed, so side effects of a
+  // previous account's late response are dropped along with its data.
   const load = useCallback(
     async <T,>(
-      key: "dashboard" | "settings" | "leaderboard",
+      key: SliceKey,
       slice: Slice<T>,
       set: (s: Slice<T>) => void,
       fetcher: () => Promise<T | null>,
+      onData?: (data: T) => void,
     ) => {
       if (inflight.current[key]) return;
       inflight.current[key] = true;
+      const gen = accountGen.current;
+      const sameAccount = () => gen === accountGen.current;
       const cold = slice.data === null;
       if (cold) set({ ...slice, loading: true, error: false });
       try {
         const data = await fetcher();
+        // The account changed mid-flight: the wipe already reset this slice and
+        // its inflight flag, and a fetch for the new account may be running.
+        if (!sameAccount()) return;
+        settledAt.current[key] = Date.now();
         if (data === null) {
           // Failed fetch: keep any prior data (mark error only when cold), and
           // stamp fetchedAt so the TTL throttles retries into a backoff instead
@@ -142,25 +239,30 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
           set({ data: slice.data, loading: false, error: slice.data === null, fetchedAt: Date.now() });
         } else {
           set({ data, loading: false, error: false, fetchedAt: Date.now() });
+          onData?.(data);
         }
       } catch {
+        if (!sameAccount()) return;
+        settledAt.current[key] = Date.now();
         set({ ...slice, loading: false, error: cold, fetchedAt: Date.now() });
       } finally {
-        inflight.current[key] = false;
+        if (sameAccount()) inflight.current[key] = false;
       }
     },
     [],
   );
 
-  const isStale = (slice: Slice<unknown>) =>
-    slice.fetchedAt === null || Date.now() - slice.fetchedAt > TTL_MS;
+  const isStale = (key: SliceKey) => {
+    const at = settledAt.current[key];
+    return at === null || Date.now() - at > TTL_MS;
+  };
 
   const ensureDashboard = useCallback(() => {
     if (!authed) return;
-    // Gate on staleness only — a failed fetch stamps fetchedAt, so the TTL backs
+    // Gate on staleness only — a failed fetch stamps settledAt, so the TTL backs
     // off retries. Gating on `error` here would refetch every render (no data
     // means each failure yields a new slice identity → effect re-fires → loop).
-    if (!isStale(dashboard)) return;
+    if (!isStale("dashboard")) return;
     void load("dashboard", dashboard, setDashboard, () =>
       apiFetch("/api/dashboard").then((r) => (r.ok ? (r.json() as Promise<DashboardData>) : null)).catch(() => null),
     );
@@ -168,28 +270,23 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
 
   const ensureSettings = useCallback(() => {
     if (!authed) return;
-    if (!isStale(settings)) return;
-    void load("settings", settings, setSettingsSlice, () =>
-      apiFetch("/api/settings")
-        .then((r) => (r.ok ? (r.json() as Promise<SettingsData & { leaderboardConsent?: boolean }>) : null))
-        .then((d) => {
-          if (!d) return null;
-          const consent = Boolean(d.leaderboardConsent);
-          setLeaderboardConsent(consent);
-          return {
-            displayName: d.displayName ?? null,
-            username: d.username ?? null,
-            social: d.social && typeof d.social === "object" ? d.social : null,
-            leaderboardConsent: consent,
-          };
-        })
-        .catch(() => null),
+    if (!isStale("settings")) return;
+    void load(
+      "settings",
+      settings,
+      setSettingsSlice,
+      () =>
+        apiFetch("/api/settings")
+          .then((r) => (r.ok ? (r.json() as Promise<unknown>) : null))
+          .then(settingsFromResponse)
+          .catch(() => null),
+      (d) => setLeaderboardConsent(d.leaderboardConsent),
     );
   }, [authed, settings, load]);
 
   const ensureLeaderboard = useCallback(() => {
     if (!authed) return;
-    if (!isStale(leaderboard)) return;
+    if (!isStale("leaderboard")) return;
     void load("leaderboard", leaderboard, setLeaderboard, () =>
       apiFetch("/api/climb/leaderboard")
         .then((r) => (r.ok ? r.json() : null))
@@ -207,24 +304,53 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     );
   }, [leaderboard, load]);
 
+  const fetchFriendsBoard = useCallback(
+    () =>
+      apiFetch("/api/climb/leaderboard/friends")
+        .then((r) => (r.ok ? (r.json() as Promise<unknown>) : null))
+        .then((d) => (d === null ? null : parseFriendsBoard(d)))
+        .catch(() => null),
+    [],
+  );
+
+  const ensureFriendsLeaderboard = useCallback(() => {
+    if (!authed) return;
+    if (!isStale("friendsLeaderboard")) return;
+    void load("friendsLeaderboard", friendsLeaderboard, setFriendsLeaderboard, fetchFriendsBoard);
+  }, [authed, friendsLeaderboard, load, fetchFriendsBoard]);
+
+  const refreshFriendsLeaderboard = useCallback(async () => {
+    await load(
+      "friendsLeaderboard",
+      { ...friendsLeaderboard, fetchedAt: null },
+      setFriendsLeaderboard,
+      fetchFriendsBoard,
+    );
+  }, [friendsLeaderboard, load, fetchFriendsBoard]);
+
   const refreshSettings = useCallback(async () => {
     await load("settings", { ...settings, fetchedAt: null }, setSettingsSlice, () =>
       apiFetch("/api/settings")
-        .then((r) => (r.ok ? (r.json() as Promise<SettingsData>) : null))
+        .then((r) => (r.ok ? (r.json() as Promise<unknown>) : null))
+        .then(settingsFromResponse)
         .catch(() => null),
     );
   }, [settings, load]);
 
   const setSettings = useCallback((next: SettingsData) => {
+    settledAt.current.settings = Date.now();
     setSettingsSlice({ data: next, loading: false, error: false, fetchedAt: Date.now() });
   }, []);
 
   const invalidate = useCallback(
-    (keys: Array<"dashboard" | "settings" | "leaderboard">) => {
+    (keys: SliceKey[]) => {
       const markStale = <T,>(s: Slice<T>): Slice<T> => ({ ...s, fetchedAt: null });
+      for (const key of keys) settledAt.current[key] = null;
+      // The new slice identity re-runs the consumers' ensure effects.
       if (keys.includes("dashboard")) setDashboard(markStale);
       if (keys.includes("settings")) setSettingsSlice(markStale);
       if (keys.includes("leaderboard")) setLeaderboard(markStale);
+      if (keys.includes("friendsLeaderboard")) setFriendsLeaderboard(markStale);
     },
     [],
   );
@@ -234,10 +360,13 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       dashboard,
       settings,
       leaderboard,
+      friendsLeaderboard,
       ensureDashboard,
       ensureSettings,
       ensureLeaderboard,
       refreshLeaderboard,
+      ensureFriendsLeaderboard,
+      refreshFriendsLeaderboard,
       refreshSettings,
       setSettings,
       invalidate,
@@ -247,10 +376,13 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       dashboard,
       settings,
       leaderboard,
+      friendsLeaderboard,
       ensureDashboard,
       ensureSettings,
       ensureLeaderboard,
       refreshLeaderboard,
+      ensureFriendsLeaderboard,
+      refreshFriendsLeaderboard,
       refreshSettings,
       setSettings,
       invalidate,
@@ -309,6 +441,18 @@ export function useLeaderboard() {
     ensureLeaderboard();
   }, [ensureLeaderboard]);
   return { ...leaderboard, refreshLeaderboard };
+}
+
+/**
+ * Cached friends board slice. Fetches only while `enabled` (the Friends tab is
+ * open), so players who never open it don't pay for the request.
+ */
+export function useFriendsLeaderboard(enabled: boolean) {
+  const { friendsLeaderboard, ensureFriendsLeaderboard, refreshFriendsLeaderboard } = useAppData();
+  useEffect(() => {
+    if (enabled) ensureFriendsLeaderboard();
+  }, [enabled, ensureFriendsLeaderboard]);
+  return { ...friendsLeaderboard, refreshFriendsLeaderboard };
 }
 
 /** Escape hatch for the auth flow to drop cache on sign-out / delete. */

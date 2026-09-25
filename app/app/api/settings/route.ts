@@ -1,6 +1,7 @@
 /**
  * GET  /api/settings — the signed-in user's display name + social handles.
- * PUT  /api/settings — update display name, username, and/or social handles.
+ * PUT  /api/settings — update display name, username, social handles, leaderboard
+ *                      consent, and/or avatar (`avatarId`: catalogue id or null).
  *
  * Auth required (Firebase Bearer token).
  */
@@ -24,6 +25,7 @@ import { sanitizeDisplayName } from "../../../src/lib/sanitizeName";
 import { isHatefulName } from "../../../src/lib/nameModeration";
 import { normalizeUsername } from "../../../src/lib/username";
 import { setUsername, clearUsername } from "../../../src/db/creator";
+import { parseAvatarId } from "../../../src/lib/avatars";
 
 export const runtime = "nodejs";
 
@@ -33,6 +35,10 @@ const MAX_NAME = 60;
 // legitimate save (UX path).
 const SETTINGS_RATE_MAX = 30;
 const SETTINGS_RATE_WINDOW_SECONDS = 60;
+
+// revalidateTag profile that expires the tag now, so the next read misses the
+// cache instead of getting one more stale response.
+const IMMEDIATE_EXPIRY = { expire: 0 } as const;
 
 export const GET = withAuth(async (_request: NextRequest, uid: string) => {
   try {
@@ -76,25 +82,49 @@ export async function PUT(request: NextRequest): Promise<NextResponse> {
     );
   }
 
-  let body: {
+  let parsed: unknown;
+  try {
+    parsed = await request.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+  }
+  // Valid JSON is not necessarily an object: `null`, a number or an array would
+  // otherwise throw on the field reads below (outside any try) and surface as an
+  // unstructured 500.
+  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+    return NextResponse.json({ error: "Body must be a JSON object", code: "INVALID_BODY" }, { status: 400 });
+  }
+  const body: {
     displayName?: unknown;
     username?: unknown;
     social?: unknown;
     leaderboardConsent?: unknown;
-  };
-  try {
-    body = await request.json();
-  } catch {
-    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
-  }
+    avatarId?: unknown;
+  } = parsed;
 
-  const patch: { displayName?: string | null; leaderboardConsent?: boolean } = {};
+  const patch: { displayName?: string | null; leaderboardConsent?: boolean; avatarId?: string | null } = {};
 
   if (body.leaderboardConsent !== undefined) {
     if (typeof body.leaderboardConsent !== "boolean") {
       return NextResponse.json({ error: "leaderboardConsent must be a boolean" }, { status: 400 });
     }
     patch.leaderboardConsent = body.leaderboardConsent;
+  }
+
+  // Allow-list only: an unknown id is rejected (never mapped to null/default),
+  // and validation runs before any write so a bad id saves nothing at all.
+  if (body.avatarId !== undefined) {
+    if (body.avatarId === null) {
+      patch.avatarId = null;
+    } else if (typeof body.avatarId !== "string") {
+      return NextResponse.json({ error: "avatarId must be a string or null", code: "INVALID_AVATAR" }, { status: 400 });
+    } else {
+      const avatarId = parseAvatarId(body.avatarId);
+      if (avatarId === null) {
+        return NextResponse.json({ error: "Unknown avatar", code: "UNKNOWN_AVATAR" }, { status: 400 });
+      }
+      patch.avatarId = avatarId;
+    }
   }
 
   // Social handles: a { platform: handle } map. Normalize + moderate each;
@@ -208,18 +238,32 @@ export async function PUT(request: NextRequest): Promise<NextResponse> {
     }
 
     const settings = await updateUserSettings(decoded.uid, patch);
-    // A change here decides whether this player's record shows on the public
-    // leaderboard, and topFreeClimbers' unstable_cache only naturally expires
-    // every 60s — revalidate on demand so revoking (or granting) consent
-    // takes effect on the next fetch, not up to a minute later.
-    if (patch.leaderboardConsent !== undefined) {
-      revalidateTag(LEADERBOARD_CACHE_TAG, { expire: 60 });
+    // Consent decides whether this player's record shows on the public
+    // leaderboard, and each row renders the player's avatar. topFreeClimbers'
+    // unstable_cache otherwise lives up to 60s. `expire: 0` expires the tag
+    // immediately, so the next read is a cache miss: revoking consent removes
+    // the player on the very next fetch. Any non-zero profile (e.g.
+    // `{ expire: 60 }`) is stale-while-revalidate in Next 16, which serves the
+    // old body once more. updateTag() would be immediate too, but it throws
+    // outside Server Actions. Each row's name is climberDisplay(id,
+    // display_name, avatar_id), so both of its inputs expire this tag too: an
+    // avatar change renames a player with no display name (the pseudonym's
+    // animal follows the avatar), and setting, changing or clearing the display
+    // name swaps it for or with the pseudonym. topDuelStats needs no expiry
+    // for an avatar: it lists only players with a display name, whose name an
+    // avatar never changes.
+    if (
+      patch.leaderboardConsent !== undefined ||
+      patch.avatarId !== undefined ||
+      patch.displayName !== undefined
+    ) {
+      revalidateTag(LEADERBOARD_CACHE_TAG, IMMEDIATE_EXPIRY);
     }
     if (patch.displayName !== undefined) {
       // topDuelStats gates visibility on display_name being non-null, so
-      // clearing or setting it also needs an on-demand revalidation, same
-      // reasoning as the leaderboard consent tag above.
-      revalidateTag(DUEL_LEADERBOARD_CACHE_TAG, { expire: 60 });
+      // clearing it must drop the player from the duel board on the next
+      // fetch too, same immediate expiry as the consent tag above.
+      revalidateTag(DUEL_LEADERBOARD_CACHE_TAG, IMMEDIATE_EXPIRY);
       // Audit trail: the name is public and impersonation-capable, so keep
       // it traceable. Log uid + timestamp only — never the raw value, to
       // avoid logging PII.

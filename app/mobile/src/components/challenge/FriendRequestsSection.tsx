@@ -2,18 +2,19 @@ import { useCallback, useEffect, useState } from "react";
 import { climberDisplay } from "@app/lib/handle";
 import { UsernameHandle } from "@app/components/Challenge/UsernameHandle";
 import { apiFetch } from "../../lib/api";
+import { useInvalidateAppData } from "../../contexts/AppDataContext";
 import { notifyError, notifySuccess } from "../../lib/haptics";
 import { Button, Card } from "../ui";
 
 interface FriendRequest {
   id: string;
-  sender: { id: string; displayName: string | null; username: string | null };
+  sender: { id: string; displayName: string | null; username: string | null; avatarId?: string | null };
   createdAt: string;
 }
 
 interface OutgoingRequest {
   id: string;
-  receiver: { id: string; displayName: string | null; username: string | null };
+  receiver: { id: string; displayName: string | null; username: string | null; avatarId?: string | null };
   createdAt: string;
 }
 
@@ -34,6 +35,7 @@ export function FriendRequestsSection({ refreshKey, onAccepted }: FriendRequests
   const [decliningId, setDecliningId] = useState<string | null>(null);
   const [cancelingId, setCancelingId] = useState<string | null>(null);
   const [actionErrors, setActionErrors] = useState<Record<string, string>>({});
+  const invalidateAppData = useInvalidateAppData();
 
   const fetchRequests = useCallback(async () => {
     setLoading(true);
@@ -81,6 +83,7 @@ export function FriendRequestsSection({ refreshKey, onAccepted }: FriendRequests
         if (res.ok) {
           setIncoming((prev) => prev.filter((r) => r.id !== id));
           void notifySuccess();
+          invalidateAppData(["friendsLeaderboard"]);
           onAccepted?.();
         } else {
           setActionErrors((prev) => ({ ...prev, [id]: "Could not accept. Try again." }));
@@ -92,7 +95,7 @@ export function FriendRequestsSection({ refreshKey, onAccepted }: FriendRequests
       }
       setAcceptingId(null);
     },
-    [onAccepted, clearActionError],
+    [onAccepted, clearActionError, invalidateAppData],
   );
 
   const handleDecline = useCallback(
@@ -139,7 +142,7 @@ export function FriendRequestsSection({ refreshKey, onAccepted }: FriendRequests
 
   if (loading) {
     return (
-      <p className="py-2 text-center font-mono text-xs text-text-muted" aria-live="polite">
+      <p className="py-2 text-center font-mono text-meta text-text-muted" aria-live="polite">
         Loading requests…
       </p>
     );
@@ -148,7 +151,7 @@ export function FriendRequestsSection({ refreshKey, onAccepted }: FriendRequests
   if (error) {
     return (
       <div className="flex flex-col items-center gap-2 py-2" role="alert">
-        <p className="text-sm text-ember">{error}</p>
+        <p className="text-meta leading-5 text-ember">{error}</p>
         <Button variant="ghost" fullWidth={false} onPress={fetchRequests}>
           Retry
         </Button>
@@ -162,22 +165,23 @@ export function FriendRequestsSection({ refreshKey, onAccepted }: FriendRequests
     <div className="flex flex-col gap-4">
       {incoming.length > 0 && (
         <div className="flex flex-col gap-2">
-          <h2 className="font-mono text-[11px] uppercase tracking-[0.14em] text-text-muted">
+          <h2 className="font-mono text-label uppercase tracking-label text-text-secondary">
             Friend requests
           </h2>
           {incoming.map((req) => {
-            const name = climberDisplay(req.sender.id, req.sender.displayName);
+            const name = climberDisplay(req.sender.id, req.sender.displayName, req.sender.avatarId);
             return (
               <Card key={req.id} highlight>
-                <div className="flex items-center justify-between gap-3">
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-semibold text-text-primary">{name}</p>
-                    <UsernameHandle username={req.sender.username} />
+                {/* Name on its own line, actions stacked below: side by side, the
+                    two buttons left the name about 12px at 320px. */}
+                <div className="flex flex-col gap-3">
+                  <div className="min-w-0">
+                    <p className="break-words text-balance text-body font-semibold text-text-primary">{name}</p>
+                    <UsernameHandle username={req.sender.username} sizeClass="text-meta" />
                   </div>
-                  <div className="flex shrink-0 items-center gap-2">
+                  <div className="grid grid-cols-2 gap-2">
                     <Button
                       variant="primary"
-                      fullWidth={false}
                       busy={acceptingId === req.id}
                       disabled={busyId !== null && busyId !== req.id}
                       onPress={() => handleAccept(req.id)}
@@ -185,8 +189,7 @@ export function FriendRequestsSection({ refreshKey, onAccepted }: FriendRequests
                       Accept
                     </Button>
                     <Button
-                      variant="ghost"
-                      fullWidth={false}
+                      variant="secondary"
                       busy={decliningId === req.id}
                       disabled={busyId !== null && busyId !== req.id}
                       onPress={() => handleDecline(req.id)}
@@ -196,7 +199,7 @@ export function FriendRequestsSection({ refreshKey, onAccepted }: FriendRequests
                   </div>
                 </div>
                 {actionErrors[req.id] && (
-                  <p className="mt-2 font-mono text-xs text-ember" role="alert">
+                  <p className="mt-2 font-mono text-meta text-ember" role="alert">
                     {actionErrors[req.id]}
                   </p>
                 )}
@@ -208,17 +211,17 @@ export function FriendRequestsSection({ refreshKey, onAccepted }: FriendRequests
 
       {outgoing.length > 0 && (
         <div className="flex flex-col gap-2">
-          <h2 className="font-mono text-[11px] uppercase tracking-[0.14em] text-text-muted">
+          <h2 className="font-mono text-label uppercase tracking-label text-text-secondary">
             Sent requests
           </h2>
           {outgoing.map((req) => {
-            const name = climberDisplay(req.receiver.id, req.receiver.displayName);
+            const name = climberDisplay(req.receiver.id, req.receiver.displayName, req.receiver.avatarId);
             return (
               <Card key={req.id}>
                 <div className="flex items-center justify-between gap-3">
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm text-text-secondary">{name}</p>
-                    <UsernameHandle username={req.receiver.username} />
+                    <p className="break-words text-balance text-body text-text-secondary">{name}</p>
+                    <UsernameHandle username={req.receiver.username} sizeClass="text-meta" />
                   </div>
                   <Button
                     variant="ghost"
@@ -231,7 +234,7 @@ export function FriendRequestsSection({ refreshKey, onAccepted }: FriendRequests
                   </Button>
                 </div>
                 {actionErrors[req.id] && (
-                  <p className="mt-2 font-mono text-xs text-ember" role="alert">
+                  <p className="mt-2 font-mono text-meta text-ember" role="alert">
                     {actionErrors[req.id]}
                   </p>
                 )}

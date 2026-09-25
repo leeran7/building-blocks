@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef } from "react";
 import { drawLava } from "@app/components/Game/lava";
 import { prefersReducedMotion } from "../lib/motion";
+import volcanoScene from "@app/../public/climb/volcano-tile.jpg";
 
 /**
  * "Thermal Column" backdrop — dark tower above rising lava.
@@ -46,6 +47,7 @@ export function AnimatedBackdrop() {
 
   return (
     <div aria-hidden className="pointer-events-none fixed inset-0 z-0 bg-void">
+      <div className="bd-scene" style={{ backgroundImage: `url(${volcanoScene})` }} />
       {/* Ember-orange thermal bloom rising from the lava band */}
       <div className="bd-thermal" />
       {/* Signal-lime summit corona — cold and stable at the top */}
@@ -82,10 +84,21 @@ export function AnimatedBackdrop() {
 
       {/* Full-edge radial vignette anchors all corners */}
       <div className="bd-vignette" />
+      {/* Dims the top of the scene, where page titles, eyebrows and taglines sit
+          straight on it: over bare lava cracks they measured under 3:1. */}
+      <div className="bd-top-scrim" />
       {/* Static SVG fractalNoise grain — texture without repaint cost */}
       <div className="bd-grain" />
 
       <style>{`
+        .bd-scene {
+          position: absolute; inset: 0;
+          background-size: cover; background-position: center 30%;
+          opacity: 0.75;
+          filter: saturate(1.25) contrast(1.05);
+          -webkit-mask-image: linear-gradient(to bottom, rgba(0,0,0,0.55) 0%, #000 30%, #000 100%);
+          mask-image: linear-gradient(to bottom, rgba(0,0,0,0.55) 0%, #000 30%, #000 100%);
+        }
         .bd-thermal {
           position: absolute; inset-inline: 0; bottom: 0; height: 80vh;
           background: radial-gradient(
@@ -122,7 +135,7 @@ export function AnimatedBackdrop() {
 
         .bd-lava-canvas {
           position: absolute; inset-inline: 0; bottom: 0;
-          width: 100%; height: 42vh;
+          width: 100%; height: 26vh;
           display: block;
         }
 
@@ -143,6 +156,14 @@ export function AnimatedBackdrop() {
             transparent 40%,
             rgba(10, 10, 12, 0.35) 70%,
             rgba(10, 10, 12, 0.70) 100%
+          );
+        }
+        .bd-top-scrim {
+          position: absolute; inset-inline: 0; top: 0; height: 42vh;
+          background: linear-gradient(to bottom,
+            rgba(10, 10, 12, 0.74) 0%,
+            rgba(10, 10, 12, 0.5) 50%,
+            transparent 100%
           );
         }
         .bd-grain {
@@ -223,6 +244,8 @@ function LavaCanvas() {
         tick,
         reducedMotion: reduce,
         slowed: false,
+        // No freeze power-up behind the menus: -1 is lava's "inactive" value.
+        hardenProgress: -1,
       });
     };
 

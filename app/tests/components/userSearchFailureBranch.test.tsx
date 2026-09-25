@@ -187,3 +187,18 @@ describe("UserSearchSection (mobile) — 429 after a successful search clears th
     unmount();
   });
 });
+
+describe("Search field accessible name — web /duel and mobile match", () => {
+  it("names both inputs the same, independent of the placeholder", () => {
+    const web = mount(createElement(UserSearch, { onSelect: async () => true }));
+    const mobile = mount(createElement(UserSearchSection, {}));
+    const webInput = web.container.querySelector("input") as HTMLInputElement;
+    const mobileInput = mobile.container.querySelector("input") as HTMLInputElement;
+
+    expect(webInput.getAttribute("aria-label")).toBe("Search by email or username");
+    expect(webInput.getAttribute("aria-label")).toBe(mobileInput.getAttribute("aria-label"));
+
+    web.unmount();
+    mobile.unmount();
+  });
+});

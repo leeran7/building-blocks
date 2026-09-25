@@ -14,8 +14,8 @@ interface ChallengeItem {
   status: string;
   expiresAt: string;
   createdAt: string;
-  sender: { id: string; displayName: string | null; username: string | null };
-  recipient: { id: string; displayName: string | null; username: string | null };
+  sender: { id: string; displayName: string | null; username: string | null; avatarId?: string | null };
+  recipient: { id: string; displayName: string | null; username: string | null; avatarId?: string | null };
   direction: "sent" | "received";
 }
 
@@ -147,7 +147,7 @@ export function PendingChallengesSection({ refreshKey }: PendingChallengesSectio
 
   if (loading) {
     return (
-      <p className="py-2 text-center font-mono text-xs text-text-muted" aria-live="polite">
+      <p className="py-2 text-center font-mono text-meta text-text-muted" aria-live="polite">
         Loading challenges…
       </p>
     );
@@ -156,7 +156,7 @@ export function PendingChallengesSection({ refreshKey }: PendingChallengesSectio
   if (error) {
     return (
       <div className="flex flex-col items-center gap-2 py-2" role="alert">
-        <p className="text-sm text-ember">{error}</p>
+        <p className="text-meta leading-5 text-ember">{error}</p>
         <Button variant="ghost" fullWidth={false} onPress={fetchChallenges}>
           Retry
         </Button>
@@ -173,28 +173,29 @@ export function PendingChallengesSection({ refreshKey }: PendingChallengesSectio
     <div className="flex flex-col gap-4">
       {received.length > 0 && (
         <div className="flex flex-col gap-2">
-          <h2 className="font-mono text-[11px] uppercase tracking-[0.14em] text-text-muted">
+          <h2 className="font-mono text-label uppercase tracking-label text-text-secondary">
             Incoming challenges
           </h2>
           {received.map((c) => {
-            const name = climberDisplay(c.sender.id, c.sender.displayName);
+            const name = climberDisplay(c.sender.id, c.sender.displayName, c.sender.avatarId);
             const expired = isExpired(c.expiresAt);
             return (
               <Card key={c.id} highlight>
-                <div className="flex items-center justify-between gap-3">
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-semibold text-text-primary">
+                {/* Name on its own line, actions stacked below: side by side, the
+                    two buttons left the name about 12px at 320px. */}
+                <div className="flex flex-col gap-3">
+                  <div className="min-w-0">
+                    <p className="break-words text-balance text-body font-semibold text-text-primary">
                       {name} challenged you
                     </p>
-                    <UsernameHandle username={c.sender.username} />
-                    <p className="mt-0.5 font-mono text-xs text-text-muted">
+                    <UsernameHandle username={c.sender.username} sizeClass="text-meta" />
+                    <p className="mt-0.5 font-mono text-meta text-text-muted">
                       {timeLeft(c.expiresAt)}
                     </p>
                   </div>
-                  <div className="flex shrink-0 items-center gap-2">
+                  <div className="grid grid-cols-2 gap-2">
                     <Button
                       variant="primary"
-                      fullWidth={false}
                       busy={acceptingId === c.id}
                       disabled={(busyId !== null && busyId !== c.id) || expired}
                       onPress={() => handleAccept(c.id)}
@@ -202,8 +203,7 @@ export function PendingChallengesSection({ refreshKey }: PendingChallengesSectio
                       Accept
                     </Button>
                     <Button
-                      variant="ghost"
-                      fullWidth={false}
+                      variant="secondary"
                       busy={decliningId === c.id}
                       disabled={busyId !== null && busyId !== c.id}
                       onPress={() => handleDecline(c.id)}
@@ -213,7 +213,7 @@ export function PendingChallengesSection({ refreshKey }: PendingChallengesSectio
                   </div>
                 </div>
                 {actionErrors[c.id] && (
-                  <p className="mt-2 font-mono text-xs text-ember" role="alert">
+                  <p className="mt-2 font-mono text-meta text-ember" role="alert">
                     {actionErrors[c.id]}
                   </p>
                 )}
@@ -225,20 +225,20 @@ export function PendingChallengesSection({ refreshKey }: PendingChallengesSectio
 
       {sent.length > 0 && (
         <div className="flex flex-col gap-2">
-          <h2 className="font-mono text-[11px] uppercase tracking-[0.14em] text-text-muted">
+          <h2 className="font-mono text-label uppercase tracking-label text-text-secondary">
             Sent challenges
           </h2>
           {sent.map((c) => {
-            const name = climberDisplay(c.recipient.id, c.recipient.displayName);
+            const name = climberDisplay(c.recipient.id, c.recipient.displayName, c.recipient.avatarId);
             return (
               <Card key={c.id}>
                 <div className="flex items-center justify-between gap-3">
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm text-text-secondary">
+                    <p className="break-words text-balance text-body text-text-secondary">
                       Waiting for <span className="font-semibold text-text-primary">{name}</span>
                     </p>
-                    <UsernameHandle username={c.recipient.username} />
-                    <p className="mt-0.5 font-mono text-xs text-text-muted">
+                    <UsernameHandle username={c.recipient.username} sizeClass="text-meta" />
+                    <p className="mt-0.5 font-mono text-meta text-text-muted">
                       {timeLeft(c.expiresAt)}
                     </p>
                   </div>
@@ -253,7 +253,7 @@ export function PendingChallengesSection({ refreshKey }: PendingChallengesSectio
                   </Button>
                 </div>
                 {actionErrors[c.id] && (
-                  <p className="mt-2 font-mono text-xs text-ember" role="alert">
+                  <p className="mt-2 font-mono text-meta text-ember" role="alert">
                     {actionErrors[c.id]}
                   </p>
                 )}

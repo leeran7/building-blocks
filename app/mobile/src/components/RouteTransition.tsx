@@ -1,12 +1,18 @@
-import { useLocation, useNavigate } from "react-router-dom";
+import { useLocation } from "react-router-dom";
 import { useEffect, useRef, useState, type ReactNode, type TouchEvent } from "react";
 import { tapLight } from "../lib/haptics";
 import { prefersReducedMotion } from "../lib/motion";
+import { parentRoute, useBackOr } from "../lib/navigation";
+import { isTabRoot } from "./BottomNav";
 
 /**
  * iOS-style navigation feel over the persistent game backdrop.
  *
- * Push (hub → screen):
+ * Hub (the bottom-nav tab roots: Home, Ranks, Profile — see isTabRoot):
+ *   - Fades in with a 6px settle, the same on every tab switch. The tabs are
+ *     peers, not a stack, so there is no slide and no edge-swipe back.
+ *
+ * Push (hub → screen: Edit Profile, Avatar, Challenge):
  *   - Entering screen slides in from right, on top of the static hub.
  *   - Hub unmounts cleanly once the push finishes. No overlay needed —
  *     the animated backdrop is always visible underneath, so there's no
@@ -20,7 +26,7 @@ import { prefersReducedMotion } from "../lib/motion";
  */
 export function RouteTransition({ children }: { children: ReactNode }) {
   const { pathname } = useLocation();
-  const isHub = pathname === "/";
+  const isHub = isTabRoot(pathname);
 
   if (isHub) {
     return (
@@ -30,15 +36,20 @@ export function RouteTransition({ children }: { children: ReactNode }) {
       </div>
     );
   }
-  return <PushScreen key={pathname}>{children}</PushScreen>;
+  return (
+    <PushScreen key={pathname} pathname={pathname}>
+      {children}
+    </PushScreen>
+  );
 }
 
 const EDGE_PX = 28;
 const POP_RATIO = 0.35;
 const POP_VELOCITY = 0.55;
 
-function PushScreen({ children }: { children: ReactNode }) {
-  const navigate = useNavigate();
+function PushScreen({ pathname, children }: { pathname: string; children: ReactNode }) {
+  // A deep-linked screen has nothing behind it: swipe to its parent instead.
+  const back = useBackOr(parentRoute(pathname));
   const [x, setX] = useState(0);
   const [animating, setAnimating] = useState(false);
   const [animKind, setAnimKind] = useState<"pop" | "snap" | null>(null);
@@ -109,8 +120,7 @@ function PushScreen({ children }: { children: ReactNode }) {
 
     const goBack = () => {
       void tapLight();
-      if (window.history.length > 1) navigate(-1);
-      else navigate("/");
+      back();
     };
 
     if (reduce) {

@@ -1,4 +1,4 @@
-import type { ButtonHTMLAttributes, ReactNode } from "react";
+import type { ButtonHTMLAttributes, ReactNode, Ref } from "react";
 import { tapLight } from "../lib/haptics";
 
 /**
@@ -72,7 +72,7 @@ export function Button({
       }}
       className={cx(
         "inline-flex min-h-[50px] items-center justify-center gap-2 rounded-full px-6",
-        "font-display text-sm uppercase tracking-wide",
+        "font-display text-meta uppercase tracking-wide",
         "transition-transform duration-150 active:scale-[0.97]",
         "disabled:active:scale-100",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void",
@@ -145,7 +145,7 @@ export function ScreenHeader({
       )}
       <div className="min-w-0 flex-1">
         {eyebrow && (
-          <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-text-muted">
+          <p className="font-mono text-label uppercase tracking-eyebrow text-text-muted">
             {eyebrow}
           </p>
         )}
@@ -158,11 +158,55 @@ export function ScreenHeader({
   );
 }
 
-function ChevronLeft() {
+/* --------------------------------------------------------------- PushHeader */
+
+export interface PushHeaderProps {
+  title: string;
+  /** Called after the haptic when the back button is tapped. */
+  onBack: () => void;
+  /** Makes the title a programmatic focus target (tabIndex -1), e.g. useRetry's focusOnRecover. */
+  headingRef?: Ref<HTMLHeadingElement>;
+}
+
+/**
+ * Header for the Profile push screens (Edit Profile, Choose avatar): a 48px
+ * glass back button and the large metal display title.
+ *
+ * The focus indicator is an outline, not a ring: `.glass` is unlayered CSS and
+ * sets box-shadow, which beats Tailwind's layered ring utilities, so a
+ * `focus-visible:ring-*` on a glass element never shows.
+ */
+export function PushHeader({ title, onBack, headingRef }: PushHeaderProps) {
+  return (
+    <header className="flex items-center gap-3 px-4 pb-4 pt-[calc(env(safe-area-inset-top)+1rem)]">
+      <button
+        type="button"
+        aria-label="Back"
+        onClick={() => {
+          void tapLight();
+          onBack();
+        }}
+        className="glass flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-white/10 text-text-primary transition-transform active:scale-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-signal"
+      >
+        <ChevronLeft size={22} />
+      </button>
+      <h1
+        ref={headingRef}
+        tabIndex={headingRef ? -1 : undefined}
+        className="metal-title font-display text-title font-black uppercase tracking-[-0.02em] focus:outline-none"
+      >
+        {title}
+      </h1>
+    </header>
+  );
+}
+
+function ChevronLeft({ size = 20 }: { size?: number }) {
   return (
     <svg
-      width="20"
-      height="20"
+      aria-hidden
+      width={size}
+      height={size}
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
@@ -192,10 +236,13 @@ export function Card({ children, highlight = false, className }: CardProps) {
   return (
     <div
       className={cx(
-        "rounded-3xl border px-5 py-4",
+        // Near-opaque over the lava scene: at /80 the brightest backdrop under a
+        // card pulled its muted meta text under 3:1. The highlight tint is a
+        // gradient over the same base, not a see-through fill.
+        "rounded-3xl border bg-surface/95 px-5 py-4",
         highlight
-          ? "border-signal/40 bg-signal/[0.07]"
-          : "border-border-subtle bg-surface/80",
+          ? "border-signal/40 bg-linear-to-b from-signal/[0.09] to-signal/[0.05]"
+          : "border-border-subtle",
         className,
       )}
     >
@@ -224,7 +271,7 @@ export function StatCard({ label, value, accent = false }: StatCardProps) {
       >
         {value}
       </p>
-      <p className="mt-2 font-mono text-[10px] uppercase tracking-[0.2em] text-text-secondary">
+      <p className="mt-2 font-mono text-label uppercase tracking-label text-text-secondary">
         {label}
       </p>
     </div>
@@ -251,10 +298,10 @@ export function ListRow({
   className,
 }: ListRowProps) {
   const base = cx(
-    "flex items-center gap-3 rounded-2xl border px-4 py-3.5",
+    "flex items-center gap-3 rounded-2xl border bg-surface/95 px-4 py-3.5",
     highlight
-      ? "border-signal/40 bg-signal/[0.08]"
-      : "border-border-subtle bg-surface/70",
+      ? "border-signal/40 bg-linear-to-b from-signal/[0.09] to-signal/[0.05]"
+      : "border-border-subtle",
     className,
   );
   if (onPress) {
@@ -300,8 +347,54 @@ export function ScreenBody({ children }: { children: ReactNode }) {
 /** Centered empty / error message for list screens. */
 export function StateMessage({ children }: { children: ReactNode }) {
   return (
-    <p className="px-6 pt-16 text-center text-sm leading-relaxed text-text-secondary">
+    <p className="px-6 pt-16 text-center text-body leading-relaxed text-text-secondary">
       {children}
     </p>
+  );
+}
+
+/* -------------------------------------------------------------- RetryPanel */
+
+export interface RetryPanelProps {
+  /** What failed and what to do, in plain words. */
+  message: ReactNode;
+  /** From useRetry: the refresh is in flight. */
+  retrying: boolean;
+  /** From useRetry: bumps once per settled retry, re-announcing the message. */
+  attempts: number;
+  onRetry: () => void;
+  /** Extra actions under Try again (e.g. Sign out). */
+  children?: ReactNode;
+}
+
+/**
+ * Load-failure state with a Try again button that survives its own retry.
+ * The screen keeps this mounted while `retrying` (see useRetry), so the same
+ * button element keeps focus through a retry that fails again, and the alert
+ * re-mounts so screen readers hear the failure again. `aria-disabled` rather
+ * than `disabled` while busy: disabling the focused button would drop focus
+ * to <body>.
+ */
+export function RetryPanel({ message, retrying, attempts, onRetry, children }: RetryPanelProps) {
+  return (
+    <div className="flex flex-col items-center gap-4 pb-6">
+      <div role="alert" key={attempts}>
+        <StateMessage>{message}</StateMessage>
+      </div>
+      <button
+        type="button"
+        aria-disabled={retrying}
+        aria-busy={retrying}
+        onClick={() => {
+          if (retrying) return;
+          void tapLight();
+          onRetry();
+        }}
+        className="glass min-h-[48px] rounded-2xl border border-white/10 px-6 text-body font-semibold text-text-primary transition-opacity aria-disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-signal"
+      >
+        {retrying ? "Retrying…" : "Try again"}
+      </button>
+      {children}
+    </div>
   );
 }

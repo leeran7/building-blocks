@@ -12,6 +12,7 @@ import {
   createChallenge,
   getPendingChallengesForUser,
 } from "../../../src/db/challenge";
+import { publicUserJson } from "../../../src/db/publicUser";
 import { createNotification } from "../../../src/db/notification";
 import { climberDisplay } from "../../../src/lib/handle";
 
@@ -104,7 +105,7 @@ export async function POST(request: NextRequest) {
         );
       case "created": {
         const c = result.challenge;
-        const senderName = climberDisplay(c.sender_id, c.sender.display_name);
+        const senderName = climberDisplay(c.sender_id, c.sender.display_name, c.sender.avatar_id);
 
         await createNotification({
           userId: recipientId,
@@ -129,8 +130,8 @@ export async function POST(request: NextRequest) {
             categorySlug: c.category_slug,
             status: c.status,
             expiresAt: c.expires_at.toISOString(),
-            sender: { id: c.sender.id, displayName: c.sender.display_name, username: c.sender.username },
-            recipient: { id: c.recipient.id, displayName: c.recipient.display_name, username: c.recipient.username },
+            sender: publicUserJson(c.sender),
+            recipient: publicUserJson(c.recipient),
           },
           { status: 201 }
         );
@@ -166,8 +167,8 @@ export async function GET(request: NextRequest) {
         status: c.status,
         expiresAt: c.expires_at.toISOString(),
         createdAt: c.created_at.toISOString(),
-        sender: { id: c.sender.id, displayName: c.sender.display_name, username: c.sender.username },
-        recipient: { id: c.recipient.id, displayName: c.recipient.display_name, username: c.recipient.username },
+        sender: publicUserJson(c.sender),
+        recipient: publicUserJson(c.recipient),
         direction: c.sender_id === uid ? "sent" : "received",
       }))
     );

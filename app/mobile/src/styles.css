@@ -10,7 +10,11 @@
 
 /*
   ASCENT palette — mirrors the tokens in app/app/globals.css so the reused
-  game components render with identical colors inside the SPA. Keep in sync.
+  game components render with identical colors inside the SPA. Keep in sync,
+  with one deliberate exception: text-muted is lighter here. The SPA draws
+  muted text on translucent glass over the lava scene, where the web value
+  (#74707e) measured 2.6-3.9:1. The value below clears 4.5:1 on every glass
+  surface over the brightest backdrop pixel under it.
 */
 @theme {
   --color-void: #0a0a0c;
@@ -22,7 +26,7 @@
   --color-border-focus: #4a4656;
   --color-text-primary: #f4f2ec;
   --color-text-secondary: #a8a4b2;
-  --color-text-muted: #74707e;
+  --color-text-muted: #9894a3;
   --color-text-disabled: #4a4656;
 
   --color-accent: #cbf24d;
@@ -38,9 +42,43 @@
   --shadow-ember:
     0 0 0 1px rgb(255 90 44 / 0.18), 0 12px 40px -14px rgb(255 90 44 / 0.4);
 
-  --font-display: system-ui, -apple-system, "Segoe UI", sans-serif;
-  --font-sans: system-ui, -apple-system, "Segoe UI", sans-serif;
-  --font-mono: ui-monospace, "SF Mono", Menlo, monospace;
+  --font-display: "Bricolage Grotesque Variable", system-ui, -apple-system, sans-serif;
+  --font-sans: "Hanken Grotesk Variable", system-ui, -apple-system, sans-serif;
+  --font-mono: "Space Mono", ui-monospace, "SF Mono", Menlo, monospace;
+
+  /*
+    Type scale. Every step is rem so the OS / browser text size scales the whole
+    UI (html font-size). Display steps are fixed rem, not viewport clamps, and
+    are sized so the longest title fits at 320pt without a smaller variant.
+    Readable copy is text-body (1rem) or text-meta (0.875rem); nothing a user
+    must read goes below text-label (0.75rem).
+  */
+  --text-wordmark: 2rem; /* Home title-screen DOOMSTACK */
+  --text-wordmark--line-height: 0.95;
+  --text-title: 1.75rem; /* page titles: LEADERBOARD, PROFILE, EDIT PROFILE */
+  --text-title--line-height: 1;
+  --text-hero: 2.25rem; /* best-climb score */
+  --text-hero--line-height: 1;
+  --text-stat: 1.75rem; /* stat tile numbers */
+  --text-stat--line-height: 1;
+  --text-cta: 1.375rem; /* primary CTA labels: PLAY, DAILY CLIMB */
+  --text-cta--line-height: 1;
+  --text-headline: 1.375rem; /* YOU'RE #N banner */
+  --text-headline--line-height: 1.1;
+  --text-name: 1.25rem; /* Profile header name */
+  --text-name--line-height: 1.15;
+  --text-lead: 1.125rem; /* Save CTA labels, Profile empty-state heading, Home best-card rank */
+  --text-lead--line-height: calc(1.75 / 1.125);
+  --text-body: 1rem;
+  --text-body--line-height: 1.4;
+  --text-meta: 0.875rem; /* secondary copy, units, row meta */
+  --text-meta--line-height: 1.35;
+  --text-label: 0.75rem; /* tracked mono labels, nav labels */
+  --text-label--line-height: 1.2;
+
+  --tracking-label: 0.14em; /* BEST CLIMB, PLAYER, WINS, nav labels */
+  --tracking-chip: 0.12em; /* Global|Friends tabs, YOU and SENT chips */
+  --tracking-eyebrow: 0.28em; /* wordmark eyebrows and taglines; also their pl- centring pad */
 }
 
 /*
@@ -68,6 +106,35 @@ body {
   font-family: var(--font-sans);
   /* Safe areas are handled per-screen (ScreenHeader top, ScreenBody bottom,
      HomeScreen inset props) — no body-level padding needed. */
+}
+
+/*
+  One visible keyboard / switch-control focus indicator for every focusable
+  element. In the base layer, so a component's own focus-visible utilities win.
+  Glass and CTA surfaces set an unlayered box-shadow, which hides Tailwind's
+  ring utilities, so those use this outline rather than a ring.
+*/
+@layer base {
+  :focus-visible {
+    outline: 2px solid var(--color-signal);
+    outline-offset: 2px;
+  }
+}
+
+/*
+  Reduced motion: every CSS animation and transition becomes an instant state
+  change (pulses, spinners, press scales, route slides). The lava canvas and
+  smooth scrolls are JS-driven and gate on prefersReducedMotion() themselves.
+*/
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 /* Allow selection only where it's genuinely useful (inputs). */
@@ -106,4 +173,49 @@ textarea {
   .app-fade {
     animation: none;
   }
+}
+
+/*
+  Shared surfaces for the redesigned hub screens (Home, Ranks, Profile and the
+  Profile push screens). Text sits on these, so they stay >= 0.94 opaque: at
+  0.88 the lava band behind a Ranks row pulled muted text under 4.5:1.
+*/
+.glass {
+  background: rgba(16, 15, 20, 0.94);
+  -webkit-backdrop-filter: blur(14px) saturate(1.2);
+  backdrop-filter: blur(14px) saturate(1.2);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 10px 30px -14px rgba(0, 0, 0, 0.8);
+}
+.glow-card {
+  background:
+    linear-gradient(90deg, rgba(203, 242, 77, 0.16), rgba(203, 242, 77, 0.04) 60%, rgba(203, 242, 77, 0.1)),
+    rgba(16, 15, 20, 0.94);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+  box-shadow: inset 0 0 0 1px rgba(203, 242, 77, 0.55), 0 0 28px -6px rgba(203, 242, 77, 0.35);
+}
+.cta-lime {
+  background: linear-gradient(180deg, #d9fb6a 0%, var(--color-signal) 45%, #b6dc3c 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.55),
+    inset 0 -3px 0 rgba(0, 0, 0, 0.18),
+    0 0 0 1px rgba(203, 242, 77, 0.35),
+    0 14px 44px -12px rgba(203, 242, 77, 0.55);
+}
+/* Disabled reads as grey-on-dark, not lime, but stays legible (text-muted,
+   ~5:1): the avatar picker opens with Save disabled, and text-disabled was 1.9:1. */
+.cta-lime:disabled {
+  background: var(--color-elevated);
+  box-shadow: inset 0 0 0 1px var(--color-border-subtle);
+  color: var(--color-text-muted);
+}
+.metal-title {
+  background: linear-gradient(180deg, #ffffff 0%, #e4e2dc 38%, #9c98a3 62%, #d9d6cf 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: drop-shadow(0 2px 0 rgba(0, 0, 0, 0.55)) drop-shadow(0 0 18px rgba(255, 90, 44, 0.25));
+}
+.hex {
+  clip-path: polygon(25% 3%, 75% 3%, 100% 50%, 75% 97%, 25% 97%, 0 50%);
 }

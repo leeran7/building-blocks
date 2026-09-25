@@ -21,13 +21,13 @@ import { Spinner } from "../ui/Spinner";
 
 interface FriendRequest {
   id: string;
-  sender: { id: string; displayName: string | null; username: string | null };
+  sender: { id: string; displayName: string | null; username: string | null; avatarId?: string | null };
   createdAt: string;
 }
 
 interface OutgoingRequest {
   id: string;
-  receiver: { id: string; displayName: string | null; username: string | null };
+  receiver: { id: string; displayName: string | null; username: string | null; avatarId?: string | null };
   createdAt: string;
 }
 
@@ -186,7 +186,7 @@ export function FriendRequests({ refreshKey, onAccepted }: FriendRequestsProps =
           </h3>
           <div className="flex flex-col gap-2">
             {incoming.map((req) => {
-              const name = climberDisplay(req.sender.id, req.sender.displayName);
+              const name = climberDisplay(req.sender.id, req.sender.displayName, req.sender.avatarId);
               return (
                 <div
                   key={req.id}
@@ -237,7 +237,7 @@ export function FriendRequests({ refreshKey, onAccepted }: FriendRequestsProps =
           </h3>
           <div className="flex flex-col gap-2">
             {outgoing.map((req) => {
-              const name = climberDisplay(req.receiver.id, req.receiver.displayName);
+              const name = climberDisplay(req.receiver.id, req.receiver.displayName, req.receiver.avatarId);
               return (
                 <div
                   key={req.id}

@@ -7,29 +7,24 @@
 
 import { prisma } from "./client";
 import { FriendshipStatus, Friendship } from "@prisma/client";
+import { publicUserJson, publicUserSelect, type PublicUserJson } from "./publicUser";
 
 // ── Types ─────────────────────────────────────────────────────────────────
 
-interface FriendUser {
-  id: string;
-  displayName: string | null;
-  username: string | null;
-}
-
 export interface FriendEntry {
   id: string;
-  user: FriendUser;
+  user: PublicUserJson;
 }
 
 export interface PendingRequestEntry {
   id: string;
-  sender: FriendUser;
+  sender: PublicUserJson;
   createdAt: Date;
 }
 
 export interface OutgoingRequestEntry {
   id: string;
-  receiver: FriendUser;
+  receiver: PublicUserJson;
   createdAt: Date;
 }
 
@@ -49,9 +44,7 @@ export type RemoveFriendResult =
   | { ok: true }
   | { ok: false; code: "not_found" | "not_party" };
 
-const userSelect = {
-  select: { id: true, display_name: true, username: true },
-} as const;
+const userSelect = { select: publicUserSelect } as const;
 
 // ── Writes ────────────────────────────────────────────────────────────────
 
@@ -198,11 +191,7 @@ export async function getFriends(userId: string): Promise<FriendEntry[]> {
     const other = f.sender_id === userId ? f.receiver : f.sender;
     return {
       id: f.id,
-      user: {
-        id: other.id,
-        displayName: other.display_name,
-        username: other.username,
-      },
+      user: publicUserJson(other),
     };
   });
 }
@@ -224,11 +213,7 @@ export async function getPendingRequests(
 
   return requests.map((r) => ({
     id: r.id,
-    sender: {
-      id: r.sender.id,
-      displayName: r.sender.display_name,
-      username: r.sender.username,
-    },
+    sender: publicUserJson(r.sender),
     createdAt: r.created_at,
   }));
 }
@@ -250,11 +235,7 @@ export async function getOutgoingRequests(
 
   return requests.map((r) => ({
     id: r.id,
-    receiver: {
-      id: r.receiver.id,
-      displayName: r.receiver.display_name,
-      username: r.receiver.username,
-    },
+    receiver: publicUserJson(r.receiver),
     createdAt: r.created_at,
   }));
 }

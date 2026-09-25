@@ -85,7 +85,7 @@ export async function getCreatorProfileByUsername(
 ): Promise<CreatorProfile | null> {
   const user = await prisma.user.findUnique({
     where: { username },
-    select: { id: true, display_name: true, username: true },
+    select: { id: true, display_name: true, username: true, avatar_id: true },
   });
   if (!user || !user.username) return null;
 
@@ -97,7 +97,7 @@ export async function getCreatorProfileByUsername(
 
   return {
     username: user.username,
-    name: climberDisplay(user.id, user.display_name),
+    name: climberDisplay(user.id, user.display_name, user.avatar_id),
     social,
     freeClimb,
     replays,

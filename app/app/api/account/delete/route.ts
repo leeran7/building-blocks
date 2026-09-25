@@ -36,6 +36,9 @@ import { DUEL_LEADERBOARD_CACHE_TAG } from "../../../../src/db/duel";
 
 export const runtime = "nodejs";
 
+// revalidateTag profile that expires the tag immediately (see the call site).
+const IMMEDIATE_EXPIRY = { expire: 0 } as const;
+
 export async function DELETE(request: NextRequest): Promise<NextResponse> {
   let uid: string;
   try {
@@ -78,6 +81,10 @@ export async function DELETE(request: NextRequest): Promise<NextResponse> {
           emailVerified: false,
           display_name: null,
           username: null,
+          // Friends and challenge payloads still carry the retained row, and
+          // the pseudonym's animal follows avatar_id: clear it so a deleted
+          // account falls back to the hash-only pseudonym.
+          avatar_id: null,
         },
       }),
     ]);
@@ -85,8 +92,12 @@ export async function DELETE(request: NextRequest): Promise<NextResponse> {
     // The deleted climbRecord/duelStats rows just dropped out of both public
     // leaderboards' underlying query, but each is cached for up to 60s — without
     // this, a deleted account stays publicly visible until that window expires.
-    revalidateTag(LEADERBOARD_CACHE_TAG, { expire: 60 });
-    revalidateTag(DUEL_LEADERBOARD_CACHE_TAG, { expire: 60 });
+    // `expire: 0` expires the tags now, so the next read misses the cache. Any
+    // longer profile is stale-while-revalidate in Next 16 and would serve the
+    // board with the deleted account on it once more (same as PUT /api/settings;
+    // updateTag is Server Action-only).
+    revalidateTag(LEADERBOARD_CACHE_TAG, IMMEDIATE_EXPIRY);
+    revalidateTag(DUEL_LEADERBOARD_CACHE_TAG, IMMEDIATE_EXPIRY);
 
     // Delete the Firebase account — all tokens for this UID become invalid, so
     // the anonymized row can never be accessed again. Tolerate an already-absent

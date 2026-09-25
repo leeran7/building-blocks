@@ -18,7 +18,7 @@ import { UsernameHandle } from "./UsernameHandle";
 
 interface Friend {
   id: string; // friendship id
-  user: { id: string; displayName: string | null; username: string | null };
+  user: { id: string; displayName: string | null; username: string | null; avatarId?: string | null };
 }
 
 interface FriendsListProps {
@@ -110,7 +110,7 @@ export function FriendsList({ onChallenge, disabled, refreshKey }: FriendsListPr
   return (
     <div className="flex flex-col gap-2">
       {friends.map((friend) => {
-        const name = climberDisplay(friend.user.id, friend.user.displayName);
+        const name = climberDisplay(friend.user.id, friend.user.displayName, friend.user.avatarId);
         const sent = challengeSent.has(friend.user.id);
         const errored = challengeErrors.has(friend.user.id);
         const challenging = challengingId === friend.user.id;

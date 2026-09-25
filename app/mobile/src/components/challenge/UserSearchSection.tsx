@@ -10,6 +10,7 @@ interface SearchResult {
   id: string;
   username: string | null;
   displayName: string | null;
+  avatarId?: string | null;
 }
 
 export interface UserSearchSectionProps {
@@ -113,7 +114,7 @@ export function UserSearchSection({ onFriendRequestSent }: UserSearchSectionProp
 
   return (
     <div className="flex flex-col gap-3">
-      <h2 className="font-mono text-[11px] uppercase tracking-[0.14em] text-text-muted">
+      <h2 className="font-mono text-label uppercase tracking-label text-text-secondary">
         Add friends
       </h2>
 
@@ -126,34 +127,35 @@ export function UserSearchSection({ onFriendRequestSent }: UserSearchSectionProp
           placeholder="Search by email or username…"
           autoCapitalize="none"
           autoCorrect="off"
-          className="w-full rounded-2xl border border-border-strong bg-surface-raised px-4 py-3.5 text-sm text-text-primary placeholder:text-text-muted focus:border-signal/50 focus:outline-none"
+          aria-label="Search by email or username"
+          className="w-full rounded-2xl border border-border-strong bg-surface-raised py-3.5 pl-4 pr-12 text-body text-text-primary placeholder:text-text-muted focus:border-signal focus:outline-none"
         />
         {query.length > 0 && (
           <button
             type="button"
             aria-label="Clear search"
             onClick={() => setQuery("")}
-            className="absolute right-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full text-text-muted active:scale-90"
+            className="absolute right-0.5 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full text-text-secondary active:scale-90"
           >
-            ✕
+            <span aria-hidden>✕</span>
           </button>
         )}
       </div>
 
       {loading && (
-        <p className="text-center font-mono text-xs text-text-muted" aria-live="polite">
+        <p className="text-center font-mono text-meta text-text-muted" aria-live="polite">
           Searching…
         </p>
       )}
 
       {!loading && searchError && (
-        <p className="py-1 text-center font-mono text-xs text-ember" role="alert">
+        <p className="py-1 text-center font-mono text-meta text-ember" role="alert">
           {searchError}
         </p>
       )}
 
       {!loading && !searchError && searched && results.length === 0 && (
-        <p className="py-1 text-center text-sm text-text-secondary">
+        <p className="py-1 text-center text-meta leading-5 text-text-secondary">
           No user found with that email or username.
         </p>
       )}
@@ -161,7 +163,7 @@ export function UserSearchSection({ onFriendRequestSent }: UserSearchSectionProp
       {results.length > 0 && (
         <div className="flex flex-col gap-2">
           {results.map((u) => {
-            const name = climberDisplay(u.id, u.displayName);
+            const name = climberDisplay(u.id, u.displayName, u.avatarId);
             const sent = sentIds.has(u.id);
             const errored = errorIds.has(u.id);
             return (
@@ -169,11 +171,11 @@ export function UserSearchSection({ onFriendRequestSent }: UserSearchSectionProp
                 <div className="flex w-full flex-col gap-1.5">
                   <div className="flex items-center justify-between gap-3">
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-semibold text-text-primary">{name}</p>
-                      <UsernameHandle username={u.username} />
+                      <p className="truncate text-body font-semibold text-text-primary">{name}</p>
+                      <UsernameHandle username={u.username} sizeClass="text-meta" />
                     </div>
                     {sent ? (
-                      <span className="shrink-0 font-mono text-xs uppercase tracking-[0.12em] text-signal">
+                      <span className="shrink-0 font-mono text-meta uppercase tracking-chip text-signal">
                         Sent
                       </span>
                     ) : (
@@ -188,7 +190,7 @@ export function UserSearchSection({ onFriendRequestSent }: UserSearchSectionProp
                     )}
                   </div>
                   {errored && (
-                    <p className="font-mono text-xs text-ember" role="alert">
+                    <p className="font-mono text-meta text-ember" role="alert">
                       Could not send request. Try again.
                     </p>
                   )}

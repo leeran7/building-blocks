@@ -174,7 +174,7 @@ export function ClimbScreen({ onSignIn }: { onSignIn?: () => void } = {}) {
       const result = await postClimbResult(payload);
       setSaveInfo(result);
       if (result.saved) {
-        invalidateAppData(["dashboard", "leaderboard"]);
+        invalidateAppData(["dashboard", "leaderboard", "friendsLeaderboard"]);
         if (result.improved) void notifySuccess();
       }
     })();
@@ -207,7 +207,7 @@ export function ClimbScreen({ onSignIn }: { onSignIn?: () => void } = {}) {
         const result = await postClimbResult(pendingSave);
         setSaveInfo(result);
         if (result.saved) {
-          invalidateAppData(["dashboard", "leaderboard"]);
+          invalidateAppData(["dashboard", "leaderboard", "friendsLeaderboard"]);
           if (result.improved) void notifySuccess();
         }
       }

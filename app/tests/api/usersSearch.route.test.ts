@@ -26,7 +26,15 @@ const REAL_USER = {
   email: "bob@example.com",
   username: "bobsmith",
   display_name: "Bob",
+  avatar_id: "wolf" as string | null,
 };
+
+// Returns only the selected columns, like Prisma: a field the route forgets to
+// select is absent from the row, so its mapping cannot pass by accident.
+function pick(row: Record<string, unknown>, select: Record<string, boolean> | undefined) {
+  if (!select) return row;
+  return Object.fromEntries(Object.entries(row).filter(([k]) => select[k] === true));
+}
 
 // Faithfully simulates the two Prisma string-filter shapes that matter here,
 // so a route change from equality to `contains` is caught by an actual
@@ -48,15 +56,17 @@ function matches(value: string, filter: unknown): boolean {
   return false;
 }
 
-const findFirst = vi.fn(async ({ where }: { where: Record<string, unknown> }) => {
-  if (where.email !== undefined) {
-    return matches(REAL_USER.email, where.email) ? REAL_USER : null;
+const findFirst = vi.fn(
+  async ({ where, select }: { where: Record<string, unknown>; select?: Record<string, boolean> }) => {
+    if (where.email !== undefined) {
+      return matches(REAL_USER.email, where.email) ? pick(REAL_USER, select) : null;
+    }
+    if (where.username !== undefined) {
+      return matches(REAL_USER.username, where.username) ? pick(REAL_USER, select) : null;
+    }
+    return null;
   }
-  if (where.username !== undefined) {
-    return matches(REAL_USER.username, where.username) ? REAL_USER : null;
-  }
-  return null;
-});
+);
 
 vi.mock("../../src/db/client", () => ({
   prisma: { user: { findFirst: (...args: unknown[]) => findFirst(...(args as [never])) } },
@@ -85,7 +95,7 @@ describe("GET /api/users/search", () => {
     const body = await res.json();
     expect(res.status).toBe(200);
     expect(body.users).toEqual([
-      { id: "friend-1", username: "bobsmith", displayName: "Bob" },
+      { id: "friend-1", username: "bobsmith", displayName: "Bob", avatarId: "wolf" },
     ]);
     expect(findFirst).toHaveBeenCalledTimes(1);
   });
@@ -95,7 +105,7 @@ describe("GET /api/users/search", () => {
     const body = await res.json();
     expect(res.status).toBe(200);
     expect(body.users).toEqual([
-      { id: "friend-1", username: "bobsmith", displayName: "Bob" },
+      { id: "friend-1", username: "bobsmith", displayName: "Bob", avatarId: "wolf" },
     ]);
     expect(findFirst).toHaveBeenCalledTimes(1);
   });
@@ -137,6 +147,20 @@ describe("GET /api/users/search", () => {
       expect.objectContaining({ namespace: "users:search", failMode: "closed", max: 60 })
     );
   });
+
+  it.each(["retired-avatar", "__proto__", "WOLF"])(
+    "returns avatarId null (never the raw column) for a non-catalogue avatar %j",
+    async (stored) => {
+      const prev = REAL_USER.avatar_id;
+      REAL_USER.avatar_id = stored;
+      try {
+        const body = await (await search("bobsmith")).json();
+        expect(body.users).toEqual([{ id: "friend-1", username: "bobsmith", displayName: "Bob", avatarId: null }]);
+      } finally {
+        REAL_USER.avatar_id = prev;
+      }
+    }
+  );
 
   it("excludes the caller themself even on the username path", async () => {
     findFirst.mockImplementationOnce(async ({ where }) => {

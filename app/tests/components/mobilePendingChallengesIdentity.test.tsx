@@ -119,6 +119,10 @@ describe("PendingChallengesSection (mobile) — challenger identity", () => {
     const pseudonym = climberHandle("stranger-1");
     expect(rendered).toContain(`${pseudonym} challenged you`);
     expect(rendered).toContain("@bobsmith");
+    // Mobile passes its own type token to the shared handle; web keeps text-xs.
+    const handle = Array.from(container.querySelectorAll("p")).find((p) => p.textContent?.trim() === "@bobsmith");
+    expect(handle?.classList.contains("text-meta")).toBe(true);
+    expect(handle?.classList.contains("text-xs")).toBe(false);
     // The countdown still renders alongside the handle, not instead of it.
     expect(rendered.some((line) => line.endsWith("left"))).toBe(true);
 

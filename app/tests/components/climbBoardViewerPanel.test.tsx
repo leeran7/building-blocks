@@ -32,8 +32,8 @@ vi.mock("../../src/contexts/AuthContext", () => ({
 import { ClimbBoard } from "../../src/components/Climb/ClimbBoard";
 
 const CLIMBERS: ClimberRank[] = [
-  { rank: 1, userId: "u1", handle: "apex", username: "apex", peakY: 900, wins: 2 },
-  { rank: 2, userId: "u2", handle: "rival", username: null, peakY: 700, wins: 0 },
+  { rank: 1, userId: "u1", handle: "apex", username: "apex", peakY: 900, wins: 2, avatarId: null },
+  { rank: 2, userId: "u2", handle: "rival", username: null, peakY: 700, wins: 0, avatarId: null },
 ];
 
 function mount() {

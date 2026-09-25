@@ -7,7 +7,7 @@ import { Button, ListRow } from "../ui";
 
 interface Friend {
   id: string; // friendship id
-  user: { id: string; displayName: string | null; username: string | null };
+  user: { id: string; displayName: string | null; username: string | null; avatarId?: string | null };
 }
 
 export interface FriendsListSectionProps {
@@ -83,19 +83,19 @@ export function FriendsListSection({ refreshKey, onChallengeSent }: FriendsListS
 
   return (
     <div className="flex flex-col gap-3">
-      <h2 className="font-mono text-[11px] uppercase tracking-[0.14em] text-text-muted">
+      <h2 className="font-mono text-label uppercase tracking-label text-text-secondary">
         Friends
       </h2>
 
       {loading && (
-        <p className="py-2 text-center font-mono text-xs text-text-muted" aria-live="polite">
+        <p className="py-2 text-center font-mono text-meta text-text-muted" aria-live="polite">
           Loading friends…
         </p>
       )}
 
       {!loading && error && (
         <div className="flex flex-col items-center gap-2 py-2" role="alert">
-          <p className="text-sm text-ember">{error}</p>
+          <p className="text-meta leading-5 text-ember">{error}</p>
           <Button variant="ghost" fullWidth={false} onPress={fetchFriends}>
             Retry
           </Button>
@@ -103,7 +103,7 @@ export function FriendsListSection({ refreshKey, onChallengeSent }: FriendsListS
       )}
 
       {!loading && !error && friends.length === 0 && (
-        <p className="py-1 text-sm text-text-secondary">
+        <p className="py-1 text-meta leading-5 text-text-secondary">
           No friends yet — search below to add some.
         </p>
       )}
@@ -111,19 +111,21 @@ export function FriendsListSection({ refreshKey, onChallengeSent }: FriendsListS
       {!loading && !error && friends.length > 0 && (
         <div className="flex flex-col gap-2">
           {friends.map((f) => {
-            const name = climberDisplay(f.user.id, f.user.displayName);
+            const name = climberDisplay(f.user.id, f.user.displayName, f.user.avatarId);
             const sent = challengeSent.has(f.user.id);
             const errored = challengeErrors.has(f.user.id);
             return (
               <ListRow key={f.id}>
                 <div className="flex w-full flex-col gap-1.5">
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-semibold text-text-primary">{name}</p>
-                      <UsernameHandle username={f.user.username} />
+                  {/* Challenge wraps under the name once the name column would drop
+                      below 6rem (a narrow phone at a large text size). */}
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="min-w-[6rem] flex-1">
+                      <p className="break-words text-balance text-body font-semibold text-text-primary">{name}</p>
+                      <UsernameHandle username={f.user.username} sizeClass="text-meta" />
                     </div>
                     {sent ? (
-                      <span className="shrink-0 font-mono text-xs uppercase tracking-[0.12em] text-signal">
+                      <span className="shrink-0 font-mono text-meta uppercase tracking-chip text-signal">
                         Sent
                       </span>
                     ) : (
@@ -138,7 +140,7 @@ export function FriendsListSection({ refreshKey, onChallengeSent }: FriendsListS
                     )}
                   </div>
                   {errored && (
-                    <p className="font-mono text-xs text-ember" role="alert">
+                    <p className="font-mono text-meta text-ember" role="alert">
                       Could not send challenge. Try again.
                     </p>
                   )}
