@@ -1,7 +1,9 @@
 /**
  * PUT /api/settings against Next's REAL cache: after a consent, avatar or
  * display-name save, the next read of a leaderboard cached under the
- * matching tag must be fresh.
+ * matching tag must be fresh. The climb board's names come from
+ * climberDisplay(id, display_name, avatar_id), so a display-name save must
+ * expire it as well as the duel board.
  *
  * The sibling route tests mock revalidateTag and only check its arguments.
  * That cannot tell `{ expire: 0 }` (immediate expiry) from `{ expire: 60 }`
@@ -97,6 +99,24 @@ describe("PUT /api/settings makes the next leaderboard read fresh", () => {
     const res = await save({ displayName: null });
     expect(res.status).toBe(200);
     expect(await board.read()).toBe("unnamed");
+  });
+
+  it("shows the pseudonym on the climb board on the next read after the display name is cleared", async () => {
+    const board = await warm(LEADERBOARD_CACHE_TAG, "name:Aria");
+    board.set("name:Golden Wolf 31");
+
+    const res = await save({ displayName: null });
+    expect(res.status).toBe(200);
+    expect(await board.read()).toBe("name:Golden Wolf 31");
+  });
+
+  it("shows the new display name on the climb board on the next read after it changes", async () => {
+    const board = await warm(LEADERBOARD_CACHE_TAG, "name:Golden Wolf 31");
+    board.set("name:Aria");
+
+    const res = await save({ displayName: "Aria" });
+    expect(res.status).toBe(200);
+    expect(await board.read()).toBe("name:Aria");
   });
 
   it("leaves both boards cached on a save that changes neither", async () => {

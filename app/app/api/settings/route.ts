@@ -245,12 +245,18 @@ export async function PUT(request: NextRequest): Promise<NextResponse> {
     // the player on the very next fetch. Any non-zero profile (e.g.
     // `{ expire: 60 }`) is stale-while-revalidate in Next 16, which serves the
     // old body once more. updateTag() would be immediate too, but it throws
-    // outside Server Actions. An avatar change can also rename a player with
-    // no display name (the pseudonym's animal follows the avatar, see
-    // climberDisplay), which this same tag covers. topDuelStats needs no
-    // expiry for it: it lists only players with a display name, whose name an
+    // outside Server Actions. Each row's name is climberDisplay(id,
+    // display_name, avatar_id), so both of its inputs expire this tag too: an
+    // avatar change renames a player with no display name (the pseudonym's
+    // animal follows the avatar), and setting, changing or clearing the display
+    // name swaps it for or with the pseudonym. topDuelStats needs no expiry
+    // for an avatar: it lists only players with a display name, whose name an
     // avatar never changes.
-    if (patch.leaderboardConsent !== undefined || patch.avatarId !== undefined) {
+    if (
+      patch.leaderboardConsent !== undefined ||
+      patch.avatarId !== undefined ||
+      patch.displayName !== undefined
+    ) {
       revalidateTag(LEADERBOARD_CACHE_TAG, IMMEDIATE_EXPIRY);
     }
     if (patch.displayName !== undefined) {
