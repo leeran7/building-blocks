@@ -54,7 +54,8 @@ export async function POST(
           // decliner is the recipient, named by display name or pseudonym.
           const declinerName = climberDisplay(
             challengeBefore.recipient.id,
-            challengeBefore.recipient.display_name
+            challengeBefore.recipient.display_name,
+            challengeBefore.recipient.avatar_id
           );
           await createNotification({
             userId: challengeBefore.sender_id,

@@ -61,7 +61,7 @@ export async function POST(
           // Same identity rule as challenge_received: display name if set,
           // otherwise the deterministic pseudonym — never a placeholder, and
           // never a different name for the same person mid-flow.
-          const recipientName = climberDisplay(c.recipient.id, c.recipient.display_name);
+          const recipientName = climberDisplay(c.recipient.id, c.recipient.display_name, c.recipient.avatar_id);
           await createNotification({
             userId: c.sender_id,
             type: "challenge_accepted",

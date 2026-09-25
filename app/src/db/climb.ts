@@ -111,7 +111,7 @@ export async function recordClimb(
     prisma.climbRecord.count({ where: { category_slug: stackSlug } }),
     prisma.user.findUnique({
       where: { id: input.userId },
-      select: { display_name: true },
+      select: { display_name: true, avatar_id: true },
     }),
   ]);
 
@@ -120,7 +120,7 @@ export async function recordClimb(
     improved,
     rank: above + 1,
     totalClimbers,
-    handle: climberDisplay(input.userId, player?.display_name),
+    handle: climberDisplay(input.userId, player?.display_name, player?.avatar_id),
   };
 }
 
@@ -171,7 +171,7 @@ export const topFreeClimbers = unstable_cache(
     return rows.map((r, i) => ({
       rank: i + 1,
       userId: r.userId,
-      handle: climberDisplay(r.userId, r.user.display_name),
+      handle: climberDisplay(r.userId, r.user.display_name, r.user.avatar_id),
       username: r.user.username,
       peakY: r.peak_y,
       wins: r.wins,
@@ -247,7 +247,7 @@ export async function friendsLeaderboard(userId: string): Promise<FriendsBoard> 
     climbers: rows.map((r, i) => ({
       rank: i + 1,
       userId: r.userId,
-      handle: climberDisplay(r.userId, r.user.display_name),
+      handle: climberDisplay(r.userId, r.user.display_name, r.user.avatar_id),
       username: r.user.username,
       peakY: r.peak_y,
       wins: r.wins,
@@ -300,7 +300,7 @@ export async function getUserFreeClimbRecord(
     select: {
       peak_y: true,
       wins: true,
-      user: { select: { display_name: true } },
+      user: { select: { display_name: true, avatar_id: true } },
     },
   });
   if (!record) return null;
@@ -320,7 +320,7 @@ export async function getUserFreeClimbRecord(
     rank: above + 1,
     totalClimbers,
     wins: record.wins,
-    handle: climberDisplay(userId, record.user.display_name),
+    handle: climberDisplay(userId, record.user.display_name, record.user.avatar_id),
   };
 }
 

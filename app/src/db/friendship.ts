@@ -7,6 +7,7 @@
 
 import { prisma } from "./client";
 import { FriendshipStatus, Friendship } from "@prisma/client";
+import { parseAvatarId } from "../lib/avatars";
 
 // ── Types ─────────────────────────────────────────────────────────────────
 
@@ -14,6 +15,11 @@ interface FriendUser {
   id: string;
   displayName: string | null;
   username: string | null;
+  /**
+   * Catalogue avatar id or null (also for a retired id). Clients pass it to
+   * climberDisplay so a pseudonymous friend's animal follows their avatar.
+   */
+  avatarId: string | null;
 }
 
 export interface FriendEntry {
@@ -50,8 +56,25 @@ export type RemoveFriendResult =
   | { ok: false; code: "not_found" | "not_party" };
 
 const userSelect = {
-  select: { id: true, display_name: true, username: true },
+  select: { id: true, display_name: true, username: true, avatar_id: true },
 } as const;
+
+interface FriendUserRow {
+  id: string;
+  display_name: string | null;
+  username: string | null;
+  avatar_id: string | null;
+}
+
+/** The public shape of a user row in friends payloads. */
+function toFriendUser(u: FriendUserRow): FriendUser {
+  return {
+    id: u.id,
+    displayName: u.display_name,
+    username: u.username,
+    avatarId: parseAvatarId(u.avatar_id),
+  };
+}
 
 // ── Writes ────────────────────────────────────────────────────────────────
 
@@ -198,11 +221,7 @@ export async function getFriends(userId: string): Promise<FriendEntry[]> {
     const other = f.sender_id === userId ? f.receiver : f.sender;
     return {
       id: f.id,
-      user: {
-        id: other.id,
-        displayName: other.display_name,
-        username: other.username,
-      },
+      user: toFriendUser(other),
     };
   });
 }
@@ -224,11 +243,7 @@ export async function getPendingRequests(
 
   return requests.map((r) => ({
     id: r.id,
-    sender: {
-      id: r.sender.id,
-      displayName: r.sender.display_name,
-      username: r.sender.username,
-    },
+    sender: toFriendUser(r.sender),
     createdAt: r.created_at,
   }));
 }
@@ -250,11 +265,7 @@ export async function getOutgoingRequests(
 
   return requests.map((r) => ({
     id: r.id,
-    receiver: {
-      id: r.receiver.id,
-      displayName: r.receiver.display_name,
-      username: r.receiver.username,
-    },
+    receiver: toFriendUser(r.receiver),
     createdAt: r.created_at,
   }));
 }

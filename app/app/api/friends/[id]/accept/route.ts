@@ -61,9 +61,9 @@ export async function POST(
     if (friendship) {
       const accepter = await prisma.user.findUnique({
         where: { id: uid },
-        select: { display_name: true },
+        select: { display_name: true, avatar_id: true },
       });
-      const accepterName = climberDisplay(uid, accepter?.display_name);
+      const accepterName = climberDisplay(uid, accepter?.display_name, accepter?.avatar_id);
 
       await createNotification({
         userId: friendship.sender_id,

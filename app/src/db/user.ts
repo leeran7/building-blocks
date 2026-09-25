@@ -9,6 +9,7 @@
 
 import { prisma } from "./client";
 import { CHIP_TO_CENTS_RATIO } from "../config/chipPackages";
+import { defaultAvatarFor } from "../lib/handle";
 
 const SIGNUP_CHIP_GRANT_CHIPS = 5;
 
@@ -23,6 +24,11 @@ export interface EnsureUserInput {
 /**
  * Create the user row if missing, or refresh emailVerified on every sign-in.
  * Returns the upserted user so callers can skip a redundant re-read.
+ *
+ * A new account starts with the avatar matching its pseudonym's animal, so the
+ * default picture and the default name agree. Only `create` sets it: `update`
+ * runs on every sign-in and must never overwrite a player's chosen (or
+ * cleared) avatar, and existing accounts are deliberately not backfilled.
  */
 export async function ensureUser(input: EnsureUserInput) {
   return prisma.user.upsert({
@@ -32,6 +38,7 @@ export async function ensureUser(input: EnsureUserInput) {
       email: input.email,
       emailVerified: input.emailVerified ?? false,
       play_credits_cents: SIGNUP_CHIP_GRANT_CHIPS * CHIP_TO_CENTS_RATIO,
+      avatar_id: defaultAvatarFor(input.id),
     },
     update: {
       emailVerified: input.emailVerified ?? false,

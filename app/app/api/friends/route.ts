@@ -98,9 +98,9 @@ export async function POST(request: NextRequest) {
     // Look up sender name for the notification
     const sender = await prisma.user.findUnique({
       where: { id: uid },
-      select: { display_name: true },
+      select: { display_name: true, avatar_id: true },
     });
-    const senderName = climberDisplay(uid, sender?.display_name);
+    const senderName = climberDisplay(uid, sender?.display_name, sender?.avatar_id);
 
     await createNotification({
       userId: receiverId,

@@ -4,7 +4,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth, AuthError } from "../../../../src/lib/requireAuth";
-import { getChallenge } from "../../../../src/db/challenge";
+import { getChallenge, challengeUserJson } from "../../../../src/db/challenge";
 
 export const runtime = "nodejs";
 
@@ -41,8 +41,8 @@ export async function GET(
     duelId: c.duel_id,
     expiresAt: c.expires_at.toISOString(),
     createdAt: c.created_at.toISOString(),
-    sender: { id: c.sender.id, displayName: c.sender.display_name, username: c.sender.username },
-    recipient: { id: c.recipient.id, displayName: c.recipient.display_name, username: c.recipient.username },
+    sender: challengeUserJson(c.sender),
+    recipient: challengeUserJson(c.recipient),
     direction: c.sender_id === uid ? "sent" : "received",
   });
 }

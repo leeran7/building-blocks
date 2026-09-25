@@ -13,6 +13,7 @@ import { requireAuth, AuthError } from "../../../../src/lib/requireAuth";
 import { checkRateLimit } from "../../../../src/lib/rateLimit";
 import { exactMatchFilter } from "../../../../src/lib/userSearchQuery";
 import { prisma } from "../../../../src/db/client";
+import { parseAvatarId } from "../../../../src/lib/avatars";
 
 export const runtime = "nodejs";
 
@@ -57,12 +58,22 @@ export async function GET(request: NextRequest) {
         id: true,
         username: true,
         display_name: true,
+        avatar_id: true,
       },
     });
 
     return NextResponse.json({
       users: user
-        ? [{ id: user.id, username: user.username, displayName: user.display_name }]
+        ? [
+            {
+              id: user.id,
+              username: user.username,
+              displayName: user.display_name,
+              // Lets the client name a pseudonymous result the way every other
+              // surface does (climberDisplay). Allow-listed, never the raw column.
+              avatarId: parseAvatarId(user.avatar_id),
+            },
+          ]
         : [],
     });
   } catch (err) {
