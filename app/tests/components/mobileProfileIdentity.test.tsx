@@ -143,3 +143,22 @@ describe("Profile header name for a player with no display name", () => {
     expect(lines[0]).not.toContain(EMAIL);
   });
 });
+
+describe("Profile header name for the longest pseudonym", () => {
+  it("puts the whole name, animal and number included, on the name line", () => {
+    // qa-53 with Kestrel is the generator's longest: 8-letter adjective, 7-letter animal, 2 digits.
+    const longUid = "qa-53";
+    const longest = climberHandle(longUid, "kestrel");
+    expect(longest.split(" ").map((w) => w.length)).toEqual([8, 7, 2]);
+    state.settings = { ...NEVER_CLIMBED, avatarId: "kestrel" };
+    state.dash = {
+      data: { user: { id: longUid, email: EMAIL, username: null }, freeClimb: null },
+      error: null,
+    };
+    renderProfile();
+
+    expect(headerName()).toBe(longest);
+    // The pencil stays beside the name.
+    expect(identityCard().querySelector('button[aria-label="Edit profile"]')).toBeTruthy();
+  });
+});

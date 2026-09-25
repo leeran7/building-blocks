@@ -119,7 +119,7 @@ export function FriendsListSection({ refreshKey, onChallengeSent }: FriendsListS
                 <div className="flex w-full flex-col gap-1.5">
                   <div className="flex items-center justify-between gap-3">
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-semibold text-text-primary">{name}</p>
+                      <p className="line-clamp-2 break-words text-balance text-sm font-semibold text-text-primary">{name}</p>
                       <UsernameHandle username={f.user.username} />
                     </div>
                     {sent ? (

@@ -101,8 +101,12 @@ export function ProfileScreen() {
                 </span>
               </button>
               <div className="min-w-0 flex-1">
+                {/* Wraps to two lines instead of ellipsizing. Beside the avatar and
+                    the pencil, an ellipsis cuts a pseudonym at its animal word at
+                    320px, which is the word the avatar changes. Balanced wrapping
+                    breaks at a space. A single over-long word breaks as a last resort. */}
                 <p
-                  className="truncate font-display font-black leading-tight text-text-primary"
+                  className="line-clamp-2 break-words text-balance font-display font-black leading-[1.15] text-text-primary"
                   style={{ fontSize: "clamp(1.05rem, calc(4.4vw + 0.25rem), 1.35rem)" }}
                 >
                   {identityName}

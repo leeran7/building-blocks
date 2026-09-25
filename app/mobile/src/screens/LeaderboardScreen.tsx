@@ -478,8 +478,11 @@ function RankTable({ climbers, meId }: { climbers: ClimberRank[]; meId: string |
                 {c.rank}
               </span>
               <HexAvatar userId={c.userId} name={c.handle} avatarId={c.avatarId} size={38} />
+              {/* Up to two lines, not an ellipsis: the longest pseudonym plus YOU is
+                  wider than this column at 320px. The row centres its items, so the
+                  rank and height columns stay aligned when the name wraps. */}
               <span
-                className="min-w-0 flex-1 truncate font-display font-bold text-text-primary"
+                className="line-clamp-2 min-w-0 flex-1 break-words text-balance font-display font-bold leading-tight text-text-primary"
                 style={{ fontSize: "clamp(13px, calc(2.2vw + 6.5px), 15px)" }}
               >
                 {c.handle}
