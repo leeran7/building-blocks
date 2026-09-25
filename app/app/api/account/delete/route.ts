@@ -5,13 +5,19 @@
  * Deletes everything that is personal or gameplay identity:
  *   - ClimbRun (run history), ClimbRecord (leaderboard peak scores),
  *   - DuelStats (win/loss record),
- *   - SavedSocialHandle (creator-page links).
+ *   - SavedSocialHandle (creator-page links),
+ *   - PushToken (device push tokens), Notification (inbox),
+ *   - Challenge and Friendship rows on either side (sender or recipient).
  *
  * Retains — deliberately — the financial/audit trail, because destroying it
  * would breach money-record retention obligations for a paid product:
  *   - CreditPurchase (Stripe purchase records),
  *   - WalletLedger (append-only money ledger),
+ *   - TournamentEntry (prize and Stripe payout records),
  *   - Duel rows (stakes/settlement history; also shared with the opponent).
+ *
+ * tests/api/accountDelete.route.test.ts fails if a model holding a User FK is
+ * neither purged here nor listed as retained — update both together.
  *
  * Because those tables `onDelete: Cascade` off the user row, the row itself is
  * NOT hard-deleted — it is anonymized instead (tombstone email, null
@@ -71,6 +77,14 @@ export async function DELETE(request: NextRequest): Promise<NextResponse> {
       prisma.climbRecord.deleteMany({ where: { userId: uid } }),
       prisma.duelStats.deleteMany({ where: { user_id: uid } }),
       prisma.savedSocialHandle.deleteMany({ where: { userId: uid } }),
+      prisma.pushToken.deleteMany({ where: { user_id: uid } }),
+      prisma.notification.deleteMany({ where: { user_id: uid } }),
+      prisma.challenge.deleteMany({
+        where: { OR: [{ sender_id: uid }, { recipient_id: uid }] },
+      }),
+      prisma.friendship.deleteMany({
+        where: { OR: [{ sender_id: uid }, { receiver_id: uid }] },
+      }),
       prisma.user.updateMany({
         where: { id: uid },
         data: {
