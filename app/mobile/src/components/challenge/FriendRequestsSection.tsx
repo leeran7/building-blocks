@@ -172,15 +172,16 @@ export function FriendRequestsSection({ refreshKey, onAccepted }: FriendRequests
             const name = climberDisplay(req.sender.id, req.sender.displayName, req.sender.avatarId);
             return (
               <Card key={req.id} highlight>
-                <div className="flex items-center justify-between gap-3">
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-semibold text-text-primary">{name}</p>
+                {/* Name on its own line, actions stacked below: side by side, the
+                    two buttons left the name about 12px at 320px. */}
+                <div className="flex flex-col gap-3">
+                  <div className="min-w-0">
+                    <p className="break-words text-balance text-sm font-semibold text-text-primary">{name}</p>
                     <UsernameHandle username={req.sender.username} />
                   </div>
-                  <div className="flex shrink-0 items-center gap-2">
+                  <div className="grid grid-cols-2 gap-2">
                     <Button
                       variant="primary"
-                      fullWidth={false}
                       busy={acceptingId === req.id}
                       disabled={busyId !== null && busyId !== req.id}
                       onPress={() => handleAccept(req.id)}
@@ -188,8 +189,7 @@ export function FriendRequestsSection({ refreshKey, onAccepted }: FriendRequests
                       Accept
                     </Button>
                     <Button
-                      variant="ghost"
-                      fullWidth={false}
+                      variant="secondary"
                       busy={decliningId === req.id}
                       disabled={busyId !== null && busyId !== req.id}
                       onPress={() => handleDecline(req.id)}
@@ -220,7 +220,7 @@ export function FriendRequestsSection({ refreshKey, onAccepted }: FriendRequests
               <Card key={req.id}>
                 <div className="flex items-center justify-between gap-3">
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm text-text-secondary">{name}</p>
+                    <p className="break-words text-balance text-sm text-text-secondary">{name}</p>
                     <UsernameHandle username={req.receiver.username} />
                   </div>
                   <Button

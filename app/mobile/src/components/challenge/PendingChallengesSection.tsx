@@ -181,9 +181,11 @@ export function PendingChallengesSection({ refreshKey }: PendingChallengesSectio
             const expired = isExpired(c.expiresAt);
             return (
               <Card key={c.id} highlight>
-                <div className="flex items-center justify-between gap-3">
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-semibold text-text-primary">
+                {/* Name on its own line, actions stacked below: side by side, the
+                    two buttons left the name about 12px at 320px. */}
+                <div className="flex flex-col gap-3">
+                  <div className="min-w-0">
+                    <p className="break-words text-balance text-sm font-semibold text-text-primary">
                       {name} challenged you
                     </p>
                     <UsernameHandle username={c.sender.username} />
@@ -191,10 +193,9 @@ export function PendingChallengesSection({ refreshKey }: PendingChallengesSectio
                       {timeLeft(c.expiresAt)}
                     </p>
                   </div>
-                  <div className="flex shrink-0 items-center gap-2">
+                  <div className="grid grid-cols-2 gap-2">
                     <Button
                       variant="primary"
-                      fullWidth={false}
                       busy={acceptingId === c.id}
                       disabled={(busyId !== null && busyId !== c.id) || expired}
                       onPress={() => handleAccept(c.id)}
@@ -202,8 +203,7 @@ export function PendingChallengesSection({ refreshKey }: PendingChallengesSectio
                       Accept
                     </Button>
                     <Button
-                      variant="ghost"
-                      fullWidth={false}
+                      variant="secondary"
                       busy={decliningId === c.id}
                       disabled={busyId !== null && busyId !== c.id}
                       onPress={() => handleDecline(c.id)}
@@ -234,7 +234,7 @@ export function PendingChallengesSection({ refreshKey }: PendingChallengesSectio
               <Card key={c.id}>
                 <div className="flex items-center justify-between gap-3">
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm text-text-secondary">
+                    <p className="break-words text-balance text-sm text-text-secondary">
                       Waiting for <span className="font-semibold text-text-primary">{name}</span>
                     </p>
                     <UsernameHandle username={c.recipient.username} />
