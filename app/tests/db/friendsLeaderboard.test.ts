@@ -45,8 +45,10 @@ const { friendshipFindMany, userFindMany, climbRecordFindMany } = vi.hoisted(() 
   const friendshipFindMany = vi.fn(
     async ({
       where,
+      take,
     }: {
       where: { status?: string; OR?: Array<{ sender_id?: string; receiver_id?: string }> };
+      take?: number;
     }) =>
       db.friendships
         .filter((f) => where.status === undefined || f.status === where.status)
@@ -59,6 +61,7 @@ const { friendshipFindMany, userFindMany, climbRecordFindMany } = vi.hoisted(() 
                 (c.receiver_id === undefined || c.receiver_id === f.receiver_id)
             )
         )
+        .slice(0, take)
         .map((f) => ({ sender_id: f.sender_id, receiver_id: f.receiver_id }))
   );
 
@@ -120,7 +123,7 @@ vi.mock("../../src/db/client", () => ({
   },
 }));
 
-import { friendsLeaderboard } from "../../src/db/climb";
+import { FRIENDS_BOARD_MAX_FRIENDS, friendsLeaderboard } from "../../src/db/climb";
 import { FREE_STACK_SLUG } from "../../src/game/freeStack";
 
 const CONSENTED = new Date("2026-01-01");
@@ -255,5 +258,19 @@ describe("friendsLeaderboard", () => {
     expect(board.climbers[0]).toEqual({ rank: 1, userId: "aria", handle: "aria", username: "aria", peakY: 200, wins: 0 });
     expect(board.climbers[1].handle).toBe("Golden Heron");
     expect(JSON.stringify(board)).not.toContain("leaderboard_consent_at");
+  });
+
+  it("reads at most FRIENDS_BOARD_MAX_FRIENDS friendships, so a huge friend list cannot fan out the queries", async () => {
+    const extra = 5;
+    const ids = Array.from({ length: FRIENDS_BOARD_MAX_FRIENDS + extra }, (_, i) => `f${i}`);
+    db.users = [user("me", true), ...ids.map((id) => user(id, true))];
+    db.friendships = ids.map((id) => accepted("me", id));
+    db.records = [record("me", 100)];
+
+    const board = await friendsLeaderboard("me");
+
+    // Every friend is consented with no record, so each friend read counts once.
+    expect(board.notClimbedCount).toBe(FRIENDS_BOARD_MAX_FRIENDS);
+    expect(board.climbers.map((c) => c.userId)).toEqual(["me"]);
   });
 });

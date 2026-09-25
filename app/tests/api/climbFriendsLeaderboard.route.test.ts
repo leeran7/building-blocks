@@ -7,8 +7,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 
-const { checkRateLimit, verifyIdToken, friendsLeaderboard } = vi.hoisted(() => ({
-  checkRateLimit: vi.fn(async () => ({ allowed: true, degraded: false })),
+const { checkRateLimit, verifyIdToken, friendsLeaderboard, getRedis } = vi.hoisted(() => ({
+  checkRateLimit: vi.fn(async (_opts: unknown) => ({ allowed: true, degraded: false })),
+  getRedis: vi.fn(() => {
+    throw new Error("redis down");
+  }),
   verifyIdToken: vi.fn(async (_token: string) => ({ uid: "token-uid" })),
   friendsLeaderboard: vi.fn(async (_userId: string) => ({
     climbers: [{ rank: 1, userId: "token-uid", handle: "Me", username: null, peakY: 120, wins: 0 }],
@@ -18,6 +21,8 @@ const { checkRateLimit, verifyIdToken, friendsLeaderboard } = vi.hoisted(() => (
 }));
 
 vi.mock("../../src/lib/rateLimit", () => ({ checkRateLimit }));
+// Only reached through the real checkRateLimit in the fail-open test below.
+vi.mock("../../src/lib/redis", () => ({ getRedis }));
 vi.mock("../../src/lib/firebaseAdmin", () => ({ verifyIdToken }));
 vi.mock("../../src/db/climb", () => ({ friendsLeaderboard }));
 
@@ -81,8 +86,19 @@ describe("GET /api/climb/leaderboard/friends", () => {
     vi.spyOn(console, "error").mockImplementationOnce(() => {});
     const res = await get();
     expect(res.status).toBe(500);
+    expect(res.headers.get("cache-control")).toBe("private, no-store");
     const body = await res.json();
     expect(body).toMatchObject({ code: "INTERNAL_ERROR" });
     expect(JSON.stringify(body)).not.toContain("10.0.0.5");
+  });
+
+  it("still serves the board when Redis is down (fails open through the real limiter)", async () => {
+    const real = await vi.importActual<typeof import("../../src/lib/rateLimit")>("../../src/lib/rateLimit");
+    checkRateLimit.mockImplementationOnce((opts) => real.checkRateLimit(opts as Parameters<typeof real.checkRateLimit>[0]));
+    vi.spyOn(console, "error").mockImplementationOnce(() => {});
+    const res = await get();
+    expect(getRedis).toHaveBeenCalled();
+    expect(res.status).toBe(200);
+    expect(friendsLeaderboard).toHaveBeenCalledWith("token-uid");
   });
 });
