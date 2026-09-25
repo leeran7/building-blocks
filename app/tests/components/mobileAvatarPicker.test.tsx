@@ -51,13 +51,15 @@ vi.mock("../../mobile/src/contexts/AppDataContext", async (importOriginal) => {
 });
 
 import { settingsFromResponse } from "../../mobile/src/contexts/AppDataContext";
+import { initialsOf } from "../../mobile/src/lib/leaderboard";
+import { ANIMALS, climberHandle } from "@app/lib/handle";
 import { HexAvatar } from "../../mobile/src/components/HexAvatar";
 import { AvatarPickerScreen } from "../../mobile/src/screens/AvatarPickerScreen";
 
 const [FIRST, SECOND] = AVATARS;
 
-function settings(avatarId: string | null): SettingsData {
-  return { displayName: "Aria Stone", username: null, social: null, leaderboardConsent: true, avatarId };
+function settings(avatarId: string | null, displayName: string | null = "Aria Stone"): SettingsData {
+  return { displayName, username: null, social: null, leaderboardConsent: true, avatarId };
 }
 
 function json(body: unknown, status = 200): Response {
@@ -180,6 +182,37 @@ describe("AvatarPickerScreen", () => {
     // pseudonym's animal follows the avatar.
     expect(invalidate).toHaveBeenCalledWith(["leaderboard", "friendsLeaderboard", "dashboard"]);
     expect(container.textContent).toContain("Profile screen");
+  });
+
+  describe("the Use initials badge previews the name the player would have with no avatar", () => {
+    const UID = "u1";
+    const hashAnimal = climberHandle(UID).split(" ")[1];
+    // An animal whose initial differs from the hash animal's, so the saved
+    // pick's initials and the no-avatar initials cannot coincide.
+    const pick = ANIMALS.find((a) => a[0] !== hashAnimal[0])!.toLowerCase();
+    const tileBadge = () => radio("Use initials")?.querySelector(".hex")?.textContent;
+    const previewBadge = () =>
+      container.querySelector('[aria-label="Selected avatar"] .hex')?.textContent;
+
+    it("spells the hash-animal pseudonym's initials when there is no display name", async () => {
+      const afterChoosing = initialsOf(climberHandle(UID, null));
+      expect(afterChoosing).not.toBe(initialsOf(climberHandle(UID, pick)));
+      state.settings = settings(pick, null);
+      renderPicker();
+
+      expect(tileBadge()).toBe(afterChoosing);
+      await click(radio("Use initials"));
+      expect(previewBadge()).toBe(afterChoosing);
+    });
+
+    it("spells the display name's initials when there is one", async () => {
+      state.settings = settings(pick, "Aria Stone");
+      renderPicker();
+
+      expect(tileBadge()).toBe(initialsOf("Aria Stone"));
+      await click(radio("Use initials"));
+      expect(previewBadge()).toBe(initialsOf("Aria Stone"));
+    });
   });
 
   it('"Use initials" sends avatarId: null', async () => {

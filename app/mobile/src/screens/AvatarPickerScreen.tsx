@@ -67,8 +67,13 @@ export function AvatarPickerScreen() {
     hasData: settingsData !== null,
     focusOnRecover: headingRef,
   });
-  const name = identityNameFor(settingsData, dash.data);
+  const name = identityNameFor(settingsData, dash.data, user?.uid);
   const userId = user?.uid ?? name;
+  // The name the player would have with `avatarId` saved. With no display name
+  // the pseudonym's animal follows the avatar, so "Use initials" must preview
+  // the initials of the hash-animal pseudonym, not of the current name.
+  const nameWith = (avatarId: string | null) =>
+    identityNameFor(settingsData && { ...settingsData, avatarId }, dash.data, user?.uid);
 
   const [current, setCurrent] = useState<string | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
@@ -173,7 +178,7 @@ export function AvatarPickerScreen() {
               aria-label="Selected avatar"
               className="glass flex flex-col items-center rounded-3xl border border-white/10 px-5 pb-5 pt-6"
             >
-              <HexAvatar userId={userId} name={name} avatarId={selected} size={PREVIEW_HEX} />
+              <HexAvatar userId={userId} name={nameWith(selected)} avatarId={selected} size={PREVIEW_HEX} />
               <p
                 aria-live="polite"
                 className="mt-3 font-display text-xl font-black uppercase leading-none tracking-tight text-text-primary"
@@ -207,7 +212,7 @@ export function AvatarPickerScreen() {
                         : "border-white/10 bg-[rgba(16,15,20,0.9)]"
                     }`}
                   >
-                    <HexAvatar userId={userId} name={name} avatarId={o.id} size={TILE_HEX} />
+                    <HexAvatar userId={userId} name={nameWith(o.id)} avatarId={o.id} size={TILE_HEX} />
                     <span
                       className={`line-clamp-2 break-words text-center text-[12px] font-semibold leading-tight ${
                         checked ? "text-signal" : "text-text-primary"
