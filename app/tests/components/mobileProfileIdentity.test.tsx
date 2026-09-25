@@ -160,6 +160,34 @@ describe("Profile header name for the longest pseudonym", () => {
 
     expect(headerName()).toBe(longest);
     // The pencil stays beside the name.
-    expect(identityCard().querySelector('button[aria-label="Edit profile"]')).toBeTruthy();
+    expect(identityCard().querySelector('button[aria-label="Edit profile & socials"]')).toBeTruthy();
+  });
+});
+
+describe("Profile's way into Edit Profile", () => {
+  it("is the header pencil alone, and it opens /profile/edit", () => {
+    act(() =>
+      root.render(
+        createElement(
+          MemoryRouter,
+          { initialEntries: ["/profile"] },
+          createElement(
+            Routes,
+            null,
+            createElement(Route, { path: "/profile", element: createElement(ProfileScreen) }),
+            createElement(Route, { path: "/profile/edit", element: createElement("p", { id: "edit-route" }) }),
+          ),
+        ),
+      ),
+    );
+    // No second "Edit profile & socials" row below the stats.
+    const named = [...container.querySelectorAll("button")].filter((b) =>
+      (b.getAttribute("aria-label") ?? b.textContent ?? "").includes("Edit profile"),
+    );
+    expect(named).toHaveLength(1);
+    expect(identityCard().contains(named[0])).toBe(true);
+
+    act(() => named[0].click());
+    expect(container.querySelector("#edit-route")).toBeTruthy();
   });
 });
