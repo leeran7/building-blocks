@@ -95,6 +95,13 @@ interface Slice<T> {
 
 const EMPTY_SLICE = { data: null, loading: false, error: false, fetchedAt: null };
 
+const NEVER_SETTLED: Record<SliceKey, number | null> = {
+  dashboard: null,
+  settings: null,
+  leaderboard: null,
+  friendsLeaderboard: null,
+};
+
 /** Background revalidate window — cached data older than this refetches silently. */
 const TTL_MS = 30_000;
 
@@ -133,6 +140,12 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
 
   // Guards against overlapping in-flight fetches per slice.
   const inflight = useRef<Record<SliceKey, boolean>>({ ...IDLE_INFLIGHT });
+  // When each slice's last fetch settled (success or failure); null = refetch
+  // on the next ensure. The ensure* staleness check reads this, not the slice
+  // state: a fast failure can settle (and clear `inflight`) between a commit
+  // and that commit's effects, and those effects still hold the render's
+  // "never fetched" slice, so they would fetch again, once per consumer.
+  const settledAt = useRef<Record<SliceKey, number | null>>({ ...NEVER_SETTLED });
   // Bumped on every cache wipe. A fetch started before the wipe belongs to the
   // previous account (or a signed-out session) and must not land in this one.
   const accountGen = useRef(0);
@@ -144,6 +157,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     setLeaderboard(EMPTY_SLICE);
     setFriendsLeaderboard(EMPTY_SLICE);
     inflight.current = { ...IDLE_INFLIGHT };
+    settledAt.current = { ...NEVER_SETTLED };
   }, []);
 
   // Wipe the cache the instant the signed-in account changes (incl. sign-out).
@@ -161,6 +175,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     setLeaderboard(EMPTY_SLICE);
     setFriendsLeaderboard(EMPTY_SLICE);
     inflight.current = { ...IDLE_INFLIGHT };
+    settledAt.current = { ...NEVER_SETTLED };
   }
 
   const authed = Boolean(user) && !isAnonymous;
@@ -187,6 +202,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         // The account changed mid-flight: the wipe already reset this slice and
         // its inflight flag, and a fetch for the new account may be running.
         if (!sameAccount()) return;
+        settledAt.current[key] = Date.now();
         if (data === null) {
           // Failed fetch: keep any prior data (mark error only when cold), and
           // stamp fetchedAt so the TTL throttles retries into a backoff instead
@@ -197,7 +213,9 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
           onData?.(data);
         }
       } catch {
-        if (sameAccount()) set({ ...slice, loading: false, error: cold, fetchedAt: Date.now() });
+        if (!sameAccount()) return;
+        settledAt.current[key] = Date.now();
+        set({ ...slice, loading: false, error: cold, fetchedAt: Date.now() });
       } finally {
         if (sameAccount()) inflight.current[key] = false;
       }
@@ -205,15 +223,17 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     [],
   );
 
-  const isStale = (slice: Slice<unknown>) =>
-    slice.fetchedAt === null || Date.now() - slice.fetchedAt > TTL_MS;
+  const isStale = (key: SliceKey) => {
+    const at = settledAt.current[key];
+    return at === null || Date.now() - at > TTL_MS;
+  };
 
   const ensureDashboard = useCallback(() => {
     if (!authed) return;
-    // Gate on staleness only — a failed fetch stamps fetchedAt, so the TTL backs
+    // Gate on staleness only — a failed fetch stamps settledAt, so the TTL backs
     // off retries. Gating on `error` here would refetch every render (no data
     // means each failure yields a new slice identity → effect re-fires → loop).
-    if (!isStale(dashboard)) return;
+    if (!isStale("dashboard")) return;
     void load("dashboard", dashboard, setDashboard, () =>
       apiFetch("/api/dashboard").then((r) => (r.ok ? (r.json() as Promise<DashboardData>) : null)).catch(() => null),
     );
@@ -221,7 +241,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
 
   const ensureSettings = useCallback(() => {
     if (!authed) return;
-    if (!isStale(settings)) return;
+    if (!isStale("settings")) return;
     void load(
       "settings",
       settings,
@@ -237,7 +257,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
 
   const ensureLeaderboard = useCallback(() => {
     if (!authed) return;
-    if (!isStale(leaderboard)) return;
+    if (!isStale("leaderboard")) return;
     void load("leaderboard", leaderboard, setLeaderboard, () =>
       apiFetch("/api/climb/leaderboard")
         .then((r) => (r.ok ? r.json() : null))
@@ -266,7 +286,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
 
   const ensureFriendsLeaderboard = useCallback(() => {
     if (!authed) return;
-    if (!isStale(friendsLeaderboard)) return;
+    if (!isStale("friendsLeaderboard")) return;
     void load("friendsLeaderboard", friendsLeaderboard, setFriendsLeaderboard, fetchFriendsBoard);
   }, [authed, friendsLeaderboard, load, fetchFriendsBoard]);
 
@@ -289,12 +309,15 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   }, [settings, load]);
 
   const setSettings = useCallback((next: SettingsData) => {
+    settledAt.current.settings = Date.now();
     setSettingsSlice({ data: next, loading: false, error: false, fetchedAt: Date.now() });
   }, []);
 
   const invalidate = useCallback(
     (keys: SliceKey[]) => {
       const markStale = <T,>(s: Slice<T>): Slice<T> => ({ ...s, fetchedAt: null });
+      for (const key of keys) settledAt.current[key] = null;
+      // The new slice identity re-runs the consumers' ensure effects.
       if (keys.includes("dashboard")) setDashboard(markStale);
       if (keys.includes("settings")) setSettingsSlice(markStale);
       if (keys.includes("leaderboard")) setLeaderboard(markStale);

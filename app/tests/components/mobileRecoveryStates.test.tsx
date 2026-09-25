@@ -7,12 +7,13 @@
  * Guards: Edit Profile never renders (or saves) a blank form when settings
  * failed to load, because that PUT nulls the saved username and socials; the
  * Ranks error and empty states offer an action; a failed dashboard is not
- * shown as "no record"; Back on a deep-linked push screen stays in the app.
+ * shown as "no record"; Back on a deep-linked push screen stays in the app;
+ * one Try again is one request.
  *
  * @vitest-environment happy-dom
  */
 
-import { act, createElement, type ReactElement } from "react";
+import { act, createElement, useLayoutEffect, type ReactElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -50,6 +51,9 @@ const net = vi.hoisted(() => ({
   global: [] as unknown[],
   friends: null as unknown,
   dash: null as unknown,
+  /** The next GET to this path stays pending until `release` is called. */
+  gate: null as string | null,
+  release: null as ((r: Response) => void) | null,
 }));
 
 function jsonResponse(body: unknown, status = 200): Response {
@@ -57,6 +61,12 @@ function jsonResponse(body: unknown, status = 200): Response {
 }
 
 const apiFetch = vi.fn(async (path: string, init?: RequestInit): Promise<Response> => {
+  if (net.gate === path && (init?.method ?? "GET") === "GET") {
+    net.gate = null;
+    return new Promise<Response>((resolve) => {
+      net.release = resolve;
+    });
+  }
   const status = net.status[path] ?? 200;
   if (status !== 200) return jsonResponse({ error: "down" }, status);
   if (path === "/api/settings" && init?.method === "PUT") {
@@ -73,7 +83,7 @@ vi.mock("../../mobile/src/lib/api", () => ({
   API_BASE: "https://example.test",
 }));
 
-import { AppDataProvider } from "../../mobile/src/contexts/AppDataContext";
+import { AppDataProvider, useDashboard } from "../../mobile/src/contexts/AppDataContext";
 import { EditProfileScreen } from "../../mobile/src/screens/EditProfileScreen";
 import { AvatarPickerScreen } from "../../mobile/src/screens/AvatarPickerScreen";
 import { LeaderboardScreen } from "../../mobile/src/screens/LeaderboardScreen";
@@ -109,11 +119,11 @@ const routes = () =>
 let container: HTMLDivElement;
 let root: Root | null = null;
 
-async function mount(entries: string[]): Promise<HTMLDivElement> {
+async function mount(entries: string[], extra: ReactElement | null = null): Promise<HTMLDivElement> {
   const tree: ReactElement = createElement(
     MemoryRouter,
     { initialEntries: entries, initialIndex: entries.length - 1 },
-    createElement(AppDataProvider, null, routes(), createElement(LocationProbe)),
+    createElement(AppDataProvider, null, routes(), createElement(LocationProbe), extra),
   );
   await act(async () => {
     root = createRoot(container);
@@ -151,6 +161,8 @@ beforeEach(() => {
   net.global = [row(1, "g1", 9000), row(2, "g2", 8000), row(3, "g3", 7000)];
   net.friends = { climbers: [row(1, "me", 100), row(2, "f1", 90)], hiddenCount: 0, notClimbedCount: 0 };
   net.dash = RANKED_DASH;
+  net.gate = null;
+  net.release = null;
   window.history.replaceState(null, "");
   container = document.createElement("div");
   document.body.appendChild(container);
@@ -306,6 +318,40 @@ describe("dashboard failure is not 'no record'", () => {
     expect(calls("/api/dashboard")).toHaveLength(2);
     expect(container.textContent).not.toContain("Couldn't load your climb");
     expect(container.querySelector('[aria-label="Best climb"]')?.textContent).toContain("3,400");
+  });
+
+  it("one Try again sends one GET even when the failure lands before the effects flush", async () => {
+    // Settles the held retry during the commit that shows it loading, so the
+    // failure (and the in-flight flag reset) lands before that commit's
+    // effects run with their "never fetched" slice, as a fast 500 can.
+    function SettleOnLoadingCommit() {
+      const dash = useDashboard();
+      useLayoutEffect(() => {
+        const release = net.release;
+        if (!dash.loading || !release) return;
+        net.release = null;
+        release(jsonResponse({ error: "down" }, 500));
+      });
+      return null;
+    }
+    net.status["/api/dashboard"] = 500;
+    await mount(["/profile"], createElement(SettleOnLoadingCommit));
+    expect(calls("/api/dashboard")).toHaveLength(1);
+
+    // Real scheduling, not act(): act flushes effects before the settle lands.
+    const env = globalThis as Record<string, unknown>;
+    env.IS_REACT_ACT_ENVIRONMENT = false;
+    try {
+      net.gate = "/api/dashboard";
+      buttonByText("Try again")?.click();
+      for (let i = 0; i < 5; i += 1) await new Promise((r) => setTimeout(r, 10));
+    } finally {
+      env.IS_REACT_ACT_ENVIRONMENT = true;
+    }
+
+    expect(net.release).toBeNull();
+    expect(calls("/api/dashboard")).toHaveLength(2);
+    expect(container.textContent).toContain("Couldn't load your climb");
   });
 
   it("Profile still says No climbs yet for a player with no record", async () => {

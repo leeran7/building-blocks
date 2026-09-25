@@ -397,6 +397,26 @@ describe("friends board cache and the signed-in account", () => {
     expect(probeText(c)).toBe("other");
   });
 
+  it("a late friends board from the previous account does not stop the new account fetching its own", async () => {
+    net.hold = "/api/climb/leaderboard/friends";
+    const c = await mount(screen());
+    await click(friendsTab(c));
+    expect(friendsCalls()).toBe(1);
+    await click(c.querySelector("#lb-tab-global"));
+
+    // The new account never opened Friends, so nothing of its own is in flight.
+    auth.uid = "other";
+    await mounted!.rerender();
+    await settle(0, { climbers: [row(1, "aria", 400), row(2, "me", 100)], hiddenCount: 0, notClimbedCount: 0 });
+    expect(friendsCalls()).toBe(1);
+
+    await click(friendsTab(c));
+    expect(friendsCalls()).toBe(2);
+    await settle(1, { climbers: [row(1, "zed", 90), row(2, "other", 50)], hiddenCount: 0, notClimbedCount: 0 });
+    expect(c.textContent).toContain("Climber zed");
+    expect(c.textContent).not.toContain("Climber aria");
+  });
+
   it("discards a friends board that lands after clearAll (sign-out / delete)", async () => {
     net.hold = "/api/climb/leaderboard/friends";
     const c = await mount(createElement(FriendsBoardProbe));
