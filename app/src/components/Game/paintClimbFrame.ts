@@ -28,6 +28,7 @@ import {
 } from "./climbCamera";
 import { drawFloorMarker } from "./FloorMarker";
 import { drawClimbBackground } from "./climbBackground";
+import { climberFrame, drawClimberSprite } from "./climberSprite";
 import { drawLava, LAVA_SLOWED } from "./lava";
 import {
   PICKUP_BURST_TICKS,
@@ -300,7 +301,9 @@ export function paintClimbFrame(
     const isLocal = p.id === localPlayerId;
     const pxScreen = sx(p.x);
     const pFeetY = sy(p.y);
-    const pFacing: 1 | -1 = p.vx < 0 ? -1 : 1;
+    // Face left only on clear leftward motion — a threshold keeps tiny vx
+    // jitter (e.g. on a ladder) from flipping the sprite every frame.
+    const pFacing: 1 | -1 = p.vx < -0.1 ? -1 : 1;
 
     const baseColor = isLocal ? ACCENT : OPPONENT_COLOR;
     const pColor =
@@ -335,7 +338,18 @@ export function paintClimbFrame(
       ctx.fill();
     }
 
-    drawClimber(ctx, pxScreen, pFeetY, pS, pFacing, pPose, state.tick, pColor, reducedMotion);
+    // Every climber wears the lime chibi sprite once its atlas has decoded;
+    // until then (and offscreen/SSR) they fall back to the vector figure, which
+    // still recolours via pColor.
+    // Climbing is vertical — lock facing so the two climb frames read as
+    // hand-over-hand instead of mirror-flipping with ladder vx jitter.
+    const spriteFacing: 1 | -1 = pPose === "climb" ? 1 : pFacing;
+    const sprite = climberFrame(pPose, p.x, p.y, reducedMotion);
+    if (sprite) {
+      drawClimberSprite(ctx, pxScreen, pFeetY, pS, spriteFacing, sprite);
+    } else {
+      drawClimber(ctx, pxScreen, pFeetY, pS, pFacing, pPose, state.tick, pColor, reducedMotion);
+    }
 
     if (isLocal && p.jetpackThrusting) {
       drawJetpackFlame(ctx, pxScreen, pFeetY, pS, state.tick, reducedMotion);
