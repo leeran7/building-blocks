@@ -37,7 +37,7 @@ Risks).
 | F-2 Check today's board | yes | Ranks tab → Today tab, or `?board=today` (All-time is the default) | Podium plus table, a status pill "Resets in Xh Ym", your banner, and a pinned row (#rank · height · tries) when outside the top 50 | Loading skeleton. Empty: "No one's climbed today's tower yet. Be first." plus Play. Error: RetryPanel. Not played: "Not on today's board" → Play | Play today's tower |
 | F-3 Friends today | no | Ranks → Today → Friends | You plus consented friends for today, with a hidden/not-climbed footer | No friends: "Race your friends" → /challenge. Error: RetryPanel | Find friends |
 | F-4 Opt in from the board | yes | Today banner "You're hidden" → "Show me on the board" | Consent sheet → PUT settings → board refetches | PUT fails: the sheet closes and the banner stays hidden (can retry) | Play today's tower |
-| F-5 Midnight rollover | yes | App open across 00:00 UTC | `useUtcDay` fires at the reset. Day slices refetch cold (skeleton), the countdown resets, and the DailyCard drops yesterday's rank. Play again / Start refetches the seed when the server's `resetsAt` has passed since it was fetched, so the next run is on today's tower | A run that straddles the reset is accepted for its day within 10 min, then DAY_CLOSED | New day's board |
+| F-5 Midnight rollover | yes | App open across 00:00 UTC | `useUtcDay` fires at the reset. Day slices refetch cold (skeleton), the countdown resets, and the DailyCard drops yesterday's rank. Play again / Start refetches the seed when the server's `resetsAt` has passed since it was fetched (timed from the server's `now`), so the next run is on today's tower | A run that straddles the reset is accepted for its day within 10 min, then DAY_CLOSED | New day's board |
 | F-6 Home glance | no | Home | DailyCard shows "#N today · H ft · Resets in …" once the server knows your rank | Unknown rank: falls back to the local best / countdown | Tap → F-1 |
 
 Mid-flow interrupts (F-1): a double POST adds one attempt and cannot lower
@@ -90,7 +90,12 @@ and when the tower resets.
   rank · height · tries.
 - AC-11: When the device UTC day changes, the day slices refetch cold. A
   start after the server's `resetsAt` (since the seed was fetched) refetches
-  the seed first, on web and mobile.
+  the seed first, on web and mobile. "After" is judged on the server's
+  timeline: the answer carries the server's `now`, and it is stale once
+  `resetsAt - now` has elapsed since the request (monotonic and wall-clock
+  differences), or once the device clock is past `resetsAt` and more than
+  60 s have passed since the request. A skewed device clock never keeps a
+  closed tower (V-DC-2).
 
 **S-3 (F-3).** As a friend rival, I want today's friends board.
 - AC-12: `/friends` requires auth (401 otherwise) and returns you plus

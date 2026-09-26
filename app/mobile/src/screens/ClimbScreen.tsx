@@ -38,7 +38,13 @@ import {
   TODAY_BOARD_PATH,
   type DailySaveResult,
 } from "../lib/dailyBoard";
-import { isDailyInfoStale, type DailyInfo } from "@app/lib/dailyInfo";
+import {
+  isDailyInfoStale,
+  readDailyClock,
+  stampDailyInfo,
+  type DailyInfo,
+  type DailyInfoStamp,
+} from "@app/lib/dailyInfo";
 import { DAILY_SIM_VERSION } from "@app/game/simVersion";
 
 /** A finished run as POSTed to either result route. */
@@ -89,21 +95,21 @@ export function ClimbScreen({ onSignIn }: { onSignIn?: () => void } = {}) {
   const [dailyInfo, setDailyInfo] = useState<DailyInfo | null>(null);
   const [dailyInfoFailed, setDailyInfoFailed] = useState(false);
   const [dailyInfoAttempt, setDailyInfoAttempt] = useState(0);
-  // When the current answer was requested: it is stale once the server's
-  // reset falls between that and a new start (RV-DC-3).
-  const dailyRequestedAt = useRef(0);
+  // The current answer with the time the server said it had left: it is
+  // stale once that much time has passed before a new start (RV-DC-3, V-DC-2).
+  const dailyStamp = useRef<DailyInfoStamp | null>(null);
   // A start was asked for while the tower was being refetched; it runs as
   // soon as today's answer lands.
   const [startWhenReady, setStartWhenReady] = useState(false);
   useEffect(() => {
     if (!isDaily) return;
     let cancelled = false;
-    const requestedAt = Date.now();
+    const requestedAt = readDailyClock();
     setDailyInfoFailed(false);
     void fetchDailyInfo().then((info) => {
       if (cancelled) return;
       if (info) {
-        dailyRequestedAt.current = requestedAt;
+        dailyStamp.current = stampDailyInfo(info, requestedAt);
         setDailyInfo(info);
       } else {
         setDailyInfoFailed(true);
@@ -197,7 +203,8 @@ export function ClimbScreen({ onSignIn }: { onSignIn?: () => void } = {}) {
       // Never start a daily on a random tower while the server seed is
       // missing, nor on yesterday's tower after 00:00 UTC: drop a stale
       // answer, refetch, and start once today's arrives.
-      const fresh = dailyInfo !== null && !isDailyInfoStale(dailyInfo, dailyRequestedAt.current, Date.now());
+      const stamp = dailyStamp.current;
+      const fresh = dailyInfo !== null && stamp !== null && stamp.info === dailyInfo && !isDailyInfoStale(stamp, readDailyClock());
       if (!fresh) {
         if (dailyInfo !== null) setDailyInfo(null);
         setStartWhenReady(true);

@@ -11,10 +11,10 @@
  */
 
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { isDailyInfoStale, parseDailyInfo } from "../../src/lib/dailyInfo";
+import { isDailyInfoStale, parseDailyInfo, stampDailyInfo } from "../../src/lib/dailyInfo";
 
 const SEED = "daily1-AbCdEfGhIjKlMnOpQrSt_-";
-const INFO = { day: "2026-09-26", seed: SEED, resetsAt: "2026-09-27T00:00:00.000Z" };
+const INFO = { day: "2026-09-26", seed: SEED, resetsAt: "2026-09-27T00:00:00.000Z", now: "2026-09-26T23:59:00.000Z" };
 
 afterEach(() => {
   vi.useRealTimers();
@@ -44,12 +44,15 @@ describe("parseDailyInfo keeps the server's resetsAt", () => {
     expect(parseDailyInfo({ ...INFO, resetsAt: "2026-09-27T00:00:00Z" })?.resetsAt).toBe("2026-09-27T00:00:00Z");
   });
 
-  it("so staleness is judged against the server's reset, whatever the device's date", () => {
+  it("so staleness is judged on the server's timeline, whatever the device's date", () => {
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(new Date("2031-03-04T15:00:00Z"));
     const info = parseDailyInfo(INFO)!;
-    const reset = Date.parse(INFO.resetsAt);
-    expect(isDailyInfoStale(info, reset - 1000, reset + 1000)).toBe(true);
-    expect(isDailyInfoStale(info, reset - 2000, reset - 1000)).toBe(false);
+    // The server answered 60 s before its reset; the device's date is years off.
+    const wall = Date.now();
+    const stamp = stampDailyInfo(info, { mono: 0, wall });
+    expect(stamp.msLeft).toBe(60_000);
+    expect(isDailyInfoStale(stamp, { mono: 59_000, wall: wall + 59_000 })).toBe(false);
+    expect(isDailyInfoStale(stamp, { mono: 61_000, wall: wall + 61_000 })).toBe(true);
   });
 });

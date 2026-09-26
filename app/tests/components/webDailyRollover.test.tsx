@@ -35,8 +35,9 @@ vi.mock("../../src/components/Game/ClimbControlsGuide", () => ({ ClimbControlsGu
 
 import { DailyClimbClient } from "../../src/components/Game/DailyClimbClient";
 
-const OLD = { day: "2026-09-26", seed: "daily1-OldOldOldOldOldOldOldO", resetsAt: "2026-09-27T00:00:00.000Z" };
-const NEW = { day: "2026-09-27", seed: "daily1-NewNewNewNewNewNewNewN", resetsAt: "2026-09-28T00:00:00.000Z" };
+// `now` is the server clock at answer time (the device reads the same in beforeEach).
+const OLD = { day: "2026-09-26", seed: "daily1-OldOldOldOldOldOldOldO", resetsAt: "2026-09-27T00:00:00.000Z", now: "2026-09-26T23:59:00.000Z" };
+const NEW = { day: "2026-09-27", seed: "daily1-NewNewNewNewNewNewNewN", resetsAt: "2026-09-28T00:00:00.000Z", now: "2026-09-27T00:00:30.000Z" };
 
 const net = vi.hoisted(() => ({ body: null as unknown, fail: false, held: [] as Array<() => void>, hold: false }));
 const fetchMock = vi.fn(async (): Promise<Response> => {
@@ -148,6 +149,24 @@ describe("web Daily Climb across 00:00 UTC (RV-DC-3)", () => {
     expect(last().seed).toBe(OLD.seed);
     expect(await askStart()).toBe(true);
     expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("a device clock 2 min fast that refetched just before the real reset still gets today's tower 3 h later (V-DC-2)", async () => {
+    await mount();
+    // Device 00:00:30, server 23:58:30: the refetch still names yesterday.
+    vi.setSystemTime(new Date("2026-09-27T00:00:30Z"));
+    net.body = { ...OLD, now: "2026-09-26T23:58:30.000Z" };
+    expect(await askStart()).toBe(false);
+    expect(await askStart()).toBe(true);
+    expect(last().seed).toBe(OLD.seed);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    // Three hours later the server has reset: the start refetches today's tower.
+    vi.setSystemTime(new Date("2026-09-27T03:00:30Z"));
+    net.body = { ...NEW, now: "2026-09-27T02:58:30.000Z" };
+    expect(await askStart()).toBe(false);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(last().seed).toBe(NEW.seed);
+    expect(await askStart()).toBe(true);
   });
 
   it("if the refetch fails, the closed tower is not playable: the page offers Try again", async () => {

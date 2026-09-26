@@ -46,7 +46,7 @@ new empty table. Down: `DROP TABLE`.
 
 | Method | Path | Auth | Rate limit | Response |
 |---|---|---|---|---|
-| GET | /api/climb/daily | none | none (no DB) | `{day, seed, resetsAt}`, no-store; 503 `DAILY_UNAVAILABLE` without `DAILY_SEED_SECRET` |
+| GET | /api/climb/daily | none | none (no DB) | `{day, seed, resetsAt, now}` (`now` = server clock, inside `day`), no-store; 503 `DAILY_UNAVAILABLE` without `DAILY_SEED_SECRET` |
 | POST | /api/climb/daily/result | Bearer (soft) | IP `climb` (shared with /result) 60/min; user `climb:daily:<uid>:<day>` 20/5 min | see spec AC-1…6 |
 | GET | /api/climb/daily/leaderboard?day= | optional Bearer (`me`) | IP `leaderboard:daily` 120/min | `{day, resetsAt, totalClimbers, climbers, me}` |
 | GET | /api/climb/daily/leaderboard/friends?day= | Bearer (401) | uid `leaderboard:friends:daily` 60/min | `{day, resetsAt, climbers, hiddenCount, notClimbedCount}` |

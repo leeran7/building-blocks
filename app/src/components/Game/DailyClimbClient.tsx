@@ -24,7 +24,15 @@ import { ClimbControlsGuide } from "./ClimbControlsGuide";
 import { buildFreeTower } from "../../game/freeStack";
 import { ALTITUDE_UNIT } from "../../lib/units";
 import Link from "next/link";
-import { DAILY_INFO_PATH, isDailyInfoStale, parseDailyInfo, type DailyInfo } from "../../lib/dailyInfo";
+import {
+  DAILY_INFO_PATH,
+  isDailyInfoStale,
+  parseDailyInfo,
+  readDailyClock,
+  stampDailyInfo,
+  type DailyInfo,
+  type DailyInfoStamp,
+} from "../../lib/dailyInfo";
 import { DAILY_SIM_VERSION } from "../../game/simVersion";
 import {
   dailySummary,
@@ -60,9 +68,9 @@ export function DailyClimbClient() {
   const [daily, setDaily] = useState<DailyInfo | null>(null);
   const [dailyFailed, setDailyFailed] = useState(false);
   const [dailyAttempt, setDailyAttempt] = useState(0);
-  // When the current answer was requested: it is stale once the server's
-  // reset falls between that and a new start (RV-DC-3).
-  const dailyRequestedAtRef = useRef(0);
+  // The current answer with the time the server said it had left: it is
+  // stale once that much time has passed before a new start (RV-DC-3, V-DC-2).
+  const dailyStampRef = useRef<DailyInfoStamp | null>(null);
   const [refreshingDaily, setRefreshingDaily] = useState(false);
   const seed = daily?.seed ?? null;
   const [summary, setSummary] = useState<DailySummary | null>(null);
@@ -76,17 +84,18 @@ export function DailyClimbClient() {
   // the reset countdown each minute so it doesn't go stale in a long lobby.
   useEffect(() => {
     let cancelled = false;
-    const requestedAt = Date.now();
+    const requestedAt = readDailyClock();
     setDailyFailed(false);
     void fetchServerDaily().then((next) => {
       if (cancelled) return;
       setRefreshingDaily(false);
       if (next) {
-        dailyRequestedAtRef.current = requestedAt;
+        dailyStampRef.current = stampDailyInfo(next, requestedAt);
         setDaily(next);
       } else {
         // A closed tower is never played: without today's answer the page
         // falls back to the offline state (only reachable between runs).
+        dailyStampRef.current = null;
         setDaily(null);
         setDailyFailed(true);
       }
@@ -130,11 +139,12 @@ export function DailyClimbClient() {
     setWeek(dailyWeek());
   }, [daily]);
 
-  // Before every start: if 00:00 UTC passed since this seed was fetched, the
-  // tower is closed. Refetch instead of starting; the button waits meanwhile.
+  // Before every start: if the server's 00:00 UTC has passed since this seed
+  // was fetched, the tower is closed. Refetch instead of starting; the button waits meanwhile.
   const beforeStart = useCallback((): boolean => {
-    if (!daily) return false;
-    if (!isDailyInfoStale(daily, dailyRequestedAtRef.current, Date.now())) return true;
+    const stamp = dailyStampRef.current;
+    if (!daily || !stamp) return false;
+    if (!isDailyInfoStale(stamp, readDailyClock())) return true;
     setRefreshingDaily(true);
     setDailyAttempt((n) => n + 1);
     return false;

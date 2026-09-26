@@ -768,12 +768,14 @@ describe("GET /api/climb/daily (SEC-DC-3)", () => {
     const res = getDailyInfo();
     expect(res.status).toBe(200);
     expect(res.headers.get("cache-control")).toBe("no-store");
-    const body = (await res.json()) as { day: string; seed: string; resetsAt: string };
+    const body = (await res.json()) as { day: string; seed: string; resetsAt: string; now: string };
     expect(body.day).toBe(DAY);
     expect(body.seed).toBe(dailySeedFor(DAY));
     expect(isDailySeedShape(body.seed)).toBe(true);
     expect(body.seed).not.toContain(DAY);
     expect(body.resetsAt).toBe("2026-09-27T00:00:00.000Z");
+    // The server's own clock, so clients time the close on its timeline (V-DC-2).
+    expect(body.now).toBe(NOW.toISOString());
   });
 
   it.each([

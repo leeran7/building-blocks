@@ -85,13 +85,13 @@ describe("parseDailyInfo", () => {
   const SERVER_SEED = "daily1-AbCdEfGhIjKlMnOpQrSt_-";
 
   it("accepts a real day and a server-shaped seed", () => {
-    const info = { day: "2026-09-26", seed: SERVER_SEED, resetsAt: "2026-09-27T00:00:00.000Z" };
+    const info = { day: "2026-09-26", seed: SERVER_SEED, resetsAt: "2026-09-27T00:00:00.000Z", now: "2026-09-26T12:00:00.000Z" };
     expect(parseDailyInfo(info)).toEqual(info);
     expect(parseDailyInfo({ ...info, day: "26/09/2026" })).toBeNull();
   });
 
   it("rejects the legacy predictable seed and any other seed shape", () => {
-    const info = { day: "2026-09-26", seed: SERVER_SEED, resetsAt: "2026-09-27T00:00:00.000Z" };
+    const info = { day: "2026-09-26", seed: SERVER_SEED, resetsAt: "2026-09-27T00:00:00.000Z", now: "2026-09-26T12:00:00.000Z" };
     let checked = 0;
     for (const seed of ["daily-2026-09-26", "daily1-short", `${SERVER_SEED}x`, "", null, 7]) {
       expect(parseDailyInfo({ ...info, seed })).toBeNull();

@@ -35,8 +35,9 @@ vi.mock("../../src/components/Game/ClimbControlsGuide", () => ({ ClimbControlsGu
 
 import { DailyClimbClient } from "../../src/components/Game/DailyClimbClient";
 
-const OLD = { day: "2026-09-26", seed: "daily1-OldOldOldOldOldOldOldO", resetsAt: "2026-09-27T00:00:00.000Z" };
-const NEW = { day: "2026-09-27", seed: "daily1-NewNewNewNewNewNewNewN", resetsAt: "2026-09-28T00:00:00.000Z" };
+// `now` is the server clock at answer time (the device reads the same in beforeEach).
+const OLD = { day: "2026-09-26", seed: "daily1-OldOldOldOldOldOldOldO", resetsAt: "2026-09-27T00:00:00.000Z", now: "2026-09-26T23:59:00.000Z" };
+const NEW = { day: "2026-09-27", seed: "daily1-NewNewNewNewNewNewNewN", resetsAt: "2026-09-28T00:00:00.000Z", now: "2026-09-27T00:00:30.000Z" };
 
 const net = vi.hoisted(() => ({ body: null as unknown }));
 const fetchMock = vi.fn(async (): Promise<Response> => ({ ok: true, status: 200, json: async () => net.body }) as Response);

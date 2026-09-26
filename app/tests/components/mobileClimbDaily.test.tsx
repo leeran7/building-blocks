@@ -125,7 +125,12 @@ import { DAILY_SIM_VERSION } from "../../src/game/simVersion";
 
 /** A server-shaped seed. The real one is an HMAC the client cannot compute. */
 const SERVER_SEED = "daily1-AbCdEfGhIjKlMnOpQrSt_-";
-const todayInfo = () => ({ day: utcDayKey(new Date()), seed: SERVER_SEED, resetsAt: nextUtcResetAt(new Date()).toISOString() });
+const todayInfo = () => ({
+  day: utcDayKey(new Date()),
+  seed: SERVER_SEED,
+  resetsAt: nextUtcResetAt(new Date()).toISOString(),
+  now: new Date().toISOString(),
+});
 
 function LocationProbe() {
   const loc = useLocation();
@@ -225,7 +230,7 @@ afterEach(() => {
 describe("ClimbScreen daily mode", () => {
   it("locks the tower to the SERVER's daily seed, with no device-derived seed before it", async () => {
     const serverDay = "2031-01-02"; // not the device's UTC day
-    net.info = { day: serverDay, seed: SERVER_SEED, resetsAt: "2031-01-03T00:00:00.000Z" };
+    net.info = { day: serverDay, seed: SERVER_SEED, resetsAt: "2031-01-03T00:00:00.000Z", now: "2031-01-02T12:00:00.000Z" };
     await mountDaily();
     expect(climb.seeds[0]).toBeUndefined(); // nothing locked until the server answers
     expect(climb.seeds.at(-1)).toBe(SERVER_SEED);

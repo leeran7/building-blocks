@@ -84,7 +84,7 @@ const byText = (tag: string, t: string) =>
 beforeEach(() => {
   scene.props = [];
   commits.calls = [];
-  net.body = { day: SERVER_DAY, seed: SERVER_SEED, resetsAt: "2026-09-27T00:00:00.000Z" };
+  net.body = { day: SERVER_DAY, seed: SERVER_SEED, resetsAt: "2026-09-27T00:00:00.000Z", now: "2026-09-26T12:00:00.000Z" };
   net.status = 200;
   net.fail = false;
   fetchMock.mockClear();

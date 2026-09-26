@@ -7,7 +7,10 @@
  * `seed` so the run they submit to POST /api/climb/daily/result is on the
  * tower the server will accept, even when the device clock or timezone is off.
  *
- * Response 200: { day: "YYYY-MM-DD", seed: "daily1-<22 base64url chars>", resetsAt: ISO }
+ * Response 200: { day: "YYYY-MM-DD", seed: "daily1-<22 base64url chars>", resetsAt: ISO, now: ISO }
+ *               `now` is the server's clock at answer time; clients time the
+ *               tower's close as resetsAt - now on their own monotonic clock,
+ *               so a skewed device clock cannot keep a closed tower (V-DC-2).
  * Response 503: { error, code: "DAILY_UNAVAILABLE" } when DAILY_SEED_SECRET is
  *               missing or too short (fail closed; there is no fallback seed).
  */
@@ -34,7 +37,7 @@ export function GET(): NextResponse {
   const now = new Date();
   const day = utcDayKey(now);
   return NextResponse.json(
-    { day, seed: dailySeedFor(day), resetsAt: nextUtcResetAt(now).toISOString() },
+    { day, seed: dailySeedFor(day), resetsAt: nextUtcResetAt(now).toISOString(), now: now.toISOString() },
     { headers: NO_STORE }
   );
 }
