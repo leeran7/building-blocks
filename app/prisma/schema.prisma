@@ -181,8 +181,9 @@ model DailyClimbScore {
 // tail-padded copies only. A copy with one no-effect input changed hashes
 // differently and is accepted: an accepted residual, because it can only
 // tie the original and ties rank the earlier run first. Runs below
-// DAILY_CLAIM_MIN_PEAK_M are never claimed, since honest idle runs are
-// identical (SEC-DC-11). Every claimed run is kept, not only the best, so an
+// DAILY_CLAIM_MIN_PEAK_M (SEC-DC-11) or with fewer than
+// DAILY_CLAIM_MIN_INPUT_SEGMENTS input segments (SEC-DC-15, held-input runs)
+// are never claimed, since honest players repeat them exactly. Every claimed run is kept, not only the best, so an
 // earlier run cannot be exact-copied after its owner beats it.
 model DailyClimbReplay {
   id         String   @id @default(cuid())

@@ -55,14 +55,20 @@ import { dailySeedFor } from "../../src/lib/dailySeedServer";
 import { TEST_DAILY_SEED_SECRET } from "../lib/dailySeedTestSecret";
 
 vi.stubEnv("DAILY_SEED_SECRET", TEST_DAILY_SEED_SECRET);
-import { DAILY_CLAIM_MIN_PEAK_M, dailyInputHash, resimulateSoloRun } from "../../src/game/dailyVerify";
+import {
+  DAILY_CLAIM_MIN_INPUT_SEGMENTS,
+  DAILY_CLAIM_MIN_PEAK_M,
+  dailyInputHash,
+  dailyInputSegments,
+  resimulateSoloRun,
+} from "../../src/game/dailyVerify";
 import { DAILY_SIM_VERSION } from "../../src/game/simVersion";
 import type { PlayerInput } from "../../src/game/types";
 
 const DAY = "2026-09-26";
 const NOW = new Date("2026-09-26T12:00:00Z");
 
-/** Same scripted policy as tests/game/dailyVerify.test.ts (climbs ~8 m on DAY). */
+/** Same scripted policy as tests/game/dailyVerify.test.ts (climbs 7.61 m on DAY). */
 function playRun(seed: string): { inputs: PlayerInput[]; peakY: number; ticks: number } {
   const state = createMatch({ seed, mode: "solo", tower: applyRunSeed(buildFreeTower(), seed), playerIds: ["you"] });
   while (state.phase === "countdown") stepMatch(state, {});
@@ -629,6 +635,8 @@ describe("POST /api/climb/daily/result: hardening (SEC-DC-2, 3, 4)", () => {
     const owners = useClaimStore();
     const { run, body } = await honestPayload();
     expect(run.peakY).toBeGreaterThanOrEqual(DAILY_CLAIM_MIN_PEAK_M);
+    // Precondition: well past the segment floor (SEC-DC-15), so it is claimed.
+    expect(dailyInputSegments(run.inputs)).toBe(31);
 
     asUser("u1");
     expect((await post(body)).status).toBe(200);
@@ -638,6 +646,44 @@ describe("POST /api/climb/daily/result: hardening (SEC-DC-2, 3, 4)", () => {
     expect(await codeOf(copy)).toBe("REPLAY_REUSED");
     expect([...owners.values()]).toEqual(["u1"]);
     expect(vi.mocked(recordDailyClimb).mock.calls.map(([c]) => c.userId)).toEqual(["u1"]);
+  });
+
+  it("two accounts can each save the same held-input ladder run above 6 m (SEC-DC-15)", async () => {
+    // 2026-09-20: holding climb alone scales the spawn ladder. Every player
+    // who does that produces this exact log, so neither may be refused.
+    const heldDay = "2026-09-20";
+    vi.setSystemTime(new Date(`${heldDay}T12:00:00Z`));
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const owners = useClaimStore();
+    const seed = dailySeedFor(heldDay);
+    const state = createMatch({ seed, mode: "solo", tower: applyRunSeed(buildFreeTower(), seed), playerIds: ["you"] });
+    while (state.phase === "countdown") stepMatch(state, {});
+    const hold: PlayerInput = { moveX: 0, jump: false, climbY: 1, usePowerUp: false };
+    const inputs: PlayerInput[] = [];
+    while (state.phase === "climb" && inputs.length < MAX_SHARE_TICKS) {
+      inputs.push({ ...hold });
+      stepMatch(state, { you: hold });
+    }
+    const peakY = state.players[0].peakY;
+    expect(peakY).toBeGreaterThan(DAILY_CLAIM_MIN_PEAK_M);
+    expect(dailyInputSegments(inputs)).toBeLessThan(DAILY_CLAIM_MIN_INPUT_SEGMENTS);
+    const body = { peakY, replayToken: await encodeRunReplay({ seed, peakY, inputs }) };
+
+    asUser("u1");
+    const first = await post(body);
+    expect(first.status).toBe(200);
+    asUser("u2");
+    const second = await post(body);
+    expect(second.status).toBe(200);
+    expect(((await second.json()) as { saved?: boolean }).saved).toBe(true);
+    // Both ranked on the day's board, the earlier save first.
+    expect(vi.mocked(recordDailyClimb).mock.calls.map(([c]) => [c.userId, c.day, c.peakY])).toEqual([
+      ["u1", heldDay, peakY],
+      ["u2", heldDay, peakY],
+    ]);
+    expect(claimDailyReplay).not.toHaveBeenCalled();
+    expect(owners.size).toBe(0);
+    expect(warn).not.toHaveBeenCalledWith("[climb/daily/result] replay reused", expect.anything());
   });
 
   it("a failed claim is a 500 persist_error, never a save", async () => {

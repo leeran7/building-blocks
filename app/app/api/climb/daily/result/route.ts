@@ -20,7 +20,9 @@
  * claims the run's canonical input hash for the day, and refuses an exact
  * or padded copy of a run another account already submitted (SEC-DC-2; a
  * one-input no-effect change evades this and can only tie). Runs under
- * DAILY_CLAIM_MIN_PEAK_M are not claimed (SEC-DC-11). The seed itself is an HMAC
+ * DAILY_CLAIM_MIN_PEAK_M (SEC-DC-11) or with fewer than
+ * DAILY_CLAIM_MIN_INPUT_SEGMENTS input segments (SEC-DC-15) are not claimed,
+ * because honest players repeat them byte for byte. The seed itself is an HMAC
  * only the server can compute (SEC-DC-3). Without DAILY_SEED_SECRET the route
  * fails closed with 503.
  *
@@ -197,10 +199,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   // to submit a run owns it for the day; the same player resubmitting is a
   // no-op attempt, and anyone else is refused. This refuses exact and padded
   // copies only; a copy with one no-effect input changed gets a new hash and
-  // can at best tie (accepted residual, see dailyInputHash). Runs that never
-  // left the ground floor are not claimed: honest idle runs are identical
-  // (SEC-DC-11, DAILY_CLAIM_MIN_PEAK_M).
-  if (dailyRunNeedsClaim(verdict.peakY)) {
+  // can at best tie (accepted residual, see dailyInputHash). Low-entropy runs
+  // are not claimed, because honest players produce them byte-identically:
+  // runs that never left the ground floor (SEC-DC-11, DAILY_CLAIM_MIN_PEAK_M)
+  // and held-input runs with at most two input changes, which can ride a
+  // ladder high (SEC-DC-15, DAILY_CLAIM_MIN_INPUT_SEGMENTS). Both values come
+  // from the server's re-simulation, never the client.
+  if (dailyRunNeedsClaim(verdict.peakY, verdict.inputSegments)) {
     try {
       const owner = await claimDailyReplay({ userId: uid, day: verdict.day, inputHash: verdict.inputHash });
       if (owner !== uid) {

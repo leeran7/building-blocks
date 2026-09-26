@@ -10,14 +10,17 @@
 
 import { describe, expect, it, vi } from "vitest";
 import { buildFreeTower } from "../../src/game/freeStack";
-import { applyRunSeed } from "../../src/game/towers";
+import { applyRunSeed, floorHeight } from "../../src/game/towers";
+import { jumpApexM } from "../../src/game/obstacles";
 import { createMatch, stepMatch } from "../../src/game/simulation";
 import { decodeRunReplay, encodeRunReplay, MAX_SHARE_TICKS, packInputLog, type RunReplay } from "../../src/game/runReplay";
 import { deflateSync } from "node:zlib";
 import {
+  DAILY_CLAIM_MIN_INPUT_SEGMENTS,
   DAILY_CLAIM_MIN_PEAK_M,
   DAILY_PEAK_EPSILON_M,
   dailyInputHash,
+  dailyInputSegments,
   dailyRunNeedsClaim,
   verifyDailyReplay,
 } from "../../src/game/dailyVerify";
@@ -36,7 +39,7 @@ const MIDDAY = new Date("2026-09-26T12:00:00Z");
  * input for each climb tick is logged, then stepped. The policy (hold a random
  * direction for 10 ticks, always climb, jump every 23 ticks, RNG state 28)
  * was picked because it climbs well past the first ledge on DAY's tower
- * (~8.2 m) but not on the previous day's (~2.6 m), so a relabelled replay
+ * (7.61 m) but not on the previous day's (~2.6 m), so a relabelled replay
  * cannot pass by coincidence.
  */
 function playRun(seed: string, maxTicks = 6000): { inputs: PlayerInput[]; peakY: number } {
@@ -84,6 +87,7 @@ describe("verifyDailyReplay", () => {
       ticks: run.inputs.length,
       finished: false,
       inputHash: dailyInputHash(run.inputs),
+      inputSegments: 31,
     });
   });
 
@@ -309,9 +313,15 @@ describe("claim floor for low-entropy runs (SEC-DC-11)", () => {
   /** Every day of September 2026: the sample the constant's doc comment cites. */
   const DAYS = Array.from({ length: 30 }, (_, i) => `2026-09-${String(i + 1).padStart(2, "0")}`);
 
-  it("sits above a standing jump's apex and below the first floor", () => {
-    expect(DAILY_CLAIM_MIN_PEAK_M).toBeGreaterThan(17 ** 2 / (2 * 40));
-    expect(DAILY_CLAIM_MIN_PEAK_M).toBeLessThan(0.68 * 22);
+  it("sits above a standing jump's apex and below the first floor on every sampled tower", () => {
+    let checked = 0;
+    for (const day of DAYS) {
+      const tower = applyRunSeed(buildFreeTower(), dailySeedFor(day));
+      expect(DAILY_CLAIM_MIN_PEAK_M, day).toBeGreaterThan(jumpApexM(tower));
+      expect(DAILY_CLAIM_MIN_PEAK_M, day).toBeLessThan(floorHeight(tower, 1));
+      checked++;
+    }
+    expect(checked).toBe(DAYS.length);
   });
 
   it.each(LOW_ENTROPY)("a '%s' run verifies and stays under the floor on every sampled day", async (_, policy) => {
@@ -323,7 +333,7 @@ describe("claim floor for low-entropy runs (SEC-DC-11)", () => {
       expect(verdict.ok, day).toBe(true);
       if (!verdict.ok) continue;
       expect(verdict.peakY, day).toBeLessThan(DAILY_CLAIM_MIN_PEAK_M);
-      expect(dailyRunNeedsClaim(verdict.peakY), day).toBe(false);
+      expect(dailyRunNeedsClaim(verdict.peakY, verdict.inputSegments), day).toBe(false);
       checked++;
     }
     expect(checked).toBe(DAYS.length);
@@ -336,28 +346,101 @@ describe("claim floor for low-entropy runs (SEC-DC-11)", () => {
     expect(dailyInputHash(a.inputs)).toBe(dailyInputHash(b.inputs));
   });
 
-  it("a real climb (the scripted ~8 m run) is over the floor and must claim", async () => {
+  it("a real climb (the scripted 7.61 m run) is over the floor and must claim", async () => {
     const run = playRun(SEED);
     const verdict = verifyDailyReplay(await tokenFor(SEED, run.peakY, run.inputs), run.peakY, MIDDAY);
     expect(verdict.ok).toBe(true);
     if (!verdict.ok) return;
     expect(verdict.peakY).toBeGreaterThanOrEqual(DAILY_CLAIM_MIN_PEAK_M);
-    expect(dailyRunNeedsClaim(verdict.peakY)).toBe(true);
+    expect(verdict.inputSegments).toBe(31);
+    expect(dailyRunNeedsClaim(verdict.peakY, verdict.inputSegments)).toBe(true);
   });
 
-  it("known residual: a held input that catches a ladder collides too, and is still claimed", () => {
+  it("a held input that catches a ladder collides too, and is exempt by segment count (SEC-DC-15)", async () => {
     // 2026-09-20: holding climb alone (no direction) scales the spawn ladder.
-    const seed = dailySeedFor("2026-09-20");
+    const day = "2026-09-20";
+    const seed = dailySeedFor(day);
     const a = playPolicy(seed, () => ({ ...still, climbY: 1 }));
     const b = playPolicy(seed, () => ({ ...still, climbY: 1 }));
     expect(dailyInputHash(a.inputs)).toBe(dailyInputHash(b.inputs));
-    expect(a.peakY).toBeGreaterThan(DAILY_CLAIM_MIN_PEAK_M);
-    expect(dailyRunNeedsClaim(a.peakY)).toBe(true);
+    const verdict = verifyDailyReplay(await tokenFor(seed, a.peakY, a.inputs), a.peakY, new Date(`${day}T12:00:00Z`));
+    expect(verdict.ok).toBe(true);
+    if (!verdict.ok) return;
+    expect(verdict.peakY).toBeGreaterThan(DAILY_CLAIM_MIN_PEAK_M);
+    expect(verdict.inputSegments).toBe(1);
+    expect(dailyRunNeedsClaim(verdict.peakY, verdict.inputSegments)).toBe(false);
   });
 
-  it("the boundary is inclusive", () => {
-    expect(dailyRunNeedsClaim(DAILY_CLAIM_MIN_PEAK_M)).toBe(true);
-    expect(dailyRunNeedsClaim(DAILY_CLAIM_MIN_PEAK_M - 1e-9)).toBe(false);
-    expect(dailyRunNeedsClaim(0)).toBe(false);
+  it("the peak boundary is inclusive", () => {
+    const enough = DAILY_CLAIM_MIN_INPUT_SEGMENTS;
+    expect(dailyRunNeedsClaim(DAILY_CLAIM_MIN_PEAK_M, enough)).toBe(true);
+    expect(dailyRunNeedsClaim(DAILY_CLAIM_MIN_PEAK_M - 1e-9, enough)).toBe(false);
+    expect(dailyRunNeedsClaim(0, enough)).toBe(false);
+  });
+});
+
+describe("claim exemption for low-entropy input logs (SEC-DC-15)", () => {
+  const still: PlayerInput = { moveX: 0, jump: false, climbY: 0, usePowerUp: false };
+  const A: PlayerInput = { ...still, moveX: 1, climbY: 1 };
+  const B: PlayerInput = { ...still, moveX: -1, jump: true };
+  const repeat = (input: PlayerInput, n: number) => Array.from({ length: n }, () => ({ ...input }));
+
+  it("precondition: the rule under test is peak >= 6 m and >= 4 segments", () => {
+    expect(DAILY_CLAIM_MIN_PEAK_M).toBe(6);
+    expect(DAILY_CLAIM_MIN_INPUT_SEGMENTS).toBe(4);
+  });
+
+  it("counts maximal runs of equal packed bytes", () => {
+    expect(dailyInputSegments([])).toBe(0);
+    expect(dailyInputSegments([still])).toBe(1);
+    expect(dailyInputSegments(repeat(A, 200))).toBe(1);
+    expect(dailyInputSegments([A, B, A, B])).toBe(4);
+    expect(dailyInputSegments([...repeat(A, 5), ...repeat(B, 7), ...repeat(A, 3)])).toBe(3);
+    expect(dailyInputSegments([...repeat(still, 20), ...repeat(A, 50), ...repeat(still, 9)])).toBe(3);
+  });
+
+  it("an unused bit (usePowerUp) adds no segment, because packing drops it", () => {
+    // Positive fixture: the same log with every other tick's usePowerUp set.
+    const flipped = repeat(A, 40).map((input, i) => ({ ...input, usePowerUp: i % 2 === 0 }));
+    expect(flipped.filter((input) => input.usePowerUp).length).toBe(20);
+    expect(dailyInputSegments(flipped)).toBe(1);
+    expect(dailyInputHash(flipped)).toBe(dailyInputHash(repeat(A, 40)));
+  });
+
+  it("segments are counted after the consumedTicks cut: a padded tail after death adds none", async () => {
+    // The 2026-09-20 hold-climb run, then 30 ticks of other inputs the sim never reads.
+    const day = "2026-09-20";
+    const seed = dailySeedFor(day);
+    const run = playPolicy(seed, () => ({ ...still, climbY: 1 }));
+    const tail = [...repeat(B, 10), ...repeat(still, 10), ...repeat(B, 10)];
+    const padded = [...run.inputs, ...tail];
+    // Positive fixture: the raw padded log has 4 segments, so a count over the
+    // raw inputs instead of the consumed slice would claim it.
+    expect(dailyInputSegments(padded)).toBe(4);
+    const verdict = verifyDailyReplay(await tokenFor(seed, run.peakY, padded), run.peakY, new Date(`${day}T12:00:00Z`));
+    expect(verdict.ok).toBe(true);
+    if (!verdict.ok) return;
+    expect(verdict.inputSegments).toBe(1);
+    expect(verdict.inputHash).toBe(dailyInputHash(run.inputs));
+    expect(dailyRunNeedsClaim(verdict.peakY, verdict.inputSegments)).toBe(false);
+  });
+
+  it("decision boundaries", () => {
+    expect(dailyRunNeedsClaim(6, 4)).toBe(true);
+    expect(dailyRunNeedsClaim(6, 3)).toBe(false);
+    expect(dailyRunNeedsClaim(5.999, 100)).toBe(false);
+    expect(dailyRunNeedsClaim(176, 1)).toBe(false);
+    expect(dailyRunNeedsClaim(176, 31)).toBe(true);
+  });
+
+  it("a fidgety run under 6 m has many segments and is still not claimed", async () => {
+    // Toggles jump every 7 ticks from a standstill: plenty of segments, no climb.
+    const run = playPolicy(SEED, (t) => ({ ...still, jump: Math.floor(t / 7) % 2 === 0 }));
+    const verdict = verifyDailyReplay(await tokenFor(SEED, run.peakY, run.inputs), run.peakY, MIDDAY);
+    expect(verdict.ok).toBe(true);
+    if (!verdict.ok) return;
+    expect(verdict.inputSegments).toBeGreaterThanOrEqual(DAILY_CLAIM_MIN_INPUT_SEGMENTS);
+    expect(verdict.peakY).toBeLessThan(DAILY_CLAIM_MIN_PEAK_M);
+    expect(dailyRunNeedsClaim(verdict.peakY, verdict.inputSegments)).toBe(false);
   });
 });

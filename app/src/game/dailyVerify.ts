@@ -54,16 +54,62 @@ export const DAILY_PEAK_EPSILON_M = 0.1;
  * floor starts at 0.68 * floorGap >= 15 m. A run under 6 m never reached the
  * first floor, so copying it launders nothing but a near-zero score.
  *
- * Not covered, by design: a constant held input that happens to catch a
- * ladder (hold left or right + climb) also collides across players, and it
- * can reach 17-176 m on the same towers. No peak floor separates those from
- * real climbs; they stay claimed (see tests/game/dailyVerify.test.ts).
+ * The peak floor alone does not cover a constant held input that happens to
+ * catch a ladder (hold left or right + climb): it also collides across
+ * players and can reach 17-176 m. Those are exempted by segment count
+ * instead (DAILY_CLAIM_MIN_INPUT_SEGMENTS, SEC-DC-15).
  */
 export const DAILY_CLAIM_MIN_PEAK_M = 6;
 
-/** True when a verified daily run must claim its input hash before it is saved. */
-export function dailyRunNeedsClaim(serverPeakY: number): boolean {
-  return serverPeakY >= DAILY_CLAIM_MIN_PEAK_M;
+/**
+ * Fewest input segments (see dailyInputSegments) a verified daily run needs
+ * before its log is claimed (SEC-DC-15). A run with at most 3 segments, i.e.
+ * at most two input changes (constant hold; hold-then-switch; idle, hold,
+ * release), is saved with no claim however high it reaches.
+ *
+ * Why: two honest players produce byte-identical logs only for patterns
+ * anchored at tick 0 and ended by death, with a couple of switches at most.
+ * Measured on the September 2026 towers: 67 of 540 constant-input runs reach
+ * >= 6 m (max 176 m) and 1536 of 9180 two-segment runs do, so claiming them
+ * refused honest second players and let one account pre-claim every constant
+ * run just after the reset. A real climb has far more segments (the scripted
+ * test run has 31).
+ *
+ * Why a copier gains nothing: the claim already stops only exact and padded
+ * copies. Changing one no-effect input (jump in mid-air) gets any run a new
+ * hash today, so skipping the claim for a class of runs grants no capability
+ * a copier lacks. To use the exemption on a high run they would have to
+ * rewrite it into <= 3 segments that still reach the same server-verified
+ * peak; that is a trivial strategy anyone can find, not a copy of someone's
+ * play, and it scores only what it really reaches. Ties still rank the
+ * earlier run first.
+ */
+export const DAILY_CLAIM_MIN_INPUT_SEGMENTS = 4;
+
+/**
+ * Number of maximal runs of identical bytes in packInputLog(inputs): the
+ * same canonical bytes dailyInputHash hashes. Pass the consumed slice (the
+ * inputs the sim read before the run ended), so tail padding after death
+ * adds nothing. Packing drops unused bits, so flipping one (usePowerUp) adds
+ * nothing either. An empty log has 0 segments; a constant log has 1.
+ */
+export function dailyInputSegments(inputs: PlayerInput[]): number {
+  const bytes = packInputLog(inputs);
+  if (bytes.length === 0) return 0;
+  let segments = 1;
+  for (let i = 1; i < bytes.length; i++) {
+    if (bytes[i] !== bytes[i - 1]) segments++;
+  }
+  return segments;
+}
+
+/**
+ * True when a verified daily run must claim its input hash before it is
+ * saved. Both arguments must be server-derived (verifyDailyReplay's verdict),
+ * never taken from the client.
+ */
+export function dailyRunNeedsClaim(serverPeakY: number, inputSegments: number): boolean {
+  return serverPeakY >= DAILY_CLAIM_MIN_PEAK_M && inputSegments >= DAILY_CLAIM_MIN_INPUT_SEGMENTS;
 }
 
 /** Player id useClimb gives the solo climber. Must match for identical sims. */
@@ -87,6 +133,8 @@ export type DailyVerifyResult =
       finished: boolean;
       /** dailyInputHash of the inputs the sim consumed. */
       inputHash: string;
+      /** dailyInputSegments of the same consumed inputs (server-computed). */
+      inputSegments: number;
     }
   | {
       ok: false;
@@ -203,12 +251,14 @@ export function verifyDailyReplay(
     };
   }
 
+  const consumed = replay.inputs.slice(0, consumedTicks);
   return {
     ok: true,
     day,
     peakY: serverPeakY,
     ticks: replay.inputs.length,
     finished: state.phase === "finished" && player?.status === "finished",
-    inputHash: dailyInputHash(replay.inputs.slice(0, consumedTicks)),
+    inputHash: dailyInputHash(consumed),
+    inputSegments: dailyInputSegments(consumed),
   };
 }

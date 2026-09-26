@@ -1,8 +1,9 @@
 /**
- * SEC-DC-11 at the route boundary (verifier). POST /api/climb/daily/result
- * must decide whether to claim a run from the SERVER's re-simulated peak,
- * inclusively at DAILY_CLAIM_MIN_PEAK_M, and must enforce the claim's answer
- * only for runs it claims.
+ * SEC-DC-11 / SEC-DC-15 at the route boundary. POST /api/climb/daily/result
+ * must decide whether to claim a run from the SERVER's re-simulated peak
+ * (inclusively at DAILY_CLAIM_MIN_PEAK_M) and the SERVER's input segment
+ * count (inclusively at DAILY_CLAIM_MIN_INPUT_SEGMENTS), and must enforce the
+ * claim's answer only for runs it claims.
  *
  * Real runs cannot be steered to land exactly on 6 m, so verifyDailyReplay is
  * stubbed to return chosen verdicts. The client's claimed peak is deliberately
@@ -46,7 +47,7 @@ vi.stubEnv("DAILY_SEED_SECRET", TEST_DAILY_SEED_SECRET);
 import { POST } from "../../app/api/climb/daily/result/route";
 import { verifyIdToken } from "../../src/lib/firebaseAdmin";
 import { claimDailyReplay, recordDailyClimb } from "../../src/db/dailyClimb";
-import { DAILY_CLAIM_MIN_PEAK_M, verifyDailyReplay } from "../../src/game/dailyVerify";
+import { DAILY_CLAIM_MIN_INPUT_SEGMENTS, DAILY_CLAIM_MIN_PEAK_M, verifyDailyReplay } from "../../src/game/dailyVerify";
 import { DAILY_SIM_VERSION } from "../../src/game/simVersion";
 import { encodeRunReplay } from "../../src/game/runReplay";
 import { dailySeedFor } from "../../src/lib/dailySeedServer";
@@ -69,8 +70,19 @@ async function postRun(clientPeakY: number): Promise<Response> {
   );
 }
 
-function serverVerdict(peakY: number) {
-  vi.mocked(verifyDailyReplay).mockReturnValue({ ok: true, day: DAY, peakY, ticks: 40, finished: false, inputHash: HASH });
+/** Segment count of the scripted real climb: far above the SEC-DC-15 floor. */
+const REAL_SEGMENTS = 31;
+
+function serverVerdict(peakY: number, inputSegments = REAL_SEGMENTS) {
+  vi.mocked(verifyDailyReplay).mockReturnValue({
+    ok: true,
+    day: DAY,
+    peakY,
+    ticks: 40,
+    finished: false,
+    inputHash: HASH,
+    inputSegments,
+  });
 }
 
 describe("claim floor at the route: server peak, inclusive boundary (SEC-DC-11, verifier)", () => {
@@ -126,5 +138,43 @@ describe("claim floor at the route: server peak, inclusive boundary (SEC-DC-11, 
     expect(res.status).toBe(200);
     expect(claimDailyReplay).not.toHaveBeenCalled();
     expect(recordDailyClimb).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("segment floor at the route: server count, inclusive boundary (SEC-DC-15)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.useFakeTimers({ now: new Date(`${DAY}T12:00:00Z`), toFake: ["Date"] });
+    vi.mocked(verifyIdToken).mockResolvedValue({
+      uid: "u1",
+      email: "u1@example.com",
+      email_verified: true,
+    } as Awaited<ReturnType<typeof verifyIdToken>>);
+    vi.mocked(claimDailyReplay).mockImplementation(async ({ userId }) => userId);
+  });
+
+  it("precondition: the segment floor under test is 4", () => {
+    expect(DAILY_CLAIM_MIN_INPUT_SEGMENTS).toBe(4);
+  });
+
+  it("a high run with exactly the segment floor is claimed, and refused when owned elsewhere", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    vi.mocked(claimDailyReplay).mockResolvedValue("someone-else");
+    serverVerdict(40, DAILY_CLAIM_MIN_INPUT_SEGMENTS);
+    const res = await postRun(40);
+    expect(claimDailyReplay).toHaveBeenCalledTimes(1);
+    expect(res.status).toBe(409);
+    expect(((await res.json()) as { code?: string }).code).toBe("REPLAY_REUSED");
+    expect(recordDailyClimb).not.toHaveBeenCalled();
+  });
+
+  it("a high run one segment under the floor is saved unclaimed even if its hash is owned elsewhere", async () => {
+    vi.mocked(claimDailyReplay).mockResolvedValue("someone-else");
+    serverVerdict(176, DAILY_CLAIM_MIN_INPUT_SEGMENTS - 1);
+    const res = await postRun(176);
+    expect(res.status).toBe(200);
+    expect(((await res.json()) as { saved?: boolean }).saved).toBe(true);
+    expect(claimDailyReplay).not.toHaveBeenCalled();
+    expect(vi.mocked(recordDailyClimb).mock.calls[0][0]).toMatchObject({ userId: "u1", peakY: 176 });
   });
 });
