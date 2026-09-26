@@ -87,6 +87,22 @@ describe("motion: walk, jump, land, and fall off edges", () => {
     expect(p.y).toBe(0);
   });
 
+  it("keeps facing the last walked direction after input stops", () => {
+    const m = climbingMatch("solo", ["p1"]);
+    const p = m.players[0];
+    expect(p.facing).toBe(1);
+
+    stepMatch(m, { p1: move(-1) }, SLOW);
+    expect(p.facing).toBe(-1);
+    stepMatch(m, { p1: IDLE }, SLOW);
+    expect(p.vx).toBe(0);
+    expect(p.facing).toBe(-1);
+
+    stepMatch(m, { p1: move(1) }, SLOW);
+    stepMatch(m, { p1: IDLE }, SLOW);
+    expect(p.facing).toBe(1);
+  });
+
   it("wraps from the right edge onto the left side (and vice versa)", () => {
     const m = climbingMatch("solo", ["p1"]);
     const p = m.players[0];

@@ -334,7 +334,7 @@ export function paintClimbFrame(
     const isLocal = p.id === localPlayerId;
     const pxScreen = sx(p.x);
     const pFeetY = sy(p.y);
-    const pFacing: 1 | -1 = p.vx < 0 ? -1 : 1;
+    const pFacing = p.facing;
 
     const baseColor = isLocal ? ACCENT : OPPONENT_COLOR;
     const pColor =

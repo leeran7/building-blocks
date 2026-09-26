@@ -101,6 +101,7 @@ export function spawnPlayer(id: PlayerId, slot: number): PlayerState {
     y: 0,
     vx: 0,
     vy: 0,
+    facing: 1,
     onGround: true,
     onLadder: false,
     ladderIx: null,
@@ -287,6 +288,7 @@ function integratePlayer(
 
   // Horizontal movement (walk / ladder-slide is ignored while attached).
   p.vx = input.moveX * moveSpeed;
+  if (p.vx !== 0) p.facing = p.vx < 0 ? -1 : 1;
 
   if (p.onLadder) {
     // Ladders are vertical-only channels. Horizontal input is ignored while
