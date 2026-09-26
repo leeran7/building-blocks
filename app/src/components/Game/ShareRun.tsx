@@ -8,13 +8,28 @@ import { useCallback, useState } from "react";
 import { Toast } from "../Toast";
 import { formatAltitude } from "../../lib/units";
 
+/**
+ * Why a ready replay is withheld. Daily runs only: the first account to
+ * submit a daily replay owns it, so the link is offered only after the
+ * owner's own save is acknowledged (SEC-DC-12). `saving`: the save is in
+ * flight. `unsaved`: it failed, or the run was never sent (signed out).
+ */
+export type ShareGate = "saving" | "unsaved";
+
 interface ShareRunProps {
   peakY: number;
   shareUrl: string | null;
   encoding: boolean;
+  /** Set to hold the link back; `shareUrl` should then be null. */
+  gate?: ShareGate | null;
 }
 
-export function ShareRun({ peakY, shareUrl, encoding }: ShareRunProps) {
+const GATE_COPY: Record<ShareGate, string> = {
+  saving: "Saving your run… the replay link appears once it's on the board.",
+  unsaved: "Daily runs can be shared once they're saved to today's board.",
+};
+
+export function ShareRun({ peakY, shareUrl, encoding, gate = null }: ShareRunProps) {
   const height = Math.round(peakY);
   const [toast, setToast] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
@@ -48,6 +63,8 @@ export function ShareRun({ peakY, shareUrl, encoding }: ShareRunProps) {
         </div>
         {encoding ? (
           <p className="text-xs text-text-muted font-mono">Preparing replay…</p>
+        ) : gate ? (
+          <p className="text-xs text-text-muted leading-relaxed">{GATE_COPY[gate]}</p>
         ) : shareUrl ? (
           <>
             <p className="text-text-secondary text-xs leading-relaxed mb-3">

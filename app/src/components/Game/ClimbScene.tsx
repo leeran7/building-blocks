@@ -46,7 +46,7 @@ import { useFullscreen } from "../../hooks/useFullscreen";
 import { climberHandle } from "../../lib/handle";
 import { climbEyebrowLabel } from "../../lib/climbEyebrow";
 import { ALTITUDE_UNIT, formatAltitudeLabel } from "../../lib/units";
-import { ShareRun } from "./ShareRun";
+import { ShareRun, type ShareGate } from "./ShareRun";
 import {
   buildReplayUrl,
   encodeRunReplay,
@@ -78,6 +78,13 @@ export interface ClimbSceneProps {
    * `{ simVersion }` so the server can tell a stale engine from a forgery.
    */
   resultFields?: Readonly<Record<string, string | number | boolean>>;
+  /**
+   * Offer the share link only after this run's save returns `saved: true`
+   * (Daily Climb, SEC-DC-12). A daily replay belongs to whichever account
+   * submits it first, so a link shared while the owner's save is pending or
+   * has failed lets someone else claim the run.
+   */
+  shareAfterSave?: boolean;
   /** Fired once when a live run finishes (not during replay). For Daily Climb. */
   onFinish?: (peakY: number) => void;
   /** Extra content rendered in the lobby overlay (e.g. daily streak card). */
@@ -124,6 +131,7 @@ export function ClimbScene({
   seed,
   resultPath = DEFAULT_RESULT_PATH,
   resultFields,
+  shareAfterSave = false,
   onFinish,
   lobbyExtra,
   resultExtra,
@@ -244,6 +252,9 @@ export function ClimbScene({
   );
 
   const redirectPath = `/play`;
+  // SEC-DC-12: hold a daily run's link until its own save is acknowledged.
+  const shareGate: ShareGate | null =
+    !shareAfterSave || saveInfo?.saved ? null : savingRun || (token && saveInfo === null) ? "saving" : "unsaved";
 
   const buildRun = useCallback(
     () => ({
@@ -577,8 +588,9 @@ export function ClimbScene({
             {!replaying ? (
               <ShareRun
                 peakY={player?.peakY ?? 0}
-                shareUrl={shareUrl}
+                shareUrl={shareGate ? null : shareUrl}
                 encoding={encodingShare}
+                gate={shareGate}
               />
             ) : null}
 

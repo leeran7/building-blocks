@@ -131,6 +131,7 @@ export function DailyClimbClient() {
         seed={seed}
         resultPath={DAILY_RESULT_PATH}
         resultFields={DAILY_RESULT_FIELDS}
+        shareAfterSave
         onFinish={handleFinish}
         lobbyExtra={
           <>

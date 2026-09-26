@@ -38,6 +38,8 @@ const net = vi.hoisted(() => ({
   resultStatus: 200,
   resultBody: null as unknown,
   token: "replay-token" as string | null,
+  holdResult: false,
+  heldResult: [] as Array<() => void>,
 }));
 
 function jsonResponse(body: unknown, status = 200): Response {
@@ -50,7 +52,11 @@ const apiFetch = vi.fn(async (path: string, _init?: RequestInit): Promise<Respon
     if (net.holdInfo) return new Promise<Response>((resolve) => net.heldInfo.push(() => resolve(answer())));
     return answer();
   }
-  if (path === "/api/climb/daily/result") return jsonResponse(net.resultBody, net.resultStatus);
+  if (path === "/api/climb/daily/result") {
+    const answer = () => jsonResponse(net.resultBody, net.resultStatus);
+    if (net.holdResult) return new Promise<Response>((resolve) => net.heldResult.push(() => resolve(answer())));
+    return answer();
+  }
   if (path === "/api/settings") return jsonResponse({ leaderboardConsent: true });
   return jsonResponse({}, 404);
 });
@@ -195,6 +201,8 @@ beforeEach(() => {
   net.resultStatus = 200;
   net.resultBody = saved();
   net.token = "replay-token";
+  net.holdResult = false;
+  net.heldResult = [];
   localStorage.clear();
   setLeaderboardConsent(true);
 });
@@ -376,5 +384,68 @@ describe("ClimbScreen daily lobby: the seed comes only from the server (SEC-DC-3
     await mountDaily();
     expect(container!.querySelector('[role="alert"]')?.textContent).toContain("Can’t load today’s tower");
     expect(buttonByText("Start daily")).toBeUndefined();
+  });
+});
+
+describe("ClimbScreen daily share waits for the save (SEC-DC-12)", () => {
+  const shareButton = () => buttonByText("Share");
+
+  it("offers Share only once the daily save is acknowledged, and shares the replay link", async () => {
+    net.holdResult = true;
+    await mountDaily();
+    expect(resultPosts()).toHaveLength(1);
+    expect(shareButton()).toBeUndefined();
+
+    await act(async () => net.heldResult.shift()!());
+    await settle();
+    expect(rankLine()).toBe("#3 of 12 today");
+    const shareSpy = vi.fn(async () => {});
+    Object.defineProperty(navigator, "share", { value: shareSpy, configurable: true });
+    try {
+      await click(shareButton());
+      expect(shareSpy).toHaveBeenCalledWith({ title: "Doomstack", url: "https://example.test/play?r=replay-token" });
+    } finally {
+      Reflect.deleteProperty(navigator, "share");
+    }
+  });
+
+  it("a failed save offers no Share; a successful retry then does", async () => {
+    net.resultStatus = 503;
+    net.resultBody = { error: "down" };
+    await mountDaily();
+    expect(rankLine()).toBe("couldn't reach today's board");
+    expect(shareButton()).toBeUndefined();
+
+    net.resultStatus = 200;
+    net.resultBody = saved();
+    await click(buttonByText("Try again"));
+    expect(shareButton()).toBeTruthy();
+  });
+
+  it.each([
+    ["REPLAY_REUSED", { error: "x", code: "REPLAY_REUSED" }, 409],
+    ["DAY_CLOSED", { error: "x", code: "DAY_CLOSED" }, 400],
+    ["not saved (no consent server-side)", { saved: false, reason: "no_consent" }, 200],
+  ])("never offers Share after %s", async (_label, body, status) => {
+    net.resultStatus = status;
+    net.resultBody = body;
+    await mountDaily();
+    expect(resultPosts()).toHaveLength(1);
+    expect(shareButton()).toBeUndefined();
+  });
+
+  it("declining consent (nothing posted) offers no Share", async () => {
+    setLeaderboardConsent(false);
+    await mountDaily();
+    await click(buttonByText("Not now"));
+    expect(resultPosts()).toHaveLength(0);
+    expect(shareButton()).toBeUndefined();
+  });
+
+  it("control: an endless run offers Share (no daily claim to protect)", async () => {
+    await mountDaily("/climb");
+    expect(resultPosts()).toHaveLength(0);
+    expect(postClimbResult).toHaveBeenCalledTimes(1);
+    expect(shareButton()).toBeTruthy();
   });
 });
