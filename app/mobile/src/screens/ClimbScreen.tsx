@@ -407,7 +407,7 @@ export function ClimbScreen({ onSignIn }: { onSignIn?: () => void } = {}) {
             <span className="mt-4 h-px w-14 bg-border-strong" />
             <p className="mt-4 max-w-[280px] text-center text-sm leading-relaxed text-text-secondary">
               {isDaily
-                ? "Everyone climbs the same tower today. One seed, one shot at the top of the daily board."
+                ? "Everyone climbs the same tower today. One seed, one shot at the top of the Daily board."
                 : "Go as high as you can before the rising lava catches you. Grab glowing orbs for power-ups."}
             </p>
             {isDaily && (
