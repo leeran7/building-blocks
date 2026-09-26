@@ -10,6 +10,8 @@ import { describe, expect, it } from "vitest";
 import {
   CAMERA_FOCUS_FRAC,
   CAMERA_FOLLOW,
+  CAMERA_ZOOM,
+  cameraTargetX,
   cameraTargetY,
   climbView,
   followCamY,
@@ -26,10 +28,44 @@ const TOWER_WIDTH_M = 100;
 const TOUCH_INSET_PX = 112;
 
 describe("climbView: locked 9:16 desktop size", () => {
-  it("sees (height/width)*towerWidth metres, matching the canvas lock", () => {
-    const { pxPerM, viewH } = climbView(WIDTH, HEIGHT, TOWER_WIDTH_M);
+  it("sees (height/width)*towerWidth/zoom metres, matching the canvas lock", () => {
+    const { pxPerM, viewH, viewW } = climbView(WIDTH, HEIGHT, TOWER_WIDTH_M);
+    expect(pxPerM).toBeCloseTo((WIDTH / TOWER_WIDTH_M) * CAMERA_ZOOM);
+    expect(viewH).toBeCloseTo((HEIGHT / WIDTH) * TOWER_WIDTH_M / CAMERA_ZOOM);
+    expect(viewW).toBeCloseTo(TOWER_WIDTH_M / CAMERA_ZOOM);
+  });
+
+  it("zoom 1 fits the full tower width", () => {
+    const { pxPerM, viewW } = climbView(WIDTH, HEIGHT, TOWER_WIDTH_M, 1);
     expect(pxPerM).toBeCloseTo(WIDTH / TOWER_WIDTH_M);
-    expect(viewH).toBeCloseTo((HEIGHT / WIDTH) * TOWER_WIDTH_M);
+    expect(viewW).toBeCloseTo(TOWER_WIDTH_M);
+  });
+
+  it("rejects a non-positive zoom instead of collapsing the view", () => {
+    for (const z of [0, -2, NaN]) {
+      expect(climbView(WIDTH, HEIGHT, TOWER_WIDTH_M, z).pxPerM).toBeCloseTo(
+        WIDTH / TOWER_WIDTH_M
+      );
+    }
+  });
+});
+
+describe("cameraTargetX: pans to keep the climber in frame", () => {
+  const viewW = TOWER_WIDTH_M / 1.15;
+
+  it("centres on the climber mid-tower", () => {
+    expect(cameraTargetX(50, viewW, TOWER_WIDTH_M)).toBeCloseTo(50 - viewW / 2);
+  });
+
+  it("clamps at both walls", () => {
+    expect(cameraTargetX(0, viewW, TOWER_WIDTH_M)).toBe(0);
+    expect(cameraTargetX(TOWER_WIDTH_M, viewW, TOWER_WIDTH_M)).toBeCloseTo(
+      TOWER_WIDTH_M - viewW
+    );
+  });
+
+  it("stays at 0 when the view spans the whole tower", () => {
+    expect(cameraTargetX(80, TOWER_WIDTH_M, TOWER_WIDTH_M)).toBe(0);
   });
 });
 

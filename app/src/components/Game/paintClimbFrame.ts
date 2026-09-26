@@ -22,6 +22,7 @@ import {
 import { HUD_ALTITUDE_FONT_UI } from "../../design/climbFeelTokens";
 import { formatAltitude } from "../../lib/units";
 import {
+  cameraTargetX,
   cameraTargetY,
   climbView,
   followCamY,
@@ -143,7 +144,7 @@ export function paintClimbFrame(
   const playerY = player?.y ?? 0;
   const ui = Math.max(1, width / BASE_WIDTH);
 
-  const { pxPerM, viewH } = climbView(width, height, tower.widthM);
+  const { pxPerM, viewH, viewW } = climbView(width, height, tower.widthM);
   ensureFontCache(ui);
   const camTarget = cameraTargetY(playerY, viewH, bottomInset, pxPerM);
   // Snap on the first paint of a run, and on any backward jump (replay seek).
@@ -161,7 +162,8 @@ export function paintClimbFrame(
   camBag.y = camWorldY;
   camBag.tick = state.tick;
 
-  const sx = (worldX: number) => worldX * pxPerM;
+  const camWorldX = cameraTargetX(player?.x ?? 0, viewW, tower.widthM);
+  const sx = (worldX: number) => (worldX - camWorldX) * pxPerM;
   const sy = (worldY: number) => height - (worldY - camWorldY) * pxPerM;
 
   const pickupAge =
