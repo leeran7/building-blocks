@@ -10,6 +10,9 @@ import { parseDayKey, utcDayKey, dailySeedFor, nextUtcResetAt } from "@app/lib/d
 import { parseAvatarId } from "@app/lib/avatars";
 import { apiFetch } from "./api";
 
+/** Ranks opened on today's board (All-time is the default without `?board=today`). */
+export const TODAY_BOARD_PATH = "/leaderboard?board=today";
+
 export interface DailyClimberRank {
   rank: number;
   userId: string;

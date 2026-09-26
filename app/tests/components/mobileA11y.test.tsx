@@ -220,7 +220,7 @@ describe("Ranks 'Show my row' under reduced motion", () => {
   async function showMyRow() {
     net.climbers = [climber(1, "a"), climber(2, "b"), climber(3, "c"), climber(4, ME), climber(5, "e")];
     const scroll = vi.spyOn(Element.prototype, "scrollIntoView").mockImplementation(() => {});
-    await render("/leaderboard?board=alltime", createElement(LeaderboardScreen));
+    await render("/leaderboard", createElement(LeaderboardScreen));
     const banner = [...container.querySelectorAll("button")].find((b) =>
       b.getAttribute("aria-label")?.endsWith("Show my row"),
     );
@@ -249,7 +249,7 @@ describe("Ranks podium with a 60-character display name", () => {
   it("keeps the whole name in the text and in the title of each podium name", async () => {
     expect(LONG).toHaveLength(60);
     net.climbers = [{ ...climber(1, "a"), handle: LONG }, climber(2, "b"), climber(3, "c")];
-    await render("/leaderboard?board=alltime", createElement(LeaderboardScreen));
+    await render("/leaderboard", createElement(LeaderboardScreen));
     const podium = container.querySelector('[aria-label="Top three climbers"]');
     // Each pedestal's first line is the climber's name.
     const names = [...(podium?.querySelectorAll("li") ?? [])].map((li) => li.querySelector("p"));
@@ -302,7 +302,7 @@ describe("Hub header shared by Ranks and Profile", () => {
 
   it("gives each screen exactly one h1, the page title, inside the header", async () => {
     net.climbers = [climber(1, "a")];
-    const ranks = await headerOf("/leaderboard?board=alltime", createElement(LeaderboardScreen));
+    const ranks = await headerOf("/leaderboard", createElement(LeaderboardScreen));
     expect(ranks.h1s).toEqual(["Leaderboard"]);
     expect(ranks.titleInHeader).toBe(true);
     act(() => root.unmount());
@@ -314,7 +314,7 @@ describe("Hub header shared by Ranks and Profile", () => {
 
   it("renders the same eyebrow, title and subtitle styling on both, with the rules and dots hidden", async () => {
     net.climbers = [climber(1, "a")];
-    const ranks = await headerOf("/leaderboard?board=alltime", createElement(LeaderboardScreen));
+    const ranks = await headerOf("/leaderboard", createElement(LeaderboardScreen));
     act(() => root.unmount());
     root = createRoot(container);
     const profile = await headerOf("/profile", createElement(ProfileScreen));

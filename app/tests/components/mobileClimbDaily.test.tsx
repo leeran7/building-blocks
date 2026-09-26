@@ -212,7 +212,7 @@ describe("ClimbScreen daily mode", () => {
     expect(rankLine()).toBe("#3 of 12 today");
     expect(text()).toContain("Today’s Best");
     await click(buttonByText("See today’s board"));
-    expect(container!.querySelector('[data-testid="path"]')?.textContent).toBe("/leaderboard");
+    expect(container!.querySelector('[data-testid="path"]')?.textContent).toBe("/leaderboard?board=today");
   });
 
   it("saved while hidden says so instead of a rank", async () => {

@@ -44,9 +44,10 @@ const SCOPES: Array<{ id: Scope; label: string }> = [
   { id: "friends", label: "Friends" },
 ];
 
+/** All-time first and default; Today opens from a tab or `?board=today`. */
 const PERIODS: Array<{ id: Period; label: string }> = [
-  { id: "today", label: "Today" },
   { id: "alltime", label: "All-time" },
+  { id: "today", label: "Today" },
 ];
 
 /**
@@ -65,9 +66,12 @@ const DAILY_PLAY_PATH = "/climb?daily=1";
 const tabId = (scope: Scope) => `lb-tab-${scope}`;
 const periodTabId = (period: Period) => `lb-period-${period}`;
 
-/** `?board=alltime` deep-links the All-time board; anything else opens Today. */
-function initialPeriod(board: string | null): Period {
-  return board === "alltime" ? "alltime" : "today";
+/**
+ * `?board=today` deep-links today's board; anything else (including no value)
+ * opens the All-time default. UI navigation only, not a trust boundary.
+ */
+function periodFromBoardParam(board: string | null): Period {
+  return board === "today" ? "today" : "alltime";
 }
 
 /** Banner copy that differs between today's board and the all-time board. */
@@ -118,7 +122,15 @@ export function LeaderboardScreen() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const [period, setPeriod] = useState<Period>(() => initialPeriod(searchParams.get("board")));
+  const board = searchParams.get("board");
+  const [period, setPeriod] = useState<Period>(() => periodFromBoardParam(board));
+  // A new deep link while Ranks is already mounted (e.g. "See today's board",
+  // or the Ranks nav tab back to plain /leaderboard) re-selects the period.
+  const [linkedBoard, setLinkedBoard] = useState(board);
+  if (board !== linkedBoard) {
+    setLinkedBoard(board);
+    setPeriod(periodFromBoardParam(board));
+  }
   const [scope, setScope] = useState<Scope>("global");
   const clock = useUtcDay();
   const isToday = period === "today";
@@ -268,12 +280,12 @@ export function LeaderboardScreen() {
           resetsIn={formatReset(clock.msUntilReset)}
           headingRef={headingRef}
         />
-        <PeriodTabs period={period} onChange={setPeriod} />
+        <ScopeTabs scope={scope} onChange={setScope} />
 
-        <div role="tabpanel" id={PERIOD_PANEL_ID} aria-labelledby={periodTabId(period)}>
-          <ScopeTabs scope={scope} onChange={setScope} />
+        <div role="tabpanel" id={PANEL_ID} aria-labelledby={tabId(scope)}>
+          <PeriodTabs period={period} onChange={setPeriod} />
 
-          <div role="tabpanel" id={PANEL_ID} aria-labelledby={tabId(scope)}>
+          <div role="tabpanel" id={PERIOD_PANEL_ID} aria-labelledby={periodTabId(period)}>
             {view === "loading" && <LoadingState />}
 
             {view === "error" && (
@@ -362,29 +374,20 @@ function Header({
   return <HubHeader title="Leaderboard" subtitle={subtitle} trailing={<TrophyBadge />} headingRef={headingRef} />;
 }
 
-/**
- * A WAI-ARIA tablist of pill tabs: arrow keys move between options and focus
- * follows. Shared by the Today | All-time and Global | Friends controls.
- */
-function PillTabs<T extends string>({
-  options,
-  value,
-  onChange,
-  label,
-  idFor,
-  controls,
-  iconFor,
-  compact = false,
-}: {
+interface TabsProps<T extends string> {
   options: Array<{ id: T; label: string }>;
   value: T;
   onChange: (next: T) => void;
   label: string;
   idFor: (id: T) => string;
   controls: string;
-  iconFor?: (id: T) => ReactNode;
-  compact?: boolean;
-}) {
+}
+
+/**
+ * WAI-ARIA tabs keyboard model shared by both tab rows: Left/Right move (and
+ * wrap), Home/End jump to the ends, and focus follows the selection.
+ */
+function useTabKeys<T extends string>({ options, value, onChange, idFor }: TabsProps<T>) {
   const select = (next: T) => {
     if (next === value) return;
     void tapLight();
@@ -392,43 +395,65 @@ function PillTabs<T extends string>({
   };
 
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
-    if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
-    e.preventDefault();
     const i = options.findIndex((o) => o.id === value);
-    const next = options[(i + (e.key === "ArrowRight" ? 1 : options.length - 1)) % options.length].id;
+    const target =
+      e.key === "ArrowRight"
+        ? (i + 1) % options.length
+        : e.key === "ArrowLeft"
+          ? (i + options.length - 1) % options.length
+          : e.key === "Home"
+            ? 0
+            : e.key === "End"
+              ? options.length - 1
+              : null;
+    if (target === null) return;
+    e.preventDefault();
+    const next = options[target].id;
     select(next);
     document.getElementById(idFor(next))?.focus();
   };
 
+  return { select, onKeyDown };
+}
+
+/** Global | Friends: the screen's primary control, a lime pill segmented tablist. */
+function ScopeTabs({ scope, onChange }: { scope: Scope; onChange: (next: Scope) => void }) {
+  const props: TabsProps<Scope> = {
+    options: SCOPES,
+    value: scope,
+    onChange,
+    label: "Leaderboard scope",
+    idFor: tabId,
+    controls: PANEL_ID,
+  };
+  const { select, onKeyDown } = useTabKeys(props);
   return (
     <div
       role="tablist"
-      aria-label={label}
+      aria-label={props.label}
       onKeyDown={onKeyDown}
-      className={`glass grid grid-cols-2 gap-1 rounded-full border border-white/10 p-1 ${compact ? "mb-4" : "mb-5"}`}
+      className="glass mb-3 grid grid-cols-2 gap-1 rounded-full border border-white/10 p-1"
     >
-      {options.map(({ id, label: optionLabel }) => {
-        const selected = id === value;
+      {SCOPES.map(({ id, label }) => {
+        const selected = id === scope;
         return (
           <button
             key={id}
-            id={idFor(id)}
+            id={tabId(id)}
             type="button"
             role="tab"
             aria-selected={selected}
-            aria-controls={controls}
+            aria-controls={PANEL_ID}
             tabIndex={selected ? 0 : -1}
             onClick={() => select(id)}
             className={`flex min-h-[44px] items-center justify-center gap-2 rounded-full font-display text-meta font-black uppercase tracking-chip transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void ${
               selected
-                ? compact
-                  ? "bg-white/10 text-text-primary"
-                  : "bg-signal text-void shadow-[0_0_18px_-4px_rgba(203,242,77,0.6)]"
+                ? "bg-signal text-void shadow-[0_0_18px_-4px_rgba(203,242,77,0.6)]"
                 : "text-text-secondary active:bg-white/5"
             }`}
           >
-            {iconFor?.(id)}
-            {optionLabel}
+            {id === "global" ? <GlobeIcon /> : <PeopleIcon />}
+            {label}
           </button>
         );
       })}
@@ -436,34 +461,44 @@ function PillTabs<T extends string>({
   );
 }
 
-/** Today | All-time — the board's time period, Today first and default. */
+/**
+ * All-time | Today: a light, centred underline tab row under the scope pill.
+ * Selected = accent text over an accent bar; unselected = secondary text.
+ */
 function PeriodTabs({ period, onChange }: { period: Period; onChange: (next: Period) => void }) {
+  const props: TabsProps<Period> = {
+    options: PERIODS,
+    value: period,
+    onChange,
+    label: "Leaderboard period",
+    idFor: periodTabId,
+    controls: PERIOD_PANEL_ID,
+  };
+  const { select, onKeyDown } = useTabKeys(props);
   return (
-    <PillTabs
-      options={PERIODS}
-      value={period}
-      onChange={onChange}
-      label="Leaderboard period"
-      idFor={periodTabId}
-      controls={PERIOD_PANEL_ID}
-      iconFor={(id) => (id === "today" ? <SunIcon /> : <TrophyIcon />)}
-    />
-  );
-}
-
-/** Global | Friends, inside the period panel (secondary weight). */
-function ScopeTabs({ scope, onChange }: { scope: Scope; onChange: (next: Scope) => void }) {
-  return (
-    <PillTabs
-      options={SCOPES}
-      value={scope}
-      onChange={onChange}
-      label="Leaderboard scope"
-      idFor={tabId}
-      controls={PANEL_ID}
-      iconFor={(id) => (id === "global" ? <GlobeIcon /> : <PeopleIcon />)}
-      compact
-    />
+    <div role="tablist" aria-label={props.label} onKeyDown={onKeyDown} className="mb-4 flex justify-center gap-6">
+      {PERIODS.map(({ id, label }) => {
+        const selected = id === period;
+        return (
+          <button
+            key={id}
+            id={periodTabId(id)}
+            type="button"
+            role="tab"
+            aria-selected={selected}
+            aria-controls={PERIOD_PANEL_ID}
+            tabIndex={selected ? 0 : -1}
+            onClick={() => select(id)}
+            className={`flex min-h-[44px] min-w-[44px] flex-col items-center justify-center gap-1.5 rounded-md px-2 font-display text-meta font-black uppercase tracking-chip transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-void ${
+              selected ? "text-accent" : "text-text-secondary active:text-text-primary"
+            }`}
+          >
+            {label}
+            <span aria-hidden className={`h-0.5 w-full rounded-full ${selected ? "bg-accent" : "bg-transparent"}`} />
+          </button>
+        );
+      })}
+    </div>
   );
 }
 
@@ -856,24 +891,6 @@ function ChevronUp() {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
       <path d="m6 15 6-6 6 6" />
-    </svg>
-  );
-}
-
-function SunIcon() {
-  return (
-    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <circle cx="12" cy="12" r="4" />
-      <path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />
-    </svg>
-  );
-}
-
-function TrophyIcon() {
-  return (
-    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <path d="M8 4h8v5a4 4 0 0 1-8 0V4Z" />
-      <path d="M8 6H5a3 3 0 0 0 3 4M16 6h3a3 3 0 0 1-3 4M12 13v4M8 20h8" />
     </svg>
   );
 }

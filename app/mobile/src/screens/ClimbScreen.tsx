@@ -36,6 +36,7 @@ import {
   fetchDailyInfo,
   localDailyInfo,
   postDailyResult,
+  TODAY_BOARD_PATH,
   type DailyInfo,
   type DailySaveResult,
 } from "../lib/dailyBoard";
@@ -375,7 +376,7 @@ export function ClimbScreen({ onSignIn }: { onSignIn?: () => void } = {}) {
               isDaily && isAuthed
                 ? () => {
                     void tapLight();
-                    navigate("/leaderboard");
+                    navigate(TODAY_BOARD_PATH);
                   }
                 : undefined
             }
