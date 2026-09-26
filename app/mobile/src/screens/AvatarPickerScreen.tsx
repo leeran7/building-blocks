@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from "react";
 import { AVATARS } from "@app/lib/avatars";
 import { apiFetch } from "../lib/api";
 import { useAuth } from "../contexts/AuthContext";
@@ -9,12 +9,26 @@ import { identityNameFor, INITIALS_LABEL } from "../lib/identity";
 import { notifyError, notifySuccess, tapLight } from "../lib/haptics";
 import { useBackOr } from "../lib/navigation";
 import { useRetry } from "../hooks/useRetry";
+import { LAVA_CLEARANCE } from "../components/AnimatedBackdrop";
 
 const COLUMNS = 3;
 const TILE_HEX = 64;
 const PREVIEW_HEX = 128;
 const LOAD_FAILED_MESSAGE = "Couldn't load your profile. Check your connection and try again.";
 const SCROLL_FADE = "linear-gradient(to bottom, #000 calc(100% - 18px), transparent)";
+/**
+ * The clear save bar's height with no error line: pt-3, the 56px button, and
+ * pb (1rem + the home indicator). Kept in step with the footer's classes.
+ */
+const SAVE_BAR_HEIGHT = "(0.75rem + 56px + 1rem + env(safe-area-inset-bottom))";
+/**
+ * Space after the last row so it can scroll clear of the lava. The scroller
+ * ends at the save bar, but on tall screens the lava crest rises above the
+ * bar, so the grid ends LAVA_CLEARANCE above the screen's bottom edge. Never
+ * less than 1rem. An error line only makes the bar taller (a little extra
+ * space, never less).
+ */
+export const GRID_END_PADDING = `max(1rem, calc(${LAVA_CLEARANCE} - ${SAVE_BAR_HEIGHT}))`;
 /** A 200 that did not store the pick: an API build older than avatars ignores the field. */
 const AVATAR_NOT_SAVED = "Couldn't save your avatar. Please update the app or try again later.";
 
@@ -186,7 +200,11 @@ export function AvatarPickerScreen() {
             <div className="h-80 animate-pulse rounded-3xl border border-white/10 bg-surface/60" />
           </div>
         ) : (
-          <div className="flex flex-col gap-4 pb-4">
+          <div
+            data-avatar-content
+            className="flex flex-col gap-4 pb-(--avatar-grid-end)"
+            style={{ "--avatar-grid-end": GRID_END_PADDING } as CSSProperties}
+          >
             <section
               aria-label="Selected avatar"
               className="glass flex flex-col items-center rounded-3xl border border-white/10 px-5 pb-5 pt-6"
@@ -255,7 +273,8 @@ export function AvatarPickerScreen() {
           indicator. It is clear (no surface, border or shadow), so the
           backdrop shows behind Save down to the bottom edge. Tiles never pass
           under the button: they stop at the scroller's edge, where
-          SCROLL_FADE fades them out into the backdrop. */}
+          SCROLL_FADE fades them out into the backdrop, and GRID_END_PADDING
+          lets the last row scroll above the lava crest. */}
       {settingsData && (
         <footer
           data-avatar-save-bar

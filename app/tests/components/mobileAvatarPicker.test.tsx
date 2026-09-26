@@ -54,7 +54,13 @@ import { settingsFromResponse } from "../../mobile/src/contexts/AppDataContext";
 import { initialsOf } from "../../mobile/src/lib/leaderboard";
 import { ANIMALS, climberHandle } from "@app/lib/handle";
 import { HexAvatar } from "../../mobile/src/components/HexAvatar";
-import { AvatarPickerScreen } from "../../mobile/src/screens/AvatarPickerScreen";
+import { AvatarPickerScreen, GRID_END_PADDING } from "../../mobile/src/screens/AvatarPickerScreen";
+import {
+  LAVA_CANVAS_VH,
+  LAVA_CLEARANCE,
+  LAVA_CREST_PX,
+  LAVA_SURFACE_FROM_TOP,
+} from "../../mobile/src/components/AnimatedBackdrop";
 
 const [FIRST, SECOND] = AVATARS;
 
@@ -395,6 +401,51 @@ describe("the picker fills the screen, Save sticks to the bottom (user report)",
     expect(bar?.getAttribute("style") ?? "").toBe("");
     // The button keeps its own lime fill.
     expect(classes(saveButton() ?? null).has("cta-lime")).toBe(true);
+  });
+
+  it("the grid ends with the lava-clearance padding, so the last row can scroll above the lava", () => {
+    state.settings = settings(null);
+    renderPicker();
+    const { scroller } = layout();
+    const content = scroller?.querySelector<HTMLElement>("[data-avatar-content]") ?? null;
+    // The radiogroup is the last thing in the padded content.
+    expect(content?.lastElementChild?.getAttribute("role")).toBe("radiogroup");
+    expect(classes(content).has("pb-(--avatar-grid-end)")).toBe(true);
+    expect(content?.style.getPropertyValue("--avatar-grid-end")).toBe(GRID_END_PADDING);
+    expect(GRID_END_PADDING).toContain(LAVA_CLEARANCE);
+  });
+
+  /**
+   * Evaluates the production CSS length for a given screen: vh, rem, px and
+   * the home-indicator inset become numbers; calc/max become arithmetic.
+   */
+  function cssPx(length: string, viewportH: number, safeBottom: number): number {
+    const js = length
+      .replace(/env\(safe-area-inset-bottom\)/g, String(safeBottom))
+      .replace(/([\d.]+)vh/g, (_, n) => `(${n}*${viewportH / 100})`)
+      .replace(/([\d.]+)rem/g, (_, n) => `(${n}*16)`)
+      .replace(/([\d.]+)px/g, "$1")
+      .replace(/calc/g, "")
+      .replace(/max/g, "Math.max");
+    expect(js).toMatch(/^[\d\s.+\-*/(),Mathmax]+$/);
+    return Function(`return ${js};`)() as number;
+  }
+
+  it.each([
+    ["iPhone 15 Pro Max", 932, 34],
+    ["iPhone 15", 852, 34],
+    ["iPhone SE", 667, 0],
+    ["iPad mini portrait", 1133, 20],
+  ])("on %s the last row's bottom clears the lava crest", (_device, viewportH, safeBottom) => {
+    // The lava crest's height above the bottom edge, from the canvas geometry.
+    const crest = (viewportH * LAVA_CANVAS_VH * (1 - LAVA_SURFACE_FROM_TOP)) / 100 + LAVA_CREST_PX;
+    // The clear save bar: pt-3 (12) + the 56px button + pb 1rem (16) + inset.
+    const bar = 12 + 56 + 16 + safeBottom;
+    const pad = cssPx(GRID_END_PADDING, viewportH, safeBottom);
+    expect(pad).toBeGreaterThanOrEqual(16);
+    expect(bar + pad).toBeGreaterThan(crest);
+    // And not absurdly more than needed (a row or so of slack at most).
+    expect(bar + pad - crest).toBeLessThan(96);
   });
 
   it("tiles fade out into the backdrop at the scroller's edge instead of running under Save", () => {
