@@ -17,8 +17,10 @@
  *
  * Before any decompression it also checks the client's engine revision
  * (simVersion must equal DAILY_SIM_VERSION, SEC-DC-4). After verification it
- * claims the run's canonical input hash for the day, and refuses a run
- * another account already submitted (SEC-DC-2). The seed itself is an HMAC
+ * claims the run's canonical input hash for the day, and refuses an exact
+ * or padded copy of a run another account already submitted (SEC-DC-2; a
+ * one-input no-effect change evades this and can only tie). Runs under
+ * DAILY_CLAIM_MIN_PEAK_M are not claimed (SEC-DC-11). The seed itself is an HMAC
  * only the server can compute (SEC-DC-3). Without DAILY_SEED_SECRET the route
  * fails closed with 503.
  *
@@ -55,7 +57,7 @@ import {
 import { FREE_STACK_SLUG } from "../../../../../src/game/freeStack";
 import { parseReplayToken, parseRunReplayEnvelope } from "../../../../../src/game/runReplay";
 import { inflateReplayEnvelope } from "../../../../../src/game/runReplayServer";
-import { verifyDailyReplay } from "../../../../../src/game/dailyVerify";
+import { dailyRunNeedsClaim, verifyDailyReplay } from "../../../../../src/game/dailyVerify";
 import { DAILY_SIM_VERSION } from "../../../../../src/game/simVersion";
 import { dailySeedConfigured, submissionDayForSeed } from "../../../../../src/lib/dailySeedServer";
 import {
@@ -193,16 +195,22 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   // Replay tokens are public (share links, creator pages). The first account
   // to submit a run owns it for the day; the same player resubmitting is a
-  // no-op attempt, and anyone else is refused.
-  try {
-    const owner = await claimDailyReplay({ userId: uid, day: verdict.day, inputHash: verdict.inputHash });
-    if (owner !== uid) {
-      console.warn("[climb/daily/result] replay reused", { uid, day: verdict.day });
-      return reject(409, "REPLAY_REUSED", "This run was already submitted by another player");
+  // no-op attempt, and anyone else is refused. This refuses exact and padded
+  // copies only; a copy with one no-effect input changed gets a new hash and
+  // can at best tie (accepted residual, see dailyInputHash). Runs that never
+  // left the ground floor are not claimed: honest idle runs are identical
+  // (SEC-DC-11, DAILY_CLAIM_MIN_PEAK_M).
+  if (dailyRunNeedsClaim(verdict.peakY)) {
+    try {
+      const owner = await claimDailyReplay({ userId: uid, day: verdict.day, inputHash: verdict.inputHash });
+      if (owner !== uid) {
+        console.warn("[climb/daily/result] replay reused", { uid, day: verdict.day });
+        return reject(409, "REPLAY_REUSED", "This run was already submitted by another player");
+      }
+    } catch (err) {
+      console.error("[climb/daily/result] replay claim failed:", err);
+      return NextResponse.json({ saved: false, reason: "persist_error" }, { status: 500, headers: NO_STORE });
     }
-  } catch (err) {
-    console.error("[climb/daily/result] replay claim failed:", err);
-    return NextResponse.json({ saved: false, reason: "persist_error" }, { status: 500, headers: NO_STORE });
   }
 
   try {

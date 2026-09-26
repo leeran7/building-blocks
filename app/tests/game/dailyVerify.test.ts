@@ -14,7 +14,13 @@ import { applyRunSeed } from "../../src/game/towers";
 import { createMatch, stepMatch } from "../../src/game/simulation";
 import { decodeRunReplay, encodeRunReplay, MAX_SHARE_TICKS, packInputLog, type RunReplay } from "../../src/game/runReplay";
 import { deflateSync } from "node:zlib";
-import { DAILY_PEAK_EPSILON_M, dailyInputHash, verifyDailyReplay } from "../../src/game/dailyVerify";
+import {
+  DAILY_CLAIM_MIN_PEAK_M,
+  DAILY_PEAK_EPSILON_M,
+  dailyInputHash,
+  dailyRunNeedsClaim,
+  verifyDailyReplay,
+} from "../../src/game/dailyVerify";
 import { dailySeedFor } from "../../src/lib/dailySeedServer";
 import { TEST_DAILY_SEED_SECRET } from "../lib/dailySeedTestSecret";
 
@@ -275,3 +281,83 @@ describe("canonical input hash (SEC-DC-2)", () => {
   });
 });
 
+
+/** Play `policy(tick)` on `seed` until the run ends, logging inputs as useClimb does. */
+function playPolicy(seed: string, policy: (t: number) => PlayerInput): { inputs: PlayerInput[]; peakY: number } {
+  const state = createMatch({ seed, mode: "solo", tower: applyRunSeed(buildFreeTower(), seed), playerIds: ["you"] });
+  while (state.phase === "countdown") stepMatch(state, {});
+  const inputs: PlayerInput[] = [];
+  while (state.phase === "climb" && inputs.length < MAX_SHARE_TICKS) {
+    const input = policy(inputs.length);
+    inputs.push({ ...input });
+    stepMatch(state, { you: input });
+  }
+  return { inputs, peakY: state.players[0].peakY };
+}
+
+describe("claim floor for low-entropy runs (SEC-DC-11)", () => {
+  const still: PlayerInput = { moveX: 0, jump: false, climbY: 0, usePowerUp: false };
+  /** Runs an honest player makes without climbing, which collide across players. */
+  const LOW_ENTROPY: Array<[string, (t: number) => PlayerInput]> = [
+    ["idle", () => still],
+    ["hold jump", () => ({ ...still, jump: true })],
+    ["hold jump + climb", () => ({ ...still, jump: true, climbY: 1 })],
+    ["hold right + jump", () => ({ ...still, moveX: 1, jump: true })],
+    ["hold right + jump + climb", () => ({ ...still, moveX: 1, jump: true, climbY: 1 })],
+    ["hold left", () => ({ ...still, moveX: -1 })],
+  ];
+  /** Every day of September 2026: the sample the constant's doc comment cites. */
+  const DAYS = Array.from({ length: 30 }, (_, i) => `2026-09-${String(i + 1).padStart(2, "0")}`);
+
+  it("sits above a standing jump's apex and below the first floor", () => {
+    expect(DAILY_CLAIM_MIN_PEAK_M).toBeGreaterThan(17 ** 2 / (2 * 40));
+    expect(DAILY_CLAIM_MIN_PEAK_M).toBeLessThan(0.68 * 22);
+  });
+
+  it.each(LOW_ENTROPY)("a '%s' run verifies and stays under the floor on every sampled day", async (_, policy) => {
+    let checked = 0;
+    for (const day of DAYS) {
+      const seed = dailySeedFor(day);
+      const run = playPolicy(seed, policy);
+      const verdict = verifyDailyReplay(await tokenFor(seed, run.peakY, run.inputs), run.peakY, new Date(`${day}T12:00:00Z`));
+      expect(verdict.ok, day).toBe(true);
+      if (!verdict.ok) continue;
+      expect(verdict.peakY, day).toBeLessThan(DAILY_CLAIM_MIN_PEAK_M);
+      expect(dailyRunNeedsClaim(verdict.peakY), day).toBe(false);
+      checked++;
+    }
+    expect(checked).toBe(DAYS.length);
+  });
+
+  it("the idle run is the same log for everyone: that is the collision the floor avoids", async () => {
+    const a = playPolicy(SEED, () => still);
+    const b = playPolicy(SEED, () => ({ ...still }));
+    expect(a.peakY).toBe(0);
+    expect(dailyInputHash(a.inputs)).toBe(dailyInputHash(b.inputs));
+  });
+
+  it("a real climb (the scripted ~8 m run) is over the floor and must claim", async () => {
+    const run = playRun(SEED);
+    const verdict = verifyDailyReplay(await tokenFor(SEED, run.peakY, run.inputs), run.peakY, MIDDAY);
+    expect(verdict.ok).toBe(true);
+    if (!verdict.ok) return;
+    expect(verdict.peakY).toBeGreaterThanOrEqual(DAILY_CLAIM_MIN_PEAK_M);
+    expect(dailyRunNeedsClaim(verdict.peakY)).toBe(true);
+  });
+
+  it("known residual: a held input that catches a ladder collides too, and is still claimed", () => {
+    // 2026-09-20: holding climb alone (no direction) scales the spawn ladder.
+    const seed = dailySeedFor("2026-09-20");
+    const a = playPolicy(seed, () => ({ ...still, climbY: 1 }));
+    const b = playPolicy(seed, () => ({ ...still, climbY: 1 }));
+    expect(dailyInputHash(a.inputs)).toBe(dailyInputHash(b.inputs));
+    expect(a.peakY).toBeGreaterThan(DAILY_CLAIM_MIN_PEAK_M);
+    expect(dailyRunNeedsClaim(a.peakY)).toBe(true);
+  });
+
+  it("the boundary is inclusive", () => {
+    expect(dailyRunNeedsClaim(DAILY_CLAIM_MIN_PEAK_M)).toBe(true);
+    expect(dailyRunNeedsClaim(DAILY_CLAIM_MIN_PEAK_M - 1e-9)).toBe(false);
+    expect(dailyRunNeedsClaim(0)).toBe(false);
+  });
+});

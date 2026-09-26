@@ -55,7 +55,7 @@ import { dailySeedFor } from "../../src/lib/dailySeedServer";
 import { TEST_DAILY_SEED_SECRET } from "../lib/dailySeedTestSecret";
 
 vi.stubEnv("DAILY_SEED_SECRET", TEST_DAILY_SEED_SECRET);
-import { dailyInputHash, resimulateSoloRun } from "../../src/game/dailyVerify";
+import { DAILY_CLAIM_MIN_PEAK_M, dailyInputHash, resimulateSoloRun } from "../../src/game/dailyVerify";
 import { DAILY_SIM_VERSION } from "../../src/game/simVersion";
 import type { PlayerInput } from "../../src/game/types";
 
@@ -569,6 +569,75 @@ describe("POST /api/climb/daily/result: hardening (SEC-DC-2, 3, 4)", () => {
     });
     const res = await post({ replayToken: padded, peakY: run.peakY });
     expect(await codeOf(res)).toBe("REPLAY_REUSED");
+  });
+
+  // SEC-DC-11 --------------------------------------------------------------
+
+  /** First-claim-wins store with the claim SQL's semantics (tests/db covers the SQL itself). */
+  function useClaimStore() {
+    const owners = new Map<string, string>();
+    vi.mocked(claimDailyReplay).mockImplementation(async ({ userId, day, inputHash }) => {
+      const key = `${day}:${inputHash}`;
+      if (!owners.has(key)) owners.set(key, userId);
+      return owners.get(key)!;
+    });
+    return owners;
+  }
+  const asUser = (uid: string) =>
+    vi.mocked(verifyIdToken).mockResolvedValue({
+      uid,
+      email: `${uid}@example.com`,
+      email_verified: true,
+    } as Awaited<ReturnType<typeof verifyIdToken>>);
+
+  async function idlePayload() {
+    const seed = dailySeedFor(DAY);
+    const state = createMatch({ seed, mode: "solo", tower: applyRunSeed(buildFreeTower(), seed), playerIds: ["you"] });
+    while (state.phase === "countdown") stepMatch(state, {});
+    const idle: PlayerInput = { moveX: 0, jump: false, climbY: 0, usePowerUp: false };
+    const inputs: PlayerInput[] = [];
+    while (state.phase === "climb" && inputs.length < MAX_SHARE_TICKS) {
+      inputs.push({ ...idle });
+      stepMatch(state, { you: idle });
+    }
+    const peakY = state.players[0].peakY;
+    return { inputs, body: { peakY, replayToken: await encodeRunReplay({ seed, peakY, inputs }) } };
+  }
+
+  it("two accounts can each save the identical idle run (no false REPLAY_REUSED)", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const owners = useClaimStore();
+    const { inputs, body } = await idlePayload();
+    // Precondition: this is the 221-tick, 0 m log every idle player produces.
+    expect(inputs.length).toBe(221);
+    expect(body.peakY).toBe(0);
+
+    asUser("u1");
+    expect((await post(body)).status).toBe(200);
+    asUser("u2");
+    const second = await post(body);
+    expect(second.status).toBe(200);
+    expect(((await second.json()) as { saved?: boolean }).saved).toBe(true);
+    expect(vi.mocked(recordDailyClimb).mock.calls.map(([c]) => c.userId)).toEqual(["u1", "u2"]);
+    expect(owners.size).toBe(0);
+    expect(claimDailyReplay).not.toHaveBeenCalled();
+    expect(warn).not.toHaveBeenCalledWith("[climb/daily/result] replay reused", expect.anything());
+  });
+
+  it("control: a copied real run (over the claim floor) is still refused for the second account", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    const owners = useClaimStore();
+    const { run, body } = await honestPayload();
+    expect(run.peakY).toBeGreaterThanOrEqual(DAILY_CLAIM_MIN_PEAK_M);
+
+    asUser("u1");
+    expect((await post(body)).status).toBe(200);
+    asUser("u2");
+    const copy = await post(body);
+    expect(copy.status).toBe(409);
+    expect(await codeOf(copy)).toBe("REPLAY_REUSED");
+    expect([...owners.values()]).toEqual(["u1"]);
+    expect(vi.mocked(recordDailyClimb).mock.calls.map(([c]) => c.userId)).toEqual(["u1"]);
   });
 
   it("a failed claim is a 500 persist_error, never a save", async () => {
