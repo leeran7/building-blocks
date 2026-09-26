@@ -151,3 +151,76 @@ describe("verifyDailyReplay", () => {
     expect(verifyDailyReplay(atCap, null, MIDDAY)).not.toMatchObject({ code: "RUN_TOO_LONG" });
   });
 });
+
+// ---------------------------------------------------------------------------
+// Verifier additions.
+// ---------------------------------------------------------------------------
+
+describe("verifyDailyReplay (verifier)", () => {
+  it("fixture precondition: the scripted inputs mean something only on DAY's tower", () => {
+    // loop/learnings (replay-fixtures): a wrong-seed test is vacuous unless the
+    // same inputs reach a clearly different height on the other tower.
+    const run = playRun(SEED);
+    const other = playRun(dailySeedFor("2026-09-25"));
+    expect(Math.abs(run.peakY - other.peakY)).toBeGreaterThan(1);
+  });
+
+  it("rejects an honest run relabelled as tomorrow's tower (future day)", async () => {
+    const run = playRun(SEED);
+    const tomorrow = await tokenFor(dailySeedFor("2026-09-27"), run.peakY, run.inputs);
+    expect(verifyDailyReplay(tomorrow, run.peakY, new Date("2026-09-26T23:59:59.999Z"))).toMatchObject({
+      ok: false,
+      code: "DAY_CLOSED",
+    });
+  });
+
+  it("rejects yesterday's honest run 1 ms after the grace window", async () => {
+    const seed = dailySeedFor("2026-09-25");
+    const run = playRun(seed);
+    const replay = await tokenFor(seed, run.peakY, run.inputs);
+    const edge = Date.parse("2026-09-26T00:10:00.000Z");
+    expect(verifyDailyReplay(replay, run.peakY, edge)).toMatchObject({ ok: true, day: "2026-09-25" });
+    expect(verifyDailyReplay(replay, run.peakY, edge + 1)).toMatchObject({ ok: false, code: "DAY_CLOSED" });
+  });
+
+  it("rejects the tower from 2 days ago and non-daily seeds", async () => {
+    const run = playRun(SEED);
+    const old = await tokenFor(SEED, run.peakY, run.inputs);
+    expect(verifyDailyReplay(old, run.peakY, new Date("2026-09-28T00:01:00Z"))).toMatchObject({
+      ok: false,
+      code: "DAY_CLOSED",
+    });
+    const solo: RunReplay = { ...old, seed: "solo" };
+    expect(verifyDailyReplay(solo, run.peakY, MIDDAY)).toMatchObject({ ok: false, code: "DAY_CLOSED" });
+  });
+
+  it("rejects an empty input log", () => {
+    const empty: RunReplay = { version: 1, seed: SEED, peakY: 0, inputs: [] };
+    expect(verifyDailyReplay(empty, 0, MIDDAY)).toMatchObject({ ok: false, code: "RUN_TOO_LONG" });
+  });
+
+  it("rejects a non-finite claim instead of skipping the comparison", async () => {
+    const run = playRun(SEED);
+    const replay = await tokenFor(SEED, run.peakY, run.inputs);
+    const nanToken: RunReplay = { ...replay, peakY: Number.NaN };
+    expect(verifyDailyReplay(nanToken, null, MIDDAY)).toMatchObject({ ok: false, code: "REPLAY_MISMATCH" });
+    expect(verifyDailyReplay(replay, Number.POSITIVE_INFINITY, MIDDAY)).toMatchObject({
+      ok: false,
+      code: "REPLAY_MISMATCH",
+    });
+  });
+
+  it("returns the server peak, not the claim, when the claim is inside the slack", async () => {
+    const run = playRun(SEED);
+    const replay = await tokenFor(SEED, run.peakY, run.inputs);
+    const verdict = verifyDailyReplay(replay, run.peakY + DAILY_PEAK_EPSILON_M * 0.9, MIDDAY);
+    expect(verdict).toMatchObject({ ok: true });
+    if (verdict.ok) expect(verdict.peakY).toBe(run.peakY);
+  });
+
+  it("rejects a claim below the server peak by more than the slack (desync either way)", async () => {
+    const run = playRun(SEED);
+    const replay = await tokenFor(SEED, run.peakY, run.inputs);
+    expect(verifyDailyReplay(replay, run.peakY - 1, MIDDAY)).toMatchObject({ ok: false, code: "REPLAY_MISMATCH" });
+  });
+});
