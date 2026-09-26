@@ -31,7 +31,7 @@ import { useConsentSheet } from "../hooks/useConsentSheet";
 import { LeaderboardConsentModal } from "../components/LeaderboardConsentModal";
 import { tapMedium, tapLight, notifyError, notifySuccess } from "../lib/haptics";
 import { useGameHaptics } from "../lib/useGameHaptics";
-import { commitDailyRun, msUntilReset, formatReset, type DailyRunResult } from "@app/lib/daily";
+import { commitDailyRun, formatReset, type DailyRunResult } from "@app/lib/daily";
 import {
   fetchDailyInfo,
   postDailyResult,
@@ -39,6 +39,7 @@ import {
   type DailySaveResult,
 } from "../lib/dailyBoard";
 import {
+  dailyMsUntilReset,
   isDailyStartFresh,
   readDailyClock,
   stampDailyInfo,
@@ -412,7 +413,7 @@ export function ClimbScreen({ onSignIn }: { onSignIn?: () => void } = {}) {
             </p>
             {isDaily && (
               <p className="mt-3 font-mono text-label uppercase tracking-label text-text-muted">
-                Resets in {formatReset(msUntilReset())}
+                Resets in {formatReset(dailyMsUntilReset(dailyStamp.current, readDailyClock()))}
               </p>
             )}
             {dailyLobby === "ready" && (

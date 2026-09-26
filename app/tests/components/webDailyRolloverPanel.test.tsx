@@ -70,7 +70,9 @@ const nextTowerIn = () => {
 };
 
 beforeEach(() => {
-  vi.useFakeTimers({ toFake: ["Date"] });
+  // Both clocks are frozen: the countdown now counts the server timeline
+  // down by elapsed time, which reads the monotonic clock too (RV-DCF-6).
+  vi.useFakeTimers({ toFake: ["Date", "performance"] });
   vi.setSystemTime(new Date("2026-09-26T23:59:00Z"));
   scene.props = [];
   net.body = OLD;

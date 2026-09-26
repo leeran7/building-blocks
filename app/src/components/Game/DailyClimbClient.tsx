@@ -26,6 +26,7 @@ import { ALTITUDE_UNIT } from "../../lib/units";
 import Link from "next/link";
 import {
   DAILY_INFO_PATH,
+  dailyMsUntilReset,
   isDailyStartFresh,
   parseDailyInfo,
   readDailyClock,
@@ -38,7 +39,6 @@ import {
   dailySummary,
   dailyWeek,
   commitDailyRun,
-  msUntilReset,
   formatReset,
   type DailyRunResult,
   type DailySummary,
@@ -61,6 +61,11 @@ async function fetchServerDaily(): Promise<DailyInfo | null> {
   } catch {
     return null;
   }
+}
+
+/** The "Resets in" text: the server's timeline once an answer is stamped (RV-DCF-6). */
+function resetText(stamp: DailyInfoStamp | null): string {
+  return formatReset(dailyMsUntilReset(stamp, readDailyClock()));
 }
 
 export function DailyClimbClient() {
@@ -92,6 +97,7 @@ export function DailyClimbClient() {
       if (next) {
         dailyStampRef.current = stampDailyInfo(next, requestedAt);
         setDaily(next);
+        setReset(resetText(dailyStampRef.current));
       } else {
         // A closed tower is never played: without today's answer the page
         // falls back to the offline state (only reachable between runs).
@@ -109,8 +115,8 @@ export function DailyClimbClient() {
     setSummary(dailySummary());
     setWeek(dailyWeek());
     setToday(formatToday(new Date()));
-    setReset(formatReset(msUntilReset()));
-    const id = setInterval(() => setReset(formatReset(msUntilReset())), 60_000);
+    setReset(resetText(dailyStampRef.current));
+    const id = setInterval(() => setReset(resetText(dailyStampRef.current)), 60_000);
     return () => clearInterval(id);
   }, []);
 
@@ -127,7 +133,7 @@ export function DailyClimbClient() {
     setSummary(dailySummary());
     setWeek(dailyWeek());
     setToday(formatToday(new Date()));
-    setReset(formatReset(msUntilReset()));
+    setReset(resetText(dailyStampRef.current));
   }, [liveDay]);
 
   const handleFinish = useCallback((peakY: number) => {

@@ -9,7 +9,7 @@
  * is null (treated as a failed load), never coerced into a plausible tower.
  */
 
-import { isDailySeedShape, nextUtcResetAt, parseDayKey } from "./dailyDay";
+import { isDailySeedShape, msUntilUtcReset, nextUtcResetAt, parseDayKey } from "./dailyDay";
 
 /** Public endpoint path, relative to the API origin. */
 export const DAILY_INFO_PATH = "/api/climb/daily";
@@ -97,6 +97,11 @@ export function stampDailyInfo(info: DailyInfo, requestedAt: DailyClockReading):
   return { info, msLeft: Date.parse(info.resetsAt) - Date.parse(info.now), requestedAt };
 }
 
+/** Time since the stamp's request: the larger of the monotonic and wall-clock differences. */
+function dailyElapsedMs(stamp: DailyInfoStamp, now: DailyClockReading): number {
+  return Math.max(now.mono - stamp.requestedAt.mono, now.wall - stamp.requestedAt.wall);
+}
+
 /**
  * Whether a stamped answer names a tower that has since closed (RV-DC-3,
  * V-DC-2). Stale once the time elapsed since the request reaches the time
@@ -109,8 +114,7 @@ export function stampDailyInfo(info: DailyInfo, requestedAt: DailyClockReading):
  */
 export function isDailyInfoStale(stamp: DailyInfoStamp, now: DailyClockReading): boolean {
   const wallElapsed = now.wall - stamp.requestedAt.wall;
-  const elapsed = Math.max(now.mono - stamp.requestedAt.mono, wallElapsed);
-  if (elapsed >= stamp.msLeft) return true;
+  if (dailyElapsedMs(stamp, now) >= stamp.msLeft) return true;
   return now.wall >= Date.parse(stamp.info.resetsAt) && wallElapsed > DAILY_REFETCH_BACKOFF_MS;
 }
 
@@ -126,4 +130,17 @@ export function isDailyStartFresh(
   now: DailyClockReading,
 ): boolean {
   return info !== null && stamp !== null && stamp.info === info && !isDailyInfoStale(stamp, now);
+}
+
+/**
+ * Milliseconds until the daily reset, for a "Resets in" countdown (RV-DCF-6).
+ * With a stamped answer it is the time the server said was left, less the
+ * time elapsed since the request (measured as in isDailyInfoStale), never
+ * below 0, so it reaches 0 when the start gate goes stale rather than when a
+ * skewed device clock says so. Without a stamp (before the first answer) it
+ * falls back to the device clock's next 00:00 UTC.
+ */
+export function dailyMsUntilReset(stamp: DailyInfoStamp | null, now: DailyClockReading): number {
+  if (stamp === null) return msUntilUtcReset(now.wall);
+  return Math.max(0, stamp.msLeft - dailyElapsedMs(stamp, now));
 }
