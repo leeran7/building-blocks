@@ -17,6 +17,13 @@ import { prisma } from "./client";
 import { climberDisplay } from "../lib/handle";
 import { parseAvatarId } from "../lib/avatars";
 import { FREE_STACK_SLUG } from "../game/freeStack";
+import {
+  DAILY_SEED_PREFIX,
+  MS_PER_DAY,
+  parseDayKey,
+  utcDayKey,
+  utcDayStartMs,
+} from "../lib/dailyDay";
 
 export interface ClimbResultInput {
   userId: string;
@@ -348,12 +355,39 @@ export interface ClimbReplaySummary {
   replayToken: string | null;
 }
 
-/** Recent climb runs for the dashboard, newest first. */
-export async function getUserClimbReplays(
-  userId: string,
-  limit = 30
-): Promise<ClimbReplaySummary[]> {
-  const rows = await prisma.climbRun.findMany({
+/**
+ * How long after the UTC start of the day a daily-seed run was saved its
+ * replay token stays off public pages (SEC-DC-16 / SEC-DC-2(a)).
+ *
+ * A daily seed does not name its day (it is an HMAC), so the bound comes from
+ * the server-set created_at. The daily seed for a day is served only once the
+ * day has opened, so a run's board day is never later than the UTC day it
+ * was saved on, and that board closes at most 24 h + DAILY_SUBMIT_GRACE_MS
+ * after that day starts. 48 h covers it with margin. Until then a public
+ * token would let another account exact-submit the run to the open board and
+ * claim it.
+ */
+export const DAILY_REPLAY_PUBLIC_DELAY_MS = 2 * MS_PER_DAY;
+
+/**
+ * Whether a saved run's replay token may appear on a public page at `now`.
+ * Non-daily runs always may. A daily-seed run (any seed carrying
+ * DAILY_SEED_PREFIX, which every isDailySeedShape seed does) may only once DAILY_REPLAY_PUBLIC_DELAY_MS has passed since the UTC
+ * start of its created_at day. Anything that cannot be dated stays hidden.
+ */
+export function isReplayTokenPublic(seed: string, createdAt: Date, now: Date | number): boolean {
+  // Every isDailySeedShape seed starts with the prefix; testing the prefix
+  // alone also hides a malformed daily-looking seed rather than showing it.
+  if (!seed.startsWith(DAILY_SEED_PREFIX)) return true;
+  // Explicit fail-closed guard for an invalid Date. The comparison below is
+  // also false for NaN, so this is defence in depth, not the only check.
+  if (parseDayKey(utcDayKey(createdAt)) === null) return false;
+  const nowMs = typeof now === "number" ? now : now.getTime();
+  return nowMs >= utcDayStartMs(createdAt) + DAILY_REPLAY_PUBLIC_DELAY_MS;
+}
+
+function recentClimbRuns(userId: string, limit: number) {
+  return prisma.climbRun.findMany({
     where: { userId },
     orderBy: { created_at: "desc" },
     take: limit,
@@ -362,12 +396,44 @@ export async function getUserClimbReplays(
       peak_y: true,
       created_at: true,
       replay_token: true,
+      seed: true,
     },
   });
+}
+
+/**
+ * Recent climb runs for the OWNER's dashboard, newest first. Every replay
+ * token is included: the owner may watch their own runs at any time. Never
+ * call this from a public page; use getPublicClimbReplays.
+ */
+export async function getUserClimbReplays(
+  userId: string,
+  limit = 30
+): Promise<ClimbReplaySummary[]> {
+  const rows = await recentClimbRuns(userId, limit);
   return rows.map((r) => ({
     id: r.id,
     peakY: r.peak_y,
     createdAt: r.created_at.toISOString(),
     replayToken: r.replay_token,
+  }));
+}
+
+/**
+ * Recent climb runs for a PUBLIC page (/c/[username]), newest first. A daily
+ * run's replay token is withheld until its board has closed
+ * (isReplayTokenPublic); the run itself is still listed.
+ */
+export async function getPublicClimbReplays(
+  userId: string,
+  now: Date | number = Date.now(),
+  limit = 30
+): Promise<ClimbReplaySummary[]> {
+  const rows = await recentClimbRuns(userId, limit);
+  return rows.map((r) => ({
+    id: r.id,
+    peakY: r.peak_y,
+    createdAt: r.created_at.toISOString(),
+    replayToken: isReplayTokenPublic(r.seed, r.created_at, now) ? r.replay_token : null,
   }));
 }
