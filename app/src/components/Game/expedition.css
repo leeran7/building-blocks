@@ -58,13 +58,12 @@
 .exp-mobile-controls .exp-touch-button[aria-pressed="true"] { transform: translateY(2px); background: #46423b; box-shadow: inset 0 3px 8px #000a; }
 .exp-mobile-controls .exp-touch-button[data-primary="true"][aria-pressed="true"] { background: var(--exp-signal); color: #101012; }
 .exp-touch-button:disabled { opacity: .4; cursor: not-allowed; }
-.exp-mobile-controls .exp-joystick { border: 1px solid #736b60; background: radial-gradient(circle, #242323d9 0 55%, #0a0a0ce6 100%); box-shadow: var(--exp-depth); }
-.exp-joystick-knob { border: 1px solid #8c9d56; border-top: 2px solid var(--exp-signal); background: linear-gradient(#46423b, #242323); box-shadow: 0 4px 10px #000a; pointer-events: none; will-change: transform; }
-.exp-joystick-arrow { position: absolute; font-size: 10px; line-height: 1; color: var(--exp-ivory); opacity: .45; pointer-events: none; }
-.exp-joystick-arrow[data-dir="up"] { top: 7px; left: 50%; transform: translateX(-50%); }
-.exp-joystick-arrow[data-dir="down"] { bottom: 7px; left: 50%; transform: translateX(-50%); }
-.exp-joystick-arrow[data-dir="left"] { left: 8px; top: 50%; transform: translateY(-50%); }
-.exp-joystick-arrow[data-dir="right"] { right: 8px; top: 50%; transform: translateY(-50%); }
+.exp-mobile-controls .exp-joystick { border: 1px solid #3b3434; background: radial-gradient(circle, #1f1b1c 0 58%, #141112 100%); box-shadow: inset 0 0 0 6px #0000002e, 0 6px 16px #0008; color: var(--exp-ivory); }
+.exp-joystick-knob { border: 2px solid var(--exp-signal); background: radial-gradient(circle at 50% 40%, #2a2527, #19161a); box-shadow: 0 4px 10px #000a; pointer-events: none; will-change: transform; }
+.exp-joystick-chevron { position: absolute; opacity: .85; pointer-events: none; }
+.exp-joystick-caption { font-size: 11px; letter-spacing: .24em; color: var(--color-text-secondary, #a8a4b2); text-shadow: 0 1px 2px #000c; pointer-events: none; }
+.exp-mobile-controls .exp-touch-button[data-pad="true"] { min-height: 76px; border: 0; border-radius: 16px; background: var(--exp-signal); color: #101012; box-shadow: 0 6px 18px #0009, inset 0 -3px 0 #0000002e; }
+.exp-mobile-controls .exp-touch-button[data-pad="true"][aria-pressed="true"] { transform: translateY(2px); background: #b3d93f; box-shadow: inset 0 3px 8px #0005; }
 @container (min-width: 620px) {
   .exp-hud { grid-template-columns: minmax(145px, 1fr) minmax(210px, 1.5fr) minmax(155px, 1fr) 44px; gap: 16px; top: max(16px, var(--exp-top)); left: max(16px, var(--exp-left)); right: max(16px, var(--exp-right)); }
   .exp-clearance { grid-column: 3; padding: 8px 10px; }

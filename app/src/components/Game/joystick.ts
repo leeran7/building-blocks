@@ -2,8 +2,10 @@
  * Virtual joystick math for the on-screen controls.
  *
  * The stick maps to the same digital inputs as the buttons (the sim only takes
- * -1/0/1 per axis), split into eight 45° sectors so a diagonal push climbs and
- * walks at once while a mostly-sideways push does not also grab a ladder.
+ * -1/0/1 per axis). Each direction has its own cone and the cones overlap, so
+ * one push can press Up together with Left or Right: walking at a ladder with
+ * the thumb leaning up grabs it on arrival instead of needing a second,
+ * separate push up.
  */
 
 import type { TouchInput } from "../../game/useClimb";
@@ -19,13 +21,24 @@ export const JOYSTICK_DEAD_ZONE = 0.06;
 export const JOYSTICK_DEAD_ZONE_EXIT = 0.04;
 
 /**
- * 8-way sectors: an axis turns on when the push is within 67.5° of it and,
- * once on, stays on until the push leaves a wider 75° cone. Without the
- * hysteresis a thumb near a sector edge flickers the climb intent, which
- * repeatedly grabs and releases the ladder.
+ * Cone edges, as the minimum share of the push along an axis (sin of the
+ * angle away from the perpendicular axis).
+ *
+ * - Up: any push at least 15° above horizontal climbs. Left/right: any push at
+ *   least 15° off vertical walks. Between 15° and 75° above horizontal both
+ *   are pressed, which is the climb-while-walking band.
+ * - Down keeps a narrower 67.5° cone (22.5° below horizontal) so a thumb that
+ *   sags while walking does not drop the climber down a ladder.
+ *
+ * Each axis turns on at ENTER and stays on until the push falls below STAY.
+ * Without that hysteresis a thumb resting on a cone edge flickers the climb
+ * intent, which repeatedly grabs and releases the ladder.
  */
-const SECTOR_ENTER = Math.sin(Math.PI / 8);
-const SECTOR_STAY = Math.sin(Math.PI / 12);
+const deg = (d: number) => Math.sin((d * Math.PI) / 180);
+const WIDE_ENTER = deg(15);
+const WIDE_STAY = deg(10);
+const DOWN_ENTER = deg(22.5);
+const DOWN_STAY = deg(15);
 
 export interface JoystickDirection {
   left: boolean;
@@ -42,8 +55,8 @@ export const JOYSTICK_CENTERED: JoystickDirection = {
 };
 
 /** An axis needs the larger threshold to turn on and the smaller to stay on. */
-function axis(component: number, wasOn: boolean): boolean {
-  return component > (wasOn ? SECTOR_STAY : SECTOR_ENTER);
+function axis(component: number, wasOn: boolean, enter: number, stay: number): boolean {
+  return component > (wasOn ? stay : enter);
 }
 
 /**
@@ -66,10 +79,10 @@ export function joystickDirection(
   const nx = dx / dist;
   const ny = dy / dist;
   return {
-    left: axis(-nx, prev.left),
-    right: axis(nx, prev.right),
-    up: axis(-ny, prev.up),
-    down: axis(ny, prev.down),
+    left: axis(-nx, prev.left, WIDE_ENTER, WIDE_STAY),
+    right: axis(nx, prev.right, WIDE_ENTER, WIDE_STAY),
+    up: axis(-ny, prev.up, WIDE_ENTER, WIDE_STAY),
+    down: axis(ny, prev.down, DOWN_ENTER, DOWN_STAY),
   };
 }
 

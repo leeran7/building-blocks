@@ -17,11 +17,38 @@ import {
   type JoystickDirection,
 } from "./joystick";
 
-/** Base diameter. Matches the button height so TOUCH_CONTROLS_INSET holds. */
-export const JOYSTICK_SIZE = 104;
+/** Base diameter. */
+export const JOYSTICK_SIZE = 112;
 const KNOB_SIZE = 44;
 /** How far the knob centre travels from the base centre. */
 const TRAVEL = (JOYSTICK_SIZE - KNOB_SIZE) / 2 + 6;
+const CAPTION_GAP = 6;
+const CAPTION_HEIGHT = 12;
+/** Base plus the "Move / Climb" caption: the column's full height. */
+export const JOYSTICK_LAYOUT_HEIGHT = JOYSTICK_SIZE + CAPTION_GAP + CAPTION_HEIGHT;
+
+/** Thin chevron pointing up; rotated for the side arrows. */
+function Chevron({ className, rotate }: { className: string; rotate: number }) {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 16 16"
+      width="16"
+      height="16"
+      className={`exp-joystick-chevron ${className}`}
+    >
+      <path
+        d="M3.5 10.5 8 6l4.5 4.5"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        transform={`rotate(${rotate} 8 8)`}
+      />
+    </svg>
+  );
+}
 
 function sameDirection(a: JoystickDirection, b: JoystickDirection): boolean {
   return a.left === b.left && a.right === b.right && a.up === b.up && a.down === b.down;
@@ -66,6 +93,7 @@ export function TouchJoystick({
   }, [emit]);
 
   return (
+    <div className="flex flex-col items-center" style={{ gap: CAPTION_GAP }}>
     <div
       data-game-control
       role="img"
@@ -98,10 +126,9 @@ export function TouchJoystick({
         if (e.pointerId === pointerRef.current) release();
       }}
     >
-      <span aria-hidden="true" className="exp-joystick-arrow" data-dir="up">▲</span>
-      <span aria-hidden="true" className="exp-joystick-arrow" data-dir="left">◀</span>
-      <span aria-hidden="true" className="exp-joystick-arrow" data-dir="right">▶</span>
-      <span aria-hidden="true" className="exp-joystick-arrow" data-dir="down">▼</span>
+      <Chevron className="left-1/2 top-2.5 -translate-x-1/2" rotate={0} />
+      <Chevron className="left-2.5 top-1/2 -translate-y-1/2" rotate={-90} />
+      <Chevron className="right-2.5 top-1/2 -translate-y-1/2" rotate={90} />
       <span
         ref={knobRef}
         aria-hidden="true"
@@ -113,6 +140,14 @@ export function TouchJoystick({
           top: (JOYSTICK_SIZE - KNOB_SIZE) / 2,
         }}
       />
+    </div>
+    <span
+      aria-hidden="true"
+      className="exp-joystick-caption font-mono uppercase"
+      style={{ height: CAPTION_HEIGHT, lineHeight: `${CAPTION_HEIGHT}px` }}
+    >
+      Move / Climb
+    </span>
     </div>
   );
 }

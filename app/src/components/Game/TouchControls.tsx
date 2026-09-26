@@ -22,9 +22,9 @@ import "./expedition.css";
 
 import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { NO_TOUCH, type TouchInput } from "../../game/useClimb";
-import { useControlScheme } from "../../lib/controlScheme";
+import { useControlScheme, type ControlScheme } from "../../lib/controlScheme";
 import { JOYSTICK_CENTERED, withJoystick, type JoystickDirection } from "./joystick";
-import { TouchJoystick } from "./TouchJoystick";
+import { JOYSTICK_LAYOUT_HEIGHT, JOYSTICK_SIZE, TouchJoystick } from "./TouchJoystick";
 import {
   initialHoldMemo,
   isHoldKey,
@@ -39,10 +39,13 @@ const TouchButton = memo(function TouchButton({
   control,
   held,
   onEvent,
+  pad = false,
 }: {
   control: Control;
   held: boolean;
   onEvent: (event: HoldEvent) => void;
+  /** Joystick layout's jump: a solid signal pad with an arrow over the label. */
+  pad?: boolean;
 }) {
   const { id, label, glyph, sub, accent, wordGlyph } = control;
 
@@ -55,6 +58,7 @@ const TouchButton = memo(function TouchButton({
       style={{ touchAction: "none" }}
       onContextMenu={(e) => e.preventDefault()}
       data-primary={Boolean(accent)}
+      data-pad={pad || undefined}
       className="exp-touch-button relative flex min-w-[44px] flex-col items-center justify-center font-mono font-bold"
       onPointerDown={(e) => {
         // Do not preventDefault: scrolling is already killed by
@@ -86,6 +90,17 @@ const TouchButton = memo(function TouchButton({
         onEvent({ kind: "activate", id });
       }}
     >
+      {pad ? (
+        <>
+          <span aria-hidden="true" className="text-3xl leading-none">
+            {glyph}
+          </span>
+          <span aria-hidden="true" className="mt-1.5 text-base uppercase tracking-[0.16em] leading-none">
+            {sub}
+          </span>
+        </>
+      ) : (
+      <>
       <span
         className={
           wordGlyph
@@ -107,6 +122,8 @@ const TouchButton = memo(function TouchButton({
         >
           {sub}
         </span>
+      )}
+      </>
       )}
     </button>
   );
@@ -131,7 +148,10 @@ const ALL_CONTROLS: readonly Control[] = [
   { id: "jump", label: "Jump", glyph: "JMP", accent: true, wordGlyph: true },
 ];
 
-const JUMP_CONTROL = ALL_CONTROLS.find((c) => c.id === "jump")!;
+/** Jump in the joystick layout: arrow glyph over a "Jump" label. */
+const JUMP_PAD: Control = { id: "jump", label: "Jump", glyph: "↑", sub: "Jump", accent: true };
+/** Matches the `[data-pad]` min-height in expedition.css. */
+const JUMP_PAD_HEIGHT = 76;
 
 export function TouchControls({
   active,
@@ -221,13 +241,17 @@ export function TouchControls({
       aria-label="Touch game controls"
     >
       {scheme === "joystick" ? (
-        <div className="flex items-center justify-between gap-2.5">
-          <TouchJoystick key={stickKey} onChange={steer} />
-          <div className="grid w-[40%] max-w-[180px]">
+        <div className="grid grid-cols-2 items-start gap-4">
+          <div className="flex justify-center">
+            <TouchJoystick key={stickKey} onChange={steer} />
+          </div>
+          {/* Centred on the stick's base, not on base + caption. */}
+          <div className="grid" style={{ marginTop: (JOYSTICK_SIZE - JUMP_PAD_HEIGHT) / 2 }}>
             <TouchButton
-              control={JUMP_CONTROL}
+              control={JUMP_PAD}
               held={pressed.has("jump")}
               onEvent={apply}
+              pad
             />
           </div>
         </div>
@@ -259,8 +283,22 @@ export function TouchControls({
  * bar, drawing the climber inside the buttons on tablets and in landscape.
  */
 export const TOUCH_CONTROLS_INSET = 112;
+/** Same, for the joystick layout: the stick column plus the 8px top gutter. */
+export const JOYSTICK_CONTROLS_INSET = JOYSTICK_LAYOUT_HEIGHT + 8;
 /** Minimum bottom gutter under the buttons, matched to the container padding. */
 export const TOUCH_CONTROLS_MIN_BOTTOM = 10;
+
+/** Camera clearance for the controls: the layout's height plus the bottom gutter. */
+export function touchControlsInset(scheme: ControlScheme, safeAreaBottom: number): number {
+  const layout = scheme === "joystick" ? JOYSTICK_CONTROLS_INSET : TOUCH_CONTROLS_INSET;
+  return layout + Math.max(TOUCH_CONTROLS_MIN_BOTTOM, safeAreaBottom);
+}
+
+/** touchControlsInset for the scheme chosen in settings. */
+export function useTouchControlsInset(safeAreaBottom: number): number {
+  const [scheme] = useControlScheme();
+  return touchControlsInset(scheme, safeAreaBottom);
+}
 
 /** Responsive presentation alias; the established input reducer is unchanged. */
 export const MobileControls = TouchControls;

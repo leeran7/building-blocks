@@ -10,8 +10,7 @@ import { ClimbCanvas } from "@app/components/Game/ClimbCanvas";
 import { ExpeditionHud } from "@app/components/Game/ExpeditionHud";
 import {
   TouchControls,
-  TOUCH_CONTROLS_INSET,
-  TOUCH_CONTROLS_MIN_BOTTOM,
+  useTouchControlsInset,
 } from "@app/components/Game/TouchControls";
 import { usePowerUpFeedback } from "@app/components/Game/usePowerUpFeedback";
 import {
@@ -96,8 +95,7 @@ export function ClimbScreen({ onSignIn }: { onSignIn?: () => void } = {}) {
     if (countdownValue != null) void tapLight();
   }, [countdownValue]);
 
-  const bottomInset =
-    TOUCH_CONTROLS_INSET + Math.max(TOUCH_CONTROLS_MIN_BOTTOM, safeArea.bottom);
+  const bottomInset = useTouchControlsInset(safeArea.bottom);
 
   // Camera + lava-threat feed the audio one-shots (see ClimbScene for rationale).
   const musicActive = !finished && (phase === "countdown" || phase === "climb");

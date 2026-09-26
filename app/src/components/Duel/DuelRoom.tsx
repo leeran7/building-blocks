@@ -24,8 +24,7 @@ import { ClimbCanvas } from "../Game/ClimbCanvas";
 import { ExpeditionHud, type DuelHudInfo } from "../Game/ExpeditionHud";
 import {
   TouchControls,
-  TOUCH_CONTROLS_INSET,
-  TOUCH_CONTROLS_MIN_BOTTOM,
+  useTouchControlsInset,
 } from "../Game/TouchControls";
 import { useCoarsePointer } from "../../hooks/useCoarsePointer";
 import { useCanvasSize } from "../../hooks/useCanvasSize";
@@ -694,8 +693,9 @@ function DuelGame({
     ? wallClockCountdown
     : Math.max(1, 3 - Math.floor(state.tick / 30));
 
+  const touchInset = useTouchControlsInset(safeArea.bottom);
   const bottomInset = touchDevice
-    ? TOUCH_CONTROLS_INSET + Math.max(TOUCH_CONTROLS_MIN_BOTTOM, safeArea.bottom)
+    ? touchInset
     : 0;
   const touchControlsActive =
     touchDevice && (phase === "countdown" || phase === "climb");

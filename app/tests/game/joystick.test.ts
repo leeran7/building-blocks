@@ -45,27 +45,13 @@ describe("joystickDirection: dead zone", () => {
   });
 });
 
-describe("joystickDirection: sector hysteresis", () => {
-  // 20° above horizontal: inside the 67.5° "right" cone, outside the 67.5°
-  // "up" cone, but inside the wider 75° cone that keeps an active axis on.
-  const a = (20 * Math.PI) / 180;
-  const dx = Math.cos(a) * R;
-  const dy = -Math.sin(a) * R;
+/** Thumb at `deg` degrees from +x (counter-clockwise, screen up = positive). */
+function at(deg: number, prev?: Parameters<typeof joystickDirection>[3]) {
+  const a = (deg * Math.PI) / 180;
+  return joystickDirection(Math.cos(a) * R, -Math.sin(a) * R, R, prev);
+}
 
-  it("does not start climbing from a slight upward lean", () => {
-    expect(joystickDirection(dx, dy, R).up).toBe(false);
-  });
-
-  it("keeps climbing once started until the lean drops out of the wider cone", () => {
-    const climbing = { left: false, right: true, up: true, down: false };
-    expect(joystickDirection(dx, dy, R, climbing).up).toBe(true);
-    // 10°: outside the 75° cone, so climb releases.
-    const b = (10 * Math.PI) / 180;
-    expect(joystickDirection(Math.cos(b) * R, -Math.sin(b) * R, R, climbing).up).toBe(false);
-  });
-});
-
-describe("joystickDirection: 8-way sectors", () => {
+describe("joystickDirection: cones", () => {
   it("maps cardinal pushes to a single direction", () => {
     expect(joystickDirection(R, 0, R)).toEqual({ left: false, right: true, up: false, down: false });
     expect(joystickDirection(-R, 0, R)).toEqual({ left: true, right: false, up: false, down: false });
@@ -73,21 +59,55 @@ describe("joystickDirection: 8-way sectors", () => {
     expect(joystickDirection(0, R, R)).toEqual({ left: false, right: false, up: false, down: true });
   });
 
-  it("maps a 45° push to both axes (walk + climb)", () => {
-    expect(joystickDirection(R, -R, R)).toEqual({ left: false, right: true, up: true, down: false });
+  it("presses Up together with Right from a slight upward lean", () => {
+    // The climb-while-walking band: walking at a ladder with the thumb
+    // leaning up grabs it on arrival.
+    for (const d of [20, 45, 70]) {
+      expect(at(d)).toEqual({ left: false, right: true, up: true, down: false });
+    }
   });
 
-  it("does not climb on a mostly-sideways push", () => {
-    // 15° above horizontal: inside the right sector, outside the up-right one.
-    const a = (15 * Math.PI) / 180;
-    expect(joystickDirection(Math.cos(a) * R, -Math.sin(a) * R, R)).toEqual({
-      left: false,
-      right: true,
-      up: false,
-      down: false,
-    });
+  it("presses Up together with Left the same way", () => {
+    for (const d of [110, 135, 160]) {
+      expect(at(d)).toEqual({ left: true, right: false, up: true, down: false });
+    }
   });
 
+  it("does not climb on a flat sideways push", () => {
+    expect(at(10)).toEqual({ left: false, right: true, up: false, down: false });
+    expect(at(170)).toEqual({ left: true, right: false, up: false, down: false });
+  });
+
+  it("does not walk on a near-vertical push", () => {
+    expect(at(80)).toEqual({ left: false, right: false, up: true, down: false });
+  });
+
+  it("keeps Down narrow so a sagging thumb does not descend while walking", () => {
+    expect(at(-20)).toEqual({ left: false, right: true, up: false, down: false });
+    expect(at(-45)).toEqual({ left: false, right: true, up: false, down: true });
+  });
+});
+
+describe("joystickDirection: cone hysteresis", () => {
+  const climbing = { left: false, right: true, up: true, down: false };
+
+  it("does not start climbing below the 15° edge", () => {
+    expect(at(12).up).toBe(false);
+  });
+
+  it("keeps climbing once started until the lean drops under 10°", () => {
+    expect(at(12, climbing).up).toBe(true);
+    expect(at(8, climbing).up).toBe(false);
+  });
+
+  it("keeps walking once started until the push is within 10° of vertical", () => {
+    expect(at(78).right).toBe(false);
+    expect(at(78, climbing).right).toBe(true);
+    expect(at(82, climbing).right).toBe(false);
+  });
+});
+
+describe("joystickDirection: off the base", () => {
   it("still steers when the thumb leaves the base", () => {
     expect(joystickDirection(-5 * R, 0, R).left).toBe(true);
   });
