@@ -10,7 +10,7 @@ import { describe, expect, it } from "vitest";
 import {
   CAMERA_FOCUS_FRAC,
   CAMERA_FOLLOW,
-  GAME_DRAW_SCALE,
+  WORLD_HEIGHT_STRETCH,
   cameraTargetY,
   climbView,
   followCamY,
@@ -27,12 +27,12 @@ const TOWER_WIDTH_M = 100;
 const TOUCH_INSET_PX = 112;
 
 describe("climbView: locked 9:16 desktop size", () => {
-  it("fits the tower width and sees (height/width)*towerWidth/scale metres tall", () => {
+  it("fits the tower width and sees (height/width)*towerWidth/stretch metres tall", () => {
     const { pxPerM, pxPerMY, viewH } = climbView(WIDTH, HEIGHT, TOWER_WIDTH_M);
     expect(pxPerM).toBeCloseTo(WIDTH / TOWER_WIDTH_M);
-    expect(pxPerMY).toBeCloseTo((WIDTH / TOWER_WIDTH_M) * GAME_DRAW_SCALE);
+    expect(pxPerMY).toBeCloseTo((WIDTH / TOWER_WIDTH_M) * WORLD_HEIGHT_STRETCH);
     expect(viewH).toBeCloseTo(
-      ((HEIGHT / WIDTH) * TOWER_WIDTH_M) / GAME_DRAW_SCALE
+      ((HEIGHT / WIDTH) * TOWER_WIDTH_M) / WORLD_HEIGHT_STRETCH
     );
   });
 });

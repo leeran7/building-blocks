@@ -1,14 +1,17 @@
 /**
- * GAME_DRAW_SCALE — sprites draw bigger and height draws taller; width is locked.
+ * GAME_DRAW_SCALE — sprites draw bigger; height follows WORLD_HEIGHT_STRETCH.
  *
  * Paints a real match through a recording context and reads the platform slab
  * rects back: their thickness carries the draw scale, their top sits at the
- * vertically stretched height, and their left edge and width still map 1:1 to
+ * WORLD_HEIGHT_STRETCH height, and their left edge and width still map 1:1 to
  * world metres, so the view never pans sideways.
  */
 
 import { describe, expect, it } from "vitest";
-import { climbView } from "../../src/components/Game/climbCamera";
+import {
+  climbView,
+  WORLD_HEIGHT_STRETCH,
+} from "../../src/components/Game/climbCamera";
 import {
   CLIMBER_DRAW_SCALE,
   GAME_DRAW_SCALE,
@@ -64,7 +67,7 @@ describe("paintClimbFrame: GAME_DRAW_SCALE", () => {
     expect(GAME_DRAW_SCALE).toBe(1.2);
   });
 
-  it("thickens slabs and stretches height, but keeps x and width", () => {
+  it("thickens slabs; places them at the stretched height, same x and width", () => {
     const tower = buildTower("indie-games");
     const m = createMatch({
       seed: "draw-scale",
@@ -80,6 +83,7 @@ describe("paintClimbFrame: GAME_DRAW_SCALE", () => {
     expect(platformRects.length).toBeGreaterThan(0);
 
     let checked = 0;
+    let raised = 0;
     for (const r of platformRects) {
       // Left edge and width map 1:1 to world metres: no zoom, no pan.
       const match = worldPlatforms.find(
@@ -89,12 +93,14 @@ describe("paintClimbFrame: GAME_DRAW_SCALE", () => {
       );
       if (!match) continue;
       // Camera sits at the base on the opening frame, so height is the stretch.
-      expect(r.y).toBeCloseTo(HEIGHT - match.y * pxPerM * GAME_DRAW_SCALE);
+      if (match.y > 0) raised++;
+      expect(r.y).toBeCloseTo(HEIGHT - match.y * pxPerM * WORLD_HEIGHT_STRETCH);
       expect(r.h).toBeCloseTo(Math.max(6, pxPerM * 2.5 * GAME_DRAW_SCALE));
       expect(r.h).toBeGreaterThan(Math.max(6, pxPerM * 2.5));
       checked++;
     }
     expect(checked).toBeGreaterThan(0);
+    expect(raised).toBeGreaterThan(0);
   });
 
   it("draws the climber at CLIMBER_DRAW_SCALE, larger than the world", () => {
