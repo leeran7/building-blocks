@@ -8,9 +8,11 @@
  * manifest anchor: a 512px cell whose foot root is (256, 460), with a ~380px
  * idle body height, so one scale and one draw path cover them all.
  *
- * Images decode lazily (same pattern as climbBackground's ensureTile); until a
- * pose's sheet is ready, climberFrame returns null and the caller falls back to
- * the vector climber (drawClimber). Left-facing movement is mirrored in-engine.
+ * Both sheets start decoding together on the first call. Until the poses sheet
+ * is ready climberFrame returns null and the caller draws the vector climber
+ * (drawClimber); after that a pose on a sheet still in flight (or one that
+ * failed) borrows its poses-sheet fallback, so the figure never flashes back to
+ * the vector climber mid-run. Left-facing movement is mirrored in-engine.
  */
 
 const CELL = 512;
@@ -36,18 +38,25 @@ type Sheet = "poses" | "climb";
 // Columns per sheet, so a frame's cell index maps to a source rect.
 const COLS: Record<Sheet, number> = { poses: 4, climb: 6 };
 
+type Anim = { sheet: Sheet; frames: readonly number[] };
+
 /**
  * Per pose: which sheet and the cell indices it cycles through. Walk and climb
  * are distance-driven cycles; the rest are single poses out of wraith-poses.png.
  *
  * Walk uses the poses sheet's upright run-a/run-b (cells 1,2). Climb uses the
  * dedicated 6-frame back-view strip so the climber faces the ladder (back to
- * the camera) rather than the front-facing reach poses.
+ * the camera) rather than the front-facing reach poses; those reach poses
+ * (cells 3,4) are its fallback while the strip loads.
  */
-const ANIM: Record<Pose, { sheet: Sheet; frames: readonly number[] }> = {
+const ANIM: Record<Pose, Anim & { fallback?: Anim }> = {
   idle: { sheet: "poses", frames: [0] },
   walk: { sheet: "poses", frames: [1, 2] },
-  climb: { sheet: "climb", frames: [0, 1, 2, 3, 4, 5] },
+  climb: {
+    sheet: "climb",
+    frames: [0, 1, 2, 3, 4, 5],
+    fallback: { sheet: "poses", frames: [3, 4] },
+  },
   air: { sheet: "poses", frames: [5] },
   done: { sheet: "poses", frames: [6] },
   dead: { sheet: "poses", frames: [7] },
@@ -63,22 +72,22 @@ const SRC: Record<Sheet, string> = {
 const images: Partial<Record<Sheet, HTMLImageElement>> = {};
 const failed: Partial<Record<Sheet, boolean>> = {};
 
+function loadSheet(sheet: Sheet): void {
+  const img = new Image();
+  img.onerror = () => {
+    failed[sheet] = true;
+  };
+  img.src = SRC[sheet];
+  images[sheet] = img;
+}
+
+/** The sheet's image once decoded, else null. The first call requests every sheet. */
 function ensureSheet(sheet: Sheet): HTMLImageElement | null {
-  if (failed[sheet]) return null;
-  const cached = images[sheet];
-  if (cached && cached.complete && cached.naturalWidth > 0) return cached;
   if (typeof Image === "undefined") return null; // SSR / offscreen export
-  if (!cached) {
-    const img = new Image();
-    img.onload = () => undefined;
-    img.onerror = () => {
-      failed[sheet] = true;
-    };
-    img.src = SRC[sheet];
-    images[sheet] = img;
-    return null;
-  }
-  return cached.complete && cached.naturalWidth > 0 ? cached : null;
+  if (!images.poses) (Object.keys(SRC) as Sheet[]).forEach(loadSheet);
+  if (failed[sheet]) return null;
+  const img = images[sheet];
+  return img && img.complete && img.naturalWidth > 0 ? img : null;
 }
 
 export interface ClimberFrame {
@@ -99,8 +108,13 @@ export function climberFrame(
   y: number,
   reducedMotion: boolean
 ): ClimberFrame | null {
-  const cfg = ANIM[pose];
-  const img = ensureSheet(cfg.sheet);
+  const anim = ANIM[pose];
+  let cfg: Anim = anim;
+  let img = ensureSheet(anim.sheet);
+  if (!img && anim.fallback) {
+    cfg = anim.fallback;
+    img = ensureSheet(cfg.sheet);
+  }
   if (!img) return null;
   let i = 0;
   if (!reducedMotion && cfg.frames.length > 1) {
