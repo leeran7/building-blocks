@@ -17,38 +17,15 @@ import { TICK_DT } from "../../game/types";
 export const CAMERA_FOCUS_FRAC = 0.62;
 /** How fast the eased camera closes on the target each tick (1 = snap). */
 export const CAMERA_FOLLOW = 0.3;
-/**
- * World zoom. 1 fits the full tower width to the canvas; above 1 everything
- * (climber, ladders, platforms) draws larger and the view pans sideways to
- * keep the climber in frame.
- */
-export const CAMERA_ZOOM = 1.15;
 
 export function climbView(
   width: number,
   height: number,
-  towerWidthM: number,
-  zoom: number = CAMERA_ZOOM
-): ClimbView {
-  const z = Number.isFinite(zoom) && zoom > 0 ? zoom : 1;
-  const pxPerM = width > 0 && towerWidthM > 0 ? (width / towerWidthM) * z : 1;
-  const viewH = pxPerM > 0 ? height / pxPerM : 0;
-  const viewW = pxPerM > 0 ? width / pxPerM : 0;
-  return { pxPerM, viewH, viewW };
-}
-
-/**
- * World-X of the left edge of the view: centred on the climber, clamped so
- * the view never shows past either wall. 0 when the view spans the tower.
- */
-export function cameraTargetX(
-  playerX: number,
-  viewW: number,
   towerWidthM: number
-): number {
-  const maxX = towerWidthM - viewW;
-  if (!(maxX > 0)) return 0;
-  return Math.min(maxX, Math.max(0, playerX - viewW / 2));
+): ClimbView {
+  const pxPerM = width > 0 && towerWidthM > 0 ? width / towerWidthM : 1;
+  const viewH = pxPerM > 0 ? height / pxPerM : 0;
+  return { pxPerM, viewH };
 }
 
 /**
@@ -121,6 +98,4 @@ export interface ClimbView {
   pxPerM: number;
   /** Vertical metres visible on the canvas. */
   viewH: number;
-  /** Horizontal metres visible on the canvas. */
-  viewW: number;
 }
