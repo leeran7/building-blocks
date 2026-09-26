@@ -621,3 +621,8 @@ export function useClearAppData() {
 export function useInvalidateAppData() {
   return useAppData().invalidate;
 }
+
+/** Writes the settings slice from a server-confirmed body (no fetch on mount). */
+export function useSetSettings() {
+  return useAppData().setSettings;
+}

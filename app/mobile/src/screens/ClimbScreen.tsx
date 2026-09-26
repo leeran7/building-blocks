@@ -23,10 +23,11 @@ import { useCanvasSize } from "@app/hooks/useCanvasSize";
 import { useSafeAreaInsets } from "@app/hooks/useSafeAreaInsets";
 import { ALTITUDE_UNIT } from "@app/lib/units";
 
-import { API_BASE, apiFetch, postClimbResult, type ClimbSaveResult } from "../lib/api";
+import { API_BASE, postClimbResult, type ClimbSaveResult } from "../lib/api";
 import { useAuth } from "../contexts/AuthContext";
 import { useInvalidateAppData, type SliceKey } from "../contexts/AppDataContext";
-import { hasLeaderboardConsent, setLeaderboardConsent } from "../lib/consent";
+import { hasLeaderboardConsent } from "../lib/consent";
+import { useAcceptLeaderboardConsent } from "../hooks/useAcceptLeaderboardConsent";
 import { LeaderboardConsentModal } from "../components/LeaderboardConsentModal";
 import { tapMedium, tapLight, notifyError, notifySuccess } from "../lib/haptics";
 import { useGameHaptics } from "../lib/useGameHaptics";
@@ -49,6 +50,8 @@ interface RunPayload {
   seed: string;
   replayToken?: string;
 }
+
+const CONSENT_SAVE_FAILED = "Couldn\u2019t save that. Check your connection and try again.";
 
 /** Play again on the results card: ready, refetching the daily, or unreachable. */
 type PlayAgainState = "ready" | "loading" | "offline";
@@ -147,6 +150,8 @@ export function ClimbScreen({ onSignIn }: { onSignIn?: () => void } = {}) {
   const [showConsent, setShowConsent] = useState(false);
   const [pendingSave, setPendingSave] = useState<RunPayload | null>(null);
   const [consentBusy, setConsentBusy] = useState(false);
+  const [consentError, setConsentError] = useState<string | null>(null);
+  const saveConsent = useAcceptLeaderboardConsent();
 
   const player = state.players[0];
   const phase = state.phase;
@@ -328,25 +333,25 @@ export function ClimbScreen({ onSignIn }: { onSignIn?: () => void } = {}) {
 
   const handleConsentAccept = useCallback(async () => {
     setConsentBusy(true);
-    try {
-      setLeaderboardConsent(true);
-      await apiFetch("/api/settings", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ leaderboardConsent: true }),
-      });
-      if (pendingSave) await submitRun(pendingSave);
-    } catch {
-      /* consent save failed — don't block the game */
-    } finally {
-      setShowConsent(false);
-      setPendingSave(null);
+    setConsentError(null);
+    const saved = await saveConsent();
+    if (!saved) {
+      // Posting now would only be refused for missing consent. Keep the
+      // sheet and the run so the player can retry or decline (RV-DC-6).
+      setConsentError(CONSENT_SAVE_FAILED);
       setConsentBusy(false);
+      return;
     }
-  }, [pendingSave, submitRun]);
+    setShowConsent(false);
+    setConsentBusy(false);
+    const run = pendingSave;
+    setPendingSave(null);
+    if (run) await submitRun(run);
+  }, [pendingSave, submitRun, saveConsent]);
 
   const handleConsentDecline = useCallback(() => {
     setShowConsent(false);
+    setConsentError(null);
     setPendingSave(null);
     if (isDaily) setDailySave({ status: "not_saved", reason: "no_consent" });
   }, [isDaily]);
@@ -474,6 +479,7 @@ export function ClimbScreen({ onSignIn }: { onSignIn?: () => void } = {}) {
             onAccept={handleConsentAccept}
             onDecline={handleConsentDecline}
             busy={consentBusy}
+            error={consentError}
           />
         )}
       </div>

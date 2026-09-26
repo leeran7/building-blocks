@@ -40,6 +40,9 @@ const net = vi.hoisted(() => ({
   token: "replay-token" as string | null,
   holdResult: false,
   heldResult: [] as Array<() => void>,
+  settingsStatus: 200,
+  settingsBody: { leaderboardConsent: true } as unknown,
+  settingsThrows: false,
 }));
 
 function jsonResponse(body: unknown, status = 200): Response {
@@ -57,7 +60,10 @@ const apiFetch = vi.fn(async (path: string, _init?: RequestInit): Promise<Respon
     if (net.holdResult) return new Promise<Response>((resolve) => net.heldResult.push(() => resolve(answer())));
     return answer();
   }
-  if (path === "/api/settings") return jsonResponse({ leaderboardConsent: true });
+  if (path === "/api/settings") {
+    if (net.settingsThrows) throw new TypeError("offline");
+    return jsonResponse(net.settingsBody, net.settingsStatus);
+  }
   return jsonResponse({}, 404);
 });
 const postClimbResult = vi.fn(async (_run: object) => ({ saved: true, improved: false, rank: 9, totalClimbers: 99 }));
@@ -113,7 +119,7 @@ vi.mock("../../src/hooks/useSafeAreaInsets", () => ({
 
 import { AppDataProvider } from "../../mobile/src/contexts/AppDataContext";
 import { ClimbScreen } from "../../mobile/src/screens/ClimbScreen";
-import { setLeaderboardConsent } from "../../mobile/src/lib/consent";
+import { hasLeaderboardConsent, setLeaderboardConsent } from "../../mobile/src/lib/consent";
 import { nextUtcResetAt, utcDayKey } from "../../src/lib/dailyDay";
 import { DAILY_SIM_VERSION } from "../../src/game/simVersion";
 
@@ -202,6 +208,9 @@ beforeEach(() => {
   net.token = "replay-token";
   net.holdResult = false;
   net.heldResult = [];
+  net.settingsStatus = 200;
+  net.settingsBody = { leaderboardConsent: true };
+  net.settingsThrows = false;
   localStorage.clear();
   setLeaderboardConsent(true);
 });
@@ -322,6 +331,32 @@ describe("ClimbScreen daily mode", () => {
     await click(buttonByText("Save my score"));
     expect(apiFetch.mock.calls.some(([p, init]) => p === "/api/settings" && init?.method === "PUT")).toBe(true);
     expect(resultPosts()).toHaveLength(1);
+    expect(rankLine()).toBe("#3 of 12 today");
+  });
+
+  it.each([
+    ["a 500", () => (net.settingsStatus = 500)],
+    ["a 200 that does not echo consent", () => (net.settingsBody = { leaderboardConsent: false })],
+    ["a network error", () => (net.settingsThrows = true)],
+  ])("no consent: %s on the settings PUT keeps the sheet and the run, posts nothing (RV-DC-6)", async (_l, fail) => {
+    setLeaderboardConsent(false);
+    fail();
+    await mountDaily();
+    await click(buttonByText("Save my score"));
+    expect(resultPosts()).toHaveLength(0);
+    expect(postClimbResult).not.toHaveBeenCalled();
+    expect(hasLeaderboardConsent()).toBe(false);
+    expect(container!.querySelector('[role="alert"]')?.textContent).toContain("Couldn’t save that");
+    expect(buttonByText("Save my score")).toBeTruthy();
+
+    // Retry once the server confirms: the kept run is posted.
+    net.settingsStatus = 200;
+    net.settingsBody = { leaderboardConsent: true };
+    net.settingsThrows = false;
+    await click(buttonByText("Save my score"));
+    expect(hasLeaderboardConsent()).toBe(true);
+    expect(resultPosts()).toHaveLength(1);
+    expect(buttonByText("Save my score")).toBeUndefined();
     expect(rankLine()).toBe("#3 of 12 today");
   });
 

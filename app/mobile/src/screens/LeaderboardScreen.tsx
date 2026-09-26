@@ -2,12 +2,10 @@ import { useCallback, useRef, useState, type KeyboardEvent, type ReactNode, type
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import {
-  echoedSetting,
   useDailyLeaderboard,
   useDashboard,
   useFriendsDailyLeaderboard,
   useFriendsLeaderboard,
-  useInvalidateAppData,
   useLeaderboard,
   useSettings,
 } from "../contexts/AppDataContext";
@@ -15,8 +13,7 @@ import { ALTITUDE_UNIT } from "@app/lib/units";
 import { Button, RetryPanel, StateMessage } from "../components/ui";
 import { PullToRefresh } from "../components/PullToRefresh";
 import { LeaderboardConsentModal } from "../components/LeaderboardConsentModal";
-import { apiFetch } from "../lib/api";
-import { setLeaderboardConsent } from "../lib/consent";
+import { useAcceptLeaderboardConsent } from "../hooks/useAcceptLeaderboardConsent";
 import type { DailyStanding } from "../lib/dailyBoard";
 import { tapLight } from "../lib/haptics";
 import {
@@ -150,7 +147,6 @@ export function LeaderboardScreen() {
   const own = useDashboard().data?.freeClimb ?? null;
   const settings = useSettings();
   const onPublicBoard = settings.data?.leaderboardConsent ?? true;
-  const invalidate = useInvalidateAppData();
   const meId = user?.uid ?? null;
 
   const { refreshLeaderboard } = global;
@@ -251,28 +247,14 @@ export function LeaderboardScreen() {
   // results card instead of sending them to Edit profile.
   const [showConsent, setShowConsent] = useState(false);
   const [consentBusy, setConsentBusy] = useState(false);
-  const { setSettings } = settings;
+  const saveConsent = useAcceptLeaderboardConsent();
   const acceptConsent = useCallback(async () => {
     setConsentBusy(true);
-    try {
-      const res = await apiFetch("/api/settings", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ leaderboardConsent: true }),
-      });
-      const next = res.ok ? echoedSetting(await res.json(), "leaderboardConsent", true) : null;
-      if (next) {
-        setLeaderboardConsent(true);
-        setSettings(next);
-        invalidate(["dailyLeaderboard", "friendsDailyLeaderboard", "leaderboard", "friendsLeaderboard"]);
-      }
-    } catch {
-      /* not saved — the banner stays "hidden", so the player can try again */
-    } finally {
-      setConsentBusy(false);
-      setShowConsent(false);
-    }
-  }, [setSettings, invalidate]);
+    // Not saved: the banner stays "hidden", so the player can try again.
+    await saveConsent();
+    setConsentBusy(false);
+    setShowConsent(false);
+  }, [saveConsent]);
 
   const bannerCopy = isToday ? TODAY_COPY : ALLTIME_COPY;
   const onHiddenAction = isToday ? () => setShowConsent(true) : () => navigate("/profile/edit");
