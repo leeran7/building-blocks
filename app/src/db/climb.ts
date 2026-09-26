@@ -193,14 +193,19 @@ export interface FriendsBoard {
   notClimbedCount: number;
 }
 
+export interface FriendCircle {
+  /** Accepted friends who consented to appear on leaderboards. */
+  consentedIds: string[];
+  /** Accepted friends who have not consented (counted, never listed). */
+  hiddenCount: number;
+}
+
 /**
- * The caller plus their accepted, leaderboard-consented friends, ranked like
- * topFreeClimbers. The caller is always included (they may see their own
- * record even when opted out of the public board); opted-out friends are only
- * counted. Not wrapped in unstable_cache: keyed per user, so the cache would
- * grow without bound — the mobile client's TTL covers repeat reads.
+ * The caller's accepted friends split by leaderboard consent. Shared by every
+ * friends board (all-time and daily) so the friendship rules — accepted only,
+ * either direction, capped with a total order — live in one place.
  */
-export async function friendsLeaderboard(userId: string): Promise<FriendsBoard> {
+export async function friendCircle(userId: string): Promise<FriendCircle> {
   const friendships = await prisma.friendship.findMany({
     where: {
       status: FriendshipStatus.accepted,
@@ -227,7 +232,18 @@ export async function friendsLeaderboard(userId: string): Promise<FriendsBoard> 
         })
       : [];
   const consentedIds = friends.filter((u) => u.leaderboard_consent_at !== null).map((u) => u.id);
-  const hiddenCount = friends.length - consentedIds.length;
+  return { consentedIds, hiddenCount: friends.length - consentedIds.length };
+}
+
+/**
+ * The caller plus their accepted, leaderboard-consented friends, ranked like
+ * topFreeClimbers. The caller is always included (they may see their own
+ * record even when opted out of the public board); opted-out friends are only
+ * counted. Not wrapped in unstable_cache: keyed per user, so the cache would
+ * grow without bound — the mobile client's TTL covers repeat reads.
+ */
+export async function friendsLeaderboard(userId: string): Promise<FriendsBoard> {
+  const { consentedIds, hiddenCount } = await friendCircle(userId);
 
   const rows = await prisma.climbRecord.findMany({
     where: { category_slug: FREE_STACK_SLUG, userId: { in: [userId, ...consentedIds] } },
