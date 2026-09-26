@@ -924,3 +924,28 @@ describe("Ranks: pinned own row surface and contrast (AC-10)", () => {
     expect(checked).toBeGreaterThanOrEqual(4); // rank, "you · today", tries, height (+ unit)
   });
 });
+
+describe("Ranks: each Friends board fetches only on its own tab (verifier, RV-DC-7)", () => {
+  it("Friends · Today fetches today's friends board and never the all-time friends board", async () => {
+    net.friends = { climbers: [allTimeRow(1, "f1", 50)], hiddenCount: 0, notClimbedCount: 0 };
+    net.friendsDaily = {
+      day: utcDayKey(new Date()),
+      resetsAt: nextUtcResetAt(new Date()).toISOString(),
+      climbers: [dailyRow(1, "f1", 50)],
+      hiddenCount: 0,
+      notClimbedCount: 0,
+    };
+    await render(TODAY, createElement(LeaderboardScreen));
+    await click(tab("lb-tab-friends"));
+    expect(calls("/api/climb/daily/leaderboard/friends")).toBe(1);
+    expect(calls("/api/climb/leaderboard/friends")).toBe(0);
+  });
+
+  it("control: Friends · All-time fetches the all-time friends board and never today's", async () => {
+    net.friends = { climbers: [allTimeRow(1, "f1", 50)], hiddenCount: 0, notClimbedCount: 0 };
+    await render("/leaderboard", createElement(LeaderboardScreen));
+    await click(tab("lb-tab-friends"));
+    expect(calls("/api/climb/leaderboard/friends")).toBe(1);
+    expect(calls("/api/climb/daily/leaderboard/friends")).toBe(0);
+  });
+});

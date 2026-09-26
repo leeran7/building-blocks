@@ -273,3 +273,24 @@ describe("ClimbScreen daily across 00:00 UTC (RV-DC-3)", () => {
     expect(climb.starts).toEqual([NEW.seed]);
   });
 });
+
+describe("ClimbScreen daily: a failed refetch cancels the pending start (verifier)", () => {
+  it("lobby: Start daily after the reset, the refetch fails, then Try again loads today's tower WITHOUT starting a run", async () => {
+    climb.phase = "lobby";
+    await mountDaily();
+    vi.setSystemTime(new Date("2026-09-27T00:00:30Z"));
+    net.info = null; // 503
+    await click(buttonByText("Start daily"));
+    expect(climb.starts).toEqual([]);
+    const retry = buttonByText("Try again");
+    expect(retry).toBeDefined();
+
+    net.info = NEW;
+    await click(retry);
+    // The player asked to load the tower, not to start the lava: back to the lobby.
+    expect(climb.starts).toEqual([]);
+    expect(buttonByText("Start daily")).toBeDefined();
+    await click(buttonByText("Start daily"));
+    expect(climb.starts).toEqual([NEW.seed]);
+  });
+});

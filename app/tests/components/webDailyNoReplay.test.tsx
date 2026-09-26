@@ -183,3 +183,25 @@ describe("the results card's Sign in link keeps the replay-bearing stash (verifi
     expect(net.posts).toEqual([]);
   });
 });
+
+describe("the fallback note belongs to one run (verifier)", () => {
+  it("Climb again clears it: the next run, verified and posted to the daily route, shows no all-time note", async () => {
+    codec.encodeNull = true;
+    await render(DAILY_PROPS);
+    // Precondition: the first run fell back and says so.
+    expect(container!.textContent).toContain(FALLBACK_NOTE);
+    expect(net.posts.map((p) => p.path)).toEqual([ALL_TIME_PATH]);
+
+    codec.encodeNull = false;
+    const again = [...container!.querySelectorAll("button")].find((b) => b.textContent === "Climb again");
+    expect(again).toBeDefined();
+    await act(async () => {
+      again!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    await settle();
+
+    expect(net.posts.map((p) => p.path)).toEqual([ALL_TIME_PATH, DAILY_PATH]);
+    expect(container!.textContent).toContain("#7");
+    expect(container!.textContent).not.toContain(FALLBACK_NOTE);
+  });
+});
