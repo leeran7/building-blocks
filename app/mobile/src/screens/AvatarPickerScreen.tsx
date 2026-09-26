@@ -251,14 +251,15 @@ export function AvatarPickerScreen() {
       </div>
 
       {/* Sticky save bar: the last row of the full-height page, outside the
-          scroller so Save is reachable from any row. It sits on the bottom
-          edge just above the home indicator. Its opaque glass surface runs to
-          the screen edge, so no backdrop or lava shows below Save and the
-          tiles clip above it. */}
+          scroller so Save is reachable from any row, just above the home
+          indicator. It is clear (no surface, border or shadow), so the
+          backdrop shows behind Save down to the bottom edge. Tiles never pass
+          under the button: they stop at the scroller's edge, where
+          SCROLL_FADE fades them out into the backdrop. */}
       {settingsData && (
         <footer
           data-avatar-save-bar
-          className="glass flex shrink-0 flex-col gap-2 border-t border-white/10 px-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] pt-3"
+          className="flex shrink-0 flex-col gap-2 px-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] pt-3"
         >
           {error && (
             <p role="alert" className="glass rounded-2xl border border-ember/40 px-4 py-2.5 text-meta leading-5 text-ember">

@@ -372,18 +372,38 @@ describe("the picker fills the screen, Save sticks to the bottom (user report)",
     expect(bar?.contains(saveButton() ?? null)).toBe(true);
   });
 
-  it("the save bar sits just above the home indicator, with no gap for the backdrop below it", () => {
+  it("the save bar sits just above the home indicator, with no gap above the bottom edge", () => {
     state.settings = settings(null);
     renderPicker();
     const { bar } = layout();
     const cls = classes(bar);
     expect(cls.has("shrink-0")).toBe(true);
-    // An opaque surface that runs to the bottom edge.
-    expect(cls.has("glass")).toBe(true);
     const bottom = [...cls].filter((c) => c.startsWith("pb-"));
     expect(bottom).toEqual(["pb-[calc(env(safe-area-inset-bottom)+1rem)]"]);
     // The old layout held Save 16vh up to stand clear of the lava band.
     expect(bar?.getAttribute("class")).not.toMatch(/vh/);
+  });
+
+  it("the save bar is clear: no surface, border or shadow band, so the backdrop shows to the bottom edge", () => {
+    state.settings = settings(null);
+    renderPicker();
+    const { bar } = layout();
+    const surface = [...classes(bar)].filter((c) =>
+      /^(glass|glow-card|bg-|border|shadow|backdrop-|ring)/.test(c),
+    );
+    expect(surface).toEqual([]);
+    expect(bar?.getAttribute("style") ?? "").toBe("");
+    // The button keeps its own lime fill.
+    expect(classes(saveButton() ?? null).has("cta-lime")).toBe(true);
+  });
+
+  it("tiles fade out into the backdrop at the scroller's edge instead of running under Save", () => {
+    state.settings = settings(null);
+    renderPicker();
+    const { scroller } = layout();
+    const mask = (scroller as HTMLElement | null)?.style.getPropertyValue("mask-image") ?? "";
+    expect(mask).toContain("linear-gradient");
+    expect(mask).toContain("transparent");
   });
 
   it("while loading, the scroller still fills the page (no save bar yet), with the busy skeleton inside", () => {
