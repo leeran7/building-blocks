@@ -35,7 +35,14 @@ interface DailyStore {
   best: Record<string, number>;
 }
 
-const empty: DailyStore = { scheme: UTC_SCHEME, lastPlayedKey: null, streak: 0, best: {} };
+/**
+ * A fresh empty store. A factory, not a shared constant: a spread copy of a
+ * constant would share its `best` object, so one run's write would leak into
+ * every later empty store (e.g. after the stored blob is removed or corrupt).
+ */
+function emptyStore(): DailyStore {
+  return { scheme: UTC_SCHEME, lastPlayedKey: null, streak: 0, best: {} };
+}
 
 /** Today's UTC day key — the day the server's daily board uses. */
 export function todayKey(): string {
@@ -72,7 +79,7 @@ export function formatReset(ms: number): string {
 function read(): DailyStore {
   try {
     const raw = localStorage.getItem(STORE_KEY);
-    if (!raw) return { ...empty };
+    if (!raw) return emptyStore();
     const parsed = JSON.parse(raw) as Partial<Omit<DailyStore, "scheme">> & { scheme?: unknown };
     // Coerce untrusted localStorage: keep only finite, non-negative day-bests
     // and a sane streak so a hand-edited blob can't poison display/logic.
@@ -97,7 +104,7 @@ function read(): DailyStore {
     write(store);
     return store;
   } catch {
-    return { ...empty };
+    return emptyStore();
   }
 }
 
