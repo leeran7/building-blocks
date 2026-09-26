@@ -28,9 +28,18 @@ const CAPTION_HEIGHT = 12;
 export const JOYSTICK_LAYOUT_HEIGHT = JOYSTICK_SIZE + CAPTION_GAP + CAPTION_HEIGHT;
 
 /** Thin chevron pointing up; rotated for the side arrows. */
-function Chevron({ className, rotate }: { className: string; rotate: number }) {
+function Chevron({
+  dir,
+  className,
+  rotate,
+}: {
+  dir: keyof JoystickDirection;
+  className: string;
+  rotate: number;
+}) {
   return (
     <svg
+      data-dir={dir}
       aria-hidden="true"
       viewBox="0 0 16 16"
       width="16"
@@ -59,6 +68,7 @@ export function TouchJoystick({
 }: {
   onChange: (direction: JoystickDirection) => void;
 }) {
+  const baseRef = useRef<HTMLDivElement>(null);
   const knobRef = useRef<HTMLSpanElement>(null);
   const pointerRef = useRef<number | null>(null);
   const originRef = useRef({ x: 0, y: 0 });
@@ -68,6 +78,15 @@ export function TouchJoystick({
     (next: JoystickDirection) => {
       if (sameDirection(next, lastRef.current)) return;
       lastRef.current = next;
+      // Light the chevrons for what is pressed. Written to the DOM directly,
+      // like the knob, so steering never re-renders React.
+      const base = baseRef.current;
+      if (base) {
+        for (const dir of ["up", "down", "left", "right"] as const) {
+          if (next[dir]) base.dataset[dir] = "true";
+          else delete base.dataset[dir];
+        }
+      }
       onChange(next);
     },
     [onChange]
@@ -95,6 +114,7 @@ export function TouchJoystick({
   return (
     <div className="flex flex-col items-center" style={{ gap: CAPTION_GAP }}>
     <div
+      ref={baseRef}
       data-game-control
       role="img"
       aria-label="Movement joystick: drag to move, push up to climb"
@@ -126,9 +146,11 @@ export function TouchJoystick({
         if (e.pointerId === pointerRef.current) release();
       }}
     >
-      <Chevron className="left-1/2 top-2.5 -translate-x-1/2" rotate={0} />
-      <Chevron className="left-2.5 top-1/2 -translate-y-1/2" rotate={-90} />
-      <Chevron className="right-2.5 top-1/2 -translate-y-1/2" rotate={90} />
+      <Chevron dir="up" className="left-1/2 top-2.5 -translate-x-1/2" rotate={0} />
+      <Chevron dir="left" className="left-2.5 top-1/2 -translate-y-1/2" rotate={-90} />
+      <Chevron dir="right" className="right-2.5 top-1/2 -translate-y-1/2" rotate={90} />
+      {/* Not in the resting art; appears only while Down is pressed. */}
+      <Chevron dir="down" className="bottom-2.5 left-1/2 -translate-x-1/2" rotate={180} />
       <span
         ref={knobRef}
         aria-hidden="true"

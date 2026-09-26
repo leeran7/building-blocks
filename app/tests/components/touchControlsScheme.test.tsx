@@ -149,6 +149,30 @@ describe("joystick input", () => {
     );
   });
 
+  it("lights the chevrons for what is pressed", () => {
+    mount(() => {});
+    const stick = container.querySelector<HTMLElement>(".exp-joystick")!;
+    const r = stick.getBoundingClientRect();
+    const cx = r.left + r.width / 2;
+    const cy = r.top + r.height / 2;
+    const lit = () =>
+      (["up", "down", "left", "right"] as const).filter((d) => stick.dataset[d] === "true");
+
+    pointer(stick, "pointerdown", cx, cy);
+    // 1-2 o'clock: up and right.
+    pointer(stick, "pointermove", cx + 25, cy - 30);
+    expect(lit()).toEqual(["up", "right"]);
+    // 10-11 o'clock: up and left.
+    pointer(stick, "pointermove", cx - 25, cy - 30);
+    expect(lit()).toEqual(["up", "left"]);
+    // 3 o'clock: right only.
+    pointer(stick, "pointermove", cx + 30, cy);
+    expect(lit()).toEqual(["right"]);
+
+    pointer(stick, "pointerup", cx + 30, cy);
+    expect(lit()).toEqual([]);
+  });
+
   it("ignores a second finger while the first is steering", () => {
     localStorage.setItem(CONTROL_SCHEME_KEY, "joystick");
     const onInput = vi.fn<(t: TouchInput) => void>();
