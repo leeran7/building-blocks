@@ -22,6 +22,9 @@ import {
 import { HUD_ALTITUDE_FONT_UI } from "../../design/climbFeelTokens";
 import { formatAltitude } from "../../lib/units";
 import {
+  CAMERA_FOLLOW,
+  CAMERA_FOLLOW_AIR,
+  blendFollow,
   cameraTargetY,
   climbView,
   followCamY,
@@ -102,7 +105,7 @@ export type PaintClimbFrameOptions = {
    * Persistent camera across frames. Mutated for easing. When omitted, camera
    * snaps to target each call (fine for one-shot export frames with a bag).
    */
-  camera?: { y: number | null; tick: number | null };
+  camera?: { y: number | null; tick: number | null; follow?: number | null };
   /**
    * Seconds of wall clock since the previous paint, so the camera ease is tied
    * to elapsed time rather than to how often this runs. Defaults to one tick —
@@ -143,7 +146,8 @@ export function paintClimbFrame(
   const bottomInset = opts.bottomInset ?? 0;
   const hudInsetTop = opts.hudInsetTop ?? 0;
   const includeHud = opts.includeHud !== false;
-  const camBag = opts.camera ?? { y: null as number | null, tick: null as number | null };
+  const camBag: NonNullable<PaintClimbFrameOptions["camera"]> =
+    opts.camera ?? { y: null, tick: null };
 
   const tower = state.tower;
   // The local player drives camera, HUD, and pickup feedback; everyone else is
@@ -165,12 +169,28 @@ export function paintClimbFrame(
   // is "< 1" rather than "=== 0".
   const camSnap =
     camBag.tick === null || state.tick < camBag.tick || state.tick < 1;
+  // Airborne (jumps and falls) eases more softly so the view rides the arc
+  // smoothly; ground, ladder and jetpack thrust keep the tight follow.
+  const airborne =
+    !!player &&
+    player.status === "climbing" &&
+    !player.onGround &&
+    !player.onLadder &&
+    !player.jetpackThrusting;
+  const camDt = opts.dtSec ?? TICK_DT;
+  const follow = blendFollow(
+    camSnap ? null : camBag.follow,
+    airborne ? CAMERA_FOLLOW_AIR : CAMERA_FOLLOW,
+    camDt
+  );
+  camBag.follow = follow;
   const camWorldY = followCamY(
     camBag.y,
     camTarget,
     viewH,
-    opts.dtSec ?? TICK_DT,
-    camSnap
+    camDt,
+    camSnap,
+    follow
   );
   camBag.y = camWorldY;
   camBag.tick = state.tick;

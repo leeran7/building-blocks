@@ -17,6 +17,29 @@ import { TICK_DT } from "../../game/types";
 export const CAMERA_FOCUS_FRAC = 0.62;
 /** How fast the eased camera closes on the target each tick (1 = snap). */
 export const CAMERA_FOLLOW = 0.3;
+/**
+ * Softer follow while the climber is airborne (jumps, falls). The camera still
+ * rides every jump, but eases through takeoff, apex and landing instead of
+ * tracking the arc tightly, which read as a sharp screen bob.
+ */
+export const CAMERA_FOLLOW_AIR = 0.12;
+/**
+ * Seconds over which the follow rate blends between CAMERA_FOLLOW and
+ * CAMERA_FOLLOW_AIR. Switching instantly at touchdown made the camera lurch
+ * to recover the lag it built up in the air.
+ */
+export const CAMERA_FOLLOW_BLEND_S = 0.15;
+
+/** Move the follow rate toward `target` over CAMERA_FOLLOW_BLEND_S. */
+export function blendFollow(
+  current: number | null | undefined,
+  target: number,
+  dtSec: number
+): number {
+  if (typeof current !== "number" || !Number.isFinite(current)) return target;
+  if (!(dtSec > 0)) return current;
+  return current + (target - current) * (1 - Math.exp(-dtSec / CAMERA_FOLLOW_BLEND_S));
+}
 
 export function climbView(
   width: number,
@@ -73,23 +96,25 @@ export function isLavaThreatening(fill: number): boolean {
  * Ease the camera toward `target`. Snaps on a new run, a seek, or a gap
  * bigger than half a view (respawn).
  *
- * CAMERA_FOLLOW is the fraction closed per TICK_DT, so the ease is rescaled to
- * the frame's own elapsed time: the camera then lags by the same wall-clock
- * amount on a 60 Hz and a 144 Hz display. Applying it raw per frame made the
- * follow twice as tight on a 120 Hz panel as the feel was tuned for.
+ * `follow` (CAMERA_FOLLOW by default) is the fraction closed per TICK_DT, so
+ * the ease is rescaled to the frame's own elapsed time: the camera then lags
+ * by the same wall-clock amount on a 60 Hz and a 144 Hz display. Applying it
+ * raw per frame made the follow twice as tight on a 120 Hz panel as the feel
+ * was tuned for.
  */
 export function followCamY(
   current: number | null,
   target: number,
   viewH: number,
   dtSec: number,
-  snap: boolean
+  snap: boolean,
+  follow: number = CAMERA_FOLLOW
 ): number {
   if (current === null || snap) return target;
   const err = target - current;
   if (Math.abs(err) > viewH * 0.55) return target;
   if (!(dtSec > 0)) return current;
-  const closed = 1 - Math.pow(1 - CAMERA_FOLLOW, dtSec / TICK_DT);
+  const closed = 1 - Math.pow(1 - follow, dtSec / TICK_DT);
   return current + err * closed;
 }
 
