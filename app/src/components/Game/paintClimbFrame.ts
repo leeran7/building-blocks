@@ -22,7 +22,12 @@ import {
 import { HUD_ALTITUDE_FONT_UI } from "../../design/climbFeelTokens";
 import { formatAltitude } from "../../lib/units";
 import {
+  CAMERA_AIR_BAND_FRAC,
+  CAMERA_CATCHUP_MPS,
+  CAMERA_SUPER_LEAD_FRAC,
+  cameraFocusY,
   cameraTargetY,
+  type ClimbCameraBag,
   climbView,
   followCamY,
 } from "./climbCamera";
@@ -59,6 +64,18 @@ const TEXT_SECONDARY = "#a8a4b2";
 const FLAG = "#cbf24d";
 
 const BASE_WIDTH = 360;
+/**
+ * Draw scale for everything on the canvas except the climber: ladders, slabs,
+ * orbs, crate trim, floor markers, HUD. Positions and the camera are
+ * unchanged, so the view neither zooms nor pans. Render-only — the
+ * simulation, scores and replays stay in unscaled metres.
+ */
+export const GAME_DRAW_SCALE = 1.2;
+/**
+ * The climber draws at this scale instead, so the player reads clearly on a
+ * phone without shrinking the view.
+ */
+export const CLIMBER_DRAW_SCALE = 1.35;
 
 // ── Cached font strings ──────────────────────────────────────────────────────
 // Avoids template-literal allocation every frame; rebuilt only on ui change.
@@ -91,7 +108,7 @@ export type PaintClimbFrameOptions = {
    * Persistent camera across frames. Mutated for easing. When omitted, camera
    * snaps to target each call (fine for one-shot export frames with a bag).
    */
-  camera?: { y: number | null; tick: number | null };
+  camera?: ClimbCameraBag;
   /**
    * Seconds of wall clock since the previous paint, so the camera ease is tied
    * to elapsed time rather than to how often this runs. Defaults to one tick —
@@ -142,21 +159,48 @@ export function paintClimbFrame(
     (opts.myId ? state.players.find((p) => p.id === opts.myId) : null) ??
     state.players[0];
   const playerY = player?.y ?? 0;
-  const ui = Math.max(1, width / BASE_WIDTH);
+  const ui = Math.max(1, width / BASE_WIDTH) * GAME_DRAW_SCALE;
 
   const { pxPerM, viewH } = climbView(width, height, tower.widthM);
+  // Sizes (not positions) that follow the world scale.
+  const sizePxPerM = pxPerM * GAME_DRAW_SCALE;
   ensureFontCache(ui);
-  const camTarget = cameraTargetY(playerY, viewH, bottomInset, pxPerM);
   // Snap on the first paint of a run, and on any backward jump (replay seek).
   // `state.tick` is fractional under render interpolation, so the opening tick
   // is "< 1" rather than "=== 0".
   const camSnap =
     camBag.tick === null || state.tick < camBag.tick || state.tick < 1;
+  const camDt = opts.dtSec ?? TICK_DT;
+  const supported =
+    !player ||
+    player.onGround ||
+    player.onLadder ||
+    player.jetpackThrusting ||
+    player.status !== "climbing";
+  // Under super-jump the view climbs with the climber once they rise past a
+  // short lead, like jetpack thrust; the fall back is held like any jump.
+  const airBandM = viewH * CAMERA_AIR_BAND_FRAC;
+  const riseM =
+    player && isPowerUpActive(player, "super-jump", state.tick)
+      ? viewH * CAMERA_SUPER_LEAD_FRAC
+      : airBandM;
+  const focusY = cameraFocusY(
+    camSnap ? null : camBag.focusY ?? null,
+    camBag.playerY ?? null,
+    playerY,
+    supported,
+    airBandM,
+    CAMERA_CATCHUP_MPS * camDt,
+    riseM
+  );
+  camBag.focusY = focusY;
+  camBag.playerY = playerY;
+  const camTarget = cameraTargetY(focusY, viewH, bottomInset, pxPerM);
   const camWorldY = followCamY(
     camBag.y,
     camTarget,
     viewH,
-    opts.dtSec ?? TICK_DT,
+    camDt,
     camSnap
   );
   camBag.y = camWorldY;
@@ -200,7 +244,7 @@ export function paintClimbFrame(
     const yBot = sy(l.y0);
     if (yBot < -20 || yTop > height + 20) continue;
     const cx = sx(l.x);
-    const railHalf = Math.max(4, pxPerM * 1.4);
+    const railHalf = Math.max(4, sizePxPerM * 1.4);
     ctx.strokeStyle = LADDER;
     ctx.lineWidth = 2 * ui;
     ctx.beginPath();
@@ -219,7 +263,7 @@ export function paintClimbFrame(
     }
   }
 
-  const slab = Math.max(6, pxPerM * 2.5);
+  const slab = Math.max(6, sizePxPerM * 2.5);
   for (const p of platformsNearY(tower, yLow, yHigh)) {
     const top = sy(p.y);
     if (top < -slab || top > height + 20) continue;
@@ -237,7 +281,7 @@ export function paintClimbFrame(
   }
 
   for (const o of obstaclesNearY(tower, yLow, yHigh)) {
-    drawObstacle(ctx, o, sx, sy, pxPerM, ui, height);
+    drawObstacle(ctx, o, sx, sy, sizePxPerM, ui, height);
   }
 
   for (const pu of state.powerUps) {
@@ -255,7 +299,7 @@ export function paintClimbFrame(
           ox,
           oy,
           age / PICKUP_BURST_TICKS,
-          pxPerM,
+          sizePxPerM,
           pu.type,
           pu.floorIndex,
           state.tick,
@@ -267,7 +311,7 @@ export function paintClimbFrame(
     const cooling = player ? cooldownRemaining(player, pu.type, state.tick) > 0 : false;
     const nextFloorY = floorHeight(tower, pu.floorIndex + 1);
     const nextFloorScreenY = sy(nextFloorY);
-    drawPowerUpOrb(ctx, ox, oy, pxPerM, ui, pu, state.tick, reducedMotion, cooling, nextFloorScreenY, width);
+    drawPowerUpOrb(ctx, ox, oy, sizePxPerM, ui, pu, state.tick, reducedMotion, cooling, nextFloorScreenY, width);
   }
 
   const hardenActive = player
@@ -323,7 +367,7 @@ export function paintClimbFrame(
     else if (Math.abs(p.vx) > 0.1) pPose = "walk";
 
     const pS =
-      Math.max(5, pxPerM * 1.7) *
+      Math.max(5, pxPerM * CLIMBER_DRAW_SCALE * 1.7) *
       (isPowerUpActive(p, "giant", state.tick) ? GIANT_VISUAL_SCALE : 1);
 
     const isReady = opts.readySlots?.has(p.slot) ?? false;
@@ -423,20 +467,27 @@ export function paintClimbFrame(
     ctx.fillStyle = "#f4f2ec";
     ctx.font = _fontHud;
     ctx.textAlign = "left";
-    ctx.fillText(formatAltitude(playerY, 1), 10 * ui, hudTop + 22 * ui);
+    const altText = formatAltitude(playerY, 1);
+    ctx.fillText(altText, 10 * ui, hudTop + 22 * ui);
     ctx.fillStyle = hardenActive
       ? POWER_UP_SPECS["harden-lava"].color
       : lavaSlowed ? LAVA_SLOWED : TEXT_SECONDARY;
     ctx.textAlign = "right";
-    ctx.fillText(
-      hardenActive
-        ? `lava ${formatAltitude(state.hazardY, 1)} hardened`
-        : lavaSlowed
-          ? `lava ${formatAltitude(state.hazardY, 1)} slowed`
-          : `lava ${formatAltitude(state.hazardY, 1)}`,
-      width - 10 * ui,
-      hudTop + 22 * ui
-    );
+    const lavaText = hardenActive
+      ? `lava ${formatAltitude(state.hazardY, 1)} hardened`
+      : lavaSlowed
+        ? `lava ${formatAltitude(state.hazardY, 1)} slowed`
+        : `lava ${formatAltitude(state.hazardY, 1)}`;
+    // The draw scale makes the HUD font larger; at high altitude with a status
+    // suffix the two readouts can meet on a narrow canvas. Shrink the lava
+    // readout to the space left rather than overlap the altitude.
+    const lavaRoom = width - 20 * ui - 12 * ui - ctx.measureText(altText).width;
+    const lavaW = ctx.measureText(lavaText).width;
+    const hudPx = Math.round(HUD_ALTITUDE_FONT_UI * ui);
+    const fitPx = hudFitFontPx(hudPx, lavaW, lavaRoom);
+    if (fitPx !== hudPx) ctx.font = `bold ${fitPx}px monospace`;
+    ctx.fillText(lavaText, width - 10 * ui, hudTop + 22 * ui);
+    ctx.font = _fontHud;
     ctx.textAlign = "left";
 
     if (
@@ -460,6 +511,16 @@ export function paintClimbFrame(
   }
 
   ctx.restore();
+}
+
+/**
+ * Font size that fits `textW` (measured at `basePx`) into `roomW`. Never grows
+ * and never drops below 60% — past that the readout is illegible anyway.
+ */
+export function hudFitFontPx(basePx: number, textW: number, roomW: number): number {
+  if (!(textW > 0) || textW <= roomW) return basePx;
+  const min = Math.ceil(basePx * 0.6);
+  return Math.max(min, Math.floor((basePx * Math.max(0, roomW)) / textW));
 }
 
 type Pose = "idle" | "walk" | "climb" | "air" | "done" | "dead";
