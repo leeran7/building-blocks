@@ -68,6 +68,7 @@ model User {
   climbRecords           ClimbRecord[]
   climbRuns              ClimbRun[]
   dailyClimbScores       DailyClimbScore[]
+  dailyClimbReplays      DailyClimbReplay[]
   socialHandles          SavedSocialHandle[]
   duelsAsPlayer1         Duel[]              @relation("DuelPlayer1")
   duelsAsPlayer2         Duel[]              @relation("DuelPlayer2")
@@ -170,6 +171,27 @@ model DailyClimbScore {
   @@unique([userId, day], name: "daily_climb_user_day")
   @@index([day, peak_y(sort: Desc), updated_at], map: "daily_climb_board_idx")
   @@map("daily_climb_scores")
+}
+
+// One row per distinct verified daily run: the canonical input-log hash
+// (src/game/dailyVerify.ts dailyInputHash) and the first account that
+// submitted it that day. POST /api/climb/daily/result claims the hash before
+// saving, and a run already claimed by ANOTHER account is refused with 409
+// REPLAY_REUSED (SEC-DC-2: replay tokens are public, so a copied top run
+// must not buy a rank). Every verified run is kept, not only the best, so an
+// earlier run cannot be copied after its owner beats it.
+model DailyClimbReplay {
+  id         String   @id @default(cuid())
+  day        String // UTC day key "YYYY-MM-DD"
+  input_hash String // SHA-256 hex of the canonical input log
+  userId     String // first account to submit this run for the day
+  created_at DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([day, input_hash], map: "daily_climb_replays_day_hash_key")
+  @@index([userId], map: "daily_climb_replays_user_idx")
+  @@map("daily_climb_replays")
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

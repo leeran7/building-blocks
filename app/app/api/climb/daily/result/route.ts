@@ -15,17 +15,27 @@
  *   3. upserts the day's best atomically and raises the all-time record
  *      (recordClimb) with the same server peak.
  *
+ * Before any decompression it also checks the client's engine revision
+ * (simVersion must equal DAILY_SIM_VERSION, SEC-DC-4). After verification it
+ * claims the run's canonical input hash for the day, and refuses a run
+ * another account already submitted (SEC-DC-2). The seed itself is an HMAC
+ * only the server can compute (SEC-DC-3). Without DAILY_SEED_SECRET the route
+ * fails closed with 503.
+ *
  * Auth mirrors /api/climb/result: no token, an anonymous session, or no
  * leaderboard consent → 200 { saved: false, reason } (the run is still a
  * valid run; there is just nothing to save it against).
  *
- * Request:  { replayToken: string (required), peakY?: number, ticks?: number, seed?: string }
+ * Request:  { replayToken: string (required), simVersion: number (required),
+ *            peakY?: number, ticks?: number, seed?: string }
  * 200:      { saved: true, day, peakY, improved, rank, totalClimbers, attempts }
  *         | { saved: false, reason: "anonymous" | "invalid_token" | "no_consent" }
  * 400:      { error, code: INVALID_JSON | REPLAY_REQUIRED | INVALID_REPLAY
  *                         | DAY_CLOSED | RUN_TOO_LONG | REPLAY_MISMATCH }
+ * 409:      { error, code: SIM_VERSION_MISMATCH | REPLAY_REUSED }
  * 429:      { error, code: RATE_LIMITED }
  * 500:      { saved: false, reason: "persist_error" }
+ * 503:      { error, code: DAILY_UNAVAILABLE }
  */
 
 import { NextRequest, NextResponse } from "next/server";
@@ -36,6 +46,7 @@ import { ensureUser } from "../../../../../src/db/user";
 import { prisma } from "../../../../../src/db/client";
 import { recordClimb } from "../../../../../src/db/climb";
 import {
+  claimDailyReplay,
   dailyClimberCount,
   dailyLeaderboardTag,
   dailyStandingFor,
@@ -44,8 +55,9 @@ import {
 import { FREE_STACK_SLUG } from "../../../../../src/game/freeStack";
 import { parseReplayToken, parseRunReplayEnvelope } from "../../../../../src/game/runReplay";
 import { inflateReplayEnvelope } from "../../../../../src/game/runReplayServer";
-import { DAILY_SIM_VERSION, verifyDailyReplay } from "../../../../../src/game/dailyVerify";
-import { submissionDayForSeed } from "../../../../../src/lib/dailyDay";
+import { verifyDailyReplay } from "../../../../../src/game/dailyVerify";
+import { DAILY_SIM_VERSION } from "../../../../../src/game/simVersion";
+import { dailySeedConfigured, submissionDayForSeed } from "../../../../../src/lib/dailySeedServer";
 import {
   checkClimbIpRateLimit,
   checkDailyResultUserRateLimit,
@@ -63,6 +75,7 @@ const NO_STORE = { "Cache-Control": "private, no-store" };
 interface Body {
   replayToken?: unknown;
   peakY?: unknown;
+  simVersion?: unknown;
 }
 
 function reject(status: number, code: string, error: string): NextResponse {
@@ -93,6 +106,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   const ipLimit = await checkClimbIpRateLimit(request);
   if (!ipLimit.allowed) return reject(429, "RATE_LIMITED", "Too many requests");
+
+  // Fail closed: without the seed secret no run can be matched to a tower.
+  if (!dailySeedConfigured()) {
+    console.error("[climb/daily/result] DAILY_SEED_SECRET is missing or too short; the daily is unavailable");
+    return reject(503, "DAILY_UNAVAILABLE", "The daily climb is unavailable right now");
+  }
 
   // Identity before any expensive work: an anonymous caller has nothing to
   // save, so it never costs a decode or a re-simulation.
@@ -126,6 +145,18 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const userLimit = await checkDailyResultUserRateLimit(uid, day);
   if (!userLimit.allowed) return reject(429, "RATE_LIMITED", "Too many requests");
 
+  // A different engine cannot reproduce this run, so a stale client gets
+  // "update the app" here, never a REPLAY_MISMATCH that reads as a forgery.
+  if (body.simVersion !== DAILY_SIM_VERSION) {
+    console.warn("[climb/daily/result] sim version mismatch", {
+      uid,
+      day,
+      clientSimVersion: typeof body.simVersion === "number" ? body.simVersion : null,
+      serverSimVersion: DAILY_SIM_VERSION,
+    });
+    return reject(409, "SIM_VERSION_MISMATCH", "Update the app to post daily scores");
+  }
+
   // Output-capped at MAX_SHARE_TICKS bytes (SEC-DC-1: a small token can
   // inflate ~1000x). Longer logs are rejected here, before they are unpacked.
   const replay = inflateReplayEnvelope(envelope);
@@ -158,6 +189,20 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       });
     }
     return reject(400, verdict.code, verdict.reason);
+  }
+
+  // Replay tokens are public (share links, creator pages). The first account
+  // to submit a run owns it for the day; the same player resubmitting is a
+  // no-op attempt, and anyone else is refused.
+  try {
+    const owner = await claimDailyReplay({ userId: uid, day: verdict.day, inputHash: verdict.inputHash });
+    if (owner !== uid) {
+      console.warn("[climb/daily/result] replay reused", { uid, day: verdict.day });
+      return reject(409, "REPLAY_REUSED", "This run was already submitted by another player");
+    }
+  } catch (err) {
+    console.error("[climb/daily/result] replay claim failed:", err);
+    return NextResponse.json({ saved: false, reason: "persist_error" }, { status: 500, headers: NO_STORE });
   }
 
   try {

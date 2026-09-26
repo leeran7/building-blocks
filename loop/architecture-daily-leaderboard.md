@@ -46,13 +46,26 @@ new empty table. Down: `DROP TABLE`.
 
 | Method | Path | Auth | Rate limit | Response |
 |---|---|---|---|---|
-| GET | /api/climb/daily | none | none (no DB) | `{day, seed, resetsAt}`, no-store |
+| GET | /api/climb/daily | none | none (no DB) | `{day, seed, resetsAt}`, no-store; 503 `DAILY_UNAVAILABLE` without `DAILY_SEED_SECRET` |
 | POST | /api/climb/daily/result | Bearer (soft) | IP `climb` (shared with /result) 60/min; user `climb:daily:<uid>:<day>` 20/5 min | see spec AC-1…6 |
 | GET | /api/climb/daily/leaderboard?day= | optional Bearer (`me`) | IP `leaderboard:daily` 120/min | `{day, resetsAt, totalClimbers, climbers, me}` |
 | GET | /api/climb/daily/leaderboard/friends?day= | Bearer (401) | uid `leaderboard:friends:daily` 60/min | `{day, resetsAt, climbers, hiddenCount, notClimbedCount}` |
 
 The 4xx shape is `{error, code}`. POST is not idempotent by design:
 `attempts` counts submissions, and a replayed request cannot lower the best.
+
+POST order: IP limit → 503 without the seed secret → auth → envelope parse
+(no inflate) → day from the HMAC seed (`DAY_CLOSED`) → per-user limit →
+`simVersion` (409 `SIM_VERSION_MISMATCH`) → output-capped inflate
+(`INVALID_REPLAY`) → consent → re-sim (`REPLAY_MISMATCH`) → claim the
+canonical input hash in `daily_climb_replays` (409 `REPLAY_REUSED` when
+another account holds it) → upsert.
+
+`daily_climb_replays`: `id`, `day`, `input_hash` (SHA-256 of the re-packed
+inputs up to the tick the run ended), `userId` (FK, cascade), `created_at`.
+Unique `(day, input_hash)`, index `(userId)`, both declared in
+schema.prisma. One row per distinct verified run, not only the best, so an
+earlier run cannot be copied once its owner beats it.
 
 ## Write path (race-safe)
 
@@ -75,7 +88,12 @@ too. Cardinality is at most 8 live keys, because the route rejects other days.
   and mobile.
 - `src/lib/dailyBoardDay.ts`: `?day=` resolver.
 - `src/lib/climbRateLimit.ts`: shared limiters.
-- `src/game/dailyVerify.ts`: re-sim verdict and `DAILY_SIM_VERSION`.
+- `src/lib/dailySeedServer.ts` (server-only, node:crypto): HMAC seed,
+  `submissionDayForSeed`, fail closed without the secret.
+- `src/game/simVersion.ts`: `DAILY_SIM_VERSION`, shared with clients.
+- `src/game/runReplay.ts` / `runReplayServer.ts`: envelope parse without
+  inflate; output-capped inflate (browser stream cap, zlib `maxOutputLength`).
+- `src/game/dailyVerify.ts`: re-sim verdict and canonical input hash.
 - `src/db/dailyClimb.ts`: persistence and reads. `src/db/climb.ts`:
   `friendCircle` extracted.
 - `app/api/climb/daily/**`: the routes.
@@ -90,8 +108,11 @@ too. Cardinality is at most 8 live keys, because the route rejects other days.
   reach" with retry; GET returns 500 and the client shows RetryPanel.
 - **Firebase verify fails:** POST returns 200 `invalid_token`; GET board omits
   `me`.
-- **Server unreachable at run start:** the client uses its local UTC seed. If
-  the clock is wrong, the server rejects with DAY_CLOSED.
+- **Server unreachable at run start:** the daily cannot start (the seed is
+  server-only). Mobile and web show an offline state with Try again and
+  "Play endless instead".
+- **DAILY_SEED_SECRET missing or short:** both seed routes return 503
+  `DAILY_UNAVAILABLE`. There is no fallback seed.
 
 ## ADRs
 

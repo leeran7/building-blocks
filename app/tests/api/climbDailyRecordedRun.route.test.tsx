@@ -37,6 +37,8 @@ vi.mock("../../src/db/climb", () => ({
   recordClimb: vi.fn(async () => ({ peakY: 0, improved: false, rank: 1, totalClimbers: 1, handle: "h" })),
 }));
 vi.mock("../../src/db/dailyClimb", () => ({
+  // The claim's own SQL is covered against Postgres (tests/db/dailyClimb.pg.test.ts).
+  claimDailyReplay: vi.fn(async (input: { userId: string }) => input.userId),
   dailyLeaderboardTag: (day: string) => `daily-leaderboard:${day}`,
   recordDailyClimb: vi.fn(async (input: { peakY: number }) => ({ peakY: input.peakY, improved: true, attempts: 1 })),
   dailyStandingFor: vi.fn(async () => ({ rank: 1, peakY: 0, attempts: 1 })),
@@ -50,7 +52,11 @@ import { useClimb, type UseClimbResult } from "../../src/game/useClimb";
 import { buildFreeTower } from "../../src/game/freeStack";
 import { encodeRunReplay } from "../../src/game/runReplay";
 import { resimulateSoloRun } from "../../src/game/dailyVerify";
-import { dailySeedFor } from "../../src/lib/dailyDay";
+import { DAILY_SIM_VERSION } from "../../src/game/simVersion";
+import { dailySeedFor } from "../../src/lib/dailySeedServer";
+import { TEST_DAILY_SEED_SECRET } from "../lib/dailySeedTestSecret";
+
+vi.stubEnv("DAILY_SEED_SECRET", TEST_DAILY_SEED_SECRET);
 
 const DAY = "2026-09-26";
 const SEED = dailySeedFor(DAY);
@@ -159,7 +165,7 @@ describe("recorded daily run -> POST /api/climb/daily/result", () => {
       new NextRequest("http://localhost/api/climb/daily/result", {
         method: "POST",
         headers: { "content-type": "application/json", authorization: "Bearer good" },
-        body: JSON.stringify({ replayToken, peakY: run.peakY, seed: SEED }),
+        body: JSON.stringify({ replayToken, peakY: run.peakY, seed: SEED, simVersion: DAILY_SIM_VERSION }),
       })
     );
     const json = (await res.json()) as Record<string, unknown>;

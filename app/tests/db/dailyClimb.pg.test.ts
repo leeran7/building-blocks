@@ -9,7 +9,8 @@
  *
  *   DAILY_CLIMB_PG_URL=postgresql://postgres@127.0.0.1:55432/dailytest pnpm vitest run tests/db/dailyClimb.pg.test.ts
  *
- * The suite TRUNCATEs users, friendships and daily_climb_scores, so it refuses
+ * The suite TRUNCATEs users, friendships, daily_climb_scores and
+ * daily_climb_replays, so it refuses
  * any host that is not localhost / 127.0.0.1 / ::1. It never reads
  * DATABASE_URL. CI has no Postgres service, so there it is skipped.
  */
@@ -30,6 +31,7 @@ vi.mock("next/cache", () => ({ unstable_cache: (fn: unknown) => fn }));
 
 import {
   DAILY_BOARD_LIMIT,
+  claimDailyReplay,
   dailyClimberCount,
   dailyStandingFor,
   friendsDailyLeaderboard,
@@ -64,7 +66,9 @@ describe.skipIf(!PG_URL)("dailyClimb on Postgres", () => {
   });
 
   beforeEach(async () => {
-    await prisma.$executeRawUnsafe('TRUNCATE "daily_climb_scores", "friendships", "users" CASCADE');
+    await prisma.$executeRawUnsafe(
+      'TRUNCATE "daily_climb_scores", "daily_climb_replays", "friendships", "users" CASCADE'
+    );
   });
 
   async function user(id: string, consent: Date | null = CONSENTED, name: string | null = null) {
@@ -155,6 +159,56 @@ describe.skipIf(!PG_URL)("dailyClimb on Postgres", () => {
       await write("a", 50);
       await Promise.all(Array.from({ length: 16 }, (_, i) => write("a", i)));
       expect(await row("a")).toMatchObject({ peak_y: 50, attempts: 17, replay_token: "tok-50" });
+    });
+  });
+
+  describe("claimDailyReplay (SEC-DC-2)", () => {
+    const HASH = "a".repeat(64);
+    const claim = (userId: string, extra: Partial<{ day: string; inputHash: string }> = {}) =>
+      claimDailyReplay({ userId, day: extra.day ?? DAY, inputHash: extra.inputHash ?? HASH });
+
+    it("the first account owns a run; the same account resubmitting still owns it", async () => {
+      await user("a");
+      expect(await claim("a")).toBe("a");
+      expect(await claim("a")).toBe("a");
+      expect(await prisma.dailyClimbReplay.count()).toBe(1);
+    });
+
+    it("another account submitting the same run gets the owner back", async () => {
+      await user("a");
+      await user("b");
+      expect(await claim("a")).toBe("a");
+      expect(await claim("b")).toBe("a");
+      expect(await prisma.dailyClimbReplay.findMany({ select: { userId: true } })).toEqual([{ userId: "a" }]);
+    });
+
+    it("positive controls: a different run or a different day is a separate claim", async () => {
+      await user("a");
+      await user("b");
+      await claim("a");
+      expect(await claim("b", { inputHash: "b".repeat(64) })).toBe("b");
+      expect(await claim("b", { day: "2026-09-25" })).toBe("b");
+    });
+
+    it("concurrent submissions of one run by many accounts: exactly one wins, and all agree who", async () => {
+      const ids = Array.from({ length: 12 }, (_, i) => `racer${i}`);
+      for (const id of ids) await user(id);
+      const owners = await Promise.all(ids.map((id) => claim(id)));
+      const winners = new Set(owners);
+      expect(winners.size).toBe(1);
+      const [winner] = [...winners];
+      expect(ids).toContain(winner);
+      // Exactly one caller saw itself as the owner.
+      expect(owners.filter((o, i) => o === ids[i])).toHaveLength(1);
+      expect(await prisma.dailyClimbReplay.count()).toBe(1);
+    });
+
+    it("deleting the owner releases the claim (cascade)", async () => {
+      await user("a");
+      await user("b");
+      await claim("a");
+      await prisma.user.delete({ where: { id: "a" } });
+      expect(await claim("b")).toBe("b");
     });
   });
 

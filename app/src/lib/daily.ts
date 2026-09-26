@@ -1,7 +1,8 @@
 /**
  * Daily Climb — the return hook. Everyone gets the *same* tower each calendar
- * day (a deterministic seed fed to useClimb's seed lock), and we track a local
- * streak + per-day best so there's a reason to come back tomorrow.
+ * day (the server's seed from GET /api/climb/daily, fed to useClimb's seed
+ * lock; only the server can derive it), and we track a local streak + per-day
+ * best so there's a reason to come back tomorrow.
  *
  * The day is the UTC calendar day (src/lib/dailyDay.ts), the same day the
  * server uses for the daily board, so every player shares one tower and one
@@ -13,10 +14,9 @@
  * player far from UTC can lose at most one streak day in the switch.
  *
  * Ported verbatim from the native app (app/mobile/src/lib/daily.ts); the two
- * surfaces intentionally share the same STORE_KEY + seed scheme.
+ * surfaces intentionally share the same STORE_KEY.
  */
 import {
-  dailySeedFor,
   migrateLocalDayKeys,
   msUntilUtcReset,
   shiftDayKey,
@@ -53,12 +53,6 @@ export function todayKey(): string {
  *  the reset can't mix two different days. */
 function yesterdayOf(today: string): string {
   return shiftDayKey(today, -1);
-}
-
-/** The tower seed for today — identical for every player, changes at 00:00 UTC.
- *  Offline fallback only: online clients use the server's seed (GET /api/climb/daily). */
-export function dailySeed(): string {
-  return dailySeedFor(todayKey());
 }
 
 /** Milliseconds until the next 00:00 UTC reset. */
