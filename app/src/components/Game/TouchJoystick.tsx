@@ -54,7 +54,7 @@ export function TouchJoystick({
       if (knobRef.current) {
         knobRef.current.style.transform = `translate(${knob.x}px, ${knob.y}px)`;
       }
-      emit(joystickDirection(dx, dy, TRAVEL));
+      emit(joystickDirection(dx, dy, TRAVEL, lastRef.current));
     },
     [emit]
   );

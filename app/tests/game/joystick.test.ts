@@ -11,6 +11,7 @@ import {
   joystickDirection,
   JOYSTICK_CENTERED,
   JOYSTICK_DEAD_ZONE,
+  JOYSTICK_DEAD_ZONE_EXIT,
   withJoystick,
 } from "../../src/components/Game/joystick";
 import { NO_TOUCH } from "../../src/game/useClimb";
@@ -27,9 +28,40 @@ describe("joystickDirection: dead zone", () => {
     expect(joystickDirection(-(R * JOYSTICK_DEAD_ZONE + 0.5), 0, R).left).toBe(true);
   });
 
-  it("keeps the dead zone low (≤ 15% of travel)", () => {
+  it("keeps the dead zone low (≤ 10% of travel)", () => {
     expect(JOYSTICK_DEAD_ZONE).toBeGreaterThan(0);
-    expect(JOYSTICK_DEAD_ZONE).toBeLessThanOrEqual(0.15);
+    expect(JOYSTICK_DEAD_ZONE).toBeLessThanOrEqual(0.1);
+    expect(JOYSTICK_DEAD_ZONE_EXIT).toBeLessThan(JOYSTICK_DEAD_ZONE);
+  });
+
+  it("keeps moving while the push sits between the exit and entry thresholds", () => {
+    const moving = { left: true, right: false, up: false, down: false };
+    const between = -(R * (JOYSTICK_DEAD_ZONE + JOYSTICK_DEAD_ZONE_EXIT)) / 2;
+    expect(joystickDirection(between, 0, R, moving).left).toBe(true);
+    expect(joystickDirection(between, 0, R).left).toBe(false);
+    expect(joystickDirection(-(R * JOYSTICK_DEAD_ZONE_EXIT) + 0.5, 0, R, moving)).toEqual(
+      JOYSTICK_CENTERED
+    );
+  });
+});
+
+describe("joystickDirection: sector hysteresis", () => {
+  // 20° above horizontal: inside the 67.5° "right" cone, outside the 67.5°
+  // "up" cone, but inside the wider 75° cone that keeps an active axis on.
+  const a = (20 * Math.PI) / 180;
+  const dx = Math.cos(a) * R;
+  const dy = -Math.sin(a) * R;
+
+  it("does not start climbing from a slight upward lean", () => {
+    expect(joystickDirection(dx, dy, R).up).toBe(false);
+  });
+
+  it("keeps climbing once started until the lean drops out of the wider cone", () => {
+    const climbing = { left: false, right: true, up: true, down: false };
+    expect(joystickDirection(dx, dy, R, climbing).up).toBe(true);
+    // 10°: outside the 75° cone, so climb releases.
+    const b = (10 * Math.PI) / 180;
+    expect(joystickDirection(Math.cos(b) * R, -Math.sin(b) * R, R, climbing).up).toBe(false);
   });
 });
 
