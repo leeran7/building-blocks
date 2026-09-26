@@ -47,10 +47,10 @@ export function climbView(
 
 /**
  * Half-height of the airborne dead band, as a fraction of the view. A normal
- * or single super jump stays inside it on the 9:16 view (the tallest super
- * jump apex is ~13 m of ~178 m), so the camera holds still instead of riding
- * every arc. Chained air jumps and long falls leave it early, so the camera
- * starts catching up mid-air rather than all at once on landing.
+ * jump stays inside it, so the camera holds still instead of riding every
+ * arc. Super-jump rises are followed (paintClimbFrame), and the fall back
+ * from the tallest super-jump apex (~13 m of the ~178 m 9:16 view) still
+ * fits, so the camera does not chase the drop. Long falls leave it early.
  */
 export const CAMERA_AIR_BAND_FRAC = 0.09;
 
@@ -64,7 +64,7 @@ export const CAMERA_CATCHUP_MPS = 40;
 /**
  * The height the camera frames.
  *
- * Supported (ground, ladder, jetpack thrust): follows the climber's motion
+ * Supported (ground, ladder, jetpack thrust, super-jump rise): follows the climber's motion
  * exactly, and shrinks any leftover gap by at most `maxStepM` this frame.
  * Airborne: holds, and only moves once the climber leaves the ±band around
  * it, dragging the edge of the band along. The gap therefore never exceeds

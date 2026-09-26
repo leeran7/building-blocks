@@ -160,11 +160,18 @@ export function paintClimbFrame(
   const camSnap =
     camBag.tick === null || state.tick < camBag.tick || state.tick < 1;
   const camDt = opts.dtSec ?? TICK_DT;
+  // Rising under super-jump is followed like jetpack thrust: the view climbs
+  // with the climber. The fall back is held like any other jump.
+  const superJumpRising =
+    !!player &&
+    player.vy > 0 &&
+    isPowerUpActive(player, "super-jump", state.tick);
   const supported =
     !player ||
     player.onGround ||
     player.onLadder ||
     player.jetpackThrusting ||
+    superJumpRising ||
     player.status !== "climbing";
   const focusY = cameraFocusY(
     camSnap ? null : camBag.focusY ?? null,

@@ -30,7 +30,7 @@ import { createMatch, stepMatch } from "../../src/game/simulation";
 import { NO_INPUT, TICK_DT } from "../../src/game/types";
 import { buildTower } from "../../src/game/towers";
 import { GAME_CATEGORIES } from "../../src/game/categories";
-import { SUPER_JUMP_MULT } from "../../src/game/powerups";
+import { grantPowerUp, SUPER_JUMP_MULT } from "../../src/game/powerups";
 
 const WIDTH = 360;
 const HEIGHT = 640;
@@ -428,8 +428,8 @@ describe("heldFocusY: lava audio frames what the painter framed", () => {
   });
 });
 
-describe("CAMERA_AIR_BAND_FRAC: single super jumps never move the camera", () => {
-  it("holds the tallest super jump apex of every tower on the 9:16 view", () => {
+describe("CAMERA_AIR_BAND_FRAC: the fall back from a super jump is held", () => {
+  it("fits the tallest super jump apex of every tower on the 9:16 view", () => {
     const { viewH } = climbView(WIDTH, HEIGHT, TOWER_WIDTH_M);
     const band = viewH * CAMERA_AIR_BAND_FRAC;
     let checked = 0;
@@ -441,5 +441,94 @@ describe("CAMERA_AIR_BAND_FRAC: single super jumps never move the camera", () =>
       checked++;
     }
     expect(checked).toBeGreaterThan(0);
+  });
+});
+
+describe("paintClimbFrame camera: super jump follows the rise", () => {
+  it("climbs with a super-jump rise, holds the fall, glides back on landing", () => {
+    const tower = buildTower("indie-games");
+    const m = createMatch({ seed: "super-cam", mode: "solo", tower, playerIds: ["p1"] });
+    const p = m.players[0]!;
+    const ctx = new Proxy(
+      {},
+      {
+        get: (_t, prop) =>
+          prop === "measureText"
+            ? () => ({ width: 10 })
+            : typeof prop === "string" && prop.startsWith("create")
+              ? () => ({ addColorStop() {} })
+              : () => {},
+        set: () => true,
+      }
+    ) as unknown as PaintCtx;
+    const camera: ClimbCameraBag = { y: null, tick: null };
+    let tick = 0.5;
+    const paint = () => {
+      tick += 1;
+      m.tick = tick;
+      paintClimbFrame(ctx, m, { width: WIDTH, height: HEIGHT, camera, dtSec: TICK_DT });
+      return camera.y!;
+    };
+    const BASE_Y = 200;
+    p.y = BASE_Y;
+    p.onGround = true;
+    for (let i = 0; i < 60; i++) paint();
+    const settled = camera.y!;
+    grantPowerUp(p, "super-jump", Math.floor(tick));
+
+    // Rise 11 m: the focus tracks the climber the whole way up.
+    p.onGround = false;
+    p.vy = 30;
+    for (let i = 1; i <= 11; i++) {
+      p.y = BASE_Y + i;
+      paint();
+      expect(camera.focusY).toBeCloseTo(p.y, 9);
+    }
+    // Fall back: the focus holds at the apex.
+    p.vy = -30;
+    let fallFrames = 0;
+    for (let i = 10; i >= 0; i--) {
+      p.y = BASE_Y + i;
+      paint();
+      expect(camera.focusY).toBeCloseTo(BASE_Y + 11, 9);
+      fallFrames++;
+    }
+    expect(fallFrames).toBeGreaterThan(0);
+    expect(camera.y!).toBeGreaterThan(settled + 5);
+
+    // Landed on the same floor: the view glides back, capped per frame.
+    p.onGround = true;
+    p.vy = 0;
+    let prevFocus = camera.focusY!;
+    for (let i = 0; i < 90; i++) {
+      paint();
+      expect(prevFocus - camera.focusY!).toBeLessThanOrEqual(
+        CAMERA_CATCHUP_MPS * TICK_DT + 1e-9
+      );
+      prevFocus = camera.focusY!;
+    }
+    expect(camera.focusY).toBeCloseTo(BASE_Y, 9);
+  });
+
+  it("does not follow an ordinary jump's rise", () => {
+    const tower = buildTower("indie-games");
+    const m = createMatch({ seed: "plain-cam", mode: "solo", tower, playerIds: ["p1"] });
+    const p = m.players[0]!;
+    const ctx = new Proxy({}, { get: () => () => ({ width: 10, addColorStop() {} }), set: () => true }) as unknown as PaintCtx;
+    const camera: ClimbCameraBag = { y: null, tick: null };
+    let tick = 0.5;
+    const paint = () => {
+      tick += 1;
+      m.tick = tick;
+      paintClimbFrame(ctx, m, { width: WIDTH, height: HEIGHT, camera, dtSec: TICK_DT });
+    };
+    p.y = 200;
+    p.onGround = true;
+    for (let i = 0; i < 30; i++) paint();
+    p.onGround = false;
+    p.vy = 15;
+    p.y = 202.5;
+    paint();
+    expect(camera.focusY).toBeCloseTo(200, 9);
   });
 });
