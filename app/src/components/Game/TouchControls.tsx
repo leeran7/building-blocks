@@ -92,9 +92,18 @@ const TouchButton = memo(function TouchButton({
     >
       {pad ? (
         <>
-          <span aria-hidden="true" className="text-5xl leading-none">
-            {glyph}
-          </span>
+          {/* Drawn, not the ↑ character: at this size the font's glyph was
+              clipped by its line box and lost the top of the arrowhead. */}
+          <svg aria-hidden="true" viewBox="0 0 24 24" width="40" height="40">
+            <path
+              d="M12 20V5M5 11l7-7 7 7"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="3"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
           <span aria-hidden="true" className="mt-2 text-lg uppercase tracking-[0.16em] leading-none">
             {sub}
           </span>
