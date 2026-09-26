@@ -4,15 +4,21 @@
  * friends board. The upsert is hand-written SQL (prisma.$queryRaw), so a
  * mocked Prisma cannot say anything about it; only a database can.
  *
- * Opt-in. Set DAILY_CLIMB_PG_URL to a THROWAAWAY local database that has had
- * `prisma migrate deploy` run against it, e.g.
+ * Opt-in, against a THROWAWAY local database. Migrate it first with the
+ * guarded script, setting BOTH DATABASE_URL and DIRECT_URL to the local URL.
+ * Prisma migrate connects with DIRECT_URL, so overriding only DATABASE_URL in
+ * a shell that exports the production DIRECT_URL would migrate production
+ * (SEC-DC-18). db:migrate:local refuses unless both are set and local:
  *
- *   DAILY_CLIMB_PG_URL=postgresql://postgres@127.0.0.1:55432/dailytest pnpm vitest run tests/db/dailyClimb.pg.test.ts
+ *   L=postgresql://postgres@127.0.0.1:55432/dailytest
+ *   DATABASE_URL=$L DIRECT_URL=$L pnpm db:migrate:local
+ *   DAILY_CLIMB_PG_URL=$L pnpm vitest run tests/db/dailyClimb.pg.test.ts
  *
  * The suite TRUNCATEs users, friendships, daily_climb_scores and
- * daily_climb_replays, so it refuses
- * any host that is not localhost / 127.0.0.1 / ::1. It never reads
- * DATABASE_URL. CI has no Postgres service, so there it is skipped.
+ * daily_climb_replays, so it refuses any DAILY_CLIMB_PG_URL that is not on
+ * localhost / 127.0.0.1 / ::1 (the same isLocalDbUrl check as the script).
+ * It never reads DATABASE_URL. CI has no Postgres service, so there it is
+ * skipped.
  */
 
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
@@ -38,11 +44,11 @@ import {
   recordDailyClimb,
   topDailyClimbers,
 } from "../../src/db/dailyClimb";
+import { isLocalDbUrl } from "../../scripts/localDbGuard";
 
 function assertLocal(url: string): void {
-  const host = new URL(url).hostname;
-  if (!["localhost", "127.0.0.1", "::1", "[::1]"].includes(host)) {
-    throw new Error(`DAILY_CLIMB_PG_URL must point at a local throwaway database, got host ${host}`);
+  if (!isLocalDbUrl(url)) {
+    throw new Error("DAILY_CLIMB_PG_URL must be a postgresql:// URL on a local throwaway database");
   }
 }
 
