@@ -22,9 +22,16 @@ const PHASE_LABEL: Record<HazardPhaseName, string> = {
   stumble: "STUMBLING",
 };
 
+/**
+ * Clearance (ft) at or under which the lava readout turns to danger: ~2.7 s
+ * at a 9 ft/s ladder. The leash keeps the lava a few tens of feet behind a
+ * good climber, so the old 12 ft (~1.3 s) warned too late to act on.
+ */
+export const LAVA_DANGER_FT = 24;
+
 export function LavaClearanceInstrument({ clearance: rawClearance, phase, progress, hardenActive = false }: { clearance: number; phase: HazardPhaseName; progress: number; hardenActive?: boolean }) {
   const clearance = Math.max(0, rawClearance);
-  const danger = clearance <= 12;
+  const danger = clearance <= LAVA_DANGER_FT;
   const displayPhase = hardenActive ? "hardened" : phase;
   const displayLabel = hardenActive ? "HARDENED" : PHASE_LABEL[phase];
   return <section className="exp-clearance" data-danger={danger} data-phase={displayPhase} aria-label={`Lava clearance ${clearance.toFixed(1)} feet, lava ${displayLabel}`}>

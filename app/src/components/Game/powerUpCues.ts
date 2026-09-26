@@ -8,13 +8,27 @@
  * here as a plain reducer; the hook is left with the parts that genuinely need
  * React and the Web Audio API.
  *
- * World cues (jetpack loop, lava-on-screen doom, death hit) follow the same
- * pattern: edges become one-shots, levels become loop flags the hook applies
- * every frame.
+ * World cues (jetpack loop, lava-on-screen doom, lava surge, death hit)
+ * follow the same pattern: edges become one-shots, levels become loop flags
+ * the hook applies every frame.
  */
 
 import type { PowerUpType } from "../../game/types";
 import { POWER_UP_SPECS } from "../../game/powerups";
+import { HAZARD_LEASH_M, type HazardPhaseName } from "../../game/hazard";
+
+/**
+ * Clearance (m) over which the backing track tightens from 0 to full. Spans
+ * the leash band (the lava rides ~HAZARD_LEASH_M behind a good climber) plus
+ * 40, so the music reads the chase all match instead of only the last 40.
+ */
+export const LAVA_MUSIC_RAMP_M = HAZARD_LEASH_M + 40;
+
+/** Backing-music intensity (0..1) from the climber's clearance above the lava. */
+export function lavaMusicIntensity(gapM: number): number {
+  if (Number.isNaN(gapM)) return 0;
+  return Math.max(0, Math.min(1, (LAVA_MUSIC_RAMP_M - gapM) / LAVA_MUSIC_RAMP_M));
+}
 
 const ZERO_WIDTH_SPACE = "​";
 
@@ -46,6 +60,7 @@ export function stepCues(
     next.pickupTick = null;
     next.activeKey = "";
     next.lavaOnScreen = false;
+    next.lavaPhase = null;
     next.dead = false;
     announcement = "";
   }
@@ -90,6 +105,19 @@ export function stepCues(
   }
   next.lavaOnScreen = input.lavaOnScreen;
 
+  // Surge lands: only on a stumble → surge edge (never grace → surge at run
+  // start, never the first frame of a run), and only when the lava is where
+  // the player can see or feel it — on screen or in the proximity band.
+  if (
+    !input.dead &&
+    next.lavaPhase === "stumble" &&
+    input.lavaPhase === "surge" &&
+    (input.lavaOnScreen || input.lavaNear)
+  ) {
+    sounds.push({ kind: "lava-surge", delay: 0 });
+  }
+  next.lavaPhase = input.lavaPhase;
+
   if (pickupText && expireText) {
     // Both can fire on one tick (sprint-burst ending as you grab the next
     // orb). A single live-region slot would keep only the last write.
@@ -109,11 +137,12 @@ export function stepCues(
   }
 
   const loops: CueLoops = input.dead
-    ? { jetpack: false, lavaDoom: false, lavaFill: 0 }
+    ? { jetpack: false, lavaDoom: false, lavaFill: 0, lavaSurging: false }
     : {
         jetpack: input.jetpackThrusting,
         lavaDoom: input.lavaOnScreen,
         lavaFill: input.lavaFill,
+        lavaSurging: input.lavaOnScreen && input.lavaPhase === "surge",
       };
 
   return { memo: next, out: { sounds, loops, announcement } };
@@ -127,6 +156,7 @@ export function initialCueMemo(runId: number): CueMemo {
     activeKey: "",
     announceCount: 0,
     lavaOnScreen: false,
+    lavaPhase: null,
     dead: false,
   };
 }
@@ -150,7 +180,7 @@ export function announcementText(announcement: string): string {
 }
 
 export type PowerCueKind = "pickup" | "activate" | "expire";
-export type WorldCueKind = "lava-sting" | "death";
+export type WorldCueKind = "lava-sting" | "lava-surge" | "death";
 export type CueKind = PowerCueKind | WorldCueKind;
 
 export interface PowerCueSound {
@@ -163,6 +193,7 @@ export interface PowerCueSound {
 export type CueSound =
   | PowerCueSound
   | { kind: "lava-sting"; delay: number }
+  | { kind: "lava-surge"; delay: number }
   | { kind: "death"; delay: number };
 
 export interface CueLoops {
@@ -170,6 +201,8 @@ export interface CueLoops {
   lavaDoom: boolean;
   /** 0..1 how much of the uncovered view the lava has eaten. */
   lavaFill: number;
+  /** Lava on screen and surging — the doom loop's pulse quickens. */
+  lavaSurging: boolean;
 }
 
 export interface CueOutput {
@@ -185,6 +218,8 @@ export interface CueMemo {
   activeKey: string;
   announceCount: number;
   lavaOnScreen: boolean;
+  /** Hazard phase seen last frame; null before the first frame of a run. */
+  lavaPhase: HazardPhaseName | null;
   dead: boolean;
 }
 
@@ -197,6 +232,10 @@ export interface CueInput {
   jetpackThrusting: boolean;
   /** Lava line is in the uncovered (above overlay) view. */
   lavaOnScreen: boolean;
+  /** Lava is just below the view, inside lava.ts LAVA_PROXIMITY_M. */
+  lavaNear: boolean;
+  /** Sim hazard phase at effective hazard time (hazard.ts hazardPhase). */
+  lavaPhase: HazardPhaseName;
   lavaFill: number;
   dead: boolean;
 }

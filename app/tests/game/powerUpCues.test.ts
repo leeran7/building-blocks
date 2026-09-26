@@ -18,10 +18,18 @@ import { POWER_UP_SPECS } from "../../src/game/powerups";
 import {
   announcementText,
   initialCueMemo,
+  lavaMusicIntensity,
+  LAVA_MUSIC_RAMP_M,
   stepCues,
   type CueInput,
   type CueMemo,
 } from "../../src/components/Game/powerUpCues";
+import {
+  DEFAULT_HAZARD_CONFIG,
+  HAZARD_LEASH_M,
+  hazardPhase,
+} from "../../src/game/hazard";
+import { TICK_DT } from "../../src/game/types";
 import { createMatch, stepMatch } from "../../src/game/simulation";
 import { NO_INPUT } from "../../src/game/types";
 import { buildTower } from "../../src/game/towers";
@@ -36,6 +44,8 @@ function frame(
     activeTypes: [],
     jetpackThrusting: false,
     lavaOnScreen: false,
+    lavaNear: false,
+    lavaPhase: "grace",
     lavaFill: 0,
     dead: false,
     ...partial,
@@ -306,5 +316,134 @@ describe("stepCues: death sounds like doom struck", () => {
     }
     expect(m.players[0]!.status).toBe("eliminated");
     expect(deathCues).toBe(1);
+  });
+});
+
+describe("stepCues: a lava surge is heard as it lands", () => {
+  /** Thread frames through the memo, returning each frame's surge count. */
+  function surges(
+    runId: number,
+    frames: Array<Partial<CueInput>>,
+    start: CueMemo = initialCueMemo(runId)
+  ): { counts: number[]; memo: CueMemo } {
+    let memo = start;
+    const counts: number[] = [];
+    for (const f of frames) {
+      const r = frame(memo, { runId, ...f });
+      memo = r.memo;
+      counts.push(r.out.sounds.filter((s) => s.kind === "lava-surge").length);
+    }
+    return { counts, memo };
+  }
+
+  it("fires exactly once on stumble → surge while the lava is on screen", () => {
+    const { counts } = surges(0, [
+      { lavaPhase: "surge", lavaOnScreen: true },
+      { lavaPhase: "stumble", lavaOnScreen: true },
+      { lavaPhase: "stumble", lavaOnScreen: true },
+      { lavaPhase: "surge", lavaOnScreen: true },
+      { lavaPhase: "surge", lavaOnScreen: true },
+    ]);
+    expect(counts).toEqual([0, 0, 0, 1, 0]);
+  });
+
+  it("fires when the lava is just below the view (proximity band)", () => {
+    const { counts } = surges(0, [
+      { lavaPhase: "stumble", lavaNear: true },
+      { lavaPhase: "surge", lavaNear: true },
+    ]);
+    expect(counts).toEqual([0, 1]);
+  });
+
+  it("does not fire on grace → surge at run start", () => {
+    const { counts } = surges(0, [
+      { lavaPhase: "grace", lavaOnScreen: true },
+      { lavaPhase: "surge", lavaOnScreen: true },
+    ]);
+    expect(counts).toEqual([0, 0]);
+  });
+
+  it("does not fire on the first frame of a run, even mid-surge", () => {
+    const { counts } = surges(0, [{ lavaPhase: "surge", lavaOnScreen: true }]);
+    expect(counts).toEqual([0]);
+  });
+
+  it("does not fire when the lava is off screen and out of the band", () => {
+    const { counts } = surges(0, [
+      { lavaPhase: "stumble" },
+      { lavaPhase: "surge" },
+    ]);
+    expect(counts).toEqual([0, 0]);
+  });
+
+  it("does not fire once the climber is dead", () => {
+    const { counts } = surges(0, [
+      { lavaPhase: "stumble", lavaOnScreen: true, dead: true },
+      { lavaPhase: "surge", lavaOnScreen: true, dead: true },
+    ]);
+    expect(counts).toEqual([0, 0]);
+  });
+
+  it("resets its memo on a new runId (no carried-over stumble)", () => {
+    const first = surges(1, [{ lavaPhase: "stumble", lavaOnScreen: true }]);
+    expect(first.memo.lavaPhase).toBe("stumble");
+    const next = surges(2, [{ lavaPhase: "surge", lavaOnScreen: true }], first.memo);
+    expect(next.counts).toEqual([0]);
+    expect(next.memo.lavaPhase).toBe("surge");
+  });
+
+  it("fires once per stumble → surge edge along the real hazard timeline", () => {
+    const cfg = DEFAULT_HAZARD_CONFIG;
+    const seconds = cfg.graceSeconds + 4 * cfg.stumblePeriodSeconds + 1;
+    let memo = initialCueMemo(0);
+    let fired = 0;
+    let edges = 0;
+    let prev: string | null = null;
+    for (let t = 0; t <= seconds; t += TICK_DT) {
+      const phase = hazardPhase(t, cfg).phase;
+      if (prev === "stumble" && phase === "surge") edges += 1;
+      prev = phase;
+      const r = frame(memo, { runId: 0, lavaPhase: phase, lavaOnScreen: true });
+      memo = r.memo;
+      fired += r.out.sounds.filter((s) => s.kind === "lava-surge").length;
+    }
+    expect(edges).toBe(4);
+    expect(fired).toBe(edges);
+  });
+
+  it("quickens the doom loop only while the lava is on screen and surging", () => {
+    const on = frame(initialCueMemo(0), { runId: 0, lavaPhase: "surge", lavaOnScreen: true });
+    expect(on.out.loops.lavaSurging).toBe(true);
+    const stumble = frame(on.memo, { runId: 0, lavaPhase: "stumble", lavaOnScreen: true });
+    expect(stumble.out.loops.lavaSurging).toBe(false);
+    const hidden = frame(on.memo, { runId: 0, lavaPhase: "surge", lavaOnScreen: false });
+    expect(hidden.out.loops.lavaSurging).toBe(false);
+  });
+});
+
+describe("lavaMusicIntensity: the track follows the leashed chase", () => {
+  it("ramps over the leash band plus 40", () => {
+    expect(LAVA_MUSIC_RAMP_M).toBe(HAZARD_LEASH_M + 40);
+    expect(lavaMusicIntensity(LAVA_MUSIC_RAMP_M)).toBe(0);
+    expect(lavaMusicIntensity(LAVA_MUSIC_RAMP_M + 100)).toBe(0);
+    expect(lavaMusicIntensity(0)).toBe(1);
+    expect(lavaMusicIntensity(-10)).toBe(1);
+  });
+
+  it("is audible at the leash distance, where the old 40m ramp was silent", () => {
+    const atLeash = lavaMusicIntensity(HAZARD_LEASH_M);
+    expect(atLeash).toBeGreaterThan(0.3);
+    expect(atLeash).toBeLessThan(0.6);
+  });
+
+  it("is non-increasing in clearance and 0 for a non-number", () => {
+    let prev = Infinity;
+    for (let gap = -20; gap <= 120; gap += 5) {
+      const v = lavaMusicIntensity(gap);
+      expect(v).toBeLessThanOrEqual(prev);
+      prev = v;
+    }
+    expect(lavaMusicIntensity(Number.NaN)).toBe(0);
+    expect(lavaMusicIntensity(Number.POSITIVE_INFINITY)).toBe(0);
   });
 });

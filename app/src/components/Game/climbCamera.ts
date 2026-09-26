@@ -14,7 +14,12 @@
 
 import { TICK_DT } from "../../game/types";
 
-export const CAMERA_FOCUS_FRAC = 0.62;
+/**
+ * Where the climber sits in the view (0 = bottom, 1 = top). 0.55 shows ~80 ft
+ * below the climber on the locked 9:16 view, enough to keep the leashed lava
+ * (hazard.ts HAZARD_LEASH_M) in frame; the look-ahead is ~98 ft.
+ */
+export const CAMERA_FOCUS_FRAC = 0.55;
 /** How fast the eased camera closes on the target each tick (1 = snap). */
 export const CAMERA_FOLLOW = 0.3;
 /**

@@ -7,8 +7,8 @@
  * The sim is pure, so this watches the render-only marker it stamps on the
  * player (`lastPickupTick`) — pickup and activation are the same event now,
  * since a power-up fires the instant they're collected — plus the set of live
- * effects, jetpack thrust, lava-on-screen fill, and death, and fires a
- * one-shot cue whenever one of them edges.
+ * effects, jetpack thrust, lava-on-screen fill, the lava's surge / stumble
+ * phase, and death, and fires a one-shot cue whenever one of them edges.
  *
  * What to say and play is decided by `stepCues`. The hook owns the Web Audio
  * graph, the mute preference, and the live-region string.
@@ -20,6 +20,7 @@ import { isExpired } from "../../game/powerups";
 import { PowerUpAudio } from "./powerUpAudio";
 import { ClimbMusic } from "./climbMusic";
 import { initialCueMemo, stepCues, type CueMemo } from "./powerUpCues";
+import type { HazardPhaseName } from "../../game/hazard";
 
 const MUTE_KEY = "doomstack:sfx-muted";
 
@@ -73,6 +74,8 @@ export function usePowerUpFeedback(
   const jetpackThrusting = world?.jetpackThrusting ?? false;
   const lavaOnScreen = world?.lavaOnScreen ?? false;
   const lavaFill = world?.lavaFill ?? 0;
+  const lavaNear = world?.lavaNear ?? false;
+  const lavaPhase: HazardPhaseName = world?.lavaPhase ?? "grace";
   const dead = world?.dead ?? false;
 
   // Start/stop the backing track with the run, and keep its intensity in step
@@ -110,6 +113,8 @@ export function usePowerUpFeedback(
       activeTypes,
       jetpackThrusting,
       lavaOnScreen,
+      lavaNear,
+      lavaPhase,
       lavaFill,
       dead,
     });
@@ -118,6 +123,7 @@ export function usePowerUpFeedback(
       try {
         if (sound.kind === "death") audio.playDeath(sound.delay);
         else if (sound.kind === "lava-sting") audio.playLavaSting(sound.delay);
+        else if (sound.kind === "lava-surge") audio.playLavaSurge(sound.delay);
         else audio.play(sound.kind, sound.type, sound.delay);
       } catch {
         /* InvalidStateError must not unmount the game */
@@ -125,7 +131,7 @@ export function usePowerUpFeedback(
     }
     try {
       audio.setJetpackThrusting(out.loops.jetpack);
-      audio.setLavaDoom(out.loops.lavaDoom, out.loops.lavaFill);
+      audio.setLavaDoom(out.loops.lavaDoom, out.loops.lavaFill, out.loops.lavaSurging);
     } catch {
       /* same */
     }
@@ -137,6 +143,8 @@ export function usePowerUpFeedback(
     runId,
     jetpackThrusting,
     lavaOnScreen,
+    lavaNear,
+    lavaPhase,
     lavaFill,
     dead,
   ]);
@@ -176,6 +184,10 @@ export interface MusicControl {
 export interface WorldAudio {
   jetpackThrusting: boolean;
   lavaOnScreen: boolean;
+  /** Lava just below the view, inside the proximity-glow band. */
+  lavaNear?: boolean;
+  /** Sim hazard phase; drives the surge cue and the doom-loop pulse. */
+  lavaPhase?: HazardPhaseName;
   lavaFill: number;
   dead: boolean;
 }

@@ -1,7 +1,7 @@
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { ExpeditionHud, HeightInstrument, LavaClearanceInstrument, UtilityControls } from "../../src/components/Game/ExpeditionHud";
+import { ExpeditionHud, HeightInstrument, LAVA_DANGER_FT, LavaClearanceInstrument, UtilityControls } from "../../src/components/Game/ExpeditionHud";
 import { ActivePowerStack } from "../../src/components/Game/PowerUpHud";
 import { createMatch } from "../../src/game/simulation";
 import { buildTower } from "../../src/game/towers";
@@ -41,7 +41,9 @@ describe("live expedition instruments", () => {
   });
 
   it("marks low clearance as danger without making it a health meter", () => {
-    for (const [clearance, danger] of [[12, true], [-1, true], [12.1, false]] as const) {
+    // ~2.7 s of warning at a 9 ft/s ladder; 18 ft was "safe" under the old 12 ft line.
+    expect(LAVA_DANGER_FT).toBe(24);
+    for (const [clearance, danger] of [[LAVA_DANGER_FT, true], [18, true], [-1, true], [LAVA_DANGER_FT + 0.1, false]] as const) {
       const html = renderToStaticMarkup(createElement(LavaClearanceInstrument, { clearance, phase: "surge", progress: 0.5 }));
       expect(html).toContain(`data-danger="${danger}"`);
       expect(html).not.toContain('role="progressbar"');

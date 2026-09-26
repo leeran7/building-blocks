@@ -31,7 +31,7 @@ import {
 } from "../../src/game/types";
 import {
   DEFAULT_HAZARD_CONFIG,
-  HAZARD_CATCHUP_LEAD_M,
+  HAZARD_LEASH_M,
 } from "../../src/game/hazard";
 import {
   buildTower,
@@ -593,19 +593,19 @@ describe("regression: a climber can move from the base; idling loses", () => {
   });
 });
 
-describe("hazard catch-up: lava closes a large lead", () => {
-  it("rises faster when the climber is over 250m ahead than when they are close", () => {
+describe("hazard leash: lava closes a lead beyond the leash", () => {
+  it("rises faster when the climber is beyond the leash than when they are within it", () => {
     const sampleTicks = 4 * TICK_HZ;
-    const far = riseWhileHeld(HAZARD_CATCHUP_LEAD_M + 1, sampleTicks);
-    const near = riseWhileHeld(50, sampleTicks);
-    const atThreshold = riseWhileHeld(HAZARD_CATCHUP_LEAD_M, sampleTicks);
+    const far = riseWhileHeld(HAZARD_LEASH_M + 1, sampleTicks);
+    const near = riseWhileHeld(HAZARD_LEASH_M - 20, sampleTicks);
+    const atThreshold = riseWhileHeld(HAZARD_LEASH_M, sampleTicks);
     expect(far.rise).toBeGreaterThan(near.rise);
     expect(near.rise).toBeCloseTo(atThreshold.rise, 6);
     expect(near.banked).toBe(0);
     expect(far.banked).toBeLessThan(0);
   });
 
-  it("slows back to the normal clock once the lead is within 250m again", () => {
+  it("slows back to the normal clock once the lead is within the leash again", () => {
     const sampleTicks = 4 * TICK_HZ;
     const m = climbingMatch("solo", ["p1"]);
     silenceOrbs(m);
@@ -618,15 +618,15 @@ describe("hazard catch-up: lava closes a large lead", () => {
         stepMatch(m, { p1: IDLE }, DEFAULT_SIM_CONFIG);
       }
     };
-    hold(50, warm);
+    hold(HAZARD_LEASH_M - 20, warm);
     const yFar0 = m.hazardY;
     const bankedFar0 = m.hazardSlowSeconds;
-    hold(HAZARD_CATCHUP_LEAD_M + 20, sampleTicks);
+    hold(HAZARD_LEASH_M + 20, sampleTicks);
     const farRise = m.hazardY - yFar0;
     const farBanked = m.hazardSlowSeconds - bankedFar0;
     const yNear0 = m.hazardY;
     const bankedNear0 = m.hazardSlowSeconds;
-    hold(50, sampleTicks);
+    hold(HAZARD_LEASH_M - 20, sampleTicks);
     const nearRise = m.hazardY - yNear0;
     const nearBanked = m.hazardSlowSeconds - bankedNear0;
     expect(farBanked).toBeLessThan(0);

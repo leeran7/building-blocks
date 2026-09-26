@@ -18,8 +18,9 @@ import {
   hazardMeanSpeedFrac,
   hazardCatchupTimeScale,
   hazardPhase,
-  HAZARD_CATCHUP_LEAD_M,
-  HAZARD_CATCHUP_TIME_SCALE,
+  HAZARD_LEASH_M,
+  HAZARD_LEASH_RANGE_M,
+  HAZARD_CATCHUP_MAX_SCALE,
   DEFAULT_HAZARD_CONFIG,
 } from "../../src/game/hazard";
 
@@ -136,7 +137,7 @@ describe("AC-6: hazard rise ramps, stumbles, is monotonic, and is unbounded", ()
   });
 
   it("still closes in on a dawdling climber over time", () => {
-    expect(hazardMeanSpeedFrac(CFG)).toBeCloseTo(0.75, 3);
+    expect(hazardMeanSpeedFrac(CFG)).toBeLessThan(1);
     const g = CFG.graceSeconds;
     const period = CFG.stumblePeriodSeconds;
     const t = g + CFG.rampSeconds + 40;
@@ -215,33 +216,68 @@ describe("hazardPhase: reports surge/stumble/grace with progress", () => {
   });
 });
 
-describe("catch-up: lava clock speeds up when the climber is far ahead", () => {
-  it("starts catching up once the lead is beyond 250m", () => {
-    expect(HAZARD_CATCHUP_LEAD_M).toBe(250);
-    expect(hazardCatchupTimeScale(HAZARD_CATCHUP_LEAD_M)).toBe(1);
-    expect(hazardCatchupTimeScale(HAZARD_CATCHUP_LEAD_M + 0.1)).toBe(
-      HAZARD_CATCHUP_TIME_SCALE
-    );
+describe("kill threshold: the documented late-game mean", () => {
+  it("time-averaged late speed is 0.64× ladder speed (the kill threshold)", () => {
+    // Pins the documented mean so a cycle edit that silently moves who dies
+    // goes red. endSpeedFrac is derived from this and the cycle duty.
+    expect(hazardMeanSpeedFrac(DEFAULT_HAZARD_CONFIG)).toBeCloseTo(0.64, 2);
   });
 
-  it("stays at 1× at or under the lead threshold", () => {
-    expect(hazardCatchupTimeScale(0)).toBe(1);
-    expect(hazardCatchupTimeScale(HAZARD_CATCHUP_LEAD_M)).toBe(1);
+  it("the mean matches the measured rise over one late cycle", () => {
+    const g = CFG.graceSeconds;
+    const period = CFG.stumblePeriodSeconds;
+    const t = g + CFG.rampSeconds + 3 * period;
+    const avg =
+      (hazardHeightAt(t + period, CLIMB, CFG) - hazardHeightAt(t, CLIMB, CFG)) /
+      period;
+    expect(avg / CLIMB).toBeCloseTo(0.64, 2);
+  });
+});
+
+describe("leash: lava clock scales with how far the climber is beyond it", () => {
+  it("runs at 1× at and below the leash", () => {
+    for (const lead of [-50, 0, 10, HAZARD_LEASH_M / 2, HAZARD_LEASH_M]) {
+      expect(hazardCatchupTimeScale(lead)).toBe(1);
+    }
   });
 
-  it("runs a little fast once the lead is over the threshold", () => {
-    expect(hazardCatchupTimeScale(HAZARD_CATCHUP_LEAD_M + 0.1)).toBe(
-      HAZARD_CATCHUP_TIME_SCALE
-    );
-    expect(HAZARD_CATCHUP_TIME_SCALE).toBeGreaterThan(1);
-    expect(HAZARD_CATCHUP_TIME_SCALE).toBeLessThanOrEqual(1.3);
+  it("is strictly increasing beyond the leash until the cap", () => {
+    const capLead = HAZARD_LEASH_M + (HAZARD_CATCHUP_MAX_SCALE - 1) * HAZARD_LEASH_RANGE_M;
+    let prev = hazardCatchupTimeScale(HAZARD_LEASH_M + 0.01);
+    expect(prev).toBeGreaterThan(1);
+    let checked = 0;
+    for (let lead = HAZARD_LEASH_M + 1; lead < capLead; lead += 1) {
+      const s = hazardCatchupTimeScale(lead);
+      expect(s).toBeGreaterThan(prev);
+      prev = s;
+      checked += 1;
+    }
+    expect(checked).toBeGreaterThan(0);
   });
 
-  it("drops back to 1× as soon as the lead is within the threshold again", () => {
-    expect(hazardCatchupTimeScale(HAZARD_CATCHUP_LEAD_M + 50)).toBe(
-      HAZARD_CATCHUP_TIME_SCALE
-    );
-    expect(hazardCatchupTimeScale(HAZARD_CATCHUP_LEAD_M)).toBe(1);
-    expect(hazardCatchupTimeScale(50)).toBe(1);
+  it("is continuous at the leash boundary (no binary kick)", () => {
+    expect(hazardCatchupTimeScale(HAZARD_LEASH_M + 1e-3)).toBeCloseTo(1, 4);
+    expect(hazardCatchupTimeScale(HAZARD_LEASH_M + 1)).toBeLessThan(1.05);
+  });
+
+  it("gains one extra 1× per leash range", () => {
+    expect(hazardCatchupTimeScale(HAZARD_LEASH_M + HAZARD_LEASH_RANGE_M)).toBeCloseTo(2, 9);
+  });
+
+  it("is capped at HAZARD_CATCHUP_MAX_SCALE however far ahead the climber is", () => {
+    for (const lead of [500, 5_000, 1e9, Number.POSITIVE_INFINITY]) {
+      expect(hazardCatchupTimeScale(lead)).toBe(HAZARD_CATCHUP_MAX_SCALE);
+    }
+  });
+
+  it("reads a non-finite lead as within the leash (never NaN)", () => {
+    expect(hazardCatchupTimeScale(Number.NaN)).toBe(1);
+    expect(hazardCatchupTimeScale(Number.NEGATIVE_INFINITY)).toBe(1);
+  });
+
+  it("is deterministic: the same lead gives the same scale", () => {
+    for (const lead of [0, 50.5, 73.25, 130, 400]) {
+      expect(hazardCatchupTimeScale(lead)).toBe(hazardCatchupTimeScale(lead));
+    }
   });
 });

@@ -498,10 +498,11 @@ export function stepMatch(
   // 1. Rising hazard — speed is a fraction of the climber's climb rate, so the
   //    chase scales with how fast the player can move (AC-5, AC-6). The lava
   //    stumbles on a fixed cycle rather than accelerating at every moment.
-  //    Time-slow banks seconds the lava never gets to spend; catch-up spends
-  //    them a little faster while the lead climber is far ahead, then drops
-  //    back to 1× as soon as the gap is within 250m. Both keep the height
-  //    curve monotonic.
+  //    Time-slow banks seconds the lava never gets to spend; the leash
+  //    (hazardCatchupTimeScale) spends them faster in proportion to how far
+  //    the lead climber is beyond HAZARD_LEASH_M, and runs at 1× within it,
+  //    so the lava rides a fixed distance behind a fast climber. Both keep
+  //    the height curve monotonic.
   const timeScale =
     hazardTimeScale(state.players, state.tick) *
     hazardCatchupTimeScale(climbingLeadM(state.players, state.hazardY));
