@@ -18,8 +18,8 @@ import {
 } from "./joystick";
 
 /** Base diameter. */
-export const JOYSTICK_SIZE = 112;
-const KNOB_SIZE = 44;
+export const JOYSTICK_SIZE = 128;
+const KNOB_SIZE = 50;
 /** How far the knob centre travels from the base centre. */
 const TRAVEL = (JOYSTICK_SIZE - KNOB_SIZE) / 2 + 6;
 const CAPTION_GAP = 6;

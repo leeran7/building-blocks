@@ -62,20 +62,21 @@ describe("joystickDirection: cones", () => {
   it("presses Up together with Right from a slight upward lean", () => {
     // The climb-while-walking band: walking at a ladder with the thumb
     // leaning up grabs it on arrival.
-    for (const d of [20, 45, 70]) {
+    for (const d of [7, 20, 45, 70]) {
       expect(at(d)).toEqual({ left: false, right: true, up: true, down: false });
     }
   });
 
   it("presses Up together with Left the same way", () => {
-    for (const d of [110, 135, 160]) {
+    for (const d of [110, 135, 160, 173]) {
       expect(at(d)).toEqual({ left: true, right: false, up: true, down: false });
     }
   });
 
   it("does not climb on a flat sideways push", () => {
-    expect(at(10)).toEqual({ left: false, right: true, up: false, down: false });
-    expect(at(170)).toEqual({ left: true, right: false, up: false, down: false });
+    expect(at(3)).toEqual({ left: false, right: true, up: false, down: false });
+    expect(at(177)).toEqual({ left: true, right: false, up: false, down: false });
+    expect(at(0)).toEqual({ left: false, right: true, up: false, down: false });
   });
 
   it("does not walk on a near-vertical push", () => {
@@ -91,13 +92,13 @@ describe("joystickDirection: cones", () => {
 describe("joystickDirection: cone hysteresis", () => {
   const climbing = { left: false, right: true, up: true, down: false };
 
-  it("does not start climbing below the 15° edge", () => {
-    expect(at(12).up).toBe(false);
+  it("does not start climbing below the 5° edge", () => {
+    expect(at(4).up).toBe(false);
   });
 
-  it("keeps climbing once started until the lean drops under 10°", () => {
-    expect(at(12, climbing).up).toBe(true);
-    expect(at(8, climbing).up).toBe(false);
+  it("keeps climbing once started until the lean drops under 3°", () => {
+    expect(at(4, climbing).up).toBe(true);
+    expect(at(2, climbing).up).toBe(false);
   });
 
   it("keeps walking once started until the push is within 10° of vertical", () => {

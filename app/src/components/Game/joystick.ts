@@ -24,9 +24,11 @@ export const JOYSTICK_DEAD_ZONE_EXIT = 0.04;
  * Cone edges, as the minimum share of the push along an axis (sin of the
  * angle away from the perpendicular axis).
  *
- * - Up: any push at least 15° above horizontal climbs. Left/right: any push at
- *   least 15° off vertical walks. Between 15° and 75° above horizontal both
- *   are pressed, which is the climb-while-walking band.
+ * - Up: any push more than 5° above horizontal climbs, so only a flat push
+ *   walks without grabbing. The sim grabs a ladder in reach *before* walking
+ *   on whenever Up is held, so the wide Up cone is what makes the climber stop
+ *   at ladders instead of walking past. Left/right: any push at least 15° off
+ *   vertical walks. Between 5° and 75° above horizontal both are pressed.
  * - Down keeps a narrower 67.5° cone (22.5° below horizontal) so a thumb that
  *   sags while walking does not drop the climber down a ladder.
  *
@@ -35,8 +37,10 @@ export const JOYSTICK_DEAD_ZONE_EXIT = 0.04;
  * intent, which repeatedly grabs and releases the ladder.
  */
 const deg = (d: number) => Math.sin((d * Math.PI) / 180);
-const WIDE_ENTER = deg(15);
-const WIDE_STAY = deg(10);
+const UP_ENTER = deg(5);
+const UP_STAY = deg(3);
+const SIDE_ENTER = deg(15);
+const SIDE_STAY = deg(10);
 const DOWN_ENTER = deg(22.5);
 const DOWN_STAY = deg(15);
 
@@ -79,9 +83,9 @@ export function joystickDirection(
   const nx = dx / dist;
   const ny = dy / dist;
   return {
-    left: axis(-nx, prev.left, WIDE_ENTER, WIDE_STAY),
-    right: axis(nx, prev.right, WIDE_ENTER, WIDE_STAY),
-    up: axis(-ny, prev.up, WIDE_ENTER, WIDE_STAY),
+    left: axis(-nx, prev.left, SIDE_ENTER, SIDE_STAY),
+    right: axis(nx, prev.right, SIDE_ENTER, SIDE_STAY),
+    up: axis(-ny, prev.up, UP_ENTER, UP_STAY),
     down: axis(ny, prev.down, DOWN_ENTER, DOWN_STAY),
   };
 }
