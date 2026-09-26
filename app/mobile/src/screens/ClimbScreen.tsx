@@ -419,7 +419,7 @@ export function ClimbScreen({ onSignIn }: { onSignIn?: () => void } = {}) {
                 : "Go as high as you can before the rising lava catches you. Grab glowing orbs for power-ups."}
             </p>
             {isDaily && (
-              <p className="mt-3 font-mono text-[10px] uppercase tracking-[0.2em] text-text-muted">
+              <p className="mt-3 font-mono text-label uppercase tracking-label text-text-muted">
                 Resets in {formatReset(msUntilReset())}
               </p>
             )}
@@ -427,7 +427,7 @@ export function ClimbScreen({ onSignIn }: { onSignIn?: () => void } = {}) {
               <StartButton onClick={handleStart} label={isDaily ? "Start daily" : "Start climb"} />
             )}
             {dailyLobby === "loading" && (
-              <p role="status" className="mt-8 font-mono text-[11px] uppercase tracking-[0.2em] text-text-muted">
+              <p role="status" className="mt-8 font-mono text-label uppercase tracking-label text-text-muted">
                 Loading today&rsquo;s tower…
               </p>
             )}
@@ -504,20 +504,20 @@ function Overlay({ children }: { children: React.ReactNode }) {
 function DailyOffline({ onRetry, onPlayEndless }: { onRetry: () => void; onPlayEndless: () => void }) {
   return (
     <div role="alert" className="mt-6 flex flex-col items-center gap-3 text-center">
-      <p className="max-w-[260px] text-sm leading-relaxed text-text-secondary">
+      <p className="max-w-65 text-meta text-text-secondary">
         Can&rsquo;t load today&rsquo;s tower. Check your connection and try again.
       </p>
       <button
         type="button"
         onClick={onRetry}
-        className="min-h-[44px] rounded-full border-2 border-signal/70 bg-signal/10 px-8 font-display text-base font-black uppercase tracking-[0.15em] text-signal transition-transform duration-150 active:scale-[0.96] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void"
+        className="min-h-[44px] rounded-full border-2 border-signal/70 bg-signal/10 px-8 font-display text-body font-black uppercase tracking-chip text-signal transition-transform duration-150 active:scale-[0.96] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void"
       >
         Try again
       </button>
       <button
         type="button"
         onClick={onPlayEndless}
-        className="min-h-[44px] rounded-full px-6 font-mono text-[11px] uppercase tracking-[0.2em] text-text-secondary transition-colors hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void"
+        className="min-h-[44px] rounded-full px-6 font-mono text-label uppercase tracking-label text-text-secondary transition-colors hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void"
       >
         Play endless instead
       </button>
@@ -684,7 +684,7 @@ function ResultsCard({
         <button
           type="button"
           onClick={onRetryDaily}
-          className="mx-auto mt-2 flex min-h-[44px] items-center px-4 font-mono text-[11px] uppercase tracking-[0.2em] text-signal underline underline-offset-4"
+          className="mx-auto mt-2 flex min-h-[44px] items-center px-4 font-mono text-label uppercase tracking-label text-signal underline underline-offset-4"
         >
           Try again
         </button>
