@@ -178,3 +178,28 @@ describe("web Daily Climb across 00:00 UTC (RV-DC-3)", () => {
     expect(container!.querySelector('[data-testid="scene"]')).toBeNull();
   });
 });
+
+describe("web Daily Climb: network time counts as elapsed (V-DC-2, verifier)", () => {
+  it("a slow answer is timed from the request, so the tower closes on the server's reset, not 90 s after it", async () => {
+    // Requested at 23:58:00 with the server saying 2 min are left; the answer takes 90 s to arrive.
+    vi.setSystemTime(new Date("2026-09-26T23:58:00Z"));
+    net.body = { ...OLD, now: "2026-09-26T23:58:00.000Z" };
+    net.hold = true;
+    await mount();
+    vi.setSystemTime(new Date("2026-09-26T23:59:30Z"));
+    await act(async () => net.held.splice(0).forEach((go) => go()));
+    await settle();
+    net.hold = false;
+    expect(last().seed).toBe(OLD.seed);
+    // Positive control: 1 ms before the server's reset the start goes ahead.
+    vi.setSystemTime(new Date("2026-09-26T23:59:59.999Z"));
+    expect(await askStart()).toBe(true);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    // At the reset the 2 min have passed since the request: refetch, not the closed tower.
+    vi.setSystemTime(new Date("2026-09-27T00:00:00.000Z"));
+    net.body = NEW;
+    expect(await askStart()).toBe(false);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(last().seed).toBe(NEW.seed);
+  });
+});

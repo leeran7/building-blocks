@@ -124,3 +124,41 @@ describe("pnpm db:migrate:local (the script itself)", () => {
     expect(`${out.stdout}${out.stderr}`).not.toMatch(/prisma|datasource|migrations? (found|applied)/i);
   });
 });
+
+describe("isLocalDbUrl: the allow-list is exactly the documented 8 keys (verifier)", () => {
+  // Written out here, not read back from ALLOWED_DB_URL_PARAMS: a key swapped
+  // inside the set (size still 8) must not pass unnoticed.
+  const DOCUMENTED = [
+    "schema",
+    "sslmode",
+    "connection_limit",
+    "pool_timeout",
+    "connect_timeout",
+    "pgbouncer",
+    "statement_cache_size",
+    "socket_timeout",
+  ];
+
+  it.each(DOCUMENTED)("accepts %s on its own on a loopback URL", (key) => {
+    expect(isLocalDbUrl(`postgresql://postgres@127.0.0.1:55432/db?${key}=1`)).toBe(true);
+  });
+
+  it("the exported set is those 8 and nothing else", () => {
+    expect([...ALLOWED_DB_URL_PARAMS].sort()).toEqual([...DOCUMENTED].sort());
+  });
+
+  it.each([
+    "dbname", // libpq can expand a dbname into a whole connection string
+    "passfile",
+    "sslrootcert",
+    "sslcert",
+    "sslkey",
+    "target_session_attrs",
+    "port",
+    "user",
+  ])("refuses the undocumented key %s", (key) => {
+    // Positive control first: the same URL without the key is local.
+    expect(isLocalDbUrl("postgresql://u@localhost/db?sslmode=disable")).toBe(true);
+    expect(isLocalDbUrl(`postgresql://u@localhost/db?sslmode=disable&${key}=x`)).toBe(false);
+  });
+});

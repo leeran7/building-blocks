@@ -311,3 +311,28 @@ describe("ClimbScreen daily: a failed refetch cancels the pending start (verifie
     expect(climb.starts).toEqual([NEW.seed]);
   });
 });
+
+describe("ClimbScreen daily: network time counts as elapsed (V-DC-2, verifier)", () => {
+  it("a slow answer is timed from the request, so Play again refetches at the server's reset, not 90 s after it", async () => {
+    // Requested at 23:58:00 with the server saying 2 min are left; the answer takes 90 s to arrive.
+    vi.setSystemTime(new Date("2026-09-26T23:58:00Z"));
+    net.info = { ...OLD, now: "2026-09-26T23:58:00.000Z" };
+    net.holdInfo = true;
+    await mountDaily();
+    vi.setSystemTime(new Date("2026-09-26T23:59:30Z"));
+    await act(async () => net.heldInfo.splice(0).forEach((go) => go()));
+    await settle();
+    net.holdInfo = false;
+    // Positive control: 1 ms before the server's reset Play again starts with no refetch.
+    vi.setSystemTime(new Date("2026-09-26T23:59:59.999Z"));
+    await click(playAgain());
+    expect(climb.starts).toEqual([OLD.seed]);
+    expect(infoFetches()).toBe(1);
+    // At the reset the 2 min have passed since the request: refetch, then today's tower.
+    vi.setSystemTime(new Date("2026-09-27T00:00:00.000Z"));
+    net.info = NEW;
+    await click(playAgain());
+    expect(infoFetches()).toBe(2);
+    expect(climb.starts).toEqual([OLD.seed, NEW.seed]);
+  });
+});

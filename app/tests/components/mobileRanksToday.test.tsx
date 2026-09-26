@@ -986,3 +986,44 @@ describe("Ranks: each Friends board fetches only on its own tab (verifier, RV-DC
     expect(calls("/api/climb/daily/leaderboard/friends")).toBe(0);
   });
 });
+
+describe("Ranks consent retry and Endless copy (verifier)", () => {
+  const sheetAlertNear = (label: string) =>
+    buttonByText(label)?.closest(".lcm-card")?.querySelector('[role="alert"]') ?? null;
+
+  it("a retry after a failed save drops the old error while it saves, the same as Climb results", async () => {
+    net.consent = false;
+    net.putStatus = 500;
+    net.daily = dailyBoard([dailyRow(1, "a", 900)], { rank: null, peakY: 10, attempts: 1 });
+    await render(TODAY, createElement(LeaderboardScreen));
+    await click(bannerEndingWith("Show me on the board"));
+    await click(buttonByText("Save my score"));
+    expect(sheetAlertNear("Save my score")?.textContent).toBe(CONSENT_SAVE_FAILED);
+
+    // Retry, with the PUT held in flight: busy, and no stale failure line.
+    net.putStatus = 200;
+    net.hold = "/api/settings";
+    await click(buttonByText("Save my score"));
+    expect(buttonByText("Saving…")).toBeTruthy();
+    expect(sheetAlertNear("Saving…")).toBeNull();
+
+    net.hold = null;
+    net.consent = true;
+    net.daily = dailyBoard([dailyRow(1, "a", 900), dailyRow(2, ME, 10)], { rank: 2, peakY: 10, attempts: 1 });
+    await act(async () =>
+      net.held.splice(0).forEach((go) =>
+        go({ displayName: null, username: null, social: {}, leaderboardConsent: true, avatarId: null }),
+      ),
+    );
+    await settle();
+    expect(buttonByText("Save my score")).toBeUndefined();
+    expect(buttonByText("Saving…")).toBeUndefined();
+  });
+
+  it("the Endless unranked banner says either mode counts", async () => {
+    await render("/leaderboard", createElement(LeaderboardScreen));
+    expect(tab("lb-period-alltime")?.getAttribute("aria-selected")).toBe("true");
+    expect(text()).toContain("Not ranked yet");
+    expect(text()).toContain("Finish any climb, Endless or Daily, to get on the board");
+  });
+});

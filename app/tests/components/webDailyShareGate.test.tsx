@@ -166,3 +166,13 @@ describe("daily share link waits for the owner's save (SEC-DC-12)", () => {
     expect(linkShown()).toBe(true);
   });
 });
+
+describe("the share gate names the Daily board (Endless | Daily rename, verifier)", () => {
+  it("an unsaved daily run's note says the Daily board, not today's board", async () => {
+    auth.user = null;
+    auth.token = null;
+    await mount({ shareAfterSave: true, resultPath: "/api/climb/daily/result" });
+    expect(container!.textContent).toContain("Daily runs can be shared once they're saved to the Daily board.");
+    expect(container!.textContent).not.toMatch(/today.s board/i);
+  });
+});
