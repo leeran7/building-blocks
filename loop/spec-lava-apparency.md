@@ -218,3 +218,45 @@ source text.
   lands, tune `endSpeedFrac`/`rampSeconds` (the kill-threshold knobs), not the leash.
 - Leash knobs are independent: `HAZARD_LEASH_M` = where the lava rides (visibility),
   `HAZARD_LEASH_RANGE_M` = how quickly it closes, `endSpeedFrac` = who dies.
+
+## Revision 2 (after review, user decisions 2026-09-26)
+
+Measured after iteration 1: a flawless unaided player's pace is capped at about
+0.55–0.62× ladder speed by walking between ladders. The 0.7–1.0× rows above
+are power-up burst paces. The leash is engaged for 26–46% of a realistic run
+and is what keeps the lava on screen.
+
+### R2-1. Leash follows the trailing climber (security critical SEC-LAVA-1, user decision)
+
+`climbingLeadM` takes the LOWEST climbing player's lead (0 when none are
+climbing). A peer's reported position can then only lower the lava clock,
+never raise it. Solo and daily have one player, so they are unchanged. In
+duels the lava hunts whoever is behind, so a lead or a single burst no longer
+drags the lava onto the opponent.
+
+Tests: a spoofed ghost reporting y = hazardY + 500 does not change the honest
+client's hazard (proven red against Math.max); a leader + trailer pair keeps
+the trailer's gap inside the leash band; the server duel re-sim and the
+client's local sim agree on the hazard during an opponent's burst.
+
+### R2-2. Late-game creep (user decision)
+
+New `HazardConfig.creepPerMinute = 0.02`. After the ramp the envelope keeps
+rising by 0.02 per minute of hazard time, capped at `MAX_HAZARD_SPEED_FRAC`
+(1.0, the lava never outruns a ladder). With the 16 s / 6 s @ 0.2 cycle the
+time-averaged speed goes from 0.64× at the end of the ramp to 0.70× at the
+cap (about 6.5 min in). 0.70 is above the best unaided pace, so every run
+ends; only power-ups extend it.
+
+Modelled (leash on):
+
+| Pace | No creep | Creep 0.02/min |
+|---|---|---|
+| 0.45–0.55 | unchanged | unchanged (±3 ft) |
+| 0.60 | 199 s / 1072 ft | 182 s / 982 ft |
+| 0.62 | 323 s / 1802 ft | 226 s / 1260 ft |
+| 0.64 | never caught | 286 s / 1650 ft |
+| 0.66 | never caught | 362 s / 2149 ft |
+
+The integral must stay closed-form (piecewise linear envelope: ramp, creep,
+hold at cap). No per-tick scan (.claude/rules/architecture.md).
