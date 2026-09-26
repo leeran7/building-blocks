@@ -58,6 +58,12 @@ const TEXT_SECONDARY = "#a8a4b2";
 const FLAG = "#cbf24d";
 
 const BASE_WIDTH = 360;
+/**
+ * Draw-size multiplier for everything on the canvas: climber, ladders,
+ * platform slabs, power-ups, crate trim, floor markers, HUD text. Positions
+ * and the camera are unchanged, so the view does not zoom or scroll.
+ */
+export const GAME_DRAW_SCALE = 1.15;
 
 // ── Cached font strings ──────────────────────────────────────────────────────
 // Avoids template-literal allocation every frame; rebuilt only on ui change.
@@ -141,9 +147,11 @@ export function paintClimbFrame(
     (opts.myId ? state.players.find((p) => p.id === opts.myId) : null) ??
     state.players[0];
   const playerY = player?.y ?? 0;
-  const ui = Math.max(1, width / BASE_WIDTH);
+  const ui = Math.max(1, width / BASE_WIDTH) * GAME_DRAW_SCALE;
 
   const { pxPerM, viewH } = climbView(width, height, tower.widthM);
+  // Sizes (not positions) that follow the world scale.
+  const sizePxPerM = pxPerM * GAME_DRAW_SCALE;
   ensureFontCache(ui);
   const camTarget = cameraTargetY(playerY, viewH, bottomInset, pxPerM);
   // Snap on the first paint of a run, and on any backward jump (replay seek).
@@ -199,7 +207,7 @@ export function paintClimbFrame(
     const yBot = sy(l.y0);
     if (yBot < -20 || yTop > height + 20) continue;
     const cx = sx(l.x);
-    const railHalf = Math.max(4, pxPerM * 1.4);
+    const railHalf = Math.max(4, sizePxPerM * 1.4);
     ctx.strokeStyle = LADDER;
     ctx.lineWidth = 2 * ui;
     ctx.beginPath();
@@ -218,7 +226,7 @@ export function paintClimbFrame(
     }
   }
 
-  const slab = Math.max(6, pxPerM * 2.5);
+  const slab = Math.max(6, sizePxPerM * 2.5);
   for (const p of platformsNearY(tower, yLow, yHigh)) {
     const top = sy(p.y);
     if (top < -slab || top > height + 20) continue;
@@ -236,7 +244,7 @@ export function paintClimbFrame(
   }
 
   for (const o of obstaclesNearY(tower, yLow, yHigh)) {
-    drawObstacle(ctx, o, sx, sy, pxPerM, ui, height);
+    drawObstacle(ctx, o, sx, sy, sizePxPerM, ui, height);
   }
 
   for (const pu of state.powerUps) {
@@ -254,7 +262,7 @@ export function paintClimbFrame(
           ox,
           oy,
           age / PICKUP_BURST_TICKS,
-          pxPerM,
+          sizePxPerM,
           pu.type,
           pu.floorIndex,
           state.tick,
@@ -266,7 +274,7 @@ export function paintClimbFrame(
     const cooling = player ? cooldownRemaining(player, pu.type, state.tick) > 0 : false;
     const nextFloorY = floorHeight(tower, pu.floorIndex + 1);
     const nextFloorScreenY = sy(nextFloorY);
-    drawPowerUpOrb(ctx, ox, oy, pxPerM, ui, pu, state.tick, reducedMotion, cooling, nextFloorScreenY, width);
+    drawPowerUpOrb(ctx, ox, oy, sizePxPerM, ui, pu, state.tick, reducedMotion, cooling, nextFloorScreenY, width);
   }
 
   const hardenActive = player
@@ -320,7 +328,7 @@ export function paintClimbFrame(
     else if (Math.abs(p.vx) > 0.1) pPose = "walk";
 
     const pS =
-      Math.max(5, pxPerM * 1.7) *
+      Math.max(5, sizePxPerM * 1.7) *
       (isPowerUpActive(p, "giant", state.tick) ? GIANT_VISUAL_SCALE : 1);
 
     const isReady = opts.readySlots?.has(p.slot) ?? false;
