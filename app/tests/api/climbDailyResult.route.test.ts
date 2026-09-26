@@ -49,6 +49,7 @@ import {
   MAX_SHARE_TICKS,
   packInputLog,
   parseReplayToken,
+  parseRunReplayEnvelope,
 } from "../../src/game/runReplay";
 import { deflateSync } from "node:zlib";
 import { dailySeedFor } from "../../src/lib/dailySeedServer";
@@ -648,6 +649,38 @@ describe("POST /api/climb/daily/result: hardening (SEC-DC-2, 3, 4)", () => {
     expect(await codeOf(copy)).toBe("REPLAY_REUSED");
     expect([...owners.values()]).toEqual(["u1"]);
     expect(vi.mocked(recordDailyClimb).mock.calls.map(([c]) => c.userId)).toEqual(["u1"]);
+  });
+
+  it("a raw token from a runtime with no CompressionStream is verified and saved (RV-DC-2)", async () => {
+    vi.stubGlobal("CompressionStream", undefined);
+    const { run, body } = await honestPayload();
+    vi.unstubAllGlobals();
+    // Precondition: the token really carries the packed bytes uncompressed.
+    const envelope = parseRunReplayEnvelope(body.replayToken!);
+    expect(Buffer.from(envelope!.compressed).equals(Buffer.from(packInputLog(run.inputs)))).toBe(true);
+    useClaimStore();
+    asUser("u1");
+    const res = await post(body);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ saved: true, peakY: run.peakY });
+  });
+
+  it("the raw and deflated tokens of one run claim the same replay: the second account is refused (RV-DC-2)", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    const owners = useClaimStore();
+    vi.stubGlobal("CompressionStream", undefined);
+    const raw = await honestPayload();
+    vi.unstubAllGlobals();
+    const deflated = await honestPayload();
+    expect(raw.body.replayToken).not.toBe(deflated.body.replayToken);
+
+    asUser("u1");
+    expect((await post(raw.body)).status).toBe(200);
+    asUser("u2");
+    const copy = await post(deflated.body);
+    expect(copy.status).toBe(409);
+    expect(await codeOf(copy)).toBe("REPLAY_REUSED");
+    expect([...owners.values()]).toEqual(["u1"]);
   });
 
   it("two accounts can each save the same held-input ladder run above 6 m (SEC-DC-15)", async () => {
