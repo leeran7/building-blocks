@@ -17,6 +17,7 @@
     "db:migrate": "prisma migrate deploy",
     "db:migrate:dev": "prisma migrate dev",
     "db:seed": "tsx prisma/seed.ts",
+    "db:backfill-avatars": "tsx prisma/backfillAvatars.ts",
     "db:studio": "prisma studio",
     "typecheck": "tsc --noEmit",
     "analyze": "ANALYZE=true next build --webpack",
