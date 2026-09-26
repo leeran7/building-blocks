@@ -25,7 +25,11 @@ const motion = vi.hoisted(() => ({ reduce: false }));
 vi.mock("../../mobile/src/lib/motion", () => ({ prefersReducedMotion: () => motion.reduce }));
 
 const lava = vi.hoisted(() => ({ draw: vi.fn() }));
-vi.mock("@app/components/Game/lava", () => ({ drawLava: lava.draw }));
+// Only the drawing is stubbed; the crest geometry the backdrop sizes itself from stays real.
+vi.mock("@app/components/Game/lava", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../../src/components/Game/lava")>()),
+  drawLava: lava.draw,
+}));
 
 vi.mock("../../mobile/src/contexts/AuthContext", () => ({
   useAuth: () => ({ user: { uid: ME }, isAnonymous: false, loading: false, signOut: vi.fn(async () => {}) }),

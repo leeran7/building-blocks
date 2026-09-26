@@ -17,10 +17,23 @@ const PREVIEW_HEX = 128;
 const LOAD_FAILED_MESSAGE = "Couldn't load your profile. Check your connection and try again.";
 const SCROLL_FADE = "linear-gradient(to bottom, #000 calc(100% - 18px), transparent)";
 /**
- * The clear save bar's height with no error line: pt-3, the 56px button, and
- * pb (1rem + the home indicator). Kept in step with the footer's classes.
+ * The clear save bar's box: top padding, the Save button's height and bottom
+ * padding (1rem above the home indicator). The footer and button take their
+ * sizes from these via CSS custom properties, and SAVE_BAR_HEIGHT sums the
+ * same values, so the two cannot drift apart (RV-DC-18).
  */
-const SAVE_BAR_HEIGHT = "(0.75rem + 56px + 1rem + env(safe-area-inset-bottom))";
+export const SAVE_BAR = {
+  padTop: "0.75rem",
+  cta: "56px",
+  padBottom: "calc(env(safe-area-inset-bottom) + 1rem)",
+} as const;
+const SAVE_BAR_VARS = {
+  "--save-bar-pt": SAVE_BAR.padTop,
+  "--save-bar-cta": SAVE_BAR.cta,
+  "--save-bar-pb": SAVE_BAR.padBottom,
+} as CSSProperties;
+/** The clear save bar's height with no error line. */
+const SAVE_BAR_HEIGHT = `(${SAVE_BAR.padTop} + ${SAVE_BAR.cta} + ${SAVE_BAR.padBottom})`;
 /**
  * Space after the last row so it can scroll clear of the lava. The scroller
  * ends at the save bar, but on tall screens the lava crest rises above the
@@ -278,7 +291,8 @@ export function AvatarPickerScreen() {
       {settingsData && (
         <footer
           data-avatar-save-bar
-          className="flex shrink-0 flex-col gap-2 px-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] pt-3"
+          className="flex shrink-0 flex-col gap-2 px-4 pb-(--save-bar-pb) pt-(--save-bar-pt)"
+          style={SAVE_BAR_VARS}
         >
           {error && (
             <p role="alert" className="glass rounded-2xl border border-ember/40 px-4 py-2.5 text-meta leading-5 text-ember">
@@ -289,7 +303,7 @@ export function AvatarPickerScreen() {
             ref={saveRef}
             onClick={() => void save()}
             disabled={!changed || saving}
-            className="cta-lime min-h-[56px] w-full rounded-2xl font-display text-lead font-black uppercase tracking-wide text-void transition-transform active:scale-[0.98] disabled:active:scale-100"
+            className="cta-lime min-h-(--save-bar-cta) w-full rounded-2xl font-display text-lead font-black uppercase tracking-wide text-void transition-transform active:scale-[0.98] disabled:active:scale-100"
           >
             {saving ? "Saving…" : "Save avatar"}
           </button>

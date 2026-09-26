@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef } from "react";
-import { drawLava } from "@app/components/Game/lava";
+import { drawLava, lavaCrestRise } from "@app/components/Game/lava";
 import { prefersReducedMotion } from "../lib/motion";
 import volcanoScene from "@app/../public/climb/volcano-tile.jpg";
 
@@ -24,14 +24,31 @@ const LAVA_FPS = 30;
 export const LAVA_CANVAS_VH = 26;
 /** Where the lava surface is drawn, as a fraction of the canvas from its top. */
 export const LAVA_SURFACE_FROM_TOP = 0.44;
-/** How far the animated wave crest rises above the lava surface. */
-export const LAVA_CREST_PX = 18;
+/** The lava's drawing scale never drops below this on narrow screens. */
+export const LAVA_UI_MIN = 0.85;
+/** Screen width (CSS px) at which the lava is drawn at scale 1. */
+export const LAVA_UI_REF_WIDTH = 420;
+/** The scale LavaCanvas draws the lava at on a canvas `width` CSS px wide. */
+export function lavaUiScale(width: number): number {
+  return Math.max(LAVA_UI_MIN, width / LAVA_UI_REF_WIDTH);
+}
+
+/** Rounds up at 4 decimals, so a CSS length built from it is never short. */
+const ceil4 = (n: number) => Math.ceil(n * 1e4) / 1e4;
+const LAVA_SURFACE_VH = +(LAVA_CANVAS_VH * (1 - LAVA_SURFACE_FROM_TOP)).toFixed(2);
+/**
+ * The crest's rise as a CSS length: lavaCrestRise(lavaUiScale(100vw)). The
+ * canvas spans the full screen width, so its scale is max(LAVA_UI_MIN,
+ * 100vw / LAVA_UI_REF_WIDTH), and the rise is linear in the scale.
+ */
+const LAVA_CREST_CSS = `max(${ceil4(lavaCrestRise(LAVA_UI_MIN))}px, ${ceil4((lavaCrestRise(1) * 100) / LAVA_UI_REF_WIDTH)}vw)`;
 /**
  * CSS length from the screen's bottom edge to just above the highest lava
- * crest (surface + crest + a 0.5rem gap). Content that must stay readable
- * over the backdrop ends at least this far up.
+ * crest (surface + the width-aware crest + a 0.5rem gap). Content that must
+ * stay readable over the backdrop ends at least this far up. Holds on every
+ * width and orientation, because the crest grows with the screen width.
  */
-export const LAVA_CLEARANCE = `calc(${+(LAVA_CANVAS_VH * (1 - LAVA_SURFACE_FROM_TOP)).toFixed(2)}vh + ${LAVA_CREST_PX}px + 0.5rem)`;
+export const LAVA_CLEARANCE = `calc(${LAVA_SURFACE_VH}vh + ${LAVA_CREST_CSS} + 0.5rem)`;
 
 export function AnimatedBackdrop() {
   const ash = useMemo(
@@ -247,7 +264,7 @@ function LavaCanvas() {
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.clearRect(0, 0, cssW, cssH);
       const tick = reduce ? 0 : (now - start) / (1000 / 30);
-      const ui = Math.max(0.85, cssW / 420);
+      const ui = lavaUiScale(cssW);
       const top = cssH * LAVA_SURFACE_FROM_TOP;
       drawLava(ctx, {
         width: cssW,

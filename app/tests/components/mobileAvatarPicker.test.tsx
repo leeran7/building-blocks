@@ -55,12 +55,7 @@ import { initialsOf } from "../../mobile/src/lib/leaderboard";
 import { ANIMALS, climberHandle } from "@app/lib/handle";
 import { HexAvatar } from "../../mobile/src/components/HexAvatar";
 import { AvatarPickerScreen, GRID_END_PADDING } from "../../mobile/src/screens/AvatarPickerScreen";
-import {
-  LAVA_CANVAS_VH,
-  LAVA_CLEARANCE,
-  LAVA_CREST_PX,
-  LAVA_SURFACE_FROM_TOP,
-} from "../../mobile/src/components/AnimatedBackdrop";
+import { LAVA_CLEARANCE } from "../../mobile/src/components/AnimatedBackdrop";
 
 const [FIRST, SECOND] = AVATARS;
 
@@ -385,7 +380,10 @@ describe("the picker fills the screen, Save sticks to the bottom (user report)",
     const cls = classes(bar);
     expect(cls.has("shrink-0")).toBe(true);
     const bottom = [...cls].filter((c) => c.startsWith("pb-"));
-    expect(bottom).toEqual(["pb-[calc(env(safe-area-inset-bottom)+1rem)]"]);
+    expect(bottom).toEqual(["pb-(--save-bar-pb)"]);
+    expect((bar as HTMLElement | null)?.style.getPropertyValue("--save-bar-pb")).toBe(
+      "calc(env(safe-area-inset-bottom) + 1rem)",
+    );
     // The old layout held Save 16vh up to stand clear of the lava band.
     expect(bar?.getAttribute("class")).not.toMatch(/vh/);
   });
@@ -398,7 +396,11 @@ describe("the picker fills the screen, Save sticks to the bottom (user report)",
       /^(glass|glow-card|bg-|border|shadow|backdrop-|ring)/.test(c),
     );
     expect(surface).toEqual([]);
-    expect(bar?.getAttribute("style") ?? "").toBe("");
+    // Its inline style only carries the bar's size variables, never a surface.
+    const style = (bar as HTMLElement | null)?.style;
+    const props = style ? Array.from({ length: style.length }, (_, i) => style.item(i)) : [];
+    expect(props.length).toBeGreaterThan(0);
+    expect(props.filter((p) => !p.startsWith("--save-bar-"))).toEqual([]);
     // The button keeps its own lime fill.
     expect(classes(saveButton() ?? null).has("cta-lime")).toBe(true);
   });
@@ -416,36 +418,64 @@ describe("the picker fills the screen, Save sticks to the bottom (user report)",
   });
 
   /**
-   * Evaluates the production CSS length for a given screen: vh, rem, px and
+   * Evaluates a production CSS length for a given screen: vh, vw, rem, px and
    * the home-indicator inset become numbers; calc/max become arithmetic.
    */
-  function cssPx(length: string, viewportH: number, safeBottom: number): number {
+  function cssPx(length: string, width: number, viewportH: number, safeBottom: number): number {
     const js = length
       .replace(/env\(safe-area-inset-bottom\)/g, String(safeBottom))
       .replace(/([\d.]+)vh/g, (_, n) => `(${n}*${viewportH / 100})`)
+      .replace(/([\d.]+)vw/g, (_, n) => `(${n}*${width / 100})`)
       .replace(/([\d.]+)rem/g, (_, n) => `(${n}*16)`)
       .replace(/([\d.]+)px/g, "$1")
       .replace(/calc/g, "")
       .replace(/max/g, "Math.max");
-    expect(js).toMatch(/^[\d\s.+\-*/(),Mathmax]+$/);
+    expect(js.replace(/Math\.max/g, "")).toMatch(/^[\d\s.+\-*/(),]+$/);
     return Function(`return ${js};`)() as number;
   }
 
+  /**
+   * The rendered save bar's height (no error line), read from the DOM: the
+   * var() each padding and min-height class points at, resolved against the
+   * bar's own inline custom properties. Nothing here restates the sizes.
+   */
+  function renderedBarHeight(width: number, viewportH: number, safeBottom: number): number {
+    const bar = saveButton()?.closest("footer") as HTMLElement | null;
+    const btn = saveButton() as HTMLElement | null;
+    const varOf = (el: HTMLElement | null, prefix: string) => {
+      const cls = [...classes(el)].filter((c) => c.startsWith(prefix));
+      expect(cls).toHaveLength(1);
+      const name = cls[0].match(/^[a-z-]+\((--[a-z-]+)\)$/)?.[1];
+      expect(name).toBeDefined();
+      const value = bar?.style.getPropertyValue(name!) ?? "";
+      expect(value).not.toBe("");
+      return cssPx(value, width, viewportH, safeBottom);
+    };
+    return varOf(bar, "pt-") + varOf(btn, "min-h-") + varOf(bar, "pb-");
+  }
+
   it.each([
-    ["iPhone 15 Pro Max", 932, 34],
-    ["iPhone 15", 852, 34],
-    ["iPhone SE", 667, 0],
-    ["iPad mini portrait", 1133, 20],
-  ])("on %s the last row's bottom clears the lava crest", (_device, viewportH, safeBottom) => {
-    // The lava crest's height above the bottom edge, from the canvas geometry.
-    const crest = (viewportH * LAVA_CANVAS_VH * (1 - LAVA_SURFACE_FROM_TOP)) / 100 + LAVA_CREST_PX;
-    // The clear save bar: pt-3 (12) + the 56px button + pb 1rem (16) + inset.
-    const bar = 12 + 56 + 16 + safeBottom;
-    const pad = cssPx(GRID_END_PADDING, viewportH, safeBottom);
+    ["iPhone SE", 375, 667, 0],
+    ["iPhone 15", 393, 852, 34],
+    ["iPhone 15 Pro Max", 430, 932, 34],
+    ["iPhone 15 Pro Max landscape", 932, 430, 21],
+    ["iPad mini portrait", 744, 1133, 20],
+    ["iPad 11in portrait", 834, 1194, 20],
+    ["iPad mini landscape", 1133, 744, 20],
+  ])("on %s (%dx%d) the grid ends LAVA_CLEARANCE up, above the rendered save bar", (_device, width, viewportH, safeBottom) => {
+    // mobileLavaClearance.test.tsx proves LAVA_CLEARANCE clears the DRAWN
+    // crest on these screens; this proves the grid really ends that far up.
+    state.settings = settings(null);
+    renderPicker();
+    const bar = renderedBarHeight(width, viewportH, safeBottom);
+    const pad = cssPx(GRID_END_PADDING, width, viewportH, safeBottom);
+    const clearance = cssPx(LAVA_CLEARANCE, width, viewportH, safeBottom);
+    expect(bar).toBeGreaterThan(56 + safeBottom);
     expect(pad).toBeGreaterThanOrEqual(16);
-    expect(bar + pad).toBeGreaterThan(crest);
-    // And not absurdly more than needed (a row or so of slack at most).
-    expect(bar + pad - crest).toBeLessThan(96);
+    // The last row's bottom sits at bar + pad above the screen's bottom edge.
+    expect(bar + pad).toBeGreaterThanOrEqual(clearance - 0.01);
+    // No more than the 1rem floor when the bar alone already clears the lava.
+    expect(bar + pad).toBeCloseTo(Math.max(bar + 16, clearance), 2);
   });
 
   it("tiles fade out into the backdrop at the scroller's edge instead of running under Save", () => {

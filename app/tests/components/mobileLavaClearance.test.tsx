@@ -3,9 +3,10 @@
  * just above the highest lava crest. The Choose avatar grid ends that far up
  * (GRID_END_PADDING), so the last row can scroll clear of the lava.
  *
- * The avatar picker's own test checks the padding against LAVA_CREST_PX, the
- * same constant that builds LAVA_CLEARANCE, so it cannot tell whether that
- * constant matches what is drawn. This test measures the drawn crest instead:
+ * A check that rebuilt the crest from the constants that build LAVA_CLEARANCE
+ * could not tell whether they match what is drawn (V-DC-1: a fixed 18 px
+ * crest ended 6-23 px inside the lava on iPad and landscape). This test
+ * measures the drawn crest instead:
  * it renders the real AnimatedBackdrop, captures the options its LavaCanvas
  * passes to drawLava (canvas size, surface line, ui scale), and samples the
  * game's real crestOffset over the wave's full motion. No lava geometry is
@@ -96,13 +97,15 @@ function crestAboveBottom(lava: { width: number; height: number; top: number; ui
   return lava.height - (lava.top + minOffset);
 }
 
-/** Evaluates LAVA_CLEARANCE (a calc() of vh, px and rem) for one screen. */
-function clearancePx(viewportH: number): number {
+/** Evaluates LAVA_CLEARANCE (a calc()/max() of vh, vw, px and rem) for one screen. */
+function clearancePx(width: number, viewportH: number): number {
   const js = LAVA_CLEARANCE.replace(/([\d.]+)vh/g, (_, n) => `(${n}*${viewportH / 100})`)
+    .replace(/([\d.]+)vw/g, (_, n) => `(${n}*${width / 100})`)
     .replace(/([\d.]+)rem/g, (_, n) => `(${n}*16)`)
     .replace(/([\d.]+)px/g, "$1")
-    .replace(/calc/g, "");
-  expect(js).toMatch(/^[\d\s.+\-*/()]+$/);
+    .replace(/calc/g, "")
+    .replace(/max/g, "Math.max");
+  expect(js).toMatch(/^[\d\s.+\-*/(),]*(Math\.max[\d\s.+\-*/(),]*)*$/);
   return Function(`return ${js};`)() as number;
 }
 
@@ -119,17 +122,31 @@ describe("LAVA_CLEARANCE clears the lava that is actually drawn", () => {
     expect(crestAboveBottom(lava)).toBeGreaterThan(lava.height - lava.top + 10);
   });
 
+  // Every device class the app ships to (TARGETED_DEVICE_FAMILY "1,2") in
+  // both orientations it allows. Wider screens draw a taller crest.
   it.each([
+    ["iPad Slide Over (narrowest window)", 320, 1133],
     ["iPhone SE", 375, 667],
     ["iPhone 15", 393, 852],
     ["iPhone 15 Pro Max", 430, 932],
     ["iPhone 16 Pro Max", 440, 956],
+    ["iPhone SE landscape", 667, 375],
+    ["iPhone 15 landscape", 852, 393],
+    ["iPhone 15 Pro Max landscape", 932, 430],
+    ["iPad mini portrait", 744, 1133],
+    ["iPad 11in portrait", 834, 1194],
+    ["iPad mini landscape", 1133, 744],
+    ["iPad 11in landscape", 1194, 834],
+    ["iPad Pro 13in landscape", 1376, 1032],
   ])("on %s (%dx%d) the clearance ends above the highest crest", (_device, width, viewportH) => {
     const lava = drawnLava(width, viewportH);
     const crest = crestAboveBottom(lava);
-    const clearance = clearancePx(viewportH);
+    const clearance = clearancePx(width, viewportH);
     expect(clearance).toBeGreaterThan(crest);
-    // The documented 0.5rem gap is slack, not a second band.
-    expect(clearance - crest).toBeLessThan(16);
+    // It ends the documented 0.5rem (8 px) above the drawn crest, give or take
+    // half a pixel: the gap must not quietly absorb a crest that grew, and it
+    // is slack, not a second band.
+    expect(clearance - crest).toBeGreaterThan(7.5);
+    expect(clearance - crest).toBeLessThan(8.5);
   });
 });

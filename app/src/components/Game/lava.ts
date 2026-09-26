@@ -30,6 +30,10 @@ export const LAVA_SLOWED = POWER_UP_SPECS["slow-lava"].color;
 
 /** Fixed number of crest samples across the width — cost is width-independent. */
 const CREST_SEGMENTS = 40;
+/** Crest wave amplitude (px at ui = 1) for normal lava; the largest crestOffset uses. */
+export const LAVA_WAVE_AMP = 9;
+/** Crest wave amplitude (px at ui = 1) while the slow-lava power-up is active. */
+const LAVA_WAVE_AMP_SLOWED = 4;
 /** How deep the vertical gradient reaches below the crest, in px * ui. */
 const BODY_DEPTH = 140;
 const HAZE_COUNT = 4;
@@ -167,6 +171,16 @@ export function hash(x: number, y: number): number {
 }
 
 /**
+ * The most the crest can rise above the flat hazard line, in px, at scale
+ * `ui`: the two sines are weighted 0.6 + 0.4, so the wave spans [-1, 1] and
+ * crestOffset spans [-2 * amp, 0]. Layout that must stay clear of the drawn
+ * lava sizes itself from this, never from a copied number.
+ */
+export function lavaCrestRise(ui: number): number {
+  return 2 * LAVA_WAVE_AMP * ui;
+}
+
+/**
  * Vertical offset (px, downward-positive) of the molten crest at column `x`,
  * relative to the flat hazard line. Two summed sines at different frequencies
  * give an irregular, non-repeating-looking surface. Reduced motion returns 0 so
@@ -198,7 +212,7 @@ export function crestOffset(
   const rockAmount = hardened ? clamp01(1 - hardenProgress) : 0;
 
   // Normal smooth wave.
-  const baseAmp = slowed ? 4 : 9;
+  const baseAmp = slowed ? LAVA_WAVE_AMP_SLOWED : LAVA_WAVE_AMP;
   const w = Math.max(1, width);
   const a = Math.sin((x / w) * TAU * 2.0 + tick * 0.05);
   const b = Math.sin((x / w) * TAU * 3.7 - tick * 0.031 + 1.3);
