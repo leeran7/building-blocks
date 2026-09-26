@@ -16,7 +16,6 @@ import {
   canvasNeedsResize,
   clampDevicePixelRatio,
 } from "./canvasBacking";
-import type { ClimbCameraBag } from "./climbCamera";
 import { paintClimbFrame } from "./paintClimbFrame";
 
 export { HUD_ALTITUDE_FONT_UI };
@@ -80,12 +79,6 @@ export interface ClimbCanvasProps {
    * present.
    */
   hiddenSlots?: ReadonlySet<number>;
-  /**
-   * Camera state to paint with. Pass one when something outside the canvas
-   * (the lava audio) must agree with what is framed; otherwise the canvas
-   * keeps its own.
-   */
-  camera?: ClimbCameraBag;
 }
 
 export function ClimbCanvas({
@@ -103,13 +96,13 @@ export function ClimbCanvas({
   playerNames,
   readySlots,
   hiddenSlots,
-  camera,
 }: ClimbCanvasProps) {
   const ref = useRef<HTMLCanvasElement>(null);
   const ctxRef = useRef<CanvasRenderingContext2D | null>(null);
-  const ownCamRef = useRef<ClimbCameraBag>({ y: null, tick: null });
-  const cameraRef = useRef(camera);
-  cameraRef.current = camera;
+  const camRef = useRef<{ y: number | null; tick: number | null }>({
+    y: null,
+    tick: null,
+  });
   const lastPaintTsRef = useRef(0);
 
   // Store state in a ref so the rAF loop always reads the latest without
@@ -162,7 +155,7 @@ export function ClimbCanvas({
       hudInsetTop: opts.hudInsetTop,
       includeHud: opts.includeHud,
       floorMarkerInsetTop: opts.floorMarkerInsetTop,
-      camera: cameraRef.current ?? ownCamRef.current,
+      camera: camRef.current,
       dtSec,
       myId: opts.myId,
       playerNames: opts.playerNames,

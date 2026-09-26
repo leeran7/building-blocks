@@ -22,12 +22,10 @@ import {
 import { HUD_ALTITUDE_FONT_UI } from "../../design/climbFeelTokens";
 import { formatAltitude } from "../../lib/units";
 import {
-  CAMERA_AIR_BAND_FRAC,
-  CAMERA_CATCHUP_MPS,
-  CAMERA_SUPER_LEAD_FRAC,
-  cameraFocusY,
+  CAMERA_FOLLOW,
+  CAMERA_FOLLOW_AIR,
+  blendFollow,
   cameraTargetY,
-  type ClimbCameraBag,
   climbView,
   followCamY,
 } from "./climbCamera";
@@ -107,7 +105,7 @@ export type PaintClimbFrameOptions = {
    * Persistent camera across frames. Mutated for easing. When omitted, camera
    * snaps to target each call (fine for one-shot export frames with a bag).
    */
-  camera?: ClimbCameraBag;
+  camera?: { y: number | null; tick: number | null; follow?: number | null };
   /**
    * Seconds of wall clock since the previous paint, so the camera ease is tied
    * to elapsed time rather than to how often this runs. Defaults to one tick —
@@ -148,7 +146,8 @@ export function paintClimbFrame(
   const bottomInset = opts.bottomInset ?? 0;
   const hudInsetTop = opts.hudInsetTop ?? 0;
   const includeHud = opts.includeHud !== false;
-  const camBag = opts.camera ?? { y: null as number | null, tick: null as number | null };
+  const camBag: NonNullable<PaintClimbFrameOptions["camera"]> =
+    opts.camera ?? { y: null, tick: null };
 
   const tower = state.tower;
   // The local player drives camera, HUD, and pickup feedback; everyone else is
@@ -164,43 +163,34 @@ export function paintClimbFrame(
   // Sizes (not positions) that follow the world scale.
   const sizePxPerM = pxPerM * GAME_DRAW_SCALE;
   ensureFontCache(ui);
+  const camTarget = cameraTargetY(playerY, viewH, bottomInset, pxPerM);
   // Snap on the first paint of a run, and on any backward jump (replay seek).
   // `state.tick` is fractional under render interpolation, so the opening tick
   // is "< 1" rather than "=== 0".
   const camSnap =
     camBag.tick === null || state.tick < camBag.tick || state.tick < 1;
+  // Airborne (jumps and falls) eases more softly so the view rides the arc
+  // smoothly; ground, ladder and jetpack thrust keep the tight follow.
+  const airborne =
+    !!player &&
+    player.status === "climbing" &&
+    !player.onGround &&
+    !player.onLadder &&
+    !player.jetpackThrusting;
   const camDt = opts.dtSec ?? TICK_DT;
-  const supported =
-    !player ||
-    player.onGround ||
-    player.onLadder ||
-    player.jetpackThrusting ||
-    player.status !== "climbing";
-  // Under super-jump the view climbs with the climber once they rise past a
-  // short lead, like jetpack thrust; the fall back is held like any jump.
-  const airBandM = viewH * CAMERA_AIR_BAND_FRAC;
-  const riseM =
-    player && isPowerUpActive(player, "super-jump", state.tick)
-      ? viewH * CAMERA_SUPER_LEAD_FRAC
-      : airBandM;
-  const focusY = cameraFocusY(
-    camSnap ? null : camBag.focusY ?? null,
-    camBag.playerY ?? null,
-    playerY,
-    supported,
-    airBandM,
-    CAMERA_CATCHUP_MPS * camDt,
-    riseM
+  const follow = blendFollow(
+    camSnap ? null : camBag.follow,
+    airborne ? CAMERA_FOLLOW_AIR : CAMERA_FOLLOW,
+    camDt
   );
-  camBag.focusY = focusY;
-  camBag.playerY = playerY;
-  const camTarget = cameraTargetY(focusY, viewH, bottomInset, pxPerM);
+  camBag.follow = follow;
   const camWorldY = followCamY(
     camBag.y,
     camTarget,
     viewH,
     camDt,
-    camSnap
+    camSnap,
+    follow
   );
   camBag.y = camWorldY;
   camBag.tick = state.tick;
