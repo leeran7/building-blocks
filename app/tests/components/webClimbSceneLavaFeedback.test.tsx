@@ -209,21 +209,29 @@ describe("ClimbScene → usePowerUpFeedback: music intensity rides the leash ram
 });
 
 describe("ClimbScene → usePowerUpFeedback: lava proximity flag", () => {
-  /** Sweep the lava from just under the climber to far below; record the flags. */
-  async function sweep(): Promise<Array<{ gap: number; onScreen: boolean; near: boolean }>> {
-    await mount();
-    const rows: Array<{ gap: number; onScreen: boolean; near: boolean }> = [];
+  type Row = { gap: number; onScreen: boolean; near: boolean | undefined };
+
+  /**
+   * Sweep the lava from just under the climber to far below on the mounted
+   * scene; record the flags. `near` is recorded raw (no `?? false`), so a
+   * call site that stops passing lavaNear shows up as `undefined` rather
+   * than passing as "not near".
+   */
+  async function sweep(): Promise<Row[]> {
+    const rows: Row[] = [];
     for (let gap = 1; gap <= 400; gap += 1) {
       fx.hazardY = fx.playerY - gap;
       await rerender();
       const w = lastCall().world!;
-      rows.push({ gap, onScreen: w.lavaOnScreen, near: w.lavaNear ?? false });
+      rows.push({ gap, onScreen: w.lavaOnScreen, near: w.lavaNear });
     }
     return rows;
   }
 
   it("is set in a band just below the view, never with the lava on screen or far below", async () => {
+    await mount();
     const rows = await sweep();
+    for (const r of rows) expect(typeof r.near).toBe("boolean");
     const nearRows = rows.filter((r) => r.near);
     expect(nearRows.length).toBeGreaterThan(0);
     // Never both at once, never near when far below.
@@ -247,9 +255,20 @@ describe("ClimbScene → usePowerUpFeedback: lava proximity flag", () => {
 
   it("is suppressed during a replay (no world audio without a user gesture)", async () => {
     fx.replaying = true;
+    await mount();
     const rows = await sweep();
-    expect(rows.some((r) => r.near)).toBe(false);
+    // Strictly false on every row, so undefined does not count as suppressed.
+    for (const r of rows) expect(r.near).toBe(false);
+    // The surge cue fires on lavaOnScreen OR lavaNear; both must be off.
+    for (const r of rows) expect(r.onScreen).toBe(false);
     // ...but the phase still flows (the HUD and cue memo read it).
     expect(lastCall().world?.lavaPhase).toBe(hazardPhase(fx.raceSeconds - fx.hazardSlowSeconds).phase);
+
+    // Positive control on the SAME mounted scene and the same sweep: once the
+    // run is live, the sweep does cross the proximity band. Without this the
+    // assertions above would also pass if the sweep never reached the band.
+    fx.replaying = false;
+    const live = await sweep();
+    expect(live.filter((r) => r.near === true).length).toBeGreaterThan(0);
   });
 });

@@ -268,7 +268,10 @@ export function ClimbScene({
     {
       jetpackThrusting: worldLive && (player?.jetpackThrusting ?? false),
       lavaOnScreen: worldLive && isLavaThreatening(lavaFill),
-      lavaNear: lavaNear,
+      // lavaNear alone can fire the lava-surge cue, so it is gated too.
+      // lavaPhase stays live: it plays nothing unless lavaOnScreen or
+      // lavaNear is set, and the cue memo keeps tracking the phase.
+      lavaNear: worldLive && lavaNear,
       lavaPhase: lavaPhaseInfo.phase,
       lavaFill: worldLive ? lavaFill : 0,
       dead: worldLive && player?.status === "eliminated",
