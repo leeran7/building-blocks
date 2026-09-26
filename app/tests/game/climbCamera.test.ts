@@ -9,7 +9,10 @@
 import { describe, expect, it } from "vitest";
 import {
   CAMERA_FOCUS_FRAC,
+  CAMERA_AIR_BAND_FRAC,
   CAMERA_FOLLOW,
+  type ClimbCameraBag,
+  heldFocusY,
   CAMERA_CATCHUP_MPS,
   cameraFocusY,
   WORLD_HEIGHT_STRETCH,
@@ -357,5 +360,68 @@ describe("paintClimbFrame camera through a real jump arc", () => {
     expect(maxStep).toBeLessThanOrEqual(
       Math.max(fallMaxStep, CAMERA_CATCHUP_MPS * TICK_DT) + 1e-9
     );
+  });
+});
+
+describe("heldFocusY: lava audio frames what the painter framed", () => {
+  const BAND = 20;
+
+  it("uses the painted focus while it is within the band of the climber", () => {
+    expect(heldFocusY(100, 110, BAND)).toBe(100);
+    expect(heldFocusY(130, 110, BAND)).toBe(130);
+  });
+
+  it("falls back to the climber for a stale or missing focus", () => {
+    expect(heldFocusY(undefined, 110, BAND)).toBe(110);
+    expect(heldFocusY(null, 110, BAND)).toBe(110);
+    expect(heldFocusY(NaN, 110, BAND)).toBe(110);
+    // A focus from a previous run, far from this climber.
+    expect(heldFocusY(900, 110, BAND)).toBe(110);
+  });
+
+  it("agrees with the painted camera mid super jump", () => {
+    const tower = buildTower("indie-games");
+    const m = createMatch({
+      seed: "audio-cam",
+      mode: "solo",
+      tower,
+      playerIds: ["p1"],
+    });
+    const p = m.players[0]!;
+    const ctx = new Proxy(
+      {},
+      {
+        get: (_t, prop) =>
+          prop === "measureText"
+            ? () => ({ width: 10 })
+            : typeof prop === "string" && prop.startsWith("create")
+              ? () => ({ addColorStop() {} })
+              : () => {},
+        set: () => true,
+      }
+    ) as unknown as PaintCtx;
+    const camera: ClimbCameraBag = { y: null, tick: null };
+    const { viewH, pxPerMY } = climbView(WIDTH, HEIGHT, tower.widthM);
+    const band = viewH * CAMERA_AIR_BAND_FRAC;
+    let tick = 0.5;
+    const paint = () => {
+      tick += 1;
+      m.tick = tick;
+      paintClimbFrame(ctx, m, { width: WIDTH, height: HEIGHT, camera, dtSec: TICK_DT });
+    };
+    p.y = 200;
+    p.onGround = true;
+    for (let i = 0; i < 30; i++) paint();
+    p.onGround = false;
+    p.y = 211; // apex of a super jump, inside the band
+    paint();
+
+    const audioFocus = heldFocusY(camera.focusY, p.y, band);
+    expect(audioFocus).toBe(camera.focusY);
+    expect(audioFocus).toBeCloseTo(200);
+    // Old audio framing (the raw climber) disagreed by the whole jump height.
+    const audioCam = cameraTargetY(audioFocus, viewH, 0, pxPerMY);
+    const rawCam = cameraTargetY(p.y, viewH, 0, pxPerMY);
+    expect(rawCam - audioCam).toBeCloseTo(11);
   });
 });

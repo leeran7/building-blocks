@@ -86,6 +86,33 @@ export function cameraFocusY(
 }
 
 /**
+ * Persistent camera state shared between the painter (which writes it every
+ * frame) and anything that needs to agree with what is on screen (the lava
+ * audio). Mutated in place; hold one per mounted canvas.
+ */
+export interface ClimbCameraBag {
+  y: number | null;
+  tick: number | null;
+  focusY?: number | null;
+  playerY?: number | null;
+}
+
+/**
+ * The focus the painter last framed, if it still belongs to this climber:
+ * it can only ever sit within the airborne band of them, so anything further
+ * away is stale (a new run, or a paint that has not happened yet) and the
+ * climber's own height is used instead.
+ */
+export function heldFocusY(
+  focusY: number | null | undefined,
+  playerY: number,
+  bandM: number
+): number {
+  if (typeof focusY !== "number" || !Number.isFinite(focusY)) return playerY;
+  return Math.abs(focusY - playerY) <= bandM + 1e-6 ? focusY : playerY;
+}
+
+/**
  * World-Y of the bottom of the view if the camera snapped to the climber.
  * `bottomInsetPx` is the touch-control overlay; the camera sits that far
  * below the base so the climber is never hidden behind the buttons.

@@ -15,10 +15,12 @@ import {
 import {
   CLIMBER_DRAW_SCALE,
   GAME_DRAW_SCALE,
+  hudFitFontPx,
   paintClimbFrame,
   type PaintCtx,
 } from "../../src/components/Game/paintClimbFrame";
 import { createMatch } from "../../src/game/simulation";
+import { grantPowerUp } from "../../src/game/powerups";
 import { buildTower, platformsNearY } from "../../src/game/towers";
 
 const WIDTH = 360;
@@ -130,5 +132,55 @@ describe("paintClimbFrame: GAME_DRAW_SCALE", () => {
     const drawnHeight = feetY - (head.y - head.r);
     // Unscaled, the climber stood 4.964 tower-metres tall on screen.
     expect(drawnHeight / pxPerM).toBeCloseTo(4.964 * CLIMBER_DRAW_SCALE);
+  });
+
+});
+
+describe("canvas HUD: the lava readout never overlaps the altitude", () => {
+  it("hudFitFontPx keeps the size when it fits and shrinks when it does not", () => {
+    expect(hudFitFontPx(20, 100, 150)).toBe(20);
+    expect(hudFitFontPx(20, 200, 150)).toBe(15);
+    expect(hudFitFontPx(20, 1000, 150)).toBe(12);
+    expect(hudFitFontPx(20, 0, 150)).toBe(20);
+  });
+
+  it("fits a hardened lava readout at five-digit altitude on a 360px canvas", () => {
+    const tower = buildTower("indie-games");
+    const m = createMatch({ seed: "hud-fit", mode: "solo", tower, playerIds: ["p1"] });
+    const p = m.players[0]!;
+    p.y = 99_999;
+    m.hazardY = 99_979;
+    grantPowerUp(p, "harden-lava", m.tick);
+
+    // Monospace: every glyph is 0.6em of the current font size.
+    const texts: { text: string; x: number; w: number; align: string }[] = [];
+    const st: Record<string | symbol, unknown> = {};
+    const pxOf = () => Number(/(\d+(?:\.\d+)?)px/.exec(String(st.font))?.[1] ?? 10);
+    const ctx = new Proxy(st, {
+      get(t, prop) {
+        if (prop in t) return t[prop];
+        if (prop === "measureText") return (s: string) => ({ width: s.length * 0.6 * pxOf() });
+        if (prop === "fillText") {
+          return (s: string, x: number) =>
+            texts.push({ text: s, x, w: s.length * 0.6 * pxOf(), align: String(t.textAlign) });
+        }
+        if (typeof prop === "string" && prop.startsWith("create")) return () => ({ addColorStop() {} });
+        return () => {};
+      },
+      set(t, prop, v) {
+        t[prop] = v;
+        return true;
+      },
+    }) as unknown as PaintCtx;
+
+    paintClimbFrame(ctx, m, { width: WIDTH, height: HEIGHT });
+    const alt = texts.find((t) => t.align === "left" && /ft|m/.test(t.text) && !t.text.startsWith("lava"));
+    const lava = texts.find((t) => t.text.startsWith("lava") && t.text.endsWith("hardened"));
+    expect(alt).toBeDefined();
+    expect(lava).toBeDefined();
+    const altRight = alt!.x + alt!.w;
+    const lavaLeft = lava!.x - lava!.w;
+    expect(lavaLeft).toBeGreaterThan(altRight);
+    expect(lava!.x).toBeLessThanOrEqual(WIDTH);
   });
 });

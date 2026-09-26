@@ -27,6 +27,7 @@ import {
   cameraFocusY,
   cameraTargetY,
   CLIMBER_DRAW_SCALE,
+  type ClimbCameraBag,
   GAME_DRAW_SCALE,
   climbView,
   followCamY,
@@ -96,12 +97,7 @@ export type PaintClimbFrameOptions = {
    * Persistent camera across frames. Mutated for easing. When omitted, camera
    * snaps to target each call (fine for one-shot export frames with a bag).
    */
-  camera?: {
-    y: number | null;
-    tick: number | null;
-    focusY?: number | null;
-    playerY?: number | null;
-  };
+  camera?: ClimbCameraBag;
   /**
    * Seconds of wall clock since the previous paint, so the camera ease is tied
    * to elapsed time rather than to how often this runs. Defaults to one tick —
@@ -439,20 +435,27 @@ export function paintClimbFrame(
     ctx.fillStyle = "#f4f2ec";
     ctx.font = _fontHud;
     ctx.textAlign = "left";
-    ctx.fillText(formatAltitude(playerY, 1), 10 * ui, hudTop + 22 * ui);
+    const altText = formatAltitude(playerY, 1);
+    ctx.fillText(altText, 10 * ui, hudTop + 22 * ui);
     ctx.fillStyle = hardenActive
       ? POWER_UP_SPECS["harden-lava"].color
       : lavaSlowed ? LAVA_SLOWED : TEXT_SECONDARY;
     ctx.textAlign = "right";
-    ctx.fillText(
-      hardenActive
-        ? `lava ${formatAltitude(state.hazardY, 1)} hardened`
-        : lavaSlowed
-          ? `lava ${formatAltitude(state.hazardY, 1)} slowed`
-          : `lava ${formatAltitude(state.hazardY, 1)}`,
-      width - 10 * ui,
-      hudTop + 22 * ui
-    );
+    const lavaText = hardenActive
+      ? `lava ${formatAltitude(state.hazardY, 1)} hardened`
+      : lavaSlowed
+        ? `lava ${formatAltitude(state.hazardY, 1)} slowed`
+        : `lava ${formatAltitude(state.hazardY, 1)}`;
+    // The draw scale makes the HUD font larger; at high altitude with a status
+    // suffix the two readouts can meet on a narrow canvas. Shrink the lava
+    // readout to the space left rather than overlap the altitude.
+    const lavaRoom = width - 20 * ui - 12 * ui - ctx.measureText(altText).width;
+    const lavaW = ctx.measureText(lavaText).width;
+    const hudPx = Math.round(HUD_ALTITUDE_FONT_UI * ui);
+    const fitPx = hudFitFontPx(hudPx, lavaW, lavaRoom);
+    if (fitPx !== hudPx) ctx.font = `bold ${fitPx}px monospace`;
+    ctx.fillText(lavaText, width - 10 * ui, hudTop + 22 * ui);
+    ctx.font = _fontHud;
     ctx.textAlign = "left";
 
     if (
@@ -476,6 +479,16 @@ export function paintClimbFrame(
   }
 
   ctx.restore();
+}
+
+/**
+ * Font size that fits `textW` (measured at `basePx`) into `roomW`. Never grows
+ * and never drops below 60% — past that the readout is illegible anyway.
+ */
+export function hudFitFontPx(basePx: number, textW: number, roomW: number): number {
+  if (!(textW > 0) || textW <= roomW) return basePx;
+  const min = Math.ceil(basePx * 0.6);
+  return Math.max(min, Math.floor((basePx * Math.max(0, roomW)) / textW));
 }
 
 type Pose = "idle" | "walk" | "climb" | "air" | "done" | "dead";
