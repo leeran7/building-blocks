@@ -109,6 +109,18 @@ export async function decodeRunReplay(token: string): Promise<RunReplay | null> 
   }
 }
 
+/**
+ * Allow-list a replay token from an untrusted request body: a non-empty
+ * string within MAX_REPLAY_TOKEN_LENGTH after trimming, else null. Shape only
+ * — decodeRunReplay decides whether it is a real replay.
+ */
+export function parseReplayToken(raw: unknown): string | null {
+  if (typeof raw !== "string") return null;
+  const trimmed = raw.trim();
+  if (!trimmed || trimmed.length > MAX_REPLAY_TOKEN_LENGTH) return null;
+  return trimmed;
+}
+
 /** Build the full share URL for a replay token on the current origin. */
 export function buildReplayUrl(token: string, origin: string): string {
   return `${origin.replace(/\/$/, "")}/play?r=${token}`;

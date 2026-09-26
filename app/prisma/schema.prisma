@@ -67,6 +67,7 @@ model User {
   avatar_id                String?   @map("avatar_id")
   climbRecords           ClimbRecord[]
   climbRuns              ClimbRun[]
+  dailyClimbScores       DailyClimbScore[]
   socialHandles          SavedSocialHandle[]
   duelsAsPlayer1         Duel[]              @relation("DuelPlayer1")
   duelsAsPlayer2         Duel[]              @relation("DuelPlayer2")
@@ -141,6 +142,34 @@ model ClimbRun {
   @@index([category_slug, created_at], name: "climb_run_category_idx")
   @@index([userId, created_at(sort: Desc)], name: "climb_run_user_idx")
   @@map("climb_runs")
+}
+
+// Daily Climb: one row per (user, UTC day) holding that day's best verified
+// run. peak_y is SERVER-DERIVED — POST /api/climb/daily/result re-simulates
+// the submitted replay and stores the re-simulated height, never the client's
+// claim. Monotonic within a day: the upsert keeps GREATEST(peak_y), so no race
+// or later worse run can lower it. updated_at is when the current best was
+// SET (not last touched) and breaks ties on the board: first to reach wins.
+model DailyClimbScore {
+  id           String   @id @default(cuid())
+  userId       String
+  day          String // UTC day key "YYYY-MM-DD" (src/lib/dailyDay.ts)
+  peak_y       Float // best re-simulated peak height today, metres
+  ticks        Int // length of the best run, in sim ticks
+  replay_token String? // replay of the best run (/play?r=…)
+  // Engine revision the best run was verified under (DAILY_SIM_VERSION).
+  // Replays carry no engine version, so this is how rows verified before a
+  // stepMatch/obstacle change are found afterwards.
+  sim_version  Int      @default(1)
+  attempts     Int      @default(1) // verified runs submitted for this day
+  created_at   DateTime @default(now())
+  updated_at   DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, day], name: "daily_climb_user_day")
+  @@index([day, peak_y(sort: Desc), updated_at], map: "daily_climb_board_idx")
+  @@map("daily_climb_scores")
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

@@ -24,18 +24,13 @@ import { verifyIdToken } from "../../../../src/lib/firebaseAdmin";
 import { recordClimb } from "../../../../src/db/climb";
 import { FREE_STACK_SLUG } from "../../../../src/game/freeStack";
 import { ensureUser } from "../../../../src/db/user";
-import { checkRateLimit, clientIp } from "../../../../src/lib/rateLimit";
+import { checkClimbIpRateLimit } from "../../../../src/lib/climbRateLimit";
 import { checkClimbResult } from "../../../../src/game/scoreBounds";
-import { MAX_REPLAY_TOKEN_LENGTH } from "../../../../src/game/runReplay";
+import { parseReplayToken } from "../../../../src/game/runReplay";
 import { revalidateClimbLeaderboard } from "../../../../src/lib/revalidateClimbLeaderboard";
 import { prisma } from "../../../../src/db/client";
 
 export const runtime = "nodejs";
-
-// Climb runs finish frequently, so keep the cap high. Keyed by client IP since
-// most play is anonymous. Fails OPEN so a Redis outage never blocks play.
-const CLIMB_RATE_MAX = 60;
-const CLIMB_RATE_WINDOW_SECONDS = 60;
 
 interface Body {
   categorySlug?: unknown;
@@ -97,13 +92,8 @@ export async function POST(request: NextRequest) {
 
   // Rate limit by client IP (most play is anonymous). Fails OPEN so a Redis
   // outage never blocks a free run.
-  const rl = await checkRateLimit({
-    namespace: "climb",
-    identifier: `ip:${clientIp(request)}`,
-    max: CLIMB_RATE_MAX,
-    windowSeconds: CLIMB_RATE_WINDOW_SECONDS,
-    failMode: "open",
-  });
+  // Shared with /api/climb/daily/result (one bucket per IP).
+  const rl = await checkClimbIpRateLimit(request);
   if (!rl.allowed) {
     return NextResponse.json(
       { error: "Too many requests", code: "RATE_LIMITED" },
@@ -172,11 +162,4 @@ export async function POST(request: NextRequest) {
     console.error("[climb/result] persist failed:", err);
     return NextResponse.json({ saved: false, reason: "persist_error" }, { status: 500 });
   }
-}
-
-function parseReplayToken(raw: unknown): string | null {
-  if (typeof raw !== "string") return null;
-  const trimmed = raw.trim();
-  if (!trimmed || trimmed.length > MAX_REPLAY_TOKEN_LENGTH) return null;
-  return trimmed;
 }
