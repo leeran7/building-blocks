@@ -6,7 +6,7 @@ import { ALTITUDE_UNIT } from "@app/lib/units";
 import { Button, RetryPanel, StateMessage } from "../components/ui";
 import { PullToRefresh } from "../components/PullToRefresh";
 import { LeaderboardConsentModal } from "../components/LeaderboardConsentModal";
-import { useAcceptLeaderboardConsent } from "../hooks/useAcceptLeaderboardConsent";
+import { CONSENT_SAVE_FAILED, useAcceptLeaderboardConsent } from "../hooks/useAcceptLeaderboardConsent";
 import type { DailyStanding } from "../lib/dailyBoard";
 import { tapLight } from "../lib/haptics";
 import {
@@ -144,16 +144,15 @@ export function LeaderboardScreen() {
 
   const podium = climbers.slice(0, 3);
   const rest = climbers.slice(3);
-  const me = todayMe;
   const standing: Standing = isFriends
     ? standingFor(climbers, meId, null, true)
     : isToday
-      ? dailyStanding(climbers, meId, me, onPublicBoard)
+      ? dailyStanding(climbers, meId, todayMe, onPublicBoard)
       : standingFor(climbers, meId, own, onPublicBoard);
   // Today's own row, pinned under the table when the player ranks outside the top 50.
   const pinnedMe =
-    isToday && !isFriends && me !== null && me.rank !== null && !climbers.some((c) => c.userId === meId)
-      ? me
+    isToday && !isFriends && todayMe !== null && todayMe.rank !== null && !climbers.some((c) => c.userId === meId)
+      ? todayMe
       : null;
 
   const hiddenCount = friendsBoard?.hiddenCount ?? 0;
@@ -179,14 +178,25 @@ export function LeaderboardScreen() {
   // results card instead of sending them to Edit profile.
   const [showConsent, setShowConsent] = useState(false);
   const [consentBusy, setConsentBusy] = useState(false);
+  const [consentError, setConsentError] = useState<string | null>(null);
   const saveConsent = useAcceptLeaderboardConsent();
   const acceptConsent = useCallback(async () => {
     setConsentBusy(true);
-    // Not saved: the banner stays "hidden", so the player can try again.
-    await saveConsent();
+    setConsentError(null);
+    const saved = await saveConsent();
     setConsentBusy(false);
+    if (!saved) {
+      // Not saved: keep the sheet open and say why, the same as on Climb
+      // results (RV-DC-15). The player can retry or decline.
+      setConsentError(CONSENT_SAVE_FAILED);
+      return;
+    }
     setShowConsent(false);
   }, [saveConsent]);
+  const declineConsent = useCallback(() => {
+    setShowConsent(false);
+    setConsentError(null);
+  }, []);
 
   const bannerCopy = isToday ? TODAY_COPY : ALLTIME_COPY;
   const onHiddenAction = isToday ? () => setShowConsent(true) : () => navigate("/profile/edit");
@@ -261,8 +271,9 @@ export function LeaderboardScreen() {
       {showConsent && (
         <LeaderboardConsentModal
           onAccept={() => void acceptConsent()}
-          onDecline={() => setShowConsent(false)}
+          onDecline={declineConsent}
           busy={consentBusy}
+          error={consentError}
         />
       )}
 
@@ -283,8 +294,10 @@ export function LeaderboardScreen() {
 
 /**
  * Title plus one status pill (no subtitle): the tabs below already name the
- * scope and period, so the pill carries only what they cannot, the reset
- * countdown on Today and the climber count on All-time.
+ * scope and period, so the pill carries only what they cannot. It follows
+ * both (ranksStatus): the reset countdown on Today in either scope, the
+ * ranked climber count on Global · All-time, and the viewer's friend count on
+ * Friends · All-time.
  */
 function Header({ status, headingRef }: { status: RanksStatus; headingRef: Ref<HTMLHeadingElement> }) {
   const hubStatus = {

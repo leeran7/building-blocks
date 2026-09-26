@@ -87,6 +87,7 @@ vi.mock("../../mobile/src/lib/api", () => ({
 
 import { AppDataProvider } from "../../mobile/src/contexts/AppDataContext";
 import { LeaderboardScreen } from "../../mobile/src/screens/LeaderboardScreen";
+import { CONSENT_SAVE_FAILED } from "../../mobile/src/hooks/useAcceptLeaderboardConsent";
 import { utcDayKey, nextUtcResetAt } from "../../src/lib/dailyDay";
 import { contrastRatio, mobileColorTokens, opaqueTokenColor } from "../lib/mobileTokens";
 
@@ -517,15 +518,46 @@ describe("Ranks: opt in from the Today board (F-4)", () => {
     expect(text()).toContain("You're #2");
   });
 
-  it("a failed consent save closes the sheet and leaves the banner hidden (retryable)", async () => {
+  /** The consent sheet's own alert line: inside the card that holds Save my score. */
+  const sheetAlert = () => buttonByText("Save my score")?.closest(".lcm-card")?.querySelector('[role="alert"]') ?? null;
+
+  it("a failed consent save keeps the sheet open with the same error as Climb results (RV-DC-15)", async () => {
+    net.consent = false;
+    net.putStatus = 500;
+    net.daily = dailyBoard([dailyRow(1, "a", 900)], { rank: null, peakY: 10, attempts: 1 });
+    await render(TODAY, createElement(LeaderboardScreen));
+    await click(bannerEndingWith("Show me on the board"));
+    expect(sheetAlert()).toBeNull();
+    await click(buttonByText("Save my score"));
+    // The sheet stays, says why, and Save is enabled again for a retry.
+    expect(buttonByText("Save my score")).toBeTruthy();
+    expect((buttonByText("Save my score") as HTMLButtonElement).disabled).toBe(false);
+    expect(sheetAlert()?.textContent).toBe(CONSENT_SAVE_FAILED);
+    // Behind it the player is still hidden.
+    expect(bannerEndingWith("Show me on the board")).toBeTruthy();
+
+    // A retry that succeeds closes the sheet and clears the error.
+    net.putStatus = 200;
+    net.daily = dailyBoard([dailyRow(1, "a", 900), dailyRow(2, ME, 10)], { rank: 2, peakY: 10, attempts: 1 });
+    await click(buttonByText("Save my score"));
+    expect(buttonByText("Save my score")).toBeUndefined();
+    expect(sheetAlert()).toBeNull();
+    expect(text()).toContain("You're #2");
+  });
+
+  it("declining after a failed save closes the sheet, and reopening it shows no stale error", async () => {
     net.consent = false;
     net.putStatus = 500;
     net.daily = dailyBoard([dailyRow(1, "a", 900)], { rank: null, peakY: 10, attempts: 1 });
     await render(TODAY, createElement(LeaderboardScreen));
     await click(bannerEndingWith("Show me on the board"));
     await click(buttonByText("Save my score"));
+    expect(sheetAlert()?.textContent).toBe(CONSENT_SAVE_FAILED);
+    await click(buttonByText("Not now"));
     expect(buttonByText("Save my score")).toBeUndefined();
-    expect(bannerEndingWith("Show me on the board")).toBeTruthy();
+    await click(bannerEndingWith("Show me on the board"));
+    expect(buttonByText("Save my score")).toBeTruthy();
+    expect(sheetAlert()).toBeNull();
   });
 });
 

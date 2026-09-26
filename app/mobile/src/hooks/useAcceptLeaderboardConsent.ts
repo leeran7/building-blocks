@@ -8,6 +8,9 @@ import {
   type SliceKey,
 } from "../contexts/AppDataContext";
 
+/** Shown in the consent sheet when the save was not confirmed, on every screen that offers it. */
+export const CONSENT_SAVE_FAILED = "Couldn\u2019t save that. Check your connection and try again.";
+
 /** Every board whose visibility changes when the player turns consent on. */
 export const CONSENT_STALE_SLICES: SliceKey[] = [
   "leaderboard",

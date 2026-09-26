@@ -27,7 +27,7 @@ import { API_BASE, postClimbResult, type ClimbSaveResult } from "../lib/api";
 import { useAuth } from "../contexts/AuthContext";
 import { useInvalidateAppData, type SliceKey } from "../contexts/AppDataContext";
 import { hasLeaderboardConsent } from "../lib/consent";
-import { useAcceptLeaderboardConsent } from "../hooks/useAcceptLeaderboardConsent";
+import { CONSENT_SAVE_FAILED, useAcceptLeaderboardConsent } from "../hooks/useAcceptLeaderboardConsent";
 import { LeaderboardConsentModal } from "../components/LeaderboardConsentModal";
 import { tapMedium, tapLight, notifyError, notifySuccess } from "../lib/haptics";
 import { useGameHaptics } from "../lib/useGameHaptics";
@@ -57,7 +57,6 @@ interface RunPayload {
   replayToken?: string;
 }
 
-const CONSENT_SAVE_FAILED = "Couldn\u2019t save that. Check your connection and try again.";
 
 /** Play again on the results card: ready, refetching the daily, or unreachable. */
 type PlayAgainState = "ready" | "loading" | "offline";
