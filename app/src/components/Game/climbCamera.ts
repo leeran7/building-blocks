@@ -25,6 +25,11 @@ export const CAMERA_FOLLOW = 0.3;
  * scores and replays are in unscaled metres.
  */
 export const GAME_DRAW_SCALE = 1.2;
+/**
+ * The climber alone draws at this scale (instead of GAME_DRAW_SCALE) so the
+ * player reads clearly on a phone without shrinking the view any further.
+ */
+export const CLIMBER_DRAW_SCALE = 1.35;
 
 export function climbView(
   width: number,

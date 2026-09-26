@@ -23,6 +23,7 @@ import { HUD_ALTITUDE_FONT_UI } from "../../design/climbFeelTokens";
 import { formatAltitude } from "../../lib/units";
 import {
   cameraTargetY,
+  CLIMBER_DRAW_SCALE,
   GAME_DRAW_SCALE,
   climbView,
   followCamY,
@@ -59,7 +60,7 @@ const TEXT_SECONDARY = "#a8a4b2";
 const FLAG = "#cbf24d";
 
 const BASE_WIDTH = 360;
-export { GAME_DRAW_SCALE };
+export { CLIMBER_DRAW_SCALE, GAME_DRAW_SCALE };
 
 // ── Cached font strings ──────────────────────────────────────────────────────
 // Avoids template-literal allocation every frame; rebuilt only on ui change.
@@ -324,7 +325,7 @@ export function paintClimbFrame(
     else if (Math.abs(p.vx) > 0.1) pPose = "walk";
 
     const pS =
-      Math.max(5, sizePxPerM * 1.7) *
+      Math.max(5, pxPerM * CLIMBER_DRAW_SCALE * 1.7) *
       (isPowerUpActive(p, "giant", state.tick) ? GIANT_VISUAL_SCALE : 1);
 
     const isReady = opts.readySlots?.has(p.slot) ?? false;
