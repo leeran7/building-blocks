@@ -158,10 +158,13 @@ export function AvatarPickerScreen() {
   const loadFailed = settingsRetry.showError;
 
   return (
-    <main className="flex h-full flex-col">
+    <main data-avatar-page className="flex h-full min-h-0 flex-col">
       <PushHeader title="Choose avatar" onBack={goBack} headingRef={headingRef} />
 
+      {/* Takes every pixel between the header and the save bar, so the page
+          reaches the bottom of the screen; the grid scrolls inside it. */}
       <div
+        data-avatar-scroller
         className="min-h-0 flex-1 overflow-y-auto px-4"
         style={{
           WebkitOverflowScrolling: "touch",
@@ -247,13 +250,16 @@ export function AvatarPickerScreen() {
         )}
       </div>
 
-      {/* Outside the scroller so the CTA is reachable from any row and tiles
-          clip above it instead of scrolling over the lava band. The lava line
-          sits 14.56vh up (26vh canvas, line at 44%) and the wave crest rises
-          up to ~18px above it, so 16vh alone lets the crest touch the button;
-          the extra 1.5rem keeps a visible gap at every width. */}
+      {/* Sticky save bar: the last row of the full-height page, outside the
+          scroller so Save is reachable from any row. It sits on the bottom
+          edge just above the home indicator. Its opaque glass surface runs to
+          the screen edge, so no backdrop or lava shows below Save and the
+          tiles clip above it. */}
       {settingsData && (
-        <footer className="flex flex-col gap-2 px-4 pb-[calc(env(safe-area-inset-bottom)+16vh+1.5rem)] pt-2">
+        <footer
+          data-avatar-save-bar
+          className="glass flex shrink-0 flex-col gap-2 border-t border-white/10 px-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] pt-3"
+        >
           {error && (
             <p role="alert" className="glass rounded-2xl border border-ember/40 px-4 py-2.5 text-meta leading-5 text-ember">
               {error}

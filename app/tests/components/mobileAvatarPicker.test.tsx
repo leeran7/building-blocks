@@ -337,3 +337,70 @@ describe("a 200 counts as saved only when the server echoes the avatar", () => {
     expectNotSaved();
   });
 });
+
+describe("the picker fills the screen, Save sticks to the bottom (user report)", () => {
+  /** The rendered page skeleton: main > [header, scroller, save bar]. */
+  function layout() {
+    const main = container.querySelector("main");
+    const kids = [...(main?.children ?? [])];
+    const scroller = main?.querySelector("[data-avatar-scroller]") ?? null;
+    const bar = saveButton()?.closest("footer") ?? null;
+    return { main, kids, scroller, bar };
+  }
+  const classes = (el: Element | null) => new Set((el?.getAttribute("class") ?? "").split(/\s+/));
+
+  it("the page is a full-height column and the scroller takes all the space between header and save bar", () => {
+    state.settings = settings(null);
+    renderPicker();
+    const { main, kids, scroller, bar } = layout();
+    for (const c of ["flex", "h-full", "min-h-0", "flex-col"]) expect(classes(main).has(c)).toBe(true);
+    // Order: header, scroller, save bar, each a direct child of the page.
+    expect(kids.map((k) => k.tagName.toLowerCase())).toEqual(["header", "div", "footer"]);
+    expect(kids[1]).toBe(scroller);
+    expect(kids[2]).toBe(bar);
+    for (const c of ["flex-1", "min-h-0", "overflow-y-auto"]) expect(classes(scroller).has(c)).toBe(true);
+  });
+
+  it("the avatar grid scrolls inside the scroller, and Save lives outside it in the bottom bar", () => {
+    state.settings = settings(null);
+    renderPicker();
+    const { scroller, bar } = layout();
+    const grid = container.querySelector('[role="radiogroup"]');
+    expect(scroller?.contains(grid)).toBe(true);
+    expect(bar?.contains(grid)).toBe(false);
+    expect(scroller?.contains(saveButton() ?? null)).toBe(false);
+    expect(bar?.contains(saveButton() ?? null)).toBe(true);
+  });
+
+  it("the save bar sits just above the home indicator, with no gap for the backdrop below it", () => {
+    state.settings = settings(null);
+    renderPicker();
+    const { bar } = layout();
+    const cls = classes(bar);
+    expect(cls.has("shrink-0")).toBe(true);
+    // An opaque surface that runs to the bottom edge.
+    expect(cls.has("glass")).toBe(true);
+    const bottom = [...cls].filter((c) => c.startsWith("pb-"));
+    expect(bottom).toEqual(["pb-[calc(env(safe-area-inset-bottom)+1rem)]"]);
+    // The old layout held Save 16vh up to stand clear of the lava band.
+    expect(bar?.getAttribute("class")).not.toMatch(/vh/);
+  });
+
+  it("while loading, the scroller still fills the page (no save bar yet), with the busy skeleton inside", () => {
+    state.settings = null;
+    renderPicker();
+    const { kids, scroller, bar } = layout();
+    expect(bar).toBeNull();
+    expect(kids.map((k) => k.tagName.toLowerCase())).toEqual(["header", "div"]);
+    expect(scroller?.querySelector('[role="status"][aria-busy="true"]')).toBeTruthy();
+  });
+
+  it("keeps the picker's a11y: radiogroup, one checked radio, labelled Save", () => {
+    state.settings = settings(FIRST.id);
+    renderPicker();
+    expect(container.querySelector('[role="radiogroup"][aria-label="Avatars"]')).toBeTruthy();
+    expect(container.querySelectorAll('[role="radio"][aria-checked="true"]')).toHaveLength(1);
+    expect(radio(FIRST.name)?.getAttribute("aria-checked")).toBe("true");
+    expect(saveButton()?.textContent).toBe("Save avatar");
+  });
+});
