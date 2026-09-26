@@ -58,14 +58,15 @@ const LOAD_FAILED_MESSAGE = "Couldn't load the leaderboard. Check your connectio
 const DAILY_PLAY_PATH = "/climb?daily=1";
 
 /**
- * `?board=today` deep-links today's board; anything else (including no value)
- * opens the All-time default. UI navigation only, not a trust boundary.
+ * `?board=daily` deep-links the Daily board, and so does `?board=today`, the
+ * value links sent before the rename carry. Anything else (including no
+ * value) opens the Endless default. UI navigation only, not a trust boundary.
  */
 function periodFromBoardParam(board: string | null): Period {
-  return board === "today" ? "today" : "alltime";
+  return board === "daily" || board === "today" ? "today" : "alltime";
 }
 
-/** Banner copy that differs between today's board and the all-time board. */
+/** Banner copy that differs between the Daily board and the Endless board. */
 interface BannerCopy {
   unrankedHeadline: string;
   unrankedDetail: string;
@@ -75,15 +76,15 @@ interface BannerCopy {
 
 const ALLTIME_COPY: BannerCopy = {
   unrankedHeadline: "Not ranked yet",
-  unrankedDetail: "Finish a climb to get on the board",
+  unrankedDetail: "Finish any climb, Endless or Daily, to get on the board",
   hiddenDetail: "Turn on leaderboard visibility in Edit profile",
   hiddenActionLabel: "Edit profile",
 };
 
 const TODAY_COPY: BannerCopy = {
-  unrankedHeadline: "Not on today's board",
+  unrankedHeadline: "Not on the Daily board",
   unrankedDetail: "Climb today's tower to get ranked",
-  hiddenDetail: "Turn on leaderboard visibility to appear on today's board",
+  hiddenDetail: "Turn on leaderboard visibility to appear on the Daily board",
   hiddenActionLabel: "Show me on the board",
 };
 
@@ -93,7 +94,7 @@ function triesLabel(attempts: number): string {
 }
 
 /**
- * The player's standing on today's board. Hidden when they have opted out
+ * The player's standing on the Daily board. Hidden when they have opted out
  * (known from settings, or from a row the server ranks as hidden); their
  * rank and height otherwise, which standingFor turns into "#N" or
  * "X to reach the top 50" when they are outside the list.
@@ -295,9 +296,9 @@ export function LeaderboardScreen() {
 /**
  * Title plus one status pill (no subtitle): the tabs below already name the
  * scope and period, so the pill carries only what they cannot. It follows
- * both (ranksStatus): the reset countdown on Today in either scope, the
- * ranked climber count on Global · All-time, and the viewer's friend count on
- * Friends · All-time.
+ * both (ranksStatus): the reset countdown on Daily in either scope, the
+ * ranked climber count on Global · Endless, and the viewer's friend count on
+ * Friends · Endless.
  */
 function Header({ status, headingRef }: { status: RanksStatus; headingRef: Ref<HTMLHeadingElement> }) {
   const hubStatus = {

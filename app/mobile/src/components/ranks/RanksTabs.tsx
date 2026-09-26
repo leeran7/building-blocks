@@ -1,5 +1,5 @@
 /**
- * The two Ranks tab rows (Global | Friends over All-time | Today) and their
+ * The two Ranks tab rows (Global | Friends over Endless | Daily) and their
  * shared WAI-ARIA keyboard model. Split out of LeaderboardScreen (RV-DC-7).
  */
 import type { KeyboardEvent } from "react";
@@ -7,6 +7,11 @@ import { tapLight } from "../../lib/haptics";
 import { GlobeIcon, PeopleIcon } from "./icons";
 
 export type Scope = "global" | "friends";
+/**
+ * Internal ids, kept stable for DOM ids and cache keys. "alltime" is the
+ * Endless board (best free-stack height ever, which daily runs also raise);
+ * "today" is the Daily Climb board, which resets at 00:00 UTC.
+ */
 export type Period = "today" | "alltime";
 
 export const SCOPES: Array<{ id: Scope; label: string }> = [
@@ -14,10 +19,10 @@ export const SCOPES: Array<{ id: Scope; label: string }> = [
   { id: "friends", label: "Friends" },
 ];
 
-/** All-time first and default; Today opens from a tab or `?board=today`. */
+/** Endless first and default; Daily opens from a tab or `?board=daily`. */
 export const PERIODS: Array<{ id: Period; label: string }> = [
-  { id: "alltime", label: "All-time" },
-  { id: "today", label: "Today" },
+  { id: "alltime", label: "Endless" },
+  { id: "today", label: "Daily" },
 ];
 
 export const PANEL_ID = "lb-panel";
@@ -113,7 +118,7 @@ export function ScopeTabs({ scope, onChange }: { scope: Scope; onChange: (next: 
 }
 
 /**
- * All-time | Today: a light, centred underline tab row under the scope pill,
+ * Endless | Daily: a light, centred underline tab row under the scope pill,
  * in sentence case body type (not tracked mono caps) so it reads as a
  * secondary control under the Global | Friends pill.
  * Selected = accent text over an accent bar; unselected = secondary text.
@@ -123,7 +128,7 @@ export function PeriodTabs({ period, onChange }: { period: Period; onChange: (ne
     options: PERIODS,
     value: period,
     onChange,
-    label: "Leaderboard period",
+    label: "Leaderboard mode",
     idFor: periodTabId,
     controls: PERIOD_PANEL_ID,
   };

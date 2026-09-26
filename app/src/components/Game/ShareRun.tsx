@@ -26,7 +26,7 @@ interface ShareRunProps {
 
 const GATE_COPY: Record<ShareGate, string> = {
   saving: "Saving your run… the replay link appears once it's on the board.",
-  unsaved: "Daily runs can be shared once they're saved to today's board.",
+  unsaved: "Daily runs can be shared once they're saved to the Daily board.",
 };
 
 export function ShareRun({ peakY, shareUrl, encoding, gate = null }: ShareRunProps) {

@@ -3,9 +3,10 @@
  * real inside the real AppDataProvider. Only the network (apiFetch), auth and
  * haptics are mocked.
  *
- * Covers AC-9 as redesigned: Global | Friends pill first, then an All-time |
- * Today underline tablist; All-time is the default and Today opens from its
- * tab or `?board=today`. Also AC-10 (pinned own row outside the top 50),
+ * Covers AC-9 as redesigned: Global | Friends pill first, then an Endless |
+ * Daily underline tablist (internal ids alltime | today); Endless is the
+ * default and Daily opens from its tab, `?board=daily` or the older
+ * `?board=today`. Also AC-10 (pinned own row outside the top 50),
  * AC-11 (UTC rollover refetches the day's board cold) and the F-2 / F-3 / F-4
  * Today states: loading, empty, error + retry, not played, hidden -> consent
  * sheet -> refetch, failed consent save, and Friends on Today. The header's
@@ -233,7 +234,7 @@ const pillText = () =>
   [...(pill()?.querySelectorAll('span[aria-hidden="true"]') ?? [])].map((s) => s.textContent).join("").trim();
 const pillLabel = () => pill()?.querySelector(".sr-only")?.textContent ?? null;
 /** Words the old subtitle repeated from the tabs; the header must not show them any more. */
-const TAB_WORDS = /global|friends|all.time|today's tower/i;
+const TAB_WORDS = /global|friends|all.time|endless|daily|today's tower/i;
 
 async function key(list: Element, k: string) {
   await act(async () => {
@@ -255,10 +256,10 @@ describe("Ranks: Global | Friends pill, then All-time | Today underline tabs (AC
     expect(pillText()).toBe("1,302 climbers");
   });
 
-  it("renders the scope pill first, then a separate period tablist with its own name, All-time before Today", async () => {
+  it("renders the scope pill first, then a separate mode tablist with its own name, Endless before Daily", async () => {
     await render("/leaderboard", createElement(LeaderboardScreen));
     const lists = [...container!.querySelectorAll('[role="tablist"]')];
-    expect(lists.map((l) => l.getAttribute("aria-label"))).toEqual(["Leaderboard scope", "Leaderboard period"]);
+    expect(lists.map((l) => l.getAttribute("aria-label"))).toEqual(["Leaderboard scope", "Leaderboard mode"]);
     expect(tabIds(lists[0])).toEqual(["lb-tab-global", "lb-tab-friends"]);
     expect(tabIds(lists[1])).toEqual(["lb-period-alltime", "lb-period-today"]);
 
@@ -292,7 +293,7 @@ describe("Ranks: Global | Friends pill, then All-time | Today underline tabs (AC
     expect(tab("lb-period-today")?.className).toContain("text-accent");
   });
 
-  it("the Today tab opens today's board and the status pill follows: Resets in", async () => {
+  it("the Daily tab opens today's Daily board and the status pill follows: Resets in", async () => {
     await render("/leaderboard", createElement(LeaderboardScreen));
     await click(tab("lb-period-today"));
     expect(dailyCalls()).toBe(1);
@@ -304,7 +305,7 @@ describe("Ranks: Global | Friends pill, then All-time | Today underline tabs (AC
 
     await click(tab("lb-period-alltime"));
     expect(text()).toContain("Climber alltime-top");
-    expect(pillText()).toBe("All-time best heights");
+    expect(pillText()).toBe("Best Endless heights");
     expect(header()).not.toMatch(/Resets in/);
   });
 
@@ -367,18 +368,21 @@ describe("Ranks: Global | Friends pill, then All-time | Today underline tabs (AC
     expect(tab("lb-period-today")?.getAttribute("aria-selected")).toBe("true");
   });
 
-  it("?board=today opens Today", async () => {
-    await render(TODAY, createElement(LeaderboardScreen));
+  it.each(["daily", "today"])("?board=%s opens Daily (today: links sent before the rename)", async (value) => {
+    await render(`/leaderboard?board=${value}`, createElement(LeaderboardScreen));
     expect(tab("lb-period-today")?.getAttribute("aria-selected")).toBe("true");
     expect(dailyCalls()).toBe(1);
     expect(text()).toContain("Climber b");
   });
 
-  it.each(["alltime", "Today", "__proto__", "", "today "])("?board=%j opens the All-time default", async (value) => {
-    await render(`/leaderboard?board=${encodeURIComponent(value)}`, createElement(LeaderboardScreen));
-    expect(tab("lb-period-alltime")?.getAttribute("aria-selected")).toBe("true");
-    expect(dailyCalls()).toBe(0);
-  });
+  it.each(["alltime", "endless", "Daily", "Today", "__proto__", "", "today ", "daily "])(
+    "?board=%j opens the Endless default",
+    async (value) => {
+      await render(`/leaderboard?board=${encodeURIComponent(value)}`, createElement(LeaderboardScreen));
+      expect(tab("lb-period-alltime")?.getAttribute("aria-selected")).toBe("true");
+      expect(dailyCalls()).toBe(0);
+    },
+  );
 
   it("a new deep link while Ranks is mounted re-selects the period", async () => {
     await render("/leaderboard", createElement(LeaderboardScreen));
@@ -405,7 +409,7 @@ describe("Ranks: Today board states (F-2)", () => {
     net.hold = "/api/climb/daily/leaderboard";
     await render(TODAY, createElement(LeaderboardScreen));
     expect(skeleton()).toBeTruthy();
-    expect(text()).not.toContain("Not on today's board");
+    expect(text()).not.toContain("Not on the Daily board");
     await act(async () => net.held.shift()!(net.daily));
     await settle();
     expect(skeleton()).toBeNull();
@@ -438,10 +442,10 @@ describe("Ranks: Today board states (F-2)", () => {
     expect(text()).not.toContain("Climber a");
   });
 
-  it("not played today: 'Not on today's board' with Play to today's tower", async () => {
+  it("not played today: 'Not on the Daily board' with Play to today's tower", async () => {
     await render(TODAY, createElement(LeaderboardScreen));
     const banner = bannerEndingWith("Play");
-    expect(banner?.getAttribute("aria-label")).toContain("Not on today's board");
+    expect(banner?.getAttribute("aria-label")).toContain("Not on the Daily board");
     await click(banner);
     expect(path()).toBe("/climb?daily=1");
   });
@@ -694,9 +698,10 @@ describe("Ranks: scope row keyboard + Friends on Today (verifier)", () => {
     expect(pillText()).toMatch(/^Resets in /);
   });
 
-  it("a 'See today's board' deep link (TODAY_BOARD_PATH) opens Today", async () => {
-    const { TODAY_BOARD_PATH } = await import("../../mobile/src/lib/dailyBoard");
-    await render(TODAY_BOARD_PATH, createElement(LeaderboardScreen));
+  it("the results card's 'See the Daily board' deep link (DAILY_BOARD_PATH) opens Daily", async () => {
+    const { DAILY_BOARD_PATH } = await import("../../mobile/src/lib/dailyBoard");
+    expect(DAILY_BOARD_PATH).toBe("/leaderboard?board=daily");
+    await render(DAILY_BOARD_PATH, createElement(LeaderboardScreen));
     expect(tab("lb-period-today")?.getAttribute("aria-selected")).toBe("true");
     expect(dailyCalls()).toBe(1);
   });
@@ -720,15 +725,15 @@ function dashboardWith(totalClimbers: unknown) {
 }
 
 describe("Ranks: live status pill under the title", () => {
-  it("All-time shows the people icon and the dashboard's climber count", async () => {
+  it("Endless shows the people icon and the dashboard's climber count", async () => {
     net.dashboard = dashboardWith(1302);
     await render("/leaderboard", createElement(LeaderboardScreen));
     expect(pillText()).toBe("1,302 climbers");
-    expect(pillLabel()).toBe("1,302 climbers on the all-time board");
+    expect(pillLabel()).toBe("1,302 climbers on the Endless board");
     expect(pill()?.querySelector("svg circle[r='3.5']")).toBeTruthy(); // the people glyph
     // The visible copy is hidden from assistive tech; only the label is read.
     const readable = [...pill()!.childNodes].filter((n) => (n as Element).getAttribute?.("aria-hidden") !== "true");
-    expect(readable.map((n) => n.textContent)).toEqual(["1,302 climbers on the all-time board"]);
+    expect(readable.map((n) => n.textContent)).toEqual(["1,302 climbers on the Endless board"]);
   });
 
   it("Friends never shows the global climber count (it read as a friend count)", async () => {
@@ -815,18 +820,18 @@ describe("Ranks: live status pill under the title", () => {
     ["a fractional count (verifier)", dashboardWith(1.5)],
     ["a NaN count (verifier)", dashboardWith(Number.NaN)],
     ["no totalClimbers key (verifier)", { freeClimb: { peakY: 5000, rank: 4, wins: 1, handle: "Me" } }],
-  ])("All-time with %s shows 'All-time best heights', never a fabricated count", async (_, dashboard) => {
+  ])("Endless with %s shows 'Best Endless heights', never a fabricated count", async (_, dashboard) => {
     net.dashboard = dashboard;
     await render("/leaderboard", createElement(LeaderboardScreen));
-    expect(pillText()).toBe("All-time best heights");
-    expect(pillLabel()).toBe("All-time best heights");
+    expect(pillText()).toBe("Best Endless heights");
+    expect(pillLabel()).toBe("Best Endless heights");
     expect(header()).not.toMatch(/\d+ climbers?/);
   });
 
   it("control: a failed dashboard load also falls back (the pill never waits on it)", async () => {
     net.hold = "/api/dashboard";
     await render("/leaderboard", createElement(LeaderboardScreen));
-    expect(pillText()).toBe("All-time best heights");
+    expect(pillText()).toBe("Best Endless heights");
   });
 
   it("Today shows the clock and the countdown, ticking per minute, spoken as words", async () => {
@@ -836,7 +841,7 @@ describe("Ranks: live status pill under the title", () => {
     net.daily = dailyBoard([dailyRow(1, "a", 900)], null, at);
     await render(TODAY, createElement(LeaderboardScreen));
     expect(pillText()).toBe("Resets in 6h 36m");
-    expect(pillLabel()).toBe("Today's board resets in 6 hours 36 minutes");
+    expect(pillLabel()).toBe("The Daily board resets in 6 hours 36 minutes");
     expect(pill()?.querySelector("svg path[d='M12 7v5l3 2']")).toBeTruthy(); // the clock hands
     expect(header()).not.toMatch(/climbers/);
     const node = pill();
@@ -846,7 +851,7 @@ describe("Ranks: live status pill under the title", () => {
     });
     await settle();
     expect(pillText()).toBe("Resets in 6h 35m");
-    expect(pillLabel()).toBe("Today's board resets in 6 hours 35 minutes");
+    expect(pillLabel()).toBe("The Daily board resets in 6 hours 35 minutes");
     expect(pill()).toBe(node); // updated in place, not remounted
   });
 
@@ -895,9 +900,9 @@ describe("Ranks: live status pill under the title", () => {
 });
 
 describe("Ranks: period tabs in sentence case", () => {
-  it("names the tabs 'All-time' and 'Today' in body type, not tracked mono caps, keeping the tablist semantics", async () => {
+  it("names the tabs 'Endless' and 'Daily' in body type, not tracked mono caps, keeping the tablist semantics", async () => {
     await render("/leaderboard", createElement(LeaderboardScreen));
-    for (const [id, name] of [["lb-period-alltime", "All-time"], ["lb-period-today", "Today"]] as const) {
+    for (const [id, name] of [["lb-period-alltime", "Endless"], ["lb-period-today", "Daily"]] as const) {
       const t = tab(id)!;
       expect(t.getAttribute("role")).toBe("tab");
       expect(t.getAttribute("aria-label")).toBeNull(); // the accessible name is the visible text
@@ -908,7 +913,7 @@ describe("Ranks: period tabs in sentence case", () => {
     }
     expect(tab("lb-period-alltime")?.className).toContain("text-accent");
     expect(tab("lb-period-today")?.className).toContain("text-text-secondary");
-    expect(tablistOf("lb-period-today")?.getAttribute("aria-label")).toBe("Leaderboard period");
+    expect(tablistOf("lb-period-today")?.getAttribute("aria-label")).toBe("Leaderboard mode");
   });
 });
 

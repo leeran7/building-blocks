@@ -10,10 +10,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - **Daily Climb leaderboard (web and mobile)** — one server-seeded tower per
-  UTC day with a verified daily board. Ranks gains All-time | Today tabs
-  under Global | Friends, a status pill (climber count, friend count on
-  Friends, reset countdown on Today) and a pinned own row. New routes:
-  `GET /api/climb/daily`, `POST /api/climb/daily/result` (re-simulates the
+  UTC day with a verified daily board. Ranks gains Endless | Daily tabs
+  under Global | Friends (Endless is the all-time board; `?board=daily`,
+  and the older `?board=today`, open Daily), a status pill (climber count,
+  friend count on Friends, reset countdown on Daily) and a pinned own row.
+  New routes: `GET /api/climb/daily` (with the server's `now`), `POST /api/climb/daily/result` (re-simulates the
   replay and saves the server's peak), `GET /api/climb/daily/leaderboard`
   and `GET /api/climb/daily/leaderboard/friends`. New tables
   `daily_climb_scores` and `daily_climb_replays` (migrations

@@ -78,7 +78,7 @@ import { buildFreeTower } from "../../src/game/freeStack";
 const STASH_KEY = "doomstack:pending-climb";
 const DAILY_PATH = "/api/climb/daily/result";
 const ALL_TIME_PATH = "/api/climb/result";
-const FALLBACK_NOTE = "Too long to verify for today\u2019s board \u00b7 saved to all-time";
+const FALLBACK_NOTE = "Too long to verify for the Daily board \u00b7 saved to your Endless best";
 
 interface Post {
   path: string;

@@ -12,8 +12,8 @@ import { DAILY_INFO_PATH, parseDailyInfo, type DailyInfo } from "@app/lib/dailyI
 import { parseAvatarId } from "@app/lib/avatars";
 import { apiFetch } from "./api";
 
-/** Ranks opened on today's board (All-time is the default without `?board=today`). */
-export const TODAY_BOARD_PATH = "/leaderboard?board=today";
+/** Ranks opened on the Daily board (Endless is the default without `?board=daily`). */
+export const DAILY_BOARD_PATH = "/leaderboard?board=daily";
 
 export interface DailyClimberRank {
   rank: number;

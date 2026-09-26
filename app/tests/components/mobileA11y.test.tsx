@@ -334,7 +334,7 @@ describe("Hub header shared by Ranks and Profile", () => {
     expect(ranks.eyebrow.match(/aria-hidden="true"/g)).toHaveLength(2);
     // Ranks: no tracked-mono subtitle any more, one status pill instead (dashboard total 9).
     expect(ranks.subtitle).toEqual([]);
-    expect(ranks.status?.label).toBe("9 climbers on the all-time board");
+    expect(ranks.status?.label).toBe("9 climbers on the Endless board");
     expect(ranks.childCount).toBe(3);
     // Profile: the same tracked-mono subtitle as before, and no pill.
     expect(profile.subtitle).toEqual(["Your climb"]);
@@ -355,7 +355,7 @@ describe("Hub header shared by Ranks and Profile", () => {
         createElement(HubHeader, {
           title: "Leaderboard",
           subtitle: ["Your climb"],
-          status: { icon: createElement("svg"), text: "Resets in 6h 36m", label: "Today's board resets in 6 hours 36 minutes" },
+          status: { icon: createElement("svg"), text: "Resets in 6h 36m", label: "The Daily board resets in 6 hours 36 minutes" },
         }),
       ),
     );
@@ -364,7 +364,7 @@ describe("Hub header shared by Ranks and Profile", () => {
     expect([...pill.children].map((c) => [c.getAttribute("aria-hidden"), c.textContent])).toEqual([
       ["true", ""],
       ["true", "Resets in 6h 36m"],
-      [null, "Today's board resets in 6 hours 36 minutes"],
+      [null, "The Daily board resets in 6 hours 36 minutes"],
     ]);
   });
 

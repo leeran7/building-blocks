@@ -30,10 +30,10 @@ export interface RanksBoards {
 }
 
 /**
- * The four Ranks boards (All-time | Today x Global | Friends) behind one
+ * The four Ranks boards (Endless | Daily x Global | Friends) behind one
  * lookup, `boards[period][scope]` (RV-DC-7), instead of a nested ternary per
  * field. Every board keeps its own cache slice and retry; the Friends and
- * Today boards fetch only while their tab is open.
+ * Daily boards fetch only while their tab is open.
  */
 export function useRanksBoards({
   period,

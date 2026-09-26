@@ -249,7 +249,7 @@ describe("ClimbScreen daily mode", () => {
     expect(body.simVersion).toBe(DAILY_SIM_VERSION);
   });
 
-  it("posts the run WITH its replay to the verified daily route, shows the server rank and 'See today's board'", async () => {
+  it("posts the run WITH its replay to the verified daily route, shows the server rank and 'See the Daily board'", async () => {
     await mountDaily();
     expect(resultPosts()).toHaveLength(1);
     const body = JSON.parse(String(resultPosts()[0][1]?.body)) as Record<string, unknown>;
@@ -257,22 +257,22 @@ describe("ClimbScreen daily mode", () => {
     expect(postClimbResult).not.toHaveBeenCalled();
     expect(rankLine()).toBe("#3 of 12 today");
     expect(text()).toContain("Today’s Best");
-    await click(buttonByText("See today’s board"));
-    expect(container!.querySelector('[data-testid="path"]')?.textContent).toBe("/leaderboard?board=today");
+    await click(buttonByText("See the Daily board"));
+    expect(container!.querySelector('[data-testid="path"]')?.textContent).toBe("/leaderboard?board=daily");
   });
 
   it("saved while hidden says so instead of a rank", async () => {
     net.resultBody = saved({ rank: null, improved: false });
     await mountDaily();
-    expect(rankLine()).toBe("saved · you're hidden on today's board");
+    expect(rankLine()).toBe("saved · you're hidden on the Daily board");
     expect(text()).not.toContain("Today’s Best");
   });
 
-  it("offline / 5xx: 'couldn't reach today's board' with Try again, which re-sends the same payload", async () => {
+  it("offline / 5xx: 'couldn't reach the Daily board' with Try again, which re-sends the same payload", async () => {
     net.resultStatus = 503;
     net.resultBody = { error: "down" };
     await mountDaily();
-    expect(rankLine()).toBe("couldn't reach today's board");
+    expect(rankLine()).toBe("couldn't reach the Daily board");
     const retry = buttonByText("Try again");
     expect(retry).toBeTruthy();
 
@@ -288,12 +288,12 @@ describe("ClimbScreen daily mode", () => {
   it("a server rejection shows a plain reason and offers no retry", async () => {
     const cases: Array<[string, string, number]> = [
       ["DAY_CLOSED", "today's tower closed before this run was saved", 400],
-      ["REPLAY_MISMATCH", "couldn't verify this run for today's board", 400],
-      ["RUN_TOO_LONG", "run too long to verify for today's board", 400],
+      ["REPLAY_MISMATCH", "couldn't verify this run for the Daily board", 400],
+      ["RUN_TOO_LONG", "run too long to verify for the Daily board", 400],
       ["SIM_VERSION_MISMATCH", "update the app to post daily scores", 409],
       ["REPLAY_REUSED", "this run was already posted by another player", 409],
-      ["__proto__", "couldn't verify this run for today's board", 400],
-      ["SOMETHING_NEW", "couldn't verify this run for today's board", 400],
+      ["__proto__", "couldn't verify this run for the Daily board", 400],
+      ["SOMETHING_NEW", "couldn't verify this run for the Daily board", 400],
     ];
     let checked = 0;
     for (const [code, copy, status] of cases) {
@@ -317,17 +317,17 @@ describe("ClimbScreen daily mode", () => {
     await mountDaily();
     expect(resultPosts()).toHaveLength(0);
     expect(postClimbResult).toHaveBeenCalledTimes(1);
-    expect(rankLine()).toBe("run too long to verify for today's board");
+    expect(rankLine()).toBe("run too long to verify for the Daily board");
   });
 
-  it("no consent: the consent sheet comes first; declining posts nothing and says 'not on today's board'", async () => {
+  it("no consent: the consent sheet comes first; declining posts nothing and says 'not on the Daily board'", async () => {
     setLeaderboardConsent(false);
     await mountDaily();
     expect(resultPosts()).toHaveLength(0);
     expect(buttonByText("Save my score")).toBeTruthy();
     await click(buttonByText("Not now"));
     expect(resultPosts()).toHaveLength(0);
-    expect(rankLine()).toBe("not on today's board");
+    expect(rankLine()).toBe("not on the Daily board");
   });
 
   it("no consent: accepting saves consent, then posts the daily run", async () => {
@@ -370,7 +370,7 @@ describe("ClimbScreen daily mode", () => {
     net.resultBody = { saved: false, reason: "anonymous" };
     await mountDaily();
     expect(rankLine()).toBe("sign in to save your score");
-    expect(buttonByText("See today’s board")).toBeUndefined();
+    expect(buttonByText("See the Daily board")).toBeUndefined();
     await click(buttonByText("Sign in to save"));
     expect(onSignIn).toHaveBeenCalledTimes(1);
     expect(buttonByText("Try again")).toBeUndefined();
@@ -452,7 +452,7 @@ describe("ClimbScreen daily share waits for the save (SEC-DC-12)", () => {
     net.resultStatus = 503;
     net.resultBody = { error: "down" };
     await mountDaily();
-    expect(rankLine()).toBe("couldn't reach today's board");
+    expect(rankLine()).toBe("couldn't reach the Daily board");
     expect(shareButton()).toBeUndefined();
 
     net.resultStatus = 200;

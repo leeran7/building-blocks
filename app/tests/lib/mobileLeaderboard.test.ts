@@ -163,7 +163,7 @@ describe("ranksStatus: the Ranks status pill copy, by period", () => {
     expect(s).toEqual({
       icon: "clock",
       text: "Resets in 6h 36m",
-      label: "Today's board resets in 6 hours 36 minutes",
+      label: "The Daily board resets in 6 hours 36 minutes",
     });
   });
 
@@ -177,7 +177,7 @@ describe("ranksStatus: the Ranks status pill copy, by period", () => {
     expect(ranksStatus("alltime", HOUR, 1302)).toEqual({
       icon: "people",
       text: "1,302 climbers",
-      label: "1,302 climbers on the all-time board",
+      label: "1,302 climbers on the Endless board",
     });
   });
 

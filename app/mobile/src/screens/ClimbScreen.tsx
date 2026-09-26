@@ -35,7 +35,7 @@ import { commitDailyRun, msUntilReset, formatReset, type DailyRunResult } from "
 import {
   fetchDailyInfo,
   postDailyResult,
-  TODAY_BOARD_PATH,
+  DAILY_BOARD_PATH,
   type DailySaveResult,
 } from "../lib/dailyBoard";
 import {
@@ -463,7 +463,7 @@ export function ClimbScreen({ onSignIn }: { onSignIn?: () => void } = {}) {
               isDaily && isAuthed
                 ? () => {
                     void tapLight();
-                    navigate(TODAY_BOARD_PATH);
+                    navigate(DAILY_BOARD_PATH);
                   }
                 : undefined
             }
@@ -572,29 +572,29 @@ const PLAY_AGAIN_LABEL: Record<PlayAgainState, string> = {
   offline: "Can\u2019t reach today\u2019s tower \u00b7 retry",
 };
 
-/** Why a daily run is not on today's board, in the player's words. */
+/** Why a daily run is not on the Daily board, in the player's words. */
 const DAILY_REJECTION_COPY: Record<string, string> = {
   SIM_VERSION_MISMATCH: "update the app to post daily scores",
   REPLAY_REUSED: "this run was already posted by another player",
   DAY_CLOSED: "today's tower closed before this run was saved",
-  RUN_TOO_LONG: "run too long to verify for today's board",
-  REPLAY_MISMATCH: "couldn't verify this run for today's board",
-  INVALID_REPLAY: "couldn't verify this run for today's board",
+  RUN_TOO_LONG: "run too long to verify for the Daily board",
+  REPLAY_MISMATCH: "couldn't verify this run for the Daily board",
+  INVALID_REPLAY: "couldn't verify this run for the Daily board",
 };
 
 /** The rank line for a daily run, from the server's verdict. */
 function dailyRankLine(save: DailySaveState): string {
-  if (save === null || save.status === "pending") return "checking today's board…";
+  if (save === null || save.status === "pending") return "checking the Daily board…";
   if (save.status === "saved") {
-    if (save.rank === null) return "saved · you're hidden on today's board";
+    if (save.rank === null) return "saved · you're hidden on the Daily board";
     return `#${save.rank.toLocaleString()} of ${save.totalClimbers.toLocaleString()} today`;
   }
-  if (save.status === "not_saved") return "not on today's board";
-  if (save.status === "failed") return "couldn't reach today's board";
+  if (save.status === "not_saved") return "not on the Daily board";
+  if (save.status === "failed") return "couldn't reach the Daily board";
   // hasOwnProperty.call, not Object.hasOwn: the SPA targets ES2020 WebViews.
   return Object.prototype.hasOwnProperty.call(DAILY_REJECTION_COPY, save.code)
     ? DAILY_REJECTION_COPY[save.code]
-    : "couldn't verify this run for today's board";
+    : "couldn't verify this run for the Daily board";
 }
 
 function ResultsCard({
@@ -618,7 +618,7 @@ function ResultsCard({
   /** Daily mode only: the verified save's state; null outside daily mode. */
   dailySave: DailySaveState;
   onRetryDaily: () => void;
-  /** Daily mode, signed in: open today's board. */
+  /** Daily mode, signed in: open the Daily board. */
   onSeeBoard?: () => void;
   shareable: boolean;
   isGuest?: boolean;
@@ -730,7 +730,7 @@ function ResultsCard({
             onClick={onSeeBoard}
             className="min-h-[52px] rounded-full border border-signal/40 bg-signal/10 font-display text-sm font-bold uppercase tracking-widest text-signal transition-transform duration-150 active:scale-[0.97]"
           >
-            See today’s board
+            See the Daily board
           </button>
         )}
         <div className="flex gap-3">

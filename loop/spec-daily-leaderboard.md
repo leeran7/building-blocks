@@ -15,8 +15,9 @@ re-simulating the run.
 
 **In:** a shared UTC day module; `GET /api/climb/daily`; the `DailyClimbScore`
 model and migration; `POST /api/climb/daily/result` with server re-simulation;
-`GET /api/climb/daily/leaderboard{,/friends}`; mobile Today | All-time
-Ranks screen; ClimbScreen and HomeScreen daily wiring; web `DailyClimbClient`
+`GET /api/climb/daily/leaderboard{,/friends}`; mobile Endless | Daily
+Ranks screen (Endless = the all-time free-stack board, which daily runs also
+raise; Daily = today's Daily Climb board, reset at 00:00 UTC); ClimbScreen and HomeScreen daily wiring; web `DailyClimbClient`
 moved to the UTC day and the daily route (no new web UI).
 
 **Out (Future):** a web daily leaderboard tab, push notifications, yesterday's
@@ -33,10 +34,10 @@ Risks).
 
 | F | Critical | Trigger → entry | Happy path | Empty / failure | Success next |
 |---|---|---|---|---|---|
-| F-1 Play today's tower | yes | Home DailyCard → `/climb?daily=1` (web: `/daily`) | The seed comes only from the server (no offline fallback: it is an HMAC the device cannot derive). Run → replay is encoded (raw bytes on a runtime without CompressionStream) → POST daily/result with `simVersion` → server rank shown | Seed unreachable: "Can't load today's tower" with Try again and "Play endless instead"; no daily starts. Save unreachable after the run: "couldn't reach today's board" with Try again. Closed day / mismatch / stale engine: a plain reason, no retry. Too long to encode: saved to the all-time board only, and says so (web and mobile). Guest: "sign in to save". No consent: the consent sheet first; if saving consent fails the sheet stays with the run so the player can retry or decline | "See today's board" CTA, Play again (after 00:00 UTC it refetches today's tower first) |
-| F-2 Check today's board | yes | Ranks tab → Today tab, or `?board=today` (All-time is the default) | Podium plus table, a status pill "Resets in Xh Ym", your banner, and a pinned row (#rank · height · tries) when outside the top 50 | Loading skeleton. Empty: "No one's climbed today's tower yet. Be first." plus Play. Error: RetryPanel. Not played: "Not on today's board" → Play | Play today's tower |
-| F-3 Friends today | no | Ranks → Today → Friends | You plus consented friends for today, with a hidden/not-climbed footer | No friends: "Race your friends" → /challenge. Error: RetryPanel | Find friends |
-| F-4 Opt in from the board | yes | Today banner "You're hidden" → "Show me on the board" | Consent sheet → PUT settings → board refetches | PUT fails: the sheet closes and the banner stays hidden (can retry) | Play today's tower |
+| F-1 Play today's tower | yes | Home DailyCard → `/climb?daily=1` (web: `/daily`) | The seed comes only from the server (no offline fallback: it is an HMAC the device cannot derive). Run → replay is encoded (raw bytes on a runtime without CompressionStream) → POST daily/result with `simVersion` → server rank shown | Seed unreachable: "Can't load today's tower" with Try again and "Play endless instead"; no daily starts. Save unreachable after the run: "couldn't reach the Daily board" with Try again. Closed day / mismatch / stale engine: a plain reason, no retry. Too long to encode: saved to the all-time board only, and says so (web and mobile). Guest: "sign in to save". No consent: the consent sheet first; if saving consent fails the sheet stays with the run so the player can retry or decline | "See the Daily board" CTA, Play again (after 00:00 UTC it refetches today's tower first) |
+| F-2 Check today's board | yes | Ranks tab → Daily tab, or `?board=daily` (older links: `?board=today`; Endless is the default) | Podium plus table, a status pill "Resets in Xh Ym", your banner, and a pinned row (#rank · height · tries) when outside the top 50 | Loading skeleton. Empty: "No one's climbed today's tower yet. Be first." plus Play. Error: RetryPanel. Not played: "Not on the Daily board" → Play | Play today's tower |
+| F-3 Friends today | no | Ranks → Daily → Friends | You plus consented friends for today, with a hidden/not-climbed footer | No friends: "Race your friends" → /challenge. Error: RetryPanel | Find friends |
+| F-4 Opt in from the board | yes | Daily banner "You're hidden" → "Show me on the board" | Consent sheet → PUT settings → board refetches | PUT fails: the sheet stays open with "Couldn't save that. Check your connection and try again." (same as Climb results); retry or "Not now", and the banner stays hidden | Play today's tower |
 | F-5 Midnight rollover | yes | App open across 00:00 UTC | `useUtcDay` fires at the reset. Day slices refetch cold (skeleton), the countdown resets, and the DailyCard drops yesterday's rank. Play again / Start refetches the seed when the server's `resetsAt` has passed since it was fetched (timed from the server's `now`), so the next run is on today's tower | A run that straddles the reset is accepted for its day within 10 min, then DAY_CLOSED | New day's board |
 | F-6 Home glance | no | Home | DailyCard shows "#N today · H ft · Resets in …" once the server knows your rank | Unknown rank: falls back to the local best / countdown | Tap → F-1 |
 
@@ -76,14 +77,18 @@ and when the tower resets.
 - AC-8: `?day=` that is not a real YYYY-MM-DD → 400 `INVALID_DAY`. A future day
   or one > 7 days old → 400 `DAY_OUT_OF_RANGE`.
 - AC-9: Mobile Ranks shows the Global | Friends pill first, then an
-  All-time | Today underline tab row. All-time is the default. Today opens from
-  its tab or `?board=today` (any other value opens All-time). Both rows are
+  Endless | Daily underline tab row ("Leaderboard mode"). Endless (the
+  all-time free-stack board; daily runs raise it too) is the default. Daily
+  (today's Daily Climb board) opens from its tab, `?board=daily` or the
+  older `?board=today`; any other value opens Endless. Both rows are
   WAI-ARIA tablists with distinct names, arrow keys, Home/End and roving
-  tabindex. "See today's board" deep-links to Today.
-- AC-9b: The status pill under the title: Global · All-time "N climbers";
-  Friends · All-time "1 friend" / "N friends" (listed friends except you,
+  tabindex. "See the Daily board" deep-links to Daily.
+- AC-9b: The status pill under the title: Global · Endless "N climbers"
+  (spoken "N climbers on the Endless board");
+  Friends · Endless "1 friend" / "N friends" (listed friends except you,
   plus hidden and not-yet-climbed friends, from the loaded Friends board;
-  spoken "You have N friends"); either scope on Today "Resets in Xh Ym". An
+  spoken "You have N friends"); either scope on Daily "Resets in Xh Ym"
+  (spoken "The Daily board resets in ..."). An
   unknown or zero count shows a neutral line, never a number, and the pill
   keeps its height.
 - AC-10: When the player's rank > the rows shown, a pinned row shows
