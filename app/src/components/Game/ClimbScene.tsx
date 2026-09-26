@@ -102,6 +102,12 @@ interface SaveInfo {
 
 const PENDING_CLIMB_KEY = "doomstack:pending-climb";
 const DEFAULT_RESULT_PATH = "/api/climb/result";
+/**
+ * Shown when a run bound for a replay-verified route (Daily Climb) has no
+ * replay to verify (over MAX_SHARE_TICKS, or no encoder). The run is saved to
+ * the all-time board instead, so the rank shown is the all-time one.
+ */
+const NO_REPLAY_FALLBACK_NOTE = "Too long to verify for today\u2019s board \u00b7 saved to all-time";
 
 /**
  * Approx height (px) of the on-canvas height/lava HUD bar, so the overlaid
@@ -192,6 +198,11 @@ export function ClimbScene({
   const [shareUrl, setShareUrl] = useState<string | null>(null);
   const [encodingShare, setEncodingShare] = useState(false);
   const [savingRun, setSavingRun] = useState(false);
+  const [saveNote, setSaveNote] = useState<string | null>(null);
+  // The signed-out run as stashed for the retroactive save, replay included.
+  // The results card's own Sign in link reuses it rather than rebuilding a
+  // payload without the replayToken.
+  const stashRef = useRef<object | null>(null);
   // Guards onFinish so it fires exactly once per live run (reset on each start).
   const firedFinishRef = useRef(false);
 
@@ -304,6 +315,8 @@ export function ClimbScene({
     setShareUrl(null);
     setEncodingShare(false);
     setSavingRun(false);
+    setSaveNote(null);
+    stashRef.current = null;
     start();
   }
 
@@ -330,10 +343,17 @@ export function ClimbScene({
       const payload = replayToken ? { ...withFields, replayToken } : withFields;
 
       if (token) {
-        postRun(payload, token, resultPath).then(setSaveInfo).finally(() => setSavingRun(false));
+        // A route that verifies the replay (Daily Climb) refuses a run without
+        // one, so that run goes to the all-time route instead, without the
+        // daily fields, the same as the mobile app (RV-DC-1).
+        const noReplayFallback = !replayToken && resultPath !== DEFAULT_RESULT_PATH;
+        if (noReplayFallback) setSaveNote(NO_REPLAY_FALLBACK_NOTE);
+        const [body, path] = noReplayFallback ? [run, DEFAULT_RESULT_PATH] : [payload, resultPath];
+        postRun(body, token, path).then(setSaveInfo).finally(() => setSavingRun(false));
       } else {
         setSaveInfo({ saved: false });
         setSavingRun(false);
+        stashRef.current = payload;
         try {
           // Stash the replayToken too — otherwise the retroactive save after
           // sign-in (below) persists this run with no replay link at all.
@@ -555,12 +575,14 @@ export function ClimbScene({
                     {saveInfo.improved ? "new personal best · " : ""}
                     {saveInfo.handle ?? climberHandle(user.uid)}
                   </p>
+                  {saveNote ? <p className="text-xs text-text-muted">{saveNote}</p> : null}
                 </div>
               ) : replaying ? null : (
                 <p className="text-xs mt-3 font-mono text-text-muted">
                   {savingRun || saveInfo === null
                     ? "Saving…"
                     : "Couldn’t save your run"}
+                  {saveNote ? <span className="block mt-1">{saveNote}</span> : null}
                 </p>
               )
             ) : replaying ? null : (
@@ -569,9 +591,11 @@ export function ClimbScene({
                   href={`/auth/signin?redirect=${encodeURIComponent(redirectPath)}`}
                   onClick={() => {
                     try {
+                      // Keep the replay-bearing stash from finishRun when it
+                      // exists; buildRun() alone would drop the replayToken.
                       sessionStorage.setItem(
                         PENDING_CLIMB_KEY,
-                        JSON.stringify(buildRun())
+                        JSON.stringify(stashRef.current ?? buildRun())
                       );
                     } catch {
                       /* ignore */
