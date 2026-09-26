@@ -115,7 +115,7 @@ const DEFAULT_RESULT_PATH = "/api/climb/result";
  * replay to verify (over MAX_SHARE_TICKS, or no encoder). The run is saved to
  * the all-time board instead, so the rank shown is the all-time one.
  */
-const NO_REPLAY_FALLBACK_NOTE = "Too long to verify for the Daily board \u00b7 saved to your Endless best";
+const NO_REPLAY_FALLBACK_NOTE = "Too long to verify for the Daily board \u00b7 saved to your all-time best";
 
 /**
  * Approx height (px) of the on-canvas height/lava HUD bar, so the overlaid

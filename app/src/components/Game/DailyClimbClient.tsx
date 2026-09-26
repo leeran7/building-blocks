@@ -183,7 +183,7 @@ export function DailyClimbClient() {
             </h2>
             <p className="text-text-secondary text-sm mt-3 max-w-[280px] text-center leading-relaxed">
               Everyone climbs the same tower today. One seed, one shot at the top
-              of the daily board — come back tomorrow to keep your streak alive.
+              of the Daily board — come back tomorrow to keep your streak alive.
             </p>
             {streak > 0 ? (
               <p className="mt-3 flex w-fit items-center gap-2 rounded-full border border-ember/40 bg-ember/10 px-3.5 py-1.5 font-mono text-[11px] uppercase tracking-[0.2em] text-ember">
