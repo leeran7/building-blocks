@@ -13,6 +13,7 @@ import { TouchControls } from "../../src/components/Game/TouchControls";
 import { ControlSchemePicker } from "../../src/components/ControlSchemePicker";
 import {
   CONTROL_SCHEME_KEY,
+  DEFAULT_CONTROL_SCHEME,
   parseControlScheme,
   readControlScheme,
 } from "../../src/lib/controlScheme";
@@ -71,21 +72,32 @@ describe("parseControlScheme", () => {
     expect(parseControlScheme(null)).toBeNull();
   });
 
-  it("falls back to buttons for a tampered value", () => {
+  it("falls back to the default for a tampered value", () => {
     localStorage.setItem(CONTROL_SCHEME_KEY, "dpad");
-    expect(readControlScheme()).toBe("buttons");
+    expect(readControlScheme()).toBe(DEFAULT_CONTROL_SCHEME);
   });
 });
 
 describe("control scheme setting", () => {
-  it("defaults to the four-button row", () => {
+  it("defaults to the joystick with nothing saved", () => {
     mount(() => {});
+    expect(radio("Joystick").getAttribute("aria-checked")).toBe("true");
+    expect(container.querySelector(".exp-joystick")).not.toBeNull();
+    expect(container.querySelectorAll(".exp-touch-button")).toHaveLength(1);
+  });
+
+  it("choosing Buttons persists it and swaps the controls live", () => {
+    mount(() => {});
+    act(() => radio("Buttons").click());
+
+    expect(localStorage.getItem(CONTROL_SCHEME_KEY)).toBe("buttons");
     expect(radio("Buttons").getAttribute("aria-checked")).toBe("true");
-    expect(container.querySelectorAll(".exp-touch-button")).toHaveLength(4);
     expect(container.querySelector(".exp-joystick")).toBeNull();
+    expect(container.querySelectorAll(".exp-touch-button")).toHaveLength(4);
   });
 
   it("choosing Joystick persists it and swaps the controls live", () => {
+    localStorage.setItem(CONTROL_SCHEME_KEY, "buttons");
     mount(() => {});
     act(() => radio("Joystick").click());
 

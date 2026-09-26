@@ -14,7 +14,9 @@ export type ControlScheme = "buttons" | "joystick";
 
 export const CONTROL_SCHEMES: readonly ControlScheme[] = ["buttons", "joystick"];
 
-export const DEFAULT_CONTROL_SCHEME: ControlScheme = "buttons";
+// Joystick while it is being play-tested. Screen-reader users cannot operate
+// the stick, so revisit before this ships as the permanent default.
+export const DEFAULT_CONTROL_SCHEME: ControlScheme = "joystick";
 
 export const CONTROL_SCHEME_KEY = "doomstack:control-scheme";
 
