@@ -23,6 +23,7 @@ import { HUD_ALTITUDE_FONT_UI } from "../../design/climbFeelTokens";
 import { formatAltitude } from "../../lib/units";
 import {
   cameraTargetY,
+  GAME_DRAW_SCALE,
   climbView,
   followCamY,
 } from "./climbCamera";
@@ -58,12 +59,7 @@ const TEXT_SECONDARY = "#a8a4b2";
 const FLAG = "#cbf24d";
 
 const BASE_WIDTH = 360;
-/**
- * Draw-size multiplier for everything on the canvas: climber, ladders,
- * platform slabs, power-ups, crate trim, floor markers, HUD text. Positions
- * and the camera are unchanged, so the view does not zoom or scroll.
- */
-export const GAME_DRAW_SCALE = 1.3;
+export { GAME_DRAW_SCALE };
 
 // ── Cached font strings ──────────────────────────────────────────────────────
 // Avoids template-literal allocation every frame; rebuilt only on ui change.
@@ -149,11 +145,11 @@ export function paintClimbFrame(
   const playerY = player?.y ?? 0;
   const ui = Math.max(1, width / BASE_WIDTH) * GAME_DRAW_SCALE;
 
-  const { pxPerM, viewH } = climbView(width, height, tower.widthM);
+  const { pxPerM, pxPerMY, viewH } = climbView(width, height, tower.widthM);
   // Sizes (not positions) that follow the world scale.
   const sizePxPerM = pxPerM * GAME_DRAW_SCALE;
   ensureFontCache(ui);
-  const camTarget = cameraTargetY(playerY, viewH, bottomInset, pxPerM);
+  const camTarget = cameraTargetY(playerY, viewH, bottomInset, pxPerMY);
   // Snap on the first paint of a run, and on any backward jump (replay seek).
   // `state.tick` is fractional under render interpolation, so the opening tick
   // is "< 1" rather than "=== 0".
@@ -170,7 +166,7 @@ export function paintClimbFrame(
   camBag.tick = state.tick;
 
   const sx = (worldX: number) => worldX * pxPerM;
-  const sy = (worldY: number) => height - (worldY - camWorldY) * pxPerM;
+  const sy = (worldY: number) => height - (worldY - camWorldY) * pxPerMY;
 
   const pickupAge =
     player?.lastPickupTick !== null &&

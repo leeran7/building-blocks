@@ -17,6 +17,14 @@ import { TICK_DT } from "../../game/types";
 export const CAMERA_FOCUS_FRAC = 0.62;
 /** How fast the eased camera closes on the target each tick (1 = snap). */
 export const CAMERA_FOLLOW = 0.3;
+/**
+ * Visual scale of the climb. Sprites (climber, ladders, orbs, HUD) draw this
+ * much larger, and world height draws this much taller so ladders, floor gaps
+ * and vertical motion keep their proportion to the bigger climber. Width stays
+ * locked to the canvas: the view never pans. Render-only — the simulation,
+ * scores and replays are in unscaled metres.
+ */
+export const GAME_DRAW_SCALE = 1.2;
 
 export function climbView(
   width: number,
@@ -24,8 +32,9 @@ export function climbView(
   towerWidthM: number
 ): ClimbView {
   const pxPerM = width > 0 && towerWidthM > 0 ? width / towerWidthM : 1;
-  const viewH = pxPerM > 0 ? height / pxPerM : 0;
-  return { pxPerM, viewH };
+  const pxPerMY = pxPerM * GAME_DRAW_SCALE;
+  const viewH = pxPerMY > 0 ? height / pxPerMY : 0;
+  return { pxPerM, pxPerMY, viewH };
 }
 
 /**
@@ -94,8 +103,10 @@ export function followCamY(
 }
 
 export interface ClimbView {
-  /** Pixels per tower metre. */
+  /** Horizontal pixels per tower metre (tower width fills the canvas). */
   pxPerM: number;
+  /** Vertical pixels per tower metre: pxPerM stretched by GAME_DRAW_SCALE. */
+  pxPerMY: number;
   /** Vertical metres visible on the canvas. */
   viewH: number;
 }

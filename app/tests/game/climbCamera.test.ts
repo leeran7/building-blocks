@@ -10,6 +10,7 @@ import { describe, expect, it } from "vitest";
 import {
   CAMERA_FOCUS_FRAC,
   CAMERA_FOLLOW,
+  GAME_DRAW_SCALE,
   cameraTargetY,
   climbView,
   followCamY,
@@ -26,23 +27,26 @@ const TOWER_WIDTH_M = 100;
 const TOUCH_INSET_PX = 112;
 
 describe("climbView: locked 9:16 desktop size", () => {
-  it("sees (height/width)*towerWidth metres, matching the canvas lock", () => {
-    const { pxPerM, viewH } = climbView(WIDTH, HEIGHT, TOWER_WIDTH_M);
+  it("fits the tower width and sees (height/width)*towerWidth/scale metres tall", () => {
+    const { pxPerM, pxPerMY, viewH } = climbView(WIDTH, HEIGHT, TOWER_WIDTH_M);
     expect(pxPerM).toBeCloseTo(WIDTH / TOWER_WIDTH_M);
-    expect(viewH).toBeCloseTo((HEIGHT / WIDTH) * TOWER_WIDTH_M);
+    expect(pxPerMY).toBeCloseTo((WIDTH / TOWER_WIDTH_M) * GAME_DRAW_SCALE);
+    expect(viewH).toBeCloseTo(
+      ((HEIGHT / WIDTH) * TOWER_WIDTH_M) / GAME_DRAW_SCALE
+    );
   });
 });
 
 describe("cameraTargetY: keeps the climber at CAMERA_FOCUS_FRAC", () => {
   it("clamps to the base on desktop so opening lava stays off-screen", () => {
-    const { pxPerM, viewH } = climbView(WIDTH, HEIGHT, TOWER_WIDTH_M);
+    const { pxPerMY: pxPerM, viewH } = climbView(WIDTH, HEIGHT, TOWER_WIDTH_M);
     const cam = cameraTargetY(0, viewH, 0, pxPerM);
     expect(cam).toBe(0);
     expect(isLavaThreatening(lavaThreatFill(-9, cam, viewH, 0))).toBe(false);
   });
 
   it("places a high climber at CAMERA_FOCUS_FRAC of the view", () => {
-    const { pxPerM, viewH } = climbView(WIDTH, HEIGHT, TOWER_WIDTH_M);
+    const { pxPerMY: pxPerM, viewH } = climbView(WIDTH, HEIGHT, TOWER_WIDTH_M);
     const playerY = 220;
     const cam = cameraTargetY(playerY, viewH, 0, pxPerM);
     expect(cam).toBeCloseTo(playerY - viewH * (1 - CAMERA_FOCUS_FRAC));
@@ -50,7 +54,7 @@ describe("cameraTargetY: keeps the climber at CAMERA_FOCUS_FRAC", () => {
   });
 
   it("sits below the base by the overlay metres on a touch stage", () => {
-    const { pxPerM, viewH } = climbView(WIDTH, HEIGHT, TOWER_WIDTH_M);
+    const { pxPerMY: pxPerM, viewH } = climbView(WIDTH, HEIGHT, TOWER_WIDTH_M);
     const cam = cameraTargetY(0, viewH, TOUCH_INSET_PX, pxPerM);
     expect(cam).toBeCloseTo(-(TOUCH_INSET_PX / pxPerM));
     expect(cam).toBeLessThan(0);
@@ -80,7 +84,7 @@ describe("lavaThreatFill: 0 until the line clears the overlay", () => {
   });
 
   it("ignores lava that only sits in the touch-control overlay", () => {
-    const { pxPerM, viewH } = climbView(WIDTH, HEIGHT, TOWER_WIDTH_M);
+    const { pxPerMY: pxPerM, viewH } = climbView(WIDTH, HEIGHT, TOWER_WIDTH_M);
     const insetM = TOUCH_INSET_PX / pxPerM;
     const cam = cameraTargetY(0, viewH, TOUCH_INSET_PX, pxPerM);
     // Opening hazard is ~9m below the base; camera sits ~insetM below 0, so
@@ -146,7 +150,7 @@ describe("lavaThreatFill against a real match", () => {
     m.tick = 0;
     stepMatch(m, { p1: NO_INPUT });
     expect(m.hazardY).toBeLessThan(0);
-    const { pxPerM, viewH } = climbView(WIDTH, HEIGHT, tower.widthM);
+    const { pxPerMY: pxPerM, viewH } = climbView(WIDTH, HEIGHT, tower.widthM);
     const cam = cameraTargetY(m.players[0]!.y, viewH, 0, pxPerM);
     expect(isLavaThreatening(lavaThreatFill(m.hazardY, cam, viewH, 0))).toBe(
       false
@@ -155,7 +159,7 @@ describe("lavaThreatFill against a real match", () => {
 
   it("lava becomes a threat while a high climber is still alive", () => {
     const tower = buildTower("indie-games");
-    const { pxPerM, viewH } = climbView(WIDTH, HEIGHT, tower.widthM);
+    const { pxPerMY: pxPerM, viewH } = climbView(WIDTH, HEIGHT, tower.widthM);
     const playerY = 120;
     const cam = cameraTargetY(playerY, viewH, 0, pxPerM);
     // Just below the uncovered camera bottom — still hidden.

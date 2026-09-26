@@ -204,12 +204,12 @@ export function ClimbScene({
   const lavaGap = player ? player.y - state.hazardY : Infinity;
   const musicIntensity = Math.max(0, Math.min(1, (40 - lavaGap) / 40));
   const view = climbView(canvasSize.width, canvasSize.height, state.tower.widthM);
-  const camY = cameraTargetY(player?.y ?? 0, view.viewH, bottomInset, view.pxPerM);
+  const camY = cameraTargetY(player?.y ?? 0, view.viewH, bottomInset, view.pxPerMY);
   const lavaFill = lavaThreatFill(
     state.hazardY,
     camY,
     view.viewH,
-    view.pxPerM > 0 ? bottomInset / view.pxPerM : 0
+    view.pxPerMY > 0 ? bottomInset / view.pxPerMY : 0
   );
   const lavaPhaseInfo = hazardPhase(state.raceSeconds - state.hazardSlowSeconds);
 

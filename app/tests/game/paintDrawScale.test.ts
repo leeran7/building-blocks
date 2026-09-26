@@ -1,9 +1,10 @@
 /**
- * GAME_DRAW_SCALE — everything draws bigger, nothing moves.
+ * GAME_DRAW_SCALE — sprites draw bigger and height draws taller; width is locked.
  *
  * Paints a real match through a recording context and reads the platform slab
- * rects back: their thickness carries the draw scale, while their left edge
- * and width still map 1:1 to world metres, so the view neither zooms nor pans.
+ * rects back: their thickness carries the draw scale, their top sits at the
+ * vertically stretched height, and their left edge and width still map 1:1 to
+ * world metres, so the view never pans sideways.
  */
 
 import { describe, expect, it } from "vitest";
@@ -49,11 +50,11 @@ function recordingContext(): { ctx: PaintCtx; platformRects: Rect[] } {
 }
 
 describe("paintClimbFrame: GAME_DRAW_SCALE", () => {
-  it("is a 30% bump", () => {
-    expect(GAME_DRAW_SCALE).toBe(1.3);
+  it("is a 20% bump", () => {
+    expect(GAME_DRAW_SCALE).toBe(1.2);
   });
 
-  it("thickens platform slabs by the scale without moving them", () => {
+  it("thickens slabs and stretches height, but keeps x and width", () => {
     const tower = buildTower("indie-games");
     const m = createMatch({
       seed: "draw-scale",
@@ -77,6 +78,8 @@ describe("paintClimbFrame: GAME_DRAW_SCALE", () => {
           Math.abs((p.x1 - p.x0) * pxPerM - r.w) < 1e-6
       );
       if (!match) continue;
+      // Camera sits at the base on the opening frame, so height is the stretch.
+      expect(r.y).toBeCloseTo(HEIGHT - match.y * pxPerM * GAME_DRAW_SCALE);
       expect(r.h).toBeCloseTo(Math.max(6, pxPerM * 2.5 * GAME_DRAW_SCALE));
       expect(r.h).toBeGreaterThan(Math.max(6, pxPerM * 2.5));
       checked++;
