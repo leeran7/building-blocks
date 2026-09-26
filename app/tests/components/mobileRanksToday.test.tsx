@@ -581,3 +581,64 @@ describe("Ranks: UTC midnight rollover (AC-11)", () => {
     expect(text()).toContain("Climber a");
   });
 });
+
+describe("Ranks: scope row keyboard + Friends on Today (verifier)", () => {
+  it("the scope row has its own roving tabindex, wraps on ArrowLeft, and Home/End move focus there only", async () => {
+    await render(TODAY, createElement(LeaderboardScreen));
+    const scope = tablistOf("lb-tab-global")!;
+    expect(tab("lb-tab-global")?.tabIndex).toBe(0);
+    expect(tab("lb-tab-friends")?.tabIndex).toBe(-1);
+    expect(tab("lb-tab-global")?.getAttribute("aria-selected")).toBe("true");
+    expect(tab("lb-tab-friends")?.getAttribute("aria-selected")).toBe("false");
+
+    await key(scope, "ArrowLeft"); // wraps from the first tab to the last
+    expect(tab("lb-tab-friends")?.getAttribute("aria-selected")).toBe("true");
+    expect(tab("lb-tab-friends")?.tabIndex).toBe(0);
+    expect(tab("lb-tab-global")?.tabIndex).toBe(-1);
+    expect(document.activeElement?.id).toBe("lb-tab-friends");
+    expect($("#lb-panel")?.getAttribute("aria-labelledby")).toBe("lb-tab-friends");
+
+    await key(scope, "Home");
+    expect(document.activeElement?.id).toBe("lb-tab-global");
+    expect(tab("lb-tab-global")?.getAttribute("aria-selected")).toBe("true");
+    await key(scope, "End");
+    expect(document.activeElement?.id).toBe("lb-tab-friends");
+
+    // The period row keeps its own selection and tab stop throughout.
+    expect(tab("lb-period-today")?.getAttribute("aria-selected")).toBe("true");
+    expect(tab("lb-period-today")?.tabIndex).toBe(0);
+    expect(tab("lb-period-alltime")?.tabIndex).toBe(-1);
+    // Exactly one tab stop per row.
+    const stops = [...container!.querySelectorAll('[role="tab"]')].filter((t) => (t as HTMLElement).tabIndex === 0);
+    expect(stops.map((t) => t.id)).toEqual(["lb-tab-friends", "lb-period-today"]);
+  });
+
+  it("Friends on Today never pins the Global board's own row, and shows the exact friends footer", async () => {
+    const top = Array.from({ length: 50 }, (_, i) => dailyRow(i + 1, `p${i}`, 1000 - i));
+    net.daily = { ...dailyBoard(top, { rank: 73, peakY: 412.5, attempts: 3 }), totalClimbers: 120 };
+    net.friendsDaily = {
+      day: utcDayKey(new Date()),
+      resetsAt: nextUtcResetAt(new Date()).toISOString(),
+      climbers: [dailyRow(1, "f1", 50), dailyRow(2, "f2", 40), dailyRow(3, "f3", 30), dailyRow(4, "f4", 25)],
+      hiddenCount: 1,
+      notClimbedCount: 2,
+    };
+    await render(TODAY, createElement(LeaderboardScreen));
+    // Precondition: on Global the own row IS pinned (rank 73 is outside the list).
+    expect($("#lb-me-pinned")).toBeTruthy();
+
+    await click($("#lb-tab-friends"));
+    expect(text()).toContain("Climber f4");
+    expect($("#lb-me-pinned")).toBeNull();
+    expect(text()).toContain("2 friends haven't climbed yet · 1 hidden");
+    expect(subtitle()).toContain("Friends");
+    expect(subtitle()).toContain("Today's tower");
+  });
+
+  it("a 'See today's board' deep link (TODAY_BOARD_PATH) opens Today", async () => {
+    const { TODAY_BOARD_PATH } = await import("../../mobile/src/lib/dailyBoard");
+    await render(TODAY_BOARD_PATH, createElement(LeaderboardScreen));
+    expect(tab("lb-period-today")?.getAttribute("aria-selected")).toBe("true");
+    expect(dailyCalls()).toBe(1);
+  });
+});
