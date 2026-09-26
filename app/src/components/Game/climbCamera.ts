@@ -53,32 +53,36 @@ export function climbView(
 export const CAMERA_AIR_BAND_FRAC = 0.12;
 
 /**
- * Fastest the camera focus closes on a supported climber, in metres/second.
- * Above every ladder and jetpack speed, so those track exactly; a landing far
- * from the held height (after a long fall) glides in instead of lurching.
+ * Fastest the camera closes the gap left by a hold, in metres/second. Only
+ * the gap is rate-limited: a supported climber's own motion (ladder, jetpack,
+ * replay at 4x) moves the focus one-for-one, so the climber never drifts.
  */
 export const CAMERA_CATCHUP_MPS = 25;
 
 /**
  * The height the camera frames.
  *
- * Supported (ground, ladder, jetpack thrust): moves toward the climber, at
- * most `maxStepM` this frame. Airborne: holds, and only moves once the climber
- * leaves the ±band around it, dragging the edge of the band along.
+ * Supported (ground, ladder, jetpack thrust): follows the climber's motion
+ * exactly, and shrinks any leftover gap by at most `maxStepM` this frame.
+ * Airborne: holds, and only moves once the climber leaves the ±band around
+ * it, dragging the edge of the band along. The gap therefore never exceeds
+ * the band, so switching between the two never lurches.
  */
 export function cameraFocusY(
-  anchorY: number | null,
+  prevFocusY: number | null,
+  prevPlayerY: number | null,
   playerY: number,
   supported: boolean,
   bandM: number,
   maxStepM: number
 ): number {
-  if (anchorY === null) return playerY;
+  if (prevFocusY === null || prevPlayerY === null) return playerY;
   if (supported) {
+    const gap = prevFocusY - prevPlayerY;
     const step = maxStepM > 0 ? maxStepM : 0;
-    return anchorY + Math.max(-step, Math.min(step, playerY - anchorY));
+    return playerY + gap - Math.max(-step, Math.min(step, gap));
   }
-  return Math.min(playerY + bandM, Math.max(playerY - bandM, anchorY));
+  return Math.min(playerY + bandM, Math.max(playerY - bandM, prevFocusY));
 }
 
 /**

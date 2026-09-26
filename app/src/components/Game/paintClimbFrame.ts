@@ -96,7 +96,12 @@ export type PaintClimbFrameOptions = {
    * Persistent camera across frames. Mutated for easing. When omitted, camera
    * snaps to target each call (fine for one-shot export frames with a bag).
    */
-  camera?: { y: number | null; tick: number | null; focusY?: number | null };
+  camera?: {
+    y: number | null;
+    tick: number | null;
+    focusY?: number | null;
+    playerY?: number | null;
+  };
   /**
    * Seconds of wall clock since the previous paint, so the camera ease is tied
    * to elapsed time rather than to how often this runs. Defaults to one tick —
@@ -167,12 +172,14 @@ export function paintClimbFrame(
     player.status !== "climbing";
   const focusY = cameraFocusY(
     camSnap ? null : camBag.focusY ?? null,
+    camBag.playerY ?? null,
     playerY,
     supported,
     viewH * CAMERA_AIR_BAND_FRAC,
     CAMERA_CATCHUP_MPS * camDt
   );
   camBag.focusY = focusY;
+  camBag.playerY = playerY;
   const camTarget = cameraTargetY(focusY, viewH, bottomInset, pxPerMY);
   const camWorldY = followCamY(
     camBag.y,

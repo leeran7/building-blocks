@@ -187,29 +187,34 @@ describe("cameraFocusY: holds through jumps, glides on catch-up", () => {
   const BAND = 20;
   const STEP = 1;
 
-  it("frames the climber when there is no anchor yet", () => {
-    expect(cameraFocusY(null, 140, false, BAND, STEP)).toBe(140);
-    expect(cameraFocusY(null, 140, true, BAND, STEP)).toBe(140);
+  it("frames the climber when there is no history yet", () => {
+    expect(cameraFocusY(null, null, 140, false, BAND, STEP)).toBe(140);
+    expect(cameraFocusY(100, null, 140, true, BAND, STEP)).toBe(140);
   });
 
-  it("tracks a supported climber exactly within the step cap", () => {
-    expect(cameraFocusY(100, 100.5, true, BAND, STEP)).toBe(100.5);
-    expect(cameraFocusY(100, 99.2, true, BAND, STEP)).toBe(99.2);
+  it("moves one-for-one with a supported climber, whatever the speed", () => {
+    expect(cameraFocusY(100, 100, 100.5, true, BAND, STEP)).toBe(100.5);
+    expect(cameraFocusY(100, 100, 170, true, BAND, STEP)).toBe(170);
   });
 
-  it("caps a supported catch-up at maxStep in either direction", () => {
-    expect(cameraFocusY(100, 120, true, BAND, STEP)).toBe(101);
-    expect(cameraFocusY(100, 80, true, BAND, STEP)).toBe(99);
+  it("closes a leftover gap by at most maxStep per frame", () => {
+    // Focus held 20 m below after a landing: one frame closes 1 m of it.
+    expect(cameraFocusY(80, 100, 100, true, BAND, STEP)).toBe(81);
+    expect(cameraFocusY(120, 100, 100, true, BAND, STEP)).toBe(119);
+    // The gap rides along with the climber's own motion.
+    expect(cameraFocusY(80, 100, 110, true, BAND, STEP)).toBe(91);
+    // A gap smaller than the step closes fully.
+    expect(cameraFocusY(99.5, 100, 100, true, BAND, STEP)).toBe(100);
   });
 
   it("holds the take-off height while the arc stays inside the band", () => {
-    expect(cameraFocusY(100, 103, false, BAND, STEP)).toBe(100);
-    expect(cameraFocusY(100, 97, false, BAND, STEP)).toBe(100);
+    expect(cameraFocusY(100, 100, 103, false, BAND, STEP)).toBe(100);
+    expect(cameraFocusY(100, 103, 97, false, BAND, STEP)).toBe(100);
   });
 
   it("drags the band edge once the climber leaves it", () => {
-    expect(cameraFocusY(100, 130, false, BAND, STEP)).toBe(130 - BAND);
-    expect(cameraFocusY(100, 60, false, BAND, STEP)).toBe(60 + BAND);
+    expect(cameraFocusY(100, 115, 130, false, BAND, STEP)).toBe(130 - BAND);
+    expect(cameraFocusY(100, 85, 60, false, BAND, STEP)).toBe(60 + BAND);
   });
 });
 
