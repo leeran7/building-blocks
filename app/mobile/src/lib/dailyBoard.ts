@@ -3,10 +3,12 @@
  * calls. Every parser is an allow-list: a body that does not match the
  * contract exactly is null (treated as a failed load), never coerced into a
  * plausible-looking board. `fetch(...).json()` is unchecked by tsc, so this is
- * the only place a server shape change can be caught.
+ * the only place a server shape change can be caught. GET /api/climb/daily
+ * is parsed by the parser shared with the web page (@app/lib/dailyInfo).
  */
 
-import { isDailySeedShape, parseDayKey } from "@app/lib/dailyDay";
+import { parseDayKey } from "@app/lib/dailyDay";
+import { DAILY_INFO_PATH, parseDailyInfo, type DailyInfo } from "@app/lib/dailyInfo";
 import { parseAvatarId } from "@app/lib/avatars";
 import { apiFetch } from "./api";
 
@@ -44,12 +46,6 @@ export interface FriendsDailyBoard {
   climbers: DailyClimberRank[];
   hiddenCount: number;
   notClimbedCount: number;
-}
-
-export interface DailyInfo {
-  day: string;
-  seed: string;
-  resetsAt: string;
 }
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null;
@@ -121,24 +117,13 @@ export function parseFriendsDailyBoard(body: unknown): FriendsDailyBoard | null 
 }
 
 /**
- * Validates a GET /api/climb/daily body; null if malformed. The seed is an
- * HMAC only the server can derive, so the client checks its shape only.
- */
-export function parseDailyInfo(body: unknown): DailyInfo | null {
-  if (!isObject(body)) return null;
-  const day = parseDayKey(body.day);
-  if (day === null || !isDailySeedShape(body.seed) || !isIso(body.resetsAt)) return null;
-  return { day, seed: body.seed, resetsAt: body.resetsAt };
-}
-
-/**
  * The server's live daily tower, or null when unreachable or unavailable.
  * There is no offline fallback: the seed cannot be derived on the device, so
  * without it the daily cannot start (SEC-DC-3).
  */
 export async function fetchDailyInfo(): Promise<DailyInfo | null> {
   try {
-    const res = await apiFetch("/api/climb/daily");
+    const res = await apiFetch(DAILY_INFO_PATH);
     if (!res.ok) return null;
     return parseDailyInfo(await res.json());
   } catch {

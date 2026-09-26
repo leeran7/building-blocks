@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { tapHeavy } from "../lib/haptics";
 import { ALTITUDE_UNIT } from "@app/lib/units";
 import { useDailyLeaderboard, useHubPrefetch } from "../contexts/AppDataContext";
-import { dailySummary, formatReset, type DailySummary } from "../lib/daily";
+import { dailySummary, formatReset, type DailySummary } from "@app/lib/daily";
 import { useUtcDay } from "../hooks/useUtcDay";
 import { useMatchmakingQueue } from "../hooks/useMatchmakingQueue";
 import volcanoScene from "@app/../public/climb/volcano-tile.jpg";

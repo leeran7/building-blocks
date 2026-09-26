@@ -30,14 +30,14 @@ import { hasLeaderboardConsent, setLeaderboardConsent } from "../lib/consent";
 import { LeaderboardConsentModal } from "../components/LeaderboardConsentModal";
 import { tapMedium, tapLight, notifyError, notifySuccess } from "../lib/haptics";
 import { useGameHaptics } from "../lib/useGameHaptics";
-import { commitDailyRun, msUntilReset, formatReset, type DailyRunResult } from "../lib/daily";
+import { commitDailyRun, msUntilReset, formatReset, type DailyRunResult } from "@app/lib/daily";
 import {
   fetchDailyInfo,
   postDailyResult,
   TODAY_BOARD_PATH,
-  type DailyInfo,
   type DailySaveResult,
 } from "../lib/dailyBoard";
+import type { DailyInfo } from "@app/lib/dailyInfo";
 import { DAILY_SIM_VERSION } from "@app/game/simVersion";
 
 /** A finished run as POSTed to either result route. */

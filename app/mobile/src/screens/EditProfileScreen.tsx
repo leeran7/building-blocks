@@ -21,7 +21,7 @@ import {
   setHapticsEnabled,
 } from "../lib/haptics";
 import { hasLeaderboardConsent, setLeaderboardConsent } from "../lib/consent";
-import { clearDailyStore } from "../lib/daily";
+import { clearDailyStore } from "@app/lib/daily";
 import { normalizeUsername } from "@app/lib/username";
 import {
   SOCIAL_PLATFORMS,

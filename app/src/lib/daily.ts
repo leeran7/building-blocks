@@ -13,8 +13,10 @@
  * `scheme` marker and are migrated once on read (migrateLocalDayKeys). A
  * player far from UTC can lose at most one streak day in the switch.
  *
- * Ported verbatim from the native app (app/mobile/src/lib/daily.ts); the two
- * surfaces intentionally share the same STORE_KEY.
+ * The one store for both surfaces: the web /daily page imports it directly and
+ * the Capacitor app imports it as "@app/lib/daily" (RV-DC-4), so the storage
+ * scheme and its migration can never drift apart. Because the ES2020 WebView
+ * SPA imports it, it must stay ES2020-safe: no Object.hasOwn, no .at().
  */
 import {
   migrateLocalDayKeys,
@@ -38,7 +40,8 @@ interface DailyStore {
 /**
  * A fresh empty store. A factory, not a shared constant: a spread copy of a
  * constant would share its `best` object, so one run's write would leak into
- * every later empty store (e.g. after the stored blob is removed or corrupt).
+ * every later empty store (e.g. the next account after clearDailyStore, or
+ * after the stored blob is removed or corrupt).
  */
 function emptyStore(): DailyStore {
   return { scheme: UTC_SCHEME, lastPlayedKey: null, streak: 0, best: {} };
@@ -68,6 +71,21 @@ export function formatReset(ms: number): string {
   if (h > 0) return `${h}h ${m}m`;
   if (m > 0) return `${m}m`;
   return "<1m";
+}
+
+const unit = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+
+/**
+ * formatReset for a screen reader: "6 hours 36 minutes" / "48 minutes" /
+ * "less than a minute". "6h 36m" reads as letters on some voices.
+ */
+export function spokenReset(ms: number): string {
+  const totalMin = Math.max(0, Math.floor(ms / 60000));
+  const h = Math.floor(totalMin / 60);
+  const m = totalMin % 60;
+  if (h > 0) return `${unit(h, "hour", "hours")} ${unit(m, "minute", "minutes")}`;
+  if (m > 0) return unit(m, "minute", "minutes");
+  return "less than a minute";
 }
 
 function read(): DailyStore {
@@ -107,6 +125,19 @@ function write(store: DailyStore): void {
     localStorage.setItem(STORE_KEY, JSON.stringify(store));
   } catch {
     /* storage unavailable — daily degrades to non-persistent, that's fine */
+  }
+}
+
+/**
+ * Wipe the local daily state (streak + per-day bests). The store is device-local
+ * and not keyed by account, so it must be cleared on account deletion — otherwise
+ * a new account created on the same phone inherits the previous user's streak.
+ */
+export function clearDailyStore(): void {
+  try {
+    localStorage.removeItem(STORE_KEY);
+  } catch {
+    /* storage unavailable — nothing to clear */
   }
 }
 
@@ -184,7 +215,8 @@ export function computeWeekDays(
       key,
       label: weekday.charAt(0),
       weekday,
-      played: Object.hasOwn(best, key) || lastPlayedKey === key,
+      // hasOwnProperty.call, not Object.hasOwn: the SPA targets ES2020 WebViews.
+      played: Object.prototype.hasOwnProperty.call(best, key) || lastPlayedKey === key,
       isToday: key === todayStr,
       isFuture: key > todayStr,
     };

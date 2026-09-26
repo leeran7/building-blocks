@@ -24,7 +24,7 @@ import { ClimbControlsGuide } from "./ClimbControlsGuide";
 import { buildFreeTower } from "../../game/freeStack";
 import { ALTITUDE_UNIT } from "../../lib/units";
 import Link from "next/link";
-import { isDailySeedShape, parseDayKey } from "../../lib/dailyDay";
+import { DAILY_INFO_PATH, parseDailyInfo, type DailyInfo } from "../../lib/dailyInfo";
 import { DAILY_SIM_VERSION } from "../../game/simVersion";
 import {
   dailySummary,
@@ -41,21 +41,15 @@ const DAILY_RESULT_PATH = "/api/climb/daily/result";
 /** Sent with every daily result so the server can reject a stale engine (SEC-DC-4). */
 const DAILY_RESULT_FIELDS = { simVersion: DAILY_SIM_VERSION } as const;
 
-interface ServerDaily {
-  day: string;
-  seed: string;
-}
-
-/** The server's live daily tower, or null when unreachable, unavailable or malformed. */
-async function fetchServerDaily(): Promise<ServerDaily | null> {
+/**
+ * The server's live daily tower, or null when unreachable, unavailable or
+ * malformed. Parsed by the same strict parser as the mobile app (RV-DC-5).
+ */
+async function fetchServerDaily(): Promise<DailyInfo | null> {
   try {
-    const res = await fetch("/api/climb/daily", { cache: "no-store" });
+    const res = await fetch(DAILY_INFO_PATH, { cache: "no-store" });
     if (!res.ok) return null;
-    const body: unknown = await res.json();
-    if (typeof body !== "object" || body === null) return null;
-    const { day, seed } = body as { day?: unknown; seed?: unknown };
-    const parsed = parseDayKey(day);
-    return parsed !== null && isDailySeedShape(seed) ? { day: parsed, seed } : null;
+    return parseDailyInfo(await res.json());
   } catch {
     return null;
   }
@@ -63,7 +57,7 @@ async function fetchServerDaily(): Promise<ServerDaily | null> {
 
 export function DailyClimbClient() {
   const tower = buildFreeTower();
-  const [daily, setDaily] = useState<ServerDaily | null>(null);
+  const [daily, setDaily] = useState<DailyInfo | null>(null);
   const [dailyFailed, setDailyFailed] = useState(false);
   const [dailyAttempt, setDailyAttempt] = useState(0);
   const seed = daily?.seed ?? null;

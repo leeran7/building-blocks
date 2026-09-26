@@ -2,7 +2,7 @@ import { hashId } from "@app/lib/handle";
 import { ALTITUDE_UNIT } from "@app/lib/units";
 import { parseAvatarId } from "@app/lib/avatars";
 import type { ClimberRank, FriendsBoard } from "../contexts/AppDataContext";
-import { formatReset, spokenReset } from "./daily";
+import { formatReset, spokenReset } from "@app/lib/daily";
 
 export function formatHeight(ft: number): string {
   return `${ft.toLocaleString(undefined, { maximumFractionDigits: 3 })} ${ALTITUDE_UNIT}`;

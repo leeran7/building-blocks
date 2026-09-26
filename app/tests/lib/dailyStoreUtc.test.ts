@@ -2,20 +2,19 @@
  * AC-13: the device-local Daily Climb store (streak + per-day best) runs on
  * the UTC day, and a legacy store written with LOCAL-date keys migrates once.
  *
- * Runs the same behaviour against both copies: the native app's
- * mobile/src/lib/daily.ts (ClimbScreen, HomeScreen) and the web port
- * src/lib/daily.ts (DailyClimbClient). They share STORE_KEY, so they must
- * agree. Only Date is faked; localStorage is happy-dom's.
+ * There is one store, src/lib/daily.ts (RV-DC-4). Runs the same behaviour
+ * through both entry points: the Capacitor app's "@app/lib/daily" alias
+ * (ClimbScreen, HomeScreen, ProfileScreen) and the web page's relative
+ * import (DailyClimbClient). Only Date is faked; localStorage is happy-dom's.
  *
  * @vitest-environment happy-dom
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-/** The API both copies share (only mobile has clearDailyStore). */
 type DailyLib = Pick<
-  typeof import("../../mobile/src/lib/daily"),
-  "todayKey" | "msUntilReset" | "dailySummary" | "commitDailyRun"
+  typeof import("../../src/lib/daily"),
+  "todayKey" | "msUntilReset" | "dailySummary" | "commitDailyRun" | "clearDailyStore"
 >;
 
 /**
@@ -23,7 +22,7 @@ type DailyLib = Pick<
  * tests and hide a leak like the shared-empty-store defect pinned below.
  */
 const LOADERS: Record<"mobile" | "web", () => Promise<DailyLib>> = {
-  mobile: () => import("../../mobile/src/lib/daily"),
+  mobile: () => import("@app/lib/daily"),
   web: () => import("../../src/lib/daily"),
 };
 
@@ -136,7 +135,8 @@ describe.each(["mobile", "web"] as const)("%s daily store on the UTC day", (name
   it("a cleared store does not inherit bests from an earlier run in the same session", () => {
     at("2026-09-26T10:00:00Z");
     lib.commitDailyRun(812);
-    localStorage.removeItem(STORE_KEY); // what clearDailyStore() does
+    lib.clearDailyStore();
+    expect(localStorage.getItem(STORE_KEY)).toBeNull();
     expect(lib.dailySummary()).toEqual({ streak: 0, todayBest: 0, playedToday: false });
     expect(lib.commitDailyRun(5)).toMatchObject({ isDayBest: true, todayBest: 5 });
   });

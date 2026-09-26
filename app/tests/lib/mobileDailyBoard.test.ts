@@ -11,10 +11,11 @@ vi.mock("../../mobile/src/lib/api", () => ({ apiFetch: vi.fn() }));
 
 import {
   parseDailyBoard,
-  parseDailyInfo,
   parseDailySaveResult,
   parseFriendsDailyBoard,
 } from "../../mobile/src/lib/dailyBoard";
+// GET /api/climb/daily is parsed by the parser shared with the web page.
+import { parseDailyInfo } from "../../src/lib/dailyInfo";
 
 const climber = {
   rank: 1,

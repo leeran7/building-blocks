@@ -15,7 +15,7 @@ import {
   ranksStatus,
   ALLTIME_STATUS_FALLBACK,
 } from "../../mobile/src/lib/leaderboard";
-import { spokenReset } from "../../mobile/src/lib/daily";
+import { spokenReset } from "../../src/lib/daily";
 import type { ClimberRank } from "../../mobile/src/contexts/AppDataContext";
 import { AVATARS } from "@app/lib/avatars";
 
