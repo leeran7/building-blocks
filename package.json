@@ -7,6 +7,17 @@
     "hygiene": "node scripts/hygiene.mjs",
     "test:orchestrator": "yarn --cwd orchestrator test",
     "test:pack": "node scripts/hygiene.mjs",
-    "export-template": "node scripts/export-template.mjs"
+    "export-template": "node scripts/export-template.mjs",
+    "dev": "pnpm --dir app dev",
+    "build": "pnpm --dir app build",
+    "test": "pnpm --dir app test",
+    "lint": "pnpm --dir app lint",
+    "typecheck": "pnpm --dir app typecheck",
+    "mobile:dev": "pnpm --dir app mobile:dev",
+    "mobile:build": "pnpm --dir app mobile:build",
+    "cap:sync": "pnpm --dir app cap:sync",
+    "cap:ios": "pnpm --dir app cap:ios",
+    "cap:ios:run": "pnpm --dir app cap:ios:run",
+    "cap:android": "pnpm --dir app cap:android"
   }
 }
