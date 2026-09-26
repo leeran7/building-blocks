@@ -94,7 +94,9 @@ export async function recordDailyClimb(input: DailyScoreInput): Promise<DailySco
 /**
  * Claim a verified run's canonical input hash for `userId` on `day`, and
  * return the account that holds it. That is `userId` for a new run or the
- * same player resubmitting, and someone else for a copied replay (SEC-DC-2).
+ * same player resubmitting, and someone else for an exact or padded copy
+ * (SEC-DC-2). A copy with one no-effect input changed has a new hash and is
+ * not caught here (accepted residual; see dailyInputHash).
  *
  * One INSERT ... ON CONFLICT DO UPDATE, a no-op update so RETURNING yields
  * the existing row. Two accounts racing with the same token serialize on the

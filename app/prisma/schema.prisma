@@ -177,9 +177,13 @@ model DailyClimbScore {
 // (src/game/dailyVerify.ts dailyInputHash) and the first account that
 // submitted it that day. POST /api/climb/daily/result claims the hash before
 // saving, and a run already claimed by ANOTHER account is refused with 409
-// REPLAY_REUSED (SEC-DC-2: replay tokens are public, so a copied top run
-// must not buy a rank). Every verified run is kept, not only the best, so an
-// earlier run cannot be copied after its owner beats it.
+// REPLAY_REUSED (SEC-DC-2: replay tokens are public). This blocks exact and
+// tail-padded copies only. A copy with one no-effect input changed hashes
+// differently and is accepted: an accepted residual, because it can only
+// tie the original and ties rank the earlier run first. Runs below
+// DAILY_CLAIM_MIN_PEAK_M are never claimed, since honest idle runs are
+// identical (SEC-DC-11). Every claimed run is kept, not only the best, so an
+// earlier run cannot be exact-copied after its owner beats it.
 model DailyClimbReplay {
   id         String   @id @default(cuid())
   day        String // UTC day key "YYYY-MM-DD"

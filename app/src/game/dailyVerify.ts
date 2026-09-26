@@ -39,6 +39,33 @@ export { DAILY_SIM_VERSION } from "./simVersion";
  */
 export const DAILY_PEAK_EPSILON_M = 0.1;
 
+/**
+ * Lowest verified peak, in metres, whose input log is claimed against reuse
+ * (SEC-DC-2 / SEC-DC-11). Below it the run is saved as a normal attempt with
+ * no claim, because honest low-entropy runs collide: every player who never
+ * presses a key produces the same 221-tick, 0 m log, and so does anyone who
+ * only holds jump or walks into the lava. Claiming those would refuse the
+ * second honest player with a false REPLAY_REUSED.
+ *
+ * Why 6 m: measured on 30 daily towers (Sept 2026, test secret), idle and
+ * walk-only runs peak at 0 m, jump-only runs at 2.6 m, and hold
+ * right + jump + climb at 3.8 m at most (a standing jump is
+ * jumpSpeed^2 / (2 * gravity) <= 3.6 m; a crate adds a little). The first
+ * floor starts at 0.68 * floorGap >= 15 m. A run under 6 m never reached the
+ * first floor, so copying it launders nothing but a near-zero score.
+ *
+ * Not covered, by design: a constant held input that happens to catch a
+ * ladder (hold left or right + climb) also collides across players, and it
+ * can reach 17-176 m on the same towers. No peak floor separates those from
+ * real climbs; they stay claimed (see tests/game/dailyVerify.test.ts).
+ */
+export const DAILY_CLAIM_MIN_PEAK_M = 6;
+
+/** True when a verified daily run must claim its input hash before it is saved. */
+export function dailyRunNeedsClaim(serverPeakY: number): boolean {
+  return serverPeakY >= DAILY_CLAIM_MIN_PEAK_M;
+}
+
 /** Player id useClimb gives the solo climber. Must match for identical sims. */
 const SOLO_PLAYER_ID = "you";
 
@@ -98,8 +125,16 @@ export function resimulateSoloRun(seed: string, inputs: PlayerInput[]) {
 /**
  * SHA-256 (hex) of a canonical input log, used to spot one run submitted by
  * two accounts (SEC-DC-2). Canonical means the inputs are re-packed, which
- * drops unused bits, and cut at the tick the run ended. Padding the tail or
- * flipping ignored bits therefore cannot disguise a copied replay.
+ * drops unused bits, and cut at the tick the run ended. So an exact copy, a
+ * tail-padded copy, or one with flipped unused bits hashes the same and is
+ * refused.
+ *
+ * It does NOT stop all copies. Changing one input the game ignores (jump
+ * while airborne, climbY off a ladder, moveX into a wall) keeps the peak
+ * bit-identical under a new hash. That near-copy is an accepted residual
+ * (SEC-DC-2, medium): it can only tie the original, ties rank the earlier
+ * run first, and beating the original needs a search, which is the bot/TAS
+ * residual above.
  */
 export function dailyInputHash(inputs: PlayerInput[]): string {
   return createHash("sha256").update(packInputLog(inputs)).digest("hex");
