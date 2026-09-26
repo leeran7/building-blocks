@@ -92,10 +92,10 @@ const TouchButton = memo(function TouchButton({
     >
       {pad ? (
         <>
-          <span aria-hidden="true" className="text-3xl leading-none">
+          <span aria-hidden="true" className="text-5xl leading-none">
             {glyph}
           </span>
-          <span aria-hidden="true" className="mt-1.5 text-base uppercase tracking-[0.16em] leading-none">
+          <span aria-hidden="true" className="mt-2 text-lg uppercase tracking-[0.16em] leading-none">
             {sub}
           </span>
         </>
@@ -150,8 +150,6 @@ const ALL_CONTROLS: readonly Control[] = [
 
 /** Jump in the joystick layout: arrow glyph over a "Jump" label. */
 const JUMP_PAD: Control = { id: "jump", label: "Jump", glyph: "↑", sub: "Jump", accent: true };
-/** Matches the `[data-pad]` min-height in expedition.css. */
-const JUMP_PAD_HEIGHT = 76;
 
 export function TouchControls({
   active,
@@ -245,8 +243,8 @@ export function TouchControls({
           <div className="flex justify-center">
             <TouchJoystick key={stickKey} onChange={steer} />
           </div>
-          {/* Centred on the stick's base, not on base + caption. */}
-          <div className="grid" style={{ marginTop: (JOYSTICK_SIZE - JUMP_PAD_HEIGHT) / 2 }}>
+          {/* Fills the column, as tall as the stick's base and level with it. */}
+          <div className="grid" style={{ height: JOYSTICK_SIZE }}>
             <TouchButton
               control={JUMP_PAD}
               held={pressed.has("jump")}
