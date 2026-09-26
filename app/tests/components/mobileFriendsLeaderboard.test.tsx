@@ -107,7 +107,7 @@ function LocationProbe() {
 
 let mounted: { container: HTMLElement; rerender: () => Promise<void>; unmount: () => void } | null = null;
 
-async function mount(el: ReactElement, path = "/leaderboard") {
+async function mount(el: ReactElement, path = "/leaderboard?board=alltime") {
   const container = document.createElement("div");
   document.body.appendChild(container);
   let root!: Root;

@@ -121,7 +121,8 @@ async function render(path: string, element: ReactElement) {
           createElement(
             Routes,
             null,
-            createElement(Route, { path, element }),
+            // Route paths never include the query string.
+            createElement(Route, { path: path.split("?")[0], element }),
             createElement(Route, { path: "/duel/:id", element: createElement("p", null, "duel room") }),
           ),
           createElement(LocationProbe),
@@ -226,7 +227,7 @@ describe("Ranks table row with the longest pseudonym", () => {
       { rank: 3, userId: "c", handle: "Gamma Three", username: null, peakY: 7000, wins: 0, avatarId: null },
       { rank: 4, userId: ME, handle: LONGEST, username: null, peakY: 5000, wins: 0, avatarId: LONG_AVATAR },
     ];
-    await render("/leaderboard", createElement(LeaderboardScreen));
+    await render("/leaderboard?board=alltime", createElement(LeaderboardScreen));
 
     const row = container.querySelector("#lb-me");
     expect(row).toBeTruthy();

@@ -13,6 +13,12 @@ import { apiFetch } from "../lib/api";
 import { useAuth } from "./AuthContext";
 import { setLeaderboardConsent } from "../lib/consent";
 import { parseFriendsBoard } from "../lib/leaderboard";
+import {
+  fetchDailyBoard,
+  fetchFriendsDailyBoard,
+  type DailyBoard,
+  type FriendsDailyBoard,
+} from "../lib/dailyBoard";
 import { parseAvatarId } from "@app/lib/avatars";
 
 /**
@@ -106,13 +112,24 @@ export interface FriendsBoard {
   notClimbedCount: number;
 }
 
-type SliceKey = "dashboard" | "settings" | "leaderboard" | "friendsLeaderboard";
+export type SliceKey =
+  | "dashboard"
+  | "settings"
+  | "leaderboard"
+  | "friendsLeaderboard"
+  | "dailyLeaderboard"
+  | "friendsDailyLeaderboard";
+
+/** Slices whose data belongs to one UTC day and must refetch when it changes. */
+type DailySliceKey = "dailyLeaderboard" | "friendsDailyLeaderboard";
 
 const IDLE_INFLIGHT: Record<SliceKey, boolean> = {
   dashboard: false,
   settings: false,
   leaderboard: false,
   friendsLeaderboard: false,
+  dailyLeaderboard: false,
+  friendsDailyLeaderboard: false,
 };
 
 interface Slice<T> {
@@ -129,6 +146,8 @@ const NEVER_SETTLED: Record<SliceKey, number | null> = {
   settings: null,
   leaderboard: null,
   friendsLeaderboard: null,
+  dailyLeaderboard: null,
+  friendsDailyLeaderboard: null,
 };
 
 /** Background revalidate window — cached data older than this refetches silently. */
@@ -139,12 +158,20 @@ interface AppDataState {
   settings: Slice<SettingsData>;
   leaderboard: Slice<ClimberRank[]>;
   friendsLeaderboard: Slice<FriendsBoard>;
+  /** Today's public daily board (+ the caller's own standing). */
+  dailyLeaderboard: Slice<DailyBoard>;
+  friendsDailyLeaderboard: Slice<FriendsDailyBoard>;
   ensureDashboard: () => void;
   ensureSettings: () => void;
   ensureLeaderboard: () => void;
   refreshLeaderboard: () => Promise<void>;
   ensureFriendsLeaderboard: () => void;
   refreshFriendsLeaderboard: () => Promise<void>;
+  /** `day` is the device's UTC day; a change of day refetches cold. */
+  ensureDailyLeaderboard: (day: string) => void;
+  refreshDailyLeaderboard: (day: string) => Promise<void>;
+  ensureFriendsDailyLeaderboard: (day: string) => void;
+  refreshFriendsDailyLeaderboard: (day: string) => Promise<void>;
   refreshSettings: () => Promise<void>;
   /** Optimistically update the cached settings after a successful save. */
   setSettings: (next: SettingsData) => void;
@@ -166,6 +193,9 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   const [settings, setSettingsSlice] = useState<Slice<SettingsData>>(EMPTY_SLICE);
   const [leaderboard, setLeaderboard] = useState<Slice<ClimberRank[]>>(EMPTY_SLICE);
   const [friendsLeaderboard, setFriendsLeaderboard] = useState<Slice<FriendsBoard>>(EMPTY_SLICE);
+  const [dailyLeaderboard, setDailyLeaderboard] = useState<Slice<DailyBoard>>(EMPTY_SLICE);
+  const [friendsDailyLeaderboard, setFriendsDailyLeaderboard] =
+    useState<Slice<FriendsDailyBoard>>(EMPTY_SLICE);
 
   // Guards against overlapping in-flight fetches per slice.
   const inflight = useRef<Record<SliceKey, boolean>>({ ...IDLE_INFLIGHT });
@@ -175,6 +205,9 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   // and that commit's effects, and those effects still hold the render's
   // "never fetched" slice, so they would fetch again, once per consumer.
   const settledAt = useRef<Record<SliceKey, number | null>>({ ...NEVER_SETTLED });
+  // The UTC day each daily slice's last fetch was for. A different day means
+  // the cached board is a past day's: refetch it cold (skeleton), not silently.
+  const settledDay = useRef<Partial<Record<DailySliceKey, string>>>({});
   // Bumped on every cache wipe. A fetch started before the wipe belongs to the
   // previous account (or a signed-out session) and must not land in this one.
   const accountGen = useRef(0);
@@ -185,8 +218,11 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     setSettingsSlice(EMPTY_SLICE);
     setLeaderboard(EMPTY_SLICE);
     setFriendsLeaderboard(EMPTY_SLICE);
+    setDailyLeaderboard(EMPTY_SLICE);
+    setFriendsDailyLeaderboard(EMPTY_SLICE);
     inflight.current = { ...IDLE_INFLIGHT };
     settledAt.current = { ...NEVER_SETTLED };
+    settledDay.current = {};
   }, []);
 
   // Wipe the cache the instant the signed-in account changes (incl. sign-out).
@@ -203,8 +239,11 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     setSettingsSlice(EMPTY_SLICE);
     setLeaderboard(EMPTY_SLICE);
     setFriendsLeaderboard(EMPTY_SLICE);
+    setDailyLeaderboard(EMPTY_SLICE);
+    setFriendsDailyLeaderboard(EMPTY_SLICE);
     inflight.current = { ...IDLE_INFLIGHT };
     settledAt.current = { ...NEVER_SETTLED };
+    settledDay.current = {};
   }
 
   const authed = Boolean(user) && !isAnonymous;
@@ -328,6 +367,79 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     );
   }, [friendsLeaderboard, load, fetchFriendsBoard]);
 
+  /**
+   * Load a day-keyed slice. A slice last settled for a different day is
+   * loaded COLD (its past-day data dropped first), so the screen shows a
+   * skeleton through the midnight rollover instead of yesterday's board
+   * under today's header.
+   */
+  const loadDaily = useCallback(
+    async <T,>(
+      key: DailySliceKey,
+      day: string,
+      slice: Slice<T>,
+      set: (s: Slice<T>) => void,
+      fetcher: () => Promise<T | null>,
+      force: boolean,
+    ) => {
+      const prevDay = settledDay.current[key];
+      const dayChanged = prevDay !== undefined && prevDay !== day;
+      if (!force && !dayChanged && !isStale(key)) return;
+      const base = dayChanged ? { ...EMPTY_SLICE } : { ...slice, fetchedAt: null };
+      await load(key, base, set, () =>
+        fetcher().then((data) => {
+          settledDay.current[key] = day;
+          return data;
+        }),
+      );
+    },
+    // isStale reads refs only.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [load],
+  );
+
+  const ensureDailyLeaderboard = useCallback(
+    (day: string) => {
+      if (!authed) return;
+      void loadDaily("dailyLeaderboard", day, dailyLeaderboard, setDailyLeaderboard, fetchDailyBoard, false);
+    },
+    [authed, dailyLeaderboard, loadDaily],
+  );
+
+  const refreshDailyLeaderboard = useCallback(
+    (day: string) =>
+      loadDaily("dailyLeaderboard", day, dailyLeaderboard, setDailyLeaderboard, fetchDailyBoard, true),
+    [dailyLeaderboard, loadDaily],
+  );
+
+  const ensureFriendsDailyLeaderboard = useCallback(
+    (day: string) => {
+      if (!authed) return;
+      void loadDaily(
+        "friendsDailyLeaderboard",
+        day,
+        friendsDailyLeaderboard,
+        setFriendsDailyLeaderboard,
+        fetchFriendsDailyBoard,
+        false,
+      );
+    },
+    [authed, friendsDailyLeaderboard, loadDaily],
+  );
+
+  const refreshFriendsDailyLeaderboard = useCallback(
+    (day: string) =>
+      loadDaily(
+        "friendsDailyLeaderboard",
+        day,
+        friendsDailyLeaderboard,
+        setFriendsDailyLeaderboard,
+        fetchFriendsDailyBoard,
+        true,
+      ),
+    [friendsDailyLeaderboard, loadDaily],
+  );
+
   const refreshSettings = useCallback(async () => {
     await load("settings", { ...settings, fetchedAt: null }, setSettingsSlice, () =>
       apiFetch("/api/settings")
@@ -351,6 +463,8 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       if (keys.includes("settings")) setSettingsSlice(markStale);
       if (keys.includes("leaderboard")) setLeaderboard(markStale);
       if (keys.includes("friendsLeaderboard")) setFriendsLeaderboard(markStale);
+      if (keys.includes("dailyLeaderboard")) setDailyLeaderboard(markStale);
+      if (keys.includes("friendsDailyLeaderboard")) setFriendsDailyLeaderboard(markStale);
     },
     [],
   );
@@ -361,12 +475,18 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       settings,
       leaderboard,
       friendsLeaderboard,
+      dailyLeaderboard,
+      friendsDailyLeaderboard,
       ensureDashboard,
       ensureSettings,
       ensureLeaderboard,
       refreshLeaderboard,
       ensureFriendsLeaderboard,
       refreshFriendsLeaderboard,
+      ensureDailyLeaderboard,
+      refreshDailyLeaderboard,
+      ensureFriendsDailyLeaderboard,
+      refreshFriendsDailyLeaderboard,
       refreshSettings,
       setSettings,
       invalidate,
@@ -377,12 +497,18 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       settings,
       leaderboard,
       friendsLeaderboard,
+      dailyLeaderboard,
+      friendsDailyLeaderboard,
       ensureDashboard,
       ensureSettings,
       ensureLeaderboard,
       refreshLeaderboard,
       ensureFriendsLeaderboard,
       refreshFriendsLeaderboard,
+      ensureDailyLeaderboard,
+      refreshDailyLeaderboard,
+      ensureFriendsDailyLeaderboard,
+      refreshFriendsDailyLeaderboard,
       refreshSettings,
       setSettings,
       invalidate,
@@ -453,6 +579,33 @@ export function useFriendsLeaderboard(enabled: boolean) {
     if (enabled) ensureFriendsLeaderboard();
   }, [enabled, ensureFriendsLeaderboard]);
   return { ...friendsLeaderboard, refreshFriendsLeaderboard };
+}
+
+/**
+ * Today's public daily board for the device's UTC `day`. Fetches on mount if
+ * cold, revalidates if stale, and refetches cold when `day` rolls over.
+ */
+export function useDailyLeaderboard(day: string, enabled = true) {
+  const { dailyLeaderboard, ensureDailyLeaderboard, refreshDailyLeaderboard } = useAppData();
+  useEffect(() => {
+    if (enabled) ensureDailyLeaderboard(day);
+  }, [enabled, day, ensureDailyLeaderboard]);
+  const refresh = useCallback(() => refreshDailyLeaderboard(day), [refreshDailyLeaderboard, day]);
+  return { ...dailyLeaderboard, refreshDailyLeaderboard: refresh };
+}
+
+/** Friends' daily board; fetches only while `enabled` (its tab is open). */
+export function useFriendsDailyLeaderboard(day: string, enabled: boolean) {
+  const { friendsDailyLeaderboard, ensureFriendsDailyLeaderboard, refreshFriendsDailyLeaderboard } =
+    useAppData();
+  useEffect(() => {
+    if (enabled) ensureFriendsDailyLeaderboard(day);
+  }, [enabled, day, ensureFriendsDailyLeaderboard]);
+  const refresh = useCallback(
+    () => refreshFriendsDailyLeaderboard(day),
+    [refreshFriendsDailyLeaderboard, day],
+  );
+  return { ...friendsDailyLeaderboard, refreshFriendsDailyLeaderboard: refresh };
 }
 
 /** Escape hatch for the auth flow to drop cache on sign-out / delete. */

@@ -1,21 +1,30 @@
 import { useCallback, useRef, useState, type KeyboardEvent, type ReactNode, type Ref } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import {
+  echoedSetting,
+  useDailyLeaderboard,
   useDashboard,
+  useFriendsDailyLeaderboard,
   useFriendsLeaderboard,
+  useInvalidateAppData,
   useLeaderboard,
   useSettings,
-  type ClimberRank,
 } from "../contexts/AppDataContext";
 import { ALTITUDE_UNIT } from "@app/lib/units";
 import { Button, RetryPanel, StateMessage } from "../components/ui";
 import { PullToRefresh } from "../components/PullToRefresh";
+import { LeaderboardConsentModal } from "../components/LeaderboardConsentModal";
+import { apiFetch } from "../lib/api";
+import { setLeaderboardConsent } from "../lib/consent";
+import { formatReset } from "../lib/daily";
+import type { DailyStanding } from "../lib/dailyBoard";
 import { tapLight } from "../lib/haptics";
-import { friendsFooter, standingFor, type Standing } from "../lib/leaderboard";
+import { formatHeight, friendsFooter, standingFor, type BoardRow, type Standing } from "../lib/leaderboard";
 import { HexAvatar } from "../components/HexAvatar";
 import { HubHeader } from "../components/HubHeader";
 import { useRetry } from "../hooks/useRetry";
+import { useUtcDay } from "../hooks/useUtcDay";
 import { prefersReducedMotion } from "../lib/motion";
 
 type Medal = 1 | 2 | 3;
@@ -28,42 +37,118 @@ const MEDAL: Record<Medal, { face: string; rim: string; text: string }> = {
 };
 
 type Scope = "global" | "friends";
+type Period = "today" | "alltime";
 
 const SCOPES: Array<{ id: Scope; label: string }> = [
   { id: "global", label: "Global" },
   { id: "friends", label: "Friends" },
 ];
 
+const PERIODS: Array<{ id: Period; label: string }> = [
+  { id: "today", label: "Today" },
+  { id: "alltime", label: "All-time" },
+];
+
 /**
- * What the board panel shows. `empty` is the Global board with no climbs;
- * `noFriendsYet` is a Friends board with only the caller on it and nobody
- * hidden or unclimbed. A Friends board with no climbers but hidden or
- * unclimbed friends is `ready`: the "Not ranked yet" banner plus the footer.
+ * What the board panel shows. `empty` is a Global board with no climbs (the
+ * copy differs for today's tower); `noFriendsYet` is a Friends board with only
+ * the caller on it and nobody hidden or unclimbed. A Friends board with no
+ * climbers but hidden or unclimbed friends is `ready`: the "Not ranked yet"
+ * banner plus the footer.
  */
 type BoardView = "loading" | "error" | "empty" | "noFriendsYet" | "ready";
 
 const PANEL_ID = "lb-panel";
+const PERIOD_PANEL_ID = "lb-period-panel";
 const LOAD_FAILED_MESSAGE = "Couldn't load the leaderboard. Check your connection and try again.";
+const DAILY_PLAY_PATH = "/climb?daily=1";
 const tabId = (scope: Scope) => `lb-tab-${scope}`;
+const periodTabId = (period: Period) => `lb-period-${period}`;
+
+/** `?board=alltime` deep-links the All-time board; anything else opens Today. */
+function initialPeriod(board: string | null): Period {
+  return board === "alltime" ? "alltime" : "today";
+}
+
+/** Banner copy that differs between today's board and the all-time board. */
+interface BannerCopy {
+  unrankedHeadline: string;
+  unrankedDetail: string;
+  hiddenDetail: string;
+  hiddenActionLabel: string;
+}
+
+const ALLTIME_COPY: BannerCopy = {
+  unrankedHeadline: "Not ranked yet",
+  unrankedDetail: "Finish a climb to get on the board",
+  hiddenDetail: "Turn on leaderboard visibility in Edit profile",
+  hiddenActionLabel: "Edit profile",
+};
+
+const TODAY_COPY: BannerCopy = {
+  unrankedHeadline: "Not on today's board",
+  unrankedDetail: "Climb today's tower to get ranked",
+  hiddenDetail: "Turn on leaderboard visibility to appear on today's board",
+  hiddenActionLabel: "Show me on the board",
+};
+
+/** "3 tries" / "1 try". */
+function triesLabel(attempts: number): string {
+  return `${attempts.toLocaleString()} ${attempts === 1 ? "try" : "tries"}`;
+}
+
+/**
+ * The player's standing on today's board. Hidden when they have opted out
+ * (known from settings, or from a row the server ranks as hidden); their
+ * rank and height otherwise, which standingFor turns into "#N" or
+ * "X to reach the top 50" when they are outside the list.
+ */
+function dailyStanding(
+  climbers: readonly BoardRow[],
+  meId: string | null,
+  me: DailyStanding | null,
+  consented: boolean,
+): Standing {
+  if (!consented || (me !== null && me.rank === null)) return { kind: "hidden" };
+  const own = me && me.rank !== null ? { peakY: me.peakY, rank: me.rank } : null;
+  return standingFor(climbers, meId, own, true);
+}
 
 export function LeaderboardScreen() {
   const { user } = useAuth();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const [period, setPeriod] = useState<Period>(() => initialPeriod(searchParams.get("board")));
   const [scope, setScope] = useState<Scope>("global");
+  const clock = useUtcDay();
+  const isToday = period === "today";
+  const isFriends = scope === "friends";
+
   const global = useLeaderboard();
-  const friends = useFriendsLeaderboard(scope === "friends");
+  const friends = useFriendsLeaderboard(!isToday && isFriends);
+  const daily = useDailyLeaderboard(clock.day, isToday);
+  const friendsDaily = useFriendsDailyLeaderboard(clock.day, isToday && isFriends);
   const own = useDashboard().data?.freeClimb ?? null;
-  const onPublicBoard = useSettings().data?.leaderboardConsent ?? true;
+  const settings = useSettings();
+  const onPublicBoard = settings.data?.leaderboardConsent ?? true;
+  const invalidate = useInvalidateAppData();
   const meId = user?.uid ?? null;
 
   const { refreshLeaderboard } = global;
   const { refreshFriendsLeaderboard } = friends;
-  const handleRefresh = useCallback(
-    () => (scope === "friends" ? refreshFriendsLeaderboard() : refreshLeaderboard()),
-    [scope, refreshFriendsLeaderboard, refreshLeaderboard],
-  );
+  const { refreshDailyLeaderboard } = daily;
+  const { refreshFriendsDailyLeaderboard } = friendsDaily;
+  const activeRefresh = isToday
+    ? isFriends
+      ? refreshFriendsDailyLeaderboard
+      : refreshDailyLeaderboard
+    : isFriends
+      ? refreshFriendsLeaderboard
+      : refreshLeaderboard;
+  const handleRefresh = useCallback(() => activeRefresh(), [activeRefresh]);
 
-  // One per scope: a retry refreshes only its own board, and a Global retry
-  // still in flight never paints "Retrying…" over the Friends tab.
+  // One per board: a retry refreshes only its own board, and a retry still in
+  // flight never paints "Retrying…" over another tab.
   const headingRef = useRef<HTMLHeadingElement>(null);
   const globalRetry = useRetry(refreshLeaderboard, {
     failed: global.error,
@@ -75,74 +160,175 @@ export function LeaderboardScreen() {
     hasData: friends.data !== null,
     focusOnRecover: headingRef,
   });
+  const dailyRetry = useRetry(refreshDailyLeaderboard, {
+    failed: daily.error,
+    hasData: daily.data !== null,
+    focusOnRecover: headingRef,
+  });
+  const friendsDailyRetry = useRetry(refreshFriendsDailyLeaderboard, {
+    failed: friendsDaily.error,
+    hasData: friendsDaily.data !== null,
+    focusOnRecover: headingRef,
+  });
 
-  const active = scope === "friends" ? friends : global;
-  const activeRetry = scope === "friends" ? friendsRetry : globalRetry;
-  const climbers = (scope === "friends" ? friends.data?.climbers : global.data) ?? [];
+  const activeRetry = isToday
+    ? isFriends
+      ? friendsDailyRetry
+      : dailyRetry
+    : isFriends
+      ? friendsRetry
+      : globalRetry;
+  const activeHasData = isToday
+    ? isFriends
+      ? friendsDaily.data !== null
+      : daily.data !== null
+    : isFriends
+      ? friends.data !== null
+      : global.data !== null;
+  const climbers: readonly BoardRow[] =
+    (isToday
+      ? isFriends
+        ? friendsDaily.data?.climbers
+        : daily.data?.climbers
+      : isFriends
+        ? friends.data?.climbers
+        : global.data) ?? [];
 
   const podium = climbers.slice(0, 3);
   const rest = climbers.slice(3);
-  const standing =
-    scope === "friends" ? standingFor(climbers, meId, null, true) : standingFor(climbers, meId, own, onPublicBoard);
+  const me = isToday ? (daily.data?.me ?? null) : null;
+  const standing: Standing = isFriends
+    ? standingFor(climbers, meId, null, true)
+    : isToday
+      ? dailyStanding(climbers, meId, me, onPublicBoard)
+      : standingFor(climbers, meId, own, onPublicBoard);
+  // Today's own row, pinned under the table when the player ranks outside the top 50.
+  const pinnedMe =
+    isToday && !isFriends && me !== null && me.rank !== null && !climbers.some((c) => c.userId === meId)
+      ? me
+      : null;
 
-  const hiddenCount = friends.data?.hiddenCount ?? 0;
-  const notClimbedCount = friends.data?.notClimbedCount ?? 0;
-  const footer = scope === "friends" ? friendsFooter(hiddenCount, notClimbedCount) : null;
+  const friendsBoard = isToday ? friendsDaily.data : friends.data;
+  const hiddenCount = friendsBoard?.hiddenCount ?? 0;
+  const notClimbedCount = friendsBoard?.notClimbedCount ?? 0;
+  const footer = isFriends ? friendsFooter(hiddenCount, notClimbedCount) : null;
   const noFriendsYet =
-    scope === "friends" && climbers.every((c) => c.userId === meId) && hiddenCount === 0 && notClimbedCount === 0;
+    isFriends && climbers.every((c) => c.userId === meId) && hiddenCount === 0 && notClimbedCount === 0;
 
   // showError stays true through a retry so Try again (and its focus) stays put.
   const view: BoardView = activeRetry.showError
     ? "error"
-    : // Also covers the render before the Friends tab's first fetch starts,
-      // which would otherwise flash the "Not ranked yet" banner.
-      active.data === null
+    : // Also covers the render before a lazily-fetched tab's first fetch
+      // starts, which would otherwise flash the "Not ranked yet" banner.
+      !activeHasData
       ? "loading"
       : noFriendsYet
         ? "noFriendsYet"
-        : scope === "global" && climbers.length === 0
+        : !isFriends && climbers.length === 0
           ? "empty"
           : "ready";
 
+  // Opted-out player on today's board: reuse the consent sheet from the
+  // results card instead of sending them to Edit profile.
+  const [showConsent, setShowConsent] = useState(false);
+  const [consentBusy, setConsentBusy] = useState(false);
+  const { setSettings } = settings;
+  const acceptConsent = useCallback(async () => {
+    setConsentBusy(true);
+    try {
+      const res = await apiFetch("/api/settings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ leaderboardConsent: true }),
+      });
+      const next = res.ok ? echoedSetting(await res.json(), "leaderboardConsent", true) : null;
+      if (next) {
+        setLeaderboardConsent(true);
+        setSettings(next);
+        invalidate(["dailyLeaderboard", "friendsDailyLeaderboard", "leaderboard", "friendsLeaderboard"]);
+      }
+    } catch {
+      /* not saved — the banner stays "hidden", so the player can try again */
+    } finally {
+      setConsentBusy(false);
+      setShowConsent(false);
+    }
+  }, [setSettings, invalidate]);
+
+  const bannerCopy = isToday ? TODAY_COPY : ALLTIME_COPY;
+  const onHiddenAction = isToday ? () => setShowConsent(true) : () => navigate("/profile/edit");
+  const onPlay = () => navigate(isToday ? DAILY_PLAY_PATH : "/climb");
+
   return (
-    <main className="flex h-full flex-col">
+    <main className="relative flex h-full flex-col">
       <PullToRefresh onRefresh={handleRefresh}>
-        <Header scope={scope} headingRef={headingRef} />
-        <ScopeTabs scope={scope} onChange={setScope} />
+        <Header
+          scope={scope}
+          period={period}
+          resetsIn={formatReset(clock.msUntilReset)}
+          headingRef={headingRef}
+        />
+        <PeriodTabs period={period} onChange={setPeriod} />
 
-        <div role="tabpanel" id={PANEL_ID} aria-labelledby={tabId(scope)}>
-          {view === "loading" && <LoadingState />}
+        <div role="tabpanel" id={PERIOD_PANEL_ID} aria-labelledby={periodTabId(period)}>
+          <ScopeTabs scope={scope} onChange={setScope} />
 
-          {view === "error" && (
-            <RetryPanel
-              message={LOAD_FAILED_MESSAGE}
-              retrying={activeRetry.retrying}
-              attempts={activeRetry.attempts}
-              onRetry={() => void activeRetry.retry()}
-            />
-          )}
+          <div role="tabpanel" id={PANEL_ID} aria-labelledby={tabId(scope)}>
+            {view === "loading" && <LoadingState />}
 
-          {view === "noFriendsYet" && <RaceFriendsCard />}
+            {view === "error" && (
+              <RetryPanel
+                message={LOAD_FAILED_MESSAGE}
+                retrying={activeRetry.retrying}
+                attempts={activeRetry.attempts}
+                onRetry={() => void activeRetry.retry()}
+              />
+            )}
 
-          {view === "empty" && <EmptyGlobalBoard />}
+            {view === "noFriendsYet" && <RaceFriendsCard today={isToday} />}
 
-          {view === "ready" && (
-            <>
-              <div className="flex flex-col gap-4 pb-4">
-                {podium.length > 0 && <Podium climbers={podium} meId={meId} />}
-                <StandingBanner standing={standing} meRowId={rest.some((c) => c.userId === meId) ? "lb-me" : null} />
-                {rest.length > 0 && <RankTable climbers={rest} meId={meId} />}
-              </div>
-              {footer && (
-                <p className="glass mx-auto mb-4 flex w-fit max-w-full items-center gap-2 rounded-full border border-white/10 px-4 py-2 text-center text-meta leading-snug text-text-secondary">
-                  <PeopleIcon size={14} />
-                  {footer}
-                </p>
-              )}
-            </>
-          )}
+            {view === "empty" &&
+              (isToday ? (
+                <EmptyBoard message="No one's climbed today's tower yet. Be first." ctaLabel="Play today's tower" onPlay={onPlay} />
+              ) : (
+                <EmptyBoard message="No climbs yet. Be the first to the top." ctaLabel="Play" onPlay={onPlay} />
+              ))}
+
+            {view === "ready" && (
+              <>
+                <div className="flex flex-col gap-4 pb-4">
+                  {podium.length > 0 && <Podium climbers={podium} meId={meId} />}
+                  <StandingBanner
+                    standing={standing}
+                    meRowId={rest.some((c) => c.userId === meId) ? "lb-me" : pinnedMe ? "lb-me-pinned" : null}
+                    copy={bannerCopy}
+                    onPlay={onPlay}
+                    onHiddenAction={onHiddenAction}
+                  />
+                  {rest.length > 0 && <RankTable climbers={rest} meId={meId} />}
+                  {pinnedMe && pinnedMe.rank !== null && (
+                    <PinnedMeRow rank={pinnedMe.rank} peakY={pinnedMe.peakY} attempts={pinnedMe.attempts} />
+                  )}
+                </div>
+                {footer && (
+                  <p className="glass mx-auto mb-4 flex w-fit max-w-full items-center gap-2 rounded-full border border-white/10 px-4 py-2 text-center text-meta leading-snug text-text-secondary">
+                    <PeopleIcon size={14} />
+                    {footer}
+                  </p>
+                )}
+              </>
+            )}
+          </div>
         </div>
       </PullToRefresh>
+
+      {showConsent && (
+        <LeaderboardConsentModal
+          onAccept={() => void acceptConsent()}
+          onDecline={() => setShowConsent(false)}
+          busy={consentBusy}
+        />
+      )}
 
       <style>{`
         .lb-stone {
@@ -159,21 +345,48 @@ export function LeaderboardScreen() {
   );
 }
 
-function Header({ scope, headingRef }: { scope: Scope; headingRef: Ref<HTMLHeadingElement> }) {
-  return (
-    <HubHeader
-      title="Leaderboard"
-      subtitle={[scope === "friends" ? "Friends" : "Global", "All time"]}
-      trailing={<TrophyBadge />}
-      headingRef={headingRef}
-    />
-  );
+function Header({
+  scope,
+  period,
+  resetsIn,
+  headingRef,
+}: {
+  scope: Scope;
+  period: Period;
+  resetsIn: string;
+  headingRef: Ref<HTMLHeadingElement>;
+}) {
+  const scopeLabel = scope === "friends" ? "Friends" : "Global";
+  const subtitle =
+    period === "today" ? [scopeLabel, "Today's tower", `Resets in ${resetsIn}`] : [scopeLabel, "All time"];
+  return <HubHeader title="Leaderboard" subtitle={subtitle} trailing={<TrophyBadge />} headingRef={headingRef} />;
 }
 
-/** Global | Friends segmented control (WAI-ARIA tabs: arrow keys move between scopes). */
-function ScopeTabs({ scope, onChange }: { scope: Scope; onChange: (next: Scope) => void }) {
-  const select = (next: Scope) => {
-    if (next === scope) return;
+/**
+ * A WAI-ARIA tablist of pill tabs: arrow keys move between options and focus
+ * follows. Shared by the Today | All-time and Global | Friends controls.
+ */
+function PillTabs<T extends string>({
+  options,
+  value,
+  onChange,
+  label,
+  idFor,
+  controls,
+  iconFor,
+  compact = false,
+}: {
+  options: Array<{ id: T; label: string }>;
+  value: T;
+  onChange: (next: T) => void;
+  label: string;
+  idFor: (id: T) => string;
+  controls: string;
+  iconFor?: (id: T) => ReactNode;
+  compact?: boolean;
+}) {
+  const select = (next: T) => {
+    if (next === value) return;
     void tapLight();
     onChange(next);
   };
@@ -181,43 +394,76 @@ function ScopeTabs({ scope, onChange }: { scope: Scope; onChange: (next: Scope) 
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
     if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
     e.preventDefault();
-    const i = SCOPES.findIndex((s) => s.id === scope);
-    const next = SCOPES[(i + (e.key === "ArrowRight" ? 1 : SCOPES.length - 1)) % SCOPES.length].id;
+    const i = options.findIndex((o) => o.id === value);
+    const next = options[(i + (e.key === "ArrowRight" ? 1 : options.length - 1)) % options.length].id;
     select(next);
-    document.getElementById(tabId(next))?.focus();
+    document.getElementById(idFor(next))?.focus();
   };
 
   return (
     <div
       role="tablist"
-      aria-label="Leaderboard scope"
+      aria-label={label}
       onKeyDown={onKeyDown}
-      className="glass mb-5 grid grid-cols-2 gap-1 rounded-full border border-white/10 p-1"
+      className={`glass grid grid-cols-2 gap-1 rounded-full border border-white/10 p-1 ${compact ? "mb-4" : "mb-5"}`}
     >
-      {SCOPES.map(({ id, label }) => {
-        const selected = id === scope;
+      {options.map(({ id, label: optionLabel }) => {
+        const selected = id === value;
         return (
           <button
             key={id}
-            id={tabId(id)}
+            id={idFor(id)}
             type="button"
             role="tab"
             aria-selected={selected}
-            aria-controls={PANEL_ID}
+            aria-controls={controls}
             tabIndex={selected ? 0 : -1}
             onClick={() => select(id)}
             className={`flex min-h-[44px] items-center justify-center gap-2 rounded-full font-display text-meta font-black uppercase tracking-chip transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void ${
               selected
-                ? "bg-signal text-void shadow-[0_0_18px_-4px_rgba(203,242,77,0.6)]"
+                ? compact
+                  ? "bg-white/10 text-text-primary"
+                  : "bg-signal text-void shadow-[0_0_18px_-4px_rgba(203,242,77,0.6)]"
                 : "text-text-secondary active:bg-white/5"
             }`}
           >
-            {id === "global" ? <GlobeIcon /> : <PeopleIcon />}
-            {label}
+            {iconFor?.(id)}
+            {optionLabel}
           </button>
         );
       })}
     </div>
+  );
+}
+
+/** Today | All-time — the board's time period, Today first and default. */
+function PeriodTabs({ period, onChange }: { period: Period; onChange: (next: Period) => void }) {
+  return (
+    <PillTabs
+      options={PERIODS}
+      value={period}
+      onChange={onChange}
+      label="Leaderboard period"
+      idFor={periodTabId}
+      controls={PERIOD_PANEL_ID}
+      iconFor={(id) => (id === "today" ? <SunIcon /> : <TrophyIcon />)}
+    />
+  );
+}
+
+/** Global | Friends, inside the period panel (secondary weight). */
+function ScopeTabs({ scope, onChange }: { scope: Scope; onChange: (next: Scope) => void }) {
+  return (
+    <PillTabs
+      options={SCOPES}
+      value={scope}
+      onChange={onChange}
+      label="Leaderboard scope"
+      idFor={tabId}
+      controls={PANEL_ID}
+      iconFor={(id) => (id === "global" ? <GlobeIcon /> : <PeopleIcon />)}
+      compact
+    />
   );
 }
 
@@ -232,21 +478,20 @@ function HexIconBadge({ size, children }: { size: keyof typeof HEX_BADGE_SIZE; c
   );
 }
 
-/** Friends tab with no one else on it: point at where friends are added. */
-/** Global board with no climbs: invite the first climb instead of a dead end. */
-function EmptyGlobalBoard() {
-  const navigate = useNavigate();
+/** A Global board with no climbs: invite the first climb instead of a dead end. */
+function EmptyBoard({ message, ctaLabel, onPlay }: { message: string; ctaLabel: string; onPlay: () => void }) {
   return (
     <div className="flex flex-col items-center gap-4 pb-4">
-      <StateMessage>No climbs yet. Be the first to the top.</StateMessage>
-      <Button fullWidth={false} onPress={() => navigate("/climb")}>
-        Play
+      <StateMessage>{message}</StateMessage>
+      <Button fullWidth={false} onPress={onPlay}>
+        {ctaLabel}
       </Button>
     </div>
   );
 }
 
-function RaceFriendsCard() {
+/** Friends tab with no one else on it: point at where friends are added. */
+function RaceFriendsCard({ today }: { today: boolean }) {
   const navigate = useNavigate();
   return (
     <section className="glass mb-4 flex flex-col items-center gap-3 rounded-3xl border border-white/10 px-6 py-8 text-center">
@@ -257,7 +502,9 @@ function RaceFriendsCard() {
         Race your friends
       </h2>
       <p className="max-w-[18rem] text-meta leading-relaxed text-text-secondary">
-        Add friends to see how your best climb stacks up against theirs.
+        {today
+          ? "Add friends to race them on the same tower every day."
+          : "Add friends to see how your best climb stacks up against theirs."}
       </p>
       <Button fullWidth={false} onPress={() => navigate("/challenge")}>
         Find friends
@@ -267,7 +514,7 @@ function RaceFriendsCard() {
 }
 
 /** Top three on stone pedestals, #1 raised in the middle (2 · 1 · 3). */
-function Podium({ climbers, meId }: { climbers: ClimberRank[]; meId: string | null }) {
+function Podium({ climbers, meId }: { climbers: readonly BoardRow[]; meId: string | null }) {
   const [first, second, third] = climbers;
   return (
     <ol className="grid grid-cols-[1fr_1.18fr_1fr] items-end gap-2" aria-label="Top three climbers">
@@ -283,7 +530,7 @@ function PodiumSpot({
   place,
   meId,
 }: {
-  climber: ClimberRank | undefined;
+  climber: BoardRow | undefined;
   place: Medal;
   meId: string | null;
 }) {
@@ -349,21 +596,32 @@ function PodiumSpot({
   );
 }
 
-function StandingBanner({ standing, meRowId }: { standing: Standing; meRowId: string | null }) {
-  const navigate = useNavigate();
+function StandingBanner({
+  standing,
+  meRowId,
+  copy,
+  onPlay,
+  onHiddenAction,
+}: {
+  standing: Standing;
+  meRowId: string | null;
+  copy: BannerCopy;
+  onPlay: () => void;
+  onHiddenAction: () => void;
+}) {
   const ranked = standing.kind === "ranked";
   const headline =
     standing.kind === "ranked"
       ? `You're #${standing.rank.toLocaleString()}`
       : standing.kind === "hidden"
         ? "You're hidden"
-        : "Not ranked yet";
+        : copy.unrankedHeadline;
   const detail =
     standing.kind === "ranked"
       ? standing.detail
       : standing.kind === "hidden"
-        ? "Turn on leaderboard visibility in Edit profile"
-        : "Finish a climb to get on the board";
+        ? copy.hiddenDetail
+        : copy.unrankedDetail;
 
   const body = (
     <>
@@ -391,9 +649,9 @@ function StandingBanner({ standing, meRowId }: { standing: Standing; meRowId: st
 
   const action =
     standing.kind === "hidden"
-      ? { label: "Edit profile", run: () => navigate("/profile/edit") }
+      ? { label: copy.hiddenActionLabel, run: onHiddenAction }
       : standing.kind === "unranked"
-        ? { label: "Play", run: () => navigate("/climb") }
+        ? { label: "Play", run: onPlay }
         : meRowId
           ? {
               label: "Show my row",
@@ -426,7 +684,7 @@ function StandingBanner({ standing, meRowId }: { standing: Standing; meRowId: st
   );
 }
 
-function RankTable({ climbers, meId }: { climbers: ClimberRank[]; meId: string | null }) {
+function RankTable({ climbers, meId }: { climbers: readonly BoardRow[]; meId: string | null }) {
   return (
     <section className="glass rounded-3xl border border-white/10 p-2" aria-label="Rankings">
       <div className="flex items-center gap-2.5 pb-2 pl-2 pr-3 pt-1.5 font-mono text-label font-bold uppercase tracking-label text-text-muted">
@@ -470,6 +728,32 @@ function RankTable({ climbers, meId }: { climbers: ClimberRank[]; meId: string |
           );
         })}
       </ol>
+    </section>
+  );
+}
+
+/**
+ * Today's own row when the player ranks outside the top 50: rank · height ·
+ * tries, pinned under the table so they never have to hunt for themselves.
+ */
+function PinnedMeRow({ rank, peakY, attempts }: { rank: number; peakY: number; attempts: number }) {
+  return (
+    <section
+      id="lb-me-pinned"
+      aria-label={`Your position today: number ${rank.toLocaleString()}, ${formatHeight(peakY)}, ${triesLabel(attempts)}`}
+      className="flex items-center gap-2.5 rounded-2xl border border-signal/50 bg-signal/[0.09] py-2.5 pl-2 pr-3"
+    >
+      <span aria-hidden className="min-w-6 text-center font-display text-base font-black tabular-nums text-signal">
+        {rank.toLocaleString()}
+      </span>
+      <span aria-hidden className="flex min-w-0 flex-1 flex-col">
+        <span className="font-mono text-label uppercase tracking-label text-signal">you · today</span>
+        <span className="mt-0.5 text-meta text-text-secondary">{triesLabel(attempts)}</span>
+      </span>
+      <span aria-hidden className="ml-auto shrink-0 font-sans text-meta font-medium tabular-nums text-text-primary">
+        {peakY.toLocaleString()}
+        <span className="ml-0.5 text-text-muted">{ALTITUDE_UNIT}</span>
+      </span>
     </section>
   );
 }
@@ -572,6 +856,24 @@ function ChevronUp() {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
       <path d="m6 15 6-6 6 6" />
+    </svg>
+  );
+}
+
+function SunIcon() {
+  return (
+    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <circle cx="12" cy="12" r="4" />
+      <path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />
+    </svg>
+  );
+}
+
+function TrophyIcon() {
+  return (
+    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M8 4h8v5a4 4 0 0 1-8 0V4Z" />
+      <path d="M8 6H5a3 3 0 0 0 3 4M16 6h3a3 3 0 0 1-3 4M12 13v4M8 20h8" />
     </svg>
   );
 }

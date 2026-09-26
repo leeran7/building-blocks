@@ -89,7 +89,7 @@ function DailyIntro() {
           /climb
         </Link>
         . Play it every day to build a streak — miss a day and the streak resets.
-        The daily tower rolls over at your local midnight. Prefer an endless run
+        The daily tower rolls over at midnight UTC. Prefer an endless run
         on a fresh random tower each time, or a head-to-head race? Both are one
         tap away in &ldquo;Keep climbing until it resets&rdquo; above.
       </p>

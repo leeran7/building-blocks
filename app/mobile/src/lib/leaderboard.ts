@@ -7,6 +7,15 @@ export function formatHeight(ft: number): string {
   return `${ft.toLocaleString(undefined, { maximumFractionDigits: 3 })} ${ALTITUDE_UNIT}`;
 }
 
+/** The fields a board row needs for ranking UI — shared by all-time and daily rows. */
+export interface BoardRow {
+  rank: number;
+  userId: string;
+  handle: string;
+  peakY: number;
+  avatarId: string | null;
+}
+
 export type Standing =
   | { kind: "ranked"; rank: number; detail: string }
   | { kind: "hidden" }
@@ -18,7 +27,7 @@ export type Standing =
  * every climber, so the list position wins whenever the player is on it.
  */
 export function standingFor(
-  climbers: ClimberRank[],
+  climbers: readonly BoardRow[],
   meId: string | null,
   own: { peakY: number; rank: number } | null,
   onPublicBoard: boolean,

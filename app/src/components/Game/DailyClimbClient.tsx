@@ -3,10 +3,12 @@
 /**
  * Client wrapper for /daily — the Daily Climb.
  *
- * Locks the tower to today's shared seed (dailySeed) so every player climbs the
- * exact same tower, and tracks a local streak + per-day best (commitDailyRun).
- * Runs still post to the global /climb leaderboard through ClimbScene's normal
- * save path — the server just sees the daily seed.
+ * Locks the tower to today's shared seed so every player climbs the exact same
+ * tower, and tracks a local streak + per-day best (commitDailyRun). The day is
+ * the UTC day: the seed comes from GET /api/climb/daily (server clock), with
+ * the device's UTC day as the offline fallback. Signed-in runs post to
+ * POST /api/climb/daily/result, which re-simulates the replay for the daily
+ * board and raises the all-time record with the verified height.
  *
  * Composition (mockup 3): a header strip (date · title · next-tower countdown)
  * above the stage, then — once a run finishes — a result panel with the height
@@ -20,6 +22,7 @@ import { ClimbScene } from "./ClimbScene";
 import { ClimbControlsGuide } from "./ClimbControlsGuide";
 import { buildFreeTower } from "../../game/freeStack";
 import { ALTITUDE_UNIT } from "../../lib/units";
+import { dayKeyFromSeed, parseDayKey, dailySeedFor } from "../../lib/dailyDay";
 import {
   dailySeed,
   dailySummary,
@@ -32,6 +35,23 @@ import {
   type DailyWeekDay,
 } from "../../lib/daily";
 
+const DAILY_RESULT_PATH = "/api/climb/daily/result";
+
+/** The server's live daily seed, or null when unreachable / malformed. */
+async function fetchServerDailySeed(): Promise<string | null> {
+  try {
+    const res = await fetch("/api/climb/daily", { cache: "no-store" });
+    if (!res.ok) return null;
+    const body: unknown = await res.json();
+    if (typeof body !== "object" || body === null) return null;
+    const { day, seed } = body as { day?: unknown; seed?: unknown };
+    const parsed = parseDayKey(day);
+    return parsed !== null && seed === dailySeedFor(parsed) ? seed : null;
+  } catch {
+    return null;
+  }
+}
+
 export function DailyClimbClient() {
   const tower = buildFreeTower();
   const [seed, setSeed] = useState<string | null>(null);
@@ -41,26 +61,33 @@ export function DailyClimbClient() {
   const [reset, setReset] = useState<string>("");
   const [result, setResult] = useState<DailyRunResult | null>(null);
 
-  // localStorage + the local calendar day are client-only — resolve after mount
+  // localStorage + the clock are client-only — resolve after mount
   // so SSR and the first client render agree (no hydration mismatch). Refresh
   // the reset countdown each minute so it doesn't go stale in a long lobby.
   useEffect(() => {
+    let cancelled = false;
     setSeed(dailySeed());
+    void fetchServerDailySeed().then((serverSeed) => {
+      if (!cancelled && serverSeed) setSeed(serverSeed);
+    });
     setSummary(dailySummary());
     setWeek(dailyWeek());
     setToday(formatToday(new Date()));
     setReset(formatReset(msUntilReset()));
     const id = setInterval(() => setReset(formatReset(msUntilReset())), 60_000);
-    return () => clearInterval(id);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
   }, []);
 
   const handleFinish = useCallback((peakY: number) => {
-    const run = commitDailyRun(peakY);
+    const run = commitDailyRun(peakY, (seed && dayKeyFromSeed(seed)) || undefined);
     setResult(run);
     // The run just changed both — re-read rather than patching two copies.
     setSummary(dailySummary());
     setWeek(dailyWeek());
-  }, []);
+  }, [seed]);
 
   const streak = result?.streak ?? summary?.streak ?? 0;
 
@@ -80,6 +107,7 @@ export function DailyClimbClient() {
         tower={tower}
         categoryLabel="Daily"
         seed={seed}
+        resultPath={DAILY_RESULT_PATH}
         onFinish={handleFinish}
         lobbyExtra={
           <>

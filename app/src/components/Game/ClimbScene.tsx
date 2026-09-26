@@ -67,6 +67,12 @@ export interface ClimbSceneProps {
    * Ignored during replay, which carries its own seed.
    */
   seed?: string;
+  /**
+   * Where a finished live run is POSTed when signed in. Daily Climb passes
+   * "/api/climb/daily/result" (server-verified daily board, which also raises
+   * the all-time record). Defaults to the all-time route.
+   */
+  resultPath?: string;
   /** Fired once when a live run finishes (not during replay). For Daily Climb. */
   onFinish?: (peakY: number) => void;
   /** Extra content rendered in the lobby overlay (e.g. daily streak card). */
@@ -84,6 +90,7 @@ interface SaveInfo {
 }
 
 const PENDING_CLIMB_KEY = "doomstack:pending-climb";
+const DEFAULT_RESULT_PATH = "/api/climb/result";
 
 /**
  * Approx height (px) of the on-canvas height/lava HUD bar, so the overlaid
@@ -110,6 +117,7 @@ export function ClimbScene({
   categoryLabel,
   replay = null,
   seed,
+  resultPath = DEFAULT_RESULT_PATH,
   onFinish,
   lobbyExtra,
   resultExtra,
@@ -245,8 +253,8 @@ export function ClimbScene({
   );
 
   const postRun = useCallback(
-    async (run: object, authToken: string): Promise<SaveInfo> => {
-      const res = await fetch("/api/climb/result", {
+    async (run: object, authToken: string, path: string): Promise<SaveInfo> => {
+      const res = await fetch(path, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -304,7 +312,7 @@ export function ClimbScene({
       const payload = replayToken ? { ...run, replayToken } : run;
 
       if (token) {
-        postRun(payload, token).then(setSaveInfo).finally(() => setSavingRun(false));
+        postRun(payload, token, resultPath).then(setSaveInfo).finally(() => setSavingRun(false));
       } else {
         setSaveInfo({ saved: false });
         setSavingRun(false);
@@ -319,7 +327,7 @@ export function ClimbScene({
     };
 
     finishRun();
-  }, [finished, posted, replaying, inputLog, buildRun, token, postRun]);
+  }, [finished, posted, replaying, inputLog, buildRun, token, postRun, resultPath]);
 
   // Fire onFinish once per live run (Daily Climb commits its streak here).
   const finishPeakY = player?.peakY ?? 0;
@@ -351,7 +359,10 @@ export function ClimbScene({
     } catch {
       /* ignore */
     }
-    postRun(run, token).then(setSavedBanner);
+    // The stash may come from any page (and a daily run may be past its
+    // tower's grace window by now), so the retroactive save always goes to the
+    // all-time route, which accepts any bounded run.
+    postRun(run, token, DEFAULT_RESULT_PATH).then(setSavedBanner);
   }, [user, token, postRun]);
 
   // Replay transport shortcuts (AC-3). Separate from live jump capture.
