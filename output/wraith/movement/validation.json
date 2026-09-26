@@ -1,0 +1,65 @@
+{
+  "checks": {
+    "sourceRectsRoundTrip": "pass",
+    "allFramesDistinct": "pass",
+    "transparentGutters": "pass",
+    "magentaFringe": "none detected",
+    "rootPosition": "fixed at (256,460)",
+    "visualReview": "Contact sheets and lava previews at 48px, 80px and 260px.",
+    "gameIntegration": "not performed (artwork only)"
+  },
+  "animations": {
+    "walk": {
+      "dimensions": [
+        4096,
+        512
+      ],
+      "mode": "RGBA",
+      "uniqueFrames": 8,
+      "minimumEmptyMarginPx": 52,
+      "alphaRange": [
+        0,
+        255
+      ],
+      "periodicClosure": "pass",
+      "sha256": "eb5ab7f96e83ad0a664ed93f7ea366afff999c9a9364d9484462c9cbf7270077"
+    },
+    "climb": {
+      "dimensions": [
+        3072,
+        512
+      ],
+      "mode": "RGBA",
+      "uniqueFrames": 6,
+      "minimumEmptyMarginPx": 52,
+      "alphaRange": [
+        0,
+        255
+      ],
+      "periodicClosure": "pass",
+      "sha256": "f3307f83960211e197a47fd60bfac87119c51a45338d5231c9cd365b38902c6b"
+    },
+    "run": {
+      "image": "wraith-run.png",
+      "rendererState": "walk",
+      "dimensions": [
+        4096,
+        512
+      ],
+      "mode": "RGBA",
+      "uniqueFrames": 8,
+      "alphaRange": [
+        0,
+        255
+      ],
+      "minimumEmptyMarginPx": 52,
+      "periodicClosure": "pass",
+      "airborneFrames": [
+        3,
+        7
+      ],
+      "durationMs": 640,
+      "sha256": "6cd1617bb7893717f4d192d0bb96c427606280af25cbfa5c6618b686e61e62d3"
+    }
+  }
+}
