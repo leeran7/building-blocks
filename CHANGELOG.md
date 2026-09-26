@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Added
+
+- **Daily Climb leaderboard (web and mobile)** — one server-seeded tower per
+  UTC day with a verified daily board. Ranks gains All-time | Today tabs
+  under Global | Friends, a status pill (climber count, friend count on
+  Friends, reset countdown on Today) and a pinned own row. New routes:
+  `GET /api/climb/daily`, `POST /api/climb/daily/result` (re-simulates the
+  replay and saves the server's peak), `GET /api/climb/daily/leaderboard`
+  and `GET /api/climb/daily/leaderboard/friends`. New tables
+  `daily_climb_scores` and `daily_climb_replays` (migrations
+  `20260926000000_add_daily_climb_scores`,
+  `20260926010000_add_daily_climb_replays`). Deploy the server before the
+  mobile build (docs/deploy.md). PR:
+  https://github.com/leeran7/building-blocks/pull/155
+
+### Security
+
+- **Daily seed is a server secret** — the tower seed is
+  HMAC-SHA256(`DAILY_SEED_SECRET`, day), so it cannot be derived on a device
+  before the day opens. New required env var `DAILY_SEED_SECRET` (min 32
+  chars); the daily routes fail closed with 503 without it. Daily results
+  carry `simVersion` (409 on mismatch), decompression is output-capped,
+  copied replays are refused, and open daily replay links stay off public
+  creator pages for 48 h.
+- **`pnpm db:migrate:local`** refuses to run Prisma migrate unless both
+  `DATABASE_URL` and `DIRECT_URL` point at localhost.
+
 ### Removed
 
 - **Paid Stacks fully deprecated & removed** — the original Stripe monetization

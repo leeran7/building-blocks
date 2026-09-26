@@ -20,6 +20,19 @@ import volcanoScene from "@app/../public/climb/volcano-tile.jpg";
 const ASH_COUNT = 12;
 const LAVA_FPS = 30;
 
+/** Height of the lava canvas pinned to the bottom of the screen. */
+export const LAVA_CANVAS_VH = 26;
+/** Where the lava surface is drawn, as a fraction of the canvas from its top. */
+export const LAVA_SURFACE_FROM_TOP = 0.44;
+/** How far the animated wave crest rises above the lava surface. */
+export const LAVA_CREST_PX = 18;
+/**
+ * CSS length from the screen's bottom edge to just above the highest lava
+ * crest (surface + crest + a 0.5rem gap). Content that must stay readable
+ * over the backdrop ends at least this far up.
+ */
+export const LAVA_CLEARANCE = `calc(${+(LAVA_CANVAS_VH * (1 - LAVA_SURFACE_FROM_TOP)).toFixed(2)}vh + ${LAVA_CREST_PX}px + 0.5rem)`;
+
 export function AnimatedBackdrop() {
   const ash = useMemo(
     () =>
@@ -135,7 +148,7 @@ export function AnimatedBackdrop() {
 
         .bd-lava-canvas {
           position: absolute; inset-inline: 0; bottom: 0;
-          width: 100%; height: 26vh;
+          width: 100%; height: ${LAVA_CANVAS_VH}vh;
           display: block;
         }
 
@@ -235,7 +248,7 @@ function LavaCanvas() {
       ctx.clearRect(0, 0, cssW, cssH);
       const tick = reduce ? 0 : (now - start) / (1000 / 30);
       const ui = Math.max(0.85, cssW / 420);
-      const top = cssH * 0.44;
+      const top = cssH * LAVA_SURFACE_FROM_TOP;
       drawLava(ctx, {
         width: cssW,
         height: cssH,

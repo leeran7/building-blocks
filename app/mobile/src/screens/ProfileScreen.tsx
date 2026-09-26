@@ -4,7 +4,7 @@ import { openExternal } from "../lib/external";
 import { useAuth } from "../contexts/AuthContext";
 import { useDashboard, useInvalidateAppData, useSettings } from "../contexts/AppDataContext";
 import { tapLight, tapHeavy } from "../lib/haptics";
-import { dailySummary, formatReset, msUntilReset } from "../lib/daily";
+import { dailySummary, formatReset, msUntilReset } from "@app/lib/daily";
 import { ALTITUDE_UNIT } from "@app/lib/units";
 import { HexAvatar } from "../components/HexAvatar";
 import { HubHeader } from "../components/HubHeader";

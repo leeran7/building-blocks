@@ -2,9 +2,19 @@ import { hashId } from "@app/lib/handle";
 import { ALTITUDE_UNIT } from "@app/lib/units";
 import { parseAvatarId } from "@app/lib/avatars";
 import type { ClimberRank, FriendsBoard } from "../contexts/AppDataContext";
+import { formatReset, spokenReset } from "@app/lib/daily";
 
 export function formatHeight(ft: number): string {
   return `${ft.toLocaleString(undefined, { maximumFractionDigits: 3 })} ${ALTITUDE_UNIT}`;
+}
+
+/** The fields a board row needs for ranking UI — shared by all-time and daily rows. */
+export interface BoardRow {
+  rank: number;
+  userId: string;
+  handle: string;
+  peakY: number;
+  avatarId: string | null;
 }
 
 export type Standing =
@@ -18,7 +28,7 @@ export type Standing =
  * every climber, so the list position wins whenever the player is on it.
  */
 export function standingFor(
-  climbers: ClimberRank[],
+  climbers: readonly BoardRow[],
   meId: string | null,
   own: { peakY: number; rank: number } | null,
   onPublicBoard: boolean,
@@ -89,6 +99,84 @@ export function friendsFooter(hiddenCount: number, notClimbedCount: number): str
 }
 
 const isCount = (v: unknown): v is number => typeof v === "number" && Number.isInteger(v) && v >= 0;
+
+/** The Ranks status pill: which icon it shows, its visible text, and what a screen reader hears. */
+export interface RanksStatus {
+  icon: "clock" | "people";
+  text: string;
+  label: string;
+}
+
+/** All-time pill copy when the climber count is unknown. Never "0 climbers". */
+export const ALLTIME_STATUS_FALLBACK = "All-time best heights";
+
+/**
+ * A climber count the pill may show: a positive safe integer, or null. The
+ * dashboard body is an unchecked cast, so anything else (absent, zero,
+ * negative, fractional, NaN, a string) reads as unknown rather than a count.
+ */
+export function knownClimberCount(total: unknown): number | null {
+  return typeof total === "number" && Number.isSafeInteger(total) && total > 0 ? total : null;
+}
+
+/** Friends · All-time pill copy while the friend count is unknown or zero. Never "0 friends". */
+export const FRIENDS_STATUS_FALLBACK = "Friends\u2019 best heights";
+
+/** The parts of a Friends board (all-time or today) that count the viewer's friends. */
+export interface FriendCountSource {
+  climbers: ReadonlyArray<{ userId: string }>;
+  /** Friends who opted out of leaderboards (never listed; excludes the viewer). */
+  hiddenCount: number;
+  /** Consented friends with no climb yet (excludes the viewer). */
+  notClimbedCount: number;
+}
+
+/**
+ * How many friends the viewer has, from a Friends board already on screen:
+ * everyone listed except the viewer, plus the hidden and not-yet-climbed
+ * friends the server counts but never lists. Null while no board is loaded,
+ * so the pill never shows a number it does not know.
+ */
+export function friendCount(board: FriendCountSource | null, meId: string | null): number | null {
+  if (!board) return null;
+  const listed = board.climbers.filter((c) => c.userId !== meId).length;
+  return listed + board.hiddenCount + board.notClimbedCount;
+}
+
+/**
+ * The live status pill under the Ranks title. Today (either scope): the
+ * countdown to the UTC reset. Global · All-time: how many climbers are
+ * ranked. Friends · All-time: how many friends the viewer has, so the Friends
+ * tab never shows the global climber count. Pass `friends` on the Friends tab
+ * only. An unknown or zero count shows a neutral line instead of a number;
+ * the pill keeps its height either way.
+ */
+export function ranksStatus(
+  period: "today" | "alltime",
+  msUntilReset: number,
+  totalClimbers: unknown,
+  friends?: { count: number | null },
+): RanksStatus {
+  if (period === "today") {
+    return {
+      icon: "clock",
+      text: `Resets in ${formatReset(msUntilReset)}`,
+      label: `Today's board resets in ${spokenReset(msUntilReset)}`,
+    };
+  }
+  if (friends) {
+    const n = friends.count;
+    if (n === null || !Number.isSafeInteger(n) || n <= 0) {
+      return { icon: "people", text: FRIENDS_STATUS_FALLBACK, label: FRIENDS_STATUS_FALLBACK };
+    }
+    const text = plural(n, "friend", "friends");
+    return { icon: "people", text, label: `You have ${text}` };
+  }
+  const count = knownClimberCount(totalClimbers);
+  if (count === null) return { icon: "people", text: ALLTIME_STATUS_FALLBACK, label: ALLTIME_STATUS_FALLBACK };
+  const climbers = plural(count, "climber", "climbers");
+  return { icon: "people", text: climbers, label: `${climbers} on the all-time board` };
+}
 
 type RawClimber = Omit<ClimberRank, "avatarId"> & { avatarId?: unknown };
 

@@ -4,6 +4,12 @@
  * Each live run records one packed input byte per sim tick. The payload is
  * deflate-compressed and base64url-encoded so a finished run can be shared as a
  * single /play?r=… link without server storage.
+ *
+ * A runtime with no CompressionStream (iOS WebViews before 16.4) stores the
+ * packed bytes as they are. Every decoder tells the two forms apart the same
+ * way (replayLogEncoding): the forms cannot overlap, and a raw log is never
+ * longer than MAX_SHARE_TICKS, so accepting it keeps the output bound
+ * (RV-DC-2, SEC-DC-1).
  */
 
 import { PlayerInput } from "./types";
@@ -35,6 +41,48 @@ export function unpackInput(byte: number): PlayerInput {
   const jump = Boolean((byte >> 2) & 1);
   const climbY = (((byte >> 3) & 3) - 1) as -1 | 0 | 1;
   return { moveX, jump, climbY, usePowerUp: false };
+}
+
+/**
+ * Whether `byte` is something packInput can produce: bits 5-7 clear, and
+ * neither the move field (bits 0-1) nor the climb field (bits 3-4) is 3.
+ */
+export function isPackedInputByte(byte: number): boolean {
+  return byte >= 0 && byte < 32 && (byte & 3) !== 3 && ((byte >> 3) & 3) !== 3;
+}
+
+/** How a replay envelope stores its input log. */
+export type ReplayLogEncoding = "deflate" | "raw";
+
+/**
+ * Which form a replay's input-log bytes are in, or null when they are neither
+ * (never guessed).
+ *
+ * - "deflate": the bytes start with a valid RFC 1950 (zlib) header, as
+ *   CompressionStream("deflate") and zlib.deflateSync write. Such bytes are
+ *   never read as raw: if they fail to inflate, the token is rejected.
+ * - "raw": 1..MAX_SHARE_TICKS bytes, every one a packed input byte. This is
+ *   what encodeRunReplay writes with no CompressionStream. The length is
+ *   checked before the bytes are scanned, and the output is the input, so it
+ *   is bounded like a capped inflate.
+ *
+ * The forms cannot overlap. A zlib header's first byte (CMF) has 8 in its
+ * low nibble. The only such byte that is also a packed input byte is 0x08
+ * (0x18 has climb field 3; 0x28 and up exceed 31). With CMF 0x08, the header
+ * check needs FLG = 29 (mod 31), and the only candidate under 32 is 0x1D,
+ * whose climb field is 3. So no packed log starts with a valid zlib header.
+ */
+export function replayLogEncoding(bytes: Uint8Array): ReplayLogEncoding | null {
+  if (bytes.length >= 2) {
+    const cmf = bytes[0];
+    const flg = bytes[1];
+    if ((cmf & 0x0f) === 8 && cmf >> 4 <= 7 && ((cmf << 8) | flg) % 31 === 0) return "deflate";
+  }
+  if (bytes.length === 0 || bytes.length > MAX_SHARE_TICKS) return null;
+  for (let i = 0; i < bytes.length; i++) {
+    if (!isPackedInputByte(bytes[i])) return null;
+  }
+  return "raw";
 }
 
 export function packInputLog(inputs: PlayerInput[]): Uint8Array {
@@ -86,8 +134,20 @@ export async function encodeRunReplay(
   return base64UrlEncode(new TextEncoder().encode(payload));
 }
 
-/** Decode a share-link token back into a replay, or null if invalid. */
-export async function decodeRunReplay(token: string): Promise<RunReplay | null> {
+/**
+ * A replay token's JSON envelope, with the input log still compressed. Parsing
+ * it costs no inflate, so callers can run cheap checks (the seed's day, rate
+ * limits) before paying for decompression.
+ */
+export interface RunReplayEnvelope {
+  version: typeof REPLAY_VERSION;
+  seed: string;
+  peakY: number;
+  compressed: Uint8Array;
+}
+
+/** Parse a token's envelope without inflating the input log; null if malformed. */
+export function parseRunReplayEnvelope(token: string): RunReplayEnvelope | null {
   try {
     const json = new TextDecoder().decode(base64UrlDecode(token));
     const raw = JSON.parse(json) as {
@@ -96,17 +156,56 @@ export async function decodeRunReplay(token: string): Promise<RunReplay | null> 
       p?: unknown;
       i?: unknown;
     };
+    if (typeof raw !== "object" || raw === null) return null;
     if (raw.v !== REPLAY_VERSION) return null;
     if (typeof raw.s !== "string" || !raw.s) return null;
     if (typeof raw.p !== "number" || !Number.isFinite(raw.p)) return null;
     if (typeof raw.i !== "string" || !raw.i) return null;
-    const bytes = await inflate(base64UrlToBytes(raw.i));
-    const inputs = unpackInputLog(bytes);
-    if (inputs.length === 0 || inputs.length > MAX_SHARE_TICKS) return null;
-    return { version: REPLAY_VERSION, seed: raw.s, peakY: raw.p, inputs };
+    return { version: REPLAY_VERSION, seed: raw.s, peakY: raw.p, compressed: base64UrlToBytes(raw.i) };
   } catch {
     return null;
   }
+}
+
+/**
+ * Turn an envelope plus its inflated input bytes into a replay. The length is
+ * checked BEFORE unpacking, which allocates one object per byte.
+ */
+export function replayFromInflated(envelope: RunReplayEnvelope, bytes: Uint8Array): RunReplay | null {
+  if (bytes.length === 0 || bytes.length > MAX_SHARE_TICKS) return null;
+  return { version: REPLAY_VERSION, seed: envelope.seed, peakY: envelope.peakY, inputs: unpackInputLog(bytes) };
+}
+
+/**
+ * Decode a share-link token back into a replay, or null if invalid. Runs in
+ * the browser and in Node; the inflate stops as soon as the output passes
+ * MAX_SHARE_TICKS bytes. Server routes use decodeRunReplayServer
+ * (runReplayServer.ts), which caps zlib's output the same way.
+ */
+export async function decodeRunReplay(token: string): Promise<RunReplay | null> {
+  const envelope = parseRunReplayEnvelope(token);
+  if (!envelope) return null;
+  const encoding = replayLogEncoding(envelope.compressed);
+  if (encoding === null) return null;
+  if (encoding === "raw") return replayFromInflated(envelope, envelope.compressed);
+  try {
+    const bytes = await inflateCapped(envelope.compressed, MAX_SHARE_TICKS);
+    return bytes ? replayFromInflated(envelope, bytes) : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Allow-list a replay token from an untrusted request body: a non-empty
+ * string within MAX_REPLAY_TOKEN_LENGTH after trimming, else null. Shape only
+ * — decodeRunReplay decides whether it is a real replay.
+ */
+export function parseReplayToken(raw: unknown): string | null {
+  if (typeof raw !== "string") return null;
+  const trimmed = raw.trim();
+  if (!trimmed || trimmed.length > MAX_REPLAY_TOKEN_LENGTH) return null;
+  return trimmed;
 }
 
 /** Build the full share URL for a replay token on the current origin. */
@@ -127,12 +226,38 @@ async function deflate(bytes: Uint8Array): Promise<Uint8Array> {
   return new Uint8Array(await new Response(stream).arrayBuffer());
 }
 
-async function inflate(bytes: Uint8Array): Promise<Uint8Array> {
-  if (typeof DecompressionStream === "undefined") return bytes;
-  const stream = new Blob([bytes as BlobPart])
+/**
+ * Inflate at most `maxBytes` of output. Reads the stream chunk by chunk and
+ * cancels it once the output passes the cap, so a small token that expands
+ * ~1000x (a decompression bomb) costs one chunk, not the whole expansion.
+ * Null when the output would exceed the cap.
+ */
+async function inflateCapped(bytes: Uint8Array, maxBytes: number): Promise<Uint8Array | null> {
+  // Deflated bytes cannot be read without a decoder (never unpack them as-is).
+  if (typeof DecompressionStream === "undefined") return null;
+  const reader = new Blob([bytes as BlobPart])
     .stream()
-    .pipeThrough(new DecompressionStream("deflate"));
-  return new Uint8Array(await new Response(stream).arrayBuffer());
+    .pipeThrough(new DecompressionStream("deflate"))
+    .getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.length;
+    if (total > maxBytes) {
+      await reader.cancel().catch(() => undefined);
+      return null;
+    }
+    chunks.push(value);
+  }
+  const out = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    out.set(chunk, offset);
+    offset += chunk.length;
+  }
+  return out;
 }
 
 function bytesToBase64Url(bytes: Uint8Array): string {

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { prefersReducedMotion } from "../lib/motion";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
@@ -23,22 +23,50 @@ import { useCanvasSize } from "@app/hooks/useCanvasSize";
 import { useSafeAreaInsets } from "@app/hooks/useSafeAreaInsets";
 import { ALTITUDE_UNIT } from "@app/lib/units";
 
-import { API_BASE, apiFetch, postClimbResult, type ClimbSaveResult } from "../lib/api";
+import { API_BASE, postClimbResult, type ClimbSaveResult } from "../lib/api";
 import { useAuth } from "../contexts/AuthContext";
-import { useInvalidateAppData } from "../contexts/AppDataContext";
-import { hasLeaderboardConsent, setLeaderboardConsent } from "../lib/consent";
+import { useInvalidateAppData, type SliceKey } from "../contexts/AppDataContext";
+import { hasLeaderboardConsent } from "../lib/consent";
+import { useAcceptLeaderboardConsent } from "../hooks/useAcceptLeaderboardConsent";
 import { LeaderboardConsentModal } from "../components/LeaderboardConsentModal";
 import { tapMedium, tapLight, notifyError, notifySuccess } from "../lib/haptics";
 import { useGameHaptics } from "../lib/useGameHaptics";
+import { commitDailyRun, msUntilReset, formatReset, type DailyRunResult } from "@app/lib/daily";
 import {
-  dailySeed,
-  commitDailyRun,
-  msUntilReset,
-  formatReset,
-  type DailyRunResult,
-} from "../lib/daily";
+  fetchDailyInfo,
+  postDailyResult,
+  TODAY_BOARD_PATH,
+  type DailySaveResult,
+} from "../lib/dailyBoard";
+import { isDailyInfoStale, type DailyInfo } from "@app/lib/dailyInfo";
+import { DAILY_SIM_VERSION } from "@app/game/simVersion";
 
+/** A finished run as POSTed to either result route. */
+interface RunPayload {
+  peakY: number;
+  finished: boolean;
+  finishedTick: number | null;
+  ticks: number;
+  seed: string;
+  replayToken?: string;
+}
 
+const CONSENT_SAVE_FAILED = "Couldn\u2019t save that. Check your connection and try again.";
+
+/** Play again on the results card: ready, refetching the daily, or unreachable. */
+type PlayAgainState = "ready" | "loading" | "offline";
+
+/** Daily save lifecycle on the results card: null = not a daily save. */
+type DailySaveState = DailySaveResult | { status: "pending" } | null;
+
+/** Every cached slice a saved run can change. */
+const RUN_STALE_SLICES: SliceKey[] = [
+  "dashboard",
+  "leaderboard",
+  "friendsLeaderboard",
+  "dailyLeaderboard",
+  "friendsDailyLeaderboard",
+];
 
 /**
  * Native Climb — the core arcade loop. Reuses the shared deterministic engine
@@ -53,9 +81,45 @@ export function ClimbScreen({ onSignIn }: { onSignIn?: () => void } = {}) {
   const invalidateAppData = useInvalidateAppData();
   const [searchParams] = useSearchParams();
   // Daily mode: lock the tower to today's shared seed so every player climbs
-  // the exact same tower. Endless mode leaves the seed free (fresh each start).
+  // the exact same tower. Only the server can derive the seed (SEC-DC-3), so
+  // the daily cannot start until GET /api/climb/daily answers. Offline, the
+  // lobby offers a retry or an endless run instead.
+  // Endless mode leaves the seed free (fresh each start).
   const isDaily = searchParams.get("daily") === "1";
-  const seed = useMemo(() => (isDaily ? dailySeed() : undefined), [isDaily]);
+  const [dailyInfo, setDailyInfo] = useState<DailyInfo | null>(null);
+  const [dailyInfoFailed, setDailyInfoFailed] = useState(false);
+  const [dailyInfoAttempt, setDailyInfoAttempt] = useState(0);
+  // When the current answer was requested: it is stale once the server's
+  // reset falls between that and a new start (RV-DC-3).
+  const dailyRequestedAt = useRef(0);
+  // A start was asked for while the tower was being refetched; it runs as
+  // soon as today's answer lands.
+  const [startWhenReady, setStartWhenReady] = useState(false);
+  useEffect(() => {
+    if (!isDaily) return;
+    let cancelled = false;
+    const requestedAt = Date.now();
+    setDailyInfoFailed(false);
+    void fetchDailyInfo().then((info) => {
+      if (cancelled) return;
+      if (info) {
+        dailyRequestedAt.current = requestedAt;
+        setDailyInfo(info);
+      } else {
+        setDailyInfoFailed(true);
+        setStartWhenReady(false);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [isDaily, dailyInfoAttempt]);
+  const seed = isDaily ? dailyInfo?.seed : undefined;
+  const dailyLobby: "ready" | "loading" | "offline" = !isDaily || dailyInfo
+    ? "ready"
+    : dailyInfoFailed
+      ? "offline"
+      : "loading";
 
   const towerRef = useRef(buildFreeTower());
   const {
@@ -77,12 +141,17 @@ export function ClimbScreen({ onSignIn }: { onSignIn?: () => void } = {}) {
   const safeArea = useSafeAreaInsets();
 
   const [saveInfo, setSaveInfo] = useState<ClimbSaveResult | null>(null);
+  const [dailySave, setDailySave] = useState<DailySaveState>(null);
+  // The last daily payload, kept so a network failure can be retried as-is.
+  const lastDailyPayload = useRef<RunPayload | null>(null);
   const [shareUrl, setShareUrl] = useState<string | null>(null);
   const [posted, setPosted] = useState(false);
   const [dailyResult, setDailyResult] = useState<DailyRunResult | null>(null);
   const [showConsent, setShowConsent] = useState(false);
-  const [pendingSave, setPendingSave] = useState<Record<string, unknown> | null>(null);
+  const [pendingSave, setPendingSave] = useState<RunPayload | null>(null);
   const [consentBusy, setConsentBusy] = useState(false);
+  const [consentError, setConsentError] = useState<string | null>(null);
+  const saveConsent = useAcceptLeaderboardConsent();
 
   const player = state.players[0];
   const phase = state.phase;
@@ -124,30 +193,99 @@ export function ClimbScreen({ onSignIn }: { onSignIn?: () => void } = {}) {
   );
 
   const handleStart = useCallback(() => {
+    if (isDaily) {
+      // Never start a daily on a random tower while the server seed is
+      // missing, nor on yesterday's tower after 00:00 UTC: drop a stale
+      // answer, refetch, and start once today's arrives.
+      const fresh = dailyInfo !== null && !isDailyInfoStale(dailyInfo, dailyRequestedAt.current, Date.now());
+      if (!fresh) {
+        if (dailyInfo !== null) setDailyInfo(null);
+        setStartWhenReady(true);
+        setDailyInfoAttempt((n) => n + 1);
+        return;
+      }
+    }
     unlockAudio();
     void tapMedium();
     setPosted(false);
     setSaveInfo(null);
+    setDailySave(null);
+    lastDailyPayload.current = null;
     setShareUrl(null);
     setDailyResult(null);
     start();
-  }, [start, unlockAudio]);
+  }, [start, unlockAudio, isDaily, dailyInfo]);
+
+  // Runs after the render that locked the new seed, so start() uses it.
+  useEffect(() => {
+    if (!startWhenReady || !dailyInfo) return;
+    setStartWhenReady(false);
+    handleStart();
+  }, [startWhenReady, dailyInfo, handleStart]);
+
+  /** The results card's Play again while a daily tower is (re)loading. */
+  const playAgainState: PlayAgainState = !isDaily || dailyInfo
+    ? "ready"
+    : dailyInfoFailed
+      ? "offline"
+      : "loading";
 
   // Death haptic — one buzz when the run ends. In daily mode, also record the
   // run locally (streak + today's best) before showing results.
   useEffect(() => {
     if (!finished) return;
     void notifyError();
-    if (isDaily && player) setDailyResult(commitDailyRun(player.peakY ?? 0));
+    // Commit to the day of the tower actually played, so a run that straddles
+    // the UTC reset counts for the day it started on. The seed is opaque, so
+    // the day comes from the server answer that supplied it.
+    if (isDaily && player) {
+      const playedDay = dailyInfo && dailyInfo.seed === state.seed ? dailyInfo.day : undefined;
+      setDailyResult(commitDailyRun(player.peakY ?? 0, playedDay));
+    }
     // player identity is stable within a finished run; keep deps minimal.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [finished, isDaily]);
+
+  /**
+   * Send a finished run to the right board. A daily run with a replay goes to
+   * the verified daily route (which also raises the all-time record); any
+   * other run — endless, or a daily run too long to encode a replay — goes to
+   * the all-time route only.
+   */
+  const submitRun = useCallback(
+    async (payload: RunPayload) => {
+      if (isDaily && payload.replayToken) {
+        lastDailyPayload.current = payload;
+        setDailySave({ status: "pending" });
+        const result = await postDailyResult({ ...payload, simVersion: DAILY_SIM_VERSION });
+        setDailySave(result);
+        if (result.status === "saved") {
+          invalidateAppData(RUN_STALE_SLICES);
+          if (result.improved) void notifySuccess();
+        }
+        return;
+      }
+      if (isDaily) setDailySave({ status: "rejected", code: "RUN_TOO_LONG" });
+      const result = await postClimbResult(payload);
+      setSaveInfo(result);
+      if (result.saved) {
+        invalidateAppData(RUN_STALE_SLICES);
+        if (result.improved) void notifySuccess();
+      }
+    },
+    [isDaily, invalidateAppData],
+  );
+
+  const retryDailySave = useCallback(() => {
+    const payload = lastDailyPayload.current;
+    if (payload) void submitRun(payload);
+  }, [submitRun]);
 
   // Save + encode share link once the run finishes (guest-safe).
   useEffect(() => {
     if (!finished || posted || inputLog.length === 0) return;
     setPosted(true);
-    const run = {
+    const run: RunPayload = {
       peakY: player?.peakY ?? 0,
       finished: player?.status === "finished",
       finishedTick: player?.finishedTick ?? null,
@@ -161,7 +299,7 @@ export function ClimbScreen({ onSignIn }: { onSignIn?: () => void } = {}) {
         inputs: inputLog,
       });
       if (replayToken) setShareUrl(buildReplayUrl(replayToken, API_BASE));
-      const payload = replayToken ? { ...run, replayToken } : run;
+      const payload: RunPayload = replayToken ? { ...run, replayToken } : run;
 
       if (isAuthed && !hasLeaderboardConsent()) {
         setPendingSave(payload);
@@ -169,17 +307,18 @@ export function ClimbScreen({ onSignIn }: { onSignIn?: () => void } = {}) {
         return;
       }
 
-      const result = await postClimbResult(payload);
-      setSaveInfo(result);
-      if (result.saved) {
-        invalidateAppData(["dashboard", "leaderboard", "friendsLeaderboard"]);
-        if (result.improved) void notifySuccess();
-      }
+      await submitRun(payload);
     })();
-  }, [finished, posted, inputLog, player, state.seed, state.tick, invalidateAppData, isAuthed]);
+  }, [finished, posted, inputLog, player, state.seed, state.tick, isAuthed, submitRun]);
+
+  // SEC-DC-12: a daily replay belongs to whichever account submits it first,
+  // so its link is offered only once this player's own save is acknowledged.
+  // While it is pending, after a failure (retried later) or when it was not
+  // saved, sharing would let someone else claim the run.
+  const shareReady = shareUrl !== null && (!isDaily || dailySave?.status === "saved");
 
   const share = useCallback(async () => {
-    if (!shareUrl) return;
+    if (!shareUrl || !shareReady) return;
     void tapLight();
     try {
       if (navigator.share) {
@@ -190,38 +329,32 @@ export function ClimbScreen({ onSignIn }: { onSignIn?: () => void } = {}) {
     } catch {
       /* user cancelled / unavailable */
     }
-  }, [shareUrl]);
+  }, [shareUrl, shareReady]);
 
   const handleConsentAccept = useCallback(async () => {
     setConsentBusy(true);
-    try {
-      setLeaderboardConsent(true);
-      await apiFetch("/api/settings", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ leaderboardConsent: true }),
-      });
-      if (pendingSave) {
-        const result = await postClimbResult(pendingSave);
-        setSaveInfo(result);
-        if (result.saved) {
-          invalidateAppData(["dashboard", "leaderboard", "friendsLeaderboard"]);
-          if (result.improved) void notifySuccess();
-        }
-      }
-    } catch {
-      /* consent save failed — don't block the game */
-    } finally {
-      setShowConsent(false);
-      setPendingSave(null);
+    setConsentError(null);
+    const saved = await saveConsent();
+    if (!saved) {
+      // Posting now would only be refused for missing consent. Keep the
+      // sheet and the run so the player can retry or decline (RV-DC-6).
+      setConsentError(CONSENT_SAVE_FAILED);
       setConsentBusy(false);
+      return;
     }
-  }, [pendingSave, invalidateAppData]);
+    setShowConsent(false);
+    setConsentBusy(false);
+    const run = pendingSave;
+    setPendingSave(null);
+    if (run) await submitRun(run);
+  }, [pendingSave, submitRun, saveConsent]);
 
   const handleConsentDecline = useCallback(() => {
     setShowConsent(false);
+    setConsentError(null);
     setPendingSave(null);
-  }, []);
+    if (isDaily) setDailySave({ status: "not_saved", reason: "no_consent" });
+  }, [isDaily]);
 
   return (
     <div className="fixed inset-0 z-40 bg-void">
@@ -286,11 +419,30 @@ export function ClimbScreen({ onSignIn }: { onSignIn?: () => void } = {}) {
                 : "Go as high as you can before the rising lava catches you. Grab glowing orbs for power-ups."}
             </p>
             {isDaily && (
-              <p className="mt-3 font-mono text-[10px] uppercase tracking-[0.2em] text-text-muted">
+              <p className="mt-3 font-mono text-label uppercase tracking-label text-text-muted">
                 Resets in {formatReset(msUntilReset())}
               </p>
             )}
-            <StartButton onClick={handleStart} label={isDaily ? "Start daily" : "Start climb"} />
+            {dailyLobby === "ready" && (
+              <StartButton onClick={handleStart} label={isDaily ? "Start daily" : "Start climb"} />
+            )}
+            {dailyLobby === "loading" && (
+              <p role="status" className="mt-8 font-mono text-label uppercase tracking-label text-text-muted">
+                Loading today&rsquo;s tower…
+              </p>
+            )}
+            {dailyLobby === "offline" && (
+              <DailyOffline
+                onRetry={() => {
+                  void tapLight();
+                  setDailyInfoAttempt((n) => n + 1);
+                }}
+                onPlayEndless={() => {
+                  void tapLight();
+                  navigate("/climb", { replace: true });
+                }}
+              />
+            )}
           </Overlay>
         )}
 
@@ -299,9 +451,20 @@ export function ClimbScreen({ onSignIn }: { onSignIn?: () => void } = {}) {
             peakY={player?.peakY ?? 0}
             saveInfo={saveInfo}
             dailyResult={isDaily ? dailyResult : null}
-            shareable={Boolean(shareUrl)}
+            dailySave={isDaily ? dailySave : null}
+            onRetryDaily={retryDailySave}
+            onSeeBoard={
+              isDaily && isAuthed
+                ? () => {
+                    void tapLight();
+                    navigate(TODAY_BOARD_PATH);
+                  }
+                : undefined
+            }
+            shareable={shareReady}
             isGuest={!isAuthed}
             onPlayAgain={handleStart}
+            playAgainState={playAgainState}
             onShare={share}
             onHome={() => {
               void tapLight();
@@ -316,6 +479,7 @@ export function ClimbScreen({ onSignIn }: { onSignIn?: () => void } = {}) {
             onAccept={handleConsentAccept}
             onDecline={handleConsentDecline}
             busy={consentBusy}
+            error={consentError}
           />
         )}
       </div>
@@ -329,6 +493,34 @@ function Overlay({ children }: { children: React.ReactNode }) {
   return (
     <div className="absolute inset-0 z-30 flex flex-col items-center justify-center bg-void/75 px-6 backdrop-blur-md">
       {children}
+    </div>
+  );
+}
+
+/**
+ * The daily's seed comes only from the server, so with no connection the
+ * daily cannot start. Say so, and offer a retry or an endless run instead.
+ */
+function DailyOffline({ onRetry, onPlayEndless }: { onRetry: () => void; onPlayEndless: () => void }) {
+  return (
+    <div role="alert" className="mt-6 flex flex-col items-center gap-3 text-center">
+      <p className="max-w-65 text-meta text-text-secondary">
+        Can&rsquo;t load today&rsquo;s tower. Check your connection and try again.
+      </p>
+      <button
+        type="button"
+        onClick={onRetry}
+        className="min-h-[44px] rounded-full border-2 border-signal/70 bg-signal/10 px-8 font-display text-body font-black uppercase tracking-chip text-signal transition-transform duration-150 active:scale-[0.96] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void"
+      >
+        Try again
+      </button>
+      <button
+        type="button"
+        onClick={onPlayEndless}
+        className="min-h-[44px] rounded-full px-6 font-mono text-label uppercase tracking-label text-text-secondary transition-colors hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void"
+      >
+        Play endless instead
+      </button>
     </div>
   );
 }
@@ -368,13 +560,48 @@ function useCountUp(target: number, duration = 900): number {
   return value;
 }
 
+const PLAY_AGAIN_LABEL: Record<PlayAgainState, string> = {
+  ready: "Play again",
+  loading: "Loading today\u2019s tower\u2026",
+  offline: "Can\u2019t reach today\u2019s tower \u00b7 retry",
+};
+
+/** Why a daily run is not on today's board, in the player's words. */
+const DAILY_REJECTION_COPY: Record<string, string> = {
+  SIM_VERSION_MISMATCH: "update the app to post daily scores",
+  REPLAY_REUSED: "this run was already posted by another player",
+  DAY_CLOSED: "today's tower closed before this run was saved",
+  RUN_TOO_LONG: "run too long to verify for today's board",
+  REPLAY_MISMATCH: "couldn't verify this run for today's board",
+  INVALID_REPLAY: "couldn't verify this run for today's board",
+};
+
+/** The rank line for a daily run, from the server's verdict. */
+function dailyRankLine(save: DailySaveState): string {
+  if (save === null || save.status === "pending") return "checking today's board…";
+  if (save.status === "saved") {
+    if (save.rank === null) return "saved · you're hidden on today's board";
+    return `#${save.rank.toLocaleString()} of ${save.totalClimbers.toLocaleString()} today`;
+  }
+  if (save.status === "not_saved") return "not on today's board";
+  if (save.status === "failed") return "couldn't reach today's board";
+  // hasOwnProperty.call, not Object.hasOwn: the SPA targets ES2020 WebViews.
+  return Object.prototype.hasOwnProperty.call(DAILY_REJECTION_COPY, save.code)
+    ? DAILY_REJECTION_COPY[save.code]
+    : "couldn't verify this run for today's board";
+}
+
 function ResultsCard({
   peakY,
   saveInfo,
   dailyResult,
+  dailySave,
+  onRetryDaily,
+  onSeeBoard,
   shareable,
   isGuest,
   onPlayAgain,
+  playAgainState = "ready",
   onShare,
   onHome,
   onSignIn,
@@ -382,15 +609,24 @@ function ResultsCard({
   peakY: number;
   saveInfo: ClimbSaveResult | null;
   dailyResult: DailyRunResult | null;
+  /** Daily mode only: the verified save's state; null outside daily mode. */
+  dailySave: DailySaveState;
+  onRetryDaily: () => void;
+  /** Daily mode, signed in: open today's board. */
+  onSeeBoard?: () => void;
   shareable: boolean;
   isGuest?: boolean;
   onPlayAgain: () => void;
+  playAgainState?: PlayAgainState;
   onShare: () => void;
   onHome: () => void;
   onSignIn?: () => void;
 }) {
   const shown = useCountUp(peakY);
-  const isBest = Boolean(saveInfo?.saved && saveInfo.improved);
+  const isDailySave = dailySave !== null;
+  const isBest = isDailySave
+    ? dailySave.status === "saved" && dailySave.improved
+    : Boolean(saveInfo?.saved && saveInfo.improved);
   // Real percentile from the leaderboard rank, when we have both numbers.
   const topPct =
     saveInfo?.saved && saveInfo.rank && saveInfo.totalClimbers
@@ -398,7 +634,9 @@ function ResultsCard({
       : null;
   const rankLine = isGuest
     ? "sign in to save your score"
-    : saveInfo?.saved && saveInfo.rank
+    : isDailySave
+      ? dailyRankLine(dailySave)
+      : saveInfo?.saved && saveInfo.rank
       ? `#${saveInfo.rank}${saveInfo.totalClimbers ? ` of ${saveInfo.totalClimbers.toLocaleString()}` : ""}${topPct ? ` · top ${topPct}%` : ""}`
       : "your highest climb";
   return (
@@ -418,7 +656,7 @@ function ResultsCard({
 
       {isBest ? (
         <p className="rc-best-pill mx-auto flex w-fit items-center gap-1.5 rounded-full border border-signal/40 bg-signal/15 px-3 py-1 font-mono text-[11px] uppercase tracking-[0.3em] text-signal">
-          ★ New Best
+          {isDailySave ? "★ Today’s Best" : "★ New Best"}
         </p>
       ) : (
         <p className="text-center font-mono text-[11px] uppercase tracking-[0.3em] text-ember">
@@ -434,9 +672,23 @@ function ResultsCard({
           {ALTITUDE_UNIT}
         </span>
       </h2>
-      <p className="mt-2 text-center font-mono text-[11px] uppercase tracking-[0.2em] text-text-muted">
+      <p
+        aria-live="polite"
+        className={`mt-2 text-center font-mono text-[11px] uppercase tracking-[0.2em] ${
+          dailySave?.status === "saved" && dailySave.rank !== null ? "text-signal" : "text-text-muted"
+        }`}
+      >
         {rankLine}
       </p>
+      {dailySave?.status === "failed" && !isGuest && (
+        <button
+          type="button"
+          onClick={onRetryDaily}
+          className="mx-auto mt-2 flex min-h-[44px] items-center px-4 font-mono text-label uppercase tracking-label text-signal underline underline-offset-4"
+        >
+          Try again
+        </button>
+      )}
 
       {dailyResult && (
         <p className="rc-best-pill mx-auto mt-4 flex w-fit items-center gap-2 rounded-full border border-ember/40 bg-ember/10 px-3.5 py-1.5 font-mono text-[11px] uppercase tracking-[0.2em] text-ember">
@@ -453,9 +705,11 @@ function ResultsCard({
       <div className="mt-7 flex flex-col gap-3">
         <button
           onClick={onPlayAgain}
-          className="min-h-[52px] rounded-full bg-signal font-display text-base font-black uppercase tracking-widest text-void shadow-signal transition-transform duration-150 active:scale-[0.97]"
+          disabled={playAgainState === "loading"}
+          aria-busy={playAgainState === "loading" || undefined}
+          className="min-h-[52px] rounded-full bg-signal font-display text-base font-black uppercase tracking-widest text-void shadow-signal transition-transform duration-150 active:scale-[0.97] disabled:opacity-60"
         >
-          Play again
+          {PLAY_AGAIN_LABEL[playAgainState]}
         </button>
         {isGuest && onSignIn && (
           <button
@@ -463,6 +717,14 @@ function ResultsCard({
             className="min-h-[52px] rounded-full border border-signal/40 bg-signal/10 font-display text-sm font-bold uppercase tracking-widest text-signal transition-transform duration-150 active:scale-[0.97]"
           >
             Sign in to save
+          </button>
+        )}
+        {onSeeBoard && (
+          <button
+            onClick={onSeeBoard}
+            className="min-h-[52px] rounded-full border border-signal/40 bg-signal/10 font-display text-sm font-bold uppercase tracking-widest text-signal transition-transform duration-150 active:scale-[0.97]"
+          >
+            See today’s board
           </button>
         )}
         <div className="flex gap-3">

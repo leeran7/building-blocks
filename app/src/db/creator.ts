@@ -11,7 +11,7 @@ import { Prisma } from "@prisma/client";
 import { climberDisplay } from "../lib/handle";
 import {
   getUserFreeClimbRecord,
-  getUserClimbReplays,
+  getPublicClimbReplays,
   type UserFreeClimbRecord,
   type ClimbReplaySummary,
 } from "./climb";
@@ -91,7 +91,8 @@ export async function getCreatorProfileByUsername(
 
   const [freeClimb, replays, social] = await Promise.all([
     getUserFreeClimbRecord(user.id).catch(() => null),
-    getUserClimbReplays(user.id).catch(() => []),
+    // Public page: daily replay tokens stay hidden while their board is open.
+    getPublicClimbReplays(user.id).catch(() => []),
     getUserSocialHandles(user.id).catch(() => ({})),
   ]);
 

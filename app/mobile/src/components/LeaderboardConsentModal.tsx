@@ -5,10 +5,13 @@ export function LeaderboardConsentModal({
   onAccept,
   onDecline,
   busy,
+  error = null,
 }: {
   onAccept: () => void;
   onDecline: () => void;
   busy?: boolean;
+  /** Shown when the last accept did not save; the sheet stays open to retry. */
+  error?: string | null;
 }) {
   return (
     <div className="absolute inset-0 z-50 flex items-end justify-center bg-void/60 backdrop-blur-sm">
@@ -32,6 +35,12 @@ export function LeaderboardConsentModal({
         >
           View Privacy Policy
         </button>
+
+        {error ? (
+          <p role="alert" className="mt-4 text-center text-sm text-ember">
+            {error}
+          </p>
+        ) : null}
 
         <div className="mt-6 flex flex-col gap-3">
           <button
