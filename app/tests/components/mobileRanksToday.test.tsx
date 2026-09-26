@@ -704,6 +704,9 @@ describe("Ranks: live status pill under the title", () => {
     ["a zero count", dashboardWith(0)],
     ["a string count", dashboardWith("1302")],
     ["a negative count", dashboardWith(-4)],
+    ["a fractional count (verifier)", dashboardWith(1.5)],
+    ["a NaN count (verifier)", dashboardWith(Number.NaN)],
+    ["no totalClimbers key (verifier)", { freeClimb: { peakY: 5000, rank: 4, wins: 1, handle: "Me" } }],
   ])("All-time with %s shows 'All-time best heights', never a fabricated count", async (_, dashboard) => {
     net.dashboard = dashboard;
     await render("/leaderboard", createElement(LeaderboardScreen));

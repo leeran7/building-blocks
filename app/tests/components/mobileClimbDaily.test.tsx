@@ -442,6 +442,21 @@ describe("ClimbScreen daily share waits for the save (SEC-DC-12)", () => {
     expect(shareButton()).toBeUndefined();
   });
 
+  it("a signed-out daily run (server: not saved, anonymous) offers no Share (verifier)", async () => {
+    auth.uid = null;
+    net.resultBody = { saved: false, reason: "anonymous" };
+    await mountDaily();
+    // Precondition: the guest run was encoded and sent, so only the gate hides Share.
+    expect(resultPosts()).toHaveLength(1);
+    expect(shareButton()).toBeUndefined();
+  });
+
+  it("control: a signed-out endless run still offers Share (verifier)", async () => {
+    auth.uid = null;
+    await mountDaily("/climb");
+    expect(shareButton()).toBeTruthy();
+  });
+
   it("control: an endless run offers Share (no daily claim to protect)", async () => {
     await mountDaily("/climb");
     expect(resultPosts()).toHaveLength(0);
