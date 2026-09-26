@@ -25,11 +25,8 @@ import { ClimbControlsGuide } from "./ClimbControlsGuide";
 import { ExpeditionHud } from "./ExpeditionHud";
 import { usePowerUpFeedback } from "./usePowerUpFeedback";
 import {
-  CAMERA_AIR_BAND_FRAC,
   cameraTargetY,
-  type ClimbCameraBag,
   climbView,
-  heldFocusY,
   isLavaThreatening,
   lavaThreatFill,
 } from "./climbCamera";
@@ -206,19 +203,8 @@ export function ClimbScene({
     !finished && !replaying && (phase === "countdown" || phase === "climb");
   const lavaGap = player ? player.y - state.hazardY : Infinity;
   const musicIntensity = Math.max(0, Math.min(1, (40 - lavaGap) / 40));
-  // One camera for this scene, shared with the canvas. A stable mutable
-  // object: the painter writes it every frame, this render only reads it.
-  const [camera] = useState<ClimbCameraBag>(() => ({ y: null, tick: null }));
   const view = climbView(canvasSize.width, canvasSize.height, state.tower.widthM);
-  // Frame the lava check on the same held focus the canvas painted, so the
-  // "lava on screen" sting agrees with the screen through jumps and drops.
-  const playerYNow = player?.y ?? 0;
-  const camY = cameraTargetY(
-    heldFocusY(camera.focusY, playerYNow, view.viewH * CAMERA_AIR_BAND_FRAC),
-    view.viewH,
-    bottomInset,
-    view.pxPerM
-  );
+  const camY = cameraTargetY(player?.y ?? 0, view.viewH, bottomInset, view.pxPerM);
   const lavaFill = lavaThreatFill(
     state.hazardY,
     camY,
@@ -461,7 +447,6 @@ export function ClimbScene({
           hudInsetTop={touchDevice ? safeArea.top : 0}
           includeHud={false}
           floorMarkerInsetTop={(touchDevice ? safeArea.top : 0) + 80}
-          camera={camera}
         />
 
         <ExpeditionHud

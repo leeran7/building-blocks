@@ -97,6 +97,12 @@ export interface PlayerState {
   y: number;
   vx: number;
   vy: number;
+  /**
+   * Direction the climber last moved: 1 right, -1 left. Kept when input stops
+   * so the sprite keeps looking the way it went. Presentation-only; the
+   * simulation never reads it back.
+   */
+  facing: 1 | -1;
   onGround: boolean;
   onLadder: boolean;
   /** Floor index of the ladder being climbed (ladder i joins floor i→i+1), else null. */

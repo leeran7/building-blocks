@@ -10,6 +10,8 @@ import { describe, expect, it } from "vitest";
 import {
   CAMERA_FOCUS_FRAC,
   CAMERA_FOLLOW,
+  CAMERA_FOLLOW_AIR,
+  blendFollow,
   cameraTargetY,
   climbView,
   followCamY,
@@ -17,7 +19,11 @@ import {
   lavaThreatFill,
 } from "../../src/components/Game/climbCamera";
 import { createMatch, stepMatch } from "../../src/game/simulation";
-import { NO_INPUT, TICK_DT } from "../../src/game/types";
+import { NO_INPUT, TICK_DT, type PlayerState } from "../../src/game/types";
+import {
+  paintClimbFrame,
+  type PaintCtx,
+} from "../../src/components/Game/paintClimbFrame";
 import { buildTower } from "../../src/game/towers";
 
 const WIDTH = 360;
@@ -172,3 +178,106 @@ describe("lavaThreatFill against a real match", () => {
 function playerScreenFrac(playerY: number, camY: number, viewH: number): number {
   return 1 - (playerY - camY) / viewH;
 }
+
+describe("followCamY: airborne follow rate", () => {
+  it("closes the given fraction per tick, CAMERA_FOLLOW by default", () => {
+    expect(followCamY(0, 10, 1000, TICK_DT, false)).toBeCloseTo(10 * CAMERA_FOLLOW);
+    expect(followCamY(0, 10, 1000, TICK_DT, false, CAMERA_FOLLOW_AIR)).toBeCloseTo(
+      10 * CAMERA_FOLLOW_AIR
+    );
+    expect(CAMERA_FOLLOW_AIR).toBeLessThan(CAMERA_FOLLOW);
+  });
+
+  it("blendFollow starts at the target and eases toward a new one", () => {
+    expect(blendFollow(null, CAMERA_FOLLOW_AIR, TICK_DT)).toBe(CAMERA_FOLLOW_AIR);
+    const one = blendFollow(CAMERA_FOLLOW_AIR, CAMERA_FOLLOW, TICK_DT);
+    expect(one).toBeGreaterThan(CAMERA_FOLLOW_AIR);
+    expect(one).toBeLessThan(CAMERA_FOLLOW);
+    let f = CAMERA_FOLLOW_AIR;
+    for (let i = 0; i < 60; i++) f = blendFollow(f, CAMERA_FOLLOW, TICK_DT);
+    expect(f).toBeCloseTo(CAMERA_FOLLOW, 6);
+  });
+});
+
+describe("paintClimbFrame camera: smoother through jumps", () => {
+  const ctx = new Proxy(
+    {},
+    {
+      get: (_t, prop) =>
+        prop === "measureText"
+          ? () => ({ width: 10 })
+          : typeof prop === "string" && prop.startsWith("create")
+            ? () => ({ addColorStop() {} })
+            : () => {},
+      set: () => true,
+    }
+  ) as unknown as PaintCtx;
+
+  /**
+   * Paint a real match frame by frame alongside a baseline camera driven by
+   * the exported followCamY at its default (original) rate. Returns both
+   * camera tracks.
+   */
+  function track(frames: (p: PlayerState, i: number) => void, count: number) {
+    const tower = buildTower("indie-games");
+    const m = createMatch({ seed: "smooth-cam", mode: "solo", tower, playerIds: ["p1"] });
+    const p = m.players[0]!;
+    const { pxPerM, viewH } = climbView(WIDTH, HEIGHT, tower.widthM);
+    const camera = { y: null as number | null, tick: null as number | null };
+    let base: number | null = null;
+    const painted: number[] = [];
+    const baseline: number[] = [];
+    // Stand high enough that the camera is not clamped at the tower base.
+    p.y = 200;
+    p.onGround = true;
+    for (let i = 0; i < 60 + count; i++) {
+      if (i >= 60) frames(p, i - 60);
+      m.tick = i + 1.5;
+      paintClimbFrame(ctx, m, { width: WIDTH, height: HEIGHT, camera, dtSec: TICK_DT });
+      base = followCamY(base, cameraTargetY(p.y, viewH, 0, pxPerM), viewH, TICK_DT, base === null);
+      if (i >= 60) {
+        painted.push(camera.y!);
+        baseline.push(base);
+      }
+    }
+    return { painted, baseline };
+  }
+  const range = (ys: number[]) => Math.max(...ys) - Math.min(...ys);
+  const meanAccel = (ys: number[]) => {
+    let sum = 0;
+    for (let i = 2; i < ys.length; i++) sum += Math.abs(ys[i]! - 2 * ys[i - 1]! + ys[i - 2]!);
+    return sum / (ys.length - 2);
+  };
+
+  it("still rides a jump, but with a softer bob than the original follow", () => {
+    const JUMP = 20;
+    const { painted, baseline } = track((p, i) => {
+      const k = i % 40;
+      p.onGround = k >= JUMP;
+      p.y = k < JUMP ? 200 + 3 * Math.sin((Math.PI * (k + 1)) / (JUMP + 1)) : 200;
+    }, 160);
+    expect(range(painted)).toBeGreaterThan(0.1);
+    expect(range(painted)).toBeLessThan(range(baseline));
+    expect(meanAccel(painted)).toBeLessThan(meanAccel(baseline));
+  });
+
+  it("keeps the original follow on the ground and on ladders", () => {
+    const { painted, baseline } = track((p, i) => {
+      p.onGround = i % 20 < 10;
+      p.onLadder = !p.onGround;
+      p.y = 200 + i * 0.3;
+    }, 120);
+    expect(painted.length).toBeGreaterThan(0);
+    painted.forEach((y, i) => expect(y).toBeCloseTo(baseline[i]!, 9));
+  });
+
+  it("keeps the original follow under jetpack thrust", () => {
+    const { painted, baseline } = track((p, i) => {
+      p.onGround = false;
+      p.jetpackThrusting = true;
+      p.y = 200 + i * 0.4;
+    }, 90);
+    expect(painted.length).toBeGreaterThan(0);
+    painted.forEach((y, i) => expect(y).toBeCloseTo(baseline[i]!, 9));
+  });
+});
