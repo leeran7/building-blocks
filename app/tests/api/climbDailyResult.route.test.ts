@@ -68,7 +68,7 @@ import type { PlayerInput } from "../../src/game/types";
 const DAY = "2026-09-26";
 const NOW = new Date("2026-09-26T12:00:00Z");
 
-/** Same scripted policy as tests/game/dailyVerify.test.ts (climbs 7.61 m on DAY). */
+/** Same scripted policy as tests/game/dailyVerify.test.ts (climbs 10.33 m on DAY). */
 function playRun(seed: string): { inputs: PlayerInput[]; peakY: number; ticks: number } {
   const state = createMatch({ seed, mode: "solo", tower: applyRunSeed(buildFreeTower(), seed), playerIds: ["you"] });
   while (state.phase === "countdown") stepMatch(state, {});
@@ -636,7 +636,9 @@ describe("POST /api/climb/daily/result: hardening (SEC-DC-2, 3, 4)", () => {
     const { run, body } = await honestPayload();
     expect(run.peakY).toBeGreaterThanOrEqual(DAILY_CLAIM_MIN_PEAK_M);
     // Precondition: well past the segment floor (SEC-DC-15), so it is claimed.
-    expect(dailyInputSegments(run.inputs)).toBe(31);
+    // 38 since #154: a held climb re-grabs the ladder after landing, so the
+    // scripted run lasts 274 ticks (10.33 m) instead of 227 (7.61 m).
+    expect(dailyInputSegments(run.inputs)).toBe(38);
 
     asUser("u1");
     expect((await post(body)).status).toBe(200);

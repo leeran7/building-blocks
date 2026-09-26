@@ -71,7 +71,7 @@ async function postRun(clientPeakY: number): Promise<Response> {
 }
 
 /** Segment count of the scripted real climb: far above the SEC-DC-15 floor. */
-const REAL_SEGMENTS = 31;
+const REAL_SEGMENTS = 38;
 
 function serverVerdict(peakY: number, inputSegments = REAL_SEGMENTS) {
   vi.mocked(verifyDailyReplay).mockReturnValue({

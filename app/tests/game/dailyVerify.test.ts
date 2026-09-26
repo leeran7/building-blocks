@@ -39,8 +39,11 @@ const MIDDAY = new Date("2026-09-26T12:00:00Z");
  * input for each climb tick is logged, then stepped. The policy (hold a random
  * direction for 10 ticks, always climb, jump every 23 ticks, RNG state 28)
  * was picked because it climbs well past the first ledge on DAY's tower
- * (7.61 m) but not on the previous day's (~2.6 m), so a relabelled replay
- * cannot pass by coincidence.
+ * but not on the previous day's (~2.6 m), so a relabelled replay cannot pass
+ * by coincidence. Since #154 (a held climb re-grabs a ladder after landing)
+ * it lasts 274 ticks and 38 input segments to 10.33 m on DAY; before, the
+ * same inputs died at 227 ticks, 31 segments, 7.61 m. The packed format and
+ * the recorder did not change; only stepMatch did.
  */
 function playRun(seed: string, maxTicks = 6000): { inputs: PlayerInput[]; peakY: number } {
   const state = createMatch({
@@ -87,7 +90,7 @@ describe("verifyDailyReplay", () => {
       ticks: run.inputs.length,
       finished: false,
       inputHash: dailyInputHash(run.inputs),
-      inputSegments: 31,
+      inputSegments: 38,
     });
   });
 
@@ -346,13 +349,13 @@ describe("claim floor for low-entropy runs (SEC-DC-11)", () => {
     expect(dailyInputHash(a.inputs)).toBe(dailyInputHash(b.inputs));
   });
 
-  it("a real climb (the scripted 7.61 m run) is over the floor and must claim", async () => {
+  it("a real climb (the scripted 10.33 m run) is over the floor and must claim", async () => {
     const run = playRun(SEED);
     const verdict = verifyDailyReplay(await tokenFor(SEED, run.peakY, run.inputs), run.peakY, MIDDAY);
     expect(verdict.ok).toBe(true);
     if (!verdict.ok) return;
     expect(verdict.peakY).toBeGreaterThanOrEqual(DAILY_CLAIM_MIN_PEAK_M);
-    expect(verdict.inputSegments).toBe(31);
+    expect(verdict.inputSegments).toBe(38);
     expect(dailyRunNeedsClaim(verdict.peakY, verdict.inputSegments)).toBe(true);
   });
 

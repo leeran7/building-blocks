@@ -70,7 +70,7 @@ function play(seed: string, policy: (tick: number) => PlayerInput): { inputs: Pl
   return { inputs, peakY: state.players[0].peakY };
 }
 
-/** The scripted 31-segment real climb shared with the other daily route tests. */
+/** The scripted 38-segment real climb shared with the other daily route tests. */
 function scripted(seed: string) {
   let r = 28;
   let moveX: -1 | 0 | 1 = 1;
