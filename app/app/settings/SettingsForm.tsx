@@ -9,6 +9,7 @@ import { useAuth } from "../../src/contexts/AuthContext";
 import { SIGNIN_HREF } from "../../src/components/navLinks";
 import { normalizeUsername, suggestUsername } from "../../src/lib/username";
 import { SocialMark } from "../../src/components/Social/SocialMark";
+import { ControlSchemePicker } from "../../src/components/ControlSchemePicker";
 import {
   SOCIAL_PLATFORMS,
   PLATFORM_META,
@@ -248,6 +249,22 @@ export function SettingsForm({ initialData }: Props) {
                 </div>
               );
             })}
+          </div>
+        </section>
+
+        {/* Touch controls — device-local, saved on tap */}
+        <section className="mt-6 rounded-2xl border border-border-strong bg-surface p-6 shadow-lifted">
+          <p
+            id="control-scheme-label"
+            className="font-mono text-[11px] uppercase tracking-[0.16em] text-text-muted"
+          >
+            Touch controls
+          </p>
+          <p className="text-xs text-text-secondary mt-1">
+            On-screen controls for phones and tablets. Saved on this device.
+          </p>
+          <div className="mt-4">
+            <ControlSchemePicker labelledBy="control-scheme-label" />
           </div>
         </section>
 

@@ -33,8 +33,7 @@ import {
 import { hazardPhase } from "../../game/hazard";
 import {
   TouchControls,
-  TOUCH_CONTROLS_INSET,
-  TOUCH_CONTROLS_MIN_BOTTOM,
+  useTouchControlsInset,
 } from "./TouchControls";
 import { useAuth } from "../../contexts/AuthContext";
 import { useCanvasSize } from "../../hooks/useCanvasSize";
@@ -190,9 +189,10 @@ export function ClimbScene({
   // buttons, so the inset is 0 — otherwise lava in that band is visible on the
   // canvas but ignored by audio. Live play keeps the inset after death so the
   // camera does not jump when the results overlay replaces the buttons.
+  const touchInset = useTouchControlsInset(safeArea.bottom);
   const bottomInset =
     touchDevice && !replaying
-      ? TOUCH_CONTROLS_INSET + Math.max(TOUCH_CONTROLS_MIN_BOTTOM, safeArea.bottom)
+      ? touchInset
       : 0;
   // Music plays through the countdown + climb and stops on the results screen.
   // Intensity ramps up over the last ~40m of clearance as the lava gains.

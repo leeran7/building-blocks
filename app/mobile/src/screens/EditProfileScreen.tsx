@@ -29,6 +29,7 @@ import {
   normalizeHandle,
 } from "@app/lib/socialHandle";
 import { SocialMark } from "@app/components/Social/SocialMark";
+import { ControlSchemePicker } from "@app/components/ControlSchemePicker";
 import { HexAvatar } from "../components/HexAvatar";
 import { PushHeader, RetryPanel } from "../components/ui";
 import { avatarButtonLabel, avatarLabel, identityNameFor } from "../lib/identity";
@@ -361,6 +362,12 @@ export function EditProfileScreen() {
             </Section>
 
             <Section title="Preferences">
+              <p id="control-scheme-label" className="text-body font-semibold text-text-primary">
+                Game controls
+              </p>
+              <p className="mb-3 mt-0.5 text-meta text-text-secondary">On-screen buttons or a joystick</p>
+              <ControlSchemePicker labelledBy="control-scheme-label" />
+              <div className="my-3 h-px bg-white/[0.07]" />
               <Toggle
                 label="Haptic feedback"
                 description="Vibration on taps and game events"
