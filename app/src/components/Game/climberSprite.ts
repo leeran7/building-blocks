@@ -1,13 +1,12 @@
 /**
  * Default climber sprite — the lime "Wraith" character.
  *
- * Artwork comes from the wraith pack, copied into /climb/: a single poses sheet
- * (wraith-poses.png, 4×2 of 512px cells). Walk and climb are 2-frame cycles out
- * of that sheet (run-a/run-b, reach-a/reach-b) — the pronounced 3/4-view poses
- * read at the ~30px in-game size, where the dedicated back-view climb strip's
- * subtle motion vanished into a glide. Every frame shares the manifest anchor:
- * a 512px cell whose foot root is (256, 460), with a ~380px idle body height,
- * so one scale and one draw path cover them all.
+ * Artwork comes from the wraith pack, copied into /climb/: a poses sheet
+ * (wraith-poses.png, 4×2 of 512px cells) for idle/walk/air/done/dead, and the
+ * dedicated 6-frame back-view climb strip (wraith-climb.png) so the climber
+ * shows its back to the camera while going up a ladder. Every frame shares the
+ * manifest anchor: a 512px cell whose foot root is (256, 460), with a ~380px
+ * idle body height, so one scale and one draw path cover them all.
  *
  * Images decode lazily (same pattern as climbBackground's ensureTile); until a
  * pose's sheet is ready, climberFrame returns null and the caller falls back to
@@ -29,28 +28,26 @@ const DISPLAY_H_IN_S = 3.0;
 // (the sim has no slow walk — you're stopped or full speed), so a large value
 // here keeps the leg turnover to ~2 steps/s instead of a sprint-blur.
 const WALK_M_PER_FRAME = 6.0; // horizontal metres per walk-cycle frame
-const CLIMB_M_PER_FRAME = 2.0; // vertical metres per climb-cycle (reach) frame
+const CLIMB_M_PER_FRAME = 0.65; // vertical metres per climb-cycle frame
 
 type Pose = "idle" | "walk" | "climb" | "air" | "done" | "dead";
-type Sheet = "poses";
+type Sheet = "poses" | "climb";
 
-// Columns in the poses sheet, so a cell index maps to a source rect.
-const COLS: Record<Sheet, number> = { poses: 4 };
+// Columns per sheet, so a frame's cell index maps to a source rect.
+const COLS: Record<Sheet, number> = { poses: 4, climb: 6 };
 
 /**
- * Per pose: the poses-sheet cells it cycles through. Walk and climb are 2-frame
- * distance-driven cycles; the rest are single poses.
+ * Per pose: which sheet and the cell indices it cycles through. Walk and climb
+ * are distance-driven cycles; the rest are single poses out of wraith-poses.png.
  *
- * Walk uses upright run-a/run-b (cells 1,2) and climb uses the reach-a/reach-b
- * overhead reaches (cells 3,4) — both pronounced 3/4-view poses. The dedicated
- * 8-frame run strip read as a hunched "troll run", and the 6-frame back-view
- * climb strip's motion was too subtle to see at game size (it looked like a
- * glide), so both are dropped in favour of these readable poses.
+ * Walk uses the poses sheet's upright run-a/run-b (cells 1,2). Climb uses the
+ * dedicated 6-frame back-view strip so the climber faces the ladder (back to
+ * the camera) rather than the front-facing reach poses.
  */
 const ANIM: Record<Pose, { sheet: Sheet; frames: readonly number[] }> = {
   idle: { sheet: "poses", frames: [0] },
   walk: { sheet: "poses", frames: [1, 2] },
-  climb: { sheet: "poses", frames: [3, 4] },
+  climb: { sheet: "climb", frames: [0, 1, 2, 3, 4, 5] },
   air: { sheet: "poses", frames: [5] },
   done: { sheet: "poses", frames: [6] },
   dead: { sheet: "poses", frames: [7] },
@@ -60,6 +57,7 @@ const mod = (n: number, m: number): number => ((n % m) + m) % m;
 
 const SRC: Record<Sheet, string> = {
   poses: "/climb/wraith-poses.png",
+  climb: "/climb/wraith-climb.png",
 };
 
 const images: Partial<Record<Sheet, HTMLImageElement>> = {};
