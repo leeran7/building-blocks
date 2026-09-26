@@ -87,7 +87,7 @@ export function resimulateSoloRun(seed: string, inputs: PlayerInput[]) {
  * Decide whether a decoded replay is a genuine run on an open daily tower,
  * and if so what height it earned.
  *
- * @param replay        decoded token (decodeRunReplay)
+ * @param replay        decoded token (decodeRunReplayServer / inflateReplayEnvelope)
  * @param claimedPeakY  the client's reported peak; null uses the token's own
  * @param now           server clock
  */
@@ -117,7 +117,19 @@ export function verifyDailyReplay(
   const serverPeakY = Math.max(0, player?.peakY ?? 0);
   const claim = claimedPeakY ?? replay.peakY;
 
-  if (!Number.isFinite(claim) || Math.abs(serverPeakY - claim) > DAILY_PEAK_EPSILON_M) {
+  // `Math.abs(NaN - x) > eps` is false, so a non-finite peak would slip past
+  // the tolerance checks below, and Postgres GREATEST ranks NaN above every
+  // number. Reject any non-finite value outright, and compare with `<=` so a
+  // NaN difference fails closed.
+  if (!Number.isFinite(serverPeakY) || !Number.isFinite(claim) || !Number.isFinite(replay.peakY)) {
+    return {
+      ok: false,
+      code: "REPLAY_MISMATCH",
+      reason: "peak is not a finite number",
+      serverPeakY,
+    };
+  }
+  if (!(Math.abs(serverPeakY - claim) <= DAILY_PEAK_EPSILON_M)) {
     return {
       ok: false,
       code: "REPLAY_MISMATCH",
@@ -125,7 +137,7 @@ export function verifyDailyReplay(
       serverPeakY,
     };
   }
-  if (Math.abs(serverPeakY - replay.peakY) > DAILY_PEAK_EPSILON_M) {
+  if (!(Math.abs(serverPeakY - replay.peakY) <= DAILY_PEAK_EPSILON_M)) {
     return {
       ok: false,
       code: "REPLAY_MISMATCH",

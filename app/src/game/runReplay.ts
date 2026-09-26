@@ -86,8 +86,20 @@ export async function encodeRunReplay(
   return base64UrlEncode(new TextEncoder().encode(payload));
 }
 
-/** Decode a share-link token back into a replay, or null if invalid. */
-export async function decodeRunReplay(token: string): Promise<RunReplay | null> {
+/**
+ * A replay token's JSON envelope, with the input log still compressed. Parsing
+ * it costs no inflate, so callers can run cheap checks (the seed's day, rate
+ * limits) before paying for decompression.
+ */
+export interface RunReplayEnvelope {
+  version: typeof REPLAY_VERSION;
+  seed: string;
+  peakY: number;
+  compressed: Uint8Array;
+}
+
+/** Parse a token's envelope without inflating the input log; null if malformed. */
+export function parseRunReplayEnvelope(token: string): RunReplayEnvelope | null {
   try {
     const json = new TextDecoder().decode(base64UrlDecode(token));
     const raw = JSON.parse(json) as {
@@ -96,14 +108,38 @@ export async function decodeRunReplay(token: string): Promise<RunReplay | null> 
       p?: unknown;
       i?: unknown;
     };
+    if (typeof raw !== "object" || raw === null) return null;
     if (raw.v !== REPLAY_VERSION) return null;
     if (typeof raw.s !== "string" || !raw.s) return null;
     if (typeof raw.p !== "number" || !Number.isFinite(raw.p)) return null;
     if (typeof raw.i !== "string" || !raw.i) return null;
-    const bytes = await inflate(base64UrlToBytes(raw.i));
-    const inputs = unpackInputLog(bytes);
-    if (inputs.length === 0 || inputs.length > MAX_SHARE_TICKS) return null;
-    return { version: REPLAY_VERSION, seed: raw.s, peakY: raw.p, inputs };
+    return { version: REPLAY_VERSION, seed: raw.s, peakY: raw.p, compressed: base64UrlToBytes(raw.i) };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Turn an envelope plus its inflated input bytes into a replay. The length is
+ * checked BEFORE unpacking, which allocates one object per byte.
+ */
+export function replayFromInflated(envelope: RunReplayEnvelope, bytes: Uint8Array): RunReplay | null {
+  if (bytes.length === 0 || bytes.length > MAX_SHARE_TICKS) return null;
+  return { version: REPLAY_VERSION, seed: envelope.seed, peakY: envelope.peakY, inputs: unpackInputLog(bytes) };
+}
+
+/**
+ * Decode a share-link token back into a replay, or null if invalid. Runs in
+ * the browser and in Node; the inflate stops as soon as the output passes
+ * MAX_SHARE_TICKS bytes. Server routes use decodeRunReplayServer
+ * (runReplayServer.ts), which caps zlib's output the same way.
+ */
+export async function decodeRunReplay(token: string): Promise<RunReplay | null> {
+  const envelope = parseRunReplayEnvelope(token);
+  if (!envelope) return null;
+  try {
+    const bytes = await inflateCapped(envelope.compressed, MAX_SHARE_TICKS);
+    return bytes ? replayFromInflated(envelope, bytes) : null;
   } catch {
     return null;
   }
@@ -139,12 +175,37 @@ async function deflate(bytes: Uint8Array): Promise<Uint8Array> {
   return new Uint8Array(await new Response(stream).arrayBuffer());
 }
 
-async function inflate(bytes: Uint8Array): Promise<Uint8Array> {
-  if (typeof DecompressionStream === "undefined") return bytes;
-  const stream = new Blob([bytes as BlobPart])
+/**
+ * Inflate at most `maxBytes` of output. Reads the stream chunk by chunk and
+ * cancels it once the output passes the cap, so a small token that expands
+ * ~1000x (a decompression bomb) costs one chunk, not the whole expansion.
+ * Null when the output would exceed the cap.
+ */
+async function inflateCapped(bytes: Uint8Array, maxBytes: number): Promise<Uint8Array | null> {
+  if (typeof DecompressionStream === "undefined") return bytes.length <= maxBytes ? bytes : null;
+  const reader = new Blob([bytes as BlobPart])
     .stream()
-    .pipeThrough(new DecompressionStream("deflate"));
-  return new Uint8Array(await new Response(stream).arrayBuffer());
+    .pipeThrough(new DecompressionStream("deflate"))
+    .getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.length;
+    if (total > maxBytes) {
+      await reader.cancel().catch(() => undefined);
+      return null;
+    }
+    chunks.push(value);
+  }
+  const out = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    out.set(chunk, offset);
+    offset += chunk.length;
+  }
+  return out;
 }
 
 function bytesToBase64Url(bytes: Uint8Array): string {
