@@ -63,7 +63,7 @@ const BASE_WIDTH = 360;
  * platform slabs, power-ups, crate trim, floor markers, HUD text. Positions
  * and the camera are unchanged, so the view does not zoom or scroll.
  */
-export const GAME_DRAW_SCALE = 1.15;
+export const GAME_DRAW_SCALE = 1.3;
 
 // ── Cached font strings ──────────────────────────────────────────────────────
 // Avoids template-literal allocation every frame; rebuilt only on ui change.

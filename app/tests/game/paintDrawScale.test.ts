@@ -49,8 +49,8 @@ function recordingContext(): { ctx: PaintCtx; platformRects: Rect[] } {
 }
 
 describe("paintClimbFrame: GAME_DRAW_SCALE", () => {
-  it("is a 15% bump", () => {
-    expect(GAME_DRAW_SCALE).toBe(1.15);
+  it("is a 30% bump", () => {
+    expect(GAME_DRAW_SCALE).toBe(1.3);
   });
 
   it("thickens platform slabs by the scale without moving them", () => {
