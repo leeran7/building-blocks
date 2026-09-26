@@ -6,7 +6,7 @@ import { ALTITUDE_UNIT } from "@app/lib/units";
 import { Button, RetryPanel, StateMessage } from "../components/ui";
 import { PullToRefresh } from "../components/PullToRefresh";
 import { LeaderboardConsentModal } from "../components/LeaderboardConsentModal";
-import { CONSENT_SAVE_FAILED, useAcceptLeaderboardConsent } from "../hooks/useAcceptLeaderboardConsent";
+import { useConsentSheet } from "../hooks/useConsentSheet";
 import type { DailyStanding } from "../lib/dailyBoard";
 import { tapLight } from "../lib/haptics";
 import {
@@ -177,30 +177,12 @@ export function LeaderboardScreen() {
 
   // Opted-out player on today's board: reuse the consent sheet from the
   // results card instead of sending them to Edit profile.
-  const [showConsent, setShowConsent] = useState(false);
-  const [consentBusy, setConsentBusy] = useState(false);
-  const [consentError, setConsentError] = useState<string | null>(null);
-  const saveConsent = useAcceptLeaderboardConsent();
-  const acceptConsent = useCallback(async () => {
-    setConsentBusy(true);
-    setConsentError(null);
-    const saved = await saveConsent();
-    setConsentBusy(false);
-    if (!saved) {
-      // Not saved: keep the sheet open and say why, the same as on Climb
-      // results (RV-DC-15). The player can retry or decline.
-      setConsentError(CONSENT_SAVE_FAILED);
-      return;
-    }
-    setShowConsent(false);
-  }, [saveConsent]);
-  const declineConsent = useCallback(() => {
-    setShowConsent(false);
-    setConsentError(null);
-  }, []);
+  // A failed save keeps the sheet open and says why, the same as on Climb
+  // results (RV-DC-15). The player can retry or decline.
+  const consent = useConsentSheet();
 
   const bannerCopy = isToday ? TODAY_COPY : ALLTIME_COPY;
-  const onHiddenAction = isToday ? () => setShowConsent(true) : () => navigate("/profile/edit");
+  const onHiddenAction = isToday ? consent.show : () => navigate("/profile/edit");
   const onPlay = () => navigate(isToday ? DAILY_PLAY_PATH : "/climb");
 
   return (
@@ -269,12 +251,12 @@ export function LeaderboardScreen() {
         </div>
       </PullToRefresh>
 
-      {showConsent && (
+      {consent.open && (
         <LeaderboardConsentModal
-          onAccept={() => void acceptConsent()}
-          onDecline={declineConsent}
-          busy={consentBusy}
-          error={consentError}
+          onAccept={() => void consent.accept()}
+          onDecline={consent.decline}
+          busy={consent.busy}
+          error={consent.error}
         />
       )}
 

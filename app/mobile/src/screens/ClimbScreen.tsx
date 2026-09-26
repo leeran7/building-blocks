@@ -27,7 +27,7 @@ import { API_BASE, postClimbResult, type ClimbSaveResult } from "../lib/api";
 import { useAuth } from "../contexts/AuthContext";
 import { useInvalidateAppData, type SliceKey } from "../contexts/AppDataContext";
 import { hasLeaderboardConsent } from "../lib/consent";
-import { CONSENT_SAVE_FAILED, useAcceptLeaderboardConsent } from "../hooks/useAcceptLeaderboardConsent";
+import { useConsentSheet } from "../hooks/useConsentSheet";
 import { LeaderboardConsentModal } from "../components/LeaderboardConsentModal";
 import { tapMedium, tapLight, notifyError, notifySuccess } from "../lib/haptics";
 import { useGameHaptics } from "../lib/useGameHaptics";
@@ -152,11 +152,7 @@ export function ClimbScreen({ onSignIn }: { onSignIn?: () => void } = {}) {
   const [shareUrl, setShareUrl] = useState<string | null>(null);
   const [posted, setPosted] = useState(false);
   const [dailyResult, setDailyResult] = useState<DailyRunResult | null>(null);
-  const [showConsent, setShowConsent] = useState(false);
   const [pendingSave, setPendingSave] = useState<RunPayload | null>(null);
-  const [consentBusy, setConsentBusy] = useState(false);
-  const [consentError, setConsentError] = useState<string | null>(null);
-  const saveConsent = useAcceptLeaderboardConsent();
 
   const player = state.players[0];
   const phase = state.phase;
@@ -282,6 +278,21 @@ export function ClimbScreen({ onSignIn }: { onSignIn?: () => void } = {}) {
     [isDaily, invalidateAppData],
   );
 
+  // Posting before consent is saved would only be refused, so the run waits
+  // in pendingSave. A failed save keeps the sheet and the run so the player
+  // can retry or decline (RV-DC-6).
+  const postPendingSave = useCallback(async () => {
+    const run = pendingSave;
+    setPendingSave(null);
+    if (run) await submitRun(run);
+  }, [pendingSave, submitRun]);
+  const dropPendingSave = useCallback(() => {
+    setPendingSave(null);
+    if (isDaily) setDailySave({ status: "not_saved", reason: "no_consent" });
+  }, [isDaily]);
+  const consent = useConsentSheet({ onSaved: postPendingSave, onDeclined: dropPendingSave });
+  const showConsentSheet = consent.show;
+
   const retryDailySave = useCallback(() => {
     const payload = lastDailyPayload.current;
     if (payload) void submitRun(payload);
@@ -309,13 +320,13 @@ export function ClimbScreen({ onSignIn }: { onSignIn?: () => void } = {}) {
 
       if (isAuthed && !hasLeaderboardConsent()) {
         setPendingSave(payload);
-        setShowConsent(true);
+        showConsentSheet();
         return;
       }
 
       await submitRun(payload);
     })();
-  }, [finished, posted, inputLog, player, state.seed, state.tick, isAuthed, submitRun]);
+  }, [finished, posted, inputLog, player, state.seed, state.tick, isAuthed, submitRun, showConsentSheet]);
 
   // SEC-DC-12: a daily replay belongs to whichever account submits it first,
   // so its link is offered only once this player's own save is acknowledged.
@@ -337,30 +348,6 @@ export function ClimbScreen({ onSignIn }: { onSignIn?: () => void } = {}) {
     }
   }, [shareUrl, shareReady]);
 
-  const handleConsentAccept = useCallback(async () => {
-    setConsentBusy(true);
-    setConsentError(null);
-    const saved = await saveConsent();
-    if (!saved) {
-      // Posting now would only be refused for missing consent. Keep the
-      // sheet and the run so the player can retry or decline (RV-DC-6).
-      setConsentError(CONSENT_SAVE_FAILED);
-      setConsentBusy(false);
-      return;
-    }
-    setShowConsent(false);
-    setConsentBusy(false);
-    const run = pendingSave;
-    setPendingSave(null);
-    if (run) await submitRun(run);
-  }, [pendingSave, submitRun, saveConsent]);
-
-  const handleConsentDecline = useCallback(() => {
-    setShowConsent(false);
-    setConsentError(null);
-    setPendingSave(null);
-    if (isDaily) setDailySave({ status: "not_saved", reason: "no_consent" });
-  }, [isDaily]);
 
   return (
     <div className="fixed inset-0 z-40 bg-void">
@@ -480,12 +467,12 @@ export function ClimbScreen({ onSignIn }: { onSignIn?: () => void } = {}) {
           />
         )}
 
-        {showConsent && (
+        {consent.open && (
           <LeaderboardConsentModal
-            onAccept={handleConsentAccept}
-            onDecline={handleConsentDecline}
-            busy={consentBusy}
-            error={consentError}
+            onAccept={consent.accept}
+            onDecline={consent.decline}
+            busy={consent.busy}
+            error={consent.error}
           />
         )}
       </div>
