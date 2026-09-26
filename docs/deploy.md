@@ -72,7 +72,13 @@ Vercel will use `vercel.json` in the `app/` directory.
    with the Daily Climb fetches `GET /api/climb/daily` before a daily run can
    start. Against an older server that is a 404, and the app shows "Can't
    load today's tower" to every player. Set `DAILY_SEED_SECRET` first (see
-   above); without it the routes answer 503.
+   above); without it the routes answer 503. Since 6de0f7c the answer must
+   also carry the server's `now` (the parser rejects a body without it), so
+   a mobile build with that commit also needs a server at or after it. A
+   server on 0bde27f answers 200 without `now`, and that build shows the
+   same "Can't load today's tower". Older mobile builds ignore the extra
+   field. The web client ships with the server in the same Vercel deploy,
+   so web has no skew.
 2. **`DAILY_SIM_VERSION` locks out installed builds.** The server refuses a
    daily result whose `simVersion` differs from its own
    (`app/src/game/simVersion.ts`) with 409 `SIM_VERSION_MISMATCH`, and the
