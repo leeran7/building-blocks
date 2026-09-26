@@ -67,6 +67,21 @@ export function formatReset(ms: number): string {
   return "<1m";
 }
 
+const unit = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+
+/**
+ * formatReset for a screen reader: "6 hours 36 minutes" / "48 minutes" /
+ * "less than a minute". "6h 36m" reads as letters on some voices.
+ */
+export function spokenReset(ms: number): string {
+  const totalMin = Math.max(0, Math.floor(ms / 60000));
+  const h = Math.floor(totalMin / 60);
+  const m = totalMin % 60;
+  if (h > 0) return `${unit(h, "hour", "hours")} ${unit(m, "minute", "minutes")}`;
+  if (m > 0) return unit(m, "minute", "minutes");
+  return "less than a minute";
+}
+
 function read(): DailyStore {
   try {
     const raw = localStorage.getItem(STORE_KEY);

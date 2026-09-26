@@ -8,7 +8,9 @@
  * tab or `?board=today`. Also AC-10 (pinned own row outside the top 50),
  * AC-11 (UTC rollover refetches the day's board cold) and the F-2 / F-3 / F-4
  * Today states: loading, empty, error + retry, not played, hidden -> consent
- * sheet -> refetch, failed consent save, and Friends on Today.
+ * sheet -> refetch, failed consent save, and Friends on Today. The header's
+ * status pill (reset countdown on Today, climber count on All-time) replaces
+ * the old scope/period subtitle.
  *
  * @vitest-environment happy-dom
  */
@@ -49,6 +51,7 @@ const net = vi.hoisted(() => ({
   putStatus: 200,
   hold: null as null | string,
   held: [] as Array<(body: unknown, status?: number) => void>,
+  dashboard: { freeClimb: null } as unknown,
 }));
 
 function jsonResponse(body: unknown, status = 200): Response {
@@ -64,7 +67,7 @@ const apiFetch = vi.fn(async (path: string, init?: RequestInit): Promise<Respons
   if (path === "/api/climb/daily/leaderboard") return jsonResponse(net.daily, net.dailyStatus);
   if (path === "/api/climb/daily/leaderboard/friends") return jsonResponse(net.friendsDaily);
   if (path === "/api/climb/leaderboard") return jsonResponse({ climbers: [allTimeRow(1, "alltime-top", 9000)] });
-  if (path === "/api/dashboard") return jsonResponse({ freeClimb: null });
+  if (path === "/api/dashboard") return jsonResponse(net.dashboard);
   if (path === "/api/settings") {
     if (init?.method === "PUT") {
       if (net.putStatus !== 200) return jsonResponse({ error: "no" }, net.putStatus);
@@ -82,6 +85,7 @@ vi.mock("../../mobile/src/lib/api", () => ({
 import { AppDataProvider } from "../../mobile/src/contexts/AppDataContext";
 import { LeaderboardScreen } from "../../mobile/src/screens/LeaderboardScreen";
 import { utcDayKey, nextUtcResetAt } from "../../src/lib/dailyDay";
+import { contrastRatio, mobileColorTokens, opaqueTokenColor } from "../lib/mobileTokens";
 
 function allTimeRow(rank: number, userId: string, peakY: number) {
   return { rank, userId, handle: `Climber ${userId}`, username: null, peakY, wins: 0, avatarId: null };
@@ -188,6 +192,7 @@ beforeEach(() => {
   net.putStatus = 200;
   net.hold = null;
   net.held = [];
+  net.dashboard = { freeClimb: null };
   try {
     localStorage.clear();
   } catch {
@@ -210,7 +215,20 @@ const tablistOf = (id: string) => tab(id)?.closest('[role="tablist"]') ?? null;
 const tabIds = (list: Element | null) => [...(list?.querySelectorAll('[role="tab"]') ?? [])].map((t) => t.id);
 /** The accent underline bar rendered inside a period tab. */
 const underline = (id: string) => tab(id)?.querySelector("span[aria-hidden]") ?? null;
-const subtitle = () => $("header")?.textContent ?? "";
+const header = () => $("header")?.textContent ?? "";
+/** What the header shows on screen (screen-reader-only text removed). */
+const headerVisible = () => {
+  const copy = $("header")?.cloneNode(true) as HTMLElement | undefined;
+  copy?.querySelectorAll(".sr-only").forEach((n) => n.remove());
+  return copy?.textContent ?? "";
+};
+/** The header's status pill, its visible text, and what a screen reader reads instead. */
+const pill = () => $("header [data-hub-status]") as HTMLElement | null;
+const pillText = () =>
+  [...(pill()?.querySelectorAll('span[aria-hidden="true"]') ?? [])].map((s) => s.textContent).join("").trim();
+const pillLabel = () => pill()?.querySelector(".sr-only")?.textContent ?? null;
+/** Words the old subtitle repeated from the tabs; the header must not show them any more. */
+const TAB_WORDS = /global|friends|all.time|today's tower/i;
 
 async function key(list: Element, k: string) {
   await act(async () => {
@@ -221,15 +239,15 @@ async function key(list: Element, k: string) {
 
 describe("Ranks: Global | Friends pill, then All-time | Today underline tabs (AC-9)", () => {
   it("opens on All-time by default and never fetches today's board", async () => {
+    net.dashboard = dashboardWith(1302);
     await render("/leaderboard", createElement(LeaderboardScreen));
     expect(tab("lb-period-alltime")?.getAttribute("aria-selected")).toBe("true");
     expect(tab("lb-period-today")?.getAttribute("aria-selected")).toBe("false");
     expect(text()).toContain("Climber alltime-top");
     expect(text()).not.toContain("Climber b");
     expect(dailyCalls()).toBe(0);
-    expect(subtitle()).toContain("Global");
-    expect(subtitle()).toContain("All time");
-    expect(subtitle()).not.toMatch(/Resets in/);
+    expect(headerVisible()).not.toMatch(TAB_WORDS);
+    expect(pillText()).toBe("1,302 climbers");
   });
 
   it("renders the scope pill first, then a separate period tablist with its own name, All-time before Today", async () => {
@@ -269,23 +287,23 @@ describe("Ranks: Global | Friends pill, then All-time | Today underline tabs (AC
     expect(tab("lb-period-today")?.className).toContain("text-accent");
   });
 
-  it("the Today tab opens today's board and the header follows: Today's tower · Resets in", async () => {
+  it("the Today tab opens today's board and the status pill follows: Resets in", async () => {
     await render("/leaderboard", createElement(LeaderboardScreen));
     await click(tab("lb-period-today"));
     expect(dailyCalls()).toBe(1);
     expect($("#lb-period-panel")?.getAttribute("aria-labelledby")).toBe("lb-period-today");
     expect(text()).toContain("Climber b");
     expect(text()).not.toContain("Climber alltime-top");
-    expect(subtitle()).toContain("Today's tower");
-    expect(subtitle()).toMatch(/Resets in (\d+h \d+m|\d+m|<1m)/);
+    expect(pillText()).toMatch(/^Resets in (\d+h \d+m|\d+m|<1m)$/);
+    expect(headerVisible()).not.toMatch(TAB_WORDS);
 
     await click(tab("lb-period-alltime"));
     expect(text()).toContain("Climber alltime-top");
-    expect(subtitle()).toContain("All time");
-    expect(subtitle()).not.toMatch(/Resets in/);
+    expect(pillText()).toBe("All-time best heights");
+    expect(header()).not.toMatch(/Resets in/);
   });
 
-  it("the header names the scope on both periods (Friends · All time, Friends · Today's tower)", async () => {
+  it("the header never names the scope or period on either tab row (the tabs already do)", async () => {
     net.friendsDaily = {
       day: utcDayKey(new Date()),
       resetsAt: nextUtcResetAt(new Date()).toISOString(),
@@ -293,13 +311,14 @@ describe("Ranks: Global | Friends pill, then All-time | Today underline tabs (AC
       hiddenCount: 0,
       notClimbedCount: 0,
     };
+    net.dashboard = dashboardWith(1302);
     await render("/leaderboard", createElement(LeaderboardScreen));
     await click(tab("lb-tab-friends"));
-    expect(subtitle()).toContain("Friends");
-    expect(subtitle()).toContain("All time");
+    expect(headerVisible()).not.toMatch(TAB_WORDS);
+    expect(pillText()).toBe("1,302 climbers");
     await click(tab("lb-period-today"));
-    expect(subtitle()).toContain("Friends");
-    expect(subtitle()).toContain("Today's tower");
+    expect(headerVisible()).not.toMatch(TAB_WORDS);
+    expect(pillText()).toMatch(/^Resets in /);
   });
 
   it("arrow keys move selection and focus in the period row (wrapping); Home/End jump to the ends", async () => {
@@ -631,8 +650,8 @@ describe("Ranks: scope row keyboard + Friends on Today (verifier)", () => {
     expect(text()).toContain("Climber f4");
     expect($("#lb-me-pinned")).toBeNull();
     expect(text()).toContain("2 friends haven't climbed yet · 1 hidden");
-    expect(subtitle()).toContain("Friends");
-    expect(subtitle()).toContain("Today's tower");
+    expect(headerVisible()).not.toMatch(TAB_WORDS);
+    expect(pillText()).toMatch(/^Resets in /);
   });
 
   it("a 'See today's board' deep link (TODAY_BOARD_PATH) opens Today", async () => {
@@ -640,5 +659,189 @@ describe("Ranks: scope row keyboard + Friends on Today (verifier)", () => {
     await render(TODAY_BOARD_PATH, createElement(LeaderboardScreen));
     expect(tab("lb-period-today")?.getAttribute("aria-selected")).toBe("true");
     expect(dailyCalls()).toBe(1);
+  });
+});
+
+const LIVE_ROLES = new Set(["status", "alert", "log", "marquee", "timer"]);
+/** The nearest element at or above `el` that makes a live region (announces changes), or null. */
+function liveRegionAround(el: Element | null): Element | null {
+  for (let n = el; n; n = n.parentElement) {
+    const live = n.getAttribute("aria-live");
+    if ((live && live !== "off") || LIVE_ROLES.has(n.getAttribute("role") ?? "")) return n;
+  }
+  return null;
+}
+
+function dashboardWith(totalClimbers: unknown) {
+  return {
+    user: { id: ME, email: "me@example.test", username: null },
+    freeClimb: { peakY: 5000, rank: 4, totalClimbers, wins: 1, handle: "Me" },
+  };
+}
+
+describe("Ranks: live status pill under the title", () => {
+  it("All-time shows the people icon and the dashboard's climber count", async () => {
+    net.dashboard = dashboardWith(1302);
+    await render("/leaderboard", createElement(LeaderboardScreen));
+    expect(pillText()).toBe("1,302 climbers");
+    expect(pillLabel()).toBe("1,302 climbers on the all-time board");
+    expect(pill()?.querySelector("svg circle[r='3.5']")).toBeTruthy(); // the people glyph
+    // The visible copy is hidden from assistive tech; only the label is read.
+    const readable = [...pill()!.childNodes].filter((n) => (n as Element).getAttribute?.("aria-hidden") !== "true");
+    expect(readable.map((n) => n.textContent)).toEqual(["1,302 climbers on the all-time board"]);
+  });
+
+  it("the count is the same on Friends: the pill follows the period, not the scope", async () => {
+    net.dashboard = dashboardWith(1302);
+    net.friendsDaily = null;
+    await render("/leaderboard", createElement(LeaderboardScreen));
+    await click(tab("lb-tab-friends"));
+    expect(pillText()).toBe("1,302 climbers");
+  });
+
+  it.each([
+    ["no free climb yet", { freeClimb: null }],
+    ["a zero count", dashboardWith(0)],
+    ["a string count", dashboardWith("1302")],
+    ["a negative count", dashboardWith(-4)],
+  ])("All-time with %s shows 'All-time best heights', never a fabricated count", async (_, dashboard) => {
+    net.dashboard = dashboard;
+    await render("/leaderboard", createElement(LeaderboardScreen));
+    expect(pillText()).toBe("All-time best heights");
+    expect(pillLabel()).toBe("All-time best heights");
+    expect(header()).not.toMatch(/\d+ climbers?/);
+  });
+
+  it("control: a failed dashboard load also falls back (the pill never waits on it)", async () => {
+    net.hold = "/api/dashboard";
+    await render("/leaderboard", createElement(LeaderboardScreen));
+    expect(pillText()).toBe("All-time best heights");
+  });
+
+  it("Today shows the clock and the countdown, ticking per minute, spoken as words", async () => {
+    const at = new Date("2026-09-26T17:24:00.000Z"); // 6h 36m before the UTC reset
+    vi.useFakeTimers({ now: at, toFake: ["Date", "setTimeout", "clearTimeout", "setInterval", "clearInterval"] });
+    net.dashboard = dashboardWith(1302);
+    net.daily = dailyBoard([dailyRow(1, "a", 900)], null, at);
+    await render(TODAY, createElement(LeaderboardScreen));
+    expect(pillText()).toBe("Resets in 6h 36m");
+    expect(pillLabel()).toBe("Today's board resets in 6 hours 36 minutes");
+    expect(pill()?.querySelector("svg path[d='M12 7v5l3 2']")).toBeTruthy(); // the clock hands
+    expect(header()).not.toMatch(/climbers/);
+    const node = pill();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(60_000);
+    });
+    await settle();
+    expect(pillText()).toBe("Resets in 6h 35m");
+    expect(pillLabel()).toBe("Today's board resets in 6 hours 35 minutes");
+    expect(pill()).toBe(node); // updated in place, not remounted
+  });
+
+  it("the countdown is not a live region: nothing at or above the pill announces its per-minute change", async () => {
+    // Positive controls: the guard does flag both kinds of live region.
+    const polite = document.createElement("div");
+    polite.setAttribute("aria-live", "polite");
+    polite.appendChild(document.createElement("p"));
+    expect(liveRegionAround(polite.firstElementChild)).toBe(polite);
+    const status = document.createElement("div");
+    status.setAttribute("role", "status");
+    status.appendChild(document.createElement("p"));
+    expect(liveRegionAround(status.firstElementChild)).toBe(status);
+
+    await render(TODAY, createElement(LeaderboardScreen));
+    expect(pillText()).toMatch(/^Resets in /);
+    expect(liveRegionAround(pill())).toBeNull();
+    for (const el of pill()!.querySelectorAll("*")) {
+      expect(el.getAttribute("aria-live")).toBeNull();
+      expect(LIVE_ROLES.has(el.getAttribute("role") ?? "")).toBe(false);
+    }
+    // And no other live region on the screen carries the countdown.
+    const live = [...container!.querySelectorAll("[aria-live]:not([aria-live='off']), [role=status], [role=alert], [role=timer]")];
+    expect(live.filter((el) => /Resets in|resets in/.test(el.textContent ?? ""))).toEqual([]);
+  });
+
+  it("reserves one fixed-height, single-line pill across both periods (no layout shift)", async () => {
+    net.dashboard = dashboardWith(1302);
+    await render("/leaderboard", createElement(LeaderboardScreen));
+    const node = pill()!;
+    const allTimeClass = node.className;
+    expect(allTimeClass.split(/\s+/)).toEqual(expect.arrayContaining(["h-8", "whitespace-nowrap", "rounded-full", "glass"]));
+    expect(allTimeClass).not.toMatch(/#[0-9a-f]{3,8}/i); // design tokens only
+    await click(tab("lb-period-today"));
+    expect(pill()).toBe(node);
+    expect(pill()!.className).toBe(allTimeClass);
+  });
+
+  it("keeps the h1 as the header's only heading; the pill is plain text", async () => {
+    await render(TODAY, createElement(LeaderboardScreen));
+    const headings = [...container!.querySelectorAll("header h1, header h2, header h3, header [role=heading]")];
+    expect(headings.map((h) => h.textContent)).toEqual(["Leaderboard"]);
+    expect(pill()?.tagName).toBe("P");
+    expect(pill()?.getAttribute("role")).toBeNull();
+  });
+});
+
+describe("Ranks: period tabs in sentence case", () => {
+  it("names the tabs 'All-time' and 'Today' in body type, not tracked mono caps, keeping the tablist semantics", async () => {
+    await render("/leaderboard", createElement(LeaderboardScreen));
+    for (const [id, name] of [["lb-period-alltime", "All-time"], ["lb-period-today", "Today"]] as const) {
+      const t = tab(id)!;
+      expect(t.getAttribute("role")).toBe("tab");
+      expect(t.getAttribute("aria-label")).toBeNull(); // the accessible name is the visible text
+      expect(t.textContent?.trim()).toBe(name);
+      const classes = t.className.split(/\s+/);
+      expect(classes).toEqual(expect.arrayContaining(["font-sans", "text-body"]));
+      expect(classes.filter((c) => c === "uppercase" || c === "font-mono" || c.startsWith("tracking-"))).toEqual([]);
+    }
+    expect(tab("lb-period-alltime")?.className).toContain("text-accent");
+    expect(tab("lb-period-today")?.className).toContain("text-text-secondary");
+    expect(tablistOf("lb-period-today")?.getAttribute("aria-label")).toBe("Leaderboard period");
+  });
+});
+
+describe("Ranks: pinned own row surface and contrast (AC-10)", () => {
+  const tokens = mobileColorTokens();
+
+  it("control: the token resolver rejects a translucent colour and the ratio check can fail", () => {
+    expect(tokens.get("surface")).toBe("#121116");
+    expect(opaqueTokenColor("bg-signal/[0.09]", "bg", tokens)).toBeNull();
+    expect(opaqueTokenColor("text-white/50", "text", tokens)).toBeNull();
+    expect(opaqueTokenColor("text-meta", "text", tokens)).toBeNull(); // a size, not a colour
+    expect(opaqueTokenColor("bg-surface", "bg", tokens)).toBe("#121116");
+    expect(contrastRatio(tokens.get("text-disabled")!, tokens.get("surface")!)).toBeLessThan(4.5);
+  });
+
+  it("sits on the opaque surface token with the lime border, and every text in it clears WCAG AA 4.5:1", async () => {
+    const top = Array.from({ length: 50 }, (_, i) => dailyRow(i + 1, `p${i}`, 1000 - i));
+    net.daily = dailyBoard(top, { rank: 73, peakY: 96.4, attempts: 3 });
+    await render(TODAY, createElement(LeaderboardScreen));
+    const pinned = $("#lb-me-pinned") as HTMLElement;
+    expect(pinned).toBeTruthy();
+    const classes = pinned.className.split(/\s+/);
+    const bgs = classes.filter((c) => c.startsWith("bg-"));
+    expect(bgs).toEqual(["bg-surface"]);
+    const bg = opaqueTokenColor(bgs[0], "bg", tokens)!;
+    expect(bg).toBe(tokens.get("surface"));
+    expect(classes).toContain("border-signal/50");
+
+    let checked = 0;
+    const walk = (el: Element, inherited: string | null) => {
+      const own = el.className && typeof el.className === "string"
+        ? el.className.split(/\s+/).map((c) => opaqueTokenColor(c, "text", tokens)).find((c) => c !== null) ?? null
+        : null;
+      const color = own ?? inherited;
+      const hasText = [...el.childNodes].some((n) => n.nodeType === Node.TEXT_NODE && n.textContent!.trim() !== "");
+      if (hasText) {
+        expect(color, `text colour for "${el.textContent}"`).not.toBeNull();
+        expect(contrastRatio(color!, bg), `"${el.textContent}" on the pinned row`).toBeGreaterThanOrEqual(4.5);
+        checked++;
+      }
+      for (const child of el.children) walk(child, color);
+    };
+    walk(pinned, null);
+    expect(pinned.textContent).toContain("96.4");
+    expect(checked).toBeGreaterThanOrEqual(4); // rank, "you · today", tries, height (+ unit)
   });
 });

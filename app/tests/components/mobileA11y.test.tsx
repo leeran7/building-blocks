@@ -288,7 +288,9 @@ describe("Hub header shared by Ranks and Profile", () => {
     const header = headers[0] as HTMLElement | undefined;
     expect(header).toBeTruthy();
     const h1s = container.querySelectorAll("h1");
-    const [eyebrow, titleRow, subtitle] = [...header!.children] as HTMLElement[];
+    const [eyebrow, titleRow, ...rest] = [...header!.children] as HTMLElement[];
+    const status = rest.find((el) => el.hasAttribute("data-hub-status"));
+    const subtitle = rest.find((el) => !el.hasAttribute("data-hub-status"));
     return {
       h1s: [...h1s].map((h) => h.textContent),
       titleInHeader: header!.contains(h1s[0] ?? null),
@@ -297,6 +299,8 @@ describe("Hub header shared by Ranks and Profile", () => {
       h1Class: titleRow.querySelector("h1")?.className,
       subtitleClass: subtitle?.className,
       subtitle: subtitle ? [...subtitle.children].map((c) => (c.getAttribute("aria-hidden") ? "·" : c.textContent)) : [],
+      status: status ? { className: status.className, label: status.querySelector(".sr-only")?.textContent } : null,
+      childCount: header!.children.length,
     };
   }
 
@@ -312,7 +316,7 @@ describe("Hub header shared by Ranks and Profile", () => {
     expect(profile.titleInHeader).toBe(true);
   });
 
-  it("renders the same eyebrow, title and subtitle styling on both, with the rules and dots hidden", async () => {
+  it("renders the same eyebrow and title on both; Ranks has a status pill, Profile keeps its subtitle", async () => {
     net.climbers = [climber(1, "a")];
     const ranks = await headerOf("/leaderboard", createElement(LeaderboardScreen));
     act(() => root.unmount());
@@ -322,11 +326,42 @@ describe("Hub header shared by Ranks and Profile", () => {
     expect(profile.header).toBe(ranks.header);
     expect(profile.eyebrow).toBe(ranks.eyebrow);
     expect(profile.h1Class).toBe(ranks.h1Class);
-    expect(profile.subtitleClass).toBe(ranks.subtitleClass);
     expect(ranks.eyebrow).toContain(">Doomstack<");
     expect(ranks.eyebrow.match(/aria-hidden="true"/g)).toHaveLength(2);
-    expect(ranks.subtitle).toEqual(["Global", "·", "All time"]);
+    // Ranks: no tracked-mono subtitle any more, one status pill instead (dashboard total 9).
+    expect(ranks.subtitle).toEqual([]);
+    expect(ranks.status?.label).toBe("9 climbers on the all-time board");
+    expect(ranks.childCount).toBe(3);
+    // Profile: the same tracked-mono subtitle as before, and no pill.
     expect(profile.subtitle).toEqual(["Your climb"]);
+    expect(profile.subtitleClass).toBe(
+      "mt-2 flex items-center gap-2 font-mono text-label uppercase tracking-label text-text-muted",
+    );
+    expect(profile.status).toBeNull();
+    expect(profile.childCount).toBe(3);
+  });
+
+  it("renders subtitle and status independently: the pill only when passed", () => {
+    act(() => root.render(createElement(HubHeader, { title: "Profile", subtitle: ["Your climb"] })));
+    expect(container.querySelector("[data-hub-status]")).toBeNull();
+    expect(container.querySelector("header > p")?.textContent).toBe("Your climb");
+
+    act(() =>
+      root.render(
+        createElement(HubHeader, {
+          title: "Leaderboard",
+          subtitle: ["Your climb"],
+          status: { icon: createElement("svg"), text: "Resets in 6h 36m", label: "Today's board resets in 6 hours 36 minutes" },
+        }),
+      ),
+    );
+    const pill = container.querySelector("header > [data-hub-status]")!;
+    expect(container.querySelector("header > p:not([data-hub-status])")?.textContent).toBe("Your climb");
+    expect([...pill.children].map((c) => [c.getAttribute("aria-hidden"), c.textContent])).toEqual([
+      ["true", ""],
+      ["true", "Resets in 6h 36m"],
+      [null, "Today's board resets in 6 hours 36 minutes"],
+    ]);
   });
 
   it("renders repeated subtitle segments with distinct keys", () => {
