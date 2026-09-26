@@ -335,6 +335,73 @@ describe("ladder jump-off: jumping off mid-climb does not re-grab", () => {
   });
 });
 
+describe("ladder jump-off: a held climb re-grabs once clear of the ladder", () => {
+  // A joystick keeps Up pressed through a jump-off, so the suppression must
+  // lift without a release — but not while still airborne beside the ladder.
+  const JUMP_CLIMB: PlayerInput = { moveX: 0, jump: true, climbY: 1, usePowerUp: false };
+  const JUMP_CLIMB_RIGHT: PlayerInput = { moveX: 1, jump: true, climbY: 1, usePowerUp: false };
+  const UP_RIGHT: PlayerInput = { moveX: 1, jump: false, climbY: 1, usePowerUp: false };
+  const UP_LEFT: PlayerInput = { moveX: -1, jump: false, climbY: 1, usePowerUp: false };
+
+  function midClimb(tower: TowerSpec) {
+    const l0 = ladderForFloor(tower, 0);
+    const m = climbingMatch("solo", ["p1"], tower);
+    const p = m.players[0];
+    p.x = l0.x;
+    p.y = 0;
+    p.onGround = true;
+    for (let t = 0; t < 30; t++) stepMatch(m, { p1: UP }, SLOW);
+    expect(p.onLadder).toBe(true);
+    return { l0, m, p };
+  }
+
+  it("re-grabs the same ladder after landing, climb never released", () => {
+    const tower = buildTower("indie-games");
+    const { l0, m, p } = midClimb(tower);
+    stepMatch(m, { p1: JUMP_CLIMB }, SLOW);
+    expect(p.onLadder).toBe(false);
+
+    let landed = false;
+    let regrabbed = false;
+    for (let t = 0; t < 120 && !regrabbed; t++) {
+      stepMatch(m, { p1: UP }, SLOW);
+      // Never back on the ladder while still in the air beside it.
+      if (!landed) expect(p.onLadder).toBe(false);
+      if (p.onGround) landed = true;
+      regrabbed = p.onLadder;
+    }
+    expect(landed).toBe(true);
+    expect(regrabbed).toBe(true);
+    expect(p.x).toBe(l0.x);
+  });
+
+  it("re-grabs the same ladder on the way back after leaving its reach mid-air", () => {
+    const tower = buildTower("indie-games");
+    const { l0, m, p } = midClimb(tower);
+    stepMatch(m, { p1: JUMP_CLIMB_RIGHT }, SLOW);
+    expect(p.onLadder).toBe(false);
+
+    // Out of reach while still airborne: the suppression lifts.
+    let t = 0;
+    while (Math.abs(p.x - l0.x) <= tower.ladderGrabRadius && t++ < 30) {
+      stepMatch(m, { p1: UP_RIGHT }, SLOW);
+      expect(p.onLadder).toBe(false);
+    }
+    expect(Math.abs(p.x - l0.x)).toBeGreaterThan(tower.ladderGrabRadius);
+    expect(p.onGround).toBe(false);
+    expect(p.grabSuppressedUntilRelease).toBeNull();
+
+    // Head back with Up still held: grabs the same ladder.
+    let regrabbed = false;
+    for (let k = 0; k < 30 && !regrabbed; k++) {
+      stepMatch(m, { p1: UP_LEFT }, SLOW);
+      regrabbed = p.onLadder;
+    }
+    expect(regrabbed).toBe(true);
+    expect(p.x).toBe(l0.x);
+  });
+});
+
 describe("AC-7 / AC-8: caught by the death line eliminates and retains peak", () => {
   it("eliminates a caught climber but keeps peakY (solo & multiplayer)", () => {
     for (const mode of ["solo", "multiplayer"] as const) {

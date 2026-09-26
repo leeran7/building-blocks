@@ -150,10 +150,12 @@ export interface PlayerState {
    */
   jetpackThrusting: boolean;
   /**
-   * After stepping off a ladder, stores which ladder (ix + slot) is suppressed
-   * so the player won't snap back onto it while the climb button is held. Clears
-   * when the button is released OR when a *different* ladder is in reach, so
-   * holding climb across consecutive ladders works.
+   * After jumping off a ladder, stores which ladder (ix + slot) is suppressed
+   * so the player won't snap straight back onto it while climb is held. Clears
+   * when climb is released, when the player lands, or when they move out of
+   * that ladder's grab reach — so a held climb re-grabs it on the way back. A
+   * *different* ladder is never suppressed, so holding climb across consecutive
+   * ladders works.
    */
   grabSuppressedUntilRelease: { ix: number; slot: number } | null;
 }
