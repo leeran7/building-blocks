@@ -22,12 +22,7 @@ import {
 import { HUD_ALTITUDE_FONT_UI } from "../../design/climbFeelTokens";
 import { formatAltitude } from "../../lib/units";
 import {
-  CAMERA_AIR_BAND_FRAC,
-  CAMERA_CATCHUP_MPS,
-  CAMERA_SUPER_LEAD_FRAC,
-  cameraFocusY,
   cameraTargetY,
-  type ClimbCameraBag,
   climbView,
   followCamY,
 } from "./climbCamera";
@@ -107,7 +102,7 @@ export type PaintClimbFrameOptions = {
    * Persistent camera across frames. Mutated for easing. When omitted, camera
    * snaps to target each call (fine for one-shot export frames with a bag).
    */
-  camera?: ClimbCameraBag;
+  camera?: { y: number | null; tick: number | null };
   /**
    * Seconds of wall clock since the previous paint, so the camera ease is tied
    * to elapsed time rather than to how often this runs. Defaults to one tick —
@@ -164,42 +159,17 @@ export function paintClimbFrame(
   // Sizes (not positions) that follow the world scale.
   const sizePxPerM = pxPerM * GAME_DRAW_SCALE;
   ensureFontCache(ui);
+  const camTarget = cameraTargetY(playerY, viewH, bottomInset, pxPerM);
   // Snap on the first paint of a run, and on any backward jump (replay seek).
   // `state.tick` is fractional under render interpolation, so the opening tick
   // is "< 1" rather than "=== 0".
   const camSnap =
     camBag.tick === null || state.tick < camBag.tick || state.tick < 1;
-  const camDt = opts.dtSec ?? TICK_DT;
-  const supported =
-    !player ||
-    player.onGround ||
-    player.onLadder ||
-    player.jetpackThrusting ||
-    player.status !== "climbing";
-  // Under super-jump the view climbs with the climber once they rise past a
-  // short lead, like jetpack thrust; the fall back is held like any jump.
-  const airBandM = viewH * CAMERA_AIR_BAND_FRAC;
-  const riseM =
-    player && isPowerUpActive(player, "super-jump", state.tick)
-      ? viewH * CAMERA_SUPER_LEAD_FRAC
-      : airBandM;
-  const focusY = cameraFocusY(
-    camSnap ? null : camBag.focusY ?? null,
-    camBag.playerY ?? null,
-    playerY,
-    supported,
-    airBandM,
-    CAMERA_CATCHUP_MPS * camDt,
-    riseM
-  );
-  camBag.focusY = focusY;
-  camBag.playerY = playerY;
-  const camTarget = cameraTargetY(focusY, viewH, bottomInset, pxPerM);
   const camWorldY = followCamY(
     camBag.y,
     camTarget,
     viewH,
-    camDt,
+    opts.dtSec ?? TICK_DT,
     camSnap
   );
   camBag.y = camWorldY;
