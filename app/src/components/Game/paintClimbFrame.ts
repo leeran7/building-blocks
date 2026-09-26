@@ -23,6 +23,7 @@ import { HUD_ALTITUDE_FONT_UI } from "../../design/climbFeelTokens";
 import { formatAltitude } from "../../lib/units";
 import {
   CAMERA_AIR_BAND_FRAC,
+  CAMERA_CATCHUP_MPS,
   cameraFocusY,
   cameraTargetY,
   CLIMBER_DRAW_SCALE,
@@ -157,16 +158,19 @@ export function paintClimbFrame(
   // is "< 1" rather than "=== 0".
   const camSnap =
     camBag.tick === null || state.tick < camBag.tick || state.tick < 1;
+  const camDt = opts.dtSec ?? TICK_DT;
   const supported =
     !player ||
     player.onGround ||
     player.onLadder ||
+    player.jetpackThrusting ||
     player.status !== "climbing";
   const focusY = cameraFocusY(
     camSnap ? null : camBag.focusY ?? null,
     playerY,
     supported,
-    viewH * CAMERA_AIR_BAND_FRAC
+    viewH * CAMERA_AIR_BAND_FRAC,
+    CAMERA_CATCHUP_MPS * camDt
   );
   camBag.focusY = focusY;
   const camTarget = cameraTargetY(focusY, viewH, bottomInset, pxPerMY);
@@ -174,7 +178,7 @@ export function paintClimbFrame(
     camBag.y,
     camTarget,
     viewH,
-    opts.dtSec ?? TICK_DT,
+    camDt,
     camSnap
   );
   camBag.y = camWorldY;

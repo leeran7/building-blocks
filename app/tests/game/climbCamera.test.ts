@@ -10,6 +10,7 @@ import { describe, expect, it } from "vitest";
 import {
   CAMERA_FOCUS_FRAC,
   CAMERA_FOLLOW,
+  CAMERA_CATCHUP_MPS,
   cameraFocusY,
   WORLD_HEIGHT_STRETCH,
   cameraTargetY,
@@ -182,25 +183,33 @@ function playerScreenFrac(playerY: number, camY: number, viewH: number): number 
   return 1 - (playerY - camY) / viewH;
 }
 
-describe("cameraFocusY: the camera holds still through a jump", () => {
+describe("cameraFocusY: holds through jumps, glides on catch-up", () => {
   const BAND = 20;
-
-  it("frames the climber while grounded or on a ladder", () => {
-    expect(cameraFocusY(100, 140, true, BAND)).toBe(140);
-  });
+  const STEP = 1;
 
   it("frames the climber when there is no anchor yet", () => {
-    expect(cameraFocusY(null, 140, false, BAND)).toBe(140);
+    expect(cameraFocusY(null, 140, false, BAND, STEP)).toBe(140);
+    expect(cameraFocusY(null, 140, true, BAND, STEP)).toBe(140);
+  });
+
+  it("tracks a supported climber exactly within the step cap", () => {
+    expect(cameraFocusY(100, 100.5, true, BAND, STEP)).toBe(100.5);
+    expect(cameraFocusY(100, 99.2, true, BAND, STEP)).toBe(99.2);
+  });
+
+  it("caps a supported catch-up at maxStep in either direction", () => {
+    expect(cameraFocusY(100, 120, true, BAND, STEP)).toBe(101);
+    expect(cameraFocusY(100, 80, true, BAND, STEP)).toBe(99);
   });
 
   it("holds the take-off height while the arc stays inside the band", () => {
-    expect(cameraFocusY(100, 103, false, BAND)).toBe(100);
-    expect(cameraFocusY(100, 97, false, BAND)).toBe(100);
+    expect(cameraFocusY(100, 103, false, BAND, STEP)).toBe(100);
+    expect(cameraFocusY(100, 97, false, BAND, STEP)).toBe(100);
   });
 
   it("drags the band edge once the climber leaves it", () => {
-    expect(cameraFocusY(100, 130, false, BAND)).toBe(130 - BAND);
-    expect(cameraFocusY(100, 60, false, BAND)).toBe(60 + BAND);
+    expect(cameraFocusY(100, 130, false, BAND, STEP)).toBe(130 - BAND);
+    expect(cameraFocusY(100, 60, false, BAND, STEP)).toBe(60 + BAND);
   });
 });
 
@@ -261,5 +270,87 @@ describe("paintClimbFrame camera through a real jump arc", () => {
       paint();
     }
     expect(camera.y!).toBeGreaterThan(settled + 20);
+  });
+
+  it("follows jetpack thrust and glides after a long fall", () => {
+    const tower = buildTower("indie-games");
+    const m = createMatch({
+      seed: "jet-cam",
+      mode: "solo",
+      tower,
+      playerIds: ["p1"],
+    });
+    const p = m.players[0]!;
+    const ctx = new Proxy(
+      {},
+      {
+        get: (_t, prop) =>
+          prop === "measureText"
+            ? () => ({ width: 10 })
+            : typeof prop === "string" && prop.startsWith("create")
+              ? () => ({ addColorStop() {} })
+              : () => {},
+        set: () => true,
+      }
+    ) as unknown as PaintCtx;
+    const camera = { y: null as number | null, tick: null as number | null };
+    let tick = 0.5;
+    const paint = () => {
+      tick += 1;
+      m.tick = tick;
+      paintClimbFrame(ctx, m, {
+        width: WIDTH,
+        height: HEIGHT,
+        camera,
+        dtSec: TICK_DT,
+      });
+      return camera.y!;
+    };
+
+    p.y = 200;
+    p.onGround = true;
+    for (let i = 0; i < 60; i++) paint();
+    const start = camera.y!;
+
+    // Jetpack: 12 m/s for 3 s, well past the jump band. The camera rises with
+    // the climber the whole way rather than parking and catching up later.
+    p.onGround = false;
+    p.jetpackThrusting = true;
+    for (let i = 0; i < 90; i++) {
+      p.y += 12 * TICK_DT;
+      paint();
+    }
+    const { viewH } = climbView(WIDTH, HEIGHT, tower.widthM);
+    const cameraLagM = p.y - viewH * (1 - CAMERA_FOCUS_FRAC) - camera.y!;
+    expect(camera.y!).toBeGreaterThan(start + 30);
+    expect(cameraLagM).toBeLessThan(2);
+
+    // Thrust ends and the climber drops 40 m: the camera is dragged down by
+    // the band. Landing then glides in: no frame moves faster than the fall
+    // already was or the catch-up cap. Snapping the focus moved ~6 m at once.
+    p.jetpackThrusting = false;
+    let fallPrev = camera.y!;
+    let fallMaxStep = 0;
+    for (let i = 0; i < 40; i++) {
+      p.y -= 1;
+      const y = paint();
+      fallMaxStep = Math.max(fallMaxStep, Math.abs(y - fallPrev));
+      fallPrev = y;
+    }
+    p.onGround = true;
+    let prev = camera.y!;
+    let maxStep = 0;
+    let steps = 0;
+    for (let i = 0; i < 90; i++) {
+      const y = paint();
+      maxStep = Math.max(maxStep, Math.abs(y - prev));
+      prev = y;
+      steps++;
+    }
+    expect(steps).toBeGreaterThan(0);
+    expect(maxStep).toBeGreaterThan(0);
+    expect(maxStep).toBeLessThanOrEqual(
+      Math.max(fallMaxStep, CAMERA_CATCHUP_MPS * TICK_DT) + 1e-9
+    );
   });
 });

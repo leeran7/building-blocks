@@ -48,23 +48,36 @@ export function climbView(
 /**
  * Half-height of the airborne dead band, as a fraction of the view. A normal
  * or super jump stays inside it, so the camera holds still instead of riding
- * every arc up and back down. A long fall or a jetpack climb leaves it and the
- * camera follows again.
+ * every arc up and back down. A long fall leaves it and the camera follows.
  */
 export const CAMERA_AIR_BAND_FRAC = 0.12;
 
 /**
- * The height the camera frames. Grounded or on a ladder, that is the climber.
- * Airborne, it holds the last supported height and only moves once the
- * climber leaves the ±band around it, dragging the edge of the band along.
+ * Fastest the camera focus closes on a supported climber, in metres/second.
+ * Above every ladder and jetpack speed, so those track exactly; a landing far
+ * from the held height (after a long fall) glides in instead of lurching.
+ */
+export const CAMERA_CATCHUP_MPS = 25;
+
+/**
+ * The height the camera frames.
+ *
+ * Supported (ground, ladder, jetpack thrust): moves toward the climber, at
+ * most `maxStepM` this frame. Airborne: holds, and only moves once the climber
+ * leaves the ±band around it, dragging the edge of the band along.
  */
 export function cameraFocusY(
   anchorY: number | null,
   playerY: number,
   supported: boolean,
-  bandM: number
+  bandM: number,
+  maxStepM: number
 ): number {
-  if (supported || anchorY === null) return playerY;
+  if (anchorY === null) return playerY;
+  if (supported) {
+    const step = maxStepM > 0 ? maxStepM : 0;
+    return anchorY + Math.max(-step, Math.min(step, playerY - anchorY));
+  }
   return Math.min(playerY + bandM, Math.max(playerY - bandM, anchorY));
 }
 
