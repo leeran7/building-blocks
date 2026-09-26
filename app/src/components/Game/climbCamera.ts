@@ -57,7 +57,7 @@ export const CAMERA_AIR_BAND_FRAC = 0.12;
  * the gap is rate-limited: a supported climber's own motion (ladder, jetpack,
  * replay at 4x) moves the focus one-for-one, so the climber never drifts.
  */
-export const CAMERA_CATCHUP_MPS = 25;
+export const CAMERA_CATCHUP_MPS = 40;
 
 /**
  * The height the camera frames.
