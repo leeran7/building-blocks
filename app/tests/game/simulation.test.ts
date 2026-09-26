@@ -527,6 +527,32 @@ describe("endless completability: a greedy bot climbs far up a generated tower",
     expect(m.players[0].status).toBe("eliminated");
     expect(m.players[0].peakY).toBeGreaterThan(80); // real climbing happened
   });
+
+  it("AC-11: re-simulating the bot's input log under the real hazard, leash engaged, reproduces the run", () => {
+    // The SLOW-config determinism test below barely moves the lava. This one
+    // runs DEFAULT_SIM_CONFIG, so the continuous leash clock is live.
+    const tower = buildTower("indie-games");
+    const init = { seed: "leash-resim", mode: "solo" as const, tower, playerIds: ["bot"] };
+    const live = createMatch(init);
+    while (live.phase === "countdown") stepMatch(live, {}, DEFAULT_SIM_CONFIG);
+    const log: Record<PlayerId, PlayerInput>[] = [];
+    let leashTicks = 0;
+    while (live.phase === "climb" && log.length < 20000) {
+      const input = botInput(live.players[0], tower, live.tick);
+      log.push({ bot: input });
+      const banked0 = live.hazardSlowSeconds;
+      stepMatch(live, { bot: input }, DEFAULT_SIM_CONFIG);
+      // Only a clock scale > 1 (the leash) banks negative seconds.
+      if (live.hazardSlowSeconds < banked0 - 1e-12) leashTicks += 1;
+    }
+    expect(live.phase).toBe("finished");
+    expect(leashTicks).toBeGreaterThan(0);
+
+    const a = simulateFromInputs(init, log, DEFAULT_SIM_CONFIG);
+    const b = simulateFromInputs(init, log, DEFAULT_SIM_CONFIG);
+    expect(JSON.stringify(a)).toBe(JSON.stringify(live));
+    expect(JSON.stringify(b)).toBe(JSON.stringify(a));
+  });
 });
 
 describe("AC-11: re-simulation is deterministic", () => {

@@ -366,6 +366,17 @@ describe("drawLava: phase drives the drawn body", () => {
     }
   });
 
+  it("positive control: with no override, surge and stumble draw different crest paths", () => {
+    // Proves the lineTo recorder sees the phase amplitude, so the two
+    // precedence tests below cannot pass just because the paths are blind.
+    const a = recordingContext();
+    const b = recordingContext();
+    drawLava(a.ctx, { ...base, phase: "surge", phaseProgress: 0.5 });
+    drawLava(b.ctx, { ...base, phase: "stumble", phaseProgress: PLAIN_STUMBLE });
+    expect(a.counts.lineToYs.length).toBeGreaterThan(0);
+    expect(a.counts.lineToYs).not.toEqual(b.counts.lineToYs);
+  });
+
   it("slow-lava keeps its calm look whatever the phase", () => {
     const a = recordingContext();
     const b = recordingContext();
@@ -373,15 +384,19 @@ describe("drawLava: phase drives the drawn body", () => {
     drawLava(b.ctx, { ...base, slowed: true, phase: "stumble", phaseProgress: PLAIN_STUMBLE });
     expect(a.counts.arc).toBe(b.counts.arc);
     expect(a.counts.strokeAlphas).toEqual(b.counts.strokeAlphas);
+    expect(a.counts.lineToYs.length).toBeGreaterThan(0);
+    expect(a.counts.lineToYs).toEqual(b.counts.lineToYs);
   });
 
-  it("harden-lava takes precedence over the phase look", () => {
+  it("harden-lava takes precedence over the phase look (not slowed, so slow-lava cannot mask it)", () => {
     const a = recordingContext();
     const b = recordingContext();
-    drawLava(a.ctx, { ...base, slowed: true, hardenProgress: 0.5, phase: "surge", phaseProgress: 0.5 });
-    drawLava(b.ctx, { ...base, slowed: true, hardenProgress: 0.5, phase: "stumble", phaseProgress: PLAIN_STUMBLE });
+    drawLava(a.ctx, { ...base, hardenProgress: 0.5, phase: "surge", phaseProgress: 0.5 });
+    drawLava(b.ctx, { ...base, hardenProgress: 0.5, phase: "stumble", phaseProgress: PLAIN_STUMBLE });
     expect(a.counts.arc).toBe(b.counts.arc);
     expect(a.counts.strokeAlphas).toEqual(b.counts.strokeAlphas);
+    expect(a.counts.lineToYs.length).toBeGreaterThan(0);
+    expect(a.counts.lineToYs).toEqual(b.counts.lineToYs);
   });
 
   it("the rim is brighter in a surge than a stumble", () => {
@@ -399,6 +414,7 @@ function recordingContext(): { ctx: CanvasRenderingContext2D; counts: DrawCounts
     save: 0,
     restore: 0,
     lineTo: 0,
+    lineToYs: [],
     arc: 0,
     linear: 0,
     radial: 0,
@@ -417,8 +433,9 @@ function recordingContext(): { ctx: CanvasRenderingContext2D; counts: DrawCounts
     },
     beginPath: () => undefined,
     moveTo: () => undefined,
-    lineTo: () => {
+    lineTo: (_x: number, y: number) => {
       counts.lineTo += 1;
+      counts.lineToYs.push(y);
     },
     arc: () => {
       counts.arc += 1;
@@ -460,6 +477,8 @@ type DrawCounts = {
   save: number;
   restore: number;
   lineTo: number;
+  /** y of every lineTo, in order (crest geometry). */
+  lineToYs: number[];
   arc: number;
   linear: number;
   radial: number;

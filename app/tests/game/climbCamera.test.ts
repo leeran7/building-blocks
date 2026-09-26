@@ -25,6 +25,8 @@ import {
   type PaintCtx,
 } from "../../src/components/Game/paintClimbFrame";
 import { buildTower } from "../../src/game/towers";
+import { buildFreeTower } from "../../src/game/freeStack";
+import { HAZARD_LEASH_M } from "../../src/game/hazard";
 
 const WIDTH = 360;
 const HEIGHT = 640;
@@ -279,5 +281,36 @@ describe("paintClimbFrame camera: smoother through jumps", () => {
     }, 90);
     expect(painted.length).toBeGreaterThan(0);
     painted.forEach((y, i) => expect(y).toBeCloseTo(baseline[i]!, 9));
+  });
+});
+
+describe("camera framing keeps the leashed lava in view (spec-lava-apparency §3)", () => {
+  // The leash rides the lava HAZARD_LEASH_M behind a fast climber, and the
+  // measured 0.85× band (hazard.ts header) is ~53–101 ft. At the old 0.62
+  // focus the view showed only ~68 ft below the climber, so lava sitting at
+  // the leash plus the crest's band midpoint was off screen all match.
+  const tower = buildFreeTower();
+  const PLAYER_Y = 1000;
+
+  function framing(width: number, height: number) {
+    const { pxPerM, viewH } = climbView(width, height, tower.widthM);
+    const camY = cameraTargetY(PLAYER_Y, viewH, 0, pxPerM);
+    return { viewH, camY, below: PLAYER_Y - camY, ahead: viewH - (PLAYER_Y - camY) };
+  }
+
+  it("shows ~80 ft below the climber and ~98 ft ahead on the locked 9:16 view, at any device size", () => {
+    for (const [w, h] of [[360, 640], [1080, 1920], [414, 736]] as const) {
+      const f = framing(w, h);
+      expect(f.below).toBeGreaterThanOrEqual(78);
+      expect(f.ahead).toBeGreaterThanOrEqual(95);
+    }
+  });
+
+  it("lava riding 75 ft behind the climber (leash + band) is on screen", () => {
+    const { viewH, camY } = framing(WIDTH, HEIGHT);
+    const lavaY = PLAYER_Y - (HAZARD_LEASH_M + 25);
+    expect(isLavaThreatening(lavaThreatFill(lavaY, camY, viewH, 0))).toBe(true);
+    // Positive control for the negative side: lava well past the view is not.
+    expect(isLavaThreatening(lavaThreatFill(PLAYER_Y - 150, camY, viewH, 0))).toBe(false);
   });
 });
