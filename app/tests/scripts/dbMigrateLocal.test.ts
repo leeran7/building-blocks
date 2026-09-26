@@ -14,7 +14,7 @@
 import { spawnSync } from "node:child_process";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
-import { isLocalDbUrl, localDbProblems } from "../../scripts/localDbGuard";
+import { ALLOWED_DB_URL_PARAMS, isLocalDbUrl, localDbProblems } from "../../scripts/localDbGuard";
 
 const LOCAL = "postgresql://postgres@127.0.0.1:55432/dailytest";
 const REMOTE_POOLED = "postgresql://owner:secret@ep-prod-pooler.example.invalid/neondb?sslmode=require";
@@ -53,6 +53,42 @@ describe("isLocalDbUrl", () => {
   });
 });
 
+describe("isLocalDbUrl: query keys are an allow-list (SEC-DC-18 follow-up)", () => {
+  it("accepts every allowed key on a loopback URL", () => {
+    const query = [...ALLOWED_DB_URL_PARAMS].map((k) => `${k}=1`).join("&");
+    expect(ALLOWED_DB_URL_PARAMS.size).toBe(8);
+    expect(isLocalDbUrl(`postgresql://postgres@127.0.0.1:55432/db?${query}`)).toBe(true);
+    expect(isLocalDbUrl("postgresql://postgres@localhost/db?schema=public&sslmode=disable")).toBe(true);
+  });
+
+  it.each([
+    "postgresql://u@localhost/db?host=ep-prod.example.invalid",
+    "postgresql://u@localhost/db?hostaddr=192.0.2.10", // libpq and node-postgres connect here
+    "postgresql://u@localhost/db?service=prod", // libpq reads the host from pg_service.conf
+    "postgresql://u@localhost/db?HOST=ep-prod.example.invalid",
+    "postgresql://u@localhost/db?Host=ep-prod.example.invalid",
+    "postgresql://u@localhost/db?HostAddr=192.0.2.10",
+    "postgresql://u@localhost/db?ho%73t=ep-prod.example.invalid", // percent-encoded "host"
+    "postgresql://u@localhost/db?%68ostaddr=192.0.2.10", // percent-encoded "hostaddr"
+    "postgresql://u@localhost/db?schema=public&host=ep-prod.example.invalid", // after an allowed key
+    "postgresql://u@localhost/db?sslmode=disable&options=-c%20search_path%3Dx", // any other key
+    "postgresql://u@localhost/db?SCHEMA=public", // allowed keys are case-sensitive too
+    "postgresql://u@localhost/db?=x", // an empty key
+  ])("refuses %j", (url) => {
+    expect(isLocalDbUrl(url)).toBe(false);
+  });
+
+  it("the refusal message names the allowed keys and still hides credentials", () => {
+    const [problem] = localDbProblems({
+      DATABASE_URL: "postgresql://u:secret@localhost/db?hostaddr=192.0.2.10",
+      DIRECT_URL: LOCAL,
+    });
+    expect(problem).toMatch(/^DATABASE_URL /);
+    expect(problem).toContain("sslmode");
+    expect(problem).not.toContain("secret");
+  });
+});
+
 describe("localDbProblems", () => {
   it("passes only when both URLs are set and local", () => {
     expect(localDbProblems({ DATABASE_URL: LOCAL, DIRECT_URL: LOCAL })).toEqual([]);
@@ -80,6 +116,7 @@ describe("pnpm db:migrate:local (the script itself)", () => {
     ["both remote", { DATABASE_URL: REMOTE_POOLED, DIRECT_URL: REMOTE_DIRECT }],
     ["DIRECT_URL unset", { DATABASE_URL: LOCAL }],
     ["DIRECT_URL empty", { DATABASE_URL: LOCAL, DIRECT_URL: "" }],
+    ["local DIRECT_URL redirected by hostaddr=", { DATABASE_URL: LOCAL, DIRECT_URL: `${LOCAL}?hostaddr=192.0.2.10` }],
   ])("refuses with %s, exits 1, and never starts Prisma", (_label, env) => {
     const out = runScript(env);
     expect(out.status).toBe(1);

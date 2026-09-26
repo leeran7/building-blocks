@@ -12,13 +12,32 @@
 
 const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "::1", "[::1]"]);
 
+/**
+ * The only query keys a local URL may carry (exact, case-sensitive, after
+ * percent-decoding). Each tunes the connection; none can move it. Anything
+ * else is refused, including host, hostaddr and service, which libpq,
+ * node-postgres or Prisma can use to connect somewhere other than the
+ * authority's host (SEC-DC-18 follow-up).
+ */
+export const ALLOWED_DB_URL_PARAMS: ReadonlySet<string> = new Set([
+  "schema",
+  "sslmode",
+  "connection_limit",
+  "pool_timeout",
+  "connect_timeout",
+  "pgbouncer",
+  "statement_cache_size",
+  "socket_timeout",
+]);
+
 /** The two variables the Prisma CLI reads for this schema. */
 export const PRISMA_URL_VARS = ["DATABASE_URL", "DIRECT_URL"] as const;
 
 /**
  * Whether `raw` is a postgres URL whose host is loopback. Rejects anything
- * that does not parse, other schemes, and any `host` query parameter (libpq
- * and Prisma let it replace the host in the authority).
+ * that does not parse, other schemes, and any query key outside
+ * ALLOWED_DB_URL_PARAMS (host= replaces the authority's host in libpq and
+ * Prisma; hostaddr= and service= redirect libpq and node-postgres).
  */
 export function isLocalDbUrl(raw: string): boolean {
   let url: URL;
@@ -28,7 +47,9 @@ export function isLocalDbUrl(raw: string): boolean {
     return false;
   }
   if (url.protocol !== "postgresql:" && url.protocol !== "postgres:") return false;
-  if (url.searchParams.has("host")) return false;
+  for (const key of url.searchParams.keys()) {
+    if (!ALLOWED_DB_URL_PARAMS.has(key)) return false;
+  }
   return LOCAL_HOSTS.has(url.hostname);
 }
 
@@ -52,7 +73,7 @@ export function localDbProblems(env: Readonly<Record<string, string | undefined>
     if (!value) {
       problems.push(`${name} is not set. Set it to the local database explicitly (a .env value is not trusted).`);
     } else if (!isLocalDbUrl(value)) {
-      problems.push(`${name} must be a postgresql:// URL on localhost, 127.0.0.1 or ::1 with no host= parameter (got host ${hostOf(value)}).`);
+      problems.push(`${name} must be a postgresql:// URL on localhost, 127.0.0.1 or ::1 and only these query keys: ${[...ALLOWED_DB_URL_PARAMS].join(", ")} (got host ${hostOf(value)}).`);
     }
   }
   return problems;
