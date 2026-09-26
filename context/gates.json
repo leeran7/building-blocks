@@ -10,7 +10,7 @@
       "name": "app-typecheck",
       "cwd": "app",
       "command": "pnpm typecheck",
-      "proveFail": "A file with an intentional type error must fail tsc --noEmit."
+      "proveFail": "A file with an intentional type error must fail tsc --noEmit. The script also runs tsc -p mobile/tsconfig.json --noEmit (ES2020 lib, noUnusedLocals/Parameters) over mobile/src and the shared src files it imports: Object.hasOwn put back in src/lib/daily.ts, or in a mobile-only file, exits 2 with TS2550 (Sep 26). The root package.json typecheck script (from #156) delegates to this one."
     },
     {
       "name": "app-test",

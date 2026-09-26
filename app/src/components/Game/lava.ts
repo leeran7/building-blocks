@@ -238,7 +238,6 @@ export function crestOffset(
 function drawCrackNetwork(
   ctx: CanvasRenderingContext2D,
   width: number,
-  top: number,
   height: number,
   ui: number,
   tick: number,
@@ -379,7 +378,6 @@ function drawSteamWisps(
 function drawRockChunks(
   ctx: CanvasRenderingContext2D,
   width: number,
-  top: number,
   ui: number,
   tick: number,
   crestY: number[],
@@ -443,7 +441,6 @@ function drawRockChunks(
 function drawRockGrain(
   ctx: CanvasRenderingContext2D,
   width: number,
-  top: number,
   height: number,
   ui: number,
   crestY: number[],
@@ -490,7 +487,6 @@ function drawMeltSurge(
   width: number,
   top: number,
   ui: number,
-  tick: number,
   hardenProgress: number,
 ): void {
   // Near the end (0.85–1.0), a bright surge wave sweeps across as lava
@@ -553,7 +549,7 @@ export function drawLava(ctx: CanvasRenderingContext2D, opts: LavaOptions): void
 
   // Rock grain texture — visible when hardened, gives the surface a stone feel.
   if (hardened && rockBlend > 0.1 && !reducedMotion) {
-    drawRockGrain(ctx, width, top, height, ui, crestY, rockBlend);
+    drawRockGrain(ctx, width, height, ui, crestY, rockBlend);
   }
 
   // 2) Glowing hot rim along the crest.
@@ -586,7 +582,7 @@ export function drawLava(ctx: CanvasRenderingContext2D, opts: LavaOptions): void
 
   // Crack network with glowing underglow — the signature hardened effect.
   if (hardened && rockBlend > 0.05 && !reducedMotion) {
-    drawCrackNetwork(ctx, width, top, height, ui, tick, crestY, rockBlend, hardenProgress);
+    drawCrackNetwork(ctx, width, height, ui, tick, crestY, rockBlend, hardenProgress);
   }
 
   if (reducedMotion) {
@@ -601,12 +597,12 @@ export function drawLava(ctx: CanvasRenderingContext2D, opts: LavaOptions): void
 
   // Rock chunks breaking free as the surface melts.
   if (hardened && hardenProgress > 0.4) {
-    drawRockChunks(ctx, width, top, ui, tick, crestY, hardenProgress);
+    drawRockChunks(ctx, width, ui, tick, crestY, hardenProgress);
   }
 
   // Melt-surge wave near the end of the effect.
   if (hardened && hardenProgress > 0.85) {
-    drawMeltSurge(ctx, width, top, ui, tick, hardenProgress);
+    drawMeltSurge(ctx, width, top, ui, hardenProgress);
   }
 
   // 3) Heat-shimmer haze — suppressed while hardened, returns with intensity.
