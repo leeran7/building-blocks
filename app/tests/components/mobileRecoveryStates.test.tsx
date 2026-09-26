@@ -314,7 +314,7 @@ describe.each([
 
 describe("Back on a push screen", () => {
   it("pops to the previous in-app screen when there is one", async () => {
-    await mount(["/leaderboard?board=alltime", "/profile/edit"]);
+    await mount(["/leaderboard", "/profile/edit"]);
     await click(container.querySelector('button[aria-label="Back"]'));
     expect(path()).toBe("/leaderboard");
   });
@@ -347,7 +347,7 @@ describe("Back on a push screen", () => {
 describe("Ranks error and empty states", () => {
   it("Try again on a failed Global board refetches it", async () => {
     net.status["/api/climb/leaderboard"] = 500;
-    await mount(["/leaderboard?board=alltime"]);
+    await mount(["/leaderboard"]);
     expect(container.textContent).toContain("Couldn't load the leaderboard");
     const before = calls("/api/climb/leaderboard").length;
 
@@ -361,7 +361,7 @@ describe("Ranks error and empty states", () => {
 
   it("Try again on a failed Friends board refetches only the Friends board", async () => {
     net.status["/api/climb/leaderboard/friends"] = 500;
-    await mount(["/leaderboard?board=alltime"]);
+    await mount(["/leaderboard"]);
     await click(container.querySelector("#lb-tab-friends"));
     expect(container.textContent).toContain("Couldn't load the leaderboard");
     const globalBefore = calls("/api/climb/leaderboard").length;
@@ -376,7 +376,7 @@ describe("Ranks error and empty states", () => {
 
   it("an empty Global board offers Play, which opens the climb", async () => {
     net.global = [];
-    await mount(["/leaderboard?board=alltime"]);
+    await mount(["/leaderboard"]);
     expect(container.textContent).toContain("No climbs yet. Be the first to the top.");
     await click(buttonByText("Play"));
     expect(path()).toBe("/climb");
@@ -410,7 +410,7 @@ describe.each([
 ])("Try again on the Ranks $tab board", ({ tab, failing, other, loaded }) => {
   async function mountFailing() {
     net.status[failing] = 500;
-    await mount(["/leaderboard?board=alltime"]);
+    await mount(["/leaderboard"]);
     if (tab === "Friends") await click(container.querySelector("#lb-tab-friends"));
     expect(container.querySelector('[role="alert"]')?.textContent).toContain("Couldn't load the leaderboard");
   }
