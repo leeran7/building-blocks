@@ -140,3 +140,39 @@ describe("parseDailySaveResult", () => {
     expect(parseDailySaveResult(200, null)).toEqual({ status: "failed" });
   });
 });
+
+// ---------------------------------------------------------------------------
+// Verifier additions: more negative fixtures, each against a body that parses.
+// ---------------------------------------------------------------------------
+
+describe("mobile daily parsers (verifier)", () => {
+  it("rejects prototype-key and malformed day keys in every parser", () => {
+    let checked = 0;
+    for (const day of ["__proto__", "constructor", "2026-9-26", " 2026-09-26", "", 20260926]) {
+      expect(parseDailyBoard({ ...board, day })).toBeNull();
+      expect(parseDailyInfo({ day, seed: `daily-${String(day)}`, resetsAt: board.resetsAt })).toBeNull();
+      expect(parseDailySaveResult(200, { saved: true, day, peakY: 1, improved: true, rank: 1, totalClimbers: 1, attempts: 1 })).toEqual({
+        status: "failed",
+      });
+      checked++;
+    }
+    expect(checked).toBeGreaterThan(0);
+    // Positive control for the same shapes.
+    expect(parseDailyBoard(board)).not.toBeNull();
+  });
+
+  it("rejects a non-array climbers list and a climber with a fractional rank", () => {
+    expect(parseDailyBoard({ ...board, climbers: { 0: climber } })).toBeNull();
+    expect(parseDailyBoard({ ...board, climbers: [{ ...climber, rank: 1.5 }] })).toBeNull();
+    expect(parseDailyBoard({ ...board, climbers: [{ ...climber, peakY: Number.NaN }] })).toBeNull();
+    expect(parseDailyBoard({ ...board, climbers: [{ ...climber, username: 5 }] })).toBeNull();
+  });
+
+  it("a 400 without a code is still a rejection (no retry), and saved must be literally true", () => {
+    expect(parseDailySaveResult(400, null)).toEqual({ status: "rejected", code: "INVALID" });
+    expect(parseDailySaveResult(400, { code: 7 })).toEqual({ status: "rejected", code: "INVALID" });
+    expect(
+      parseDailySaveResult(200, { saved: "true", day: "2026-09-26", peakY: 1, improved: true, rank: 1, totalClimbers: 1, attempts: 1 })
+    ).toEqual({ status: "failed" });
+  });
+});
