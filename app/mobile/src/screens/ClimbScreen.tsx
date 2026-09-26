@@ -39,7 +39,7 @@ import {
   type DailySaveResult,
 } from "../lib/dailyBoard";
 import {
-  isDailyInfoStale,
+  isDailyStartFresh,
   readDailyClock,
   stampDailyInfo,
   type DailyInfo,
@@ -198,8 +198,7 @@ export function ClimbScreen({ onSignIn }: { onSignIn?: () => void } = {}) {
       // Never start a daily on a random tower while the server seed is
       // missing, nor on yesterday's tower after 00:00 UTC: drop a stale
       // answer, refetch, and start once today's arrives.
-      const stamp = dailyStamp.current;
-      const fresh = dailyInfo !== null && stamp !== null && stamp.info === dailyInfo && !isDailyInfoStale(stamp, readDailyClock());
+      const fresh = isDailyStartFresh(dailyInfo, dailyStamp.current, readDailyClock());
       if (!fresh) {
         if (dailyInfo !== null) setDailyInfo(null);
         setStartWhenReady(true);

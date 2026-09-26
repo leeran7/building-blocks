@@ -26,7 +26,7 @@ import { ALTITUDE_UNIT } from "../../lib/units";
 import Link from "next/link";
 import {
   DAILY_INFO_PATH,
-  isDailyInfoStale,
+  isDailyStartFresh,
   parseDailyInfo,
   readDailyClock,
   stampDailyInfo,
@@ -142,9 +142,7 @@ export function DailyClimbClient() {
   // Before every start: if the server's 00:00 UTC has passed since this seed
   // was fetched, the tower is closed. Refetch instead of starting; the button waits meanwhile.
   const beforeStart = useCallback((): boolean => {
-    const stamp = dailyStampRef.current;
-    if (!daily || !stamp) return false;
-    if (!isDailyInfoStale(stamp, readDailyClock())) return true;
+    if (isDailyStartFresh(daily, dailyStampRef.current, readDailyClock())) return true;
     setRefreshingDaily(true);
     setDailyAttempt((n) => n + 1);
     return false;

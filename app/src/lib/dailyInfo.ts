@@ -113,3 +113,17 @@ export function isDailyInfoStale(stamp: DailyInfoStamp, now: DailyClockReading):
   if (elapsed >= stamp.msLeft) return true;
   return now.wall >= Date.parse(stamp.info.resetsAt) && wallElapsed > DAILY_REFETCH_BACKOFF_MS;
 }
+
+/**
+ * The one start gate, shared by web and mobile (RV-DCF-4): a daily run may
+ * start only on the answer that is showing (`info`), with the stamp taken
+ * for that very answer, and only while that stamp is not stale. A stamp for
+ * a different answer, or no answer or stamp at all, is not fresh.
+ */
+export function isDailyStartFresh(
+  info: DailyInfo | null,
+  stamp: DailyInfoStamp | null,
+  now: DailyClockReading,
+): boolean {
+  return info !== null && stamp !== null && stamp.info === info && !isDailyInfoStale(stamp, now);
+}
