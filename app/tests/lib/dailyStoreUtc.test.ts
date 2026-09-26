@@ -19,10 +19,8 @@ type DailyLib = Pick<
 >;
 
 /**
- * A fresh module instance per test. Both modules keep a module-level `empty`
- * store whose `best` object is shared by every `{ ...empty }` copy (see the
- * it.fails test below), so reusing one instance would leak bests between
- * tests.
+ * A fresh module instance per test, so no module state can carry between
+ * tests and hide a leak like the shared-empty-store defect pinned below.
  */
 const LOADERS: Record<"mobile" | "web", () => Promise<DailyLib>> = {
   mobile: () => import("../../mobile/src/lib/daily"),
@@ -132,13 +130,11 @@ describe.each(["mobile", "web"] as const)("%s daily store on the UTC day", (name
     expect(lib.dailySummary()).toEqual({ streak: 0, todayBest: 0, playedToday: false });
   });
 
-  // KNOWN DEFECT (pre-existing, filed in the verifier handoff): read() returns
-  // `{ ...empty }`, a shallow copy, so commitDailyRun writes the day's best
-  // into the shared module-level `empty.best`. After clearDailyStore() (account
-  // deletion) the next account in the same session inherits those bests.
-  // Asserts the CORRECT behaviour; remove `.fails` once read() builds a fresh
-  // `best: {}` each time.
-  it.fails("a cleared store does not inherit bests from an earlier run in the same session", () => {
+  // Regression: read() used to return `{ ...empty }`, a shallow copy, so
+  // commitDailyRun wrote the day's best into a shared module-level `best`.
+  // After clearDailyStore() (account deletion) the next account in the same
+  // session inherited those bests.
+  it("a cleared store does not inherit bests from an earlier run in the same session", () => {
     at("2026-09-26T10:00:00Z");
     lib.commitDailyRun(812);
     localStorage.removeItem(STORE_KEY); // what clearDailyStore() does
