@@ -126,6 +126,17 @@ Work through these steps in order when an incident is declared.
 
 **Rotation:** A new secret means a new tower for today. Runs started on the old seed are then refused as `DAY_CLOSED`. Rotate at 00:00 UTC, and never expose the value to a client or a `pull_request`-triggered job.
 
+### Daily scores refused with SIM_VERSION_MISMATCH
+
+**Symptom:** `POST /api/climb/daily/result` returns 409 `SIM_VERSION_MISMATCH` for many players; the app says "update the app to post daily scores".
+
+**Root cause:** The client's `simVersion` differs from the server's `DAILY_SIM_VERSION` (`app/src/game/simVersion.ts`). This is expected right after a release that bumped it: every installed mobile build sends the old value until it updates. Nothing is saved for those runs (the check runs before the re-simulation), and they are not added to the all-time board.
+
+**Fix:**
+1. Confirm the bump was intended (an engine change shipped in the same release).
+2. If the updated store build is live, wait for adoption. If it is not, roll the server back (see below) until it is, because the old engine cannot verify new runs and vice versa.
+3. Never bump `DAILY_SIM_VERSION` without shipping the matching mobile build, and never ship an engine change without bumping it: an old client's run would then fail as `REPLAY_MISMATCH`, which looks like a forgery.
+
 ---
 
 ## Rollback procedure

@@ -1,7 +1,7 @@
 # Spec: Daily Climb leaderboard (mobile), plan steps 1–3
 
 **Product:** The Climb (building-blocks) · **Goal ID:** daily-climb-leaderboard-mobile
-**Status:** implemented (iteration 1) · **Date:** 2026-09-26
+**Status:** implemented (iteration 5, refreshed to the shipped design) · **Date:** 2026-09-26
 
 ## Goal
 
@@ -20,8 +20,9 @@ Ranks screen; ClimbScreen and HomeScreen daily wiring; web `DailyClimbClient`
 moved to the UTC day and the daily route (no new web UI).
 
 **Out (Future):** a web daily leaderboard tab, push notifications, yesterday's
-winners, a replay/sim version check, runs longer than `MAX_SHARE_TICKS`
-(10 min) on the daily board.
+winners, a version check on duels and endless replays (the daily board has
+one: `simVersion`, see Risks), runs longer than `MAX_SHARE_TICKS` (10 min) on
+the daily board (they are saved to the all-time board instead).
 
 **Assumptions:** the free board's consent rule (`leaderboard_consent_at`)
 applies to the daily board. A daily save also raises the all-time record,
@@ -32,11 +33,11 @@ Risks).
 
 | F | Critical | Trigger → entry | Happy path | Empty / failure | Success next |
 |---|---|---|---|---|---|
-| F-1 Play today's tower | yes | Home DailyCard → `/climb?daily=1` | Seed comes from the server (falls back to the device's UTC day). Run → replay is encoded → POST daily/result → server rank shown | Offline: local seed, and the results card shows "couldn't reach today's board" with Try again. Closed day / mismatch / too long: a plain reason, no retry. Guest: "sign in to save". No consent: the consent sheet appears first | "See today's board" CTA, Play again |
-| F-2 Check today's board | yes | Ranks tab (Today is the default) | Podium plus table, header "Today's tower · Resets in Xh Ym", your banner, and a pinned row (#rank · height · tries) when outside the top 50 | Loading skeleton. Empty: "No one's climbed today's tower yet. Be first." plus Play. Error: RetryPanel. Not played: "Not on today's board" → Play | Play today's tower |
+| F-1 Play today's tower | yes | Home DailyCard → `/climb?daily=1` (web: `/daily`) | The seed comes only from the server (no offline fallback: it is an HMAC the device cannot derive). Run → replay is encoded (raw bytes on a runtime without CompressionStream) → POST daily/result with `simVersion` → server rank shown | Seed unreachable: "Can't load today's tower" with Try again and "Play endless instead"; no daily starts. Save unreachable after the run: "couldn't reach today's board" with Try again. Closed day / mismatch / stale engine: a plain reason, no retry. Too long to encode: saved to the all-time board only, and says so (web and mobile). Guest: "sign in to save". No consent: the consent sheet first; if saving consent fails the sheet stays with the run so the player can retry or decline | "See today's board" CTA, Play again (after 00:00 UTC it refetches today's tower first) |
+| F-2 Check today's board | yes | Ranks tab → Today tab, or `?board=today` (All-time is the default) | Podium plus table, a status pill "Resets in Xh Ym", your banner, and a pinned row (#rank · height · tries) when outside the top 50 | Loading skeleton. Empty: "No one's climbed today's tower yet. Be first." plus Play. Error: RetryPanel. Not played: "Not on today's board" → Play | Play today's tower |
 | F-3 Friends today | no | Ranks → Today → Friends | You plus consented friends for today, with a hidden/not-climbed footer | No friends: "Race your friends" → /challenge. Error: RetryPanel | Find friends |
 | F-4 Opt in from the board | yes | Today banner "You're hidden" → "Show me on the board" | Consent sheet → PUT settings → board refetches | PUT fails: the sheet closes and the banner stays hidden (can retry) | Play today's tower |
-| F-5 Midnight rollover | yes | App open across 00:00 UTC | `useUtcDay` fires at the reset. Day slices refetch cold (skeleton), the countdown resets, and the DailyCard drops yesterday's rank | A run that straddles the reset is accepted for its day within 10 min, then DAY_CLOSED | New day's board |
+| F-5 Midnight rollover | yes | App open across 00:00 UTC | `useUtcDay` fires at the reset. Day slices refetch cold (skeleton), the countdown resets, and the DailyCard drops yesterday's rank. Play again / Start refetches the seed when the server's `resetsAt` has passed since it was fetched, so the next run is on today's tower | A run that straddles the reset is accepted for its day within 10 min, then DAY_CLOSED | New day's board |
 | F-6 Home glance | no | Home | DailyCard shows "#N today · H ft · Resets in …" once the server knows your rank | Unknown rank: falls back to the local best / countdown | Tap → F-1 |
 
 Mid-flow interrupts (F-1): a double POST adds one attempt and cannot lower
@@ -79,9 +80,17 @@ and when the tower resets.
   its tab or `?board=today` (any other value opens All-time). Both rows are
   WAI-ARIA tablists with distinct names, arrow keys, Home/End and roving
   tabindex. "See today's board" deep-links to Today.
+- AC-9b: The status pill under the title: Global · All-time "N climbers";
+  Friends · All-time "1 friend" / "N friends" (listed friends except you,
+  plus hidden and not-yet-climbed friends, from the loaded Friends board;
+  spoken "You have N friends"); either scope on Today "Resets in Xh Ym". An
+  unknown or zero count shows a neutral line, never a number, and the pill
+  keeps its height.
 - AC-10: When the player's rank > the rows shown, a pinned row shows
   rank · height · tries.
-- AC-11: When the device UTC day changes, the day slices refetch cold.
+- AC-11: When the device UTC day changes, the day slices refetch cold. A
+  start after the server's `resetsAt` (since the seed was fetched) refetches
+  the seed first, on web and mobile.
 
 **S-3 (F-3).** As a friend rival, I want today's friends board.
 - AC-12: `/friends` requires auth (401 otherwise) and returns you plus
@@ -107,7 +116,13 @@ same day as the board.
 - **Engine version.** Clients send `simVersion` (`src/game/simVersion.ts`).
   A missing or different value is 409 `SIM_VERSION_MISMATCH` before re-sim,
   logged apart from `REPLAY_MISMATCH`, and mobile says "update the app to post
-  daily scores" (SEC-DC-4). Bump `DAILY_SIM_VERSION` with any engine change.
+  daily scores" (SEC-DC-4). Bump `DAILY_SIM_VERSION` with any engine change;
+  that locks installed builds out of the daily board until they update, so
+  release order matters (docs/deploy.md). `REPLAY_VERSION` is only the token
+  format: stored replays re-simulate with the current engine.
+- **Old iOS.** iOS 15.0-16.3 has no CompressionStream, so its tokens carry
+  raw packed bytes. The server accepts that form under the same output cap
+  (RV-DC-2); the two forms cannot be confused.
 - **Copied replays.** Tokens are public. The first account to submit a
   canonical input log owns it for the day, and others get 409
   `REPLAY_REUSED` (SEC-DC-2). A perturbed copy that changes an input still
