@@ -4,7 +4,7 @@
  * output asserted; negative guards are proven against inputs they must reject.
  */
 
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import {
   DAILY_BOARD_HISTORY_DAYS,
   DAILY_SUBMIT_GRACE_MS,
@@ -313,5 +313,35 @@ describe("day acceptance at the grace edges (verifier)", () => {
 
   it("the grace window is 10 minutes", () => {
     expect(DAILY_SUBMIT_GRACE_MS).toBe(10 * 60_000);
+  });
+});
+
+describe("UTC, not the device zone (verifier)", () => {
+  // CI and this sandbox run in UTC, where a local-date implementation passes
+  // every other test in this file by coincidence. Pin a far-from-UTC zone
+  // (vitest's fork pool keeps process.env.TZ to this file's process).
+  const originalTz = process.env.TZ;
+  afterEach(() => {
+    if (originalTz === undefined) delete process.env.TZ;
+    else process.env.TZ = originalTz;
+  });
+
+  it.each(["America/Los_Angeles", "Pacific/Kiritimati", "Asia/Kolkata"])("in %s", (tz) => {
+    process.env.TZ = tz;
+    const eveningWest = at("2026-09-27T03:00:00Z"); // 20:00 on the 26th in Los Angeles
+    const morningEast = at("2026-09-26T11:00:00Z"); // 01:00 on the 27th in Kiritimati (UTC+14)
+    const lateUtc = at("2026-09-26T20:00:00Z"); // 01:30 on the 27th in Kolkata (UTC+5:30)
+    // Precondition: at least one instant has a local date that differs from UTC.
+    const differs = [eveningWest, morningEast, lateUtc].some((d) => d.getDate() !== d.getUTCDate());
+    expect(differs).toBe(true);
+
+    expect(utcDayKey(eveningWest)).toBe("2026-09-27");
+    expect(utcDayKey(morningEast)).toBe("2026-09-26");
+    expect(utcDayKey(lateUtc)).toBe("2026-09-26");
+    expect(msUntilUtcReset(eveningWest)).toBe(21 * 3_600_000);
+    expect(nextUtcResetAt(morningEast).toISOString()).toBe("2026-09-27T00:00:00.000Z");
+    expect(parseDayKey("2026-09-26")).toBe("2026-09-26");
+    expect(shiftDayKey("2026-03-08", 1)).toBe("2026-03-09"); // US DST starts
+    expect(shiftDayKey("2026-11-01", 1)).toBe("2026-11-02"); // US DST ends
   });
 });
