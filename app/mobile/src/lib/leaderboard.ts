@@ -2,6 +2,7 @@ import { hashId } from "@app/lib/handle";
 import { ALTITUDE_UNIT } from "@app/lib/units";
 import { parseAvatarId } from "@app/lib/avatars";
 import type { ClimberRank, FriendsBoard } from "../contexts/AppDataContext";
+import { formatReset, spokenReset } from "./daily";
 
 export function formatHeight(ft: number): string {
   return `${ft.toLocaleString(undefined, { maximumFractionDigits: 3 })} ${ALTITUDE_UNIT}`;
@@ -98,6 +99,49 @@ export function friendsFooter(hiddenCount: number, notClimbedCount: number): str
 }
 
 const isCount = (v: unknown): v is number => typeof v === "number" && Number.isInteger(v) && v >= 0;
+
+/** The Ranks status pill: which icon it shows, its visible text, and what a screen reader hears. */
+export interface RanksStatus {
+  icon: "clock" | "people";
+  text: string;
+  label: string;
+}
+
+/** All-time pill copy when the climber count is unknown. Never "0 climbers". */
+export const ALLTIME_STATUS_FALLBACK = "All-time best heights";
+
+/**
+ * A climber count the pill may show: a positive safe integer, or null. The
+ * dashboard body is an unchecked cast, so anything else (absent, zero,
+ * negative, fractional, NaN, a string) reads as unknown rather than a count.
+ */
+export function knownClimberCount(total: unknown): number | null {
+  return typeof total === "number" && Number.isSafeInteger(total) && total > 0 ? total : null;
+}
+
+/**
+ * The live status pill under the Ranks title, driven by the period alone
+ * (the tabs already name the scope and period). Today: the countdown to the
+ * UTC reset. All-time: how many climbers are ranked, or a neutral fallback
+ * when the count is unknown.
+ */
+export function ranksStatus(
+  period: "today" | "alltime",
+  msUntilReset: number,
+  totalClimbers: unknown,
+): RanksStatus {
+  if (period === "today") {
+    return {
+      icon: "clock",
+      text: `Resets in ${formatReset(msUntilReset)}`,
+      label: `Today's board resets in ${spokenReset(msUntilReset)}`,
+    };
+  }
+  const count = knownClimberCount(totalClimbers);
+  if (count === null) return { icon: "people", text: ALLTIME_STATUS_FALLBACK, label: ALLTIME_STATUS_FALLBACK };
+  const climbers = plural(count, "climber", "climbers");
+  return { icon: "people", text: climbers, label: `${climbers} on the all-time board` };
+}
 
 type RawClimber = Omit<ClimberRank, "avatarId"> & { avatarId?: unknown };
 

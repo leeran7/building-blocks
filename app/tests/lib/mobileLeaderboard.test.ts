@@ -11,7 +11,11 @@ import {
   formatHeight,
   friendsFooter,
   parseFriendsBoard,
+  knownClimberCount,
+  ranksStatus,
+  ALLTIME_STATUS_FALLBACK,
 } from "../../mobile/src/lib/leaderboard";
+import { spokenReset } from "../../mobile/src/lib/daily";
 import type { ClimberRank } from "../../mobile/src/contexts/AppDataContext";
 import { AVATARS } from "@app/lib/avatars";
 
@@ -145,5 +149,72 @@ describe("parseFriendsBoard", () => {
       const climbers = [{ ...valid.climbers[0], avatarId }, valid.climbers[1]];
       expect(parseFriendsBoard({ ...valid, climbers })).toBeNull();
     }
+  });
+});
+
+const MIN = 60_000;
+const HOUR = 60 * MIN;
+
+describe("ranksStatus: the Ranks status pill copy, by period", () => {
+  it("Today: clock + the reset countdown, spoken as words", () => {
+    const s = ranksStatus("today", 6 * HOUR + 36 * MIN + 59_000, 1302);
+    expect(s).toEqual({
+      icon: "clock",
+      text: "Resets in 6h 36m",
+      label: "Today's board resets in 6 hours 36 minutes",
+    });
+  });
+
+  it("Today ignores the climber count and never names the scope or period", () => {
+    const s = ranksStatus("today", 48 * MIN, 1302);
+    expect(s.text).toBe("Resets in 48m");
+    expect(`${s.text} ${s.label}`).not.toMatch(/climber|global|friends|all.time|today's tower/i);
+  });
+
+  it("All-time: people + the formatted climber count", () => {
+    expect(ranksStatus("alltime", HOUR, 1302)).toEqual({
+      icon: "people",
+      text: "1,302 climbers",
+      label: "1,302 climbers on the all-time board",
+    });
+  });
+
+  it("All-time says '1 climber' for a single climber", () => {
+    expect(ranksStatus("alltime", HOUR, 1).text).toBe("1 climber");
+  });
+
+  it.each([undefined, null, 0, -3, 1.5, Number.NaN, Number.POSITIVE_INFINITY, 2 ** 53, "1302", {}])(
+    "All-time with an unknown count (%j) shows the fallback, never a fabricated count",
+    (total) => {
+      const s = ranksStatus("alltime", HOUR, total);
+      expect(s).toEqual({ icon: "people", text: ALLTIME_STATUS_FALLBACK, label: ALLTIME_STATUS_FALLBACK });
+      expect(s.text).not.toMatch(/\d/);
+    },
+  );
+});
+
+describe("knownClimberCount", () => {
+  it("accepts positive safe integers only", () => {
+    expect(knownClimberCount(1)).toBe(1);
+    expect(knownClimberCount(1302)).toBe(1302);
+    expect(knownClimberCount(Number.MAX_SAFE_INTEGER)).toBe(Number.MAX_SAFE_INTEGER);
+    for (const bad of [0, -1, 0.5, Number.NaN, Number.POSITIVE_INFINITY, "5", null, undefined, true]) {
+      expect(knownClimberCount(bad)).toBeNull();
+    }
+  });
+});
+
+describe("spokenReset", () => {
+  it.each([
+    [6 * HOUR + 36 * MIN, "6 hours 36 minutes"],
+    [1 * HOUR + 1 * MIN, "1 hour 1 minute"],
+    [2 * HOUR, "2 hours 0 minutes"],
+    [48 * MIN + 30_000, "48 minutes"],
+    [1 * MIN, "1 minute"],
+    [59_999, "less than a minute"],
+    [0, "less than a minute"],
+    [-5_000, "less than a minute"],
+  ])("%d ms -> %s", (ms, spoken) => {
+    expect(spokenReset(ms)).toBe(spoken);
   });
 });

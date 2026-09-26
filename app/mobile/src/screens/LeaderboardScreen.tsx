@@ -17,10 +17,17 @@ import { PullToRefresh } from "../components/PullToRefresh";
 import { LeaderboardConsentModal } from "../components/LeaderboardConsentModal";
 import { apiFetch } from "../lib/api";
 import { setLeaderboardConsent } from "../lib/consent";
-import { formatReset } from "../lib/daily";
 import type { DailyStanding } from "../lib/dailyBoard";
 import { tapLight } from "../lib/haptics";
-import { formatHeight, friendsFooter, standingFor, type BoardRow, type Standing } from "../lib/leaderboard";
+import {
+  formatHeight,
+  friendsFooter,
+  ranksStatus,
+  standingFor,
+  type BoardRow,
+  type RanksStatus,
+  type Standing,
+} from "../lib/leaderboard";
 import { HexAvatar } from "../components/HexAvatar";
 import { HubHeader } from "../components/HubHeader";
 import { useRetry } from "../hooks/useRetry";
@@ -274,12 +281,7 @@ export function LeaderboardScreen() {
   return (
     <main className="relative flex h-full flex-col">
       <PullToRefresh onRefresh={handleRefresh}>
-        <Header
-          scope={scope}
-          period={period}
-          resetsIn={formatReset(clock.msUntilReset)}
-          headingRef={headingRef}
-        />
+        <Header status={ranksStatus(period, clock.msUntilReset, own?.totalClimbers)} headingRef={headingRef} />
         <ScopeTabs scope={scope} onChange={setScope} />
 
         <div role="tabpanel" id={PANEL_ID} aria-labelledby={tabId(scope)}>
@@ -357,21 +359,18 @@ export function LeaderboardScreen() {
   );
 }
 
-function Header({
-  scope,
-  period,
-  resetsIn,
-  headingRef,
-}: {
-  scope: Scope;
-  period: Period;
-  resetsIn: string;
-  headingRef: Ref<HTMLHeadingElement>;
-}) {
-  const scopeLabel = scope === "friends" ? "Friends" : "Global";
-  const subtitle =
-    period === "today" ? [scopeLabel, "Today's tower", `Resets in ${resetsIn}`] : [scopeLabel, "All time"];
-  return <HubHeader title="Leaderboard" subtitle={subtitle} trailing={<TrophyBadge />} headingRef={headingRef} />;
+/**
+ * Title plus one status pill (no subtitle): the tabs below already name the
+ * scope and period, so the pill carries only what they cannot, the reset
+ * countdown on Today and the climber count on All-time.
+ */
+function Header({ status, headingRef }: { status: RanksStatus; headingRef: Ref<HTMLHeadingElement> }) {
+  const hubStatus = {
+    icon: status.icon === "clock" ? <ClockIcon /> : <PeopleIcon size={14} />,
+    text: status.text,
+    label: status.label,
+  };
+  return <HubHeader title="Leaderboard" status={hubStatus} trailing={<TrophyBadge />} headingRef={headingRef} />;
 }
 
 interface TabsProps<T extends string> {
@@ -462,7 +461,9 @@ function ScopeTabs({ scope, onChange }: { scope: Scope; onChange: (next: Scope) 
 }
 
 /**
- * All-time | Today: a light, centred underline tab row under the scope pill.
+ * All-time | Today: a light, centred underline tab row under the scope pill,
+ * in sentence case body type (not tracked mono caps) so it reads as a
+ * secondary control under the Global | Friends pill.
  * Selected = accent text over an accent bar; unselected = secondary text.
  */
 function PeriodTabs({ period, onChange }: { period: Period; onChange: (next: Period) => void }) {
@@ -489,7 +490,7 @@ function PeriodTabs({ period, onChange }: { period: Period; onChange: (next: Per
             aria-controls={PERIOD_PANEL_ID}
             tabIndex={selected ? 0 : -1}
             onClick={() => select(id)}
-            className={`flex min-h-[44px] min-w-[44px] flex-col items-center justify-center gap-1.5 rounded-md px-2 font-display text-meta font-black uppercase tracking-chip transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-void ${
+            className={`flex min-h-[44px] min-w-[44px] flex-col items-center justify-center gap-1.5 rounded-md px-2 font-sans text-body font-semibold transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-void ${
               selected ? "text-accent" : "text-text-secondary active:text-text-primary"
             }`}
           >
@@ -770,13 +771,15 @@ function RankTable({ climbers, meId }: { climbers: readonly BoardRow[]; meId: st
 /**
  * Today's own row when the player ranks outside the top 50: rank · height ·
  * tries, pinned under the table so they never have to hunt for themselves.
+ * It sits outside the table's glass card, so it gets an opaque surface of its
+ * own; a translucent tint let the lava show through behind the height.
  */
 function PinnedMeRow({ rank, peakY, attempts }: { rank: number; peakY: number; attempts: number }) {
   return (
     <section
       id="lb-me-pinned"
       aria-label={`Your position today: number ${rank.toLocaleString()}, ${formatHeight(peakY)}, ${triesLabel(attempts)}`}
-      className="flex items-center gap-2.5 rounded-2xl border border-signal/50 bg-signal/[0.09] py-2.5 pl-2 pr-3"
+      className="flex items-center gap-2.5 rounded-2xl border border-signal/50 bg-surface py-2.5 pl-2 pr-3"
     >
       <span aria-hidden className="min-w-6 text-center font-display text-base font-black tabular-nums text-signal">
         {rank.toLocaleString()}
@@ -900,6 +903,15 @@ function GlobeIcon() {
     <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
       <circle cx="12" cy="12" r="9" />
       <path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18" />
+    </svg>
+  );
+}
+
+function ClockIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 7v5l3 2" />
     </svg>
   );
 }
