@@ -10,6 +10,7 @@ import { describe, expect, it } from "vitest";
 import {
   CAMERA_FOCUS_FRAC,
   CAMERA_FOLLOW,
+  cameraFocusY,
   WORLD_HEIGHT_STRETCH,
   cameraTargetY,
   climbView,
@@ -17,6 +18,10 @@ import {
   isLavaThreatening,
   lavaThreatFill,
 } from "../../src/components/Game/climbCamera";
+import {
+  paintClimbFrame,
+  type PaintCtx,
+} from "../../src/components/Game/paintClimbFrame";
 import { createMatch, stepMatch } from "../../src/game/simulation";
 import { NO_INPUT, TICK_DT } from "../../src/game/types";
 import { buildTower } from "../../src/game/towers";
@@ -176,3 +181,85 @@ describe("lavaThreatFill against a real match", () => {
 function playerScreenFrac(playerY: number, camY: number, viewH: number): number {
   return 1 - (playerY - camY) / viewH;
 }
+
+describe("cameraFocusY: the camera holds still through a jump", () => {
+  const BAND = 20;
+
+  it("frames the climber while grounded or on a ladder", () => {
+    expect(cameraFocusY(100, 140, true, BAND)).toBe(140);
+  });
+
+  it("frames the climber when there is no anchor yet", () => {
+    expect(cameraFocusY(null, 140, false, BAND)).toBe(140);
+  });
+
+  it("holds the take-off height while the arc stays inside the band", () => {
+    expect(cameraFocusY(100, 103, false, BAND)).toBe(100);
+    expect(cameraFocusY(100, 97, false, BAND)).toBe(100);
+  });
+
+  it("drags the band edge once the climber leaves it", () => {
+    expect(cameraFocusY(100, 130, false, BAND)).toBe(130 - BAND);
+    expect(cameraFocusY(100, 60, false, BAND)).toBe(60 + BAND);
+  });
+});
+
+describe("paintClimbFrame camera through a real jump arc", () => {
+  it("does not move while the climber is airborne within the band", () => {
+    const tower = buildTower("indie-games");
+    const m = createMatch({
+      seed: "jump-cam",
+      mode: "solo",
+      tower,
+      playerIds: ["p1"],
+    });
+    const p = m.players[0]!;
+    const ctx = new Proxy(
+      {},
+      {
+        get: (_t, prop) =>
+          prop === "measureText"
+            ? () => ({ width: 10 })
+            : typeof prop === "string" && prop.startsWith("create")
+              ? () => ({ addColorStop() {} })
+              : () => {},
+        set: () => true,
+      }
+    ) as unknown as PaintCtx;
+    const camera = { y: null as number | null, tick: null as number | null };
+    const paint = () =>
+      paintClimbFrame(ctx, m, { width: WIDTH, height: HEIGHT, camera });
+
+    // Stand high enough that the camera is not clamped at the base, and let
+    // the ease settle.
+    const BASE_Y = 200;
+    p.y = BASE_Y;
+    p.onGround = true;
+    for (let t = 1; t <= 60; t++) {
+      m.tick = t + 0.5;
+      paint();
+    }
+    const settled = camera.y!;
+
+    // A 3m jump arc: the camera must not ride it.
+    let checked = 0;
+    for (let i = 1; i <= 20; i++) {
+      p.onGround = false;
+      p.y = BASE_Y + 3 * Math.sin((Math.PI * i) / 21);
+      m.tick = 60.5 + i;
+      paint();
+      expect(camera.y).toBeCloseTo(settled, 9);
+      checked++;
+    }
+    expect(checked).toBeGreaterThan(0);
+
+    // Landing a floor higher: the camera follows again.
+    p.onGround = true;
+    p.y = BASE_Y + 24;
+    for (let i = 1; i <= 60; i++) {
+      m.tick = 80.5 + i;
+      paint();
+    }
+    expect(camera.y!).toBeGreaterThan(settled + 20);
+  });
+});

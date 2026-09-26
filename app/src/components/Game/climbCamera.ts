@@ -46,6 +46,29 @@ export function climbView(
 }
 
 /**
+ * Half-height of the airborne dead band, as a fraction of the view. A normal
+ * or super jump stays inside it, so the camera holds still instead of riding
+ * every arc up and back down. A long fall or a jetpack climb leaves it and the
+ * camera follows again.
+ */
+export const CAMERA_AIR_BAND_FRAC = 0.12;
+
+/**
+ * The height the camera frames. Grounded or on a ladder, that is the climber.
+ * Airborne, it holds the last supported height and only moves once the
+ * climber leaves the ±band around it, dragging the edge of the band along.
+ */
+export function cameraFocusY(
+  anchorY: number | null,
+  playerY: number,
+  supported: boolean,
+  bandM: number
+): number {
+  if (supported || anchorY === null) return playerY;
+  return Math.min(playerY + bandM, Math.max(playerY - bandM, anchorY));
+}
+
+/**
  * World-Y of the bottom of the view if the camera snapped to the climber.
  * `bottomInsetPx` is the touch-control overlay; the camera sits that far
  * below the base so the climber is never hidden behind the buttons.
