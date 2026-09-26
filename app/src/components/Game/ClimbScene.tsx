@@ -217,13 +217,13 @@ export function ClimbScene({
     heldFocusY(camera.focusY, playerYNow, view.viewH * CAMERA_AIR_BAND_FRAC),
     view.viewH,
     bottomInset,
-    view.pxPerMY
+    view.pxPerM
   );
   const lavaFill = lavaThreatFill(
     state.hazardY,
     camY,
     view.viewH,
-    view.pxPerMY > 0 ? bottomInset / view.pxPerMY : 0
+    view.pxPerM > 0 ? bottomInset / view.pxPerM : 0
   );
   const lavaPhaseInfo = hazardPhase(state.raceSeconds - state.hazardSlowSeconds);
 

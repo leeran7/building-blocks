@@ -17,40 +17,22 @@ import { TICK_DT } from "../../game/types";
 export const CAMERA_FOCUS_FRAC = 0.62;
 /** How fast the eased camera closes on the target each tick (1 = snap). */
 export const CAMERA_FOLLOW = 0.3;
-/**
- * Visual scale of the climb. Sprites (ladders, orbs, slabs, HUD) draw this
- * much larger. Width stays locked to the canvas: the view never pans.
- * Render-only — the simulation, scores and replays are in unscaled metres.
- */
-export const GAME_DRAW_SCALE = 1.2;
-/**
- * How much taller world height draws than width (ladders, floor gaps, and all
- * vertical motion including the camera). 1 keeps metres square on screen.
- */
-export const WORLD_HEIGHT_STRETCH = 1;
-/**
- * The climber alone draws at this scale (instead of GAME_DRAW_SCALE) so the
- * player reads clearly on a phone without shrinking the view any further.
- */
-export const CLIMBER_DRAW_SCALE = 1.35;
-
 export function climbView(
   width: number,
   height: number,
   towerWidthM: number
 ): ClimbView {
   const pxPerM = width > 0 && towerWidthM > 0 ? width / towerWidthM : 1;
-  const pxPerMY = pxPerM * WORLD_HEIGHT_STRETCH;
-  const viewH = pxPerMY > 0 ? height / pxPerMY : 0;
-  return { pxPerM, pxPerMY, viewH };
+  const viewH = pxPerM > 0 ? height / pxPerM : 0;
+  return { pxPerM, viewH };
 }
 
 /**
  * Half-height of the airborne dead band, as a fraction of the view. A normal
  * jump stays inside it, so the camera holds still instead of riding every
- * arc. Super-jump rises are followed (paintClimbFrame), and the fall back
- * from the tallest super-jump apex (~13 m of the ~178 m 9:16 view) still
- * fits, so the camera does not chase the drop. Long falls leave it early.
+ * arc. The fall back from the tallest super-jump apex (~13 m of the ~178 m
+ * 9:16 view) still fits, so the camera never chases that drop. Long falls
+ * leave it early.
  */
 export const CAMERA_AIR_BAND_FRAC = 0.09;
 
@@ -62,13 +44,21 @@ export const CAMERA_AIR_BAND_FRAC = 0.09;
 export const CAMERA_CATCHUP_MPS = 40;
 
 /**
+ * How far a super-jump rise may lead the camera before it follows, as a
+ * fraction of the view. Past it the view climbs with the climber, like
+ * jetpack thrust; below it a short hop leaves the view still.
+ */
+export const CAMERA_SUPER_LEAD_FRAC = 0.05;
+
+/**
  * The height the camera frames.
  *
- * Supported (ground, ladder, jetpack thrust, super-jump rise): follows the climber's motion
+ * Supported (ground, ladder, jetpack thrust): follows the climber's motion
  * exactly, and shrinks any leftover gap by at most `maxStepM` this frame.
- * Airborne: holds, and only moves once the climber leaves the ±band around
- * it, dragging the edge of the band along. The gap therefore never exceeds
- * the band, so switching between the two never lurches.
+ * Airborne: holds, and only moves once the climber rises more than `riseM`
+ * above it or falls more than `bandM` below it, dragging that edge along.
+ * The gap therefore never exceeds the band, so switching between the two
+ * never lurches.
  */
 export function cameraFocusY(
   prevFocusY: number | null,
@@ -76,7 +66,8 @@ export function cameraFocusY(
   playerY: number,
   supported: boolean,
   bandM: number,
-  maxStepM: number
+  maxStepM: number,
+  riseM: number = bandM
 ): number {
   if (prevFocusY === null || prevPlayerY === null) return playerY;
   if (supported) {
@@ -84,7 +75,7 @@ export function cameraFocusY(
     const step = maxStepM > 0 ? maxStepM : 0;
     return playerY + gap - Math.max(-step, Math.min(step, gap));
   }
-  return Math.min(playerY + bandM, Math.max(playerY - bandM, prevFocusY));
+  return Math.min(playerY + bandM, Math.max(playerY - riseM, prevFocusY));
 }
 
 /**
@@ -180,10 +171,8 @@ export function followCamY(
 }
 
 export interface ClimbView {
-  /** Horizontal pixels per tower metre (tower width fills the canvas). */
+  /** Pixels per tower metre. */
   pxPerM: number;
-  /** Vertical pixels per tower metre: pxPerM stretched by WORLD_HEIGHT_STRETCH. */
-  pxPerMY: number;
   /** Vertical metres visible on the canvas. */
   viewH: number;
 }

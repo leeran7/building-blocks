@@ -1,17 +1,13 @@
 /**
- * GAME_DRAW_SCALE — sprites draw bigger; height follows WORLD_HEIGHT_STRETCH.
+ * GAME_DRAW_SCALE — sprites draw bigger, nothing moves.
  *
  * Paints a real match through a recording context and reads the platform slab
- * rects back: their thickness carries the draw scale, their top sits at the
- * WORLD_HEIGHT_STRETCH height, and their left edge and width still map 1:1 to
- * world metres, so the view never pans sideways.
+ * rects back: their thickness carries the draw scale, while their position
+ * and width still map 1:1 to world metres, so the view neither zooms nor pans.
  */
 
 import { describe, expect, it } from "vitest";
-import {
-  climbView,
-  WORLD_HEIGHT_STRETCH,
-} from "../../src/components/Game/climbCamera";
+import { climbView } from "../../src/components/Game/climbCamera";
 import {
   CLIMBER_DRAW_SCALE,
   GAME_DRAW_SCALE,
@@ -69,7 +65,7 @@ describe("paintClimbFrame: GAME_DRAW_SCALE", () => {
     expect(GAME_DRAW_SCALE).toBe(1.2);
   });
 
-  it("thickens slabs; places them at the stretched height, same x and width", () => {
+  it("thickens slabs without moving or widening them", () => {
     const tower = buildTower("indie-games");
     const m = createMatch({
       seed: "draw-scale",
@@ -94,9 +90,9 @@ describe("paintClimbFrame: GAME_DRAW_SCALE", () => {
           Math.abs((p.x1 - p.x0) * pxPerM - r.w) < 1e-6
       );
       if (!match) continue;
-      // Camera sits at the base on the opening frame, so height is the stretch.
+      // Camera sits at the base on the opening frame.
       if (match.y > 0) raised++;
-      expect(r.y).toBeCloseTo(HEIGHT - match.y * pxPerM * WORLD_HEIGHT_STRETCH);
+      expect(r.y).toBeCloseTo(HEIGHT - match.y * pxPerM);
       expect(r.h).toBeCloseTo(Math.max(6, pxPerM * 2.5 * GAME_DRAW_SCALE));
       expect(r.h).toBeGreaterThan(Math.max(6, pxPerM * 2.5));
       checked++;
@@ -119,10 +115,10 @@ describe("paintClimbFrame: GAME_DRAW_SCALE", () => {
     const { ctx, arcs } = recordingContext();
     paintClimbFrame(ctx, m, { width: WIDTH, height: HEIGHT, includeHud: false });
 
-    const { pxPerM, pxPerMY } = climbView(WIDTH, HEIGHT, tower.widthM);
+    const { pxPerM } = climbView(WIDTH, HEIGHT, tower.widthM);
     const p = m.players[0]!;
     const feetX = p.x * pxPerM;
-    const feetY = HEIGHT - p.y * pxPerMY;
+    const feetY = HEIGHT - p.y * pxPerM;
     // The head is the highest circle drawn on the climber's column.
     const onClimber = arcs.filter(
       (a) => Math.abs(a.x - feetX) < 1e-6 && a.y < feetY

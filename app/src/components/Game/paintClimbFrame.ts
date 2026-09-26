@@ -24,11 +24,10 @@ import { formatAltitude } from "../../lib/units";
 import {
   CAMERA_AIR_BAND_FRAC,
   CAMERA_CATCHUP_MPS,
+  CAMERA_SUPER_LEAD_FRAC,
   cameraFocusY,
   cameraTargetY,
-  CLIMBER_DRAW_SCALE,
   type ClimbCameraBag,
-  GAME_DRAW_SCALE,
   climbView,
   followCamY,
 } from "./climbCamera";
@@ -64,7 +63,18 @@ const TEXT_SECONDARY = "#a8a4b2";
 const FLAG = "#cbf24d";
 
 const BASE_WIDTH = 360;
-export { CLIMBER_DRAW_SCALE, GAME_DRAW_SCALE };
+/**
+ * Draw scale for everything on the canvas except the climber: ladders, slabs,
+ * orbs, crate trim, floor markers, HUD. Positions and the camera are
+ * unchanged, so the view neither zooms nor pans. Render-only — the
+ * simulation, scores and replays stay in unscaled metres.
+ */
+export const GAME_DRAW_SCALE = 1.2;
+/**
+ * The climber draws at this scale instead, so the player reads clearly on a
+ * phone without shrinking the view.
+ */
+export const CLIMBER_DRAW_SCALE = 1.35;
 
 // ── Cached font strings ──────────────────────────────────────────────────────
 // Avoids template-literal allocation every frame; rebuilt only on ui change.
@@ -150,7 +160,7 @@ export function paintClimbFrame(
   const playerY = player?.y ?? 0;
   const ui = Math.max(1, width / BASE_WIDTH) * GAME_DRAW_SCALE;
 
-  const { pxPerM, pxPerMY, viewH } = climbView(width, height, tower.widthM);
+  const { pxPerM, viewH } = climbView(width, height, tower.widthM);
   // Sizes (not positions) that follow the world scale.
   const sizePxPerM = pxPerM * GAME_DRAW_SCALE;
   ensureFontCache(ui);
@@ -160,30 +170,31 @@ export function paintClimbFrame(
   const camSnap =
     camBag.tick === null || state.tick < camBag.tick || state.tick < 1;
   const camDt = opts.dtSec ?? TICK_DT;
-  // Rising under super-jump is followed like jetpack thrust: the view climbs
-  // with the climber. The fall back is held like any other jump.
-  const superJumpRising =
-    !!player &&
-    player.vy > 0 &&
-    isPowerUpActive(player, "super-jump", state.tick);
   const supported =
     !player ||
     player.onGround ||
     player.onLadder ||
     player.jetpackThrusting ||
-    superJumpRising ||
     player.status !== "climbing";
+  // Under super-jump the view climbs with the climber once they rise past a
+  // short lead, like jetpack thrust; the fall back is held like any jump.
+  const airBandM = viewH * CAMERA_AIR_BAND_FRAC;
+  const riseM =
+    player && isPowerUpActive(player, "super-jump", state.tick)
+      ? viewH * CAMERA_SUPER_LEAD_FRAC
+      : airBandM;
   const focusY = cameraFocusY(
     camSnap ? null : camBag.focusY ?? null,
     camBag.playerY ?? null,
     playerY,
     supported,
-    viewH * CAMERA_AIR_BAND_FRAC,
-    CAMERA_CATCHUP_MPS * camDt
+    airBandM,
+    CAMERA_CATCHUP_MPS * camDt,
+    riseM
   );
   camBag.focusY = focusY;
   camBag.playerY = playerY;
-  const camTarget = cameraTargetY(focusY, viewH, bottomInset, pxPerMY);
+  const camTarget = cameraTargetY(focusY, viewH, bottomInset, pxPerM);
   const camWorldY = followCamY(
     camBag.y,
     camTarget,
@@ -195,7 +206,7 @@ export function paintClimbFrame(
   camBag.tick = state.tick;
 
   const sx = (worldX: number) => worldX * pxPerM;
-  const sy = (worldY: number) => height - (worldY - camWorldY) * pxPerMY;
+  const sy = (worldY: number) => height - (worldY - camWorldY) * pxPerM;
 
   const pickupAge =
     player?.lastPickupTick !== null &&
