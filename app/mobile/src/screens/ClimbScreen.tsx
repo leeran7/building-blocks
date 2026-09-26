@@ -267,8 +267,14 @@ export function ClimbScreen({ onSignIn }: { onSignIn?: () => void } = {}) {
     })();
   }, [finished, posted, inputLog, player, state.seed, state.tick, isAuthed, submitRun]);
 
+  // SEC-DC-12: a daily replay belongs to whichever account submits it first,
+  // so its link is offered only once this player's own save is acknowledged.
+  // While it is pending, after a failure (retried later) or when it was not
+  // saved, sharing would let someone else claim the run.
+  const shareReady = shareUrl !== null && (!isDaily || dailySave?.status === "saved");
+
   const share = useCallback(async () => {
-    if (!shareUrl) return;
+    if (!shareUrl || !shareReady) return;
     void tapLight();
     try {
       if (navigator.share) {
@@ -279,7 +285,7 @@ export function ClimbScreen({ onSignIn }: { onSignIn?: () => void } = {}) {
     } catch {
       /* user cancelled / unavailable */
     }
-  }, [shareUrl]);
+  }, [shareUrl, shareReady]);
 
   const handleConsentAccept = useCallback(async () => {
     setConsentBusy(true);
@@ -411,7 +417,7 @@ export function ClimbScreen({ onSignIn }: { onSignIn?: () => void } = {}) {
                   }
                 : undefined
             }
-            shareable={Boolean(shareUrl)}
+            shareable={shareReady}
             isGuest={!isAuthed}
             onPlayAgain={handleStart}
             onShare={share}

@@ -20,6 +20,7 @@ interface SceneProps {
   seed?: string;
   resultPath?: string;
   resultFields?: Record<string, unknown>;
+  shareAfterSave?: boolean;
   onFinish?: (peakY: number) => void;
 }
 
@@ -108,6 +109,8 @@ describe("web Daily Climb seed (SEC-DC-3, SEC-DC-4)", () => {
     const last = scene.props.at(-1)!;
     expect(last.resultPath).toBe("/api/climb/daily/result");
     expect(last.resultFields).toEqual({ simVersion: DAILY_SIM_VERSION });
+    // SEC-DC-12: the replay link waits for the save (tests/components/webDailyShareGate.test.tsx).
+    expect(last.shareAfterSave).toBe(true);
   });
 
   it("commits a finished run to the server's day", async () => {
