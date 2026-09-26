@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef } from "react";
-import { drawLava, lavaCrestRise } from "@app/components/Game/lava";
+import { drawLava, lavaDrawnReach } from "@app/components/Game/lava";
 import { prefersReducedMotion } from "../lib/motion";
 import volcanoScene from "@app/../public/climb/volcano-tile.jpg";
 
@@ -35,18 +35,21 @@ export function lavaUiScale(width: number): number {
 
 /** Rounds up at 4 decimals, so a CSS length built from it is never short. */
 const ceil4 = (n: number) => Math.ceil(n * 1e4) / 1e4;
-const LAVA_SURFACE_VH = +(LAVA_CANVAS_VH * (1 - LAVA_SURFACE_FROM_TOP)).toFixed(2);
+const LAVA_SURFACE_VH = ceil4(LAVA_CANVAS_VH * (1 - LAVA_SURFACE_FROM_TOP));
 /**
- * The crest's rise as a CSS length: lavaCrestRise(lavaUiScale(100vw)). The
- * canvas spans the full screen width, so its scale is max(LAVA_UI_MIN,
- * 100vw / LAVA_UI_REF_WIDTH), and the rise is linear in the scale.
+ * How far the drawn surface (crest plus the top half of its glowing rim)
+ * reaches above the surface line, as a CSS length:
+ * lavaDrawnReach(lavaUiScale(100vw)). The canvas spans the full screen width,
+ * so its scale is max(LAVA_UI_MIN, 100vw / LAVA_UI_REF_WIDTH), and the reach
+ * is linear in the scale.
  */
-const LAVA_CREST_CSS = `max(${ceil4(lavaCrestRise(LAVA_UI_MIN))}px, ${ceil4((lavaCrestRise(1) * 100) / LAVA_UI_REF_WIDTH)}vw)`;
+const LAVA_CREST_CSS = `max(${ceil4(lavaDrawnReach(LAVA_UI_MIN))}px, ${ceil4((lavaDrawnReach(1) * 100) / LAVA_UI_REF_WIDTH)}vw)`;
 /**
- * CSS length from the screen's bottom edge to just above the highest lava
- * crest (surface + the width-aware crest + a 0.5rem gap). Content that must
- * stay readable over the backdrop ends at least this far up. Holds on every
- * width and orientation, because the crest grows with the screen width.
+ * CSS length from the screen's bottom edge to just above the highest drawn
+ * lava, rim glow included (surface + the width-aware reach + a 0.5rem gap).
+ * Content that must stay readable over the backdrop ends at least this far
+ * up. Holds on every width and orientation, because the crest and its rim
+ * grow with the screen width.
  */
 export const LAVA_CLEARANCE = `calc(${LAVA_SURFACE_VH}vh + ${LAVA_CREST_CSS} + 0.5rem)`;
 

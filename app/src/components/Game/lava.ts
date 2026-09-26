@@ -34,6 +34,14 @@ const CREST_SEGMENTS = 40;
 export const LAVA_WAVE_AMP = 9;
 /** Crest wave amplitude (px at ui = 1) while the slow-lava power-up is active. */
 const LAVA_WAVE_AMP_SLOWED = 4;
+/**
+ * Width (px at ui = 1) of the glowing rim stroked along the crest. It is the
+ * widest rim any state draws (slowed draws 5, hardening eases it to 3), so
+ * half of it is how far the drawn lava reaches above the crest line.
+ */
+export const LAVA_RIM_WIDTH = 6;
+/** Width (px at ui = 1) of the rim while the slow-lava power-up is active. */
+const LAVA_RIM_WIDTH_SLOWED = 5;
 /** How deep the vertical gradient reaches below the crest, in px * ui. */
 const BODY_DEPTH = 140;
 const HAZE_COUNT = 4;
@@ -178,6 +186,17 @@ export function hash(x: number, y: number): number {
  */
 export function lavaCrestRise(ui: number): number {
   return 2 * LAVA_WAVE_AMP * ui;
+}
+
+/**
+ * How far the drawn lava surface reaches above the flat hazard line, in px,
+ * at scale `ui`: the crest's rise plus the half of the rim stroke that sits
+ * above the crest line. Layout that must stay clear of the visible lava
+ * surface sizes itself from this. Bubbles, embers and haze are transient
+ * particles that leave the surface and are not part of this reach.
+ */
+export function lavaDrawnReach(ui: number): number {
+  return lavaCrestRise(ui) + (LAVA_RIM_WIDTH / 2) * ui;
 }
 
 /**
@@ -561,7 +580,7 @@ export function drawLava(ctx: CanvasRenderingContext2D, opts: LavaOptions): void
     ? lerpColor(ROCK_RIM, "#ffd24d", smoothstep(hardenProgress))
     : slowed ? "#ffd6ef" : "#ffd24d";
   ctx.strokeStyle = rimColor;
-  ctx.lineWidth = lerp(hardened ? 6 : slowed ? 5 : 6, 3, rockBlend) * ui;
+  ctx.lineWidth = lerp(hardened || !slowed ? LAVA_RIM_WIDTH : LAVA_RIM_WIDTH_SLOWED, 3, rockBlend) * ui;
   ctx.globalAlpha = lerp(hardened ? 0.4 : slowed ? 0.28 : 0.4, 0.5, rockBlend);
   if (slowed && !hardened) ctx.setLineDash([9 * ui, 6 * ui]);
   ctx.stroke();
