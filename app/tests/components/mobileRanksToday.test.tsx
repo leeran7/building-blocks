@@ -41,12 +41,14 @@ type Path =
   | "/api/climb/daily/leaderboard"
   | "/api/climb/daily/leaderboard/friends"
   | "/api/climb/leaderboard"
+  | "/api/climb/leaderboard/friends"
   | "/api/settings";
 
 const net = vi.hoisted(() => ({
   daily: null as unknown,
   dailyStatus: 200,
   friendsDaily: null as unknown,
+  friends: null as unknown,
   consent: true,
   putStatus: 200,
   hold: null as null | string,
@@ -67,6 +69,7 @@ const apiFetch = vi.fn(async (path: string, init?: RequestInit): Promise<Respons
   if (path === "/api/climb/daily/leaderboard") return jsonResponse(net.daily, net.dailyStatus);
   if (path === "/api/climb/daily/leaderboard/friends") return jsonResponse(net.friendsDaily);
   if (path === "/api/climb/leaderboard") return jsonResponse({ climbers: [allTimeRow(1, "alltime-top", 9000)] });
+  if (path === "/api/climb/leaderboard/friends") return jsonResponse(net.friends, net.friends ? 200 : 500);
   if (path === "/api/dashboard") return jsonResponse(net.dashboard);
   if (path === "/api/settings") {
     if (init?.method === "PUT") {
@@ -188,6 +191,7 @@ beforeEach(() => {
   net.daily = dailyBoard([dailyRow(1, "a", 900), dailyRow(2, "b", 800)], null);
   net.dailyStatus = 200;
   net.friendsDaily = null;
+  net.friends = null;
   net.consent = true;
   net.putStatus = 200;
   net.hold = null;
@@ -311,11 +315,15 @@ describe("Ranks: Global | Friends pill, then All-time | Today underline tabs (AC
       hiddenCount: 0,
       notClimbedCount: 0,
     };
+    net.friends = { climbers: [allTimeRow(1, "f1", 50)], hiddenCount: 0, notClimbedCount: 0 };
     net.dashboard = dashboardWith(1302);
     await render("/leaderboard", createElement(LeaderboardScreen));
     await click(tab("lb-tab-friends"));
-    expect(headerVisible()).not.toMatch(TAB_WORDS);
-    expect(pillText()).toBe("1,302 climbers");
+    // Friends · All-time: the pill counts the viewer's friends (user request),
+    // and nothing else in the header repeats the tab words.
+    expect(pillText()).toBe("1 friend");
+    const outsidePill = headerVisible().replace(pillText(), "");
+    expect(outsidePill).not.toMatch(TAB_WORDS);
     await click(tab("lb-period-today"));
     expect(headerVisible()).not.toMatch(TAB_WORDS);
     expect(pillText()).toMatch(/^Resets in /);
@@ -691,12 +699,80 @@ describe("Ranks: live status pill under the title", () => {
     expect(readable.map((n) => n.textContent)).toEqual(["1,302 climbers on the all-time board"]);
   });
 
-  it("the count is the same on Friends: the pill follows the period, not the scope", async () => {
+  it("Friends never shows the global climber count (it read as a friend count)", async () => {
     net.dashboard = dashboardWith(1302);
-    net.friendsDaily = null;
+    net.friends = { climbers: [allTimeRow(1, ME, 70), allTimeRow(2, "f1", 50)], hiddenCount: 0, notClimbedCount: 0 };
+    await render("/leaderboard", createElement(LeaderboardScreen));
+    expect(pillText()).toBe("1,302 climbers"); // precondition: Global shows it
+    await click(tab("lb-tab-friends"));
+    expect(header()).not.toContain("1,302");
+    expect(pillText()).toBe("1 friend");
+    await click(tab("lb-tab-global"));
+    expect(pillText()).toBe("1,302 climbers");
+  });
+
+  it.each([
+    ["one listed friend (the user's case)", [allTimeRow(1, ME, 70), allTimeRow(2, "f1", 50)], 0, 0, "1 friend"],
+    ["one friend who is hidden", [allTimeRow(1, ME, 70)], 1, 0, "1 friend"],
+    ["one friend who hasn't climbed yet", [allTimeRow(1, ME, 70)], 0, 1, "1 friend"],
+    [
+      "several: listed, hidden and not yet climbed",
+      [allTimeRow(1, "f1", 90), allTimeRow(2, ME, 70), allTimeRow(3, "f2", 50)],
+      1,
+      2,
+      "5 friends",
+    ],
+    ["friends listed while the viewer has no climb", [allTimeRow(1, "f1", 90), allTimeRow(2, "f2", 50)], 0, 0, "2 friends"],
+  ])("Friends · All-time with %s counts every friend", async (_l, climbers, hiddenCount, notClimbedCount, want) => {
+    net.dashboard = dashboardWith(1302);
+    net.friends = { climbers, hiddenCount, notClimbedCount };
     await render("/leaderboard", createElement(LeaderboardScreen));
     await click(tab("lb-tab-friends"));
-    expect(pillText()).toBe("1,302 climbers");
+    expect(pillText()).toBe(want);
+    expect(pillLabel()).toBe(`You have ${want}`);
+  });
+
+  it("Friends · All-time with no friends yet shows no count, keeps the pill, and the board says 'Race your friends'", async () => {
+    net.dashboard = dashboardWith(1302);
+    net.friends = { climbers: [allTimeRow(1, ME, 70)], hiddenCount: 0, notClimbedCount: 0 };
+    await render("/leaderboard", createElement(LeaderboardScreen));
+    await click(tab("lb-tab-friends"));
+    expect(text()).toContain("Race your friends");
+    expect(pill()).toBeTruthy();
+    expect(pill()?.className).toContain("h-8");
+    expect(pillText()).toBe("Friends\u2019 best heights");
+    expect(pillLabel()).toBe("Friends\u2019 best heights");
+    expect(header()).not.toMatch(/\d/);
+  });
+
+  it("Friends · All-time while its board loads: the pill is there with no number, then the count", async () => {
+    net.dashboard = dashboardWith(1302);
+    net.hold = "/api/climb/leaderboard/friends";
+    await render("/leaderboard", createElement(LeaderboardScreen));
+    await click(tab("lb-tab-friends"));
+    expect(pill()).toBeTruthy();
+    expect(header()).not.toMatch(/\d/);
+    await act(async () => {
+      net.held.splice(0).forEach((answer) =>
+        answer({ climbers: [allTimeRow(1, ME, 70), allTimeRow(2, "f1", 50), allTimeRow(3, "f2", 40)], hiddenCount: 0, notClimbedCount: 0 }),
+      );
+    });
+    await settle();
+    expect(pillText()).toBe("2 friends");
+  });
+
+  it("Friends · Today keeps the reset countdown", async () => {
+    net.friends = { climbers: [allTimeRow(1, "f1", 50)], hiddenCount: 0, notClimbedCount: 0 };
+    net.friendsDaily = {
+      day: utcDayKey(new Date()),
+      resetsAt: nextUtcResetAt(new Date()).toISOString(),
+      climbers: [dailyRow(1, "f1", 50)],
+      hiddenCount: 0,
+      notClimbedCount: 0,
+    };
+    await render(TODAY, createElement(LeaderboardScreen));
+    await click(tab("lb-tab-friends"));
+    expect(pillText()).toMatch(/^Resets in \d+h \d+m$|^Resets in \d+m$|^Resets in <1m$/);
   });
 
   it.each([

@@ -13,7 +13,9 @@ import {
   parseFriendsBoard,
   knownClimberCount,
   ranksStatus,
+  friendCount,
   ALLTIME_STATUS_FALLBACK,
+  FRIENDS_STATUS_FALLBACK,
 } from "../../mobile/src/lib/leaderboard";
 import { spokenReset } from "../../src/lib/daily";
 import type { ClimberRank } from "../../mobile/src/contexts/AppDataContext";
@@ -191,6 +193,56 @@ describe("ranksStatus: the Ranks status pill copy, by period", () => {
       expect(s.text).not.toMatch(/\d/);
     },
   );
+});
+
+describe("ranksStatus on the Friends tab (friend count, user request)", () => {
+  it("All-time: '1 friend' and 'N friends', spoken as 'You have ...'", () => {
+    expect(ranksStatus("alltime", HOUR, 1302, { count: 1 })).toEqual({
+      icon: "people",
+      text: "1 friend",
+      label: "You have 1 friend",
+    });
+    expect(ranksStatus("alltime", HOUR, 1302, { count: 1234 })).toEqual({
+      icon: "people",
+      text: "1,234 friends",
+      label: "You have 1,234 friends",
+    });
+  });
+
+  it("never falls back to the global climber count", () => {
+    const s = ranksStatus("alltime", HOUR, 1302, { count: null });
+    expect(`${s.text} ${s.label}`).not.toMatch(/1,?302|climber/);
+  });
+
+  it.each([null, 0, -1, 1.5, Number.NaN])("an unknown or zero count (%j) shows the neutral line, no number", (count) => {
+    const s = ranksStatus("alltime", HOUR, 1302, { count });
+    expect(s).toEqual({ icon: "people", text: FRIENDS_STATUS_FALLBACK, label: FRIENDS_STATUS_FALLBACK });
+    expect(s.text).not.toMatch(/\d/);
+  });
+
+  it("Today keeps the reset countdown on Friends", () => {
+    expect(ranksStatus("today", 48 * MIN, 1302, { count: 3 }).text).toBe("Resets in 48m");
+  });
+});
+
+describe("friendCount", () => {
+  const row = (userId: string) => ({ userId });
+
+  it("is null while no board is loaded", () => {
+    expect(friendCount(null, "me")).toBeNull();
+  });
+
+  it("counts listed friends except the viewer, plus hidden and not-yet-climbed friends", () => {
+    expect(friendCount({ climbers: [row("me"), row("f1")], hiddenCount: 0, notClimbedCount: 0 }, "me")).toBe(1);
+    expect(friendCount({ climbers: [row("me")], hiddenCount: 1, notClimbedCount: 0 }, "me")).toBe(1);
+    expect(friendCount({ climbers: [row("me")], hiddenCount: 0, notClimbedCount: 1 }, "me")).toBe(1);
+    expect(friendCount({ climbers: [row("f1"), row("me"), row("f2")], hiddenCount: 1, notClimbedCount: 2 }, "me")).toBe(5);
+  });
+
+  it("is 0 with no friends, and a viewer missing from the list is not subtracted", () => {
+    expect(friendCount({ climbers: [row("me")], hiddenCount: 0, notClimbedCount: 0 }, "me")).toBe(0);
+    expect(friendCount({ climbers: [row("f1"), row("f2")], hiddenCount: 0, notClimbedCount: 0 }, "me")).toBe(2);
+  });
 });
 
 describe("knownClimberCount", () => {

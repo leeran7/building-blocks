@@ -1,14 +1,7 @@
-import { useCallback, useRef, useState, type KeyboardEvent, type ReactNode, type Ref } from "react";
+import { useCallback, useRef, useState, type ReactNode, type Ref } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
-import {
-  useDailyLeaderboard,
-  useDashboard,
-  useFriendsDailyLeaderboard,
-  useFriendsLeaderboard,
-  useLeaderboard,
-  useSettings,
-} from "../contexts/AppDataContext";
+import { useDashboard, useSettings } from "../contexts/AppDataContext";
 import { ALTITUDE_UNIT } from "@app/lib/units";
 import { Button, RetryPanel, StateMessage } from "../components/ui";
 import { PullToRefresh } from "../components/PullToRefresh";
@@ -18,6 +11,7 @@ import type { DailyStanding } from "../lib/dailyBoard";
 import { tapLight } from "../lib/haptics";
 import {
   formatHeight,
+  friendCount,
   friendsFooter,
   ranksStatus,
   standingFor,
@@ -27,7 +21,18 @@ import {
 } from "../lib/leaderboard";
 import { HexAvatar } from "../components/HexAvatar";
 import { HubHeader } from "../components/HubHeader";
-import { useRetry } from "../hooks/useRetry";
+import { useRanksBoards } from "../hooks/useRanksBoards";
+import {
+  PANEL_ID,
+  PERIOD_PANEL_ID,
+  PeriodTabs,
+  ScopeTabs,
+  periodTabId,
+  tabId,
+  type Period,
+  type Scope,
+} from "../components/ranks/RanksTabs";
+import { ClockIcon, PeopleIcon } from "../components/ranks/icons";
 import { useUtcDay } from "../hooks/useUtcDay";
 import { prefersReducedMotion } from "../lib/motion";
 
@@ -40,20 +45,6 @@ const MEDAL: Record<Medal, { face: string; rim: string; text: string }> = {
   3: { face: "linear-gradient(160deg,#ffb888,#e3834e 55%,#bf6430)", rim: "#5c2508", text: "#1c0a02" },
 };
 
-type Scope = "global" | "friends";
-type Period = "today" | "alltime";
-
-const SCOPES: Array<{ id: Scope; label: string }> = [
-  { id: "global", label: "Global" },
-  { id: "friends", label: "Friends" },
-];
-
-/** All-time first and default; Today opens from a tab or `?board=today`. */
-const PERIODS: Array<{ id: Period; label: string }> = [
-  { id: "alltime", label: "All-time" },
-  { id: "today", label: "Today" },
-];
-
 /**
  * What the board panel shows. `empty` is a Global board with no climbs (the
  * copy differs for today's tower); `noFriendsYet` is a Friends board with only
@@ -63,12 +54,8 @@ const PERIODS: Array<{ id: Period; label: string }> = [
  */
 type BoardView = "loading" | "error" | "empty" | "noFriendsYet" | "ready";
 
-const PANEL_ID = "lb-panel";
-const PERIOD_PANEL_ID = "lb-period-panel";
 const LOAD_FAILED_MESSAGE = "Couldn't load the leaderboard. Check your connection and try again.";
 const DAILY_PLAY_PATH = "/climb?daily=1";
-const tabId = (scope: Scope) => `lb-tab-${scope}`;
-const periodTabId = (period: Period) => `lb-period-${period}`;
 
 /**
  * `?board=today` deep-links today's board; anything else (including no value)
@@ -140,78 +127,24 @@ export function LeaderboardScreen() {
   const isToday = period === "today";
   const isFriends = scope === "friends";
 
-  const global = useLeaderboard();
-  const friends = useFriendsLeaderboard(!isToday && isFriends);
-  const daily = useDailyLeaderboard(clock.day, isToday);
-  const friendsDaily = useFriendsDailyLeaderboard(clock.day, isToday && isFriends);
   const own = useDashboard().data?.freeClimb ?? null;
   const settings = useSettings();
   const onPublicBoard = settings.data?.leaderboardConsent ?? true;
   const meId = user?.uid ?? null;
 
-  const { refreshLeaderboard } = global;
-  const { refreshFriendsLeaderboard } = friends;
-  const { refreshDailyLeaderboard } = daily;
-  const { refreshFriendsDailyLeaderboard } = friendsDaily;
-  const activeRefresh = isToday
-    ? isFriends
-      ? refreshFriendsDailyLeaderboard
-      : refreshDailyLeaderboard
-    : isFriends
-      ? refreshFriendsLeaderboard
-      : refreshLeaderboard;
-  const handleRefresh = useCallback(() => activeRefresh(), [activeRefresh]);
-
-  // One per board: a retry refreshes only its own board, and a retry still in
-  // flight never paints "Retrying…" over another tab.
   const headingRef = useRef<HTMLHeadingElement>(null);
-  const globalRetry = useRetry(refreshLeaderboard, {
-    failed: global.error,
-    hasData: global.data !== null,
+  const { active, todayMe, friendsBoard } = useRanksBoards({
+    period,
+    scope,
+    day: clock.day,
     focusOnRecover: headingRef,
   });
-  const friendsRetry = useRetry(refreshFriendsLeaderboard, {
-    failed: friends.error,
-    hasData: friends.data !== null,
-    focusOnRecover: headingRef,
-  });
-  const dailyRetry = useRetry(refreshDailyLeaderboard, {
-    failed: daily.error,
-    hasData: daily.data !== null,
-    focusOnRecover: headingRef,
-  });
-  const friendsDailyRetry = useRetry(refreshFriendsDailyLeaderboard, {
-    failed: friendsDaily.error,
-    hasData: friendsDaily.data !== null,
-    focusOnRecover: headingRef,
-  });
-
-  const activeRetry = isToday
-    ? isFriends
-      ? friendsDailyRetry
-      : dailyRetry
-    : isFriends
-      ? friendsRetry
-      : globalRetry;
-  const activeHasData = isToday
-    ? isFriends
-      ? friendsDaily.data !== null
-      : daily.data !== null
-    : isFriends
-      ? friends.data !== null
-      : global.data !== null;
-  const climbers: readonly BoardRow[] =
-    (isToday
-      ? isFriends
-        ? friendsDaily.data?.climbers
-        : daily.data?.climbers
-      : isFriends
-        ? friends.data?.climbers
-        : global.data) ?? [];
+  const { refresh: activeRefresh, retry: activeRetry, hasData: activeHasData, climbers } = active;
+  const handleRefresh = useCallback(() => activeRefresh(), [activeRefresh]);
 
   const podium = climbers.slice(0, 3);
   const rest = climbers.slice(3);
-  const me = isToday ? (daily.data?.me ?? null) : null;
+  const me = todayMe;
   const standing: Standing = isFriends
     ? standingFor(climbers, meId, null, true)
     : isToday
@@ -223,7 +156,6 @@ export function LeaderboardScreen() {
       ? me
       : null;
 
-  const friendsBoard = isToday ? friendsDaily.data : friends.data;
   const hiddenCount = friendsBoard?.hiddenCount ?? 0;
   const notClimbedCount = friendsBoard?.notClimbedCount ?? 0;
   const footer = isFriends ? friendsFooter(hiddenCount, notClimbedCount) : null;
@@ -263,7 +195,15 @@ export function LeaderboardScreen() {
   return (
     <main className="relative flex h-full flex-col">
       <PullToRefresh onRefresh={handleRefresh}>
-        <Header status={ranksStatus(period, clock.msUntilReset, own?.totalClimbers)} headingRef={headingRef} />
+        <Header
+          status={ranksStatus(
+            period,
+            clock.msUntilReset,
+            own?.totalClimbers,
+            isFriends ? { count: friendCount(friendsBoard, meId) } : undefined,
+          )}
+          headingRef={headingRef}
+        />
         <ScopeTabs scope={scope} onChange={setScope} />
 
         <div role="tabpanel" id={PANEL_ID} aria-labelledby={tabId(scope)}>
@@ -353,136 +293,6 @@ function Header({ status, headingRef }: { status: RanksStatus; headingRef: Ref<H
     label: status.label,
   };
   return <HubHeader title="Leaderboard" status={hubStatus} trailing={<TrophyBadge />} headingRef={headingRef} />;
-}
-
-interface TabsProps<T extends string> {
-  options: Array<{ id: T; label: string }>;
-  value: T;
-  onChange: (next: T) => void;
-  label: string;
-  idFor: (id: T) => string;
-  controls: string;
-}
-
-/**
- * WAI-ARIA tabs keyboard model shared by both tab rows: Left/Right move (and
- * wrap), Home/End jump to the ends, and focus follows the selection.
- */
-function useTabKeys<T extends string>({ options, value, onChange, idFor }: TabsProps<T>) {
-  const select = (next: T) => {
-    if (next === value) return;
-    void tapLight();
-    onChange(next);
-  };
-
-  const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
-    const i = options.findIndex((o) => o.id === value);
-    const target =
-      e.key === "ArrowRight"
-        ? (i + 1) % options.length
-        : e.key === "ArrowLeft"
-          ? (i + options.length - 1) % options.length
-          : e.key === "Home"
-            ? 0
-            : e.key === "End"
-              ? options.length - 1
-              : null;
-    if (target === null) return;
-    e.preventDefault();
-    const next = options[target].id;
-    select(next);
-    document.getElementById(idFor(next))?.focus();
-  };
-
-  return { select, onKeyDown };
-}
-
-/** Global | Friends: the screen's primary control, a lime pill segmented tablist. */
-function ScopeTabs({ scope, onChange }: { scope: Scope; onChange: (next: Scope) => void }) {
-  const props: TabsProps<Scope> = {
-    options: SCOPES,
-    value: scope,
-    onChange,
-    label: "Leaderboard scope",
-    idFor: tabId,
-    controls: PANEL_ID,
-  };
-  const { select, onKeyDown } = useTabKeys(props);
-  return (
-    <div
-      role="tablist"
-      aria-label={props.label}
-      onKeyDown={onKeyDown}
-      className="glass mb-3 grid grid-cols-2 gap-1 rounded-full border border-white/10 p-1"
-    >
-      {SCOPES.map(({ id, label }) => {
-        const selected = id === scope;
-        return (
-          <button
-            key={id}
-            id={tabId(id)}
-            type="button"
-            role="tab"
-            aria-selected={selected}
-            aria-controls={PANEL_ID}
-            tabIndex={selected ? 0 : -1}
-            onClick={() => select(id)}
-            className={`flex min-h-[44px] items-center justify-center gap-2 rounded-full font-display text-meta font-black uppercase tracking-chip transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void ${
-              selected
-                ? "bg-signal text-void shadow-[0_0_18px_-4px_rgba(203,242,77,0.6)]"
-                : "text-text-secondary active:bg-white/5"
-            }`}
-          >
-            {id === "global" ? <GlobeIcon /> : <PeopleIcon />}
-            {label}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
-/**
- * All-time | Today: a light, centred underline tab row under the scope pill,
- * in sentence case body type (not tracked mono caps) so it reads as a
- * secondary control under the Global | Friends pill.
- * Selected = accent text over an accent bar; unselected = secondary text.
- */
-function PeriodTabs({ period, onChange }: { period: Period; onChange: (next: Period) => void }) {
-  const props: TabsProps<Period> = {
-    options: PERIODS,
-    value: period,
-    onChange,
-    label: "Leaderboard period",
-    idFor: periodTabId,
-    controls: PERIOD_PANEL_ID,
-  };
-  const { select, onKeyDown } = useTabKeys(props);
-  return (
-    <div role="tablist" aria-label={props.label} onKeyDown={onKeyDown} className="mb-4 flex justify-center gap-6">
-      {PERIODS.map(({ id, label }) => {
-        const selected = id === period;
-        return (
-          <button
-            key={id}
-            id={periodTabId(id)}
-            type="button"
-            role="tab"
-            aria-selected={selected}
-            aria-controls={PERIOD_PANEL_ID}
-            tabIndex={selected ? 0 : -1}
-            onClick={() => select(id)}
-            className={`flex min-h-[44px] min-w-[44px] flex-col items-center justify-center gap-1.5 rounded-md px-2 font-sans text-body font-semibold transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-void ${
-              selected ? "text-accent" : "text-text-secondary active:text-text-primary"
-            }`}
-          >
-            {label}
-            <span aria-hidden className={`h-0.5 w-full rounded-full ${selected ? "bg-accent" : "bg-transparent"}`} />
-          </button>
-        );
-      })}
-    </div>
-  );
 }
 
 const HEX_BADGE_SIZE = { md: "h-11 w-11", lg: "h-14 w-14" } as const;
@@ -876,34 +686,6 @@ function ChevronUp() {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
       <path d="m6 15 6-6 6 6" />
-    </svg>
-  );
-}
-
-function GlobeIcon() {
-  return (
-    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <circle cx="12" cy="12" r="9" />
-      <path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18" />
-    </svg>
-  );
-}
-
-function ClockIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <circle cx="12" cy="12" r="9" />
-      <path d="M12 7v5l3 2" />
-    </svg>
-  );
-}
-
-function PeopleIcon({ size = 17 }: { size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <circle cx="9" cy="8" r="3.5" />
-      <path d="M2.5 20a6.5 6.5 0 0 1 13 0" />
-      <path d="M16 4.6a3.5 3.5 0 0 1 0 6.8M18 14.2a6.5 6.5 0 0 1 3.5 5.8" />
     </svg>
   );
 }
