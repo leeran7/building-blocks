@@ -17,7 +17,6 @@ import { TICK_DT } from "../../game/types";
 export const CAMERA_FOCUS_FRAC = 0.62;
 /** How fast the eased camera closes on the target each tick (1 = snap). */
 export const CAMERA_FOLLOW = 0.3;
-
 export function climbView(
   width: number,
   height: number,
@@ -26,6 +25,84 @@ export function climbView(
   const pxPerM = width > 0 && towerWidthM > 0 ? width / towerWidthM : 1;
   const viewH = pxPerM > 0 ? height / pxPerM : 0;
   return { pxPerM, viewH };
+}
+
+/**
+ * Half-height of the airborne dead band, as a fraction of the view. A normal
+ * jump stays inside it, so the camera holds still instead of riding every
+ * arc. The fall back from the tallest super-jump apex (~13 m of the ~178 m
+ * 9:16 view) still fits, so the camera never chases that drop. Long falls
+ * leave it early.
+ */
+export const CAMERA_AIR_BAND_FRAC = 0.09;
+
+/**
+ * Fastest the camera closes the gap left by a hold, in metres/second. Only
+ * the gap is rate-limited: a supported climber's own motion (ladder, jetpack,
+ * replay at 4x) moves the focus one-for-one, so the climber never drifts.
+ */
+export const CAMERA_CATCHUP_MPS = 40;
+
+/**
+ * How far a super-jump rise may lead the camera before it follows, as a
+ * fraction of the view. Past it the view climbs with the climber, like
+ * jetpack thrust; below it a short hop leaves the view still.
+ */
+export const CAMERA_SUPER_LEAD_FRAC = 0.05;
+
+/**
+ * The height the camera frames.
+ *
+ * Supported (ground, ladder, jetpack thrust): follows the climber's motion
+ * exactly, and shrinks any leftover gap by at most `maxStepM` this frame.
+ * Airborne: holds, and only moves once the climber rises more than `riseM`
+ * above it or falls more than `bandM` below it, dragging that edge along.
+ * The gap therefore never exceeds the band, so switching between the two
+ * never lurches.
+ */
+export function cameraFocusY(
+  prevFocusY: number | null,
+  prevPlayerY: number | null,
+  playerY: number,
+  supported: boolean,
+  bandM: number,
+  maxStepM: number,
+  riseM: number = bandM
+): number {
+  if (prevFocusY === null || prevPlayerY === null) return playerY;
+  if (supported) {
+    const gap = prevFocusY - prevPlayerY;
+    const step = maxStepM > 0 ? maxStepM : 0;
+    return playerY + gap - Math.max(-step, Math.min(step, gap));
+  }
+  return Math.min(playerY + bandM, Math.max(playerY - riseM, prevFocusY));
+}
+
+/**
+ * Persistent camera state shared between the painter (which writes it every
+ * frame) and anything that needs to agree with what is on screen (the lava
+ * audio). Mutated in place; hold one per mounted canvas.
+ */
+export interface ClimbCameraBag {
+  y: number | null;
+  tick: number | null;
+  focusY?: number | null;
+  playerY?: number | null;
+}
+
+/**
+ * The focus the painter last framed, if it still belongs to this climber:
+ * it can only ever sit within the airborne band of them, so anything further
+ * away is stale (a new run, or a paint that has not happened yet) and the
+ * climber's own height is used instead.
+ */
+export function heldFocusY(
+  focusY: number | null | undefined,
+  playerY: number,
+  bandM: number
+): number {
+  if (typeof focusY !== "number" || !Number.isFinite(focusY)) return playerY;
+  return Math.abs(focusY - playerY) <= bandM + 1e-6 ? focusY : playerY;
 }
 
 /**
