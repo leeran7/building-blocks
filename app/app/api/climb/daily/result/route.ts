@@ -6,7 +6,9 @@
  * carry a replay token (seed + per-tick inputs). The server:
  *
  *   1. decides the day from ITS clock and the replay's seed — today's tower,
- *      or yesterday's only within DAILY_SUBMIT_GRACE_MS of the UTC reset;
+ *      or yesterday's only within DAILY_SUBMIT_GRACE_MS of the UTC reset —
+ *      and applies the per-user limit, both BEFORE inflating the input log
+ *      (which is output-capped at MAX_SHARE_TICKS bytes);
  *   2. re-simulates the inputs on that tower (src/game/dailyVerify.ts) and
  *      stores the re-simulated peak — a client/server mismatch is rejected
  *      (400, logged), never averaged or trusted;
@@ -40,7 +42,8 @@ import {
   recordDailyClimb,
 } from "../../../../../src/db/dailyClimb";
 import { FREE_STACK_SLUG } from "../../../../../src/game/freeStack";
-import { decodeRunReplay, parseReplayToken } from "../../../../../src/game/runReplay";
+import { parseReplayToken, parseRunReplayEnvelope } from "../../../../../src/game/runReplay";
+import { inflateReplayEnvelope } from "../../../../../src/game/runReplayServer";
 import { DAILY_SIM_VERSION, verifyDailyReplay } from "../../../../../src/game/dailyVerify";
 import { submissionDayForSeed } from "../../../../../src/lib/dailyDay";
 import {
@@ -111,16 +114,22 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   // Anonymous Firebase sessions have no email, so no users row to save against.
   if (!email) return notSaved("anonymous");
 
-  const replay = await decodeRunReplay(replayToken);
-  if (!replay) return reject(400, "INVALID_REPLAY", "Replay could not be decoded");
+  // The envelope (seed, claimed peak) parses without inflating the inputs, so
+  // the cheap day check and the per-user limiter run before any decompression.
+  const envelope = parseRunReplayEnvelope(replayToken);
+  if (!envelope) return reject(400, "INVALID_REPLAY", "Replay could not be decoded");
 
-  // Cheap day check first so the per-user key can carry the day.
   const now = new Date();
-  const day = submissionDayForSeed(replay.seed, now);
+  const day = submissionDayForSeed(envelope.seed, now);
   if (day === null) return reject(400, "DAY_CLOSED", "That daily tower is closed");
 
   const userLimit = await checkDailyResultUserRateLimit(uid, day);
   if (!userLimit.allowed) return reject(429, "RATE_LIMITED", "Too many requests");
+
+  // Output-capped at MAX_SHARE_TICKS bytes (SEC-DC-1: a small token can
+  // inflate ~1000x). Longer logs are rejected here, before they are unpacked.
+  const replay = inflateReplayEnvelope(envelope);
+  if (!replay) return reject(400, "INVALID_REPLAY", "Replay could not be decoded");
 
   try {
     await ensureUser({ id: uid, email, emailVerified });

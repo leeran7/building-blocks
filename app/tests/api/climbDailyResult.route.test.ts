@@ -39,7 +39,13 @@ import { revalidateTag } from "next/cache";
 import { buildFreeTower } from "../../src/game/freeStack";
 import { applyRunSeed } from "../../src/game/towers";
 import { createMatch, stepMatch } from "../../src/game/simulation";
-import { decodeRunReplay, encodeRunReplay, MAX_SHARE_TICKS, packInputLog } from "../../src/game/runReplay";
+import {
+  decodeRunReplay,
+  encodeRunReplay,
+  MAX_SHARE_TICKS,
+  packInputLog,
+  parseReplayToken,
+} from "../../src/game/runReplay";
 import { deflateSync } from "node:zlib";
 import { dailySeedFor } from "../../src/lib/dailyDay";
 import { resimulateSoloRun } from "../../src/game/dailyVerify";
@@ -372,4 +378,71 @@ describe("POST /api/climb/daily/result (verifier)", () => {
     const json = await (await post(body)).json();
     expect(json).toMatchObject({ saved: true, peakY: 999, improved: false, attempts: 4 });
   });
+});
+
+// ---------------------------------------------------------------------------
+// SEC-DC-1: decompression bomb. The cheap checks run before any inflate, and
+// the inflate is output-capped.
+// ---------------------------------------------------------------------------
+
+/** ~18.9 MB of one valid input byte: the largest bomb under MAX_REPLAY_TOKEN_LENGTH. */
+const BOMB_BYTES = 18_900_000;
+/** Generous for CI; a capped route answers in ms, the old one took ~8-15 s. */
+const BOMB_BUDGET_MS = 1_000;
+
+function bombToken(seed: string): string {
+  const i = deflateSync(Buffer.alloc(BOMB_BYTES, 0b01001), { level: 9 }).toString("base64url");
+  return Buffer.from(JSON.stringify({ v: 1, s: seed, p: 1, i })).toString("base64url");
+}
+
+async function timedPost(body: unknown): Promise<{ res: Response; ms: number }> {
+  const start = performance.now();
+  const res = await post(body);
+  return { res, ms: performance.now() - start };
+}
+
+describe("POST /api/climb/daily/result: decompression bomb (SEC-DC-1)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.useFakeTimers({ now: NOW, toFake: ["Date"] });
+    vi.mocked(verifyIdToken).mockResolvedValue({
+      uid: "u1",
+      email: "u1@example.com",
+      email_verified: true,
+    } as Awaited<ReturnType<typeof verifyIdToken>>);
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("precondition: the bomb fits the token allow-list", () => {
+    expect(parseReplayToken(bombToken(dailySeedFor(DAY)))).not.toBeNull();
+  });
+
+  it("rejects a bomb on today's tower as INVALID_REPLAY, fast, after the per-user limiter", async () => {
+    const { res, ms } = await timedPost({ replayToken: bombToken(dailySeedFor(DAY)), peakY: 1 });
+    expect(res.status).toBe(400);
+    expect(await codeOf(res)).toBe("INVALID_REPLAY");
+    expect(ms).toBeLessThan(BOMB_BUDGET_MS);
+    const namespaces = vi.mocked(checkRateLimit).mock.calls.map(([opts]) => opts.namespace);
+    expect(namespaces).toEqual(["climb", "climb:daily"]);
+    expect(recordDailyClimb).not.toHaveBeenCalled();
+  }, 60_000);
+
+  it("answers DAY_CLOSED for a bomb on a closed tower without inflating it", async () => {
+    const { res, ms } = await timedPost({ replayToken: bombToken(dailySeedFor("2026-09-20")), peakY: 1 });
+    expect(await codeOf(res)).toBe("DAY_CLOSED");
+    expect(ms).toBeLessThan(BOMB_BUDGET_MS);
+    // The per-user limiter is keyed by day, so a closed day never reaches it.
+    expect(vi.mocked(checkRateLimit).mock.calls.map(([opts]) => opts.namespace)).toEqual(["climb"]);
+  }, 60_000);
+
+  it("answers 429 for a bomb once the per-user limit is spent, without inflating it", async () => {
+    vi.mocked(checkRateLimit)
+      .mockResolvedValueOnce({ allowed: true, degraded: false })
+      .mockResolvedValueOnce({ allowed: false, degraded: false });
+    const { res, ms } = await timedPost({ replayToken: bombToken(dailySeedFor(DAY)), peakY: 1 });
+    expect(res.status).toBe(429);
+    expect(ms).toBeLessThan(BOMB_BUDGET_MS);
+  }, 60_000);
 });
