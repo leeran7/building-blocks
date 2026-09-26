@@ -37,7 +37,7 @@ import {
   TODAY_BOARD_PATH,
   type DailySaveResult,
 } from "../lib/dailyBoard";
-import type { DailyInfo } from "@app/lib/dailyInfo";
+import { isDailyInfoStale, type DailyInfo } from "@app/lib/dailyInfo";
 import { DAILY_SIM_VERSION } from "@app/game/simVersion";
 
 /** A finished run as POSTed to either result route. */
@@ -49,6 +49,9 @@ interface RunPayload {
   seed: string;
   replayToken?: string;
 }
+
+/** Play again on the results card: ready, refetching the daily, or unreachable. */
+type PlayAgainState = "ready" | "loading" | "offline";
 
 /** Daily save lifecycle on the results card: null = not a daily save. */
 type DailySaveState = DailySaveResult | { status: "pending" } | null;
@@ -83,14 +86,26 @@ export function ClimbScreen({ onSignIn }: { onSignIn?: () => void } = {}) {
   const [dailyInfo, setDailyInfo] = useState<DailyInfo | null>(null);
   const [dailyInfoFailed, setDailyInfoFailed] = useState(false);
   const [dailyInfoAttempt, setDailyInfoAttempt] = useState(0);
+  // When the current answer was requested: it is stale once the server's
+  // reset falls between that and a new start (RV-DC-3).
+  const dailyRequestedAt = useRef(0);
+  // A start was asked for while the tower was being refetched; it runs as
+  // soon as today's answer lands.
+  const [startWhenReady, setStartWhenReady] = useState(false);
   useEffect(() => {
     if (!isDaily) return;
     let cancelled = false;
+    const requestedAt = Date.now();
     setDailyInfoFailed(false);
     void fetchDailyInfo().then((info) => {
       if (cancelled) return;
-      if (info) setDailyInfo(info);
-      else setDailyInfoFailed(true);
+      if (info) {
+        dailyRequestedAt.current = requestedAt;
+        setDailyInfo(info);
+      } else {
+        setDailyInfoFailed(true);
+        setStartWhenReady(false);
+      }
     });
     return () => {
       cancelled = true;
@@ -173,8 +188,18 @@ export function ClimbScreen({ onSignIn }: { onSignIn?: () => void } = {}) {
   );
 
   const handleStart = useCallback(() => {
-    // Never start a daily on a random tower while the server seed is missing.
-    if (isDaily && !dailyInfo) return;
+    if (isDaily) {
+      // Never start a daily on a random tower while the server seed is
+      // missing, nor on yesterday's tower after 00:00 UTC: drop a stale
+      // answer, refetch, and start once today's arrives.
+      const fresh = dailyInfo !== null && !isDailyInfoStale(dailyInfo, dailyRequestedAt.current, Date.now());
+      if (!fresh) {
+        if (dailyInfo !== null) setDailyInfo(null);
+        setStartWhenReady(true);
+        setDailyInfoAttempt((n) => n + 1);
+        return;
+      }
+    }
     unlockAudio();
     void tapMedium();
     setPosted(false);
@@ -185,6 +210,20 @@ export function ClimbScreen({ onSignIn }: { onSignIn?: () => void } = {}) {
     setDailyResult(null);
     start();
   }, [start, unlockAudio, isDaily, dailyInfo]);
+
+  // Runs after the render that locked the new seed, so start() uses it.
+  useEffect(() => {
+    if (!startWhenReady || !dailyInfo) return;
+    setStartWhenReady(false);
+    handleStart();
+  }, [startWhenReady, dailyInfo, handleStart]);
+
+  /** The results card's Play again while a daily tower is (re)loading. */
+  const playAgainState: PlayAgainState = !isDaily || dailyInfo
+    ? "ready"
+    : dailyInfoFailed
+      ? "offline"
+      : "loading";
 
   // Death haptic — one buzz when the run ends. In daily mode, also record the
   // run locally (streak + today's best) before showing results.
@@ -420,6 +459,7 @@ export function ClimbScreen({ onSignIn }: { onSignIn?: () => void } = {}) {
             shareable={shareReady}
             isGuest={!isAuthed}
             onPlayAgain={handleStart}
+            playAgainState={playAgainState}
             onShare={share}
             onHome={() => {
               void tapLight();
@@ -514,6 +554,12 @@ function useCountUp(target: number, duration = 900): number {
   return value;
 }
 
+const PLAY_AGAIN_LABEL: Record<PlayAgainState, string> = {
+  ready: "Play again",
+  loading: "Loading today\u2019s tower\u2026",
+  offline: "Can\u2019t reach today\u2019s tower \u00b7 retry",
+};
+
 /** Why a daily run is not on today's board, in the player's words. */
 const DAILY_REJECTION_COPY: Record<string, string> = {
   SIM_VERSION_MISMATCH: "update the app to post daily scores",
@@ -549,6 +595,7 @@ function ResultsCard({
   shareable,
   isGuest,
   onPlayAgain,
+  playAgainState = "ready",
   onShare,
   onHome,
   onSignIn,
@@ -564,6 +611,7 @@ function ResultsCard({
   shareable: boolean;
   isGuest?: boolean;
   onPlayAgain: () => void;
+  playAgainState?: PlayAgainState;
   onShare: () => void;
   onHome: () => void;
   onSignIn?: () => void;
@@ -651,9 +699,11 @@ function ResultsCard({
       <div className="mt-7 flex flex-col gap-3">
         <button
           onClick={onPlayAgain}
-          className="min-h-[52px] rounded-full bg-signal font-display text-base font-black uppercase tracking-widest text-void shadow-signal transition-transform duration-150 active:scale-[0.97]"
+          disabled={playAgainState === "loading"}
+          aria-busy={playAgainState === "loading" || undefined}
+          className="min-h-[52px] rounded-full bg-signal font-display text-base font-black uppercase tracking-widest text-void shadow-signal transition-transform duration-150 active:scale-[0.97] disabled:opacity-60"
         >
-          Play again
+          {PLAY_AGAIN_LABEL[playAgainState]}
         </button>
         {isGuest && onSignIn && (
           <button

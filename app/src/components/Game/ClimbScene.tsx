@@ -86,6 +86,14 @@ export interface ClimbSceneProps {
   shareAfterSave?: boolean;
   /** Fired once when a live run finishes (not during replay). For Daily Climb. */
   onFinish?: (peakY: number) => void;
+  /**
+   * Asked before every live start; returning false cancels it. Daily Climb
+   * uses it to refetch the tower when 00:00 UTC has passed since the seed was
+   * fetched, so "Climb again" never replays yesterday's tower (RV-DC-3).
+   */
+  onBeforeStart?: () => boolean;
+  /** While set, the start button is disabled and shows this text instead. */
+  startBlockedLabel?: string | null;
   /** Extra content rendered in the lobby overlay (e.g. daily streak card). */
   lobbyExtra?: ReactNode;
   /** Extra content rendered in the results overlay (e.g. daily streak result). */
@@ -138,6 +146,8 @@ export function ClimbScene({
   resultFields,
   shareAfterSave = false,
   onFinish,
+  onBeforeStart,
+  startBlockedLabel = null,
   lobbyExtra,
   resultExtra,
 }: ClimbSceneProps) {
@@ -307,6 +317,8 @@ export function ClimbScene({
   );
 
   function handleStart() {
+    if (startBlockedLabel) return;
+    if (onBeforeStart && !onBeforeStart()) return;
     unlockAudio();
     firedFinishRef.current = false;
     setPosted(false);
@@ -540,7 +552,7 @@ export function ClimbScene({
               </>
             )}
             <ClimbControlsGuide variant="overlay" />
-            <StartButton onClick={handleStart} label="Start climb" />
+            <StartButton onClick={handleStart} label="Start climb" blockedLabel={startBlockedLabel} />
           </Overlay>
         )}
 
@@ -619,7 +631,7 @@ export function ClimbScene({
             ) : null}
 
             {!replaying ? (
-              <StartButton onClick={handleStart} label="Climb again" />
+              <StartButton onClick={handleStart} label="Climb again" blockedLabel={startBlockedLabel} />
             ) : (
               <div className="mt-6 flex flex-col items-center gap-2">
                 <StartButton onClick={restartReplay} label="Restart" />
@@ -709,16 +721,28 @@ function Overlay({ children }: { children: ReactNode }) {
   );
 }
 
-function StartButton({ onClick, label }: { onClick: () => void; label: string }) {
+function StartButton({
+  onClick,
+  label,
+  blockedLabel = null,
+}: {
+  onClick: () => void;
+  label: string;
+  /** Disabled with this text while set (e.g. refetching today's tower). */
+  blockedLabel?: string | null;
+}) {
+  const blocked = Boolean(blockedLabel);
   return (
     <button
       type="button"
       data-game-control
       onClick={onClick}
+      disabled={blocked}
+      aria-busy={blocked || undefined}
       onContextMenu={(e) => e.preventDefault()}
-      className="mt-6 inline-flex items-center justify-center rounded-full bg-signal text-void font-semibold px-10 min-h-[60px] text-lg shadow-signal hover:brightness-110 active:scale-[0.98] transition-[filter,transform,scale]"
+      className="mt-6 inline-flex items-center justify-center rounded-full bg-signal text-void font-semibold px-10 min-h-[60px] text-lg shadow-signal hover:brightness-110 active:scale-[0.98] transition-[filter,transform,scale] disabled:cursor-wait disabled:opacity-60"
     >
-      {label}
+      {blockedLabel ?? label}
     </button>
   );
 }

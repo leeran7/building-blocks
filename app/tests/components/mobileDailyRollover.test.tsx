@@ -1,0 +1,275 @@
+/**
+ * RV-DC-3 (mobile): "Play again" after 00:00 UTC must not replay yesterday's
+ * tower. ClimbScreen drops a daily answer once the server's reset has passed
+ * since it was requested, refetches, shows the wait on the button, and starts
+ * on today's seed as soon as it lands. A device clock a little ahead of the
+ * server refetches once and then plays what the server says.
+ *
+ * Harness as in mobileClimbDaily.test.tsx; useClimb's start() records the
+ * seed of the render it came from (the real hook's closure). Only Date is
+ * faked.
+ *
+ * @vitest-environment happy-dom
+ */
+
+import { act, createElement } from "react";
+import { createRoot, type Root } from "react-dom/client";
+import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+(globalThis as Record<string, unknown>).IS_REACT_ACT_ENVIRONMENT = true;
+
+const auth = vi.hoisted(() => ({ uid: "me" as string | null }));
+vi.mock("../../mobile/src/contexts/AuthContext", () => ({
+  useAuth: () => ({ user: auth.uid ? { uid: auth.uid } : null, isAnonymous: false, loading: false }),
+}));
+vi.mock("../../mobile/src/lib/haptics", () => ({
+  tapLight: vi.fn(async () => {}),
+  tapMedium: vi.fn(async () => {}),
+  notifySuccess: vi.fn(async () => {}),
+  notifyError: vi.fn(async () => {}),
+}));
+vi.mock("../../mobile/src/lib/external", () => ({ openExternal: vi.fn(async () => {}) }));
+
+const net = vi.hoisted(() => ({
+  info: null as unknown,
+  infoStatus: 200,
+  holdInfo: false,
+  heldInfo: [] as Array<() => void>,
+  resultStatus: 200,
+  resultBody: null as unknown,
+  token: "replay-token" as string | null,
+  holdResult: false,
+  heldResult: [] as Array<() => void>,
+}));
+
+function jsonResponse(body: unknown, status = 200): Response {
+  return { ok: status >= 200 && status < 300, status, json: () => Promise.resolve(body) } as Response;
+}
+
+const apiFetch = vi.fn(async (path: string, _init?: RequestInit): Promise<Response> => {
+  if (path === "/api/climb/daily") {
+    const answer = () => (net.info ? jsonResponse(net.info, net.infoStatus) : jsonResponse({}, 503));
+    if (net.holdInfo) return new Promise<Response>((resolve) => net.heldInfo.push(() => resolve(answer())));
+    return answer();
+  }
+  if (path === "/api/climb/daily/result") {
+    const answer = () => jsonResponse(net.resultBody, net.resultStatus);
+    if (net.holdResult) return new Promise<Response>((resolve) => net.heldResult.push(() => resolve(answer())));
+    return answer();
+  }
+  if (path === "/api/settings") return jsonResponse({ leaderboardConsent: true });
+  return jsonResponse({}, 404);
+});
+const postClimbResult = vi.fn(async (_run: object) => ({ saved: true, improved: false, rank: 9, totalClimbers: 99 }));
+
+vi.mock("../../mobile/src/lib/api", () => ({
+  API_BASE: "https://example.test",
+  apiFetch: (path: string, init?: RequestInit) => apiFetch(path, init),
+  postClimbResult: (run: object) => postClimbResult(run),
+}));
+vi.mock("../../mobile/src/lib/useGameHaptics", () => ({ useGameHaptics: () => {} }));
+
+const climb = vi.hoisted(() => ({
+  seeds: [] as Array<string | undefined>,
+  starts: [] as Array<string | undefined>,
+  phase: "results" as "results" | "lobby",
+}));
+vi.mock("../../src/game/useClimb", async () => {
+  const { createMatch } = await import("../../src/game/simulation");
+  const { buildFreeTower } = await import("../../src/game/freeStack");
+  return {
+    useClimb: ({ seed }: { seed?: string }) => {
+      climb.seeds.push(seed);
+      const state = createMatch({ seed: seed ?? "solo", mode: "solo", tower: buildFreeTower(), playerIds: ["you"] });
+      const lobby = climb.phase === "lobby";
+      state.phase = lobby ? "lobby" : "results";
+      state.players[0].peakY = 42;
+      return {
+        state,
+        simRef: { current: state },
+        renderFeed: {},
+        // Like the real hook, start() locks the seed of the render it came from.
+        start: () => {
+          climb.starts.push(seed);
+        },
+        finished: !lobby,
+        setTouch: () => {},
+        runId: 1,
+        inputLog: lobby ? [] : [{ moveX: 0, jump: false, climbY: 1, usePowerUp: false }],
+      };
+    },
+  };
+});
+vi.mock("../../src/game/runReplay", () => ({
+  encodeRunReplay: async () => net.token,
+  buildReplayUrl: (t: string) => `https://example.test/play?r=${t}`,
+}));
+vi.mock("../../src/components/Game/ClimbCanvas", () => ({ ClimbCanvas: () => null }));
+vi.mock("../../src/components/Game/ExpeditionHud", () => ({ ExpeditionHud: () => null }));
+vi.mock("../../src/components/Game/TouchControls", () => ({
+  TouchControls: () => null,
+  useTouchControlsInset: () => 0,
+}));
+vi.mock("../../src/components/Game/usePowerUpFeedback", () => ({
+  usePowerUpFeedback: () => ({ muted: false, setMuted: () => {}, announcement: null, unlockAudio: () => {} }),
+}));
+vi.mock("../../src/hooks/useCanvasSize", () => ({ useCanvasSize: () => ({ width: 390, height: 780 }) }));
+vi.mock("../../src/hooks/useSafeAreaInsets", () => ({
+  useSafeAreaInsets: () => ({ top: 0, right: 0, bottom: 0, left: 0 }),
+}));
+
+import { AppDataProvider } from "../../mobile/src/contexts/AppDataContext";
+import { ClimbScreen } from "../../mobile/src/screens/ClimbScreen";
+import { setLeaderboardConsent } from "../../mobile/src/lib/consent";
+
+/** A server-shaped seed. The real one is an HMAC the client cannot compute. */
+const SERVER_SEED = "daily1-AbCdEfGhIjKlMnOpQrSt_-";
+const OLD = { day: "2026-09-26", seed: SERVER_SEED, resetsAt: "2026-09-27T00:00:00.000Z" };
+const NEW = { day: "2026-09-27", seed: "daily1-NewNewNewNewNewNewNewN", resetsAt: "2026-09-28T00:00:00.000Z" };
+const todayInfo = () => OLD;
+
+function LocationProbe() {
+  const loc = useLocation();
+  return createElement("output", { "data-testid": "path" }, `${loc.pathname}${loc.search}`);
+}
+
+let root: Root | null = null;
+let container: HTMLElement | null = null;
+const onSignIn = vi.fn();
+
+const settle = () =>
+  act(async () => {
+    for (let i = 0; i < 3; i++) await new Promise((r) => setTimeout(r, 0));
+  });
+
+async function mountDaily(path = "/climb?daily=1") {
+  container = document.createElement("div");
+  document.body.appendChild(container);
+  await act(async () => {
+    root = createRoot(container!);
+    root.render(
+      createElement(
+        MemoryRouter,
+        { initialEntries: [path] },
+        createElement(
+          AppDataProvider,
+          null,
+          createElement(
+            Routes,
+            null,
+            createElement(Route, { path: "/climb", element: <ClimbScreen onSignIn={onSignIn} /> }),
+            createElement(Route, { path: "/leaderboard", element: createElement("p", null, "ranks screen") }),
+          ),
+          createElement(LocationProbe),
+        ),
+      ),
+    );
+  });
+  await settle();
+  return container;
+}
+
+async function click(el: Element | null | undefined) {
+  if (!el) throw new Error("element to click not found");
+  await act(async () => {
+    (el as HTMLElement).click();
+  });
+  await settle();
+}
+
+const buttonByText = (t: string) =>
+  Array.from(container!.querySelectorAll("button")).find((b) => b.textContent?.trim().toLowerCase() === t.toLowerCase());
+const saved = () => ({ saved: true, day: OLD.day, peakY: 42, improved: true, rank: 3, totalClimbers: 12, attempts: 1 });
+
+beforeEach(() => {
+  auth.uid = "me";
+  apiFetch.mockClear();
+  postClimbResult.mockClear();
+  onSignIn.mockClear();
+  climb.seeds = [];
+  climb.starts = [];
+  climb.phase = "results";
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date("2026-09-26T23:59:00Z"));
+  net.info = todayInfo();
+  net.infoStatus = 200;
+  net.holdInfo = false;
+  net.heldInfo = [];
+  net.resultStatus = 200;
+  net.resultBody = saved();
+  net.token = "replay-token";
+  net.holdResult = false;
+  net.heldResult = [];
+  localStorage.clear();
+  setLeaderboardConsent(true);
+});
+
+afterEach(() => {
+  vi.useRealTimers();
+  act(() => root?.unmount());
+  container?.remove();
+  root = null;
+  container = null;
+});
+
+const infoFetches = () => apiFetch.mock.calls.filter(([p]) => p === "/api/climb/daily").length;
+const playAgain = () =>
+  Array.from(container!.querySelectorAll("button")).find((b) =>
+    /play again|today.s tower/i.test(b.textContent ?? ""),
+  ) as HTMLButtonElement | undefined;
+
+describe("ClimbScreen daily across 00:00 UTC (RV-DC-3)", () => {
+  it("control: before the reset Play again starts on the fetched seed with no refetch", async () => {
+    await mountDaily();
+    await click(playAgain());
+    expect(climb.starts).toEqual([OLD.seed]);
+    expect(infoFetches()).toBe(1);
+  });
+
+  it("after the reset Play again refetches and starts on today's seed, never yesterday's", async () => {
+    await mountDaily();
+    vi.setSystemTime(new Date("2026-09-27T00:00:30Z"));
+    net.info = NEW;
+    net.holdInfo = true;
+    await click(playAgain());
+    expect(infoFetches()).toBe(2);
+    expect(climb.starts).toEqual([]);
+    expect(playAgain()?.textContent).toBe("Loading today\u2019s tower\u2026");
+    expect(playAgain()?.disabled).toBe(true);
+    await act(async () => net.heldInfo.splice(0).forEach((go) => go()));
+    await settle();
+    expect(climb.starts).toEqual([NEW.seed]);
+  });
+
+  it("in the lobby, Start daily after the reset also refetches first", async () => {
+    climb.phase = "lobby";
+    await mountDaily();
+    vi.setSystemTime(new Date("2026-09-27T00:00:30Z"));
+    net.info = NEW;
+    await click(buttonByText("Start daily"));
+    expect(climb.starts).toEqual([NEW.seed]);
+    expect(infoFetches()).toBe(2);
+  });
+
+  it("a device clock ahead of the server refetches once, then plays the server's answer", async () => {
+    await mountDaily();
+    vi.setSystemTime(new Date("2026-09-27T00:00:30Z"));
+    // The server has not reset yet: it still names the old tower.
+    await click(playAgain());
+    expect(climb.starts).toEqual([OLD.seed]);
+    expect(infoFetches()).toBe(2);
+  });
+
+  it("if the refetch fails nothing starts, and the button offers a retry", async () => {
+    await mountDaily();
+    vi.setSystemTime(new Date("2026-09-27T00:00:30Z"));
+    net.info = null; // 503
+    await click(playAgain());
+    expect(climb.starts).toEqual([]);
+    expect(playAgain()?.textContent).toBe("Can\u2019t reach today\u2019s tower \u00b7 retry");
+    net.info = NEW;
+    await click(playAgain());
+    expect(climb.starts).toEqual([NEW.seed]);
+  });
+});
