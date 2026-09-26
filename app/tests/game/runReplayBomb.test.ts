@@ -174,3 +174,57 @@ describe("replay decode caps its output (SEC-DC-1)", () => {
     await expect(analyzeClimbReplay(`https://doomstack.lol/play?r=${long}`)).rejects.toThrow(/Invalid replay/);
   });
 });
+
+describe("social replay analysis caps decode output (SEC-DC-1 / SEC-DC-8, verifier)", () => {
+  /**
+   * Runs `fn` while counting every decompressed byte the process materializes,
+   * through zlib.inflateSync (returned buffers) and DecompressionStream (pulled
+   * chunks). Whichever decoder the analysis uses, the count sees it.
+   */
+  async function countInflated<T>(fn: () => Promise<T>): Promise<{ result: PromiseSettledResult<T>; bytes: number }> {
+    let bytes = 0;
+    const real = zlib.inflateSync;
+    const spy = vi.spyOn(zlib, "inflateSync").mockImplementation((...args: Parameters<typeof real>) => {
+      const out = real(...args);
+      bytes += out.length;
+      return out;
+    });
+    const Real = globalThis.DecompressionStream;
+    class Counting {
+      readonly writable: WritableStream<BufferSource>;
+      readonly readable: ReadableStream<Uint8Array>;
+      constructor(format: CompressionFormat) {
+        const inner = new Real(format);
+        this.writable = inner.writable;
+        this.readable = inner.readable.pipeThrough(
+          new TransformStream<Uint8Array, Uint8Array>({
+            transform(chunk, controller) {
+              bytes += chunk.length;
+              controller.enqueue(chunk);
+            },
+          }),
+        );
+      }
+    }
+    vi.stubGlobal("DecompressionStream", Counting);
+    try {
+      const [result] = await Promise.allSettled([fn()]);
+      return { result, bytes };
+    } finally {
+      spy.mockRestore();
+      vi.unstubAllGlobals();
+    }
+  }
+
+  it("positive control: the probe sees the analysis decode a legitimate link, byte for byte", async () => {
+    const { result, bytes } = await countInflated(() => analyzeClimbReplay(`https://doomstack.lol/play?r=${tokenFor(300)}`));
+    expect(result.status).toBe("fulfilled");
+    expect(bytes).toBe(300);
+  });
+
+  it("never materializes more than a stream chunk past MAX_SHARE_TICKS for a bomb link", async () => {
+    const { result, bytes } = await countInflated(() => analyzeClimbReplay(`https://doomstack.lol/play?r=${bomb}`));
+    expect(result.status).toBe("rejected");
+    expect(bytes).toBeLessThan(1024 * 1024);
+  }, 60_000);
+});
