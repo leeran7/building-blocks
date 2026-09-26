@@ -47,10 +47,12 @@ export function climbView(
 
 /**
  * Half-height of the airborne dead band, as a fraction of the view. A normal
- * or super jump stays inside it, so the camera holds still instead of riding
- * every arc up and back down. A long fall leaves it and the camera follows.
+ * or single super jump stays inside it on the 9:16 view (the tallest super
+ * jump apex is ~13 m of ~178 m), so the camera holds still instead of riding
+ * every arc. Chained air jumps and long falls leave it early, so the camera
+ * starts catching up mid-air rather than all at once on landing.
  */
-export const CAMERA_AIR_BAND_FRAC = 0.12;
+export const CAMERA_AIR_BAND_FRAC = 0.09;
 
 /**
  * Fastest the camera closes the gap left by a hold, in metres/second. Only

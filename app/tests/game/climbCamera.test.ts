@@ -29,6 +29,8 @@ import {
 import { createMatch, stepMatch } from "../../src/game/simulation";
 import { NO_INPUT, TICK_DT } from "../../src/game/types";
 import { buildTower } from "../../src/game/towers";
+import { GAME_CATEGORIES } from "../../src/game/categories";
+import { SUPER_JUMP_MULT } from "../../src/game/powerups";
 
 const WIDTH = 360;
 const HEIGHT = 640;
@@ -423,5 +425,21 @@ describe("heldFocusY: lava audio frames what the painter framed", () => {
     const audioCam = cameraTargetY(audioFocus, viewH, 0, pxPerMY);
     const rawCam = cameraTargetY(p.y, viewH, 0, pxPerMY);
     expect(rawCam - audioCam).toBeCloseTo(11);
+  });
+});
+
+describe("CAMERA_AIR_BAND_FRAC: single super jumps never move the camera", () => {
+  it("holds the tallest super jump apex of every tower on the 9:16 view", () => {
+    const { viewH } = climbView(WIDTH, HEIGHT, TOWER_WIDTH_M);
+    const band = viewH * CAMERA_AIR_BAND_FRAC;
+    let checked = 0;
+    for (const category of GAME_CATEGORIES) {
+      const t = buildTower(category);
+      const v = t.jumpSpeed * SUPER_JUMP_MULT;
+      const apex = (v * v) / (2 * t.gravity);
+      expect(apex).toBeLessThan(band);
+      checked++;
+    }
+    expect(checked).toBeGreaterThan(0);
   });
 });
