@@ -34,13 +34,12 @@ import { useGameHaptics } from "../lib/useGameHaptics";
 import { commitDailyRun, msUntilReset, formatReset, type DailyRunResult } from "../lib/daily";
 import {
   fetchDailyInfo,
-  localDailyInfo,
   postDailyResult,
   TODAY_BOARD_PATH,
   type DailyInfo,
   type DailySaveResult,
 } from "../lib/dailyBoard";
-import { dayKeyFromSeed } from "@app/lib/dailyDay";
+import { DAILY_SIM_VERSION } from "@app/game/simVersion";
 
 /** A finished run as POSTed to either result route. */
 interface RunPayload {
@@ -77,22 +76,33 @@ export function ClimbScreen({ onSignIn }: { onSignIn?: () => void } = {}) {
   const invalidateAppData = useInvalidateAppData();
   const [searchParams] = useSearchParams();
   // Daily mode: lock the tower to today's shared seed so every player climbs
-  // the exact same tower. The server's day wins (it is the day the board will
-  // accept); the device's UTC day is the offline fallback until it answers.
+  // the exact same tower. Only the server can derive the seed (SEC-DC-3), so
+  // the daily cannot start until GET /api/climb/daily answers. Offline, the
+  // lobby offers a retry or an endless run instead.
   // Endless mode leaves the seed free (fresh each start).
   const isDaily = searchParams.get("daily") === "1";
-  const [dailyInfo, setDailyInfo] = useState<DailyInfo | null>(() => (isDaily ? localDailyInfo() : null));
+  const [dailyInfo, setDailyInfo] = useState<DailyInfo | null>(null);
+  const [dailyInfoFailed, setDailyInfoFailed] = useState(false);
+  const [dailyInfoAttempt, setDailyInfoAttempt] = useState(0);
   useEffect(() => {
     if (!isDaily) return;
     let cancelled = false;
+    setDailyInfoFailed(false);
     void fetchDailyInfo().then((info) => {
-      if (!cancelled && info) setDailyInfo(info);
+      if (cancelled) return;
+      if (info) setDailyInfo(info);
+      else setDailyInfoFailed(true);
     });
     return () => {
       cancelled = true;
     };
-  }, [isDaily]);
+  }, [isDaily, dailyInfoAttempt]);
   const seed = isDaily ? dailyInfo?.seed : undefined;
+  const dailyLobby: "ready" | "loading" | "offline" = !isDaily || dailyInfo
+    ? "ready"
+    : dailyInfoFailed
+      ? "offline"
+      : "loading";
 
   const towerRef = useRef(buildFreeTower());
   const {
@@ -165,6 +175,8 @@ export function ClimbScreen({ onSignIn }: { onSignIn?: () => void } = {}) {
   );
 
   const handleStart = useCallback(() => {
+    // Never start a daily on a random tower while the server seed is missing.
+    if (isDaily && !dailyInfo) return;
     unlockAudio();
     void tapMedium();
     setPosted(false);
@@ -174,7 +186,7 @@ export function ClimbScreen({ onSignIn }: { onSignIn?: () => void } = {}) {
     setShareUrl(null);
     setDailyResult(null);
     start();
-  }, [start, unlockAudio]);
+  }, [start, unlockAudio, isDaily, dailyInfo]);
 
   // Death haptic — one buzz when the run ends. In daily mode, also record the
   // run locally (streak + today's best) before showing results.
@@ -182,9 +194,11 @@ export function ClimbScreen({ onSignIn }: { onSignIn?: () => void } = {}) {
     if (!finished) return;
     void notifyError();
     // Commit to the day of the tower actually played, so a run that straddles
-    // the UTC reset counts for the day it started on.
+    // the UTC reset counts for the day it started on. The seed is opaque, so
+    // the day comes from the server answer that supplied it.
     if (isDaily && player) {
-      setDailyResult(commitDailyRun(player.peakY ?? 0, dayKeyFromSeed(state.seed) ?? undefined));
+      const playedDay = dailyInfo && dailyInfo.seed === state.seed ? dailyInfo.day : undefined;
+      setDailyResult(commitDailyRun(player.peakY ?? 0, playedDay));
     }
     // player identity is stable within a finished run; keep deps minimal.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -201,7 +215,7 @@ export function ClimbScreen({ onSignIn }: { onSignIn?: () => void } = {}) {
       if (isDaily && payload.replayToken) {
         lastDailyPayload.current = payload;
         setDailySave({ status: "pending" });
-        const result = await postDailyResult(payload);
+        const result = await postDailyResult({ ...payload, simVersion: DAILY_SIM_VERSION });
         setDailySave(result);
         if (result.status === "saved") {
           invalidateAppData(RUN_STALE_SLICES);
@@ -361,7 +375,26 @@ export function ClimbScreen({ onSignIn }: { onSignIn?: () => void } = {}) {
                 Resets in {formatReset(msUntilReset())}
               </p>
             )}
-            <StartButton onClick={handleStart} label={isDaily ? "Start daily" : "Start climb"} />
+            {dailyLobby === "ready" && (
+              <StartButton onClick={handleStart} label={isDaily ? "Start daily" : "Start climb"} />
+            )}
+            {dailyLobby === "loading" && (
+              <p role="status" className="mt-8 font-mono text-[11px] uppercase tracking-[0.2em] text-text-muted">
+                Loading today&rsquo;s tower…
+              </p>
+            )}
+            {dailyLobby === "offline" && (
+              <DailyOffline
+                onRetry={() => {
+                  void tapLight();
+                  setDailyInfoAttempt((n) => n + 1);
+                }}
+                onPlayEndless={() => {
+                  void tapLight();
+                  navigate("/climb", { replace: true });
+                }}
+              />
+            )}
           </Overlay>
         )}
 
@@ -414,6 +447,34 @@ function Overlay({ children }: { children: React.ReactNode }) {
   );
 }
 
+/**
+ * The daily's seed comes only from the server, so with no connection the
+ * daily cannot start. Say so, and offer a retry or an endless run instead.
+ */
+function DailyOffline({ onRetry, onPlayEndless }: { onRetry: () => void; onPlayEndless: () => void }) {
+  return (
+    <div role="alert" className="mt-6 flex flex-col items-center gap-3 text-center">
+      <p className="max-w-[260px] text-sm leading-relaxed text-text-secondary">
+        Can&rsquo;t load today&rsquo;s tower. Check your connection and try again.
+      </p>
+      <button
+        type="button"
+        onClick={onRetry}
+        className="min-h-[44px] rounded-full border-2 border-signal/70 bg-signal/10 px-8 font-display text-base font-black uppercase tracking-[0.15em] text-signal transition-transform duration-150 active:scale-[0.96] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void"
+      >
+        Try again
+      </button>
+      <button
+        type="button"
+        onClick={onPlayEndless}
+        className="min-h-[44px] rounded-full px-6 font-mono text-[11px] uppercase tracking-[0.2em] text-text-secondary transition-colors hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void"
+      >
+        Play endless instead
+      </button>
+    </div>
+  );
+}
+
 function StartButton({ onClick, label }: { onClick: () => void; label: string }) {
   return (
     <button
@@ -451,6 +512,8 @@ function useCountUp(target: number, duration = 900): number {
 
 /** Why a daily run is not on today's board, in the player's words. */
 const DAILY_REJECTION_COPY: Record<string, string> = {
+  SIM_VERSION_MISMATCH: "update the app to post daily scores",
+  REPLAY_REUSED: "this run was already posted by another player",
   DAY_CLOSED: "today's tower closed before this run was saved",
   RUN_TOO_LONG: "run too long to verify for today's board",
   REPLAY_MISMATCH: "couldn't verify this run for today's board",

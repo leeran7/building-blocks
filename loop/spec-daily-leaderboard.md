@@ -74,8 +74,11 @@ and when the tower resets.
   `resetsAt`, `totalClimbers`, and `me` (Bearer) or null.
 - AC-8: `?day=` that is not a real YYYY-MM-DD → 400 `INVALID_DAY`. A future day
   or one > 7 days old → 400 `DAY_OUT_OF_RANGE`.
-- AC-9: Mobile Ranks opens on Today (tabs are a WAI-ARIA tablist with arrow
-  keys). `?board=alltime` opens All-time.
+- AC-9: Mobile Ranks shows the Global | Friends pill first, then an
+  All-time | Today underline tab row. All-time is the default. Today opens from
+  its tab or `?board=today` (any other value opens All-time). Both rows are
+  WAI-ARIA tablists with distinct names, arrow keys, Home/End and roving
+  tabindex. "See today's board" deep-links to Today.
 - AC-10: When the player's rank > the rows shown, a pinned row shows
   rank · height · tries.
 - AC-11: When the device UTC day changes, the day slices refetch cold.
@@ -101,10 +104,17 @@ same day as the board.
 
 ## Risks
 
-- **No engine version on replays** (`REPLAY_VERSION` is not a sim version). A
-  deploy that changes `stepMatch` or obstacles mid-day desyncs same-day
-  re-sims (400 mismatch). `DAILY_SIM_VERSION` is stamped on rows so affected
-  rows can be found.
+- **Engine version.** Clients send `simVersion` (`src/game/simVersion.ts`).
+  A missing or different value is 409 `SIM_VERSION_MISMATCH` before re-sim,
+  logged apart from `REPLAY_MISMATCH`, and mobile says "update the app to post
+  daily scores" (SEC-DC-4). Bump `DAILY_SIM_VERSION` with any engine change.
+- **Copied replays.** Tokens are public. The first account to submit a
+  canonical input log owns it for the day, and others get 409
+  `REPLAY_REUSED` (SEC-DC-2). A perturbed copy that changes an input still
+  gets through; that is a residual risk.
+- **Seed secrecy.** The seed is HMAC-SHA256(`DAILY_SEED_SECRET`, day), served
+  only for today by GET /api/climb/daily. Without the secret the daily routes
+  return 503, and without a connection the daily cannot start (SEC-DC-3).
 - **Cross-engine float determinism** (JavaScriptCore on iOS vs V8 on the
   server). Duel re-sim already depends on this. A drift beyond 0.1 m shows up
   as logged mismatches.

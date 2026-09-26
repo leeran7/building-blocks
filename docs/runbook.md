@@ -113,6 +113,21 @@ Work through these steps in order when an incident is declared.
 
 ---
 
+### Daily Climb unavailable (DAILY_SEED_SECRET)
+
+**Symptom:** `GET /api/climb/daily` and `POST /api/climb/daily/result` return HTTP 503 `DAILY_UNAVAILABLE`. The apps show "Can't load today's tower". Logs show `[climb/daily] DAILY_SEED_SECRET is missing or too short`.
+
+**Root cause:** The daily tower seed is `HMAC-SHA256(DAILY_SEED_SECRET, day)` (`app/src/lib/dailySeedServer.ts`). The routes fail closed when the variable is unset or shorter than 32 characters, and there is deliberately no fallback seed.
+
+**Fix:**
+1. Generate a secret: `openssl rand -hex 32`.
+2. In Vercel Dashboard > **Settings > Environment Variables**, set `DAILY_SEED_SECRET` for every environment that serves the daily.
+3. Redeploy.
+
+**Rotation:** A new secret means a new tower for today. Runs started on the old seed are then refused as `DAY_CLOSED`. Rotate at 00:00 UTC, and never expose the value to a client or a `pull_request`-triggered job.
+
+---
+
 ## Rollback procedure
 
 ### Option A — Vercel instant rollback (recommended, < 30 seconds)

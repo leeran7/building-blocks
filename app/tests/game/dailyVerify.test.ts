@@ -8,13 +8,17 @@
  * rejection is proven against a fixture that would otherwise pass.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { buildFreeTower } from "../../src/game/freeStack";
 import { applyRunSeed } from "../../src/game/towers";
 import { createMatch, stepMatch } from "../../src/game/simulation";
-import { decodeRunReplay, encodeRunReplay, MAX_SHARE_TICKS, type RunReplay } from "../../src/game/runReplay";
-import { DAILY_PEAK_EPSILON_M, verifyDailyReplay } from "../../src/game/dailyVerify";
-import { dailySeedFor } from "../../src/lib/dailyDay";
+import { decodeRunReplay, encodeRunReplay, MAX_SHARE_TICKS, packInputLog, type RunReplay } from "../../src/game/runReplay";
+import { deflateSync } from "node:zlib";
+import { DAILY_PEAK_EPSILON_M, dailyInputHash, verifyDailyReplay } from "../../src/game/dailyVerify";
+import { dailySeedFor } from "../../src/lib/dailySeedServer";
+import { TEST_DAILY_SEED_SECRET } from "../lib/dailySeedTestSecret";
+
+vi.stubEnv("DAILY_SEED_SECRET", TEST_DAILY_SEED_SECRET);
 import type { PlayerInput } from "../../src/game/types";
 
 const DAY = "2026-09-26";
@@ -73,6 +77,7 @@ describe("verifyDailyReplay", () => {
       peakY: run.peakY,
       ticks: run.inputs.length,
       finished: false,
+      inputHash: dailyInputHash(run.inputs),
     });
   });
 
@@ -224,3 +229,49 @@ describe("verifyDailyReplay (verifier)", () => {
     expect(verifyDailyReplay(replay, run.peakY - 1, MIDDAY)).toMatchObject({ ok: false, code: "REPLAY_MISMATCH" });
   });
 });
+
+describe("canonical input hash (SEC-DC-2)", () => {
+  const idle: PlayerInput = { moveX: 0, jump: false, climbY: 0, usePowerUp: false };
+
+  async function verdictFor(inputs: PlayerInput[], peakY: number) {
+    return verifyDailyReplay(await tokenFor(SEED, peakY, inputs), peakY, MIDDAY);
+  }
+
+  it("ignores inputs padded after the run ended", async () => {
+    const run = playRun(SEED);
+    const padded = [...run.inputs, ...Array.from({ length: 40 }, () => idle)];
+    const a = await verdictFor(run.inputs, run.peakY);
+    const b = await verdictFor(padded, run.peakY);
+    expect(a.ok && b.ok).toBe(true);
+    if (!a.ok || !b.ok) return;
+    // Precondition: the padded log really is longer than what the sim used.
+    expect(b.ticks).toBe(run.inputs.length + 40);
+    expect(b.inputHash).toBe(a.inputHash);
+  });
+
+  it("ignores unused bits in the packed input bytes", async () => {
+    const run = playRun(SEED);
+    const packed = packInputLog(run.inputs);
+    // Bits 5-7 carry nothing; set them all on every byte.
+    const noisy = Buffer.from(packed.map((b) => b | 0b1110_0000));
+    const i = deflateSync(noisy).toString("base64url");
+    const token = Buffer.from(JSON.stringify({ v: 1, s: SEED, p: run.peakY, i })).toString("base64url");
+    const replay = await decodeRunReplay(token);
+    expect(replay).not.toBeNull();
+    const a = await verdictFor(run.inputs, run.peakY);
+    const b = verifyDailyReplay(replay!, run.peakY, MIDDAY);
+    expect(a.ok && b.ok).toBe(true);
+    if (!a.ok || !b.ok) return;
+    expect(b.inputHash).toBe(a.inputHash);
+  });
+
+  it("differs for a genuinely different run", async () => {
+    const run = playRun(SEED);
+    const changed = run.inputs.map((input, t) => (t === 5 ? { ...input, jump: !input.jump } : input));
+    const a = await verdictFor(run.inputs, run.peakY);
+    expect(a.ok).toBe(true);
+    expect(dailyInputHash(changed)).not.toBe(dailyInputHash(run.inputs));
+    expect(dailyInputHash(run.inputs)).toMatch(/^[0-9a-f]{64}$/);
+  });
+});
+

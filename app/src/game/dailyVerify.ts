@@ -13,25 +13,24 @@
  * an honest replay reproduces the client's peak bit-for-bit on the same
  * engine version.
  *
- * Residual risks, by design: a bot that plays perfectly produces a legal
- * input log and passes; replays carry no engine version, so a deploy that
- * changes stepMatch or obstacle geometry desyncs runs recorded before it.
- * DAILY_SIM_VERSION is stamped on each stored score so such rows can be
- * found afterwards.
+ * Residual risk, by design: a bot that plays perfectly produces a legal
+ * input log and passes. The seed is secret until its day opens
+ * (dailySeedServer.ts), so that search cannot start early. Clients send
+ * DAILY_SIM_VERSION (simVersion.ts), and the route rejects a stale engine
+ * before it gets here, so a mismatch reaching this module means a desync or
+ * a forgery on the same engine.
  */
+
+import { createHash } from "node:crypto";
 
 import { buildFreeTower } from "./freeStack";
 import { applyRunSeed } from "./towers";
 import { simulateFromInputs, DEFAULT_SIM_CONFIG } from "./simulation";
-import { MAX_SHARE_TICKS, type RunReplay } from "./runReplay";
+import { MAX_SHARE_TICKS, packInputLog, type RunReplay } from "./runReplay";
 import type { PlayerInput } from "./types";
-import { submissionDayForSeed } from "../lib/dailyDay";
+import { submissionDayForSeed } from "../lib/dailySeedServer";
 
-/**
- * Engine revision a daily score was verified under. Bump in the same change
- * as any edit to stepMatch, obstaclesForFloor, power-ups or hazard tuning.
- */
-export const DAILY_SIM_VERSION = 1;
+export { DAILY_SIM_VERSION } from "./simVersion";
 
 /**
  * Largest |client peak - server peak| still treated as the same run, metres.
@@ -59,6 +58,8 @@ export type DailyVerifyResult =
       ticks: number;
       /** True when the re-simulated climber reached the finish. */
       finished: boolean;
+      /** dailyInputHash of the inputs the sim consumed. */
+      inputHash: string;
     }
   | {
       ok: false;
@@ -68,19 +69,40 @@ export type DailyVerifyResult =
       serverPeakY?: number;
     };
 
-/** Re-simulate a solo daily run; returns the final state's climber. */
+function soloMatch(seed: string): Parameters<typeof simulateFromInputs>[0] {
+  return {
+    seed,
+    mode: "solo",
+    tower: applyRunSeed(buildFreeTower(), seed),
+    playerIds: [SOLO_PLAYER_ID],
+  };
+}
+
+/**
+ * Re-simulate a solo daily run. Returns the final state, its climber, and
+ * how many of the inputs the sim consumed before the run ended (inputs after
+ * elimination or the finish change nothing).
+ */
 export function resimulateSoloRun(seed: string, inputs: PlayerInput[]) {
   const state = simulateFromInputs(
-    {
-      seed,
-      mode: "solo",
-      tower: applyRunSeed(buildFreeTower(), seed),
-      playerIds: [SOLO_PLAYER_ID],
-    },
+    soloMatch(seed),
     inputs.map((input) => ({ [SOLO_PLAYER_ID]: input })),
     DEFAULT_SIM_CONFIG
   );
-  return { state, player: state.players[0] };
+  // Ticks the engine runs before it reads the first input (the countdown).
+  const leadTicks = simulateFromInputs(soloMatch(seed), [], DEFAULT_SIM_CONFIG).tick;
+  const consumedTicks = Math.min(inputs.length, Math.max(0, state.tick - leadTicks));
+  return { state, player: state.players[0], consumedTicks };
+}
+
+/**
+ * SHA-256 (hex) of a canonical input log, used to spot one run submitted by
+ * two accounts (SEC-DC-2). Canonical means the inputs are re-packed, which
+ * drops unused bits, and cut at the tick the run ended. Padding the tail or
+ * flipping ignored bits therefore cannot disguise a copied replay.
+ */
+export function dailyInputHash(inputs: PlayerInput[]): string {
+  return createHash("sha256").update(packInputLog(inputs)).digest("hex");
 }
 
 /**
@@ -113,7 +135,7 @@ export function verifyDailyReplay(
     };
   }
 
-  const { state, player } = resimulateSoloRun(replay.seed, replay.inputs);
+  const { state, player, consumedTicks } = resimulateSoloRun(replay.seed, replay.inputs);
   const serverPeakY = Math.max(0, player?.peakY ?? 0);
   const claim = claimedPeakY ?? replay.peakY;
 
@@ -152,5 +174,6 @@ export function verifyDailyReplay(
     peakY: serverPeakY,
     ticks: replay.inputs.length,
     finished: state.phase === "finished" && player?.status === "finished",
+    inputHash: dailyInputHash(replay.inputs.slice(0, consumedTicks)),
   };
 }

@@ -15,7 +15,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 /** The API both copies share (only mobile has clearDailyStore). */
 type DailyLib = Pick<
   typeof import("../../mobile/src/lib/daily"),
-  "todayKey" | "dailySeed" | "msUntilReset" | "dailySummary" | "commitDailyRun"
+  "todayKey" | "msUntilReset" | "dailySummary" | "commitDailyRun"
 >;
 
 /**
@@ -51,13 +51,12 @@ describe.each(["mobile", "web"] as const)("%s daily store on the UTC day", (name
     else process.env.TZ = originalTz;
   });
 
-  it("keys today, the seed and the reset on the UTC day, not the device's", () => {
+  it("keys today and the reset on the UTC day, not the device's", () => {
     // 20:00 in UTC-8 on the 26th is already the 27th in UTC.
     at("2026-09-26T20:00:00-08:00");
     // Precondition: the device's local date really is a different day here.
     expect(new Date().getDate()).toBe(26);
     expect(lib.todayKey()).toBe("2026-09-27");
-    expect(lib.dailySeed()).toBe("daily-2026-09-27");
     expect(lib.msUntilReset()).toBe(20 * 3_600_000);
   });
 

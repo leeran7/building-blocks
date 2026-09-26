@@ -73,6 +73,11 @@ export interface ClimbSceneProps {
    * the all-time record). Defaults to the all-time route.
    */
   resultPath?: string;
+  /**
+   * Extra fields merged into the live result POST body. Daily Climb sends
+   * `{ simVersion }` so the server can tell a stale engine from a forgery.
+   */
+  resultFields?: Readonly<Record<string, string | number | boolean>>;
   /** Fired once when a live run finishes (not during replay). For Daily Climb. */
   onFinish?: (peakY: number) => void;
   /** Extra content rendered in the lobby overlay (e.g. daily streak card). */
@@ -118,6 +123,7 @@ export function ClimbScene({
   replay = null,
   seed,
   resultPath = DEFAULT_RESULT_PATH,
+  resultFields,
   onFinish,
   lobbyExtra,
   resultExtra,
@@ -309,7 +315,8 @@ export function ClimbScene({
         setShareUrl(buildReplayUrl(replayToken, window.location.origin));
       }
       setEncodingShare(false);
-      const payload = replayToken ? { ...run, replayToken } : run;
+      const withFields = resultFields ? { ...run, ...resultFields } : run;
+      const payload = replayToken ? { ...withFields, replayToken } : withFields;
 
       if (token) {
         postRun(payload, token, resultPath).then(setSaveInfo).finally(() => setSavingRun(false));
@@ -327,7 +334,7 @@ export function ClimbScene({
     };
 
     finishRun();
-  }, [finished, posted, replaying, inputLog, buildRun, token, postRun, resultPath]);
+  }, [finished, posted, replaying, inputLog, buildRun, token, postRun, resultPath, resultFields]);
 
   // Fire onFinish once per live run (Daily Climb commits its streak here).
   const finishPeakY = player?.peakY ?? 0;

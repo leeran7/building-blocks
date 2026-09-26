@@ -22,6 +22,8 @@ vi.mock("../../src/db/climb", () => ({
   recordClimb: vi.fn(async () => ({ peakY: 0, improved: false, rank: 1, totalClimbers: 1, handle: "h" })),
 }));
 vi.mock("../../src/db/dailyClimb", () => ({
+  // The claim's own SQL is covered against Postgres (tests/db/dailyClimb.pg.test.ts).
+  claimDailyReplay: vi.fn(async (input: { userId: string }) => input.userId),
   dailyLeaderboardTag: (day: string) => `daily-leaderboard:${day}`,
   recordDailyClimb: vi.fn(async (input: { peakY: number }) => ({ peakY: input.peakY, improved: true, attempts: 1 })),
   dailyStandingFor: vi.fn(async () => ({ rank: 3, peakY: 0, attempts: 1 })),
@@ -34,7 +36,9 @@ import { verifyIdToken } from "../../src/lib/firebaseAdmin";
 import { checkRateLimit } from "../../src/lib/rateLimit";
 import { prisma } from "../../src/db/client";
 import { recordClimb } from "../../src/db/climb";
-import { recordDailyClimb } from "../../src/db/dailyClimb";
+import { claimDailyReplay, recordDailyClimb } from "../../src/db/dailyClimb";
+import { GET as getDailyInfo } from "../../app/api/climb/daily/route";
+import { isDailySeedShape } from "../../src/lib/dailyDay";
 import { revalidateTag } from "next/cache";
 import { buildFreeTower } from "../../src/game/freeStack";
 import { applyRunSeed } from "../../src/game/towers";
@@ -47,8 +51,12 @@ import {
   parseReplayToken,
 } from "../../src/game/runReplay";
 import { deflateSync } from "node:zlib";
-import { dailySeedFor } from "../../src/lib/dailyDay";
-import { resimulateSoloRun } from "../../src/game/dailyVerify";
+import { dailySeedFor } from "../../src/lib/dailySeedServer";
+import { TEST_DAILY_SEED_SECRET } from "../lib/dailySeedTestSecret";
+
+vi.stubEnv("DAILY_SEED_SECRET", TEST_DAILY_SEED_SECRET);
+import { dailyInputHash, resimulateSoloRun } from "../../src/game/dailyVerify";
+import { DAILY_SIM_VERSION } from "../../src/game/simVersion";
 import type { PlayerInput } from "../../src/game/types";
 
 const DAY = "2026-09-26";
@@ -79,6 +87,16 @@ async function honestPayload(seed = dailySeedFor(DAY)) {
   return { run, body: { peakY: run.peakY, ticks: run.ticks, seed, replayToken } };
 }
 
+/**
+ * Every real client sends simVersion, so the harness adds the current one to
+ * an object body that does not set the key itself. The version tests set it
+ * explicitly, including `simVersion: undefined` for a missing version.
+ */
+function withSimVersion(body: unknown): unknown {
+  if (typeof body !== "object" || body === null || Array.isArray(body)) return body;
+  return Object.prototype.hasOwnProperty.call(body, "simVersion") ? body : { ...body, simVersion: DAILY_SIM_VERSION };
+}
+
 function post(body: unknown, token: string | null = "good-token"): Promise<Response> {
   const headers: Record<string, string> = { "content-type": "application/json" };
   if (token) headers.authorization = `Bearer ${token}`;
@@ -86,7 +104,7 @@ function post(body: unknown, token: string | null = "good-token"): Promise<Respo
     new NextRequest("http://localhost/api/climb/daily/result", {
       method: "POST",
       headers,
-      body: typeof body === "string" ? body : JSON.stringify(body),
+      body: typeof body === "string" ? body : JSON.stringify(withSimVersion(body)),
     })
   );
 }
@@ -446,3 +464,179 @@ describe("POST /api/climb/daily/result: decompression bomb (SEC-DC-1)", () => {
     expect(ms).toBeLessThan(BOMB_BUDGET_MS);
   }, 60_000);
 });
+
+// ---------------------------------------------------------------------------
+// SEC-DC-2 / 3 / 4 hardening at the route (the layer that writes).
+// ---------------------------------------------------------------------------
+
+describe("POST /api/climb/daily/result: hardening (SEC-DC-2, 3, 4)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.useFakeTimers({ now: NOW, toFake: ["Date"] });
+    vi.mocked(verifyIdToken).mockResolvedValue({
+      uid: "u1",
+      email: "u1@example.com",
+      email_verified: true,
+    } as Awaited<ReturnType<typeof verifyIdToken>>);
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+    vi.stubEnv("DAILY_SEED_SECRET", TEST_DAILY_SEED_SECRET);
+  });
+
+  // SEC-DC-4 ---------------------------------------------------------------
+
+  it.each([
+    ["missing", undefined],
+    ["older", DAILY_SIM_VERSION - 1],
+    ["newer", DAILY_SIM_VERSION + 1],
+    ["a string", String(DAILY_SIM_VERSION)],
+    ["null", null],
+  ])("a %s simVersion is 409 SIM_VERSION_MISMATCH, logged apart from REPLAY_MISMATCH", async (_label, simVersion) => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const { body } = await honestPayload();
+    const res = await post({ ...body, simVersion });
+    expect(res.status).toBe(409);
+    expect(await codeOf(res)).toBe("SIM_VERSION_MISMATCH");
+    expect(warn).toHaveBeenCalledWith("[climb/daily/result] sim version mismatch", expect.objectContaining({ uid: "u1", day: DAY }));
+    expect(warn).not.toHaveBeenCalledWith("[climb/daily/result] replay mismatch", expect.anything());
+    expect(recordDailyClimb).not.toHaveBeenCalled();
+    expect(claimDailyReplay).not.toHaveBeenCalled();
+  });
+
+  it("checks the version before re-simulating: a forged claim on a stale engine is SIM_VERSION_MISMATCH, not REPLAY_MISMATCH", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    const { body } = await honestPayload();
+    const res = await post({ ...body, peakY: 9999, simVersion: DAILY_SIM_VERSION + 1 });
+    expect(await codeOf(res)).toBe("SIM_VERSION_MISMATCH");
+    // Positive control: the same forged claim on the current engine is a mismatch.
+    const same = await post({ ...body, peakY: 9999, simVersion: DAILY_SIM_VERSION });
+    expect(await codeOf(same)).toBe("REPLAY_MISMATCH");
+  });
+
+  it("positive control: the current simVersion saves", async () => {
+    const { body } = await honestPayload();
+    const res = await post({ ...body, simVersion: DAILY_SIM_VERSION });
+    expect(res.status).toBe(200);
+  });
+
+  // SEC-DC-2 ---------------------------------------------------------------
+
+  it("claims the SERVER-derived canonical input hash for the verified day", async () => {
+    const { run, body } = await honestPayload();
+    const res = await post(body);
+    expect(res.status).toBe(200);
+    expect(claimDailyReplay).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(claimDailyReplay).mock.calls[0][0]).toEqual({
+      userId: "u1",
+      day: DAY,
+      inputHash: dailyInputHash(run.inputs),
+    });
+  });
+
+  it("refuses another player's run with 409 REPLAY_REUSED and writes nothing", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    vi.mocked(claimDailyReplay).mockResolvedValueOnce("someone-else");
+    const { body } = await honestPayload();
+    const res = await post(body);
+    expect(res.status).toBe(409);
+    expect(await codeOf(res)).toBe("REPLAY_REUSED");
+    expect(warn).toHaveBeenCalledWith("[climb/daily/result] replay reused", { uid: "u1", day: DAY });
+    expect(recordDailyClimb).not.toHaveBeenCalled();
+    expect(recordClimb).not.toHaveBeenCalled();
+  });
+
+  it("lets the same player resubmit their own run (idempotent claim)", async () => {
+    const { body } = await honestPayload();
+    expect((await post(body)).status).toBe(200);
+    expect((await post(body)).status).toBe(200);
+    expect(recordDailyClimb).toHaveBeenCalledTimes(2);
+  });
+
+  it("a padded copy of another player's run hashes the same and is refused", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    const { run, body } = await honestPayload();
+    await post(body);
+    const ownerHash = vi.mocked(claimDailyReplay).mock.calls[0][0].inputHash;
+    // Owner is someone else now; the copier pads the tail.
+    vi.mocked(claimDailyReplay).mockImplementation(async (input) => (input.inputHash === ownerHash ? "u-owner" : input.userId));
+    const idle: PlayerInput = { moveX: 0, jump: false, climbY: 0, usePowerUp: false };
+    const padded = await encodeRunReplay({
+      seed: dailySeedFor(DAY),
+      peakY: run.peakY,
+      inputs: [...run.inputs, ...Array.from({ length: 30 }, () => idle)],
+    });
+    const res = await post({ replayToken: padded, peakY: run.peakY });
+    expect(await codeOf(res)).toBe("REPLAY_REUSED");
+  });
+
+  it("a failed claim is a 500 persist_error, never a save", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.mocked(claimDailyReplay).mockRejectedValueOnce(new Error("db down"));
+    const { body } = await honestPayload();
+    const res = await post(body);
+    expect(res.status).toBe(500);
+    expect(recordDailyClimb).not.toHaveBeenCalled();
+  });
+
+  // SEC-DC-3 ---------------------------------------------------------------
+
+  it("rejects a replay on the legacy predictable seed daily-YYYY-MM-DD", async () => {
+    const run = playRun(dailySeedFor(DAY));
+    const legacy = await encodeRunReplay({ seed: `daily-${DAY}`, peakY: run.peakY, inputs: run.inputs });
+    const res = await post({ replayToken: legacy, peakY: run.peakY });
+    expect(res.status).toBe(400);
+    expect(await codeOf(res)).toBe("DAY_CLOSED");
+    expect(recordDailyClimb).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["missing", undefined],
+    ["too short", "short-secret"],
+  ])("fails closed with 503 when DAILY_SEED_SECRET is %s", async (_label, value) => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const { body } = await honestPayload();
+    vi.stubEnv("DAILY_SEED_SECRET", value);
+    const res = await post(body);
+    expect(res.status).toBe(503);
+    expect(await codeOf(res)).toBe("DAILY_UNAVAILABLE");
+    expect(recordDailyClimb).not.toHaveBeenCalled();
+    expect(recordClimb).not.toHaveBeenCalled();
+  });
+});
+
+describe("GET /api/climb/daily (SEC-DC-3)", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+    vi.stubEnv("DAILY_SEED_SECRET", TEST_DAILY_SEED_SECRET);
+  });
+
+  it("serves today's HMAC seed, never the legacy date seed", async () => {
+    vi.useFakeTimers({ now: NOW, toFake: ["Date"] });
+    const res = getDailyInfo();
+    expect(res.status).toBe(200);
+    expect(res.headers.get("cache-control")).toBe("no-store");
+    const body = (await res.json()) as { day: string; seed: string; resetsAt: string };
+    expect(body.day).toBe(DAY);
+    expect(body.seed).toBe(dailySeedFor(DAY));
+    expect(isDailySeedShape(body.seed)).toBe(true);
+    expect(body.seed).not.toContain(DAY);
+    expect(body.resetsAt).toBe("2026-09-27T00:00:00.000Z");
+  });
+
+  it.each([
+    ["missing", undefined],
+    ["too short", "x".repeat(31)],
+  ])("fails closed with 503 when the secret is %s", async (_label, value) => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.stubEnv("DAILY_SEED_SECRET", value);
+    const res = getDailyInfo();
+    expect(res.status).toBe(503);
+    const body = (await res.json()) as Record<string, unknown>;
+    expect(body.code).toBe("DAILY_UNAVAILABLE");
+    expect(body).not.toHaveProperty("seed");
+  });
+});
+

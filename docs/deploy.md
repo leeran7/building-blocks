@@ -37,9 +37,10 @@ Set all of the following in the **Vercel project dashboard** under Settings > En
 | `STRIPE_WEBHOOK_SECRET` | Webhook signing secret (`whsec_...`); production may comma-separate live + test secrets |
 | `INTERNAL_TOKEN` | Random secret (min 32 chars) — signs edge-to-internal view-credit payloads; **must be set or server will refuse to start** |
 | `ADMIN_TOKEN` | Random secret (min 32 chars) — Bearer token for admin API routes |
+| `DAILY_SEED_SECRET` | Random secret (min 32 chars) — HMAC key for the Daily Climb tower seed. **If missing or short, `GET /api/climb/daily` and `POST /api/climb/daily/result` return 503** (no fallback seed). Rotating it changes today's tower, so rotate at 00:00 UTC |
 | `BASE_URL` | Production URL without trailing slash (`https://www.doomstack.lol`) |
 
-Generate `INTERNAL_TOKEN` and `ADMIN_TOKEN` with:
+Generate `INTERNAL_TOKEN`, `ADMIN_TOKEN` and `DAILY_SEED_SECRET` with:
 
 ```bash
 openssl rand -hex 32

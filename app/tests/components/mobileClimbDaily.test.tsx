@@ -4,7 +4,8 @@
  * and the results card shows the server's verdict (F-1).
  *
  * The real screen renders inside the real AppDataProvider. The game loop
- * (useClimb) is stubbed to a finished run and records the seed it was given;
+ * (useClimb) is stubbed to a finished run (or to the lobby, for the start
+ * states) and records the seed it was given;
  * canvas / HUD / audio are stubbed; the network is mocked at apiFetch.
  *
  * @vitest-environment happy-dom
@@ -31,6 +32,9 @@ vi.mock("../../mobile/src/lib/external", () => ({ openExternal: vi.fn(async () =
 
 const net = vi.hoisted(() => ({
   info: null as unknown,
+  infoStatus: 200,
+  holdInfo: false,
+  heldInfo: [] as Array<() => void>,
   resultStatus: 200,
   resultBody: null as unknown,
   token: "replay-token" as string | null,
@@ -41,7 +45,11 @@ function jsonResponse(body: unknown, status = 200): Response {
 }
 
 const apiFetch = vi.fn(async (path: string, _init?: RequestInit): Promise<Response> => {
-  if (path === "/api/climb/daily") return net.info ? jsonResponse(net.info) : jsonResponse({}, 503);
+  if (path === "/api/climb/daily") {
+    const answer = () => (net.info ? jsonResponse(net.info, net.infoStatus) : jsonResponse({}, 503));
+    if (net.holdInfo) return new Promise<Response>((resolve) => net.heldInfo.push(() => resolve(answer())));
+    return answer();
+  }
   if (path === "/api/climb/daily/result") return jsonResponse(net.resultBody, net.resultStatus);
   if (path === "/api/settings") return jsonResponse({ leaderboardConsent: true });
   return jsonResponse({}, 404);
@@ -55,7 +63,7 @@ vi.mock("../../mobile/src/lib/api", () => ({
 }));
 vi.mock("../../mobile/src/lib/useGameHaptics", () => ({ useGameHaptics: () => {} }));
 
-const climb = vi.hoisted(() => ({ seeds: [] as Array<string | undefined> }));
+const climb = vi.hoisted(() => ({ seeds: [] as Array<string | undefined>, phase: "results" as "results" | "lobby" }));
 vi.mock("../../src/game/useClimb", async () => {
   const { createMatch } = await import("../../src/game/simulation");
   const { buildFreeTower } = await import("../../src/game/freeStack");
@@ -63,17 +71,18 @@ vi.mock("../../src/game/useClimb", async () => {
     useClimb: ({ seed }: { seed?: string }) => {
       climb.seeds.push(seed);
       const state = createMatch({ seed: seed ?? "solo", mode: "solo", tower: buildFreeTower(), playerIds: ["you"] });
-      state.phase = "results";
+      const lobby = climb.phase === "lobby";
+      state.phase = lobby ? "lobby" : "results";
       state.players[0].peakY = 42;
       return {
         state,
         simRef: { current: state },
         renderFeed: {},
         start: () => {},
-        finished: true,
+        finished: !lobby,
         setTouch: () => {},
         runId: 1,
-        inputLog: [{ moveX: 0, jump: false, climbY: 1, usePowerUp: false }],
+        inputLog: lobby ? [] : [{ moveX: 0, jump: false, climbY: 1, usePowerUp: false }],
       };
     },
   };
@@ -100,7 +109,12 @@ vi.mock("../../src/hooks/useSafeAreaInsets", () => ({
 import { AppDataProvider } from "../../mobile/src/contexts/AppDataContext";
 import { ClimbScreen } from "../../mobile/src/screens/ClimbScreen";
 import { setLeaderboardConsent } from "../../mobile/src/lib/consent";
-import { dailySeedFor, nextUtcResetAt, utcDayKey } from "../../src/lib/dailyDay";
+import { nextUtcResetAt, utcDayKey } from "../../src/lib/dailyDay";
+import { DAILY_SIM_VERSION } from "../../src/game/simVersion";
+
+/** A server-shaped seed. The real one is an HMAC the client cannot compute. */
+const SERVER_SEED = "daily1-AbCdEfGhIjKlMnOpQrSt_-";
+const todayInfo = () => ({ day: utcDayKey(new Date()), seed: SERVER_SEED, resetsAt: nextUtcResetAt(new Date()).toISOString() });
 
 function LocationProbe() {
   const loc = useLocation();
@@ -173,7 +187,11 @@ beforeEach(() => {
   postClimbResult.mockClear();
   onSignIn.mockClear();
   climb.seeds = [];
-  net.info = null;
+  climb.phase = "results";
+  net.info = todayInfo();
+  net.infoStatus = 200;
+  net.holdInfo = false;
+  net.heldInfo = [];
   net.resultStatus = 200;
   net.resultBody = saved();
   net.token = "replay-token";
@@ -189,18 +207,25 @@ afterEach(() => {
 });
 
 describe("ClimbScreen daily mode", () => {
-  it("locks the tower to the SERVER's daily seed, even when the device clock disagrees", async () => {
+  it("locks the tower to the SERVER's daily seed, with no device-derived seed before it", async () => {
     const serverDay = "2031-01-02"; // not the device's UTC day
-    net.info = { day: serverDay, seed: dailySeedFor(serverDay), resetsAt: "2031-01-03T00:00:00.000Z" };
+    net.info = { day: serverDay, seed: SERVER_SEED, resetsAt: "2031-01-03T00:00:00.000Z" };
     await mountDaily();
-    expect(climb.seeds[0]).toBe(dailySeedFor(utcDayKey(new Date()))); // local fallback first
-    expect(climb.seeds.at(-1)).toBe(dailySeedFor(serverDay));
+    expect(climb.seeds[0]).toBeUndefined(); // nothing locked until the server answers
+    expect(climb.seeds.at(-1)).toBe(SERVER_SEED);
+    expect(climb.seeds.filter((s) => s !== undefined && s !== SERVER_SEED)).toEqual([]);
   });
 
-  it("ignores a self-inconsistent server answer and keeps the device's UTC seed", async () => {
-    net.info = { day: "2031-01-02", seed: "daily-2031-01-03", resetsAt: nextUtcResetAt(new Date()).toISOString() };
+  it("never locks a legacy date seed from a malformed answer", async () => {
+    net.info = { day: "2031-01-02", seed: "daily-2031-01-02", resetsAt: nextUtcResetAt(new Date()).toISOString() };
     await mountDaily();
-    expect(new Set(climb.seeds)).toEqual(new Set([dailySeedFor(utcDayKey(new Date()))]));
+    expect(new Set(climb.seeds)).toEqual(new Set([undefined]));
+  });
+
+  it("sends DAILY_SIM_VERSION with the daily result", async () => {
+    await mountDaily();
+    const body = JSON.parse(String(resultPosts()[0][1]?.body)) as Record<string, unknown>;
+    expect(body.simVersion).toBe(DAILY_SIM_VERSION);
   });
 
   it("posts the run WITH its replay to the verified daily route, shows the server rank and 'See today's board'", async () => {
@@ -240,16 +265,18 @@ describe("ClimbScreen daily mode", () => {
   });
 
   it("a server rejection shows a plain reason and offers no retry", async () => {
-    const cases: Array<[string, string]> = [
-      ["DAY_CLOSED", "today's tower closed before this run was saved"],
-      ["REPLAY_MISMATCH", "couldn't verify this run for today's board"],
-      ["RUN_TOO_LONG", "run too long to verify for today's board"],
-      ["__proto__", "couldn't verify this run for today's board"],
-      ["SOMETHING_NEW", "couldn't verify this run for today's board"],
+    const cases: Array<[string, string, number]> = [
+      ["DAY_CLOSED", "today's tower closed before this run was saved", 400],
+      ["REPLAY_MISMATCH", "couldn't verify this run for today's board", 400],
+      ["RUN_TOO_LONG", "run too long to verify for today's board", 400],
+      ["SIM_VERSION_MISMATCH", "update the app to post daily scores", 409],
+      ["REPLAY_REUSED", "this run was already posted by another player", 409],
+      ["__proto__", "couldn't verify this run for today's board", 400],
+      ["SOMETHING_NEW", "couldn't verify this run for today's board", 400],
     ];
     let checked = 0;
-    for (const [code, copy] of cases) {
-      net.resultStatus = 400;
+    for (const [code, copy, status] of cases) {
+      net.resultStatus = status;
       net.resultBody = { error: "x", code };
       await mountDaily();
       expect(rankLine(), code).toBe(copy);
@@ -261,7 +288,8 @@ describe("ClimbScreen daily mode", () => {
     expect(checked).toBe(cases.length);
     root = null;
     container = null;
-  });
+    // One full mount per case (~0.9 s each, from the results card's timers).
+  }, 20_000);
 
   it("a run too long to encode goes to the all-time route only and says why", async () => {
     net.token = null;
@@ -299,5 +327,54 @@ describe("ClimbScreen daily mode", () => {
     await click(buttonByText("Sign in to save"));
     expect(onSignIn).toHaveBeenCalledTimes(1);
     expect(buttonByText("Try again")).toBeUndefined();
+  });
+});
+
+describe("ClimbScreen daily lobby: the seed comes only from the server (SEC-DC-3)", () => {
+  beforeEach(() => {
+    climb.phase = "lobby";
+  });
+
+  it("while the server answers: a loading line and no Start button", async () => {
+    net.holdInfo = true;
+    await mountDaily();
+    expect(text()).toContain("Loading today’s tower");
+    expect(buttonByText("Start daily")).toBeUndefined();
+    await act(async () => net.heldInfo.shift()!());
+    await settle();
+    expect(buttonByText("Start daily")).toBeTruthy();
+    expect(climb.seeds.at(-1)).toBe(SERVER_SEED);
+  });
+
+  it("offline: says so, offers Try again and Play endless instead, and never starts a daily", async () => {
+    net.info = null;
+    await mountDaily();
+    const alert = container!.querySelector('[role="alert"]');
+    expect(alert?.textContent).toContain("Can’t load today’s tower");
+    expect(buttonByText("Start daily")).toBeUndefined();
+    expect(new Set(climb.seeds)).toEqual(new Set([undefined]));
+
+    // Try again refetches; once the server answers, the daily can start.
+    net.info = todayInfo();
+    const before = apiFetch.mock.calls.filter(([p]) => p === "/api/climb/daily").length;
+    await click(buttonByText("Try again"));
+    expect(apiFetch.mock.calls.filter(([p]) => p === "/api/climb/daily").length).toBe(before + 1);
+    expect(buttonByText("Start daily")).toBeTruthy();
+  });
+
+  it("offline: Play endless instead opens an endless climb", async () => {
+    net.info = null;
+    await mountDaily();
+    await click(buttonByText("Play endless instead"));
+    expect(container!.querySelector('[data-testid="path"]')?.textContent).toBe("/climb");
+    expect(buttonByText("Start climb")).toBeTruthy();
+    expect(container!.querySelector('[role="alert"]')).toBeNull();
+  });
+
+  it("a 503 (daily unavailable) is the same offline state", async () => {
+    net.infoStatus = 503;
+    await mountDaily();
+    expect(container!.querySelector('[role="alert"]')?.textContent).toContain("Can’t load today’s tower");
+    expect(buttonByText("Start daily")).toBeUndefined();
   });
 });

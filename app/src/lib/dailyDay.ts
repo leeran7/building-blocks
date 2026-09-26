@@ -13,8 +13,16 @@
 export const MS_PER_MINUTE = 60_000;
 export const MS_PER_DAY = 86_400_000;
 
-/** Prefix of every daily tower seed. The rest is the UTC day key. */
-export const DAILY_SEED_PREFIX = "daily-";
+/**
+ * Prefix of every daily tower seed. The rest is an HMAC of the day that only
+ * the server can compute (src/lib/dailySeedServer.ts); clients get the seed
+ * from GET /api/climb/daily. Distinct from the legacy predictable
+ * `daily-YYYY-MM-DD` seeds, which the server no longer accepts.
+ */
+export const DAILY_SEED_PREFIX = "daily1-";
+
+/** Shape of a daily seed: the prefix and 22 base64url characters (128-bit MAC). */
+const DAILY_SEED_RE = new RegExp(`^${DAILY_SEED_PREFIX}[A-Za-z0-9_-]{22}$`);
 
 /**
  * How long after the UTC reset a run on the previous day's tower is still
@@ -44,15 +52,13 @@ export function utcDayKey(now: Instant): string {
   return `${d.getUTCFullYear()}-${pad2(d.getUTCMonth() + 1)}-${pad2(d.getUTCDate())}`;
 }
 
-/** The shared tower seed for a UTC day key. */
-export function dailySeedFor(day: string): string {
-  return `${DAILY_SEED_PREFIX}${day}`;
-}
-
-/** The UTC day a daily seed belongs to, or null for any non-daily seed. */
-export function dayKeyFromSeed(seed: string): string | null {
-  if (seed.indexOf(DAILY_SEED_PREFIX) !== 0) return null;
-  return parseDayKey(seed.slice(DAILY_SEED_PREFIX.length));
+/**
+ * Whether a value has the shape of a daily seed. Shape only: a client cannot
+ * tell a real seed from a forged one, and does not need to. The server
+ * accepts runs only on the seed it derived itself.
+ */
+export function isDailySeedShape(seed: unknown): seed is string {
+  return typeof seed === "string" && DAILY_SEED_RE.test(seed);
 }
 
 /** Epoch ms of 00:00 UTC on the day containing `now`. */
@@ -110,22 +116,6 @@ export function shiftDayKey(day: string, delta: number): string {
 /** Whole days from `from` to `to` (positive when `to` is later). */
 export function daysBetween(from: string, to: string): number {
   return Math.round((dayKeyStartMs(to) - dayKeyStartMs(from)) / MS_PER_DAY);
-}
-
-/**
- * The day whose board a run on `seed` counts toward, decided entirely from
- * the server clock: today's seed always, yesterday's seed only within
- * DAILY_SUBMIT_GRACE_MS of the reset. Anything else is null — an old tower,
- * a future tower, a non-daily seed.
- */
-export function submissionDayForSeed(seed: string, now: Instant): string | null {
-  const today = utcDayKey(now);
-  if (seed === dailySeedFor(today)) return today;
-  if (msSinceUtcReset(now) <= DAILY_SUBMIT_GRACE_MS) {
-    const yesterday = shiftDayKey(today, -1);
-    if (seed === dailySeedFor(yesterday)) return yesterday;
-  }
-  return null;
 }
 
 /**

@@ -6,7 +6,7 @@
  * the only place a server shape change can be caught.
  */
 
-import { parseDayKey, utcDayKey, dailySeedFor, nextUtcResetAt } from "@app/lib/dailyDay";
+import { isDailySeedShape, parseDayKey } from "@app/lib/dailyDay";
 import { parseAvatarId } from "@app/lib/avatars";
 import { apiFetch } from "./api";
 
@@ -120,21 +120,22 @@ export function parseFriendsDailyBoard(body: unknown): FriendsDailyBoard | null 
   };
 }
 
-/** Validates a GET /api/climb/daily body; null if malformed or self-inconsistent. */
+/**
+ * Validates a GET /api/climb/daily body; null if malformed. The seed is an
+ * HMAC only the server can derive, so the client checks its shape only.
+ */
 export function parseDailyInfo(body: unknown): DailyInfo | null {
   if (!isObject(body)) return null;
   const day = parseDayKey(body.day);
-  if (day === null || body.seed !== dailySeedFor(day) || !isIso(body.resetsAt)) return null;
+  if (day === null || !isDailySeedShape(body.seed) || !isIso(body.resetsAt)) return null;
   return { day, seed: body.seed, resetsAt: body.resetsAt };
 }
 
-/** Today's tower from the device clock — the offline fallback for GET /api/climb/daily. */
-export function localDailyInfo(now: Date = new Date()): DailyInfo {
-  const day = utcDayKey(now);
-  return { day, seed: dailySeedFor(day), resetsAt: nextUtcResetAt(now).toISOString() };
-}
-
-/** The server's live daily tower, or null when unreachable (use localDailyInfo). */
+/**
+ * The server's live daily tower, or null when unreachable or unavailable.
+ * There is no offline fallback: the seed cannot be derived on the device, so
+ * without it the daily cannot start (SEC-DC-3).
+ */
 export async function fetchDailyInfo(): Promise<DailyInfo | null> {
   try {
     const res = await apiFetch("/api/climb/daily");
@@ -169,7 +170,8 @@ export async function fetchFriendsDailyBoard(): Promise<FriendsDailyBoard | null
  * Outcome of POST /api/climb/daily/result:
  * - saved: verified and on the board (rank null only if hidden);
  * - not_saved: a valid run with nothing to save it against (guest, no consent);
- * - rejected: the server refused this run (closed day, mismatch…) — do not retry;
+ * - rejected: the server refused this run (400 closed day or mismatch, 409
+ *   stale engine or reused replay) — do not retry;
  * - failed: network / 5xx / rate limit — the same payload may be retried.
  */
 export type DailySaveResult =
@@ -188,7 +190,7 @@ export type DailySaveResult =
 
 /** Maps a daily result response (status + parsed body) to a DailySaveResult. */
 export function parseDailySaveResult(httpStatus: number, body: unknown): DailySaveResult {
-  if (httpStatus === 400) {
+  if (httpStatus === 400 || httpStatus === 409) {
     const code = isObject(body) && typeof body.code === "string" ? body.code : "INVALID";
     return { status: "rejected", code };
   }

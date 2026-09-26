@@ -91,6 +91,26 @@ export async function recordDailyClimb(input: DailyScoreInput): Promise<DailySco
   return { peakY: row.peak_y, improved: row.improved, attempts: row.attempts };
 }
 
+/**
+ * Claim a verified run's canonical input hash for `userId` on `day`, and
+ * return the account that holds it. That is `userId` for a new run or the
+ * same player resubmitting, and someone else for a copied replay (SEC-DC-2).
+ *
+ * One INSERT ... ON CONFLICT DO UPDATE, a no-op update so RETURNING yields
+ * the existing row. Two accounts racing with the same token serialize on the
+ * unique (day, input_hash) index: the first insert wins, and the second
+ * waits for it to commit and then reads the winner.
+ */
+export async function claimDailyReplay(input: { userId: string; day: string; inputHash: string }): Promise<string> {
+  const rows = await prisma.$queryRaw<{ userId: string }[]>`
+    INSERT INTO daily_climb_replays (id, day, input_hash, "userId", created_at)
+    VALUES (${nanoid()}, ${input.day}, ${input.inputHash}, ${input.userId}, now())
+    ON CONFLICT (day, input_hash) DO UPDATE SET day = daily_climb_replays.day
+    RETURNING "userId"
+  `;
+  return rows[0].userId;
+}
+
 /** Consent filter shared by every public daily read. */
 const CONSENTED = { user: { leaderboard_consent_at: { not: null } } } as const;
 

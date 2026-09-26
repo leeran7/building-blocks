@@ -20,7 +20,10 @@ vi.mock("../../src/game/simulation", async (importOriginal) => {
 
 import { verifyDailyReplay } from "../../src/game/dailyVerify";
 import type { RunReplay } from "../../src/game/runReplay";
-import { dailySeedFor } from "../../src/lib/dailyDay";
+import { dailySeedFor } from "../../src/lib/dailySeedServer";
+import { TEST_DAILY_SEED_SECRET } from "../lib/dailySeedTestSecret";
+
+vi.stubEnv("DAILY_SEED_SECRET", TEST_DAILY_SEED_SECRET);
 
 const DAY = "2026-09-26";
 const MIDDAY = new Date(`${DAY}T12:00:00Z`);

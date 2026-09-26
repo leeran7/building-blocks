@@ -4,14 +4,13 @@
  * output asserted; negative guards are proven against inputs they must reject.
  */
 
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   DAILY_BOARD_HISTORY_DAYS,
   DAILY_SUBMIT_GRACE_MS,
   MS_PER_DAY,
-  dailySeedFor,
-  dayKeyFromSeed,
   daysBetween,
+  isDailySeedShape,
   isReadableBoardDay,
   migrateLocalDayKeys,
   msSinceUtcReset,
@@ -19,10 +18,15 @@ import {
   nextUtcResetAt,
   parseDayKey,
   shiftDayKey,
-  submissionDayForSeed,
   utcDayKey,
 } from "../../src/lib/dailyDay";
+import { dailySeedFor, submissionDayForSeed } from "../../src/lib/dailySeedServer";
 import { resolveBoardDay } from "../../src/lib/dailyBoardDay";
+import { TEST_DAILY_SEED_SECRET } from "./dailySeedTestSecret";
+
+// The grace-window tests below need the server seed; see dailySeedServer.test.ts
+// for the seed itself and its fail-closed behaviour.
+vi.stubEnv("DAILY_SEED_SECRET", TEST_DAILY_SEED_SECRET);
 
 const at = (iso: string) => new Date(iso);
 
@@ -92,12 +96,23 @@ describe("day key arithmetic", () => {
     expect(daysBetween("2026-09-26", "2026-09-19")).toBe(-7);
   });
 
-  it("builds and recovers the daily seed", () => {
-    expect(dailySeedFor("2026-09-26")).toBe("daily-2026-09-26");
-    expect(dayKeyFromSeed("daily-2026-09-26")).toBe("2026-09-26");
-    expect(dayKeyFromSeed("daily-2026-02-30")).toBeNull();
-    expect(dayKeyFromSeed("solo-abc")).toBeNull();
-    expect(dayKeyFromSeed("xdaily-2026-09-26")).toBeNull();
+  it("recognises the shape of a server daily seed, and nothing else", () => {
+    expect(isDailySeedShape(dailySeedFor("2026-09-26"))).toBe(true);
+    let checked = 0;
+    for (const bad of [
+      "daily-2026-09-26", // the legacy, predictable seed
+      "daily1-",
+      `${dailySeedFor("2026-09-26")}A`,
+      ` ${dailySeedFor("2026-09-26")}`,
+      "daily1-AAAAAAAAAAAAAAAAAAAAA+", // not base64url
+      "solo-abc",
+      42,
+      null,
+    ]) {
+      expect(isDailySeedShape(bad)).toBe(false);
+      checked++;
+    }
+    expect(checked).toBeGreaterThan(0);
   });
 });
 
@@ -265,13 +280,6 @@ describe("parseDayKey allow-list (verifier fixtures)", () => {
       checked++;
     }
     expect(checked).toBeGreaterThan(0);
-  });
-
-  it("dayKeyFromSeed inherits the same strictness", () => {
-    expect(dayKeyFromSeed("daily-__proto__")).toBeNull();
-    expect(dayKeyFromSeed("daily-2026-9-1")).toBeNull();
-    expect(dayKeyFromSeed("daily-")).toBeNull();
-    expect(dayKeyFromSeed("daily-2026-09-26")).toBe("2026-09-26");
   });
 
   it("migrateLocalDayKeys ignores a JSON-parsed __proto__ key", () => {

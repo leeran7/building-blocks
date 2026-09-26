@@ -5,8 +5,9 @@
  *
  * Locks the tower to today's shared seed so every player climbs the exact same
  * tower, and tracks a local streak + per-day best (commitDailyRun). The day is
- * the UTC day: the seed comes from GET /api/climb/daily (server clock), with
- * the device's UTC day as the offline fallback. Signed-in runs post to
+ * the UTC day, and the seed comes only from GET /api/climb/daily: it is an
+ * HMAC only the server can derive (SEC-DC-3). Without it the daily cannot
+ * start, and the page offers a retry or an endless run. Signed-in runs post to
  * POST /api/climb/daily/result, which re-simulates the replay for the daily
  * board and raises the all-time record with the verified height.
  *
@@ -22,9 +23,10 @@ import { ClimbScene } from "./ClimbScene";
 import { ClimbControlsGuide } from "./ClimbControlsGuide";
 import { buildFreeTower } from "../../game/freeStack";
 import { ALTITUDE_UNIT } from "../../lib/units";
-import { dayKeyFromSeed, parseDayKey, dailySeedFor } from "../../lib/dailyDay";
+import Link from "next/link";
+import { isDailySeedShape, parseDayKey } from "../../lib/dailyDay";
+import { DAILY_SIM_VERSION } from "../../game/simVersion";
 import {
-  dailySeed,
   dailySummary,
   dailyWeek,
   commitDailyRun,
@@ -36,9 +38,16 @@ import {
 } from "../../lib/daily";
 
 const DAILY_RESULT_PATH = "/api/climb/daily/result";
+/** Sent with every daily result so the server can reject a stale engine (SEC-DC-4). */
+const DAILY_RESULT_FIELDS = { simVersion: DAILY_SIM_VERSION } as const;
 
-/** The server's live daily seed, or null when unreachable / malformed. */
-async function fetchServerDailySeed(): Promise<string | null> {
+interface ServerDaily {
+  day: string;
+  seed: string;
+}
+
+/** The server's live daily tower, or null when unreachable, unavailable or malformed. */
+async function fetchServerDaily(): Promise<ServerDaily | null> {
   try {
     const res = await fetch("/api/climb/daily", { cache: "no-store" });
     if (!res.ok) return null;
@@ -46,7 +55,7 @@ async function fetchServerDailySeed(): Promise<string | null> {
     if (typeof body !== "object" || body === null) return null;
     const { day, seed } = body as { day?: unknown; seed?: unknown };
     const parsed = parseDayKey(day);
-    return parsed !== null && seed === dailySeedFor(parsed) ? seed : null;
+    return parsed !== null && isDailySeedShape(seed) ? { day: parsed, seed } : null;
   } catch {
     return null;
   }
@@ -54,7 +63,10 @@ async function fetchServerDailySeed(): Promise<string | null> {
 
 export function DailyClimbClient() {
   const tower = buildFreeTower();
-  const [seed, setSeed] = useState<string | null>(null);
+  const [daily, setDaily] = useState<ServerDaily | null>(null);
+  const [dailyFailed, setDailyFailed] = useState(false);
+  const [dailyAttempt, setDailyAttempt] = useState(0);
+  const seed = daily?.seed ?? null;
   const [summary, setSummary] = useState<DailySummary | null>(null);
   const [week, setWeek] = useState<DailyWeekDay[]>([]);
   const [today, setToday] = useState<string>("");
@@ -66,37 +78,47 @@ export function DailyClimbClient() {
   // the reset countdown each minute so it doesn't go stale in a long lobby.
   useEffect(() => {
     let cancelled = false;
-    setSeed(dailySeed());
-    void fetchServerDailySeed().then((serverSeed) => {
-      if (!cancelled && serverSeed) setSeed(serverSeed);
+    setDailyFailed(false);
+    void fetchServerDaily().then((next) => {
+      if (cancelled) return;
+      if (next) setDaily(next);
+      else setDailyFailed(true);
     });
+    return () => {
+      cancelled = true;
+    };
+  }, [dailyAttempt]);
+
+  useEffect(() => {
     setSummary(dailySummary());
     setWeek(dailyWeek());
     setToday(formatToday(new Date()));
     setReset(formatReset(msUntilReset()));
     const id = setInterval(() => setReset(formatReset(msUntilReset())), 60_000);
-    return () => {
-      cancelled = true;
-      clearInterval(id);
-    };
+    return () => clearInterval(id);
   }, []);
 
   const handleFinish = useCallback((peakY: number) => {
-    const run = commitDailyRun(peakY, (seed && dayKeyFromSeed(seed)) || undefined);
+    // The seed is opaque, so the day comes from the answer that supplied it.
+    const run = commitDailyRun(peakY, daily?.day);
     setResult(run);
     // The run just changed both — re-read rather than patching two copies.
     setSummary(dailySummary());
     setWeek(dailyWeek());
-  }, [seed]);
+  }, [daily]);
 
   const streak = result?.streak ?? summary?.streak ?? 0;
 
   if (!seed) {
     return (
       <DailyShell today={today} reset={reset} streak={streak} week={week} result={null}>
-        <p className="text-text-muted text-sm text-center font-mono">
-          Loading today&rsquo;s climb…
-        </p>
+        {dailyFailed ? (
+          <DailyOffline onRetry={() => setDailyAttempt((n) => n + 1)} />
+        ) : (
+          <p role="status" className="text-text-muted text-sm text-center font-mono">
+            Loading today&rsquo;s climb…
+          </p>
+        )}
       </DailyShell>
     );
   }
@@ -108,6 +130,7 @@ export function DailyClimbClient() {
         categoryLabel="Daily"
         seed={seed}
         resultPath={DAILY_RESULT_PATH}
+        resultFields={DAILY_RESULT_FIELDS}
         onFinish={handleFinish}
         lobbyExtra={
           <>
@@ -148,6 +171,35 @@ export function DailyClimbClient() {
 }
 
 // ────────────────────────────── Presentational ─────────────────────────────
+
+/**
+ * Today's seed comes only from the server, so with no connection the daily
+ * cannot start. Offer a retry, or an endless run on a random tower.
+ */
+function DailyOffline({ onRetry }: { onRetry: () => void }) {
+  return (
+    <div role="alert" className="flex max-w-sm flex-col items-center gap-3 text-center">
+      <p className="text-sm text-text-secondary">
+        Can&rsquo;t load today&rsquo;s tower. Check your connection and try again.
+      </p>
+      <div className="flex flex-col gap-3 sm:flex-row">
+        <button
+          type="button"
+          onClick={onRetry}
+          className="inline-flex min-h-[44px] items-center justify-center rounded-full bg-signal px-6 text-sm font-semibold text-void transition hover:brightness-110 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void"
+        >
+          Try again
+        </button>
+        <Link
+          href="/play"
+          className="inline-flex min-h-[44px] items-center justify-center rounded-full border border-border-strong bg-surface/60 px-6 text-sm font-medium text-text-primary transition-colors hover:border-signal/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void"
+        >
+          Play endless instead
+        </Link>
+      </div>
+    </div>
+  );
+}
 
 function DailyShell({
   today,

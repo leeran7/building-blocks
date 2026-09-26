@@ -10,7 +10,6 @@ import { describe, expect, it, vi } from "vitest";
 vi.mock("../../mobile/src/lib/api", () => ({ apiFetch: vi.fn() }));
 
 import {
-  localDailyInfo,
   parseDailyBoard,
   parseDailyInfo,
   parseDailySaveResult,
@@ -80,19 +79,24 @@ describe("parseFriendsDailyBoard", () => {
 });
 
 describe("parseDailyInfo", () => {
-  it("accepts a self-consistent day and seed only", () => {
-    const info = { day: "2026-09-26", seed: "daily-2026-09-26", resetsAt: "2026-09-27T00:00:00.000Z" };
+  // The seed is an HMAC only the server can derive (SEC-DC-3), so the client
+  // checks its shape, not its value.
+  const SERVER_SEED = "daily1-AbCdEfGhIjKlMnOpQrSt_-";
+
+  it("accepts a real day and a server-shaped seed", () => {
+    const info = { day: "2026-09-26", seed: SERVER_SEED, resetsAt: "2026-09-27T00:00:00.000Z" };
     expect(parseDailyInfo(info)).toEqual(info);
-    expect(parseDailyInfo({ ...info, seed: "daily-2026-09-25" })).toBeNull();
     expect(parseDailyInfo({ ...info, day: "26/09/2026" })).toBeNull();
   });
 
-  it("builds the offline fallback from the device's UTC day", () => {
-    expect(localDailyInfo(new Date("2026-09-26T23:30:00-05:00"))).toEqual({
-      day: "2026-09-27",
-      seed: "daily-2026-09-27",
-      resetsAt: "2026-09-28T00:00:00.000Z",
-    });
+  it("rejects the legacy predictable seed and any other seed shape", () => {
+    const info = { day: "2026-09-26", seed: SERVER_SEED, resetsAt: "2026-09-27T00:00:00.000Z" };
+    let checked = 0;
+    for (const seed of ["daily-2026-09-26", "daily1-short", `${SERVER_SEED}x`, "", null, 7]) {
+      expect(parseDailyInfo({ ...info, seed })).toBeNull();
+      checked++;
+    }
+    expect(checked).toBeGreaterThan(0);
   });
 });
 
@@ -129,6 +133,16 @@ describe("parseDailySaveResult", () => {
       status: "rejected",
       code: "REPLAY_MISMATCH",
     });
+    // 409s (stale engine, reused replay) are final too: retrying cannot help.
+    expect(parseDailySaveResult(409, { error: "x", code: "SIM_VERSION_MISMATCH" })).toEqual({
+      status: "rejected",
+      code: "SIM_VERSION_MISMATCH",
+    });
+    expect(parseDailySaveResult(409, { error: "x", code: "REPLAY_REUSED" })).toEqual({
+      status: "rejected",
+      code: "REPLAY_REUSED",
+    });
+    expect(parseDailySaveResult(503, { code: "DAILY_UNAVAILABLE" })).toEqual({ status: "failed" });
     expect(parseDailySaveResult(429, { code: "RATE_LIMITED" })).toEqual({ status: "failed" });
     expect(parseDailySaveResult(500, { saved: false, reason: "persist_error" })).toEqual({ status: "failed" });
   });
