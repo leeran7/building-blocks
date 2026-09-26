@@ -11,8 +11,7 @@ import { ClimbCanvas } from "@app/components/Game/ClimbCanvas";
 import { ExpeditionHud, type DuelHudInfo } from "@app/components/Game/ExpeditionHud";
 import {
   TouchControls,
-  TOUCH_CONTROLS_INSET,
-  TOUCH_CONTROLS_MIN_BOTTOM,
+  useTouchControlsInset,
 } from "@app/components/Game/TouchControls";
 import { useCanvasSize } from "@app/hooks/useCanvasSize";
 import { useSafeAreaInsets } from "@app/hooks/useSafeAreaInsets";
@@ -298,8 +297,7 @@ function WaitingLobby({
   const canvasBoxRef = useRef<HTMLDivElement>(null);
   const canvasSize = useCanvasSize(canvasBoxRef, { fill: true });
   const safeArea = useSafeAreaInsets();
-  const bottomInset =
-    TOUCH_CONTROLS_INSET + Math.max(TOUCH_CONTROLS_MIN_BOTTOM, safeArea.bottom);
+  const bottomInset = useTouchControlsInset(safeArea.bottom);
 
   const phase = state.phase;
   const touchActive = phase === "countdown" || phase === "climb";
@@ -470,8 +468,7 @@ function DuelGame({
   const canvasBoxRef = useRef<HTMLDivElement>(null);
   const canvasSize = useCanvasSize(canvasBoxRef, { fill: true });
   const safeArea = useSafeAreaInsets();
-  const bottomInset =
-    TOUCH_CONTROLS_INSET + Math.max(TOUCH_CONTROLS_MIN_BOTTOM, safeArea.bottom);
+  const bottomInset = useTouchControlsInset(safeArea.bottom);
 
   const navigate = useNavigate();
   const startedRef = useRef(false);

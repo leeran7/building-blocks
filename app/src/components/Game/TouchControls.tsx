@@ -12,12 +12,19 @@
  * the fold, so the game shrank and the buttons needed a scroll to reach. On top
  * of the canvas they cost no layout height and are always reachable. They only
  * cover the lava band well below the climber, who is held at ~62% of the view.
+ *
+ * The "joystick" control scheme (chosen in settings, per device) swaps the
+ * arrow and climb buttons for a TouchJoystick on the left, keeping jump as a
+ * button on the right. Both feed the same TouchInput.
  */
 
 import "./expedition.css";
 
 import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { NO_TOUCH, type TouchInput } from "../../game/useClimb";
+import { useControlScheme, type ControlScheme } from "../../lib/controlScheme";
+import { JOYSTICK_CENTERED, withJoystick, type JoystickDirection } from "./joystick";
+import { JOYSTICK_LAYOUT_HEIGHT, JOYSTICK_SIZE, TouchJoystick } from "./TouchJoystick";
 import {
   initialHoldMemo,
   isHoldKey,
@@ -32,10 +39,13 @@ const TouchButton = memo(function TouchButton({
   control,
   held,
   onEvent,
+  pad = false,
 }: {
   control: Control;
   held: boolean;
   onEvent: (event: HoldEvent) => void;
+  /** Joystick layout's jump: a solid signal pad with an arrow over the label. */
+  pad?: boolean;
 }) {
   const { id, label, glyph, sub, accent, wordGlyph } = control;
 
@@ -48,6 +58,7 @@ const TouchButton = memo(function TouchButton({
       style={{ touchAction: "none" }}
       onContextMenu={(e) => e.preventDefault()}
       data-primary={Boolean(accent)}
+      data-pad={pad || undefined}
       className="exp-touch-button relative flex min-w-[44px] flex-col items-center justify-center font-mono font-bold"
       onPointerDown={(e) => {
         // Do not preventDefault: scrolling is already killed by
@@ -79,6 +90,17 @@ const TouchButton = memo(function TouchButton({
         onEvent({ kind: "activate", id });
       }}
     >
+      {pad ? (
+        <>
+          <span aria-hidden="true" className="text-5xl leading-none">
+            {glyph}
+          </span>
+          <span aria-hidden="true" className="mt-2 text-lg uppercase tracking-[0.16em] leading-none">
+            {sub}
+          </span>
+        </>
+      ) : (
+      <>
       <span
         className={
           wordGlyph
@@ -100,6 +122,8 @@ const TouchButton = memo(function TouchButton({
         >
           {sub}
         </span>
+      )}
+      </>
       )}
     </button>
   );
@@ -124,6 +148,9 @@ const ALL_CONTROLS: readonly Control[] = [
   { id: "jump", label: "Jump", glyph: "JMP", accent: true, wordGlyph: true },
 ];
 
+/** Jump in the joystick layout: arrow glyph over a "Jump" label. */
+const JUMP_PAD: Control = { id: "jump", label: "Jump", glyph: "↑", sub: "Jump", accent: true };
+
 export function TouchControls({
   active,
   onInput,
@@ -131,22 +158,36 @@ export function TouchControls({
   active: boolean;
   onInput: (input: TouchInput) => void;
 }) {
+  const [scheme] = useControlScheme();
   const memoRef = useRef<HoldMemo>(initialHoldMemo());
+  const stickRef = useRef<JoystickDirection>(JOYSTICK_CENTERED);
   const [pressed, setPressed] = useState<ReadonlySet<ControlId>>(new Set());
+  // Remounts the joystick on reset so its knob and pointer state clear too.
+  const [stickKey, setStickKey] = useState(0);
 
   const apply = useCallback(
     (event: HoldEvent) => {
       const next = reduceHold(memoRef.current, event, performance.now());
       memoRef.current = next;
       setPressed(next.held);
-      onInput(touchInputFromHeld(next.held));
+      onInput(withJoystick(touchInputFromHeld(next.held), stickRef.current));
+    },
+    [onInput]
+  );
+
+  const steer = useCallback(
+    (direction: JoystickDirection) => {
+      stickRef.current = direction;
+      onInput(withJoystick(touchInputFromHeld(memoRef.current.held), direction));
     },
     [onInput]
   );
 
   const reset = useCallback(() => {
     memoRef.current = initialHoldMemo();
+    stickRef.current = JOYSTICK_CENTERED;
     setPressed(new Set());
+    setStickKey((k) => k + 1);
     onInput(NO_TOUCH);
   }, [onInput]);
 
@@ -154,6 +195,14 @@ export function TouchControls({
     if (active) return;
     reset();
   }, [active, reset]);
+
+  // Switching scheme mid-run must not leave a control from the old layout held.
+  const schemeRef = useRef(scheme);
+  useEffect(() => {
+    if (schemeRef.current === scheme) return;
+    schemeRef.current = scheme;
+    reset();
+  }, [scheme, reset]);
 
   // A finger still down when the tab hides never gets pointerup. Without this
   // the control stays held and the climber keeps walking after the user returns.
@@ -189,16 +238,33 @@ export function TouchControls({
       }}
       aria-label="Touch game controls"
     >
-      <div className="grid grid-cols-4 gap-2.5">
-        {ALL_CONTROLS.map((control) => (
-          <TouchButton
-            key={control.id}
-            control={control}
-            held={pressed.has(control.id)}
-            onEvent={apply}
-          />
-        ))}
-      </div>
+      {scheme === "joystick" ? (
+        <div className="grid grid-cols-2 items-start gap-4">
+          <div className="flex justify-center">
+            <TouchJoystick key={stickKey} onChange={steer} />
+          </div>
+          {/* Fills the column, as tall as the stick's base and level with it. */}
+          <div className="grid" style={{ height: JOYSTICK_SIZE }}>
+            <TouchButton
+              control={JUMP_PAD}
+              held={pressed.has("jump")}
+              onEvent={apply}
+              pad
+            />
+          </div>
+        </div>
+      ) : (
+        <div className="grid grid-cols-4 gap-2.5">
+          {ALL_CONTROLS.map((control) => (
+            <TouchButton
+              key={control.id}
+              control={control}
+              held={pressed.has(control.id)}
+              onEvent={apply}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -215,8 +281,22 @@ export function TouchControls({
  * bar, drawing the climber inside the buttons on tablets and in landscape.
  */
 export const TOUCH_CONTROLS_INSET = 112;
+/** Same, for the joystick layout: the stick column plus the 8px top gutter. */
+export const JOYSTICK_CONTROLS_INSET = JOYSTICK_LAYOUT_HEIGHT + 8;
 /** Minimum bottom gutter under the buttons, matched to the container padding. */
 export const TOUCH_CONTROLS_MIN_BOTTOM = 10;
+
+/** Camera clearance for the controls: the layout's height plus the bottom gutter. */
+export function touchControlsInset(scheme: ControlScheme, safeAreaBottom: number): number {
+  const layout = scheme === "joystick" ? JOYSTICK_CONTROLS_INSET : TOUCH_CONTROLS_INSET;
+  return layout + Math.max(TOUCH_CONTROLS_MIN_BOTTOM, safeAreaBottom);
+}
+
+/** touchControlsInset for the scheme chosen in settings. */
+export function useTouchControlsInset(safeAreaBottom: number): number {
+  const [scheme] = useControlScheme();
+  return touchControlsInset(scheme, safeAreaBottom);
+}
 
 /** Responsive presentation alias; the established input reducer is unchanged. */
 export const MobileControls = TouchControls;

@@ -336,14 +336,28 @@ function integratePlayer(
     // Keep obstacle collision continuous across the seam (prevX shifts with the wrap).
     const wrappedPrevX = prevX + (p.x - nextX);
 
+    // A jump-off suppression lifts on its own once the climber is clear of that
+    // ladder: landed, or out of its grab reach. Climb can then stay held and
+    // re-grab it (a joystick never "releases" between jump-off and return).
+    // It still blocks the instant re-stick while in the air beside the ladder,
+    // which would cancel the jump and let jump+climb outpace climbing.
+    const sup = p.grabSuppressedUntilRelease;
+    if (sup !== null) {
+      const l = laddersForFloor(tower, sup.ix)[sup.slot];
+      if (!l || p.onGround || Math.abs(p.x - l.x) > grabRadius) {
+        p.grabSuppressedUntilRelease = null;
+      }
+    }
+
     // Grab a ladder if the player is asking to climb and one is in reach.
-    // After stepping off a ladder, only the *same* ladder is suppressed so
+    // After jumping off a ladder, only the *same* ladder is suppressed so
     // holding climb across consecutive ladders works.
     if (input.climbY !== 0) {
       const g = grabbableLadder(tower, p.x, p.y, input.climbY, grabRadius);
       if (g) {
-        const sup = p.grabSuppressedUntilRelease;
-        const isSuppressed = sup !== null && g.ix === sup.ix && g.slot === sup.slot;
+        const blocked = p.grabSuppressedUntilRelease;
+        const isSuppressed =
+          blocked !== null && g.ix === blocked.ix && g.slot === blocked.slot;
         if (!isSuppressed) {
           p.grabSuppressedUntilRelease = null;
           p.onLadder = true;
