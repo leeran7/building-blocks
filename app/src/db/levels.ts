@@ -1,12 +1,15 @@
 /**
- * Level System persistence: run tickets, lives, per-level progress, replay
- * claims and XP (design/xp-and-levels.md §5, §7, §9).
+ * Level System persistence: run tickets, lives, per-level progress and XP
+ * (design/xp-and-levels.md §5, §9).
  *
- * Trust boundary (context/trust.md #1): stars, XP, unlocks and lives are
- * permanent or gate play, so every value written here is server-derived. The
- * level comes from the ticket row, the stars from the server's re-simulation
- * (src/levels/catalog.ts), and lives from the stored count and the server
- * clock. Nothing in this module accepts a client-reported result.
+ * Trust: levels have NO replay verification (Leeran, 2026-09-27). The run
+ * result (cleared, stars, ticks) is the device's report, sanity-checked
+ * (rules.ts parseReportedRun, runFitsWallClock) but not proven, so a
+ * modified client can claim clears and stars. What stays server-derived:
+ * which level a result counts for (the ticket row), unlocks (one level past
+ * the highest recorded clear), lives (stored count + server clock), and that
+ * each ticket, life refund and XP key is used once. Levels carry no prizes;
+ * anything that does must not build on these rows.
  *
  * Concurrency: every write takes the user's row lock first
  * (SELECT ... FOR UPDATE, as src/db/chips.ts does), so one player's ticket
@@ -35,14 +38,13 @@ import {
   refillLives,
   refundLife,
   spendLife,
-  starsForRun,
   xpAwardsForClear,
+  runFitsWallClock,
   type LifeState,
+  type ReportedRun,
 } from "../levels/rules";
-import type { LevelTicketSpec, LevelVerdict } from "../levels/catalog";
 
 type TxClient = Prisma.TransactionClient;
-type LevelVerdictOk = Extract<LevelVerdict, { ok: true }>;
 
 /** A ticket is valid for 24 h, so a crashed run can still be submitted. */
 export const LEVEL_TICKET_TTL_MS = 24 * 60 * 60 * 1000;
@@ -54,7 +56,7 @@ export type LevelErrorCode =
   | "TICKET_NOT_FOUND"
   | "TICKET_USED"
   | "TICKET_EXPIRED"
-  | "REPLAY_REUSED";
+  | "IMPLAUSIBLE_RUN";
 
 /** A refused level write. The route maps `code` to an HTTP status. */
 export class LevelError extends Error {
@@ -100,8 +102,6 @@ export interface IssueTicketInput {
   level: number;
   /** Server's LEVEL_SIM_VERSION (the route has already matched the client's). */
   simVersion: number;
-  /** Server's spec revision for this level, from its own manifest. */
-  specVersion: number;
   now: Date;
 }
 
@@ -177,7 +177,6 @@ export async function issueLevelTicket(input: IssueTicketInput): Promise<IssuedT
         season,
         level,
         sim_version: input.simVersion,
-        spec_version: input.specVersion,
         start_power_up: null,
         life_spent: lifeSpent,
         created_at: now,
@@ -197,22 +196,21 @@ export async function issueLevelTicket(input: IssueTicketInput): Promise<IssuedT
 }
 
 /**
- * The open ticket `ticketId` of `userId`, as the spec the verifier needs.
- * Read without a lock: submitLevelResult re-checks it under the lock before
- * anything is written. Another user's ticket reads as not found.
+ * The season and level of `userId`'s open ticket `ticketId`, for the result
+ * route's rate-limit key. Read without a lock: submitLevelResult re-checks
+ * the ticket under the lock before anything is written. Another user's
+ * ticket reads as not found.
  *
  * @throws LevelError TICKET_NOT_FOUND | TICKET_USED | TICKET_EXPIRED
  */
-export async function openTicketSpec(userId: string, ticketId: string, now: Date): Promise<LevelTicketSpec> {
+export async function openTicketLevel(
+  userId: string,
+  ticketId: string,
+  now: Date
+): Promise<{ season: number; level: number }> {
   const ticket = await prisma.levelRunTicket.findFirst({ where: { id: ticketId, userId } });
   assertOpen(ticket, now);
-  return {
-    season: ticket.season,
-    level: ticket.level,
-    simVersion: ticket.sim_version,
-    specVersion: ticket.spec_version,
-    startPowerUp: ticket.start_power_up,
-  };
+  return { season: ticket.season, level: ticket.level };
 }
 
 type TicketRow = NonNullable<Awaited<ReturnType<typeof prisma.levelRunTicket.findFirst>>>;
@@ -227,24 +225,15 @@ function assertOpen(ticket: TicketRow | null, now: Date): asserts ticket is Tick
 
 // ── Results ──────────────────────────────────────────────────────────────────
 
-/**
- * Whether a cleared run's input hash is claimed against reuse. The threshold
- * is measured per level by the engine (design §7, as the Daily's SEC-DC-15):
- * below it honest players repeat the same log, so it is not claimed.
- */
-export function levelRunNeedsClaim(verdict: Pick<LevelVerdictOk, "inputSegments" | "claimMinInputSegments">): boolean {
-  return verdict.inputSegments >= verdict.claimMinInputSegments;
-}
-
 export type LevelOutcome = "cleared" | "failed" | "bad_start";
 
 export interface SubmitResultInput {
   userId: string;
   ticketId: string;
-  /** The server's re-simulation of the submitted replay on the ticket's level. */
-  verdict: LevelVerdictOk;
-  /** Stored as the best run's replay (friend ghosts) when it is the fastest. */
-  replayToken: string;
+  /** The device's report of the run, already parsed by parseReportedRun. */
+  run: ReportedRun;
+  /** Stored with the best run (friend ghosts) when it is the fastest. Unverified. */
+  replayToken: string | null;
   now: Date;
 }
 
@@ -273,41 +262,33 @@ export interface LevelResult {
 }
 
 /**
- * Record a verified level run: consume the ticket once, refund the life on a
- * clear or a bad start, raise stars and best time, claim the replay, and pay
- * the XP it earned for the first time. One transaction under the user lock.
+ * Record a reported level run: check it fits the time since its ticket,
+ * consume the ticket once, refund the life on a clear or a bad start, raise
+ * stars and best time, and pay the XP it earned for the first time. One
+ * transaction under the user lock.
  *
  * @throws LevelError TICKET_NOT_FOUND | TICKET_USED | TICKET_EXPIRED
- *                    | REPLAY_REUSED | USER_NOT_FOUND
+ *                    | IMPLAUSIBLE_RUN | USER_NOT_FOUND
  */
 export async function submitLevelResult(input: SubmitResultInput): Promise<LevelResult> {
-  const { userId, ticketId, verdict, now } = input;
+  const { userId, ticketId, run, now } = input;
   return prisma.$transaction(async (tx) => {
     const user = await lockUser(tx, userId);
     const ticket = await tx.levelRunTicket.findFirst({ where: { id: ticketId, userId } });
     assertOpen(ticket, now);
     const { season, level } = ticket;
 
-    const stars = starsForRun(verdict.finished ? verdict.finishTicks : null, verdict.pars, verdict.allGems);
-    const finishTicks = stars > 0 ? verdict.finishTicks : null;
-    const outcome: LevelOutcome =
-      finishTicks !== null ? "cleared" : isBadStart(verdict.raceTicks, ticket.created_at, now) ? "bad_start" : "failed";
-
-    // Level seeds are public and friend ghosts hand out winning logs, so a
-    // cleared run already claimed by another account is refused (design §7).
-    // Throwing rolls the whole transaction back: the ticket stays open.
-    if (finishTicks !== null && levelRunNeedsClaim(verdict)) {
-      const rows = await tx.$queryRaw<{ userId: string }[]>`
-        INSERT INTO level_replay_claims (id, season, level, spec_version, input_hash, "userId", created_at)
-        VALUES (${nanoid()}, ${season}, ${level}, ${ticket.spec_version}, ${verdict.inputHash}, ${userId}, ${now})
-        ON CONFLICT (season, level, spec_version, input_hash)
-          DO UPDATE SET season = level_replay_claims.season
-        RETURNING "userId"
-      `;
-      if (rows[0]?.userId !== userId) {
-        throw new LevelError("REPLAY_REUSED", "This run was already submitted by another player");
-      }
+    // A run cannot have taken longer than the time since its ticket.
+    // Refused without consuming, so an honest client with a skewed report
+    // can still resubmit.
+    if (!runFitsWallClock(run.ticks, ticket.created_at, now)) {
+      throw new LevelError("IMPLAUSIBLE_RUN", "That run is longer than the time since the level started");
     }
+
+    const stars = run.cleared ? run.stars : 0;
+    const finishTicks = run.cleared ? run.ticks : null;
+    const outcome: LevelOutcome =
+      finishTicks !== null ? "cleared" : isBadStart(run.ticks, ticket.created_at, now) ? "bad_start" : "failed";
 
     // Consume exactly once. The user lock already serializes submits, and
     // the used_at guard makes the refund conditional on this update itself.
@@ -339,7 +320,6 @@ export async function submitLevelResult(input: SubmitResultInput): Promise<Level
         ? {
             best_ticks: finishTicks,
             sim_version: ticket.sim_version,
-            spec_version: ticket.spec_version,
             start_power_up: ticket.start_power_up,
             replay_token: input.replayToken,
             updated_at: now,
@@ -361,7 +341,6 @@ export async function submitLevelResult(input: SubmitResultInput): Promise<Level
             stars: bestStars,
             best_ticks: finishTicks,
             sim_version: ticket.sim_version,
-            spec_version: ticket.spec_version,
             start_power_up: ticket.start_power_up,
             replay_token: input.replayToken,
             created_at: now,
@@ -467,16 +446,16 @@ export async function levelProfile(userId: string, season: number, now: Date): P
 
 /**
  * The active season row for `id`, or null when it does not exist or has not
- * started. The route compares its manifest_hash with the server's own copy.
+ * started. Inserting a level_seasons row is what switches a season on.
  */
 export async function activeLevelSeason(
   id: number,
   now: Date
-): Promise<{ id: number; manifestHash: string; minLevelSimVersion: number } | null> {
+): Promise<{ id: number; minLevelSimVersion: number } | null> {
   const row = await prisma.levelSeason.findUnique({
     where: { id },
-    select: { id: true, manifest_hash: true, starts_at: true, min_level_sim_version: true },
+    select: { id: true, starts_at: true, min_level_sim_version: true },
   });
   if (!row || row.starts_at.getTime() > now.getTime()) return null;
-  return { id: row.id, manifestHash: row.manifest_hash, minLevelSimVersion: row.min_level_sim_version };
+  return { id: row.id, minLevelSimVersion: row.min_level_sim_version };
 }
