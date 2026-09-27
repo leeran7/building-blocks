@@ -2,10 +2,9 @@
  * /api/levels routes: ticket, result and me.
  *
  * The DB layer is mocked (its locking and uniqueness are covered against
- * Postgres in tests/db/levels.pg.test.ts). The level catalog is a fake with a
- * spy `verify`, so these tests pin what the ROUTES own: every refusal before
- * a life is spent, the level coming from the ticket and never the request,
- * and verdicts flowing straight from the server's re-simulation.
+ * Postgres in tests/db/levels.pg.test.ts). These tests pin what the ROUTES
+ * own: every refusal before a life is spent, the level coming from the
+ * ticket and never the request, and the result's allow-list parsing.
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -23,12 +22,11 @@ vi.mock("../../src/db/levels", async (importOriginal) => {
     LevelError: real.LevelError,
     activeLevelSeason: vi.fn(),
     issueLevelTicket: vi.fn(),
-    openTicketSpec: vi.fn(),
+    openTicketLevel: vi.fn(),
     submitLevelResult: vi.fn(),
     levelProfile: vi.fn(),
   };
 });
-vi.mock("../../src/levels/catalog", () => ({ getLevelCatalog: vi.fn() }));
 
 import { POST as postTicket } from "../../app/api/levels/ticket/route";
 import { POST as postResult } from "../../app/api/levels/result/route";
@@ -40,37 +38,16 @@ import {
   activeLevelSeason,
   issueLevelTicket,
   levelProfile,
-  openTicketSpec,
+  openTicketLevel,
   submitLevelResult,
 } from "../../src/db/levels";
-import { getLevelCatalog, type LevelCatalog, type LevelVerdict } from "../../src/levels/catalog";
-import { encodeRunReplay, type RunReplay } from "../../src/game/runReplay";
+import { LEVEL_SIM_VERSION } from "../../src/game/simVersion";
+import { encodeRunReplay } from "../../src/game/runReplay";
 import type { PlayerInput } from "../../src/game/types";
 
-const SIM = 7;
-const HASH = "manifest-hash";
+const SIM = LEVEL_SIM_VERSION;
 const T_ISSUED = new Date("2026-09-27T12:00:00Z");
-
-const OK_VERDICT: LevelVerdict = {
-  ok: true,
-  finished: true,
-  finishTicks: 1000,
-  raceTicks: 1000,
-  allGems: true,
-  pars: { twoStarTicks: 1250, threeStarTicks: 1050 },
-  inputHash: "abc",
-  inputSegments: 30,
-  claimMinInputSegments: 4,
-};
-
-function fakeCatalog(verify = vi.fn((): LevelVerdict => OK_VERDICT)): LevelCatalog & { verify: typeof verify } {
-  return {
-    simVersion: SIM,
-    season: (id: number) =>
-      id === 1 ? { id: 1, levelCount: 300, manifestHash: HASH, specVersion: (level: number) => 100 + level } : null,
-    verify,
-  };
-}
+const TICKET = "ticket_abcdefghijk";
 
 function req(path: string, body?: unknown, token: string | null = "tok"): NextRequest {
   const headers: Record<string, string> = { "content-type": "application/json" };
@@ -82,44 +59,27 @@ function req(path: string, body?: unknown, token: string | null = "tok"): NextRe
   });
 }
 
-const inputs: PlayerInput[] = Array.from({ length: 50 }, (_, i) => ({
-  moveX: (i % 3) - 1,
-  jump: i % 7 === 0,
-  climbY: 1,
-  usePowerUp: false,
-})) as PlayerInput[];
-
-let catalog: ReturnType<typeof fakeCatalog>;
-
 beforeEach(() => {
-  catalog = fakeCatalog();
-  vi.mocked(getLevelCatalog).mockReturnValue(catalog);
   vi.mocked(verifyIdToken).mockResolvedValue({ uid: "u1", email: "u1@example.test", email_verified: true } as never);
-  vi.mocked(activeLevelSeason).mockResolvedValue({ id: 1, manifestHash: HASH, minLevelSimVersion: 1 });
+  vi.mocked(activeLevelSeason).mockResolvedValue({ id: 1, minLevelSimVersion: 1 });
   vi.mocked(issueLevelTicket).mockResolvedValue({
-    ticketId: "ticket_abcdefghijk",
+    ticketId: TICKET,
     expiresAt: new Date(T_ISSUED.getTime() + 86_400_000),
     lifeSpent: true,
     lives: 4,
     nextLifeAt: new Date(T_ISSUED.getTime() + 1_800_000),
   });
-  vi.mocked(openTicketSpec).mockResolvedValue({
-    season: 1,
-    level: 42,
-    simVersion: SIM,
-    specVersion: 142,
-    startPowerUp: null,
-  });
+  vi.mocked(openTicketLevel).mockResolvedValue({ season: 1, level: 42 });
   vi.mocked(submitLevelResult).mockImplementation(async (input) => ({
     season: 1,
     level: 42,
-    outcome: "cleared",
-    stars: 3,
-    bestStars: 3,
+    outcome: input.run.cleared ? "cleared" : "failed",
+    stars: input.run.stars,
+    bestStars: input.run.stars,
     previousStars: 0,
-    bestTicks: input.verdict.finishTicks,
-    newBest: true,
-    lifeRefunded: true,
+    bestTicks: input.run.cleared ? input.run.ticks : null,
+    newBest: input.run.cleared,
+    lifeRefunded: input.run.cleared,
     lives: 5,
     nextLifeAt: null,
     xpGained: 510,
@@ -136,20 +96,12 @@ afterEach(() => {
 describe("POST /api/levels/ticket", () => {
   const ticket = (body: unknown, token?: string | null) => postTicket(req("/api/levels/ticket", body, token));
 
-  it("issues a ticket pinned to the server's sim and spec versions", async () => {
+  it("issues a ticket pinned to the server's engine version", async () => {
     const res = await ticket({ season: 1, level: 42, simVersion: SIM });
     expect(res.status).toBe(200);
-    expect(await res.json()).toMatchObject({
-      ticketId: "ticket_abcdefghijk",
-      season: 1,
-      level: 42,
-      simVersion: SIM,
-      specVersion: 142,
-      lifeSpent: true,
-      lives: 4,
-    });
+    expect(await res.json()).toMatchObject({ ticketId: TICKET, season: 1, level: 42, simVersion: SIM, lifeSpent: true, lives: 4 });
     expect(issueLevelTicket).toHaveBeenCalledWith(
-      expect.objectContaining({ userId: "u1", season: 1, level: 42, simVersion: SIM, specVersion: 142 })
+      expect.objectContaining({ userId: "u1", season: 1, level: 42, simVersion: SIM })
     );
   });
 
@@ -172,42 +124,24 @@ describe("POST /api/levels/ticket", () => {
     expect((await ticket("nope")).status).toBe(400);
   });
 
-  it("answers 503 and spends nothing while the level engine is not wired", async () => {
-    vi.mocked(getLevelCatalog).mockReturnValue(null);
-    const res = await ticket({ season: 1, level: 42, simVersion: SIM });
-    expect(res.status).toBe(503);
-    expect((await res.json()).code).toBe("LEVELS_UNAVAILABLE");
-    expect(issueLevelTicket).not.toHaveBeenCalled();
-  });
-
   it("tells a stale app to update before a life is spent", async () => {
-    const res = await ticket({ season: 1, level: 42, simVersion: SIM - 1 });
+    const res = await ticket({ season: 1, level: 42, simVersion: SIM + 1 });
     expect(res.status).toBe(409);
     expect((await res.json()).code).toBe("SIM_VERSION_MISMATCH");
     expect(issueLevelTicket).not.toHaveBeenCalled();
   });
 
-  it("refuses a season the server has no manifest for, or that is not active", async () => {
-    expect((await ticket({ season: 2, level: 1, simVersion: SIM })).status).toBe(404);
-    vi.mocked(activeLevelSeason).mockResolvedValue(null);
-    const res = await ticket({ season: 1, level: 1, simVersion: SIM });
-    expect(res.status).toBe(404);
-    expect((await res.json()).code).toBe("SEASON_NOT_FOUND");
+  it("refuses when the season needs a newer engine than the server's", async () => {
+    vi.mocked(activeLevelSeason).mockResolvedValueOnce({ id: 1, minLevelSimVersion: SIM + 1 });
+    expect((await ticket({ season: 1, level: 1, simVersion: SIM })).status).toBe(409);
     expect(issueLevelTicket).not.toHaveBeenCalled();
   });
 
-  it("refuses a level beyond the season's level count", async () => {
-    catalog.season = () => ({ id: 1, levelCount: 20, manifestHash: HASH, specVersion: () => 1 });
-    const res = await ticket({ season: 1, level: 21, simVersion: SIM });
+  it("refuses a season that is not switched on", async () => {
+    vi.mocked(activeLevelSeason).mockResolvedValueOnce(null);
+    const res = await ticket({ season: 1, level: 1, simVersion: SIM });
     expect(res.status).toBe(404);
-    expect((await res.json()).code).toBe("LEVEL_NOT_FOUND");
-  });
-
-  it("refuses to issue when the activation row pins a different manifest or a newer engine", async () => {
-    vi.mocked(activeLevelSeason).mockResolvedValue({ id: 1, manifestHash: "other", minLevelSimVersion: 1 });
-    expect((await ticket({ season: 1, level: 1, simVersion: SIM })).status).toBe(503);
-    vi.mocked(activeLevelSeason).mockResolvedValue({ id: 1, manifestHash: HASH, minLevelSimVersion: SIM + 1 });
-    expect((await ticket({ season: 1, level: 1, simVersion: SIM })).status).toBe(503);
+    expect((await res.json()).code).toBe("SEASON_NOT_FOUND");
     expect(issueLevelTicket).not.toHaveBeenCalled();
   });
 
@@ -257,97 +191,80 @@ describe("POST /api/levels/ticket", () => {
 });
 
 describe("POST /api/levels/result", () => {
-  let token: string;
-
-  beforeEach(async () => {
-    token = (await encodeRunReplay({ seed: "s1:level:42:1", peakY: 0, inputs }))!;
-  });
-
   const result = (body: unknown, auth?: string | null) => postResult(req("/api/levels/result", body, auth));
+  const CLEAR = { ticketId: TICKET, cleared: true, stars: 3, ticks: 900 };
 
-  it("verifies against the ticket's level, not anything in the request", async () => {
-    const res = await result({ ticketId: "ticket_abcdefghijk", replayToken: token, season: 9, level: 300, stars: 3 });
+  it("records the reported run against the ticket's level, not the request's", async () => {
+    const res = await result({ ...CLEAR, season: 9, level: 300 });
     expect(res.status).toBe(200);
-    expect(catalog.verify).toHaveBeenCalledTimes(1);
+    expect(await res.json()).toMatchObject({ level: 42, outcome: "cleared", stars: 3, bestTicks: 900, nextLifeAt: null });
+    expect(submitLevelResult).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: "u1",
+        ticketId: TICKET,
+        run: { cleared: true, stars: 3, ticks: 900 },
+        replayToken: null,
+      })
+    );
+    expect(openTicketLevel).toHaveBeenCalledWith("u1", TICKET, expect.any(Date));
     // The per-level limit is keyed on the ticket's level, not the body's.
     expect(checkRateLimit).toHaveBeenCalledWith(
       expect.objectContaining({ namespace: "climb:level:result", identifier: "u1:1:42" })
     );
-    const [spec, replay] = catalog.verify.mock.calls[0] as unknown as [unknown, RunReplay];
-    expect(spec).toEqual({ season: 1, level: 42, simVersion: SIM, specVersion: 142, startPowerUp: null });
-    expect(replay.inputs).toHaveLength(inputs.length);
-    expect(openTicketSpec).toHaveBeenCalledWith("u1", "ticket_abcdefghijk", expect.any(Date));
   });
 
-  it("stores the server's verdict and returns the result", async () => {
-    const res = await result({ ticketId: "ticket_abcdefghijk", replayToken: token });
-    expect(await res.json()).toMatchObject({ outcome: "cleared", stars: 3, bestTicks: 1000, lives: 5, nextLifeAt: null });
+  it("records a failed run", async () => {
+    const res = await result({ ticketId: TICKET, cleared: false, stars: 0, ticks: 1200 });
+    expect(res.status).toBe(200);
     expect(submitLevelResult).toHaveBeenCalledWith(
-      expect.objectContaining({ userId: "u1", ticketId: "ticket_abcdefghijk", verdict: OK_VERDICT, replayToken: token })
+      expect.objectContaining({ run: { cleared: false, stars: 0, ticks: 1200 } })
     );
   });
 
-  it("rejects a run the re-simulation refuses, and records nothing", async () => {
-    catalog.verify.mockReturnValueOnce({ ok: false, code: "REPLAY_MISMATCH", reason: "seed is not this level" });
-    const res = await result({ ticketId: "ticket_abcdefghijk", replayToken: token });
+  it("stores a well-formed replay with the run and refuses a malformed one", async () => {
+    const inputs = Array.from({ length: 20 }, () => ({ moveX: 1, jump: false, climbY: 1, usePowerUp: false })) as PlayerInput[];
+    const token = (await encodeRunReplay({ seed: "s1:level:42", peakY: 0, inputs }))!;
+    expect((await result({ ...CLEAR, replayToken: token })).status).toBe(200);
+    expect(submitLevelResult).toHaveBeenCalledWith(expect.objectContaining({ replayToken: token }));
+    const bad = await result({ ...CLEAR, replayToken: 42 });
+    expect(bad.status).toBe(400);
+    expect((await bad.json()).code).toBe("INVALID_RESULT");
+  });
+
+  it.each([
+    [{ ticketId: TICKET, cleared: true, stars: 0, ticks: 900 }],
+    [{ ticketId: TICKET, cleared: false, stars: 1, ticks: 900 }],
+    [{ ticketId: TICKET, cleared: true, stars: 4, ticks: 900 }],
+    [{ ticketId: TICKET, cleared: true, stars: 3, ticks: -5 }],
+    [{ ticketId: TICKET, cleared: true, stars: 3, ticks: 1e9 }],
+    [{ ticketId: TICKET, cleared: true, stars: 3 }],
+    [{ ticketId: TICKET, stars: 3, ticks: 900 }],
+  ])("refuses an inconsistent result %j before any lookup", async (body) => {
+    const res = await result(body);
     expect(res.status).toBe(400);
-    expect((await res.json()).code).toBe("REPLAY_MISMATCH");
+    expect((await res.json()).code).toBe("INVALID_RESULT");
+    expect(openTicketLevel).not.toHaveBeenCalled();
     expect(submitLevelResult).not.toHaveBeenCalled();
   });
 
-  it("rejects a missing or malformed ticket id or replay before any lookup", async () => {
-    for (const body of [
-      { replayToken: token },
-      { ticketId: "../../x", replayToken: token },
-      { ticketId: "ticket_abcdefghijk" },
-    ]) {
-      expect((await result(body)).status).toBe(400);
+  it("refuses a missing or malformed ticket id before any lookup", async () => {
+    for (const body of [{ cleared: true, stars: 3, ticks: 900 }, { ...CLEAR, ticketId: "../../x" }]) {
+      const res = await result(body);
+      expect(res.status).toBe(400);
+      expect((await res.json()).code).toBe("INVALID_TICKET");
     }
-    expect(openTicketSpec).not.toHaveBeenCalled();
-    // A token that parses as a string but not as a replay fails at decode.
-    const res = await result({ ticketId: "ticket_abcdefghijk", replayToken: "not-a-replay" });
+    expect(openTicketLevel).not.toHaveBeenCalled();
+  });
+
+  it("maps ticket and wall-clock refusals", async () => {
+    vi.mocked(openTicketLevel).mockRejectedValueOnce(new LevelError("TICKET_USED", "used"));
+    expect((await result(CLEAR)).status).toBe(409);
+    vi.mocked(openTicketLevel).mockRejectedValueOnce(new LevelError("TICKET_EXPIRED", "expired"));
+    expect((await result(CLEAR)).status).toBe(410);
+    vi.mocked(submitLevelResult).mockRejectedValueOnce(new LevelError("IMPLAUSIBLE_RUN", "too long"));
+    const res = await result(CLEAR);
     expect(res.status).toBe(400);
-    expect((await res.json()).code).toBe("INVALID_REPLAY");
-    expect(catalog.verify).not.toHaveBeenCalled();
-    expect(submitLevelResult).not.toHaveBeenCalled();
-  });
-
-  it("refuses when the ticket was issued under another engine", async () => {
-    vi.mocked(openTicketSpec).mockResolvedValueOnce({
-      season: 1,
-      level: 42,
-      simVersion: SIM - 1,
-      specVersion: 142,
-      startPowerUp: null,
-    });
-    const res = await result({ ticketId: "ticket_abcdefghijk", replayToken: token });
-    expect(res.status).toBe(409);
-    expect(catalog.verify).not.toHaveBeenCalled();
-  });
-
-  it("maps ticket and replay-claim refusals", async () => {
-    vi.mocked(openTicketSpec).mockRejectedValueOnce(new LevelError("TICKET_USED", "used"));
-    expect((await result({ ticketId: "ticket_abcdefghijk", replayToken: token })).status).toBe(409);
-    vi.mocked(openTicketSpec).mockRejectedValueOnce(new LevelError("TICKET_EXPIRED", "expired"));
-    expect((await result({ ticketId: "ticket_abcdefghijk", replayToken: token })).status).toBe(410);
-    vi.mocked(submitLevelResult).mockRejectedValueOnce(new LevelError("REPLAY_REUSED", "reused"));
-    const res = await result({ ticketId: "ticket_abcdefghijk", replayToken: token });
-    expect(res.status).toBe(409);
-    expect((await res.json()).code).toBe("REPLAY_REUSED");
-  });
-
-  it("refuses when the ticket's season is no longer active on this manifest", async () => {
-    vi.mocked(activeLevelSeason).mockResolvedValueOnce({ id: 1, manifestHash: "changed", minLevelSimVersion: 1 });
-    const res = await result({ ticketId: "ticket_abcdefghijk", replayToken: token });
-    expect(res.status).toBe(503);
-    expect(catalog.verify).not.toHaveBeenCalled();
-    expect(submitLevelResult).not.toHaveBeenCalled();
-  });
-
-  it("never returns the engine's own failure text", async () => {
-    catalog.verify.mockReturnValueOnce({ ok: false, code: "WRONG_LEVEL", reason: "internal: seed s1:level:41:3" });
-    const res = await result({ ticketId: "ticket_abcdefghijk", replayToken: token });
-    expect(JSON.stringify(await res.json())).not.toContain("internal");
+    expect((await res.json()).code).toBe("IMPLAUSIBLE_RUN");
   });
 
   it("caps each player's results across all levels", async () => {
@@ -355,25 +272,19 @@ describe("POST /api/levels/result", () => {
       allowed: opts.namespace !== "climb:level:result:total",
       degraded: false,
     }));
-    const res = await result({ ticketId: "ticket_abcdefghijk", replayToken: token });
-    expect(res.status).toBe(429);
-    expect(catalog.verify).not.toHaveBeenCalled();
+    expect((await result(CLEAR)).status).toBe(429);
+    expect(submitLevelResult).not.toHaveBeenCalled();
     vi.mocked(checkRateLimit).mockImplementation(async () => ({ allowed: true, degraded: false }));
   });
 
-  it("answers 503 while the level engine is not wired", async () => {
-    vi.mocked(getLevelCatalog).mockReturnValue(null);
-    expect((await result({ ticketId: "ticket_abcdefghijk", replayToken: token })).status).toBe(503);
-    expect(openTicketSpec).not.toHaveBeenCalled();
-  });
-
   it("requires sign-in", async () => {
-    expect((await result({ ticketId: "ticket_abcdefghijk", replayToken: token }, null)).status).toBe(401);
+    expect((await result(CLEAR, null)).status).toBe(401);
+    expect(submitLevelResult).not.toHaveBeenCalled();
   });
 });
 
 describe("GET /api/levels/me", () => {
-  it("returns the stored profile with ISO dates", async () => {
+  it("returns the profile with ISO dates", async () => {
     vi.mocked(levelProfile).mockResolvedValueOnce({
       lives: 3,
       maxLives: 5,
