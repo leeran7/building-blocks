@@ -263,3 +263,37 @@ Modelled (leash on):
 
 The integral must stay closed-form (piecewise linear envelope: ramp, creep,
 hold at cap). No per-tick scan (.claude/rules/architecture.md).
+
+## Revision 3: deterministic random orbs (user decision 2026-09-27)
+
+Found by the iteration-4 verifier (V4-1), assessed high by the security reviewer.
+`resolveRandom()` in `app/src/game/powerups.ts` draws with `Math.random()` inside
+`stepMatch`, which breaks re-simulation (AC-11). Introduced by #145 (2faec75).
+
+- Honest daily runs that collect a random orb are rejected with REPLAY_MISMATCH
+  (~6/7 per orb that matters).
+- A cheater can rig the roll locally and resubmit until the server re-sim matches;
+  a success is written to the monotonic daily best.
+- Duels are settled on a fresh server roll, so the winner can differ from what
+  both clients saw.
+
+The fix changes sim outcomes, so it rides on this PR's DAILY_SIM_VERSION 1 → 2
+bump instead of needing a second bump later.
+
+### R3-1. Roll random orbs from the seeded RNG
+
+- `resolveRandom` takes a deterministic key and uses `createRng` from
+  `app/src/game/rng.ts`; no `Math.random()` anywhere in the sim path.
+- Key on the match seed, the orb's stable identity, and the collecting player's
+  slot, so each player's roll is independent and re-sims agree. Mixing in the
+  pickup tick is acceptable; say in the docs what a player can predict.
+- A pickup attempt that fails `canActivate` must not change the eventual roll.
+- Client, server daily verify (`verifyDailyReplay`), duel settlement
+  (`simulateDuel`) and replay playback all produce the same effect for the same
+  inputs.
+
+Tests: a re-simulation test on a seed and bot run that collects at least one
+random orb (guard that the count is greater than 0), proven red against
+`Math.random()`. Different slots or orbs can roll different effects. The
+distribution over many keys covers every concrete type. No `Math.random` is left
+in the files `stepMatch` calls.
