@@ -506,10 +506,13 @@ export function stepMatch(
   //    Keyed on the lowest climber, not the highest (SEC-LAVA-1): in a duel
   //    client a peer's y is an unvalidated ghost snapshot, and under a max a
   //    spoofed y ran the honest player's lava at the 3× cap. Under a min a
-  //    peer can only lower the scale toward 1, never raise it above what the
-  //    local player's own height gives, and a trailer's client reads its own
+  //    peer can never raise the scale above what the local player's own
+  //    height gives (the solo curve), and a trailer's client reads its own
   //    exact height, so it agrees with the server's joint re-sim while the
-  //    opponent bursts ahead. Solo and daily have one climber: unchanged.
+  //    opponent bursts ahead. A peer that really trails can still withhold
+  //    its lower joint lava by reporting a high y, so the leader's local lava
+  //    may sit above the server's, up to the solo curve (SEC-LAVA-11; the fix
+  //    is server-side, SEC-LAVA-9). Solo and daily have one climber: unchanged.
   const timeScale =
     hazardTimeScale(state.players, state.tick) *
     hazardCatchupTimeScale(climbingLeadM(state.players, state.hazardY));
@@ -698,7 +701,10 @@ function wrapX(x: number, widthM: number): number {
  * Metres the LOWEST still-climbing player sits above the lava (0 when nobody
  * is climbing). The leash reads this, so it hunts the trailer. A min is the
  * only safe shape here: a peer's position on a duel client is self-reported
- * (SEC-LAVA-1), and a min lets it only slow the lava clock, never speed it.
+ * (SEC-LAVA-1), and a min means it can never speed the lava clock beyond the
+ * local player's own solo lead. It can still raise the local lava above the
+ * server's joint lava, up to that solo curve, by reporting a high y while it
+ * really trails (SEC-LAVA-11; server-side fix tracked as SEC-LAVA-9).
  */
 function climbingLeadM(players: readonly PlayerState[], hazardY: number): number {
   let lead = Infinity;

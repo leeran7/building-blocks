@@ -254,8 +254,9 @@ export interface MatchState {
    * Seconds subtracted from race-time before sampling the hazard curve.
    * Slow-lava increases this (lava spends fewer seconds). The leash decreases
    * it while the lowest climbing player is more than HAZARD_LEASH_M above the
-   * lava (it can go negative), so the curve is sampled a little faster. Height is still only ever non-decreasing
-   * because the curve is monotonic in time.
+   * lava (it can go negative), so the curve is sampled a little faster.
+   * Height is still only ever non-decreasing because the curve is monotonic
+   * in time.
    */
   hazardSlowSeconds: number;
   tower: TowerSpec;

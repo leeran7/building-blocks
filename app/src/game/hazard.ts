@@ -28,9 +28,14 @@
  *    excess, so the lava stays on screen. It only ever speeds the clock up
  *    (scale >= 1), so it never lets a slow climber escape. The sim keys it on
  *    the LOWEST climbing player (simulation.ts `climbingLeadM`): in a duel the
- *    lava hunts the trailer, the leader simply outruns the view, and a peer's
- *    self-reported ghost height can only slow the lava, never speed it
- *    (SEC-LAVA-1). Solo and daily have one climber, so min and max agree.
+ *    lava hunts the trailer, and the leader simply outruns the view. A peer's
+ *    self-reported ghost height can never push the local lava above the
+ *    local player's own solo curve (SEC-LAVA-1). It can still hold the local
+ *    lava ABOVE the server's: when the peer really trails, the server keys
+ *    the leash on the peer and its lava sits lower, and a high spoofed y
+ *    withholds that, raising the local lava up to the solo curve
+ *    (SEC-LAVA-11; the server-side fix is SEC-LAVA-9 in loop/learnings.md).
+ *    Solo and daily have one climber, so min and max agree.
  *
  * The knobs are NOT independent below the kill threshold. While the curve
  * ramps, anyone faster than ~0.45× pulls ahead of it, and the leash erases
@@ -72,7 +77,9 @@
  * 0.75–1.30× bands hold only while a power-up carries the climber above the
  * threshold.
  * The envelope never exceeds 1× the ladder climb rate (`MAX_HAZARD_SPEED_FRAC`),
- * so holding climb on a ladder still outruns the lava inside the leash band.
+ * so inside the leash band the lava never outruns a climber holding climb on a
+ * ladder (after the cap a surge matches ladder speed; the gap opens only
+ * during stumbles).
  * Runs end when the player dawdles on a floor, misses a ladder, or stops.
  *
  * Height is a pure, deterministic function of (race-time, climb speed,
@@ -191,7 +198,7 @@ const SECONDS_PER_MINUTE = 60;
  */
 export function hazardMeanSpeedFrac(
   cfg: HazardConfig = DEFAULT_HAZARD_CONFIG,
-  seconds: number = cfg.graceSeconds + cfg.rampSeconds
+  seconds: number = cfg.graceSeconds + Math.max(1e-6, cfg.rampSeconds)
 ): number {
   const env = envelopeAt(Math.max(0, seconds - cfg.graceSeconds), envelopeOf(cfg, 1));
   const { period, duration, speedFrac } = stumbleWindow(cfg);

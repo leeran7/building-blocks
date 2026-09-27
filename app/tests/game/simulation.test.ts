@@ -491,6 +491,32 @@ describe("endless completability: a greedy bot climbs far up a generated tower",
     expect(JSON.stringify(a)).toBe(JSON.stringify(live));
     expect(JSON.stringify(b)).toBe(JSON.stringify(a));
   });
+
+  it("AC-11: re-simulating a run that reaches the late creep reproduces it bit for bit", () => {
+    // The fixture above dies ~30 s into hazard time, inside the ramp. This
+    // seed survives past the ramp end, so the creep piece of the envelope is
+    // under the equality assertion too. An unaided bot cannot reach the cap
+    // (~395 s): the creep catches even a 0.66x pace at ~362 s.
+    const creepStartS = DEFAULT_HAZARD_CONFIG.graceSeconds + DEFAULT_HAZARD_CONFIG.rampSeconds;
+    const tower = buildTower("indie-games", { runSeed: "creep-1" });
+    const init = { seed: "creep-1", mode: "solo" as const, tower, playerIds: ["bot"] };
+    const live = createMatch(init);
+    while (live.phase === "countdown") stepMatch(live, {}, DEFAULT_SIM_CONFIG);
+    const log: Record<PlayerId, PlayerInput>[] = [];
+    while (live.phase === "climb" && log.length < 40000) {
+      const input = botInput(live.players[0], tower, live.tick);
+      log.push({ bot: input });
+      stepMatch(live, { bot: input }, DEFAULT_SIM_CONFIG);
+    }
+    expect(live.phase).toBe("finished");
+    // Fixture guard: the run really spent hazard time past the ramp end.
+    expect(live.raceSeconds - live.hazardSlowSeconds).toBeGreaterThan(creepStartS);
+
+    const a = simulateFromInputs(init, log, DEFAULT_SIM_CONFIG);
+    const b = simulateFromInputs(init, log, DEFAULT_SIM_CONFIG);
+    expect(JSON.stringify(a)).toBe(JSON.stringify(live));
+    expect(JSON.stringify(b)).toBe(JSON.stringify(a));
+  });
 });
 
 describe("AC-11: re-simulation is deterministic", () => {

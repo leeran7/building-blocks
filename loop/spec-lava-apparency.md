@@ -170,11 +170,11 @@ source text.
 - New `tests/game/hazardLeash.test.ts` driving the **real** `stepMatch` with the
   ghost-slaving path (`opts.localSlot` set to a slot no player has, so the sim counts
   players in the hazard but does not integrate them; set `p.y += pace·maxClimbSpeed·TICK_DT`
-  per tick). Assert: pace 0.7–1.0 keeps `y − hazardY` within [40, 115] after 30 s
-  (leash holds, lava never runs away); pace 0.5 is eliminated with `peakY > 550`
-  (beginner floor); pace 0.45 is eliminated (run still ends); a 10 s stall at pace 0.85
-  survives, a 20 s stall does not. Include the `expect(checked).toBeGreaterThan(0)`
-  guard on any tick-skipping loop.
+  per tick). Assert: burst paces 0.75–1.0 keep `y − hazardY` within [35, 115] after 30 s
+  (leash holds, lava never runs away; 0.70 is the late kill threshold after R2-2);
+  pace 0.5 is eliminated with `peakY > 550` (beginner floor); pace 0.45 is eliminated
+  (run still ends); a 10 s stall at pace 0.85 survives, a 20 s stall does not.
+  Include the `expect(checked).toBeGreaterThan(0)` guard on any tick-skipping loop.
 - `tests/game/simulation.test.ts` greedy-bot "ends the run under the real hazard" must
   still pass (bot pace is well under 0.64); if it now exceeds the 20000-tick cap, raise
   the cap, do not weaken the assertion.
@@ -216,8 +216,11 @@ source text.
   a climber whose pace exceeds `floor × mean` never dies, which breaks the endless-run
   guarantee `powerups.ts` documents. If beginner reach still needs help after this
   lands, tune `endSpeedFrac`/`rampSeconds` (the kill-threshold knobs), not the leash.
-- Leash knobs are independent: `HAZARD_LEASH_M` = where the lava rides (visibility),
-  `HAZARD_LEASH_RANGE_M` = how quickly it closes, `endSpeedFrac` = who dies.
+- The leash knobs are not independent of reach: below the kill threshold the leash
+  erases the lead a climber banks during the ramp, so `HAZARD_LEASH_M` /
+  `HAZARD_LEASH_RANGE_M` move beginner reach as well as visibility (see the `hazard.ts`
+  header). Only `endSpeedFrac` / `rampSeconds` / `creepPerMinute` / the cycle decide
+  who survives indefinitely.
 
 ## Revision 2 (after review, user decisions 2026-09-26)
 

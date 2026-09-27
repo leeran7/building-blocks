@@ -342,6 +342,18 @@ describe("late creep (R2-2): envelope ramp → creep → cap", () => {
     expect(hazardMeanSpeedFrac(flat, Infinity)).toBe(hazardMeanSpeedFrac(flat));
   });
 
+  it("with rampSeconds 0 the default mean is the end-of-ramp mean, not the start", () => {
+    // The shipped tune's end-of-ramp mean is 0.637; the start envelope's is 0.294.
+    for (const creepPerMinute of [0, SPEC_CREEP_PER_MIN]) {
+      const noRamp = { ...CFG, rampSeconds: 0, creepPerMinute };
+      expect(hazardMeanSpeedFrac(noRamp), `creep ${creepPerMinute}`).toBeCloseTo(0.637, 3);
+      expect(hazardMeanSpeedFrac(noRamp), `creep ${creepPerMinute}`).toBeCloseTo(
+        hazardMeanSpeedFrac(CFG),
+        9
+      );
+    }
+  });
+
   // Captured from hazard.ts at d6f2429, the last commit before creep existed
   // (hazardHeightAt at 9 m/s and hazardSpeedFracAt, default tune). creep 0
   // must reproduce the old curve bit for bit, or stored replays shift.
