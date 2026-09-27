@@ -65,6 +65,15 @@ model User {
   // Profile avatar catalogue id (src/lib/avatars.ts). Not a FK: reads pass it
   // through parseAvatarId, so a retired id falls back to the initials badge.
   avatar_id                String?   @map("avatar_id")
+  // Level System (mobile). All SERVER-DERIVED: xp only rises through an
+  // xp_grants insert in the same transaction (src/db/levels.ts), and
+  // player_level is a cache of playerLevelForXp(xp). lives is the stored count;
+  // the refill (1 per 30 min, max 5) is applied on read and write from
+  // lives_updated_at, which moves forward in whole 30-minute steps only.
+  xp                       Int       @default(0)
+  player_level             Int       @default(1)
+  lives                    Int       @default(5)
+  lives_updated_at         DateTime?
   climbRecords           ClimbRecord[]
   climbRuns              ClimbRun[]
   dailyClimbScores       DailyClimbScore[]
@@ -83,6 +92,9 @@ model User {
   friendshipsSent        Friendship[]        @relation("FriendshipSender")
   friendshipsReceived    Friendship[]        @relation("FriendshipReceiver")
   pushTokens             PushToken[]
+  levelRunTickets        LevelRunTicket[]
+  levelProgress          LevelProgress[]
+  xpGrants               XpGrant[]
 
   @@map("users")
 }
@@ -197,6 +209,93 @@ model DailyClimbReplay {
   @@unique([day, input_hash], map: "daily_climb_replays_day_hash_key")
   @@index([userId], map: "daily_climb_replays_user_idx")
   @@map("daily_climb_replays")
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Level System (mobile only): seasons, run tickets, progress, XP
+// design/xp-and-levels.md §5, §9. Every row here is written by
+// src/db/levels.ts. Run results are the device's report (no replay check,
+// Leeran 2026-09-27); tickets, lives, unlocks and XP keys are server-side.
+// ═══════════════════════════════════════════════════════════════════════════
+
+// A season the server will issue tickets for: inserting this row switches it
+// on. A ticket is issued only once starts_at has passed. Named level_seasons:
+// the old paid-stacks "Season" model was dropped.
+model LevelSeason {
+  id                    Int      @id // season number, 1-based
+  name                  String
+  starts_at             DateTime
+  // Oldest LEVEL_SIM_VERSION that can play this season (new mechanics).
+  min_level_sim_version Int      @default(1)
+  created_at            DateTime @default(now())
+
+  @@map("level_seasons")
+}
+
+// One level attempt. Issued by POST /api/levels/ticket (which spends the
+// life), consumed once by POST /api/levels/result. The consume is
+// UPDATE ... WHERE used_at IS NULL under the user's row lock, so two submits
+// of one ticket cannot both refund a life or pay XP. At most one open ticket
+// per user: issuing a new one closes the old one as abandoned (no refund).
+model LevelRunTicket {
+  id             String    @id @default(cuid())
+  userId         String
+  season         Int
+  level          Int
+  sim_version    Int // LEVEL_SIM_VERSION at issue
+  start_power_up String? // granted at GO (streaks, stuck help); null for now
+  life_spent     Boolean // false on free levels (L1-10)
+  created_at     DateTime  @default(now())
+  expires_at     DateTime
+  used_at        DateTime?
+  // cleared | failed | bad_start | abandoned. Null while open.
+  outcome        String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, used_at], map: "level_run_tickets_user_open_idx")
+  @@map("level_run_tickets")
+}
+
+// Best reported result per (user, season, level). stars and best_ticks only
+// ever improve: read and written under the user's row lock. A row exists
+// only once a level is cleared, so the frontier is MAX(level) + 1.
+model LevelProgress {
+  id             String   @id @default(cuid())
+  userId         String
+  season         Int
+  level          Int
+  stars          Int // 1..3
+  best_ticks     Int // fastest reported finish, race ticks from GO
+  sim_version    Int
+  start_power_up String?
+  replay_token   String? // replay of the best_ticks run (unverified), for ghosts
+  created_at     DateTime @default(now())
+  updated_at     DateTime @default(now()) // when best_ticks was last set
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, season, level], name: "level_progress_user_level", map: "level_progress_user_level_key")
+  @@index([season, level, best_ticks, updated_at], map: "level_progress_board_idx")
+  @@map("level_progress")
+}
+
+// Every XP payment, keyed so it happens once: first_clear:{S}:{N},
+// star:{S}:{N}:{k}, episode:{S}:{E}. Inserted with ON CONFLICT DO NOTHING,
+// and users.xp rises only by the rows actually inserted. No key carries a
+// seed or version, so a re-rolled level never pays twice.
+model XpGrant {
+  id         String   @id @default(cuid())
+  userId     String
+  source     String
+  key        String
+  amount     Int
+  created_at DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, source, key], map: "xp_grants_user_key")
+  @@map("xp_grants")
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

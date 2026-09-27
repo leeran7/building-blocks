@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { prefersReducedMotion } from "../lib/motion";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import { useBackOr } from "../lib/navigation";
 
 import { buildFreeTower } from "@app/game/freeStack";
 import { useClimb } from "@app/game/useClimb";
@@ -79,6 +80,9 @@ const RUN_STALE_SLICES: SliceKey[] = [
  */
 export function ClimbScreen({ onSignIn }: { onSignIn?: () => void } = {}) {
   const navigate = useNavigate();
+  // Back to wherever the climb was opened from: the level map (Practice) or
+  // the Modes tab (Practice, Daily). Cold-opened, it falls back to home.
+  const goBack = useBackOr("/");
   const { user, isAnonymous } = useAuth();
   const isAuthed = Boolean(user) && !isAnonymous;
   const invalidateAppData = useInvalidateAppData();
@@ -383,7 +387,7 @@ export function ClimbScreen({ onSignIn }: { onSignIn?: () => void } = {}) {
           lavaPhase={lavaPhaseInfo.phase} lavaPhaseProgress={lavaPhaseInfo.progress}
           muted={muted} onToggleMute={() => setMuted(!muted)} announcement={announcement} runId={runId}
           topInset={safeArea.top} leftInset={safeArea.left} rightInset={safeArea.right}
-          backControl={<button type="button" data-game-control className="exp-utility" aria-label="Back to home" title="Back to home" onClick={() => { void tapLight(); navigate("/"); }}>←</button>}
+          backControl={<button type="button" data-game-control className="exp-utility" aria-label="Back to home" title="Back to home" onClick={() => { void tapLight(); goBack(); }}>←</button>}
         />
 
         {phase === "countdown" && (
@@ -472,7 +476,7 @@ export function ClimbScreen({ onSignIn }: { onSignIn?: () => void } = {}) {
             onShare={share}
             onHome={() => {
               void tapLight();
-              navigate("/");
+              goBack();
             }}
             onSignIn={onSignIn}
           />
