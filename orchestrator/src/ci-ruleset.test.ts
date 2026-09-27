@@ -83,7 +83,7 @@ jobs:
     const gate = workflow.jobs.find((job) => job.name === "CI");
     assert.ok(gate, "workflow must have a job named CI");
     assert.equal(gate.ifExpr, "always()");
-    assert.deepEqual(gate.needs, ["test", "orchestrator"]);
+    assert.deepEqual(gate.needs, ["test", "season", "orchestrator"]);
     assert.equal(gate.continueOnError, false);
     assert.equal(workflow.permissions.contents, "read");
     assert.equal(workflow.on.merge_group, true);
