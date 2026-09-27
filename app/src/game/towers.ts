@@ -424,8 +424,26 @@ function spanDist(x: number, s: { lo: number; hi: number }): number {
   return 0;
 }
 
+/**
+ * A level tower's summit: the first floor whose surface is at or above
+ * `tower.goalM`, or null on an endless tower. The summit is a solid full-width
+ * floor with nothing on it, and nothing exists above it. Throws on a goal that
+ * is not a positive finite height (reject, never clamp).
+ */
+export function summitFloor(tower: TowerSpec): number | null {
+  const goal = tower.goalM;
+  if (goal === undefined) return null;
+  if (!Number.isFinite(goal) || goal <= 0) {
+    throw new RangeError(`tower.goalM must be a positive finite height, got ${goal}`);
+  }
+  const i = floorIndexAt(tower, goal);
+  return floorHeight(tower, i) >= goal ? i : i + 1;
+}
+
 /** Every ladder leading UP from floor i to floor i+1 (one or more routes). */
 export function laddersForFloor(tower: TowerSpec, i: number): Ladder[] {
+  const summit = summitFloor(tower);
+  if (summit !== null && i >= summit) return [];
   const y0 = floorHeight(tower, i);
   const y1 = floorHeight(tower, i + 1);
   return ladderXsForFloor(tower, i).map((x) => ({ x, y0, y1 }));
@@ -508,6 +526,9 @@ export function platformsForFloor(tower: TowerSpec, i: number): Platform[] {
   const w = tower.widthM;
   // Floor 0 is a safe full-width base (spawn); no incoming ladder.
   if (i === 0) return [{ x0: 0, x1: w, y }];
+  // A level's summit is solid, and nothing exists above it.
+  const summit = summitFloor(tower);
+  if (summit !== null && i >= summit) return i === summit ? [{ x0: 0, x1: w, y }] : [];
 
   // Every ladder that touches this surface: the ones leaving it, plus the tops
   // of the ones arriving from the floor below. Gaps must miss all of them.

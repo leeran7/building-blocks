@@ -26,6 +26,7 @@ import {
   laddersForFloor,
   platformsForFloor,
   platformsNearY,
+  summitFloor,
 } from "./towers";
 
 const EPS = 0.02;
@@ -115,6 +116,8 @@ function slopeCappedAdvance(
  */
 export function obstaclesForFloor(tower: TowerSpec, i: number): Obstacle[] {
   if (i < MIN_SPAWN_FLOOR) return [];
+  const summit = summitFloor(tower);
+  if (summit !== null && i >= summit) return [];
   const d = difficultyAt(tower, i);
   const rng = createRng(`${tower.seed}:ob:${i}`);
   // Raised intercepts, same d=1 ceiling as before: the bottom floors (low d)

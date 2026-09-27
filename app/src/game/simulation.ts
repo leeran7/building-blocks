@@ -592,8 +592,18 @@ export function stepMatch(
     pruneActive(p, state.tick);
     p.jumpHeldPrev = input.jump;
 
-    // 4. DEATH LINE — the higher of the rising hazard and the Doodle-Jump fall
-    //    floor (peak minus the fall-death drop). The tower is endless: there is
+    // 4. FINISH — a level tower has a goal height; feet at or above it finish
+    //    the climb. Decided before the death line, so reaching the goal on the
+    //    tick the lava arrives still counts. Endless towers (free stack, Daily,
+    //    duels) have no goalM and never take this branch.
+    if (state.tower.goalM !== undefined && p.y >= state.tower.goalM) {
+      p.status = "finished";
+      p.finishedTick = state.tick;
+      continue;
+    }
+
+    // 5. DEATH LINE — the higher of the rising hazard and the Doodle-Jump fall
+    //    floor (peak minus the fall-death drop). On an endless tower there is
     //    no summit, so a run ends ONLY here. Peak height (the score) is retained
     //    (AC-8).
     const fallFloor = p.peakY - state.tower.fallDeathBelowPeakM;
@@ -605,10 +615,10 @@ export function stepMatch(
     }
   }
 
-  // 5. Keep the reachable band of power-ups materialized.
+  // 6. Keep the reachable band of power-ups materialized.
   ensurePowerUps(state);
 
-  // 6. Resolve match end + deterministic winner.
+  // 7. Resolve match end + deterministic winner.
   resolveOutcome(state);
   return state;
 }
