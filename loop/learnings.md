@@ -17,7 +17,14 @@ Resolved questions are removed — the answer lives in the target file.
   within a plausible distance of the last snapshot). Also covers SEC-LAVA-8 (peer lava
   power-up flags) and SEC-LAVA-11 (a peer can still raise the local lava up to the honest
   player's solo curve when the attacker is genuinely behind). Keep `PAID_DUELS_ENABLED` off
-  in production until it lands. Repro scripts were in the session scratchpad
+  in production until it lands.
+  Also SEC-LAVA-19 (filed 2026-09-27, medium, high with paid duels): a losing player can
+  withhold their replay and block their own forfeit beacon; after 10 minutes any public
+  `GET /api/duel/[id]` runs `reapDuelIfStale`, which voids the duel and refunds both stakes,
+  and the honest submitter has no way to claim the win (the in-app forfeit event goes only
+  over Ably, never to the server). Fix alongside the above: when exactly one replay arrived
+  before the grace period ends, settle in the submitter's favour; void and refund only when
+  neither submitted. Repro scripts were in the session scratchpad
   (attack3.mts, dos.mts) and are not in the repo.
 
 - **[security-reviewer -> future work, filed 2026-09-20, SEC-8] `/tournaments/[id]`
