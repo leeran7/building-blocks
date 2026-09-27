@@ -70,12 +70,12 @@ const RESULT = {
   awards: [{ key: "first_clear:1:3", amount: 65 }],
 };
 
-// Level 3's mock pars are 30.8 s for 3 stars and 36.7 s for 2: 1000 ticks (33.3 s) is 2 stars.
+// Level 3's pars are 812 ticks for 3 stars and 999 for 2 (season-1.json): 900 ticks is 2 stars.
 const RUN: LevelRunReport = {
   level: 3,
   finished: true,
-  finishedTick: 1000,
-  raceTicks: 1000,
+  finishedTick: 900,
+  raceTicks: 900,
   peakFt: 90,
   replayToken: "token",
 };
@@ -213,14 +213,14 @@ describe("createHttpLevelsClient", () => {
 
     expect(calls[0]).toEqual({
       path: "/api/levels/result",
-      body: { ticketId: TICKET.ticketId, cleared: true, stars: 2, ticks: 1000, replayToken: "token" },
+      body: { ticketId: TICKET.ticketId, cleared: true, stars: 2, ticks: 900, replayToken: "token" },
     });
     expect(result).toMatchObject({
       level: 3,
       cleared: true,
       stars: 2,
       previousStars: 0,
-      timeMs: 33_333,
+      timeMs: 30_000,
       peakFt: 90,
       xpGained: 115,
       goalFt: catalog.level(3).goalFt,
@@ -259,7 +259,7 @@ describe("createHttpLevelsClient", () => {
       "/api/levels/result": () => json(200, { ...RESULT, outcome: "failed", stars: 0, xpGained: 0 }),
     });
     await createHttpLevelsClient({ catalog, fetch }).submitResult(TICKET.ticketId, { ...RUN, finished: false });
-    expect(calls[0].body).toMatchObject({ cleared: false, stars: 0, ticks: 1000 });
+    expect(calls[0].body).toMatchObject({ cleared: false, stars: 0, ticks: 900 });
   });
 
   it("scores 3 stars at or under the 3-star par and 1 star past the 2-star par", async () => {

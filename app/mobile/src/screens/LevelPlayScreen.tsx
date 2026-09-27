@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 
 import { TICK_HZ } from "@app/game/types";
@@ -13,6 +13,7 @@ import {
 } from "../lib/levels/model";
 import { REFUSAL_COPY } from "../components/levels/LevelStartSheet";
 import { LevelRun } from "../components/levels/LevelRun";
+import { levelRunSetup } from "../lib/levels/catalog";
 import {
   LevelResultCard,
   PracticeResultCard,
@@ -138,6 +139,15 @@ export function LevelPlayScreen() {
     }
   }, [client, level, practice, setPlayer]);
 
+  const runKey = practice ? `practice-${attempt}` : (ticket?.id ?? "none");
+  const nodeLevel = node?.level ?? null;
+  // The level's own tower and lava, built fresh for each attempt (runKey).
+  const setup = useMemo(
+    () => (nodeLevel === null ? undefined : levelRunSetup(nodeLevel)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- runKey: one tower per attempt
+    [nodeLevel, runKey],
+  );
+
   if (missing) return null;
   if (!node) {
     return (
@@ -150,7 +160,6 @@ export function LevelPlayScreen() {
   const seed = ticket?.seed ?? node.seed;
   const goalFt = ticket?.goalFt ?? node.goalFt;
   const pars = ticket?.pars ?? node.pars;
-  const runKey = practice ? `practice-${attempt}` : (ticket?.id ?? "none");
   const player = season?.player;
 
   return (
@@ -161,6 +170,7 @@ export function LevelPlayScreen() {
         seed={seed}
         goalFt={goalFt}
         pars={pars}
+        setup={setup}
         practice={practice}
         autoStart={autoStart}
         paused={stage.kind !== "play"}

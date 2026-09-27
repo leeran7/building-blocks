@@ -1,4 +1,5 @@
-import { TICK_HZ, type PowerUpType } from "@app/game/types";
+import { TICK_HZ } from "@app/game/types";
+import { season1Catalog } from "./catalog";
 import {
   EPISODE_SIZE,
   isHardLevel,
@@ -20,8 +21,8 @@ import {
  * lives spent at start and refunded on a clear, 30-minute refills, XP for
  * first clears and new stars. Nothing here is trusted or sent anywhere.
  *
- * Goal heights come from the doc's season 1 lava dial and the pars from a
- * guessed route pace; the real values will come from the season manifest.
+ * Levels are the real season 1 levels (./catalog); only the player's
+ * progress, lives and XP are local.
  */
 
 export const SEASON_LENGTH = 300;
@@ -31,53 +32,6 @@ export const LIFE_REFILL_MS = 30 * 60 * 1000;
 export const FREE_LEVELS = 10;
 
 const STORAGE_PREFIX = "doomstack:levels:mock:v1";
-
-/** Power-up unlock levels (§3a). */
-const POWER_UP_INTROS: ReadonlyMap<number, PowerUpType> = new Map([
-  [4, "rapid-climb"],
-  [7, "sprint-burst"],
-  [11, "super-jump"],
-  [14, "slow-lava"],
-  [18, "giant"],
-  [28, "jetpack"],
-  [36, "harden-lava"],
-  [42, "random"],
-]);
-
-/** Obstacle first-sight levels (§3). */
-const OBSTACLE_INTROS: ReadonlyMap<number, string> = new Map([
-  [9, "Hanging ladders start above the floor. Jump to grab them."],
-  [21, "Short tops stop below the floor. Jump off the top to get up."],
-]);
-
-/** Stand-in for the bot's measured route pace, ft/s. */
-const MOCK_ROUTE_PACE_FT_S = 5;
-
-/** The doc's season step count: Hard levels count as three steps. */
-function steps(level: number): number {
-  return level - 1 + 2 * Math.floor(level / 5);
-}
-
-/** Season 1 lava dial d(N) = p^0.6, which sets the goal height (§3). */
-function mockGoalFt(level: number): number {
-  const d = Math.pow(steps(level) / steps(SEASON_LENGTH), 0.6);
-  return Math.round(24 * (3 + 42 * d));
-}
-
-function mockPars(level: number, goalFt: number): LevelNode["pars"] {
-  const routeMs = (goalFt / MOCK_ROUTE_PACE_FT_S) * 1000;
-  // L1–10 use looser pars so a clean first try earns 3 stars (§4).
-  const loosen = level <= FREE_LEVELS ? 1.3 : 1;
-  return {
-    twoStarMs: Math.round(routeMs * 1.25 * loosen),
-    threeStarMs: Math.round(routeMs * 1.05 * loosen),
-  };
-}
-
-/** The doc's level seed shape, `s{season}:level:{N}:{rev}` (§3d). */
-function mockSeed(level: number): string {
-  return `s1:level:${level}:0`;
-}
 
 /** XP for the step from player level L to L+1 (§5a). */
 export function xpForPlayerLevel(level: number): number {
@@ -185,17 +139,10 @@ function frontierOf(state: MockState): number {
 }
 
 export function mockLevelNode(level: number, progress?: StoredProgress): LevelNode {
-  const goalFt = mockGoalFt(level);
   return {
-    level,
-    seed: mockSeed(level),
+    ...season1Catalog().level(level),
     stars: progress?.stars ?? 0,
     bestMs: progress?.bestMs ?? null,
-    goalFt,
-    pars: mockPars(level, goalFt),
-    introPowerUp: POWER_UP_INTROS.get(level) ?? null,
-    introTip: OBSTACLE_INTROS.get(level) ?? null,
-    costsLife: level > FREE_LEVELS,
   };
 }
 
