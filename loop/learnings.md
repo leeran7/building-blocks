@@ -3,6 +3,23 @@
 Questions that need a human decision before agents can proceed.
 Resolved questions are removed — the answer lives in the target file.
 
+- **[security-reviewer -> future work, filed 2026-09-27, SEC-LAVA-9 / SEC-LAVA-10] Duel
+  ghost snapshots are trusted, and two exploits predate PR #157.** Found while reviewing
+  the lava leash; results are identical on b2ebe52, so the PR neither causes nor fixes them.
+  (1) SEC-LAVA-9, critical for paid duels: one realtime snapshot with `status: 'eliminated'`
+  ends the honest client's duel at ~2 s (`useRace.applyGhosts` -> `resolveOutcome`). The
+  truncated input log is padded with NO_INPUT by `simulateDuel`, so the honest player idles
+  and dies in the server re-sim; the attacker won 10/10. (2) SEC-LAVA-10, high: a huge ghost
+  y (1e8) freezes the honest client for ~59 s and grows the heap to 2.7 GB inside
+  `ensurePowerUps` / `floorIndexAt`; Infinity throws a RangeError after 73 s. Needed fix,
+  as its own PR: never end the local match on a peer's report; server rejects a replay that
+  ends while its player is still alive; validate snapshot status and y on arrival (finite,
+  within a plausible distance of the last snapshot). Also covers SEC-LAVA-8 (peer lava
+  power-up flags) and SEC-LAVA-11 (a peer can still raise the local lava up to the honest
+  player's solo curve when the attacker is genuinely behind). Keep `PAID_DUELS_ENABLED` off
+  in production until it lands. Repro scripts were in the session scratchpad
+  (attack3.mts, dos.mts) and are not in the repo.
+
 - **[security-reviewer -> future work, filed 2026-09-20, SEC-8] `/tournaments/[id]`
   has the same defect class SEC-4 just fixed on `/tournaments`, one level deeper.**
   `TournamentDetail.tsx` (rendered by `app/app/tournaments/[id]/page.tsx`) shows an
