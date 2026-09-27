@@ -39,11 +39,9 @@ import {
   laddersForFloor,
   platformsForFloor,
   floorHeight,
-  floorIndexAt,
   platformsNearY,
 } from "../../src/game/towers";
-import { obstacleAhead, isOnObstacle, obstaclesNearY } from "../../src/game/obstacles";
-import { isPowerUpActive } from "../../src/game/powerups";
+import { botInput } from "./greedyBot";
 
 const TOWER: TowerSpec = buildTower("indie-games");
 
@@ -441,66 +439,6 @@ describe("AC-7 / AC-8: caught by the death line eliminates and retains peak", ()
 });
 
 describe("endless completability: a greedy bot climbs far up a generated tower", () => {
-  function botInput(p: PlayerState, tower: TowerSpec, tick = 0): PlayerInput {
-    if (p.onLadder) return UP;
-    const canSuperJump = isPowerUpActive(p, "super-jump", tick);
-    if (isOnObstacle(tower, p.x, p.y)) {
-      const nextStep = obstaclesNearY(tower, p.y + 0.1, p.y + 3)
-        .filter((o) => o.y1 > p.y + 0.15)
-        .sort((a, b) => a.y0 - b.y0)[0];
-      if (nextStep) {
-        const mid = (nextStep.x0 + nextStep.x1) / 2;
-        const dir: -1 | 0 | 1 = mid >= p.x ? 1 : -1;
-        return {
-          moveX: dir,
-          jump:
-            p.onGround ||
-            (canSuperJump && !p.jumpHeldPrev && nextStep.y0 > p.y + 0.2),
-          climbY: 0,
-          usePowerUp: false,
-        };
-      }
-    }
-    const k = floorIndexAt(tower, p.y + 0.5);
-    const ladders = laddersForFloor(tower, k);
-    const pieces = platformsForFloor(tower, k);
-    const piece = pieces.find(
-      (pl) =>
-        p.x >= pl.x0 - 0.15 &&
-        p.x <= pl.x1 + 0.15 &&
-        Math.abs(pl.y - p.y) <= 0.25
-    );
-    const local = piece
-      ? ladders.filter((l) => l.x >= piece.x0 && l.x <= piece.x1)
-      : [];
-    const target = (local.length > 0 ? local : ladders)
-      .slice()
-      .sort((a, b) => Math.abs(a.x - p.x) - Math.abs(b.x - p.x))[0];
-    const dx = target.x - p.x;
-    if (Math.abs(dx) <= tower.ladderGrabRadius * 0.5) return UP;
-    const dir: -1 | 0 | 1 = dx > 0 ? 1 : -1;
-    const probe = p.x + dir * 3.5;
-    const probeWrapped =
-      ((probe % tower.widthM) + tower.widthM) % tower.widthM;
-    const probeForFloor =
-      probe < 0 || probe > tower.widthM ? probeWrapped : probe;
-    const ahead = platformsNearY(tower, p.y, p.y).some(
-      (pl) =>
-        probeForFloor >= pl.x0 &&
-        probeForFloor <= pl.x1 &&
-        Math.abs(pl.y - p.y) <= 0.05
-    );
-    const crate = obstacleAhead(tower, p.x, p.y, dir);
-    return {
-      moveX: dir,
-      jump:
-        (p.onGround && (!ahead || crate)) ||
-        (!p.onGround && crate && canSuperJump && !p.jumpHeldPrev),
-      climbY: 0,
-      usePowerUp: false,
-    };
-  }
-
   for (const slug of ["indie-games", "developer-tools", "fitness-and-wellness"]) {
     it(`climbs high up the ${slug} tower under a slow hazard (solvable + unbounded)`, () => {
       const tower = buildTower(slug);

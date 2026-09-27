@@ -4,7 +4,8 @@
  * The hazard rises at a speed that is a FRACTION OF THE CLIMBER'S SPEED, so the
  * chase is proportional to how fast the player can move (spec-next.md, AC-5/AC-6):
  *   - starts below the base (head-start), then rises;
- *   - envelope ramps startSpeedFrac → endSpeedFrac over rampSeconds;
+ *   - envelope ramps startSpeedFrac → endSpeedFrac over rampSeconds, then
+ *     creeps by creepPerMinute up to the 1× cap (late-game creep, R2-2);
  *   - stumbles (slows) on a fixed cycle instead of accelerating at every moment;
  *   - is monotonic;
  *   - scales linearly with the climb speed.
@@ -110,9 +111,9 @@ describe("AC-6: hazard rise ramps, stumbles, is monotonic, and is unbounded", ()
     expect(during / before).toBeCloseTo(CFG.stumbleSpeedFrac, 2);
   });
 
-  it("is monotonically non-decreasing over the race", () => {
+  it("is monotonically non-decreasing over the race (ramp, creep and cap)", () => {
     let prev = Number.NEGATIVE_INFINITY;
-    for (let t = 0; t <= 200; t += 0.25) {
+    for (let t = 0; t <= 600; t += 0.25) {
       const h = hazardHeightAt(t, CLIMB, CFG);
       expect(h).toBeGreaterThanOrEqual(prev);
       prev = h;
@@ -131,21 +132,24 @@ describe("AC-6: hazard rise ramps, stumbles, is monotonic, and is unbounded", ()
   });
 
   it("never rises faster than ladder climb speed", () => {
-    for (let t = CFG.graceSeconds; t <= 300; t += 0.25) {
+    for (let t = CFG.graceSeconds; t <= 900; t += 0.25) {
       expect(hazardSpeedFracAt(t, CFG)).toBeLessThanOrEqual(1);
     }
   });
 
   it("still closes in on a dawdling climber over time", () => {
     expect(hazardMeanSpeedFrac(CFG)).toBeLessThan(1);
+    expect(hazardMeanSpeedFrac(CFG, Infinity)).toBeLessThan(1);
     const g = CFG.graceSeconds;
     const period = CFG.stumblePeriodSeconds;
+    // Creep is off here so one cycle's average is exactly the mean.
+    const flat = { ...CFG, creepPerMinute: 0 };
     const t = g + CFG.rampSeconds + 40;
     const avg =
-      (hazardHeightAt(t + period, CLIMB, CFG) - hazardHeightAt(t, CLIMB, CFG)) /
+      (hazardHeightAt(t + period, CLIMB, flat) - hazardHeightAt(t, CLIMB, flat)) /
       period;
     expect(avg).toBeLessThanOrEqual(CLIMB);
-    expect(avg / CLIMB).toBeCloseTo(hazardMeanSpeedFrac(CFG), 5);
+    expect(avg / CLIMB).toBeCloseTo(hazardMeanSpeedFrac(flat), 5);
   });
 
   it("never lowers the lava, even if stumbleSpeedFrac is hostile", () => {
@@ -217,20 +221,34 @@ describe("hazardPhase: reports surge/stumble/grace with progress", () => {
 });
 
 describe("kill threshold: the documented late-game mean", () => {
-  it("time-averaged late speed is 0.64× ladder speed (the kill threshold)", () => {
+  it("time-averaged speed is 0.64× ladder speed when the ramp ends", () => {
     // Pins the documented mean so a cycle edit that silently moves who dies
     // goes red. endSpeedFrac is derived from this and the cycle duty.
     expect(hazardMeanSpeedFrac(DEFAULT_HAZARD_CONFIG)).toBeCloseTo(0.64, 2);
   });
 
-  it("the mean matches the measured rise over one late cycle", () => {
+  it("creep lifts the mean to 0.70× at the cap, above the best unaided pace", () => {
+    // 0.70 × ladder is the late kill threshold (R2-2): every unaided run ends.
+    expect(hazardMeanSpeedFrac(DEFAULT_HAZARD_CONFIG, Infinity)).toBeCloseTo(0.7, 6);
+  });
+
+  it("the mean matches the measured rise over the first cycle after the ramp", () => {
     const g = CFG.graceSeconds;
     const period = CFG.stumblePeriodSeconds;
-    const t = g + CFG.rampSeconds + 3 * period;
+    const t = g + CFG.rampSeconds;
     const avg =
       (hazardHeightAt(t + period, CLIMB, CFG) - hazardHeightAt(t, CLIMB, CFG)) /
       period;
     expect(avg / CLIMB).toBeCloseTo(0.64, 2);
+  });
+
+  it("the measured rise over a cycle after the cap is 0.70×", () => {
+    const period = CFG.stumblePeriodSeconds;
+    const t = 450; // past the ~395 s cap
+    const avg =
+      (hazardHeightAt(t + period, CLIMB, CFG) - hazardHeightAt(t, CLIMB, CFG)) /
+      period;
+    expect(avg / CLIMB).toBeCloseTo(0.7, 6);
   });
 });
 
@@ -279,5 +297,179 @@ describe("leash: lava clock scales with how far the climber is beyond it", () =>
     for (const lead of [0, 50.5, 73.25, 130, 400]) {
       expect(hazardCatchupTimeScale(lead)).toBe(hazardCatchupTimeScale(lead));
     }
+  });
+});
+
+describe("late creep (R2-2): envelope ramp → creep → cap", () => {
+  /** Hazard-time seconds at the end of the ramp (grace included). */
+  const RAMP_END = CFG.graceSeconds + CFG.rampSeconds;
+
+  /** First surge-phase time at or after `from` (so no stumble multiplier). */
+  function surgeAt(from: number): number {
+    for (let t = from; t < from + CFG.stumblePeriodSeconds; t += 0.05) {
+      if (hazardPhase(t, CFG).phase === "surge") return t;
+    }
+    throw new Error(`no surge within one cycle of ${from}`);
+  }
+
+  /** The spec's rate, as a literal: a symbolic CFG read passes with creep off. */
+  const SPEC_CREEP_PER_MIN = 0.02;
+
+  it("keeps rising 0.02 per minute after the ramp", () => {
+    let checked = 0;
+    for (const at of [RAMP_END + 1, RAMP_END + 60, RAMP_END + 150, RAMP_END + 240]) {
+      const t = surgeAt(at);
+      const minutes = (t - RAMP_END) / 60;
+      expect(hazardSpeedFracAt(t, CFG)).toBeCloseTo(
+        CFG.endSpeedFrac + SPEC_CREEP_PER_MIN * minutes,
+        9
+      );
+      checked += 1;
+    }
+    expect(checked).toBeGreaterThan(0);
+  });
+
+  it("reaches the 1× cap about 6.5 minutes in, then holds there", () => {
+    expect(CFG.creepPerMinute).toBe(SPEC_CREEP_PER_MIN);
+    expect(hazardSpeedFracAt(surgeAt(380), CFG)).toBeLessThan(1);
+    const late = [surgeAt(400), surgeAt(900), surgeAt(3600)];
+    for (const t of late) expect(hazardSpeedFracAt(t, CFG)).toBe(1);
+  });
+
+  it("with creep 0 the envelope holds at endSpeedFrac forever", () => {
+    const flat = { ...CFG, creepPerMinute: 0 };
+    expect(hazardSpeedFracAt(surgeAt(3600), flat)).toBe(CFG.endSpeedFrac);
+    expect(hazardMeanSpeedFrac(flat, Infinity)).toBe(hazardMeanSpeedFrac(flat));
+  });
+
+  // Captured from hazard.ts at d6f2429, the last commit before creep existed
+  // (hazardHeightAt at 9 m/s and hazardSpeedFracAt, default tune). creep 0
+  // must reproduce the old curve bit for bit, or stored replays shift.
+  const OLD_HEIGHT: ReadonlyArray<readonly [number, number]> = [
+    [0, -9], [4.99, -9], [5, -9], [5.5, -7.10540625],
+    [17.25, 32.522479687499995], [60, 184.70557499999998],
+    [124.999, 506.8610100183748], [125, 506.86919999999986],
+    [125.001, 506.87739], [133.3, 535.5342], [200, 924.5591999999998],
+    [400, 2084.2632000000003], [600, 3217.7592000000013],
+    [1000, 5510.959200000003], [3600, 20429.863200000054],
+  ];
+  const OLD_FRAC: ReadonlyArray<readonly [number, number]> = [
+    [5.5, 0.42204166666666665], [17.25, 0.09400416666666667],
+    [60, 0.6445833333333333], [124.999, 0.9099959166666667], [125, 0.91],
+    [200, 0.91], [400, 0.18200000000000002], [3600, 0.18200000000000002],
+  ];
+
+  it("creep 0 equals the pre-creep curve exactly", () => {
+    const flat = { ...CFG, creepPerMinute: 0 };
+    for (const [t, h] of OLD_HEIGHT) expect(hazardHeightAt(t, CLIMB, flat), `t=${t}`).toBe(h);
+    for (const [t, f] of OLD_FRAC) expect(hazardSpeedFracAt(t, flat), `t=${t}`).toBe(f);
+  });
+
+  it("creep 0 equals the pre-creep curve exactly with no stumble and over the cap", () => {
+    // Also captured at d6f2429: the smooth branch, and endSpeedFrac > 1
+    // (clamped to the cap) with a non-unit speedScale.
+    const smooth = { ...CFG, creepPerMinute: 0, stumblePeriodSeconds: 0, stumbleDurationSeconds: 0 };
+    const hot = { ...CFG, creepPerMinute: 0, endSpeedFrac: 1.3, speedScale: 1.5 };
+    const smoothOld: ReadonlyArray<readonly [number, number]> = [
+      [5.5, -7.315916666666666], [60, 225.20833333333331], [125, 629.4],
+      [133.3, 689.8240000000001], [600, 4087.3999999999996],
+    ];
+    const hotOld: ReadonlyArray<readonly [number, number]> = [
+      [5.5, -5.8409375], [60, 326.16025], [125, 908.7240000000002],
+      [133.3, 961.2240000000004], [600, 5873.724],
+    ];
+    for (const [t, h] of smoothOld) expect(hazardHeightAt(t, 8, smooth), `smooth t=${t}`).toBe(h);
+    for (const [t, h] of hotOld) expect(hazardHeightAt(t, 10, hot), `hot t=${t}`).toBe(h);
+  });
+
+  it("the creep changes nothing before the ramp ends and raises the lava after", () => {
+    const flat = { ...CFG, creepPerMinute: 0 };
+    for (const t of [0, 5.5, 60, RAMP_END]) {
+      expect(hazardHeightAt(t, CLIMB, CFG)).toBe(hazardHeightAt(t, CLIMB, flat));
+    }
+    expect(hazardHeightAt(RAMP_END + 60, CLIMB, CFG)).toBeGreaterThan(
+      hazardHeightAt(RAMP_END + 60, CLIMB, flat)
+    );
+  });
+
+  it("a negative or non-finite creep never lowers the lava (reads as 0)", () => {
+    const flat = { ...CFG, creepPerMinute: 0 };
+    for (const creepPerMinute of [-0.5, Number.NaN, Number.NEGATIVE_INFINITY]) {
+      const hostile = { ...CFG, creepPerMinute };
+      for (const t of [60, 300, 900]) {
+        expect(hazardHeightAt(t, CLIMB, hostile)).toBe(hazardHeightAt(t, CLIMB, flat));
+      }
+    }
+  });
+
+  it("the closed form matches a fine numerical integral across ramp, creep and cap boundaries", () => {
+    // Odd tune so every boundary (ramp end 39.4 s, cap ~46.46 s, stumble
+    // edges every 7.3 s) lands at an arbitrary time, mid-surge or mid-stumble.
+    const odd = {
+      ...CFG,
+      headStartM: 4,
+      graceSeconds: 2.1,
+      startSpeedFrac: 0.3,
+      endSpeedFrac: 0.8,
+      rampSeconds: 37.3,
+      creepPerMinute: 1.7,
+      stumblePeriodSeconds: 7.3,
+      stumbleDurationSeconds: 2.9,
+      stumbleSpeedFrac: 0.35,
+      speedScale: 1.3,
+    };
+    const climb = 9;
+    const vScale = climb * odd.speedScale;
+    // Sanity: the fixture really crosses all three envelope pieces.
+    expect(hazardSpeedFracAt(20, odd)).toBeLessThan(odd.endSpeedFrac);
+    expect(hazardMeanSpeedFrac(odd, 43)).toBeGreaterThan(hazardMeanSpeedFrac(odd));
+    expect(hazardMeanSpeedFrac(odd, 43)).toBeLessThan(hazardMeanSpeedFrac(odd, Infinity));
+
+    const dt = 1e-4;
+    const checkpoints = [20.7713, 39.3999, 39.4003, 43.1234, 46.4581, 46.4596, 51.9, 88.8];
+    const idx = new Set(checkpoints.map((t) => Math.round(t / dt)));
+    const last = Math.max(...idx);
+    let area = 0;
+    let checked = 0;
+    for (let i = 1; i <= last; i++) {
+      area += hazardSpeedFracAt((i - 0.5) * dt, odd) * dt; // midpoint rule
+      if (!idx.has(i)) continue;
+      const t = i * dt;
+      expect(hazardHeightAt(t, climb, odd), `t=${t}`).toBeCloseTo(
+        area * vScale - odd.headStartM,
+        // < 5e-7 m. The midpoint rule is exact on each linear piece; the
+        // stumble edges sit on the 1e-4 grid and the cap is only a kink, so
+        // the measured error is ~2e-9 m.
+        6
+      );
+      checked += 1;
+    }
+    expect(checked).toBe(checkpoints.length);
+  });
+
+  it("the shipped tune's closed form matches a numerical integral through the ramp end and the cap", () => {
+    // The default curve players get: ramp ends at 125 s, the creep reaches
+    // the cap at 395 s. Its stumble edges, ramp end and cap all sit on the
+    // 1 ms grid, so the midpoint rule is exact up to float summation.
+    const capAtS = RAMP_END + ((1 - CFG.endSpeedFrac) / CFG.creepPerMinute) * 60;
+    expect(capAtS).toBeCloseTo(395, 9);
+    const dt = 1e-3;
+    const checkpoints = [60.5, 124.9, 125.4, 300.2, 394.6, 395.3, 450];
+    const idx = new Set(checkpoints.map((t) => Math.round(t / dt)));
+    const last = Math.max(...idx);
+    let area = 0;
+    let checked = 0;
+    for (let i = 1; i <= last; i++) {
+      area += hazardSpeedFracAt((i - 0.5) * dt, CFG) * dt;
+      if (!idx.has(i)) continue;
+      const t = i * dt;
+      // < 5e-5 m on heights up to ~2.5 km (float summation over 450k steps).
+      expect(hazardHeightAt(t, CLIMB, CFG), `t=${t}`).toBeCloseTo(
+        area * CLIMB - CFG.headStartM,
+        4
+      );
+      checked += 1;
+    }
+    expect(checked).toBe(checkpoints.length);
   });
 });

@@ -500,9 +500,16 @@ export function stepMatch(
   //    stumbles on a fixed cycle rather than accelerating at every moment.
   //    Time-slow banks seconds the lava never gets to spend; the leash
   //    (hazardCatchupTimeScale) spends them faster in proportion to how far
-  //    the lead climber is beyond HAZARD_LEASH_M, and runs at 1× within it,
-  //    so the lava rides a fixed distance behind a fast climber. Both keep
-  //    the height curve monotonic.
+  //    the TRAILING climber is beyond HAZARD_LEASH_M, and runs at 1× within
+  //    it, so the lava rides a fixed distance behind whoever is lowest. Both
+  //    keep the height curve monotonic.
+  //    Keyed on the lowest climber, not the highest (SEC-LAVA-1): in a duel
+  //    client a peer's y is an unvalidated ghost snapshot, and under a max a
+  //    spoofed y ran the honest player's lava at the 3× cap. Under a min a
+  //    peer can only lower the scale toward 1, never raise it above what the
+  //    local player's own height gives, and a trailer's client reads its own
+  //    exact height, so it agrees with the server's joint re-sim while the
+  //    opponent bursts ahead. Solo and daily have one climber: unchanged.
   const timeScale =
     hazardTimeScale(state.players, state.tick) *
     hazardCatchupTimeScale(climbingLeadM(state.players, state.hazardY));
@@ -687,14 +694,22 @@ function wrapX(x: number, widthM: number): number {
   return w < 0 ? w + widthM : w;
 }
 
-/** Metres the highest still-climbing player sits above the lava. */
+/**
+ * Metres the LOWEST still-climbing player sits above the lava (0 when nobody
+ * is climbing). The leash reads this, so it hunts the trailer. A min is the
+ * only safe shape here: a peer's position on a duel client is self-reported
+ * (SEC-LAVA-1), and a min lets it only slow the lava clock, never speed it.
+ */
 function climbingLeadM(players: readonly PlayerState[], hazardY: number): number {
-  let lead = 0;
+  let lead = Infinity;
   for (const p of players) {
     if (p.status !== "climbing") continue;
-    lead = Math.max(lead, p.y - hazardY);
+    const own = p.y - hazardY;
+    // A NaN ghost height never wins the comparison, so it cannot mask the
+    // local climber's real lead (Math.min would propagate the NaN).
+    if (own < lead) lead = own;
   }
-  return lead;
+  return lead === Infinity ? 0 : lead;
 }
 
 /**

@@ -28,6 +28,7 @@ import {
   cameraTargetY,
   climbView,
   followCamY,
+  lavaGapBelowViewM,
 } from "./climbCamera";
 import { drawFloorMarker } from "./FloorMarker";
 import { drawClimbBackground } from "./climbBackground";
@@ -336,14 +337,14 @@ export function paintClimbFrame(
   }
   // Lava below the visible bottom (the touch overlay covers `bottomInset`, so
   // lava drawn only under it is not shown): glow the edge while it is close.
-  const visibleBottomWorldY = camWorldY + (pxPerM > 0 ? bottomInset / pxPerM : 0);
+  // Eased camera: the glow must match the frame being drawn.
   drawLavaProximityGlow(ctx, {
     width,
     height,
     ui,
     tick: state.tick,
     reducedMotion,
-    gapBelowViewM: visibleBottomWorldY - state.hazardY,
+    gapBelowViewM: lavaGapBelowViewM(state.hazardY, camWorldY, bottomInset, pxPerM),
     bottomInset,
   });
 

@@ -28,6 +28,7 @@ import {
   cameraTargetY,
   climbView,
   isLavaThreatening,
+  lavaGapBelowViewM,
   lavaThreatFill,
 } from "./climbCamera";
 import { hazardPhase } from "../../game/hazard";
@@ -254,7 +255,9 @@ export function ClimbScene({
   const bottomInsetM = view.pxPerM > 0 ? bottomInset / view.pxPerM : 0;
   const lavaFill = lavaThreatFill(state.hazardY, camY, view.viewH, bottomInsetM);
   // Just below the uncovered view — the band the edge glow shows in.
-  const lavaNear = isLavaInProximity(camY + bottomInsetM - state.hazardY);
+  const lavaNear = isLavaInProximity(
+    lavaGapBelowViewM(state.hazardY, camY, bottomInset, view.pxPerM)
+  );
   const lavaPhaseInfo = hazardPhase(state.raceSeconds - state.hazardSlowSeconds);
 
   // World one-shots call into the SFX engine; skip them on autoStart replay

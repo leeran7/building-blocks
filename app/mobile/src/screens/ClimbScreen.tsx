@@ -20,6 +20,7 @@ import {
   cameraTargetY,
   lavaThreatFill,
   isLavaThreatening,
+  lavaGapBelowViewM,
 } from "@app/components/Game/climbCamera";
 import { useCanvasSize } from "@app/hooks/useCanvasSize";
 import { useSafeAreaInsets } from "@app/hooks/useSafeAreaInsets";
@@ -177,7 +178,9 @@ export function ClimbScreen({ onSignIn }: { onSignIn?: () => void } = {}) {
   const lavaPhaseInfo = hazardPhase(state.raceSeconds - state.hazardSlowSeconds);
   const bottomInsetM = view.pxPerM > 0 ? bottomInset / view.pxPerM : 0;
   const lavaFill = lavaThreatFill(state.hazardY, camY, view.viewH, bottomInsetM);
-  const lavaNear = isLavaInProximity(camY + bottomInsetM - state.hazardY);
+  const lavaNear = isLavaInProximity(
+    lavaGapBelowViewM(state.hazardY, camY, bottomInset, view.pxPerM)
+  );
   const { muted, setMuted, announcement, unlockAudio } = usePowerUpFeedback(
     player,
     state.tick,

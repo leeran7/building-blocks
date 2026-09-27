@@ -98,6 +98,23 @@ export function isLavaThreatening(fill: number): boolean {
 }
 
 /**
+ * Metres from the bottom of the uncovered view (camera bottom plus the touch
+ * overlay) down to the lava line. Positive: the lava is that far below what
+ * the player can see (the edge-glow / "near" band). Zero or negative: the
+ * lava is in view. The caller picks the camera: the painter passes its eased
+ * camera, the scenes pass the snapped target (see the file header).
+ */
+export function lavaGapBelowViewM(
+  hazardY: number,
+  camWorldY: number,
+  bottomInsetPx: number,
+  pxPerM: number
+): number {
+  const insetM = pxPerM > 0 && bottomInsetPx > 0 ? bottomInsetPx / pxPerM : 0;
+  return camWorldY + insetM - hazardY;
+}
+
+/**
  * Ease the camera toward `target`. Snaps on a new run, a seek, or a gap
  * bigger than half a view (respawn).
  *
