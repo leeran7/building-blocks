@@ -241,6 +241,14 @@ export interface TowerSpec {
    * replacing the altitude-scaled spawnChanceForFloor. Undefined elsewhere.
    */
   powerUpChance?: number;
+  /**
+   * Level towers only: the finish height in tower metres (shown as feet, 1:1).
+   * A climber whose feet reach it finishes; the tower is capped by a full-width
+   * summit floor, the first floor at or above it (see summitFloor in
+   * towers.ts). Undefined on the free stack, Daily and duel towers, which stay
+   * endless.
+   */
+  goalM?: number;
 }
 
 export type MatchPhase =

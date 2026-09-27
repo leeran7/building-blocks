@@ -78,6 +78,7 @@ import {
   geometryCacheKey,
   laddersForFloor,
   platformsForFloor,
+  summitFloor,
 } from "./towers";
 
 // ── Pickup geometry ────────────────────────────────────────────────────────
@@ -524,6 +525,8 @@ function pickX(
  * (tower.seed, i) — the same tower always drops the same orbs.
  */
 export function powerUpForFloor(tower: TowerSpec, i: number): PowerUpPickup | null {
+  const summit = summitFloor(tower);
+  if (summit !== null && i >= summit) return null;
   const rec = spawnAtFloor(tower, i);
   if (!rec) return null;
 
