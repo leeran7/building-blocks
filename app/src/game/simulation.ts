@@ -28,6 +28,7 @@ import {
   PlayerInput,
   PlayerState,
   PlayerId,
+  PowerUpType,
   TowerSpec,
   Platform,
   Ladder,
@@ -68,6 +69,8 @@ import {
   powerUpForFloor,
   pruneActive,
   resolveRandom,
+  allowedPowerUpsOf,
+  validateStartPowerUp,
 } from "./powerups";
 import { isOnObstacle, resolveObstacleMotion } from "./obstacles";
 import {
@@ -135,8 +138,12 @@ export function createMatch(params: {
   mode: MatchState["mode"];
   tower: TowerSpec;
   playerIds: PlayerId[];
+  /** Level runs only: a booster every climber is granted at GO. */
+  startPowerUp?: PowerUpType;
 }): MatchState {
   const { tower } = params;
+  const startPowerUp =
+    params.startPowerUp === undefined ? undefined : validateStartPowerUp(tower, params.startPowerUp);
   const players = params.playerIds.map((id, i) => {
     const p = spawnPlayer(id, i);
     // Spread players across the middle of the base platform so multiplayer
@@ -160,6 +167,7 @@ export function createMatch(params: {
     powerUps: [],
     powerUpFloorHi: 0,
   };
+  if (startPowerUp !== undefined) state.startPowerUp = startPowerUp;
   ensurePowerUps(state);
   return state;
 }
@@ -487,6 +495,10 @@ export function stepMatch(
       state.phase = "climb";
       state.tick = 0;
       state.raceSeconds = 0;
+      // A level run's booster is live from GO.
+      if (state.startPowerUp !== undefined) {
+        for (const p of state.players) activatePowerUp(p, state.startPowerUp, 0);
+      }
     }
     return state;
   }
@@ -575,17 +587,12 @@ export function stepMatch(
       // tick, so a touch blocked by canActivate resolves to the same effect
       // later.
       const effectType = pu.type === "random"
-        ? resolveRandom(state.tower.seed, pu.floorIndex, p.slot)
+        ? resolveRandom(state.tower.seed, pu.floorIndex, p.slot, allowedPowerUpsOf(state.tower))
         : pu.type;
       if (!canActivate(p, effectType, state.tick)) continue;
       pu.collected = true;
       pu.collectedTick = state.tick;
-      const dur = durationTicks(effectType);
-      grantPowerUp(p, effectType, state.tick);
-      const cd = cooldownTicks(effectType);
-      if (cd > 0) p.cooldownUntilTick[effectType] = state.tick + dur + cd;
-      p.lastPickupTick = state.tick;
-      p.lastPickupType = effectType;
+      activatePowerUp(p, effectType, state.tick);
       break;
     }
 
@@ -621,6 +628,15 @@ export function stepMatch(
   // 7. Resolve match end + deterministic winner.
   resolveOutcome(state);
   return state;
+}
+
+/** Start a power-up's effect on a climber, with its cooldown and HUD pickup. */
+function activatePowerUp(p: PlayerState, type: PowerUpType, tick: number): void {
+  grantPowerUp(p, type, tick);
+  const cd = cooldownTicks(type);
+  if (cd > 0) p.cooldownUntilTick[type] = tick + durationTicks(type) + cd;
+  p.lastPickupTick = tick;
+  p.lastPickupType = type;
 }
 
 /**

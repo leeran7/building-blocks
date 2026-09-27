@@ -98,6 +98,8 @@ const MIN_SPAWN_FLOOR = 1;
 /** First orb lands somewhere in this inclusive range (varies per tower seed). */
 const FIRST_SPAWN_MIN = 1;
 const FIRST_SPAWN_MAX = 4;
+/** Floor a level's intro orb (tower.introPowerUp) is forced onto. */
+export const INTRO_POWER_UP_FLOOR = 2;
 /** Target occupancy per floor at the base, and after the ramp (drives mean gap). */
 const SPAWN_CHANCE_LOW = 0.22;
 const SPAWN_CHANCE_HIGH = 0.34;
@@ -312,6 +314,76 @@ export function canActivate(
   return cooldownRemaining(p, type, tick) === 0;
 }
 
+// ── Level power-up rules ───────────────────────────────────────────────────
+
+function isPowerUpType(t: unknown): t is PowerUpType {
+  return typeof t === "string" && Object.hasOwn(POWER_UP_SPECS, t);
+}
+
+/**
+ * A level tower's allowed power-up set, validated, or null when the tower has
+ * none (every type allowed). Throws on an unknown type, a duplicate, or
+ * "random" with no concrete type to roll (reject, never substitute).
+ */
+export function allowedPowerUpsOf(tower: TowerSpec): readonly PowerUpType[] | null {
+  const allowed = tower.allowedPowerUps;
+  if (allowed === undefined) return null;
+  const seen = new Set<PowerUpType>();
+  for (const t of allowed) {
+    if (!isPowerUpType(t)) throw new RangeError(`unknown power-up type in tower.allowedPowerUps: ${String(t)}`);
+    if (seen.has(t)) throw new RangeError(`duplicate power-up type in tower.allowedPowerUps: ${t}`);
+    seen.add(t);
+  }
+  if (seen.has("random") && seen.size === 1) {
+    throw new RangeError(`tower.allowedPowerUps allows "random" with no concrete type to roll`);
+  }
+  return allowed;
+}
+
+/** May a power-up of this type spawn on (or be granted by) this tower? */
+export function isPowerUpAllowed(tower: TowerSpec, type: PowerUpType): boolean {
+  const allowed = allowedPowerUpsOf(tower);
+  return allowed === null || allowed.includes(type);
+}
+
+/** A level tower's intro type, validated against its allowed set, or null. */
+function introPowerUpOf(tower: TowerSpec): PowerUpType | null {
+  const intro = tower.introPowerUp;
+  if (intro === undefined) return null;
+  if (!isPowerUpType(intro)) throw new RangeError(`unknown tower.introPowerUp: ${String(intro)}`);
+  if (!isPowerUpAllowed(tower, intro)) {
+    throw new RangeError(`tower.introPowerUp ${intro} is not in tower.allowedPowerUps`);
+  }
+  return intro;
+}
+
+/**
+ * Validate a level run's starting power-up against its tower: a concrete type
+ * the tower allows. Returns it, or throws.
+ */
+export function validateStartPowerUp(
+  tower: TowerSpec,
+  type: unknown
+): Exclude<PowerUpType, "random"> {
+  if (!isPowerUpType(type) || type === "random") {
+    throw new RangeError(`start power-up must be a concrete power-up type, got ${String(type)}`);
+  }
+  if (!isPowerUpAllowed(tower, type)) {
+    throw new RangeError(`start power-up ${type} is not in tower.allowedPowerUps`);
+  }
+  return type;
+}
+
+/** Cache key for the spawn schedule: geometry plus the level power-up rules. */
+function spawnCacheKey(tower: TowerSpec): string {
+  const base = geometryCacheKey(tower);
+  const allowed = allowedPowerUpsOf(tower);
+  const intro = introPowerUpOf(tower);
+  if (allowed === null && intro === null) return base;
+  const set = allowed === null ? "all" : [...allowed].sort().join(",");
+  return `${base}|allow=${set}|intro=${intro ?? "none"}`;
+}
+
 // ── Deterministic spawning ─────────────────────────────────────────────────
 
 /**
@@ -369,24 +441,33 @@ interface SpawnRec {
 const spawnScheduleCache = createSeedCache<SpawnRec[]>(8, () => []);
 
 function spawnScheduleUntil(tower: TowerSpec, atLeast: number): SpawnRec[] {
-  const list = spawnScheduleCache.get(geometryCacheKey(tower));
+  const list = spawnScheduleCache.get(spawnCacheKey(tower));
+  const allowed = allowedPowerUpsOf(tower);
   if (list.length === 0) {
-    const floor = firstSpawnFloor(tower);
-    const rng = createRng(`${tower.seed}:pu:type:${floor}`);
-    list.push({ floor, type: pickType(rng, difficultyAt(tower, floor), null) });
+    // A level's intro orb replaces the schedule's first entry.
+    const intro = introPowerUpOf(tower);
+    if (intro !== null) {
+      list.push({ floor: INTRO_POWER_UP_FLOOR, type: intro });
+    } else {
+      const floor = firstSpawnFloor(tower);
+      const rng = createRng(`${tower.seed}:pu:type:${floor}`);
+      list.push({ floor, type: pickType(rng, difficultyAt(tower, floor), null, allowed) });
+    }
   }
   while (list[list.length - 1].floor < atLeast) {
     const k = list.length - 1;
     const prev = list[k];
     const floor = prev.floor + Math.max(1, gapAfter(tower, k, prev.floor));
     const rng = createRng(`${tower.seed}:pu:type:${floor}`);
-    list.push({ floor, type: pickType(rng, difficultyAt(tower, floor), prev.type) });
+    list.push({ floor, type: pickType(rng, difficultyAt(tower, floor), prev.type, allowed) });
   }
   return list;
 }
 
 function spawnAtFloor(tower: TowerSpec, i: number): SpawnRec | null {
   if (i < MIN_SPAWN_FLOOR) return null;
+  // An empty allowed set spawns nothing (L1-3, the No power-ups level type).
+  if (allowedPowerUpsOf(tower)?.length === 0) return null;
   const list = spawnScheduleUntil(tower, i);
   let lo = 0;
   let hi = list.length - 1;
@@ -400,22 +481,37 @@ function spawnAtFloor(tower: TowerSpec, i: number): SpawnRec | null {
   return null;
 }
 
-/** Pick a type by weight, with per-spawn jitter and a penalty for repeating. */
-function pickType(rng: Rng, d: number, avoid: PowerUpType | null): PowerUpType {
+/**
+ * Pick a type by weight, with per-spawn jitter and a penalty for repeating.
+ * A type outside `allowed` weighs 0 but still draws its jitter, so the RNG
+ * stream (and every free-stack pick) is the same with or without a set.
+ * `allowed` must hold at least one type.
+ */
+function pickType(
+  rng: Rng,
+  d: number,
+  avoid: PowerUpType | null,
+  allowed: readonly PowerUpType[] | null = null
+): PowerUpType {
   const weights = POWER_UP_TYPES.map((t) => {
     const s = POWER_UP_SPECS[t];
     let w = s.weight * (1 + (s.altitudeWeightMult - 1) * d);
     w *= 0.55 + rng.next() * 0.9;
     if (t === avoid) w *= 0.22;
+    if (allowed !== null && !allowed.includes(t)) w = 0;
     return w;
   });
   const total = weights.reduce((a, b) => a + b, 0);
   let acc = rng.next() * total;
+  let last: PowerUpType | null = null;
   for (let k = 0; k < POWER_UP_TYPES.length; k++) {
+    if (weights[k] === 0) continue;
+    last = POWER_UP_TYPES[k];
     acc -= weights[k];
-    if (acc <= 0) return POWER_UP_TYPES[k];
+    if (acc <= 0) return last;
   }
-  return POWER_UP_TYPES[POWER_UP_TYPES.length - 1];
+  if (last === null) throw new RangeError("pickType needs at least one allowed type");
+  return last;
 }
 
 /**
@@ -439,10 +535,18 @@ function pickType(rng: Rng, d: number, avoid: PowerUpType | null): PowerUpType {
 export function resolveRandom(
   towerSeed: string,
   floorIndex: number,
-  slot: number
+  slot: number,
+  allowed: readonly PowerUpType[] | null = null
 ): Exclude<PowerUpType, "random"> {
+  // A level rolls only among its allowed concrete types; allowedPowerUpsOf
+  // guarantees at least one whenever "random" can spawn.
+  const pool =
+    allowed === null
+      ? CONCRETE_POWER_UP_TYPES
+      : CONCRETE_POWER_UP_TYPES.filter((t) => allowed.includes(t));
+  if (pool.length === 0) throw new RangeError("resolveRandom has no concrete type to roll");
   const rng = createRng(`${towerSeed}:pu:random:${floorIndex}:${slot}`);
-  return CONCRETE_POWER_UP_TYPES[rng.int(0, CONCRETE_POWER_UP_TYPES.length)];
+  return pool[rng.int(0, pool.length)];
 }
 
 function clampToPiece(piece: Platform, x: number, margin: number): number {
