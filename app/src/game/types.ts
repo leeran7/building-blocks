@@ -230,6 +230,17 @@ export interface TowerSpec {
    * their peak height reached, they have fallen off the climb and are out.
    */
   fallDeathBelowPeakM: number;
+  /**
+   * Level towers only: a fixed layout difficulty in [0, 1] for every floor,
+   * replacing the altitude ramp (see difficultyAt in towers.ts). Undefined on
+   * the free stack, Daily and duel towers, which keep the ramp bit-identical.
+   */
+  difficulty?: number;
+  /**
+   * Level towers only: target power-up occupancy per floor in [0, 1],
+   * replacing the altitude-scaled spawnChanceForFloor. Undefined elsewhere.
+   */
+  powerUpChance?: number;
 }
 
 export type MatchPhase =
