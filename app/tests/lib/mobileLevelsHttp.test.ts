@@ -76,7 +76,15 @@ const RESULT = {
   awards: [{ key: "first_clear:1:3", amount: 65 }],
 };
 
-const RUN: LevelRunReport = { finished: true, finishedTick: 450, peakFt: 90, replayToken: "token" };
+// Level 3's mock pars are 30.8 s for 3 stars and 36.7 s for 2: 1000 ticks (33.3 s) is 2 stars.
+const RUN: LevelRunReport = {
+  level: 3,
+  finished: true,
+  finishedTick: 1000,
+  raceTicks: 1000,
+  peakFt: 90,
+  replayToken: "token",
+};
 
 function json(status: number, body: unknown): Response {
   return new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
@@ -121,6 +129,8 @@ describe("parsers", () => {
     expect(refusalFor(409, "OUT_OF_LIVES")).toBe("OUT_OF_LIVES");
     expect(refusalFor(409, "SIM_VERSION_MISMATCH")).toBe("UPDATE_REQUIRED");
     expect(refusalFor(404, "LEVEL_NOT_FOUND")).toBe("UPDATE_REQUIRED");
+    // The season is not switched on yet: a server state, not an old app.
+    expect(refusalFor(404, "SEASON_NOT_FOUND")).toBe("NETWORK");
     expect(refusalFor(503, "LEVELS_UNAVAILABLE")).toBe("NETWORK");
     expect(refusalFor(429, "RATE_LIMITED")).toBe("NETWORK");
     expect(refusalFor(403, "SOMETHING_ELSE")).toBe("NETWORK");
@@ -209,14 +219,14 @@ describe("createHttpLevelsClient", () => {
 
     expect(calls[0]).toEqual({
       path: "/api/levels/result",
-      body: { ticketId: TICKET.ticketId, cleared: true, finishTicks: 450, peakFt: 90 },
+      body: { ticketId: TICKET.ticketId, cleared: true, stars: 2, ticks: 1000, replayToken: "token" },
     });
     expect(result).toMatchObject({
       level: 3,
       cleared: true,
       stars: 2,
       previousStars: 0,
-      timeMs: 15_000,
+      timeMs: 33_333,
       peakFt: 90,
       xpGained: 115,
       goalFt: catalog.level(3).goalFt,
@@ -241,9 +251,12 @@ describe("createHttpLevelsClient", () => {
       ...RUN,
       finished: false,
       finishedTick: null,
+      raceTicks: 612.4,
       peakFt: 41.6,
+      replayToken: null,
     });
-    expect(calls[0].body).toEqual({ ticketId: TICKET.ticketId, cleared: false, finishTicks: null, peakFt: 42 });
+    // A loss reports how long the run lasted, no stars, and no replay it does not have.
+    expect(calls[0].body).toEqual({ ticketId: TICKET.ticketId, cleared: false, stars: 0, ticks: 612 });
     expect(result).toMatchObject({ cleared: false, stars: 0, timeMs: null, newPlayerLevel: null });
   });
 
@@ -252,7 +265,29 @@ describe("createHttpLevelsClient", () => {
       "/api/levels/result": () => json(200, { ...RESULT, outcome: "failed", stars: 0, xpGained: 0 }),
     });
     await createHttpLevelsClient({ catalog, fetch }).submitResult(TICKET.ticketId, { ...RUN, finished: false });
-    expect(calls[0].body).toMatchObject({ cleared: false, finishTicks: null });
+    expect(calls[0].body).toMatchObject({ cleared: false, stars: 0, ticks: 1000 });
+  });
+
+  it("scores 3 stars at or under the 3-star par and 1 star past the 2-star par", async () => {
+    const pars = catalog.level(3).pars;
+    const cases: [number, number][] = [
+      [Math.floor((pars.threeStarMs / 1000) * 30), 3],
+      [Math.ceil((pars.twoStarMs / 1000) * 30) + 30, 1],
+    ];
+    for (const [ticks, stars] of cases) {
+      const { fetch, calls } = fakeServer({ "/api/levels/result": () => json(200, RESULT) });
+      await createHttpLevelsClient({ catalog, fetch }).submitResult(TICKET.ticketId, {
+        ...RUN,
+        finishedTick: ticks,
+        raceTicks: ticks,
+      });
+      expect(calls[0].body).toMatchObject({ cleared: true, stars, ticks });
+    }
+  });
+
+  it("refuses a verdict for a different level", async () => {
+    const { fetch } = fakeServer({ "/api/levels/result": () => json(200, { ...RESULT, level: 4 }) });
+    await expect(createHttpLevelsClient({ catalog, fetch }).submitResult(TICKET.ticketId, RUN)).rejects.toThrow();
   });
 
   it("throws on a rejected run", async () => {

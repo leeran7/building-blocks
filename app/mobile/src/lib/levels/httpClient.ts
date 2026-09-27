@@ -2,6 +2,7 @@ import { TICK_HZ } from "@app/game/types";
 import { LEVEL_SIM_VERSION } from "@app/game/simVersion";
 import { MAX_LIVES, playerLevelProgress } from "@app/levels/rules";
 import { apiFetch } from "../api";
+import { starsForTime } from "./model";
 import type {
   LevelCatalog,
   LevelNode,
@@ -21,8 +22,8 @@ import type {
  * The server decides lives, stars, XP and unlocks; this client only reads
  * what it says. Every response is parsed against an allow-list: a body that
  * does not match the route's contract is a failed call, never coerced into
- * plausible numbers. A run is reported as its outcome and finish tick; levels
- * have no replay. The level facts on each pin (seed, goal, pars) come from
+ * plausible numbers. A run is reported as its outcome, stars and ticks;
+ * levels have no replay check. The level facts on each pin (seed, goal, pars) come from
  * the app's own copy of the season manifest (`catalog`); the server scores
  * runs against its own copy.
  */
@@ -206,7 +207,7 @@ export function refusalFor(status: number, code: string | null): StartRefusal {
   if (status === 409 && code === "OUT_OF_LIVES") return "OUT_OF_LIVES";
   // The server runs a newer engine, or knows a level this app does not.
   if (status === 409 && code === "SIM_VERSION_MISMATCH") return "UPDATE_REQUIRED";
-  if (status === 404 && (code === "SEASON_NOT_FOUND" || code === "LEVEL_NOT_FOUND")) return "UPDATE_REQUIRED";
+  if (status === 404 && code === "LEVEL_NOT_FOUND") return "UPDATE_REQUIRED";
   return "NETWORK";
 }
 
@@ -304,20 +305,27 @@ export function createHttpLevelsClient(opts: HttpClientOptions): LevelsClient {
     },
 
     async submitResult(ticketId: string, run: LevelRunReport): Promise<LevelResult> {
-      // Levels send the run's outcome directly; there is no replay (Leeran,
-      // 2026-09-27). The server scores stars from finishTicks and its pars.
+      // The device reports the run; levels have no replay check (Leeran,
+      // 2026-09-27). Stars come from the level's pars in the app's manifest.
+      const played = info(run.level);
       const cleared = run.finished && run.finishedTick !== null;
+      const ticks = cleared ? (run.finishedTick as number) : Math.max(0, Math.floor(run.raceTicks));
+      const stars: StarCount = cleared ? starsForTime(ticksToMs(ticks), played.pars) : 0;
       const res = await post("/api/levels/result", {
         ticketId,
         cleared,
-        finishTicks: cleared ? run.finishedTick : null,
-        peakFt: Math.max(0, Math.round(run.peakFt)),
+        stars,
+        ticks,
+        // Kept by the server for friend ghosts only.
+        ...(run.replayToken ? { replayToken: run.replayToken } : {}),
       });
       const body = await readJson(res);
       if (!res.ok) throw new LevelsApiError(res.status, errorCode(body));
       const result = parseServerResult(body);
-      if (!result || result.season !== catalog.season) throw new LevelsApiError(res.status, "BAD_BODY");
-      const node = info(result.level);
+      if (!result || result.season !== catalog.season || result.level !== run.level) {
+        throw new LevelsApiError(res.status, "BAD_BODY");
+      }
+      const node = played;
       lastXp = result.xp;
 
       const verdictCleared = result.outcome === "cleared";

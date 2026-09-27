@@ -84,13 +84,16 @@ export type StartResult =
 
 /** What the app sends when a level run ends. */
 export interface LevelRunReport {
+  level: number;
   /** Reached the summit. */
   finished: boolean;
-  /** Tick the summit was reached, from the start of the climb; null on a loss. */
+  /** Tick the summit was reached, from GO; null on a loss. */
   finishedTick: number | null;
+  /** Race ticks from GO until the run ended (the finish tick on a clear). */
+  raceTicks: number;
   /** Highest point reached, ft. */
   peakFt: number;
-  /** Replay token of the run's inputs, for the server to verify. */
+  /** Replay token of the run's inputs, kept for friend ghosts; not verified. */
   replayToken: string | null;
 }
 
