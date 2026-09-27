@@ -135,7 +135,7 @@ Work through these steps in order when an incident is declared.
 **Fix:**
 1. Confirm the bump was intended (an engine change shipped in the same release).
 2. If the updated store build is live, wait for adoption. If it is not, roll the server back (see below) until it is, because the old engine cannot verify new runs and vice versa.
-3. Never bump `DAILY_SIM_VERSION` without shipping the matching mobile build, and never ship an engine change without bumping it: an old client's run would then fail as `REPLAY_MISMATCH`, which looks like a forgery.
+3. Never bump `DAILY_SIM_VERSION` without shipping the matching mobile build, and never ship an engine change that moves the free stack's golden hashes (`app/tests/game/freeStackGolden.test.ts`) without bumping it: an old client's run would then fail as `REPLAY_MISMATCH`, which looks like a forgery.
 
 ---
 

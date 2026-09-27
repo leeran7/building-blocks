@@ -38,6 +38,9 @@ irreversible or money-adjacent writes — not generic OWASP.
    `POST /api/climb/daily/result` refuses a `simVersion` other than
    `DAILY_SIM_VERSION` (`app/src/game/simVersion.ts`) with 409 before it
    re-simulates, and stamps `sim_version` on each daily score. Bump it in
-   the same change as any engine edit. That locks installed mobile builds
-   out of the daily board until they update (docs/deploy.md). Duels and
+   the same change as any engine edit that changes the free stack's output,
+   which `app/tests/game/freeStackGolden.test.ts` pins. That locks installed
+   mobile builds out of the daily board until they update (docs/deploy.md).
+   Level-only engine fields (`tower.goalM`, `tower.difficulty`, …) leave the
+   golden hashes alone and bump `LEVEL_SIM_VERSION` instead. Duels and
    endless replays still have no version.

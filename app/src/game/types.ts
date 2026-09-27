@@ -230,6 +230,37 @@ export interface TowerSpec {
    * their peak height reached, they have fallen off the climb and are out.
    */
   fallDeathBelowPeakM: number;
+  /**
+   * Level towers only: a fixed layout difficulty in [0, 1] for every floor,
+   * replacing the altitude ramp (see difficultyAt in towers.ts). Undefined on
+   * the free stack, Daily and duel towers, which keep the ramp bit-identical.
+   */
+  difficulty?: number;
+  /**
+   * Level towers only: target power-up occupancy per floor in [0, 1],
+   * replacing the altitude-scaled spawnChanceForFloor. Undefined elsewhere.
+   */
+  powerUpChance?: number;
+  /**
+   * Level towers only: the finish height in tower metres (shown as feet, 1:1).
+   * A climber whose feet reach it finishes; the tower is capped by a full-width
+   * summit floor, the first floor at or above it (see summitFloor in
+   * towers.ts). Undefined on the free stack, Daily and duel towers, which stay
+   * endless.
+   */
+  goalM?: number;
+  /**
+   * Level towers only: the power-up types that may spawn, in any order.
+   * "random" in the set lets random orbs spawn, and they roll only among the
+   * set's concrete types. An empty set spawns no orbs. Undefined elsewhere:
+   * every type spawns and random rolls among all of them.
+   */
+  allowedPowerUps?: readonly PowerUpType[];
+  /**
+   * Level towers only: a type introduced on this level. Its orb is forced as
+   * the first spawn, on INTRO_POWER_UP_FLOOR. Must be in allowedPowerUps.
+   */
+  introPowerUp?: PowerUpType;
 }
 
 export type MatchPhase =
@@ -269,4 +300,9 @@ export interface MatchState {
   powerUps: PowerUpPickup[];
   /** Exclusive upper bound of the floor range `powerUps` has been generated for. */
   powerUpFloorHi: number;
+  /**
+   * Level runs only: a power-up every climber is granted at GO (a booster
+   * from the run ticket). Undefined on the free stack, Daily and duels.
+   */
+  startPowerUp?: Exclude<PowerUpType, "random">;
 }
