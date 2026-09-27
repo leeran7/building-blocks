@@ -101,7 +101,8 @@ CLAUDE.md. All sim edits stay pure/deterministic (AC-11 re-simulation).
 
 ### 2. Sim version — `app/src/game/simVersion.ts`
 
-`DAILY_SIM_VERSION = 1 → 2` (its own doc comment requires this for hazard tuning).
+`DAILY_SIM_VERSION = 1 → 3` (its own doc comment requires this for hazard tuning).
+It skips 2 because a Preview deploy may have stamped v2 scores in the production DB.
 Effect: stale clients get 409 `SIM_VERSION_MISMATCH` on daily posts; stored v1 scores
 keep their stamp. Note in the PR: duel clients on different builds disagree on the
 shared hazard until both update (same class as any sim change).
@@ -277,7 +278,7 @@ Found by the iteration-4 verifier (V4-1), assessed high by the security reviewer
 - Duels are settled on a fresh server roll, so the winner can differ from what
   both clients saw.
 
-The fix changes sim outcomes, so it rides on this PR's DAILY_SIM_VERSION 1 → 2
+The fix changes sim outcomes, so it rides on this PR's DAILY_SIM_VERSION 1 → 3
 bump instead of needing a second bump later.
 
 ### R3-1. Roll random orbs from the seeded RNG

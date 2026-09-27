@@ -8,4 +8,4 @@
  * Bump it in the same change as any edit to stepMatch, obstaclesForFloor,
  * power-ups or hazard tuning. Client-safe: no imports.
  */
-export const DAILY_SIM_VERSION = 2;
+export const DAILY_SIM_VERSION = 3;
