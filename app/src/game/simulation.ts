@@ -564,14 +564,16 @@ export function stepMatch(
     p.cheatFlagged = sentinel.flagged;
 
     // 3. Auto-activate any orb the climber is now touching, on contact — no
-    //    banking, no use button. An orb whose type is still cooling down (only
-    //    slow-lava ever sets one) is left uncollected so it stays pickable once
-    //    the cooldown clears, rather than being wasted or bypassing the rule.
+    //    banking, no use button. An orb whose type is still cooling down
+    //    (slow-lava and harden-lava set one) is left uncollected so it stays
+    //    pickable once the cooldown clears, rather than being wasted or
+    //    bypassing the rule.
     for (const pu of state.powerUps) {
       if (pu.collected) continue;
       if (!overlapsPickup(pu, p.x, p.y)) continue;
-      // A random orb's roll is keyed on (tower seed, orb floor, slot), not
-      // the tick, so a touch blocked by canActivate re-rolls the same effect.
+      // A random orb resolves from (tower seed, orb floor, slot), not the
+      // tick, so a touch blocked by canActivate resolves to the same effect
+      // later.
       const effectType = pu.type === "random"
         ? resolveRandom(state.tower.seed, pu.floorIndex, p.slot)
         : pu.type;

@@ -81,8 +81,9 @@
  * scale 1) the lava never outruns a climber holding climb on a ladder (after
  * the cap a surge matches ladder speed; the gap opens only during stumbles).
  * Beyond `HAZARD_LEASH_M` the leash speeds the lava clock up to
- * `HAZARD_CATCHUP_MAX_SCALE`×, so there it does outrun a ladder climber until
- * the gap closes back to `HAZARD_LEASH_M`; that is the leash's job.
+ * `HAZARD_CATCHUP_MAX_SCALE`×, so there it can outrun a ladder climber (during
+ * surges) until the gap closes back to `HAZARD_LEASH_M`; that is the leash's
+ * job.
  * Runs end when the player dawdles on a floor, misses a ladder, or stops.
  *
  * Height is a pure, deterministic function of (race-time, climb speed,

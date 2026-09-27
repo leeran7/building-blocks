@@ -13,12 +13,14 @@
  *   random        one of the seven above, rolled per (seed, orb, slot) by
  *                 `resolveRandom` so re-simulation agrees (AC-11)
  *
- * BALANCE. The hazard envelope ramps toward 1.0× (ladder climb speed) and
- * stumbles (2s of 0.25× envelope every 8s), so the time-averaged chase
- * settles near 0.75× — climbable on a ladder, with longer stumble windows for
- * lets the lava close in. Power-ups are what push past that cap, and they are
- * cap, and they are deliberately shaped so the ceiling is raised by PLAYING
- * WELL rather than by collecting:
+ * BALANCE. The lava's surge speed (the envelope) ramps 0.42x -> 0.91x ladder
+ * climb speed over 120 s, then creeps up to the 1x cap (~6.5 min). Every 16 s
+ * it stumbles for 6 s at 0.2x envelope. So the time-averaged chase is 0.64x
+ * when the ramp ends and 0.70x at the cap (hazard.ts header,
+ * `hazardMeanSpeedFrac`). The best unaided pace is ~0.55-0.62x, so every
+ * unaided run ends. Power-ups are what push a climber past that threshold, and
+ * they are deliberately shaped so the ceiling is raised by PLAYING WELL rather
+ * than by collecting:
  *
  *   - one live entry per type. A second orb of the same type refreshes the
  *     running effect rather than stacking charges, so super-jump cannot be
@@ -28,21 +30,26 @@
  *   - short windows that must be spent on the right terrain — rapid-climb is
  *     wasted if you are not on a ladder, leftover jetpack fuel dies if jump
  *     is not held (or with the spend window);
- *   - multipliers under 2x, so no single pickup trivialises a floor;
- *   - slow-lava cuts the lava's clock by 40% and is the rarest drop, but
- *     weights toward it with altitude — exactly where the lava wins — so a deep
- *     run keeps getting the tool it needs to go deeper.
+ *   - multipliers at most 2x, so no single pickup trivialises a floor;
+ *   - slow-lava cuts the lava's clock by 40%. It and harden-lava are the
+ *     rarest drops, but both weight toward themselves with altitude — exactly
+ *     where the lava wins — so a deep run keeps getting the tools it needs.
  *
- * THE RUN MUST STILL END. The endless tower's guarantee is that the lava's
- * time-averaged late-game speed (envelope × stumble duty) stays above 1x climb
- * speed, so no climber outlasts it. Time-slow is the one power-up that can break
- * that: held at 100% uptime it would drop the lava to (1 − TIME_SLOW_FRAC) of
- * its clock and the tower could become survivable forever. Its cooldown is
- * what keeps the guarantee — it caps uptime at 8s in every 48s, so the lava
- * still averages meanSpeedFrac · (1 − TIME_SLOW_FRAC · 0.167). At 0.4 that is
- * 0.75 · 0.933 = 0.700. Do not raise TIME_SLOW_FRAC or shorten the cooldown
- * without redoing that arithmetic — `powerups.test.ts` asserts the bound.
- * The 8s/40s pair keeps the same uptime fraction as the old 6s/30s window.
+ * LAVA-CLOCK POWER-UPS. slow-lava and harden-lava are the only pickups that
+ * touch the lava clock, and their cooldowns bound how much. slow-lava runs at
+ * most 8 s in every 48 s (40 s cooldown), so it cuts the mean by at most
+ * TIME_SLOW_FRAC * 8/48 = 6.7% (0.70x -> 0.65x at the cap). harden-lava stops
+ * the clock for at most 7 s in every 62 s (55 s cooldown), an 11.3% cut
+ * (0.70x -> 0.62x). Chained at full uptime the two leave ~0.57x at the cap
+ * (~0.52x when the ramp ends), below the best unaided pace, so a run fed by
+ * both is NOT guaranteed to end: orb supply, not these cooldowns, is what
+ * bounds it. Cooldowns are per player, and in a duel either climber's effect
+ * applies to both (`hazardTimeScale`), so a duel can see up to twice that
+ * uptime. A random orb that rolls either type obeys the same cooldown. Do not
+ * raise TIME_SLOW_FRAC, lengthen either duration or shorten either cooldown
+ * without redoing this arithmetic. powerups.test.ts pins the slow-lava
+ * constants (not harden-lava's). The 8 s / 40 s pair keeps the same uptime
+ * fraction as the old 6 s / 30 s window.
  *
  * Spawns are a seeded GAP SCHEDULE, not independent per-floor coin flips:
  * a random first floor, then mixed clusters and droughts whose mean gap
@@ -126,7 +133,10 @@ export const SUPER_JUMP_AIR_JUMPS = 3;
  * line visibly slows without stalling the way 0.75 did.
  */
 export const TIME_SLOW_FRAC = 0.4;
-/** Seconds before slow-lava may be used again — the endless-run guarantee. */
+/**
+ * Seconds before slow-lava may be used again. Bounds its uptime to 8 s in every
+ * 48 s; it does not guarantee a run ends (see LAVA-CLOCK POWER-UPS above).
+ */
 export const TIME_SLOW_COOLDOWN_SECONDS = 40;
 /** Seconds before harden-lava may be used again. */
 export const HARDEN_LAVA_COOLDOWN_SECONDS = 55;
