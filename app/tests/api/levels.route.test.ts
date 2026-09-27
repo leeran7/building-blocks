@@ -60,6 +60,7 @@ const OK_VERDICT: LevelVerdict = {
   pars: { twoStarTicks: 1250, threeStarTicks: 1050 },
   inputHash: "abc",
   inputSegments: 30,
+  claimMinInputSegments: 4,
 };
 
 function fakeCatalog(verify = vi.fn((): LevelVerdict => OK_VERDICT)): LevelCatalog & { verify: typeof verify } {
@@ -268,6 +269,10 @@ describe("POST /api/levels/result", () => {
     const res = await result({ ticketId: "ticket_abcdefghijk", replayToken: token, season: 9, level: 300, stars: 3 });
     expect(res.status).toBe(200);
     expect(catalog.verify).toHaveBeenCalledTimes(1);
+    // The per-level limit is keyed on the ticket's level, not the body's.
+    expect(checkRateLimit).toHaveBeenCalledWith(
+      expect.objectContaining({ namespace: "climb:level:result", identifier: "u1:1:42" })
+    );
     const [spec, replay] = catalog.verify.mock.calls[0] as unknown as [unknown, RunReplay];
     expect(spec).toEqual({ season: 1, level: 42, simVersion: SIM, specVersion: 142, startPowerUp: null });
     expect(replay.inputs).toHaveLength(inputs.length);
@@ -295,10 +300,15 @@ describe("POST /api/levels/result", () => {
       { replayToken: token },
       { ticketId: "../../x", replayToken: token },
       { ticketId: "ticket_abcdefghijk" },
-      { ticketId: "ticket_abcdefghijk", replayToken: "not-a-replay" },
     ]) {
       expect((await result(body)).status).toBe(400);
     }
+    expect(openTicketSpec).not.toHaveBeenCalled();
+    // A token that parses as a string but not as a replay fails at decode.
+    const res = await result({ ticketId: "ticket_abcdefghijk", replayToken: "not-a-replay" });
+    expect(res.status).toBe(400);
+    expect((await res.json()).code).toBe("INVALID_REPLAY");
+    expect(catalog.verify).not.toHaveBeenCalled();
     expect(submitLevelResult).not.toHaveBeenCalled();
   });
 
@@ -326,6 +336,31 @@ describe("POST /api/levels/result", () => {
     expect((await res.json()).code).toBe("REPLAY_REUSED");
   });
 
+  it("refuses when the ticket's season is no longer active on this manifest", async () => {
+    vi.mocked(activeLevelSeason).mockResolvedValueOnce({ id: 1, manifestHash: "changed", minLevelSimVersion: 1 });
+    const res = await result({ ticketId: "ticket_abcdefghijk", replayToken: token });
+    expect(res.status).toBe(503);
+    expect(catalog.verify).not.toHaveBeenCalled();
+    expect(submitLevelResult).not.toHaveBeenCalled();
+  });
+
+  it("never returns the engine's own failure text", async () => {
+    catalog.verify.mockReturnValueOnce({ ok: false, code: "WRONG_LEVEL", reason: "internal: seed s1:level:41:3" });
+    const res = await result({ ticketId: "ticket_abcdefghijk", replayToken: token });
+    expect(JSON.stringify(await res.json())).not.toContain("internal");
+  });
+
+  it("caps each player's results across all levels", async () => {
+    vi.mocked(checkRateLimit).mockImplementation(async (opts) => ({
+      allowed: opts.namespace !== "climb:level:result:total",
+      degraded: false,
+    }));
+    const res = await result({ ticketId: "ticket_abcdefghijk", replayToken: token });
+    expect(res.status).toBe(429);
+    expect(catalog.verify).not.toHaveBeenCalled();
+    vi.mocked(checkRateLimit).mockImplementation(async () => ({ allowed: true, degraded: false }));
+  });
+
   it("answers 503 while the level engine is not wired", async () => {
     vi.mocked(getLevelCatalog).mockReturnValue(null);
     expect((await result({ ticketId: "ticket_abcdefghijk", replayToken: token })).status).toBe(503);
@@ -338,13 +373,6 @@ describe("POST /api/levels/result", () => {
 });
 
 describe("GET /api/levels/me", () => {
-  it("returns a fresh profile for a player with no row, without creating one", async () => {
-    vi.mocked(levelProfile).mockResolvedValueOnce(null);
-    const res = await getMe(req("/api/levels/me?season=1"));
-    expect(res.status).toBe(200);
-    expect(await res.json()).toMatchObject({ lives: 5, xp: 0, playerLevel: 1, frontier: 1, levels: [] });
-  });
-
   it("returns the stored profile with ISO dates", async () => {
     vi.mocked(levelProfile).mockResolvedValueOnce({
       lives: 3,

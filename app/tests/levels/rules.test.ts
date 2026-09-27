@@ -13,6 +13,8 @@ import {
   episodeLevels,
   episodeOf,
   firstClearXp,
+  isBadStart,
+  isQuickRestart,
   isHardLevel,
   isLevelNumber,
   levelCostsLife,
@@ -78,6 +80,22 @@ describe("lives", () => {
     expect(refundLife({ lives: 3, updatedAt: T0 }, at(31))).toEqual({ lives: 5, updatedAt: at(30) });
   });
 
+  it("a bad start must end within 3 s of GO and be submitted promptly", () => {
+    expect(isBadStart(60, T0, new Date(T0.getTime() + 10_000))).toBe(true);
+    expect(isBadStart(90, T0, new Date(T0.getTime() + 10_000))).toBe(false);
+    expect(isBadStart(-1, T0, T0)).toBe(false);
+    // A ticket played locally for minutes, then submitted as a short log.
+    expect(isBadStart(60, T0, at(5))).toBe(false);
+    expect(isBadStart(60, T0, new Date(T0.getTime() + 3_000 + 2_000 + 5_000))).toBe(true);
+    expect(isBadStart(60, T0, new Date(T0.getTime() + 3_000 + 2_000 + 5_001))).toBe(false);
+    expect(isBadStart(89, T0, T0)).toBe(true);
+  });
+
+  it("a restart closes the old ticket as a bad start only within the window", () => {
+    expect(isQuickRestart(T0, new Date(T0.getTime() + 11_000))).toBe(true);
+    expect(isQuickRestart(T0, new Date(T0.getTime() + 11_001))).toBe(false);
+  });
+
   it("LIFE_REFILL_MS is 30 minutes", () => {
     expect(LIFE_REFILL_MS).toBe(30 * 60 * 1000);
   });
@@ -133,8 +151,8 @@ describe("XP and player level", () => {
 
   it("level steps cost round(60 * L^1.35)", () => {
     expect(xpToNextLevel(1)).toBe(60);
-    expect(xpToNextLevel(2)).toBe(Math.round(60 * 2 ** 1.35));
-    expect(xpToNextLevel(10)).toBe(Math.round(60 * 10 ** 1.35));
+    expect(xpToNextLevel(2)).toBe(153);
+    expect(xpToNextLevel(10)).toBe(1343);
   });
 
   it("player level starts at 1 and rises exactly at each threshold", () => {

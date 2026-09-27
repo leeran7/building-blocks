@@ -262,7 +262,7 @@ model LevelRunTicket {
 }
 
 // Best verified result per (user, season, level). stars and best_ticks only
-// ever improve (GREATEST / LEAST). A row exists only once a level is cleared,
+// ever improve: read and written under the user's row lock. A row exists only once a level is cleared,
 // so the player's frontier is MAX(level) + 1 in the season.
 model LevelProgress {
   id             String   @id @default(cuid())

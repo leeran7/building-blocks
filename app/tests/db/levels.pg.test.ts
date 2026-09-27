@@ -57,6 +57,7 @@ function cleared(finishTicks: number, hash = `h-${finishTicks}`): Verdict {
     pars: PARS,
     inputHash: hash,
     inputSegments: 40,
+    claimMinInputSegments: 4,
   };
 }
 
@@ -183,13 +184,24 @@ describe.skipIf(!PG_URL)("levels on Postgres", () => {
       await user("a");
       await clearThrough("a", 10);
       const first = await start("a", 11);
-      await start("a", 11);
+      await start("a", 11, at(1));
       expect(await livesOf("a")).toBe(3);
       expect(await prisma.levelRunTicket.findUnique({ where: { id: first.ticketId } })).toMatchObject({
         outcome: "abandoned",
       });
       expect(await codeOf(submit("a", first.ticketId, cleared(1000)))).toBe("TICKET_USED");
       expect(await livesOf("a")).toBe(3);
+    });
+
+    it("restarting within 3 s of GO gives the closed ticket's life back", async () => {
+      await user("a");
+      await clearThrough("a", 10);
+      const first = await start("a", 11);
+      const second = await start("a", 11, new Date(T0.getTime() + 4_000));
+      expect(second.lives).toBe(4);
+      expect(await prisma.levelRunTicket.findUnique({ where: { id: first.ticketId } })).toMatchObject({
+        outcome: "bad_start",
+      });
     });
 
     it("one player's ticket is not found for another", async () => {
@@ -237,6 +249,44 @@ describe.skipIf(!PG_URL)("levels on Postgres", () => {
       expect(await submit("a", t1.ticketId, failed(400))).toMatchObject({ outcome: "failed", lifeRefunded: false, lives: 4 });
       const t2 = await start("a", 11);
       expect(await submit("a", t2.ticketId, failed(60))).toMatchObject({ outcome: "bad_start", lifeRefunded: true, lives: 4 });
+    });
+
+    it("a short log submitted long after its ticket is a fail, not a bad start", async () => {
+      await user("a");
+      await clearThrough("a", 10);
+      const t = await start("a", 11);
+      expect(await submit("a", t.ticketId, failed(60), at(10))).toMatchObject({
+        outcome: "failed",
+        lifeRefunded: false,
+        lives: 4,
+      });
+    });
+
+    it("the bad-start window is under 3 s of race time (89 vs 90 ticks)", async () => {
+      await user("a");
+      await clearThrough("a", 10);
+      const t1 = await start("a", 11);
+      expect(await submit("a", t1.ticketId, failed(89))).toMatchObject({ outcome: "bad_start", lives: 5 });
+      const t2 = await start("a", 11);
+      expect(await submit("a", t2.ticketId, failed(90))).toMatchObject({ outcome: "failed", lives: 4 });
+    });
+
+    it("a ticket issued while a clear is being saved never loses the refund", async () => {
+      await user("a");
+      await clearThrough("a", 10);
+      for (let i = 0; i < 10; i++) {
+        await prisma.levelRunTicket.updateMany({ where: { used_at: null }, data: { used_at: T0, outcome: "abandoned" } });
+        await prisma.user.update({ where: { id: "a" }, data: { lives: 5, lives_updated_at: null } });
+        const t = await start("a", 11);
+        const later = at(1);
+        const [submitted] = await Promise.all([
+          codeOf(submit("a", t.ticketId, cleared(1000, `race-${i}`), later)),
+          codeOf(start("a", 11, later)),
+        ]);
+        // Submit first: refund to 5, then the new ticket spends one (4).
+        // Ticket first: the open one is abandoned and the submit is refused (3).
+        expect(await livesOf("a")).toBe(submitted === "resolved" ? 4 : 3);
+      }
     });
 
     it("concurrent submits of one ticket refund and pay exactly once", async () => {
@@ -326,8 +376,15 @@ describe.skipIf(!PG_URL)("levels on Postgres", () => {
       expect(await prisma.user.findUniqueOrThrow({ where: { id: "a" } })).toMatchObject({ lives: 2, lives_updated_at: T0 });
     });
 
-    it("levelProfile creates nothing for an unknown user", async () => {
-      expect(await levelProfile("ghost", 1, T0)).toBeNull();
+    it("levelProfile gives an unknown user a fresh profile and creates nothing", async () => {
+      expect(await levelProfile("ghost", 1, T0)).toMatchObject({
+        lives: 5,
+        nextLifeAt: null,
+        xp: 0,
+        playerLevel: 1,
+        frontier: 1,
+        levels: [],
+      });
       expect(await prisma.user.count()).toBe(0);
     });
 

@@ -48,6 +48,11 @@ export type LevelVerdict =
       inputHash: string;
       /** Input segments of the same consumed log (as dailyInputSegments). */
       inputSegments: number;
+      /**
+       * Fewest input segments a cleared run on this level needs before its
+       * hash is claimed against reuse, measured per level (design §7).
+       */
+      claimMinInputSegments: number;
     }
   | { ok: false; code: LevelVerifyFailure; reason: string };
 

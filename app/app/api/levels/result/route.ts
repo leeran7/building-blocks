@@ -28,13 +28,14 @@
  * 410:      { error, code: TICKET_EXPIRED }
  * 429:      { error, code: RATE_LIMITED }
  * 500:      { error, code: PERSIST_ERROR }
- * 503:      { error, code: LEVELS_UNAVAILABLE }
+ * 503:      { error, code: LEVELS_UNAVAILABLE } (no engine, or the season is
+ *            no longer active on this server's manifest)
  */
 
 import { NextRequest, NextResponse } from "next/server";
 
-import { LevelError, openTicketSpec, submitLevelResult } from "../../../../src/db/levels";
-import { getLevelCatalog, type LevelTicketSpec } from "../../../../src/levels/catalog";
+import { LevelError, activeLevelSeason, openTicketSpec, submitLevelResult } from "../../../../src/db/levels";
+import { getLevelCatalog, type LevelTicketSpec, type LevelVerifyFailure } from "../../../../src/levels/catalog";
 import {
   NO_STORE,
   levelErrorResponse,
@@ -45,9 +46,21 @@ import {
 } from "../../../../src/levels/http";
 import { parseReplayToken, parseRunReplayEnvelope } from "../../../../src/game/runReplay";
 import { inflateReplayEnvelope } from "../../../../src/game/runReplayServer";
-import { checkClimbIpRateLimit, checkLevelUserRateLimit } from "../../../../src/lib/climbRateLimit";
+import {
+  checkClimbIpRateLimit,
+  checkLevelUserRateLimit,
+  checkLevelUserTotalRateLimit,
+} from "../../../../src/lib/climbRateLimit";
 
 export const runtime = "nodejs";
+
+// Fixed client text per failure: the engine's own reason is logged, never
+// returned, so nothing about its internals reaches the client.
+const VERIFY_FAILURE_MESSAGE: Record<LevelVerifyFailure, string> = {
+  RUN_TOO_LONG: "That run is too long for this level",
+  REPLAY_MISMATCH: "Replay could not be verified",
+  WRONG_LEVEL: "That replay is not for this level",
+};
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
   const body = await readJsonObject(request);
@@ -77,13 +90,37 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return reject(500, "PERSIST_ERROR", "Could not save the run");
   }
 
-  const userLimit = await checkLevelUserRateLimit("result", player.uid, ticket.season, ticket.level);
+  const totalLimit = await checkLevelUserTotalRateLimit("result", player.uid);
+  const userLimit = totalLimit.allowed
+    ? await checkLevelUserRateLimit("result", player.uid, ticket.season, ticket.level)
+    : totalLimit;
   if (!userLimit.allowed) return reject(429, "RATE_LIMITED", "Too many requests");
 
   // The ticket was issued under the engine then running. If the server has
   // since moved to another engine it cannot reproduce the run.
   if (ticket.simVersion !== catalog.simVersion) {
     return reject(409, "SIM_VERSION_MISMATCH", "Update the app to play levels");
+  }
+
+  // The same activation checks as /ticket: the season must still be live on
+  // the manifest it was activated with, so an open ticket is never scored
+  // against a manifest that changed after it was issued.
+  const seasonInfo = catalog.season(ticket.season);
+  let active: Awaited<ReturnType<typeof activeLevelSeason>>;
+  try {
+    active = await activeLevelSeason(ticket.season, now);
+  } catch (err) {
+    console.error("[levels/result] season lookup failed:", err);
+    return reject(500, "PERSIST_ERROR", "Could not save the run");
+  }
+  if (
+    !seasonInfo ||
+    !active ||
+    active.manifestHash !== seasonInfo.manifestHash ||
+    catalog.simVersion < active.minLevelSimVersion
+  ) {
+    console.error("[levels/result] season is not active on this server's manifest", { season: ticket.season });
+    return reject(503, "LEVELS_UNAVAILABLE", "Levels are not available right now");
   }
 
   // Envelope first (no inflation), then the capped inflate (SEC-DC-1).
@@ -99,10 +136,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         season: ticket.season,
         level: ticket.level,
         code: verdict.code,
+        reason: verdict.reason,
         ticks: replay.inputs.length,
       });
     }
-    return reject(400, verdict.code, verdict.reason);
+    return reject(400, verdict.code, VERIFY_FAILURE_MESSAGE[verdict.code]);
   }
 
   try {

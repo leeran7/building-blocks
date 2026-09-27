@@ -7,6 +7,8 @@
  * a request: every input is server state or a server re-simulation.
  */
 
+import { TICK_HZ } from "../game/types";
+
 // ── Lives (§5b) ──────────────────────────────────────────────────────────────
 
 /** Most lives a player can hold. */
@@ -18,11 +20,44 @@ export const LIFE_REFILL_MS = 30 * 60 * 1000;
 /** Levels at or under this number are the tutorial and cost no life. */
 export const FREE_LIVES_THROUGH_LEVEL = 10;
 
+/** Race ticks from GO under which a failed attempt is a bad start: 3 s. */
+export const EARLY_RESTART_TICKS = 3 * TICK_HZ;
+
 /**
- * Race ticks (30 Hz, counted from GO) under which a failed attempt is a bad
- * start rather than a real try, and its life is refunded: 3 s.
+ * Slack, in ms, on top of the countdown and the run itself, for a bad start
+ * to still count as one: network and app latency between GO and the submit.
+ * Kept small, because it is also how long a modified client could play a
+ * ticket locally before claiming a bad start.
  */
-export const EARLY_RESTART_TICKS = 90;
+export const BAD_START_SLACK_MS = 5_000;
+
+/** Countdown before GO (COUNTDOWN_TICKS at TICK_HZ). */
+const COUNTDOWN_MS = 3_000;
+
+/** Longest a ticket can have been open and still end in a bad start. */
+export const BAD_START_WINDOW_MS = COUNTDOWN_MS + (EARLY_RESTART_TICKS * 1000) / TICK_HZ + BAD_START_SLACK_MS;
+
+/**
+ * Whether a failed run is a bad start whose life is refunded. The server's
+ * re-simulation ends where the submitted log ends, so the replay's length is
+ * client-controlled: a short log alone proves nothing. The run must end
+ * within EARLY_RESTART_TICKS of GO, AND be submitted within countdown + the
+ * run + BAD_START_SLACK_MS of the ticket being issued (server clock).
+ */
+export function isBadStart(raceTicks: number, ticketIssuedAt: Date, now: Date): boolean {
+  if (!(raceTicks >= 0 && raceTicks < EARLY_RESTART_TICKS)) return false;
+  const elapsed = now.getTime() - ticketIssuedAt.getTime();
+  return elapsed <= COUNTDOWN_MS + (raceTicks * 1000) / TICK_HZ + BAD_START_SLACK_MS;
+}
+
+/**
+ * Whether an open ticket closed by starting a new one counts as a restart
+ * within 3 s of GO (refunded) rather than an abandoned run. Decided only by
+ * the server clock, since no replay was submitted.
+ */
+export function isQuickRestart(ticketIssuedAt: Date, now: Date): boolean {
+  return now.getTime() - ticketIssuedAt.getTime() <= BAD_START_WINDOW_MS;
+}
 
 /** Stored life state: the users.lives / users.lives_updated_at columns. */
 export interface LifeState {
@@ -108,6 +143,11 @@ export function isLevelNumber(n: unknown): n is number {
 /** 1-based episode a level belongs to. */
 export function episodeOf(level: number): number {
   return Math.floor((level - 1) / LEVELS_PER_EPISODE) + 1;
+}
+
+/** Highest level a player may start: one past the highest cleared (0 = none). */
+export function frontierAfter(highestCleared: number): number {
+  return highestCleared + 1;
 }
 
 /** First and last level of an episode. */

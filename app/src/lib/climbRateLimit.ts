@@ -70,3 +70,20 @@ export function checkLevelUserRateLimit(
     failMode: "open",
   });
 }
+
+/**
+ * Per-user cap across ALL levels, so the per-level keys above cannot be
+ * multiplied by cycling levels (free L1-10 and every cleared level). 60 per
+ * 5 minutes per route is still far above honest play.
+ */
+export const LEVEL_USER_TOTAL_MAX = 60;
+
+export function checkLevelUserTotalRateLimit(route: "ticket" | "result", uid: string): Promise<RateLimitResult> {
+  return checkRateLimit({
+    namespace: `climb:level:${route}:total`,
+    identifier: uid,
+    max: LEVEL_USER_TOTAL_MAX,
+    windowSeconds: LEVEL_USER_WINDOW_SECONDS,
+    failMode: "open",
+  });
+}

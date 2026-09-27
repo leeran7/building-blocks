@@ -5,7 +5,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 
-import { verifyIdToken } from "../lib/firebaseAdmin";
+import { AuthError, requireAuth } from "../lib/requireAuth";
 import type { LevelError, LevelErrorCode } from "../db/levels";
 
 export const NO_STORE = { "Cache-Control": "private, no-store" };
@@ -16,7 +16,7 @@ export function reject(
   error: string,
   details: Record<string, string | number | null> = {}
 ): NextResponse {
-  return NextResponse.json({ error, code, ...details }, { status, headers: NO_STORE });
+  return NextResponse.json({ ...details, error, code }, { status, headers: NO_STORE });
 }
 
 export interface LevelPlayer {
@@ -31,16 +31,15 @@ export interface LevelPlayer {
  * Guests play locally and nothing about them is trusted (design §7).
  */
 export async function levelPlayer(request: NextRequest): Promise<LevelPlayer | NextResponse> {
-  const header = request.headers.get("authorization");
-  const token = header?.startsWith("Bearer ") ? header.slice(7).trim() : null;
-  if (!token) return reject(401, "UNAUTHORIZED", "Sign in to play levels");
+  let decoded: Awaited<ReturnType<typeof requireAuth>>;
   try {
-    const decoded = await verifyIdToken(token);
-    if (!decoded.email) return reject(401, "UNAUTHORIZED", "Sign in to play levels");
-    return { uid: decoded.uid, email: decoded.email, emailVerified: decoded.email_verified ?? false };
-  } catch {
-    return reject(401, "UNAUTHORIZED", "Invalid or expired token");
+    decoded = await requireAuth(request);
+  } catch (err) {
+    if (err instanceof AuthError) return err.response;
+    throw err;
   }
+  if (!decoded.email) return reject(401, "UNAUTHORIZED", "Sign in to play levels");
+  return { uid: decoded.uid, email: decoded.email, emailVerified: decoded.email_verified ?? false };
 }
 
 const LEVEL_ERROR_STATUS: Record<LevelErrorCode, number> = {

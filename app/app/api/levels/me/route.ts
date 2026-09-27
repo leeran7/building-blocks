@@ -15,7 +15,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { levelProfile } from "../../../../src/db/levels";
-import { MAX_LIVES, playerLevelProgress } from "../../../../src/levels/rules";
 import { NO_STORE, levelPlayer, parseSeasonId, reject } from "../../../../src/levels/http";
 
 export const runtime = "nodejs";
@@ -30,25 +29,6 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
   try {
     const profile = await levelProfile(player.uid, season, new Date());
-    if (!profile) {
-      const fresh = playerLevelProgress(0);
-      return NextResponse.json(
-        {
-          lives: MAX_LIVES,
-          maxLives: MAX_LIVES,
-          nextLifeAt: null,
-          xp: 0,
-          playerLevel: fresh.level,
-          xpIntoLevel: fresh.xpIntoLevel,
-          xpForNextLevel: fresh.xpForNextLevel,
-          season,
-          frontier: 1,
-          totalStars: 0,
-          levels: [],
-        },
-        { status: 200, headers: NO_STORE }
-      );
-    }
     return NextResponse.json(
       { ...profile, nextLifeAt: profile.nextLifeAt?.toISOString() ?? null },
       { status: 200, headers: NO_STORE }

@@ -37,7 +37,11 @@ import {
   readJsonObject,
   reject,
 } from "../../../../src/levels/http";
-import { checkClimbIpRateLimit, checkLevelUserRateLimit } from "../../../../src/lib/climbRateLimit";
+import {
+  checkClimbIpRateLimit,
+  checkLevelUserRateLimit,
+  checkLevelUserTotalRateLimit,
+} from "../../../../src/lib/climbRateLimit";
 
 export const runtime = "nodejs";
 
@@ -58,7 +62,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const player = await levelPlayer(request);
   if (player instanceof NextResponse) return player;
 
-  const userLimit = await checkLevelUserRateLimit("ticket", player.uid, season, level);
+  const totalLimit = await checkLevelUserTotalRateLimit("ticket", player.uid);
+  const userLimit = totalLimit.allowed
+    ? await checkLevelUserRateLimit("ticket", player.uid, season, level)
+    : totalLimit;
   if (!userLimit.allowed) return reject(429, "RATE_LIMITED", "Too many requests");
 
   const seasonInfo = catalog.season(season);

@@ -22,10 +22,12 @@ import type { Prisma } from "@prisma/client";
 
 import { prisma } from "./client";
 import {
-  EARLY_RESTART_TICKS,
   MAX_LIVES,
   episodeLevels,
   episodeOf,
+  frontierAfter,
+  isBadStart,
+  isQuickRestart,
   levelCostsLife,
   nextLifeAt,
   playerLevelForXp,
@@ -38,9 +40,9 @@ import {
   type LifeState,
 } from "../levels/rules";
 import type { LevelTicketSpec, LevelVerdict } from "../levels/catalog";
-import { DAILY_CLAIM_MIN_INPUT_SEGMENTS } from "../game/dailyVerify";
 
 type TxClient = Prisma.TransactionClient;
+type LevelVerdictOk = Extract<LevelVerdict, { ok: true }>;
 
 /** A ticket is valid for 24 h, so a crashed run can still be submitted. */
 export const LEVEL_TICKET_TTL_MS = 24 * 60 * 60 * 1000;
@@ -83,7 +85,7 @@ async function frontierLevel(tx: TxClient, userId: string, season: number): Prom
     where: { userId, season },
     _max: { level: true },
   });
-  return (top._max.level ?? 0) + 1;
+  return frontierAfter(top._max.level ?? 0);
 }
 
 function lifeOf(user: { lives: number; lives_updated_at: Date | null }): LifeState {
@@ -112,9 +114,13 @@ export interface IssuedTicket {
 }
 
 /**
- * Start a level: check it is unlocked, close any open ticket as abandoned
- * (a loss, no refund), spend a life unless the level is free, and issue a
- * ticket. All under the user's row lock.
+ * Start a level: check it is unlocked, close any open ticket, spend a life
+ * unless the level is free, and issue a ticket. All under the user's row lock.
+ *
+ * Contract for the app: a finished or crashed run should be submitted to
+ * /result before a new level is started, since starting one closes the open
+ * ticket. The only closed ticket that gets its life back is a restart within
+ * the bad-start window (server clock, isQuickRestart).
  *
  * @throws LevelError LEVEL_LOCKED | OUT_OF_LIVES | USER_NOT_FOUND
  */
@@ -128,14 +134,25 @@ export async function issueLevelTicket(input: IssueTicketInput): Promise<IssuedT
       throw new LevelError("LEVEL_LOCKED", "Clear the earlier levels first", { frontier });
     }
 
-    // One open ticket per user. Starting a new level while one is open counts
-    // as a loss (design §6.3), so the old one is closed without a refund.
-    await tx.levelRunTicket.updateMany({
-      where: { userId, used_at: null },
-      data: { used_at: now, outcome: "abandoned" },
-    });
-
     let life = refillLives(lifeOf(user), now);
+
+    // One open ticket per user. Starting a new level while one is open counts
+    // as a loss (design §6.3) and keeps its life spent, except a restart
+    // within 3 s of GO (§5b), which is a bad start and refunded. Each close is
+    // conditional on used_at IS NULL, so a refund follows only a real close.
+    const open = await tx.levelRunTicket.findMany({
+      where: { userId, used_at: null },
+      select: { id: true, created_at: true, life_spent: true },
+    });
+    for (const ticket of open) {
+      const quick = isQuickRestart(ticket.created_at, now);
+      const closed = await tx.levelRunTicket.updateMany({
+        where: { id: ticket.id, used_at: null },
+        data: { used_at: now, outcome: quick ? "bad_start" : "abandoned" },
+      });
+      if (closed.count === 1 && quick && ticket.life_spent) life = refundLife(life, now);
+    }
+
     const lifeSpent = levelCostsLife(level);
     if (lifeSpent) {
       const spent = spendLife(life, now);
@@ -210,9 +227,13 @@ function assertOpen(ticket: TicketRow | null, now: Date): asserts ticket is Tick
 
 // ── Results ──────────────────────────────────────────────────────────────────
 
-/** Whether a cleared run's input hash is claimed against reuse (as the Daily's SEC-DC-15). */
-export function levelRunNeedsClaim(inputSegments: number): boolean {
-  return inputSegments >= DAILY_CLAIM_MIN_INPUT_SEGMENTS;
+/**
+ * Whether a cleared run's input hash is claimed against reuse. The threshold
+ * is measured per level by the engine (design §7, as the Daily's SEC-DC-15):
+ * below it honest players repeat the same log, so it is not claimed.
+ */
+export function levelRunNeedsClaim(verdict: Pick<LevelVerdictOk, "inputSegments" | "claimMinInputSegments">): boolean {
+  return verdict.inputSegments >= verdict.claimMinInputSegments;
 }
 
 export type LevelOutcome = "cleared" | "failed" | "bad_start";
@@ -221,7 +242,7 @@ export interface SubmitResultInput {
   userId: string;
   ticketId: string;
   /** The server's re-simulation of the submitted replay on the ticket's level. */
-  verdict: Extract<LevelVerdict, { ok: true }>;
+  verdict: LevelVerdictOk;
   /** Stored as the best run's replay (friend ghosts) when it is the fastest. */
   replayToken: string;
   now: Date;
@@ -270,12 +291,12 @@ export async function submitLevelResult(input: SubmitResultInput): Promise<Level
     const stars = starsForRun(verdict.finished ? verdict.finishTicks : null, verdict.pars, verdict.allGems);
     const finishTicks = stars > 0 ? verdict.finishTicks : null;
     const outcome: LevelOutcome =
-      finishTicks !== null ? "cleared" : verdict.raceTicks < EARLY_RESTART_TICKS ? "bad_start" : "failed";
+      finishTicks !== null ? "cleared" : isBadStart(verdict.raceTicks, ticket.created_at, now) ? "bad_start" : "failed";
 
     // Level seeds are public and friend ghosts hand out winning logs, so a
     // cleared run already claimed by another account is refused (design §7).
     // Throwing rolls the whole transaction back: the ticket stays open.
-    if (finishTicks !== null && levelRunNeedsClaim(verdict.inputSegments)) {
+    if (finishTicks !== null && levelRunNeedsClaim(verdict)) {
       const rows = await tx.$queryRaw<{ userId: string }[]>`
         INSERT INTO level_replay_claims (id, season, level, spec_version, input_hash, "userId", created_at)
         VALUES (${nanoid()}, ${season}, ${level}, ${ticket.spec_version}, ${verdict.inputHash}, ${userId}, ${now})
@@ -413,15 +434,15 @@ export interface LevelProfile {
 
 /**
  * The player's lives, XP and progress in one season. Read-only: the refill
- * is computed, never written, so a GET creates and changes nothing. Null when
- * the user has no row yet (the client shows a fresh profile).
+ * is computed, never written, so a GET creates and changes nothing. A user
+ * with no row yet gets the same fresh profile a new row would give (5 lives,
+ * no XP, level 1 unlocked), without a row being created.
  */
-export async function levelProfile(userId: string, season: number, now: Date): Promise<LevelProfile | null> {
-  const user = await prisma.user.findUnique({
+export async function levelProfile(userId: string, season: number, now: Date): Promise<LevelProfile> {
+  const user = (await prisma.user.findUnique({
     where: { id: userId },
     select: { lives: true, lives_updated_at: true, xp: true },
-  });
-  if (!user) return null;
+  })) ?? { lives: MAX_LIVES, lives_updated_at: null, xp: 0 };
   const rows = await prisma.levelProgress.findMany({
     where: { userId, season },
     select: { level: true, stars: true, best_ticks: true },
@@ -438,7 +459,7 @@ export async function levelProfile(userId: string, season: number, now: Date): P
     xpIntoLevel: progress.xpIntoLevel,
     xpForNextLevel: progress.xpForNextLevel,
     season,
-    frontier: rows.reduce((max, r) => Math.max(max, r.level), 0) + 1,
+    frontier: frontierAfter(rows.reduce((max, r) => Math.max(max, r.level), 0)),
     totalStars: rows.reduce((sum, r) => sum + r.stars, 0),
     levels: rows.map((r) => ({ level: r.level, stars: r.stars, bestTicks: r.best_ticks })),
   };
