@@ -94,7 +94,6 @@ model User {
   pushTokens             PushToken[]
   levelRunTickets        LevelRunTicket[]
   levelProgress          LevelProgress[]
-  levelReplayClaims      LevelReplayClaim[]
   xpGrants               XpGrant[]
 
   @@map("users")
@@ -214,19 +213,17 @@ model DailyClimbReplay {
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Level System (mobile only): seasons, run tickets, progress, XP
-// design/xp-and-levels.md §5, §7, §9. Every row here is written by
-// src/db/levels.ts from server state and server re-simulation only.
+// design/xp-and-levels.md §5, §9. Every row here is written by
+// src/db/levels.ts. Run results are the device's report (no replay check,
+// Leeran 2026-09-27); tickets, lives, unlocks and XP keys are server-side.
 // ═══════════════════════════════════════════════════════════════════════════
 
-// A season the server will issue tickets for. The levels themselves are the
-// committed season manifest; this row activates it. A ticket is issued only
-// when starts_at has passed and manifest_hash equals the hash of the server's
-// own manifest copy, so a season whose manifest changed cannot go live by
-// accident. Named level_seasons: the old paid-stacks "Season" was dropped.
+// A season the server will issue tickets for: inserting this row switches it
+// on. A ticket is issued only once starts_at has passed. Named level_seasons:
+// the old paid-stacks "Season" model was dropped.
 model LevelSeason {
   id                    Int      @id // season number, 1-based
   name                  String
-  manifest_hash         String // SHA-256 hex of seasons/season-{id}.json
   starts_at             DateTime
   // Oldest LEVEL_SIM_VERSION that can play this season (new mechanics).
   min_level_sim_version Int      @default(1)
@@ -246,7 +243,6 @@ model LevelRunTicket {
   season         Int
   level          Int
   sim_version    Int // LEVEL_SIM_VERSION at issue
-  spec_version   Int // level-spec revision at issue
   start_power_up String? // granted at GO (streaks, stuck help); null for now
   life_spent     Boolean // false on free levels (L1-10)
   created_at     DateTime  @default(now())
@@ -261,20 +257,19 @@ model LevelRunTicket {
   @@map("level_run_tickets")
 }
 
-// Best verified result per (user, season, level). stars and best_ticks only
-// ever improve: read and written under the user's row lock. A row exists only once a level is cleared,
-// so the player's frontier is MAX(level) + 1 in the season.
+// Best reported result per (user, season, level). stars and best_ticks only
+// ever improve: read and written under the user's row lock. A row exists
+// only once a level is cleared, so the frontier is MAX(level) + 1.
 model LevelProgress {
   id             String   @id @default(cuid())
   userId         String
   season         Int
   level          Int
   stars          Int // 1..3
-  best_ticks     Int // fastest verified finish, race ticks from GO
+  best_ticks     Int // fastest reported finish, race ticks from GO
   sim_version    Int
-  spec_version   Int
   start_power_up String?
-  replay_token   String? // replay of the best_ticks run, for friend ghosts
+  replay_token   String? // replay of the best_ticks run (unverified), for ghosts
   created_at     DateTime @default(now())
   updated_at     DateTime @default(now()) // when best_ticks was last set
 
@@ -283,26 +278,6 @@ model LevelProgress {
   @@unique([userId, season, level], name: "level_progress_user_level", map: "level_progress_user_level_key")
   @@index([season, level, best_ticks, updated_at], map: "level_progress_board_idx")
   @@map("level_progress")
-}
-
-// Claim on a cleared level run's canonical input hash (design §7, as the
-// Daily's SEC-DC-2): level seeds are public and friend ghosts hand out
-// winning logs, so a run already claimed by another account is refused with
-// 409 REPLAY_REUSED. Keyed by spec_version so a seed re-roll starts fresh.
-model LevelReplayClaim {
-  id           String   @id @default(cuid())
-  season       Int
-  level        Int
-  spec_version Int
-  input_hash   String
-  userId       String
-  created_at   DateTime @default(now())
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([season, level, spec_version, input_hash], map: "level_replay_claims_run_key")
-  @@index([userId], map: "level_replay_claims_user_idx")
-  @@map("level_replay_claims")
 }
 
 // Every XP payment, keyed so it happens once: first_clear:{S}:{N},

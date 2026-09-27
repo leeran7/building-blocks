@@ -1,7 +1,7 @@
 /**
  * src/db/levels.ts against a REAL Postgres: lives spent and refunded once,
  * the ticket consumed once under concurrent submits, XP keys paid once,
- * frontier locking, replay claims and the episode award. The guarantees are
+ * frontier locking, the wall-clock check and the episode award. The guarantees are
  * row locks, conditional updates and unique indexes, which a mocked Prisma
  * cannot say anything about.
  *
@@ -34,36 +34,25 @@ import {
   activeLevelSeason,
   issueLevelTicket,
   levelProfile,
-  openTicketSpec,
+  openTicketLevel,
   submitLevelResult,
-  type SubmitResultInput,
 } from "../../src/db/levels";
-import { firstClearXp, EPISODE_XP, LIFE_REFILL_MS, STAR_XP } from "../../src/levels/rules";
+import { firstClearXp, EPISODE_XP, LIFE_REFILL_MS, STAR_XP, type ReportedRun } from "../../src/levels/rules";
 import { isLocalDbUrl } from "../../scripts/localDbGuard";
 
 const T0 = new Date("2026-09-27T12:00:00Z");
 const at = (minutes: number) => new Date(T0.getTime() + minutes * 60_000);
-const PARS = { twoStarTicks: 1250, threeStarTicks: 1050 };
 
-type Verdict = SubmitResultInput["verdict"];
-
-function cleared(finishTicks: number, hash = `h-${finishTicks}`): Verdict {
-  return {
-    ok: true,
-    finished: true,
-    finishTicks,
-    raceTicks: finishTicks,
-    allGems: true,
-    pars: PARS,
-    inputHash: hash,
-    inputSegments: 40,
-    claimMinInputSegments: 4,
-  };
+function cleared(ticks: number, stars: 1 | 2 | 3 = ticks <= 1050 ? 3 : ticks <= 1250 ? 2 : 1): ReportedRun {
+  return { cleared: true, stars, ticks };
 }
 
-function failed(raceTicks: number): Verdict {
-  return { ...cleared(0, `fail-${raceTicks}`), finished: false, finishTicks: null, raceTicks };
+function failed(ticks: number): ReportedRun {
+  return { cleared: false, stars: 0, ticks };
 }
+
+/** Two seconds after T0: inside the bad-start window of a ticket issued at T0. */
+const SOON = new Date(T0.getTime() + 2_000);
 
 async function codeOf(p: Promise<unknown>): Promise<string> {
   try {
@@ -95,7 +84,7 @@ describe.skipIf(!PG_URL)("levels on Postgres", () => {
 
   beforeEach(async () => {
     await prisma.$executeRawUnsafe(
-      'TRUNCATE "xp_grants", "level_replay_claims", "level_progress", "level_run_tickets", "level_seasons", "users" CASCADE'
+      'TRUNCATE "xp_grants", "level_progress", "level_run_tickets", "level_seasons", "users" CASCADE'
     );
   });
 
@@ -112,10 +101,11 @@ describe.skipIf(!PG_URL)("levels on Postgres", () => {
   }
 
   const start = (userId: string, level: number, now = T0, season = 1) =>
-    issueLevelTicket({ userId, season, level, simVersion: 1, specVersion: 1, now });
+    issueLevelTicket({ userId, season, level, simVersion: 1, now });
 
-  const submit = (userId: string, ticketId: string, verdict: Verdict, now = T0) =>
-    submitLevelResult({ userId, ticketId, verdict, replayToken: `tok-${ticketId}`, now });
+  // Default: five minutes after T0, long enough for any run in these tests.
+  const submit = (userId: string, ticketId: string, run: ReportedRun, now = at(5)) =>
+    submitLevelResult({ userId, ticketId, run, replayToken: `tok-${ticketId}`, now });
 
   const livesOf = async (id: string) =>
     (await prisma.user.findUniqueOrThrow({ where: { id }, select: { lives: true } })).lives;
@@ -124,7 +114,7 @@ describe.skipIf(!PG_URL)("levels on Postgres", () => {
   async function clearThrough(userId: string, n: number) {
     for (let level = 1; level <= n; level++) {
       const t = await start(userId, level);
-      await submit(userId, t.ticketId, cleared(1200, `${userId}-${level}`));
+      await submit(userId, t.ticketId, cleared(1200));
     }
   }
 
@@ -208,7 +198,7 @@ describe.skipIf(!PG_URL)("levels on Postgres", () => {
       await user("a");
       await user("b");
       const t = await start("a", 1);
-      expect(await codeOf(openTicketSpec("b", t.ticketId, T0))).toBe("TICKET_NOT_FOUND");
+      expect(await codeOf(openTicketLevel("b", t.ticketId, T0))).toBe("TICKET_NOT_FOUND");
       expect(await codeOf(submit("b", t.ticketId, cleared(1000)))).toBe("TICKET_NOT_FOUND");
     });
 
@@ -248,7 +238,7 @@ describe.skipIf(!PG_URL)("levels on Postgres", () => {
       const t1 = await start("a", 11);
       expect(await submit("a", t1.ticketId, failed(400))).toMatchObject({ outcome: "failed", lifeRefunded: false, lives: 4 });
       const t2 = await start("a", 11);
-      expect(await submit("a", t2.ticketId, failed(60))).toMatchObject({ outcome: "bad_start", lifeRefunded: true, lives: 4 });
+      expect(await submit("a", t2.ticketId, failed(60), SOON)).toMatchObject({ outcome: "bad_start", lifeRefunded: true, lives: 4 });
     });
 
     it("a short log submitted long after its ticket is a fail, not a bad start", async () => {
@@ -266,9 +256,9 @@ describe.skipIf(!PG_URL)("levels on Postgres", () => {
       await user("a");
       await clearThrough("a", 10);
       const t1 = await start("a", 11);
-      expect(await submit("a", t1.ticketId, failed(89))).toMatchObject({ outcome: "bad_start", lives: 5 });
+      expect(await submit("a", t1.ticketId, failed(89), SOON)).toMatchObject({ outcome: "bad_start", lives: 5 });
       const t2 = await start("a", 11);
-      expect(await submit("a", t2.ticketId, failed(90))).toMatchObject({ outcome: "failed", lives: 4 });
+      expect(await submit("a", t2.ticketId, failed(90), SOON)).toMatchObject({ outcome: "failed", lives: 4 });
     });
 
     it("a ticket issued while a clear is being saved never loses the refund", async () => {
@@ -280,7 +270,7 @@ describe.skipIf(!PG_URL)("levels on Postgres", () => {
         const t = await start("a", 11);
         const later = at(1);
         const [submitted] = await Promise.all([
-          codeOf(submit("a", t.ticketId, cleared(1000, `race-${i}`), later)),
+          codeOf(submit("a", t.ticketId, cleared(1000), later)),
           codeOf(start("a", 11, later)),
         ]);
         // Submit first: refund to 5, then the new ticket spends one (4).
@@ -310,40 +300,38 @@ describe.skipIf(!PG_URL)("levels on Postgres", () => {
     it("replaying a level pays only new stars, never the first clear again", async () => {
       await user("a");
       const t1 = await start("a", 1);
-      await submit("a", t1.ticketId, cleared(1300, "slow"));
+      await submit("a", t1.ticketId, cleared(1300));
       const t2 = await start("a", 1);
-      const r = await submit("a", t2.ticketId, cleared(1000, "fast"));
+      const r = await submit("a", t2.ticketId, cleared(1000));
       expect(r).toMatchObject({ stars: 3, previousStars: 1, bestStars: 3, xpGained: 2 * STAR_XP, bestTicks: 1000 });
       expect(r.awards.map((a) => a.key)).toEqual(["star:1:1:2", "star:1:1:3"]);
       const t3 = await start("a", 1);
-      const worse = await submit("a", t3.ticketId, cleared(1200, "mid"));
+      const worse = await submit("a", t3.ticketId, cleared(1200));
       expect(worse).toMatchObject({ stars: 2, bestStars: 3, bestTicks: 1000, newBest: false, xpGained: 0 });
       const progress = await prisma.levelProgress.findFirstOrThrow({ where: { userId: "a", level: 1 } });
       expect(progress).toMatchObject({ stars: 3, best_ticks: 1000, replay_token: `tok-${t2.ticketId}` });
     });
 
-    it("refuses another account's cleared run and leaves the ticket open", async () => {
+    it("refuses a run longer than the time since its ticket, and leaves it open", async () => {
       await user("a");
-      await user("b");
-      const ta = await start("a", 1);
-      await submit("a", ta.ticketId, cleared(1000, "same-log"));
-      const tb = await start("b", 1);
-      expect(await codeOf(submit("b", tb.ticketId, cleared(1000, "same-log")))).toBe("REPLAY_REUSED");
-      expect(await prisma.levelRunTicket.findUnique({ where: { id: tb.ticketId } })).toMatchObject({ used_at: null });
-      expect(await prisma.levelProgress.count({ where: { userId: "b" } })).toBe(0);
-      // The owner resubmitting their own run is fine.
-      const ta2 = await start("a", 1);
-      expect(await codeOf(submit("a", ta2.ticketId, cleared(1000, "same-log")))).toBe("resolved");
+      await clearThrough("a", 10);
+      const t = await start("a", 11);
+      // 1000 ticks is 33 s of play plus the 3 s countdown; 10 s have passed.
+      expect(await codeOf(submit("a", t.ticketId, cleared(1000), new Date(T0.getTime() + 10_000)))).toBe(
+        "IMPLAUSIBLE_RUN"
+      );
+      expect(await prisma.levelRunTicket.findUnique({ where: { id: t.ticketId } })).toMatchObject({ used_at: null });
+      expect(await livesOf("a")).toBe(4);
+      expect(await submit("a", t.ticketId, cleared(1000), at(1))).toMatchObject({ outcome: "cleared", lives: 5 });
     });
 
-    it("low-entropy cleared runs are not claimed", async () => {
+    it("two players can report the same run (no replay claims)", async () => {
       await user("a");
       await user("b");
-      const low = (): Verdict => ({ ...cleared(1000, "held"), inputSegments: 2 });
       const ta = await start("a", 1);
-      await submit("a", ta.ticketId, low());
+      await submit("a", ta.ticketId, cleared(1000));
       const tb = await start("b", 1);
-      expect(await codeOf(submit("b", tb.ticketId, low()))).toBe("resolved");
+      expect(await codeOf(submit("b", tb.ticketId, cleared(1000)))).toBe("resolved");
     });
 
     it("clearing all 15 levels of an episode pays the episode once", async () => {
@@ -351,10 +339,10 @@ describe.skipIf(!PG_URL)("levels on Postgres", () => {
       await clearThrough("a", 14);
       expect(await prisma.xpGrant.count({ where: { source: "episode" } })).toBe(0);
       const t = await start("a", 15);
-      const r = await submit("a", t.ticketId, cleared(1200, "ep"));
+      const r = await submit("a", t.ticketId, cleared(1200));
       expect(r.awards).toContainEqual({ key: "episode:1:1", amount: EPISODE_XP });
       const again = await start("a", 15);
-      const r2 = await submit("a", again.ticketId, cleared(1000, "ep2"));
+      const r2 = await submit("a", again.ticketId, cleared(1000));
       expect(r2.awards.map((a) => a.key)).not.toContain("episode:1:1");
     });
 
@@ -389,9 +377,9 @@ describe.skipIf(!PG_URL)("levels on Postgres", () => {
     });
 
     it("activeLevelSeason ignores seasons that have not started", async () => {
-      await prisma.levelSeason.create({ data: { id: 1, name: "S1", manifest_hash: "abc", starts_at: at(10) } });
+      await prisma.levelSeason.create({ data: { id: 1, name: "S1", starts_at: at(10) } });
       expect(await activeLevelSeason(1, T0)).toBeNull();
-      expect(await activeLevelSeason(1, at(10))).toEqual({ id: 1, manifestHash: "abc", minLevelSimVersion: 1 });
+      expect(await activeLevelSeason(1, at(10))).toEqual({ id: 1, minLevelSimVersion: 1 });
       expect(await activeLevelSeason(2, at(10))).toBeNull();
     });
   });

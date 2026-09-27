@@ -59,6 +59,52 @@ export function isQuickRestart(ticketIssuedAt: Date, now: Date): boolean {
   return now.getTime() - ticketIssuedAt.getTime() <= BAD_START_WINDOW_MS;
 }
 
+// ── Reported runs ─────────────────────────────────────────────────────────────
+
+/**
+ * Longest run the server accepts, in ticks: 10 minutes at TICK_HZ, the same
+ * ceiling as a shared replay (MAX_SHARE_TICKS).
+ */
+export const MAX_RUN_TICKS = 18_000;
+
+/**
+ * A level result as the device reports it. Levels have no replay check
+ * (Leeran, 2026-09-27), so this is the client's claim; the server only
+ * sanity-checks it (parseReportedRun, runFitsWallClock).
+ */
+export interface ReportedRun {
+  cleared: boolean;
+  /** 1..3 when cleared, 0 otherwise. */
+  stars: 0 | 1 | 2 | 3;
+  /** Race ticks from GO: the finish tick when cleared, else how long it lasted. */
+  ticks: number;
+}
+
+/**
+ * Parse a reported run, or null when anything is missing or inconsistent.
+ * Allow-list only: a cleared run must carry 1-3 stars, a failed one 0, and
+ * ticks must be an integer in 0..MAX_RUN_TICKS (at least 1 when cleared).
+ */
+export function parseReportedRun(raw: { cleared?: unknown; stars?: unknown; ticks?: unknown }): ReportedRun | null {
+  const { cleared, stars, ticks } = raw;
+  if (typeof cleared !== "boolean") return null;
+  if (typeof ticks !== "number" || !Number.isInteger(ticks) || ticks < 0 || ticks > MAX_RUN_TICKS) return null;
+  if (stars !== 0 && stars !== 1 && stars !== 2 && stars !== 3) return null;
+  if (cleared ? stars === 0 || ticks === 0 : stars !== 0) return null;
+  return { cleared, stars, ticks };
+}
+
+/**
+ * Whether a reported run could have happened in the time since its ticket
+ * was issued (server clock): countdown + the run itself, less
+ * BAD_START_SLACK_MS for clock and network jitter. It cannot prove a run was
+ * honest; it refuses one that claims more play than time allowed.
+ */
+export function runFitsWallClock(ticks: number, ticketIssuedAt: Date, now: Date): boolean {
+  const elapsed = now.getTime() - ticketIssuedAt.getTime();
+  return COUNTDOWN_MS + (ticks * 1000) / TICK_HZ <= elapsed + BAD_START_SLACK_MS;
+}
+
 /** Stored life state: the users.lives / users.lives_updated_at columns. */
 export interface LifeState {
   lives: number;
@@ -154,34 +200,6 @@ export function frontierAfter(highestCleared: number): number {
 export function episodeLevels(episode: number): { first: number; last: number } {
   const first = (episode - 1) * LEVELS_PER_EPISODE + 1;
   return { first, last: first + LEVELS_PER_EPISODE - 1 };
-}
-
-// ── Stars (§4) ───────────────────────────────────────────────────────────────
-
-/**
- * Star thresholds for one level, in race ticks from GO. They come from the
- * server's own copy of the season manifest (the bot's route time × 1.25 and
- * × 1.05, looser on L1–10), never from the client.
- */
-export interface LevelPars {
-  twoStarTicks: number;
-  threeStarTicks: number;
-}
-
-/**
- * Stars for a run, from the server's finish tick. 0 means not cleared.
- * `allGems` is false only on a Collect level where a gem was missed, which
- * caps the run at 2 stars.
- */
-export function starsForRun(
-  finishTicks: number | null,
-  pars: LevelPars,
-  allGems = true
-): 0 | 1 | 2 | 3 {
-  if (finishTicks === null || !Number.isFinite(finishTicks) || finishTicks < 0) return 0;
-  if (finishTicks <= pars.threeStarTicks && allGems) return 3;
-  if (finishTicks <= pars.twoStarTicks) return 2;
-  return 1;
 }
 
 // ── XP and player level (§5a) ────────────────────────────────────────────────

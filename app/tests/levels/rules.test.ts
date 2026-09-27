@@ -24,7 +24,9 @@ import {
   refillLives,
   refundLife,
   spendLife,
-  starsForRun,
+  parseReportedRun,
+  runFitsWallClock,
+  MAX_RUN_TICKS,
   xpAwardsForClear,
   xpToNextLevel,
 } from "../../src/levels/rules";
@@ -120,24 +122,35 @@ describe("levels and episodes", () => {
   });
 });
 
-describe("stars", () => {
-  const pars = { twoStarTicks: 1250, threeStarTicks: 1050 };
-
-  it("maps the server finish tick to 1-3 stars (at-or-under counts)", () => {
-    expect(starsForRun(1050, pars)).toBe(3);
-    expect(starsForRun(1051, pars)).toBe(2);
-    expect(starsForRun(1250, pars)).toBe(2);
-    expect(starsForRun(1251, pars)).toBe(1);
+describe("reported runs", () => {
+  it("accepts a consistent clear or fail", () => {
+    expect(parseReportedRun({ cleared: true, stars: 3, ticks: 900 })).toEqual({ cleared: true, stars: 3, ticks: 900 });
+    expect(parseReportedRun({ cleared: false, stars: 0, ticks: 0 })).toEqual({ cleared: false, stars: 0, ticks: 0 });
+    expect(parseReportedRun({ cleared: true, stars: 1, ticks: MAX_RUN_TICKS })).not.toBeNull();
   });
 
-  it("no finish is 0 stars, and bad ticks never earn stars", () => {
-    expect(starsForRun(null, pars)).toBe(0);
-    expect(starsForRun(Number.NaN, pars)).toBe(0);
-    expect(starsForRun(-1, pars)).toBe(0);
+  it.each([
+    [{ cleared: true, stars: 0, ticks: 900 }],
+    [{ cleared: false, stars: 2, ticks: 900 }],
+    [{ cleared: true, stars: 4, ticks: 900 }],
+    [{ cleared: true, stars: 2.5, ticks: 900 }],
+    [{ cleared: true, stars: "3", ticks: 900 }],
+    [{ cleared: true, stars: 3, ticks: 0 }],
+    [{ cleared: true, stars: 3, ticks: -1 }],
+    [{ cleared: true, stars: 3, ticks: 10.5 }],
+    [{ cleared: true, stars: 3, ticks: MAX_RUN_TICKS + 1 }],
+    [{ cleared: "yes", stars: 3, ticks: 900 }],
+    [{ stars: 3, ticks: 900 }],
+    [{ cleared: true, stars: 3 }],
+  ])("refuses %j", (raw) => {
+    expect(parseReportedRun(raw)).toBeNull();
   });
 
-  it("a missed gem caps a Collect level at 2 stars", () => {
-    expect(starsForRun(900, pars, false)).toBe(2);
+  it("a run must fit the time since its ticket (3 s countdown + run, 5 s slack)", () => {
+    // 300 ticks = 10 s of play + 3 s countdown = 13 s; 8 s + 5 s slack fits.
+    expect(runFitsWallClock(300, T0, new Date(T0.getTime() + 8_000))).toBe(true);
+    expect(runFitsWallClock(300, T0, new Date(T0.getTime() + 7_999))).toBe(false);
+    expect(runFitsWallClock(MAX_RUN_TICKS, T0, at(1))).toBe(false);
   });
 });
 

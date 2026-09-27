@@ -14,7 +14,7 @@
 export const DAILY_SIM_VERSION = 3;
 
 /**
- * Engine revision for Level System runs (level tickets, verifyLevelReplay and
+ * Engine revision for Level System runs (level tickets and
  * LevelProgress rows), separate from DAILY_SIM_VERSION so level-only engine
  * work never locks installed apps out of the Daily. Bump it in the same change
  * as any edit that changes a level tower's output: its geometry, the finish,
