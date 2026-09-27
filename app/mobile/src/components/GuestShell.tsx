@@ -1,4 +1,4 @@
-import { Routes, Route, Navigate, useNavigate } from "react-router-dom";
+import { Routes, Route, useNavigate } from "react-router-dom";
 import { ClimbScreen } from "../screens/ClimbScreen";
 import { AnimatedBackdrop } from "./AnimatedBackdrop";
 import { LogoMark } from "./LogoMark";

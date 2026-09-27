@@ -113,6 +113,21 @@ export interface LevelResult {
   player: PlayerStats;
 }
 
+/** A level's fixed facts: everything on its pin except the player's progress. */
+export type LevelInfo = Omit<LevelNode, "stars" | "bestMs">;
+
+/**
+ * One season's fixed levels, from the season manifest the app ships with. The
+ * server holds its own copy and scores runs against that, never this one.
+ */
+export interface LevelCatalog {
+  season: number;
+  name: string;
+  /** Levels in the season, numbered 1..count. */
+  count: number;
+  level(n: number): LevelInfo;
+}
+
 /**
  * The level API as the screens use it. The server thread owns the real routes
  * (§7, §9); until they land the app runs on `createMockLevelsClient`.
