@@ -1,5 +1,6 @@
 import { TICK_HZ, type PowerUpType } from "@app/game/types";
 import {
+  EPISODE_SIZE,
   isHardLevel,
   starsForTime,
   type LevelNode,
@@ -29,7 +30,7 @@ export const LIFE_REFILL_MS = 30 * 60 * 1000;
 /** L1–10 are tutorial levels and cost no lives (§5b). */
 export const FREE_LEVELS = 10;
 
-const STORAGE_KEY = "doomstack:levels:mock:v1";
+const STORAGE_PREFIX = "doomstack:levels:mock:v1";
 
 /** Power-up unlock levels (§3a). */
 const POWER_UP_INTROS: ReadonlyMap<number, PowerUpType> = new Map([
@@ -199,6 +200,8 @@ export function mockLevelNode(level: number, progress?: StoredProgress): LevelNo
 }
 
 export interface MockClientOptions {
+  /** The signed-in account; each account keeps its own progress. */
+  accountId?: string;
   now?: () => number;
   load?: () => string | null;
   save?: (raw: string) => void;
@@ -206,17 +209,17 @@ export interface MockClientOptions {
   latencyMs?: number;
 }
 
-function localLoad(): string | null {
+function localLoad(key: string): string | null {
   try {
-    return localStorage.getItem(STORAGE_KEY);
+    return localStorage.getItem(key);
   } catch {
     return null;
   }
 }
 
-function localSave(raw: string): void {
+function localSave(key: string, raw: string): void {
   try {
-    localStorage.setItem(STORAGE_KEY, raw);
+    localStorage.setItem(key, raw);
   } catch {
     /* private mode / quota: progress lives for this session only */
   }
@@ -224,8 +227,10 @@ function localSave(raw: string): void {
 
 export function createMockLevelsClient(opts: MockClientOptions = {}): LevelsClient {
   const now = opts.now ?? Date.now;
-  const load = opts.load ?? localLoad;
-  const save = opts.save ?? localSave;
+  // One store per account, so a second account on the device starts fresh.
+  const key = `${STORAGE_PREFIX}:${opts.accountId ?? "anon"}`;
+  const load = opts.load ?? (() => localLoad(key));
+  const save = opts.save ?? ((raw: string) => localSave(key, raw));
   const latency = opts.latencyMs ?? 0;
   let memory: MockState | null = null;
   let ticketCounter = 0;
@@ -306,6 +311,9 @@ export function createMockLevelsClient(opts: MockClientOptions = {}): LevelsClie
       let xpGained = 0;
       if (cleared && !prev) xpGained += (50 + 5 * ticket.level) * (isHardLevel(ticket.level) ? 2 : 1);
       if (stars > previousStars) xpGained += 25 * (stars - previousStars);
+      // Levels clear in order, so the first clear of an episode's last level
+      // completes the episode (§5a).
+      if (cleared && !prev && ticket.level % EPISODE_SIZE === 0) xpGained += 250;
 
       const before = playerStats(state).playerLevel;
       const progress = { ...state.progress };

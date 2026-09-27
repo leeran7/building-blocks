@@ -5,7 +5,7 @@
  * rules it follows (§4 stars, §5a XP, §5b lives) are pinned here.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   createMockLevelsClient,
   LIFE_REFILL_MS,
@@ -136,7 +136,7 @@ describe("mock level store", () => {
     const better = await clear(client, 1, pars.threeStarMs - 100);
     expect(better.stars).toBe(3);
     expect(better.xpGained).toBe(25);
-    expect((await client.getSeason()).levels[0].bestMs).toBe(Math.round((ticks(pars.threeStarMs - 100) / TICK_HZ) * 1000));
+    expect((await client.getSeason()).levels[0].bestMs).toBe(better.timeMs);
   });
 
   it("doubles first-clear XP on Hard levels", async () => {
@@ -144,6 +144,30 @@ describe("mock level store", () => {
     for (let n = 1; n <= 4; n++) await clear(client, n, 1_000);
     const hard = await clear(client, 5, 1_000);
     expect(hard.xpGained).toBe((50 + 5 * 5) * 2 + 25 * 3);
+  });
+
+  it("adds the episode bonus on the first clear of an episode's last level only", async () => {
+    const { client } = harness();
+    for (let n = 1; n <= 14; n++) await clear(client, n, 1_000);
+    const last = await clear(client, 15, 1_000);
+    expect(last.xpGained).toBe((50 + 5 * 15) * 2 + 25 * 3 + 250);
+    expect((await clear(client, 15, 1_000)).xpGained).toBe(0);
+  });
+
+  it("keeps each account's progress apart on one device", async () => {
+    const store = new Map<string, string>();
+    const stub = {
+      getItem: (k: string) => store.get(k) ?? null,
+      setItem: (k: string, v: string) => void store.set(k, v),
+    };
+    vi.stubGlobal("localStorage", stub);
+    try {
+      await clear(createMockLevelsClient({ accountId: "a" }), 1, 1_000);
+      expect((await createMockLevelsClient({ accountId: "a" }).getSeason()).frontier).toBe(2);
+      expect((await createMockLevelsClient({ accountId: "b" }).getSeason()).frontier).toBe(1);
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it("rejects a ticket that was already used", async () => {

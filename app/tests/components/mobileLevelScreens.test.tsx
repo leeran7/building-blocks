@@ -6,7 +6,7 @@
  * @vitest-environment happy-dom
  */
 
-import { act, createElement, type ReactElement } from "react";
+import { act, createElement, useEffect, type ReactElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -25,6 +25,34 @@ vi.mock("../../mobile/src/lib/haptics", () => ({
 }));
 vi.mock("@app/components/Game/lava", () => ({ drawLava: vi.fn(), isLavaInProximity: () => false }));
 
+/**
+ * The climb itself needs a canvas and a running sim. Stand it in with buttons
+ * that end the run the way the real one does (through onEnd), so the screen's
+ * submit, result, retry and Next level flow runs for real.
+ */
+const runs = vi.hoisted(() => ({ mounted: [] as Array<{ seed: string; goalFt: number }> }));
+vi.mock("../../mobile/src/components/levels/LevelRun", async () => {
+  const { createElement: h, useEffect: useMountEffect } = await import("react");
+  return {
+    LevelRun: (props: {
+      seed: string;
+      goalFt: number;
+      paused: boolean;
+      onEnd: (r: { finished: boolean; finishedTick: number | null; peakFt: number; replayToken: string | null }) => void;
+    }) => {
+      useMountEffect(() => {
+        runs.mounted.push({ seed: props.seed, goalFt: props.goalFt });
+      }, [props.seed, props.goalFt]);
+      return h(
+        "div",
+        null,
+        h("button", { onClick: () => props.onEnd({ finished: true, finishedTick: 30, peakFt: props.goalFt, replayToken: null }) }, "stub-clear"),
+        h("button", { onClick: () => props.onEnd({ finished: false, finishedTick: null, peakFt: props.goalFt / 2, replayToken: "r" }) }, "stub-lose"),
+      );
+    },
+  };
+});
+
 import { LevelsProvider } from "../../mobile/src/contexts/LevelsContext";
 import { createMockLevelsClient } from "../../mobile/src/lib/levels/mockClient";
 import type { LevelResult, LevelsClient } from "../../mobile/src/lib/levels/model";
@@ -39,11 +67,14 @@ let where: { pathname: string; state: unknown };
 
 function Where() {
   const loc = useLocation();
-  where = { pathname: loc.pathname, state: loc.state };
+  useEffect(() => {
+    where = { pathname: loc.pathname, state: loc.state };
+  }, [loc]);
   return null;
 }
 
 beforeEach(() => {
+  runs.mounted = [];
   container = document.createElement("div");
   document.body.appendChild(container);
   root = createRoot(container);
@@ -83,22 +114,16 @@ async function flush() {
 async function renderMap(client: LevelsClient, initial: string | { pathname: string; state: unknown } = "/") {
   await act(async () => {
     root.render(
-      createElement(
-        MemoryRouter,
-        { initialEntries: [initial] },
-        createElement(
-          LevelsProvider,
-          { client },
-          createElement(Where),
-          createElement(
-            Routes,
-            null,
-            createElement(Route, { path: "/", element: createElement(LevelMapScreen) }),
-            createElement(Route, { path: "/levels/:level/play", element: createElement(LevelPlayScreen) }),
-            createElement(Route, { path: "/climb", element: createElement("p", null, "practice") }),
-          ),
-        ),
-      ),
+      <MemoryRouter initialEntries={[initial]}>
+        <LevelsProvider client={client}>
+          <Where />
+          <Routes>
+            <Route path="/" element={<LevelMapScreen />} />
+            <Route path="/levels/:level/play" element={<LevelPlayScreen />} />
+            <Route path="/climb" element={<p>practice</p>} />
+          </Routes>
+        </LevelsProvider>
+      </MemoryRouter>,
     );
   });
   await flush();
@@ -161,8 +186,8 @@ describe("level map", () => {
     await click(pin("Level 11, next to play"));
 
     expect(button("Play level 11")).toBeUndefined();
-    const alert = container.querySelector('[role="dialog"] [role="alert"]');
-    expect(alert?.textContent).toMatch(/Out of lives\. Next life in \d+:\d\d/);
+    expect(container.querySelector('[role="dialog"] [role="alert"]')?.textContent).toBe("Out of lives.");
+    expect(container.querySelector('[role="dialog"]')?.textContent).toMatch(/Out of lives\. Next life in \d+:\d\d/);
 
     await click(button("Practice this level"));
     expect(where.pathname).toBe("/levels/11/play");
@@ -183,6 +208,62 @@ describe("level map", () => {
 });
 
 describe("level play route", () => {
+  it("clears a level, then Next level lands on the map with the next level open", async () => {
+    const client = memoryClient();
+    await renderMap(client);
+    await click(pin("Level 1, next to play"));
+    await click(button("Play level 1"));
+    await click(button("stub-clear"));
+
+    const card = container.querySelector('[role="dialog"]');
+    expect(card?.getAttribute("aria-label")).toBe("Level 1 cleared, 3 of 3 stars");
+    expect(document.activeElement).toBe(card);
+
+    await click(button("Next level"));
+    expect(where.pathname).toBe("/");
+    expect(container.querySelector('[role="dialog"] h2')?.textContent).toBe("Level 2");
+    expect(pin("Level 1, 3 of 3 stars")).toBeTruthy();
+  });
+
+  it("retries a lost level on a fresh ticket, spending another life", async () => {
+    const client = memoryClient();
+    await clearLevels(client, 10);
+    await renderMap(client);
+    await click(pin("Level 11, next to play"));
+    await click(button("Play level 11"));
+    await click(button("stub-lose"));
+    expect(container.textContent).toContain("4 of 5 lives left");
+
+    await click(button("Retry"));
+    expect(runs.mounted).toHaveLength(2);
+    await click(button("stub-lose"));
+    expect(container.textContent).toContain("3 of 5 lives left");
+  });
+
+  it("says why a retry could not start instead of doing nothing", async () => {
+    const client = memoryClient();
+    const failing: LevelsClient = {
+      ...client,
+      startLevel: async (n) => (runs.mounted.length === 0 ? client.startLevel(n) : Promise.reject(new Error("offline"))),
+    };
+    await renderMap(failing);
+    await click(pin("Level 1, next to play"));
+    await click(button("Play level 1"));
+    await click(button("stub-lose"));
+    await click(button("Retry"));
+    expect(container.querySelector('[role="dialog"] [role="alert"]')?.textContent).toContain("Couldn\u2019t reach the server");
+  });
+
+  it("plays Practice this level without a ticket and saves nothing", async () => {
+    const client = memoryClient();
+    const submit = vi.spyOn(client, "submitResult");
+    await renderMap(client, "/levels/1/play?practice=1");
+    await click(button("stub-clear"));
+    expect(container.textContent).toContain("Practice runs earn no stars or XP.");
+    expect(submit).not.toHaveBeenCalled();
+    expect((await client.getSeason()).frontier).toBe(1);
+  });
+
   it("goes back to the map when opened without a ticket", async () => {
     await renderMap(memoryClient(), "/levels/1/play");
     expect(where.pathname).toBe("/");

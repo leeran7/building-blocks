@@ -70,24 +70,22 @@ export function LivesPill({ player }: { player: PlayerStats }) {
   const now = useNow();
   const label = livesLabel(player, now);
   const full = label === "Full";
+  // The countdown ticks every second, so it is not a live region: only the
+  // lives count is announced, and only when it changes.
   return (
-    <span
-      role="status"
-      aria-label={
-        full
-          ? `${player.lives} of ${player.maxLives} lives, full`
-          : `${player.lives} of ${player.maxLives} lives, next life in ${label}`
-      }
-      className="glass inline-flex h-10 items-center gap-2 rounded-full border border-white/10 pl-2.5 pr-3"
-    >
-      <span className="relative inline-flex">
+    <span className="glass inline-flex h-10 items-center gap-2 rounded-full border border-white/10 pl-2.5 pr-3">
+      <span role="status" className="sr-only">
+        {player.lives} of {player.maxLives} lives
+      </span>
+      <span aria-hidden className="relative inline-flex">
         <HeartIcon size={22} />
         <span className="absolute inset-0 flex items-center justify-center font-display text-[11px] font-black text-void">
           {player.lives}
         </span>
       </span>
       <span className={`font-mono text-label font-bold tabular-nums uppercase tracking-label ${full ? "text-text-secondary" : "text-text-primary"}`}>
-        {label}
+        <span className="sr-only">{full ? "Lives full" : "Next life in "}</span>
+        <span aria-hidden={full || undefined}>{label}</span>
       </span>
     </span>
   );

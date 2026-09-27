@@ -41,7 +41,10 @@ export function LevelsProvider({
 }) {
   const { user, loading: authLoading, isAnonymous } = useAuth();
   const uid = user && !isAnonymous ? user.uid : null;
-  const client = useMemo(() => injected ?? createMockLevelsClient(), [injected]);
+  const client = useMemo(
+    () => injected ?? createMockLevelsClient({ accountId: uid ?? undefined }),
+    [injected, uid],
+  );
   const [season, setSeason] = useState<SeasonView | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);

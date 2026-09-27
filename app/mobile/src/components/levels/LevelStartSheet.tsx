@@ -14,7 +14,8 @@ import {
 } from "../../lib/levels/model";
 import { HeartIcon, StarRow, livesLabel, useNow } from "./LevelBits";
 
-const REFUSAL_COPY: Record<Exclude<StartRefusal, "OUT_OF_LIVES">, string> = {
+/** What a refused start or retry says, in the player's words. */
+export const REFUSAL_COPY: Record<Exclude<StartRefusal, "OUT_OF_LIVES">, string> = {
   LOCKED: "Clear the level before this one first.",
   UPDATE_REQUIRED: "Update the app to play this level.",
   NETWORK: "Couldn’t reach the server. Check your connection and try again.",
@@ -50,13 +51,20 @@ export function LevelStartSheet({
   const closeRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
+    // Hand focus back to the pin or button that opened the card.
+    const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     closeRef.current?.focus();
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
     };
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      opener?.focus();
+    };
+    // Once per opening: onClose changes identity on every map render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // A life that arrives while the card is open clears the refusal.
   useEffect(() => {
@@ -222,7 +230,9 @@ export function OutOfLives({
   onPracticeLevel: () => void;
 }) {
   return (
-    <div role="alert" className="flex flex-col gap-2.5">
+    <div className="flex flex-col gap-2.5">
+      {/* Announced once; the ticking countdown below is not a live region. */}
+      <p role="alert" className="sr-only">Out of lives.</p>
       <div className="flex items-center justify-center gap-2 rounded-2xl border border-ember/40 bg-ember/10 px-4 py-3">
         <HeartIcon size={20} />
         <p className="text-body text-text-primary">

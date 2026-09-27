@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import { ALTITUDE_UNIT } from "@app/lib/units";
 import { Button } from "../ui";
 import {
@@ -22,6 +23,7 @@ export function LevelResultCard({
   costsLife,
   hasNextLevel,
   retryBusy,
+  retryError = null,
   onNext,
   onRetry,
   onMap,
@@ -33,20 +35,30 @@ export function LevelResultCard({
   costsLife: boolean;
   hasNextLevel: boolean;
   retryBusy: boolean;
+  /** Why the last Retry could not start, in the player's words. */
+  retryError?: string | null;
   onNext: () => void;
   onRetry: () => void;
   onMap: () => void;
   onPractice: () => void;
   onPracticeLevel: () => void;
 }) {
+  const label = result.cleared
+    ? `Level ${result.level} cleared, ${result.stars} of ${MAX_STARS} stars`
+    : `Caught by the lava, ${feetShort(result)} ${ALTITUDE_UNIT} from the summit`;
   return (
-    <Sheet>
+    <Sheet label={label}>
       {result.cleared ? (
         <Cleared result={result} />
       ) : (
         <Lost goalFt={result.goalFt} peakFt={result.peakFt} level={result.level} />
       )}
 
+      {retryError && (
+        <p role="alert" className="mt-4 text-center text-meta text-ember">
+          {retryError}
+        </p>
+      )}
       <div className="mt-6 flex flex-col gap-2.5">
         {result.cleared ? (
           <>
@@ -223,7 +235,7 @@ export function PracticeResultCard({
   onMap: () => void;
 }) {
   return (
-    <Sheet>
+    <Sheet label={`Practice run over, level ${level}`}>
       <p className="text-center font-mono text-label font-bold uppercase tracking-eyebrow text-text-secondary">
         Practice · Level {level}
       </p>
@@ -251,7 +263,7 @@ export function PracticeResultCard({
 /** The result could not be saved: keep the run and offer a retry. */
 export function SubmitFailedCard({ level, busy, onRetry, onMap }: { level: number; busy: boolean; onRetry: () => void; onMap: () => void }) {
   return (
-    <Sheet>
+    <Sheet label={`Level ${level}: couldn't save this run`}>
       <p className="text-center font-mono text-label font-bold uppercase tracking-eyebrow text-ember">Level {level}</p>
       <p role="alert" className="mt-3 text-center text-body text-text-primary">
         Couldn&rsquo;t save this run. Check your connection and try again.
@@ -268,13 +280,23 @@ export function SubmitFailedCard({ level, busy, onRetry, onMap }: { level: numbe
   );
 }
 
-function Sheet({ children }: { children: React.ReactNode }) {
+/**
+ * The card's shell. It takes focus when it appears, so a screen reader
+ * announces the outcome (its label) as the run ends.
+ */
+function Sheet({ label, children }: { label: string; children: React.ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    ref.current?.focus();
+  }, []);
   return (
     <div
+      ref={ref}
       role="dialog"
       aria-modal="true"
-      aria-label="Level result"
-      className="lr-card absolute inset-x-0 bottom-0 z-30 mx-auto max-w-md rounded-t-3xl border-t border-border-strong bg-surface/95 px-6 pb-[calc(env(safe-area-inset-bottom)+1.5rem)] pt-3 backdrop-blur-xl"
+      aria-label={label}
+      tabIndex={-1}
+      className="lr-card absolute outline-none focus-visible:outline-none inset-x-0 bottom-0 z-30 mx-auto max-w-md rounded-t-3xl border-t border-border-strong bg-surface/95 px-6 pb-[calc(env(safe-area-inset-bottom)+1.5rem)] pt-3 backdrop-blur-xl"
     >
       <span aria-hidden className="mx-auto mb-5 block h-1 w-9 rounded-full bg-border-strong" />
       {children}
