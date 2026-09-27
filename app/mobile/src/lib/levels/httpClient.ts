@@ -21,7 +21,8 @@ import type {
  * The server decides lives, stars, XP and unlocks; this client only reads
  * what it says. Every response is parsed against an allow-list: a body that
  * does not match the route's contract is a failed call, never coerced into
- * plausible numbers. The level facts on each pin (seed, goal, pars) come from
+ * plausible numbers. A run is reported as its outcome and finish tick; levels
+ * have no replay. The level facts on each pin (seed, goal, pars) come from
  * the app's own copy of the season manifest (`catalog`); the server scores
  * runs against its own copy.
  */
@@ -303,9 +304,15 @@ export function createHttpLevelsClient(opts: HttpClientOptions): LevelsClient {
     },
 
     async submitResult(ticketId: string, run: LevelRunReport): Promise<LevelResult> {
-      // The server verifies the replay; a run without one cannot be scored.
-      if (!run.replayToken) throw new LevelsApiError(0, "REPLAY_REQUIRED");
-      const res = await post("/api/levels/result", { ticketId, replayToken: run.replayToken });
+      // Levels send the run's outcome directly; there is no replay (Leeran,
+      // 2026-09-27). The server scores stars from finishTicks and its pars.
+      const cleared = run.finished && run.finishedTick !== null;
+      const res = await post("/api/levels/result", {
+        ticketId,
+        cleared,
+        finishTicks: cleared ? run.finishedTick : null,
+        peakFt: Math.max(0, Math.round(run.peakFt)),
+      });
       const body = await readJson(res);
       if (!res.ok) throw new LevelsApiError(res.status, errorCode(body));
       const result = parseServerResult(body);
@@ -313,17 +320,15 @@ export function createHttpLevelsClient(opts: HttpClientOptions): LevelsClient {
       const node = info(result.level);
       lastXp = result.xp;
 
-      const cleared = result.outcome === "cleared";
+      const verdictCleared = result.outcome === "cleared";
       const player = statsFor(result.xp, result.lives, result.nextLifeAt);
       const before = playerLevelProgress(result.xp - result.xpGained).level;
       return {
         level: result.level,
-        cleared,
+        cleared: verdictCleared,
         stars: result.stars,
         previousStars: result.previousStars,
-        // This run's time as the app saw it. Stars above are the server's own,
-        // from its re-simulation, and the two agree on a verified run.
-        timeMs: cleared && run.finishedTick !== null ? ticksToMs(run.finishedTick) : null,
+        timeMs: verdictCleared && run.finishedTick !== null ? ticksToMs(run.finishedTick) : null,
         pars: node.pars,
         goalFt: node.goalFt,
         peakFt: run.peakFt,

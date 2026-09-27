@@ -203,13 +203,13 @@ describe("createHttpLevelsClient", () => {
     expect(res).toMatchObject({ ok: false, code: "OUT_OF_LIVES", player: { lives: 0, nextLifeAt: Date.parse(at) } });
   });
 
-  it("submits only the ticket and replay, and shows the server's verdict", async () => {
+  it("submits the ticket and the run's outcome, and shows the server's verdict", async () => {
     const { fetch, calls } = fakeServer({ "/api/levels/result": () => json(200, RESULT) });
     const result = await createHttpLevelsClient({ catalog, fetch }).submitResult(TICKET.ticketId, RUN);
 
     expect(calls[0]).toEqual({
       path: "/api/levels/result",
-      body: { ticketId: TICKET.ticketId, replayToken: "token" },
+      body: { ticketId: TICKET.ticketId, cleared: true, finishTicks: 450, peakFt: 90 },
     });
     expect(result).toMatchObject({
       level: 3,
@@ -234,23 +234,31 @@ describe("createHttpLevelsClient", () => {
   });
 
   it("shows a loss with no time", async () => {
-    const { fetch } = fakeServer({
+    const { fetch, calls } = fakeServer({
       "/api/levels/result": () => json(200, { ...RESULT, outcome: "failed", stars: 0, xpGained: 0 }),
     });
     const result = await createHttpLevelsClient({ catalog, fetch }).submitResult(TICKET.ticketId, {
       ...RUN,
       finished: false,
       finishedTick: null,
+      peakFt: 41.6,
     });
+    expect(calls[0].body).toEqual({ ticketId: TICKET.ticketId, cleared: false, finishTicks: null, peakFt: 42 });
     expect(result).toMatchObject({ cleared: false, stars: 0, timeMs: null, newPlayerLevel: null });
   });
 
-  it("throws on a rejected run, and sends nothing without a replay", async () => {
+  it("never reports a finish time for a run that did not finish", async () => {
+    const { fetch, calls } = fakeServer({
+      "/api/levels/result": () => json(200, { ...RESULT, outcome: "failed", stars: 0, xpGained: 0 }),
+    });
+    await createHttpLevelsClient({ catalog, fetch }).submitResult(TICKET.ticketId, { ...RUN, finished: false });
+    expect(calls[0].body).toMatchObject({ cleared: false, finishTicks: null });
+  });
+
+  it("throws on a rejected run", async () => {
     const { fetch } = fakeServer({ "/api/levels/result": () => json(409, { code: "TICKET_USED" }) });
-    const client = createHttpLevelsClient({ catalog, fetch });
-    await expect(client.submitResult(TICKET.ticketId, RUN)).rejects.toThrow("TICKET_USED");
-    fetch.mockClear();
-    await expect(client.submitResult(TICKET.ticketId, { ...RUN, replayToken: null })).rejects.toThrow();
-    expect(fetch).not.toHaveBeenCalled();
+    await expect(createHttpLevelsClient({ catalog, fetch }).submitResult(TICKET.ticketId, RUN)).rejects.toThrow(
+      "TICKET_USED",
+    );
   });
 });
