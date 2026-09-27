@@ -58,7 +58,7 @@ async function main() {
   console.log(`copied kernel (${manifest.kernel.length} manifest patterns) → ${destRoot}`);
 
   await purgeDoNotCopy(destRoot, manifest);
-  console.log("purged doNotCopy paths (app/, docs/reviews/, CHANGELOG.md, …)");
+  console.log("purged doNotCopy paths (app/, docs/reviews/, …)");
 
   const contextDest = join(destRoot, "context");
   if (await exists(contextDest)) {
@@ -76,26 +76,7 @@ async function main() {
   await mergeGitignore(destRoot, snippet, { overwrite: true });
   await appendIgnoreExtras(join(destRoot, ".gitignore"));
 
-  await writeFile(
-    join(destRoot, "package.json"),
-    `${JSON.stringify(
-      {
-        name: "closed-loop-agents",
-        private: true,
-        description: "Reusable closed-loop agent pack. Fill in context/ for your repo. See pack/SETUP.md.",
-        scripts: {
-          sync: "node scripts/sync.mjs",
-          hygiene: "node scripts/hygiene.mjs",
-          loop: "yarn --cwd orchestrator loop",
-          "test:orchestrator": "yarn --cwd orchestrator test",
-          "test:pack": "node scripts/hygiene.mjs",
-          init: "node scripts/init-pack.mjs",
-        },
-      },
-      null,
-      2,
-    )}\n`,
-  );
+  await writePackageJson(destRoot);
 
   try {
     await run("node", ["scripts/sync.mjs"], destRoot);
@@ -104,6 +85,67 @@ async function main() {
   }
 
   console.log(`\nTemplate exported to ${destRoot}`);
+}
+
+const DEFAULT_TEMPLATE_PACKAGE = {
+  name: "closed-loop-agents",
+  version: "1.0.0",
+  description:
+    "Reusable closed-loop agent pack. Install as a dependency, run `npx closed-loop-agents sync`, then fill in context/ for your repo. See pack/SETUP.md.",
+  type: "module",
+  engines: {
+    node: ">=22.13",
+  },
+  bin: {
+    "closed-loop-agents": "bin/cli.mjs",
+  },
+  files: [
+    "agents",
+    "skills",
+    "handoffs/schema.json",
+    "pack",
+    "scripts",
+    "bin",
+    "orchestrator/package.json",
+    "orchestrator/tsconfig.json",
+    "orchestrator/tsconfig.test.json",
+    "orchestrator/src",
+    "orchestrator/yarn.lock",
+    "README.md",
+  ],
+  scripts: {
+    sync: "node scripts/sync.mjs",
+    hygiene: "node scripts/hygiene.mjs",
+    loop: "yarn --cwd orchestrator loop",
+    "test:orchestrator": "yarn --cwd orchestrator test",
+    "test:pack": "node scripts/hygiene.mjs",
+    init: "node scripts/init-pack.mjs",
+  },
+};
+
+// Merge onto whatever package.json the template already has (version bumps,
+// extra scripts a maintainer added by hand) rather than clobbering it —
+// only the shape this pack actually needs is guaranteed present.
+async function writePackageJson(destRoot) {
+  const destPath = join(destRoot, "package.json");
+  let existing = {};
+  if (await exists(destPath)) {
+    try {
+      existing = JSON.parse(await readFile(destPath, "utf-8"));
+    } catch {
+      existing = {};
+    }
+  }
+  const merged = {
+    ...DEFAULT_TEMPLATE_PACKAGE,
+    ...existing,
+    engines: { ...DEFAULT_TEMPLATE_PACKAGE.engines, ...existing.engines },
+    bin: { ...DEFAULT_TEMPLATE_PACKAGE.bin, ...existing.bin },
+    files: DEFAULT_TEMPLATE_PACKAGE.files,
+    scripts: { ...DEFAULT_TEMPLATE_PACKAGE.scripts, ...existing.scripts },
+  };
+  delete merged.private;
+  await writeFile(destPath, `${JSON.stringify(merged, null, 2)}\n`);
 }
 
 async function appendIgnoreExtras(gitignorePath) {

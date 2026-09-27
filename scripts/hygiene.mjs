@@ -4,7 +4,6 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
-const AGENTS_SRC = join(ROOT, "agents");
 const RULES_PATH = join(ROOT, "pack", "hygiene-rules.json");
 
 export async function loadRules() {
@@ -104,8 +103,12 @@ export function prependProtocol(body, protocolBody) {
   return `${protocolMarkers(protocolBody).block}${stripped}`;
 }
 
-async function main() {
-  const { filesChecked, violations } = await lintAgents();
+// Prints violations and returns whether the scan passed — reused by this
+// script's own CLI (root = its own repo) and by the closed-loop-agents CLI
+// `hygiene` command (root = a target repo, when it has its own agents/ +
+// pack/hygiene-rules.json local override; otherwise the package's own).
+export async function runCli(root = ROOT) {
+  const { filesChecked, violations } = await lintAgents(root);
   if (violations.length > 0) {
     console.error(`Pack hygiene failed (${violations.length} issue(s) in ${filesChecked} agent files):`);
     for (const v of violations) {
@@ -118,7 +121,7 @@ async function main() {
 
 const isDirect = process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1];
 if (isDirect) {
-  main().catch((err) => {
+  runCli().catch((err) => {
     console.error(err);
     process.exit(1);
   });
