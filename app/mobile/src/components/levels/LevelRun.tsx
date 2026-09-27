@@ -30,11 +30,13 @@ import {
   type LevelNode,
   type LevelRunReport,
 } from "../../lib/levels/model";
+import type { LevelRunSetup } from "../../lib/levels/catalog";
 import { StarRow } from "./LevelBits";
 
 /**
- * The climb itself, on a level tower: the free stack capped at the level's
- * goal height (`goalM`), so the engine finishes the climber at the summit.
+ * The climb itself, on the level's tower and lava from the season manifest
+ * (`setup`); the tower's goal height (`goalM`) finishes the climber at the
+ * summit.
  * Mounted once per attempt (keyed by ticket), so a retry always starts from a
  * clean match.
  */
@@ -43,6 +45,7 @@ export function LevelRun({
   seed,
   goalFt,
   pars,
+  setup,
   practice,
   autoStart,
   paused,
@@ -53,6 +56,8 @@ export function LevelRun({
   seed: string;
   goalFt: number;
   pars: LevelNode["pars"];
+  /** The level's tower and lava; without one, the free stack capped at the goal. */
+  setup?: LevelRunSetup;
   practice: boolean;
   autoStart: boolean;
   /** A result card is up: hide the controls. */
@@ -60,10 +65,11 @@ export function LevelRun({
   onEnd: (report: LevelRunReport) => void;
   onQuit: () => void;
 }) {
-  const towerRef = useRef({ ...buildFreeTower(), goalM: goalFt });
+  const towerRef = useRef(setup?.tower ?? { ...buildFreeTower(), goalM: goalFt });
   const { state, simRef, renderFeed, start, finished, setTouch, runId, inputLog } = useClimb({
     tower: towerRef.current,
     seed,
+    hazard: setup?.hazard,
   });
   useGameHaptics(simRef, 0, runId);
 
@@ -260,6 +266,8 @@ export function GoalBar({
   goalFt: number;
   elapsedMs: number;
   pars: LevelNode["pars"];
+  /** The level's tower and lava; without one, the free stack capped at the goal. */
+  setup?: LevelRunSetup;
   practice: boolean;
 }) {
   const pct = goalFt > 0 ? Math.min(100, (peakFt / goalFt) * 100) : 0;
