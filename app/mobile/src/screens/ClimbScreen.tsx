@@ -569,9 +569,16 @@ const DAILY_REJECTION_COPY: Record<string, string> = {
   INVALID_REPLAY: "couldn't verify this run for the Daily board",
 };
 
-/** The rank line for a daily run, from the server's verdict. */
-function dailyRankLine(save: DailySaveState): string {
+/**
+ * The rank line for a daily run, from the server's verdict. A run too long to
+ * encode a replay goes to the all-time route instead; once that save is
+ * acknowledged, say where it went (Endless is its Ranks tab).
+ */
+function dailyRankLine(save: DailySaveState, endlessSave: ClimbSaveResult | null): string {
   if (save === null || save.status === "pending") return "checking the Daily board…";
+  if (save.status === "rejected" && save.code === "RUN_TOO_LONG" && endlessSave?.saved) {
+    return `${DAILY_REJECTION_COPY.RUN_TOO_LONG} · saved to your Endless best`;
+  }
   if (save.status === "saved") {
     if (save.rank === null) return "saved · you're hidden on the Daily board";
     return `#${save.rank.toLocaleString()} of ${save.totalClimbers.toLocaleString()} today`;
@@ -628,7 +635,7 @@ function ResultsCard({
   const rankLine = isGuest
     ? "sign in to save your score"
     : isDailySave
-      ? dailyRankLine(dailySave)
+      ? dailyRankLine(dailySave, saveInfo)
       : saveInfo?.saved && saveInfo.rank
       ? `#${saveInfo.rank}${saveInfo.totalClimbers ? ` of ${saveInfo.totalClimbers.toLocaleString()}` : ""}${topPct ? ` · top ${topPct}%` : ""}`
       : "your highest climb";

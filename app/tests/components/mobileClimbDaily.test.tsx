@@ -328,11 +328,29 @@ describe("ClimbScreen daily mode", () => {
     // One full mount per case (~0.9 s each, from the results card's timers).
   }, 20_000);
 
-  it("a run too long to encode goes to the all-time route only and says why", async () => {
+  it("a run too long to encode goes to the all-time route only and says where it was saved", async () => {
     net.token = null;
     await mountDaily();
     expect(resultPosts()).toHaveLength(0);
     expect(postClimbResult).toHaveBeenCalledTimes(1);
+    expect(postClimbResult.mock.calls[0][0]).not.toHaveProperty("simVersion");
+    expect(rankLine()).toBe("run too long to verify for the Daily board · saved to your Endless best");
+  });
+
+  it("a too-long run whose all-time save fails never claims it was saved", async () => {
+    net.token = null;
+    postClimbResult.mockResolvedValueOnce({ saved: false } as never);
+    await mountDaily();
+    expect(postClimbResult).toHaveBeenCalledTimes(1);
+    expect(rankLine()).toBe("run too long to verify for the Daily board");
+  });
+
+  it("a server RUN_TOO_LONG rejection (nothing sent to all-time) never claims it was saved", async () => {
+    net.resultStatus = 400;
+    net.resultBody = { error: "x", code: "RUN_TOO_LONG" };
+    await mountDaily();
+    expect(resultPosts()).toHaveLength(1);
+    expect(postClimbResult).not.toHaveBeenCalled();
     expect(rankLine()).toBe("run too long to verify for the Daily board");
   });
 
