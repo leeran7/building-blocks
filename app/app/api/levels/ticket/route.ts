@@ -6,13 +6,18 @@
  * records the run against the ticket, never against a level named in its
  * request.
  *
+ * The season must be live (a level_seasons row whose starts_at has passed)
+ * AND have a sound generated manifest (src/levels/catalog.ts).
+ *
  * Every check that can refuse (unknown or inactive season, stale app) runs
  * BEFORE the transaction that spends the life, so a player never pays for a
  * run the server would not record.
  *
  * Request:  { season: number, level: number, simVersion: number }
- * 200:      { ticketId, season, level, simVersion, expiresAt, lifeSpent,
- *             lives, nextLifeAt }
+ * 200:      { ticketId, season, level, simVersion, rev, pars, expiresAt,
+ *             lifeSpent, lives, nextLifeAt }
+ *            (rev: the level's seed revision; pars: { twoStarTicks,
+ *             threeStarTicks }, which /result scores stars against)
  * 400:      { error, code: INVALID_JSON | INVALID_LEVEL }
  * 401:      { error, code: UNAUTHORIZED }
  * 403:      { error, code: LEVEL_LOCKED, frontier }
@@ -27,6 +32,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { ensureUser } from "../../../../src/db/user";
 import { activeLevelSeason, issueLevelTicket, LevelError } from "../../../../src/db/levels";
 import { isLevelNumber } from "../../../../src/levels/rules";
+import { catalogLevel } from "../../../../src/levels/catalog";
 import {
   NO_STORE,
   levelErrorResponse,
@@ -72,7 +78,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     console.error("[levels/ticket] season lookup failed:", err);
     return reject(500, "PERSIST_ERROR", "Could not start the level");
   }
-  if (!active) return reject(404, "SEASON_NOT_FOUND", "That season is not available");
+  const row = active ? catalogLevel(season, level) : null;
+  if (!active || !row) return reject(404, "SEASON_NOT_FOUND", "That season is not available");
 
   // Runs from a different engine are different levels, so a stale app (or a
   // server behind the season's minimum engine) is stopped here, before it
@@ -96,6 +103,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         season,
         level,
         simVersion: LEVEL_SIM_VERSION,
+        rev: row.rev,
+        pars: { twoStarTicks: row.pars.twoStarTicks, threeStarTicks: row.pars.threeStarTicks },
         expiresAt: ticket.expiresAt.toISOString(),
         lifeSpent: ticket.lifeSpent,
         lives: ticket.lives,

@@ -8,6 +8,8 @@
  *     (nothing about the level is read from the request);
  *   - the result is well-formed: a clear has 1-3 stars, a fail has 0, and
  *     ticks is an integer up to MAX_RUN_TICKS (parseReportedRun);
+ *   - a clear's stars are the ones its ticks earn against the level's pars in
+ *     the season manifest (src/levels/catalog.ts starsForTicks);
  *   - the run fits the time since the ticket was issued (runFitsWallClock).
  *
  * Then, in one transaction under the user's row lock (src/db/levels.ts), the
@@ -22,7 +24,7 @@
  * 400:      { error, code: INVALID_JSON | INVALID_TICKET | INVALID_RESULT
  *                         | IMPLAUSIBLE_RUN }
  * 401:      { error, code: UNAUTHORIZED }
- * 404:      { error, code: TICKET_NOT_FOUND }
+ * 404:      { error, code: TICKET_NOT_FOUND | SEASON_NOT_FOUND }
  * 409:      { error, code: TICKET_USED }
  * 410:      { error, code: TICKET_EXPIRED }
  * 429:      { error, code: RATE_LIMITED }
@@ -33,6 +35,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { LevelError, openTicketLevel, submitLevelResult } from "../../../../src/db/levels";
 import { parseReportedRun } from "../../../../src/levels/rules";
+import { catalogLevel, starsForTicks } from "../../../../src/levels/catalog";
 import {
   NO_STORE,
   levelErrorResponse,
@@ -87,6 +90,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     ? await checkLevelUserRateLimit("result", player.uid, ticket.season, ticket.level)
     : totalLimit;
   if (!userLimit.allowed) return reject(429, "RATE_LIMITED", "Too many requests");
+
+  const row = catalogLevel(ticket.season, ticket.level);
+  if (!row) return reject(404, "SEASON_NOT_FOUND", "That season is not available");
+  // Refused before the transaction, so the ticket stays open.
+  if (run.cleared && run.stars !== starsForTicks(run.ticks, row.pars)) {
+    return reject(400, "INVALID_RESULT", "The stars do not match the finish time");
+  }
 
   try {
     const result = await submitLevelResult({ userId: player.uid, ticketId, run, replayToken, now });
