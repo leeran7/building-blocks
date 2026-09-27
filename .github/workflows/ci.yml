@@ -3,11 +3,13 @@ name: CI
 # Job `name:` values are GitHub check contexts. They are required to merge
 # into main by the ruleset in .github/rulesets/require-ci-on-main.json.
 # Renaming a job without updating and re-applying that ruleset drops the gate.
+# feat/level-system is the Level System play-testing branch: its PRs need the
+# same gates before they merge there.
 on:
   push:
-    branches: [main, development]
+    branches: [main, development, feat/level-system]
   pull_request:
-    branches: [main, development]
+    branches: [main, development, feat/level-system]
   merge_group:
 
 permissions:
