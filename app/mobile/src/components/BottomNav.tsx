@@ -2,7 +2,8 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { tapLight } from "../lib/haptics";
 
 const TABS = [
-  { label: "Home", path: "/", icon: HomeIcon },
+  { label: "Levels", path: "/", icon: MapIcon },
+  { label: "Modes", path: "/modes", icon: ModesIcon },
   { label: "Ranks", path: "/leaderboard", icon: TrophyIcon },
   { label: "Profile", path: "/profile", icon: UserIcon },
 ] as const;
@@ -10,7 +11,7 @@ const TABS = [
 const TAB_PATHS: ReadonlySet<string> = new Set(TABS.map((t) => t.path));
 
 /**
- * True for a bottom-nav tab root (Home, Ranks, Profile), taken from TABS so a
+ * True for a bottom-nav tab root (Levels, Modes, Ranks, Profile), taken from TABS so a
  * new tab cannot be missed. The tabs are peers, not a stack: App shows the nav
  * on them, RouteTransition fades them in with no swipe-back, and Android back
  * leaves the app from any of them instead of popping to another tab.
@@ -61,11 +62,22 @@ export function BottomNav() {
   );
 }
 
-function HomeIcon({ active }: { active: boolean }) {
+function MapIcon({ active }: { active: boolean }) {
   return (
-    <svg width="24" height="24" viewBox="0 0 24 24" fill={active ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
-      <path d="M9 22V12h6v10" stroke={active ? "var(--color-void)" : "currentColor"} fill="none" />
+    <svg width="24" height="24" viewBox="0 0 24 24" fill={active ? "currentColor" : "none"} fillOpacity={0.25} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M3 6.5 9 4l6 2.5L21 4v13.5L15 20l-6-2.5L3 20z" />
+      <path d="M9 4v13.5M15 6.5V20" />
+    </svg>
+  );
+}
+
+function ModesIcon({ active }: { active: boolean }) {
+  return (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill={active ? "currentColor" : "none"} fillOpacity={0.25} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <rect x="3.5" y="3.5" width="7" height="7" rx="2" />
+      <rect x="13.5" y="3.5" width="7" height="7" rx="2" />
+      <rect x="3.5" y="13.5" width="7" height="7" rx="2" />
+      <rect x="13.5" y="13.5" width="7" height="7" rx="2" />
     </svg>
   );
 }

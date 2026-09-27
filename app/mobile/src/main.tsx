@@ -6,6 +6,7 @@ import { HashRouter } from "react-router-dom";
 import { App } from "./App";
 import { AuthProvider } from "./contexts/AuthContext";
 import { AppDataProvider } from "./contexts/AppDataContext";
+import { LevelsProvider } from "./contexts/LevelsContext";
 import { setVolcanoTileSrc } from "@app/components/Game/climbBackground";
 import volcanoTile from "@app/../public/climb/volcano-tile.jpg";
 // Brand fonts ship inside the bundle (no Google Fonts request), so the native
@@ -34,7 +35,9 @@ createRoot(document.getElementById("root")!).render(
     <HashRouter>
       <AuthProvider>
         <AppDataProvider>
-          <App />
+          <LevelsProvider>
+            <App />
+          </LevelsProvider>
         </AppDataProvider>
       </AuthProvider>
     </HashRouter>

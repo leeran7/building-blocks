@@ -148,8 +148,8 @@ describe("BottomNav", () => {
 
   it("is a labelled nav landmark whose tabs are named by their visible label", async () => {
     await render("/leaderboard", createElement(BottomNav));
-    expect(tabs().map((t) => t.getAttribute("aria-label"))).toEqual(["Home", "Ranks", "Profile"]);
-    expect(tabs().map((t) => t.textContent)).toEqual(["Home", "Ranks", "Profile"]);
+    expect(tabs().map((t) => t.getAttribute("aria-label"))).toEqual(["Levels", "Modes", "Ranks", "Profile"]);
+    expect(tabs().map((t) => t.textContent)).toEqual(["Levels", "Modes", "Ranks", "Profile"]);
   });
 
   it("marks exactly the current route's tab with aria-current=page, and moves it on navigation", async () => {
