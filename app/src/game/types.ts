@@ -261,6 +261,33 @@ export interface TowerSpec {
    * the first spawn, on INTRO_POWER_UP_FLOOR. Must be in allowedPowerUps.
    */
   introPowerUp?: PowerUpType;
+  /**
+   * Level layout knobs. Each is undefined on the free stack, Daily and duel
+   * towers, which keep their altitude ramp. Validated (and capped at the
+   * physical limits) by the readers in towers.ts; out of range throws.
+   *
+   * gapReachFrac: gap width as a fraction of a running jump's reach, [0, 0.75].
+   */
+  gapReachFrac?: number;
+  /** Chance a floor has one ladder up instead of two, [0, 1]. */
+  oneLadderChance?: number;
+  /**
+   * Shortest walk, in metres around the tower (it wraps), from any ladder
+   * arriving on a floor to any ladder leaving it. Kept whenever the floor has
+   * room; otherwise the ladder goes as far away as the floor allows.
+   */
+  minWalkM?: number;
+  /**
+   * Hanging ladders: every ladder starts this far above the floor it leaves,
+   * so it takes a jump to grab. At most 70% of a standing jump's rise.
+   */
+  ladderHangM?: number;
+  /**
+   * Short tops: every ladder stops this far below the floor it leads to. The
+   * climber holds at the top until they jump off. At most 70% of the rise of
+   * a jump off a ladder.
+   */
+  ladderTopGapM?: number;
 }
 
 export type MatchPhase =
