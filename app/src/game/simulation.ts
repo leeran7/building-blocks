@@ -48,6 +48,9 @@ import {
   floorIndexAt,
   floorHeight,
   buildTower,
+  LADDER_JUMP_SPEED_FRAC,
+  ladderHangM,
+  ladderTopGapM,
 } from "./towers";
 import {
   grantPowerUp,
@@ -312,13 +315,20 @@ function integratePlayer(
         : undefined;
     if (!l || input.jump) {
       releaseLadder(p);
-      p.vy = input.jump && l ? tower.jumpSpeed * 0.7 : 0;
+      p.vy = input.jump && l ? tower.jumpSpeed * LADDER_JUMP_SPEED_FRAC : 0;
       p.grabSuppressedUntilRelease =
         curIx !== null && curSlot !== null ? { ix: curIx, slot: curSlot } : null;
     } else {
       p.vy = input.climbY * climbSpeed;
       p.y += p.vy * dt;
-      if (p.y >= l.y1) {
+      if (p.y >= l.y1 && ladderTopGapM(tower) > 0) {
+        // A level's short top stops below the next floor: hold at the top,
+        // still on the ladder, until the climber jumps off (the jump branch
+        // above). Stepping off onto the ground here would stand them on air.
+        p.x = l.x;
+        p.y = l.y1;
+        p.vy = 0;
+      } else if (p.y >= l.y1) {
         p.x = l.x;
         p.y = l.y1;
         p.vy = 0;
@@ -334,7 +344,9 @@ function integratePlayer(
         p.y = l.y0;
         p.vy = 0;
         releaseLadder(p);
-        p.onGround = true;
+        // A hanging ladder's bottom is in the air: drop to the floor rather
+        // than stand (and jump) from there.
+        p.onGround = ladderHangM(tower) === 0;
       }
     }
   } else {
