@@ -77,9 +77,12 @@
  * 0.75–1.30× bands hold only while a power-up carries the climber above the
  * threshold.
  * The envelope never exceeds 1× the ladder climb rate (`MAX_HAZARD_SPEED_FRAC`),
- * so inside the leash band the lava never outruns a climber holding climb on a
- * ladder (after the cap a surge matches ladder speed; the gap opens only
- * during stumbles).
+ * so while the lowest climber's gap is within `HAZARD_LEASH_M` (50 ft; leash
+ * scale 1) the lava never outruns a climber holding climb on a ladder (after
+ * the cap a surge matches ladder speed; the gap opens only during stumbles).
+ * Beyond `HAZARD_LEASH_M` the leash speeds the lava clock up to
+ * `HAZARD_CATCHUP_MAX_SCALE`×, so there it does outrun a ladder climber until
+ * the gap closes back to `HAZARD_LEASH_M`; that is the leash's job.
  * Runs end when the player dawdles on a floor, misses a ladder, or stops.
  *
  * Height is a pure, deterministic function of (race-time, climb speed,

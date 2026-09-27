@@ -10,6 +10,8 @@
  *   jetpack       skip a ladder detour — hold jump to thrust, fuel is short
  *   slow-lava     the lava eventually outpaces any climber; buy back seconds
  *   harden-lava   lava turns to rock for a short burst; long cooldown
+ *   random        one of the seven above, rolled per (seed, orb, slot) by
+ *                 `resolveRandom` so re-simulation agrees (AC-11)
  *
  * BALANCE. The hazard envelope ramps toward 1.0× (ladder climb speed) and
  * stumbles (2s of 0.25× envelope every 8s), so the time-averaged chase
@@ -390,10 +392,31 @@ function pickType(rng: Rng, i: number, avoid: PowerUpType | null): PowerUpType {
   return POWER_UP_TYPES[POWER_UP_TYPES.length - 1];
 }
 
-/** Resolve a "random" pickup into a concrete effect type. Truly random every time. */
-export function resolveRandom(): Exclude<PowerUpType, "random"> {
-  const idx = Math.floor(Math.random() * CONCRETE_POWER_UP_TYPES.length);
-  return CONCRETE_POWER_UP_TYPES[idx];
+/**
+ * Resolve a "random" orb into a concrete effect type for one collector.
+ *
+ * Deterministic (AC-11): the roll is a pure function of the tower seed, the
+ * orb's stable identity (its floor index; there is one orb per floor, id
+ * `pu:<floor>`) and the collecting player's slot. The live client, replay
+ * playback, `verifyDailyReplay` and `simulateDuel` therefore all resolve the
+ * same orb to the same effect. The pickup tick is deliberately NOT in the key:
+ * a touch that `canActivate` blocks cannot change the eventual roll, and a
+ * player cannot fish for a better effect by timing the pickup.
+ *
+ * What a player can predict: the tower seed is known to the client, so anyone
+ * who runs the sim can compute, before reaching it, which effect every random
+ * orb will give their slot. It is hidden in the UI but not secret, and no
+ * input can change it. Every daily player is slot 0 on the same seed, so the
+ * same random orb gives everyone the same effect. In a duel the two slots
+ * roll independently, so the same orb can give each player something else.
+ */
+export function resolveRandom(
+  towerSeed: string,
+  floorIndex: number,
+  slot: number
+): Exclude<PowerUpType, "random"> {
+  const rng = createRng(`${towerSeed}:pu:random:${floorIndex}:${slot}`);
+  return CONCRETE_POWER_UP_TYPES[rng.int(0, CONCRETE_POWER_UP_TYPES.length)];
 }
 
 function clampToPiece(piece: Platform, x: number, margin: number): number {

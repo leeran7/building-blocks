@@ -570,8 +570,10 @@ export function stepMatch(
     for (const pu of state.powerUps) {
       if (pu.collected) continue;
       if (!overlapsPickup(pu, p.x, p.y)) continue;
+      // A random orb's roll is keyed on (tower seed, orb floor, slot), not
+      // the tick, so a touch blocked by canActivate re-rolls the same effect.
       const effectType = pu.type === "random"
-        ? resolveRandom()
+        ? resolveRandom(state.tower.seed, pu.floorIndex, p.slot)
         : pu.type;
       if (!canActivate(p, effectType, state.tick)) continue;
       pu.collected = true;
