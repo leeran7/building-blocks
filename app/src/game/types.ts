@@ -126,8 +126,8 @@ export interface PlayerState {
   /** Power-ups currently running. Expired entries are dropped each tick. */
   activePowerUps: ActivePowerUp[];
   /**
-   * Earliest tick each type may be activated again. Only slow-lava sets one —
-   * see the balance note in powerups.ts on why the run has to stay finite.
+   * Earliest tick each type may be activated again. slow-lava and harden-lava
+   * set one — see LAVA-CLOCK POWER-UPS in the powerups.ts header.
    */
   cooldownUntilTick: Partial<Record<PowerUpType, number>>;
   /**

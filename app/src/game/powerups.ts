@@ -47,9 +47,10 @@
  * applies to both (`hazardTimeScale`), so a duel can see up to twice that
  * uptime. A random orb that rolls either type obeys the same cooldown. Do not
  * raise TIME_SLOW_FRAC, lengthen either duration or shorten either cooldown
- * without redoing this arithmetic. powerups.test.ts pins the slow-lava
- * constants (not harden-lava's). The 8 s / 40 s pair keeps the same uptime
- * fraction as the old 6 s / 30 s window.
+ * without redoing this arithmetic. powerups.test.ts pins both types' constants
+ * to literals and measures the resulting means (0.6533 / 0.621, chained
+ * 0.5745). The 8 s / 40 s pair keeps the same uptime fraction as the old
+ * 6 s / 30 s window.
  *
  * Spawns are a seeded GAP SCHEDULE, not independent per-floor coin flips:
  * a random first floor, then mixed clusters and droughts whose mean gap
@@ -159,8 +160,9 @@ export interface PowerUpSpec {
   /** How long the effect lasts, in seconds. */
   durationSeconds: number;
   /**
-   * Seconds after the effect ends before this type may be activated again. Only
-   * slow-lava needs one — see the note at the top on why the run must still end.
+   * Seconds after the effect ends before this type may be activated again.
+   * slow-lava and harden-lava set one; every other type uses 0. See
+   * LAVA-CLOCK POWER-UPS at the top for how the cooldowns bound the lava clock.
    */
   cooldownSeconds: number;
   /**
