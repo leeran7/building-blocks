@@ -1,10 +1,9 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef } from "react";
 
 import { buildFreeTower } from "@app/game/freeStack";
 import { useClimb } from "@app/game/useClimb";
 import { encodeRunReplay } from "@app/game/runReplay";
 import { hazardPhase } from "@app/game/hazard";
-import { TICK_HZ } from "@app/game/types";
 import { ClimbCanvas } from "@app/components/Game/ClimbCanvas";
 import { ExpeditionHud } from "@app/components/Game/ExpeditionHud";
 import { TouchControls, useTouchControlsInset } from "@app/components/Game/TouchControls";
@@ -34,13 +33,10 @@ import {
 import { StarRow } from "./LevelBits";
 
 /**
- * The climb itself. Mounted once per attempt (keyed by ticket), so a retry
- * always starts from a clean match.
- *
- * Until the engine's level finish lands (design doc §8: `goalFt` in
- * `stepMatch`), the summit is detected here from the player's height, and a
- * cleared run is reported without a replay. Once the engine marks the player
- * `finished` at the goal, its own finish tick is used instead.
+ * The climb itself, on a level tower: the free stack capped at the level's
+ * goal height (`goalM`), so the engine finishes the climber at the summit.
+ * Mounted once per attempt (keyed by ticket), so a retry always starts from a
+ * clean match.
  */
 export function LevelRun({
   level,
@@ -64,7 +60,7 @@ export function LevelRun({
   onEnd: (report: LevelRunReport) => void;
   onQuit: () => void;
 }) {
-  const towerRef = useRef(buildFreeTower());
+  const towerRef = useRef({ ...buildFreeTower(), goalM: goalFt });
   const { state, simRef, renderFeed, start, finished, setTouch, runId, inputLog } = useClimb({
     tower: towerRef.current,
     seed,
@@ -78,11 +74,9 @@ export function LevelRun({
 
   const phase = state.phase;
   const ended = useRef(false);
-  const [summit, setSummit] = useState(false);
-  const running = !finished && !summit && !paused;
-  // Until the engine stops the match at the goal, the sim keeps stepping
-  // behind the result card. Feed the audio nothing once the run is over, so
-  // no lava or death cue plays over "Level cleared".
+  const running = !finished && !paused;
+  // Feed the audio nothing once the run is over, so no lava or death cue
+  // plays over the result card.
   const player = running ? state.players[0] : undefined;
   const touchActive = running && (phase === "countdown" || phase === "climb");
 
@@ -130,46 +124,28 @@ export function LevelRun({
     handleStart();
   }, [autoStart, handleStart]);
 
-  // Summit stand-in: reaching the goal height ends the run as a clear.
-  useEffect(() => {
-    if (ended.current || phase !== "climb") return;
-    const sim = simRef.current;
-    const me = sim.players[0];
-    if (!me || me.peakY < goalFt) return;
-    ended.current = true;
-    setSummit(true);
-    void tapMedium();
-    onEnd({
-      finished: true,
-      finishedTick: me.finishedTick ?? Math.round(sim.raceSeconds * TICK_HZ),
-      peakFt: me.peakY,
-      replayToken: null,
-    });
-  }, [state.tick, phase, goalFt, simRef, onEnd]);
-
-  // Caught by the lava (or, once the engine has it, finished at the goal).
+  // The run ended: finished at the summit, or caught by the lava.
   // useClimb publishes the input log in its own effect after `finished`
   // flips, so wait for it, as ClimbScreen does, or the replay is empty.
   useEffect(() => {
     if (!finished || ended.current || inputLog.length === 0) return;
     ended.current = true;
-    const sim = simRef.current;
-    const me = sim.players[0];
-    const engineFinish = me?.status === "finished" && me.finishedTick != null ? me.finishedTick : null;
-    // The goal can be crossed and the run lost inside one React update
-    // (~3 ticks); the height still counts as a clear.
-    const reached = engineFinish !== null || (me?.peakY ?? 0) >= goalFt;
-    if (!reached) void notifyError();
+    const me = simRef.current.players[0];
+    // finishedTick counts from GO: the engine resets the tick after the countdown.
+    const finishTick = me?.status === "finished" && me.finishedTick != null ? me.finishedTick : null;
+    const reached = finishTick !== null;
+    if (reached) void tapMedium();
+    else void notifyError();
     void (async () => {
       const replayToken = await encodeRunReplay({ seed: state.seed, peakY: me?.peakY ?? 0, inputs: inputLog });
       onEnd({
         finished: reached,
-        finishedTick: reached ? (engineFinish ?? Math.round(sim.raceSeconds * TICK_HZ)) : null,
+        finishedTick: finishTick,
         peakFt: me?.peakY ?? 0,
         replayToken,
       });
     })();
-  }, [finished, inputLog, onEnd, simRef, state.seed, goalFt]);
+  }, [finished, inputLog, onEnd, simRef, state.seed]);
 
   return (
     <div ref={canvasBoxRef} data-climb-surface className="exp-stage relative h-full w-full overflow-hidden">
