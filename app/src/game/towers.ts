@@ -70,7 +70,35 @@ export const FASTEST_ARCHETYPE = {
 
 const WIDTH_M = 100;
 /** Floors over which difficulty ramps from easy → hard (then holds). */
-const DIFFICULTY_FLOORS = 50;
+export const DIFFICULTY_FLOORS = 50;
+
+/**
+ * Layout difficulty (0 easy → 1 hard) that floor i is generated at. The free
+ * stack ramps with altitude over DIFFICULTY_FLOORS then holds; a level tower
+ * pins one value for every floor via `tower.difficulty`. Every difficulty
+ * knob in towers.ts, obstacles.ts and powerups.ts reads it from here.
+ */
+export function difficultyAt(tower: TowerSpec, i: number): number {
+  const fixed = tower.difficulty;
+  if (fixed === undefined) return Math.min(1, i / DIFFICULTY_FLOORS);
+  if (!Number.isFinite(fixed) || fixed < 0 || fixed > 1) {
+    throw new RangeError(`tower.difficulty must be in [0, 1], got ${fixed}`);
+  }
+  return fixed;
+}
+
+/**
+ * Cache key for geometry that depends on difficulty or orb density. Towers
+ * without the level fields keep the bare seed, so free-stack caches are
+ * untouched; a level tower that reuses a seed at another difficulty cannot
+ * read a stale layout.
+ */
+export function geometryCacheKey(tower: TowerSpec): string {
+  if (tower.difficulty === undefined && tower.powerUpChance === undefined) {
+    return tower.seed;
+  }
+  return `${tower.seed}|d=${tower.difficulty ?? "ramp"}|pu=${tower.powerUpChance ?? "ramp"}`;
+}
 
 export interface BuildTowerOptions {
   widthM?: number;
@@ -251,7 +279,7 @@ function ladderSeparation(tower: TowerSpec): number {
  */
 function ladderCountForFloor(tower: TowerSpec, i: number): number {
   const r = createRng(`${tower.seed}:ln:${i}`);
-  const d = Math.min(1, i / DIFFICULTY_FLOORS);
+  const d = difficultyAt(tower, i);
   const roll = r.next();
   // Single-ladder floors stay common low down (readable opening) and thin out.
   // Higher floors favor 2 ladders to help with wider gaps. Max is 2 (never 3).
@@ -262,7 +290,7 @@ function ladderCountForFloor(tower: TowerSpec, i: number): number {
 
 /** X positions of every ladder leaving floor i, primary first (deterministic). */
 function ladderXsForFloor(tower: TowerSpec, i: number): number[] {
-  const cache = LADDER_XS_CACHE.get(tower.seed);
+  const cache = LADDER_XS_CACHE.get(geometryCacheKey(tower));
   growLadderXsTo(tower, cache, i);
   return cache[i]!;
 }
@@ -411,7 +439,7 @@ export function ladderForFloor(tower: TowerSpec, i: number): Ladder {
 /** Gap width to jump on floor i — widens with altitude but stays jumpable. */
 function gapWidthForFloor(tower: TowerSpec, i: number): number {
   const reach = horizontalJumpReach(tower);
-  const d = Math.min(1, i / DIFFICULTY_FLOORS);
+  const d = difficultyAt(tower, i);
   const frac = 0.34 + (0.6 - 0.34) * d; // 34% → 60% of jump reach
   // Stay under reach with a margin so float error never bricks a floor.
   return Math.min(reach * frac, reach * 0.92);
@@ -448,7 +476,7 @@ type GapSpan = { lo: number; hi: number };
 
 /** How many gaps floor i wants before corridor / solvability limits. */
 function desiredGapCount(tower: TowerSpec, i: number): number {
-  const cache = DESIRED_GAPS_CACHE.get(tower.seed);
+  const cache = DESIRED_GAPS_CACHE.get(geometryCacheKey(tower));
   growDesiredGapsTo(tower, cache, i);
   return cache[i]!;
 }
@@ -460,7 +488,7 @@ function growDesiredGapsTo(
 ): void {
   for (let f = cache.length; f <= floor; f++) {
     const rng = createRng(`${tower.seed}:pgap-n:${f}`);
-    const d = Math.min(1, f / DIFFICULTY_FLOORS);
+    const d = difficultyAt(tower, f);
     let twoChance = TWO_GAP_BASE + TWO_GAP_RAMP * d;
     let threeChance = THREE_GAP_BASE + THREE_GAP_RAMP * d;
     if (f > 1 && cache[f - 1]! >= 2) {

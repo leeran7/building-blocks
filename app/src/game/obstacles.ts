@@ -20,6 +20,7 @@ import { createRng } from "./rng";
 import { resolveGameCategory } from "./categories";
 import { SPRINT_BURST_MULT } from "./powerups";
 import {
+  difficultyAt,
   floorHeight,
   floorIndexAt,
   laddersForFloor,
@@ -30,8 +31,6 @@ import {
 const EPS = 0.02;
 /** Opening floors stay clear so the first ladders read. */
 const MIN_SPAWN_FLOOR = 2;
-/** Matches towers.ts DIFFICULTY_FLOORS — ramp then hold. */
-const RAMP_FLOORS = 50;
 const EDGE_M = 1.2;
 /** Keep-out around every ladder centre so grab + climb stay unblocked. */
 const LADDER_CLEAR_EXTRA_M = 2.5;
@@ -116,7 +115,7 @@ function slopeCappedAdvance(
  */
 export function obstaclesForFloor(tower: TowerSpec, i: number): Obstacle[] {
   if (i < MIN_SPAWN_FLOOR) return [];
-  const d = Math.min(1, i / RAMP_FLOORS);
+  const d = difficultyAt(tower, i);
   const rng = createRng(`${tower.seed}:ob:${i}`);
   // Raised intercepts, same d=1 ceiling as before: the bottom floors (low d)
   // read busier while the late-game peak difficulty is unchanged.

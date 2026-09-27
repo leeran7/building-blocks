@@ -70,7 +70,15 @@ import {
 } from "./types";
 import { createRng, Rng } from "./rng";
 import { createSeedCache } from "./seedCache";
-import { floorHeight, floorIndexAt, laddersForFloor, platformsForFloor } from "./towers";
+import {
+  DIFFICULTY_FLOORS,
+  difficultyAt,
+  floorHeight,
+  floorIndexAt,
+  geometryCacheKey,
+  laddersForFloor,
+  platformsForFloor,
+} from "./towers";
 
 // ── Pickup geometry ────────────────────────────────────────────────────────
 
@@ -89,8 +97,6 @@ const MIN_SPAWN_FLOOR = 1;
 /** First orb lands somewhere in this inclusive range (varies per tower seed). */
 const FIRST_SPAWN_MIN = 1;
 const FIRST_SPAWN_MAX = 4;
-/** Floors over which spawn density and the slow-lava bias ramp to their maximum. */
-const RAMP_FLOORS = 50;
 /** Target occupancy per floor at the base, and after the ramp (drives mean gap). */
 const SPAWN_CHANCE_LOW = 0.22;
 const SPAWN_CHANCE_HIGH = 0.34;
@@ -310,11 +316,19 @@ export function canActivate(
 /**
  * Target occupancy used to size gaps — denser with altitude so deep runs stay
  * supplied. Not a per-floor coin flip; the schedule below is what actually
- * places orbs.
+ * places orbs. A level tower may pin its own occupancy (`tower.powerUpChance`);
+ * without a tower this is the free-stack altitude ramp.
  */
-export function spawnChanceForFloor(i: number): number {
+export function spawnChanceForFloor(i: number, tower?: TowerSpec): number {
   if (i < MIN_SPAWN_FLOOR) return 0;
-  const d = Math.min(1, i / RAMP_FLOORS);
+  const fixed = tower?.powerUpChance;
+  if (fixed !== undefined) {
+    if (!Number.isFinite(fixed) || fixed < 0 || fixed > 1) {
+      throw new RangeError(`tower.powerUpChance must be in [0, 1], got ${fixed}`);
+    }
+    return fixed;
+  }
+  const d = tower ? difficultyAt(tower, i) : Math.min(1, i / DIFFICULTY_FLOORS);
   return SPAWN_CHANCE_LOW + (SPAWN_CHANCE_HIGH - SPAWN_CHANCE_LOW) * d;
 }
 
@@ -327,7 +341,7 @@ export function firstSpawnFloor(tower: TowerSpec): number {
 /** Gap (in floors) after spawn `ordinal` at `fromFloor`. Always >= 1. */
 function gapAfter(tower: TowerSpec, ordinal: number, fromFloor: number): number {
   const r = createRng(`${tower.seed}:pu:gap:${ordinal}`);
-  const mean = 1 / Math.max(0.08, spawnChanceForFloor(fromFloor));
+  const mean = 1 / Math.max(0.08, spawnChanceForFloor(fromFloor, tower));
   const roll = r.next();
   // Drought: a long empty stretch so the next orb feels like a find.
   if (roll < 0.14) return Math.max(4, Math.round(mean * (1.8 + r.next() * 1.4)));
@@ -354,18 +368,18 @@ interface SpawnRec {
 const spawnScheduleCache = createSeedCache<SpawnRec[]>(8, () => []);
 
 function spawnScheduleUntil(tower: TowerSpec, atLeast: number): SpawnRec[] {
-  const list = spawnScheduleCache.get(tower.seed);
+  const list = spawnScheduleCache.get(geometryCacheKey(tower));
   if (list.length === 0) {
     const floor = firstSpawnFloor(tower);
     const rng = createRng(`${tower.seed}:pu:type:${floor}`);
-    list.push({ floor, type: pickType(rng, floor, null) });
+    list.push({ floor, type: pickType(rng, difficultyAt(tower, floor), null) });
   }
   while (list[list.length - 1].floor < atLeast) {
     const k = list.length - 1;
     const prev = list[k];
     const floor = prev.floor + Math.max(1, gapAfter(tower, k, prev.floor));
     const rng = createRng(`${tower.seed}:pu:type:${floor}`);
-    list.push({ floor, type: pickType(rng, floor, prev.type) });
+    list.push({ floor, type: pickType(rng, difficultyAt(tower, floor), prev.type) });
   }
   return list;
 }
@@ -386,8 +400,7 @@ function spawnAtFloor(tower: TowerSpec, i: number): SpawnRec | null {
 }
 
 /** Pick a type by weight, with per-spawn jitter and a penalty for repeating. */
-function pickType(rng: Rng, i: number, avoid: PowerUpType | null): PowerUpType {
-  const d = Math.min(1, i / RAMP_FLOORS);
+function pickType(rng: Rng, d: number, avoid: PowerUpType | null): PowerUpType {
   const weights = POWER_UP_TYPES.map((t) => {
     const s = POWER_UP_SPECS[t];
     let w = s.weight * (1 + (s.altitudeWeightMult - 1) * d);
