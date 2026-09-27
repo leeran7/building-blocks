@@ -20,21 +20,21 @@
     },
     {
       "name": "orchestrator-typecheck",
-      "cwd": "orchestrator",
+      "cwd": "node_modules/closed-loop-agents/orchestrator",
       "command": "yarn typecheck",
-      "proveFail": "Test files must be typechecked (tsconfig.test.json), not excluded from all tsc."
+      "proveFail": "Test files must be typechecked (tsconfig.test.json), not excluded from all tsc. Owned by closed-loop-agents; this just verifies the installed copy."
     },
     {
       "name": "orchestrator-test",
-      "cwd": "orchestrator",
+      "cwd": "node_modules/closed-loop-agents/orchestrator",
       "command": "yarn test",
-      "proveFail": "A failing assertion in orchestrator/src/*.test.ts must fail the script."
+      "proveFail": "A failing assertion in orchestrator/src/*.test.ts must fail the script. Owned by closed-loop-agents; this just verifies the installed copy."
     },
     {
       "name": "pack-hygiene",
       "cwd": ".",
-      "command": "node scripts/hygiene.mjs",
-      "proveFail": "An agent file containing a banned product substring, or missing a pointer to context/README.md, must fail hygiene."
+      "command": "npx closed-loop-agents hygiene",
+      "proveFail": "An agent file containing a banned product substring, or missing a pointer to context/README.md, must fail hygiene. Lints closed-loop-agents' own agents/, not anything in this repo."
     }
   ]
 }

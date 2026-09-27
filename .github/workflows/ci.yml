@@ -89,11 +89,13 @@ jobs:
           BASE_URL: http://localhost:3000
 
   orchestrator:
+    # The orchestrator now ships inside the closed-loop-agents dependency
+    # (leeran7/closed-loop-agents owns agents/, skills/, and orchestrator/ —
+    # this repo only installs and syncs from it). This job installs that
+    # dependency and tests its bundled copy, so a required check still
+    # verifies the exact orchestrator code `yarn loop` will run here.
     name: Orchestrator loop
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: orchestrator
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -103,15 +105,20 @@ jobs:
         with:
           node-version: "22"
           cache: yarn
-          cache-dependency-path: orchestrator/yarn.lock
 
-      - name: Install
+      - name: Install closed-loop-agents
+        run: yarn install --frozen-lockfile
+
+      - name: Install orchestrator deps
+        working-directory: node_modules/closed-loop-agents/orchestrator
         run: yarn install --frozen-lockfile
 
       - name: Typecheck
+        working-directory: node_modules/closed-loop-agents/orchestrator
         run: yarn typecheck
 
       - name: Test
+        working-directory: node_modules/closed-loop-agents/orchestrator
         run: yarn test
 
   ci:

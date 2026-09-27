@@ -3,7 +3,6 @@
   "product": "The Climb (endless climber) with a free global leaderboard, plus 1v1 paid battles (prepaid-credits duel staking). Product code lives in app/.",
   "packageManagers": [
     { "path": ".", "command": "yarn" },
-    { "path": "orchestrator", "command": "yarn" },
     { "path": "app", "command": "pnpm" }
   ],
   "stack": {

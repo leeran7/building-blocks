@@ -1,18 +1,26 @@
 # Building Blocks
 
-Product repo for **The Climb** / paid stacks (`app/`). Agent roles are generic
-and live in the pack; **this repo's facts are in `context/`**.
+Product repo for **The Climb** / paid stacks (`app/`). Agent roles, skills, and
+the kernel protocol are **owned by the [closed-loop-agents](https://github.com/leeran7/closed-loop-agents)
+package** — this repo only installs it and supplies its own facts in `context/`.
 
 | | Path |
 |--|------|
 | This product's facts | [`context/README.md`](context/README.md) |
-| File tree + how to vendor the pack | [`pack/SETUP.md`](pack/SETUP.md) |
-| Template repo | [leeran7/closed-loop-agents](https://github.com/leeran7/closed-loop-agents) |
-| Kernel protocol / gates | `skills/closed-loop/protocol.md`, `gates.md` |
+| Agent roles, skills, kernel protocol | `node_modules/closed-loop-agents` (installed dependency) |
+| Source of truth for agents/skills | [leeran7/closed-loop-agents](https://github.com/leeran7/closed-loop-agents) |
 | Memory | `loop/learnings.md` |
 
-Edit `agents/` or `skills/`, then `yarn sync`. To refresh the template repo:
-`node scripts/export-template.mjs /path/to/closed-loop-agents`.
+Do **not** add an `agents/` or `skills/` directory here — that would silently
+override the package (see "local overrides" in the package's own
+`pack/SETUP.md`) instead of changing the shared roster. To change a role,
+its tools, or a skill, edit it in `closed-loop-agents` and land it there;
+this repo picks it up on its next `yarn upgrade closed-loop-agents`.
+
+After installing or updating the dependency, run `yarn sync` to regenerate
+`.cursor/`, `.claude/`, `.codex/`, and `.agents/` from it plus this repo's
+own `context/`. Run `yarn hygiene` before committing agent-adjacent changes
+(lints the package's own source, not anything in this repo).
 
 New skills: follow the `create-skill` skill (`skills/create-skill/SKILL.md`).
 Shared files between skills **must** be symlinks, never copies — single source
