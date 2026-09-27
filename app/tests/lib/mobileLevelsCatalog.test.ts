@@ -93,5 +93,6 @@ describe("levelRunSetup", () => {
       expect(run.outcome).toBe("cleared");
       expect(run.ticks).toBe(row.routeTicks);
     }
-  });
+    // Three full route-bot runs (L250 is minutes of game time): slow under a loaded suite.
+  }, 60_000);
 });
