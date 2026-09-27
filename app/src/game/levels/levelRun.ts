@@ -2,9 +2,8 @@
  * Play one level with the route bot through the real `stepMatch` (design doc
  * §3 winnability gate). Used by the season generator and CI's season check.
  *
- * The finish is "feet reach the goal height". Until the level engine marks the
- * finish itself (`goalFt` in stepMatch), this runner checks it after each
- * tick, which is the same rule.
+ * The finish is the engine's own: feet at the tower's goal height mark the
+ * climber finished (stepMatch step 4).
  */
 
 import { createMatch, stepMatch } from "../simulation";
@@ -31,14 +30,16 @@ export interface LevelRunResult {
   /** Climb ticks when the run ended (the finish tick on a clear). */
   ticks: number;
   peakY: number;
+  /** Ticks the climber spent on the ground or a ladder (not airborne). */
+  groundedTicks: number;
 }
 
 export interface LevelRunOptions {
   hazard: HazardConfig;
   /**
    * Share of the bot's grounded and ladder ticks replaced by no input, spread
-   * evenly: 0.2 makes a bot about 20% slower on the same route. Airborne
-   * ticks are left alone so the slow bot takes the same jumps.
+   * evenly. Airborne ticks are left alone so the slow bot takes the same
+   * jumps. `idleShareForPace` turns a target pace into this share.
    */
   idleShare?: number;
 }
@@ -60,13 +61,12 @@ export function runLevel(spec: LevelSpec, opts: LevelRunOptions): LevelRunResult
   const maxTicks = MAX_RUN_SECONDS * TICK_HZ;
   let peakTick = 0;
   let peakY = 0;
-  let controlled = 0;
+  let grounded = 0;
   let idled = 0;
 
   while (state.phase === "climb") {
     const p = state.players[0];
-    if (p.status === "eliminated") return { outcome: "caught", ticks: state.tick, peakY };
-    if (p.y >= spec.goalFt) return { outcome: "cleared", ticks: state.tick, peakY: p.y };
+    if (p.status !== "climbing") break;
     if (p.y > peakY) {
       peakY = p.y;
       peakTick = state.tick;
@@ -74,9 +74,9 @@ export function runLevel(spec: LevelSpec, opts: LevelRunOptions): LevelRunResult
     if (state.tick - peakTick > stuckTicks || state.tick >= maxTicks) break;
 
     let input = bot(p, state.tower, state.tick);
+    if (p.onGround || p.onLadder) grounded += 1;
     if (idleShare > 0 && (p.onGround || p.onLadder)) {
-      controlled += 1;
-      if (Math.floor(controlled * idleShare) > idled) {
+      if (Math.floor(grounded * idleShare) > idled) {
         idled += 1;
         input = NO_INPUT;
       }
@@ -84,6 +84,23 @@ export function runLevel(spec: LevelSpec, opts: LevelRunOptions): LevelRunResult
     stepMatch(state, { [BOT_ID]: input }, cfg);
   }
   const p = state.players[0];
-  if (p.status === "eliminated") return { outcome: "caught", ticks: state.tick, peakY };
-  return { outcome: "stuck", ticks: state.tick, peakY };
+  if (p.status === "finished" && p.finishedTick !== null) {
+    return { outcome: "cleared", ticks: p.finishedTick, peakY: p.y, groundedTicks: grounded };
+  }
+  const outcome = p.status === "eliminated" ? "caught" : "stuck";
+  return { outcome, ticks: state.tick, peakY, groundedTicks: grounded };
+}
+
+/**
+ * Idle share that makes the bot take `1 / pace` times its route time: the
+ * extra ticks all land on its grounded ticks, the only ones it idles. From a
+ * full-speed clear of `routeTicks` with `groundedTicks` on the ground.
+ */
+export function idleShareForPace(
+  route: Pick<LevelRunResult, "ticks" | "groundedTicks">,
+  pace: number
+): number {
+  if (!(pace > 0 && pace <= 1)) throw new RangeError(`bad pace: ${pace}`);
+  const extra = route.ticks / pace - route.ticks;
+  return extra / (route.groundedTicks + extra);
 }

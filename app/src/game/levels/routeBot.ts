@@ -11,6 +11,10 @@
  *   (the greedy bot fell into gaps that way and climbed back forever);
  * - it keeps its walk direction while airborne.
  *
+ * Level towers add two moves: a hanging ladder (its bottom above the floor)
+ * takes a jump to grab, and at a short top (the ladder stops below the next
+ * floor) the bot jumps off to reach the floor above.
+ *
  * It is stateful (the committed target), so build one per run with
  * `createRouteBot()`. It reads only the player and tower, never the lava, so
  * one bot's route is the same under any lava config until the lava catches it.
@@ -22,6 +26,8 @@ import { isPowerUpActive, moveSpeedMultiplier } from "../powerups";
 import { obstacleAhead, isOnObstacle, obstaclesNearY } from "../obstacles";
 import {
   floorIndexAt,
+  ladderHangM,
+  ladderTopGapM,
   laddersForFloor,
   platformsForFloor,
   platformsNearY,
@@ -29,6 +35,10 @@ import {
 import type { Ladder, PlayerInput, PlayerState, TowerSpec } from "../types";
 
 const UP: PlayerInput = { moveX: 0, jump: false, climbY: 1, usePowerUp: false };
+/** Jump while holding climb: grabs a hanging ladder, or leaves a short top. */
+const JUMP_UP: PlayerInput = { moveX: 0, jump: true, climbY: 1, usePowerUp: false };
+/** Float slack on "at the top of the ladder". */
+const TOP_EPS = 1e-6;
 
 export type RouteBot = (p: PlayerState, tower: TowerSpec, tick: number) => PlayerInput;
 
@@ -40,7 +50,13 @@ export function createRouteBot(): RouteBot {
 
   return (p, tower, tick) => {
     if (p.onGround || p.onLadder) gapJump = false;
-    if (p.onLadder) return UP;
+    if (p.onLadder) {
+      if (ladderTopGapM(tower) > 0 && p.ladderIx !== null && p.ladderSlot !== null) {
+        const l = laddersForFloor(tower, p.ladderIx)[p.ladderSlot];
+        if (l && p.y >= l.y1 - TOP_EPS) return JUMP_UP;
+      }
+      return UP;
+    }
     const canSuperJump = isPowerUpActive(p, "super-jump", tick);
 
     if (isOnObstacle(tower, p.x, p.y)) {
@@ -66,6 +82,10 @@ export function createRouteBot(): RouteBot {
     // carrying on would land in a gap, so a narrow island between two gaps
     // becomes a stepping stone instead of a fall.
     if (!p.onGround) {
+      // Rising under the target ladder: hold climb to catch it.
+      if (target !== null && Math.abs(target.x - p.x) <= tower.ladderGrabRadius * 0.5) {
+        return UP;
+      }
       const steer = airSteer(tower, p, dir, tick);
       if (gapJump || steer === 0) {
         return { moveX: steer, jump: false, climbY: 0, usePowerUp: false };
@@ -79,7 +99,9 @@ export function createRouteBot(): RouteBot {
     }
     if (target === null) target = pickTarget(tower, k, p);
     const dx = target.x - p.x;
-    if (Math.abs(dx) <= tower.ladderGrabRadius * 0.5) return UP;
+    if (Math.abs(dx) <= tower.ladderGrabRadius * 0.5) {
+      return p.onGround && ladderHangM(tower) > 0 ? JUMP_UP : UP;
+    }
     dir = dx > 0 ? 1 : -1;
     const probe = p.x + dir * 3.5;
     const probeWrapped = ((probe % tower.widthM) + tower.widthM) % tower.widthM;

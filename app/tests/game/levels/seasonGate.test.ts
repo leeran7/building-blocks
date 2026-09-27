@@ -21,7 +21,7 @@ import {
   type SeasonManifest,
 } from "../../../src/game/levels/seasonGate";
 import { levelSpec, maxLavaMeanFrac } from "../../../src/game/levels/levelSpec";
-import { runLevel, NO_LAVA } from "../../../src/game/levels/levelRun";
+import { runLevel, idleShareForPace, NO_LAVA } from "../../../src/game/levels/levelRun";
 
 const committed = JSON.parse(
   readFileSync(join(__dirname, "../../../src/game/levels/seasons/season-1.json"), "utf8")
@@ -34,21 +34,23 @@ function measured(level: number, rev: number): ManifestLevel {
 }
 
 describe("route bot", () => {
-  // Seeds where the greedy test bot loops forever: an island between two
-  // gaps, and a gap right after a crate pyramid.
-  it.each(["s1:level:232:0", "s1:level:120:0"])("clears %s", (seed) => {
-    const [, , level, rev] = seed.split(":");
-    const spec = { ...levelSpec(SEASON_1, Number(level), Number(rev)), goalFt: 200 };
+  it("jumps to hanging ladders and off short tops", () => {
+    // L21 is the first level with both; a 150 ft goal crosses several floors.
+    const spec = { ...levelSpec(SEASON_1, 21), goalFt: 150 };
+    expect(spec.layout.hangingLadderFt).toBeGreaterThan(0);
+    expect(spec.layout.shortTopFt).toBeGreaterThan(0);
     expect(runLevel(spec, { hazard: NO_LAVA }).outcome).toBe("cleared");
   });
 
-  it("is slowed by the idle share", () => {
-    const spec = levelSpec(SEASON_1, 10, 0);
+  it("runs at the pace it is asked to", () => {
+    const spec = levelSpec(SEASON_1, 30);
     const fast = runLevel(spec, { hazard: NO_LAVA });
-    const slow = runLevel(spec, { hazard: NO_LAVA, idleShare: 0.2 });
     expect(fast.outcome).toBe("cleared");
+    expect(fast.groundedTicks).toBeGreaterThan(0);
+    expect(fast.groundedTicks).toBeLessThan(fast.ticks);
+    const slow = runLevel(spec, { hazard: NO_LAVA, idleShare: idleShareForPace(fast, 0.8) });
     expect(slow.outcome).toBe("cleared");
-    expect(slow.ticks / fast.ticks).toBeGreaterThan(1.15);
+    expect(fast.ticks / slow.ticks).toBeCloseTo(0.8, 1);
   });
 });
 
@@ -79,7 +81,7 @@ describe("level gate", () => {
   it("fails a level the slower bot can still clear", () => {
     const tooSlow = { ...row, catchMeanFrac: row.catchMeanFrac * 0.6 };
     tooSlow.lavaMeanFrac = levelSpec(SEASON_1, row.level, row.rev).tightness * tooSlow.catchMeanFrac;
-    expect(verifyLevelRow(SEASON_1, tooSlow).join()).toMatch(/prove-red bot .* was cleared/);
+    expect(verifyLevelRow(SEASON_1, tooSlow).join()).toMatch(/prove-red bot \(.* pace\) was cleared/);
   });
 
   it("fails a late level no lava can catch", () => {

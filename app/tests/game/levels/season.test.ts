@@ -13,7 +13,8 @@ import {
   stepCount,
   type SeasonSpec,
 } from "../../../src/game/levels/season";
-import { levelSpec, levelPars, levelHazard, maxLavaMeanFrac } from "../../../src/game/levels/levelSpec";
+import { levelSpec, levelPars, levelHazard, levelTower, maxLavaMeanFrac } from "../../../src/game/levels/levelSpec";
+import { ladderHangM, ladderTopGapM, summitFloor } from "../../../src/game/towers";
 import { hazardMeanSpeedFrac } from "../../../src/game/hazard";
 
 const TABLE: Array<[number, number, number, number]> = [
@@ -71,13 +72,15 @@ describe("season equation", () => {
     expect(last.powerUpChance).toBeCloseTo(0.1, 10);
   });
 
+  // The ceilings are the engine's physical caps: 70% of a standing jump's rise
+  // (0.7 · 15² / 80) and of a ladder jump's rise (0.7 · 10.5² / 80).
   it("brings in hanging ladders at L9 and short tops at L21", () => {
     expect(levelSpec(SEASON_1, 8).layout.hangingLadderFt).toBe(0);
     expect(levelSpec(SEASON_1, 9).layout.hangingLadderFt).toBeCloseTo(0.8, 10);
-    expect(levelSpec(SEASON_1, 300).layout.hangingLadderFt).toBeCloseTo(2.0, 10);
+    expect(levelSpec(SEASON_1, 300).layout.hangingLadderFt).toBeCloseTo(1.96875, 10);
     expect(levelSpec(SEASON_1, 20).layout.shortTopFt).toBe(0);
     expect(levelSpec(SEASON_1, 21).layout.shortTopFt).toBeCloseTo(0.4, 10);
-    expect(levelSpec(SEASON_1, 300).layout.shortTopFt).toBeCloseTo(1.0, 10);
+    expect(levelSpec(SEASON_1, 300).layout.shortTopFt).toBeCloseTo(0.9646875, 10);
   });
 
   it("unlocks power-ups one at a time, none on L1-3", () => {
@@ -107,6 +110,30 @@ describe("season equation", () => {
     expect(() => levelSpec(SEASON_1, 301)).toThrow(RangeError);
     expect(() => levelSpec(SEASON_1, 1.5)).toThrow(RangeError);
     expect(() => levelSpec(SEASON_1, 1, -1)).toThrow(RangeError);
+  });
+});
+
+describe("level tower", () => {
+  it("pins every level setting on the engine's tower", () => {
+    const spec = levelSpec(SEASON_1, 300);
+    const tower = levelTower(spec);
+    expect(tower.goalM).toBe(spec.goalFt);
+    expect(tower.difficulty).toBe(spec.layoutDial);
+    expect(tower.powerUpChance).toBe(spec.powerUpChance);
+    expect(tower.allowedPowerUps).toEqual(spec.allowedPowerUps);
+    // The engine's validating readers accept the season's ceiling values.
+    expect(ladderHangM(tower)).toBe(spec.layout.hangingLadderFt);
+    expect(ladderTopGapM(tower)).toBe(spec.layout.shortTopFt);
+    expect(summitFloor(tower)).not.toBeNull();
+  });
+
+  it("forces the intro orb only on an intro level", () => {
+    expect(levelTower(levelSpec(SEASON_1, 4)).introPowerUp).toBe("rapid-climb");
+    expect("introPowerUp" in levelTower(levelSpec(SEASON_1, 5))).toBe(false);
+  });
+
+  it("gives every level its own tower", () => {
+    expect(levelTower(levelSpec(SEASON_1, 7, 0)).seed).not.toBe(levelTower(levelSpec(SEASON_1, 7, 1)).seed);
   });
 });
 

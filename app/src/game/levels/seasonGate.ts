@@ -24,7 +24,7 @@
  * CI re-runs 3-5 on the committed manifest (`verifySeasonManifest`).
  */
 
-import { runLevel, NO_LAVA } from "./levelRun";
+import { runLevel, idleShareForPace, NO_LAVA } from "./levelRun";
 import {
   LEVEL_SPEC_VERSION,
   levelHazard,
@@ -42,6 +42,8 @@ export const GATE = {
   proveRedFromLevel: 50,
   /** The prove-red bot runs this far under the level's tightness. */
   proveRedMargin: 0.05,
+  /** How close the prove-red bot's measured pace must be to its target. */
+  proveRedPaceTolerance: 0.02,
   /** Bisection steps for the catch point: (0.7 / 2^8) ≈ 0.003 resolution. */
   catchSearchSteps: 8,
   /** Seed revisions tried per level before "config unwinnable". */
@@ -90,9 +92,9 @@ function lavaOf(row: Pick<ManifestLevel, "lavaMeanFrac" | "rampSeconds">) {
   return levelHazard({ meanFrac: row.lavaMeanFrac, rampSeconds: row.rampSeconds });
 }
 
-/** Idle share that runs the bot at `tightness − margin` of its own pace. */
-export function proveRedIdleShare(spec: LevelSpec): number {
-  return 1 - (spec.tightness - GATE.proveRedMargin);
+/** Pace (share of the route bot's) the prove-red bot runs at. */
+export function proveRedPace(spec: LevelSpec): number {
+  return spec.tightness - GATE.proveRedMargin;
 }
 
 /** Steps 1-2: measure one seed revision and build its manifest row. */
@@ -162,18 +164,23 @@ export function verifyLevelRow(season: SeasonSpec, row: ManifestLevel): string[]
     out.push(`${tag}: route bot finished in ${clear.ticks} ticks, manifest says ${row.routeTicks}`);
   }
 
-  if (row.level >= GATE.proveRedFromLevel) {
+  if (row.level >= GATE.proveRedFromLevel && clear.outcome === "cleared") {
     if (row.catchCapped) {
       out.push(`${tag}: no lava can catch the route bot, so the level cannot be proven loseable`);
     } else {
-      const idleShare = proveRedIdleShare(spec);
+      const pace = proveRedPace(spec);
+      const idleShare = idleShareForPace(clear, pace);
       const slow = runLevel(spec, { hazard: lava, idleShare });
       if (slow.outcome !== "caught") {
-        out.push(`${tag}: prove-red bot (${idleShare.toFixed(2)} idle) was ${slow.outcome}, not caught`);
+        out.push(`${tag}: prove-red bot (${pace.toFixed(2)} pace) was ${slow.outcome}, not caught`);
       }
       const slowFree = runLevel(spec, { hazard: NO_LAVA, idleShare });
       if (slowFree.outcome !== "cleared") {
         out.push(`${tag}: prove-red bot ${slowFree.outcome} with no lava, so the catch proves nothing`);
+      } else if (Math.abs(clear.ticks / slowFree.ticks - pace) > GATE.proveRedPaceTolerance) {
+        out.push(
+          `${tag}: prove-red bot ran at ${(clear.ticks / slowFree.ticks).toFixed(3)} pace, meant ${pace.toFixed(3)}`
+        );
       }
     }
   }

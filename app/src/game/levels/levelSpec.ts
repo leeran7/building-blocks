@@ -1,21 +1,20 @@
 /**
  * `levelSpec(season, N)`: one level's settings from its season (design doc §3,
  * §3a, §8). Shared by the season generator, the server verifier and the app.
- *
- * Engine status: the level engine (tower difficulty and layout knobs, the goal
- * height finish, allowed power-ups) is being built in its own PRs. Until it
- * lands, `levelTower` is the free tower on the level's seed, the goal is
- * checked by the caller (`levelRun.ts`), and the layout knobs below are
- * computed and recorded but not yet applied to the geometry. When the engine
- * lands, wire the knobs in `levelTower` and regenerate the manifests: the
- * committed manifest's measured route times then stop matching and CI's season
- * check goes red until they are regenerated.
+ * `levelTower` turns a spec into the engine's level tower: layout difficulty
+ * and knobs, power-up chance and set, and the goal height.
  *
  * Client-safe: no Node imports.
  */
 
 import { buildFreeTower } from "../freeStack";
-import { applyRunSeed } from "../towers";
+import {
+  LADDER_JUMP_SPEED_FRAC,
+  MAX_GAP_REACH_FRAC,
+  MAX_LADDER_HANG_FRAC,
+  MAX_LADDER_TOP_GAP_FRAC,
+  applyRunSeed,
+} from "../towers";
 import { DEFAULT_HAZARD_CONFIG, MAX_HAZARD_SPEED_FRAC, hazardMeanSpeedFrac } from "../hazard";
 import type { HazardConfig } from "../hazard";
 import type { PowerUpType, TowerSpec } from "../types";
@@ -75,10 +74,30 @@ export interface LevelSpec {
 /** Levels 1-3 teach the climb: no power-ups. */
 const NO_POWER_UP_LEVELS = 3;
 
-/** First-sight hanging ladders start at 0.8 ft and reach 2.0 ft at dL = 1. */
-const HANGING_LADDER_FT = { from: 0.8, to: 2.0 } as const;
-/** First-sight short tops start at 0.4 ft and reach 1.0 ft at dL = 1. */
-const SHORT_TOP_FT = { from: 0.4, to: 1.0 } as const;
+/** The free tower's physics: every level is climbed on it. */
+const FREE_TOWER = buildFreeTower();
+
+/** Rise (ft) of a jump launched at `speed` on the free tower. */
+function jumpRiseFt(speed: number): number {
+  return (speed * speed) / (2 * FREE_TOWER.gravity);
+}
+
+/**
+ * Hanging ladders start at 0.8 ft on their intro level and reach the engine's
+ * cap at dL = 1: 70% of a standing jump's rise (1.97 ft; the doc rounds to 2).
+ */
+const HANGING_LADDER_FT = {
+  from: 0.8,
+  to: MAX_LADDER_HANG_FRAC * jumpRiseFt(FREE_TOWER.jumpSpeed),
+} as const;
+/**
+ * Short tops start at 0.4 ft and reach the engine's cap at dL = 1: 70% of a
+ * ladder jump's rise (0.96 ft; the doc rounds to 1).
+ */
+const SHORT_TOP_FT = {
+  from: 0.4,
+  to: MAX_LADDER_TOP_GAP_FRAC * jumpRiseFt(LADDER_JUMP_SPEED_FRAC * FREE_TOWER.jumpSpeed),
+} as const;
 
 export function levelSeed(season: SeasonSpec, level: number, rev: number): string {
   return `${season.seedSalt}:level:${level}:${rev}`;
@@ -105,7 +124,7 @@ function introKnob(
   const d0 = dialAt(season.layout, introLevel);
   const dL = dialAt(season.layout, level);
   const t = d0 >= 1 ? 1 : (dL - d0) / (1 - d0);
-  return range.from + (range.to - range.from) * t;
+  return Math.min(range.to, range.from + (range.to - range.from) * t);
 }
 
 export function levelSpec(season: SeasonSpec, level: number, rev = 0): LevelSpec {
@@ -126,7 +145,7 @@ export function levelSpec(season: SeasonSpec, level: number, rev = 0): LevelSpec
     goalFt: goalFtFor(d),
     tightness: tightnessFor(d),
     layout: {
-      gapFrac: 0.34 + 0.41 * dL,
+      gapFrac: Math.min(MAX_GAP_REACH_FRAC, 0.34 + 0.41 * dL),
       minWalkFt: 8 + 32 * dL,
       oneLadderFrac: 0.5 + 0.35 * dL,
       hangingLadderFt: introKnob(season, level, season.obstacleIntros.hangingLadders, HANGING_LADDER_FT),
@@ -139,11 +158,25 @@ export function levelSpec(season: SeasonSpec, level: number, rev = 0): LevelSpec
 }
 
 /**
- * The tower a level is climbed on. Engine stub: the free tower on the level's
- * seed until the level engine accepts the layout knobs (see header).
+ * The tower a level is climbed on: the free tower's physics on the level's
+ * seed, with the level's layout, power-ups and goal pinned. Lengths are feet,
+ * 1:1 with the engine's metres.
  */
 export function levelTower(spec: LevelSpec): TowerSpec {
-  return applyRunSeed(buildFreeTower(), spec.seed);
+  const tower: TowerSpec = {
+    ...applyRunSeed(FREE_TOWER, spec.seed),
+    difficulty: spec.layoutDial,
+    powerUpChance: spec.powerUpChance,
+    goalM: spec.goalFt,
+    allowedPowerUps: spec.allowedPowerUps,
+    gapReachFrac: spec.layout.gapFrac,
+    oneLadderChance: spec.layout.oneLadderFrac,
+    minWalkM: spec.layout.minWalkFt,
+    ladderHangM: spec.layout.hangingLadderFt,
+    ladderTopGapM: spec.layout.shortTopFt,
+  };
+  if (spec.introPowerUp !== null) tower.introPowerUp = spec.introPowerUp;
+  return tower;
 }
 
 // ── Lava ────────────────────────────────────────────────────────────────────
