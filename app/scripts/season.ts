@@ -115,7 +115,12 @@ async function runParallel(task: WorkerTask, jobs: number): Promise<WorkerLine[]
                 const parsed = JSON.parse(line) as WorkerLine;
                 lines.push(parsed);
                 done += 1;
-                const status = "row" in parsed ? `ok (rev ${parsed.row.rev})` : "FAILED";
+                const status =
+                  "row" in parsed
+                    ? `ok (rev ${parsed.row.rev})`
+                    : parsed.problems.length === 0
+                      ? "ok"
+                      : "FAILED";
                 process.stderr.write(`[${done}/${task.levels.length}] L${parsed.level} ${status}\n`);
               }
             });
