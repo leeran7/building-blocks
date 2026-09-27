@@ -17,7 +17,7 @@
  *    the gate can fail.
  * 5. Never easier. Across the season the goal height, the measured tightness
  *    (lava mean over catch point) and the layout dial all rise level to level,
- *    and power-ups only get rarer.
+ *    and power-ups only get rarer once they unlock.
  *
  * A level that fails re-rolls its seed (revision + 1). A level that fails on
  * every revision is reported as "config unwinnable" and the season is refused.
@@ -207,7 +207,10 @@ export function neverEasierProblems(season: SeasonSpec, rows: readonly ManifestL
     const tag = `L${a.level} → L${b.level}`;
     if (!(sb.goalFt > sa.goalFt)) out.push(`${tag}: goal height does not rise`);
     if (!(sb.layoutDial > sa.layoutDial)) out.push(`${tag}: layout dial does not rise`);
-    if (!(sb.powerUpChance <= sa.powerUpChance)) out.push(`${tag}: power-ups get more common`);
+    // L1-3 have no power-ups at all; the rule starts once they unlock.
+    if (sa.powerUpChance > 0 && !(sb.powerUpChance <= sa.powerUpChance)) {
+      out.push(`${tag}: power-ups get more common`);
+    }
     const ta = a.lavaMeanFrac / a.catchMeanFrac;
     const tb = b.lavaMeanFrac / b.catchMeanFrac;
     if (!(tb > ta)) out.push(`${tag}: measured lava tightness does not rise (${ta.toFixed(4)} → ${tb.toFixed(4)})`);

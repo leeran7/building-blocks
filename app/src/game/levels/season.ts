@@ -6,7 +6,7 @@
  * obstacle intro levels. Every level's settings come from its position in the
  * season, with Hard levels (every 5th) counting as three steps instead of one:
  *
- *   e(N)    = N − 1 + 2·floor(N / 5)          e(300) = 418
+ *   e(N)    = N − 1 + 2·floor(N / 5)          e(300) = 419
  *   p(N)    = e(N) / e(300)                   season progress, 0 → 1
  *   dial(N) = start + (end − start) · p(N)^shape
  *
@@ -91,7 +91,7 @@ export function isHardLevel(n: number): boolean {
   return n % HARD_LEVEL_EVERY === 0;
 }
 
-/** Step count: Hard levels count as three steps. e(1) = 0, e(300) = 418. */
+/** Step count: Hard levels count as three steps. e(1) = 0, e(300) = 419. */
 export function stepCount(n: number): number {
   return n - 1 + 2 * Math.floor(n / HARD_LEVEL_EVERY);
 }

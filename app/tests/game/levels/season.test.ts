@@ -34,7 +34,8 @@ describe("season equation", () => {
     expect(stepCount(1)).toBe(0);
     expect(stepCount(4)).toBe(3);
     expect(stepCount(5)).toBe(6);
-    expect(stepCount(LEVELS_PER_SEASON)).toBe(418);
+    // The design doc prints e(300) = 418; 299 + 2·60 is 419. p(300) = 1 either way.
+    expect(stepCount(LEVELS_PER_SEASON)).toBe(419);
     expect(isHardLevel(5)).toBe(true);
     expect(isHardLevel(6)).toBe(false);
   });
@@ -55,7 +56,7 @@ describe("season equation", () => {
       expect(b.layoutDial).toBeGreaterThan(a.layoutDial);
       expect(b.tightness).toBeGreaterThan(a.tightness);
       expect(b.layout.gapFrac).toBeGreaterThan(a.layout.gapFrac);
-      expect(b.powerUpChance).toBeLessThanOrEqual(a.powerUpChance);
+      if (a.powerUpChance > 0) expect(b.powerUpChance).toBeLessThanOrEqual(a.powerUpChance);
       checked++;
     }
     expect(checked).toBe(LEVELS_PER_SEASON - 1);

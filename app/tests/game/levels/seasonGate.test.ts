@@ -20,7 +20,7 @@ import {
   type ManifestLevel,
   type SeasonManifest,
 } from "../../../src/game/levels/seasonGate";
-import { levelSpec } from "../../../src/game/levels/levelSpec";
+import { levelSpec, maxLavaMeanFrac } from "../../../src/game/levels/levelSpec";
 import { runLevel, NO_LAVA } from "../../../src/game/levels/levelRun";
 
 const committed = JSON.parse(
@@ -67,8 +67,12 @@ describe("level gate", () => {
   }, 60_000);
 
   it("fails a level whose lava catches the route bot", () => {
-    const tooFast = { ...row, catchMeanFrac: row.catchMeanFrac * 1.25 };
-    tooFast.lavaMeanFrac = levelSpec(SEASON_1, row.level, row.rev).tightness * tooFast.catchMeanFrac;
+    // L300 (tightness 0.95): a catch point 10% too high puts the lava above
+    // the bot's real one while staying under the lava's speed cap.
+    const last = committed.levels[LEVELS_PER_SEASON - 1];
+    const tooFast = { ...last, catchMeanFrac: last.catchMeanFrac * 1.1 };
+    expect(tooFast.catchMeanFrac).toBeLessThanOrEqual(maxLavaMeanFrac());
+    tooFast.lavaMeanFrac = levelSpec(SEASON_1, last.level, last.rev).tightness * tooFast.catchMeanFrac;
     expect(verifyLevelRow(SEASON_1, tooFast).join()).toMatch(/caught by the level's lava/);
   });
 
