@@ -16,8 +16,10 @@ import {
   climbView,
   followCamY,
   isLavaThreatening,
+  lavaGapBelowViewM,
   lavaThreatFill,
 } from "../../src/components/Game/climbCamera";
+import { isLavaInProximity, LAVA_PROXIMITY_M } from "../../src/components/Game/lava";
 import { createMatch, stepMatch } from "../../src/game/simulation";
 import { NO_INPUT, TICK_DT, type PlayerState } from "../../src/game/types";
 import {
@@ -25,6 +27,8 @@ import {
   type PaintCtx,
 } from "../../src/components/Game/paintClimbFrame";
 import { buildTower } from "../../src/game/towers";
+import { buildFreeTower } from "../../src/game/freeStack";
+import { HAZARD_LEASH_M } from "../../src/game/hazard";
 
 const WIDTH = 360;
 const HEIGHT = 640;
@@ -103,6 +107,62 @@ describe("lavaThreatFill: 0 until the line clears the overlay", () => {
     const inset = 20;
     // Uncovered view is 80m starting at cam+inset = 20.
     expect(lavaThreatFill(20 + 40, 0, viewH, inset)).toBe(0.5);
+  });
+});
+
+describe("lavaGapBelowViewM: metres from the uncovered bottom down to the lava", () => {
+  const { pxPerM, viewH } = climbView(WIDTH, HEIGHT, TOWER_WIDTH_M);
+  const insetM = TOUCH_INSET_PX / pxPerM;
+
+  it("is camera bottom minus lava on desktop (no overlay)", () => {
+    expect(lavaGapBelowViewM(70, 100, 0, pxPerM)).toBe(30);
+    expect(lavaGapBelowViewM(130, 100, 0, pxPerM)).toBe(-30);
+    expect(lavaGapBelowViewM(100, 100, 0, pxPerM)).toBe(0);
+  });
+
+  it("measures from above the touch overlay, converting its px to metres", () => {
+    // Positive fixture: the overlay is a real ~31 m band on this canvas.
+    expect(insetM).toBeGreaterThan(10);
+    expect(lavaGapBelowViewM(70, 100, TOUCH_INSET_PX, pxPerM)).toBeCloseTo(30 + insetM, 9);
+    // Lava hidden only by the overlay is still "below the view".
+    expect(lavaGapBelowViewM(100 + insetM / 2, 100, TOUCH_INSET_PX, pxPerM)).toBeGreaterThan(0);
+  });
+
+  it("ignores the overlay on an unsized canvas instead of dividing by zero", () => {
+    for (const bad of [0, -3, Number.NaN]) {
+      expect(lavaGapBelowViewM(70, 100, TOUCH_INSET_PX, bad)).toBe(30);
+    }
+  });
+
+  it("agrees with lavaThreatFill on where the visible bottom is", () => {
+    // Lava strictly below the uncovered bottom (gap > 0 or = 0) paints no
+    // threat; lava above it (gap < 0) does. Web and mobile read one from
+    // each helper, so they must never disagree.
+    const cam = cameraTargetY(500, viewH, TOUCH_INSET_PX, pxPerM);
+    let checked = 0;
+    for (let hazardY = cam - 80; hazardY <= cam + insetM + 40; hazardY += 0.37) {
+      const gap = lavaGapBelowViewM(hazardY, cam, TOUCH_INSET_PX, pxPerM);
+      const shown = isLavaThreatening(lavaThreatFill(hazardY, cam, viewH, insetM));
+      expect(shown, `hazardY=${hazardY}`).toBe(gap < 0);
+      checked += 1;
+    }
+    expect(checked).toBeGreaterThan(100);
+  });
+
+  it("drives the proximity band: near just below the view, not in view or far below", () => {
+    const cam = 100;
+    expect(isLavaInProximity(lavaGapBelowViewM(cam - 20, cam, 0, pxPerM))).toBe(true);
+    expect(isLavaInProximity(lavaGapBelowViewM(cam + 5, cam, 0, pxPerM))).toBe(false);
+    expect(
+      isLavaInProximity(lavaGapBelowViewM(cam - LAVA_PROXIMITY_M - 5, cam, 0, pxPerM))
+    ).toBe(false);
+    // 10 m above the camera bottom: in view on desktop, but hidden under the
+    // touch overlay on mobile, so there it is "near" (the glow shows).
+    const underButtons = cam + 10;
+    expect(isLavaInProximity(lavaGapBelowViewM(underButtons, cam, 0, pxPerM))).toBe(false);
+    expect(
+      isLavaInProximity(lavaGapBelowViewM(underButtons, cam, TOUCH_INSET_PX, pxPerM))
+    ).toBe(true);
   });
 });
 
@@ -279,5 +339,36 @@ describe("paintClimbFrame camera: smoother through jumps", () => {
     }, 90);
     expect(painted.length).toBeGreaterThan(0);
     painted.forEach((y, i) => expect(y).toBeCloseTo(baseline[i]!, 9));
+  });
+});
+
+describe("camera framing keeps the leashed lava in view (spec-lava-apparency §3)", () => {
+  // The leash rides the lava HAZARD_LEASH_M behind a fast climber, and the
+  // measured 0.85× band (hazard.ts header) is ~53–101 ft. At the old 0.62
+  // focus the view showed only ~68 ft below the climber, so lava sitting at
+  // the leash plus the crest's band midpoint was off screen all match.
+  const tower = buildFreeTower();
+  const PLAYER_Y = 1000;
+
+  function framing(width: number, height: number) {
+    const { pxPerM, viewH } = climbView(width, height, tower.widthM);
+    const camY = cameraTargetY(PLAYER_Y, viewH, 0, pxPerM);
+    return { viewH, camY, below: PLAYER_Y - camY, ahead: viewH - (PLAYER_Y - camY) };
+  }
+
+  it("shows ~80 ft below the climber and ~98 ft ahead on the locked 9:16 view, at any device size", () => {
+    for (const [w, h] of [[360, 640], [1080, 1920], [414, 736]] as const) {
+      const f = framing(w, h);
+      expect(f.below).toBeGreaterThanOrEqual(78);
+      expect(f.ahead).toBeGreaterThanOrEqual(95);
+    }
+  });
+
+  it("lava riding 75 ft behind the climber (leash + band) is on screen", () => {
+    const { viewH, camY } = framing(WIDTH, HEIGHT);
+    const lavaY = PLAYER_Y - (HAZARD_LEASH_M + 25);
+    expect(isLavaThreatening(lavaThreatFill(lavaY, camY, viewH, 0))).toBe(true);
+    // Positive control for the negative side: lava well past the view is not.
+    expect(isLavaThreatening(lavaThreatFill(PLAYER_Y - 150, camY, viewH, 0))).toBe(false);
   });
 });

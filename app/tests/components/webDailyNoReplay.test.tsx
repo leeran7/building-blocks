@@ -74,6 +74,7 @@ vi.mock("../../src/game/useClimb", async (importOriginal) => {
 
 import { ClimbScene } from "../../src/components/Game/ClimbScene";
 import { buildFreeTower } from "../../src/game/freeStack";
+import { DAILY_SIM_VERSION } from "../../src/game/simVersion";
 
 const STASH_KEY = "doomstack:pending-climb";
 const DAILY_PATH = "/api/climb/daily/result";
@@ -103,7 +104,7 @@ type SceneProps = {
   resultPath?: string;
   resultFields?: Readonly<Record<string, string | number | boolean>>;
 };
-const DAILY_PROPS: SceneProps = { shareAfterSave: true, resultPath: DAILY_PATH, resultFields: { simVersion: 1 } };
+const DAILY_PROPS: SceneProps = { shareAfterSave: true, resultPath: DAILY_PATH, resultFields: { simVersion: DAILY_SIM_VERSION } };
 
 async function render(props: SceneProps) {
   container = document.createElement("div");
@@ -151,7 +152,7 @@ describe("web daily run with no replay token (RV-DC-1)", () => {
   it("control: with a replay token the daily run goes to the daily route with its fields", async () => {
     await render(DAILY_PROPS);
     expect(net.posts.map((p) => p.path)).toEqual([DAILY_PATH]);
-    expect(net.posts[0].body).toMatchObject({ simVersion: 1 });
+    expect(net.posts[0].body).toMatchObject({ simVersion: DAILY_SIM_VERSION });
     expect(typeof net.posts[0].body.replayToken).toBe("string");
     expect(container!.textContent).not.toContain(FALLBACK_NOTE);
   });

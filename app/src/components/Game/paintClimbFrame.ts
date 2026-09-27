@@ -28,10 +28,12 @@ import {
   cameraTargetY,
   climbView,
   followCamY,
+  lavaGapBelowViewM,
 } from "./climbCamera";
 import { drawFloorMarker } from "./FloorMarker";
 import { drawClimbBackground } from "./climbBackground";
-import { drawLava, LAVA_SLOWED } from "./lava";
+import { drawLava, drawLavaProximityGlow, LAVA_SLOWED } from "./lava";
+import { hazardPhase } from "../../game/hazard";
 import {
   PICKUP_BURST_TICKS,
   PICKUP_FLASH_TICKS,
@@ -315,6 +317,9 @@ export function paintClimbFrame(
     const total = durationTicks("harden-lava");
     hardenProgress = total > 0 ? 1 - rem / total : 0;
   }
+  // Same effective-time call the HUD makes, so the crest and the
+  // SURGING / STUMBLING readout agree.
+  const lavaPhase = hazardPhase(state.raceSeconds - state.hazardSlowSeconds);
   const hazScreenY = sy(state.hazardY);
   if (hazScreenY < height) {
     drawLava(ctx, {
@@ -326,8 +331,22 @@ export function paintClimbFrame(
       reducedMotion,
       slowed: lavaSlowed,
       hardenProgress: hardenActive ? hardenProgress : -1,
+      phase: lavaPhase.phase,
+      phaseProgress: lavaPhase.progress,
     });
   }
+  // Lava below the visible bottom (the touch overlay covers `bottomInset`, so
+  // lava drawn only under it is not shown): glow the edge while it is close.
+  // Eased camera: the glow must match the frame being drawn.
+  drawLavaProximityGlow(ctx, {
+    width,
+    height,
+    ui,
+    tick: state.tick,
+    reducedMotion,
+    gapBelowViewM: lavaGapBelowViewM(state.hazardY, camWorldY, bottomInset, pxPerM),
+    bottomInset,
+  });
 
   for (const p of state.players) {
     if (opts.hiddenSlots?.has(p.slot)) continue;

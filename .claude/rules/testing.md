@@ -21,3 +21,12 @@ already satisfies makes the test vacuous. Check both.
 After any change to geometry, speeds or constants, re-run every mutant that
 was proven red before. A guard's tests can go dark when the fixtures move.
 Start per-tick tests off the step lattice so edge ticks actually run.
+
+Every source of randomness a simulation step can reach needs a re-simulation
+fixture that actually exercises it (count > 0). A re-sim test whose fixtures
+never trigger the random path proves nothing about it; the random-orb
+Math.random bug shipped that way.
+
+After changing a tuning constant, grep for the old derived numbers in comments
+and for tests that assert a bound the value can never cross. Both went stale
+three times in one change.

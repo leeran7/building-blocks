@@ -13,11 +13,14 @@ import {
   useTouchControlsInset,
 } from "@app/components/Game/TouchControls";
 import { usePowerUpFeedback } from "@app/components/Game/usePowerUpFeedback";
+import { lavaMusicIntensity } from "@app/components/Game/powerUpCues";
+import { isLavaInProximity } from "@app/components/Game/lava";
 import {
   climbView,
   cameraTargetY,
   lavaThreatFill,
   isLavaThreatening,
+  lavaGapBelowViewM,
 } from "@app/components/Game/climbCamera";
 import { useCanvasSize } from "@app/hooks/useCanvasSize";
 import { useSafeAreaInsets } from "@app/hooks/useSafeAreaInsets";
@@ -169,15 +172,14 @@ export function ClimbScreen({ onSignIn }: { onSignIn?: () => void } = {}) {
   // Camera + lava-threat feed the audio one-shots (see ClimbScene for rationale).
   const musicActive = !finished && (phase === "countdown" || phase === "climb");
   const lavaGap = player ? player.y - state.hazardY : Infinity;
-  const musicIntensity = Math.max(0, Math.min(1, (40 - lavaGap) / 40));
+  const musicIntensity = lavaMusicIntensity(lavaGap);
   const view = climbView(canvasSize.width, canvasSize.height, state.tower.widthM);
   const camY = cameraTargetY(player?.y ?? 0, view.viewH, bottomInset, view.pxPerM);
   const lavaPhaseInfo = hazardPhase(state.raceSeconds - state.hazardSlowSeconds);
-  const lavaFill = lavaThreatFill(
-    state.hazardY,
-    camY,
-    view.viewH,
-    view.pxPerM > 0 ? bottomInset / view.pxPerM : 0,
+  const bottomInsetM = view.pxPerM > 0 ? bottomInset / view.pxPerM : 0;
+  const lavaFill = lavaThreatFill(state.hazardY, camY, view.viewH, bottomInsetM);
+  const lavaNear = isLavaInProximity(
+    lavaGapBelowViewM(state.hazardY, camY, bottomInset, view.pxPerM)
   );
   const { muted, setMuted, announcement, unlockAudio } = usePowerUpFeedback(
     player,
@@ -187,6 +189,8 @@ export function ClimbScreen({ onSignIn }: { onSignIn?: () => void } = {}) {
     {
       jetpackThrusting: player?.jetpackThrusting ?? false,
       lavaOnScreen: isLavaThreatening(lavaFill),
+      lavaNear,
+      lavaPhase: lavaPhaseInfo.phase,
       lavaFill,
       dead: player?.status === "eliminated",
     },

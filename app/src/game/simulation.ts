@@ -498,10 +498,21 @@ export function stepMatch(
   // 1. Rising hazard — speed is a fraction of the climber's climb rate, so the
   //    chase scales with how fast the player can move (AC-5, AC-6). The lava
   //    stumbles on a fixed cycle rather than accelerating at every moment.
-  //    Time-slow banks seconds the lava never gets to spend; catch-up spends
-  //    them a little faster while the lead climber is far ahead, then drops
-  //    back to 1× as soon as the gap is within 250m. Both keep the height
-  //    curve monotonic.
+  //    Time-slow banks seconds the lava never gets to spend; the leash
+  //    (hazardCatchupTimeScale) spends them faster in proportion to how far
+  //    the TRAILING climber is beyond HAZARD_LEASH_M, and runs at 1× within
+  //    it, so the lava rides a fixed distance behind whoever is lowest. Both
+  //    keep the height curve monotonic.
+  //    Keyed on the lowest climber, not the highest (SEC-LAVA-1): in a duel
+  //    client a peer's y is an unvalidated ghost snapshot, and under a max a
+  //    spoofed y ran the honest player's lava at the 3× cap. Under a min a
+  //    peer can never raise the scale above what the local player's own
+  //    height gives (the solo curve), and a trailer's client reads its own
+  //    exact height, so it agrees with the server's joint re-sim while the
+  //    opponent bursts ahead. A peer that really trails can still withhold
+  //    its lower joint lava by reporting a high y, so the leader's local lava
+  //    may sit above the server's, up to the solo curve (SEC-LAVA-11; the fix
+  //    is server-side, SEC-LAVA-9). Solo and daily have one climber: unchanged.
   const timeScale =
     hazardTimeScale(state.players, state.tick) *
     hazardCatchupTimeScale(climbingLeadM(state.players, state.hazardY));
@@ -553,14 +564,18 @@ export function stepMatch(
     p.cheatFlagged = sentinel.flagged;
 
     // 3. Auto-activate any orb the climber is now touching, on contact — no
-    //    banking, no use button. An orb whose type is still cooling down (only
-    //    slow-lava ever sets one) is left uncollected so it stays pickable once
-    //    the cooldown clears, rather than being wasted or bypassing the rule.
+    //    banking, no use button. An orb whose type is still cooling down
+    //    (slow-lava and harden-lava set one) is left uncollected so it stays
+    //    pickable once the cooldown clears, rather than being wasted or
+    //    bypassing the rule.
     for (const pu of state.powerUps) {
       if (pu.collected) continue;
       if (!overlapsPickup(pu, p.x, p.y)) continue;
+      // A random orb resolves from (tower seed, orb floor, slot), not the
+      // tick, so a touch blocked by canActivate resolves to the same effect
+      // later.
       const effectType = pu.type === "random"
-        ? resolveRandom()
+        ? resolveRandom(state.tower.seed, pu.floorIndex, p.slot)
         : pu.type;
       if (!canActivate(p, effectType, state.tick)) continue;
       pu.collected = true;
@@ -686,14 +701,25 @@ function wrapX(x: number, widthM: number): number {
   return w < 0 ? w + widthM : w;
 }
 
-/** Metres the highest still-climbing player sits above the lava. */
+/**
+ * Metres the LOWEST still-climbing player sits above the lava (0 when nobody
+ * is climbing). The leash reads this, so it hunts the trailer. A min is the
+ * only safe shape here: a peer's position on a duel client is self-reported
+ * (SEC-LAVA-1), and a min means it can never speed the lava clock beyond the
+ * local player's own solo lead. It can still raise the local lava above the
+ * server's joint lava, up to that solo curve, by reporting a high y while it
+ * really trails (SEC-LAVA-11; server-side fix tracked as SEC-LAVA-9).
+ */
 function climbingLeadM(players: readonly PlayerState[], hazardY: number): number {
-  let lead = 0;
+  let lead = Infinity;
   for (const p of players) {
     if (p.status !== "climbing") continue;
-    lead = Math.max(lead, p.y - hazardY);
+    const own = p.y - hazardY;
+    // A NaN ghost height never wins the comparison, so it cannot mask the
+    // local climber's real lead (Math.min would propagate the NaN).
+    if (own < lead) lead = own;
   }
-  return lead;
+  return lead === Infinity ? 0 : lead;
 }
 
 /**

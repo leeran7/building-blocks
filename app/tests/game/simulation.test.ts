@@ -31,7 +31,7 @@ import {
 } from "../../src/game/types";
 import {
   DEFAULT_HAZARD_CONFIG,
-  HAZARD_CATCHUP_LEAD_M,
+  HAZARD_LEASH_M,
 } from "../../src/game/hazard";
 import {
   buildTower,
@@ -39,11 +39,9 @@ import {
   laddersForFloor,
   platformsForFloor,
   floorHeight,
-  floorIndexAt,
   platformsNearY,
 } from "../../src/game/towers";
-import { obstacleAhead, isOnObstacle, obstaclesNearY } from "../../src/game/obstacles";
-import { isPowerUpActive } from "../../src/game/powerups";
+import { botInput } from "./greedyBot";
 
 const TOWER: TowerSpec = buildTower("indie-games");
 
@@ -441,66 +439,6 @@ describe("AC-7 / AC-8: caught by the death line eliminates and retains peak", ()
 });
 
 describe("endless completability: a greedy bot climbs far up a generated tower", () => {
-  function botInput(p: PlayerState, tower: TowerSpec, tick = 0): PlayerInput {
-    if (p.onLadder) return UP;
-    const canSuperJump = isPowerUpActive(p, "super-jump", tick);
-    if (isOnObstacle(tower, p.x, p.y)) {
-      const nextStep = obstaclesNearY(tower, p.y + 0.1, p.y + 3)
-        .filter((o) => o.y1 > p.y + 0.15)
-        .sort((a, b) => a.y0 - b.y0)[0];
-      if (nextStep) {
-        const mid = (nextStep.x0 + nextStep.x1) / 2;
-        const dir: -1 | 0 | 1 = mid >= p.x ? 1 : -1;
-        return {
-          moveX: dir,
-          jump:
-            p.onGround ||
-            (canSuperJump && !p.jumpHeldPrev && nextStep.y0 > p.y + 0.2),
-          climbY: 0,
-          usePowerUp: false,
-        };
-      }
-    }
-    const k = floorIndexAt(tower, p.y + 0.5);
-    const ladders = laddersForFloor(tower, k);
-    const pieces = platformsForFloor(tower, k);
-    const piece = pieces.find(
-      (pl) =>
-        p.x >= pl.x0 - 0.15 &&
-        p.x <= pl.x1 + 0.15 &&
-        Math.abs(pl.y - p.y) <= 0.25
-    );
-    const local = piece
-      ? ladders.filter((l) => l.x >= piece.x0 && l.x <= piece.x1)
-      : [];
-    const target = (local.length > 0 ? local : ladders)
-      .slice()
-      .sort((a, b) => Math.abs(a.x - p.x) - Math.abs(b.x - p.x))[0];
-    const dx = target.x - p.x;
-    if (Math.abs(dx) <= tower.ladderGrabRadius * 0.5) return UP;
-    const dir: -1 | 0 | 1 = dx > 0 ? 1 : -1;
-    const probe = p.x + dir * 3.5;
-    const probeWrapped =
-      ((probe % tower.widthM) + tower.widthM) % tower.widthM;
-    const probeForFloor =
-      probe < 0 || probe > tower.widthM ? probeWrapped : probe;
-    const ahead = platformsNearY(tower, p.y, p.y).some(
-      (pl) =>
-        probeForFloor >= pl.x0 &&
-        probeForFloor <= pl.x1 &&
-        Math.abs(pl.y - p.y) <= 0.05
-    );
-    const crate = obstacleAhead(tower, p.x, p.y, dir);
-    return {
-      moveX: dir,
-      jump:
-        (p.onGround && (!ahead || crate)) ||
-        (!p.onGround && crate && canSuperJump && !p.jumpHeldPrev),
-      climbY: 0,
-      usePowerUp: false,
-    };
-  }
-
   for (const slug of ["indie-games", "developer-tools", "fitness-and-wellness"]) {
     it(`climbs high up the ${slug} tower under a slow hazard (solvable + unbounded)`, () => {
       const tower = buildTower(slug);
@@ -526,6 +464,58 @@ describe("endless completability: a greedy bot climbs far up a generated tower",
     expect(m.phase).toBe("finished");
     expect(m.players[0].status).toBe("eliminated");
     expect(m.players[0].peakY).toBeGreaterThan(80); // real climbing happened
+  });
+
+  it("AC-11: re-simulating the bot's input log under the real hazard, leash engaged, reproduces the run", () => {
+    // The SLOW-config determinism test below barely moves the lava. This one
+    // runs DEFAULT_SIM_CONFIG, so the continuous leash clock is live.
+    const tower = buildTower("indie-games");
+    const init = { seed: "leash-resim", mode: "solo" as const, tower, playerIds: ["bot"] };
+    const live = createMatch(init);
+    while (live.phase === "countdown") stepMatch(live, {}, DEFAULT_SIM_CONFIG);
+    const log: Record<PlayerId, PlayerInput>[] = [];
+    let leashTicks = 0;
+    while (live.phase === "climb" && log.length < 20000) {
+      const input = botInput(live.players[0], tower, live.tick);
+      log.push({ bot: input });
+      const banked0 = live.hazardSlowSeconds;
+      stepMatch(live, { bot: input }, DEFAULT_SIM_CONFIG);
+      // Only a clock scale > 1 (the leash) banks negative seconds.
+      if (live.hazardSlowSeconds < banked0 - 1e-12) leashTicks += 1;
+    }
+    expect(live.phase).toBe("finished");
+    expect(leashTicks).toBeGreaterThan(0);
+
+    const a = simulateFromInputs(init, log, DEFAULT_SIM_CONFIG);
+    const b = simulateFromInputs(init, log, DEFAULT_SIM_CONFIG);
+    expect(JSON.stringify(a)).toBe(JSON.stringify(live));
+    expect(JSON.stringify(b)).toBe(JSON.stringify(a));
+  });
+
+  it("AC-11: re-simulating a run that reaches the late creep reproduces it bit for bit", () => {
+    // The fixture above dies ~30 s into hazard time, inside the ramp. This
+    // seed survives past the ramp end, so the creep piece of the envelope is
+    // under the equality assertion too. An unaided bot cannot reach the cap
+    // (~395 s): the creep catches even a 0.66x pace at ~362 s.
+    const creepStartS = DEFAULT_HAZARD_CONFIG.graceSeconds + DEFAULT_HAZARD_CONFIG.rampSeconds;
+    const tower = buildTower("indie-games", { runSeed: "creep-1" });
+    const init = { seed: "creep-1", mode: "solo" as const, tower, playerIds: ["bot"] };
+    const live = createMatch(init);
+    while (live.phase === "countdown") stepMatch(live, {}, DEFAULT_SIM_CONFIG);
+    const log: Record<PlayerId, PlayerInput>[] = [];
+    while (live.phase === "climb" && log.length < 40000) {
+      const input = botInput(live.players[0], tower, live.tick);
+      log.push({ bot: input });
+      stepMatch(live, { bot: input }, DEFAULT_SIM_CONFIG);
+    }
+    expect(live.phase).toBe("finished");
+    // Fixture guard: the run really spent hazard time past the ramp end.
+    expect(live.raceSeconds - live.hazardSlowSeconds).toBeGreaterThan(creepStartS);
+
+    const a = simulateFromInputs(init, log, DEFAULT_SIM_CONFIG);
+    const b = simulateFromInputs(init, log, DEFAULT_SIM_CONFIG);
+    expect(JSON.stringify(a)).toBe(JSON.stringify(live));
+    expect(JSON.stringify(b)).toBe(JSON.stringify(a));
   });
 });
 
@@ -593,19 +583,19 @@ describe("regression: a climber can move from the base; idling loses", () => {
   });
 });
 
-describe("hazard catch-up: lava closes a large lead", () => {
-  it("rises faster when the climber is over 250m ahead than when they are close", () => {
+describe("hazard leash: lava closes a lead beyond the leash", () => {
+  it("rises faster when the climber is beyond the leash than when they are within it", () => {
     const sampleTicks = 4 * TICK_HZ;
-    const far = riseWhileHeld(HAZARD_CATCHUP_LEAD_M + 1, sampleTicks);
-    const near = riseWhileHeld(50, sampleTicks);
-    const atThreshold = riseWhileHeld(HAZARD_CATCHUP_LEAD_M, sampleTicks);
+    const far = riseWhileHeld(HAZARD_LEASH_M + 1, sampleTicks);
+    const near = riseWhileHeld(HAZARD_LEASH_M - 20, sampleTicks);
+    const atThreshold = riseWhileHeld(HAZARD_LEASH_M, sampleTicks);
     expect(far.rise).toBeGreaterThan(near.rise);
     expect(near.rise).toBeCloseTo(atThreshold.rise, 6);
     expect(near.banked).toBe(0);
     expect(far.banked).toBeLessThan(0);
   });
 
-  it("slows back to the normal clock once the lead is within 250m again", () => {
+  it("slows back to the normal clock once the lead is within the leash again", () => {
     const sampleTicks = 4 * TICK_HZ;
     const m = climbingMatch("solo", ["p1"]);
     silenceOrbs(m);
@@ -618,15 +608,15 @@ describe("hazard catch-up: lava closes a large lead", () => {
         stepMatch(m, { p1: IDLE }, DEFAULT_SIM_CONFIG);
       }
     };
-    hold(50, warm);
+    hold(HAZARD_LEASH_M - 20, warm);
     const yFar0 = m.hazardY;
     const bankedFar0 = m.hazardSlowSeconds;
-    hold(HAZARD_CATCHUP_LEAD_M + 20, sampleTicks);
+    hold(HAZARD_LEASH_M + 20, sampleTicks);
     const farRise = m.hazardY - yFar0;
     const farBanked = m.hazardSlowSeconds - bankedFar0;
     const yNear0 = m.hazardY;
     const bankedNear0 = m.hazardSlowSeconds;
-    hold(50, sampleTicks);
+    hold(HAZARD_LEASH_M - 20, sampleTicks);
     const nearRise = m.hazardY - yNear0;
     const nearBanked = m.hazardSlowSeconds - bankedNear0;
     expect(farBanked).toBeLessThan(0);

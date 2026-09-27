@@ -28,9 +28,12 @@ import {
   cameraTargetY,
   climbView,
   isLavaThreatening,
+  lavaGapBelowViewM,
   lavaThreatFill,
 } from "./climbCamera";
 import { hazardPhase } from "../../game/hazard";
+import { isLavaInProximity } from "./lava";
+import { lavaMusicIntensity } from "./powerUpCues";
 import {
   TouchControls,
   useTouchControlsInset,
@@ -238,21 +241,22 @@ export function ClimbScene({
       ? touchInset
       : 0;
   // Music plays through the countdown + climb and stops on the results screen.
-  // Intensity ramps up over the last ~40m of clearance as the lava gains.
+  // Intensity ramps up over the leash band (+40m) of clearance as the lava
+  // gains, so the track follows the chase all match (lavaMusicIntensity).
   // Not during a replay: a replay auto-starts with no user gesture, so kicking
   // the AudioContext there would trip the browser's autoplay block (a console
   // warning + a suspended context that only resumes on a later tap).
   const musicActive =
     !finished && !replaying && (phase === "countdown" || phase === "climb");
   const lavaGap = player ? player.y - state.hazardY : Infinity;
-  const musicIntensity = Math.max(0, Math.min(1, (40 - lavaGap) / 40));
+  const musicIntensity = lavaMusicIntensity(lavaGap);
   const view = climbView(canvasSize.width, canvasSize.height, state.tower.widthM);
   const camY = cameraTargetY(player?.y ?? 0, view.viewH, bottomInset, view.pxPerM);
-  const lavaFill = lavaThreatFill(
-    state.hazardY,
-    camY,
-    view.viewH,
-    view.pxPerM > 0 ? bottomInset / view.pxPerM : 0
+  const bottomInsetM = view.pxPerM > 0 ? bottomInset / view.pxPerM : 0;
+  const lavaFill = lavaThreatFill(state.hazardY, camY, view.viewH, bottomInsetM);
+  // Just below the uncovered view — the band the edge glow shows in.
+  const lavaNear = isLavaInProximity(
+    lavaGapBelowViewM(state.hazardY, camY, bottomInset, view.pxPerM)
   );
   const lavaPhaseInfo = hazardPhase(state.raceSeconds - state.hazardSlowSeconds);
 
@@ -267,6 +271,11 @@ export function ClimbScene({
     {
       jetpackThrusting: worldLive && (player?.jetpackThrusting ?? false),
       lavaOnScreen: worldLive && isLavaThreatening(lavaFill),
+      // lavaNear alone can fire the lava-surge cue, so it is gated too.
+      // lavaPhase stays live: it plays nothing unless lavaOnScreen or
+      // lavaNear is set, and the cue memo keeps tracking the phase.
+      lavaNear: worldLive && lavaNear,
+      lavaPhase: lavaPhaseInfo.phase,
       lavaFill: worldLive ? lavaFill : 0,
       dead: worldLive && player?.status === "eliminated",
     }

@@ -10,13 +10,17 @@
  *   jetpack       skip a ladder detour — hold jump to thrust, fuel is short
  *   slow-lava     the lava eventually outpaces any climber; buy back seconds
  *   harden-lava   lava turns to rock for a short burst; long cooldown
+ *   random        one of the seven above, rolled per (seed, orb, slot) by
+ *                 `resolveRandom` so re-simulation agrees (AC-11)
  *
- * BALANCE. The hazard envelope ramps toward 1.0× (ladder climb speed) and
- * stumbles (2s of 0.25× envelope every 8s), so the time-averaged chase
- * settles near 0.75× — climbable on a ladder, with longer stumble windows for
- * lets the lava close in. Power-ups are what push past that cap, and they are
- * cap, and they are deliberately shaped so the ceiling is raised by PLAYING
- * WELL rather than by collecting:
+ * BALANCE. The lava's surge speed (the envelope) ramps 0.42x -> 0.91x ladder
+ * climb speed over 120 s, then creeps up to the 1x cap (~6.5 min). Every 16 s
+ * it stumbles for 6 s at 0.2x envelope. So the time-averaged chase is 0.64x
+ * when the ramp ends and 0.70x at the cap (hazard.ts header,
+ * `hazardMeanSpeedFrac`). The best unaided pace is ~0.55-0.62x, so every
+ * unaided run ends. Power-ups are what push a climber past that threshold, and
+ * they are deliberately shaped so the ceiling is raised by PLAYING WELL rather
+ * than by collecting:
  *
  *   - one live entry per type. A second orb of the same type refreshes the
  *     running effect rather than stacking charges, so super-jump cannot be
@@ -26,21 +30,27 @@
  *   - short windows that must be spent on the right terrain — rapid-climb is
  *     wasted if you are not on a ladder, leftover jetpack fuel dies if jump
  *     is not held (or with the spend window);
- *   - multipliers under 2x, so no single pickup trivialises a floor;
- *   - slow-lava cuts the lava's clock by 40% and is the rarest drop, but
- *     weights toward it with altitude — exactly where the lava wins — so a deep
- *     run keeps getting the tool it needs to go deeper.
+ *   - multipliers at most 2x, so no single pickup trivialises a floor;
+ *   - slow-lava cuts the lava's clock by 40%. It and harden-lava are the
+ *     rarest drops, but both weight toward themselves with altitude — exactly
+ *     where the lava wins — so a deep run keeps getting the tools it needs.
  *
- * THE RUN MUST STILL END. The endless tower's guarantee is that the lava's
- * time-averaged late-game speed (envelope × stumble duty) stays above 1x climb
- * speed, so no climber outlasts it. Time-slow is the one power-up that can break
- * that: held at 100% uptime it would drop the lava to (1 − TIME_SLOW_FRAC) of
- * its clock and the tower could become survivable forever. Its cooldown is
- * what keeps the guarantee — it caps uptime at 8s in every 48s, so the lava
- * still averages meanSpeedFrac · (1 − TIME_SLOW_FRAC · 0.167). At 0.4 that is
- * 0.75 · 0.933 = 0.700. Do not raise TIME_SLOW_FRAC or shorten the cooldown
- * without redoing that arithmetic — `powerups.test.ts` asserts the bound.
- * The 8s/40s pair keeps the same uptime fraction as the old 6s/30s window.
+ * LAVA-CLOCK POWER-UPS. slow-lava and harden-lava are the only pickups that
+ * touch the lava clock, and their cooldowns bound how much. slow-lava runs at
+ * most 8 s in every 48 s (40 s cooldown), so it cuts the mean by at most
+ * TIME_SLOW_FRAC * 8/48 = 6.7% (0.70x -> 0.65x at the cap). harden-lava stops
+ * the clock for at most 7 s in every 62 s (55 s cooldown), an 11.3% cut
+ * (0.70x -> 0.62x). Chained at full uptime the two leave ~0.57x at the cap
+ * (~0.52x when the ramp ends), below the best unaided pace, so a run fed by
+ * both is NOT guaranteed to end: orb supply, not these cooldowns, is what
+ * bounds it. Cooldowns are per player, and in a duel either climber's effect
+ * applies to both (`hazardTimeScale`), so a duel can see up to twice that
+ * uptime. A random orb that rolls either type obeys the same cooldown. Do not
+ * raise TIME_SLOW_FRAC, lengthen either duration or shorten either cooldown
+ * without redoing this arithmetic. powerups.test.ts pins both types' constants
+ * to literals and measures the resulting means (0.6533 / 0.621, chained
+ * 0.5745). The 8 s / 40 s pair keeps the same uptime fraction as the old
+ * 6 s / 30 s window.
  *
  * Spawns are a seeded GAP SCHEDULE, not independent per-floor coin flips:
  * a random first floor, then mixed clusters and droughts whose mean gap
@@ -124,7 +134,10 @@ export const SUPER_JUMP_AIR_JUMPS = 3;
  * line visibly slows without stalling the way 0.75 did.
  */
 export const TIME_SLOW_FRAC = 0.4;
-/** Seconds before slow-lava may be used again — the endless-run guarantee. */
+/**
+ * Seconds before slow-lava may be used again. Bounds its uptime to 8 s in every
+ * 48 s; it does not guarantee a run ends (see LAVA-CLOCK POWER-UPS above).
+ */
 export const TIME_SLOW_COOLDOWN_SECONDS = 40;
 /** Seconds before harden-lava may be used again. */
 export const HARDEN_LAVA_COOLDOWN_SECONDS = 55;
@@ -147,8 +160,9 @@ export interface PowerUpSpec {
   /** How long the effect lasts, in seconds. */
   durationSeconds: number;
   /**
-   * Seconds after the effect ends before this type may be activated again. Only
-   * slow-lava needs one — see the note at the top on why the run must still end.
+   * Seconds after the effect ends before this type may be activated again.
+   * slow-lava and harden-lava set one; every other type uses 0. See
+   * LAVA-CLOCK POWER-UPS at the top for how the cooldowns bound the lava clock.
    */
   cooldownSeconds: number;
   /**
@@ -390,10 +404,31 @@ function pickType(rng: Rng, i: number, avoid: PowerUpType | null): PowerUpType {
   return POWER_UP_TYPES[POWER_UP_TYPES.length - 1];
 }
 
-/** Resolve a "random" pickup into a concrete effect type. Truly random every time. */
-export function resolveRandom(): Exclude<PowerUpType, "random"> {
-  const idx = Math.floor(Math.random() * CONCRETE_POWER_UP_TYPES.length);
-  return CONCRETE_POWER_UP_TYPES[idx];
+/**
+ * Resolve a "random" orb into a concrete effect type for one collector.
+ *
+ * Deterministic (AC-11): the roll is a pure function of the tower seed, the
+ * orb's stable identity (its floor index; there is one orb per floor, id
+ * `pu:<floor>`) and the collecting player's slot. The live client, replay
+ * playback, `verifyDailyReplay` and `simulateDuel` therefore all resolve the
+ * same orb to the same effect. The pickup tick is deliberately NOT in the key:
+ * a touch that `canActivate` blocks cannot change the eventual roll, and a
+ * player cannot fish for a better effect by timing the pickup.
+ *
+ * What a player can predict: the tower seed is known to the client, so anyone
+ * who runs the sim can compute, before reaching it, which effect every random
+ * orb will give their slot. It is hidden in the UI but not secret, and no
+ * input can change it. Every daily player is slot 0 on the same seed, so the
+ * same random orb gives everyone the same effect. In a duel the two slots
+ * roll independently, so the same orb can give each player something else.
+ */
+export function resolveRandom(
+  towerSeed: string,
+  floorIndex: number,
+  slot: number
+): Exclude<PowerUpType, "random"> {
+  const rng = createRng(`${towerSeed}:pu:random:${floorIndex}:${slot}`);
+  return CONCRETE_POWER_UP_TYPES[rng.int(0, CONCRETE_POWER_UP_TYPES.length)];
 }
 
 function clampToPiece(piece: Platform, x: number, margin: number): number {
