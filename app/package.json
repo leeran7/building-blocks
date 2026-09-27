@@ -19,6 +19,8 @@
     "db:migrate:local": "tsx scripts/dbMigrateLocal.ts",
     "db:seed": "tsx prisma/seed.ts",
     "db:studio": "prisma studio",
+    "season:generate": "tsx scripts/season.ts generate",
+    "season:verify": "tsx scripts/season.ts verify",
     "typecheck": "tsc --noEmit",
     "analyze": "ANALYZE=true next build --webpack",
     "mobile:dev": "vite --config mobile/vite.config.mts",
