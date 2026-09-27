@@ -43,6 +43,8 @@ const net = vi.hoisted(() => ({
   settingsStatus: 200,
   settingsBody: { leaderboardConsent: true } as unknown,
   settingsThrows: false,
+  holdSettings: false,
+  heldSettings: [] as Array<() => void>,
 }));
 
 function jsonResponse(body: unknown, status = 200): Response {
@@ -61,8 +63,20 @@ const apiFetch = vi.fn(async (path: string, _init?: RequestInit): Promise<Respon
     return answer();
   }
   if (path === "/api/settings") {
-    if (net.settingsThrows) throw new TypeError("offline");
-    return jsonResponse(net.settingsBody, net.settingsStatus);
+    const answer = () => {
+      if (net.settingsThrows) throw new TypeError("offline");
+      return jsonResponse(net.settingsBody, net.settingsStatus);
+    };
+    if (net.holdSettings) {
+      return new Promise<Response>((resolve, reject) => net.heldSettings.push(() => {
+        try {
+          resolve(answer());
+        } catch (e) {
+          reject(e);
+        }
+      }));
+    }
+    return answer();
   }
   return jsonResponse({}, 404);
 });
@@ -216,6 +230,8 @@ beforeEach(() => {
   net.settingsStatus = 200;
   net.settingsBody = { leaderboardConsent: true };
   net.settingsThrows = false;
+  net.holdSettings = false;
+  net.heldSettings = [];
   localStorage.clear();
   setLeaderboardConsent(true);
 });
@@ -501,5 +517,51 @@ describe("ClimbScreen daily share waits for the save (SEC-DC-12)", () => {
     expect(resultPosts()).toHaveLength(0);
     expect(postClimbResult).toHaveBeenCalledTimes(1);
     expect(shareButton()).toBeTruthy();
+  });
+});
+
+describe("ClimbScreen consent sheet keeps ClimbScreen's order through useConsentSheet (RV-DCF-3, verifier)", () => {
+  const sheetAlert = () => container!.querySelector('[role="alert"]')?.textContent ?? null;
+
+  it("a retry after a failed save is busy and shows no stale error while the PUT is in flight", async () => {
+    setLeaderboardConsent(false);
+    net.settingsStatus = 500;
+    await mountDaily();
+    await click(buttonByText("Save my score"));
+    expect(sheetAlert()).toContain("Couldn’t save that");
+
+    // Retry with the PUT held: the buttons are disabled and the old failure line is gone.
+    net.settingsStatus = 200;
+    net.settingsBody = { leaderboardConsent: true };
+    net.holdSettings = true;
+    await click(buttonByText("Save my score"));
+    const saving = buttonByText("Saving…") as HTMLButtonElement | undefined;
+    expect(saving?.disabled).toBe(true);
+    expect((buttonByText("Not now") as HTMLButtonElement | undefined)?.disabled).toBe(true);
+    expect(sheetAlert()).toBeNull();
+    expect(resultPosts()).toHaveLength(0);
+
+    await act(async () => net.heldSettings.splice(0).forEach((go) => go()));
+    await settle();
+    expect(resultPosts()).toHaveLength(1);
+    expect(buttonByText("Save my score")).toBeUndefined();
+    expect(buttonByText("Saving…")).toBeUndefined();
+    expect(rankLine()).toBe("#3 of 12 today");
+  });
+
+  it("a confirmed save closes the sheet before the kept run is posted", async () => {
+    setLeaderboardConsent(false);
+    net.holdResult = true;
+    await mountDaily();
+    await click(buttonByText("Save my score"));
+    // Consent is saved and the daily result POST is in flight: the sheet is already gone.
+    expect(resultPosts()).toHaveLength(1);
+    expect(buttonByText("Save my score")).toBeUndefined();
+    expect(buttonByText("Saving…")).toBeUndefined();
+    expect(buttonByText("Not now")).toBeUndefined();
+
+    await act(async () => net.heldResult.splice(0).forEach((go) => go()));
+    await settle();
+    expect(rankLine()).toBe("#3 of 12 today");
   });
 });

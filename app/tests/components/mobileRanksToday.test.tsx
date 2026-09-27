@@ -1027,3 +1027,22 @@ describe("Ranks consent retry and Endless copy (verifier)", () => {
     expect(text()).toContain("Finish any climb, Endless or Daily, to get on the board");
   });
 });
+
+describe("Ranks consent sheet after a confirmed save (RV-DCF-3, verifier)", () => {
+  it("a confirmed save clears busy, so a reopened sheet is ready (board still hidden behind it)", async () => {
+    net.consent = false;
+    // The board keeps saying hidden after the PUT (e.g. a cached board).
+    net.daily = dailyBoard([dailyRow(1, "a", 900)], { rank: null, peakY: 10, attempts: 1 });
+    await render(TODAY, createElement(LeaderboardScreen));
+    await click(bannerEndingWith("Show me on the board"));
+    await click(buttonByText("Save my score"));
+    expect(apiFetch.mock.calls.some(([p, init]) => p === "/api/settings" && init?.method === "PUT")).toBe(true);
+    expect(buttonByText("Save my score")).toBeUndefined();
+
+    await click(bannerEndingWith("Show me on the board"));
+    const save = buttonByText("Save my score") as HTMLButtonElement | undefined;
+    expect(save).toBeDefined();
+    expect(save?.disabled).toBe(false);
+    expect(buttonByText("Saving…")).toBeUndefined();
+  });
+});
