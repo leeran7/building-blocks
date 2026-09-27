@@ -10,6 +10,9 @@ import {
 } from "react";
 import { useAuth } from "./AuthContext";
 import { createMockLevelsClient } from "../lib/levels/mockClient";
+import { createHttpLevelsClient } from "../lib/levels/httpClient";
+import { season1Catalog } from "../lib/levels/catalog";
+import { withMockFallback } from "../lib/levels/fallbackClient";
 import type { LevelsClient, PlayerStats, SeasonView } from "../lib/levels/model";
 
 /**
@@ -42,7 +45,11 @@ export function LevelsProvider({
   const { user, loading: authLoading, isAnonymous } = useAuth();
   const uid = user && !isAnonymous ? user.uid : null;
   const client = useMemo(
-    () => injected ?? createMockLevelsClient({ accountId: uid ?? undefined }),
+    () =>
+      injected ??
+      withMockFallback(createHttpLevelsClient({ catalog: season1Catalog() }), () =>
+        createMockLevelsClient({ accountId: uid ?? undefined }),
+      ),
     [injected, uid],
   );
   const [season, setSeason] = useState<SeasonView | null>(null);

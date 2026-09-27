@@ -16,18 +16,12 @@ import {
   parseTicket,
   refusalFor,
 } from "../../mobile/src/lib/levels/httpClient";
-import { mockLevelNode } from "../../mobile/src/lib/levels/mockClient";
-import type { LevelCatalog, LevelRunReport } from "../../mobile/src/lib/levels/model";
+import { season1Catalog } from "../../mobile/src/lib/levels/catalog";
+import { createMockLevelsClient } from "../../mobile/src/lib/levels/mockClient";
+import { withMockFallback } from "../../mobile/src/lib/levels/fallbackClient";
+import type { LevelRunReport } from "../../mobile/src/lib/levels/model";
 
-const catalog: LevelCatalog = {
-  season: 1,
-  name: "Season 1",
-  count: 300,
-  level: (n) => {
-    const { stars: _s, bestMs: _b, ...info } = mockLevelNode(n);
-    return info;
-  },
-};
+const catalog = season1Catalog();
 
 const PROFILE = {
   lives: 3,
@@ -295,5 +289,53 @@ describe("createHttpLevelsClient", () => {
     await expect(createHttpLevelsClient({ catalog, fetch }).submitResult(TICKET.ticketId, RUN)).rejects.toThrow(
       "TICKET_USED",
     );
+  });
+});
+
+describe("withMockFallback", () => {
+  const mockClient = () => createMockLevelsClient({ load: () => null, save: () => {} });
+
+  it("uses local data when the level routes are not deployed", async () => {
+    // A bare 404 (no level error code) is the route itself missing.
+    const { fetch } = fakeServer({ "/api/levels/me": () => new Response("Not Found", { status: 404 }) });
+    const client = withMockFallback(createHttpLevelsClient({ catalog, fetch }), mockClient);
+    const season = await client.getSeason();
+    expect(season.player.lives).toBe(5);
+    const start = await client.startLevel(1);
+    expect(start.ok).toBe(true);
+    await client.getSeason();
+    // Every later call stays on the local store, never the server.
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps a real server error an error", async () => {
+    const failures = [
+      () => json(404, { code: "SEASON_NOT_FOUND" }),
+      () => json(503, { code: "LEVELS_UNAVAILABLE" }),
+      () => new Response("Bad Gateway", { status: 502 }),
+    ];
+    for (const res of failures) {
+      const { fetch } = fakeServer({ "/api/levels/me": res });
+      const fallback = vi.fn(mockClient);
+      const client = withMockFallback(createHttpLevelsClient({ catalog, fetch }), fallback);
+      await expect(client.getSeason()).rejects.toThrow();
+      expect(fallback).not.toHaveBeenCalled();
+    }
+    const offline = fakeServer({});
+    const fallback = vi.fn(mockClient);
+    const client = withMockFallback(createHttpLevelsClient({ catalog, fetch: offline.fetch }), fallback);
+    await expect(client.getSeason()).rejects.toThrow();
+    expect(fallback).not.toHaveBeenCalled();
+  });
+
+  it("stays on the server when it answers", async () => {
+    const { fetch } = fakeServer({
+      "/api/levels/me": () => json(200, PROFILE),
+      "/api/levels/ticket": () => json(200, TICKET),
+    });
+    const client = withMockFallback(createHttpLevelsClient({ catalog, fetch }), mockClient);
+    expect((await client.getSeason()).player.xp).toBe(130);
+    const start = await client.startLevel(3);
+    expect(start.ok && start.ticket.id).toBe(TICKET.ticketId);
   });
 });

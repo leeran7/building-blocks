@@ -132,8 +132,8 @@ export interface LevelCatalog {
 }
 
 /**
- * The level API as the screens use it. The server thread owns the real routes
- * (§7, §9); until they land the app runs on `createMockLevelsClient`.
+ * The level API as the screens use it: `createHttpLevelsClient` on the level
+ * routes, or `createMockLevelsClient` where those routes are not deployed.
  */
 export interface LevelsClient {
   getSeason(): Promise<SeasonView>;
