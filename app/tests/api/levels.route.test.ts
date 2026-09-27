@@ -31,6 +31,7 @@ vi.mock("../../src/db/levels", async (importOriginal) => {
 import { POST as postTicket } from "../../app/api/levels/ticket/route";
 import { POST as postResult } from "../../app/api/levels/result/route";
 import { GET as getMe } from "../../app/api/levels/me/route";
+import { GET as getSeason } from "../../app/api/levels/season/route";
 import { verifyIdToken } from "../../src/lib/firebaseAdmin";
 import { checkRateLimit } from "../../src/lib/rateLimit";
 import {
@@ -46,6 +47,8 @@ import { encodeRunReplay } from "../../src/game/runReplay";
 import type { PlayerInput } from "../../src/game/types";
 
 const SIM = LEVEL_SIM_VERSION;
+// Level 42's pars in season-1.json.
+const L42_PARS = { twoStarTicks: 3142, threeStarTicks: 2639 };
 const T_ISSUED = new Date("2026-09-27T12:00:00Z");
 const TICKET = "ticket_abcdefghijk";
 
@@ -99,7 +102,16 @@ describe("POST /api/levels/ticket", () => {
   it("issues a ticket pinned to the server's engine version", async () => {
     const res = await ticket({ season: 1, level: 42, simVersion: SIM });
     expect(res.status).toBe(200);
-    expect(await res.json()).toMatchObject({ ticketId: TICKET, season: 1, level: 42, simVersion: SIM, lifeSpent: true, lives: 4 });
+    expect(await res.json()).toMatchObject({
+      ticketId: TICKET,
+      season: 1,
+      level: 42,
+      simVersion: SIM,
+      rev: 0,
+      pars: L42_PARS,
+      lifeSpent: true,
+      lives: 4,
+    });
     expect(issueLevelTicket).toHaveBeenCalledWith(
       expect.objectContaining({ userId: "u1", season: 1, level: 42, simVersion: SIM })
     );
@@ -140,6 +152,14 @@ describe("POST /api/levels/ticket", () => {
   it("refuses a season that is not switched on", async () => {
     vi.mocked(activeLevelSeason).mockResolvedValueOnce(null);
     const res = await ticket({ season: 1, level: 1, simVersion: SIM });
+    expect(res.status).toBe(404);
+    expect((await res.json()).code).toBe("SEASON_NOT_FOUND");
+    expect(issueLevelTicket).not.toHaveBeenCalled();
+  });
+
+  it("refuses a live season with no generated manifest", async () => {
+    vi.mocked(activeLevelSeason).mockResolvedValueOnce({ id: 2, minLevelSimVersion: 1 });
+    const res = await ticket({ season: 2, level: 1, simVersion: SIM });
     expect(res.status).toBe(404);
     expect((await res.json()).code).toBe("SEASON_NOT_FOUND");
     expect(issueLevelTicket).not.toHaveBeenCalled();
@@ -277,6 +297,30 @@ describe("POST /api/levels/result", () => {
     vi.mocked(checkRateLimit).mockImplementation(async () => ({ allowed: true, degraded: false }));
   });
 
+  it.each([
+    [L42_PARS.threeStarTicks, 3],
+    [L42_PARS.threeStarTicks + 1, 2],
+    [L42_PARS.twoStarTicks, 2],
+    [L42_PARS.twoStarTicks + 1, 1],
+  ])("scores a clear in %i ticks at %i stars against the level's pars", async (ticks, stars) => {
+    expect((await result({ ...CLEAR, ticks, stars })).status).toBe(200);
+    // Every other star count is refused before the ticket is consumed.
+    for (const wrong of [1, 2, 3].filter((s) => s !== stars)) {
+      const res = await result({ ...CLEAR, ticks, stars: wrong });
+      expect(res.status).toBe(400);
+      expect((await res.json()).code).toBe("INVALID_RESULT");
+    }
+    expect(submitLevelResult).toHaveBeenCalledTimes(1);
+  });
+
+  it("refuses a ticket whose season has no manifest", async () => {
+    vi.mocked(openTicketLevel).mockResolvedValueOnce({ season: 2, level: 42 });
+    const res = await result(CLEAR);
+    expect(res.status).toBe(404);
+    expect((await res.json()).code).toBe("SEASON_NOT_FOUND");
+    expect(submitLevelResult).not.toHaveBeenCalled();
+  });
+
   it("requires sign-in", async () => {
     expect((await result(CLEAR, null)).status).toBe(401);
     expect(submitLevelResult).not.toHaveBeenCalled();
@@ -306,5 +350,44 @@ describe("GET /api/levels/me", () => {
     expect((await getMe(req("/api/levels/me?season=abc"))).status).toBe(400);
     expect((await getMe(req("/api/levels/me?season=0"))).status).toBe(400);
     expect((await getMe(req("/api/levels/me", undefined, null))).status).toBe(401);
+  });
+});
+
+describe("GET /api/levels/season", () => {
+  const season = (q: string) => getSeason(req(`/api/levels/season${q}`, undefined, null));
+
+  it("serves a live season's manifest, cacheable and without sign-in", async () => {
+    const res = await season("?season=1");
+    expect(res.status).toBe(200);
+    expect(res.headers.get("cache-control")).toContain("public");
+    const body = await res.json();
+    expect(body.season.id).toBe(1);
+    expect(body.levels).toHaveLength(300);
+    expect(body.levels[41]).toMatchObject({ level: 42, rev: 0, pars: L42_PARS });
+  });
+
+  it("hides a season that is not switched on or has no manifest", async () => {
+    vi.mocked(activeLevelSeason).mockResolvedValueOnce(null);
+    let res = await season("?season=1");
+    expect(res.status).toBe(404);
+    expect(res.headers.get("cache-control")).toContain("no-store");
+    expect((await res.json()).code).toBe("SEASON_NOT_FOUND");
+    vi.mocked(activeLevelSeason).mockResolvedValueOnce({ id: 2, minLevelSimVersion: 1 });
+    res = await season("?season=2");
+    expect(res.status).toBe(404);
+  });
+
+  it.each(["", "?season=0", "?season=abc", "?season=1.5", "?season=-1"])("rejects %s", async (q) => {
+    const res = await season(q);
+    expect(res.status).toBe(400);
+    expect((await res.json()).code).toBe("INVALID_SEASON");
+    expect(activeLevelSeason).not.toHaveBeenCalled();
+  });
+
+  it("never leaks a raw database error", async () => {
+    vi.mocked(activeLevelSeason).mockRejectedValueOnce(new Error("relation level_seasons does not exist"));
+    const res = await season("?season=1");
+    expect(res.status).toBe(500);
+    expect(JSON.stringify(await res.json())).not.toContain("relation");
   });
 });
