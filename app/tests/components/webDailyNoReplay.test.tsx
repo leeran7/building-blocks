@@ -79,14 +79,20 @@ const STASH_KEY = "doomstack:pending-climb";
 const DAILY_PATH = "/api/climb/daily/result";
 const ALL_TIME_PATH = "/api/climb/result";
 const FALLBACK_NOTE = "Too long to verify for the Daily board \u00b7 saved to your all-time best";
+const TOO_LONG = "Too long to verify for the Daily board";
+const SAVED_CLAIM = "saved to your all-time best";
 
 interface Post {
   path: string;
   body: Record<string, unknown>;
 }
-const net = vi.hoisted(() => ({ posts: [] as Post[] }));
+const net = vi.hoisted(() => ({ posts: [] as Post[], reply: "ok" as "ok" | "unavailable" | "pending" }));
 const fetchMock = vi.fn(async (path: string, init?: RequestInit) => {
   net.posts.push({ path, body: JSON.parse(String(init?.body)) });
+  if (net.reply === "pending") return new Promise<Response>(() => {});
+  if (net.reply === "unavailable") {
+    return { ok: false, status: 503, json: async () => ({ error: { code: "UNAVAILABLE" } }) } as Response;
+  }
   return { ok: true, status: 200, json: async () => ({ saved: true, rank: 7, totalClimbers: 90 }) } as Response;
 });
 
@@ -121,6 +127,7 @@ beforeEach(() => {
   scene.finished = true;
   codec.encodeNull = false;
   net.posts = [];
+  net.reply = "ok";
   fetchMock.mockClear();
   vi.stubGlobal("fetch", fetchMock);
   sessionStorage.clear();
@@ -146,6 +153,28 @@ describe("web daily run with no replay token (RV-DC-1)", () => {
     expect(container!.textContent).toContain("#7");
     expect(container!.textContent).toContain(FALLBACK_NOTE);
     expect(container!.textContent).not.toContain("Couldn\u2019t save your run");
+  });
+
+  it("a failed all-time save (503) says it couldn't save and makes no 'saved' claim (QA-DC-1)", async () => {
+    codec.encodeNull = true;
+    net.reply = "unavailable";
+    await render(DAILY_PROPS);
+    expect(net.posts.map((p) => p.path)).toEqual([ALL_TIME_PATH]);
+    const text = container!.textContent ?? "";
+    expect(text).toContain("Couldn\u2019t save your run");
+    expect(text).toContain(TOO_LONG);
+    expect(text).not.toContain(SAVED_CLAIM);
+  });
+
+  it("while the all-time save is pending the card says Saving… and makes no 'saved' claim (QA-DC-1)", async () => {
+    codec.encodeNull = true;
+    net.reply = "pending";
+    await render(DAILY_PROPS);
+    expect(net.posts.map((p) => p.path)).toEqual([ALL_TIME_PATH]);
+    const text = container!.textContent ?? "";
+    expect(text).toContain("Saving\u2026");
+    expect(text).toContain(TOO_LONG);
+    expect(text).not.toContain(SAVED_CLAIM);
   });
 
   it("control: with a replay token the daily run goes to the daily route with its fields", async () => {

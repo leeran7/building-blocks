@@ -115,7 +115,10 @@ const DEFAULT_RESULT_PATH = "/api/climb/result";
  * replay to verify (over MAX_SHARE_TICKS, or no encoder). The run is saved to
  * the all-time board instead, so the rank shown is the all-time one.
  */
-const NO_REPLAY_FALLBACK_NOTE = "Too long to verify for the Daily board \u00b7 saved to your all-time best";
+// The "saved" half is only shown once the all-time route has acknowledged the
+// run; while saving or after a failed save only the first half shows (QA-DC-1).
+const NO_REPLAY_NOTE = "Too long to verify for the Daily board";
+const NO_REPLAY_SAVED_NOTE = `${NO_REPLAY_NOTE} \u00b7 saved to your all-time best`;
 
 /**
  * Approx height (px) of the on-canvas height/lava HUD bar, so the overlaid
@@ -208,7 +211,7 @@ export function ClimbScene({
   const [shareUrl, setShareUrl] = useState<string | null>(null);
   const [encodingShare, setEncodingShare] = useState(false);
   const [savingRun, setSavingRun] = useState(false);
-  const [saveNote, setSaveNote] = useState<string | null>(null);
+  const [noReplayFallback, setNoReplayFallback] = useState(false);
   // The signed-out run as stashed for the retroactive save, replay included.
   // The results card's own Sign in link reuses it rather than rebuilding a
   // payload without the replayToken.
@@ -327,7 +330,7 @@ export function ClimbScene({
     setShareUrl(null);
     setEncodingShare(false);
     setSavingRun(false);
-    setSaveNote(null);
+    setNoReplayFallback(false);
     stashRef.current = null;
     start();
   }
@@ -358,9 +361,9 @@ export function ClimbScene({
         // A route that verifies the replay (Daily Climb) refuses a run without
         // one, so that run goes to the all-time route instead, without the
         // daily fields, the same as the mobile app (RV-DC-1).
-        const noReplayFallback = !replayToken && resultPath !== DEFAULT_RESULT_PATH;
-        if (noReplayFallback) setSaveNote(NO_REPLAY_FALLBACK_NOTE);
-        const [body, path] = noReplayFallback ? [run, DEFAULT_RESULT_PATH] : [payload, resultPath];
+        const toAllTime = !replayToken && resultPath !== DEFAULT_RESULT_PATH;
+        setNoReplayFallback(toAllTime);
+        const [body, path] = toAllTime ? [run, DEFAULT_RESULT_PATH] : [payload, resultPath];
         postRun(body, token, path).then(setSaveInfo).finally(() => setSavingRun(false));
       } else {
         setSaveInfo({ saved: false });
@@ -587,14 +590,16 @@ export function ClimbScene({
                     {saveInfo.improved ? "new personal best · " : ""}
                     {saveInfo.handle ?? climberHandle(user.uid)}
                   </p>
-                  {saveNote ? <p className="text-xs text-text-muted">{saveNote}</p> : null}
+                  {noReplayFallback ? <p className="text-xs text-text-muted">{NO_REPLAY_SAVED_NOTE}</p> : null}
                 </div>
               ) : replaying ? null : (
                 <p className="text-xs mt-3 font-mono text-text-muted">
                   {savingRun || saveInfo === null
                     ? "Saving…"
                     : "Couldn’t save your run"}
-                  {saveNote ? <span className="block mt-1">{saveNote}</span> : null}
+                  {noReplayFallback ? (
+                    <span className="block mt-1">{saveInfo?.saved ? NO_REPLAY_SAVED_NOTE : NO_REPLAY_NOTE}</span>
+                  ) : null}
                 </p>
               )
             ) : replaying ? null : (
