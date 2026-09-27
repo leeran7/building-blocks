@@ -1,8 +1,10 @@
 # Repo context
 
-This folder is **this repository’s** facts. Agents in `agents/` are generic:
-they read this folder and the live code. They do not embed product names,
-design tokens, git remotes, or a package manager.
+This folder is **this repository’s** facts. Agents are generic and live in
+the installed [closed-loop-agents](https://github.com/leeran7/closed-loop-agents)
+package (`node_modules/closed-loop-agents`), not in this repo: they read this
+folder and the live code, and do not embed product names, design tokens, git
+remotes, or a package manager.
 
 If you are an agent, read these files **in order** before doing work:
 
@@ -36,12 +38,13 @@ that already lives in codebase files (design tokens, API schemas, DB migrations)
 
 ## Notes
 
-Kernel protocol (every repo): `skills/closed-loop/protocol.md` and
-`skills/closed-loop/gates.md`. Do not confuse kernel gates with
-`context/gates.json` (this repo’s CI commands).
+Kernel protocol (every repo): `node_modules/closed-loop-agents/skills/closed-loop/protocol.md`
+and `.../gates.md`. Do not confuse kernel gates with `context/gates.json`
+(this repo’s CI commands).
 
 When adding a fact that is true only here, put it in **this folder** (or
-the ledger), not in `agents/*.md`.
+the ledger), never into the installed package's `agents/*.md`.
 
-This `context/` is **building-blocks**. The empty template lives in
-`pack/templates/context/` and in [closed-loop-agents](https://github.com/leeran7/closed-loop-agents).
+This `context/` is **building-blocks**'s own. The empty template a new repo
+starts from lives in [closed-loop-agents](https://github.com/leeran7/closed-loop-agents)'s
+`pack/templates/context/`.

@@ -1,1 +1,0 @@
-../closed-loop/stages.md
