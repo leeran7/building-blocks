@@ -35,10 +35,11 @@ vi.mock("../../mobile/src/components/levels/LevelRun", async () => {
   const { createElement: h, useEffect: useMountEffect } = await import("react");
   return {
     LevelRun: (props: {
+      level: number;
       seed: string;
       goalFt: number;
       paused: boolean;
-      onEnd: (r: { finished: boolean; finishedTick: number | null; peakFt: number; replayToken: string | null }) => void;
+      onEnd: (r: LevelRunReport) => void;
     }) => {
       useMountEffect(() => {
         runs.mounted.push({ seed: props.seed, goalFt: props.goalFt });
@@ -46,8 +47,8 @@ vi.mock("../../mobile/src/components/levels/LevelRun", async () => {
       return h(
         "div",
         null,
-        h("button", { onClick: () => props.onEnd({ finished: true, finishedTick: 30, peakFt: props.goalFt, replayToken: null }) }, "stub-clear"),
-        h("button", { onClick: () => props.onEnd({ finished: false, finishedTick: null, peakFt: props.goalFt / 2, replayToken: "r" }) }, "stub-lose"),
+        h("button", { onClick: () => props.onEnd({ level: props.level, finished: true, finishedTick: 30, raceTicks: 30, peakFt: props.goalFt, replayToken: null }) }, "stub-clear"),
+        h("button", { onClick: () => props.onEnd({ level: props.level, finished: false, finishedTick: null, raceTicks: 300, peakFt: props.goalFt / 2, replayToken: "r" }) }, "stub-lose"),
       );
     },
   };
@@ -55,7 +56,7 @@ vi.mock("../../mobile/src/components/levels/LevelRun", async () => {
 
 import { LevelsProvider } from "../../mobile/src/contexts/LevelsContext";
 import { createMockLevelsClient } from "../../mobile/src/lib/levels/mockClient";
-import type { LevelResult, LevelsClient } from "../../mobile/src/lib/levels/model";
+import type { LevelResult, LevelRunReport, LevelsClient } from "../../mobile/src/lib/levels/model";
 import { LevelMapScreen } from "../../mobile/src/screens/LevelMapScreen";
 import { LevelPlayScreen, ticketFromState } from "../../mobile/src/screens/LevelPlayScreen";
 import { LevelResultCard } from "../../mobile/src/components/levels/LevelResultCard";
@@ -97,7 +98,9 @@ async function clearLevels(client: LevelsClient, upTo: number) {
     if (!s.ok) throw new Error("refused");
     await client.submitResult(s.ticket.id, {
       finished: true,
+      level: s.ticket.level,
       finishedTick: 3 * TICK_HZ,
+      raceTicks: 3 * TICK_HZ,
       peakFt: s.ticket.goalFt,
       replayToken: null,
     });
@@ -180,7 +183,7 @@ describe("level map", () => {
     for (let i = 0; i < 5; i++) {
       const s = await client.startLevel(11);
       if (!s.ok) throw new Error("refused");
-      await client.submitResult(s.ticket.id, { finished: false, finishedTick: null, peakFt: 5, replayToken: null });
+      await client.submitResult(s.ticket.id, { level: s.ticket.level, finished: false, finishedTick: null, raceTicks: 200, peakFt: 5, replayToken: null });
     }
     await renderMap(client);
     await click(pin("Level 11, next to play"));

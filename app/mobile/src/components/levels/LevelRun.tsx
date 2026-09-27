@@ -134,18 +134,21 @@ export function LevelRun({
     // finishedTick counts from GO: the engine resets the tick after the countdown.
     const finishTick = me?.status === "finished" && me.finishedTick != null ? me.finishedTick : null;
     const reached = finishTick !== null;
+    const raceTicks = Math.max(0, simRef.current.tick);
     if (reached) void tapMedium();
     else void notifyError();
     void (async () => {
       const replayToken = await encodeRunReplay({ seed: state.seed, peakY: me?.peakY ?? 0, inputs: inputLog });
       onEnd({
+        level,
         finished: reached,
         finishedTick: finishTick,
+        raceTicks: finishTick ?? raceTicks,
         peakFt: me?.peakY ?? 0,
         replayToken,
       });
     })();
-  }, [finished, inputLog, onEnd, simRef, state.seed]);
+  }, [finished, inputLog, level, onEnd, simRef, state.seed]);
 
   return (
     <div ref={canvasBoxRef} data-climb-surface className="exp-stage relative h-full w-full overflow-hidden">

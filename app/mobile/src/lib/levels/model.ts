@@ -84,13 +84,16 @@ export type StartResult =
 
 /** What the app sends when a level run ends. */
 export interface LevelRunReport {
+  level: number;
   /** Reached the summit. */
   finished: boolean;
-  /** Tick the summit was reached, from the start of the climb; null on a loss. */
+  /** Tick the summit was reached, from GO; null on a loss. */
   finishedTick: number | null;
+  /** Race ticks from GO until the run ended (the finish tick on a clear). */
+  raceTicks: number;
   /** Highest point reached, ft. */
   peakFt: number;
-  /** Replay token of the run's inputs, for the server to verify. */
+  /** Replay token of the run's inputs, kept for friend ghosts; not verified. */
   replayToken: string | null;
 }
 
@@ -113,9 +116,24 @@ export interface LevelResult {
   player: PlayerStats;
 }
 
+/** A level's fixed facts: everything on its pin except the player's progress. */
+export type LevelInfo = Omit<LevelNode, "stars" | "bestMs">;
+
 /**
- * The level API as the screens use it. The server thread owns the real routes
- * (§7, §9); until they land the app runs on `createMockLevelsClient`.
+ * One season's fixed levels, from the season manifest the app ships with. The
+ * server holds its own copy and scores runs against that, never this one.
+ */
+export interface LevelCatalog {
+  season: number;
+  name: string;
+  /** Levels in the season, numbered 1..count. */
+  count: number;
+  level(n: number): LevelInfo;
+}
+
+/**
+ * The level API as the screens use it: `createHttpLevelsClient` on the level
+ * routes, or `createMockLevelsClient` where those routes are not deployed.
  */
 export interface LevelsClient {
   getSeason(): Promise<SeasonView>;
