@@ -11,17 +11,19 @@ import { climbView } from "../../src/components/Game/climbCamera";
 import {
   CLIMBER_DRAW_SCALE,
   GAME_DRAW_SCALE,
+  HANGING_LADDER_DRAW_LIFT_M,
   hudFitFontPx,
   paintClimbFrame,
   type PaintCtx,
 } from "../../src/components/Game/paintClimbFrame";
 import { createMatch } from "../../src/game/simulation";
 import { grantPowerUp } from "../../src/game/powerups";
-import { buildTower, platformsNearY } from "../../src/game/towers";
+import { buildTower, ladderHangs, laddersForFloor, platformsNearY } from "../../src/game/towers";
 
 const WIDTH = 360;
 const HEIGHT = 640;
 const PLATFORM = "#373638";
+const LADDER = "#aaa9ad";
 
 type Rect = { x: number; y: number; w: number; h: number };
 type Arc = { x: number; y: number; r: number };
@@ -178,5 +180,62 @@ describe("canvas HUD: the lava readout never overlaps the altitude", () => {
     const lavaLeft = lava!.x - lava!.w;
     expect(lavaLeft).toBeGreaterThan(altRight);
     expect(lava!.x).toBeLessThanOrEqual(WIDTH);
+  });
+});
+
+describe("paintClimbFrame: hanging ladders hang above the climber's head", () => {
+  /** Every rail segment's lower end drawn in the ladder colour, in canvas px. */
+  function railBottoms(tower: ReturnType<typeof buildTower>): { x: number; y: number }[] {
+    const ends: { x: number; y: number }[] = [];
+    const state: Record<string | symbol, unknown> = {};
+    const ctx = new Proxy(state, {
+      get(target, prop) {
+        if (prop in target) return target[prop];
+        if (prop === "lineTo") {
+          return (x: number, y: number) => {
+            if (target.strokeStyle === LADDER) ends.push({ x, y });
+          };
+        }
+        if (prop === "measureText") return () => ({ width: 10 });
+        if (typeof prop === "string" && prop.startsWith("create")) return () => ({ addColorStop() {} });
+        return () => {};
+      },
+      set(target, prop, value) {
+        target[prop] = value;
+        return true;
+      },
+    }) as unknown as PaintCtx;
+    const m = createMatch({ seed: "hang-paint", mode: "solo", tower, playerIds: ["p1"] });
+    paintClimbFrame(ctx, m, { width: WIDTH, height: HEIGHT, includeHud: false });
+    return ends;
+  }
+
+  it("lifts the climbing pose's hands to the rung", () => {
+    // Climbing pose hands: 2.25 climber units above the feet.
+    expect(HANGING_LADDER_DRAW_LIFT_M).toBeCloseTo(2.25 * CLIMBER_DRAW_SCALE * 1.7, 10);
+    // Above the top of a standing climber's head (2.4 units + 0.52 radius).
+    expect(HANGING_LADDER_DRAW_LIFT_M + 1.6).toBeGreaterThan(2.92 * CLIMBER_DRAW_SCALE * 1.7);
+  });
+
+  it("draws a hanging ladder from hand height and a plain one from its floor, in one colour", () => {
+    const tower = { ...buildTower("indie-games"), difficulty: 0.4, ladderHangM: 1.6, hangingLadderShare: 0.5 };
+    const { pxPerM } = climbView(WIDTH, HEIGHT, tower.widthM);
+    const bottoms = railBottoms(tower);
+    let hung = 0;
+    let plain = 0;
+    for (let i = 0; i <= 1; i++) {
+      laddersForFloor(tower, i).forEach((l, slot) => {
+        const drawnAt = (y: number) => bottoms.some((b) => Math.abs(b.y - (HEIGHT - y * pxPerM)) < 1e-6);
+        if (ladderHangs(tower, i, slot)) {
+          expect(drawnAt(l.y0 + HANGING_LADDER_DRAW_LIFT_M)).toBe(true);
+          hung++;
+        } else {
+          expect(drawnAt(l.y0)).toBe(true);
+          plain++;
+        }
+      });
+    }
+    expect(hung).toBeGreaterThan(0);
+    expect(plain).toBeGreaterThan(0);
   });
 });

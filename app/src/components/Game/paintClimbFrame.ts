@@ -55,6 +55,8 @@ const CRATE = "#2a2730";
 const CRATE_TOP = "#4a4656";
 const CRATE_FACE = "#3a3644";
 const LADDER = "#aaa9ad";
+/** Climbing pose: hands sit this many climber units above the feet (shoulder 1.85 + 0.4). */
+const CLIMB_HAND_UNITS = 2.25;
 const OPPONENT_COLOR = "#6bb8ff"; // wayfinding blue — opponent in a duel
 /** Decorative / eliminated only — never body or lava HUD (AC-1 / AC-13). */
 const TEXT_MUTED = "#74707e";
@@ -75,6 +77,12 @@ export const GAME_DRAW_SCALE = 1.2;
  * phone without shrinking the view.
  */
 export const CLIMBER_DRAW_SCALE = 1.35;
+/**
+ * Metres a hanging ladder's drawn bottom rung sits above its grab height: the
+ * climbing pose's hand height, so the hands meet the rung as the feet reach
+ * the grab height (engine physics are unchanged).
+ */
+export const HANGING_LADDER_DRAW_LIFT_M = CLIMB_HAND_UNITS * CLIMBER_DRAW_SCALE * 1.7;
 
 // ── Cached font strings ──────────────────────────────────────────────────────
 // Avoids template-literal allocation every frame; rebuilt only on ui change.
@@ -230,9 +238,13 @@ export function paintClimbFrame(
     drawFloorMarker(ctx, { y, altitude: fy, scale: ui });
   }
 
-  for (const { ladder: l } of laddersNearY(tower, yLow, yHigh)) {
+  for (const { ix, ladder: l } of laddersNearY(tower, yLow, yHigh)) {
     const yTop = sy(l.y1);
-    const yBot = sy(l.y0);
+    // A hanging ladder is caught by the hands, so its bottom rung is drawn
+    // where a climber's hands are when their feet reach the grab height:
+    // above the head of anyone standing on the floor.
+    const hanging = l.y0 > floorHeight(tower, ix) + 0.01;
+    const yBot = sy(hanging ? l.y0 + HANGING_LADDER_DRAW_LIFT_M : l.y0);
     if (yBot < -20 || yTop > height + 20) continue;
     const cx = sx(l.x);
     const railHalf = Math.max(4, sizePxPerM * 1.4);
@@ -314,7 +326,7 @@ export function paintClimbFrame(
   let hardenProgress = 0;
   if (player && hardenActive) {
     const rem = remainingTicks(player, "harden-lava", state.tick);
-    const total = durationTicks("harden-lava");
+    const total = durationTicks("harden-lava", state.tower);
     hardenProgress = total > 0 ? 1 - rem / total : 0;
   }
   // Same effective-time call the HUD makes, so the crest and the

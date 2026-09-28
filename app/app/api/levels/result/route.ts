@@ -9,7 +9,8 @@
  *   - the result is well-formed: a clear has 1-3 stars, a fail has 0, and
  *     ticks is an integer up to MAX_RUN_TICKS (parseReportedRun);
  *   - a clear's stars are the ones its ticks earn against the level's pars in
- *     the season manifest (src/levels/catalog.ts starsForTicks);
+ *     the season manifest (src/levels/catalog.ts starsForTicks). A clear past the
+ *     level's clock earns none, so it is refused;
  *   - the run fits the time since the ticket was issued (runFitsWallClock).
  *
  * Then, in one transaction under the user's row lock (src/db/levels.ts), the

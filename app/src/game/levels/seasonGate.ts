@@ -148,7 +148,11 @@ export function verifyLevelRow(season: SeasonSpec, row: ManifestLevel): string[]
     out.push(`${tag}: lava ramp does not match the route time`);
   }
   const pars = levelPars(row.level, row.routeTicks);
-  if (pars.twoStarTicks !== row.pars.twoStarTicks || pars.threeStarTicks !== row.pars.threeStarTicks) {
+  if (
+    pars.twoStarTicks !== row.pars.twoStarTicks ||
+    pars.threeStarTicks !== row.pars.threeStarTicks ||
+    pars.oneStarTicks !== row.pars.oneStarTicks
+  ) {
     out.push(`${tag}: star pars do not match the route time`);
   }
   if (!(row.catchMeanFrac > 0 && row.catchMeanFrac <= maxLavaMeanFrac() + EPS)) {
@@ -217,6 +221,12 @@ export function neverEasierProblems(season: SeasonSpec, rows: readonly ManifestL
     // L1-3 have no power-ups at all; the rule starts once they unlock.
     if (sa.powerUpChance > 0 && !(sb.powerUpChance <= sa.powerUpChance)) {
       out.push(`${tag}: power-ups get more common`);
+    }
+    if (sb.layout.hangingLadderShare < sa.layout.hangingLadderShare) {
+      out.push(`${tag}: fewer ladders hang`);
+    }
+    if (!(sb.powerUpDurationScale <= sa.powerUpDurationScale)) {
+      out.push(`${tag}: power-ups last longer`);
     }
     const ta = a.lavaMeanFrac / a.catchMeanFrac;
     const tb = b.lavaMeanFrac / b.catchMeanFrac;

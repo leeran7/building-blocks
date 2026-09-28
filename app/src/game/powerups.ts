@@ -154,8 +154,31 @@ export const HARDEN_LAVA_COOLDOWN_SECONDS = 55;
 export const HARDEN_LAVA_DURATION_SECONDS = 7;
 
 /** Jetpack fuel budget in simulation ticks. */
-export function jetpackFuelTicks(): number {
-  return Math.round(JETPACK_FUEL_SECONDS * TICK_HZ);
+export function jetpackFuelTicks(tower?: TowerSpec): number {
+  return Math.round(JETPACK_FUEL_SECONDS * powerUpDurationScale(tower) * TICK_HZ);
+}
+
+/**
+ * Shortest and longest a level may scale power-up effects. The ceiling is 1:
+ * the LAVA-CLOCK bounds above assume slow-lava and harden-lava never run
+ * longer than their base durations.
+ */
+export const MIN_POWER_UP_DURATION_SCALE = 0.25;
+export const MAX_POWER_UP_DURATION_SCALE = 1;
+
+/**
+ * A level tower's power-up duration multiplier (tower.powerUpDurationScale),
+ * validated, or 1 when unset (free stack, Daily, duels). Throws out of range.
+ */
+export function powerUpDurationScale(tower?: TowerSpec): number {
+  const s = tower?.powerUpDurationScale;
+  if (s === undefined) return 1;
+  if (!Number.isFinite(s) || s < MIN_POWER_UP_DURATION_SCALE || s > MAX_POWER_UP_DURATION_SCALE) {
+    throw new RangeError(
+      `tower.powerUpDurationScale must be in [${MIN_POWER_UP_DURATION_SCALE}, ${MAX_POWER_UP_DURATION_SCALE}], got ${s}`
+    );
+  }
+  return s;
 }
 
 export interface PowerUpSpec {
@@ -284,9 +307,18 @@ export const CONCRETE_POWER_UP_TYPES = POWER_UP_TYPES.filter(
   (t): t is Exclude<PowerUpType, "random"> => t !== "random"
 );
 
-/** Duration of a power-up in simulation ticks. */
-export function durationTicks(type: PowerUpType): number {
-  return Math.round(POWER_UP_SPECS[type].durationSeconds * TICK_HZ);
+/**
+ * Seconds a power-up lasts on this tower: its window, or for the jetpack its
+ * fuel. What the level start sheet shows.
+ */
+export function powerUpSeconds(type: PowerUpType, tower?: TowerSpec): number {
+  const spec = POWER_UP_SPECS[type];
+  return (spec.fuelSeconds ?? spec.durationSeconds) * powerUpDurationScale(tower);
+}
+
+/** Duration of a power-up in simulation ticks, scaled by a level tower. */
+export function durationTicks(type: PowerUpType, tower?: TowerSpec): number {
+  return Math.round(POWER_UP_SPECS[type].durationSeconds * powerUpDurationScale(tower) * TICK_HZ);
 }
 
 /** Cooldown of a power-up in simulation ticks (0 for most). */
@@ -405,6 +437,14 @@ export function spawnChanceForFloor(i: number, tower?: TowerSpec): number {
   return SPAWN_CHANCE_LOW + (SPAWN_CHANCE_HIGH - SPAWN_CHANCE_LOW) * d;
 }
 
+/**
+ * Floor on the occupancy used to size spawn gaps (keeps the mean finite at 0).
+ * Below every rate a tower uses, so it never binds: the free stack's lowest is
+ * 22% and the season levels go down to 5%. It was 8%, which silently stopped
+ * level rates under 8% from getting any rarer.
+ */
+const MIN_GAP_SPAWN_CHANCE = 0.02;
+
 /** Floor of the first orb on this tower (inclusive range, never the base). */
 export function firstSpawnFloor(tower: TowerSpec): number {
   const r = createRng(`${tower.seed}:pu:first`);
@@ -414,7 +454,7 @@ export function firstSpawnFloor(tower: TowerSpec): number {
 /** Gap (in floors) after spawn `ordinal` at `fromFloor`. Always >= 1. */
 function gapAfter(tower: TowerSpec, ordinal: number, fromFloor: number): number {
   const r = createRng(`${tower.seed}:pu:gap:${ordinal}`);
-  const mean = 1 / Math.max(0.08, spawnChanceForFloor(fromFloor, tower));
+  const mean = 1 / Math.max(MIN_GAP_SPAWN_CHANCE, spawnChanceForFloor(fromFloor, tower));
   const roll = r.next();
   // Drought: a long empty stretch so the next orb feels like a find.
   if (roll < 0.14) return Math.max(4, Math.round(mean * (1.8 + r.next() * 1.4)));
@@ -734,10 +774,12 @@ export function powerUpChipMeter(a: ActivePowerUp, tick: number): PowerUpChipMet
   const spec = POWER_UP_SPECS[a.type];
   if (spec.fuelSeconds != null) {
     const fuelLeft = Math.max(0, a.fuelRemainingTicks ?? 0);
-    const fuelMax = jetpackFuelTicks();
+    // A level may shorten the pack; its window was scaled by the same factor.
+    const base = durationTicks(a.type);
+    const fuelMax = Math.round(jetpackFuelTicks() * (base > 0 ? a.durationTicks / base : 1));
     return {
       seconds: fuelLeft / TICK_HZ,
-      frac: fuelMax > 0 ? fuelLeft / fuelMax : 0,
+      frac: fuelMax > 0 ? Math.min(1, fuelLeft / fuelMax) : 0,
       kind: "fuel",
     };
   }
@@ -868,9 +910,10 @@ export function pruneActive(p: PlayerState, tick: number): void {
 export function grantPowerUp(
   p: PlayerState,
   type: PowerUpType,
-  tick: number
+  tick: number,
+  tower?: TowerSpec
 ): void {
-  const fuel = type === "jetpack" ? jetpackFuelTicks() : undefined;
+  const fuel = type === "jetpack" ? jetpackFuelTicks(tower) : undefined;
   const airJumps = type === "super-jump" ? SUPER_JUMP_AIR_JUMPS : undefined;
   const existing = activeEntry(p, type, tick);
 
@@ -880,7 +923,7 @@ export function grantPowerUp(
     // includes refilling super-jump's air-jump count — otherwise a refresh
     // would restart the window but leave a nearly-spent charge count in place.
     existing.startTick = tick;
-    existing.durationTicks = durationTicks(type);
+    existing.durationTicks = durationTicks(type, tower);
     existing.used = false;
     existing.fuelRemainingTicks = fuel;
     existing.chargesRemaining = airJumps;
@@ -890,7 +933,7 @@ export function grantPowerUp(
   p.activePowerUps.push({
     type,
     startTick: tick,
-    durationTicks: durationTicks(type),
+    durationTicks: durationTicks(type, tower),
     used: false,
     fuelRemainingTicks: fuel,
     chargesRemaining: airJumps,

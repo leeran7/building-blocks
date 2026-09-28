@@ -12,7 +12,8 @@ import { SEASON_1 } from "../../src/game/levels/season";
 import type { ManifestLevel } from "../../src/game/levels/seasonGate";
 import manifest from "../../src/game/levels/seasons/season-1.json";
 import { TICK_HZ } from "../../src/game/types";
-import { levelRunSetup, season1Catalog, seasonLevels } from "../../mobile/src/lib/levels/catalog";
+import { levelPowerUps, levelRunSetup, season1Catalog, seasonLevels } from "../../mobile/src/lib/levels/catalog";
+import { durationTicks, jetpackFuelTicks } from "../../src/game/powerups";
 import { starsForTime } from "../../mobile/src/lib/levels/model";
 
 const rows = manifest.levels as ManifestLevel[];
@@ -39,7 +40,9 @@ describe("season 1 catalog", () => {
     const rerolled = rows.map((r) => (r.level === 2 ? { ...r, rev: 3 } : r));
     const levels = seasonLevels(SEASON_1, rerolled);
     expect(levels.catalog.level(2).seed).toBe("s1:level:2:3");
-    expect(levels.runSetup(2).tower).toEqual(levelTower(levelSpec(SEASON_1, 2, 3)));
+    const { timeLimitTicks, ...tower } = levels.runSetup(2).tower;
+    expect(tower).toEqual(levelTower(levelSpec(SEASON_1, 2, 3)));
+    expect(timeLimitTicks).toBe(rows[1].pars.oneStarTicks);
     expect(levels.catalog.level(1).seed).toBe("s1:level:1:0");
   });
 
@@ -66,10 +69,27 @@ describe("season 1 catalog", () => {
     expect(catalog.level(10).costsLife).toBe(false);
     expect(catalog.level(11).costsLife).toBe(true);
     expect(catalog.level(4).introPowerUp).toBe("rapid-climb");
-    expect(catalog.level(9).introTip).toMatch(/Hanging ladders/);
+    expect(catalog.level(9).introTip).toMatch(/Hanging ladders start above your head/);
     expect(catalog.level(21).introTip).toMatch(/Short tops/);
     expect(catalog.level(20).introTip).toBeNull();
     expect(() => catalog.level(301)).toThrow();
+  });
+});
+
+describe("the 1-star clock", () => {
+  it("runs on every level, shown and enforced from the same row", () => {
+    let clocked = 0;
+    for (const row of rows) {
+      const info = catalog.level(row.level);
+      const setup = levelRunSetup(row.level);
+      expect(row.pars.oneStarTicks).not.toBeNull();
+      // The route bot the season gate ran finishes inside the clock.
+      expect(row.routeTicks).toBeLessThanOrEqual(row.pars.oneStarTicks!);
+      expect(setup.tower.timeLimitTicks).toBe(row.pars.oneStarTicks);
+      expect(info.pars.oneStarMs).toBe(ms(row.pars.oneStarTicks!));
+      clocked++;
+    }
+    expect(clocked).toBe(300);
   });
 });
 
@@ -78,7 +98,9 @@ describe("levelRunSetup", () => {
     for (const n of [1, 9, 150]) {
       const row = rows[n - 1];
       const setup = levelRunSetup(n);
-      expect(setup.tower).toEqual(levelTower(levelSpec(SEASON_1, n, row.rev)));
+      const { timeLimitTicks, ...tower } = setup.tower;
+      expect(tower).toEqual(levelTower(levelSpec(SEASON_1, n, row.rev)));
+      expect(timeLimitTicks).toBe(row.pars.oneStarTicks ?? undefined);
       expect(setup.tower.goalM).toBe(catalog.level(n).goalFt);
       // A fresh tower per attempt.
       expect(levelRunSetup(n).tower).not.toBe(setup.tower);
@@ -95,4 +117,37 @@ describe("levelRunSetup", () => {
     }
     // Three full route-bot runs (L250 is minutes of game time): slow under a loaded suite.
   }, 60_000);
+});
+
+describe("power-ups shown before the match", () => {
+  it("shows none on levels 1-3", () => {
+    for (const n of [1, 2, 3]) {
+      expect(catalog.level(n).powerUps).toEqual({ types: [], floorsPerOrb: null, seconds: {} });
+    }
+  });
+
+  it("shows each level's own rate and the durations its tower will run", () => {
+    let checked = 0;
+    for (const n of [4, 60, 150, 300]) {
+      const spec = levelSpec(SEASON_1, n, rows[n - 1].rev);
+      const tower = levelTower(spec);
+      const shown = catalog.level(n).powerUps;
+      expect(shown).toEqual(levelPowerUps(spec));
+      expect(shown.types).toEqual(spec.allowedPowerUps);
+      expect(shown.floorsPerOrb).toBe(Math.round(1 / spec.powerUpChance));
+      for (const t of shown.types) {
+        if (t === "random") continue;
+        const ticks = t === "jetpack" ? jetpackFuelTicks(tower) : durationTicks(t, tower);
+        // What the sheet says matches what the engine grants, to the tick.
+        expect(Math.round(shown.seconds[t]! * TICK_HZ)).toBe(ticks);
+        checked++;
+      }
+    }
+    expect(checked).toBeGreaterThan(0);
+    // The season's later levels drop orbs less often and run them shorter.
+    const early = catalog.level(4).powerUps;
+    const late = catalog.level(300).powerUps;
+    expect(late.floorsPerOrb!).toBeGreaterThan(early.floorsPerOrb!);
+    expect(late.seconds["rapid-climb"]!).toBeLessThan(early.seconds["rapid-climb"]!);
+  });
 });

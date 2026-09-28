@@ -50,6 +50,7 @@ import {
   buildTower,
   LADDER_JUMP_SPEED_FRAC,
   ladderHangM,
+  ladderHangs,
   ladderTopGapM,
 } from "./towers";
 import {
@@ -254,7 +255,9 @@ function grabbableLadder(
   x: number,
   y: number,
   climbY: number,
-  grabRadius: number
+  grabRadius: number,
+  /** Extra reach below a ladder's bottom rung (Giant on a hanging ladder). */
+  reachBelowM = 0
 ): { ix: number; slot: number; ladder: Ladder } | null {
   const BOUNDARY_BUFFER = 0.1; // Prevent immediate re-grab at ladder boundaries
   // Floors can carry several ladders, so prefer the nearest reachable one.
@@ -263,7 +266,7 @@ function grabbableLadder(
   for (const { ix, slot, ladder: l } of laddersNearY(tower, y, y)) {
     const dx = Math.abs(x - l.x);
     if (dx > grabRadius) continue;
-    if (y < l.y0 - EPS || y > l.y1 + EPS) continue;
+    if (y < l.y0 - reachBelowM - EPS || y > l.y1 + EPS) continue;
     // Require some distance from boundaries to prevent getting stuck when stepping off
     const usable =
       (climbY > 0 && l.y1 > y + BOUNDARY_BUFFER) ||
@@ -346,7 +349,7 @@ function integratePlayer(
         releaseLadder(p);
         // A hanging ladder's bottom is in the air: drop to the floor rather
         // than stand (and jump) from there.
-        p.onGround = ladderHangM(tower) === 0;
+        p.onGround = !ladderHangs(tower, curIx!, curSlot!);
       }
     }
   } else {
@@ -373,7 +376,9 @@ function integratePlayer(
     // After jumping off a ladder, only the *same* ladder is suppressed so
     // holding climb across consecutive ladders works.
     if (input.climbY !== 0) {
-      const g = grabbableLadder(tower, p.x, p.y, input.climbY, grabRadius);
+      // Giant stands tall enough to take a hanging ladder from the floor.
+      const reachBelow = isPowerUpActive(p, "giant", tick) ? ladderHangM(tower) : 0;
+      const g = grabbableLadder(tower, p.x, p.y, input.climbY, grabRadius, reachBelow);
       if (g) {
         const blocked = p.grabSuppressedUntilRelease;
         const isSuppressed =
@@ -509,7 +514,7 @@ export function stepMatch(
       state.raceSeconds = 0;
       // A level run's booster is live from GO.
       if (state.startPowerUp !== undefined) {
-        for (const p of state.players) activatePowerUp(p, state.startPowerUp, 0);
+        for (const p of state.players) activatePowerUp(p, state.startPowerUp, 0, state.tower);
       }
     }
     return state;
@@ -604,7 +609,7 @@ export function stepMatch(
       if (!canActivate(p, effectType, state.tick)) continue;
       pu.collected = true;
       pu.collectedTick = state.tick;
-      activatePowerUp(p, effectType, state.tick);
+      activatePowerUp(p, effectType, state.tick, state.tower);
       break;
     }
 
@@ -617,6 +622,16 @@ export function stepMatch(
     //    duels) have no goalM and never take this branch.
     if (state.tower.goalM !== undefined && p.y >= state.tower.goalM) {
       p.status = "finished";
+      p.finishedTick = state.tick;
+      continue;
+    }
+
+    // 4b. TIME LIMIT — a level with a 1-star clock ends the climb when it runs
+    //     out. After the finish check, so reaching the goal on the last tick
+    //     still counts.
+    const limit = levelTimeLimitTicks(state.tower);
+    if (limit !== null && state.tick >= limit) {
+      p.status = "eliminated";
       p.finishedTick = state.tick;
       continue;
     }
@@ -642,11 +657,29 @@ export function stepMatch(
   return state;
 }
 
+/**
+ * A level tower's clock (tower.timeLimitTicks), or null when it has none.
+ * Throws on anything but a positive integer: never a silent no-clock.
+ */
+export function levelTimeLimitTicks(tower: TowerSpec): number | null {
+  const t = tower.timeLimitTicks;
+  if (t === undefined) return null;
+  if (!Number.isInteger(t) || t <= 0) {
+    throw new RangeError(`tower.timeLimitTicks must be a positive integer, got ${t}`);
+  }
+  return t;
+}
+
 /** Start a power-up's effect on a climber, with its cooldown and HUD pickup. */
-function activatePowerUp(p: PlayerState, type: PowerUpType, tick: number): void {
-  grantPowerUp(p, type, tick);
+function activatePowerUp(
+  p: PlayerState,
+  type: PowerUpType,
+  tick: number,
+  tower: TowerSpec
+): void {
+  grantPowerUp(p, type, tick, tower);
   const cd = cooldownTicks(type);
-  if (cd > 0) p.cooldownUntilTick[type] = tick + durationTicks(type) + cd;
+  if (cd > 0) p.cooldownUntilTick[type] = tick + durationTicks(type, tower) + cd;
   p.lastPickupTick = tick;
   p.lastPickupType = type;
 }

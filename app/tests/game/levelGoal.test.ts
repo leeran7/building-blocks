@@ -8,7 +8,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { createMatch, stepMatch, DEFAULT_SIM_CONFIG } from "../../src/game/simulation";
+import { createMatch, stepMatch, DEFAULT_SIM_CONFIG, levelTimeLimitTicks } from "../../src/game/simulation";
 import {
   applyRunSeed,
   floorHeight,
@@ -168,5 +168,46 @@ describe("stepMatch finishes a climber at the goal", () => {
   it("does not finish a climber below the goal", () => {
     const live = doomedAboveGoal(45);
     expect(live.players[0].status).toBe("eliminated");
+  });
+});
+
+describe("a level's clock ends the climb when it runs out", () => {
+  const tower = level("clock-run", { difficulty: 0.2, powerUpChance: 0.1 });
+  const goalM = floorHeight(tower, 6) + 2;
+
+  function climb(timeLimitTicks?: number): MatchState {
+    const t: TowerSpec = { ...tower, goalM, ...(timeLimitTicks === undefined ? {} : { timeLimitTicks }) };
+    const live = createMatch({ seed: "clock-run", mode: "solo", tower: t, playerIds: ["bot"] });
+    while (live.phase === "countdown") stepMatch(live, {}, DEFAULT_SIM_CONFIG);
+    while (live.phase === "climb" && live.tick < 20_000) {
+      stepMatch(live, { bot: botInput(live.players[0], t, live.tick) }, DEFAULT_SIM_CONFIG);
+    }
+    return live;
+  }
+
+  const finishTick = climb().players[0].finishedTick!;
+
+  it("still finishes a climber who reaches the goal on the clock's last tick", () => {
+    expect(finishTick).toBeGreaterThan(30);
+    const live = climb(finishTick);
+    expect(live.players[0].status).toBe("finished");
+    expect(live.players[0].finishedTick).toBe(finishTick);
+  });
+
+  it("puts a climber out on the tick the clock runs out", () => {
+    const limit = finishTick - 10;
+    const live = climb(limit);
+    expect(live.players[0].status).toBe("eliminated");
+    expect(live.players[0].finishedTick).toBe(limit);
+    expect(live.tick).toBe(limit);
+    expect(live.phase).toBe("finished");
+  });
+
+  it("refuses a clock that is not a positive whole number of ticks", () => {
+    for (const bad of [0, -30, 1.5, Number.NaN]) {
+      expect(() => levelTimeLimitTicks({ ...tower, timeLimitTicks: bad })).toThrow(RangeError);
+      expect(() => climb(bad)).toThrow(RangeError);
+    }
+    expect(levelTimeLimitTicks(tower)).toBeNull();
   });
 });

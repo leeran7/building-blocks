@@ -68,7 +68,7 @@ export function App() {
                 <RouteTransition>
                   <Routes>
                     {/* Levels are the main game: the map is home (design doc §2).
-                        Practice, Daily, Quick Play and Challenge live on Modes. */}
+                        Endless, Daily, Quick Play and Challenge live on Modes. */}
                     <Route path="/" element={<LevelMapScreen />} />
                     <Route path="/modes" element={<HomeScreen />} />
                     <Route path="/leaderboard" element={<LeaderboardScreen />} />

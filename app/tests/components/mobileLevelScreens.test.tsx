@@ -47,8 +47,8 @@ vi.mock("../../mobile/src/components/levels/LevelRun", async () => {
       return h(
         "div",
         null,
-        h("button", { onClick: () => props.onEnd({ level: props.level, finished: true, finishedTick: 30, raceTicks: 30, peakFt: props.goalFt, replayToken: null }) }, "stub-clear"),
-        h("button", { onClick: () => props.onEnd({ level: props.level, finished: false, finishedTick: null, raceTicks: 300, peakFt: props.goalFt / 2, replayToken: "r" }) }, "stub-lose"),
+        h("button", { onClick: () => props.onEnd({ level: props.level, finished: true, finishedTick: 30, raceTicks: 30, peakFt: props.goalFt, replayToken: null, outOfTime: false }) }, "stub-clear"),
+        h("button", { onClick: () => props.onEnd({ level: props.level, finished: false, finishedTick: null, raceTicks: 300, peakFt: props.goalFt / 2, replayToken: "r", outOfTime: false }) }, "stub-lose"),
       );
     },
   };
@@ -103,6 +103,7 @@ async function clearLevels(client: LevelsClient, upTo: number) {
       raceTicks: 3 * TICK_HZ,
       peakFt: s.ticket.goalFt,
       replayToken: null,
+      outOfTime: false,
     });
   }
 }
@@ -183,7 +184,7 @@ describe("level map", () => {
     for (let i = 0; i < 5; i++) {
       const s = await client.startLevel(11);
       if (!s.ok) throw new Error("refused");
-      await client.submitResult(s.ticket.id, { level: s.ticket.level, finished: false, finishedTick: null, raceTicks: 200, peakFt: 5, replayToken: null });
+      await client.submitResult(s.ticket.id, { level: s.ticket.level, finished: false, finishedTick: null, raceTicks: 200, peakFt: 5, replayToken: null, outOfTime: false });
     }
     await renderMap(client);
     await click(pin("Level 11, next to play"));
@@ -203,9 +204,9 @@ describe("level map", () => {
     expect(container.querySelector('[role="dialog"] h2')?.textContent).toBe("Level 3");
   });
 
-  it("sends Practice to the endless climb", async () => {
+  it("sends Endless to the endless climb", async () => {
     await renderMap(memoryClient());
-    await click(button("Practice, the endless climb"));
+    await click(button("Endless, climb as high as you can"));
     expect(where.pathname).toBe("/climb");
   });
 });
@@ -296,7 +297,8 @@ describe("level result card", () => {
     stars: 2,
     previousStars: 0,
     timeMs: 31_000,
-    pars: { twoStarMs: 36_000, threeStarMs: 28_000 },
+    outOfTime: false,
+    pars: { twoStarMs: 36_000, threeStarMs: 28_000, oneStarMs: null },
     goalFt: 267,
     peakFt: 267,
     xpGained: 160,
@@ -331,6 +333,15 @@ describe("level result card", () => {
     expect(text).toContain("3★ at 0:28 · 2★ at 0:36");
     expect(text).toContain("+160 XP");
     expect(button("Next level")).toBeTruthy();
+  });
+
+  it("says a run lost to the level's clock ran out of time, with the 1-star time", async () => {
+    const clocked = { ...base.pars, oneStarMs: 45_000 };
+    await renderCard({ ...base, pars: clocked, cleared: false, stars: 0, timeMs: null, peakFt: 200, xpGained: 0, outOfTime: true });
+    expect(container.textContent).toContain("Out of time");
+    expect(container.textContent).not.toContain("Caught by the lava");
+    await renderCard({ ...base, pars: clocked });
+    expect(container.textContent).toContain("3★ at 0:28 · 2★ at 0:36 · 1★ at 0:45");
   });
 
   it("leads a loss with the distance to the summit and a retry that shows the lives left", async () => {

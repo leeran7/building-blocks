@@ -17,7 +17,8 @@
  * 200:      { ticketId, season, level, simVersion, rev, pars, expiresAt,
  *             lifeSpent, lives, nextLifeAt }
  *            (rev: the level's seed revision; pars: { twoStarTicks,
- *             threeStarTicks }, which /result scores stars against)
+ *             threeStarTicks, oneStarTicks }, which /result scores stars
+ *             against; oneStarTicks is the level's clock, or null)
  * 400:      { error, code: INVALID_JSON | INVALID_LEVEL }
  * 401:      { error, code: UNAUTHORIZED }
  * 403:      { error, code: LEVEL_LOCKED, frontier }
@@ -104,7 +105,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         level,
         simVersion: LEVEL_SIM_VERSION,
         rev: row.rev,
-        pars: { twoStarTicks: row.pars.twoStarTicks, threeStarTicks: row.pars.threeStarTicks },
+        pars: {
+          twoStarTicks: row.pars.twoStarTicks,
+          threeStarTicks: row.pars.threeStarTicks,
+          oneStarTicks: row.pars.oneStarTicks,
+        },
         expiresAt: ticket.expiresAt.toISOString(),
         lifeSpent: ticket.lifeSpent,
         lives: ticket.lives,

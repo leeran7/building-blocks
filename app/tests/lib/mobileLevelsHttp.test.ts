@@ -78,6 +78,7 @@ const RUN: LevelRunReport = {
   raceTicks: 900,
   peakFt: 90,
   replayToken: "token",
+  outOfTime: false,
 };
 
 function json(status: number, body: unknown): Response {
@@ -248,10 +249,27 @@ describe("createHttpLevelsClient", () => {
       raceTicks: 612.4,
       peakFt: 41.6,
       replayToken: null,
+      outOfTime: false,
     });
     // A loss reports how long the run lasted, no stars, and no replay it does not have.
     expect(calls[0].body).toEqual({ ticketId: TICKET.ticketId, cleared: false, stars: 0, ticks: 612 });
     expect(result).toMatchObject({ cleared: false, stars: 0, timeMs: null, newPlayerLevel: null });
+  });
+
+  it("reports a run the clock ended as a plain loss and shows it ran out of time", async () => {
+    const { fetch, calls } = fakeServer({
+      "/api/levels/result": () => json(200, { ...RESULT, outcome: "failed", stars: 0, xpGained: 0 }),
+    });
+    const result = await createHttpLevelsClient({ catalog, fetch }).submitResult(TICKET.ticketId, {
+      ...RUN,
+      finished: false,
+      finishedTick: null,
+      raceTicks: 900,
+      replayToken: null,
+      outOfTime: true,
+    });
+    expect(calls[0].body).toEqual({ ticketId: TICKET.ticketId, cleared: false, stars: 0, ticks: 900 });
+    expect(result).toMatchObject({ cleared: false, stars: 0, outOfTime: true });
   });
 
   it("never reports a finish time for a run that did not finish", async () => {

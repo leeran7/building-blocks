@@ -66,6 +66,10 @@ import {
   powerUpChipMeter,
   powerUpForFloor,
   powerUpsNearY,
+  powerUpDurationScale,
+  powerUpSeconds,
+  MIN_POWER_UP_DURATION_SCALE,
+  MAX_POWER_UP_DURATION_SCALE,
   spawnChanceForFloor,
   firstSpawnFloor,
   liveEntryCount,
@@ -431,6 +435,72 @@ describe("pickup: touching an orb auto-activates it immediately", () => {
       for (let i = 0; i < ticks; i++) stepMatch(m, { p1: NO_INPUT }, SLOW);
       expect(isPowerUpActive(p, type, m.tick)).toBe(false);
     }
+  });
+});
+
+describe("per-level power-up duration", () => {
+  const LEVEL: TowerSpec = { ...TOWER, powerUpDurationScale: 0.6 };
+
+  it("leaves towers without a scale on the base durations", () => {
+    expect(powerUpDurationScale(TOWER)).toBe(1);
+    expect(powerUpDurationScale()).toBe(1);
+  });
+
+  it("refuses a scale outside its bounds instead of clamping", () => {
+    for (const bad of [0, 0.2, MIN_POWER_UP_DURATION_SCALE - 0.01, MAX_POWER_UP_DURATION_SCALE + 0.01, NaN, Infinity]) {
+      expect(() => powerUpDurationScale({ ...TOWER, powerUpDurationScale: bad })).toThrow(RangeError);
+    }
+    expect(powerUpDurationScale({ ...TOWER, powerUpDurationScale: MIN_POWER_UP_DURATION_SCALE })).toBe(MIN_POWER_UP_DURATION_SCALE);
+    expect(powerUpDurationScale({ ...TOWER, powerUpDurationScale: MAX_POWER_UP_DURATION_SCALE })).toBe(MAX_POWER_UP_DURATION_SCALE);
+  });
+
+  it("scales every window, the jetpack tank and the shown seconds, but not cooldowns", () => {
+    for (const type of CONCRETE_POWER_UP_TYPES) {
+      expect(durationTicks(type, LEVEL)).toBe(Math.round(POWER_UP_SPECS[type].durationSeconds * 0.6 * TICK_HZ));
+      expect(durationTicks(type, LEVEL)).toBeLessThan(durationTicks(type));
+    }
+    expect(jetpackFuelTicks(LEVEL)).toBe(Math.round(JETPACK_FUEL_SECONDS * 0.6 * TICK_HZ));
+    expect(powerUpSeconds("jetpack", LEVEL)).toBeCloseTo(JETPACK_FUEL_SECONDS * 0.6, 10);
+    expect(powerUpSeconds("harden-lava", LEVEL)).toBeCloseTo(HARDEN_LAVA_DURATION_SECONDS * 0.6, 10);
+  });
+
+  it("expires a picked-up effect after the level's shorter window", () => {
+    let checked = 0;
+    for (const type of CONCRETE_POWER_UP_TYPES) {
+      const m = climbingMatch(LEVEL);
+      const p = m.players[0];
+      placeOrb(m, type, p.x, p.y);
+      stepMatch(m, { p1: NO_INPUT }, SLOW);
+      expect(isPowerUpActive(p, type, m.tick)).toBe(true);
+      const ticks = durationTicks(type, LEVEL);
+      for (let i = 0; i < ticks - 1; i++) stepMatch(m, { p1: NO_INPUT }, SLOW);
+      expect(isPowerUpActive(p, type, m.tick)).toBe(true);
+      stepMatch(m, { p1: NO_INPUT }, SLOW);
+      expect(isPowerUpActive(p, type, m.tick)).toBe(false);
+      checked++;
+    }
+    expect(checked).toBeGreaterThan(0);
+  });
+
+  it("fills a level jetpack with the level's fuel and shows a full meter", () => {
+    const m = climbingMatch(LEVEL);
+    const p = m.players[0];
+    placeOrb(m, "jetpack", p.x, p.y);
+    stepMatch(m, { p1: NO_INPUT }, SLOW);
+    expect(jetpackFuelRemaining(p, m.tick)).toBe(jetpackFuelTicks(LEVEL));
+    const entry = p.activePowerUps.find((a) => a.type === "jetpack")!;
+    expect(powerUpChipMeter(entry, m.tick).frac).toBeCloseTo(1, 5);
+  });
+
+  it("frees the cooldown at the shorter window plus the unchanged cooldown", () => {
+    const m = climbingMatch(LEVEL);
+    const p = m.players[0];
+    placeOrb(m, "slow-lava", p.x, p.y);
+    stepMatch(m, { p1: NO_INPUT }, SLOW);
+    const start = m.tick;
+    const freeAt = start + durationTicks("slow-lava", LEVEL) + cooldownTicks("slow-lava");
+    expect(cooldownRemaining(p, "slow-lava", freeAt - 1)).toBeGreaterThan(0);
+    expect(cooldownRemaining(p, "slow-lava", freeAt)).toBe(0);
   });
 });
 
