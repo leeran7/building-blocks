@@ -3,7 +3,8 @@
 These prompts produce the Badger's climb sprites in the same pipeline as the
 Wraith (`git show 7406c15:output/wraith/README.md` and
 `output/wraith/movement/README.md` in that commit). Until the finished sheets
-land, the game draws the Badger as a tinted Wraith placeholder (accent `#be4df4`).
+land, the game draws the Badger as the plain Wraith (its sampled accent `#be4df4` is kept in
+`RECOLOR_PALETTE` for a future recolour feature).
 
 ## Deliverables and contract
 
@@ -74,7 +75,7 @@ the engine supplies the upward movement.
 ## Registering the art
 
 Drop the two 192 files into `app/public/climb/`, then in
-`app/src/components/Game/climberCharacters.ts` replace the `badger: tint(...)`
+`app/src/components/Game/climberCharacters.ts` replace the `badger: base()`
 entry with `badger: sheets("badger")`.
 
 ## Checks before shipping

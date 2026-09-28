@@ -2,9 +2,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AVATARS } from "../../src/lib/avatars";
 
 /**
- * Per-avatar climber characters: the registry, the Wraith fallback, lazy
- * loading per character, the once-per-character tint cache, and the avatar id
- * travelling from paintClimbFrame's options into the sprite draw.
+ * Per-avatar climber characters: the registry (real art only; avatars without
+ * art draw as the plain Wraith), the Wraith fallback, lazy loading per
+ * character, the tint engine kept for a future recolour feature (fed through a
+ * registry override), and the avatar id travelling from paintClimbFrame's
+ * options into the sprite draw.
  */
 
 /** Minimal HTMLImageElement stand-in: decodes only when a test says so. */
@@ -73,6 +75,23 @@ async function withIbexArt() {
   return load();
 }
 
+/** Registry fixture: ibex and yak are recolours (not in the live registry). */
+async function withTints() {
+  vi.doMock(REGISTRY, async (importOriginal) => {
+    const real = await importOriginal<typeof import("../../src/components/Game/climberCharacters")>();
+    const p = real.RECOLOR_PALETTE;
+    return {
+      ...real,
+      CLIMBER_CHARACTERS: {
+        ...real.CLIMBER_CHARACTERS,
+        ibex: real.tint(p.ibex.accent, p.ibex.body),
+        yak: real.tint(p.yak.accent, p.yak.body),
+      },
+    };
+  });
+  return load();
+}
+
 beforeEach(() => {
   FakeImage.all = [];
   FakeCanvas.all = [];
@@ -106,14 +125,23 @@ describe("registry", () => {
     });
   });
 
-  it("gives every tint a parseable accent and body, and 18 distinct entries", async () => {
-    const { CLIMBER_CHARACTERS, parseHexColor } = await import("../../src/components/Game/climberCharacters");
-    const tints = Object.values(CLIMBER_CHARACTERS).filter((c) => c.kind === "tint");
-    expect(tints).toHaveLength(18);
-    for (const t of tints) {
-      if (t.kind !== "tint") continue;
-      expect(parseHexColor(t.accent)).not.toBeNull();
-      if (t.body !== null) expect(parseHexColor(t.body)).not.toBeNull();
+  it("uses real art only: no tint entries in the live registry", async () => {
+    const { CLIMBER_CHARACTERS } = await import("../../src/components/Game/climberCharacters");
+    const kinds = new Set(Object.values(CLIMBER_CHARACTERS).map((c) => c.kind));
+    expect(kinds.has("tint")).toBe(false);
+  });
+
+  it("RECOLOR_PALETTE: every colour parses, keyed by catalogue avatars other than the Wraith", async () => {
+    const { RECOLOR_PALETTE, parseHexColor } = await import("../../src/components/Game/climberCharacters");
+    const ids = Object.keys(RECOLOR_PALETTE);
+    expect(ids).toHaveLength(18);
+    const catalogue = new Set(AVATARS.map((a) => a.id));
+    for (const id of ids) {
+      expect(catalogue.has(id)).toBe(true);
+      expect(id).not.toBe("wraith");
+      const { accent, body } = RECOLOR_PALETTE[id];
+      expect(parseHexColor(accent)).not.toBeNull();
+      expect(parseHexColor(body)).not.toBeNull();
     }
   });
 
@@ -127,11 +155,28 @@ describe("registry", () => {
 });
 
 describe("resolveClimberCharacter", () => {
-  it("returns the avatar's own entry for a catalogue id", async () => {
-    const { resolveClimberCharacter, climberCharacter } = await load();
+  it("returns the avatar's own entry when it has art", async () => {
+    const { resolveClimberCharacter, climberCharacter } = await withIbexArt();
     expect(resolveClimberCharacter("ibex")).toBe("ibex");
+    expect(climberCharacter("ibex")).toMatchObject({ kind: "sheets", poses: "/climb/ibex-poses-192.png" });
+  });
+
+  it("resolves every catalogue avatar without art to the plain Wraith", async () => {
+    const { resolveClimberCharacter, climberCharacter } = await load();
+    const { CLIMBER_CHARACTERS, WRAITH } = await import("../../src/components/Game/climberCharacters");
+    let checked = 0;
+    for (const { id } of AVATARS) {
+      if (CLIMBER_CHARACTERS[id].kind !== "base") continue;
+      expect(resolveClimberCharacter(id)).toBe("wraith");
+      expect(climberCharacter(id)).toBe(WRAITH);
+      checked++;
+    }
+    expect(checked).toBeGreaterThan(0);
+  });
+
+  it("resolves a tint (recolour feature) to its own entry", async () => {
+    const { resolveClimberCharacter } = await withTints();
     expect(resolveClimberCharacter("yak")).toBe("yak");
-    expect(climberCharacter("ibex")).toMatchObject({ kind: "tint", accent: "#ecba55" });
   });
 
   it("falls back to the Wraith for null, unknown and prototype-key ids", async () => {
@@ -159,8 +204,23 @@ describe("lazy loading", () => {
     expect(FakeImage.all).toHaveLength(0);
   });
 
-  it("a tint loads only the Wraith sheets", async () => {
+  it("an avatar without art draws the Wraith's sheets and loads no extra sheet", async () => {
+    vi.stubGlobal("document", { createElement: () => new FakeCanvas() });
     const { climberFrame } = await load();
+    expect(climberFrame("idle", 0, 0, false, "ibex")).toBeNull();
+    climberFrame("idle", 0, 0, false, "wraith");
+    climberFrame("idle", 0, 0, false, "yak");
+    // One request per Wraith sheet, shared by every avatar without art.
+    expect(requested()).toEqual(["/climb/wraith-climb-192.png", "/climb/wraith-poses-192.png"]);
+    sheet("wraith-poses-192.png").decode();
+    const f = climberFrame("idle", 0, 0, false, "ibex")!;
+    expect(f.img).toBe(sheet("wraith-poses-192.png")); // the plain sheet, not a recolour
+    expect(f.character).toBe("wraith");
+    expect(FakeCanvas.all).toHaveLength(0);
+  });
+
+  it("a tint (recolour feature) loads only the Wraith sheets", async () => {
+    const { climberFrame } = await withTints();
     expect(climberFrame("idle", 0, 0, false, "ibex")).toBeNull();
     expect(requested()).toEqual(["/climb/wraith-climb-192.png", "/climb/wraith-poses-192.png"]);
   });
@@ -215,7 +275,7 @@ describe("lazy loading", () => {
     expect(climberFrame("idle", 0, 0, false, "wraith")!.img).toBe(sheet("wraith-poses-192.png"));
   });
 
-  it("setClimberSpriteSrc ignores tints and ids outside the registry", async () => {
+  it("setClimberSpriteSrc ignores avatars without art and ids outside the registry", async () => {
     const { climberFrame, setClimberSpriteSrc } = await load();
     setClimberSpriteSrc({ poses: "./assets/x.png" }, "ibex");
     setClimberSpriteSrc({ poses: "./assets/y.png" }, "__proto__");
@@ -226,13 +286,13 @@ describe("lazy loading", () => {
   });
 });
 
-describe("tint cache", () => {
+describe("tint cache (recolour feature, via a registry override)", () => {
   beforeEach(() => {
     vi.stubGlobal("document", { createElement: () => new FakeCanvas() });
   });
 
   it("renders each tinted sheet once per character, however often it draws", async () => {
-    const { climberFrame } = await load();
+    const { climberFrame } = await withTints();
     climberFrame("idle", 0, 0, false, "ibex");
     sheet("wraith-poses-192.png").decode();
     sheet("wraith-climb-192.png").decode();
@@ -259,7 +319,7 @@ describe("tint cache", () => {
   });
 
   it("re-renders when the Wraith base sheet is replaced (native bundle override)", async () => {
-    const { climberFrame, setClimberSpriteSrc } = await load();
+    const { climberFrame, setClimberSpriteSrc } = await withTints();
     climberFrame("idle", 0, 0, false, "ibex");
     sheet("wraith-poses-192.png").decode();
     const before = climberFrame("idle", 0, 0, false, "ibex")!.img;
@@ -272,7 +332,7 @@ describe("tint cache", () => {
   });
 
   it("an override aimed at a tint neither loads anything nor drops its rendered canvas", async () => {
-    const { climberFrame, setClimberSpriteSrc } = await load();
+    const { climberFrame, setClimberSpriteSrc } = await withTints();
     climberFrame("idle", 0, 0, false, "ibex");
     sheet("wraith-poses-192.png").decode();
     const before = climberFrame("idle", 0, 0, false, "ibex")!.img;
@@ -284,7 +344,7 @@ describe("tint cache", () => {
 
   it("draws the Wraith untinted when no canvas can be made", async () => {
     vi.stubGlobal("document", undefined);
-    const { climberFrame } = await load();
+    const { climberFrame } = await withTints();
     climberFrame("idle", 0, 0, false, "ibex");
     sheet("wraith-poses-192.png").decode();
     expect(climberFrame("idle", 0, 0, false, "ibex")!.img).toBe(sheet("wraith-poses-192.png"));
@@ -317,6 +377,21 @@ describe("tintPixels", () => {
     expect(r).toBeGreaterThan(b);
     const luma = 0.2126 * r + 0.7152 * g + 0.0722 * b;
     expect(Math.abs(luma - 40)).toBeLessThan(3);
+  });
+
+  it("builds a tint spec for every RECOLOR_PALETTE entry that moves the Wraith lime", async () => {
+    const { tintPixels, tintSpec } = await import("../../src/components/Game/climberTint");
+    const { RECOLOR_PALETTE, tint } = await import("../../src/components/Game/climberCharacters");
+    let checked = 0;
+    for (const { accent, body } of Object.values(RECOLOR_PALETTE)) {
+      const spec = tintSpec(tint(accent, body));
+      expect(spec).not.toBeNull();
+      const data = rgba([198, 242, 77, 255]);
+      tintPixels(data, spec!);
+      expect([...data]).not.toEqual([198, 242, 77, 255]);
+      checked++;
+    }
+    expect(checked).toBe(18);
   });
 
   it("does not treat other saturated hues as accent", async () => {

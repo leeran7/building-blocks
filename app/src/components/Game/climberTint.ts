@@ -1,6 +1,8 @@
 /**
- * Recolouring the Wraith sheets into another avatar's palette — the
- * placeholder art for characters without their own sheets. Pure pixel maths
+ * Recolouring the Wraith sheets into another palette, for `tint` characters.
+ * Kept for a future recolour feature (e.g. unlockable colour skins, colours in
+ * RECOLOR_PALETTE); the live registry uses real art only, so avatars without
+ * their own sheets draw as the plain Wraith and never reach this. Pure pixel maths
  * plus one offscreen-canvas render per sheet; climberSprite.ts caches the
  * result per character, so this never runs per frame.
  */

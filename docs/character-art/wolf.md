@@ -3,7 +3,8 @@
 These prompts produce the Wolf's climb sprites in the same pipeline as the
 Wraith (`git show 7406c15:output/wraith/README.md` and
 `output/wraith/movement/README.md` in that commit). Until the finished sheets
-land, the game draws the Wolf as a tinted Wraith placeholder (accent `#f43fba`).
+land, the game draws the Wolf as the plain Wraith (its sampled accent `#f43fba` is kept in
+`RECOLOR_PALETTE` for a future recolour feature).
 
 ## Deliverables and contract
 
@@ -74,7 +75,7 @@ the engine supplies the upward movement.
 ## Registering the art
 
 Drop the two 192 files into `app/public/climb/`, then in
-`app/src/components/Game/climberCharacters.ts` replace the `wolf: tint(...)`
+`app/src/components/Game/climberCharacters.ts` replace the `wolf: base()`
 entry with `wolf: sheets("wolf")`.
 
 ## Checks before shipping

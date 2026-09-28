@@ -1,9 +1,9 @@
 # Viking climber artwork (to generate)
 
 Status: **not generated yet.** Until the sheets below exist, the game draws
-Viking as the Wraith sprite tinted ember orange (`#f4661c`), set in
-`app/src/components/Game/climberCharacters.ts`. The real art replaces that
-placeholder by changing its entry to `sheets("viking")` (see `app/public/climb/README.md`).
+Viking as the plain Wraith (sampled accent `#f4661c`, kept in `RECOLOR_PALETTE`), set in
+`app/src/components/Game/climberCharacters.ts`. The real art replaces the
+Wraith stand-in by changing its entry to `sheets("viking")` (see `app/public/climb/README.md`).
 
 Identity reference: `app/mobile/src/assets/avatars/viking.webp` (the profile
 portrait). Attach it to every prompt below. Style must match the shipped
