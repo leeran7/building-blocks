@@ -4,6 +4,7 @@ import { useLevels } from "../contexts/LevelsContext";
 import { tapHeavy, tapLight } from "../lib/haptics";
 import { Button } from "../components/ui";
 import { LevelStartSheet } from "../components/levels/LevelStartSheet";
+import { LevelStartExtras } from "../components/levels/LevelStartExtras";
 import { LivesPill, StarRow, XpBar, useWhenDue } from "../components/levels/LevelBits";
 import {
   EPISODE_SIZE,
@@ -91,6 +92,8 @@ export function LevelMapScreen() {
     },
     [client, navigate, setPlayer],
   );
+
+  const loadBoard = useCallback((level: number) => client.getBoard(level), [client]);
 
   const openPractice = useCallback(() => {
     void tapHeavy();
@@ -207,6 +210,15 @@ export function LevelMapScreen() {
             navigate(`/levels/${selected.level}/play?practice=1`);
           }}
           onClose={() => setSelected(null)}
+          extras={
+            <LevelStartExtras
+              atFrontier={selected.level === frontier}
+              streak={season.streak}
+              startPowerUp={selected.level === frontier ? season.nextStartPowerUp : null}
+              stuck={selected.level === season.stuck.level ? season.stuck : null}
+              board={{ level: selected.level, load: loadBoard }}
+            />
+          }
         />
       )}
     </main>

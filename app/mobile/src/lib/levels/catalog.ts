@@ -87,6 +87,7 @@ export function seasonLevels(season: SeasonSpec, rows: readonly ManifestLevel[])
           oneStarMs: pars.oneStarTicks === null ? null : ticksToMs(pars.oneStarTicks),
         },
         introPowerUp: spec.introPowerUp,
+        allowedPowerUps: spec.allowedPowerUps,
         introTip: obstacleTip(season, level),
         powerUps: levelPowerUps(spec),
         costsLife: levelCostsLife(level),

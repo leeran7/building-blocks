@@ -28,7 +28,11 @@ vi.mock("../../src/db/levels", async (importOriginal) => {
   };
 });
 
+vi.mock("../../src/db/levelExtras", () => ({ levelFriendsBoard: vi.fn() }));
+
 import { POST as postTicket } from "../../app/api/levels/ticket/route";
+import { GET as getBoard } from "../../app/api/levels/board/route";
+import { levelFriendsBoard } from "../../src/db/levelExtras";
 import { POST as postResult } from "../../app/api/levels/result/route";
 import { GET as getMe } from "../../app/api/levels/me/route";
 import { GET as getSeason } from "../../app/api/levels/season/route";
@@ -71,6 +75,10 @@ beforeEach(() => {
     lifeSpent: true,
     lives: 4,
     nextLifeAt: new Date(T_ISSUED.getTime() + 1_800_000),
+    startPowerUp: null,
+    streak: 0,
+    failsAtLevel: 0,
+    routeGhostAvailable: false,
   });
   vi.mocked(openTicketLevel).mockResolvedValue({ season: 1, level: 42 });
   vi.mocked(submitLevelResult).mockImplementation(async (input) => ({
@@ -89,6 +97,10 @@ beforeEach(() => {
     xp: 510,
     playerLevel: 3,
     awards: [],
+    atFrontier: true,
+    streak: input.run.cleared ? 1 : 0,
+    failsAtLevel: input.run.cleared ? 0 : 1,
+    routeGhostAvailable: false,
   }));
 });
 
@@ -115,6 +127,28 @@ describe("POST /api/levels/ticket", () => {
     expect(issueLevelTicket).toHaveBeenCalledWith(
       expect.objectContaining({ userId: "u1", season: 1, level: 42, simVersion: SIM })
     );
+  });
+
+  it("passes the level's allowed boosters from the manifest and returns the start power-up", async () => {
+    vi.mocked(issueLevelTicket).mockResolvedValueOnce({
+      ticketId: TICKET,
+      expiresAt: new Date(T_ISSUED.getTime() + 86_400_000),
+      lifeSpent: true,
+      lives: 4,
+      nextLifeAt: null,
+      startPowerUp: { type: "super-jump", source: "streak" },
+      streak: 5,
+      failsAtLevel: 0,
+      routeGhostAvailable: false,
+    });
+    const res = await ticket({ season: 1, level: 12, simVersion: SIM });
+    expect(await res.json()).toMatchObject({ startPowerUp: { type: "super-jump", source: "streak" }, streak: 5 });
+    // L12 of season 1 has unlocked rapid climb (L4), sprint burst (L7) and super jump (L11).
+    expect(vi.mocked(issueLevelTicket).mock.calls[0][0].allowedBoosters).toEqual([
+      "rapid-climb",
+      "sprint-burst",
+      "super-jump",
+    ]);
   });
 
   it.each([
@@ -353,9 +387,19 @@ describe("GET /api/levels/me", () => {
       frontier: 4,
       totalStars: 7,
       levels: [{ level: 1, stars: 3, bestTicks: 900 }],
+      streak: 3,
+      nextStartPowerUp: { type: "rapid-climb", source: "streak" },
+      stuck: { level: 4, fails: 5, routeGhostAvailable: true },
     });
     const res = await getMe(req("/api/levels/me?season=1"));
-    expect(await res.json()).toMatchObject({ lives: 3, nextLifeAt: "2026-09-27T12:30:00.000Z", frontier: 4 });
+    expect(await res.json()).toMatchObject({
+      lives: 3,
+      nextLifeAt: "2026-09-27T12:30:00.000Z",
+      frontier: 4,
+      streak: 3,
+      nextStartPowerUp: { type: "rapid-climb", source: "streak" },
+      stuck: { level: 4, fails: 5, routeGhostAvailable: true },
+    });
   });
 
   it("rejects a bad season and requires sign-in", async () => {
@@ -401,5 +445,66 @@ describe("GET /api/levels/season", () => {
     const res = await season("?season=1");
     expect(res.status).toBe(500);
     expect(JSON.stringify(await res.json())).not.toContain("relation");
+  });
+});
+
+describe("GET /api/levels/board", () => {
+  const board = (q: string, token?: string | null) => getBoard(req(`/api/levels/board${q}`, undefined, token));
+  const BOARD = {
+    season: 1,
+    level: 12,
+    friendCount: 2,
+    entries: [{ rank: 1, isMe: false, handle: "Ana", username: "ana", avatarId: null, stars: 3, bestTicks: 900 }],
+  };
+
+  it("returns the caller's friends board, keyed by the token's user only", async () => {
+    vi.mocked(levelFriendsBoard).mockResolvedValueOnce(BOARD);
+    const res = await board("?season=1&level=12&userId=someone-else");
+    expect(res.status).toBe(200);
+    expect(res.headers.get("cache-control")).toBe("private, no-store");
+    expect(await res.json()).toEqual(BOARD);
+    expect(levelFriendsBoard).toHaveBeenCalledWith("u1", 1, 12);
+  });
+
+  it.each([["?season=1"], ["?level=12"], ["?season=1&level=0"], ["?season=1&level=301"], ["?season=x&level=1"], ["?season=1&level=1.5"]])(
+    "rejects %s",
+    async (q) => {
+      const res = await board(q);
+      expect(res.status).toBe(400);
+      expect(levelFriendsBoard).not.toHaveBeenCalled();
+    }
+  );
+
+  it("refuses a season with no manifest", async () => {
+    expect((await board("?season=2&level=1")).status).toBe(404);
+    expect(levelFriendsBoard).not.toHaveBeenCalled();
+  });
+
+  it("requires a signed-in, non-anonymous player", async () => {
+    expect((await board("?season=1&level=12", null)).status).toBe(401);
+    vi.mocked(verifyIdToken).mockResolvedValue({ uid: "anon" } as never);
+    expect((await board("?season=1&level=12")).status).toBe(401);
+    expect(levelFriendsBoard).not.toHaveBeenCalled();
+  });
+
+  it("uses the shared climb IP bucket and a per-user level cap", async () => {
+    vi.mocked(levelFriendsBoard).mockResolvedValue(BOARD);
+    await board("?season=1&level=12");
+    const namespaces = vi.mocked(checkRateLimit).mock.calls.map(([o]) => o.namespace);
+    expect(namespaces).toEqual(["climb", "climb:level:board:total"]);
+
+    vi.mocked(checkRateLimit).mockImplementation(async (o) => ({ allowed: o.namespace !== "climb:level:board:total", degraded: false }));
+    vi.mocked(levelFriendsBoard).mockClear();
+    const res = await board("?season=1&level=12");
+    expect(res.status).toBe(429);
+    expect(levelFriendsBoard).not.toHaveBeenCalled();
+    vi.mocked(checkRateLimit).mockImplementation(async () => ({ allowed: true, degraded: false }));
+  });
+
+  it("never leaks a raw database error", async () => {
+    vi.mocked(levelFriendsBoard).mockRejectedValueOnce(new Error("relation friendships does not exist"));
+    const res = await board("?season=1&level=12");
+    expect(res.status).toBe(500);
+    expect(JSON.stringify(await res.json())).not.toContain("friendships");
   });
 });

@@ -30,7 +30,9 @@ vi.mock("@app/components/Game/lava", () => ({ drawLava: vi.fn(), isLavaInProximi
  * that end the run the way the real one does (through onEnd), so the screen's
  * submit, result, retry and Next level flow runs for real.
  */
-const runs = vi.hoisted(() => ({ mounted: [] as Array<{ seed: string; goalFt: number }> }));
+const runs = vi.hoisted(() => ({
+  mounted: [] as Array<{ seed: string; goalFt: number; bestFailFt: number | null; startPowerUp: unknown }>,
+}));
 vi.mock("../../mobile/src/components/levels/LevelRun", async () => {
   const { createElement: h, useEffect: useMountEffect } = await import("react");
   return {
@@ -39,16 +41,25 @@ vi.mock("../../mobile/src/components/levels/LevelRun", async () => {
       seed: string;
       goalFt: number;
       paused: boolean;
+      bestFailFt?: number | null;
+      startPowerUp?: unknown;
       onEnd: (r: LevelRunReport) => void;
     }) => {
       useMountEffect(() => {
-        runs.mounted.push({ seed: props.seed, goalFt: props.goalFt });
-      }, [props.seed, props.goalFt]);
+        runs.mounted.push({
+          seed: props.seed,
+          goalFt: props.goalFt,
+          bestFailFt: props.bestFailFt ?? null,
+          startPowerUp: props.startPowerUp ?? null,
+        });
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- one entry per mounted attempt
+      }, []);
       return h(
         "div",
         null,
         h("button", { onClick: () => props.onEnd({ level: props.level, finished: true, finishedTick: 30, raceTicks: 30, peakFt: props.goalFt, replayToken: null, outOfTime: false }) }, "stub-clear"),
         h("button", { onClick: () => props.onEnd({ level: props.level, finished: false, finishedTick: null, raceTicks: 300, peakFt: props.goalFt / 2, replayToken: "r", outOfTime: false }) }, "stub-lose"),
+        h("button", { onClick: () => props.onEnd({ level: props.level, finished: false, finishedTick: null, raceTicks: 300, peakFt: props.goalFt - 1, replayToken: "r", outOfTime: false }) }, "stub-near"),
       );
     },
   };
@@ -76,6 +87,7 @@ function Where() {
 
 beforeEach(() => {
   runs.mounted = [];
+  localStorage.clear();
   container = document.createElement("div");
   document.body.appendChild(container);
   root = createRoot(container);
@@ -211,6 +223,38 @@ describe("level map", () => {
   });
 });
 
+describe("friends board on the start card", () => {
+  it("shows the player's own time, or invites friends before a clear", async () => {
+    const client = memoryClient();
+    await clearLevels(client, 3);
+    await renderMap(client);
+    await click(pin("Level 2, 3 of 3 stars"));
+    await flush();
+    const list = container.querySelector('ol[aria-label="Friends\' best times on level 2"]');
+    expect(list?.textContent).toContain("You");
+    expect(list?.textContent).toContain("0:03");
+    await click(button("Close"));
+    await click(pin("Level 4, next to play"));
+    await flush();
+    expect(container.textContent).toContain("Add friends to race their times here.");
+  });
+});
+
+describe("win streak on the start card", () => {
+  it("previews the streak's power-up on the frontier level only", async () => {
+    const client = memoryClient();
+    await clearLevels(client, 3);
+    await renderMap(client);
+    await click(pin("Level 4, next to play"));
+    expect(container.textContent).toContain("Win streak 3");
+    expect(container.textContent).toContain("You start with");
+    expect(container.textContent).toContain("Rapid Climb");
+    await click(button("Close"));
+    await click(pin("Level 2, 3 of 3 stars"));
+    expect(container.textContent).not.toContain("Win streak");
+  });
+});
+
 describe("level play route", () => {
   it("clears a level, then Next level lands on the map with the next level open", async () => {
     const client = memoryClient();
@@ -242,6 +286,33 @@ describe("level play route", () => {
     expect(runs.mounted).toHaveLength(2);
     await click(button("stub-lose"));
     expect(container.textContent).toContain("3 of 5 lives left");
+  });
+
+  it("leads a near miss with the floors left, and marks the next try with it", async () => {
+    const client = memoryClient();
+    await clearLevels(client, 10);
+    await renderMap(client);
+    await click(pin("Level 11, next to play"));
+    await click(button("Play level 11"));
+    await click(button("stub-lose"));
+    expect(container.textContent).not.toContain("from the summit!");
+    await click(button("Retry"));
+    // Half way up is not close: no marker.
+    expect(runs.mounted[1].bestFailFt).toBeNull();
+    await click(button("stub-near"));
+    expect(container.textContent).toContain("1 floor from the summit!");
+    await click(button("Retry"));
+    expect(runs.mounted[2].bestFailFt).toBe(runs.mounted[2].goalFt - 1);
+  });
+
+  it("retires the near-miss marker once the level is cleared", async () => {
+    await renderMap(memoryClient(), "/levels/1/play?practice=1");
+    await click(button("stub-near"));
+    await click(button("Retry"));
+    expect(runs.mounted[1].bestFailFt).toBe(runs.mounted[1].goalFt - 1);
+    await click(button("stub-clear"));
+    await click(button("Retry"));
+    expect(runs.mounted[2].bestFailFt).toBeNull();
   });
 
   it("says why a retry could not start instead of doing nothing", async () => {
@@ -282,7 +353,11 @@ describe("level play route", () => {
       pars: { twoStarMs: 1, threeStarMs: 1 },
       player: {},
     };
-    expect(ticketFromState({ ticket }, 4)).toBe(ticket);
+    expect(ticketFromState({ ticket }, 4)).toEqual({ ...ticket, startPowerUp: null });
+    expect(ticketFromState({ ticket: { ...ticket, startPowerUp: { type: "rapid-climb", source: "streak" } } }, 4)).toMatchObject({
+      startPowerUp: { type: "rapid-climb", source: "streak" },
+    });
+    expect(ticketFromState({ ticket: { ...ticket, startPowerUp: { type: "random", source: "streak" } } }, 4)).toBeNull();
     expect(ticketFromState({ ticket }, 5)).toBeNull();
     expect(ticketFromState({ ticket: { ...ticket, seed: 7 } }, 4)).toBeNull();
     expect(ticketFromState(null, 4)).toBeNull();
@@ -299,6 +374,10 @@ describe("level result card", () => {
     timeMs: 31_000,
     outOfTime: false,
     pars: { twoStarMs: 36_000, threeStarMs: 28_000, oneStarMs: null },
+    streak: null,
+    atFrontier: false,
+    failsAtLevel: 0,
+    routeGhostAvailable: false,
     goalFt: 267,
     peakFt: 267,
     xpGained: 160,
@@ -363,5 +442,22 @@ describe("level result card", () => {
     await renderCard(lost, false);
     expect(button("Retry")).toBeTruthy();
     expect(container.textContent).toContain("Tutorial level: free to retry");
+  });
+
+  it("promises free help on the next try from the 3rd fail", async () => {
+    const lost = { ...base, cleared: false, stars: 0 as const, timeMs: null, peakFt: 100, xpGained: 0, atFrontier: true, streak: 0 };
+    await renderCard({ ...lost, failsAtLevel: 2 });
+    expect(container.textContent).not.toContain("free power-up");
+    await renderCard({ ...lost, failsAtLevel: 3 });
+    expect(container.textContent).toContain("Your next try starts with a free power-up.");
+  });
+
+  it("shows the win streak after a frontier run, and nothing after a replay", async () => {
+    await renderCard({ ...base, atFrontier: true, streak: 4 });
+    expect(container.textContent).toContain("Win streak 4");
+    await renderCard({ ...base, cleared: false, stars: 0, timeMs: null, peakFt: 100, xpGained: 0, atFrontier: true, streak: 0 });
+    expect(container.textContent).toContain("Win streak reset");
+    await renderCard({ ...base, atFrontier: false, streak: 4 });
+    expect(container.textContent).not.toContain("Win streak");
   });
 });

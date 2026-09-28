@@ -200,6 +200,8 @@ describe("parseMockState", () => {
     livesUpdatedAt: 5,
     xp: 120,
     openTicket: null,
+    streak: 2,
+    fails: { season: 1, level: 2, count: 1 },
   };
 
   it("accepts a well-formed state", () => {
@@ -217,7 +219,7 @@ describe("parseMockState", () => {
 });
 
 describe("refillLives", () => {
-  const base: MockState = { progress: {}, lives: 2, livesUpdatedAt: 0, xp: 0, openTicket: null };
+  const base: MockState = { progress: {}, lives: 2, livesUpdatedAt: 0, xp: 0, openTicket: null, streak: 0 };
 
   it("adds nothing before a full step and caps at the max", () => {
     expect(refillLives(base, LIFE_REFILL_MS - 1).lives).toBe(2);
@@ -258,5 +260,24 @@ describe("level model helpers", () => {
     expect(xpForPlayerLevel(1)).toBe(60);
     expect(xpForPlayerLevel(2)).toBe(153);
     expect(xpForPlayerLevel(10)).toBeGreaterThan(xpForPlayerLevel(9));
+  });
+});
+
+describe("win streaks on the device store", () => {
+  it("count first clears at the frontier and start L4 with a rapid climb after 3", async () => {
+    const { client } = harness();
+    for (let level = 1; level <= 3; level++) await clear(client, level, 20_000);
+    const season = await client.getSeason();
+    expect(season).toMatchObject({ streak: 3, nextStartPowerUp: { type: "rapid-climb", source: "streak" } });
+    const start = await client.startLevel(4);
+    expect(start).toMatchObject({ ok: true, ticket: { startPowerUp: { type: "rapid-climb", source: "streak" } } });
+  });
+
+  it("ignore replays and reset on a frontier loss", async () => {
+    const { client } = harness();
+    for (let level = 1; level <= 3; level++) await clear(client, level, 20_000);
+    expect(await lose(client, 1)).toMatchObject({ atFrontier: false, streak: 3 });
+    expect(await lose(client, 4)).toMatchObject({ atFrontier: true, streak: 0 });
+    expect((await client.startLevel(4)).ok && (await client.getSeason()).nextStartPowerUp).toBeNull();
   });
 });

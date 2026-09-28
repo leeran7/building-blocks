@@ -11,8 +11,10 @@ vi.mock("../../mobile/src/lib/api", () => ({ apiFetch: vi.fn() }));
 import { LEVEL_SIM_VERSION } from "../../src/game/simVersion";
 import {
   createHttpLevelsClient,
+  parseLevelBoard,
   parseLevelProfile,
   parseServerResult,
+  parseStartPowerUp,
   parseTicket,
   refusalFor,
 } from "../../mobile/src/lib/levels/httpClient";
@@ -129,6 +131,110 @@ describe("parsers", () => {
     expect(refusalFor(503, "LEVELS_UNAVAILABLE")).toBe("NETWORK");
     expect(refusalFor(429, "RATE_LIMITED")).toBe("NETWORK");
     expect(refusalFor(403, "SOMETHING_ELSE")).toBe("NETWORK");
+  });
+});
+
+describe("win streaks and start power-ups", () => {
+  it("parse a start power-up, and read an absent one as none", () => {
+    expect(parseStartPowerUp({ type: "rapid-climb", source: "streak" })).toEqual({ type: "rapid-climb", source: "streak" });
+    expect(parseStartPowerUp(undefined)).toBeNull();
+    expect(parseStartPowerUp(null)).toBeNull();
+  });
+
+  it.each([
+    [{ type: "random", source: "streak" }],
+    [{ type: "rapid-climb", source: "gift" }],
+    [{ type: "rapid-climb", source: "toString" }],
+    [{ type: "rapid-climb" }],
+    ["rapid-climb"],
+  ])("reject a malformed start power-up %j", (raw) => {
+    expect(parseStartPowerUp(raw)).toBeUndefined();
+    expect(parseTicket({ ...TICKET, startPowerUp: raw })).toBeNull();
+  });
+
+  it("read the streak from the profile and the result, and refuse a bad one", () => {
+    expect(parseLevelProfile({ ...PROFILE, streak: 4, nextStartPowerUp: { type: "rapid-climb", source: "streak" } })).toMatchObject({
+      streak: 4,
+      nextStartPowerUp: { type: "rapid-climb", source: "streak" },
+    });
+    expect(parseLevelProfile(PROFILE)).toMatchObject({ streak: 0, nextStartPowerUp: null });
+    expect(parseLevelProfile({ ...PROFILE, streak: -1 })).toBeNull();
+    expect(parseServerResult({ ...RESULT, streak: 2, atFrontier: true })).toMatchObject({ streak: 2, atFrontier: true });
+    expect(parseServerResult(RESULT)).toMatchObject({ streak: null, atFrontier: false });
+    expect(parseServerResult({ ...RESULT, streak: "2" })).toBeNull();
+    expect(parseServerResult({ ...RESULT, atFrontier: 1 })).toBeNull();
+  });
+
+  it("read stuck help from the profile and the result", () => {
+    expect(parseLevelProfile({ ...PROFILE, stuck: { level: 3, fails: 5, routeGhostAvailable: true } })?.stuck).toEqual({
+      level: 3,
+      fails: 5,
+      routeGhostAvailable: true,
+    });
+    expect(parseLevelProfile({ ...PROFILE, stuck: { level: 3, fails: "5", routeGhostAvailable: true } })).toBeNull();
+    expect(parseLevelProfile({ ...PROFILE, stuck: { level: 3, fails: 5 } })).toBeNull();
+    expect(parseServerResult({ ...RESULT, outcome: "failed", stars: 0, failsAtLevel: 3, routeGhostAvailable: false })).toMatchObject({
+      failsAtLevel: 3,
+      routeGhostAvailable: false,
+    });
+    expect(parseServerResult({ ...RESULT, failsAtLevel: -1 })).toBeNull();
+    expect(parseServerResult({ ...RESULT, routeGhostAvailable: "yes" })).toBeNull();
+  });
+
+  it("hands the ticket's power-up to the run", async () => {
+    const { fetch } = fakeServer({
+      "/api/levels/ticket": () => json(200, { ...TICKET, level: 12, startPowerUp: { type: "super-jump", source: "streak" } }),
+    });
+    const res = await createHttpLevelsClient({ catalog, fetch }).startLevel(12);
+    expect(res).toMatchObject({ ok: true, ticket: { startPowerUp: { type: "super-jump", source: "streak" } } });
+  });
+
+  it("asks for an update when the power-up is not allowed on this app's level", async () => {
+    // Level 3 allows no power-ups in season 1.
+    const { fetch } = fakeServer({
+      "/api/levels/ticket": () => json(200, { ...TICKET, startPowerUp: { type: "rapid-climb", source: "streak" } }),
+    });
+    expect(await createHttpLevelsClient({ catalog, fetch }).startLevel(3)).toEqual({ ok: false, code: "UPDATE_REQUIRED" });
+  });
+});
+
+describe("friends board", () => {
+  const BOARD = {
+    season: 1,
+    level: 12,
+    friendCount: 1,
+    entries: [
+      { rank: 1, isMe: false, handle: "Ana", username: "ana", avatarId: null, stars: 3, bestTicks: 900 },
+      { rank: 2, isMe: true, handle: "Me", username: null, avatarId: null, stars: 2, bestTicks: 1200 },
+    ],
+  };
+
+  it("parses the board into times", () => {
+    expect(parseLevelBoard(BOARD)).toEqual({
+      level: 12,
+      friendCount: 1,
+      entries: [
+        { rank: 1, isMe: false, handle: "Ana", stars: 3, timeMs: 30_000 },
+        { rank: 2, isMe: true, handle: "Me", stars: 2, timeMs: 40_000 },
+      ],
+    });
+  });
+
+  it.each([
+    ["a zero-star row", { ...BOARD, entries: [{ ...BOARD.entries[0], stars: 0 }] }],
+    ["a missing handle", { ...BOARD, entries: [{ ...BOARD.entries[0], handle: "" }] }],
+    ["a string time", { ...BOARD, entries: [{ ...BOARD.entries[0], bestTicks: "900" }] }],
+    ["no entries", { ...BOARD, entries: null }],
+  ])("rejects %s", (_, body) => {
+    expect(parseLevelBoard(body)).toBeNull();
+  });
+
+  it("loads the level's board and refuses one for another level", async () => {
+    const { fetch, calls } = fakeServer({ "/api/levels/board": () => json(200, BOARD) });
+    const board = await createHttpLevelsClient({ catalog, fetch }).getBoard(12);
+    expect(calls[0].path).toBe("/api/levels/board?season=1&level=12");
+    expect(board.entries).toHaveLength(2);
+    await expect(createHttpLevelsClient({ catalog, fetch }).getBoard(13)).rejects.toThrow();
   });
 });
 

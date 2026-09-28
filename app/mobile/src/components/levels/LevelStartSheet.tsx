@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { POWER_UP_SPECS } from "@app/game/powerups";
 import { ALTITUDE_UNIT } from "@app/lib/units";
 import { Button } from "../ui";
@@ -34,6 +34,7 @@ export function LevelStartSheet({
   onPractice,
   onPracticeLevel,
   onClose,
+  extras,
 }: {
   node: LevelNode;
   player: PlayerStats;
@@ -42,6 +43,8 @@ export function LevelStartSheet({
   onPractice: () => void;
   onPracticeLevel: () => void;
   onClose: () => void;
+  /** Streak, stuck help, boosters and the friends board (LevelStartExtras). */
+  extras?: ReactNode;
 }) {
   const [busy, setBusy] = useState(false);
   const [refusal, setRefusal] = useState<StartRefusal | null>(null);
@@ -174,6 +177,7 @@ export function LevelStartSheet({
         <PowerUpsCard powerUps={node.powerUps} />
 
         {/* The friend ghost picker (§6.1) goes here once ghosts land. */}
+        {extras}
 
         <div className="mt-5 flex flex-col gap-2.5">
           {outOfLives ? (

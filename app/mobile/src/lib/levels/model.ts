@@ -1,4 +1,5 @@
 import type { PowerUpType } from "@app/game/types";
+import type { StartPowerUp } from "@app/levels/engagement";
 
 /**
  * What the level screens show, and the calls they make. The shapes follow the
@@ -33,6 +34,8 @@ export interface LevelNode {
   pars: { twoStarMs: number; threeStarMs: number; oneStarMs: number | null };
   /** The power-up this level introduces with a one-line tip, if any. */
   introPowerUp: PowerUpType | null;
+  /** Power-ups unlocked on this level: the only ones a run may start with. */
+  allowedPowerUps: PowerUpType[];
   /** Obstacle this level introduces (hanging ladders, short tops), if any. */
   introTip: string | null;
   /** This level's power-ups, shown before the match. */
@@ -71,6 +74,23 @@ export interface SeasonView {
   /** Highest unlocked level: 1 + highest cleared, capped at the season length. */
   frontier: number;
   player: PlayerStats;
+  /** Win streak: first clears in a row at the frontier (§6.3). */
+  streak: number;
+  /** What the frontier level starts with if played now (server's preview). */
+  nextStartPowerUp: StartPowerUp | null;
+  /** Stuck help at the frontier level (§5c). */
+  stuck: StuckHelp;
+}
+
+/**
+ * Fails at the frontier level. From 3 every try starts with a free power-up;
+ * from 5 the server offers the bot's route ghost (the ghost view is not built
+ * yet, so the app only says it is coming).
+ */
+export interface StuckHelp {
+  level: number;
+  fails: number;
+  routeGhostAvailable: boolean;
 }
 
 /** A level run the server allowed to start (the doc's run ticket). */
@@ -82,6 +102,8 @@ export interface LevelTicket {
   goalFt: number;
   pars: LevelNode["pars"];
   player: PlayerStats;
+  /** What the run starts with at GO, decided by the server (streak, stuck help, booster). */
+  startPowerUp: StartPowerUp | null;
 }
 
 export type StartRefusal =
@@ -134,6 +156,31 @@ export interface LevelResult {
   /** Set when this run moved the player up a level. */
   newPlayerLevel: number | null;
   player: PlayerStats;
+  /** Win streak after this run; null when the server did not say. */
+  streak: number | null;
+  /** Whether this run was at the frontier (so it moved the streak). */
+  atFrontier: boolean;
+  /** Fails at this level after the run (0 on a clear or a replay), §5c. */
+  failsAtLevel: number;
+  routeGhostAvailable: boolean;
+}
+
+/** One row of a level's friends-only board (§4). */
+export interface LevelBoardEntry {
+  rank: number;
+  isMe: boolean;
+  handle: string;
+  stars: StarCount;
+  /** Best clear time, ms. */
+  timeMs: number;
+}
+
+/** A level's friends-only board: the player and accepted friends who cleared it. */
+export interface LevelBoardView {
+  level: number;
+  entries: LevelBoardEntry[];
+  /** Accepted friends, cleared or not (0 means "add friends" rather than "be first"). */
+  friendCount: number;
 }
 
 /** A level's fixed facts: everything on its pin except the player's progress. */
@@ -159,6 +206,8 @@ export interface LevelsClient {
   getSeason(): Promise<SeasonView>;
   startLevel(level: number): Promise<StartResult>;
   submitResult(ticketId: string, run: LevelRunReport): Promise<LevelResult>;
+  /** The level's friends-only board. */
+  getBoard(level: number): Promise<LevelBoardView>;
 }
 
 /** Every 5th level is a Hard level (§3). */

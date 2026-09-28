@@ -10,13 +10,14 @@ import {
 } from "../../lib/levels/model";
 import { HeartIcon, StarIcon, XpBar, livesLabel, useNow } from "./LevelBits";
 import { OutOfLives } from "./LevelStartSheet";
+import { STUCK_BOOSTER_FAILS } from "@app/levels/engagement";
 
 /**
  * The end of a level run. A clear shows the stars earned against the star
  * times, the XP and the next level; a loss shows how close the summit was and
  * a one-tap retry, or the out-of-lives choices when no life is left.
  *
- * Near-miss markers and win streaks (§6.2, §6.3) will add to this card later.
+ * A run at the frontier also shows the win streak it moved (§6.3).
  */
 export function LevelResultCard({
   result,
@@ -29,10 +30,13 @@ export function LevelResultCard({
   onMap,
   onPractice,
   onPracticeLevel,
+  nearMiss = null,
 }: {
   result: LevelResult;
   /** Whether a retry of this level spends a life (tutorial levels don't). */
   costsLife: boolean;
+  /** "2 floors from the summit!" when a loss came close (§6.2). */
+  nearMiss?: string | null;
   hasNextLevel: boolean;
   retryBusy: boolean;
   /** Why the last Retry could not start, in the player's words. */
@@ -45,14 +49,22 @@ export function LevelResultCard({
 }) {
   const label = result.cleared
     ? `Level ${result.level} cleared, ${result.stars} of ${MAX_STARS} stars`
-    : `${result.outOfTime ? "Out of time" : "Caught by the lava"}, ${feetShort(result)} ${ALTITUDE_UNIT} from the summit`;
+    : (nearMiss ?? `${result.outOfTime ? "Out of time" : "Caught by the lava"}, ${feetShort(result)} ${ALTITUDE_UNIT} from the summit`);
   return (
     <Sheet label={label}>
       {result.cleared ? (
         <Cleared result={result} />
       ) : (
-        <Lost goalFt={result.goalFt} peakFt={result.peakFt} level={result.level} outOfTime={result.outOfTime} />
+        <Lost
+          goalFt={result.goalFt}
+          peakFt={result.peakFt}
+          level={result.level}
+          outOfTime={result.outOfTime}
+          nearMiss={nearMiss}
+        />
       )}
+      <StreakLine result={result} />
+      <StuckLine result={result} />
 
       {retryError && (
         <p role="alert" className="mt-4 text-center text-meta text-ember">
@@ -89,6 +101,30 @@ export function LevelResultCard({
         )}
       </div>
     </Sheet>
+  );
+}
+
+/** The win streak after a frontier run; replays leave it alone and say nothing. */
+export function StreakLine({ result }: { result: Pick<LevelResult, "atFrontier" | "streak" | "cleared"> }) {
+  if (!result.atFrontier || result.streak === null) return null;
+  const text =
+    result.streak > 0
+      ? `Win streak ${result.streak}`
+      : result.cleared
+        ? "Win streak 0"
+        : "Win streak reset. Clear a new level to start one.";
+  return (
+    <p className="mt-3 text-center font-mono text-label font-bold uppercase tracking-label text-text-secondary">
+      {text}
+    </p>
+  );
+}
+
+/** After 3 fails at the frontier the next try starts with free help (§5c). */
+export function StuckLine({ result }: { result: Pick<LevelResult, "cleared" | "failsAtLevel"> }) {
+  if (result.cleared || result.failsAtLevel < STUCK_BOOSTER_FAILS) return null;
+  return (
+    <p className="mt-2 text-center text-meta text-signal">Your next try starts with a free power-up.</p>
   );
 }
 
@@ -144,11 +180,13 @@ function Lost({
   peakFt,
   level,
   outOfTime,
+  nearMiss = null,
 }: {
   goalFt: number;
   peakFt: number;
   level: number;
   outOfTime: boolean;
+  nearMiss?: string | null;
 }) {
   const short = feetShort({ goalFt, peakFt });
   const pct = goalFt > 0 ? Math.min(100, (peakFt / goalFt) * 100) : 0;
@@ -157,6 +195,9 @@ function Lost({
       <p className="text-center font-mono text-label font-bold uppercase tracking-eyebrow text-ember">
         {outOfTime ? "Out of time" : "Caught by the lava"} · Level {level}
       </p>
+      {nearMiss && (
+        <p className="mt-3 text-center font-display text-headline font-black uppercase text-signal">{nearMiss}</p>
+      )}
       <p className="mt-3 text-center font-display text-hero font-black tabular-nums text-text-primary">
         {short.toLocaleString()}
         <span className="ml-1 text-lead font-bold uppercase text-text-secondary">{ALTITUDE_UNIT}</span>
@@ -238,12 +279,14 @@ export function PracticeResultCard({
   outOfTime,
   onRetry,
   onMap,
+  nearMiss = null,
 }: {
   level: number;
   goalFt: number;
   peakFt: number;
   timeMs: number | null;
   outOfTime: boolean;
+  nearMiss?: string | null;
   onRetry: () => void;
   onMap: () => void;
 }) {
@@ -260,7 +303,7 @@ export function PracticeResultCard({
           <p className="text-center text-body text-text-secondary">Summit reached</p>
         </>
       ) : (
-        <Lost goalFt={goalFt} peakFt={peakFt} level={level} outOfTime={outOfTime} />
+        <Lost goalFt={goalFt} peakFt={peakFt} level={level} outOfTime={outOfTime} nearMiss={nearMiss} />
       )}
       <p className="mt-3 text-center text-meta text-text-muted">Practice runs earn no stars or XP.</p>
       <div className="mt-6 flex gap-2.5">

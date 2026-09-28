@@ -74,6 +74,17 @@ model User {
   player_level             Int       @default(1)
   lives                    Int       @default(5)
   lives_updated_at         DateTime?
+  // First clears in a row at the frontier (design §6.3). Server-derived from
+  // ticket outcomes in src/db/levels.ts; replays and bad starts leave it alone.
+  level_streak             Int       @default(0)
+  // Stuck help (design §5c): fails and abandoned tickets at ONE frontier level
+  // (season + level), reset by clearing it. Server-derived like the streak.
+  level_fail_season        Int?
+  level_fail_level         Int?
+  level_fail_count         Int       @default(0)
+  // UTC day (YYYY-MM-DD) the once-a-day bonus life for finishing a Daily
+  // Climb or a duel was last paid (design §5b). Null = never.
+  bonus_life_day           String?
   climbRecords           ClimbRecord[]
   climbRuns              ClimbRun[]
   dailyClimbScores       DailyClimbScore[]
@@ -243,7 +254,7 @@ model LevelRunTicket {
   season         Int
   level          Int
   sim_version    Int // LEVEL_SIM_VERSION at issue
-  start_power_up String? // granted at GO (streaks, stuck help); null for now
+  start_power_up String? // granted at GO: a streak or stuck-help power-up, or a booster
   life_spent     Boolean // false on free levels (L1-10)
   created_at     DateTime  @default(now())
   expires_at     DateTime

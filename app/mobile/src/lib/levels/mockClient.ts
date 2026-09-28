@@ -1,9 +1,18 @@
 import { TICK_HZ } from "@app/game/types";
+import {
+  boosterTypesOf,
+  failsAt,
+  freeStartPowerUp,
+  nextFailTally,
+  nextStreak,
+  type FailTally,
+} from "@app/levels/engagement";
 import { season1Catalog } from "./catalog";
 import {
   EPISODE_SIZE,
   isHardLevel,
   starsForTime,
+  type LevelBoardView,
   type LevelNode,
   type LevelResult,
   type LevelRunReport,
@@ -49,14 +58,25 @@ export interface MockState {
   livesUpdatedAt: number;
   xp: number;
   openTicket: { id: string; level: number } | null;
+  /** Win streak (§6.3); 0 in stores written before streaks existed. */
+  streak: number;
+  /** Fails at the frontier level (§5c); absent in older stores. */
+  fails?: FailTally | null;
 }
 
 function freshState(now: number): MockState {
-  return { progress: {}, lives: MAX_LIVES, livesUpdatedAt: now, xp: 0, openTicket: null };
+  return { progress: {}, lives: MAX_LIVES, livesUpdatedAt: now, xp: 0, openTicket: null, streak: 0 };
 }
 
 function isStarCount(v: unknown): v is StarCount {
   return v === 0 || v === 1 || v === 2 || v === 3;
+}
+
+function parseTally(v: unknown): FailTally | null {
+  if (typeof v !== "object" || v === null) return null;
+  const t = v as Record<string, unknown>;
+  const whole = (n: unknown): n is number => typeof n === "number" && Number.isInteger(n) && n >= 0;
+  return whole(t.season) && whole(t.level) && whole(t.count) ? { season: t.season, level: t.level, count: t.count } : null;
 }
 
 /** Reads a stored state, or null when it is missing or malformed. */
@@ -99,6 +119,8 @@ export function parseMockState(raw: string | null): MockState | null {
     livesUpdatedAt: o.livesUpdatedAt,
     xp: Math.max(0, Math.floor(o.xp)),
     openTicket,
+    streak: typeof o.streak === "number" && Number.isFinite(o.streak) ? Math.max(0, Math.floor(o.streak)) : 0,
+    fails: parseTally(o.fails),
   };
 }
 
@@ -200,12 +222,22 @@ export function createMockLevelsClient(opts: MockClientOptions = {}): LevelsClie
       const state = read();
       const levels: LevelNode[] = [];
       for (let n = 1; n <= SEASON_LENGTH; n++) levels.push(mockLevelNode(n, state.progress[String(n)]));
+      const frontier = frontierOf(state);
+      const fails = failsAt(state.fails ?? null, 1, frontier);
       return wait({
         season: 1,
         name: "Season 1",
         levels,
-        frontier: frontierOf(state),
+        frontier,
         player: playerStats(state),
+        streak: state.streak,
+        nextStartPowerUp: freeStartPowerUp({
+          atFrontier: true,
+          streak: state.streak,
+          fails,
+          allowed: boosterTypesOf(levels[frontier - 1].allowedPowerUps),
+        }),
+        stuck: { level: frontier, fails, routeGhostAvailable: false },
       });
     },
 
@@ -216,11 +248,27 @@ export function createMockLevelsClient(opts: MockClientOptions = {}): LevelsClie
       }
       const node = mockLevelNode(level);
       let next = state;
+      // An open ticket at the frontier is a loss (§6.3).
+      if (state.openTicket) {
+        const openAtFrontier = state.openTicket.level === frontierOf(state);
+        next = {
+          ...next,
+          streak: nextStreak(next.streak, "abandoned", openAtFrontier),
+          fails: nextFailTally(next.fails ?? null, { season: 1, level: state.openTicket.level }, "abandoned", openAtFrontier),
+        };
+      }
+      const atFrontier = level === frontierOf(state);
+      const startPowerUp = freeStartPowerUp({
+        atFrontier,
+        streak: next.streak,
+        fails: atFrontier ? failsAt(next.fails ?? null, 1, level) : 0,
+        allowed: boosterTypesOf(node.allowedPowerUps),
+      });
       if (node.costsLife) {
         if (state.lives <= 0) return wait({ ok: false, code: "OUT_OF_LIVES", player: playerStats(state) });
         // Spending from full starts the refill clock now (§5b).
         next = {
-          ...state,
+          ...next,
           lives: state.lives - 1,
           livesUpdatedAt: state.lives >= MAX_LIVES ? now() : state.livesUpdatedAt,
         };
@@ -238,7 +286,18 @@ export function createMockLevelsClient(opts: MockClientOptions = {}): LevelsClie
           goalFt: node.goalFt,
           pars: node.pars,
           player: playerStats(next),
+          startPowerUp,
         },
+      });
+    },
+
+    getBoard(level: number): Promise<LevelBoardView> {
+      // No friends on the device: the board is the player's own best.
+      const mine = read().progress[String(level)];
+      return wait({
+        level,
+        friendCount: 0,
+        entries: mine ? [{ rank: 1, isMe: true, handle: "You", stars: mine.stars, timeMs: mine.bestMs }] : [],
       });
     },
 
@@ -263,6 +322,10 @@ export function createMockLevelsClient(opts: MockClientOptions = {}): LevelsClie
       if (cleared && !prev && ticket.level % EPISODE_SIZE === 0) xpGained += 250;
 
       const before = playerStats(state).playerLevel;
+      const atFrontier = ticket.level === frontierOf(state);
+      const outcome = cleared ? "cleared" : "failed";
+      const streak = nextStreak(state.streak, outcome, atFrontier);
+      const fails = nextFailTally(state.fails ?? null, { season: 1, level: ticket.level }, outcome, atFrontier);
       const progress = { ...state.progress };
       if (cleared && timeMs !== null) {
         progress[String(ticket.level)] = {
@@ -278,6 +341,8 @@ export function createMockLevelsClient(opts: MockClientOptions = {}): LevelsClie
         xp: state.xp + xpGained,
         lives: Math.min(MAX_LIVES, state.lives + refund),
         openTicket: null,
+        streak,
+        fails,
       };
       write(next);
       const player = playerStats(next);
@@ -294,6 +359,10 @@ export function createMockLevelsClient(opts: MockClientOptions = {}): LevelsClie
         xpGained,
         newPlayerLevel: player.playerLevel > before ? player.playerLevel : null,
         player,
+        streak,
+        atFrontier,
+        failsAtLevel: atFrontier ? failsAt(fails, 1, ticket.level) : 0,
+        routeGhostAvailable: false,
       });
     },
   };

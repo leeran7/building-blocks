@@ -27,5 +27,6 @@ export function withMockFallback(server: LevelsClient, mock: () => LevelsClient)
     },
     startLevel: (level) => active.startLevel(level),
     submitResult: (ticketId, run) => active.submitResult(ticketId, run),
+    getBoard: (level) => active.getBoard(level),
   };
 }
