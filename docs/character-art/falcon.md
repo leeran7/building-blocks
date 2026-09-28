@@ -1,8 +1,11 @@
 # Falcon climber artwork
 
-Status: **placeholder in game** (the Wraith sheets, tinted `#e8893a`). Replace by
-generating the two sheets below and dropping them in as `falcon-poses-192.png`
-and `falcon-climb-192.png`.
+Status: **placeholder in game**. The registry
+(`app/src/components/Game/climberCharacters.ts`) draws the Falcon as the Wraith
+recoloured with `tint("#f29842", "#2e1c17")`. To ship real art, generate the two
+sheets below, drop `falcon-poses-192.png` and `falcon-climb-192.png` into
+`app/public/climb/`, and change that entry to `sheets("falcon")`. The full
+contract is `app/public/climb/README.md`.
 
 Identity reference: `app/mobile/src/assets/avatars/falcon.webp`. Palette sampled
 from it: burnt orange `#d9893d` / `#a25d32` feathers, charcoal `#3b2e2c` /
@@ -21,7 +24,8 @@ glowing amber `#ff9a2a` eye.
 - Foot root at `(256, 460)` in every cell; idle figure 380 px tall. One scale for
   every pose, never fit each frame to its opaque bounds (the Down crouch must
   stay shorter). At least 52 px empty margin to each cell edge.
-- Ship at 192 px: downscale each 512 cell to 192 (Lanczos), palette-quantise, save
+- Ship at 192 px (foot anchor (96, 172.5), idle height 142.5): downscale each
+  512 cell to 192 (Lanczos), palette-quantise to under ~50 KB per file, save
   as `falcon-poses-192.png` (768 × 384) and `falcon-climb-192.png` (1152 × 192).
 
 ## Sheet prompt
