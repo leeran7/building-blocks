@@ -61,6 +61,8 @@ import { LevelMapScreen } from "../../mobile/src/screens/LevelMapScreen";
 import { LevelPlayScreen, ticketFromState } from "../../mobile/src/screens/LevelPlayScreen";
 import { LevelResultCard } from "../../mobile/src/components/levels/LevelResultCard";
 import { TICK_HZ } from "../../src/game/types";
+import { POWER_UP_TYPES } from "../../src/game/powerups";
+import { markTutorialsSeen } from "../../mobile/src/lib/levels/tutorialSeen";
 
 let container: HTMLDivElement;
 let root: Root;
@@ -76,6 +78,8 @@ function Where() {
 
 beforeEach(() => {
   runs.mounted = [];
+  // The level tutorials have their own tests (mobileLevelTutorial.test.tsx).
+  markTutorialsSeen(["basics", ...POWER_UP_TYPES]);
   container = document.createElement("div");
   document.body.appendChild(container);
   root = createRoot(container);

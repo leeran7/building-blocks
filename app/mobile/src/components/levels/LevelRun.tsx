@@ -51,6 +51,7 @@ export function LevelRun({
   paused,
   onEnd,
   onQuit,
+  onHowToPlay,
 }: {
   level: number;
   seed: string;
@@ -64,6 +65,8 @@ export function LevelRun({
   paused: boolean;
   onEnd: (report: LevelRunReport) => void;
   onQuit: () => void;
+  /** Replays the level's tutorial from the start screen. */
+  onHowToPlay?: () => void;
 }) {
   const towerRef = useRef(setup?.tower ?? { ...buildFreeTower(), goalM: goalFt });
   const { state, simRef, renderFeed, start, finished, setTouch, runId, inputLog } = useClimb({
@@ -236,6 +239,15 @@ export function LevelRun({
           >
             Start
           </button>
+          {onHowToPlay && (
+            <button
+              type="button"
+              onClick={onHowToPlay}
+              className="mt-4 min-h-[44px] px-4 font-mono text-label uppercase tracking-label text-text-secondary underline-offset-4 active:scale-95"
+            >
+              How to play
+            </button>
+          )}
         </Overlay>
       )}
 
