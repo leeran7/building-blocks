@@ -414,8 +414,13 @@ describe.skipIf(!PG_URL)("level engagement on Postgres", () => {
       for (let level = 1; level <= n; level++) results.push(await play(userId, level, three()));
       return results;
     }
+    /** Set the owned count of one booster (clears may already have opened chests). */
     async function give(userId: string, type: BoosterType, count: number) {
-      await prisma.userBooster.create({ data: { userId, type, count } });
+      await prisma.userBooster.upsert({
+        where: { user_booster_type: { userId, type } },
+        create: { userId, type, count },
+        update: { count },
+      });
     }
 
     it("opens chest 1 at 20 lifetime stars with its HMAC roll, once", async () => {
@@ -492,21 +497,26 @@ describe.skipIf(!PG_URL)("level engagement on Postgres", () => {
       await clearThroughWith3("a", 10);
       await play("a", 11, failed());
       await give("a", "rapid-climb", 3);
+      // Clearing L1-10 opened chest 1, so other boosters may be owned too.
+      const owned = await inventory("a");
+      expect(owned["rapid-climb"]).toBe(3);
 
       const bad = await start("a", 11, { booster: "rapid-climb", now: at(900) });
       await submit("a", bad.ticketId, failed(30), new Date(at(900).getTime() + 2_000));
-      expect(await inventory("a")).toEqual({ "rapid-climb": 3 });
+      expect(await inventory("a")).toEqual(owned);
 
       await start("a", 11, { booster: "rapid-climb", now: at(950) });
-      await start("a", 11, { now: new Date(at(950).getTime() + 3_000) }); // quick restart: bad start
-      expect(await inventory("a")).toEqual({ "rapid-climb": 3 });
+      // Quick restart: the booster ticket closes as a bad start.
+      const quick = await start("a", 11, { now: new Date(at(950).getTime() + 3_000) });
+      expect(await inventory("a")).toEqual(owned);
+      // Also a bad start, so the fail tally stays under stuck help's free booster.
+      await submit("a", quick.ticketId, failed(30), new Date(at(950).getTime() + 5_000));
 
-      await play("a", 11, failed());
       const lost = await start("a", 11, { booster: "rapid-climb" });
       await submit("a", lost.ticketId, failed());
       const won = await start("a", 11, { booster: "rapid-climb" });
       await submit("a", won.ticketId, cleared());
-      expect(await inventory("a")).toEqual({ "rapid-climb": 1 });
+      expect((await inventory("a"))["rapid-climb"]).toBe(1);
     });
 
     it("never spends one booster twice under concurrent starts", async () => {
@@ -517,9 +527,18 @@ describe.skipIf(!PG_URL)("level engagement on Postgres", () => {
       const codes = await Promise.all(
         Array.from({ length: 6 }, () => codeOf(start("a", 11, { booster: "sprint-burst", now: at(3000) })))
       );
-      expect(codes.filter((c) => c === "resolved")).toHaveLength(1);
-      expect(codes.filter((c) => c === "BOOSTER_NOT_OWNED")).toHaveLength(5);
-      expect(await inventory("a")).toEqual({ "sprint-burst": 0 });
+      // Starts at the same instant: each one closes the previous ticket as a
+      // bad start, which hands its booster back before the next spend. So
+      // they may all succeed, but the ledger must net exactly one booster.
+      expect(codes.every((c) => c === "resolved" || c === "BOOSTER_NOT_OWNED")).toBe(true);
+      expect(codes).toContain("resolved");
+      expect((await inventory("a"))["sprint-burst"]).toBe(0);
+      const open = await prisma.levelRunTicket.findMany({ where: { userId: "a", used_at: null } });
+      expect(open).toHaveLength(1);
+      expect(open[0]?.booster).toBe("sprint-burst");
+      const closed = await prisma.levelRunTicket.findMany({ where: { userId: "a", level: 11, booster: "sprint-burst", used_at: { not: null } } });
+      expect(closed.every((t) => t.outcome === "bad_start")).toBe(true);
+      expect(closed).toHaveLength(codes.filter((c) => c === "resolved").length - 1);
     });
 
     it("never opens a chest twice under concurrent submits", async () => {
