@@ -199,6 +199,7 @@ describe("parseMockState", () => {
     xp: 120,
     openTicket: null,
     streak: 2,
+    fails: { season: 1, level: 2, count: 1 },
   };
 
   it("accepts a well-formed state", () => {

@@ -1,5 +1,12 @@
 import { TICK_HZ } from "@app/game/types";
-import { boosterTypesOf, freeStartPowerUp, nextStreak } from "@app/levels/engagement";
+import {
+  boosterTypesOf,
+  failsAt,
+  freeStartPowerUp,
+  nextFailTally,
+  nextStreak,
+  type FailTally,
+} from "@app/levels/engagement";
 import { season1Catalog } from "./catalog";
 import {
   EPISODE_SIZE,
@@ -52,6 +59,8 @@ export interface MockState {
   openTicket: { id: string; level: number } | null;
   /** Win streak (§6.3); 0 in stores written before streaks existed. */
   streak: number;
+  /** Fails at the frontier level (§5c); absent in older stores. */
+  fails?: FailTally | null;
 }
 
 function freshState(now: number): MockState {
@@ -60,6 +69,13 @@ function freshState(now: number): MockState {
 
 function isStarCount(v: unknown): v is StarCount {
   return v === 0 || v === 1 || v === 2 || v === 3;
+}
+
+function parseTally(v: unknown): FailTally | null {
+  if (typeof v !== "object" || v === null) return null;
+  const t = v as Record<string, unknown>;
+  const whole = (n: unknown): n is number => typeof n === "number" && Number.isInteger(n) && n >= 0;
+  return whole(t.season) && whole(t.level) && whole(t.count) ? { season: t.season, level: t.level, count: t.count } : null;
 }
 
 /** Reads a stored state, or null when it is missing or malformed. */
@@ -103,6 +119,7 @@ export function parseMockState(raw: string | null): MockState | null {
     xp: Math.max(0, Math.floor(o.xp)),
     openTicket,
     streak: typeof o.streak === "number" && Number.isFinite(o.streak) ? Math.max(0, Math.floor(o.streak)) : 0,
+    fails: parseTally(o.fails),
   };
 }
 
@@ -205,6 +222,7 @@ export function createMockLevelsClient(opts: MockClientOptions = {}): LevelsClie
       const levels: LevelNode[] = [];
       for (let n = 1; n <= SEASON_LENGTH; n++) levels.push(mockLevelNode(n, state.progress[String(n)]));
       const frontier = frontierOf(state);
+      const fails = failsAt(state.fails ?? null, 1, frontier);
       return wait({
         season: 1,
         name: "Season 1",
@@ -215,8 +233,10 @@ export function createMockLevelsClient(opts: MockClientOptions = {}): LevelsClie
         nextStartPowerUp: freeStartPowerUp({
           atFrontier: true,
           streak: state.streak,
+          fails,
           allowed: boosterTypesOf(levels[frontier - 1].allowedPowerUps),
         }),
+        stuck: { level: frontier, fails, routeGhostAvailable: false },
       });
     },
 
@@ -229,11 +249,18 @@ export function createMockLevelsClient(opts: MockClientOptions = {}): LevelsClie
       let next = state;
       // An open ticket at the frontier is a loss (§6.3).
       if (state.openTicket) {
-        next = { ...next, streak: nextStreak(next.streak, "abandoned", state.openTicket.level === frontierOf(state)) };
+        const openAtFrontier = state.openTicket.level === frontierOf(state);
+        next = {
+          ...next,
+          streak: nextStreak(next.streak, "abandoned", openAtFrontier),
+          fails: nextFailTally(next.fails ?? null, { season: 1, level: state.openTicket.level }, "abandoned", openAtFrontier),
+        };
       }
+      const atFrontier = level === frontierOf(state);
       const startPowerUp = freeStartPowerUp({
-        atFrontier: level === frontierOf(state),
+        atFrontier,
         streak: next.streak,
+        fails: atFrontier ? failsAt(next.fails ?? null, 1, level) : 0,
         allowed: boosterTypesOf(node.allowedPowerUps),
       });
       if (node.costsLife) {
@@ -285,7 +312,9 @@ export function createMockLevelsClient(opts: MockClientOptions = {}): LevelsClie
 
       const before = playerStats(state).playerLevel;
       const atFrontier = ticket.level === frontierOf(state);
-      const streak = nextStreak(state.streak, cleared ? "cleared" : "failed", atFrontier);
+      const outcome = cleared ? "cleared" : "failed";
+      const streak = nextStreak(state.streak, outcome, atFrontier);
+      const fails = nextFailTally(state.fails ?? null, { season: 1, level: ticket.level }, outcome, atFrontier);
       const progress = { ...state.progress };
       if (cleared && timeMs !== null) {
         progress[String(ticket.level)] = {
@@ -302,6 +331,7 @@ export function createMockLevelsClient(opts: MockClientOptions = {}): LevelsClie
         lives: Math.min(MAX_LIVES, state.lives + refund),
         openTicket: null,
         streak,
+        fails,
       };
       write(next);
       const player = playerStats(next);
@@ -319,6 +349,8 @@ export function createMockLevelsClient(opts: MockClientOptions = {}): LevelsClie
         player,
         streak,
         atFrontier,
+        failsAtLevel: atFrontier ? failsAt(fails, 1, ticket.level) : 0,
+        routeGhostAvailable: false,
       });
     },
   };

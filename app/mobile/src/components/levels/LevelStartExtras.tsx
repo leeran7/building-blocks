@@ -1,16 +1,18 @@
 import { POWER_UP_SPECS } from "@app/game/powerups";
-import { STREAK_RAPID_CLIMB, type StartPowerUp } from "@app/levels/engagement";
+import { STREAK_RAPID_CLIMB, STUCK_BOOSTER_FAILS, type StartPowerUp } from "@app/levels/engagement";
+import type { StuckHelp } from "../../lib/levels/model";
 
 /**
  * What the start card adds beyond the level itself (§5c, §6.3): the win
- * streak and the power-up the run will start with. Rendered by the map into
- * LevelStartSheet's `extras` slot, so the sheet stays about the level.
+ * streak, stuck help, and the power-up the run will start with. Rendered by
+ * the map into LevelStartSheet's `extras` slot, so the sheet stays about the
+ * level.
  */
 
 /** Why the run starts with its power-up, in the player's words. */
 export function startPowerUpReason(p: StartPowerUp, streak: number): string {
   if (p.source === "streak") return `Win streak ${streak}`;
-  if (p.source === "stuck_help") return "Free help after 3 tries";
+  if (p.source === "stuck_help") return `Free help after ${STUCK_BOOSTER_FAILS} tries`;
   return "Booster";
 }
 
@@ -29,15 +31,19 @@ export function LevelStartExtras({
   atFrontier,
   streak,
   startPowerUp,
+  stuck = null,
 }: {
   /** The card is for the player's frontier level: streaks count here only. */
   atFrontier: boolean;
   streak: number;
   /** The server's preview of what this run starts with. */
   startPowerUp: StartPowerUp | null;
+  /** Stuck help for this level (the frontier's only). */
+  stuck?: StuckHelp | null;
 }) {
   const showStreak = atFrontier && streak > 0;
-  if (!showStreak && !startPowerUp) return null;
+  const ghost = atFrontier && stuck !== null && stuck.routeGhostAvailable;
+  if (!showStreak && !startPowerUp && !ghost) return null;
   return (
     <div className="mt-3 flex flex-col gap-2">
       {startPowerUp && (
@@ -56,6 +62,11 @@ export function LevelStartExtras({
           {streak < STREAK_RAPID_CLIMB
             ? `${STREAK_RAPID_CLIMB - streak} more first ${STREAK_RAPID_CLIMB - streak === 1 ? "clear" : "clears"} for a free power-up.`
             : "Keep it going."}
+        </p>
+      )}
+      {ghost && (
+        <p className="text-meta text-text-secondary">
+          Route ghost unlocked: a replay of the way up. It arrives in a coming update.
         </p>
       )}
     </div>

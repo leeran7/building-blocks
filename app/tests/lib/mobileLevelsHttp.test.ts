@@ -163,6 +163,22 @@ describe("win streaks and start power-ups", () => {
     expect(parseServerResult({ ...RESULT, atFrontier: 1 })).toBeNull();
   });
 
+  it("read stuck help from the profile and the result", () => {
+    expect(parseLevelProfile({ ...PROFILE, stuck: { level: 3, fails: 5, routeGhostAvailable: true } })?.stuck).toEqual({
+      level: 3,
+      fails: 5,
+      routeGhostAvailable: true,
+    });
+    expect(parseLevelProfile({ ...PROFILE, stuck: { level: 3, fails: "5", routeGhostAvailable: true } })).toBeNull();
+    expect(parseLevelProfile({ ...PROFILE, stuck: { level: 3, fails: 5 } })).toBeNull();
+    expect(parseServerResult({ ...RESULT, outcome: "failed", stars: 0, failsAtLevel: 3, routeGhostAvailable: false })).toMatchObject({
+      failsAtLevel: 3,
+      routeGhostAvailable: false,
+    });
+    expect(parseServerResult({ ...RESULT, failsAtLevel: -1 })).toBeNull();
+    expect(parseServerResult({ ...RESULT, routeGhostAvailable: "yes" })).toBeNull();
+  });
+
   it("hands the ticket's power-up to the run", async () => {
     const { fetch } = fakeServer({
       "/api/levels/ticket": () => json(200, { ...TICKET, level: 12, startPowerUp: { type: "super-jump", source: "streak" } }),

@@ -203,4 +203,72 @@ describe.skipIf(!PG_URL)("level engagement on Postgres", () => {
       expect(await prisma.levelRunTicket.count({ where: { used_at: null } })).toBe(0);
     });
   });
+  describe("stuck help", () => {
+    const failsOf = async (id: string) =>
+      prisma.user.findUniqueOrThrow({
+        where: { id },
+        select: { level_fail_season: true, level_fail_level: true, level_fail_count: true },
+      });
+
+    it("grants a free allowed booster from the 3rd fail at the frontier", async () => {
+      await user("a");
+      await clearThrough("a", 6);
+      await play("a", 7, failed());
+      await play("a", 7, failed());
+      expect((await start("a", 7)).startPowerUp).toBeNull();
+      await prisma.levelRunTicket.updateMany({ where: { used_at: null }, data: { used_at: T0, outcome: "bad_start" } });
+      const third = await play("a", 7, failed());
+      expect(third).toMatchObject({ failsAtLevel: 3, routeGhostAvailable: false });
+      // L7 allows rapid climb and sprint burst: the rotation starts with rapid climb.
+      const t = await start("a", 7);
+      expect(t).toMatchObject({ failsAtLevel: 3, startPowerUp: { type: "rapid-climb", source: "stuck_help" } });
+      expect(await prisma.levelRunTicket.findUniqueOrThrow({ where: { id: t.ticketId } })).toMatchObject({
+        start_power_up: "rapid-climb",
+      });
+    });
+
+    it("counts an abandoned frontier ticket as a fail", async () => {
+      await user("a");
+      await clearThrough("a", 6);
+      await start("a", 7);
+      await start("a", 7);
+      await start("a", 7);
+      const t = await start("a", 7);
+      expect(t).toMatchObject({ failsAtLevel: 3, startPowerUp: { source: "stuck_help" } });
+    });
+
+    it("offers the route ghost from the 5th fail", async () => {
+      await user("a");
+      await clearThrough("a", 6);
+      for (let i = 0; i < 4; i++) await play("a", 7, failed());
+      const fifth = await play("a", 7, failed());
+      expect(fifth).toMatchObject({ failsAtLevel: 5, routeGhostAvailable: true });
+      expect(await levelProfile("a", 1, tick())).toMatchObject({
+        stuck: { level: 7, fails: 5, routeGhostAvailable: true },
+        nextStartPowerUp: { source: "stuck_help" },
+      });
+      expect(await start("a", 7)).toMatchObject({ routeGhostAvailable: true });
+    });
+
+    it("resets on the clear, and replays and bad starts never count", async () => {
+      await user("a");
+      await clearThrough("a", 6);
+      await play("a", 7, failed());
+      await play("a", 7, failed());
+      await play("a", 3, failed());
+      const t = await start("a", 7, { now: at(5000) });
+      await submit("a", t.ticketId, failed(20), new Date(at(5000).getTime() + 2_000));
+      expect(await failsOf("a")).toEqual({ level_fail_season: 1, level_fail_level: 7, level_fail_count: 2 });
+      await play("a", 7, cleared());
+      expect(await failsOf("a")).toEqual({ level_fail_season: null, level_fail_level: null, level_fail_count: 0 });
+    });
+
+    it("a level with no power-ups gets no stuck help", async () => {
+      await user("a");
+      await clearThrough("a", 2);
+      for (let i = 0; i < 3; i++) await play("a", 3, failed());
+      // L3 allows no power-ups: stuck help has nothing to give.
+      expect((await start("a", 3)).startPowerUp).toBeNull();
+    });
+  });
 });

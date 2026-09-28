@@ -73,6 +73,8 @@ beforeEach(() => {
     nextLifeAt: new Date(T_ISSUED.getTime() + 1_800_000),
     startPowerUp: null,
     streak: 0,
+    failsAtLevel: 0,
+    routeGhostAvailable: false,
   });
   vi.mocked(openTicketLevel).mockResolvedValue({ season: 1, level: 42 });
   vi.mocked(submitLevelResult).mockImplementation(async (input) => ({
@@ -93,6 +95,8 @@ beforeEach(() => {
     awards: [],
     atFrontier: true,
     streak: input.run.cleared ? 1 : 0,
+    failsAtLevel: input.run.cleared ? 0 : 1,
+    routeGhostAvailable: false,
   }));
 });
 
@@ -130,6 +134,8 @@ describe("POST /api/levels/ticket", () => {
       nextLifeAt: null,
       startPowerUp: { type: "super-jump", source: "streak" },
       streak: 5,
+      failsAtLevel: 0,
+      routeGhostAvailable: false,
     });
     const res = await ticket({ season: 1, level: 12, simVersion: SIM });
     expect(await res.json()).toMatchObject({ startPowerUp: { type: "super-jump", source: "streak" }, streak: 5 });
@@ -367,6 +373,7 @@ describe("GET /api/levels/me", () => {
       levels: [{ level: 1, stars: 3, bestTicks: 900 }],
       streak: 3,
       nextStartPowerUp: { type: "rapid-climb", source: "streak" },
+      stuck: { level: 4, fails: 5, routeGhostAvailable: true },
     });
     const res = await getMe(req("/api/levels/me?season=1"));
     expect(await res.json()).toMatchObject({
@@ -375,6 +382,7 @@ describe("GET /api/levels/me", () => {
       frontier: 4,
       streak: 3,
       nextStartPowerUp: { type: "rapid-climb", source: "streak" },
+      stuck: { level: 4, fails: 5, routeGhostAvailable: true },
     });
   });
 

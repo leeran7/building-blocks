@@ -10,6 +10,7 @@ import {
 } from "../../lib/levels/model";
 import { HeartIcon, StarIcon, XpBar, livesLabel, useNow } from "./LevelBits";
 import { OutOfLives } from "./LevelStartSheet";
+import { STUCK_BOOSTER_FAILS } from "@app/levels/engagement";
 
 /**
  * The end of a level run. A clear shows the stars earned against the star
@@ -54,6 +55,7 @@ export function LevelResultCard({
         <Lost goalFt={result.goalFt} peakFt={result.peakFt} level={result.level} />
       )}
       <StreakLine result={result} />
+      <StuckLine result={result} />
 
       {retryError && (
         <p role="alert" className="mt-4 text-center text-meta text-ember">
@@ -106,6 +108,14 @@ export function StreakLine({ result }: { result: Pick<LevelResult, "atFrontier" 
     <p className="mt-3 text-center font-mono text-label font-bold uppercase tracking-label text-text-secondary">
       {text}
     </p>
+  );
+}
+
+/** After 3 fails at the frontier the next try starts with free help (§5c). */
+export function StuckLine({ result }: { result: Pick<LevelResult, "cleared" | "failsAtLevel"> }) {
+  if (result.cleared || result.failsAtLevel < STUCK_BOOSTER_FAILS) return null;
+  return (
+    <p className="mt-2 text-center text-meta text-signal">Your next try starts with a free power-up.</p>
   );
 }
 

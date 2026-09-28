@@ -213,6 +213,7 @@ export function LevelMapScreen() {
               atFrontier={selected.level === frontier}
               streak={season.streak}
               startPowerUp={selected.level === frontier ? season.nextStartPowerUp : null}
+              stuck={selected.level === season.stuck.level ? season.stuck : null}
             />
           }
         />

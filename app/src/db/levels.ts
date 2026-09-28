@@ -45,9 +45,13 @@ import {
   type ReportedRun,
 } from "../levels/rules";
 import {
+  failsAt,
   freeStartPowerUp,
+  nextFailTally,
   nextStreak,
+  routeGhostAvailable,
   type BoosterType,
+  type FailTally,
   type StartPowerUp,
   type TicketOutcome,
 } from "../levels/engagement";
@@ -84,6 +88,9 @@ const LOCKED_USER_SELECT = {
   lives_updated_at: true,
   xp: true,
   level_streak: true,
+  level_fail_season: true,
+  level_fail_level: true,
+  level_fail_count: true,
 } as const;
 
 type LockedUser = Prisma.UserGetPayload<{ select: typeof LOCKED_USER_SELECT }>;
@@ -111,6 +118,23 @@ function lifeOf(user: { lives: number; lives_updated_at: Date | null }): LifeSta
   return { lives: user.lives, updatedAt: user.lives_updated_at };
 }
 
+function tallyOf(user: {
+  level_fail_season: number | null;
+  level_fail_level: number | null;
+  level_fail_count: number;
+}): FailTally | null {
+  const { level_fail_season: season, level_fail_level: level, level_fail_count: count } = user;
+  return season !== null && level !== null && count > 0 ? { season, level, count } : null;
+}
+
+function tallyColumns(tally: FailTally | null) {
+  return {
+    level_fail_season: tally?.season ?? null,
+    level_fail_level: tally?.level ?? null,
+    level_fail_count: tally?.count ?? 0,
+  };
+}
+
 // ── Tickets ──────────────────────────────────────────────────────────────────
 
 export interface IssueTicketInput {
@@ -134,6 +158,10 @@ export interface IssuedTicket {
   startPowerUp: StartPowerUp | null;
   /** Win streak after any open ticket was closed (design §6.3). */
   streak: number;
+  /** Fails recorded at this level (0 unless it is the frontier), §5c. */
+  failsAtLevel: number;
+  /** Stuck help: the bot's route ghost may be shown on this run. */
+  routeGhostAvailable: boolean;
 }
 
 /**
@@ -159,6 +187,7 @@ export async function issueLevelTicket(input: IssueTicketInput): Promise<IssuedT
 
     let life = refillLives(lifeOf(user), now);
     let streak = user.level_streak;
+    let tally = tallyOf(user);
     // Frontier per season, for the open tickets closed below (a ticket may be
     // from another season). The user lock keeps these stable.
     const frontiers = new Map<number, number>([[season, frontier]]);
@@ -190,13 +219,12 @@ export async function issueLevelTicket(input: IssueTicketInput): Promise<IssuedT
       // An abandoned run at the frontier is a loss (§6.3).
       const atFrontier = ticket.level === (await frontierOf(ticket.season));
       streak = nextStreak(streak, outcome, atFrontier);
+      tally = nextFailTally(tally, ticket, outcome, atFrontier);
     }
 
-    const startPowerUp = freeStartPowerUp({
-      atFrontier: level === frontier,
-      streak,
-      allowed: input.allowedBoosters,
-    });
+    const atFrontier = level === frontier;
+    const fails = atFrontier ? failsAt(tally, season, level) : 0;
+    const startPowerUp = freeStartPowerUp({ atFrontier, streak, fails, allowed: input.allowedBoosters });
 
     const lifeSpent = levelCostsLife(level);
     if (lifeSpent) {
@@ -211,7 +239,12 @@ export async function issueLevelTicket(input: IssueTicketInput): Promise<IssuedT
     }
     await tx.user.update({
       where: { id: userId },
-      data: { lives: life.lives, lives_updated_at: life.updatedAt, level_streak: streak },
+      data: {
+        lives: life.lives,
+        lives_updated_at: life.updatedAt,
+        level_streak: streak,
+        ...tallyColumns(tally),
+      },
     });
 
     const expiresAt = new Date(now.getTime() + LEVEL_TICKET_TTL_MS);
@@ -238,6 +271,8 @@ export async function issueLevelTicket(input: IssueTicketInput): Promise<IssuedT
       nextLifeAt: nextLifeAt(life, now),
       startPowerUp,
       streak,
+      failsAtLevel: fails,
+      routeGhostAvailable: routeGhostAvailable(fails),
     };
   });
 }
@@ -310,6 +345,10 @@ export interface LevelResult {
   atFrontier: boolean;
   /** Win streak after this run (design §6.3). */
   streak: number;
+  /** Fails recorded at this level after this run (0 once cleared), §5c. */
+  failsAtLevel: number;
+  /** Stuck help: the next try may show the bot's route ghost. */
+  routeGhostAvailable: boolean;
 }
 
 /**
@@ -422,6 +461,8 @@ export async function submitLevelResult(input: SubmitResultInput): Promise<Level
     }
 
     const streak = nextStreak(user.level_streak, outcome, atFrontier);
+    const tally = nextFailTally(tallyOf(user), { season, level }, outcome, atFrontier);
+    const failsAtLevel = atFrontier ? failsAt(tally, season, level) : 0;
 
     const xp = user.xp + xpGained;
     const playerLevel = playerLevelForXp(xp);
@@ -433,6 +474,7 @@ export async function submitLevelResult(input: SubmitResultInput): Promise<Level
         xp,
         player_level: playerLevel,
         level_streak: streak,
+        ...tallyColumns(tally),
       },
     });
 
@@ -454,6 +496,8 @@ export async function submitLevelResult(input: SubmitResultInput): Promise<Level
       awards,
       atFrontier,
       streak,
+      failsAtLevel,
+      routeGhostAvailable: routeGhostAvailable(failsAtLevel),
     };
   });
 }
@@ -480,6 +524,11 @@ export interface LevelProfile {
    * the streak (a preview for the start sheet; the ticket decides for real).
    */
   nextStartPowerUp: StartPowerUp | null;
+  /**
+   * Stuck help at the frontier level (§5c): fails there, and whether the
+   * route ghost is offered. The ghost view itself is not built yet.
+   */
+  stuck: { level: number; fails: number; routeGhostAvailable: boolean };
 }
 
 /**
@@ -491,8 +540,24 @@ export interface LevelProfile {
 export async function levelProfile(userId: string, season: number, now: Date): Promise<LevelProfile> {
   const user = (await prisma.user.findUnique({
     where: { id: userId },
-    select: { lives: true, lives_updated_at: true, xp: true, level_streak: true },
-  })) ?? { lives: MAX_LIVES, lives_updated_at: null, xp: 0, level_streak: 0 };
+    select: {
+      lives: true,
+      lives_updated_at: true,
+      xp: true,
+      level_streak: true,
+      level_fail_season: true,
+      level_fail_level: true,
+      level_fail_count: true,
+    },
+  })) ?? {
+    lives: MAX_LIVES,
+    lives_updated_at: null,
+    xp: 0,
+    level_streak: 0,
+    level_fail_season: null,
+    level_fail_level: null,
+    level_fail_count: 0,
+  };
   const rows = await prisma.levelProgress.findMany({
     where: { userId, season },
     select: { level: true, stars: true, best_ticks: true },
@@ -502,6 +567,7 @@ export async function levelProfile(userId: string, season: number, now: Date): P
   const progress = playerLevelProgress(user.xp);
   const frontier = frontierAfter(rows.reduce((max, r) => Math.max(max, r.level), 0));
   const allowed = levelBoosterTypes(season, frontier) ?? [];
+  const fails = failsAt(tallyOf(user), season, frontier);
   return {
     lives: life.lives,
     maxLives: MAX_LIVES,
@@ -515,7 +581,8 @@ export async function levelProfile(userId: string, season: number, now: Date): P
     totalStars: rows.reduce((sum, r) => sum + r.stars, 0),
     levels: rows.map((r) => ({ level: r.level, stars: r.stars, bestTicks: r.best_ticks })),
     streak: user.level_streak,
-    nextStartPowerUp: freeStartPowerUp({ atFrontier: true, streak: user.level_streak, allowed }),
+    nextStartPowerUp: freeStartPowerUp({ atFrontier: true, streak: user.level_streak, fails, allowed }),
+    stuck: { level: frontier, fails, routeGhostAvailable: routeGhostAvailable(fails) },
   };
 }
 

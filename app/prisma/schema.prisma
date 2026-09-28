@@ -77,6 +77,11 @@ model User {
   // First clears in a row at the frontier (design §6.3). Server-derived from
   // ticket outcomes in src/db/levels.ts; replays and bad starts leave it alone.
   level_streak             Int       @default(0)
+  // Stuck help (design §5c): fails and abandoned tickets at ONE frontier level
+  // (season + level), reset by clearing it. Server-derived like the streak.
+  level_fail_season        Int?
+  level_fail_level         Int?
+  level_fail_count         Int       @default(0)
   climbRecords           ClimbRecord[]
   climbRuns              ClimbRun[]
   dailyClimbScores       DailyClimbScore[]

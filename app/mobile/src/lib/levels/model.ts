@@ -62,6 +62,19 @@ export interface SeasonView {
   streak: number;
   /** What the frontier level starts with if played now (server's preview). */
   nextStartPowerUp: StartPowerUp | null;
+  /** Stuck help at the frontier level (§5c). */
+  stuck: StuckHelp;
+}
+
+/**
+ * Fails at the frontier level. From 3 every try starts with a free power-up;
+ * from 5 the server offers the bot's route ghost (the ghost view is not built
+ * yet, so the app only says it is coming).
+ */
+export interface StuckHelp {
+  level: number;
+  fails: number;
+  routeGhostAvailable: boolean;
 }
 
 /** A level run the server allowed to start (the doc's run ticket). */
@@ -127,6 +140,9 @@ export interface LevelResult {
   streak: number | null;
   /** Whether this run was at the frontier (so it moved the streak). */
   atFrontier: boolean;
+  /** Fails at this level after the run (0 on a clear or a replay), §5c. */
+  failsAtLevel: number;
+  routeGhostAvailable: boolean;
 }
 
 /** A level's fixed facts: everything on its pin except the player's progress. */

@@ -15,6 +15,7 @@ import type {
   StarCount,
   StartRefusal,
   StartResult,
+  StuckHelp,
 } from "./model";
 
 /**
@@ -113,6 +114,16 @@ export interface LevelProfile {
   levels: ProfileRow[];
   streak: number;
   nextStartPowerUp: StartPowerUp | null;
+  stuck: StuckHelp | null;
+}
+
+/** The profile's stuck-help block: null when absent, undefined when malformed. */
+function parseStuck(v: unknown): StuckHelp | null | undefined {
+  if (v === undefined || v === null) return null;
+  if (!isObject(v) || !isPositive(v.level) || !isCount(v.fails) || typeof v.routeGhostAvailable !== "boolean") {
+    return undefined;
+  }
+  return { level: v.level, fails: v.fails, routeGhostAvailable: v.routeGhostAvailable };
 }
 
 /** GET /api/levels/me body, or null when it breaks the contract. */
@@ -121,9 +132,11 @@ export function parseLevelProfile(v: unknown): LevelProfile | null {
   const nextLifeAt = parseWhen(v.nextLifeAt);
   const streak = optionalCount(v.streak);
   const nextStartPowerUp = parseStartPowerUp(v.nextStartPowerUp);
+  const stuck = parseStuck(v.stuck);
   if (
     streak === undefined ||
     nextStartPowerUp === undefined ||
+    stuck === undefined ||
     !isCount(v.lives) ||
     !isPositive(v.maxLives) ||
     v.lives > v.maxLives ||
@@ -158,6 +171,7 @@ export function parseLevelProfile(v: unknown): LevelProfile | null {
     levels,
     streak,
     nextStartPowerUp,
+    stuck,
   };
 }
 
@@ -202,6 +216,8 @@ export interface ServerResult {
   /** Null when an older server did not send it. */
   streak: number | null;
   atFrontier: boolean;
+  failsAtLevel: number;
+  routeGhostAvailable: boolean;
 }
 
 /** POST /api/levels/result 200 body, or null when it breaks the contract. */
@@ -211,7 +227,12 @@ export function parseServerResult(v: unknown): ServerResult | null {
   const outcome = v.outcome;
   const streak = v.streak === undefined ? null : isCount(v.streak) ? v.streak : undefined;
   const atFrontier = v.atFrontier === undefined ? false : typeof v.atFrontier === "boolean" ? v.atFrontier : undefined;
+  const failsAtLevel = optionalCount(v.failsAtLevel);
+  const ghost =
+    v.routeGhostAvailable === undefined ? false : typeof v.routeGhostAvailable === "boolean" ? v.routeGhostAvailable : undefined;
   if (
+    failsAtLevel === undefined ||
+    ghost === undefined ||
     streak === undefined ||
     atFrontier === undefined ||
     !isPositive(v.season) ||
@@ -240,6 +261,8 @@ export function parseServerResult(v: unknown): ServerResult | null {
     xp: v.xp,
     streak,
     atFrontier,
+    failsAtLevel,
+    routeGhostAvailable: ghost,
   };
 }
 
@@ -313,6 +336,7 @@ export function createHttpLevelsClient(opts: HttpClientOptions): LevelsClient {
         player: profile.player,
         streak: profile.streak,
         nextStartPowerUp: profile.nextStartPowerUp,
+        stuck: profile.stuck ?? { level: profile.frontier, fails: 0, routeGhostAvailable: false },
       };
     },
 
@@ -395,6 +419,8 @@ export function createHttpLevelsClient(opts: HttpClientOptions): LevelsClient {
         player,
         streak: result.streak,
         atFrontier: result.atFrontier,
+        failsAtLevel: result.failsAtLevel,
+        routeGhostAvailable: result.routeGhostAvailable,
       };
     },
   };

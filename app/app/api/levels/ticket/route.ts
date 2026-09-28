@@ -15,12 +15,16 @@
  *
  * Request:  { season: number, level: number, simVersion: number }
  * 200:      { ticketId, season, level, simVersion, rev, pars, expiresAt,
- *             lifeSpent, lives, nextLifeAt, startPowerUp, streak }
+ *             lifeSpent, lives, nextLifeAt, startPowerUp, streak,
+ *             failsAtLevel, routeGhostAvailable }
  *            (rev: the level's seed revision; pars: { twoStarTicks,
  *             threeStarTicks }, which /result scores stars against;
- *             startPowerUp: { type, source: "streak" } | null, what the
- *             run starts with at GO, decided here from server state only;
- *             streak: the win streak after any open ticket was closed)
+ *             startPowerUp: { type, source: "streak" | "stuck_help" } | null,
+ *             what the run starts with at GO, decided here from server
+ *             state only; streak: the win streak after any open ticket was
+ *             closed; failsAtLevel / routeGhostAvailable: stuck help, §5c.
+ *             The route ghost view itself is not built yet: the flag only
+ *             says the player has earned it)
  * 400:      { error, code: INVALID_JSON | INVALID_LEVEL }
  * 401:      { error, code: UNAUTHORIZED }
  * 403:      { error, code: LEVEL_LOCKED, frontier }
@@ -116,6 +120,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         nextLifeAt: ticket.nextLifeAt?.toISOString() ?? null,
         startPowerUp: ticket.startPowerUp,
         streak: ticket.streak,
+        failsAtLevel: ticket.failsAtLevel,
+        routeGhostAvailable: ticket.routeGhostAvailable,
       },
       { status: 200, headers: NO_STORE }
     );

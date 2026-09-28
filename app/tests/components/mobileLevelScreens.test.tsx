@@ -318,6 +318,8 @@ describe("level result card", () => {
     pars: { twoStarMs: 36_000, threeStarMs: 28_000 },
     streak: null,
     atFrontier: false,
+    failsAtLevel: 0,
+    routeGhostAvailable: false,
     goalFt: 267,
     peakFt: 267,
     xpGained: 160,
@@ -373,6 +375,14 @@ describe("level result card", () => {
     await renderCard(lost, false);
     expect(button("Retry")).toBeTruthy();
     expect(container.textContent).toContain("Tutorial level: free to retry");
+  });
+
+  it("promises free help on the next try from the 3rd fail", async () => {
+    const lost = { ...base, cleared: false, stars: 0 as const, timeMs: null, peakFt: 100, xpGained: 0, atFrontier: true, streak: 0 };
+    await renderCard({ ...lost, failsAtLevel: 2 });
+    expect(container.textContent).not.toContain("free power-up");
+    await renderCard({ ...lost, failsAtLevel: 3 });
+    expect(container.textContent).toContain("Your next try starts with a free power-up.");
   });
 
   it("shows the win streak after a frontier run, and nothing after a replay", async () => {
