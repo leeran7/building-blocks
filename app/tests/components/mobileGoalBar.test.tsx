@@ -27,7 +27,7 @@ afterEach(() => {
   container.remove();
 });
 
-const pars = { twoStarMs: 60_000, threeStarMs: 40_000 };
+const pars = { twoStarMs: 60_000, threeStarMs: 40_000, oneStarMs: null };
 
 function render(bestFailFt: number | null) {
   act(() =>

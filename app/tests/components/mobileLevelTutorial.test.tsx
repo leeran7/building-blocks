@@ -83,6 +83,7 @@ async function clearLevels(client: LevelsClient, upTo: number) {
       raceTicks: 3 * TICK_HZ,
       peakFt: s.ticket.goalFt,
       replayToken: null,
+      outOfTime: false,
     });
   }
 }
