@@ -304,6 +304,16 @@ describe("level play route", () => {
     expect(runs.mounted[2].bestFailFt).toBe(runs.mounted[2].goalFt - 1);
   });
 
+  it("retires the near-miss marker once the level is cleared", async () => {
+    await renderMap(memoryClient(), "/levels/1/play?practice=1");
+    await click(button("stub-near"));
+    await click(button("Retry"));
+    expect(runs.mounted[1].bestFailFt).toBe(runs.mounted[1].goalFt - 1);
+    await click(button("stub-clear"));
+    await click(button("Retry"));
+    expect(runs.mounted[2].bestFailFt).toBeNull();
+  });
+
   it("says why a retry could not start instead of doing nothing", async () => {
     const client = memoryClient();
     const failing: LevelsClient = {
