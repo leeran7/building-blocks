@@ -88,7 +88,7 @@ export function LevelRun({
   useGameHaptics(simRef, 0, runId);
 
   const canvasBoxRef = useRef<HTMLDivElement>(null);
-  // The climber draws as the player's avatar (the Wraith for guests / none).
+  // The climber draws as the player's avatar (the Green Stick for guests / none).
   const myAvatarId = useSettings().data?.avatarId ?? null;
   const canvasSize = useCanvasSize(canvasBoxRef, { fill: true });
   const safeArea = useSafeAreaInsets();

@@ -1,4 +1,5 @@
 import { initialsOf, tintFor } from "../lib/leaderboard";
+import { stickColorOf } from "@app/lib/avatars";
 import { avatarSrc } from "../lib/avatarImages";
 
 /**
@@ -18,6 +19,7 @@ export function HexAvatar({
 }) {
   const tint = tintFor(userId);
   const src = avatarSrc(avatarId);
+  const stick = stickColorOf(avatarId);
   return (
     <span
       aria-hidden
@@ -32,7 +34,9 @@ export function HexAvatar({
           fontSize: size * 0.34,
         }}
       >
-        {src ? (
+        {stick !== null ? (
+          <StickBadge color={stick} />
+        ) : src ? (
           // next/image needs the Next server; this is the Vite/Capacitor SPA.
           // eslint-disable-next-line @next/next/no-img-element
           <img
@@ -48,5 +52,24 @@ export function HexAvatar({
         )}
       </span>
     </span>
+  );
+}
+
+/** A stick figure's badge: the in-game vector figure's idle pose in its colour. */
+function StickBadge({ color }: { color: string }) {
+  return (
+    <svg viewBox="0 0 40 40" className="h-[78%] w-[78%]" aria-hidden>
+      <g stroke="#0a0a0c" strokeWidth="6.2" strokeLinecap="round" fill="none">
+        <path d="M18.8 26 16 36M21.2 26 24 36M18 21.5 14.4 29M22 21.5 25.6 29" />
+        <ellipse cx="20" cy="23" rx="3.4" ry="5.5" />
+        <circle cx="20" cy="11" r="5.2" />
+      </g>
+      <g stroke={color} strokeWidth="2.8" strokeLinecap="round" fill="none">
+        <path d="M18.8 26 16 36M21.2 26 24 36M18 21.5 14.4 29M22 21.5 25.6 29" />
+      </g>
+      <ellipse cx="20" cy="23" rx="3.4" ry="5.5" fill={color} />
+      <circle cx="20" cy="11" r="5.2" fill={color} />
+      <circle cx="22" cy="10.8" r="1.3" fill="#0a0a0c" />
+    </svg>
   );
 }

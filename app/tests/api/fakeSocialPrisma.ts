@@ -110,9 +110,10 @@ const FRIENDSHIP_USERS = { sender: "sender_id", receiver: "receiver_id" };
 const CHALLENGE_USERS = { sender: "sender_id", recipient: "recipient_id" };
 
 export const fakePrisma = {
-  /** Level stars for avatar unlocks (src/db/avatarUnlocks.ts): no level rows here. */
+  /** Level stars and the tutorial row for avatar unlocks (src/db/avatarUnlocks.ts): no level rows here. */
   levelProgress: {
     aggregate: async () => ({ _sum: { stars: null } }),
+    findFirst: async () => null,
   },
   user: {
     findUnique: async ({ where, select }: { where: { id?: string; username?: string }; select?: Select }) => {

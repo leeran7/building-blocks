@@ -86,7 +86,7 @@ export function ClimbScreen({ onSignIn }: { onSignIn?: () => void } = {}) {
   const { user, isAnonymous } = useAuth();
   const isAuthed = Boolean(user) && !isAnonymous;
   const invalidateAppData = useInvalidateAppData();
-  // The climber draws as the player's avatar (the Wraith for guests / none).
+  // The climber draws as the player's avatar (the Green Stick for guests / none).
   const myAvatarId = useSettings().data?.avatarId ?? null;
   const [searchParams] = useSearchParams();
   // Daily mode: lock the tower to today's shared seed so every player climbs

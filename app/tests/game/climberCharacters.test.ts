@@ -3,7 +3,8 @@ import { AVATARS } from "../../src/lib/avatars";
 
 /**
  * Per-avatar climber characters: the registry (real art only; avatars without
- * art draw as the plain Wraith), the Wraith fallback, lazy loading per
+ * art draw as the plain Wraith; stick avatars are the vector figure in their
+ * colour), the Green Stick for null/unknown ids, lazy loading per
  * character, the tint engine kept for a future recolour feature (fed through a
  * registry override), and the avatar id travelling from paintClimbFrame's
  * options into the sprite draw.
@@ -140,6 +141,22 @@ describe("registry", () => {
     });
   });
 
+  it("makes each stick avatar a stick entry in its catalogue colour, and nothing else a stick", async () => {
+    const { CLIMBER_CHARACTERS } = await import("../../src/components/Game/climberCharacters");
+    let checked = 0;
+    for (const a of AVATARS) {
+      const c = CLIMBER_CHARACTERS[a.id];
+      if (a.stickColor !== undefined) {
+        expect(c).toEqual({ kind: "stick", color: a.stickColor });
+        checked++;
+      } else {
+        expect(c.kind).not.toBe("stick");
+      }
+    }
+    expect(checked).toBe(6);
+    expect(CLIMBER_CHARACTERS["stick-green"]).toEqual({ kind: "stick", color: "#cbf24d" });
+  });
+
   it("uses real art only: no tint entries in the live registry", async () => {
     const { CLIMBER_CHARACTERS } = await import("../../src/components/Game/climberCharacters");
     const kinds = new Set(Object.values(CLIMBER_CHARACTERS).map((c) => c.kind));
@@ -195,8 +212,8 @@ describe("resolveClimberCharacter", () => {
     expect(resolveClimberCharacter("yak")).toBe("yak");
   });
 
-  it("falls back to the Wraith for null, unknown and prototype-key ids", async () => {
-    const { resolveClimberCharacter } = await load();
+  it("falls back to the Green Stick for null, unknown and prototype-key ids", async () => {
+    const { resolveClimberCharacter, climberStickColor } = await load();
     const bad: unknown[] = [
       null,
       undefined,
@@ -210,7 +227,20 @@ describe("resolveClimberCharacter", () => {
       42,
       { id: "ibex" },
     ];
-    for (const id of bad) expect(resolveClimberCharacter(id)).toBe("wraith");
+    for (const id of bad) {
+      expect(resolveClimberCharacter(id)).toBe("stick-green");
+      expect(climberStickColor(id)).toBe("#cbf24d");
+    }
+    // Positive fixtures: catalogue ids are not swallowed by the fallback.
+    expect(resolveClimberCharacter("wraith")).toBe("wraith");
+    expect(climberStickColor("wraith")).toBeNull();
+    expect(resolveClimberCharacter("stick-violet")).toBe("stick-violet");
+  });
+
+  it("still resolves a base() avatar to the Wraith, not the stick", async () => {
+    const { resolveClimberCharacter, climberStickColor } = await withoutArt();
+    expect(resolveClimberCharacter("ibex")).toBe("wraith");
+    expect(climberStickColor("ibex")).toBeNull();
   });
 });
 
@@ -479,14 +509,14 @@ describe("avatar id reaches the draw call", () => {
     expect(drawn("wraith-poses-192.png")).toBe(true);
   });
 
-  it("draws the Wraith for an opponent with no avatar, and never loads unused art", async () => {
+  it("draws the Green Stick (no sprite) for players with no or unknown avatar, and loads no climber art", async () => {
     const { drawn, requestedNow } = await paintWith({
       playerIds: ["p1", "p2"],
       myId: "p1",
       avatarIds: { p1: null, p2: "dragon" },
     });
-    expect(drawn("wraith-poses-192.png")).toBe(true);
-    expect(requestedNow.some((s) => s.includes("ibex"))).toBe(false);
+    expect(drawn("wraith-poses-192.png")).toBe(false);
+    expect(requestedNow.some((s) => /-(poses|climb)-192\.png$/.test(s))).toBe(false);
   });
 
   it("uses myAvatarId for the local climber on solo screens", async () => {

@@ -2,17 +2,18 @@ import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent } f
 import {
   AVATARS,
   avatarEntry,
-  earnStarsText,
-  requiredStars,
+  lockedMessage,
   switchAwayWarning,
-  unlockMessage,
+  unlockRequirementText,
   type AvatarEntry,
 } from "@app/lib/avatars";
 import type { AvatarUnlockState } from "@app/lib/avatarUnlocks";
+import volcanoScene from "@app/../public/climb/volcano-tile.jpg";
 import { apiFetch } from "../lib/api";
 import { useAuth } from "../contexts/AuthContext";
 import { echoedSetting, useDashboard, useInvalidateAppData, useSettings } from "../contexts/AppDataContext";
 import { HexAvatar } from "../components/HexAvatar";
+import { CharacterPreview, type PreviewPose } from "../components/CharacterPreview";
 import { PushHeader, RetryPanel } from "../components/ui";
 import { identityNameFor, INITIALS_LABEL } from "../lib/identity";
 import { notifyError, notifySuccess, tapLight } from "../lib/haptics";
@@ -21,8 +22,8 @@ import { useRetry } from "../hooks/useRetry";
 import { LAVA_CLEARANCE } from "../components/AnimatedBackdrop";
 
 const COLUMNS = 3;
-const TILE_HEX = 64;
-const PREVIEW_HEX = 128;
+const TILE_HEX = 56;
+const NEXT_HEX = 34;
 const LOAD_FAILED_MESSAGE = "Couldn't load your profile. Check your connection and try again.";
 const SCROLL_FADE = "linear-gradient(to bottom, #000 calc(100% - 18px), transparent)";
 /**
@@ -39,37 +40,72 @@ const SAVE_BAR_HEIGHT = "(0.75rem + 56px + 1rem + env(safe-area-inset-bottom))";
  */
 export const GRID_END_PADDING = `max(1rem, calc(${LAVA_CLEARANCE} - ${SAVE_BAR_HEIGHT}))`;
 /** A 200 that did not store the pick: an API build older than avatars ignores the field. */
-const AVATAR_NOT_SAVED = "Couldn't save your avatar. Please update the app or try again later.";
+const AVATAR_NOT_SAVED = "Couldn't save your character. Please update the app or try again later.";
 const SWITCH_WARNING_ID = "avatar-switch-warning";
-
-const OPTIONS: ReadonlyArray<{ id: string | null; name: string; entry: AvatarEntry | null }> = [
-  { id: null, name: INITIALS_LABEL, entry: null },
-  ...AVATARS.map((a) => ({ id: a.id, name: a.name, entry: a })),
+/** How long Save reads "Saved" after a save before it goes back to normal. */
+export const SAVED_FLASH_MS = 3000;
+const POSES: ReadonlyArray<{ id: PreviewPose; label: string }> = [
+  { id: "idle", label: "Idle" },
+  { id: "walk", label: "Walk" },
+  { id: "climb", label: "Climb" },
 ];
+
+interface Option {
+  id: string | null;
+  name: string;
+  entry: AvatarEntry | null;
+}
+
+const initials: Option = { id: null, name: INITIALS_LABEL, entry: null };
+const optionOf = (a: AvatarEntry): Option => ({ id: a.id, name: a.name, entry: a });
+
+/**
+ * Picker order: premium first, then the stick figures, Initials, and the star
+ * ladder cheapest first. AVATARS already lists them in that order.
+ */
+export const OPTIONS: readonly Option[] = [
+  ...AVATARS.filter((a) => a.unlock.kind !== "stars").map(optionOf),
+  initials,
+  ...AVATARS.filter((a) => a.unlock.kind === "stars").map(optionOf),
+];
+
+/** The group heading shown above option `i`, or null inside a group. */
+export function groupHeading(i: number): string | null {
+  const kind = (o: Option | undefined) => (o === undefined ? null : (o.entry?.unlock.kind ?? "initials"));
+  const here = kind(OPTIONS[i]);
+  const before = kind(OPTIONS[i - 1]);
+  if (here === before) return null;
+  if (here === "premium") return "Premium · coming soon";
+  if (here === "tutorial") return "Stick figures · free after the tutorial";
+  if (here === "initials" || (here === "stars" && before !== "initials")) return "Initials and star unlocks";
+  return null;
+}
 
 /** A tile the player cannot select yet, and what it takes. */
 export interface TileLock {
-  /** "Earn 30 stars" */
+  kind: AvatarEntry["unlock"]["kind"];
+  /** "Earn 30 stars", "Finish the tutorial", "Premium" */
   requirement: string;
   /** "Earn 30 stars to unlock Falcon. You have 12." */
   message: string;
   stars: number;
-  requiredStars: number;
+  /** Null unless the rule is a star count. */
+  requiredStars: number | null;
 }
 
 /**
  * The lock on a picker option, or null when it is selectable. Initials and
  * every avatar are selectable when the server sent no unlock state (an API
  * build older than unlocks, which enforces none); the server's unlockedIds
- * already include the saved avatar and the player's starter.
+ * already include the saved avatar.
  */
 export function tileLock(entry: AvatarEntry | null, unlocks: AvatarUnlockState | undefined): TileLock | null {
   if (entry === null || unlocks === undefined || unlocks.unlockedIds.includes(entry.id)) return null;
-  const need = requiredStars(entry);
-  if (need === null) return null;
+  const need = entry.unlock.kind === "stars" ? entry.unlock.stars : null;
   return {
-    requirement: earnStarsText(need),
-    message: `${unlockMessage(entry.name, need)}. You have ${unlocks.stars}.`,
+    kind: entry.unlock.kind,
+    requirement: unlockRequirementText(entry),
+    message: need === null ? `${lockedMessage(entry)}.` : `${lockedMessage(entry)}. You have ${unlocks.stars}.`,
     stars: unlocks.stars,
     requiredStars: need,
   };
@@ -78,7 +114,7 @@ export function tileLock(entry: AvatarEntry | null, unlocks: AvatarUnlockState |
 /**
  * The warning to show before saving `selected` over a grandfathered saved
  * avatar (selectable only because it is saved), else null. Saving another
- * avatar locks it again until its star rule is met.
+ * avatar locks it again until its rule is met.
  */
 export function switchAwayNotice(
   current: string | null,
@@ -87,23 +123,87 @@ export function switchAwayNotice(
 ): string | null {
   if (current === null || selected === current || unlocks?.grandfatheredId !== current) return null;
   const entry = avatarEntry(current);
-  const need = entry && requiredStars(entry);
-  return entry && need !== null ? switchAwayWarning(entry.name, need) : null;
+  return entry ? switchAwayWarning(entry) : null;
 }
 
-const entryOf = (id: string | null): AvatarEntry | null => (id === null ? null : avatarEntry(id));
+/** The star characters the player has unlocked, and how many there are. */
+export function starUnlockCount(unlocks: AvatarUnlockState | undefined): { owned: number; total: number } {
+  const ladder = AVATARS.filter((a) => a.unlock.kind === "stars");
+  const owned = unlocks === undefined ? ladder.length : ladder.filter((a) => unlocks.unlockedIds.includes(a.id)).length;
+  return { owned, total: ladder.length };
+}
 
-/** Index an arrow/Home/End key moves the radio selection to, or null for other keys. */
-function nextIndex(key: string, current: number, count: number): number | null {
+/**
+ * The next star character to unlock and progress toward it from the step
+ * before it (0..1), or null when every star character is selectable.
+ */
+export function nextStarUnlock(
+  unlocks: AvatarUnlockState | undefined,
+): { entry: AvatarEntry; starsLeft: number; progress: number } | null {
+  if (unlocks === undefined) return null;
+  let floor = 0;
+  for (const a of AVATARS) {
+    if (a.unlock.kind !== "stars") continue;
+    if (unlocks.stars >= a.unlock.stars) {
+      floor = a.unlock.stars;
+      continue;
+    }
+    if (unlocks.unlockedIds.includes(a.id)) continue; // grandfathered
+    const span = a.unlock.stars - floor;
+    return {
+      entry: a,
+      starsLeft: a.unlock.stars - unlocks.stars,
+      progress: span > 0 ? (unlocks.stars - floor) / span : 0,
+    };
+  }
+  return null;
+}
+
+/**
+ * Each option's visual (row, column) in the grid. A group heading spans a
+ * full row, so each group starts a new row and a short last row leaves gaps.
+ */
+export const GRID_CELLS: ReadonlyArray<{ row: number; col: number }> = (() => {
+  const cells: { row: number; col: number }[] = [];
+  let row = -1;
+  let col = COLUMNS;
+  OPTIONS.forEach((_, i) => {
+    if (groupHeading(i) !== null || col === COLUMNS) {
+      row += 1;
+      col = 0;
+    }
+    cells.push({ row, col });
+    col += 1;
+  });
+  return cells;
+})();
+
+/** The option in visual row `row` nearest column `col`, or null past the grid's edge. */
+function cellAt(row: number, col: number): number | null {
+  let best: number | null = null;
+  GRID_CELLS.forEach((c, i) => {
+    if (c.row !== row) return;
+    if (best === null || Math.abs(c.col - col) < Math.abs(GRID_CELLS[best].col - col)) best = i;
+  });
+  return best;
+}
+
+/**
+ * Index an arrow/Home/End key moves the radio selection to, or null for other
+ * keys. Up and Down follow the visual grid, group rows included; Left and
+ * Right step through the options in order.
+ */
+export function nextIndex(key: string, current: number, count: number): number | null {
+  const here = GRID_CELLS[current];
   switch (key) {
     case "ArrowRight":
       return (current + 1) % count;
     case "ArrowLeft":
       return (current - 1 + count) % count;
     case "ArrowDown":
-      return Math.min(current + COLUMNS, count - 1);
+      return cellAt(here.row + 1, here.col) ?? current;
     case "ArrowUp":
-      return Math.max(current - COLUMNS, 0);
+      return cellAt(here.row - 1, here.col) ?? current;
     case "Home":
       return 0;
     case "End":
@@ -114,8 +214,10 @@ function nextIndex(key: string, current: number, count: number): number | null {
 }
 
 /**
- * Avatar picker — pushed from Profile (tap the avatar) and Edit Profile's
- * Avatar row. Saves one field (`avatarId`) and pops back on success.
+ * Character picker — pushed from Profile (tap the badge) and Edit Profile's
+ * Character row. The avatar and the in-game character are one pick. Any tile
+ * can be previewed; only an unlocked one can be saved. Saves one field
+ * (`avatarId`); Save then reads "Saved" for SAVED_FLASH_MS.
  */
 export function AvatarPickerScreen() {
   // Opened cold (deep link): there is no Profile / Edit Profile to pop back to.
@@ -134,7 +236,7 @@ export function AvatarPickerScreen() {
     focusOnRecover: headingRef,
   });
   // The name the player would have with `avatarId` saved. With no display name
-  // the pseudonym's animal follows the avatar, so "Use initials" must preview
+  // the pseudonym's animal follows the avatar, so "Initials" must preview
   // the initials of the hash-animal pseudonym, not of the current name. Every
   // badge is named with this, never with the current name.
   const nameWith = (avatarId: string | null) =>
@@ -143,17 +245,24 @@ export function AvatarPickerScreen() {
   const userId = user?.uid ?? nameWith(settingsData?.avatarId ?? null);
 
   const [current, setCurrent] = useState<string | null>(null);
-  const [picked, setSelected] = useState<string | null>(null);
+  const [viewing, setViewing] = useState<string | null>(null);
+  const [pose, setPose] = useState<PreviewPose>("walk");
   const [saving, setSaving] = useState(false);
+  const [savedFlash, setSavedFlash] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  /** Why the last tapped tile could not be picked (a locked avatar). */
-  const [lockNotice, setLockNotice] = useState<string | null>(null);
   const unlocks = settingsData?.avatarUnlocks;
-  // A pick the latest unlock state locks (a refresh after a 403
-  // AVATAR_LOCKED, say) falls back to the saved avatar, so Save can never
-  // resend it.
-  const selected = tileLock(entryOf(picked), unlocks) ? current : picked;
-  const switchWarning = switchAwayNotice(current, selected, unlocks);
+
+  const viewingIndex = Math.max(
+    0,
+    OPTIONS.findIndex((o) => o.id === viewing),
+  );
+  const viewed = OPTIONS[viewingIndex];
+  const viewedLock = tileLock(viewed.entry, unlocks);
+  const changed = viewing !== current;
+  const canSave = changed && viewedLock === null && !saving;
+  const switchWarning = viewedLock ? null : switchAwayNotice(current, viewing, unlocks);
+  const counts = starUnlockCount(unlocks);
+  const next = nextStarUnlock(unlocks);
 
   // Stars rise with every level cleared, so ask for the unlock state once
   // on open. A warm slice keeps its data while this runs (no skeleton), and
@@ -171,8 +280,15 @@ export function AvatarPickerScreen() {
     if (seeded.current || !settingsData) return;
     seeded.current = true;
     setCurrent(settingsData.avatarId);
-    setSelected(settingsData.avatarId);
+    setViewing(settingsData.avatarId);
   }, [settingsData]);
+
+  // "Saved" goes back to "Save character" after a few seconds.
+  useEffect(() => {
+    if (!savedFlash) return;
+    const t = setTimeout(() => setSavedFlash(false), SAVED_FLASH_MS);
+    return () => clearTimeout(t);
+  }, [savedFlash]);
 
   const tiles = useRef<Array<HTMLButtonElement | null>>([]);
   const saveRef = useRef<HTMLButtonElement>(null);
@@ -182,36 +298,25 @@ export function AvatarPickerScreen() {
   useEffect(() => {
     if (error && !saving) saveRef.current?.focus();
   }, [error, saving]);
-  const selectedIndex = Math.max(
-    0,
-    OPTIONS.findIndex((o) => o.id === selected),
-  );
-  const selectedName = OPTIONS[selectedIndex].name;
-  const changed = selected !== current;
 
   const choose = (i: number) => {
-    const lock = tileLock(OPTIONS[i].entry, unlocks);
-    if (lock) {
-      // Blocked: the selection stays put and the requirement is announced.
-      setLockNotice(lock.message);
-      return;
-    }
-    if (OPTIONS[i].id !== selected) void tapLight();
-    setSelected(OPTIONS[i].id);
+    if (OPTIONS[i].id !== viewing) void tapLight();
+    setViewing(OPTIONS[i].id);
     setError(null);
-    setLockNotice(null);
+    setSavedFlash(false);
   };
 
   const onTileKey = (e: KeyboardEvent<HTMLButtonElement>, i: number) => {
-    const next = nextIndex(e.key, i, OPTIONS.length);
-    if (next === null) return;
+    const n = nextIndex(e.key, i, OPTIONS.length);
+    if (n === null) return;
     e.preventDefault();
-    choose(next);
-    tiles.current[next]?.focus();
+    choose(n);
+    tiles.current[n]?.focus();
   };
 
   const save = async () => {
-    if (!settingsData || !changed || saving) return;
+    if (!settingsData || !canSave) return;
+    const picked = viewing;
     void tapLight();
     setSaving(true);
     setError(null);
@@ -219,32 +324,35 @@ export function AvatarPickerScreen() {
       const res = await apiFetch("/api/settings", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ avatarId: selected }),
+        body: JSON.stringify({ avatarId: picked }),
       });
       if (!res.ok) {
         const d = await res.json().catch(() => ({}));
-        setError((d as { error?: string }).error ?? "Could not save your avatar. Try again.");
+        setError((d as { error?: string }).error ?? "Could not save your character. Try again.");
         void notifyError();
         // AVATAR_LOCKED: this copy's unlock state was stale; fetch the server's.
         if (res.status === 403) void refreshSettings();
         return;
       }
-      const next = echoedSetting(await res.json().catch(() => null), "avatarId", selected);
-      if (!next) {
-        // The cached avatar stays the saved one and the picker stays open.
+      const nextSettings = echoedSetting(await res.json().catch(() => null), "avatarId", picked);
+      if (!nextSettings) {
+        // The cached avatar stays the saved one.
         setError(AVATAR_NOT_SAVED);
         void notifyError();
         return;
       }
-      setSettings(next);
+      setSettings(nextSettings);
+      setCurrent(picked);
+      setSavedFlash(true);
+      // Save is disabled now (nothing changed): keep keyboard focus on the grid.
+      tiles.current[OPTIONS.findIndex((o) => o.id === picked)]?.focus();
       // An avatar can rename a player with no display name (the pseudonym's
       // animal follows it), so every cached copy of their name goes stale:
       // both boards and the dashboard handle behind the Profile header.
       invalidate(["leaderboard", "friendsLeaderboard", "dashboard"]);
       void notifySuccess();
-      goBack();
     } catch {
-      setError("Could not save your avatar. Check your connection.");
+      setError("Could not save your character. Check your connection.");
       void notifyError();
     } finally {
       setSaving(false);
@@ -254,12 +362,119 @@ export function AvatarPickerScreen() {
   // Stays true through a retry so Try again (and its focus) stays put.
   const loadFailed = settingsRetry.showError;
 
+  const tag =
+    viewing === current
+      ? "Equipped"
+      : viewedLock === null
+        ? "Unlocked"
+        : viewedLock.kind === "stars"
+          ? `${viewedLock.requiredStars} ★ to unlock`
+          : viewedLock.requirement;
+  const blurb =
+    viewed.entry === null
+      ? "Your badge shows your initials. You climb as the Green Stick."
+      : viewedLock === null
+        ? "Your climber in every run, and your badge on the leaderboards."
+        : viewedLock.message;
+  const saveLabel = saving
+    ? "Saving…"
+    : savedFlash && !changed
+      ? "Saved"
+      : viewedLock?.kind === "premium"
+        ? "Not on sale yet"
+        : viewedLock?.kind === "tutorial"
+          ? "Clear level 1 first"
+          : viewedLock !== null
+            ? `Locked: earn ${Math.max(0, (viewedLock.requiredStars ?? 0) - viewedLock.stars)} more ★`
+            : "Save character";
+
   return (
     <main data-avatar-page className="flex h-full min-h-0 flex-col">
-      <PushHeader title="Choose avatar" onBack={goBack} headingRef={headingRef} />
+      <PushHeader title="Choose character" onBack={goBack} headingRef={headingRef} />
 
-      {/* Takes every pixel between the header and the save bar, so the page
-          reaches the bottom of the screen; the grid scrolls inside it. */}
+      {settingsData && !loadFailed && (
+        <div data-avatar-pinned className="flex shrink-0 flex-col gap-2.5 px-4 pb-2">
+          <section
+            aria-label="Selected character"
+            className="glass overflow-hidden rounded-3xl border border-white/10"
+          >
+            <div
+              className="relative flex h-[150px] items-end justify-center bg-cover bg-bottom"
+              style={{ backgroundImage: `linear-gradient(180deg, rgba(10,10,12,0.55), rgba(10,10,12,0.1) 45%, rgba(10,10,12,0.4)), url(${volcanoScene})` }}
+            >
+              <div role="group" aria-label="Preview pose" className="absolute left-2.5 top-2.5 flex gap-1 rounded-full bg-void/70 p-[3px]">
+                {POSES.map((p) => (
+                  <button
+                    key={p.id}
+                    type="button"
+                    aria-pressed={pose === p.id}
+                    onClick={() => setPose(p.id)}
+                    className={`rounded-full px-2.5 py-1.5 font-mono text-label font-bold uppercase tracking-label ${
+                      pose === p.id ? "bg-signal text-void" : "text-text-secondary"
+                    }`}
+                  >
+                    {p.label}
+                  </button>
+                ))}
+              </div>
+              {viewedLock && (
+                <span className="absolute right-2.5 top-2.5 flex items-center gap-1 rounded-full border border-white/15 bg-void/80 px-2 py-1.5 font-mono text-label font-bold uppercase tracking-label text-text-primary">
+                  <LockIcon />
+                  {viewedLock.kind === "premium" ? "Coming soon" : "Locked"}
+                </span>
+              )}
+              <CharacterPreview avatarId={viewing} pose={pose} locked={viewedLock !== null} />
+            </div>
+            <div className="flex flex-col gap-1.5 px-4 pb-4 pt-3">
+              <div className="flex items-baseline justify-between gap-2">
+                <p
+                  aria-live="polite"
+                  className="font-display text-xl font-black uppercase leading-none tracking-tight text-text-primary"
+                >
+                  {viewed.name}
+                </p>
+                <span
+                  className={`whitespace-nowrap font-mono text-label font-bold uppercase tracking-label ${
+                    viewedLock ? "text-text-secondary" : "text-signal"
+                  }`}
+                >
+                  {tag}
+                </span>
+              </div>
+              <p data-avatar-lock-notice className="text-meta leading-5 text-text-secondary">
+                {blurb}
+              </p>
+              {viewedLock && viewedLock.requiredStars !== null && (
+                <ProgressBar value={viewedLock.stars} max={viewedLock.requiredStars} />
+              )}
+            </div>
+          </section>
+
+          {next && (
+            <div data-avatar-next className="glass flex items-center gap-2.5 rounded-2xl border border-white/10 px-3 py-2.5">
+              <HexAvatar userId={userId} name={next.entry.name} avatarId={next.entry.id} size={NEXT_HEX} />
+              <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+                <p className="text-meta text-text-secondary">
+                  Next: <span className="font-semibold text-text-primary">{next.entry.name}</span> in {next.starsLeft} ★
+                </p>
+                <div className="h-1.5 overflow-hidden rounded-full bg-elevated">
+                  <div className="h-full rounded-full bg-signal" style={{ width: `${Math.round(next.progress * 100)}%` }} />
+                </div>
+              </div>
+            </div>
+          )}
+
+          <p className="flex justify-between px-0.5 pt-1 font-mono text-label font-bold uppercase tracking-label text-text-secondary">
+            <span>Characters</span>
+            <span className="text-signal">
+              {counts.owned}/{counts.total} unlocked
+            </span>
+          </p>
+        </div>
+      )}
+
+      {/* Takes every pixel between the pinned preview and the save bar; the
+          grid scrolls inside it. */}
       <div
         data-avatar-scroller
         className="min-h-0 flex-1 overflow-y-auto px-4"
@@ -278,7 +493,7 @@ export function AvatarPickerScreen() {
             onRetry={() => void settingsRetry.retry()}
           />
         ) : !settingsData ? (
-          <div role="status" aria-busy="true" aria-label="Loading avatars" className="flex flex-col gap-3">
+          <div role="status" aria-busy="true" aria-label="Loading characters" className="flex flex-col gap-3">
             <div className="h-52 animate-pulse rounded-3xl border border-white/10 bg-surface/60" />
             <div className="h-80 animate-pulse rounded-3xl border border-white/10 bg-surface/60" />
           </div>
@@ -288,28 +503,23 @@ export function AvatarPickerScreen() {
             className="flex flex-col gap-4 pb-(--avatar-grid-end)"
             style={{ "--avatar-grid-end": GRID_END_PADDING } as CSSProperties}
           >
-            <section
-              aria-label="Selected avatar"
-              className="glass flex flex-col items-center rounded-3xl border border-white/10 px-5 pb-5 pt-6"
-            >
-              <HexAvatar userId={userId} name={nameWith(selected)} avatarId={selected} size={PREVIEW_HEX} />
-              <p
-                aria-live="polite"
-                className="mt-3 font-display text-xl font-black uppercase leading-none tracking-tight text-text-primary"
-              >
-                {selectedName}
-              </p>
-              <p className="mt-1.5 text-center text-meta text-text-secondary">
-                Shown on your profile and the leaderboards.
-              </p>
-            </section>
-
-            <div role="radiogroup" aria-label="Avatars" className="grid grid-cols-3 gap-2.5">
+            <div role="radiogroup" aria-label="Characters" className="grid grid-cols-3 gap-2.5">
               {OPTIONS.map((o, i) => {
-                const checked = i === selectedIndex;
+                const checked = o.id === current;
+                const isViewed = i === viewingIndex;
                 const lock = tileLock(o.entry, unlocks);
+                const heading = groupHeading(i);
                 const label = o.id === null ? "Use initials" : o.name;
-                return (
+                return [
+                  heading && (
+                    <p
+                      key={`h-${i}`}
+                      aria-hidden
+                      className="col-span-3 px-0.5 pt-1 font-mono text-label font-bold uppercase tracking-label text-text-muted"
+                    >
+                      {heading}
+                    </p>
+                  ),
                   <button
                     key={o.id ?? "initials"}
                     ref={(el) => {
@@ -317,21 +527,25 @@ export function AvatarPickerScreen() {
                     }}
                     type="button"
                     role="radio"
-                    aria-checked={checked}
-                    aria-disabled={lock ? true : undefined}
+                    aria-checked={isViewed}
                     aria-label={
-                      lock ? `${label}, locked. ${lock.requirement}, you have ${lock.stars}` : label
+                      lock
+                        ? `${label}, locked. ${lock.requirement}${lock.requiredStars !== null ? `, you have ${lock.stars}` : ""}`
+                        : checked
+                          ? `${label}, equipped`
+                          : label
                     }
                     data-locked={lock ? "" : undefined}
-                    tabIndex={checked ? 0 : -1}
+                    data-equipped={checked ? "" : undefined}
+                    tabIndex={isViewed ? 0 : -1}
                     onClick={() => choose(i)}
                     onKeyDown={(e) => onTileKey(e, i)}
-                    className={`relative flex min-h-[88px] min-w-0 flex-col items-center gap-1.5 rounded-2xl border px-1 pb-2 pt-2.5 transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-void ${
-                      lock ? "" : "active:scale-95"
-                    } ${
+                    className={`relative flex min-h-[88px] min-w-0 flex-col items-center gap-1.5 rounded-2xl border px-1 pb-2 pt-2.5 transition-transform active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-void ${
                       checked
                         ? "border-signal bg-signal/[0.1] shadow-[0_0_0_1px_var(--color-signal),0_0_18px_-4px_rgba(203,242,77,0.55)]"
-                        : "border-white/10 bg-[rgba(16,15,20,0.9)]"
+                        : isViewed
+                          ? "border-text-secondary bg-[rgba(16,15,20,0.9)] shadow-[0_0_0_1px_var(--color-text-secondary)]"
+                          : "border-white/10 bg-[rgba(16,15,20,0.9)]"
                     }`}
                   >
                     <span className={lock ? "opacity-40 grayscale" : undefined}>
@@ -342,37 +556,39 @@ export function AvatarPickerScreen() {
                         checked ? "text-signal" : lock ? "text-text-secondary" : "text-text-primary"
                       }`}
                     >
-                      {label}
+                      {o.id === null ? INITIALS_LABEL : o.name}
                     </span>
-                    {lock && (
-                      <span aria-hidden className="flex flex-col items-center text-center font-mono text-label leading-tight text-text-secondary">
-                        <span>{lock.requirement}</span>
-                        <span>
-                          {lock.stars}/{lock.requiredStars} ★
-                        </span>
-                      </span>
-                    )}
                     {lock && (
                       <span
                         aria-hidden
-                        className="absolute right-1.5 top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-white/10 text-text-secondary"
+                        className={`font-mono text-label font-bold uppercase leading-tight ${
+                          lock.kind === "premium" ? "text-warning" : "text-text-secondary"
+                        }`}
                       >
-                        <LockIcon />
+                        {lock.kind === "stars" ? `${lock.stars}/${lock.requiredStars} ★` : lock.kind === "tutorial" ? "Tutorial" : "Premium"}
                       </span>
                     )}
-                    {checked && (
+                    {checked ? (
                       <span
                         aria-hidden
                         className="absolute right-1.5 top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-signal text-void"
                       >
                         <CheckIcon />
                       </span>
+                    ) : (
+                      lock && (
+                        <span
+                          aria-hidden
+                          className="absolute right-1.5 top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-white/10 text-text-secondary"
+                        >
+                          <LockIcon />
+                        </span>
+                      )
                     )}
-                  </button>
-                );
+                  </button>,
+                ];
               })}
             </div>
-
           </div>
         )}
       </div>
@@ -394,19 +610,6 @@ export function AvatarPickerScreen() {
               {error}
             </p>
           )}
-          {/* Always mounted so the requirement is announced when a locked
-              tile is tapped; visually hidden while empty. */}
-          <p
-            role="status"
-            data-avatar-lock-notice
-            className={
-              lockNotice
-                ? "glass rounded-2xl border border-white/10 px-4 py-2.5 text-meta leading-5 text-text-primary"
-                : "sr-only"
-            }
-          >
-            {lockNotice ?? ""}
-          </p>
           {switchWarning && (
             <p
               id={SWITCH_WARNING_ID}
@@ -418,16 +621,37 @@ export function AvatarPickerScreen() {
           )}
           <button
             ref={saveRef}
+            data-avatar-save
             aria-describedby={switchWarning ? SWITCH_WARNING_ID : undefined}
             onClick={() => void save()}
-            disabled={!changed || saving}
-            className="cta-lime min-h-[56px] w-full rounded-2xl font-display text-lead font-black uppercase tracking-wide text-void transition-transform active:scale-[0.98] disabled:active:scale-100"
+            disabled={!canSave}
+            className={`flex min-h-[56px] w-full items-center justify-center gap-2 rounded-2xl font-display text-lead font-black uppercase tracking-wide transition-transform active:scale-[0.98] disabled:active:scale-100 ${
+              canSave || (savedFlash && !changed) ? "cta-lime text-void" : "bg-elevated text-text-muted shadow-[inset_0_0_0_1px_var(--color-border-subtle)]"
+            }`}
           >
-            {saving ? "Saving…" : "Save avatar"}
+            {savedFlash && !changed && !saving && <CheckIcon />}
+            {saveLabel}
           </button>
+          <p role="status" className="sr-only">
+            {savedFlash && !changed ? "Saved" : ""}
+          </p>
         </footer>
       )}
     </main>
+  );
+}
+
+function ProgressBar({ value, max }: { value: number; max: number }) {
+  return (
+    <div className="flex flex-col gap-1">
+      <div className="h-1.5 overflow-hidden rounded-full bg-elevated">
+        <div className="h-full rounded-full bg-signal" style={{ width: `${Math.min(100, Math.round((value / max) * 100))}%` }} />
+      </div>
+      <div className="flex justify-between font-mono text-label text-text-secondary tabular-nums">
+        <span>{value} ★</span>
+        <span>{max} ★</span>
+      </div>
+    </div>
   );
 }
 
@@ -447,4 +671,3 @@ function CheckIcon() {
     </svg>
   );
 }
-

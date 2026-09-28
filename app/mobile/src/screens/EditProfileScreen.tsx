@@ -514,7 +514,7 @@ function AvatarRow({
     >
       <HexAvatar userId={userId} name={name} avatarId={avatarId} size={48} />
       <span className="min-w-0 flex-1">
-        <span className="block text-body font-medium text-text-primary">Avatar</span>
+        <span className="block text-body font-medium text-text-primary">Character</span>
         <span className="block truncate text-meta text-text-secondary">{current}</span>
       </span>
       <ChevronRight />

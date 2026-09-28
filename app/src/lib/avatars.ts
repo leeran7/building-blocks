@@ -6,6 +6,7 @@
  *
  * Removing an entry is safe: every read goes through parseAvatarId, so a
  * stored retired id renders the initials fallback instead of a broken image.
+ * Stick figures have no image file: their badge is drawn from stickColor.
  *
  * Unlock rules are data only and independent of any sprite. The in-game
  * climber art keys off the same id (src/components/Game/climberCharacters.ts,
@@ -17,44 +18,67 @@
 
 /** What a player needs before they may newly select an avatar. */
 export type AvatarUnlock =
-  | { readonly kind: "free" }
+  /** Selectable after the tutorial: the player has cleared level 1 (any season). */
+  | { readonly kind: "tutorial" }
   /** Best stars summed over every level of every season, at least `stars`. */
-  | { readonly kind: "stars"; readonly stars: number };
+  | { readonly kind: "stars"; readonly stars: number }
+  /** Sold later; nobody can newly select one yet. Never earned by stars. */
+  | { readonly kind: "premium" };
 
 export interface AvatarEntry {
   readonly id: string;
   readonly name: string;
   readonly unlock: AvatarUnlock;
+  /** Stick figures only: the "#rrggbb" the vector climber is drawn in. */
+  readonly stickColor?: string;
 }
 
-const FREE: AvatarUnlock = { kind: "free" };
+const TUTORIAL: AvatarUnlock = { kind: "tutorial" };
+const PREMIUM: AvatarUnlock = { kind: "premium" };
 const stars = (n: number): AvatarUnlock => ({ kind: "stars", stars: n });
+const stick = (key: string, name: string, color: string): AvatarEntry => ({
+  id: `stick-${key}`,
+  name: `${name} Stick`,
+  unlock: TUTORIAL,
+  stickColor: color,
+});
+
+/** The stick figure every player without a character climbs as. */
+export const DEFAULT_STICK_ID = "stick-green";
 
 /**
- * The three non-animal starters are free; the 16 animals unlock at rising
- * star totals. A season is 300 levels of up to 3 stars (900), so the last
- * animal (750) asks for a full season at 2.5 stars a level.
+ * Picker order: the premium characters, the stick figures (free once the
+ * tutorial is done), then the star ladder cheapest first. No character is
+ * free outright; a player with no avatar climbs as the Green Stick. A season
+ * is 300 levels of up to 3 stars (900), so the last step (840) asks for most
+ * of a season at close to 3 stars a level.
  */
 export const AVATARS: readonly AvatarEntry[] = [
-  { id: "wraith", name: "Wraith", unlock: FREE },
-  { id: "viking", name: "Viking", unlock: FREE },
-  { id: "sentinel", name: "Sentinel", unlock: FREE },
-  { id: "ibex", name: "Ibex", unlock: stars(15) },
-  { id: "falcon", name: "Falcon", unlock: stars(30) },
-  { id: "marmot", name: "Marmot", unlock: stars(50) },
-  { id: "gecko", name: "Gecko", unlock: stars(75) },
-  { id: "panther", name: "Panther", unlock: stars(100) },
+  { id: "wraith", name: "Wraith", unlock: PREMIUM },
+  { id: "gecko", name: "Gecko", unlock: PREMIUM },
+  stick("green", "Green", "#cbf24d"),
+  stick("ember", "Ember", "#ff5a2c"),
+  stick("amber", "Amber", "#ffb020"),
+  stick("sky", "Sky", "#4dd6f2"),
+  stick("violet", "Violet", "#b07cd6"),
+  stick("pink", "Pink", "#ff6b9d"),
+  { id: "kestrel", name: "Kestrel", unlock: stars(15) },
+  { id: "lynx", name: "Lynx", unlock: stars(30) },
+  { id: "raven", name: "Raven", unlock: stars(50) },
+  { id: "panther", name: "Panther", unlock: stars(75) },
+  { id: "wolf", name: "Wolf", unlock: stars(100) },
   { id: "otter", name: "Otter", unlock: stars(130) },
-  { id: "raven", name: "Raven", unlock: stars(165) },
-  { id: "lynx", name: "Lynx", unlock: stars(200) },
-  { id: "bison", name: "Bison", unlock: stars(250) },
-  { id: "heron", name: "Heron", unlock: stars(300) },
-  { id: "cobra", name: "Cobra", unlock: stars(360) },
-  { id: "badger", name: "Badger", unlock: stars(420) },
-  { id: "wolf", name: "Wolf", unlock: stars(500) },
-  { id: "kestrel", name: "Kestrel", unlock: stars(580) },
-  { id: "mantis", name: "Mantis", unlock: stars(660) },
-  { id: "yak", name: "Yak", unlock: stars(750) },
+  { id: "heron", name: "Heron", unlock: stars(165) },
+  { id: "yak", name: "Yak", unlock: stars(200) },
+  { id: "mantis", name: "Mantis", unlock: stars(250) },
+  { id: "cobra", name: "Cobra", unlock: stars(300) },
+  { id: "badger", name: "Badger", unlock: stars(360) },
+  { id: "falcon", name: "Falcon", unlock: stars(420) },
+  { id: "marmot", name: "Marmot", unlock: stars(500) },
+  { id: "bison", name: "Bison", unlock: stars(580) },
+  { id: "ibex", name: "Ibex", unlock: stars(660) },
+  { id: "sentinel", name: "Sentinel", unlock: stars(750) },
+  { id: "viking", name: "Viking", unlock: stars(840) },
 ];
 
 const BY_ID: Readonly<Record<string, AvatarEntry>> = Object.fromEntries(AVATARS.map((a) => [a.id, a]));
@@ -94,7 +118,7 @@ export function parseAvatarIdList(v: unknown): string[] | null {
 
 /**
  * Player id → parsed avatar id, for drawing each climber as their avatar
- * (unknown or missing ids become null, which draws the Wraith). Absent players
+ * (unknown or missing ids become null, which draws the Green Stick). Absent players
  * and empty ids are skipped. Built with Object.fromEntries so a player id of
  * "__proto__" stays an own key instead of setting the prototype.
  */
@@ -106,15 +130,20 @@ export function avatarIdsByPlayer(
   );
 }
 
-/** The star total an entry needs, or null for a free avatar. */
+/** The star total an entry needs, or null when its rule is not a star count. */
 export function requiredStars(entry: AvatarEntry): number | null {
-  return entry.unlock.kind === "free" ? null : entry.unlock.stars;
+  return entry.unlock.kind === "stars" ? entry.unlock.stars : null;
 }
 
-/** Stars still needed for `entry` at `earned` stars; 0 once its rule is met. */
-export function starsToUnlock(entry: AvatarEntry, earned: number): number {
+/** Stars still needed for a star rule at `earned` stars; 0 once met, null for any other rule. */
+export function starsToUnlock(entry: AvatarEntry, earned: number): number | null {
   const need = requiredStars(entry);
-  return need === null ? 0 : Math.max(0, need - earned);
+  return need === null ? null : Math.max(0, need - earned);
+}
+
+/** The stick figure colour for a catalogue id, or null for anything else. */
+export function stickColorOf(id: unknown): string | null {
+  return avatarEntry(id)?.stickColor ?? null;
 }
 
 /** "Earn 30 stars": the one place the requirement is worded. */
@@ -122,10 +151,31 @@ export function earnStarsText(stars: number): string {
   return `Earn ${stars} stars`;
 }
 
-/** "Earn 30 stars" for a star rule; null for a free avatar. */
-export function unlockRequirementText(entry: AvatarEntry): string | null {
-  const need = requiredStars(entry);
-  return need === null ? null : earnStarsText(need);
+export const TUTORIAL_REQUIREMENT = "Finish the tutorial";
+export const PREMIUM_REQUIREMENT = "Premium";
+
+/** What an entry asks for, for a lock label: "Earn 30 stars", "Finish the tutorial", "Premium". */
+export function unlockRequirementText(entry: AvatarEntry): string {
+  switch (entry.unlock.kind) {
+    case "stars":
+      return earnStarsText(entry.unlock.stars);
+    case "tutorial":
+      return TUTORIAL_REQUIREMENT;
+    case "premium":
+      return PREMIUM_REQUIREMENT;
+  }
+}
+
+/** The full sentence for a locked entry: "Earn 30 stars to unlock Falcon". */
+export function lockedMessage(entry: AvatarEntry): string {
+  switch (entry.unlock.kind) {
+    case "stars":
+      return unlockMessage(entry.name, entry.unlock.stars);
+    case "tutorial":
+      return `Finish the tutorial on level 1 to unlock ${entry.name}`;
+    case "premium":
+      return `${entry.name} is a premium character. It is not on sale yet`;
+  }
 }
 
 /** "Earn 30 stars to unlock Falcon". */
@@ -133,14 +183,21 @@ export function unlockMessage(name: string, stars: number): string {
   return `${earnStarsText(stars)} to unlock ${name}`;
 }
 
-/** "Switching will lock Yak until you earn 750 stars." (leaving a grandfathered avatar) */
-export function switchAwayWarning(name: string, stars: number): string {
-  return `Switching will lock ${name} until you earn ${stars} stars.`;
+/** The warning before leaving a grandfathered avatar, which locks it again. */
+export function switchAwayWarning(entry: AvatarEntry): string {
+  switch (entry.unlock.kind) {
+    case "stars":
+      return `Switching will lock ${entry.name} until you earn ${entry.unlock.stars} stars.`;
+    case "tutorial":
+      return `Switching will lock ${entry.name} until you finish the tutorial.`;
+    case "premium":
+      return `Switching will lock ${entry.name}. It is a premium character and you can't pick it again yet.`;
+  }
 }
 
 /**
  * Ids whose star rule was not met at `before` stars and is met at `after`, in
- * catalogue order. Free avatars are never "newly" unlocked.
+ * catalogue order. Only star rules are ever unlocked by stars.
  */
 export function avatarsUnlockedBetween(before: number, after: number): string[] {
   return AVATARS.filter((a) => a.unlock.kind === "stars" && a.unlock.stars > before && a.unlock.stars <= after).map(

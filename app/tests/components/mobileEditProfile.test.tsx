@@ -1,5 +1,5 @@
 /**
- * Edit Profile on the mobile SPA: unsaved edits survive a trip to the avatar
+ * Edit Profile on the mobile SPA: unsaved edits survive a trip to the character
  * picker, and the save response goes through the shared settingsFromResponse
  * allow-list. The picker is pushed as its own route, which unmounts Edit
  * Profile, so without the draft the typed name was silently lost.
@@ -11,7 +11,7 @@ import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { MemoryRouter, Route, Routes, useNavigate } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { AVATARS } from "@app/lib/avatars";
+import { avatarEntry } from "@app/lib/avatars";
 import { climberHandle } from "@app/lib/handle";
 import type { SettingsData } from "../../mobile/src/contexts/AppDataContext";
 
@@ -59,7 +59,8 @@ import { AvatarPickerScreen } from "../../mobile/src/screens/AvatarPickerScreen"
 import { stashEditProfileDraft, takeEditProfileDraft } from "../../mobile/src/lib/editProfileDraft";
 import { initialsOf } from "../../mobile/src/lib/leaderboard";
 
-const [FIRST] = AVATARS;
+/** A star-ladder character (no unlock state is sent here, so nothing is locked). */
+const PICK = avatarEntry("kestrel")!;
 const SAVED_NAME = "Aria Stone";
 const TYPED_NAME = "Aria Unsaved";
 
@@ -160,8 +161,8 @@ describe("EditProfileScreen unsaved edits across the avatar picker", () => {
     type(nameInput(), TYPED_NAME);
     expect(button(/save changes/i)?.disabled).toBe(false);
 
-    await click(byLabel("Avatar:"));
-    expect(heading()).toBe("Choose avatar");
+    await click(byLabel("Character:"));
+    expect(heading()).toBe("Choose character");
     await click(byLabel("Back"));
 
     expect(heading()).toBe("Edit profile");
@@ -179,23 +180,29 @@ describe("EditProfileScreen unsaved edits across the avatar picker", () => {
     type(container.querySelector<HTMLInputElement>('input[placeholder="yourhandle"]'), "aria2");
     type(container.querySelector<HTMLInputElement>('input[aria-label="X handle"]'), "ariaclimbs");
 
-    await click(byLabel("Avatar:"));
-    // The picker's save updates the cached settings and pops back.
-    apiFetch.mockResolvedValueOnce(json(settings({ avatarId: FIRST.id })));
-    state.settings = settings({ avatarId: FIRST.id });
-    await click(container.querySelector(`[role="radio"][aria-label="${FIRST.name}"]`));
-    await click(button(/save avatar/i));
+    await click(byLabel("Character:"));
+    // The picker's save updates the cached settings and stays on the picker
+    // (Save reads "Saved"); Back returns to Edit Profile.
+    apiFetch.mockResolvedValueOnce(json(settings({ avatarId: PICK.id })));
+    await click(container.querySelector(`[role="radio"][aria-label="${PICK.name}"]`));
+    await click(button(/save character/i));
+    expect(setSettings).toHaveBeenCalledWith(expect.objectContaining({ avatarId: PICK.id }));
+    expect(heading()).toBe("Choose character");
+    expect(container.querySelector("[data-avatar-save]")?.textContent).toBe("Saved");
 
+    state.settings = settings({ avatarId: PICK.id });
+    await click(byLabel("Back"));
     expect(heading()).toBe("Edit profile");
     expect(container.querySelector<HTMLInputElement>('input[placeholder="yourhandle"]')?.value).toBe("aria2");
     expect(container.querySelector<HTMLInputElement>('input[aria-label="X handle"]')?.value).toBe("ariaclimbs");
-    expect(byLabel("Avatar:")?.getAttribute("aria-label")).toBe(`Avatar: ${FIRST.name}. Change avatar`);
+    expect(byLabel("Character:")?.getAttribute("aria-label")).toBe(`Character: ${PICK.name}. Change character`);
+    expect(byLabel("Character:")?.textContent).toContain("Character");
   });
 
   it("starts from the saved values after leaving Edit Profile via Back and reopening it", async () => {
     renderEditProfile();
     type(nameInput(), TYPED_NAME);
-    await click(byLabel("Avatar:"));
+    await click(byLabel("Character:"));
     await click(byLabel("Back"));
     expect(nameInput()?.value).toBe(TYPED_NAME);
 
@@ -253,7 +260,7 @@ describe("EditProfileScreen avatar row", () => {
     state.settings = settings({ displayName: null, avatarId: null });
     renderEditProfile();
 
-    const badge = byLabel("Avatar: Initials")?.querySelector(".hex")?.textContent;
+    const badge = byLabel("Character: Initials")?.querySelector(".hex")?.textContent;
     expect(badge).toBe(initialsOf(climberHandle("u1", null)));
     expect(badge).not.toBe(initialsOf("Player"));
   });

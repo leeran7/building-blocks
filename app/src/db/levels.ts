@@ -510,9 +510,10 @@ export interface LevelResult {
   /** XP keys paid by this run, e.g. "first_clear:1:12". */
   awards: { key: string; amount: number }[];
   /**
-   * Avatar ids this run's new stars unlocked, from the star total read in
-   * this transaction under the user lock (so a concurrent submit cannot
-   * shift the before/after window). Never the starter or the saved avatar.
+   * Avatar ids this run unlocked: star rules its new stars crossed (star
+   * total read in this transaction under the user lock, so a concurrent
+   * submit cannot shift the before/after window) and the stick figures on a
+   * first ever level 1 clear. Never the saved avatar.
    */
   unlockedAvatars: string[];
   /** The ticket's level was the player's frontier when the run was reported. */
@@ -679,7 +680,13 @@ export async function submitLevelResult(input: SubmitResultInput): Promise<Level
     let unlockedAvatars: string[] = [];
     if (gained > 0) {
       const after = await levelStarsEarned(userId, tx);
-      unlockedAvatars = avatarsNewlyUnlocked(after - gained, after, { userId, savedAvatarId: user.avatar_id });
+      // The tutorial unlock: this run wrote the player's only level 1 row.
+      const tutorialJustDone =
+        level === 1 && previousStars === 0 && (await tx.levelProgress.count({ where: { userId, level: 1 } })) === 1;
+      unlockedAvatars = avatarsNewlyUnlocked(after - gained, after, {
+        savedAvatarId: user.avatar_id,
+        tutorialJustDone,
+      });
     }
 
     return {

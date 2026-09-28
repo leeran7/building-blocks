@@ -30,6 +30,17 @@ vi.mock("../../src/db/creator", () => ({
   setUsername: vi.fn(async () => ({ ok: true })),
   clearUsername: vi.fn(async () => {}),
 }));
+// The route's unlock check reads stored rows: a player with no stars and no
+// saved avatar who has cleared level 1, so the stick figures are unlocked.
+vi.mock("../../src/db/client", () => ({
+  prisma: {
+    user: { findUnique: vi.fn(async () => ({ avatar_id: null })) },
+    levelProgress: {
+      aggregate: vi.fn(async () => ({ _sum: { stars: null } })),
+      findFirst: vi.fn(async () => ({ id: 1 })),
+    },
+  },
+}));
 vi.mock("../../src/db/settings", () => ({
   getUserSettings: vi.fn(),
   updateUserSettings: vi.fn(async () => ({
@@ -45,7 +56,7 @@ vi.mock("../../src/db/settings", () => ({
 import { PUT } from "../../app/api/settings/route";
 import { LEADERBOARD_CACHE_TAG } from "../../src/db/climb";
 import { DUEL_LEADERBOARD_CACHE_TAG } from "../../src/db/duel";
-import { AVATARS } from "../../src/lib/avatars";
+import { DEFAULT_STICK_ID } from "../../src/lib/avatars";
 import { inRequest, newIncrementalCache, warmBoard } from "./realNextCache";
 import type { IncrementalCache } from "next/dist/server/lib/incremental-cache";
 
@@ -85,11 +96,11 @@ describe("PUT /api/settings makes the next leaderboard read fresh", () => {
 
   it("shows the new avatar on the climb board on the next read after an avatar save", async () => {
     const board = await warm(LEADERBOARD_CACHE_TAG, "avatar:none");
-    board.set(`avatar:${AVATARS[0].id}`);
+    board.set(`avatar:${DEFAULT_STICK_ID}`);
 
-    const res = await save({ avatarId: AVATARS[0].id });
+    const res = await save({ avatarId: DEFAULT_STICK_ID });
     expect(res.status).toBe(200);
-    expect(await board.read()).toBe(`avatar:${AVATARS[0].id}`);
+    expect(await board.read()).toBe(`avatar:${DEFAULT_STICK_ID}`);
   });
 
   it("drops a player from the duel board on the next read after the display name is cleared", async () => {

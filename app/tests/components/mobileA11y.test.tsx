@@ -167,17 +167,17 @@ describe("BottomNav", () => {
 
 describe("Profile avatar button", () => {
   const avatarButton = () =>
-    [...container.querySelectorAll("button")].find((b) => b.getAttribute("aria-label")?.endsWith("Change avatar"));
+    [...container.querySelectorAll("button")].find((b) => b.getAttribute("aria-label")?.endsWith("Change character"));
 
   it("names the current avatar, which the icon-only badge otherwise conveys only visually", async () => {
     net.avatarId = "wolf";
     await render("/profile", createElement(ProfileScreen));
-    expect(avatarButton()?.getAttribute("aria-label")).toBe("Avatar: Wolf. Change avatar");
+    expect(avatarButton()?.getAttribute("aria-label")).toBe("Character: Wolf. Change character");
   });
 
   it("says Initials when no avatar is chosen", async () => {
     await render("/profile", createElement(ProfileScreen));
-    expect(avatarButton()?.getAttribute("aria-label")).toBe("Avatar: Initials. Change avatar");
+    expect(avatarButton()?.getAttribute("aria-label")).toBe("Character: Initials. Change character");
   });
 });
 

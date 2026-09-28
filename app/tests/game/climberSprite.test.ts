@@ -26,13 +26,19 @@ const sheet = (name: string): FakeImage => {
   return img;
 };
 
+/**
+ * The sheet character these tests exercise. A null or unknown avatar now
+ * draws the Green Stick (no sheets), so the sprite paths name the Wraith.
+ */
+const WRAITH = "wraith";
+
 // climberSprite caches images at module scope, so each test gets a fresh copy.
 const load = () => import("../../src/components/Game/climberSprite");
 
 /** Load the module with both sheets decoded. */
 async function loaded() {
   const mod = await load();
-  mod.climberFrame("idle", 0, 0, false);
+  mod.climberFrame("idle", 0, 0, false, WRAITH);
   sheet("wraith-poses-192.png").decode();
   sheet("wraith-climb-192.png").decode();
   return mod;
@@ -120,6 +126,7 @@ const walker = (
     vx: number;
     vy: number;
     slot: number;
+    avatarId: string | null;
   }> = {},
 ) => ({
   pose: "idle" as const,
@@ -128,6 +135,7 @@ const walker = (
   vx: 0,
   vy: 0,
   slot: 0,
+  avatarId: WRAITH,
   ...over,
 });
 
@@ -144,7 +152,7 @@ afterEach(() => {
 describe("climberFrame: loading", () => {
   it("requests every sheet on the first call, not on the first ladder", async () => {
     const { climberFrame } = await load();
-    expect(climberFrame("idle", 0, 0, false)).toBeNull();
+    expect(climberFrame("idle", 0, 0, false, WRAITH)).toBeNull();
     expect(FakeImage.all.map((i) => i.src).sort()).toEqual([
       "/climb/wraith-climb-192.png",
       "/climb/wraith-poses-192.png",
@@ -153,10 +161,10 @@ describe("climberFrame: loading", () => {
 
   it("uses the poses-sheet reach frames while the climb strip is still loading", async () => {
     const { climberFrame, CELL } = await load();
-    climberFrame("idle", 0, 0, false);
+    climberFrame("idle", 0, 0, false, WRAITH);
     sheet("wraith-poses-192.png").decode();
 
-    const frame = climberFrame("climb", 0, 0.3, false);
+    const frame = climberFrame("climb", 0, 0.3, false, WRAITH);
     expect(frame).not.toBeNull();
     expect(frame!.img).toBe(sheet("wraith-poses-192.png"));
     // Cell 3 of the 4-column poses sheet: reach-a.
@@ -165,39 +173,39 @@ describe("climberFrame: loading", () => {
 
   it("keeps the poses-sheet fallback when the climb strip fails to load", async () => {
     const { climberFrame } = await load();
-    climberFrame("idle", 0, 0, false);
+    climberFrame("idle", 0, 0, false, WRAITH);
     sheet("wraith-poses-192.png").decode();
     sheet("wraith-climb-192.png").fail();
 
-    expect(climberFrame("climb", 0, 0, false)?.img).toBe(
+    expect(climberFrame("climb", 0, 0, false, WRAITH)?.img).toBe(
       sheet("wraith-poses-192.png"),
     );
   });
 
   it("switches to the back-view climb strip once it decodes", async () => {
     const { climberFrame } = await loaded();
-    const frame = climberFrame("climb", 0, 0.3, false);
+    const frame = climberFrame("climb", 0, 0.3, false, WRAITH);
     expect(frame?.img).toBe(sheet("wraith-climb-192.png"));
     expect([frame!.sx, frame!.sy]).toEqual([0, 0]);
   });
 
   it("returns null until the poses sheet decodes, so the vector climber draws", async () => {
     const { climberFrame } = await load();
-    climberFrame("idle", 0, 0, false);
+    climberFrame("idle", 0, 0, false, WRAITH);
     sheet("wraith-climb-192.png").decode();
 
-    expect(climberFrame("walk", 0, 0, false)).toBeNull();
+    expect(climberFrame("walk", 0, 0, false, WRAITH)).toBeNull();
   });
 
   it("setClimberSpriteSrc re-points both sheets (native bundle) and reloads", async () => {
     const { climberFrame, setClimberSpriteSrc } = await load();
-    climberFrame("idle", 0, 0, false);
+    climberFrame("idle", 0, 0, false, WRAITH);
     sheet("wraith-poses-192.png").decode();
-    expect(climberFrame("idle", 0, 0, false)).not.toBeNull();
+    expect(climberFrame("idle", 0, 0, false, WRAITH)).not.toBeNull();
 
     setClimberSpriteSrc({ poses: "./assets/p.png", climb: "./assets/c.png" });
     // The old decode is dropped: nothing drawn until the new URL decodes.
-    expect(climberFrame("idle", 0, 0, false)).toBeNull();
+    expect(climberFrame("idle", 0, 0, false, WRAITH)).toBeNull();
     expect(
       FakeImage.all
         .slice(-2)
@@ -205,16 +213,16 @@ describe("climberFrame: loading", () => {
         .sort(),
     ).toEqual(["./assets/c.png", "./assets/p.png"]);
     sheet("p.png").decode();
-    expect(climberFrame("idle", 0, 0, false)?.img).toBe(sheet("p.png"));
+    expect(climberFrame("idle", 0, 0, false, WRAITH)?.img).toBe(sheet("p.png"));
   });
 
   it("setClimberSpriteSrc ignores empty and unchanged sources", async () => {
     const { climberFrame, setClimberSpriteSrc, CLIMBER_SPRITE_SRC } =
       await loaded();
-    const before = climberFrame("idle", 0, 0, false)!.img;
+    const before = climberFrame("idle", 0, 0, false, WRAITH)!.img;
     setClimberSpriteSrc({ poses: "" });
     setClimberSpriteSrc({ poses: CLIMBER_SPRITE_SRC.poses });
-    expect(climberFrame("idle", 0, 0, false)?.img).toBe(before);
+    expect(climberFrame("idle", 0, 0, false, WRAITH)?.img).toBe(before);
   });
 });
 
@@ -222,7 +230,7 @@ describe("climberFrame: cycles", () => {
   it("walk alternates run-a/run-b once per step of distance", async () => {
     const { climberFrame, CELL, WALK_M_PER_STEP } = await loaded();
     const mid = (k: number) => {
-      const f = climberFrame("walk", (k + 0.5) * WALK_M_PER_STEP, 0, false)!;
+      const f = climberFrame("walk", (k + 0.5) * WALK_M_PER_STEP, 0, false, WRAITH)!;
       return [f.sx, f.sy, f.blend];
     };
     expect(mid(0)).toEqual([1 * CELL, 0, 0]); // run-a, crisp mid-stride
@@ -233,8 +241,8 @@ describe("climberFrame: cycles", () => {
 
   it("holds its frame while the climber is stationary (no wall-clock drive)", async () => {
     const { climberFrame } = await loaded();
-    const a = { ...climberFrame("walk", 7.3, 0, false)! };
-    const b = { ...climberFrame("walk", 7.3, 0, false)! };
+    const a = { ...climberFrame("walk", 7.3, 0, false, WRAITH)! };
+    const b = { ...climberFrame("walk", 7.3, 0, false, WRAITH)! };
     expect(b).toEqual(a);
   });
 
@@ -242,9 +250,9 @@ describe("climberFrame: cycles", () => {
     const { climberFrame, WALK_M_PER_STEP, CYCLE_BLEND } = await loaded();
     const eps = 1e-6;
     const before = {
-      ...climberFrame("walk", WALK_M_PER_STEP - eps, 0, false)!,
+      ...climberFrame("walk", WALK_M_PER_STEP - eps, 0, false, WRAITH)!,
     };
-    const after = { ...climberFrame("walk", WALK_M_PER_STEP + eps, 0, false)! };
+    const after = { ...climberFrame("walk", WALK_M_PER_STEP + eps, 0, false, WRAITH)! };
     // Dominant frame swaps at the boundary; each shows the other at ~half.
     expect(before.blend).toBeCloseTo(0.5, 3);
     expect(after.blend).toBeCloseTo(0.5, 3);
@@ -255,6 +263,7 @@ describe("climberFrame: cycles", () => {
       WALK_M_PER_STEP * (1 + CYCLE_BLEND + 0.01),
       0,
       false,
+      WRAITH,
     )!;
     expect(inside.blend).toBe(0);
     expect(inside.bx).toBe(inside.sx);
@@ -264,7 +273,7 @@ describe("climberFrame: cycles", () => {
     const { climberFrame, CELL } = await loaded();
     const seen = new Set<number>();
     for (let k = 0; k < 6; k++)
-      seen.add(climberFrame("climb", 0, (k + 0.5) * 0.65, false)!.sx);
+      seen.add(climberFrame("climb", 0, (k + 0.5) * 0.65, false, WRAITH)!.sx);
     expect([...seen].sort((a, b) => a - b)).toEqual(
       [0, 1, 2, 3, 4, 5].map((i) => i * CELL),
     );
@@ -273,15 +282,15 @@ describe("climberFrame: cycles", () => {
   it("reduced motion pins frame 0 and never blends", async () => {
     const { climberFrame, CELL, WALK_M_PER_STEP } = await loaded();
     for (const x of [0, WALK_M_PER_STEP * 0.99, WALK_M_PER_STEP * 1.5, 13.37]) {
-      const f = climberFrame("walk", x, 0, true)!;
+      const f = climberFrame("walk", x, 0, true, WRAITH)!;
       expect([f.sx, f.bx, f.blend]).toEqual([1 * CELL, 1 * CELL, 0]);
     }
   });
 
   it("reuses one result object (no allocation per call)", async () => {
     const { climberFrame } = await loaded();
-    expect(climberFrame("walk", 1, 0, false)).toBe(
-      climberFrame("idle", 2, 0, false),
+    expect(climberFrame("walk", 1, 0, false, WRAITH)).toBe(
+      climberFrame("idle", 2, 0, false, WRAITH),
     );
   });
 });
@@ -549,44 +558,113 @@ describe("drawClimberSprite", () => {
   });
 });
 
+/** Paint one solo frame into a recording ctx: images drawn and stroke colours set. */
+async function paintSolo(
+  sprite: Awaited<ReturnType<typeof load>>,
+  myAvatarId?: string | null,
+  duel?: { avatarIds: Record<string, string | null> },
+) {
+  const { paintClimbFrame } = await import("../../src/components/Game/paintClimbFrame");
+  const { createMatch } = await import("../../src/game/simulation");
+  const { buildTower } = await import("../../src/game/towers");
+  const m = createMatch({
+    seed: "sprite",
+    mode: duel ? "multiplayer" : "solo",
+    tower: buildTower("indie-games"),
+    playerIds: duel ? ["p1", "p2"] : ["p1"],
+  });
+  const images: unknown[] = [];
+  const strokes: unknown[] = [];
+  const ctx = new Proxy({} as Record<string | symbol, unknown>, {
+    get(t, prop) {
+      if (prop in t) return t[prop];
+      if (prop === "drawImage") return (img: unknown) => images.push(img);
+      if (prop === "measureText") return () => ({ width: 10 });
+      if (typeof prop === "string" && prop.startsWith("create"))
+        return () => ({ addColorStop() {} });
+      return () => {};
+    },
+    set(t, prop, v) {
+      if (prop === "strokeStyle") strokes.push(v);
+      t[prop] = v;
+      return true;
+    },
+  }) as unknown as CanvasRenderingContext2D;
+  const bag = sprite.createClimberMotionBag();
+  paintClimbFrame(ctx, m, {
+    width: 360,
+    height: 640,
+    includeHud: false,
+    climberMotion: bag,
+    dtSec: 0.016,
+    myAvatarId,
+    ...(duel ? { myId: "p1", avatarIds: duel.avatarIds } : {}),
+  });
+  return { images, strokes, bag };
+}
+
 describe("paintClimbFrame draws the sprite", () => {
   it("paints each climber from the atlas once it decodes, with a motion bag", async () => {
     const sprite = await loaded();
-    const { paintClimbFrame } =
-      await import("../../src/components/Game/paintClimbFrame");
-    const { createMatch } = await import("../../src/game/simulation");
-    const { buildTower } = await import("../../src/game/towers");
-    const m = createMatch({
-      seed: "sprite",
-      mode: "solo",
-      tower: buildTower("indie-games"),
-      playerIds: ["p1"],
-    });
-    const images: unknown[] = [];
-    const ctx = new Proxy({} as Record<string | symbol, unknown>, {
-      get(t, prop) {
-        if (prop in t) return t[prop];
-        if (prop === "drawImage") return (img: unknown) => images.push(img);
-        if (prop === "measureText") return () => ({ width: 10 });
-        if (typeof prop === "string" && prop.startsWith("create"))
-          return () => ({ addColorStop() {} });
-        return () => {};
-      },
-      set(t, prop, v) {
-        t[prop] = v;
-        return true;
-      },
-    }) as unknown as CanvasRenderingContext2D;
-    const bag = sprite.createClimberMotionBag();
-    paintClimbFrame(ctx, m, {
-      width: 360,
-      height: 640,
-      includeHud: false,
-      climberMotion: bag,
-      dtSec: 0.016,
-    });
+    const { images, bag } = await paintSolo(sprite, WRAITH);
     expect(images).toContain(sheet("wraith-poses-192.png"));
+    // Control for the stick tests' "no climber sheet" filter.
+    expect(FakeImage.all.some((i) => /-(poses|climb)-192\.png$/.test(i.src))).toBe(true);
     expect(bag.clock).toBeCloseTo(0.016, 9);
     expect(bag.slots[0]?.pose).toBe("idle");
+  });
+});
+
+describe("stick characters", () => {
+  it("resolve null and unknown ids to the Green Stick, and a stick id to itself", async () => {
+    const { resolveClimberCharacter, climberStickColor } = await load();
+    for (const id of [null, undefined, "", "dragon", "__proto__", 42]) {
+      expect(resolveClimberCharacter(id)).toBe("stick-green");
+      expect(climberStickColor(id)).toBe("#cbf24d");
+    }
+    expect(resolveClimberCharacter("stick-sky")).toBe("stick-sky");
+    expect(climberStickColor("stick-sky")).toBe("#4dd6f2");
+    expect(climberStickColor(WRAITH)).toBeNull();
+  });
+
+  it("climberFrame is null for a stick and loads no sheet, so the vector figure draws", async () => {
+    const { climberFrame, drawClimberSprite } = await load();
+    expect(climberFrame("idle", 0, 0, false)).toBeNull();
+    expect(climberFrame("walk", 1, 0, false, "stick-pink")).toBeNull();
+    const { ctx, draws } = affineCtx();
+    expect(drawClimberSprite(ctx, 0, 0, 9, 1, walker({ pose: "walk", avatarId: null }), false, null, 0)).toBe(false);
+    expect(draws).toHaveLength(0);
+    expect(FakeImage.all).toHaveLength(0);
+    // Control: a sheet character does request its art on the same call.
+    climberFrame("idle", 0, 0, false, WRAITH);
+    expect(FakeImage.all.length).toBeGreaterThan(0);
+  });
+
+  it("paintClimbFrame draws a climber with no avatar as the Green Stick vector figure", async () => {
+    const sprite = await load();
+    const { images, strokes } = await paintSolo(sprite, null);
+    // No climber sheet is requested or drawn (the background tile is not the climber).
+    const climberSheets = FakeImage.all.filter((i) => /-(poses|climb)-192\.png$/.test(i.src));
+    expect(climberSheets).toHaveLength(0);
+    expect(images.filter((img) => climberSheets.includes(img as FakeImage))).toHaveLength(0);
+    expect(strokes).toContain("#cbf24d");
+  });
+
+  it("in a duel, an opponent with no character keeps the opponent colour; a chosen stick keeps its own", async () => {
+    const sprite = await load();
+    const none = await paintSolo(sprite, undefined, { avatarIds: { p1: null, p2: null } });
+    expect(none.strokes).toContain("#cbf24d"); // me: the Green Stick
+    expect(none.strokes).toContain("#6bb8ff"); // opponent: not a second green figure
+    const chosen = await paintSolo(sprite, undefined, { avatarIds: { p1: null, p2: "stick-ember" } });
+    expect(chosen.strokes).toContain("#ff5a2c");
+    expect(chosen.strokes).not.toContain("#6bb8ff");
+  });
+
+  it("paintClimbFrame draws a stick avatar in its own colour, not the default green", async () => {
+    const sprite = await load();
+    const { strokes } = await paintSolo(sprite, "stick-ember");
+    expect(FakeImage.all.some((i) => /-(poses|climb)-192\.png$/.test(i.src))).toBe(false);
+    expect(strokes).toContain("#ff5a2c");
+    expect(strokes).not.toContain("#cbf24d");
   });
 });

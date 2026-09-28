@@ -4,9 +4,11 @@
  * Which art each avatar wears is data in climberCharacters.ts: a `sheets`
  * entry has its own atlases in /climb/ (layout contract in
  * public/climb/README.md), a `base` entry (no art yet) draws as the plain
- * Wraith. A `tint` entry (the Wraith recoloured) is supported for a future
- * recolour feature; the live registry has none. The Wraith
- * (the default, and the fallback for unknown/null ids) ships a poses sheet
+ * Wraith, and a `stick` entry has no sprite: climberFrame returns null and the
+ * caller draws the vector figure in climberStickColor (the Green Stick is the
+ * fallback for unknown/null ids). A `tint` entry (the Wraith recoloured) is
+ * supported for a future recolour feature; the live registry has none. The
+ * Wraith (the base sheets and every failed load's fallback) ships a poses sheet
  * (wraith-poses-192.png, 4×2 cells) for idle/walk/air/done/dead and a 6-frame
  * back-view climb strip (wraith-climb-192.png) so the climber shows its back on
  * a ladder. Both are the pack's 512px cells downscaled to 192px and palette
@@ -34,7 +36,7 @@
  * The hot path allocates nothing: results land in module-scope scratch objects.
  */
 
-import { parseAvatarId } from "../../lib/avatars";
+import { DEFAULT_STICK_ID, parseAvatarId } from "../../lib/avatars";
 import {
   BASE_CHARACTER_ID,
   CLIMBER_CHARACTERS,
@@ -153,7 +155,7 @@ interface CharacterRuntime {
 const runtimes = new Map<string, CharacterRuntime>();
 const overrides = new Map<string, Partial<Record<Sheet, string>>>();
 
-/** The avatar id if it has its own art-bearing registry entry, else null. */
+/** The avatar id if it has its own registry entry that is not `base`, else null. */
 function ownCharacterId(avatarId: unknown): string | null {
   const id = parseAvatarId(avatarId);
   if (id === null || !hasOwn(CLIMBER_CHARACTERS, id)) return null;
@@ -161,13 +163,25 @@ function ownCharacterId(avatarId: unknown): string | null {
 }
 
 /**
- * The registry id to draw for an avatar id: the avatar's own entry, or the
- * Wraith for avatars without art (`base`) and for null, unknown, retired, or
- * prototype-key ids ("__proto__"). A `base` avatar shares the Wraith's
- * runtime, so it loads nothing extra.
+ * The registry id to draw for an avatar id: the avatar's own entry, the
+ * Wraith for avatars without art (`base`, sharing its runtime so nothing
+ * extra loads), and the Green Stick for null, unknown, retired, or
+ * prototype-key ids ("__proto__").
  */
 export function resolveClimberCharacter(avatarId: unknown): string {
-  return ownCharacterId(avatarId) ?? BASE_CHARACTER_ID;
+  const own = ownCharacterId(avatarId);
+  if (own !== null) return own;
+  const id = parseAvatarId(avatarId);
+  return id !== null && hasOwn(CLIMBER_CHARACTERS, id) ? BASE_CHARACTER_ID : DEFAULT_STICK_ID;
+}
+
+/**
+ * The colour to draw the vector stick figure in when `avatarId` is a stick
+ * character (null and unknown ids included: the Green Stick), else null.
+ */
+export function climberStickColor(avatarId: unknown): string | null {
+  const def = CLIMBER_CHARACTERS[resolveClimberCharacter(avatarId)];
+  return def.kind === "stick" ? def.color : null;
 }
 
 /** The character's registry entry (via resolveClimberCharacter). */
@@ -257,6 +271,7 @@ function tintedSheet(rt: CharacterRuntime, sheet: Sheet): SpriteSource | null {
 }
 
 function sheetFor(rt: CharacterRuntime, sheet: Sheet): SpriteSource | null {
+  if (rt.def.kind === "stick") return null; // drawn as the vector figure
   return rt.def.kind === "sheets" ? ownSheet(rt, sheet) : tintedSheet(rt, sheet);
 }
 
@@ -312,7 +327,8 @@ const frameOut = {
  * boundary: weight rises to 0.5 at the boundary and, since the dominant frame
  * swaps there, falls back symmetrically, so the blend is continuous.
  * Reduced motion: frame 0, no blend. `avatarId` picks the character (null or
- * unknown: the Wraith).
+ * unknown: the Green Stick). Always null for a stick character, which the
+ * caller draws as the vector figure in climberStickColor.
  *
  * Returns a shared object — read it before the next call.
  */
@@ -506,7 +522,7 @@ export interface ClimberSpriteState {
   vx: number;
   vy: number;
   slot: number;
-  /** Avatar id choosing the character; null/unknown/absent draws the Wraith. */
+  /** Avatar id choosing the character; null/unknown/absent draws the Green Stick. */
   avatarId?: string | null;
 }
 
