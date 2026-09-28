@@ -57,11 +57,23 @@ share this cycle in `tools/climber-art/climb_cycle.py`, and
   **(96, 172.5)** in the 192 cell. That is the art pack's (256, 460) in a 512
   cell. The engine pins this point to the ground, so keep the feet on it in
   every frame. Airborne frames hang from it too.
-- **Reference height:** the idle figure is **142.5 px** tall, from the anchor
-  up to the top of the head (380 px in a 512 cell). All poses use one scale,
-  so a crouch really is shorter.
-- If your art uses a different anchor or height, pass `rootX`, `rootY` and
-  `refH` (in 192-cell px) to `sheets()`. Do not rescale the sheet to fit.
+- **A character is a skin over the stick figure.** It is drawn on top of the
+  green stick at the stick's feet, and it never changes how the climber
+  plays: hitbox, movement, ladder grabs, hits, power-ups and scoring are the
+  stick's for every character, free or paid (`context/trust.md` item 9).
+- **Head height:** the top of the character's skull sits exactly on the top of
+  the stick's head (2.92 × the climber size above the feet, the
+  `STICK_HEAD_TOP_IN_S` constant in `climberSprite.ts`). Horns, ears, antennae,
+  crests, spikes and hoods do not count: they stick out above the stick's head.
+  For a hooded character (the Wraith) the skull is the head inside the hood.
+- Register the skull top as `headTop`, the row of the idle cell (192-cell px
+  from the top) where the skull starts, estimated by eye:
+  `sheets("ibex", { headTop: 38 })`. The engine scales the whole sheet so
+  that row lands on the stick's head top. All poses use one scale, so a crouch
+  really is shorter. Leave room above the skull for horns and hoods (the cell
+  is 192 px; keep a ~10 px gutter).
+- If your art uses a different foot anchor, pass `rootX` and `rootY` (in
+  192-cell px) to `sheets()`. Do not rescale the sheet to fit.
 - The engine does the smoothing: distance-driven cycles, crossfades, bob,
   lean, squash and stretch. Do not bake motion blur or ground shadows in.
 
@@ -77,8 +89,8 @@ ibex: base(),
 with:
 
 ```ts
-ibex: sheets("ibex"),                  // poses + climb strip
-ibex: sheets("ibex", { climb: false }), // poses only
+ibex: sheets("ibex", { headTop: 38 }),                  // poses + climb strip
+ibex: sheets("ibex", { headTop: 38, climb: false }),    // poses only
 ```
 
 That is the whole change. Nothing else in shared code needs to change:
