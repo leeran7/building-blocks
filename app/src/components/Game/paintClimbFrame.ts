@@ -314,7 +314,7 @@ export function paintClimbFrame(
   let hardenProgress = 0;
   if (player && hardenActive) {
     const rem = remainingTicks(player, "harden-lava", state.tick);
-    const total = durationTicks("harden-lava");
+    const total = durationTicks("harden-lava", state.tower);
     hardenProgress = total > 0 ? 1 - rem / total : 0;
   }
   // Same effective-time call the HUD makes, so the crest and the

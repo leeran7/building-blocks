@@ -218,6 +218,9 @@ export function neverEasierProblems(season: SeasonSpec, rows: readonly ManifestL
     if (sa.powerUpChance > 0 && !(sb.powerUpChance <= sa.powerUpChance)) {
       out.push(`${tag}: power-ups get more common`);
     }
+    if (!(sb.powerUpDurationScale <= sa.powerUpDurationScale)) {
+      out.push(`${tag}: power-ups last longer`);
+    }
     const ta = a.lavaMeanFrac / a.catchMeanFrac;
     const tb = b.lavaMeanFrac / b.catchMeanFrac;
     if (!(tb > ta)) out.push(`${tag}: measured lava tightness does not rise (${ta.toFixed(4)} → ${tb.toFixed(4)})`);

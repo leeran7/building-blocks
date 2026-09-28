@@ -58,6 +58,7 @@ describe("season equation", () => {
       expect(b.tightness).toBeGreaterThan(a.tightness);
       expect(b.layout.gapFrac).toBeGreaterThan(a.layout.gapFrac);
       if (a.powerUpChance > 0) expect(b.powerUpChance).toBeLessThanOrEqual(a.powerUpChance);
+      expect(b.powerUpDurationScale).toBeLessThan(a.powerUpDurationScale);
       checked++;
     }
     expect(checked).toBe(LEVELS_PER_SEASON - 1);
@@ -71,6 +72,8 @@ describe("season equation", () => {
     expect(last.layout.oneLadderFrac).toBeCloseTo(0.85, 10);
     expect(last.powerUpChance).toBeCloseTo(0.05, 10);
     expect(levelSpec(SEASON_1, 4).powerUpChance).toBeCloseTo(0.11, 2);
+    expect(last.powerUpDurationScale).toBeCloseTo(0.6, 10);
+    expect(levelSpec(SEASON_1, 1).powerUpDurationScale).toBeCloseTo(1, 10);
   });
 
   // The ceilings are the engine's physical caps: 70% of a standing jump's rise
@@ -121,6 +124,7 @@ describe("level tower", () => {
     expect(tower.goalM).toBe(spec.goalFt);
     expect(tower.difficulty).toBe(spec.layoutDial);
     expect(tower.powerUpChance).toBe(spec.powerUpChance);
+    expect(tower.powerUpDurationScale).toBe(spec.powerUpDurationScale);
     expect(tower.allowedPowerUps).toEqual(spec.allowedPowerUps);
     // The engine's validating readers accept the season's ceiling values.
     expect(ladderHangM(tower)).toBe(spec.layout.hangingLadderFt);

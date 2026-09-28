@@ -31,8 +31,20 @@ export interface LevelNode {
   introPowerUp: PowerUpType | null;
   /** Obstacle this level introduces (hanging ladders, short tops), if any. */
   introTip: string | null;
+  /** This level's power-ups, shown before the match. */
+  powerUps: LevelPowerUps;
   /** Tutorial levels cost no lives (§5b). */
   costsLife: boolean;
+}
+
+/** What a level's power-ups are: which, how often, and how long each lasts. */
+export interface LevelPowerUps {
+  /** Types that can spawn, in unlock order ("random" included once unlocked). */
+  types: PowerUpType[];
+  /** About one orb every this many floors; null when none spawn. */
+  floorsPerOrb: number | null;
+  /** Seconds each concrete type lasts on this level (the jetpack: its fuel). */
+  seconds: Partial<Record<PowerUpType, number>>;
 }
 
 export interface PlayerStats {

@@ -69,6 +69,8 @@ export interface LevelSpec {
   allowedPowerUps: PowerUpType[];
   /** Type introduced on this level (guaranteed orb + tip), if any. */
   introPowerUp: PowerUpType | null;
+  /** Multiplier on power-up effect times (1 → 0.6 by lava dial). */
+  powerUpDurationScale: number;
 }
 
 /**
@@ -77,6 +79,14 @@ export interface LevelSpec {
  */
 export const POWER_UP_CHANCE_START = 0.11;
 export const POWER_UP_CHANCE_END = 0.05;
+
+/**
+ * Power-up effect time at lava dial 0 and 1, as a share of each type's base
+ * duration: a level-1 rapid climb lasts 10 s, a level-300 one 6 s (Leeran,
+ * 2026-09-28: each level sets its own power-up duration).
+ */
+export const POWER_UP_DURATION_START = 1;
+export const POWER_UP_DURATION_END = 0.6;
 
 /** Levels 1-3 teach the climb: no power-ups. */
 const NO_POWER_UP_LEVELS = 3;
@@ -164,6 +174,8 @@ export function levelSpec(season: SeasonSpec, level: number, rev = 0): LevelSpec
         : POWER_UP_CHANCE_START - (POWER_UP_CHANCE_START - POWER_UP_CHANCE_END) * d,
     allowedPowerUps: unlocked.map((u) => u.type),
     introPowerUp: intro ? intro.type : null,
+    powerUpDurationScale:
+      POWER_UP_DURATION_START - (POWER_UP_DURATION_START - POWER_UP_DURATION_END) * d,
   };
 }
 
@@ -184,6 +196,7 @@ export function levelTower(spec: LevelSpec): TowerSpec {
     minWalkM: spec.layout.minWalkFt,
     ladderHangM: spec.layout.hangingLadderFt,
     ladderTopGapM: spec.layout.shortTopFt,
+    powerUpDurationScale: spec.powerUpDurationScale,
   };
   if (spec.introPowerUp !== null) tower.introPowerUp = spec.introPowerUp;
   return tower;

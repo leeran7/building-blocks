@@ -167,6 +167,8 @@ export function LevelStartSheet({
           </div>
         )}
 
+        <PowerUpsCard powerUps={node.powerUps} />
+
         {/* The friend ghost picker (§6.1) goes here once ghosts land. */}
 
         <div className="mt-5 flex flex-col gap-2.5">
@@ -206,6 +208,55 @@ export function LevelStartSheet({
         @keyframes lsFade { from { opacity: 0; } to { opacity: 1; } }
         @media (prefers-reduced-motion: reduce) { .ls-sheet, .ls-scrim { animation: none; } }
       `}</style>
+    </div>
+  );
+}
+
+/** Seconds for a chip: whole numbers bare, otherwise one decimal. */
+function formatSeconds(s: number): string {
+  const r = Math.round(s * 10) / 10;
+  return `${Number.isInteger(r) ? r : r.toFixed(1)}s`;
+}
+
+/**
+ * This level's power-ups before the match: how often an orb turns up and how
+ * long each type lasts here. Both are set per level and shrink as the season
+ * gets harder.
+ */
+export function PowerUpsCard({ powerUps }: { powerUps: LevelNode["powerUps"] }) {
+  return (
+    <div className="mt-3 rounded-2xl border border-white/10 bg-elevated/70 px-3.5 py-3">
+      <p className="font-mono text-label uppercase tracking-label text-text-secondary">Power-ups</p>
+      {powerUps.floorsPerOrb === null ? (
+        <p className="mt-1 text-meta text-text-primary">None on this level</p>
+      ) : (
+        <>
+          <p className="mt-1 text-meta text-text-primary">
+            About 1 every {powerUps.floorsPerOrb} floors
+          </p>
+          <ul className="mt-2 flex flex-wrap gap-1.5" aria-label="Power-ups on this level and how long they last">
+            {powerUps.types.map((t) => {
+              const spec = POWER_UP_SPECS[t];
+              const s = powerUps.seconds[t];
+              return (
+                <li
+                  key={t}
+                  className="flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-meta text-text-primary"
+                  style={{ borderColor: `${spec.color}66` }}
+                >
+                  <span aria-hidden className="h-2 w-2 rounded-full" style={{ backgroundColor: spec.color }} />
+                  {spec.label}
+                  {s !== undefined && (
+                    <span className="tabular-nums text-text-secondary">
+                      {t === "jetpack" ? `${formatSeconds(s)} fuel` : formatSeconds(s)}
+                    </span>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        </>
+      )}
     </div>
   );
 }

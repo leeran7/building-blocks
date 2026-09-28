@@ -262,6 +262,12 @@ export interface TowerSpec {
    */
   introPowerUp?: PowerUpType;
   /**
+   * Level towers only: multiplier on every power-up's effect time (and the
+   * jetpack's fuel), in [0.25, 1]. Cooldowns are unchanged. Undefined
+   * elsewhere, which is 1.
+   */
+  powerUpDurationScale?: number;
+  /**
    * Level layout knobs. Each is undefined on the free stack, Daily and duel
    * towers, which keep their altitude ramp. Validated (and capped at the
    * physical limits) by the readers in towers.ts; out of range throws.

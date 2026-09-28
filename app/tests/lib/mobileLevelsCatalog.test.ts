@@ -12,7 +12,8 @@ import { SEASON_1 } from "../../src/game/levels/season";
 import type { ManifestLevel } from "../../src/game/levels/seasonGate";
 import manifest from "../../src/game/levels/seasons/season-1.json";
 import { TICK_HZ } from "../../src/game/types";
-import { levelRunSetup, season1Catalog, seasonLevels } from "../../mobile/src/lib/levels/catalog";
+import { levelPowerUps, levelRunSetup, season1Catalog, seasonLevels } from "../../mobile/src/lib/levels/catalog";
+import { durationTicks, jetpackFuelTicks } from "../../src/game/powerups";
 import { starsForTime } from "../../mobile/src/lib/levels/model";
 
 const rows = manifest.levels as ManifestLevel[];
@@ -95,4 +96,37 @@ describe("levelRunSetup", () => {
     }
     // Three full route-bot runs (L250 is minutes of game time): slow under a loaded suite.
   }, 60_000);
+});
+
+describe("power-ups shown before the match", () => {
+  it("shows none on levels 1-3", () => {
+    for (const n of [1, 2, 3]) {
+      expect(catalog.level(n).powerUps).toEqual({ types: [], floorsPerOrb: null, seconds: {} });
+    }
+  });
+
+  it("shows each level's own rate and the durations its tower will run", () => {
+    let checked = 0;
+    for (const n of [4, 60, 150, 300]) {
+      const spec = levelSpec(SEASON_1, n, rows[n - 1].rev);
+      const tower = levelTower(spec);
+      const shown = catalog.level(n).powerUps;
+      expect(shown).toEqual(levelPowerUps(spec));
+      expect(shown.types).toEqual(spec.allowedPowerUps);
+      expect(shown.floorsPerOrb).toBe(Math.round(1 / spec.powerUpChance));
+      for (const t of shown.types) {
+        if (t === "random") continue;
+        const ticks = t === "jetpack" ? jetpackFuelTicks(tower) : durationTicks(t, tower);
+        // What the sheet says matches what the engine grants, to the tick.
+        expect(Math.round(shown.seconds[t]! * TICK_HZ)).toBe(ticks);
+        checked++;
+      }
+    }
+    expect(checked).toBeGreaterThan(0);
+    // The season's later levels drop orbs less often and run them shorter.
+    const early = catalog.level(4).powerUps;
+    const late = catalog.level(300).powerUps;
+    expect(late.floorsPerOrb!).toBeGreaterThan(early.floorsPerOrb!);
+    expect(late.seconds["rapid-climb"]!).toBeLessThan(early.seconds["rapid-climb"]!);
+  });
 });

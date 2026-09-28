@@ -509,7 +509,7 @@ export function stepMatch(
       state.raceSeconds = 0;
       // A level run's booster is live from GO.
       if (state.startPowerUp !== undefined) {
-        for (const p of state.players) activatePowerUp(p, state.startPowerUp, 0);
+        for (const p of state.players) activatePowerUp(p, state.startPowerUp, 0, state.tower);
       }
     }
     return state;
@@ -604,7 +604,7 @@ export function stepMatch(
       if (!canActivate(p, effectType, state.tick)) continue;
       pu.collected = true;
       pu.collectedTick = state.tick;
-      activatePowerUp(p, effectType, state.tick);
+      activatePowerUp(p, effectType, state.tick, state.tower);
       break;
     }
 
@@ -643,10 +643,15 @@ export function stepMatch(
 }
 
 /** Start a power-up's effect on a climber, with its cooldown and HUD pickup. */
-function activatePowerUp(p: PlayerState, type: PowerUpType, tick: number): void {
-  grantPowerUp(p, type, tick);
+function activatePowerUp(
+  p: PlayerState,
+  type: PowerUpType,
+  tick: number,
+  tower: TowerSpec
+): void {
+  grantPowerUp(p, type, tick, tower);
   const cd = cooldownTicks(type);
-  if (cd > 0) p.cooldownUntilTick[type] = tick + durationTicks(type) + cd;
+  if (cd > 0) p.cooldownUntilTick[type] = tick + durationTicks(type, tower) + cd;
   p.lastPickupTick = tick;
   p.lastPickupType = type;
 }
