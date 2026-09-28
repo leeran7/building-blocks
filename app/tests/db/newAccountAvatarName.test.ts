@@ -1,9 +1,9 @@
 /**
- * A new account's name and picture agree, end to end: the real ensureUser
- * creates the row, and the real board reads (topFreeClimbers,
- * getUserFreeClimbRecord) name it and hand the picture id to the client. The
- * name's animal must be the animal in the picture, and it must be the same
- * pseudonym the id alone gave before avatars could rename anyone.
+ * A new account starts with no picture (initials, climbing as the Green
+ * Stick), end to end: the real ensureUser creates the row, and the real board
+ * reads (topFreeClimbers, getUserFreeClimbRecord) name it and hand the
+ * picture id to the client. The id must be null and the name must be the
+ * same pseudonym the id alone gave before avatars could rename anyone.
  *
  * Later sign-ins run ensureUser again. A pick (animal or not), a cleared
  * avatar, and a retired id stored in the column must each survive it, and the
@@ -85,7 +85,7 @@ beforeEach(() => {
 });
 
 describe("a new account", () => {
-  it("shows the same animal in its board name and its picture, for every animal a new account can get", async () => {
+  it("has no picture on the board and keeps its hash pseudonym", async () => {
     const ids = Array.from({ length: 160 }, (_, i) => `new-account-${i}-${i * 104729}`);
     const animalsSeen = new Set<string>();
     let checked = 0;
@@ -97,19 +97,16 @@ describe("a new account", () => {
     for (const id of ids) {
       const row = board.get(id);
       expect(row).toBeDefined();
-      const picture = pictureAnimal(row!.avatarId);
-      expect(picture).not.toBeNull();
-      expect(animalOf(row!.handle)).toBe(picture);
-      // The default avatar never renames a new player: same pseudonym as the id alone.
+      expect(row!.avatarId).toBeNull();
       expect(row!.handle).toBe(climberHandle(id));
       // The dashboard record names them the same way.
       expect((await getUserFreeClimbRecord(id))?.handle).toBe(row!.handle);
-      animalsSeen.add(picture!);
+      animalsSeen.add(animalOf(row!.handle));
       checked++;
     }
-    expect(checked).toBeGreaterThan(0);
-    // Every one of the 16 hash animals was a default here, so none of them is unguarded.
-    expect(animalsSeen.size).toBe(ANIMALS.length);
+    expect(checked).toBe(ids.length);
+    // The pseudonyms still spread over the hash animals (no constant name).
+    expect(animalsSeen.size).toBeGreaterThan(8);
   });
 });
 
@@ -133,7 +130,7 @@ describe("a later sign-in keeps the pick, and name and picture still agree", () 
     expect((await getUserFreeClimbRecord(ID))?.handle).toBe(row.handle);
   });
 
-  it.each(["wraith", "viking", "sentinel"])("the non-animal %s keeps the hash pseudonym", async (pick) => {
+  it.each(["wraith", "viking", "sentinel", "stick-green", "stick-pink"])("the non-animal %s keeps the hash pseudonym", async (pick) => {
     await signIn(ID);
     climb(ID);
     db.users.set(ID, { ...db.users.get(ID)!, avatar_id: pick });
@@ -170,7 +167,7 @@ describe("a later sign-in keeps the pick, and name and picture still agree", () 
     expect(row.handle).toBe(climberHandle(ID));
   });
 
-  it("an account that predates default avatars is not backfilled", async () => {
+  it("an account with no avatar is not backfilled on a later sign-in", async () => {
     db.users.set(ID, {
       id: ID,
       display_name: null,
@@ -199,17 +196,17 @@ describe("a new account that has not climbed yet, on its own Profile", () => {
     return { name: identityNameFor(settings, dash, id), picture: settings.avatarId, dash };
   }
 
-  it("is named by the pseudonym whose animal is in its default picture, not by its email", async () => {
+  it("has no picture and is named by its hash pseudonym, not by its email", async () => {
     await signIn(ID);
 
     const { name, picture, dash } = await profileOf(ID);
     expect(dash.freeClimb).toBeNull();
+    expect(picture).toBeNull();
     expect(name).not.toBe(EMAIL);
     expect(name).toBe(climberHandle(ID));
-    expect(animalOf(name)).toBe(pictureAnimal(picture));
   });
 
-  it("follows a non-default animal pick before the first climb", async () => {
+  it("follows an animal pick other than its pseudonym's before the first climb", async () => {
     await signIn(ID);
     const pick = ANIMALS.find((a) => a !== animalOf(climberHandle(ID)))!.toLowerCase();
     db.users.set(ID, { ...db.users.get(ID)!, avatar_id: pick });

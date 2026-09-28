@@ -17,6 +17,7 @@ import {
   clampDevicePixelRatio,
 } from "./canvasBacking";
 import { paintClimbFrame } from "./paintClimbFrame";
+import { createClimberMotionBag, type ClimberMotionBag } from "./climberSprite";
 
 export { HUD_ALTITUDE_FONT_UI };
 
@@ -71,6 +72,13 @@ export interface ClimbCanvasProps {
    */
   playerNames?: Record<string, string>;
   /**
+   * Avatar ids keyed by player id: each climber draws as that avatar's
+   * character. Missing, null or unknown ids draw the Green Stick.
+   */
+  avatarIds?: Readonly<Record<string, string | null>>;
+  /** The local player's avatar id (solo screens that do not know its sim id). */
+  myAvatarId?: string | null;
+  /**
    * Slots that have readied up — passed through to the painter for lobby glow.
    */
   readySlots?: ReadonlySet<number>;
@@ -94,6 +102,8 @@ export function ClimbCanvas({
   floorMarkerInsetTop = 0,
   myId,
   playerNames,
+  avatarIds,
+  myAvatarId,
   readySlots,
   hiddenSlots,
 }: ClimbCanvasProps) {
@@ -104,6 +114,8 @@ export function ClimbCanvas({
     tick: null,
   });
   const lastPaintTsRef = useRef(0);
+  const motionRef = useRef<ClimberMotionBag | null>(null);
+  motionRef.current ??= createClimberMotionBag();
 
   // Store state in a ref so the rAF loop always reads the latest without
   // running React's effect cleanup+setup every tick (~30 Hz).
@@ -113,8 +125,8 @@ export function ClimbCanvas({
   const feedRef = useRef(feed);
   feedRef.current = feed;
 
-  const optsRef = useRef({ width, height, reducedMotion, bottomInset, hudInsetTop, includeHud, floorMarkerInsetTop, myId, playerNames, readySlots, hiddenSlots });
-  optsRef.current = { width, height, reducedMotion, bottomInset, hudInsetTop, includeHud, floorMarkerInsetTop, myId, playerNames, readySlots, hiddenSlots };
+  const optsRef = useRef({ width, height, reducedMotion, bottomInset, hudInsetTop, includeHud, floorMarkerInsetTop, myId, playerNames, avatarIds, myAvatarId, readySlots, hiddenSlots });
+  optsRef.current = { width, height, reducedMotion, bottomInset, hudInsetTop, includeHud, floorMarkerInsetTop, myId, playerNames, avatarIds, myAvatarId, readySlots, hiddenSlots };
 
   const paint = useCallback((ts: number) => {
     const canvas = ref.current;
@@ -157,8 +169,11 @@ export function ClimbCanvas({
       floorMarkerInsetTop: opts.floorMarkerInsetTop,
       camera: camRef.current,
       dtSec,
+      climberMotion: motionRef.current ?? undefined,
       myId: opts.myId,
       playerNames: opts.playerNames,
+      avatarIds: opts.avatarIds,
+      myAvatarId: opts.myAvatarId,
       readySlots: opts.readySlots,
       hiddenSlots: opts.hiddenSlots,
     });

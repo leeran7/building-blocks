@@ -429,6 +429,8 @@ export function createMockLevelsClient(opts: MockClientOptions = {}): LevelsClie
         xpGained,
         newPlayerLevel: player.playerLevel > before ? player.playerLevel : null,
         player,
+        // Guest stars live on the device and unlock nothing on the server.
+        unlockedAvatars: [],
         streak,
         atFrontier,
         failsAtLevel: atFrontier ? failsAt(fails, 1, ticket.level) : 0,

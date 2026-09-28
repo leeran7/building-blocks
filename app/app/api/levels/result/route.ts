@@ -22,7 +22,8 @@
  * Request:  { ticketId: string, cleared: boolean, stars: 0-3, ticks: number,
  *             replayToken?: string }  (replayToken: the run, kept for ghosts)
  * 200:      LevelResult (src/db/levels.ts) with dates as ISO strings,
- *            including chestsOpened (star chests this clear opened, §6.4)
+ *           including chestsOpened (star chests this clear opened, §6.4)
+ *           and unlockedAvatars (ids this run's new stars unlocked)
  *
  * Star chests are rolled with STAR_CHEST_SECRET (src/levels/starChestServer
  * .ts). In production without it no chest opens (fail closed, logged); the

@@ -24,6 +24,8 @@ import { nanoid } from "nanoid";
 import type { Prisma } from "@prisma/client";
 
 import { prisma } from "./client";
+import { levelStarsEarned } from "./avatarUnlocks";
+import { avatarsNewlyUnlocked } from "../lib/avatarUnlocks";
 import { levelBoosterTypes } from "../levels/catalog";
 import {
   LEVELS_PER_SEASON,
@@ -96,6 +98,7 @@ const LOCKED_USER_SELECT = {
   lives: true,
   lives_updated_at: true,
   xp: true,
+  avatar_id: true,
   level_streak: true,
   level_fail_season: true,
   level_fail_level: true,
@@ -506,6 +509,13 @@ export interface LevelResult {
   playerLevel: number;
   /** XP keys paid by this run, e.g. "first_clear:1:12". */
   awards: { key: string; amount: number }[];
+  /**
+   * Avatar ids this run unlocked: star rules its new stars crossed (star
+   * total read in this transaction under the user lock, so a concurrent
+   * submit cannot shift the before/after window) and the stick figures on a
+   * first ever level 1 clear. Never the saved avatar.
+   */
+  unlockedAvatars: string[];
   /** The ticket's level was the player's frontier when the run was reported. */
   atFrontier: boolean;
   /** Win streak after this run (design §6.3). */
@@ -663,6 +673,22 @@ export async function submitLevelResult(input: SubmitResultInput): Promise<Level
       },
     });
 
+    // Read under the user lock, after this run's stars are written: every
+    // other submit for this user waits, so `after - gained` is exactly the
+    // total before this run.
+    const gained = bestStars - previousStars;
+    let unlockedAvatars: string[] = [];
+    if (gained > 0) {
+      const after = await levelStarsEarned(userId, tx);
+      // The tutorial unlock: this run wrote the player's only level 1 row.
+      const tutorialJustDone =
+        level === 1 && previousStars === 0 && (await tx.levelProgress.count({ where: { userId, level: 1 } })) === 1;
+      unlockedAvatars = avatarsNewlyUnlocked(after - gained, after, {
+        savedAvatarId: user.avatar_id,
+        tutorialJustDone,
+      });
+    }
+
     return {
       season,
       level,
@@ -679,6 +705,7 @@ export async function submitLevelResult(input: SubmitResultInput): Promise<Level
       xp,
       playerLevel,
       awards,
+      unlockedAvatars,
       atFrontier,
       streak,
       failsAtLevel,

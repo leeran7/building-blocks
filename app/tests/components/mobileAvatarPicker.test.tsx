@@ -1,6 +1,6 @@
 /**
- * Profile avatars on the mobile SPA: the cached settings shape, the hex badge,
- * and the /profile/avatar picker. The API allow-lists avatarId; these pin the
+ * Profile characters on the mobile SPA: the cached settings shape, the hex badge,
+ * and the /profile/avatar "Choose character" picker. The API allow-lists avatarId; these pin the
  * client half — a stored id only renders art if it is still in the catalogue,
  * and the picker sends exactly `{ avatarId }` (null for "Use initials"), keeps
  * the old avatar on a failed save, and refreshes the cached boards on success.
@@ -12,7 +12,7 @@ import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { AVATARS } from "@app/lib/avatars";
+import { AVATARS, avatarEntry, requiredStars } from "@app/lib/avatars";
 import type { SettingsData } from "../../mobile/src/contexts/AppDataContext";
 
 (globalThis as Record<string, unknown>).IS_REACT_ACT_ENVIRONMENT = true;
@@ -54,7 +54,18 @@ import { settingsFromResponse } from "../../mobile/src/contexts/AppDataContext";
 import { initialsOf } from "../../mobile/src/lib/leaderboard";
 import { ANIMALS, climberHandle } from "@app/lib/handle";
 import { HexAvatar } from "../../mobile/src/components/HexAvatar";
-import { AvatarPickerScreen, GRID_END_PADDING } from "../../mobile/src/screens/AvatarPickerScreen";
+import { unlockedAvatarNames } from "../../mobile/src/components/levels/LevelResultCard";
+import {
+  AvatarPickerScreen,
+  GRID_END_PADDING,
+  OPTIONS,
+  SAVED_FLASH_MS,
+  GRID_CELLS,
+  groupHeading,
+  nextIndex,
+  nextStarUnlock,
+  starUnlockCount,
+} from "../../mobile/src/screens/AvatarPickerScreen";
 import {
   LAVA_CANVAS_VH,
   LAVA_CLEARANCE,
@@ -62,7 +73,10 @@ import {
   LAVA_SURFACE_FROM_TOP,
 } from "../../mobile/src/components/AnimatedBackdrop";
 
-const [FIRST, SECOND] = AVATARS;
+/** Star-ladder characters: the first two rungs (15 and 30 stars). */
+const KESTREL = avatarEntry("kestrel")!;
+const LYNX = avatarEntry("lynx")!;
+const STICKS = AVATARS.filter((a) => a.unlock.kind === "tutorial").map((a) => a.id);
 
 function settings(avatarId: string | null, displayName: string | null = "Aria Stone"): SettingsData {
   return { displayName, username: null, social: null, leaderboardConsent: true, avatarId };
@@ -83,6 +97,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.useRealTimers();
   act(() => root.unmount());
   container.remove();
 });
@@ -107,10 +122,19 @@ function renderPicker() {
   );
 }
 
-const radio = (label: string) =>
-  container.querySelector<HTMLButtonElement>(`[role="radio"][aria-label="${label}"]`);
-const saveButton = () =>
-  [...container.querySelectorAll("button")].find((b) => /save avatar|saving/i.test(b.textContent ?? ""));
+const radios = () => [...container.querySelectorAll<HTMLButtonElement>('[role="radio"]')];
+/** A tile by its character name, whatever its state suffix (", equipped", ", locked. …"). */
+const tile = (name: string) =>
+  radios().find((r) => {
+    const label = r.getAttribute("aria-label") ?? "";
+    return label === name || label.startsWith(`${name},`);
+  });
+const saveButton = () => container.querySelector<HTMLButtonElement>("[data-avatar-save]") ?? undefined;
+const preview = () => container.querySelector('[aria-label="Selected character"]');
+const previewName = () => preview()?.querySelector("p[aria-live]")?.textContent;
+const previewTag = () => preview()?.querySelector("p[aria-live] + span")?.textContent;
+const notice = () => container.querySelector("[data-avatar-lock-notice]");
+const savedStatus = () => container.querySelector('[data-avatar-save-bar] [role="status"]')?.textContent;
 
 async function click(el: Element | null | undefined) {
   expect(el).toBeTruthy();
@@ -121,7 +145,8 @@ async function click(el: Element | null | undefined) {
 
 describe("settingsFromResponse avatarId", () => {
   it("keeps a catalogue id and nulls a retired, inherited, or mistyped one", () => {
-    expect(settingsFromResponse({ avatarId: FIRST.id })?.avatarId).toBe(FIRST.id);
+    expect(settingsFromResponse({ avatarId: KESTREL.id })?.avatarId).toBe(KESTREL.id);
+    expect(settingsFromResponse({ avatarId: "stick-sky" })?.avatarId).toBe("stick-sky");
     for (const avatarId of ["retired-avatar", "__proto__", "constructor", 42, undefined]) {
       expect(settingsFromResponse({ avatarId })?.avatarId).toBeNull();
     }
@@ -130,10 +155,26 @@ describe("settingsFromResponse avatarId", () => {
 
 describe("HexAvatar", () => {
   it("shows the avatar art for a catalogue id instead of initials", () => {
-    render(createElement(HexAvatar, { userId: "u1", name: "Aria Stone", avatarId: FIRST.id, size: 64 }));
+    render(createElement(HexAvatar, { userId: "u1", name: "Aria Stone", avatarId: KESTREL.id, size: 64 }));
     const img = container.querySelector("img");
-    expect(img?.getAttribute("src")).toMatch(new RegExp(`${FIRST.id}\\.webp`));
+    expect(img?.getAttribute("src")).toMatch(new RegExp(`${KESTREL.id}\\.webp`));
+    expect(container.querySelector("svg")).toBeNull();
     expect(container.textContent).toBe("");
+  });
+
+  it("draws a stick id as an inline SVG figure in its colour, with no image", () => {
+    let checked = 0;
+    for (const id of STICKS) {
+      const color = avatarEntry(id)!.stickColor!;
+      render(createElement(HexAvatar, { userId: "u1", name: "Aria Stone", avatarId: id, size: 64 }));
+      expect(container.querySelector("img")).toBeNull();
+      const svg = container.querySelector("svg");
+      expect(svg).toBeTruthy();
+      expect(svg?.querySelector(`[fill="${color}"]`)).toBeTruthy();
+      expect(container.textContent).toBe("");
+      checked++;
+    }
+    expect(checked).toBe(6);
   });
 
   it("falls back to initials with no avatar or a retired id", () => {
@@ -141,10 +182,143 @@ describe("HexAvatar", () => {
     for (const avatarId of [null, undefined, "retired-avatar"]) {
       render(createElement(HexAvatar, { userId: "u1", name: "Aria Stone", avatarId, size: 64 }));
       expect(container.querySelector("img")).toBeNull();
+      expect(container.querySelector("svg")).toBeNull();
       expect(container.textContent).toBe("AS");
       checked++;
     }
     expect(checked).toBeGreaterThan(0);
+  });
+});
+
+describe("unlockedAvatarNames (the level result's unlock line)", () => {
+  it("collapses every stick id into one Stick figures entry, in first-seen position", () => {
+    expect(unlockedAvatarNames([...STICKS, KESTREL.id])).toEqual(["Stick figures", "Kestrel"]);
+    expect(unlockedAvatarNames([KESTREL.id, "stick-pink", LYNX.id, "stick-green"])).toEqual([
+      "Kestrel",
+      "Stick figures",
+      "Lynx",
+    ]);
+  });
+
+  it("names star characters one by one and drops ids outside the catalogue", () => {
+    expect(unlockedAvatarNames([KESTREL.id, LYNX.id])).toEqual(["Kestrel", "Lynx"]);
+    expect(unlockedAvatarNames(["retired-avatar", "__proto__"])).toEqual([]);
+    expect(unlockedAvatarNames([])).toEqual([]);
+  });
+});
+
+describe("picker order and groups", () => {
+  const STAR_NAMES = [
+    "Kestrel", "Lynx", "Raven", "Panther", "Wolf", "Otter", "Heron", "Yak", "Mantis",
+    "Cobra", "Badger", "Falcon", "Marmot", "Bison", "Ibex", "Sentinel", "Viking",
+  ];
+  const ORDER = [
+    "Wraith", "Gecko",
+    "Green Stick", "Ember Stick", "Amber Stick", "Sky Stick", "Violet Stick", "Pink Stick",
+    "Initials",
+    ...STAR_NAMES,
+  ];
+
+  it("lists premium, the six sticks, Initials, then the star ladder cheapest first", () => {
+    expect(OPTIONS.map((o) => o.name)).toEqual(ORDER);
+    expect(OPTIONS.find((o) => o.name === "Initials")?.id).toBeNull();
+    const ladder = OPTIONS.flatMap((o) => (o.entry && requiredStars(o.entry) !== null ? [requiredStars(o.entry)!] : []));
+    expect(ladder).toHaveLength(STAR_NAMES.length);
+    expect(ladder[0]).toBe(15);
+    expect(ladder.at(-1)).toBe(840);
+    for (let i = 1; i < ladder.length; i++) expect(ladder[i]).toBeGreaterThan(ladder[i - 1]);
+  });
+
+  it("renders the tiles in that order, with the saved one equipped", () => {
+    state.settings = settings(KESTREL.id);
+    renderPicker();
+    expect(radios().map((r) => r.getAttribute("aria-label"))).toEqual(
+      ORDER.map((n) => (n === "Initials" ? "Use initials" : n === "Kestrel" ? "Kestrel, equipped" : n)),
+    );
+    expect(radios().filter((r) => r.hasAttribute("data-equipped"))).toEqual([tile("Kestrel")]);
+  });
+
+  it("groupHeading starts a group only at premium, the sticks and Initials", () => {
+    const headings = OPTIONS.flatMap((_, i) => {
+      const h = groupHeading(i);
+      return h === null ? [] : [[i, h] as const];
+    });
+    expect(headings).toEqual([
+      [0, "Premium · coming soon"],
+      [2, "Stick figures · free after the tutorial"],
+      [8, "Initials and star unlocks"],
+    ]);
+  });
+
+  it("draws each heading inside the radiogroup, hidden from screen readers, just before its group", () => {
+    state.settings = settings(null);
+    renderPicker();
+    const ps = [...container.querySelectorAll('[role="radiogroup"] > p')];
+    expect(ps.map((p) => p.textContent)).toEqual([
+      "Premium · coming soon",
+      "Stick figures · free after the tutorial",
+      "Initials and star unlocks",
+    ]);
+    for (const p of ps) expect(p.getAttribute("aria-hidden")).toBe("true");
+    expect(ps.map((p) => p.nextElementSibling?.getAttribute("aria-label"))).toEqual([
+      "Wraith",
+      "Green Stick",
+      "Use initials, equipped",
+    ]);
+  });
+});
+
+describe("nextStarUnlock / starUnlockCount", () => {
+  const state0 = (stars: number, unlockedIds: string[] = []) => ({ stars, unlockedIds, grandfatheredId: null });
+
+  it("nextStarUnlock names the next rung, the stars left and progress from the rung below", () => {
+    expect(nextStarUnlock(state0(0))).toEqual({ entry: KESTREL, starsLeft: 15, progress: 0 });
+    const lynx = nextStarUnlock(state0(20, [KESTREL.id]));
+    expect(lynx?.entry.id).toBe("lynx");
+    expect(lynx?.starsLeft).toBe(10);
+    expect(lynx?.progress).toBeCloseTo(5 / 15);
+    const viking = nextStarUnlock(state0(839));
+    expect(viking?.entry.id).toBe("viking");
+    expect(viking?.starsLeft).toBe(1);
+    expect(viking?.progress).toBeCloseTo(89 / 90);
+  });
+
+  it("nextStarUnlock skips a grandfathered rung, and is null at the top or with no unlock state", () => {
+    expect(nextStarUnlock(state0(20, [KESTREL.id, LYNX.id]))?.entry.id).toBe("raven");
+    expect(nextStarUnlock(state0(840))).toBeNull();
+    expect(nextStarUnlock(state0(5000))).toBeNull();
+    expect(nextStarUnlock(undefined)).toBeNull();
+  });
+
+  it("starUnlockCount counts only star characters: premium and sticks never add to it", () => {
+    expect(starUnlockCount(state0(0, ["wraith", "gecko", ...STICKS]))).toEqual({ owned: 0, total: 17 });
+    expect(starUnlockCount(state0(30, [...STICKS, KESTREL.id, LYNX.id]))).toEqual({ owned: 2, total: 17 });
+    // No unlock state (an API that enforces none): everything counts as owned.
+    expect(starUnlockCount(undefined)).toEqual({ owned: 17, total: 17 });
+  });
+
+  it("the picker shows the next unlock and the unlocked count", () => {
+    state.settings = {
+      ...settings(null),
+      avatarUnlocks: { stars: 20, unlockedIds: [...STICKS, KESTREL.id], grandfatheredId: null },
+    };
+    renderPicker();
+    expect(container.querySelector("[data-avatar-next]")?.textContent).toBe("Next: Lynx in 10 ★");
+    expect(container.querySelector("[data-avatar-pinned]")?.textContent).toContain("1/17 unlocked");
+  });
+
+  it("hides the next strip once every star character is unlocked", () => {
+    state.settings = {
+      ...settings(null),
+      avatarUnlocks: {
+        stars: 900,
+        unlockedIds: AVATARS.filter((a) => a.unlock.kind !== "premium").map((a) => a.id),
+        grandfatheredId: null,
+      },
+    };
+    renderPicker();
+    expect(container.querySelector("[data-avatar-next]")).toBeNull();
+    expect(container.querySelector("[data-avatar-pinned]")?.textContent).toContain("17/17 unlocked");
   });
 });
 
@@ -154,27 +328,43 @@ describe("AvatarPickerScreen", () => {
     renderPicker();
     const status = container.querySelector('[role="status"]');
     expect(status?.getAttribute("aria-busy")).toBe("true");
-    expect(status?.getAttribute("aria-label")).toBe("Loading avatars");
+    expect(status?.getAttribute("aria-label")).toBe("Loading characters");
     expect(saveButton()).toBeUndefined();
+    expect(preview()).toBeNull();
   });
 
-  it("offers Use initials plus every catalogue avatar, with the saved one checked and Save disabled", () => {
-    state.settings = settings(FIRST.id);
+  it("checks and equips the saved tile, previews it, and keeps Save disabled", () => {
+    state.settings = settings(KESTREL.id);
     renderPicker();
-    const radios = [...container.querySelectorAll('[role="radio"]')];
-    expect(radios.map((r) => r.getAttribute("aria-label"))).toEqual(["Use initials", ...AVATARS.map((a) => a.name)]);
-    expect(radios.filter((r) => r.getAttribute("aria-checked") === "true").map((r) => r.getAttribute("aria-label"))).toEqual([
-      FIRST.name,
-    ]);
+    expect(container.querySelector("h1")?.textContent).toBe("Choose character");
+    expect(radios().filter((r) => r.getAttribute("aria-checked") === "true")).toEqual([tile(KESTREL.name)]);
+    expect(tile(KESTREL.name)?.getAttribute("aria-label")).toBe("Kestrel, equipped");
+    expect(previewName()).toBe("Kestrel");
+    expect(previewTag()).toBe("Equipped");
+    expect(saveButton()?.textContent).toBe("Save character");
     expect(saveButton()?.disabled).toBe(true);
   });
 
-  it("saves a new pick as {avatarId}, caches it, refreshes both boards and the dashboard and goes back", async () => {
+  it("switches the preview pose with pressed-state buttons", async () => {
+    state.settings = settings(KESTREL.id);
+    renderPicker();
+    const pose = (label: string) =>
+      [...container.querySelectorAll('[aria-label="Preview pose"] button')].find((b) => b.textContent === label);
+    expect(pose("Walk")?.getAttribute("aria-pressed")).toBe("true");
+    expect(pose("Climb")?.getAttribute("aria-pressed")).toBe("false");
+    await click(pose("Climb"));
+    expect(pose("Climb")?.getAttribute("aria-pressed")).toBe("true");
+    expect(pose("Walk")?.getAttribute("aria-pressed")).toBe("false");
+  });
+
+  it("saves {avatarId}, refreshes the boards, shows Saved, then returns to Save character after SAVED_FLASH_MS", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
     state.settings = settings(null);
-    apiFetch.mockResolvedValueOnce(json(settings(SECOND.id)));
+    apiFetch.mockResolvedValueOnce(json(settings(LYNX.id)));
     renderPicker();
 
-    await click(radio(SECOND.name));
+    await click(tile(LYNX.name));
+    expect(previewTag()).toBe("Unlocked");
     expect(saveButton()?.disabled).toBe(false);
     await click(saveButton());
 
@@ -182,12 +372,44 @@ describe("AvatarPickerScreen", () => {
     const [path, init] = apiFetch.mock.calls[0] as [string, RequestInit];
     expect(path).toBe("/api/settings");
     expect(init.method).toBe("PUT");
-    expect(JSON.parse(init.body as string)).toEqual({ avatarId: SECOND.id });
-    expect(setSettings).toHaveBeenCalledWith(expect.objectContaining({ avatarId: SECOND.id }));
+    expect(JSON.parse(init.body as string)).toEqual({ avatarId: LYNX.id });
+    expect(setSettings).toHaveBeenCalledWith(expect.objectContaining({ avatarId: LYNX.id }));
     // The dashboard too: its handle is the Profile header's name, and the
     // pseudonym's animal follows the avatar.
     expect(invalidate).toHaveBeenCalledWith(["leaderboard", "friendsLeaderboard", "dashboard"]);
-    expect(container.textContent).toContain("Profile screen");
+
+    // Stays on the picker; Save flashes "Saved" and the pick is now equipped.
+    expect(container.textContent).not.toContain("Profile screen");
+    expect(saveButton()?.textContent).toBe("Saved");
+    expect(saveButton()?.querySelector("svg")).toBeTruthy();
+    expect(savedStatus()).toBe("Saved");
+    expect(tile(LYNX.name)?.getAttribute("aria-label")).toBe("Lynx, equipped");
+    expect(tile("Use initials")?.hasAttribute("data-equipped")).toBe(false);
+    expect(previewTag()).toBe("Equipped");
+    // Save is disabled now, so keyboard focus moves to the equipped tile, not <body>.
+    expect(document.activeElement).toBe(tile(LYNX.name));
+
+    act(() => vi.advanceTimersByTime(SAVED_FLASH_MS - 1));
+    expect(saveButton()?.textContent).toBe("Saved");
+
+    act(() => vi.advanceTimersByTime(1));
+    expect(saveButton()?.textContent).toBe("Save character");
+    expect(saveButton()?.querySelector("svg")).toBeNull();
+    expect(saveButton()?.disabled).toBe(true);
+    expect(savedStatus()).toBe("");
+    expect(container.textContent).not.toContain("Profile screen");
+  });
+
+  it("picking another tile during the Saved flash ends it at once", async () => {
+    state.settings = settings(null);
+    apiFetch.mockResolvedValueOnce(json(settings(LYNX.id)));
+    renderPicker();
+    await click(tile(LYNX.name));
+    await click(saveButton());
+    expect(saveButton()?.textContent).toBe("Saved");
+    await click(tile(KESTREL.name));
+    expect(saveButton()?.textContent).toBe("Save character");
+    expect(saveButton()?.disabled).toBe(false);
   });
 
   describe("the Use initials badge previews the name the player would have with no avatar", () => {
@@ -196,9 +418,7 @@ describe("AvatarPickerScreen", () => {
     // An animal whose initial differs from the hash animal's, so the saved
     // pick's initials and the no-avatar initials cannot coincide.
     const pick = ANIMALS.find((a) => a[0] !== hashAnimal[0])!.toLowerCase();
-    const tileBadge = () => radio("Use initials")?.querySelector(".hex")?.textContent;
-    const previewBadge = () =>
-      container.querySelector('[aria-label="Selected avatar"] .hex')?.textContent;
+    const tileBadge = () => tile("Use initials")?.querySelector(".hex")?.textContent;
 
     it("spells the hash-animal pseudonym's initials when there is no display name", async () => {
       const afterChoosing = initialsOf(climberHandle(UID, null));
@@ -207,26 +427,24 @@ describe("AvatarPickerScreen", () => {
       renderPicker();
 
       expect(tileBadge()).toBe(afterChoosing);
-      await click(radio("Use initials"));
-      expect(previewBadge()).toBe(afterChoosing);
+      await click(tile("Use initials"));
+      expect(previewName()).toBe("Initials");
+      expect(notice()?.textContent).toBe("Your badge shows your initials. You climb as the Green Stick.");
     });
 
-    it("spells the display name's initials when there is one", async () => {
+    it("spells the display name's initials when there is one", () => {
       state.settings = settings(pick, "Aria Stone");
       renderPicker();
-
       expect(tileBadge()).toBe(initialsOf("Aria Stone"));
-      await click(radio("Use initials"));
-      expect(previewBadge()).toBe(initialsOf("Aria Stone"));
     });
   });
 
   it('"Use initials" sends avatarId: null', async () => {
-    state.settings = settings(FIRST.id);
+    state.settings = settings(KESTREL.id);
     apiFetch.mockResolvedValueOnce(json(settings(null)));
     renderPicker();
 
-    await click(radio("Use initials"));
+    await click(tile("Use initials"));
     await click(saveButton());
 
     expect(JSON.parse((apiFetch.mock.calls[0] as [string, RequestInit])[1].body as string)).toEqual({ avatarId: null });
@@ -234,20 +452,20 @@ describe("AvatarPickerScreen", () => {
   });
 
   it("re-selecting the saved avatar disables Save again", async () => {
-    state.settings = settings(FIRST.id);
+    state.settings = settings(KESTREL.id);
     renderPicker();
-    await click(radio(SECOND.name));
+    await click(tile(LYNX.name));
     expect(saveButton()?.disabled).toBe(false);
-    await click(radio(FIRST.name));
+    await click(tile(KESTREL.name));
     expect(saveButton()?.disabled).toBe(true);
   });
 
   it("a rejected save shows the error, keeps the cached avatar and stays on the picker", async () => {
-    state.settings = settings(FIRST.id);
+    state.settings = settings(KESTREL.id);
     apiFetch.mockResolvedValueOnce(json({ error: "Unknown avatar", code: "UNKNOWN_AVATAR" }, 400));
     renderPicker();
 
-    await click(radio(SECOND.name));
+    await click(tile(LYNX.name));
     await click(saveButton());
 
     expect(container.querySelector('[role="alert"]')?.textContent).toBe("Unknown avatar");
@@ -255,14 +473,16 @@ describe("AvatarPickerScreen", () => {
     expect(invalidate).not.toHaveBeenCalled();
     expect(container.textContent).not.toContain("Profile screen");
     expect(saveButton()?.disabled).toBe(false);
+    expect(saveButton()?.textContent).toBe("Save character");
+    expect(tile(KESTREL.name)?.hasAttribute("data-equipped")).toBe(true);
   });
 
   it("a network failure shows a connection error and saves nothing", async () => {
-    state.settings = settings(FIRST.id);
+    state.settings = settings(KESTREL.id);
     apiFetch.mockRejectedValueOnce(new TypeError("Failed to fetch"));
     renderPicker();
 
-    await click(radio(SECOND.name));
+    await click(tile(LYNX.name));
     await click(saveButton());
 
     expect(container.querySelector('[role="alert"]')?.textContent).toMatch(/connection/i);
@@ -270,9 +490,9 @@ describe("AvatarPickerScreen", () => {
   });
 
   it("Back without saving sends nothing and leaves the cached avatar", async () => {
-    state.settings = settings(FIRST.id);
+    state.settings = settings(KESTREL.id);
     renderPicker();
-    await click(radio(SECOND.name));
+    await click(tile(LYNX.name));
     await click(container.querySelector('button[aria-label="Back"]'));
     expect(apiFetch).not.toHaveBeenCalled();
     expect(setSettings).not.toHaveBeenCalled();
@@ -287,15 +507,15 @@ describe("AvatarPickerScreen", () => {
  * echo of the pick counts as saved.
  */
 describe("a 200 counts as saved only when the server echoes the avatar", () => {
-  const NOT_SAVED = "Couldn't save your avatar. Please update the app or try again later.";
+  const NOT_SAVED = "Couldn't save your character. Please update the app or try again later.";
   /** PUT /api/settings on an API build that predates avatars. */
   const legacySettings = { displayName: "Aria Stone", username: null, social: {}, leaderboardConsent: true };
 
-  async function saveAfter(response: Response, pick: string, saved: string | null = FIRST.id) {
+  async function saveAfter(response: Response, pick: string, saved: string | null = KESTREL.id) {
     state.settings = settings(saved);
     apiFetch.mockResolvedValueOnce(response);
     renderPicker();
-    await click(radio(pick));
+    await click(tile(pick));
     await click(saveButton());
   }
 
@@ -305,20 +525,22 @@ describe("a 200 counts as saved only when the server echoes the avatar", () => {
     expect(invalidate).not.toHaveBeenCalled();
     expect(container.textContent).not.toContain("Profile screen");
     expect(saveButton()?.disabled).toBe(false);
+    expect(saveButton()?.textContent).toBe("Save character");
     // Focus goes back to Save (it was disabled, and so blurred, while in flight).
     expect(document.activeElement).toBe(saveButton());
   }
 
-  it("(a) caches exactly the server's settings and goes back when the avatar is echoed", async () => {
-    await saveAfter(json(settings(SECOND.id)), SECOND.name);
+  it("(a) caches exactly the server's settings and shows Saved when the avatar is echoed", async () => {
+    await saveAfter(json(settings(LYNX.id)), LYNX.name);
     expect(setSettings).toHaveBeenCalledTimes(1);
-    expect(setSettings).toHaveBeenCalledWith(settings(SECOND.id));
+    expect(setSettings).toHaveBeenCalledWith(settings(LYNX.id));
     expect(container.querySelector('[role="alert"]')).toBeNull();
-    expect(container.textContent).toContain("Profile screen");
+    expect(saveButton()?.textContent).toBe("Saved");
+    expect(container.textContent).not.toContain("Profile screen");
   });
 
   it("(b) treats a 200 without avatarId (an API that predates avatars) as a failed save", async () => {
-    await saveAfter(json(legacySettings), SECOND.name);
+    await saveAfter(json(legacySettings), LYNX.name);
     expectNotSaved();
   });
 
@@ -328,18 +550,18 @@ describe("a 200 counts as saved only when the server echoes the avatar", () => {
   });
 
   it("(c) treats a 200 that stored a different avatar as a failed save", async () => {
-    await saveAfter(json(settings(FIRST.id)), SECOND.name);
+    await saveAfter(json(settings(KESTREL.id)), LYNX.name);
     expectNotSaved();
   });
 
   it("(d) treats an unparseable 200 as a failed save, never the client's own pick", async () => {
     const unparseable = { ok: true, status: 200, json: () => Promise.reject(new SyntaxError("bad json")) } as Response;
-    await saveAfter(unparseable, SECOND.name);
+    await saveAfter(unparseable, LYNX.name);
     expectNotSaved();
   });
 
   it("(d) and a 200 whose body is not an object", async () => {
-    await saveAfter(json("ok"), SECOND.name);
+    await saveAfter(json("ok"), LYNX.name);
     expectNotSaved();
   });
 });
@@ -349,21 +571,27 @@ describe("the picker fills the screen, Save sticks to the bottom (user report)",
   function layout() {
     const main = container.querySelector("main");
     const kids = [...(main?.children ?? [])];
+    const pinned = main?.querySelector("[data-avatar-pinned]") ?? null;
     const scroller = main?.querySelector("[data-avatar-scroller]") ?? null;
     const bar = saveButton()?.closest("footer") ?? null;
-    return { main, kids, scroller, bar };
+    return { main, kids, pinned, scroller, bar };
   }
   const classes = (el: Element | null) => new Set((el?.getAttribute("class") ?? "").split(/\s+/));
 
-  it("the page is a full-height column and the scroller takes all the space between header and save bar", () => {
+  it("the page is a full-height column and the scroller takes all the space between the pinned preview and save bar", () => {
     state.settings = settings(null);
     renderPicker();
-    const { main, kids, scroller, bar } = layout();
+    const { main, kids, pinned, scroller, bar } = layout();
     for (const c of ["flex", "h-full", "min-h-0", "flex-col"]) expect(classes(main).has(c)).toBe(true);
-    // Order: header, scroller, save bar, each a direct child of the page.
-    expect(kids.map((k) => k.tagName.toLowerCase())).toEqual(["header", "div", "footer"]);
-    expect(kids[1]).toBe(scroller);
-    expect(kids[2]).toBe(bar);
+    // Order: header, pinned preview, scroller, save bar, each a direct child of the page.
+    expect(kids.map((k) => k.tagName.toLowerCase())).toEqual(["header", "div", "div", "footer"]);
+    expect(kids[1]).toBe(pinned);
+    expect(kids[2]).toBe(scroller);
+    expect(kids[3]).toBe(bar);
+    // The preview stays put (never scrolls away); the grid below it scrolls.
+    expect(classes(pinned).has("shrink-0")).toBe(true);
+    expect(pinned?.contains(preview())).toBe(true);
+    expect(scroller?.contains(preview())).toBe(false);
     for (const c of ["flex-1", "min-h-0", "overflow-y-auto"]) expect(classes(scroller).has(c)).toBe(true);
   });
 
@@ -390,7 +618,7 @@ describe("the picker fills the screen, Save sticks to the bottom (user report)",
     expect(bar?.getAttribute("class")).not.toMatch(/vh/);
   });
 
-  it("the save bar is clear: no surface, border or shadow band, so the backdrop shows to the bottom edge", () => {
+  it("the save bar is clear: no surface, border or shadow band, so the backdrop shows to the bottom edge", async () => {
     state.settings = settings(null);
     renderPicker();
     const { bar } = layout();
@@ -399,7 +627,9 @@ describe("the picker fills the screen, Save sticks to the bottom (user report)",
     );
     expect(surface).toEqual([]);
     expect(bar?.getAttribute("style") ?? "").toBe("");
-    // The button keeps its own lime fill.
+    // With nothing to save the button is muted; once there is, it has its own lime fill.
+    expect(classes(saveButton() ?? null).has("cta-lime")).toBe(false);
+    await click(tile(KESTREL.name));
     expect(classes(saveButton() ?? null).has("cta-lime")).toBe(true);
   });
 
@@ -460,18 +690,288 @@ describe("the picker fills the screen, Save sticks to the bottom (user report)",
   it("while loading, the scroller still fills the page (no save bar yet), with the busy skeleton inside", () => {
     state.settings = null;
     renderPicker();
-    const { kids, scroller, bar } = layout();
+    const { kids, pinned, scroller, bar } = layout();
     expect(bar).toBeNull();
+    expect(pinned).toBeNull();
     expect(kids.map((k) => k.tagName.toLowerCase())).toEqual(["header", "div"]);
     expect(scroller?.querySelector('[role="status"][aria-busy="true"]')).toBeTruthy();
   });
 
   it("keeps the picker's a11y: radiogroup, one checked radio, labelled Save", () => {
-    state.settings = settings(FIRST.id);
+    state.settings = settings(KESTREL.id);
     renderPicker();
-    expect(container.querySelector('[role="radiogroup"][aria-label="Avatars"]')).toBeTruthy();
+    expect(container.querySelector('[role="radiogroup"][aria-label="Characters"]')).toBeTruthy();
     expect(container.querySelectorAll('[role="radio"][aria-checked="true"]')).toHaveLength(1);
-    expect(radio(FIRST.name)?.getAttribute("aria-checked")).toBe("true");
-    expect(saveButton()?.textContent).toBe("Save avatar");
+    expect(tile(KESTREL.name)?.getAttribute("aria-checked")).toBe("true");
+    expect(saveButton()?.textContent).toBe("Save character");
+  });
+});
+
+describe("locked characters in the picker (server unlock state)", () => {
+  const withUnlocks = (
+    avatarId: string | null,
+    stars: number,
+    unlockedIds: string[],
+    grandfatheredId: string | null = null,
+  ): SettingsData => ({
+    ...settings(avatarId),
+    avatarUnlocks: { stars, unlockedIds, grandfatheredId },
+  });
+  const switchWarning = () => container.querySelector("[data-avatar-switch-warning]");
+
+  it("dims a locked tile with its progress, and names the requirement for screen readers", () => {
+    state.settings = withUnlocks("stick-green", 12, STICKS);
+    renderPicker();
+    const lynx = tile("Lynx");
+    expect(lynx?.getAttribute("aria-label")).toBe("Lynx, locked. Earn 30 stars, you have 12");
+    expect(lynx?.hasAttribute("data-locked")).toBe(true);
+    expect(lynx?.textContent).toContain("12/30 ★");
+    // Locked tiles can still be tapped to preview them.
+    expect(lynx?.hasAttribute("aria-disabled")).toBe(false);
+    // An unlocked stick stays a plain radio.
+    expect(tile("Sky Stick")?.getAttribute("aria-label")).toBe("Sky Stick");
+    expect(tile("Sky Stick")?.hasAttribute("data-locked")).toBe(false);
+  });
+
+  it("previews a locked character; Save is disabled with the lock label and never PUTs", async () => {
+    state.settings = withUnlocks("stick-green", 12, STICKS);
+    renderPicker();
+    await click(tile("Lynx"));
+    expect(radios().filter((r) => r.getAttribute("aria-checked") === "true")).toEqual([tile("Lynx")]);
+    // The saved one stays equipped.
+    expect(tile("Green Stick")?.getAttribute("aria-label")).toBe("Green Stick, equipped");
+    expect(tile("Green Stick")?.hasAttribute("data-equipped")).toBe(true);
+    expect(previewName()).toBe("Lynx");
+    expect(previewTag()).toBe("30 ★ to unlock");
+    expect(notice()?.textContent).toBe("Earn 30 stars to unlock Lynx. You have 12.");
+    // The star progress bar: have / need.
+    expect(preview()?.textContent).toContain("12 ★30 ★");
+    expect(preview()?.textContent).toContain("Locked");
+    expect(saveButton()?.textContent).toBe("Locked: earn 18 more ★");
+    expect(saveButton()?.disabled).toBe(true);
+    await click(saveButton());
+    expect(apiFetch).not.toHaveBeenCalled();
+  });
+
+  it("selects a character the server lists as unlocked, replacing the lock notice", async () => {
+    state.settings = withUnlocks("stick-green", 15, [...STICKS, KESTREL.id]);
+    renderPicker();
+    await click(tile("Lynx"));
+    expect(notice()?.textContent).toMatch(/^Earn 30 stars/);
+    await click(tile(KESTREL.name));
+    expect(tile(KESTREL.name)?.getAttribute("aria-checked")).toBe("true");
+    expect(previewTag()).toBe("Unlocked");
+    expect(notice()?.textContent).toBe("Your climber in every run, and your badge on the leaderboards.");
+    expect(saveButton()?.textContent).toBe("Save character");
+    expect(saveButton()?.disabled).toBe(false);
+  });
+
+  it("locks premium characters even at a full star count: tag Premium, Save reads Not on sale yet", async () => {
+    const everythingElse = AVATARS.filter((a) => a.unlock.kind !== "premium").map((a) => a.id);
+    state.settings = withUnlocks("stick-green", 900, everythingElse);
+    renderPicker();
+    for (const name of ["Wraith", "Gecko"]) {
+      expect(tile(name)?.getAttribute("aria-label")).toBe(`${name}, locked. Premium`);
+      expect(tile(name)?.textContent).toContain("Premium");
+    }
+    // Every star character is open at 900 stars (the positive fixture for the premium lock).
+    expect(tile("Viking")?.hasAttribute("data-locked")).toBe(false);
+
+    await click(tile("Wraith"));
+    expect(previewTag()).toBe("Premium");
+    expect(preview()?.textContent).toContain("Coming soon");
+    expect(notice()?.textContent).toBe("Wraith is a premium character. It is not on sale yet.");
+    // No star progress for a premium lock.
+    expect(preview()?.textContent).not.toContain("★");
+    expect(saveButton()?.textContent).toBe("Not on sale yet");
+    expect(saveButton()?.disabled).toBe(true);
+  });
+
+  it("keeps a saved premium character selectable (grandfathered) and warns before leaving it", async () => {
+    state.settings = withUnlocks("wraith", 0, [...STICKS, "wraith"], "wraith");
+    renderPicker();
+    expect(tile("Wraith")?.getAttribute("aria-label")).toBe("Wraith, equipped");
+    expect(tile("Gecko")?.hasAttribute("data-locked")).toBe(true);
+    await click(tile("Green Stick"));
+    expect(switchWarning()?.textContent).toBe(
+      "Switching will lock Wraith. It is a premium character and you can't pick it again yet.",
+    );
+  });
+
+  it("locks the stick figures until the tutorial is done", async () => {
+    state.settings = { ...settings(null), avatarUnlocks: { stars: 0, tutorialDone: false, unlockedIds: [], grandfatheredId: null } };
+    renderPicker();
+    const locked = STICKS.map((id) => tile(avatarEntry(id)!.name));
+    expect(locked.every((t) => t?.hasAttribute("data-locked"))).toBe(true);
+    expect(locked).toHaveLength(6);
+    expect(tile("Green Stick")?.getAttribute("aria-label")).toBe("Green Stick, locked. Finish the tutorial");
+    // Initials is never locked.
+    expect(tile("Use initials")?.hasAttribute("data-locked")).toBe(false);
+
+    await click(tile("Green Stick"));
+    expect(previewTag()).toBe("Finish the tutorial");
+    expect(notice()?.textContent).toBe("Finish the tutorial on level 1 to unlock Green Stick.");
+    expect(saveButton()?.textContent).toBe("Clear level 1 first");
+    expect(saveButton()?.disabled).toBe(true);
+    await click(saveButton());
+    expect(apiFetch).not.toHaveBeenCalled();
+  });
+
+  it("unlocks the stick figures once the server lists them, and saves one", async () => {
+    state.settings = { ...settings(null), avatarUnlocks: { stars: 0, tutorialDone: true, unlockedIds: STICKS, grandfatheredId: null } };
+    apiFetch.mockResolvedValueOnce(json(settings("stick-sky")));
+    renderPicker();
+    for (const id of STICKS) expect(tile(avatarEntry(id)!.name)?.hasAttribute("data-locked")).toBe(false);
+    // The star ladder is still locked at 0 stars.
+    expect(tile(KESTREL.name)?.hasAttribute("data-locked")).toBe(true);
+
+    await click(tile("Sky Stick"));
+    expect(previewTag()).toBe("Unlocked");
+    await click(saveButton());
+    expect(JSON.parse((apiFetch.mock.calls[0] as [string, RequestInit])[1].body as string)).toEqual({
+      avatarId: "stick-sky",
+    });
+    expect(saveButton()?.textContent).toBe("Saved");
+  });
+
+  it("shows a grandfathered saved avatar as selectable when the server lists it", () => {
+    state.settings = withUnlocks(LYNX.id, 0, [...STICKS, LYNX.id], LYNX.id);
+    renderPicker();
+    expect(tile(LYNX.name)?.getAttribute("aria-checked")).toBe("true");
+    expect(tile(LYNX.name)?.getAttribute("aria-label")).toBe("Lynx, equipped");
+    expect(tile(LYNX.name)?.hasAttribute("data-locked")).toBe(false);
+  });
+
+  it("warns before switching away from a grandfathered avatar, and ties the warning to Save", async () => {
+    state.settings = withUnlocks(LYNX.id, 0, [...STICKS, LYNX.id], LYNX.id);
+    renderPicker();
+    expect(switchWarning()).toBeNull();
+
+    await click(tile("Green Stick"));
+    expect(switchWarning()?.textContent).toBe("Switching will lock Lynx until you earn 30 stars.");
+    expect(saveButton()?.getAttribute("aria-describedby")).toBe(switchWarning()?.id);
+    expect(saveButton()?.disabled).toBe(false);
+
+    // Going back to the saved avatar clears it.
+    await click(tile(LYNX.name));
+    expect(switchWarning()).toBeNull();
+  });
+
+  it("does not warn when the saved avatar is earned (not grandfathered)", async () => {
+    state.settings = withUnlocks(LYNX.id, 30, [...STICKS, KESTREL.id, LYNX.id], null);
+    renderPicker();
+    await click(tile("Green Stick"));
+    expect(switchWarning()).toBeNull();
+    expect(saveButton()?.hasAttribute("aria-describedby")).toBe(false);
+  });
+
+  it("after a 403 and a refresh that locks the pick, keeps previewing it but shows it locked", async () => {
+    state.settings = withUnlocks("stick-green", 15, [...STICKS, KESTREL.id]);
+    apiFetch.mockResolvedValueOnce(json({ error: "Earn 15 stars to unlock Kestrel", code: "AVATAR_LOCKED" }, 403));
+    renderPicker();
+    await click(tile(KESTREL.name));
+    await click(saveButton());
+    expect(tile(KESTREL.name)?.getAttribute("aria-checked")).toBe("true");
+
+    // The refreshed server state no longer lists Kestrel.
+    state.settings = withUnlocks("stick-green", 14, STICKS);
+    renderPicker();
+    expect(tile(KESTREL.name)?.getAttribute("aria-label")).toBe("Kestrel, locked. Earn 15 stars, you have 14");
+    expect(tile(KESTREL.name)?.getAttribute("aria-checked")).toBe("true");
+    expect(tile("Green Stick")?.hasAttribute("data-equipped")).toBe(true);
+    expect(saveButton()?.textContent).toBe("Locked: earn 1 more ★");
+    expect(saveButton()?.disabled).toBe(true);
+  });
+
+  it("locks nothing when the server sent no unlock state (an older API that enforces none)", () => {
+    state.settings = settings("stick-green");
+    renderPicker();
+    expect(container.querySelectorAll("[data-locked]")).toHaveLength(0);
+    expect(container.querySelector("[data-avatar-next]")).toBeNull();
+  });
+
+  it("shows the server's AVATAR_LOCKED message when a save is refused", async () => {
+    state.settings = withUnlocks("stick-green", 20, [...STICKS, KESTREL.id]);
+    apiFetch.mockResolvedValueOnce(json({ error: "Earn 15 stars to unlock Kestrel", code: "AVATAR_LOCKED" }, 403));
+    renderPicker();
+    await click(tile(KESTREL.name));
+    await click(saveButton());
+    expect(container.querySelector('[role="alert"]')?.textContent).toBe("Earn 15 stars to unlock Kestrel");
+    expect(setSettings).not.toHaveBeenCalled();
+  });
+});
+
+describe("parseAvatarUnlocks / settingsFromResponse avatarUnlocks", () => {
+  it("keeps a well-formed state", () => {
+    expect(settingsFromResponse({ avatarUnlocks: { stars: 3, unlockedIds: ["wraith"] } })?.avatarUnlocks).toEqual({
+      stars: 3,
+      unlockedIds: ["wraith"],
+      grandfatheredId: null,
+    });
+    expect(
+      settingsFromResponse({ avatarUnlocks: { stars: 3, unlockedIds: ["wraith", "yak"], grandfatheredId: "yak" } })
+        ?.avatarUnlocks?.grandfatheredId,
+    ).toBe("yak");
+  });
+
+  it("keeps a boolean tutorialDone and leaves out anything else", () => {
+    const parse = (tutorialDone: unknown) =>
+      settingsFromResponse({ avatarUnlocks: { stars: 3, unlockedIds: [], tutorialDone } })?.avatarUnlocks;
+    expect(parse(true)?.tutorialDone).toBe(true);
+    expect(parse(false)?.tutorialDone).toBe(false);
+    for (const bad of ["yes", 1, null, undefined]) {
+      const kept = parse(bad);
+      expect(kept).toBeDefined();
+      expect(kept && "tutorialDone" in kept).toBe(false);
+    }
+  });
+
+  it("drops a grandfatheredId that is not a catalogue id", () => {
+    expect(
+      settingsFromResponse({ avatarUnlocks: { stars: 3, unlockedIds: ["wraith"], grandfatheredId: "__proto__" } })
+        ?.avatarUnlocks,
+    ).toBeUndefined();
+  });
+
+  it.each<[string, unknown]>([
+    ["missing", undefined],
+    ["negative stars", { stars: -1, unlockedIds: [] }],
+    ["fractional stars", { stars: 1.5, unlockedIds: [] }],
+    ["ids not an array", { stars: 3, unlockedIds: "wraith" }],
+    ["an unknown id", { stars: 3, unlockedIds: ["wraith", "__proto__"] }],
+  ])("drops %s (so nothing shows locked)", (_label, avatarUnlocks) => {
+    expect(settingsFromResponse({ avatarUnlocks })?.avatarUnlocks).toBeUndefined();
+  });
+});
+
+describe("arrow keys follow the visual grid, group rows included (review W1)", () => {
+  const at = (id: string | null) => OPTIONS.findIndex((o) => o.id === id);
+  const n = OPTIONS.length;
+
+  it("lays each group out from a new row", () => {
+    expect(GRID_CELLS[at("wraith")]).toEqual({ row: 0, col: 0 });
+    expect(GRID_CELLS[at("gecko")]).toEqual({ row: 0, col: 1 });
+    expect(GRID_CELLS[at("stick-green")]).toEqual({ row: 1, col: 0 });
+    expect(GRID_CELLS[at("stick-sky")]).toEqual({ row: 2, col: 0 });
+    expect(GRID_CELLS[at(null)]).toEqual({ row: 3, col: 0 });
+    expect(GRID_CELLS[at("kestrel")]).toEqual({ row: 3, col: 1 });
+  });
+
+  it("Down moves straight down across a group boundary, never diagonally", () => {
+    expect(nextIndex("ArrowDown", at("wraith"), n)).toBe(at("stick-green"));
+    expect(nextIndex("ArrowDown", at("gecko"), n)).toBe(at("stick-ember"));
+    expect(nextIndex("ArrowDown", at("stick-sky"), n)).toBe(at(null));
+  });
+
+  it("Up from a column with nothing above lands on the nearest tile in the row above", () => {
+    expect(nextIndex("ArrowUp", at("stick-amber"), n)).toBe(at("gecko"));
+    expect(nextIndex("ArrowUp", at("stick-green"), n)).toBe(at("wraith"));
+  });
+
+  it("stays put at the top and bottom edges; Left/Right still step in order", () => {
+    expect(nextIndex("ArrowUp", at("wraith"), n)).toBe(at("wraith"));
+    expect(nextIndex("ArrowDown", n - 1, n)).toBe(n - 1);
+    expect(nextIndex("ArrowRight", at("gecko"), n)).toBe(at("stick-green"));
+    expect(nextIndex("Tab", 0, n)).toBeNull();
   });
 });

@@ -124,6 +124,17 @@ describe("parsers", () => {
     expect(parseServerResult(null)).toBeNull();
   });
 
+  it("read unlockedAvatars as catalogue ids only, and as none when absent or malformed", () => {
+    expect(parseServerResult({ ...RESULT, unlockedAvatars: ["ibex", "falcon"] })?.unlockedAvatars).toEqual([
+      "ibex",
+      "falcon",
+    ]);
+    // The run is saved either way: a bad note never rejects the result.
+    expect(parseServerResult(RESULT)?.unlockedAvatars).toEqual([]);
+    expect(parseServerResult({ ...RESULT, unlockedAvatars: ["ibex", "__proto__"] })?.unlockedAvatars).toEqual([]);
+    expect(parseServerResult({ ...RESULT, unlockedAvatars: "ibex" })?.unlockedAvatars).toEqual([]);
+  });
+
   it("word each refusal", () => {
     expect(refusalFor(403, "LEVEL_LOCKED")).toBe("LOCKED");
     expect(refusalFor(409, "OUT_OF_LIVES")).toBe("OUT_OF_LIVES");
@@ -338,6 +349,12 @@ describe("createHttpLevelsClient", () => {
     // 130 XP is level 2; 245 passes 60 + 153 = 213, so this run reached level 3.
     expect(result.player.playerLevel).toBe(3);
     expect(result.newPlayerLevel).toBe(3);
+  });
+
+  it("passes the server's unlocked avatars through to the result card", async () => {
+    const { fetch } = fakeServer({ "/api/levels/result": () => json(200, { ...RESULT, unlockedAvatars: ["ibex"] }) });
+    const result = await createHttpLevelsClient({ catalog, fetch }).submitResult(TICKET.ticketId, RUN);
+    expect(result.unlockedAvatars).toEqual(["ibex"]);
   });
 
   it("reports no level up when XP stays inside the player level", async () => {

@@ -32,6 +32,13 @@ import {
 } from "./climbCamera";
 import { drawFloorMarker } from "./FloorMarker";
 import { drawClimbBackground } from "./climbBackground";
+import {
+  climberStickColor,
+  drawClimberSprite,
+  tickClimberMotion,
+  type ClimberMotionBag,
+  type ClimberSpriteState,
+} from "./climberSprite";
 import { drawLava, drawLavaProximityGlow, LAVA_SLOWED } from "./lava";
 import { hazardPhase } from "../../game/hazard";
 import {
@@ -123,6 +130,12 @@ export type PaintClimbFrameOptions = {
    */
   dtSec?: number;
   /**
+   * Persistent sprite motion state (landing squash, pose crossfades, eased
+   * lean), advanced by `dtSec`. Create with createClimberMotionBag() and keep
+   * it across frames; omitted, the sprite draws without that history.
+   */
+  climberMotion?: ClimberMotionBag;
+  /**
    * Local player's id (Firebase UID). Determines which climber gets the lime
    * sprite + camera; everyone else is drawn as an opponent (blue). Falls back
    * to slot 0 when absent (solo play / export).
@@ -134,6 +147,17 @@ export type PaintClimbFrameOptions = {
    */
   playerNames?: Record<string, string>;
   /**
+   * Avatar ids keyed by player id — each climber draws as that avatar's
+   * character (climberCharacters.ts). Missing, null or unknown ids draw the
+   * Green Stick.
+   */
+  avatarIds?: Readonly<Record<string, string | null>>;
+  /**
+   * The local player's avatar id, for screens that do not know the local
+   * player's sim id (solo runs). An `avatarIds` entry for that id wins.
+   */
+  myAvatarId?: string | null;
+  /**
    * Slots that have readied up in the lobby — draws a signal-glow ring behind
    * the climber to indicate ready state.
    */
@@ -144,6 +168,24 @@ export type PaintClimbFrameOptions = {
    */
   hiddenSlots?: ReadonlySet<number>;
 };
+
+// Reused per climber so the paint loop allocates nothing for the sprite.
+const _spriteState: ClimberSpriteState = { pose: "idle", x: 0, y: 0, vx: 0, vy: 0, slot: 0, avatarId: null };
+
+/**
+ * The avatar id a climber draws as: its `avatarIds` entry (own keys only, a
+ * player id is not trusted to be a safe key), else `myAvatarId` for the local
+ * player, else null (the Green Stick). The id is validated again downstream.
+ */
+export function climberAvatarId(
+  opts: Pick<PaintClimbFrameOptions, "avatarIds" | "myAvatarId">,
+  playerId: string,
+  isLocal: boolean
+): string | null {
+  const map = opts.avatarIds;
+  if (map && Object.prototype.hasOwnProperty.call(map, playerId)) return map[playerId] ?? null;
+  return isLocal ? (opts.myAvatarId ?? null) : null;
+}
 
 export function paintClimbFrame(
   ctx: PaintCtx,
@@ -360,6 +402,10 @@ export function paintClimbFrame(
     bottomInset,
   });
 
+  const motionBag = opts.climberMotion ?? null;
+  if (motionBag) tickClimberMotion(motionBag, camDt);
+  const tickSec = state.tick * TICK_DT;
+
   for (const p of state.players) {
     if (opts.hiddenSlots?.has(p.slot)) continue;
     const isLocal = p.id === localPlayerId;
@@ -367,15 +413,24 @@ export function paintClimbFrame(
     const pFeetY = sy(p.y);
     const pFacing = p.facing;
 
-    const baseColor = isLocal ? ACCENT : OPPONENT_COLOR;
+    const avatarId = climberAvatarId(opts, p.id, isLocal);
+    // A stick character (and a climber with none: the Green Stick) is the
+    // vector figure in its own colour; a sprite character only uses the
+    // local/opponent colours while its atlas decodes.
+    // An opponent with no character keeps the opponent colour, so two
+    // players without one never look identical in a duel.
+    const stickColor = !isLocal && avatarId === null ? OPPONENT_COLOR : climberStickColor(avatarId);
+    const baseColor = stickColor ?? (isLocal ? ACCENT : OPPONENT_COLOR);
     const pColor =
-      p.status === "finished"
-        ? isLocal
-          ? FLAG
-          : OPPONENT_COLOR
-        : p.status === "eliminated"
-          ? TEXT_MUTED
-          : baseColor;
+      p.status === "eliminated"
+        ? TEXT_MUTED
+        : stickColor !== null
+          ? stickColor
+          : p.status === "finished"
+            ? isLocal
+              ? FLAG
+              : OPPONENT_COLOR
+            : baseColor;
 
     let pPose: Pose = "idle";
     if (p.status === "finished") pPose = "done";
@@ -400,7 +455,33 @@ export function paintClimbFrame(
       ctx.fill();
     }
 
-    drawClimber(ctx, pxScreen, pFeetY, pS, pFacing, pPose, state.tick, pColor, reducedMotion);
+    // A sprite character draws once its atlas has decoded; until then (and
+    // offscreen/SSR), and always for a stick character, the vector figure
+    // draws instead, coloured by pColor.
+    // Climbing is vertical — lock facing so the back-view climb frames do not
+    // mirror-flip with ladder vx jitter.
+    const spriteFacing: 1 | -1 = pPose === "climb" ? 1 : pFacing;
+    _spriteState.pose = pPose;
+    _spriteState.x = p.x;
+    _spriteState.y = p.y;
+    _spriteState.vx = p.vx;
+    _spriteState.vy = p.vy;
+    _spriteState.slot = p.slot;
+    _spriteState.avatarId = avatarId;
+    const drewSprite = drawClimberSprite(
+      ctx,
+      pxScreen,
+      pFeetY,
+      pS,
+      spriteFacing,
+      _spriteState,
+      reducedMotion,
+      motionBag,
+      tickSec
+    );
+    if (!drewSprite) {
+      drawClimber(ctx, pxScreen, pFeetY, pS, pFacing, pPose, state.tick, pColor, reducedMotion);
+    }
 
     if (isLocal && p.jetpackThrusting) {
       drawJetpackFlame(ctx, pxScreen, pFeetY, pS, state.tick, reducedMotion);
@@ -530,10 +611,14 @@ export function hudFitFontPx(basePx: number, textW: number, roomW: number): numb
   return Math.max(min, Math.floor((basePx * Math.max(0, roomW)) / textW));
 }
 
-type Pose = "idle" | "walk" | "climb" | "air" | "done" | "dead";
+export type Pose = "idle" | "walk" | "climb" | "air" | "done" | "dead";
 type Pt = [number, number];
 
-function drawClimber(
+/**
+ * The vector stick figure, feet at (fx, fy), `s` px per body unit. Exported
+ * for the character picker's preview; the tick drives the limb swing.
+ */
+export function drawClimber(
   ctx: PaintCtx,
   fx: number,
   fy: number,

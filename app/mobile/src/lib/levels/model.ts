@@ -183,6 +183,8 @@ export interface LevelResult {
   /** Set when this run moved the player up a level. */
   newPlayerLevel: number | null;
   player: PlayerStats;
+  /** Avatar ids this run's new stars unlocked (server only; guests earn none). */
+  unlockedAvatars?: string[];
   /** Win streak after this run; null when the server did not say. */
   streak: number | null;
   /** Whether this run was at the frontier (so it moved the streak). */

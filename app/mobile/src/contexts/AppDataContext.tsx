@@ -19,7 +19,8 @@ import {
   type DailyBoard,
   type FriendsDailyBoard,
 } from "../lib/dailyBoard";
-import { parseAvatarId } from "@app/lib/avatars";
+import { parseAvatarId, parseAvatarIdList } from "@app/lib/avatars";
+import type { AvatarUnlockState } from "@app/lib/avatarUnlocks";
 
 /**
  * In-memory data cache for the read-heavy hub screens (You / Ranks).
@@ -52,6 +53,35 @@ export interface SettingsData {
   leaderboardConsent: boolean;
   /** Catalogue avatar id; null = initials badge. */
   avatarId: string | null;
+  /**
+   * Which avatars the server says this player may select. Absent when the
+   * body has none (an API build older than unlocks, which locks nothing),
+   * so the picker then shows every avatar as selectable.
+   */
+  avatarUnlocks?: AvatarUnlockState;
+}
+
+/**
+ * The `avatarUnlocks` field of a settings body, or null unless it is exactly
+ * a non-negative integer star count and an array of catalogue ids. Display
+ * only: the server enforces the lock on save whatever this says.
+ */
+export function parseAvatarUnlocks(v: unknown): AvatarUnlockState | null {
+  if (typeof v !== "object" || v === null) return null;
+  const { stars, unlockedIds, grandfatheredId, tutorialDone } = v as Record<string, unknown>;
+  if (typeof stars !== "number" || !Number.isInteger(stars) || stars < 0) return null;
+  const ids = parseAvatarIdList(unlockedIds);
+  if (ids === null) return null;
+  // Absent or null: nothing grandfathered. Anything else must be a catalogue id.
+  const absent = grandfatheredId === undefined || grandfatheredId === null;
+  const kept = absent ? null : parseAvatarId(grandfatheredId);
+  if (!absent && kept === null) return null;
+  return {
+    stars,
+    ...(typeof tutorialDone === "boolean" ? { tutorialDone } : {}),
+    unlockedIds: ids,
+    grandfatheredId: kept,
+  };
 }
 
 /** Normalises a GET/PUT /api/settings body into the cached settings shape. */
@@ -61,7 +91,7 @@ export function settingsFromResponse(body: unknown): SettingsData | null {
 }
 
 /** A settings field that a single-field PUT sends and compares by value. */
-export type EchoedSettingKey = Exclude<keyof SettingsData, "social">;
+export type EchoedSettingKey = Exclude<keyof SettingsData, "social" | "avatarUnlocks">;
 
 /**
  * The settings a 200 from PUT /api/settings confirms, or null unless the body
@@ -87,12 +117,14 @@ export function echoedSetting<K extends EchoedSettingKey>(
 
 function settingsFromObject(body: object): SettingsData {
   const d = body as Record<string, unknown>;
+  const avatarUnlocks = parseAvatarUnlocks(d.avatarUnlocks);
   return {
     displayName: typeof d.displayName === "string" ? d.displayName : null,
     username: typeof d.username === "string" ? d.username : null,
     social: d.social && typeof d.social === "object" ? (d.social as SocialState) : null,
     leaderboardConsent: Boolean(d.leaderboardConsent),
     avatarId: parseAvatarId(d.avatarId),
+    ...(avatarUnlocks ? { avatarUnlocks } : {}),
   };
 }
 

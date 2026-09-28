@@ -7,6 +7,15 @@
 import { prisma } from "./client";
 import type { CreatorPlatform } from "@prisma/client";
 import { parseAvatarId } from "../lib/avatars";
+import { avatarUnlockState, type AvatarUnlockState } from "../lib/avatarUnlocks";
+import {
+  AvatarLockedError,
+  checkAvatarForUser,
+  tutorialCleared,
+  isCheckFor,
+  levelStarsEarned,
+  type AvatarCheck,
+} from "./avatarUnlocks";
 
 /** Saved social handles keyed by platform (only platforms the user has set). */
 export type SocialHandleMap = Partial<Record<CreatorPlatform, string>>;
@@ -18,10 +27,22 @@ export interface UserSettings {
   leaderboardConsent: boolean;
   /** Catalogue avatar id; null = initials badge (also for a retired id). */
   avatarId: string | null;
+  /** Which avatars the player may select, derived from stored level stars. */
+  avatarUnlocks: AvatarUnlockState;
 }
 
-export async function getUserSettings(userId: string): Promise<UserSettings> {
-  const [user, social] = await Promise.all([
+/** Unlock inputs a request already read (a PUT that checked an avatar unlock). */
+export interface KnownUnlockInputs {
+  stars: number;
+  tutorialDone: boolean;
+}
+
+/**
+ * The user's settings. `known` skips the star sum and tutorial read when this
+ * request already did them; omit it to read them here.
+ */
+export async function getUserSettings(userId: string, known?: KnownUnlockInputs): Promise<UserSettings> {
+  const [user, social, starTotal, tutorialDone] = await Promise.all([
     prisma.user.findUnique({
       where: { id: userId },
       select: { display_name: true, username: true, leaderboard_consent_at: true, avatar_id: true },
@@ -30,13 +51,17 @@ export async function getUserSettings(userId: string): Promise<UserSettings> {
       where: { userId },
       select: { platform: true, handle: true },
     }),
+    known?.stars ?? levelStarsEarned(userId),
+    known?.tutorialDone ?? tutorialCleared(userId),
   ]);
+  const avatarId = parseAvatarId(user?.avatar_id);
   return {
     displayName: user?.display_name ?? null,
     username: user?.username ?? null,
     social: Object.fromEntries(social.map((s) => [s.platform, s.handle])),
     leaderboardConsent: Boolean(user?.leaderboard_consent_at),
-    avatarId: parseAvatarId(user?.avatar_id),
+    avatarId,
+    avatarUnlocks: avatarUnlockState({ stars: starTotal, tutorialDone, savedAvatarId: avatarId }),
   };
 }
 
@@ -94,13 +119,22 @@ export async function updateUserSocialHandles(
 
 /**
  * Update display name, leaderboard consent, and/or avatar. `avatarId` must
- * be a catalogue id or null (clears); the settings route rejects anything else
- * with a 400 before this runs, so the throw here is only a backstop.
+ * be a catalogue id the player has unlocked, or null (clears).
+ *
+ * The settings route runs checkAvatarForUser before any of its writes and
+ * passes the verdict as `avatarCheck`, so the unlock is decided once, before
+ * the username and social writes, and the star sum runs once per request.
+ * Without a genuine verdict for this user and id (a future caller that skips
+ * the route), the check runs here, before this function writes anything.
+ *
+ * @throws AvatarLockedError when the player has not unlocked `avatarId`
  */
 export async function updateUserSettings(
   userId: string,
-  input: { displayName?: string | null; leaderboardConsent?: boolean; avatarId?: string | null }
+  input: { displayName?: string | null; leaderboardConsent?: boolean; avatarId?: string | null },
+  avatarCheck?: AvatarCheck
 ): Promise<UserSettings> {
+  let known: KnownUnlockInputs | undefined;
   const userPatch: Record<string, unknown> = {};
   if (input.displayName !== undefined) {
     userPatch.display_name = input.displayName?.trim() || null;
@@ -112,6 +146,13 @@ export async function updateUserSettings(
     if (input.avatarId !== null && parseAvatarId(input.avatarId) === null) {
       throw new Error("updateUserSettings: avatarId is not a catalogue id");
     }
+    if (input.avatarId !== null) {
+      const check = isCheckFor(avatarCheck, userId, input.avatarId)
+        ? avatarCheck
+        : await checkAvatarForUser(userId, input.avatarId);
+      if (check.lock) throw new AvatarLockedError(check.lock);
+      known = { stars: check.stars, tutorialDone: check.tutorialDone };
+    }
     userPatch.avatar_id = input.avatarId;
   }
   if (Object.keys(userPatch).length) {
@@ -121,5 +162,5 @@ export async function updateUserSettings(
     });
   }
 
-  return getUserSettings(userId);
+  return getUserSettings(userId, known);
 }

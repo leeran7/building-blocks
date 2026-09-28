@@ -3,6 +3,11 @@
  * PUT  /api/settings — update display name, username, social handles, leaderboard
  *                      consent, and/or avatar (`avatarId`: catalogue id or null).
  *
+ * Both return UserSettings, including `avatarUnlocks` ({ stars, unlockedIds })
+ * for the avatar picker. A PUT of an avatar the player has not unlocked is a
+ * 403 { error: "Earn 30 stars to unlock Falcon", code: AVATAR_LOCKED,
+ * requiredStars, stars } and saves nothing; their saved avatar stays savable.
+ *
  * Auth required (Firebase Bearer token).
  */
 
@@ -26,8 +31,18 @@ import { isHatefulName } from "../../../src/lib/nameModeration";
 import { normalizeUsername } from "../../../src/lib/username";
 import { setUsername, clearUsername } from "../../../src/db/creator";
 import { parseAvatarId } from "../../../src/lib/avatars";
+import { AvatarLockedError, checkAvatarForUser, type AvatarCheck } from "../../../src/db/avatarUnlocks";
+import type { AvatarLock } from "../../../src/lib/avatarUnlocks";
 
 export const runtime = "nodejs";
+
+/** 403 for an avatar the player has not unlocked; the message names the requirement. */
+function avatarLockedResponse(lock: AvatarLock): NextResponse {
+  return NextResponse.json(
+    { error: lock.message, code: "AVATAR_LOCKED", kind: lock.kind, requiredStars: lock.requiredStars, stars: lock.stars },
+    { status: 403 }
+  );
+}
 
 const MAX_NAME = 60;
 
@@ -197,6 +212,16 @@ export async function PUT(request: NextRequest): Promise<NextResponse> {
   }
 
   try {
+    // A locked avatar is refused before any write (username, social, row
+    // provisioning), so the request saves nothing at all. Unlock state comes
+    // from stored stars and the saved avatar only, never from the body. The
+    // verdict goes to updateUserSettings so it is decided once per request.
+    let avatarCheck: AvatarCheck | undefined;
+    if (typeof patch.avatarId === "string") {
+      avatarCheck = await checkAvatarForUser(decoded.uid, patch.avatarId);
+      if (avatarCheck.lock) return avatarLockedResponse(avatarCheck.lock);
+    }
+
     // Provision the user row if needed (social handles / creator FK to users(id)).
     if (decoded.email) {
       await ensureUser({
@@ -237,7 +262,7 @@ export async function PUT(request: NextRequest): Promise<NextResponse> {
       await updateUserSocialHandles(decoded.uid, socialPatch);
     }
 
-    const settings = await updateUserSettings(decoded.uid, patch);
+    const settings = await updateUserSettings(decoded.uid, patch, avatarCheck);
     // Consent decides whether this player's record shows on the public
     // leaderboard, and each row renders the player's avatar. topFreeClimbers'
     // unstable_cache otherwise lives up to 60s. `expire: 0` expires the tag
@@ -278,6 +303,7 @@ export async function PUT(request: NextRequest): Promise<NextResponse> {
     }
     return NextResponse.json(settings);
   } catch (err) {
+    if (err instanceof AvatarLockedError) return avatarLockedResponse(err.lock);
     console.error("[PUT /api/settings]", err);
     return NextResponse.json({ error: "Could not save your settings. Please try again." }, { status: 500 });
   }

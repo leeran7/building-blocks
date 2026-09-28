@@ -1,0 +1,85 @@
+# Cobra gameplay artwork: generation prompts
+
+These prompts produce the Cobra's climb sprites in the same pipeline as the
+Wraith (`git show 7406c15:output/wraith/README.md` and
+`output/wraith/movement/README.md` in that commit). The Cobra
+currently ships code-drawn sheets (`app/public/climb/cobra-poses-192.png` and
+`cobra-climb-192.png`), rendered by a low-poly rig that follows this contract:
+facets seeded per part so they hold still across frames, accent `#1982f5`,
+glowing eyes and a dark silhouette outline. Generated art made with these
+prompts can replace those two files directly; the registry line stays
+`cobra: sheets("cobra")`.
+
+## Deliverables and contract
+
+Match the Wraith files and `app/public/climb/README.md`, so the engine needs
+only a registry entry:
+
+| File | Layout | Source cell | Shipped as |
+| --- | --- | --- | --- |
+| `cobra-poses.png` | 4 × 2 cells, row-major | 512 × 512 | `app/public/climb/cobra-poses-192.png` (768 × 384) |
+| `cobra-climb.png` | 6 × 1 cells, left to right | 512 × 512 | `app/public/climb/cobra-climb-192.png` (1152 × 192) |
+
+- Poses order: **Idle, Run A, Run B, Reach A, Reach B, Falling, Celebrate, Down**.
+- Every frame shares the foot anchor `(256, 460)` of its 512 cell, and the idle
+  figure's visible height is **380 px**. Do not fit frames to their opaque
+  bounds: the crouch stays shorter, the jump stays taller.
+- All poses face three-quarter right; the climb strip is the back view. No
+  frame is mirrored (the engine mirrors for left-facing movement).
+- Straight-alpha RGBA with true zero-alpha background, at least 52 px of empty
+  margin to each cell edge, no ground shadow, text, border or scene.
+- Downscale each 512 cell to 192 with a high-quality filter, then palette
+  quantise (the two Wraith sheets together are ~70 KB).
+
+## Identity reference
+
+Use `app/mobile/src/assets/avatars/cobra.webp` as the identity reference.
+Keep the flared hood, the gold chevron belly plates, the glowing blue eyes and the short tail recognisable at 30 CSS px tall. Match the Wraith's proportions
+(oversized head, short chunky limbs, ~2.2 heads tall), matte charcoal armour,
+soft studio lighting and low-poly facets, so the cast reads as one set.
+
+## Sheet prompt (poses)
+
+One 4 × 2 sheet of a chibi low-poly cobra warrior standing upright on two short chunky legs: a big angular head with a flared blue hood fanned out behind it like a cowl, a short pointed snout, two glowing blue eyes, a segmented gold (`#e8b53a`) belly plate running from chin to waist in stacked chevrons, charcoal armour on the shoulders, forearms and boots with electric-blue `#1982f5` facet accents, and a short tapered tail curling behind the heels. Fixed three-quarter right-facing view.
+Ordered poses: idle, running with one stride, opposite running stride,
+right-arm overhead reach, left-arm overhead reach, falling with limbs spread,
+both-arm celebration, crouched down. Constant character scale, generous
+separation, no text, scene, border, or ground shadow. Pure flat magenta
+(`#ff00ff`) intermediate background for local alpha extraction. Accent facets
+are graded toward `#1982f5` (electric blue).
+
+## Run B correction prompt
+
+The same right-facing Cobra, with the near leg bent backward and boot kicked
+behind to image left, the far leg forward toward image right, the near arm
+swinging forward across the chest and the far arm behind. Preserve the head,
+face angle, costume, proportions, and lighting. A single centered sprite on the
+same flat magenta extraction background, with no shadow or text.
+
+## Movement reference prompt (for the climb strip)
+
+Create two full-body orthographic views of the exact Cobra from the poses sheet,
+side by side at the same size and foot baseline. Left: strict right-facing side
+profile, one visible glowing eye, visible arm extended forward horizontally for
+rigging, other arm hidden. Right: centered symmetric back view, face hidden,
+arms down and out in an A pose and legs separated; the back of the flared hood fills the top of the figure, blue with a charcoal centre diamond pattern, the tail hangs between the boots. Preserve the
+proportions, matte charcoal armour, `#1982f5` facet accents and
+consistent soft studio lighting. No weapons, labels, scene, borders, or ground
+shadows. Use a flat magenta intermediate background for local alpha extraction.
+
+## Climb strip
+
+Rig the back view (cut overlapping armour segments, rotate at the joints,
+two-segment IK for arms and legs) rather than regenerating each frame, so the
+costume stays stable. Six frames, 125 ms each, 750 ms loop: right-hand reach
+with left-foot lift, pull, transfer, then the same with sides swapped. Keep the
+head and torso centred with under 2 px of vertical bob and no lateral drift;
+the engine supplies the upward movement.
+
+## Checks before shipping
+
+- Sheet sizes, RGBA, alpha range 0–255, transparent corners and gutters.
+- Common baseline of 460 in every poses cell; Run A ≠ Run B and Reach A ≠
+  Reach B image data.
+- No magenta fringe on light and dark backgrounds.
+- Preview over the volcano texture at 48, 80 and 144 px idle height.

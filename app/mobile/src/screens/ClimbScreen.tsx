@@ -29,7 +29,7 @@ import { ALTITUDE_UNIT } from "@app/lib/units";
 
 import { API_BASE, postClimbResult, type ClimbSaveResult } from "../lib/api";
 import { useAuth } from "../contexts/AuthContext";
-import { useInvalidateAppData, type SliceKey } from "../contexts/AppDataContext";
+import { useInvalidateAppData, useSettings, type SliceKey } from "../contexts/AppDataContext";
 import { hasLeaderboardConsent } from "../lib/consent";
 import { useAcceptLeaderboardConsent } from "../hooks/useAcceptLeaderboardConsent";
 import { LeaderboardConsentModal } from "../components/LeaderboardConsentModal";
@@ -86,6 +86,8 @@ export function ClimbScreen({ onSignIn }: { onSignIn?: () => void } = {}) {
   const { user, isAnonymous } = useAuth();
   const isAuthed = Boolean(user) && !isAnonymous;
   const invalidateAppData = useInvalidateAppData();
+  // The climber draws as the player's avatar (the Green Stick for guests / none).
+  const myAvatarId = useSettings().data?.avatarId ?? null;
   const [searchParams] = useSearchParams();
   // Daily mode: lock the tower to today's shared seed so every player climbs
   // the exact same tower. Only the server can derive the seed (SEC-DC-3), so
@@ -381,6 +383,7 @@ export function ClimbScreen({ onSignIn }: { onSignIn?: () => void } = {}) {
           hudInsetTop={safeArea.top}
           includeHud={false}
           floorMarkerInsetTop={safeArea.top + 80}
+          myAvatarId={myAvatarId}
         />
 
         <ExpeditionHud player={player} hazardY={state.hazardY} tick={state.tick}

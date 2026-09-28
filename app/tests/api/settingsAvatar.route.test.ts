@@ -21,6 +21,17 @@ vi.mock("../../src/db/creator", () => ({
   clearUsername: vi.fn(async () => {}),
 }));
 
+// The route's unlock check reads stored rows: a player with no stars and no
+// saved avatar who has cleared level 1, so the stick figures are unlocked.
+vi.mock("../../src/db/client", () => ({
+  prisma: {
+    user: { findUnique: vi.fn(async () => ({ avatar_id: null })) },
+    levelProgress: {
+      aggregate: vi.fn(async () => ({ _sum: { stars: null } })),
+      findFirst: vi.fn(async () => ({ id: 1 })),
+    },
+  },
+}));
 const { updateUserSettings, getUserSettings, updateUserSocialHandles } = vi.hoisted(() => {
   const base = { displayName: null, username: null, social: {}, leaderboardConsent: false };
   return {
@@ -42,9 +53,11 @@ vi.mock("next/cache", () => ({
 
 import { GET, PUT } from "../../app/api/settings/route";
 import { LEADERBOARD_CACHE_TAG } from "../../src/db/climb";
-import { AVATARS } from "../../src/lib/avatars";
+import { AVATARS, DEFAULT_STICK_ID } from "../../src/lib/avatars";
 
-const VALID = AVATARS[0].id;
+/** Unlocked for the player above; the unknown-id cases need a catalogue id to mangle. */
+const VALID = DEFAULT_STICK_ID;
+const LOCKED = "wraith"; // premium: refused at any star count
 
 function put(body: unknown): Promise<Response> {
   return PUT(
@@ -64,14 +77,28 @@ describe("PUT /api/settings avatarId", () => {
   it("saves a catalogue id and returns it", async () => {
     const res = await put({ avatarId: VALID });
     expect(res.status).toBe(200);
-    expect(updateUserSettings).toHaveBeenCalledWith("u1", { avatarId: VALID });
+    // With the route's unlock verdict, so the db layer does not check again.
+    expect(updateUserSettings).toHaveBeenCalledWith(
+      "u1",
+      { avatarId: VALID },
+      expect.objectContaining({ userId: "u1", avatarId: VALID, lock: null })
+    );
     expect(await res.json()).toMatchObject({ avatarId: VALID });
+  });
+
+  it("is a catalogue id, and a locked one is refused before the save (so the 200 above is the unlock check passing)", async () => {
+    expect(AVATARS.some((a) => a.id === VALID)).toBe(true);
+    const res = await put({ avatarId: LOCKED });
+    expect(res.status).toBe(403);
+    expect(await res.json()).toMatchObject({ code: "AVATAR_LOCKED" });
+    expect(updateUserSettings).not.toHaveBeenCalled();
+    expect(revalidateTag).not.toHaveBeenCalled();
   });
 
   it("clears the avatar when avatarId is null", async () => {
     const res = await put({ avatarId: null });
     expect(res.status).toBe(200);
-    expect(updateUserSettings).toHaveBeenCalledWith("u1", { avatarId: null });
+    expect(updateUserSettings).toHaveBeenCalledWith("u1", { avatarId: null }, undefined);
   });
 
   it.each(["not-an-avatar", "", "__proto__", "constructor", "toString", `${VALID.toUpperCase()}`])(
@@ -112,7 +139,7 @@ describe("PUT /api/settings avatarId", () => {
     const res = await put({ social: {} });
     expect(res.status).toBe(200);
     expect(revalidateTag).not.toHaveBeenCalled();
-    expect(updateUserSettings).toHaveBeenCalledWith("u1", {});
+    expect(updateUserSettings).toHaveBeenCalledWith("u1", {}, undefined);
   });
 });
 
