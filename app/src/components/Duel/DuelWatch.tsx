@@ -23,6 +23,7 @@ import { createMatch, stepMatch, DEFAULT_SIM_CONFIG } from "../../game/simulatio
 import { buildTower } from "../../game/towers";
 import { buildDuelWatchUrl } from "../../game/runReplay";
 import { formatAltitude } from "../../lib/units";
+import { avatarIdsByPlayer } from "../../lib/avatars";
 import type { MatchState, PlayerInput } from "../../game/types";
 import {
   emptySample,
@@ -35,6 +36,8 @@ import {
 interface PlayerInfo {
   id: string;
   displayName: string | null;
+  /** Unchecked JSON, parsed at use (avatarIdsByPlayer). */
+  avatarId?: unknown;
   peak: number | null;
 }
 
@@ -313,6 +316,7 @@ export function DuelWatch({ duelId }: { duelId: string }) {
   const p1Id = replayData.player1?.id ?? "player1";
   const p2Id = replayData.player2?.id ?? "player2";
   const playerNames: Record<string, string> = { [p1Id]: p1Name, [p2Id]: p2Name };
+  const avatarIds = avatarIdsByPlayer([replayData.player1, replayData.player2]);
 
   return (
     <div
@@ -371,6 +375,7 @@ export function DuelWatch({ duelId }: { duelId: string }) {
               width={canvasSize.width}
               height={canvasSize.height}
               playerNames={playerNames}
+              avatarIds={avatarIds}
             />
           )}
 
