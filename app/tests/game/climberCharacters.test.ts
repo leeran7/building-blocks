@@ -207,13 +207,17 @@ describe("lazy loading", () => {
   it("an avatar without art draws the Wraith's sheets and loads no extra sheet", async () => {
     vi.stubGlobal("document", { createElement: () => new FakeCanvas() });
     const { climberFrame } = await load();
-    expect(climberFrame("idle", 0, 0, false, "ibex")).toBeNull();
+    const { CLIMBER_CHARACTERS } = await import("../../src/components/Game/climberCharacters");
+    // Two avatars that still draw as the plain Wraith (whichever have no art yet).
+    const [a, b] = AVATARS.map((x) => x.id).filter((id) => CLIMBER_CHARACTERS[id].kind === "base");
+    expect(b).toBeDefined();
+    expect(climberFrame("idle", 0, 0, false, a)).toBeNull();
     climberFrame("idle", 0, 0, false, "wraith");
-    climberFrame("idle", 0, 0, false, "yak");
+    climberFrame("idle", 0, 0, false, b);
     // One request per Wraith sheet, shared by every avatar without art.
     expect(requested()).toEqual(["/climb/wraith-climb-192.png", "/climb/wraith-poses-192.png"]);
     sheet("wraith-poses-192.png").decode();
-    const f = climberFrame("idle", 0, 0, false, "ibex")!;
+    const f = climberFrame("idle", 0, 0, false, a)!;
     expect(f.img).toBe(sheet("wraith-poses-192.png")); // the plain sheet, not a recolour
     expect(f.character).toBe("wraith");
     expect(FakeCanvas.all).toHaveLength(0);
