@@ -1,9 +1,9 @@
 # Viking climber artwork (to generate)
 
 Status: **not generated yet.** Until the sheets below exist, the game draws
-Viking as the Wraith sprite tinted ember orange (`#f2551a`), set in
-the climber sprite registry. The real art replaces that placeholder with no
-code change beyond pointing the registry entry at the new files.
+Viking as the Wraith sprite tinted ember orange (`#f4661c`), set in
+`app/src/components/Game/climberCharacters.ts`. The real art replaces that
+placeholder by changing its entry to `sheets("viking")` (see `app/public/climb/README.md`).
 
 Identity reference: `app/mobile/src/assets/avatars/viking.webp` (the profile
 portrait). Attach it to every prompt below. Style must match the shipped
@@ -34,7 +34,7 @@ to 256 colours, like the Wraith sheets. Keep the 512 masters out of the repo.
 
 ## Prompts
 
-**Poses sheet.** One 4 × 2 sheet of a chibi horned low-poly warrior in a closed great-helm with a pointed beak-like nasal guard, two large curved horns sweeping up and out from the helm, glowing orange eye slit, spiky layered charcoal pauldrons and chest plate with orange `#f2551a` facet accents and an orange chest chevron. Fixed three-quarter
+**Poses sheet.** One 4 × 2 sheet of a chibi horned low-poly warrior in a closed great-helm with a pointed beak-like nasal guard, two large curved horns sweeping up and out from the helm, glowing orange eye slit, spiky layered charcoal pauldrons and chest plate with orange `#f4661c` facet accents and an orange chest chevron. Fixed three-quarter
 right-facing view. Ordered poses: idle, running with one stride, opposite
 running stride, right-arm overhead reach, left-arm overhead reach, falling
 with limbs spread, both-arm celebration, crouched down. Constant character

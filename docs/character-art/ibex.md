@@ -1,9 +1,9 @@
 # Ibex climber artwork (to generate)
 
 Status: **not generated yet.** Until the sheets below exist, the game draws
-Ibex as the Wraith sprite tinted gold (`#e8b43a`), set in
-the climber sprite registry. The real art replaces that placeholder with no
-code change beyond pointing the registry entry at the new files.
+Ibex as the Wraith sprite tinted gold (`#ecba55`), set in
+`app/src/components/Game/climberCharacters.ts`. The real art replaces that
+placeholder by changing its entry to `sheets("ibex")` (see `app/public/climb/README.md`).
 
 Identity reference: `app/mobile/src/assets/avatars/ibex.webp` (the profile
 portrait). Attach it to every prompt below. Style must match the shipped
@@ -34,7 +34,7 @@ to 256 colours, like the Wraith sheets. Keep the 512 masters out of the repo.
 
 ## Prompts
 
-**Poses sheet.** One 4 × 2 sheet of a chibi low-poly mountain ibex warrior standing upright, black-furred goat head with a pale muzzle and glowing amber eye, two long ridged gold horns curving back over the head, charcoal and gold `#e8b43a` faceted armor on the shoulders and chest with a gold chest chevron, hooved boots. Fixed three-quarter
+**Poses sheet.** One 4 × 2 sheet of a chibi low-poly mountain ibex warrior standing upright, black-furred goat head with a pale muzzle and glowing amber eye, two long ridged gold horns curving back over the head, charcoal and gold `#ecba55` faceted armor on the shoulders and chest with a gold chest chevron, hooved boots. Fixed three-quarter
 right-facing view. Ordered poses: idle, running with one stride, opposite
 running stride, right-arm overhead reach, left-arm overhead reach, falling
 with limbs spread, both-arm celebration, crouched down. Constant character
