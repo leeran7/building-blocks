@@ -177,7 +177,8 @@ describe("resolveClimberCharacter", () => {
   });
 
   it("resolves every catalogue avatar without art to the plain Wraith", async () => {
-    const { resolveClimberCharacter, climberCharacter } = await load();
+    // Fixture registry: every avatar has art in the live one, so force some to base.
+    const { resolveClimberCharacter, climberCharacter } = await withoutArt();
     const { CLIMBER_CHARACTERS, WRAITH } = await import("../../src/components/Game/climberCharacters");
     let checked = 0;
     for (const { id } of AVATARS) {
