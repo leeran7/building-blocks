@@ -1,4 +1,5 @@
 import type { PowerUpType } from "@app/game/types";
+import type { BoosterInventory, BoosterType, StartPowerUp } from "@app/levels/engagement";
 
 /**
  * What the level screens show, and the calls they make. The shapes follow the
@@ -26,13 +27,31 @@ export interface LevelNode {
   /** Summit height the climb must reach, ft. */
   goalFt: number;
   /** Finish at or under these times for 2 and 3 stars, ms. */
-  pars: { twoStarMs: number; threeStarMs: number };
+  /**
+   * Finish at or under these times for 2 and 3 stars, ms. oneStarMs is the
+   * level's clock: the run is lost when it runs out (null: no clock).
+   */
+  pars: { twoStarMs: number; threeStarMs: number; oneStarMs: number | null };
   /** The power-up this level introduces with a one-line tip, if any. */
   introPowerUp: PowerUpType | null;
+  /** Power-ups unlocked on this level: the only ones a run may start with. */
+  allowedPowerUps: PowerUpType[];
   /** Obstacle this level introduces (hanging ladders, short tops), if any. */
   introTip: string | null;
+  /** This level's power-ups, shown before the match. */
+  powerUps: LevelPowerUps;
   /** Tutorial levels cost no lives (§5b). */
   costsLife: boolean;
+}
+
+/** What a level's power-ups are: which, how often, and how long each lasts. */
+export interface LevelPowerUps {
+  /** Types that can spawn, in unlock order ("random" included once unlocked). */
+  types: PowerUpType[];
+  /** About one orb every this many floors; null when none spawn. */
+  floorsPerOrb: number | null;
+  /** Seconds each concrete type lasts on this level (the jetpack: its fuel). */
+  seconds: Partial<Record<PowerUpType, number>>;
 }
 
 export interface PlayerStats {
@@ -55,6 +74,48 @@ export interface SeasonView {
   /** Highest unlocked level: 1 + highest cleared, capped at the season length. */
   frontier: number;
   player: PlayerStats;
+  /** Win streak: first clears in a row at the frontier (§6.3). */
+  streak: number;
+  /** What the frontier level starts with if played now (server's preview). */
+  nextStartPowerUp: StartPowerUp | null;
+  /** Stuck help at the frontier level (§5c). */
+  stuck: StuckHelp;
+  /** Owned boosters: power-ups a run can be started with (§6.4). */
+  boosters: BoosterInventory;
+  /** Progress toward the next star chest; null when the server did not say. */
+  chests: ChestProgress | null;
+}
+
+/** Star chests (§6.4): one opens for every 20 lifetime stars. */
+export interface ChestProgress {
+  /** Best stars on every level, summed across seasons. */
+  lifetimeStars: number;
+  /** Stars toward the next chest (0..perChest-1). */
+  starsIntoChest: number;
+  perChest: number;
+}
+
+/** A star chest a run opened, with the boosters it held. */
+export interface OpenedChest {
+  chestNumber: number;
+  boosters: BoosterType[];
+}
+
+/** What the player chose on the start card. */
+export interface StartOptions {
+  /** An owned booster to spend on this run, or null to start without one. */
+  booster?: BoosterType | null;
+}
+
+/**
+ * Fails at the frontier level. From 3 every try starts with a free power-up;
+ * from 5 the server offers the bot's route ghost (the ghost view is not built
+ * yet, so the app only says it is coming).
+ */
+export interface StuckHelp {
+  level: number;
+  fails: number;
+  routeGhostAvailable: boolean;
 }
 
 /** A level run the server allowed to start (the doc's run ticket). */
@@ -66,15 +127,19 @@ export interface LevelTicket {
   goalFt: number;
   pars: LevelNode["pars"];
   player: PlayerStats;
+  /** What the run starts with at GO, decided by the server (streak, stuck help, booster). */
+  startPowerUp: StartPowerUp | null;
 }
 
 export type StartRefusal =
-  /** No lives left: wait for nextLifeAt or play Practice. */
+  /** No lives left: wait for nextLifeAt or play Endless. */
   | "OUT_OF_LIVES"
   /** Beyond the frontier. */
   | "LOCKED"
   /** The installed engine is older than the level needs. */
   | "UPDATE_REQUIRED"
+  /** The chosen booster is not owned or not unlocked on this level. */
+  | "BOOSTER_UNAVAILABLE"
   /** The server could not be reached. */
   | "NETWORK";
 
@@ -95,6 +160,8 @@ export interface LevelRunReport {
   peakFt: number;
   /** Replay token of the run's inputs, kept for friend ghosts; not verified. */
   replayToken: string | null;
+  /** Lost because the level's clock ran out, not to the lava. */
+  outOfTime: boolean;
 }
 
 /** The server's verdict on a level run. */
@@ -107,6 +174,8 @@ export interface LevelResult {
   previousStars: StarCount;
   /** Finish time on a clear; null on a loss. */
   timeMs: number | null;
+  /** Lost because the level's clock ran out. */
+  outOfTime: boolean;
   pars: LevelNode["pars"];
   goalFt: number;
   peakFt: number;
@@ -116,6 +185,35 @@ export interface LevelResult {
   player: PlayerStats;
   /** Avatar ids this run's new stars unlocked (server only; guests earn none). */
   unlockedAvatars?: string[];
+  /** Win streak after this run; null when the server did not say. */
+  streak: number | null;
+  /** Whether this run was at the frontier (so it moved the streak). */
+  atFrontier: boolean;
+  /** Fails at this level after the run (0 on a clear or a replay), §5c. */
+  failsAtLevel: number;
+  routeGhostAvailable: boolean;
+  /** Star chests this run opened, in order (empty on most runs). */
+  chestsOpened: OpenedChest[];
+  /** Owned boosters after this run, or null when the server did not say. */
+  boosters: BoosterInventory | null;
+}
+
+/** One row of a level's friends-only board (§4). */
+export interface LevelBoardEntry {
+  rank: number;
+  isMe: boolean;
+  handle: string;
+  stars: StarCount;
+  /** Best clear time, ms. */
+  timeMs: number;
+}
+
+/** A level's friends-only board: the player and accepted friends who cleared it. */
+export interface LevelBoardView {
+  level: number;
+  entries: LevelBoardEntry[];
+  /** Accepted friends, cleared or not (0 means "add friends" rather than "be first"). */
+  friendCount: number;
 }
 
 /** A level's fixed facts: everything on its pin except the player's progress. */
@@ -139,8 +237,10 @@ export interface LevelCatalog {
  */
 export interface LevelsClient {
   getSeason(): Promise<SeasonView>;
-  startLevel(level: number): Promise<StartResult>;
+  startLevel(level: number, opts?: StartOptions): Promise<StartResult>;
   submitResult(ticketId: string, run: LevelRunReport): Promise<LevelResult>;
+  /** The level's friends-only board. */
+  getBoard(level: number): Promise<LevelBoardView>;
 }
 
 /** Every 5th level is a Hard level (§3). */
@@ -153,10 +253,14 @@ export function episodeOf(level: number): number {
   return Math.floor((level - 1) / EPISODE_SIZE) + 1;
 }
 
-/** Stars a finish time earns against a level's pars (§4): 1 for any clear. */
+/**
+ * Stars a time earns against a level's pars (§4): 1 inside the level's clock
+ * (any clear when it has none), 0 once the clock has run out.
+ */
 export function starsForTime(timeMs: number, pars: LevelNode["pars"]): StarCount {
   if (timeMs <= pars.threeStarMs) return 3;
   if (timeMs <= pars.twoStarMs) return 2;
+  if (pars.oneStarMs !== null && timeMs > pars.oneStarMs) return 0;
   return 1;
 }
 

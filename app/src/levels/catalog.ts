@@ -8,10 +8,11 @@
  * never patched with defaults.
  */
 
-import type { LevelPars } from "../game/levels/levelSpec";
+import { levelSpec, type LevelPars } from "../game/levels/levelSpec";
 import { seasonById } from "../game/levels/season";
 import { manifestShapeProblems, type ManifestLevel, type SeasonManifest } from "../game/levels/seasonGate";
 import season1 from "../game/levels/seasons/season-1.json";
+import { boosterTypesOf, type BoosterType } from "./engagement";
 
 /** Committed manifests by season id. A new season adds its file here. */
 const MANIFEST_FILES: ReadonlyMap<number, unknown> = new Map([[1, season1]]);
@@ -33,7 +34,8 @@ export function manifestProblems(id: number, raw: unknown = MANIFEST_FILES.get(i
       Number.isInteger(p.threeStarTicks) &&
       Number.isInteger(p.twoStarTicks) &&
       p.threeStarTicks > 0 &&
-      p.threeStarTicks <= p.twoStarTicks;
+      p.threeStarTicks <= p.twoStarTicks &&
+      (p.oneStarTicks === null || (Number.isInteger(p.oneStarTicks) && p.twoStarTicks <= p.oneStarTicks));
     if (!ok) problems.push(`L${row?.level}: bad pars`);
   });
   return problems;
@@ -66,9 +68,25 @@ export function catalogLevel(season: number, level: number): ManifestLevel | nul
   return row && row.level === level ? row : null;
 }
 
-/** Stars a clear in `ticks` earns against `pars` (§4): 1 for any clear. */
-export function starsForTicks(ticks: number, pars: LevelPars): 1 | 2 | 3 {
+/**
+ * Stars a clear in `ticks` earns against `pars` (§4): 1 for any clear inside
+ * the level's clock, 0 past it (the run ran out of time, so no clear).
+ */
+export function starsForTicks(ticks: number, pars: LevelPars): 0 | 1 | 2 | 3 {
   if (ticks <= pars.threeStarTicks) return 3;
   if (ticks <= pars.twoStarTicks) return 2;
+  if (pars.oneStarTicks !== null && ticks > pars.oneStarTicks) return 0;
   return 1;
+}
+
+/**
+ * The booster types level `level` of `season` allows (its unlocked power-ups,
+ * less the random orb), from the season spec and the manifest row's seed
+ * revision. Null when the season has no sound manifest or no such level.
+ */
+export function levelBoosterTypes(season: number, level: number): BoosterType[] | null {
+  const row = catalogLevel(season, level);
+  const spec = seasonById(season);
+  if (!row || !spec) return null;
+  return boosterTypesOf(levelSpec(spec, level, row.rev).allowedPowerUps);
 }

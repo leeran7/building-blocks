@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef } from "react";
 
 import { buildFreeTower } from "@app/game/freeStack";
 import { useClimb } from "@app/game/useClimb";
+import { levelTimeLimitTicks } from "@app/game/simulation";
 import { encodeRunReplay } from "@app/game/runReplay";
 import { hazardPhase } from "@app/game/hazard";
 import { ClimbCanvas } from "@app/components/Game/ClimbCanvas";
@@ -32,7 +33,9 @@ import {
 } from "../../lib/levels/model";
 import type { LevelRunSetup } from "../../lib/levels/catalog";
 import { useSettings } from "../../contexts/AppDataContext";
+import type { StartPowerUp } from "@app/levels/engagement";
 import { StarRow } from "./LevelBits";
+import { PowerUpName } from "./LevelStartExtras";
 
 /**
  * The climb itself, on the level's tower and lava from the season manifest
@@ -52,6 +55,9 @@ export function LevelRun({
   paused,
   onEnd,
   onQuit,
+  startPowerUp = null,
+  bestFailFt = null,
+  onHowToPlay,
 }: {
   level: number;
   seed: string;
@@ -65,12 +71,19 @@ export function LevelRun({
   paused: boolean;
   onEnd: (report: LevelRunReport) => void;
   onQuit: () => void;
+  /** The ticket's power-up, granted by the engine at GO. */
+  startPowerUp?: StartPowerUp | null;
+  /** Best failed height on this level when it came close (§6.2), ft. */
+  bestFailFt?: number | null;
+  /** Replays the level's tutorial from the start screen. */
+  onHowToPlay?: () => void;
 }) {
   const towerRef = useRef(setup?.tower ?? { ...buildFreeTower(), goalM: goalFt });
   const { state, simRef, renderFeed, start, finished, setTouch, runId, inputLog } = useClimb({
     tower: towerRef.current,
     seed,
     hazard: setup?.hazard,
+    ...(startPowerUp ? { startPowerUp: startPowerUp.type } : {}),
   });
   useGameHaptics(simRef, 0, runId);
 
@@ -144,6 +157,8 @@ export function LevelRun({
     const finishTick = me?.status === "finished" && me.finishedTick != null ? me.finishedTick : null;
     const reached = finishTick !== null;
     const raceTicks = Math.max(0, simRef.current.tick);
+    const limit = levelTimeLimitTicks(simRef.current.tower);
+    const outOfTime = !reached && limit !== null && me?.finishedTick != null && me.finishedTick >= limit;
     if (reached) void tapMedium();
     else void notifyError();
     void (async () => {
@@ -155,6 +170,7 @@ export function LevelRun({
         raceTicks: finishTick ?? raceTicks,
         peakFt: me?.peakY ?? 0,
         replayToken,
+        outOfTime,
       });
     })();
   }, [finished, inputLog, level, onEnd, simRef, state.seed]);
@@ -209,6 +225,7 @@ export function LevelRun({
           elapsedMs={state.raceSeconds * 1000}
           pars={pars}
           practice={practice}
+          bestFailFt={bestFailFt}
         />
       )}
 
@@ -218,6 +235,11 @@ export function LevelRun({
           <p key={countdownValue} className="lp-pop mt-3 font-display text-7xl font-black tabular-nums text-text-primary">
             {countdownValue}
           </p>
+          {startPowerUp && (
+            <p className="mt-4 text-meta text-text-primary">
+              Starts with <PowerUpName type={startPowerUp.type} />
+            </p>
+          )}
         </Overlay>
       )}
 
@@ -233,6 +255,11 @@ export function LevelRun({
           <p className="mt-4 max-w-[280px] text-center text-body text-text-secondary">
             Reach the summit at {goalFt.toLocaleString()} {ALTITUDE_UNIT} before the lava catches you.
           </p>
+          {startPowerUp && (
+            <p className="mt-3 text-meta text-text-primary">
+              You start with <PowerUpName type={startPowerUp.type} /> at GO.
+            </p>
+          )}
           <button
             type="button"
             onClick={handleStart}
@@ -240,6 +267,15 @@ export function LevelRun({
           >
             Start
           </button>
+          {onHowToPlay && (
+            <button
+              type="button"
+              onClick={onHowToPlay}
+              className="mt-4 min-h-[44px] px-4 font-mono text-label uppercase tracking-label text-text-secondary underline-offset-4 active:scale-95"
+            >
+              How to play
+            </button>
+          )}
         </Overlay>
       )}
 
@@ -264,6 +300,7 @@ export function GoalBar({
   elapsedMs,
   pars,
   practice,
+  bestFailFt = null,
 }: {
   topInset: number;
   peakFt: number;
@@ -273,10 +310,14 @@ export function GoalBar({
   /** The level's tower and lava; without one, the free stack capped at the goal. */
   setup?: LevelRunSetup;
   practice: boolean;
+  /** Where the best failed attempt ended, marked on the bar (§6.2), ft. */
+  bestFailFt?: number | null;
 }) {
+  const markPct = bestFailFt !== null && goalFt > 0 ? Math.min(100, (bestFailFt / goalFt) * 100) : null;
   const pct = goalFt > 0 ? Math.min(100, (peakFt / goalFt) * 100) : 0;
   const stars = starsForTime(elapsedMs, pars);
-  const nextDrop = stars === 3 ? pars.threeStarMs : stars === 2 ? pars.twoStarMs : null;
+  const nextDrop =
+    stars === 3 ? pars.threeStarMs : stars === 2 ? pars.twoStarMs : stars === 1 ? pars.oneStarMs : null;
   return (
     <div
       className="pointer-events-none absolute left-1/2 z-20 w-[min(84vw,320px)] -translate-x-1/2"
@@ -294,10 +335,21 @@ export function GoalBar({
         aria-valuemin={0}
         aria-valuemax={goalFt}
         aria-valuenow={Math.round(peakFt)}
-        className="mt-1 h-2 overflow-hidden rounded-full border border-white/15 bg-void/60"
+        className="relative mt-1 h-2 overflow-hidden rounded-full border border-white/15 bg-void/60"
       >
         <span className="block h-full rounded-full bg-signal" style={{ width: `${pct}%` }} />
+        {markPct !== null && (
+          <span
+            data-testid="best-fail-marker"
+            aria-hidden
+            className="absolute inset-y-0 w-0.5 bg-ember"
+            style={{ left: `calc(${markPct}% - 1px)` }}
+          />
+        )}
       </div>
+      {bestFailFt !== null && (
+        <p className="sr-only">Your best try reached {Math.round(bestFailFt)} {ALTITUDE_UNIT}</p>
+      )}
       <p className="mt-0.5 text-right font-mono text-[10px] font-bold uppercase tracking-label text-text-secondary [text-shadow:0_1px_3px_rgba(0,0,0,0.9)]">
         Summit {goalFt.toLocaleString()} {ALTITUDE_UNIT}
       </p>

@@ -40,6 +40,7 @@ import {
 import { firstClearXp, EPISODE_XP, LIFE_REFILL_MS, STAR_XP, type ReportedRun } from "../../src/levels/rules";
 import { isLocalDbUrl } from "../../scripts/localDbGuard";
 import { defaultAvatarFor } from "../../src/lib/handle";
+import { levelBoosterTypes } from "../../src/levels/catalog";
 
 const T0 = new Date("2026-09-27T12:00:00Z");
 const at = (minutes: number) => new Date(T0.getTime() + minutes * 60_000);
@@ -102,7 +103,7 @@ describe.skipIf(!PG_URL)("levels on Postgres", () => {
   }
 
   const start = (userId: string, level: number, now = T0, season = 1) =>
-    issueLevelTicket({ userId, season, level, simVersion: 1, now });
+    issueLevelTicket({ userId, season, level, simVersion: 1, allowedBoosters: levelBoosterTypes(season, level) ?? [], now });
 
   // Default: five minutes after T0, long enough for any run in these tests.
   const submit = (userId: string, ticketId: string, run: ReportedRun, now = at(5)) =>

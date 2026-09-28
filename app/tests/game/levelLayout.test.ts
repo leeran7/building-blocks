@@ -13,9 +13,11 @@ import {
   applyRunSeed,
   floorHeight,
   floorIndexAt,
+  ladderHangs,
   laddersForFloor,
   platformsForFloor,
 } from "../../src/game/towers";
+import { grantPowerUp } from "../../src/game/powerups";
 import { buildFreeTower } from "../../src/game/freeStack";
 import type { MatchState, PlayerInput, PlayerState, TowerSpec } from "../../src/game/types";
 import { botInput } from "./greedyBot";
@@ -262,5 +264,71 @@ describe("a level with every layout knob is climbable", () => {
       stepMatch(live, { bot: levelBot(live.players[0], t, live.tick) }, DEFAULT_SIM_CONFIG);
     }
     expect(live.players[0].status).toBe("finished");
+  });
+});
+
+describe("hanging ladders: which ones hang", () => {
+  const hanging = (t: TowerSpec, floors: number) => {
+    let hung = 0;
+    let total = 0;
+    for (let i = 0; i < floors; i++) {
+      laddersForFloor(t, i).forEach((l, slot) => {
+        const hangs = ladderHangs(t, i, slot);
+        expect(l.y0).toBeCloseTo(floorHeight(t, i) + (hangs ? 1.5 : 0), 9);
+        if (hangs) hung++;
+        total++;
+      });
+    }
+    return { hung, total };
+  };
+
+  it("hangs every ladder when no share is set, or the share is 1", () => {
+    for (const t of [level("share", { ladderHangM: 1.5 }), level("share", { ladderHangM: 1.5, hangingLadderShare: 1 })]) {
+      const { hung, total } = hanging(t, 120);
+      expect(total).toBeGreaterThan(120);
+      expect(hung).toBe(total);
+    }
+  });
+
+  it("hangs about that share of ladders, the same ones every time", () => {
+    const t = level("share", { ladderHangM: 1.5, hangingLadderShare: 0.5 });
+    const { hung, total } = hanging(t, 200);
+    expect(hung / total).toBeGreaterThan(0.4);
+    expect(hung / total).toBeLessThan(0.6);
+    expect(hanging(level("share", { ladderHangM: 1.5, hangingLadderShare: 0.5 }), 200).hung).toBe(hung);
+    expect(hanging(level("share", { ladderHangM: 1.5, hangingLadderShare: 0 }), 200).hung).toBe(0);
+  });
+
+  it("refuses a share outside [0, 1]", () => {
+    for (const bad of [-0.1, 1.1, Number.NaN]) {
+      expect(() => laddersForFloor(level("share", { ladderHangM: 1.5, hangingLadderShare: bad }), 1)).toThrow(RangeError);
+    }
+  });
+
+  it("lets a climber step off a ladder that does not hang onto the floor", () => {
+    const tower = level("hang-down", { ladderHangM: 1.5, hangingLadderShare: 0 });
+    const live = underFirstLadder(tower);
+    run(live, UP, 30);
+    expect(live.players[0].onLadder).toBe(true);
+    let p = run(live, DOWN, 1);
+    for (let k = 0; k < 120 && p.onLadder; k++) p = run(live, DOWN, 1);
+    expect(p.onLadder).toBe(false);
+    expect(p.y).toBe(0);
+    expect(p.onGround).toBe(true);
+  });
+});
+
+describe("Giant and hanging ladders", () => {
+  it("grabs a hanging ladder straight from the floor, which a plain climber can't", () => {
+    const tower = level("hang-sim", { ladderHangM: 1.5 });
+    const plain = underFirstLadder(tower);
+    expect(run(plain, UP, 30).onLadder).toBe(false);
+
+    const live = underFirstLadder(tower);
+    grantPowerUp(live.players[0], "giant", live.tick);
+    const p = run(live, UP, 1);
+    expect(p.onLadder).toBe(true);
+    expect(p.y).toBeGreaterThanOrEqual(1.5);
+    expect(run(live, UP, 30).y).toBeGreaterThan(3);
   });
 });

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { POWER_UP_SPECS } from "@app/game/powerups";
 import { ALTITUDE_UNIT } from "@app/lib/units";
 import { Button } from "../ui";
@@ -18,13 +18,14 @@ import { HeartIcon, StarRow, livesLabel, useNow } from "./LevelBits";
 export const REFUSAL_COPY: Record<Exclude<StartRefusal, "OUT_OF_LIVES">, string> = {
   LOCKED: "Clear the level before this one first.",
   UPDATE_REQUIRED: "Update the app to play this level.",
+  BOOSTER_UNAVAILABLE: "That booster can’t be used on this run. Pick again or play without one.",
   NETWORK: "Couldn’t reach the server. Check your connection and try again.",
 };
 
 /**
  * The level start card (Candy Crush's "Level 12 · Play" popup): the goal, the
  * star times, what's new on this level, and what it costs. Play asks the
- * server for a run ticket; out of lives, it offers the wait, Practice, or a
+ * server for a run ticket; out of lives, it offers the wait, Endless, or a
  * lives-free practice of this level instead (§5b).
  */
 export function LevelStartSheet({
@@ -34,6 +35,7 @@ export function LevelStartSheet({
   onPractice,
   onPracticeLevel,
   onClose,
+  extras,
 }: {
   node: LevelNode;
   player: PlayerStats;
@@ -42,6 +44,8 @@ export function LevelStartSheet({
   onPractice: () => void;
   onPracticeLevel: () => void;
   onClose: () => void;
+  /** Streak, stuck help, boosters and the friends board (LevelStartExtras). */
+  extras?: ReactNode;
 }) {
   const [busy, setBusy] = useState(false);
   const [refusal, setRefusal] = useState<StartRefusal | null>(null);
@@ -140,10 +144,14 @@ export function LevelStartSheet({
             <ul className="mt-1.5 flex flex-col gap-1">
               <ParRow stars={3} ms={node.pars.threeStarMs} />
               <ParRow stars={2} ms={node.pars.twoStarMs} />
-              <li className="flex items-center justify-between text-meta text-text-secondary">
-                <StarRow count={1} size={12} />
-                <span>any clear</span>
-              </li>
+              {node.pars.oneStarMs !== null ? (
+                <ParRow stars={1} ms={node.pars.oneStarMs} />
+              ) : (
+                <li className="flex items-center justify-between text-meta text-text-secondary">
+                  <StarRow count={1} size={12} />
+                  <span>any clear</span>
+                </li>
+              )}
             </ul>
           </div>
         </div>
@@ -167,7 +175,10 @@ export function LevelStartSheet({
           </div>
         )}
 
+        <PowerUpsCard powerUps={node.powerUps} />
+
         {/* The friend ghost picker (§6.1) goes here once ghosts land. */}
+        {extras}
 
         <div className="mt-5 flex flex-col gap-2.5">
           {outOfLives ? (
@@ -210,6 +221,55 @@ export function LevelStartSheet({
   );
 }
 
+/** Seconds for a chip: whole numbers bare, otherwise one decimal. */
+function formatSeconds(s: number): string {
+  const r = Math.round(s * 10) / 10;
+  return `${Number.isInteger(r) ? r : r.toFixed(1)}s`;
+}
+
+/**
+ * This level's power-ups before the match: how often an orb turns up and how
+ * long each type lasts here. Both are set per level and shrink as the season
+ * gets harder.
+ */
+export function PowerUpsCard({ powerUps }: { powerUps: LevelNode["powerUps"] }) {
+  return (
+    <div className="mt-3 rounded-2xl border border-white/10 bg-elevated/70 px-3.5 py-3">
+      <p className="font-mono text-label uppercase tracking-label text-text-secondary">Power-ups</p>
+      {powerUps.floorsPerOrb === null ? (
+        <p className="mt-1 text-meta text-text-primary">None on this level</p>
+      ) : (
+        <>
+          <p className="mt-1 text-meta text-text-primary">
+            About 1 every {powerUps.floorsPerOrb} floors
+          </p>
+          <ul className="mt-2 flex flex-wrap gap-1.5" aria-label="Power-ups on this level and how long they last">
+            {powerUps.types.map((t) => {
+              const spec = POWER_UP_SPECS[t];
+              const s = powerUps.seconds[t];
+              return (
+                <li
+                  key={t}
+                  className="flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-meta text-text-primary"
+                  style={{ borderColor: `${spec.color}66` }}
+                >
+                  <span aria-hidden className="h-2 w-2 rounded-full" style={{ backgroundColor: spec.color }} />
+                  {spec.label}
+                  {s !== undefined && (
+                    <span className="tabular-nums text-text-secondary">
+                      {t === "jetpack" ? `${formatSeconds(s)} fuel` : formatSeconds(s)}
+                    </span>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        </>
+      )}
+    </div>
+  );
+}
+
 function ParRow({ stars, ms }: { stars: number; ms: number }) {
   return (
     <li className="flex items-center justify-between text-meta tabular-nums text-text-primary">
@@ -244,7 +304,7 @@ export function OutOfLives({
       </Button>
       <p className="-mt-1 text-center text-meta text-text-secondary">No lives, stars or XP</p>
       <Button variant="ghost" onPress={onPractice}>
-        Play Practice
+        Play Endless
       </Button>
     </div>
   );

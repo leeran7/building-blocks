@@ -24,7 +24,7 @@
 import { createHash } from "node:crypto";
 
 import { buildFreeTower } from "./freeStack";
-import { applyRunSeed } from "./towers";
+import { applyRunSeed, floorIndexAt } from "./towers";
 import { simulateFromInputs, DEFAULT_SIM_CONFIG } from "./simulation";
 import { MAX_SHARE_TICKS, packInputLog, type RunReplay } from "./runReplay";
 import type { PlayerInput } from "./types";
@@ -168,6 +168,16 @@ export function resimulateSoloRun(seed: string, inputs: PlayerInput[]) {
   const leadTicks = simulateFromInputs(soloMatch(seed), [], DEFAULT_SIM_CONFIG).tick;
   const consumedTicks = Math.min(inputs.length, Math.max(0, state.tick - leadTicks));
   return { state, player: state.players[0], consumedTicks };
+}
+
+/**
+ * Floors a daily run climbed: the floor whose surface is at or just below its
+ * peak on that day's tower. Called with the SERVER's re-simulated peak only
+ * (Daily XP, design §5a).
+ */
+export function dailyFloorsForPeak(seed: string, peakY: number): number {
+  if (!Number.isFinite(peakY) || peakY <= 0) return 0;
+  return floorIndexAt(applyRunSeed(buildFreeTower(), seed), peakY);
 }
 
 /**

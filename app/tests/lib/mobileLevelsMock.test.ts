@@ -50,13 +50,14 @@ async function clear(client: ReturnType<typeof harness>["client"], level: number
     raceTicks: ticks(ms),
     peakFt: start.ticket.goalFt,
     replayToken: null,
+    outOfTime: false,
   });
 }
 
 async function lose(client: ReturnType<typeof harness>["client"], level: number) {
   const start = await client.startLevel(level);
   if (!start.ok) throw new Error(`level ${level} refused: ${start.code}`);
-  return client.submitResult(start.ticket.id, { level, finished: false, finishedTick: null, raceTicks: 300, peakFt: 10, replayToken: "r" });
+  return client.submitResult(start.ticket.id, { level, finished: false, finishedTick: null, raceTicks: 300, peakFt: 10, replayToken: "r", outOfTime: false });
 }
 
 describe("mock level store", () => {
@@ -102,6 +103,7 @@ describe("mock level store", () => {
       raceTicks: ticks(1_000),
       peakFt: start.ticket.goalFt,
       replayToken: null,
+      outOfTime: false,
     });
     expect(result.player.lives).toBe(MAX_LIVES);
   });
@@ -178,7 +180,7 @@ describe("mock level store", () => {
     const { client } = harness();
     const start = await client.startLevel(1);
     if (!start.ok) throw new Error("refused");
-    const run = { level: 1, finished: false, finishedTick: null, raceTicks: 90, peakFt: 1, replayToken: null };
+    const run = { level: 1, finished: false, finishedTick: null, raceTicks: 90, peakFt: 1, replayToken: null, outOfTime: false };
     await client.submitResult(start.ticket.id, run);
     await expect(client.submitResult(start.ticket.id, run)).rejects.toThrow();
   });
@@ -198,10 +200,20 @@ describe("parseMockState", () => {
     livesUpdatedAt: 5,
     xp: 120,
     openTicket: null,
+    streak: 2,
+    fails: { season: 1, level: 2, count: 1 },
+    boosters: { giant: 2 },
+    chestsOpened: 1,
   };
 
   it("accepts a well-formed state", () => {
     expect(parseMockState(JSON.stringify(valid))).toEqual(valid);
+  });
+
+  it("reads a store from before boosters as owning none", () => {
+    const { boosters: _b, chestsOpened: _c, ...old } = valid;
+    expect(parseMockState(JSON.stringify(old))).toMatchObject({ boosters: {}, chestsOpened: 0 });
+    expect(parseMockState(JSON.stringify({ ...valid, boosters: { random: 3, giant: -1 } }))?.boosters).toEqual({});
   });
 
   it.each([
@@ -215,7 +227,7 @@ describe("parseMockState", () => {
 });
 
 describe("refillLives", () => {
-  const base: MockState = { progress: {}, lives: 2, livesUpdatedAt: 0, xp: 0, openTicket: null };
+  const base: MockState = { progress: {}, lives: 2, livesUpdatedAt: 0, xp: 0, openTicket: null, streak: 0 };
 
   it("adds nothing before a full step and caps at the max", () => {
     expect(refillLives(base, LIFE_REFILL_MS - 1).lives).toBe(2);
@@ -225,13 +237,20 @@ describe("refillLives", () => {
 });
 
 describe("level model helpers", () => {
-  const pars = { twoStarMs: 20_000, threeStarMs: 15_000 };
+  const pars = { twoStarMs: 20_000, threeStarMs: 15_000, oneStarMs: null };
 
   it("gives 3, 2 or 1 stars against the pars", () => {
     expect(starsForTime(15_000, pars)).toBe(3);
     expect(starsForTime(15_001, pars)).toBe(2);
     expect(starsForTime(20_000, pars)).toBe(2);
     expect(starsForTime(20_001, pars)).toBe(1);
+  });
+
+  it("gives no stars once the level's clock has run out", () => {
+    const clocked = { ...pars, oneStarMs: 30_000 };
+    expect(starsForTime(30_000, clocked)).toBe(1);
+    expect(starsForTime(30_001, clocked)).toBe(0);
+    expect(starsForTime(15_000, clocked)).toBe(3);
   });
 
   it("marks every 5th level Hard", () => {
@@ -249,5 +268,72 @@ describe("level model helpers", () => {
     expect(xpForPlayerLevel(1)).toBe(60);
     expect(xpForPlayerLevel(2)).toBe(153);
     expect(xpForPlayerLevel(10)).toBeGreaterThan(xpForPlayerLevel(9));
+  });
+});
+
+describe("win streaks on the device store", () => {
+  it("count first clears at the frontier and start L4 with a rapid climb after 3", async () => {
+    const { client } = harness();
+    for (let level = 1; level <= 3; level++) await clear(client, level, 20_000);
+    const season = await client.getSeason();
+    expect(season).toMatchObject({ streak: 3, nextStartPowerUp: { type: "rapid-climb", source: "streak" } });
+    const start = await client.startLevel(4);
+    expect(start).toMatchObject({ ok: true, ticket: { startPowerUp: { type: "rapid-climb", source: "streak" } } });
+  });
+
+  it("ignore replays and reset on a frontier loss", async () => {
+    const { client } = harness();
+    for (let level = 1; level <= 3; level++) await clear(client, level, 20_000);
+    expect(await lose(client, 1)).toMatchObject({ atFrontier: false, streak: 3 });
+    expect(await lose(client, 4)).toMatchObject({ atFrontier: true, streak: 0 });
+    expect((await client.startLevel(4)).ok && (await client.getSeason()).nextStartPowerUp).toBeNull();
+  });
+});
+
+describe("star chests and boosters on the device store", () => {
+  /** Clear levels 1..n with 3 stars each (a fast finish). */
+  async function clearAll(client: ReturnType<typeof harness>["client"], n: number) {
+    const results = [];
+    for (let level = 1; level <= n; level++) results.push(await clear(client, level, 1_000));
+    return results;
+  }
+
+  it("opens a chest at 20 lifetime stars, once, from the boosters unlocked so far", async () => {
+    const { client } = harness();
+    const results = await clearAll(client, 7);
+    expect(results.slice(0, 6).every((r) => r.chestsOpened.length === 0)).toBe(true);
+    const [chest] = results[6].chestsOpened;
+    expect(chest?.chestNumber).toBe(1);
+    expect(chest?.boosters.length).toBeGreaterThanOrEqual(1);
+    const unlocked = (await client.getSeason()).levels[6].allowedPowerUps;
+    for (const b of chest?.boosters ?? []) expect(unlocked).toContain(b);
+    const season = await client.getSeason();
+    expect(season.chests).toEqual({ lifetimeStars: 21, starsIntoChest: 1, perChest: 20 });
+    const owned = Object.values(season.boosters).reduce((a, b) => a + (b ?? 0), 0);
+    expect(owned).toBe(chest?.boosters.length);
+    expect(results[6].boosters).toEqual(season.boosters);
+    // A replay earns no new stars and opens nothing.
+    expect((await clear(client, 1, 1_000)).chestsOpened).toEqual([]);
+  });
+
+  it("spends an equipped booster at start, keeps it when a free power-up applies, and refuses one not owned or unlocked", async () => {
+    const { client } = harness();
+    await clearAll(client, 7);
+    const season = await client.getSeason();
+    const [type] = Object.keys(season.boosters) as (keyof typeof season.boosters)[];
+    if (!type) throw new Error("the first chest held nothing");
+    const before = season.boosters[type] ?? 0;
+
+    // L8 is the frontier with a win streak: the free power-up wins and the booster is kept.
+    expect(season.nextStartPowerUp).not.toBeNull();
+    expect(await client.startLevel(8, { booster: type })).toMatchObject({ ok: true, ticket: { startPowerUp: { source: "streak" } } });
+    expect((await client.getSeason()).boosters[type] ?? 0).toBe(before);
+    // L2 unlocks no power-ups.
+    expect(await client.startLevel(2, { booster: type })).toEqual({ ok: false, code: "BOOSTER_UNAVAILABLE" });
+    expect(await client.startLevel(7, { booster: "jetpack" })).toEqual({ ok: false, code: "BOOSTER_UNAVAILABLE" });
+
+    const start = await client.startLevel(7, { booster: type });
+    expect(start).toMatchObject({ ok: true, ticket: { startPowerUp: { type, source: "booster" } } });
+    expect((await client.getSeason()).boosters[type] ?? 0).toBe(before - 1);
   });
 });

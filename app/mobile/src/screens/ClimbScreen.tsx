@@ -80,8 +80,8 @@ const RUN_STALE_SLICES: SliceKey[] = [
  */
 export function ClimbScreen({ onSignIn }: { onSignIn?: () => void } = {}) {
   const navigate = useNavigate();
-  // Back to wherever the climb was opened from: the level map (Practice) or
-  // the Modes tab (Practice, Daily). Cold-opened, it falls back to home.
+  // Back to wherever the climb was opened from: the level map (Endless) or
+  // the Modes tab (Endless, Daily). Cold-opened, it falls back to home.
   const goBack = useBackOr("/");
   const { user, isAnonymous } = useAuth();
   const isAuthed = Boolean(user) && !isAnonymous;

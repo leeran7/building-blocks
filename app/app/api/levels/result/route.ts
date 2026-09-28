@@ -9,7 +9,8 @@
  *   - the result is well-formed: a clear has 1-3 stars, a fail has 0, and
  *     ticks is an integer up to MAX_RUN_TICKS (parseReportedRun);
  *   - a clear's stars are the ones its ticks earn against the level's pars in
- *     the season manifest (src/levels/catalog.ts starsForTicks);
+ *     the season manifest (src/levels/catalog.ts starsForTicks). A clear past the
+ *     level's clock earns none, so it is refused;
  *   - the run fits the time since the ticket was issued (runFitsWallClock).
  *
  * Then, in one transaction under the user's row lock (src/db/levels.ts), the
@@ -21,7 +22,12 @@
  * Request:  { ticketId: string, cleared: boolean, stars: 0-3, ticks: number,
  *             replayToken?: string }  (replayToken: the run, kept for ghosts)
  * 200:      LevelResult (src/db/levels.ts) with dates as ISO strings,
- *           including unlockedAvatars (ids this run's new stars unlocked)
+ *           including chestsOpened (star chests this clear opened, §6.4)
+ *           and unlockedAvatars (ids this run's new stars unlocked)
+ *
+ * Star chests are rolled with STAR_CHEST_SECRET (src/levels/starChestServer
+ * .ts). In production without it no chest opens (fail closed, logged); the
+ * run still saves and the chests open on a later clear.
  * 400:      { error, code: INVALID_JSON | INVALID_TICKET | INVALID_RESULT
  *                         | IMPLAUSIBLE_RUN }
  * 401:      { error, code: UNAUTHORIZED }
@@ -46,6 +52,7 @@ import {
   reject,
 } from "../../../../src/levels/http";
 import { parseReplayToken } from "../../../../src/game/runReplay";
+import { starChestSecret } from "../../../../src/levels/starChestServer";
 import {
   checkClimbIpRateLimit,
   checkLevelUserRateLimit,
@@ -53,6 +60,9 @@ import {
 } from "../../../../src/lib/climbRateLimit";
 
 export const runtime = "nodejs";
+
+/** Log a missing chest secret once per server instance, not on every result. */
+let warnedNoChestSecret = false;
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
   const body = await readJsonObject(request);
@@ -100,7 +110,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   }
 
   try {
-    const result = await submitLevelResult({ userId: player.uid, ticketId, run, replayToken, now });
+    const chestSecret = starChestSecret();
+    if (chestSecret === null && !warnedNoChestSecret) {
+      warnedNoChestSecret = true;
+      console.error("[levels/result] STAR_CHEST_SECRET is missing or too short; star chests stay closed");
+    }
+    const result = await submitLevelResult({ userId: player.uid, ticketId, run, replayToken, chestSecret, now });
     return NextResponse.json(
       { ...result, nextLifeAt: result.nextLifeAt?.toISOString() ?? null },
       { status: 200, headers: NO_STORE }

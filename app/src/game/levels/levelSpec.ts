@@ -30,7 +30,7 @@ import {
  * Bump when a formula here changes what a level is. Stamped on every manifest
  * so a manifest built from older formulas is refused.
  */
-export const LEVEL_SPEC_VERSION = 1;
+export const LEVEL_SPEC_VERSION = 2;
 
 export interface LevelLayout {
   /** Gap width as a fraction of running-jump reach: 34% → 75%. */
@@ -39,8 +39,10 @@ export interface LevelLayout {
   minWalkFt: number;
   /** Share of floors with a single ladder: 50% → 85%. */
   oneLadderFrac: number;
-  /** Jump-to-grab gap under ladders, ft (0 before the intro level). */
+  /** Jump-to-grab gap under hanging ladders, ft (0 before the intro level). */
   hangingLadderFt: number;
+  /** Share of ladders that hang: 0 before the intro, 35% there, all from L30. */
+  hangingLadderShare: number;
   /** Ladder top short of the floor, ft (0 before the intro level). */
   shortTopFt: number;
 }
@@ -64,12 +66,29 @@ export interface LevelSpec {
    */
   tightness: number;
   layout: LevelLayout;
-  /** Power-up chance per floor (22% → 10%; none on L1-3). */
+  /** Power-up chance per floor (11% → 5%; none on L1-3). */
   powerUpChance: number;
   allowedPowerUps: PowerUpType[];
   /** Type introduced on this level (guaranteed orb + tip), if any. */
   introPowerUp: PowerUpType | null;
+  /** Multiplier on power-up effect times (1 → 0.6 by lava dial). */
+  powerUpDurationScale: number;
 }
+
+/**
+ * Power-up chance per floor at lava dial 0 and 1. Halved from the design
+ * doc's 22% → 10% (Leeran, 2026-09-28: fewer power-ups per level).
+ */
+export const POWER_UP_CHANCE_START = 0.11;
+export const POWER_UP_CHANCE_END = 0.05;
+
+/**
+ * Power-up effect time at lava dial 0 and 1, as a share of each type's base
+ * duration: a level-1 rapid climb lasts 10 s, a level-300 one 6 s (Leeran,
+ * 2026-09-28: each level sets its own power-up duration).
+ */
+export const POWER_UP_DURATION_START = 1;
+export const POWER_UP_DURATION_END = 0.6;
 
 /** Levels 1-3 teach the climb: no power-ups. */
 const NO_POWER_UP_LEVELS = 3;
@@ -83,11 +102,12 @@ function jumpRiseFt(speed: number): number {
 }
 
 /**
- * Hanging ladders start at 0.8 ft on their intro level and reach the engine's
- * cap at dL = 1: 70% of a standing jump's rise (1.97 ft; the doc rounds to 2).
+ * Hanging ladders start at 1.6 ft on their intro level (0.8 until Leeran asked
+ * for them to hang visibly higher, 2026-09-28) and reach the engine's cap at
+ * dL = 1: 70% of a standing jump's rise (1.97 ft; the doc rounds to 2).
  */
 const HANGING_LADDER_FT = {
-  from: 0.8,
+  from: 1.6,
   to: MAX_LADDER_HANG_FRAC * jumpRiseFt(FREE_TOWER.jumpSpeed),
 } as const;
 /**
@@ -114,6 +134,19 @@ export function tightnessFor(lavaDial: number): number {
 }
 
 /** Rises linearly in dL from `from` at the intro level to `to` at dL = 1. */
+/** Every ladder hangs from this level on (Leeran 2026-09-28). */
+export const ALL_LADDERS_HANG_LEVEL = 30;
+/** Share of ladders that hang on the level hanging ladders are introduced. */
+const FIRST_HANGING_SHARE = 0.35;
+
+/** Hanging-ladder share: 0 before the intro, rising to 1 at ALL_LADDERS_HANG_LEVEL. */
+function hangingShare(level: number, introLevel: number): number {
+  if (level < introLevel) return 0;
+  if (level >= ALL_LADDERS_HANG_LEVEL) return 1;
+  const t = (level - introLevel) / (ALL_LADDERS_HANG_LEVEL - introLevel);
+  return FIRST_HANGING_SHARE + (1 - FIRST_HANGING_SHARE) * t;
+}
+
 function introKnob(
   season: SeasonSpec,
   level: number,
@@ -149,11 +182,17 @@ export function levelSpec(season: SeasonSpec, level: number, rev = 0): LevelSpec
       minWalkFt: 8 + 32 * dL,
       oneLadderFrac: 0.5 + 0.35 * dL,
       hangingLadderFt: introKnob(season, level, season.obstacleIntros.hangingLadders, HANGING_LADDER_FT),
+      hangingLadderShare: hangingShare(level, season.obstacleIntros.hangingLadders),
       shortTopFt: introKnob(season, level, season.obstacleIntros.shortTops, SHORT_TOP_FT),
     },
-    powerUpChance: level <= NO_POWER_UP_LEVELS ? 0 : 0.22 - 0.12 * d,
+    powerUpChance:
+      level <= NO_POWER_UP_LEVELS
+        ? 0
+        : POWER_UP_CHANCE_START - (POWER_UP_CHANCE_START - POWER_UP_CHANCE_END) * d,
     allowedPowerUps: unlocked.map((u) => u.type),
     introPowerUp: intro ? intro.type : null,
+    powerUpDurationScale:
+      POWER_UP_DURATION_START - (POWER_UP_DURATION_START - POWER_UP_DURATION_END) * d,
   };
 }
 
@@ -173,7 +212,9 @@ export function levelTower(spec: LevelSpec): TowerSpec {
     oneLadderChance: spec.layout.oneLadderFrac,
     minWalkM: spec.layout.minWalkFt,
     ladderHangM: spec.layout.hangingLadderFt,
+    hangingLadderShare: spec.layout.hangingLadderShare,
     ladderTopGapM: spec.layout.shortTopFt,
+    powerUpDurationScale: spec.powerUpDurationScale,
   };
   if (spec.introPowerUp !== null) tower.introPowerUp = spec.introPowerUp;
   return tower;
@@ -239,15 +280,29 @@ export interface LevelPars {
   twoStarTicks: number;
   /** Finish at or under this many ticks for 3 stars. */
   threeStarTicks: number;
+  /**
+   * The level's clock: finish at or under this many ticks for 1 star, or the
+   * run ends as a loss when it runs out. Null on levels with no clock.
+   */
+  oneStarTicks: number | null;
 }
 
 /** Tutorial levels use looser pars so a clean first try earns 3 stars. */
 const TUTORIAL_LEVELS = 10;
+/**
+ * Par multipliers on the route bot's time: [one-star clock, two-star,
+ * three-star]. Tightened and the clock added on every level (Leeran
+ * 2026-09-28; was ×1.25 / ×1.05 with no clock, ×1.6 / ×1.3 on L1-10).
+ */
+function parFactors(level: number): readonly [number, number, number] {
+  return level <= TUTORIAL_LEVELS ? [2, 1.45, 1.2] : [1.5, 1.15, 1];
+}
 
 export function levelPars(level: number, routeTicks: number): LevelPars {
-  const tutorial = level <= TUTORIAL_LEVELS;
+  const [one, two, three] = parFactors(level);
   return {
-    twoStarTicks: Math.ceil(routeTicks * (tutorial ? 1.6 : 1.25)),
-    threeStarTicks: Math.ceil(routeTicks * (tutorial ? 1.3 : 1.05)),
+    twoStarTicks: Math.ceil(routeTicks * two),
+    threeStarTicks: Math.ceil(routeTicks * three),
+    oneStarTicks: Math.ceil(routeTicks * one),
   };
 }

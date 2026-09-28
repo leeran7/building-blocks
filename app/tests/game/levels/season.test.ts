@@ -58,6 +58,7 @@ describe("season equation", () => {
       expect(b.tightness).toBeGreaterThan(a.tightness);
       expect(b.layout.gapFrac).toBeGreaterThan(a.layout.gapFrac);
       if (a.powerUpChance > 0) expect(b.powerUpChance).toBeLessThanOrEqual(a.powerUpChance);
+      expect(b.powerUpDurationScale).toBeLessThan(a.powerUpDurationScale);
       checked++;
     }
     expect(checked).toBe(LEVELS_PER_SEASON - 1);
@@ -69,18 +70,33 @@ describe("season equation", () => {
     expect(last.layout.gapFrac).toBeCloseTo(0.75, 10);
     expect(last.layout.minWalkFt).toBeCloseTo(40, 10);
     expect(last.layout.oneLadderFrac).toBeCloseTo(0.85, 10);
-    expect(last.powerUpChance).toBeCloseTo(0.1, 10);
+    expect(last.powerUpChance).toBeCloseTo(0.05, 10);
+    expect(levelSpec(SEASON_1, 4).powerUpChance).toBeCloseTo(0.11, 2);
+    expect(last.powerUpDurationScale).toBeCloseTo(0.6, 10);
+    expect(levelSpec(SEASON_1, 1).powerUpDurationScale).toBeCloseTo(1, 10);
   });
 
   // The ceilings are the engine's physical caps: 70% of a standing jump's rise
   // (0.7 · 15² / 80) and of a ladder jump's rise (0.7 · 10.5² / 80).
   it("brings in hanging ladders at L9 and short tops at L21", () => {
     expect(levelSpec(SEASON_1, 8).layout.hangingLadderFt).toBe(0);
-    expect(levelSpec(SEASON_1, 9).layout.hangingLadderFt).toBeCloseTo(0.8, 10);
+    expect(levelSpec(SEASON_1, 9).layout.hangingLadderFt).toBeCloseTo(1.6, 10);
     expect(levelSpec(SEASON_1, 300).layout.hangingLadderFt).toBeCloseTo(1.96875, 10);
     expect(levelSpec(SEASON_1, 20).layout.shortTopFt).toBe(0);
     expect(levelSpec(SEASON_1, 21).layout.shortTopFt).toBeCloseTo(0.4, 10);
     expect(levelSpec(SEASON_1, 300).layout.shortTopFt).toBeCloseTo(0.9646875, 10);
+    // Some ladders hang from L9, more each level, and every ladder from L30.
+    expect(levelSpec(SEASON_1, 8).layout.hangingLadderShare).toBe(0);
+    expect(levelSpec(SEASON_1, 9).layout.hangingLadderShare).toBeCloseTo(0.35, 10);
+    expect(levelSpec(SEASON_1, 29).layout.hangingLadderShare).toBeLessThan(1);
+    expect(levelSpec(SEASON_1, 30).layout.hangingLadderShare).toBe(1);
+    expect(levelSpec(SEASON_1, 300).layout.hangingLadderShare).toBe(1);
+    let rising = 0;
+    for (let n = 10; n <= 30; n++) {
+      expect(levelSpec(SEASON_1, n).layout.hangingLadderShare).toBeGreaterThan(levelSpec(SEASON_1, n - 1).layout.hangingLadderShare);
+      rising++;
+    }
+    expect(rising).toBe(21);
   });
 
   it("unlocks power-ups one at a time, none on L1-3", () => {
@@ -120,9 +136,11 @@ describe("level tower", () => {
     expect(tower.goalM).toBe(spec.goalFt);
     expect(tower.difficulty).toBe(spec.layoutDial);
     expect(tower.powerUpChance).toBe(spec.powerUpChance);
+    expect(tower.powerUpDurationScale).toBe(spec.powerUpDurationScale);
     expect(tower.allowedPowerUps).toEqual(spec.allowedPowerUps);
     // The engine's validating readers accept the season's ceiling values.
     expect(ladderHangM(tower)).toBe(spec.layout.hangingLadderFt);
+    expect(tower.hangingLadderShare).toBe(spec.layout.hangingLadderShare);
     expect(ladderTopGapM(tower)).toBe(spec.layout.shortTopFt);
     expect(summitFloor(tower)).not.toBeNull();
   });
@@ -151,9 +169,11 @@ describe("level lava and pars", () => {
     expect(hazardMeanSpeedFrac(cfg)).toBeCloseTo(maxLavaMeanFrac(), 10);
   });
 
-  it("sets star pars from the route, looser on tutorial levels", () => {
-    expect(levelPars(50, 1000)).toEqual({ twoStarTicks: 1250, threeStarTicks: 1050 });
-    expect(levelPars(10, 1000)).toEqual({ twoStarTicks: 1600, threeStarTicks: 1300 });
+  it("sets star pars and the clock from the route, looser on tutorial levels", () => {
+    expect(levelPars(300, 1000)).toEqual({ twoStarTicks: 1150, threeStarTicks: 1000, oneStarTicks: 1500 });
+    expect(levelPars(50, 1000)).toEqual({ twoStarTicks: 1150, threeStarTicks: 1000, oneStarTicks: 1500 });
+    expect(levelPars(11, 1000)).toEqual({ twoStarTicks: 1150, threeStarTicks: 1000, oneStarTicks: 1500 });
+    expect(levelPars(10, 1000)).toEqual({ twoStarTicks: 1450, threeStarTicks: 1200, oneStarTicks: 2000 });
   });
 });
 

@@ -250,6 +250,12 @@ export interface TowerSpec {
    */
   goalM?: number;
   /**
+   * Level towers only: race ticks from GO a climber has to finish. Still
+   * climbing when the clock reaches it, they are out (the level's 1-star
+   * time). A positive integer; undefined everywhere else, so no clock.
+   */
+  timeLimitTicks?: number;
+  /**
    * Level towers only: the power-up types that may spawn, in any order.
    * "random" in the set lets random orbs spawn, and they roll only among the
    * set's concrete types. An empty set spawns no orbs. Undefined elsewhere:
@@ -261,6 +267,12 @@ export interface TowerSpec {
    * the first spawn, on INTRO_POWER_UP_FLOOR. Must be in allowedPowerUps.
    */
   introPowerUp?: PowerUpType;
+  /**
+   * Level towers only: multiplier on every power-up's effect time (and the
+   * jetpack's fuel), in [0.25, 1]. Cooldowns are unchanged. Undefined
+   * elsewhere, which is 1.
+   */
+  powerUpDurationScale?: number;
   /**
    * Level layout knobs. Each is undefined on the free stack, Daily and duel
    * towers, which keep their altitude ramp. Validated (and capped at the
@@ -278,10 +290,16 @@ export interface TowerSpec {
    */
   minWalkM?: number;
   /**
-   * Hanging ladders: every ladder starts this far above the floor it leaves,
-   * so it takes a jump to grab. At most 70% of a standing jump's rise.
+   * Hanging ladders: a hanging ladder starts this far above the floor it
+   * leaves, so it takes a jump to grab (Giant reaches it from the floor). At
+   * most 70% of a standing jump's rise.
    */
   ladderHangM?: number;
+  /**
+   * Share of ladders that hang, in [0, 1], fixed per (seed, floor, slot).
+   * Unset means every ladder hangs whenever ladderHangM is set.
+   */
+  hangingLadderShare?: number;
   /**
    * Short tops: every ladder stops this far below the floor it leads to. The
    * climber holds at the top until they jump off. At most 70% of the rise of

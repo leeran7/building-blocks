@@ -135,6 +135,10 @@ describe("powerUpChance", () => {
     const dense = count(0.5);
     expect(sparse).toBeGreaterThan(0);
     expect(dense).toBeGreaterThan(sparse * 2);
+    // Season levels go down to 5%: rates under 8% must still thin the orbs out.
+    const rarest = count(0.04);
+    expect(rarest).toBeGreaterThan(0);
+    expect(rarest).toBeLessThan(sparse * 0.75);
   });
 
   it("rejects an occupancy outside [0, 1]", () => {
