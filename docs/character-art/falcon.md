@@ -1,8 +1,9 @@
 # Falcon climber artwork
 
-Status: **placeholder in game**. The registry
-(`app/src/components/Game/climberCharacters.ts`) draws the Falcon as the Wraith
-recoloured with `tint("#f29842", "#2e1c17")`. To ship real art, generate the two
+Status: **no art yet**. The registry
+(`app/src/components/Game/climberCharacters.ts`) draws the Falcon as the plain
+Wraith (`base()` entry); its sampled colours ("#f29842", "#2e1c17") are kept in
+`RECOLOR_PALETTE` for a future recolour feature. To ship real art, generate the two
 sheets below, drop `falcon-poses-192.png` and `falcon-climb-192.png` into
 `app/public/climb/`, and change that entry to `sheets("falcon")`. The full
 contract is `app/public/climb/README.md`.

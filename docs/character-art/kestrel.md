@@ -1,7 +1,7 @@
 # Kestrel climber art — generation brief
 
-Placeholder until this art exists: the climb view draws Kestrel as the Wraith
-tinted to accent `#4a9fef`, set by its `tint(...)` entry in
+Until this art exists the climb view draws Kestrel as the plain Wraith, set by
+its `base()` entry in
 `app/src/components/Game/climberCharacters.ts`. When the sheets below exist,
 drop them into `app/public/climb/` and change that entry to
 `sheets("kestrel")`; see `app/public/climb/README.md`. Reference identity: `app/mobile/src/assets/avatars/kestrel.webp`
@@ -29,8 +29,8 @@ Contract, identical to the Wraith so the engine needs no per-character tuning:
   bounds: the Down crouch stays shorter.
 - Real zero-alpha background, no ground shadow, text, border or scene, and at
   least 52 px of empty margin to every cell edge.
-- Accent facets graded toward `#4a9fef` (sky blue), which is
-  also the placeholder tint, so the swap reads as the same character.
+- Accent facets graded toward `#4a9fef` (sky blue), the colour sampled
+  from the portrait (kept in `RECOLOR_PALETTE`).
 - Chibi proportions like the Wraith: head about 40% of the figure height,
   short chunky limbs, matte low-poly faceting with soft studio light.
 
