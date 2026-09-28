@@ -66,9 +66,15 @@ not isolated features.
    without taste. 2–4 ACs per story.
 6. Measurable NFRs (latency, auth, a11y level, scale envelope) with numbers.
 7. Risk register (third parties, legal, missing assets, unstable rules).
-8. Write the spec. Sections: Goal, Scope, **Flows**, Personas, Stories, ACs,
-   NFRs, Risks, Open Questions, Future. Write to `paths.spec` (default
-   `loop/spec.md`).
+8. **Work split** (read `agents/software-engineer/work-split.md`): when the
+   change is bigger than one reviewable PR, split it into workstreams that
+   parallel threads or subagents can build at once. Give each one its flows and
+   ACs, the files it owns, its branch, and what it depends on. Name the shared
+   files and types that several streams touch, and the one feature branch they
+   all merge into.
+9. Write the spec. Sections: Goal, Scope, **Flows**, Personas, Stories, ACs,
+   NFRs, **Work split**, Risks, Open Questions, Future. Write to `paths.spec`
+   (default `loop/spec.md`).
 
 ## Phase 2 — Architecture
 
