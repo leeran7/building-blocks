@@ -55,6 +55,8 @@ const CRATE = "#2a2730";
 const CRATE_TOP = "#4a4656";
 const CRATE_FACE = "#3a3644";
 const LADDER = "#aaa9ad";
+/** A hanging ladder (jump to grab): warm amber so it reads apart from the rest. */
+export const HANGING_LADDER = "#f5b642";
 const OPPONENT_COLOR = "#6bb8ff"; // wayfinding blue — opponent in a duel
 /** Decorative / eliminated only — never body or lava HUD (AC-1 / AC-13). */
 const TEXT_MUTED = "#74707e";
@@ -230,13 +232,41 @@ export function paintClimbFrame(
     drawFloorMarker(ctx, { y, altitude: fy, scale: ui });
   }
 
-  for (const { ladder: l } of laddersNearY(tower, yLow, yHigh)) {
+  for (const { ix, ladder: l } of laddersNearY(tower, yLow, yHigh)) {
     const yTop = sy(l.y1);
     const yBot = sy(l.y0);
-    if (yBot < -20 || yTop > height + 20) continue;
+    const floorY = floorHeight(tower, ix);
+    const hanging = l.y0 > floorY + 0.01;
+    const yFloor = sy(floorY);
+    if ((hanging ? yFloor : yBot) < -20 || yTop > height + 20) continue;
     const cx = sx(l.x);
     const railHalf = Math.max(4, sizePxPerM * 1.4);
-    ctx.strokeStyle = LADDER;
+    if (hanging) {
+      // Jump to grab: a dashed line from the floor to a thick bottom bar, with
+      // an up chevron, all in amber so the ladder reads apart from the rest.
+      ctx.strokeStyle = HANGING_LADDER;
+      ctx.lineWidth = 1.5 * ui;
+      ctx.setLineDash([3 * ui, 3 * ui]);
+      ctx.beginPath();
+      ctx.moveTo(cx, yFloor);
+      ctx.lineTo(cx, yBot);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      const mid = (yFloor + yBot) / 2;
+      const chev = Math.min(4 * ui, Math.max(2 * ui, (yFloor - yBot) / 3));
+      ctx.lineWidth = 2 * ui;
+      ctx.beginPath();
+      ctx.moveTo(cx - railHalf * 0.6, mid + chev / 2);
+      ctx.lineTo(cx, mid - chev / 2);
+      ctx.lineTo(cx + railHalf * 0.6, mid + chev / 2);
+      ctx.stroke();
+      ctx.lineWidth = 3.5 * ui;
+      ctx.beginPath();
+      ctx.moveTo(cx - railHalf - ui, yBot);
+      ctx.lineTo(cx + railHalf + ui, yBot);
+      ctx.stroke();
+    }
+    ctx.strokeStyle = hanging ? HANGING_LADDER : LADDER;
     ctx.lineWidth = 2 * ui;
     ctx.beginPath();
     ctx.moveTo(cx - railHalf, yTop);

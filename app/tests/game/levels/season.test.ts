@@ -85,6 +85,18 @@ describe("season equation", () => {
     expect(levelSpec(SEASON_1, 20).layout.shortTopFt).toBe(0);
     expect(levelSpec(SEASON_1, 21).layout.shortTopFt).toBeCloseTo(0.4, 10);
     expect(levelSpec(SEASON_1, 300).layout.shortTopFt).toBeCloseTo(0.9646875, 10);
+    // Some ladders hang from L9, more each level, and every ladder from L30.
+    expect(levelSpec(SEASON_1, 8).layout.hangingLadderShare).toBe(0);
+    expect(levelSpec(SEASON_1, 9).layout.hangingLadderShare).toBeCloseTo(0.35, 10);
+    expect(levelSpec(SEASON_1, 29).layout.hangingLadderShare).toBeLessThan(1);
+    expect(levelSpec(SEASON_1, 30).layout.hangingLadderShare).toBe(1);
+    expect(levelSpec(SEASON_1, 300).layout.hangingLadderShare).toBe(1);
+    let rising = 0;
+    for (let n = 10; n <= 30; n++) {
+      expect(levelSpec(SEASON_1, n).layout.hangingLadderShare).toBeGreaterThan(levelSpec(SEASON_1, n - 1).layout.hangingLadderShare);
+      rising++;
+    }
+    expect(rising).toBe(21);
   });
 
   it("unlocks power-ups one at a time, none on L1-3", () => {
@@ -128,6 +140,7 @@ describe("level tower", () => {
     expect(tower.allowedPowerUps).toEqual(spec.allowedPowerUps);
     // The engine's validating readers accept the season's ceiling values.
     expect(ladderHangM(tower)).toBe(spec.layout.hangingLadderFt);
+    expect(tower.hangingLadderShare).toBe(spec.layout.hangingLadderShare);
     expect(ladderTopGapM(tower)).toBe(spec.layout.shortTopFt);
     expect(summitFloor(tower)).not.toBeNull();
   });

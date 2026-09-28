@@ -290,10 +290,16 @@ export interface TowerSpec {
    */
   minWalkM?: number;
   /**
-   * Hanging ladders: every ladder starts this far above the floor it leaves,
-   * so it takes a jump to grab. At most 70% of a standing jump's rise.
+   * Hanging ladders: a hanging ladder starts this far above the floor it
+   * leaves, so it takes a jump to grab (Giant reaches it from the floor). At
+   * most 70% of a standing jump's rise.
    */
   ladderHangM?: number;
+  /**
+   * Share of ladders that hang, in [0, 1], fixed per (seed, floor, slot).
+   * Unset means every ladder hangs whenever ladderHangM is set.
+   */
+  hangingLadderShare?: number;
   /**
    * Short tops: every ladder stops this far below the floor it leads to. The
    * climber holds at the top until they jump off. At most 70% of the rise of

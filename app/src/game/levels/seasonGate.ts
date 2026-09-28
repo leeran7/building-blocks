@@ -222,6 +222,9 @@ export function neverEasierProblems(season: SeasonSpec, rows: readonly ManifestL
     if (sa.powerUpChance > 0 && !(sb.powerUpChance <= sa.powerUpChance)) {
       out.push(`${tag}: power-ups get more common`);
     }
+    if (sb.layout.hangingLadderShare < sa.layout.hangingLadderShare) {
+      out.push(`${tag}: fewer ladders hang`);
+    }
     if (!(sb.powerUpDurationScale <= sa.powerUpDurationScale)) {
       out.push(`${tag}: power-ups last longer`);
     }

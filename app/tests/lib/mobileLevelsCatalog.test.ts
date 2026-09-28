@@ -69,7 +69,7 @@ describe("season 1 catalog", () => {
     expect(catalog.level(10).costsLife).toBe(false);
     expect(catalog.level(11).costsLife).toBe(true);
     expect(catalog.level(4).introPowerUp).toBe("rapid-climb");
-    expect(catalog.level(9).introTip).toMatch(/Hanging ladders/);
+    expect(catalog.level(9).introTip).toMatch(/Amber ladders hang/);
     expect(catalog.level(21).introTip).toMatch(/Short tops/);
     expect(catalog.level(20).introTip).toBeNull();
     expect(() => catalog.level(301)).toThrow();

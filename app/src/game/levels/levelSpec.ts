@@ -39,8 +39,10 @@ export interface LevelLayout {
   minWalkFt: number;
   /** Share of floors with a single ladder: 50% → 85%. */
   oneLadderFrac: number;
-  /** Jump-to-grab gap under ladders, ft (0 before the intro level). */
+  /** Jump-to-grab gap under hanging ladders, ft (0 before the intro level). */
   hangingLadderFt: number;
+  /** Share of ladders that hang: 0 before the intro, 35% there, all from L30. */
+  hangingLadderShare: number;
   /** Ladder top short of the floor, ft (0 before the intro level). */
   shortTopFt: number;
 }
@@ -131,6 +133,19 @@ export function tightnessFor(lavaDial: number): number {
 }
 
 /** Rises linearly in dL from `from` at the intro level to `to` at dL = 1. */
+/** Every ladder hangs from this level on (Leeran 2026-09-28). */
+export const ALL_LADDERS_HANG_LEVEL = 30;
+/** Share of ladders that hang on the level hanging ladders are introduced. */
+const FIRST_HANGING_SHARE = 0.35;
+
+/** Hanging-ladder share: 0 before the intro, rising to 1 at ALL_LADDERS_HANG_LEVEL. */
+function hangingShare(level: number, introLevel: number): number {
+  if (level < introLevel) return 0;
+  if (level >= ALL_LADDERS_HANG_LEVEL) return 1;
+  const t = (level - introLevel) / (ALL_LADDERS_HANG_LEVEL - introLevel);
+  return FIRST_HANGING_SHARE + (1 - FIRST_HANGING_SHARE) * t;
+}
+
 function introKnob(
   season: SeasonSpec,
   level: number,
@@ -166,6 +181,7 @@ export function levelSpec(season: SeasonSpec, level: number, rev = 0): LevelSpec
       minWalkFt: 8 + 32 * dL,
       oneLadderFrac: 0.5 + 0.35 * dL,
       hangingLadderFt: introKnob(season, level, season.obstacleIntros.hangingLadders, HANGING_LADDER_FT),
+      hangingLadderShare: hangingShare(level, season.obstacleIntros.hangingLadders),
       shortTopFt: introKnob(season, level, season.obstacleIntros.shortTops, SHORT_TOP_FT),
     },
     powerUpChance:
@@ -195,6 +211,7 @@ export function levelTower(spec: LevelSpec): TowerSpec {
     oneLadderChance: spec.layout.oneLadderFrac,
     minWalkM: spec.layout.minWalkFt,
     ladderHangM: spec.layout.hangingLadderFt,
+    hangingLadderShare: spec.layout.hangingLadderShare,
     ladderTopGapM: spec.layout.shortTopFt,
     powerUpDurationScale: spec.powerUpDurationScale,
   };

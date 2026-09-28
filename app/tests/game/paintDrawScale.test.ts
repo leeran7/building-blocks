@@ -11,13 +11,14 @@ import { climbView } from "../../src/components/Game/climbCamera";
 import {
   CLIMBER_DRAW_SCALE,
   GAME_DRAW_SCALE,
+  HANGING_LADDER,
   hudFitFontPx,
   paintClimbFrame,
   type PaintCtx,
 } from "../../src/components/Game/paintClimbFrame";
 import { createMatch } from "../../src/game/simulation";
 import { grantPowerUp } from "../../src/game/powerups";
-import { buildTower, platformsNearY } from "../../src/game/towers";
+import { buildTower, ladderHangs, laddersNearY, platformsNearY } from "../../src/game/towers";
 
 const WIDTH = 360;
 const HEIGHT = 640;
@@ -178,5 +179,56 @@ describe("canvas HUD: the lava readout never overlaps the altitude", () => {
     const lavaLeft = lava!.x - lava!.w;
     expect(lavaLeft).toBeGreaterThan(altRight);
     expect(lava!.x).toBeLessThanOrEqual(WIDTH);
+  });
+});
+
+describe("paintClimbFrame: hanging ladders stand out", () => {
+  /** x of every dashed amber jump line drawn, in canvas px. */
+  function jumpLines(tower: ReturnType<typeof buildTower>): number[] {
+    const xs: number[] = [];
+    const state: Record<string | symbol, unknown> = { dash: [] as number[] };
+    const ctx = new Proxy(state, {
+      get(target, prop) {
+        if (prop in target) return target[prop];
+        if (prop === "setLineDash") return (d: number[]) => (target.dash = d);
+        if (prop === "moveTo") {
+          return (x: number) => {
+            if (target.strokeStyle === HANGING_LADDER && (target.dash as number[]).length > 0) xs.push(x);
+          };
+        }
+        if (prop === "measureText") return () => ({ width: 10 });
+        if (typeof prop === "string" && prop.startsWith("create")) return () => ({ addColorStop() {} });
+        return () => {};
+      },
+      set(target, prop, value) {
+        target[prop] = value;
+        return true;
+      },
+    }) as unknown as PaintCtx;
+    const m = createMatch({ seed: "hang-paint", mode: "solo", tower, playerIds: ["p1"] });
+    paintClimbFrame(ctx, m, { width: WIDTH, height: HEIGHT, includeHud: false });
+    return xs;
+  }
+
+  it("marks the hanging ladders in view, and only them, with an amber jump line", () => {
+    const base = { ...buildTower("indie-games"), difficulty: 0.4, ladderHangM: 1.5 };
+    const mixed = { ...base, hangingLadderShare: 0.5 };
+    const { pxPerM, viewH } = climbView(WIDTH, HEIGHT, base.widthM);
+    const hungXs = laddersNearY(mixed, -mixed.floorGap, viewH)
+      .filter(({ ix, slot }) => ladderHangs(mixed, ix, slot))
+      .map(({ ladder }) => ladder.x * pxPerM);
+    const plainXs = laddersNearY(mixed, -mixed.floorGap, viewH)
+      .filter(({ ix, slot }) => !ladderHangs(mixed, ix, slot))
+      .map(({ ladder }) => ladder.x * pxPerM);
+    expect(plainXs.length).toBeGreaterThan(0);
+    const drawn = jumpLines(mixed);
+    expect(drawn.length).toBeGreaterThan(0);
+    // Every jump line sits on a hanging ladder; none on a plain one.
+    for (const x of drawn) {
+      expect(hungXs.some((h) => Math.abs(h - x) < 1e-6)).toBe(true);
+      expect(plainXs.some((h) => Math.abs(h - x) < 1e-6)).toBe(false);
+    }
+    expect(jumpLines({ ...base, hangingLadderShare: 0 })).toEqual([]);
+    expect(jumpLines(buildTower("indie-games"))).toEqual([]);
   });
 });
