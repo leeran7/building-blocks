@@ -31,6 +31,7 @@ import {
   type LevelRunReport,
 } from "../../lib/levels/model";
 import type { LevelRunSetup } from "../../lib/levels/catalog";
+import { useSettings } from "../../contexts/AppDataContext";
 import { StarRow } from "./LevelBits";
 
 /**
@@ -74,6 +75,8 @@ export function LevelRun({
   useGameHaptics(simRef, 0, runId);
 
   const canvasBoxRef = useRef<HTMLDivElement>(null);
+  // The climber draws as the player's avatar (the Wraith for guests / none).
+  const myAvatarId = useSettings().data?.avatarId ?? null;
   const canvasSize = useCanvasSize(canvasBoxRef, { fill: true });
   const safeArea = useSafeAreaInsets();
   const bottomInset = useTouchControlsInset(safeArea.bottom);
@@ -168,6 +171,7 @@ export function LevelRun({
         hudInsetTop={safeArea.top}
         includeHud={false}
         floorMarkerInsetTop={safeArea.top + 80}
+        myAvatarId={myAvatarId}
       />
 
       <ExpeditionHud

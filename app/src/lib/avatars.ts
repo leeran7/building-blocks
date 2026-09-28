@@ -7,8 +7,9 @@
  * Removing an entry is safe: every read goes through parseAvatarId, so a
  * stored retired id renders the initials fallback instead of a broken image.
  *
- * Unlock rules are data only and independent of any sprite, so per-character
- * art can key off the same id later. Who may select what is decided in
+ * Unlock rules are data only and independent of any sprite. The in-game
+ * climber art keys off the same id (src/components/Game/climberCharacters.ts,
+ * contract in public/climb/README.md). Who may select what is decided in
  * src/lib/avatarUnlocks.ts; the server counts stars in src/db/avatarUnlocks.ts.
  * Level stars are self-reported by the device (context/trust.md), so an
  * unlock is cosmetic and must never gate money or ranking.
@@ -89,6 +90,20 @@ export function parseAvatarIdList(v: unknown): string[] | null {
   if (!Array.isArray(v)) return null;
   const ids = v.map(parseAvatarId);
   return ids.every((id): id is string => id !== null) ? ids : null;
+}
+
+/**
+ * Player id → parsed avatar id, for drawing each climber as their avatar
+ * (unknown or missing ids become null, which draws the Wraith). Absent players
+ * and empty ids are skipped. Built with Object.fromEntries so a player id of
+ * "__proto__" stays an own key instead of setting the prototype.
+ */
+export function avatarIdsByPlayer(
+  players: readonly ({ readonly id: string; readonly avatarId?: unknown } | null | undefined)[]
+): Record<string, string | null> {
+  return Object.fromEntries(
+    players.flatMap((p) => (p && p.id ? [[p.id, parseAvatarId(p.avatarId)] as const] : []))
+  );
 }
 
 /** The star total an entry needs, or null for a free avatar. */
