@@ -15,6 +15,7 @@ import { REFUSAL_COPY } from "../components/levels/LevelStartSheet";
 import { LevelRun } from "../components/levels/LevelRun";
 import { levelRunSetup } from "../lib/levels/catalog";
 import { parseStartPowerUp } from "../lib/levels/httpClient";
+import { bestFailMarker, nearMissHeadline } from "../lib/levels/nearMiss";
 import {
   LevelResultCard,
   PracticeResultCard,
@@ -64,7 +65,7 @@ export function LevelPlayScreen() {
   const [search] = useSearchParams();
   const practice = search.get("practice") === "1";
   const level = Number(params.level);
-  const { client, season, setPlayer, refresh } = useLevels();
+  const { client, season, setPlayer, refresh, bestFails } = useLevels();
   const node: LevelNode | null =
     season && Number.isInteger(level) && level >= 1 && level <= season.levels.length
       ? season.levels[level - 1]
@@ -94,6 +95,10 @@ export function LevelPlayScreen() {
 
   const submit = useCallback(
     async (report: LevelRunReport) => {
+      // The near-miss marker is device-only: every lost attempt counts,
+      // Practice included, and a clear retires it.
+      if (report.finished) bestFails.clear(report.level);
+      else bestFails.record(report.level, report.peakFt);
       if (practice || !ticket) {
         setStage({ kind: "practice-over", report });
         return;
@@ -111,7 +116,7 @@ export function LevelPlayScreen() {
         setStage({ kind: "failed", report });
       }
     },
-    [client, practice, ticket, setPlayer, refresh],
+    [client, practice, ticket, setPlayer, refresh, bestFails],
   );
 
   const retry = useCallback(async () => {
@@ -164,6 +169,10 @@ export function LevelPlayScreen() {
   const goalFt = ticket?.goalFt ?? node.goalFt;
   const pars = ticket?.pars ?? node.pars;
   const player = season?.player;
+  // Read at render: a run in progress keeps the marker it started with (the
+  // store only changes when a run ends, and LevelRun reads it once).
+  const marker = setup ? bestFailMarker(setup.tower, bestFails.get(level), goalFt) : null;
+  const nearMiss = (peakFt: number) => (setup ? nearMissHeadline(setup.tower, peakFt, goalFt) : null);
 
   return (
     <div className="fixed inset-0 z-40 bg-void">
@@ -180,6 +189,7 @@ export function LevelPlayScreen() {
         onEnd={submit}
         onQuit={() => toMap()}
         startPowerUp={practice ? null : (ticket?.startPowerUp ?? null)}
+        bestFailFt={marker}
       />
 
       {stage.kind === "saving" && (
@@ -191,6 +201,7 @@ export function LevelPlayScreen() {
         <LevelResultCard
           result={player ? { ...stage.result, player } : stage.result}
           costsLife={node.costsLife}
+          nearMiss={stage.result.cleared ? null : nearMiss(stage.result.peakFt)}
           hasNextLevel={season !== null && level < season.levels.length}
           retryBusy={retryBusy}
           retryError={retryError}
@@ -209,6 +220,7 @@ export function LevelPlayScreen() {
           level={level}
           goalFt={goalFt}
           peakFt={stage.report.peakFt}
+          nearMiss={stage.report.finished ? null : nearMiss(stage.report.peakFt)}
           timeMs={stage.report.finishedTick !== null ? Math.round((stage.report.finishedTick / TICK_HZ) * 1000) : null}
           onRetry={() => void retry()}
           onMap={() => toMap()}

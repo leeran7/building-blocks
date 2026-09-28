@@ -30,10 +30,13 @@ export function LevelResultCard({
   onMap,
   onPractice,
   onPracticeLevel,
+  nearMiss = null,
 }: {
   result: LevelResult;
   /** Whether a retry of this level spends a life (tutorial levels don't). */
   costsLife: boolean;
+  /** "2 floors from the summit!" when a loss came close (§6.2). */
+  nearMiss?: string | null;
   hasNextLevel: boolean;
   retryBusy: boolean;
   /** Why the last Retry could not start, in the player's words. */
@@ -46,13 +49,13 @@ export function LevelResultCard({
 }) {
   const label = result.cleared
     ? `Level ${result.level} cleared, ${result.stars} of ${MAX_STARS} stars`
-    : `Caught by the lava, ${feetShort(result)} ${ALTITUDE_UNIT} from the summit`;
+    : (nearMiss ?? `Caught by the lava, ${feetShort(result)} ${ALTITUDE_UNIT} from the summit`);
   return (
     <Sheet label={label}>
       {result.cleared ? (
         <Cleared result={result} />
       ) : (
-        <Lost goalFt={result.goalFt} peakFt={result.peakFt} level={result.level} />
+        <Lost goalFt={result.goalFt} peakFt={result.peakFt} level={result.level} nearMiss={nearMiss} />
       )}
       <StreakLine result={result} />
       <StuckLine result={result} />
@@ -165,7 +168,17 @@ function Cleared({ result }: { result: LevelResult }) {
   );
 }
 
-function Lost({ goalFt, peakFt, level }: { goalFt: number; peakFt: number; level: number }) {
+function Lost({
+  goalFt,
+  peakFt,
+  level,
+  nearMiss = null,
+}: {
+  goalFt: number;
+  peakFt: number;
+  level: number;
+  nearMiss?: string | null;
+}) {
   const short = feetShort({ goalFt, peakFt });
   const pct = goalFt > 0 ? Math.min(100, (peakFt / goalFt) * 100) : 0;
   return (
@@ -173,6 +186,9 @@ function Lost({ goalFt, peakFt, level }: { goalFt: number; peakFt: number; level
       <p className="text-center font-mono text-label font-bold uppercase tracking-eyebrow text-ember">
         Caught by the lava · Level {level}
       </p>
+      {nearMiss && (
+        <p className="mt-3 text-center font-display text-headline font-black uppercase text-signal">{nearMiss}</p>
+      )}
       <p className="mt-3 text-center font-display text-hero font-black tabular-nums text-text-primary">
         {short.toLocaleString()}
         <span className="ml-1 text-lead font-bold uppercase text-text-secondary">{ALTITUDE_UNIT}</span>
@@ -253,11 +269,13 @@ export function PracticeResultCard({
   timeMs,
   onRetry,
   onMap,
+  nearMiss = null,
 }: {
   level: number;
   goalFt: number;
   peakFt: number;
   timeMs: number | null;
+  nearMiss?: string | null;
   onRetry: () => void;
   onMap: () => void;
 }) {
@@ -274,7 +292,7 @@ export function PracticeResultCard({
           <p className="text-center text-body text-text-secondary">Summit reached</p>
         </>
       ) : (
-        <Lost goalFt={goalFt} peakFt={peakFt} level={level} />
+        <Lost goalFt={goalFt} peakFt={peakFt} level={level} nearMiss={nearMiss} />
       )}
       <p className="mt-3 text-center text-meta text-text-muted">Practice runs earn no stars or XP.</p>
       <div className="mt-6 flex gap-2.5">

@@ -13,6 +13,7 @@ import { createMockLevelsClient } from "../lib/levels/mockClient";
 import { createHttpLevelsClient } from "../lib/levels/httpClient";
 import { season1Catalog } from "../lib/levels/catalog";
 import { withMockFallback } from "../lib/levels/fallbackClient";
+import { createBestFailStore, type BestFailStore } from "../lib/levels/nearMiss";
 import type { LevelsClient, PlayerStats, SeasonView } from "../lib/levels/model";
 
 /**
@@ -30,6 +31,8 @@ interface LevelsValue {
   refresh: () => Promise<void>;
   /** Apply lives and XP the server just returned, without a refetch. */
   setPlayer: (player: PlayerStats) => void;
+  /** Best failed height per level, on this device (near-miss markers, §6.2). */
+  bestFails: BestFailStore;
 }
 
 const LevelsContext = createContext<LevelsValue | null>(null);
@@ -37,10 +40,12 @@ const LevelsContext = createContext<LevelsValue | null>(null);
 export function LevelsProvider({
   children,
   client: injected,
+  bestFails: injectedBestFails,
 }: {
   children: ReactNode;
   /** Tests and the screenshot harness pass their own client. */
   client?: LevelsClient;
+  bestFails?: BestFailStore;
 }) {
   const { user, loading: authLoading, isAnonymous } = useAuth();
   const uid = user && !isAnonymous ? user.uid : null;
@@ -51,6 +56,10 @@ export function LevelsProvider({
         createMockLevelsClient({ accountId: uid ?? undefined }),
       ),
     [injected, uid],
+  );
+  const bestFails = useMemo(
+    () => injectedBestFails ?? createBestFailStore({ accountId: uid }),
+    [injectedBestFails, uid],
   );
   const [season, setSeason] = useState<SeasonView | null>(null);
   const [loading, setLoading] = useState(false);
@@ -86,8 +95,8 @@ export function LevelsProvider({
   }, []);
 
   const value = useMemo<LevelsValue>(
-    () => ({ client, season, loading, error, refresh, setPlayer }),
-    [client, season, loading, error, refresh, setPlayer],
+    () => ({ client, season, loading, error, refresh, setPlayer, bestFails }),
+    [client, season, loading, error, refresh, setPlayer, bestFails],
   );
   return <LevelsContext.Provider value={value}>{children}</LevelsContext.Provider>;
 }

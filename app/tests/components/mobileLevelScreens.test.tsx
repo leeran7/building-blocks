@@ -30,7 +30,9 @@ vi.mock("@app/components/Game/lava", () => ({ drawLava: vi.fn(), isLavaInProximi
  * that end the run the way the real one does (through onEnd), so the screen's
  * submit, result, retry and Next level flow runs for real.
  */
-const runs = vi.hoisted(() => ({ mounted: [] as Array<{ seed: string; goalFt: number }> }));
+const runs = vi.hoisted(() => ({
+  mounted: [] as Array<{ seed: string; goalFt: number; bestFailFt: number | null; startPowerUp: unknown }>,
+}));
 vi.mock("../../mobile/src/components/levels/LevelRun", async () => {
   const { createElement: h, useEffect: useMountEffect } = await import("react");
   return {
@@ -39,16 +41,25 @@ vi.mock("../../mobile/src/components/levels/LevelRun", async () => {
       seed: string;
       goalFt: number;
       paused: boolean;
+      bestFailFt?: number | null;
+      startPowerUp?: unknown;
       onEnd: (r: LevelRunReport) => void;
     }) => {
       useMountEffect(() => {
-        runs.mounted.push({ seed: props.seed, goalFt: props.goalFt });
-      }, [props.seed, props.goalFt]);
+        runs.mounted.push({
+          seed: props.seed,
+          goalFt: props.goalFt,
+          bestFailFt: props.bestFailFt ?? null,
+          startPowerUp: props.startPowerUp ?? null,
+        });
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- one entry per mounted attempt
+      }, []);
       return h(
         "div",
         null,
         h("button", { onClick: () => props.onEnd({ level: props.level, finished: true, finishedTick: 30, raceTicks: 30, peakFt: props.goalFt, replayToken: null }) }, "stub-clear"),
         h("button", { onClick: () => props.onEnd({ level: props.level, finished: false, finishedTick: null, raceTicks: 300, peakFt: props.goalFt / 2, replayToken: "r" }) }, "stub-lose"),
+        h("button", { onClick: () => props.onEnd({ level: props.level, finished: false, finishedTick: null, raceTicks: 300, peakFt: props.goalFt - 1, replayToken: "r" }) }, "stub-near"),
       );
     },
   };
@@ -76,6 +87,7 @@ function Where() {
 
 beforeEach(() => {
   runs.mounted = [];
+  localStorage.clear();
   container = document.createElement("div");
   document.body.appendChild(container);
   root = createRoot(container);
@@ -256,6 +268,23 @@ describe("level play route", () => {
     expect(runs.mounted).toHaveLength(2);
     await click(button("stub-lose"));
     expect(container.textContent).toContain("3 of 5 lives left");
+  });
+
+  it("leads a near miss with the floors left, and marks the next try with it", async () => {
+    const client = memoryClient();
+    await clearLevels(client, 10);
+    await renderMap(client);
+    await click(pin("Level 11, next to play"));
+    await click(button("Play level 11"));
+    await click(button("stub-lose"));
+    expect(container.textContent).not.toContain("from the summit!");
+    await click(button("Retry"));
+    // Half way up is not close: no marker.
+    expect(runs.mounted[1].bestFailFt).toBeNull();
+    await click(button("stub-near"));
+    expect(container.textContent).toContain("1 floor from the summit!");
+    await click(button("Retry"));
+    expect(runs.mounted[2].bestFailFt).toBe(runs.mounted[2].goalFt - 1);
   });
 
   it("says why a retry could not start instead of doing nothing", async () => {
