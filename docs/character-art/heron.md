@@ -1,9 +1,9 @@
 # Heron gameplay artwork: generation prompts
 
-Unlocks at 300 stars. Until the finished sheets land, the game draws the
-Heron as the plain Wraith (`heron: base()` in
-`app/src/components/Game/climberCharacters.ts`; its sampled accent `#3b93e6` is kept
-in `RECOLOR_PALETTE` for a future recolour feature).
+Unlocks at 300 stars. The shipped sheets are drawn in code by the low-poly rig in
+`scripts/climber-art/` (`heron: sheets("heron")` in
+`app/src/components/Game/climberCharacters.ts`; accent `#3b93e6`). These prompts are
+for replacing them with generated art later.
 
 Produce the art in the Wraith pipeline (`git show 7406c15:output/wraith/README.md`
 and `output/wraith/movement/README.md` in that commit) and ship it to the
