@@ -3,7 +3,8 @@
 Generation brief for the Otter climb sprite, matching the Wraith pipeline
 (`git show 7406c15:output/wraith/README.md`). The identity reference is the
 avatar portrait `app/mobile/src/assets/avatars/otter.webp`. Until this art
-lands, the game draws Otter as a blue-tinted Wraith placeholder.
+lands, the game draws Otter as the Wraith tinted blue (`#3595f2`), set in
+`app/src/components/Game/climberCharacters.ts`.
 
 ## Deliverables
 
@@ -27,7 +28,7 @@ tuning:
 - At least 30px of empty gutter to every cell edge, including tail and ears.
 - Poses face three-quarter right. No frame is mirrored; the engine mirrors
   for left-facing movement.
-- Accent facets graded toward `#1379e9`.
+- Accent facets graded toward `#3595f2`.
 
 Pose sheet order, left to right then top to bottom: **Idle, Run A, Run B,
 Reach A, Reach B, Falling, Celebrate, Down**. The climb strip is six
@@ -36,7 +37,7 @@ the same with sides swapped. Its body stays centred with under 2px of bob.
 
 ## Prompts
 
-Sheet prompt: one 4 × 2 sheet of the same character, a chibi low-poly otter warrior: big round head with small rounded ears, a cream `#d8cdbd` faceted muzzle with thin white whiskers, glowing blue eyes, matte charcoal faceted fur and armor, cobalt blue `#1379e9` facet accents on the brow, shoulders, forearms and a blue chest chevron, short chunky limbs with webbed paws, and a thick tapered tail. Big head,
+Sheet prompt: one 4 × 2 sheet of the same character, a chibi low-poly otter warrior: big round head with small rounded ears, a cream `#d8cdbd` faceted muzzle with thin white whiskers, glowing blue eyes, matte charcoal faceted fur and armor, bright blue `#3595f2` facet accents on the brow, shoulders, forearms and a blue chest chevron, short chunky limbs with webbed paws, and a thick tapered tail. Big head,
 short chunky limbs, the same proportions as a chibi figure about two and a
 half heads tall. Fixed three-quarter right-facing view. The thick tail trails behind at the hip and stays attached in every pose. Ordered poses:
 idle, running with one stride, opposite running stride, right-arm overhead
@@ -57,7 +58,7 @@ views of the exact Otter from the pose sheet, side by side at the same size
 and foot baseline. Left: strict right-facing side profile, one visible
 blue eye, visible arm extended forward horizontally for rigging. Right:
 centred symmetric back view, the back of the head shows both ears and no face or whiskers; the tail hangs down between the legs, arms down and out in an A pose and legs
-separated. Preserve the costume, proportions, `#1379e9` facet accents and
+separated. Preserve the costume, proportions, `#3595f2` facet accents and
 soft studio lighting. No weapons, labels, scene, borders or ground shadows.
 Flat magenta intermediate background.
 
@@ -76,5 +77,6 @@ Whiskers are thin; at 192px they must still read. Give them a soft 2px light lin
   Reach B pixel data.
 - No magenta fringe on light and dark backgrounds.
 - Preview over the volcano tile at 48, 80 and 144px idle height.
-- Replace the tint placeholder with the real sheet URLs in the per-avatar
-  registry in `app/src/components/Game/climberSprite.ts`.
+- Swap the `tint(...)` entry in
+  `app/src/components/Game/climberCharacters.ts` for `sheets("otter")` and
+  add the files to `app/public/climb/` (see `app/public/climb/README.md`).
