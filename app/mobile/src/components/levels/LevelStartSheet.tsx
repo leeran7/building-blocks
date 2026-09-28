@@ -102,11 +102,14 @@ export function LevelStartSheet({
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className="ls-sheet relative w-full max-w-md rounded-t-[28px] border-t border-border-strong bg-surface/95 px-5 pb-[calc(env(safe-area-inset-bottom)+1.25rem)] pt-3 backdrop-blur-xl"
+        // Never taller than the space it opens in (under the status bar): the
+        // body scrolls and the title row with Close stays pinned, so a long
+        // card (intro tip, extras, out of lives) never loses its top.
+        className="ls-sheet relative max-h-[calc(100%-env(safe-area-inset-top)-0.75rem)] w-full max-w-md overflow-y-auto overscroll-contain rounded-t-[28px] border-t border-border-strong bg-surface/95 px-5 pb-[calc(env(safe-area-inset-bottom)+1.25rem)] backdrop-blur-xl"
       >
-        <span aria-hidden className="mx-auto mb-3 block h-1 w-9 rounded-full bg-border-strong" />
-        <div className="flex items-start gap-3">
-          <div className="min-w-0 flex-1">
+        <div className="sticky top-0 z-10 -mx-5 flex items-start gap-3 bg-surface px-5 pb-2 pt-3">
+          <span aria-hidden className="absolute left-1/2 top-3 block h-1 w-9 -translate-x-1/2 rounded-full bg-border-strong" />
+          <div className="min-w-0 flex-1 pt-4">
             <p className={`font-mono text-label font-bold uppercase tracking-eyebrow ${hard ? "text-ember" : "text-signal"}`}>
               {hard ? "Hard level" : `Episode ${episodeOf(node.level)}`}
             </p>
@@ -122,7 +125,7 @@ export function LevelStartSheet({
               void tapLight();
               onClose();
             }}
-            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-border-subtle bg-surface-raised text-text-secondary transition-transform active:scale-90"
+            className="mt-4 flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-border-subtle bg-surface-raised text-text-secondary transition-transform active:scale-90"
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" aria-hidden>
               <path d="M6 6l12 12M18 6 6 18" />
@@ -130,7 +133,7 @@ export function LevelStartSheet({
           </button>
         </div>
 
-        <div className="mt-4 grid grid-cols-2 gap-2.5">
+        <div className="mt-2 grid grid-cols-2 gap-2.5">
           <div className="rounded-2xl border border-white/10 bg-elevated/70 px-3.5 py-3">
             <p className="font-mono text-label uppercase tracking-label text-text-secondary">Goal</p>
             <p className="mt-1 font-display text-stat font-black tabular-nums text-text-primary">
