@@ -14,7 +14,7 @@ from climber import POSES
 from rig import OUT, fit, ground_shift, quantise, render, sheet
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-DEFAULT_OUT = os.path.join(HERE, "..", "..", "app", "public", "climb")
+DEFAULT_OUT = os.path.join(HERE, "..", "..", "..", "app", "public", "climb")
 
 
 def cells(char):

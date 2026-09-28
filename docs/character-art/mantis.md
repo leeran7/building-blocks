@@ -1,7 +1,7 @@
 # Mantis climber art — generation brief
 
 Mantis ships code-drawn sheets (`app/public/climb/mantis-poses-192.png` and
-`mantis-climb-192.png`), rendered by `scripts/climber-art/` and registered as
+`mantis-climb-192.png`), rendered by `scripts/climber-art/kestrel-mantis-yak/` and registered as
 `sheets("mantis")` in `app/src/components/Game/climberCharacters.ts`. This brief
 is for generated art to replace them: overwrite the two files with the same
 names and layout (`app/public/climb/README.md`); no code change is needed. Reference identity: `app/mobile/src/assets/avatars/mantis.webp`

@@ -1,7 +1,7 @@
 # Kestrel climber art — generation brief
 
 Kestrel ships code-drawn sheets (`app/public/climb/kestrel-poses-192.png` and
-`kestrel-climb-192.png`), rendered by `scripts/climber-art/` and registered as
+`kestrel-climb-192.png`), rendered by `scripts/climber-art/kestrel-mantis-yak/` and registered as
 `sheets("kestrel")` in `app/src/components/Game/climberCharacters.ts`. This brief
 is for generated art to replace them: overwrite the two files with the same
 names and layout (`app/public/climb/README.md`); no code change is needed. Reference identity: `app/mobile/src/assets/avatars/kestrel.webp`

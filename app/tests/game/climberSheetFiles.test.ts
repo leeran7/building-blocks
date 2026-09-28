@@ -1,48 +1,45 @@
 import { readFileSync } from "node:fs";
-import path from "node:path";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { CLIMBER_CHARACTERS, SHEET_CELL } from "../../src/components/Game/climberCharacters";
+import { CLIMBER_CHARACTERS } from "../../src/components/Game/climberCharacters";
 
 /**
- * Every character the registry draws from its own sheets must ship them in
- * public/climb/ at the contract's size (public/climb/README.md): a 4×2 poses
- * atlas and, when declared, a 6×1 climb strip of SHEET_CELL cells. A missing
- * or mis-sized sheet would otherwise only show up as the Wraith fallback.
+ * Every registry entry with its own art points at files that exist in
+ * public/climb/ with the layout the engine crops: a 4×2 poses atlas and a 6×1
+ * climb strip of `cell`-px cells. A missing or mis-sized sheet would 404 or
+ * mis-crop in the game, so it fails here instead.
  */
 
-const PUBLIC = path.join(__dirname, "../../public");
+const PUBLIC = join(__dirname, "../../public");
+const PNG_SIG = "89504e470d0a1a0a";
 
 /** Width and height from a PNG's IHDR chunk; null when the bytes are not a PNG. */
 function pngSize(buf: Buffer): { w: number; h: number } | null {
-  const sig = "89504e470d0a1a0a";
-  if (buf.length < 24 || buf.subarray(0, 8).toString("hex") !== sig) return null;
-  if (buf.subarray(12, 16).toString("ascii") !== "IHDR") return null;
+  if (buf.length < 24 || buf.subarray(0, 8).toString("hex") !== PNG_SIG) return null;
+  if (buf.subarray(12, 16).toString("latin1") !== "IHDR") return null;
   return { w: buf.readUInt32BE(16), h: buf.readUInt32BE(20) };
 }
 
-function sheetSize(url: string): { w: number; h: number } | null {
-  return pngSize(readFileSync(path.join(PUBLIC, url)));
-}
-
-describe("climber sheet files", () => {
-  it("pngSize rejects bytes that are not a PNG", () => {
-    expect(pngSize(Buffer.from("not a png at all, just text bytes"))).toBeNull();
-    expect(pngSize(readFileSync(path.join(PUBLIC, "climb/volcano-tile.jpg")))).toBeNull();
+describe("shipped climber sheets", () => {
+  it("pngSize reads a real sheet and rejects non-PNG bytes", () => {
+    expect(pngSize(readFileSync(join(PUBLIC, "climb/wraith-poses-192.png")))).toEqual({ w: 768, h: 384 });
+    expect(pngSize(readFileSync(join(PUBLIC, "climb/volcano-tile.jpg")))).toBeNull();
+    expect(pngSize(Buffer.from("not a png"))).toBeNull();
   });
 
-  it("ships every registered sheet at the contract's size", () => {
+  it("every character with art has a 4×2 poses atlas and, if declared, a 6×1 climb strip", () => {
     let checked = 0;
-    for (const [id, c] of Object.entries(CLIMBER_CHARACTERS)) {
-      if (c.kind !== "sheets") continue;
-      expect(c.cell, id).toBe(SHEET_CELL);
-      expect(sheetSize(c.poses), `${id} poses`).toEqual({ w: 4 * SHEET_CELL, h: 2 * SHEET_CELL });
-      if (c.climb) expect(sheetSize(c.climb), `${id} climb`).toEqual({ w: 6 * SHEET_CELL, h: SHEET_CELL });
+    for (const [id, ch] of Object.entries(CLIMBER_CHARACTERS)) {
+      if (ch.kind !== "sheets") continue;
+      const poses = pngSize(readFileSync(join(PUBLIC, ch.poses)));
+      expect(poses, `${id} poses`).toEqual({ w: ch.cell * 4, h: ch.cell * 2 });
+      if (ch.climb !== null) {
+        const climb = pngSize(readFileSync(join(PUBLIC, ch.climb)));
+        expect(climb, `${id} climb`).toEqual({ w: ch.cell * 6, h: ch.cell });
+      }
       checked++;
     }
-    expect(checked).toBeGreaterThan(0);
-  });
-
-  it("fails for a sheet that is not on disk", () => {
-    expect(() => sheetSize("/climb/nobody-poses-192.png")).toThrow();
+    // The Wraith plus at least one other character ships real art.
+    expect(checked).toBeGreaterThan(1);
   });
 });

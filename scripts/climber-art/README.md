@@ -1,18 +1,27 @@
-# Code-drawn climber art
+# Climber art rig
 
-Renders climber sprite sheets from rigged low-poly figures, for characters
-that have no generated art. One module per character (`kestrel.py`,
-`mantis.py`, `yak.py`) sets its palette, proportions and parts; `climber.py`
-holds the shared skeleton and the eight poses; `rig.py` does the faceted
-rendering and the fit to the sheet contract in `app/public/climb/README.md`
-(foot anchor at (256, 460) of a 512 cell, 380 px idle height, 192 px cells).
+Draws climber sheets in code: a low-poly chibi rig rendered to the contract
+in `app/public/climb/README.md` (4 × 2 poses atlas plus a 6-frame back-view
+climb strip, 192 px cells, foot anchor and idle height matching the Wraith).
 
 ```sh
 python3 -m pip install pillow
-python3 scripts/climber-art/build.py kestrel mantis yak
+python3 scripts/climber-art/export.py            # every character here
+python3 scripts/climber-art/export.py lynx       # one
 ```
 
-This writes `<id>-poses-192.png` (4×2: idle, run-a, run-b, reach-a, reach-b,
-falling, celebrate, down) and `<id>-climb-192.png` (6-frame back-view climb)
-into `app/public/climb/`. Poses are joint angles, so the costume is identical
-in every frame; the engine adds the bob, lean, squash and crossfades.
+`export.py` overwrites `app/public/climb/<id>-poses-192.png` and
+`<id>-climb-192.png`, palette-quantised.
+
+- `rig.py`: skeleton (two-bone IK limbs), faceted shading, outline and eye
+  glow, the eight poses and the climb cycle. Coordinates are the art pack's
+  512 px cell, rendered 3× and downscaled.
+- `characters.py`: each character's palette, proportions, head, tail and
+  optional torso, pauldron and boot drawers.
+
+To add a character, define it in `characters.py`, add it to `ALL`, export,
+then switch its registry entry to `sheets("<id>")`.
+
+Kestrel, Mantis and Yak are drawn by their own rig in
+[`kestrel-mantis-yak/`](kestrel-mantis-yak/README.md) (built in parallel with
+this one); run `python3 scripts/climber-art/kestrel-mantis-yak/build.py kestrel mantis yak`.

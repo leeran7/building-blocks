@@ -75,6 +75,21 @@ async function withIbexArt() {
   return load();
 }
 
+/**
+ * Registry fixture: ibex and yak have no art, whatever the live registry says,
+ * so the "draws as the plain Wraith" paths run as avatars gain real sheets.
+ */
+async function withoutArt() {
+  vi.doMock(REGISTRY, async (importOriginal) => {
+    const real = await importOriginal<typeof import("../../src/components/Game/climberCharacters")>();
+    return {
+      ...real,
+      CLIMBER_CHARACTERS: { ...real.CLIMBER_CHARACTERS, ibex: real.base(), yak: real.base() },
+    };
+  });
+  return load();
+}
+
 /** Registry fixture: ibex and yak are recolours (not in the live registry). */
 async function withTints() {
   vi.doMock(REGISTRY, async (importOriginal) => {
@@ -206,18 +221,14 @@ describe("lazy loading", () => {
 
   it("an avatar without art draws the Wraith's sheets and loads no extra sheet", async () => {
     vi.stubGlobal("document", { createElement: () => new FakeCanvas() });
-    const { climberFrame } = await load();
-    const { CLIMBER_CHARACTERS } = await import("../../src/components/Game/climberCharacters");
-    // Two avatars that still draw as the plain Wraith (whichever have no art yet).
-    const [a, b] = AVATARS.map((x) => x.id).filter((id) => CLIMBER_CHARACTERS[id].kind === "base");
-    expect(b).toBeDefined();
-    expect(climberFrame("idle", 0, 0, false, a)).toBeNull();
+    const { climberFrame } = await withoutArt();
+    expect(climberFrame("idle", 0, 0, false, "ibex")).toBeNull();
     climberFrame("idle", 0, 0, false, "wraith");
-    climberFrame("idle", 0, 0, false, b);
+    climberFrame("idle", 0, 0, false, "yak");
     // One request per Wraith sheet, shared by every avatar without art.
     expect(requested()).toEqual(["/climb/wraith-climb-192.png", "/climb/wraith-poses-192.png"]);
     sheet("wraith-poses-192.png").decode();
-    const f = climberFrame("idle", 0, 0, false, a)!;
+    const f = climberFrame("idle", 0, 0, false, "ibex")!;
     expect(f.img).toBe(sheet("wraith-poses-192.png")); // the plain sheet, not a recolour
     expect(f.character).toBe("wraith");
     expect(FakeCanvas.all).toHaveLength(0);
@@ -280,7 +291,7 @@ describe("lazy loading", () => {
   });
 
   it("setClimberSpriteSrc ignores avatars without art and ids outside the registry", async () => {
-    const { climberFrame, setClimberSpriteSrc } = await load();
+    const { climberFrame, setClimberSpriteSrc } = await withoutArt();
     setClimberSpriteSrc({ poses: "./assets/x.png" }, "ibex");
     setClimberSpriteSrc({ poses: "./assets/y.png" }, "__proto__");
     setClimberSpriteSrc({ poses: "./assets/z.png" }, "dragon");
