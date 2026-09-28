@@ -2,9 +2,10 @@
 
 Each avatar (`src/lib/avatars.ts`) climbs as its own character. The engine
 (`src/components/Game/climberSprite.ts`) reads a registry,
-`src/components/Game/climberCharacters.ts`, keyed by avatar id. A character
-without art is a `tint`: the Wraith sheets recoloured into the avatar's
-palette. To give a character real art, you add two files and change one line.
+`src/components/Game/climberCharacters.ts`, keyed by avatar id. Characters use
+real art only: there are no placeholders. A character without art is a
+`base()` entry and shows as the Wraith until its sheets land. To give a
+character real art, you add two files and change one line.
 
 ## Files
 
@@ -50,11 +51,11 @@ a ladder. Without it, climbing alternates cells 3 and 4.
 
 ## Registering a character
 
-In `src/components/Game/climberCharacters.ts`, replace the avatar's `tint`
+In `src/components/Game/climberCharacters.ts`, replace the avatar's `base()`
 entry:
 
 ```ts
-ibex: tint("#ecba55", "#2e1e12"),
+ibex: base(),
 ```
 
 with:
@@ -73,6 +74,10 @@ That is the whole change. Nothing else in shared code needs to change:
   (`mobile/src/lib/climberSheets.ts`), so you add no import.
 - **Fallbacks:** the vector climber draws until the poses sheet decodes. If
   the poses sheet fails to load, the character draws as the Wraith.
+
+Recolours (the Wraith tinted into another palette, `tint(...)`) are not used
+for characters. The engine and the sampled colours (`RECOLOR_PALETTE`) are
+kept for a separate, future feature such as unlockable colour skins.
 
 The registry test (`tests/game/climberCharacters.test.ts`) requires exactly
 one entry per catalogue avatar. Run `pnpm test` in `app/` after the change.

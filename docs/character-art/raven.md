@@ -3,7 +3,8 @@
 Generation brief for the Raven climb sprite, matching the Wraith pipeline
 (`git show 7406c15:output/wraith/README.md`). The identity reference is the
 avatar portrait `app/mobile/src/assets/avatars/raven.webp`. Until this art
-lands, the game draws Raven as the Wraith tinted amber (`#f4b943`), set in
+lands, the game draws Raven as the plain Wraith (sampled accent `#f4b943`, kept in
+`RECOLOR_PALETTE` for a future recolour feature), set in
 `app/src/components/Game/climberCharacters.ts`.
 
 ## Deliverables
@@ -77,6 +78,6 @@ The raven must climb, so the hands are gloved fingers, not wing tips. Keep the b
   Reach B pixel data.
 - No magenta fringe on light and dark backgrounds.
 - Preview over the volcano tile at 48, 80 and 144px idle height.
-- Swap the `tint(...)` entry in
+- Swap the `base()` entry in
   `app/src/components/Game/climberCharacters.ts` for `sheets("raven")` and
   add the files to `app/public/climb/` (see `app/public/climb/README.md`).

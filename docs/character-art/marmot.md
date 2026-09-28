@@ -1,8 +1,9 @@
 # Marmot climber artwork
 
-Status: **placeholder in game**. The registry
-(`app/src/components/Game/climberCharacters.ts`) draws the Marmot as the Wraith
-recoloured with `tint("#eaae74", "#2d1f18")`. To ship real art, generate the two
+Status: **no art yet**. The registry
+(`app/src/components/Game/climberCharacters.ts`) draws the Marmot as the plain
+Wraith (`base()` entry); its sampled colours ("#eaae74", "#2d1f18") are kept in
+`RECOLOR_PALETTE` for a future recolour feature. To ship real art, generate the two
 sheets below, drop `marmot-poses-192.png` and `marmot-climb-192.png` into
 `app/public/climb/`, and change that entry to `sheets("marmot")`. The full
 contract is `app/public/climb/README.md`.

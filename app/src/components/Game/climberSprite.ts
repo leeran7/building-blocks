@@ -3,7 +3,9 @@
  *
  * Which art each avatar wears is data in climberCharacters.ts: a `sheets`
  * entry has its own atlases in /climb/ (layout contract in
- * public/climb/README.md), a `tint` entry recolours the Wraith's. The Wraith
+ * public/climb/README.md), a `base` entry (no art yet) draws as the plain
+ * Wraith. A `tint` entry (the Wraith recoloured) is supported for a future
+ * recolour feature; the live registry has none. The Wraith
  * (the default, and the fallback for unknown/null ids) ships a poses sheet
  * (wraith-poses-192.png, 4×2 cells) for idle/walk/air/done/dead and a 6-frame
  * back-view climb strip (wraith-climb-192.png) so the climber shows its back on
@@ -151,13 +153,21 @@ interface CharacterRuntime {
 const runtimes = new Map<string, CharacterRuntime>();
 const overrides = new Map<string, Partial<Record<Sheet, string>>>();
 
+/** The avatar id if it has its own art-bearing registry entry, else null. */
+function ownCharacterId(avatarId: unknown): string | null {
+  const id = parseAvatarId(avatarId);
+  if (id === null || !hasOwn(CLIMBER_CHARACTERS, id)) return null;
+  return CLIMBER_CHARACTERS[id].kind === "base" ? null : id;
+}
+
 /**
  * The registry id to draw for an avatar id: the avatar's own entry, or the
- * Wraith for null, unknown, retired, or prototype-key ids ("__proto__").
+ * Wraith for avatars without art (`base`) and for null, unknown, retired, or
+ * prototype-key ids ("__proto__"). A `base` avatar shares the Wraith's
+ * runtime, so it loads nothing extra.
  */
 export function resolveClimberCharacter(avatarId: unknown): string {
-  const id = parseAvatarId(avatarId);
-  return id !== null && hasOwn(CLIMBER_CHARACTERS, id) ? id : BASE_CHARACTER_ID;
+  return ownCharacterId(avatarId) ?? BASE_CHARACTER_ID;
 }
 
 /** The character's registry entry (via resolveClimberCharacter). */
@@ -189,16 +199,17 @@ function runtimeFor(id: string): CharacterRuntime {
 /**
  * Point a character's sheets at bundled asset URLs (the Capacitor app has no
  * server root for "/climb/…", same as the volcano tile). Only characters with
- * their own sheets take overrides; tints follow the Wraith's. Drops that
- * character's decode cache so the new sources load on its next draw. Empty or
- * unchanged sources are ignored, as are ids that are not a sheets character.
+ * their own sheets take overrides; tints and `base` avatars follow the
+ * Wraith's. Drops that character's decode cache so the new sources load on
+ * its next draw. Empty or unchanged sources are ignored, as are ids that are
+ * not a sheets character.
  */
 export function setClimberSpriteSrc(
   next: Partial<Record<Sheet, string>>,
   avatarId: string = BASE_CHARACTER_ID,
 ): void {
-  const id = parseAvatarId(avatarId);
-  if (id === null || !hasOwn(CLIMBER_CHARACTERS, id)) return;
+  const id = ownCharacterId(avatarId);
+  if (id === null) return;
   const current = runtimeFor(id).src; // all null for a tint: nothing to override
   const over = { ...(overrides.get(id) ?? {}) };
   let changed = false;

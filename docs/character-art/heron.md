@@ -1,8 +1,9 @@
 # Heron gameplay artwork: generation prompts
 
 Unlocks at 300 stars. Until the finished sheets land, the game draws the
-Heron as a tinted Wraith placeholder (`heron` in
-`app/src/components/Game/climberCharacters.ts`, accent `#3b93e6`).
+Heron as the plain Wraith (`heron: base()` in
+`app/src/components/Game/climberCharacters.ts`; its sampled accent `#3b93e6` is kept
+in `RECOLOR_PALETTE` for a future recolour feature).
 
 Produce the art in the Wraith pipeline (`git show 7406c15:output/wraith/README.md`
 and `output/wraith/movement/README.md` in that commit) and ship it to the
