@@ -7,6 +7,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { parseAvatarId } from "../../../../../src/lib/avatars";
 import zlib from "zlib";
 import { getDuel } from "../../../../../src/db/duel";
 import {
@@ -62,6 +63,7 @@ export async function GET(
       ? {
           id: duel.player1.id,
           displayName: duel.player1.display_name,
+          avatarId: parseAvatarId(duel.player1.avatar_id),
           peak: duel.player1_peak ?? null,
         }
       : null,
@@ -69,6 +71,7 @@ export async function GET(
       ? {
           id: duel.player2.id,
           displayName: duel.player2.display_name,
+          avatarId: parseAvatarId(duel.player2.avatar_id),
           peak: duel.player2_peak ?? null,
         }
       : null,

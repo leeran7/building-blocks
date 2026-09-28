@@ -111,8 +111,8 @@ export interface MarkSubmittedResult {
 }
 
 export interface DuelWithPlayers extends Duel {
-  player1: { id: string; display_name: string | null };
-  player2: { id: string; display_name: string | null } | null;
+  player1: { id: string; display_name: string | null; avatar_id: string | null };
+  player2: { id: string; display_name: string | null; avatar_id: string | null } | null;
   winner: { id: string; display_name: string | null } | null;
 }
 
@@ -126,10 +126,13 @@ export interface DuelStatsRow {
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
-/** Shared select shape for player display names. */
+/**
+ * Shared select shape for player display names, plus the avatar id the climb
+ * view draws each duellist as (public, like the leaderboards' avatarId).
+ */
 const playerSelect = {
-  player1: { select: { id: true, display_name: true } },
-  player2: { select: { id: true, display_name: true } },
+  player1: { select: { id: true, display_name: true, avatar_id: true } },
+  player2: { select: { id: true, display_name: true, avatar_id: true } },
   winner: { select: { id: true, display_name: true } },
 } as const;
 

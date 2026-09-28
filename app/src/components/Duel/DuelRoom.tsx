@@ -39,6 +39,7 @@ import { buildTower } from "../../game/towers";
 import { hazardPhase } from "../../game/hazard";
 import { createMatch } from "../../game/simulation";
 import { shareInvite } from "../../lib/shareInvite";
+import { avatarIdsByPlayer, parseAvatarId } from "../../lib/avatars";
 
 // ─────────────────────────────── Types ────────────────────────────────────
 
@@ -47,8 +48,9 @@ interface DuelMeta {
   status: string;
   seed: string;
   categorySlug: string;
-  player1: { id: string; displayName: string | null } | null;
-  player2: { id: string; displayName: string | null } | null;
+  /** avatarId: unchecked JSON, parsed at use (avatarIdsByPlayer). */
+  player1: { id: string; displayName: string | null; avatarId?: unknown } | null;
+  player2: { id: string; displayName: string | null; avatarId?: unknown } | null;
   winnerId: string | null;
   player1Peak: number | null;
   player2Peak: number | null;
@@ -87,6 +89,7 @@ const AFK_FORFEIT_MS = 120_000;
 function WaitingLobby({
   categorySlug,
   myName,
+  myAvatarId,
   touchDevice,
   linkCopied,
   waitedTooLong,
@@ -95,6 +98,7 @@ function WaitingLobby({
 }: {
   categorySlug: string;
   myName: string;
+  myAvatarId: string | null;
   touchDevice: boolean;
   linkCopied: boolean;
   waitedTooLong: boolean;
@@ -189,6 +193,7 @@ function WaitingLobby({
           hudInsetTop={touchDevice ? safeArea.top : 0}
           myId="me"
           playerNames={playerNames}
+          myAvatarId={myAvatarId}
         />
 
         {touchDevice && (
@@ -271,6 +276,8 @@ interface GameProps {
   player2Name: string;
   player1Id: string;
   player2Id: string;
+  /** Player id → avatar id; each climber draws as their avatar. */
+  avatarIds: Readonly<Record<string, string | null>>;
   onRematch: (newDuelId: string) => void;
   onExit: () => void;
 }
@@ -287,6 +294,7 @@ function DuelGame({
   player2Name,
   player1Id,
   player2Id,
+  avatarIds,
   onRematch,
   onExit,
 }: GameProps) {
@@ -779,6 +787,7 @@ function DuelGame({
           includeHud={false}
           myId={myId}
           playerNames={playerNames}
+          avatarIds={avatarIds}
           readySlots={readySlotsSet}
           hiddenSlots={hiddenSlotsSet}
         />
@@ -1182,6 +1191,7 @@ export function DuelRoom({ duelId }: DuelRoomProps) {
       <WaitingLobby
         categorySlug={meta.categorySlug}
         myName={myName}
+        myAvatarId={parseAvatarId(meta.player1?.avatarId)}
         touchDevice={touchDevice}
         linkCopied={linkCopied}
         waitedTooLong={waitedTooLong}
@@ -1209,6 +1219,7 @@ export function DuelRoom({ duelId }: DuelRoomProps) {
       player2Name={player2Name}
       player1Id={player1Id}
       player2Id={player2Id}
+      avatarIds={avatarIdsByPlayer([meta.player1, meta.player2])}
       onRematch={handleRematch}
       onExit={() => router.push("/")}
     />

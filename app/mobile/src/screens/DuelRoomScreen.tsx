@@ -20,6 +20,7 @@ import { buildTower } from "@app/game/towers";
 import { hazardPhase } from "@app/game/hazard";
 import { formatAltitude } from "@app/lib/units";
 import { shareInvite } from "@app/lib/shareInvite";
+import { avatarIdsByPlayer, parseAvatarId } from "@app/lib/avatars";
 import { AddFriendButton } from "../components/challenge/AddFriendButton";
 
 /** Wall-clock buffer before countdown numerals begin (ms). */
@@ -36,8 +37,9 @@ interface DuelMeta {
   status: string;
   seed: string;
   categorySlug: string;
-  player1: { id: string; displayName: string | null } | null;
-  player2: { id: string; displayName: string | null } | null;
+  /** avatarId: unchecked JSON, parsed at use (avatarIdsByPlayer). */
+  player1: { id: string; displayName: string | null; avatarId?: unknown } | null;
+  player2: { id: string; displayName: string | null; avatarId?: unknown } | null;
   winnerId: string | null;
   player1Peak: number | null;
   player2Peak: number | null;
@@ -271,6 +273,7 @@ function DuelRoomInner({ duelId }: { duelId: string }) {
       player2Name={player2Name}
       player1Id={player1Id}
       player2Id={player2Id}
+      avatarIds={avatarIdsByPlayer([meta.player1, meta.player2])}
       onRematch={handleRematch}
     />
   );
@@ -362,6 +365,7 @@ function WaitingLobby({
           bottomInset={bottomInset}
           fullBleed
           hudInsetTop={safeArea.top}
+          myAvatarId={parseAvatarId(meta.player1?.avatarId)}
         />
 
         {/* Waiting overlay */}
@@ -416,6 +420,7 @@ function DuelGame({
   player2Name,
   player1Id,
   player2Id,
+  avatarIds,
   onRematch,
 }: {
   duelId: string;
@@ -429,6 +434,8 @@ function DuelGame({
   player2Name: string;
   player1Id: string;
   player2Id: string;
+  /** Player id → avatar id; each climber draws as their avatar. */
+  avatarIds: Readonly<Record<string, string | null>>;
   onRematch: (newDuelId: string) => void;
 }) {
   const [tower] = useState(() => buildTower(categorySlug));
@@ -860,6 +867,7 @@ function DuelGame({
           includeHud={false}
           myId={myId}
           playerNames={playerNames}
+          avatarIds={avatarIds}
           readySlots={readySlotsSet}
           hiddenSlots={hiddenSlotsSet}
         />
