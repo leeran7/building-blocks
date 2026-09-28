@@ -48,7 +48,7 @@ import type { PlayerInput } from "../../src/game/types";
 
 const SIM = LEVEL_SIM_VERSION;
 // Level 42's pars in season-1.json.
-const L42_PARS = { twoStarTicks: 3142, threeStarTicks: 2639 };
+const L42_PARS = { twoStarTicks: 2890, threeStarTicks: 2513, oneStarTicks: 3770 };
 const T_ISSUED = new Date("2026-09-27T12:00:00Z");
 const TICKET = "ticket_abcdefghijk";
 
@@ -302,6 +302,7 @@ describe("POST /api/levels/result", () => {
     [L42_PARS.threeStarTicks + 1, 2],
     [L42_PARS.twoStarTicks, 2],
     [L42_PARS.twoStarTicks + 1, 1],
+    [L42_PARS.oneStarTicks, 1],
   ])("scores a clear in %i ticks at %i stars against the level's pars", async (ticks, stars) => {
     expect((await result({ ...CLEAR, ticks, stars })).status).toBe(200);
     // Every other star count is refused before the ticket is consumed.
@@ -311,6 +312,17 @@ describe("POST /api/levels/result", () => {
       expect((await res.json()).code).toBe("INVALID_RESULT");
     }
     expect(submitLevelResult).toHaveBeenCalledTimes(1);
+  });
+
+  it("refuses a clear past the level's clock at any star count", async () => {
+    for (const stars of [1, 2, 3]) {
+      const res = await result({ ...CLEAR, ticks: L42_PARS.oneStarTicks + 1, stars });
+      expect(res.status).toBe(400);
+      expect((await res.json()).code).toBe("INVALID_RESULT");
+    }
+    expect(submitLevelResult).not.toHaveBeenCalled();
+    // The same run reported as a loss is recorded.
+    expect((await result({ ...CLEAR, cleared: false, stars: 0, ticks: L42_PARS.oneStarTicks + 1 })).status).toBe(200);
   });
 
   it("refuses a ticket whose season has no manifest", async () => {

@@ -40,7 +40,9 @@ describe("season 1 catalog", () => {
     const rerolled = rows.map((r) => (r.level === 2 ? { ...r, rev: 3 } : r));
     const levels = seasonLevels(SEASON_1, rerolled);
     expect(levels.catalog.level(2).seed).toBe("s1:level:2:3");
-    expect(levels.runSetup(2).tower).toEqual(levelTower(levelSpec(SEASON_1, 2, 3)));
+    const { timeLimitTicks, ...tower } = levels.runSetup(2).tower;
+    expect(tower).toEqual(levelTower(levelSpec(SEASON_1, 2, 3)));
+    expect(timeLimitTicks).toBe(rows[1].pars.oneStarTicks);
     expect(levels.catalog.level(1).seed).toBe("s1:level:1:0");
   });
 

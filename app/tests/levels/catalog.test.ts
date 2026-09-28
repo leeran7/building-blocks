@@ -27,8 +27,16 @@ describe("level catalog", () => {
 
   it("refuses a manifest with broken pars, a missing level or another season's spec", () => {
     const badPars = copy();
-    badPars.levels[9].pars = { twoStarTicks: 100, threeStarTicks: 200 };
+    badPars.levels[9].pars = { twoStarTicks: 100, threeStarTicks: 200, oneStarTicks: 300 };
     expect(manifestProblems(1, badPars)).toContain("L10: bad pars");
+
+    // A clock shorter than the 2-star time, or a row missing its clock field.
+    const badClock = copy();
+    badClock.levels[9].pars.oneStarTicks = badClock.levels[9].pars.twoStarTicks - 1;
+    expect(manifestProblems(1, badClock)).toContain("L10: bad pars");
+    const noClock = copy();
+    delete (noClock.levels[9].pars as { oneStarTicks?: number | null }).oneStarTicks;
+    expect(manifestProblems(1, noClock)).toContain("L10: bad pars");
 
     const zeroPars = copy();
     zeroPars.levels[0].pars.threeStarTicks = 0;

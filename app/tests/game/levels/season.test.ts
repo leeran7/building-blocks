@@ -156,11 +156,11 @@ describe("level lava and pars", () => {
     expect(hazardMeanSpeedFrac(cfg)).toBeCloseTo(maxLavaMeanFrac(), 10);
   });
 
-  it("sets star pars from the route, looser on tutorial levels", () => {
-    expect(levelPars(51, 1000)).toEqual({ twoStarTicks: 1250, threeStarTicks: 1050 });
-    expect(levelPars(50, 1000)).toEqual({ twoStarTicks: 1150, threeStarTicks: 1000 });
-    expect(levelPars(11, 1000)).toEqual({ twoStarTicks: 1150, threeStarTicks: 1000 });
-    expect(levelPars(10, 1000)).toEqual({ twoStarTicks: 1450, threeStarTicks: 1200 });
+  it("sets star pars from the route: looser on tutorial levels, a clock on 1-50 only", () => {
+    expect(levelPars(51, 1000)).toEqual({ twoStarTicks: 1250, threeStarTicks: 1050, oneStarTicks: null });
+    expect(levelPars(50, 1000)).toEqual({ twoStarTicks: 1150, threeStarTicks: 1000, oneStarTicks: 1500 });
+    expect(levelPars(11, 1000)).toEqual({ twoStarTicks: 1150, threeStarTicks: 1000, oneStarTicks: 1500 });
+    expect(levelPars(10, 1000)).toEqual({ twoStarTicks: 1450, threeStarTicks: 1200, oneStarTicks: 2000 });
   });
 });
 
