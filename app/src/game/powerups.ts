@@ -405,6 +405,14 @@ export function spawnChanceForFloor(i: number, tower?: TowerSpec): number {
   return SPAWN_CHANCE_LOW + (SPAWN_CHANCE_HIGH - SPAWN_CHANCE_LOW) * d;
 }
 
+/**
+ * Floor on the occupancy used to size spawn gaps (keeps the mean finite at 0).
+ * Below every rate a tower uses, so it never binds: the free stack's lowest is
+ * 22% and the season levels go down to 5%. It was 8%, which silently stopped
+ * level rates under 8% from getting any rarer.
+ */
+const MIN_GAP_SPAWN_CHANCE = 0.02;
+
 /** Floor of the first orb on this tower (inclusive range, never the base). */
 export function firstSpawnFloor(tower: TowerSpec): number {
   const r = createRng(`${tower.seed}:pu:first`);
@@ -414,7 +422,7 @@ export function firstSpawnFloor(tower: TowerSpec): number {
 /** Gap (in floors) after spawn `ordinal` at `fromFloor`. Always >= 1. */
 function gapAfter(tower: TowerSpec, ordinal: number, fromFloor: number): number {
   const r = createRng(`${tower.seed}:pu:gap:${ordinal}`);
-  const mean = 1 / Math.max(0.08, spawnChanceForFloor(fromFloor, tower));
+  const mean = 1 / Math.max(MIN_GAP_SPAWN_CHANCE, spawnChanceForFloor(fromFloor, tower));
   const roll = r.next();
   // Drought: a long empty stretch so the next orb feels like a find.
   if (roll < 0.14) return Math.max(4, Math.round(mean * (1.8 + r.next() * 1.4)));
