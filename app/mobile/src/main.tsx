@@ -9,6 +9,9 @@ import { AppDataProvider } from "./contexts/AppDataContext";
 import { LevelsProvider } from "./contexts/LevelsContext";
 import { setVolcanoTileSrc } from "@app/components/Game/climbBackground";
 import volcanoTile from "@app/../public/climb/volcano-tile.jpg";
+import { setClimberSpriteSrc } from "@app/components/Game/climberSprite";
+import wraithPoses from "@app/../public/climb/wraith-poses-192.png";
+import wraithClimb from "@app/../public/climb/wraith-climb-192.png";
 // Brand fonts ship inside the bundle (no Google Fonts request), so the native
 // app matches the web type and still renders correctly offline.
 import "@fontsource-variable/bricolage-grotesque/wght.css";
@@ -24,6 +27,8 @@ import "./styles.css";
   this the tile 404s and the game shows a flat dark fill.
 */
 setVolcanoTileSrc(volcanoTile);
+// Same for the Wraith climber atlases (drawn from "/climb/…" on the web).
+setClimberSpriteSrc({ poses: wraithPoses, climb: wraithClimb });
 
 /*
   HashRouter (not BrowserRouter): the app is served from a file/capacitor

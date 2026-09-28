@@ -17,6 +17,7 @@ import {
   clampDevicePixelRatio,
 } from "./canvasBacking";
 import { paintClimbFrame } from "./paintClimbFrame";
+import { createClimberMotionBag, type ClimberMotionBag } from "./climberSprite";
 
 export { HUD_ALTITUDE_FONT_UI };
 
@@ -104,6 +105,8 @@ export function ClimbCanvas({
     tick: null,
   });
   const lastPaintTsRef = useRef(0);
+  const motionRef = useRef<ClimberMotionBag | null>(null);
+  motionRef.current ??= createClimberMotionBag();
 
   // Store state in a ref so the rAF loop always reads the latest without
   // running React's effect cleanup+setup every tick (~30 Hz).
@@ -157,6 +160,7 @@ export function ClimbCanvas({
       floorMarkerInsetTop: opts.floorMarkerInsetTop,
       camera: camRef.current,
       dtSec,
+      climberMotion: motionRef.current ?? undefined,
       myId: opts.myId,
       playerNames: opts.playerNames,
       readySlots: opts.readySlots,

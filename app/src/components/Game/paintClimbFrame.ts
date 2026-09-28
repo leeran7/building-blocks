@@ -32,7 +32,12 @@ import {
 } from "./climbCamera";
 import { drawFloorMarker } from "./FloorMarker";
 import { drawClimbBackground } from "./climbBackground";
-import { climberFrame, drawClimberSprite } from "./climberSprite";
+import {
+  drawClimberSprite,
+  tickClimberMotion,
+  type ClimberMotionBag,
+  type ClimberSpriteState,
+} from "./climberSprite";
 import { drawLava, drawLavaProximityGlow, LAVA_SLOWED } from "./lava";
 import { hazardPhase } from "../../game/hazard";
 import {
@@ -116,6 +121,12 @@ export type PaintClimbFrameOptions = {
    */
   dtSec?: number;
   /**
+   * Persistent sprite motion state (landing squash, pose crossfades, eased
+   * lean), advanced by `dtSec`. Create with createClimberMotionBag() and keep
+   * it across frames; omitted, the sprite draws without that history.
+   */
+  climberMotion?: ClimberMotionBag;
+  /**
    * Local player's id (Firebase UID). Determines which climber gets the lime
    * sprite + camera; everyone else is drawn as an opponent (blue). Falls back
    * to slot 0 when absent (solo play / export).
@@ -137,6 +148,9 @@ export type PaintClimbFrameOptions = {
    */
   hiddenSlots?: ReadonlySet<number>;
 };
+
+// Reused per climber so the paint loop allocates nothing for the sprite.
+const _spriteState: ClimberSpriteState = { pose: "idle", x: 0, y: 0, vx: 0, vy: 0, slot: 0 };
 
 export function paintClimbFrame(
   ctx: PaintCtx,
@@ -349,6 +363,10 @@ export function paintClimbFrame(
     bottomInset,
   });
 
+  const motionBag = opts.climberMotion ?? null;
+  if (motionBag) tickClimberMotion(motionBag, camDt);
+  const tickSec = state.tick * TICK_DT;
+
   for (const p of state.players) {
     if (opts.hiddenSlots?.has(p.slot)) continue;
     const isLocal = p.id === localPlayerId;
@@ -392,13 +410,27 @@ export function paintClimbFrame(
     // Every climber wears the lime chibi sprite once its atlas has decoded;
     // until then (and offscreen/SSR) they fall back to the vector figure, which
     // still recolours via pColor.
-    // Climbing is vertical — lock facing so the two climb frames read as
-    // hand-over-hand instead of mirror-flipping with ladder vx jitter.
+    // Climbing is vertical — lock facing so the back-view climb frames do not
+    // mirror-flip with ladder vx jitter.
     const spriteFacing: 1 | -1 = pPose === "climb" ? 1 : pFacing;
-    const sprite = climberFrame(pPose, p.x, p.y, reducedMotion);
-    if (sprite) {
-      drawClimberSprite(ctx, pxScreen, pFeetY, pS, spriteFacing, sprite);
-    } else {
+    _spriteState.pose = pPose;
+    _spriteState.x = p.x;
+    _spriteState.y = p.y;
+    _spriteState.vx = p.vx;
+    _spriteState.vy = p.vy;
+    _spriteState.slot = p.slot;
+    const drewSprite = drawClimberSprite(
+      ctx,
+      pxScreen,
+      pFeetY,
+      pS,
+      spriteFacing,
+      _spriteState,
+      reducedMotion,
+      motionBag,
+      tickSec
+    );
+    if (!drewSprite) {
       drawClimber(ctx, pxScreen, pFeetY, pS, pFacing, pPose, state.tick, pColor, reducedMotion);
     }
 
