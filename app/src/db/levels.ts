@@ -135,6 +135,73 @@ function tallyColumns(tally: FailTally | null) {
   };
 }
 
+// ── Closing open tickets ─────────────────────────────────────────────────────
+// Shared by issueLevelTicket (which writes the close) and levelProfile (which
+// previews it read-only), so the preview cannot drift from what the next
+// ticket issue actually does.
+
+const OPEN_TICKET_SELECT = {
+  id: true,
+  season: true,
+  level: true,
+  created_at: true,
+  life_spent: true,
+} as const;
+
+type OpenTicket = Prisma.LevelRunTicketGetPayload<{ select: typeof OPEN_TICKET_SELECT }>;
+
+/** `userId`'s open tickets, oldest first: the ones the next issue closes. */
+function openTickets(client: TxClient, userId: string): Promise<OpenTicket[]> {
+  return client.levelRunTicket.findMany({
+    where: { userId, used_at: null },
+    select: OPEN_TICKET_SELECT,
+    orderBy: { created_at: "asc" },
+  });
+}
+
+/**
+ * How an open ticket closes when a new one is issued at `now`: a restart
+ * within the bad-start window (§5b) or an abandoned run (§6.3).
+ */
+function openTicketOutcome(ticket: OpenTicket, now: Date): TicketOutcome {
+  return isQuickRestart(ticket.created_at, now) ? "bad_start" : "abandoned";
+}
+
+/** Frontier per season, memoised: a ticket may be from another season. */
+function frontierLookup(
+  client: TxClient,
+  userId: string,
+  season: number,
+  frontier: number
+): (s: number) => Promise<number> {
+  const frontiers = new Map<number, number>([[season, frontier]]);
+  return async (s) => {
+    const known = frontiers.get(s);
+    if (known !== undefined) return known;
+    const f = await frontierLevel(client, userId, s);
+    frontiers.set(s, f);
+    return f;
+  };
+}
+
+interface EngagementState {
+  streak: number;
+  tally: FailTally | null;
+}
+
+/** The streak and fail tally after `ticket` closes with `outcome` (pure). */
+function afterTicketClose(
+  state: EngagementState,
+  ticket: OpenTicket,
+  outcome: TicketOutcome,
+  atFrontier: boolean
+): EngagementState {
+  return {
+    streak: nextStreak(state.streak, outcome, atFrontier),
+    tally: nextFailTally(state.tally, ticket, outcome, atFrontier),
+  };
+}
+
 // ── Tickets ──────────────────────────────────────────────────────────────────
 
 export interface IssueTicketInput {
@@ -186,30 +253,16 @@ export async function issueLevelTicket(input: IssueTicketInput): Promise<IssuedT
     }
 
     let life = refillLives(lifeOf(user), now);
-    let streak = user.level_streak;
-    let tally = tallyOf(user);
-    // Frontier per season, for the open tickets closed below (a ticket may be
-    // from another season). The user lock keeps these stable.
-    const frontiers = new Map<number, number>([[season, frontier]]);
-    const frontierOf = async (s: number): Promise<number> => {
-      const known = frontiers.get(s);
-      if (known !== undefined) return known;
-      const f = await frontierLevel(tx, userId, s);
-      frontiers.set(s, f);
-      return f;
-    };
+    let state: EngagementState = { streak: user.level_streak, tally: tallyOf(user) };
+    // The user lock keeps the per-season frontiers stable.
+    const frontierOf = frontierLookup(tx, userId, season, frontier);
 
     // One open ticket per user. Starting a new level while one is open counts
     // as a loss (design §6.3) and keeps its life spent, except a restart
     // within 3 s of GO (§5b), which is a bad start and refunded. Each close is
     // conditional on used_at IS NULL, so a refund follows only a real close.
-    const open = await tx.levelRunTicket.findMany({
-      where: { userId, used_at: null },
-      select: { id: true, season: true, level: true, created_at: true, life_spent: true },
-      orderBy: { created_at: "asc" },
-    });
-    for (const ticket of open) {
-      const outcome: TicketOutcome = isQuickRestart(ticket.created_at, now) ? "bad_start" : "abandoned";
+    for (const ticket of await openTickets(tx, userId)) {
+      const outcome = openTicketOutcome(ticket, now);
       const closed = await tx.levelRunTicket.updateMany({
         where: { id: ticket.id, used_at: null },
         data: { used_at: now, outcome },
@@ -218,9 +271,9 @@ export async function issueLevelTicket(input: IssueTicketInput): Promise<IssuedT
       if (outcome === "bad_start" && ticket.life_spent) life = refundLife(life, now);
       // An abandoned run at the frontier is a loss (§6.3).
       const atFrontier = ticket.level === (await frontierOf(ticket.season));
-      streak = nextStreak(streak, outcome, atFrontier);
-      tally = nextFailTally(tally, ticket, outcome, atFrontier);
+      state = afterTicketClose(state, ticket, outcome, atFrontier);
     }
+    const { streak, tally } = state;
 
     const atFrontier = level === frontier;
     const fails = atFrontier ? failsAt(tally, season, level) : 0;
@@ -517,16 +570,23 @@ export interface LevelProfile {
   frontier: number;
   totalStars: number;
   levels: { level: number; stars: number; bestTicks: number }[];
-  /** Win streak: first clears in a row at the frontier (design §6.3). */
+  /**
+   * Win streak as recorded: first clears in a row at the frontier (design
+   * §6.3). An open ticket is not folded in, since submitting it may still
+   * extend the streak.
+   */
   streak: number;
   /**
-   * What a run of the frontier level would start with if started now, from
-   * the streak (a preview for the start sheet; the ticket decides for real).
+   * What a run of the frontier level would start with if started now (a
+   * preview for the start sheet; the ticket decides for real). Like the
+   * ticket, it first closes any open ticket, so an abandoned frontier run
+   * shows no streak power-up.
    */
   nextStartPowerUp: StartPowerUp | null;
   /**
-   * Stuck help at the frontier level (§5c): fails there, and whether the
-   * route ghost is offered. The ghost view itself is not built yet.
+   * Stuck help at the frontier level (§5c) for a run started now: fails
+   * there (open tickets closed as above), and whether the route ghost is
+   * offered. The ghost view itself is not built yet.
    */
   stuck: { level: number; fails: number; routeGhostAvailable: boolean };
 }
@@ -567,7 +627,16 @@ export async function levelProfile(userId: string, season: number, now: Date): P
   const progress = playerLevelProgress(user.xp);
   const frontier = frontierAfter(rows.reduce((max, r) => Math.max(max, r.level), 0));
   const allowed = levelBoosterTypes(season, frontier) ?? [];
-  const fails = failsAt(tallyOf(user), season, frontier);
+  // Preview the next run as issueLevelTicket will start it: any open ticket is
+  // closed first (an abandoned frontier run resets the streak and counts as a
+  // fail). Read-only: the closes are folded in memory, never written.
+  const frontierOf = frontierLookup(prisma, userId, season, frontier);
+  let next: EngagementState = { streak: user.level_streak, tally: tallyOf(user) };
+  for (const ticket of await openTickets(prisma, userId)) {
+    const atFrontier = ticket.level === (await frontierOf(ticket.season));
+    next = afterTicketClose(next, ticket, openTicketOutcome(ticket, now), atFrontier);
+  }
+  const fails = failsAt(next.tally, season, frontier);
   return {
     lives: life.lives,
     maxLives: MAX_LIVES,
@@ -581,7 +650,7 @@ export async function levelProfile(userId: string, season: number, now: Date): P
     totalStars: rows.reduce((sum, r) => sum + r.stars, 0),
     levels: rows.map((r) => ({ level: r.level, stars: r.stars, bestTicks: r.best_ticks })),
     streak: user.level_streak,
-    nextStartPowerUp: freeStartPowerUp({ atFrontier: true, streak: user.level_streak, fails, allowed }),
+    nextStartPowerUp: freeStartPowerUp({ atFrontier: true, streak: next.streak, fails, allowed }),
     stuck: { level: frontier, fails, routeGhostAvailable: routeGhostAvailable(fails) },
   };
 }

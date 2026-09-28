@@ -210,6 +210,29 @@ describe.skipIf(!PG_URL)("level engagement on Postgres", () => {
       expect(p).toMatchObject({ streak: 3, frontier: 4, nextStartPowerUp: { type: "rapid-climb", source: "streak" } });
       expect(await prisma.levelRunTicket.count({ where: { used_at: null } })).toBe(0);
     });
+
+    it("the preview closes an open frontier ticket like the next issue will", async () => {
+      await user("a");
+      await clearThrough("a", 3);
+      const open = await start("a", 4, { now: at(3000) });
+      expect(open.startPowerUp).toMatchObject({ type: "rapid-climb", source: "streak" });
+
+      // Within the quick-restart window the open ticket is a neutral bad start.
+      const quick = new Date(at(3000).getTime() + 2_000);
+      expect((await levelProfile("a", 1, quick)).nextStartPowerUp).toMatchObject({ type: "rapid-climb" });
+
+      // Past it, the next issue abandons the frontier ticket: the streak resets.
+      const later = at(3010);
+      const p = await levelProfile("a", 1, later);
+      expect(p).toMatchObject({ streak: 3, frontier: 4, nextStartPowerUp: null, stuck: { level: 4, fails: 1 } });
+      // Read-only: the ticket is still open and the stored streak unchanged.
+      expect(await prisma.levelRunTicket.findUniqueOrThrow({ where: { id: open.ticketId } })).toMatchObject({
+        used_at: null,
+      });
+      expect((await prisma.user.findUniqueOrThrow({ where: { id: "a" } })).level_streak).toBe(3);
+      // And it agrees with the ticket the next start actually issues.
+      expect(await start("a", 4, { now: later })).toMatchObject({ streak: 0, startPowerUp: null, failsAtLevel: 1 });
+    });
   });
   describe("stuck help", () => {
     const failsOf = async (id: string) =>
