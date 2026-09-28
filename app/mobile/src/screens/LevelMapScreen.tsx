@@ -5,6 +5,7 @@ import { tapHeavy, tapLight } from "../lib/haptics";
 import { Button } from "../components/ui";
 import { LevelStartSheet } from "../components/levels/LevelStartSheet";
 import { LevelStartExtras } from "../components/levels/LevelStartExtras";
+import { BoosterPicker, ChestMeter } from "../components/levels/LevelChests";
 import { LivesPill, StarRow, XpBar, useWhenDue } from "../components/levels/LevelBits";
 import {
   EPISODE_SIZE,
@@ -13,6 +14,7 @@ import {
   type LevelNode,
   type StartResult,
 } from "../lib/levels/model";
+import type { BoosterType } from "@app/levels/engagement";
 
 /** Vertical distance between two pins, px. */
 const ROW = 92;
@@ -46,7 +48,13 @@ export function LevelMapScreen() {
   const navigate = useNavigate();
   const location = useLocation();
   const { client, season, loading, error, refresh, setPlayer } = useLevels();
-  const [selected, setSelected] = useState<LevelNode | null>(null);
+  const [selected, setSelectedNode] = useState<LevelNode | null>(null);
+  // The booster equipped on the open start card; every card opens without one.
+  const [booster, setBooster] = useState<BoosterType | null>(null);
+  const setSelected = useCallback((node: LevelNode | null) => {
+    setBooster(null);
+    setSelectedNode(node);
+  }, []);
   const scrollRef = useRef<HTMLDivElement>(null);
   const scrolledFor = useRef<number | null>(null);
 
@@ -71,13 +79,13 @@ export function LevelMapScreen() {
     if (!season || openLevel === null) return;
     navigate(".", { replace: true, state: null });
     if (openLevel <= season.frontier) setSelected(season.levels[openLevel - 1]);
-  }, [season, openLevel, navigate]);
+  }, [season, openLevel, navigate, setSelected]);
 
   const startLevel = useCallback(
-    async (level: number) => {
+    async (level: number, equipped: BoosterType | null) => {
       let res: StartResult;
       try {
-        res = await client.startLevel(level);
+        res = await client.startLevel(level, { booster: equipped });
       } catch {
         return { ok: false as const, code: "NETWORK" as const };
       }
@@ -88,9 +96,14 @@ export function LevelMapScreen() {
         return res;
       }
       if (res.player) setPlayer(res.player);
+      if (res.code === "BOOSTER_UNAVAILABLE") {
+        // The inventory on screen was stale: reload it and unequip.
+        setBooster(null);
+        void refresh();
+      }
       return res;
     },
-    [client, navigate, setPlayer],
+    [client, navigate, setPlayer, refresh],
   );
 
   const loadBoard = useCallback((level: number) => client.getBoard(level), [client]);
@@ -134,6 +147,11 @@ export function LevelMapScreen() {
         <p className="mt-2.5 text-center font-mono text-label uppercase tracking-eyebrow text-text-secondary">
           {season.name} · Episode {episode}
         </p>
+        {season.chests && (
+          <div className="mt-2 flex justify-center">
+            <ChestMeter chests={season.chests} boosters={season.boosters} />
+          </div>
+        )}
       </header>
 
       <div
@@ -203,7 +221,7 @@ export function LevelMapScreen() {
         <LevelStartSheet
           node={selected}
           player={season.player}
-          onStart={() => startLevel(selected.level)}
+          onStart={() => startLevel(selected.level, booster)}
           onPractice={openPractice}
           onPracticeLevel={() => {
             void tapHeavy();
@@ -217,6 +235,15 @@ export function LevelMapScreen() {
               startPowerUp={selected.level === frontier ? season.nextStartPowerUp : null}
               stuck={selected.level === season.stuck.level ? season.stuck : null}
               board={{ level: selected.level, load: loadBoard }}
+              boosters={
+                <BoosterPicker
+                  inventory={season.boosters}
+                  allowed={selected.allowedPowerUps}
+                  selected={booster}
+                  onSelect={setBooster}
+                  freeStart={selected.level === frontier && season.nextStartPowerUp !== null}
+                />
+              }
             />
           }
         />

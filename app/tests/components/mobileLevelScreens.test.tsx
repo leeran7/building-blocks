@@ -254,6 +254,65 @@ describe("win streak on the start card", () => {
   });
 });
 
+describe("star chests and boosters", () => {
+  /** Clears 1..7 with 3 stars each: 21 stars opens the first chest. */
+  async function withChest() {
+    const client = memoryClient();
+    await clearLevels(client, 7);
+    const season = await client.getSeason();
+    const [type] = Object.keys(season.boosters);
+    if (!type) throw new Error("the first chest held nothing");
+    return { client, type, count: season.boosters[type as keyof typeof season.boosters] ?? 0 };
+  }
+
+  it("shows the stars toward the next chest on the map", async () => {
+    const { client } = await withChest();
+    await renderMap(client);
+    const meter = container.querySelector('[role="group"][aria-label^="Star chest"]');
+    expect(meter?.getAttribute("aria-label")).toMatch(/^Star chest: 1 of 20 stars, 19 to go\. \d+ boosters? owned\.$/);
+  });
+
+  it("equips an owned booster on a replay and starts the run with it", async () => {
+    const { client, type, count } = await withChest();
+    await renderMap(client);
+    await click(pin("Level 7, 3 of 3 stars"));
+    const chip = [...container.querySelectorAll<HTMLButtonElement>('[role="dialog"] button[aria-pressed]')].find((b) =>
+      b.getAttribute("aria-label")?.endsWith(`, ${count} owned`),
+    );
+    expect(chip?.getAttribute("aria-pressed")).toBe("false");
+    await click(chip);
+    expect(chip?.getAttribute("aria-pressed")).toBe("true");
+    expect(container.querySelector('[role="dialog"]')?.textContent).toContain("at GO");
+
+    await click(button("Play level 7"));
+    expect(where.pathname).toBe("/levels/7/play");
+    expect(runs.mounted.at(-1)?.startPowerUp).toEqual({ type, source: "booster" });
+    expect((await client.getSeason()).boosters[type as "giant"] ?? 0).toBe(count - 1);
+  });
+
+  it("starts without a booster unless one is tapped, and a tap again takes it off", async () => {
+    const { client, count } = await withChest();
+    await renderMap(client);
+    await click(pin("Level 7, 3 of 3 stars"));
+    const chip = container.querySelector<HTMLButtonElement>('[role="dialog"] button[aria-pressed]');
+    await click(chip ?? undefined);
+    await click(chip ?? undefined);
+    expect(chip?.getAttribute("aria-pressed")).toBe("false");
+    await click(button("Play level 7"));
+    expect(runs.mounted.at(-1)?.startPowerUp).toBeNull();
+    const after = await client.getSeason();
+    expect(Object.values(after.boosters).reduce((a, b) => a + (b ?? 0), 0)).toBeGreaterThanOrEqual(count);
+  });
+
+  it("keeps the boosters when the frontier run already starts with a free power-up", async () => {
+    const { client } = await withChest();
+    await renderMap(client);
+    await click(pin("Level 8, next to play"));
+    expect(container.querySelector('[role="dialog"] button[aria-pressed]')).toBeNull();
+    expect(container.textContent).toContain("your boosters are kept");
+  });
+});
+
 describe("level play route", () => {
   it("clears a level, then Next level lands on the map with the next level open", async () => {
     const client = memoryClient();
@@ -366,6 +425,8 @@ describe("level result card", () => {
     atFrontier: false,
     failsAtLevel: 0,
     routeGhostAvailable: false,
+    chestsOpened: [],
+    boosters: null,
     goalFt: 267,
     peakFt: 267,
     xpGained: 160,
@@ -429,6 +490,16 @@ describe("level result card", () => {
     expect(container.textContent).not.toContain("free power-up");
     await renderCard({ ...lost, failsAtLevel: 3 });
     expect(container.textContent).toContain("Your next try starts with a free power-up.");
+  });
+
+  it("reveals the boosters a clear's star chest held, and nothing on other runs", async () => {
+    await renderCard({ ...base, chestsOpened: [{ chestNumber: 1, boosters: ["giant", "giant"] }, { chestNumber: 2, boosters: ["slow-lava"] }] });
+    const reveal = container.querySelector('ul[aria-label="Boosters from the chest"]');
+    expect(container.textContent).toContain("2 star chests opened!");
+    expect([...(reveal?.querySelectorAll("li") ?? [])].map((li) => li.textContent)).toEqual(["+2 Giant", "+1 Slow Lava"]);
+    await renderCard(base);
+    expect(container.textContent).not.toContain("star chest");
+    expect(container.textContent).not.toContain("Star chest");
   });
 
   it("shows the win streak after a frontier run, and nothing after a replay", async () => {

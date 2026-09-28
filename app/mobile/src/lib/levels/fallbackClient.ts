@@ -25,7 +25,7 @@ export function withMockFallback(server: LevelsClient, mock: () => LevelsClient)
         return active.getSeason();
       }
     },
-    startLevel: (level) => active.startLevel(level),
+    startLevel: (level, opts) => active.startLevel(level, opts),
     submitResult: (ticketId, run) => active.submitResult(ticketId, run),
     getBoard: (level) => active.getBoard(level),
   };

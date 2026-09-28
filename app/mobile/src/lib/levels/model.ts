@@ -1,5 +1,5 @@
 import type { PowerUpType } from "@app/game/types";
-import type { StartPowerUp } from "@app/levels/engagement";
+import type { BoosterInventory, BoosterType, StartPowerUp } from "@app/levels/engagement";
 
 /**
  * What the level screens show, and the calls they make. The shapes follow the
@@ -64,6 +64,31 @@ export interface SeasonView {
   nextStartPowerUp: StartPowerUp | null;
   /** Stuck help at the frontier level (§5c). */
   stuck: StuckHelp;
+  /** Owned boosters: power-ups a run can be started with (§6.4). */
+  boosters: BoosterInventory;
+  /** Progress toward the next star chest; null when the server did not say. */
+  chests: ChestProgress | null;
+}
+
+/** Star chests (§6.4): one opens for every 20 lifetime stars. */
+export interface ChestProgress {
+  /** Best stars on every level, summed across seasons. */
+  lifetimeStars: number;
+  /** Stars toward the next chest (0..perChest-1). */
+  starsIntoChest: number;
+  perChest: number;
+}
+
+/** A star chest a run opened, with the boosters it held. */
+export interface OpenedChest {
+  chestNumber: number;
+  boosters: BoosterType[];
+}
+
+/** What the player chose on the start card. */
+export interface StartOptions {
+  /** An owned booster to spend on this run, or null to start without one. */
+  booster?: BoosterType | null;
 }
 
 /**
@@ -97,6 +122,8 @@ export type StartRefusal =
   | "LOCKED"
   /** The installed engine is older than the level needs. */
   | "UPDATE_REQUIRED"
+  /** The chosen booster is not owned, not unlocked here, or not needed. */
+  | "BOOSTER_UNAVAILABLE"
   /** The server could not be reached. */
   | "NETWORK";
 
@@ -143,6 +170,10 @@ export interface LevelResult {
   /** Fails at this level after the run (0 on a clear or a replay), §5c. */
   failsAtLevel: number;
   routeGhostAvailable: boolean;
+  /** Star chests this run opened, in order (empty on most runs). */
+  chestsOpened: OpenedChest[];
+  /** Owned boosters after this run, or null when the server did not say. */
+  boosters: BoosterInventory | null;
 }
 
 /** One row of a level's friends-only board (§4). */
@@ -184,7 +215,7 @@ export interface LevelCatalog {
  */
 export interface LevelsClient {
   getSeason(): Promise<SeasonView>;
-  startLevel(level: number): Promise<StartResult>;
+  startLevel(level: number, opts?: StartOptions): Promise<StartResult>;
   submitResult(ticketId: string, run: LevelRunReport): Promise<LevelResult>;
   /** The level's friends-only board. */
   getBoard(level: number): Promise<LevelBoardView>;
