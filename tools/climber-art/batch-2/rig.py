@@ -17,6 +17,8 @@ from dataclasses import dataclass, field, replace
 
 from PIL import Image, ImageChops, ImageDraw, ImageFilter
 
+import climb_cycle
+
 PACK = 512  # pack cell, where the anchor is measured
 ROOT = (256.0, 460.0)
 REF_H = 380.0
@@ -280,25 +282,33 @@ def pose_set() -> dict[str, Pose]:
 POSE_ORDER = ["idle", "run_a", "run_b", "reach_a", "reach_b", "air", "done", "dead"]
 
 
-def climb_poses() -> list[Pose]:
-    """Six back-view frames: right hand reach + left foot lift, pull, transfer, swap."""
+def climb_poses(rig: Rig) -> list[Pose]:
+    """Six back-view frames of the shared hand-over-hand cycle (../climb_cycle.py)."""
+    reach = 1.15
+    hip = (ROOT[0], ROOT[1] - rig.leg_hip_y)
+    neck_y = hip[1] - rig.torso
     out = []
-    for i in range(6):
-        t = i / 6
-        # r in [0, 1]: how high the right (near, image-right in back view) hand is
-        r = 0.5 + 0.5 * math.cos(2 * math.pi * t)
-        l = 1 - r
-        arm = lambda h: (-(30 + 118 * h), -(40 + 128 * h))  # image-left arm, mirrored later
-        leg = lambda h: (-(6 + 58 * h), -(2 - 70 * h))
-        la, ra = arm(l), arm(r)
+    for i in range(climb_cycle.FRAMES):
+        t = i / climb_cycle.FRAMES
+        arms, legs = {}, {}
+        for side, sgn in (("l", -1), ("r", 1)):
+            sh = (ROOT[0] + sgn * rig.back_shoulder, neck_y + 18)
+            drop, out_, _ = climb_cycle.hand(i, side)
+            hand = (sh[0] + sgn * (16 + out_), neck_y - 108 + drop)
+            el, hd, _ = climb_cycle.ik(sh, hand, rig.upper_arm * reach, rig.fore_arm * reach, -sgn)
+            arms[side] = (climb_cycle.limb_deg(sh, el), climb_cycle.limb_deg(el, hd))
+            hp = (ROOT[0] + sgn * rig.back_hip, hip[1] - 4)
+            lift, _ = climb_cycle.foot(i, side)
+            ankle = (hp[0] + sgn * 8, hp[1] + (rig.thigh + rig.shin) * 0.97 - lift)
+            kn, an, _ = climb_cycle.ik(hp, ankle, rig.thigh, rig.shin, sgn)
+            legs[side] = (climb_cycle.limb_deg(hp, kn), climb_cycle.limb_deg(kn, an))
         out.append(Pose(
             back=True,
-            reach=1.15,
-            hip_dy=-3 * math.sin(2 * math.pi * t) ** 2,
-            na=la,  # image-left arm
-            fa=(-ra[0], -ra[1]),  # image-right arm
-            nl=leg(r),  # left foot lifts with the right hand
-            fl=(-leg(l)[0], -leg(l)[1]),
+            reach=reach,
+            na=arms["l"],  # image-left arm
+            fa=arms["r"],  # image-right arm
+            nl=legs["l"],
+            fl=legs["r"],
             tail=8 * math.sin(2 * math.pi * t),
         ))
     return out
@@ -325,7 +335,7 @@ def build(draw_fn, rig: Rig):
     cells = {}
     for name, p in pose_set().items():
         cells[name] = render(scaled(draw_fn(skeleton(rig, p), 1.0), k))
-    climb = [render(scaled(draw_fn(skeleton(rig, p), 1.0), k)) for p in climb_poses()]
+    climb = [render(scaled(draw_fn(skeleton(rig, p), 1.0), k)) for p in climb_poses(rig)]
     poses = Image.new("RGBA", (CELL * 4, CELL * 2), (0, 0, 0, 0))
     for i, name in enumerate(POSE_ORDER):
         poses.paste(cells[name].resize((CELL, CELL), Image.LANCZOS), ((i % 4) * CELL, (i // 4) * CELL))

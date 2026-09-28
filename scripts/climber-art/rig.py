@@ -20,6 +20,8 @@ from typing import Callable
 
 from PIL import Image, ImageChops, ImageDraw, ImageFilter
 
+import climb_cycle
+
 PACK = 512
 SS = 3  # render pixels per pack pixel
 OUT = 192
@@ -445,18 +447,16 @@ def poses_for(b: Body) -> list[Pose]:
 
 
 def climb_for(b: Body) -> list[Pose]:
-    """Back view: right-hand reach with left-foot lift, pull, transfer; then swapped."""
+    """Back view, the shared hand-over-hand cycle (tools/climber-art/climb_cycle.py)."""
     out = []
-    for i in range(6):
-        t = i / 6
-        r = 0.5 + 0.5 * math.cos(2 * math.pi * t)  # 1 = right hand high
-        bob = -2 * math.sin(4 * math.pi * t)
-        py = 352 + bob
-        right_hand = (344, 116 + (1 - r) * 96)
-        left_hand = (168, 116 + r * 96)
-        left_foot = (230, GROUND - 42 * r)
-        right_foot = (282, GROUND - 42 * (1 - r))
-        out.append(Pose((256, py), 0.0, left_hand, right_hand, left_foot, right_foot,
+    for i in range(climb_cycle.FRAMES):
+        t = i / climb_cycle.FRAMES
+        (rd, ro, _), (ld, lo, _) = climb_cycle.hand(i, "r"), climb_cycle.hand(i, "l")
+        right_hand = (344 + ro, 110 + rd)
+        left_hand = (168 - lo, 110 + ld)
+        left_foot = (230, GROUND - climb_cycle.foot(i, "l")[0])
+        right_foot = (282, GROUND - climb_cycle.foot(i, "r")[0])
+        out.append(Pose((256, 352), 0.0, left_hand, right_hand, left_foot, right_foot,
                         elbow_hint_near=(-1.0, 0.3), elbow_hint_far=(1.0, 0.3), tail=math.sin(2 * math.pi * t)))
     return out
 

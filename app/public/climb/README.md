@@ -32,6 +32,15 @@ Poses cells, left to right, top row first:
 The climb strip is a back view, 6 frames that loop while the character goes up
 a ladder. Without it, climbing alternates cells 3 and 4.
 
+All six climb frames must differ, and the cycle must travel, not bounce: hand
+over hand, one hand gripping while the other reaches past it. A strip that
+repeats a frame (1 = 2) stutters in game, and one that mirrors itself (1 = 5,
+2 = 4) pumps its arms up and down like waving. The engine advances one frame
+per 0.65 m climbed, which is 13.5 px of a 192 cell, so a gripping hand that
+slides down that much per frame stays still on screen. The code-drawn rigs
+share this cycle in `tools/climber-art/climb_cycle.py`, and
+`tests/game/climberSheetFiles.test.ts` fails a strip whose frames repeat.
+
 ## Drawing rules
 
 - Draw the character facing **right**. The engine mirrors it for left.

@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import math
 
+import climb_cycle
 from rig import ANCHOR, Frame, Scene, add, dirv, hexc, ik, mul, rot, scl, sub
 
 FAR = 0.7  # colour multiplier for the far arm and leg (depth)
@@ -119,10 +120,8 @@ class Climber:
 
     # --- back-view climb frame ------------------------------------------------
     def build_back(self, t: int, frames: int = 6) -> Scene:
-        """Right-hand reach pairs with left-foot lift; the second half swaps."""
+        """Frame t of the shared climb cycle: hand over hand, opposite foot steps."""
         S = Scene(self.o)
-        phase = 2 * math.pi * t / frames
-        c = math.cos(phase)
         pelvis = (256.0, 330.0)
         T = Frame(pelvis, 0)
         neck = T.p(0, -self.torso_len)
@@ -132,19 +131,14 @@ class Climber:
         hipL = T.p(-self.back_hip, -2)
         hipR = T.p(self.back_hip, -2)
         ground = pelvis[1] + self.thigh + self.shin - 6  # ankle height, knees slightly bent
-        hand_mid = neck[1] - 36
-        reach = 34
-        lift_amp = 30
-        # Right hand high when c > 0, left foot lifted with it.
-        hands = {
-            "R": (256 + self.back_shoulder + self.hand_out, hand_mid - reach * c),
-            "L": (256 - self.back_shoulder - self.hand_out, hand_mid + reach * c),
-        }
-        lifts = {"L": lift_amp * max(0.0, c), "R": lift_amp * max(0.0, -c)}
-        feet = {
-            "L": (256 - self.back_hip - 12, ground - lifts["L"]),
-            "R": (256 + self.back_hip + 12, ground - lifts["R"]),
-        }
+        hand_top = neck[1] - 90
+        # The shared hand-over-hand cycle (tools/climber-art/climb_cycle.py).
+        hands, feet = {}, {}
+        for side, sgn, cside in (("R", 1, "r"), ("L", -1, "l")):
+            drop, out, _ = climb_cycle.hand(t, cside)
+            hands[side] = (256 + sgn * (self.back_shoulder + self.hand_out + out), hand_top + drop)
+            lift, _ = climb_cycle.foot(t, cside)
+            feet[side] = (256 + sgn * (self.back_hip + 12), ground - lift)
 
         # legs (behind the torso), knees bend outward
         for side, hip, bend in (("L", hipL, 1), ("R", hipR, -1)):
