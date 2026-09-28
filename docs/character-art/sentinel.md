@@ -1,9 +1,9 @@
 # Sentinel climber artwork (to generate)
 
 Status: **not generated yet.** Until the sheets below exist, the game draws
-Sentinel as the Wraith sprite tinted ice cyan (`#2fd8f0`), set in
-the climber sprite registry. The real art replaces that placeholder with no
-code change beyond pointing the registry entry at the new files.
+Sentinel as the Wraith sprite tinted ice cyan (`#42eff6`), set in
+`app/src/components/Game/climberCharacters.ts`. The real art replaces that
+placeholder by changing its entry to `sheets("sentinel")` (see `app/public/climb/README.md`).
 
 Identity reference: `app/mobile/src/assets/avatars/sentinel.webp` (the profile
 portrait). Attach it to every prompt below. Style must match the shipped
@@ -34,7 +34,7 @@ to 256 colours, like the Wraith sheets. Keep the 512 masters out of the repo.
 
 ## Prompts
 
-**Poses sheet.** One 4 × 2 sheet of a chibi crystalline low-poly guardian with a tall swept-back helm crowned by sharp crystal blades, a narrow visor with glowing cyan eyes, jagged charcoal armor plates with cyan `#2fd8f0` crystal shards on the helm, shoulders and a cyan chest chevron. Fixed three-quarter
+**Poses sheet.** One 4 × 2 sheet of a chibi crystalline low-poly guardian with a tall swept-back helm crowned by sharp crystal blades, a narrow visor with glowing cyan eyes, jagged charcoal armor plates with cyan `#42eff6` crystal shards on the helm, shoulders and a cyan chest chevron. Fixed three-quarter
 right-facing view. Ordered poses: idle, running with one stride, opposite
 running stride, right-arm overhead reach, left-arm overhead reach, falling
 with limbs spread, both-arm celebration, crouched down. Constant character
