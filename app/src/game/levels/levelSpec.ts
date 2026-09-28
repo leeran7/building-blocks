@@ -102,11 +102,12 @@ function jumpRiseFt(speed: number): number {
 }
 
 /**
- * Hanging ladders start at 0.8 ft on their intro level and reach the engine's
- * cap at dL = 1: 70% of a standing jump's rise (1.97 ft; the doc rounds to 2).
+ * Hanging ladders start at 1.6 ft on their intro level (0.8 until Leeran asked
+ * for them to hang visibly higher, 2026-09-28) and reach the engine's cap at
+ * dL = 1: 70% of a standing jump's rise (1.97 ft; the doc rounds to 2).
  */
 const HANGING_LADDER_FT = {
-  from: 0.8,
+  from: 1.6,
   to: MAX_LADDER_HANG_FRAC * jumpRiseFt(FREE_TOWER.jumpSpeed),
 } as const;
 /**
@@ -288,14 +289,13 @@ export interface LevelPars {
 
 /** Tutorial levels use looser pars so a clean first try earns 3 stars. */
 const TUTORIAL_LEVELS = 10;
-/** Levels 1-50 run tighter pars (Leeran 2026-09-28); later levels keep the originals. */
-export const TIGHT_PAR_LEVELS = 50;
-
-/** Par multipliers on the route bot's time: [one-star clock or null, two-star, three-star]. */
-function parFactors(level: number): readonly [number | null, number, number] {
-  if (level <= TUTORIAL_LEVELS) return [2, 1.45, 1.2];
-  if (level <= TIGHT_PAR_LEVELS) return [1.5, 1.15, 1];
-  return [null, 1.25, 1.05];
+/**
+ * Par multipliers on the route bot's time: [one-star clock, two-star,
+ * three-star]. Tightened and the clock added on every level (Leeran
+ * 2026-09-28; was ×1.25 / ×1.05 with no clock, ×1.6 / ×1.3 on L1-10).
+ */
+function parFactors(level: number): readonly [number, number, number] {
+  return level <= TUTORIAL_LEVELS ? [2, 1.45, 1.2] : [1.5, 1.15, 1];
 }
 
 export function levelPars(level: number, routeTicks: number): LevelPars {
@@ -303,6 +303,6 @@ export function levelPars(level: number, routeTicks: number): LevelPars {
   return {
     twoStarTicks: Math.ceil(routeTicks * two),
     threeStarTicks: Math.ceil(routeTicks * three),
-    oneStarTicks: one === null ? null : Math.ceil(routeTicks * one),
+    oneStarTicks: Math.ceil(routeTicks * one),
   };
 }

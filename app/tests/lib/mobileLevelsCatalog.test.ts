@@ -69,7 +69,7 @@ describe("season 1 catalog", () => {
     expect(catalog.level(10).costsLife).toBe(false);
     expect(catalog.level(11).costsLife).toBe(true);
     expect(catalog.level(4).introPowerUp).toBe("rapid-climb");
-    expect(catalog.level(9).introTip).toMatch(/Amber ladders hang/);
+    expect(catalog.level(9).introTip).toMatch(/Hanging ladders start above your head/);
     expect(catalog.level(21).introTip).toMatch(/Short tops/);
     expect(catalog.level(20).introTip).toBeNull();
     expect(() => catalog.level(301)).toThrow();
@@ -77,25 +77,19 @@ describe("season 1 catalog", () => {
 });
 
 describe("the 1-star clock", () => {
-  it("runs on levels 1-50 only, shown and enforced from the same row", () => {
+  it("runs on every level, shown and enforced from the same row", () => {
     let clocked = 0;
     for (const row of rows) {
       const info = catalog.level(row.level);
       const setup = levelRunSetup(row.level);
-      if (row.level <= 50) {
-        expect(row.pars.oneStarTicks).not.toBeNull();
-        // The route bot the season gate ran finishes inside the clock.
-        expect(row.routeTicks).toBeLessThanOrEqual(row.pars.oneStarTicks!);
-        expect(setup.tower.timeLimitTicks).toBe(row.pars.oneStarTicks);
-        expect(info.pars.oneStarMs).toBe(ms(row.pars.oneStarTicks!));
-        clocked++;
-      } else {
-        expect(row.pars.oneStarTicks).toBeNull();
-        expect(setup.tower.timeLimitTicks).toBeUndefined();
-        expect(info.pars.oneStarMs).toBeNull();
-      }
+      expect(row.pars.oneStarTicks).not.toBeNull();
+      // The route bot the season gate ran finishes inside the clock.
+      expect(row.routeTicks).toBeLessThanOrEqual(row.pars.oneStarTicks!);
+      expect(setup.tower.timeLimitTicks).toBe(row.pars.oneStarTicks);
+      expect(info.pars.oneStarMs).toBe(ms(row.pars.oneStarTicks!));
+      clocked++;
     }
-    expect(clocked).toBe(50);
+    expect(clocked).toBe(300);
   });
 });
 

@@ -80,7 +80,7 @@ describe("season equation", () => {
   // (0.7 · 15² / 80) and of a ladder jump's rise (0.7 · 10.5² / 80).
   it("brings in hanging ladders at L9 and short tops at L21", () => {
     expect(levelSpec(SEASON_1, 8).layout.hangingLadderFt).toBe(0);
-    expect(levelSpec(SEASON_1, 9).layout.hangingLadderFt).toBeCloseTo(0.8, 10);
+    expect(levelSpec(SEASON_1, 9).layout.hangingLadderFt).toBeCloseTo(1.6, 10);
     expect(levelSpec(SEASON_1, 300).layout.hangingLadderFt).toBeCloseTo(1.96875, 10);
     expect(levelSpec(SEASON_1, 20).layout.shortTopFt).toBe(0);
     expect(levelSpec(SEASON_1, 21).layout.shortTopFt).toBeCloseTo(0.4, 10);
@@ -169,8 +169,8 @@ describe("level lava and pars", () => {
     expect(hazardMeanSpeedFrac(cfg)).toBeCloseTo(maxLavaMeanFrac(), 10);
   });
 
-  it("sets star pars from the route: looser on tutorial levels, a clock on 1-50 only", () => {
-    expect(levelPars(51, 1000)).toEqual({ twoStarTicks: 1250, threeStarTicks: 1050, oneStarTicks: null });
+  it("sets star pars and the clock from the route, looser on tutorial levels", () => {
+    expect(levelPars(300, 1000)).toEqual({ twoStarTicks: 1150, threeStarTicks: 1000, oneStarTicks: 1500 });
     expect(levelPars(50, 1000)).toEqual({ twoStarTicks: 1150, threeStarTicks: 1000, oneStarTicks: 1500 });
     expect(levelPars(11, 1000)).toEqual({ twoStarTicks: 1150, threeStarTicks: 1000, oneStarTicks: 1500 });
     expect(levelPars(10, 1000)).toEqual({ twoStarTicks: 1450, threeStarTicks: 1200, oneStarTicks: 2000 });

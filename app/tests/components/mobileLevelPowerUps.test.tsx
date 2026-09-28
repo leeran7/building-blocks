@@ -52,11 +52,11 @@ describe("level start sheet", () => {
       })
     ).replace(/<[^>]+>/g, " ");
 
-  it("shows the 1-star clock on levels 1-50 and any clear after", () => {
-    const clock = formatClock(catalog.level(20).pars.oneStarMs!);
-    expect(sheet(20)).toContain(clock);
-    expect(sheet(20)).not.toContain("any clear");
-    expect(sheet(51)).toContain("any clear");
+  it("shows the 1-star clock in place of any clear", () => {
+    for (const n of [1, 20, 300]) {
+      expect(sheet(n)).toContain(formatClock(catalog.level(n).pars.oneStarMs!));
+      expect(sheet(n)).not.toContain("any clear");
+    }
   });
 
   it("shows the level's power-ups before the match", () => {

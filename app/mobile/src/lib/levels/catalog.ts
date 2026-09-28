@@ -20,7 +20,7 @@ import type { LevelCatalog, LevelInfo, LevelPowerUps } from "./model";
 /** First-sight tips for a season's new obstacles (§3). */
 function obstacleTip(season: SeasonSpec, level: number): string | null {
   if (level === season.obstacleIntros.hangingLadders) {
-    return "Amber ladders hang above the floor. Jump to grab them. Giant can climb straight on.";
+    return "Hanging ladders start above your head. Jump to grab them. Giant can climb straight on.";
   }
   if (level === season.obstacleIntros.shortTops) {
     return "Short tops stop below the floor. Jump off the top to get up.";
