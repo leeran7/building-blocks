@@ -1,10 +1,10 @@
 # Mantis climber art — generation brief
 
-Until this art exists the climb view draws Mantis as the plain Wraith, set by
-its `base()` entry in
-`app/src/components/Game/climberCharacters.ts`. When the sheets below exist,
-drop them into `app/public/climb/` and change that entry to
-`sheets("mantis")`; see `app/public/climb/README.md`. Reference identity: `app/mobile/src/assets/avatars/mantis.webp`
+Mantis ships code-drawn sheets (`app/public/climb/mantis-poses-192.png` and
+`mantis-climb-192.png`), rendered by `scripts/climber-art/kestrel-mantis-yak/` and registered as
+`sheets("mantis")` in `app/src/components/Game/climberCharacters.ts`. This brief
+is for generated art to replace them: overwrite the two files with the same
+names and layout (`app/public/climb/README.md`); no code change is needed. Reference identity: `app/mobile/src/assets/avatars/mantis.webp`
 (head-and-shoulders portrait only, so the body below is new design).
 
 ## Deliverables

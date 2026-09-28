@@ -122,9 +122,9 @@ export const CLIMBER_CHARACTERS: Readonly<Record<string, ClimberCharacter>> = {
   cobra: sheets("cobra"),
   badger: sheets("badger"),
   wolf: sheets("wolf"),
-  kestrel: base(),
-  mantis: base(),
-  yak: base(),
+  kestrel: sheets("kestrel"),
+  mantis: sheets("mantis"),
+  yak: sheets("yak"),
 };
 
 /** A recolour's two colours, both "#rrggbb" (see TintCharacter). */
