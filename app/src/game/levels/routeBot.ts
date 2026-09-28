@@ -26,7 +26,6 @@ import { isPowerUpActive, moveSpeedMultiplier } from "../powerups";
 import { obstacleAhead, isOnObstacle, obstaclesNearY } from "../obstacles";
 import {
   floorIndexAt,
-  ladderHangM,
   ladderTopGapM,
   laddersForFloor,
   platformsForFloor,
@@ -100,7 +99,8 @@ export function createRouteBot(): RouteBot {
     if (target === null) target = pickTarget(tower, k, p);
     const dx = target.x - p.x;
     if (Math.abs(dx) <= tower.ladderGrabRadius * 0.5) {
-      return p.onGround && ladderHangM(tower) > 0 ? JUMP_UP : UP;
+      // A hanging ladder's bottom rung is above the feet: jump to catch it.
+      return p.onGround && target.y0 > p.y + 0.01 ? JUMP_UP : UP;
     }
     dir = dx > 0 ? 1 : -1;
     const probe = p.x + dir * 3.5;

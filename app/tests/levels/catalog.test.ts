@@ -27,8 +27,16 @@ describe("level catalog", () => {
 
   it("refuses a manifest with broken pars, a missing level or another season's spec", () => {
     const badPars = copy();
-    badPars.levels[9].pars = { twoStarTicks: 100, threeStarTicks: 200 };
+    badPars.levels[9].pars = { twoStarTicks: 100, threeStarTicks: 200, oneStarTicks: 300 };
     expect(manifestProblems(1, badPars)).toContain("L10: bad pars");
+
+    // A clock shorter than the 2-star time, or a row missing its clock field.
+    const badClock = copy();
+    badClock.levels[9].pars.oneStarTicks = badClock.levels[9].pars.twoStarTicks - 1;
+    expect(manifestProblems(1, badClock)).toContain("L10: bad pars");
+    const noClock = copy();
+    delete (noClock.levels[9].pars as { oneStarTicks?: number | null }).oneStarTicks;
+    expect(manifestProblems(1, noClock)).toContain("L10: bad pars");
 
     const zeroPars = copy();
     zeroPars.levels[0].pars.threeStarTicks = 0;
@@ -47,11 +55,19 @@ describe("level catalog", () => {
   });
 
   it("scores stars at the pars, inclusive", () => {
-    const pars = { twoStarTicks: 500, threeStarTicks: 400 };
+    const pars = { twoStarTicks: 500, threeStarTicks: 400, oneStarTicks: null };
     expect(starsForTicks(1, pars)).toBe(3);
     expect(starsForTicks(400, pars)).toBe(3);
     expect(starsForTicks(401, pars)).toBe(2);
     expect(starsForTicks(500, pars)).toBe(2);
     expect(starsForTicks(501, pars)).toBe(1);
+  });
+
+  it("scores no stars past the level's clock", () => {
+    const pars = { twoStarTicks: 500, threeStarTicks: 400, oneStarTicks: 750 };
+    expect(starsForTicks(501, pars)).toBe(1);
+    expect(starsForTicks(750, pars)).toBe(1);
+    expect(starsForTicks(751, pars)).toBe(0);
+    expect(starsForTicks(400, pars)).toBe(3);
   });
 });

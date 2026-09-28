@@ -23,7 +23,7 @@ import {
   TrackArchetype,
   resolveGameCategory,
 } from "./categories";
-import { createRng } from "./rng";
+import { createRng, hashSeed } from "./rng";
 import { createSeedCache } from "./seedCache";
 
 /** Physics + layout tuning per archetype. */
@@ -100,6 +100,7 @@ export function geometryCacheKey(tower: TowerSpec): string {
     tower.minWalkM,
     tower.ladderHangM,
     tower.ladderTopGapM,
+    tower.hangingLadderShare,
   ];
   if (
     tower.difficulty === undefined &&
@@ -140,6 +141,18 @@ function knob(tower: TowerSpec, name: keyof TowerSpec, lo: number, hi: number): 
 export function ladderHangM(tower: TowerSpec): number {
   const max = MAX_LADDER_HANG_FRAC * jumpRise(tower, tower.jumpSpeed);
   return knob(tower, "ladderHangM", 0, max) ?? 0;
+}
+
+/**
+ * Whether ladder `slot` leaving floor `i` hangs: never without a hang height,
+ * always when tower.hangingLadderShare is unset or 1, otherwise a fixed coin
+ * per (seed, floor, slot) that comes up hanging at that share.
+ */
+export function ladderHangs(tower: TowerSpec, i: number, slot: number): boolean {
+  if (ladderHangM(tower) === 0) return false;
+  const share = knob(tower, "hangingLadderShare", 0, 1) ?? 1;
+  if (share >= 1) return true;
+  return hashSeed(`${tower.seed}:hang:${i}:${slot}`) / 0x1_0000_0000 < share;
 }
 
 /** Short-top gap (m) below the floor a ladder leads to; 0 on endless towers. */
@@ -543,9 +556,14 @@ export function summitFloor(tower: TowerSpec): number | null {
 export function laddersForFloor(tower: TowerSpec, i: number): Ladder[] {
   const summit = summitFloor(tower);
   if (summit !== null && i >= summit) return [];
-  const y0 = floorHeight(tower, i) + ladderHangM(tower);
+  const floorY = floorHeight(tower, i);
+  const hang = ladderHangM(tower);
   const y1 = floorHeight(tower, i + 1) - ladderTopGapM(tower);
-  return ladderXsForFloor(tower, i).map((x) => ({ x, y0, y1 }));
+  return ladderXsForFloor(tower, i).map((x, slot) => ({
+    x,
+    y0: hang > 0 && ladderHangs(tower, i, slot) ? floorY + hang : floorY,
+    y1,
+  }));
 }
 
 /** The primary ladder leading UP from floor i (floors may have more). */

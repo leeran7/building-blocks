@@ -34,6 +34,7 @@ import {
 import { advanceRound, assignPrizes } from "../../../../../src/db/tournaments";
 import { newRunSeed } from "../../../../../src/game/rng";
 import { createNotification } from "../../../../../src/db/notification";
+import { grantBonusLife } from "../../../../../src/db/levelExtras";
 
 export const runtime = "nodejs";
 
@@ -375,6 +376,18 @@ export async function POST(
 
   if (freshDuel.tournament_id) {
     tryAdvanceTournament(freshDuel.tournament_id).catch(() => {});
+  }
+
+  // Level System: finishing a duel is worth one bonus life a day (design
+  // §5b). Only here, after the server re-simulated and completed it; never on
+  // the forfeit path, which a client can trigger alone. Guests are skipped
+  // inside grantBonusLife, and a failure never fails the result.
+  const completedAt = new Date();
+  for (const pid of [freshDuel.player1_id, freshDuel.player2_id]) {
+    if (!pid) continue;
+    await grantBonusLife(pid, completedAt).catch((err: unknown) => {
+      console.error("[duel/result] bonus life failed", id, err);
+    });
   }
 
   const p1Name = freshDuel.player1.display_name ?? "Opponent";

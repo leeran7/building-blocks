@@ -28,7 +28,11 @@ vi.mock("../../src/db/levels", async (importOriginal) => {
   };
 });
 
+vi.mock("../../src/db/levelExtras", () => ({ levelFriendsBoard: vi.fn() }));
+
 import { POST as postTicket } from "../../app/api/levels/ticket/route";
+import { GET as getBoard } from "../../app/api/levels/board/route";
+import { levelFriendsBoard } from "../../src/db/levelExtras";
 import { POST as postResult } from "../../app/api/levels/result/route";
 import { GET as getMe } from "../../app/api/levels/me/route";
 import { GET as getSeason } from "../../app/api/levels/season/route";
@@ -43,12 +47,13 @@ import {
   submitLevelResult,
 } from "../../src/db/levels";
 import { LEVEL_SIM_VERSION } from "../../src/game/simVersion";
+import { TEST_STAR_CHEST_SECRET } from "../../src/levels/starChestServer";
 import { encodeRunReplay } from "../../src/game/runReplay";
 import type { PlayerInput } from "../../src/game/types";
 
 const SIM = LEVEL_SIM_VERSION;
 // Level 42's pars in season-1.json.
-const L42_PARS = { twoStarTicks: 3142, threeStarTicks: 2639 };
+const L42_PARS = { twoStarTicks: 2897, threeStarTicks: 2519, oneStarTicks: 3779 };
 const T_ISSUED = new Date("2026-09-27T12:00:00Z");
 const TICKET = "ticket_abcdefghijk";
 
@@ -71,6 +76,11 @@ beforeEach(() => {
     lifeSpent: true,
     lives: 4,
     nextLifeAt: new Date(T_ISSUED.getTime() + 1_800_000),
+    startPowerUp: null,
+    streak: 0,
+    failsAtLevel: 0,
+    routeGhostAvailable: false,
+    boosters: {},
   });
   vi.mocked(openTicketLevel).mockResolvedValue({ season: 1, level: 42 });
   vi.mocked(submitLevelResult).mockImplementation(async (input) => ({
@@ -89,6 +99,13 @@ beforeEach(() => {
     xp: 510,
     playerLevel: 3,
     awards: [],
+    atFrontier: true,
+    streak: input.run.cleared ? 1 : 0,
+    failsAtLevel: input.run.cleared ? 0 : 1,
+    routeGhostAvailable: false,
+    chestsOpened: [],
+    lifetimeStars: input.run.stars,
+    boosters: {},
   }));
 });
 
@@ -115,6 +132,59 @@ describe("POST /api/levels/ticket", () => {
     expect(issueLevelTicket).toHaveBeenCalledWith(
       expect.objectContaining({ userId: "u1", season: 1, level: 42, simVersion: SIM })
     );
+  });
+
+  it("passes the level's allowed boosters from the manifest and returns the start power-up", async () => {
+    vi.mocked(issueLevelTicket).mockResolvedValueOnce({
+      ticketId: TICKET,
+      expiresAt: new Date(T_ISSUED.getTime() + 86_400_000),
+      lifeSpent: true,
+      lives: 4,
+      nextLifeAt: null,
+      startPowerUp: { type: "super-jump", source: "streak" },
+      streak: 5,
+      failsAtLevel: 0,
+      routeGhostAvailable: false,
+      boosters: {},
+    });
+    const res = await ticket({ season: 1, level: 12, simVersion: SIM });
+    expect(await res.json()).toMatchObject({ startPowerUp: { type: "super-jump", source: "streak" }, streak: 5 });
+    // L12 of season 1 has unlocked rapid climb (L4), sprint burst (L7) and super jump (L11).
+    expect(vi.mocked(issueLevelTicket).mock.calls[0][0].allowedBoosters).toEqual([
+      "rapid-climb",
+      "sprint-burst",
+      "super-jump",
+    ]);
+  });
+
+  it("passes an allowed booster to the ticket", async () => {
+    await ticket({ season: 1, level: 12, simVersion: SIM, booster: "super-jump" });
+    expect(vi.mocked(issueLevelTicket).mock.calls[0][0].booster).toBe("super-jump");
+  });
+
+  it.each([["random"], ["toString"], ["__proto__"], [7], [{ type: "giant" }]])(
+    "refuses the booster %j before any write",
+    async (booster) => {
+      const res = await ticket({ season: 1, level: 42, simVersion: SIM, booster });
+      expect(res.status).toBe(400);
+      expect((await res.json()).code).toBe("INVALID_BOOSTER");
+      expect(issueLevelTicket).not.toHaveBeenCalled();
+    }
+  );
+
+  it("refuses a booster the level has not unlocked before any write", async () => {
+    // Jetpack unlocks at L28.
+    const res = await ticket({ season: 1, level: 12, simVersion: SIM, booster: "jetpack" });
+    expect(res.status).toBe(409);
+    expect((await res.json()).code).toBe("BOOSTER_NOT_ALLOWED");
+    expect(issueLevelTicket).not.toHaveBeenCalled();
+  });
+
+  it("maps booster refusals from the transaction", async () => {
+    vi.mocked(issueLevelTicket).mockRejectedValueOnce(new LevelError("BOOSTER_NOT_OWNED", "none left"));
+    let res = await ticket({ season: 1, level: 12, simVersion: SIM, booster: "rapid-climb" });
+    expect(res.status).toBe(409);
+    expect((await res.json()).code).toBe("BOOSTER_NOT_OWNED");
   });
 
   it.each([
@@ -214,6 +284,23 @@ describe("POST /api/levels/result", () => {
   const result = (body: unknown, auth?: string | null) => postResult(req("/api/levels/result", body, auth));
   const CLEAR = { ticketId: TICKET, cleared: true, stars: 3, ticks: 900 };
 
+  it("rolls star chests with the test secret outside production", async () => {
+    await result(CLEAR);
+    expect(vi.mocked(submitLevelResult).mock.calls[0][0].chestSecret).toBe(TEST_STAR_CHEST_SECRET);
+  });
+
+  it("opens no chests in production without STAR_CHEST_SECRET, and still saves the run", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("STAR_CHEST_SECRET", "");
+    try {
+      const res = await result(CLEAR);
+      expect(res.status).toBe(200);
+      expect(vi.mocked(submitLevelResult).mock.calls[0][0].chestSecret).toBeNull();
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
   it("records the reported run against the ticket's level, not the request's", async () => {
     const res = await result({ ...CLEAR, season: 9, level: 300 });
     expect(res.status).toBe(200);
@@ -302,6 +389,7 @@ describe("POST /api/levels/result", () => {
     [L42_PARS.threeStarTicks + 1, 2],
     [L42_PARS.twoStarTicks, 2],
     [L42_PARS.twoStarTicks + 1, 1],
+    [L42_PARS.oneStarTicks, 1],
   ])("scores a clear in %i ticks at %i stars against the level's pars", async (ticks, stars) => {
     expect((await result({ ...CLEAR, ticks, stars })).status).toBe(200);
     // Every other star count is refused before the ticket is consumed.
@@ -311,6 +399,17 @@ describe("POST /api/levels/result", () => {
       expect((await res.json()).code).toBe("INVALID_RESULT");
     }
     expect(submitLevelResult).toHaveBeenCalledTimes(1);
+  });
+
+  it("refuses a clear past the level's clock at any star count", async () => {
+    for (const stars of [1, 2, 3]) {
+      const res = await result({ ...CLEAR, ticks: L42_PARS.oneStarTicks + 1, stars });
+      expect(res.status).toBe(400);
+      expect((await res.json()).code).toBe("INVALID_RESULT");
+    }
+    expect(submitLevelResult).not.toHaveBeenCalled();
+    // The same run reported as a loss is recorded.
+    expect((await result({ ...CLEAR, cleared: false, stars: 0, ticks: L42_PARS.oneStarTicks + 1 })).status).toBe(200);
   });
 
   it("refuses a ticket whose season has no manifest", async () => {
@@ -341,9 +440,21 @@ describe("GET /api/levels/me", () => {
       frontier: 4,
       totalStars: 7,
       levels: [{ level: 1, stars: 3, bestTicks: 900 }],
+      streak: 3,
+      nextStartPowerUp: { type: "rapid-climb", source: "streak" },
+      stuck: { level: 4, fails: 5, routeGhostAvailable: true },
+      boosters: { giant: 2 },
+      chests: { lifetimeStars: 27, starsIntoChest: 7, perChest: 20, earned: 1 },
     });
     const res = await getMe(req("/api/levels/me?season=1"));
-    expect(await res.json()).toMatchObject({ lives: 3, nextLifeAt: "2026-09-27T12:30:00.000Z", frontier: 4 });
+    expect(await res.json()).toMatchObject({
+      lives: 3,
+      nextLifeAt: "2026-09-27T12:30:00.000Z",
+      frontier: 4,
+      streak: 3,
+      nextStartPowerUp: { type: "rapid-climb", source: "streak" },
+      stuck: { level: 4, fails: 5, routeGhostAvailable: true },
+    });
   });
 
   it("rejects a bad season and requires sign-in", async () => {
@@ -389,5 +500,66 @@ describe("GET /api/levels/season", () => {
     const res = await season("?season=1");
     expect(res.status).toBe(500);
     expect(JSON.stringify(await res.json())).not.toContain("relation");
+  });
+});
+
+describe("GET /api/levels/board", () => {
+  const board = (q: string, token?: string | null) => getBoard(req(`/api/levels/board${q}`, undefined, token));
+  const BOARD = {
+    season: 1,
+    level: 12,
+    friendCount: 2,
+    entries: [{ rank: 1, isMe: false, handle: "Ana", username: "ana", avatarId: null, stars: 3, bestTicks: 900 }],
+  };
+
+  it("returns the caller's friends board, keyed by the token's user only", async () => {
+    vi.mocked(levelFriendsBoard).mockResolvedValueOnce(BOARD);
+    const res = await board("?season=1&level=12&userId=someone-else");
+    expect(res.status).toBe(200);
+    expect(res.headers.get("cache-control")).toBe("private, no-store");
+    expect(await res.json()).toEqual(BOARD);
+    expect(levelFriendsBoard).toHaveBeenCalledWith("u1", 1, 12);
+  });
+
+  it.each([["?season=1"], ["?level=12"], ["?season=1&level=0"], ["?season=1&level=301"], ["?season=x&level=1"], ["?season=1&level=1.5"]])(
+    "rejects %s",
+    async (q) => {
+      const res = await board(q);
+      expect(res.status).toBe(400);
+      expect(levelFriendsBoard).not.toHaveBeenCalled();
+    }
+  );
+
+  it("refuses a season with no manifest", async () => {
+    expect((await board("?season=2&level=1")).status).toBe(404);
+    expect(levelFriendsBoard).not.toHaveBeenCalled();
+  });
+
+  it("requires a signed-in, non-anonymous player", async () => {
+    expect((await board("?season=1&level=12", null)).status).toBe(401);
+    vi.mocked(verifyIdToken).mockResolvedValue({ uid: "anon" } as never);
+    expect((await board("?season=1&level=12")).status).toBe(401);
+    expect(levelFriendsBoard).not.toHaveBeenCalled();
+  });
+
+  it("uses the shared climb IP bucket and a per-user level cap", async () => {
+    vi.mocked(levelFriendsBoard).mockResolvedValue(BOARD);
+    await board("?season=1&level=12");
+    const namespaces = vi.mocked(checkRateLimit).mock.calls.map(([o]) => o.namespace);
+    expect(namespaces).toEqual(["climb", "climb:level:board:total"]);
+
+    vi.mocked(checkRateLimit).mockImplementation(async (o) => ({ allowed: o.namespace !== "climb:level:board:total", degraded: false }));
+    vi.mocked(levelFriendsBoard).mockClear();
+    const res = await board("?season=1&level=12");
+    expect(res.status).toBe(429);
+    expect(levelFriendsBoard).not.toHaveBeenCalled();
+    vi.mocked(checkRateLimit).mockImplementation(async () => ({ allowed: true, degraded: false }));
+  });
+
+  it("never leaks a raw database error", async () => {
+    vi.mocked(levelFriendsBoard).mockRejectedValueOnce(new Error("relation friendships does not exist"));
+    const res = await board("?season=1&level=12");
+    expect(res.status).toBe(500);
+    expect(JSON.stringify(await res.json())).not.toContain("friendships");
   });
 });

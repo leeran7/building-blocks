@@ -17,6 +17,7 @@ import {
   MatchPhase,
   MatchState,
   PlayerInput,
+  PowerUpType,
   TowerSpec,
   TICK_DT,
   NO_INPUT,
@@ -150,6 +151,11 @@ export interface UseClimbOptions {
   replayInputs?: PlayerInput[];
   /** Auto-start on mount (used for shared replays). */
   autoStart?: boolean;
+  /**
+   * Level runs only: the power-up the server's ticket grants at GO (win
+   * streak, stuck help or a booster). Must be allowed on `tower`.
+   */
+  startPowerUp?: Exclude<PowerUpType, "random">;
 }
 
 /**
@@ -169,6 +175,7 @@ export function useClimb({
   hazard = DEFAULT_HAZARD_CONFIG,
   replayInputs,
   autoStart = false,
+  startPowerUp,
 }: UseClimbOptions): UseClimbResult {
   const cfg: SimConfig = { ...DEFAULT_SIM_CONFIG, hazard };
 
@@ -179,11 +186,12 @@ export function useClimb({
         mode: "solo",
         tower: applyRunSeed(tower, runSeed),
         playerIds: [PLAYER_ID],
+        ...(startPowerUp !== undefined ? { startPowerUp } : {}),
       });
       m.phase = phase;
       return m;
     },
-    [tower]
+    [tower, startPowerUp]
   );
 
   const [view, setView] = useState(() => ({

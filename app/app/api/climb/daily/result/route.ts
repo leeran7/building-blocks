@@ -13,7 +13,11 @@
  *      stores the re-simulated peak — a client/server mismatch is rejected
  *      (400, logged), never averaged or trusted;
  *   3. upserts the day's best atomically and raises the all-time record
- *      (recordClimb) with the same server peak.
+ *      (recordClimb) with the same server peak;
+ *   4. pays the Level System extras from the same server values
+ *      (src/db/levelExtras.ts): Daily XP (`daily:{day}`, the day's best floor
+ *      count, max 100, raised never summed) and the once-a-day bonus life.
+ *      A failure there is logged and never fails the saved score.
  *
  * Before any decompression it also checks the client's engine revision
  * (simVersion must equal DAILY_SIM_VERSION, SEC-DC-4). After verification it
@@ -32,7 +36,8 @@
  *
  * Request:  { replayToken: string (required), simVersion: number (required),
  *            peakY?: number, ticks?: number, seed?: string }
- * 200:      { saved: true, day, peakY, improved, rank, totalClimbers, attempts }
+ * 200:      { saved: true, day, peakY, improved, rank, totalClimbers, attempts,
+ *            rewards: { xpGained, dailyXp, lifeGranted } | null }
  *         | { saved: false, reason: "anonymous" | "invalid_token" | "no_consent" }
  * 400:      { error, code: INVALID_JSON | REPLAY_REQUIRED | INVALID_REPLAY
  *                         | DAY_CLOSED | RUN_TOO_LONG | REPLAY_MISMATCH }
@@ -59,7 +64,8 @@ import {
 import { FREE_STACK_SLUG } from "../../../../../src/game/freeStack";
 import { parseReplayToken, parseRunReplayEnvelope } from "../../../../../src/game/runReplay";
 import { inflateReplayEnvelope } from "../../../../../src/game/runReplayServer";
-import { dailyRunNeedsClaim, verifyDailyReplay } from "../../../../../src/game/dailyVerify";
+import { dailyFloorsForPeak, dailyRunNeedsClaim, verifyDailyReplay } from "../../../../../src/game/dailyVerify";
+import { recordDailyRewards, type DailyRewards } from "../../../../../src/db/levelExtras";
 import { DAILY_SIM_VERSION } from "../../../../../src/game/simVersion";
 import { dailySeedConfigured, submissionDayForSeed } from "../../../../../src/lib/dailySeedServer";
 import {
@@ -241,6 +247,19 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     revalidateTag(dailyLeaderboardTag(verdict.day), IMMEDIATE_EXPIRY);
     revalidateClimbLeaderboard();
 
+    // Level System extras, from the verifier's own day and height.
+    let rewards: DailyRewards | null = null;
+    try {
+      rewards = await recordDailyRewards({
+        userId: uid,
+        day: verdict.day,
+        floors: dailyFloorsForPeak(replay.seed, verdict.peakY),
+        now,
+      });
+    } catch (err) {
+      console.error("[climb/daily/result] level rewards failed:", err);
+    }
+
     const [standing, totalClimbers] = await Promise.all([
       dailyStandingFor(uid, verdict.day),
       dailyClimberCount(verdict.day),
@@ -254,6 +273,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         rank: standing?.rank ?? null,
         totalClimbers,
         attempts: daily.attempts,
+        rewards,
       },
       { status: 200, headers: NO_STORE }
     );

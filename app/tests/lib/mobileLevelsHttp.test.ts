@@ -11,8 +11,13 @@ vi.mock("../../mobile/src/lib/api", () => ({ apiFetch: vi.fn() }));
 import { LEVEL_SIM_VERSION } from "../../src/game/simVersion";
 import {
   createHttpLevelsClient,
+  parseBoosterInventory,
+  parseChestProgress,
+  parseLevelBoard,
+  parseOpenedChests,
   parseLevelProfile,
   parseServerResult,
+  parseStartPowerUp,
   parseTicket,
   refusalFor,
 } from "../../mobile/src/lib/levels/httpClient";
@@ -78,6 +83,7 @@ const RUN: LevelRunReport = {
   raceTicks: 900,
   peakFt: 90,
   replayToken: "token",
+  outOfTime: false,
 };
 
 function json(status: number, body: unknown): Response {
@@ -128,6 +134,110 @@ describe("parsers", () => {
     expect(refusalFor(503, "LEVELS_UNAVAILABLE")).toBe("NETWORK");
     expect(refusalFor(429, "RATE_LIMITED")).toBe("NETWORK");
     expect(refusalFor(403, "SOMETHING_ELSE")).toBe("NETWORK");
+  });
+});
+
+describe("win streaks and start power-ups", () => {
+  it("parse a start power-up, and read an absent one as none", () => {
+    expect(parseStartPowerUp({ type: "rapid-climb", source: "streak" })).toEqual({ type: "rapid-climb", source: "streak" });
+    expect(parseStartPowerUp(undefined)).toBeNull();
+    expect(parseStartPowerUp(null)).toBeNull();
+  });
+
+  it.each([
+    [{ type: "random", source: "streak" }],
+    [{ type: "rapid-climb", source: "gift" }],
+    [{ type: "rapid-climb", source: "toString" }],
+    [{ type: "rapid-climb" }],
+    ["rapid-climb"],
+  ])("reject a malformed start power-up %j", (raw) => {
+    expect(parseStartPowerUp(raw)).toBeUndefined();
+    expect(parseTicket({ ...TICKET, startPowerUp: raw })).toBeNull();
+  });
+
+  it("read the streak from the profile and the result, and refuse a bad one", () => {
+    expect(parseLevelProfile({ ...PROFILE, streak: 4, nextStartPowerUp: { type: "rapid-climb", source: "streak" } })).toMatchObject({
+      streak: 4,
+      nextStartPowerUp: { type: "rapid-climb", source: "streak" },
+    });
+    expect(parseLevelProfile(PROFILE)).toMatchObject({ streak: 0, nextStartPowerUp: null });
+    expect(parseLevelProfile({ ...PROFILE, streak: -1 })).toBeNull();
+    expect(parseServerResult({ ...RESULT, streak: 2, atFrontier: true })).toMatchObject({ streak: 2, atFrontier: true });
+    expect(parseServerResult(RESULT)).toMatchObject({ streak: null, atFrontier: false });
+    expect(parseServerResult({ ...RESULT, streak: "2" })).toBeNull();
+    expect(parseServerResult({ ...RESULT, atFrontier: 1 })).toBeNull();
+  });
+
+  it("read stuck help from the profile and the result", () => {
+    expect(parseLevelProfile({ ...PROFILE, stuck: { level: 3, fails: 5, routeGhostAvailable: true } })?.stuck).toEqual({
+      level: 3,
+      fails: 5,
+      routeGhostAvailable: true,
+    });
+    expect(parseLevelProfile({ ...PROFILE, stuck: { level: 3, fails: "5", routeGhostAvailable: true } })).toBeNull();
+    expect(parseLevelProfile({ ...PROFILE, stuck: { level: 3, fails: 5 } })).toBeNull();
+    expect(parseServerResult({ ...RESULT, outcome: "failed", stars: 0, failsAtLevel: 3, routeGhostAvailable: false })).toMatchObject({
+      failsAtLevel: 3,
+      routeGhostAvailable: false,
+    });
+    expect(parseServerResult({ ...RESULT, failsAtLevel: -1 })).toBeNull();
+    expect(parseServerResult({ ...RESULT, routeGhostAvailable: "yes" })).toBeNull();
+  });
+
+  it("hands the ticket's power-up to the run", async () => {
+    const { fetch } = fakeServer({
+      "/api/levels/ticket": () => json(200, { ...TICKET, level: 12, startPowerUp: { type: "super-jump", source: "streak" } }),
+    });
+    const res = await createHttpLevelsClient({ catalog, fetch }).startLevel(12);
+    expect(res).toMatchObject({ ok: true, ticket: { startPowerUp: { type: "super-jump", source: "streak" } } });
+  });
+
+  it("asks for an update when the power-up is not allowed on this app's level", async () => {
+    // Level 3 allows no power-ups in season 1.
+    const { fetch } = fakeServer({
+      "/api/levels/ticket": () => json(200, { ...TICKET, startPowerUp: { type: "rapid-climb", source: "streak" } }),
+    });
+    expect(await createHttpLevelsClient({ catalog, fetch }).startLevel(3)).toEqual({ ok: false, code: "UPDATE_REQUIRED" });
+  });
+});
+
+describe("friends board", () => {
+  const BOARD = {
+    season: 1,
+    level: 12,
+    friendCount: 1,
+    entries: [
+      { rank: 1, isMe: false, handle: "Ana", username: "ana", avatarId: null, stars: 3, bestTicks: 900 },
+      { rank: 2, isMe: true, handle: "Me", username: null, avatarId: null, stars: 2, bestTicks: 1200 },
+    ],
+  };
+
+  it("parses the board into times", () => {
+    expect(parseLevelBoard(BOARD)).toEqual({
+      level: 12,
+      friendCount: 1,
+      entries: [
+        { rank: 1, isMe: false, handle: "Ana", stars: 3, timeMs: 30_000 },
+        { rank: 2, isMe: true, handle: "Me", stars: 2, timeMs: 40_000 },
+      ],
+    });
+  });
+
+  it.each([
+    ["a zero-star row", { ...BOARD, entries: [{ ...BOARD.entries[0], stars: 0 }] }],
+    ["a missing handle", { ...BOARD, entries: [{ ...BOARD.entries[0], handle: "" }] }],
+    ["a string time", { ...BOARD, entries: [{ ...BOARD.entries[0], bestTicks: "900" }] }],
+    ["no entries", { ...BOARD, entries: null }],
+  ])("rejects %s", (_, body) => {
+    expect(parseLevelBoard(body)).toBeNull();
+  });
+
+  it("loads the level's board and refuses one for another level", async () => {
+    const { fetch, calls } = fakeServer({ "/api/levels/board": () => json(200, BOARD) });
+    const board = await createHttpLevelsClient({ catalog, fetch }).getBoard(12);
+    expect(calls[0].path).toBe("/api/levels/board?season=1&level=12");
+    expect(board.entries).toHaveLength(2);
+    await expect(createHttpLevelsClient({ catalog, fetch }).getBoard(13)).rejects.toThrow();
   });
 });
 
@@ -248,10 +358,27 @@ describe("createHttpLevelsClient", () => {
       raceTicks: 612.4,
       peakFt: 41.6,
       replayToken: null,
+      outOfTime: false,
     });
     // A loss reports how long the run lasted, no stars, and no replay it does not have.
     expect(calls[0].body).toEqual({ ticketId: TICKET.ticketId, cleared: false, stars: 0, ticks: 612 });
     expect(result).toMatchObject({ cleared: false, stars: 0, timeMs: null, newPlayerLevel: null });
+  });
+
+  it("reports a run the clock ended as a plain loss and shows it ran out of time", async () => {
+    const { fetch, calls } = fakeServer({
+      "/api/levels/result": () => json(200, { ...RESULT, outcome: "failed", stars: 0, xpGained: 0 }),
+    });
+    const result = await createHttpLevelsClient({ catalog, fetch }).submitResult(TICKET.ticketId, {
+      ...RUN,
+      finished: false,
+      finishedTick: null,
+      raceTicks: 900,
+      replayToken: null,
+      outOfTime: true,
+    });
+    expect(calls[0].body).toEqual({ ticketId: TICKET.ticketId, cleared: false, stars: 0, ticks: 900 });
+    expect(result).toMatchObject({ cleared: false, stars: 0, outOfTime: true });
   });
 
   it("never reports a finish time for a run that did not finish", async () => {
@@ -337,5 +464,83 @@ describe("withMockFallback", () => {
     expect((await client.getSeason()).player.xp).toBe(130);
     const start = await client.startLevel(3);
     expect(start.ok && start.ticket.id).toBe(TICKET.ticketId);
+  });
+});
+
+describe("star chests and boosters", () => {
+  const CHESTS = { lifetimeStars: 47, starsIntoChest: 7, perChest: 20, earned: 2 };
+
+  it("read the inventory and chest progress from the profile, and none from an older server", () => {
+    expect(parseLevelProfile({ ...PROFILE, boosters: { giant: 2, "slow-lava": 1 }, chests: CHESTS })).toMatchObject({
+      boosters: { giant: 2, "slow-lava": 1 },
+      chests: { lifetimeStars: 47, starsIntoChest: 7, perChest: 20 },
+    });
+    expect(parseLevelProfile(PROFILE)).toMatchObject({ boosters: {}, chests: null });
+    // Empty counts are dropped, not shown as "×0".
+    expect(parseBoosterInventory({ giant: 0, jetpack: 1 })).toEqual({ jetpack: 1 });
+  });
+
+  it("refuse a malformed inventory or chest block, and leave out types this app does not know", () => {
+    // A newer server's type (or a non-booster) is left out, never written.
+    expect(parseBoosterInventory({ random: 1, "time-freeze": 2, giant: 1 })).toEqual({ giant: 1 });
+    const hostile = parseBoosterInventory(JSON.parse('{"__proto__": 1, "constructor": 2, "giant": 1}'));
+    expect(hostile).toEqual({ giant: 1 });
+    expect(Object.hasOwn(hostile ?? {}, "__proto__")).toBe(false);
+    expect(Object.getPrototypeOf(hostile)).toBe(Object.prototype);
+    expect(parseLevelProfile({ ...PROFILE, boosters: { "time-freeze": 1 } })?.boosters).toEqual({});
+    expect(parseBoosterInventory({ giant: -1 })).toBeUndefined();
+    expect(parseBoosterInventory({ giant: 1.5 })).toBeUndefined();
+    expect(parseBoosterInventory(["giant"])).toBeUndefined();
+    expect(parseLevelProfile({ ...PROFILE, boosters: { giant: "1" } })).toBeNull();
+    expect(parseChestProgress({ ...CHESTS, starsIntoChest: 20 })).toBeUndefined();
+    expect(parseChestProgress({ ...CHESTS, starsIntoChest: 6 })).toBeUndefined();
+    expect(parseChestProgress({ ...CHESTS, perChest: 0 })).toBeUndefined();
+    expect(parseLevelProfile({ ...PROFILE, chests: { ...CHESTS, lifetimeStars: "47" } })).toBeNull();
+  });
+
+  it("read the chests a clear opened, and refuse chests on a loss or with bad contents", () => {
+    const opened = [{ chestNumber: 2, boosters: ["giant", "giant"] }];
+    expect(parseServerResult({ ...RESULT, chestsOpened: opened, boosters: { giant: 3 } })).toMatchObject({
+      chestsOpened: opened,
+      boosters: { giant: 3 },
+    });
+    expect(parseServerResult(RESULT)).toMatchObject({ chestsOpened: [], boosters: null });
+    expect(parseOpenedChests([{ chestNumber: 1, boosters: [] }])).toBeUndefined();
+    expect(parseOpenedChests([{ chestNumber: 1, boosters: ["giant", "giant", "giant"] }])).toBeUndefined();
+    expect(parseOpenedChests([{ chestNumber: 1, boosters: [7] }])).toBeUndefined();
+    // A newer server's type is left out of the reveal, not the whole result.
+    expect(parseOpenedChests([{ chestNumber: 1, boosters: ["random"] }, { chestNumber: 2, boosters: ["time-freeze", "giant"] }])).toEqual([
+      { chestNumber: 2, boosters: ["giant"] },
+    ]);
+    expect(parseOpenedChests([{ chestNumber: 0, boosters: ["giant"] }])).toBeUndefined();
+    expect(parseServerResult({ ...RESULT, outcome: "failed", stars: 0, chestsOpened: opened })).toBeNull();
+  });
+
+  it("send an equipped booster with the ticket request, and nothing when none is chosen", async () => {
+    const { fetch, calls } = fakeServer({
+      "/api/levels/ticket": () => json(200, { ...TICKET, level: 12, startPowerUp: { type: "rapid-climb", source: "booster" } }),
+    });
+    const client = createHttpLevelsClient({ catalog, fetch });
+    const res = await client.startLevel(12, { booster: "rapid-climb" });
+    expect(calls[0]?.body).toEqual({ season: 1, level: 12, simVersion: LEVEL_SIM_VERSION, booster: "rapid-climb" });
+    expect(res).toMatchObject({ ok: true, ticket: { startPowerUp: { type: "rapid-climb", source: "booster" } } });
+    await client.startLevel(12, { booster: null });
+    expect(calls[1]?.body).not.toHaveProperty("booster");
+  });
+
+  it("word every booster refusal as one the card can explain", async () => {
+    for (const [status, code] of [
+      [400, "INVALID_BOOSTER"],
+      [409, "BOOSTER_NOT_ALLOWED"],
+      [409, "BOOSTER_NOT_OWNED"],
+    ] as const) {
+      expect(refusalFor(status, code)).toBe("BOOSTER_UNAVAILABLE");
+      const { fetch } = fakeServer({ "/api/levels/ticket": () => json(status, { code }) });
+      expect(await createHttpLevelsClient({ catalog, fetch }).startLevel(12, { booster: "giant" })).toEqual({
+        ok: false,
+        code: "BOOSTER_UNAVAILABLE",
+      });
+    }
+    expect(refusalFor(400, "BOOSTER_NOT_OWNED")).toBe("NETWORK");
   });
 });

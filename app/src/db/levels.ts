@@ -24,7 +24,9 @@ import { nanoid } from "nanoid";
 import type { Prisma } from "@prisma/client";
 
 import { prisma } from "./client";
+import { levelBoosterTypes } from "../levels/catalog";
 import {
+  LEVELS_PER_SEASON,
   MAX_LIVES,
   episodeLevels,
   episodeOf,
@@ -43,6 +45,23 @@ import {
   type LifeState,
   type ReportedRun,
 } from "../levels/rules";
+import {
+  boosterInventory,
+  chestProgress,
+  chestsEarned,
+  failsAt,
+  freeStartPowerUp,
+  nextFailTally,
+  nextStreak,
+  parseBoosterType,
+  routeGhostAvailable,
+  type BoosterInventory,
+  type BoosterType,
+  type FailTally,
+  type StartPowerUp,
+  type TicketOutcome,
+} from "../levels/engagement";
+import { rollStarChest } from "../levels/starChestServer";
 
 type TxClient = Prisma.TransactionClient;
 
@@ -56,7 +75,9 @@ export type LevelErrorCode =
   | "TICKET_NOT_FOUND"
   | "TICKET_USED"
   | "TICKET_EXPIRED"
-  | "IMPLAUSIBLE_RUN";
+  | "IMPLAUSIBLE_RUN"
+  | "BOOSTER_NOT_ALLOWED"
+  | "BOOSTER_NOT_OWNED";
 
 /** A refused level write. The route maps `code` to an HTTP status. */
 export class LevelError extends Error {
@@ -71,11 +92,23 @@ export class LevelError extends Error {
   }
 }
 
-async function lockUser(tx: TxClient, userId: string): Promise<{ lives: number; lives_updated_at: Date | null; xp: number }> {
+const LOCKED_USER_SELECT = {
+  lives: true,
+  lives_updated_at: true,
+  xp: true,
+  level_streak: true,
+  level_fail_season: true,
+  level_fail_level: true,
+  level_fail_count: true,
+} as const;
+
+type LockedUser = Prisma.UserGetPayload<{ select: typeof LOCKED_USER_SELECT }>;
+
+async function lockUser(tx: TxClient, userId: string): Promise<LockedUser> {
   await tx.$executeRaw`SELECT id FROM users WHERE id = ${userId} FOR UPDATE`;
   const user = await tx.user.findUnique({
     where: { id: userId },
-    select: { lives: true, lives_updated_at: true, xp: true },
+    select: LOCKED_USER_SELECT,
   });
   if (!user) throw new LevelError("USER_NOT_FOUND", "User not found");
   return user;
@@ -94,6 +127,165 @@ function lifeOf(user: { lives: number; lives_updated_at: Date | null }): LifeSta
   return { lives: user.lives, updatedAt: user.lives_updated_at };
 }
 
+function tallyOf(user: {
+  level_fail_season: number | null;
+  level_fail_level: number | null;
+  level_fail_count: number;
+}): FailTally | null {
+  const { level_fail_season: season, level_fail_level: level, level_fail_count: count } = user;
+  return season !== null && level !== null && count > 0 ? { season, level, count } : null;
+}
+
+// ── Boosters and star chests (§6.4) ──────────────────────────────────────────
+
+/** Most chests one run opens, so a large catch-up cannot hold the lock long. */
+export const MAX_CHESTS_PER_RUN = 10;
+
+/** Add `n` of one booster to the inventory (upsert, under the user lock). */
+async function addBooster(tx: TxClient, userId: string, type: BoosterType, n: number, now: Date): Promise<void> {
+  await tx.userBooster.upsert({
+    where: { user_booster_type: { userId, type } },
+    create: { id: nanoid(), userId, type, count: n, updated_at: now },
+    update: { count: { increment: n }, updated_at: now },
+  });
+}
+
+/** Spend one owned booster; false when none is owned. */
+async function spendBooster(tx: TxClient, userId: string, type: BoosterType, now: Date): Promise<boolean> {
+  const spent = await tx.userBooster.updateMany({
+    where: { userId, type, count: { gt: 0 } },
+    data: { count: { decrement: 1 }, updated_at: now },
+  });
+  return spent.count === 1;
+}
+
+async function inventoryOf(tx: TxClient | typeof prisma, userId: string): Promise<BoosterInventory> {
+  const rows = await tx.userBooster.findMany({ where: { userId }, select: { type: true, count: true } });
+  return boosterInventory(rows);
+}
+
+/** Lifetime stars: the sum of best stars on every level of every season. */
+async function lifetimeStarsOf(tx: TxClient | typeof prisma, userId: string): Promise<number> {
+  const sum = await tx.levelProgress.aggregate({ where: { userId }, _sum: { stars: true } });
+  return sum._sum.stars ?? 0;
+}
+
+export interface OpenedChest {
+  chestNumber: number;
+  boosters: BoosterType[];
+}
+
+/**
+ * Open every chest the lifetime star total has earned and not yet opened
+ * (catch-up, at most MAX_CHESTS_PER_RUN), and add their boosters to the
+ * inventory. Each chest row is unique on (user, number) and inserted with
+ * ON CONFLICT DO NOTHING, and only an inserted row pays. Opens nothing with
+ * no secret (production without STAR_CHEST_SECRET) or an empty pool: the
+ * chests stay earned and open on a later clear.
+ */
+async function openEarnedChests(
+  tx: TxClient,
+  userId: string,
+  secret: string | null,
+  pool: readonly BoosterType[],
+  now: Date
+): Promise<{ opened: OpenedChest[]; lifetimeStars: number }> {
+  const lifetimeStars = await lifetimeStarsOf(tx, userId);
+  const earned = chestsEarned(lifetimeStars);
+  if (secret === null || pool.length === 0 || earned === 0) return { opened: [], lifetimeStars };
+  const last = await tx.starChest.aggregate({ where: { userId }, _max: { chest_number: true } });
+  const from = (last._max.chest_number ?? 0) + 1;
+  const opened: OpenedChest[] = [];
+  for (let n = from; n <= earned && n < from + MAX_CHESTS_PER_RUN; n++) {
+    const boosters = rollStarChest(secret, userId, n, pool);
+    if (boosters.length === 0) break;
+    const inserted = await tx.starChest.createMany({
+      data: [{ id: nanoid(), userId, chest_number: n, boosters, created_at: now }],
+      skipDuplicates: true,
+    });
+    if (inserted.count !== 1) continue;
+    for (const type of boosters) await addBooster(tx, userId, type, 1, now);
+    opened.push({ chestNumber: n, boosters });
+  }
+  return { opened, lifetimeStars };
+}
+
+function tallyColumns(tally: FailTally | null) {
+  return {
+    level_fail_season: tally?.season ?? null,
+    level_fail_level: tally?.level ?? null,
+    level_fail_count: tally?.count ?? 0,
+  };
+}
+
+// ── Closing open tickets ─────────────────────────────────────────────────────
+// Shared by issueLevelTicket (which writes the close) and levelProfile (which
+// previews it read-only), so the preview cannot drift from what the next
+// ticket issue actually does.
+
+const OPEN_TICKET_SELECT = {
+  id: true,
+  season: true,
+  level: true,
+  created_at: true,
+  life_spent: true,
+  booster: true,
+} as const;
+
+type OpenTicket = Prisma.LevelRunTicketGetPayload<{ select: typeof OPEN_TICKET_SELECT }>;
+
+/** `userId`'s open tickets, oldest first: the ones the next issue closes. */
+function openTickets(client: TxClient, userId: string): Promise<OpenTicket[]> {
+  return client.levelRunTicket.findMany({
+    where: { userId, used_at: null },
+    select: OPEN_TICKET_SELECT,
+    orderBy: { created_at: "asc" },
+  });
+}
+
+/**
+ * How an open ticket closes when a new one is issued at `now`: a restart
+ * within the bad-start window (§5b) or an abandoned run (§6.3).
+ */
+function openTicketOutcome(ticket: OpenTicket, now: Date): TicketOutcome {
+  return isQuickRestart(ticket.created_at, now) ? "bad_start" : "abandoned";
+}
+
+/** Frontier per season, memoised: a ticket may be from another season. */
+function frontierLookup(
+  client: TxClient,
+  userId: string,
+  season: number,
+  frontier: number
+): (s: number) => Promise<number> {
+  const frontiers = new Map<number, number>([[season, frontier]]);
+  return async (s) => {
+    const known = frontiers.get(s);
+    if (known !== undefined) return known;
+    const f = await frontierLevel(client, userId, s);
+    frontiers.set(s, f);
+    return f;
+  };
+}
+
+interface EngagementState {
+  streak: number;
+  tally: FailTally | null;
+}
+
+/** The streak and fail tally after `ticket` closes with `outcome` (pure). */
+function afterTicketClose(
+  state: EngagementState,
+  ticket: OpenTicket,
+  outcome: TicketOutcome,
+  atFrontier: boolean
+): EngagementState {
+  return {
+    streak: nextStreak(state.streak, outcome, atFrontier),
+    tally: nextFailTally(state.tally, ticket, outcome, atFrontier),
+  };
+}
+
 // ── Tickets ──────────────────────────────────────────────────────────────────
 
 export interface IssueTicketInput {
@@ -102,6 +294,10 @@ export interface IssueTicketInput {
   level: number;
   /** Server's LEVEL_SIM_VERSION (the route has already matched the client's). */
   simVersion: number;
+  /** Booster types the level allows, from the server's season manifest. */
+  allowedBoosters: readonly BoosterType[];
+  /** An owned booster to equip (already allow-list parsed), or null/absent. */
+  booster?: BoosterType | null;
   now: Date;
 }
 
@@ -111,6 +307,16 @@ export interface IssuedTicket {
   lifeSpent: boolean;
   lives: number;
   nextLifeAt: Date | null;
+  /** What the run starts with at GO, decided here and stored on the ticket. */
+  startPowerUp: StartPowerUp | null;
+  /** Win streak after any open ticket was closed (design §6.3). */
+  streak: number;
+  /** Fails recorded at this level (0 unless it is the frontier), §5c. */
+  failsAtLevel: number;
+  /** Stuck help: the bot's route ghost may be shown on this run. */
+  routeGhostAvailable: boolean;
+  /** Booster inventory after this ticket (one less of an equipped booster). */
+  boosters: BoosterInventory;
 }
 
 /**
@@ -122,7 +328,15 @@ export interface IssuedTicket {
  * ticket. The only closed ticket that gets its life back is a restart within
  * the bad-start window (server clock, isQuickRestart).
  *
+ * A requested booster must be allowed on the level and owned, or the whole
+ * start is refused and nothing is written. It is spent here and refunded
+ * only on a bad start. When the run already starts with a free power-up
+ * (streak or stuck help) the free one wins and the booster is kept, not
+ * refused: the app's preview cannot see the open ticket this start closes,
+ * which can earn or end a free power-up, so a refusal would repeat forever.
+ *
  * @throws LevelError LEVEL_LOCKED | OUT_OF_LIVES | USER_NOT_FOUND
+ *                    | BOOSTER_NOT_ALLOWED | BOOSTER_NOT_OWNED
  */
 export async function issueLevelTicket(input: IssueTicketInput): Promise<IssuedTicket> {
   const { userId, season, level, now } = input;
@@ -135,23 +349,43 @@ export async function issueLevelTicket(input: IssueTicketInput): Promise<IssuedT
     }
 
     let life = refillLives(lifeOf(user), now);
+    let state: EngagementState = { streak: user.level_streak, tally: tallyOf(user) };
+    // The user lock keeps the per-season frontiers stable.
+    const frontierOf = frontierLookup(tx, userId, season, frontier);
 
     // One open ticket per user. Starting a new level while one is open counts
     // as a loss (design §6.3) and keeps its life spent, except a restart
     // within 3 s of GO (§5b), which is a bad start and refunded. Each close is
     // conditional on used_at IS NULL, so a refund follows only a real close.
-    const open = await tx.levelRunTicket.findMany({
-      where: { userId, used_at: null },
-      select: { id: true, created_at: true, life_spent: true },
-    });
-    for (const ticket of open) {
-      const quick = isQuickRestart(ticket.created_at, now);
+    for (const ticket of await openTickets(tx, userId)) {
+      const outcome = openTicketOutcome(ticket, now);
       const closed = await tx.levelRunTicket.updateMany({
         where: { id: ticket.id, used_at: null },
-        data: { used_at: now, outcome: quick ? "bad_start" : "abandoned" },
+        data: { used_at: now, outcome },
       });
-      if (closed.count === 1 && quick && ticket.life_spent) life = refundLife(life, now);
+      if (closed.count !== 1) continue;
+      if (outcome === "bad_start" && ticket.life_spent) life = refundLife(life, now);
+      const spentBooster = parseBoosterType(ticket.booster);
+      if (outcome === "bad_start" && spentBooster !== null) await addBooster(tx, userId, spentBooster, 1, now);
+      // An abandoned run at the frontier is a loss (§6.3).
+      const atFrontier = ticket.level === (await frontierOf(ticket.season));
+      state = afterTicketClose(state, ticket, outcome, atFrontier);
     }
+    const { streak, tally } = state;
+
+    const atFrontier = level === frontier;
+    const fails = atFrontier ? failsAt(tally, season, level) : 0;
+    const free = freeStartPowerUp({ atFrontier, streak, fails, allowed: input.allowedBoosters });
+    const requested = input.booster ?? null;
+    if (requested !== null && !input.allowedBoosters.includes(requested)) {
+      throw new LevelError("BOOSTER_NOT_ALLOWED", "That booster is not unlocked on this level");
+    }
+    // The booster actually spent: none when a free power-up already applies.
+    const booster = free === null ? requested : null;
+    if (booster !== null && !(await spendBooster(tx, userId, booster, now))) {
+      throw new LevelError("BOOSTER_NOT_OWNED", "You have none of that booster left");
+    }
+    const startPowerUp: StartPowerUp | null = booster !== null ? { type: booster, source: "booster" } : free;
 
     const lifeSpent = levelCostsLife(level);
     if (lifeSpent) {
@@ -166,7 +400,12 @@ export async function issueLevelTicket(input: IssueTicketInput): Promise<IssuedT
     }
     await tx.user.update({
       where: { id: userId },
-      data: { lives: life.lives, lives_updated_at: life.updatedAt },
+      data: {
+        lives: life.lives,
+        lives_updated_at: life.updatedAt,
+        level_streak: streak,
+        ...tallyColumns(tally),
+      },
     });
 
     const expiresAt = new Date(now.getTime() + LEVEL_TICKET_TTL_MS);
@@ -177,7 +416,8 @@ export async function issueLevelTicket(input: IssueTicketInput): Promise<IssuedT
         season,
         level,
         sim_version: input.simVersion,
-        start_power_up: null,
+        start_power_up: startPowerUp?.type ?? null,
+        booster,
         life_spent: lifeSpent,
         created_at: now,
         expires_at: expiresAt,
@@ -191,6 +431,11 @@ export async function issueLevelTicket(input: IssueTicketInput): Promise<IssuedT
       lifeSpent,
       lives: life.lives,
       nextLifeAt: nextLifeAt(life, now),
+      startPowerUp,
+      streak,
+      failsAtLevel: fails,
+      routeGhostAvailable: routeGhostAvailable(fails),
+      boosters: await inventoryOf(tx, userId),
     };
   });
 }
@@ -234,6 +479,8 @@ export interface SubmitResultInput {
   run: ReportedRun;
   /** Stored with the best run (friend ghosts) when it is the fastest. Unverified. */
   replayToken: string | null;
+  /** Star chest HMAC key (starChestSecret()); null opens no chests. */
+  chestSecret?: string | null;
   now: Date;
 }
 
@@ -259,6 +506,20 @@ export interface LevelResult {
   playerLevel: number;
   /** XP keys paid by this run, e.g. "first_clear:1:12". */
   awards: { key: string; amount: number }[];
+  /** The ticket's level was the player's frontier when the run was reported. */
+  atFrontier: boolean;
+  /** Win streak after this run (design §6.3). */
+  streak: number;
+  /** Fails recorded at this level after this run (0 once cleared), §5c. */
+  failsAtLevel: number;
+  /** Stuck help: the next try may show the bot's route ghost. */
+  routeGhostAvailable: boolean;
+  /** Star chests this run opened (§6.4), in order. */
+  chestsOpened: OpenedChest[];
+  /** Lifetime stars across every season after this run. */
+  lifetimeStars: number;
+  /** Booster inventory after this run. */
+  boosters: BoosterInventory;
 }
 
 /**
@@ -285,6 +546,9 @@ export async function submitLevelResult(input: SubmitResultInput): Promise<Level
       throw new LevelError("IMPLAUSIBLE_RUN", "That run is longer than the time since the level started");
     }
 
+    // Whether this run was at the frontier, read before its clear moves it.
+    const atFrontier = level === (await frontierLevel(tx, userId, season));
+
     const stars = run.cleared ? run.stars : 0;
     const finishTicks = run.cleared ? run.ticks : null;
     const outcome: LevelOutcome =
@@ -301,6 +565,9 @@ export async function submitLevelResult(input: SubmitResultInput): Promise<Level
     let life = refillLives(lifeOf(user), now);
     const lifeRefunded = ticket.life_spent && outcome !== "failed";
     if (lifeRefunded) life = refundLife(life, now);
+    // An equipped booster comes back only when the run was a bad start.
+    const spentBooster = parseBoosterType(ticket.booster);
+    if (outcome === "bad_start" && spentBooster !== null) await addBooster(tx, userId, spentBooster, 1, now);
 
     const previous = await tx.levelProgress.findUnique({
       where: { level_progress_user_level: { userId, season, level } },
@@ -367,11 +634,33 @@ export async function submitLevelResult(input: SubmitResultInput): Promise<Level
       }
     }
 
+    // Chests: every clear catches up on any earned and unopened, drawing
+    // from the boosters unlocked at the player's highest cleared level.
+    let chests: { opened: OpenedChest[]; lifetimeStars: number };
+    if (finishTicks !== null) {
+      const highest = (await frontierLevel(tx, userId, season)) - 1;
+      const pool = levelBoosterTypes(season, Math.min(LEVELS_PER_SEASON, highest)) ?? [];
+      chests = await openEarnedChests(tx, userId, input.chestSecret ?? null, pool, now);
+    } else {
+      chests = { opened: [], lifetimeStars: await lifetimeStarsOf(tx, userId) };
+    }
+
+    const streak = nextStreak(user.level_streak, outcome, atFrontier);
+    const tally = nextFailTally(tallyOf(user), { season, level }, outcome, atFrontier);
+    const failsAtLevel = atFrontier ? failsAt(tally, season, level) : 0;
+
     const xp = user.xp + xpGained;
     const playerLevel = playerLevelForXp(xp);
     await tx.user.update({
       where: { id: userId },
-      data: { lives: life.lives, lives_updated_at: life.updatedAt, xp, player_level: playerLevel },
+      data: {
+        lives: life.lives,
+        lives_updated_at: life.updatedAt,
+        xp,
+        player_level: playerLevel,
+        level_streak: streak,
+        ...tallyColumns(tally),
+      },
     });
 
     return {
@@ -390,6 +679,13 @@ export async function submitLevelResult(input: SubmitResultInput): Promise<Level
       xp,
       playerLevel,
       awards,
+      atFrontier,
+      streak,
+      failsAtLevel,
+      routeGhostAvailable: routeGhostAvailable(failsAtLevel),
+      chestsOpened: chests.opened,
+      lifetimeStars: chests.lifetimeStars,
+      boosters: await inventoryOf(tx, userId),
     };
   });
 }
@@ -409,6 +705,29 @@ export interface LevelProfile {
   frontier: number;
   totalStars: number;
   levels: { level: number; stars: number; bestTicks: number }[];
+  /**
+   * Win streak as recorded: first clears in a row at the frontier (design
+   * §6.3). An open ticket is not folded in, since submitting it may still
+   * extend the streak.
+   */
+  streak: number;
+  /**
+   * What a run of the frontier level would start with if started now (a
+   * preview for the start sheet; the ticket decides for real). Like the
+   * ticket, it first closes any open ticket, so an abandoned frontier run
+   * shows no streak power-up.
+   */
+  nextStartPowerUp: StartPowerUp | null;
+  /**
+   * Stuck help at the frontier level (§5c) for a run started now: fails
+   * there (open tickets closed as above), and whether the route ghost is
+   * offered. The ghost view itself is not built yet.
+   */
+  stuck: { level: number; fails: number; routeGhostAvailable: boolean };
+  /** Owned boosters (§6.4). */
+  boosters: BoosterInventory;
+  /** Star chest progress: lifetime stars, stars into the next chest, chests earned. */
+  chests: { lifetimeStars: number; starsIntoChest: number; perChest: number; earned: number };
 }
 
 /**
@@ -420,8 +739,24 @@ export interface LevelProfile {
 export async function levelProfile(userId: string, season: number, now: Date): Promise<LevelProfile> {
   const user = (await prisma.user.findUnique({
     where: { id: userId },
-    select: { lives: true, lives_updated_at: true, xp: true },
-  })) ?? { lives: MAX_LIVES, lives_updated_at: null, xp: 0 };
+    select: {
+      lives: true,
+      lives_updated_at: true,
+      xp: true,
+      level_streak: true,
+      level_fail_season: true,
+      level_fail_level: true,
+      level_fail_count: true,
+    },
+  })) ?? {
+    lives: MAX_LIVES,
+    lives_updated_at: null,
+    xp: 0,
+    level_streak: 0,
+    level_fail_season: null,
+    level_fail_level: null,
+    level_fail_count: 0,
+  };
   const rows = await prisma.levelProgress.findMany({
     where: { userId, season },
     select: { level: true, stars: true, best_ticks: true },
@@ -429,6 +764,19 @@ export async function levelProfile(userId: string, season: number, now: Date): P
   });
   const life = refillLives(lifeOf(user), now);
   const progress = playerLevelProgress(user.xp);
+  const frontier = frontierAfter(rows.reduce((max, r) => Math.max(max, r.level), 0));
+  const allowed = levelBoosterTypes(season, frontier) ?? [];
+  // Preview the next run as issueLevelTicket will start it: any open ticket is
+  // closed first (an abandoned frontier run resets the streak and counts as a
+  // fail). Read-only: the closes are folded in memory, never written.
+  const frontierOf = frontierLookup(prisma, userId, season, frontier);
+  let next: EngagementState = { streak: user.level_streak, tally: tallyOf(user) };
+  for (const ticket of await openTickets(prisma, userId)) {
+    const atFrontier = ticket.level === (await frontierOf(ticket.season));
+    next = afterTicketClose(next, ticket, openTicketOutcome(ticket, now), atFrontier);
+  }
+  const fails = failsAt(next.tally, season, frontier);
+  const [boosters, lifetimeStars] = await Promise.all([inventoryOf(prisma, userId), lifetimeStarsOf(prisma, userId)]);
   return {
     lives: life.lives,
     maxLives: MAX_LIVES,
@@ -438,9 +786,14 @@ export async function levelProfile(userId: string, season: number, now: Date): P
     xpIntoLevel: progress.xpIntoLevel,
     xpForNextLevel: progress.xpForNextLevel,
     season,
-    frontier: frontierAfter(rows.reduce((max, r) => Math.max(max, r.level), 0)),
+    frontier,
     totalStars: rows.reduce((sum, r) => sum + r.stars, 0),
     levels: rows.map((r) => ({ level: r.level, stars: r.stars, bestTicks: r.best_ticks })),
+    streak: user.level_streak,
+    nextStartPowerUp: freeStartPowerUp({ atFrontier: true, streak: next.streak, fails, allowed }),
+    stuck: { level: frontier, fails, routeGhostAvailable: routeGhostAvailable(fails) },
+    boosters,
+    chests: { lifetimeStars, ...chestProgress(lifetimeStars) },
   };
 }
 

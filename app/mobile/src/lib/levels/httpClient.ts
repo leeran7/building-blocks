@@ -1,19 +1,33 @@
 import { TICK_HZ } from "@app/game/types";
 import { LEVEL_SIM_VERSION } from "@app/game/simVersion";
 import { MAX_LIVES, playerLevelProgress } from "@app/levels/rules";
+import {
+  MAX_CHEST_BOOSTERS,
+  parseBoosterType,
+  type BoosterInventory,
+  type BoosterType,
+  type StartPowerUp,
+  type StartPowerUpSource,
+} from "@app/levels/engagement";
 import { apiFetch } from "../api";
 import { starsForTime } from "./model";
 import type {
+  ChestProgress,
+  LevelBoardEntry,
+  LevelBoardView,
   LevelCatalog,
   LevelNode,
   LevelResult,
   LevelRunReport,
   LevelsClient,
+  OpenedChest,
   PlayerStats,
   SeasonView,
   StarCount,
+  StartOptions,
   StartRefusal,
   StartResult,
+  StuckHelp,
 } from "./model";
 
 /**
@@ -62,6 +76,84 @@ function parseWhen(v: unknown): number | null | undefined {
   return Number.isNaN(t) ? undefined : t;
 }
 
+const START_SOURCES: Readonly<Record<StartPowerUpSource, true>> = { streak: true, stuck_help: true, booster: true };
+
+/**
+ * A start power-up field: null when absent (an older server) or null, the
+ * value when well-formed, undefined (invalid) otherwise.
+ */
+export function parseStartPowerUp(v: unknown): StartPowerUp | null | undefined {
+  if (v === undefined || v === null) return null;
+  if (!isObject(v)) return undefined;
+  const type = parseBoosterType(v.type);
+  const source = v.source;
+  if (type === null || typeof source !== "string" || !Object.hasOwn(START_SOURCES, source)) return undefined;
+  return { type, source: source as StartPowerUpSource };
+}
+
+/** An optional count: 0 when absent (an older server), undefined when malformed. */
+function optionalCount(v: unknown): number | undefined {
+  if (v === undefined) return 0;
+  return isCount(v) ? v : undefined;
+}
+
+/**
+ * A booster inventory ({ type: count }): null when absent (an older server),
+ * undefined when malformed. A type this app does not know (a newer server)
+ * is left out rather than failing the call: this app cannot equip it, and
+ * failing a /result body would hide a run the server already saved.
+ */
+export function parseBoosterInventory(v: unknown): BoosterInventory | null | undefined {
+  if (v === undefined || v === null) return null;
+  if (!isObject(v)) return undefined;
+  const out: BoosterInventory = {};
+  for (const [key, count] of Object.entries(v)) {
+    if (!isCount(count)) return undefined;
+    const type = parseBoosterType(key);
+    if (type !== null && count > 0) out[type] = count;
+  }
+  return out;
+}
+
+/** The profile's chest block: null when absent, undefined when malformed. */
+export function parseChestProgress(v: unknown): ChestProgress | null | undefined {
+  if (v === undefined || v === null) return null;
+  if (
+    !isObject(v) ||
+    !isCount(v.lifetimeStars) ||
+    !isCount(v.starsIntoChest) ||
+    !isPositive(v.perChest) ||
+    v.starsIntoChest >= v.perChest ||
+    v.lifetimeStars % v.perChest !== v.starsIntoChest
+  ) {
+    return undefined;
+  }
+  return { lifetimeStars: v.lifetimeStars, starsIntoChest: v.starsIntoChest, perChest: v.perChest };
+}
+
+/**
+ * A result's opened chests: [] when absent, undefined when malformed. As
+ * with the inventory, a booster type this app does not know is left out of
+ * the reveal (a chest holding only such types is not shown).
+ */
+export function parseOpenedChests(v: unknown): OpenedChest[] | undefined {
+  if (v === undefined) return [];
+  if (!Array.isArray(v)) return undefined;
+  const out: OpenedChest[] = [];
+  for (const c of v) {
+    if (!isObject(c) || !isPositive(c.chestNumber) || !Array.isArray(c.boosters)) return undefined;
+    if (c.boosters.length === 0 || c.boosters.length > MAX_CHEST_BOOSTERS) return undefined;
+    const boosters: BoosterType[] = [];
+    for (const b of c.boosters) {
+      if (typeof b !== "string") return undefined;
+      const type = parseBoosterType(b);
+      if (type !== null) boosters.push(type);
+    }
+    if (boosters.length > 0) out.push({ chestNumber: c.chestNumber, boosters });
+  }
+  return out;
+}
+
 export const ticksToMs = (ticks: number): number => Math.round((ticks / TICK_HZ) * 1000);
 
 /** Player stats from a lifetime XP total plus the lives the server sent. */
@@ -89,13 +181,37 @@ export interface LevelProfile {
   season: number;
   frontier: number;
   levels: ProfileRow[];
+  streak: number;
+  nextStartPowerUp: StartPowerUp | null;
+  stuck: StuckHelp | null;
+  boosters: BoosterInventory;
+  chests: ChestProgress | null;
+}
+
+/** The profile's stuck-help block: null when absent, undefined when malformed. */
+function parseStuck(v: unknown): StuckHelp | null | undefined {
+  if (v === undefined || v === null) return null;
+  if (!isObject(v) || !isPositive(v.level) || !isCount(v.fails) || typeof v.routeGhostAvailable !== "boolean") {
+    return undefined;
+  }
+  return { level: v.level, fails: v.fails, routeGhostAvailable: v.routeGhostAvailable };
 }
 
 /** GET /api/levels/me body, or null when it breaks the contract. */
 export function parseLevelProfile(v: unknown): LevelProfile | null {
   if (!isObject(v)) return null;
   const nextLifeAt = parseWhen(v.nextLifeAt);
+  const streak = optionalCount(v.streak);
+  const nextStartPowerUp = parseStartPowerUp(v.nextStartPowerUp);
+  const stuck = parseStuck(v.stuck);
+  const boosters = parseBoosterInventory(v.boosters);
+  const chests = parseChestProgress(v.chests);
   if (
+    boosters === undefined ||
+    chests === undefined ||
+    streak === undefined ||
+    nextStartPowerUp === undefined ||
+    stuck === undefined ||
     !isCount(v.lives) ||
     !isPositive(v.maxLives) ||
     v.lives > v.maxLives ||
@@ -128,6 +244,11 @@ export function parseLevelProfile(v: unknown): LevelProfile | null {
     season: v.season,
     frontier: v.frontier,
     levels,
+    streak,
+    nextStartPowerUp,
+    stuck,
+    boosters: boosters ?? {},
+    chests,
   };
 }
 
@@ -137,13 +258,16 @@ export interface IssuedTicket {
   level: number;
   lives: number;
   nextLifeAt: number | null;
+  startPowerUp: StartPowerUp | null;
 }
 
 /** POST /api/levels/ticket 200 body, or null when it breaks the contract. */
 export function parseTicket(v: unknown): IssuedTicket | null {
   if (!isObject(v)) return null;
   const nextLifeAt = parseWhen(v.nextLifeAt);
+  const startPowerUp = parseStartPowerUp(v.startPowerUp);
   if (
+    startPowerUp === undefined ||
     typeof v.ticketId !== "string" ||
     !/^[A-Za-z0-9_-]{10,64}$/.test(v.ticketId) ||
     !isPositive(v.season) ||
@@ -153,7 +277,7 @@ export function parseTicket(v: unknown): IssuedTicket | null {
   ) {
     return null;
   }
-  return { ticketId: v.ticketId, season: v.season, level: v.level, lives: v.lives, nextLifeAt };
+  return { ticketId: v.ticketId, season: v.season, level: v.level, lives: v.lives, nextLifeAt, startPowerUp };
 }
 
 export interface ServerResult {
@@ -166,6 +290,14 @@ export interface ServerResult {
   nextLifeAt: number | null;
   xpGained: number;
   xp: number;
+  /** Null when an older server did not send it. */
+  streak: number | null;
+  atFrontier: boolean;
+  failsAtLevel: number;
+  routeGhostAvailable: boolean;
+  chestsOpened: OpenedChest[];
+  /** Null when an older server did not send it. */
+  boosters: BoosterInventory | null;
 }
 
 /** POST /api/levels/result 200 body, or null when it breaks the contract. */
@@ -173,7 +305,22 @@ export function parseServerResult(v: unknown): ServerResult | null {
   if (!isObject(v)) return null;
   const nextLifeAt = parseWhen(v.nextLifeAt);
   const outcome = v.outcome;
+  const streak = v.streak === undefined ? null : isCount(v.streak) ? v.streak : undefined;
+  const atFrontier = v.atFrontier === undefined ? false : typeof v.atFrontier === "boolean" ? v.atFrontier : undefined;
+  const failsAtLevel = optionalCount(v.failsAtLevel);
+  const ghost =
+    v.routeGhostAvailable === undefined ? false : typeof v.routeGhostAvailable === "boolean" ? v.routeGhostAvailable : undefined;
+  const chestsOpened = parseOpenedChests(v.chestsOpened);
+  const boosters = parseBoosterInventory(v.boosters);
   if (
+    chestsOpened === undefined ||
+    boosters === undefined ||
+    // Chests open on a clear only.
+    (chestsOpened.length > 0 && outcome !== "cleared") ||
+    failsAtLevel === undefined ||
+    ghost === undefined ||
+    streak === undefined ||
+    atFrontier === undefined ||
     !isPositive(v.season) ||
     !isPositive(v.level) ||
     (outcome !== "cleared" && outcome !== "failed" && outcome !== "bad_start") ||
@@ -198,7 +345,36 @@ export function parseServerResult(v: unknown): ServerResult | null {
     nextLifeAt,
     xpGained: v.xpGained,
     xp: v.xp,
+    streak,
+    atFrontier,
+    failsAtLevel,
+    routeGhostAvailable: ghost,
+    chestsOpened,
+    boosters,
   };
+}
+
+/** GET /api/levels/board body, or null when it breaks the contract. */
+export function parseLevelBoard(v: unknown): LevelBoardView | null {
+  if (!isObject(v) || !isPositive(v.level) || !isCount(v.friendCount) || !Array.isArray(v.entries)) return null;
+  const entries: LevelBoardEntry[] = [];
+  for (const e of v.entries) {
+    if (
+      !isObject(e) ||
+      !isPositive(e.rank) ||
+      typeof e.isMe !== "boolean" ||
+      typeof e.handle !== "string" ||
+      e.handle.length === 0 ||
+      e.handle.length > 64 ||
+      !isStars(e.stars) ||
+      e.stars === 0 ||
+      !isPositive(e.bestTicks)
+    ) {
+      return null;
+    }
+    entries.push({ rank: e.rank, isMe: e.isMe, handle: e.handle, stars: e.stars, timeMs: ticksToMs(e.bestTicks) });
+  }
+  return { level: v.level, entries, friendCount: v.friendCount };
 }
 
 /** A refused ticket, as the start card words it. */
@@ -208,6 +384,8 @@ export function refusalFor(status: number, code: string | null): StartRefusal {
   // The server runs a newer engine, or knows a level this app does not.
   if (status === 409 && code === "SIM_VERSION_MISMATCH") return "UPDATE_REQUIRED";
   if (status === 404 && code === "LEVEL_NOT_FOUND") return "UPDATE_REQUIRED";
+  if (status === 400 && code === "INVALID_BOOSTER") return "BOOSTER_UNAVAILABLE";
+  if (status === 409 && (code === "BOOSTER_NOT_ALLOWED" || code === "BOOSTER_NOT_OWNED")) return "BOOSTER_UNAVAILABLE";
   return "NETWORK";
 }
 
@@ -269,14 +447,25 @@ export function createHttpLevelsClient(opts: HttpClientOptions): LevelsClient {
         levels,
         frontier: Math.min(profile.frontier, catalog.count),
         player: profile.player,
+        streak: profile.streak,
+        nextStartPowerUp: profile.nextStartPowerUp,
+        stuck: profile.stuck ?? { level: profile.frontier, fails: 0, routeGhostAvailable: false },
+        boosters: profile.boosters,
+        chests: profile.chests,
       };
     },
 
-    async startLevel(level: number): Promise<StartResult> {
+    async startLevel(level: number, opts: StartOptions = {}): Promise<StartResult> {
       const node = info(level);
+      const booster = opts.booster ?? null;
       let res: Response;
       try {
-        res = await post("/api/levels/ticket", { season: catalog.season, level, simVersion });
+        res = await post("/api/levels/ticket", {
+          season: catalog.season,
+          level,
+          simVersion,
+          ...(booster ? { booster } : {}),
+        });
       } catch {
         return { ok: false, code: "NETWORK" };
       }
@@ -291,6 +480,11 @@ export function createHttpLevelsClient(opts: HttpClientOptions): LevelsClient {
       if (!ticket || ticket.season !== catalog.season || ticket.level !== level) {
         return { ok: false, code: "NETWORK" };
       }
+      // A power-up this app's copy of the level does not allow means the
+      // server knows a newer season: the engine would refuse it at GO.
+      if (ticket.startPowerUp && !node.allowedPowerUps.includes(ticket.startPowerUp.type)) {
+        return { ok: false, code: "UPDATE_REQUIRED" };
+      }
       return {
         ok: true,
         ticket: {
@@ -300,8 +494,19 @@ export function createHttpLevelsClient(opts: HttpClientOptions): LevelsClient {
           goalFt: node.goalFt,
           pars: node.pars,
           player: statsFor(lastXp, ticket.lives, ticket.nextLifeAt),
+          startPowerUp: ticket.startPowerUp,
         },
       };
+    },
+
+    async getBoard(level: number): Promise<LevelBoardView> {
+      info(level);
+      const res = await call(`/api/levels/board?season=${catalog.season}&level=${level}`);
+      const body = await readJson(res);
+      if (!res.ok) throw new LevelsApiError(res.status, errorCode(body));
+      const board = parseLevelBoard(body);
+      if (!board || board.level !== level) throw new LevelsApiError(res.status, "BAD_BODY");
+      return board;
     },
 
     async submitResult(ticketId: string, run: LevelRunReport): Promise<LevelResult> {
@@ -337,12 +542,19 @@ export function createHttpLevelsClient(opts: HttpClientOptions): LevelsClient {
         stars: result.stars,
         previousStars: result.previousStars,
         timeMs: verdictCleared && run.finishedTick !== null ? ticksToMs(run.finishedTick) : null,
+        outOfTime: !verdictCleared && run.outOfTime,
         pars: node.pars,
         goalFt: node.goalFt,
         peakFt: run.peakFt,
         xpGained: result.xpGained,
         newPlayerLevel: player.playerLevel > before ? player.playerLevel : null,
         player,
+        streak: result.streak,
+        atFrontier: result.atFrontier,
+        failsAtLevel: result.failsAtLevel,
+        routeGhostAvailable: result.routeGhostAvailable,
+        chestsOpened: result.chestsOpened,
+        boosters: result.boosters,
       };
     },
   };
