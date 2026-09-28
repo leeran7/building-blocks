@@ -10,7 +10,8 @@
  *
  * Adding art for a character is one line here: replace its `base()` entry
  * with `sheets("<id>")` and drop `<id>-poses-192.png` (and optionally
- * `<id>-climb-192.png`) into public/climb/. The mobile bundle picks the files
+ * `<id>-climb-192.png`, and `<id>-run-192.png` with `{ run: true }`) into
+ * public/climb/. The mobile bundle picks the files
  * up by name (mobile/src/lib/climberSheets.ts); nothing else changes.
  *
  * A third kind, `tint` (the Wraith sheets recoloured by climberTint.ts), is
@@ -32,6 +33,8 @@ export interface SheetCharacter {
   readonly poses: string;
   /** Optional 6×1 back-view climb strip; null = climb uses reach-a/reach-b. */
   readonly climb: string | null;
+  /** Optional 8×1 run strip (one full stride); null = walk uses run-a/run-b. */
+  readonly run: string | null;
   /** Cell edge in px. */
   readonly cell: number;
   /** Foot anchor within a cell (px from the cell's top-left). */
@@ -59,6 +62,8 @@ export type ClimberCharacter = SheetCharacter | TintCharacter | BaseCharacter;
 export interface SheetOptions {
   /** False when the character ships no climb strip. Default true. */
   readonly climb?: boolean;
+  /** True when the character ships an 8-frame run strip. Default false. */
+  readonly run?: boolean;
   readonly rootX?: number;
   readonly rootY?: number;
   readonly refH?: number;
@@ -75,6 +80,7 @@ export function sheets(id: string, opts: SheetOptions = {}): SheetCharacter {
     kind: "sheets",
     poses: `/climb/${id}-poses-${SHEET_CELL}.png`,
     climb: opts.climb === false ? null : `/climb/${id}-climb-${SHEET_CELL}.png`,
+    run: opts.run === true ? `/climb/${id}-run-${SHEET_CELL}.png` : null,
     cell: SHEET_CELL,
     rootX: opts.rootX ?? 256 * K,
     rootY: opts.rootY ?? 460 * K,
@@ -92,7 +98,7 @@ export function tint(accent: string, body: string | null = null): TintCharacter 
 
 /** The base character: its sheets are every fallback and every tint's source. */
 export const BASE_CHARACTER_ID = "wraith";
-export const WRAITH: SheetCharacter = sheets(BASE_CHARACTER_ID);
+export const WRAITH: SheetCharacter = sheets(BASE_CHARACTER_ID, { run: true });
 
 const BASE: BaseCharacter = Object.freeze({ kind: "base" });
 
