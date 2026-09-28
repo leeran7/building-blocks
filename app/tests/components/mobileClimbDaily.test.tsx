@@ -1,0 +1,500 @@
+/**
+ * Native ClimbScreen in daily mode (/climb?daily=1): the tower seed comes from
+ * the server, a finished run goes to the VERIFIED daily route with its replay,
+ * and the results card shows the server's verdict (F-1).
+ *
+ * The real screen renders inside the real AppDataProvider. The game loop
+ * (useClimb) is stubbed to a finished run (or to the lobby, for the start
+ * states) and records the seed it was given;
+ * canvas / HUD / audio are stubbed; the network is mocked at apiFetch.
+ *
+ * @vitest-environment happy-dom
+ */
+
+import { act, createElement } from "react";
+import { createRoot, type Root } from "react-dom/client";
+import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+(globalThis as Record<string, unknown>).IS_REACT_ACT_ENVIRONMENT = true;
+
+const auth = vi.hoisted(() => ({ uid: "me" as string | null }));
+vi.mock("../../mobile/src/contexts/AuthContext", () => ({
+  useAuth: () => ({ user: auth.uid ? { uid: auth.uid } : null, isAnonymous: false, loading: false }),
+}));
+vi.mock("../../mobile/src/lib/haptics", () => ({
+  tapLight: vi.fn(async () => {}),
+  tapMedium: vi.fn(async () => {}),
+  notifySuccess: vi.fn(async () => {}),
+  notifyError: vi.fn(async () => {}),
+}));
+vi.mock("../../mobile/src/lib/external", () => ({ openExternal: vi.fn(async () => {}) }));
+
+const net = vi.hoisted(() => ({
+  info: null as unknown,
+  infoStatus: 200,
+  holdInfo: false,
+  heldInfo: [] as Array<() => void>,
+  resultStatus: 200,
+  resultBody: null as unknown,
+  token: "replay-token" as string | null,
+  holdResult: false,
+  heldResult: [] as Array<() => void>,
+  settingsStatus: 200,
+  settingsBody: { leaderboardConsent: true } as unknown,
+  settingsThrows: false,
+}));
+
+function jsonResponse(body: unknown, status = 200): Response {
+  return { ok: status >= 200 && status < 300, status, json: () => Promise.resolve(body) } as Response;
+}
+
+const apiFetch = vi.fn(async (path: string, _init?: RequestInit): Promise<Response> => {
+  if (path === "/api/climb/daily") {
+    const answer = () => (net.info ? jsonResponse(net.info, net.infoStatus) : jsonResponse({}, 503));
+    if (net.holdInfo) return new Promise<Response>((resolve) => net.heldInfo.push(() => resolve(answer())));
+    return answer();
+  }
+  if (path === "/api/climb/daily/result") {
+    const answer = () => jsonResponse(net.resultBody, net.resultStatus);
+    if (net.holdResult) return new Promise<Response>((resolve) => net.heldResult.push(() => resolve(answer())));
+    return answer();
+  }
+  if (path === "/api/settings") {
+    if (net.settingsThrows) throw new TypeError("offline");
+    return jsonResponse(net.settingsBody, net.settingsStatus);
+  }
+  return jsonResponse({}, 404);
+});
+const postClimbResult = vi.fn(async (_run: object) => ({ saved: true, improved: false, rank: 9, totalClimbers: 99 }));
+
+vi.mock("../../mobile/src/lib/api", () => ({
+  API_BASE: "https://example.test",
+  apiFetch: (path: string, init?: RequestInit) => apiFetch(path, init),
+  postClimbResult: (run: object) => postClimbResult(run),
+}));
+vi.mock("../../mobile/src/lib/useGameHaptics", () => ({ useGameHaptics: () => {} }));
+
+const climb = vi.hoisted(() => ({ seeds: [] as Array<string | undefined>, phase: "results" as "results" | "lobby" }));
+vi.mock("../../src/game/useClimb", async () => {
+  const { createMatch } = await import("../../src/game/simulation");
+  const { buildFreeTower } = await import("../../src/game/freeStack");
+  return {
+    useClimb: ({ seed }: { seed?: string }) => {
+      climb.seeds.push(seed);
+      const state = createMatch({ seed: seed ?? "solo", mode: "solo", tower: buildFreeTower(), playerIds: ["you"] });
+      const lobby = climb.phase === "lobby";
+      state.phase = lobby ? "lobby" : "results";
+      state.players[0].peakY = 42;
+      return {
+        state,
+        simRef: { current: state },
+        renderFeed: {},
+        start: () => {},
+        finished: !lobby,
+        setTouch: () => {},
+        runId: 1,
+        inputLog: lobby ? [] : [{ moveX: 0, jump: false, climbY: 1, usePowerUp: false }],
+      };
+    },
+  };
+});
+vi.mock("../../src/game/runReplay", () => ({
+  encodeRunReplay: async () => net.token,
+  buildReplayUrl: (t: string) => `https://example.test/play?r=${t}`,
+}));
+vi.mock("../../src/components/Game/ClimbCanvas", () => ({ ClimbCanvas: () => null }));
+vi.mock("../../src/components/Game/ExpeditionHud", () => ({ ExpeditionHud: () => null }));
+vi.mock("../../src/components/Game/TouchControls", () => ({
+  TouchControls: () => null,
+  useTouchControlsInset: () => 0,
+}));
+vi.mock("../../src/components/Game/usePowerUpFeedback", () => ({
+  usePowerUpFeedback: () => ({ muted: false, setMuted: () => {}, announcement: null, unlockAudio: () => {} }),
+}));
+vi.mock("../../src/hooks/useCanvasSize", () => ({ useCanvasSize: () => ({ width: 390, height: 780 }) }));
+vi.mock("../../src/hooks/useSafeAreaInsets", () => ({
+  useSafeAreaInsets: () => ({ top: 0, right: 0, bottom: 0, left: 0 }),
+}));
+
+import { AppDataProvider } from "../../mobile/src/contexts/AppDataContext";
+import { ClimbScreen } from "../../mobile/src/screens/ClimbScreen";
+import { hasLeaderboardConsent, setLeaderboardConsent } from "../../mobile/src/lib/consent";
+import { nextUtcResetAt, utcDayKey } from "../../src/lib/dailyDay";
+import { DAILY_SIM_VERSION } from "../../src/game/simVersion";
+
+/** A server-shaped seed. The real one is an HMAC the client cannot compute. */
+const SERVER_SEED = "daily1-AbCdEfGhIjKlMnOpQrSt_-";
+const todayInfo = () => ({ day: utcDayKey(new Date()), seed: SERVER_SEED, resetsAt: nextUtcResetAt(new Date()).toISOString() });
+
+function LocationProbe() {
+  const loc = useLocation();
+  return createElement("output", { "data-testid": "path" }, `${loc.pathname}${loc.search}`);
+}
+
+let root: Root | null = null;
+let container: HTMLElement | null = null;
+const onSignIn = vi.fn();
+
+const settle = () =>
+  act(async () => {
+    for (let i = 0; i < 3; i++) await new Promise((r) => setTimeout(r, 0));
+  });
+
+async function mountDaily(path = "/climb?daily=1") {
+  container = document.createElement("div");
+  document.body.appendChild(container);
+  await act(async () => {
+    root = createRoot(container!);
+    root.render(
+      createElement(
+        MemoryRouter,
+        { initialEntries: [path] },
+        createElement(
+          AppDataProvider,
+          null,
+          createElement(
+            Routes,
+            null,
+            createElement(Route, { path: "/climb", element: <ClimbScreen onSignIn={onSignIn} /> }),
+            createElement(Route, { path: "/leaderboard", element: createElement("p", null, "ranks screen") }),
+          ),
+          createElement(LocationProbe),
+        ),
+      ),
+    );
+  });
+  await settle();
+  return container;
+}
+
+async function click(el: Element | null | undefined) {
+  if (!el) throw new Error("element to click not found");
+  await act(async () => {
+    (el as HTMLElement).click();
+  });
+  await settle();
+}
+
+const text = () => container!.textContent ?? "";
+const buttonByText = (t: string) =>
+  Array.from(container!.querySelectorAll("button")).find((b) => b.textContent?.trim().toLowerCase() === t.toLowerCase());
+const rankLine = () => container!.querySelector('p[aria-live="polite"]')?.textContent ?? "";
+const resultPosts = () => apiFetch.mock.calls.filter(([p]) => p === "/api/climb/daily/result");
+const saved = (over: Record<string, unknown> = {}) => ({
+  saved: true,
+  day: utcDayKey(new Date()),
+  peakY: 42,
+  improved: true,
+  rank: 3,
+  totalClimbers: 12,
+  attempts: 1,
+  ...over,
+});
+
+beforeEach(() => {
+  auth.uid = "me";
+  apiFetch.mockClear();
+  postClimbResult.mockClear();
+  onSignIn.mockClear();
+  climb.seeds = [];
+  climb.phase = "results";
+  net.info = todayInfo();
+  net.infoStatus = 200;
+  net.holdInfo = false;
+  net.heldInfo = [];
+  net.resultStatus = 200;
+  net.resultBody = saved();
+  net.token = "replay-token";
+  net.holdResult = false;
+  net.heldResult = [];
+  net.settingsStatus = 200;
+  net.settingsBody = { leaderboardConsent: true };
+  net.settingsThrows = false;
+  localStorage.clear();
+  setLeaderboardConsent(true);
+});
+
+afterEach(() => {
+  act(() => root?.unmount());
+  container?.remove();
+  root = null;
+  container = null;
+});
+
+describe("ClimbScreen daily mode", () => {
+  it("locks the tower to the SERVER's daily seed, with no device-derived seed before it", async () => {
+    const serverDay = "2031-01-02"; // not the device's UTC day
+    net.info = { day: serverDay, seed: SERVER_SEED, resetsAt: "2031-01-03T00:00:00.000Z" };
+    await mountDaily();
+    expect(climb.seeds[0]).toBeUndefined(); // nothing locked until the server answers
+    expect(climb.seeds.at(-1)).toBe(SERVER_SEED);
+    expect(climb.seeds.filter((s) => s !== undefined && s !== SERVER_SEED)).toEqual([]);
+  });
+
+  it("never locks a legacy date seed from a malformed answer", async () => {
+    net.info = { day: "2031-01-02", seed: "daily-2031-01-02", resetsAt: nextUtcResetAt(new Date()).toISOString() };
+    await mountDaily();
+    expect(new Set(climb.seeds)).toEqual(new Set([undefined]));
+  });
+
+  it("sends DAILY_SIM_VERSION with the daily result", async () => {
+    await mountDaily();
+    const body = JSON.parse(String(resultPosts()[0][1]?.body)) as Record<string, unknown>;
+    expect(body.simVersion).toBe(DAILY_SIM_VERSION);
+  });
+
+  it("posts the run WITH its replay to the verified daily route, shows the server rank and 'See today's board'", async () => {
+    await mountDaily();
+    expect(resultPosts()).toHaveLength(1);
+    const body = JSON.parse(String(resultPosts()[0][1]?.body)) as Record<string, unknown>;
+    expect(body.replayToken).toBe("replay-token");
+    expect(postClimbResult).not.toHaveBeenCalled();
+    expect(rankLine()).toBe("#3 of 12 today");
+    expect(text()).toContain("Today’s Best");
+    await click(buttonByText("See today’s board"));
+    expect(container!.querySelector('[data-testid="path"]')?.textContent).toBe("/leaderboard?board=today");
+  });
+
+  it("saved while hidden says so instead of a rank", async () => {
+    net.resultBody = saved({ rank: null, improved: false });
+    await mountDaily();
+    expect(rankLine()).toBe("saved · you're hidden on today's board");
+    expect(text()).not.toContain("Today’s Best");
+  });
+
+  it("offline / 5xx: 'couldn't reach today's board' with Try again, which re-sends the same payload", async () => {
+    net.resultStatus = 503;
+    net.resultBody = { error: "down" };
+    await mountDaily();
+    expect(rankLine()).toBe("couldn't reach today's board");
+    const retry = buttonByText("Try again");
+    expect(retry).toBeTruthy();
+
+    net.resultStatus = 200;
+    net.resultBody = saved({ rank: 7, totalClimbers: 20 });
+    await click(retry);
+    expect(resultPosts()).toHaveLength(2);
+    expect(resultPosts()[1][1]?.body).toBe(resultPosts()[0][1]?.body);
+    expect(rankLine()).toBe("#7 of 20 today");
+    expect(buttonByText("Try again")).toBeUndefined();
+  });
+
+  it("a server rejection shows a plain reason and offers no retry", async () => {
+    const cases: Array<[string, string, number]> = [
+      ["DAY_CLOSED", "today's tower closed before this run was saved", 400],
+      ["REPLAY_MISMATCH", "couldn't verify this run for today's board", 400],
+      ["RUN_TOO_LONG", "run too long to verify for today's board", 400],
+      ["SIM_VERSION_MISMATCH", "update the app to post daily scores", 409],
+      ["REPLAY_REUSED", "this run was already posted by another player", 409],
+      ["__proto__", "couldn't verify this run for today's board", 400],
+      ["SOMETHING_NEW", "couldn't verify this run for today's board", 400],
+    ];
+    let checked = 0;
+    for (const [code, copy, status] of cases) {
+      net.resultStatus = status;
+      net.resultBody = { error: "x", code };
+      await mountDaily();
+      expect(rankLine(), code).toBe(copy);
+      expect(buttonByText("Try again")).toBeUndefined();
+      act(() => root?.unmount());
+      container?.remove();
+      checked++;
+    }
+    expect(checked).toBe(cases.length);
+    root = null;
+    container = null;
+    // One full mount per case (~0.9 s each, from the results card's timers).
+  }, 20_000);
+
+  it("a run too long to encode goes to the all-time route only and says why", async () => {
+    net.token = null;
+    await mountDaily();
+    expect(resultPosts()).toHaveLength(0);
+    expect(postClimbResult).toHaveBeenCalledTimes(1);
+    expect(rankLine()).toBe("run too long to verify for today's board");
+  });
+
+  it("no consent: the consent sheet comes first; declining posts nothing and says 'not on today's board'", async () => {
+    setLeaderboardConsent(false);
+    await mountDaily();
+    expect(resultPosts()).toHaveLength(0);
+    expect(buttonByText("Save my score")).toBeTruthy();
+    await click(buttonByText("Not now"));
+    expect(resultPosts()).toHaveLength(0);
+    expect(rankLine()).toBe("not on today's board");
+  });
+
+  it("no consent: accepting saves consent, then posts the daily run", async () => {
+    setLeaderboardConsent(false);
+    await mountDaily();
+    await click(buttonByText("Save my score"));
+    expect(apiFetch.mock.calls.some(([p, init]) => p === "/api/settings" && init?.method === "PUT")).toBe(true);
+    expect(resultPosts()).toHaveLength(1);
+    expect(rankLine()).toBe("#3 of 12 today");
+  });
+
+  it.each([
+    ["a 500", () => (net.settingsStatus = 500)],
+    ["a 200 that does not echo consent", () => (net.settingsBody = { leaderboardConsent: false })],
+    ["a network error", () => (net.settingsThrows = true)],
+  ])("no consent: %s on the settings PUT keeps the sheet and the run, posts nothing (RV-DC-6)", async (_l, fail) => {
+    setLeaderboardConsent(false);
+    fail();
+    await mountDaily();
+    await click(buttonByText("Save my score"));
+    expect(resultPosts()).toHaveLength(0);
+    expect(postClimbResult).not.toHaveBeenCalled();
+    expect(hasLeaderboardConsent()).toBe(false);
+    expect(container!.querySelector('[role="alert"]')?.textContent).toContain("Couldn’t save that");
+    expect(buttonByText("Save my score")).toBeTruthy();
+
+    // Retry once the server confirms: the kept run is posted.
+    net.settingsStatus = 200;
+    net.settingsBody = { leaderboardConsent: true };
+    net.settingsThrows = false;
+    await click(buttonByText("Save my score"));
+    expect(hasLeaderboardConsent()).toBe(true);
+    expect(resultPosts()).toHaveLength(1);
+    expect(buttonByText("Save my score")).toBeUndefined();
+    expect(rankLine()).toBe("#3 of 12 today");
+  });
+
+  it("guest: 'sign in to save your score', a Sign in CTA, and no board link", async () => {
+    auth.uid = null;
+    net.resultBody = { saved: false, reason: "anonymous" };
+    await mountDaily();
+    expect(rankLine()).toBe("sign in to save your score");
+    expect(buttonByText("See today’s board")).toBeUndefined();
+    await click(buttonByText("Sign in to save"));
+    expect(onSignIn).toHaveBeenCalledTimes(1);
+    expect(buttonByText("Try again")).toBeUndefined();
+  });
+});
+
+describe("ClimbScreen daily lobby: the seed comes only from the server (SEC-DC-3)", () => {
+  beforeEach(() => {
+    climb.phase = "lobby";
+  });
+
+  it("while the server answers: a loading line and no Start button", async () => {
+    net.holdInfo = true;
+    await mountDaily();
+    expect(text()).toContain("Loading today’s tower");
+    expect(buttonByText("Start daily")).toBeUndefined();
+    await act(async () => net.heldInfo.shift()!());
+    await settle();
+    expect(buttonByText("Start daily")).toBeTruthy();
+    expect(climb.seeds.at(-1)).toBe(SERVER_SEED);
+  });
+
+  it("offline: says so, offers Try again and Play endless instead, and never starts a daily", async () => {
+    net.info = null;
+    await mountDaily();
+    const alert = container!.querySelector('[role="alert"]');
+    expect(alert?.textContent).toContain("Can’t load today’s tower");
+    expect(buttonByText("Start daily")).toBeUndefined();
+    expect(new Set(climb.seeds)).toEqual(new Set([undefined]));
+
+    // Try again refetches; once the server answers, the daily can start.
+    net.info = todayInfo();
+    const before = apiFetch.mock.calls.filter(([p]) => p === "/api/climb/daily").length;
+    await click(buttonByText("Try again"));
+    expect(apiFetch.mock.calls.filter(([p]) => p === "/api/climb/daily").length).toBe(before + 1);
+    expect(buttonByText("Start daily")).toBeTruthy();
+  });
+
+  it("offline: Play endless instead opens an endless climb", async () => {
+    net.info = null;
+    await mountDaily();
+    await click(buttonByText("Play endless instead"));
+    expect(container!.querySelector('[data-testid="path"]')?.textContent).toBe("/climb");
+    expect(buttonByText("Start climb")).toBeTruthy();
+    expect(container!.querySelector('[role="alert"]')).toBeNull();
+  });
+
+  it("a 503 (daily unavailable) is the same offline state", async () => {
+    net.infoStatus = 503;
+    await mountDaily();
+    expect(container!.querySelector('[role="alert"]')?.textContent).toContain("Can’t load today’s tower");
+    expect(buttonByText("Start daily")).toBeUndefined();
+  });
+});
+
+describe("ClimbScreen daily share waits for the save (SEC-DC-12)", () => {
+  const shareButton = () => buttonByText("Share");
+
+  it("offers Share only once the daily save is acknowledged, and shares the replay link", async () => {
+    net.holdResult = true;
+    await mountDaily();
+    expect(resultPosts()).toHaveLength(1);
+    expect(shareButton()).toBeUndefined();
+
+    await act(async () => net.heldResult.shift()!());
+    await settle();
+    expect(rankLine()).toBe("#3 of 12 today");
+    const shareSpy = vi.fn(async () => {});
+    Object.defineProperty(navigator, "share", { value: shareSpy, configurable: true });
+    try {
+      await click(shareButton());
+      expect(shareSpy).toHaveBeenCalledWith({ title: "Doomstack", url: "https://example.test/play?r=replay-token" });
+    } finally {
+      Reflect.deleteProperty(navigator, "share");
+    }
+  });
+
+  it("a failed save offers no Share; a successful retry then does", async () => {
+    net.resultStatus = 503;
+    net.resultBody = { error: "down" };
+    await mountDaily();
+    expect(rankLine()).toBe("couldn't reach today's board");
+    expect(shareButton()).toBeUndefined();
+
+    net.resultStatus = 200;
+    net.resultBody = saved();
+    await click(buttonByText("Try again"));
+    expect(shareButton()).toBeTruthy();
+  });
+
+  it.each([
+    ["REPLAY_REUSED", { error: "x", code: "REPLAY_REUSED" }, 409],
+    ["DAY_CLOSED", { error: "x", code: "DAY_CLOSED" }, 400],
+    ["not saved (no consent server-side)", { saved: false, reason: "no_consent" }, 200],
+  ])("never offers Share after %s", async (_label, body, status) => {
+    net.resultStatus = status;
+    net.resultBody = body;
+    await mountDaily();
+    expect(resultPosts()).toHaveLength(1);
+    expect(shareButton()).toBeUndefined();
+  });
+
+  it("declining consent (nothing posted) offers no Share", async () => {
+    setLeaderboardConsent(false);
+    await mountDaily();
+    await click(buttonByText("Not now"));
+    expect(resultPosts()).toHaveLength(0);
+    expect(shareButton()).toBeUndefined();
+  });
+
+  it("a signed-out daily run (server: not saved, anonymous) offers no Share (verifier)", async () => {
+    auth.uid = null;
+    net.resultBody = { saved: false, reason: "anonymous" };
+    await mountDaily();
+    // Precondition: the guest run was encoded and sent, so only the gate hides Share.
+    expect(resultPosts()).toHaveLength(1);
+    expect(shareButton()).toBeUndefined();
+  });
+
+  it("control: a signed-out endless run still offers Share (verifier)", async () => {
+    auth.uid = null;
+    await mountDaily("/climb");
+    expect(shareButton()).toBeTruthy();
+  });
+
+  it("control: an endless run offers Share (no daily claim to protect)", async () => {
+    await mountDaily("/climb");
+    expect(resultPosts()).toHaveLength(0);
+    expect(postClimbResult).toHaveBeenCalledTimes(1);
+    expect(shareButton()).toBeTruthy();
+  });
+});

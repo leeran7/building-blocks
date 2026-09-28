@@ -7,12 +7,16 @@ in the binary and boots from a native splash.
 
 ## Commands (run from `app/`)
 
+Each also works from the repo root, e.g. `yarn cap:ios` (delegates to
+`pnpm --dir app cap:ios`).
+
 | Command | What it does |
 |---|---|
 | `pnpm mobile:dev` | Vite dev server (browser preview; API calls hit prod and may be CORS-blocked — device is the real target) |
 | `pnpm mobile:build` | Build the SPA into `mobile/dist` |
 | `pnpm cap:sync` | Build + copy into `ios/` and `android/` |
 | `pnpm cap:ios` | Sync + open Xcode |
+| `pnpm cap:ios:run` | Sync + run on an iOS simulator/device |
 | `pnpm cap:android` | Sync + open Android Studio |
 
 ## Native sign-in setup (required for Apple/Google; guest works without it)

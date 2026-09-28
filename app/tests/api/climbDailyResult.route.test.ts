@@ -1,0 +1,792 @@
+/**
+ * POST /api/climb/daily/result — the only writer of daily_climb_scores.
+ *
+ * The persisted height must be the SERVER's re-simulated peak: a unit test of
+ * verifyDailyReplay is not coverage of the route that stores the number. The
+ * DB layer is mocked; the replay encode/decode and re-simulation are real.
+ */
+
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { NextRequest } from "next/server";
+
+vi.mock("../../src/lib/rateLimit", () => ({
+  checkRateLimit: vi.fn(async () => ({ allowed: true, degraded: false })),
+  clientIp: vi.fn(() => "127.0.0.1"),
+}));
+vi.mock("../../src/lib/firebaseAdmin", () => ({ verifyIdToken: vi.fn() }));
+vi.mock("../../src/db/user", () => ({ ensureUser: vi.fn() }));
+vi.mock("../../src/db/client", () => ({
+  prisma: { user: { findUnique: vi.fn(async () => ({ leaderboard_consent_at: new Date() })) } },
+}));
+vi.mock("../../src/db/climb", () => ({
+  recordClimb: vi.fn(async () => ({ peakY: 0, improved: false, rank: 1, totalClimbers: 1, handle: "h" })),
+}));
+vi.mock("../../src/db/dailyClimb", () => ({
+  // The claim's own SQL is covered against Postgres (tests/db/dailyClimb.pg.test.ts).
+  claimDailyReplay: vi.fn(async (input: { userId: string }) => input.userId),
+  dailyLeaderboardTag: (day: string) => `daily-leaderboard:${day}`,
+  recordDailyClimb: vi.fn(async (input: { peakY: number }) => ({ peakY: input.peakY, improved: true, attempts: 1 })),
+  dailyStandingFor: vi.fn(async () => ({ rank: 3, peakY: 0, attempts: 1 })),
+  dailyClimberCount: vi.fn(async () => 12),
+}));
+vi.mock("next/cache", () => ({ revalidatePath: vi.fn(), revalidateTag: vi.fn() }));
+
+import { POST } from "../../app/api/climb/daily/result/route";
+import { verifyIdToken } from "../../src/lib/firebaseAdmin";
+import { checkRateLimit } from "../../src/lib/rateLimit";
+import { prisma } from "../../src/db/client";
+import { recordClimb } from "../../src/db/climb";
+import { claimDailyReplay, recordDailyClimb } from "../../src/db/dailyClimb";
+import { GET as getDailyInfo } from "../../app/api/climb/daily/route";
+import { isDailySeedShape } from "../../src/lib/dailyDay";
+import { revalidateTag } from "next/cache";
+import { buildFreeTower } from "../../src/game/freeStack";
+import { applyRunSeed } from "../../src/game/towers";
+import { createMatch, stepMatch } from "../../src/game/simulation";
+import {
+  decodeRunReplay,
+  encodeRunReplay,
+  MAX_SHARE_TICKS,
+  packInputLog,
+  parseReplayToken,
+  parseRunReplayEnvelope,
+} from "../../src/game/runReplay";
+import { deflateSync } from "node:zlib";
+import { dailySeedFor } from "../../src/lib/dailySeedServer";
+import { TEST_DAILY_SEED_SECRET } from "../lib/dailySeedTestSecret";
+
+vi.stubEnv("DAILY_SEED_SECRET", TEST_DAILY_SEED_SECRET);
+import {
+  DAILY_CLAIM_MIN_INPUT_SEGMENTS,
+  DAILY_CLAIM_MIN_PEAK_M,
+  dailyInputHash,
+  dailyInputSegments,
+  resimulateSoloRun,
+} from "../../src/game/dailyVerify";
+import { DAILY_SIM_VERSION } from "../../src/game/simVersion";
+import type { PlayerInput } from "../../src/game/types";
+
+const DAY = "2026-09-26";
+const NOW = new Date("2026-09-26T12:00:00Z");
+
+/** Same scripted policy as tests/game/dailyVerify.test.ts (climbs 10.33 m on DAY). */
+function playRun(seed: string): { inputs: PlayerInput[]; peakY: number; ticks: number } {
+  const state = createMatch({ seed, mode: "solo", tower: applyRunSeed(buildFreeTower(), seed), playerIds: ["you"] });
+  while (state.phase === "countdown") stepMatch(state, {});
+  const inputs: PlayerInput[] = [];
+  let r = 28;
+  let moveX: -1 | 0 | 1 = 1;
+  while (state.phase === "climb" && inputs.length < 6000) {
+    if (inputs.length % 10 === 0) {
+      r = (r * 16807) % 2147483647;
+      moveX = ((r % 3) - 1) as -1 | 0 | 1;
+    }
+    const input: PlayerInput = { moveX, jump: inputs.length % 23 === 0, climbY: 1, usePowerUp: false };
+    inputs.push({ ...input });
+    stepMatch(state, { you: input });
+  }
+  return { inputs, peakY: state.players[0].peakY, ticks: state.tick };
+}
+
+async function honestPayload(seed = dailySeedFor(DAY)) {
+  const run = playRun(seed);
+  const replayToken = await encodeRunReplay({ seed, peakY: run.peakY, inputs: run.inputs });
+  return { run, body: { peakY: run.peakY, ticks: run.ticks, seed, replayToken } };
+}
+
+/**
+ * Every real client sends simVersion, so the harness adds the current one to
+ * an object body that does not set the key itself. The version tests set it
+ * explicitly, including `simVersion: undefined` for a missing version.
+ */
+function withSimVersion(body: unknown): unknown {
+  if (typeof body !== "object" || body === null || Array.isArray(body)) return body;
+  return Object.prototype.hasOwnProperty.call(body, "simVersion") ? body : { ...body, simVersion: DAILY_SIM_VERSION };
+}
+
+function post(body: unknown, token: string | null = "good-token"): Promise<Response> {
+  const headers: Record<string, string> = { "content-type": "application/json" };
+  if (token) headers.authorization = `Bearer ${token}`;
+  return POST(
+    new NextRequest("http://localhost/api/climb/daily/result", {
+      method: "POST",
+      headers,
+      body: typeof body === "string" ? body : JSON.stringify(withSimVersion(body)),
+    })
+  );
+}
+
+describe("POST /api/climb/daily/result", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    // Only Date is faked, so promises and CompressionStream still run.
+    vi.useFakeTimers({ now: NOW, toFake: ["Date"] });
+    vi.mocked(verifyIdToken).mockResolvedValue({
+      uid: "u1",
+      email: "u1@example.com",
+      email_verified: true,
+    } as Awaited<ReturnType<typeof verifyIdToken>>);
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("stores the server's re-simulated peak on both boards and expires the day's cache", async () => {
+    const { run, body } = await honestPayload();
+    const res = await post(body);
+    expect(res.status).toBe(200);
+    const json = (await res.json()) as Record<string, unknown>;
+    expect(json).toMatchObject({ saved: true, day: DAY, peakY: run.peakY, rank: 3, totalClimbers: 12, attempts: 1 });
+
+    expect(recordDailyClimb).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(recordDailyClimb).mock.calls[0][0]).toMatchObject({
+      userId: "u1",
+      day: DAY,
+      peakY: run.peakY,
+      ticks: run.inputs.length,
+    });
+    expect(vi.mocked(recordClimb).mock.calls[0][0]).toMatchObject({ userId: "u1", peakY: run.peakY });
+    expect(revalidateTag).toHaveBeenCalledWith(`daily-leaderboard:${DAY}`, { expire: 0 });
+  });
+
+  it("rejects an inflated claim with 400 REPLAY_MISMATCH and writes nothing", async () => {
+    const { run, body } = await honestPayload();
+    const res = await post({ ...body, peakY: run.peakY + 500 });
+    expect(res.status).toBe(400);
+    expect(((await res.json()) as { code: string }).code).toBe("REPLAY_MISMATCH");
+    expect(recordDailyClimb).not.toHaveBeenCalled();
+    expect(recordClimb).not.toHaveBeenCalled();
+  });
+
+  it("rejects a run on a closed day's tower", async () => {
+    const { body } = await honestPayload(dailySeedFor("2026-09-24"));
+    const res = await post(body);
+    expect(res.status).toBe(400);
+    expect(((await res.json()) as { code: string }).code).toBe("DAY_CLOSED");
+    expect(recordDailyClimb).not.toHaveBeenCalled();
+  });
+
+  it("requires a replay token", async () => {
+    const { body } = await honestPayload();
+    const res = await post({ ...body, replayToken: undefined });
+    expect(res.status).toBe(400);
+    expect(((await res.json()) as { code: string }).code).toBe("REPLAY_REQUIRED");
+  });
+
+  it("does not save (or re-simulate) for an anonymous caller", async () => {
+    const { body } = await honestPayload();
+    const res = await post(body, null);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ saved: false, reason: "anonymous" });
+    expect(recordDailyClimb).not.toHaveBeenCalled();
+  });
+
+  it("does not save without leaderboard consent", async () => {
+    vi.mocked(prisma.user.findUnique).mockResolvedValueOnce({ leaderboard_consent_at: null } as never);
+    const { body } = await honestPayload();
+    const res = await post(body);
+    expect(await res.json()).toEqual({ saved: false, reason: "no_consent" });
+    expect(recordDailyClimb).not.toHaveBeenCalled();
+  });
+
+  it("shares the per-IP bucket with /result and keys the per-user limit by day", async () => {
+    const { body } = await honestPayload();
+    await post(body);
+    const calls = vi.mocked(checkRateLimit).mock.calls.map(([opts]) => opts);
+    expect(calls).toContainEqual(expect.objectContaining({ namespace: "climb", identifier: "ip:127.0.0.1" }));
+    expect(calls).toContainEqual(expect.objectContaining({ namespace: "climb:daily", identifier: `u1:${DAY}` }));
+  });
+
+  it("answers 429 when the per-user daily limit is spent", async () => {
+    vi.mocked(checkRateLimit)
+      .mockResolvedValueOnce({ allowed: true, degraded: false })
+      .mockResolvedValueOnce({ allowed: false, degraded: false });
+    const { body } = await honestPayload();
+    const res = await post(body);
+    expect(res.status).toBe(429);
+    expect(recordDailyClimb).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Verifier additions: AC-2..AC-5 at the route (the layer that writes).
+// ---------------------------------------------------------------------------
+
+/**
+ * Builds a v1 replay token for an input log of any length, including one
+ * encodeRunReplay refuses to produce. Proven against a positive control
+ * below, so a drift in the wire format cannot make the too-long case pass by
+ * failing to decode for an unrelated reason.
+ */
+function rawToken(seed: string, peakY: number, inputs: PlayerInput[]): string {
+  const i = deflateSync(Buffer.from(packInputLog(inputs))).toString("base64url");
+  return Buffer.from(JSON.stringify({ v: 1, s: seed, p: peakY, i })).toString("base64url");
+}
+
+const codeOf = async (res: Response) => ((await res.json()) as { code?: string }).code;
+
+describe("POST /api/climb/daily/result (verifier)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.useFakeTimers({ now: NOW, toFake: ["Date"] });
+    vi.mocked(verifyIdToken).mockResolvedValue({
+      uid: "u1",
+      email: "u1@example.com",
+      email_verified: true,
+    } as Awaited<ReturnType<typeof verifyIdToken>>);
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
+  it("stores the SERVER peak even when the client claim is inside the 0.1 m slack", async () => {
+    const { run, body } = await honestPayload();
+    const res = await post({ ...body, peakY: run.peakY + 0.09 });
+    expect(res.status).toBe(200);
+    expect(vi.mocked(recordDailyClimb).mock.calls[0][0].peakY).toBe(run.peakY);
+    expect(vi.mocked(recordClimb).mock.calls[0][0].peakY).toBe(run.peakY);
+  });
+
+  it("stores the SERVER peak when the body carries no claim at all", async () => {
+    const { run, body } = await honestPayload();
+    const res = await post({ replayToken: body.replayToken });
+    expect(res.status).toBe(200);
+    expect(vi.mocked(recordDailyClimb).mock.calls[0][0].peakY).toBe(run.peakY);
+  });
+
+  it("rejects a tampered token peak (body echoes the honest peak) with a logged 400", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const seed = dailySeedFor(DAY);
+    const run = playRun(seed);
+    const forged = await encodeRunReplay({ seed, peakY: run.peakY + 40, inputs: run.inputs });
+    const res = await post({ replayToken: forged, peakY: run.peakY });
+    expect(res.status).toBe(400);
+    expect(await codeOf(res)).toBe("REPLAY_MISMATCH");
+    expect(recordDailyClimb).not.toHaveBeenCalled();
+    expect(recordClimb).not.toHaveBeenCalled();
+    expect(warn).toHaveBeenCalledWith(
+      "[climb/daily/result] replay mismatch",
+      expect.objectContaining({ uid: "u1", day: DAY, serverPeakY: run.peakY })
+    );
+  });
+
+  it("rejects a replay whose inputs were played on a different (open) tower", async () => {
+    // 00:03 UTC on the 27th: both the 26th (grace) and the 27th are open.
+    vi.setSystemTime(new Date("2026-09-27T00:03:00Z"));
+    const run = playRun(dailySeedFor(DAY));
+    const otherOpen = dailySeedFor("2026-09-27");
+    // Fixture precondition (loop/learnings replay-fixtures): the same inputs
+    // must land at a clearly different height on the other tower.
+    expect(Math.abs(resimulateSoloRun(otherOpen, run.inputs).player.peakY - run.peakY)).toBeGreaterThan(1);
+
+    const token = await encodeRunReplay({ seed: otherOpen, peakY: run.peakY, inputs: run.inputs });
+    const res = await post({ replayToken: token, peakY: run.peakY });
+    expect(res.status).toBe(400);
+    expect(await codeOf(res)).toBe("REPLAY_MISMATCH");
+
+    // A closed day's label (the 25th) is refused before re-simulation.
+    const closed = await encodeRunReplay({ seed: dailySeedFor("2026-09-25"), peakY: run.peakY, inputs: run.inputs });
+    expect(await codeOf(await post({ replayToken: closed, peakY: run.peakY }))).toBe("DAY_CLOSED");
+    expect(recordDailyClimb).not.toHaveBeenCalled();
+  });
+
+  it("AC-3: yesterday's run at 00:05 UTC is saved for yesterday", async () => {
+    vi.setSystemTime(new Date("2026-09-27T00:05:00Z"));
+    const { run, body } = await honestPayload(dailySeedFor(DAY));
+    const res = await post(body);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ saved: true, day: DAY, peakY: run.peakY });
+    expect(vi.mocked(recordDailyClimb).mock.calls[0][0]).toMatchObject({ day: DAY, peakY: run.peakY });
+    expect(checkRateLimit).toHaveBeenCalledWith(
+      expect.objectContaining({ namespace: "climb:daily", identifier: `u1:${DAY}` })
+    );
+  });
+
+  it("AC-3: yesterday's run at 00:11 UTC is 400 DAY_CLOSED and writes nothing", async () => {
+    vi.setSystemTime(new Date("2026-09-27T00:11:00Z"));
+    const { body } = await honestPayload(dailySeedFor(DAY));
+    const res = await post(body);
+    expect(res.status).toBe(400);
+    expect(await codeOf(res)).toBe("DAY_CLOSED");
+    expect(recordDailyClimb).not.toHaveBeenCalled();
+  });
+
+  it("AC-3: tomorrow's tower is 400 DAY_CLOSED", async () => {
+    const { body } = await honestPayload(dailySeedFor("2026-09-27"));
+    const res = await post(body);
+    expect(res.status).toBe(400);
+    expect(await codeOf(res)).toBe("DAY_CLOSED");
+    expect(recordDailyClimb).not.toHaveBeenCalled();
+  });
+
+  it("AC-4: a replay longer than MAX_SHARE_TICKS is refused; one at the cap is not refused for length", async () => {
+    const idle: PlayerInput = { moveX: 0, jump: false, climbY: 0, usePowerUp: false };
+    const seed = dailySeedFor(DAY);
+    const atCap = rawToken(seed, 0, Array.from({ length: MAX_SHARE_TICKS }, () => idle));
+    const over = rawToken(seed, 0, Array.from({ length: MAX_SHARE_TICKS + 1 }, () => idle));
+
+    // Positive control: the builder produces tokens the real decoder accepts.
+    expect(await decodeRunReplay(atCap)).not.toBeNull();
+    const control = await post({ replayToken: atCap });
+    expect(await codeOf(control)).not.toBe("INVALID_REPLAY");
+
+    vi.mocked(recordDailyClimb).mockClear();
+    const res = await post({ replayToken: over, peakY: 0 });
+    expect(res.status).toBe(400);
+    expect(["INVALID_REPLAY", "RUN_TOO_LONG"]).toContain(await codeOf(res));
+    expect(recordDailyClimb).not.toHaveBeenCalled();
+  });
+
+  it("AC-4: missing, empty, whitespace or non-string replay tokens are 400 REPLAY_REQUIRED", async () => {
+    let checked = 0;
+    for (const replayToken of [undefined, null, "", "   ", 42, { t: "x" }, ["x"]]) {
+      const res = await post({ peakY: 5, replayToken });
+      expect(res.status).toBe(400);
+      expect(await codeOf(res)).toBe("REPLAY_REQUIRED");
+      checked++;
+    }
+    expect(checked).toBeGreaterThan(0);
+    expect(recordDailyClimb).not.toHaveBeenCalled();
+  });
+
+  it("an undecodable token is 400 INVALID_REPLAY", async () => {
+    const res = await post({ replayToken: "not-a-replay", peakY: 5 });
+    expect(res.status).toBe(400);
+    expect(await codeOf(res)).toBe("INVALID_REPLAY");
+    expect(recordDailyClimb).not.toHaveBeenCalled();
+  });
+
+  it("invalid JSON and a JSON non-object are 400 INVALID_JSON", async () => {
+    expect(await codeOf(await post("{"))).toBe("INVALID_JSON");
+    expect(await codeOf(await post("null"))).toBe("INVALID_JSON");
+  });
+
+  it("AC-5: an invalid Firebase token is not saved and nothing is written", async () => {
+    vi.mocked(verifyIdToken).mockRejectedValueOnce(new Error("expired"));
+    const { body } = await honestPayload();
+    const res = await post(body);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ saved: false, reason: "invalid_token" });
+    expect(recordDailyClimb).not.toHaveBeenCalled();
+  });
+
+  it("AC-5: an anonymous Firebase session (no email) is not saved", async () => {
+    vi.mocked(verifyIdToken).mockResolvedValueOnce({ uid: "anon" } as Awaited<ReturnType<typeof verifyIdToken>>);
+    const { body } = await honestPayload();
+    expect(await (await post(body)).json()).toEqual({ saved: false, reason: "anonymous" });
+    expect(recordDailyClimb).not.toHaveBeenCalled();
+  });
+
+  it("AC-6: the per-IP limit answers 429 before any identity or DB work", async () => {
+    vi.mocked(checkRateLimit).mockResolvedValueOnce({ allowed: false, degraded: false });
+    const { body } = await honestPayload();
+    const res = await post(body);
+    expect(res.status).toBe(429);
+    expect(await codeOf(res)).toBe("RATE_LIMITED");
+    expect(verifyIdToken).not.toHaveBeenCalled();
+    expect(recordDailyClimb).not.toHaveBeenCalled();
+  });
+
+  it("a DB failure while persisting is a 500 persist_error, never a false success", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.mocked(recordDailyClimb).mockRejectedValueOnce(new Error("db down"));
+    const { body } = await honestPayload();
+    const res = await post(body);
+    expect(res.status).toBe(500);
+    expect(await res.json()).toEqual({ saved: false, reason: "persist_error" });
+  });
+
+  it("returns the stored best (not this run) when the run did not improve", async () => {
+    vi.mocked(recordDailyClimb).mockResolvedValueOnce({ peakY: 999, improved: false, attempts: 4 });
+    const { body } = await honestPayload();
+    const json = await (await post(body)).json();
+    expect(json).toMatchObject({ saved: true, peakY: 999, improved: false, attempts: 4 });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// SEC-DC-1: decompression bomb. The cheap checks run before any inflate, and
+// the inflate is output-capped.
+// ---------------------------------------------------------------------------
+
+/** ~18.9 MB of one valid input byte: the largest bomb under MAX_REPLAY_TOKEN_LENGTH. */
+const BOMB_BYTES = 18_900_000;
+/** Generous for CI; a capped route answers in ms, the old one took ~8-15 s. */
+const BOMB_BUDGET_MS = 1_000;
+
+function bombToken(seed: string): string {
+  const i = deflateSync(Buffer.alloc(BOMB_BYTES, 0b01001), { level: 9 }).toString("base64url");
+  return Buffer.from(JSON.stringify({ v: 1, s: seed, p: 1, i })).toString("base64url");
+}
+
+async function timedPost(body: unknown): Promise<{ res: Response; ms: number }> {
+  const start = performance.now();
+  const res = await post(body);
+  return { res, ms: performance.now() - start };
+}
+
+describe("POST /api/climb/daily/result: decompression bomb (SEC-DC-1)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.useFakeTimers({ now: NOW, toFake: ["Date"] });
+    vi.mocked(verifyIdToken).mockResolvedValue({
+      uid: "u1",
+      email: "u1@example.com",
+      email_verified: true,
+    } as Awaited<ReturnType<typeof verifyIdToken>>);
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("precondition: the bomb fits the token allow-list", () => {
+    expect(parseReplayToken(bombToken(dailySeedFor(DAY)))).not.toBeNull();
+  });
+
+  it("rejects a bomb on today's tower as INVALID_REPLAY, fast, after the per-user limiter", async () => {
+    const { res, ms } = await timedPost({ replayToken: bombToken(dailySeedFor(DAY)), peakY: 1 });
+    expect(res.status).toBe(400);
+    expect(await codeOf(res)).toBe("INVALID_REPLAY");
+    expect(ms).toBeLessThan(BOMB_BUDGET_MS);
+    const namespaces = vi.mocked(checkRateLimit).mock.calls.map(([opts]) => opts.namespace);
+    expect(namespaces).toEqual(["climb", "climb:daily"]);
+    expect(recordDailyClimb).not.toHaveBeenCalled();
+  }, 60_000);
+
+  it("answers DAY_CLOSED for a bomb on a closed tower without inflating it", async () => {
+    const { res, ms } = await timedPost({ replayToken: bombToken(dailySeedFor("2026-09-20")), peakY: 1 });
+    expect(await codeOf(res)).toBe("DAY_CLOSED");
+    expect(ms).toBeLessThan(BOMB_BUDGET_MS);
+    // The per-user limiter is keyed by day, so a closed day never reaches it.
+    expect(vi.mocked(checkRateLimit).mock.calls.map(([opts]) => opts.namespace)).toEqual(["climb"]);
+  }, 60_000);
+
+  it("answers 429 for a bomb once the per-user limit is spent, without inflating it", async () => {
+    vi.mocked(checkRateLimit)
+      .mockResolvedValueOnce({ allowed: true, degraded: false })
+      .mockResolvedValueOnce({ allowed: false, degraded: false });
+    const { res, ms } = await timedPost({ replayToken: bombToken(dailySeedFor(DAY)), peakY: 1 });
+    expect(res.status).toBe(429);
+    expect(ms).toBeLessThan(BOMB_BUDGET_MS);
+  }, 60_000);
+});
+
+// ---------------------------------------------------------------------------
+// SEC-DC-2 / 3 / 4 hardening at the route (the layer that writes).
+// ---------------------------------------------------------------------------
+
+describe("POST /api/climb/daily/result: hardening (SEC-DC-2, 3, 4)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.useFakeTimers({ now: NOW, toFake: ["Date"] });
+    vi.mocked(verifyIdToken).mockResolvedValue({
+      uid: "u1",
+      email: "u1@example.com",
+      email_verified: true,
+    } as Awaited<ReturnType<typeof verifyIdToken>>);
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+    vi.stubEnv("DAILY_SEED_SECRET", TEST_DAILY_SEED_SECRET);
+  });
+
+  // SEC-DC-4 ---------------------------------------------------------------
+
+  it.each([
+    ["missing", undefined],
+    ["older", DAILY_SIM_VERSION - 1],
+    ["newer", DAILY_SIM_VERSION + 1],
+    ["a string", String(DAILY_SIM_VERSION)],
+    ["null", null],
+  ])("a %s simVersion is 409 SIM_VERSION_MISMATCH, logged apart from REPLAY_MISMATCH", async (_label, simVersion) => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const { body } = await honestPayload();
+    const res = await post({ ...body, simVersion });
+    expect(res.status).toBe(409);
+    expect(await codeOf(res)).toBe("SIM_VERSION_MISMATCH");
+    expect(warn).toHaveBeenCalledWith("[climb/daily/result] sim version mismatch", expect.objectContaining({ uid: "u1", day: DAY }));
+    expect(warn).not.toHaveBeenCalledWith("[climb/daily/result] replay mismatch", expect.anything());
+    expect(recordDailyClimb).not.toHaveBeenCalled();
+    expect(claimDailyReplay).not.toHaveBeenCalled();
+  });
+
+  it("checks the version before re-simulating: a forged claim on a stale engine is SIM_VERSION_MISMATCH, not REPLAY_MISMATCH", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    const { body } = await honestPayload();
+    const res = await post({ ...body, peakY: 9999, simVersion: DAILY_SIM_VERSION + 1 });
+    expect(await codeOf(res)).toBe("SIM_VERSION_MISMATCH");
+    // Positive control: the same forged claim on the current engine is a mismatch.
+    const same = await post({ ...body, peakY: 9999, simVersion: DAILY_SIM_VERSION });
+    expect(await codeOf(same)).toBe("REPLAY_MISMATCH");
+  });
+
+  it("positive control: the current simVersion saves", async () => {
+    const { body } = await honestPayload();
+    const res = await post({ ...body, simVersion: DAILY_SIM_VERSION });
+    expect(res.status).toBe(200);
+  });
+
+  // SEC-DC-2 ---------------------------------------------------------------
+
+  it("claims the SERVER-derived canonical input hash for the verified day", async () => {
+    const { run, body } = await honestPayload();
+    const res = await post(body);
+    expect(res.status).toBe(200);
+    expect(claimDailyReplay).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(claimDailyReplay).mock.calls[0][0]).toEqual({
+      userId: "u1",
+      day: DAY,
+      inputHash: dailyInputHash(run.inputs),
+    });
+  });
+
+  it("refuses another player's run with 409 REPLAY_REUSED and writes nothing", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    vi.mocked(claimDailyReplay).mockResolvedValueOnce("someone-else");
+    const { body } = await honestPayload();
+    const res = await post(body);
+    expect(res.status).toBe(409);
+    expect(await codeOf(res)).toBe("REPLAY_REUSED");
+    expect(warn).toHaveBeenCalledWith("[climb/daily/result] replay reused", { uid: "u1", day: DAY });
+    expect(recordDailyClimb).not.toHaveBeenCalled();
+    expect(recordClimb).not.toHaveBeenCalled();
+  });
+
+  it("lets the same player resubmit their own run (idempotent claim)", async () => {
+    const { body } = await honestPayload();
+    expect((await post(body)).status).toBe(200);
+    expect((await post(body)).status).toBe(200);
+    expect(recordDailyClimb).toHaveBeenCalledTimes(2);
+  });
+
+  it("a padded copy of another player's run hashes the same and is refused", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    const { run, body } = await honestPayload();
+    await post(body);
+    const ownerHash = vi.mocked(claimDailyReplay).mock.calls[0][0].inputHash;
+    // Owner is someone else now; the copier pads the tail.
+    vi.mocked(claimDailyReplay).mockImplementation(async (input) => (input.inputHash === ownerHash ? "u-owner" : input.userId));
+    const idle: PlayerInput = { moveX: 0, jump: false, climbY: 0, usePowerUp: false };
+    const padded = await encodeRunReplay({
+      seed: dailySeedFor(DAY),
+      peakY: run.peakY,
+      inputs: [...run.inputs, ...Array.from({ length: 30 }, () => idle)],
+    });
+    const res = await post({ replayToken: padded, peakY: run.peakY });
+    expect(await codeOf(res)).toBe("REPLAY_REUSED");
+  });
+
+  // SEC-DC-11 --------------------------------------------------------------
+
+  /** First-claim-wins store with the claim SQL's semantics (tests/db covers the SQL itself). */
+  function useClaimStore() {
+    const owners = new Map<string, string>();
+    vi.mocked(claimDailyReplay).mockImplementation(async ({ userId, day, inputHash }) => {
+      const key = `${day}:${inputHash}`;
+      if (!owners.has(key)) owners.set(key, userId);
+      return owners.get(key)!;
+    });
+    return owners;
+  }
+  const asUser = (uid: string) =>
+    vi.mocked(verifyIdToken).mockResolvedValue({
+      uid,
+      email: `${uid}@example.com`,
+      email_verified: true,
+    } as Awaited<ReturnType<typeof verifyIdToken>>);
+
+  async function idlePayload() {
+    const seed = dailySeedFor(DAY);
+    const state = createMatch({ seed, mode: "solo", tower: applyRunSeed(buildFreeTower(), seed), playerIds: ["you"] });
+    while (state.phase === "countdown") stepMatch(state, {});
+    const idle: PlayerInput = { moveX: 0, jump: false, climbY: 0, usePowerUp: false };
+    const inputs: PlayerInput[] = [];
+    while (state.phase === "climb" && inputs.length < MAX_SHARE_TICKS) {
+      inputs.push({ ...idle });
+      stepMatch(state, { you: idle });
+    }
+    const peakY = state.players[0].peakY;
+    return { inputs, body: { peakY, replayToken: await encodeRunReplay({ seed, peakY, inputs }) } };
+  }
+
+  it("two accounts can each save the identical idle run (no false REPLAY_REUSED)", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const owners = useClaimStore();
+    const { inputs, body } = await idlePayload();
+    // Precondition: this is the 221-tick, 0 m log every idle player produces.
+    expect(inputs.length).toBe(221);
+    expect(body.peakY).toBe(0);
+
+    asUser("u1");
+    expect((await post(body)).status).toBe(200);
+    asUser("u2");
+    const second = await post(body);
+    expect(second.status).toBe(200);
+    expect(((await second.json()) as { saved?: boolean }).saved).toBe(true);
+    expect(vi.mocked(recordDailyClimb).mock.calls.map(([c]) => c.userId)).toEqual(["u1", "u2"]);
+    expect(owners.size).toBe(0);
+    expect(claimDailyReplay).not.toHaveBeenCalled();
+    expect(warn).not.toHaveBeenCalledWith("[climb/daily/result] replay reused", expect.anything());
+  });
+
+  it("control: a copied real run (over the claim floor) is still refused for the second account", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    const owners = useClaimStore();
+    const { run, body } = await honestPayload();
+    expect(run.peakY).toBeGreaterThanOrEqual(DAILY_CLAIM_MIN_PEAK_M);
+    // Precondition: well past the segment floor (SEC-DC-15), so it is claimed.
+    // 38 since #154: a held climb re-grabs the ladder after landing, so the
+    // scripted run lasts 274 ticks (10.33 m) instead of 227 (7.61 m).
+    expect(dailyInputSegments(run.inputs)).toBe(38);
+
+    asUser("u1");
+    expect((await post(body)).status).toBe(200);
+    asUser("u2");
+    const copy = await post(body);
+    expect(copy.status).toBe(409);
+    expect(await codeOf(copy)).toBe("REPLAY_REUSED");
+    expect([...owners.values()]).toEqual(["u1"]);
+    expect(vi.mocked(recordDailyClimb).mock.calls.map(([c]) => c.userId)).toEqual(["u1"]);
+  });
+
+  it("a raw token from a runtime with no CompressionStream is verified and saved (RV-DC-2)", async () => {
+    vi.stubGlobal("CompressionStream", undefined);
+    const { run, body } = await honestPayload();
+    vi.unstubAllGlobals();
+    // Precondition: the token really carries the packed bytes uncompressed.
+    const envelope = parseRunReplayEnvelope(body.replayToken!);
+    expect(Buffer.from(envelope!.compressed).equals(Buffer.from(packInputLog(run.inputs)))).toBe(true);
+    useClaimStore();
+    asUser("u1");
+    const res = await post(body);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ saved: true, peakY: run.peakY });
+  });
+
+  it("the raw and deflated tokens of one run claim the same replay: the second account is refused (RV-DC-2)", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    const owners = useClaimStore();
+    vi.stubGlobal("CompressionStream", undefined);
+    const raw = await honestPayload();
+    vi.unstubAllGlobals();
+    const deflated = await honestPayload();
+    expect(raw.body.replayToken).not.toBe(deflated.body.replayToken);
+
+    asUser("u1");
+    expect((await post(raw.body)).status).toBe(200);
+    asUser("u2");
+    const copy = await post(deflated.body);
+    expect(copy.status).toBe(409);
+    expect(await codeOf(copy)).toBe("REPLAY_REUSED");
+    expect([...owners.values()]).toEqual(["u1"]);
+  });
+
+  it("two accounts can each save the same held-input ladder run above 6 m (SEC-DC-15)", async () => {
+    // 2026-09-20: holding climb alone scales the spawn ladder. Every player
+    // who does that produces this exact log, so neither may be refused.
+    const heldDay = "2026-09-20";
+    vi.setSystemTime(new Date(`${heldDay}T12:00:00Z`));
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const owners = useClaimStore();
+    const seed = dailySeedFor(heldDay);
+    const state = createMatch({ seed, mode: "solo", tower: applyRunSeed(buildFreeTower(), seed), playerIds: ["you"] });
+    while (state.phase === "countdown") stepMatch(state, {});
+    const hold: PlayerInput = { moveX: 0, jump: false, climbY: 1, usePowerUp: false };
+    const inputs: PlayerInput[] = [];
+    while (state.phase === "climb" && inputs.length < MAX_SHARE_TICKS) {
+      inputs.push({ ...hold });
+      stepMatch(state, { you: hold });
+    }
+    const peakY = state.players[0].peakY;
+    expect(peakY).toBeGreaterThan(DAILY_CLAIM_MIN_PEAK_M);
+    expect(dailyInputSegments(inputs)).toBeLessThan(DAILY_CLAIM_MIN_INPUT_SEGMENTS);
+    const body = { peakY, replayToken: await encodeRunReplay({ seed, peakY, inputs }) };
+
+    asUser("u1");
+    const first = await post(body);
+    expect(first.status).toBe(200);
+    asUser("u2");
+    const second = await post(body);
+    expect(second.status).toBe(200);
+    expect(((await second.json()) as { saved?: boolean }).saved).toBe(true);
+    // Both ranked on the day's board, the earlier save first.
+    expect(vi.mocked(recordDailyClimb).mock.calls.map(([c]) => [c.userId, c.day, c.peakY])).toEqual([
+      ["u1", heldDay, peakY],
+      ["u2", heldDay, peakY],
+    ]);
+    expect(claimDailyReplay).not.toHaveBeenCalled();
+    expect(owners.size).toBe(0);
+    expect(warn).not.toHaveBeenCalledWith("[climb/daily/result] replay reused", expect.anything());
+  });
+
+  it("a failed claim is a 500 persist_error, never a save", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.mocked(claimDailyReplay).mockRejectedValueOnce(new Error("db down"));
+    const { body } = await honestPayload();
+    const res = await post(body);
+    expect(res.status).toBe(500);
+    expect(recordDailyClimb).not.toHaveBeenCalled();
+  });
+
+  // SEC-DC-3 ---------------------------------------------------------------
+
+  it("rejects a replay on the legacy predictable seed daily-YYYY-MM-DD", async () => {
+    const run = playRun(dailySeedFor(DAY));
+    const legacy = await encodeRunReplay({ seed: `daily-${DAY}`, peakY: run.peakY, inputs: run.inputs });
+    const res = await post({ replayToken: legacy, peakY: run.peakY });
+    expect(res.status).toBe(400);
+    expect(await codeOf(res)).toBe("DAY_CLOSED");
+    expect(recordDailyClimb).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["missing", undefined],
+    ["too short", "short-secret"],
+  ])("fails closed with 503 when DAILY_SEED_SECRET is %s", async (_label, value) => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const { body } = await honestPayload();
+    vi.stubEnv("DAILY_SEED_SECRET", value);
+    const res = await post(body);
+    expect(res.status).toBe(503);
+    expect(await codeOf(res)).toBe("DAILY_UNAVAILABLE");
+    expect(recordDailyClimb).not.toHaveBeenCalled();
+    expect(recordClimb).not.toHaveBeenCalled();
+  });
+});
+
+describe("GET /api/climb/daily (SEC-DC-3)", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+    vi.stubEnv("DAILY_SEED_SECRET", TEST_DAILY_SEED_SECRET);
+  });
+
+  it("serves today's HMAC seed, never the legacy date seed", async () => {
+    vi.useFakeTimers({ now: NOW, toFake: ["Date"] });
+    const res = getDailyInfo();
+    expect(res.status).toBe(200);
+    expect(res.headers.get("cache-control")).toBe("no-store");
+    const body = (await res.json()) as { day: string; seed: string; resetsAt: string };
+    expect(body.day).toBe(DAY);
+    expect(body.seed).toBe(dailySeedFor(DAY));
+    expect(isDailySeedShape(body.seed)).toBe(true);
+    expect(body.seed).not.toContain(DAY);
+    expect(body.resetsAt).toBe("2026-09-27T00:00:00.000Z");
+  });
+
+  it.each([
+    ["missing", undefined],
+    ["too short", "x".repeat(31)],
+  ])("fails closed with 503 when the secret is %s", async (_label, value) => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.stubEnv("DAILY_SEED_SECRET", value);
+    const res = getDailyInfo();
+    expect(res.status).toBe(503);
+    const body = (await res.json()) as Record<string, unknown>;
+    expect(body.code).toBe("DAILY_UNAVAILABLE");
+    expect(body).not.toHaveProperty("seed");
+  });
+});
+

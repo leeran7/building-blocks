@@ -979,7 +979,7 @@ describe("AC-11: power-ups keep the simulation deterministic", () => {
   });
 });
 
-describe("slow-lava cooldown: the thing that keeps a run finite", () => {
+describe("lava-clock cooldowns: slow-lava and harden-lava uptime is bounded", () => {
   it("leaves an orb uncollected rather than consuming it during the cooldown", () => {
     const m = climbingMatch();
     const p = m.players[0];
@@ -1009,28 +1009,36 @@ describe("slow-lava cooldown: the thing that keeps a run finite", () => {
   });
 
   it("only slow-lava and harden-lava touch the lava clock", () => {
+    // Literal pins: the powerups.ts LAVA-CLOCK POWER-UPS arithmetic is only
+    // true for these numbers, so changing any of them must go red here.
     expect(POWER_UP_SPECS["slow-lava"].durationSeconds).toBe(8);
     expect(POWER_UP_SPECS["slow-lava"].cooldownSeconds).toBe(40);
     expect(TIME_SLOW_COOLDOWN_SECONDS).toBe(40);
     expect(TIME_SLOW_FRAC).toBe(0.4);
-    const d = POWER_UP_SPECS["slow-lava"].durationSeconds;
-    const c = POWER_UP_SPECS["slow-lava"].cooldownSeconds;
-    const maxUptime = d / (d + c);
-    expect(maxUptime).toBe(8 / 48);
-    const effective =
-      hazardMeanSpeedFrac(DEFAULT_HAZARD_CONFIG) *
-      (1 - TIME_SLOW_FRAC * maxUptime);
-    expect(effective).toBeLessThan(1);
+    expect(HARDEN_LAVA_DURATION_SECONDS).toBe(7);
+    expect(HARDEN_LAVA_COOLDOWN_SECONDS).toBe(55);
+    expect(POWER_UP_SPECS["harden-lava"].durationSeconds).toBe(7);
+    expect(POWER_UP_SPECS["harden-lava"].cooldownSeconds).toBe(55);
+  });
 
-    expect(POWER_UP_SPECS["harden-lava"].durationSeconds).toBe(HARDEN_LAVA_DURATION_SECONDS);
-    expect(POWER_UP_SPECS["harden-lava"].cooldownSeconds).toBe(HARDEN_LAVA_COOLDOWN_SECONDS);
-    const fd = POWER_UP_SPECS["harden-lava"].durationSeconds;
-    const fc = POWER_UP_SPECS["harden-lava"].cooldownSeconds;
-    const freezeUptime = fd / (fd + fc);
-    const freezeEffective =
-      hazardMeanSpeedFrac(DEFAULT_HAZARD_CONFIG) *
-      (1 - 1.0 * freezeUptime);
-    expect(freezeEffective).toBeLessThan(1);
+  it("pins the time-averaged lava mean at the cap under max slow-lava / harden-lava uptime", () => {
+    // Measured, not modelled: the sim is fed an orb whenever the cooldown
+    // lets one through, and the lava-clock fraction is read off the match
+    // state over whole cycles. At the cap the envelope is constant, so the
+    // real-time mean is the cap mean times that fraction.
+    const capMean = hazardMeanSpeedFrac(DEFAULT_HAZARD_CONFIG, Infinity);
+    expect(capMean).toBeCloseTo(0.7, 6);
+
+    const slowRatio = fedLavaClockRatio("slow-lava", 4);
+    const hardenRatio = fedLavaClockRatio("harden-lava", 4);
+    // 8 s at 0.6x in every 48 s -> 0.70 x (1 - 0.4 x 8/48) = 0.6533.
+    expect(capMean * slowRatio).toBeCloseTo(0.6533, 3);
+    // 7 s frozen in every 62 s -> 0.70 x 55/62 = 0.6210.
+    expect(capMean * hardenRatio).toBeCloseTo(0.621, 3);
+    // Chained without overlap (the header's ~0.57x): both cuts add. Nominal
+    // 0.5743; the sim measures 0.5749 because an orb picked up on tick t first
+    // scales the lava clock on tick t+1, so each window runs one tick short.
+    expect(capMean * (1 - (1 - slowRatio) - (1 - hardenRatio))).toBeCloseTo(0.5745, 3);
   });
 
   it("no other power-up touches the lava clock", () => {
@@ -1174,6 +1182,30 @@ function runFor(ticks: number, boosted: boolean): number {
 
 /** Close enough that lava catch-up does not fire while a test holds the climber. */
 const LAVA_HOLD_LEAD_M = 40;
+
+/**
+ * Feed a standing climber `type` as fast as the cooldown allows (an orb always
+ * waits at their feet) for `cycles` full duration+cooldown periods, and return
+ * the fraction of real time the lava clock actually ran. Uses the SLOW config
+ * so the lava never reaches the climber and the leash never engages.
+ */
+function fedLavaClockRatio(type: "slow-lava" | "harden-lava", cycles: number): number {
+  const m = climbingMatch();
+  const p = m.players[0];
+  const race0 = m.raceSeconds;
+  const slow0 = m.hazardSlowSeconds;
+  const steps = cycles * (durationTicks(type) + cooldownTicks(type));
+  let pickups = 0;
+  for (let i = 0; i < steps; i++) {
+    if (!m.powerUps.some((pu) => !pu.collected)) placeOrb(m, type, p.x, p.y);
+    stepMatch(m, { p1: NO_INPUT }, SLOW);
+    if (p.lastPickupTick === m.tick) pickups++;
+  }
+  expect(p.status).toBe("climbing");
+  expect(pickups).toBe(cycles);
+  const race = m.raceSeconds - race0;
+  return (race - (m.hazardSlowSeconds - slow0)) / race;
+}
 
 function hazardTrace(slowed: boolean, alsoActivate?: PowerUpType): number[] {
   const m = createMatch({

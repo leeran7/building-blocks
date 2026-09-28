@@ -20,11 +20,14 @@ import { ActivePowerStack } from "../../src/components/Game/PowerUpHud";
 import {
   DEATH_HIT_ATTACK,
   DEATH_HIT_PEAK,
+  LAVA_DOOM_LFO_IDLE_HZ,
   LAVA_STING_ATTACK,
   LAVA_STING_PEAK,
+  LAVA_SURGE_PEAK,
   PowerUpAudio,
   jetpackLoopGain,
   lavaDoomAttackSeconds,
+  lavaDoomLfoRate,
   lavaDoomLoopGain,
 } from "../../src/components/Game/powerUpAudio";
 import {
@@ -160,8 +163,24 @@ describe("world SFX: jetpack loop, lava doom, death hit", () => {
     expect(() => audio.setLavaDoom(true, 0.4)).not.toThrow();
     expect(() => audio.setLavaDoom(false, 0)).not.toThrow();
     expect(() => audio.playLavaSting()).not.toThrow();
+    expect(() => audio.setLavaDoom(true, 0.4, true)).not.toThrow();
+    expect(() => audio.playLavaSurge()).not.toThrow();
     expect(() => audio.playDeath()).not.toThrow();
     audio.dispose();
+  });
+
+  it("the surge whump sits between the sting swell and the death hit", () => {
+    expect(LAVA_SURGE_PEAK).toBeGreaterThan(LAVA_STING_PEAK);
+    expect(LAVA_SURGE_PEAK).toBeLessThan(DEATH_HIT_PEAK);
+  });
+
+  it("doom-loop heartbeat quickens during a surge", () => {
+    for (const fill of [0, 0.2, 0.6, 1]) {
+      expect(lavaDoomLfoRate(true, fill, true)).toBeGreaterThan(lavaDoomLfoRate(true, fill, false));
+    }
+    expect(lavaDoomLfoRate(true, 0.8, false)).toBeGreaterThan(lavaDoomLfoRate(true, 0.1, false));
+    expect(lavaDoomLfoRate(false, 0.8, true)).toBe(LAVA_DOOM_LFO_IDLE_HZ);
+    expect(lavaDoomLfoRate(true, 5, false)).toBe(lavaDoomLfoRate(true, 1, false));
   });
 
   it("doom-struck is louder and faster than doom-is-coming", () => {

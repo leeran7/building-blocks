@@ -1,0 +1,127 @@
+/**
+ * The season gate through the real stepMatch (design doc §3 winnability gate).
+ * Every negative guard here is proven against a row it must reject. The full
+ * 300-level re-check of the committed manifest is `pnpm season:verify 1`,
+ * run by CI's season job.
+ */
+
+import { describe, it, expect } from "vitest";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import { SEASON_1, LEVELS_PER_SEASON } from "../../../src/game/levels/season";
+import {
+  GATE,
+  buildManifest,
+  manifestShapeProblems,
+  measureLevel,
+  neverEasierProblems,
+  serializeManifest,
+  verifyLevelRow,
+  type ManifestLevel,
+  type SeasonManifest,
+} from "../../../src/game/levels/seasonGate";
+import { levelSpec, maxLavaMeanFrac } from "../../../src/game/levels/levelSpec";
+import { runLevel, idleShareForPace, NO_LAVA } from "../../../src/game/levels/levelRun";
+
+const committed = JSON.parse(
+  readFileSync(join(__dirname, "../../../src/game/levels/seasons/season-1.json"), "utf8")
+) as SeasonManifest;
+
+function measured(level: number, rev: number): ManifestLevel {
+  const m = measureLevel(SEASON_1, level, rev);
+  if ("failure" in m) throw new Error(m.failure);
+  return m.row;
+}
+
+describe("route bot", () => {
+  it("jumps to hanging ladders and off short tops", () => {
+    // L21 is the first level with both; a 150 ft goal crosses several floors.
+    const spec = { ...levelSpec(SEASON_1, 21), goalFt: 150 };
+    expect(spec.layout.hangingLadderFt).toBeGreaterThan(0);
+    expect(spec.layout.shortTopFt).toBeGreaterThan(0);
+    expect(runLevel(spec, { hazard: NO_LAVA }).outcome).toBe("cleared");
+  });
+
+  it("runs at the pace it is asked to", () => {
+    const spec = levelSpec(SEASON_1, 30);
+    const fast = runLevel(spec, { hazard: NO_LAVA });
+    expect(fast.outcome).toBe("cleared");
+    expect(fast.groundedTicks).toBeGreaterThan(0);
+    expect(fast.groundedTicks).toBeLessThan(fast.ticks);
+    const slow = runLevel(spec, { hazard: NO_LAVA, idleShare: idleShareForPace(fast, 0.8) });
+    expect(slow.outcome).toBe("cleared");
+    expect(fast.ticks / slow.ticks).toBeCloseTo(0.8, 1);
+  });
+});
+
+describe("level gate", () => {
+  // A prove-red level: the gate runs every check on it.
+  const row = committed.levels[GATE.proveRedFromLevel - 1];
+
+  it("passes the committed rows it re-measures", () => {
+    expect(row.level).toBe(GATE.proveRedFromLevel);
+    expect(verifyLevelRow(SEASON_1, row)).toEqual([]);
+    expect(verifyLevelRow(SEASON_1, committed.levels[0])).toEqual([]);
+  });
+
+  it("re-measures a committed row exactly", () => {
+    expect(measured(row.level, row.rev)).toEqual(row);
+  }, 60_000);
+
+  it("fails a level whose lava catches the route bot", () => {
+    // L300 (tightness 0.95): a catch point 10% too high puts the lava above
+    // the bot's real one while staying under the lava's speed cap.
+    const last = committed.levels[LEVELS_PER_SEASON - 1];
+    const tooFast = { ...last, catchMeanFrac: last.catchMeanFrac * 1.1 };
+    expect(tooFast.catchMeanFrac).toBeLessThanOrEqual(maxLavaMeanFrac());
+    tooFast.lavaMeanFrac = levelSpec(SEASON_1, last.level, last.rev).tightness * tooFast.catchMeanFrac;
+    expect(verifyLevelRow(SEASON_1, tooFast).join()).toMatch(/caught by the level's lava/);
+  });
+
+  it("fails a level the slower bot can still clear", () => {
+    const tooSlow = { ...row, catchMeanFrac: row.catchMeanFrac * 0.6 };
+    tooSlow.lavaMeanFrac = levelSpec(SEASON_1, row.level, row.rev).tightness * tooSlow.catchMeanFrac;
+    expect(verifyLevelRow(SEASON_1, tooSlow).join()).toMatch(/prove-red bot \(.* pace\) was cleared/);
+  });
+
+  it("fails a late level no lava can catch", () => {
+    expect(verifyLevelRow(SEASON_1, { ...row, catchCapped: true }).join()).toMatch(/cannot be proven loseable/);
+  });
+
+  it("fails rows whose derived values were edited", () => {
+    expect(verifyLevelRow(SEASON_1, { ...row, lavaMeanFrac: row.lavaMeanFrac * 0.9 }).join()).toMatch(
+      /tightness × catch point/
+    );
+    expect(verifyLevelRow(SEASON_1, { ...row, routeTicks: row.routeTicks + 30 }).join()).toMatch(/ramp|pars/);
+    const pars = { ...row.pars, threeStarTicks: row.pars.threeStarTicks + 1 };
+    expect(verifyLevelRow(SEASON_1, { ...row, pars }).join()).toMatch(/pars/);
+  });
+});
+
+describe("season manifest", () => {
+  it("is a whole, valid, never-easier season 1", () => {
+    expect(committed.levels).toHaveLength(LEVELS_PER_SEASON);
+    expect(manifestShapeProblems(committed, SEASON_1)).toEqual([]);
+  });
+
+  it("flags a level that is easier than the one before", () => {
+    const rows = committed.levels.slice(59, 62).map((r) => ({ ...r }));
+    expect(neverEasierProblems(SEASON_1, rows)).toEqual([]);
+    rows[2].lavaMeanFrac = rows[2].catchMeanFrac * 0.5;
+    expect(neverEasierProblems(SEASON_1, rows).join()).toMatch(/L61 → L62: measured lava tightness/);
+  });
+
+  it("refuses a manifest for another spec or with missing levels", () => {
+    const other = { ...committed, season: { ...SEASON_1, seedSalt: "x" } };
+    expect(manifestShapeProblems(other, SEASON_1).join()).toMatch(/does not match/);
+    const short = { ...committed, levels: committed.levels.slice(0, 299) };
+    expect(manifestShapeProblems(short, SEASON_1).join()).toMatch(/299 levels/);
+    const stale = { ...committed, specVersion: 0 };
+    expect(manifestShapeProblems(stale, SEASON_1).join()).toMatch(/spec v0/);
+  });
+
+  it("serializes to the committed file byte for byte", () => {
+    const file = readFileSync(join(__dirname, "../../../src/game/levels/seasons/season-1.json"), "utf8");
+    expect(serializeManifest(buildManifest(SEASON_1, committed.levels))).toBe(file);
+  });
+});

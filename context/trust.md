@@ -29,7 +29,18 @@ irreversible or money-adjacent writes — not generic OWASP.
    consecutive ticks above `isHeightDeltaLegal`. A ramp turns ground speed
    into vertical speed, so ramp slope must come from `maxRampSlope` in
    `app/src/game/obstacles.ts`. Any new ground-speed boost must be folded into
-   it. Stored replays (`climb_runs.replay_token`, `duels.player*_replay`) are
-   input logs re-simulated with current code, and `REPLAY_VERSION` is never
-   checked. Any change to `obstaclesForFloor` or `stepMatch` therefore
-   desyncs old replays and in-flight duels. Call this out in the PR.
+   it. Stored replays (`climb_runs.replay_token`, `duels.player*_replay`,
+   `daily_climb_scores.replay_token`) are input logs re-simulated with
+   current code. `REPLAY_VERSION` is the envelope format only and is never
+   checked against the engine. Any change to `obstaclesForFloor` or
+   `stepMatch` therefore desyncs old replays and in-flight duels. Call this
+   out in the PR. The one engine-version check is on the Daily Climb:
+   `POST /api/climb/daily/result` refuses a `simVersion` other than
+   `DAILY_SIM_VERSION` (`app/src/game/simVersion.ts`) with 409 before it
+   re-simulates, and stamps `sim_version` on each daily score. Bump it in
+   the same change as any engine edit that changes the free stack's output,
+   which `app/tests/game/freeStackGolden.test.ts` pins. That locks installed
+   mobile builds out of the daily board until they update (docs/deploy.md).
+   Level-only engine fields (`tower.goalM`, `tower.difficulty`, …) leave the
+   golden hashes alone and bump `LEVEL_SIM_VERSION` instead. Duels and
+   endless replays still have no version.

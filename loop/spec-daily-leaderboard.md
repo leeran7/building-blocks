@@ -1,0 +1,143 @@
+# Spec: Daily Climb leaderboard (mobile), plan steps 1–3
+
+**Product:** The Climb (building-blocks) · **Goal ID:** daily-climb-leaderboard-mobile
+**Status:** implemented (iteration 5, refreshed to the shipped design) · **Date:** 2026-09-26
+
+## Goal
+
+The Daily Climb copy promises "one shot at the top of the daily board", but no
+daily board exists. Daily runs post to the all-time board with a height the
+client reports. Ship a real per-day board on mobile. The day is the UTC day
+and the server decides it. Every height on the board comes from the server
+re-simulating the run.
+
+## Scope
+
+**In:** a shared UTC day module; `GET /api/climb/daily`; the `DailyClimbScore`
+model and migration; `POST /api/climb/daily/result` with server re-simulation;
+`GET /api/climb/daily/leaderboard{,/friends}`; mobile Today | All-time
+Ranks screen; ClimbScreen and HomeScreen daily wiring; web `DailyClimbClient`
+moved to the UTC day and the daily route (no new web UI).
+
+**Out (Future):** a web daily leaderboard tab, push notifications, yesterday's
+winners, a version check on duels and endless replays (the daily board has
+one: `simVersion`, see Risks), runs longer than `MAX_SHARE_TICKS` (10 min) on
+the daily board (they are saved to the all-time board instead).
+
+**Assumptions:** the free board's consent rule (`leaderboard_consent_at`)
+applies to the daily board. A daily save also raises the all-time record,
+using the same server peak. Client and server run the same engine build (see
+Risks).
+
+## Flows
+
+| F | Critical | Trigger → entry | Happy path | Empty / failure | Success next |
+|---|---|---|---|---|---|
+| F-1 Play today's tower | yes | Home DailyCard → `/climb?daily=1` (web: `/daily`) | The seed comes only from the server (no offline fallback: it is an HMAC the device cannot derive). Run → replay is encoded (raw bytes on a runtime without CompressionStream) → POST daily/result with `simVersion` → server rank shown | Seed unreachable: "Can't load today's tower" with Try again and "Play endless instead"; no daily starts. Save unreachable after the run: "couldn't reach today's board" with Try again. Closed day / mismatch / stale engine: a plain reason, no retry. Too long to encode: saved to the all-time board only, and says so (web and mobile). Guest: "sign in to save". No consent: the consent sheet first; if saving consent fails the sheet stays with the run so the player can retry or decline | "See today's board" CTA, Play again (after 00:00 UTC it refetches today's tower first) |
+| F-2 Check today's board | yes | Ranks tab → Today tab, or `?board=today` (All-time is the default) | Podium plus table, a status pill "Resets in Xh Ym", your banner, and a pinned row (#rank · height · tries) when outside the top 50 | Loading skeleton. Empty: "No one's climbed today's tower yet. Be first." plus Play. Error: RetryPanel. Not played: "Not on today's board" → Play | Play today's tower |
+| F-3 Friends today | no | Ranks → Today → Friends | You plus consented friends for today, with a hidden/not-climbed footer | No friends: "Race your friends" → /challenge. Error: RetryPanel | Find friends |
+| F-4 Opt in from the board | yes | Today banner "You're hidden" → "Show me on the board" | Consent sheet → PUT settings → board refetches | PUT fails: the sheet closes and the banner stays hidden (can retry) | Play today's tower |
+| F-5 Midnight rollover | yes | App open across 00:00 UTC | `useUtcDay` fires at the reset. Day slices refetch cold (skeleton), the countdown resets, and the DailyCard drops yesterday's rank. Play again / Start refetches the seed when the server's `resetsAt` has passed since it was fetched, so the next run is on today's tower | A run that straddles the reset is accepted for its day within 10 min, then DAY_CLOSED | New day's board |
+| F-6 Home glance | no | Home | DailyCard shows "#N today · H ft · Resets in …" once the server knows your rank | Unknown rank: falls back to the local best / countdown | Tap → F-1 |
+
+Mid-flow interrupts (F-1): a double POST adds one attempt and cannot lower
+the best (atomic upsert). If the app is killed before the POST, only the local
+streak is kept.
+
+## Personas
+
+- **Commuter climber:** plays one daily run on the train (F-1, F-2, F-6).
+- **Friend rival:** checks whether friends beat today's tower (F-3).
+- **Privacy-first player:** opted out, opts in to compete today (F-4).
+
+## Stories and ACs
+
+**S-1 (F-1).** As a commuter climber, I want my daily run ranked by the
+server, so that the board is fair.
+- AC-1: Given a valid replay of today's tower, when POSTed with a Bearer, then
+  200 `{saved:true, day, peakY, improved, rank, totalClimbers, attempts}` and
+  the stored peak equals the server re-sim.
+- AC-2: Given a body/token peak differing from the re-sim by > 0.1 m, then 400
+  `REPLAY_MISMATCH`, logged, nothing written.
+- AC-3: Given yesterday's seed at 00:05 UTC, then accepted for yesterday; at
+  00:11 UTC, then 400 `DAY_CLOSED`. Any other seed → `DAY_CLOSED`.
+- AC-4: Given no replayToken → 400 `REPLAY_REQUIRED`. Given > MAX_SHARE_TICKS →
+  400 (decode or `RUN_TOO_LONG`).
+- AC-5: Given no token / anonymous / no consent → 200 `{saved:false, reason}`
+  and no re-simulation or write.
+- AC-6: The per-IP limit shares namespace `climb` with /result; the per-user
+  limit key is `climb:daily:<uid>:<day>`; over the limit → 429 `RATE_LIMITED`.
+
+**S-2 (F-2, F-5).** As a commuter climber, I want to see today's standings
+and when the tower resets.
+- AC-7: `GET /api/climb/daily/leaderboard` returns ≤ 50 consented rows,
+  ordered peak desc, then earliest `updated_at`, then userId, plus `day`,
+  `resetsAt`, `totalClimbers`, and `me` (Bearer) or null.
+- AC-8: `?day=` that is not a real YYYY-MM-DD → 400 `INVALID_DAY`. A future day
+  or one > 7 days old → 400 `DAY_OUT_OF_RANGE`.
+- AC-9: Mobile Ranks shows the Global | Friends pill first, then an
+  All-time | Today underline tab row. All-time is the default. Today opens from
+  its tab or `?board=today` (any other value opens All-time). Both rows are
+  WAI-ARIA tablists with distinct names, arrow keys, Home/End and roving
+  tabindex. "See today's board" deep-links to Today.
+- AC-9b: The status pill under the title: Global · All-time "N climbers";
+  Friends · All-time "1 friend" / "N friends" (listed friends except you,
+  plus hidden and not-yet-climbed friends, from the loaded Friends board;
+  spoken "You have N friends"); either scope on Today "Resets in Xh Ym". An
+  unknown or zero count shows a neutral line, never a number, and the pill
+  keeps its height.
+- AC-10: When the player's rank > the rows shown, a pinned row shows
+  rank · height · tries.
+- AC-11: When the device UTC day changes, the day slices refetch cold. A
+  start after the server's `resetsAt` (since the seed was fetched) refetches
+  the seed first, on web and mobile.
+
+**S-3 (F-3).** As a friend rival, I want today's friends board.
+- AC-12: `/friends` requires auth (401 otherwise) and returns you plus
+  consented accepted friends for the day, with hiddenCount and notClimbedCount.
+
+**S-4 (F-1, F-6).** As a commuter climber, I want the local streak on the
+same day as the board.
+- AC-13: Daily day keys, seed, reset and streak use UTC. A legacy local-key
+  store migrates once: a future last-played key is clamped to today, and
+  future bests are dropped.
+
+## NFRs
+
+- Re-sim cost is about 20 µs/tick, so the 18 000-tick worst case is under
+  0.5 s. Bounded by 20 submissions per user per day per 5 min.
+- The public board is cached per day for 30 s (`unstable_cache`). `me` is
+  uncached. Cache keys are limited to 8 days by validation.
+- Mobile bundle: +3.3 kB gzipped.
+- A11y: WCAG 2.1 AA, 44 px targets, live regions on the rank line and banner.
+
+## Risks
+
+- **Engine version.** Clients send `simVersion` (`src/game/simVersion.ts`).
+  A missing or different value is 409 `SIM_VERSION_MISMATCH` before re-sim,
+  logged apart from `REPLAY_MISMATCH`, and mobile says "update the app to post
+  daily scores" (SEC-DC-4). Bump `DAILY_SIM_VERSION` with any engine change;
+  that locks installed builds out of the daily board until they update, so
+  release order matters (docs/deploy.md). `REPLAY_VERSION` is only the token
+  format: stored replays re-simulate with the current engine.
+- **Old iOS.** iOS 15.0-16.3 has no CompressionStream, so its tokens carry
+  raw packed bytes. The server accepts that form under the same output cap
+  (RV-DC-2); the two forms cannot be confused.
+- **Copied replays.** Tokens are public. The first account to submit a
+  canonical input log owns it for the day, and others get 409
+  `REPLAY_REUSED` (SEC-DC-2). A perturbed copy that changes an input still
+  gets through; that is a residual risk.
+- **Seed secrecy.** The seed is HMAC-SHA256(`DAILY_SEED_SECRET`, day), served
+  only for today by GET /api/climb/daily. Without the secret the daily routes
+  return 503, and without a connection the daily cannot start (SEC-DC-3).
+- **Cross-engine float determinism** (JavaScriptCore on iOS vs V8 on the
+  server). Duel re-sim already depends on this. A drift beyond 0.1 m shows up
+  as logged mismatches.
+- **UTC switch** moves the reset time for everyone. A player far from UTC can
+  lose one streak day during migration.
+- **Bots** that play legally pass re-sim. Re-sim stops forged heights, not
+  automation.
+
+## Open Questions
+
+None blocking. Should runs longer than 10 min get a server path? (Future.)

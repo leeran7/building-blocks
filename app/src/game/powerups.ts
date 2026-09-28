@@ -10,13 +10,17 @@
  *   jetpack       skip a ladder detour — hold jump to thrust, fuel is short
  *   slow-lava     the lava eventually outpaces any climber; buy back seconds
  *   harden-lava   lava turns to rock for a short burst; long cooldown
+ *   random        one of the seven above, rolled per (seed, orb, slot) by
+ *                 `resolveRandom` so re-simulation agrees (AC-11)
  *
- * BALANCE. The hazard envelope ramps toward 1.0× (ladder climb speed) and
- * stumbles (2s of 0.25× envelope every 8s), so the time-averaged chase
- * settles near 0.75× — climbable on a ladder, with longer stumble windows for
- * lets the lava close in. Power-ups are what push past that cap, and they are
- * cap, and they are deliberately shaped so the ceiling is raised by PLAYING
- * WELL rather than by collecting:
+ * BALANCE. The lava's surge speed (the envelope) ramps 0.42x -> 0.91x ladder
+ * climb speed over 120 s, then creeps up to the 1x cap (~6.5 min). Every 16 s
+ * it stumbles for 6 s at 0.2x envelope. So the time-averaged chase is 0.64x
+ * when the ramp ends and 0.70x at the cap (hazard.ts header,
+ * `hazardMeanSpeedFrac`). The best unaided pace is ~0.55-0.62x, so every
+ * unaided run ends. Power-ups are what push a climber past that threshold, and
+ * they are deliberately shaped so the ceiling is raised by PLAYING WELL rather
+ * than by collecting:
  *
  *   - one live entry per type. A second orb of the same type refreshes the
  *     running effect rather than stacking charges, so super-jump cannot be
@@ -26,21 +30,27 @@
  *   - short windows that must be spent on the right terrain — rapid-climb is
  *     wasted if you are not on a ladder, leftover jetpack fuel dies if jump
  *     is not held (or with the spend window);
- *   - multipliers under 2x, so no single pickup trivialises a floor;
- *   - slow-lava cuts the lava's clock by 40% and is the rarest drop, but
- *     weights toward it with altitude — exactly where the lava wins — so a deep
- *     run keeps getting the tool it needs to go deeper.
+ *   - multipliers at most 2x, so no single pickup trivialises a floor;
+ *   - slow-lava cuts the lava's clock by 40%. It and harden-lava are the
+ *     rarest drops, but both weight toward themselves with altitude — exactly
+ *     where the lava wins — so a deep run keeps getting the tools it needs.
  *
- * THE RUN MUST STILL END. The endless tower's guarantee is that the lava's
- * time-averaged late-game speed (envelope × stumble duty) stays above 1x climb
- * speed, so no climber outlasts it. Time-slow is the one power-up that can break
- * that: held at 100% uptime it would drop the lava to (1 − TIME_SLOW_FRAC) of
- * its clock and the tower could become survivable forever. Its cooldown is
- * what keeps the guarantee — it caps uptime at 8s in every 48s, so the lava
- * still averages meanSpeedFrac · (1 − TIME_SLOW_FRAC · 0.167). At 0.4 that is
- * 0.75 · 0.933 = 0.700. Do not raise TIME_SLOW_FRAC or shorten the cooldown
- * without redoing that arithmetic — `powerups.test.ts` asserts the bound.
- * The 8s/40s pair keeps the same uptime fraction as the old 6s/30s window.
+ * LAVA-CLOCK POWER-UPS. slow-lava and harden-lava are the only pickups that
+ * touch the lava clock, and their cooldowns bound how much. slow-lava runs at
+ * most 8 s in every 48 s (40 s cooldown), so it cuts the mean by at most
+ * TIME_SLOW_FRAC * 8/48 = 6.7% (0.70x -> 0.65x at the cap). harden-lava stops
+ * the clock for at most 7 s in every 62 s (55 s cooldown), an 11.3% cut
+ * (0.70x -> 0.62x). Chained at full uptime the two leave ~0.57x at the cap
+ * (~0.52x when the ramp ends), below the best unaided pace, so a run fed by
+ * both is NOT guaranteed to end: orb supply, not these cooldowns, is what
+ * bounds it. Cooldowns are per player, and in a duel either climber's effect
+ * applies to both (`hazardTimeScale`), so a duel can see up to twice that
+ * uptime. A random orb that rolls either type obeys the same cooldown. Do not
+ * raise TIME_SLOW_FRAC, lengthen either duration or shorten either cooldown
+ * without redoing this arithmetic. powerups.test.ts pins both types' constants
+ * to literals and measures the resulting means (0.6533 / 0.621, chained
+ * 0.5745). The 8 s / 40 s pair keeps the same uptime fraction as the old
+ * 6 s / 30 s window.
  *
  * Spawns are a seeded GAP SCHEDULE, not independent per-floor coin flips:
  * a random first floor, then mixed clusters and droughts whose mean gap
@@ -60,7 +70,16 @@ import {
 } from "./types";
 import { createRng, Rng } from "./rng";
 import { createSeedCache } from "./seedCache";
-import { floorHeight, floorIndexAt, laddersForFloor, platformsForFloor } from "./towers";
+import {
+  DIFFICULTY_FLOORS,
+  difficultyAt,
+  floorHeight,
+  floorIndexAt,
+  geometryCacheKey,
+  laddersForFloor,
+  platformsForFloor,
+  summitFloor,
+} from "./towers";
 
 // ── Pickup geometry ────────────────────────────────────────────────────────
 
@@ -79,8 +98,8 @@ const MIN_SPAWN_FLOOR = 1;
 /** First orb lands somewhere in this inclusive range (varies per tower seed). */
 const FIRST_SPAWN_MIN = 1;
 const FIRST_SPAWN_MAX = 4;
-/** Floors over which spawn density and the slow-lava bias ramp to their maximum. */
-const RAMP_FLOORS = 50;
+/** Floor a level's intro orb (tower.introPowerUp) is forced onto. */
+export const INTRO_POWER_UP_FLOOR = 2;
 /** Target occupancy per floor at the base, and after the ramp (drives mean gap). */
 const SPAWN_CHANCE_LOW = 0.22;
 const SPAWN_CHANCE_HIGH = 0.34;
@@ -124,7 +143,10 @@ export const SUPER_JUMP_AIR_JUMPS = 3;
  * line visibly slows without stalling the way 0.75 did.
  */
 export const TIME_SLOW_FRAC = 0.4;
-/** Seconds before slow-lava may be used again — the endless-run guarantee. */
+/**
+ * Seconds before slow-lava may be used again. Bounds its uptime to 8 s in every
+ * 48 s; it does not guarantee a run ends (see LAVA-CLOCK POWER-UPS above).
+ */
 export const TIME_SLOW_COOLDOWN_SECONDS = 40;
 /** Seconds before harden-lava may be used again. */
 export const HARDEN_LAVA_COOLDOWN_SECONDS = 55;
@@ -147,8 +169,9 @@ export interface PowerUpSpec {
   /** How long the effect lasts, in seconds. */
   durationSeconds: number;
   /**
-   * Seconds after the effect ends before this type may be activated again. Only
-   * slow-lava needs one — see the note at the top on why the run must still end.
+   * Seconds after the effect ends before this type may be activated again.
+   * slow-lava and harden-lava set one; every other type uses 0. See
+   * LAVA-CLOCK POWER-UPS at the top for how the cooldowns bound the lava clock.
    */
   cooldownSeconds: number;
   /**
@@ -291,16 +314,94 @@ export function canActivate(
   return cooldownRemaining(p, type, tick) === 0;
 }
 
+// ── Level power-up rules ───────────────────────────────────────────────────
+
+function isPowerUpType(t: unknown): t is PowerUpType {
+  return typeof t === "string" && Object.hasOwn(POWER_UP_SPECS, t);
+}
+
+/**
+ * A level tower's allowed power-up set, validated, or null when the tower has
+ * none (every type allowed). Throws on an unknown type, a duplicate, or
+ * "random" with no concrete type to roll (reject, never substitute).
+ */
+export function allowedPowerUpsOf(tower: TowerSpec): readonly PowerUpType[] | null {
+  const allowed = tower.allowedPowerUps;
+  if (allowed === undefined) return null;
+  const seen = new Set<PowerUpType>();
+  for (const t of allowed) {
+    if (!isPowerUpType(t)) throw new RangeError(`unknown power-up type in tower.allowedPowerUps: ${String(t)}`);
+    if (seen.has(t)) throw new RangeError(`duplicate power-up type in tower.allowedPowerUps: ${t}`);
+    seen.add(t);
+  }
+  if (seen.has("random") && seen.size === 1) {
+    throw new RangeError(`tower.allowedPowerUps allows "random" with no concrete type to roll`);
+  }
+  return allowed;
+}
+
+/** May a power-up of this type spawn on (or be granted by) this tower? */
+export function isPowerUpAllowed(tower: TowerSpec, type: PowerUpType): boolean {
+  const allowed = allowedPowerUpsOf(tower);
+  return allowed === null || allowed.includes(type);
+}
+
+/** A level tower's intro type, validated against its allowed set, or null. */
+function introPowerUpOf(tower: TowerSpec): PowerUpType | null {
+  const intro = tower.introPowerUp;
+  if (intro === undefined) return null;
+  if (!isPowerUpType(intro)) throw new RangeError(`unknown tower.introPowerUp: ${String(intro)}`);
+  if (!isPowerUpAllowed(tower, intro)) {
+    throw new RangeError(`tower.introPowerUp ${intro} is not in tower.allowedPowerUps`);
+  }
+  return intro;
+}
+
+/**
+ * Validate a level run's starting power-up against its tower: a concrete type
+ * the tower allows. Returns it, or throws.
+ */
+export function validateStartPowerUp(
+  tower: TowerSpec,
+  type: unknown
+): Exclude<PowerUpType, "random"> {
+  if (!isPowerUpType(type) || type === "random") {
+    throw new RangeError(`start power-up must be a concrete power-up type, got ${String(type)}`);
+  }
+  if (!isPowerUpAllowed(tower, type)) {
+    throw new RangeError(`start power-up ${type} is not in tower.allowedPowerUps`);
+  }
+  return type;
+}
+
+/** Cache key for the spawn schedule: geometry plus the level power-up rules. */
+function spawnCacheKey(tower: TowerSpec): string {
+  const base = geometryCacheKey(tower);
+  const allowed = allowedPowerUpsOf(tower);
+  const intro = introPowerUpOf(tower);
+  if (allowed === null && intro === null) return base;
+  const set = allowed === null ? "all" : [...allowed].sort().join(",");
+  return `${base}|allow=${set}|intro=${intro ?? "none"}`;
+}
+
 // ── Deterministic spawning ─────────────────────────────────────────────────
 
 /**
  * Target occupancy used to size gaps — denser with altitude so deep runs stay
  * supplied. Not a per-floor coin flip; the schedule below is what actually
- * places orbs.
+ * places orbs. A level tower may pin its own occupancy (`tower.powerUpChance`);
+ * without a tower this is the free-stack altitude ramp.
  */
-export function spawnChanceForFloor(i: number): number {
+export function spawnChanceForFloor(i: number, tower?: TowerSpec): number {
   if (i < MIN_SPAWN_FLOOR) return 0;
-  const d = Math.min(1, i / RAMP_FLOORS);
+  const fixed = tower?.powerUpChance;
+  if (fixed !== undefined) {
+    if (!Number.isFinite(fixed) || fixed < 0 || fixed > 1) {
+      throw new RangeError(`tower.powerUpChance must be in [0, 1], got ${fixed}`);
+    }
+    return fixed;
+  }
+  const d = tower ? difficultyAt(tower, i) : Math.min(1, i / DIFFICULTY_FLOORS);
   return SPAWN_CHANCE_LOW + (SPAWN_CHANCE_HIGH - SPAWN_CHANCE_LOW) * d;
 }
 
@@ -313,7 +414,7 @@ export function firstSpawnFloor(tower: TowerSpec): number {
 /** Gap (in floors) after spawn `ordinal` at `fromFloor`. Always >= 1. */
 function gapAfter(tower: TowerSpec, ordinal: number, fromFloor: number): number {
   const r = createRng(`${tower.seed}:pu:gap:${ordinal}`);
-  const mean = 1 / Math.max(0.08, spawnChanceForFloor(fromFloor));
+  const mean = 1 / Math.max(0.08, spawnChanceForFloor(fromFloor, tower));
   const roll = r.next();
   // Drought: a long empty stretch so the next orb feels like a find.
   if (roll < 0.14) return Math.max(4, Math.round(mean * (1.8 + r.next() * 1.4)));
@@ -340,24 +441,33 @@ interface SpawnRec {
 const spawnScheduleCache = createSeedCache<SpawnRec[]>(8, () => []);
 
 function spawnScheduleUntil(tower: TowerSpec, atLeast: number): SpawnRec[] {
-  const list = spawnScheduleCache.get(tower.seed);
+  const list = spawnScheduleCache.get(spawnCacheKey(tower));
+  const allowed = allowedPowerUpsOf(tower);
   if (list.length === 0) {
-    const floor = firstSpawnFloor(tower);
-    const rng = createRng(`${tower.seed}:pu:type:${floor}`);
-    list.push({ floor, type: pickType(rng, floor, null) });
+    // A level's intro orb replaces the schedule's first entry.
+    const intro = introPowerUpOf(tower);
+    if (intro !== null) {
+      list.push({ floor: INTRO_POWER_UP_FLOOR, type: intro });
+    } else {
+      const floor = firstSpawnFloor(tower);
+      const rng = createRng(`${tower.seed}:pu:type:${floor}`);
+      list.push({ floor, type: pickType(rng, difficultyAt(tower, floor), null, allowed) });
+    }
   }
   while (list[list.length - 1].floor < atLeast) {
     const k = list.length - 1;
     const prev = list[k];
     const floor = prev.floor + Math.max(1, gapAfter(tower, k, prev.floor));
     const rng = createRng(`${tower.seed}:pu:type:${floor}`);
-    list.push({ floor, type: pickType(rng, floor, prev.type) });
+    list.push({ floor, type: pickType(rng, difficultyAt(tower, floor), prev.type, allowed) });
   }
   return list;
 }
 
 function spawnAtFloor(tower: TowerSpec, i: number): SpawnRec | null {
   if (i < MIN_SPAWN_FLOOR) return null;
+  // An empty allowed set spawns nothing (L1-3, the No power-ups level type).
+  if (allowedPowerUpsOf(tower)?.length === 0) return null;
   const list = spawnScheduleUntil(tower, i);
   let lo = 0;
   let hi = list.length - 1;
@@ -371,29 +481,72 @@ function spawnAtFloor(tower: TowerSpec, i: number): SpawnRec | null {
   return null;
 }
 
-/** Pick a type by weight, with per-spawn jitter and a penalty for repeating. */
-function pickType(rng: Rng, i: number, avoid: PowerUpType | null): PowerUpType {
-  const d = Math.min(1, i / RAMP_FLOORS);
+/**
+ * Pick a type by weight, with per-spawn jitter and a penalty for repeating.
+ * A type outside `allowed` weighs 0 but still draws its jitter, so the RNG
+ * stream (and every free-stack pick) is the same with or without a set.
+ * `allowed` must hold at least one type.
+ */
+function pickType(
+  rng: Rng,
+  d: number,
+  avoid: PowerUpType | null,
+  allowed: readonly PowerUpType[] | null = null
+): PowerUpType {
   const weights = POWER_UP_TYPES.map((t) => {
     const s = POWER_UP_SPECS[t];
     let w = s.weight * (1 + (s.altitudeWeightMult - 1) * d);
     w *= 0.55 + rng.next() * 0.9;
     if (t === avoid) w *= 0.22;
+    if (allowed !== null && !allowed.includes(t)) w = 0;
     return w;
   });
   const total = weights.reduce((a, b) => a + b, 0);
   let acc = rng.next() * total;
+  let last: PowerUpType | null = null;
   for (let k = 0; k < POWER_UP_TYPES.length; k++) {
+    if (weights[k] === 0) continue;
+    last = POWER_UP_TYPES[k];
     acc -= weights[k];
-    if (acc <= 0) return POWER_UP_TYPES[k];
+    if (acc <= 0) return last;
   }
-  return POWER_UP_TYPES[POWER_UP_TYPES.length - 1];
+  if (last === null) throw new RangeError("pickType needs at least one allowed type");
+  return last;
 }
 
-/** Resolve a "random" pickup into a concrete effect type. Truly random every time. */
-export function resolveRandom(): Exclude<PowerUpType, "random"> {
-  const idx = Math.floor(Math.random() * CONCRETE_POWER_UP_TYPES.length);
-  return CONCRETE_POWER_UP_TYPES[idx];
+/**
+ * Resolve a "random" orb into a concrete effect type for one collector.
+ *
+ * Deterministic (AC-11): the roll is a pure function of the tower seed, the
+ * orb's stable identity (its floor index; there is one orb per floor, id
+ * `pu:<floor>`) and the collecting player's slot. The live client, replay
+ * playback, `verifyDailyReplay` and `simulateDuel` therefore all resolve the
+ * same orb to the same effect. The pickup tick is deliberately NOT in the key:
+ * a touch that `canActivate` blocks cannot change the eventual roll, and a
+ * player cannot fish for a better effect by timing the pickup.
+ *
+ * What a player can predict: the tower seed is known to the client, so anyone
+ * who runs the sim can compute, before reaching it, which effect every random
+ * orb will give their slot. It is hidden in the UI but not secret, and no
+ * input can change it. Every daily player is slot 0 on the same seed, so the
+ * same random orb gives everyone the same effect. In a duel the two slots
+ * roll independently, so the same orb can give each player something else.
+ */
+export function resolveRandom(
+  towerSeed: string,
+  floorIndex: number,
+  slot: number,
+  allowed: readonly PowerUpType[] | null = null
+): Exclude<PowerUpType, "random"> {
+  // A level rolls only among its allowed concrete types; allowedPowerUpsOf
+  // guarantees at least one whenever "random" can spawn.
+  const pool =
+    allowed === null
+      ? CONCRETE_POWER_UP_TYPES
+      : CONCRETE_POWER_UP_TYPES.filter((t) => allowed.includes(t));
+  if (pool.length === 0) throw new RangeError("resolveRandom has no concrete type to roll");
+  const rng = createRng(`${towerSeed}:pu:random:${floorIndex}:${slot}`);
+  return pool[rng.int(0, pool.length)];
 }
 
 function clampToPiece(piece: Platform, x: number, margin: number): number {
@@ -476,6 +629,8 @@ function pickX(
  * (tower.seed, i) — the same tower always drops the same orbs.
  */
 export function powerUpForFloor(tower: TowerSpec, i: number): PowerUpPickup | null {
+  const summit = summitFloor(tower);
+  if (summit !== null && i >= summit) return null;
   const rec = spawnAtFloor(tower, i);
   if (!rec) return null;
 

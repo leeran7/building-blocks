@@ -54,7 +54,13 @@ import { settingsFromResponse } from "../../mobile/src/contexts/AppDataContext";
 import { initialsOf } from "../../mobile/src/lib/leaderboard";
 import { ANIMALS, climberHandle } from "@app/lib/handle";
 import { HexAvatar } from "../../mobile/src/components/HexAvatar";
-import { AvatarPickerScreen } from "../../mobile/src/screens/AvatarPickerScreen";
+import { AvatarPickerScreen, GRID_END_PADDING } from "../../mobile/src/screens/AvatarPickerScreen";
+import {
+  LAVA_CANVAS_VH,
+  LAVA_CLEARANCE,
+  LAVA_CREST_PX,
+  LAVA_SURFACE_FROM_TOP,
+} from "../../mobile/src/components/AnimatedBackdrop";
 
 const [FIRST, SECOND] = AVATARS;
 
@@ -335,5 +341,137 @@ describe("a 200 counts as saved only when the server echoes the avatar", () => {
   it("(d) and a 200 whose body is not an object", async () => {
     await saveAfter(json("ok"), SECOND.name);
     expectNotSaved();
+  });
+});
+
+describe("the picker fills the screen, Save sticks to the bottom (user report)", () => {
+  /** The rendered page skeleton: main > [header, scroller, save bar]. */
+  function layout() {
+    const main = container.querySelector("main");
+    const kids = [...(main?.children ?? [])];
+    const scroller = main?.querySelector("[data-avatar-scroller]") ?? null;
+    const bar = saveButton()?.closest("footer") ?? null;
+    return { main, kids, scroller, bar };
+  }
+  const classes = (el: Element | null) => new Set((el?.getAttribute("class") ?? "").split(/\s+/));
+
+  it("the page is a full-height column and the scroller takes all the space between header and save bar", () => {
+    state.settings = settings(null);
+    renderPicker();
+    const { main, kids, scroller, bar } = layout();
+    for (const c of ["flex", "h-full", "min-h-0", "flex-col"]) expect(classes(main).has(c)).toBe(true);
+    // Order: header, scroller, save bar, each a direct child of the page.
+    expect(kids.map((k) => k.tagName.toLowerCase())).toEqual(["header", "div", "footer"]);
+    expect(kids[1]).toBe(scroller);
+    expect(kids[2]).toBe(bar);
+    for (const c of ["flex-1", "min-h-0", "overflow-y-auto"]) expect(classes(scroller).has(c)).toBe(true);
+  });
+
+  it("the avatar grid scrolls inside the scroller, and Save lives outside it in the bottom bar", () => {
+    state.settings = settings(null);
+    renderPicker();
+    const { scroller, bar } = layout();
+    const grid = container.querySelector('[role="radiogroup"]');
+    expect(scroller?.contains(grid)).toBe(true);
+    expect(bar?.contains(grid)).toBe(false);
+    expect(scroller?.contains(saveButton() ?? null)).toBe(false);
+    expect(bar?.contains(saveButton() ?? null)).toBe(true);
+  });
+
+  it("the save bar sits just above the home indicator, with no gap above the bottom edge", () => {
+    state.settings = settings(null);
+    renderPicker();
+    const { bar } = layout();
+    const cls = classes(bar);
+    expect(cls.has("shrink-0")).toBe(true);
+    const bottom = [...cls].filter((c) => c.startsWith("pb-"));
+    expect(bottom).toEqual(["pb-[calc(env(safe-area-inset-bottom)+1rem)]"]);
+    // The old layout held Save 16vh up to stand clear of the lava band.
+    expect(bar?.getAttribute("class")).not.toMatch(/vh/);
+  });
+
+  it("the save bar is clear: no surface, border or shadow band, so the backdrop shows to the bottom edge", () => {
+    state.settings = settings(null);
+    renderPicker();
+    const { bar } = layout();
+    const surface = [...classes(bar)].filter((c) =>
+      /^(glass|glow-card|bg-|border|shadow|backdrop-|ring)/.test(c),
+    );
+    expect(surface).toEqual([]);
+    expect(bar?.getAttribute("style") ?? "").toBe("");
+    // The button keeps its own lime fill.
+    expect(classes(saveButton() ?? null).has("cta-lime")).toBe(true);
+  });
+
+  it("the grid ends with the lava-clearance padding, so the last row can scroll above the lava", () => {
+    state.settings = settings(null);
+    renderPicker();
+    const { scroller } = layout();
+    const content = scroller?.querySelector<HTMLElement>("[data-avatar-content]") ?? null;
+    // The radiogroup is the last thing in the padded content.
+    expect(content?.lastElementChild?.getAttribute("role")).toBe("radiogroup");
+    expect(classes(content).has("pb-(--avatar-grid-end)")).toBe(true);
+    expect(content?.style.getPropertyValue("--avatar-grid-end")).toBe(GRID_END_PADDING);
+    expect(GRID_END_PADDING).toContain(LAVA_CLEARANCE);
+  });
+
+  /**
+   * Evaluates the production CSS length for a given screen: vh, rem, px and
+   * the home-indicator inset become numbers; calc/max become arithmetic.
+   */
+  function cssPx(length: string, viewportH: number, safeBottom: number): number {
+    const js = length
+      .replace(/env\(safe-area-inset-bottom\)/g, String(safeBottom))
+      .replace(/([\d.]+)vh/g, (_, n) => `(${n}*${viewportH / 100})`)
+      .replace(/([\d.]+)rem/g, (_, n) => `(${n}*16)`)
+      .replace(/([\d.]+)px/g, "$1")
+      .replace(/calc/g, "")
+      .replace(/max/g, "Math.max");
+    expect(js).toMatch(/^[\d\s.+\-*/(),Mathmax]+$/);
+    return Function(`return ${js};`)() as number;
+  }
+
+  it.each([
+    ["iPhone 15 Pro Max", 932, 34],
+    ["iPhone 15", 852, 34],
+    ["iPhone SE", 667, 0],
+    ["iPad mini portrait", 1133, 20],
+  ])("on %s the last row's bottom clears the lava crest", (_device, viewportH, safeBottom) => {
+    // The lava crest's height above the bottom edge, from the canvas geometry.
+    const crest = (viewportH * LAVA_CANVAS_VH * (1 - LAVA_SURFACE_FROM_TOP)) / 100 + LAVA_CREST_PX;
+    // The clear save bar: pt-3 (12) + the 56px button + pb 1rem (16) + inset.
+    const bar = 12 + 56 + 16 + safeBottom;
+    const pad = cssPx(GRID_END_PADDING, viewportH, safeBottom);
+    expect(pad).toBeGreaterThanOrEqual(16);
+    expect(bar + pad).toBeGreaterThan(crest);
+    // And not absurdly more than needed (a row or so of slack at most).
+    expect(bar + pad - crest).toBeLessThan(96);
+  });
+
+  it("tiles fade out into the backdrop at the scroller's edge instead of running under Save", () => {
+    state.settings = settings(null);
+    renderPicker();
+    const { scroller } = layout();
+    const mask = (scroller as HTMLElement | null)?.style.getPropertyValue("mask-image") ?? "";
+    expect(mask).toContain("linear-gradient");
+    expect(mask).toContain("transparent");
+  });
+
+  it("while loading, the scroller still fills the page (no save bar yet), with the busy skeleton inside", () => {
+    state.settings = null;
+    renderPicker();
+    const { kids, scroller, bar } = layout();
+    expect(bar).toBeNull();
+    expect(kids.map((k) => k.tagName.toLowerCase())).toEqual(["header", "div"]);
+    expect(scroller?.querySelector('[role="status"][aria-busy="true"]')).toBeTruthy();
+  });
+
+  it("keeps the picker's a11y: radiogroup, one checked radio, labelled Save", () => {
+    state.settings = settings(FIRST.id);
+    renderPicker();
+    expect(container.querySelector('[role="radiogroup"][aria-label="Avatars"]')).toBeTruthy();
+    expect(container.querySelectorAll('[role="radio"][aria-checked="true"]')).toHaveLength(1);
+    expect(radio(FIRST.name)?.getAttribute("aria-checked")).toBe("true");
+    expect(saveButton()?.textContent).toBe("Save avatar");
   });
 });

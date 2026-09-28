@@ -113,6 +113,32 @@ Work through these steps in order when an incident is declared.
 
 ---
 
+### Daily Climb unavailable (DAILY_SEED_SECRET)
+
+**Symptom:** `GET /api/climb/daily` and `POST /api/climb/daily/result` return HTTP 503 `DAILY_UNAVAILABLE`. The apps show "Can't load today's tower". Logs show `[climb/daily] DAILY_SEED_SECRET is missing or too short`.
+
+**Root cause:** The daily tower seed is `HMAC-SHA256(DAILY_SEED_SECRET, day)` (`app/src/lib/dailySeedServer.ts`). The routes fail closed when the variable is unset or shorter than 32 characters, and there is deliberately no fallback seed.
+
+**Fix:**
+1. Generate a secret: `openssl rand -hex 32`.
+2. In Vercel Dashboard > **Settings > Environment Variables**, set `DAILY_SEED_SECRET` for every environment that serves the daily.
+3. Redeploy.
+
+**Rotation:** A new secret means a new tower for today. Runs started on the old seed are then refused as `DAY_CLOSED`. Rotate at 00:00 UTC, and never expose the value to a client or a `pull_request`-triggered job.
+
+### Daily scores refused with SIM_VERSION_MISMATCH
+
+**Symptom:** `POST /api/climb/daily/result` returns 409 `SIM_VERSION_MISMATCH` for many players; the app says "update the app to post daily scores".
+
+**Root cause:** The client's `simVersion` differs from the server's `DAILY_SIM_VERSION` (`app/src/game/simVersion.ts`). This is expected right after a release that bumped it: every installed mobile build sends the old value until it updates. Nothing is saved for those runs (the check runs before the re-simulation), and they are not added to the all-time board.
+
+**Fix:**
+1. Confirm the bump was intended (an engine change shipped in the same release).
+2. If the updated store build is live, wait for adoption. If it is not, roll the server back (see below) until it is, because the old engine cannot verify new runs and vice versa.
+3. Never bump `DAILY_SIM_VERSION` without shipping the matching mobile build, and never ship an engine change that moves the free stack's golden hashes (`app/tests/game/freeStackGolden.test.ts`) without bumping it: an old client's run would then fail as `REPLAY_MISMATCH`, which looks like a forgery.
+
+---
+
 ## Rollback procedure
 
 ### Option A — Vercel instant rollback (recommended, < 30 seconds)

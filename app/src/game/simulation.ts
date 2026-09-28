@@ -28,6 +28,7 @@ import {
   PlayerInput,
   PlayerState,
   PlayerId,
+  PowerUpType,
   TowerSpec,
   Platform,
   Ladder,
@@ -47,6 +48,9 @@ import {
   floorIndexAt,
   floorHeight,
   buildTower,
+  LADDER_JUMP_SPEED_FRAC,
+  ladderHangM,
+  ladderTopGapM,
 } from "./towers";
 import {
   grantPowerUp,
@@ -68,6 +72,8 @@ import {
   powerUpForFloor,
   pruneActive,
   resolveRandom,
+  allowedPowerUpsOf,
+  validateStartPowerUp,
 } from "./powerups";
 import { isOnObstacle, resolveObstacleMotion } from "./obstacles";
 import {
@@ -135,8 +141,12 @@ export function createMatch(params: {
   mode: MatchState["mode"];
   tower: TowerSpec;
   playerIds: PlayerId[];
+  /** Level runs only: a booster every climber is granted at GO. */
+  startPowerUp?: PowerUpType;
 }): MatchState {
   const { tower } = params;
+  const startPowerUp =
+    params.startPowerUp === undefined ? undefined : validateStartPowerUp(tower, params.startPowerUp);
   const players = params.playerIds.map((id, i) => {
     const p = spawnPlayer(id, i);
     // Spread players across the middle of the base platform so multiplayer
@@ -160,6 +170,7 @@ export function createMatch(params: {
     powerUps: [],
     powerUpFloorHi: 0,
   };
+  if (startPowerUp !== undefined) state.startPowerUp = startPowerUp;
   ensurePowerUps(state);
   return state;
 }
@@ -304,13 +315,20 @@ function integratePlayer(
         : undefined;
     if (!l || input.jump) {
       releaseLadder(p);
-      p.vy = input.jump && l ? tower.jumpSpeed * 0.7 : 0;
+      p.vy = input.jump && l ? tower.jumpSpeed * LADDER_JUMP_SPEED_FRAC : 0;
       p.grabSuppressedUntilRelease =
         curIx !== null && curSlot !== null ? { ix: curIx, slot: curSlot } : null;
     } else {
       p.vy = input.climbY * climbSpeed;
       p.y += p.vy * dt;
-      if (p.y >= l.y1) {
+      if (p.y >= l.y1 && ladderTopGapM(tower) > 0) {
+        // A level's short top stops below the next floor: hold at the top,
+        // still on the ladder, until the climber jumps off (the jump branch
+        // above). Stepping off onto the ground here would stand them on air.
+        p.x = l.x;
+        p.y = l.y1;
+        p.vy = 0;
+      } else if (p.y >= l.y1) {
         p.x = l.x;
         p.y = l.y1;
         p.vy = 0;
@@ -326,7 +344,9 @@ function integratePlayer(
         p.y = l.y0;
         p.vy = 0;
         releaseLadder(p);
-        p.onGround = true;
+        // A hanging ladder's bottom is in the air: drop to the floor rather
+        // than stand (and jump) from there.
+        p.onGround = ladderHangM(tower) === 0;
       }
     }
   } else {
@@ -487,6 +507,10 @@ export function stepMatch(
       state.phase = "climb";
       state.tick = 0;
       state.raceSeconds = 0;
+      // A level run's booster is live from GO.
+      if (state.startPowerUp !== undefined) {
+        for (const p of state.players) activatePowerUp(p, state.startPowerUp, 0);
+      }
     }
     return state;
   }
@@ -498,10 +522,21 @@ export function stepMatch(
   // 1. Rising hazard — speed is a fraction of the climber's climb rate, so the
   //    chase scales with how fast the player can move (AC-5, AC-6). The lava
   //    stumbles on a fixed cycle rather than accelerating at every moment.
-  //    Time-slow banks seconds the lava never gets to spend; catch-up spends
-  //    them a little faster while the lead climber is far ahead, then drops
-  //    back to 1× as soon as the gap is within 250m. Both keep the height
-  //    curve monotonic.
+  //    Time-slow banks seconds the lava never gets to spend; the leash
+  //    (hazardCatchupTimeScale) spends them faster in proportion to how far
+  //    the TRAILING climber is beyond HAZARD_LEASH_M, and runs at 1× within
+  //    it, so the lava rides a fixed distance behind whoever is lowest. Both
+  //    keep the height curve monotonic.
+  //    Keyed on the lowest climber, not the highest (SEC-LAVA-1): in a duel
+  //    client a peer's y is an unvalidated ghost snapshot, and under a max a
+  //    spoofed y ran the honest player's lava at the 3× cap. Under a min a
+  //    peer can never raise the scale above what the local player's own
+  //    height gives (the solo curve), and a trailer's client reads its own
+  //    exact height, so it agrees with the server's joint re-sim while the
+  //    opponent bursts ahead. A peer that really trails can still withhold
+  //    its lower joint lava by reporting a high y, so the leader's local lava
+  //    may sit above the server's, up to the solo curve (SEC-LAVA-11; the fix
+  //    is server-side, SEC-LAVA-9). Solo and daily have one climber: unchanged.
   const timeScale =
     hazardTimeScale(state.players, state.tick) *
     hazardCatchupTimeScale(climbingLeadM(state.players, state.hazardY));
@@ -553,32 +588,41 @@ export function stepMatch(
     p.cheatFlagged = sentinel.flagged;
 
     // 3. Auto-activate any orb the climber is now touching, on contact — no
-    //    banking, no use button. An orb whose type is still cooling down (only
-    //    slow-lava ever sets one) is left uncollected so it stays pickable once
-    //    the cooldown clears, rather than being wasted or bypassing the rule.
+    //    banking, no use button. An orb whose type is still cooling down
+    //    (slow-lava and harden-lava set one) is left uncollected so it stays
+    //    pickable once the cooldown clears, rather than being wasted or
+    //    bypassing the rule.
     for (const pu of state.powerUps) {
       if (pu.collected) continue;
       if (!overlapsPickup(pu, p.x, p.y)) continue;
+      // A random orb resolves from (tower seed, orb floor, slot), not the
+      // tick, so a touch blocked by canActivate resolves to the same effect
+      // later.
       const effectType = pu.type === "random"
-        ? resolveRandom()
+        ? resolveRandom(state.tower.seed, pu.floorIndex, p.slot, allowedPowerUpsOf(state.tower))
         : pu.type;
       if (!canActivate(p, effectType, state.tick)) continue;
       pu.collected = true;
       pu.collectedTick = state.tick;
-      const dur = durationTicks(effectType);
-      grantPowerUp(p, effectType, state.tick);
-      const cd = cooldownTicks(effectType);
-      if (cd > 0) p.cooldownUntilTick[effectType] = state.tick + dur + cd;
-      p.lastPickupTick = state.tick;
-      p.lastPickupType = effectType;
+      activatePowerUp(p, effectType, state.tick);
       break;
     }
 
     pruneActive(p, state.tick);
     p.jumpHeldPrev = input.jump;
 
-    // 4. DEATH LINE — the higher of the rising hazard and the Doodle-Jump fall
-    //    floor (peak minus the fall-death drop). The tower is endless: there is
+    // 4. FINISH — a level tower has a goal height; feet at or above it finish
+    //    the climb. Decided before the death line, so reaching the goal on the
+    //    tick the lava arrives still counts. Endless towers (free stack, Daily,
+    //    duels) have no goalM and never take this branch.
+    if (state.tower.goalM !== undefined && p.y >= state.tower.goalM) {
+      p.status = "finished";
+      p.finishedTick = state.tick;
+      continue;
+    }
+
+    // 5. DEATH LINE — the higher of the rising hazard and the Doodle-Jump fall
+    //    floor (peak minus the fall-death drop). On an endless tower there is
     //    no summit, so a run ends ONLY here. Peak height (the score) is retained
     //    (AC-8).
     const fallFloor = p.peakY - state.tower.fallDeathBelowPeakM;
@@ -590,12 +634,21 @@ export function stepMatch(
     }
   }
 
-  // 5. Keep the reachable band of power-ups materialized.
+  // 6. Keep the reachable band of power-ups materialized.
   ensurePowerUps(state);
 
-  // 6. Resolve match end + deterministic winner.
+  // 7. Resolve match end + deterministic winner.
   resolveOutcome(state);
   return state;
+}
+
+/** Start a power-up's effect on a climber, with its cooldown and HUD pickup. */
+function activatePowerUp(p: PlayerState, type: PowerUpType, tick: number): void {
+  grantPowerUp(p, type, tick);
+  const cd = cooldownTicks(type);
+  if (cd > 0) p.cooldownUntilTick[type] = tick + durationTicks(type) + cd;
+  p.lastPickupTick = tick;
+  p.lastPickupType = type;
 }
 
 /**
@@ -686,14 +739,25 @@ function wrapX(x: number, widthM: number): number {
   return w < 0 ? w + widthM : w;
 }
 
-/** Metres the highest still-climbing player sits above the lava. */
+/**
+ * Metres the LOWEST still-climbing player sits above the lava (0 when nobody
+ * is climbing). The leash reads this, so it hunts the trailer. A min is the
+ * only safe shape here: a peer's position on a duel client is self-reported
+ * (SEC-LAVA-1), and a min means it can never speed the lava clock beyond the
+ * local player's own solo lead. It can still raise the local lava above the
+ * server's joint lava, up to that solo curve, by reporting a high y while it
+ * really trails (SEC-LAVA-11; server-side fix tracked as SEC-LAVA-9).
+ */
 function climbingLeadM(players: readonly PlayerState[], hazardY: number): number {
-  let lead = 0;
+  let lead = Infinity;
   for (const p of players) {
     if (p.status !== "climbing") continue;
-    lead = Math.max(lead, p.y - hazardY);
+    const own = p.y - hazardY;
+    // A NaN ghost height never wins the comparison, so it cannot mask the
+    // local climber's real lead (Math.min would propagate the NaN).
+    if (own < lead) lead = own;
   }
-  return lead;
+  return lead === Infinity ? 0 : lead;
 }
 
 /**

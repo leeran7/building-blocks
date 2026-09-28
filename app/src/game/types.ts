@@ -126,8 +126,8 @@ export interface PlayerState {
   /** Power-ups currently running. Expired entries are dropped each tick. */
   activePowerUps: ActivePowerUp[];
   /**
-   * Earliest tick each type may be activated again. Only slow-lava sets one —
-   * see the balance note in powerups.ts on why the run has to stay finite.
+   * Earliest tick each type may be activated again. slow-lava and harden-lava
+   * set one — see LAVA-CLOCK POWER-UPS in the powerups.ts header.
    */
   cooldownUntilTick: Partial<Record<PowerUpType, number>>;
   /**
@@ -230,6 +230,64 @@ export interface TowerSpec {
    * their peak height reached, they have fallen off the climb and are out.
    */
   fallDeathBelowPeakM: number;
+  /**
+   * Level towers only: a fixed layout difficulty in [0, 1] for every floor,
+   * replacing the altitude ramp (see difficultyAt in towers.ts). Undefined on
+   * the free stack, Daily and duel towers, which keep the ramp bit-identical.
+   */
+  difficulty?: number;
+  /**
+   * Level towers only: target power-up occupancy per floor in [0, 1],
+   * replacing the altitude-scaled spawnChanceForFloor. Undefined elsewhere.
+   */
+  powerUpChance?: number;
+  /**
+   * Level towers only: the finish height in tower metres (shown as feet, 1:1).
+   * A climber whose feet reach it finishes; the tower is capped by a full-width
+   * summit floor, the first floor at or above it (see summitFloor in
+   * towers.ts). Undefined on the free stack, Daily and duel towers, which stay
+   * endless.
+   */
+  goalM?: number;
+  /**
+   * Level towers only: the power-up types that may spawn, in any order.
+   * "random" in the set lets random orbs spawn, and they roll only among the
+   * set's concrete types. An empty set spawns no orbs. Undefined elsewhere:
+   * every type spawns and random rolls among all of them.
+   */
+  allowedPowerUps?: readonly PowerUpType[];
+  /**
+   * Level towers only: a type introduced on this level. Its orb is forced as
+   * the first spawn, on INTRO_POWER_UP_FLOOR. Must be in allowedPowerUps.
+   */
+  introPowerUp?: PowerUpType;
+  /**
+   * Level layout knobs. Each is undefined on the free stack, Daily and duel
+   * towers, which keep their altitude ramp. Validated (and capped at the
+   * physical limits) by the readers in towers.ts; out of range throws.
+   *
+   * gapReachFrac: gap width as a fraction of a running jump's reach, [0, 0.75].
+   */
+  gapReachFrac?: number;
+  /** Chance a floor has one ladder up instead of two, [0, 1]. */
+  oneLadderChance?: number;
+  /**
+   * Shortest walk, in metres around the tower (it wraps), from any ladder
+   * arriving on a floor to any ladder leaving it. Kept whenever the floor has
+   * room; otherwise the ladder goes as far away as the floor allows.
+   */
+  minWalkM?: number;
+  /**
+   * Hanging ladders: every ladder starts this far above the floor it leaves,
+   * so it takes a jump to grab. At most 70% of a standing jump's rise.
+   */
+  ladderHangM?: number;
+  /**
+   * Short tops: every ladder stops this far below the floor it leads to. The
+   * climber holds at the top until they jump off. At most 70% of the rise of
+   * a jump off a ladder.
+   */
+  ladderTopGapM?: number;
 }
 
 export type MatchPhase =
@@ -252,10 +310,11 @@ export interface MatchState {
   hazardY: number;
   /**
    * Seconds subtracted from race-time before sampling the hazard curve.
-   * Slow-lava increases this (lava spends fewer seconds). Catch-up when the
-   * lead climber is far ahead decreases it — it can go negative — so the
-   * curve is sampled a little faster. Height is still only ever non-decreasing
-   * because the curve is monotonic in time.
+   * Slow-lava increases this (lava spends fewer seconds). The leash decreases
+   * it while the lowest climbing player is more than HAZARD_LEASH_M above the
+   * lava (it can go negative), so the curve is sampled a little faster.
+   * Height is still only ever non-decreasing because the curve is monotonic
+   * in time.
    */
   hazardSlowSeconds: number;
   tower: TowerSpec;
@@ -268,4 +327,9 @@ export interface MatchState {
   powerUps: PowerUpPickup[];
   /** Exclusive upper bound of the floor range `powerUps` has been generated for. */
   powerUpFloorHi: number;
+  /**
+   * Level runs only: a power-up every climber is granted at GO (a booster
+   * from the run ticket). Undefined on the free stack, Daily and duels.
+   */
+  startPowerUp?: Exclude<PowerUpType, "random">;
 }

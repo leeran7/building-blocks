@@ -1,4 +1,4 @@
-import { Routes, Route, Navigate, useNavigate } from "react-router-dom";
+import { Routes, Route, useNavigate } from "react-router-dom";
 import { ClimbScreen } from "../screens/ClimbScreen";
 import { AnimatedBackdrop } from "./AnimatedBackdrop";
 import { LogoMark } from "./LogoMark";
@@ -56,7 +56,7 @@ function GuestHome({
         <div className="mt-1 flex flex-col items-center gap-2">
           <LogoMark size={48} card className="mb-1" />
           <span className="font-mono text-[11px] uppercase tracking-[0.5em] text-text-muted">
-            endless&nbsp;climb
+            practice&nbsp;mode
           </span>
           <h1 className="gh-wordmark font-display text-[2.75rem] font-black uppercase leading-none tracking-tight text-text-primary">
             Doom<span className="text-signal">stack</span>
@@ -70,7 +70,7 @@ function GuestHome({
         <div className="flex w-full flex-col items-center gap-4">
           <button
             onClick={onPlay}
-            aria-label="Play"
+            aria-label="Practice, the endless climb"
             className="flex w-full items-center gap-4 rounded-2xl bg-signal px-5 py-5 text-left text-void shadow-signal transition-transform active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void"
           >
             <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-void/15">
@@ -78,18 +78,37 @@ function GuestHome({
             </span>
             <span className="flex-1">
               <span className="block font-display text-2xl font-black uppercase tracking-wide text-void">
-                Play
+                Practice
               </span>
               <span className="block font-mono text-[11px] uppercase tracking-[0.06em] text-void/70">
-                Endless quick climb
+                Endless climb
               </span>
             </span>
             <ChevronRight />
           </button>
 
+          {/* Levels need an account (Leeran): guests get Practice only. */}
+          <button
+            onClick={onSignIn}
+            aria-label="Sign in to play Levels"
+            className="glass flex w-full items-center gap-4 rounded-2xl border border-white/10 px-5 py-4 text-left transition-transform active:scale-[0.97]"
+          >
+            <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-signal/50 bg-signal/10 text-signal">
+              <LockGlyph />
+            </span>
+            <span className="flex-1">
+              <span className="block font-display text-lg font-black uppercase tracking-wide text-text-primary">
+                Levels
+              </span>
+              <span className="block text-meta text-text-secondary">
+                Sign in to climb 300 levels and earn stars
+              </span>
+            </span>
+          </button>
+
           <p className="max-w-[260px] text-xs leading-relaxed text-white [text-shadow:0_1px_3px_rgba(0,0,0,0.6)]">
-            Sign in to add friends, challenge them to 1v1 races, climb the
-            leaderboard, and save your progress.
+            Sign in to play Levels, add friends, challenge them to 1v1 races,
+            climb the leaderboard, and save your progress.
           </p>
         </div>
       </div>
@@ -100,6 +119,15 @@ function GuestHome({
         }
       `}</style>
     </main>
+  );
+}
+
+function LockGlyph() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden>
+      <rect x="5" y="11" width="14" height="10" rx="2" />
+      <path d="M8 11V8a4 4 0 0 1 8 0v3" />
+    </svg>
   );
 }
 

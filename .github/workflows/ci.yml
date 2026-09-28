@@ -3,11 +3,13 @@ name: CI
 # Job `name:` values are GitHub check contexts. They are required to merge
 # into main by the ruleset in .github/rulesets/require-ci-on-main.json.
 # Renaming a job without updating and re-applying that ruleset drops the gate.
+# feat/level-system is the Level System play-testing branch: its PRs need the
+# same gates before they merge there.
 on:
   push:
-    branches: [main, development]
+    branches: [main, development, feat/level-system]
   pull_request:
-    branches: [main, development]
+    branches: [main, development, feat/level-system]
   merge_group:
 
 permissions:
@@ -88,6 +90,54 @@ jobs:
           ADMIN_TOKEN: ${{ secrets.ADMIN_TOKEN }}
           BASE_URL: http://localhost:3000
 
+  season:
+    # Level System seasons (app/src/game/levels): re-plays every committed
+    # season's 300 levels with the route bot through the real stepMatch and
+    # fails if any level is no longer winnable, harder than the one before,
+    # or loseable by the slower bot. Split in shards so it stays quick.
+    name: Season gate (${{ matrix.shard }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1/4, 2/4, 3/4, 4/4]
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Setup pnpm 9
+        uses: pnpm/action-setup@v3
+        with:
+          version: 9
+          run_install: false
+
+      - name: Get pnpm store path
+        id: pnpm-cache
+        shell: bash
+        run: echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_OUTPUT
+
+      - name: Cache pnpm store
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('app/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Verify season 1
+        run: pnpm season:verify 1 --shard ${{ matrix.shard }}
+
   orchestrator:
     name: Orchestrator loop
     runs-on: ubuntu-latest
@@ -117,17 +167,19 @@ jobs:
   ci:
     name: CI
     if: always()
-    needs: [test, orchestrator]
+    needs: [test, season, orchestrator]
     runs-on: ubuntu-latest
     steps:
       - name: All required jobs passed
         env:
           TEST_RESULT: ${{ needs.test.result }}
+          SEASON_RESULT: ${{ needs.season.result }}
           ORCHESTRATOR_RESULT: ${{ needs.orchestrator.result }}
         run: |
           echo "test=$TEST_RESULT"
+          echo "season=$SEASON_RESULT"
           echo "orchestrator=$ORCHESTRATOR_RESULT"
-          if [ "$TEST_RESULT" != "success" ] || [ "$ORCHESTRATOR_RESULT" != "success" ]; then
+          if [ "$TEST_RESULT" != "success" ] || [ "$SEASON_RESULT" != "success" ] || [ "$ORCHESTRATOR_RESULT" != "success" ]; then
             echo "Required CI jobs did not all succeed."
             exit 1
           fi

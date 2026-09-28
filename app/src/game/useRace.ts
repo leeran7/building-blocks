@@ -326,9 +326,11 @@ export function useRace({
 
   /**
    * Slave every non-local player's position/status to its latest interpolated
-   * ghost, so the shared hazard (catch-up rubber-band + slow-lava) and the
-   * renderer see approximately-correct peer state. Called each tick before
-   * stepMatch (which, in localSlot mode, will NOT integrate these peers).
+   * ghost, so the shared hazard (the leash, keyed on the lowest climbing
+   * player - see simulation.ts climbingLeadM - plus the slow-lava /
+   * harden-lava flags) and the renderer see approximately-correct peer
+   * state. Called each tick before stepMatch (which, in localSlot mode, will
+   * NOT integrate these peers).
    */
   const applyGhosts = useCallback(
     (cur: MatchState) => {

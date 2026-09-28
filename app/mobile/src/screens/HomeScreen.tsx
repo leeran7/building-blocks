@@ -2,13 +2,16 @@ import { useCallback, useEffect, useId, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { tapHeavy } from "../lib/haptics";
 import { ALTITUDE_UNIT } from "@app/lib/units";
-import { useHubPrefetch } from "../contexts/AppDataContext";
-import { dailySummary, msUntilReset, formatReset, type DailySummary } from "../lib/daily";
+import { useDailyLeaderboard, useHubPrefetch } from "../contexts/AppDataContext";
+import { dailySummary, formatReset, type DailySummary } from "@app/lib/daily";
+import { useUtcDay } from "../hooks/useUtcDay";
 import { useMatchmakingQueue } from "../hooks/useMatchmakingQueue";
 import volcanoScene from "@app/../public/climb/volcano-tile.jpg";
 
 /**
- * Home = the game title screen. Play-first and hub-centric: the wordmark and
+ * Modes = the game's other ways to play, beside the level map (the home tab):
+ * Practice (the endless climb), the Daily, Quick Play and Challenge. It was
+ * the title screen before levels. Play-first and hub-centric: the wordmark and
  * the player's standing sit up top over the volcanic scene, and a dominant
  * PLAY button plus the secondary modes are anchored above the tab bar.
  */
@@ -23,29 +26,17 @@ export function HomeScreen() {
   // A failed load is not "no record": never tell a ranked player they're unranked.
   const standingFailed = hub.data === null && hub.error;
 
-  // Daily challenge state — refreshes each time Home mounts (after a run) and
-  // the reset countdown re-renders on a slow tick.
+  // Daily challenge state. The UTC clock re-reads on a slow tick, at the reset
+  // and on return to the foreground; the local summary is recomputed on each
+  // read so the card never shows a stale streak across the reset.
+  const clock = useUtcDay();
   const [daily, setDaily] = useState<DailySummary>(() => dailySummary());
-  const [resetMs, setResetMs] = useState<number>(() => msUntilReset());
   useEffect(() => {
-    // Recompute the whole summary (not just the countdown) so the card doesn't
-    // show a stale streak / "resets in" across a local-midnight rollover while
-    // the app sits foregrounded, and refresh on return-to-foreground.
-    const refresh = () => {
-      setDaily(dailySummary());
-      setResetMs(msUntilReset());
-    };
-    refresh();
-    const id = window.setInterval(refresh, 30_000);
-    const onVisible = () => {
-      if (document.visibilityState === "visible") refresh();
-    };
-    document.addEventListener("visibilitychange", onVisible);
-    return () => {
-      window.clearInterval(id);
-      document.removeEventListener("visibilitychange", onVisible);
-    };
-  }, []);
+    setDaily(dailySummary());
+  }, [clock]);
+  // Server-confirmed standing on today's board, when there is one.
+  const todayBoard = useDailyLeaderboard(clock.day).data;
+  const todayMe = todayBoard && todayBoard.day === clock.day ? todayBoard.me : null;
 
   const play = () => {
     void tapHeavy();
@@ -86,7 +77,7 @@ export function HomeScreen() {
             Doom<span className="text-signal">stack</span>
           </h1>
           <span className="pl-(--tracking-eyebrow) font-mono text-label uppercase tracking-eyebrow text-text-secondary">
-            Endless&nbsp;climb
+            More&nbsp;modes
           </span>
         </header>
 
@@ -99,7 +90,7 @@ export function HomeScreen() {
 
         <div className="flex w-full flex-col gap-3 pb-4 [@media(max-height:640px)]:pb-2">
           <PlayButton onPress={play} />
-          <DailyCard daily={daily} resetMs={resetMs} onPress={playDaily} />
+          <DailyCard daily={daily} today={todayMe} resetMs={clock.msUntilReset} onPress={playDaily} />
           <div className="grid grid-cols-2 gap-2.5">
             <ModeTile
               icon={<BoltIcon />}
@@ -195,7 +186,7 @@ function PlayButton({ onPress }: { onPress: () => void }) {
   return (
     <button
       onClick={onPress}
-      aria-label="Play endless climb"
+      aria-label="Practice, the endless climb"
       className="cta-lime flex min-h-[56px] w-full items-center gap-4 rounded-[22px] py-3 pl-3 pr-3 text-left text-void transition-transform active:scale-[0.97] [@media(max-height:640px)]:py-2.5"
     >
       <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#141612] text-signal shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_4px_12px_rgba(0,0,0,0.35)]">
@@ -203,7 +194,7 @@ function PlayButton({ onPress }: { onPress: () => void }) {
       </span>
       <span className="min-w-0 flex-1">
         <span className="block font-display text-cta font-black uppercase tracking-[-0.01em] text-void">
-          Play
+          Practice
         </span>
         <span className="mt-1 block font-mono text-label font-bold uppercase tracking-label text-void/80">
           Endless climb
@@ -216,18 +207,25 @@ function PlayButton({ onPress }: { onPress: () => void }) {
 
 function DailyCard({
   daily,
+  today,
   resetMs,
   onPress,
 }: {
   daily: DailySummary;
+  /** Today's server-verified standing; null until known or when not played. */
+  today: { rank: number | null; peakY: number } | null;
   resetMs: number;
   onPress: () => void;
 }) {
   const subId = useId();
   const reset = `Resets in ${formatReset(resetMs)}`;
-  const sub = daily.playedToday
-    ? `Today ${daily.todayBest.toLocaleString()} ${ALTITUDE_UNIT} · ${reset}`
-    : reset;
+  // The verified rank wins over the device-local best: it is what the board shows.
+  const sub =
+    today && today.rank !== null
+      ? `#${today.rank.toLocaleString()} today · ${today.peakY.toLocaleString()} ${ALTITUDE_UNIT} · ${reset}`
+      : daily.playedToday
+        ? `Today ${daily.todayBest.toLocaleString()} ${ALTITUDE_UNIT} · ${reset}`
+        : reset;
   return (
     <button
       onClick={onPress}

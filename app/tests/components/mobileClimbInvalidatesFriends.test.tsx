@@ -33,10 +33,14 @@ vi.mock("../../mobile/src/lib/haptics", () => ({
 }));
 
 const apiFetch = vi.fn(async (path: string, _init?: RequestInit): Promise<Response> => {
+  // PUT /api/settings echoes the saved settings, as the real route does; the
+  // consent flow trusts only an echoed leaderboardConsent (RV-DC-6).
   const body =
     path === "/api/climb/leaderboard/friends"
       ? { climbers: [], hiddenCount: 0, notClimbedCount: 0 }
-      : { ok: true };
+      : path === "/api/settings"
+        ? { displayName: null, username: null, social: {}, leaderboardConsent: true, avatarId: null }
+        : { ok: true };
   return { ok: true, status: 200, json: () => Promise.resolve(body) } as Response;
 });
 const postClimbResult = vi.fn(async (_run: object) => ({ ...saveResult }));

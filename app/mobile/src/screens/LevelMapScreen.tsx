@@ -1,0 +1,340 @@
+import { useCallback, useLayoutEffect, useRef, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
+import { useLevels } from "../contexts/LevelsContext";
+import { tapHeavy, tapLight } from "../lib/haptics";
+import { Button } from "../components/ui";
+import { LevelStartSheet } from "../components/levels/LevelStartSheet";
+import { LivesPill, StarRow, XpBar, useWhenDue } from "../components/levels/LevelBits";
+import {
+  EPISODE_SIZE,
+  episodeOf,
+  isHardLevel,
+  type LevelNode,
+  type StartResult,
+} from "../lib/levels/model";
+
+/** Vertical distance between two pins, px. */
+const ROW = 92;
+/** Extra room at each episode boundary for its banner, px. */
+const EPISODE_GAP = 60;
+/** Space under level 1 for the Play bar, px. */
+const BOTTOM_PAD = 150;
+/** Space above the last shown pin for the "more levels" fade, px. */
+const TOP_PAD = 140;
+/** Locked levels shown above the frontier before the map fades out. */
+const LOOKAHEAD = 10;
+
+/** Pin centre from the map's bottom edge, px. */
+export function pinBottom(level: number): number {
+  return BOTTOM_PAD + (level - 1) * ROW + (episodeOf(level) - 1) * EPISODE_GAP;
+}
+
+/** Pin centre across the map, % of its width: a gentle winding trail. */
+export function pinX(level: number): number {
+  return 50 + 28 * Math.sin((level - 1) * 0.85);
+}
+
+/**
+ * The home screen: a Candy Crush style map of numbered levels, climbing from
+ * level 1 at the bottom. Cleared levels show their stars, the frontier pin
+ * pulses, Hard levels glow ember, and later levels are locked. Tapping an
+ * open pin opens the level start card; Practice (the endless climb) sits
+ * beside the Play bar.
+ */
+export function LevelMapScreen() {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { client, season, loading, error, refresh, setPlayer } = useLevels();
+  const [selected, setSelected] = useState<LevelNode | null>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const scrolledFor = useRef<number | null>(null);
+
+  const refreshQuietly = useCallback(() => void refresh(), [refresh]);
+  useWhenDue(season?.player.nextLifeAt ?? null, refreshQuietly);
+
+  const frontier = season?.frontier ?? 1;
+  const shownTop = season ? Math.min(season.levels.length, frontier + LOOKAHEAD) : 0;
+  const height = shownTop > 0 ? pinBottom(shownTop) + TOP_PAD : 0;
+
+  // Open on the frontier, once per frontier, so a new clear scrolls to the next pin.
+  useLayoutEffect(() => {
+    const el = scrollRef.current;
+    if (!el || !season || scrolledFor.current === frontier) return;
+    scrolledFor.current = frontier;
+    el.scrollTop = Math.max(0, height - pinBottom(frontier) - el.clientHeight * 0.55);
+  }, [season, frontier, height]);
+
+  // "Next level" on a result card lands here with the next level's card open.
+  const openLevel = openLevelFromState(location.state);
+  useLayoutEffect(() => {
+    if (!season || openLevel === null) return;
+    navigate(".", { replace: true, state: null });
+    if (openLevel <= season.frontier) setSelected(season.levels[openLevel - 1]);
+  }, [season, openLevel, navigate]);
+
+  const startLevel = useCallback(
+    async (level: number) => {
+      let res: StartResult;
+      try {
+        res = await client.startLevel(level);
+      } catch {
+        return { ok: false as const, code: "NETWORK" as const };
+      }
+      if (res.ok) {
+        void tapHeavy();
+        setPlayer(res.ticket.player);
+        navigate(`/levels/${level}/play`, { state: { ticket: res.ticket } });
+        return res;
+      }
+      if (res.player) setPlayer(res.player);
+      return res;
+    },
+    [client, navigate, setPlayer],
+  );
+
+  const openPractice = useCallback(() => {
+    void tapHeavy();
+    navigate("/climb");
+  }, [navigate]);
+
+  if (!season) {
+    return (
+      <main className="flex h-full flex-col items-center justify-center gap-4 px-6 text-center">
+        {error && !loading ? (
+          <>
+            <p className="text-body text-text-secondary">Couldn&rsquo;t load the level map.</p>
+            <div className="w-full max-w-xs">
+              <Button onPress={() => void refresh()}>Try again</Button>
+            </div>
+            <Button variant="ghost" onPress={openPractice}>Play Practice</Button>
+          </>
+        ) : (
+          <p role="status" className="font-mono text-label uppercase tracking-label text-text-muted">
+            Loading levels…
+          </p>
+        )}
+      </main>
+    );
+  }
+
+  const shown = season.levels.slice(0, shownTop);
+  const current = season.levels[frontier - 1];
+  const episode = episodeOf(frontier);
+
+  return (
+    <main className="relative flex h-full flex-col">
+      <header className="absolute inset-x-0 top-0 z-20 bg-gradient-to-b from-void via-void/80 to-transparent px-4 pb-8 pt-[calc(env(safe-area-inset-top)+0.75rem)]">
+        <div className="flex items-center justify-between gap-2">
+          <LivesPill player={season.player} />
+          <XpBar player={season.player} compact />
+        </div>
+        <p className="mt-2.5 text-center font-mono text-label uppercase tracking-eyebrow text-text-secondary">
+          {season.name} · Episode {episode}
+        </p>
+      </header>
+
+      <div
+        ref={scrollRef}
+        className="relative flex-1 overflow-y-auto"
+        style={{ overscrollBehavior: "contain", WebkitOverflowScrolling: "touch" }}
+      >
+        <div className="relative mx-auto w-full max-w-md" style={{ height }}>
+          <Trail levels={shown.length} frontier={frontier} height={height} />
+          <ol aria-label={`${season.name} levels`} className="absolute inset-0">
+          {Array.from({ length: Math.floor((shownTop - 1) / EPISODE_SIZE) }, (_, i) => {
+            const first = (i + 1) * EPISODE_SIZE + 1;
+            return <EpisodeBanner key={first} episode={i + 2} bottom={pinBottom(first) - ROW / 2 - EPISODE_GAP / 2} />;
+          })}
+          {shown.map((node) => (
+            <LevelPin
+              key={node.level}
+              node={node}
+              state={node.level === frontier && node.stars === 0 ? "current" : node.level > frontier ? "locked" : "open"}
+              onOpen={() => {
+                void tapLight();
+                setSelected(node);
+              }}
+            />
+          ))}
+          {shownTop < season.levels.length && (
+            <li
+              aria-hidden
+              className="absolute inset-x-0 top-0 flex h-32 items-start justify-center bg-gradient-to-b from-void to-transparent pt-24 font-mono text-label uppercase tracking-label text-text-muted"
+            >
+              {season.levels.length - shownTop} more levels
+            </li>
+          )}
+          </ol>
+        </div>
+      </div>
+
+      <div className="absolute inset-x-0 bottom-0 z-20 flex items-stretch gap-2.5 bg-gradient-to-t from-void via-void/85 to-transparent px-4 pb-3 pt-10">
+        <button
+          type="button"
+          onClick={() => {
+            void tapLight();
+            setSelected(current);
+          }}
+          aria-label={`Open level ${current.level}`}
+          className="cta-lime flex min-h-[56px] flex-1 items-center justify-center gap-3 rounded-[22px] px-4 text-void transition-transform active:scale-[0.97]"
+        >
+          <span className="font-display text-cta font-black uppercase">Play</span>
+          <span className="rounded-lg bg-void/15 px-2 py-0.5 font-mono text-label font-bold uppercase tracking-label">
+            Level {current.level}
+          </span>
+        </button>
+        <button
+          type="button"
+          onClick={openPractice}
+          aria-label="Practice, the endless climb"
+          className="glass flex min-h-[56px] flex-col items-center justify-center rounded-[22px] border border-white/10 px-4 transition-transform active:scale-[0.97]"
+        >
+          <InfinityIcon />
+          <span className="mt-0.5 font-mono text-[10px] font-bold uppercase tracking-label text-text-secondary">
+            Practice
+          </span>
+        </button>
+      </div>
+
+      {selected && (
+        <LevelStartSheet
+          node={selected}
+          player={season.player}
+          onStart={() => startLevel(selected.level)}
+          onPractice={openPractice}
+          onPracticeLevel={() => {
+            void tapHeavy();
+            navigate(`/levels/${selected.level}/play?practice=1`);
+          }}
+          onClose={() => setSelected(null)}
+        />
+      )}
+    </main>
+  );
+}
+
+function openLevelFromState(state: unknown): number | null {
+  if (typeof state !== "object" || state === null || !("openLevel" in state)) return null;
+  const n = (state as { openLevel: unknown }).openLevel;
+  return typeof n === "number" && Number.isInteger(n) && n >= 1 ? n : null;
+}
+
+type PinState = "open" | "current" | "locked";
+
+function LevelPin({ node, state, onOpen }: { node: LevelNode; state: PinState; onOpen: () => void }) {
+  const hard = isHardLevel(node.level);
+  const locked = state === "locked";
+  const current = state === "current";
+  const size = current ? 72 : 60;
+  const label = locked
+    ? `Level ${node.level}, locked`
+    : `Level ${node.level}${hard ? ", hard" : ""}${node.stars > 0 ? `, ${node.stars} of 3 stars` : current ? ", next to play" : ""}`;
+
+  const face = locked
+    ? "border-white/10 bg-surface/80 text-text-disabled"
+    : current
+      ? "border-signal bg-signal text-void shadow-[0_0_0_6px_rgba(203,242,77,0.18),0_10px_30px_-6px_rgba(203,242,77,0.55)]"
+      : hard
+        ? "border-ember bg-[#2a1410] text-text-primary shadow-ember"
+        : "border-signal/60 bg-elevated text-text-primary";
+
+  return (
+    <li
+      className="absolute flex -translate-x-1/2 translate-y-1/2 flex-col items-center"
+      style={{ left: `${pinX(node.level)}%`, bottom: pinBottom(node.level) }}
+    >
+      <button
+        type="button"
+        disabled={locked}
+        aria-label={label}
+        aria-current={current ? "step" : undefined}
+        onClick={onOpen}
+        style={{ width: size, height: size }}
+        className={`relative flex items-center justify-center rounded-full border-[3px] font-display font-black tabular-nums transition-transform active:scale-90 disabled:active:scale-100 ${current ? "lm-pulse text-headline" : "text-lead"} ${face}`}
+      >
+        {locked ? <LockIcon /> : node.level}
+        {hard && !locked && (
+          <span aria-hidden className="absolute -right-1 -top-1 flex h-6 w-6 items-center justify-center rounded-full border-2 border-void bg-ember">
+            <SkullIcon />
+          </span>
+        )}
+      </button>
+      {locked ? (
+        <span aria-hidden className="mt-1 font-mono text-label font-bold tabular-nums text-text-disabled">{node.level}</span>
+      ) : node.stars > 0 ? (
+        <StarRow count={node.stars} size={15} className="mt-1 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]" />
+      ) : null}
+      <style>{`
+        .lm-pulse { animation: lmPulse 1.6s ease-in-out infinite; }
+        @keyframes lmPulse {
+          0%, 100% { transform: scale(1); }
+          50% { transform: scale(1.07); }
+        }
+        @media (prefers-reduced-motion: reduce) { .lm-pulse { animation: none; } }
+      `}</style>
+    </li>
+  );
+}
+
+/** The path joining the pins: lit up to the frontier, dashed beyond it. */
+function Trail({ levels, frontier, height }: { levels: number; frontier: number; height: number }) {
+  const point = (n: number) => `${pinX(n).toFixed(2)} ${(height - pinBottom(n)).toFixed(1)}`;
+  const path = (from: number, to: number) => {
+    const parts: string[] = [];
+    for (let n = from; n <= to; n++) parts.push(`${n === from ? "M" : "L"} ${point(n)}`);
+    return parts.join(" ");
+  };
+  const lit = Math.min(frontier, levels);
+  return (
+    <svg
+      aria-hidden
+      className="pointer-events-none absolute inset-0 h-full w-full"
+      viewBox={`0 0 100 ${height}`}
+      preserveAspectRatio="none"
+    >
+      {levels > lit && (
+        <path d={path(lit, levels)} fill="none" stroke="rgba(255,255,255,0.14)" strokeWidth={5} strokeDasharray="2 12" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
+      )}
+      {lit > 1 && (
+        <path d={path(1, lit)} fill="none" stroke="rgba(203,242,77,0.55)" strokeWidth={6} strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
+      )}
+    </svg>
+  );
+}
+
+function EpisodeBanner({ episode, bottom }: { episode: number; bottom: number }) {
+  return (
+    <li aria-hidden className="absolute inset-x-6 flex items-center gap-3" style={{ bottom }}>
+      <span className="h-px flex-1 bg-white/15" />
+      <span className="glass rounded-full border border-white/10 px-3 py-1 font-mono text-label font-bold uppercase tracking-label text-text-secondary">
+        Episode {episode}
+      </span>
+      <span className="h-px flex-1 bg-white/15" />
+    </li>
+  );
+}
+
+function LockIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden>
+      <rect x="5" y="11" width="14" height="10" rx="2" />
+      <path d="M8 11V8a4 4 0 0 1 8 0v3" />
+    </svg>
+  );
+}
+
+function SkullIcon() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" className="text-void" aria-hidden>
+      <path d="M12 2C7 2 3.5 5.6 3.5 10.2c0 2.6 1.2 4.6 3 5.9V19a1 1 0 0 0 1 1h1.5v-2h2v2h2v-2h2v2h1.5a1 1 0 0 0 1-1v-2.9c1.8-1.3 3-3.3 3-5.9C20.5 5.6 17 2 12 2Zm-3.5 11a2 2 0 1 1 0-4 2 2 0 0 1 0 4Zm7 0a2 2 0 1 1 0-4 2 2 0 0 1 0 4Z" />
+    </svg>
+  );
+}
+
+function InfinityIcon() {
+  return (
+    <svg width="26" height="18" viewBox="0 0 32 20" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" className="text-signal" aria-hidden>
+      <path d="M16 10c-3-4-5.5-6-8.5-6a6 6 0 0 0 0 12c3 0 5.5-2 8.5-6Zm0 0c3 4 5.5 6 8.5 6a6 6 0 0 0 0-12c-3 0-5.5 2-8.5 6Z" />
+    </svg>
+  );
+}

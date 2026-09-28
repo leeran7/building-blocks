@@ -70,7 +70,88 @@ export const FASTEST_ARCHETYPE = {
 
 const WIDTH_M = 100;
 /** Floors over which difficulty ramps from easy → hard (then holds). */
-const DIFFICULTY_FLOORS = 50;
+export const DIFFICULTY_FLOORS = 50;
+
+/**
+ * Layout difficulty (0 easy → 1 hard) that floor i is generated at. The free
+ * stack ramps with altitude over DIFFICULTY_FLOORS then holds; a level tower
+ * pins one value for every floor via `tower.difficulty`. Every difficulty
+ * knob in towers.ts, obstacles.ts and powerups.ts reads it from here.
+ */
+export function difficultyAt(tower: TowerSpec, i: number): number {
+  const fixed = tower.difficulty;
+  if (fixed === undefined) return Math.min(1, i / DIFFICULTY_FLOORS);
+  if (!Number.isFinite(fixed) || fixed < 0 || fixed > 1) {
+    throw new RangeError(`tower.difficulty must be in [0, 1], got ${fixed}`);
+  }
+  return fixed;
+}
+
+/**
+ * Cache key for geometry that depends on difficulty or orb density. Towers
+ * without the level fields keep the bare seed, so free-stack caches are
+ * untouched; a level tower that reuses a seed at another difficulty cannot
+ * read a stale layout.
+ */
+export function geometryCacheKey(tower: TowerSpec): string {
+  const layout = [
+    tower.gapReachFrac,
+    tower.oneLadderChance,
+    tower.minWalkM,
+    tower.ladderHangM,
+    tower.ladderTopGapM,
+  ];
+  if (
+    tower.difficulty === undefined &&
+    tower.powerUpChance === undefined &&
+    layout.every((v) => v === undefined)
+  ) {
+    return tower.seed;
+  }
+  const knobs = layout.map((v) => v ?? "ramp").join(",");
+  return `${tower.seed}|d=${tower.difficulty ?? "ramp"}|pu=${tower.powerUpChance ?? "ramp"}|layout=${knobs}`;
+}
+
+/** Share of a standing jump's rise a hanging ladder's bottom may sit at. */
+export const MAX_LADDER_HANG_FRAC = 0.7;
+/** Share of a ladder jump's rise a short top may leave to the floor above. */
+export const MAX_LADDER_TOP_GAP_FRAC = 0.7;
+/** A jump off a ladder launches at this share of tower.jumpSpeed (stepMatch). */
+export const LADDER_JUMP_SPEED_FRAC = 0.7;
+/** Gap width ceiling for level towers, as a share of a running jump's reach. */
+export const MAX_GAP_REACH_FRAC = 0.75;
+
+/** Peak rise (m) of a jump launched at `speed` under the tower's gravity. */
+function jumpRise(tower: TowerSpec, speed: number): number {
+  return (speed * speed) / (2 * tower.gravity);
+}
+
+/** A level layout knob, validated against [lo, hi], or undefined when unset. */
+function knob(tower: TowerSpec, name: keyof TowerSpec, lo: number, hi: number): number | undefined {
+  const v = tower[name];
+  if (v === undefined) return undefined;
+  if (typeof v !== "number" || !Number.isFinite(v) || v < lo || v > hi) {
+    throw new RangeError(`tower.${name} must be in [${lo}, ${hi}], got ${String(v)}`);
+  }
+  return v;
+}
+
+/** Hanging-ladder height (m) above the floor a ladder leaves; 0 on endless towers. */
+export function ladderHangM(tower: TowerSpec): number {
+  const max = MAX_LADDER_HANG_FRAC * jumpRise(tower, tower.jumpSpeed);
+  return knob(tower, "ladderHangM", 0, max) ?? 0;
+}
+
+/** Short-top gap (m) below the floor a ladder leads to; 0 on endless towers. */
+export function ladderTopGapM(tower: TowerSpec): number {
+  const max = MAX_LADDER_TOP_GAP_FRAC * jumpRise(tower, LADDER_JUMP_SPEED_FRAC * tower.jumpSpeed);
+  return knob(tower, "ladderTopGapM", 0, max) ?? 0;
+}
+
+/** Shortest walk (m) between a floor's incoming and outgoing ladders, or null. */
+function minWalkM(tower: TowerSpec): number | null {
+  return knob(tower, "minWalkM", 0, tower.widthM / 2) ?? null;
+}
 
 export interface BuildTowerOptions {
   widthM?: number;
@@ -251,18 +332,18 @@ function ladderSeparation(tower: TowerSpec): number {
  */
 function ladderCountForFloor(tower: TowerSpec, i: number): number {
   const r = createRng(`${tower.seed}:ln:${i}`);
-  const d = Math.min(1, i / DIFFICULTY_FLOORS);
+  const d = difficultyAt(tower, i);
   const roll = r.next();
   // Single-ladder floors stay common low down (readable opening) and thin out.
   // Higher floors favor 2 ladders to help with wider gaps. Max is 2 (never 3).
-  const oneChance = 0.5 - 0.2 * d; // 50% at floor 0, 30% at floor 50+
+  const oneChance = knob(tower, "oneLadderChance", 0, 1) ?? 0.5 - 0.2 * d; // 50% at floor 0, 30% at floor 50+
   if (roll < oneChance) return 1;
   return 2;
 }
 
 /** X positions of every ladder leaving floor i, primary first (deterministic). */
 function ladderXsForFloor(tower: TowerSpec, i: number): number[] {
-  const cache = LADDER_XS_CACHE.get(tower.seed);
+  const cache = LADDER_XS_CACHE.get(geometryCacheKey(tower));
   growLadderXsTo(tower, cache, i);
   return cache[i]!;
 }
@@ -292,18 +373,26 @@ function placeLadderXs(
   const hiBound = tower.widthM - m;
   const sep = ladderSeparation(tower);
   const keepOut = stackKeepOut(cache, i);
+  const walk = walkKeepOut(tower, cache, i);
   const raw = ladderXForFloor(tower, i);
-  const xs = [snapAwayFromStack(raw, keepOut, loBound, hiBound)];
+  const xs = [
+    walk.length === 0
+      ? snapAwayFromStack(raw, keepOut, loBound, hiBound)
+      : placeClearOfWalk(raw, keepOut, walk, loBound, hiBound),
+  ];
   const count = ladderCountForFloor(tower, i);
   const r = createRng(`${tower.seed}:lx-extra:${i}`);
 
   for (let k = 1; k < count; k++) {
     // Place each extra in the widest stretch still clear of this floor's
     // ladders and the vertical keep-out, so spacing is guaranteed without a
-    // rejection loop.
+    // rejection loop. A level's minimum walk outranks the lookback keep-out.
     let spans: { lo: number; hi: number }[] = [{ lo: loBound, hi: hiBound }];
     for (const x of xs) spans = punchSpan(spans, x - sep, x + sep);
+    for (const o of walk) spans = punchSpan(spans, o.x - o.r, o.x + o.r);
+    const walkOnly = spans;
     for (const o of keepOut) spans = punchSpan(spans, o.x - o.r, o.x + o.r);
+    if (spans.length === 0 && walk.length > 0) spans = walkOnly;
     let best: { lo: number; hi: number } | null = null;
     let bestRoom = 0;
     for (const s of spans) {
@@ -317,6 +406,44 @@ function placeLadderXs(
     xs.push(best.lo + r.next() * (best.hi - best.lo));
   }
   return xs;
+}
+
+/**
+ * A level's minimum walk as keep-outs around the ladders arriving on floor i
+ * (the ones leaving i-1). The tower wraps, so each is punched at x - W, x and
+ * x + W. Empty on endless towers and on floor 0.
+ */
+function walkKeepOut(
+  tower: TowerSpec,
+  cache: number[][],
+  i: number
+): { x: number; r: number }[] {
+  const r = minWalkM(tower);
+  if (r === null || r === 0 || i === 0) return [];
+  const w = tower.widthM;
+  const out: { x: number; r: number }[] = [];
+  for (const x of cache[i - 1] ?? []) {
+    for (const shift of [-w, 0, w]) out.push({ x: x + shift, r });
+  }
+  return out;
+}
+
+/**
+ * Snap `raw` clear of both the walk and the lookback keep-outs; if no x
+ * clears both, clear the walk alone; if not even that fits, take the x
+ * farthest from the arriving ladders (snapAwayFromStack's fallback).
+ */
+function placeClearOfWalk(
+  raw: number,
+  keepOut: { x: number; r: number }[],
+  walk: { x: number; r: number }[],
+  loBound: number,
+  hiBound: number
+): number {
+  let both: { lo: number; hi: number }[] = [{ lo: loBound, hi: hiBound }];
+  for (const o of [...walk, ...keepOut]) both = punchSpan(both, o.x - o.r, o.x + o.r);
+  if (both.length > 0) return snapAwayFromStack(raw, [...walk, ...keepOut], loBound, hiBound);
+  return snapAwayFromStack(raw, walk, loBound, hiBound);
 }
 
 function stackKeepOut(
@@ -396,10 +523,28 @@ function spanDist(x: number, s: { lo: number; hi: number }): number {
   return 0;
 }
 
+/**
+ * A level tower's summit: the first floor whose surface is at or above
+ * `tower.goalM`, or null on an endless tower. The summit is a solid full-width
+ * floor with nothing on it, and nothing exists above it. Throws on a goal that
+ * is not a positive finite height (reject, never clamp).
+ */
+export function summitFloor(tower: TowerSpec): number | null {
+  const goal = tower.goalM;
+  if (goal === undefined) return null;
+  if (!Number.isFinite(goal) || goal <= 0) {
+    throw new RangeError(`tower.goalM must be a positive finite height, got ${goal}`);
+  }
+  const i = floorIndexAt(tower, goal);
+  return floorHeight(tower, i) >= goal ? i : i + 1;
+}
+
 /** Every ladder leading UP from floor i to floor i+1 (one or more routes). */
 export function laddersForFloor(tower: TowerSpec, i: number): Ladder[] {
-  const y0 = floorHeight(tower, i);
-  const y1 = floorHeight(tower, i + 1);
+  const summit = summitFloor(tower);
+  if (summit !== null && i >= summit) return [];
+  const y0 = floorHeight(tower, i) + ladderHangM(tower);
+  const y1 = floorHeight(tower, i + 1) - ladderTopGapM(tower);
   return ladderXsForFloor(tower, i).map((x) => ({ x, y0, y1 }));
 }
 
@@ -411,8 +556,9 @@ export function ladderForFloor(tower: TowerSpec, i: number): Ladder {
 /** Gap width to jump on floor i — widens with altitude but stays jumpable. */
 function gapWidthForFloor(tower: TowerSpec, i: number): number {
   const reach = horizontalJumpReach(tower);
-  const d = Math.min(1, i / DIFFICULTY_FLOORS);
-  const frac = 0.34 + (0.6 - 0.34) * d; // 34% → 60% of jump reach
+  const d = difficultyAt(tower, i);
+  const frac =
+    knob(tower, "gapReachFrac", 0, MAX_GAP_REACH_FRAC) ?? 0.34 + (0.6 - 0.34) * d; // 34% → 60% of jump reach
   // Stay under reach with a margin so float error never bricks a floor.
   return Math.min(reach * frac, reach * 0.92);
 }
@@ -448,7 +594,7 @@ type GapSpan = { lo: number; hi: number };
 
 /** How many gaps floor i wants before corridor / solvability limits. */
 function desiredGapCount(tower: TowerSpec, i: number): number {
-  const cache = DESIRED_GAPS_CACHE.get(tower.seed);
+  const cache = DESIRED_GAPS_CACHE.get(geometryCacheKey(tower));
   growDesiredGapsTo(tower, cache, i);
   return cache[i]!;
 }
@@ -460,7 +606,7 @@ function growDesiredGapsTo(
 ): void {
   for (let f = cache.length; f <= floor; f++) {
     const rng = createRng(`${tower.seed}:pgap-n:${f}`);
-    const d = Math.min(1, f / DIFFICULTY_FLOORS);
+    const d = difficultyAt(tower, f);
     let twoChance = TWO_GAP_BASE + TWO_GAP_RAMP * d;
     let threeChance = THREE_GAP_BASE + THREE_GAP_RAMP * d;
     if (f > 1 && cache[f - 1]! >= 2) {
@@ -480,6 +626,9 @@ export function platformsForFloor(tower: TowerSpec, i: number): Platform[] {
   const w = tower.widthM;
   // Floor 0 is a safe full-width base (spawn); no incoming ladder.
   if (i === 0) return [{ x0: 0, x1: w, y }];
+  // A level's summit is solid, and nothing exists above it.
+  const summit = summitFloor(tower);
+  if (summit !== null && i >= summit) return i === summit ? [{ x0: 0, x1: w, y }] : [];
 
   // Every ladder that touches this surface: the ones leaving it, plus the tops
   // of the ones arriving from the floor below. Gaps must miss all of them.

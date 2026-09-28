@@ -65,8 +65,19 @@ model User {
   // Profile avatar catalogue id (src/lib/avatars.ts). Not a FK: reads pass it
   // through parseAvatarId, so a retired id falls back to the initials badge.
   avatar_id                String?   @map("avatar_id")
+  // Level System (mobile). All SERVER-DERIVED: xp only rises through an
+  // xp_grants insert in the same transaction (src/db/levels.ts), and
+  // player_level is a cache of playerLevelForXp(xp). lives is the stored count;
+  // the refill (1 per 30 min, max 5) is applied on read and write from
+  // lives_updated_at, which moves forward in whole 30-minute steps only.
+  xp                       Int       @default(0)
+  player_level             Int       @default(1)
+  lives                    Int       @default(5)
+  lives_updated_at         DateTime?
   climbRecords           ClimbRecord[]
   climbRuns              ClimbRun[]
+  dailyClimbScores       DailyClimbScore[]
+  dailyClimbReplays      DailyClimbReplay[]
   socialHandles          SavedSocialHandle[]
   duelsAsPlayer1         Duel[]              @relation("DuelPlayer1")
   duelsAsPlayer2         Duel[]              @relation("DuelPlayer2")
@@ -81,6 +92,9 @@ model User {
   friendshipsSent        Friendship[]        @relation("FriendshipSender")
   friendshipsReceived    Friendship[]        @relation("FriendshipReceiver")
   pushTokens             PushToken[]
+  levelRunTickets        LevelRunTicket[]
+  levelProgress          LevelProgress[]
+  xpGrants               XpGrant[]
 
   @@map("users")
 }
@@ -141,6 +155,147 @@ model ClimbRun {
   @@index([category_slug, created_at], name: "climb_run_category_idx")
   @@index([userId, created_at(sort: Desc)], name: "climb_run_user_idx")
   @@map("climb_runs")
+}
+
+// Daily Climb: one row per (user, UTC day) holding that day's best verified
+// run. peak_y is SERVER-DERIVED — POST /api/climb/daily/result re-simulates
+// the submitted replay and stores the re-simulated height, never the client's
+// claim. Monotonic within a day: the upsert keeps GREATEST(peak_y), so no race
+// or later worse run can lower it. updated_at is when the current best was
+// SET (not last touched) and breaks ties on the board: first to reach wins.
+model DailyClimbScore {
+  id           String   @id @default(cuid())
+  userId       String
+  day          String // UTC day key "YYYY-MM-DD" (src/lib/dailyDay.ts)
+  peak_y       Float // best re-simulated peak height today, metres
+  ticks        Int // length of the best run, in sim ticks
+  replay_token String? // replay of the best run (/play?r=…)
+  // Engine revision the best run was verified under (DAILY_SIM_VERSION).
+  // Replays carry no engine version, so this is how rows verified before a
+  // stepMatch/obstacle change are found afterwards.
+  sim_version  Int      @default(1)
+  attempts     Int      @default(1) // verified runs submitted for this day
+  created_at   DateTime @default(now())
+  updated_at   DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, day], name: "daily_climb_user_day")
+  @@index([day, peak_y(sort: Desc), updated_at], map: "daily_climb_board_idx")
+  @@map("daily_climb_scores")
+}
+
+// One row per distinct verified daily run: the canonical input-log hash
+// (src/game/dailyVerify.ts dailyInputHash) and the first account that
+// submitted it that day. POST /api/climb/daily/result claims the hash before
+// saving, and a run already claimed by ANOTHER account is refused with 409
+// REPLAY_REUSED (SEC-DC-2: replay tokens are public). This blocks exact and
+// tail-padded copies only. A copy with one no-effect input changed hashes
+// differently and is accepted: an accepted residual, because it can only
+// tie the original and ties rank the earlier run first. Runs below
+// DAILY_CLAIM_MIN_PEAK_M (SEC-DC-11) or with fewer than
+// DAILY_CLAIM_MIN_INPUT_SEGMENTS input segments (SEC-DC-15, held-input runs)
+// are never claimed, since honest players repeat them exactly. Every claimed run is kept, not only the best, so an
+// earlier run cannot be exact-copied after its owner beats it.
+model DailyClimbReplay {
+  id         String   @id @default(cuid())
+  day        String // UTC day key "YYYY-MM-DD"
+  input_hash String // SHA-256 hex of the canonical input log
+  userId     String // first account to submit this run for the day
+  created_at DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([day, input_hash], map: "daily_climb_replays_day_hash_key")
+  @@index([userId], map: "daily_climb_replays_user_idx")
+  @@map("daily_climb_replays")
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Level System (mobile only): seasons, run tickets, progress, XP
+// design/xp-and-levels.md §5, §9. Every row here is written by
+// src/db/levels.ts. Run results are the device's report (no replay check,
+// Leeran 2026-09-27); tickets, lives, unlocks and XP keys are server-side.
+// ═══════════════════════════════════════════════════════════════════════════
+
+// A season the server will issue tickets for: inserting this row switches it
+// on. A ticket is issued only once starts_at has passed. Named level_seasons:
+// the old paid-stacks "Season" model was dropped.
+model LevelSeason {
+  id                    Int      @id // season number, 1-based
+  name                  String
+  starts_at             DateTime
+  // Oldest LEVEL_SIM_VERSION that can play this season (new mechanics).
+  min_level_sim_version Int      @default(1)
+  created_at            DateTime @default(now())
+
+  @@map("level_seasons")
+}
+
+// One level attempt. Issued by POST /api/levels/ticket (which spends the
+// life), consumed once by POST /api/levels/result. The consume is
+// UPDATE ... WHERE used_at IS NULL under the user's row lock, so two submits
+// of one ticket cannot both refund a life or pay XP. At most one open ticket
+// per user: issuing a new one closes the old one as abandoned (no refund).
+model LevelRunTicket {
+  id             String    @id @default(cuid())
+  userId         String
+  season         Int
+  level          Int
+  sim_version    Int // LEVEL_SIM_VERSION at issue
+  start_power_up String? // granted at GO (streaks, stuck help); null for now
+  life_spent     Boolean // false on free levels (L1-10)
+  created_at     DateTime  @default(now())
+  expires_at     DateTime
+  used_at        DateTime?
+  // cleared | failed | bad_start | abandoned. Null while open.
+  outcome        String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, used_at], map: "level_run_tickets_user_open_idx")
+  @@map("level_run_tickets")
+}
+
+// Best reported result per (user, season, level). stars and best_ticks only
+// ever improve: read and written under the user's row lock. A row exists
+// only once a level is cleared, so the frontier is MAX(level) + 1.
+model LevelProgress {
+  id             String   @id @default(cuid())
+  userId         String
+  season         Int
+  level          Int
+  stars          Int // 1..3
+  best_ticks     Int // fastest reported finish, race ticks from GO
+  sim_version    Int
+  start_power_up String?
+  replay_token   String? // replay of the best_ticks run (unverified), for ghosts
+  created_at     DateTime @default(now())
+  updated_at     DateTime @default(now()) // when best_ticks was last set
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, season, level], name: "level_progress_user_level", map: "level_progress_user_level_key")
+  @@index([season, level, best_ticks, updated_at], map: "level_progress_board_idx")
+  @@map("level_progress")
+}
+
+// Every XP payment, keyed so it happens once: first_clear:{S}:{N},
+// star:{S}:{N}:{k}, episode:{S}:{E}. Inserted with ON CONFLICT DO NOTHING,
+// and users.xp rises only by the rows actually inserted. No key carries a
+// seed or version, so a re-rolled level never pays twice.
+model XpGrant {
+  id         String   @id @default(cuid())
+  userId     String
+  source     String
+  key        String
+  amount     Int
+  created_at DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, source, key], map: "xp_grants_user_key")
+  @@map("xp_grants")
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

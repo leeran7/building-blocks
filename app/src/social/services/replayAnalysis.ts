@@ -3,7 +3,8 @@
  * re-running the deterministic simulation server-side.
  */
 
-import { decodeRunReplay, MAX_REPLAY_TOKEN_LENGTH } from "../../game/runReplay";
+import { MAX_REPLAY_TOKEN_LENGTH } from "../../game/runReplay";
+import { decodeRunReplayServer } from "../../game/runReplayServer";
 import { buildFreeTower } from "../../game/freeStack";
 import { applyRunSeed } from "../../game/towers";
 import { createMatch, stepMatch } from "../../game/simulation";
@@ -210,9 +211,11 @@ export function buildReplaySummary(analysis: Omit<ReplayAnalysis, "summary">): s
 
 export async function analyzeClimbReplay(replayInput: string): Promise<ReplayAnalysis> {
   const token = extractReplayToken(replayInput);
-  if (!token) throw new Error("Invalid replay link or token");
+  // A token lifted from a link is not length-checked by extractReplayToken.
+  if (!token || token.length > MAX_REPLAY_TOKEN_LENGTH) throw new Error("Invalid replay link or token");
 
-  const replay = await decodeRunReplay(token);
+  // Output-capped inflate: the token is untrusted (SEC-DC-1).
+  const replay = decodeRunReplayServer(token);
   if (!replay) throw new Error("Could not decode replay — link may be corrupt or expired");
 
   const tower = applyRunSeed(buildFreeTower(), replay.seed);

@@ -37,9 +37,10 @@ Set all of the following in the **Vercel project dashboard** under Settings > En
 | `STRIPE_WEBHOOK_SECRET` | Webhook signing secret (`whsec_...`); production may comma-separate live + test secrets |
 | `INTERNAL_TOKEN` | Random secret (min 32 chars) — signs edge-to-internal view-credit payloads; **must be set or server will refuse to start** |
 | `ADMIN_TOKEN` | Random secret (min 32 chars) — Bearer token for admin API routes |
+| `DAILY_SEED_SECRET` | Random secret (min 32 chars) — HMAC key for the Daily Climb tower seed. **If missing or short, `GET /api/climb/daily` and `POST /api/climb/daily/result` return 503** (no fallback seed). Rotating it changes today's tower, so rotate at 00:00 UTC |
 | `BASE_URL` | Production URL without trailing slash (`https://www.doomstack.lol`) |
 
-Generate `INTERNAL_TOKEN` and `ADMIN_TOKEN` with:
+Generate `INTERNAL_TOKEN`, `ADMIN_TOKEN` and `DAILY_SEED_SECRET` with:
 
 ```bash
 openssl rand -hex 32
@@ -64,6 +65,42 @@ vercel --prod
 ```
 
 Vercel will use `vercel.json` in the `app/` directory.
+
+### Daily Climb release order
+
+1. **Deploy the server first, then ship the mobile build.** A mobile build
+   with the Daily Climb fetches `GET /api/climb/daily` before a daily run can
+   start. Against an older server that is a 404, and the app shows "Can't
+   load today's tower" to every player. Set `DAILY_SEED_SECRET` first (see
+   above); without it the routes answer 503.
+2. **`DAILY_SIM_VERSION` locks out installed builds.** The server refuses a
+   daily result whose `simVersion` differs from its own
+   (`app/src/game/simVersion.ts`) with 409 `SIM_VERSION_MISMATCH`, and the
+   app says "update the app to post daily scores". Bumping it (required
+   with any change to `stepMatch`, `obstaclesForFloor`, power-ups or hazard
+   tuning) therefore stops every installed mobile build from posting to the
+   daily board until players update. Ship the store build with the bump and
+   deploy the server when it is live. See the runbook.
+3. **Stored replays are not versioned.** `REPLAY_VERSION` is the envelope
+   format, not the engine, and nothing checks it against the sim. Replays
+   stored in `climb_runs.replay_token` and `daily_climb_scores.replay_token`
+   are input logs re-simulated with the current engine, so after any engine
+   change old `/play?r=` links and stored daily replays can play out
+   differently from the run that was scored. Daily scores keep the verified
+   `peak_y` and their `sim_version`; the replay is not re-checked later.
+   Call this out in the PR of any engine change.
+
+### Local migrations
+
+Never run Prisma migrate locally with only `DATABASE_URL` overridden: Prisma
+migrate connects with `DIRECT_URL`, and a shell that exports the production
+value would migrate production. Use the guarded script, which refuses
+unless both are set and point at localhost:
+
+```bash
+L=postgresql://postgres@127.0.0.1:55432/devdb
+DATABASE_URL=$L DIRECT_URL=$L pnpm db:migrate:local
+```
 
 ---
 

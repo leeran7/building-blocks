@@ -9,6 +9,8 @@ import { EditProfileScreen } from "./screens/EditProfileScreen";
 import { AvatarPickerScreen } from "./screens/AvatarPickerScreen";
 import { DuelRoomScreen } from "./screens/DuelRoomScreen";
 import { ChallengeScreen } from "./screens/ChallengeScreen";
+import { LevelMapScreen } from "./screens/LevelMapScreen";
+import { LevelPlayScreen } from "./screens/LevelPlayScreen";
 import { AnimatedBackdrop } from "./components/AnimatedBackdrop";
 import { RouteTransition } from "./components/RouteTransition";
 import { BottomNav, isTabRoot } from "./components/BottomNav";
@@ -44,7 +46,7 @@ export function App() {
 
   // NOTE: call useLocation() unconditionally — never behind a short-circuit.
   const location = useLocation();
-  const onClimb = authed && location.pathname === "/climb";
+  const onClimb = authed && (location.pathname === "/climb" || isLevelPlay(location.pathname));
   const showNav = authed && isTabRoot(location.pathname);
   const guestActive = guestMode && !authed;
 
@@ -57,13 +59,18 @@ export function App() {
         ) : authed ? (
           <Routes>
             <Route path="/climb" element={<ClimbScreen />} />
+            {/* Keyed by entry so "Practice this level" from a result starts fresh. */}
+            <Route path="/levels/:level/play" element={<LevelPlayScreen key={location.key} />} />
             <Route path="/duel/:id" element={<DuelRoomScreen />} />
             <Route
               path="*"
               element={
                 <RouteTransition>
                   <Routes>
-                    <Route path="/" element={<HomeScreen />} />
+                    {/* Levels are the main game: the map is home (design doc §2).
+                        Practice, Daily, Quick Play and Challenge live on Modes. */}
+                    <Route path="/" element={<LevelMapScreen />} />
+                    <Route path="/modes" element={<HomeScreen />} />
                     <Route path="/leaderboard" element={<LeaderboardScreen />} />
                     <Route path="/profile" element={<ProfileScreen />} />
                     <Route path="/profile/edit" element={<EditProfileScreen />} />
@@ -88,6 +95,11 @@ export function App() {
       {showNav && <BottomNav />}
     </div>
   );
+}
+
+/** The full-screen level run, which like /climb hides the backdrop. */
+function isLevelPlay(pathname: string): boolean {
+  return /^\/levels\/\d+\/play$/.test(pathname);
 }
 
 /** Branded loader shown while the first auth state resolves. */

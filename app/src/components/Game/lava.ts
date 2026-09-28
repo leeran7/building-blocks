@@ -20,9 +20,22 @@
  * steam vents erupt, and the surface reclaims its motion in a final surge.
  * `hardenProgress` in [0, 1] drives the phases — 0 is fresh rock, 1 is fully
  * returned to lava. -1 means inactive.
+ *
+ * Surge / stumble: the sim's hazard cycle (hazard.ts `hazardPhase`) is made
+ * visible. `phaseLook` turns (phase, progress) into crest amplitude, rim alpha
+ * and tone, ember / bubble counts and haze gain: a surge rolls high and bright,
+ * a stumble calms and cools, and the last `SURGE_TELEGRAPH_FRAC` of a stumble
+ * pulses back up so the next surge is announced before the gap starts closing.
+ * Harden-lava takes precedence over the phase look and slow-lava keeps its own
+ * calm palette.
+ *
+ * Off-screen proximity: when the lava is below the visible bottom but within
+ * `LAVA_PROXIMITY_M`, `drawLavaProximityGlow` paints an ember glow along the
+ * bottom edge so the chase is still felt while a jetpack burst outruns it.
  */
 
 import { POWER_UP_SPECS } from "../../game/powerups";
+import type { HazardPhaseName } from "../../game/hazard";
 
 const LAVA = "#ff5a2c"; // ember — the rising hazard
 /** Matches the slow-lava orb; also colors the slowed altimeter label in paintClimbFrame. */
@@ -66,6 +79,13 @@ export type LavaOptions = {
    * Intermediate values drive a multi-phase rock→lava spectacle.
    */
   hardenProgress: number;
+  /**
+   * Sim hazard phase (surge / stumble / grace) at effective hazard time.
+   * Omitted (decorative backdrops) draws the neutral look.
+   */
+  phase?: HazardPhaseName;
+  /** 0 → just entered `phase`, 1 → about to leave it. */
+  phaseProgress?: number;
 };
 
 const TAU = Math.PI * 2;
@@ -73,6 +93,198 @@ const clamp01 = (v: number) => (v < 0 ? 0 : v > 1 ? 1 : v);
 const frac = (v: number) => v - Math.floor(v);
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 const smoothstep = (t: number) => t * t * (3 - 2 * t);
+
+// ── Surge / stumble look (see phaseLook) ────────────────────────────────────
+/** Crest amplitude (px · ui) with no phase — the look before this change. */
+const NEUTRAL_CREST_AMP = 9;
+/** Crest amplitude while slow-lava calms the surface. */
+const SLOWED_CREST_AMP = 4;
+const SURGE_CREST_AMP = 12;
+const STUMBLE_CREST_AMP = 5;
+const NEUTRAL_RIM_ALPHA = 0.4;
+const SURGE_RIM_ALPHA = 0.5;
+const STUMBLE_RIM_ALPHA = 0.3;
+const STUMBLE_EMBER_COUNT = 2;
+const STUMBLE_BUBBLE_COUNT = 3;
+const SURGE_HAZE_GAIN = 1.3;
+const STUMBLE_HAZE_GAIN = 0.7;
+const HOT_RIM = "#ffd24d";
+/** Darker, cooled-skin rim tone while the lava stumbles. */
+const COOLED_RIM = "#c8662e";
+/**
+ * Fraction at the END of a stumble that telegraphs the next surge (~1.2 s of
+ * a 6 s stumble): amplitude, rim alpha and rim heat ramp back up with a pulse.
+ */
+export const SURGE_TELEGRAPH_FRAC = 0.2;
+/**
+ * Fraction at the START of a stumble over which the surge look eases down to
+ * the calm one, so the crest settles instead of snapping 12 → 5 px in a frame.
+ */
+const STUMBLE_SETTLE_FRAC = 0.1;
+/** Telegraph pulse rate (radians per tick) — ~2.9 Hz at 30 ticks/s. */
+const TELEGRAPH_PULSE_RATE = 0.6;
+/** Share of the telegraph ramp the pulse can take away (0 = no pulse). */
+const TELEGRAPH_PULSE_DEPTH = 0.4;
+
+/** What the lava body looks like in a given hazard phase. */
+export interface PhaseLook {
+  /** Crest wave amplitude in authored px (multiply by ui). 0 = flat. */
+  crestAmp: number;
+  /** Alpha of the wide glowing rim along the crest. */
+  rimAlpha: number;
+  /** Rim colour — hot in a surge, cooled in a stumble. */
+  rimColor: string;
+  emberCount: number;
+  bubbleCount: number;
+  /** Multiplier on the heat-haze alpha. */
+  hazeGain: number;
+  /** 0 outside the telegraph window, ramping to 1 as the surge lands. */
+  telegraph: number;
+}
+
+/**
+ * Pure mapping from the sim's hazard phase to the lava's look. Surge rolls
+ * high and bright; stumble calms and cools (easing in over the first
+ * STUMBLE_SETTLE_FRAC so the crest does not snap); the last SURGE_TELEGRAPH_FRAC of a
+ * stumble ramps back toward the surge look with a `tick`-driven pulse.
+ * Reduced motion: amplitude is always 0 (flat crest) and there is no pulse —
+ * only colour and alpha tell the phases apart. Grace / no phase is neutral.
+ */
+export function phaseLook(
+  phase: HazardPhaseName | undefined,
+  progress: number,
+  reducedMotion: boolean,
+  tick = 0
+): PhaseLook {
+  const p = Number.isFinite(progress) ? clamp01(progress) : 0;
+  const amp = (a: number) => (reducedMotion ? 0 : a);
+  if (phase === "surge") {
+    return {
+      crestAmp: amp(SURGE_CREST_AMP),
+      rimAlpha: SURGE_RIM_ALPHA,
+      rimColor: HOT_RIM,
+      emberCount: EMBER_COUNT,
+      bubbleCount: BUBBLE_COUNT,
+      hazeGain: SURGE_HAZE_GAIN,
+      telegraph: 0,
+    };
+  }
+  if (phase === "stumble") {
+    const telegraphStart = 1 - SURGE_TELEGRAPH_FRAC;
+    const telegraph = p > telegraphStart ? clamp01((p - telegraphStart) / SURGE_TELEGRAPH_FRAC) : 0;
+    // Pulse in [1 − depth, 1]; frozen at 1 under reduced motion.
+    const pulse = reducedMotion
+      ? 1
+      : 1 - TELEGRAPH_PULSE_DEPTH * (0.5 + 0.5 * Math.sin(tick * TELEGRAPH_PULSE_RATE));
+    const settle = p < STUMBLE_SETTLE_FRAC ? 1 - smoothstep(p / STUMBLE_SETTLE_FRAC) : 0;
+    const k = Math.max(settle, telegraph * pulse);
+    return {
+      crestAmp: amp(lerp(STUMBLE_CREST_AMP, SURGE_CREST_AMP, k)),
+      rimAlpha: lerp(STUMBLE_RIM_ALPHA, SURGE_RIM_ALPHA, k),
+      rimColor: lerpColor(COOLED_RIM, HOT_RIM, Math.max(settle, telegraph)),
+      emberCount: Math.round(lerp(STUMBLE_EMBER_COUNT, EMBER_COUNT, telegraph)),
+      bubbleCount: Math.round(lerp(STUMBLE_BUBBLE_COUNT, BUBBLE_COUNT, telegraph)),
+      hazeGain: lerp(STUMBLE_HAZE_GAIN, SURGE_HAZE_GAIN, telegraph),
+      telegraph,
+    };
+  }
+  return {
+    crestAmp: amp(NEUTRAL_CREST_AMP),
+    rimAlpha: NEUTRAL_RIM_ALPHA,
+    rimColor: HOT_RIM,
+    emberCount: EMBER_COUNT,
+    bubbleCount: BUBBLE_COUNT,
+    hazeGain: 1,
+    telegraph: 0,
+  };
+}
+
+// ── Off-screen proximity glow ───────────────────────────────────────────────
+/** World metres below the visible bottom within which the edge glow shows. */
+export const LAVA_PROXIMITY_M = 60;
+/** Peak glow alpha, reached as the lava touches the visible bottom. */
+const PROXIMITY_MAX_ALPHA = 0.35;
+/** Glow height above the visible bottom, in authored px (multiply by ui). */
+const PROXIMITY_GLOW_H = 90;
+/** Slow pulse (radians per tick, ~0.57 Hz at 30 ticks/s) and its depth. */
+const PROXIMITY_PULSE_RATE = 0.12;
+const PROXIMITY_PULSE_DEPTH = 0.25;
+
+/** True when the lava is below the visible bottom but inside the proximity band. */
+export function isLavaInProximity(gapBelowViewM: number): boolean {
+  return gapBelowViewM > 0 && gapBelowViewM < LAVA_PROXIMITY_M;
+}
+
+/**
+ * Alpha of the bottom-edge proximity glow. 0 when the lava is on screen
+ * (gap <= 0), at or beyond LAVA_PROXIMITY_M, or the gap is not a number;
+ * otherwise 0.35 · (1 − gap / 60) with a slow tick pulse (static under
+ * reduced motion). Pure and deterministic.
+ */
+export function proximityAlpha(gapM: number, reducedMotion: boolean, tick: number): number {
+  if (!isLavaInProximity(gapM)) return 0;
+  const base = PROXIMITY_MAX_ALPHA * (1 - gapM / LAVA_PROXIMITY_M);
+  if (reducedMotion) return base;
+  const pulse = 1 - PROXIMITY_PULSE_DEPTH * (0.5 + 0.5 * Math.sin(tick * PROXIMITY_PULSE_RATE));
+  return base * pulse;
+}
+
+export type LavaProximityOptions = {
+  width: number;
+  height: number;
+  ui: number;
+  tick: number;
+  reducedMotion: boolean;
+  /** World metres from the visible bottom (above bottomInset) down to the lava line. */
+  gapBelowViewM: number;
+  /** Touch-overlay height in px; the glow sits above it so it is never hidden. */
+  bottomInset: number;
+};
+
+let _proxGrad: CanvasGradient | null = null;
+let _proxGradCtx: CanvasRenderingContext2D | null = null;
+let _proxGradBottom = NaN;
+let _proxGradH = NaN;
+
+function getProximityGradient(
+  ctx: CanvasRenderingContext2D,
+  bottom: number,
+  glowH: number
+): CanvasGradient {
+  if (_proxGrad !== null && _proxGradCtx === ctx && _proxGradBottom === bottom && _proxGradH === glowH) {
+    return _proxGrad;
+  }
+  const g = ctx.createLinearGradient(0, bottom, 0, bottom - glowH);
+  g.addColorStop(0, "rgba(255,90,44,1)");
+  g.addColorStop(0.35, "rgba(255,120,50,0.45)");
+  g.addColorStop(1, "rgba(255,150,70,0)");
+  _proxGrad = g;
+  _proxGradCtx = ctx;
+  _proxGradBottom = bottom;
+  _proxGradH = glowH;
+  return g;
+}
+
+/**
+ * Bottom-edge ember glow while the lava is just below the visible view. The
+ * only allocation is the gradient, cached per (ctx, bottom, height).
+ */
+export function drawLavaProximityGlow(
+  ctx: CanvasRenderingContext2D,
+  opts: LavaProximityOptions
+): void {
+  const alpha = proximityAlpha(opts.gapBelowViewM, opts.reducedMotion, opts.tick);
+  if (alpha <= 0) return;
+  const bottom = opts.height - Math.max(0, opts.bottomInset);
+  if (bottom <= 0) return;
+  const glowH = Math.min(bottom, PROXIMITY_GLOW_H * opts.ui);
+  ctx.save();
+  ctx.globalCompositeOperation = "source-over";
+  ctx.globalAlpha = alpha;
+  ctx.fillStyle = getProximityGradient(ctx, bottom, glowH);
+  ctx.fillRect(0, bottom - glowH, opts.width, glowH);
+  ctx.restore();
+}
 
 function lerpColor(a: string, b: string, t: number): string {
   const pa = parseInt(a.slice(1), 16);
@@ -182,6 +394,10 @@ export function hash(x: number, y: number): number {
  * When hardened: the smooth sine is blended toward a jagged, stepped rock edge
  * using a hash-based angular offset. The jaggedness flattens as the effect
  * wears off and the lava reclaims its smooth wave.
+ *
+ * `amplitude` (authored px) comes from `phaseLook` for the surge / stumble
+ * look; omitted, it is the slowed or neutral value. Negative or non-finite
+ * amplitudes are clamped to 0 so the "always <= 0" guarantee holds.
  */
 export function crestOffset(
   x: number,
@@ -190,7 +406,8 @@ export function crestOffset(
   tick: number,
   reducedMotion: boolean,
   slowed: boolean,
-  hardenProgress?: number
+  hardenProgress?: number,
+  amplitude?: number
 ): number {
   if (reducedMotion) return 0;
 
@@ -198,7 +415,8 @@ export function crestOffset(
   const rockAmount = hardened ? clamp01(1 - hardenProgress) : 0;
 
   // Normal smooth wave.
-  const baseAmp = slowed ? 4 : 9;
+  const requested = amplitude ?? (slowed ? SLOWED_CREST_AMP : NEUTRAL_CREST_AMP);
+  const baseAmp = Number.isFinite(requested) && requested > 0 ? requested : 0;
   const w = Math.max(1, width);
   const a = Math.sin((x / w) * TAU * 2.0 + tick * 0.05);
   const b = Math.sin((x / w) * TAU * 3.7 - tick * 0.031 + 1.3);
@@ -509,6 +727,15 @@ export function drawLava(ctx: CanvasRenderingContext2D, opts: LavaOptions): void
   const tick = reducedMotion ? 0 : opts.tick;
   const hardened = hardenProgress >= 0;
   const rockBlend = hardened ? clamp01(1 - hardenProgress) : 0;
+  // Harden-lava owns the look while active; slow-lava keeps its calm palette.
+  // Otherwise the sim's surge / stumble phase drives it.
+  const look = phaseLook(
+    hardened || slowed ? undefined : opts.phase,
+    opts.phaseProgress ?? 0,
+    reducedMotion,
+    tick
+  );
+  const amp = hardened || slowed ? undefined : look.crestAmp;
 
   ctx.save();
 
@@ -518,7 +745,7 @@ export function drawLava(ctx: CanvasRenderingContext2D, opts: LavaOptions): void
   let minCrest = Infinity;
   for (let i = 0; i <= CREST_SEGMENTS; i++) {
     const x = i * step;
-    const y = top + crestOffset(x, width, ui, tick, reducedMotion, slowed, hardenProgress);
+    const y = top + crestOffset(x, width, ui, tick, reducedMotion, slowed, hardenProgress, amp);
     crestY.push(y);
     if (y < minCrest) minCrest = y;
   }
@@ -548,11 +775,11 @@ export function drawLava(ctx: CanvasRenderingContext2D, opts: LavaOptions): void
   ctx.moveTo(0, crestY[0]);
   for (let i = 1; i <= CREST_SEGMENTS; i++) ctx.lineTo(i * step, crestY[i]);
   const rimColor = hardened
-    ? lerpColor(ROCK_RIM, "#ffd24d", smoothstep(hardenProgress))
-    : slowed ? "#ffd6ef" : "#ffd24d";
+    ? lerpColor(ROCK_RIM, HOT_RIM, smoothstep(hardenProgress))
+    : slowed ? "#ffd6ef" : look.rimColor;
   ctx.strokeStyle = rimColor;
   ctx.lineWidth = lerp(hardened ? 6 : slowed ? 5 : 6, 3, rockBlend) * ui;
-  ctx.globalAlpha = lerp(hardened ? 0.4 : slowed ? 0.28 : 0.4, 0.5, rockBlend);
+  ctx.globalAlpha = lerp(hardened ? NEUTRAL_RIM_ALPHA : slowed ? 0.28 : look.rimAlpha, 0.5, rockBlend);
   if (slowed && !hardened) ctx.setLineDash([9 * ui, 6 * ui]);
   ctx.stroke();
   ctx.setLineDash([]);
@@ -606,7 +833,7 @@ export function drawLava(ctx: CanvasRenderingContext2D, opts: LavaOptions): void
       const cx = ((i + 0.5) / HAZE_COUNT + drift * 0.03) * width;
       const cy = top - (14 + 10 * hash(i, 9)) * ui;
       const r = (36 + 30 * hash(i, 13)) * ui;
-      const slowDim = hardened ? 1 : slowed ? 0.4 : 1;
+      const slowDim = hardened ? 1 : slowed ? 0.4 : look.hazeGain;
       const a = (0.05 + 0.04 * (0.5 + 0.5 * Math.sin(tick * 0.05 + i))) * slowDim * hazeFade * hazeBoost;
       const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
       g.addColorStop(0, HAZE_COLOR_OPAQUE);
@@ -623,14 +850,14 @@ export function drawLava(ctx: CanvasRenderingContext2D, opts: LavaOptions): void
   const bubbleFade = hardened ? smoothstep(hardenProgress) : 1;
   if (bubbleFade > 0.05) {
     const surgeBoost = hardened && hardenProgress > 0.8 ? 1.8 : 1;
-    const bubbleN = (slowed && !hardened) ? 3 : BUBBLE_COUNT;
+    const bubbleN = (slowed && !hardened) ? 3 : hardened ? BUBBLE_COUNT : look.bubbleCount;
     for (let i = 0; i < bubbleN; i++) {
       const speed = (0.01 + 0.008 * hash(i, 21)) * surgeBoost;
       const p = frac(hash(i, 23) + tick * speed);
       const swell = Math.sin(p * Math.PI);
       if (swell <= 0.05) continue;
       const bx = hash(i, 27) * width;
-      const surfaceY = top + crestOffset(bx, width, ui, tick, reducedMotion, slowed, hardenProgress);
+      const surfaceY = top + crestOffset(bx, width, ui, tick, reducedMotion, slowed, hardenProgress, amp);
       const by = surfaceY - swell * 4 * ui;
       const r = (2.5 + 4 * hash(i, 29)) * ui * swell;
       ctx.globalAlpha = 0.5 * swell * bubbleFade;
@@ -653,12 +880,12 @@ export function drawLava(ctx: CanvasRenderingContext2D, opts: LavaOptions): void
   if (emberFade > 0.05) {
     ctx.globalCompositeOperation = "lighter";
     const surgeBoost = hardened && hardenProgress > 0.8 ? 2 : 1;
-    const emberN = (slowed && !hardened) ? 2 : EMBER_COUNT;
+    const emberN = (slowed && !hardened) ? 2 : hardened ? EMBER_COUNT : look.emberCount;
     for (let i = 0; i < emberN; i++) {
       const speed = (0.012 + 0.01 * hash(i, 41)) * surgeBoost;
       const p = frac(hash(i, 43) + tick * speed);
       const ex = hash(i, 47) * width + Math.sin(tick * 0.04 + i) * 6 * ui;
-      const launchY = top + crestOffset(ex, width, ui, tick, reducedMotion, slowed, hardenProgress);
+      const launchY = top + crestOffset(ex, width, ui, tick, reducedMotion, slowed, hardenProgress, amp);
       const arc = (30 + 40 * hash(i, 49)) * ui;
       const ey = launchY - Math.sin(p * Math.PI) * arc;
       const a = clamp01(Math.sin(p * Math.PI) * 0.9) * emberFade;

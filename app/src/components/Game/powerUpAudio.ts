@@ -55,6 +55,12 @@ export const LAVA_STING_ATTACK = 2.8;
 export const LAVA_STING_PEAK = 0.12;
 export const DEATH_HIT_ATTACK = 0.006;
 export const DEATH_HIT_PEAK = 0.95;
+/** Surge whump peak — well under the death hit, above the sting swell. */
+export const LAVA_SURGE_PEAK = 0.5;
+/** Doom-loop heartbeat rate (Hz) with no lava in view. */
+export const LAVA_DOOM_LFO_IDLE_HZ = 0.35;
+/** Heartbeat multiplier while the lava surges — the pulse quickens. */
+export const LAVA_DOOM_SURGE_LFO_MULT = 1.6;
 
 /**
  * Activation motifs. Each shape mirrors what the power-up does, so the cue is
@@ -153,6 +159,31 @@ const LAVA_STING: Note[] = [
   },
 ];
 
+/**
+ * Surge lands: a short low whump — a sub drop on the doom root with a soft
+ * body. Same family as the sting, but a hit, so it reads as "it's coming now".
+ */
+const LAVA_SURGE: Note[] = [
+  {
+    at: 0,
+    freq: DOOM_ROOT_HZ * 2,
+    to: DOOM_ROOT_HZ,
+    dur: 0.42,
+    wave: "sine",
+    gain: LAVA_SURGE_PEAK,
+    attack: 0.015,
+  },
+  {
+    at: 0.01,
+    freq: DOOM_TRITONE_HZ * 2,
+    to: DOOM_TRITONE_HZ,
+    dur: 0.36,
+    wave: "triangle",
+    gain: LAVA_SURGE_PEAK * 0.45,
+    attack: 0.02,
+  },
+];
+
 /** Instant slam of the same interval, then a sub drop — doom struck. */
 const DEATH_HIT: Note[] = [
   {
@@ -208,6 +239,8 @@ export class PowerUpAudio {
   private lavaSources: AudioScheduledSourceNode[] = [];
   private lavaAppliedOn = false;
   private lavaAppliedFill = -1;
+  private lavaSurgingWanted = false;
+  private lavaAppliedSurging = false;
 
   setMuted(muted: boolean): void {
     this.muted = muted;
@@ -270,13 +303,25 @@ export class PowerUpAudio {
   /**
    * Lava-on-screen rumble. `fill` (0..1) is how much of the uncovered view
    * the lava has eaten — the drone is a whisper at a sliver and a roar at
-   * full screen. Does not create an AudioContext (mount-safe).
+   * full screen. `surging` quickens the pulse while the lava surges. Does
+   * not create an AudioContext (mount-safe).
    */
-  setLavaDoom(on: boolean, fill: number): void {
+  setLavaDoom(on: boolean, fill: number, surging = false): void {
     const next = fill < 0 ? 0 : fill > 1 ? 1 : fill;
     this.lavaWanted = on;
     this.lavaFillWanted = next;
+    this.lavaSurgingWanted = surging;
     this.applyLavaGain();
+  }
+
+  /** Short low whump as a surge lands. No context create (see playLavaSting). */
+  playLavaSurge(delaySeconds = 0): void {
+    if (this.muted) return;
+    const ctx = this.ctx;
+    if (!ctx || !this.master) return;
+    const now = ctx.currentTime + delaySeconds;
+    for (const n of LAVA_SURGE) this.playNote(ctx, this.master, n, now);
+    this.playNoiseBurst(ctx, this.master, now, 0.3, 0.35, 260);
   }
 
   playLavaSting(delaySeconds = 0): void {
@@ -342,7 +387,13 @@ export class PowerUpAudio {
     }
     const fillChanged =
       Math.abs(this.lavaFillWanted - this.lavaAppliedFill) >= 0.01;
-    if (this.lavaWanted === this.lavaAppliedOn && !fillChanged && this.lavaGain) {
+    const surgeChanged = this.lavaSurgingWanted !== this.lavaAppliedSurging;
+    if (
+      this.lavaWanted === this.lavaAppliedOn &&
+      !fillChanged &&
+      !surgeChanged &&
+      this.lavaGain
+    ) {
       return;
     }
     try {
@@ -357,15 +408,15 @@ export class PowerUpAudio {
         tau
       );
       if (this.lavaLfo) {
-        const rate = 0.35 + this.lavaFillWanted * 0.9;
         this.lavaLfo.frequency.setTargetAtTime(
-          this.lavaWanted ? rate : 0.35,
+          lavaDoomLfoRate(this.lavaWanted, this.lavaFillWanted, this.lavaSurgingWanted),
           ctx.currentTime,
           turningOn ? lavaDoomAttackSeconds() : 0.4
         );
       }
       this.lavaAppliedOn = this.lavaWanted;
       this.lavaAppliedFill = this.lavaFillWanted;
+      this.lavaAppliedSurging = this.lavaSurgingWanted;
     } catch {
       /* InvalidStateError must not unmount the game */
     }
@@ -434,7 +485,7 @@ export class PowerUpAudio {
     heartbeat.gain.value = 0.78;
     const lfo = ctx.createOscillator();
     lfo.type = "sine";
-    lfo.frequency.value = 0.35;
+    lfo.frequency.value = LAVA_DOOM_LFO_IDLE_HZ;
     const lfoDepth = ctx.createGain();
     lfoDepth.gain.value = 0.1;
     lfo.connect(lfoDepth).connect(heartbeat.gain);
@@ -592,6 +643,17 @@ export function lavaDoomLoopGain(fill: number): number {
   const f = fill < 0 ? 0 : fill > 1 ? 1 : fill;
   if (f <= 0) return 0;
   return 0.02 + f * 0.42;
+}
+
+/**
+ * Doom-loop heartbeat rate: quickens with how much of the view the lava has
+ * eaten, and again while it surges. Idle rate when the loop is off.
+ */
+export function lavaDoomLfoRate(on: boolean, fill: number, surging: boolean): number {
+  if (!on) return LAVA_DOOM_LFO_IDLE_HZ;
+  const f = fill < 0 ? 0 : fill > 1 ? 1 : fill;
+  const rate = LAVA_DOOM_LFO_IDLE_HZ + f * 0.9;
+  return surging ? rate * LAVA_DOOM_SURGE_LFO_MULT : rate;
 }
 
 /** Seconds the rumble takes to bloom when lava first enters the view. */

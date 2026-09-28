@@ -28,9 +28,12 @@ import {
   cameraTargetY,
   climbView,
   isLavaThreatening,
+  lavaGapBelowViewM,
   lavaThreatFill,
 } from "./climbCamera";
 import { hazardPhase } from "../../game/hazard";
+import { isLavaInProximity } from "./lava";
+import { lavaMusicIntensity } from "./powerUpCues";
 import {
   TouchControls,
   useTouchControlsInset,
@@ -45,7 +48,7 @@ import { useFullscreen } from "../../hooks/useFullscreen";
 import { climberHandle } from "../../lib/handle";
 import { climbEyebrowLabel } from "../../lib/climbEyebrow";
 import { ALTITUDE_UNIT, formatAltitudeLabel } from "../../lib/units";
-import { ShareRun } from "./ShareRun";
+import { ShareRun, type ShareGate } from "./ShareRun";
 import {
   buildReplayUrl,
   encodeRunReplay,
@@ -66,8 +69,34 @@ export interface ClimbSceneProps {
    * Ignored during replay, which carries its own seed.
    */
   seed?: string;
+  /**
+   * Where a finished live run is POSTed when signed in. Daily Climb passes
+   * "/api/climb/daily/result" (server-verified daily board, which also raises
+   * the all-time record). Defaults to the all-time route.
+   */
+  resultPath?: string;
+  /**
+   * Extra fields merged into the live result POST body. Daily Climb sends
+   * `{ simVersion }` so the server can tell a stale engine from a forgery.
+   */
+  resultFields?: Readonly<Record<string, string | number | boolean>>;
+  /**
+   * Offer the share link only after this run's save returns `saved: true`
+   * (Daily Climb, SEC-DC-12). A daily replay belongs to whichever account
+   * submits it first, so a link shared while the owner's save is pending or
+   * has failed lets someone else claim the run.
+   */
+  shareAfterSave?: boolean;
   /** Fired once when a live run finishes (not during replay). For Daily Climb. */
   onFinish?: (peakY: number) => void;
+  /**
+   * Asked before every live start; returning false cancels it. Daily Climb
+   * uses it to refetch the tower when 00:00 UTC has passed since the seed was
+   * fetched, so "Climb again" never replays yesterday's tower (RV-DC-3).
+   */
+  onBeforeStart?: () => boolean;
+  /** While set, the start button is disabled and shows this text instead. */
+  startBlockedLabel?: string | null;
   /** Extra content rendered in the lobby overlay (e.g. daily streak card). */
   lobbyExtra?: ReactNode;
   /** Extra content rendered in the results overlay (e.g. daily streak result). */
@@ -83,6 +112,13 @@ interface SaveInfo {
 }
 
 const PENDING_CLIMB_KEY = "doomstack:pending-climb";
+const DEFAULT_RESULT_PATH = "/api/climb/result";
+/**
+ * Shown when a run bound for a replay-verified route (Daily Climb) has no
+ * replay to verify (over MAX_SHARE_TICKS, or no encoder). The run is saved to
+ * the all-time board instead, so the rank shown is the all-time one.
+ */
+const NO_REPLAY_FALLBACK_NOTE = "Too long to verify for today\u2019s board \u00b7 saved to all-time";
 
 /**
  * Approx height (px) of the on-canvas height/lava HUD bar, so the overlaid
@@ -109,7 +145,12 @@ export function ClimbScene({
   categoryLabel,
   replay = null,
   seed,
+  resultPath = DEFAULT_RESULT_PATH,
+  resultFields,
+  shareAfterSave = false,
   onFinish,
+  onBeforeStart,
+  startBlockedLabel = null,
   lobbyExtra,
   resultExtra,
 }: ClimbSceneProps) {
@@ -170,6 +211,11 @@ export function ClimbScene({
   const [shareUrl, setShareUrl] = useState<string | null>(null);
   const [encodingShare, setEncodingShare] = useState(false);
   const [savingRun, setSavingRun] = useState(false);
+  const [saveNote, setSaveNote] = useState<string | null>(null);
+  // The signed-out run as stashed for the retroactive save, replay included.
+  // The results card's own Sign in link reuses it rather than rebuilding a
+  // payload without the replayToken.
+  const stashRef = useRef<object | null>(null);
   // Guards onFinish so it fires exactly once per live run (reset on each start).
   const firedFinishRef = useRef(false);
 
@@ -195,21 +241,22 @@ export function ClimbScene({
       ? touchInset
       : 0;
   // Music plays through the countdown + climb and stops on the results screen.
-  // Intensity ramps up over the last ~40m of clearance as the lava gains.
+  // Intensity ramps up over the leash band (+40m) of clearance as the lava
+  // gains, so the track follows the chase all match (lavaMusicIntensity).
   // Not during a replay: a replay auto-starts with no user gesture, so kicking
   // the AudioContext there would trip the browser's autoplay block (a console
   // warning + a suspended context that only resumes on a later tap).
   const musicActive =
     !finished && !replaying && (phase === "countdown" || phase === "climb");
   const lavaGap = player ? player.y - state.hazardY : Infinity;
-  const musicIntensity = Math.max(0, Math.min(1, (40 - lavaGap) / 40));
+  const musicIntensity = lavaMusicIntensity(lavaGap);
   const view = climbView(canvasSize.width, canvasSize.height, state.tower.widthM);
   const camY = cameraTargetY(player?.y ?? 0, view.viewH, bottomInset, view.pxPerM);
-  const lavaFill = lavaThreatFill(
-    state.hazardY,
-    camY,
-    view.viewH,
-    view.pxPerM > 0 ? bottomInset / view.pxPerM : 0
+  const bottomInsetM = view.pxPerM > 0 ? bottomInset / view.pxPerM : 0;
+  const lavaFill = lavaThreatFill(state.hazardY, camY, view.viewH, bottomInsetM);
+  // Just below the uncovered view — the band the edge glow shows in.
+  const lavaNear = isLavaInProximity(
+    lavaGapBelowViewM(state.hazardY, camY, bottomInset, view.pxPerM)
   );
   const lavaPhaseInfo = hazardPhase(state.raceSeconds - state.hazardSlowSeconds);
 
@@ -224,12 +271,20 @@ export function ClimbScene({
     {
       jetpackThrusting: worldLive && (player?.jetpackThrusting ?? false),
       lavaOnScreen: worldLive && isLavaThreatening(lavaFill),
+      // lavaNear alone can fire the lava-surge cue, so it is gated too.
+      // lavaPhase stays live: it plays nothing unless lavaOnScreen or
+      // lavaNear is set, and the cue memo keeps tracking the phase.
+      lavaNear: worldLive && lavaNear,
+      lavaPhase: lavaPhaseInfo.phase,
       lavaFill: worldLive ? lavaFill : 0,
       dead: worldLive && player?.status === "eliminated",
     }
   );
 
   const redirectPath = `/play`;
+  // SEC-DC-12: hold a daily run's link until its own save is acknowledged.
+  const shareGate: ShareGate | null =
+    !shareAfterSave || saveInfo?.saved ? null : savingRun || (token && saveInfo === null) ? "saving" : "unsaved";
 
   const buildRun = useCallback(
     () => ({
@@ -245,8 +300,8 @@ export function ClimbScene({
   );
 
   const postRun = useCallback(
-    async (run: object, authToken: string): Promise<SaveInfo> => {
-      const res = await fetch("/api/climb/result", {
+    async (run: object, authToken: string, path: string): Promise<SaveInfo> => {
+      const res = await fetch(path, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -271,6 +326,8 @@ export function ClimbScene({
   );
 
   function handleStart() {
+    if (startBlockedLabel) return;
+    if (onBeforeStart && !onBeforeStart()) return;
     unlockAudio();
     firedFinishRef.current = false;
     setPosted(false);
@@ -279,6 +336,8 @@ export function ClimbScene({
     setShareUrl(null);
     setEncodingShare(false);
     setSavingRun(false);
+    setSaveNote(null);
+    stashRef.current = null;
     start();
   }
 
@@ -301,13 +360,21 @@ export function ClimbScene({
         setShareUrl(buildReplayUrl(replayToken, window.location.origin));
       }
       setEncodingShare(false);
-      const payload = replayToken ? { ...run, replayToken } : run;
+      const withFields = resultFields ? { ...run, ...resultFields } : run;
+      const payload = replayToken ? { ...withFields, replayToken } : withFields;
 
       if (token) {
-        postRun(payload, token).then(setSaveInfo).finally(() => setSavingRun(false));
+        // A route that verifies the replay (Daily Climb) refuses a run without
+        // one, so that run goes to the all-time route instead, without the
+        // daily fields, the same as the mobile app (RV-DC-1).
+        const noReplayFallback = !replayToken && resultPath !== DEFAULT_RESULT_PATH;
+        if (noReplayFallback) setSaveNote(NO_REPLAY_FALLBACK_NOTE);
+        const [body, path] = noReplayFallback ? [run, DEFAULT_RESULT_PATH] : [payload, resultPath];
+        postRun(body, token, path).then(setSaveInfo).finally(() => setSavingRun(false));
       } else {
         setSaveInfo({ saved: false });
         setSavingRun(false);
+        stashRef.current = payload;
         try {
           // Stash the replayToken too — otherwise the retroactive save after
           // sign-in (below) persists this run with no replay link at all.
@@ -319,7 +386,7 @@ export function ClimbScene({
     };
 
     finishRun();
-  }, [finished, posted, replaying, inputLog, buildRun, token, postRun]);
+  }, [finished, posted, replaying, inputLog, buildRun, token, postRun, resultPath, resultFields]);
 
   // Fire onFinish once per live run (Daily Climb commits its streak here).
   const finishPeakY = player?.peakY ?? 0;
@@ -351,7 +418,10 @@ export function ClimbScene({
     } catch {
       /* ignore */
     }
-    postRun(run, token).then(setSavedBanner);
+    // The stash may come from any page (and a daily run may be past its
+    // tower's grace window by now), so the retroactive save always goes to the
+    // all-time route, which accepts any bounded run.
+    postRun(run, token, DEFAULT_RESULT_PATH).then(setSavedBanner);
   }, [user, token, postRun]);
 
   // Replay transport shortcuts (AC-3). Separate from live jump capture.
@@ -491,7 +561,7 @@ export function ClimbScene({
               </>
             )}
             <ClimbControlsGuide variant="overlay" />
-            <StartButton onClick={handleStart} label="Start climb" />
+            <StartButton onClick={handleStart} label="Start climb" blockedLabel={startBlockedLabel} />
           </Overlay>
         )}
 
@@ -526,12 +596,14 @@ export function ClimbScene({
                     {saveInfo.improved ? "new personal best · " : ""}
                     {saveInfo.handle ?? climberHandle(user.uid)}
                   </p>
+                  {saveNote ? <p className="text-xs text-text-muted">{saveNote}</p> : null}
                 </div>
               ) : replaying ? null : (
                 <p className="text-xs mt-3 font-mono text-text-muted">
                   {savingRun || saveInfo === null
                     ? "Saving…"
                     : "Couldn’t save your run"}
+                  {saveNote ? <span className="block mt-1">{saveNote}</span> : null}
                 </p>
               )
             ) : replaying ? null : (
@@ -540,9 +612,11 @@ export function ClimbScene({
                   href={`/auth/signin?redirect=${encodeURIComponent(redirectPath)}`}
                   onClick={() => {
                     try {
+                      // Keep the replay-bearing stash from finishRun when it
+                      // exists; buildRun() alone would drop the replayToken.
                       sessionStorage.setItem(
                         PENDING_CLIMB_KEY,
-                        JSON.stringify(buildRun())
+                        JSON.stringify(stashRef.current ?? buildRun())
                       );
                     } catch {
                       /* ignore */
@@ -559,13 +633,14 @@ export function ClimbScene({
             {!replaying ? (
               <ShareRun
                 peakY={player?.peakY ?? 0}
-                shareUrl={shareUrl}
+                shareUrl={shareGate ? null : shareUrl}
                 encoding={encodingShare}
+                gate={shareGate}
               />
             ) : null}
 
             {!replaying ? (
-              <StartButton onClick={handleStart} label="Climb again" />
+              <StartButton onClick={handleStart} label="Climb again" blockedLabel={startBlockedLabel} />
             ) : (
               <div className="mt-6 flex flex-col items-center gap-2">
                 <StartButton onClick={restartReplay} label="Restart" />
@@ -655,16 +730,28 @@ function Overlay({ children }: { children: ReactNode }) {
   );
 }
 
-function StartButton({ onClick, label }: { onClick: () => void; label: string }) {
+function StartButton({
+  onClick,
+  label,
+  blockedLabel = null,
+}: {
+  onClick: () => void;
+  label: string;
+  /** Disabled with this text while set (e.g. refetching today's tower). */
+  blockedLabel?: string | null;
+}) {
+  const blocked = Boolean(blockedLabel);
   return (
     <button
       type="button"
       data-game-control
       onClick={onClick}
+      disabled={blocked}
+      aria-busy={blocked || undefined}
       onContextMenu={(e) => e.preventDefault()}
-      className="mt-6 inline-flex items-center justify-center rounded-full bg-signal text-void font-semibold px-10 min-h-[60px] text-lg shadow-signal hover:brightness-110 active:scale-[0.98] transition-[filter,transform,scale]"
+      className="mt-6 inline-flex items-center justify-center rounded-full bg-signal text-void font-semibold px-10 min-h-[60px] text-lg shadow-signal hover:brightness-110 active:scale-[0.98] transition-[filter,transform,scale] disabled:cursor-wait disabled:opacity-60"
     >
-      {label}
+      {blockedLabel ?? label}
     </button>
   );
 }
