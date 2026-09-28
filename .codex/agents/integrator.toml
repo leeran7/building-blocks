@@ -57,6 +57,8 @@ Read `context/README.md` first, then every file it lists. Default branch and rem
 4. Review comments: fix, or reply; do not ignore.
 5. Push and wait until checks are actually green. Required checks must be
    ruleset-gated per `context/git.md` — honor-system green is not enough.
+6. Several parallel PRs landing as one: follow `skills/github/feature-branch.md`
+   (merge into a feature branch, typecheck after the last merge, open one trunk PR).
 
 ## Don't
 

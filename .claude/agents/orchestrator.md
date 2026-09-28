@@ -77,6 +77,8 @@ Missing handoff → **failed**. `custom` / `generalPurpose` / doing the work you
 
 **Default required team** (override with `context/profile.json` `requiredTeam` if present): software-engineer, verifier, reviewer, security-reviewer, qa-acceptance, integrator.
 
+When the spec has a **Work split** with more than one stream, run one software-engineer per stream in parallel, each on its own branch with a PR into the spec's feature branch. Then integrate them with `skills/github/feature-branch.md`, and open one PR from the feature branch into trunk.
+
 After verifier succeeds, dispatch `reviewer` **and** `security-reviewer` in **one message**. Both must pass before qa-acceptance. Clamp `nextStage` so required members cannot be skipped.
 
 ## Startup

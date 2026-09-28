@@ -17,6 +17,7 @@ or ruleset advice.
 | Topic | File |
 |-------|------|
 | Stacked PRs + `gh stack` | `skills/github/stacked-prs.md` |
+| Parallel PRs into one feature branch | `skills/github/feature-branch.md` |
 | PR creation / review / merge | `skills/github/pull-requests.md` |
 | Rulesets, required checks, Actions | `skills/github/rulesets-ci.md` |
 | Merge queue + `merge_group` | `skills/github/merge-queue.md` |
@@ -32,8 +33,9 @@ Read the relevant partial before advising on that topic.
 2. Never give production secrets to any `pull_request` job.
 3. Pin third-party Actions by full commit SHA.
 4. Prefer **stacked PRs** when a change is large, layered, or blocked on an
-   unmerged foundation. Prefer a **single PR** when the diff is one reviewable
-   concern.
+   unmerged foundation. Prefer a **feature branch** when several parallel
+   workstreams (threads, subagents) land together and should reach trunk as one
+   PR. Prefer a **single PR** when the diff is one reviewable concern.
 5. If a merge queue exists, required workflows must also run on
    `merge_group`.
 6. Never force-push the default branch, merge red/missing/skipped required

@@ -226,6 +226,9 @@ function tallyColumns(tally: FailTally | null) {
 // previews it read-only), so the preview cannot drift from what the next
 // ticket issue actually does.
 
+// Every column the close path reads (refunds included) must be listed here.
+// A column fetched by a private query is lost when that query is folded into
+// openTickets(); the bad-start booster refund nearly went that way.
 const OPEN_TICKET_SELECT = {
   id: true,
   season: true,
