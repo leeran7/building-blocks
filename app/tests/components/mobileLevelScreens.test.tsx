@@ -68,7 +68,7 @@ vi.mock("../../mobile/src/components/levels/LevelRun", async () => {
 import { LevelsProvider } from "../../mobile/src/contexts/LevelsContext";
 import { createMockLevelsClient } from "../../mobile/src/lib/levels/mockClient";
 import type { LevelResult, LevelRunReport, LevelsClient } from "../../mobile/src/lib/levels/model";
-import { LevelMapScreen } from "../../mobile/src/screens/LevelMapScreen";
+import { LevelMapScreen, MAP_FADE, pinBottom } from "../../mobile/src/screens/LevelMapScreen";
 import { LevelPlayScreen, ticketFromState } from "../../mobile/src/screens/LevelPlayScreen";
 import { LevelResultCard } from "../../mobile/src/components/levels/LevelResultCard";
 import { TICK_HZ } from "../../src/game/types";
@@ -218,6 +218,19 @@ describe("level map", () => {
     await clearLevels(client, 2);
     await renderMap(client, { pathname: "/", state: { openLevel: 3 } });
     expect(container.querySelector('[role="dialog"] h2')?.textContent).toBe("Level 3");
+  });
+
+  it("leaves the Play bar clear so the lava shows behind it, fading the map out instead", async () => {
+    await renderMap(memoryClient());
+    const bar = container.querySelector<HTMLElement>("[data-play-bar]");
+    expect(bar?.contains(button("Open level 1") ?? null)).toBe(true);
+    // No scrim of its own: a dark fill here hid the lava crest above the tab bar.
+    expect(bar?.className).not.toMatch(/\bbg-|\bfrom-|\bvia-/);
+    const scroller = container.querySelector("ol")?.closest<HTMLElement>(".overflow-y-auto");
+    expect(scroller?.style.getPropertyValue("mask-image")).toBe(MAP_FADE);
+    // Level 1, the lowest pin, sits above the fade's solid stop.
+    const solidFrom = Math.max(...[...MAP_FADE.matchAll(/(\d+)px/g)].map((m) => Number(m[1])));
+    expect(pinBottom(1)).toBeGreaterThan(solidFrom);
   });
 
   it("sends Endless to the endless climb", async () => {

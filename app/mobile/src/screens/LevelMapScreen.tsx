@@ -26,6 +26,13 @@ const BOTTOM_PAD = 150;
 const TOP_PAD = 140;
 /** Locked levels shown above the frontier before the map fades out. */
 const LOOKAHEAD = 10;
+/**
+ * Fades the map out behind the Play bar, so pins never run under Play and the
+ * bar needs no dark scrim of its own: the backdrop's lava shows through down
+ * to the tab bar. Clear under the 68px bar (pb-3 + the 56px buttons), solid
+ * from 112px up, which keeps level 1 (BOTTOM_PAD) fully visible.
+ */
+export const MAP_FADE = "linear-gradient(to top, transparent 56px, #000 112px)";
 
 /** Pin centre from the map's bottom edge, px. */
 export function pinBottom(level: number): number {
@@ -159,7 +166,12 @@ export function LevelMapScreen() {
       <div
         ref={scrollRef}
         className="relative flex-1 overflow-y-auto"
-        style={{ overscrollBehavior: "contain", WebkitOverflowScrolling: "touch" }}
+        style={{
+          overscrollBehavior: "contain",
+          WebkitOverflowScrolling: "touch",
+          maskImage: MAP_FADE,
+          WebkitMaskImage: MAP_FADE,
+        }}
       >
         <div className="relative mx-auto w-full max-w-md" style={{ height }}>
           <Trail levels={shown.length} frontier={frontier} height={height} />
@@ -191,7 +203,9 @@ export function LevelMapScreen() {
         </div>
       </div>
 
-      <div className="absolute inset-x-0 bottom-0 z-20 flex items-stretch gap-2.5 bg-gradient-to-t from-void via-void/85 to-transparent px-4 pb-3 pt-10">
+      {/* Clear bar: no scrim, so the lava crest shows behind it. MAP_FADE
+          fades the pins out before they reach it. */}
+      <div data-play-bar className="absolute inset-x-0 bottom-0 z-20 flex items-stretch gap-2.5 px-4 pb-3">
         <button
           type="button"
           onClick={() => {
