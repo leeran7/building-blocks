@@ -1,6 +1,6 @@
 /**
- * Levels need an account; guests get Practice only (Leeran, 2026-09-27).
- * The guest shell offers Practice and a sign-in prompt for Levels, and a
+ * Levels need an account; guests get Endless only (Leeran, 2026-09-27).
+ * The guest shell offers Endless and a sign-in prompt for Levels, and a
  * level link opened as a guest lands there instead of on a level.
  *
  * @vitest-environment happy-dom
@@ -64,14 +64,14 @@ const button = (label: string) =>
   container.querySelector<HTMLButtonElement>(`button[aria-label="${label}"]`);
 
 describe("guest shell", () => {
-  it("offers Practice and sends Levels to sign in", async () => {
+  it("offers Endless and sends Levels to sign in", async () => {
     const onSignIn = await renderGuest("/");
-    expect(button("Practice, the endless climb")).toBeTruthy();
+    expect(button("Endless, climb as high as you can")).toBeTruthy();
 
     await act(async () => button("Sign in to play Levels")?.click());
     expect(onSignIn).toHaveBeenCalledTimes(1);
 
-    await act(async () => button("Practice, the endless climb")?.click());
+    await act(async () => button("Endless, climb as high as you can")?.click());
     expect(pathname).toBe("/climb");
     expect(container.textContent).toContain("practice climb");
   });

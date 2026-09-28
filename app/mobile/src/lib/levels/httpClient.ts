@@ -337,6 +337,7 @@ export function createHttpLevelsClient(opts: HttpClientOptions): LevelsClient {
         stars: result.stars,
         previousStars: result.previousStars,
         timeMs: verdictCleared && run.finishedTick !== null ? ticksToMs(run.finishedTick) : null,
+        outOfTime: !verdictCleared && run.outOfTime,
         pars: node.pars,
         goalFt: node.goalFt,
         peakFt: run.peakFt,

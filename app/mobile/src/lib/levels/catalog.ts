@@ -81,7 +81,11 @@ export function seasonLevels(season: SeasonSpec, rows: readonly ManifestLevel[])
         level,
         seed: spec.seed,
         goalFt: spec.goalFt,
-        pars: { twoStarMs: ticksToMs(pars.twoStarTicks), threeStarMs: ticksToMs(pars.threeStarTicks) },
+        pars: {
+          twoStarMs: ticksToMs(pars.twoStarTicks),
+          threeStarMs: ticksToMs(pars.threeStarTicks),
+          oneStarMs: pars.oneStarTicks === null ? null : ticksToMs(pars.oneStarTicks),
+        },
         introPowerUp: spec.introPowerUp,
         introTip: obstacleTip(season, level),
         powerUps: levelPowerUps(spec),
@@ -95,8 +99,11 @@ export function seasonLevels(season: SeasonSpec, rows: readonly ManifestLevel[])
     catalog: { season: season.id, name: season.name, count: rows.length, level: infoFor },
     runSetup(level) {
       const r = row(level);
+      const tower = levelTower(specFor(level));
+      // The level's 1-star clock ends the run when it runs out.
+      if (r.pars.oneStarTicks !== null) tower.timeLimitTicks = r.pars.oneStarTicks;
       return {
-        tower: levelTower(specFor(level)),
+        tower,
         // As the season gate plays it (seasonGate.ts lavaOf).
         hazard: levelHazard({ meanFrac: r.lavaMeanFrac, rampSeconds: r.rampSeconds }),
       };

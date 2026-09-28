@@ -26,7 +26,11 @@ export interface LevelNode {
   /** Summit height the climb must reach, ft. */
   goalFt: number;
   /** Finish at or under these times for 2 and 3 stars, ms. */
-  pars: { twoStarMs: number; threeStarMs: number };
+  /**
+   * Finish at or under these times for 2 and 3 stars, ms. oneStarMs is the
+   * level's clock: the run is lost when it runs out (null: no clock).
+   */
+  pars: { twoStarMs: number; threeStarMs: number; oneStarMs: number | null };
   /** The power-up this level introduces with a one-line tip, if any. */
   introPowerUp: PowerUpType | null;
   /** Obstacle this level introduces (hanging ladders, short tops), if any. */
@@ -81,7 +85,7 @@ export interface LevelTicket {
 }
 
 export type StartRefusal =
-  /** No lives left: wait for nextLifeAt or play Practice. */
+  /** No lives left: wait for nextLifeAt or play Endless. */
   | "OUT_OF_LIVES"
   /** Beyond the frontier. */
   | "LOCKED"
@@ -107,6 +111,8 @@ export interface LevelRunReport {
   peakFt: number;
   /** Replay token of the run's inputs, kept for friend ghosts; not verified. */
   replayToken: string | null;
+  /** Lost because the level's clock ran out, not to the lava. */
+  outOfTime: boolean;
 }
 
 /** The server's verdict on a level run. */
@@ -119,6 +125,8 @@ export interface LevelResult {
   previousStars: StarCount;
   /** Finish time on a clear; null on a loss. */
   timeMs: number | null;
+  /** Lost because the level's clock ran out. */
+  outOfTime: boolean;
   pars: LevelNode["pars"];
   goalFt: number;
   peakFt: number;
@@ -163,10 +171,14 @@ export function episodeOf(level: number): number {
   return Math.floor((level - 1) / EPISODE_SIZE) + 1;
 }
 
-/** Stars a finish time earns against a level's pars (§4): 1 for any clear. */
+/**
+ * Stars a time earns against a level's pars (§4): 1 inside the level's clock
+ * (any clear when it has none), 0 once the clock has run out.
+ */
 export function starsForTime(timeMs: number, pars: LevelNode["pars"]): StarCount {
   if (timeMs <= pars.threeStarMs) return 3;
   if (timeMs <= pars.twoStarMs) return 2;
+  if (pars.oneStarMs !== null && timeMs > pars.oneStarMs) return 0;
   return 1;
 }
 

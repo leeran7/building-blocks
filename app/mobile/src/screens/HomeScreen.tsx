@@ -10,7 +10,7 @@ import volcanoScene from "@app/../public/climb/volcano-tile.jpg";
 
 /**
  * Modes = the game's other ways to play, beside the level map (the home tab):
- * Practice (the endless climb), the Daily, Quick Play and Challenge. It was
+ * Endless (the endless climb), the Daily, Quick Play and Challenge. It was
  * the title screen before levels. Play-first and hub-centric: the wordmark and
  * the player's standing sit up top over the volcanic scene, and a dominant
  * PLAY button plus the secondary modes are anchored above the tab bar.
@@ -186,7 +186,7 @@ function PlayButton({ onPress }: { onPress: () => void }) {
   return (
     <button
       onClick={onPress}
-      aria-label="Practice, the endless climb"
+      aria-label="Endless, climb as high as you can"
       className="cta-lime flex min-h-[56px] w-full items-center gap-4 rounded-[22px] py-3 pl-3 pr-3 text-left text-void transition-transform active:scale-[0.97] [@media(max-height:640px)]:py-2.5"
     >
       <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#141612] text-signal shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_4px_12px_rgba(0,0,0,0.35)]">
@@ -194,10 +194,10 @@ function PlayButton({ onPress }: { onPress: () => void }) {
       </span>
       <span className="min-w-0 flex-1">
         <span className="block font-display text-cta font-black uppercase tracking-[-0.01em] text-void">
-          Practice
+          Endless
         </span>
         <span className="mt-1 block font-mono text-label font-bold uppercase tracking-label text-void/80">
-          Endless climb
+          Climb as high as you can
         </span>
       </span>
       <ChevronRight size={24} className="text-void" />

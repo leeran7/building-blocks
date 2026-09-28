@@ -287,6 +287,7 @@ export function createMockLevelsClient(opts: MockClientOptions = {}): LevelsClie
         stars,
         previousStars,
         timeMs,
+        outOfTime: !cleared && run.outOfTime,
         pars: node.pars,
         goalFt: node.goalFt,
         peakFt: run.peakFt,

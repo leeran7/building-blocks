@@ -250,6 +250,12 @@ export interface TowerSpec {
    */
   goalM?: number;
   /**
+   * Level towers only: race ticks from GO a climber has to finish. Still
+   * climbing when the clock reaches it, they are out (the level's 1-star
+   * time). A positive integer; undefined everywhere else, so no clock.
+   */
+  timeLimitTicks?: number;
+  /**
    * Level towers only: the power-up types that may spawn, in any order.
    * "random" in the set lets random orbs spawn, and they roll only among the
    * set's concrete types. An empty set spawns no orbs. Undefined elsewhere:

@@ -205,6 +205,7 @@ export function LevelPlayScreen() {
           level={level}
           goalFt={goalFt}
           peakFt={stage.report.peakFt}
+          outOfTime={stage.report.outOfTime}
           timeMs={stage.report.finishedTick !== null ? Math.round((stage.report.finishedTick / TICK_HZ) * 1000) : null}
           onRetry={() => void retry()}
           onMap={() => toMap()}

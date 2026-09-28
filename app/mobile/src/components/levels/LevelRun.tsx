@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef } from "react";
 
 import { buildFreeTower } from "@app/game/freeStack";
 import { useClimb } from "@app/game/useClimb";
+import { levelTimeLimitTicks } from "@app/game/simulation";
 import { encodeRunReplay } from "@app/game/runReplay";
 import { hazardPhase } from "@app/game/hazard";
 import { ClimbCanvas } from "@app/components/Game/ClimbCanvas";
@@ -141,6 +142,8 @@ export function LevelRun({
     const finishTick = me?.status === "finished" && me.finishedTick != null ? me.finishedTick : null;
     const reached = finishTick !== null;
     const raceTicks = Math.max(0, simRef.current.tick);
+    const limit = levelTimeLimitTicks(simRef.current.tower);
+    const outOfTime = !reached && limit !== null && me?.finishedTick != null && me.finishedTick >= limit;
     if (reached) void tapMedium();
     else void notifyError();
     void (async () => {
@@ -152,6 +155,7 @@ export function LevelRun({
         raceTicks: finishTick ?? raceTicks,
         peakFt: me?.peakY ?? 0,
         replayToken,
+        outOfTime,
       });
     })();
   }, [finished, inputLog, level, onEnd, simRef, state.seed]);
@@ -272,7 +276,8 @@ export function GoalBar({
 }) {
   const pct = goalFt > 0 ? Math.min(100, (peakFt / goalFt) * 100) : 0;
   const stars = starsForTime(elapsedMs, pars);
-  const nextDrop = stars === 3 ? pars.threeStarMs : stars === 2 ? pars.twoStarMs : null;
+  const nextDrop =
+    stars === 3 ? pars.threeStarMs : stars === 2 ? pars.twoStarMs : stars === 1 ? pars.oneStarMs : null;
   return (
     <div
       className="pointer-events-none absolute left-1/2 z-20 w-[min(84vw,320px)] -translate-x-1/2"

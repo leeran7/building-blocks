@@ -33,7 +33,8 @@ export function manifestProblems(id: number, raw: unknown = MANIFEST_FILES.get(i
       Number.isInteger(p.threeStarTicks) &&
       Number.isInteger(p.twoStarTicks) &&
       p.threeStarTicks > 0 &&
-      p.threeStarTicks <= p.twoStarTicks;
+      p.threeStarTicks <= p.twoStarTicks &&
+      (p.oneStarTicks === null || (Number.isInteger(p.oneStarTicks) && p.twoStarTicks <= p.oneStarTicks));
     if (!ok) problems.push(`L${row?.level}: bad pars`);
   });
   return problems;
@@ -66,9 +67,13 @@ export function catalogLevel(season: number, level: number): ManifestLevel | nul
   return row && row.level === level ? row : null;
 }
 
-/** Stars a clear in `ticks` earns against `pars` (§4): 1 for any clear. */
-export function starsForTicks(ticks: number, pars: LevelPars): 1 | 2 | 3 {
+/**
+ * Stars a clear in `ticks` earns against `pars` (§4): 1 for any clear inside
+ * the level's clock, 0 past it (the run ran out of time, so no clear).
+ */
+export function starsForTicks(ticks: number, pars: LevelPars): 0 | 1 | 2 | 3 {
   if (ticks <= pars.threeStarTicks) return 3;
   if (ticks <= pars.twoStarTicks) return 2;
+  if (pars.oneStarTicks !== null && ticks > pars.oneStarTicks) return 0;
   return 1;
 }

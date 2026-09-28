@@ -45,13 +45,13 @@ export function LevelResultCard({
 }) {
   const label = result.cleared
     ? `Level ${result.level} cleared, ${result.stars} of ${MAX_STARS} stars`
-    : `Caught by the lava, ${feetShort(result)} ${ALTITUDE_UNIT} from the summit`;
+    : `${result.outOfTime ? "Out of time" : "Caught by the lava"}, ${feetShort(result)} ${ALTITUDE_UNIT} from the summit`;
   return (
     <Sheet label={label}>
       {result.cleared ? (
         <Cleared result={result} />
       ) : (
-        <Lost goalFt={result.goalFt} peakFt={result.peakFt} level={result.level} />
+        <Lost goalFt={result.goalFt} peakFt={result.peakFt} level={result.level} outOfTime={result.outOfTime} />
       )}
 
       {retryError && (
@@ -114,6 +114,7 @@ function Cleared({ result }: { result: LevelResult }) {
       </p>
       <p className="mt-1 text-center font-mono text-label uppercase tracking-label text-text-secondary">
         3★ at {formatClock(result.pars.threeStarMs)} · 2★ at {formatClock(result.pars.twoStarMs)}
+        {result.pars.oneStarMs !== null && <> · 1★ at {formatClock(result.pars.oneStarMs)}</>}
       </p>
       <div className="mt-4 flex flex-col items-center gap-2">
         {result.xpGained > 0 && (
@@ -138,13 +139,23 @@ function Cleared({ result }: { result: LevelResult }) {
   );
 }
 
-function Lost({ goalFt, peakFt, level }: { goalFt: number; peakFt: number; level: number }) {
+function Lost({
+  goalFt,
+  peakFt,
+  level,
+  outOfTime,
+}: {
+  goalFt: number;
+  peakFt: number;
+  level: number;
+  outOfTime: boolean;
+}) {
   const short = feetShort({ goalFt, peakFt });
   const pct = goalFt > 0 ? Math.min(100, (peakFt / goalFt) * 100) : 0;
   return (
     <>
       <p className="text-center font-mono text-label font-bold uppercase tracking-eyebrow text-ember">
-        Caught by the lava · Level {level}
+        {outOfTime ? "Out of time" : "Caught by the lava"} · Level {level}
       </p>
       <p className="mt-3 text-center font-display text-hero font-black tabular-nums text-text-primary">
         {short.toLocaleString()}
@@ -224,6 +235,7 @@ export function PracticeResultCard({
   goalFt,
   peakFt,
   timeMs,
+  outOfTime,
   onRetry,
   onMap,
 }: {
@@ -231,6 +243,7 @@ export function PracticeResultCard({
   goalFt: number;
   peakFt: number;
   timeMs: number | null;
+  outOfTime: boolean;
   onRetry: () => void;
   onMap: () => void;
 }) {
@@ -247,7 +260,7 @@ export function PracticeResultCard({
           <p className="text-center text-body text-text-secondary">Summit reached</p>
         </>
       ) : (
-        <Lost goalFt={goalFt} peakFt={peakFt} level={level} />
+        <Lost goalFt={goalFt} peakFt={peakFt} level={level} outOfTime={outOfTime} />
       )}
       <p className="mt-3 text-center text-meta text-text-muted">Practice runs earn no stars or XP.</p>
       <div className="mt-6 flex gap-2.5">

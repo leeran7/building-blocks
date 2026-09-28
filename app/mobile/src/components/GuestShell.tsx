@@ -56,7 +56,7 @@ function GuestHome({
         <div className="mt-1 flex flex-col items-center gap-2">
           <LogoMark size={48} card className="mb-1" />
           <span className="font-mono text-[11px] uppercase tracking-[0.5em] text-text-muted">
-            practice&nbsp;mode
+            endless&nbsp;mode
           </span>
           <h1 className="gh-wordmark font-display text-[2.75rem] font-black uppercase leading-none tracking-tight text-text-primary">
             Doom<span className="text-signal">stack</span>
@@ -70,7 +70,7 @@ function GuestHome({
         <div className="flex w-full flex-col items-center gap-4">
           <button
             onClick={onPlay}
-            aria-label="Practice, the endless climb"
+            aria-label="Endless, climb as high as you can"
             className="flex w-full items-center gap-4 rounded-2xl bg-signal px-5 py-5 text-left text-void shadow-signal transition-transform active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void"
           >
             <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-void/15">
@@ -78,16 +78,16 @@ function GuestHome({
             </span>
             <span className="flex-1">
               <span className="block font-display text-2xl font-black uppercase tracking-wide text-void">
-                Practice
+                Endless
               </span>
               <span className="block font-mono text-[11px] uppercase tracking-[0.06em] text-void/70">
-                Endless climb
+                Climb as high as you can
               </span>
             </span>
             <ChevronRight />
           </button>
 
-          {/* Levels need an account (Leeran): guests get Practice only. */}
+          {/* Levels need an account (Leeran): guests get Endless only. */}
           <button
             onClick={onSignIn}
             aria-label="Sign in to play Levels"

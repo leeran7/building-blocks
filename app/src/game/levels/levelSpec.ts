@@ -262,15 +262,30 @@ export interface LevelPars {
   twoStarTicks: number;
   /** Finish at or under this many ticks for 3 stars. */
   threeStarTicks: number;
+  /**
+   * The level's clock: finish at or under this many ticks for 1 star, or the
+   * run ends as a loss when it runs out. Null on levels with no clock.
+   */
+  oneStarTicks: number | null;
 }
 
 /** Tutorial levels use looser pars so a clean first try earns 3 stars. */
 const TUTORIAL_LEVELS = 10;
+/** Levels 1-50 run tighter pars (Leeran 2026-09-28); later levels keep the originals. */
+export const TIGHT_PAR_LEVELS = 50;
+
+/** Par multipliers on the route bot's time: [one-star clock or null, two-star, three-star]. */
+function parFactors(level: number): readonly [number | null, number, number] {
+  if (level <= TUTORIAL_LEVELS) return [2, 1.45, 1.2];
+  if (level <= TIGHT_PAR_LEVELS) return [1.5, 1.15, 1];
+  return [null, 1.25, 1.05];
+}
 
 export function levelPars(level: number, routeTicks: number): LevelPars {
-  const tutorial = level <= TUTORIAL_LEVELS;
+  const [one, two, three] = parFactors(level);
   return {
-    twoStarTicks: Math.ceil(routeTicks * (tutorial ? 1.6 : 1.25)),
-    threeStarTicks: Math.ceil(routeTicks * (tutorial ? 1.3 : 1.05)),
+    twoStarTicks: Math.ceil(routeTicks * two),
+    threeStarTicks: Math.ceil(routeTicks * three),
+    oneStarTicks: one === null ? null : Math.ceil(routeTicks * one),
   };
 }

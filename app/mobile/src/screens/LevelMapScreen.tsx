@@ -38,7 +38,7 @@ export function pinX(level: number): number {
  * The home screen: a Candy Crush style map of numbered levels, climbing from
  * level 1 at the bottom. Cleared levels show their stars, the frontier pin
  * pulses, Hard levels glow ember, and later levels are locked. Tapping an
- * open pin opens the level start card; Practice (the endless climb) sits
+ * open pin opens the level start card; Endless (the endless climb) sits
  * beside the Play bar.
  */
 export function LevelMapScreen() {
@@ -106,7 +106,7 @@ export function LevelMapScreen() {
             <div className="w-full max-w-xs">
               <Button onPress={() => void refresh()}>Try again</Button>
             </div>
-            <Button variant="ghost" onPress={openPractice}>Play Practice</Button>
+            <Button variant="ghost" onPress={openPractice}>Play Endless</Button>
           </>
         ) : (
           <p role="status" className="font-mono text-label uppercase tracking-label text-text-muted">
@@ -186,12 +186,12 @@ export function LevelMapScreen() {
         <button
           type="button"
           onClick={openPractice}
-          aria-label="Practice, the endless climb"
+          aria-label="Endless, climb as high as you can"
           className="glass flex min-h-[56px] flex-col items-center justify-center rounded-[22px] border border-white/10 px-4 transition-transform active:scale-[0.97]"
         >
           <InfinityIcon />
           <span className="mt-0.5 font-mono text-[10px] font-bold uppercase tracking-label text-text-secondary">
-            Practice
+            Endless
           </span>
         </button>
       </div>

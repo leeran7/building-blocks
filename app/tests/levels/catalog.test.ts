@@ -47,11 +47,19 @@ describe("level catalog", () => {
   });
 
   it("scores stars at the pars, inclusive", () => {
-    const pars = { twoStarTicks: 500, threeStarTicks: 400 };
+    const pars = { twoStarTicks: 500, threeStarTicks: 400, oneStarTicks: null };
     expect(starsForTicks(1, pars)).toBe(3);
     expect(starsForTicks(400, pars)).toBe(3);
     expect(starsForTicks(401, pars)).toBe(2);
     expect(starsForTicks(500, pars)).toBe(2);
     expect(starsForTicks(501, pars)).toBe(1);
+  });
+
+  it("scores no stars past the level's clock", () => {
+    const pars = { twoStarTicks: 500, threeStarTicks: 400, oneStarTicks: 750 };
+    expect(starsForTicks(501, pars)).toBe(1);
+    expect(starsForTicks(750, pars)).toBe(1);
+    expect(starsForTicks(751, pars)).toBe(0);
+    expect(starsForTicks(400, pars)).toBe(3);
   });
 });

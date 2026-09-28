@@ -74,12 +74,37 @@ describe("season 1 catalog", () => {
   });
 });
 
+describe("the 1-star clock", () => {
+  it("runs on levels 1-50 only, shown and enforced from the same row", () => {
+    let clocked = 0;
+    for (const row of rows) {
+      const info = catalog.level(row.level);
+      const setup = levelRunSetup(row.level);
+      if (row.level <= 50) {
+        expect(row.pars.oneStarTicks).not.toBeNull();
+        // The route bot the season gate ran finishes inside the clock.
+        expect(row.routeTicks).toBeLessThanOrEqual(row.pars.oneStarTicks!);
+        expect(setup.tower.timeLimitTicks).toBe(row.pars.oneStarTicks);
+        expect(info.pars.oneStarMs).toBe(ms(row.pars.oneStarTicks!));
+        clocked++;
+      } else {
+        expect(row.pars.oneStarTicks).toBeNull();
+        expect(setup.tower.timeLimitTicks).toBeUndefined();
+        expect(info.pars.oneStarMs).toBeNull();
+      }
+    }
+    expect(clocked).toBe(50);
+  });
+});
+
 describe("levelRunSetup", () => {
   it("builds the level's own tower, finishing at its goal", () => {
     for (const n of [1, 9, 150]) {
       const row = rows[n - 1];
       const setup = levelRunSetup(n);
-      expect(setup.tower).toEqual(levelTower(levelSpec(SEASON_1, n, row.rev)));
+      const { timeLimitTicks, ...tower } = setup.tower;
+      expect(tower).toEqual(levelTower(levelSpec(SEASON_1, n, row.rev)));
+      expect(timeLimitTicks).toBe(row.pars.oneStarTicks ?? undefined);
       expect(setup.tower.goalM).toBe(catalog.level(n).goalFt);
       // A fresh tower per attempt.
       expect(levelRunSetup(n).tower).not.toBe(setup.tower);

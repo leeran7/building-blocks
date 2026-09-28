@@ -50,13 +50,14 @@ async function clear(client: ReturnType<typeof harness>["client"], level: number
     raceTicks: ticks(ms),
     peakFt: start.ticket.goalFt,
     replayToken: null,
+    outOfTime: false,
   });
 }
 
 async function lose(client: ReturnType<typeof harness>["client"], level: number) {
   const start = await client.startLevel(level);
   if (!start.ok) throw new Error(`level ${level} refused: ${start.code}`);
-  return client.submitResult(start.ticket.id, { level, finished: false, finishedTick: null, raceTicks: 300, peakFt: 10, replayToken: "r" });
+  return client.submitResult(start.ticket.id, { level, finished: false, finishedTick: null, raceTicks: 300, peakFt: 10, replayToken: "r", outOfTime: false });
 }
 
 describe("mock level store", () => {
@@ -102,6 +103,7 @@ describe("mock level store", () => {
       raceTicks: ticks(1_000),
       peakFt: start.ticket.goalFt,
       replayToken: null,
+      outOfTime: false,
     });
     expect(result.player.lives).toBe(MAX_LIVES);
   });
@@ -178,7 +180,7 @@ describe("mock level store", () => {
     const { client } = harness();
     const start = await client.startLevel(1);
     if (!start.ok) throw new Error("refused");
-    const run = { level: 1, finished: false, finishedTick: null, raceTicks: 90, peakFt: 1, replayToken: null };
+    const run = { level: 1, finished: false, finishedTick: null, raceTicks: 90, peakFt: 1, replayToken: null, outOfTime: false };
     await client.submitResult(start.ticket.id, run);
     await expect(client.submitResult(start.ticket.id, run)).rejects.toThrow();
   });
@@ -225,13 +227,20 @@ describe("refillLives", () => {
 });
 
 describe("level model helpers", () => {
-  const pars = { twoStarMs: 20_000, threeStarMs: 15_000 };
+  const pars = { twoStarMs: 20_000, threeStarMs: 15_000, oneStarMs: null };
 
   it("gives 3, 2 or 1 stars against the pars", () => {
     expect(starsForTime(15_000, pars)).toBe(3);
     expect(starsForTime(15_001, pars)).toBe(2);
     expect(starsForTime(20_000, pars)).toBe(2);
     expect(starsForTime(20_001, pars)).toBe(1);
+  });
+
+  it("gives no stars once the level's clock has run out", () => {
+    const clocked = { ...pars, oneStarMs: 30_000 };
+    expect(starsForTime(30_000, clocked)).toBe(1);
+    expect(starsForTime(30_001, clocked)).toBe(0);
+    expect(starsForTime(15_000, clocked)).toBe(3);
   });
 
   it("marks every 5th level Hard", () => {

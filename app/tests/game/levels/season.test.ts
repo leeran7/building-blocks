@@ -157,8 +157,10 @@ describe("level lava and pars", () => {
   });
 
   it("sets star pars from the route, looser on tutorial levels", () => {
-    expect(levelPars(50, 1000)).toEqual({ twoStarTicks: 1250, threeStarTicks: 1050 });
-    expect(levelPars(10, 1000)).toEqual({ twoStarTicks: 1600, threeStarTicks: 1300 });
+    expect(levelPars(51, 1000)).toEqual({ twoStarTicks: 1250, threeStarTicks: 1050 });
+    expect(levelPars(50, 1000)).toEqual({ twoStarTicks: 1150, threeStarTicks: 1000 });
+    expect(levelPars(11, 1000)).toEqual({ twoStarTicks: 1150, threeStarTicks: 1000 });
+    expect(levelPars(10, 1000)).toEqual({ twoStarTicks: 1450, threeStarTicks: 1200 });
   });
 });
 

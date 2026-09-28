@@ -621,6 +621,16 @@ export function stepMatch(
       continue;
     }
 
+    // 4b. TIME LIMIT — a level with a 1-star clock ends the climb when it runs
+    //     out. After the finish check, so reaching the goal on the last tick
+    //     still counts.
+    const limit = levelTimeLimitTicks(state.tower);
+    if (limit !== null && state.tick >= limit) {
+      p.status = "eliminated";
+      p.finishedTick = state.tick;
+      continue;
+    }
+
     // 5. DEATH LINE — the higher of the rising hazard and the Doodle-Jump fall
     //    floor (peak minus the fall-death drop). On an endless tower there is
     //    no summit, so a run ends ONLY here. Peak height (the score) is retained
@@ -640,6 +650,19 @@ export function stepMatch(
   // 7. Resolve match end + deterministic winner.
   resolveOutcome(state);
   return state;
+}
+
+/**
+ * A level tower's clock (tower.timeLimitTicks), or null when it has none.
+ * Throws on anything but a positive integer: never a silent no-clock.
+ */
+export function levelTimeLimitTicks(tower: TowerSpec): number | null {
+  const t = tower.timeLimitTicks;
+  if (t === undefined) return null;
+  if (!Number.isInteger(t) || t <= 0) {
+    throw new RangeError(`tower.timeLimitTicks must be a positive integer, got ${t}`);
+  }
+  return t;
 }
 
 /** Start a power-up's effect on a climber, with its cooldown and HUD pickup. */

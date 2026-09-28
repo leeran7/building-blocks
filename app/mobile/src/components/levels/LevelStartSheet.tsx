@@ -24,7 +24,7 @@ export const REFUSAL_COPY: Record<Exclude<StartRefusal, "OUT_OF_LIVES">, string>
 /**
  * The level start card (Candy Crush's "Level 12 · Play" popup): the goal, the
  * star times, what's new on this level, and what it costs. Play asks the
- * server for a run ticket; out of lives, it offers the wait, Practice, or a
+ * server for a run ticket; out of lives, it offers the wait, Endless, or a
  * lives-free practice of this level instead (§5b).
  */
 export function LevelStartSheet({
@@ -140,10 +140,14 @@ export function LevelStartSheet({
             <ul className="mt-1.5 flex flex-col gap-1">
               <ParRow stars={3} ms={node.pars.threeStarMs} />
               <ParRow stars={2} ms={node.pars.twoStarMs} />
-              <li className="flex items-center justify-between text-meta text-text-secondary">
-                <StarRow count={1} size={12} />
-                <span>any clear</span>
-              </li>
+              {node.pars.oneStarMs !== null ? (
+                <ParRow stars={1} ms={node.pars.oneStarMs} />
+              ) : (
+                <li className="flex items-center justify-between text-meta text-text-secondary">
+                  <StarRow count={1} size={12} />
+                  <span>any clear</span>
+                </li>
+              )}
             </ul>
           </div>
         </div>
@@ -295,7 +299,7 @@ export function OutOfLives({
       </Button>
       <p className="-mt-1 text-center text-meta text-text-secondary">No lives, stars or XP</p>
       <Button variant="ghost" onPress={onPractice}>
-        Play Practice
+        Play Endless
       </Button>
     </div>
   );

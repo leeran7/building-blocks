@@ -148,7 +148,11 @@ export function verifyLevelRow(season: SeasonSpec, row: ManifestLevel): string[]
     out.push(`${tag}: lava ramp does not match the route time`);
   }
   const pars = levelPars(row.level, row.routeTicks);
-  if (pars.twoStarTicks !== row.pars.twoStarTicks || pars.threeStarTicks !== row.pars.threeStarTicks) {
+  if (
+    pars.twoStarTicks !== row.pars.twoStarTicks ||
+    pars.threeStarTicks !== row.pars.threeStarTicks ||
+    pars.oneStarTicks !== row.pars.oneStarTicks
+  ) {
     out.push(`${tag}: star pars do not match the route time`);
   }
   if (!(row.catchMeanFrac > 0 && row.catchMeanFrac <= maxLavaMeanFrac() + EPS)) {
