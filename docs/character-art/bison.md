@@ -1,10 +1,24 @@
-# Bison
+# Bison gameplay artwork: generation prompts
 
-Unlocks at 250 stars. Placeholder tint `#f03010` (ember red).
+Unlocks at 250 stars. Until the finished sheets land, the game draws the
+Bison as a tinted Wraith placeholder (`bison` in
+`app/src/components/Game/climberCharacters.ts`, accent `#f1442a`).
+
+Produce the art in the Wraith pipeline (`git show 7406c15:output/wraith/README.md`
+and `output/wraith/movement/README.md` in that commit) and ship it to the
+contract in `app/public/climb/README.md`: `bison-poses-192.png` (4 × 2 cells:
+Idle, Run A, Run B, Reach A, Reach B, Falling, Celebrate, Down) and
+`bison-climb-192.png` (6-frame back-view climb). Generate at 512 × 512 cells with
+the foot anchor at `(256, 460)` and a 380 px idle height, one scale for every
+pose, then downscale to 192 px cells and palette-quantise. Identity reference:
+`app/mobile/src/assets/avatars/bison.webp` (head and shoulders only, so the
+prompts describe the body). Shared style: chibi low-poly faceted warrior,
+oversized head, short chunky limbs, matte charcoal armor, glowing eyes, soft
+studio lighting, no text, scene, border, weapons or ground shadow.
 
 Identity (from `bison.webp`): low-poly bison head with a charcoal face and
 dark muzzle, broad nose, two tan curved horns (`#c9a06a`) sweeping out and up,
-glowing red-orange eyes, a huge shaggy mane of red-orange facets (`#f03010`
+glowing red-orange eyes, a huge shaggy mane of red-orange facets (`#f1442a`
 through `#901010`) wrapping the head and shoulders, heavy charcoal and red
 armored shoulders.
 
@@ -14,7 +28,7 @@ One 4 × 2 sheet of the same chibi low-poly bison warrior: oversized bison head
 with tan curved horns, charcoal face and dark muzzle, glowing red-orange eyes, a
 massive shaggy red-orange faceted mane over the head and a raised shoulder
 hump, a stocky barrel torso wider than the Wraith's, short thick limbs, matte
-charcoal armor with ember-red `#f03010` facet accents, a red chevron on the
+charcoal armor with ember-red `#f1442a` facet accents, a red chevron on the
 chest, heavy hoof-like boots and big gauntlets. Fixed three-quarter
 right-facing view. Ordered poses: idle (planted, head low), running with one
 stride, opposite running stride, right-arm overhead reach, left-arm overhead
