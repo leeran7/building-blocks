@@ -2,7 +2,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { POWER_UP_SPECS } from "@app/game/powerups";
 import { STREAK_RAPID_CLIMB, STUCK_BOOSTER_FAILS, type StartPowerUp } from "@app/levels/engagement";
 import { formatClock, type LevelBoardView, type StuckHelp } from "../../lib/levels/model";
-import { StarRow } from "./LevelBits";
+import { Accordion, StarRow } from "./LevelBits";
 
 /**
  * What the start card adds beyond the level itself (§5c, §6.3): the win
@@ -55,43 +55,43 @@ export function FriendsBoard({ level, load }: { level: number; load: (level: num
 
   if (state.kind === "error") return null;
   const heading = (
-    <p className="font-mono text-label font-bold uppercase tracking-label text-text-secondary">Friends on this level</p>
+    <span className="font-mono text-label font-bold uppercase tracking-label text-text-secondary">Friends</span>
   );
-  if (state.kind === "loading") {
-    return (
-      <div className="mt-3 rounded-2xl border border-white/10 bg-elevated/70 px-3.5 py-2.5" aria-busy="true">
-        {heading}
-        <p className="mt-1 text-meta text-text-muted">Loading…</p>
-      </div>
-    );
-  }
+  // Loading and empty fit on one line beside the heading.
+  const oneLine = (text: string, busy = false) => (
+    <p
+      className="mt-2 flex flex-wrap items-baseline gap-x-2 rounded-2xl border border-white/10 bg-elevated/70 px-3.5 py-2 text-meta text-text-secondary"
+      aria-busy={busy || undefined}
+    >
+      {heading}
+      <span>{text}</span>
+    </p>
+  );
+  if (state.kind === "loading") return oneLine("Loading…", true);
   const { board } = state;
   const top = board.entries.slice(0, BOARD_ROWS);
   const me = board.entries.find((e) => e.isMe);
   const rows = me && !top.includes(me) ? [...top, me] : top;
+  if (rows.length === 0) {
+    return oneLine(board.friendCount === 0 ? "Add friends to race their times here." : "No friend has cleared it yet.");
+  }
+  const summary = me ? `You're #${me.rank} of ${board.entries.length}` : `${board.entries.length} cleared`;
   return (
-    <div className="mt-3 rounded-2xl border border-white/10 bg-elevated/70 px-3.5 py-2.5">
-      {heading}
-      {rows.length === 0 ? (
-        <p className="mt-1 text-meta text-text-secondary">
-          {board.friendCount === 0 ? "Add friends to race their times here." : "No friend has cleared it yet. Be the first."}
-        </p>
-      ) : (
-        <ol aria-label={`Friends' best times on level ${board.level}`} className="mt-1.5 flex flex-col gap-1">
-          {rows.map((e) => (
-            <li
-              key={`${e.rank}-${e.handle}`}
-              className={`flex items-center gap-2 text-meta tabular-nums ${e.isMe ? "font-bold text-signal" : "text-text-primary"}`}
-            >
-              <span className="w-5 text-text-secondary">{e.rank}</span>
-              <span className="min-w-0 flex-1 truncate">{e.isMe ? "You" : e.handle}</span>
-              <StarRow count={e.stars} size={11} />
-              <span>{formatClock(e.timeMs)}</span>
-            </li>
-          ))}
-        </ol>
-      )}
-    </div>
+    <Accordion label="Friends" summary={summary}>
+      <ol aria-label={`Friends' best times on level ${board.level}`} className="flex flex-col gap-0.5">
+        {rows.map((e) => (
+          <li
+            key={`${e.rank}-${e.handle}`}
+            className={`flex items-center gap-2 text-meta tabular-nums ${e.isMe ? "font-bold text-signal" : "text-text-primary"}`}
+          >
+            <span className="w-5 text-text-secondary">{e.rank}</span>
+            <span className="min-w-0 flex-1 truncate">{e.isMe ? "You" : e.handle}</span>
+            <StarRow count={e.stars} size={11} />
+            <span>{formatClock(e.timeMs)}</span>
+          </li>
+        ))}
+      </ol>
+    </Accordion>
   );
 }
 
@@ -120,17 +120,15 @@ export function LevelStartExtras({
   const boardEl = board ? <FriendsBoard level={board.level} load={board.load} /> : null;
   if (!showStreak && !startPowerUp && !ghost && !boosters) return boardEl;
   return (
-    <div className="mt-3 flex flex-col gap-2">
+    <div className="mt-2 flex flex-col gap-2">
       {boosters}
       {startPowerUp && (
-        <div className="rounded-2xl border border-white/10 bg-elevated/70 px-3.5 py-2.5">
-          <p className="font-mono text-label font-bold uppercase tracking-label text-text-secondary">
-            {startPowerUpReason(startPowerUp, streak)}
-          </p>
-          <p className="mt-1 text-meta text-text-primary">
-            You start with <PowerUpName type={startPowerUp.type} /> at GO.
-          </p>
-        </div>
+        <p className="flex flex-wrap items-baseline justify-between gap-x-3 rounded-2xl border border-white/10 bg-elevated/70 px-3.5 py-2 text-meta text-text-primary">
+          <span>
+            You start with <PowerUpName type={startPowerUp.type} />
+          </span>
+          <span className="text-text-secondary">{startPowerUpReason(startPowerUp, streak)}</span>
+        </p>
       )}
       {showStreak && !startPowerUp && (
         <p className="text-meta text-text-secondary">
@@ -142,7 +140,7 @@ export function LevelStartExtras({
       )}
       {ghost && (
         <p className="text-meta text-text-secondary">
-          Route ghost unlocked: a replay of the way up. It arrives in a coming update.
+          Route ghost unlocked. It arrives in a coming update.
         </p>
       )}
       {boardEl}
