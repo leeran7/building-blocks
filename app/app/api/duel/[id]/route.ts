@@ -11,6 +11,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { parseAvatarId } from "../../../../src/lib/avatars";
 import {
   getDuel,
   cancelPendingDuel,
@@ -68,10 +69,10 @@ export async function GET(
     categorySlug: duel.category_slug,
     ...(seed !== undefined ? { seed } : {}),
     player1: duel.player1
-      ? { id: duel.player1.id, displayName: duel.player1.display_name }
+      ? { id: duel.player1.id, displayName: duel.player1.display_name, avatarId: parseAvatarId(duel.player1.avatar_id) }
       : null,
     player2: duel.player2
-      ? { id: duel.player2.id, displayName: duel.player2.display_name }
+      ? { id: duel.player2.id, displayName: duel.player2.display_name, avatarId: parseAvatarId(duel.player2.avatar_id) }
       : null,
     winnerId: duel.winner_id ?? null,
     player1Peak: duel.player1_peak ?? null,
