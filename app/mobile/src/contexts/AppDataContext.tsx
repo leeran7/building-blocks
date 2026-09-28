@@ -68,7 +68,7 @@ export interface SettingsData {
  */
 export function parseAvatarUnlocks(v: unknown): AvatarUnlockState | null {
   if (typeof v !== "object" || v === null) return null;
-  const { stars, unlockedIds, grandfatheredId } = v as Record<string, unknown>;
+  const { stars, unlockedIds, grandfatheredId, tutorialDone } = v as Record<string, unknown>;
   if (typeof stars !== "number" || !Number.isInteger(stars) || stars < 0) return null;
   const ids = parseAvatarIdList(unlockedIds);
   if (ids === null) return null;
@@ -76,7 +76,12 @@ export function parseAvatarUnlocks(v: unknown): AvatarUnlockState | null {
   const absent = grandfatheredId === undefined || grandfatheredId === null;
   const kept = absent ? null : parseAvatarId(grandfatheredId);
   if (!absent && kept === null) return null;
-  return { stars, unlockedIds: ids, grandfatheredId: kept };
+  return {
+    stars,
+    ...(typeof tutorialDone === "boolean" ? { tutorialDone } : {}),
+    unlockedIds: ids,
+    grandfatheredId: kept,
+  };
 }
 
 /** Normalises a GET/PUT /api/settings body into the cached settings shape. */

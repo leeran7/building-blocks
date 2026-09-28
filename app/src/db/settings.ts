@@ -11,6 +11,7 @@ import { avatarUnlockState, type AvatarUnlockState } from "../lib/avatarUnlocks"
 import {
   AvatarLockedError,
   checkAvatarForUser,
+  tutorialCleared,
   isCheckFor,
   levelStarsEarned,
   type AvatarCheck,
@@ -30,12 +31,18 @@ export interface UserSettings {
   avatarUnlocks: AvatarUnlockState;
 }
 
+/** Unlock inputs a request already read (a PUT that checked an avatar unlock). */
+export interface KnownUnlockInputs {
+  stars: number;
+  tutorialDone: boolean;
+}
+
 /**
- * The user's settings. `stars` skips the star sum when this request already
- * read it (a PUT that checked an avatar unlock); omit it to read it here.
+ * The user's settings. `known` skips the star sum and tutorial read when this
+ * request already did them; omit it to read them here.
  */
-export async function getUserSettings(userId: string, stars?: number): Promise<UserSettings> {
-  const [user, social, starTotal] = await Promise.all([
+export async function getUserSettings(userId: string, known?: KnownUnlockInputs): Promise<UserSettings> {
+  const [user, social, starTotal, tutorialDone] = await Promise.all([
     prisma.user.findUnique({
       where: { id: userId },
       select: { display_name: true, username: true, leaderboard_consent_at: true, avatar_id: true },
@@ -44,7 +51,8 @@ export async function getUserSettings(userId: string, stars?: number): Promise<U
       where: { userId },
       select: { platform: true, handle: true },
     }),
-    stars ?? levelStarsEarned(userId),
+    known?.stars ?? levelStarsEarned(userId),
+    known?.tutorialDone ?? tutorialCleared(userId),
   ]);
   const avatarId = parseAvatarId(user?.avatar_id);
   return {
@@ -53,7 +61,7 @@ export async function getUserSettings(userId: string, stars?: number): Promise<U
     social: Object.fromEntries(social.map((s) => [s.platform, s.handle])),
     leaderboardConsent: Boolean(user?.leaderboard_consent_at),
     avatarId,
-    avatarUnlocks: avatarUnlockState({ stars: starTotal, savedAvatarId: avatarId, userId }),
+    avatarUnlocks: avatarUnlockState({ stars: starTotal, tutorialDone, savedAvatarId: avatarId }),
   };
 }
 
@@ -126,7 +134,7 @@ export async function updateUserSettings(
   input: { displayName?: string | null; leaderboardConsent?: boolean; avatarId?: string | null },
   avatarCheck?: AvatarCheck
 ): Promise<UserSettings> {
-  let knownStars: number | undefined;
+  let known: KnownUnlockInputs | undefined;
   const userPatch: Record<string, unknown> = {};
   if (input.displayName !== undefined) {
     userPatch.display_name = input.displayName?.trim() || null;
@@ -143,7 +151,7 @@ export async function updateUserSettings(
         ? avatarCheck
         : await checkAvatarForUser(userId, input.avatarId);
       if (check.lock) throw new AvatarLockedError(check.lock);
-      knownStars = check.stars ?? undefined;
+      known = { stars: check.stars, tutorialDone: check.tutorialDone };
     }
     userPatch.avatar_id = input.avatarId;
   }
@@ -154,5 +162,5 @@ export async function updateUserSettings(
     });
   }
 
-  return getUserSettings(userId, knownStars);
+  return getUserSettings(userId, known);
 }

@@ -12,7 +12,7 @@ import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { climberHandle, defaultAvatarFor } from "@app/lib/handle";
+import { climberHandle } from "@app/lib/handle";
 import type { DashboardData, SettingsData } from "../../mobile/src/contexts/AppDataContext";
 
 (globalThis as Record<string, unknown>).IS_REACT_ACT_ENVIRONMENT = true;
@@ -97,8 +97,8 @@ function renderProfile() {
 
 /** The identity card: the avatar button's section. */
 function identityCard(): HTMLElement {
-  // The avatar button is named "Avatar: <current>. Change avatar".
-  const card = container.querySelector('button[aria-label$=". Change avatar"]')?.closest("section");
+  // The avatar button is named "Character: <current>. Change character".
+  const card = container.querySelector('button[aria-label$=". Change character"]')?.closest("section");
   expect(card).toBeTruthy();
   return card as HTMLElement;
 }
@@ -111,7 +111,8 @@ function headerName(): string | null | undefined {
 describe("Profile header name for a player with no display name", () => {
   it("uses a fixture whose chosen animal differs from the uid's hash animal", () => {
     // Otherwise the avatar-aware and hash-only names coincide and nothing below could fail.
-    expect(defaultAvatarFor(UID)).not.toBe(AVATAR);
+    // (New accounts no longer start on the hash animal; the pseudonym still uses it.)
+    expect(climberHandle(UID, null).split(" ")[1].toLowerCase()).not.toBe(AVATAR);
     expect(climberHandle(UID, AVATAR)).not.toBe(climberHandle(UID, null));
     expect(climberHandle(UID, AVATAR)).toContain("Wolf");
     expect(avatarSrc(AVATAR)).toBeTruthy();

@@ -2,60 +2,73 @@
  * Who may select which avatar. Pure and client-safe (the mobile SPA imports
  * it); the server feeds it values it derived itself, never request input.
  *
- * An avatar is selectable when any of these holds:
- *   - its rule is free, or the player's level stars meet its star rule;
- *   - it is the player's starter, the animal new accounts are given by
- *     defaultAvatarFor (src/db/user.ts ensureUser). Otherwise a new player
- *     who tried another avatar could never get their first one back;
+ * An avatar is selectable when either holds:
+ *   - its rule is met: a star rule by the player's level stars, a tutorial
+ *     rule once they have cleared level 1. A premium rule is never met (not
+ *     on sale yet);
  *   - it is the player's saved avatar (grandfathered). This lasts only while
  *     it stays saved: switching to another avatar locks it again until its
- *     star rule is met, and the picker warns before that switch.
+ *     rule is met, and the picker warns before that switch. This keeps
+ *     players who saved a character before the rules changed (the Wraith,
+ *     a starter animal) on it.
+ *
+ * No character is free outright: a player with none climbs as the Green Stick.
  */
 
 import {
   AVATARS,
   avatarsUnlockedBetween,
+  lockedMessage,
   parseAvatarId,
   requiredStars,
-  starsToUnlock,
-  unlockMessage,
   type AvatarEntry,
 } from "./avatars";
-import { defaultAvatarFor } from "./handle";
 
 export interface AvatarUnlockInput {
   /** The player's level stars, counted by the server (src/db/avatarUnlocks.ts). */
   stars: number;
+  /** Whether they have cleared level 1, read by the server from stored rows. */
+  tutorialDone: boolean;
   /** The stored avatar id (any string; anything outside the catalogue is ignored). */
   savedAvatarId: string | null;
-  userId: string;
 }
 
 /** The unlock state the settings API returns for the picker. */
 export interface AvatarUnlockState {
   stars: number;
+  /** Absent from an API build older than tutorial unlocks. */
+  tutorialDone?: boolean;
   /** Every catalogue id this player may select, in catalogue order. */
   unlockedIds: string[];
   /**
    * The saved avatar when it is selectable only because it is saved (its
-   * star rule unmet, not the starter), else null. Switching away locks it.
+   * rule unmet), else null. Switching away locks it.
    */
   grandfatheredId: string | null;
 }
 
-/** Why an avatar cannot be selected: the star rule still unmet. */
+/** Why an avatar cannot be selected: its rule is still unmet. */
 export interface AvatarLock {
   avatarId: string;
   name: string;
-  requiredStars: number;
+  kind: AvatarEntry["unlock"]["kind"];
+  /** The star rule, or null for a tutorial or premium rule. */
+  requiredStars: number | null;
   stars: number;
   /** "Earn 30 stars to unlock Falcon", safe to show as-is. */
   message: string;
 }
 
-/** Unlocked on its own merits: free, earned by stars, or the starter. */
+/** Unlocked on its own merits: its rule is met. */
 function earned(entry: AvatarEntry, input: AvatarUnlockInput): boolean {
-  return starsToUnlock(entry, input.stars) === 0 || entry.id === defaultAvatarFor(input.userId);
+  switch (entry.unlock.kind) {
+    case "stars":
+      return input.stars >= entry.unlock.stars;
+    case "tutorial":
+      return input.tutorialDone;
+    case "premium":
+      return false;
+  }
 }
 
 function selectable(entry: AvatarEntry, input: AvatarUnlockInput): boolean {
@@ -68,14 +81,14 @@ function selectable(entry: AvatarEntry, input: AvatarUnlockInput): boolean {
  * "unlocked": the caller resolves it with avatarEntry and rejects a null.
  */
 export function avatarLockFor(entry: AvatarEntry, input: AvatarUnlockInput): AvatarLock | null {
-  const need = requiredStars(entry);
-  if (need === null || selectable(entry, input)) return null;
+  if (selectable(entry, input)) return null;
   return {
     avatarId: entry.id,
     name: entry.name,
-    requiredStars: need,
+    kind: entry.unlock.kind,
+    requiredStars: requiredStars(entry),
     stars: input.stars,
-    message: unlockMessage(entry.name, need),
+    message: lockedMessage(entry),
   };
 }
 
@@ -84,21 +97,23 @@ export function avatarUnlockState(input: AvatarUnlockInput): AvatarUnlockState {
   const saved = AVATARS.find((a) => a.id === parseAvatarId(input.savedAvatarId));
   return {
     stars: input.stars,
+    tutorialDone: input.tutorialDone,
     unlockedIds: AVATARS.filter((a) => selectable(a, input)).map((a) => a.id),
     grandfatheredId: saved && !earned(saved, input) ? saved.id : null,
   };
 }
 
 /**
- * Avatars a rise from `before` to `after` stars made newly selectable: their
- * threshold crossed, minus any the player could already select without stars
- * (the starter and the saved avatar), which would not be news.
+ * Avatars a run made newly selectable: star rules its stars crossed (from
+ * `before` to `after`) and, when it was the player's first clear of level 1,
+ * the stick figures. Minus the saved avatar, which they could already select.
  */
 export function avatarsNewlyUnlocked(
   before: number,
   after: number,
-  player: { userId: string; savedAvatarId: string | null }
+  player: { savedAvatarId: string | null; tutorialJustDone: boolean }
 ): string[] {
-  const owned = new Set([defaultAvatarFor(player.userId), parseAvatarId(player.savedAvatarId)]);
-  return avatarsUnlockedBetween(before, after).filter((id) => !owned.has(id));
+  const saved = parseAvatarId(player.savedAvatarId);
+  const sticks = player.tutorialJustDone ? AVATARS.filter((a) => a.unlock.kind === "tutorial").map((a) => a.id) : [];
+  return [...sticks, ...avatarsUnlockedBetween(before, after)].filter((id) => id !== saved);
 }

@@ -33,6 +33,7 @@ import {
 import { drawFloorMarker } from "./FloorMarker";
 import { drawClimbBackground } from "./climbBackground";
 import {
+  climberStickColor,
   drawClimberSprite,
   tickClimberMotion,
   type ClimberMotionBag,
@@ -148,7 +149,7 @@ export type PaintClimbFrameOptions = {
   /**
    * Avatar ids keyed by player id — each climber draws as that avatar's
    * character (climberCharacters.ts). Missing, null or unknown ids draw the
-   * Wraith.
+   * Green Stick.
    */
   avatarIds?: Readonly<Record<string, string | null>>;
   /**
@@ -174,7 +175,7 @@ const _spriteState: ClimberSpriteState = { pose: "idle", x: 0, y: 0, vx: 0, vy: 
 /**
  * The avatar id a climber draws as: its `avatarIds` entry (own keys only, a
  * player id is not trusted to be a safe key), else `myAvatarId` for the local
- * player, else null (the Wraith). The id is validated again downstream.
+ * player, else null (the Green Stick). The id is validated again downstream.
  */
 export function climberAvatarId(
   opts: Pick<PaintClimbFrameOptions, "avatarIds" | "myAvatarId">,
@@ -412,15 +413,24 @@ export function paintClimbFrame(
     const pFeetY = sy(p.y);
     const pFacing = p.facing;
 
-    const baseColor = isLocal ? ACCENT : OPPONENT_COLOR;
+    const avatarId = climberAvatarId(opts, p.id, isLocal);
+    // A stick character (and a climber with none: the Green Stick) is the
+    // vector figure in its own colour; a sprite character only uses the
+    // local/opponent colours while its atlas decodes.
+    // An opponent with no character keeps the opponent colour, so two
+    // players without one never look identical in a duel.
+    const stickColor = !isLocal && avatarId === null ? OPPONENT_COLOR : climberStickColor(avatarId);
+    const baseColor = stickColor ?? (isLocal ? ACCENT : OPPONENT_COLOR);
     const pColor =
-      p.status === "finished"
-        ? isLocal
-          ? FLAG
-          : OPPONENT_COLOR
-        : p.status === "eliminated"
-          ? TEXT_MUTED
-          : baseColor;
+      p.status === "eliminated"
+        ? TEXT_MUTED
+        : stickColor !== null
+          ? stickColor
+          : p.status === "finished"
+            ? isLocal
+              ? FLAG
+              : OPPONENT_COLOR
+            : baseColor;
 
     let pPose: Pose = "idle";
     if (p.status === "finished") pPose = "done";
@@ -445,9 +455,9 @@ export function paintClimbFrame(
       ctx.fill();
     }
 
-    // Every climber wears its avatar's character sprite (the Wraith for none)
-    // once that atlas has decoded; until then (and offscreen/SSR) they fall
-    // back to the vector figure, which still recolours via pColor.
+    // A sprite character draws once its atlas has decoded; until then (and
+    // offscreen/SSR), and always for a stick character, the vector figure
+    // draws instead, coloured by pColor.
     // Climbing is vertical — lock facing so the back-view climb frames do not
     // mirror-flip with ladder vx jitter.
     const spriteFacing: 1 | -1 = pPose === "climb" ? 1 : pFacing;
@@ -457,7 +467,7 @@ export function paintClimbFrame(
     _spriteState.vx = p.vx;
     _spriteState.vy = p.vy;
     _spriteState.slot = p.slot;
-    _spriteState.avatarId = climberAvatarId(opts, p.id, isLocal);
+    _spriteState.avatarId = avatarId;
     const drewSprite = drawClimberSprite(
       ctx,
       pxScreen,
@@ -601,10 +611,14 @@ export function hudFitFontPx(basePx: number, textW: number, roomW: number): numb
   return Math.max(min, Math.floor((basePx * Math.max(0, roomW)) / textW));
 }
 
-type Pose = "idle" | "walk" | "climb" | "air" | "done" | "dead";
+export type Pose = "idle" | "walk" | "climb" | "air" | "done" | "dead";
 type Pt = [number, number];
 
-function drawClimber(
+/**
+ * The vector stick figure, feet at (fx, fy), `s` px per body unit. Exported
+ * for the character picker's preview; the tick drives the limb swing.
+ */
+export function drawClimber(
   ctx: PaintCtx,
   fx: number,
   fy: number,

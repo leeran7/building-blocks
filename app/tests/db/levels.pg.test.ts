@@ -39,7 +39,7 @@ import {
 } from "../../src/db/levels";
 import { firstClearXp, EPISODE_XP, LIFE_REFILL_MS, STAR_XP, type ReportedRun } from "../../src/levels/rules";
 import { isLocalDbUrl } from "../../scripts/localDbGuard";
-import { defaultAvatarFor } from "../../src/lib/handle";
+import { AVATARS } from "../../src/lib/avatars";
 import { levelBoosterTypes } from "../../src/levels/catalog";
 
 const T0 = new Date("2026-09-27T12:00:00Z");
@@ -388,21 +388,22 @@ describe.skipIf(!PG_URL)("levels on Postgres", () => {
 
   describe("avatar unlocks in the result", () => {
     // cleared(1200) is 2 stars a level: 14 stars after 7 levels, 16 after 8.
-    // Ibex unlocks at 15, so level 8 crosses it and level 7 does not.
-    const uid = ["a", "b", "c", "d"].find((id) => defaultAvatarFor(id) !== "ibex")!;
+    // Kestrel unlocks at 15, so level 8 crosses it and level 7 does not.
+    const uid = "a";
+    const STICK_IDS = AVATARS.filter((a) => a.unlock.kind === "tutorial").map((a) => a.id);
 
-    it("names Ibex on the run that crosses 15 stars, and not one star short", async () => {
+    it("names Kestrel on the run that crosses 15 stars, and not one star short", async () => {
       await user(uid);
       await clearThrough(uid, 6);
       const seventh = await start(uid, 7);
       expect((await submit(uid, seventh.ticketId, cleared(1200))).unlockedAvatars).toEqual([]);
       const eighth = await start(uid, 8);
-      expect((await submit(uid, eighth.ticketId, cleared(1200))).unlockedAvatars).toEqual(["ibex"]);
+      expect((await submit(uid, eighth.ticketId, cleared(1200))).unlockedAvatars).toEqual(["kestrel"]);
     });
 
     it("does not announce an avatar the player already has saved", async () => {
       await user(uid);
-      await prisma.user.update({ where: { id: uid }, data: { avatar_id: "ibex" } });
+      await prisma.user.update({ where: { id: uid }, data: { avatar_id: "kestrel" } });
       await clearThrough(uid, 7);
       const eighth = await start(uid, 8);
       expect((await submit(uid, eighth.ticketId, cleared(1200))).unlockedAvatars).toEqual([]);
@@ -413,6 +414,33 @@ describe.skipIf(!PG_URL)("levels on Postgres", () => {
       await clearThrough(uid, 8);
       const again = await start(uid, 8);
       expect((await submit(uid, again.ticketId, cleared(1200))).unlockedAvatars).toEqual([]);
+    });
+
+    it("names the six stick figures on the first level 1 clear (the tutorial), and never again", async () => {
+      await user(uid);
+      expect(STICK_IDS).toHaveLength(6);
+      const first = await start(uid, 1);
+      expect((await submit(uid, first.ticketId, cleared(1200))).unlockedAvatars).toEqual(STICK_IDS);
+      // A better replay raises level 1's stars (2 -> 3) but is not the tutorial.
+      const replay = await start(uid, 1);
+      expect((await submit(uid, replay.ticketId, cleared(900))).unlockedAvatars).toEqual([]);
+      const second = await start(uid, 2);
+      expect((await submit(uid, second.ticketId, cleared(1200))).unlockedAvatars).toEqual([]);
+    });
+
+    it("leaves a saved stick figure out of the tutorial unlock", async () => {
+      await user(uid);
+      await prisma.user.update({ where: { id: uid }, data: { avatar_id: "stick-sky" } });
+      const first = await start(uid, 1);
+      expect((await submit(uid, first.ticketId, cleared(1200))).unlockedAvatars).toEqual(
+        STICK_IDS.filter((id) => id !== "stick-sky")
+      );
+    });
+
+    it("names nothing for a failed level 1 run", async () => {
+      await user(uid);
+      const first = await start(uid, 1);
+      expect((await submit(uid, first.ticketId, failed(1200))).unlockedAvatars).toEqual([]);
     });
   });
 });

@@ -1,6 +1,7 @@
 /**
  * Server-side avatar unlock state, derived only from stored rows: the level
- * stars in level_progress and the saved users.avatar_id. Nothing here reads
+ * stars in level_progress (and whether a level 1 row exists, the tutorial
+ * unlock) and the saved users.avatar_id. Nothing here reads
  * the request, so a client can never claim an unlock it has not recorded.
  *
  * Stars are summed over every season (best stars per level, as stored), so
@@ -28,6 +29,15 @@ export async function levelStarsEarned(userId: string, db: Db = prisma): Promise
 }
 
 /**
+ * Whether the player has cleared level 1 in any season: the tutorial unlock
+ * for the stick figures. A row exists only for a cleared level (stars 1..3).
+ */
+export async function tutorialCleared(userId: string, db: Db = prisma): Promise<boolean> {
+  const row = await db.levelProgress.findFirst({ where: { userId, level: 1 }, select: { id: true } });
+  return row !== null;
+}
+
+/**
  * The server's verdict on saving `avatarId` for `userId`. Only
  * checkAvatarForUser creates one (the WeakSet below), so a caller cannot hand
  * updateUserSettings a forged "unlocked" verdict.
@@ -37,8 +47,10 @@ export interface AvatarCheck {
   readonly avatarId: string;
   /** Null when the player may save it. */
   readonly lock: AvatarLock | null;
-  /** The star total read for the check; null when none was needed (a free avatar). */
-  readonly stars: number | null;
+  /** The star total read for the check. */
+  readonly stars: number;
+  /** Whether level 1 was cleared, read for the check. */
+  readonly tutorialDone: boolean;
 }
 
 const ISSUED = new WeakSet<AvatarCheck>();
@@ -49,24 +61,20 @@ export function isCheckFor(check: AvatarCheck | undefined, userId: string, avata
 }
 
 /**
- * Whether the player may save `avatarId`. Free avatars answer without a
- * query. The caller must already have checked `avatarId` with parseAvatarId;
- * an unknown id throws rather than read as unlocked.
+ * Whether the player may save `avatarId`. The caller must already have
+ * checked `avatarId` with parseAvatarId; an unknown id throws rather than
+ * read as unlocked.
  */
 export async function checkAvatarForUser(userId: string, avatarId: string): Promise<AvatarCheck> {
   const entry = avatarEntry(avatarId);
   if (entry === null) throw new Error("checkAvatarForUser: avatarId is not a catalogue id");
-  let check: AvatarCheck;
-  if (entry.unlock.kind === "free") {
-    check = { userId, avatarId, lock: null, stars: null };
-  } else {
-    const [user, stars] = await Promise.all([
-      prisma.user.findUnique({ where: { id: userId }, select: { avatar_id: true } }),
-      levelStarsEarned(userId),
-    ]);
-    const lock = avatarLockFor(entry, { stars, savedAvatarId: parseAvatarId(user?.avatar_id), userId });
-    check = { userId, avatarId, lock, stars };
-  }
+  const [user, stars, tutorialDone] = await Promise.all([
+    prisma.user.findUnique({ where: { id: userId }, select: { avatar_id: true } }),
+    levelStarsEarned(userId),
+    tutorialCleared(userId),
+  ]);
+  const lock = avatarLockFor(entry, { stars, tutorialDone, savedAvatarId: parseAvatarId(user?.avatar_id) });
+  const check: AvatarCheck = { userId, avatarId, lock, stars, tutorialDone };
   ISSUED.add(check);
   return Object.freeze(check);
 }

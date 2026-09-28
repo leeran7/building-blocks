@@ -37,12 +37,25 @@ describe("parseAvatarId", () => {
 describe("AVATARS catalogue", () => {
   // Ids are persisted in users.avatar_id: renaming or dropping one silently
   // retires every player who picked it, so the list is a stored contract.
-  it("is the approved gallery, in order, with id = lowercase name", () => {
+  it("is the approved gallery, in order: premium, the stick figures, then the star ladder", () => {
     expect(AVATARS.map((a) => a.name)).toEqual([
-      "Wraith", "Viking", "Sentinel", "Ibex", "Falcon", "Marmot", "Gecko", "Panther", "Otter", "Raven",
-      "Lynx", "Bison", "Heron", "Cobra", "Badger", "Wolf", "Kestrel", "Mantis", "Yak",
+      "Wraith", "Gecko",
+      "Green Stick", "Ember Stick", "Amber Stick", "Sky Stick", "Violet Stick", "Pink Stick",
+      "Kestrel", "Lynx", "Raven", "Panther", "Wolf", "Otter", "Heron", "Yak", "Mantis", "Cobra",
+      "Badger", "Falcon", "Marmot", "Bison", "Ibex", "Sentinel", "Viking",
     ]);
-    for (const a of AVATARS) expect(a.id).toBe(a.name.toLowerCase());
+    let sticks = 0;
+    for (const a of AVATARS) {
+      if (a.stickColor !== undefined) {
+        sticks++;
+        // "Green Stick" -> "stick-green"
+        expect(a.id).toBe(`stick-${a.name.replace(/ Stick$/, "").toLowerCase()}`);
+        expect(a.stickColor).toMatch(/^#[0-9a-f]{6}$/);
+      } else {
+        expect(a.id).toBe(a.name.toLowerCase());
+      }
+    }
+    expect(sticks).toBe(6);
   });
 
   it("has unique, filename-safe ids and non-empty names", () => {
