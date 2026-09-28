@@ -99,16 +99,18 @@ function optionalCount(v: unknown): number | undefined {
 
 /**
  * A booster inventory ({ type: count }): null when absent (an older server),
- * undefined when malformed, including a type this app does not know.
+ * undefined when malformed. A type this app does not know (a newer server)
+ * is left out rather than failing the call: this app cannot equip it, and
+ * failing a /result body would hide a run the server already saved.
  */
 export function parseBoosterInventory(v: unknown): BoosterInventory | null | undefined {
   if (v === undefined || v === null) return null;
   if (!isObject(v)) return undefined;
   const out: BoosterInventory = {};
   for (const [key, count] of Object.entries(v)) {
+    if (!isCount(count)) return undefined;
     const type = parseBoosterType(key);
-    if (type === null || !isCount(count)) return undefined;
-    if (count > 0) out[type] = count;
+    if (type !== null && count > 0) out[type] = count;
   }
   return out;
 }
@@ -129,7 +131,11 @@ export function parseChestProgress(v: unknown): ChestProgress | null | undefined
   return { lifetimeStars: v.lifetimeStars, starsIntoChest: v.starsIntoChest, perChest: v.perChest };
 }
 
-/** A result's opened chests: [] when absent, undefined when malformed. */
+/**
+ * A result's opened chests: [] when absent, undefined when malformed. As
+ * with the inventory, a booster type this app does not know is left out of
+ * the reveal (a chest holding only such types is not shown).
+ */
 export function parseOpenedChests(v: unknown): OpenedChest[] | undefined {
   if (v === undefined) return [];
   if (!Array.isArray(v)) return undefined;
@@ -139,11 +145,11 @@ export function parseOpenedChests(v: unknown): OpenedChest[] | undefined {
     if (c.boosters.length === 0 || c.boosters.length > MAX_CHEST_BOOSTERS) return undefined;
     const boosters: BoosterType[] = [];
     for (const b of c.boosters) {
+      if (typeof b !== "string") return undefined;
       const type = parseBoosterType(b);
-      if (type === null) return undefined;
-      boosters.push(type);
+      if (type !== null) boosters.push(type);
     }
-    out.push({ chestNumber: c.chestNumber, boosters });
+    if (boosters.length > 0) out.push({ chestNumber: c.chestNumber, boosters });
   }
   return out;
 }
@@ -379,12 +385,7 @@ export function refusalFor(status: number, code: string | null): StartRefusal {
   if (status === 409 && code === "SIM_VERSION_MISMATCH") return "UPDATE_REQUIRED";
   if (status === 404 && code === "LEVEL_NOT_FOUND") return "UPDATE_REQUIRED";
   if (status === 400 && code === "INVALID_BOOSTER") return "BOOSTER_UNAVAILABLE";
-  if (
-    status === 409 &&
-    (code === "BOOSTER_NOT_ALLOWED" || code === "BOOSTER_NOT_OWNED" || code === "BOOSTER_NOT_NEEDED")
-  ) {
-    return "BOOSTER_UNAVAILABLE";
-  }
+  if (status === 409 && (code === "BOOSTER_NOT_ALLOWED" || code === "BOOSTER_NOT_OWNED")) return "BOOSTER_UNAVAILABLE";
   return "NETWORK";
 }
 

@@ -474,7 +474,7 @@ describe.skipIf(!PG_URL)("level engagement on Postgres", () => {
       });
     });
 
-    it("refuses a booster that is not owned, not unlocked, or not needed, and writes nothing", async () => {
+    it("refuses a booster that is not owned or not unlocked, and writes nothing", async () => {
       await user("a");
       await clearThroughWith3("a", 10);
       await play("a", 11, failed());
@@ -484,11 +484,14 @@ describe.skipIf(!PG_URL)("level engagement on Postgres", () => {
       expect(await livesOf("a")).toBe(lives);
       expect(await prisma.levelRunTicket.count({ where: { used_at: null } })).toBe(0);
 
-      // A streak run already starts with a power-up: the booster is refused, not spent.
+      // A streak run already starts with a free power-up: it wins, and the
+      // booster is kept rather than spent or refused.
       await user("b", { streak: 3 });
       await clearThroughWith3("b", 3);
       await give("b", "rapid-climb", 1);
-      expect(await codeOf(start("b", 4, { booster: "rapid-climb" }))).toBe("BOOSTER_NOT_NEEDED");
+      const t = await start("b", 4, { booster: "rapid-climb" });
+      expect(t).toMatchObject({ startPowerUp: { type: "rapid-climb", source: "streak" }, boosters: { "rapid-climb": 1 } });
+      expect(await prisma.levelRunTicket.findUniqueOrThrow({ where: { id: t.ticketId } })).toMatchObject({ booster: null });
       expect(await inventory("b")).toEqual({ "rapid-climb": 1 });
     });
 

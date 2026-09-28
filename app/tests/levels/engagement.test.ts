@@ -246,6 +246,9 @@ describe("star chests", () => {
     expect(starChestSecret({ NODE_ENV: "production", STAR_CHEST_SECRET: "short" })).toBeNull();
     expect(starChestSecret({ NODE_ENV: "test" })).toBe(TEST_STAR_CHEST_SECRET);
     expect(starChestSecret({ NODE_ENV: "development", STAR_CHEST_SECRET: good })).toBe(good);
+    // Any other deploy (a staging `next start`, an unset NODE_ENV) fails closed.
+    expect(starChestSecret({ NODE_ENV: "staging" })).toBeNull();
+    expect(starChestSecret({})).toBeNull();
   });
 
   it("reads an inventory, dropping unknown types and empty counts", () => {

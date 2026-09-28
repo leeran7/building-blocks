@@ -307,7 +307,7 @@ describe("star chests and boosters on the device store", () => {
     expect((await clear(client, 1, 1_000)).chestsOpened).toEqual([]);
   });
 
-  it("spends an equipped booster at start, and refuses one that is not owned, unlocked or needed", async () => {
+  it("spends an equipped booster at start, keeps it when a free power-up applies, and refuses one not owned or unlocked", async () => {
     const { client } = harness();
     await clearAll(client, 7);
     const season = await client.getSeason();
@@ -315,9 +315,10 @@ describe("star chests and boosters on the device store", () => {
     if (!type) throw new Error("the first chest held nothing");
     const before = season.boosters[type] ?? 0;
 
-    // L8 is the frontier with a win streak: the run already starts with a power-up.
+    // L8 is the frontier with a win streak: the free power-up wins and the booster is kept.
     expect(season.nextStartPowerUp).not.toBeNull();
-    expect(await client.startLevel(8, { booster: type })).toEqual({ ok: false, code: "BOOSTER_UNAVAILABLE" });
+    expect(await client.startLevel(8, { booster: type })).toMatchObject({ ok: true, ticket: { startPowerUp: { source: "streak" } } });
+    expect((await client.getSeason()).boosters[type] ?? 0).toBe(before);
     // L2 unlocks no power-ups.
     expect(await client.startLevel(2, { booster: type })).toEqual({ ok: false, code: "BOOSTER_UNAVAILABLE" });
     expect(await client.startLevel(7, { booster: "jetpack" })).toEqual({ ok: false, code: "BOOSTER_UNAVAILABLE" });

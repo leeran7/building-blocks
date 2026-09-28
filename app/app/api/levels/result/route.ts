@@ -59,6 +59,9 @@ import {
 
 export const runtime = "nodejs";
 
+/** Log a missing chest secret once per server instance, not on every result. */
+let warnedNoChestSecret = false;
+
 export async function POST(request: NextRequest): Promise<NextResponse> {
   const body = await readJsonObject(request);
   if (!body) return reject(400, "INVALID_JSON", "Invalid JSON");
@@ -106,7 +109,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   try {
     const chestSecret = starChestSecret();
-    if (chestSecret === null) {
+    if (chestSecret === null && !warnedNoChestSecret) {
+      warnedNoChestSecret = true;
       console.error("[levels/result] STAR_CHEST_SECRET is missing or too short; star chests stay closed");
     }
     const result = await submitLevelResult({ userId: player.uid, ticketId, run, replayToken, chestSecret, now });

@@ -122,7 +122,7 @@ export type StartRefusal =
   | "LOCKED"
   /** The installed engine is older than the level needs. */
   | "UPDATE_REQUIRED"
-  /** The chosen booster is not owned, not unlocked here, or not needed. */
+  /** The chosen booster is not owned or not unlocked on this level. */
   | "BOOSTER_UNAVAILABLE"
   /** The server could not be reached. */
   | "NETWORK";

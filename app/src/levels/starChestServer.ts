@@ -7,10 +7,10 @@
  * star_chests row unique on (user, chest number) means each chest is rolled
  * and paid once.
  *
- * Fail closed: in production (NODE_ENV=production, which includes Vercel
- * previews) a missing or short secret opens no chests; they stay earned and
- * open on a later clear once the secret is set. Outside production a fixed
- * test secret is used, so tests and local play are deterministic.
+ * Fail closed: unless NODE_ENV is "test" or "development", a missing or
+ * short secret opens no chests; they stay earned and open on a later clear
+ * once the secret is set. In tests and local dev a fixed test secret is
+ * used, so they are deterministic.
  *
  * Imports node:crypto, so it cannot be bundled into the web or mobile client.
  */
@@ -32,7 +32,9 @@ export const TEST_STAR_CHEST_SECRET = "test-star-chest-secret-never-in-productio
 export function starChestSecret(env: Record<string, string | undefined> = process.env): string | null {
   const raw = env[STAR_CHEST_SECRET_ENV];
   if (typeof raw === "string" && raw.length >= STAR_CHEST_SECRET_MIN_LENGTH) return raw;
-  return env.NODE_ENV === "production" ? null : TEST_STAR_CHEST_SECRET;
+  // Only local runs and tests fall back to the public test secret; any other
+  // deploy (production, a staging `next start`) opens nothing without one.
+  return env.NODE_ENV === "test" || env.NODE_ENV === "development" ? TEST_STAR_CHEST_SECRET : null;
 }
 
 /** The raw roll for chest `chestNumber` of `userId`. */

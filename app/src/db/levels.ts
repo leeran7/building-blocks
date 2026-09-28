@@ -77,8 +77,7 @@ export type LevelErrorCode =
   | "TICKET_EXPIRED"
   | "IMPLAUSIBLE_RUN"
   | "BOOSTER_NOT_ALLOWED"
-  | "BOOSTER_NOT_OWNED"
-  | "BOOSTER_NOT_NEEDED";
+  | "BOOSTER_NOT_OWNED";
 
 /** A refused level write. The route maps `code` to an HTTP status. */
 export class LevelError extends Error {
@@ -261,12 +260,15 @@ export interface IssuedTicket {
  * ticket. The only closed ticket that gets its life back is a restart within
  * the bad-start window (server clock, isQuickRestart).
  *
- * A requested booster must be allowed on the level, owned, and not replace a
- * free power-up (streak or stuck help), or the whole start is refused and
- * nothing is written. It is spent here and refunded only on a bad start.
+ * A requested booster must be allowed on the level and owned, or the whole
+ * start is refused and nothing is written. It is spent here and refunded
+ * only on a bad start. When the run already starts with a free power-up
+ * (streak or stuck help) the free one wins and the booster is kept, not
+ * refused: the app's preview cannot see the open ticket this start closes,
+ * which can earn or end a free power-up, so a refusal would repeat forever.
  *
  * @throws LevelError LEVEL_LOCKED | OUT_OF_LIVES | USER_NOT_FOUND
- *                    | BOOSTER_NOT_ALLOWED | BOOSTER_NOT_OWNED | BOOSTER_NOT_NEEDED
+ *                    | BOOSTER_NOT_ALLOWED | BOOSTER_NOT_OWNED
  */
 export async function issueLevelTicket(input: IssueTicketInput): Promise<IssuedTicket> {
   const { userId, season, level, now } = input;
@@ -320,19 +322,14 @@ export async function issueLevelTicket(input: IssueTicketInput): Promise<IssuedT
     const atFrontier = level === frontier;
     const fails = atFrontier ? failsAt(tally, season, level) : 0;
     const free = freeStartPowerUp({ atFrontier, streak, fails, allowed: input.allowedBoosters });
-    const booster = input.booster ?? null;
-    if (booster !== null) {
-      if (!input.allowedBoosters.includes(booster)) {
-        throw new LevelError("BOOSTER_NOT_ALLOWED", "That booster is not unlocked on this level");
-      }
-      if (free !== null) {
-        throw new LevelError("BOOSTER_NOT_NEEDED", "This run already starts with a free power-up", {
-          startPowerUp: free.type,
-        });
-      }
-      if (!(await spendBooster(tx, userId, booster, now))) {
-        throw new LevelError("BOOSTER_NOT_OWNED", "You have none of that booster left");
-      }
+    const requested = input.booster ?? null;
+    if (requested !== null && !input.allowedBoosters.includes(requested)) {
+      throw new LevelError("BOOSTER_NOT_ALLOWED", "That booster is not unlocked on this level");
+    }
+    // The booster actually spent: none when a free power-up already applies.
+    const booster = free === null ? requested : null;
+    if (booster !== null && !(await spendBooster(tx, userId, booster, now))) {
+      throw new LevelError("BOOSTER_NOT_OWNED", "You have none of that booster left");
     }
     const startPowerUp: StartPowerUp | null = booster !== null ? { type: booster, source: "booster" } : free;
 

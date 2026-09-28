@@ -185,11 +185,6 @@ describe("POST /api/levels/ticket", () => {
     let res = await ticket({ season: 1, level: 12, simVersion: SIM, booster: "rapid-climb" });
     expect(res.status).toBe(409);
     expect((await res.json()).code).toBe("BOOSTER_NOT_OWNED");
-    vi.mocked(issueLevelTicket).mockRejectedValueOnce(
-      new LevelError("BOOSTER_NOT_NEEDED", "free", { startPowerUp: "rapid-climb" })
-    );
-    res = await ticket({ season: 1, level: 12, simVersion: SIM, booster: "rapid-climb" });
-    expect(await res.json()).toMatchObject({ code: "BOOSTER_NOT_NEEDED", startPowerUp: "rapid-climb" });
   });
 
   it.each([

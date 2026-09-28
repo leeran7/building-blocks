@@ -25,6 +25,10 @@ CREATE TABLE "user_boosters" (
     CONSTRAINT "user_boosters_pkey" PRIMARY KEY ("id")
 );
 
+-- A count never goes negative, whatever write path a later change adds
+-- (spendBooster also only decrements where count > 0).
+ALTER TABLE "user_boosters" ADD CONSTRAINT "user_boosters_count_nonnegative" CHECK ("count" >= 0);
+
 -- CreateTable
 CREATE TABLE "star_chests" (
     "id" TEXT NOT NULL,

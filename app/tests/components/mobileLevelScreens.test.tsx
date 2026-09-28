@@ -291,17 +291,18 @@ describe("star chests and boosters", () => {
   });
 
   it("starts without a booster unless one is tapped, and a tap again takes it off", async () => {
-    const { client, count } = await withChest();
+    const { client, type, count } = await withChest();
     await renderMap(client);
     await click(pin("Level 7, 3 of 3 stars"));
-    const chip = container.querySelector<HTMLButtonElement>('[role="dialog"] button[aria-pressed]');
-    await click(chip ?? undefined);
-    await click(chip ?? undefined);
+    const chip = [...container.querySelectorAll<HTMLButtonElement>('[role="dialog"] button[aria-pressed]')].find((b) =>
+      b.getAttribute("aria-label")?.endsWith(`, ${count} owned`),
+    );
+    await click(chip);
+    await click(chip);
     expect(chip?.getAttribute("aria-pressed")).toBe("false");
     await click(button("Play level 7"));
     expect(runs.mounted.at(-1)?.startPowerUp).toBeNull();
-    const after = await client.getSeason();
-    expect(Object.values(after.boosters).reduce((a, b) => a + (b ?? 0), 0)).toBeGreaterThanOrEqual(count);
+    expect((await client.getSeason()).boosters[type as "giant"] ?? 0).toBe(count);
   });
 
   it("keeps the boosters when the frontier run already starts with a free power-up", async () => {

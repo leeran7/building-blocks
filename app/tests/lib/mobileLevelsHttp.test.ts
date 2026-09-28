@@ -462,14 +462,18 @@ describe("star chests and boosters", () => {
     expect(parseBoosterInventory({ giant: 0, jetpack: 1 })).toEqual({ jetpack: 1 });
   });
 
-  it("refuse a malformed inventory or chest block", () => {
-    expect(parseBoosterInventory({ random: 1 })).toBeUndefined();
-    expect(parseBoosterInventory(JSON.parse('{"__proto__": 1, "giant": 1}'))).toBeUndefined();
-    expect(parseBoosterInventory({ constructor: 1 })).toBeUndefined();
+  it("refuse a malformed inventory or chest block, and leave out types this app does not know", () => {
+    // A newer server's type (or a non-booster) is left out, never written.
+    expect(parseBoosterInventory({ random: 1, "time-freeze": 2, giant: 1 })).toEqual({ giant: 1 });
+    const hostile = parseBoosterInventory(JSON.parse('{"__proto__": 1, "constructor": 2, "giant": 1}'));
+    expect(hostile).toEqual({ giant: 1 });
+    expect(Object.hasOwn(hostile ?? {}, "__proto__")).toBe(false);
+    expect(Object.getPrototypeOf(hostile)).toBe(Object.prototype);
+    expect(parseLevelProfile({ ...PROFILE, boosters: { "time-freeze": 1 } })?.boosters).toEqual({});
     expect(parseBoosterInventory({ giant: -1 })).toBeUndefined();
     expect(parseBoosterInventory({ giant: 1.5 })).toBeUndefined();
     expect(parseBoosterInventory(["giant"])).toBeUndefined();
-    expect(parseLevelProfile({ ...PROFILE, boosters: { random: 1 } })).toBeNull();
+    expect(parseLevelProfile({ ...PROFILE, boosters: { giant: "1" } })).toBeNull();
     expect(parseChestProgress({ ...CHESTS, starsIntoChest: 20 })).toBeUndefined();
     expect(parseChestProgress({ ...CHESTS, starsIntoChest: 6 })).toBeUndefined();
     expect(parseChestProgress({ ...CHESTS, perChest: 0 })).toBeUndefined();
@@ -485,7 +489,11 @@ describe("star chests and boosters", () => {
     expect(parseServerResult(RESULT)).toMatchObject({ chestsOpened: [], boosters: null });
     expect(parseOpenedChests([{ chestNumber: 1, boosters: [] }])).toBeUndefined();
     expect(parseOpenedChests([{ chestNumber: 1, boosters: ["giant", "giant", "giant"] }])).toBeUndefined();
-    expect(parseOpenedChests([{ chestNumber: 1, boosters: ["random"] }])).toBeUndefined();
+    expect(parseOpenedChests([{ chestNumber: 1, boosters: [7] }])).toBeUndefined();
+    // A newer server's type is left out of the reveal, not the whole result.
+    expect(parseOpenedChests([{ chestNumber: 1, boosters: ["random"] }, { chestNumber: 2, boosters: ["time-freeze", "giant"] }])).toEqual([
+      { chestNumber: 2, boosters: ["giant"] },
+    ]);
     expect(parseOpenedChests([{ chestNumber: 0, boosters: ["giant"] }])).toBeUndefined();
     expect(parseServerResult({ ...RESULT, outcome: "failed", stars: 0, chestsOpened: opened })).toBeNull();
   });
@@ -507,7 +515,6 @@ describe("star chests and boosters", () => {
       [400, "INVALID_BOOSTER"],
       [409, "BOOSTER_NOT_ALLOWED"],
       [409, "BOOSTER_NOT_OWNED"],
-      [409, "BOOSTER_NOT_NEEDED"],
     ] as const) {
       expect(refusalFor(status, code)).toBe("BOOSTER_UNAVAILABLE");
       const { fetch } = fakeServer({ "/api/levels/ticket": () => json(status, { code }) });

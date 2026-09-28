@@ -32,7 +32,7 @@
  * 403:      { error, code: LEVEL_LOCKED, frontier }
  * 404:      { error, code: SEASON_NOT_FOUND }
  * 409:      { error, code: SIM_VERSION_MISMATCH | OUT_OF_LIVES | BOOSTER_NOT_ALLOWED
- *                         | BOOSTER_NOT_OWNED | BOOSTER_NOT_NEEDED, nextLifeAt? }
+ *                         | BOOSTER_NOT_OWNED, nextLifeAt? }
  * 429:      { error, code: RATE_LIMITED }
  * 500:      { error, code: PERSIST_ERROR }
  */

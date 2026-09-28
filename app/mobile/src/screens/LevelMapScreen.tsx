@@ -92,6 +92,8 @@ export function LevelMapScreen() {
       if (res.ok) {
         void tapHeavy();
         setPlayer(res.ticket.player);
+        // A spent booster leaves the inventory: reload it for the map.
+        if (res.ticket.startPowerUp?.source === "booster") void refresh();
         navigate(`/levels/${level}/play`, { state: { ticket: res.ticket } });
         return res;
       }

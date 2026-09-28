@@ -317,15 +317,14 @@ export function createMockLevelsClient(opts: MockClientOptions = {}): LevelsClie
         fails: atFrontier ? failsAt(next.fails ?? null, 1, level) : 0,
         allowed: boosterTypesOf(node.allowedPowerUps),
       });
-      // An owned booster, unlocked here, on a run with no free power-up (§6.4).
-      const booster = opts.booster ?? null;
-      const owned = booster !== null ? (state.boosters?.[booster] ?? 0) : 0;
-      if (
-        booster !== null &&
-        (startPowerUp !== null || owned < 1 || !boosterTypesOf(node.allowedPowerUps).includes(booster))
-      ) {
+      // An owned booster unlocked here (§6.4). A free power-up wins and the
+      // booster is kept, as on the server.
+      const requested = opts.booster ?? null;
+      const owned = requested !== null ? (state.boosters?.[requested] ?? 0) : 0;
+      if (requested !== null && (owned < 1 || !boosterTypesOf(node.allowedPowerUps).includes(requested))) {
         return wait({ ok: false, code: "BOOSTER_UNAVAILABLE" });
       }
+      const booster = startPowerUp === null ? requested : null;
       if (node.costsLife) {
         if (state.lives <= 0) return wait({ ok: false, code: "OUT_OF_LIVES", player: playerStats(state) });
         // Spending from full starts the refill clock now (§5b).
