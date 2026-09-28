@@ -414,6 +414,29 @@ describe("drawClimberSprite", () => {
     }
   });
 
+  it("lays the character's skull top on the stick figure's head top", async () => {
+    const { drawClimberSprite, CELL, STICK_HEAD_TOP_IN_S } = await loaded();
+    const { WRAITH: def } = await import("../../src/components/Game/climberCharacters");
+    const { ctx, draws } = affineCtx();
+    drawClimberSprite(ctx, FX, FY, S, 1, walker(), true, null, 0);
+    const d = draws.at(-1)!;
+    const k = d.dw / CELL;
+    const [, skullY] = d.toScreen(d.dx + def.rootX * k, d.dy + (def.rootY - def.refH) * k);
+    expect(skullY).toBeCloseTo(FY - STICK_HEAD_TOP_IN_S * S, 6);
+
+    // ...which is where drawClimber puts the top of the stick's head.
+    const { drawClimber } = await import("../../src/components/Game/paintClimbFrame");
+    const arcs: number[][] = [];
+    const noop = () => {};
+    const stickCtx = new Proxy(
+      { arc: (x: number, y: number, r: number) => arcs.push([x, y, r]) },
+      { get: (t, k) => (k in t ? t[k as "arc"] : noop), set: () => true },
+    );
+    drawClimber(stickCtx as unknown as CanvasRenderingContext2D, FX, FY, S, 1, "idle", 0, "#cbf24d", true);
+    const headTop = Math.min(...arcs.map(([, y, r]) => y - r));
+    expect(headTop).toBeCloseTo(FY - STICK_HEAD_TOP_IN_S * S, 6);
+  });
+
   it("mirrors left-facing climbers and not right-facing ones", async () => {
     const { drawClimberSprite } = await loaded();
     const left = affineCtx();

@@ -20,6 +20,9 @@ from typing import Callable
 
 from PIL import Image, ImageChops, ImageDraw, ImageFilter
 
+import climb_cycle
+import grounding
+
 PACK = 512
 SS = 3  # render pixels per pack pixel
 OUT = 192
@@ -422,6 +425,9 @@ def draw(ch: Character, pose: Pose, view: str, seed: int) -> Image.Image:
 GROUND = 440  # ankle height of a planted foot (boot sole reaches ~460)
 
 
+AIRBORNE = 5  # the falling cell hangs from the anchor instead
+
+
 def poses_for(b: Body) -> list[Pose]:
     """Idle, Run A, Run B, Reach A, Reach B, Falling, Celebrate, Down."""
     py = 352
@@ -445,18 +451,16 @@ def poses_for(b: Body) -> list[Pose]:
 
 
 def climb_for(b: Body) -> list[Pose]:
-    """Back view: right-hand reach with left-foot lift, pull, transfer; then swapped."""
+    """Back view, the shared hand-over-hand cycle (tools/climber-art/climb_cycle.py)."""
     out = []
-    for i in range(6):
-        t = i / 6
-        r = 0.5 + 0.5 * math.cos(2 * math.pi * t)  # 1 = right hand high
-        bob = -2 * math.sin(4 * math.pi * t)
-        py = 352 + bob
-        right_hand = (344, 116 + (1 - r) * 96)
-        left_hand = (168, 116 + r * 96)
-        left_foot = (230, GROUND - 42 * r)
-        right_foot = (282, GROUND - 42 * (1 - r))
-        out.append(Pose((256, py), 0.0, left_hand, right_hand, left_foot, right_foot,
+    for i in range(climb_cycle.FRAMES):
+        t = i / climb_cycle.FRAMES
+        (rd, ro, _), (ld, lo, _) = climb_cycle.hand(i, "r"), climb_cycle.hand(i, "l")
+        right_hand = (344 + ro, 110 + rd)
+        left_hand = (168 - lo, 110 + ld)
+        left_foot = (230, GROUND - climb_cycle.foot(i, "l")[0])
+        right_foot = (282, GROUND - climb_cycle.foot(i, "r")[0])
+        out.append(Pose((256, 352), 0.0, left_hand, right_hand, left_foot, right_foot,
                         elbow_hint_near=(-1.0, 0.3), elbow_hint_far=(1.0, 0.3), tail=math.sin(2 * math.pi * t)))
     return out
 
@@ -464,7 +468,10 @@ def climb_for(b: Body) -> list[Pose]:
 def render(ch: Character) -> tuple[Image.Image, Image.Image]:
     poses = Image.new("RGBA", (OUT * 4, OUT * 2), (0, 0, 0, 0))
     for i, p in enumerate(poses_for(ch.body)):
-        poses.alpha_composite(draw(ch, p, "side", 7), ((i % 4) * OUT, (i // 4) * OUT))
+        cell = draw(ch, p, "side", 7)
+        if i != AIRBORNE:  # planted feet on the anchor (some run targets are out of reach)
+            cell = grounding.snap(cell)
+        poses.alpha_composite(cell, ((i % 4) * OUT, (i // 4) * OUT))
     climb = Image.new("RGBA", (OUT * 6, OUT), (0, 0, 0, 0))
     for i, p in enumerate(climb_for(ch.body)):
         climb.alpha_composite(draw(ch, p, "back", 11), (i * OUT, 0))

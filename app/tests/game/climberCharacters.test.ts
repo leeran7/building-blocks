@@ -137,7 +137,7 @@ describe("registry", () => {
       cell: 192,
       rootX: 96,
       rootY: 172.5,
-      refH: 142.5,
+      refH: 120.5, // anchor 172.5 to the skull top (row 52) inside the hood
     });
   });
 
