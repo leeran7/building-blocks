@@ -2,10 +2,11 @@
 
 Generation brief for the Panther climb sprite, matching the Wraith pipeline
 (`git show 7406c15:output/wraith/README.md`). The identity reference is the
-avatar portrait `app/mobile/src/assets/avatars/panther.webp`. Until this art
-lands, the game draws Panther as the plain Wraith (sampled accent `#b446f4`, kept in
-`RECOLOR_PALETTE` for a future recolour feature), set in
-`app/src/components/Game/climberCharacters.ts`.
+avatar portrait `app/mobile/src/assets/avatars/panther.webp`. The shipped
+sheets (`app/public/climb/panther-poses-192.png` and `panther-climb-192.png`) are
+drawn in code by `tools/climber-art/render.py`, a low-poly rig that follows
+this contract. Generated art from the prompts below can replace them: drop
+in the new files, since the registry entry is already `sheets("panther")`.
 
 ## Deliverables
 
@@ -78,6 +79,5 @@ Keep the tail inside the cell with the 30px gutter; it is the part most likely t
   Reach B pixel data.
 - No magenta fringe on light and dark backgrounds.
 - Preview over the volcano tile at 48, 80 and 144px idle height.
-- Swap the `base()` entry in
-  `app/src/components/Game/climberCharacters.ts` for `sheets("panther")` and
-  add the files to `app/public/climb/` (see `app/public/climb/README.md`).
+- Replace the files in `app/public/climb/` (see `app/public/climb/README.md`).
+  The registry already reads `sheets("panther")`.
