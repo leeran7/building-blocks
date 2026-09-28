@@ -148,7 +148,6 @@ describe("climberFrame: loading", () => {
     expect(FakeImage.all.map((i) => i.src).sort()).toEqual([
       "/climb/wraith-climb-192.png",
       "/climb/wraith-poses-192.png",
-      "/climb/wraith-run-192.png",
     ]);
   });
 
@@ -190,21 +189,21 @@ describe("climberFrame: loading", () => {
     expect(climberFrame("walk", 0, 0, false)).toBeNull();
   });
 
-  it("setClimberSpriteSrc re-points the sheets (native bundle) and reloads", async () => {
+  it("setClimberSpriteSrc re-points both sheets (native bundle) and reloads", async () => {
     const { climberFrame, setClimberSpriteSrc } = await load();
     climberFrame("idle", 0, 0, false);
     sheet("wraith-poses-192.png").decode();
     expect(climberFrame("idle", 0, 0, false)).not.toBeNull();
 
-    setClimberSpriteSrc({ poses: "./assets/p.png", climb: "./assets/c.png", run: "./assets/r.png" });
+    setClimberSpriteSrc({ poses: "./assets/p.png", climb: "./assets/c.png" });
     // The old decode is dropped: nothing drawn until the new URL decodes.
     expect(climberFrame("idle", 0, 0, false)).toBeNull();
     expect(
       FakeImage.all
-        .slice(-3)
+        .slice(-2)
         .map((i) => i.src)
         .sort(),
-    ).toEqual(["./assets/c.png", "./assets/p.png", "./assets/r.png"]);
+    ).toEqual(["./assets/c.png", "./assets/p.png"]);
     sheet("p.png").decode();
     expect(climberFrame("idle", 0, 0, false)?.img).toBe(sheet("p.png"));
   });
@@ -276,39 +275,6 @@ describe("climberFrame: cycles", () => {
     for (const x of [0, WALK_M_PER_STEP * 0.99, WALK_M_PER_STEP * 1.5, 13.37]) {
       const f = climberFrame("walk", x, 0, true)!;
       expect([f.sx, f.bx, f.blend]).toEqual([1 * CELL, 1 * CELL, 0]);
-    }
-  });
-
-  it("walk plays the 8-frame run strip once decoded, four frames per step", async () => {
-    const { climberFrame, CELL, WALK_M_PER_STEP } = await loaded();
-    sheet("wraith-run-192.png").decode();
-    const at = (k: number) => {
-      const f = climberFrame("walk", ((k + 0.5) / 4) * WALK_M_PER_STEP, 0, false)!;
-      return { img: f.img, sx: f.sx, sy: f.sy, blend: f.blend, step: f.step };
-    };
-    for (let k = -8; k < 16; k++) {
-      const f = at(k);
-      expect(f.img).toBe(sheet("wraith-run-192.png"));
-      expect([f.sx, f.sy, f.blend]).toEqual([(((k % 8) + 8) % 8) * CELL, 0, 0]);
-      // The bob phase follows the step (two per stride), not the frame.
-      expect(f.step).toBeCloseTo((((k % 4) + 4) % 4 + 0.5) / 4, 9);
-    }
-  });
-
-  it("walk keeps run-a/run-b when the run strip fails to load", async () => {
-    const { climberFrame, CELL, WALK_M_PER_STEP } = await loaded();
-    sheet("wraith-run-192.png").fail();
-    const f = climberFrame("walk", 1.5 * WALK_M_PER_STEP, 0, false)!;
-    expect(f.img).toBe(sheet("wraith-poses-192.png"));
-    expect(f.sx).toBe(2 * CELL);
-  });
-
-  it("reduced motion pins the run strip's first frame", async () => {
-    const { climberFrame, WALK_M_PER_STEP } = await loaded();
-    sheet("wraith-run-192.png").decode();
-    for (const x of [0, WALK_M_PER_STEP * 0.6, 13.37]) {
-      const f = climberFrame("walk", x, 0, true)!;
-      expect([f.sx, f.bx, f.blend]).toEqual([0, 0, 0]);
     }
   });
 

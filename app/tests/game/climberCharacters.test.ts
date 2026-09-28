@@ -133,7 +133,6 @@ describe("registry", () => {
       kind: "sheets",
       poses: "/climb/wraith-poses-192.png",
       climb: "/climb/wraith-climb-192.png",
-      run: "/climb/wraith-run-192.png",
       cell: 192,
       rootX: 96,
       rootY: 172.5,
@@ -228,7 +227,7 @@ describe("lazy loading", () => {
     climberFrame("idle", 0, 0, false, "wraith");
     climberFrame("idle", 0, 0, false, "yak");
     // One request per Wraith sheet, shared by every avatar without art.
-    expect(requested()).toEqual(["/climb/wraith-climb-192.png", "/climb/wraith-poses-192.png", "/climb/wraith-run-192.png"]);
+    expect(requested()).toEqual(["/climb/wraith-climb-192.png", "/climb/wraith-poses-192.png"]);
     sheet("wraith-poses-192.png").decode();
     const f = climberFrame("idle", 0, 0, false, "ibex")!;
     expect(f.img).toBe(sheet("wraith-poses-192.png")); // the plain sheet, not a recolour
@@ -239,24 +238,23 @@ describe("lazy loading", () => {
   it("a tint (recolour feature) loads only the Wraith sheets", async () => {
     const { climberFrame } = await withTints();
     expect(climberFrame("idle", 0, 0, false, "ibex")).toBeNull();
-    expect(requested()).toEqual(["/climb/wraith-climb-192.png", "/climb/wraith-poses-192.png", "/climb/wraith-run-192.png"]);
+    expect(requested()).toEqual(["/climb/wraith-climb-192.png", "/climb/wraith-poses-192.png"]);
   });
 
   it("a character with art loads its own sheets, and only when drawn", async () => {
     const { climberFrame } = await withIbexArt();
     climberFrame("idle", 0, 0, false, "wraith");
-    expect(requested()).toEqual(["/climb/wraith-climb-192.png", "/climb/wraith-poses-192.png", "/climb/wraith-run-192.png"]);
+    expect(requested()).toEqual(["/climb/wraith-climb-192.png", "/climb/wraith-poses-192.png"]);
     climberFrame("idle", 0, 0, false, "ibex");
     expect(requested()).toEqual([
       "/climb/ibex-climb-192.png",
       "/climb/ibex-poses-192.png",
       "/climb/wraith-climb-192.png",
       "/climb/wraith-poses-192.png",
-      "/climb/wraith-run-192.png",
     ]);
     // Drawing ibex again requests nothing new.
     climberFrame("walk", 3, 0, false, "ibex");
-    expect(FakeImage.all).toHaveLength(5);
+    expect(FakeImage.all).toHaveLength(4);
   });
 
   it("draws a character's own frames once its poses decode (vector until then)", async () => {
@@ -300,7 +298,7 @@ describe("lazy loading", () => {
     setClimberSpriteSrc({ poses: "./assets/z.png" }, "dragon");
     climberFrame("idle", 0, 0, false, "ibex");
     climberFrame("idle", 0, 0, false, "wraith");
-    expect(requested()).toEqual(["/climb/wraith-climb-192.png", "/climb/wraith-poses-192.png", "/climb/wraith-run-192.png"]);
+    expect(requested()).toEqual(["/climb/wraith-climb-192.png", "/climb/wraith-poses-192.png"]);
   });
 });
 

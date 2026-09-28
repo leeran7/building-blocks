@@ -22,7 +22,7 @@
  * A tint is rendered once per character and sheet into an offscreen canvas and
  * reused. Left-facing movement is mirrored in-engine.
  *
- * Motion. Most art has two run poses (the Wraith ships an 8-frame run strip), so smoothness comes from the
+ * Motion. The artwork only has two run poses, so smoothness comes from the
  * engine rather than more frames:
  *  - walk/climb cycles advance by DISTANCE (freeze when the climber stops) and
  *    crossfade briefly across each frame boundary;
@@ -77,34 +77,27 @@ export const LAND_S = 0.16; // touchdown recovery time
 const LEAN_RATE = 14; // 1/s — lean eases toward its target
 
 export type Pose = "idle" | "walk" | "climb" | "air" | "done" | "dead";
-type Sheet = "poses" | "climb" | "run";
-const SHEETS: readonly Sheet[] = ["poses", "climb", "run"];
+type Sheet = "poses" | "climb";
+const SHEETS: readonly Sheet[] = ["poses", "climb"];
 
 // Columns per sheet, so a frame's cell index maps to a source rect.
-const COLS: Record<Sheet, number> = { poses: 4, climb: 6, run: 8 };
+const COLS: Record<Sheet, number> = { poses: 4, climb: 6 };
 
-/** `perStep`: walk frames per step (a stride is two steps). Default 1. */
-type Anim = { sheet: Sheet; frames: readonly number[]; perStep?: number };
+type Anim = { sheet: Sheet; frames: readonly number[] };
 
 /**
  * Per pose: which sheet and the cell indices it cycles through. Walk and climb
  * are distance-driven cycles; the rest are single poses out of the poses sheet.
  *
- * Walk plays the character's 8-frame run strip (one stride, so four frames
- * per step) when it ships one, else alternates the poses sheet's upright
- * run-a/run-b (cells 1,2), which is also the fallback while the strip loads.
- * Climb uses the back-view strip
+ * Walk alternates the poses sheet's upright run-a/run-b (cells 1,2) — the
+ * pack's 8-frame side-profile strips read as a thin, leaning figure at game
+ * size and do not match the three-quarter poses. Climb uses the back-view strip
  * so the climber faces the ladder; the front-facing reach poses (cells 3,4)
  * are its fallback while the strip loads (or when a character has none).
  */
 const ANIM: Record<Pose, Anim & { fallback?: Anim }> = {
   idle: { sheet: "poses", frames: [0] },
-  walk: {
-    sheet: "run",
-    frames: [0, 1, 2, 3, 4, 5, 6, 7],
-    perStep: 4,
-    fallback: { sheet: "poses", frames: [1, 2] },
-  },
+  walk: { sheet: "poses", frames: [1, 2] },
   climb: {
     sheet: "climb",
     frames: [0, 1, 2, 3, 4, 5],
@@ -126,7 +119,6 @@ const hasOwn = (o: object, k: string): boolean =>
 export const CLIMBER_SPRITE_SRC: Record<Sheet, string> = {
   poses: WRAITH.poses,
   climb: WRAITH.climb ?? "",
-  run: WRAITH.run ?? "",
 };
 
 /** What a frame is cut from: a decoded sheet, or a tint's offscreen canvas. */
@@ -193,12 +185,8 @@ function runtimeFor(id: string): CharacterRuntime {
     def,
     src:
       def.kind === "sheets"
-        ? {
-            poses: over.poses ?? def.poses,
-            climb: def.climb === null ? null : (over.climb ?? def.climb),
-            run: def.run === null ? null : (over.run ?? def.run),
-          }
-        : { poses: null, climb: null, run: null },
+        ? { poses: over.poses ?? def.poses, climb: def.climb === null ? null : (over.climb ?? def.climb) }
+        : { poses: null, climb: null },
     images: {},
     failed: {},
     spec: def.kind === "tint" ? tintSpec(def) : null,
@@ -352,12 +340,11 @@ export function climberFrame(
   let blend = 0;
   let step = 0;
   if (!reducedMotion && n > 1) {
-    const steps = x / WALK_M_PER_STEP;
     const phase =
-      pose === "climb" ? y / CLIMB_M_PER_FRAME : steps * (cfg.perStep ?? 1);
+      pose === "climb" ? y / CLIMB_M_PER_FRAME : x / WALK_M_PER_STEP;
     const whole = Math.floor(phase);
     const f = phase - whole;
-    step = pose === "climb" ? f : steps - Math.floor(steps);
+    step = f;
     i = mod(whole, n);
     j = i;
     if (f > 1 - CYCLE_BLEND) {

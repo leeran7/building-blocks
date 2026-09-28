@@ -29,11 +29,10 @@ describe("avatarIdsByPlayer", () => {
 });
 
 describe("mobile bundled climber sheets", () => {
-  it("parses <id>-poses/-climb/-run-192.png paths into per-character URLs", () => {
+  it("parses <id>-poses-192.png / <id>-climb-192.png paths into per-character URLs", () => {
     const sheets = climberSheetsFromFiles({
       "../../../public/climb/wraith-poses-192.png": "/assets/wp.png",
       "../../../public/climb/wraith-climb-192.png": "/assets/wc.png",
-      "../../../public/climb/wraith-run-192.png": "/assets/wr.png",
       "../../../public/climb/ibex-poses-192.png": "/assets/ip.png",
       "../../../public/climb/volcano-tile.jpg": "/assets/v.jpg",
       "../../../public/climb/yak-poses-96.png": "/assets/y.png",
@@ -41,7 +40,7 @@ describe("mobile bundled climber sheets", () => {
     });
     expect([...sheets.entries()].sort()).toEqual([
       ["ibex", { poses: "/assets/ip.png" }],
-      ["wraith", { poses: "/assets/wp.png", climb: "/assets/wc.png", run: "/assets/wr.png" }],
+      ["wraith", { poses: "/assets/wp.png", climb: "/assets/wc.png" }],
     ]);
   });
 
@@ -50,7 +49,6 @@ describe("mobile bundled climber sheets", () => {
     const wraith = sheets.get("wraith");
     expect(wraith?.poses).toMatch(/wraith-poses-192\.png/);
     expect(wraith?.climb).toMatch(/wraith-climb-192\.png/);
-    expect(wraith?.run).toMatch(/wraith-run-192\.png/);
   });
 
   describe("applyBundledClimberSheets", () => {
@@ -78,11 +76,10 @@ describe("mobile bundled climber sheets", () => {
         apply({
           "/x/wraith-poses-192.png": "bundle://wp.png",
           "/x/wraith-climb-192.png": "bundle://wc.png",
-          "/x/wraith-run-192.png": "bundle://wr.png",
         })
       ).toBe(1);
       climberFrame("idle", 0, 0, false, "wraith");
-      expect(FakeImage.all.map((i) => i.src).sort()).toEqual(["bundle://wc.png", "bundle://wp.png", "bundle://wr.png"]);
+      expect(FakeImage.all.map((i) => i.src).sort()).toEqual(["bundle://wc.png", "bundle://wp.png"]);
     });
   });
 });
