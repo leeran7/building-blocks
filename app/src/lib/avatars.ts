@@ -81,14 +81,46 @@ export function avatarEntry(id: unknown): AvatarEntry | null {
   return valid === null ? null : BY_ID[valid];
 }
 
+/**
+ * A list of catalogue ids, or null unless `v` is an array whose every
+ * element is one. Never drops or substitutes an element.
+ */
+export function parseAvatarIdList(v: unknown): string[] | null {
+  if (!Array.isArray(v)) return null;
+  const ids = v.map(parseAvatarId);
+  return ids.every((id): id is string => id !== null) ? ids : null;
+}
+
+/** The star total an entry needs, or null for a free avatar. */
+export function requiredStars(entry: AvatarEntry): number | null {
+  return entry.unlock.kind === "free" ? null : entry.unlock.stars;
+}
+
 /** Stars still needed for `entry` at `earned` stars; 0 once its rule is met. */
 export function starsToUnlock(entry: AvatarEntry, earned: number): number {
-  return entry.unlock.kind === "free" ? 0 : Math.max(0, entry.unlock.stars - earned);
+  const need = requiredStars(entry);
+  return need === null ? 0 : Math.max(0, need - earned);
+}
+
+/** "Earn 30 stars": the one place the requirement is worded. */
+export function earnStarsText(stars: number): string {
+  return `Earn ${stars} stars`;
 }
 
 /** "Earn 30 stars" for a star rule; null for a free avatar. */
 export function unlockRequirementText(entry: AvatarEntry): string | null {
-  return entry.unlock.kind === "free" ? null : `Earn ${entry.unlock.stars} stars`;
+  const need = requiredStars(entry);
+  return need === null ? null : earnStarsText(need);
+}
+
+/** "Earn 30 stars to unlock Falcon". */
+export function unlockMessage(name: string, stars: number): string {
+  return `${earnStarsText(stars)} to unlock ${name}`;
+}
+
+/** "Switching will lock Yak until you earn 750 stars." (leaving a grandfathered avatar) */
+export function switchAwayWarning(name: string, stars: number): string {
+  return `Switching will lock ${name} until you earn ${stars} stars.`;
 }
 
 /**

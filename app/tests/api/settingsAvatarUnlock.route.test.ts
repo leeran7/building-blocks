@@ -119,6 +119,9 @@ describe("PUT /api/settings locked avatar", () => {
     expect(setUsername).toHaveBeenCalled();
     expect(upsertHandle).toHaveBeenCalled();
     expect(ensureUser).toHaveBeenCalled();
+    // One star sum per request: the route's verdict is reused for the write
+    // and for the avatarUnlocks in the response.
+    expect(aggregate).toHaveBeenCalledTimes(1);
   });
 
   it("re-saves a grandfathered avatar that is locked by stars but already saved", async () => {

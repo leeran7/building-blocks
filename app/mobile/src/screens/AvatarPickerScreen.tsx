@@ -1,5 +1,13 @@
 import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from "react";
-import { AVATARS, unlockRequirementText, type AvatarEntry } from "@app/lib/avatars";
+import {
+  AVATARS,
+  avatarEntry,
+  earnStarsText,
+  requiredStars,
+  switchAwayWarning,
+  unlockMessage,
+  type AvatarEntry,
+} from "@app/lib/avatars";
 import type { AvatarUnlockState } from "@app/lib/avatarUnlocks";
 import { apiFetch } from "../lib/api";
 import { useAuth } from "../contexts/AuthContext";
@@ -32,6 +40,7 @@ const SAVE_BAR_HEIGHT = "(0.75rem + 56px + 1rem + env(safe-area-inset-bottom))";
 export const GRID_END_PADDING = `max(1rem, calc(${LAVA_CLEARANCE} - ${SAVE_BAR_HEIGHT}))`;
 /** A 200 that did not store the pick: an API build older than avatars ignores the field. */
 const AVATAR_NOT_SAVED = "Couldn't save your avatar. Please update the app or try again later.";
+const SWITCH_WARNING_ID = "avatar-switch-warning";
 
 const OPTIONS: ReadonlyArray<{ id: string | null; name: string; entry: AvatarEntry | null }> = [
   { id: null, name: INITIALS_LABEL, entry: null },
@@ -56,15 +65,33 @@ export interface TileLock {
  */
 export function tileLock(entry: AvatarEntry | null, unlocks: AvatarUnlockState | undefined): TileLock | null {
   if (entry === null || unlocks === undefined || unlocks.unlockedIds.includes(entry.id)) return null;
-  const requirement = unlockRequirementText(entry);
-  if (requirement === null || entry.unlock.kind === "free") return null;
+  const need = requiredStars(entry);
+  if (need === null) return null;
   return {
-    requirement,
-    message: `${requirement} to unlock ${entry.name}. You have ${unlocks.stars}.`,
+    requirement: earnStarsText(need),
+    message: `${unlockMessage(entry.name, need)}. You have ${unlocks.stars}.`,
     stars: unlocks.stars,
-    requiredStars: entry.unlock.stars,
+    requiredStars: need,
   };
 }
+
+/**
+ * The warning to show before saving `selected` over a grandfathered saved
+ * avatar (selectable only because it is saved), else null. Saving another
+ * avatar locks it again until its star rule is met.
+ */
+export function switchAwayNotice(
+  current: string | null,
+  selected: string | null,
+  unlocks: AvatarUnlockState | undefined,
+): string | null {
+  if (current === null || selected === current || unlocks?.grandfatheredId !== current) return null;
+  const entry = avatarEntry(current);
+  const need = entry && requiredStars(entry);
+  return entry && need !== null ? switchAwayWarning(entry.name, need) : null;
+}
+
+const entryOf = (id: string | null): AvatarEntry | null => (id === null ? null : avatarEntry(id));
 
 /** Index an arrow/Home/End key moves the radio selection to, or null for other keys. */
 function nextIndex(key: string, current: number, count: number): number | null {
@@ -116,12 +143,17 @@ export function AvatarPickerScreen() {
   const userId = user?.uid ?? nameWith(settingsData?.avatarId ?? null);
 
   const [current, setCurrent] = useState<string | null>(null);
-  const [selected, setSelected] = useState<string | null>(null);
+  const [picked, setSelected] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   /** Why the last tapped tile could not be picked (a locked avatar). */
   const [lockNotice, setLockNotice] = useState<string | null>(null);
   const unlocks = settingsData?.avatarUnlocks;
+  // A pick the latest unlock state locks (a refresh after a 403
+  // AVATAR_LOCKED, say) falls back to the saved avatar, so Save can never
+  // resend it.
+  const selected = tileLock(entryOf(picked), unlocks) ? current : picked;
+  const switchWarning = switchAwayNotice(current, selected, unlocks);
 
   // Stars rise with every level cleared, so ask for the unlock state once
   // on open. A warm slice keeps its data while this runs (no skeleton), and
@@ -375,8 +407,18 @@ export function AvatarPickerScreen() {
           >
             {lockNotice ?? ""}
           </p>
+          {switchWarning && (
+            <p
+              id={SWITCH_WARNING_ID}
+              data-avatar-switch-warning
+              className="glass rounded-2xl border border-ember/40 px-4 py-2.5 text-meta leading-5 text-text-primary"
+            >
+              {switchWarning}
+            </p>
+          )}
           <button
             ref={saveRef}
+            aria-describedby={switchWarning ? SWITCH_WARNING_ID : undefined}
             onClick={() => void save()}
             disabled={!changed || saving}
             className="cta-lime min-h-[56px] w-full rounded-2xl font-display text-lead font-black uppercase tracking-wide text-void transition-transform active:scale-[0.98] disabled:active:scale-100"

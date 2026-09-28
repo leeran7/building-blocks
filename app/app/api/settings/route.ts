@@ -31,7 +31,7 @@ import { isHatefulName } from "../../../src/lib/nameModeration";
 import { normalizeUsername } from "../../../src/lib/username";
 import { setUsername, clearUsername } from "../../../src/db/creator";
 import { parseAvatarId } from "../../../src/lib/avatars";
-import { AvatarLockedError, avatarLockForUser } from "../../../src/db/avatarUnlocks";
+import { AvatarLockedError, checkAvatarForUser, type AvatarCheck } from "../../../src/db/avatarUnlocks";
 import type { AvatarLock } from "../../../src/lib/avatarUnlocks";
 
 export const runtime = "nodejs";
@@ -214,10 +214,12 @@ export async function PUT(request: NextRequest): Promise<NextResponse> {
   try {
     // A locked avatar is refused before any write (username, social, row
     // provisioning), so the request saves nothing at all. Unlock state comes
-    // from stored stars and the saved avatar only, never from the body.
+    // from stored stars and the saved avatar only, never from the body. The
+    // verdict goes to updateUserSettings so it is decided once per request.
+    let avatarCheck: AvatarCheck | undefined;
     if (typeof patch.avatarId === "string") {
-      const lock = await avatarLockForUser(decoded.uid, patch.avatarId);
-      if (lock) return avatarLockedResponse(lock);
+      avatarCheck = await checkAvatarForUser(decoded.uid, patch.avatarId);
+      if (avatarCheck.lock) return avatarLockedResponse(avatarCheck.lock);
     }
 
     // Provision the user row if needed (social handles / creator FK to users(id)).
@@ -260,7 +262,7 @@ export async function PUT(request: NextRequest): Promise<NextResponse> {
       await updateUserSocialHandles(decoded.uid, socialPatch);
     }
 
-    const settings = await updateUserSettings(decoded.uid, patch);
+    const settings = await updateUserSettings(decoded.uid, patch, avatarCheck);
     // Consent decides whether this player's record shows on the public
     // leaderboard, and each row renders the player's avatar. topFreeClimbers'
     // unstable_cache otherwise lives up to 60s. `expire: 0` expires the tag

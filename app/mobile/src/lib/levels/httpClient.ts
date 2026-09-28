@@ -1,7 +1,7 @@
 import { TICK_HZ } from "@app/game/types";
 import { LEVEL_SIM_VERSION } from "@app/game/simVersion";
 import { MAX_LIVES, playerLevelProgress } from "@app/levels/rules";
-import { parseAvatarId } from "@app/lib/avatars";
+import { parseAvatarIdList } from "@app/lib/avatars";
 import { apiFetch } from "../api";
 import { starsForTime } from "./model";
 import type {
@@ -177,9 +177,7 @@ export interface ServerResult {
  * costs only the "new character" line, never the result card.
  */
 export function parseUnlockedAvatars(v: unknown): string[] {
-  if (!Array.isArray(v)) return [];
-  const ids = v.map(parseAvatarId);
-  return ids.every((id): id is string => id !== null) ? ids : [];
+  return parseAvatarIdList(v) ?? [];
 }
 
 /** POST /api/levels/result 200 body, or null when it breaks the contract. */

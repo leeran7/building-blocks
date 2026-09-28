@@ -39,6 +39,7 @@ import {
 } from "../../src/db/levels";
 import { firstClearXp, EPISODE_XP, LIFE_REFILL_MS, STAR_XP, type ReportedRun } from "../../src/levels/rules";
 import { isLocalDbUrl } from "../../scripts/localDbGuard";
+import { defaultAvatarFor } from "../../src/lib/handle";
 
 const T0 = new Date("2026-09-27T12:00:00Z");
 const at = (minutes: number) => new Date(T0.getTime() + minutes * 60_000);
@@ -381,6 +382,36 @@ describe.skipIf(!PG_URL)("levels on Postgres", () => {
       expect(await activeLevelSeason(1, T0)).toBeNull();
       expect(await activeLevelSeason(1, at(10))).toEqual({ id: 1, minLevelSimVersion: 1 });
       expect(await activeLevelSeason(2, at(10))).toBeNull();
+    });
+  });
+
+  describe("avatar unlocks in the result", () => {
+    // cleared(1200) is 2 stars a level: 14 stars after 7 levels, 16 after 8.
+    // Ibex unlocks at 15, so level 8 crosses it and level 7 does not.
+    const uid = ["a", "b", "c", "d"].find((id) => defaultAvatarFor(id) !== "ibex")!;
+
+    it("names Ibex on the run that crosses 15 stars, and not one star short", async () => {
+      await user(uid);
+      await clearThrough(uid, 6);
+      const seventh = await start(uid, 7);
+      expect((await submit(uid, seventh.ticketId, cleared(1200))).unlockedAvatars).toEqual([]);
+      const eighth = await start(uid, 8);
+      expect((await submit(uid, eighth.ticketId, cleared(1200))).unlockedAvatars).toEqual(["ibex"]);
+    });
+
+    it("does not announce an avatar the player already has saved", async () => {
+      await user(uid);
+      await prisma.user.update({ where: { id: uid }, data: { avatar_id: "ibex" } });
+      await clearThrough(uid, 7);
+      const eighth = await start(uid, 8);
+      expect((await submit(uid, eighth.ticketId, cleared(1200))).unlockedAvatars).toEqual([]);
+    });
+
+    it("names nothing on a run that raised no stars", async () => {
+      await user(uid);
+      await clearThrough(uid, 8);
+      const again = await start(uid, 8);
+      expect((await submit(uid, again.ticketId, cleared(1200))).unlockedAvatars).toEqual([]);
     });
   });
 });

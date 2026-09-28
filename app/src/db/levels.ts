@@ -24,6 +24,8 @@ import { nanoid } from "nanoid";
 import type { Prisma } from "@prisma/client";
 
 import { prisma } from "./client";
+import { levelStarsEarned } from "./avatarUnlocks";
+import { avatarsNewlyUnlocked } from "../lib/avatarUnlocks";
 import {
   MAX_LIVES,
   episodeLevels,
@@ -71,11 +73,14 @@ export class LevelError extends Error {
   }
 }
 
-async function lockUser(tx: TxClient, userId: string): Promise<{ lives: number; lives_updated_at: Date | null; xp: number }> {
+async function lockUser(
+  tx: TxClient,
+  userId: string
+): Promise<{ lives: number; lives_updated_at: Date | null; xp: number; avatar_id: string | null }> {
   await tx.$executeRaw`SELECT id FROM users WHERE id = ${userId} FOR UPDATE`;
   const user = await tx.user.findUnique({
     where: { id: userId },
-    select: { lives: true, lives_updated_at: true, xp: true },
+    select: { lives: true, lives_updated_at: true, xp: true, avatar_id: true },
   });
   if (!user) throw new LevelError("USER_NOT_FOUND", "User not found");
   return user;
@@ -259,6 +264,12 @@ export interface LevelResult {
   playerLevel: number;
   /** XP keys paid by this run, e.g. "first_clear:1:12". */
   awards: { key: string; amount: number }[];
+  /**
+   * Avatar ids this run's new stars unlocked, from the star total read in
+   * this transaction under the user lock (so a concurrent submit cannot
+   * shift the before/after window). Never the starter or the saved avatar.
+   */
+  unlockedAvatars: string[];
 }
 
 /**
@@ -374,6 +385,16 @@ export async function submitLevelResult(input: SubmitResultInput): Promise<Level
       data: { lives: life.lives, lives_updated_at: life.updatedAt, xp, player_level: playerLevel },
     });
 
+    // Read under the user lock, after this run's stars are written: every
+    // other submit for this user waits, so `after - gained` is exactly the
+    // total before this run.
+    const gained = bestStars - previousStars;
+    let unlockedAvatars: string[] = [];
+    if (gained > 0) {
+      const after = await levelStarsEarned(userId, tx);
+      unlockedAvatars = avatarsNewlyUnlocked(after - gained, after, { userId, savedAvatarId: user.avatar_id });
+    }
+
     return {
       season,
       level,
@@ -390,6 +411,7 @@ export async function submitLevelResult(input: SubmitResultInput): Promise<Level
       xp,
       playerLevel,
       awards,
+      unlockedAvatars,
     };
   });
 }

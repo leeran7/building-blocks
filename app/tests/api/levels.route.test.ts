@@ -16,12 +16,6 @@ vi.mock("../../src/lib/rateLimit", () => ({
 }));
 vi.mock("../../src/lib/firebaseAdmin", () => ({ verifyIdToken: vi.fn() }));
 vi.mock("../../src/db/user", () => ({ ensureUser: vi.fn() }));
-// Only src/db/avatarUnlocks reaches the client here (db/levels is mocked):
-// the stored star total after a run, for the "new character" note.
-const { aggregate } = vi.hoisted(() => ({
-  aggregate: vi.fn(async (): Promise<{ _sum: { stars: number | null } }> => ({ _sum: { stars: 3 } })),
-}));
-vi.mock("../../src/db/client", () => ({ prisma: { levelProgress: { aggregate } } }));
 vi.mock("../../src/db/levels", async (importOriginal) => {
   const real = await importOriginal<typeof import("../../src/db/levels")>();
   return {
@@ -95,6 +89,7 @@ beforeEach(() => {
     xp: 510,
     playerLevel: 3,
     awards: [],
+    unlockedAvatars: [],
   }));
 });
 
@@ -239,43 +234,15 @@ describe("POST /api/levels/result", () => {
     );
   });
 
-  describe("unlockedAvatars", () => {
-    // Ibex unlocks at 15 stars. The run below raises level 42 from 0 to 3 stars.
-    it("names the avatar whose threshold the run's new stars reached exactly", async () => {
-      aggregate.mockResolvedValueOnce({ _sum: { stars: 15 } });
-      const res = await result(CLEAR);
-      expect(res.status).toBe(200);
-      expect((await res.json()).unlockedAvatars).toEqual(["ibex"]);
-      expect(aggregate).toHaveBeenCalledWith({ where: { userId: "u1" }, _sum: { stars: true } });
-    });
-
-    it("names none one star short of the threshold", async () => {
-      aggregate.mockResolvedValueOnce({ _sum: { stars: 14 } });
-      expect((await (await result(CLEAR)).json()).unlockedAvatars).toEqual([]);
-    });
-
-    it("names none when the threshold was already met before the run", async () => {
-      aggregate.mockResolvedValueOnce({ _sum: { stars: 18 } });
-      expect((await (await result(CLEAR)).json()).unlockedAvatars).toEqual([]);
-    });
-
-    it("does not count stars when the run raised none", async () => {
-      vi.mocked(submitLevelResult).mockResolvedValueOnce({
-        season: 1, level: 42, outcome: "cleared", stars: 3, bestStars: 3, previousStars: 3, bestTicks: 900,
-        newBest: false, lifeRefunded: true, lives: 5, nextLifeAt: null, xpGained: 0, xp: 510, playerLevel: 3, awards: [],
-      });
-      expect((await (await result(CLEAR)).json()).unlockedAvatars).toEqual([]);
-      expect(aggregate).not.toHaveBeenCalled();
-    });
-
-    it("still returns the saved result when the star read fails", async () => {
-      aggregate.mockRejectedValueOnce(new Error("connection reset"));
-      const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
-      const res = await result(CLEAR);
-      expect(res.status).toBe(200);
-      expect(await res.json()).toMatchObject({ outcome: "cleared", stars: 3, unlockedAvatars: [] });
-      errSpy.mockRestore();
-    });
+  it("returns the unlockedAvatars the transaction computed, reading nothing else", async () => {
+    vi.mocked(submitLevelResult).mockImplementationOnce(async () => ({
+      season: 1, level: 42, outcome: "cleared", stars: 3, bestStars: 3, previousStars: 0, bestTicks: 900,
+      newBest: true, lifeRefunded: true, lives: 5, nextLifeAt: null, xpGained: 510, xp: 510, playerLevel: 3, awards: [],
+      unlockedAvatars: ["ibex"],
+    }));
+    const res = await result(CLEAR);
+    expect(res.status).toBe(200);
+    expect((await res.json()).unlockedAvatars).toEqual(["ibex"]);
   });
 
   it("records a failed run", async () => {

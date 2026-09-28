@@ -33,7 +33,7 @@ vi.mock("../../src/db/client", () => ({
 }));
 
 import { getUserSettings, updateUserSettings } from "../../src/db/settings";
-import { AvatarLockedError } from "../../src/db/avatarUnlocks";
+import { AvatarLockedError, checkAvatarForUser } from "../../src/db/avatarUnlocks";
 import { AVATARS } from "../../src/lib/avatars";
 import { defaultAvatarFor } from "../../src/lib/handle";
 
@@ -109,6 +109,30 @@ describe("updateUserSettings avatar unlocks (backstop behind the route)", () => 
   it("saves the player's starter animal with no stars", async () => {
     const starter = defaultAvatarFor("u1");
     expect((await updateUserSettings("u1", { avatarId: starter })).avatarId).toBe(starter);
+  });
+
+  it("ignores a forged verdict and checks for itself", async () => {
+    progress.stars = 0;
+    const forged = { userId: "u1", avatarId: LOCKED.id, lock: null, stars: 900 };
+    const err = await updateUserSettings("u1", { avatarId: LOCKED.id }, forged).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(AvatarLockedError);
+    expect(update).not.toHaveBeenCalled();
+  });
+
+  it("reuses a genuine verdict for this user and id without counting stars again", async () => {
+    progress.stars = LOCKED_STARS;
+    const check = await checkAvatarForUser("u1", LOCKED.id);
+    expect(check.lock).toBeNull();
+    aggregate.mockClear();
+    expect((await updateUserSettings("u1", { avatarId: LOCKED.id }, check)).avatarUnlocks.stars).toBe(LOCKED_STARS);
+    expect(aggregate).not.toHaveBeenCalled();
+  });
+
+  it("does not reuse a genuine verdict issued for a different avatar", async () => {
+    const freeCheck = await checkAvatarForUser("u1", "wraith");
+    const err = await updateUserSettings("u1", { avatarId: LOCKED.id }, freeCheck).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(AvatarLockedError);
+    expect(update).not.toHaveBeenCalled();
   });
 
   it("saves a free avatar with no stars", async () => {

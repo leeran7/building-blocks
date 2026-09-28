@@ -19,7 +19,7 @@ import {
   type DailyBoard,
   type FriendsDailyBoard,
 } from "../lib/dailyBoard";
-import { parseAvatarId } from "@app/lib/avatars";
+import { parseAvatarId, parseAvatarIdList } from "@app/lib/avatars";
 import type { AvatarUnlockState } from "@app/lib/avatarUnlocks";
 
 /**
@@ -68,10 +68,15 @@ export interface SettingsData {
  */
 export function parseAvatarUnlocks(v: unknown): AvatarUnlockState | null {
   if (typeof v !== "object" || v === null) return null;
-  const { stars, unlockedIds } = v as Record<string, unknown>;
-  if (typeof stars !== "number" || !Number.isInteger(stars) || stars < 0 || !Array.isArray(unlockedIds)) return null;
-  const ids = unlockedIds.map(parseAvatarId);
-  return ids.every((id): id is string => id !== null) ? { stars, unlockedIds: ids } : null;
+  const { stars, unlockedIds, grandfatheredId } = v as Record<string, unknown>;
+  if (typeof stars !== "number" || !Number.isInteger(stars) || stars < 0) return null;
+  const ids = parseAvatarIdList(unlockedIds);
+  if (ids === null) return null;
+  // Absent or null: nothing grandfathered. Anything else must be a catalogue id.
+  const absent = grandfatheredId === undefined || grandfatheredId === null;
+  const kept = absent ? null : parseAvatarId(grandfatheredId);
+  if (!absent && kept === null) return null;
+  return { stars, unlockedIds: ids, grandfatheredId: kept };
 }
 
 /** Normalises a GET/PUT /api/settings body into the cached settings shape. */

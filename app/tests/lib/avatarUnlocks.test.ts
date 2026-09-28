@@ -10,10 +10,14 @@ import {
   AVATARS,
   avatarEntry,
   avatarsUnlockedBetween,
+  earnStarsText,
+  parseAvatarIdList,
   starsToUnlock,
+  switchAwayWarning,
+  unlockMessage,
   unlockRequirementText,
 } from "../../src/lib/avatars";
-import { avatarLockFor, avatarUnlockState } from "../../src/lib/avatarUnlocks";
+import { avatarLockFor, avatarUnlockState, avatarsNewlyUnlocked } from "../../src/lib/avatarUnlocks";
 import { defaultAvatarFor } from "../../src/lib/handle";
 
 const MAX_STARS_PER_SEASON = LEVELS_PER_SEASON * 3;
@@ -100,6 +104,52 @@ describe("avatarLockFor / avatarUnlockState", () => {
 
   it("lists every avatar at a full season of stars, in catalogue order", () => {
     const state = avatarUnlockState({ stars: MAX_STARS_PER_SEASON, savedAvatarId: null, userId: uid });
-    expect(state).toEqual({ stars: MAX_STARS_PER_SEASON, unlockedIds: AVATARS.map((a) => a.id) });
+    expect(state).toEqual({ stars: MAX_STARS_PER_SEASON, unlockedIds: AVATARS.map((a) => a.id), grandfatheredId: null });
+  });
+
+  it("marks the saved avatar grandfathered only while its star rule is unmet and it is not the starter", () => {
+    expect(avatarUnlockState({ stars: need - 1, savedAvatarId: target.id, userId: uid }).grandfatheredId).toBe(target.id);
+    expect(avatarUnlockState({ stars: need, savedAvatarId: target.id, userId: uid }).grandfatheredId).toBeNull();
+    expect(avatarUnlockState({ stars: 0, savedAvatarId: starter, userId: uid }).grandfatheredId).toBeNull();
+    expect(avatarUnlockState({ stars: 0, savedAvatarId: "wraith", userId: uid }).grandfatheredId).toBeNull();
+    expect(avatarUnlockState({ stars: 0, savedAvatarId: "__proto__", userId: uid }).grandfatheredId).toBeNull();
+  });
+});
+
+describe("avatarsNewlyUnlocked (the level result's note)", () => {
+  // Ibex (15) and Falcon (30) are the first two star rules.
+  const uid = ["p1", "p2", "p3", "p4"].find((id) => !["ibex", "falcon"].includes(defaultAvatarFor(id)))!;
+
+  it("names a threshold reached exactly, and none a star short", () => {
+    expect(avatarsNewlyUnlocked(12, 15, { userId: uid, savedAvatarId: null })).toEqual(["ibex"]);
+    expect(avatarsNewlyUnlocked(11, 14, { userId: uid, savedAvatarId: null })).toEqual([]);
+  });
+
+  it("leaves out the saved avatar, which the player already has", () => {
+    expect(avatarsNewlyUnlocked(0, 30, { userId: uid, savedAvatarId: "ibex" })).toEqual(["falcon"]);
+  });
+
+  it("leaves out the account's starter animal", () => {
+    const ids = Array.from({ length: 1000 }, (_, i) => `starter-${i}`);
+    const ibexStarter = ids.find((id) => defaultAvatarFor(id) === "ibex");
+    expect(ibexStarter).toBeDefined();
+    expect(avatarsNewlyUnlocked(0, 30, { userId: ibexStarter!, savedAvatarId: null })).toEqual(["falcon"]);
+  });
+});
+
+describe("wording and id lists", () => {
+  it("words each message from one requirement string", () => {
+    expect(earnStarsText(30)).toBe("Earn 30 stars");
+    expect(unlockMessage("Falcon", 30)).toBe("Earn 30 stars to unlock Falcon");
+    expect(switchAwayWarning("Yak", 750)).toBe("Switching will lock Yak until you earn 750 stars.");
+  });
+
+  it("parseAvatarIdList keeps only an all-catalogue array", () => {
+    expect(parseAvatarIdList(["ibex", "falcon"])).toEqual(["ibex", "falcon"]);
+    expect(parseAvatarIdList([])).toEqual([]);
+    expect(parseAvatarIdList(["ibex", "__proto__"])).toBeNull();
+    expect(parseAvatarIdList(["ibex", 3])).toBeNull();
+    expect(parseAvatarIdList("ibex")).toBeNull();
+    expect(parseAvatarIdList(undefined)).toBeNull();
   });
 });

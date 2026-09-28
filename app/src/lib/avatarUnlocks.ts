@@ -4,14 +4,23 @@
  *
  * An avatar is selectable when any of these holds:
  *   - its rule is free, or the player's level stars meet its star rule;
- *   - it is the player's saved avatar (grandfathered: a pick made before
- *     unlocks existed stays theirs and can be saved again);
  *   - it is the player's starter, the animal new accounts are given by
  *     defaultAvatarFor (src/db/user.ts ensureUser). Otherwise a new player
- *     who tried another avatar could never get their first one back.
+ *     who tried another avatar could never get their first one back;
+ *   - it is the player's saved avatar (grandfathered). This lasts only while
+ *     it stays saved: switching to another avatar locks it again until its
+ *     star rule is met, and the picker warns before that switch.
  */
 
-import { AVATARS, parseAvatarId, starsToUnlock, type AvatarEntry } from "./avatars";
+import {
+  AVATARS,
+  avatarsUnlockedBetween,
+  parseAvatarId,
+  requiredStars,
+  starsToUnlock,
+  unlockMessage,
+  type AvatarEntry,
+} from "./avatars";
 import { defaultAvatarFor } from "./handle";
 
 export interface AvatarUnlockInput {
@@ -27,6 +36,11 @@ export interface AvatarUnlockState {
   stars: number;
   /** Every catalogue id this player may select, in catalogue order. */
   unlockedIds: string[];
+  /**
+   * The saved avatar when it is selectable only because it is saved (its
+   * star rule unmet, not the starter), else null. Switching away locks it.
+   */
+  grandfatheredId: string | null;
 }
 
 /** Why an avatar cannot be selected: the star rule still unmet. */
@@ -39,12 +53,13 @@ export interface AvatarLock {
   message: string;
 }
 
+/** Unlocked on its own merits: free, earned by stars, or the starter. */
+function earned(entry: AvatarEntry, input: AvatarUnlockInput): boolean {
+  return starsToUnlock(entry, input.stars) === 0 || entry.id === defaultAvatarFor(input.userId);
+}
+
 function selectable(entry: AvatarEntry, input: AvatarUnlockInput): boolean {
-  return (
-    starsToUnlock(entry, input.stars) === 0 ||
-    entry.id === parseAvatarId(input.savedAvatarId) ||
-    entry.id === defaultAvatarFor(input.userId)
-  );
+  return earned(entry, input) || entry.id === parseAvatarId(input.savedAvatarId);
 }
 
 /**
@@ -53,20 +68,37 @@ function selectable(entry: AvatarEntry, input: AvatarUnlockInput): boolean {
  * "unlocked": the caller resolves it with avatarEntry and rejects a null.
  */
 export function avatarLockFor(entry: AvatarEntry, input: AvatarUnlockInput): AvatarLock | null {
-  if (entry.unlock.kind === "free" || selectable(entry, input)) return null;
+  const need = requiredStars(entry);
+  if (need === null || selectable(entry, input)) return null;
   return {
     avatarId: entry.id,
     name: entry.name,
-    requiredStars: entry.unlock.stars,
+    requiredStars: need,
     stars: input.stars,
-    message: `Earn ${entry.unlock.stars} stars to unlock ${entry.name}`,
+    message: unlockMessage(entry.name, need),
   };
 }
 
 /** Every avatar the player may select, with the star count behind it. */
 export function avatarUnlockState(input: AvatarUnlockInput): AvatarUnlockState {
+  const saved = AVATARS.find((a) => a.id === parseAvatarId(input.savedAvatarId));
   return {
     stars: input.stars,
     unlockedIds: AVATARS.filter((a) => selectable(a, input)).map((a) => a.id),
+    grandfatheredId: saved && !earned(saved, input) ? saved.id : null,
   };
+}
+
+/**
+ * Avatars a rise from `before` to `after` stars made newly selectable: their
+ * threshold crossed, minus any the player could already select without stars
+ * (the starter and the saved avatar), which would not be news.
+ */
+export function avatarsNewlyUnlocked(
+  before: number,
+  after: number,
+  player: { userId: string; savedAvatarId: string | null }
+): string[] {
+  const owned = new Set([defaultAvatarFor(player.userId), parseAvatarId(player.savedAvatarId)]);
+  return avatarsUnlockedBetween(before, after).filter((id) => !owned.has(id));
 }
