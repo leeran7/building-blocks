@@ -51,7 +51,7 @@ import {
   LADDER_JUMP_SPEED_FRAC,
   ladderHangM,
   ladderHangs,
-  ladderTopGapM,
+  ladderHasShortTop,
 } from "./towers";
 import {
   grantPowerUp,
@@ -324,8 +324,8 @@ function integratePlayer(
     } else {
       p.vy = input.climbY * climbSpeed;
       p.y += p.vy * dt;
-      if (p.y >= l.y1 && ladderTopGapM(tower) > 0) {
-        // A level's short top stops below the next floor: hold at the top,
+      if (p.y >= l.y1 && ladderHasShortTop(tower, curIx!, curSlot!)) {
+        // A short-top ladder stops below the next floor: hold at the top,
         // still on the ladder, until the climber jumps off (the jump branch
         // above). Stepping off onto the ground here would stand them on air.
         p.x = l.x;

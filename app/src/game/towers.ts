@@ -101,6 +101,7 @@ export function geometryCacheKey(tower: TowerSpec): string {
     tower.ladderHangM,
     tower.ladderTopGapM,
     tower.hangingLadderShare,
+    tower.shortTopShare,
   ];
   if (
     tower.difficulty === undefined &&
@@ -159,6 +160,24 @@ export function ladderHangs(tower: TowerSpec, i: number, slot: number): boolean 
 export function ladderTopGapM(tower: TowerSpec): number {
   const max = MAX_LADDER_TOP_GAP_FRAC * jumpRise(tower, LADDER_JUMP_SPEED_FRAC * tower.jumpSpeed);
   return knob(tower, "ladderTopGapM", 0, max) ?? 0;
+}
+
+/**
+ * Whether ladder `slot` leaving floor `i` stops short of the floor above.
+ * Only a tall ladder can: one that stands on its floor (a hanging ladder
+ * never also needs a jump off) across one of the longer floor gaps (at least
+ * the tower's base gap, the upper half of floorGapForFloor's range). Among
+ * those, always when tower.shortTopShare is unset or 1, otherwise a fixed
+ * coin per (seed, floor, slot) at that share.
+ */
+export function ladderHasShortTop(tower: TowerSpec, i: number, slot: number): boolean {
+  if (ladderTopGapM(tower) === 0) return false;
+  // Read before the tall-ladder checks so a bad share is refused on any floor.
+  const share = knob(tower, "shortTopShare", 0, 1) ?? 1;
+  if (ladderHangs(tower, i, slot)) return false;
+  if (floorGapForFloor(tower, i) < tower.floorGap) return false;
+  if (share >= 1) return true;
+  return hashSeed(`${tower.seed}:top:${i}:${slot}`) / 0x1_0000_0000 < share;
 }
 
 /** Shortest walk (m) between a floor's incoming and outgoing ladders, or null. */
@@ -558,11 +577,12 @@ export function laddersForFloor(tower: TowerSpec, i: number): Ladder[] {
   if (summit !== null && i >= summit) return [];
   const floorY = floorHeight(tower, i);
   const hang = ladderHangM(tower);
-  const y1 = floorHeight(tower, i + 1) - ladderTopGapM(tower);
+  const nextY = floorHeight(tower, i + 1);
+  const gap = ladderTopGapM(tower);
   return ladderXsForFloor(tower, i).map((x, slot) => ({
     x,
     y0: hang > 0 && ladderHangs(tower, i, slot) ? floorY + hang : floorY,
-    y1,
+    y1: gap > 0 && ladderHasShortTop(tower, i, slot) ? nextY - gap : nextY,
   }));
 }
 

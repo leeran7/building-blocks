@@ -3,10 +3,12 @@
  * Draws world + optional HUD; never draws transport chrome (ADR-3).
  */
 
-import { MatchState, Obstacle, TICK_DT } from "../../game/types";
+import { MatchState, Obstacle, PlayerState, TICK_DT, TowerSpec } from "../../game/types";
 import {
   platformsNearY,
   laddersNearY,
+  laddersForFloor,
+  ladderHasShortTop,
   floorHeight,
   floorIndexAt,
 } from "../../game/towers";
@@ -90,6 +92,8 @@ export const CLIMBER_DRAW_SCALE = 1.35;
  * the grab height (engine physics are unchanged).
  */
 export const HANGING_LADDER_DRAW_LIFT_M = CLIMB_HAND_UNITS * CLIMBER_DRAW_SCALE * 1.7;
+/** Metres from a floor's surface up to the middle of a short top's jump chevron. */
+export const SHORT_TOP_CHEVRON_RISE_M = 1.6;
 
 // ── Cached font strings ──────────────────────────────────────────────────────
 // Avoids template-literal allocation every frame; rebuilt only on ui change.
@@ -280,7 +284,12 @@ export function paintClimbFrame(
     drawFloorMarker(ctx, { y, altitude: fy, scale: ui });
   }
 
-  for (const { ix, ladder: l } of laddersNearY(tower, yLow, yHigh)) {
+  const slab = Math.max(6, sizePxPerM * 2.5);
+  // Holding at a short top: that ladder's jump cue pulses until they jump.
+  const heldTop = player ? heldShortTop(player, tower) : null;
+  // Short tops to draw over the slabs, once those are down.
+  const shortTops: { cx: number; yTop: number; floorTop: number; railHalf: number; held: boolean }[] = [];
+  for (const { ix, slot, ladder: l } of laddersNearY(tower, yLow, yHigh)) {
     const yTop = sy(l.y1);
     // A hanging ladder is caught by the hands, so its bottom rung is drawn
     // where a climber's hands are when their feet reach the grab height:
@@ -306,9 +315,15 @@ export function paintClimbFrame(
       ctx.lineTo(cx + railHalf, yy);
       ctx.stroke();
     }
+    // A short top stops just under the floor it leads to, inside the slab,
+    // where a full ladder's top hides. Its end is drawn over the slab below.
+    const floorTop = sy(floorHeight(tower, ix + 1));
+    if (yTop > floorTop + 0.01) {
+      const held = heldTop !== null && heldTop.ix === ix && heldTop.slot === slot;
+      shortTops.push({ cx, yTop, floorTop, railHalf, held });
+    }
   }
 
-  const slab = Math.max(6, sizePxPerM * 2.5);
   for (const p of platformsNearY(tower, yLow, yHigh)) {
     const top = sy(p.y);
     if (top < -slab || top > height + 20) continue;
@@ -323,6 +338,14 @@ export function paintClimbFrame(
     ctx.fillStyle = "rgba(10,10,12,0.55)";
     ctx.fillRect(x0, top + slab - 1.5 * ui, w, 1.5 * ui);
     ctx.fillRect(x0 + w - ui, top + ui, ui, slab - ui);
+  }
+
+  // Short tops over the slab: rails up through it to the capped top rung,
+  // just under the surface, and a jump chevron on the floor above. Behind the
+  // slab the stop would hide, and the hold at the top reads as being stuck.
+  const chevronRisePx = Math.max(6 * ui, sizePxPerM * SHORT_TOP_CHEVRON_RISE_M);
+  for (const t of shortTops) {
+    drawShortTopCue(ctx, t, slab, chevronRisePx, ui, state.tick, reducedMotion);
   }
 
   for (const o of obstaclesNearY(tower, yLow, yHigh)) {
@@ -485,6 +508,13 @@ export function paintClimbFrame(
 
     if (isLocal && p.jetpackThrusting) {
       drawJetpackFlame(ctx, pxScreen, pFeetY, pS, state.tick, reducedMotion);
+    }
+
+    // Holding at a short top: prompt the jump above the climber's head, where
+    // the player is looking (the ladder's own cue sits under the slab).
+    if (isLocal && heldTop !== null) {
+      const bob = reducedMotion ? 0 : Math.sin(state.tick * 0.35) * 3 * ui;
+      drawJumpChevron(ctx, pxScreen, pFeetY - (2.4 * pS + 12 * ui) + bob, 7 * ui, ACCENT, 3 * ui);
     }
 
     const nameLabel = (opts.playerNames ? opts.playerNames[p.id] : null) ?? "Guest";
@@ -732,6 +762,83 @@ export function drawClimber(
   } else {
     dot(ctx, [fx + facing * 0.2 * s, headY - 0.02 * s], Math.max(1.3, 0.13 * s));
   }
+}
+
+/**
+ * A short-top ladder's end, drawn over the slab: its rails from the slab's
+ * underside up to the top rung, a thick cap there (just under the floor's
+ * surface), and an up chevron on the floor above (jump to get off). `held`
+ * while the local climber holds at this top: the chevron turns accent and
+ * bobs as the jump prompt.
+ */
+function drawShortTopCue(
+  ctx: PaintCtx,
+  t: { cx: number; yTop: number; floorTop: number; railHalf: number; held: boolean },
+  slab: number,
+  chevronRisePx: number,
+  ui: number,
+  tick: number,
+  reducedMotion: boolean
+): void {
+  const { cx, yTop, railHalf } = t;
+  ctx.strokeStyle = LADDER;
+  ctx.lineWidth = 2 * ui;
+  ctx.beginPath();
+  ctx.moveTo(cx - railHalf, yTop);
+  ctx.lineTo(cx - railHalf, t.floorTop + slab);
+  ctx.moveTo(cx + railHalf, yTop);
+  ctx.lineTo(cx + railHalf, t.floorTop + slab);
+  ctx.stroke();
+  ctx.lineWidth = 3.5 * ui;
+  ctx.beginPath();
+  ctx.moveTo(cx - railHalf - 2 * ui, yTop);
+  ctx.lineTo(cx + railHalf + 2 * ui, yTop);
+  ctx.stroke();
+
+  const bob = t.held && !reducedMotion ? Math.sin(tick * 0.35) * 2 * ui : 0;
+  drawJumpChevron(
+    ctx,
+    cx,
+    t.floorTop - chevronRisePx + bob,
+    railHalf,
+    t.held ? ACCENT : LADDER,
+    (t.held ? 2.5 : 2) * ui
+  );
+}
+
+/** An up chevron `w` px either side of (cx, midY): "jump up". */
+function drawJumpChevron(
+  ctx: PaintCtx,
+  cx: number,
+  midY: number,
+  w: number,
+  color: string,
+  lineWidth: number
+): void {
+  const h = w * 0.6;
+  ctx.strokeStyle = color;
+  ctx.lineWidth = lineWidth;
+  ctx.beginPath();
+  ctx.moveTo(cx - w, midY + h / 2);
+  ctx.lineTo(cx, midY - h / 2);
+  ctx.lineTo(cx + w, midY + h / 2);
+  ctx.stroke();
+}
+
+/**
+ * The short-top ladder a climber is holding at the top of (they must jump
+ * off), or null.
+ */
+export function heldShortTop(
+  p: PlayerState,
+  tower: TowerSpec
+): { ix: number; slot: number } | null {
+  if (p.status !== "climbing" || !p.onLadder || p.ladderIx === null || p.ladderSlot === null) {
+    return null;
+  }
+  if (!ladderHasShortTop(tower, p.ladderIx, p.ladderSlot)) return null;
+  const l = laddersForFloor(tower, p.ladderIx)[p.ladderSlot];
+  return l && p.y >= l.y1 - 1e-6 ? { ix: p.ladderIx, slot: p.ladderSlot } : null;
 }
 
 function limb(ctx: PaintCtx, x0: number, y0: number, [x1, y1]: Pt) {

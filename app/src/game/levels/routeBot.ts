@@ -26,7 +26,7 @@ import { isPowerUpActive, moveSpeedMultiplier } from "../powerups";
 import { obstacleAhead, isOnObstacle, obstaclesNearY } from "../obstacles";
 import {
   floorIndexAt,
-  ladderTopGapM,
+  ladderHasShortTop,
   laddersForFloor,
   platformsForFloor,
   platformsNearY,
@@ -50,7 +50,11 @@ export function createRouteBot(): RouteBot {
   return (p, tower, tick) => {
     if (p.onGround || p.onLadder) gapJump = false;
     if (p.onLadder) {
-      if (ladderTopGapM(tower) > 0 && p.ladderIx !== null && p.ladderSlot !== null) {
+      if (
+        p.ladderIx !== null &&
+        p.ladderSlot !== null &&
+        ladderHasShortTop(tower, p.ladderIx, p.ladderSlot)
+      ) {
         const l = laddersForFloor(tower, p.ladderIx)[p.ladderSlot];
         if (l && p.y >= l.y1 - TOP_EPS) return JUMP_UP;
       }

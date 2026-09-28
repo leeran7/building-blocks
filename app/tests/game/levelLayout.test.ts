@@ -11,9 +11,11 @@ import { describe, expect, it } from "vitest";
 import { createMatch, stepMatch, DEFAULT_SIM_CONFIG } from "../../src/game/simulation";
 import {
   applyRunSeed,
+  floorGapForFloor,
   floorHeight,
   floorIndexAt,
   ladderHangs,
+  ladderHasShortTop,
   laddersForFloor,
   platformsForFloor,
 } from "../../src/game/towers";
@@ -151,13 +153,82 @@ describe("minWalkM", () => {
 });
 
 describe("hanging ladders and short tops: geometry", () => {
-  it("lift every ladder's bottom and lower its top", () => {
-    const t = level("hang-geo", { ladderHangM: 1.5, ladderTopGapM: 0.8 });
+  it("lift every ladder's bottom when no share is set", () => {
+    const t = level("hang-geo", { ladderHangM: 1.5 });
     for (let i = 0; i < 40; i++) {
       for (const l of laddersForFloor(t, i)) {
         expect(l.y0).toBeCloseTo(floorHeight(t, i) + 1.5, 9);
-        expect(l.y1).toBeCloseTo(floorHeight(t, i + 1) - 0.8, 9);
+        expect(l.y1).toBeCloseTo(floorHeight(t, i + 1), 9);
       }
+    }
+  });
+
+  it("lower the top only of tall ladders: across a floor gap at least the base gap", () => {
+    const t = level("top-geo", { ladderTopGapM: 0.8 });
+    let short = 0;
+    let full = 0;
+    for (let i = 0; i < 80; i++) {
+      const tall = floorGapForFloor(t, i) >= t.floorGap;
+      laddersForFloor(t, i).forEach((l, slot) => {
+        expect(ladderHasShortTop(t, i, slot)).toBe(tall);
+        expect(l.y0).toBeCloseTo(floorHeight(t, i), 9);
+        expect(l.y1).toBeCloseTo(floorHeight(t, i + 1) - (tall ? 0.8 : 0), 9);
+        if (tall) short++;
+        else full++;
+      });
+    }
+    expect(short).toBeGreaterThan(10);
+    expect(full).toBeGreaterThan(10);
+  });
+
+  it("never give a hanging ladder a short top", () => {
+    const t = level("mixed-geo", { ladderHangM: 1.5, hangingLadderShare: 0.5, ladderTopGapM: 0.8 });
+    let hungTall = 0;
+    let shortTops = 0;
+    for (let i = 0; i < 120; i++) {
+      laddersForFloor(t, i).forEach((l, slot) => {
+        const hangs = ladderHangs(t, i, slot);
+        if (hangs && floorGapForFloor(t, i) >= t.floorGap) hungTall++;
+        if (hangs) {
+          expect(ladderHasShortTop(t, i, slot)).toBe(false);
+          expect(l.y1).toBeCloseTo(floorHeight(t, i + 1), 9);
+        }
+        if (ladderHasShortTop(t, i, slot)) shortTops++;
+      });
+    }
+    // Both halves of the rule are exercised: tall ladders that hang, and short tops.
+    expect(hungTall).toBeGreaterThan(5);
+    expect(shortTops).toBeGreaterThan(5);
+    // Every ladder hanging leaves no short tops at all.
+    const allHang = level("mixed-geo", { ladderHangM: 1.5, ladderTopGapM: 0.8 });
+    for (let i = 0; i < 40; i++) {
+      laddersForFloor(allHang, i).forEach((_, slot) => expect(ladderHasShortTop(allHang, i, slot)).toBe(false));
+    }
+  });
+
+  it("stop short on about shortTopShare of tall ladders, the same ones every time", () => {
+    const count = (share: number) => {
+      const t = level("top-share", { ladderTopGapM: 0.8, shortTopShare: share });
+      let short = 0;
+      let tall = 0;
+      for (let i = 0; i < 300; i++) {
+        if (floorGapForFloor(t, i) < t.floorGap) continue;
+        laddersForFloor(t, i).forEach((_, slot) => {
+          tall++;
+          if (ladderHasShortTop(t, i, slot)) short++;
+        });
+      }
+      return { short, tall };
+    };
+    const half = count(0.5);
+    expect(half.tall).toBeGreaterThan(100);
+    expect(half.short / half.tall).toBeGreaterThan(0.4);
+    expect(half.short / half.tall).toBeLessThan(0.6);
+    expect(count(0.5).short).toBe(half.short);
+    expect(count(0).short).toBe(0);
+    expect(count(1).short).toBe(count(1).tall);
+    for (const bad of [-0.1, 1.1, Number.NaN]) {
+      expect(() => laddersForFloor(level("top-share", { ladderTopGapM: 0.8, shortTopShare: bad }), 0)).toThrow(RangeError);
     }
   });
 
@@ -214,6 +285,26 @@ describe("hanging ladders and short tops: climbing", () => {
     expect(p.onGround).toBe(true);
   });
 
+  it("a full ladder on a short-top tower steps off onto the floor without a jump", () => {
+    const tower = level("top-full", { ladderTopGapM: 0.9 });
+    let floor = -1;
+    for (let i = 0; i < 50 && floor < 0; i++) if (floorGapForFloor(tower, i) < tower.floorGap) floor = i;
+    expect(floor).toBeGreaterThanOrEqual(0);
+    const l = laddersForFloor(tower, floor)[0]!;
+    expect(l.y1).toBe(floorHeight(tower, floor + 1));
+    const live = createMatch({ seed: tower.seed, mode: "solo", tower, playerIds: ["p"] });
+    while (live.phase === "countdown") stepMatch(live, {}, DEFAULT_SIM_CONFIG);
+    const p0 = live.players[0];
+    p0.x = l.x;
+    p0.y = floorHeight(tower, floor);
+    p0.onGround = true;
+    let p = run(live, UP, 1);
+    for (let k = 0; k < 200 && (p.onLadder || !p.onGround); k++) p = run(live, UP, 1);
+    expect(p.onLadder).toBe(false);
+    expect(p.onGround).toBe(true);
+    expect(p.y).toBe(floorHeight(tower, floor + 1));
+  });
+
   it("a short top holds the climber until they jump onto the floor above", () => {
     const plainTower = level("top-sim", {});
     const plain = underFirstLadder(plainTower);
@@ -221,6 +312,7 @@ describe("hanging ladders and short tops: climbing", () => {
     expect(reached.y).toBeGreaterThanOrEqual(floorHeight(plainTower, 1));
 
     const tower = level("top-sim", { ladderTopGapM: 0.9 });
+    expect(ladderHasShortTop(tower, 0, 0)).toBe(true);
     const live = underFirstLadder(tower);
     const top = laddersForFloor(tower, 0)[0]!.y1;
     let p = run(live, UP, 150);
@@ -240,7 +332,7 @@ describe("hanging ladders and short tops: climbing", () => {
 function levelBot(p: PlayerState, tower: TowerSpec, tick: number): PlayerInput {
   if (p.onLadder && p.ladderIx !== null && p.ladderSlot !== null) {
     const l = laddersForFloor(tower, p.ladderIx)[p.ladderSlot]!;
-    return p.y >= l.y1 ? JUMP_UP : UP;
+    return p.y >= l.y1 && ladderHasShortTop(tower, p.ladderIx, p.ladderSlot) ? JUMP_UP : UP;
   }
   // Past the summit's last ladder there is nothing left to walk to.
   if (laddersForFloor(tower, floorIndexAt(tower, p.y + 0.5)).length === 0) return IDLE;
