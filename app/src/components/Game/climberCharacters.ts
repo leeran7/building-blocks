@@ -107,9 +107,9 @@ export function base(): BaseCharacter {
  */
 export const CLIMBER_CHARACTERS: Readonly<Record<string, ClimberCharacter>> = {
   wraith: WRAITH,
-  viking: base(),
-  sentinel: base(),
-  ibex: base(),
+  viking: sheets("viking"),
+  sentinel: sheets("sentinel"),
+  ibex: sheets("ibex"),
   falcon: base(),
   marmot: base(),
   gecko: base(),
