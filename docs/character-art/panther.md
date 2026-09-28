@@ -3,7 +3,8 @@
 Generation brief for the Panther climb sprite, matching the Wraith pipeline
 (`git show 7406c15:output/wraith/README.md`). The identity reference is the
 avatar portrait `app/mobile/src/assets/avatars/panther.webp`. Until this art
-lands, the game draws Panther as a violet-tinted Wraith placeholder.
+lands, the game draws Panther as the Wraith tinted violet (`#b446f4`), set in
+`app/src/components/Game/climberCharacters.ts`.
 
 ## Deliverables
 
@@ -27,7 +28,7 @@ tuning:
 - At least 30px of empty gutter to every cell edge, including tail and ears.
 - Poses face three-quarter right. No frame is mirrored; the engine mirrors
   for left-facing movement.
-- Accent facets graded toward `#9626ed`.
+- Accent facets graded toward `#b446f4`.
 
 Pose sheet order, left to right then top to bottom: **Idle, Run A, Run B,
 Reach A, Reach B, Falling, Celebrate, Down**. The climb strip is six
@@ -36,7 +37,7 @@ the same with sides swapped. Its body stays centred with under 2px of bob.
 
 ## Prompts
 
-Sheet prompt: one 4 × 2 sheet of the same character, a chibi low-poly black panther warrior: big feline head with short rounded ears, a pale grey faceted muzzle and chin, glowing violet eyes, matte charcoal-black faceted fur and armor, violet `#9626ed` facet accents on the brow, ears, pauldrons and a violet chest chevron, short chunky limbs with padded paws, and a long low-poly tail. Big head,
+Sheet prompt: one 4 × 2 sheet of the same character, a chibi low-poly black panther warrior: big feline head with short rounded ears, a pale grey faceted muzzle and chin, glowing violet eyes, matte charcoal-black faceted fur and armor, violet `#b446f4` facet accents on the brow, ears, pauldrons and a violet chest chevron, short chunky limbs with padded paws, and a long low-poly tail. Big head,
 short chunky limbs, the same proportions as a chibi figure about two and a
 half heads tall. Fixed three-quarter right-facing view. The tail curls up behind the body and must stay attached at the hip in every pose. Ordered poses:
 idle, running with one stride, opposite running stride, right-arm overhead
@@ -57,7 +58,7 @@ views of the exact Panther from the pose sheet, side by side at the same size
 and foot baseline. Left: strict right-facing side profile, one visible
 violet eye, visible arm extended forward horizontally for rigging. Right:
 centred symmetric back view, the back of the head shows both ears and no face; the tail hangs straight down between the legs, arms down and out in an A pose and legs
-separated. Preserve the costume, proportions, `#9626ed` facet accents and
+separated. Preserve the costume, proportions, `#b446f4` facet accents and
 soft studio lighting. No weapons, labels, scene, borders or ground shadows.
 Flat magenta intermediate background.
 
@@ -76,5 +77,6 @@ Keep the tail inside the cell with the 30px gutter; it is the part most likely t
   Reach B pixel data.
 - No magenta fringe on light and dark backgrounds.
 - Preview over the volcano tile at 48, 80 and 144px idle height.
-- Replace the tint placeholder with the real sheet URLs in the per-avatar
-  registry in `app/src/components/Game/climberSprite.ts`.
+- Swap the `tint(...)` entry in
+  `app/src/components/Game/climberCharacters.ts` for `sheets("panther")` and
+  add the files to `app/public/climb/` (see `app/public/climb/README.md`).
