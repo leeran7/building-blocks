@@ -1,7 +1,12 @@
 import { useEffect, useId, useMemo, useRef, useState, type RefObject } from "react";
 
 import { ClimbCanvas } from "@app/components/Game/ClimbCanvas";
-import { createTutorialDemo, type TutorialDemo, type TutorialTopic } from "@app/game/levels/tutorial";
+import {
+  createTutorialDemo,
+  isObstacleTopic,
+  type TutorialDemo,
+  type TutorialTopic,
+} from "@app/game/levels/tutorial";
 import { POWER_UP_SPECS } from "@app/game/powerups";
 import { emptySample, sampleInterp, type RenderFrame } from "@app/game/renderFeed";
 import { TICK_DT } from "@app/game/types";
@@ -11,8 +16,8 @@ import { tapLight } from "../../lib/haptics";
 
 /**
  * The tutorial before a level: a short demo played by the game engine for
- * each topic (the basics before level 1, a new power-up on the level that
- * introduces it), with the step it shows captioned underneath.
+ * each topic (the basics before level 1, a new ladder obstacle or power-up
+ * on the level that introduces it), with the step it shows captioned underneath.
  */
 export function LevelTutorial({
   topics,
@@ -45,7 +50,7 @@ export function LevelTutorial({
   }, [onDone]);
 
   const { info } = demo;
-  const color = topic === "basics" ? undefined : POWER_UP_SPECS[topic].color;
+  const color = topic === "basics" || isObstacleTopic(topic) ? undefined : POWER_UP_SPECS[topic].color;
   const next = () => {
     if (last) onDone();
     else {

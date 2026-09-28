@@ -9,6 +9,9 @@
  *   back on the other, then climb ladders.
  * - Each power-up type has its own demo, played before the level that
  *   introduces it (`tower.introPowerUp`): walk into the orb, then use it.
+ * - Each ladder obstacle has its own demo, played before the level that
+ *   introduces it (`season.obstacleIntros`): jump to grab a hanging ladder;
+ *   jump off a short top.
  *
  * Demos are pure and deterministic (fixed seeds, no lava randomness), so
  * tests can prove every demo shows what its caption says.
@@ -18,13 +21,22 @@ import { DEFAULT_HAZARD_CONFIG, type HazardConfig } from "../hazard";
 import { obstacleAhead } from "../obstacles";
 import { CONCRETE_POWER_UP_TYPES, GIANT_VISUAL_SCALE, POWER_UP_SPECS } from "../powerups";
 import { createMatch, stepMatch, type SimConfig } from "../simulation";
-import { applyRunSeed, floorHeight, laddersForFloor } from "../towers";
+import { applyRunSeed, floorGapForFloor, floorHeight, laddersForFloor } from "../towers";
 import { buildFreeTower } from "../freeStack";
 import { TICK_HZ, type MatchState, type PlayerInput, type PowerUpType, type TowerSpec } from "../types";
 import { createRouteBot } from "./routeBot";
 import { NO_LAVA } from "./levelRun";
+import { levelSpec } from "./levelSpec";
+import { SEASON_1, type SeasonSpec } from "./season";
 
-export type TutorialTopic = "basics" | PowerUpType;
+/** Ladder obstacles with a demo of their own. */
+export type ObstacleTopic = "hanging-ladders" | "short-tops";
+export type TutorialTopic = "basics" | ObstacleTopic | PowerUpType;
+
+/** True for the ladder-obstacle demos (no orb, no power-up colour). */
+export function isObstacleTopic(topic: TutorialTopic): topic is ObstacleTopic {
+  return topic === "hanging-ladders" || topic === "short-tops";
+}
 
 export interface TutorialStep {
   /** Short heading, e.g. "Cross sides". */
@@ -84,9 +96,41 @@ const BASICS: TutorialInfo = {
   ],
 };
 
+const HANGING_LADDERS: TutorialInfo = {
+  topic: "hanging-ladders",
+  heading: "New obstacle: Hanging ladders",
+  steps: [
+    {
+      title: "Jump to grab",
+      body: "Some ladders start above your head. Stand under one, hold ↑ and tap jump to catch it.",
+    },
+    {
+      title: "Climb on",
+      body: "Once you have it, keep holding ↑. Giant can reach them straight from the floor.",
+    },
+  ],
+};
+
+const SHORT_TOPS: TutorialInfo = {
+  topic: "short-tops",
+  heading: "New obstacle: Short tops",
+  steps: [
+    {
+      title: "Spot the gap",
+      body: "Some tall ladders stop below the floor above, with a gap and an arrow at the top.",
+    },
+    {
+      title: "Jump off the top",
+      body: "At the top, tap jump to hop up onto the floor.",
+    },
+  ],
+};
+
 /** The caption copy for a topic. */
 export function tutorialInfo(topic: TutorialTopic): TutorialInfo {
   if (topic === "basics") return BASICS;
+  if (topic === "hanging-ladders") return HANGING_LADDERS;
+  if (topic === "short-tops") return SHORT_TOPS;
   const spec = POWER_UP_SPECS[topic];
   return {
     topic,
@@ -121,14 +165,35 @@ function powerUpHint(type: PowerUpType): string {
 }
 
 /**
- * The demos to play before a level, in order: the basics before level 1, and
- * the power-up a level introduces. Levels with nothing new get none.
+ * The demos to play before a level, in order: the basics before level 1, the
+ * ladder obstacle a level introduces, and the power-up it introduces. Levels
+ * with nothing new get none.
  */
-export function tutorialTopicsFor(level: number, introPowerUp: PowerUpType | null): TutorialTopic[] {
+export function tutorialTopicsFor(
+  level: number,
+  introPowerUp: PowerUpType | null,
+  obstacleIntros: SeasonSpec["obstacleIntros"] = SEASON_1.obstacleIntros
+): TutorialTopic[] {
   const topics: TutorialTopic[] = [];
   if (level === 1) topics.push("basics");
+  if (level === obstacleIntros.hangingLadders) topics.push("hanging-ladders");
+  if (level === obstacleIntros.shortTops) topics.push("short-tops");
   if (introPowerUp !== null) topics.push(introPowerUp);
   return topics;
+}
+
+/**
+ * The obstacle knobs a demo uses: the intro level's own gap sizes, on every
+ * ladder the obstacle can go on, so the first ladder shows it.
+ */
+function obstacleLayout(topic: ObstacleTopic): Partial<TowerSpec> {
+  const intros = SEASON_1.obstacleIntros;
+  if (topic === "hanging-ladders") {
+    const layout = levelSpec(SEASON_1, intros.hangingLadders).layout;
+    return { ladderHangM: layout.hangingLadderFt, hangingLadderShare: 1 };
+  }
+  const layout = levelSpec(SEASON_1, intros.shortTops).layout;
+  return { ladderTopGapM: layout.shortTopFt, shortTopShare: 1 };
 }
 
 /**
@@ -136,6 +201,7 @@ export function tutorialTopicsFor(level: number, introPowerUp: PowerUpType | nul
  * layout.
  */
 export function tutorialTower(topic: TutorialTopic): TowerSpec {
+  if (isObstacleTopic(topic)) return obstacleTower(topic);
   const allowed: PowerUpType[] =
     topic === "basics" ? [] : topic === "random" ? ["random", ...CONCRETE_POWER_UP_TYPES] : [topic];
   // allowedPowerUps is what a random orb rolls among; createTutorialDemo
@@ -146,6 +212,24 @@ export function tutorialTower(topic: TutorialTopic): TowerSpec {
     powerUpChance: 0,
     allowedPowerUps: allowed,
   };
+}
+
+/**
+ * An obstacle demo's tower. Short tops only go on ladders across a longer
+ * floor gap, so the seed is the first `tutorial:<topic>:<k>` whose floor 0
+ * qualifies (fixed, so the demo is the same every time).
+ */
+function obstacleTower(topic: ObstacleTopic): TowerSpec {
+  for (let k = 0; ; k++) {
+    const tower: TowerSpec = {
+      ...applyRunSeed(buildFreeTower(), k === 0 ? `tutorial:${topic}` : `tutorial:${topic}:${k}`),
+      difficulty: 0,
+      powerUpChance: 0,
+      allowedPowerUps: [],
+      ...obstacleLayout(topic),
+    };
+    if (topic !== "short-tops" || floorGapForFloor(tower, 0) >= tower.floorGap) return tower;
+  }
 }
 
 /**
@@ -185,7 +269,7 @@ export function createTutorialDemo(topic: TutorialTopic): TutorialDemo {
     .slice()
     .sort((a, b) => Math.abs(a.x - spawnX) - Math.abs(b.x - spawnX))[0];
   const toward: -1 | 1 = nearest && nearest.x < spawnX ? -1 : 1;
-  if (topic !== "basics") {
+  if (topic !== "basics" && !isObstacleTopic(topic)) {
     state.powerUps.push({
       id: "pu:tutorial",
       type: topic,
@@ -197,7 +281,12 @@ export function createTutorialDemo(topic: TutorialTopic): TutorialDemo {
     });
   }
 
-  const director = topic === "basics" ? basicsDirector(state) : powerUpDirector(topic, toward, isLavaTopic(topic) ? LAVA_WAIT_TICKS : 0);
+  const director =
+    topic === "basics"
+      ? basicsDirector(state)
+      : isObstacleTopic(topic)
+        ? obstacleDirector(topic, state)
+        : powerUpDirector(topic, toward, isLavaTopic(topic) ? LAVA_WAIT_TICKS : 0);
   let stepIndex = 0;
   // Counted here, not from state.tick, which stops once the match ends.
   let ticks = 0;
@@ -260,6 +349,35 @@ function basicsDirector(start: MatchState): Director {
       input: bot(p, state.tower, state.tick),
       stepIndex: p.onLadder ? 1 : 0,
       finished: p.y >= goalY,
+    };
+  };
+}
+
+/**
+ * Ladder obstacles: the route bot climbs to floor 1, which takes a jump onto
+ * a hanging ladder or off a short top. The caption moves on once the climber
+ * is on the hanging ladder, or at the short top.
+ */
+function obstacleDirector(topic: ObstacleTopic, start: MatchState): Director {
+  const bot = createRouteBot();
+  const goalY = floorHeight(start.tower, 1);
+  let reached = false;
+  let landed = false;
+  return (state) => {
+    const p = state.players[0];
+    // Stand on floor 1 through the closing hold instead of climbing on.
+    if (landed) return { input: IDLE, stepIndex: 1, finished: true };
+    if (topic === "hanging-ladders") {
+      reached ||= p.onLadder;
+    } else if (p.onLadder && p.ladderIx !== null && p.ladderSlot !== null) {
+      const l = laddersForFloor(state.tower, p.ladderIx)[p.ladderSlot];
+      reached ||= !!l && p.y >= l.y1 - 1e-6;
+    }
+    landed = reached && !p.onLadder && p.onGround && p.y >= goalY - 1e-6;
+    return {
+      input: landed ? IDLE : bot(p, state.tower, state.tick),
+      stepIndex: reached ? 1 : 0,
+      finished: landed,
     };
   };
 }

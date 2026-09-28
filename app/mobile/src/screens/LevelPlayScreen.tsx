@@ -155,7 +155,8 @@ export function LevelPlayScreen() {
   }, [client, level, practice, setPlayer]);
 
   // The level's tutorial plays once per device before its first run: the
-  // basics on level 1, and each power-up on the level that introduces it.
+  // basics on level 1, and each ladder obstacle and power-up on the level
+  // that introduces it.
   const tutorialLevel = node?.level ?? null;
   const introPowerUp = node?.introPowerUp ?? null;
   const topics = useMemo(
