@@ -2,10 +2,11 @@
 
 Generation brief for the Raven climb sprite, matching the Wraith pipeline
 (`git show 7406c15:output/wraith/README.md`). The identity reference is the
-avatar portrait `app/mobile/src/assets/avatars/raven.webp`. Until this art
-lands, the game draws Raven as the plain Wraith (sampled accent `#f4b943`, kept in
-`RECOLOR_PALETTE` for a future recolour feature), set in
-`app/src/components/Game/climberCharacters.ts`.
+avatar portrait `app/mobile/src/assets/avatars/raven.webp`. The shipped
+sheets (`app/public/climb/raven-poses-192.png` and `raven-climb-192.png`) are
+drawn in code by `tools/climber-art/render.py`, a low-poly rig that follows
+this contract. Generated art from the prompts below can replace them: drop
+in the new files, since the registry entry is already `sheets("raven")`.
 
 ## Deliverables
 
@@ -78,6 +79,5 @@ The raven must climb, so the hands are gloved fingers, not wing tips. Keep the b
   Reach B pixel data.
 - No magenta fringe on light and dark backgrounds.
 - Preview over the volcano tile at 48, 80 and 144px idle height.
-- Swap the `base()` entry in
-  `app/src/components/Game/climberCharacters.ts` for `sheets("raven")` and
-  add the files to `app/public/climb/` (see `app/public/climb/README.md`).
+- Replace the files in `app/public/climb/` (see `app/public/climb/README.md`).
+  The registry already reads `sheets("raven")`.

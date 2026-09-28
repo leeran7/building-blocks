@@ -2,10 +2,11 @@
 
 Generation brief for the Otter climb sprite, matching the Wraith pipeline
 (`git show 7406c15:output/wraith/README.md`). The identity reference is the
-avatar portrait `app/mobile/src/assets/avatars/otter.webp`. Until this art
-lands, the game draws Otter as the plain Wraith (sampled accent `#3595f2`, kept in
-`RECOLOR_PALETTE` for a future recolour feature), set in
-`app/src/components/Game/climberCharacters.ts`.
+avatar portrait `app/mobile/src/assets/avatars/otter.webp`. The shipped
+sheets (`app/public/climb/otter-poses-192.png` and `otter-climb-192.png`) are
+drawn in code by `tools/climber-art/render.py`, a low-poly rig that follows
+this contract. Generated art from the prompts below can replace them: drop
+in the new files, since the registry entry is already `sheets("otter")`.
 
 ## Deliverables
 
@@ -78,6 +79,5 @@ Whiskers are thin; at 192px they must still read. Give them a soft 2px light lin
   Reach B pixel data.
 - No magenta fringe on light and dark backgrounds.
 - Preview over the volcano tile at 48, 80 and 144px idle height.
-- Swap the `base()` entry in
-  `app/src/components/Game/climberCharacters.ts` for `sheets("otter")` and
-  add the files to `app/public/climb/` (see `app/public/climb/README.md`).
+- Replace the files in `app/public/climb/` (see `app/public/climb/README.md`).
+  The registry already reads `sheets("otter")`.
