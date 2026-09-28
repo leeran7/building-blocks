@@ -1,9 +1,9 @@
 # Lynx gameplay artwork: generation prompts
 
-Unlocks at 200 stars. Until the finished sheets land, the game draws the
-Lynx as the plain Wraith (`lynx: base()` in
-`app/src/components/Game/climberCharacters.ts`; its sampled accent `#f23db5` is kept
-in `RECOLOR_PALETTE` for a future recolour feature).
+Unlocks at 200 stars. The shipped sheets are drawn in code by the low-poly rig in
+`scripts/climber-art/` (`lynx: sheets("lynx")` in
+`app/src/components/Game/climberCharacters.ts`; accent `#f23db5`). These prompts are
+for replacing them with generated art later.
 
 Produce the art in the Wraith pipeline (`git show 7406c15:output/wraith/README.md`
 and `output/wraith/movement/README.md` in that commit) and ship it to the
