@@ -21,3 +21,7 @@ python3 scripts/climber-art/export.py lynx       # one
 
 To add a character, define it in `characters.py`, add it to `ALL`, export,
 then switch its registry entry to `sheets("<id>")`.
+
+Kestrel, Mantis and Yak are drawn by their own rig in
+[`kestrel-mantis-yak/`](kestrel-mantis-yak/README.md) (built in parallel with
+this one); run `python3 scripts/climber-art/kestrel-mantis-yak/build.py kestrel mantis yak`.

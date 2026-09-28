@@ -1,10 +1,10 @@
 # Kestrel climber art — generation brief
 
-Until this art exists the climb view draws Kestrel as the plain Wraith, set by
-its `base()` entry in
-`app/src/components/Game/climberCharacters.ts`. When the sheets below exist,
-drop them into `app/public/climb/` and change that entry to
-`sheets("kestrel")`; see `app/public/climb/README.md`. Reference identity: `app/mobile/src/assets/avatars/kestrel.webp`
+Kestrel ships code-drawn sheets (`app/public/climb/kestrel-poses-192.png` and
+`kestrel-climb-192.png`), rendered by `scripts/climber-art/kestrel-mantis-yak/` and registered as
+`sheets("kestrel")` in `app/src/components/Game/climberCharacters.ts`. This brief
+is for generated art to replace them: overwrite the two files with the same
+names and layout (`app/public/climb/README.md`); no code change is needed. Reference identity: `app/mobile/src/assets/avatars/kestrel.webp`
 (head-and-shoulders portrait only, so the body below is new design).
 
 ## Deliverables
