@@ -59,3 +59,11 @@ irreversible or money-adjacent writes — not generic OWASP.
    cosmetic. Avatar unlocks (and anything else built on level stars) must
    never gate money, prizes, or ranking. When premium goes on sale, its
    unlock must come from a server-side purchase record, never level data.
+9. **Characters are skins, never pay-to-win.** Every character (stick,
+   star-unlocked or premium/paid) plays exactly like the stick figure: same
+   hitbox, movement, ladder grab, collisions, power-ups and scoring. The
+   simulation models a climber as a point at the feet and never reads the
+   avatar; only drawing does (`app/src/components/Game/climber*`). An ESLint
+   rule on `app/src/game/**` fails any import of the avatar or character
+   modules there. A character may change how a climber looks, never what it
+   can do (Leeran, 2026-09-28).

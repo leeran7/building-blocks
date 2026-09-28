@@ -63,6 +63,28 @@ const config = [
     },
   },
   {
+    // Characters are skins only (Leeran, 2026-09-28): every character, free,
+    // star-unlocked or paid, must climb, collide and score exactly like the
+    // stick figure, so a paid character can never be pay-to-win. The game
+    // rules (simulation, towers, power-ups, hazards, scoring, levels) live in
+    // src/game and must not read which character a player wears.
+    files: ["src/game/**"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: ["**/lib/avatars", "**/lib/avatarUnlocks", "**/db/avatarUnlocks", "**/components/Game/climber*"],
+              message:
+                "Game rules must not depend on the player's character: characters are cosmetic skins, never pay-to-win (context/trust.md).",
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
     // Test files were not covered by `next lint` (it scoped to app/src). They
     // intentionally construct elements with a `children` prop via createElement.
     // no-use-before-define stays off here too: test fixtures/helpers commonly
