@@ -1,9 +1,9 @@
 # Bison gameplay artwork: generation prompts
 
-Unlocks at 250 stars. Until the finished sheets land, the game draws the
-Bison as the plain Wraith (`bison: base()` in
-`app/src/components/Game/climberCharacters.ts`; its sampled accent `#f1442a` is kept
-in `RECOLOR_PALETTE` for a future recolour feature).
+Unlocks at 250 stars. The shipped sheets are drawn in code by the low-poly rig in
+`scripts/climber-art/` (`bison: sheets("bison")` in
+`app/src/components/Game/climberCharacters.ts`; accent `#f1442a`). These prompts are
+for replacing them with generated art later.
 
 Produce the art in the Wraith pipeline (`git show 7406c15:output/wraith/README.md`
 and `output/wraith/movement/README.md` in that commit) and ship it to the
