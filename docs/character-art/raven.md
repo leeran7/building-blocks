@@ -3,7 +3,8 @@
 Generation brief for the Raven climb sprite, matching the Wraith pipeline
 (`git show 7406c15:output/wraith/README.md`). The identity reference is the
 avatar portrait `app/mobile/src/assets/avatars/raven.webp`. Until this art
-lands, the game draws Raven as a amber-tinted Wraith placeholder.
+lands, the game draws Raven as the Wraith tinted amber (`#f4b943`), set in
+`app/src/components/Game/climberCharacters.ts`.
 
 ## Deliverables
 
@@ -27,7 +28,7 @@ tuning:
 - At least 30px of empty gutter to every cell edge, including tail and ears.
 - Poses face three-quarter right. No frame is mirrored; the engine mirrors
   for left-facing movement.
-- Accent facets graded toward `#eb9c22`.
+- Accent facets graded toward `#f4b943`.
 
 Pose sheet order, left to right then top to bottom: **Idle, Run A, Run B,
 Reach A, Reach B, Falling, Celebrate, Down**. The climb strip is six
@@ -36,7 +37,7 @@ the same with sides swapped. Its body stays centred with under 2px of bob.
 
 ## Prompts
 
-Sheet prompt: one 4 × 2 sheet of the same character, a chibi low-poly raven warrior: big bird head with a swept-back crest of faceted feathers, a short hooked amber `#eb9c22` beak, a pale grey face patch, glowing amber eyes, matte charcoal-black faceted feathers and armor, amber `#eb9c22` facet accents on the crest, pauldrons, wing edges and an amber chest chevron. Arms are feathered wing-arms that end in gloved hands (so it can grip a ladder), short chunky legs with taloned boots, and a short fanned tail. Big head,
+Sheet prompt: one 4 × 2 sheet of the same character, a chibi low-poly raven warrior: big bird head with a swept-back crest of faceted feathers, a short hooked amber `#f4b943` beak, a pale grey face patch, glowing amber eyes, matte charcoal-black faceted feathers and armor, amber `#f4b943` facet accents on the crest, pauldrons, wing edges and an amber chest chevron. Arms are feathered wing-arms that end in gloved hands (so it can grip a ladder), short chunky legs with taloned boots, and a short fanned tail. Big head,
 short chunky limbs, the same proportions as a chibi figure about two and a
 half heads tall. Fixed three-quarter right-facing view. The short fanned tail sits low behind the hips; the feathered wing-arm edges trail slightly behind each arm. Ordered poses:
 idle, running with one stride, opposite running stride, right-arm overhead
@@ -57,7 +58,7 @@ views of the exact Raven from the pose sheet, side by side at the same size
 and foot baseline. Left: strict right-facing side profile, one visible
 amber eye, visible arm extended forward horizontally for rigging. Right:
 centred symmetric back view, the back of the head shows the crest and no beak or eyes; the wing-arm feathers fan behind each arm and the tail fans below the waist, arms down and out in an A pose and legs
-separated. Preserve the costume, proportions, `#eb9c22` facet accents and
+separated. Preserve the costume, proportions, `#f4b943` facet accents and
 soft studio lighting. No weapons, labels, scene, borders or ground shadows.
 Flat magenta intermediate background.
 
@@ -76,5 +77,6 @@ The raven must climb, so the hands are gloved fingers, not wing tips. Keep the b
   Reach B pixel data.
 - No magenta fringe on light and dark backgrounds.
 - Preview over the volcano tile at 48, 80 and 144px idle height.
-- Replace the tint placeholder with the real sheet URLs in the per-avatar
-  registry in `app/src/components/Game/climberSprite.ts`.
+- Swap the `tint(...)` entry in
+  `app/src/components/Game/climberCharacters.ts` for `sheets("raven")` and
+  add the files to `app/public/climb/` (see `app/public/climb/README.md`).
