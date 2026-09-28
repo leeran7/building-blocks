@@ -138,6 +138,17 @@ export type PaintClimbFrameOptions = {
    */
   playerNames?: Record<string, string>;
   /**
+   * Avatar ids keyed by player id — each climber draws as that avatar's
+   * character (climberCharacters.ts). Missing, null or unknown ids draw the
+   * Wraith.
+   */
+  avatarIds?: Readonly<Record<string, string | null>>;
+  /**
+   * The local player's avatar id, for screens that do not know the local
+   * player's sim id (solo runs). An `avatarIds` entry for that id wins.
+   */
+  myAvatarId?: string | null;
+  /**
    * Slots that have readied up in the lobby — draws a signal-glow ring behind
    * the climber to indicate ready state.
    */
@@ -150,7 +161,22 @@ export type PaintClimbFrameOptions = {
 };
 
 // Reused per climber so the paint loop allocates nothing for the sprite.
-const _spriteState: ClimberSpriteState = { pose: "idle", x: 0, y: 0, vx: 0, vy: 0, slot: 0 };
+const _spriteState: ClimberSpriteState = { pose: "idle", x: 0, y: 0, vx: 0, vy: 0, slot: 0, avatarId: null };
+
+/**
+ * The avatar id a climber draws as: its `avatarIds` entry (own keys only, a
+ * player id is not trusted to be a safe key), else `myAvatarId` for the local
+ * player, else null (the Wraith). The id is validated again downstream.
+ */
+export function climberAvatarId(
+  opts: Pick<PaintClimbFrameOptions, "avatarIds" | "myAvatarId">,
+  playerId: string,
+  isLocal: boolean
+): string | null {
+  const map = opts.avatarIds;
+  if (map && Object.prototype.hasOwnProperty.call(map, playerId)) return map[playerId] ?? null;
+  return isLocal ? (opts.myAvatarId ?? null) : null;
+}
 
 export function paintClimbFrame(
   ctx: PaintCtx,
@@ -407,9 +433,9 @@ export function paintClimbFrame(
       ctx.fill();
     }
 
-    // Every climber wears the lime chibi sprite once its atlas has decoded;
-    // until then (and offscreen/SSR) they fall back to the vector figure, which
-    // still recolours via pColor.
+    // Every climber wears its avatar's character sprite (the Wraith for none)
+    // once that atlas has decoded; until then (and offscreen/SSR) they fall
+    // back to the vector figure, which still recolours via pColor.
     // Climbing is vertical — lock facing so the back-view climb frames do not
     // mirror-flip with ladder vx jitter.
     const spriteFacing: 1 | -1 = pPose === "climb" ? 1 : pFacing;
@@ -419,6 +445,7 @@ export function paintClimbFrame(
     _spriteState.vx = p.vx;
     _spriteState.vy = p.vy;
     _spriteState.slot = p.slot;
+    _spriteState.avatarId = climberAvatarId(opts, p.id, isLocal);
     const drewSprite = drawClimberSprite(
       ctx,
       pxScreen,
