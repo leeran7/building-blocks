@@ -3,7 +3,7 @@ import { setClimberSpriteSrc } from "@app/components/Game/climberSprite";
 /*
   Every climber atlas in the web public/climb/, bundled by Vite. The native app
   has no server root for "/climb/…", so each character's sheets are pointed at
-  these bundled URLs. Dropping `<id>-poses-192.png` / `<id>-climb-192.png` into
+  these bundled URLs. Dropping `<id>-poses-192.png` / `<id>-climb-192.png` / `<id>-run-192.png` into
   public/climb/ is enough: no import to add here. Sheets for an id the registry
   still tints are ignored by setClimberSpriteSrc.
 
@@ -11,13 +11,17 @@ import { setClimberSpriteSrc } from "@app/components/Game/climberSprite";
   Vite SPA and the root Next tsconfig (via tests). Values are narrowed below.
 */
 export const BUNDLED_SHEET_FILES: Record<string, unknown> = import.meta.glob(
-  ["../../../public/climb/*-poses-192.png", "../../../public/climb/*-climb-192.png"],
+  [
+    "../../../public/climb/*-poses-192.png",
+    "../../../public/climb/*-climb-192.png",
+    "../../../public/climb/*-run-192.png",
+  ],
   { eager: true, import: "default" },
 );
 
-const SHEET_FILE = /\/([a-z0-9]+)-(poses|climb)-192\.png$/;
+const SHEET_FILE = /\/([a-z0-9]+)-(poses|climb|run)-192\.png$/;
 
-type Sheets = { poses?: string; climb?: string };
+type Sheets = { poses?: string; climb?: string; run?: string };
 
 /** Bundled sheet URLs per character id, from glob results (path → URL). */
 export function climberSheetsFromFiles(files: Record<string, unknown>): Map<string, Sheets> {
@@ -28,7 +32,8 @@ export function climberSheetsFromFiles(files: Record<string, unknown>): Map<stri
     const [, id, sheet] = m;
     const entry = out.get(id) ?? {};
     if (sheet === "poses") entry.poses = url;
-    else entry.climb = url;
+    else if (sheet === "climb") entry.climb = url;
+    else entry.run = url;
     out.set(id, entry);
   }
   return out;
