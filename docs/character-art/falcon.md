@@ -1,12 +1,12 @@
 # Falcon climber artwork
 
-Status: **no art yet**. The registry
-(`app/src/components/Game/climberCharacters.ts`) draws the Falcon as the plain
-Wraith (`base()` entry); its sampled colours ("#f29842", "#2e1c17") are kept in
-`RECOLOR_PALETTE` for a future recolour feature. To ship real art, generate the two
-sheets below, drop `falcon-poses-192.png` and `falcon-climb-192.png` into
-`app/public/climb/`, and change that entry to `sheets("falcon")`. The full
-contract is `app/public/climb/README.md`.
+Status: **code-drawn art in game**. The shipped `falcon-poses-192.png` and
+`falcon-climb-192.png` are rendered by the low-poly rig in
+`tools/climber-art/batch-2/` (`python3 tools/climber-art/batch-2/build.py falcon`),
+and the registry entry is `falcon: sheets("falcon")` in
+`app/src/components/Game/climberCharacters.ts`. The prompts below are for
+replacing them with generated art later: overwrite the two files, same names.
+The full contract is `app/public/climb/README.md`.
 
 Identity reference: `app/mobile/src/assets/avatars/falcon.webp`. Palette sampled
 from it: burnt orange `#d9893d` / `#a25d32` feathers, charcoal `#3b2e2c` /
