@@ -39,11 +39,19 @@ export function nearMissHeadline(tower: TowerSpec, peakFt: number, goalFt: numbe
   return `${floors} floors from the summit!`;
 }
 
-// ── Best failed height, per level ────────────────────────────────────────────
+// ── Best failed height, per season and level ─────────────────────────────────
 
-const STORAGE_PREFIX = "doomstack:levels:best-fail:v1";
+const STORAGE_PREFIX = "doomstack:levels:best-fail:v2";
 
-/** Stored best failed heights by level, or {} when missing or malformed. */
+/**
+ * Each season has its own towers (past seasons stay playable), so marks are
+ * kept per season: level 12 of season 2 must never show season 1's mark.
+ */
+function entryKey(season: number, level: number): string {
+  return `${season}:${level}`;
+}
+
+/** Stored best failed heights by "season:level", or {} when missing or malformed. */
 export function parseBestFails(raw: string | null): Record<string, number> {
   if (!raw) return {};
   let v: unknown;
@@ -55,18 +63,18 @@ export function parseBestFails(raw: string | null): Record<string, number> {
   if (typeof v !== "object" || v === null || Array.isArray(v)) return {};
   const out: Record<string, number> = {};
   for (const [key, ft] of Object.entries(v as Record<string, unknown>)) {
-    if (/^[1-9]\d{0,3}$/.test(key) && typeof ft === "number" && Number.isFinite(ft) && ft > 0) out[key] = ft;
+    if (/^[1-9]\d{0,2}:[1-9]\d{0,3}$/.test(key) && typeof ft === "number" && Number.isFinite(ft) && ft > 0) out[key] = ft;
   }
   return out;
 }
 
 export interface BestFailStore {
-  /** Best failed height on `level`, ft, or null. */
-  get(level: number): number | null;
+  /** Best failed height on `level` of `season`, ft, or null. */
+  get(season: number, level: number): number | null;
   /** Keep `peakFt` when it beats the stored best. */
-  record(level: number, peakFt: number): void;
+  record(season: number, level: number, peakFt: number): void;
   /** Forget the level (it was cleared). */
-  clear(level: number): void;
+  clear(season: number, level: number): void;
 }
 
 export interface BestFailStoreOptions {
@@ -103,22 +111,26 @@ export function createBestFailStore(opts: BestFailStoreOptions = {}): BestFailSt
     save(key, JSON.stringify(next));
   };
   return {
-    get(level) {
+    get(season, level) {
       const all = read();
-      return Object.hasOwn(all, String(level)) ? (all[String(level)] ?? null) : null;
+      const k = entryKey(season, level);
+      return Object.hasOwn(all, k) ? (all[k] ?? null) : null;
     },
-    record(level, peakFt) {
-      if (!Number.isInteger(level) || level < 1 || !Number.isFinite(peakFt) || peakFt <= 0) return;
+    record(season, level, peakFt) {
+      if (!Number.isInteger(season) || season < 1 || !Number.isInteger(level) || level < 1) return;
+      if (!Number.isFinite(peakFt) || peakFt <= 0) return;
       const all = read();
-      const prev = Object.hasOwn(all, String(level)) ? all[String(level)] : undefined;
+      const k = entryKey(season, level);
+      const prev = Object.hasOwn(all, k) ? all[k] : undefined;
       if (prev !== undefined && prev >= peakFt) return;
-      write({ ...all, [String(level)]: peakFt });
+      write({ ...all, [k]: peakFt });
     },
-    clear(level) {
+    clear(season, level) {
       const all = read();
-      if (!Object.hasOwn(all, String(level))) return;
+      const k = entryKey(season, level);
+      if (!Object.hasOwn(all, k)) return;
       const next = { ...all };
-      delete next[String(level)];
+      delete next[k];
       write(next);
     },
   };

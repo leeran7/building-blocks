@@ -77,43 +77,61 @@ describe("best failed height store", () => {
   it("keeps the best per level, per account, and forgets a cleared level", () => {
     const m = memory();
     const store = createBestFailStore({ accountId: "u1", load: m.load, save: m.save });
-    store.record(12, 150);
-    store.record(12, 120);
-    store.record(12, 190.5);
-    expect(store.get(12)).toBe(190.5);
-    expect(store.get(13)).toBeNull();
-    expect(createBestFailStore({ accountId: "u2", load: m.load, save: m.save }).get(12)).toBeNull();
-    expect(createBestFailStore({ accountId: "u1", load: m.load, save: m.save }).get(12)).toBe(190.5);
-    store.clear(12);
-    expect(store.get(12)).toBeNull();
+    store.record(1, 12, 150);
+    store.record(1, 12, 190.5);
+    store.record(1, 12, 120);
+    expect(store.get(1, 12)).toBe(190.5);
+    expect(store.get(1, 13)).toBeNull();
+    expect(createBestFailStore({ accountId: "u2", load: m.load, save: m.save }).get(1, 12)).toBeNull();
+    expect(createBestFailStore({ accountId: "u1", load: m.load, save: m.save }).get(1, 12)).toBe(190.5);
+    store.clear(1, 12);
+    expect(store.get(1, 12)).toBeNull();
+  });
+
+  it("keeps each season's marks apart", () => {
+    const m = memory();
+    const store = createBestFailStore({ accountId: "u1", load: m.load, save: m.save });
+    store.record(1, 12, 150);
+    expect(store.get(2, 12)).toBeNull();
+    store.record(2, 12, 90);
+    store.clear(2, 12);
+    expect(store.get(1, 12)).toBe(150);
   });
 
   it("ignores bad heights and levels", () => {
     const m = memory();
     const store = createBestFailStore({ load: m.load, save: m.save });
-    store.record(0, 50);
-    store.record(3, Number.NaN);
-    store.record(3, -1);
+    store.record(1, 0, 50);
+    store.record(0, 3, 50);
+    store.record(1.5, 3, 50);
+    store.record(1, 3, Number.NaN);
+    store.record(1, 3, -1);
     expect(m.data.size).toBe(0);
   });
 
   it("survives storage that is missing or throws (localStorage wrapped in try/catch)", () => {
     // No localStorage in this environment: reading it throws a ReferenceError.
     const store = createBestFailStore();
-    expect(() => store.record(4, 10)).not.toThrow();
-    expect(store.get(4)).toBe(10);
-    expect(createBestFailStore().get(4)).toBeNull();
+    expect(() => store.record(1, 4, 10)).not.toThrow();
+    expect(store.get(1, 4)).toBe(10);
+    expect(createBestFailStore().get(1, 4)).toBeNull();
   });
 
   it.each([
     ["not json", "{"],
     ["an array", "[1,2]"],
     ["a prototype key", '{"__proto__": 5}'],
-    ["a zero level", '{"0": 5}'],
-    ["a string height", '{"3": "5"}'],
-    ["a negative height", '{"3": -5}'],
+    ["a key without a season (v1 layout)", '{"3": 5}'],
+    ["a zero level", '{"1:0": 5}'],
+    ["a zero season", '{"0:3": 5}'],
+    ["a string height", '{"1:3": "5"}'],
+    ["a negative height", '{"1:3": -5}'],
   ])("drops %s", (_, raw) => {
     expect(parseBestFails(raw)).toEqual({});
+  });
+
+  it("keeps a well-formed entry", () => {
+    expect(parseBestFails('{"1:3": 5, "2:300": 7.5}')).toEqual({ "1:3": 5, "2:300": 7.5 });
   });
 
   it("marks the next try only when the best came close", () => {

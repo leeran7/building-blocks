@@ -66,6 +66,7 @@ export function LevelPlayScreen() {
   const practice = search.get("practice") === "1";
   const level = Number(params.level);
   const { client, season, setPlayer, refresh, bestFails } = useLevels();
+  const seasonNo = season?.season ?? null;
   const node: LevelNode | null =
     season && Number.isInteger(level) && level >= 1 && level <= season.levels.length
       ? season.levels[level - 1]
@@ -97,8 +98,10 @@ export function LevelPlayScreen() {
     async (report: LevelRunReport) => {
       // The near-miss marker is device-only: every lost attempt counts,
       // Practice included, and a clear retires it.
-      if (report.finished) bestFails.clear(report.level);
-      else bestFails.record(report.level, report.peakFt);
+      if (seasonNo !== null) {
+        if (report.finished) bestFails.clear(seasonNo, report.level);
+        else bestFails.record(seasonNo, report.level, report.peakFt);
+      }
       if (practice || !ticket) {
         setStage({ kind: "practice-over", report });
         return;
@@ -116,7 +119,7 @@ export function LevelPlayScreen() {
         setStage({ kind: "failed", report });
       }
     },
-    [client, practice, ticket, setPlayer, refresh, bestFails],
+    [client, practice, ticket, setPlayer, refresh, bestFails, seasonNo],
   );
 
   const retry = useCallback(async () => {
@@ -169,9 +172,10 @@ export function LevelPlayScreen() {
   const goalFt = ticket?.goalFt ?? node.goalFt;
   const pars = ticket?.pars ?? node.pars;
   const player = season?.player;
-  // Read at render: a run in progress keeps the marker it started with (the
-  // store only changes when a run ends, and LevelRun reads it once).
-  const marker = setup ? bestFailMarker(setup.tower, bestFails.get(level), goalFt) : null;
+  // Read at render. The store only changes when a run ends, so a run in
+  // progress keeps the marker it started with.
+  const best = seasonNo !== null ? bestFails.get(seasonNo, level) : null;
+  const marker = setup ? bestFailMarker(setup.tower, best, goalFt) : null;
   const nearMiss = (peakFt: number) => (setup ? nearMissHeadline(setup.tower, peakFt, goalFt) : null);
 
   return (
