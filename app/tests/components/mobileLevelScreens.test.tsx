@@ -353,4 +353,19 @@ describe("level result card", () => {
     expect(button("Retry")).toBeTruthy();
     expect(container.textContent).toContain("Tutorial level: free to retry");
   });
+
+  it("announces a character the run unlocked, and nothing when none", async () => {
+    await renderCard({ ...base, unlockedAvatars: ["ibex"] });
+    const note = container.querySelector("[data-new-avatar]");
+    expect(note?.getAttribute("role")).toBe("status");
+    expect(note?.textContent).toBe("New character unlocked: Ibex");
+
+    await renderCard({ ...base, unlockedAvatars: ["ibex", "falcon"] });
+    expect(container.querySelector("[data-new-avatar]")?.textContent).toBe("New characters unlocked: Ibex, Falcon");
+
+    await renderCard({ ...base, unlockedAvatars: [] });
+    expect(container.querySelector("[data-new-avatar]")).toBeNull();
+    await renderCard(base);
+    expect(container.querySelector("[data-new-avatar]")).toBeNull();
+  });
 });

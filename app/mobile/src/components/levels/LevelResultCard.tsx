@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { ALTITUDE_UNIT } from "@app/lib/units";
+import { avatarName } from "@app/lib/avatars";
 import { Button } from "../ui";
 import {
   feetShort,
@@ -126,6 +127,7 @@ function Cleared({ result }: { result: LevelResult }) {
             Player level {result.newPlayerLevel}!
           </p>
         )}
+        <UnlockedAvatars ids={result.unlockedAvatars ?? []} />
         <XpBar player={result.player} />
       </div>
       <style>{`
@@ -135,6 +137,21 @@ function Cleared({ result }: { result: LevelResult }) {
         @media (prefers-reduced-motion: reduce) { .lr-star { animation: none; } }
       `}</style>
     </>
+  );
+}
+
+/** "New character unlocked: Falcon" when this run's stars crossed an avatar's rule. */
+function UnlockedAvatars({ ids }: { ids: string[] }) {
+  const names = ids.map(avatarName).filter((n): n is string => n !== null);
+  if (names.length === 0) return null;
+  return (
+    <p
+      role="status"
+      data-new-avatar
+      className="rounded-full border border-white/15 bg-white/5 px-3 py-1 text-center font-mono text-label font-bold uppercase tracking-label text-text-primary"
+    >
+      {names.length === 1 ? "New character unlocked" : "New characters unlocked"}: {names.join(", ")}
+    </p>
   );
 }
 

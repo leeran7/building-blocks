@@ -20,7 +20,8 @@
  *
  * Request:  { ticketId: string, cleared: boolean, stars: 0-3, ticks: number,
  *             replayToken?: string }  (replayToken: the run, kept for ghosts)
- * 200:      LevelResult (src/db/levels.ts) with dates as ISO strings
+ * 200:      LevelResult (src/db/levels.ts) with dates as ISO strings, plus
+ *           unlockedAvatars: avatar ids this run's new stars unlocked
  * 400:      { error, code: INVALID_JSON | INVALID_TICKET | INVALID_RESULT
  *                         | IMPLAUSIBLE_RUN }
  * 401:      { error, code: UNAUTHORIZED }
@@ -45,6 +46,8 @@ import {
   reject,
 } from "../../../../src/levels/http";
 import { parseReplayToken } from "../../../../src/game/runReplay";
+import { levelStarsEarned } from "../../../../src/db/avatarUnlocks";
+import { avatarsUnlockedBetween } from "../../../../src/lib/avatars";
 import {
   checkClimbIpRateLimit,
   checkLevelUserRateLimit,
@@ -52,6 +55,22 @@ import {
 } from "../../../../src/lib/climbRateLimit";
 
 export const runtime = "nodejs";
+
+/**
+ * Avatar ids this run's new stars unlocked, from the stored star total after
+ * the commit. Best effort: the run is already saved, so a failed read only
+ * drops the "new character" note, never the result.
+ */
+async function avatarsUnlockedByRun(userId: string, starsGained: number): Promise<string[]> {
+  if (starsGained <= 0) return [];
+  try {
+    const after = await levelStarsEarned(userId);
+    return avatarsUnlockedBetween(after - starsGained, after);
+  } catch (err) {
+    console.error("[levels/result] avatar unlock read failed:", err);
+    return [];
+  }
+}
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
   const body = await readJsonObject(request);
@@ -100,8 +119,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   try {
     const result = await submitLevelResult({ userId: player.uid, ticketId, run, replayToken, now });
+    const unlockedAvatars = await avatarsUnlockedByRun(player.uid, result.bestStars - result.previousStars);
     return NextResponse.json(
-      { ...result, nextLifeAt: result.nextLifeAt?.toISOString() ?? null },
+      { ...result, nextLifeAt: result.nextLifeAt?.toISOString() ?? null, unlockedAvatars },
       { status: 200, headers: NO_STORE }
     );
   } catch (err) {

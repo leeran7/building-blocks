@@ -114,6 +114,8 @@ export interface LevelResult {
   /** Set when this run moved the player up a level. */
   newPlayerLevel: number | null;
   player: PlayerStats;
+  /** Avatar ids this run's new stars unlocked (server only; guests earn none). */
+  unlockedAvatars?: string[];
 }
 
 /** A level's fixed facts: everything on its pin except the player's progress. */
