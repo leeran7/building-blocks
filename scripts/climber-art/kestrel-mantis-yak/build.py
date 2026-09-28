@@ -26,9 +26,11 @@ def cells(char):
         S = char.build(p)
         poses.append(render(S, k, ground_shift(S, k, p.get("lift", 0) * k)))
     climb = []
+    # Climb frames hang from one fixed root (frame 0 has a foot on the anchor),
+    # so a lifted foot rises instead of the whole body dropping to meet it.
+    shift = ground_shift(char.build_back(0), k)
     for t in range(6):
-        S = char.build_back(t)
-        climb.append(render(S, k, ground_shift(S, k)))
+        climb.append(render(char.build_back(t), k, shift))
     return poses, climb
 
 

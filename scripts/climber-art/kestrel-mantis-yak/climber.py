@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import math
 
+import climb_cycle
 from rig import ANCHOR, Frame, Scene, add, dirv, hexc, ik, mul, rot, scl, sub
 
 FAR = 0.7  # colour multiplier for the far arm and leg (depth)
@@ -18,8 +19,9 @@ FAR = 0.7  # colour multiplier for the far arm and leg (depth)
 # celebrate, down. arms: (shoulder, elbow); legs: (hip, knee, foot).
 POSES = [
     dict(name="idle", torso=3, head=0, nA=(14, 24), fA=(-12, 22), nL=(10, 6, 0), fL=(-9, 6, 0)),
-    dict(name="run-a", torso=11, head=-4, nA=(-48, 55), fA=(52, 75), nL=(40, 28, -8), fL=(-38, 78, 34), lift=6),
-    dict(name="run-b", torso=11, head=-4, nA=(55, 75), fA=(-44, 55), nL=(-38, 78, 34), fL=(40, 28, -8), lift=6),
+    # Two mirrored strides, both feet down: the engine adds the bob between them
+    dict(name="run-a", torso=11, head=-4, nA=(-48, 55), fA=(52, 75), nL=(40, 28, -8), fL=(-40, 36, 30)),
+    dict(name="run-b", torso=11, head=-4, nA=(55, 75), fA=(-44, 55), nL=(-40, 36, 30), fL=(40, 28, -8)),
     dict(name="reach-a", torso=-2, head=-10, nA=(104, 58), fA=(14, 26), nL=(4, 4, 0), fL=(28, 62, 4)),
     dict(name="reach-b", torso=-2, head=-10, nA=(12, 26), fA=(-104, -58), nL=(28, 62, 4), fL=(-4, 4, 0)),
     dict(name="falling", torso=-6, head=-12, nA=(118, -20), fA=(-116, 20), nL=(34, 36, -14), fL=(-26, 40, 18), lift=10),
@@ -119,10 +121,8 @@ class Climber:
 
     # --- back-view climb frame ------------------------------------------------
     def build_back(self, t: int, frames: int = 6) -> Scene:
-        """Right-hand reach pairs with left-foot lift; the second half swaps."""
+        """Frame t of the shared climb cycle: hand over hand, opposite foot steps."""
         S = Scene(self.o)
-        phase = 2 * math.pi * t / frames
-        c = math.cos(phase)
         pelvis = (256.0, 330.0)
         T = Frame(pelvis, 0)
         neck = T.p(0, -self.torso_len)
@@ -132,19 +132,14 @@ class Climber:
         hipL = T.p(-self.back_hip, -2)
         hipR = T.p(self.back_hip, -2)
         ground = pelvis[1] + self.thigh + self.shin - 6  # ankle height, knees slightly bent
-        hand_mid = neck[1] - 36
-        reach = 34
-        lift_amp = 30
-        # Right hand high when c > 0, left foot lifted with it.
-        hands = {
-            "R": (256 + self.back_shoulder + self.hand_out, hand_mid - reach * c),
-            "L": (256 - self.back_shoulder - self.hand_out, hand_mid + reach * c),
-        }
-        lifts = {"L": lift_amp * max(0.0, c), "R": lift_amp * max(0.0, -c)}
-        feet = {
-            "L": (256 - self.back_hip - 12, ground - lifts["L"]),
-            "R": (256 + self.back_hip + 12, ground - lifts["R"]),
-        }
+        hand_top = neck[1] - 90
+        # The shared hand-over-hand cycle (tools/climber-art/climb_cycle.py).
+        hands, feet = {}, {}
+        for side, sgn, cside in (("R", 1, "r"), ("L", -1, "l")):
+            drop, out, _ = climb_cycle.hand(t, cside)
+            hands[side] = (256 + sgn * (self.back_shoulder + self.hand_out + out), hand_top + drop)
+            lift, _ = climb_cycle.foot(t, cside)
+            feet[side] = (256 + sgn * (self.back_hip + 12), ground - lift)
 
         # legs (behind the torso), knees bend outward
         for side, hip, bend in (("L", hipL, 1), ("R", hipR, -1)):
