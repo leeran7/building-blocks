@@ -8,10 +8,10 @@ BASE = dict(lean=3, tilt=0, nT=5, nS=0, fT=-5, fS=0, nU=12, nF=28, fU=-10, fF=26
             nFoot=0, fFoot=0, tail=0, grounded=True, hip=0.0, px=0.0, nA=1.0, fA=1.0)
 POSES = {
     'idle': dict(),
-    'run-a': dict(lean=11, tilt=-4, nT=40, nS=-28, fT=-34, fS=-58, nU=-42, nF=62, fU=48, fF=64,
-                  nFoot=8, fFoot=-40, tail=-14),
-    'run-b': dict(lean=11, tilt=-4, nT=-34, nS=-58, fT=40, fS=-28, nU=48, nF=64, fU=-42, fF=62,
-                  nFoot=-40, fFoot=8, tail=10),
+    'run-a': dict(lean=11, tilt=-4, nT=40, nS=-28, fT=-36, fS=-26, nU=-42, nF=62, fU=48, fF=64,
+                  nFoot=8, fFoot=-40, tail=-14, hipw=3),
+    'run-b': dict(lean=11, tilt=-4, nT=-36, nS=-26, fT=40, fS=-28, nU=48, nF=64, fU=-42, fF=62,
+                  nFoot=-40, fFoot=8, tail=10, hipw=3),
     'reach-a': dict(nA=1.3, lean=-2, tilt=-10, nU=172, nF=-6, fU=-6, fF=34, nT=4, nS=0, fT=-14, fS=-30, fFoot=-18, tail=6),
     'reach-b': dict(fA=1.3, lean=-2, tilt=-10, nU=-8, nF=34, fU=-168, fF=8, nT=16, nS=-34, fT=-4, fS=0, nFoot=-12, tail=-6),
     'falling': dict(lean=0, tilt=-6, nU=112, nF=26, fU=-114, fF=-26, nT=44, nS=-18, fT=-44, fS=-14,
@@ -141,7 +141,9 @@ def build(ch, p, back=False, climb=None):
 
     if not back:
         shN = pelvis((40 * b, -TL + 14)); shF = pelvis((-46 * b, -TL + 16))
-        hipN = (pelvis.o[0] + 16, hipY); hipF = (pelvis.o[0] - 18, hipY)
+        hw = p.get('hipw')  # runs pull the hips in: a side view has no hip width
+        hipN = (pelvis.o[0] + (16 if hw is None else hw), hipY)
+        hipF = (pelvis.o[0] - (18 if hw is None else hw), hipY)
         arms = [(shN, p['nU'], p['nF'], True, 70, p['nA']), (shF, p['fU'], p['fF'], False, 10, p['fA'])]
         legs = [(hipN, p['nT'], p['nS'], p['nFoot'], True, 40, 1.0, 1.0),
                 (hipF, p['fT'], p['fS'], p['fFoot'], False, 14, 1.0, 1.0)]

@@ -29,6 +29,13 @@ Poses cells, left to right, top row first:
 | 6 | celebrate | finished / reached the summit |
 | 7 | down | eliminated by the lava |
 
+Walking alternates cells 1 and 2 only, so make them two mirrored strides:
+one foot forward and one back in run-a, swapped in run-b, soles on the anchor
+in both. A stride paired with a legs-together passing pose reads as a hop on
+every other step, and a frame whose feet end above the anchor floats (the
+engine already adds the bob). `grounding.py` in `tools/climber-art/` snaps a
+rig's grounded cells onto the anchor.
+
 The climb strip is a back view, 6 frames that loop while the character goes up
 a ladder. Without it, climbing alternates cells 3 and 4.
 

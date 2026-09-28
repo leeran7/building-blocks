@@ -107,6 +107,26 @@ function cellDiff(img: { w: number; rgba: Uint8Array }, cell: number, a: number,
  */
 const MIN_CLIMB_FRAME_DIFF_PX = 1000;
 
+/** Lowest row of a cell with a visible pixel (alpha over 40), or -1. */
+function soleRow(img: { w: number; rgba: Uint8Array }, cell: number, index: number, cols: number): number {
+  const x0 = (index % cols) * cell;
+  const y0 = Math.floor(index / cols) * cell;
+  for (let y = cell - 1; y >= 0; y--) {
+    for (let x = 0; x < cell; x++) {
+      if (img.rgba[((y0 + y) * img.w + x0 + x) * 4 + 3] > 40) return y;
+    }
+  }
+  return -1;
+}
+
+/**
+ * Feet on the anchor: the contract pins the point between the feet to row
+ * 172.5 of a 192 cell. A run frame whose feet end above it floats, and the
+ * two-frame walk then hops on every other step (the old Bison ran with its
+ * soles at 167 and 161).
+ */
+const SOLE_ROWS_192 = [170, 175] as const;
+
 describe("shipped climber sheets", () => {
   it("pngSize reads a real sheet and rejects non-PNG bytes", () => {
     expect(pngSize(readFileSync(join(PUBLIC, "climb/wraith-poses-192.png")))).toEqual({ w: 768, h: 384 });
@@ -155,6 +175,22 @@ describe("shipped climber sheets", () => {
             MIN_CLIMB_FRAME_DIFF_PX,
           );
         }
+      }
+      checked++;
+    }
+    expect(checked).toBeGreaterThan(1);
+  });
+
+  it("idle and both run frames stand on the foot anchor", () => {
+    let checked = 0;
+    for (const [id, ch] of Object.entries(CLIMBER_CHARACTERS)) {
+      if (ch.kind !== "sheets") continue;
+      const sheet = decodePng(readFileSync(join(PUBLIC, ch.poses)));
+      const [lo, hi] = SOLE_ROWS_192.map((r) => Math.round((r * ch.cell) / 192));
+      for (const [index, name] of [[0, "idle"], [1, "run-a"], [2, "run-b"]] as const) {
+        const sole = soleRow(sheet, ch.cell, index, 4);
+        expect(sole, `${id} ${name} sole row`).toBeGreaterThanOrEqual(lo);
+        expect(sole, `${id} ${name} sole row`).toBeLessThanOrEqual(hi);
       }
       checked++;
     }

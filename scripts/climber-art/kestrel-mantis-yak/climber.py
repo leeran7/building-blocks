@@ -19,8 +19,9 @@ FAR = 0.7  # colour multiplier for the far arm and leg (depth)
 # celebrate, down. arms: (shoulder, elbow); legs: (hip, knee, foot).
 POSES = [
     dict(name="idle", torso=3, head=0, nA=(14, 24), fA=(-12, 22), nL=(10, 6, 0), fL=(-9, 6, 0)),
-    dict(name="run-a", torso=11, head=-4, nA=(-48, 55), fA=(52, 75), nL=(40, 28, -8), fL=(-38, 78, 34), lift=6),
-    dict(name="run-b", torso=11, head=-4, nA=(55, 75), fA=(-44, 55), nL=(-38, 78, 34), fL=(40, 28, -8), lift=6),
+    # Two mirrored strides, both feet down: the engine adds the bob between them
+    dict(name="run-a", torso=11, head=-4, nA=(-48, 55), fA=(52, 75), nL=(40, 28, -8), fL=(-40, 36, 30)),
+    dict(name="run-b", torso=11, head=-4, nA=(55, 75), fA=(-44, 55), nL=(-40, 36, 30), fL=(40, 28, -8)),
     dict(name="reach-a", torso=-2, head=-10, nA=(104, 58), fA=(14, 26), nL=(4, 4, 0), fL=(28, 62, 4)),
     dict(name="reach-b", torso=-2, head=-10, nA=(12, 26), fA=(-104, -58), nL=(28, 62, 4), fL=(-4, 4, 0)),
     dict(name="falling", torso=-6, head=-12, nA=(118, -20), fA=(-116, 20), nL=(34, 36, -14), fL=(-26, 40, 18), lift=10),

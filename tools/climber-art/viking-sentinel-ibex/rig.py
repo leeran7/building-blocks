@@ -158,8 +158,9 @@ def skeleton(pose, back=False):
     sw = DIM["shoulder"]
     J["shL"] = add(add(N, sc(side, -sw)), sc(up, -14))
     J["shR"] = add(add(N, sc(side, sw)), sc(up, -14))
-    J["hipL"] = add(P, sc(side, -DIM["hip"]))
-    J["hipR"] = add(P, sc(side, DIM["hip"]))
+    hw = pose.get("hip", DIM["hip"])  # runs pull the hips in: a side view has no hip width
+    J["hipL"] = add(P, sc(side, -hw))
+    J["hipR"] = add(P, sc(side, hw))
     for s in "LR":
         ua, fa = pose["arm" + s]
         st = pose.get("stretch" + s, 1.0)  # chibi arms stretch when thrown overhead
@@ -305,10 +306,12 @@ class Char:
 
 POSES = [
     dict(name="idle", armL=(-18, -8), armR=(18, 10), legL=(-8, -3), legR=(8, 3), lean=0),
-    dict(name="run-a", armL=(-40, -15), armR=(55, 110), legL=(-38, 5), legR=(40, -10),
-         lean=9, footL=-25, footR=10, px=-4),
-    dict(name="run-b", armL=(35, 100), armR=(-35, -10), legL=(38, -10), legR=(-50, -95),
-         lean=9, footL=10, footR=-40, px=-4),
+    dict(name="run-a", armL=(-40, -15), armR=(55, 110), legL=(-44, -26), legR=(44, 2),
+         lean=9, footL=-30, footR=10, px=-4, hip=0),
+    # run-b mirrors run-a (legs and arms swapped), so the two-frame walk reads
+    # as a stride on each foot rather than a stride and a hop
+    dict(name="run-b", armL=(55, 110), armR=(-40, -15), legL=(44, 2), legR=(-44, -26),
+         lean=9, footL=10, footR=-30, px=-4, hip=0),
     dict(name="reach-a", armL=(-150, -178), armR=(22, 12), stretchL=1.45, legL=(-10, -4), legR=(10, 5), lean=-2, head=-8),
     dict(name="reach-b", armL=(-20, -10), armR=(150, 178), stretchR=1.45, legL=(-10, -4), legR=(10, 5), lean=2, head=-8),
     dict(name="falling", armL=(-115, -140), armR=(115, 140), legL=(-35, -20), legR=(35, 20),

@@ -21,6 +21,7 @@ from typing import Callable
 from PIL import Image, ImageChops, ImageDraw, ImageFilter
 
 import climb_cycle
+import grounding
 
 PACK = 512
 SS = 3  # render pixels per pack pixel
@@ -424,6 +425,9 @@ def draw(ch: Character, pose: Pose, view: str, seed: int) -> Image.Image:
 GROUND = 440  # ankle height of a planted foot (boot sole reaches ~460)
 
 
+AIRBORNE = 5  # the falling cell hangs from the anchor instead
+
+
 def poses_for(b: Body) -> list[Pose]:
     """Idle, Run A, Run B, Reach A, Reach B, Falling, Celebrate, Down."""
     py = 352
@@ -464,7 +468,10 @@ def climb_for(b: Body) -> list[Pose]:
 def render(ch: Character) -> tuple[Image.Image, Image.Image]:
     poses = Image.new("RGBA", (OUT * 4, OUT * 2), (0, 0, 0, 0))
     for i, p in enumerate(poses_for(ch.body)):
-        poses.alpha_composite(draw(ch, p, "side", 7), ((i % 4) * OUT, (i // 4) * OUT))
+        cell = draw(ch, p, "side", 7)
+        if i != AIRBORNE:  # planted feet on the anchor (some run targets are out of reach)
+            cell = grounding.snap(cell)
+        poses.alpha_composite(cell, ((i % 4) * OUT, (i // 4) * OUT))
     climb = Image.new("RGBA", (OUT * 6, OUT), (0, 0, 0, 0))
     for i, p in enumerate(climb_for(ch.body)):
         climb.alpha_composite(draw(ch, p, "back", 11), (i * OUT, 0))
