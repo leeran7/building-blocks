@@ -1,12 +1,12 @@
 # Gecko climber artwork
 
-Status: **no art yet**. The registry
-(`app/src/components/Game/climberCharacters.ts`) draws the Gecko as the plain
-Wraith (`base()` entry); its sampled colours ("#b2ef2f", "#202916") are kept in
-`RECOLOR_PALETTE` for a future recolour feature. To ship real art, generate the two
-sheets below, drop `gecko-poses-192.png` and `gecko-climb-192.png` into
-`app/public/climb/`, and change that entry to `sheets("gecko")`. The full
-contract is `app/public/climb/README.md`.
+Status: **code-drawn art in game**. The shipped `gecko-poses-192.png` and
+`gecko-climb-192.png` are rendered by the low-poly rig in
+`tools/climber-art/batch-2/` (`python3 tools/climber-art/batch-2/build.py gecko`),
+and the registry entry is `gecko: sheets("gecko")` in
+`app/src/components/Game/climberCharacters.ts`. The prompts below are for
+replacing them with generated art later: overwrite the two files, same names.
+The full contract is `app/public/climb/README.md`.
 
 Identity reference: `app/mobile/src/assets/avatars/gecko.webp`. Palette sampled
 from it: charcoal `#42423d` / `#0f100e` scales, olive `#63714a` / `#26301c`
