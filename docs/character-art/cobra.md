@@ -2,9 +2,13 @@
 
 These prompts produce the Cobra's climb sprites in the same pipeline as the
 Wraith (`git show 7406c15:output/wraith/README.md` and
-`output/wraith/movement/README.md` in that commit). Until the finished sheets
-land, the game draws the Cobra as the plain Wraith (its sampled accent `#1982f5` is kept in
-`RECOLOR_PALETTE` for a future recolour feature).
+`output/wraith/movement/README.md` in that commit). The Cobra
+currently ships code-drawn sheets (`app/public/climb/cobra-poses-192.png` and
+`cobra-climb-192.png`), rendered by a low-poly rig that follows this contract:
+facets seeded per part so they hold still across frames, accent `#1982f5`,
+glowing eyes and a dark silhouette outline. Generated art made with these
+prompts can replace those two files directly; the registry line stays
+`cobra: sheets("cobra")`.
 
 ## Deliverables and contract
 
@@ -71,12 +75,6 @@ costume stays stable. Six frames, 125 ms each, 750 ms loop: right-hand reach
 with left-foot lift, pull, transfer, then the same with sides swapped. Keep the
 head and torso centred with under 2 px of vertical bob and no lateral drift;
 the engine supplies the upward movement.
-
-## Registering the art
-
-Drop the two 192 files into `app/public/climb/`, then in
-`app/src/components/Game/climberCharacters.ts` replace the `cobra: base()`
-entry with `cobra: sheets("cobra")`.
 
 ## Checks before shipping
 
