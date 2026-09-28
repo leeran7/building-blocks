@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 
 import { TICK_HZ } from "@app/game/types";
@@ -16,6 +16,9 @@ import { LevelRun } from "../components/levels/LevelRun";
 import { levelRunSetup } from "../lib/levels/catalog";
 import { parseStartPowerUp } from "../lib/levels/httpClient";
 import { bestFailMarker, nearMissHeadline } from "../lib/levels/nearMiss";
+import { tutorialTopicsFor, type TutorialTopic } from "@app/game/levels/tutorial";
+import { markTutorialsSeen, unseenTutorials } from "../lib/levels/tutorialSeen";
+import { LevelTutorial } from "../components/levels/LevelTutorial";
 import {
   LevelResultCard,
   PracticeResultCard,
@@ -78,6 +81,7 @@ export function LevelPlayScreen() {
   const [retryBusy, setRetryBusy] = useState(false);
   const [retryError, setRetryError] = useState<string | null>(null);
   const [autoStart, setAutoStart] = useState(false);
+  const [tutorial, setTutorial] = useState<TutorialTopic[] | null>(null);
 
   // A normal run needs a ticket; without one (app restart, stale link) go
   // back to the map rather than play a run nobody can score.
@@ -150,6 +154,26 @@ export function LevelPlayScreen() {
     }
   }, [client, level, practice, setPlayer]);
 
+  // The level's tutorial plays once per device before its first run: the
+  // basics on level 1, and each power-up on the level that introduces it.
+  const tutorialLevel = node?.level ?? null;
+  const introPowerUp = node?.introPowerUp ?? null;
+  const topics = useMemo(
+    () => (tutorialLevel === null ? [] : tutorialTopicsFor(tutorialLevel, introPowerUp)),
+    [tutorialLevel, introPowerUp],
+  );
+  const tutorialChecked = useRef(false);
+  useEffect(() => {
+    if (tutorialChecked.current || tutorialLevel === null || missing) return;
+    tutorialChecked.current = true;
+    const unseen = unseenTutorials(topics);
+    if (unseen.length > 0) setTutorial(unseen);
+  }, [tutorialLevel, missing, topics]);
+  const closeTutorial = useCallback(() => {
+    if (tutorial) markTutorialsSeen(tutorial);
+    setTutorial(null);
+  }, [tutorial]);
+
   const runKey = practice ? `practice-${attempt}` : (ticket?.id ?? "none");
   const nodeLevel = node?.level ?? null;
   // The level's own tower and lava, built fresh for each attempt (runKey).
@@ -194,7 +218,9 @@ export function LevelPlayScreen() {
         onQuit={() => toMap()}
         startPowerUp={practice ? null : (ticket?.startPowerUp ?? null)}
         bestFailFt={marker}
+        onHowToPlay={() => setTutorial(topics.length > 0 ? topics : ["basics"])}
       />
+      {tutorial && <LevelTutorial topics={tutorial} onDone={closeTutorial} />}
 
       {stage.kind === "saving" && (
         <div role="status" className="absolute inset-x-0 bottom-0 z-30 rounded-t-3xl bg-surface/95 px-6 py-10 text-center font-mono text-label uppercase tracking-label text-text-secondary backdrop-blur-xl">
