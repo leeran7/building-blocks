@@ -1,9 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState, type ReactNode } from "react";
 import { formatClock, MAX_STARS, type PlayerStats } from "../../lib/levels/model";
 
 /**
  * Small pieces shared by the level map, the start card and the result card:
- * star rows, the lives pill with its refill countdown, and the XP bar.
+ * star rows, the lives pill with its refill countdown, the XP bar, and the
+ * start card's fold-out sections.
  */
 
 /** Wall clock that re-reads every `intervalMs` while mounted. */
@@ -120,5 +121,46 @@ export function XpBar({ player, compact = false }: { player: PlayerStats; compac
         </span>
       </span>
     </span>
+  );
+}
+
+/**
+ * A start-card section that folds: its label and a one-line summary stay
+ * visible, the detail opens on tap. Closed by default so Play stays in reach.
+ * The detail stays in the DOM (hidden) so screen readers and search find it.
+ */
+export function Accordion({ label, summary, children }: { label: string; summary: ReactNode; children: ReactNode }) {
+  const [open, setOpen] = useState(false);
+  const panelId = useId();
+  return (
+    <div className="mt-2 rounded-2xl border border-white/10 bg-elevated/70">
+      <button
+        type="button"
+        aria-expanded={open}
+        aria-controls={panelId}
+        onClick={() => setOpen((o) => !o)}
+        className="flex min-h-[44px] w-full items-center gap-3 px-3.5 py-2 text-left"
+      >
+        <span className="font-mono text-label uppercase tracking-label text-text-secondary">{label}</span>
+        <span className="min-w-0 flex-1 truncate text-right text-meta text-text-primary">{summary}</span>
+        <svg
+          width="14"
+          height="14"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden
+          className={`shrink-0 text-text-secondary transition-transform ${open ? "rotate-180" : ""}`}
+        >
+          <path d="m6 9 6 6 6-6" />
+        </svg>
+      </button>
+      <div id={panelId} hidden={!open} className="px-3.5 pb-2.5">
+        {children}
+      </div>
+    </div>
   );
 }

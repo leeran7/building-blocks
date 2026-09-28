@@ -250,6 +250,15 @@ describe("friends board on the start card", () => {
     const list = container.querySelector('ol[aria-label="Friends\' best times on level 2"]');
     expect(list?.textContent).toContain("You");
     expect(list?.textContent).toContain("0:03");
+    // Folded until tapped, so Play stays in reach.
+    const toggle = list?.parentElement?.previousElementSibling;
+    if (!(toggle instanceof HTMLButtonElement)) throw new Error("no Friends toggle");
+    expect(toggle.textContent).toContain("You're #1 of 1");
+    expect(toggle.getAttribute("aria-expanded")).toBe("false");
+    expect(list?.closest("[hidden]")).not.toBeNull();
+    await click(toggle);
+    expect(toggle.getAttribute("aria-expanded")).toBe("true");
+    expect(list?.closest("[hidden]")).toBeNull();
     await click(button("Close"));
     await click(pin("Level 4, next to play"));
     await flush();

@@ -20,6 +20,7 @@ from PIL import Image
 
 sys.path.insert(0, os.path.dirname(__file__))
 
+import grounding  # noqa: E402
 from characters import CHARACTERS, CLIMB_FRAMES, POSE_NAMES, POSES  # noqa: E402
 from lowpoly import ANCHOR, CELL, OUT, SS, pack, quantize, to_cell  # noqa: E402
 from rig import back, front  # noqa: E402
@@ -69,7 +70,9 @@ def main() -> None:
             if min(x0, y0, CELL - x1, CELL - y1) < GUTTER:
                 print(f"  ! {ch.id} {name}: bounds {x0:.0f},{y0:.0f}-{x1:.0f},{y1:.0f} break the {GUTTER}px gutter")
         h = ANCHOR[1] - top_of(big_poses[0])
-        poses = quantize(pack([to_cell(im) for im in big_poses], 4))
+        # planted feet on the anchor; the falling cell hangs from it instead
+        cells = [to_cell(im) if name == "falling" else grounding.snap(to_cell(im)) for name, im in zip(POSE_NAMES, big_poses)]
+        poses = quantize(pack(cells, 4))
         climb = quantize(pack([to_cell(im) for im in big_climb], 6))
         pp = os.path.join(args.out, f"{ch.id}-poses-{OUT}.png")
         cp = os.path.join(args.out, f"{ch.id}-climb-{OUT}.png")

@@ -42,7 +42,12 @@ export interface SheetCharacter {
   /** Foot anchor within a cell (px from the cell's top-left). */
   readonly rootX: number;
   readonly rootY: number;
-  /** Idle figure height in cell px: one scale for every pose. */
+  /**
+   * Idle skull height in cell px: from the foot anchor up to the top of the
+   * head, not counting horns, ears, crests or a hood. The engine scales it to
+   * the stick figure's head top, so the character is a skin over the stick.
+   * One scale for every pose.
+   */
   readonly refH: number;
 }
 
@@ -76,14 +81,20 @@ export interface SheetOptions {
   readonly climb?: boolean;
   readonly rootX?: number;
   readonly rootY?: number;
-  readonly refH?: number;
+  /**
+   * Row of the idle cell (cell px from the top) where the skull ends: the top
+   * of the head without horns, ears, crests or a hood. Sets refH.
+   */
+  readonly headTop?: number;
 }
 
 /**
  * A character drawn from its own sheets, named by the contract:
  * /climb/<id>-poses-192.png and /climb/<id>-climb-192.png. The anchor defaults
- * to the pack's: foot root at (256, 460) of a 512 cell, 380 px idle height,
- * scaled to 192.
+ * to the pack's: foot root at (256, 460) of a 512 cell, scaled to 192. Pass
+ * `headTop` (the skull top, estimated by eye from the idle cell) so the skull
+ * sits on the stick figure's head; without it the top of the 380 px idle
+ * figure is used.
  */
 export function sheets(id: string, opts: SheetOptions = {}): SheetCharacter {
   return {
@@ -93,7 +104,7 @@ export function sheets(id: string, opts: SheetOptions = {}): SheetCharacter {
     cell: SHEET_CELL,
     rootX: opts.rootX ?? 256 * K,
     rootY: opts.rootY ?? 460 * K,
-    refH: opts.refH ?? 380 * K,
+    refH: (opts.rootY ?? 460 * K) - (opts.headTop ?? (460 - 380) * K),
   };
 }
 
@@ -110,7 +121,7 @@ export function tint(accent: string, body: string | null = null): TintCharacter 
  * sheets fail to load draw as, and every tint's source.
  */
 export const BASE_CHARACTER_ID = "wraith";
-export const WRAITH: SheetCharacter = sheets(BASE_CHARACTER_ID);
+export const WRAITH: SheetCharacter = sheets(BASE_CHARACTER_ID, { headTop: 52 }); // skull inside the hood
 
 const BASE: BaseCharacter = Object.freeze({ kind: "base" });
 
@@ -133,30 +144,30 @@ function stickFor(avatarId: string): StickCharacter {
  */
 export const CLIMBER_CHARACTERS: Readonly<Record<string, ClimberCharacter>> = {
   wraith: WRAITH,
-  gecko: sheets("gecko"),
+  gecko: sheets("gecko", { headTop: 36 }),
   "stick-green": stickFor("stick-green"),
   "stick-ember": stickFor("stick-ember"),
   "stick-amber": stickFor("stick-amber"),
   "stick-sky": stickFor("stick-sky"),
   "stick-violet": stickFor("stick-violet"),
   "stick-pink": stickFor("stick-pink"),
-  kestrel: sheets("kestrel"),
-  lynx: sheets("lynx"),
-  raven: sheets("raven"),
-  panther: sheets("panther"),
-  wolf: sheets("wolf"),
-  otter: sheets("otter"),
-  heron: sheets("heron"),
-  yak: sheets("yak"),
-  mantis: sheets("mantis"),
-  cobra: sheets("cobra"),
-  badger: sheets("badger"),
-  falcon: sheets("falcon"),
-  marmot: sheets("marmot"),
-  bison: sheets("bison"),
-  ibex: sheets("ibex"),
-  sentinel: sheets("sentinel"),
-  viking: sheets("viking"),
+  kestrel: sheets("kestrel", { headTop: 28 }),
+  lynx: sheets("lynx", { headTop: 45 }),
+  raven: sheets("raven", { headTop: 50 }),
+  panther: sheets("panther", { headTop: 45 }),
+  wolf: sheets("wolf", { headTop: 42 }),
+  otter: sheets("otter", { headTop: 38 }),
+  heron: sheets("heron", { headTop: 50 }),
+  yak: sheets("yak", { headTop: 33 }),
+  mantis: sheets("mantis", { headTop: 27 }),
+  cobra: sheets("cobra", { headTop: 38 }),
+  badger: sheets("badger", { headTop: 30 }),
+  falcon: sheets("falcon", { headTop: 33 }),
+  marmot: sheets("marmot", { headTop: 33 }),
+  bison: sheets("bison", { headTop: 40 }),
+  ibex: sheets("ibex", { headTop: 38 }),
+  sentinel: sheets("sentinel", { headTop: 40 }),
+  viking: sheets("viking", { headTop: 32 }),
 };
 
 /** A recolour's two colours, both "#rrggbb" (see TintCharacter). */
