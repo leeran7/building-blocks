@@ -31,7 +31,9 @@ import {
   type LevelRunReport,
 } from "../../lib/levels/model";
 import type { LevelRunSetup } from "../../lib/levels/catalog";
+import type { StartPowerUp } from "@app/levels/engagement";
 import { StarRow } from "./LevelBits";
+import { PowerUpName } from "./LevelStartExtras";
 
 /**
  * The climb itself, on the level's tower and lava from the season manifest
@@ -51,6 +53,7 @@ export function LevelRun({
   paused,
   onEnd,
   onQuit,
+  startPowerUp = null,
 }: {
   level: number;
   seed: string;
@@ -64,12 +67,15 @@ export function LevelRun({
   paused: boolean;
   onEnd: (report: LevelRunReport) => void;
   onQuit: () => void;
+  /** The ticket's power-up, granted by the engine at GO. */
+  startPowerUp?: StartPowerUp | null;
 }) {
   const towerRef = useRef(setup?.tower ?? { ...buildFreeTower(), goalM: goalFt });
   const { state, simRef, renderFeed, start, finished, setTouch, runId, inputLog } = useClimb({
     tower: towerRef.current,
     seed,
     hazard: setup?.hazard,
+    ...(startPowerUp ? { startPowerUp: startPowerUp.type } : {}),
   });
   useGameHaptics(simRef, 0, runId);
 
@@ -214,6 +220,11 @@ export function LevelRun({
           <p key={countdownValue} className="lp-pop mt-3 font-display text-7xl font-black tabular-nums text-text-primary">
             {countdownValue}
           </p>
+          {startPowerUp && (
+            <p className="mt-4 text-meta text-text-primary">
+              Starts with <PowerUpName type={startPowerUp.type} />
+            </p>
+          )}
         </Overlay>
       )}
 
@@ -229,6 +240,11 @@ export function LevelRun({
           <p className="mt-4 max-w-[280px] text-center text-body text-text-secondary">
             Reach the summit at {goalFt.toLocaleString()} {ALTITUDE_UNIT} before the lava catches you.
           </p>
+          {startPowerUp && (
+            <p className="mt-3 text-meta text-text-primary">
+              You start with <PowerUpName type={startPowerUp.type} /> at GO.
+            </p>
+          )}
           <button
             type="button"
             onClick={handleStart}

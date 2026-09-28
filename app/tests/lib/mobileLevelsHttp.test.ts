@@ -13,6 +13,7 @@ import {
   createHttpLevelsClient,
   parseLevelProfile,
   parseServerResult,
+  parseStartPowerUp,
   parseTicket,
   refusalFor,
 } from "../../mobile/src/lib/levels/httpClient";
@@ -128,6 +129,54 @@ describe("parsers", () => {
     expect(refusalFor(503, "LEVELS_UNAVAILABLE")).toBe("NETWORK");
     expect(refusalFor(429, "RATE_LIMITED")).toBe("NETWORK");
     expect(refusalFor(403, "SOMETHING_ELSE")).toBe("NETWORK");
+  });
+});
+
+describe("win streaks and start power-ups", () => {
+  it("parse a start power-up, and read an absent one as none", () => {
+    expect(parseStartPowerUp({ type: "rapid-climb", source: "streak" })).toEqual({ type: "rapid-climb", source: "streak" });
+    expect(parseStartPowerUp(undefined)).toBeNull();
+    expect(parseStartPowerUp(null)).toBeNull();
+  });
+
+  it.each([
+    [{ type: "random", source: "streak" }],
+    [{ type: "rapid-climb", source: "gift" }],
+    [{ type: "rapid-climb", source: "toString" }],
+    [{ type: "rapid-climb" }],
+    ["rapid-climb"],
+  ])("reject a malformed start power-up %j", (raw) => {
+    expect(parseStartPowerUp(raw)).toBeUndefined();
+    expect(parseTicket({ ...TICKET, startPowerUp: raw })).toBeNull();
+  });
+
+  it("read the streak from the profile and the result, and refuse a bad one", () => {
+    expect(parseLevelProfile({ ...PROFILE, streak: 4, nextStartPowerUp: { type: "rapid-climb", source: "streak" } })).toMatchObject({
+      streak: 4,
+      nextStartPowerUp: { type: "rapid-climb", source: "streak" },
+    });
+    expect(parseLevelProfile(PROFILE)).toMatchObject({ streak: 0, nextStartPowerUp: null });
+    expect(parseLevelProfile({ ...PROFILE, streak: -1 })).toBeNull();
+    expect(parseServerResult({ ...RESULT, streak: 2, atFrontier: true })).toMatchObject({ streak: 2, atFrontier: true });
+    expect(parseServerResult(RESULT)).toMatchObject({ streak: null, atFrontier: false });
+    expect(parseServerResult({ ...RESULT, streak: "2" })).toBeNull();
+    expect(parseServerResult({ ...RESULT, atFrontier: 1 })).toBeNull();
+  });
+
+  it("hands the ticket's power-up to the run", async () => {
+    const { fetch } = fakeServer({
+      "/api/levels/ticket": () => json(200, { ...TICKET, level: 12, startPowerUp: { type: "super-jump", source: "streak" } }),
+    });
+    const res = await createHttpLevelsClient({ catalog, fetch }).startLevel(12);
+    expect(res).toMatchObject({ ok: true, ticket: { startPowerUp: { type: "super-jump", source: "streak" } } });
+  });
+
+  it("asks for an update when the power-up is not allowed on this app's level", async () => {
+    // Level 3 allows no power-ups in season 1.
+    const { fetch } = fakeServer({
+      "/api/levels/ticket": () => json(200, { ...TICKET, startPowerUp: { type: "rapid-climb", source: "streak" } }),
+    });
+    expect(await createHttpLevelsClient({ catalog, fetch }).startLevel(3)).toEqual({ ok: false, code: "UPDATE_REQUIRED" });
   });
 });
 

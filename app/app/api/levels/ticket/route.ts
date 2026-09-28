@@ -15,9 +15,12 @@
  *
  * Request:  { season: number, level: number, simVersion: number }
  * 200:      { ticketId, season, level, simVersion, rev, pars, expiresAt,
- *             lifeSpent, lives, nextLifeAt }
+ *             lifeSpent, lives, nextLifeAt, startPowerUp, streak }
  *            (rev: the level's seed revision; pars: { twoStarTicks,
- *             threeStarTicks }, which /result scores stars against)
+ *             threeStarTicks }, which /result scores stars against;
+ *             startPowerUp: { type, source: "streak" } | null, what the
+ *             run starts with at GO, decided here from server state only;
+ *             streak: the win streak after any open ticket was closed)
  * 400:      { error, code: INVALID_JSON | INVALID_LEVEL }
  * 401:      { error, code: UNAUTHORIZED }
  * 403:      { error, code: LEVEL_LOCKED, frontier }
@@ -32,7 +35,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { ensureUser } from "../../../../src/db/user";
 import { activeLevelSeason, issueLevelTicket, LevelError } from "../../../../src/db/levels";
 import { isLevelNumber } from "../../../../src/levels/rules";
-import { catalogLevel } from "../../../../src/levels/catalog";
+import { catalogLevel, levelBoosterTypes } from "../../../../src/levels/catalog";
 import {
   NO_STORE,
   levelErrorResponse,
@@ -79,7 +82,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return reject(500, "PERSIST_ERROR", "Could not start the level");
   }
   const row = active ? catalogLevel(season, level) : null;
-  if (!active || !row) return reject(404, "SEASON_NOT_FOUND", "That season is not available");
+  const allowedBoosters = active ? levelBoosterTypes(season, level) : null;
+  if (!active || !row || !allowedBoosters) return reject(404, "SEASON_NOT_FOUND", "That season is not available");
 
   // Runs from a different engine are different levels, so a stale app (or a
   // server behind the season's minimum engine) is stopped here, before it
@@ -95,6 +99,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       season,
       level,
       simVersion: LEVEL_SIM_VERSION,
+      allowedBoosters,
       now,
     });
     return NextResponse.json(
@@ -109,6 +114,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         lifeSpent: ticket.lifeSpent,
         lives: ticket.lives,
         nextLifeAt: ticket.nextLifeAt?.toISOString() ?? null,
+        startPowerUp: ticket.startPowerUp,
+        streak: ticket.streak,
       },
       { status: 200, headers: NO_STORE }
     );

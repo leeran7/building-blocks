@@ -210,6 +210,21 @@ describe("level map", () => {
   });
 });
 
+describe("win streak on the start card", () => {
+  it("previews the streak's power-up on the frontier level only", async () => {
+    const client = memoryClient();
+    await clearLevels(client, 3);
+    await renderMap(client);
+    await click(pin("Level 4, next to play"));
+    expect(container.textContent).toContain("Win streak 3");
+    expect(container.textContent).toContain("You start with");
+    expect(container.textContent).toContain("Rapid Climb");
+    await click(button("Close"));
+    await click(pin("Level 2, 3 of 3 stars"));
+    expect(container.textContent).not.toContain("Win streak");
+  });
+});
+
 describe("level play route", () => {
   it("clears a level, then Next level lands on the map with the next level open", async () => {
     const client = memoryClient();
@@ -281,7 +296,11 @@ describe("level play route", () => {
       pars: { twoStarMs: 1, threeStarMs: 1 },
       player: {},
     };
-    expect(ticketFromState({ ticket }, 4)).toBe(ticket);
+    expect(ticketFromState({ ticket }, 4)).toEqual({ ...ticket, startPowerUp: null });
+    expect(ticketFromState({ ticket: { ...ticket, startPowerUp: { type: "rapid-climb", source: "streak" } } }, 4)).toMatchObject({
+      startPowerUp: { type: "rapid-climb", source: "streak" },
+    });
+    expect(ticketFromState({ ticket: { ...ticket, startPowerUp: { type: "random", source: "streak" } } }, 4)).toBeNull();
     expect(ticketFromState({ ticket }, 5)).toBeNull();
     expect(ticketFromState({ ticket: { ...ticket, seed: 7 } }, 4)).toBeNull();
     expect(ticketFromState(null, 4)).toBeNull();
@@ -297,6 +316,8 @@ describe("level result card", () => {
     previousStars: 0,
     timeMs: 31_000,
     pars: { twoStarMs: 36_000, threeStarMs: 28_000 },
+    streak: null,
+    atFrontier: false,
     goalFt: 267,
     peakFt: 267,
     xpGained: 160,
@@ -352,5 +373,14 @@ describe("level result card", () => {
     await renderCard(lost, false);
     expect(button("Retry")).toBeTruthy();
     expect(container.textContent).toContain("Tutorial level: free to retry");
+  });
+
+  it("shows the win streak after a frontier run, and nothing after a replay", async () => {
+    await renderCard({ ...base, atFrontier: true, streak: 4 });
+    expect(container.textContent).toContain("Win streak 4");
+    await renderCard({ ...base, cleared: false, stars: 0, timeMs: null, peakFt: 100, xpGained: 0, atFrontier: true, streak: 0 });
+    expect(container.textContent).toContain("Win streak reset");
+    await renderCard({ ...base, atFrontier: false, streak: 4 });
+    expect(container.textContent).not.toContain("Win streak");
   });
 });

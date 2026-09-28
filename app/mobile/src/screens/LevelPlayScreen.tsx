@@ -14,6 +14,7 @@ import {
 import { REFUSAL_COPY } from "../components/levels/LevelStartSheet";
 import { LevelRun } from "../components/levels/LevelRun";
 import { levelRunSetup } from "../lib/levels/catalog";
+import { parseStartPowerUp } from "../lib/levels/httpClient";
 import {
   LevelResultCard,
   PracticeResultCard,
@@ -38,7 +39,9 @@ export function ticketFromState(state: unknown, level: number): LevelTicket | nu
   ) {
     return null;
   }
-  return t as LevelTicket;
+  const startPowerUp = parseStartPowerUp(o.startPowerUp);
+  if (startPowerUp === undefined) return null;
+  return { ...(t as LevelTicket), startPowerUp };
 }
 
 type Stage =
@@ -176,6 +179,7 @@ export function LevelPlayScreen() {
         paused={stage.kind !== "play"}
         onEnd={submit}
         onQuit={() => toMap()}
+        startPowerUp={practice ? null : (ticket?.startPowerUp ?? null)}
       />
 
       {stage.kind === "saving" && (

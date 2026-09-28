@@ -69,6 +69,7 @@ export function seasonLevels(season: SeasonSpec, rows: readonly ManifestLevel[])
         goalFt: spec.goalFt,
         pars: { twoStarMs: ticksToMs(pars.twoStarTicks), threeStarMs: ticksToMs(pars.threeStarTicks) },
         introPowerUp: spec.introPowerUp,
+        allowedPowerUps: spec.allowedPowerUps,
         introTip: obstacleTip(season, level),
         costsLife: levelCostsLife(level),
       };

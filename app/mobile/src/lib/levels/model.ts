@@ -1,4 +1,5 @@
 import type { PowerUpType } from "@app/game/types";
+import type { StartPowerUp } from "@app/levels/engagement";
 
 /**
  * What the level screens show, and the calls they make. The shapes follow the
@@ -29,6 +30,8 @@ export interface LevelNode {
   pars: { twoStarMs: number; threeStarMs: number };
   /** The power-up this level introduces with a one-line tip, if any. */
   introPowerUp: PowerUpType | null;
+  /** Power-ups unlocked on this level: the only ones a run may start with. */
+  allowedPowerUps: PowerUpType[];
   /** Obstacle this level introduces (hanging ladders, short tops), if any. */
   introTip: string | null;
   /** Tutorial levels cost no lives (§5b). */
@@ -55,6 +58,10 @@ export interface SeasonView {
   /** Highest unlocked level: 1 + highest cleared, capped at the season length. */
   frontier: number;
   player: PlayerStats;
+  /** Win streak: first clears in a row at the frontier (§6.3). */
+  streak: number;
+  /** What the frontier level starts with if played now (server's preview). */
+  nextStartPowerUp: StartPowerUp | null;
 }
 
 /** A level run the server allowed to start (the doc's run ticket). */
@@ -66,6 +73,8 @@ export interface LevelTicket {
   goalFt: number;
   pars: LevelNode["pars"];
   player: PlayerStats;
+  /** What the run starts with at GO, decided by the server (streak, stuck help, booster). */
+  startPowerUp: StartPowerUp | null;
 }
 
 export type StartRefusal =
@@ -114,6 +123,10 @@ export interface LevelResult {
   /** Set when this run moved the player up a level. */
   newPlayerLevel: number | null;
   player: PlayerStats;
+  /** Win streak after this run; null when the server did not say. */
+  streak: number | null;
+  /** Whether this run was at the frontier (so it moved the streak). */
+  atFrontier: boolean;
 }
 
 /** A level's fixed facts: everything on its pin except the player's progress. */

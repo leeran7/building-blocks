@@ -16,7 +16,7 @@ import { OutOfLives } from "./LevelStartSheet";
  * times, the XP and the next level; a loss shows how close the summit was and
  * a one-tap retry, or the out-of-lives choices when no life is left.
  *
- * Near-miss markers and win streaks (§6.2, §6.3) will add to this card later.
+ * A run at the frontier also shows the win streak it moved (§6.3).
  */
 export function LevelResultCard({
   result,
@@ -53,6 +53,7 @@ export function LevelResultCard({
       ) : (
         <Lost goalFt={result.goalFt} peakFt={result.peakFt} level={result.level} />
       )}
+      <StreakLine result={result} />
 
       {retryError && (
         <p role="alert" className="mt-4 text-center text-meta text-ember">
@@ -89,6 +90,22 @@ export function LevelResultCard({
         )}
       </div>
     </Sheet>
+  );
+}
+
+/** The win streak after a frontier run; replays leave it alone and say nothing. */
+export function StreakLine({ result }: { result: Pick<LevelResult, "atFrontier" | "streak" | "cleared"> }) {
+  if (!result.atFrontier || result.streak === null) return null;
+  const text =
+    result.streak > 0
+      ? `Win streak ${result.streak}`
+      : result.cleared
+        ? "Win streak 0"
+        : "Win streak reset. Clear a new level to start one.";
+  return (
+    <p className="mt-3 text-center font-mono text-label font-bold uppercase tracking-label text-text-secondary">
+      {text}
+    </p>
   );
 }
 

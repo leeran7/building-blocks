@@ -1,6 +1,7 @@
 import { TICK_HZ } from "@app/game/types";
 import { LEVEL_SIM_VERSION } from "@app/game/simVersion";
 import { MAX_LIVES, playerLevelProgress } from "@app/levels/rules";
+import { parseBoosterType, type StartPowerUp, type StartPowerUpSource } from "@app/levels/engagement";
 import { apiFetch } from "../api";
 import { starsForTime } from "./model";
 import type {
@@ -62,6 +63,27 @@ function parseWhen(v: unknown): number | null | undefined {
   return Number.isNaN(t) ? undefined : t;
 }
 
+const START_SOURCES: Readonly<Record<StartPowerUpSource, true>> = { streak: true, stuck_help: true, booster: true };
+
+/**
+ * A start power-up field: null when absent (an older server) or null, the
+ * value when well-formed, undefined (invalid) otherwise.
+ */
+export function parseStartPowerUp(v: unknown): StartPowerUp | null | undefined {
+  if (v === undefined || v === null) return null;
+  if (!isObject(v)) return undefined;
+  const type = parseBoosterType(v.type);
+  const source = v.source;
+  if (type === null || typeof source !== "string" || !Object.hasOwn(START_SOURCES, source)) return undefined;
+  return { type, source: source as StartPowerUpSource };
+}
+
+/** An optional count: 0 when absent (an older server), undefined when malformed. */
+function optionalCount(v: unknown): number | undefined {
+  if (v === undefined) return 0;
+  return isCount(v) ? v : undefined;
+}
+
 export const ticksToMs = (ticks: number): number => Math.round((ticks / TICK_HZ) * 1000);
 
 /** Player stats from a lifetime XP total plus the lives the server sent. */
@@ -89,13 +111,19 @@ export interface LevelProfile {
   season: number;
   frontier: number;
   levels: ProfileRow[];
+  streak: number;
+  nextStartPowerUp: StartPowerUp | null;
 }
 
 /** GET /api/levels/me body, or null when it breaks the contract. */
 export function parseLevelProfile(v: unknown): LevelProfile | null {
   if (!isObject(v)) return null;
   const nextLifeAt = parseWhen(v.nextLifeAt);
+  const streak = optionalCount(v.streak);
+  const nextStartPowerUp = parseStartPowerUp(v.nextStartPowerUp);
   if (
+    streak === undefined ||
+    nextStartPowerUp === undefined ||
     !isCount(v.lives) ||
     !isPositive(v.maxLives) ||
     v.lives > v.maxLives ||
@@ -128,6 +156,8 @@ export function parseLevelProfile(v: unknown): LevelProfile | null {
     season: v.season,
     frontier: v.frontier,
     levels,
+    streak,
+    nextStartPowerUp,
   };
 }
 
@@ -137,13 +167,16 @@ export interface IssuedTicket {
   level: number;
   lives: number;
   nextLifeAt: number | null;
+  startPowerUp: StartPowerUp | null;
 }
 
 /** POST /api/levels/ticket 200 body, or null when it breaks the contract. */
 export function parseTicket(v: unknown): IssuedTicket | null {
   if (!isObject(v)) return null;
   const nextLifeAt = parseWhen(v.nextLifeAt);
+  const startPowerUp = parseStartPowerUp(v.startPowerUp);
   if (
+    startPowerUp === undefined ||
     typeof v.ticketId !== "string" ||
     !/^[A-Za-z0-9_-]{10,64}$/.test(v.ticketId) ||
     !isPositive(v.season) ||
@@ -153,7 +186,7 @@ export function parseTicket(v: unknown): IssuedTicket | null {
   ) {
     return null;
   }
-  return { ticketId: v.ticketId, season: v.season, level: v.level, lives: v.lives, nextLifeAt };
+  return { ticketId: v.ticketId, season: v.season, level: v.level, lives: v.lives, nextLifeAt, startPowerUp };
 }
 
 export interface ServerResult {
@@ -166,6 +199,9 @@ export interface ServerResult {
   nextLifeAt: number | null;
   xpGained: number;
   xp: number;
+  /** Null when an older server did not send it. */
+  streak: number | null;
+  atFrontier: boolean;
 }
 
 /** POST /api/levels/result 200 body, or null when it breaks the contract. */
@@ -173,7 +209,11 @@ export function parseServerResult(v: unknown): ServerResult | null {
   if (!isObject(v)) return null;
   const nextLifeAt = parseWhen(v.nextLifeAt);
   const outcome = v.outcome;
+  const streak = v.streak === undefined ? null : isCount(v.streak) ? v.streak : undefined;
+  const atFrontier = v.atFrontier === undefined ? false : typeof v.atFrontier === "boolean" ? v.atFrontier : undefined;
   if (
+    streak === undefined ||
+    atFrontier === undefined ||
     !isPositive(v.season) ||
     !isPositive(v.level) ||
     (outcome !== "cleared" && outcome !== "failed" && outcome !== "bad_start") ||
@@ -198,6 +238,8 @@ export function parseServerResult(v: unknown): ServerResult | null {
     nextLifeAt,
     xpGained: v.xpGained,
     xp: v.xp,
+    streak,
+    atFrontier,
   };
 }
 
@@ -269,6 +311,8 @@ export function createHttpLevelsClient(opts: HttpClientOptions): LevelsClient {
         levels,
         frontier: Math.min(profile.frontier, catalog.count),
         player: profile.player,
+        streak: profile.streak,
+        nextStartPowerUp: profile.nextStartPowerUp,
       };
     },
 
@@ -291,6 +335,11 @@ export function createHttpLevelsClient(opts: HttpClientOptions): LevelsClient {
       if (!ticket || ticket.season !== catalog.season || ticket.level !== level) {
         return { ok: false, code: "NETWORK" };
       }
+      // A power-up this app's copy of the level does not allow means the
+      // server knows a newer season: the engine would refuse it at GO.
+      if (ticket.startPowerUp && !node.allowedPowerUps.includes(ticket.startPowerUp.type)) {
+        return { ok: false, code: "UPDATE_REQUIRED" };
+      }
       return {
         ok: true,
         ticket: {
@@ -300,6 +349,7 @@ export function createHttpLevelsClient(opts: HttpClientOptions): LevelsClient {
           goalFt: node.goalFt,
           pars: node.pars,
           player: statsFor(lastXp, ticket.lives, ticket.nextLifeAt),
+          startPowerUp: ticket.startPowerUp,
         },
       };
     },
@@ -343,6 +393,8 @@ export function createHttpLevelsClient(opts: HttpClientOptions): LevelsClient {
         xpGained: result.xpGained,
         newPlayerLevel: player.playerLevel > before ? player.playerLevel : null,
         player,
+        streak: result.streak,
+        atFrontier: result.atFrontier,
       };
     },
   };

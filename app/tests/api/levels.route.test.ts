@@ -71,6 +71,8 @@ beforeEach(() => {
     lifeSpent: true,
     lives: 4,
     nextLifeAt: new Date(T_ISSUED.getTime() + 1_800_000),
+    startPowerUp: null,
+    streak: 0,
   });
   vi.mocked(openTicketLevel).mockResolvedValue({ season: 1, level: 42 });
   vi.mocked(submitLevelResult).mockImplementation(async (input) => ({
@@ -89,6 +91,8 @@ beforeEach(() => {
     xp: 510,
     playerLevel: 3,
     awards: [],
+    atFrontier: true,
+    streak: input.run.cleared ? 1 : 0,
   }));
 });
 
@@ -115,6 +119,26 @@ describe("POST /api/levels/ticket", () => {
     expect(issueLevelTicket).toHaveBeenCalledWith(
       expect.objectContaining({ userId: "u1", season: 1, level: 42, simVersion: SIM })
     );
+  });
+
+  it("passes the level's allowed boosters from the manifest and returns the start power-up", async () => {
+    vi.mocked(issueLevelTicket).mockResolvedValueOnce({
+      ticketId: TICKET,
+      expiresAt: new Date(T_ISSUED.getTime() + 86_400_000),
+      lifeSpent: true,
+      lives: 4,
+      nextLifeAt: null,
+      startPowerUp: { type: "super-jump", source: "streak" },
+      streak: 5,
+    });
+    const res = await ticket({ season: 1, level: 12, simVersion: SIM });
+    expect(await res.json()).toMatchObject({ startPowerUp: { type: "super-jump", source: "streak" }, streak: 5 });
+    // L12 of season 1 has unlocked rapid climb (L4), sprint burst (L7) and super jump (L11).
+    expect(vi.mocked(issueLevelTicket).mock.calls[0][0].allowedBoosters).toEqual([
+      "rapid-climb",
+      "sprint-burst",
+      "super-jump",
+    ]);
   });
 
   it.each([
@@ -341,9 +365,17 @@ describe("GET /api/levels/me", () => {
       frontier: 4,
       totalStars: 7,
       levels: [{ level: 1, stars: 3, bestTicks: 900 }],
+      streak: 3,
+      nextStartPowerUp: { type: "rapid-climb", source: "streak" },
     });
     const res = await getMe(req("/api/levels/me?season=1"));
-    expect(await res.json()).toMatchObject({ lives: 3, nextLifeAt: "2026-09-27T12:30:00.000Z", frontier: 4 });
+    expect(await res.json()).toMatchObject({
+      lives: 3,
+      nextLifeAt: "2026-09-27T12:30:00.000Z",
+      frontier: 4,
+      streak: 3,
+      nextStartPowerUp: { type: "rapid-climb", source: "streak" },
+    });
   });
 
   it("rejects a bad season and requires sign-in", async () => {

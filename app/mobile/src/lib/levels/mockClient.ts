@@ -1,4 +1,5 @@
 import { TICK_HZ } from "@app/game/types";
+import { boosterTypesOf, freeStartPowerUp, nextStreak } from "@app/levels/engagement";
 import { season1Catalog } from "./catalog";
 import {
   EPISODE_SIZE,
@@ -49,10 +50,12 @@ export interface MockState {
   livesUpdatedAt: number;
   xp: number;
   openTicket: { id: string; level: number } | null;
+  /** Win streak (§6.3); 0 in stores written before streaks existed. */
+  streak: number;
 }
 
 function freshState(now: number): MockState {
-  return { progress: {}, lives: MAX_LIVES, livesUpdatedAt: now, xp: 0, openTicket: null };
+  return { progress: {}, lives: MAX_LIVES, livesUpdatedAt: now, xp: 0, openTicket: null, streak: 0 };
 }
 
 function isStarCount(v: unknown): v is StarCount {
@@ -99,6 +102,7 @@ export function parseMockState(raw: string | null): MockState | null {
     livesUpdatedAt: o.livesUpdatedAt,
     xp: Math.max(0, Math.floor(o.xp)),
     openTicket,
+    streak: typeof o.streak === "number" && Number.isFinite(o.streak) ? Math.max(0, Math.floor(o.streak)) : 0,
   };
 }
 
@@ -200,12 +204,19 @@ export function createMockLevelsClient(opts: MockClientOptions = {}): LevelsClie
       const state = read();
       const levels: LevelNode[] = [];
       for (let n = 1; n <= SEASON_LENGTH; n++) levels.push(mockLevelNode(n, state.progress[String(n)]));
+      const frontier = frontierOf(state);
       return wait({
         season: 1,
         name: "Season 1",
         levels,
-        frontier: frontierOf(state),
+        frontier,
         player: playerStats(state),
+        streak: state.streak,
+        nextStartPowerUp: freeStartPowerUp({
+          atFrontier: true,
+          streak: state.streak,
+          allowed: boosterTypesOf(levels[frontier - 1].allowedPowerUps),
+        }),
       });
     },
 
@@ -216,11 +227,20 @@ export function createMockLevelsClient(opts: MockClientOptions = {}): LevelsClie
       }
       const node = mockLevelNode(level);
       let next = state;
+      // An open ticket at the frontier is a loss (§6.3).
+      if (state.openTicket) {
+        next = { ...next, streak: nextStreak(next.streak, "abandoned", state.openTicket.level === frontierOf(state)) };
+      }
+      const startPowerUp = freeStartPowerUp({
+        atFrontier: level === frontierOf(state),
+        streak: next.streak,
+        allowed: boosterTypesOf(node.allowedPowerUps),
+      });
       if (node.costsLife) {
         if (state.lives <= 0) return wait({ ok: false, code: "OUT_OF_LIVES", player: playerStats(state) });
         // Spending from full starts the refill clock now (§5b).
         next = {
-          ...state,
+          ...next,
           lives: state.lives - 1,
           livesUpdatedAt: state.lives >= MAX_LIVES ? now() : state.livesUpdatedAt,
         };
@@ -238,6 +258,7 @@ export function createMockLevelsClient(opts: MockClientOptions = {}): LevelsClie
           goalFt: node.goalFt,
           pars: node.pars,
           player: playerStats(next),
+          startPowerUp,
         },
       });
     },
@@ -263,6 +284,8 @@ export function createMockLevelsClient(opts: MockClientOptions = {}): LevelsClie
       if (cleared && !prev && ticket.level % EPISODE_SIZE === 0) xpGained += 250;
 
       const before = playerStats(state).playerLevel;
+      const atFrontier = ticket.level === frontierOf(state);
+      const streak = nextStreak(state.streak, cleared ? "cleared" : "failed", atFrontier);
       const progress = { ...state.progress };
       if (cleared && timeMs !== null) {
         progress[String(ticket.level)] = {
@@ -278,6 +301,7 @@ export function createMockLevelsClient(opts: MockClientOptions = {}): LevelsClie
         xp: state.xp + xpGained,
         lives: Math.min(MAX_LIVES, state.lives + refund),
         openTicket: null,
+        streak,
       };
       write(next);
       const player = playerStats(next);
@@ -293,6 +317,8 @@ export function createMockLevelsClient(opts: MockClientOptions = {}): LevelsClie
         xpGained,
         newPlayerLevel: player.playerLevel > before ? player.playerLevel : null,
         player,
+        streak,
+        atFrontier,
       });
     },
   };

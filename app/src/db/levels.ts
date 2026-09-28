@@ -24,6 +24,7 @@ import { nanoid } from "nanoid";
 import type { Prisma } from "@prisma/client";
 
 import { prisma } from "./client";
+import { levelBoosterTypes } from "../levels/catalog";
 import {
   MAX_LIVES,
   episodeLevels,
@@ -43,6 +44,13 @@ import {
   type LifeState,
   type ReportedRun,
 } from "../levels/rules";
+import {
+  freeStartPowerUp,
+  nextStreak,
+  type BoosterType,
+  type StartPowerUp,
+  type TicketOutcome,
+} from "../levels/engagement";
 
 type TxClient = Prisma.TransactionClient;
 
@@ -71,11 +79,20 @@ export class LevelError extends Error {
   }
 }
 
-async function lockUser(tx: TxClient, userId: string): Promise<{ lives: number; lives_updated_at: Date | null; xp: number }> {
+const LOCKED_USER_SELECT = {
+  lives: true,
+  lives_updated_at: true,
+  xp: true,
+  level_streak: true,
+} as const;
+
+type LockedUser = Prisma.UserGetPayload<{ select: typeof LOCKED_USER_SELECT }>;
+
+async function lockUser(tx: TxClient, userId: string): Promise<LockedUser> {
   await tx.$executeRaw`SELECT id FROM users WHERE id = ${userId} FOR UPDATE`;
   const user = await tx.user.findUnique({
     where: { id: userId },
-    select: { lives: true, lives_updated_at: true, xp: true },
+    select: LOCKED_USER_SELECT,
   });
   if (!user) throw new LevelError("USER_NOT_FOUND", "User not found");
   return user;
@@ -102,6 +119,8 @@ export interface IssueTicketInput {
   level: number;
   /** Server's LEVEL_SIM_VERSION (the route has already matched the client's). */
   simVersion: number;
+  /** Booster types the level allows, from the server's season manifest. */
+  allowedBoosters: readonly BoosterType[];
   now: Date;
 }
 
@@ -111,6 +130,10 @@ export interface IssuedTicket {
   lifeSpent: boolean;
   lives: number;
   nextLifeAt: Date | null;
+  /** What the run starts with at GO, decided here and stored on the ticket. */
+  startPowerUp: StartPowerUp | null;
+  /** Win streak after any open ticket was closed (design §6.3). */
+  streak: number;
 }
 
 /**
@@ -135,6 +158,17 @@ export async function issueLevelTicket(input: IssueTicketInput): Promise<IssuedT
     }
 
     let life = refillLives(lifeOf(user), now);
+    let streak = user.level_streak;
+    // Frontier per season, for the open tickets closed below (a ticket may be
+    // from another season). The user lock keeps these stable.
+    const frontiers = new Map<number, number>([[season, frontier]]);
+    const frontierOf = async (s: number): Promise<number> => {
+      const known = frontiers.get(s);
+      if (known !== undefined) return known;
+      const f = await frontierLevel(tx, userId, s);
+      frontiers.set(s, f);
+      return f;
+    };
 
     // One open ticket per user. Starting a new level while one is open counts
     // as a loss (design §6.3) and keeps its life spent, except a restart
@@ -142,16 +176,27 @@ export async function issueLevelTicket(input: IssueTicketInput): Promise<IssuedT
     // conditional on used_at IS NULL, so a refund follows only a real close.
     const open = await tx.levelRunTicket.findMany({
       where: { userId, used_at: null },
-      select: { id: true, created_at: true, life_spent: true },
+      select: { id: true, season: true, level: true, created_at: true, life_spent: true },
+      orderBy: { created_at: "asc" },
     });
     for (const ticket of open) {
-      const quick = isQuickRestart(ticket.created_at, now);
+      const outcome: TicketOutcome = isQuickRestart(ticket.created_at, now) ? "bad_start" : "abandoned";
       const closed = await tx.levelRunTicket.updateMany({
         where: { id: ticket.id, used_at: null },
-        data: { used_at: now, outcome: quick ? "bad_start" : "abandoned" },
+        data: { used_at: now, outcome },
       });
-      if (closed.count === 1 && quick && ticket.life_spent) life = refundLife(life, now);
+      if (closed.count !== 1) continue;
+      if (outcome === "bad_start" && ticket.life_spent) life = refundLife(life, now);
+      // An abandoned run at the frontier is a loss (§6.3).
+      const atFrontier = ticket.level === (await frontierOf(ticket.season));
+      streak = nextStreak(streak, outcome, atFrontier);
     }
+
+    const startPowerUp = freeStartPowerUp({
+      atFrontier: level === frontier,
+      streak,
+      allowed: input.allowedBoosters,
+    });
 
     const lifeSpent = levelCostsLife(level);
     if (lifeSpent) {
@@ -166,7 +211,7 @@ export async function issueLevelTicket(input: IssueTicketInput): Promise<IssuedT
     }
     await tx.user.update({
       where: { id: userId },
-      data: { lives: life.lives, lives_updated_at: life.updatedAt },
+      data: { lives: life.lives, lives_updated_at: life.updatedAt, level_streak: streak },
     });
 
     const expiresAt = new Date(now.getTime() + LEVEL_TICKET_TTL_MS);
@@ -177,7 +222,7 @@ export async function issueLevelTicket(input: IssueTicketInput): Promise<IssuedT
         season,
         level,
         sim_version: input.simVersion,
-        start_power_up: null,
+        start_power_up: startPowerUp?.type ?? null,
         life_spent: lifeSpent,
         created_at: now,
         expires_at: expiresAt,
@@ -191,6 +236,8 @@ export async function issueLevelTicket(input: IssueTicketInput): Promise<IssuedT
       lifeSpent,
       lives: life.lives,
       nextLifeAt: nextLifeAt(life, now),
+      startPowerUp,
+      streak,
     };
   });
 }
@@ -259,6 +306,10 @@ export interface LevelResult {
   playerLevel: number;
   /** XP keys paid by this run, e.g. "first_clear:1:12". */
   awards: { key: string; amount: number }[];
+  /** The ticket's level was the player's frontier when the run was reported. */
+  atFrontier: boolean;
+  /** Win streak after this run (design §6.3). */
+  streak: number;
 }
 
 /**
@@ -284,6 +335,9 @@ export async function submitLevelResult(input: SubmitResultInput): Promise<Level
     if (!runFitsWallClock(run.ticks, ticket.created_at, now)) {
       throw new LevelError("IMPLAUSIBLE_RUN", "That run is longer than the time since the level started");
     }
+
+    // Whether this run was at the frontier, read before its clear moves it.
+    const atFrontier = level === (await frontierLevel(tx, userId, season));
 
     const stars = run.cleared ? run.stars : 0;
     const finishTicks = run.cleared ? run.ticks : null;
@@ -367,11 +421,19 @@ export async function submitLevelResult(input: SubmitResultInput): Promise<Level
       }
     }
 
+    const streak = nextStreak(user.level_streak, outcome, atFrontier);
+
     const xp = user.xp + xpGained;
     const playerLevel = playerLevelForXp(xp);
     await tx.user.update({
       where: { id: userId },
-      data: { lives: life.lives, lives_updated_at: life.updatedAt, xp, player_level: playerLevel },
+      data: {
+        lives: life.lives,
+        lives_updated_at: life.updatedAt,
+        xp,
+        player_level: playerLevel,
+        level_streak: streak,
+      },
     });
 
     return {
@@ -390,6 +452,8 @@ export async function submitLevelResult(input: SubmitResultInput): Promise<Level
       xp,
       playerLevel,
       awards,
+      atFrontier,
+      streak,
     };
   });
 }
@@ -409,6 +473,13 @@ export interface LevelProfile {
   frontier: number;
   totalStars: number;
   levels: { level: number; stars: number; bestTicks: number }[];
+  /** Win streak: first clears in a row at the frontier (design §6.3). */
+  streak: number;
+  /**
+   * What a run of the frontier level would start with if started now, from
+   * the streak (a preview for the start sheet; the ticket decides for real).
+   */
+  nextStartPowerUp: StartPowerUp | null;
 }
 
 /**
@@ -420,8 +491,8 @@ export interface LevelProfile {
 export async function levelProfile(userId: string, season: number, now: Date): Promise<LevelProfile> {
   const user = (await prisma.user.findUnique({
     where: { id: userId },
-    select: { lives: true, lives_updated_at: true, xp: true },
-  })) ?? { lives: MAX_LIVES, lives_updated_at: null, xp: 0 };
+    select: { lives: true, lives_updated_at: true, xp: true, level_streak: true },
+  })) ?? { lives: MAX_LIVES, lives_updated_at: null, xp: 0, level_streak: 0 };
   const rows = await prisma.levelProgress.findMany({
     where: { userId, season },
     select: { level: true, stars: true, best_ticks: true },
@@ -429,6 +500,8 @@ export async function levelProfile(userId: string, season: number, now: Date): P
   });
   const life = refillLives(lifeOf(user), now);
   const progress = playerLevelProgress(user.xp);
+  const frontier = frontierAfter(rows.reduce((max, r) => Math.max(max, r.level), 0));
+  const allowed = levelBoosterTypes(season, frontier) ?? [];
   return {
     lives: life.lives,
     maxLives: MAX_LIVES,
@@ -438,9 +511,11 @@ export async function levelProfile(userId: string, season: number, now: Date): P
     xpIntoLevel: progress.xpIntoLevel,
     xpForNextLevel: progress.xpForNextLevel,
     season,
-    frontier: frontierAfter(rows.reduce((max, r) => Math.max(max, r.level), 0)),
+    frontier,
     totalStars: rows.reduce((sum, r) => sum + r.stars, 0),
     levels: rows.map((r) => ({ level: r.level, stars: r.stars, bestTicks: r.best_ticks })),
+    streak: user.level_streak,
+    nextStartPowerUp: freeStartPowerUp({ atFrontier: true, streak: user.level_streak, allowed }),
   };
 }
 
