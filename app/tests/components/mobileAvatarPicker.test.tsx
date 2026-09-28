@@ -475,3 +475,148 @@ describe("the picker fills the screen, Save sticks to the bottom (user report)",
     expect(saveButton()?.textContent).toBe("Save avatar");
   });
 });
+
+describe("locked avatars in the picker (server unlock state)", () => {
+  const falcon = AVATARS.find((a) => a.id === "falcon")!;
+  const ibex = AVATARS.find((a) => a.id === "ibex")!;
+  const withUnlocks = (
+    avatarId: string | null,
+    stars: number,
+    unlockedIds: string[],
+    grandfatheredId: string | null = null,
+  ): SettingsData => ({
+    ...settings(avatarId),
+    avatarUnlocks: { stars, unlockedIds, grandfatheredId },
+  });
+  const switchWarning = () => container.querySelector("[data-avatar-switch-warning]");
+  const lockedTile = (name: string) =>
+    container.querySelector<HTMLButtonElement>(`[role="radio"][aria-label^="${name}, locked"]`);
+  const notice = () => container.querySelector("[data-avatar-lock-notice]");
+
+  it("dims a locked avatar with its requirement and progress, and names both for screen readers", () => {
+    state.settings = withUnlocks("wraith", 12, ["wraith", "viking", "sentinel"]);
+    renderPicker();
+    const tile = lockedTile("Falcon");
+    expect(tile?.getAttribute("aria-label")).toBe("Falcon, locked. Earn 30 stars, you have 12");
+    expect(tile?.getAttribute("aria-disabled")).toBe("true");
+    expect(tile?.textContent).toContain("Earn 30 stars");
+    expect(tile?.textContent).toContain("12/30");
+    // Free avatars stay plain radios.
+    expect(radio("Viking")?.hasAttribute("data-locked")).toBe(false);
+  });
+
+  it("blocks selecting a locked avatar and says what it takes; Save stays disabled", async () => {
+    state.settings = withUnlocks("wraith", 12, ["wraith", "viking", "sentinel"]);
+    renderPicker();
+    await click(lockedTile("Falcon"));
+    expect(radio("Wraith")?.getAttribute("aria-checked")).toBe("true");
+    expect(lockedTile("Falcon")?.getAttribute("aria-checked")).toBe("false");
+    expect(notice()?.getAttribute("role")).toBe("status");
+    expect(notice()?.textContent).toBe("Earn 30 stars to unlock Falcon. You have 12.");
+    expect(saveButton()?.disabled).toBe(true);
+    expect(apiFetch).not.toHaveBeenCalled();
+  });
+
+  it("selects an avatar the server lists as unlocked, clearing the notice", async () => {
+    state.settings = withUnlocks("wraith", 15, ["wraith", "viking", "sentinel", ibex.id]);
+    renderPicker();
+    await click(lockedTile("Falcon"));
+    await click(radio(ibex.name));
+    expect(radio(ibex.name)?.getAttribute("aria-checked")).toBe("true");
+    expect(notice()?.textContent).toBe("");
+    expect(saveButton()?.disabled).toBe(false);
+  });
+
+  it("shows a grandfathered saved avatar as selectable when the server lists it", () => {
+    state.settings = withUnlocks(falcon.id, 0, ["wraith", "viking", "sentinel", falcon.id], falcon.id);
+    renderPicker();
+    expect(radio(falcon.name)?.getAttribute("aria-checked")).toBe("true");
+    expect(lockedTile("Falcon")).toBeNull();
+  });
+
+  it("warns before switching away from a grandfathered avatar, and ties the warning to Save", async () => {
+    state.settings = withUnlocks(falcon.id, 0, ["wraith", "viking", "sentinel", falcon.id], falcon.id);
+    renderPicker();
+    expect(switchWarning()).toBeNull();
+
+    await click(radio("Viking"));
+    expect(switchWarning()?.textContent).toBe("Switching will lock Falcon until you earn 30 stars.");
+    expect(saveButton()?.getAttribute("aria-describedby")).toBe(switchWarning()?.id);
+    expect(saveButton()?.disabled).toBe(false);
+
+    // Going back to the saved avatar clears it.
+    await click(radio(falcon.name));
+    expect(switchWarning()).toBeNull();
+  });
+
+  it("does not warn when the saved avatar is earned (not grandfathered)", async () => {
+    state.settings = withUnlocks(falcon.id, 30, ["wraith", "viking", "sentinel", ibex.id, falcon.id], null);
+    renderPicker();
+    await click(radio("Viking"));
+    expect(switchWarning()).toBeNull();
+    expect(saveButton()?.hasAttribute("aria-describedby")).toBe(false);
+  });
+
+  it("after a 403 and a refresh that locks the pick, falls back to the saved avatar", async () => {
+    state.settings = withUnlocks("wraith", 15, ["wraith", "viking", "sentinel", ibex.id]);
+    apiFetch.mockResolvedValueOnce(json({ error: "Earn 15 stars to unlock Ibex", code: "AVATAR_LOCKED" }, 403));
+    renderPicker();
+    await click(radio(ibex.name));
+    await click(saveButton());
+    expect(radio(ibex.name)?.getAttribute("aria-checked")).toBe("true");
+
+    // The refreshed server state no longer lists Ibex.
+    state.settings = withUnlocks("wraith", 14, ["wraith", "viking", "sentinel"]);
+    renderPicker();
+    expect(radio("Wraith")?.getAttribute("aria-checked")).toBe("true");
+    expect(lockedTile("Ibex")?.getAttribute("aria-checked")).toBe("false");
+    expect(saveButton()?.disabled).toBe(true);
+  });
+
+  it("locks nothing when the server sent no unlock state (an older API that enforces none)", () => {
+    state.settings = settings("wraith");
+    renderPicker();
+    expect(container.querySelectorAll("[data-locked]")).toHaveLength(0);
+  });
+
+  it("shows the server's AVATAR_LOCKED message when a save is refused", async () => {
+    state.settings = withUnlocks("wraith", 20, ["wraith", "viking", "sentinel", ibex.id]);
+    apiFetch.mockResolvedValueOnce(json({ error: "Earn 15 stars to unlock Ibex", code: "AVATAR_LOCKED" }, 403));
+    renderPicker();
+    await click(radio(ibex.name));
+    await click(saveButton());
+    expect(container.querySelector('[role="alert"]')?.textContent).toBe("Earn 15 stars to unlock Ibex");
+    expect(setSettings).not.toHaveBeenCalled();
+  });
+});
+
+describe("parseAvatarUnlocks / settingsFromResponse avatarUnlocks", () => {
+  it("keeps a well-formed state", () => {
+    expect(settingsFromResponse({ avatarUnlocks: { stars: 3, unlockedIds: ["wraith"] } })?.avatarUnlocks).toEqual({
+      stars: 3,
+      unlockedIds: ["wraith"],
+      grandfatheredId: null,
+    });
+    expect(
+      settingsFromResponse({ avatarUnlocks: { stars: 3, unlockedIds: ["wraith", "yak"], grandfatheredId: "yak" } })
+        ?.avatarUnlocks?.grandfatheredId,
+    ).toBe("yak");
+  });
+
+  it("drops a grandfatheredId that is not a catalogue id", () => {
+    expect(
+      settingsFromResponse({ avatarUnlocks: { stars: 3, unlockedIds: ["wraith"], grandfatheredId: "__proto__" } })
+        ?.avatarUnlocks,
+    ).toBeUndefined();
+  });
+
+  it.each<[string, unknown]>([
+    ["missing", undefined],
+    ["negative stars", { stars: -1, unlockedIds: [] }],
+    ["fractional stars", { stars: 1.5, unlockedIds: [] }],
+    ["ids not an array", { stars: 3, unlockedIds: "wraith" }],
+    ["an unknown id", { stars: 3, unlockedIds: ["wraith", "__proto__"] }],
+  ])("drops %s (so nothing shows locked)", (_label, avatarUnlocks) => {
+    expect(settingsFromResponse({ avatarUnlocks })?.avatarUnlocks).toBeUndefined();
+  });
+});

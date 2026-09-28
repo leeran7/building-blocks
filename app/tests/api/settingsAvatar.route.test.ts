@@ -64,14 +64,19 @@ describe("PUT /api/settings avatarId", () => {
   it("saves a catalogue id and returns it", async () => {
     const res = await put({ avatarId: VALID });
     expect(res.status).toBe(200);
-    expect(updateUserSettings).toHaveBeenCalledWith("u1", { avatarId: VALID });
+    // With the route's unlock verdict, so the db layer does not check again.
+    expect(updateUserSettings).toHaveBeenCalledWith(
+      "u1",
+      { avatarId: VALID },
+      expect.objectContaining({ userId: "u1", avatarId: VALID, lock: null })
+    );
     expect(await res.json()).toMatchObject({ avatarId: VALID });
   });
 
   it("clears the avatar when avatarId is null", async () => {
     const res = await put({ avatarId: null });
     expect(res.status).toBe(200);
-    expect(updateUserSettings).toHaveBeenCalledWith("u1", { avatarId: null });
+    expect(updateUserSettings).toHaveBeenCalledWith("u1", { avatarId: null }, undefined);
   });
 
   it.each(["not-an-avatar", "", "__proto__", "constructor", "toString", `${VALID.toUpperCase()}`])(
@@ -112,7 +117,7 @@ describe("PUT /api/settings avatarId", () => {
     const res = await put({ social: {} });
     expect(res.status).toBe(200);
     expect(revalidateTag).not.toHaveBeenCalled();
-    expect(updateUserSettings).toHaveBeenCalledWith("u1", {});
+    expect(updateUserSettings).toHaveBeenCalledWith("u1", {}, undefined);
   });
 });
 

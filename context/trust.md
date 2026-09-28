@@ -44,3 +44,12 @@ irreversible or money-adjacent writes — not generic OWASP.
    Level-only engine fields (`tower.goalM`, `tower.difficulty`, …) leave the
    golden hashes alone and bump `LEVEL_SIM_VERSION` instead. Duels and
    endless replays still have no version.
+8. **Avatar unlocks derive from self-reported level progress.** The rule
+   per avatar lives in `app/src/lib/avatars.ts`; the server sums stored
+   `level_progress.stars` over all seasons (`app/src/db/avatarUnlocks.ts`)
+   and `PUT /api/settings` refuses a locked `avatarId` with 403
+   `AVATAR_LOCKED` before any write. Unlock state is never read from the
+   request. But level stars are the device's report, only sanity-checked
+   (`app/src/db/levels.ts` header), so a modified client can unlock every
+   avatar. That is accepted for a cosmetic. Avatar unlocks (and anything
+   else built on level stars) must never gate money, prizes, or ranking.

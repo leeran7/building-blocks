@@ -1,5 +1,14 @@
 import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from "react";
-import { AVATARS } from "@app/lib/avatars";
+import {
+  AVATARS,
+  avatarEntry,
+  earnStarsText,
+  requiredStars,
+  switchAwayWarning,
+  unlockMessage,
+  type AvatarEntry,
+} from "@app/lib/avatars";
+import type { AvatarUnlockState } from "@app/lib/avatarUnlocks";
 import { apiFetch } from "../lib/api";
 import { useAuth } from "../contexts/AuthContext";
 import { echoedSetting, useDashboard, useInvalidateAppData, useSettings } from "../contexts/AppDataContext";
@@ -31,11 +40,58 @@ const SAVE_BAR_HEIGHT = "(0.75rem + 56px + 1rem + env(safe-area-inset-bottom))";
 export const GRID_END_PADDING = `max(1rem, calc(${LAVA_CLEARANCE} - ${SAVE_BAR_HEIGHT}))`;
 /** A 200 that did not store the pick: an API build older than avatars ignores the field. */
 const AVATAR_NOT_SAVED = "Couldn't save your avatar. Please update the app or try again later.";
+const SWITCH_WARNING_ID = "avatar-switch-warning";
 
-const OPTIONS: ReadonlyArray<{ id: string | null; name: string }> = [
-  { id: null, name: INITIALS_LABEL },
-  ...AVATARS.map((a) => ({ id: a.id, name: a.name })),
+const OPTIONS: ReadonlyArray<{ id: string | null; name: string; entry: AvatarEntry | null }> = [
+  { id: null, name: INITIALS_LABEL, entry: null },
+  ...AVATARS.map((a) => ({ id: a.id, name: a.name, entry: a })),
 ];
+
+/** A tile the player cannot select yet, and what it takes. */
+export interface TileLock {
+  /** "Earn 30 stars" */
+  requirement: string;
+  /** "Earn 30 stars to unlock Falcon. You have 12." */
+  message: string;
+  stars: number;
+  requiredStars: number;
+}
+
+/**
+ * The lock on a picker option, or null when it is selectable. Initials and
+ * every avatar are selectable when the server sent no unlock state (an API
+ * build older than unlocks, which enforces none); the server's unlockedIds
+ * already include the saved avatar and the player's starter.
+ */
+export function tileLock(entry: AvatarEntry | null, unlocks: AvatarUnlockState | undefined): TileLock | null {
+  if (entry === null || unlocks === undefined || unlocks.unlockedIds.includes(entry.id)) return null;
+  const need = requiredStars(entry);
+  if (need === null) return null;
+  return {
+    requirement: earnStarsText(need),
+    message: `${unlockMessage(entry.name, need)}. You have ${unlocks.stars}.`,
+    stars: unlocks.stars,
+    requiredStars: need,
+  };
+}
+
+/**
+ * The warning to show before saving `selected` over a grandfathered saved
+ * avatar (selectable only because it is saved), else null. Saving another
+ * avatar locks it again until its star rule is met.
+ */
+export function switchAwayNotice(
+  current: string | null,
+  selected: string | null,
+  unlocks: AvatarUnlockState | undefined,
+): string | null {
+  if (current === null || selected === current || unlocks?.grandfatheredId !== current) return null;
+  const entry = avatarEntry(current);
+  const need = entry && requiredStars(entry);
+  return entry && need !== null ? switchAwayWarning(entry.name, need) : null;
+}
+
+const entryOf = (id: string | null): AvatarEntry | null => (id === null ? null : avatarEntry(id));
 
 /** Index an arrow/Home/End key moves the radio selection to, or null for other keys. */
 function nextIndex(key: string, current: number, count: number): number | null {
@@ -87,9 +143,27 @@ export function AvatarPickerScreen() {
   const userId = user?.uid ?? nameWith(settingsData?.avatarId ?? null);
 
   const [current, setCurrent] = useState<string | null>(null);
-  const [selected, setSelected] = useState<string | null>(null);
+  const [picked, setSelected] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /** Why the last tapped tile could not be picked (a locked avatar). */
+  const [lockNotice, setLockNotice] = useState<string | null>(null);
+  const unlocks = settingsData?.avatarUnlocks;
+  // A pick the latest unlock state locks (a refresh after a 403
+  // AVATAR_LOCKED, say) falls back to the saved avatar, so Save can never
+  // resend it.
+  const selected = tileLock(entryOf(picked), unlocks) ? current : picked;
+  const switchWarning = switchAwayNotice(current, selected, unlocks);
+
+  // Stars rise with every level cleared, so ask for the unlock state once
+  // on open. A warm slice keeps its data while this runs (no skeleton), and
+  // the seeding below ignores it, so a pick in progress is never overridden.
+  const refreshedOnOpen = useRef(false);
+  useEffect(() => {
+    if (refreshedOnOpen.current) return;
+    refreshedOnOpen.current = true;
+    void refreshSettings();
+  }, [refreshSettings]);
 
   // Seed once so a background settings refresh never overrides a pick in progress.
   const seeded = useRef(false);
@@ -116,9 +190,16 @@ export function AvatarPickerScreen() {
   const changed = selected !== current;
 
   const choose = (i: number) => {
+    const lock = tileLock(OPTIONS[i].entry, unlocks);
+    if (lock) {
+      // Blocked: the selection stays put and the requirement is announced.
+      setLockNotice(lock.message);
+      return;
+    }
     if (OPTIONS[i].id !== selected) void tapLight();
     setSelected(OPTIONS[i].id);
     setError(null);
+    setLockNotice(null);
   };
 
   const onTileKey = (e: KeyboardEvent<HTMLButtonElement>, i: number) => {
@@ -144,6 +225,8 @@ export function AvatarPickerScreen() {
         const d = await res.json().catch(() => ({}));
         setError((d as { error?: string }).error ?? "Could not save your avatar. Try again.");
         void notifyError();
+        // AVATAR_LOCKED: this copy's unlock state was stale; fetch the server's.
+        if (res.status === 403) void refreshSettings();
         return;
       }
       const next = echoedSetting(await res.json().catch(() => null), "avatarId", selected);
@@ -224,6 +307,8 @@ export function AvatarPickerScreen() {
             <div role="radiogroup" aria-label="Avatars" className="grid grid-cols-3 gap-2.5">
               {OPTIONS.map((o, i) => {
                 const checked = i === selectedIndex;
+                const lock = tileLock(o.entry, unlocks);
+                const label = o.id === null ? "Use initials" : o.name;
                 return (
                   <button
                     key={o.id ?? "initials"}
@@ -233,24 +318,48 @@ export function AvatarPickerScreen() {
                     type="button"
                     role="radio"
                     aria-checked={checked}
-                    aria-label={o.id === null ? "Use initials" : o.name}
+                    aria-disabled={lock ? true : undefined}
+                    aria-label={
+                      lock ? `${label}, locked. ${lock.requirement}, you have ${lock.stars}` : label
+                    }
+                    data-locked={lock ? "" : undefined}
                     tabIndex={checked ? 0 : -1}
                     onClick={() => choose(i)}
                     onKeyDown={(e) => onTileKey(e, i)}
-                    className={`relative flex min-h-[88px] min-w-0 flex-col items-center gap-1.5 rounded-2xl border px-1 pb-2 pt-2.5 transition-transform active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-void ${
+                    className={`relative flex min-h-[88px] min-w-0 flex-col items-center gap-1.5 rounded-2xl border px-1 pb-2 pt-2.5 transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-void ${
+                      lock ? "" : "active:scale-95"
+                    } ${
                       checked
                         ? "border-signal bg-signal/[0.1] shadow-[0_0_0_1px_var(--color-signal),0_0_18px_-4px_rgba(203,242,77,0.55)]"
                         : "border-white/10 bg-[rgba(16,15,20,0.9)]"
                     }`}
                   >
-                    <HexAvatar userId={userId} name={nameWith(o.id)} avatarId={o.id} size={TILE_HEX} />
+                    <span className={lock ? "opacity-40 grayscale" : undefined}>
+                      <HexAvatar userId={userId} name={nameWith(o.id)} avatarId={o.id} size={TILE_HEX} />
+                    </span>
                     <span
                       className={`line-clamp-2 break-words text-center text-meta font-semibold leading-tight ${
-                        checked ? "text-signal" : "text-text-primary"
+                        checked ? "text-signal" : lock ? "text-text-secondary" : "text-text-primary"
                       }`}
                     >
-                      {o.id === null ? "Use initials" : o.name}
+                      {label}
                     </span>
+                    {lock && (
+                      <span aria-hidden className="flex flex-col items-center text-center font-mono text-label leading-tight text-text-secondary">
+                        <span>{lock.requirement}</span>
+                        <span>
+                          {lock.stars}/{lock.requiredStars} ★
+                        </span>
+                      </span>
+                    )}
+                    {lock && (
+                      <span
+                        aria-hidden
+                        className="absolute right-1.5 top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-white/10 text-text-secondary"
+                      >
+                        <LockIcon />
+                      </span>
+                    )}
                     {checked && (
                       <span
                         aria-hidden
@@ -285,8 +394,31 @@ export function AvatarPickerScreen() {
               {error}
             </p>
           )}
+          {/* Always mounted so the requirement is announced when a locked
+              tile is tapped; visually hidden while empty. */}
+          <p
+            role="status"
+            data-avatar-lock-notice
+            className={
+              lockNotice
+                ? "glass rounded-2xl border border-white/10 px-4 py-2.5 text-meta leading-5 text-text-primary"
+                : "sr-only"
+            }
+          >
+            {lockNotice ?? ""}
+          </p>
+          {switchWarning && (
+            <p
+              id={SWITCH_WARNING_ID}
+              data-avatar-switch-warning
+              className="glass rounded-2xl border border-ember/40 px-4 py-2.5 text-meta leading-5 text-text-primary"
+            >
+              {switchWarning}
+            </p>
+          )}
           <button
             ref={saveRef}
+            aria-describedby={switchWarning ? SWITCH_WARNING_ID : undefined}
             onClick={() => void save()}
             disabled={!changed || saving}
             className="cta-lime min-h-[56px] w-full rounded-2xl font-display text-lead font-black uppercase tracking-wide text-void transition-transform active:scale-[0.98] disabled:active:scale-100"
@@ -296,6 +428,15 @@ export function AvatarPickerScreen() {
         </footer>
       )}
     </main>
+  );
+}
+
+function LockIcon() {
+  return (
+    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <rect x="5" y="11" width="14" height="10" rx="2" />
+      <path d="M8 11V7a4 4 0 0 1 8 0v4" />
+    </svg>
   );
 }
 

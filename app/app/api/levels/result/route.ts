@@ -20,7 +20,8 @@
  *
  * Request:  { ticketId: string, cleared: boolean, stars: 0-3, ticks: number,
  *             replayToken?: string }  (replayToken: the run, kept for ghosts)
- * 200:      LevelResult (src/db/levels.ts) with dates as ISO strings
+ * 200:      LevelResult (src/db/levels.ts) with dates as ISO strings,
+ *           including unlockedAvatars (ids this run's new stars unlocked)
  * 400:      { error, code: INVALID_JSON | INVALID_TICKET | INVALID_RESULT
  *                         | IMPLAUSIBLE_RUN }
  * 401:      { error, code: UNAUTHORIZED }

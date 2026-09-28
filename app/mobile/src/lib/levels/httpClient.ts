@@ -1,6 +1,7 @@
 import { TICK_HZ } from "@app/game/types";
 import { LEVEL_SIM_VERSION } from "@app/game/simVersion";
 import { MAX_LIVES, playerLevelProgress } from "@app/levels/rules";
+import { parseAvatarIdList } from "@app/lib/avatars";
 import { apiFetch } from "../api";
 import { starsForTime } from "./model";
 import type {
@@ -166,6 +167,17 @@ export interface ServerResult {
   nextLifeAt: number | null;
   xpGained: number;
   xp: number;
+  /** Avatar ids the run's new stars unlocked (empty on older API builds). */
+  unlockedAvatars: string[];
+}
+
+/**
+ * The result body's `unlockedAvatars`: catalogue ids only. Anything else,
+ * absent included, reads as none. The run is already saved, so a bad note
+ * costs only the "new character" line, never the result card.
+ */
+export function parseUnlockedAvatars(v: unknown): string[] {
+  return parseAvatarIdList(v) ?? [];
 }
 
 /** POST /api/levels/result 200 body, or null when it breaks the contract. */
@@ -198,6 +210,7 @@ export function parseServerResult(v: unknown): ServerResult | null {
     nextLifeAt,
     xpGained: v.xpGained,
     xp: v.xp,
+    unlockedAvatars: parseUnlockedAvatars(v.unlockedAvatars),
   };
 }
 
@@ -343,6 +356,7 @@ export function createHttpLevelsClient(opts: HttpClientOptions): LevelsClient {
         xpGained: result.xpGained,
         newPlayerLevel: player.playerLevel > before ? player.playerLevel : null,
         player,
+        unlockedAvatars: result.unlockedAvatars,
       };
     },
   };

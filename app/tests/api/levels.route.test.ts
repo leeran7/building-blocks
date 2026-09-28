@@ -89,6 +89,7 @@ beforeEach(() => {
     xp: 510,
     playerLevel: 3,
     awards: [],
+    unlockedAvatars: [],
   }));
 });
 
@@ -231,6 +232,17 @@ describe("POST /api/levels/result", () => {
     expect(checkRateLimit).toHaveBeenCalledWith(
       expect.objectContaining({ namespace: "climb:level:result", identifier: "u1:1:42" })
     );
+  });
+
+  it("returns the unlockedAvatars the transaction computed, reading nothing else", async () => {
+    vi.mocked(submitLevelResult).mockImplementationOnce(async () => ({
+      season: 1, level: 42, outcome: "cleared", stars: 3, bestStars: 3, previousStars: 0, bestTicks: 900,
+      newBest: true, lifeRefunded: true, lives: 5, nextLifeAt: null, xpGained: 510, xp: 510, playerLevel: 3, awards: [],
+      unlockedAvatars: ["ibex"],
+    }));
+    const res = await result(CLEAR);
+    expect(res.status).toBe(200);
+    expect((await res.json()).unlockedAvatars).toEqual(["ibex"]);
   });
 
   it("records a failed run", async () => {
