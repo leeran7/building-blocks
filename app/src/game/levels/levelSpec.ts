@@ -30,7 +30,7 @@ import {
  * Bump when a formula here changes what a level is. Stamped on every manifest
  * so a manifest built from older formulas is refused.
  */
-export const LEVEL_SPEC_VERSION = 1;
+export const LEVEL_SPEC_VERSION = 2;
 
 export interface LevelLayout {
   /** Gap width as a fraction of running-jump reach: 34% → 75%. */
@@ -64,12 +64,19 @@ export interface LevelSpec {
    */
   tightness: number;
   layout: LevelLayout;
-  /** Power-up chance per floor (22% → 10%; none on L1-3). */
+  /** Power-up chance per floor (11% → 5%; none on L1-3). */
   powerUpChance: number;
   allowedPowerUps: PowerUpType[];
   /** Type introduced on this level (guaranteed orb + tip), if any. */
   introPowerUp: PowerUpType | null;
 }
+
+/**
+ * Power-up chance per floor at lava dial 0 and 1. Halved from the design
+ * doc's 22% → 10% (Leeran, 2026-09-28: fewer power-ups per level).
+ */
+export const POWER_UP_CHANCE_START = 0.11;
+export const POWER_UP_CHANCE_END = 0.05;
 
 /** Levels 1-3 teach the climb: no power-ups. */
 const NO_POWER_UP_LEVELS = 3;
@@ -151,7 +158,10 @@ export function levelSpec(season: SeasonSpec, level: number, rev = 0): LevelSpec
       hangingLadderFt: introKnob(season, level, season.obstacleIntros.hangingLadders, HANGING_LADDER_FT),
       shortTopFt: introKnob(season, level, season.obstacleIntros.shortTops, SHORT_TOP_FT),
     },
-    powerUpChance: level <= NO_POWER_UP_LEVELS ? 0 : 0.22 - 0.12 * d,
+    powerUpChance:
+      level <= NO_POWER_UP_LEVELS
+        ? 0
+        : POWER_UP_CHANCE_START - (POWER_UP_CHANCE_START - POWER_UP_CHANCE_END) * d,
     allowedPowerUps: unlocked.map((u) => u.type),
     introPowerUp: intro ? intro.type : null,
   };

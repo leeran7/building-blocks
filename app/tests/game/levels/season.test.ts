@@ -69,7 +69,8 @@ describe("season equation", () => {
     expect(last.layout.gapFrac).toBeCloseTo(0.75, 10);
     expect(last.layout.minWalkFt).toBeCloseTo(40, 10);
     expect(last.layout.oneLadderFrac).toBeCloseTo(0.85, 10);
-    expect(last.powerUpChance).toBeCloseTo(0.1, 10);
+    expect(last.powerUpChance).toBeCloseTo(0.05, 10);
+    expect(levelSpec(SEASON_1, 4).powerUpChance).toBeCloseTo(0.11, 2);
   });
 
   // The ceilings are the engine's physical caps: 70% of a standing jump's rise
