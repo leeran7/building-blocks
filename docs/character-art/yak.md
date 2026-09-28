@@ -1,9 +1,10 @@
 # Yak climber art — generation brief
 
-Placeholder until this art exists: the climb view draws a tinted Wraith for
-Yak (accent `#ad332d`). This brief is for producing the real
-sheets so they can replace it with no code change beyond the registry's
-sprite paths. Reference identity: `app/mobile/src/assets/avatars/yak.webp`
+Placeholder until this art exists: the climb view draws Yak as the Wraith
+tinted to accent `#ea4239`, set by its `tint(...)` entry in
+`app/src/components/Game/climberCharacters.ts`. When the sheets below exist,
+drop them into `app/public/climb/` and change that entry to
+`sheets("yak")`; see `app/public/climb/README.md`. Reference identity: `app/mobile/src/assets/avatars/yak.webp`
 (head-and-shoulders portrait only, so the body below is new design).
 
 ## Deliverables
@@ -28,7 +29,7 @@ Contract, identical to the Wraith so the engine needs no per-character tuning:
   bounds: the Down crouch stays shorter.
 - Real zero-alpha background, no ground shadow, text, border or scene, and at
   least 52 px of empty margin to every cell edge.
-- Accent facets graded toward `#ad332d` (crimson), which is
+- Accent facets graded toward `#ea4239` (crimson), which is
   also the placeholder tint, so the swap reads as the same character.
 - Chibi proportions like the Wraith: head about 40% of the figure height,
   short chunky limbs, matte low-poly faceting with soft studio light.
@@ -37,7 +38,7 @@ Contract, identical to the Wraith so the engine needs no per-character tuning:
 
 Use the image-generation tool with `yak.webp` attached as the identity reference.
 
-**Poses sheet.** One 4 × 2 sheet of the same character: a chibi low-poly yak warrior with a big bovine head, dark charcoal `#372f2e` muzzle and face, two glowing orange-red eyes, two wide curved tan `#d5a687` horns faceted like bone, and a shaggy mane of angular crimson `#ad332d` / dark red `#7d0e0e` fur shards covering the head and shoulders; broad charcoal `#140c0b` armor torso with crimson fur plates on the chest and shoulders, short thick arms with heavy dark gauntlets, short thick legs with crimson fur at the shins and hoof-shaped dark boots.
+**Poses sheet.** One 4 × 2 sheet of the same character: a chibi low-poly yak warrior with a big bovine head, dark charcoal `#372f2e` muzzle and face, two glowing orange-red eyes, two wide curved tan `#d5a687` horns faceted like bone, and a shaggy mane of angular crimson `#ea4239` / dark red `#7d0e0e` fur shards covering the head and shoulders; broad charcoal `#140c0b` armor torso with crimson fur plates on the chest and shoulders, short thick arms with heavy dark gauntlets, short thick legs with crimson fur at the shins and hoof-shaped dark boots.
 Fixed three-quarter right-facing view. Ordered poses: idle, running with one
 stride, opposite running stride, right-arm overhead reach, left-arm overhead
 reach, falling with limbs spread, both-arm celebration, crouched down.
@@ -71,6 +72,6 @@ Yak is the heaviest character: keep the torso steady and give the pull a slightl
    fringe (check on light and dark backgrounds).
 2. Normalise every frame to the `(256, 460)` foot anchor at the common scale.
 3. Confirm Run A ≠ Run B and Reach A ≠ Reach B as image data.
-4. Downscale to 192 px cells (Lanczos) and palette-quantise; aim for under
-   ~80 KB for both files together, like the Wraith's ~70 KB.
+4. Downscale to 192 px cells (Lanczos) and palette-quantise; keep each
+   shipped file under ~50 KB (`app/public/climb/README.md`).
 5. Preview over `app/public/climb/volcano-tile.jpg` at in-game size (~30 CSS px).

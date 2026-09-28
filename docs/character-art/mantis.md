@@ -1,9 +1,10 @@
 # Mantis climber art — generation brief
 
-Placeholder until this art exists: the climb view draws a tinted Wraith for
-Mantis (accent `#88e321`). This brief is for producing the real
-sheets so they can replace it with no code change beyond the registry's
-sprite paths. Reference identity: `app/mobile/src/assets/avatars/mantis.webp`
+Placeholder until this art exists: the climb view draws Mantis as the Wraith
+tinted to accent `#b3f027`, set by its `tint(...)` entry in
+`app/src/components/Game/climberCharacters.ts`. When the sheets below exist,
+drop them into `app/public/climb/` and change that entry to
+`sheets("mantis")`; see `app/public/climb/README.md`. Reference identity: `app/mobile/src/assets/avatars/mantis.webp`
 (head-and-shoulders portrait only, so the body below is new design).
 
 ## Deliverables
@@ -28,7 +29,7 @@ Contract, identical to the Wraith so the engine needs no per-character tuning:
   bounds: the Down crouch stays shorter.
 - Real zero-alpha background, no ground shadow, text, border or scene, and at
   least 52 px of empty margin to every cell edge.
-- Accent facets graded toward `#88e321` (lime), which is
+- Accent facets graded toward `#b3f027` (lime), which is
   also the placeholder tint, so the swap reads as the same character.
 - Chibi proportions like the Wraith: head about 40% of the figure height,
   short chunky limbs, matte low-poly faceting with soft studio light.
@@ -37,7 +38,7 @@ Contract, identical to the Wraith so the engine needs no per-character tuning:
 
 Use the image-generation tool with `mantis.webp` attached as the identity reference.
 
-**Poses sheet.** One 4 × 2 sheet of the same character: a chibi low-poly insect warrior with a big triangular mantis head, two large faceted glowing green `#d8f84a` compound eyes, and two long thin swept-back lime antennae; bright lime `#88e321` and leaf-green `#469330` angular carapace plates over charcoal `#1b1d26` armor, a pointed V collar on the chest, short chunky legs with segmented green shin plates and dark boots, and short arms whose forearms are folded raptorial blades with a serrated inner edge (no hands visible when folded; blade tips act as fists).
+**Poses sheet.** One 4 × 2 sheet of the same character: a chibi low-poly insect warrior with a big triangular mantis head, two large faceted glowing green `#d8f84a` compound eyes, and two long thin swept-back lime antennae; bright lime `#b3f027` and leaf-green `#469330` angular carapace plates over charcoal `#1b1d26` armor, a pointed V collar on the chest, short chunky legs with segmented green shin plates and dark boots, and short arms whose forearms are folded raptorial blades with a serrated inner edge (no hands visible when folded; blade tips act as fists).
 Fixed three-quarter right-facing view. Ordered poses: idle, running with one
 stride, opposite running stride, right-arm overhead reach, left-arm overhead
 reach, falling with limbs spread, both-arm celebration, crouched down.
@@ -71,6 +72,6 @@ On the climb the blade forearms hook over the rungs instead of gripping; the ant
    fringe (check on light and dark backgrounds).
 2. Normalise every frame to the `(256, 460)` foot anchor at the common scale.
 3. Confirm Run A ≠ Run B and Reach A ≠ Reach B as image data.
-4. Downscale to 192 px cells (Lanczos) and palette-quantise; aim for under
-   ~80 KB for both files together, like the Wraith's ~70 KB.
+4. Downscale to 192 px cells (Lanczos) and palette-quantise; keep each
+   shipped file under ~50 KB (`app/public/climb/README.md`).
 5. Preview over `app/public/climb/volcano-tile.jpg` at in-game size (~30 CSS px).

@@ -1,9 +1,10 @@
 # Kestrel climber art — generation brief
 
-Placeholder until this art exists: the climb view draws a tinted Wraith for
-Kestrel (accent `#64b1ec`). This brief is for producing the real
-sheets so they can replace it with no code change beyond the registry's
-sprite paths. Reference identity: `app/mobile/src/assets/avatars/kestrel.webp`
+Placeholder until this art exists: the climb view draws Kestrel as the Wraith
+tinted to accent `#4a9fef`, set by its `tint(...)` entry in
+`app/src/components/Game/climberCharacters.ts`. When the sheets below exist,
+drop them into `app/public/climb/` and change that entry to
+`sheets("kestrel")`; see `app/public/climb/README.md`. Reference identity: `app/mobile/src/assets/avatars/kestrel.webp`
 (head-and-shoulders portrait only, so the body below is new design).
 
 ## Deliverables
@@ -28,7 +29,7 @@ Contract, identical to the Wraith so the engine needs no per-character tuning:
   bounds: the Down crouch stays shorter.
 - Real zero-alpha background, no ground shadow, text, border or scene, and at
   least 52 px of empty margin to every cell edge.
-- Accent facets graded toward `#64b1ec` (sky blue), which is
+- Accent facets graded toward `#4a9fef` (sky blue), which is
   also the placeholder tint, so the swap reads as the same character.
 - Chibi proportions like the Wraith: head about 40% of the figure height,
   short chunky limbs, matte low-poly faceting with soft studio light.
@@ -37,7 +38,7 @@ Contract, identical to the Wraith so the engine needs no per-character tuning:
 
 Use the image-generation tool with `kestrel.webp` attached as the identity reference.
 
-**Poses sheet.** One 4 × 2 sheet of the same character: a chibi low-poly bird-of-prey warrior with a big kestrel head, short hooked golden-yellow `#f2b43a` beak, cream `#e9c08f` face and throat, one glowing blue eye on the visible side, and a swept-back crest of angular slate-blue `#2d5fa2` / sky-blue `#64b1ec` feather facets; torso and limbs in charcoal `#1b1d26` armor with burnt-orange `#aa633f` feather plates layered on the chest, blue feather pauldrons on the shoulders, short chunky arms ending in dark taloned gauntlets, short chunky legs with scaled yellow shins and dark talon boots, and a short fan of angular tail feathers behind the hips.
+**Poses sheet.** One 4 × 2 sheet of the same character: a chibi low-poly bird-of-prey warrior with a big kestrel head, short hooked golden-yellow `#f2b43a` beak, cream `#e9c08f` face and throat, one glowing blue eye on the visible side, and a swept-back crest of angular slate-blue `#2d5fa2` / sky-blue `#4a9fef` feather facets; torso and limbs in charcoal `#1b1d26` armor with burnt-orange `#aa633f` feather plates layered on the chest, blue feather pauldrons on the shoulders, short chunky arms ending in dark taloned gauntlets, short chunky legs with scaled yellow shins and dark talon boots, and a short fan of angular tail feathers behind the hips.
 Fixed three-quarter right-facing view. Ordered poses: idle, running with one
 stride, opposite running stride, right-arm overhead reach, left-arm overhead
 reach, falling with limbs spread, both-arm celebration, crouched down.
@@ -71,6 +72,6 @@ The tail fan stays still; only the crest tips may sway by a pixel or two.
    fringe (check on light and dark backgrounds).
 2. Normalise every frame to the `(256, 460)` foot anchor at the common scale.
 3. Confirm Run A ≠ Run B and Reach A ≠ Reach B as image data.
-4. Downscale to 192 px cells (Lanczos) and palette-quantise; aim for under
-   ~80 KB for both files together, like the Wraith's ~70 KB.
+4. Downscale to 192 px cells (Lanczos) and palette-quantise; keep each
+   shipped file under ~50 KB (`app/public/climb/README.md`).
 5. Preview over `app/public/climb/volcano-tile.jpg` at in-game size (~30 CSS px).
