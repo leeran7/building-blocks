@@ -13,7 +13,6 @@ character real art, you add two files and change one line.
 |------|----------|--------|
 | `<id>-poses-192.png` | yes | 4 columns × 2 rows of 192×192 cells (768×384) |
 | `<id>-climb-192.png` | no | 6 columns × 1 row of 192×192 cells (1152×192) |
-| `<id>-run-192.png` | no | 8 columns × 1 row of 192×192 cells (1536×192) |
 
 `<id>` is the avatar id, lower-case, e.g. `ibex-poses-192.png`.
 
@@ -32,11 +31,6 @@ Poses cells, left to right, top row first:
 
 The climb strip is a back view, 6 frames that loop while the character goes up
 a ladder. Without it, climbing alternates cells 3 and 4.
-
-The run strip is one full stride (two steps), 8 frames facing right that loop
-while the character walks, four frames per step. Put the lowest foot on the
-anchor line in every frame. Without it, walking alternates cells 1 and 2. The
-Wraith ships one.
 
 ## Drawing rules
 
@@ -69,15 +63,14 @@ with:
 ```ts
 ibex: sheets("ibex"),                  // poses + climb strip
 ibex: sheets("ibex", { climb: false }), // poses only
-ibex: sheets("ibex", { run: true }),    // poses + climb strip + run strip
 ```
 
 That is the whole change. Nothing else in shared code needs to change:
 
 - **Web** loads `/climb/<id>-…-192.png` from this folder. It loads only when
   that character is first drawn.
-- **Native (Capacitor)** bundles every `*-poses-192.png`,
-  `*-climb-192.png` and `*-run-192.png` in this folder by glob
+- **Native (Capacitor)** bundles every `*-poses-192.png` and
+  `*-climb-192.png` in this folder by glob
   (`mobile/src/lib/climberSheets.ts`), so you add no import.
 - **Fallbacks:** the vector climber draws until the poses sheet decodes. If
   the poses sheet fails to load, the character draws as the Wraith.
@@ -92,15 +85,12 @@ one entry per catalogue avatar. Run `pnpm test` in `app/` after the change.
 ## Generated art: how to prepare it
 
 Image generators tend to return a flat RGB image with a checkerboard *painted
-in* rather than real transparency, figures of uneven size, and no grid. The
-Wraith's run strip was made that way and had to be keyed out and re-anchored.
-To use generated art directly, ask for:
+in* rather than real transparency, figures of uneven size, and no grid. To use
+generated art directly, ask for:
 
 - a real transparent PNG (alpha channel), not a checkerboard;
 - the exact layout above: 192 px cells (or 512 px cells, same proportions),
   one figure per cell, nothing crossing a cell edge;
-- the same scale in every frame, feet on one ground line, head in the same
-  place across a cycle;
+- the same scale in every frame, feet on one ground line;
 - the named poses in the stated order (idle, run-a, run-b, reach-a, reach-b,
-  falling, celebrate, down), plus the 6-frame back-view climb and, optionally,
-  the 8-frame run cycle as separate images.
+  falling, celebrate, down), plus the 6-frame back-view climb as its own image.
