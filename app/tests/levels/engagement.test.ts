@@ -4,11 +4,17 @@
  * proven against an input it must reject.
  */
 
+import { createHmac } from "node:crypto";
 import { describe, expect, it } from "vitest";
 
 import {
   BOOSTER_TYPES,
   ROUTE_GHOST_FAILS,
+  STARS_PER_CHEST,
+  boosterInventory,
+  chestBoostersFromRoll,
+  chestProgress,
+  chestsEarned,
   STREAK_RAPID_CLIMB,
   STREAK_SUPER_JUMP,
   STUCK_BOOSTER_FAILS,
@@ -24,6 +30,13 @@ import {
   type BoosterType,
 } from "../../src/levels/engagement";
 import { levelBoosterTypes } from "../../src/levels/catalog";
+import {
+  STAR_CHEST_SECRET_MIN_LENGTH,
+  TEST_STAR_CHEST_SECRET,
+  rollStarChest,
+  starChestRoll,
+  starChestSecret,
+} from "../../src/levels/starChestServer";
 
 const EARLY: BoosterType[] = ["rapid-climb", "sprint-burst"];
 const ALL: BoosterType[] = [...BOOSTER_TYPES];
@@ -183,5 +196,66 @@ describe("stuckHelpPowerUp", () => {
   it("offers the route ghost from 5 fails", () => {
     expect(routeGhostAvailable(ROUTE_GHOST_FAILS - 1)).toBe(false);
     expect(routeGhostAvailable(ROUTE_GHOST_FAILS)).toBe(true);
+  });
+});
+
+describe("star chests", () => {
+  it("earns one chest per 20 lifetime stars", () => {
+    expect(chestsEarned(19)).toBe(0);
+    expect(chestsEarned(STARS_PER_CHEST)).toBe(1);
+    expect(chestsEarned(59)).toBe(2);
+    expect(chestsEarned(-5)).toBe(0);
+    expect(chestProgress(47)).toEqual({ starsIntoChest: 7, perChest: 20, earned: 2 });
+  });
+
+  it("maps a roll onto 1 or 2 boosters from the pool", () => {
+    const roll = new Uint8Array(32);
+    roll[0] = 1; // two boosters
+    roll.set([0, 0, 0, 5], 4); // 5 % 3 = 2
+    roll.set([0, 0, 1, 0], 8); // 256 % 3 = 1
+    expect(chestBoostersFromRoll(roll, ["rapid-climb", "sprint-burst", "giant"])).toEqual(["giant", "sprint-burst"]);
+    roll[0] = 2; // one booster
+    expect(chestBoostersFromRoll(roll, ["rapid-climb", "sprint-burst", "giant"])).toEqual(["giant"]);
+  });
+
+  it("gives nothing for an empty pool or a short roll, so the chest stays closed", () => {
+    expect(chestBoostersFromRoll(new Uint8Array(32), [])).toEqual([]);
+    expect(chestBoostersFromRoll(new Uint8Array(8), ALL)).toEqual([]);
+  });
+
+  it("rolls deterministically per (secret, user, chest)", () => {
+    const a = rollStarChest(TEST_STAR_CHEST_SECRET, "user-a", 1, ALL);
+    expect(rollStarChest(TEST_STAR_CHEST_SECRET, "user-a", 1, ALL)).toEqual(a);
+    expect(a.length === 1 || a.length === 2).toBe(true);
+    for (const t of a) expect(BOOSTER_TYPES).toContain(t);
+    const roll = starChestRoll(TEST_STAR_CHEST_SECRET, "user-a", 1);
+    expect(Buffer.from(roll).equals(Buffer.from(starChestRoll(TEST_STAR_CHEST_SECRET, "user-a", 2)))).toBe(false);
+    expect(Buffer.from(roll).equals(Buffer.from(starChestRoll(TEST_STAR_CHEST_SECRET, "user-b", 1)))).toBe(false);
+    expect(Buffer.from(roll).equals(Buffer.from(starChestRoll("another-secret-of-thirty-two-chars!!", "user-a", 1)))).toBe(false);
+  });
+
+  it("is HMAC-SHA256(secret, `${userId}:${chestNumber}`)", () => {
+    const expected = createHmac("sha256", "k".repeat(40)).update("u9:3").digest();
+    expect(Buffer.from(starChestRoll("k".repeat(40), "u9", 3)).equals(expected)).toBe(true);
+  });
+
+  it("fails closed in production without a sound secret, and uses the test secret elsewhere", () => {
+    const good = "s".repeat(STAR_CHEST_SECRET_MIN_LENGTH);
+    expect(starChestSecret({ NODE_ENV: "production", STAR_CHEST_SECRET: good })).toBe(good);
+    expect(starChestSecret({ NODE_ENV: "production" })).toBeNull();
+    expect(starChestSecret({ NODE_ENV: "production", STAR_CHEST_SECRET: "short" })).toBeNull();
+    expect(starChestSecret({ NODE_ENV: "test" })).toBe(TEST_STAR_CHEST_SECRET);
+    expect(starChestSecret({ NODE_ENV: "development", STAR_CHEST_SECRET: good })).toBe(good);
+  });
+
+  it("reads an inventory, dropping unknown types and empty counts", () => {
+    expect(
+      boosterInventory([
+        { type: "giant", count: 2 },
+        { type: "random", count: 4 },
+        { type: "toString", count: 1 },
+        { type: "jetpack", count: 0 },
+      ])
+    ).toEqual({ giant: 2 });
   });
 });

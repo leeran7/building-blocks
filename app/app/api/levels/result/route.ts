@@ -20,7 +20,12 @@
  *
  * Request:  { ticketId: string, cleared: boolean, stars: 0-3, ticks: number,
  *             replayToken?: string }  (replayToken: the run, kept for ghosts)
- * 200:      LevelResult (src/db/levels.ts) with dates as ISO strings
+ * 200:      LevelResult (src/db/levels.ts) with dates as ISO strings,
+ *            including chestsOpened (star chests this clear opened, §6.4)
+ *
+ * Star chests are rolled with STAR_CHEST_SECRET (src/levels/starChestServer
+ * .ts). In production without it no chest opens (fail closed, logged); the
+ * run still saves and the chests open on a later clear.
  * 400:      { error, code: INVALID_JSON | INVALID_TICKET | INVALID_RESULT
  *                         | IMPLAUSIBLE_RUN }
  * 401:      { error, code: UNAUTHORIZED }
@@ -45,6 +50,7 @@ import {
   reject,
 } from "../../../../src/levels/http";
 import { parseReplayToken } from "../../../../src/game/runReplay";
+import { starChestSecret } from "../../../../src/levels/starChestServer";
 import {
   checkClimbIpRateLimit,
   checkLevelUserRateLimit,
@@ -99,7 +105,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   }
 
   try {
-    const result = await submitLevelResult({ userId: player.uid, ticketId, run, replayToken, now });
+    const chestSecret = starChestSecret();
+    if (chestSecret === null) {
+      console.error("[levels/result] STAR_CHEST_SECRET is missing or too short; star chests stay closed");
+    }
+    const result = await submitLevelResult({ userId: player.uid, ticketId, run, replayToken, chestSecret, now });
     return NextResponse.json(
       { ...result, nextLifeAt: result.nextLifeAt?.toISOString() ?? null },
       { status: 200, headers: NO_STORE }

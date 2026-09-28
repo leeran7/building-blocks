@@ -47,6 +47,7 @@ import {
   submitLevelResult,
 } from "../../src/db/levels";
 import { LEVEL_SIM_VERSION } from "../../src/game/simVersion";
+import { TEST_STAR_CHEST_SECRET } from "../../src/levels/starChestServer";
 import { encodeRunReplay } from "../../src/game/runReplay";
 import type { PlayerInput } from "../../src/game/types";
 
@@ -79,6 +80,7 @@ beforeEach(() => {
     streak: 0,
     failsAtLevel: 0,
     routeGhostAvailable: false,
+    boosters: {},
   });
   vi.mocked(openTicketLevel).mockResolvedValue({ season: 1, level: 42 });
   vi.mocked(submitLevelResult).mockImplementation(async (input) => ({
@@ -101,6 +103,9 @@ beforeEach(() => {
     streak: input.run.cleared ? 1 : 0,
     failsAtLevel: input.run.cleared ? 0 : 1,
     routeGhostAvailable: false,
+    chestsOpened: [],
+    lifetimeStars: input.run.stars,
+    boosters: {},
   }));
 });
 
@@ -140,6 +145,7 @@ describe("POST /api/levels/ticket", () => {
       streak: 5,
       failsAtLevel: 0,
       routeGhostAvailable: false,
+      boosters: {},
     });
     const res = await ticket({ season: 1, level: 12, simVersion: SIM });
     expect(await res.json()).toMatchObject({ startPowerUp: { type: "super-jump", source: "streak" }, streak: 5 });
@@ -149,6 +155,41 @@ describe("POST /api/levels/ticket", () => {
       "sprint-burst",
       "super-jump",
     ]);
+  });
+
+  it("passes an allowed booster to the ticket", async () => {
+    await ticket({ season: 1, level: 12, simVersion: SIM, booster: "super-jump" });
+    expect(vi.mocked(issueLevelTicket).mock.calls[0][0].booster).toBe("super-jump");
+  });
+
+  it.each([["random"], ["toString"], ["__proto__"], [7], [{ type: "giant" }]])(
+    "refuses the booster %j before any write",
+    async (booster) => {
+      const res = await ticket({ season: 1, level: 42, simVersion: SIM, booster });
+      expect(res.status).toBe(400);
+      expect((await res.json()).code).toBe("INVALID_BOOSTER");
+      expect(issueLevelTicket).not.toHaveBeenCalled();
+    }
+  );
+
+  it("refuses a booster the level has not unlocked before any write", async () => {
+    // Jetpack unlocks at L28.
+    const res = await ticket({ season: 1, level: 12, simVersion: SIM, booster: "jetpack" });
+    expect(res.status).toBe(409);
+    expect((await res.json()).code).toBe("BOOSTER_NOT_ALLOWED");
+    expect(issueLevelTicket).not.toHaveBeenCalled();
+  });
+
+  it("maps booster refusals from the transaction", async () => {
+    vi.mocked(issueLevelTicket).mockRejectedValueOnce(new LevelError("BOOSTER_NOT_OWNED", "none left"));
+    let res = await ticket({ season: 1, level: 12, simVersion: SIM, booster: "rapid-climb" });
+    expect(res.status).toBe(409);
+    expect((await res.json()).code).toBe("BOOSTER_NOT_OWNED");
+    vi.mocked(issueLevelTicket).mockRejectedValueOnce(
+      new LevelError("BOOSTER_NOT_NEEDED", "free", { startPowerUp: "rapid-climb" })
+    );
+    res = await ticket({ season: 1, level: 12, simVersion: SIM, booster: "rapid-climb" });
+    expect(await res.json()).toMatchObject({ code: "BOOSTER_NOT_NEEDED", startPowerUp: "rapid-climb" });
   });
 
   it.each([
@@ -247,6 +288,23 @@ describe("POST /api/levels/ticket", () => {
 describe("POST /api/levels/result", () => {
   const result = (body: unknown, auth?: string | null) => postResult(req("/api/levels/result", body, auth));
   const CLEAR = { ticketId: TICKET, cleared: true, stars: 3, ticks: 900 };
+
+  it("rolls star chests with the test secret outside production", async () => {
+    await result(CLEAR);
+    expect(vi.mocked(submitLevelResult).mock.calls[0][0].chestSecret).toBe(TEST_STAR_CHEST_SECRET);
+  });
+
+  it("opens no chests in production without STAR_CHEST_SECRET, and still saves the run", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("STAR_CHEST_SECRET", "");
+    try {
+      const res = await result(CLEAR);
+      expect(res.status).toBe(200);
+      expect(vi.mocked(submitLevelResult).mock.calls[0][0].chestSecret).toBeNull();
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
 
   it("records the reported run against the ticket's level, not the request's", async () => {
     const res = await result({ ...CLEAR, season: 9, level: 300 });
@@ -378,6 +436,8 @@ describe("GET /api/levels/me", () => {
       streak: 3,
       nextStartPowerUp: { type: "rapid-climb", source: "streak" },
       stuck: { level: 4, fails: 5, routeGhostAvailable: true },
+      boosters: { giant: 2 },
+      chests: { lifetimeStars: 27, starsIntoChest: 7, perChest: 20, earned: 1 },
     });
     const res = await getMe(req("/api/levels/me?season=1"));
     expect(await res.json()).toMatchObject({
