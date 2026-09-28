@@ -39,7 +39,7 @@ export const runtime = "nodejs";
 /** 403 for an avatar the player has not unlocked; the message names the requirement. */
 function avatarLockedResponse(lock: AvatarLock): NextResponse {
   return NextResponse.json(
-    { error: lock.message, code: "AVATAR_LOCKED", requiredStars: lock.requiredStars, stars: lock.stars },
+    { error: lock.message, code: "AVATAR_LOCKED", kind: lock.kind, requiredStars: lock.requiredStars, stars: lock.stars },
     { status: 403 }
   );
 }

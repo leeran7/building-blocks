@@ -13,9 +13,9 @@ export function avatarLabel(avatarId: string | null): string {
   return avatarName(avatarId) ?? INITIALS_LABEL;
 }
 
-/** Accessible name of a button that opens the avatar picker (Profile, Edit Profile). */
+/** Accessible name of a button that opens the character picker (Profile, Edit Profile). */
 export function avatarButtonLabel(avatarId: string | null): string {
-  return `Avatar: ${avatarLabel(avatarId)}. Change avatar`;
+  return `Character: ${avatarLabel(avatarId)}. Change character`;
 }
 
 /**

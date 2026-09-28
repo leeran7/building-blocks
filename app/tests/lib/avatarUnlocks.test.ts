@@ -10,23 +10,44 @@ import {
   AVATARS,
   avatarEntry,
   avatarsUnlockedBetween,
+  DEFAULT_STICK_ID,
   earnStarsText,
+  lockedMessage,
   parseAvatarIdList,
+  requiredStars,
   starsToUnlock,
+  stickColorOf,
   switchAwayWarning,
   unlockMessage,
   unlockRequirementText,
 } from "../../src/lib/avatars";
-import { avatarLockFor, avatarUnlockState, avatarsNewlyUnlocked } from "../../src/lib/avatarUnlocks";
-import { defaultAvatarFor } from "../../src/lib/handle";
+import { avatarLockFor, avatarUnlockState, avatarsNewlyUnlocked, type AvatarUnlockInput } from "../../src/lib/avatarUnlocks";
 
 const MAX_STARS_PER_SEASON = LEVELS_PER_SEASON * 3;
 const starRules = AVATARS.flatMap((a) => (a.unlock.kind === "stars" ? [{ id: a.id, stars: a.unlock.stars }] : []));
+const STICK_IDS = ["stick-green", "stick-ember", "stick-amber", "stick-sky", "stick-violet", "stick-pink"];
+const PREMIUM_IDS = ["wraith", "gecko"];
+const fresh = (over: Partial<AvatarUnlockInput> = {}): AvatarUnlockInput => ({
+  stars: 0,
+  tutorialDone: false,
+  savedAvatarId: null,
+  ...over,
+});
 
 describe("catalogue unlock rules", () => {
-  it("keeps Wraith, Viking and Sentinel free and gives every other avatar a star rule", () => {
-    expect(AVATARS.filter((a) => a.unlock.kind === "free").map((a) => a.id)).toEqual(["wraith", "viking", "sentinel"]);
-    expect(starRules).toHaveLength(AVATARS.length - 3);
+  it("makes Wraith and Gecko premium, the six sticks tutorial unlocks, and every other avatar a star rule", () => {
+    expect(AVATARS.filter((a) => a.unlock.kind === "premium").map((a) => a.id)).toEqual(PREMIUM_IDS);
+    expect(AVATARS.filter((a) => a.unlock.kind === "tutorial").map((a) => a.id)).toEqual(STICK_IDS);
+    expect(starRules).toHaveLength(AVATARS.length - PREMIUM_IDS.length - STICK_IDS.length);
+    expect(starRules.map((r) => [r.id, r.stars])).toEqual([
+      ["kestrel", 15], ["lynx", 30], ["raven", 50], ["panther", 75], ["wolf", 100], ["otter", 130],
+      ["heron", 165], ["yak", 200], ["mantis", 250], ["cobra", 300], ["badger", 360], ["falcon", 420],
+      ["marmot", 500], ["bison", 580], ["ibex", 660], ["sentinel", 750], ["viking", 840],
+    ]);
+  });
+
+  it("frees no avatar outright: a fresh player with no tutorial can select nothing", () => {
+    expect(avatarUnlockState(fresh()).unlockedIds).toEqual([]);
   });
 
   it("rises strictly in catalogue order and stays within one season's stars", () => {
@@ -36,14 +57,37 @@ describe("catalogue unlock rules", () => {
     expect(starRules.at(-1)!.stars).toBeLessThanOrEqual(MAX_STARS_PER_SEASON);
   });
 
-  it("words the requirement and counts the stars still needed", () => {
-    const falcon = avatarEntry("falcon")!;
-    expect(unlockRequirementText(falcon)).toBe("Earn 30 stars");
-    expect(unlockRequirementText(avatarEntry("wraith")!)).toBeNull();
-    expect(starsToUnlock(falcon, 12)).toBe(18);
-    expect(starsToUnlock(falcon, 29)).toBe(1);
-    expect(starsToUnlock(falcon, 30)).toBe(0);
-    expect(starsToUnlock(falcon, 400)).toBe(0);
+  it("words the requirement for every kind and counts the stars still needed for a star rule only", () => {
+    const lynx = avatarEntry("lynx")!;
+    expect(unlockRequirementText(lynx)).toBe("Earn 30 stars");
+    expect(unlockRequirementText(avatarEntry("stick-sky")!)).toBe("Finish the tutorial");
+    expect(unlockRequirementText(avatarEntry("wraith")!)).toBe("Premium");
+    expect(starsToUnlock(lynx, 12)).toBe(18);
+    expect(starsToUnlock(lynx, 29)).toBe(1);
+    expect(starsToUnlock(lynx, 30)).toBe(0);
+    expect(starsToUnlock(lynx, 400)).toBe(0);
+    expect(starsToUnlock(avatarEntry("wraith")!, 900)).toBeNull();
+    expect(starsToUnlock(avatarEntry("stick-green")!, 0)).toBeNull();
+    expect(requiredStars(avatarEntry("gecko")!)).toBeNull();
+    expect(requiredStars(lynx)).toBe(30);
+  });
+
+  it("words the locked sentence per kind", () => {
+    expect(lockedMessage(avatarEntry("lynx")!)).toBe("Earn 30 stars to unlock Lynx");
+    expect(lockedMessage(avatarEntry("stick-pink")!)).toBe("Finish the tutorial on level 1 to unlock Pink Stick");
+    expect(lockedMessage(avatarEntry("gecko")!)).toBe("Gecko is a premium character. It is not on sale yet");
+  });
+
+  it("gives a stick colour to the stick figures only", () => {
+    expect(DEFAULT_STICK_ID).toBe("stick-green");
+    expect(stickColorOf("stick-green")).toBe("#cbf24d");
+    let checked = 0;
+    for (const id of STICK_IDS) {
+      expect(stickColorOf(id)).toMatch(/^#[0-9a-f]{6}$/);
+      checked++;
+    }
+    expect(checked).toBe(6);
+    for (const bad of ["wraith", "lynx", "stick-", "stick-red", "__proto__", null, 7]) expect(stickColorOf(bad)).toBeNull();
   });
 
   it("avatarEntry allow-lists like parseAvatarId", () => {
@@ -54,86 +98,148 @@ describe("catalogue unlock rules", () => {
 
 describe("avatarsUnlockedBetween", () => {
   it("includes a threshold reached exactly and excludes one a star short", () => {
-    expect(avatarsUnlockedBetween(12, 15)).toEqual(["ibex"]);
+    expect(avatarsUnlockedBetween(12, 15)).toEqual(["kestrel"]);
     expect(avatarsUnlockedBetween(11, 14)).toEqual([]);
   });
 
   it("excludes a threshold already met before, and lists several crossed at once in order", () => {
     expect(avatarsUnlockedBetween(15, 18)).toEqual([]);
-    expect(avatarsUnlockedBetween(0, 50)).toEqual(["ibex", "falcon", "marmot"]);
+    expect(avatarsUnlockedBetween(0, 50)).toEqual(["kestrel", "lynx", "raven"]);
   });
 
-  it("never lists a free avatar", () => {
-    expect(avatarsUnlockedBetween(-1, MAX_STARS_PER_SEASON)).toEqual(starRules.map((r) => r.id));
+  it("never lists a premium or tutorial avatar", () => {
+    expect(avatarsUnlockedBetween(-1, 100_000)).toEqual(starRules.map((r) => r.id));
   });
 });
 
 describe("avatarLockFor / avatarUnlockState", () => {
-  const uid = "player-7";
-  const starter = defaultAvatarFor(uid);
-  const target = AVATARS.find((a) => a.unlock.kind === "stars" && a.id !== starter)!;
-  const need = target.unlock.kind === "stars" ? target.unlock.stars : NaN;
+  const target = avatarEntry("lynx")!;
+  const need = 30;
 
   it("locks one star short and unlocks at the threshold", () => {
-    expect(avatarLockFor(target, { stars: need - 1, savedAvatarId: null, userId: uid })).toEqual({
-      avatarId: target.id,
-      name: target.name,
+    expect(avatarLockFor(target, fresh({ stars: need - 1 }))).toEqual({
+      avatarId: "lynx",
+      name: "Lynx",
+      kind: "stars",
       requiredStars: need,
       stars: need - 1,
-      message: `Earn ${need} stars to unlock ${target.name}`,
+      message: "Earn 30 stars to unlock Lynx",
     });
-    expect(avatarLockFor(target, { stars: need, savedAvatarId: null, userId: uid })).toBeNull();
+    expect(avatarLockFor(target, fresh({ stars: need }))).toBeNull();
+  });
+
+  it("locks the premium characters at any star count, with or without the tutorial", () => {
+    let checked = 0;
+    for (const id of PREMIUM_IDS) {
+      const entry = avatarEntry(id)!;
+      for (const input of [fresh(), fresh({ stars: 100_000, tutorialDone: true })]) {
+        expect(avatarLockFor(entry, input)).toEqual({
+          avatarId: id,
+          name: entry.name,
+          kind: "premium",
+          requiredStars: null,
+          stars: input.stars,
+          message: `${entry.name} is a premium character. It is not on sale yet`,
+        });
+        checked++;
+      }
+    }
+    expect(checked).toBe(4);
+    expect(avatarUnlockState(fresh({ stars: 100_000, tutorialDone: true })).unlockedIds).not.toContain("wraith");
+  });
+
+  it("keeps a saved premium character selectable (grandfathered) but no other premium one", () => {
+    const input = fresh({ savedAvatarId: "wraith" });
+    expect(avatarLockFor(avatarEntry("wraith")!, input)).toBeNull();
+    expect(avatarLockFor(avatarEntry("gecko")!, input)?.kind).toBe("premium");
+    const state = avatarUnlockState(input);
+    expect(state.unlockedIds).toEqual(["wraith"]);
+    expect(state.grandfatheredId).toBe("wraith");
+  });
+
+  it("locks every stick figure until the tutorial is done, then unlocks all six at 0 stars", () => {
+    let checked = 0;
+    for (const id of STICK_IDS) {
+      const entry = avatarEntry(id)!;
+      expect(avatarLockFor(entry, fresh({ stars: 900 }))).toEqual({
+        avatarId: id,
+        name: entry.name,
+        kind: "tutorial",
+        requiredStars: null,
+        stars: 900,
+        message: `Finish the tutorial on level 1 to unlock ${entry.name}`,
+      });
+      expect(avatarLockFor(entry, fresh({ tutorialDone: true }))).toBeNull();
+      checked++;
+    }
+    expect(checked).toBe(6);
+    expect(avatarUnlockState(fresh({ tutorialDone: true })).unlockedIds).toEqual(STICK_IDS);
   });
 
   it("grandfathers the saved avatar but no other locked one", () => {
-    const input = { stars: 0, savedAvatarId: target.id, userId: uid };
+    const input = fresh({ savedAvatarId: "lynx" });
     expect(avatarLockFor(target, input)).toBeNull();
-    const other = AVATARS.find((a) => a.unlock.kind === "stars" && a.id !== starter && a.id !== target.id)!;
-    expect(avatarLockFor(other, input)).not.toBeNull();
+    expect(avatarLockFor(avatarEntry("raven")!, input)).not.toBeNull();
   });
 
   it("ignores a saved id outside the catalogue", () => {
-    const state = avatarUnlockState({ stars: 0, savedAvatarId: "__proto__", userId: uid });
-    expect(state.unlockedIds).toEqual(["wraith", "viking", "sentinel", starter]);
+    expect(avatarUnlockState(fresh({ savedAvatarId: "__proto__" })).unlockedIds).toEqual([]);
+    expect(avatarUnlockState(fresh({ savedAvatarId: "__proto__", tutorialDone: true })).unlockedIds).toEqual(STICK_IDS);
   });
 
-  it("always unlocks the account's starter animal and never a free one via stars", () => {
-    expect(avatarLockFor(avatarEntry(starter)!, { stars: 0, savedAvatarId: null, userId: uid })).toBeNull();
-    expect(avatarLockFor(avatarEntry("sentinel")!, { stars: 0, savedAvatarId: null, userId: uid })).toBeNull();
+  it("lists every non-premium avatar at a full season of stars after the tutorial, in catalogue order", () => {
+    const state = avatarUnlockState(fresh({ stars: MAX_STARS_PER_SEASON, tutorialDone: true }));
+    expect(state).toEqual({
+      stars: MAX_STARS_PER_SEASON,
+      tutorialDone: true,
+      unlockedIds: AVATARS.filter((a) => a.unlock.kind !== "premium").map((a) => a.id),
+      grandfatheredId: null,
+    });
   });
 
-  it("lists every avatar at a full season of stars, in catalogue order", () => {
-    const state = avatarUnlockState({ stars: MAX_STARS_PER_SEASON, savedAvatarId: null, userId: uid });
-    expect(state).toEqual({ stars: MAX_STARS_PER_SEASON, unlockedIds: AVATARS.map((a) => a.id), grandfatheredId: null });
-  });
-
-  it("marks the saved avatar grandfathered only while its star rule is unmet and it is not the starter", () => {
-    expect(avatarUnlockState({ stars: need - 1, savedAvatarId: target.id, userId: uid }).grandfatheredId).toBe(target.id);
-    expect(avatarUnlockState({ stars: need, savedAvatarId: target.id, userId: uid }).grandfatheredId).toBeNull();
-    expect(avatarUnlockState({ stars: 0, savedAvatarId: starter, userId: uid }).grandfatheredId).toBeNull();
-    expect(avatarUnlockState({ stars: 0, savedAvatarId: "wraith", userId: uid }).grandfatheredId).toBeNull();
-    expect(avatarUnlockState({ stars: 0, savedAvatarId: "__proto__", userId: uid }).grandfatheredId).toBeNull();
+  it("marks the saved avatar grandfathered only while its rule is unmet", () => {
+    expect(avatarUnlockState(fresh({ stars: need - 1, savedAvatarId: "lynx" })).grandfatheredId).toBe("lynx");
+    expect(avatarUnlockState(fresh({ stars: need, savedAvatarId: "lynx" })).grandfatheredId).toBeNull();
+    expect(avatarUnlockState(fresh({ savedAvatarId: "stick-sky" })).grandfatheredId).toBe("stick-sky");
+    expect(avatarUnlockState(fresh({ savedAvatarId: "stick-sky", tutorialDone: true })).grandfatheredId).toBeNull();
+    expect(avatarUnlockState(fresh({ stars: 900, tutorialDone: true, savedAvatarId: "gecko" })).grandfatheredId).toBe(
+      "gecko"
+    );
+    expect(avatarUnlockState(fresh({ savedAvatarId: "__proto__" })).grandfatheredId).toBeNull();
   });
 });
 
 describe("avatarsNewlyUnlocked (the level result's note)", () => {
-  // Ibex (15) and Falcon (30) are the first two star rules.
-  const uid = ["p1", "p2", "p3", "p4"].find((id) => !["ibex", "falcon"].includes(defaultAvatarFor(id)))!;
+  const none = { savedAvatarId: null, tutorialJustDone: false };
 
   it("names a threshold reached exactly, and none a star short", () => {
-    expect(avatarsNewlyUnlocked(12, 15, { userId: uid, savedAvatarId: null })).toEqual(["ibex"]);
-    expect(avatarsNewlyUnlocked(11, 14, { userId: uid, savedAvatarId: null })).toEqual([]);
+    expect(avatarsNewlyUnlocked(12, 15, none)).toEqual(["kestrel"]);
+    expect(avatarsNewlyUnlocked(11, 14, none)).toEqual([]);
   });
 
   it("leaves out the saved avatar, which the player already has", () => {
-    expect(avatarsNewlyUnlocked(0, 30, { userId: uid, savedAvatarId: "ibex" })).toEqual(["falcon"]);
+    expect(avatarsNewlyUnlocked(0, 30, { ...none, savedAvatarId: "kestrel" })).toEqual(["lynx"]);
   });
 
-  it("leaves out the account's starter animal", () => {
-    const ids = Array.from({ length: 1000 }, (_, i) => `starter-${i}`);
-    const ibexStarter = ids.find((id) => defaultAvatarFor(id) === "ibex");
-    expect(ibexStarter).toBeDefined();
-    expect(avatarsNewlyUnlocked(0, 30, { userId: ibexStarter!, savedAvatarId: null })).toEqual(["falcon"]);
+  it("adds the six stick figures, first, when the run finished the tutorial", () => {
+    expect(avatarsNewlyUnlocked(0, 3, { savedAvatarId: null, tutorialJustDone: true })).toEqual(STICK_IDS);
+    expect(avatarsNewlyUnlocked(0, 3, none)).toEqual([]);
+    expect(avatarsNewlyUnlocked(12, 15, { savedAvatarId: null, tutorialJustDone: true })).toEqual([
+      ...STICK_IDS,
+      "kestrel",
+    ]);
+  });
+
+  it("leaves a saved stick figure out of the tutorial unlock", () => {
+    expect(avatarsNewlyUnlocked(0, 3, { savedAvatarId: "stick-sky", tutorialJustDone: true })).toEqual(
+      STICK_IDS.filter((id) => id !== "stick-sky")
+    );
+  });
+
+  it("never names a premium character", () => {
+    const all = avatarsNewlyUnlocked(-1, 100_000, { savedAvatarId: null, tutorialJustDone: true });
+    expect(all.length).toBeGreaterThan(0);
+    for (const id of PREMIUM_IDS) expect(all).not.toContain(id);
   });
 });
 
@@ -141,11 +247,20 @@ describe("wording and id lists", () => {
   it("words each message from one requirement string", () => {
     expect(earnStarsText(30)).toBe("Earn 30 stars");
     expect(unlockMessage("Falcon", 30)).toBe("Earn 30 stars to unlock Falcon");
-    expect(switchAwayWarning("Yak", 750)).toBe("Switching will lock Yak until you earn 750 stars.");
+  });
+
+  it("warns before leaving a grandfathered avatar, per kind", () => {
+    expect(switchAwayWarning(avatarEntry("sentinel")!)).toBe("Switching will lock Sentinel until you earn 750 stars.");
+    expect(switchAwayWarning(avatarEntry("stick-amber")!)).toBe(
+      "Switching will lock Amber Stick until you finish the tutorial."
+    );
+    expect(switchAwayWarning(avatarEntry("wraith")!)).toBe(
+      "Switching will lock Wraith. It is a premium character and you can't pick it again yet."
+    );
   });
 
   it("parseAvatarIdList keeps only an all-catalogue array", () => {
-    expect(parseAvatarIdList(["ibex", "falcon"])).toEqual(["ibex", "falcon"]);
+    expect(parseAvatarIdList(["ibex", "falcon", "stick-green"])).toEqual(["ibex", "falcon", "stick-green"]);
     expect(parseAvatarIdList([])).toEqual([]);
     expect(parseAvatarIdList(["ibex", "__proto__"])).toBeNull();
     expect(parseAvatarIdList(["ibex", 3])).toBeNull();

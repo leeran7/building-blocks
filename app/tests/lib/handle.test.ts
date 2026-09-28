@@ -7,7 +7,7 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { ANIMALS, climberHandle, climberDisplay, defaultAvatarFor } from "../../src/lib/handle";
+import { ANIMALS, climberHandle, climberDisplay } from "../../src/lib/handle";
 import { AVATARS, parseAvatarId } from "../../src/lib/avatars";
 
 // Captured from climberHandle before the avatar parameter existed (HEAD
@@ -86,9 +86,14 @@ describe("climberHandle without an avatar (regression pin)", () => {
 });
 
 describe("climberHandle with an avatar", () => {
-  it("has one animal avatar per pseudonym animal, and three that are not animals", () => {
+  it("has one animal avatar per pseudonym animal; the rest are Wraith, Sentinel, Viking and the six sticks", () => {
     expect(ANIMAL_AVATARS).toHaveLength(ANIMALS.length);
-    expect(NON_ANIMAL_AVATARS.map((a) => a.id).sort()).toEqual(["sentinel", "viking", "wraith"]);
+    expect(NON_ANIMAL_AVATARS.map((a) => a.id).sort()).toEqual(
+      [
+        "sentinel", "viking", "wraith",
+        "stick-amber", "stick-ember", "stick-green", "stick-pink", "stick-sky", "stick-violet",
+      ].sort()
+    );
   });
 
   it.each(ANIMAL_AVATARS.map((a) => [a.id, a.name]))(
@@ -154,31 +159,5 @@ describe("climberDisplay with an avatar", () => {
 describe("ANIMALS and the avatar catalogue", () => {
   it.each([...ANIMALS])("%s lowercased is a catalogue avatar id", (animal) => {
     expect(parseAvatarId(animal.toLowerCase())).toBe(animal.toLowerCase());
-  });
-});
-
-describe("defaultAvatarFor", () => {
-  const ids = [...PINNED_IDS, ...Array.from({ length: 200 }, (_, i) => `firebase-${i}-${i * 7919}`)];
-
-  it("is always a catalogue animal avatar id", () => {
-    let checked = 0;
-    for (const id of ids) {
-      const avatar = defaultAvatarFor(id);
-      expect(parseAvatarId(avatar)).toBe(avatar);
-      expect(ANIMAL_AVATARS.map((a) => a.id)).toContain(avatar);
-      checked++;
-    }
-    expect(checked).toBe(ids.length);
-  });
-
-  it("is the pseudonym's own animal, so saving it leaves the name unchanged", () => {
-    for (const id of PINNED_IDS) {
-      expect(climberHandle(id, defaultAvatarFor(id))).toBe(PINNED[id]);
-      expect(PINNED[id].split(" ")[1].toLowerCase()).toBe(defaultAvatarFor(id));
-    }
-  });
-
-  it("spreads across many animals rather than one constant", () => {
-    expect(new Set(ids.map(defaultAvatarFor)).size).toBeGreaterThan(8);
   });
 });

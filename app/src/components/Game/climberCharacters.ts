@@ -2,7 +2,7 @@
  * Per-avatar climber characters — the registry the sprite engine
  * (climberSprite.ts) reads. Keyed by avatar id (src/lib/avatars.ts).
  *
- * Characters use real art only. Two kinds of live entry:
+ * Characters use real art only. Three kinds of live entry:
  *  - `sheets`: the character has its own art in public/climb/ (see
  *    public/climb/README.md for the sheet layout and anchor contract).
  *  - `base`: no art yet. The avatar draws as the plain Wraith (same sheets,
@@ -13,10 +13,15 @@
  * `<id>-climb-192.png`) into public/climb/. The mobile bundle picks the files
  * up by name (mobile/src/lib/climberSheets.ts); nothing else changes.
  *
- * A third kind, `tint` (the Wraith sheets recoloured by climberTint.ts), is
+ * A `stick` entry is the vector stick figure in one colour (no sheets); the
+ * Green Stick is what every player without a character climbs as.
+ *
+ * A fourth kind, `tint` (the Wraith sheets recoloured by climberTint.ts), is
  * kept for a future recolour feature (e.g. unlockable colour skins). The live
  * registry uses none; RECOLOR_PALETTE holds the colours sampled for it.
  */
+
+import { stickColorOf } from "../../lib/avatars";
 
 /** Source cell edge (px) of every shipped atlas, and the `-192` in file names. */
 export const SHEET_CELL = 192;
@@ -54,7 +59,17 @@ export interface BaseCharacter {
   readonly kind: "base";
 }
 
-export type ClimberCharacter = SheetCharacter | TintCharacter | BaseCharacter;
+/**
+ * The vector stick figure (drawClimber in paintClimbFrame.ts) in one colour.
+ * No sheets: the sprite engine draws nothing and the caller draws the figure.
+ */
+export interface StickCharacter {
+  readonly kind: "stick";
+  /** "#rrggbb" */
+  readonly color: string;
+}
+
+export type ClimberCharacter = SheetCharacter | TintCharacter | BaseCharacter | StickCharacter;
 
 export interface SheetOptions {
   /** False when the character ships no climb strip. Default true. */
@@ -90,7 +105,10 @@ export function tint(accent: string, body: string | null = null): TintCharacter 
   return { kind: "tint", accent, body };
 }
 
-/** The base character: its sheets are every fallback and every tint's source. */
+/**
+ * The base sheets character: what a `base()` avatar and a character whose own
+ * sheets fail to load draw as, and every tint's source.
+ */
 export const BASE_CHARACTER_ID = "wraith";
 export const WRAITH: SheetCharacter = sheets(BASE_CHARACTER_ID);
 
@@ -101,30 +119,44 @@ export function base(): BaseCharacter {
   return BASE;
 }
 
+/** The stick figure in the catalogue colour of `avatarId` (a stick entry in avatars.ts). */
+function stickFor(avatarId: string): StickCharacter {
+  const color = stickColorOf(avatarId);
+  if (color === null) throw new Error(`climberCharacters: ${avatarId} is not a stick figure`);
+  return { kind: "stick", color };
+}
+
 /**
  * One entry per avatar id. A test pins that the keys match the avatar
  * catalogue exactly and that every `base()` avatar resolves to the Wraith.
+ * Null, unknown and retired ids draw as the Green Stick (DEFAULT_STICK_ID).
  */
 export const CLIMBER_CHARACTERS: Readonly<Record<string, ClimberCharacter>> = {
   wraith: WRAITH,
-  viking: sheets("viking"),
-  sentinel: sheets("sentinel"),
-  ibex: sheets("ibex"),
-  falcon: sheets("falcon"),
-  marmot: sheets("marmot"),
   gecko: sheets("gecko"),
-  panther: sheets("panther"),
-  otter: sheets("otter"),
-  raven: sheets("raven"),
+  "stick-green": stickFor("stick-green"),
+  "stick-ember": stickFor("stick-ember"),
+  "stick-amber": stickFor("stick-amber"),
+  "stick-sky": stickFor("stick-sky"),
+  "stick-violet": stickFor("stick-violet"),
+  "stick-pink": stickFor("stick-pink"),
+  kestrel: sheets("kestrel"),
   lynx: sheets("lynx"),
-  bison: sheets("bison"),
+  raven: sheets("raven"),
+  panther: sheets("panther"),
+  wolf: sheets("wolf"),
+  otter: sheets("otter"),
   heron: sheets("heron"),
+  yak: sheets("yak"),
+  mantis: sheets("mantis"),
   cobra: sheets("cobra"),
   badger: sheets("badger"),
-  wolf: sheets("wolf"),
-  kestrel: sheets("kestrel"),
-  mantis: sheets("mantis"),
-  yak: sheets("yak"),
+  falcon: sheets("falcon"),
+  marmot: sheets("marmot"),
+  bison: sheets("bison"),
+  ibex: sheets("ibex"),
+  sentinel: sheets("sentinel"),
+  viking: sheets("viking"),
 };
 
 /** A recolour's two colours, both "#rrggbb" (see TintCharacter). */

@@ -73,7 +73,7 @@ export interface ClimbCanvasProps {
   playerNames?: Record<string, string>;
   /**
    * Avatar ids keyed by player id: each climber draws as that avatar's
-   * character. Missing, null or unknown ids draw the Wraith.
+   * character. Missing, null or unknown ids draw the Green Stick.
    */
   avatarIds?: Readonly<Record<string, string | null>>;
   /** The local player's avatar id (solo screens that do not know its sim id). */

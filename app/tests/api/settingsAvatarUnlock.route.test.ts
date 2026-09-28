@@ -1,10 +1,11 @@
 /**
  * PUT /api/settings avatar unlocks, through the real route, src/db/settings
  * and src/db/avatarUnlocks over an in-memory Prisma fake. Unlock state must
- * come from stored level stars and the saved avatar, never the request: a
- * locked id is refused with the requirement before ANY write (username,
- * social, row provisioning), the saved avatar stays re-savable, and the
- * threshold is inclusive.
+ * come from stored level stars, a stored level 1 row (the tutorial, for the
+ * stick figures) and the saved avatar, never the request: a locked id is
+ * refused with the requirement before ANY write (username, social, row
+ * provisioning), the saved avatar stays re-savable, the threshold is
+ * inclusive, and a premium character is refused at any star count.
  */
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -26,10 +27,12 @@ vi.mock("../../src/db/creator", () => ({ setUsername, clearUsername: vi.fn(async
 const { revalidateTag } = vi.hoisted(() => ({ revalidateTag: vi.fn() }));
 vi.mock("next/cache", () => ({ revalidateTag, unstable_cache: (fn: unknown) => fn }));
 
-const { store, update, aggregate, upsertHandle } = vi.hoisted(() => {
+const { store, update, aggregate, findFirst, upsertHandle } = vi.hoisted(() => {
   const store = {
     user: { display_name: null, username: null, leaderboard_consent_at: null, avatar_id: null as string | null },
     stars: 0,
+    /** Whether u1 has a level 1 row (the tutorial cleared). */
+    tutorialDone: false,
   };
   return {
     store,
@@ -38,6 +41,9 @@ const { store, update, aggregate, upsertHandle } = vi.hoisted(() => {
       return store.user;
     }),
     aggregate: vi.fn(async () => ({ _sum: { stars: store.stars === 0 ? null : store.stars } })),
+    findFirst: vi.fn(async ({ where }: { where: { userId: string; level: number } }) =>
+      store.tutorialDone && where.userId === "u1" && where.level === 1 ? { id: 1 } : null
+    ),
     upsertHandle: vi.fn(async () => ({})),
   };
 });
@@ -49,7 +55,7 @@ vi.mock("../../src/db/client", () => ({
       ),
       update,
     },
-    levelProgress: { aggregate },
+    levelProgress: { aggregate, findFirst },
     savedSocialHandle: {
       findMany: vi.fn(async () => []),
       upsert: upsertHandle,
@@ -60,13 +66,12 @@ vi.mock("../../src/db/client", () => ({
 }));
 
 import { GET, PUT } from "../../app/api/settings/route";
-import { AVATARS } from "../../src/lib/avatars";
-import { defaultAvatarFor } from "../../src/lib/handle";
+import { AVATARS, avatarEntry } from "../../src/lib/avatars";
 
-const STARTER = defaultAvatarFor("u1");
-/** A star-locked avatar that is not u1's starter. */
-const LOCKED = AVATARS.find((a) => a.unlock.kind === "stars" && a.id !== STARTER)!;
-const NEED = LOCKED.unlock.kind === "stars" ? LOCKED.unlock.stars : NaN;
+/** A star-locked avatar and its threshold. */
+const LOCKED = avatarEntry("lynx")!;
+const NEED = 30;
+const STICK_IDS = AVATARS.filter((a) => a.unlock.kind === "tutorial").map((a) => a.id);
 
 function put(body: unknown): Promise<Response> {
   return PUT(
@@ -81,6 +86,7 @@ function put(body: unknown): Promise<Response> {
 beforeEach(() => {
   store.user.avatar_id = null;
   store.stars = 0;
+  store.tutorialDone = false;
   vi.clearAllMocks();
 });
 
@@ -92,6 +98,7 @@ describe("PUT /api/settings locked avatar", () => {
     expect(await res.json()).toEqual({
       error: `Earn ${NEED} stars to unlock ${LOCKED.name}`,
       code: "AVATAR_LOCKED",
+      kind: "stars",
       requiredStars: NEED,
       stars: NEED - 1,
     });
@@ -133,22 +140,66 @@ describe("PUT /api/settings locked avatar", () => {
 
   it("still refuses a different locked avatar while a grandfathered one is saved", async () => {
     store.user.avatar_id = LOCKED.id;
-    const other = AVATARS.find((a) => a.unlock.kind === "stars" && a.id !== STARTER && a.id !== LOCKED.id)!;
+    const other = avatarEntry("raven")!;
     const res = await put({ avatarId: other.id });
     expect(res.status).toBe(403);
     expect(store.user.avatar_id).toBe(LOCKED.id);
   });
 
-  it("saves the account's starter animal with no stars", async () => {
-    const res = await put({ avatarId: STARTER });
-    expect(res.status).toBe(200);
-    expect(store.user.avatar_id).toBe(STARTER);
+  it.each(["wraith", "gecko"])("refuses the premium %s at any star count, saving nothing", async (id) => {
+    store.stars = 100_000;
+    store.tutorialDone = true;
+    const res = await put({ avatarId: id, username: "aria" });
+    expect(res.status).toBe(403);
+    expect(await res.json()).toEqual({
+      error: `${avatarEntry(id)!.name} is a premium character. It is not on sale yet`,
+      code: "AVATAR_LOCKED",
+      kind: "premium",
+      requiredStars: null,
+      stars: 100_000,
+    });
+    expect(update).not.toHaveBeenCalled();
+    expect(setUsername).not.toHaveBeenCalled();
+    expect(ensureUser).not.toHaveBeenCalled();
   });
 
-  it("saves a free avatar and clears to initials with no stars", async () => {
-    expect((await put({ avatarId: "wraith" })).status).toBe(200);
+  it("re-saves a premium character that is already saved (grandfathered)", async () => {
+    store.user.avatar_id = "wraith";
+    const res = await put({ avatarId: "wraith" });
+    expect(res.status).toBe(200);
+    expect(update).toHaveBeenCalledWith({ where: { id: "u1" }, data: { avatar_id: "wraith" } });
+  });
+
+  it("refuses a stick figure before the tutorial, then saves it once level 1 is cleared", async () => {
+    store.stars = 900;
+    const refused = await put({ avatarId: "stick-green" });
+    expect(refused.status).toBe(403);
+    expect(await refused.json()).toEqual({
+      error: "Finish the tutorial on level 1 to unlock Green Stick",
+      code: "AVATAR_LOCKED",
+      kind: "tutorial",
+      requiredStars: null,
+      stars: 900,
+    });
+    expect(update).not.toHaveBeenCalled();
+
+    store.tutorialDone = true;
+    const saved = await put({ avatarId: "stick-green" });
+    expect(saved.status).toBe(200);
+    expect(store.user.avatar_id).toBe("stick-green");
+  });
+
+  it("ignores a tutorial claim in the body", async () => {
+    const res = await put({ avatarId: "stick-sky", tutorialDone: true, avatarUnlocks: { tutorialDone: true } });
+    expect(res.status).toBe(403);
+    expect(update).not.toHaveBeenCalled();
+  });
+
+  it("clears to initials with no stars", async () => {
+    store.user.avatar_id = "wraith";
     expect((await put({ avatarId: null })).status).toBe(200);
     expect(store.user.avatar_id).toBeNull();
+    expect(aggregate).toHaveBeenCalledTimes(1); // the response's unlock state only
   });
 
   it.each(["__proto__", "constructor", "not-an-avatar"])("rejects unknown id %j with 400 before any unlock read", async (id) => {
@@ -163,14 +214,25 @@ describe("PUT /api/settings locked avatar", () => {
 describe("GET /api/settings avatarUnlocks", () => {
   it("returns the stored star count and the ids the player may select", async () => {
     store.stars = NEED;
+    store.tutorialDone = true;
     const res = await GET(
       new NextRequest("http://localhost/api/settings", { headers: { authorization: "Bearer t" } })
     );
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { avatarUnlocks: { stars: number; unlockedIds: string[] } };
+    const body = (await res.json()) as {
+      avatarUnlocks: { stars: number; tutorialDone: boolean; unlockedIds: string[] };
+    };
     expect(body.avatarUnlocks.stars).toBe(NEED);
-    expect(body.avatarUnlocks.unlockedIds).toEqual(expect.arrayContaining(["wraith", LOCKED.id, STARTER]));
-    const last = AVATARS.filter((a) => a.id !== STARTER).at(-1)!;
-    expect(body.avatarUnlocks.unlockedIds).not.toContain(last.id);
+    expect(body.avatarUnlocks.tutorialDone).toBe(true);
+    expect(body.avatarUnlocks.unlockedIds).toEqual([...STICK_IDS, "kestrel", LOCKED.id]);
+  });
+
+  it("returns nothing selectable for a new account before the tutorial", async () => {
+    const res = await GET(
+      new NextRequest("http://localhost/api/settings", { headers: { authorization: "Bearer t" } })
+    );
+    const body = (await res.json()) as { avatarUnlocks: { tutorialDone: boolean; unlockedIds: string[] } };
+    expect(body.avatarUnlocks.tutorialDone).toBe(false);
+    expect(body.avatarUnlocks.unlockedIds).toEqual([]);
   });
 });

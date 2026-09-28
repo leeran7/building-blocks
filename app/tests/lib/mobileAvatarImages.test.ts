@@ -12,18 +12,28 @@ import { AVATARS } from "../../src/lib/avatars";
 import { AVATAR_IMAGES, avatarSrc } from "../../mobile/src/lib/avatarImages";
 
 const ASSET_DIR = resolve(import.meta.dirname, "../../mobile/src/assets/avatars");
-/** The approved gallery size; a dropped or extra file must fail, not shrink the loop. */
+/** The approved gallery size with art; a dropped or extra file must fail, not shrink the loop. */
 const AVATAR_COUNT = 19;
+/** Catalogue entries drawn as a coloured stick figure, with no image file. */
+const STICK_COUNT = 6;
 
 describe("mobile avatar images", () => {
-  it("resolves every catalogue id to a bundled image", () => {
+  it("resolves every catalogue id with art to a bundled image, and no stick figure to one", () => {
     let checked = 0;
+    let sticks = 0;
     for (const a of AVATARS) {
       const src = avatarSrc(a.id);
+      if (a.stickColor !== undefined) {
+        // Stick figures have no .webp: HexAvatar draws them from stickColor.
+        expect(src, `stick ${a.id} should have no image`).toBeNull();
+        sticks++;
+        continue;
+      }
       expect(src, `missing image for ${a.id}`).toEqual(expect.stringMatching(new RegExp(`${a.id}\\.webp`)));
       checked++;
     }
-    expect(checked).toBe(AVATARS.length);
+    expect(sticks).toBe(STICK_COUNT);
+    expect(checked).toBe(AVATARS.length - STICK_COUNT);
     expect(checked).toBe(AVATAR_COUNT);
   });
 

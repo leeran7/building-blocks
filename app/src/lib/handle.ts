@@ -68,14 +68,6 @@ export function climberHandle(id: string, avatarId?: string | null): string {
 }
 
 /**
- * The avatar a new account starts with: the animal in its hash-derived
- * pseudonym, as a catalogue id. Saving it changes nothing about the name.
- */
-export function defaultAvatarFor(id: string): string {
-  return hashAnimal(hashId(id)).toLowerCase();
-}
-
-/**
  * The name to show for a climber. If they've set a profile display name we use
  * it; otherwise we fall back to the deterministic pseudonym, whose animal
  * follows their avatar. Either way we never expose the email. Keep this the
