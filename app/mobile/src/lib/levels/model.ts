@@ -145,6 +145,24 @@ export interface LevelResult {
   routeGhostAvailable: boolean;
 }
 
+/** One row of a level's friends-only board (§4). */
+export interface LevelBoardEntry {
+  rank: number;
+  isMe: boolean;
+  handle: string;
+  stars: StarCount;
+  /** Best clear time, ms. */
+  timeMs: number;
+}
+
+/** A level's friends-only board: the player and accepted friends who cleared it. */
+export interface LevelBoardView {
+  level: number;
+  entries: LevelBoardEntry[];
+  /** Accepted friends, cleared or not (0 means "add friends" rather than "be first"). */
+  friendCount: number;
+}
+
 /** A level's fixed facts: everything on its pin except the player's progress. */
 export type LevelInfo = Omit<LevelNode, "stars" | "bestMs">;
 
@@ -168,6 +186,8 @@ export interface LevelsClient {
   getSeason(): Promise<SeasonView>;
   startLevel(level: number): Promise<StartResult>;
   submitResult(ticketId: string, run: LevelRunReport): Promise<LevelResult>;
+  /** The level's friends-only board. */
+  getBoard(level: number): Promise<LevelBoardView>;
 }
 
 /** Every 5th level is a Hard level (§3). */

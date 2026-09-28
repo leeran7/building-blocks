@@ -12,6 +12,7 @@ import {
   EPISODE_SIZE,
   isHardLevel,
   starsForTime,
+  type LevelBoardView,
   type LevelNode,
   type LevelResult,
   type LevelRunReport,
@@ -287,6 +288,16 @@ export function createMockLevelsClient(opts: MockClientOptions = {}): LevelsClie
           player: playerStats(next),
           startPowerUp,
         },
+      });
+    },
+
+    getBoard(level: number): Promise<LevelBoardView> {
+      // No friends on the device: the board is the player's own best.
+      const mine = read().progress[String(level)];
+      return wait({
+        level,
+        friendCount: 0,
+        entries: mine ? [{ rank: 1, isMe: true, handle: "You", stars: mine.stars, timeMs: mine.bestMs }] : [],
       });
     },
 

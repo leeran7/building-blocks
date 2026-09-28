@@ -11,6 +11,7 @@ vi.mock("../../mobile/src/lib/api", () => ({ apiFetch: vi.fn() }));
 import { LEVEL_SIM_VERSION } from "../../src/game/simVersion";
 import {
   createHttpLevelsClient,
+  parseLevelBoard,
   parseLevelProfile,
   parseServerResult,
   parseStartPowerUp,
@@ -193,6 +194,46 @@ describe("win streaks and start power-ups", () => {
       "/api/levels/ticket": () => json(200, { ...TICKET, startPowerUp: { type: "rapid-climb", source: "streak" } }),
     });
     expect(await createHttpLevelsClient({ catalog, fetch }).startLevel(3)).toEqual({ ok: false, code: "UPDATE_REQUIRED" });
+  });
+});
+
+describe("friends board", () => {
+  const BOARD = {
+    season: 1,
+    level: 12,
+    friendCount: 1,
+    entries: [
+      { rank: 1, isMe: false, handle: "Ana", username: "ana", avatarId: null, stars: 3, bestTicks: 900 },
+      { rank: 2, isMe: true, handle: "Me", username: null, avatarId: null, stars: 2, bestTicks: 1200 },
+    ],
+  };
+
+  it("parses the board into times", () => {
+    expect(parseLevelBoard(BOARD)).toEqual({
+      level: 12,
+      friendCount: 1,
+      entries: [
+        { rank: 1, isMe: false, handle: "Ana", stars: 3, timeMs: 30_000 },
+        { rank: 2, isMe: true, handle: "Me", stars: 2, timeMs: 40_000 },
+      ],
+    });
+  });
+
+  it.each([
+    ["a zero-star row", { ...BOARD, entries: [{ ...BOARD.entries[0], stars: 0 }] }],
+    ["a missing handle", { ...BOARD, entries: [{ ...BOARD.entries[0], handle: "" }] }],
+    ["a string time", { ...BOARD, entries: [{ ...BOARD.entries[0], bestTicks: "900" }] }],
+    ["no entries", { ...BOARD, entries: null }],
+  ])("rejects %s", (_, body) => {
+    expect(parseLevelBoard(body)).toBeNull();
+  });
+
+  it("loads the level's board and refuses one for another level", async () => {
+    const { fetch, calls } = fakeServer({ "/api/levels/board": () => json(200, BOARD) });
+    const board = await createHttpLevelsClient({ catalog, fetch }).getBoard(12);
+    expect(calls[0].path).toBe("/api/levels/board?season=1&level=12");
+    expect(board.entries).toHaveLength(2);
+    await expect(createHttpLevelsClient({ catalog, fetch }).getBoard(13)).rejects.toThrow();
   });
 });
 

@@ -30,6 +30,10 @@ vi.mock("../../src/db/dailyClimb", () => ({
   dailyClimberCount: vi.fn(async () => 12),
 }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn(), revalidateTag: vi.fn() }));
+vi.mock("../../src/db/levelExtras", () => ({
+  // Its locking and XP maths are covered against Postgres (tests/db/levelEngagement.pg.test.ts).
+  recordDailyRewards: vi.fn(async () => ({ xpGained: 3, dailyXp: 3, lifeGranted: true })),
+}));
 
 import { POST } from "../../app/api/climb/daily/result/route";
 import { verifyIdToken } from "../../src/lib/firebaseAdmin";
@@ -37,6 +41,7 @@ import { checkRateLimit } from "../../src/lib/rateLimit";
 import { prisma } from "../../src/db/client";
 import { recordClimb } from "../../src/db/climb";
 import { claimDailyReplay, recordDailyClimb } from "../../src/db/dailyClimb";
+import { recordDailyRewards } from "../../src/db/levelExtras";
 import { GET as getDailyInfo } from "../../app/api/climb/daily/route";
 import { isDailySeedShape } from "../../src/lib/dailyDay";
 import { revalidateTag } from "next/cache";
@@ -59,6 +64,7 @@ vi.stubEnv("DAILY_SEED_SECRET", TEST_DAILY_SEED_SECRET);
 import {
   DAILY_CLAIM_MIN_INPUT_SEGMENTS,
   DAILY_CLAIM_MIN_PEAK_M,
+  dailyFloorsForPeak,
   dailyInputHash,
   dailyInputSegments,
   resimulateSoloRun,
@@ -149,6 +155,24 @@ describe("POST /api/climb/daily/result", () => {
     expect(revalidateTag).toHaveBeenCalledWith(`daily-leaderboard:${DAY}`, { expire: 0 });
   });
 
+  it("pays Daily XP and the bonus life from the verifier's day and the server's floors", async () => {
+    const { run, body } = await honestPayload();
+    const res = await post(body);
+    expect(await res.json()).toMatchObject({ saved: true, rewards: { xpGained: 3, dailyXp: 3, lifeGranted: true } });
+    // This scripted run stays on the ground floor (10.33 m), so it pays 0 XP;
+    // dailyFloorsForPeak itself is pinned on higher peaks in tests/levels/extras.test.ts.
+    const floors = dailyFloorsForPeak(body.seed, run.peakY);
+    expect(vi.mocked(recordDailyRewards).mock.calls[0][0]).toEqual({ userId: "u1", day: DAY, floors, now: NOW });
+  });
+
+  it("still saves the score when the level rewards fail", async () => {
+    vi.mocked(recordDailyRewards).mockRejectedValueOnce(new Error("db down"));
+    const { body } = await honestPayload();
+    const res = await post(body);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ saved: true, rewards: null });
+  });
+
   it("rejects an inflated claim with 400 REPLAY_MISMATCH and writes nothing", async () => {
     const { run, body } = await honestPayload();
     const res = await post({ ...body, peakY: run.peakY + 500 });
@@ -156,6 +180,7 @@ describe("POST /api/climb/daily/result", () => {
     expect(((await res.json()) as { code: string }).code).toBe("REPLAY_MISMATCH");
     expect(recordDailyClimb).not.toHaveBeenCalled();
     expect(recordClimb).not.toHaveBeenCalled();
+    expect(recordDailyRewards).not.toHaveBeenCalled();
   });
 
   it("rejects a run on a closed day's tower", async () => {

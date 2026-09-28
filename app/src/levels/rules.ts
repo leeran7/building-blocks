@@ -287,3 +287,40 @@ export function xpAwardsForClear(
   }
   return awards;
 }
+
+// ── Daily and duel extras (§5a, §5b) ─────────────────────────────────────────
+
+/** Most XP one Daily Climb day can pay: its best floor count, capped. */
+export const DAILY_XP_MAX = 100;
+
+/** XP a Daily Climb run is worth: its floor count, 0..DAILY_XP_MAX. */
+export function dailyXpForFloors(floors: number): number {
+  if (!Number.isFinite(floors)) return 0;
+  return Math.min(DAILY_XP_MAX, Math.max(0, Math.floor(floors)));
+}
+
+/**
+ * Raise a day's Daily XP grant to `amount` (§7: "the day's best, raised with
+ * max, never summed"). `paid` is what the day's grant row already holds, or
+ * null when there is none. Returns the row's new amount and the XP to add to
+ * the player's total, which is only ever the rise.
+ */
+export function raiseDailyXp(paid: number | null, amount: number): { amount: number; delta: number } {
+  const current = paid === null ? 0 : Math.max(0, Math.floor(paid));
+  const next = Math.max(current, dailyXpForFloors(amount));
+  return { amount: next, delta: next - current };
+}
+
+/**
+ * The once-a-day bonus life for finishing a Daily Climb or a duel (§5b).
+ * `lastBonusDay` is the UTC day the bonus was last paid (users
+ * .bonus_life_day). Paid only when it has not been paid today and the player
+ * is below MAX_LIVES after the refill, so a full player keeps the day's bonus
+ * for later. Null when nothing is granted.
+ */
+export function bonusLife(state: LifeState, lastBonusDay: string | null, today: string, now: Date): LifeState | null {
+  if (lastBonusDay === today) return null;
+  const current = refillLives(state, now);
+  if (current.lives >= MAX_LIVES) return null;
+  return refundLife(current, now);
+}

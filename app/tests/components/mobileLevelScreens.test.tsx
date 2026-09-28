@@ -222,6 +222,23 @@ describe("level map", () => {
   });
 });
 
+describe("friends board on the start card", () => {
+  it("shows the player's own time, or invites friends before a clear", async () => {
+    const client = memoryClient();
+    await clearLevels(client, 3);
+    await renderMap(client);
+    await click(pin("Level 2, 3 of 3 stars"));
+    await flush();
+    const list = container.querySelector('ol[aria-label="Friends\' best times on level 2"]');
+    expect(list?.textContent).toContain("You");
+    expect(list?.textContent).toContain("0:03");
+    await click(button("Close"));
+    await click(pin("Level 4, next to play"));
+    await flush();
+    expect(container.textContent).toContain("Add friends to race their times here.");
+  });
+});
+
 describe("win streak on the start card", () => {
   it("previews the streak's power-up on the frontier level only", async () => {
     const client = memoryClient();

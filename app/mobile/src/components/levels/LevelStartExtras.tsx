@@ -1,6 +1,8 @@
+import { useEffect, useState } from "react";
 import { POWER_UP_SPECS } from "@app/game/powerups";
 import { STREAK_RAPID_CLIMB, STUCK_BOOSTER_FAILS, type StartPowerUp } from "@app/levels/engagement";
-import type { StuckHelp } from "../../lib/levels/model";
+import { formatClock, type LevelBoardView, type StuckHelp } from "../../lib/levels/model";
+import { StarRow } from "./LevelBits";
 
 /**
  * What the start card adds beyond the level itself (§5c, §6.3): the win
@@ -27,11 +29,78 @@ export function PowerUpName({ type }: { type: StartPowerUp["type"] }) {
   );
 }
 
+/** Rows shown before the board is cut off (the caller is always kept). */
+const BOARD_ROWS = 5;
+
+type BoardState = { kind: "loading" } | { kind: "ready"; board: LevelBoardView } | { kind: "error" };
+
+/**
+ * The level's friends-only board (§4): accepted friends' best times and the
+ * player's own. Loaded when the card opens; a failed load hides the section
+ * rather than blocking Play.
+ */
+export function FriendsBoard({ level, load }: { level: number; load: (level: number) => Promise<LevelBoardView> }) {
+  const [state, setState] = useState<BoardState>({ kind: "loading" });
+  useEffect(() => {
+    let live = true;
+    setState({ kind: "loading" });
+    load(level).then(
+      (board) => live && setState({ kind: "ready", board }),
+      () => live && setState({ kind: "error" }),
+    );
+    return () => {
+      live = false;
+    };
+  }, [level, load]);
+
+  if (state.kind === "error") return null;
+  const heading = (
+    <p className="font-mono text-label font-bold uppercase tracking-label text-text-secondary">Friends on this level</p>
+  );
+  if (state.kind === "loading") {
+    return (
+      <div className="mt-3 rounded-2xl border border-white/10 bg-elevated/70 px-3.5 py-2.5" aria-busy="true">
+        {heading}
+        <p className="mt-1 text-meta text-text-muted">Loading…</p>
+      </div>
+    );
+  }
+  const { board } = state;
+  const top = board.entries.slice(0, BOARD_ROWS);
+  const me = board.entries.find((e) => e.isMe);
+  const rows = me && !top.includes(me) ? [...top, me] : top;
+  return (
+    <div className="mt-3 rounded-2xl border border-white/10 bg-elevated/70 px-3.5 py-2.5">
+      {heading}
+      {rows.length === 0 ? (
+        <p className="mt-1 text-meta text-text-secondary">
+          {board.friendCount === 0 ? "Add friends to race their times here." : "No friend has cleared it yet. Be the first."}
+        </p>
+      ) : (
+        <ol aria-label={`Friends' best times on level ${board.level}`} className="mt-1.5 flex flex-col gap-1">
+          {rows.map((e) => (
+            <li
+              key={`${e.rank}-${e.handle}`}
+              className={`flex items-center gap-2 text-meta tabular-nums ${e.isMe ? "font-bold text-signal" : "text-text-primary"}`}
+            >
+              <span className="w-5 text-text-secondary">{e.rank}</span>
+              <span className="min-w-0 flex-1 truncate">{e.isMe ? "You" : e.handle}</span>
+              <StarRow count={e.stars} size={11} />
+              <span>{formatClock(e.timeMs)}</span>
+            </li>
+          ))}
+        </ol>
+      )}
+    </div>
+  );
+}
+
 export function LevelStartExtras({
   atFrontier,
   streak,
   startPowerUp,
   stuck = null,
+  board = null,
 }: {
   /** The card is for the player's frontier level: streaks count here only. */
   atFrontier: boolean;
@@ -40,10 +109,13 @@ export function LevelStartExtras({
   startPowerUp: StartPowerUp | null;
   /** Stuck help for this level (the frontier's only). */
   stuck?: StuckHelp | null;
+  /** The level's friends board: its level and loader. */
+  board?: { level: number; load: (level: number) => Promise<LevelBoardView> } | null;
 }) {
   const showStreak = atFrontier && streak > 0;
   const ghost = atFrontier && stuck !== null && stuck.routeGhostAvailable;
-  if (!showStreak && !startPowerUp && !ghost) return null;
+  const boardEl = board ? <FriendsBoard level={board.level} load={board.load} /> : null;
+  if (!showStreak && !startPowerUp && !ghost) return boardEl;
   return (
     <div className="mt-3 flex flex-col gap-2">
       {startPowerUp && (
@@ -69,6 +141,7 @@ export function LevelStartExtras({
           Route ghost unlocked: a replay of the way up. It arrives in a coming update.
         </p>
       )}
+      {boardEl}
     </div>
   );
 }

@@ -5,6 +5,8 @@ import { parseBoosterType, type StartPowerUp, type StartPowerUpSource } from "@a
 import { apiFetch } from "../api";
 import { starsForTime } from "./model";
 import type {
+  LevelBoardEntry,
+  LevelBoardView,
   LevelCatalog,
   LevelNode,
   LevelResult,
@@ -266,6 +268,29 @@ export function parseServerResult(v: unknown): ServerResult | null {
   };
 }
 
+/** GET /api/levels/board body, or null when it breaks the contract. */
+export function parseLevelBoard(v: unknown): LevelBoardView | null {
+  if (!isObject(v) || !isPositive(v.level) || !isCount(v.friendCount) || !Array.isArray(v.entries)) return null;
+  const entries: LevelBoardEntry[] = [];
+  for (const e of v.entries) {
+    if (
+      !isObject(e) ||
+      !isPositive(e.rank) ||
+      typeof e.isMe !== "boolean" ||
+      typeof e.handle !== "string" ||
+      e.handle.length === 0 ||
+      e.handle.length > 64 ||
+      !isStars(e.stars) ||
+      e.stars === 0 ||
+      !isPositive(e.bestTicks)
+    ) {
+      return null;
+    }
+    entries.push({ rank: e.rank, isMe: e.isMe, handle: e.handle, stars: e.stars, timeMs: ticksToMs(e.bestTicks) });
+  }
+  return { level: v.level, entries, friendCount: v.friendCount };
+}
+
 /** A refused ticket, as the start card words it. */
 export function refusalFor(status: number, code: string | null): StartRefusal {
   if (status === 403 && code === "LEVEL_LOCKED") return "LOCKED";
@@ -376,6 +401,16 @@ export function createHttpLevelsClient(opts: HttpClientOptions): LevelsClient {
           startPowerUp: ticket.startPowerUp,
         },
       };
+    },
+
+    async getBoard(level: number): Promise<LevelBoardView> {
+      info(level);
+      const res = await call(`/api/levels/board?season=${catalog.season}&level=${level}`);
+      const body = await readJson(res);
+      if (!res.ok) throw new LevelsApiError(res.status, errorCode(body));
+      const board = parseLevelBoard(body);
+      if (!board || board.level !== level) throw new LevelsApiError(res.status, "BAD_BODY");
+      return board;
     },
 
     async submitResult(ticketId: string, run: LevelRunReport): Promise<LevelResult> {

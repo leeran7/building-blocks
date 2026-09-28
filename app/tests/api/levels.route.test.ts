@@ -28,7 +28,11 @@ vi.mock("../../src/db/levels", async (importOriginal) => {
   };
 });
 
+vi.mock("../../src/db/levelExtras", () => ({ levelFriendsBoard: vi.fn() }));
+
 import { POST as postTicket } from "../../app/api/levels/ticket/route";
+import { GET as getBoard } from "../../app/api/levels/board/route";
+import { levelFriendsBoard } from "../../src/db/levelExtras";
 import { POST as postResult } from "../../app/api/levels/result/route";
 import { GET as getMe } from "../../app/api/levels/me/route";
 import { GET as getSeason } from "../../app/api/levels/season/route";
@@ -429,5 +433,66 @@ describe("GET /api/levels/season", () => {
     const res = await season("?season=1");
     expect(res.status).toBe(500);
     expect(JSON.stringify(await res.json())).not.toContain("relation");
+  });
+});
+
+describe("GET /api/levels/board", () => {
+  const board = (q: string, token?: string | null) => getBoard(req(`/api/levels/board${q}`, undefined, token));
+  const BOARD = {
+    season: 1,
+    level: 12,
+    friendCount: 2,
+    entries: [{ rank: 1, isMe: false, handle: "Ana", username: "ana", avatarId: null, stars: 3, bestTicks: 900 }],
+  };
+
+  it("returns the caller's friends board, keyed by the token's user only", async () => {
+    vi.mocked(levelFriendsBoard).mockResolvedValueOnce(BOARD);
+    const res = await board("?season=1&level=12&userId=someone-else");
+    expect(res.status).toBe(200);
+    expect(res.headers.get("cache-control")).toBe("private, no-store");
+    expect(await res.json()).toEqual(BOARD);
+    expect(levelFriendsBoard).toHaveBeenCalledWith("u1", 1, 12);
+  });
+
+  it.each([["?season=1"], ["?level=12"], ["?season=1&level=0"], ["?season=1&level=301"], ["?season=x&level=1"], ["?season=1&level=1.5"]])(
+    "rejects %s",
+    async (q) => {
+      const res = await board(q);
+      expect(res.status).toBe(400);
+      expect(levelFriendsBoard).not.toHaveBeenCalled();
+    }
+  );
+
+  it("refuses a season with no manifest", async () => {
+    expect((await board("?season=2&level=1")).status).toBe(404);
+    expect(levelFriendsBoard).not.toHaveBeenCalled();
+  });
+
+  it("requires a signed-in, non-anonymous player", async () => {
+    expect((await board("?season=1&level=12", null)).status).toBe(401);
+    vi.mocked(verifyIdToken).mockResolvedValue({ uid: "anon" } as never);
+    expect((await board("?season=1&level=12")).status).toBe(401);
+    expect(levelFriendsBoard).not.toHaveBeenCalled();
+  });
+
+  it("uses the shared climb IP bucket and a per-user level cap", async () => {
+    vi.mocked(levelFriendsBoard).mockResolvedValue(BOARD);
+    await board("?season=1&level=12");
+    const namespaces = vi.mocked(checkRateLimit).mock.calls.map(([o]) => o.namespace);
+    expect(namespaces).toEqual(["climb", "climb:level:board:total"]);
+
+    vi.mocked(checkRateLimit).mockImplementation(async (o) => ({ allowed: o.namespace !== "climb:level:board:total", degraded: false }));
+    vi.mocked(levelFriendsBoard).mockClear();
+    const res = await board("?season=1&level=12");
+    expect(res.status).toBe(429);
+    expect(levelFriendsBoard).not.toHaveBeenCalled();
+    vi.mocked(checkRateLimit).mockImplementation(async () => ({ allowed: true, degraded: false }));
+  });
+
+  it("never leaks a raw database error", async () => {
+    vi.mocked(levelFriendsBoard).mockRejectedValueOnce(new Error("relation friendships does not exist"));
+    const res = await board("?season=1&level=12");
+    expect(res.status).toBe(500);
+    expect(JSON.stringify(await res.json())).not.toContain("friendships");
   });
 });

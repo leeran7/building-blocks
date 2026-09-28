@@ -82,6 +82,9 @@ model User {
   level_fail_season        Int?
   level_fail_level         Int?
   level_fail_count         Int       @default(0)
+  // UTC day (YYYY-MM-DD) the once-a-day bonus life for finishing a Daily
+  // Climb or a duel was last paid (design §5b). Null = never.
+  bonus_life_day           String?
   climbRecords           ClimbRecord[]
   climbRuns              ClimbRun[]
   dailyClimbScores       DailyClimbScore[]

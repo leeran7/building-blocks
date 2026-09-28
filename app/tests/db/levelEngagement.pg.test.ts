@@ -31,6 +31,7 @@ vi.mock("../../src/db/client", () => ({
 import { LevelError, issueLevelTicket, levelProfile, submitLevelResult } from "../../src/db/levels";
 import type { ReportedRun } from "../../src/levels/rules";
 import { levelBoosterTypes } from "../../src/levels/catalog";
+import { grantBonusLife, levelFriendsBoard, recordDailyRewards } from "../../src/db/levelExtras";
 import { isLocalDbUrl } from "../../scripts/localDbGuard";
 
 const T0 = new Date("2026-09-27T12:00:00Z");
@@ -78,9 +79,16 @@ describe.skipIf(!PG_URL)("level engagement on Postgres", () => {
     );
   });
 
-  async function user(id: string, extra: { streak?: number } = {}) {
+  async function user(id: string, extra: { streak?: number; lives?: number; displayName?: string } = {}) {
     await prisma.user.create({
-      data: { id, email: `${id}@example.test`, level_streak: extra.streak ?? 0 },
+      data: {
+        id,
+        email: `${id}@example.test`,
+        level_streak: extra.streak ?? 0,
+        lives: extra.lives ?? 5,
+        lives_updated_at: extra.lives !== undefined && extra.lives < 5 ? T0 : null,
+        display_name: extra.displayName ?? null,
+      },
     });
   }
 
@@ -269,6 +277,121 @@ describe.skipIf(!PG_URL)("level engagement on Postgres", () => {
       for (let i = 0; i < 3; i++) await play("a", 3, failed());
       // L3 allows no power-ups: stuck help has nothing to give.
       expect((await start("a", 3)).startPowerUp).toBeNull();
+    });
+  });
+  describe("bonus life and Daily XP", () => {
+    const row = (id: string) =>
+      prisma.user.findUniqueOrThrow({ where: { id }, select: { lives: true, xp: true, bonus_life_day: true, player_level: true } });
+
+    it("adds one life once per UTC day, shared by the Daily and duels", async () => {
+      await user("a", { lives: 2 });
+      expect(await grantBonusLife("a", at(1))).toBe(true);
+      expect(await grantBonusLife("a", at(2))).toBe(false);
+      const daily = await recordDailyRewards({ userId: "a", day: "2026-09-27", floors: 0, now: at(3) });
+      expect(daily.lifeGranted).toBe(false);
+      expect(await row("a")).toMatchObject({ lives: 3, bonus_life_day: "2026-09-27" });
+      // The next UTC day pays again (lives set low again: 12 h would refill them).
+      const nextDay = new Date("2026-09-28T00:00:01Z");
+      await prisma.user.update({ where: { id: "a" }, data: { lives: 1, lives_updated_at: nextDay } });
+      expect(await grantBonusLife("a", nextDay)).toBe(true);
+      expect(await row("a")).toMatchObject({ lives: 2, bonus_life_day: "2026-09-28" });
+    });
+
+    it("pays exactly once under concurrent finishes", async () => {
+      await user("a", { lives: 1 });
+      const paid = await Promise.all(Array.from({ length: 8 }, () => grantBonusLife("a", at(1))));
+      expect(paid.filter(Boolean)).toHaveLength(1);
+      expect((await row("a")).lives).toBe(2);
+    });
+
+    it("keeps the day's bonus for later when lives are full", async () => {
+      await user("a");
+      expect(await grantBonusLife("a", at(1))).toBe(false);
+      expect(await row("a")).toMatchObject({ lives: 5, bonus_life_day: null });
+    });
+
+    it("never pays or creates a row for guests or unknown players", async () => {
+      expect(await grantBonusLife("guest:abc", at(1))).toBe(false);
+      expect(await grantBonusLife("nobody", at(1))).toBe(false);
+      expect(await recordDailyRewards({ userId: "nobody", day: "2026-09-27", floors: 40, now: at(1) })).toEqual({
+        xpGained: 0,
+        dailyXp: 0,
+        lifeGranted: false,
+      });
+      expect(await prisma.user.count()).toBe(0);
+      expect(await prisma.xpGrant.count()).toBe(0);
+    });
+
+    it("raises the day's XP to its best floor count, paying only the rise", async () => {
+      await user("a");
+      const day = "2026-09-27";
+      expect(await recordDailyRewards({ userId: "a", day, floors: 20, now: at(1) })).toMatchObject({ xpGained: 20, dailyXp: 20 });
+      expect(await recordDailyRewards({ userId: "a", day, floors: 35, now: at(2) })).toMatchObject({ xpGained: 15, dailyXp: 35 });
+      expect(await recordDailyRewards({ userId: "a", day, floors: 10, now: at(3) })).toMatchObject({ xpGained: 0, dailyXp: 35 });
+      expect(await recordDailyRewards({ userId: "a", day, floors: 250, now: at(4) })).toMatchObject({ xpGained: 65, dailyXp: 100 });
+      expect((await row("a")).xp).toBe(100);
+      expect(await prisma.xpGrant.findMany({ where: { userId: "a" }, select: { key: true, amount: true } })).toEqual([
+        { key: "daily:2026-09-27", amount: 100 },
+      ]);
+      // Another day is its own grant.
+      await recordDailyRewards({ userId: "a", day: "2026-09-28", floors: 5, now: at(5) });
+      expect((await row("a")).xp).toBe(105);
+      expect((await row("a")).player_level).toBe(2);
+    });
+
+    it("never double-pays a day under concurrent submits", async () => {
+      await user("a");
+      await Promise.all(
+        [12, 30, 30, 18, 30, 7].map((floors) => recordDailyRewards({ userId: "a", day: "2026-09-27", floors, now: at(1) }))
+      );
+      expect((await row("a")).xp).toBe(30);
+      expect(await prisma.xpGrant.count({ where: { userId: "a" } })).toBe(1);
+    });
+  });
+
+  describe("friends-only level boards", () => {
+    async function friends(a: string, b: string, status: "accepted" | "pending" | "declined" | "blocked") {
+      await prisma.friendship.create({ data: { sender_id: a, receiver_id: b, status } });
+    }
+    async function progress(userId: string, level: number, bestTicks: number, stars: number) {
+      await prisma.levelProgress.create({
+        data: { userId, season: 1, level, stars, best_ticks: bestTicks, sim_version: 1, updated_at: T0 },
+      });
+    }
+
+    it("ranks the caller and accepted friends only, fastest first", async () => {
+      for (const id of ["me", "f1", "f2", "pend", "decl", "blk", "stranger", "both"]) {
+        await user(id, { displayName: id.toUpperCase() });
+      }
+      await friends("me", "f1", "accepted");
+      await friends("f2", "me", "accepted");
+      await friends("me", "pend", "pending");
+      await friends("decl", "me", "declined");
+      await friends("blk", "me", "blocked");
+      // An accepted row one way and a block the other: the block wins.
+      await friends("me", "both", "accepted");
+      await friends("both", "me", "blocked");
+      for (const [id, ticks] of [["me", 1000], ["f1", 900], ["f2", 1200], ["pend", 500], ["decl", 500], ["blk", 500], ["stranger", 400], ["both", 300]] as const) {
+        await progress(id, 12, ticks, 2);
+      }
+      await progress("f1", 13, 100, 3);
+
+      const board = await levelFriendsBoard("me", 1, 12);
+      expect(board.friendCount).toBe(2);
+      expect(board.entries.map((e) => [e.handle, e.bestTicks, e.isMe, e.rank])).toEqual([
+        ["F1", 900, false, 1],
+        ["ME", 1000, true, 2],
+        ["F2", 1200, false, 3],
+      ]);
+    });
+
+    it("shows only the caller before any friend has cleared the level", async () => {
+      await user("me");
+      await user("f1");
+      await friends("me", "f1", "accepted");
+      expect((await levelFriendsBoard("me", 1, 12)).entries).toEqual([]);
+      await progress("me", 12, 1000, 1);
+      expect((await levelFriendsBoard("me", 1, 12)).entries).toMatchObject([{ isMe: true, bestTicks: 1000 }]);
     });
   });
 });

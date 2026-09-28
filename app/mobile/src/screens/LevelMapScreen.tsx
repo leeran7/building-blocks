@@ -93,6 +93,8 @@ export function LevelMapScreen() {
     [client, navigate, setPlayer],
   );
 
+  const loadBoard = useCallback((level: number) => client.getBoard(level), [client]);
+
   const openPractice = useCallback(() => {
     void tapHeavy();
     navigate("/climb");
@@ -214,6 +216,7 @@ export function LevelMapScreen() {
               streak={season.streak}
               startPowerUp={selected.level === frontier ? season.nextStartPowerUp : null}
               stuck={selected.level === season.stuck.level ? season.stuck : null}
+              board={{ level: selected.level, load: loadBoard }}
             />
           }
         />
