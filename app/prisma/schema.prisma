@@ -106,6 +106,8 @@ model User {
   levelRunTickets        LevelRunTicket[]
   levelProgress          LevelProgress[]
   xpGrants               XpGrant[]
+  boosters               UserBooster[]
+  starChests             StarChest[]
 
   @@map("users")
 }
@@ -256,6 +258,9 @@ model LevelRunTicket {
   sim_version    Int // LEVEL_SIM_VERSION at issue
   start_power_up String? // granted at GO: a streak or stuck-help power-up, or a booster
   life_spent     Boolean // false on free levels (L1-10)
+  // Booster spent from the inventory for this run (design §6.4), or null.
+  // Refunded only when the run ends as a bad start.
+  booster        String?
   created_at     DateTime  @default(now())
   expires_at     DateTime
   used_at        DateTime?
@@ -295,6 +300,39 @@ model LevelProgress {
 // star:{S}:{N}:{k}, episode:{S}:{E}. Inserted with ON CONFLICT DO NOTHING,
 // and users.xp rises only by the rows actually inserted. No key carries a
 // seed or version, so a re-rolled level never pays twice.
+// Level boosters (design §6.4): power-ups a player owns and may equip, one
+// per run, as the ticket's start power-up. SERVER-DERIVED: rows only grow
+// from star chests and shrink by a ticket issue, both under the user lock
+// (src/db/levels.ts). One row per (user, type); type is a concrete power-up.
+model UserBooster {
+  id         String   @id @default(cuid())
+  userId     String
+  type       String
+  count      Int      @default(0)
+  updated_at DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, type], name: "user_booster_type", map: "user_boosters_user_type_key")
+  @@map("user_boosters")
+}
+
+// Star chests (design §6.4): one per 20 lifetime stars, rolled once from
+// HMAC(STAR_CHEST_SECRET, "<userId>:<chestNumber>"). Unique per (user, chest)
+// so a chest can never be opened or paid twice.
+model StarChest {
+  id           String   @id @default(cuid())
+  userId       String
+  chest_number Int
+  boosters     String[]
+  created_at   DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, chest_number], name: "star_chest_user_number", map: "star_chests_user_number_key")
+  @@map("star_chests")
+}
+
 model XpGrant {
   id         String   @id @default(cuid())
   userId     String

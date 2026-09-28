@@ -30,6 +30,8 @@ vi.mock("../../src/db/client", () => ({
 
 import { LevelError, issueLevelTicket, levelProfile, submitLevelResult } from "../../src/db/levels";
 import type { ReportedRun } from "../../src/levels/rules";
+import type { BoosterType } from "../../src/levels/engagement";
+import { TEST_STAR_CHEST_SECRET, rollStarChest } from "../../src/levels/starChestServer";
 import { levelBoosterTypes } from "../../src/levels/catalog";
 import { grantBonusLife, levelFriendsBoard, recordDailyRewards } from "../../src/db/levelExtras";
 import { isLocalDbUrl } from "../../scripts/localDbGuard";
@@ -97,18 +99,20 @@ describe.skipIf(!PG_URL)("level engagement on Postgres", () => {
   let clock = 0;
   const tick = () => at((clock += 10));
 
-  const start = (userId: string, level: number, opts: { now?: Date } = {}) =>
+  const start = (userId: string, level: number, opts: { now?: Date; booster?: BoosterType } = {}) =>
     issueLevelTicket({
       userId,
       season: 1,
       level,
       simVersion: 1,
       allowedBoosters: levelBoosterTypes(1, level) ?? [],
+      booster: opts.booster ?? null,
       now: opts.now ?? tick(),
     });
 
+  let chestSecret: string | null = TEST_STAR_CHEST_SECRET;
   const submit = (userId: string, ticketId: string, run: ReportedRun, now = tick()) =>
-    submitLevelResult({ userId, ticketId, run, replayToken: null, now });
+    submitLevelResult({ userId, ticketId, run, replayToken: null, chestSecret, now });
 
   async function play(userId: string, level: number, run: ReportedRun) {
     const t = await start(userId, level);
@@ -124,6 +128,7 @@ describe.skipIf(!PG_URL)("level engagement on Postgres", () => {
 
   beforeEach(() => {
     clock = 0;
+    chestSecret = TEST_STAR_CHEST_SECRET;
   });
 
   describe("win streaks", () => {
@@ -415,6 +420,161 @@ describe.skipIf(!PG_URL)("level engagement on Postgres", () => {
       expect((await levelFriendsBoard("me", 1, 12)).entries).toEqual([]);
       await progress("me", 12, 1000, 1);
       expect((await levelFriendsBoard("me", 1, 12)).entries).toMatchObject([{ isMe: true, bestTicks: 1000 }]);
+    });
+  });
+  describe("star chests and boosters", () => {
+    const inventory = async (id: string) =>
+      Object.fromEntries(
+        (await prisma.userBooster.findMany({ where: { userId: id }, select: { type: true, count: true } })).map((r) => [
+          r.type,
+          r.count,
+        ])
+      );
+    const livesOf = async (id: string) => (await prisma.user.findUniqueOrThrow({ where: { id } })).lives;
+    const three = () => cleared(1000, 3);
+    async function clearThroughWith3(userId: string, n: number) {
+      const results = [];
+      for (let level = 1; level <= n; level++) results.push(await play(userId, level, three()));
+      return results;
+    }
+    /** Set the owned count of one booster (clears may already have opened chests). */
+    async function give(userId: string, type: BoosterType, count: number) {
+      await prisma.userBooster.upsert({
+        where: { user_booster_type: { userId, type } },
+        create: { userId, type, count },
+        update: { count },
+      });
+    }
+
+    it("opens chest 1 at 20 lifetime stars with its HMAC roll, once", async () => {
+      await user("a");
+      const results = await clearThroughWith3("a", 7);
+      expect(results.slice(0, 6).every((r) => r.chestsOpened.length === 0)).toBe(true);
+      const opened = results[6];
+      // Pool: the boosters unlocked at the highest cleared level (L7).
+      const expected = rollStarChest(TEST_STAR_CHEST_SECRET, "a", 1, ["rapid-climb", "sprint-burst"]);
+      expect(opened).toMatchObject({ lifetimeStars: 21, chestsOpened: [{ chestNumber: 1, boosters: expected }] });
+      const counts: Record<string, number> = {};
+      for (const t of expected) counts[t] = (counts[t] ?? 0) + 1;
+      expect(await inventory("a")).toEqual(counts);
+      expect(opened.boosters).toEqual(counts);
+      // A replay that earns nothing new opens nothing.
+      expect((await play("a", 1, three())).chestsOpened).toEqual([]);
+      expect(await prisma.starChest.count({ where: { userId: "a" } })).toBe(1);
+    });
+
+    it("keeps chests closed without a secret and catches up once it is set", async () => {
+      await user("a");
+      chestSecret = null;
+      const results = await clearThroughWith3("a", 7);
+      expect(results[6]).toMatchObject({ lifetimeStars: 21, chestsOpened: [] });
+      expect(await prisma.starChest.count()).toBe(0);
+      chestSecret = TEST_STAR_CHEST_SECRET;
+      const next = await play("a", 8, cleared(1200, 1));
+      expect(next.chestsOpened.map((c) => c.chestNumber)).toEqual([1]);
+    });
+
+    it("the profile shows the inventory and chest progress, read-only", async () => {
+      await user("a");
+      await clearThroughWith3("a", 5);
+      await give("a", "giant", 2);
+      expect(await levelProfile("a", 1, tick())).toMatchObject({
+        boosters: { giant: 2 },
+        chests: { lifetimeStars: 15, starsIntoChest: 15, perChest: 20, earned: 0 },
+      });
+    });
+
+    it("equips an owned booster: spent in the ticket, stored as its start power-up", async () => {
+      await user("a");
+      await clearThroughWith3("a", 10);
+      await play("a", 11, failed());
+      await give("a", "super-jump", 2);
+      const t = await start("a", 11, { booster: "super-jump" });
+      expect(t).toMatchObject({ startPowerUp: { type: "super-jump", source: "booster" }, boosters: { "super-jump": 1 } });
+      expect(await prisma.levelRunTicket.findUniqueOrThrow({ where: { id: t.ticketId } })).toMatchObject({
+        start_power_up: "super-jump",
+        booster: "super-jump",
+      });
+    });
+
+    it("refuses a booster that is not owned or not unlocked, and writes nothing", async () => {
+      await user("a");
+      await clearThroughWith3("a", 10);
+      await play("a", 11, failed());
+      const lives = await livesOf("a");
+      expect(await codeOf(start("a", 11, { booster: "giant" }))).toBe("BOOSTER_NOT_ALLOWED");
+      expect(await codeOf(start("a", 11, { booster: "rapid-climb" }))).toBe("BOOSTER_NOT_OWNED");
+      expect(await livesOf("a")).toBe(lives);
+      expect(await prisma.levelRunTicket.count({ where: { used_at: null } })).toBe(0);
+
+      // A streak run already starts with a free power-up: it wins, and the
+      // booster is kept rather than spent or refused.
+      await user("b", { streak: 3 });
+      await clearThroughWith3("b", 3);
+      await give("b", "rapid-climb", 1);
+      const t = await start("b", 4, { booster: "rapid-climb" });
+      expect(t).toMatchObject({ startPowerUp: { type: "rapid-climb", source: "streak" }, boosters: { "rapid-climb": 1 } });
+      expect(await prisma.levelRunTicket.findUniqueOrThrow({ where: { id: t.ticketId } })).toMatchObject({ booster: null });
+      expect(await inventory("b")).toEqual({ "rapid-climb": 1 });
+    });
+
+    it("refunds the booster only on a bad start", async () => {
+      await user("a");
+      await clearThroughWith3("a", 10);
+      await play("a", 11, failed());
+      await give("a", "rapid-climb", 3);
+      // Clearing L1-10 opened chest 1, so other boosters may be owned too.
+      const owned = await inventory("a");
+      expect(owned["rapid-climb"]).toBe(3);
+
+      const bad = await start("a", 11, { booster: "rapid-climb", now: at(900) });
+      await submit("a", bad.ticketId, failed(30), new Date(at(900).getTime() + 2_000));
+      expect(await inventory("a")).toEqual(owned);
+
+      await start("a", 11, { booster: "rapid-climb", now: at(950) });
+      // Quick restart: the booster ticket closes as a bad start.
+      const quick = await start("a", 11, { now: new Date(at(950).getTime() + 3_000) });
+      expect(await inventory("a")).toEqual(owned);
+      // Also a bad start, so the fail tally stays under stuck help's free booster.
+      await submit("a", quick.ticketId, failed(30), new Date(at(950).getTime() + 5_000));
+
+      const lost = await start("a", 11, { booster: "rapid-climb" });
+      await submit("a", lost.ticketId, failed());
+      const won = await start("a", 11, { booster: "rapid-climb" });
+      await submit("a", won.ticketId, cleared());
+      expect((await inventory("a"))["rapid-climb"]).toBe(1);
+    });
+
+    it("never spends one booster twice under concurrent starts", async () => {
+      await user("a");
+      await clearThroughWith3("a", 10);
+      await play("a", 11, failed());
+      await give("a", "sprint-burst", 1);
+      const codes = await Promise.all(
+        Array.from({ length: 6 }, () => codeOf(start("a", 11, { booster: "sprint-burst", now: at(3000) })))
+      );
+      // Starts at the same instant: each one closes the previous ticket as a
+      // bad start, which hands its booster back before the next spend. So
+      // they may all succeed, but the ledger must net exactly one booster.
+      expect(codes.every((c) => c === "resolved" || c === "BOOSTER_NOT_OWNED")).toBe(true);
+      expect(codes).toContain("resolved");
+      expect((await inventory("a"))["sprint-burst"]).toBe(0);
+      const open = await prisma.levelRunTicket.findMany({ where: { userId: "a", used_at: null } });
+      expect(open).toHaveLength(1);
+      expect(open[0]?.booster).toBe("sprint-burst");
+      const closed = await prisma.levelRunTicket.findMany({ where: { userId: "a", level: 11, booster: "sprint-burst", used_at: { not: null } } });
+      expect(closed.every((t) => t.outcome === "bad_start")).toBe(true);
+      expect(closed).toHaveLength(codes.filter((c) => c === "resolved").length - 1);
+    });
+
+    it("never opens a chest twice under concurrent submits", async () => {
+      await user("a");
+      await clearThroughWith3("a", 6);
+      const t = await start("a", 7);
+      await Promise.all(Array.from({ length: 6 }, () => codeOf(submit("a", t.ticketId, three()))));
+      expect(await prisma.starChest.count({ where: { userId: "a" } })).toBe(1);
+      const total = Object.values(await inventory("a")).reduce((a, b) => a + b, 0);
+      expect(total).toBe((await prisma.starChest.findFirstOrThrow({ where: { userId: "a" } })).boosters.length);
     });
   });
 });

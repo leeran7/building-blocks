@@ -18,6 +18,7 @@ import { HeartIcon, StarRow, livesLabel, useNow } from "./LevelBits";
 export const REFUSAL_COPY: Record<Exclude<StartRefusal, "OUT_OF_LIVES">, string> = {
   LOCKED: "Clear the level before this one first.",
   UPDATE_REQUIRED: "Update the app to play this level.",
+  BOOSTER_UNAVAILABLE: "That booster can’t be used on this run. Pick again or play without one.",
   NETWORK: "Couldn’t reach the server. Check your connection and try again.",
 };
 

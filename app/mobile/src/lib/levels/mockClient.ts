@@ -1,10 +1,16 @@
 import { TICK_HZ } from "@app/game/types";
 import {
+  MAX_CHEST_BOOSTERS,
+  boosterInventory,
   boosterTypesOf,
+  chestBoostersFromRoll,
+  chestProgress,
+  chestsEarned,
   failsAt,
   freeStartPowerUp,
   nextFailTally,
   nextStreak,
+  type BoosterInventory,
   type FailTally,
 } from "@app/levels/engagement";
 import { season1Catalog } from "./catalog";
@@ -17,9 +23,11 @@ import {
   type LevelResult,
   type LevelRunReport,
   type LevelsClient,
+  type OpenedChest,
   type PlayerStats,
   type SeasonView,
   type StarCount,
+  type StartOptions,
   type StartResult,
 } from "./model";
 
@@ -62,6 +70,10 @@ export interface MockState {
   streak: number;
   /** Fails at the frontier level (§5c); absent in older stores. */
   fails?: FailTally | null;
+  /** Owned boosters (§6.4); absent in older stores. */
+  boosters?: BoosterInventory;
+  /** Star chests opened so far (chest numbers 1..n); absent in older stores. */
+  chestsOpened?: number;
 }
 
 function freshState(now: number): MockState {
@@ -121,7 +133,46 @@ export function parseMockState(raw: string | null): MockState | null {
     openTicket,
     streak: typeof o.streak === "number" && Number.isFinite(o.streak) ? Math.max(0, Math.floor(o.streak)) : 0,
     fails: parseTally(o.fails),
+    boosters: parseInventory(o.boosters),
+    chestsOpened: typeof o.chestsOpened === "number" && Number.isInteger(o.chestsOpened) && o.chestsOpened >= 0 ? o.chestsOpened : 0,
   };
+}
+
+function parseInventory(v: unknown): BoosterInventory {
+  if (typeof v !== "object" || v === null || Array.isArray(v)) return {};
+  const rows: { type: string; count: number }[] = [];
+  for (const [type, count] of Object.entries(v as Record<string, unknown>)) {
+    if (typeof count === "number") rows.push({ type, count });
+  }
+  return boosterInventory(rows);
+}
+
+function lifetimeStarsOf(state: MockState): number {
+  let total = 0;
+  for (const row of Object.values(state.progress)) total += row.stars;
+  return total;
+}
+
+/**
+ * A device-local chest roll: 12 bytes of FNV-1a over the account and chest
+ * number. Not secret and not meant to be: the server rolls real chests with
+ * an HMAC (starChestServer.ts); this only makes the mock feel the same.
+ */
+export function mockChestRoll(accountKey: string, chestNumber: number): Uint8Array {
+  const out = new Uint8Array(4 + 4 * MAX_CHEST_BOOSTERS);
+  for (let word = 0; word < out.length / 4; word++) {
+    let h = 0x811c9dc5;
+    const text = `${accountKey}:${chestNumber}:${word}`;
+    for (let i = 0; i < text.length; i++) {
+      h ^= text.charCodeAt(i);
+      h = Math.imul(h, 0x01000193) >>> 0;
+    }
+    out[word * 4] = h >>> 24;
+    out[word * 4 + 1] = (h >>> 16) & 0xff;
+    out[word * 4 + 2] = (h >>> 8) & 0xff;
+    out[word * 4 + 3] = h & 0xff;
+  }
+  return out;
 }
 
 /**
@@ -238,10 +289,12 @@ export function createMockLevelsClient(opts: MockClientOptions = {}): LevelsClie
           allowed: boosterTypesOf(levels[frontier - 1].allowedPowerUps),
         }),
         stuck: { level: frontier, fails, routeGhostAvailable: false },
+        boosters: { ...(state.boosters ?? {}) },
+        chests: mockChestProgress(state),
       });
     },
 
-    startLevel(level: number): Promise<StartResult> {
+    startLevel(level: number, opts: StartOptions = {}): Promise<StartResult> {
       const state = read();
       if (!Number.isInteger(level) || level < 1 || level > frontierOf(state)) {
         return wait({ ok: false, code: "LOCKED" });
@@ -264,6 +317,14 @@ export function createMockLevelsClient(opts: MockClientOptions = {}): LevelsClie
         fails: atFrontier ? failsAt(next.fails ?? null, 1, level) : 0,
         allowed: boosterTypesOf(node.allowedPowerUps),
       });
+      // An owned booster unlocked here (§6.4). A free power-up wins and the
+      // booster is kept, as on the server.
+      const requested = opts.booster ?? null;
+      const owned = requested !== null ? (state.boosters?.[requested] ?? 0) : 0;
+      if (requested !== null && (owned < 1 || !boosterTypesOf(node.allowedPowerUps).includes(requested))) {
+        return wait({ ok: false, code: "BOOSTER_UNAVAILABLE" });
+      }
+      const booster = startPowerUp === null ? requested : null;
       if (node.costsLife) {
         if (state.lives <= 0) return wait({ ok: false, code: "OUT_OF_LIVES", player: playerStats(state) });
         // Spending from full starts the refill clock now (§5b).
@@ -276,6 +337,13 @@ export function createMockLevelsClient(opts: MockClientOptions = {}): LevelsClie
       ticketCounter += 1;
       const id = `mock-${now()}-${ticketCounter}`;
       next = { ...next, openTicket: { id, level } };
+      if (booster !== null) {
+        const boosters = { ...(next.boosters ?? {}) };
+        const left = owned - 1;
+        if (left > 0) boosters[booster] = left;
+        else delete boosters[booster];
+        next = { ...next, boosters };
+      }
       write(next);
       return wait({
         ok: true,
@@ -286,7 +354,7 @@ export function createMockLevelsClient(opts: MockClientOptions = {}): LevelsClie
           goalFt: node.goalFt,
           pars: node.pars,
           player: playerStats(next),
-          startPowerUp,
+          startPowerUp: booster !== null ? { type: booster, source: "booster" } : startPowerUp,
         },
       });
     },
@@ -335,7 +403,7 @@ export function createMockLevelsClient(opts: MockClientOptions = {}): LevelsClie
       }
       // A clear refunds the life it cost (§5b).
       const refund = cleared && node.costsLife ? 1 : 0;
-      const next: MockState = {
+      let next: MockState = {
         ...state,
         progress,
         xp: state.xp + xpGained,
@@ -344,6 +412,8 @@ export function createMockLevelsClient(opts: MockClientOptions = {}): LevelsClie
         streak,
         fails,
       };
+      const chestsOpened: OpenedChest[] = [];
+      if (cleared) next = openMockChests(next, key, chestsOpened);
       write(next);
       const player = playerStats(next);
       return wait({
@@ -363,7 +433,36 @@ export function createMockLevelsClient(opts: MockClientOptions = {}): LevelsClie
         atFrontier,
         failsAtLevel: atFrontier ? failsAt(fails, 1, ticket.level) : 0,
         routeGhostAvailable: false,
+        chestsOpened,
+        boosters: { ...(next.boosters ?? {}) },
       });
     },
   };
+}
+
+function mockChestProgress(state: MockState) {
+  const lifetimeStars = lifetimeStarsOf(state);
+  const { starsIntoChest, perChest } = chestProgress(lifetimeStars);
+  return { lifetimeStars, starsIntoChest, perChest };
+}
+
+/**
+ * Open every earned chest (as the server does on a clear), drawing from the
+ * boosters unlocked at the highest cleared level. With none unlocked yet the
+ * chests stay earned and open on a later clear. Pushes each onto `opened`.
+ */
+function openMockChests(state: MockState, accountKey: string, opened: OpenedChest[]): MockState {
+  const earned = chestsEarned(lifetimeStarsOf(state));
+  let done = state.chestsOpened ?? 0;
+  if (earned <= done) return state;
+  const pool = boosterTypesOf(mockLevelNode(Math.max(1, frontierOf(state) - 1)).allowedPowerUps);
+  if (pool.length === 0) return state;
+  const boosters: BoosterInventory = { ...(state.boosters ?? {}) };
+  while (done < earned) {
+    done += 1;
+    const contents = chestBoostersFromRoll(mockChestRoll(accountKey, done), pool);
+    for (const type of contents) boosters[type] = (boosters[type] ?? 0) + 1;
+    opened.push({ chestNumber: done, boosters: contents });
+  }
+  return { ...state, boosters, chestsOpened: done };
 }

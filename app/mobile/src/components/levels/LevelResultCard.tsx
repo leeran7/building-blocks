@@ -10,6 +10,7 @@ import {
 } from "../../lib/levels/model";
 import { HeartIcon, StarIcon, XpBar, livesLabel, useNow } from "./LevelBits";
 import { OutOfLives } from "./LevelStartSheet";
+import { ChestReveal } from "./LevelChests";
 import { STUCK_BOOSTER_FAILS } from "@app/levels/engagement";
 
 /**
@@ -63,6 +64,7 @@ export function LevelResultCard({
           nearMiss={nearMiss}
         />
       )}
+      <ChestReveal chests={result.chestsOpened} />
       <StreakLine result={result} />
       <StuckLine result={result} />
 

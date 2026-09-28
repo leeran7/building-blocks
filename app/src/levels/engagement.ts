@@ -201,3 +201,55 @@ export function freeStartPowerUp(input: FreeStartInput): StartPowerUp | null {
   if (help !== null) return { type: help, source: "stuck_help" };
   return null;
 }
+
+// ── Star chests (§6.4) ───────────────────────────────────────────────────────
+
+/** Lifetime stars per chest. */
+export const STARS_PER_CHEST = 20;
+
+/** Most boosters one chest holds (it always holds at least one). */
+export const MAX_CHEST_BOOSTERS = 2;
+
+/** Chests a lifetime star total has earned (chest numbers 1..n). */
+export function chestsEarned(lifetimeStars: number): number {
+  return Math.floor(saneCount(lifetimeStars) / STARS_PER_CHEST);
+}
+
+/** Progress toward the next chest, for the map: "13 / 20". */
+export function chestProgress(lifetimeStars: number): { starsIntoChest: number; perChest: number; earned: number } {
+  const stars = saneCount(lifetimeStars);
+  return { starsIntoChest: stars % STARS_PER_CHEST, perChest: STARS_PER_CHEST, earned: chestsEarned(stars) };
+}
+
+/**
+ * A chest's boosters from its roll (the HMAC digest, starChestServer.ts):
+ * byte 0 picks one or two boosters, and each is a 32-bit big-endian word
+ * from byte 4 on, modulo the pool. Empty when the pool is empty or the
+ * digest is too short, so the caller can refuse rather than invent contents.
+ */
+export function chestBoostersFromRoll(roll: Uint8Array, pool: readonly BoosterType[]): BoosterType[] {
+  if (pool.length === 0 || roll.length < 4 + 4 * MAX_CHEST_BOOSTERS) return [];
+  const count = 1 + ((roll[0] ?? 0) % MAX_CHEST_BOOSTERS);
+  const out: BoosterType[] = [];
+  for (let i = 0; i < count; i++) {
+    const o = 4 + 4 * i;
+    const word = (((roll[o] ?? 0) << 24) | ((roll[o + 1] ?? 0) << 16) | ((roll[o + 2] ?? 0) << 8) | (roll[o + 3] ?? 0)) >>> 0;
+    const pick = pool[word % pool.length];
+    if (pick !== undefined) out.push(pick);
+  }
+  return out;
+}
+
+/** A booster inventory: count per type, only types with a count above 0. */
+export type BoosterInventory = Partial<Record<BoosterType, number>>;
+
+/** Inventory rows (type, count) as a map, dropping unknown types and empty counts. */
+export function boosterInventory(rows: readonly { type: string; count: number }[]): BoosterInventory {
+  const out: BoosterInventory = {};
+  for (const r of rows) {
+    const type = parseBoosterType(r.type);
+    const count = saneCount(r.count);
+    if (type !== null && count > 0) out[type] = count;
+  }
+  return out;
+}

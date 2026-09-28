@@ -50,6 +50,8 @@ const LEVEL_ERROR_STATUS: Record<LevelErrorCode, number> = {
   TICKET_USED: 409,
   TICKET_EXPIRED: 410,
   IMPLAUSIBLE_RUN: 400,
+  BOOSTER_NOT_ALLOWED: 409,
+  BOOSTER_NOT_OWNED: 409,
 };
 
 export function levelErrorResponse(err: LevelError): NextResponse {

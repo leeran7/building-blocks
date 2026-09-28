@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { POWER_UP_SPECS } from "@app/game/powerups";
 import { STREAK_RAPID_CLIMB, STUCK_BOOSTER_FAILS, type StartPowerUp } from "@app/levels/engagement";
 import { formatClock, type LevelBoardView, type StuckHelp } from "../../lib/levels/model";
@@ -101,6 +101,7 @@ export function LevelStartExtras({
   startPowerUp,
   stuck = null,
   board = null,
+  boosters = null,
 }: {
   /** The card is for the player's frontier level: streaks count here only. */
   atFrontier: boolean;
@@ -111,13 +112,16 @@ export function LevelStartExtras({
   stuck?: StuckHelp | null;
   /** The level's friends board: its level and loader. */
   board?: { level: number; load: (level: number) => Promise<LevelBoardView> } | null;
+  /** The booster picker (LevelChests' BoosterPicker), §6.4. */
+  boosters?: ReactNode;
 }) {
   const showStreak = atFrontier && streak > 0;
   const ghost = atFrontier && stuck !== null && stuck.routeGhostAvailable;
   const boardEl = board ? <FriendsBoard level={board.level} load={board.load} /> : null;
-  if (!showStreak && !startPowerUp && !ghost) return boardEl;
+  if (!showStreak && !startPowerUp && !ghost && !boosters) return boardEl;
   return (
     <div className="mt-3 flex flex-col gap-2">
+      {boosters}
       {startPowerUp && (
         <div className="rounded-2xl border border-white/10 bg-elevated/70 px-3.5 py-2.5">
           <p className="font-mono text-label font-bold uppercase tracking-label text-text-secondary">
