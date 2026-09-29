@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { POWER_UP_SPECS } from "@app/game/powerups";
-import { ALTITUDE_UNIT } from "@app/lib/units";
+import { ALTITUDE_UNIT, formatWholeFeet } from "@app/lib/units";
 import { Button } from "../ui";
 import { tapLight } from "../../lib/haptics";
 import {
@@ -135,7 +135,7 @@ export function LevelStartSheet({
             <p className="flex items-baseline gap-2">
               <span className="font-mono text-label uppercase tracking-label text-text-secondary">Goal</span>
               <span className="font-display text-headline font-black tabular-nums text-text-primary">
-                {node.goalFt.toLocaleString()}
+                {formatWholeFeet(node.goalFt)}
                 <span className="ml-1 text-meta font-bold uppercase text-text-secondary">{ALTITUDE_UNIT}</span>
               </span>
             </p>

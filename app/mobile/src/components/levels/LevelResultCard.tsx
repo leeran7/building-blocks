@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { ALTITUDE_UNIT } from "@app/lib/units";
+import { ALTITUDE_UNIT, formatWholeFeet } from "@app/lib/units";
 import { avatarName, stickColorOf } from "@app/lib/avatars";
 import { Button } from "../ui";
 import {
@@ -252,7 +252,7 @@ function Lost({
         <span className="block h-full rounded-full bg-ember" style={{ width: `${pct}%` }} />
       </div>
       <p className="mt-1.5 text-center font-mono text-label uppercase tracking-label text-text-muted">
-        {Math.round(peakFt).toLocaleString()} of {goalFt.toLocaleString()} {ALTITUDE_UNIT}
+        {formatWholeFeet(peakFt)} of {formatWholeFeet(goalFt)} {ALTITUDE_UNIT}
       </p>
     </>
   );
