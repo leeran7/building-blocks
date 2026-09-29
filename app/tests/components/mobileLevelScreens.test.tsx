@@ -66,6 +66,7 @@ vi.mock("../../mobile/src/components/levels/LevelRun", async () => {
 });
 
 import { LevelsProvider } from "../../mobile/src/contexts/LevelsContext";
+import { ShopProvider } from "../../mobile/src/contexts/ShopContext";
 import { createMockLevelsClient } from "../../mobile/src/lib/levels/mockClient";
 import type { BuyLivesResult, LevelResult, LevelRunReport, LevelsClient } from "../../mobile/src/lib/levels/model";
 import { LevelMapScreen, MAP_FADE, pinBottom } from "../../mobile/src/screens/LevelMapScreen";
@@ -261,6 +262,34 @@ describe("level map", () => {
       expect(container.querySelector('[role="dialog"]')?.textContent).toContain("You have 20 gems, 30 short");
       await click(refill);
       expect(buyLives).not.toHaveBeenCalled();
+    });
+
+    it("opens the gem packs from a short balance when the Shop is mounted", async () => {
+      const { client } = await outOfLivesClient(20, 50);
+      await act(async () => {
+        root.render(
+          <MemoryRouter initialEntries={["/"]}>
+            <LevelsProvider client={client}>
+              <ShopProvider>
+                <Routes>
+                  <Route path="/" element={<LevelMapScreen />} />
+                </Routes>
+              </ShopProvider>
+            </LevelsProvider>
+          </MemoryRouter>,
+        );
+      });
+      await flush();
+      await click(pin("Level 11, next to play"));
+      await click(button("Get gems"));
+      expect(container.querySelector("#gem-packs-title")?.textContent).toBe("Get gems");
+    });
+
+    it("has no Get gems button without the Shop", async () => {
+      const { client } = await outOfLivesClient(20, 50);
+      await renderMap(client);
+      await click(pin("Level 11, next to play"));
+      expect(button("Get gems")).toBeUndefined();
     });
 
     it("says why a refill the server refused did not go through, and stays out of lives", async () => {

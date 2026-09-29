@@ -280,6 +280,8 @@ export interface RefillOffer {
   gems: number;
   cost: number;
   buy: () => Promise<BuyLivesResult>;
+  /** Opens the gem packs; absent where the Shop is not mounted. */
+  onGetGems?: () => void;
 }
 
 const REFILL_ERROR: Record<Exclude<BuyLivesResult, { ok: true }>["code"], string | null> = {
@@ -359,6 +361,11 @@ function RefillLives({ offer }: { offer: RefillOffer }) {
       <p className="text-center text-meta text-text-secondary">
         {affordable ? `You have ${offer.gems} gems` : `You have ${offer.gems} gems, ${offer.cost - offer.gems} short`}
       </p>
+      {!affordable && offer.onGetGems && (
+        <Button variant="secondary" onPress={offer.onGetGems}>
+          Get gems
+        </Button>
+      )}
       {error && (
         <p role="alert" className="text-center text-meta text-ember">
           {error}
