@@ -431,7 +431,7 @@ describe("AvatarPickerScreen", () => {
       expect(tileBadge()).toBe(afterChoosing);
       await click(tile("Use initials"));
       expect(previewName()).toBe("Initials");
-      expect(notice()?.textContent).toBe("Your badge shows your initials. You climb as the Green Stick.");
+      expect(notice()?.textContent).toBe("Initials on your badge. You climb as the Green Stick.");
     });
 
     it("spells the display name's initials when there is one", () => {
@@ -763,7 +763,7 @@ describe("locked characters in the picker (server unlock state)", () => {
     await click(tile(KESTREL.name));
     expect(tile(KESTREL.name)?.getAttribute("aria-checked")).toBe("true");
     expect(previewTag()).toBe("Unlocked");
-    expect(notice()?.textContent).toBe("Your climber in every run, and your badge on the leaderboards.");
+    expect(notice()?.textContent).toBe("Your climber and your leaderboard badge.");
     expect(saveButton()?.textContent).toBe("Save character");
     expect(saveButton()?.disabled).toBe(false);
   });
