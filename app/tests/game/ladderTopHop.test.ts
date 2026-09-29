@@ -174,6 +174,10 @@ describe("top hop: jumping off the top with a direction held", () => {
             const w = ref.tower.widthM;
             const dx = Math.min(Math.abs(p.x - l.x), w - Math.abs(p.x - l.x));
             expect(dx, where).toBeGreaterThan(1);
+            // And inside the band platformsForFloor keeps solid either side of
+            // an arriving ladder (ladderGrabRadius + 2 m): full walk speed in
+            // the air drifted past it.
+            expect(dx, where).toBeLessThanOrEqual(ref.tower.ladderGrabRadius + 2);
             checked++;
             if (short) shortTops++;
           }
