@@ -22,5 +22,7 @@ export const DAILY_SIM_VERSION = 4;
  *
  * 4: a run can start with two power-ups at GO (a free one and a booster). An
  * app on 3 plays only the first, so it is stopped before a booster is spent.
+ * Same unreleased bump: the ladder top hop and the eased short tops (level
+ * spec 4) change level towers and physics.
  */
 export const LEVEL_SIM_VERSION = 4;
