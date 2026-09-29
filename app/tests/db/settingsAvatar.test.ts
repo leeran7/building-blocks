@@ -33,11 +33,14 @@ const { user, findUnique, update, progress, aggregate, findFirst } = vi.hoisted(
   };
 });
 
+const { ownedFindMany } = vi.hoisted(() => ({ ownedFindMany: vi.fn(async () => [] as { avatar_id: string }[]) }));
+
 vi.mock("../../src/db/client", () => ({
   prisma: {
     user: { findUnique, update },
     savedSocialHandle: { findMany: vi.fn(async () => []) },
     levelProgress: { aggregate, findFirst },
+    ownedCharacter: { findMany: ownedFindMany },
   },
 }));
 
@@ -146,16 +149,16 @@ describe("updateUserSettings avatar unlocks (backstop behind the route)", () => 
     expect(update).toHaveBeenCalledWith({ where: { id: "u1" }, data: { avatar_id: LOCKED.id } });
   });
 
-  it.each(["wraith", "gecko"])("refuses the premium %s at any star count after the tutorial, without writing", async (id) => {
+  it.each(["wraith", "gecko-void"])("refuses the unbought Shop entry %s at any star count after the tutorial, without writing", async (id) => {
     progress.stars = 100_000;
     finishTutorial();
     const err = await updateUserSettings("u1", { avatarId: id }).catch((e: unknown) => e);
     expect(err).toBeInstanceOf(AvatarLockedError);
-    expect((err as AvatarLockedError).lock).toMatchObject({ avatarId: id, kind: "premium", requiredStars: null });
+    expect((err as AvatarLockedError).lock).toMatchObject({ avatarId: id, kind: "purchase", requiredStars: null });
     expect(update).not.toHaveBeenCalled();
   });
 
-  it("re-saves a premium character that is already the saved one (grandfathered)", async () => {
+  it("re-saves a Shop character that is already the saved one (grandfathered)", async () => {
     user.avatar_id = "wraith";
     expect((await updateUserSettings("u1", { avatarId: "wraith" })).avatarId).toBe("wraith");
     expect(update).toHaveBeenCalledWith({ where: { id: "u1" }, data: { avatar_id: "wraith" } });
@@ -179,7 +182,7 @@ describe("updateUserSettings avatar unlocks (backstop behind the route)", () => 
 
   it("ignores a forged verdict and checks for itself", async () => {
     progress.stars = 0;
-    const forged = { userId: "u1", avatarId: LOCKED.id, lock: null, stars: 900, tutorialDone: true };
+    const forged = { userId: "u1", avatarId: LOCKED.id, lock: null, stars: 900, tutorialDone: true, ownedIds: [] };
     const err = await updateUserSettings("u1", { avatarId: LOCKED.id }, forged).catch((e: unknown) => e);
     expect(err).toBeInstanceOf(AvatarLockedError);
     expect(update).not.toHaveBeenCalled();
@@ -217,12 +220,13 @@ describe("updateUserSettings avatar unlocks (backstop behind the route)", () => 
 });
 
 describe("checkAvatarForUser", () => {
-  it("refuses a premium id at any star count, reading stars, tutorial and the saved avatar", async () => {
+  it("refuses an unbought Shop id at any star count, reading stars, tutorial, owned rows and the saved avatar", async () => {
     progress.stars = 100_000;
     finishTutorial();
-    const check = await checkAvatarForUser("u1", "gecko");
-    expect(check).toMatchObject({ userId: "u1", avatarId: "gecko", stars: 100_000, tutorialDone: true });
-    expect(check.lock).toMatchObject({ kind: "premium", requiredStars: null });
+    const check = await checkAvatarForUser("u1", "wraith");
+    expect(check).toMatchObject({ userId: "u1", avatarId: "wraith", stars: 100_000, tutorialDone: true, ownedIds: [] });
+    expect(check.lock).toMatchObject({ kind: "purchase", requiredStars: null });
+    expect(ownedFindMany).toHaveBeenCalled();
     expect(findUnique).toHaveBeenCalled();
     expect(aggregate).toHaveBeenCalled();
     expect(findFirst).toHaveBeenCalled();
@@ -258,25 +262,27 @@ describe("getUserSettings avatarUnlocks", () => {
       stars: 15,
       tutorialDone: false,
       unlockedIds: ["kestrel", "heron"],
+      ownedIds: [],
       grandfatheredId: "heron",
     });
     expect(stillLocked.length).toBeGreaterThan(0);
     for (const a of stillLocked) expect(avatarUnlocks.unlockedIds).not.toContain(a.id);
   });
 
-  it("adds the six stick figures after the tutorial, and never a premium character", async () => {
+  it("adds Gecko and the six stick figures after the tutorial, and never an unbought Shop entry", async () => {
     finishTutorial();
     progress.stars = 100_000;
     const { avatarUnlocks } = await getUserSettings("u1");
     expect(avatarUnlocks.tutorialDone).toBe(true);
-    expect(STICK_IDS).toHaveLength(6);
+    expect(STICK_IDS).toHaveLength(7);
     expect(avatarUnlocks.unlockedIds).toEqual(expect.arrayContaining(STICK_IDS));
+    expect(avatarUnlocks.unlockedIds).toContain("gecko");
     expect(avatarUnlocks.unlockedIds).not.toContain("wraith");
-    expect(avatarUnlocks.unlockedIds).not.toContain("gecko");
+    expect(avatarUnlocks.unlockedIds).not.toContain("gecko-void");
   });
 
   it("uses the unlock inputs a request already read instead of querying again", async () => {
-    const { avatarUnlocks } = await getUserSettings("u1", { stars: 30, tutorialDone: true });
+    const { avatarUnlocks } = await getUserSettings("u1", { stars: 30, tutorialDone: true, ownedIds: [] });
     expect(avatarUnlocks.stars).toBe(30);
     expect(avatarUnlocks.unlockedIds).toEqual([...STICK_IDS, "kestrel", "lynx"]);
     expect(aggregate).not.toHaveBeenCalled();

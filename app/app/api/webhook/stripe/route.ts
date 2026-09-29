@@ -1,14 +1,16 @@
 /**
  * POST /api/webhook/stripe
  *
- * Handle Stripe checkout.session.completed events. The only funded flow today
- * is prepaid-credit top-ups for Paid 1v1 Battles; they settle into the buyer's
- * PLAY bucket. (The legacy paid-stacks block-payment flow was removed.)
+ * Handle Stripe checkout.session.completed events. Funded flows: prepaid-credit
+ * top-ups for Paid 1v1 Battles (settled into the buyer's PLAY bucket), gem
+ * packs for the Shop (settled into users.gems), and tournament entries. (The
+ * legacy paid-stacks block-payment flow was removed.)
  *
  * CRITICAL invariants:
  * 1. Verify stripe-signature FIRST — reject 400 if invalid (NFR-S1)
  * 2. Credit only on a genuinely paid status (PAID_STATUSES)
- * 3. Idempotent via CreditPurchase.stripe_session_id (unique)
+ * 3. Idempotent via CreditPurchase.stripe_session_id / GemPurchase
+ *    (provider, external_id) (unique)
  * 4. Dead-letter an unattributable captured payment rather than 4xx/5xx
  */
 
@@ -17,6 +19,8 @@ import { verifyWebhookSignature } from "../../../../src/api/stripe";
 import { PAID_STATUSES, CREDITING_EVENTS } from "../../../../src/api/stripeCredit";
 import { recordDeadLetter } from "../../../../src/db/deadLetter";
 import { addPurchasedCredits } from "../../../../src/db/credits";
+import { creditGemPack, GemError } from "../../../../src/db/gems";
+import { gemPackById } from "../../../../src/lib/gemPacks";
 import { settleEntryFee, updatePayoutStatus } from "../../../../src/db/tournaments";
 
 // Disable body parsing — need raw body for Stripe signature verification
@@ -64,7 +68,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const session = event.data.object as unknown as {
     id: string;
     currency?: string | null;
-    metadata: { type?: string; user_id?: string; tournament_id?: string; chip_amount?: string } | null;
+    metadata: {
+      type?: string;
+      user_id?: string;
+      tournament_id?: string;
+      chip_amount?: string;
+      pack_id?: string;
+    } | null;
     amount_total: number | null;
     payment_status?: string | null;
   };
@@ -72,6 +82,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   // Paid-duel credit top-ups are funded here and settled to the PLAY bucket.
   if (session.metadata?.type === "credits_topup") {
     return handleCreditsTopup(eventType, session);
+  }
+
+  // Shop gem packs are settled into users.gems.
+  if (session.metadata?.type === "gem_pack") {
+    return handleGemPack(eventType, session);
   }
 
   // Tournament entry fee — register the user on successful payment.
@@ -208,6 +223,75 @@ async function handleCreditsTopup(
   } catch (err) {
     console.error("[webhook/stripe] credits_topup transaction failed:", err);
     return NextResponse.json({ error: "Credit top-up processing failed" }, { status: 500 });
+  }
+}
+
+/**
+ * Settle a Shop gem pack into the buyer's users.gems.
+ *
+ * Gems come from the server's pack table by pack_id, never from metadata
+ * counts, and only when Stripe charged exactly that pack's price in USD.
+ * Idempotent on the session id (GemPurchase). Anything unattributable is
+ * dead-lettered, like a credits top-up.
+ */
+async function handleGemPack(
+  eventType: string,
+  session: {
+    id: string;
+    currency?: string | null;
+    amount_total: number | null;
+    payment_status?: string | null;
+    metadata: { user_id?: string; pack_id?: string } | null;
+  }
+): Promise<NextResponse> {
+  if (!CREDITING_EVENTS.has(eventType)) {
+    return NextResponse.json({ received: true });
+  }
+  if (!PAID_STATUSES.has(session.payment_status ?? "")) {
+    return NextResponse.json({ received: true, credited: false });
+  }
+
+  const chargeCents = session.amount_total ?? 0;
+  const userId = session.metadata?.user_id;
+  const pack = gemPackById(session.metadata?.pack_id);
+  if (!session.id) {
+    return deadLetter(eventType, "", chargeCents, "gem_pack: missing session id");
+  }
+  if (!userId) {
+    return deadLetter(eventType, session.id, chargeCents, "gem_pack: missing user_id");
+  }
+  if (pack === null) {
+    return deadLetter(eventType, session.id, chargeCents, "gem_pack: unknown pack_id");
+  }
+  if ((session.currency ?? "").toLowerCase() !== "usd" || chargeCents !== pack.usdCents) {
+    return deadLetter(
+      eventType,
+      session.id,
+      chargeCents,
+      `gem_pack: charged ${chargeCents} ${session.currency ?? "?"} for ${pack.id}`
+    );
+  }
+
+  try {
+    const result = await creditGemPack({ userId, provider: "stripe", externalId: session.id, pack });
+    console.log(
+      JSON.stringify({
+        type: "gem_pack",
+        stripe_session_id: session.id,
+        user_id: userId,
+        pack_id: pack.id,
+        outcome: result.outcome,
+        timestamp: new Date().toISOString(),
+      })
+    );
+    return NextResponse.json({ received: true });
+  } catch (err) {
+    // A deleted account can never be credited: keep the payment for review.
+    if (err instanceof GemError) {
+      return deadLetter(eventType, session.id, chargeCents, `gem_pack: ${err.message}`);
+    }
+    console.error("[webhook/stripe] gem_pack transaction failed:", err);
+    return NextResponse.json({ error: "Gem pack processing failed" }, { status: 500 });
   }
 }
 

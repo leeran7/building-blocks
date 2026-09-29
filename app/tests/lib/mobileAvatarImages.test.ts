@@ -21,6 +21,7 @@ describe("mobile avatar images", () => {
   it("resolves every catalogue id with art to a bundled image, and no stick figure to one", () => {
     let checked = 0;
     let sticks = 0;
+    let skins = 0;
     for (const a of AVATARS) {
       const src = avatarSrc(a.id);
       if (a.stickColor !== undefined) {
@@ -29,11 +30,20 @@ describe("mobile avatar images", () => {
         sticks++;
         continue;
       }
+      if (a.skinOf !== undefined) {
+        // A skin without its own portrait yet shows its character's.
+        expect(src, `skin ${a.id} should fall back to ${a.skinOf}`).toEqual(
+          expect.stringMatching(new RegExp(`${a.skinOf}\\.webp`))
+        );
+        skins++;
+        continue;
+      }
       expect(src, `missing image for ${a.id}`).toEqual(expect.stringMatching(new RegExp(`${a.id}\\.webp`)));
       checked++;
     }
     expect(sticks).toBe(STICK_COUNT);
-    expect(checked).toBe(AVATARS.length - STICK_COUNT);
+    expect(skins).toBeGreaterThan(0);
+    expect(checked).toBe(AVATARS.length - STICK_COUNT - skins);
     expect(checked).toBe(AVATAR_COUNT);
   });
 

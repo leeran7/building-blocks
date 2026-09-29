@@ -13,6 +13,7 @@ import {
 import { apiFetch } from "../api";
 import { starsForTime } from "./model";
 import type {
+  BuyLivesResult,
   ChestProgress,
   LevelBoardEntry,
   LevelBoardView,
@@ -21,6 +22,7 @@ import type {
   LevelResult,
   LevelRunReport,
   LevelsClient,
+  LivesRefillPrice,
   OpenedChest,
   PlayerStats,
   SeasonView,
@@ -187,6 +189,17 @@ export interface LevelProfile {
   stuck: StuckHelp | null;
   boosters: BoosterInventory;
   chests: ChestProgress | null;
+  refill: LivesRefillPrice | null;
+}
+
+/**
+ * The profile's gems and refill price: null when either is absent (an older
+ * server), undefined when malformed.
+ */
+function parseRefillPrice(gems: unknown, cost: unknown): LivesRefillPrice | null | undefined {
+  if (gems === undefined && cost === undefined) return null;
+  if (!isCount(gems) || !isPositive(cost)) return undefined;
+  return { gems, cost };
 }
 
 /** The profile's stuck-help block: null when absent, undefined when malformed. */
@@ -207,9 +220,11 @@ export function parseLevelProfile(v: unknown): LevelProfile | null {
   const stuck = parseStuck(v.stuck);
   const boosters = parseBoosterInventory(v.boosters);
   const chests = parseChestProgress(v.chests);
+  const refill = parseRefillPrice(v.gems, v.livesRefillGems);
   if (
     boosters === undefined ||
     chests === undefined ||
+    refill === undefined ||
     streak === undefined ||
     nextStartPowerUp === undefined ||
     stuck === undefined ||
@@ -250,7 +265,24 @@ export function parseLevelProfile(v: unknown): LevelProfile | null {
     stuck,
     boosters: boosters ?? {},
     chests,
+    refill,
   };
+}
+
+/** POST /api/levels/lives 200 body, or null when it breaks the contract. */
+export function parseLivesRefill(v: unknown): { lives: number; maxLives: number; nextLifeAt: number | null; gems: number } | null {
+  if (!isObject(v)) return null;
+  const nextLifeAt = parseWhen(v.nextLifeAt);
+  if (
+    !isCount(v.lives) ||
+    !isPositive(v.maxLives) ||
+    v.lives > v.maxLives ||
+    nextLifeAt === undefined ||
+    !isCount(v.gems)
+  ) {
+    return null;
+  }
+  return { lives: v.lives, maxLives: v.maxLives, nextLifeAt, gems: v.gems };
 }
 
 export interface IssuedTicket {
@@ -465,7 +497,30 @@ export function createHttpLevelsClient(opts: HttpClientOptions): LevelsClient {
         stuck: profile.stuck ?? { level: profile.frontier, fails: 0, routeGhostAvailable: false },
         boosters: profile.boosters,
         chests: profile.chests,
+        refill: profile.refill,
       };
+    },
+
+    async buyLives(): Promise<BuyLivesResult> {
+      let res: Response;
+      try {
+        res = await post("/api/levels/lives", {});
+      } catch {
+        return { ok: false, code: "NETWORK" };
+      }
+      const body = await readJson(res);
+      if (!res.ok) {
+        const code = errorCode(body);
+        if (res.status === 409 && code === "LIVES_FULL") return { ok: false, code };
+        if (res.status === 409 && code === "NOT_ENOUGH_GEMS") {
+          const gems = isObject(body) && isCount(body.gems) ? body.gems : undefined;
+          return { ok: false, code, ...(gems !== undefined ? { gems } : {}) };
+        }
+        return { ok: false, code: "NETWORK" };
+      }
+      const refill = parseLivesRefill(body);
+      if (!refill) return { ok: false, code: "NETWORK" };
+      return { ok: true, player: statsFor(lastXp, refill.lives, refill.nextLifeAt, refill.maxLives), gems: refill.gems };
     },
 
     async startLevel(level: number, opts: StartOptions = {}): Promise<StartResult> {
