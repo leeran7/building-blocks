@@ -28,8 +28,9 @@ import { LAVA_CLEARANCE } from "../components/AnimatedBackdrop";
 const COLUMNS = 3;
 const TILE_HEX = 56;
 const NEXT_HEX = 24;
-/** The preview's figure height: smaller than the default so it clears the pose switch. */
-const PREVIEW_FIGURE_PX = 84;
+/** The preview stage's figure height and canvas size: it fills a 112px-wide square. */
+const PREVIEW_FIGURE_PX = 96;
+const PREVIEW_CANVAS_PX = 124;
 const LOAD_FAILED_MESSAGE = "Couldn't load your profile. Check your connection and try again.";
 const SCROLL_FADE = "linear-gradient(to bottom, #000 calc(100% - 18px), transparent)";
 /**
@@ -424,22 +425,58 @@ export function AvatarPickerScreen() {
 
       {settingsData && !loadFailed && (
         <div data-avatar-pinned className="flex shrink-0 flex-col gap-2.5 px-4 pb-2">
+          {/* The stage sits beside the details, not above them: a small square
+              the figure fills, so it never floats under the pose switch. */}
           <section
             aria-label="Selected character"
-            className="glass overflow-hidden rounded-3xl border border-white/10"
+            className="glass flex gap-3 overflow-hidden rounded-3xl border border-white/10 p-2.5"
           >
             <div
-              className="relative flex h-[120px] items-end justify-center bg-cover bg-bottom"
-              style={{ backgroundImage: `linear-gradient(180deg, rgba(10,10,12,0.55), rgba(10,10,12,0.1) 45%, rgba(10,10,12,0.4)), url(${volcanoScene})` }}
+              className="relative flex min-h-[132px] w-[112px] shrink-0 items-end justify-center overflow-hidden rounded-2xl border border-white/10 bg-cover bg-bottom"
+              style={{ backgroundImage: `linear-gradient(180deg, rgba(10,10,12,0.45), rgba(10,10,12,0.05) 50%, rgba(10,10,12,0.35)), url(${volcanoScene})` }}
             >
-              <div role="group" aria-label="Preview pose" className="absolute left-2.5 top-2.5 flex gap-1 rounded-full bg-void/70 p-[3px]">
+              <CharacterPreview
+                avatarId={viewing}
+                pose={pose}
+                locked={viewedLock !== null}
+                figurePx={PREVIEW_FIGURE_PX}
+                sizePx={PREVIEW_CANVAS_PX}
+              />
+              {viewedLock && (
+                <span className="absolute left-1.5 top-1.5 flex items-center gap-1 rounded-full border border-white/15 bg-void/80 px-1.5 py-1 font-mono text-[10px] font-bold uppercase leading-none tracking-label text-text-primary">
+                  <LockIcon />
+                  {viewedLock.kind === "premium" ? "Coming soon" : viewedLock.kind === "purchase" ? "In Shop" : "Locked"}
+                </span>
+              )}
+            </div>
+            <div className="flex min-w-0 flex-1 flex-col gap-1.5 py-1 pr-1">
+              <p
+                aria-live="polite"
+                className="truncate font-display text-xl font-black uppercase leading-none tracking-tight text-text-primary"
+              >
+                {viewed.name}
+              </p>
+              <span
+                className={`truncate font-mono text-label font-bold uppercase tracking-label ${
+                  viewedLock ? "text-text-secondary" : "text-signal"
+                }`}
+              >
+                {tag}
+              </span>
+              <p data-avatar-lock-notice className="text-meta leading-5 text-text-secondary">
+                {blurb}
+              </p>
+              {viewedLock && viewedLock.requiredStars !== null && (
+                <ProgressBar value={viewedLock.stars} max={viewedLock.requiredStars} />
+              )}
+              <div role="group" aria-label="Preview pose" className="mt-auto flex rounded-full bg-void/70 p-[3px]">
                 {POSES.map((p) => (
                   <button
                     key={p.id}
                     type="button"
                     aria-pressed={pose === p.id}
                     onClick={() => setPose(p.id)}
-                    className={`rounded-full px-2.5 py-1.5 font-mono text-label font-bold uppercase tracking-label ${
+                    className={`flex-1 rounded-full py-1.5 font-mono text-label font-bold uppercase tracking-label ${
                       pose === p.id ? "bg-signal text-void" : "text-text-secondary"
                     }`}
                   >
@@ -447,36 +484,6 @@ export function AvatarPickerScreen() {
                   </button>
                 ))}
               </div>
-              {viewedLock && (
-                <span className="absolute right-2.5 top-2.5 flex items-center gap-1 rounded-full border border-white/15 bg-void/80 px-2 py-1.5 font-mono text-label font-bold uppercase tracking-label text-text-primary">
-                  <LockIcon />
-                  {viewedLock.kind === "premium" ? "Coming soon" : viewedLock.kind === "purchase" ? "In Shop" : "Locked"}
-                </span>
-              )}
-              <CharacterPreview avatarId={viewing} pose={pose} locked={viewedLock !== null} figurePx={PREVIEW_FIGURE_PX} />
-            </div>
-            <div className="flex flex-col gap-1 px-4 py-2.5">
-              <div className="flex items-baseline justify-between gap-2">
-                <p
-                  aria-live="polite"
-                  className="font-display text-xl font-black uppercase leading-none tracking-tight text-text-primary"
-                >
-                  {viewed.name}
-                </p>
-                <span
-                  className={`whitespace-nowrap font-mono text-label font-bold uppercase tracking-label ${
-                    viewedLock ? "text-text-secondary" : "text-signal"
-                  }`}
-                >
-                  {tag}
-                </span>
-              </div>
-              <p data-avatar-lock-notice className="text-meta leading-5 text-text-secondary">
-                {blurb}
-              </p>
-              {viewedLock && viewedLock.requiredStars !== null && (
-                <ProgressBar value={viewedLock.stars} max={viewedLock.requiredStars} />
-              )}
             </div>
           </section>
 
