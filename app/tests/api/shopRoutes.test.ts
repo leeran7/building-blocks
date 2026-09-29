@@ -32,12 +32,13 @@ vi.mock("../../src/db/gems", async (importOriginal) => {
 
 import { verifyWebhookSignature } from "../../src/api/stripe";
 import { recordDeadLetter } from "../../src/db/deadLetter";
-import { checkAppleGemTransaction } from "../../src/api/appleIap";
-import { buyCharacter, creditGemPack, GemError } from "../../src/db/gems";
+import { appleAccountTokenFor, checkAppleGemTransaction } from "../../src/api/appleIap";
+import { buyCharacter, creditGemPack, GemError, shopState } from "../../src/db/gems";
 import { gemPackById } from "../../src/lib/gemPacks";
 import { POST as webhook } from "../../app/api/webhook/stripe/route";
 import { POST as appleRoute } from "../../app/api/gems/apple/route";
 import { POST as buyRoute } from "../../app/api/shop/buy/route";
+import { GET as shopRoute } from "../../app/api/shop/route";
 
 const PACK = gemPackById("gems-1200")!;
 
@@ -179,5 +180,22 @@ describe("POST /api/shop/buy", () => {
     const body = await res.json();
     expect(body.code).toBe(code);
     if (code === "INSUFFICIENT_GEMS") expect(body.gems).toBe(5);
+  });
+});
+
+describe("GET /api/shop", () => {
+  const get = () => shopRoute(new NextRequest("http://localhost/api/shop", { headers: { authorization: "Bearer t" } }));
+
+  beforeEach(() => {
+    vi.mocked(shopState).mockResolvedValue({ gems: 40, ownedIds: [] });
+    vi.mocked(appleAccountTokenFor).mockReturnValue("token");
+    delete process.env.IOS_WEB_CHECKOUT;
+  });
+
+  it("offers web checkout on iOS unless IOS_WEB_CHECKOUT is off", async () => {
+    expect(await (await get()).json()).toEqual({ gems: 40, ownedIds: [], appleAccountToken: "token", webCheckout: true });
+    process.env.IOS_WEB_CHECKOUT = "off";
+    expect((await (await get()).json()).webCheckout).toBe(false);
+    delete process.env.IOS_WEB_CHECKOUT;
   });
 });
