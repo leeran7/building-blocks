@@ -102,7 +102,7 @@ export function LevelStartSheet({
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className="ls-sheet relative w-full max-w-md rounded-t-[28px] border-t border-border-strong bg-surface/95 px-5 pb-[calc(env(safe-area-inset-bottom)+1rem)] pt-2 backdrop-blur-xl max-h-[100dvh] overflow-y-auto overscroll-contain"
+        className="ls-sheet relative w-full max-w-md rounded-t-[28px] border-t border-border-strong bg-surface/95 px-5 pb-[calc(env(safe-area-inset-bottom)+1rem)] pt-2 backdrop-blur-xl max-h-[calc(100%-env(safe-area-inset-top)-0.75rem)] overflow-y-auto overscroll-contain"
       >
         <span aria-hidden className="mx-auto mb-2 block h-1 w-9 rounded-full bg-border-strong" />
         <div className="flex items-center gap-3">

@@ -23,7 +23,7 @@ function obstacleTip(season: SeasonSpec, level: number): string | null {
     return "Hanging ladders start above your head. Jump to grab them. Giant can climb straight on.";
   }
   if (level === season.obstacleIntros.shortTops) {
-    return "Short tops stop below the floor. Jump off the top to get up.";
+    return "Short tops: some tall ladders stop below the floor. Look for the gap and arrow at the top, then jump off to get up.";
   }
   return null;
 }

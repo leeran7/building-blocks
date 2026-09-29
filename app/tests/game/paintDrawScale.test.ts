@@ -12,13 +12,21 @@ import {
   CLIMBER_DRAW_SCALE,
   GAME_DRAW_SCALE,
   HANGING_LADDER_DRAW_LIFT_M,
+  heldShortTop,
   hudFitFontPx,
   paintClimbFrame,
   type PaintCtx,
 } from "../../src/components/Game/paintClimbFrame";
 import { createMatch } from "../../src/game/simulation";
 import { grantPowerUp } from "../../src/game/powerups";
-import { buildTower, ladderHangs, laddersForFloor, platformsNearY } from "../../src/game/towers";
+import {
+  buildTower,
+  floorHeight,
+  ladderHangs,
+  ladderHasShortTop,
+  laddersForFloor,
+  platformsNearY,
+} from "../../src/game/towers";
 
 const WIDTH = 360;
 const HEIGHT = 640;
@@ -237,5 +245,135 @@ describe("paintClimbFrame: hanging ladders hang above the climber's head", () =>
     }
     expect(hung).toBeGreaterThan(0);
     expect(plain).toBeGreaterThan(0);
+  });
+});
+
+describe("paintClimbFrame: short tops show their stop over the slab", () => {
+  /** Every path start drawn in the ladder colour, in canvas px. */
+  function ladderMoves(tower: ReturnType<typeof buildTower>): { x: number; y: number }[] {
+    const moves: { x: number; y: number }[] = [];
+    const state: Record<string | symbol, unknown> = {};
+    const ctx = new Proxy(state, {
+      get(target, prop) {
+        if (prop in target) return target[prop];
+        if (prop === "moveTo") {
+          return (x: number, y: number) => {
+            if (target.strokeStyle === LADDER) moves.push({ x, y });
+          };
+        }
+        if (prop === "measureText") return () => ({ width: 10 });
+        if (typeof prop === "string" && prop.startsWith("create")) return () => ({ addColorStop() {} });
+        return () => {};
+      },
+      set(target, prop, value) {
+        target[prop] = value;
+        return true;
+      },
+    }) as unknown as PaintCtx;
+    const m = createMatch({ seed: "top-paint", mode: "solo", tower, playerIds: ["p1"] });
+    paintClimbFrame(ctx, m, { width: WIDTH, height: HEIGHT, includeHud: false });
+    return moves;
+  }
+
+  it("draws a short top's rails through the slab to a capped top rung, and a full ladder's uncapped", () => {
+    const tower = { ...buildTower("indie-games"), difficulty: 0.4, ladderTopGapM: 0.8 };
+    const { pxPerM } = climbView(WIDTH, HEIGHT, tower.widthM);
+    const sizePxPerM = pxPerM * GAME_DRAW_SCALE;
+    const ui = GAME_DRAW_SCALE;
+    const railHalf = Math.max(4, sizePxPerM * 1.4);
+    const sy = (y: number) => HEIGHT - y * pxPerM;
+    const moves = ladderMoves(tower);
+    const movesTo = (x: number, y: number) =>
+      moves.filter((m) => Math.abs(m.x - x) < 1e-6 && Math.abs(m.y - y) < 1e-6).length;
+    const movedTo = (x: number, y: number) => movesTo(x, y) > 0;
+    let short = 0;
+    let full = 0;
+    for (let i = 0; i <= 3; i++) {
+      laddersForFloor(tower, i).forEach((l, slot) => {
+        const cx = l.x * pxPerM;
+        if (ladderHasShortTop(tower, i, slot)) {
+          const yTop = sy(l.y1);
+          // Just under the floor's surface, inside the slab.
+          expect(yTop).toBeGreaterThan(sy(floorHeight(tower, i + 1)));
+          // The rail and top rung behind the slab, then the rail again over it.
+          expect(movesTo(cx - railHalf, yTop)).toBe(3);
+          // The cap is wider than the rails.
+          expect(movedTo(cx - railHalf - 2 * ui, yTop)).toBe(true);
+          short++;
+        } else {
+          // The rail and the top rung only.
+          expect(movesTo(cx - railHalf, sy(l.y1))).toBe(2);
+          expect(movedTo(cx - railHalf, sy(l.y1))).toBe(true);
+          expect(movedTo(cx - railHalf - 2 * ui, sy(l.y1))).toBe(false);
+          full++;
+        }
+      });
+    }
+    expect(short).toBeGreaterThan(0);
+    expect(full).toBeGreaterThan(0);
+  });
+});
+
+describe("paintClimbFrame: holding at a short top prompts the jump", () => {
+  const ACCENT = "#cbf24d";
+  const tower = { ...buildTower("indie-games"), difficulty: 0.4, ladderTopGapM: 0.8 };
+  /** A match with the climber on floor `i`'s ladder `slot` at height y. */
+  function onLadder(i: number, slot: number, y: number) {
+    const m = createMatch({ seed: "top-cue", mode: "solo", tower, playerIds: ["p1"] });
+    const p = m.players[0]!;
+    p.onLadder = true;
+    p.onGround = false;
+    p.ladderIx = i;
+    p.ladderSlot = slot;
+    p.x = laddersForFloor(tower, i)[slot]!.x;
+    p.y = y;
+    return m;
+  }
+  function find(want: boolean): { i: number; slot: number } {
+    for (let i = 0; i < 40; i++) {
+      const slot = laddersForFloor(tower, i).findIndex((_, s) => ladderHasShortTop(tower, i, s) === want);
+      if (slot >= 0) return { i, slot };
+    }
+    throw new Error("no such ladder");
+  }
+  /** Path starts stroked in the accent colour. */
+  function accentMoves(m: ReturnType<typeof createMatch>): number {
+    let n = 0;
+    const state: Record<string | symbol, unknown> = {};
+    const ctx = new Proxy(state, {
+      get(target, prop) {
+        if (prop in target) return target[prop];
+        if (prop === "moveTo") return () => { if (target.strokeStyle === ACCENT) n++; };
+        if (prop === "measureText") return () => ({ width: 10 });
+        if (typeof prop === "string" && prop.startsWith("create")) return () => ({ addColorStop() {} });
+        return () => {};
+      },
+      set(target, prop, value) {
+        target[prop] = value;
+        return true;
+      },
+    }) as unknown as PaintCtx;
+    paintClimbFrame(ctx, m, { width: WIDTH, height: HEIGHT, includeHud: false, reducedMotion: true });
+    return n;
+  }
+
+  it("knows when the climber holds at a short top, and only then", () => {
+    const s = find(true);
+    const f = find(false);
+    const sl = laddersForFloor(tower, s.i)[s.slot]!;
+    const fl = laddersForFloor(tower, f.i)[f.slot]!;
+    expect(heldShortTop(onLadder(s.i, s.slot, sl.y1).players[0]!, tower)).toEqual({ ix: s.i, slot: s.slot });
+    expect(heldShortTop(onLadder(s.i, s.slot, sl.y1 - 1).players[0]!, tower)).toBeNull();
+    expect(heldShortTop(onLadder(f.i, f.slot, fl.y1).players[0]!, tower)).toBeNull();
+  });
+
+  it("strokes the jump chevrons in accent only while holding", () => {
+    const s = find(true);
+    const sl = laddersForFloor(tower, s.i)[s.slot]!;
+    // The vector climber is accent too; holding adds exactly the ladder's
+    // cue and the one over the climber's head.
+    const held = accentMoves(onLadder(s.i, s.slot, sl.y1));
+    const climbing = accentMoves(onLadder(s.i, s.slot, sl.y1 - 1));
+    expect(held - climbing).toBe(2);
   });
 });

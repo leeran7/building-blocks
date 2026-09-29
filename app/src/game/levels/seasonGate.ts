@@ -225,6 +225,9 @@ export function neverEasierProblems(season: SeasonSpec, rows: readonly ManifestL
     if (sb.layout.hangingLadderShare < sa.layout.hangingLadderShare) {
       out.push(`${tag}: fewer ladders hang`);
     }
+    if (sb.layout.shortTopShare < sa.layout.shortTopShare) {
+      out.push(`${tag}: fewer ladders stop short`);
+    }
     if (!(sb.powerUpDurationScale <= sa.powerUpDurationScale)) {
       out.push(`${tag}: power-ups last longer`);
     }

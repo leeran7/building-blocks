@@ -3,7 +3,6 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { Capacitor } from "@capacitor/core";
 import { App as CapApp } from "@capacitor/app";
 import { StatusBar, Style } from "@capacitor/status-bar";
-import { SplashScreen } from "@capacitor/splash-screen";
 import { Keyboard } from "@capacitor/keyboard";
 import { API_BASE } from "./api";
 import { parentRoute, useBackOr } from "./navigation";
@@ -15,8 +14,8 @@ const CANONICAL_HOST = new URL(API_BASE).host;
 /**
  * Native shell wiring — makes the app behave like a native binary rather than
  * a web page:
- *  - hides the native splash once the SPA has painted (config keeps it up until
- *    we say so, so there's no flash of empty WebView);
+ *  - (the native splash is hidden by useLaunchSplash in App, once the first
+ *    screen has loaded);
  *  - dark, edge-to-edge status bar to match the ASCENT void background;
  *  - Android hardware back button: on a pushed screen, navigate back through
  *    the in-app history (or to the screen's parent on a deep link, where there
@@ -59,7 +58,6 @@ export function useNativeShell() {
   // One-time native chrome setup.
   useEffect(() => {
     if (!Capacitor.isNativePlatform()) return;
-    void SplashScreen.hide();
     StatusBar.setStyle({ style: Style.Dark }).catch(() => {});
     if (Capacitor.getPlatform() === "android") {
       StatusBar.setOverlaysWebView({ overlay: true }).catch(() => {});

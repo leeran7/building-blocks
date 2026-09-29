@@ -301,11 +301,18 @@ export interface TowerSpec {
    */
   hangingLadderShare?: number;
   /**
-   * Short tops: every ladder stops this far below the floor it leads to. The
-   * climber holds at the top until they jump off. At most 70% of the rise of
-   * a jump off a ladder.
+   * Short tops: a short-top ladder stops this far below the floor it leads
+   * to. The climber holds at the top until they jump off. At most 70% of the
+   * rise of a jump off a ladder. Only tall ladders (not hanging, across a
+   * floor gap at least floorGap) can stop short.
    */
   ladderTopGapM?: number;
+  /**
+   * Share of tall ladders with a short top, in [0, 1], fixed per (seed,
+   * floor, slot). Unset means every tall ladder has one whenever
+   * ladderTopGapM is set.
+   */
+  shortTopShare?: number;
 }
 
 export type MatchPhase =

@@ -16,7 +16,7 @@ import {
 import { levelSpec } from "../../src/game/levels/levelSpec";
 import { SEASON_1 } from "../../src/game/levels/season";
 import { CONCRETE_POWER_UP_TYPES, POWER_UP_TYPES } from "../../src/game/powerups";
-import { floorHeight } from "../../src/game/towers";
+import { floorHeight, ladderHangs, ladderHasShortTop, laddersForFloor } from "../../src/game/towers";
 import type { PowerUpType } from "../../src/game/types";
 
 interface Trace {
@@ -77,7 +77,17 @@ describe("tutorialTopicsFor", () => {
   it("plays the basics before level 1 only", () => {
     expect(tutorialTopicsFor(1, null)).toEqual(["basics"]);
     expect(tutorialTopicsFor(2, null)).toEqual([]);
-    expect(tutorialTopicsFor(9, null)).toEqual([]);
+    expect(tutorialTopicsFor(10, null)).toEqual([]);
+  });
+
+  it("plays each ladder obstacle's demo on the level that introduces it", () => {
+    const { hangingLadders, shortTops } = SEASON_1.obstacleIntros;
+    expect(tutorialTopicsFor(hangingLadders, null)).toEqual(["hanging-ladders"]);
+    expect(tutorialTopicsFor(shortTops, null)).toEqual(["short-tops"]);
+    expect(tutorialTopicsFor(hangingLadders + 1, null)).toEqual([]);
+    expect(tutorialTopicsFor(shortTops + 1, null)).toEqual([]);
+    // The season's own intro levels win over the default.
+    expect(tutorialTopicsFor(5, null, { hangingLadders: 5, shortTops: 6 })).toEqual(["hanging-ladders"]);
   });
 
   it("plays each season 1 power-up demo on the level that introduces it", () => {
@@ -182,5 +192,84 @@ describe("power-up demos show the effect", () => {
     const a = play("random").demo.state.players[0].lastPickupType;
     const b = play("random").demo.state.players[0].lastPickupType;
     expect(a).toBe(b);
+  });
+});
+
+describe("hanging-ladders demo", () => {
+  const demo = createTutorialDemo("hanging-ladders");
+  const tower = demo.state.tower;
+  let grab: { tick: number; y: number; hangs: boolean; airborne: boolean } | null = null;
+  let wasAirborne = false;
+  let ticks = 0;
+  let stepAtGrab = -1;
+  while (!demo.done) {
+    const before = demo.state.players[0];
+    wasAirborne = !before.onGround && !before.onLadder;
+    demo.step();
+    ticks += 1;
+    const p = demo.state.players[0];
+    if (grab === null && p.onLadder) {
+      grab = { tick: ticks, y: p.y, hangs: ladderHangs(tower, p.ladderIx!, p.ladderSlot!), airborne: wasAirborne };
+    }
+    if (grab !== null && stepAtGrab < 0 && ticks > grab.tick) stepAtGrab = demo.stepIndex;
+  }
+  const p = demo.state.players[0];
+
+  it("jumps from the floor to catch a hanging ladder", () => {
+    expect(grab).not.toBeNull();
+    expect(grab!.hangs).toBe(true);
+    expect(grab!.airborne).toBe(true);
+    expect(grab!.y).toBeGreaterThan(floorHeight(tower, 0) + 1);
+  });
+
+  it("captions the jump, then the climb once on the ladder", () => {
+    expect(tutorialInfo("hanging-ladders").steps.map((st) => st.title)).toEqual(["Jump to grab", "Climb on"]);
+    expect(stepAtGrab).toBe(1);
+  });
+
+  it("reaches floor 1 with no orbs and no lava", () => {
+    expect(p.status).toBe("climbing");
+    expect(p.y).toBeGreaterThanOrEqual(floorHeight(tower, 1));
+    expect(demo.state.powerUps).toEqual([]);
+    expect(ticks).toBeLessThan(MAX_DEMO_TICKS);
+  });
+});
+
+describe("short-tops demo", () => {
+  const demo = createTutorialDemo("short-tops");
+  const tower = demo.state.tower;
+  let heldTicks = 0;
+  let shortTop = false;
+  let stepAtHold = -1;
+  let ticks = 0;
+  while (!demo.done) {
+    demo.step();
+    ticks += 1;
+    const p = demo.state.players[0];
+    if (p.onLadder) {
+      const l = laddersForFloor(tower, p.ladderIx!)[p.ladderSlot!]!;
+      if (p.y >= l.y1 - 1e-9) {
+        heldTicks += 1;
+        shortTop ||= ladderHasShortTop(tower, p.ladderIx!, p.ladderSlot!);
+        if (stepAtHold < 0) stepAtHold = -2;
+      }
+    } else if (stepAtHold === -2) {
+      stepAtHold = demo.stepIndex;
+    }
+  }
+  const p = demo.state.players[0];
+
+  it("climbs a short-top ladder, holds at its top, then jumps onto the floor", () => {
+    expect(shortTop).toBe(true);
+    expect(heldTicks).toBeGreaterThan(0);
+    expect(p.status).toBe("climbing");
+    expect(p.onGround).toBe(true);
+    expect(p.y).toBe(floorHeight(tower, 1));
+    expect(ticks).toBeLessThan(MAX_DEMO_TICKS);
+  });
+
+  it("captions the jump off the top once the climber reaches it", () => {
+    expect(tutorialInfo("short-tops").steps.map((st) => st.title)).toEqual(["Spot the gap", "Jump off the top"]);
+    expect(stepAtHold).toBe(1);
   });
 });

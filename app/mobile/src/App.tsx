@@ -16,6 +16,8 @@ import { RouteTransition } from "./components/RouteTransition";
 import { BottomNav, isTabRoot } from "./components/BottomNav";
 import { useNativeShell } from "./lib/useNativeShell";
 import { useAuth } from "./contexts/AuthContext";
+import { useLevels } from "./contexts/LevelsContext";
+import { launchReady, useLaunchSplash } from "./lib/launchSplash";
 import { GuestShell } from "./components/GuestShell";
 import { LogoMark } from "./components/LogoMark";
 
@@ -31,6 +33,17 @@ export function App() {
   useNativeShell();
   const { user, loading, isAnonymous } = useAuth();
   const authed = Boolean(user) && !isAnonymous;
+  const levels = useLevels();
+  // Hold the splash until the level map (home) has its season, so launch
+  // never shows a "Loading levels…" screen.
+  const launched = useLaunchSplash(
+    launchReady({
+      authLoading: loading,
+      authed,
+      seasonLoaded: levels.season !== null,
+      seasonError: levels.error,
+    }),
+  );
 
   const [guestMode, setGuestMode] = useState(() => {
     try { return sessionStorage.getItem("doomstack:guest") === "1"; } catch { return false; }
@@ -54,7 +67,7 @@ export function App() {
     <div className="relative flex h-[100dvh] w-full flex-col overflow-hidden bg-void">
       {!onClimb && !guestActive && <AnimatedBackdrop />}
       <div className="relative z-10 flex-1 overflow-hidden">
-        {loading ? (
+        {loading || !launched ? (
           <AuthSplash />
         ) : authed ? (
           <Routes>
@@ -102,7 +115,7 @@ function isLevelPlay(pathname: string): boolean {
   return /^\/levels\/\d+\/play$/.test(pathname);
 }
 
-/** Branded loader shown while the first auth state resolves. */
+/** Branded loader shown until the first screen is ready (useLaunchSplash). */
 function AuthSplash() {
   return (
     <div

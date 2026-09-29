@@ -30,7 +30,7 @@ import {
  * Bump when a formula here changes what a level is. Stamped on every manifest
  * so a manifest built from older formulas is refused.
  */
-export const LEVEL_SPEC_VERSION = 2;
+export const LEVEL_SPEC_VERSION = 3;
 
 export interface LevelLayout {
   /** Gap width as a fraction of running-jump reach: 34% → 75%. */
@@ -41,10 +41,12 @@ export interface LevelLayout {
   oneLadderFrac: number;
   /** Jump-to-grab gap under hanging ladders, ft (0 before the intro level). */
   hangingLadderFt: number;
-  /** Share of ladders that hang: 0 before the intro, 35% there, all from L30. */
+  /** Share of ladders that hang: 0 before the intro, 35% there, 70% from L30. */
   hangingLadderShare: number;
   /** Ladder top short of the floor, ft (0 before the intro level). */
   shortTopFt: number;
+  /** Share of tall ladders with a short top: 0 before the intro, 50% there, all from L40. */
+  shortTopShare: number;
 }
 
 export interface LevelSpec {
@@ -133,20 +135,42 @@ export function tightnessFor(lavaDial: number): number {
   return 0.55 + 0.4 * lavaDial;
 }
 
-/** Rises linearly in dL from `from` at the intro level to `to` at dL = 1. */
-/** Every ladder hangs from this level on (Leeran 2026-09-28). */
-export const ALL_LADDERS_HANG_LEVEL = 30;
+/** Hanging ladders reach their full share on this level. */
+export const HANGING_SHARE_PEAK_LEVEL = 30;
 /** Share of ladders that hang on the level hanging ladders are introduced. */
 const FIRST_HANGING_SHARE = 0.35;
+/**
+ * Hanging ladders never cover every ladder (Leeran 2026-09-28: was 100% from
+ * L30), so floor-standing ladders, the only ones that can stop short, remain.
+ */
+export const MAX_HANGING_SHARE = 0.7;
 
-/** Hanging-ladder share: 0 before the intro, rising to 1 at ALL_LADDERS_HANG_LEVEL. */
+/** Hanging-ladder share: 0 before the intro, rising to MAX_HANGING_SHARE. */
 function hangingShare(level: number, introLevel: number): number {
   if (level < introLevel) return 0;
-  if (level >= ALL_LADDERS_HANG_LEVEL) return 1;
-  const t = (level - introLevel) / (ALL_LADDERS_HANG_LEVEL - introLevel);
-  return FIRST_HANGING_SHARE + (1 - FIRST_HANGING_SHARE) * t;
+  if (level >= HANGING_SHARE_PEAK_LEVEL) return MAX_HANGING_SHARE;
+  const t = (level - introLevel) / (HANGING_SHARE_PEAK_LEVEL - introLevel);
+  return FIRST_HANGING_SHARE + (MAX_HANGING_SHARE - FIRST_HANGING_SHARE) * t;
 }
 
+/**
+ * Short tops only go on tall ladders (towers.ladderHasShortTop: floor-standing,
+ * across a longer floor gap), so they never cover every ladder (Leeran
+ * 2026-09-28: stopping at every ladder read as the climber getting stuck).
+ * Half of those on the intro level, all of them from SHORT_TOP_SHARE_PEAK_LEVEL.
+ */
+const FIRST_SHORT_TOP_SHARE = 0.5;
+const SHORT_TOP_SHARE_PEAK_LEVEL = 40;
+
+/** Share of tall ladders with a short top: 0 before the intro, rising to 1. */
+function shortTopShare(level: number, introLevel: number): number {
+  if (level < introLevel) return 0;
+  if (level >= SHORT_TOP_SHARE_PEAK_LEVEL) return 1;
+  const t = (level - introLevel) / (SHORT_TOP_SHARE_PEAK_LEVEL - introLevel);
+  return FIRST_SHORT_TOP_SHARE + (1 - FIRST_SHORT_TOP_SHARE) * t;
+}
+
+/** Rises linearly in dL from `from` at the intro level to `to` at dL = 1. */
 function introKnob(
   season: SeasonSpec,
   level: number,
@@ -184,6 +208,7 @@ export function levelSpec(season: SeasonSpec, level: number, rev = 0): LevelSpec
       hangingLadderFt: introKnob(season, level, season.obstacleIntros.hangingLadders, HANGING_LADDER_FT),
       hangingLadderShare: hangingShare(level, season.obstacleIntros.hangingLadders),
       shortTopFt: introKnob(season, level, season.obstacleIntros.shortTops, SHORT_TOP_FT),
+      shortTopShare: shortTopShare(level, season.obstacleIntros.shortTops),
     },
     powerUpChance:
       level <= NO_POWER_UP_LEVELS
@@ -214,6 +239,7 @@ export function levelTower(spec: LevelSpec): TowerSpec {
     ladderHangM: spec.layout.hangingLadderFt,
     hangingLadderShare: spec.layout.hangingLadderShare,
     ladderTopGapM: spec.layout.shortTopFt,
+    shortTopShare: spec.layout.shortTopShare,
     powerUpDurationScale: spec.powerUpDurationScale,
   };
   if (spec.introPowerUp !== null) tower.introPowerUp = spec.introPowerUp;
