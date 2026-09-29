@@ -4,6 +4,7 @@ import { ALTITUDE_UNIT, formatWholeFeet } from "@app/lib/units";
 import { Button } from "../ui";
 import { tapLight } from "../../lib/haptics";
 import { useSwipeDismiss } from "../../lib/useSwipeDismiss";
+import { SheetHandle } from "../../lib/SheetHandle";
 import {
   episodeOf,
   formatClock,
@@ -70,7 +71,7 @@ export function LevelStartSheet({
     closed.current = true;
     onCloseRef.current();
   };
-  const swipe = useSwipeDismiss<HTMLDivElement, HTMLButtonElement>({ onDismiss: close });
+  const swipe = useSwipeDismiss<HTMLDivElement, HTMLButtonElement>({ onDismiss: close, disabled: busy });
 
   useEffect(() => {
     // Hand focus back to the pin or button that opened the card.
@@ -126,8 +127,7 @@ export function LevelStartSheet({
         className="ls-sheet relative w-full max-w-md rounded-t-[28px] border-t border-border-strong bg-surface/95 px-5 pb-[calc(env(safe-area-inset-bottom)+1rem)] pt-2 backdrop-blur-xl max-h-[calc(100%-env(safe-area-inset-top)-0.75rem)] overflow-y-auto overscroll-contain"
       >
         {/* Handle and header: drag down to close (touch-none: never a scroll). */}
-        <div data-swipe-handle="" className="-mx-5 -mt-2 touch-none px-5 pt-2">
-          <span aria-hidden className="mx-auto mb-2 block h-1 w-9 rounded-full bg-border-strong" />
+        <SheetHandle className="-mx-5 -mt-2 px-5 pt-2">
           <div className="flex items-center gap-3">
             <div className="min-w-0 flex-1">
               <p className={`font-mono text-label font-bold uppercase tracking-eyebrow ${hard ? "text-ember" : "text-signal"}`}>
@@ -152,7 +152,7 @@ export function LevelStartSheet({
               </svg>
             </button>
           </div>
-        </div>
+        </SheetHandle>
 
         <div className="mt-3 rounded-2xl border border-white/10 bg-elevated/70 px-3.5 py-2.5">
           <div className="flex items-baseline justify-between gap-3">

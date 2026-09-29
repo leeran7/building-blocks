@@ -81,10 +81,12 @@ interface Track {
   startX: number;
   startY: number;
   lastY: number;
+  /** The sheet's height, measured once when the drag commits. */
+  height: number;
   samples: { y: number; t: number }[];
 }
 
-const IDLE: Track = { phase: "idle", pointerId: -1, fromHandle: false, startX: 0, startY: 0, lastY: 0, samples: [] };
+const IDLE: Track = { phase: "idle", pointerId: -1, fromHandle: false, startX: 0, startY: 0, lastY: 0, height: 0, samples: [] };
 
 /** True when an element between the target and the sheet (inclusive) is scrolled down. */
 function scrolledAbove(target: Element, sheet: HTMLElement): boolean {
@@ -97,8 +99,9 @@ function scrolledAbove(target: Element, sheet: HTMLElement): boolean {
 
 function releaseVelocity(samples: { y: number; t: number }[]): number {
   const last = samples[samples.length - 1];
+  if (!last) return 0;
   const first = samples.find((s) => last.t - s.t <= VELOCITY_WINDOW_MS);
-  if (!last || !first) return 0;
+  if (!first) return 0;
   const dt = last.t - first.t;
   return dt < MIN_VELOCITY_DT_MS ? 0 : (last.y - first.y) / dt;
 }
@@ -137,10 +140,9 @@ export function useSwipeDismiss<S extends HTMLElement = HTMLDivElement, B extend
   const disabledRef = useRef(disabled);
   disabledRef.current = disabled;
 
-  const paint = (offset: number, transition: string) => {
+  const paint = (offset: number, transition: string, height: number) => {
     const sheet = sheetRef.current;
     if (!sheet) return;
-    const height = sheet.getBoundingClientRect().height;
     sheet.style.transition = transition;
     sheet.style.transform = `translateY(${offset}px)`;
     const scrim = scrimRef.current;
@@ -148,6 +150,15 @@ export function useSwipeDismiss<S extends HTMLElement = HTMLDivElement, B extend
       scrim.style.transition = transition.replace("transform", "opacity");
       const progress = height > 0 ? Math.min(1, Math.max(0, offset / height)) : 0;
       scrim.style.opacity = String(1 - progress);
+    }
+  };
+
+  /** Once a dismiss commits, nothing in the sheet or scrim can be pressed (no Save or Play after a swipe). */
+  const setInteractive = (on: boolean) => {
+    for (const el of [sheetRef.current, scrimRef.current]) {
+      if (!el) continue;
+      el.style.pointerEvents = on ? "" : "none";
+      el.inert = !on;
     }
   };
 
@@ -163,6 +174,7 @@ export function useSwipeDismiss<S extends HTMLElement = HTMLDivElement, B extend
       scrim.style.transition = "";
       scrim.style.opacity = "";
     }
+    setInteractive(true);
   };
 
   /** Run `done` once the sheet's transform transition ends (or its time is up). */
@@ -187,10 +199,25 @@ export function useSwipeDismiss<S extends HTMLElement = HTMLDivElement, B extend
     cancelSettle.current = stop;
   };
 
+  const springBack = () => {
+    if (prefersReducedMotion()) {
+      reset();
+      track.current = IDLE;
+      return;
+    }
+    track.current = { ...IDLE, phase: "settling" };
+    paint(0, `transform ${SWIPE_BACK_MS}ms cubic-bezier(0.16,1,0.3,1)`, 0);
+    afterTransition(SWIPE_BACK_MS, () => {
+      reset();
+      if (track.current.phase === "settling") track.current = IDLE;
+    });
+  };
+
   const dismiss = () => {
     if (dismissed.current) return;
     dismissed.current = true;
     track.current = { ...IDLE, phase: "settling" };
+    setInteractive(false);
     if (prefersReducedMotion()) {
       onDismissRef.current();
       return;
@@ -206,30 +233,29 @@ export function useSwipeDismiss<S extends HTMLElement = HTMLDivElement, B extend
       scrim.style.transition = easing.replace("transform", "opacity");
       scrim.style.opacity = "0";
     }
-    afterTransition(SWIPE_OUT_MS, () => onDismissRef.current());
-  };
-
-  const springBack = () => {
-    if (prefersReducedMotion()) {
-      reset();
-      track.current = IDLE;
-      return;
-    }
-    track.current = { ...IDLE, phase: "settling" };
-    paint(0, `transform ${SWIPE_BACK_MS}ms cubic-bezier(0.16,1,0.3,1)`);
-    afterTransition(SWIPE_BACK_MS, () => {
-      reset();
-      if (track.current.phase === "settling") track.current = IDLE;
+    afterTransition(SWIPE_OUT_MS, () => {
+      if (disabledRef.current) {
+        // Something started meanwhile (a save in flight): keep the sheet.
+        dismissed.current = false;
+        springBack();
+        return;
+      }
+      onDismissRef.current();
     });
   };
 
-  /** Whether a move of (dx, dy) from the press turns it into a sheet drag. */
-  const wantsDrag = (dx: number, dy: number): boolean => {
+  /**
+   * What a pending press becomes after moving (dx, dy): still undecided inside
+   * the slop, a sheet drag, or not ours (a scroll, a sideways swipe). Pointer
+   * and touch handlers share this, so neither commits earlier than the other.
+   */
+  const decide = (dx: number, dy: number): "wait" | "drag" | "release" => {
     const t = track.current;
-    const sheet = sheetRef.current;
-    if (t.phase !== "pending" || !sheet || Math.abs(dy) <= Math.abs(dx)) return false;
+    if (t.phase !== "pending" || !sheetRef.current) return "release";
+    if (Math.max(Math.abs(dx), Math.abs(dy)) < SWIPE_SLOP_PX) return "wait";
+    if (Math.abs(dy) <= Math.abs(dx)) return "release";
     // The body only drags down; pointerdown already refused a scrolled card.
-    return t.fromHandle || dy > 0;
+    return t.fromHandle || dy > 0 ? "drag" : "release";
   };
 
   const onPointerDown = (e: ReactPointerEvent<S>) => {
@@ -249,6 +275,7 @@ export function useSwipeDismiss<S extends HTMLElement = HTMLDivElement, B extend
       startX: e.clientX,
       startY: e.clientY,
       lastY: e.clientY,
+      height: 0,
       samples: [{ y: e.clientY, t: performance.now() }],
     };
   };
@@ -259,14 +286,13 @@ export function useSwipeDismiss<S extends HTMLElement = HTMLDivElement, B extend
     const dx = e.clientX - t.startX;
     const dy = e.clientY - t.startY;
     if (t.phase === "pending") {
-      if (Math.max(Math.abs(dx), Math.abs(dy)) < SWIPE_SLOP_PX) return;
-      if (!wantsDrag(dx, dy)) {
-        // A scroll, or a sideways swipe: not ours.
+      const next = decide(dx, dy);
+      if (next === "wait") return;
+      const sheet = sheetRef.current;
+      if (next === "release" || !sheet) {
         track.current = IDLE;
         return;
       }
-      const sheet = sheetRef.current;
-      if (!sheet) return;
       try {
         sheet.setPointerCapture(e.pointerId);
       } catch {
@@ -276,13 +302,14 @@ export function useSwipeDismiss<S extends HTMLElement = HTMLDivElement, B extend
       sheet.style.animation = "none";
       sheet.style.willChange = "transform";
       if (scrimRef.current) scrimRef.current.style.animation = "none";
+      t.height = sheet.getBoundingClientRect().height;
       t.phase = "dragging";
     }
     const now = performance.now();
     t.lastY = e.clientY;
     t.samples.push({ y: e.clientY, t: now });
     while (t.samples.length > 2 && now - t.samples[0].t > VELOCITY_WINDOW_MS) t.samples.shift();
-    paint(dragOffset(dy), "none");
+    paint(dragOffset(dy), "none", t.height);
   };
 
   const onPointerUp = (e: ReactPointerEvent<S>) => {
@@ -293,11 +320,10 @@ export function useSwipeDismiss<S extends HTMLElement = HTMLDivElement, B extend
       return;
     }
     if (t.phase !== "dragging") return;
-    const sheet = sheetRef.current;
-    const height = sheet ? sheet.getBoundingClientRect().height : 0;
     const dy = e.clientY - t.startY;
     t.samples.push({ y: e.clientY, t: performance.now() });
-    if (shouldDismiss({ dy, velocity: releaseVelocity(t.samples), height })) dismiss();
+    const release = { dy, velocity: releaseVelocity(t.samples), height: t.height };
+    if (!disabledRef.current && shouldDismiss(release)) dismiss();
     else springBack();
   };
 
@@ -316,7 +342,10 @@ export function useSwipeDismiss<S extends HTMLElement = HTMLDivElement, B extend
   };
 
   // Browsers claim a vertical touch pan for scrolling (and cancel the
-  // pointer) unless the touchmove is cancelled. Cancel it for our drags only.
+  // pointer) unless the touchmove is cancelled. Cancel it for our drags only:
+  // never inside the slop, never for a press that is not ours.
+  // Bound once at mount: the sheet element must render on mount and stay the
+  // same node for the hook's life (every caller renders it unconditionally).
   useEffect(() => {
     const sheet = sheetRef.current;
     if (!sheet) return;
@@ -328,7 +357,9 @@ export function useSwipeDismiss<S extends HTMLElement = HTMLDivElement, B extend
       }
       const touch = e.touches.length === 1 ? e.touches[0] : null;
       if (!touch || t.phase !== "pending") return;
-      if (wantsDrag(touch.clientX - t.startX, touch.clientY - t.startY) && e.cancelable) e.preventDefault();
+      const next = decide(touch.clientX - t.startX, touch.clientY - t.startY);
+      if (next === "drag" && e.cancelable) e.preventDefault();
+      else if (next === "release") track.current = IDLE;
     };
     sheet.addEventListener("touchmove", onTouchMove, { passive: false });
     return () => {

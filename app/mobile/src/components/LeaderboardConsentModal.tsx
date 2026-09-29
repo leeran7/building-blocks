@@ -1,6 +1,7 @@
 import { openExternal } from "../lib/external";
 import { tapLight } from "../lib/haptics";
 import { useSwipeDismiss } from "../lib/useSwipeDismiss";
+import { SheetHandle } from "../lib/SheetHandle";
 
 /**
  * Asks before a score goes on the public board. A swipe down on the card is
@@ -27,9 +28,7 @@ export function LeaderboardConsentModal({
         {...swipe.sheetHandlers}
         className="lcm-card relative w-full rounded-t-3xl border-t border-border-strong bg-surface/95 px-6 pb-[calc(env(safe-area-inset-bottom)+1.75rem)] pt-3 backdrop-blur-xl"
       >
-        <div data-swipe-handle="" className="-mx-6 -mt-3 touch-none px-6 pb-5 pt-3">
-          <span aria-hidden className="mx-auto block h-1 w-9 rounded-full bg-border-strong" />
-        </div>
+        <SheetHandle className="-mx-6 -mt-3 px-6 pb-5 pt-3" />
 
         <h2 className="text-center font-display text-xl font-black uppercase tracking-tight text-text-primary">
           Post to leaderboard?

@@ -8,7 +8,7 @@
  * @vitest-environment happy-dom
  */
 
-import { act, createElement } from "react";
+import { act, createElement, useState } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -131,13 +131,18 @@ afterEach(() => {
 
 const catalog = season1Catalog();
 
-function renderStartSheet(onClose: () => void) {
+type StartResult = Awaited<ReturnType<Parameters<typeof LevelStartSheet>[0]["onStart"]>>;
+
+function renderStartSheet(
+  onClose: () => void,
+  onStart: () => Promise<StartResult> = async () => ({ ok: false as const, code: "NETWORK" as const }),
+) {
   act(() =>
     root.render(
       createElement(LevelStartSheet, {
         node: { ...catalog.level(20), stars: 0, bestMs: null },
         player: { lives: 5, maxLives: 5, nextLifeAt: null, xp: 0, playerLevel: 1, xpIntoLevel: 0, xpForNext: 100 },
-        onStart: async () => ({ ok: false as const, code: "NETWORK" as const }),
+        onStart,
         onPractice: () => {},
         onPracticeLevel: () => {},
         onClose,
@@ -162,12 +167,28 @@ const scrim = () => {
   return el;
 };
 
-function pointer(target: Element, type: string, clientY: number, clientX = 100) {
+function pointer(
+  target: Element,
+  type: string,
+  clientY: number,
+  clientX = 100,
+  init: { isPrimary?: boolean; pointerType?: string; button?: number } = {},
+) {
   act(() => {
     target.dispatchEvent(
-      new PointerEvent(type, { bubbles: true, cancelable: true, pointerId: 7, isPrimary: true, pointerType: "touch", clientX, clientY }),
+      new PointerEvent(type, { bubbles: true, cancelable: true, pointerId: 7, isPrimary: true, pointerType: "touch", clientX, clientY, ...init }),
     );
   });
+}
+
+/** A one-finger touchmove at (100, clientY); returns whether the sheet cancelled it. */
+function touchMove(target: Element, clientY: number): boolean {
+  const event = new Event("touchmove", { bubbles: true, cancelable: true });
+  Object.defineProperty(event, "touches", { value: [{ clientX: 100, clientY }] });
+  act(() => {
+    target.dispatchEvent(event);
+  });
+  return event.defaultPrevented;
 }
 
 /** Press at y=100 on `from`, move down in 10px steps to 100 + `dy`, and (optionally) release. */
@@ -377,7 +398,176 @@ describe("level start sheet: swipe down to close", () => {
   });
 });
 
+describe("touch pans: only our drag cancels the browser's scroll", () => {
+  const starsIn = () => {
+    const el = sheet().querySelector('ul[aria-label="Star times"]');
+    if (!el) throw new Error("star times not found");
+    return el;
+  };
+
+  it("cancels the touchmove of a committed drag", () => {
+    renderStartSheet(() => {});
+    pointer(handle(), "pointerdown", 100);
+    pointer(handle(), "pointermove", 130);
+    expect(touchMove(handle(), 130)).toBe(true);
+  });
+
+  it("cancels a touchmove that commits the drag before its pointermove arrives", () => {
+    renderStartSheet(() => {});
+    pointer(handle(), "pointerdown", 100);
+    expect(touchMove(handle(), 130)).toBe(true);
+  });
+
+  it("leaves an upward body drag to native scrolling", () => {
+    renderStartSheet(() => {});
+    pointer(starsIn(), "pointerdown", 100);
+    expect(touchMove(starsIn(), 90)).toBe(false);
+    pointer(starsIn(), "pointermove", 80);
+    expect(touchMove(starsIn(), 70)).toBe(false);
+  });
+
+  it("leaves a 1px downward jitter then an upward scroll alone", () => {
+    renderStartSheet(() => {});
+    pointer(starsIn(), "pointerdown", 100);
+    expect(touchMove(starsIn(), 101)).toBe(false);
+    expect(touchMove(starsIn(), 80)).toBe(false);
+    pointer(starsIn(), "pointermove", 80);
+    expect(touchMove(starsIn(), 60)).toBe(false);
+    expect(sheet().style.transform).toBe("");
+  });
+});
+
+describe("guards", () => {
+  it("ignores a secondary pointer and a non-primary mouse button, but drags with the primary mouse button", () => {
+    const onClose = vi.fn();
+    renderStartSheet(onClose);
+    pointer(handle(), "pointerdown", 100, 100, { isPrimary: false });
+    pointer(handle(), "pointermove", 300, 100, { isPrimary: false });
+    expect(sheet().style.transform).toBe("");
+    pointer(handle(), "pointerup", 300, 100, { isPrimary: false });
+    pointer(handle(), "pointerdown", 100, 100, { pointerType: "mouse", button: 2 });
+    pointer(handle(), "pointermove", 300, 100, { pointerType: "mouse", button: 2 });
+    expect(sheet().style.transform).toBe("");
+    pointer(handle(), "pointerup", 300, 100, { pointerType: "mouse", button: 2 });
+    pointer(handle(), "pointerdown", 100, 100, { pointerType: "mouse", button: 0 });
+    pointer(handle(), "pointermove", 300, 100, { pointerType: "mouse", button: 0 });
+    expect(sheet().style.transform).toBe("translateY(200px)");
+    pointer(handle(), "pointerup", 300, 100, { pointerType: "mouse", button: 0 });
+    settle(SWIPE_OUT_MS);
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not swipe the start sheet away while Play is asking for a ticket", () => {
+    const onClose = vi.fn();
+    renderStartSheet(onClose, () => new Promise<StartResult>(() => {}));
+    const play = container.querySelector<HTMLButtonElement>('button[aria-label="Play level 20"]');
+    if (!play) throw new Error("play not found");
+    act(() => play.click());
+    drag(handle(), 300);
+    settle(SWIPE_OUT_MS);
+    expect(onClose).not.toHaveBeenCalled();
+    expect(sheet().style.transform).toBe("");
+  });
+
+  it("lets a sideways swipe on the handle go", () => {
+    renderStartSheet(() => {});
+    pointer(handle(), "pointerdown", 100, 100);
+    pointer(handle(), "pointermove", 110, 160);
+    pointer(handle(), "pointermove", 200, 160);
+    expect(sheet().style.transform).toBe("");
+  });
+
+  it("never closes after the sheet unmounts mid-slide", () => {
+    const onClose = vi.fn();
+    renderStartSheet(onClose);
+    drag(handle(), 300);
+    act(() => root.render(null));
+    settle(SWIPE_OUT_MS);
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it("makes the sheet and scrim unpressable as soon as a dismiss commits", () => {
+    renderStartSheet(() => {});
+    drag(handle(), 300);
+    expect(sheet().style.pointerEvents).toBe("none");
+    expect(sheet().inert).toBe(true);
+    expect(scrim().style.pointerEvents).toBe("none");
+    expect(scrim().inert).toBe(true);
+  });
+
+  it("gives interactivity back after a spring back", () => {
+    renderStartSheet(() => {});
+    drag(handle(), 40);
+    settle(SWIPE_BACK_MS);
+    expect(sheet().style.pointerEvents).toBe("");
+    expect(sheet().inert).toBe(false);
+  });
+});
+
 describe("leaderboard consent sheet: swipe down is Not now", () => {
+  /** The consent sheet with its parent's busy state: accepting starts a save. */
+  function renderLiveConsent(onAccept: () => void, onDecline: () => void) {
+    let setBusy: (b: boolean) => void = () => {};
+    function Parent() {
+      const [busy, set] = useState(false);
+      setBusy = set;
+      return createElement(LeaderboardConsentModal, {
+        onAccept: () => {
+          onAccept();
+          set(true);
+        },
+        onDecline,
+        busy,
+      });
+    }
+    act(() => root.render(createElement(Parent)));
+    const card = container.querySelector<HTMLElement>(".lcm-card");
+    if (!card) throw new Error("consent card not found");
+    return { card, setBusy: (b: boolean) => act(() => setBusy(b)) };
+  }
+
+  it("does not decline when a save starts during the slide out", () => {
+    const calls: string[] = [];
+    const { card, setBusy } = renderLiveConsent(() => calls.push("accept"), () => calls.push("decline"));
+    const title = card.querySelector("h2");
+    if (!title) throw new Error("title not found");
+    drag(title, 200);
+    // The save button is locked out in a browser (inert); a save that still
+    // starts (busy) must keep the sheet and never decline.
+    setBusy(true);
+    settle(SWIPE_OUT_MS);
+    expect(calls).toEqual([]);
+    settle(SWIPE_BACK_MS);
+    expect(card.style.transform).toBe("");
+    expect(card.inert).toBe(false);
+  });
+
+  it("never declines after Save is clicked mid-slide", () => {
+    const calls: string[] = [];
+    const { card } = renderLiveConsent(() => calls.push("accept"), () => calls.push("decline"));
+    const title = card.querySelector("h2");
+    if (!title) throw new Error("title not found");
+    drag(title, 200);
+    const save = [...card.querySelectorAll("button")].find((b) => b.textContent === "Save my score");
+    if (!save) throw new Error("save button not found");
+    act(() => save.click());
+    settle(SWIPE_OUT_MS);
+    expect(calls).not.toContain("decline");
+  });
+
+  it("springs back when a save starts mid-drag", () => {
+    const calls: string[] = [];
+    const { card, setBusy } = renderLiveConsent(() => calls.push("accept"), () => calls.push("decline"));
+    const title = card.querySelector("h2");
+    if (!title) throw new Error("title not found");
+    drag(title, 200, { release: false });
+    setBusy(true);
+    pointer(title, "pointerup", 300);
+    settle(Math.max(SWIPE_OUT_MS, SWIPE_BACK_MS));
+    expect(calls).toEqual([]);
+    expect(card.style.transform).toBe("");
+  });
+
   function renderConsent(onDecline: () => void, busy = false) {
     act(() => root.render(createElement(LeaderboardConsentModal, { onAccept: () => {}, onDecline, busy })));
     const card = container.querySelector<HTMLElement>(".lcm-card");
