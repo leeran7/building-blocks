@@ -29,7 +29,7 @@ const COLUMNS = 3;
 const TILE_HEX = 56;
 const NEXT_HEX = 24;
 /** The preview's figure height: smaller than the default so it clears the pose switch. */
-const PREVIEW_FIGURE_PX = 108;
+const PREVIEW_FIGURE_PX = 84;
 const LOAD_FAILED_MESSAGE = "Couldn't load your profile. Check your connection and try again.";
 const SCROLL_FADE = "linear-gradient(to bottom, #000 calc(100% - 18px), transparent)";
 /**
@@ -429,7 +429,7 @@ export function AvatarPickerScreen() {
             className="glass overflow-hidden rounded-3xl border border-white/10"
           >
             <div
-              className="relative flex h-[132px] items-end justify-center bg-cover bg-bottom"
+              className="relative flex h-[120px] items-end justify-center bg-cover bg-bottom"
               style={{ backgroundImage: `linear-gradient(180deg, rgba(10,10,12,0.55), rgba(10,10,12,0.1) 45%, rgba(10,10,12,0.4)), url(${volcanoScene})` }}
             >
               <div role="group" aria-label="Preview pose" className="absolute left-2.5 top-2.5 flex gap-1 rounded-full bg-void/70 p-[3px]">
