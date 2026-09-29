@@ -1,6 +1,11 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { POWER_UP_SPECS } from "@app/game/powerups";
-import { STREAK_RAPID_CLIMB, STUCK_BOOSTER_FAILS, type StartPowerUp } from "@app/levels/engagement";
+import {
+  STREAK_RAPID_CLIMB,
+  STUCK_BOOSTER_FAILS,
+  type BoosterType,
+  type StartPowerUp,
+} from "@app/levels/engagement";
 import { formatClock, type LevelBoardView, type StuckHelp } from "../../lib/levels/model";
 import { Accordion, StarRow } from "./LevelBits";
 
@@ -26,6 +31,20 @@ export function PowerUpName({ type }: { type: StartPowerUp["type"] }) {
       <span aria-hidden className="inline-block h-2 w-2 rounded-full" style={{ backgroundColor: spec.color }} />
       {spec.label}
     </span>
+  );
+}
+
+/** Several power-ups by name: "Rapid Climb and Super Jump". */
+export function PowerUpNames({ powerUps }: { powerUps: readonly { type: StartPowerUp["type"] }[] }) {
+  return (
+    <>
+      {powerUps.map((p, i) => (
+        <span key={p.type}>
+          {i > 0 && " and "}
+          <PowerUpName type={p.type} />
+        </span>
+      ))}
+    </>
   );
 }
 
@@ -99,6 +118,7 @@ export function LevelStartExtras({
   atFrontier,
   streak,
   startPowerUp,
+  booster = null,
   stuck = null,
   board = null,
   boosters = null,
@@ -106,8 +126,10 @@ export function LevelStartExtras({
   /** The card is for the player's frontier level: streaks count here only. */
   atFrontier: boolean;
   streak: number;
-  /** The server's preview of what this run starts with. */
+  /** The server's preview of the free power-up this run starts with. */
   startPowerUp: StartPowerUp | null;
+  /** The booster equipped on the card: it joins the free power-up. */
+  booster?: BoosterType | null;
   /** Stuck help for this level (the frontier's only). */
   stuck?: StuckHelp | null;
   /** The level's friends board: its level and loader. */
@@ -126,8 +148,16 @@ export function LevelStartExtras({
         <p className="flex flex-wrap items-baseline justify-between gap-x-3 rounded-2xl border border-white/10 bg-elevated/70 px-3.5 py-2 text-meta text-text-primary">
           <span>
             You start with <PowerUpName type={startPowerUp.type} />
+            {booster !== null && booster !== startPowerUp.type && (
+              <>
+                {" "}and <PowerUpName type={booster} />
+              </>
+            )}
           </span>
-          <span className="text-text-secondary">{startPowerUpReason(startPowerUp, streak)}</span>
+          <span className="text-text-secondary">
+            {startPowerUpReason(startPowerUp, streak)}
+            {booster !== null && booster !== startPowerUp.type && " + booster"}
+          </span>
         </p>
       )}
       {showStreak && !startPowerUp && (

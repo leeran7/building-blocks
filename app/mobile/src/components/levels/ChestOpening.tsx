@@ -4,7 +4,8 @@ import type { BoosterType } from "@app/levels/engagement";
 import { notifySuccess, tapLight, tapMedium } from "../../lib/haptics";
 import { prefersReducedMotion } from "../../lib/motion";
 import type { OpenedChest } from "../../lib/levels/model";
-import { ChestIcon } from "./LevelChests";
+import type { NextStart } from "../../lib/levels/boosterPick";
+import { BoosterToggle, ChestIcon } from "./LevelChests";
 
 /**
  * The result card's star chest opening (design §6.4). Each chest a clear
@@ -17,6 +18,10 @@ import { ChestIcon } from "./LevelChests";
  * nothing here picks or reorders what they held. The sparks' angles come
  * from their index, never from Math.random. With reduced motion the chests
  * open at once and the summary shows directly.
+ *
+ * With `pick`, the boosters received can be equipped for the next level:
+ * single-select, only types that level allows. Nothing is spent here; the
+ * pick only preselects the next start card's booster.
  */
 
 /** The shake before the lid gives. */
@@ -90,8 +95,22 @@ const CHEST_CSS = `
 
 type Phase = "closed" | "shaking" | "opening" | "open" | "summary";
 
+/** Equipping a received booster for the next level. */
+export interface ChestPick {
+  next: NextStart;
+  selected: BoosterType | null;
+  onSelect: (type: BoosterType | null) => void;
+}
+
+/** Why a received booster cannot be picked for the next level, or null when it can. */
+export function pickBlocked(type: BoosterType, next: NextStart): string | null {
+  if (!next.allowed.includes(type)) return "Unlocks on a later level";
+  if (type === next.freeType) return `Free on level ${next.level}`;
+  return null;
+}
+
 /** The result card's opening of the chests a clear opened. */
-export function ChestReveal({ chests }: { chests: readonly OpenedChest[] }) {
+export function ChestReveal({ chests, pick = null }: { chests: readonly OpenedChest[]; pick?: ChestPick | null }) {
   const [reduced] = useState(prefersReducedMotion);
   const [index, setIndex] = useState(0);
   const [phase, setPhase] = useState<Phase>(reduced ? "summary" : "closed");
@@ -160,7 +179,7 @@ export function ChestReveal({ chests }: { chests: readonly OpenedChest[] }) {
         {said}
       </p>
       {phase === "summary" ? (
-        <ChestSummary chests={chests} />
+        <ChestSummary chests={chests} pick={pick} />
       ) : (
         // Compact on purpose: the result card sits on the bottom of short
         // phones (the stage shrinks under 700px tall), so the count and
@@ -206,9 +225,10 @@ export function ChestReveal({ chests }: { chests: readonly OpenedChest[] }) {
             <>
               <ul aria-label={`Boosters from chest ${index + 1}`} className="lc-cards mt-2 flex flex-wrap justify-center gap-2">
                 {chest.boosters.map((type, i) => (
-                  <BoosterCard key={i} type={type} delayMs={i * CARD_STAGGER_MS} />
+                  <BoosterCard key={i} type={type} delayMs={i * CARD_STAGGER_MS} pick={pick} />
                 ))}
               </ul>
+              {pick && <PickHint pick={pick} types={chest.boosters} />}
               <button
                 type="button"
                 onClick={last ? toSummary : next}
@@ -242,8 +262,28 @@ function summaryLine(chests: readonly OpenedChest[]): string {
   return `${summaryTitle(chests)} ${got.join(", ")}`;
 }
 
+/**
+ * The pick's one line: what is equipped for the next level, or the offer.
+ * Polite live region, so equipping is announced where focus stays.
+ */
+function PickHint({ pick, types }: { pick: ChestPick; types: readonly BoosterType[] }) {
+  const { next, selected } = pick;
+  const text =
+    selected !== null
+      ? `${POWER_UP_SPECS[selected].label} ready for level ${next.level}. Tap it again to save it for later.`
+      : types.some((t) => pickBlocked(t, next) === null)
+        ? `Use one on your next level: tap it to equip for level ${next.level}.`
+        : "Spend them from any level\u2019s start card.";
+  return (
+    <p aria-live="polite" className="mt-2 text-meta text-text-secondary">
+      {text}
+    </p>
+  );
+}
+
 /** The reveal's last word: every booster received, added up. */
-function ChestSummary({ chests }: { chests: readonly OpenedChest[] }) {
+function ChestSummary({ chests, pick }: { chests: readonly OpenedChest[]; pick: ChestPick | null }) {
+  const totals = chestTotals(chests);
   return (
     <div className="lc-pop mt-4 rounded-2xl border border-signal/40 bg-signal/10 px-4 py-3 text-center">
       <div className="flex items-center justify-center gap-2">
@@ -251,8 +291,23 @@ function ChestSummary({ chests }: { chests: readonly OpenedChest[] }) {
         <p className="font-display text-lead font-black uppercase text-signal">{summaryTitle(chests)}</p>
       </div>
       <ul aria-label="Boosters from the chest" className="mt-2 flex flex-wrap justify-center gap-2">
-        {chestTotals(chests).map(({ type, n }) => {
+        {totals.map(({ type, n }) => {
           const spec = POWER_UP_SPECS[type];
+          if (pick) {
+            const blocked = pickBlocked(type, pick.next);
+            return (
+              <li key={type}>
+                <BoosterToggle
+                  type={type}
+                  prefix={`+${n}`}
+                  pressed={pick.selected === type}
+                  disabledReason={blocked}
+                  label={`+${n} ${spec.label}${blocked ? `, ${blocked.toLowerCase()}` : `, use on level ${pick.next.level}`}`}
+                  onToggle={pick.onSelect}
+                />
+              </li>
+            );
+          }
           return (
             <li
               key={type}
@@ -265,7 +320,11 @@ function ChestSummary({ chests }: { chests: readonly OpenedChest[] }) {
           );
         })}
       </ul>
-      <p className="mt-2 text-meta text-text-secondary">Spend them from any level&rsquo;s start card.</p>
+      {pick ? (
+        <PickHint pick={pick} types={totals.map((t) => t.type)} />
+      ) : (
+        <p className="mt-2 text-meta text-text-secondary">Spend them from any level&rsquo;s start card.</p>
+      )}
       <style>{`
         .lc-pop { animation: lcPop 420ms cubic-bezier(.2,1.4,.4,1) both; }
         @keyframes lcPop { from { transform: scale(0.85); opacity: 0; } to { transform: scale(1); opacity: 1; } }
@@ -276,8 +335,22 @@ function ChestSummary({ chests }: { chests: readonly OpenedChest[] }) {
 }
 
 /** One booster out of the chest: a card in its power-up's colour. */
-function BoosterCard({ type, delayMs }: { type: BoosterType; delayMs: number }) {
+function BoosterCard({ type, delayMs, pick }: { type: BoosterType; delayMs: number; pick: ChestPick | null }) {
   const spec = POWER_UP_SPECS[type];
+  if (pick) {
+    const blocked = pickBlocked(type, pick.next);
+    return (
+      <li className="lc-card" style={{ animationDelay: `${delayMs}ms` }}>
+        <BoosterToggle
+          type={type}
+          pressed={pick.selected === type}
+          disabledReason={blocked}
+          label={`${spec.label}${blocked ? `, ${blocked.toLowerCase()}` : `, use on level ${pick.next.level}`}`}
+          onToggle={pick.onSelect}
+        />
+      </li>
+    );
+  }
   return (
     <li
       className="lc-card flex min-w-[88px] items-center justify-center gap-1.5 rounded-xl border-2 bg-elevated px-3 py-1.5"

@@ -19,5 +19,8 @@ export const DAILY_SIM_VERSION = 3;
  * work never locks installed apps out of the Daily. Bump it in the same change
  * as any edit that changes a level tower's output: its geometry, the finish,
  * the level power-up rules or the level lava.
+ *
+ * 4: a run can start with two power-ups at GO (a free one and a booster). An
+ * app on 3 plays only the first, so it is stopped before a booster is spent.
  */
-export const LEVEL_SIM_VERSION = 3;
+export const LEVEL_SIM_VERSION = 4;

@@ -77,6 +77,8 @@ beforeEach(() => {
     lives: 4,
     nextLifeAt: new Date(T_ISSUED.getTime() + 1_800_000),
     startPowerUp: null,
+    startPowerUps: [],
+    boosterKept: null,
     streak: 0,
     failsAtLevel: 0,
     routeGhostAvailable: false,
@@ -143,19 +145,55 @@ describe("POST /api/levels/ticket", () => {
       lives: 4,
       nextLifeAt: null,
       startPowerUp: { type: "super-jump", source: "streak" },
+      startPowerUps: [
+        { type: "super-jump", source: "streak" },
+        { type: "rapid-climb", source: "booster" },
+      ],
+      boosterKept: null,
       streak: 5,
       failsAtLevel: 0,
       routeGhostAvailable: false,
       boosters: {},
     });
     const res = await ticket({ season: 1, level: 12, simVersion: SIM });
-    expect(await res.json()).toMatchObject({ startPowerUp: { type: "super-jump", source: "streak" }, streak: 5 });
+    expect(await res.json()).toMatchObject({
+      startPowerUp: { type: "super-jump", source: "streak" },
+      startPowerUps: [
+        { type: "super-jump", source: "streak" },
+        { type: "rapid-climb", source: "booster" },
+      ],
+      boosterKept: null,
+      streak: 5,
+    });
     // L12 of season 1 has unlocked rapid climb (L4), sprint burst (L7) and super jump (L11).
     expect(vi.mocked(issueLevelTicket).mock.calls[0][0].allowedBoosters).toEqual([
       "rapid-climb",
       "sprint-burst",
       "super-jump",
     ]);
+  });
+
+  it("says when a chosen booster was kept because the free power-up is its type", async () => {
+    vi.mocked(issueLevelTicket).mockResolvedValueOnce({
+      ticketId: TICKET,
+      expiresAt: new Date(T_ISSUED.getTime() + 86_400_000),
+      lifeSpent: true,
+      lives: 4,
+      nextLifeAt: null,
+      startPowerUp: { type: "rapid-climb", source: "streak" },
+      startPowerUps: [{ type: "rapid-climb", source: "streak" }],
+      boosterKept: "rapid-climb",
+      streak: 3,
+      failsAtLevel: 0,
+      routeGhostAvailable: false,
+      boosters: { "rapid-climb": 1 },
+    });
+    const res = await ticket({ season: 1, level: 12, simVersion: SIM, booster: "rapid-climb" });
+    expect(await res.json()).toMatchObject({
+      startPowerUps: [{ type: "rapid-climb", source: "streak" }],
+      boosterKept: "rapid-climb",
+      boosters: { "rapid-climb": 1 },
+    });
   });
 
   it("passes an allowed booster to the ticket", async () => {

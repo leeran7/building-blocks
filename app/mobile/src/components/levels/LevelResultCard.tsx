@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ALTITUDE_UNIT } from "@app/lib/units";
 import { avatarName, stickColorOf } from "@app/lib/avatars";
 import { Button } from "../ui";
@@ -12,7 +12,8 @@ import {
 import { HeartIcon, StarIcon, XpBar, livesLabel, useNow } from "./LevelBits";
 import { OutOfLives } from "./LevelStartSheet";
 import { ChestReveal } from "./ChestOpening";
-import { STUCK_BOOSTER_FAILS } from "@app/levels/engagement";
+import { STUCK_BOOSTER_FAILS, type BoosterType } from "@app/levels/engagement";
+import type { NextStart } from "../../lib/levels/boosterPick";
 
 /**
  * The end of a level run. A clear shows the stars earned against the star
@@ -33,6 +34,7 @@ export function LevelResultCard({
   onPractice,
   onPracticeLevel,
   nearMiss = null,
+  nextStart = null,
 }: {
   result: LevelResult;
   /** Whether a retry of this level spends a life (tutorial levels don't). */
@@ -40,15 +42,21 @@ export function LevelResultCard({
   /** "2 floors from the summit!" when a loss came close (§6.2). */
   nearMiss?: string | null;
   hasNextLevel: boolean;
+  /** The next level's start facts: its chest boosters can be picked for it. */
+  nextStart?: NextStart | null;
   retryBusy: boolean;
   /** Why the last Retry could not start, in the player's words. */
   retryError?: string | null;
-  onNext: () => void;
+  /** Next level, with the booster picked on the chest reveal (or null). */
+  onNext: (booster: BoosterType | null) => void;
   onRetry: () => void;
   onMap: () => void;
   onPractice: () => void;
   onPracticeLevel: () => void;
 }) {
+  // One booster from the chest for the next level: only a preselect for its start card.
+  const [pick, setPick] = useState<BoosterType | null>(null);
+  const chestPick = result.cleared && hasNextLevel && nextStart ? { next: nextStart, selected: pick, onSelect: setPick } : null;
   const label = result.cleared
     ? `Level ${result.level} cleared, ${result.stars} of ${MAX_STARS} stars`
     : (nearMiss ?? `${result.outOfTime ? "Out of time" : "Caught by the lava"}, ${feetShort(result)} ${ALTITUDE_UNIT} from the summit`);
@@ -66,7 +74,7 @@ export function LevelResultCard({
         />
       )}
       {/* Keyed by chest: a new clear's chests start their opening afresh. */}
-      <ChestReveal key={result.chestsOpened.map((c) => c.chestNumber).join()} chests={result.chestsOpened} />
+      <ChestReveal key={result.chestsOpened.map((c) => c.chestNumber).join()} chests={result.chestsOpened} pick={chestPick} />
       <StreakLine result={result} />
       <StuckLine result={result} />
 
@@ -79,7 +87,7 @@ export function LevelResultCard({
         {result.cleared ? (
           <>
             {hasNextLevel && (
-              <Button onPress={onNext} className="min-h-[56px] text-cta">
+              <Button onPress={() => onNext(chestPick ? pick : null)} className="min-h-[56px] text-cta">
                 Next level
               </Button>
             )}

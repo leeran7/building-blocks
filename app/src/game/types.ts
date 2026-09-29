@@ -353,8 +353,9 @@ export interface MatchState {
   /** Exclusive upper bound of the floor range `powerUps` has been generated for. */
   powerUpFloorHi: number;
   /**
-   * Level runs only: a power-up every climber is granted at GO (a booster
-   * from the run ticket). Undefined on the free stack, Daily and duels.
+   * Level runs only: the power-ups every climber is granted at GO, in order
+   * (a free one from the ticket, then a booster). Distinct types, each allowed
+   * on the tower. Undefined on the free stack, Daily and duels.
    */
-  startPowerUp?: Exclude<PowerUpType, "random">;
+  startPowerUps?: readonly Exclude<PowerUpType, "random">[];
 }

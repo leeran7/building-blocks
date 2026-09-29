@@ -142,12 +142,16 @@ export function createMatch(params: {
   mode: MatchState["mode"];
   tower: TowerSpec;
   playerIds: PlayerId[];
-  /** Level runs only: a booster every climber is granted at GO. */
+  /** Level runs only: a power-up every climber is granted at GO. */
   startPowerUp?: PowerUpType;
+  /**
+   * Level runs only: several power-ups granted at GO (a free one and a
+   * booster). Merged after `startPowerUp`; a repeated type is granted once.
+   */
+  startPowerUps?: readonly PowerUpType[];
 }): MatchState {
   const { tower } = params;
-  const startPowerUp =
-    params.startPowerUp === undefined ? undefined : validateStartPowerUp(tower, params.startPowerUp);
+  const startPowerUps = startPowerUpList(tower, params.startPowerUp, params.startPowerUps);
   const players = params.playerIds.map((id, i) => {
     const p = spawnPlayer(id, i);
     // Spread players across the middle of the base platform so multiplayer
@@ -171,9 +175,27 @@ export function createMatch(params: {
     powerUps: [],
     powerUpFloorHi: 0,
   };
-  if (startPowerUp !== undefined) state.startPowerUp = startPowerUp;
+  if (startPowerUps.length > 0) state.startPowerUps = startPowerUps;
   ensurePowerUps(state);
   return state;
+}
+
+/**
+ * A level run's GO power-ups: each validated against the tower (throws on a
+ * bad one), in order, and a type repeated is kept once. A second grant of a
+ * live type only refreshes it (grantPowerUp), so it would add nothing.
+ */
+function startPowerUpList(
+  tower: TowerSpec,
+  single: PowerUpType | undefined,
+  many: readonly PowerUpType[] | undefined
+): Exclude<PowerUpType, "random">[] {
+  const out: Exclude<PowerUpType, "random">[] = [];
+  for (const raw of [...(single === undefined ? [] : [single]), ...(many ?? [])]) {
+    const type = validateStartPowerUp(tower, raw);
+    if (!out.includes(type)) out.push(type);
+  }
+  return out;
 }
 
 /**
@@ -512,9 +534,9 @@ export function stepMatch(
       state.phase = "climb";
       state.tick = 0;
       state.raceSeconds = 0;
-      // A level run's booster is live from GO.
-      if (state.startPowerUp !== undefined) {
-        for (const p of state.players) activatePowerUp(p, state.startPowerUp, 0, state.tower);
+      // A level run's start power-ups are live from GO, side by side.
+      for (const type of state.startPowerUps ?? []) {
+        for (const p of state.players) activatePowerUp(p, type, 0, state.tower);
       }
     }
     return state;

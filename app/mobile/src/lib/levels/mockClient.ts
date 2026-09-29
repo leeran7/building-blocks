@@ -8,6 +8,7 @@ import {
   chestsEarned,
   failsAt,
   freeStartPowerUp,
+  startGrant,
   nextFailTally,
   nextStreak,
   type BoosterInventory,
@@ -311,20 +312,21 @@ export function createMockLevelsClient(opts: MockClientOptions = {}): LevelsClie
         };
       }
       const atFrontier = level === frontierOf(state);
-      const startPowerUp = freeStartPowerUp({
+      const free = freeStartPowerUp({
         atFrontier,
         streak: next.streak,
         fails: atFrontier ? failsAt(next.fails ?? null, 1, level) : 0,
         allowed: boosterTypesOf(node.allowedPowerUps),
       });
-      // An owned booster unlocked here (§6.4). A free power-up wins and the
-      // booster is kept, as on the server.
+      // An owned booster unlocked here (§6.4). It joins a free power-up, and
+      // one of the free power-up's type is kept, as on the server (startGrant).
       const requested = opts.booster ?? null;
       const owned = requested !== null ? (state.boosters?.[requested] ?? 0) : 0;
       if (requested !== null && (owned < 1 || !boosterTypesOf(node.allowedPowerUps).includes(requested))) {
         return wait({ ok: false, code: "BOOSTER_UNAVAILABLE" });
       }
-      const booster = startPowerUp === null ? requested : null;
+      const grant = startGrant(free, requested);
+      const booster = grant.spend;
       if (node.costsLife) {
         if (state.lives <= 0) return wait({ ok: false, code: "OUT_OF_LIVES", player: playerStats(state) });
         // Spending from full starts the refill clock now (§5b).
@@ -354,7 +356,8 @@ export function createMockLevelsClient(opts: MockClientOptions = {}): LevelsClie
           goalFt: node.goalFt,
           pars: node.pars,
           player: playerStats(next),
-          startPowerUp: booster !== null ? { type: booster, source: "booster" } : startPowerUp,
+          startPowerUps: grant.startPowerUps,
+          boosterKept: grant.kept,
         },
       });
     },

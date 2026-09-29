@@ -202,6 +202,36 @@ export function freeStartPowerUp(input: FreeStartInput): StartPowerUp | null {
   return null;
 }
 
+/** Most power-ups a level run starts with: one free, one booster. */
+export const MAX_START_POWER_UPS = 2;
+
+/** What a new ticket starts with, and what happens to a chosen booster. */
+export interface StartGrant {
+  /** Granted at GO, in order: the free power-up first, then the booster. */
+  startPowerUps: StartPowerUp[];
+  /** The booster to take from the inventory, or null. */
+  spend: BoosterType | null;
+  /** A chosen booster left in the inventory because the free one is the same type. */
+  kept: BoosterType | null;
+}
+
+/**
+ * A run starts with its free power-up (streak or stuck help) AND the booster
+ * the player chose: one does not cancel the other, and at most one booster
+ * is ever chosen. The one exception is a booster of the free power-up's own
+ * type. Granting a live type again only refreshes it (grantPowerUp), so
+ * spending it would take the booster for nothing: it is kept, not spent, and
+ * reported as `kept` so the app can say so.
+ */
+export function startGrant(free: StartPowerUp | null, chosen: BoosterType | null): StartGrant {
+  if (chosen !== null && free !== null && chosen === free.type) {
+    return { startPowerUps: [free], spend: null, kept: chosen };
+  }
+  const startPowerUps: StartPowerUp[] = free === null ? [] : [free];
+  if (chosen !== null) startPowerUps.push({ type: chosen, source: "booster" });
+  return { startPowerUps, spend: chosen, kept: null };
+}
+
 // ── Star chests (§6.4) ───────────────────────────────────────────────────────
 
 /** Lifetime stars per chest. */

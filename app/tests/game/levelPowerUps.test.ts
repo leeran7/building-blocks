@@ -165,6 +165,45 @@ describe("starting power-up", () => {
     expect(live.players[0].cooldownUntilTick["slow-lava"]).toBeGreaterThan(0);
   });
 
+  it("grants a free power-up and a booster side by side at GO", () => {
+    const live = startClimb(
+      createMatch({ seed: "b", mode: "solo", tower, playerIds: ["p"], startPowerUps: ["rapid-climb", "slow-lava"] })
+    );
+    const [p] = live.players;
+    expect(isPowerUpActive(p, "rapid-climb", 1)).toBe(true);
+    expect(isPowerUpActive(p, "slow-lava", 1)).toBe(true);
+    expect(p.activePowerUps.map((a) => [a.type, a.startTick])).toEqual([
+      ["rapid-climb", 0],
+      ["slow-lava", 0],
+    ]);
+    // The single form and the list merge, in order.
+    const merged = startClimb(
+      createMatch({ seed: "b", mode: "solo", tower, playerIds: ["p"], startPowerUp: "slow-lava", startPowerUps: ["rapid-climb"] })
+    );
+    expect(merged.startPowerUps).toEqual(["slow-lava", "rapid-climb"]);
+    expect(merged.players[0].activePowerUps.map((a) => a.type)).toEqual(["slow-lava", "rapid-climb"]);
+  });
+
+  it("grants a type named twice once, as one power-up", () => {
+    const once = startClimb(
+      createMatch({ seed: "b", mode: "solo", tower, playerIds: ["p"], startPowerUps: ["rapid-climb"] })
+    );
+    const twice = startClimb(
+      createMatch({ seed: "b", mode: "solo", tower, playerIds: ["p"], startPowerUp: "rapid-climb", startPowerUps: ["rapid-climb"] })
+    );
+    expect(twice.startPowerUps).toEqual(["rapid-climb"]);
+    expect(twice.players[0].activePowerUps).toEqual(once.players[0].activePowerUps);
+    expect(twice.players[0].activePowerUps).toHaveLength(1);
+  });
+
+  it("rejects a bad type anywhere in the list", () => {
+    for (const bad of ["random", "teleport", "giant"]) {
+      expect(() =>
+        createMatch({ seed: "b", mode: "solo", tower, playerIds: ["p"], startPowerUps: ["rapid-climb", bad as PowerUpType] })
+      ).toThrow(RangeError);
+    }
+  });
+
   it("rejects random, unknown and disallowed types", () => {
     for (const bad of ["random", "teleport", "toString", "giant"]) {
       expect(() =>

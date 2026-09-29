@@ -34,11 +34,21 @@ describe("useClimb startPowerUp", () => {
 
   it("builds the match with the ticket's power-up", () => {
     const state = mount({ tower: setup.tower, seed: "s1:level:12:0", hazard: setup.hazard, startPowerUp: "super-jump" });
-    expect(state.startPowerUp).toBe("super-jump");
+    expect(state.startPowerUps).toEqual(["super-jump"]);
+  });
+
+  it("builds the match with a free power-up and a booster side by side", () => {
+    const state = mount({
+      tower: setup.tower,
+      seed: "s1:level:12:0",
+      hazard: setup.hazard,
+      startPowerUps: ["rapid-climb", "super-jump"],
+    });
+    expect(state.startPowerUps).toEqual(["rapid-climb", "super-jump"]);
   });
 
   it("builds a plain match without one", () => {
     const state = mount({ tower: setup.tower, seed: "s1:level:12:0", hazard: setup.hazard });
-    expect(state.startPowerUp).toBeUndefined();
+    expect(state.startPowerUps).toBeUndefined();
   });
 });

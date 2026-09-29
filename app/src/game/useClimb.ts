@@ -156,6 +156,11 @@ export interface UseClimbOptions {
    * streak, stuck help or a booster). Must be allowed on `tower`.
    */
   startPowerUp?: Exclude<PowerUpType, "random">;
+  /**
+   * Level runs only: every power-up the ticket grants at GO (a free one and
+   * a booster), after `startPowerUp`. Each must be allowed on `tower`.
+   */
+  startPowerUps?: readonly Exclude<PowerUpType, "random">[];
 }
 
 /**
@@ -176,8 +181,11 @@ export function useClimb({
   replayInputs,
   autoStart = false,
   startPowerUp,
+  startPowerUps,
 }: UseClimbOptions): UseClimbResult {
   const cfg: SimConfig = { ...DEFAULT_SIM_CONFIG, hazard };
+  // By value: a caller's fresh array each render must not rebuild the match.
+  const startKey = [...(startPowerUp === undefined ? [] : [startPowerUp]), ...(startPowerUps ?? [])].join(",");
 
   const makeMatch = useCallback(
     (runSeed: string, phase: MatchState["phase"]) => {
@@ -186,12 +194,12 @@ export function useClimb({
         mode: "solo",
         tower: applyRunSeed(tower, runSeed),
         playerIds: [PLAYER_ID],
-        ...(startPowerUp !== undefined ? { startPowerUp } : {}),
+        ...(startKey !== "" ? { startPowerUps: startKey.split(",") as PowerUpType[] } : {}),
       });
       m.phase = phase;
       return m;
     },
-    [tower, startPowerUp]
+    [tower, startKey]
   );
 
   const [view, setView] = useState(() => ({

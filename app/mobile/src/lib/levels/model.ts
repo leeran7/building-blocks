@@ -127,8 +127,13 @@ export interface LevelTicket {
   goalFt: number;
   pars: LevelNode["pars"];
   player: PlayerStats;
-  /** What the run starts with at GO, decided by the server (streak, stuck help, booster). */
-  startPowerUp: StartPowerUp | null;
+  /**
+   * What the run starts with at GO, decided by the server, in order: a free
+   * power-up (streak or stuck help), then the chosen booster.
+   */
+  startPowerUps: StartPowerUp[];
+  /** The chosen booster, kept rather than spent: the free power-up is its type. */
+  boosterKept: BoosterType | null;
 }
 
 export type StartRefusal =

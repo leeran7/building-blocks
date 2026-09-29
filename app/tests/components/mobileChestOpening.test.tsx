@@ -26,6 +26,7 @@ vi.mock("../../mobile/src/lib/motion", () => ({ prefersReducedMotion: () => moti
 import { CHEST_LID_MS, CHEST_SHAKE_MS, ChestReveal } from "../../mobile/src/components/levels/ChestOpening";
 import { LevelResultCard } from "../../mobile/src/components/levels/LevelResultCard";
 import type { LevelResult, OpenedChest } from "../../mobile/src/lib/levels/model";
+import type { NextStart } from "../../mobile/src/lib/levels/boosterPick";
 import { POWER_UP_SPECS } from "../../src/game/powerups";
 
 let container: HTMLDivElement;
@@ -332,5 +333,145 @@ describe("on the result card", () => {
     expect(phase()).toBe("closed");
     expect(button("Open star chest")).toBeDefined();
     expect(summary()).toEqual([]);
+  });
+});
+
+describe("picking a received booster for the next level", () => {
+  const result = (chestsOpened: OpenedChest[], cleared = true): LevelResult => ({
+    level: 7,
+    cleared,
+    stars: cleared ? 3 : 0,
+    previousStars: 0,
+    timeMs: cleared ? 20_000 : null,
+    outOfTime: false,
+    pars: { twoStarMs: 36_000, threeStarMs: 28_000, oneStarMs: null },
+    streak: null,
+    atFrontier: false,
+    failsAtLevel: 0,
+    routeGhostAvailable: false,
+    chestsOpened,
+    boosters: null,
+    goalFt: 267,
+    peakFt: cleared ? 267 : 100,
+    xpGained: cleared ? 160 : 0,
+    newPlayerLevel: null,
+    player: { lives: 5, maxLives: 5, nextLifeAt: null, xp: 200, playerLevel: 2, xpIntoLevel: 140, xpForNext: 153 },
+  });
+  // Level 8 allows rapid climb and sprint burst, not the giant or the jetpack.
+  const L8: NextStart = { level: 8, allowed: ["rapid-climb", "sprint-burst"], freeType: null };
+  const CHEST: OpenedChest[] = [{ chestNumber: 1, boosters: ["rapid-climb", "sprint-burst", "giant"] }];
+
+  function renderCard(opts: { chests?: OpenedChest[]; nextStart?: NextStart | null; hasNextLevel?: boolean; onNext?: (b: unknown) => void; cleared?: boolean } = {}) {
+    act(() =>
+      root.render(
+        createElement(LevelResultCard, {
+          result: result(opts.chests ?? CHEST, opts.cleared ?? true),
+          costsLife: true,
+          hasNextLevel: opts.hasNextLevel ?? true,
+          nextStart: opts.nextStart === undefined ? L8 : opts.nextStart,
+          retryBusy: false,
+          onNext: opts.onNext ?? (() => {}),
+          onRetry: () => {},
+          onMap: () => {},
+          onPractice: () => {},
+          onPracticeLevel: () => {},
+        }),
+      ),
+    );
+  }
+
+  /** The summary's toggles by power-up label, and the pick line. */
+  const toggle = (label: string) =>
+    [...container.querySelectorAll<HTMLButtonElement>('ul[aria-label="Boosters from the chest"] button[aria-pressed]')].find((b) =>
+      b.textContent?.includes(label),
+    );
+  const pressed = () =>
+    [...container.querySelectorAll<HTMLButtonElement>("button[aria-pressed='true']")].map((b) => b.textContent);
+  const pickLine = () => container.querySelector("[aria-live='polite']")?.textContent ?? null;
+
+  it("equips one received booster at a time: tap to equip, tap another to switch, tap again to clear", () => {
+    renderCard();
+    click("Skip");
+    const rapid = toggle("Rapid Climb");
+    const sprint = toggle("Sprint Burst");
+    expect(rapid?.getAttribute("aria-pressed")).toBe("false");
+    expect(pickLine()).toBe("Use one on your next level: tap it to equip for level 8.");
+
+    act(() => rapid?.click());
+    expect(pressed()).toEqual(["+1 Rapid Climb"]);
+    expect(pickLine()).toBe("Rapid Climb ready for level 8. Tap it again to save it for later.");
+    // The tapped button stays put: focus is not lost.
+    expect(toggle("Rapid Climb")).toBe(rapid);
+
+    act(() => sprint?.click());
+    expect(pressed()).toEqual(["+1 Sprint Burst"]);
+    act(() => sprint?.click());
+    expect(pressed()).toEqual([]);
+    expect(pickLine()).toBe("Use one on your next level: tap it to equip for level 8.");
+    for (const b of [rapid, sprint]) expect(b?.className).toContain("min-h-[44px]");
+  });
+
+  it("shows a booster the next level does not allow, disabled with the reason", () => {
+    renderCard();
+    click("Skip");
+    const giant = toggle("Giant");
+    expect(giant?.disabled).toBe(true);
+    expect(giant?.getAttribute("aria-pressed")).toBe("false");
+    expect(giant?.textContent).toContain("Unlocks on a later level");
+    expect(giant?.getAttribute("aria-label")).toBe("+1 Giant, unlocks on a later level");
+    act(() => giant?.click());
+    expect(pressed()).toEqual([]);
+  });
+
+  it("disables the type the next level already starts with free", () => {
+    renderCard({ nextStart: { ...L8, freeType: "rapid-climb" } });
+    click("Skip");
+    expect(toggle("Rapid Climb")?.disabled).toBe(true);
+    expect(toggle("Rapid Climb")?.textContent).toContain("Free on level 8");
+    expect(toggle("Sprint Burst")?.disabled).toBe(false);
+  });
+
+  it("hands the pick to Next level, and null when none is equipped", () => {
+    const onNext = vi.fn();
+    renderCard({ onNext });
+    click("Skip");
+    act(() => toggle("Sprint Burst")?.click());
+    click("Next level");
+    expect(onNext).toHaveBeenLastCalledWith("sprint-burst");
+    act(() => toggle("Sprint Burst")?.click());
+    click("Next level");
+    expect(onNext).toHaveBeenLastCalledWith(null);
+  });
+
+  it("can equip straight from an opened chest's cards, the same pick as the summary", () => {
+    renderCard();
+    click("Open star chest");
+    openFully();
+    const card = [...container.querySelectorAll<HTMLButtonElement>('ul[aria-label="Boosters from chest 1"] button[aria-pressed]')];
+    expect(card.map((b) => b.disabled)).toEqual([false, false, true]);
+    act(() => card[0]?.click());
+    expect(card[0]?.getAttribute("aria-pressed")).toBe("true");
+    expect(pickLine()).toBe("Rapid Climb ready for level 8. Tap it again to save it for later.");
+    click("Collect");
+    expect(toggle("Rapid Climb")?.getAttribute("aria-pressed")).toBe("true");
+  });
+
+  it("offers no choice when there is no next level", () => {
+    for (const opts of [{ nextStart: null }, { hasNextLevel: false }]) {
+      renderCard(opts);
+      click("Skip");
+      expect(container.querySelectorAll("button[aria-pressed]")).toHaveLength(0);
+      expect(summary()).toEqual(["+1 Rapid Climb", "+1 Sprint Burst", "+1 Giant"]);
+      expect(container.textContent).toContain("Spend them from any level’s start card.");
+      act(() => root.unmount());
+      root = createRoot(container);
+    }
+  });
+
+  it("with reduced motion the summary's pick works at once", () => {
+    motion.reduce = true;
+    renderCard();
+    act(() => toggle("Rapid Climb")?.click());
+    expect(pressed()).toEqual(["+1 Rapid Climb"]);
   });
 });

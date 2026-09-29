@@ -31,7 +31,7 @@ vi.mock("@app/components/Game/lava", () => ({ drawLava: vi.fn(), isLavaInProximi
  * submit, result, retry and Next level flow runs for real.
  */
 const runs = vi.hoisted(() => ({
-  mounted: [] as Array<{ seed: string; goalFt: number; bestFailFt: number | null; startPowerUp: unknown }>,
+  mounted: [] as Array<{ seed: string; goalFt: number; bestFailFt: number | null; startPowerUps: unknown; boosterKept: unknown }>,
 }));
 vi.mock("../../mobile/src/components/levels/LevelRun", async () => {
   const { createElement: h, useEffect: useMountEffect } = await import("react");
@@ -42,7 +42,8 @@ vi.mock("../../mobile/src/components/levels/LevelRun", async () => {
       goalFt: number;
       paused: boolean;
       bestFailFt?: number | null;
-      startPowerUp?: unknown;
+      startPowerUps?: unknown;
+      boosterKept?: unknown;
       onEnd: (r: LevelRunReport) => void;
     }) => {
       useMountEffect(() => {
@@ -50,7 +51,8 @@ vi.mock("../../mobile/src/components/levels/LevelRun", async () => {
           seed: props.seed,
           goalFt: props.goalFt,
           bestFailFt: props.bestFailFt ?? null,
-          startPowerUp: props.startPowerUp ?? null,
+          startPowerUps: props.startPowerUps ?? [],
+          boosterKept: props.boosterKept ?? null,
         });
         // eslint-disable-next-line react-hooks/exhaustive-deps -- one entry per mounted attempt
       }, []);
@@ -72,7 +74,7 @@ import { LevelMapScreen, MAP_FADE, pinBottom } from "../../mobile/src/screens/Le
 import { LevelPlayScreen, ticketFromState } from "../../mobile/src/screens/LevelPlayScreen";
 import { LevelResultCard } from "../../mobile/src/components/levels/LevelResultCard";
 import { TICK_HZ } from "../../src/game/types";
-import { POWER_UP_TYPES } from "../../src/game/powerups";
+import { POWER_UP_SPECS, POWER_UP_TYPES } from "../../src/game/powerups";
 import { markTutorialsSeen } from "../../mobile/src/lib/levels/tutorialSeen";
 
 let container: HTMLDivElement;
@@ -104,8 +106,20 @@ afterEach(() => {
 });
 
 function memoryClient(): LevelsClient {
+  return memoryStore().client;
+}
+
+/** A device store in memory; `reopen` opens it again with a set inventory (a new session). */
+function memoryStore() {
   let stored: string | null = null;
-  return createMockLevelsClient({ load: () => stored, save: (raw) => void (stored = raw) });
+  const open = () => createMockLevelsClient({ load: () => stored, save: (raw) => void (stored = raw) });
+  return {
+    client: open(),
+    reopen(boosters: Record<string, number>) {
+      stored = JSON.stringify({ ...(JSON.parse(stored ?? "{}") as object), boosters });
+      return open();
+    },
+  };
 }
 
 async function clearLevels(client: LevelsClient, upTo: number) {
@@ -313,7 +327,7 @@ describe("star chests and boosters", () => {
 
     await click(button("Play level 7"));
     expect(where.pathname).toBe("/levels/7/play");
-    expect(runs.mounted.at(-1)?.startPowerUp).toEqual({ type, source: "booster" });
+    expect(runs.mounted.at(-1)?.startPowerUps).toEqual([{ type, source: "booster" }]);
     expect((await client.getSeason()).boosters[type as "giant"] ?? 0).toBe(count - 1);
   });
 
@@ -328,16 +342,37 @@ describe("star chests and boosters", () => {
     await click(chip);
     expect(chip?.getAttribute("aria-pressed")).toBe("false");
     await click(button("Play level 7"));
-    expect(runs.mounted.at(-1)?.startPowerUp).toBeNull();
+    expect(runs.mounted.at(-1)?.startPowerUps).toEqual([]);
     expect((await client.getSeason()).boosters[type as "giant"] ?? 0).toBe(count);
   });
 
-  it("keeps the boosters when the frontier run already starts with a free power-up", async () => {
-    const { client } = await withChest();
+  it("adds a booster to the frontier run's free power-up, and disables the free one's type", async () => {
+    const store = memoryStore();
+    await clearLevels(store.client, 7);
+    // L8 is the frontier after 7 first clears in a row: a free rapid climb.
+    const client = store.reopen({ "rapid-climb": 1, "sprint-burst": 2 });
     await renderMap(client);
     await click(pin("Level 8, next to play"));
-    expect(container.querySelector('[role="dialog"] button[aria-pressed]')).toBeNull();
-    expect(container.textContent).toContain("your boosters are kept");
+    const chips = () => [...container.querySelectorAll<HTMLButtonElement>('[role="dialog"] button[aria-pressed]')];
+    const rapid = chips().find((b) => b.getAttribute("aria-label")?.startsWith("Rapid Climb"));
+    const sprint = chips().find((b) => b.getAttribute("aria-label")?.startsWith("Sprint Burst"));
+    expect(rapid?.disabled).toBe(true);
+    expect(rapid?.getAttribute("aria-label")).toBe("Rapid Climb, 1 owned, already free this run");
+    expect(sprint?.disabled).toBe(false);
+    expect(container.textContent).toContain("This run already starts with Rapid Climb. Tap a booster to add it.");
+
+    await click(sprint);
+    const dialog = container.querySelector('[role="dialog"]')?.textContent ?? "";
+    expect(dialog).toContain("You start with Rapid Climb and Sprint Burst at GO.");
+    expect(dialog).toContain("You start with Rapid Climb and Sprint Burst");
+    expect(dialog).toContain("Win streak 7 + booster");
+
+    await click(button("Play level 8"));
+    expect(runs.mounted.at(-1)?.startPowerUps).toEqual([
+      { type: "rapid-climb", source: "streak" },
+      { type: "sprint-burst", source: "booster" },
+    ]);
+    expect((await client.getSeason()).boosters).toEqual({ "rapid-climb": 1, "sprint-burst": 1 });
   });
 });
 
@@ -438,12 +473,19 @@ describe("level play route", () => {
       goalFt: 150,
       pars: { twoStarMs: 1, threeStarMs: 1 },
       player: {},
+      startPowerUps: [],
+      boosterKept: null,
     };
-    expect(ticketFromState({ ticket }, 4)).toEqual({ ...ticket, startPowerUp: null });
-    expect(ticketFromState({ ticket: { ...ticket, startPowerUp: { type: "rapid-climb", source: "streak" } } }, 4)).toMatchObject({
-      startPowerUp: { type: "rapid-climb", source: "streak" },
-    });
-    expect(ticketFromState({ ticket: { ...ticket, startPowerUp: { type: "random", source: "streak" } } }, 4)).toBeNull();
+    expect(ticketFromState({ ticket }, 4)).toEqual(ticket);
+    const both = [
+      { type: "rapid-climb", source: "streak" },
+      { type: "sprint-burst", source: "booster" },
+    ];
+    expect(ticketFromState({ ticket: { ...ticket, startPowerUps: both } }, 4)).toMatchObject({ startPowerUps: both });
+    expect(ticketFromState({ ticket: { ...ticket, boosterKept: "rapid-climb" } }, 4)).toMatchObject({ boosterKept: "rapid-climb" });
+    expect(ticketFromState({ ticket: { ...ticket, startPowerUps: [{ type: "random", source: "streak" }] } }, 4)).toBeNull();
+    expect(ticketFromState({ ticket: { ...ticket, startPowerUps: undefined } }, 4)).toBeNull();
+    expect(ticketFromState({ ticket: { ...ticket, boosterKept: "toString" } }, 4)).toBeNull();
     expect(ticketFromState({ ticket }, 5)).toBeNull();
     expect(ticketFromState({ ticket: { ...ticket, seed: 7 } }, 4)).toBeNull();
     expect(ticketFromState(null, 4)).toBeNull();
@@ -574,5 +616,110 @@ describe("level result card", () => {
     expect(container.textContent).toContain("Win streak reset");
     await renderCard({ ...base, atFrontier: false, streak: 4 });
     expect(container.textContent).not.toContain("Win streak");
+  });
+});
+
+describe("a booster picked on the chest reveal", () => {
+  const typeOf = (label: string) => {
+    const hit = Object.entries(POWER_UP_SPECS).find(([, spec]) => label.includes(spec.label));
+    if (!hit) throw new Error(`no power-up in "${label}"`);
+    return hit[0];
+  };
+  const pressedChips = () =>
+    [...container.querySelectorAll<HTMLButtonElement>('[role="dialog"] button[aria-pressed="true"]')].map((b) => b.getAttribute("aria-label"));
+
+  /**
+   * Levels 1-6 cleared with 3 stars (18), then a loss at L7 so L8 starts with
+   * no free power-up. Clearing L7 with 3 stars opens chest 1.
+   */
+  async function toChestClear() {
+    const client = memoryClient();
+    await clearLevels(client, 6);
+    const lost = await client.startLevel(7);
+    if (!lost.ok) throw new Error("refused");
+    await client.submitResult(lost.ticket.id, { level: 7, finished: false, finishedTick: null, raceTicks: 300, peakFt: 5, replayToken: null, outOfTime: false });
+    const startLevel = vi.spyOn(client, "startLevel");
+    await renderMap(client);
+    await click(pin("Level 7, next to play"));
+    await click(button("Play level 7"));
+    await click(button("stub-clear"));
+    await click(button("Skip"));
+    return { client, startLevel };
+  }
+
+  it("opens the next level's start card with the pick equipped, and starts the run with it", async () => {
+    const { client, startLevel } = await toChestClear();
+    const offered = [...container.querySelectorAll<HTMLButtonElement>('ul[aria-label="Boosters from the chest"] button[aria-pressed]')];
+    const pick = offered.find((b) => !b.disabled);
+    if (!pick) throw new Error("the chest held nothing level 8 allows");
+    const type = typeOf(pick.textContent ?? "");
+    await click(pick);
+    expect(container.textContent).toContain(`${POWER_UP_SPECS[type as "giant"].label} ready for level 8.`);
+    const owned = (await client.getSeason()).boosters[type as "giant"] ?? 0;
+
+    await click(button("Next level"));
+    expect(where.pathname).toBe("/");
+    expect(where.state).toBeNull();
+    expect(container.querySelector('[role="dialog"] h2')?.textContent).toBe("Level 8");
+    expect(pressedChips()).toEqual([`${POWER_UP_SPECS[type as "giant"].label}, ${owned} owned`]);
+
+    await click(button("Play level 8"));
+    expect(startLevel).toHaveBeenLastCalledWith(8, { booster: type });
+    expect(runs.mounted.at(-1)?.startPowerUps).toEqual([{ type, source: "booster" }]);
+  });
+
+  it("can still be cleared on the start card, and then nothing is spent", async () => {
+    const { startLevel } = await toChestClear();
+    const pick = [...container.querySelectorAll<HTMLButtonElement>('ul[aria-label="Boosters from the chest"] button[aria-pressed]')].find((b) => !b.disabled);
+    await click(pick);
+    await click(button("Next level"));
+    const chip = container.querySelector<HTMLButtonElement>('[role="dialog"] button[aria-pressed="true"]');
+    await click(chip ?? undefined);
+    expect(pressedChips()).toEqual([]);
+    await click(button("Play level 8"));
+    expect(startLevel).toHaveBeenLastCalledWith(8, { booster: null });
+  });
+
+  it("carries nothing to any other way of opening a start card", async () => {
+    await toChestClear();
+    const pick = [...container.querySelectorAll<HTMLButtonElement>('ul[aria-label="Boosters from the chest"] button[aria-pressed]')].find((b) => !b.disabled);
+    await click(pick);
+    await click(button("Next level"));
+    expect(pressedChips()).toHaveLength(1);
+    await click(button("Close"));
+    await click(pin("Level 7, 3 of 3 stars"));
+    expect(pressedChips()).toEqual([]);
+    await click(button("Close"));
+    await click(button("Open level 8"));
+    expect(pressedChips()).toEqual([]);
+  });
+
+  it("carries nothing through Next level when nothing was picked", async () => {
+    const { startLevel } = await toChestClear();
+    await click(button("Next level"));
+    expect(container.querySelector('[role="dialog"] h2')?.textContent).toBe("Level 8");
+    expect(pressedChips()).toEqual([]);
+    await click(button("Play level 8"));
+    expect(startLevel).toHaveBeenLastCalledWith(8, { booster: null });
+  });
+
+  it("drops a carried booster that is not owned, not allowed, free on that run, or not a booster", async () => {
+    const store = memoryStore();
+    await clearLevels(store.client, 7);
+    // L7 allows rapid climb and sprint burst; L8 (the frontier) starts with a free rapid climb.
+    const open = async (openLevel: number, booster: unknown) => {
+      act(() => root.unmount());
+      root = createRoot(container);
+      await renderMap(store.reopen({ "rapid-climb": 1, "super-jump": 1 }), { pathname: "/", state: { openLevel, booster } });
+      expect(container.querySelector('[role="dialog"] h2')?.textContent).toBe(`Level ${openLevel}`);
+      return pressedChips();
+    };
+    // Owned and allowed: equipped (the positive control for the rest).
+    expect(await open(7, "rapid-climb")).toEqual(["Rapid Climb, 1 owned"]);
+    expect(await open(7, "sprint-burst")).toEqual([]);
+    expect(await open(7, "super-jump")).toEqual([]);
+    expect(await open(8, "rapid-climb")).toEqual([]);
+    expect(await open(7, "toString")).toEqual([]);
+    expect(await open(7, { type: "rapid-climb" })).toEqual([]);
   });
 });

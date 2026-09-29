@@ -57,6 +57,7 @@ import {
   nextStreak,
   parseBoosterType,
   routeGhostAvailable,
+  startGrant,
   type BoosterInventory,
   type BoosterType,
   type FailTally,
@@ -160,6 +161,12 @@ async function spendBooster(tx: TxClient, userId: string, type: BoosterType, now
     data: { count: { decrement: 1 }, updated_at: now },
   });
   return spent.count === 1;
+}
+
+/** Whether one or more of a booster is owned (read under the caller's user lock). */
+async function ownsBooster(tx: TxClient, userId: string, type: BoosterType): Promise<boolean> {
+  const owned = await tx.userBooster.count({ where: { userId, type, count: { gt: 0 } } });
+  return owned > 0;
 }
 
 async function inventoryOf(tx: TxClient | typeof prisma, userId: string): Promise<BoosterInventory> {
@@ -313,8 +320,15 @@ export interface IssuedTicket {
   lifeSpent: boolean;
   lives: number;
   nextLifeAt: Date | null;
-  /** What the run starts with at GO, decided here and stored on the ticket. */
+  /**
+   * The first of startPowerUps, or null: what an app that plays one start
+   * power-up reads. Stored on the ticket as start_power_up.
+   */
   startPowerUp: StartPowerUp | null;
+  /** Everything the run starts with at GO, in order: the free power-up, then the booster. */
+  startPowerUps: StartPowerUp[];
+  /** A chosen booster kept, not spent, because the free power-up is its type. */
+  boosterKept: BoosterType | null;
   /** Win streak after any open ticket was closed (design §6.3). */
   streak: number;
   /** Fails recorded at this level (0 unless it is the frontier), §5c. */
@@ -336,10 +350,12 @@ export interface IssuedTicket {
  *
  * A requested booster must be allowed on the level and owned, or the whole
  * start is refused and nothing is written. It is spent here and refunded
- * only on a bad start. When the run already starts with a free power-up
- * (streak or stuck help) the free one wins and the booster is kept, not
- * refused: the app's preview cannot see the open ticket this start closes,
- * which can earn or end a free power-up, so a refusal would repeat forever.
+ * only on a bad start. A run that also earns a free power-up (streak or
+ * stuck help) starts with both (startGrant). The one exception: a booster of
+ * the free power-up's own type would only refresh it, so it is kept, not
+ * spent, and the ticket says so (boosterKept). The app's preview cannot see
+ * the open ticket this start closes, which can earn or end a free power-up,
+ * so that case is reported rather than refused.
  *
  * @throws LevelError LEVEL_LOCKED | OUT_OF_LIVES | USER_NOT_FOUND
  *                    | BOOSTER_NOT_ALLOWED | BOOSTER_NOT_OWNED
@@ -386,12 +402,16 @@ export async function issueLevelTicket(input: IssueTicketInput): Promise<IssuedT
     if (requested !== null && !input.allowedBoosters.includes(requested)) {
       throw new LevelError("BOOSTER_NOT_ALLOWED", "That booster is not unlocked on this level");
     }
-    // The booster actually spent: none when a free power-up already applies.
-    const booster = free === null ? requested : null;
+    // The free power-up and the booster side by side; a booster of the free
+    // one's type is kept rather than spent (startGrant).
+    const grant = startGrant(free, requested);
+    const booster = grant.spend;
     if (booster !== null && !(await spendBooster(tx, userId, booster, now))) {
       throw new LevelError("BOOSTER_NOT_OWNED", "You have none of that booster left");
     }
-    const startPowerUp: StartPowerUp | null = booster !== null ? { type: booster, source: "booster" } : free;
+    if (grant.kept !== null && !(await ownsBooster(tx, userId, grant.kept))) {
+      throw new LevelError("BOOSTER_NOT_OWNED", "You have none of that booster left");
+    }
 
     const lifeSpent = levelCostsLife(level);
     if (lifeSpent) {
@@ -422,7 +442,9 @@ export async function issueLevelTicket(input: IssueTicketInput): Promise<IssuedT
         season,
         level,
         sim_version: input.simVersion,
-        start_power_up: startPowerUp?.type ?? null,
+        // The free power-up (or the booster when there is none); a booster
+        // alongside a free one is the booster column.
+        start_power_up: grant.startPowerUps[0]?.type ?? null,
         booster,
         life_spent: lifeSpent,
         created_at: now,
@@ -437,7 +459,9 @@ export async function issueLevelTicket(input: IssueTicketInput): Promise<IssuedT
       lifeSpent,
       lives: life.lives,
       nextLifeAt: nextLifeAt(life, now),
-      startPowerUp,
+      startPowerUp: grant.startPowerUps[0] ?? null,
+      startPowerUps: grant.startPowerUps,
+      boosterKept: grant.kept,
       streak,
       failsAtLevel: fails,
       routeGhostAvailable: routeGhostAvailable(fails),

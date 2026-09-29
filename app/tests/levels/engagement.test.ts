@@ -21,6 +21,8 @@ import {
   boosterTypesOf,
   failsAt,
   freeStartPowerUp,
+  MAX_START_POWER_UPS,
+  startGrant,
   nextFailTally,
   nextStreak,
   routeGhostAvailable,
@@ -111,6 +113,42 @@ describe("streakPowerUp", () => {
     expect(streakPowerUp(STREAK_SUPER_JUMP, ["super-jump"])).toBe("super-jump");
     expect(streakPowerUp(STREAK_RAPID_CLIMB, ["super-jump"])).toBeNull();
     expect(streakPowerUp(STREAK_SUPER_JUMP, [])).toBeNull();
+  });
+});
+
+describe("startGrant", () => {
+  const streak = { type: "rapid-climb", source: "streak" } as const;
+
+  it("starts with the free power-up and the chosen booster, spending the booster", () => {
+    expect(startGrant(streak, "super-jump")).toEqual({
+      startPowerUps: [streak, { type: "super-jump", source: "booster" }],
+      spend: "super-jump",
+      kept: null,
+    });
+  });
+
+  it("keeps a booster of the free power-up's own type, starting with the free one only", () => {
+    expect(startGrant(streak, "rapid-climb")).toEqual({ startPowerUps: [streak], spend: null, kept: "rapid-climb" });
+  });
+
+  it("spends a booster alone, grants a free power-up alone, and nothing without either", () => {
+    expect(startGrant(null, "giant")).toEqual({
+      startPowerUps: [{ type: "giant", source: "booster" }],
+      spend: "giant",
+      kept: null,
+    });
+    expect(startGrant(streak, null)).toEqual({ startPowerUps: [streak], spend: null, kept: null });
+    expect(startGrant(null, null)).toEqual({ startPowerUps: [], spend: null, kept: null });
+  });
+
+  it("never grants more than MAX_START_POWER_UPS, or one type twice", () => {
+    for (const free of [null, streak, { type: "slow-lava", source: "stuck_help" } as const]) {
+      for (const chosen of [null, "rapid-climb", "slow-lava", "giant"] as const) {
+        const { startPowerUps } = startGrant(free, chosen);
+        expect(startPowerUps.length).toBeLessThanOrEqual(MAX_START_POWER_UPS);
+        expect(new Set(startPowerUps.map((p) => p.type)).size).toBe(startPowerUps.length);
+      }
+    }
   });
 });
 

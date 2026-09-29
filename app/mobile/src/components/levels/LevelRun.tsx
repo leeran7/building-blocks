@@ -33,9 +33,12 @@ import {
 } from "../../lib/levels/model";
 import type { LevelRunSetup } from "../../lib/levels/catalog";
 import { useSettings } from "../../contexts/AppDataContext";
-import type { StartPowerUp } from "@app/levels/engagement";
+import type { BoosterType, StartPowerUp } from "@app/levels/engagement";
 import { StarRow } from "./LevelBits";
-import { PowerUpName } from "./LevelStartExtras";
+import { PowerUpName, PowerUpNames } from "./LevelStartExtras";
+
+/** No start power-ups (a stable default). */
+const NONE: readonly StartPowerUp[] = [];
 
 /**
  * The climb itself, on the level's tower and lava from the season manifest
@@ -55,7 +58,8 @@ export function LevelRun({
   paused,
   onEnd,
   onQuit,
-  startPowerUp = null,
+  startPowerUps = NONE,
+  boosterKept = null,
   bestFailFt = null,
   onHowToPlay,
 }: {
@@ -71,8 +75,10 @@ export function LevelRun({
   paused: boolean;
   onEnd: (report: LevelRunReport) => void;
   onQuit: () => void;
-  /** The ticket's power-up, granted by the engine at GO. */
-  startPowerUp?: StartPowerUp | null;
+  /** The ticket's power-ups (a free one, then a booster), granted by the engine at GO. */
+  startPowerUps?: readonly StartPowerUp[];
+  /** A chosen booster the server kept: the run's free power-up is its type. */
+  boosterKept?: BoosterType | null;
   /** Best failed height on this level when it came close (§6.2), ft. */
   bestFailFt?: number | null;
   /** Replays the level's tutorial from the start screen. */
@@ -83,7 +89,7 @@ export function LevelRun({
     tower: towerRef.current,
     seed,
     hazard: setup?.hazard,
-    ...(startPowerUp ? { startPowerUp: startPowerUp.type } : {}),
+    ...(startPowerUps.length > 0 ? { startPowerUps: startPowerUps.map((p) => p.type) } : {}),
   });
   useGameHaptics(simRef, 0, runId);
 
@@ -235,9 +241,9 @@ export function LevelRun({
           <p key={countdownValue} className="lp-pop mt-3 font-display text-7xl font-black tabular-nums text-text-primary">
             {countdownValue}
           </p>
-          {startPowerUp && (
+          {startPowerUps.length > 0 && (
             <p className="mt-4 text-meta text-text-primary">
-              Starts with <PowerUpName type={startPowerUp.type} />
+              Starts with <PowerUpNames powerUps={startPowerUps} />
             </p>
           )}
         </Overlay>
@@ -255,9 +261,14 @@ export function LevelRun({
           <p className="mt-4 max-w-[280px] text-center text-body text-text-secondary">
             Reach the summit at {goalFt.toLocaleString()} {ALTITUDE_UNIT} before the lava catches you.
           </p>
-          {startPowerUp && (
+          {startPowerUps.length > 0 && (
             <p className="mt-3 text-meta text-text-primary">
-              You start with <PowerUpName type={startPowerUp.type} /> at GO.
+              You start with <PowerUpNames powerUps={startPowerUps} /> at GO.
+            </p>
+          )}
+          {boosterKept && (
+            <p className="mt-2 max-w-[280px] text-center text-meta text-text-secondary">
+              Your <PowerUpName type={boosterKept} /> booster was kept: this run already starts with it.
             </p>
           )}
           <button

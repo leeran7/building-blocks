@@ -507,15 +507,55 @@ describe.skipIf(!PG_URL)("level engagement on Postgres", () => {
       expect(await livesOf("a")).toBe(lives);
       expect(await prisma.levelRunTicket.count({ where: { used_at: null } })).toBe(0);
 
-      // A streak run already starts with a free power-up: it wins, and the
-      // booster is kept rather than spent or refused.
+      // A streak run already starts with a free rapid climb: a rapid climb
+      // booster would only refresh it, so it is kept (and said so), not spent.
       await user("b", { streak: 3 });
       await clearThroughWith3("b", 3);
       await give("b", "rapid-climb", 1);
       const t = await start("b", 4, { booster: "rapid-climb" });
-      expect(t).toMatchObject({ startPowerUp: { type: "rapid-climb", source: "streak" }, boosters: { "rapid-climb": 1 } });
+      expect(t).toMatchObject({
+        startPowerUp: { type: "rapid-climb", source: "streak" },
+        startPowerUps: [{ type: "rapid-climb", source: "streak" }],
+        boosterKept: "rapid-climb",
+        boosters: { "rapid-climb": 1 },
+      });
       expect(await prisma.levelRunTicket.findUniqueOrThrow({ where: { id: t.ticketId } })).toMatchObject({ booster: null });
       expect(await inventory("b")).toEqual({ "rapid-climb": 1 });
+    });
+
+    it("refuses a kept booster that is not owned, and writes nothing", async () => {
+      await user("a", { streak: 3 });
+      await clearThroughWith3("a", 3);
+      const lives = await livesOf("a");
+      expect(await codeOf(start("a", 4, { booster: "rapid-climb" }))).toBe("BOOSTER_NOT_OWNED");
+      expect(await livesOf("a")).toBe(lives);
+      expect(await prisma.levelRunTicket.count({ where: { used_at: null } })).toBe(0);
+    });
+
+    it("starts with the free power-up AND a booster of another type, spending the booster", async () => {
+      await user("a");
+      // Six first clears in a row: L7 starts with a free rapid climb.
+      await clearThroughWith3("a", 6);
+      await prisma.userBooster.deleteMany({ where: { userId: "a" } });
+      await give("a", "sprint-burst", 2);
+      const t = await start("a", 7, { booster: "sprint-burst", now: at(900) });
+      expect(t).toMatchObject({
+        startPowerUp: { type: "rapid-climb", source: "streak" },
+        startPowerUps: [
+          { type: "rapid-climb", source: "streak" },
+          { type: "sprint-burst", source: "booster" },
+        ],
+        boosterKept: null,
+        boosters: { "sprint-burst": 1 },
+      });
+      // start_power_up keeps the free one; the booster column the spent one.
+      expect(await prisma.levelRunTicket.findUniqueOrThrow({ where: { id: t.ticketId } })).toMatchObject({
+        start_power_up: "rapid-climb",
+        booster: "sprint-burst",
+      });
+      // A bad start still gives the booster back.
+      await submit("a", t.ticketId, failed(30), new Date(at(900).getTime() + 2_000));
+      expect(await inventory("a")).toEqual({ "sprint-burst": 2 });
     });
 
     it("refunds the booster only on a bad start", async () => {
