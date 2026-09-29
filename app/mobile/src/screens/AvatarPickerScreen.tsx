@@ -27,7 +27,9 @@ import { LAVA_CLEARANCE } from "../components/AnimatedBackdrop";
 
 const COLUMNS = 3;
 const TILE_HEX = 56;
-const NEXT_HEX = 34;
+const NEXT_HEX = 24;
+/** The preview's figure height: smaller than the default so it clears the pose switch. */
+const PREVIEW_FIGURE_PX = 108;
 const LOAD_FAILED_MESSAGE = "Couldn't load your profile. Check your connection and try again.";
 const SCROLL_FADE = "linear-gradient(to bottom, #000 calc(100% - 18px), transparent)";
 /**
@@ -398,9 +400,9 @@ export function AvatarPickerScreen() {
             : viewedLock.requirement;
   const blurb =
     viewed.entry === null
-      ? "Your badge shows your initials. You climb as the Green Stick."
+      ? "Initials on your badge. You climb as the Green Stick."
       : viewedLock === null
-        ? "Your climber in every run, and your badge on the leaderboards."
+        ? "Your climber and your leaderboard badge."
         : viewedLock.message;
   const saveLabel = saving
     ? "Saving…"
@@ -427,7 +429,7 @@ export function AvatarPickerScreen() {
             className="glass overflow-hidden rounded-3xl border border-white/10"
           >
             <div
-              className="relative flex h-[150px] items-end justify-center bg-cover bg-bottom"
+              className="relative flex h-[132px] items-end justify-center bg-cover bg-bottom"
               style={{ backgroundImage: `linear-gradient(180deg, rgba(10,10,12,0.55), rgba(10,10,12,0.1) 45%, rgba(10,10,12,0.4)), url(${volcanoScene})` }}
             >
               <div role="group" aria-label="Preview pose" className="absolute left-2.5 top-2.5 flex gap-1 rounded-full bg-void/70 p-[3px]">
@@ -451,9 +453,9 @@ export function AvatarPickerScreen() {
                   {viewedLock.kind === "premium" ? "Coming soon" : viewedLock.kind === "purchase" ? "In Shop" : "Locked"}
                 </span>
               )}
-              <CharacterPreview avatarId={viewing} pose={pose} locked={viewedLock !== null} />
+              <CharacterPreview avatarId={viewing} pose={pose} locked={viewedLock !== null} figurePx={PREVIEW_FIGURE_PX} />
             </div>
-            <div className="flex flex-col gap-1.5 px-4 pb-4 pt-3">
+            <div className="flex flex-col gap-1 px-4 py-2.5">
               <div className="flex items-baseline justify-between gap-2">
                 <p
                   aria-live="polite"
@@ -478,21 +480,20 @@ export function AvatarPickerScreen() {
             </div>
           </section>
 
+          {/* One slim line, not a card, so the grid below gets the height. */}
           {next && (
-            <div data-avatar-next className="glass flex items-center gap-2.5 rounded-2xl border border-white/10 px-3 py-2.5">
+            <div data-avatar-next className="flex items-center gap-2 px-0.5">
               <HexAvatar userId={userId} name={next.entry.name} avatarId={next.entry.id} size={NEXT_HEX} />
-              <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-                <p className="text-meta text-text-secondary">
-                  Next: <span className="font-semibold text-text-primary">{next.entry.name}</span> in {next.starsLeft} ★
-                </p>
-                <div className="h-1.5 overflow-hidden rounded-full bg-elevated">
-                  <div className="h-full rounded-full bg-signal" style={{ width: `${Math.round(next.progress * 100)}%` }} />
-                </div>
+              <p className="shrink-0 text-meta text-text-secondary">
+                Next: <span className="font-semibold text-text-primary">{next.entry.name}</span> in {next.starsLeft} ★
+              </p>
+              <div aria-hidden className="h-1.5 min-w-8 flex-1 overflow-hidden rounded-full bg-elevated">
+                <div className="h-full rounded-full bg-signal" style={{ width: `${Math.round(next.progress * 100)}%` }} />
               </div>
             </div>
           )}
 
-          <p className="flex justify-between px-0.5 pt-1 font-mono text-label font-bold uppercase tracking-label text-text-secondary">
+          <p className="flex justify-between px-0.5 font-mono text-label font-bold uppercase tracking-label text-text-secondary">
             <span>Characters</span>
             <span className="text-signal">
               {counts.owned}/{counts.total} unlocked
