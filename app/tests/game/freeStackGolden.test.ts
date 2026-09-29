@@ -43,18 +43,19 @@ import { botInput } from "./greedyBot";
 
 vi.stubEnv("DAILY_SEED_SECRET", TEST_DAILY_SEED_SECRET);
 
-// ── Pinned values (main @ 8d94f4d, DAILY_SIM_VERSION 3) ─────────────────────
-const PIN_FREE_GEOMETRY = "aa36a46dce9906b67df96540418e5c4e1083d46ca14c214015ec7f71b0e56bb3";
+// ── Pinned values (DAILY_SIM_VERSION 4: the free stack's hanging ladders and
+// short tops, ENDLESS_LADDERS; category towers and duels unchanged since 3) ──
+const PIN_FREE_GEOMETRY = "3d83d67129408b3d233a4b6856ee5075decf8df638386b23f36a292c45830ada";
 const PIN_CATEGORY_GEOMETRY = "7247ce3db432cf7d57e48b86b3a786dfb9912ddc93326980f35a98cbf214679d";
 const PIN_SOLO_OUTCOME = { peakY: 628.041049955388, finishedTick: 3461, ticks: 3461 };
 const PIN_SOLO_TRACE = "0d4278d76b40e3997d51f73a91d688e189a8aec9e52d6871c17c29019fa4ba3f";
 const PIN_DAILY = {
   ok: true,
   peakY: 518.0241972076892,
-  ticks: 3196,
-  inputHash: "4b69b6597a65f570fe18786ecc95cd6a69c163b7da94905631a00f3e0bb379e6",
+  ticks: 3195,
+  inputHash: "3e72b08e0069efe12c1ec638d040a21c5787d2ac3c6cbe4114a9ddc105b70928",
 };
-const PIN_DAILY_TRACE = "acb7fbf214087c93b1b37b3b055b9e981ede971e45c006a2a79dbc530320f7cb";
+const PIN_DAILY_TRACE = "7545301e8891c4e0f43c487e5b9e529c45ffadc0123da1b88daeec620a4ac3df";
 const PIN_DUEL_TRACE = "03fc9d07a9d1d54a88df3a43f1381bc1bdee00e6fed42fe6edb6269baabd2f9b";
 const PIN_DUEL_RESULT = {
   winnerId: "p1",
@@ -136,6 +137,14 @@ describe("golden: free-stack geometry", () => {
       expect(floors.filter((f) => f.ladders.length > 1).length).toBeGreaterThan(0);
     }
     expect(free.filter((f) => f.orb?.type === "random").length).toBeGreaterThan(0);
+    // The free stack ramps in hanging ladders and short tops; categories never do.
+    const hanging = (fs: typeof free) =>
+      fs.filter((f) => f.ladders.some((l) => l.y0 > f.y + 1e-9)).length;
+    const shortTop = (fs: typeof free) =>
+      fs.filter((f, i) => i + 1 < fs.length && f.ladders.some((l) => l.y1 < fs[i + 1].y - 1e-9)).length;
+    expect(hanging(free)).toBeGreaterThan(0);
+    expect(shortTop(free)).toBeGreaterThan(0);
+    expect(hanging(category) + shortTop(category)).toBe(0);
 
     expect(sha(free)).toBe(PIN_FREE_GEOMETRY);
     expect(sha(category)).toBe(PIN_CATEGORY_GEOMETRY);
