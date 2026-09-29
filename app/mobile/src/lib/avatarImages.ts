@@ -1,4 +1,4 @@
-import { parseAvatarId } from "@app/lib/avatars";
+import { avatarEntry, parseAvatarId } from "@app/lib/avatars";
 
 // No type argument: this file is typechecked by both the Vite SPA (vite/client
 // types) and the root Next tsconfig via tests (Next's non-generic
@@ -18,8 +18,13 @@ export const AVATAR_IMAGES: ReadonlyMap<string, string> = new Map(
   }),
 );
 
-/** Image URL for a catalogue avatar id; null when unset, retired, or missing art. */
+/**
+ * Image URL for a catalogue avatar id; null when unset, retired, or missing
+ * art. A skin without its own portrait yet shows its character's.
+ */
 export function avatarSrc(id: string | null | undefined): string | null {
   const valid = parseAvatarId(id);
-  return valid === null ? null : (AVATAR_IMAGES.get(valid) ?? null);
+  if (valid === null) return null;
+  const skinOf = avatarEntry(valid)?.skinOf;
+  return AVATAR_IMAGES.get(valid) ?? (skinOf ? (AVATAR_IMAGES.get(skinOf) ?? null) : null);
 }

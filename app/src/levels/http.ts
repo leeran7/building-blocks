@@ -52,6 +52,8 @@ const LEVEL_ERROR_STATUS: Record<LevelErrorCode, number> = {
   IMPLAUSIBLE_RUN: 400,
   BOOSTER_NOT_ALLOWED: 409,
   BOOSTER_NOT_OWNED: 409,
+  LIVES_FULL: 409,
+  NOT_ENOUGH_GEMS: 409,
 };
 
 export function levelErrorResponse(err: LevelError): NextResponse {

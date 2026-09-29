@@ -157,10 +157,27 @@ describe("registry", () => {
     expect(CLIMBER_CHARACTERS["stick-green"]).toEqual({ kind: "stick", color: "#cbf24d" });
   });
 
-  it("uses real art only: no tint entries in the live registry", async () => {
-    const { CLIMBER_CHARACTERS } = await import("../../src/components/Game/climberCharacters");
-    const kinds = new Set(Object.values(CLIMBER_CHARACTERS).map((c) => c.kind));
-    expect(kinds.has("tint")).toBe(false);
+  it("uses real art for every character; only a Void skin without its own sheets is a tint (the Wraith recoloured)", async () => {
+    const { CLIMBER_CHARACTERS, RECOLOR_PALETTE, VOID_SKIN_SHEETS } = await import(
+      "../../src/components/Game/climberCharacters"
+    );
+    let skins = 0;
+    for (const a of AVATARS) {
+      const c = CLIMBER_CHARACTERS[a.id];
+      if (a.skinOf === undefined) {
+        expect(c.kind, a.id).not.toBe("tint");
+        continue;
+      }
+      skins++;
+      if (Object.prototype.hasOwnProperty.call(VOID_SKIN_SHEETS, a.id)) {
+        expect(c.kind).toBe("sheets");
+      } else {
+        expect(c.kind, a.id).toBe("tint");
+        const palette = RECOLOR_PALETTE[a.skinOf];
+        if (palette && c.kind === "tint") expect(c.accent).toBe(palette.accent);
+      }
+    }
+    expect(skins).toBeGreaterThan(0);
   });
 
   it("RECOLOR_PALETTE: every colour parses, keyed by catalogue avatars other than the Wraith", async () => {

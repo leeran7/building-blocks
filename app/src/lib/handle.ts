@@ -12,7 +12,7 @@
  * and recognisable across avatar changes.
  */
 
-import { parseAvatarId } from "./avatars";
+import { characterIdOf } from "./avatars";
 
 const ADJECTIVES = [
   "Swift", "Bold", "Silent", "Crimson", "Golden", "Nimble", "Fearless", "Lucky",
@@ -47,10 +47,10 @@ function hashAnimal(h: number): string {
  * The animal word for an avatar id, or null when the avatar is not one of the
  * animals (wraith / viking / sentinel), is absent, or is not a catalogue id.
  * The input is untrusted (DB column, API response), so it goes through the
- * catalogue's allow-list parser first.
+ * catalogue's allow-list parser first. A skin names its character's animal.
  */
 function avatarAnimal(avatarId: string | null | undefined): string | null {
-  const id = parseAvatarId(avatarId);
+  const id = characterIdOf(avatarId);
   return id === null ? null : ANIMAL_BY_AVATAR.get(id) ?? null;
 }
 

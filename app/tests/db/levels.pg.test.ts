@@ -416,9 +416,10 @@ describe.skipIf(!PG_URL)("levels on Postgres", () => {
       expect((await submit(uid, again.ticketId, cleared(1200))).unlockedAvatars).toEqual([]);
     });
 
-    it("names the six stick figures on the first level 1 clear (the tutorial), and never again", async () => {
+    it("names the tutorial characters (six stick figures and the Gecko) on the first level 1 clear, and never again", async () => {
       await user(uid);
-      expect(STICK_IDS).toHaveLength(6);
+      expect(STICK_IDS).toHaveLength(7);
+      expect(STICK_IDS).toContain("gecko");
       const first = await start(uid, 1);
       expect((await submit(uid, first.ticketId, cleared(1200))).unlockedAvatars).toEqual(STICK_IDS);
       // A better replay raises level 1's stars (2 -> 3) but is not the tutorial.

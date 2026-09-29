@@ -2,7 +2,6 @@ import { TICK_HZ } from "@app/game/types";
 import {
   MAX_CHEST_BOOSTERS,
   boosterInventory,
-  boosterTypesOf,
   chestBoostersFromRoll,
   chestProgress,
   chestsEarned,
@@ -10,6 +9,7 @@ import {
   freeStartPowerUp,
   nextFailTally,
   nextStreak,
+  startBoosterTypes,
   type BoosterInventory,
   type FailTally,
 } from "@app/levels/engagement";
@@ -286,11 +286,13 @@ export function createMockLevelsClient(opts: MockClientOptions = {}): LevelsClie
           atFrontier: true,
           streak: state.streak,
           fails,
-          allowed: boosterTypesOf(levels[frontier - 1].allowedPowerUps),
+          allowed: startBoosterTypes(frontier, levels[frontier - 1].allowedPowerUps),
         }),
         stuck: { level: frontier, fails, routeGhostAvailable: false },
         boosters: { ...(state.boosters ?? {}) },
         chests: mockChestProgress(state),
+        // Gems are server-only: the mock never offers a paid refill.
+        refill: null,
       });
     },
 
@@ -315,13 +317,13 @@ export function createMockLevelsClient(opts: MockClientOptions = {}): LevelsClie
         atFrontier,
         streak: next.streak,
         fails: atFrontier ? failsAt(next.fails ?? null, 1, level) : 0,
-        allowed: boosterTypesOf(node.allowedPowerUps),
+        allowed: startBoosterTypes(level, node.allowedPowerUps),
       });
       // An owned booster unlocked here (§6.4). A free power-up wins and the
       // booster is kept, as on the server.
       const requested = opts.booster ?? null;
       const owned = requested !== null ? (state.boosters?.[requested] ?? 0) : 0;
-      if (requested !== null && (owned < 1 || !boosterTypesOf(node.allowedPowerUps).includes(requested))) {
+      if (requested !== null && (owned < 1 || !startBoosterTypes(level, node.allowedPowerUps).includes(requested))) {
         return wait({ ok: false, code: "BOOSTER_UNAVAILABLE" });
       }
       const booster = startPowerUp === null ? requested : null;
@@ -457,7 +459,8 @@ function openMockChests(state: MockState, accountKey: string, opened: OpenedChes
   const earned = chestsEarned(lifetimeStarsOf(state));
   let done = state.chestsOpened ?? 0;
   if (earned <= done) return state;
-  const pool = boosterTypesOf(mockLevelNode(Math.max(1, frontierOf(state) - 1)).allowedPowerUps);
+  const highest = Math.max(1, frontierOf(state) - 1);
+  const pool = startBoosterTypes(highest, mockLevelNode(highest).allowedPowerUps);
   if (pool.length === 0) return state;
   const boosters: BoosterInventory = { ...(state.boosters ?? {}) };
   while (done < earned) {
