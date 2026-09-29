@@ -358,7 +358,7 @@ export function paintClimbFrame(
   const diamond = diamondFor(tower);
   if (diamond !== null && diamond.y >= yLow && diamond.y <= yHigh) {
     const touched = player?.status === "finished";
-    drawSummitDiamond(ctx, sx(diamond.x), sy(diamond.y), sizePxPerM, ui, state.tick, reducedMotion, touched);
+    drawSummitDiamond(ctx, sx(diamond.x), sy(diamond.floorY), sizePxPerM, ui, state.tick, reducedMotion, touched);
   }
 
   for (const pu of state.powerUps) {
@@ -831,14 +831,15 @@ function diamondFor(tower: TowerSpec): SummitDiamond | null {
 }
 
 /**
- * The glowing diamond that ends a level, centred on (cx, cy): a cut gem with
- * a pulsing halo, bobbing gently. Once the local climber has touched it, it
+ * The glowing diamond that ends a level, hovering over the summit floor whose
+ * surface is at screen y `floorTop`: a cut gem with a pulsing halo, bobbing
+ * gently. Once the local climber has touched it, it
  * flares and stops bobbing.
  */
 function drawSummitDiamond(
   ctx: PaintCtx,
   cx: number,
-  cy: number,
+  floorTop: number,
   pxPerM: number,
   ui: number,
   tick: number,
@@ -847,9 +848,10 @@ function drawSummitDiamond(
 ): void {
   // Sized to the touch reach, so what you see is what you have to reach.
   const r = Math.max(12 * ui, pxPerM * SUMMIT_DIAMOND_GRAB_X * 0.75);
-  const bob = reducedMotion || touched ? 0 : Math.sin(tick * 0.08) * r * 0.12;
+  // Hovers over the floor and only bobs upward, so its point never dips into the slab.
+  const bob = reducedMotion || touched ? 0 : (0.5 + 0.5 * Math.sin(tick * 0.08)) * r * 0.25;
   const pulse = reducedMotion ? 0.5 : 0.5 + 0.5 * Math.sin(tick * 0.12);
-  const y = cy + bob;
+  const y = floorTop - r - 4 * ui - bob;
 
   const haloR = r * (touched ? 3.4 : 2.2 + 0.4 * pulse);
   const halo = ctx.createRadialGradient(cx, y, r * 0.2, cx, y, haloR);
