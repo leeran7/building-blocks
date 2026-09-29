@@ -392,9 +392,8 @@ function Sheet({ label, children }: { label: string; children: React.ReactNode }
       aria-modal="true"
       aria-label={label}
       tabIndex={-1}
-      className="lr-card absolute outline-none focus-visible:outline-none inset-x-0 bottom-0 z-30 mx-auto max-h-[calc(100dvh-env(safe-area-inset-top))] max-w-md overflow-y-auto overscroll-contain rounded-t-3xl border-t border-border-strong bg-surface/95 px-6 pb-[calc(env(safe-area-inset-bottom)+1.5rem)] pt-3 backdrop-blur-xl"
+      className="lr-card absolute outline-none focus-visible:outline-none inset-x-0 bottom-0 z-30 mx-auto max-h-[calc(100dvh-env(safe-area-inset-top))] max-w-md overflow-y-auto overscroll-contain rounded-t-3xl border-t border-border-strong bg-surface/95 px-6 pb-[calc(env(safe-area-inset-bottom)+1.5rem)] pt-9 backdrop-blur-xl"
     >
-      <span aria-hidden className="mx-auto mb-5 block h-1 w-9 rounded-full bg-border-strong" />
       {children}
       <style>{`
         .lr-card { animation: lrUp 0.28s cubic-bezier(0.16,1,0.3,1) both; }

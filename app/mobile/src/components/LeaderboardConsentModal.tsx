@@ -1,6 +1,11 @@
 import { openExternal } from "../lib/external";
 import { tapLight } from "../lib/haptics";
+import { useSwipeDismiss } from "../lib/useSwipeDismiss";
 
+/**
+ * Asks before a score goes on the public board. A swipe down on the card is
+ * "Not now" (never while a save is in flight).
+ */
 export function LeaderboardConsentModal({
   onAccept,
   onDecline,
@@ -13,10 +18,18 @@ export function LeaderboardConsentModal({
   /** Shown when the last accept did not save; the sheet stays open to retry. */
   error?: string | null;
 }) {
+  const swipe = useSwipeDismiss<HTMLDivElement, HTMLDivElement>({ onDismiss: onDecline, disabled: busy });
   return (
-    <div className="absolute inset-0 z-50 flex items-end justify-center bg-void/60 backdrop-blur-sm">
-      <div className="lcm-card w-full rounded-t-3xl border-t border-border-strong bg-surface/95 px-6 pb-[calc(env(safe-area-inset-bottom)+1.75rem)] pt-3 backdrop-blur-xl">
-        <span aria-hidden className="mx-auto mb-5 block h-1 w-9 rounded-full bg-border-strong" />
+    <div className="absolute inset-0 z-50 flex items-end justify-center">
+      <div ref={swipe.scrimRef} aria-hidden className="absolute inset-0 bg-void/60 backdrop-blur-sm" />
+      <div
+        ref={swipe.sheetRef}
+        {...swipe.sheetHandlers}
+        className="lcm-card relative w-full rounded-t-3xl border-t border-border-strong bg-surface/95 px-6 pb-[calc(env(safe-area-inset-bottom)+1.75rem)] pt-3 backdrop-blur-xl"
+      >
+        <div data-swipe-handle="" className="-mx-6 -mt-3 touch-none px-6 pb-5 pt-3">
+          <span aria-hidden className="mx-auto block h-1 w-9 rounded-full bg-border-strong" />
+        </div>
 
         <h2 className="text-center font-display text-xl font-black uppercase tracking-tight text-text-primary">
           Post to leaderboard?

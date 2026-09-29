@@ -3,6 +3,7 @@ import { POWER_UP_SPECS } from "@app/game/powerups";
 import { ALTITUDE_UNIT } from "@app/lib/units";
 import { Button } from "../ui";
 import { tapLight } from "../../lib/haptics";
+import { useSwipeDismiss } from "../../lib/useSwipeDismiss";
 import {
   episodeOf,
   formatClock,
@@ -27,6 +28,10 @@ export const REFUSAL_COPY: Record<Exclude<StartRefusal, "OUT_OF_LIVES">, string>
  * star times, what's new on this level, and what it costs. Play asks the
  * server for a run ticket; out of lives, it offers the wait, Endless, or a
  * lives-free practice of this level instead (§5b).
+ *
+ * The ×, the scrim, Escape and a swipe down (from the handle and header, or
+ * from anywhere once the card is scrolled to the top) all close it through
+ * one path, at most once.
  */
 export function LevelStartSheet({
   node,
@@ -53,13 +58,22 @@ export function LevelStartSheet({
   const hard = isHardLevel(node.level);
   const outOfLives = node.costsLife && (player.lives <= 0 || refusal === "OUT_OF_LIVES");
   const closeRef = useRef<HTMLButtonElement>(null);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+  const closed = useRef(false);
+  const close = () => {
+    if (closed.current) return;
+    closed.current = true;
+    onCloseRef.current();
+  };
+  const swipe = useSwipeDismiss<HTMLDivElement, HTMLButtonElement>({ onDismiss: close });
 
   useEffect(() => {
     // Hand focus back to the pin or button that opened the card.
     const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     closeRef.current?.focus();
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape") close();
     };
     window.addEventListener("keydown", onKey);
     return () => {
@@ -95,39 +109,45 @@ export function LevelStartSheet({
         type="button"
         aria-label="Close"
         tabIndex={-1}
-        onClick={onClose}
+        ref={swipe.scrimRef}
+        onClick={close}
         className="ls-scrim absolute inset-0 bg-void/70 backdrop-blur-sm"
       />
       <div
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
+        ref={swipe.sheetRef}
+        {...swipe.sheetHandlers}
         className="ls-sheet relative w-full max-w-md rounded-t-[28px] border-t border-border-strong bg-surface/95 px-5 pb-[calc(env(safe-area-inset-bottom)+1rem)] pt-2 backdrop-blur-xl max-h-[calc(100%-env(safe-area-inset-top)-0.75rem)] overflow-y-auto overscroll-contain"
       >
-        <span aria-hidden className="mx-auto mb-2 block h-1 w-9 rounded-full bg-border-strong" />
-        <div className="flex items-center gap-3">
-          <div className="min-w-0 flex-1">
-            <p className={`font-mono text-label font-bold uppercase tracking-eyebrow ${hard ? "text-ember" : "text-signal"}`}>
-              {hard ? "Hard level" : `Episode ${episodeOf(node.level)}`}
-            </p>
-            <h2 id={titleId} className="mt-0.5 font-display text-title font-black uppercase tracking-tight text-text-primary">
-              Level {node.level}
-            </h2>
+        {/* Handle and header: drag down to close (touch-none: never a scroll). */}
+        <div data-swipe-handle="" className="-mx-5 -mt-2 touch-none px-5 pt-2">
+          <span aria-hidden className="mx-auto mb-2 block h-1 w-9 rounded-full bg-border-strong" />
+          <div className="flex items-center gap-3">
+            <div className="min-w-0 flex-1">
+              <p className={`font-mono text-label font-bold uppercase tracking-eyebrow ${hard ? "text-ember" : "text-signal"}`}>
+                {hard ? "Hard level" : `Episode ${episodeOf(node.level)}`}
+              </p>
+              <h2 id={titleId} className="mt-0.5 font-display text-title font-black uppercase tracking-tight text-text-primary">
+                Level {node.level}
+              </h2>
+            </div>
+            <button
+              ref={closeRef}
+              type="button"
+              aria-label="Close"
+              onClick={() => {
+                void tapLight();
+                close();
+              }}
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-border-subtle bg-surface-raised text-text-secondary transition-transform active:scale-90"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" aria-hidden>
+                <path d="M6 6l12 12M18 6 6 18" />
+              </svg>
+            </button>
           </div>
-          <button
-            ref={closeRef}
-            type="button"
-            aria-label="Close"
-            onClick={() => {
-              void tapLight();
-              onClose();
-            }}
-            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-border-subtle bg-surface-raised text-text-secondary transition-transform active:scale-90"
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" aria-hidden>
-              <path d="M6 6l12 12M18 6 6 18" />
-            </svg>
-          </button>
         </div>
 
         <div className="mt-3 rounded-2xl border border-white/10 bg-elevated/70 px-3.5 py-2.5">
