@@ -5,7 +5,8 @@
  * stick figures) and the saved avatar, never the request: a locked id is
  * refused with the requirement before ANY write (username, social, row
  * provisioning), the saved avatar stays re-savable, the threshold is
- * inclusive, and a premium character is refused at any star count.
+ * inclusive, and a Shop character or skin is refused at any star count until
+ * an owned_characters row says the player bought it.
  */
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -33,6 +34,8 @@ const { store, update, aggregate, findFirst, upsertHandle } = vi.hoisted(() => {
     stars: 0,
     /** Whether u1 has a level 1 row (the tutorial cleared). */
     tutorialDone: false,
+    /** Avatar ids u1 bought in the Shop (owned_characters rows). */
+    owned: [] as string[],
   };
   return {
     store,
@@ -56,6 +59,7 @@ vi.mock("../../src/db/client", () => ({
       update,
     },
     levelProgress: { aggregate, findFirst },
+    ownedCharacter: { findMany: vi.fn(async () => store.owned.map((avatar_id) => ({ avatar_id }))) },
     savedSocialHandle: {
       findMany: vi.fn(async () => []),
       upsert: upsertHandle,
@@ -66,7 +70,7 @@ vi.mock("../../src/db/client", () => ({
 }));
 
 import { GET, PUT } from "../../app/api/settings/route";
-import { AVATARS, avatarEntry } from "../../src/lib/avatars";
+import { AVATARS, avatarEntry, lockedMessage } from "../../src/lib/avatars";
 
 /** A star-locked avatar and its threshold. */
 const LOCKED = avatarEntry("lynx")!;
@@ -87,6 +91,7 @@ beforeEach(() => {
   store.user.avatar_id = null;
   store.stars = 0;
   store.tutorialDone = false;
+  store.owned = [];
   vi.clearAllMocks();
 });
 
@@ -146,15 +151,15 @@ describe("PUT /api/settings locked avatar", () => {
     expect(store.user.avatar_id).toBe(LOCKED.id);
   });
 
-  it.each(["wraith", "gecko"])("refuses the premium %s at any star count, saving nothing", async (id) => {
+  it.each(["wraith", "lynx-void"])("refuses the unbought Shop entry %s at any star count, saving nothing", async (id) => {
     store.stars = 100_000;
     store.tutorialDone = true;
-    const res = await put({ avatarId: id, username: "aria" });
+    const res = await put({ avatarId: id, username: "aria", ownedIds: [id], avatarUnlocks: { ownedIds: [id] } });
     expect(res.status).toBe(403);
     expect(await res.json()).toEqual({
-      error: `${avatarEntry(id)!.name} is a premium character. It is not on sale yet`,
+      error: lockedMessage(avatarEntry(id)!),
       code: "AVATAR_LOCKED",
-      kind: "premium",
+      kind: "purchase",
       requiredStars: null,
       stars: 100_000,
     });
@@ -163,7 +168,14 @@ describe("PUT /api/settings locked avatar", () => {
     expect(ensureUser).not.toHaveBeenCalled();
   });
 
-  it("re-saves a premium character that is already saved (grandfathered)", async () => {
+  it.each(["wraith", "lynx-void"])("saves the Shop entry %s once an owned row says it was bought", async (id) => {
+    store.owned = [id];
+    const res = await put({ avatarId: id });
+    expect(res.status).toBe(200);
+    expect(store.user.avatar_id).toBe(id);
+  });
+
+  it("re-saves a Shop character that is already saved (grandfathered)", async () => {
     store.user.avatar_id = "wraith";
     const res = await put({ avatarId: "wraith" });
     expect(res.status).toBe(200);
@@ -225,6 +237,7 @@ describe("GET /api/settings avatarUnlocks", () => {
     expect(body.avatarUnlocks.stars).toBe(NEED);
     expect(body.avatarUnlocks.tutorialDone).toBe(true);
     expect(body.avatarUnlocks.unlockedIds).toEqual([...STICK_IDS, "kestrel", LOCKED.id]);
+    expect(STICK_IDS).toContain("gecko");
   });
 
   it("returns nothing selectable for a new account before the tutorial", async () => {

@@ -7,6 +7,11 @@ settings:
 overrides:
   jwks-rsa>jose: ^5
 
+patchedDependencies:
+  '@capgo/native-purchases@8.8.1':
+    hash: nqckoafhf3lf64l53ghzu2xhmq
+    path: patches/@capgo__native-purchases@8.8.1.patch
+
 importers:
 
   .:
@@ -47,6 +52,9 @@ importers:
       '@capacitor/status-bar':
         specifier: ^8.0.3
         version: 8.0.3(@capacitor/core@8.5.2)
+      '@capgo/native-purchases':
+        specifier: 8.8.1
+        version: 8.8.1(patch_hash=nqckoafhf3lf64l53ghzu2xhmq)(@capacitor/core@8.5.2)
       '@fontsource-variable/bricolage-grotesque':
         specifier: 5.3.0
         version: 5.3.0
@@ -851,6 +859,11 @@ packages:
 
   '@capacitor/status-bar@8.0.3':
     resolution: {integrity: sha512-csSpfNeN49Hx9JaQBSJEIiEbOLtXg3kcc2IpScq2fu5L520h3AWEvsxoH8Srk1jxfRKepaJ4S4sqSC3foI4AgA==}
+    peerDependencies:
+      '@capacitor/core': '>=8.0.0'
+
+  '@capgo/native-purchases@8.8.1':
+    resolution: {integrity: sha512-FE78+ZK7ZhGKER5cAz+FMfoHBcJ2356HY+p3xuCDw2+78QHG1lx3Y5SSvK3z6rR+wEfrlq/QPrywxexe6bZmNg==}
     peerDependencies:
       '@capacitor/core': '>=8.0.0'
 
@@ -6139,6 +6152,10 @@ snapshots:
       '@capacitor/core': 8.5.2
 
   '@capacitor/status-bar@8.0.3(@capacitor/core@8.5.2)':
+    dependencies:
+      '@capacitor/core': 8.5.2
+
+  '@capgo/native-purchases@8.8.1(patch_hash=nqckoafhf3lf64l53ghzu2xhmq)(@capacitor/core@8.5.2)':
     dependencies:
       '@capacitor/core': 8.5.2
 

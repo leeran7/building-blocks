@@ -8,7 +8,7 @@
 
 import { describe, it, expect } from "vitest";
 import { ANIMALS, climberHandle, climberDisplay } from "../../src/lib/handle";
-import { AVATARS, parseAvatarId } from "../../src/lib/avatars";
+import { AVATARS, CHARACTER_ENTRIES, parseAvatarId } from "../../src/lib/avatars";
 
 // Captured from climberHandle before the avatar parameter existed (HEAD
 // 63650b9). Existing players' names must not change for anyone who has not
@@ -27,8 +27,9 @@ const PINNED: Readonly<Record<string, string>> = {
 };
 const PINNED_IDS = Object.keys(PINNED);
 
-const ANIMAL_AVATARS = AVATARS.filter((a) => ANIMALS.some((w) => w.toLowerCase() === a.id));
-const NON_ANIMAL_AVATARS = AVATARS.filter((a) => !ANIMAL_AVATARS.includes(a));
+const ANIMAL_AVATARS = CHARACTER_ENTRIES.filter((a) => ANIMALS.some((w) => w.toLowerCase() === a.id));
+const NON_ANIMAL_AVATARS = CHARACTER_ENTRIES.filter((a) => !ANIMAL_AVATARS.includes(a));
+const SKINS = AVATARS.filter((a) => a.skinOf !== undefined);
 
 /** The pinned handle with its middle word swapped for `animal`. */
 function withAnimal(id: string, animal: string): string {
@@ -104,6 +105,10 @@ describe("climberHandle with an avatar", () => {
       }
     }
   );
+
+  it.each(SKINS.map((s) => [s.id, s.skinOf!]))("names the %s skin by its character %s", (skinId, characterId) => {
+    for (const id of PINNED_IDS) expect(climberHandle(id, skinId)).toBe(climberHandle(id, characterId));
+  });
 
   it("renames 'Crimson Cobra 76' to 'Crimson Wolf 76' for the Wolf avatar", () => {
     expect(climberHandle("uid-1", "wolf")).toBe("Crimson Wolf 76");
