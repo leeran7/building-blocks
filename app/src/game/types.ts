@@ -163,11 +163,11 @@ export interface PlayerState {
    * LADDER_TOP_HOP_WINDOW_M): air speed is capped so a held direction lands
    * the climber on the floor next to the ladder. Clears on landing, on
    * grabbing a ladder, on jetpack thrust or an air jump, and once the climber
-   * falls below ladderTopHopFloorY.
+   * falls back below ladderTopHopTargetY.
    */
   ladderTopHop: boolean;
-  /** Height of the floor the hopped-off ladder stands on (meaningful during a hop). */
-  ladderTopHopFloorY: number;
+  /** Height of the floor a hop is headed for (meaningful during a hop). */
+  ladderTopHopTargetY: number;
 }
 
 /**

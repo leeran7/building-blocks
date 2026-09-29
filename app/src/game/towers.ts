@@ -177,7 +177,7 @@ export function topHopSpeed(tower: TowerSpec, toFloorM: number): number {
  */
 export function topHopMaxAirtime(tower: TowerSpec): number {
   const plain = ladderJumpSpeed(tower);
-  const deepest = MAX_LADDER_TOP_GAP_FRAC * jumpRise(tower, plain) + LADDER_TOP_HOP_WINDOW_M;
+  const deepest = maxLadderTopGapM(tower) + LADDER_TOP_HOP_WINDOW_M;
   const v = topHopSpeed(tower, deepest);
   const assisted = (v + Math.sqrt(Math.max(0, v * v - 2 * tower.gravity * deepest))) / tower.gravity;
   return Math.max((2 * plain) / tower.gravity, assisted);
@@ -231,10 +231,14 @@ export function ladderHangs(tower: TowerSpec, i: number, slot: number): boolean 
   return hashSeed(`${tower.seed}:hang:${i}:${slot}`) / 0x1_0000_0000 < share;
 }
 
+/** Deepest short top (m) the engine accepts: MAX_LADDER_TOP_GAP_FRAC of a ladder jump's rise. */
+export function maxLadderTopGapM(tower: TowerSpec): number {
+  return MAX_LADDER_TOP_GAP_FRAC * jumpRise(tower, ladderJumpSpeed(tower));
+}
+
 /** Short-top gap (m) below the floor a ladder leads to; 0 on endless towers. */
 export function ladderTopGapM(tower: TowerSpec): number {
-  const max = MAX_LADDER_TOP_GAP_FRAC * jumpRise(tower, LADDER_JUMP_SPEED_FRAC * tower.jumpSpeed);
-  return knob(tower, "ladderTopGapM", 0, max) ?? 0;
+  return knob(tower, "ladderTopGapM", 0, maxLadderTopGapM(tower)) ?? 0;
 }
 
 /**

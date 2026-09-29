@@ -131,7 +131,7 @@ export function spawnPlayer(id: PlayerId, slot: number): PlayerState {
     jetpackThrusting: false,
     grabSuppressedUntilRelease: null,
     ladderTopHop: false,
-    ladderTopHopFloorY: 0,
+    ladderTopHopTargetY: 0,
   };
 }
 
@@ -357,7 +357,7 @@ function integratePlayer(
           ? topHopSpeed(tower, floorHeight(tower, curIx! + 1) - p.y)
           : ladderJumpSpeed(tower);
         p.ladderTopHop = hop;
-        p.ladderTopHopFloorY = floorHeight(tower, curIx!);
+        p.ladderTopHopTargetY = floorHeight(tower, curIx! + 1);
       }
       p.grabSuppressedUntilRelease =
         curIx !== null && curSlot !== null ? { ix: curIx, slot: curSlot } : null;
@@ -516,9 +516,11 @@ function integratePlayer(
     }
   }
 
-  // A hop ends on landing or a grab, or once it has missed: below the floor
-  // the ladder stands on, it is just a fall.
-  if (p.onGround || p.onLadder || p.y < p.ladderTopHopFloorY) p.ladderTopHop = false;
+  // A hop ends on landing or a grab, or once it has missed: falling below the
+  // floor it was hopping onto (every hop peaks above that floor first, see
+  // topHopSpeed), it is just a fall.
+  const missed = p.vy < 0 && p.y < p.ladderTopHopTargetY;
+  if (p.onGround || p.onLadder || missed) p.ladderTopHop = false;
 
   // Permanent peak-height record ethos (AC-8, AC-30/AC-31).
   if (p.y > p.peakY) { p.peakY = p.y; p.peakTick = tick; }

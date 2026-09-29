@@ -20,7 +20,7 @@ import { DEFAULT_HAZARD_CONFIG } from "../../src/game/hazard";
 import {
   ARCHETYPE_TUNING,
   LADDER_TOP_HOP_WINDOW_M,
-  MAX_LADDER_TOP_GAP_FRAC,
+  maxLadderTopGapM,
   applyRunSeed,
   floorHeight,
   ladderFloorClearanceM,
@@ -144,6 +144,8 @@ describe("top hop: a jump pressed just before a short top's hold", () => {
         const landed = flyUntilSettled(live, UP, (air) => {
           // Joystick still leaning up: never back on this ladder mid-air.
           expect(air.onLadder).toBe(false);
+          // An assisted hop stays a hop all the way onto the floor.
+          expect(air.ladderTopHop).toBe(true);
         });
         expect(landed.onLadder).toBe(false);
         expect(landed.onGround).toBe(true);
@@ -260,10 +262,10 @@ describe("eased short stop", () => {
 // ── Hop exits and the drift band on every archetype ─────────────────────────
 
 /** A short-top ladder on L150, and a match with the climber held at its top. */
-function heldAtShortTop(): { live: MatchState; t: TowerSpec } {
+function heldAtShortTop(): { live: MatchState; t: TowerSpec; floor: number } {
   const [ref] = laddersBelowGoal(150, ladderHasShortTop);
   expect(ref).toBeDefined();
-  return { live: onLadder(ref!, 0), t: ref!.tower };
+  return { live: onLadder(ref!, 0), t: ref!.tower, floor: ref!.floor };
 }
 
 describe("a top hop ends when the climber takes over the air", () => {
@@ -295,13 +297,26 @@ describe("a top hop ends when the climber takes over the air", () => {
     expect(p.onGround).toBe(false);
   });
 
+  it("a hop that falls back through the floor it was hopping onto is just a fall", () => {
+    const { live, t, floor } = heldAtShortTop();
+    const p = live.players[0];
+    step(live, { ...IDLE, moveX: 1, jump: true });
+    expect(p.ladderTopHop).toBe(true);
+    // Stand-in for the target floor giving way under a landing hop.
+    Object.assign(p, { y: floorHeight(t, floor + 1) - 0.137, vy: -6 });
+    step(live, { ...IDLE, moveX: 1 });
+    expect(p.onGround).toBe(false);
+    expect(p.ladderTopHop).toBe(false);
+    expect(step(live, { ...IDLE, moveX: 1 }).vx).toBe(t.moveSpeed);
+  });
+
   it("a hop that falls below the ladder's own floor is just a fall", () => {
-    const { live, t } = heldAtShortTop();
+    const { live, t, floor } = heldAtShortTop();
     const p = live.players[0];
     step(live, { ...IDLE, moveX: 1, jump: true });
     expect(p.ladderTopHop).toBe(true);
     // Stand-in for a hop knocked off course: falling past the floor it left.
-    Object.assign(p, { y: p.ladderTopHopFloorY - 0.137, vy: -6 });
+    Object.assign(p, { y: floorHeight(t, floor) - 0.137, vy: -6 });
     step(live, { ...IDLE, moveX: 1 });
     expect(p.onGround).toBe(false);
     expect(p.ladderTopHop).toBe(false);
@@ -317,9 +332,7 @@ function archetypeTowers(): Array<[string, TowerSpec]> {
   ];
   return rows.map(([name, tuning]) => {
     const base: TowerSpec = { ...applyRunSeed(buildFreeTower(), `hop-${name}`), ...tuning, difficulty: 0.6 };
-    const plain = ladderJumpSpeed(base);
-    const capGap = MAX_LADDER_TOP_GAP_FRAC * ((plain * plain) / (2 * base.gravity));
-    return [name, { ...base, ladderTopGapM: capGap * 0.999, shortTopShare: 1 }];
+    return [name, { ...base, ladderTopGapM: maxLadderTopGapM(base) * 0.999, shortTopShare: 1 }];
   });
 }
 
@@ -367,9 +380,7 @@ describe("top hop drift stays on the solid floor beside the ladder", () => {
       buildFreeTower(),
     ];
     for (const t of towers) {
-      const plain = ladderJumpSpeed(t);
-      const capGap = MAX_LADDER_TOP_GAP_FRAC * ((plain * plain) / (2 * t.gravity));
-      expect(topHopSpeed(t, capGap + LADDER_TOP_HOP_WINDOW_M)).toBeLessThan(t.jumpSpeed);
+      expect(topHopSpeed(t, maxLadderTopGapM(t) + LADDER_TOP_HOP_WINDOW_M)).toBeLessThan(t.jumpSpeed);
     }
     expect(towers.length).toBe(Object.keys(ARCHETYPE_TUNING).length + 3);
   });
