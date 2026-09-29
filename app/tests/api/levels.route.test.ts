@@ -150,17 +150,24 @@ describe("POST /api/levels/ticket", () => {
     });
     const res = await ticket({ season: 1, level: 12, simVersion: SIM });
     expect(await res.json()).toMatchObject({ startPowerUp: { type: "super-jump", source: "streak" }, streak: 5 });
-    // L12 of season 1 has unlocked rapid climb (L4), sprint burst (L7) and super jump (L11).
-    expect(vi.mocked(issueLevelTicket).mock.calls[0][0].allowedBoosters).toEqual([
-      "rapid-climb",
-      "sprint-burst",
-      "super-jump",
-    ]);
+    // L12 of season 1 has unlocked rapid climb (L4), sprint burst (L7) and super
+    // jump (L11), but no early level (L1-L45) starts with a super jump.
+    expect(vi.mocked(issueLevelTicket).mock.calls[0][0].allowedBoosters).toEqual(["rapid-climb", "sprint-burst"]);
   });
 
   it("passes an allowed booster to the ticket", async () => {
-    await ticket({ season: 1, level: 12, simVersion: SIM, booster: "super-jump" });
-    expect(vi.mocked(issueLevelTicket).mock.calls[0][0].booster).toBe("super-jump");
+    await ticket({ season: 1, level: 12, simVersion: SIM, booster: "sprint-burst" });
+    expect(vi.mocked(issueLevelTicket).mock.calls[0][0].booster).toBe("sprint-burst");
+  });
+
+  it("allows a super jump or jetpack booster only past the early levels", async () => {
+    const early = await ticket({ season: 1, level: 45, simVersion: SIM, booster: "super-jump" });
+    expect(early.status).toBe(409);
+    expect((await early.json()).code).toBe("BOOSTER_NOT_ALLOWED");
+    expect(issueLevelTicket).not.toHaveBeenCalled();
+
+    await ticket({ season: 1, level: 46, simVersion: SIM, booster: "jetpack" });
+    expect(vi.mocked(issueLevelTicket).mock.calls[0][0].booster).toBe("jetpack");
   });
 
   it.each([["random"], ["toString"], ["__proto__"], [7], [{ type: "giant" }]])(
