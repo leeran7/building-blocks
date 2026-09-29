@@ -12,7 +12,7 @@ import { levelSpec, type LevelPars } from "../game/levels/levelSpec";
 import { seasonById } from "../game/levels/season";
 import { manifestShapeProblems, type ManifestLevel, type SeasonManifest } from "../game/levels/seasonGate";
 import season1 from "../game/levels/seasons/season-1.json";
-import { boosterTypesOf, type BoosterType } from "./engagement";
+import { startBoosterTypes, type BoosterType } from "./engagement";
 
 /** Committed manifests by season id. A new season adds its file here. */
 const MANIFEST_FILES: ReadonlyMap<number, unknown> = new Map([[1, season1]]);
@@ -80,13 +80,14 @@ export function starsForTicks(ticks: number, pars: LevelPars): 0 | 1 | 2 | 3 {
 }
 
 /**
- * The booster types level `level` of `season` allows (its unlocked power-ups,
- * less the random orb), from the season spec and the manifest row's seed
+ * The booster types a run of level `level` of `season` may start with (its
+ * unlocked power-ups, less the random orb, and less the late boosters on early
+ * levels: startBoosterTypes), from the season spec and the manifest row's seed
  * revision. Null when the season has no sound manifest or no such level.
  */
 export function levelBoosterTypes(season: number, level: number): BoosterType[] | null {
   const row = catalogLevel(season, level);
   const spec = seasonById(season);
   if (!row || !spec) return null;
-  return boosterTypesOf(levelSpec(spec, level, row.rev).allowedPowerUps);
+  return startBoosterTypes(level, levelSpec(spec, level, row.rev).allowedPowerUps);
 }

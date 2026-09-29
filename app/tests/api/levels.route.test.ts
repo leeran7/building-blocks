@@ -25,6 +25,7 @@ vi.mock("../../src/db/levels", async (importOriginal) => {
     openTicketLevel: vi.fn(),
     submitLevelResult: vi.fn(),
     levelProfile: vi.fn(),
+    buyLivesRefill: vi.fn(),
   };
 });
 
@@ -36,11 +37,13 @@ import { levelFriendsBoard } from "../../src/db/levelExtras";
 import { POST as postResult } from "../../app/api/levels/result/route";
 import { GET as getMe } from "../../app/api/levels/me/route";
 import { GET as getSeason } from "../../app/api/levels/season/route";
+import { POST as postLives } from "../../app/api/levels/lives/route";
 import { verifyIdToken } from "../../src/lib/firebaseAdmin";
 import { checkRateLimit } from "../../src/lib/rateLimit";
 import {
   LevelError,
   activeLevelSeason,
+  buyLivesRefill,
   issueLevelTicket,
   levelProfile,
   openTicketLevel,
@@ -150,17 +153,24 @@ describe("POST /api/levels/ticket", () => {
     });
     const res = await ticket({ season: 1, level: 12, simVersion: SIM });
     expect(await res.json()).toMatchObject({ startPowerUp: { type: "super-jump", source: "streak" }, streak: 5 });
-    // L12 of season 1 has unlocked rapid climb (L4), sprint burst (L7) and super jump (L11).
-    expect(vi.mocked(issueLevelTicket).mock.calls[0][0].allowedBoosters).toEqual([
-      "rapid-climb",
-      "sprint-burst",
-      "super-jump",
-    ]);
+    // L12 of season 1 has unlocked rapid climb (L4), sprint burst (L7) and super
+    // jump (L11), but no early level (L1-L45) starts with a super jump.
+    expect(vi.mocked(issueLevelTicket).mock.calls[0][0].allowedBoosters).toEqual(["rapid-climb", "sprint-burst"]);
   });
 
   it("passes an allowed booster to the ticket", async () => {
-    await ticket({ season: 1, level: 12, simVersion: SIM, booster: "super-jump" });
-    expect(vi.mocked(issueLevelTicket).mock.calls[0][0].booster).toBe("super-jump");
+    await ticket({ season: 1, level: 12, simVersion: SIM, booster: "sprint-burst" });
+    expect(vi.mocked(issueLevelTicket).mock.calls[0][0].booster).toBe("sprint-burst");
+  });
+
+  it("allows a super jump or jetpack booster only past the early levels", async () => {
+    const early = await ticket({ season: 1, level: 45, simVersion: SIM, booster: "super-jump" });
+    expect(early.status).toBe(409);
+    expect((await early.json()).code).toBe("BOOSTER_NOT_ALLOWED");
+    expect(issueLevelTicket).not.toHaveBeenCalled();
+
+    await ticket({ season: 1, level: 46, simVersion: SIM, booster: "jetpack" });
+    expect(vi.mocked(issueLevelTicket).mock.calls[0][0].booster).toBe("jetpack");
   });
 
   it.each([["random"], ["toString"], ["__proto__"], [7], [{ type: "giant" }]])(
@@ -458,6 +468,8 @@ describe("GET /api/levels/me", () => {
       stuck: { level: 4, fails: 5, routeGhostAvailable: true },
       boosters: { giant: 2 },
       chests: { lifetimeStars: 27, starsIntoChest: 7, perChest: 20, earned: 1 },
+      gems: 120,
+      livesRefillGems: 50,
     });
     const res = await getMe(req("/api/levels/me?season=1"));
     expect(await res.json()).toMatchObject({
@@ -574,5 +586,57 @@ describe("GET /api/levels/board", () => {
     const res = await board("?season=1&level=12");
     expect(res.status).toBe(500);
     expect(JSON.stringify(await res.json())).not.toContain("friendships");
+  });
+});
+
+describe("POST /api/levels/lives", () => {
+  const lives = (token: string | null = "tok") => postLives(req("/api/levels/lives", {}, token));
+
+  it("refills and returns lives, the next life time and the gem balance", async () => {
+    vi.mocked(buyLivesRefill).mockResolvedValueOnce({ lives: 5, nextLifeAt: null, gems: 70 });
+    const res = await lives();
+    expect(res.status).toBe(200);
+    expect(res.headers.get("cache-control")).toBe("private, no-store");
+    expect(await res.json()).toEqual({ lives: 5, maxLives: 5, nextLifeAt: null, gems: 70 });
+    expect(buyLivesRefill).toHaveBeenCalledWith("u1", expect.any(Date));
+  });
+
+  it("maps a full player and a short balance to 409 with their details", async () => {
+    vi.mocked(buyLivesRefill).mockRejectedValueOnce(new LevelError("LIVES_FULL", "full", { lives: 5 }));
+    let res = await lives();
+    expect(res.status).toBe(409);
+    expect(await res.json()).toMatchObject({ code: "LIVES_FULL", lives: 5 });
+
+    vi.mocked(buyLivesRefill).mockRejectedValueOnce(new LevelError("NOT_ENOUGH_GEMS", "short", { gems: 10, cost: 50 }));
+    res = await lives();
+    expect(res.status).toBe(409);
+    expect(await res.json()).toMatchObject({ code: "NOT_ENOUGH_GEMS", gems: 10, cost: 50 });
+  });
+
+  it("requires a signed-in, non-anonymous player", async () => {
+    expect((await lives(null)).status).toBe(401);
+    vi.mocked(verifyIdToken).mockResolvedValue({ uid: "anon" } as never);
+    expect((await lives()).status).toBe(401);
+    expect(buyLivesRefill).not.toHaveBeenCalled();
+  });
+
+  it("uses the shared climb IP bucket and a per-user cap", async () => {
+    vi.mocked(buyLivesRefill).mockResolvedValue({ lives: 5, nextLifeAt: null, gems: 0 });
+    await lives();
+    const namespaces = vi.mocked(checkRateLimit).mock.calls.map(([o]) => o.namespace);
+    expect(namespaces).toEqual(["climb", "climb:level:lives:total"]);
+
+    vi.mocked(checkRateLimit).mockImplementation(async (o) => ({ allowed: o.namespace !== "climb:level:lives:total", degraded: false }));
+    vi.mocked(buyLivesRefill).mockClear();
+    expect((await lives()).status).toBe(429);
+    expect(buyLivesRefill).not.toHaveBeenCalled();
+    vi.mocked(checkRateLimit).mockImplementation(async () => ({ allowed: true, degraded: false }));
+  });
+
+  it("never leaks a raw database error", async () => {
+    vi.mocked(buyLivesRefill).mockRejectedValueOnce(new Error("relation gem_ledger does not exist"));
+    const res = await lives();
+    expect(res.status).toBe(500);
+    expect(JSON.stringify(await res.json())).not.toContain("gem_ledger");
   });
 });

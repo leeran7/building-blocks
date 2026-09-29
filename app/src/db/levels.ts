@@ -24,12 +24,15 @@ import { nanoid } from "nanoid";
 import type { Prisma } from "@prisma/client";
 
 import { prisma } from "./client";
+import { GemError, spendGems } from "./gems";
 import { levelStarsEarned } from "./avatarUnlocks";
 import { avatarsNewlyUnlocked } from "../lib/avatarUnlocks";
 import { levelBoosterTypes } from "../levels/catalog";
 import {
   LEVELS_PER_SEASON,
+  LIVES_REFILL_GEMS,
   MAX_LIVES,
+  buyRefill,
   episodeLevels,
   episodeOf,
   frontierAfter,
@@ -79,7 +82,9 @@ export type LevelErrorCode =
   | "TICKET_EXPIRED"
   | "IMPLAUSIBLE_RUN"
   | "BOOSTER_NOT_ALLOWED"
-  | "BOOSTER_NOT_OWNED";
+  | "BOOSTER_NOT_OWNED"
+  | "LIVES_FULL"
+  | "NOT_ENOUGH_GEMS";
 
 /** A refused level write. The route maps `code` to an HTTP status. */
 export class LevelError extends Error {
@@ -720,6 +725,50 @@ export async function submitLevelResult(input: SubmitResultInput): Promise<Level
   });
 }
 
+// ── Lives refill ─────────────────────────────────────────────────────────────
+
+export interface LivesRefill {
+  lives: number;
+  nextLifeAt: Date | null;
+  gems: number;
+}
+
+/**
+ * Top lives up to MAX_LIVES for LIVES_REFILL_GEMS gems, under the user's row
+ * lock. Refused, with nothing written, when the player is already full (so a
+ * retried request is never charged twice) or cannot afford it.
+ *
+ * @throws LevelError USER_NOT_FOUND | LIVES_FULL | NOT_ENOUGH_GEMS
+ */
+export async function buyLivesRefill(userId: string, now: Date): Promise<LivesRefill> {
+  return prisma.$transaction(async (tx) => {
+    const user = await lockUser(tx, userId);
+    const life = buyRefill(lifeOf(user), now);
+    if (!life) throw new LevelError("LIVES_FULL", "Your lives are already full", { lives: MAX_LIVES });
+    // The full-lives refusal above is what makes a retry free; the key only
+    // has to be unique per refill, so it is a fresh id.
+    let gems: number;
+    try {
+      const spent = await spendGems(tx, {
+        userId,
+        amount: LIVES_REFILL_GEMS,
+        reason: "lives",
+        ref: "refill",
+        idempotencyKey: `lives:${userId}:${nanoid()}`,
+      });
+      gems = spent.balance;
+    } catch (err) {
+      if (!(err instanceof GemError && err.code === "INSUFFICIENT_GEMS")) throw err;
+      throw new LevelError("NOT_ENOUGH_GEMS", "Not enough gems", { gems: err.balance, cost: LIVES_REFILL_GEMS });
+    }
+    await tx.user.update({
+      where: { id: userId },
+      data: { lives: life.lives, lives_updated_at: life.updatedAt },
+    });
+    return { lives: life.lives, nextLifeAt: nextLifeAt(life, now), gems };
+  });
+}
+
 // ── Reads ────────────────────────────────────────────────────────────────────
 
 export interface LevelProfile {
@@ -758,6 +807,9 @@ export interface LevelProfile {
   boosters: BoosterInventory;
   /** Star chest progress: lifetime stars, stars into the next chest, chests earned. */
   chests: { lifetimeStars: number; starsIntoChest: number; perChest: number; earned: number };
+  /** Gem balance, and what a lives refill costs in gems. */
+  gems: number;
+  livesRefillGems: number;
 }
 
 /**
@@ -777,8 +829,10 @@ export async function levelProfile(userId: string, season: number, now: Date): P
       level_fail_season: true,
       level_fail_level: true,
       level_fail_count: true,
+      gems: true,
     },
   })) ?? {
+    gems: 0,
     lives: MAX_LIVES,
     lives_updated_at: null,
     xp: 0,
@@ -824,6 +878,8 @@ export async function levelProfile(userId: string, season: number, now: Date): P
     stuck: { level: frontier, fails, routeGhostAvailable: routeGhostAvailable(fails) },
     boosters,
     chests: { lifetimeStars, ...chestProgress(lifetimeStars) },
+    gems: user.gems,
+    livesRefillGems: LIVES_REFILL_GEMS,
   };
 }
 

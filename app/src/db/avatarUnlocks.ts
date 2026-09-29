@@ -1,7 +1,8 @@
 /**
  * Server-side avatar unlock state, derived only from stored rows: the level
  * stars in level_progress (and whether a level 1 row exists, the tutorial
- * unlock) and the saved users.avatar_id. Nothing here reads
+ * unlock), the characters bought in owned_characters, and the saved
+ * users.avatar_id. Nothing here reads
  * the request, so a client can never claim an unlock it has not recorded.
  *
  * Stars are summed over every season (best stars per level, as stored), so
@@ -37,6 +38,18 @@ export async function tutorialCleared(userId: string, db: Db = prisma): Promise<
   return row !== null;
 }
 
+/** Catalogue ids the player bought with gems (retired ids dropped). */
+export async function ownedCharacterIds(
+  userId: string,
+  db: Pick<Prisma.TransactionClient, "ownedCharacter"> = prisma
+): Promise<string[]> {
+  const rows = await db.ownedCharacter.findMany({ where: { user_id: userId }, select: { avatar_id: true } });
+  return rows.flatMap((r) => {
+    const id = parseAvatarId(r.avatar_id);
+    return id === null ? [] : [id];
+  });
+}
+
 /**
  * The server's verdict on saving `avatarId` for `userId`. Only
  * checkAvatarForUser creates one (the WeakSet below), so a caller cannot hand
@@ -51,6 +64,8 @@ export interface AvatarCheck {
   readonly stars: number;
   /** Whether level 1 was cleared, read for the check. */
   readonly tutorialDone: boolean;
+  /** Characters and skins the player bought, read for the check. */
+  readonly ownedIds: readonly string[];
 }
 
 const ISSUED = new WeakSet<AvatarCheck>();
@@ -68,13 +83,14 @@ export function isCheckFor(check: AvatarCheck | undefined, userId: string, avata
 export async function checkAvatarForUser(userId: string, avatarId: string): Promise<AvatarCheck> {
   const entry = avatarEntry(avatarId);
   if (entry === null) throw new Error("checkAvatarForUser: avatarId is not a catalogue id");
-  const [user, stars, tutorialDone] = await Promise.all([
+  const [user, stars, tutorialDone, ownedIds] = await Promise.all([
     prisma.user.findUnique({ where: { id: userId }, select: { avatar_id: true } }),
     levelStarsEarned(userId),
     tutorialCleared(userId),
+    ownedCharacterIds(userId),
   ]);
-  const lock = avatarLockFor(entry, { stars, tutorialDone, savedAvatarId: parseAvatarId(user?.avatar_id) });
-  const check: AvatarCheck = { userId, avatarId, lock, stars, tutorialDone };
+  const lock = avatarLockFor(entry, { stars, tutorialDone, savedAvatarId: parseAvatarId(user?.avatar_id), ownedIds });
+  const check: AvatarCheck = { userId, avatarId, lock, stars, tutorialDone, ownedIds };
   ISSUED.add(check);
   return Object.freeze(check);
 }

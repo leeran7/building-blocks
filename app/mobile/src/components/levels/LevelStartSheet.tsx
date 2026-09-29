@@ -7,6 +7,7 @@ import {
   episodeOf,
   formatClock,
   isHardLevel,
+  type BuyLivesResult,
   type LevelNode,
   type LevelTicket,
   type PlayerStats,
@@ -36,6 +37,7 @@ export function LevelStartSheet({
   onPracticeLevel,
   onClose,
   extras,
+  refill,
 }: {
   node: LevelNode;
   player: PlayerStats;
@@ -46,6 +48,8 @@ export function LevelStartSheet({
   onClose: () => void;
   /** Streak, stuck help, boosters and the friends board (LevelStartExtras). */
   extras?: ReactNode;
+  /** The paid lives refill, offered when out of lives; absent when none can be sold. */
+  refill?: RefillOffer | null;
 }) {
   const [busy, setBusy] = useState(false);
   const [refusal, setRefusal] = useState<StartRefusal | null>(null);
@@ -183,6 +187,7 @@ export function LevelStartSheet({
               wait={livesLabel(player, now)}
               onPractice={onPractice}
               onPracticeLevel={onPracticeLevel}
+              refill={refill}
             />
           ) : (
             <>
@@ -270,15 +275,36 @@ function ParRow({ stars, ms }: { stars: number; ms: number }) {
   );
 }
 
-/** Out of lives: when the next one comes, and what to play meanwhile. */
+/** The paid lives refill as the out-of-lives card offers it. */
+export interface RefillOffer {
+  gems: number;
+  cost: number;
+  buy: () => Promise<BuyLivesResult>;
+  /** Opens the gem packs; absent where the Shop is not mounted. */
+  onGetGems?: () => void;
+}
+
+const REFILL_ERROR: Record<Exclude<BuyLivesResult, { ok: true }>["code"], string | null> = {
+  // The card redraws with the lives that came back; nothing to say.
+  LIVES_FULL: null,
+  NOT_ENOUGH_GEMS: "Not enough gems for a refill.",
+  NETWORK: "Couldn’t reach the server. Check your connection and try again.",
+};
+
+/**
+ * Out of lives: when the next one comes, a paid refill when the player can
+ * buy one, and what to play meanwhile.
+ */
 export function OutOfLives({
   wait,
   onPractice,
   onPracticeLevel,
+  refill = null,
 }: {
   wait: string;
   onPractice: () => void;
   onPracticeLevel: () => void;
+  refill?: RefillOffer | null;
 }) {
   return (
     <div className="flex flex-col gap-2.5">
@@ -290,6 +316,7 @@ export function OutOfLives({
           Out of lives. Next life in <span className="font-bold tabular-nums">{wait}</span>
         </p>
       </div>
+      {refill && <RefillLives offer={refill} />}
       <Button variant="secondary" onPress={onPracticeLevel}>
         Practice this level
       </Button>
@@ -297,6 +324,53 @@ export function OutOfLives({
       <Button variant="ghost" onPress={onPractice}>
         Play Endless
       </Button>
+    </div>
+  );
+}
+
+/**
+ * Refill lives to full with gems instead of waiting. The server charges once
+ * and refuses a full player, so a double tap never pays twice. Without enough
+ * gems the price and balance still show, so the player knows what it costs.
+ */
+function RefillLives({ offer }: { offer: RefillOffer }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const affordable = offer.gems >= offer.cost;
+
+  const buy = async () => {
+    setBusy(true);
+    setError(null);
+    const res = await offer.buy();
+    // On success the card redraws with full lives; only a refusal lands here.
+    if (!res.ok) setError(REFILL_ERROR[res.code]);
+    setBusy(false);
+  };
+
+  return (
+    <div className="flex flex-col gap-1">
+      <Button
+        busy={busy}
+        disabled={!affordable}
+        onPress={() => void buy()}
+        aria-label={`Refill lives for ${offer.cost} gems`}
+        className="min-h-[52px] text-cta"
+      >
+        <HeartIcon size={16} /> Refill lives · {offer.cost} gems
+      </Button>
+      <p className="text-center text-meta text-text-secondary">
+        {affordable ? `You have ${offer.gems} gems` : `You have ${offer.gems} gems, ${offer.cost - offer.gems} short`}
+      </p>
+      {!affordable && offer.onGetGems && (
+        <Button variant="secondary" onPress={offer.onGetGems}>
+          Get gems
+        </Button>
+      )}
+      {error && (
+        <p role="alert" className="text-center text-meta text-ember">
+          {error}
+        </p>
+      )}
     </div>
   );
 }
