@@ -12,7 +12,7 @@ import {
   type PlayerStats,
   type StartRefusal,
 } from "../../lib/levels/model";
-import { HeartIcon, StarRow, livesLabel, useNow } from "./LevelBits";
+import { Accordion, HeartIcon, StarRow, livesLabel, useNow } from "./LevelBits";
 
 /** What a refused start or retry says, in the player's words. */
 export const REFUSAL_COPY: Record<Exclude<StartRefusal, "OUT_OF_LIVES">, string> = {
@@ -102,18 +102,15 @@ export function LevelStartSheet({
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        // Never taller than the space it opens in (under the status bar): the
-        // body scrolls and the title row with Close stays pinned, so a long
-        // card (intro tip, extras, out of lives) never loses its top.
-        className="ls-sheet relative max-h-[calc(100%-env(safe-area-inset-top)-0.75rem)] w-full max-w-md overflow-y-auto overscroll-contain rounded-t-[28px] border-t border-border-strong bg-surface/95 px-5 pb-[calc(env(safe-area-inset-bottom)+1.25rem)] backdrop-blur-xl"
+        className="ls-sheet relative w-full max-w-md rounded-t-[28px] border-t border-border-strong bg-surface/95 px-5 pb-[calc(env(safe-area-inset-bottom)+1rem)] pt-2 backdrop-blur-xl max-h-[calc(100%-env(safe-area-inset-top)-0.75rem)] overflow-y-auto overscroll-contain"
       >
-        <div className="sticky top-0 z-10 -mx-5 flex items-start gap-3 bg-surface px-5 pb-2 pt-3">
-          <span aria-hidden className="absolute left-1/2 top-3 block h-1 w-9 -translate-x-1/2 rounded-full bg-border-strong" />
-          <div className="min-w-0 flex-1 pt-4">
+        <span aria-hidden className="mx-auto mb-2 block h-1 w-9 rounded-full bg-border-strong" />
+        <div className="flex items-center gap-3">
+          <div className="min-w-0 flex-1">
             <p className={`font-mono text-label font-bold uppercase tracking-eyebrow ${hard ? "text-ember" : "text-signal"}`}>
               {hard ? "Hard level" : `Episode ${episodeOf(node.level)}`}
             </p>
-            <h2 id={titleId} className="mt-1 font-display text-title font-black uppercase tracking-tight text-text-primary">
+            <h2 id={titleId} className="mt-0.5 font-display text-title font-black uppercase tracking-tight text-text-primary">
               Level {node.level}
             </h2>
           </div>
@@ -125,7 +122,7 @@ export function LevelStartSheet({
               void tapLight();
               onClose();
             }}
-            className="mt-4 flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-border-subtle bg-surface-raised text-text-secondary transition-transform active:scale-90"
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-border-subtle bg-surface-raised text-text-secondary transition-transform active:scale-90"
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" aria-hidden>
               <path d="M6 6l12 12M18 6 6 18" />
@@ -133,48 +130,45 @@ export function LevelStartSheet({
           </button>
         </div>
 
-        <div className="mt-2 grid grid-cols-2 gap-2.5">
-          <div className="rounded-2xl border border-white/10 bg-elevated/70 px-3.5 py-3">
-            <p className="font-mono text-label uppercase tracking-label text-text-secondary">Goal</p>
-            <p className="mt-1 font-display text-stat font-black tabular-nums text-text-primary">
-              {node.goalFt.toLocaleString()}
-              <span className="ml-1 text-meta font-bold uppercase text-text-secondary">{ALTITUDE_UNIT}</span>
+        <div className="mt-3 rounded-2xl border border-white/10 bg-elevated/70 px-3.5 py-2.5">
+          <div className="flex items-baseline justify-between gap-3">
+            <p className="flex items-baseline gap-2">
+              <span className="font-mono text-label uppercase tracking-label text-text-secondary">Goal</span>
+              <span className="font-display text-headline font-black tabular-nums text-text-primary">
+                {node.goalFt.toLocaleString()}
+                <span className="ml-1 text-meta font-bold uppercase text-text-secondary">{ALTITUDE_UNIT}</span>
+              </span>
             </p>
-            <p className="mt-1 text-meta text-text-secondary">Reach the summit</p>
+            {node.stars > 0 && node.bestMs !== null && (
+              <p className="flex items-center gap-1.5 text-meta tabular-nums text-text-secondary">
+                <StarRow count={node.stars} size={11} />
+                Best {formatClock(node.bestMs)}
+              </p>
+            )}
           </div>
-          <div className="rounded-2xl border border-white/10 bg-elevated/70 px-3.5 py-3">
-            <p className="font-mono text-label uppercase tracking-label text-text-secondary">Stars</p>
-            <ul className="mt-1.5 flex flex-col gap-1">
-              <ParRow stars={3} ms={node.pars.threeStarMs} />
-              <ParRow stars={2} ms={node.pars.twoStarMs} />
-              {node.pars.oneStarMs !== null ? (
-                <ParRow stars={1} ms={node.pars.oneStarMs} />
-              ) : (
-                <li className="flex items-center justify-between text-meta text-text-secondary">
-                  <StarRow count={1} size={12} />
-                  <span>any clear</span>
-                </li>
-              )}
-            </ul>
-          </div>
+          <ul aria-label="Star times" className="mt-2 flex items-center justify-between gap-2">
+            <ParRow stars={3} ms={node.pars.threeStarMs} />
+            <ParRow stars={2} ms={node.pars.twoStarMs} />
+            {node.pars.oneStarMs !== null ? (
+              <ParRow stars={1} ms={node.pars.oneStarMs} />
+            ) : (
+              <li className="flex items-center gap-1.5 text-meta text-text-secondary">
+                <StarRow count={1} size={11} />
+                <span>any clear</span>
+              </li>
+            )}
+          </ul>
         </div>
 
-        {node.stars > 0 && node.bestMs !== null && (
-          <p className="mt-3 flex items-center gap-2 text-meta text-text-secondary">
-            <StarRow count={node.stars} size={13} />
-            Your best {formatClock(node.bestMs)}
-          </p>
-        )}
-
         {(intro || node.introTip) && (
-          <div className="mt-3 rounded-2xl border border-signal/30 bg-signal/10 px-3.5 py-2.5">
+          <div className="mt-2 rounded-2xl border border-signal/30 bg-signal/10 px-3.5 py-2">
             <p className="font-mono text-label font-bold uppercase tracking-label text-signal">New on this level</p>
             {intro && (
-              <p className="mt-1 text-meta text-text-primary">
+              <p className="mt-0.5 text-meta text-text-primary">
                 <span className="font-bold" style={{ color: intro.color }}>{intro.label}</span>: {intro.description}.
               </p>
             )}
-            {node.introTip && <p className="mt-1 text-meta text-text-primary">{node.introTip}</p>}
+            {node.introTip && <p className="mt-0.5 text-meta text-text-primary">{node.introTip}</p>}
           </div>
         )}
 
@@ -183,7 +177,7 @@ export function LevelStartSheet({
         {/* The friend ghost picker (§6.1) goes here once ghosts land. */}
         {extras}
 
-        <div className="mt-5 flex flex-col gap-2.5">
+        <div className="mt-4 flex flex-col gap-1.5">
           {outOfLives ? (
             <OutOfLives
               wait={livesLabel(player, now)}
@@ -192,7 +186,7 @@ export function LevelStartSheet({
             />
           ) : (
             <>
-              <Button busy={busy} onPress={() => void play()} aria-label={`Play level ${node.level}`} className="min-h-[56px] text-cta">
+              <Button busy={busy} onPress={() => void play()} aria-label={`Play level ${node.level}`} className="min-h-[52px] text-cta">
                 Play
               </Button>
               <p className="flex items-center justify-center gap-1.5 text-meta text-text-secondary">
@@ -236,47 +230,41 @@ function formatSeconds(s: number): string {
  * gets harder.
  */
 export function PowerUpsCard({ powerUps }: { powerUps: LevelNode["powerUps"] }) {
+  if (powerUps.floorsPerOrb === null) {
+    return (
+      <div className="mt-2 flex min-h-[44px] items-center justify-between gap-3 rounded-2xl border border-white/10 bg-elevated/70 px-3.5 py-2">
+        <p className="font-mono text-label uppercase tracking-label text-text-secondary">Power-ups</p>
+        <p className="text-meta text-text-primary">None on this level</p>
+      </div>
+    );
+  }
   return (
-    <div className="mt-3 rounded-2xl border border-white/10 bg-elevated/70 px-3.5 py-3">
-      <p className="font-mono text-label uppercase tracking-label text-text-secondary">Power-ups</p>
-      {powerUps.floorsPerOrb === null ? (
-        <p className="mt-1 text-meta text-text-primary">None on this level</p>
-      ) : (
-        <>
-          <p className="mt-1 text-meta text-text-primary">
-            About 1 every {powerUps.floorsPerOrb} floors
-          </p>
-          <ul className="mt-2 flex flex-wrap gap-1.5" aria-label="Power-ups on this level and how long they last">
-            {powerUps.types.map((t) => {
-              const spec = POWER_UP_SPECS[t];
-              const s = powerUps.seconds[t];
-              return (
-                <li
-                  key={t}
-                  className="flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-meta text-text-primary"
-                  style={{ borderColor: `${spec.color}66` }}
-                >
-                  <span aria-hidden className="h-2 w-2 rounded-full" style={{ backgroundColor: spec.color }} />
-                  {spec.label}
-                  {s !== undefined && (
-                    <span className="tabular-nums text-text-secondary">
-                      {t === "jetpack" ? `${formatSeconds(s)} fuel` : formatSeconds(s)}
-                    </span>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
-        </>
-      )}
-    </div>
+    <Accordion label="Power-ups" summary={`About 1 every ${powerUps.floorsPerOrb} floors`}>
+      <ul className="grid grid-cols-2 gap-x-4 gap-y-0.5" aria-label="Power-ups on this level and how long they last">
+        {powerUps.types.map((t) => {
+          const spec = POWER_UP_SPECS[t];
+          const s = powerUps.seconds[t];
+          return (
+            <li key={t} className="flex items-center gap-1.5 text-meta text-text-primary">
+              <span aria-hidden className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: spec.color }} />
+              <span className="min-w-0 truncate">{spec.label}</span>
+              {s !== undefined && (
+                <span className="ml-auto shrink-0 tabular-nums text-text-secondary">
+                  {t === "jetpack" ? `${formatSeconds(s)} fuel` : formatSeconds(s)}
+                </span>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    </Accordion>
   );
 }
 
 function ParRow({ stars, ms }: { stars: number; ms: number }) {
   return (
-    <li className="flex items-center justify-between text-meta tabular-nums text-text-primary">
-      <StarRow count={stars} size={12} />
+    <li className="flex items-center gap-1.5 text-meta tabular-nums text-text-primary">
+      <StarRow count={stars} size={11} />
       <span>{formatClock(ms)}</span>
     </li>
   );

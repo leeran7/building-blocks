@@ -10,6 +10,7 @@ import math
 from dataclasses import dataclass, field
 from typing import Callable
 
+import climb_cycle
 from lowpoly import (
     ANCHOR,
     Scene,
@@ -231,16 +232,20 @@ def front(ch: Character, p: Pose) -> Scene:
 def back(ch: Character, phase: float) -> Scene:
     """One climb-strip frame: back view, hands on rungs, feet alternating."""
     sc = Scene()
-    c = math.cos(2 * math.pi * phase)
-    P = (256.0, 330.0 - 3.0 * math.cos(4 * math.pi * phase))
+    i = round(phase * climb_cycle.FRAMES) % climb_cycle.FRAMES
+    P = (256.0, 330.0)
     t = 0.0
     neck = add(P, (0, -88))
     head_c = add(neck, (0, -ch.head_rise))
     sh = {"l": add(P, (-54, -74)), "r": add(P, (54, -74))}
     hips = {"l": add(P, (-26, 2)), "r": add(P, (26, 2))}
     j = Joints(P, t, neck, head_c, 0.0, sh, {}, {}, hips, {}, {})
-    hand = {"r": (352.0, 168 - 50 * c), "l": (160.0, 168 + 50 * c)}
-    foot = {"l": (224.0, 460 - 20 * (1 + c)), "r": (288.0, 460 - 20 * (1 - c))}
+    hand, foot = {}, {}
+    for side, x, fx, sgn in (("r", 352.0, 288.0, 1), ("l", 160.0, 224.0, -1)):
+        drop, out, _ = climb_cycle.hand(i, side)
+        hand[side] = (x + sgn * out, 110.0 + drop)
+        lift, _ = climb_cycle.foot(i, side)
+        foot[side] = (fx, 460.0 - lift)
     for side, bend, zz, seed in (("l", 1.0, 22, 21), ("r", -1.0, 22, 31)):
         el, hd = _arm(sc, ch, sh[side], hand[side], bend, zz, 0.9, seed, False)
         j.elbows[side], j.hands[side] = el, hd

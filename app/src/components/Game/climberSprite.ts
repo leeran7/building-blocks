@@ -48,8 +48,15 @@ import { renderTintedSheet, tintSpec, type TintSpec } from "./climberTint";
 
 /** Source cell edge in the Wraith atlases (px). */
 export const CELL = WRAITH.cell;
-/** Displayed figure height in `s` units — tuned to sit near the vector body. */
-export const DISPLAY_H_IN_S = 3.0;
+/**
+ * Top of the stick figure's head above its feet, in `s` units: drawClimber's
+ * head centre (2.4 s) plus its radius (0.52 s). A character is a skin laid
+ * over the stick, so its skull top (horns, ears, crests and hoods excluded)
+ * lands exactly here.
+ */
+export const STICK_HEAD_TOP_IN_S = 2.4 + 0.52;
+/** Anchor-to-skull-top height of a drawn character (its `refH`), in `s` units. */
+export const DISPLAY_H_IN_S = STICK_HEAD_TOP_IN_S;
 
 /**
  * The walk/climb cycles advance by DISTANCE, not wall-clock — so they sync to
