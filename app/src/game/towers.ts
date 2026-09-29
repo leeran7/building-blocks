@@ -17,7 +17,7 @@
  * do not stack into a single column.
  */
 
-import { TowerSpec, Platform, Ladder } from "./types";
+import { TowerSpec, Platform, Ladder, TICK_DT } from "./types";
 import {
   GameCategory,
   TrackArchetype,
@@ -27,7 +27,7 @@ import { createRng, hashSeed } from "./rng";
 import { createSeedCache } from "./seedCache";
 
 /** Physics + layout tuning per archetype. */
-interface ArchetypeTuning {
+export interface ArchetypeTuning {
   maxClimbSpeed: number;
   moveSpeed: number;
   jumpSpeed: number;
@@ -37,7 +37,7 @@ interface ArchetypeTuning {
   floorGap: number;
 }
 
-const ARCHETYPE_TUNING: Record<TrackArchetype, ArchetypeTuning> = {
+export const ARCHETYPE_TUNING: Readonly<Record<TrackArchetype, ArchetypeTuning>> = {
   "ladder-climb": {
     maxClimbSpeed: 9, moveSpeed: 14, jumpSpeed: 15, gravity: 40,
     fallDeathBelowPeakM: 90, ladderGrabRadius: 2.2, floorGap: 24,
@@ -137,14 +137,64 @@ export const LADDER_TOP_HOP_WINDOW_M = 0.9;
  */
 export const LADDER_TOP_HOP_CLEAR_M = 0.35;
 /**
- * Air speed during a top hop, as a share of the walk speed, until the climber
- * lands or grabs a ladder. The floor above is solid for ladderGrabRadius + 2
- * (4.2 m) either side of an arriving ladder (platformsForFloor keeps gaps
- * out of that band); a hop is airborne at most ~0.53 s, so at full walk speed
- * (14 m/s) a held direction carried the climber ~7 m, into the next gap.
- * At half speed the drift stays under 3.7 m.
+ * Preferred air speed during a top hop, as a share of the walk speed, until
+ * the climber lands, grabs a ladder, starts an air jump or jetpack thrust, or
+ * falls below the ladder's own floor. topHopMaxAirSpeed caps it further so a
+ * held direction always lands on the floor beside the ladder.
  */
 export const LADDER_TOP_HOP_AIR_SPEED_FRAC = 0.5;
+/** Slack (m) kept between a top hop's worst-case drift and the nearest gap. */
+export const TOP_HOP_DRIFT_MARGIN_M = 0.25;
+
+/**
+ * Half-width (m) of the solid floor around every ladder that touches a floor:
+ * platformsForFloor carves no gap within this of a leaving or arriving ladder.
+ */
+export function ladderFloorClearanceM(tower: TowerSpec): number {
+  return tower.ladderGrabRadius + 2;
+}
+
+/** Launch speed of a plain jump off a ladder. */
+export function ladderJumpSpeed(tower: TowerSpec): number {
+  return tower.jumpSpeed * LADDER_JUMP_SPEED_FRAC;
+}
+
+/**
+ * Launch speed of a top hop whose feet start `toFloorM` below the floor the
+ * ladder leads to: a plain ladder jump, or faster when that would not peak
+ * LADDER_TOP_HOP_CLEAR_M above the floor.
+ */
+export function topHopSpeed(tower: TowerSpec, toFloorM: number): number {
+  const needed = Math.sqrt(2 * tower.gravity * (Math.max(0, toFloorM) + LADDER_TOP_HOP_CLEAR_M));
+  return Math.max(ladderJumpSpeed(tower), needed);
+}
+
+/**
+ * Longest a top hop can be in the air (s) before it lands back on the floor
+ * the ladder leads to. A plain launch stays up longest from the top rung
+ * (2v/g); an assisted launch longest from the bottom of the window under the
+ * engine's deepest short top. The larger of the two.
+ */
+export function topHopMaxAirtime(tower: TowerSpec): number {
+  const plain = ladderJumpSpeed(tower);
+  const deepest = MAX_LADDER_TOP_GAP_FRAC * jumpRise(tower, plain) + LADDER_TOP_HOP_WINDOW_M;
+  const v = topHopSpeed(tower, deepest);
+  const assisted = (v + Math.sqrt(Math.max(0, v * v - 2 * tower.gravity * deepest))) / tower.gravity;
+  return Math.max((2 * plain) / tower.gravity, assisted);
+}
+
+/**
+ * Air speed cap (m/s) of a top hop, whatever the walk speed (sprint-burst
+ * included): the worst-case airtime, plus the landing tick, times this speed
+ * stays TOP_HOP_DRIFT_MARGIN_M inside the solid band beside the ladder. On
+ * the free tower (and every level) that is 7.07 m/s, above half the 14 m/s
+ * walk, so LADDER_TOP_HOP_AIR_SPEED_FRAC decides there; a faster archetype
+ * (platform-gauntlet) or a sprint-burst is held to the cap.
+ */
+export function topHopMaxAirSpeed(tower: TowerSpec): number {
+  const band = ladderFloorClearanceM(tower) - TOP_HOP_DRIFT_MARGIN_M;
+  return band / (topHopMaxAirtime(tower) + TICK_DT);
+}
 /** Gap width ceiling for level towers, as a share of a running jump's reach. */
 export const MAX_GAP_REACH_FRAC = 0.75;
 
@@ -699,7 +749,7 @@ export function platformsForFloor(tower: TowerSpec, i: number): Platform[] {
     ...ladderXsForFloor(tower, i),
     ...ladderXsForFloor(tower, i - 1),
   ]);
-  const clearance = tower.ladderGrabRadius + 2;
+  const clearance = ladderFloorClearanceM(tower);
   const gapW = gapWidthForFloor(tower, i);
   const solid: Platform[] = [{ x0: 0, x1: w, y }];
 

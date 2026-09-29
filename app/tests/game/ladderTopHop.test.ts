@@ -18,10 +18,14 @@ import { describe, it, expect } from "vitest";
 import { createMatch, stepMatch, DEFAULT_SIM_CONFIG, type SimConfig } from "../../src/game/simulation";
 import { DEFAULT_HAZARD_CONFIG } from "../../src/game/hazard";
 import {
-  LADDER_JUMP_SPEED_FRAC,
-  LADDER_TOP_HOP_AIR_SPEED_FRAC,
+  ARCHETYPE_TUNING,
   LADDER_TOP_HOP_WINDOW_M,
+  MAX_LADDER_TOP_GAP_FRAC,
+  applyRunSeed,
   floorHeight,
+  ladderFloorClearanceM,
+  ladderJumpSpeed,
+  topHopSpeed,
   ladderHangs,
   ladderHasShortTop,
   laddersForFloor,
@@ -29,6 +33,9 @@ import {
 } from "../../src/game/towers";
 import { SEASON_1 } from "../../src/game/levels/season";
 import { levelSpec, levelTower } from "../../src/game/levels/levelSpec";
+import { buildFreeTower } from "../../src/game/freeStack";
+import { grantPowerUp } from "../../src/game/powerups";
+import { TICK_DT } from "../../src/game/types";
 import type { MatchState, PlayerInput, PlayerState, TowerSpec } from "../../src/game/types";
 
 const IDLE: PlayerInput = { moveX: 0, jump: false, climbY: 0, usePowerUp: false };
@@ -125,7 +132,7 @@ describe("top hop: a jump pressed just before a short top's hold", () => {
         Object.assign(p, { x: l.x, y: floorHeight(t, ref.floor), onGround: true, peakY: floorHeight(t, ref.floor) });
         // Climb until the next step would put the feet within two steps of
         // the hold: the press lands 0.6-0.9 m under the top rung, a beat early.
-        const stepM = t.maxClimbSpeed / 30;
+        const stepM = t.maxClimbSpeed * TICK_DT;
         for (let k = 0; k < MAX_CLIMB_TICKS && !(p.onLadder && l.y1 - p.y <= 3 * stepM); k++) step(live, UP);
         expect(p.onLadder).toBe(true);
         const early = l.y1 - p.y;
@@ -197,7 +204,7 @@ describe("top hop is only for the top of a ladder", () => {
     const live = onLadder(ref!, below);
     let p = step(live, { ...IDLE, moveX: 1, jump: true });
     expect(p.onLadder).toBe(false);
-    expect(p.vy).toBe(ref!.tower.jumpSpeed * LADDER_JUMP_SPEED_FRAC);
+    expect(p.vy).toBe(ladderJumpSpeed(ref!.tower));
     p = step(live, { ...IDLE, moveX: 1 });
     expect(p.vx).toBe(ref!.tower.moveSpeed);
   });
@@ -209,7 +216,8 @@ describe("top hop is only for the top of a ladder", () => {
     step(live, { ...IDLE, moveX: 1, jump: true });
     let airTicks = 0;
     const p = flyUntilSettled(live, { ...IDLE, moveX: 1 }, (air) => {
-      expect(air.vx).toBe(ref!.tower.moveSpeed * LADDER_TOP_HOP_AIR_SPEED_FRAC);
+      expect(air.vx).toBeGreaterThan(0);
+      expect(air.vx).toBeLessThan(ref!.tower.moveSpeed);
       airTicks++;
     });
     expect(airTicks).toBeGreaterThan(3);
@@ -246,5 +254,123 @@ describe("eased short stop", () => {
     expect(landed.y).toBe(next);
     // Highest sampled tick clears the floor by 0.38 m (0.24 m at the old stop).
     expect(peak - next).toBeGreaterThan(0.3);
+  });
+});
+
+// ── Hop exits and the drift band on every archetype ─────────────────────────
+
+/** A short-top ladder on L150, and a match with the climber held at its top. */
+function heldAtShortTop(): { live: MatchState; t: TowerSpec } {
+  const [ref] = laddersBelowGoal(150, ladderHasShortTop);
+  expect(ref).toBeDefined();
+  return { live: onLadder(ref!, 0), t: ref!.tower };
+}
+
+describe("a top hop ends when the climber takes over the air", () => {
+  it("jetpack thrust out of a hop steers at full walk speed", () => {
+    const { live, t } = heldAtShortTop();
+    const p = live.players[0];
+    grantPowerUp(p, "jetpack", live.tick, t);
+    step(live, { ...IDLE, moveX: 1, jump: true });
+    expect(p.ladderTopHop).toBe(true);
+    // Jump still held in the air: thrust.
+    step(live, { ...IDLE, moveX: 1, jump: true });
+    expect(p.jetpackThrusting).toBe(true);
+    expect(step(live, { ...IDLE, moveX: 1, jump: true }).vx).toBe(t.moveSpeed);
+    expect(p.onGround).toBe(false);
+  });
+
+  it("a super-jump air jump out of a hop steers at full walk speed", () => {
+    const { live, t } = heldAtShortTop();
+    const p = live.players[0];
+    grantPowerUp(p, "super-jump", live.tick, t);
+    step(live, { ...IDLE, moveX: 1, jump: true });
+    const hopVx = step(live, { ...IDLE, moveX: 1 }).vx;
+    expect(p.ladderTopHop).toBe(true);
+    expect(hopVx).toBeLessThan(t.moveSpeed);
+    // A fresh tap in the air is the air jump.
+    step(live, { ...IDLE, moveX: 1, jump: true });
+    expect(p.vy).toBeGreaterThan(ladderJumpSpeed(t));
+    expect(step(live, { ...IDLE, moveX: 1 }).vx).toBe(t.moveSpeed);
+    expect(p.onGround).toBe(false);
+  });
+
+  it("a hop that falls below the ladder's own floor is just a fall", () => {
+    const { live, t } = heldAtShortTop();
+    const p = live.players[0];
+    step(live, { ...IDLE, moveX: 1, jump: true });
+    expect(p.ladderTopHop).toBe(true);
+    // Stand-in for a hop knocked off course: falling past the floor it left.
+    Object.assign(p, { y: p.ladderTopHopFloorY - 0.137, vy: -6 });
+    step(live, { ...IDLE, moveX: 1 });
+    expect(p.onGround).toBe(false);
+    expect(p.ladderTopHop).toBe(false);
+    expect(step(live, { ...IDLE, moveX: 1 }).vx).toBe(t.moveSpeed);
+  });
+});
+
+/** Every archetype's physics on a level-style tower with the deepest short tops the engine allows. */
+function archetypeTowers(): Array<[string, TowerSpec]> {
+  const rows: Array<[string, Partial<TowerSpec>]> = [
+    ...Object.entries(ARCHETYPE_TUNING),
+    ["free", {}],
+  ];
+  return rows.map(([name, tuning]) => {
+    const base: TowerSpec = { ...applyRunSeed(buildFreeTower(), `hop-${name}`), ...tuning, difficulty: 0.6 };
+    const plain = ladderJumpSpeed(base);
+    const capGap = MAX_LADDER_TOP_GAP_FRAC * ((plain * plain) / (2 * base.gravity));
+    return [name, { ...base, ladderTopGapM: capGap * 0.999, shortTopShare: 1 }];
+  });
+}
+
+describe("top hop drift stays on the solid floor beside the ladder", () => {
+  it("on every archetype, sprint-burst included, a held direction lands inside the band", () => {
+    let checked = 0;
+    let worst = 0;
+    for (const [name, t] of archetypeTowers()) {
+      const band = ladderFloorClearanceM(t);
+      for (let floor = 1; floor < 16; floor++) {
+        laddersForFloor(t, floor).forEach((_, slot) => {
+          const short = ladderHasShortTop(t, floor, slot);
+          // Longest airtimes: a plain launch just under a full top, and an
+          // assisted launch from the bottom of the window under a short top.
+          const below = short ? LADDER_TOP_HOP_WINDOW_M - 0.013 : 0.013;
+          const l = laddersForFloor(t, floor)[slot]!;
+          for (const sprint of [false, true]) {
+            for (const dir of [-1, 1] as const) {
+              const live = onLadder({ tower: t, level: 0, floor, slot }, below);
+              if (sprint) grantPowerUp(live.players[0], "sprint-burst", live.tick, t);
+              step(live, { ...IDLE, moveX: dir, jump: true });
+              const p = flyUntilSettled(live, { ...IDLE, moveX: dir });
+              const where = `${name} floor ${floor} slot ${slot} sprint ${sprint} dir ${dir}`;
+              expect(p.onGround, where).toBe(true);
+              expect(p.y, where).toBeGreaterThanOrEqual(floorHeight(t, floor + 1));
+              const w = t.widthM;
+              const dx = Math.min(Math.abs(p.x - l.x), w - Math.abs(p.x - l.x));
+              worst = Math.max(worst, dx / band);
+              expect(dx, where).toBeLessThan(band);
+              checked++;
+            }
+          }
+        });
+      }
+    }
+    expect(checked).toBeGreaterThan(100);
+    // The worst case really pushes toward the band edge, so the check bites.
+    expect(worst).toBeGreaterThan(0.8);
+  });
+
+  it("never launches a hop as fast as a standing jump, on any archetype or level", () => {
+    const towers: TowerSpec[] = [
+      ...archetypeTowers().map(([, t]) => t),
+      tower(300),
+      buildFreeTower(),
+    ];
+    for (const t of towers) {
+      const plain = ladderJumpSpeed(t);
+      const capGap = MAX_LADDER_TOP_GAP_FRAC * ((plain * plain) / (2 * t.gravity));
+      expect(topHopSpeed(t, capGap + LADDER_TOP_HOP_WINDOW_M)).toBeLessThan(t.jumpSpeed);
+    }
+    expect(towers.length).toBe(Object.keys(ARCHETYPE_TUNING).length + 3);
   });
 });

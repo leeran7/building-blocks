@@ -48,10 +48,11 @@ import {
   floorIndexAt,
   floorHeight,
   buildTower,
-  LADDER_JUMP_SPEED_FRAC,
   LADDER_TOP_HOP_AIR_SPEED_FRAC,
-  LADDER_TOP_HOP_CLEAR_M,
   LADDER_TOP_HOP_WINDOW_M,
+  ladderJumpSpeed,
+  topHopMaxAirSpeed,
+  topHopSpeed,
   ladderHangM,
   ladderHangs,
   ladderHasShortTop,
@@ -130,6 +131,7 @@ export function spawnPlayer(id: PlayerId, slot: number): PlayerState {
     jetpackThrusting: false,
     grabSuppressedUntilRelease: null,
     ladderTopHop: false,
+    ladderTopHopFloorY: 0,
   };
 }
 
@@ -306,17 +308,6 @@ function grabbableLadder(
   return best;
 }
 
-/**
- * Launch speed of a top hop whose feet start `toFloorM` below the floor the
- * ladder leads to: a plain ladder jump, or faster when that would not peak
- * LADDER_TOP_HOP_CLEAR_M above the floor.
- */
-function topHopSpeed(tower: TowerSpec, toFloorM: number): number {
-  const plain = tower.jumpSpeed * LADDER_JUMP_SPEED_FRAC;
-  const needed = Math.sqrt(2 * tower.gravity * (Math.max(0, toFloorM) + LADDER_TOP_HOP_CLEAR_M));
-  return Math.max(plain, needed);
-}
-
 // ── Motion integration ─────────────────────────────────────────────────────
 
 /** Integrate one climbing player's 2D motion from their input for one tick. */
@@ -339,7 +330,10 @@ function integratePlayer(
 
   // Horizontal movement (walk / ladder-slide is ignored while attached). A top
   // hop steers at a reduced speed so it lands on the floor beside the ladder.
-  p.vx = input.moveX * moveSpeed * (p.ladderTopHop ? LADDER_TOP_HOP_AIR_SPEED_FRAC : 1);
+  const airSpeed = p.ladderTopHop
+    ? Math.min(moveSpeed * LADDER_TOP_HOP_AIR_SPEED_FRAC, topHopMaxAirSpeed(tower))
+    : moveSpeed;
+  p.vx = input.moveX * airSpeed;
   if (p.vx !== 0) p.facing = p.vx < 0 ? -1 : 1;
 
   if (p.onLadder) {
@@ -361,8 +355,9 @@ function integratePlayer(
         const hop = l.y1 - p.y <= LADDER_TOP_HOP_WINDOW_M;
         p.vy = hop
           ? topHopSpeed(tower, floorHeight(tower, curIx! + 1) - p.y)
-          : tower.jumpSpeed * LADDER_JUMP_SPEED_FRAC;
+          : ladderJumpSpeed(tower);
         p.ladderTopHop = hop;
+        p.ladderTopHopFloorY = floorHeight(tower, curIx!);
       }
       p.grabSuppressedUntilRelease =
         curIx !== null && curSlot !== null ? { ix: curIx, slot: curSlot } : null;
@@ -455,6 +450,8 @@ function integratePlayer(
         p.onGround = false;
       } else if (input.jump && !p.onGround && consumeJetpackFuel(p, tick)) {
         p.jetpackThrusting = true;
+        // Flying or air-jumping out of a hop is no longer a hop: full steering.
+        p.ladderTopHop = false;
       } else if (
         input.jump &&
         !p.jumpHeldPrev &&
@@ -462,6 +459,7 @@ function integratePlayer(
         consumeSuperJumpAirJump(p, tick)
       ) {
         p.vy = tower.jumpSpeed * SUPER_JUMP_MULT;
+        p.ladderTopHop = false;
       }
       // Gravity while airborne; thrust beats it and caps at JETPACK_MAX_VY.
       if (p.onGround) {
@@ -518,7 +516,9 @@ function integratePlayer(
     }
   }
 
-  if (p.onGround || p.onLadder) p.ladderTopHop = false;
+  // A hop ends on landing or a grab, or once it has missed: below the floor
+  // the ladder stands on, it is just a fall.
+  if (p.onGround || p.onLadder || p.y < p.ladderTopHopFloorY) p.ladderTopHop = false;
 
   // Permanent peak-height record ethos (AC-8, AC-30/AC-31).
   if (p.y > p.peakY) { p.peakY = p.y; p.peakTick = tick; }

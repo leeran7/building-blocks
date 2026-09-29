@@ -46,7 +46,8 @@ vi.stubEnv("DAILY_SEED_SECRET", TEST_DAILY_SEED_SECRET);
 // ── Pinned values (main @ 8d94f4d, DAILY_SIM_VERSION 3) ─────────────────────
 // DAILY_SIM_VERSION 4 (ladder top hop) left these untouched: the greedy bot
 // never jumps off a ladder, but a human's jump near a ladder top re-simulates
-// differently, so the version still moved. ladderTopHop.test.ts covers it.
+// differently, so the version still moved. ladderTopHopResim.test.ts pins
+// Daily and duel re-simulation of runs that hop.
 const PIN_FREE_GEOMETRY = "aa36a46dce9906b67df96540418e5c4e1083d46ca14c214015ec7f71b0e56bb3";
 const PIN_CATEGORY_GEOMETRY = "7247ce3db432cf7d57e48b86b3a786dfb9912ddc93326980f35a98cbf214679d";
 const PIN_SOLO_OUTCOME = { peakY: 628.041049955388, finishedTick: 3461, ticks: 3461 };
