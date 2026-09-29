@@ -23,5 +23,5 @@ export const FREE_STACK: GameCategory = {
 
 /** Deterministic tower spec for the single free game. */
 export function buildFreeTower() {
-  return buildTower(FREE_STACK);
+  return { ...buildTower(FREE_STACK), endlessLadders: true };
 }

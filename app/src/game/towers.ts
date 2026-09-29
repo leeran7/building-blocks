@@ -103,15 +103,16 @@ export function geometryCacheKey(tower: TowerSpec): string {
     tower.hangingLadderShare,
     tower.shortTopShare,
   ];
+  const ramped = endlessLaddersOn(tower) ? "|ladders=ramp" : "";
   if (
     tower.difficulty === undefined &&
     tower.powerUpChance === undefined &&
     layout.every((v) => v === undefined)
   ) {
-    return tower.seed;
+    return `${tower.seed}${ramped}`;
   }
   const knobs = layout.map((v) => v ?? "ramp").join(",");
-  return `${tower.seed}|d=${tower.difficulty ?? "ramp"}|pu=${tower.powerUpChance ?? "ramp"}|layout=${knobs}`;
+  return `${tower.seed}|d=${tower.difficulty ?? "ramp"}|pu=${tower.powerUpChance ?? "ramp"}|layout=${knobs}${ramped}`;
 }
 
 /** Share of a standing jump's rise a hanging ladder's bottom may sit at. */
@@ -138,28 +139,71 @@ function knob(tower: TowerSpec, name: keyof TowerSpec, lo: number, hi: number): 
   return v;
 }
 
-/** Hanging-ladder height (m) above the floor a ladder leaves; 0 on endless towers. */
+/**
+ * Endless ladders (tower.endlessLadders, the free stack): hanging ladders and
+ * short tops phase in with altitude the way the levels bring them in (Leeran,
+ * 2026-09-29). Floor f plays like level f: hanging ladders from floor 10 at
+ * 35%, reaching 70% by floor 30; short tops from floor 20 on half the tall
+ * ladders, all of them by floor 40. Heights are fixed shares of the engine
+ * caps, so Giant's reach (ladderHangM) covers every hanging ladder.
+ */
+export const ENDLESS_LADDERS = {
+  hang: { fromFloor: 10, peakFloor: 30, fromShare: 0.35, toShare: 0.7, capFrac: 0.9 },
+  shortTop: { fromFloor: 20, peakFloor: 40, fromShare: 0.5, toShare: 1, capFrac: 0.7 },
+} as const;
+
+/** Whether the endless ladder ramp applies: flagged, and no fixed difficulty. */
+function endlessLaddersOn(tower: TowerSpec): boolean {
+  return tower.endlessLadders === true && tower.difficulty === undefined;
+}
+
+/** Share of floor `i`'s ladders an endless ramp gives the feature: 0 below its first floor. */
+function endlessShare(
+  ramp: (typeof ENDLESS_LADDERS)[keyof typeof ENDLESS_LADDERS],
+  i: number
+): number {
+  if (i < ramp.fromFloor) return 0;
+  if (i >= ramp.peakFloor) return ramp.toShare;
+  const t = (i - ramp.fromFloor) / (ramp.peakFloor - ramp.fromFloor);
+  return ramp.fromShare + (ramp.toShare - ramp.fromShare) * t;
+}
+
+/**
+ * Hanging-ladder height (m) above the floor a ladder leaves: the level's knob,
+ * else the endless ramp's height, else 0.
+ */
 export function ladderHangM(tower: TowerSpec): number {
   const max = MAX_LADDER_HANG_FRAC * jumpRise(tower, tower.jumpSpeed);
-  return knob(tower, "ladderHangM", 0, max) ?? 0;
+  const set = knob(tower, "ladderHangM", 0, max);
+  if (set !== undefined) return set;
+  return endlessLaddersOn(tower) ? ENDLESS_LADDERS.hang.capFrac * max : 0;
 }
 
 /**
  * Whether ladder `slot` leaving floor `i` hangs: never without a hang height,
- * always when tower.hangingLadderShare is unset or 1, otherwise a fixed coin
- * per (seed, floor, slot) that comes up hanging at that share.
+ * always when tower.hangingLadderShare is unset or 1 (on an endless tower,
+ * unset means the altitude ramp), otherwise a fixed coin per (seed, floor,
+ * slot) that comes up hanging at that share.
  */
 export function ladderHangs(tower: TowerSpec, i: number, slot: number): boolean {
   if (ladderHangM(tower) === 0) return false;
-  const share = knob(tower, "hangingLadderShare", 0, 1) ?? 1;
+  const share =
+    knob(tower, "hangingLadderShare", 0, 1) ??
+    (endlessLaddersOn(tower) ? endlessShare(ENDLESS_LADDERS.hang, i) : 1);
+  if (share <= 0) return false;
   if (share >= 1) return true;
   return hashSeed(`${tower.seed}:hang:${i}:${slot}`) / 0x1_0000_0000 < share;
 }
 
-/** Short-top gap (m) below the floor a ladder leads to; 0 on endless towers. */
+/**
+ * Short-top gap (m) below the floor a ladder leads to: the level's knob, else
+ * the endless ramp's gap, else 0.
+ */
 export function ladderTopGapM(tower: TowerSpec): number {
   const max = MAX_LADDER_TOP_GAP_FRAC * jumpRise(tower, LADDER_JUMP_SPEED_FRAC * tower.jumpSpeed);
-  return knob(tower, "ladderTopGapM", 0, max) ?? 0;
+  const set = knob(tower, "ladderTopGapM", 0, max);
+  if (set !== undefined) return set;
+  return endlessLaddersOn(tower) ? ENDLESS_LADDERS.shortTop.capFrac * max : 0;
 }
 
 /**
@@ -173,7 +217,10 @@ export function ladderTopGapM(tower: TowerSpec): number {
 export function ladderHasShortTop(tower: TowerSpec, i: number, slot: number): boolean {
   if (ladderTopGapM(tower) === 0) return false;
   // Read before the tall-ladder checks so a bad share is refused on any floor.
-  const share = knob(tower, "shortTopShare", 0, 1) ?? 1;
+  const share =
+    knob(tower, "shortTopShare", 0, 1) ??
+    (endlessLaddersOn(tower) ? endlessShare(ENDLESS_LADDERS.shortTop, i) : 1);
+  if (share <= 0) return false;
   if (ladderHangs(tower, i, slot)) return false;
   if (floorGapForFloor(tower, i) < tower.floorGap) return false;
   if (share >= 1) return true;

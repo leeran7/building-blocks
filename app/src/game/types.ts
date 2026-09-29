@@ -313,6 +313,13 @@ export interface TowerSpec {
    * ladderTopGapM is set.
    */
   shortTopShare?: number;
+  /**
+   * The free stack (Endless, Daily) only: hanging ladders and short tops
+   * phase in with altitude (ENDLESS_LADDERS in towers.ts) wherever the level
+   * knobs above are unset. Ignored on a tower with a fixed `difficulty`
+   * (levels, tutorials). Unset on duel towers, which keep plain ladders.
+   */
+  endlessLadders?: boolean;
 }
 
 export type MatchPhase =
