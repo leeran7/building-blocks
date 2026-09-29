@@ -1,0 +1,16 @@
+diff --git a/ios/Sources/NativePurchasesPlugin/NativePurchasesPlugin.swift b/ios/Sources/NativePurchasesPlugin/NativePurchasesPlugin.swift
+index e4ab9e146d2f82bd443b042458a3ac10b6e41c1b..056831c6b030aa751199abfcb17fed869ef498a2 100644
+--- a/ios/Sources/NativePurchasesPlugin/NativePurchasesPlugin.swift
++++ b/ios/Sources/NativePurchasesPlugin/NativePurchasesPlugin.swift
+@@ -52,7 +52,10 @@ public class NativePurchasesPlugin: CAPPlugin, CAPBridgedPlugin {
+                         jwsRepresentation: result.jwsRepresentation,
+                         alwaysIncludeWillCancel: true
+                     )
+-                    await transaction.finish()
++                    // Patched (building-blocks): never finish here. The app
++                    // finishes a transaction only after its server credits it
++                    // (acknowledgePurchase); finishing on delivery lost paid
++                    // purchases whose JS listener was not attached yet.
+                     try? await Task.sleep(nanoseconds: 500_000_000)
+                     await MainActor.run {
+                         self?.notifyListeners("transactionUpdated", data: payload)

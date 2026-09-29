@@ -9,7 +9,8 @@
  *  - alg is ES256 and x5c holds exactly leaf, intermediate, root;
  *  - every certificate is inside its validity window;
  *  - leaf is issued and signed by the intermediate, the intermediate by the
- *    root, and the root is self-signed with the pinned fingerprint;
+ *    root, and the root is self-signed with the pinned fingerprint; the
+ *    intermediate is a CA;
  *  - the leaf and intermediate carry Apple's App Store receipt-signing
  *    extension OIDs (1.2.840.113635.100.6.11.1 and 1.2.840.113635.100.6.2.1);
  *  - the ES256 signature over header.payload verifies with the leaf key.
@@ -108,7 +109,7 @@ export function verifyAppleTransaction(jws: unknown, opts: VerifyOptions = {}): 
     intermediate.verify(root.publicKey) &&
     leaf.checkIssued(intermediate) &&
     leaf.verify(intermediate.publicKey);
-  if (!chained) throw new AppleJwsError("Broken certificate chain");
+  if (!chained || !intermediate.ca) throw new AppleJwsError("Broken certificate chain");
   if (!leaf.raw.includes(LEAF_OID) || !intermediate.raw.includes(INTERMEDIATE_OID)) {
     throw new AppleJwsError("Not an App Store signing certificate");
   }

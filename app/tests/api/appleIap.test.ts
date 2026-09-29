@@ -11,7 +11,7 @@
 import { readFileSync } from "fs";
 import { join } from "path";
 import { X509Certificate, createPrivateKey, sign } from "crypto";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { AppleJwsError, verifyAppleTransaction } from "../../src/api/appleJws";
 import { appleAccountTokenFor, checkAppleGemTransaction, DEFAULT_APPLE_BUNDLE_ID } from "../../src/api/appleIap";
 import { GEM_PACKS } from "../../src/lib/gemPacks";
@@ -23,6 +23,7 @@ const ROOT = pem("root.pem");
 const INTER = pem("inter.pem");
 const LEAF = pem("leaf.pem");
 const LEAF_NO_OID = pem("leaf-no-oid.pem");
+const INTER_NOT_CA = pem("inter-not-ca.pem");
 const LEAF_KEY = createPrivateKey(pem("leaf.key"));
 const ROOT_FP = new X509Certificate(ROOT).fingerprint256;
 const opts = { rootFingerprint256: ROOT_FP };
@@ -48,7 +49,7 @@ const tx = (over: Record<string, unknown> = {}) => ({
   productId: PACK.appleProductId,
   type: "Consumable",
   quantity: 1,
-  environment: "Sandbox",
+  environment: "Production",
   appAccountToken: appleAccountTokenFor(UID),
   purchaseDate: 1_790_000_000_000,
   ...over,
@@ -82,6 +83,8 @@ describe("verifyAppleTransaction", () => {
     expect(() => verifyAppleTransaction(jws(tx(), { chain: [LEAF_NO_OID, INTER, ROOT] }), opts)).toThrow(
       /App Store signing/
     );
+    // Same key and name as the real intermediate, but not a CA.
+    expect(() => verifyAppleTransaction(jws(tx(), { chain: [LEAF, INTER_NOT_CA, ROOT] }), opts)).toThrow(/chain/);
   });
 
   it("refuses any algorithm but ES256, and certificates outside their validity", () => {
@@ -116,6 +119,22 @@ describe("checkAppleGemTransaction", () => {
     if (r.ok) expect(r.pack).toBe(PACK);
   });
 
+  it("credits a Sandbox purchase only for a uid on the sandbox list (App Review, testers)", () => {
+    const r = checkAppleGemTransaction(jws(tx({ environment: "Sandbox" })), UID, { ...opts, sandboxUids: [UID] });
+    expect(r.ok).toBe(true);
+  });
+
+  it("reads the sandbox list from APPLE_IAP_SANDBOX_UIDS", () => {
+    const sandbox = jws(tx({ environment: "Sandbox" }));
+    vi.stubEnv("APPLE_IAP_SANDBOX_UIDS", ` other , ${UID} `);
+    try {
+      expect(checkAppleGemTransaction(sandbox, UID, opts).ok).toBe(true);
+    } finally {
+      vi.unstubAllEnvs();
+    }
+    expect(checkAppleGemTransaction(sandbox, UID, opts).ok).toBe(false);
+  });
+
   it("accepts the account token in upper case (StoreKit may print it that way)", () => {
     expect(check(tx({ appAccountToken: appleAccountTokenFor(UID).toUpperCase() })).ok).toBe(true);
   });
@@ -128,6 +147,11 @@ describe("checkAppleGemTransaction", () => {
     ["WRONG_ACCOUNT", () => check(tx({ appAccountToken: undefined }))],
     ["REVOKED", () => check(tx({ revocationDate: 1_790_000_100_000 }))],
     ["BAD_QUANTITY", () => check(tx({ quantity: 2 }))],
+    ["SANDBOX", () => check(tx({ environment: "Sandbox" }))],
+    ["SANDBOX", () => check(tx({ environment: "Xcode" }))],
+    ["SANDBOX", () => check(tx({ environment: undefined }))],
+    ["SANDBOX", () => checkAppleGemTransaction(jws(tx({ environment: "Sandbox" })), UID, { ...opts, sandboxUids: ["someone-else"] })],
+    ["SANDBOX", () => checkAppleGemTransaction(jws(tx({ environment: "Xcode" })), UID, { ...opts, sandboxUids: [UID] })],
   ] as const)("refuses %s", (refusal, run) => {
     const r = run();
     expect(r.ok).toBe(false);

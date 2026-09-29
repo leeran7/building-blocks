@@ -10,7 +10,7 @@
  * transaction with StoreKit.
  *
  * 200 { outcome: "credited" | "duplicate", gems, packId }
- * 400 { code: INVALID_SIGNATURE | WRONG_APP | UNKNOWN_PRODUCT | WRONG_ACCOUNT | REVOKED | BAD_QUANTITY }
+ * 400 { code: INVALID_SIGNATURE | WRONG_APP | UNKNOWN_PRODUCT | WRONG_ACCOUNT | REVOKED | BAD_QUANTITY | SANDBOX }
  *
  * Auth required (Firebase Bearer token).
  */
@@ -31,6 +31,7 @@ const REFUSAL_MESSAGES = {
   WRONG_ACCOUNT: "That purchase was made on a different account",
   REVOKED: "That purchase was refunded",
   BAD_QUANTITY: "Buy one pack at a time",
+  SANDBOX: "Test purchases don't add gems to this account",
 } as const;
 
 export const POST = withAuth(async (request: NextRequest, uid: string) => {

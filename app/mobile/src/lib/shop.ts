@@ -147,7 +147,6 @@ export async function buyGemPack(pack: GemPack, shop: ShopState): Promise<PackPu
     await openExternal(body.checkoutUrl);
     return { kind: "checkout" };
   }
-
   if (!shop.appleAccountToken) throw new ShopError("Couldn't reach the App Store. Try again.", null);
   let transaction;
   try {
@@ -160,6 +159,10 @@ export async function buyGemPack(pack: GemPack, shop: ShopState): Promise<PackPu
     });
   } catch (err) {
     if (isCancel(err)) return { kind: "cancelled" };
+    if (isPending(err)) {
+      // Ask to Buy: the approved transaction arrives later (watchAppleTransactions).
+      throw new ShopError("Waiting for approval. Your gems arrive once the purchase is approved.", "PENDING");
+    }
     throw new ShopError("The App Store couldn't complete the purchase.", null);
   }
   if (!transaction.jwsRepresentation) {
@@ -167,8 +170,58 @@ export async function buyGemPack(pack: GemPack, shop: ShopState): Promise<PackPu
   }
   const gems = await settleAppleTransaction(transaction.jwsRepresentation);
   // Credited (or already credited): only now tell StoreKit we're done.
-  await NativePurchases.acknowledgePurchase({ purchaseToken: transaction.transactionId }).catch(() => undefined);
+  await finish(transaction.transactionId);
   return { kind: "credited", gems };
+}
+
+function isPending(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message : String(err);
+  return /pending/i.test(msg);
+}
+
+function finish(transactionId: string): Promise<void> {
+  return NativePurchases.acknowledgePurchase({ purchaseToken: transactionId }).catch(() => undefined);
+}
+
+/**
+ * Server refusals that no retry can change (bad signature, not our app or a
+ * gem pack, refunded, a test purchase). The transaction is finished so it
+ * stops coming back; the server has logged it for support. WRONG_ACCOUNT is
+ * not here: another account on this device may still settle it.
+ */
+export const FINAL_REFUSALS: ReadonlySet<string> = new Set([
+  "INVALID_SIGNATURE",
+  "WRONG_APP",
+  "UNKNOWN_PRODUCT",
+  "REVOKED",
+  "BAD_QUANTITY",
+  "SANDBOX",
+]);
+
+const GEM_PRODUCT_IDS: ReadonlySet<string> = new Set(GEM_PACKS.map((p) => p.appleProductId));
+
+interface StoreTransaction {
+  transactionId: string;
+  productIdentifier: string;
+  jwsRepresentation?: string;
+}
+
+/**
+ * Credit one App Store transaction and finish it once the server has it.
+ * Returns the new balance, or null when it is not a gem pack, the server
+ * refused it for good (finished anyway), or it failed and stays unfinished
+ * for the next try.
+ */
+export async function settleStoreTransaction(t: StoreTransaction): Promise<number | null> {
+  if (!GEM_PRODUCT_IDS.has(t.productIdentifier) || !t.jwsRepresentation) return null;
+  try {
+    const gems = await settleAppleTransaction(t.jwsRepresentation);
+    await finish(t.transactionId);
+    return gems;
+  } catch (err) {
+    if (err instanceof ShopError && err.code !== null && FINAL_REFUSALS.has(err.code)) await finish(t.transactionId);
+    return null;
+  }
 }
 
 /**
@@ -182,21 +235,34 @@ export async function settleUnfinishedPurchases(shop: ShopState): Promise<number
   try {
     ({ purchases } = await NativePurchases.getPurchases({
       productType: PURCHASE_TYPE.INAPP,
-      appAccountToken: shop.appleAccountToken,
+      // StoreKit compares against UUID.uuidString, which is upper-case.
+      appAccountToken: shop.appleAccountToken.toUpperCase(),
     }));
   } catch {
     return null;
   }
-  const packIds = new Set(GEM_PACKS.map((p) => p.appleProductId));
   let latest: number | null = null;
   for (const p of purchases) {
-    if (!packIds.has(p.productIdentifier) || !p.jwsRepresentation || p.isAcknowledged === true) continue;
-    try {
-      latest = await settleAppleTransaction(p.jwsRepresentation);
-      await NativePurchases.acknowledgePurchase({ purchaseToken: p.transactionId }).catch(() => undefined);
-    } catch {
-      /* stays unfinished; retried next time */
-    }
+    const gems = await settleStoreTransaction(p);
+    if (gems !== null) latest = gems;
   }
   return latest;
+}
+
+/**
+ * Credit gem packs StoreKit delivers while the app runs (an Ask to Buy
+ * approval, a purchase finishing on another screen). Returns a stop function.
+ */
+export function watchAppleTransactions(onCredited: (gems: number) => void): () => void {
+  if (!usesAppStore()) return () => undefined;
+  let stopped = false;
+  const handle = NativePurchases.addListener("transactionUpdated", (t) => {
+    void settleStoreTransaction(t).then((gems) => {
+      if (gems !== null && !stopped) onCredited(gems);
+    });
+  });
+  return () => {
+    stopped = true;
+    void handle.then((h) => h.remove()).catch(() => undefined);
+  };
 }
