@@ -661,6 +661,8 @@ describe("level result card", () => {
 
   it("reveals the boosters a clear's star chest held, and nothing on other runs", async () => {
     await renderCard({ ...base, chestsOpened: [{ chestNumber: 1, boosters: ["giant", "giant"] }, { chestNumber: 2, boosters: ["slow-lava"] }] });
+    // The opening sequence has its own tests (mobileChestOpening.test.tsx).
+    await click(button("Skip all"));
     const reveal = container.querySelector('ul[aria-label="Boosters from the chest"]');
     expect(container.textContent).toContain("2 star chests opened!");
     expect([...(reveal?.querySelectorAll("li") ?? [])].map((li) => li.textContent)).toEqual(["+2 Giant", "+1 Slow Lava"]);

@@ -11,7 +11,7 @@ import {
 } from "../../lib/levels/model";
 import { HeartIcon, StarIcon, XpBar, livesLabel, useNow } from "./LevelBits";
 import { OutOfLives, type RefillOffer } from "./LevelStartSheet";
-import { ChestReveal } from "./LevelChests";
+import { ChestReveal } from "./ChestOpening";
 import { STUCK_BOOSTER_FAILS } from "@app/levels/engagement";
 
 /**
@@ -68,7 +68,8 @@ export function LevelResultCard({
           nearMiss={nearMiss}
         />
       )}
-      <ChestReveal chests={result.chestsOpened} />
+      {/* Keyed by chest: a new clear's chests start their opening afresh. */}
+      <ChestReveal key={result.chestsOpened.map((c) => c.chestNumber).join()} chests={result.chestsOpened} />
       <StreakLine result={result} />
       <StuckLine result={result} />
 
@@ -387,6 +388,8 @@ export function SubmitFailedCard({ level, busy, onRetry, onMap }: { level: numbe
 /**
  * The card's shell. It takes focus when it appears, so a screen reader
  * announces the outcome (its label) as the run ends.
+ * On a short phone a tall card (a chest opening) scrolls rather than
+ * pushing its heading off the top.
  */
 function Sheet({ label, children }: { label: string; children: React.ReactNode }) {
   const ref = useRef<HTMLDivElement>(null);
@@ -400,7 +403,7 @@ function Sheet({ label, children }: { label: string; children: React.ReactNode }
       aria-modal="true"
       aria-label={label}
       tabIndex={-1}
-      className="lr-card absolute outline-none focus-visible:outline-none inset-x-0 bottom-0 z-30 mx-auto max-w-md rounded-t-3xl border-t border-border-strong bg-surface/95 px-6 pb-[calc(env(safe-area-inset-bottom)+1.5rem)] pt-3 backdrop-blur-xl"
+      className="lr-card absolute outline-none focus-visible:outline-none inset-x-0 bottom-0 z-30 mx-auto max-h-[calc(100dvh-env(safe-area-inset-top))] max-w-md overflow-y-auto overscroll-contain rounded-t-3xl border-t border-border-strong bg-surface/95 px-6 pb-[calc(env(safe-area-inset-bottom)+1.5rem)] pt-3 backdrop-blur-xl"
     >
       <span aria-hidden className="mx-auto mb-5 block h-1 w-9 rounded-full bg-border-strong" />
       {children}

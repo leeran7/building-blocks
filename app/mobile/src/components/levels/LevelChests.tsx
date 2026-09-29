@@ -1,14 +1,14 @@
 import { POWER_UP_SPECS } from "@app/game/powerups";
 import { BOOSTER_TYPES, type BoosterInventory, type BoosterType } from "@app/levels/engagement";
 import { tapLight } from "../../lib/haptics";
-import type { ChestProgress, OpenedChest } from "../../lib/levels/model";
+import type { ChestProgress } from "../../lib/levels/model";
 import { StarIcon } from "./LevelBits";
 
 /**
  * Star chests and boosters (design §6.4): every 20 lifetime stars opens a
  * chest of power-ups, and an owned one can be spent to start a level with it.
  * The server rolls the chests and spends the boosters; these only show what
- * it said.
+ * it said. The result card's chest opening is in ChestOpening.tsx.
  */
 
 /** Total boosters owned. */
@@ -37,7 +37,10 @@ export function ChestMeter({ chests, boosters }: { chests: ChestProgress; booste
           {starsIntoChest}/{perChest}
         </span>
         <span aria-hidden className="mt-0.5 block h-1 w-16 overflow-hidden rounded-full bg-white/10">
-          <span className="block h-full rounded-full bg-signal" style={{ width: `${pct}%` }} />
+          <span
+            className="block h-full origin-left rounded-full bg-signal transition-transform duration-500 ease-out motion-reduce:transition-none"
+            style={{ transform: `scaleX(${pct / 100})` }}
+          />
         </span>
       </div>
       {owned > 0 && (
@@ -122,43 +125,6 @@ export function BoosterPicker({
           ? `You start with ${POWER_UP_SPECS[selected].label} at GO. It's used up unless you restart within 3 seconds.`
           : "Tap one to start with it at GO."}
       </p>
-    </div>
-  );
-}
-
-/** The result card's reveal of the chests a clear opened. */
-export function ChestReveal({ chests }: { chests: readonly OpenedChest[] }) {
-  if (chests.length === 0) return null;
-  const counts = new Map<BoosterType, number>();
-  for (const c of chests) for (const b of c.boosters) counts.set(b, (counts.get(b) ?? 0) + 1);
-  const title = chests.length === 1 ? "Star chest opened!" : `${chests.length} star chests opened!`;
-  return (
-    <div role="status" className="lc-pop mt-4 rounded-2xl border border-signal/40 bg-signal/10 px-4 py-3 text-center">
-      <div className="flex items-center justify-center gap-2">
-        <ChestIcon size={28} open />
-        <p className="font-display text-lead font-black uppercase text-signal">{title}</p>
-      </div>
-      <ul aria-label="Boosters from the chest" className="mt-2 flex flex-wrap justify-center gap-2">
-        {[...counts].map(([type, n]) => {
-          const spec = POWER_UP_SPECS[type];
-          return (
-            <li
-              key={type}
-              className="flex items-center gap-1.5 rounded-xl border border-white/10 bg-surface/70 px-2.5 py-1 text-meta font-bold"
-              style={{ color: spec.color }}
-            >
-              <span aria-hidden className="inline-block h-2 w-2 rounded-full" style={{ backgroundColor: spec.color }} />
-              +{n} {spec.label}
-            </li>
-          );
-        })}
-      </ul>
-      <p className="mt-2 text-meta text-text-secondary">Spend them from any level&rsquo;s start card.</p>
-      <style>{`
-        .lc-pop { animation: lcPop 420ms cubic-bezier(.2,1.4,.4,1) both; }
-        @keyframes lcPop { from { transform: scale(0.85); opacity: 0; } to { transform: scale(1); opacity: 1; } }
-        @media (prefers-reduced-motion: reduce) { .lc-pop { animation: none; } }
-      `}</style>
     </div>
   );
 }
