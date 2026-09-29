@@ -15,7 +15,7 @@ import {
   type LevelNode,
   type StartResult,
 } from "../lib/levels/model";
-import type { BoosterType } from "@app/levels/engagement";
+import { startBoosterTypes, type BoosterType } from "@app/levels/engagement";
 
 /** Vertical distance between two pins, px. */
 const ROW = 92;
@@ -257,7 +257,7 @@ export function LevelMapScreen() {
               boosters={
                 <BoosterPicker
                   inventory={season.boosters}
-                  allowed={selected.allowedPowerUps}
+                  allowed={startBoosterTypes(selected.level, selected.allowedPowerUps)}
                   selected={booster}
                   onSelect={setBooster}
                   freeStart={selected.level === frontier && season.nextStartPowerUp !== null}

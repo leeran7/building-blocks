@@ -69,6 +69,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **No Super Jump or Jetpack start on early levels** — levels 1-45 (episodes
+  1-3) never start a run with a super jump or jetpack, whether from a win
+  streak, stuck help or an owned booster; a 5-streak there earns the rapid
+  climb instead, the booster picker hides them, and star chests opened before
+  L46 do not hold them. The random orb was already never a start power-up.
+  Both still spawn as orbs from their unlock levels. Server and mobile share
+  `startBoosterTypes` (`EARLY_START_LAST_LEVEL = 45`).
+
 - **Climb Feel 1.25× (presentation only)** — amplify The Climb identity on
   climb-facing surfaces (~1.25× HUD, shake, grain/topo, and climb-scoped enter /
   reveal / groundRise / punch motion). Shared ASCENT baselines for paid/auth
