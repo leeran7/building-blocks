@@ -84,7 +84,23 @@ export interface SeasonView {
   boosters: BoosterInventory;
   /** Progress toward the next star chest; null when the server did not say. */
   chests: ChestProgress | null;
+  /**
+   * The paid lives refill: the player's gems and what a refill costs. Null
+   * when this client cannot sell one (the device-local mock, an older server).
+   */
+  refill: LivesRefillPrice | null;
 }
+
+export interface LivesRefillPrice {
+  gems: number;
+  cost: number;
+}
+
+/** A paid lives refill: the new lives and gem balance, or why it was refused. */
+export type BuyLivesResult =
+  | { ok: true; player: PlayerStats; gems: number }
+  /** LIVES_FULL: already full, nothing charged. NOT_ENOUGH_GEMS: `gems` is the balance. */
+  | { ok: false; code: "LIVES_FULL" | "NOT_ENOUGH_GEMS" | "NETWORK"; gems?: number };
 
 /** Star chests (§6.4): one opens for every 20 lifetime stars. */
 export interface ChestProgress {
@@ -246,6 +262,8 @@ export interface LevelsClient {
   submitResult(ticketId: string, run: LevelRunReport): Promise<LevelResult>;
   /** The level's friends-only board. */
   getBoard(level: number): Promise<LevelBoardView>;
+  /** Top lives up to full with gems. Absent on clients that cannot sell it. */
+  buyLives?(): Promise<BuyLivesResult>;
 }
 
 /** Every 5th level is a Hard level (§3). */

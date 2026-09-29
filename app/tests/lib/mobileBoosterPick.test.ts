@@ -22,6 +22,17 @@ describe("nextStartAfter", () => {
     expect(nextStartAfter(s, 6)).toEqual({ level: 7, allowed: s.levels[6].allowedPowerUps, freeType: null });
   });
 
+  it("never offers a late booster (super jump, jetpack) for an early level", async () => {
+    const s = await season();
+    const lateIdx = s.levels.findIndex((l) => l.level <= 45 && l.allowedPowerUps.some((t) => t === "super-jump" || t === "jetpack"));
+    expect(lateIdx).toBeGreaterThan(0);
+    const next = nextStartAfter({ ...s, frontier: s.levels.length }, s.levels[lateIdx].level - 1);
+    expect(next?.level).toBe(s.levels[lateIdx].level);
+    expect(next?.allowed).not.toContain("super-jump");
+    expect(next?.allowed).not.toContain("jetpack");
+    expect(next?.allowed.length).toBeGreaterThan(0);
+  });
+
   it("is null at the end of the season, beyond the frontier, or with no season", async () => {
     const s = await season();
     const last = s.levels.length;

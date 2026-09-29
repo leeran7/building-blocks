@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { ALTITUDE_UNIT } from "@app/lib/units";
+import { ALTITUDE_UNIT, formatWholeFeet } from "@app/lib/units";
 import { avatarName, stickColorOf } from "@app/lib/avatars";
 import { Button } from "../ui";
 import {
@@ -10,7 +10,7 @@ import {
   type PlayerStats,
 } from "../../lib/levels/model";
 import { HeartIcon, StarIcon, XpBar, livesLabel, useNow } from "./LevelBits";
-import { OutOfLives } from "./LevelStartSheet";
+import { OutOfLives, type RefillOffer } from "./LevelStartSheet";
 import { ChestReveal } from "./ChestOpening";
 import { STUCK_BOOSTER_FAILS, type BoosterType } from "@app/levels/engagement";
 import type { NextStart } from "../../lib/levels/boosterPick";
@@ -35,6 +35,7 @@ export function LevelResultCard({
   onPracticeLevel,
   nearMiss = null,
   nextStart = null,
+  refill = null,
 }: {
   result: LevelResult;
   /** Whether a retry of this level spends a life (tutorial levels don't). */
@@ -53,6 +54,8 @@ export function LevelResultCard({
   onMap: () => void;
   onPractice: () => void;
   onPracticeLevel: () => void;
+  /** The paid lives refill, offered when a loss leaves no lives. */
+  refill?: RefillOffer | null;
 }) {
   // One booster from the chest for the next level: only a preselect for its start card.
   const [pick, setPick] = useState<BoosterType | null>(null);
@@ -109,6 +112,7 @@ export function LevelResultCard({
             onMap={onMap}
             onPractice={onPractice}
             onPracticeLevel={onPracticeLevel}
+            refill={refill}
           />
         )}
       </div>
@@ -260,7 +264,7 @@ function Lost({
         <span className="block h-full rounded-full bg-ember" style={{ width: `${pct}%` }} />
       </div>
       <p className="mt-1.5 text-center font-mono text-label uppercase tracking-label text-text-muted">
-        {Math.round(peakFt).toLocaleString()} of {goalFt.toLocaleString()} {ALTITUDE_UNIT}
+        {formatWholeFeet(peakFt)} of {formatWholeFeet(goalFt)} {ALTITUDE_UNIT}
       </p>
     </>
   );
@@ -274,6 +278,7 @@ function LossActions({
   onMap,
   onPractice,
   onPracticeLevel,
+  refill,
 }: {
   player: PlayerStats;
   costsLife: boolean;
@@ -282,12 +287,18 @@ function LossActions({
   onMap: () => void;
   onPractice: () => void;
   onPracticeLevel: () => void;
+  refill: RefillOffer | null;
 }) {
   const now = useNow();
   if (costsLife && player.lives <= 0) {
     return (
       <>
-        <OutOfLives wait={livesLabel(player, now)} onPractice={onPractice} onPracticeLevel={onPracticeLevel} />
+        <OutOfLives
+          wait={livesLabel(player, now)}
+          onPractice={onPractice}
+          onPracticeLevel={onPracticeLevel}
+          refill={refill}
+        />
         <Button variant="ghost" onPress={onMap}>
           Map
         </Button>

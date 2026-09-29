@@ -52,6 +52,29 @@ export function boosterTypesOf(allowed: readonly PowerUpType[]): BoosterType[] {
   return out;
 }
 
+// ── Early levels ─────────────────────────────────────────────────────────────
+
+/**
+ * The last level of the early game: episodes 1-3 (L1-L45). No run through here
+ * starts with a late booster, whatever the source (streak, stuck help or an
+ * owned booster), so the big movement power-ups stay a reward of harder levels.
+ * The random orb is never a start power-up at any level (see BoosterType).
+ */
+export const EARLY_START_LAST_LEVEL = 45;
+
+/** Boosters kept out of early-level starts: they skip whole sections of a climb. */
+export const LATE_START_BOOSTERS: readonly BoosterType[] = ["super-jump", "jetpack"];
+
+/**
+ * The booster types a run of `level` may start with: the level's allowed set
+ * less "random", and less the late boosters through EARLY_START_LAST_LEVEL.
+ */
+export function startBoosterTypes(level: number, allowed: readonly PowerUpType[]): BoosterType[] {
+  const types = boosterTypesOf(allowed);
+  if (level > EARLY_START_LAST_LEVEL) return types;
+  return types.filter((t) => !LATE_START_BOOSTERS.includes(t));
+}
+
 /** How a run's starting power-up was decided. */
 export type StartPowerUpSource = "streak" | "stuck_help" | "booster";
 

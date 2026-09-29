@@ -9,6 +9,7 @@ import {
   SEASON_START_RATE,
   formatAltitude,
   formatAltitudeLabel,
+  formatWholeFeet,
 } from "../../src/lib/units";
 
 describe("altitude display units", () => {
@@ -27,5 +28,11 @@ describe("altitude display units", () => {
   it("formats spoken labels with the long unit", () => {
     expect(formatAltitudeLabel(5.0, 1)).toBe("5.0 feet");
     expect(formatAltitudeLabel(0.65, 2)).toBe("0.65 feet");
+  });
+
+  it("formats goals in whole feet", () => {
+    expect(formatWholeFeet(299.286)).toBe("299");
+    expect(formatWholeFeet(303.5)).toBe("304");
+    expect(formatWholeFeet(1203.2)).toBe((1203).toLocaleString());
   });
 });

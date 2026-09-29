@@ -30,6 +30,8 @@ import {
   parseBoosterType,
   streakPowerUp,
   type BoosterType,
+  EARLY_START_LAST_LEVEL,
+  startBoosterTypes,
 } from "../../src/levels/engagement";
 import { levelBoosterTypes } from "../../src/levels/catalog";
 import {
@@ -64,9 +66,36 @@ describe("boosterTypesOf", () => {
   it("reads a level's allowed set from the season 1 manifest", () => {
     expect(levelBoosterTypes(1, 3)).toEqual([]);
     expect(levelBoosterTypes(1, 4)).toEqual(["rapid-climb"]);
-    expect(levelBoosterTypes(1, 42)).toEqual(ALL);
+    expect(levelBoosterTypes(1, 42)).toEqual(ALL.filter((t) => t !== "super-jump" && t !== "jetpack"));
+    expect(levelBoosterTypes(1, 46)).toEqual(ALL);
     expect(levelBoosterTypes(1, 301)).toBeNull();
     expect(levelBoosterTypes(2, 1)).toBeNull();
+  });
+});
+
+describe("startBoosterTypes", () => {
+  const ALLOWED = [...ALL, "random" as const];
+
+  it("keeps super jump, jetpack and random out of early-level starts", () => {
+    for (const level of [1, 11, 28, 42, EARLY_START_LAST_LEVEL]) {
+      const types = startBoosterTypes(level, ALLOWED);
+      expect(types).not.toContain("super-jump");
+      expect(types).not.toContain("jetpack");
+      expect(types).not.toContain("random");
+      expect(types).toContain("rapid-climb");
+    }
+  });
+
+  it("allows them from the first level past the early game", () => {
+    expect(startBoosterTypes(EARLY_START_LAST_LEVEL + 1, ALLOWED)).toEqual(ALL);
+  });
+
+  it("means an early streak earns the rapid climb and stuck help skips the late boosters", () => {
+    const early = startBoosterTypes(EARLY_START_LAST_LEVEL, ALLOWED);
+    expect(streakPowerUp(STREAK_SUPER_JUMP, early)).toBe("rapid-climb");
+    for (let fails = STUCK_BOOSTER_FAILS; fails < STUCK_BOOSTER_FAILS + 14; fails++) {
+      expect(["super-jump", "jetpack"]).not.toContain(stuckHelpPowerUp(fails, early));
+    }
   });
 });
 

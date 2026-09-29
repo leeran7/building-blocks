@@ -20,7 +20,7 @@ import {
 } from "@app/components/Game/climbCamera";
 import { useCanvasSize } from "@app/hooks/useCanvasSize";
 import { useSafeAreaInsets } from "@app/hooks/useSafeAreaInsets";
-import { ALTITUDE_UNIT } from "@app/lib/units";
+import { ALTITUDE_UNIT, formatWholeFeet } from "@app/lib/units";
 
 import { tapLight, tapMedium, notifyError } from "../../lib/haptics";
 import { useGameHaptics } from "../../lib/useGameHaptics";
@@ -209,6 +209,18 @@ export function LevelRun({
         topInset={safeArea.top}
         leftInset={safeArea.left}
         rightInset={safeArea.right}
+        goal={
+          phase === "climb" || phase === "countdown" ? (
+            <GoalBar
+              peakFt={state.players[0]?.peakY ?? 0}
+              goalFt={goalFt}
+              elapsedMs={state.raceSeconds * 1000}
+              pars={pars}
+              practice={practice}
+              bestFailFt={bestFailFt}
+            />
+          ) : null
+        }
         backControl={
           <button
             type="button"
@@ -222,18 +234,6 @@ export function LevelRun({
           </button>
         }
       />
-
-      {(phase === "climb" || phase === "countdown") && (
-        <GoalBar
-          topInset={safeArea.top}
-          peakFt={state.players[0]?.peakY ?? 0}
-          goalFt={goalFt}
-          elapsedMs={state.raceSeconds * 1000}
-          pars={pars}
-          practice={practice}
-          bestFailFt={bestFailFt}
-        />
-      )}
 
       {phase === "countdown" && (
         <Overlay>
@@ -259,7 +259,7 @@ export function LevelRun({
           </h2>
           <span className="mt-4 h-px w-14 bg-border-strong" />
           <p className="mt-4 max-w-[280px] text-center text-body text-text-secondary">
-            Reach the summit at {goalFt.toLocaleString()} {ALTITUDE_UNIT} before the lava catches you.
+            Reach the summit at {formatWholeFeet(goalFt)} {ALTITUDE_UNIT} before the lava catches you.
           </p>
           {startPowerUps.length > 0 && (
             <p className="mt-3 text-meta text-text-primary">
@@ -303,9 +303,10 @@ export function LevelRun({
 /**
  * Progress to the summit, with the stars still on offer: nobody reads a timer
  * while dodging lava, so the stars drop off the bar as each par passes (§4).
+ * Rendered in the HUD's goal row (ExpeditionHud `goal`), above the active
+ * powers, so the two never overlap.
  */
 export function GoalBar({
-  topInset,
   peakFt,
   goalFt,
   elapsedMs,
@@ -313,7 +314,6 @@ export function GoalBar({
   practice,
   bestFailFt = null,
 }: {
-  topInset: number;
   peakFt: number;
   goalFt: number;
   elapsedMs: number;
@@ -330,10 +330,7 @@ export function GoalBar({
   const nextDrop =
     stars === 3 ? pars.threeStarMs : stars === 2 ? pars.twoStarMs : stars === 1 ? pars.oneStarMs : null;
   return (
-    <div
-      className="pointer-events-none absolute left-1/2 z-20 w-[min(84vw,320px)] -translate-x-1/2"
-      style={{ top: topInset + 104 }}
-    >
+    <div className="pointer-events-none w-[min(84vw,320px)]">
       <div className="flex items-center justify-between gap-2 font-mono text-label font-bold uppercase tracking-label text-text-primary [text-shadow:0_1px_3px_rgba(0,0,0,0.9)]">
         {practice ? <span className="text-text-secondary">Practice</span> : <StarRow count={stars} size={14} />}
         <span className="tabular-nums">
@@ -362,7 +359,7 @@ export function GoalBar({
         <p className="sr-only">Your best try reached {Math.round(bestFailFt)} {ALTITUDE_UNIT}</p>
       )}
       <p className="mt-0.5 text-right font-mono text-[10px] font-bold uppercase tracking-label text-text-secondary [text-shadow:0_1px_3px_rgba(0,0,0,0.9)]">
-        Summit {goalFt.toLocaleString()} {ALTITUDE_UNIT}
+        Summit {formatWholeFeet(goalFt)} {ALTITUDE_UNIT}
       </p>
     </div>
   );

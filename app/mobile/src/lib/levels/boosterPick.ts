@@ -1,4 +1,4 @@
-import { parseBoosterType, type BoosterInventory, type BoosterType } from "@app/levels/engagement";
+import { parseBoosterType, startBoosterTypes, type BoosterInventory, type BoosterType } from "@app/levels/engagement";
 import type { SeasonView } from "./model";
 
 /**
@@ -46,7 +46,7 @@ export function nextStartAfter(season: SeasonView | null, level: number): NextSt
   if (!season || !Number.isInteger(level)) return null;
   const next = level + 1;
   if (next < 1 || next > season.levels.length || next > season.frontier) return null;
-  return { level: next, allowed: season.levels[next - 1].allowedPowerUps, freeType: freeTypeOn(season, next) };
+  return { level: next, allowed: startBoosterTypes(next, season.levels[next - 1].allowedPowerUps), freeType: freeTypeOn(season, next) };
 }
 
 /** Router state's carried booster (from a result card's Next level), allow-list parsed. */

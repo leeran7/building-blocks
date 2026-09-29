@@ -1,0 +1,313 @@
+import { useState } from "react";
+import { Navigate, useParams } from "react-router-dom";
+import {
+  avatarEntry,
+  formatGems,
+  gemPrice,
+  lockedMessage,
+  parseAvatarId,
+  skinsOf,
+  type AvatarEntry,
+} from "@app/lib/avatars";
+import volcanoScene from "@app/../public/climb/volcano-tile.jpg";
+import { apiFetch } from "../lib/api";
+import { useAuth } from "../contexts/AuthContext";
+import { useShop } from "../contexts/ShopContext";
+import { echoedSetting, useInvalidateAppData, useSettings } from "../contexts/AppDataContext";
+import { CharacterPreview, type PreviewPose } from "../components/CharacterPreview";
+import { HexAvatar } from "../components/HexAvatar";
+import { ScreenHeader } from "../components/ui";
+import { GemBalance } from "../components/store/GemBalance";
+import { GemIcon } from "../components/store/GemIcon";
+import { GemPacksSheet } from "../components/store/GemPacksSheet";
+import { buyWithGems, ShopError } from "../lib/shop";
+import { useBackOr } from "../lib/navigation";
+import { notifyError, notifySuccess, tapLight } from "../lib/haptics";
+
+const POSES: ReadonlyArray<{ id: PreviewPose; label: string }> = [
+  { id: "idle", label: "Idle" },
+  { id: "walk", label: "Walk" },
+  { id: "climb", label: "Climb" },
+];
+
+/** What the action button does for the selected look, and what it says. */
+export type SkinAction =
+  | { kind: "equipped" }
+  | { kind: "equip" }
+  | { kind: "buy"; price: number; balanceAfter: number }
+  | { kind: "need-gems"; price: number; short: number }
+  | { kind: "character-required"; character: AvatarEntry }
+  | { kind: "locked"; message: string }
+  | { kind: "loading" };
+
+/**
+ * The action for `entry` given what the server says the player may select
+ * (settings unlockedIds), owns (Shop ownedIds) and has saved. Pure, so the
+ * screen and its tests share it.
+ */
+export function skinAction(
+  entry: AvatarEntry,
+  state: { savedAvatarId: string | null; unlockedIds: readonly string[] | null; ownedIds: readonly string[] | null; gems: number | null },
+): SkinAction {
+  if (state.savedAvatarId === entry.id) return { kind: "equipped" };
+  if (state.unlockedIds === null || state.ownedIds === null || state.gems === null) return { kind: "loading" };
+  if (state.unlockedIds.includes(entry.id) || state.ownedIds.includes(entry.id)) return { kind: "equip" };
+  const price = gemPrice(entry);
+  if (price === null) return { kind: "locked", message: `${lockedMessage(entry)}.` };
+  if (entry.skinOf !== undefined) {
+    const character = avatarEntry(entry.skinOf);
+    const hasCharacter =
+      character !== null && (state.unlockedIds.includes(character.id) || state.ownedIds.includes(character.id));
+    if (character !== null && !hasCharacter) return { kind: "character-required", character };
+  }
+  if (state.gems < price) return { kind: "need-gems", price, short: price - state.gems };
+  return { kind: "buy", price, balanceAfter: state.gems - price };
+}
+
+/**
+ * Skin Details (the store design): one character's looks, Classic and its
+ * paid Void skin, with a live preview, the price and balance after purchase,
+ * and Purchase / Equip. Buying equips it straight away.
+ */
+export function SkinDetailsScreen() {
+  const { characterId } = useParams();
+  const character = avatarEntry(parseAvatarId(characterId));
+  if (character === null || character.skinOf !== undefined || skinsOf(character.id).length === 0) {
+    return <Navigate to="/shop" replace />;
+  }
+  return <SkinDetails key={character.id} character={character} />;
+}
+
+function SkinDetails({ character }: { character: AvatarEntry }) {
+  const goBack = useBackOr("/shop");
+  const { user } = useAuth();
+  const { shop, apply } = useShop();
+  const { data: settings, setSettings, refreshSettings } = useSettings();
+  const invalidate = useInvalidateAppData();
+
+  const looks: AvatarEntry[] = [character, ...skinsOf(character.id)];
+  const featured = looks[1];
+  const [selectedId, setSelectedId] = useState<string>(() =>
+    looks.some((l) => l.id === settings?.avatarId) ? (settings?.avatarId as string) : featured.id,
+  );
+  const selected = looks.find((l) => l.id === selectedId) ?? featured;
+  const [pose, setPose] = useState<PreviewPose>("walk");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [packsOpen, setPacksOpen] = useState(false);
+
+  const action = skinAction(selected, {
+    savedAvatarId: settings?.avatarId ?? null,
+    unlockedIds: settings?.avatarUnlocks?.unlockedIds ?? (settings ? [] : null),
+    ownedIds: shop?.ownedIds ?? null,
+    gems: shop?.gems ?? null,
+  });
+
+  const equip = async (id: string): Promise<boolean> => {
+    const res = await apiFetch("/api/settings", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ avatarId: id }),
+    });
+    if (!res.ok) {
+      const d = (await res.json().catch(() => ({}))) as { error?: string };
+      setError(d.error ?? "Couldn't equip it. Try again.");
+      return false;
+    }
+    const next = echoedSetting(await res.json().catch(() => null), "avatarId", id);
+    if (!next) {
+      setError("Couldn't equip it. Please update the app or try again later.");
+      return false;
+    }
+    setSettings(next);
+    invalidate(["leaderboard", "friendsLeaderboard", "dashboard"]);
+    return true;
+  };
+
+  const act = async () => {
+    if (busy) return;
+    if (action.kind === "need-gems") {
+      void tapLight();
+      setPacksOpen(true);
+      return;
+    }
+    if (action.kind !== "buy" && action.kind !== "equip") return;
+    void tapLight();
+    setBusy(true);
+    setError(null);
+    try {
+      if (action.kind === "buy") {
+        const result = await buyWithGems(selected.id);
+        apply(result);
+        // The picker's unlock list now includes it.
+        void refreshSettings();
+      }
+      if (await equip(selected.id)) void notifySuccess();
+      else void notifyError();
+    } catch (err) {
+      // Already owned (another device bought it): equip instead of failing.
+      if (err instanceof ShopError && err.code === "OWNED" && (await equip(selected.id).catch(() => false))) {
+        void notifySuccess();
+      } else {
+        setError(err instanceof ShopError ? err.message : "Couldn't complete the purchase. Check your connection.");
+        void notifyError();
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const isSkin = selected.skinOf !== undefined;
+  const label = busy
+    ? "…"
+    : action.kind === "equipped"
+      ? "Equipped"
+      : action.kind === "equip"
+        ? "Equip"
+        : action.kind === "buy"
+          ? isSkin
+            ? "Purchase skin"
+            : "Purchase character"
+          : action.kind === "need-gems"
+            ? "Get gems"
+            : action.kind === "character-required"
+              ? `Unlock ${action.character.name} first`
+              : action.kind === "loading"
+                ? "Loading…"
+                : "Locked";
+  const enabled = !busy && (action.kind === "buy" || action.kind === "equip" || action.kind === "need-gems");
+  const price = gemPrice(selected);
+
+  return (
+    <main data-skin-details className="flex h-full min-h-0 flex-col">
+      <ScreenHeader title="Skin details" onBack={goBack} trailing={<GemBalance />} />
+      <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-[calc(env(safe-area-inset-bottom)+1rem)]">
+        <section
+          aria-label="Preview"
+          className="relative flex h-[240px] items-end justify-center overflow-hidden rounded-3xl border border-white/10 bg-cover bg-bottom"
+          style={{
+            backgroundImage: `linear-gradient(180deg, rgba(10,10,12,0.35), rgba(10,10,12,0.05) 45%, rgba(10,10,12,0.5)), url(${volcanoScene})`,
+          }}
+        >
+          <div role="group" aria-label="Preview pose" className="absolute left-2.5 top-2.5 flex gap-1 rounded-full bg-void/70 p-[3px]">
+            {POSES.map((p) => (
+              <button
+                key={p.id}
+                type="button"
+                aria-pressed={pose === p.id}
+                onClick={() => setPose(p.id)}
+                className={`rounded-full px-2.5 py-1.5 font-mono text-label font-bold uppercase tracking-label ${
+                  pose === p.id ? "bg-signal text-void" : "text-text-secondary"
+                }`}
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
+          <CharacterPreview avatarId={selected.id} pose={pose} locked={false} />
+        </section>
+
+        <section aria-label={`${character.name} looks`} className="glass mt-3 flex items-center gap-2 rounded-2xl border border-white/10 p-2.5">
+          <p className="w-16 shrink-0 font-mono text-label font-bold uppercase tracking-label text-text-primary">
+            {character.name}
+          </p>
+          <div role="radiogroup" aria-label="Looks" className="grid flex-1 grid-cols-3 gap-2">
+            {looks.map((look) => {
+              const on = look.id === selected.id;
+              return (
+                <button
+                  key={look.id}
+                  type="button"
+                  role="radio"
+                  aria-checked={on}
+                  data-look={look.id}
+                  onClick={() => {
+                    if (!on) void tapLight();
+                    setSelectedId(look.id);
+                    setError(null);
+                  }}
+                  className={`flex flex-col items-center gap-1 rounded-xl border px-1 pb-1.5 pt-2 ${
+                    on ? "border-signal bg-signal/[0.1] shadow-[0_0_0_1px_var(--color-signal)]" : "border-white/10 bg-[rgba(16,15,20,0.9)]"
+                  }`}
+                >
+                  <HexAvatar userId={user?.uid ?? character.id} name={look.name} avatarId={look.id} size={44} />
+                  <span className="font-mono text-label font-bold uppercase leading-tight text-text-primary">
+                    {look.skinOf === undefined ? "Classic" : look.name}
+                  </span>
+                </button>
+              );
+            })}
+            <div
+              aria-label="More skins coming soon"
+              className="flex flex-col items-center justify-center gap-1 rounded-xl border border-white/10 bg-[rgba(16,15,20,0.9)] px-1 pb-1.5 pt-2 text-text-muted"
+            >
+              <svg aria-hidden width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                <rect x="5" y="11" width="14" height="10" rx="2" />
+                <path d="M8 11V8a4 4 0 0 1 8 0v3" />
+              </svg>
+              <span className="font-mono text-label font-bold">???</span>
+            </div>
+          </div>
+        </section>
+
+        <section aria-label="Selected look" className="glass mt-3 flex flex-col gap-3 rounded-3xl border border-white/10 p-4">
+          <div>
+            <p className="font-mono text-label font-bold uppercase tracking-label text-signal">
+              {isSkin ? "Featured skin" : "Classic"}
+            </p>
+            <h2 aria-live="polite" className="font-display text-title font-black uppercase leading-none tracking-tight text-text-primary">
+              {selected.name}
+            </h2>
+            <p className="mt-1 text-meta text-text-secondary">
+              {isSkin ? `${character.name} cosmetic. Forged in the dark between climbs.` : `The original ${character.name}.`}
+            </p>
+          </div>
+
+          <div className="flex items-center gap-3 rounded-2xl border border-white/10 p-3">
+            {price !== null && action.kind !== "equip" && action.kind !== "equipped" && (
+              <div className="flex min-w-0 flex-1 items-center gap-2">
+                <GemIcon size={26} />
+                <div className="min-w-0">
+                  <p className="font-display text-xl font-black tabular-nums text-text-primary">{formatGems(price)}</p>
+                  {action.kind === "buy" && (
+                    <p className="text-label text-text-secondary">Balance after purchase: {formatGems(action.balanceAfter)}</p>
+                  )}
+                  {action.kind === "need-gems" && (
+                    <p className="text-label text-text-secondary">You need {formatGems(action.short)} more gems</p>
+                  )}
+                </div>
+              </div>
+            )}
+            <button
+              type="button"
+              data-skin-action={action.kind}
+              disabled={!enabled}
+              onClick={() => void act()}
+              className={`flex min-h-[52px] flex-1 items-center justify-center rounded-2xl px-3 font-display text-lead font-black uppercase tracking-wide transition-transform active:scale-[0.98] ${
+                enabled ? "cta-lime text-void" : "bg-elevated text-text-muted"
+              }`}
+            >
+              {label}
+            </button>
+          </div>
+
+          {action.kind === "locked" && <p className="text-meta text-text-secondary">{action.message}</p>}
+          {action.kind === "character-required" && (
+            <p className="text-meta text-text-secondary">{lockedMessage(action.character)}.</p>
+          )}
+          {error && (
+            <p role="alert" className="text-meta text-ember">
+              {error}
+            </p>
+          )}
+          {isSkin && (
+            <p className="text-center text-label text-text-secondary">
+              Includes this skin for {character.name}. Character required. Skins change how you look, never how you play.
+            </p>
+          )}
+        </section>
+      </div>
+      {packsOpen && <GemPacksSheet onClose={() => setPacksOpen(false)} />}
+    </main>
+  );
+}

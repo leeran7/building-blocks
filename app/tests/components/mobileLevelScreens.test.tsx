@@ -68,11 +68,13 @@ vi.mock("../../mobile/src/components/levels/LevelRun", async () => {
 });
 
 import { LevelsProvider } from "../../mobile/src/contexts/LevelsContext";
+import { ShopProvider } from "../../mobile/src/contexts/ShopContext";
 import { createMockLevelsClient } from "../../mobile/src/lib/levels/mockClient";
-import type { LevelResult, LevelRunReport, LevelsClient } from "../../mobile/src/lib/levels/model";
+import type { BuyLivesResult, LevelResult, LevelRunReport, LevelsClient } from "../../mobile/src/lib/levels/model";
 import { LevelMapScreen, MAP_FADE, pinBottom } from "../../mobile/src/screens/LevelMapScreen";
 import { LevelPlayScreen, ticketFromState } from "../../mobile/src/screens/LevelPlayScreen";
 import { LevelResultCard } from "../../mobile/src/components/levels/LevelResultCard";
+import type { RefillOffer } from "../../mobile/src/components/levels/LevelStartSheet";
 import { TICK_HZ } from "../../src/game/types";
 import { POWER_UP_SPECS, POWER_UP_TYPES } from "../../src/game/powerups";
 import { markTutorialsSeen } from "../../mobile/src/lib/levels/tutorialSeen";
@@ -223,8 +225,96 @@ describe("level map", () => {
     expect(container.querySelector('[role="dialog"] [role="alert"]')?.textContent).toBe("Out of lives.");
     expect(container.querySelector('[role="dialog"]')?.textContent).toMatch(/Out of lives\. Next life in \d+:\d\d/);
 
+    // The device-local store has no gems, so no refill is offered.
+    expect(container.querySelector('[aria-label^="Refill lives"]')).toBeNull();
+
     await click(button("Practice this level"));
     expect(where.pathname).toBe("/levels/11/play");
+  });
+
+  describe("paid lives refill", () => {
+    /** The local store out of lives at level 11, selling refills at `cost` from `gems`. */
+    async function outOfLivesClient(gems: number, cost: number, refused?: BuyLivesResult) {
+      const base = memoryClient();
+      await clearLevels(base, 10);
+      for (let i = 0; i < 5; i++) {
+        const s = await base.startLevel(11);
+        if (!s.ok) throw new Error("refused");
+        await base.submitResult(s.ticket.id, { level: s.ticket.level, finished: false, finishedTick: null, raceTicks: 200, peakFt: 5, replayToken: null, outOfTime: false });
+      }
+      const buyLives = vi.fn(async (): Promise<BuyLivesResult> => {
+        if (refused) return refused;
+        const season = await base.getSeason();
+        return { ok: true, player: { ...season.player, lives: season.player.maxLives, nextLifeAt: null }, gems: gems - cost };
+      });
+      const client: LevelsClient = {
+        ...base,
+        getSeason: async () => ({ ...(await base.getSeason()), refill: { gems, cost } }),
+        buyLives,
+      };
+      return { client, buyLives };
+    }
+
+    it("refills from the out-of-lives card and puts Play back", async () => {
+      const { client, buyLives } = await outOfLivesClient(120, 50);
+      await renderMap(client);
+      await click(pin("Level 11, next to play"));
+      expect(container.querySelector('[role="dialog"]')?.textContent).toContain("You have 120 gems");
+
+      await click(button("Refill lives for 50 gems"));
+      expect(buyLives).toHaveBeenCalledTimes(1);
+      expect(button("Play level 11")).toBeTruthy();
+      expect(container.querySelector('[role="dialog"]')?.textContent).not.toContain("Out of lives");
+    });
+
+    it("shows the price but cannot be bought without enough gems", async () => {
+      const { client, buyLives } = await outOfLivesClient(20, 50);
+      await renderMap(client);
+      await click(pin("Level 11, next to play"));
+      const refill = button("Refill lives for 50 gems");
+      expect(refill?.disabled).toBe(true);
+      expect(container.querySelector('[role="dialog"]')?.textContent).toContain("You have 20 gems, 30 short");
+      await click(refill);
+      expect(buyLives).not.toHaveBeenCalled();
+    });
+
+    it("opens the gem packs from a short balance when the Shop is mounted", async () => {
+      const { client } = await outOfLivesClient(20, 50);
+      await act(async () => {
+        root.render(
+          <MemoryRouter initialEntries={["/"]}>
+            <LevelsProvider client={client}>
+              <ShopProvider>
+                <Routes>
+                  <Route path="/" element={<LevelMapScreen />} />
+                </Routes>
+              </ShopProvider>
+            </LevelsProvider>
+          </MemoryRouter>,
+        );
+      });
+      await flush();
+      await click(pin("Level 11, next to play"));
+      await click(button("Get gems"));
+      expect(container.querySelector("#gem-packs-title")?.textContent).toBe("Get gems");
+    });
+
+    it("has no Get gems button without the Shop", async () => {
+      const { client } = await outOfLivesClient(20, 50);
+      await renderMap(client);
+      await click(pin("Level 11, next to play"));
+      expect(button("Get gems")).toBeUndefined();
+    });
+
+    it("says why a refill the server refused did not go through, and stays out of lives", async () => {
+      const { client } = await outOfLivesClient(120, 50, { ok: false, code: "NETWORK" });
+      await renderMap(client);
+      await click(pin("Level 11, next to play"));
+      await click(button("Refill lives for 50 gems"));
+      const alerts = [...container.querySelectorAll('[role="dialog"] [role="alert"]')].map((e) => e.textContent);
+      expect(alerts).toContain("Couldn’t reach the server. Check your connection and try again.");
+      expect(button("Play level 11")).toBeUndefined();
+    });
   });
 
   it("opens the next level's card when a result's Next level lands on the map", async () => {
@@ -516,10 +606,11 @@ describe("level result card", () => {
   };
   const noop = () => {};
 
-  async function renderCard(result: LevelResult, costsLife = true) {
+  async function renderCard(result: LevelResult, costsLife = true, refill: RefillOffer | null = null) {
     const el: ReactElement = createElement(LevelResultCard, {
       result,
       costsLife,
+      refill,
       hasNextLevel: true,
       retryBusy: false,
       onNext: noop,
@@ -551,6 +642,19 @@ describe("level result card", () => {
     expect(container.textContent).not.toContain("Caught by the lava");
     await renderCard({ ...base, pars: clocked });
     expect(container.textContent).toContain("3★ at 0:28 · 2★ at 0:36 · 1★ at 0:45");
+  });
+
+  it("offers a paid refill on a loss that leaves no lives", async () => {
+    const buy = vi.fn(async (): Promise<BuyLivesResult> => ({ ok: false, code: "LIVES_FULL" }));
+    const lost = { ...base, cleared: false, stars: 0 as const, timeMs: null, peakFt: 200, xpGained: 0 };
+    await renderCard({ ...lost, player: { ...player, lives: 0 } }, true, { gems: 80, cost: 50, buy });
+    expect(button("Retry")).toBeUndefined();
+    await click(button("Refill lives for 50 gems"));
+    expect(buy).toHaveBeenCalledTimes(1);
+    // Lives left: Retry, and no refill offer.
+    await renderCard(lost, true, { gems: 80, cost: 50, buy });
+    expect(button("Retry")).toBeTruthy();
+    expect(button("Refill lives for 50 gems")).toBeUndefined();
   });
 
   it("leads a loss with the distance to the summit and a retry that shows the lives left", async () => {

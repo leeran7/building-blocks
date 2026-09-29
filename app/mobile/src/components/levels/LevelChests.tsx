@@ -68,7 +68,7 @@ export function BoosterPicker({
   freeType,
 }: {
   inventory: BoosterInventory;
-  /** Power-ups unlocked on this level. */
+  /** Boosters a run of this level may start with (startBoosterTypes). */
   allowed: readonly string[];
   selected: BoosterType | null;
   onSelect: (type: BoosterType | null) => void;
