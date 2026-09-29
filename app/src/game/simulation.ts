@@ -49,6 +49,9 @@ import {
   floorHeight,
   buildTower,
   LADDER_JUMP_SPEED_FRAC,
+  LADDER_TOP_HOP_AIR_SPEED_FRAC,
+  LADDER_TOP_HOP_CLEAR_M,
+  LADDER_TOP_HOP_WINDOW_M,
   ladderHangM,
   ladderHangs,
   ladderHasShortTop,
@@ -126,6 +129,7 @@ export function spawnPlayer(id: PlayerId, slot: number): PlayerState {
     jumpHeldPrev: false,
     jetpackThrusting: false,
     grabSuppressedUntilRelease: null,
+    ladderTopHop: false,
   };
 }
 
@@ -280,6 +284,17 @@ function grabbableLadder(
   return best;
 }
 
+/**
+ * Launch speed of a top hop whose feet start `toFloorM` below the floor the
+ * ladder leads to: a plain ladder jump, or faster when that would not peak
+ * LADDER_TOP_HOP_CLEAR_M above the floor.
+ */
+function topHopSpeed(tower: TowerSpec, toFloorM: number): number {
+  const plain = tower.jumpSpeed * LADDER_JUMP_SPEED_FRAC;
+  const needed = Math.sqrt(2 * tower.gravity * (Math.max(0, toFloorM) + LADDER_TOP_HOP_CLEAR_M));
+  return Math.max(plain, needed);
+}
+
 // ── Motion integration ─────────────────────────────────────────────────────
 
 /** Integrate one climbing player's 2D motion from their input for one tick. */
@@ -300,8 +315,9 @@ function integratePlayer(
   // next deliberate press can grab a ladder again (see grabSuppressedUntilRelease).
   if (input.climbY === 0) p.grabSuppressedUntilRelease = null;
 
-  // Horizontal movement (walk / ladder-slide is ignored while attached).
-  p.vx = input.moveX * moveSpeed;
+  // Horizontal movement (walk / ladder-slide is ignored while attached). A top
+  // hop steers at a reduced speed so it lands on the floor beside the ladder.
+  p.vx = input.moveX * moveSpeed * (p.ladderTopHop ? LADDER_TOP_HOP_AIR_SPEED_FRAC : 1);
   if (p.vx !== 0) p.facing = p.vx < 0 ? -1 : 1;
 
   if (p.onLadder) {
@@ -318,7 +334,14 @@ function integratePlayer(
         : undefined;
     if (!l || input.jump) {
       releaseLadder(p);
-      p.vy = input.jump && l ? tower.jumpSpeed * LADDER_JUMP_SPEED_FRAC : 0;
+      p.vy = 0;
+      if (input.jump && l) {
+        const hop = l.y1 - p.y <= LADDER_TOP_HOP_WINDOW_M;
+        p.vy = hop
+          ? topHopSpeed(tower, floorHeight(tower, curIx! + 1) - p.y)
+          : tower.jumpSpeed * LADDER_JUMP_SPEED_FRAC;
+        p.ladderTopHop = hop;
+      }
       p.grabSuppressedUntilRelease =
         curIx !== null && curSlot !== null ? { ix: curIx, slot: curSlot } : null;
     } else {
@@ -472,6 +495,8 @@ function integratePlayer(
       }
     }
   }
+
+  if (p.onGround || p.onLadder) p.ladderTopHop = false;
 
   // Permanent peak-height record ethos (AC-8, AC-30/AC-31).
   if (p.y > p.peakY) { p.peakY = p.y; p.peakTick = tick; }

@@ -158,6 +158,13 @@ export interface PlayerState {
    * ladders works.
    */
   grabSuppressedUntilRelease: { ix: number; slot: number } | null;
+  /**
+   * In the air after a top hop (a jump off a ladder near its top rung, see
+   * LADDER_TOP_HOP_WINDOW_M): air speed is capped so a held direction lands
+   * the climber on the floor next to the ladder. Clears on landing or on
+   * grabbing a ladder.
+   */
+  ladderTopHop: boolean;
 }
 
 /**

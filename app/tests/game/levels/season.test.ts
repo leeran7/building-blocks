@@ -76,15 +76,16 @@ describe("season equation", () => {
     expect(levelSpec(SEASON_1, 1).powerUpDurationScale).toBeCloseTo(1, 10);
   });
 
-  // The ceilings are the engine's physical caps: 70% of a standing jump's rise
-  // (0.7 · 15² / 80) and of a ladder jump's rise (0.7 · 10.5² / 80).
+  // Hanging ladders top out at the engine's cap, 70% of a standing jump's rise
+  // (0.7 · 15² / 80). Short tops stop at 60% of a ladder jump's rise
+  // (0.6 · 10.5² / 80), under the engine's 70% cap (eased 2026-09-29).
   it("brings in hanging ladders at L9 and short tops at L21", () => {
     expect(levelSpec(SEASON_1, 8).layout.hangingLadderFt).toBe(0);
     expect(levelSpec(SEASON_1, 9).layout.hangingLadderFt).toBeCloseTo(1.6, 10);
     expect(levelSpec(SEASON_1, 300).layout.hangingLadderFt).toBeCloseTo(1.96875, 10);
     expect(levelSpec(SEASON_1, 20).layout.shortTopFt).toBe(0);
-    expect(levelSpec(SEASON_1, 21).layout.shortTopFt).toBeCloseTo(0.4, 10);
-    expect(levelSpec(SEASON_1, 300).layout.shortTopFt).toBeCloseTo(0.9646875, 10);
+    expect(levelSpec(SEASON_1, 21).layout.shortTopFt).toBeCloseTo(0.35, 10);
+    expect(levelSpec(SEASON_1, 300).layout.shortTopFt).toBeCloseTo(0.826875, 10);
     // Some ladders hang from L9, more each level, 70% (never all) from L30.
     expect(levelSpec(SEASON_1, 8).layout.hangingLadderShare).toBe(0);
     expect(levelSpec(SEASON_1, 9).layout.hangingLadderShare).toBeCloseTo(0.35, 10);

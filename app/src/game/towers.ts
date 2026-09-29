@@ -120,6 +120,31 @@ export const MAX_LADDER_HANG_FRAC = 0.7;
 export const MAX_LADDER_TOP_GAP_FRAC = 0.7;
 /** A jump off a ladder launches at this share of tower.jumpSpeed (stepMatch). */
 export const LADDER_JUMP_SPEED_FRAC = 0.7;
+/**
+ * Top hop (stepMatch): a jump off a ladder with the feet within this far of
+ * its top rung is a hop onto the floor the ladder leads to. 0.9 m is three
+ * ticks of a plain 9 m/s climb, so a jump pressed a beat before the climber
+ * reaches a short top's hold still makes the floor instead of dropping them
+ * a whole floor down.
+ */
+export const LADDER_TOP_HOP_WINDOW_M = 0.9;
+/**
+ * A top hop launches at least fast enough to peak this far above the floor
+ * the ladder leads to. From a plain ladder jump's launch speed the hop never
+ * rises less; it rises more only when the jump alone would fall short (a
+ * short top pressed early). Worst case: MAX_LADDER_TOP_GAP_FRAC's 0.96 m cap
+ * + 0.9 m window + 0.35 m = 2.2 m, under a standing jump's 2.81 m.
+ */
+export const LADDER_TOP_HOP_CLEAR_M = 0.35;
+/**
+ * Air speed during a top hop, as a share of the walk speed, until the climber
+ * lands or grabs a ladder. The floor above is solid for ladderGrabRadius + 2
+ * (4.2 m) either side of an arriving ladder (platformsForFloor keeps gaps
+ * out of that band); a hop is airborne at most ~0.53 s, so at full walk speed
+ * (14 m/s) a held direction carried the climber ~7 m, into the next gap.
+ * At half speed the drift stays under 3.7 m.
+ */
+export const LADDER_TOP_HOP_AIR_SPEED_FRAC = 0.5;
 /** Gap width ceiling for level towers, as a share of a running jump's reach. */
 export const MAX_GAP_REACH_FRAC = 0.75;
 

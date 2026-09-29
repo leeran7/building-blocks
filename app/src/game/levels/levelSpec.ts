@@ -12,7 +12,6 @@ import {
   LADDER_JUMP_SPEED_FRAC,
   MAX_GAP_REACH_FRAC,
   MAX_LADDER_HANG_FRAC,
-  MAX_LADDER_TOP_GAP_FRAC,
   applyRunSeed,
 } from "../towers";
 import { DEFAULT_HAZARD_CONFIG, MAX_HAZARD_SPEED_FRAC, hazardMeanSpeedFrac } from "../hazard";
@@ -30,7 +29,7 @@ import {
  * Bump when a formula here changes what a level is. Stamped on every manifest
  * so a manifest built from older formulas is refused.
  */
-export const LEVEL_SPEC_VERSION = 3;
+export const LEVEL_SPEC_VERSION = 4;
 
 export interface LevelLayout {
   /** Gap width as a fraction of running-jump reach: 34% → 75%. */
@@ -113,12 +112,18 @@ const HANGING_LADDER_FT = {
   to: MAX_LADDER_HANG_FRAC * jumpRiseFt(FREE_TOWER.jumpSpeed),
 } as const;
 /**
- * Short tops start at 0.4 ft and reach the engine's cap at dL = 1: 70% of a
- * ladder jump's rise (0.96 ft; the doc rounds to 1).
+ * Deepest short top a level uses, as a share of a ladder jump's rise: 60%
+ * (0.83 ft), under the engine's MAX_LADDER_TOP_GAP_FRAC cap of 70% (0.96 ft),
+ * which levels used until Leeran asked to ease the stop (2026-09-29).
+ */
+export const LEVEL_SHORT_TOP_MAX_FRAC = 0.6;
+/**
+ * Short tops start at 0.35 ft (0.4 until 2026-09-29) and reach
+ * LEVEL_SHORT_TOP_MAX_FRAC of a ladder jump's rise at dL = 1 (0.83 ft).
  */
 const SHORT_TOP_FT = {
-  from: 0.4,
-  to: MAX_LADDER_TOP_GAP_FRAC * jumpRiseFt(LADDER_JUMP_SPEED_FRAC * FREE_TOWER.jumpSpeed),
+  from: 0.35,
+  to: LEVEL_SHORT_TOP_MAX_FRAC * jumpRiseFt(LADDER_JUMP_SPEED_FRAC * FREE_TOWER.jumpSpeed),
 } as const;
 
 export function levelSeed(season: SeasonSpec, level: number, rev: number): string {
