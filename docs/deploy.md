@@ -39,6 +39,7 @@ Set all of the following in the **Vercel project dashboard** under Settings > En
 | `ADMIN_TOKEN` | Random secret (min 32 chars) — Bearer token for admin API routes |
 | `DAILY_SEED_SECRET` | Random secret (min 32 chars) — HMAC key for the Daily Climb tower seed. **If missing or short, `GET /api/climb/daily` and `POST /api/climb/daily/result` return 503** (no fallback seed). Rotating it changes today's tower, so rotate at 00:00 UTC |
 | `BASE_URL` | Production URL without trailing slash (`https://www.doomstack.lol`) |
+| `APPLE_BUNDLE_ID` | Optional. The iOS bundle id App Store gem packs must be for; defaults to `lol.doomstack.app` (capacitor.config.ts) |
 
 Generate `INTERNAL_TOKEN`, `ADMIN_TOKEN` and `DAILY_SEED_SECRET` with:
 
@@ -150,6 +151,32 @@ Expected: HTTP 200 with `Content-Type: image/png`.
 If either check fails, inspect Vercel Function logs in the dashboard.
 
 ---
+
+## Shop: gem packs on the App Store
+
+The iOS app sells gem packs as App Store consumables (`src/lib/gemPacks.ts`).
+Before a build with the Shop goes to TestFlight or review:
+
+1. In App Store Connect → the app → Monetization → In-App Purchases, create
+   one **Consumable** per pack, with exactly these product ids and the
+   nearest price tier: `lol.doomstack.app.gems500` ($4.99),
+   `lol.doomstack.app.gems1200` ($9.99), `lol.doomstack.app.gems2600`
+   ($19.99), `lol.doomstack.app.gems7000` ($49.99). Add a review screenshot
+   of the gem sheet to each.
+2. In Xcode, add the **In-App Purchase** capability to the App target. The
+   `@capgo/native-purchases` package is already in `CapApp-SPM/Package.swift`.
+3. Deploy the server (the migration `20260929000000_shop_gems` and
+   `POST /api/gems/apple`) before the mobile build.
+
+No App Store Connect API key is needed: the server verifies each signed
+transaction against Apple's root certificate (`src/api/appleJws.ts`).
+Sandbox and TestFlight purchases verify too and credit real gems, as App
+Review requires. Refunds are not clawed back yet; that needs App Store
+Server Notifications.
+
+Web and Android buy packs through Stripe Checkout (`POST /api/gems/checkout`,
+`metadata.type = "gem_pack"`) on the existing webhook; nothing new to
+register.
 
 ## Stripe webhook registration
 

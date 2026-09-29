@@ -1,7 +1,10 @@
 import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from "react";
 import {
   AVATARS,
+  CHARACTER_ENTRIES,
   avatarEntry,
+  characterIdOf,
+  formatGems,
   lockedMessage,
   switchAwayWarning,
   unlockRequirementText,
@@ -18,6 +21,7 @@ import { PushHeader, RetryPanel } from "../components/ui";
 import { identityNameFor, INITIALS_LABEL } from "../lib/identity";
 import { notifyError, notifySuccess, tapLight } from "../lib/haptics";
 import { useBackOr } from "../lib/navigation";
+import { useNavigate } from "react-router-dom";
 import { useRetry } from "../hooks/useRetry";
 import { LAVA_CLEARANCE } from "../components/AnimatedBackdrop";
 
@@ -60,14 +64,22 @@ const initials: Option = { id: null, name: INITIALS_LABEL, entry: null };
 const optionOf = (a: AvatarEntry): Option => ({ id: a.id, name: a.name, entry: a });
 
 /**
- * Picker order: premium first, then the stick figures, Initials, and the star
- * ladder cheapest first. AVATARS already lists them in that order.
+ * Picker order: the Shop character first, then the free-after-tutorial ones
+ * (Gecko and the stick figures), Initials, and the star ladder cheapest
+ * first. CHARACTER_ENTRIES already lists them in that order. Skins are not
+ * tiles: they are bought and equipped in the Shop, and a saved skin shows as
+ * its character's tile, equipped.
  */
 export const OPTIONS: readonly Option[] = [
-  ...AVATARS.filter((a) => a.unlock.kind !== "stars").map(optionOf),
+  ...CHARACTER_ENTRIES.filter((a) => a.unlock.kind !== "stars").map(optionOf),
   initials,
-  ...AVATARS.filter((a) => a.unlock.kind === "stars").map(optionOf),
+  ...CHARACTER_ENTRIES.filter((a) => a.unlock.kind === "stars").map(optionOf),
 ];
+
+/** The tile a saved avatar shows as: a skin's character, else the id itself (null = Initials). */
+export function tileIdOf(avatarId: string | null): string | null {
+  return avatarId === null ? null : (characterIdOf(avatarId) ?? avatarId);
+}
 
 /** The group heading shown above option `i`, or null inside a group. */
 export function groupHeading(i: number): string | null {
@@ -76,7 +88,8 @@ export function groupHeading(i: number): string | null {
   const before = kind(OPTIONS[i - 1]);
   if (here === before) return null;
   if (here === "premium") return "Premium · coming soon";
-  if (here === "tutorial") return "Stick figures · free after the tutorial";
+  if (here === "purchase") return "Shop · buy with gems";
+  if (here === "tutorial") return "Free after the tutorial";
   if (here === "initials" || (here === "stars" && before !== "initials")) return "Initials and star unlocks";
   return null;
 }
@@ -84,7 +97,7 @@ export function groupHeading(i: number): string | null {
 /** A tile the player cannot select yet, and what it takes. */
 export interface TileLock {
   kind: AvatarEntry["unlock"]["kind"];
-  /** "Earn 30 stars", "Finish the tutorial", "Premium" */
+  /** "Earn 30 stars", "Finish the tutorial", "Buy in the Shop" */
   requirement: string;
   /** "Earn 30 stars to unlock Falcon. You have 12." */
   message: string;
@@ -223,6 +236,7 @@ export function AvatarPickerScreen() {
   // Opened cold (deep link): there is no Profile / Edit Profile to pop back to.
   const goBack = useBackOr("/profile");
   const { user } = useAuth();
+  const navigate = useNavigate();
   const settingsSlice = useSettings();
   const dash = useDashboard();
   const invalidate = useInvalidateAppData();
@@ -258,7 +272,10 @@ export function AvatarPickerScreen() {
   );
   const viewed = OPTIONS[viewingIndex];
   const viewedLock = tileLock(viewed.entry, unlocks);
-  const changed = viewing !== current;
+  // A saved skin is equipped on its character's tile.
+  const currentTile = tileIdOf(current);
+  const changed = viewing !== currentTile;
+  const shopLink = viewedLock?.kind === "purchase" && viewing !== null;
   const canSave = changed && viewedLock === null && !saving;
   const switchWarning = viewedLock ? null : switchAwayNotice(current, viewing, unlocks);
   const counts = starUnlockCount(unlocks);
@@ -280,7 +297,7 @@ export function AvatarPickerScreen() {
     if (seeded.current || !settingsData) return;
     seeded.current = true;
     setCurrent(settingsData.avatarId);
-    setViewing(settingsData.avatarId);
+    setViewing(tileIdOf(settingsData.avatarId));
   }, [settingsData]);
 
   // "Saved" goes back to "Save character" after a few seconds.
@@ -315,6 +332,11 @@ export function AvatarPickerScreen() {
   };
 
   const save = async () => {
+    if (shopLink) {
+      void tapLight();
+      navigate(`/shop/${viewing}`);
+      return;
+    }
     if (!settingsData || !canSave) return;
     const picked = viewing;
     void tapLight();
@@ -363,13 +385,17 @@ export function AvatarPickerScreen() {
   const loadFailed = settingsRetry.showError;
 
   const tag =
-    viewing === current
-      ? "Equipped"
+    viewing === currentTile
+      ? current !== currentTile
+        ? `Equipped · ${avatarEntry(current)?.name ?? ""}`
+        : "Equipped"
       : viewedLock === null
         ? "Unlocked"
         : viewedLock.kind === "stars"
           ? `${viewedLock.requiredStars} ★ to unlock`
-          : viewedLock.requirement;
+          : viewedLock.kind === "purchase" && viewed.entry?.unlock.kind === "purchase"
+            ? `${formatGems(viewed.entry.unlock.gems)} gems`
+            : viewedLock.requirement;
   const blurb =
     viewed.entry === null
       ? "Your badge shows your initials. You climb as the Green Stick."
@@ -382,6 +408,8 @@ export function AvatarPickerScreen() {
       ? "Saved"
       : viewedLock?.kind === "premium"
         ? "Not on sale yet"
+        : shopLink
+          ? "Get it in the Shop"
         : viewedLock?.kind === "tutorial"
           ? "Clear level 1 first"
           : viewedLock !== null
@@ -420,7 +448,7 @@ export function AvatarPickerScreen() {
               {viewedLock && (
                 <span className="absolute right-2.5 top-2.5 flex items-center gap-1 rounded-full border border-white/15 bg-void/80 px-2 py-1.5 font-mono text-label font-bold uppercase tracking-label text-text-primary">
                   <LockIcon />
-                  {viewedLock.kind === "premium" ? "Coming soon" : "Locked"}
+                  {viewedLock.kind === "premium" ? "Coming soon" : viewedLock.kind === "purchase" ? "In Shop" : "Locked"}
                 </span>
               )}
               <CharacterPreview avatarId={viewing} pose={pose} locked={viewedLock !== null} />
@@ -505,7 +533,7 @@ export function AvatarPickerScreen() {
           >
             <div role="radiogroup" aria-label="Characters" className="grid grid-cols-3 gap-2.5">
               {OPTIONS.map((o, i) => {
-                const checked = o.id === current;
+                const checked = o.id === currentTile;
                 const isViewed = i === viewingIndex;
                 const lock = tileLock(o.entry, unlocks);
                 const heading = groupHeading(i);
@@ -562,10 +590,16 @@ export function AvatarPickerScreen() {
                       <span
                         aria-hidden
                         className={`font-mono text-label font-bold uppercase leading-tight ${
-                          lock.kind === "premium" ? "text-warning" : "text-text-secondary"
+                          lock.kind === "premium" || lock.kind === "purchase" ? "text-warning" : "text-text-secondary"
                         }`}
                       >
-                        {lock.kind === "stars" ? `${lock.stars}/${lock.requiredStars} ★` : lock.kind === "tutorial" ? "Tutorial" : "Premium"}
+                        {lock.kind === "stars"
+                          ? `${lock.stars}/${lock.requiredStars} ★`
+                          : lock.kind === "tutorial"
+                            ? "Tutorial"
+                            : lock.kind === "purchase"
+                              ? "Shop"
+                              : "Premium"}
                       </span>
                     )}
                     {checked ? (
@@ -624,9 +658,9 @@ export function AvatarPickerScreen() {
             data-avatar-save
             aria-describedby={switchWarning ? SWITCH_WARNING_ID : undefined}
             onClick={() => void save()}
-            disabled={!canSave}
+            disabled={!canSave && !shopLink}
             className={`flex min-h-[56px] w-full items-center justify-center gap-2 rounded-2xl font-display text-lead font-black uppercase tracking-wide transition-transform active:scale-[0.98] disabled:active:scale-100 ${
-              canSave || (savedFlash && !changed) ? "cta-lime text-void" : "bg-elevated text-text-muted shadow-[inset_0_0_0_1px_var(--color-border-subtle)]"
+              canSave || shopLink || (savedFlash && !changed) ? "cta-lime text-void" : "bg-elevated text-text-muted shadow-[inset_0_0_0_1px_var(--color-border-subtle)]"
             }`}
           >
             {savedFlash && !changed && !saving && <CheckIcon />}

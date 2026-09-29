@@ -9,6 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Shop, gems and paid Void skins (mobile)** — a Shop tab with a gem
+  balance and every character's paid Wraith-style skin (`<id>-void`,
+  1,200 gems), and a Skin Details screen (Classic / Void / coming soon,
+  live preview, price and balance after purchase, Purchase and Equip) after
+  the store design. The Wraith is now bought for 2,000 gems; the Gecko is
+  free after the tutorial. Gem packs are App Store consumables on iOS
+  (`POST /api/gems/apple`, signed transactions verified against Apple's
+  root) and Stripe Checkout elsewhere (`POST /api/gems/checkout`, webhook
+  `gem_pack`). New routes `GET /api/shop`, `POST /api/shop/buy`; new
+  column `users.gems` and tables `gem_ledger`, `gem_purchases`,
+  `owned_characters` (migration `20260929000000_shop_gems`). App Store
+  products must be created before the iOS build (docs/deploy.md).
+
 - **Daily Climb leaderboard (web and mobile)** — one server-seeded tower per
   UTC day with a verified daily board. Ranks gains All-time | Today tabs
   under Global | Friends, a status pill (climber count, friend count on
