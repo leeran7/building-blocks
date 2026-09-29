@@ -16,6 +16,9 @@ import { openExternal } from "./external";
  *    loses a paid pack: StoreKit keeps it unfinished until the next try.
  *  - everywhere else: Stripe Checkout in the browser (POST /api/gems/checkout),
  *    credited by the Stripe webhook.
+ * App Store prices carry Apple's 30% (src/lib/gemPacks.ts), so the iOS Shop
+ * also offers each pack at its web price through Stripe where Apple allows a
+ * link out: the US storefront, while the server's `webCheckout` is on.
  */
 
 export interface ShopState {
@@ -23,6 +26,8 @@ export interface ShopState {
   ownedIds: string[];
   /** The UUID the App Store purchase must carry (GET /api/shop). */
   appleAccountToken: string | null;
+  /** The server allows iOS to link out to web checkout (GET /api/shop). */
+  webCheckout: boolean;
 }
 
 /** A refused Shop call: `code` is the server's (INSUFFICIENT_GEMS, OWNED, ...). */
@@ -46,12 +51,13 @@ async function errorOf(res: Response, fallback: string): Promise<ShopError> {
 
 function parseShop(v: unknown): ShopState | null {
   if (typeof v !== "object" || v === null) return null;
-  const o = v as { gems?: unknown; ownedIds?: unknown; appleAccountToken?: unknown };
+  const o = v as { gems?: unknown; ownedIds?: unknown; appleAccountToken?: unknown; webCheckout?: unknown };
   if (typeof o.gems !== "number" || !Array.isArray(o.ownedIds)) return null;
   return {
     gems: o.gems,
     ownedIds: o.ownedIds.filter((id): id is string => typeof id === "string"),
     appleAccountToken: typeof o.appleAccountToken === "string" ? o.appleAccountToken : null,
+    webCheckout: o.webCheckout === true,
   };
 }
 
@@ -102,9 +108,26 @@ export async function appStorePrices(): Promise<Record<string, string>> {
   }
 }
 
-/** A pack's price to show: the App Store's on iOS when known, else the web USD price. */
+/** A pack's price to show: the App Store's on iOS (its local price when known), else the web USD price. */
 export function packPrice(pack: GemPack, storePrices: Record<string, string>): string {
-  return storePrices[pack.id] ?? formatUsd(pack.usdCents);
+  if (!usesAppStore()) return formatUsd(pack.usdCents);
+  return storePrices[pack.id] ?? formatUsd(pack.appleUsdCents);
+}
+
+/**
+ * True when the iOS Shop may offer web checkout next to the App Store: the
+ * server allows it and the player's App Store account is in the US, where
+ * Apple must let apps link to outside payment. False off iOS (web checkout is
+ * already the only way there) and whenever the storefront can't be read.
+ */
+export async function offersWebCheckout(shop: ShopState): Promise<boolean> {
+  if (!usesAppStore() || !shop.webCheckout) return false;
+  try {
+    const { countryCode } = await NativePurchases.getStorefront();
+    return countryCode === "USA";
+  } catch {
+    return false;
+  }
 }
 
 export type PackPurchaseResult =
@@ -133,20 +156,23 @@ async function settleAppleTransaction(jws: string): Promise<number> {
   return body.gems;
 }
 
+/** Buy a gem pack at its web price: Stripe Checkout in the browser. Throws ShopError on failure. */
+export async function buyGemPackOnWeb(pack: GemPack): Promise<PackPurchaseResult> {
+  const res = await apiFetch("/api/gems/checkout", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ packId: pack.id }),
+  });
+  if (!res.ok) throw await errorOf(res, "Couldn't start checkout. Try again.");
+  const body = (await res.json().catch(() => null)) as { checkoutUrl?: unknown } | null;
+  if (typeof body?.checkoutUrl !== "string") throw new ShopError("Couldn't start checkout. Try again.", null);
+  await openExternal(body.checkoutUrl);
+  return { kind: "checkout" };
+}
+
 /** Buy one gem pack on this platform. Throws ShopError on failure. */
 export async function buyGemPack(pack: GemPack, shop: ShopState): Promise<PackPurchaseResult> {
-  if (!usesAppStore()) {
-    const res = await apiFetch("/api/gems/checkout", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ packId: pack.id }),
-    });
-    if (!res.ok) throw await errorOf(res, "Couldn't start checkout. Try again.");
-    const body = (await res.json().catch(() => null)) as { checkoutUrl?: unknown } | null;
-    if (typeof body?.checkoutUrl !== "string") throw new ShopError("Couldn't start checkout. Try again.", null);
-    await openExternal(body.checkoutUrl);
-    return { kind: "checkout" };
-  }
+  if (!usesAppStore()) return buyGemPackOnWeb(pack);
   if (!shop.appleAccountToken) throw new ShopError("Couldn't reach the App Store. Try again.", null);
   let transaction;
   try {

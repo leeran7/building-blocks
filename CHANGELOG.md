@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Pay for gems on the web from iPhone** — App Store gem packs now cost
+  30% more than the web price, passing Apple's commission on ($6.49,
+  $12.99, $25.99, $64.99; `appleUsdCents`, set in App Store Connect). On the
+  US App Store the iOS gem-pack sheet also offers each pack at its web price
+  through Stripe Checkout in the browser. `GET /api/shop` returns
+  `webCheckout`; `IOS_WEB_CHECKOUT=off` hides the option without a release.
+
 - **Shop, gems and paid Void skins (mobile)** — a Shop tab with a gem
   balance and every character's paid Wraith-style skin (`<id>-void`,
   1,200 gems), and a Skin Details screen (Classic / Void / coming soon,

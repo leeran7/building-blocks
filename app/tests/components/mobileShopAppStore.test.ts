@@ -18,6 +18,7 @@ const { plugin, apiFetch, listeners } = vi.hoisted(() => {
       getPurchases: vi.fn(),
       acknowledgePurchase: vi.fn(async () => {}),
       purchaseProduct: vi.fn(),
+      getStorefront: vi.fn(),
       addListener: vi.fn(async (_event: string, fn: (t: unknown) => void) => {
         listeners.push(fn);
         return { remove: vi.fn(async () => {}) };
@@ -32,8 +33,13 @@ vi.mock("@capacitor/core", () => ({ Capacitor: { getPlatform: () => "ios" } }));
 vi.mock("../../mobile/src/lib/api", () => ({ apiFetch, isNative: true }));
 vi.mock("../../mobile/src/lib/external", () => ({ openExternal: vi.fn(async () => {}) }));
 
+import { openExternal } from "../../mobile/src/lib/external";
+
 import {
   buyGemPack,
+  buyGemPackOnWeb,
+  offersWebCheckout,
+  packPrice,
   settleStoreTransaction,
   settleUnfinishedPurchases,
   ShopError,
@@ -43,7 +49,7 @@ import { GEM_PACKS } from "../../src/lib/gemPacks";
 
 const PACK = GEM_PACKS[1];
 const TOKEN = "0a1b2c3d-4e5f-5a6b-8c7d-9e0f1a2b3c4d";
-const SHOP = { gems: 0, ownedIds: [], appleAccountToken: TOKEN };
+const SHOP = { gems: 0, ownedIds: [], appleAccountToken: TOKEN, webCheckout: true };
 const tx = (id: string, productIdentifier = PACK.appleProductId) => ({
   transactionId: id,
   productIdentifier,
@@ -133,5 +139,32 @@ describe("buyGemPack on iOS", () => {
     expect(err).toBeInstanceOf(ShopError);
     expect((err as ShopError).code).toBe("PENDING");
     expect(apiFetch).not.toHaveBeenCalled();
+  });
+});
+
+describe("paying outside the App Store", () => {
+  it("offers web checkout only on the US storefront while the server allows it", async () => {
+    plugin.getStorefront.mockResolvedValue({ countryCode: "USA" });
+    expect(await offersWebCheckout(SHOP)).toBe(true);
+    expect(await offersWebCheckout({ ...SHOP, webCheckout: false })).toBe(false);
+    for (const countryCode of ["GBR", "US", ""]) {
+      plugin.getStorefront.mockResolvedValue({ countryCode });
+      expect(await offersWebCheckout(SHOP)).toBe(false);
+    }
+    plugin.getStorefront.mockRejectedValue(new Error("no storefront"));
+    expect(await offersWebCheckout(SHOP)).toBe(false);
+  });
+
+  it("opens Stripe Checkout at the web price instead of the App Store", async () => {
+    apiFetch.mockResolvedValue(json(200, { checkoutUrl: "https://checkout.stripe.com/c/1" }));
+    expect(await buyGemPackOnWeb(PACK)).toEqual({ kind: "checkout" });
+    expect(apiFetch).toHaveBeenCalledWith("/api/gems/checkout", expect.objectContaining({ body: JSON.stringify({ packId: PACK.id }) }));
+    expect(openExternal).toHaveBeenCalledWith("https://checkout.stripe.com/c/1");
+    expect(plugin.purchaseProduct).not.toHaveBeenCalled();
+  });
+
+  it("shows the marked-up App Store price on iOS until the store's own price loads", () => {
+    expect(packPrice(PACK, {})).toBe("$12.99");
+    expect(packPrice(PACK, { [PACK.id]: "12,99 €" })).toBe("12,99 €");
   });
 });

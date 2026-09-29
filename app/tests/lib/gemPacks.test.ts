@@ -4,7 +4,14 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { GEM_PACKS, formatUsd, gemPackByAppleProduct, gemPackById } from "../../src/lib/gemPacks";
+import {
+  APP_STORE_MARKUP,
+  GEM_PACKS,
+  appStoreCents,
+  formatUsd,
+  gemPackByAppleProduct,
+  gemPackById,
+} from "../../src/lib/gemPacks";
 import { DEFAULT_APPLE_BUNDLE_ID } from "../../src/api/appleIap";
 import { SKIN_GEMS } from "../../src/lib/avatars";
 
@@ -31,6 +38,15 @@ describe("gem packs", () => {
       expect(gemPackById(bad)).toBeNull();
       expect(gemPackByAppleProduct(bad)).toBeNull();
     }
+  });
+
+  it("passes Apple's 30% on in App Store prices, rounded up to a price ending in 9", () => {
+    expect(GEM_PACKS.map((p) => p.appleUsdCents)).toEqual([649, 1299, 2599, 6499]);
+    for (const p of GEM_PACKS) {
+      expect(p.appleUsdCents).toBeGreaterThanOrEqual(p.usdCents * APP_STORE_MARKUP);
+      expect(p.appleUsdCents % 10).toBe(9);
+    }
+    expect(appStoreCents(1000)).toBe(1309);
   });
 
   it("formats web prices", () => {
