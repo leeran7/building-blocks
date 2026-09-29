@@ -7,6 +7,11 @@ settings:
 overrides:
   jwks-rsa>jose: ^5
 
+patchedDependencies:
+  '@capgo/native-purchases@8.8.1':
+    hash: nqckoafhf3lf64l53ghzu2xhmq
+    path: patches/@capgo__native-purchases@8.8.1.patch
+
 importers:
 
   .:
@@ -49,7 +54,7 @@ importers:
         version: 8.0.3(@capacitor/core@8.5.2)
       '@capgo/native-purchases':
         specifier: 8.8.1
-        version: 8.8.1(@capacitor/core@8.5.2)
+        version: 8.8.1(patch_hash=nqckoafhf3lf64l53ghzu2xhmq)(@capacitor/core@8.5.2)
       '@fontsource-variable/bricolage-grotesque':
         specifier: 5.3.0
         version: 5.3.0
@@ -6150,7 +6155,7 @@ snapshots:
     dependencies:
       '@capacitor/core': 8.5.2
 
-  '@capgo/native-purchases@8.8.1(@capacitor/core@8.5.2)':
+  '@capgo/native-purchases@8.8.1(patch_hash=nqckoafhf3lf64l53ghzu2xhmq)(@capacitor/core@8.5.2)':
     dependencies:
       '@capacitor/core': 8.5.2
 

@@ -68,6 +68,9 @@
   "pnpm": {
     "overrides": {
       "jwks-rsa>jose": "^5"
+    },
+    "patchedDependencies": {
+      "@capgo/native-purchases@8.8.1": "patches/@capgo__native-purchases@8.8.1.patch"
     }
   },
   "devDependencies": {

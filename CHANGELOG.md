@@ -20,7 +20,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `gem_pack`). New routes `GET /api/shop`, `POST /api/shop/buy`; new
   column `users.gems` and tables `gem_ledger`, `gem_purchases`,
   `owned_characters` (migration `20260929000000_shop_gems`). App Store
-  products must be created before the iOS build (docs/deploy.md).
+  products must be created before the iOS build (docs/deploy.md). Only
+  Production App Store purchases credit gems, except for the accounts in
+  `APPLE_IAP_SANDBOX_UIDS`; `@capgo/native-purchases` is patched so
+  StoreKit transactions are finished only after the server credits them.
 
 - **Daily Climb leaderboard (web and mobile)** — one server-seeded tower per
   UTC day with a verified daily board. Ranks gains All-time | Today tabs

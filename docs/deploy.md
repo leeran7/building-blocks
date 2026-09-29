@@ -40,6 +40,7 @@ Set all of the following in the **Vercel project dashboard** under Settings > En
 | `DAILY_SEED_SECRET` | Random secret (min 32 chars) — HMAC key for the Daily Climb tower seed. **If missing or short, `GET /api/climb/daily` and `POST /api/climb/daily/result` return 503** (no fallback seed). Rotating it changes today's tower, so rotate at 00:00 UTC |
 | `BASE_URL` | Production URL without trailing slash (`https://www.doomstack.lol`) |
 | `APPLE_BUNDLE_ID` | Optional. The iOS bundle id App Store gem packs must be for; defaults to `lol.doomstack.app` (capacitor.config.ts) |
+| `APPLE_IAP_SANDBOX_UIDS` | Optional, comma-separated Firebase uids. Only these accounts get gems for Sandbox/TestFlight purchases (which cost nothing); put App Review's demo account here while a build is in review. Everyone else needs a Production purchase |
 
 Generate `INTERNAL_TOKEN`, `ADMIN_TOKEN` and `DAILY_SEED_SECRET` with:
 

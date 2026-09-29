@@ -7,7 +7,10 @@
  *  - the JWS verifies against Apple's root (appleJws.ts);
  *  - it is for this app (APPLE_BUNDLE_ID) and one of our gem-pack products;
  *  - it was bought by this account (the appAccountToken matches);
- *  - it has not been refunded or revoked, and is for exactly one pack.
+ *  - it has not been refunded or revoked, and is for exactly one pack;
+ *  - it is a real purchase (environment "Production"). Sandbox and TestFlight
+ *    purchases cost nothing, so they credit only for the uids listed in
+ *    APPLE_IAP_SANDBOX_UIDS (App Review's demo account, our own testers).
  * Crediting is idempotent on the App Store transaction id (creditGemPack), so
  * a retried post, or the same JWS from another account, never credits twice.
  */
@@ -41,7 +44,16 @@ export type AppleRefusal =
   | "UNKNOWN_PRODUCT"
   | "WRONG_ACCOUNT"
   | "REVOKED"
-  | "BAD_QUANTITY";
+  | "BAD_QUANTITY"
+  | "SANDBOX";
+
+/** Uids allowed to credit Sandbox transactions: APPLE_IAP_SANDBOX_UIDS, comma-separated. */
+function sandboxUids(): string[] {
+  return (process.env.APPLE_IAP_SANDBOX_UIDS ?? "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0);
+}
 
 export type AppleCheck =
   | { ok: true; transaction: AppleTransaction; pack: GemPack }
@@ -51,7 +63,7 @@ export type AppleCheck =
 export function checkAppleGemTransaction(
   jws: unknown,
   uid: string,
-  opts: VerifyOptions & { bundleId?: string } = {}
+  opts: VerifyOptions & { bundleId?: string; sandboxUids?: readonly string[] } = {}
 ): AppleCheck {
   let t: AppleTransaction;
   try {
@@ -68,5 +80,9 @@ export function checkAppleGemTransaction(
   if (t.appAccountToken !== appleAccountTokenFor(uid)) return refuse("WRONG_ACCOUNT");
   if (t.revocationDate !== undefined) return refuse("REVOKED");
   if ((t.quantity ?? 1) !== 1) return refuse("BAD_QUANTITY");
+  if (t.environment !== "Production") {
+    const allowed = t.environment === "Sandbox" && (opts.sandboxUids ?? sandboxUids()).includes(uid);
+    if (!allowed) return refuse("SANDBOX");
+  }
   return { ok: true, transaction: t, pack };
 }
