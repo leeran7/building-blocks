@@ -78,4 +78,7 @@ irreversible or money-adjacent writes — not generic OWASP.
    and a CHECK keeps gems >= 0. Prices and what a pack credits come from
    the catalogues, never the request. A bought character or skin is an
    `owned_characters` row; that row, never level data, is what makes a
-   `purchase` avatar selectable (item 8).
+   `purchase` avatar selectable (item 8). A paid lives refill
+   (`buyLivesRefill`, `LIVES_REFILL_GEMS`) spends in the same transaction
+   that writes `users.lives` and is refused while lives are full, which is
+   what keeps a retried request from being charged twice.

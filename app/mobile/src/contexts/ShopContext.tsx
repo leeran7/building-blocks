@@ -95,3 +95,12 @@ export function useShop(): ShopContextValue {
   }, [shop, loading, error, refresh]);
   return ctx;
 }
+
+/**
+ * The Shop slice when a ShopProvider is mounted, else null. Never fetches:
+ * for screens outside the Shop that only mirror a balance they already know
+ * (the lives refill) and must also render without the Shop.
+ */
+export function useOptionalShop(): ShopContextValue | null {
+  return useContext(ShopContext);
+}

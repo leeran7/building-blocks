@@ -4,6 +4,7 @@ import { useLevels } from "../contexts/LevelsContext";
 import { tapHeavy, tapLight } from "../lib/haptics";
 import { Button } from "../components/ui";
 import { LevelStartSheet } from "../components/levels/LevelStartSheet";
+import { useLivesRefillOffer } from "../components/levels/useLivesRefillOffer";
 import { LevelStartExtras } from "../components/levels/LevelStartExtras";
 import { BoosterPicker, ChestMeter } from "../components/levels/LevelChests";
 import { LivesPill, StarRow, XpBar, useWhenDue } from "../components/levels/LevelBits";
@@ -55,6 +56,7 @@ export function LevelMapScreen() {
   const navigate = useNavigate();
   const location = useLocation();
   const { client, season, loading, error, refresh, setPlayer } = useLevels();
+  const refill = useLivesRefillOffer();
   const [selected, setSelectedNode] = useState<LevelNode | null>(null);
   // The booster equipped on the open start card; every card opens without one.
   const [booster, setBooster] = useState<BoosterType | null>(null);
@@ -244,6 +246,7 @@ export function LevelMapScreen() {
             navigate(`/levels/${selected.level}/play?practice=1`);
           }}
           onClose={() => setSelected(null)}
+          refill={refill.offer}
           extras={
             <LevelStartExtras
               atFrontier={selected.level === frontier}
@@ -264,6 +267,7 @@ export function LevelMapScreen() {
           }
         />
       )}
+      {refill.gemPacks}
     </main>
   );
 }
