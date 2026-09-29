@@ -56,7 +56,7 @@ import type { PlayerInput } from "../../src/game/types";
 
 const SIM = LEVEL_SIM_VERSION;
 // Level 42's pars in season-1.json.
-const L42_PARS = { twoStarTicks: 2687, threeStarTicks: 2336, oneStarTicks: 3504 };
+const L42_PARS = { twoStarTicks: 2786, threeStarTicks: 2422, oneStarTicks: 3633 };
 const T_ISSUED = new Date("2026-09-27T12:00:00Z");
 const TICKET = "ticket_abcdefghijk";
 

@@ -30,7 +30,7 @@ import {
  * Bump when a formula here changes what a level is. Stamped on every manifest
  * so a manifest built from older formulas is refused.
  */
-export const LEVEL_SPEC_VERSION = 3;
+export const LEVEL_SPEC_VERSION = 4;
 
 export interface LevelLayout {
   /** Gap width as a fraction of running-jump reach: 34% → 75%. */
