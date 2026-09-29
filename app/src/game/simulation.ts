@@ -52,6 +52,8 @@ import {
   ladderHangM,
   ladderHangs,
   ladderHasShortTop,
+  summitDiamond,
+  touchesSummitDiamond,
 } from "./towers";
 import {
   grantPowerUp,
@@ -523,6 +525,7 @@ export function stepMatch(
   // ── phase === "climb" ──────────────────────────────────────────────────
   state.tick += 1;
   state.raceSeconds = state.tick * TICK_DT;
+  const diamond = diamondOf(state.tower);
 
   // 1. Rising hazard — speed is a fraction of the climber's climb rate, so the
   //    chase scales with how fast the player can move (AC-5, AC-6). The lava
@@ -616,11 +619,11 @@ export function stepMatch(
     pruneActive(p, state.tick);
     p.jumpHeldPrev = input.jump;
 
-    // 4. FINISH — a level tower has a goal height; feet at or above it finish
-    //    the climb. Decided before the death line, so reaching the goal on the
-    //    tick the lava arrives still counts. Endless towers (free stack, Daily,
-    //    duels) have no goalM and never take this branch.
-    if (state.tower.goalM !== undefined && p.y >= state.tower.goalM) {
+    // 4. FINISH — a level tower ends in a diamond on its summit floor; touching
+    //    it finishes the climb. Decided before the death line, so touching it
+    //    on the tick the lava arrives still counts. Endless towers (free stack,
+    //    Daily, duels) have no goalM, so no diamond, and never take this branch.
+    if (diamond !== null && touchesSummitDiamond(diamond, p.x, p.y, state.tower.widthM)) {
       p.status = "finished";
       p.finishedTick = state.tick;
       continue;
@@ -766,6 +769,18 @@ function clamp(v: number, lo: number, hi: number): number {
 }
 
 /** Wrap x onto the tower cylinder — walk off the left edge, enter on the right. */
+const DIAMONDS = new WeakMap<TowerSpec, ReturnType<typeof summitDiamond>>();
+
+/** The tower's summit diamond, worked out once per tower object. */
+function diamondOf(tower: TowerSpec): ReturnType<typeof summitDiamond> {
+  let d = DIAMONDS.get(tower);
+  if (d === undefined) {
+    d = summitDiamond(tower);
+    DIAMONDS.set(tower, d);
+  }
+  return d;
+}
+
 function wrapX(x: number, widthM: number): number {
   if (!(widthM > 0)) return x;
   const w = x % widthM;

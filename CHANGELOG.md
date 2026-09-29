@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Levels end at a glowing diamond** — every level's climb now ends on the
+  summit floor with a diamond to touch, 20 m along the floor from the ladder
+  that reaches it; crossing the goal height no longer finishes the run. The
+  route bot runs to the diamond, and season 1 is regenerated with the new
+  finish (LEVEL_SPEC_VERSION 4, LEVEL_SIM_VERSION 4).
+
 - **Pay for gems on the web from iPhone** — App Store gem packs now cost
   30% more than the web price, passing Apple's commission on ($6.49,
   $12.99, $25.99, $64.99; `appleUsdCents`, set in App Store Connect). On the

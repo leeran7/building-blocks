@@ -20,4 +20,4 @@ export const DAILY_SIM_VERSION = 4;
  * as any edit that changes a level tower's output: its geometry, the finish,
  * the level power-up rules or the level lava.
  */
-export const LEVEL_SIM_VERSION = 3;
+export const LEVEL_SIM_VERSION = 4;

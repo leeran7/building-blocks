@@ -13,6 +13,7 @@ import {
   laddersForFloor,
   platformsForFloor,
   platformsNearY,
+  summitDiamond,
 } from "../../src/game/towers";
 import type { PlayerInput, PlayerState, TowerSpec } from "../../src/game/types";
 
@@ -44,6 +45,13 @@ export function botInput(p: PlayerState, tower: TowerSpec, tick = 0): PlayerInpu
         usePowerUp: false,
       };
     }
+  }
+  // A level's summit floor: run to the diamond, the short way round.
+  const diamond = summitDiamond(tower);
+  if (diamond !== null && p.onGround && p.y >= diamond.floorY - 0.25) {
+    const w = tower.widthM;
+    const ahead = (((diamond.x - p.x) % w) + w) % w;
+    return { moveX: ahead <= w / 2 ? 1 : -1, jump: false, climbY: 0, usePowerUp: false };
   }
   const k = floorIndexAt(tower, p.y + 0.5);
   const ladders = laddersForFloor(tower, k);

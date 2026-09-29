@@ -334,14 +334,12 @@ function levelBot(p: PlayerState, tower: TowerSpec, tick: number): PlayerInput {
     const l = laddersForFloor(tower, p.ladderIx)[p.ladderSlot]!;
     return p.y >= l.y1 && ladderHasShortTop(tower, p.ladderIx, p.ladderSlot) ? JUMP_UP : UP;
   }
-  // Past the summit's last ladder there is nothing left to walk to.
-  if (laddersForFloor(tower, floorIndexAt(tower, p.y + 0.5)).length === 0) return IDLE;
   const base = botInput(p, tower, tick);
   return base.climbY > 0 && p.onGround ? { ...base, jump: true } : base;
 }
 
 describe("a level with every layout knob is climbable", () => {
-  it("a bot that jumps for hanging ladders and short tops reaches the goal", () => {
+  it("a bot that jumps for hanging ladders and short tops reaches the diamond", () => {
     const tower = level("knobs-run", {
       gapReachFrac: 0.6,
       oneLadderChance: 0.7,
