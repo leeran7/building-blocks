@@ -110,6 +110,24 @@ kept for a separate, future feature such as unlockable colour skins.
 The registry test (`tests/game/climberCharacters.test.ts`) requires exactly
 one entry per catalogue avatar. Run `pnpm test` in `app/` after the change.
 
+## Paid Void skins
+
+Every character with art also has a paid skin in the Wraith style, sold in
+the Shop: `<id>-void` in `src/lib/avatars.ts` ("Void Walker" for the Wraith,
+"Void <Name>" for the rest). Until its art lands, a Void skin draws as the
+Wraith recoloured to its character's accent (`RECOLOR_PALETTE`), and its
+badge shows the character's portrait.
+
+To ship a Void skin's art:
+
+1. Add `<id>-void-poses-192.png` and `<id>-void-climb-192.png` here, drawn to
+   every rule above (same cell, anchor, head height and poses).
+2. Add `<id>-void.webp` to `mobile/src/assets/avatars/` for its badge.
+3. Register it in `VOID_SKIN_SHEETS` in `climberCharacters.ts`:
+   `"lynx-void": { headTop: 45 },`.
+
+A skin is still only a look: it plays exactly like the stick figure.
+
 ## Generated art: how to prepare it
 
 Image generators tend to return a flat RGB image with a checkerboard *painted

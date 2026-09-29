@@ -115,6 +115,10 @@ export const fakePrisma = {
     aggregate: async () => ({ _sum: { stars: null } }),
     findFirst: async () => null,
   },
+  /** Characters bought in the Shop (src/db/avatarUnlocks.ts ownedCharacterIds): none here. */
+  ownedCharacter: {
+    findMany: async () => [],
+  },
   user: {
     findUnique: async ({ where, select }: { where: { id?: string; username?: string }; select?: Select }) => {
       const u =

@@ -39,6 +39,7 @@ vi.mock("../../src/db/client", () => ({
       aggregate: vi.fn(async () => ({ _sum: { stars: null } })),
       findFirst: vi.fn(async () => ({ id: 1 })),
     },
+    ownedCharacter: { findMany: vi.fn(async () => []) },
   },
 }));
 vi.mock("../../src/db/settings", () => ({

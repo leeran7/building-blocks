@@ -85,6 +85,10 @@ model User {
   // UTC day (YYYY-MM-DD) the once-a-day bonus life for finishing a Daily
   // Climb or a duel was last paid (design §5b). Null = never.
   bonus_life_day           String?
+  // Shop gems (src/db/gems.ts). SERVER-DERIVED: rises only by a verified
+  // gem-pack purchase (gem_purchases) and falls only by a spend, each under
+  // the user row lock with one gem_ledger row. A CHECK keeps it >= 0.
+  gems                     Int       @default(0)
   climbRecords           ClimbRecord[]
   climbRuns              ClimbRun[]
   dailyClimbScores       DailyClimbScore[]
@@ -108,6 +112,9 @@ model User {
   xpGrants               XpGrant[]
   boosters               UserBooster[]
   starChests             StarChest[]
+  gemLedger              GemLedger[]
+  gemPurchases           GemPurchase[]
+  ownedCharacters        OwnedCharacter[]
 
   @@map("users")
 }
@@ -256,7 +263,10 @@ model LevelRunTicket {
   season         Int
   level          Int
   sim_version    Int // LEVEL_SIM_VERSION at issue
-  start_power_up String? // granted at GO: a streak or stuck-help power-up, or a booster
+  // The first power-up granted at GO: the free one (streak or stuck help), or
+  // the booster when there is none. A booster granted alongside a free one is
+  // only in `booster` below.
+  start_power_up String?
   life_spent     Boolean // false on free levels (L1-10)
   // Booster spent from the inventory for this run (design §6.4), or null.
   // Refunded only when the run ends as a bad start.
@@ -284,6 +294,9 @@ model LevelProgress {
   stars          Int // 1..3
   best_ticks     Int // fastest reported finish, race ticks from GO
   sim_version    Int
+  // The best run's ticket start_power_up (its first power-up only). A booster
+  // it also started with is on the ticket (level_run_tickets.booster), which a
+  // ghost re-sim of replay_token would need too.
   start_power_up String?
   replay_token   String? // replay of the best_ticks run (unverified), for ghosts
   created_at     DateTime @default(now())
@@ -1149,4 +1162,70 @@ model WalletLedger {
 
   @@index([user_id, created_at(sort: Desc)], name: "wallet_ledger_user_idx")
   @@map("wallet_ledger")
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Shop — gems, gem packs and paid characters / skins (src/db/gems.ts)
+// ═══════════════════════════════════════════════════════════════════════════
+
+enum GemLedgerKind {
+  PURCHASE // a gem pack bought (Stripe on web, App Store on iOS)
+  SPEND // gems spent in the Shop (a character, a skin, lives)
+  REFUND // a spend returned
+  ADJUSTMENT // manual admin correction
+}
+
+// Every users.gems change writes one append-only row carrying balance_after.
+// idempotency_key is UNIQUE, so a retried spend or credit applies once.
+model GemLedger {
+  id              String        @id @default(cuid())
+  user_id         String
+  amount          Int // signed: positive = credit, negative = debit
+  balance_after   Int
+  kind            GemLedgerKind
+  // What the gems were for: "gem_pack", "character", "lives", ...
+  reason          String
+  // The pack, avatar id or other thing bought, when there is one.
+  ref             String?
+  idempotency_key String        @unique
+  created_at      DateTime      @default(now())
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id, created_at(sort: Desc)], name: "gem_ledger_user_idx")
+  @@map("gem_ledger")
+}
+
+// A settled gem-pack purchase. (provider, external_id) is UNIQUE: the Stripe
+// Checkout session id or the App Store transaction id, so one payment credits
+// once whichever path reports it first.
+model GemPurchase {
+  id          String   @id @default(cuid())
+  user_id     String
+  provider    String // "stripe" | "apple"
+  external_id String
+  pack_id     String
+  gems        Int
+  created_at  DateTime @default(now())
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@unique([provider, external_id], name: "gem_purchase_provider_external", map: "gem_purchases_provider_external_key")
+  @@index([user_id])
+  @@map("gem_purchases")
+}
+
+// A character or skin bought with gems (a `purchase` rule in src/lib/avatars.ts).
+// Owning it is what makes it selectable; never derived from level data.
+model OwnedCharacter {
+  id         String   @id @default(cuid())
+  user_id    String
+  avatar_id  String
+  gems_paid  Int
+  created_at DateTime @default(now())
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@unique([user_id, avatar_id], name: "owned_character_user_avatar", map: "owned_characters_user_avatar_key")
+  @@map("owned_characters")
 }

@@ -16,8 +16,10 @@ import {
   parseLevelBoard,
   parseOpenedChests,
   parseLevelProfile,
+  parseLivesRefill,
   parseServerResult,
   parseStartPowerUp,
+  parseStartPowerUps,
   parseTicket,
   refusalFor,
 } from "../../mobile/src/lib/levels/httpClient";
@@ -55,6 +57,9 @@ const TICKET = {
   lifeSpent: false,
   lives: 3,
   nextLifeAt: "2026-09-27T12:30:00.000Z",
+  startPowerUp: null,
+  startPowerUps: [],
+  boosterKept: null,
 };
 
 const RESULT = {
@@ -163,7 +168,39 @@ describe("win streaks and start power-ups", () => {
     ["rapid-climb"],
   ])("reject a malformed start power-up %j", (raw) => {
     expect(parseStartPowerUp(raw)).toBeUndefined();
-    expect(parseTicket({ ...TICKET, startPowerUp: raw })).toBeNull();
+    expect(parseTicket({ ...TICKET, startPowerUps: [raw] })).toBeNull();
+  });
+
+  it("read a free power-up and a booster side by side", () => {
+    const both = [
+      { type: "rapid-climb", source: "streak" },
+      { type: "super-jump", source: "booster" },
+    ];
+    expect(parseStartPowerUps(both)).toEqual(both);
+    expect(parseTicket({ ...TICKET, startPowerUps: both })).toMatchObject({ startPowerUps: both, boosterKept: null });
+    expect(parseTicket({ ...TICKET, boosterKept: "rapid-climb" })).toMatchObject({ boosterKept: "rapid-climb" });
+  });
+
+  it.each([
+    ["absent", undefined],
+    ["not a list", { type: "rapid-climb", source: "streak" }],
+    ["one type twice", [{ type: "rapid-climb", source: "streak" }, { type: "rapid-climb", source: "booster" }]],
+    [
+      "more than two",
+      [
+        { type: "rapid-climb", source: "streak" },
+        { type: "super-jump", source: "booster" },
+        { type: "giant", source: "booster" },
+      ],
+    ],
+    ["a null entry", [null]],
+  ])("refuse a ticket whose start power-ups are %s", (_, raw) => {
+    expect(parseStartPowerUps(raw)).toBeUndefined();
+    expect(parseTicket({ ...TICKET, startPowerUps: raw })).toBeNull();
+  });
+
+  it.each([["random"], ["toString"], [7], [undefined]])("refuse a ticket whose boosterKept is %j", (raw) => {
+    expect(parseTicket({ ...TICKET, boosterKept: raw })).toBeNull();
   });
 
   it("read the streak from the profile and the result, and refuse a bad one", () => {
@@ -197,18 +234,51 @@ describe("win streaks and start power-ups", () => {
 
   it("hands the ticket's power-up to the run", async () => {
     const { fetch } = fakeServer({
-      "/api/levels/ticket": () => json(200, { ...TICKET, level: 12, startPowerUp: { type: "super-jump", source: "streak" } }),
+      "/api/levels/ticket": () =>
+        json(200, {
+          ...TICKET,
+          level: 12,
+          startPowerUps: [
+            { type: "super-jump", source: "streak" },
+            { type: "rapid-climb", source: "booster" },
+          ],
+        }),
     });
     const res = await createHttpLevelsClient({ catalog, fetch }).startLevel(12);
-    expect(res).toMatchObject({ ok: true, ticket: { startPowerUp: { type: "super-jump", source: "streak" } } });
+    expect(res).toMatchObject({
+      ok: true,
+      ticket: {
+        startPowerUps: [
+          { type: "super-jump", source: "streak" },
+          { type: "rapid-climb", source: "booster" },
+        ],
+        boosterKept: null,
+      },
+    });
   });
 
   it("asks for an update when the power-up is not allowed on this app's level", async () => {
     // Level 3 allows no power-ups in season 1.
     const { fetch } = fakeServer({
-      "/api/levels/ticket": () => json(200, { ...TICKET, startPowerUp: { type: "rapid-climb", source: "streak" } }),
+      "/api/levels/ticket": () => json(200, { ...TICKET, startPowerUps: [{ type: "rapid-climb", source: "streak" }] }),
     });
     expect(await createHttpLevelsClient({ catalog, fetch }).startLevel(3)).toEqual({ ok: false, code: "UPDATE_REQUIRED" });
+  });
+
+  it("asks for an update when the second power-up is not allowed on this app's level", async () => {
+    // Level 12 allows rapid climb, sprint burst and super jump, not the jetpack.
+    const { fetch } = fakeServer({
+      "/api/levels/ticket": () =>
+        json(200, {
+          ...TICKET,
+          level: 12,
+          startPowerUps: [
+            { type: "rapid-climb", source: "streak" },
+            { type: "jetpack", source: "booster" },
+          ],
+        }),
+    });
+    expect(await createHttpLevelsClient({ catalog, fetch }).startLevel(12)).toEqual({ ok: false, code: "UPDATE_REQUIRED" });
   });
 });
 
@@ -535,12 +605,12 @@ describe("star chests and boosters", () => {
 
   it("send an equipped booster with the ticket request, and nothing when none is chosen", async () => {
     const { fetch, calls } = fakeServer({
-      "/api/levels/ticket": () => json(200, { ...TICKET, level: 12, startPowerUp: { type: "rapid-climb", source: "booster" } }),
+      "/api/levels/ticket": () => json(200, { ...TICKET, level: 12, startPowerUps: [{ type: "rapid-climb", source: "booster" }] }),
     });
     const client = createHttpLevelsClient({ catalog, fetch });
     const res = await client.startLevel(12, { booster: "rapid-climb" });
     expect(calls[0]?.body).toEqual({ season: 1, level: 12, simVersion: LEVEL_SIM_VERSION, booster: "rapid-climb" });
-    expect(res).toMatchObject({ ok: true, ticket: { startPowerUp: { type: "rapid-climb", source: "booster" } } });
+    expect(res).toMatchObject({ ok: true, ticket: { startPowerUps: [{ type: "rapid-climb", source: "booster" }] } });
     await client.startLevel(12, { booster: null });
     expect(calls[1]?.body).not.toHaveProperty("booster");
   });
@@ -559,5 +629,71 @@ describe("star chests and boosters", () => {
       });
     }
     expect(refusalFor(400, "BOOSTER_NOT_OWNED")).toBe("NETWORK");
+  });
+});
+
+describe("lives refill", () => {
+  const REFILL = { lives: 5, maxLives: 5, nextLifeAt: null, gems: 70 };
+
+  it("reads gems and the refill price from the profile, and none from an older server", () => {
+    expect(parseLevelProfile({ ...PROFILE, gems: 120, livesRefillGems: 50 })?.refill).toEqual({ gems: 120, cost: 50 });
+    expect(parseLevelProfile(PROFILE)?.refill).toBeNull();
+    for (const bad of [
+      { gems: -1, livesRefillGems: 50 },
+      { gems: 120, livesRefillGems: 0 },
+      { gems: 120 },
+      { gems: "120", livesRefillGems: 50 },
+    ]) {
+      expect(parseLevelProfile({ ...PROFILE, ...bad })).toBeNull();
+    }
+  });
+
+  it("parses the refill body and refuses one that breaks the contract", () => {
+    expect(parseLivesRefill(REFILL)).toEqual(REFILL);
+    expect(parseLivesRefill({ ...REFILL, lives: 6 })).toBeNull();
+    expect(parseLivesRefill({ ...REFILL, gems: -1 })).toBeNull();
+    expect(parseLivesRefill({ ...REFILL, nextLifeAt: "soon" })).toBeNull();
+  });
+
+  it("posts the refill and returns full lives with the new balance", async () => {
+    const { fetch, calls } = fakeServer({
+      "/api/levels/me": () => json(200, { ...PROFILE, gems: 120, livesRefillGems: 50 }),
+      "/api/levels/lives": () => json(200, REFILL),
+    });
+    const client = createHttpLevelsClient({ catalog, fetch });
+    expect((await client.getSeason()).refill).toEqual({ gems: 120, cost: 50 });
+    const res = await client.buyLives!();
+    expect(calls[1]).toEqual({ path: "/api/levels/lives", body: {} });
+    expect(res).toEqual({
+      ok: true,
+      gems: 70,
+      player: expect.objectContaining({ lives: 5, maxLives: 5, nextLifeAt: null, xp: 130 }),
+    });
+  });
+
+  it("words each refusal, keeping the balance the server reports", async () => {
+    const cases: [() => Response, unknown][] = [
+      [() => json(409, { code: "LIVES_FULL", lives: 5 }), { ok: false, code: "LIVES_FULL" }],
+      [() => json(409, { code: "NOT_ENOUGH_GEMS", gems: 10, cost: 50 }), { ok: false, code: "NOT_ENOUGH_GEMS", gems: 10 }],
+      [() => json(401, { code: "UNAUTHORIZED" }), { ok: false, code: "NETWORK" }],
+      [() => json(200, { ...REFILL, lives: 9 }), { ok: false, code: "NETWORK" }],
+    ];
+    for (const [route, expected] of cases) {
+      const { fetch } = fakeServer({ "/api/levels/lives": route });
+      expect(await createHttpLevelsClient({ catalog, fetch }).buyLives!()).toEqual(expected);
+    }
+    const offline = fakeServer({});
+    expect(await createHttpLevelsClient({ catalog, fetch: offline.fetch }).buyLives!()).toEqual({ ok: false, code: "NETWORK" });
+  });
+
+  it("never sells a refill from the device-local fallback", async () => {
+    const { fetch } = fakeServer({ "/api/levels/me": () => new Response("Not Found", { status: 404 }) });
+    const client = withMockFallback(
+      createHttpLevelsClient({ catalog, fetch }),
+      () => createMockLevelsClient({ load: () => null, save: () => {} }),
+    );
+    expect((await client.getSeason()).refill).toBeNull();
+    expect(await client.buyLives!()).toEqual({ ok: false, code: "NETWORK" });
+    expect(fetch).toHaveBeenCalledTimes(1);
   });
 });

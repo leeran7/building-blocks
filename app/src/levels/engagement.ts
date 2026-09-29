@@ -52,6 +52,29 @@ export function boosterTypesOf(allowed: readonly PowerUpType[]): BoosterType[] {
   return out;
 }
 
+// ── Early levels ─────────────────────────────────────────────────────────────
+
+/**
+ * The last level of the early game: episodes 1-3 (L1-L45). No run through here
+ * starts with a late booster, whatever the source (streak, stuck help or an
+ * owned booster), so the big movement power-ups stay a reward of harder levels.
+ * The random orb is never a start power-up at any level (see BoosterType).
+ */
+export const EARLY_START_LAST_LEVEL = 45;
+
+/** Boosters kept out of early-level starts: they skip whole sections of a climb. */
+export const LATE_START_BOOSTERS: readonly BoosterType[] = ["super-jump", "jetpack"];
+
+/**
+ * The booster types a run of `level` may start with: the level's allowed set
+ * less "random", and less the late boosters through EARLY_START_LAST_LEVEL.
+ */
+export function startBoosterTypes(level: number, allowed: readonly PowerUpType[]): BoosterType[] {
+  const types = boosterTypesOf(allowed);
+  if (level > EARLY_START_LAST_LEVEL) return types;
+  return types.filter((t) => !LATE_START_BOOSTERS.includes(t));
+}
+
 /** How a run's starting power-up was decided. */
 export type StartPowerUpSource = "streak" | "stuck_help" | "booster";
 
@@ -200,6 +223,36 @@ export function freeStartPowerUp(input: FreeStartInput): StartPowerUp | null {
   const help = stuckHelpPowerUp(input.fails, input.allowed);
   if (help !== null) return { type: help, source: "stuck_help" };
   return null;
+}
+
+/** Most power-ups a level run starts with: one free, one booster. */
+export const MAX_START_POWER_UPS = 2;
+
+/** What a new ticket starts with, and what happens to a chosen booster. */
+export interface StartGrant {
+  /** Granted at GO, in order: the free power-up first, then the booster. */
+  startPowerUps: StartPowerUp[];
+  /** The booster to take from the inventory, or null. */
+  spend: BoosterType | null;
+  /** A chosen booster left in the inventory because the free one is the same type. */
+  kept: BoosterType | null;
+}
+
+/**
+ * A run starts with its free power-up (streak or stuck help) AND the booster
+ * the player chose: one does not cancel the other, and at most one booster
+ * is ever chosen. The one exception is a booster of the free power-up's own
+ * type. Granting a live type again only refreshes it (grantPowerUp), so
+ * spending it would take the booster for nothing: it is kept, not spent, and
+ * reported as `kept` so the app can say so.
+ */
+export function startGrant(free: StartPowerUp | null, chosen: BoosterType | null): StartGrant {
+  if (chosen !== null && free !== null && chosen === free.type) {
+    return { startPowerUps: [free], spend: null, kept: chosen };
+  }
+  const startPowerUps: StartPowerUp[] = free === null ? [] : [free];
+  if (chosen !== null) startPowerUps.push({ type: chosen, source: "booster" });
+  return { startPowerUps, spend: chosen, kept: null };
 }
 
 // ── Star chests (§6.4) ───────────────────────────────────────────────────────

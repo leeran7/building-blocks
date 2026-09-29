@@ -4,6 +4,7 @@ import { MAX_LIVES, playerLevelProgress } from "@app/levels/rules";
 import { parseAvatarIdList } from "@app/lib/avatars";
 import {
   MAX_CHEST_BOOSTERS,
+  MAX_START_POWER_UPS,
   parseBoosterType,
   type BoosterInventory,
   type BoosterType,
@@ -13,6 +14,7 @@ import {
 import { apiFetch } from "../api";
 import { starsForTime } from "./model";
 import type {
+  BuyLivesResult,
   ChestProgress,
   LevelBoardEntry,
   LevelBoardView,
@@ -21,6 +23,7 @@ import type {
   LevelResult,
   LevelRunReport,
   LevelsClient,
+  LivesRefillPrice,
   OpenedChest,
   PlayerStats,
   SeasonView,
@@ -90,6 +93,28 @@ export function parseStartPowerUp(v: unknown): StartPowerUp | null | undefined {
   const source = v.source;
   if (type === null || typeof source !== "string" || !Object.hasOwn(START_SOURCES, source)) return undefined;
   return { type, source: source as StartPowerUpSource };
+}
+
+/**
+ * The ticket's start power-ups: an array of at most MAX_START_POWER_UPS
+ * well-formed entries of distinct types, or undefined (invalid) otherwise.
+ * Never defaulted: a server that does not send it breaks the contract.
+ */
+export function parseStartPowerUps(v: unknown): StartPowerUp[] | undefined {
+  if (!Array.isArray(v) || v.length > MAX_START_POWER_UPS) return undefined;
+  const out: StartPowerUp[] = [];
+  for (const raw of v) {
+    const p = parseStartPowerUp(raw);
+    if (!p || out.some((q) => q.type === p.type)) return undefined;
+    out.push(p);
+  }
+  return out;
+}
+
+/** The ticket's boosterKept: null, a booster type, or undefined (invalid). */
+export function parseBoosterKept(v: unknown): BoosterType | null | undefined {
+  if (v === null) return null;
+  return parseBoosterType(v) ?? undefined;
 }
 
 /** An optional count: 0 when absent (an older server), undefined when malformed. */
@@ -187,6 +212,17 @@ export interface LevelProfile {
   stuck: StuckHelp | null;
   boosters: BoosterInventory;
   chests: ChestProgress | null;
+  refill: LivesRefillPrice | null;
+}
+
+/**
+ * The profile's gems and refill price: null when either is absent (an older
+ * server), undefined when malformed.
+ */
+function parseRefillPrice(gems: unknown, cost: unknown): LivesRefillPrice | null | undefined {
+  if (gems === undefined && cost === undefined) return null;
+  if (!isCount(gems) || !isPositive(cost)) return undefined;
+  return { gems, cost };
 }
 
 /** The profile's stuck-help block: null when absent, undefined when malformed. */
@@ -207,9 +243,11 @@ export function parseLevelProfile(v: unknown): LevelProfile | null {
   const stuck = parseStuck(v.stuck);
   const boosters = parseBoosterInventory(v.boosters);
   const chests = parseChestProgress(v.chests);
+  const refill = parseRefillPrice(v.gems, v.livesRefillGems);
   if (
     boosters === undefined ||
     chests === undefined ||
+    refill === undefined ||
     streak === undefined ||
     nextStartPowerUp === undefined ||
     stuck === undefined ||
@@ -250,7 +288,24 @@ export function parseLevelProfile(v: unknown): LevelProfile | null {
     stuck,
     boosters: boosters ?? {},
     chests,
+    refill,
   };
+}
+
+/** POST /api/levels/lives 200 body, or null when it breaks the contract. */
+export function parseLivesRefill(v: unknown): { lives: number; maxLives: number; nextLifeAt: number | null; gems: number } | null {
+  if (!isObject(v)) return null;
+  const nextLifeAt = parseWhen(v.nextLifeAt);
+  if (
+    !isCount(v.lives) ||
+    !isPositive(v.maxLives) ||
+    v.lives > v.maxLives ||
+    nextLifeAt === undefined ||
+    !isCount(v.gems)
+  ) {
+    return null;
+  }
+  return { lives: v.lives, maxLives: v.maxLives, nextLifeAt, gems: v.gems };
 }
 
 export interface IssuedTicket {
@@ -259,16 +314,19 @@ export interface IssuedTicket {
   level: number;
   lives: number;
   nextLifeAt: number | null;
-  startPowerUp: StartPowerUp | null;
+  startPowerUps: StartPowerUp[];
+  boosterKept: BoosterType | null;
 }
 
 /** POST /api/levels/ticket 200 body, or null when it breaks the contract. */
 export function parseTicket(v: unknown): IssuedTicket | null {
   if (!isObject(v)) return null;
   const nextLifeAt = parseWhen(v.nextLifeAt);
-  const startPowerUp = parseStartPowerUp(v.startPowerUp);
+  const startPowerUps = parseStartPowerUps(v.startPowerUps);
+  const boosterKept = parseBoosterKept(v.boosterKept);
   if (
-    startPowerUp === undefined ||
+    startPowerUps === undefined ||
+    boosterKept === undefined ||
     typeof v.ticketId !== "string" ||
     !/^[A-Za-z0-9_-]{10,64}$/.test(v.ticketId) ||
     !isPositive(v.season) ||
@@ -278,7 +336,15 @@ export function parseTicket(v: unknown): IssuedTicket | null {
   ) {
     return null;
   }
-  return { ticketId: v.ticketId, season: v.season, level: v.level, lives: v.lives, nextLifeAt, startPowerUp };
+  return {
+    ticketId: v.ticketId,
+    season: v.season,
+    level: v.level,
+    lives: v.lives,
+    nextLifeAt,
+    startPowerUps,
+    boosterKept,
+  };
 }
 
 export interface ServerResult {
@@ -465,7 +531,30 @@ export function createHttpLevelsClient(opts: HttpClientOptions): LevelsClient {
         stuck: profile.stuck ?? { level: profile.frontier, fails: 0, routeGhostAvailable: false },
         boosters: profile.boosters,
         chests: profile.chests,
+        refill: profile.refill,
       };
+    },
+
+    async buyLives(): Promise<BuyLivesResult> {
+      let res: Response;
+      try {
+        res = await post("/api/levels/lives", {});
+      } catch {
+        return { ok: false, code: "NETWORK" };
+      }
+      const body = await readJson(res);
+      if (!res.ok) {
+        const code = errorCode(body);
+        if (res.status === 409 && code === "LIVES_FULL") return { ok: false, code };
+        if (res.status === 409 && code === "NOT_ENOUGH_GEMS") {
+          const gems = isObject(body) && isCount(body.gems) ? body.gems : undefined;
+          return { ok: false, code, ...(gems !== undefined ? { gems } : {}) };
+        }
+        return { ok: false, code: "NETWORK" };
+      }
+      const refill = parseLivesRefill(body);
+      if (!refill) return { ok: false, code: "NETWORK" };
+      return { ok: true, player: statsFor(lastXp, refill.lives, refill.nextLifeAt, refill.maxLives), gems: refill.gems };
     },
 
     async startLevel(level: number, opts: StartOptions = {}): Promise<StartResult> {
@@ -495,7 +584,7 @@ export function createHttpLevelsClient(opts: HttpClientOptions): LevelsClient {
       }
       // A power-up this app's copy of the level does not allow means the
       // server knows a newer season: the engine would refuse it at GO.
-      if (ticket.startPowerUp && !node.allowedPowerUps.includes(ticket.startPowerUp.type)) {
+      if (ticket.startPowerUps.some((p) => !node.allowedPowerUps.includes(p.type))) {
         return { ok: false, code: "UPDATE_REQUIRED" };
       }
       return {
@@ -507,7 +596,8 @@ export function createHttpLevelsClient(opts: HttpClientOptions): LevelsClient {
           goalFt: node.goalFt,
           pars: node.pars,
           player: statsFor(lastXp, ticket.lives, ticket.nextLifeAt),
-          startPowerUp: ticket.startPowerUp,
+          startPowerUps: ticket.startPowerUps,
+          boosterKept: ticket.boosterKept,
         },
       };
     },

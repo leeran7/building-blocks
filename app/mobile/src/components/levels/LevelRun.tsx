@@ -20,7 +20,7 @@ import {
 } from "@app/components/Game/climbCamera";
 import { useCanvasSize } from "@app/hooks/useCanvasSize";
 import { useSafeAreaInsets } from "@app/hooks/useSafeAreaInsets";
-import { ALTITUDE_UNIT } from "@app/lib/units";
+import { ALTITUDE_UNIT, formatWholeFeet } from "@app/lib/units";
 
 import { tapLight, tapMedium, notifyError } from "../../lib/haptics";
 import { useGameHaptics } from "../../lib/useGameHaptics";
@@ -33,9 +33,12 @@ import {
 } from "../../lib/levels/model";
 import type { LevelRunSetup } from "../../lib/levels/catalog";
 import { useSettings } from "../../contexts/AppDataContext";
-import type { StartPowerUp } from "@app/levels/engagement";
+import type { BoosterType, StartPowerUp } from "@app/levels/engagement";
 import { StarRow } from "./LevelBits";
-import { PowerUpName } from "./LevelStartExtras";
+import { PowerUpName, PowerUpNames } from "./LevelStartExtras";
+
+/** No start power-ups (a stable default). */
+const NONE: readonly StartPowerUp[] = [];
 
 /**
  * The climb itself, on the level's tower and lava from the season manifest
@@ -55,7 +58,8 @@ export function LevelRun({
   paused,
   onEnd,
   onQuit,
-  startPowerUp = null,
+  startPowerUps = NONE,
+  boosterKept = null,
   bestFailFt = null,
   onHowToPlay,
 }: {
@@ -71,8 +75,10 @@ export function LevelRun({
   paused: boolean;
   onEnd: (report: LevelRunReport) => void;
   onQuit: () => void;
-  /** The ticket's power-up, granted by the engine at GO. */
-  startPowerUp?: StartPowerUp | null;
+  /** The ticket's power-ups (a free one, then a booster), granted by the engine at GO. */
+  startPowerUps?: readonly StartPowerUp[];
+  /** A chosen booster the server kept: the run's free power-up is its type. */
+  boosterKept?: BoosterType | null;
   /** Best failed height on this level when it came close (§6.2), ft. */
   bestFailFt?: number | null;
   /** Replays the level's tutorial from the start screen. */
@@ -83,7 +89,7 @@ export function LevelRun({
     tower: towerRef.current,
     seed,
     hazard: setup?.hazard,
-    ...(startPowerUp ? { startPowerUp: startPowerUp.type } : {}),
+    ...(startPowerUps.length > 0 ? { startPowerUps: startPowerUps.map((p) => p.type) } : {}),
   });
   useGameHaptics(simRef, 0, runId);
 
@@ -203,6 +209,18 @@ export function LevelRun({
         topInset={safeArea.top}
         leftInset={safeArea.left}
         rightInset={safeArea.right}
+        goal={
+          phase === "climb" || phase === "countdown" ? (
+            <GoalBar
+              peakFt={state.players[0]?.peakY ?? 0}
+              goalFt={goalFt}
+              elapsedMs={state.raceSeconds * 1000}
+              pars={pars}
+              practice={practice}
+              bestFailFt={bestFailFt}
+            />
+          ) : null
+        }
         backControl={
           <button
             type="button"
@@ -217,27 +235,15 @@ export function LevelRun({
         }
       />
 
-      {(phase === "climb" || phase === "countdown") && (
-        <GoalBar
-          topInset={safeArea.top}
-          peakFt={state.players[0]?.peakY ?? 0}
-          goalFt={goalFt}
-          elapsedMs={state.raceSeconds * 1000}
-          pars={pars}
-          practice={practice}
-          bestFailFt={bestFailFt}
-        />
-      )}
-
       {phase === "countdown" && (
         <Overlay>
           <p className="font-mono text-label uppercase tracking-eyebrow text-signal">Level {level}</p>
           <p key={countdownValue} className="lp-pop mt-3 font-display text-7xl font-black tabular-nums text-text-primary">
             {countdownValue}
           </p>
-          {startPowerUp && (
+          {startPowerUps.length > 0 && (
             <p className="mt-4 text-meta text-text-primary">
-              Starts with <PowerUpName type={startPowerUp.type} />
+              Starts with <PowerUpNames powerUps={startPowerUps} />
             </p>
           )}
         </Overlay>
@@ -253,11 +259,16 @@ export function LevelRun({
           </h2>
           <span className="mt-4 h-px w-14 bg-border-strong" />
           <p className="mt-4 max-w-[280px] text-center text-body text-text-secondary">
-            Reach the summit at {goalFt.toLocaleString()} {ALTITUDE_UNIT} before the lava catches you.
+            Reach the summit at {formatWholeFeet(goalFt)} {ALTITUDE_UNIT} before the lava catches you.
           </p>
-          {startPowerUp && (
+          {startPowerUps.length > 0 && (
             <p className="mt-3 text-meta text-text-primary">
-              You start with <PowerUpName type={startPowerUp.type} /> at GO.
+              You start with <PowerUpNames powerUps={startPowerUps} /> at GO.
+            </p>
+          )}
+          {boosterKept && (
+            <p className="mt-2 max-w-[280px] text-center text-meta text-text-secondary">
+              Your <PowerUpName type={boosterKept} /> booster was kept: this run already starts with it.
             </p>
           )}
           <button
@@ -292,9 +303,10 @@ export function LevelRun({
 /**
  * Progress to the summit, with the stars still on offer: nobody reads a timer
  * while dodging lava, so the stars drop off the bar as each par passes (§4).
+ * Rendered in the HUD's goal row (ExpeditionHud `goal`), above the active
+ * powers, so the two never overlap.
  */
 export function GoalBar({
-  topInset,
   peakFt,
   goalFt,
   elapsedMs,
@@ -302,7 +314,6 @@ export function GoalBar({
   practice,
   bestFailFt = null,
 }: {
-  topInset: number;
   peakFt: number;
   goalFt: number;
   elapsedMs: number;
@@ -319,10 +330,7 @@ export function GoalBar({
   const nextDrop =
     stars === 3 ? pars.threeStarMs : stars === 2 ? pars.twoStarMs : stars === 1 ? pars.oneStarMs : null;
   return (
-    <div
-      className="pointer-events-none absolute left-1/2 z-20 w-[min(84vw,320px)] -translate-x-1/2"
-      style={{ top: topInset + 104 }}
-    >
+    <div className="pointer-events-none w-[min(84vw,320px)]">
       <div className="flex items-center justify-between gap-2 font-mono text-label font-bold uppercase tracking-label text-text-primary [text-shadow:0_1px_3px_rgba(0,0,0,0.9)]">
         {practice ? <span className="text-text-secondary">Practice</span> : <StarRow count={stars} size={14} />}
         <span className="tabular-nums">
@@ -351,7 +359,7 @@ export function GoalBar({
         <p className="sr-only">Your best try reached {Math.round(bestFailFt)} {ALTITUDE_UNIT}</p>
       )}
       <p className="mt-0.5 text-right font-mono text-[10px] font-bold uppercase tracking-label text-text-secondary [text-shadow:0_1px_3px_rgba(0,0,0,0.9)]">
-        Summit {goalFt.toLocaleString()} {ALTITUDE_UNIT}
+        Summit {formatWholeFeet(goalFt)} {ALTITUDE_UNIT}
       </p>
     </div>
   );

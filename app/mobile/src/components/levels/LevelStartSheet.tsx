@@ -1,12 +1,15 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { POWER_UP_SPECS } from "@app/game/powerups";
-import { ALTITUDE_UNIT } from "@app/lib/units";
+import { ALTITUDE_UNIT, formatWholeFeet } from "@app/lib/units";
 import { Button } from "../ui";
 import { tapLight } from "../../lib/haptics";
+import { useSwipeDismiss } from "../../lib/useSwipeDismiss";
+import { SheetHandle } from "../../lib/SheetHandle";
 import {
   episodeOf,
   formatClock,
   isHardLevel,
+  type BuyLivesResult,
   type LevelNode,
   type LevelTicket,
   type PlayerStats,
@@ -27,6 +30,10 @@ export const REFUSAL_COPY: Record<Exclude<StartRefusal, "OUT_OF_LIVES">, string>
  * star times, what's new on this level, and what it costs. Play asks the
  * server for a run ticket; out of lives, it offers the wait, Endless, or a
  * lives-free practice of this level instead (§5b).
+ *
+ * The ×, the scrim, Escape and a swipe down (from the handle and header, or
+ * from anywhere once the card is scrolled to the top) all close it through
+ * one path, at most once.
  */
 export function LevelStartSheet({
   node,
@@ -36,6 +43,7 @@ export function LevelStartSheet({
   onPracticeLevel,
   onClose,
   extras,
+  refill,
 }: {
   node: LevelNode;
   player: PlayerStats;
@@ -46,6 +54,8 @@ export function LevelStartSheet({
   onClose: () => void;
   /** Streak, stuck help, boosters and the friends board (LevelStartExtras). */
   extras?: ReactNode;
+  /** The paid lives refill, offered when out of lives; absent when none can be sold. */
+  refill?: RefillOffer | null;
 }) {
   const [busy, setBusy] = useState(false);
   const [refusal, setRefusal] = useState<StartRefusal | null>(null);
@@ -53,13 +63,22 @@ export function LevelStartSheet({
   const hard = isHardLevel(node.level);
   const outOfLives = node.costsLife && (player.lives <= 0 || refusal === "OUT_OF_LIVES");
   const closeRef = useRef<HTMLButtonElement>(null);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+  const closed = useRef(false);
+  const close = () => {
+    if (closed.current) return;
+    closed.current = true;
+    onCloseRef.current();
+  };
+  const swipe = useSwipeDismiss<HTMLDivElement, HTMLButtonElement>({ onDismiss: close, disabled: busy });
 
   useEffect(() => {
     // Hand focus back to the pin or button that opened the card.
     const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     closeRef.current?.focus();
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape") close();
     };
     window.addEventListener("keydown", onKey);
     return () => {
@@ -95,47 +114,52 @@ export function LevelStartSheet({
         type="button"
         aria-label="Close"
         tabIndex={-1}
-        onClick={onClose}
+        ref={swipe.scrimRef}
+        onClick={close}
         className="ls-scrim absolute inset-0 bg-void/70 backdrop-blur-sm"
       />
       <div
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
+        ref={swipe.sheetRef}
+        {...swipe.sheetHandlers}
         className="ls-sheet relative w-full max-w-md rounded-t-[28px] border-t border-border-strong bg-surface/95 px-5 pb-[calc(env(safe-area-inset-bottom)+1rem)] pt-2 backdrop-blur-xl max-h-[calc(100%-env(safe-area-inset-top)-0.75rem)] overflow-y-auto overscroll-contain"
       >
-        <span aria-hidden className="mx-auto mb-2 block h-1 w-9 rounded-full bg-border-strong" />
-        <div className="flex items-center gap-3">
-          <div className="min-w-0 flex-1">
-            <p className={`font-mono text-label font-bold uppercase tracking-eyebrow ${hard ? "text-ember" : "text-signal"}`}>
-              {hard ? "Hard level" : `Episode ${episodeOf(node.level)}`}
-            </p>
-            <h2 id={titleId} className="mt-0.5 font-display text-title font-black uppercase tracking-tight text-text-primary">
-              Level {node.level}
-            </h2>
+        {/* Handle and header: drag down to close (touch-none: never a scroll). */}
+        <SheetHandle className="-mx-5 -mt-2 px-5 pt-2">
+          <div className="flex items-center gap-3">
+            <div className="min-w-0 flex-1">
+              <p className={`font-mono text-label font-bold uppercase tracking-eyebrow ${hard ? "text-ember" : "text-signal"}`}>
+                {hard ? "Hard level" : `Episode ${episodeOf(node.level)}`}
+              </p>
+              <h2 id={titleId} className="mt-0.5 font-display text-title font-black uppercase tracking-tight text-text-primary">
+                Level {node.level}
+              </h2>
+            </div>
+            <button
+              ref={closeRef}
+              type="button"
+              aria-label="Close"
+              onClick={() => {
+                void tapLight();
+                close();
+              }}
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-border-subtle bg-surface-raised text-text-secondary transition-transform active:scale-90"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" aria-hidden>
+                <path d="M6 6l12 12M18 6 6 18" />
+              </svg>
+            </button>
           </div>
-          <button
-            ref={closeRef}
-            type="button"
-            aria-label="Close"
-            onClick={() => {
-              void tapLight();
-              onClose();
-            }}
-            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-border-subtle bg-surface-raised text-text-secondary transition-transform active:scale-90"
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" aria-hidden>
-              <path d="M6 6l12 12M18 6 6 18" />
-            </svg>
-          </button>
-        </div>
+        </SheetHandle>
 
         <div className="mt-3 rounded-2xl border border-white/10 bg-elevated/70 px-3.5 py-2.5">
           <div className="flex items-baseline justify-between gap-3">
             <p className="flex items-baseline gap-2">
               <span className="font-mono text-label uppercase tracking-label text-text-secondary">Goal</span>
               <span className="font-display text-headline font-black tabular-nums text-text-primary">
-                {node.goalFt.toLocaleString()}
+                {formatWholeFeet(node.goalFt)}
                 <span className="ml-1 text-meta font-bold uppercase text-text-secondary">{ALTITUDE_UNIT}</span>
               </span>
             </p>
@@ -183,6 +207,7 @@ export function LevelStartSheet({
               wait={livesLabel(player, now)}
               onPractice={onPractice}
               onPracticeLevel={onPracticeLevel}
+              refill={refill}
             />
           ) : (
             <>
@@ -270,15 +295,36 @@ function ParRow({ stars, ms }: { stars: number; ms: number }) {
   );
 }
 
-/** Out of lives: when the next one comes, and what to play meanwhile. */
+/** The paid lives refill as the out-of-lives card offers it. */
+export interface RefillOffer {
+  gems: number;
+  cost: number;
+  buy: () => Promise<BuyLivesResult>;
+  /** Opens the gem packs; absent where the Shop is not mounted. */
+  onGetGems?: () => void;
+}
+
+const REFILL_ERROR: Record<Exclude<BuyLivesResult, { ok: true }>["code"], string | null> = {
+  // The card redraws with the lives that came back; nothing to say.
+  LIVES_FULL: null,
+  NOT_ENOUGH_GEMS: "Not enough gems for a refill.",
+  NETWORK: "Couldn’t reach the server. Check your connection and try again.",
+};
+
+/**
+ * Out of lives: when the next one comes, a paid refill when the player can
+ * buy one, and what to play meanwhile.
+ */
 export function OutOfLives({
   wait,
   onPractice,
   onPracticeLevel,
+  refill = null,
 }: {
   wait: string;
   onPractice: () => void;
   onPracticeLevel: () => void;
+  refill?: RefillOffer | null;
 }) {
   return (
     <div className="flex flex-col gap-2.5">
@@ -290,6 +336,7 @@ export function OutOfLives({
           Out of lives. Next life in <span className="font-bold tabular-nums">{wait}</span>
         </p>
       </div>
+      {refill && <RefillLives offer={refill} />}
       <Button variant="secondary" onPress={onPracticeLevel}>
         Practice this level
       </Button>
@@ -297,6 +344,53 @@ export function OutOfLives({
       <Button variant="ghost" onPress={onPractice}>
         Play Endless
       </Button>
+    </div>
+  );
+}
+
+/**
+ * Refill lives to full with gems instead of waiting. The server charges once
+ * and refuses a full player, so a double tap never pays twice. Without enough
+ * gems the price and balance still show, so the player knows what it costs.
+ */
+function RefillLives({ offer }: { offer: RefillOffer }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const affordable = offer.gems >= offer.cost;
+
+  const buy = async () => {
+    setBusy(true);
+    setError(null);
+    const res = await offer.buy();
+    // On success the card redraws with full lives; only a refusal lands here.
+    if (!res.ok) setError(REFILL_ERROR[res.code]);
+    setBusy(false);
+  };
+
+  return (
+    <div className="flex flex-col gap-1">
+      <Button
+        busy={busy}
+        disabled={!affordable}
+        onPress={() => void buy()}
+        aria-label={`Refill lives for ${offer.cost} gems`}
+        className="min-h-[52px] text-cta"
+      >
+        <HeartIcon size={16} /> Refill lives · {offer.cost} gems
+      </Button>
+      <p className="text-center text-meta text-text-secondary">
+        {affordable ? `You have ${offer.gems} gems` : `You have ${offer.gems} gems, ${offer.cost - offer.gems} short`}
+      </p>
+      {!affordable && offer.onGetGems && (
+        <Button variant="secondary" onPress={offer.onGetGems}>
+          Get gems
+        </Button>
+      )}
+      {error && (
+        <p role="alert" className="text-center text-meta text-ember">
+          {error}
+        </p>
+      )}
     </div>
   );
 }

@@ -1,5 +1,5 @@
-import { useEffect, useRef } from "react";
-import { ALTITUDE_UNIT } from "@app/lib/units";
+import { useEffect, useRef, useState } from "react";
+import { ALTITUDE_UNIT, formatWholeFeet } from "@app/lib/units";
 import { avatarName, stickColorOf } from "@app/lib/avatars";
 import { Button } from "../ui";
 import {
@@ -10,9 +10,10 @@ import {
   type PlayerStats,
 } from "../../lib/levels/model";
 import { HeartIcon, StarIcon, XpBar, livesLabel, useNow } from "./LevelBits";
-import { OutOfLives } from "./LevelStartSheet";
+import { OutOfLives, type RefillOffer } from "./LevelStartSheet";
 import { ChestReveal } from "./ChestOpening";
-import { STUCK_BOOSTER_FAILS } from "@app/levels/engagement";
+import { STUCK_BOOSTER_FAILS, type BoosterType } from "@app/levels/engagement";
+import type { NextStart } from "../../lib/levels/boosterPick";
 
 /**
  * The end of a level run. A clear shows the stars earned against the star
@@ -33,6 +34,8 @@ export function LevelResultCard({
   onPractice,
   onPracticeLevel,
   nearMiss = null,
+  nextStart = null,
+  refill = null,
 }: {
   result: LevelResult;
   /** Whether a retry of this level spends a life (tutorial levels don't). */
@@ -40,15 +43,23 @@ export function LevelResultCard({
   /** "2 floors from the summit!" when a loss came close (§6.2). */
   nearMiss?: string | null;
   hasNextLevel: boolean;
+  /** The next level's start facts: its chest boosters can be picked for it. */
+  nextStart?: NextStart | null;
   retryBusy: boolean;
   /** Why the last Retry could not start, in the player's words. */
   retryError?: string | null;
-  onNext: () => void;
+  /** Next level, with the booster picked on the chest reveal (or null). */
+  onNext: (booster: BoosterType | null) => void;
   onRetry: () => void;
   onMap: () => void;
   onPractice: () => void;
   onPracticeLevel: () => void;
+  /** The paid lives refill, offered when a loss leaves no lives. */
+  refill?: RefillOffer | null;
 }) {
+  // One booster from the chest for the next level: only a preselect for its start card.
+  const [pick, setPick] = useState<BoosterType | null>(null);
+  const chestPick = result.cleared && hasNextLevel && nextStart ? { next: nextStart, selected: pick, onSelect: setPick } : null;
   const label = result.cleared
     ? `Level ${result.level} cleared, ${result.stars} of ${MAX_STARS} stars`
     : (nearMiss ?? `${result.outOfTime ? "Out of time" : "Caught by the lava"}, ${feetShort(result)} ${ALTITUDE_UNIT} from the summit`);
@@ -66,7 +77,7 @@ export function LevelResultCard({
         />
       )}
       {/* Keyed by chest: a new clear's chests start their opening afresh. */}
-      <ChestReveal key={result.chestsOpened.map((c) => c.chestNumber).join()} chests={result.chestsOpened} />
+      <ChestReveal key={result.chestsOpened.map((c) => c.chestNumber).join()} chests={result.chestsOpened} pick={chestPick} />
       <StreakLine result={result} />
       <StuckLine result={result} />
 
@@ -79,7 +90,7 @@ export function LevelResultCard({
         {result.cleared ? (
           <>
             {hasNextLevel && (
-              <Button onPress={onNext} className="min-h-[56px] text-cta">
+              <Button onPress={() => onNext(chestPick ? pick : null)} className="min-h-[56px] text-cta">
                 Next level
               </Button>
             )}
@@ -101,6 +112,7 @@ export function LevelResultCard({
             onMap={onMap}
             onPractice={onPractice}
             onPracticeLevel={onPracticeLevel}
+            refill={refill}
           />
         )}
       </div>
@@ -252,7 +264,7 @@ function Lost({
         <span className="block h-full rounded-full bg-ember" style={{ width: `${pct}%` }} />
       </div>
       <p className="mt-1.5 text-center font-mono text-label uppercase tracking-label text-text-muted">
-        {Math.round(peakFt).toLocaleString()} of {goalFt.toLocaleString()} {ALTITUDE_UNIT}
+        {formatWholeFeet(peakFt)} of {formatWholeFeet(goalFt)} {ALTITUDE_UNIT}
       </p>
     </>
   );
@@ -266,6 +278,7 @@ function LossActions({
   onMap,
   onPractice,
   onPracticeLevel,
+  refill,
 }: {
   player: PlayerStats;
   costsLife: boolean;
@@ -274,12 +287,18 @@ function LossActions({
   onMap: () => void;
   onPractice: () => void;
   onPracticeLevel: () => void;
+  refill: RefillOffer | null;
 }) {
   const now = useNow();
   if (costsLife && player.lives <= 0) {
     return (
       <>
-        <OutOfLives wait={livesLabel(player, now)} onPractice={onPractice} onPracticeLevel={onPracticeLevel} />
+        <OutOfLives
+          wait={livesLabel(player, now)}
+          onPractice={onPractice}
+          onPracticeLevel={onPracticeLevel}
+          refill={refill}
+        />
         <Button variant="ghost" onPress={onMap}>
           Map
         </Button>
@@ -392,9 +411,8 @@ function Sheet({ label, children }: { label: string; children: React.ReactNode }
       aria-modal="true"
       aria-label={label}
       tabIndex={-1}
-      className="lr-card absolute outline-none focus-visible:outline-none inset-x-0 bottom-0 z-30 mx-auto max-h-[calc(100dvh-env(safe-area-inset-top))] max-w-md overflow-y-auto overscroll-contain rounded-t-3xl border-t border-border-strong bg-surface/95 px-6 pb-[calc(env(safe-area-inset-bottom)+1.5rem)] pt-3 backdrop-blur-xl"
+      className="lr-card absolute outline-none focus-visible:outline-none inset-x-0 bottom-0 z-30 mx-auto max-h-[calc(100dvh-env(safe-area-inset-top))] max-w-md overflow-y-auto overscroll-contain rounded-t-3xl border-t border-border-strong bg-surface/95 px-6 pb-[calc(env(safe-area-inset-bottom)+1.5rem)] pt-9 backdrop-blur-xl"
     >
-      <span aria-hidden className="mx-auto mb-5 block h-1 w-9 rounded-full bg-border-strong" />
       {children}
       <style>{`
         .lr-card { animation: lrUp 0.28s cubic-bezier(0.16,1,0.3,1) both; }

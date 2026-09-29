@@ -76,7 +76,7 @@ import {
 /** Star-ladder characters: the first two rungs (15 and 30 stars). */
 const KESTREL = avatarEntry("kestrel")!;
 const LYNX = avatarEntry("lynx")!;
-const STICKS = AVATARS.filter((a) => a.unlock.kind === "tutorial").map((a) => a.id);
+const STICKS = AVATARS.filter((a) => a.stickColor !== undefined).map((a) => a.id);
 
 function settings(avatarId: string | null, displayName: string | null = "Aria Stone"): SettingsData {
   return { displayName, username: null, social: null, leaderboardConsent: true, avatarId };
@@ -117,6 +117,7 @@ function renderPicker() {
         null,
         createElement(Route, { path: "/profile", element: createElement("p", null, "Profile screen") }),
         createElement(Route, { path: "/profile/avatar", element: createElement(AvatarPickerScreen) }),
+        createElement(Route, { path: "/shop/:characterId", element: createElement("p", null, "Skin details screen") }),
       ),
     ),
   );
@@ -219,7 +220,8 @@ describe("picker order and groups", () => {
     ...STAR_NAMES,
   ];
 
-  it("lists premium, the six sticks, Initials, then the star ladder cheapest first", () => {
+  it("lists the Shop Wraith, Gecko and the six sticks, Initials, then the star ladder cheapest first, and no skins", () => {
+    expect(OPTIONS.some((o) => o.entry?.skinOf !== undefined)).toBe(false);
     expect(OPTIONS.map((o) => o.name)).toEqual(ORDER);
     expect(OPTIONS.find((o) => o.name === "Initials")?.id).toBeNull();
     const ladder = OPTIONS.flatMap((o) => (o.entry && requiredStars(o.entry) !== null ? [requiredStars(o.entry)!] : []));
@@ -238,14 +240,14 @@ describe("picker order and groups", () => {
     expect(radios().filter((r) => r.hasAttribute("data-equipped"))).toEqual([tile("Kestrel")]);
   });
 
-  it("groupHeading starts a group only at premium, the sticks and Initials", () => {
+  it("groupHeading starts a group only at the Shop, the free-after-tutorial ones and Initials", () => {
     const headings = OPTIONS.flatMap((_, i) => {
       const h = groupHeading(i);
       return h === null ? [] : [[i, h] as const];
     });
     expect(headings).toEqual([
-      [0, "Premium · coming soon"],
-      [2, "Stick figures · free after the tutorial"],
+      [0, "Shop · buy with gems"],
+      [1, "Free after the tutorial"],
       [8, "Initials and star unlocks"],
     ]);
   });
@@ -255,14 +257,14 @@ describe("picker order and groups", () => {
     renderPicker();
     const ps = [...container.querySelectorAll('[role="radiogroup"] > p')];
     expect(ps.map((p) => p.textContent)).toEqual([
-      "Premium · coming soon",
-      "Stick figures · free after the tutorial",
+      "Shop · buy with gems",
+      "Free after the tutorial",
       "Initials and star unlocks",
     ]);
     for (const p of ps) expect(p.getAttribute("aria-hidden")).toBe("true");
     expect(ps.map((p) => p.nextElementSibling?.getAttribute("aria-label"))).toEqual([
       "Wraith",
-      "Green Stick",
+      "Gecko",
       "Use initials, equipped",
     ]);
   });
@@ -766,36 +768,42 @@ describe("locked characters in the picker (server unlock state)", () => {
     expect(saveButton()?.disabled).toBe(false);
   });
 
-  it("locks premium characters even at a full star count: tag Premium, Save reads Not on sale yet", async () => {
-    const everythingElse = AVATARS.filter((a) => a.unlock.kind !== "premium").map((a) => a.id);
+  it("locks the unbought Wraith even at a full star count, and sends Save to its Shop page", async () => {
+    const everythingElse = AVATARS.filter((a) => a.unlock.kind !== "purchase").map((a) => a.id);
     state.settings = withUnlocks("stick-green", 900, everythingElse);
     renderPicker();
-    for (const name of ["Wraith", "Gecko"]) {
-      expect(tile(name)?.getAttribute("aria-label")).toBe(`${name}, locked. Premium`);
-      expect(tile(name)?.textContent).toContain("Premium");
-    }
-    // Every star character is open at 900 stars (the positive fixture for the premium lock).
+    expect(tile("Wraith")?.getAttribute("aria-label")).toBe("Wraith, locked. Buy in the Shop");
+    expect(tile("Wraith")?.textContent).toContain("Shop");
+    // Gecko is free after the tutorial, and every star character is open at 900 stars.
+    expect(tile("Gecko")?.hasAttribute("data-locked")).toBe(false);
     expect(tile("Viking")?.hasAttribute("data-locked")).toBe(false);
 
     await click(tile("Wraith"));
-    expect(previewTag()).toBe("Premium");
-    expect(preview()?.textContent).toContain("Coming soon");
-    expect(notice()?.textContent).toBe("Wraith is a premium character. It is not on sale yet.");
-    // No star progress for a premium lock.
+    expect(previewTag()).toBe("2,000 gems");
+    expect(preview()?.textContent).toContain("In Shop");
+    expect(notice()?.textContent).toBe("Buy Wraith in the Shop for 2,000 gems.");
     expect(preview()?.textContent).not.toContain("★");
-    expect(saveButton()?.textContent).toBe("Not on sale yet");
+    expect(saveButton()?.textContent).toBe("Get it in the Shop");
+    expect(saveButton()?.disabled).toBe(false);
+    await click(saveButton());
+    expect(container.textContent).toContain("Skin details screen");
+  });
+
+  it("shows a saved skin as its character's tile, equipped, naming the skin", async () => {
+    state.settings = withUnlocks("lynx-void", 30, [...STICKS, "kestrel", "lynx", "lynx-void"]);
+    renderPicker();
+    expect(tile("Lynx")?.getAttribute("aria-label")).toBe("Lynx, equipped");
+    expect(previewTag()).toBe("Equipped · Void Lynx");
     expect(saveButton()?.disabled).toBe(true);
   });
 
-  it("keeps a saved premium character selectable (grandfathered) and warns before leaving it", async () => {
+  it("keeps a saved Shop character selectable (grandfathered) and warns before leaving it", async () => {
     state.settings = withUnlocks("wraith", 0, [...STICKS, "wraith"], "wraith");
     renderPicker();
     expect(tile("Wraith")?.getAttribute("aria-label")).toBe("Wraith, equipped");
     expect(tile("Gecko")?.hasAttribute("data-locked")).toBe(true);
     await click(tile("Green Stick"));
-    expect(switchWarning()?.textContent).toBe(
-      "Switching will lock Wraith. It is a premium character and you can't pick it again yet.",
-    );
+    expect(switchWarning()?.textContent).toBe("Switching will lock Wraith until you buy it in the Shop.");
   });
 
   it("locks the stick figures until the tutorial is done", async () => {
@@ -950,22 +958,23 @@ describe("arrow keys follow the visual grid, group rows included (review W1)", (
 
   it("lays each group out from a new row", () => {
     expect(GRID_CELLS[at("wraith")]).toEqual({ row: 0, col: 0 });
-    expect(GRID_CELLS[at("gecko")]).toEqual({ row: 0, col: 1 });
-    expect(GRID_CELLS[at("stick-green")]).toEqual({ row: 1, col: 0 });
-    expect(GRID_CELLS[at("stick-sky")]).toEqual({ row: 2, col: 0 });
-    expect(GRID_CELLS[at(null)]).toEqual({ row: 3, col: 0 });
-    expect(GRID_CELLS[at("kestrel")]).toEqual({ row: 3, col: 1 });
+    expect(GRID_CELLS[at("gecko")]).toEqual({ row: 1, col: 0 });
+    expect(GRID_CELLS[at("stick-green")]).toEqual({ row: 1, col: 1 });
+    expect(GRID_CELLS[at("stick-amber")]).toEqual({ row: 2, col: 0 });
+    expect(GRID_CELLS[at("stick-pink")]).toEqual({ row: 3, col: 0 });
+    expect(GRID_CELLS[at(null)]).toEqual({ row: 4, col: 0 });
+    expect(GRID_CELLS[at("kestrel")]).toEqual({ row: 4, col: 1 });
   });
 
   it("Down moves straight down across a group boundary, never diagonally", () => {
-    expect(nextIndex("ArrowDown", at("wraith"), n)).toBe(at("stick-green"));
-    expect(nextIndex("ArrowDown", at("gecko"), n)).toBe(at("stick-ember"));
-    expect(nextIndex("ArrowDown", at("stick-sky"), n)).toBe(at(null));
+    expect(nextIndex("ArrowDown", at("wraith"), n)).toBe(at("gecko"));
+    expect(nextIndex("ArrowDown", at("gecko"), n)).toBe(at("stick-amber"));
+    expect(nextIndex("ArrowDown", at("stick-pink"), n)).toBe(at(null));
   });
 
   it("Up from a column with nothing above lands on the nearest tile in the row above", () => {
-    expect(nextIndex("ArrowUp", at("stick-amber"), n)).toBe(at("gecko"));
-    expect(nextIndex("ArrowUp", at("stick-green"), n)).toBe(at("wraith"));
+    expect(nextIndex("ArrowUp", at("stick-ember"), n)).toBe(at("wraith"));
+    expect(nextIndex("ArrowUp", at("stick-sky"), n)).toBe(at("stick-green"));
   });
 
   it("stays put at the top and bottom edges; Left/Right still step in order", () => {

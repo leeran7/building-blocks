@@ -16,14 +16,19 @@
  * Request:  { season: number, level: number, simVersion: number,
  *             booster?: PowerUpType }  (an owned booster to equip, §6.4)
  * 200:      { ticketId, season, level, simVersion, rev, pars, expiresAt,
- *             lifeSpent, lives, nextLifeAt, startPowerUp, streak,
- *             failsAtLevel, routeGhostAvailable }
+ *             lifeSpent, lives, nextLifeAt, startPowerUp, startPowerUps,
+ *             boosterKept, streak, failsAtLevel, routeGhostAvailable, boosters }
  *            (rev: the level's seed revision; pars: { twoStarTicks,
  *             threeStarTicks, oneStarTicks }, which /result scores stars
  *             against; oneStarTicks is the level's clock, or null;
- *             startPowerUp: { type, source: "streak" | "stuck_help" } | null,
- *             what the run starts with at GO, decided here from server
- *             state only; streak: the win streak after any open ticket was
+ *             startPowerUps: [{ type, source: "streak" | "stuck_help" |
+ *             "booster" }], everything the run starts with at GO, in order
+ *             (the free power-up first, then the booster; at most one of
+ *             each), decided here from server state only; startPowerUp: the
+ *             first of them or null, for apps that play one; boosterKept:
+ *             the requested booster type when it was NOT spent because the
+ *             free power-up is the same type (granting it again would only
+ *             refresh it), else null; streak: the win streak after any open ticket was
  *             closed; failsAtLevel / routeGhostAvailable: stuck help, §5c.
  *             The route ghost view itself is not built yet: the flag only
  *             says the player has earned it; boosters: the inventory after
@@ -139,6 +144,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         lives: ticket.lives,
         nextLifeAt: ticket.nextLifeAt?.toISOString() ?? null,
         startPowerUp: ticket.startPowerUp,
+        startPowerUps: ticket.startPowerUps,
+        boosterKept: ticket.boosterKept,
         streak: ticket.streak,
         failsAtLevel: ticket.failsAtLevel,
         routeGhostAvailable: ticket.routeGhostAvailable,

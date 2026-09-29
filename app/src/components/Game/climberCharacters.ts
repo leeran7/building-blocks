@@ -17,11 +17,13 @@
  * Green Stick is what every player without a character climbs as.
  *
  * A fourth kind, `tint` (the Wraith sheets recoloured by climberTint.ts), is
- * kept for a future recolour feature (e.g. unlockable colour skins). The live
- * registry uses none; RECOLOR_PALETTE holds the colours sampled for it.
+ * the placeholder for a paid Void skin (`<id>-void`, src/lib/avatars.ts)
+ * until its own art lands: the Wraith in that character's colours, which is
+ * the Wraith style the paid versions are drawn in. Giving a Void skin its
+ * art is one line in VOID_SKIN_SHEETS below plus its two sheet files.
  */
 
-import { stickColorOf } from "../../lib/avatars";
+import { AVATARS, stickColorOf } from "../../lib/avatars";
 
 /** Source cell edge (px) of every shipped atlas, and the `-192` in file names. */
 export const SHEET_CELL = 192;
@@ -137,6 +139,63 @@ function stickFor(avatarId: string): StickCharacter {
   return { kind: "stick", color };
 }
 
+/** A recolour's two colours, both "#rrggbb" (see TintCharacter). */
+export interface RecolorColors {
+  readonly accent: string;
+  readonly body: string;
+}
+
+/**
+ * Each character's colours: the accent of its Void skin placeholder (below),
+ * and data for a future recolour feature. Pass an entry to
+ * `tint(accent, body)` to build a recoloured Wraith.
+ *
+ * Colours were sampled from each portrait in
+ * mobile/src/assets/avatars/<id>.webp: `accent` is the brighter half of the
+ * dominant saturated hue (10° bins, grey and near-black/white pixels
+ * excluded), `body` the mean of the portrait's dark pixels (lightness < 0.3).
+ */
+export const RECOLOR_PALETTE: Readonly<Record<string, RecolorColors>> = {
+  viking: { accent: "#f4661c", body: "#291816" },
+  sentinel: { accent: "#42eff6", body: "#132026" },
+  ibex: { accent: "#ecba55", body: "#2e1e12" },
+  falcon: { accent: "#f29842", body: "#2e1c17" },
+  marmot: { accent: "#eaae74", body: "#2d1f18" },
+  gecko: { accent: "#b2ef2f", body: "#202916" },
+  panther: { accent: "#b446f4", body: "#211529" },
+  otter: { accent: "#3595f2", body: "#151d2b" },
+  raven: { accent: "#f4b943", body: "#291c14" },
+  lynx: { accent: "#f23db5", body: "#2b1822" },
+  bison: { accent: "#f1442a", body: "#321412" },
+  heron: { accent: "#3b93e6", body: "#162033" },
+  cobra: { accent: "#1982f5", body: "#12192f" },
+  badger: { accent: "#be4df4", body: "#231828" },
+  wolf: { accent: "#f43fba", body: "#2d1622" },
+  kestrel: { accent: "#4a9fef", body: "#231c23" },
+  mantis: { accent: "#b3f027", body: "#152f14" },
+  yak: { accent: "#ea4239", body: "#311614" },
+};
+
+/**
+ * Void skins whose own sheets have landed in public/climb/
+ * (`<id>-void-poses-192.png` and `-climb-192.png`), with their sheet options.
+ * Every other Void skin draws as its placeholder tint.
+ */
+export const VOID_SKIN_SHEETS: Readonly<Record<string, SheetOptions>> = {};
+
+/** The near-black the Wraith-style placeholders lean their body greys toward. */
+const VOID_BODY = "#0e0e12";
+/** The Void Walker placeholder's accent: the Wraith already wears the lime. */
+const VOID_WALKER_ACCENT = "#9b5cff";
+
+/** A Void skin's registry entry: its own sheets once they land, else the placeholder tint. */
+function voidSkin(skinId: string, characterId: string): ClimberCharacter {
+  const art = Object.prototype.hasOwnProperty.call(VOID_SKIN_SHEETS, skinId) ? VOID_SKIN_SHEETS[skinId] : null;
+  if (art !== null) return sheets(skinId, art);
+  const palette = Object.prototype.hasOwnProperty.call(RECOLOR_PALETTE, characterId) ? RECOLOR_PALETTE[characterId] : null;
+  return tint(palette?.accent ?? VOID_WALKER_ACCENT, VOID_BODY);
+}
+
 /**
  * One entry per avatar id. A test pins that the keys match the avatar
  * catalogue exactly and that every `base()` avatar resolves to the Wraith.
@@ -168,43 +227,9 @@ export const CLIMBER_CHARACTERS: Readonly<Record<string, ClimberCharacter>> = {
   ibex: sheets("ibex", { headTop: 38 }),
   sentinel: sheets("sentinel", { headTop: 40 }),
   viking: sheets("viking", { headTop: 32 }),
-};
-
-/** A recolour's two colours, both "#rrggbb" (see TintCharacter). */
-export interface RecolorColors {
-  readonly accent: string;
-  readonly body: string;
-}
-
-/**
- * Data for the future recolour feature (e.g. unlockable colour skins); NOT
- * read by the registry above or the sprite engine. Pass an entry to
- * `tint(accent, body)` to build a recoloured Wraith.
- *
- * Colours were sampled from each portrait in
- * mobile/src/assets/avatars/<id>.webp: `accent` is the brighter half of the
- * dominant saturated hue (10° bins, grey and near-black/white pixels
- * excluded), `body` the mean of the portrait's dark pixels (lightness < 0.3).
- */
-export const RECOLOR_PALETTE: Readonly<Record<string, RecolorColors>> = {
-  viking: { accent: "#f4661c", body: "#291816" },
-  sentinel: { accent: "#42eff6", body: "#132026" },
-  ibex: { accent: "#ecba55", body: "#2e1e12" },
-  falcon: { accent: "#f29842", body: "#2e1c17" },
-  marmot: { accent: "#eaae74", body: "#2d1f18" },
-  gecko: { accent: "#b2ef2f", body: "#202916" },
-  panther: { accent: "#b446f4", body: "#211529" },
-  otter: { accent: "#3595f2", body: "#151d2b" },
-  raven: { accent: "#f4b943", body: "#291c14" },
-  lynx: { accent: "#f23db5", body: "#2b1822" },
-  bison: { accent: "#f1442a", body: "#321412" },
-  heron: { accent: "#3b93e6", body: "#162033" },
-  cobra: { accent: "#1982f5", body: "#12192f" },
-  badger: { accent: "#be4df4", body: "#231828" },
-  wolf: { accent: "#f43fba", body: "#2d1622" },
-  kestrel: { accent: "#4a9fef", body: "#231c23" },
-  mantis: { accent: "#b3f027", body: "#152f14" },
-  yak: { accent: "#ea4239", body: "#311614" },
+  ...Object.fromEntries(
+    AVATARS.flatMap((a) => (a.skinOf === undefined ? [] : [[a.id, voidSkin(a.id, a.skinOf)] as const]))
+  ),
 };
 
 const HEX = /^#([0-9a-f]{6})$/i;

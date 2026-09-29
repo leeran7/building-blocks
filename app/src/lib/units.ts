@@ -14,6 +14,11 @@ export function formatAltitude(value: number, digits = 1): string {
   return `${value.toFixed(digits)}${ALTITUDE_UNIT}`;
 }
 
+/** Whole feet with thousands separators, for goals and summits ("1,203"). */
+export function formatWholeFeet(value: number): string {
+  return Math.round(value).toLocaleString();
+}
+
 export function formatAltitudeLabel(value: number, digits = 1): string {
   return `${value.toFixed(digits)} ${ALTITUDE_UNIT_LONG}`;
 }

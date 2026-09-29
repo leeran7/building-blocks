@@ -651,9 +651,7 @@ function ResultsCard({
       ? `#${saveInfo.rank}${saveInfo.totalClimbers ? ` of ${saveInfo.totalClimbers.toLocaleString()}` : ""}${topPct ? ` · top ${topPct}%` : ""}`
       : "your highest climb";
   return (
-    <div className="rc-card absolute inset-x-0 bottom-0 z-30 animate-[resultsUp_0.28s_cubic-bezier(0.16,1,0.3,1)] rounded-t-3xl border-t border-border-strong bg-surface/95 px-6 pb-[calc(env(safe-area-inset-bottom)+1.75rem)] pt-3 backdrop-blur-xl">
-      {/* iOS sheet grabber */}
-      <span aria-hidden className="mx-auto mb-5 block h-1 w-9 rounded-full bg-border-strong" />
+    <div className="rc-card absolute inset-x-0 bottom-0 z-30 animate-[resultsUp_0.28s_cubic-bezier(0.16,1,0.3,1)] rounded-t-3xl border-t border-border-strong bg-surface/95 px-6 pb-[calc(env(safe-area-inset-bottom)+1.75rem)] pt-9 backdrop-blur-xl">
       <style>{`
         @keyframes resultsUp { from { transform: translateY(100%);} to { transform: translateY(0);} }
         @keyframes rcBestPop { from { transform: scale(0.8); opacity: 0; } to { transform: scale(1); opacity: 1; } }

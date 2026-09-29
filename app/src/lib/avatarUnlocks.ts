@@ -4,8 +4,9 @@
  *
  * An avatar is selectable when either holds:
  *   - its rule is met: a star rule by the player's level stars, a tutorial
- *     rule once they have cleared level 1. A premium rule is never met (not
- *     on sale yet);
+ *     rule once they have cleared level 1, a purchase rule once the player
+ *     owns it (a server-side purchase record, never level data). A premium
+ *     rule is never met (not on sale);
  *   - it is the player's saved avatar (grandfathered). This lasts only while
  *     it stays saved: switching to another avatar locks it again until its
  *     rule is met, and the picker warns before that switch. This keeps
@@ -31,6 +32,11 @@ export interface AvatarUnlockInput {
   tutorialDone: boolean;
   /** The stored avatar id (any string; anything outside the catalogue is ignored). */
   savedAvatarId: string | null;
+  /**
+   * Catalogue ids the player has bought with gems (owned_characters, read by
+   * the server). Absent means none.
+   */
+  ownedIds?: readonly string[];
 }
 
 /** The unlock state the settings API returns for the picker. */
@@ -40,6 +46,8 @@ export interface AvatarUnlockState {
   tutorialDone?: boolean;
   /** Every catalogue id this player may select, in catalogue order. */
   unlockedIds: string[];
+  /** Catalogue ids bought with gems. Absent from an API build older than the Shop. */
+  ownedIds?: string[];
   /**
    * The saved avatar when it is selectable only because it is saved (its
    * rule unmet), else null. Switching away locks it.
@@ -68,6 +76,8 @@ function earned(entry: AvatarEntry, input: AvatarUnlockInput): boolean {
       return input.tutorialDone;
     case "premium":
       return false;
+    case "purchase":
+      return input.ownedIds?.includes(entry.id) ?? false;
   }
 }
 
@@ -99,6 +109,7 @@ export function avatarUnlockState(input: AvatarUnlockInput): AvatarUnlockState {
     stars: input.stars,
     tutorialDone: input.tutorialDone,
     unlockedIds: AVATARS.filter((a) => selectable(a, input)).map((a) => a.id),
+    ownedIds: AVATARS.filter((a) => input.ownedIds?.includes(a.id)).map((a) => a.id),
     grandfatheredId: saved && !earned(saved, input) ? saved.id : null,
   };
 }
@@ -116,4 +127,28 @@ export function avatarsNewlyUnlocked(
   const saved = parseAvatarId(player.savedAvatarId);
   const sticks = player.tutorialJustDone ? AVATARS.filter((a) => a.unlock.kind === "tutorial").map((a) => a.id) : [];
   return [...sticks, ...avatarsUnlockedBetween(before, after)].filter((id) => id !== saved);
+}
+
+/** Why the Shop refuses to sell an entry to this player. */
+export type PurchaseRefusal =
+  /** Not a purchase rule (stars, tutorial, premium): never sold for gems. */
+  | "NOT_FOR_SALE"
+  /** The player already owns it. */
+  | "OWNED"
+  /** A skin whose character the player cannot select yet ("Character required"). */
+  | "CHARACTER_REQUIRED";
+
+/**
+ * Whether the Shop may sell `entry` to this player, or why not. A skin needs
+ * its character selectable first (earned, owned, or the saved one), like the
+ * store design's "Character required".
+ */
+export function purchaseRefusal(entry: AvatarEntry, input: AvatarUnlockInput): PurchaseRefusal | null {
+  if (entry.unlock.kind !== "purchase") return "NOT_FOR_SALE";
+  if (input.ownedIds?.includes(entry.id)) return "OWNED";
+  if (entry.skinOf !== undefined) {
+    const character = AVATARS.find((a) => a.id === entry.skinOf);
+    if (character === undefined || !selectable(character, input)) return "CHARACTER_REQUIRED";
+  }
+  return null;
 }

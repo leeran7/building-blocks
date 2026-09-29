@@ -21,19 +21,28 @@ import { TICK_HZ } from "../../src/game/types";
 function harness(start = 1_000_000) {
   let now = start;
   let stored: string | null = null;
-  const client = createMockLevelsClient({
-    now: () => now,
-    load: () => stored,
-    save: (raw) => {
-      stored = raw;
-    },
-  });
+  const open = () =>
+    createMockLevelsClient({
+      now: () => now,
+      load: () => stored,
+      save: (raw) => {
+        stored = raw;
+      },
+    });
+  const client = open();
   return {
     client,
     advance: (ms: number) => {
       now += ms;
     },
     stored: () => stored,
+    /** Rewrite the stored state, and open the store again on it (a new app session). */
+    edit: (fn: (state: Record<string, unknown>) => void) => {
+      const state = JSON.parse(stored ?? "{}") as Record<string, unknown>;
+      fn(state);
+      stored = JSON.stringify(state);
+      return open();
+    },
   };
 }
 
@@ -278,7 +287,7 @@ describe("win streaks on the device store", () => {
     const season = await client.getSeason();
     expect(season).toMatchObject({ streak: 3, nextStartPowerUp: { type: "rapid-climb", source: "streak" } });
     const start = await client.startLevel(4);
-    expect(start).toMatchObject({ ok: true, ticket: { startPowerUp: { type: "rapid-climb", source: "streak" } } });
+    expect(start).toMatchObject({ ok: true, ticket: { startPowerUps: [{ type: "rapid-climb", source: "streak" }], boosterKept: null } });
   });
 
   it("ignore replays and reset on a frontier loss", async () => {
@@ -316,7 +325,7 @@ describe("star chests and boosters on the device store", () => {
     expect((await clear(client, 1, 1_000)).chestsOpened).toEqual([]);
   });
 
-  it("spends an equipped booster at start, keeps it when a free power-up applies, and refuses one not owned or unlocked", async () => {
+  it("spends an equipped booster at start, refuses one not owned or unlocked", async () => {
     const { client } = harness();
     await clearAll(client, 7);
     const season = await client.getSeason();
@@ -324,16 +333,44 @@ describe("star chests and boosters on the device store", () => {
     if (!type) throw new Error("the first chest held nothing");
     const before = season.boosters[type] ?? 0;
 
-    // L8 is the frontier with a win streak: the free power-up wins and the booster is kept.
-    expect(season.nextStartPowerUp).not.toBeNull();
-    expect(await client.startLevel(8, { booster: type })).toMatchObject({ ok: true, ticket: { startPowerUp: { source: "streak" } } });
-    expect((await client.getSeason()).boosters[type] ?? 0).toBe(before);
     // L2 unlocks no power-ups.
     expect(await client.startLevel(2, { booster: type })).toEqual({ ok: false, code: "BOOSTER_UNAVAILABLE" });
     expect(await client.startLevel(7, { booster: "jetpack" })).toEqual({ ok: false, code: "BOOSTER_UNAVAILABLE" });
 
     const start = await client.startLevel(7, { booster: type });
-    expect(start).toMatchObject({ ok: true, ticket: { startPowerUp: { type, source: "booster" } } });
+    expect(start).toMatchObject({ ok: true, ticket: { startPowerUps: [{ type, source: "booster" }], boosterKept: null } });
     expect((await client.getSeason()).boosters[type] ?? 0).toBe(before - 1);
+  });
+
+  it("starts with the free power-up AND the booster, spending the booster", async () => {
+    const h = harness();
+    await clearAll(h.client, 7);
+    const client = h.edit((state) => void (state.boosters = { "sprint-burst": 2 }));
+    // L8 is the frontier after 7 first clears in a row: a free rapid climb.
+    expect((await client.getSeason()).nextStartPowerUp).toEqual({ type: "rapid-climb", source: "streak" });
+    const start = await client.startLevel(8, { booster: "sprint-burst" });
+    expect(start).toMatchObject({
+      ok: true,
+      ticket: {
+        startPowerUps: [
+          { type: "rapid-climb", source: "streak" },
+          { type: "sprint-burst", source: "booster" },
+        ],
+        boosterKept: null,
+      },
+    });
+    expect((await client.getSeason()).boosters).toEqual({ "sprint-burst": 1 });
+  });
+
+  it("keeps a booster of the free power-up's own type, and says so", async () => {
+    const h = harness();
+    await clearAll(h.client, 7);
+    const client = h.edit((state) => void (state.boosters = { "rapid-climb": 1 }));
+    const start = await client.startLevel(8, { booster: "rapid-climb" });
+    expect(start).toMatchObject({
+      ok: true,
+      ticket: { startPowerUps: [{ type: "rapid-climb", source: "streak" }], boosterKept: "rapid-climb" },
+    });
+    expect((await client.getSeason()).boosters).toEqual({ "rapid-climb": 1 });
   });
 });

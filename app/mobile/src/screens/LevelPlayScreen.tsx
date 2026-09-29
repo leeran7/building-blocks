@@ -12,9 +12,12 @@ import {
   type LevelTicket,
 } from "../lib/levels/model";
 import { REFUSAL_COPY } from "../components/levels/LevelStartSheet";
+import { useLivesRefillOffer } from "../components/levels/useLivesRefillOffer";
 import { LevelRun } from "../components/levels/LevelRun";
+import { nextStartAfter } from "../lib/levels/boosterPick";
+import type { BoosterType } from "@app/levels/engagement";
 import { levelRunSetup } from "../lib/levels/catalog";
-import { parseStartPowerUp } from "../lib/levels/httpClient";
+import { parseBoosterKept, parseStartPowerUps } from "../lib/levels/httpClient";
 import { bestFailMarker, nearMissHeadline } from "../lib/levels/nearMiss";
 import { tutorialTopicsFor, type TutorialTopic } from "@app/game/levels/tutorial";
 import { markTutorialsSeen, unseenTutorials } from "../lib/levels/tutorialSeen";
@@ -43,9 +46,10 @@ export function ticketFromState(state: unknown, level: number): LevelTicket | nu
   ) {
     return null;
   }
-  const startPowerUp = parseStartPowerUp(o.startPowerUp);
-  if (startPowerUp === undefined) return null;
-  return { ...(t as LevelTicket), startPowerUp };
+  const startPowerUps = parseStartPowerUps(o.startPowerUps);
+  const boosterKept = parseBoosterKept(o.boosterKept);
+  if (startPowerUps === undefined || boosterKept === undefined) return null;
+  return { ...(t as LevelTicket), startPowerUps, boosterKept };
 }
 
 type Stage =
@@ -69,6 +73,7 @@ export function LevelPlayScreen() {
   const practice = search.get("practice") === "1";
   const level = Number(params.level);
   const { client, season, setPlayer, refresh, bestFails } = useLevels();
+  const refill = useLivesRefillOffer();
   const seasonNo = season?.season ?? null;
   const node: LevelNode | null =
     season && Number.isInteger(level) && level >= 1 && level <= season.levels.length
@@ -91,9 +96,9 @@ export function LevelPlayScreen() {
   }, [missing, navigate]);
 
   const toMap = useCallback(
-    (openLevel?: number) => {
+    (openLevel?: number, booster: BoosterType | null = null) => {
       void tapLight();
-      navigate("/", { replace: true, state: openLevel ? { openLevel } : null });
+      navigate("/", { replace: true, state: openLevel ? { openLevel, ...(booster ? { booster } : {}) } : null });
     },
     [navigate],
   );
@@ -217,7 +222,8 @@ export function LevelPlayScreen() {
         paused={stage.kind !== "play"}
         onEnd={submit}
         onQuit={() => toMap()}
-        startPowerUp={practice ? null : (ticket?.startPowerUp ?? null)}
+        startPowerUps={practice ? undefined : ticket?.startPowerUps}
+        boosterKept={practice ? null : (ticket?.boosterKept ?? null)}
         bestFailFt={marker}
         onHowToPlay={() => setTutorial(topics.length > 0 ? topics : ["basics"])}
       />
@@ -234,15 +240,18 @@ export function LevelPlayScreen() {
           costsLife={node.costsLife}
           nearMiss={stage.result.cleared ? null : nearMiss(stage.result.peakFt)}
           hasNextLevel={season !== null && level < season.levels.length}
+          nextStart={nextStartAfter(season, level)}
           retryBusy={retryBusy}
           retryError={retryError}
-          onNext={() => toMap(level + 1)}
+          onNext={(booster) => toMap(level + 1, booster)}
           onRetry={() => void retry()}
           onMap={() => toMap()}
           onPractice={() => navigate("/climb", { replace: true })}
           onPracticeLevel={() => navigate(`/levels/${level}/play?practice=1`, { replace: true })}
+          refill={refill.offer}
         />
       )}
+      {refill.gemPacks}
       {stage.kind === "failed" && (
         <SubmitFailedCard level={level} busy={false} onRetry={() => void submit(stage.report)} onMap={() => toMap()} />
       )}

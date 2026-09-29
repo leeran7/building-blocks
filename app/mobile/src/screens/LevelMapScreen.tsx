@@ -4,6 +4,7 @@ import { useLevels } from "../contexts/LevelsContext";
 import { tapHeavy, tapLight } from "../lib/haptics";
 import { Button } from "../components/ui";
 import { LevelStartSheet } from "../components/levels/LevelStartSheet";
+import { useLivesRefillOffer } from "../components/levels/useLivesRefillOffer";
 import { LevelStartExtras } from "../components/levels/LevelStartExtras";
 import { BoosterPicker, ChestMeter } from "../components/levels/LevelChests";
 import { LivesPill, StarRow, XpBar, useWhenDue } from "../components/levels/LevelBits";
@@ -14,7 +15,8 @@ import {
   type LevelNode,
   type StartResult,
 } from "../lib/levels/model";
-import type { BoosterType } from "@app/levels/engagement";
+import { carriedBooster, equippable, freeStartOn, freeTypeOn } from "../lib/levels/boosterPick";
+import { startBoosterTypes, type BoosterType } from "@app/levels/engagement";
 
 /** Vertical distance between two pins, px. */
 const ROW = 92;
@@ -55,11 +57,13 @@ export function LevelMapScreen() {
   const navigate = useNavigate();
   const location = useLocation();
   const { client, season, loading, error, refresh, setPlayer } = useLevels();
+  const refill = useLivesRefillOffer();
   const [selected, setSelectedNode] = useState<LevelNode | null>(null);
-  // The booster equipped on the open start card; every card opens without one.
+  // The booster equipped on the open start card. Every card opens without
+  // one, except the one a result card's Next level opens with its pick.
   const [booster, setBooster] = useState<BoosterType | null>(null);
-  const setSelected = useCallback((node: LevelNode | null) => {
-    setBooster(null);
+  const setSelected = useCallback((node: LevelNode | null, preselect: BoosterType | null = null) => {
+    setBooster(preselect);
     setSelectedNode(node);
   }, []);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -80,13 +84,17 @@ export function LevelMapScreen() {
     el.scrollTop = Math.max(0, height - pinBottom(frontier) - el.clientHeight * 0.55);
   }, [season, frontier, height]);
 
-  // "Next level" on a result card lands here with the next level's card open.
+  // "Next level" on a result card lands here with the next level's card
+  // open, and the booster picked on the chest reveal equipped when it can be.
   const openLevel = openLevelFromState(location.state);
+  const carried = carriedBooster(location.state);
   useLayoutEffect(() => {
     if (!season || openLevel === null) return;
     navigate(".", { replace: true, state: null });
-    if (openLevel <= season.frontier) setSelected(season.levels[openLevel - 1]);
-  }, [season, openLevel, navigate, setSelected]);
+    if (openLevel > season.frontier) return;
+    const node = season.levels[openLevel - 1];
+    setSelected(node, equippable(carried, season.boosters, startBoosterTypes(node.level, node.allowedPowerUps), freeTypeOn(season, openLevel)));
+  }, [season, openLevel, carried, navigate, setSelected]);
 
   const startLevel = useCallback(
     async (level: number, equipped: BoosterType | null) => {
@@ -100,7 +108,7 @@ export function LevelMapScreen() {
         void tapHeavy();
         setPlayer(res.ticket.player);
         // A spent booster leaves the inventory: reload it for the map.
-        if (res.ticket.startPowerUp?.source === "booster") void refresh();
+        if (res.ticket.startPowerUps.some((p) => p.source === "booster")) void refresh();
         navigate(`/levels/${level}/play`, { state: { ticket: res.ticket } });
         return res;
       }
@@ -244,26 +252,29 @@ export function LevelMapScreen() {
             navigate(`/levels/${selected.level}/play?practice=1`);
           }}
           onClose={() => setSelected(null)}
+          refill={refill.offer}
           extras={
             <LevelStartExtras
               atFrontier={selected.level === frontier}
               streak={season.streak}
-              startPowerUp={selected.level === frontier ? season.nextStartPowerUp : null}
+              startPowerUp={freeStartOn(season, selected.level)}
+              booster={booster}
               stuck={selected.level === season.stuck.level ? season.stuck : null}
               board={{ level: selected.level, load: loadBoard }}
               boosters={
                 <BoosterPicker
                   inventory={season.boosters}
-                  allowed={selected.allowedPowerUps}
+                  allowed={startBoosterTypes(selected.level, selected.allowedPowerUps)}
                   selected={booster}
                   onSelect={setBooster}
-                  freeStart={selected.level === frontier && season.nextStartPowerUp !== null}
+                  freeType={freeTypeOn(season, selected.level)}
                 />
               }
             />
           }
         />
       )}
+      {refill.gemPacks}
     </main>
   );
 }

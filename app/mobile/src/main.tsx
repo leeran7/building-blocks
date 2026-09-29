@@ -7,6 +7,7 @@ import { App } from "./App";
 import { AuthProvider } from "./contexts/AuthContext";
 import { AppDataProvider } from "./contexts/AppDataContext";
 import { LevelsProvider } from "./contexts/LevelsContext";
+import { ShopProvider } from "./contexts/ShopContext";
 import { setVolcanoTileSrc } from "@app/components/Game/climbBackground";
 import volcanoTile from "@app/../public/climb/volcano-tile.jpg";
 import { applyBundledClimberSheets } from "./lib/climberSheets";
@@ -40,7 +41,9 @@ createRoot(document.getElementById("root")!).render(
       <AuthProvider>
         <AppDataProvider>
           <LevelsProvider>
-            <App />
+            <ShopProvider>
+              <App />
+            </ShopProvider>
           </LevelsProvider>
         </AppDataProvider>
       </AuthProvider>

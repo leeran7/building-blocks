@@ -5,13 +5,14 @@ const TABS = [
   { label: "Levels", path: "/", icon: MapIcon },
   { label: "Modes", path: "/modes", icon: ModesIcon },
   { label: "Ranks", path: "/leaderboard", icon: TrophyIcon },
+  { label: "Shop", path: "/shop", icon: ShopIcon },
   { label: "Profile", path: "/profile", icon: UserIcon },
 ] as const;
 
 const TAB_PATHS: ReadonlySet<string> = new Set(TABS.map((t) => t.path));
 
 /**
- * True for a bottom-nav tab root (Levels, Modes, Ranks, Profile), taken from TABS so a
+ * True for a bottom-nav tab root (Levels, Modes, Ranks, Shop, Profile), taken from TABS so a
  * new tab cannot be missed. The tabs are peers, not a stack: App shows the nav
  * on them, RouteTransition fades them in with no swipe-back, and Android back
  * leaves the app from any of them instead of popping to another tab.
@@ -67,6 +68,15 @@ function MapIcon({ active }: { active: boolean }) {
     <svg width="24" height="24" viewBox="0 0 24 24" fill={active ? "currentColor" : "none"} fillOpacity={0.25} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
       <path d="M3 6.5 9 4l6 2.5L21 4v13.5L15 20l-6-2.5L3 20z" />
       <path d="M9 4v13.5M15 6.5V20" />
+    </svg>
+  );
+}
+
+function ShopIcon({ active }: { active: boolean }) {
+  return (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill={active ? "currentColor" : "none"} fillOpacity={0.25} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M5 8h14l-1.2 11.2a2 2 0 0 1-2 1.8H8.2a2 2 0 0 1-2-1.8Z" />
+      <path d="M9 8V6.5a3 3 0 0 1 6 0V8" />
     </svg>
   );
 }
