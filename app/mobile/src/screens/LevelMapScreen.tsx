@@ -54,7 +54,7 @@ export function pinX(level: number): number {
 export function LevelMapScreen() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { client, season, loading, error, refresh, setPlayer } = useLevels();
+  const { client, season, loading, error, refresh, setPlayer, buyLives } = useLevels();
   const [selected, setSelectedNode] = useState<LevelNode | null>(null);
   // The booster equipped on the open start card; every card opens without one.
   const [booster, setBooster] = useState<BoosterType | null>(null);
@@ -244,6 +244,7 @@ export function LevelMapScreen() {
             navigate(`/levels/${selected.level}/play?practice=1`);
           }}
           onClose={() => setSelected(null)}
+          refill={buyLives && season.refill ? { ...season.refill, buy: buyLives } : null}
           extras={
             <LevelStartExtras
               atFrontier={selected.level === frontier}

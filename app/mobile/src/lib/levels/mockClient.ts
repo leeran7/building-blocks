@@ -291,6 +291,8 @@ export function createMockLevelsClient(opts: MockClientOptions = {}): LevelsClie
         stuck: { level: frontier, fails, routeGhostAvailable: false },
         boosters: { ...(state.boosters ?? {}) },
         chests: mockChestProgress(state),
+        // Gems are server-only: the mock never offers a paid refill.
+        refill: null,
       });
     },
 

@@ -68,7 +68,7 @@ export function LevelPlayScreen() {
   const [search] = useSearchParams();
   const practice = search.get("practice") === "1";
   const level = Number(params.level);
-  const { client, season, setPlayer, refresh, bestFails } = useLevels();
+  const { client, season, setPlayer, refresh, bestFails, buyLives } = useLevels();
   const seasonNo = season?.season ?? null;
   const node: LevelNode | null =
     season && Number.isInteger(level) && level >= 1 && level <= season.levels.length
@@ -241,6 +241,7 @@ export function LevelPlayScreen() {
           onMap={() => toMap()}
           onPractice={() => navigate("/climb", { replace: true })}
           onPracticeLevel={() => navigate(`/levels/${level}/play?practice=1`, { replace: true })}
+          refill={buyLives && season?.refill ? { ...season.refill, buy: buyLives } : null}
         />
       )}
       {stage.kind === "failed" && (

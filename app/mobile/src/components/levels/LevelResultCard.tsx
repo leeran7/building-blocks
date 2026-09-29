@@ -10,7 +10,7 @@ import {
   type PlayerStats,
 } from "../../lib/levels/model";
 import { HeartIcon, StarIcon, XpBar, livesLabel, useNow } from "./LevelBits";
-import { OutOfLives } from "./LevelStartSheet";
+import { OutOfLives, type RefillOffer } from "./LevelStartSheet";
 import { ChestReveal } from "./LevelChests";
 import { STUCK_BOOSTER_FAILS } from "@app/levels/engagement";
 
@@ -33,6 +33,7 @@ export function LevelResultCard({
   onPractice,
   onPracticeLevel,
   nearMiss = null,
+  refill = null,
 }: {
   result: LevelResult;
   /** Whether a retry of this level spends a life (tutorial levels don't). */
@@ -48,6 +49,8 @@ export function LevelResultCard({
   onMap: () => void;
   onPractice: () => void;
   onPracticeLevel: () => void;
+  /** The paid lives refill, offered when a loss leaves no lives. */
+  refill?: RefillOffer | null;
 }) {
   const label = result.cleared
     ? `Level ${result.level} cleared, ${result.stars} of ${MAX_STARS} stars`
@@ -100,6 +103,7 @@ export function LevelResultCard({
             onMap={onMap}
             onPractice={onPractice}
             onPracticeLevel={onPracticeLevel}
+            refill={refill}
           />
         )}
       </div>
@@ -265,6 +269,7 @@ function LossActions({
   onMap,
   onPractice,
   onPracticeLevel,
+  refill,
 }: {
   player: PlayerStats;
   costsLife: boolean;
@@ -273,12 +278,18 @@ function LossActions({
   onMap: () => void;
   onPractice: () => void;
   onPracticeLevel: () => void;
+  refill: RefillOffer | null;
 }) {
   const now = useNow();
   if (costsLife && player.lives <= 0) {
     return (
       <>
-        <OutOfLives wait={livesLabel(player, now)} onPractice={onPractice} onPracticeLevel={onPracticeLevel} />
+        <OutOfLives
+          wait={livesLabel(player, now)}
+          onPractice={onPractice}
+          onPracticeLevel={onPracticeLevel}
+          refill={refill}
+        />
         <Button variant="ghost" onPress={onMap}>
           Map
         </Button>

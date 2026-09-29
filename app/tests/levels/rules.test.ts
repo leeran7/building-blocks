@@ -10,6 +10,7 @@ import {
   LIFE_REFILL_MS,
   MAX_LIVES,
   STAR_XP,
+  buyRefill,
   episodeLevels,
   episodeOf,
   firstClearXp,
@@ -194,5 +195,20 @@ describe("XP and player level", () => {
       amount: EPISODE_XP,
     });
     expect(xpAwardsForClear(1, 5, 0, true)).toEqual([]);
+  });
+});
+
+describe("buyRefill", () => {
+  const T = new Date("2026-09-29T12:00:00Z");
+  const mins = (m: number) => new Date(T.getTime() + m * 60_000);
+
+  it("tops any count below full up to MAX_LIVES and keeps the timer", () => {
+    expect(buyRefill({ lives: 0, updatedAt: mins(-10) }, T)).toEqual({ lives: MAX_LIVES, updatedAt: mins(-10) });
+    expect(buyRefill({ lives: 4, updatedAt: mins(-10) }, T)).toEqual({ lives: MAX_LIVES, updatedAt: mins(-10) });
+  });
+
+  it("refuses a full player, including one the timer has just filled", () => {
+    expect(buyRefill({ lives: MAX_LIVES, updatedAt: null }, T)).toBeNull();
+    expect(buyRefill({ lives: 4, updatedAt: new Date(T.getTime() - LIFE_REFILL_MS) }, T)).toBeNull();
   });
 });

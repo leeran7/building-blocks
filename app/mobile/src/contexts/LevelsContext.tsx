@@ -14,7 +14,7 @@ import { createHttpLevelsClient } from "../lib/levels/httpClient";
 import { season1Catalog } from "../lib/levels/catalog";
 import { withMockFallback } from "../lib/levels/fallbackClient";
 import { createBestFailStore, type BestFailStore } from "../lib/levels/nearMiss";
-import type { LevelsClient, PlayerStats, SeasonView } from "../lib/levels/model";
+import type { BuyLivesResult, LevelsClient, PlayerStats, SeasonView } from "../lib/levels/model";
 
 /**
  * The level map's data: the current season, the player's lives and XP, and
@@ -33,6 +33,11 @@ interface LevelsValue {
   setPlayer: (player: PlayerStats) => void;
   /** Best failed height per level, on this device (near-miss markers, §6.2). */
   bestFails: BestFailStore;
+  /**
+   * Top lives up to full with gems, and apply the new lives and balance. Null
+   * when no refill can be sold (the client or the season has no price).
+   */
+  buyLives: (() => Promise<BuyLivesResult>) | null;
 }
 
 const LevelsContext = createContext<LevelsValue | null>(null);
@@ -94,9 +99,33 @@ export function LevelsProvider({
     setSeason((s) => (s ? { ...s, player } : s));
   }, []);
 
+  const canBuyLives = Boolean(client.buyLives) && season?.refill != null;
+  const buyLives = useCallback(async (): Promise<BuyLivesResult> => {
+    const res = client.buyLives ? await client.buyLives() : ({ ok: false, code: "NETWORK" } as const);
+    if (res.ok) {
+      setSeason((s) => (s && s.refill ? { ...s, player: res.player, refill: { ...s.refill, gems: res.gems } } : s));
+    } else if (res.code === "NOT_ENOUGH_GEMS" && res.gems !== undefined) {
+      const gems = res.gems;
+      setSeason((s) => (s && s.refill ? { ...s, refill: { ...s.refill, gems } } : s));
+    } else if (res.code === "LIVES_FULL") {
+      // Lives came back (the timer, a refund) since the card was drawn.
+      void refresh();
+    }
+    return res;
+  }, [client, refresh]);
+
   const value = useMemo<LevelsValue>(
-    () => ({ client, season, loading, error, refresh, setPlayer, bestFails }),
-    [client, season, loading, error, refresh, setPlayer, bestFails],
+    () => ({
+      client,
+      season,
+      loading,
+      error,
+      refresh,
+      setPlayer,
+      bestFails,
+      buyLives: canBuyLives ? buyLives : null,
+    }),
+    [client, season, loading, error, refresh, setPlayer, bestFails, canBuyLives, buyLives],
   );
   return <LevelsContext.Provider value={value}>{children}</LevelsContext.Provider>;
 }
