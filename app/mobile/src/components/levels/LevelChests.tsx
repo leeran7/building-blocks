@@ -83,19 +83,25 @@ export function BoosterPicker({
       Boosters
     </p>
   );
-  if (usable.length === 0) {
+  const free = freeType === null ? null : POWER_UP_SPECS[freeType].label;
+  // Nothing to add when the only usable booster is the run's free type.
+  if (!usable.some((t) => t !== freeType)) {
     return (
       <div className="rounded-2xl border border-white/10 bg-elevated/70 px-3.5 py-2.5">
         {heading}
-        <p className="mt-1 text-meta text-text-secondary">Your boosters unlock on later levels.</p>
+        <p className="mt-1 text-meta text-text-secondary">
+          {usable.length === 0
+            ? "Your boosters unlock on later levels."
+            : `This run already starts with ${free}, so your boosters are kept.`}
+        </p>
       </div>
     );
   }
-  const free = freeType === null ? null : POWER_UP_SPECS[freeType].label;
   const on = selected === null ? null : POWER_UP_SPECS[selected].label;
   let hint: string;
   if (on !== null && free !== null) {
-    hint = `You start with ${free} and ${on} at GO. ${on} is used up unless you restart within 3 seconds.`;
+    // The start line above already names both.
+    hint = `${on} joins ${free} at GO. ${on} is used up unless you restart within 3 seconds.`;
   } else if (on !== null) {
     hint = `You start with ${on} at GO. It's used up unless you restart within 3 seconds.`;
   } else if (free !== null) {

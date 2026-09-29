@@ -15,7 +15,7 @@ import {
   type LevelNode,
   type StartResult,
 } from "../lib/levels/model";
-import { carriedBooster, equippable, freeTypeOn } from "../lib/levels/boosterPick";
+import { carriedBooster, equippable, freeStartOn, freeTypeOn } from "../lib/levels/boosterPick";
 import { startBoosterTypes, type BoosterType } from "@app/levels/engagement";
 
 /** Vertical distance between two pins, px. */
@@ -257,7 +257,7 @@ export function LevelMapScreen() {
             <LevelStartExtras
               atFrontier={selected.level === frontier}
               streak={season.streak}
-              startPowerUp={selected.level === frontier ? season.nextStartPowerUp : null}
+              startPowerUp={freeStartOn(season, selected.level)}
               booster={booster}
               stuck={selected.level === season.stuck.level ? season.stuck : null}
               board={{ level: selected.level, load: loadBoard }}

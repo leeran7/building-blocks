@@ -263,7 +263,10 @@ model LevelRunTicket {
   season         Int
   level          Int
   sim_version    Int // LEVEL_SIM_VERSION at issue
-  start_power_up String? // granted at GO: a streak or stuck-help power-up, or a booster
+  // The first power-up granted at GO: the free one (streak or stuck help), or
+  // the booster when there is none. A booster granted alongside a free one is
+  // only in `booster` below.
+  start_power_up String?
   life_spent     Boolean // false on free levels (L1-10)
   // Booster spent from the inventory for this run (design §6.4), or null.
   // Refunded only when the run ends as a bad start.
@@ -291,6 +294,9 @@ model LevelProgress {
   stars          Int // 1..3
   best_ticks     Int // fastest reported finish, race ticks from GO
   sim_version    Int
+  // The best run's ticket start_power_up (its first power-up only). A booster
+  // it also started with is on the ticket (level_run_tickets.booster), which a
+  // ghost re-sim of replay_token would need too.
   start_power_up String?
   replay_token   String? // replay of the best_ticks run (unverified), for ghosts
   created_at     DateTime @default(now())

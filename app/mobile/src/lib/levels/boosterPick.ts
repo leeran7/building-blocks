@@ -8,9 +8,17 @@ import type { SeasonView } from "./model";
  * again and spends it there.
  */
 
-/** The free power-up type a level's run starts with (the server's preview, frontier only). */
+/** The free power-up a level's run starts with (the server's preview, frontier only). */
+export function freeStartOn(
+  season: Pick<SeasonView, "frontier" | "nextStartPowerUp">,
+  level: number,
+): SeasonView["nextStartPowerUp"] {
+  return level === season.frontier ? season.nextStartPowerUp : null;
+}
+
+/** The type of freeStartOn, or null. */
 export function freeTypeOn(season: Pick<SeasonView, "frontier" | "nextStartPowerUp">, level: number): BoosterType | null {
-  return level === season.frontier ? (season.nextStartPowerUp?.type ?? null) : null;
+  return freeStartOn(season, level)?.type ?? null;
 }
 
 /**

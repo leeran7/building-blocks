@@ -28,9 +28,6 @@ import {
   SubmitFailedCard,
 } from "../components/levels/LevelResultCard";
 
-/** A practice run, or a ticket without any, starts with no power-up. */
-const NO_START_POWER_UPS: LevelTicket["startPowerUps"] = [];
-
 /** Narrows router state to a ticket for this level; anything else is ignored. */
 export function ticketFromState(state: unknown, level: number): LevelTicket | null {
   if (typeof state !== "object" || state === null || !("ticket" in state)) return null;
@@ -225,7 +222,7 @@ export function LevelPlayScreen() {
         paused={stage.kind !== "play"}
         onEnd={submit}
         onQuit={() => toMap()}
-        startPowerUps={practice ? NO_START_POWER_UPS : (ticket?.startPowerUps ?? NO_START_POWER_UPS)}
+        startPowerUps={practice ? undefined : ticket?.startPowerUps}
         boosterKept={practice ? null : (ticket?.boosterKept ?? null)}
         bestFailFt={marker}
         onHowToPlay={() => setTutorial(topics.length > 0 ? topics : ["basics"])}

@@ -453,8 +453,9 @@ describe("star chests and boosters", () => {
 
     await click(sprint);
     const dialog = container.querySelector('[role="dialog"]')?.textContent ?? "";
-    expect(dialog).toContain("You start with Rapid Climb and Sprint Burst at GO.");
-    expect(dialog).toContain("You start with Rapid Climb and Sprint Burst");
+    expect(dialog).toContain("Sprint Burst joins Rapid Climb at GO.");
+    // Named once, on the start line, not again in the picker.
+    expect(dialog.split("You start with Rapid Climb and Sprint Burst")).toHaveLength(2);
     expect(dialog).toContain("Win streak 7 + booster");
 
     await click(button("Play level 8"));
@@ -463,6 +464,17 @@ describe("star chests and boosters", () => {
       { type: "sprint-burst", source: "booster" },
     ]);
     expect((await client.getSeason()).boosters).toEqual({ "rapid-climb": 1, "sprint-burst": 1 });
+  });
+
+  it("says the boosters are kept when the only one owned is the run's free type", async () => {
+    const store = memoryStore();
+    await clearLevels(store.client, 7);
+    const client = store.reopen({ "rapid-climb": 1 });
+    await renderMap(client);
+    await click(pin("Level 8, next to play"));
+    expect(container.querySelectorAll('[role="dialog"] button[aria-pressed]')).toHaveLength(0);
+    expect(container.textContent).toContain("This run already starts with Rapid Climb, so your boosters are kept.");
+    expect(container.textContent).not.toContain("Tap a booster to add it.");
   });
 });
 

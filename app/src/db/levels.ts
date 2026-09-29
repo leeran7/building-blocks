@@ -629,6 +629,8 @@ export async function submitLevelResult(input: SubmitResultInput): Promise<Level
         ? {
             best_ticks: finishTicks,
             sim_version: ticket.sim_version,
+            // First power-up only: a booster alongside a free one stays on the
+            // ticket (level_run_tickets.booster); a ghost re-sim would need it.
             start_power_up: ticket.start_power_up,
             replay_token: input.replayToken,
             updated_at: now,
@@ -650,6 +652,8 @@ export async function submitLevelResult(input: SubmitResultInput): Promise<Level
             stars: bestStars,
             best_ticks: finishTicks,
             sim_version: ticket.sim_version,
+            // First power-up only: a booster alongside a free one stays on the
+            // ticket (level_run_tickets.booster); a ghost re-sim would need it.
             start_power_up: ticket.start_power_up,
             replay_token: input.replayToken,
             created_at: now,
