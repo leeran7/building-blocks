@@ -571,6 +571,63 @@ export function summitFloor(tower: TowerSpec): number | null {
   return floorHeight(tower, i) >= goal ? i : i + 1;
 }
 
+/** Walk (m) from the ladder that reaches the summit to the diamond. */
+export const SUMMIT_DIAMOND_WALK_M = 20;
+/** Diamond centre height (m) above the summit floor. */
+export const SUMMIT_DIAMOND_LIFT_M = 1.2;
+/** Horizontal reach (m) from a climber's centre to the diamond's. */
+export const SUMMIT_DIAMOND_GRAB_X = 2.2;
+/** A jump over the diamond still touches it up to this high (feet, m). */
+const SUMMIT_DIAMOND_GRAB_ABOVE_M = 3;
+
+export interface SummitDiamond {
+  x: number;
+  /** Centre height in tower metres. */
+  y: number;
+  /** The summit floor's surface. */
+  floorY: number;
+}
+
+/**
+ * The glowing diamond that ends a level, or null on an endless tower. It sits
+ * on the summit floor SUMMIT_DIAMOND_WALK_M from where the primary ladder tops
+ * out, on the side farther from the other ladders that reach the summit (a
+ * seeded coin breaks a tie), so the climb always ends with a run along the
+ * top floor to touch it.
+ */
+export function summitDiamond(tower: TowerSpec): SummitDiamond | null {
+  const summit = summitFloor(tower);
+  if (summit === null) return null;
+  const floorY = floorHeight(tower, summit);
+  const arrivals = summit > 0 ? laddersForFloor(tower, summit - 1).map((l) => l.x) : [];
+  const w = tower.widthM;
+  const wrap = (x: number) => ((x % w) + w) % w;
+  if (arrivals.length === 0) return { x: w / 2, y: floorY + SUMMIT_DIAMOND_LIFT_M, floorY };
+  const from = arrivals[0];
+  const clearance = (x: number) => Math.min(...arrivals.map((a) => wrappedDist(x, a, w)));
+  const right = wrap(from + SUMMIT_DIAMOND_WALK_M);
+  const left = wrap(from - SUMMIT_DIAMOND_WALK_M);
+  const cr = clearance(right);
+  const cl = clearance(left);
+  const x =
+    cr === cl
+      ? (hashSeed(`${tower.seed}:diamond:${summit}`) & 1 ? right : left)
+      : cr > cl ? right : left;
+  return { x, y: floorY + SUMMIT_DIAMOND_LIFT_M, floorY };
+}
+
+/** True if a climber whose feet are at (x, y) is touching the summit diamond. */
+export function touchesSummitDiamond(d: SummitDiamond, x: number, y: number, widthM: number): boolean {
+  if (wrappedDist(x, d.x, widthM) > SUMMIT_DIAMOND_GRAB_X) return false;
+  // Feet on (or just above) the summit floor: never from the ladder below.
+  return y >= d.floorY - 0.25 && y <= d.floorY + SUMMIT_DIAMOND_GRAB_ABOVE_M;
+}
+
+function wrappedDist(a: number, b: number, w: number): number {
+  const d = Math.abs(a - b) % w;
+  return Math.min(d, w - d);
+}
+
 /** Every ladder leading UP from floor i to floor i+1 (one or more routes). */
 export function laddersForFloor(tower: TowerSpec, i: number): Ladder[] {
   const summit = summitFloor(tower);
