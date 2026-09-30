@@ -46,6 +46,8 @@ export interface AvatarEntry {
   readonly stickColor?: string;
   /** Skins only: the character id this skin dresses. Buying it needs that character. */
   readonly skinOf?: string;
+  /** Wraith colour skins only: the "#rrggbb" the Wraith's lime accent is recoloured to. */
+  readonly skinColor?: string;
 }
 
 const TUTORIAL: AvatarUnlock = { kind: "tutorial" };
@@ -66,6 +68,8 @@ export const DEFAULT_STICK_ID = "stick-green";
 export const WRAITH_GEMS = 2000;
 /** Gems for any character's Void skin (the Wraith-style paid version). */
 export const SKIN_GEMS = 1200;
+/** Gems for each of the Wraith's colour skins: the Wraith recoloured, so cheaper than a Void skin. */
+export const WRAITH_COLOR_GEMS = 600;
 
 /** The id suffix and name of the paid Wraith-style skin every character gets. */
 export const VOID_SKIN_SUFFIX = "-void";
@@ -107,21 +111,33 @@ const CHARACTERS: readonly AvatarEntry[] = [
   { id: "gecko", name: "Gecko", unlock: SEASON },
 ];
 
-/** The Void skin's display name: the Wraith's is "Void Walker", every other "Void <Name>". */
-function voidSkinName(character: AvatarEntry): string {
-  return character.id === "wraith" ? "Void Walker" : `Void ${character.name}`;
-}
+/**
+ * The Wraith's skins are recolours of it, one accent each. The first keeps
+ * the Void id ("wraith-void") so players who bought the Void Walker keep it.
+ */
+const WRAITH_COLORS: readonly { readonly key: string; readonly name: string; readonly color: string }[] = [
+  { key: "void", name: "Void Walker", color: "#9b5cff" },
+  { key: "blood", name: "Blood Walker", color: "#ff3b4a" },
+  { key: "frost", name: "Frost Walker", color: "#5fd8ff" },
+];
 
 /**
- * The paid Wraith-style version of every character with art (stick figures
- * have none). Priced alike; owning one needs its character selectable first.
+ * The paid skins: the Wraith's colours, then the Wraith-style Void version of
+ * every other character with art (stick figures have none), in picker order.
+ * Owning one needs its character selectable first.
  */
-const SKINS: readonly AvatarEntry[] = CHARACTERS.filter((c) => c.stickColor === undefined).map((c) => ({
-  id: `${c.id}${VOID_SKIN_SUFFIX}`,
-  name: voidSkinName(c),
-  unlock: purchase(SKIN_GEMS),
-  skinOf: c.id,
-}));
+const SKINS: readonly AvatarEntry[] = CHARACTERS.filter((c) => c.stickColor === undefined).flatMap(
+  (c): AvatarEntry[] =>
+    c.id === "wraith"
+      ? WRAITH_COLORS.map((w) => ({
+          id: `${c.id}-${w.key}`,
+          name: w.name,
+          unlock: purchase(WRAITH_COLOR_GEMS),
+          skinOf: c.id,
+          skinColor: w.color,
+        }))
+      : [{ id: `${c.id}${VOID_SKIN_SUFFIX}`, name: `Void ${c.name}`, unlock: purchase(SKIN_GEMS), skinOf: c.id }]
+);
 
 export const AVATARS: readonly AvatarEntry[] = [...CHARACTERS, ...SKINS];
 

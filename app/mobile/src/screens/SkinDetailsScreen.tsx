@@ -66,7 +66,7 @@ export function skinAction(
 
 /**
  * Skin Details (the store design): one character's looks, Classic and its
- * paid Void skin, with a live preview, the price and balance after purchase,
+ * paid skins, with a live preview, the price and balance after purchase,
  * and Purchase / Equip. Buying equips it straight away.
  */
 export function SkinDetailsScreen() {
@@ -226,7 +226,16 @@ function SkinDetails({ character }: { character: AvatarEntry }) {
                   }`}
                 >
                   <HexAvatar userId={user?.uid ?? character.id} name={look.name} avatarId={look.id} size={52} />
-                  <span className="text-center font-mono text-label font-bold uppercase leading-tight text-text-primary">
+                  <span className="flex items-center gap-1 text-center font-mono text-label font-bold uppercase leading-tight text-text-primary">
+                    {look.skinColor !== undefined && (
+                      // The colour skins share the Wraith's portrait; the swatch tells them apart.
+                      <span
+                        aria-hidden
+                        data-look-swatch
+                        className="h-2 w-2 shrink-0 rounded-full"
+                        style={{ background: look.skinColor }}
+                      />
+                    )}
                     {look.skinOf === undefined ? "Classic" : look.name}
                   </span>
                 </button>

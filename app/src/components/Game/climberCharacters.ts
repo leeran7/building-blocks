@@ -23,7 +23,7 @@
  * art is one line in VOID_SKIN_SHEETS below plus its two sheet files.
  */
 
-import { AVATARS, stickColorOf } from "../../lib/avatars";
+import { AVATARS, stickColorOf, type AvatarEntry } from "../../lib/avatars";
 
 /** Source cell edge (px) of every shipped atlas, and the `-192` in file names. */
 export const SHEET_CELL = 192;
@@ -185,15 +185,19 @@ export const VOID_SKIN_SHEETS: Readonly<Record<string, SheetOptions>> = {};
 
 /** The near-black the Wraith-style placeholders lean their body greys toward. */
 const VOID_BODY = "#0e0e12";
-/** The Void Walker placeholder's accent: the Wraith already wears the lime. */
-const VOID_WALKER_ACCENT = "#9b5cff";
+/** A skin with neither its own colour nor a palette entry: the Void Walker's purple. */
+const FALLBACK_SKIN_ACCENT = "#9b5cff";
 
-/** A Void skin's registry entry: its own sheets once they land, else the placeholder tint. */
-function voidSkin(skinId: string, characterId: string): ClimberCharacter {
-  const art = Object.prototype.hasOwnProperty.call(VOID_SKIN_SHEETS, skinId) ? VOID_SKIN_SHEETS[skinId] : null;
-  if (art !== null) return sheets(skinId, art);
+/**
+ * A skin's registry entry: its own sheets once they land, else the
+ * placeholder tint. The Wraith's colour skins use their catalogue colour;
+ * every Void skin its character's palette accent.
+ */
+function voidSkin(skin: AvatarEntry, characterId: string): ClimberCharacter {
+  const art = Object.prototype.hasOwnProperty.call(VOID_SKIN_SHEETS, skin.id) ? VOID_SKIN_SHEETS[skin.id] : null;
+  if (art !== null) return sheets(skin.id, art);
   const palette = Object.prototype.hasOwnProperty.call(RECOLOR_PALETTE, characterId) ? RECOLOR_PALETTE[characterId] : null;
-  return tint(palette?.accent ?? VOID_WALKER_ACCENT, VOID_BODY);
+  return tint(skin.skinColor ?? palette?.accent ?? FALLBACK_SKIN_ACCENT, VOID_BODY);
 }
 
 /**
@@ -228,7 +232,7 @@ export const CLIMBER_CHARACTERS: Readonly<Record<string, ClimberCharacter>> = {
   sentinel: sheets("sentinel", { headTop: 40 }),
   viking: sheets("viking", { headTop: 32 }),
   ...Object.fromEntries(
-    AVATARS.flatMap((a) => (a.skinOf === undefined ? [] : [[a.id, voidSkin(a.id, a.skinOf)] as const]))
+    AVATARS.flatMap((a) => (a.skinOf === undefined ? [] : [[a.id, voidSkin(a, a.skinOf)] as const]))
   ),
 };
 

@@ -174,7 +174,8 @@ describe("registry", () => {
       } else {
         expect(c.kind, a.id).toBe("tint");
         const palette = RECOLOR_PALETTE[a.skinOf];
-        if (palette && c.kind === "tint") expect(c.accent).toBe(palette.accent);
+        if (a.skinColor !== undefined && c.kind === "tint") expect(c.accent).toBe(a.skinColor);
+        else if (palette && c.kind === "tint") expect(c.accent).toBe(palette.accent);
       }
     }
     expect(skins).toBeGreaterThan(0);

@@ -35,7 +35,7 @@ vi.mock("../../src/db/client", () => ({
 import { buyCharacter, creditGemPack, gemBalance, GemError, shopState, spendGems } from "../../src/db/gems";
 import { checkAvatarForUser } from "../../src/db/avatarUnlocks";
 import { GEM_PACKS, gemPackById } from "../../src/lib/gemPacks";
-import { SKIN_GEMS, WRAITH_GEMS } from "../../src/lib/avatars";
+import { SKIN_GEMS, WRAITH_COLOR_GEMS, WRAITH_GEMS } from "../../src/lib/avatars";
 import { isLocalDbUrl } from "../../scripts/localDbGuard";
 
 const PACK_1200 = gemPackById("gems-1200")!;
@@ -158,7 +158,7 @@ describe.skipIf(!PG_URL)("Shop gems on Postgres", () => {
     expect(await codeOf(buyCharacter("u1", "wraith"))).toBe("OWNED");
 
     expect(await codeOf(buyCharacter("u1", "wraith-void"))).toBe("resolved");
-    expect(await shopState("u1")).toEqual({ gems: 3800 - WRAITH_GEMS - SKIN_GEMS, ownedIds: ["wraith", "wraith-void"] });
+    expect(await shopState("u1")).toEqual({ gems: 3800 - WRAITH_GEMS - WRAITH_COLOR_GEMS, ownedIds: ["wraith", "wraith-void"] });
     expect((await checkAvatarForUser("u1", "wraith-void")).lock).toBeNull();
   });
 

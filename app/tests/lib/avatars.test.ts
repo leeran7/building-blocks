@@ -57,6 +57,8 @@ describe("AVATARS catalogue", () => {
     expect(AVATARS.map((a) => a.name)).toEqual([
       ...characters,
       "Void Walker",
+      "Blood Walker",
+      "Frost Walker",
       ...withArt.slice(1).map((n) => `Void ${n}`),
     ]);
     expect(CHARACTER_ENTRIES.map((a) => a.name)).toEqual(characters);
@@ -65,9 +67,16 @@ describe("AVATARS catalogue", () => {
     for (const a of AVATARS) {
       if (a.skinOf !== undefined) {
         skins++;
-        // "lynx-void" dresses "lynx"
-        expect(a.id).toBe(`${a.skinOf}-void`);
-        expect(skinsOf(a.skinOf).map((s) => s.id)).toEqual([a.id]);
+        if (a.skinOf === "wraith") {
+          // The Wraith's colour skins: "wraith-blood" recolours the Wraith
+          expect(a.id).toMatch(/^wraith-[a-z]+$/);
+          expect(a.skinColor).toMatch(/^#[0-9a-f]{6}$/);
+        } else {
+          // "lynx-void" dresses "lynx"
+          expect(a.id).toBe(`${a.skinOf}-void`);
+          expect(skinsOf(a.skinOf).map((s) => s.id)).toEqual([a.id]);
+          expect(a.skinColor).toBeUndefined();
+        }
       } else if (a.stickColor !== undefined) {
         sticks++;
         // "Green Stick" -> "stick-green"
@@ -78,7 +87,9 @@ describe("AVATARS catalogue", () => {
       }
     }
     expect(sticks).toBe(6);
-    expect(skins).toBe(withArt.length);
+    // One Void skin per character with art, but three colours for the Wraith.
+    expect(skins).toBe(withArt.length + 2);
+    expect(skinsOf("wraith").map((s) => s.id)).toEqual(["wraith-void", "wraith-blood", "wraith-frost"]);
     expect(skinsOf("stick-green")).toEqual([]);
   });
 
@@ -111,6 +122,7 @@ describe("Shop helpers", () => {
   it("prices only purchase rules", () => {
     expect(gemPrice(AVATARS.find((a) => a.id === "wraith")!)).toBe(2000);
     expect(gemPrice(AVATARS.find((a) => a.id === "lynx-void")!)).toBe(1200);
+    for (const skin of skinsOf("wraith")) expect(gemPrice(skin), skin.id).toBe(600);
     expect(gemPrice(AVATARS.find((a) => a.id === "lynx")!)).toBeNull();
   });
 
