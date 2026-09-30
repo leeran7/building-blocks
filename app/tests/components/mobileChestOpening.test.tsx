@@ -134,8 +134,8 @@ describe("star chest opening", () => {
     expect(lis.map((li) => li.style.animationDelay)).toEqual(["0ms", "160ms"]);
     expect(lis[1]?.style.borderColor).toBe(POWER_UP_SPECS.jetpack.color);
     expect(status()).toBe("Chest opened: Giant, Jetpack");
-    // Collect ends it; a Skip beside it would do the same, so there is none.
-    expect(button("Collect")).toBeDefined();
+    // See rewards ends it; a Skip beside it would do the same, so there is none.
+    expect(button("See rewards")).toBeDefined();
     expect(button("Skip")).toBeUndefined();
     expect(vi.getTimerCount()).toBe(0);
   });
@@ -172,11 +172,11 @@ describe("star chest opening", () => {
     expect(button("Open chest 4 of 3")).toBeUndefined();
     expect(button("Skip all")).toBeUndefined();
 
-    click("Collect");
+    click("See rewards");
     expect(phase()).toBeNull();
     expect(container.textContent).toContain("3 star chests opened!");
     expect(summary()).toEqual(["+2 Giant", "+1 Jetpack", "+1 Slow Lava", "+1 Rapid Climb"]);
-    expect(container.textContent).toContain("Spend them from any level’s start card.");
+    expect(container.textContent).toContain("Use these from a level’s start screen.");
     expect(status()).toBe("3 star chests opened! +2 Giant, +1 Jetpack, +1 Slow Lava, +1 Rapid Climb");
   });
 
@@ -318,6 +318,23 @@ describe("on the result card", () => {
     expect(button("Open star chest")).toBeDefined();
   });
 
+  it("leads with Collect rewards, then folds the chest and puts Next level first", () => {
+    const next = () =>
+      [...container.querySelectorAll<HTMLButtonElement>("button")].find((b) => b.textContent?.trim() === "Next level");
+    renderCard([THREE[0]!]);
+    click("Open star chest");
+    openFully();
+    click("See rewards");
+    expect(summary()).toHaveLength(2);
+    // Next level waits as a link under Collect rewards.
+    expect(next()?.className).not.toContain("rounded-full");
+    click("Collect rewards");
+    expect(summary()).toEqual([]);
+    expect(container.textContent).toContain("Added to your boosters:");
+    expect(button("Collect rewards")).toBeUndefined();
+    expect(next()?.className).toContain("rounded-full");
+  });
+
   it("starts a later clear's chests closed again, even on the same card", () => {
     renderCard(THREE);
     click("Open star chest 1 of 3");
@@ -326,7 +343,7 @@ describe("on the result card", () => {
     openFully();
     click("Open chest 3 of 3");
     openFully();
-    click("Collect");
+    click("See rewards");
     expect(summary()).toHaveLength(4);
     renderCard([{ chestNumber: 7, boosters: ["jetpack"] }]);
     expect(phase()).toBe("closed");

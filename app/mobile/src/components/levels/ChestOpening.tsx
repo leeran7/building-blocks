@@ -4,7 +4,8 @@ import type { BoosterType } from "@app/levels/engagement";
 import { notifySuccess, tapLight, tapMedium } from "../../lib/haptics";
 import { prefersReducedMotion } from "../../lib/motion";
 import type { OpenedChest } from "../../lib/levels/model";
-import { ChestIcon } from "./LevelChests";
+import { Button } from "../ui";
+import { BoosterGlyph } from "./LevelIcons";
 
 /**
  * The result card's star chest opening (design §6.4). Each chest a clear
@@ -91,7 +92,14 @@ const CHEST_CSS = `
 type Phase = "closed" | "shaking" | "opening" | "open" | "summary";
 
 /** The result card's opening of the chests a clear opened. */
-export function ChestReveal({ chests }: { chests: readonly OpenedChest[] }) {
+export function ChestReveal({
+  chests,
+  onCollect,
+}: {
+  chests: readonly OpenedChest[];
+  /** Collect Rewards on the summary: the result card folds the chest away. */
+  onCollect?: () => void;
+}) {
   const [reduced] = useState(prefersReducedMotion);
   const [index, setIndex] = useState(0);
   const [phase, setPhase] = useState<Phase>(reduced ? "summary" : "closed");
@@ -160,7 +168,7 @@ export function ChestReveal({ chests }: { chests: readonly OpenedChest[] }) {
         {said}
       </p>
       {phase === "summary" ? (
-        <ChestSummary chests={chests} />
+        <ChestSummary chests={chests} onCollect={onCollect} />
       ) : (
         // Compact on purpose: the result card sits on the bottom of short
         // phones (the stage shrinks under 700px tall), so the count and
@@ -171,7 +179,7 @@ export function ChestReveal({ chests }: { chests: readonly OpenedChest[] }) {
               {ofN}
             </span>
           )}
-          {/* On the last chest, open, Collect does what Skip would. */}
+          {/* On the last chest, open, See rewards does what Skip would. */}
           {!(last && phase === "open") && (
             <button
               type="button"
@@ -214,7 +222,7 @@ export function ChestReveal({ chests }: { chests: readonly OpenedChest[] }) {
                 onClick={last ? toSummary : next}
                 className="mt-2 min-h-[44px] w-full rounded-xl border border-signal/50 bg-signal/15 px-4 font-mono text-label font-bold uppercase tracking-label text-signal transition-transform active:scale-95"
               >
-                {last ? "Collect" : `Open chest ${index + 2} of ${chests.length}`}
+                {last ? "See rewards" : `Open chest ${index + 2} of ${chests.length}`}
               </button>
             </>
           )}
@@ -236,39 +244,80 @@ function summaryTitle(chests: readonly OpenedChest[]): string {
   return chests.length === 1 ? "Star chest opened!" : `${chests.length} star chests opened!`;
 }
 
+/** The folded chest after Collect Rewards: one line of what was added. */
+export function ChestCollected({ chests }: { chests: readonly OpenedChest[] }) {
+  return (
+    <p role="status" className="mt-4 text-center text-meta text-text-secondary">
+      Added to your boosters:{" "}
+      {chestTotals(chests).map(({ type, n }, i) => (
+        <span key={type} className="font-bold" style={{ color: POWER_UP_SPECS[type].color }}>
+          {i > 0 && <span className="text-text-secondary">, </span>}+{n} {POWER_UP_SPECS[type].label}
+        </span>
+      ))}
+    </p>
+  );
+}
+
 /** What the live region says once everything is out. */
 function summaryLine(chests: readonly OpenedChest[]): string {
   const got = chestTotals(chests).map(({ type, n }) => `+${n} ${POWER_UP_SPECS[type].label}`);
   return `${summaryTitle(chests)} ${got.join(", ")}`;
 }
 
-/** The reveal's last word: every booster received, added up. */
-function ChestSummary({ chests }: { chests: readonly OpenedChest[] }) {
+/**
+ * The reveal's last word: the chest standing open in its light, every
+ * booster received as a tile, and Collect Rewards.
+ */
+function ChestSummary({ chests, onCollect }: { chests: readonly OpenedChest[]; onCollect?: () => void }) {
   return (
-    <div className="lc-pop mt-4 rounded-2xl border border-signal/40 bg-signal/10 px-4 py-3 text-center">
-      <div className="flex items-center justify-center gap-2">
-        <ChestIcon size={28} open />
-        <p className="font-display text-lead font-black uppercase text-signal">{summaryTitle(chests)}</p>
+    <div className="lc-pop mt-5 text-center">
+      <div className="flex items-center gap-3" role="presentation">
+        <span aria-hidden className="h-px flex-1 bg-white/15" />
+        <p className="font-display text-headline font-black uppercase tracking-wide text-text-primary">
+          {chests.length === 1 ? "Star chest" : `${chests.length} star chests`}
+        </p>
+        <span aria-hidden className="h-px flex-1 bg-white/15" />
       </div>
-      <ul aria-label="Boosters from the chest" className="mt-2 flex flex-wrap justify-center gap-2">
+      <span aria-hidden className="pointer-events-none relative mx-auto mt-1 flex h-28 w-28 items-center justify-center">
+        <span className="lc-glow-still absolute inset-1 rounded-full" />
+        <span className="lc-rays-still absolute -inset-4 rounded-full" />
+        <span className="relative inline-flex">
+          <BigChest lid="open" />
+        </span>
+      </span>
+      <p className="font-mono text-label font-bold uppercase tracking-eyebrow text-text-secondary">Your rewards</p>
+      <ul aria-label="Boosters from the chest" className="mt-2 grid grid-cols-2 gap-2.5">
         {chestTotals(chests).map(({ type, n }) => {
           const spec = POWER_UP_SPECS[type];
           return (
             <li
               key={type}
-              className="flex items-center gap-1.5 rounded-xl border border-white/10 bg-surface/70 px-2.5 py-1 text-meta font-bold"
-              style={{ color: spec.color }}
+              className="flex flex-col items-center justify-center gap-1.5 rounded-2xl border-2 bg-elevated px-2 py-3"
+              style={{ borderColor: spec.color, boxShadow: `0 0 16px -6px ${spec.color}` }}
             >
-              <span aria-hidden className="inline-block h-2 w-2 rounded-full" style={{ backgroundColor: spec.color }} />
-              +{n} {spec.label}
+              <BoosterGlyph type={type} size={40} />
+              <span className="text-body font-bold text-text-primary">
+                +{n} {spec.label}
+              </span>
             </li>
           );
         })}
       </ul>
-      <p className="mt-2 text-meta text-text-secondary">Spend them from any level&rsquo;s start card.</p>
+      <p className="mt-2.5 text-meta text-text-secondary">Use these from a level&rsquo;s start screen.</p>
+      {onCollect && (
+        <Button onPress={onCollect} className="mt-4 min-h-[56px] text-cta">
+          Collect rewards
+        </Button>
+      )}
       <style>{`
         .lc-pop { animation: lcPop 420ms cubic-bezier(.2,1.4,.4,1) both; }
         @keyframes lcPop { from { transform: scale(0.85); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+        .lc-glow-still { background: radial-gradient(circle, rgba(203,242,77,0.5), transparent 70%); }
+        .lc-rays-still {
+          background: repeating-conic-gradient(rgba(203,242,77,0.3) 0deg 8deg, transparent 8deg 24deg);
+          -webkit-mask-image: radial-gradient(circle, #000 15%, transparent 68%);
+          mask-image: radial-gradient(circle, #000 15%, transparent 68%);
+        }
         @media (prefers-reduced-motion: reduce) { .lc-pop { animation: none; } }
       `}</style>
     </div>

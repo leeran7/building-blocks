@@ -245,7 +245,7 @@ describe("level map", () => {
       const { client, buyLives } = await outOfLivesClient(120, 50);
       await renderMap(client);
       await click(pin("Level 11, next to play"));
-      expect(container.querySelector('[role="dialog"]')?.textContent).toContain("You have 120 gems");
+      expect(container.querySelector('[role="dialog"]')?.textContent).toContain("Your balance: 120 gems");
 
       await click(button("Refill lives for 50 gems"));
       expect(buyLives).toHaveBeenCalledTimes(1);
@@ -257,10 +257,10 @@ describe("level map", () => {
       const { client, buyLives } = await outOfLivesClient(20, 50);
       await renderMap(client);
       await click(pin("Level 11, next to play"));
-      const refill = button("Refill lives for 50 gems");
-      expect(refill?.disabled).toBe(true);
-      expect(container.querySelector('[role="dialog"]')?.textContent).toContain("You have 20 gems, 30 short");
-      await click(refill);
+      // The price and the gap show; there is no refill to press.
+      expect(button("Refill lives for 50 gems")).toBeUndefined();
+      expect(container.querySelector('[role="dialog"]')?.textContent).toContain("Full refill · 50 gems");
+      expect(container.querySelector('[role="dialog"]')?.textContent).toContain("Your balance: 20 gems · 30 more needed");
       expect(buyLives).not.toHaveBeenCalled();
     });
 
@@ -393,13 +393,14 @@ describe("star chests and boosters", () => {
     const { client, type, count } = await withChest();
     await renderMap(client);
     await click(pin("Level 7, 3 of 3 stars"));
-    const chip = [...container.querySelectorAll<HTMLButtonElement>('[role="dialog"] button[aria-pressed]')].find((b) =>
+    const chip = [...container.querySelectorAll<HTMLButtonElement>('[role="dialog"] button[role="radio"]')].find((b) =>
       b.getAttribute("aria-label")?.endsWith(`, ${count} owned`),
     );
-    expect(chip?.getAttribute("aria-pressed")).toBe("false");
+    expect(chip?.getAttribute("aria-checked")).toBe("false");
+    expect(button("No booster")?.getAttribute("aria-checked")).toBe("true");
     await click(chip);
-    expect(chip?.getAttribute("aria-pressed")).toBe("true");
-    expect(container.querySelector('[role="dialog"]')?.textContent).toContain("at GO");
+    expect(chip?.getAttribute("aria-checked")).toBe("true");
+    expect(container.querySelector('[role="dialog"]')?.textContent).toContain("Restart within 3 seconds to keep it.");
 
     await click(button("Play level 7"));
     expect(where.pathname).toBe("/levels/7/play");
@@ -407,16 +408,16 @@ describe("star chests and boosters", () => {
     expect((await client.getSeason()).boosters[type as "giant"] ?? 0).toBe(count - 1);
   });
 
-  it("starts without a booster unless one is tapped, and a tap again takes it off", async () => {
+  it("starts without a booster unless one is picked, and None takes it off", async () => {
     const { client, type, count } = await withChest();
     await renderMap(client);
     await click(pin("Level 7, 3 of 3 stars"));
-    const chip = [...container.querySelectorAll<HTMLButtonElement>('[role="dialog"] button[aria-pressed]')].find((b) =>
+    const chip = [...container.querySelectorAll<HTMLButtonElement>('[role="dialog"] button[role="radio"]')].find((b) =>
       b.getAttribute("aria-label")?.endsWith(`, ${count} owned`),
     );
     await click(chip);
-    await click(chip);
-    expect(chip?.getAttribute("aria-pressed")).toBe("false");
+    await click(button("No booster"));
+    expect(chip?.getAttribute("aria-checked")).toBe("false");
     await click(button("Play level 7"));
     expect(runs.mounted.at(-1)?.startPowerUp).toBeNull();
     expect((await client.getSeason()).boosters[type as "giant"] ?? 0).toBe(count);
@@ -426,7 +427,7 @@ describe("star chests and boosters", () => {
     const { client } = await withChest();
     await renderMap(client);
     await click(pin("Level 8, next to play"));
-    expect(container.querySelector('[role="dialog"] button[aria-pressed]')).toBeNull();
+    expect(container.querySelector('[role="dialog"] button[role="radio"]')).toBeNull();
     expect(container.textContent).toContain("your boosters are kept");
   });
 });

@@ -255,6 +255,8 @@ export function LevelMapScreen() {
               stuck={selected.level === season.stuck.level ? season.stuck : null}
               board={{ level: selected.level, load: loadBoard }}
               boosters={
+                // Out of lives the card offers the wait and the refill instead.
+                selected.costsLife && season.player.lives <= 0 ? null : (
                 <BoosterPicker
                   inventory={season.boosters}
                   allowed={startBoosterTypes(selected.level, selected.allowedPowerUps)}
@@ -262,6 +264,7 @@ export function LevelMapScreen() {
                   onSelect={setBooster}
                   freeStart={selected.level === frontier && season.nextStartPowerUp !== null}
                 />
+                )
               }
             />
           }
