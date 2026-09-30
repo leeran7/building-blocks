@@ -8,7 +8,7 @@
  */
 
 import Link from "next/link";
-import { StackMark } from "../Brand/StackMark";
+import { Wordmark } from "../Brand/Wordmark";
 
 const LINK =
   "text-sm text-text-secondary hover:text-signal transition-colors min-h-[36px] inline-flex items-center";
@@ -67,12 +67,7 @@ export function Footer({ showCta = true }: { showCta?: boolean }) {
       {/* Links */}
       <div className="max-w-6xl mx-auto px-4 py-12 grid grid-cols-2 md:grid-cols-5 gap-8">
         <div className="col-span-2 md:col-span-1">
-          <div className="flex items-center gap-2.5">
-            <StackMark className="h-6 w-6" />
-            <span className="font-display text-xl tracking-tight text-text-primary">
-              DOOMSTACK
-            </span>
-          </div>
+          <Wordmark className="h-9 w-auto" />
           <p className="text-sm text-text-muted mt-3 max-w-[220px]">
             The leaderboard that buries the weak.
           </p>

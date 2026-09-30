@@ -7,7 +7,7 @@
  */
 
 import Link from "next/link";
-import { StackMark } from "./Brand/StackMark";
+import { Wordmark } from "./Brand/Wordmark";
 import { NavbarAuth } from "./NavbarAuth";
 import { FREE_CLIMB_HREF, DUEL_HREF, DAILY_HREF } from "./navLinks";
 
@@ -34,11 +34,10 @@ export function Navbar({ contextLabel, contextDot }: NavbarProps) {
           aria-label="Doomstack — home"
           className="group flex items-center gap-2.5 shrink-0"
         >
-          {/* Doomstack logo mark */}
-          <StackMark className="h-6 w-6 group-hover:scale-105 transition-transform" />
-          <span className="font-display text-xl leading-none tracking-tight text-text-primary">
-            DOOMSTACK
-          </span>
+          <Wordmark
+            decorative
+            className="h-8 w-auto group-hover:scale-105 transition-transform"
+          />
         </Link>
         {contextLabel && (
           // min-w-0 down the chain lets the breadcrumb label truncate instead of
