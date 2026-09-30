@@ -1,5 +1,21 @@
+/// <reference path="../vite-env.d.ts" />
 import { Capacitor } from "@capacitor/core";
 import { getFreshToken } from "./firebaseAuth";
+
+/** The production site. Deep links are only verified for this host. */
+export const SITE_ORIGIN = "https://www.doomstack.lol";
+
+/**
+ * Preview builds (`pnpm cap:ios:preview`, Vite mode "preview") can point the
+ * app at a Vercel preview deployment via VITE_API_BASE, plus
+ * VITE_VERCEL_BYPASS (the project's "Protection Bypass for Automation" secret)
+ * to get past Vercel's SSO protection on preview URLs. Both are ignored in
+ * production-mode builds, so `pnpm cap:ios` / release archives always talk to
+ * prod no matter what is in the shell environment. See mobile/README.md.
+ */
+const isPreviewBuild = import.meta.env.MODE !== "production";
+const previewBase = isPreviewBuild ? import.meta.env.VITE_API_BASE?.replace(/\/+$/, "") : undefined;
+const vercelBypass = isPreviewBuild ? import.meta.env.VITE_VERCEL_BYPASS : undefined;
 
 /**
  * The bundled app has no origin of its own, so every API call is absolute to
@@ -11,7 +27,18 @@ import { getFreshToken } from "./firebaseAuth";
  * there are expected to be blocked by CORS until a dev proxy is added — device
  * builds are the real target.
  */
-export const API_BASE = "https://www.doomstack.lol";
+export const API_BASE = previewBase || SITE_ORIGIN;
+
+/** True when this build talks to a non-production backend. */
+export const IS_PREVIEW_BACKEND = API_BASE !== SITE_ORIGIN;
+
+/** Adds the Vercel protection-bypass header on preview builds (no-op in prod). */
+export function withPreviewHeaders(headers: Headers): Headers {
+  if (vercelBypass && !headers.has("x-vercel-protection-bypass")) {
+    headers.set("x-vercel-protection-bypass", vercelBypass);
+  }
+  return headers;
+}
 
 export const isNative = Capacitor.isNativePlatform();
 
@@ -26,7 +53,7 @@ export async function apiFetch(
   init: RequestInit = {},
 ): Promise<Response> {
   const token = await getFreshToken();
-  const headers = new Headers(init.headers);
+  const headers = withPreviewHeaders(new Headers(init.headers));
   if (token) headers.set("Authorization", `Bearer ${token}`);
   return fetch(apiUrl(path), { ...init, headers });
 }

@@ -4,12 +4,12 @@ import { Capacitor } from "@capacitor/core";
 import { App as CapApp } from "@capacitor/app";
 import { StatusBar, Style } from "@capacitor/status-bar";
 import { Keyboard } from "@capacitor/keyboard";
-import { API_BASE } from "./api";
+import { SITE_ORIGIN } from "./api";
 import { parentRoute, useBackOr } from "./navigation";
 import { isTabRoot } from "../components/BottomNav";
 
 // Only links on our own verified origin are allowed to drive in-app routing.
-const CANONICAL_HOST = new URL(API_BASE).host;
+const CANONICAL_HOST = new URL(SITE_ORIGIN).host;
 
 /**
  * Native shell wiring — makes the app behave like a native binary rather than

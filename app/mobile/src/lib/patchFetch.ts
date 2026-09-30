@@ -1,4 +1,4 @@
-import { API_BASE } from "./api";
+import { API_BASE, withPreviewHeaders } from "./api";
 import { getFreshToken } from "./firebaseAuth";
 
 const _origFetch = globalThis.fetch;
@@ -21,7 +21,7 @@ globalThis.fetch = async function patchedFetch(
   init?: RequestInit,
 ): Promise<Response> {
   if (typeof input === "string" && input.startsWith("/api/")) {
-    const headers = new Headers(init?.headers);
+    const headers = withPreviewHeaders(new Headers(init?.headers));
     if (!headers.has("Authorization")) {
       const token = await getFreshToken();
       if (token) headers.set("Authorization", `Bearer ${token}`);
