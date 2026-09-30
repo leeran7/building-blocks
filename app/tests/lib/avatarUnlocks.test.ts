@@ -32,8 +32,10 @@ import {
 const MAX_STARS_PER_SEASON = LEVELS_PER_SEASON * 3;
 const starRules = AVATARS.flatMap((a) => (a.unlock.kind === "stars" ? [{ id: a.id, stars: a.unlock.stars }] : []));
 const STICK_IDS = ["stick-green", "stick-ember", "stick-amber", "stick-sky", "stick-violet", "stick-pink"];
-/** Free after the tutorial: the Gecko (released free) and the six sticks. */
-const TUTORIAL_IDS = ["gecko", ...STICK_IDS];
+/** Free after the tutorial: the six sticks. */
+const TUTORIAL_IDS = STICK_IDS;
+/** The final unlock, for clearing a season's last level: the Gecko. */
+const SEASON_IDS = ["gecko"];
 /** Bought with gems: the Wraith, then every character's Void skin. */
 const SHOP_IDS = AVATARS.filter((a) => a.unlock.kind === "purchase").map((a) => a.id);
 const SKIN_IDS = AVATARS.filter((a) => a.skinOf !== undefined).map((a) => a.id);
@@ -45,16 +47,23 @@ const fresh = (over: Partial<AvatarUnlockInput> = {}): AvatarUnlockInput => ({
 });
 
 describe("catalogue unlock rules", () => {
-  it("sells the Wraith and every Void skin, frees Gecko and the six sticks after the tutorial, and star-locks the rest", () => {
+  it("sells the Wraith and every Void skin, frees the six sticks after the tutorial, star-locks the ladder, and saves Gecko for the season", () => {
     expect(AVATARS.filter((a) => a.unlock.kind === "premium")).toEqual([]);
     expect(AVATARS.filter((a) => a.unlock.kind === "tutorial").map((a) => a.id)).toEqual(TUTORIAL_IDS);
+    expect(AVATARS.filter((a) => a.unlock.kind === "season").map((a) => a.id)).toEqual(SEASON_IDS);
     expect(SHOP_IDS).toEqual(["wraith", ...SKIN_IDS]);
-    expect(starRules).toHaveLength(AVATARS.length - SHOP_IDS.length - TUTORIAL_IDS.length);
+    expect(starRules).toHaveLength(AVATARS.length - SHOP_IDS.length - TUTORIAL_IDS.length - SEASON_IDS.length);
     expect(starRules.map((r) => [r.id, r.stars])).toEqual([
       ["kestrel", 15], ["lynx", 30], ["raven", 50], ["panther", 75], ["wolf", 100], ["otter", 130],
       ["heron", 165], ["yak", 200], ["mantis", 250], ["cobra", 300], ["badger", 360], ["falcon", 420],
       ["marmot", 500], ["bison", 580], ["ibex", 660], ["sentinel", 750], ["viking", 840],
     ]);
+  });
+
+  it("lists Gecko as the last character, after the whole star ladder", () => {
+    const characters = AVATARS.filter((a) => a.skinOf === undefined).map((a) => a.id);
+    expect(characters.at(-1)).toBe("gecko");
+    expect(characters.indexOf("gecko")).toBeGreaterThan(characters.indexOf("viking"));
   });
 
   it("frees no avatar outright: a fresh player with no tutorial can select nothing", () => {
@@ -73,6 +82,7 @@ describe("catalogue unlock rules", () => {
     expect(unlockRequirementText(lynx)).toBe("Earn 30 stars");
     expect(unlockRequirementText(avatarEntry("stick-sky")!)).toBe("Finish the tutorial");
     expect(unlockRequirementText(avatarEntry("wraith")!)).toBe("Buy in the Shop");
+    expect(unlockRequirementText(avatarEntry("gecko")!)).toBe("Finish the season");
     expect(starsToUnlock(lynx, 12)).toBe(18);
     expect(starsToUnlock(lynx, 29)).toBe(1);
     expect(starsToUnlock(lynx, 30)).toBe(0);
@@ -86,7 +96,7 @@ describe("catalogue unlock rules", () => {
   it("words the locked sentence per kind", () => {
     expect(lockedMessage(avatarEntry("lynx")!)).toBe("Earn 30 stars to unlock Lynx");
     expect(lockedMessage(avatarEntry("stick-pink")!)).toBe("Finish the tutorial on level 1 to unlock Pink Stick");
-    expect(lockedMessage(avatarEntry("gecko")!)).toBe("Finish the tutorial on level 1 to unlock Gecko");
+    expect(lockedMessage(avatarEntry("gecko")!)).toBe("Clear all 300 levels of the season to unlock Gecko");
     expect(lockedMessage(avatarEntry("wraith")!)).toBe("Buy Wraith in the Shop for 2,000 gems");
     expect(lockedMessage(avatarEntry("lynx-void")!)).toBe("Buy Void Lynx in the Shop for 1,200 gems");
   });
@@ -177,7 +187,7 @@ describe("avatarLockFor / avatarUnlockState", () => {
     expect(state.grandfatheredId).toBe("wraith");
   });
 
-  it("locks Gecko and every stick figure until the tutorial is done, then unlocks all seven at 0 stars", () => {
+  it("locks every stick figure until the tutorial is done, then unlocks all six at 0 stars", () => {
     let checked = 0;
     for (const id of TUTORIAL_IDS) {
       const entry = avatarEntry(id)!;
@@ -192,8 +202,34 @@ describe("avatarLockFor / avatarUnlockState", () => {
       expect(avatarLockFor(entry, fresh({ tutorialDone: true }))).toBeNull();
       checked++;
     }
-    expect(checked).toBe(7);
+    expect(checked).toBe(6);
     expect(avatarUnlockState(fresh({ tutorialDone: true })).unlockedIds).toEqual(TUTORIAL_IDS);
+  });
+
+  it("locks Gecko at any star count after the tutorial until a season is finished, then unlocks it", () => {
+    const gecko = avatarEntry("gecko")!;
+    for (const input of [fresh(), fresh({ stars: MAX_STARS_PER_SEASON, tutorialDone: true })]) {
+      expect(avatarLockFor(gecko, input)).toEqual({
+        avatarId: "gecko",
+        name: "Gecko",
+        kind: "season",
+        requiredStars: null,
+        stars: input.stars,
+        message: "Clear all 300 levels of the season to unlock Gecko",
+      });
+    }
+    expect(avatarLockFor(gecko, fresh({ seasonDone: true }))).toBeNull();
+    expect(avatarUnlockState(fresh({ tutorialDone: true, seasonDone: true })).unlockedIds).toEqual([
+      ...TUTORIAL_IDS,
+      "gecko",
+    ]);
+  });
+
+  it("keeps a saved Gecko selectable (grandfathered) before the season is finished", () => {
+    const input = fresh({ tutorialDone: true, savedAvatarId: "gecko" });
+    expect(avatarLockFor(avatarEntry("gecko")!, input)).toBeNull();
+    expect(avatarUnlockState(input).grandfatheredId).toBe("gecko");
+    expect(avatarUnlockState({ ...input, seasonDone: true }).grandfatheredId).toBeNull();
   });
 
   it("grandfathers the saved avatar but no other locked one", () => {
@@ -209,15 +245,24 @@ describe("avatarLockFor / avatarUnlockState", () => {
     );
   });
 
-  it("lists every avatar not sold in the Shop at a full season of stars after the tutorial, in catalogue order", () => {
-    const state = avatarUnlockState(fresh({ stars: MAX_STARS_PER_SEASON, tutorialDone: true }));
+  it("lists every avatar not sold in the Shop once the season is finished, in catalogue order", () => {
+    const state = avatarUnlockState(fresh({ stars: MAX_STARS_PER_SEASON, tutorialDone: true, seasonDone: true }));
     expect(state).toEqual({
       stars: MAX_STARS_PER_SEASON,
       tutorialDone: true,
+      seasonDone: true,
       unlockedIds: AVATARS.filter((a) => a.unlock.kind !== "purchase").map((a) => a.id),
       ownedIds: [],
       grandfatheredId: null,
     });
+  });
+
+  it("leaves only Gecko locked at a full season of stars when the last level is not cleared", () => {
+    const state = avatarUnlockState(fresh({ stars: MAX_STARS_PER_SEASON, tutorialDone: true }));
+    expect(state.seasonDone).toBe(false);
+    expect(state.unlockedIds).toEqual(
+      AVATARS.filter((a) => a.unlock.kind !== "purchase" && a.unlock.kind !== "season").map((a) => a.id)
+    );
   });
 
   it("marks the saved avatar grandfathered only while its rule is unmet", () => {
@@ -247,13 +292,19 @@ describe("avatarsNewlyUnlocked (the level result's note)", () => {
     expect(avatarsNewlyUnlocked(0, 30, { ...none, savedAvatarId: "kestrel" })).toEqual(["lynx"]);
   });
 
-  it("adds Gecko and the six stick figures, first, when the run finished the tutorial", () => {
+  it("adds the six stick figures, first, when the run finished the tutorial", () => {
     expect(avatarsNewlyUnlocked(0, 3, { savedAvatarId: null, tutorialJustDone: true })).toEqual(TUTORIAL_IDS);
     expect(avatarsNewlyUnlocked(0, 3, none)).toEqual([]);
     expect(avatarsNewlyUnlocked(12, 15, { savedAvatarId: null, tutorialJustDone: true })).toEqual([
       ...TUTORIAL_IDS,
       "kestrel",
     ]);
+  });
+
+  it("adds Gecko, last, when the run finished the season, and not otherwise", () => {
+    expect(avatarsNewlyUnlocked(837, 840, { ...none, seasonJustDone: true })).toEqual(["viking", "gecko"]);
+    expect(avatarsNewlyUnlocked(837, 840, none)).toEqual(["viking"]);
+    expect(avatarsNewlyUnlocked(0, 3, { ...none, savedAvatarId: "gecko", seasonJustDone: true })).toEqual([]);
   });
 
   it("leaves a saved stick figure out of the tutorial unlock", () => {
@@ -282,6 +333,9 @@ describe("wording and id lists", () => {
       "Switching will lock Amber Stick until you finish the tutorial."
     );
     expect(switchAwayWarning(avatarEntry("wraith")!)).toBe("Switching will lock Wraith until you buy it in the Shop.");
+    expect(switchAwayWarning(avatarEntry("gecko")!)).toBe(
+      "Switching will lock Gecko until you clear all 300 levels of the season."
+    );
   });
 
   it("parseAvatarIdList keeps only an all-catalogue array", () => {
@@ -295,7 +349,7 @@ describe("wording and id lists", () => {
 });
 
 describe("purchaseRefusal (what the Shop may sell)", () => {
-  it("sells an unowned Shop character, and never a star, tutorial or unknown rule", () => {
+  it("sells an unowned Shop character, and never a star, tutorial, season or unknown rule", () => {
     expect(purchaseRefusal(avatarEntry("wraith")!, fresh())).toBeNull();
     expect(purchaseRefusal(avatarEntry("lynx")!, fresh())).toBe("NOT_FOR_SALE");
     expect(purchaseRefusal(avatarEntry("gecko")!, fresh())).toBe("NOT_FOR_SALE");
@@ -314,6 +368,10 @@ describe("purchaseRefusal (what the Shop may sell)", () => {
     expect(purchaseRefusal(walker, fresh({ stars: 900, tutorialDone: true }))).toBe("CHARACTER_REQUIRED");
     expect(purchaseRefusal(walker, fresh({ ownedIds: ["wraith"] }))).toBeNull();
     expect(purchaseRefusal(avatarEntry("gecko-void")!, fresh())).toBe("CHARACTER_REQUIRED");
-    expect(purchaseRefusal(avatarEntry("gecko-void")!, fresh({ tutorialDone: true }))).toBeNull();
+    expect(purchaseRefusal(avatarEntry("gecko-void")!, fresh({ stars: 900, tutorialDone: true }))).toBe(
+      "CHARACTER_REQUIRED"
+    );
+    expect(purchaseRefusal(avatarEntry("gecko-void")!, fresh({ seasonDone: true }))).toBeNull();
+    expect(purchaseRefusal(avatarEntry("gecko-void")!, fresh({ savedAvatarId: "gecko" }))).toBeNull();
   });
 });

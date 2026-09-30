@@ -68,16 +68,17 @@ const initials: Option = { id: null, name: INITIALS_LABEL, entry: null };
 const optionOf = (a: AvatarEntry): Option => ({ id: a.id, name: a.name, entry: a });
 
 /**
- * Picker order: the Shop character first, then the free-after-tutorial ones
- * (Gecko and the stick figures), Initials, and the star ladder cheapest
- * first. CHARACTER_ENTRIES already lists them in that order. Skins are not
+ * Picker order: the Shop character first, then the free-after-tutorial stick
+ * figures, Initials, the star ladder cheapest first, and last the Gecko, the
+ * final unlock for finishing a season. Skins are not
  * tiles: they are bought and equipped in the Shop, and a saved skin shows as
  * its character's tile, equipped.
  */
 export const OPTIONS: readonly Option[] = [
-  ...CHARACTER_ENTRIES.filter((a) => a.unlock.kind !== "stars").map(optionOf),
+  ...CHARACTER_ENTRIES.filter((a) => a.unlock.kind !== "stars" && a.unlock.kind !== "season").map(optionOf),
   initials,
   ...CHARACTER_ENTRIES.filter((a) => a.unlock.kind === "stars").map(optionOf),
+  ...CHARACTER_ENTRIES.filter((a) => a.unlock.kind === "season").map(optionOf),
 ];
 
 /** The tile a saved avatar shows as: a skin's character, else the id itself (null = Initials). */
@@ -434,6 +435,8 @@ export function AvatarPickerScreen() {
           ? "Get it in the Shop"
         : viewedLock?.kind === "tutorial"
           ? "Clear level 1 first"
+        : viewedLock?.kind === "season"
+          ? "Finish the season first"
           : viewedLock !== null
             ? `Locked: earn ${Math.max(0, (viewedLock.requiredStars ?? 0) - viewedLock.stars)} more ★`
             : "Save character";
@@ -628,6 +631,8 @@ export function AvatarPickerScreen() {
                           ? `${lock.stars}/${lock.requiredStars} ★`
                           : lock.kind === "tutorial"
                             ? "Tutorial"
+                            : lock.kind === "season"
+                              ? "Season"
                             : lock.kind === "purchase"
                               ? "Shop"
                               : "Premium"}

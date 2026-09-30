@@ -23,12 +23,16 @@
  * bought and equipped from the Shop.
  */
 
+import { LEVELS_PER_SEASON } from "../levels/rules";
+
 /** What a player needs before they may newly select an avatar. */
 export type AvatarUnlock =
   /** Selectable after the tutorial: the player has cleared level 1 (any season). */
   | { readonly kind: "tutorial" }
   /** Best stars summed over every level of every season, at least `stars`. */
   | { readonly kind: "stars"; readonly stars: number }
+  /** The final unlock: the player has cleared a season's last level (level 300, any season). */
+  | { readonly kind: "season" }
   /** Sold later; nobody can newly select one yet. Never earned by stars. */
   | { readonly kind: "premium" }
   /** Bought in the Shop for `gems`; selectable once owned (a server purchase record). */
@@ -45,6 +49,7 @@ export interface AvatarEntry {
 }
 
 const TUTORIAL: AvatarUnlock = { kind: "tutorial" };
+const SEASON: AvatarUnlock = { kind: "season" };
 const purchase = (gems: number): AvatarUnlock => ({ kind: "purchase", gems });
 const stars = (n: number): AvatarUnlock => ({ kind: "stars", stars: n });
 const stick = (key: string, name: string, color: string): AvatarEntry => ({
@@ -66,16 +71,16 @@ export const SKIN_GEMS = 1200;
 export const VOID_SKIN_SUFFIX = "-void";
 
 /**
- * Picker order: the paid Wraith, the Gecko and stick figures (free once the
- * tutorial is done), then the star ladder cheapest first. No character is
- * free outright; a player with no avatar climbs as the Green Stick. A season
- * is 300 levels of up to 3 stars (900), so the last step (840) asks for most
- * of a season at close to 3 stars a level. The Void skins follow, one per
- * character with art, in the same order.
+ * Picker order: the paid Wraith, the stick figures (free once the tutorial
+ * is done), the star ladder cheapest first, and last the Gecko, the final
+ * unlock for finishing a season. No character is free outright; a player
+ * with no avatar climbs as the Green Stick. A season is 300 levels of up to
+ * 3 stars (900), so the last star step (840) asks for most of a season at
+ * close to 3 stars a level. The Void skins follow, one per character with
+ * art, in the same order.
  */
 const CHARACTERS: readonly AvatarEntry[] = [
   { id: "wraith", name: "Wraith", unlock: purchase(WRAITH_GEMS) },
-  { id: "gecko", name: "Gecko", unlock: TUTORIAL },
   stick("green", "Green", "#cbf24d"),
   stick("ember", "Ember", "#ff5a2c"),
   stick("amber", "Amber", "#ffb020"),
@@ -99,6 +104,7 @@ const CHARACTERS: readonly AvatarEntry[] = [
   { id: "ibex", name: "Ibex", unlock: stars(660) },
   { id: "sentinel", name: "Sentinel", unlock: stars(750) },
   { id: "viking", name: "Viking", unlock: stars(840) },
+  { id: "gecko", name: "Gecko", unlock: SEASON },
 ];
 
 /** The Void skin's display name: the Wraith's is "Void Walker", every other "Void <Name>". */
@@ -216,6 +222,7 @@ export function earnStarsText(stars: number): string {
 export const TUTORIAL_REQUIREMENT = "Finish the tutorial";
 export const PREMIUM_REQUIREMENT = "Premium";
 export const SHOP_REQUIREMENT = "Buy in the Shop";
+export const SEASON_REQUIREMENT = "Finish the season";
 
 /** What an entry asks for, for a lock label: "Earn 30 stars", "Finish the tutorial", "Buy in the Shop". */
 export function unlockRequirementText(entry: AvatarEntry): string {
@@ -224,6 +231,8 @@ export function unlockRequirementText(entry: AvatarEntry): string {
       return earnStarsText(entry.unlock.stars);
     case "tutorial":
       return TUTORIAL_REQUIREMENT;
+    case "season":
+      return SEASON_REQUIREMENT;
     case "premium":
       return PREMIUM_REQUIREMENT;
     case "purchase":
@@ -238,6 +247,8 @@ export function lockedMessage(entry: AvatarEntry): string {
       return unlockMessage(entry.name, entry.unlock.stars);
     case "tutorial":
       return `Finish the tutorial on level 1 to unlock ${entry.name}`;
+    case "season":
+      return `Clear all ${LEVELS_PER_SEASON} levels of the season to unlock ${entry.name}`;
     case "premium":
       return `${entry.name} is a premium character. It is not on sale yet`;
     case "purchase":
@@ -257,6 +268,8 @@ export function switchAwayWarning(entry: AvatarEntry): string {
       return `Switching will lock ${entry.name} until you earn ${entry.unlock.stars} stars.`;
     case "tutorial":
       return `Switching will lock ${entry.name} until you finish the tutorial.`;
+    case "season":
+      return `Switching will lock ${entry.name} until you clear all ${LEVELS_PER_SEASON} levels of the season.`;
     case "premium":
       return `Switching will lock ${entry.name}. It is a premium character and you can't pick it again yet.`;
     case "purchase":

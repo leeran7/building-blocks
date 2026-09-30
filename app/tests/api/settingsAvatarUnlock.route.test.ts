@@ -34,6 +34,8 @@ const { store, update, aggregate, findFirst, upsertHandle } = vi.hoisted(() => {
     stars: 0,
     /** Whether u1 has a level 1 row (the tutorial cleared). */
     tutorialDone: false,
+    /** Whether u1 has a level 300 row (the season cleared). */
+    seasonDone: false,
     /** Avatar ids u1 bought in the Shop (owned_characters rows). */
     owned: [] as string[],
   };
@@ -45,7 +47,9 @@ const { store, update, aggregate, findFirst, upsertHandle } = vi.hoisted(() => {
     }),
     aggregate: vi.fn(async () => ({ _sum: { stars: store.stars === 0 ? null : store.stars } })),
     findFirst: vi.fn(async ({ where }: { where: { userId: string; level: number } }) =>
-      store.tutorialDone && where.userId === "u1" && where.level === 1 ? { id: 1 } : null
+      where.userId === "u1" && ((store.tutorialDone && where.level === 1) || (store.seasonDone && where.level === 300))
+        ? { id: 1 }
+        : null
     ),
     upsertHandle: vi.fn(async () => ({})),
   };
@@ -91,6 +95,7 @@ beforeEach(() => {
   store.user.avatar_id = null;
   store.stars = 0;
   store.tutorialDone = false;
+  store.seasonDone = false;
   store.owned = [];
   vi.clearAllMocks();
 });
@@ -237,7 +242,19 @@ describe("GET /api/settings avatarUnlocks", () => {
     expect(body.avatarUnlocks.stars).toBe(NEED);
     expect(body.avatarUnlocks.tutorialDone).toBe(true);
     expect(body.avatarUnlocks.unlockedIds).toEqual([...STICK_IDS, "kestrel", LOCKED.id]);
-    expect(STICK_IDS).toContain("gecko");
+    expect(STICK_IDS).not.toContain("gecko");
+  });
+
+  it("adds Gecko, last, once the season's last level is cleared", async () => {
+    store.stars = NEED;
+    store.tutorialDone = true;
+    store.seasonDone = true;
+    const res = await GET(
+      new NextRequest("http://localhost/api/settings", { headers: { authorization: "Bearer t" } })
+    );
+    const body = (await res.json()) as { avatarUnlocks: { seasonDone: boolean; unlockedIds: string[] } };
+    expect(body.avatarUnlocks.seasonDone).toBe(true);
+    expect(body.avatarUnlocks.unlockedIds).toEqual([...STICK_IDS, "kestrel", LOCKED.id, "gecko"]);
   });
 
   it("returns nothing selectable for a new account before the tutorial", async () => {

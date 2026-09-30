@@ -214,13 +214,14 @@ describe("picker order and groups", () => {
     "Cobra", "Badger", "Falcon", "Marmot", "Bison", "Ibex", "Sentinel", "Viking",
   ];
   const ORDER = [
-    "Wraith", "Gecko",
+    "Wraith",
     "Green Stick", "Ember Stick", "Amber Stick", "Sky Stick", "Violet Stick", "Pink Stick",
     "Initials",
     ...STAR_NAMES,
+    "Gecko",
   ];
 
-  it("lists the Shop Wraith, Gecko and the six sticks, Initials, then the star ladder cheapest first, and no skins", () => {
+  it("lists the Shop Wraith, the six sticks, Initials, the star ladder cheapest first, Gecko last, and no skins", () => {
     expect(OPTIONS.some((o) => o.entry?.skinOf !== undefined)).toBe(false);
     expect(OPTIONS.map((o) => o.name)).toEqual(ORDER);
     expect(OPTIONS.find((o) => o.name === "Initials")?.id).toBeNull();
@@ -235,7 +236,7 @@ describe("picker order and groups", () => {
     state.settings = settings(KESTREL.id);
     renderPicker();
     // With no unlock state every character is the player's: star ones first.
-    const YOURS = [...STAR_NAMES, "Wraith", "Gecko", ...ORDER.slice(2, 8), "Initials"];
+    const YOURS = [...STAR_NAMES, "Wraith", ...ORDER.slice(1, 7), "Initials", "Gecko"];
     expect(radios().map((r) => r.getAttribute("aria-label"))).toEqual(
       YOURS.map((n) => (n === "Initials" ? "Use initials" : n === "Kestrel" ? "Kestrel, equipped" : n)),
     );
@@ -243,13 +244,15 @@ describe("picker order and groups", () => {
   });
 
   it("puts the player's characters first, a Shop character for sale in its own row, then the locked ones", () => {
-    const unlocks = { stars: 20, unlockedIds: ["gecko", "stick-green", "kestrel"], grandfatheredId: null };
+    const unlocks = { stars: 20, unlockedIds: ["stick-green", "kestrel"], grandfatheredId: null };
     const layout = pickerLayout(unlocks);
-    expect(layout.tiles.slice(0, layout.lockedStart).map((o) => o.name)).toEqual(["Kestrel", "Gecko", "Green Stick", "Initials"]);
+    expect(layout.tiles.slice(0, layout.lockedStart).map((o) => o.name)).toEqual(["Kestrel", "Green Stick", "Initials"]);
     expect(layout.shop.map((o) => o.name)).toEqual(["Wraith"]);
     const locked = layout.tiles.slice(layout.lockedStart).map((o) => o.name);
     expect(locked).not.toContain("Wraith");
     expect(locked).toContain("Falcon");
+    // The final unlock, for finishing the season, closes the locked tiles.
+    expect(locked.at(-1)).toBe("Gecko");
     expect(locked.length + layout.lockedStart + layout.shop.length).toBe(OPTIONS.length);
   });
 
@@ -768,7 +771,7 @@ describe("locked characters in the picker (server unlock state)", () => {
     expect(tile("Wraith")).toBeUndefined();
     const row = container.querySelector('[data-avatar-shop-row="wraith"]');
     expect(row?.textContent).toContain("2,000 gems");
-    // Gecko is free after the tutorial, and every star character is open at 900 stars.
+    // Every star character is open at 900 stars, and Gecko once the season is finished.
     expect(tile("Gecko")?.hasAttribute("data-locked")).toBe(false);
     expect(tile("Viking")?.hasAttribute("data-locked")).toBe(false);
 
@@ -798,6 +801,19 @@ describe("locked characters in the picker (server unlock state)", () => {
     expect(tile("Gecko")?.hasAttribute("data-locked")).toBe(true);
     await click(tile("Green Stick"));
     expect(switchWarning()?.textContent).toBe("Switching will lock Wraith until you buy it in the Shop.");
+  });
+
+  it("locks Gecko, last, until the season is finished, whatever the stars", async () => {
+    const allButGecko = AVATARS.filter((a) => a.unlock.kind !== "purchase" && a.unlock.kind !== "season").map((a) => a.id);
+    state.settings = withUnlocks("stick-green", 900, allButGecko);
+    renderPicker();
+    const gecko = tile("Gecko");
+    expect(gecko?.hasAttribute("data-locked")).toBe(true);
+    expect(gecko?.getAttribute("aria-label")).toBe("Gecko, locked. Finish the season");
+    expect(radios().at(-1)).toBe(gecko);
+    await click(gecko ?? null);
+    expect(notice()?.textContent).toBe("Clear all 300 levels of the season to unlock Gecko.");
+    expect(saveButton()?.textContent).toBe("Finish the season first");
   });
 
   it("locks the stick figures until the tutorial is done", async () => {

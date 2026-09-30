@@ -3,7 +3,8 @@
  * catalogue allow-list (a retired id reads as null, never as a broken image
  * id), and the write path refuses a non-catalogue id even if a future caller
  * skips the route's validation. Unlocks come from stored rows only: level
- * stars, a level 1 row (the tutorial, for the stick figures) and the saved
+ * stars, a level 1 row (the tutorial, for the stick figures), a level 300 row
+ * (the season, for the Gecko) and the saved
  * avatar. Premium characters are never unlockable, only kept while saved.
  */
 
@@ -45,7 +46,7 @@ vi.mock("../../src/db/client", () => ({
 }));
 
 import { getUserSettings, updateUserSettings } from "../../src/db/settings";
-import { AvatarLockedError, checkAvatarForUser, tutorialCleared } from "../../src/db/avatarUnlocks";
+import { AvatarLockedError, checkAvatarForUser, seasonCleared, tutorialCleared } from "../../src/db/avatarUnlocks";
 import { AVATARS, avatarEntry } from "../../src/lib/avatars";
 
 /** A star-locked avatar and its threshold. */
@@ -85,6 +86,41 @@ describe("tutorialCleared", () => {
     expect(await tutorialCleared("u1", tx)).toBe(true);
     expect(txFindFirst).toHaveBeenCalledTimes(1);
     expect(findFirst).not.toHaveBeenCalled();
+  });
+});
+
+/** u1 has cleared a season's last level. */
+function finishSeason(userId = "u1"): void {
+  progress.rows.push({ id: progress.rows.length + 1, userId, level: 300 });
+}
+
+describe("seasonCleared", () => {
+  it("is true once the player has a level 300 row, and asks for exactly that row", async () => {
+    finishSeason("u1");
+    expect(await seasonCleared("u1")).toBe(true);
+    expect(findFirst).toHaveBeenCalledWith(expect.objectContaining({ where: { userId: "u1", level: 300 } }));
+  });
+
+  it("is false with only level 299, only level 1, or only another player's level 300", async () => {
+    expect(await seasonCleared("u1")).toBe(false);
+    progress.rows.push({ id: 1, userId: "u1", level: 299 }, { id: 2, userId: "u1", level: 1 }, { id: 3, userId: "u2", level: 300 });
+    expect(await seasonCleared("u1")).toBe(false);
+    expect(await seasonCleared("u2")).toBe(true);
+  });
+});
+
+describe("Gecko, the season unlock", () => {
+  it("refuses Gecko after the tutorial at any star count, and saves it once the season is cleared", async () => {
+    finishTutorial();
+    progress.stars = 900;
+    const err = await updateUserSettings("u1", { avatarId: "gecko" }).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(AvatarLockedError);
+    expect(update).not.toHaveBeenCalled();
+    finishSeason();
+    const saved = await updateUserSettings("u1", { avatarId: "gecko" });
+    expect(saved.avatarId).toBe("gecko");
+    expect(saved.avatarUnlocks.seasonDone).toBe(true);
+    expect(saved.avatarUnlocks.unlockedIds.at(-1)).toBe("gecko");
   });
 });
 
@@ -182,7 +218,15 @@ describe("updateUserSettings avatar unlocks (backstop behind the route)", () => 
 
   it("ignores a forged verdict and checks for itself", async () => {
     progress.stars = 0;
-    const forged = { userId: "u1", avatarId: LOCKED.id, lock: null, stars: 900, tutorialDone: true, ownedIds: [] };
+    const forged = {
+      userId: "u1",
+      avatarId: LOCKED.id,
+      lock: null,
+      stars: 900,
+      tutorialDone: true,
+      seasonDone: true,
+      ownedIds: [],
+    };
     const err = await updateUserSettings("u1", { avatarId: LOCKED.id }, forged).catch((e: unknown) => e);
     expect(err).toBeInstanceOf(AvatarLockedError);
     expect(update).not.toHaveBeenCalled();
@@ -261,6 +305,7 @@ describe("getUserSettings avatarUnlocks", () => {
     expect(avatarUnlocks).toEqual({
       stars: 15,
       tutorialDone: false,
+      seasonDone: false,
       unlockedIds: ["kestrel", "heron"],
       ownedIds: [],
       grandfatheredId: "heron",
@@ -269,20 +314,21 @@ describe("getUserSettings avatarUnlocks", () => {
     for (const a of stillLocked) expect(avatarUnlocks.unlockedIds).not.toContain(a.id);
   });
 
-  it("adds Gecko and the six stick figures after the tutorial, and never an unbought Shop entry", async () => {
+  it("adds the six stick figures after the tutorial, never Gecko before the season, and never an unbought Shop entry", async () => {
     finishTutorial();
     progress.stars = 100_000;
     const { avatarUnlocks } = await getUserSettings("u1");
     expect(avatarUnlocks.tutorialDone).toBe(true);
-    expect(STICK_IDS).toHaveLength(7);
+    expect(avatarUnlocks.seasonDone).toBe(false);
+    expect(STICK_IDS).toHaveLength(6);
     expect(avatarUnlocks.unlockedIds).toEqual(expect.arrayContaining(STICK_IDS));
-    expect(avatarUnlocks.unlockedIds).toContain("gecko");
+    expect(avatarUnlocks.unlockedIds).not.toContain("gecko");
     expect(avatarUnlocks.unlockedIds).not.toContain("wraith");
     expect(avatarUnlocks.unlockedIds).not.toContain("gecko-void");
   });
 
   it("uses the unlock inputs a request already read instead of querying again", async () => {
-    const { avatarUnlocks } = await getUserSettings("u1", { stars: 30, tutorialDone: true, ownedIds: [] });
+    const { avatarUnlocks } = await getUserSettings("u1", { stars: 30, tutorialDone: true, seasonDone: false, ownedIds: [] });
     expect(avatarUnlocks.stars).toBe(30);
     expect(avatarUnlocks.unlockedIds).toEqual([...STICK_IDS, "kestrel", "lynx"]);
     expect(aggregate).not.toHaveBeenCalled();

@@ -46,12 +46,12 @@ describe("parseAvatarId", () => {
 describe("AVATARS catalogue", () => {
   // Ids are persisted in users.avatar_id: renaming or dropping one silently
   // retires every player who picked it, so the list is a stored contract.
-  it("is the approved gallery, in order: Wraith, Gecko, the stick figures, the star ladder, then the Void skins", () => {
+  it("is the approved gallery, in order: Wraith, the stick figures, the star ladder, Gecko last, then the Void skins", () => {
     const characters = [
-      "Wraith", "Gecko",
+      "Wraith",
       "Green Stick", "Ember Stick", "Amber Stick", "Sky Stick", "Violet Stick", "Pink Stick",
       "Kestrel", "Lynx", "Raven", "Panther", "Wolf", "Otter", "Heron", "Yak", "Mantis", "Cobra",
-      "Badger", "Falcon", "Marmot", "Bison", "Ibex", "Sentinel", "Viking",
+      "Badger", "Falcon", "Marmot", "Bison", "Ibex", "Sentinel", "Viking", "Gecko",
     ];
     const withArt = characters.filter((n) => !n.endsWith(" Stick"));
     expect(AVATARS.map((a) => a.name)).toEqual([
