@@ -128,7 +128,7 @@ function AuthSplash() {
       className="app-fade flex min-h-[100dvh] items-center justify-center"
     >
       <span className="auth-splash-mark">
-        <LogoMark size={84} card />
+        <LogoMark size={96} />
       </span>
       <style>{`
         .auth-splash-mark { animation: splashPulse 1.8s ease-in-out infinite; }

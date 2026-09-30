@@ -40,3 +40,7 @@ high altitude quickly. PR #208 links here.
 Before and after:
 
 <img src="../../screenshots/character-picker-before-after.jpg" width="660" alt="Choose Character before and after">
+
+## New Doomstack logo (#214)
+
+<img src="logo-app-icon.png" width="220" alt="App icon"> <img src="logo-web-home-mobile.png" width="220" alt="One-line logo in the navbar"> <img src="logo-app-sign-in-mobile.png" width="220" alt="Stacked logo on the app sign-in screen">
