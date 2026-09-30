@@ -54,7 +54,7 @@ const pack = (gems: number, usdCents: number, badge?: string): GemPack => ({
  */
 export const GEM_PACKS: readonly GemPack[] = [
   pack(500, 499),
-  pack(1200, 999, "Buys a skin"),
+  pack(1200, 999, "One skin"),
   pack(2600, 1999, "Most popular"),
   pack(7000, 4999, "Best value"),
 ];

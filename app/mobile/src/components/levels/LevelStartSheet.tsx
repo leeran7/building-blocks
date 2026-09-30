@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { POWER_UP_SPECS } from "@app/game/powerups";
 import { ALTITUDE_UNIT } from "@app/lib/units";
+import { formatGems } from "@app/lib/avatars";
 import { Button } from "../ui";
 import { tapLight } from "../../lib/haptics";
 import {
@@ -14,6 +15,8 @@ import {
   type StartRefusal,
 } from "../../lib/levels/model";
 import { Accordion, HeartIcon, StarRow, livesLabel, useNow } from "./LevelBits";
+import { ArrowRight, TowerIcon } from "./LevelIcons";
+import { GemIcon } from "../store/GemIcon";
 
 /** What a refused start or retry says, in the player's words. */
 export const REFUSAL_COPY: Record<Exclude<StartRefusal, "OUT_OF_LIVES">, string> = {
@@ -137,9 +140,9 @@ export function LevelStartSheet({
         <div className="mt-3 rounded-2xl border border-white/10 bg-elevated/70 px-3.5 py-2.5">
           <div className="flex items-baseline justify-between gap-3">
             <p className="flex items-baseline gap-2">
-              <span className="font-mono text-label uppercase tracking-label text-text-secondary">Goal</span>
+              <span className="font-mono text-label uppercase tracking-label text-text-secondary">Summit</span>
               <span className="font-display text-headline font-black tabular-nums text-text-primary">
-                {node.goalFt.toLocaleString()}
+                {formatFeet(node.goalFt)}
                 <span className="ml-1 text-meta font-bold uppercase text-text-secondary">{ALTITUDE_UNIT}</span>
               </span>
             </p>
@@ -150,13 +153,13 @@ export function LevelStartSheet({
               </p>
             )}
           </div>
-          <ul aria-label="Star times" className="mt-2 flex items-center justify-between gap-2">
+          <ul aria-label="Star times" className="mt-2 grid grid-cols-3 divide-x divide-white/10">
             <ParRow stars={3} ms={node.pars.threeStarMs} />
             <ParRow stars={2} ms={node.pars.twoStarMs} />
             {node.pars.oneStarMs !== null ? (
               <ParRow stars={1} ms={node.pars.oneStarMs} />
             ) : (
-              <li className="flex items-center gap-1.5 text-meta text-text-secondary">
+              <li className="flex items-center justify-end gap-1.5 pl-2 text-meta text-text-secondary">
                 <StarRow count={1} size={11} />
                 <span>any clear</span>
               </li>
@@ -197,7 +200,7 @@ export function LevelStartSheet({
               <p className="flex items-center justify-center gap-1.5 text-meta text-text-secondary">
                 {node.costsLife ? (
                   <>
-                    <HeartIcon size={14} /> Costs 1 life, refunded if you clear it
+                    <HeartIcon size={14} /> Costs 1 life · refunded when you clear it
                   </>
                 ) : (
                   "Tutorial level: free to play"
@@ -223,6 +226,11 @@ export function LevelStartSheet({
   );
 }
 
+/** Feet for the summit line: whole feet with thousands separators ("1,204"). */
+export function formatFeet(ft: number): string {
+  return Math.round(ft).toLocaleString("en-US");
+}
+
 /** Seconds for a chip: whole numbers bare, otherwise one decimal. */
 function formatSeconds(s: number): string {
   const r = Math.round(s * 10) / 10;
@@ -237,14 +245,19 @@ function formatSeconds(s: number): string {
 export function PowerUpsCard({ powerUps }: { powerUps: LevelNode["powerUps"] }) {
   if (powerUps.floorsPerOrb === null) {
     return (
-      <div className="mt-2 flex min-h-[44px] items-center justify-between gap-3 rounded-2xl border border-white/10 bg-elevated/70 px-3.5 py-2">
-        <p className="font-mono text-label uppercase tracking-label text-text-secondary">Power-ups</p>
-        <p className="text-meta text-text-primary">None on this level</p>
+      <div className="mt-2 flex min-h-[48px] items-center gap-3 rounded-2xl border border-white/10 bg-elevated/70 px-3.5 py-2">
+        <TowerIcon size={18} className="shrink-0 text-text-secondary" />
+        <p className="font-mono text-label uppercase tracking-label text-text-secondary">On the tower</p>
+        <p className="ml-auto text-meta text-text-primary">No power-ups</p>
       </div>
     );
   }
   return (
-    <Accordion label="Power-ups" summary={`About 1 every ${powerUps.floorsPerOrb} floors`}>
+    <Accordion
+      label="On the tower"
+      icon={<TowerIcon size={18} />}
+      summary={`Power-up every ${powerUps.floorsPerOrb} floors`}
+    >
       <ul className="grid grid-cols-2 gap-x-4 gap-y-0.5" aria-label="Power-ups on this level and how long they last">
         {powerUps.types.map((t) => {
           const spec = POWER_UP_SPECS[t];
@@ -266,9 +279,10 @@ export function PowerUpsCard({ powerUps }: { powerUps: LevelNode["powerUps"] }) 
   );
 }
 
+/** One star time; the three share the row in thirds, split by rules. */
 function ParRow({ stars, ms }: { stars: number; ms: number }) {
   return (
-    <li className="flex items-center gap-1.5 text-meta tabular-nums text-text-primary">
+    <li className="flex items-center justify-center gap-1.5 text-meta tabular-nums text-text-primary first:justify-start first:pr-2 last:justify-end last:pl-2">
       <StarRow count={stars} size={11} />
       <span>{formatClock(ms)}</span>
     </li>
@@ -310,20 +324,29 @@ export function OutOfLives({
     <div className="flex flex-col gap-2.5">
       {/* Announced once; the ticking countdown below is not a live region. */}
       <p role="alert" className="sr-only">Out of lives.</p>
-      <div className="flex items-center justify-center gap-2 rounded-2xl border border-ember/40 bg-ember/10 px-4 py-3">
-        <HeartIcon size={20} />
+      <div className="flex items-center justify-center gap-2.5 rounded-2xl border border-ember/60 bg-ember/10 px-4 py-3.5">
+        <HeartIcon size={22} />
         <p className="text-body text-text-primary">
-          Out of lives. Next life in <span className="font-bold tabular-nums">{wait}</span>
+          <span className="font-bold">Out of lives.</span>{" "}
+          <span className="text-text-secondary">Next life in</span>{" "}
+          <span className="font-display text-lead font-black tabular-nums">{wait}</span>
         </p>
       </div>
       {refill && <RefillLives offer={refill} />}
-      <Button variant="secondary" onPress={onPracticeLevel}>
+      <Button variant="secondary" onPress={onPracticeLevel} className="min-h-[52px] text-cta">
         Practice this level
       </Button>
-      <p className="-mt-1 text-center text-meta text-text-secondary">No lives, stars or XP</p>
-      <Button variant="ghost" onPress={onPractice}>
-        Play Endless
-      </Button>
+      <p className="-mt-1 text-center text-meta text-text-secondary">No lives used. No stars or XP earned.</p>
+      <button
+        type="button"
+        onClick={() => {
+          void tapLight();
+          onPractice();
+        }}
+        className="mx-auto flex min-h-[44px] items-center gap-1.5 px-4 text-body font-semibold text-signal transition-transform active:scale-95"
+      >
+        Play endless <ArrowRight size={16} />
+      </button>
     </div>
   );
 }
@@ -348,23 +371,31 @@ function RefillLives({ offer }: { offer: RefillOffer }) {
   };
 
   return (
-    <div className="flex flex-col gap-1">
-      <Button
-        busy={busy}
-        disabled={!affordable}
-        onPress={() => void buy()}
-        aria-label={`Refill lives for ${offer.cost} gems`}
-        className="min-h-[52px] text-cta"
-      >
-        <HeartIcon size={16} /> Refill lives · {offer.cost} gems
-      </Button>
-      <p className="text-center text-meta text-text-secondary">
-        {affordable ? `You have ${offer.gems} gems` : `You have ${offer.gems} gems, ${offer.cost - offer.gems} short`}
-      </p>
-      {!affordable && offer.onGetGems && (
-        <Button variant="secondary" onPress={offer.onGetGems}>
-          Get gems
+    <div className="flex flex-col gap-2.5">
+      <div className="rounded-2xl border border-white/10 bg-elevated/70 px-4 py-3 text-center">
+        <p className="flex items-center justify-center gap-2.5 font-display text-lead font-bold text-text-primary">
+          <GemIcon size={22} /> Full refill · {formatGems(offer.cost)} gems
+        </p>
+        <p className="mt-1 text-meta text-text-secondary">
+          Your balance: {formatGems(offer.gems)} gems
+          {!affordable && ` · ${formatGems(offer.cost - offer.gems)} more needed`}
+        </p>
+      </div>
+      {affordable ? (
+        <Button
+          busy={busy}
+          onPress={() => void buy()}
+          aria-label={`Refill lives for ${offer.cost} gems`}
+          className="min-h-[52px] text-cta"
+        >
+          <HeartIcon size={16} className="text-void" /> Refill lives · {formatGems(offer.cost)} gems
         </Button>
+      ) : (
+        offer.onGetGems && (
+          <Button onPress={offer.onGetGems} className="min-h-[52px] text-cta">
+            Get gems
+          </Button>
+        )
       )}
       {error && (
         <p role="alert" className="text-center text-meta text-ember">

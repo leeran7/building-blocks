@@ -60,8 +60,8 @@ import {
   GRID_END_PADDING,
   OPTIONS,
   SAVED_FLASH_MS,
-  GRID_CELLS,
-  groupHeading,
+  gridCells,
+  pickerLayout,
   nextIndex,
   nextStarUnlock,
   starUnlockCount,
@@ -234,39 +234,31 @@ describe("picker order and groups", () => {
   it("renders the tiles in that order, with the saved one equipped", () => {
     state.settings = settings(KESTREL.id);
     renderPicker();
+    // With no unlock state every character is the player's: star ones first.
+    const YOURS = [...STAR_NAMES, "Wraith", "Gecko", ...ORDER.slice(2, 8), "Initials"];
     expect(radios().map((r) => r.getAttribute("aria-label"))).toEqual(
-      ORDER.map((n) => (n === "Initials" ? "Use initials" : n === "Kestrel" ? "Kestrel, equipped" : n)),
+      YOURS.map((n) => (n === "Initials" ? "Use initials" : n === "Kestrel" ? "Kestrel, equipped" : n)),
     );
     expect(radios().filter((r) => r.hasAttribute("data-equipped"))).toEqual([tile("Kestrel")]);
   });
 
-  it("groupHeading starts a group only at the Shop, the free-after-tutorial ones and Initials", () => {
-    const headings = OPTIONS.flatMap((_, i) => {
-      const h = groupHeading(i);
-      return h === null ? [] : [[i, h] as const];
-    });
-    expect(headings).toEqual([
-      [0, "Shop · buy with gems"],
-      [1, "Free after the tutorial"],
-      [8, "Initials and star unlocks"],
-    ]);
+  it("puts the player's characters first, a Shop character for sale in its own row, then the locked ones", () => {
+    const unlocks = { stars: 20, unlockedIds: ["gecko", "stick-green", "kestrel"], grandfatheredId: null };
+    const layout = pickerLayout(unlocks);
+    expect(layout.tiles.slice(0, layout.lockedStart).map((o) => o.name)).toEqual(["Kestrel", "Gecko", "Green Stick", "Initials"]);
+    expect(layout.shop.map((o) => o.name)).toEqual(["Wraith"]);
+    const locked = layout.tiles.slice(layout.lockedStart).map((o) => o.name);
+    expect(locked).not.toContain("Wraith");
+    expect(locked).toContain("Falcon");
+    expect(locked.length + layout.lockedStart + layout.shop.length).toBe(OPTIONS.length);
   });
 
-  it("draws each heading inside the radiogroup, hidden from screen readers, just before its group", () => {
-    state.settings = settings(null);
+  it("draws the Shop row with a link to the Shop and a Still locked heading before the locked tiles", () => {
+    state.settings = { ...settings(KESTREL.id), avatarUnlocks: { stars: 20, unlockedIds: ["gecko", "kestrel"], grandfatheredId: null } };
     renderPicker();
-    const ps = [...container.querySelectorAll('[role="radiogroup"] > p')];
-    expect(ps.map((p) => p.textContent)).toEqual([
-      "Shop · buy with gems",
-      "Free after the tutorial",
-      "Initials and star unlocks",
-    ]);
-    for (const p of ps) expect(p.getAttribute("aria-hidden")).toBe("true");
-    expect(ps.map((p) => p.nextElementSibling?.getAttribute("aria-label"))).toEqual([
-      "Wraith",
-      "Gecko",
-      "Use initials, equipped",
-    ]);
+    expect(container.querySelector('[data-avatar-shop-row="wraith"]')?.textContent).toContain("View in shop");
+    const heading = [...container.querySelectorAll('[role="radiogroup"] p')].find((p) => p.textContent === "Still locked");
+    expect(heading?.getAttribute("aria-hidden")).toBe("true");
   });
 });
 
@@ -305,8 +297,8 @@ describe("nextStarUnlock / starUnlockCount", () => {
       avatarUnlocks: { stars: 20, unlockedIds: [...STICKS, KESTREL.id], grandfatheredId: null },
     };
     renderPicker();
-    expect(container.querySelector("[data-avatar-next]")?.textContent).toBe("Next: Lynx in 10 ★");
-    expect(container.querySelector("[data-avatar-pinned]")?.textContent).toContain("1/17 unlocked");
+    expect(container.querySelector("[data-avatar-next]")?.textContent).toBe("Next: Lynx · 10 stars to unlock");
+    expect(container.querySelector("[data-avatar-pinned]")?.textContent).toContain("1 / 17 unlocked");
   });
 
   it("hides the next strip once every star character is unlocked", () => {
@@ -320,7 +312,7 @@ describe("nextStarUnlock / starUnlockCount", () => {
     };
     renderPicker();
     expect(container.querySelector("[data-avatar-next]")).toBeNull();
-    expect(container.querySelector("[data-avatar-pinned]")?.textContent).toContain("17/17 unlocked");
+    expect(container.querySelector("[data-avatar-pinned]")?.textContent).toContain("17 / 17 unlocked");
   });
 });
 
@@ -343,7 +335,7 @@ describe("AvatarPickerScreen", () => {
     expect(tile(KESTREL.name)?.getAttribute("aria-label")).toBe("Kestrel, equipped");
     expect(previewName()).toBe("Kestrel");
     expect(previewTag()).toBe("Equipped");
-    expect(saveButton()?.textContent).toBe("Save character");
+    expect(saveButton()?.textContent).toBe("Equipped");
     expect(saveButton()?.disabled).toBe(true);
   });
 
@@ -359,7 +351,7 @@ describe("AvatarPickerScreen", () => {
     expect(pose("Walk")?.getAttribute("aria-pressed")).toBe("false");
   });
 
-  it("saves {avatarId}, refreshes the boards, shows Saved, then returns to Save character after SAVED_FLASH_MS", async () => {
+  it("saves {avatarId}, refreshes the boards, shows Saved, then then reads Equipped after SAVED_FLASH_MS", async () => {
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
     state.settings = settings(null);
     apiFetch.mockResolvedValueOnce(json(settings(LYNX.id)));
@@ -395,7 +387,7 @@ describe("AvatarPickerScreen", () => {
     expect(saveButton()?.textContent).toBe("Saved");
 
     act(() => vi.advanceTimersByTime(1));
-    expect(saveButton()?.textContent).toBe("Save character");
+    expect(saveButton()?.textContent).toBe("Equipped");
     expect(saveButton()?.querySelector("svg")).toBeNull();
     expect(saveButton()?.disabled).toBe(true);
     expect(savedStatus()).toBe("");
@@ -705,7 +697,7 @@ describe("the picker fills the screen, Save sticks to the bottom (user report)",
     expect(container.querySelector('[role="radiogroup"][aria-label="Characters"]')).toBeTruthy();
     expect(container.querySelectorAll('[role="radio"][aria-checked="true"]')).toHaveLength(1);
     expect(tile(KESTREL.name)?.getAttribute("aria-checked")).toBe("true");
-    expect(saveButton()?.textContent).toBe("Save character");
+    expect(saveButton()?.textContent).toBe("Equipped");
   });
 });
 
@@ -772,13 +764,15 @@ describe("locked characters in the picker (server unlock state)", () => {
     const everythingElse = AVATARS.filter((a) => a.unlock.kind !== "purchase").map((a) => a.id);
     state.settings = withUnlocks("stick-green", 900, everythingElse);
     renderPicker();
-    expect(tile("Wraith")?.getAttribute("aria-label")).toBe("Wraith, locked. Buy in the Shop");
-    expect(tile("Wraith")?.textContent).toContain("Shop");
+    // Not a tile: the Shop row under the player's characters.
+    expect(tile("Wraith")).toBeUndefined();
+    const row = container.querySelector('[data-avatar-shop-row="wraith"]');
+    expect(row?.textContent).toContain("2,000 gems");
     // Gecko is free after the tutorial, and every star character is open at 900 stars.
     expect(tile("Gecko")?.hasAttribute("data-locked")).toBe(false);
     expect(tile("Viking")?.hasAttribute("data-locked")).toBe(false);
 
-    await click(tile("Wraith"));
+    await click(row?.querySelector("button") ?? null);
     expect(previewTag()).toBe("2,000 gems");
     expect(preview()?.textContent).toContain("In Shop");
     expect(notice()?.textContent).toBe("Buy Wraith in the Shop for 2,000 gems.");
@@ -952,35 +946,30 @@ describe("parseAvatarUnlocks / settingsFromResponse avatarUnlocks", () => {
   });
 });
 
-describe("arrow keys follow the visual grid, group rows included (review W1)", () => {
-  const at = (id: string | null) => OPTIONS.findIndex((o) => o.id === id);
-  const n = OPTIONS.length;
+describe("arrow keys follow the visual grid, the locked rows included (review W1)", () => {
+  // 4 of the player's tiles, then 5 locked ones starting a new row.
+  const cells = gridCells(9, 4);
 
-  it("lays each group out from a new row", () => {
-    expect(GRID_CELLS[at("wraith")]).toEqual({ row: 0, col: 0 });
-    expect(GRID_CELLS[at("gecko")]).toEqual({ row: 1, col: 0 });
-    expect(GRID_CELLS[at("stick-green")]).toEqual({ row: 1, col: 1 });
-    expect(GRID_CELLS[at("stick-amber")]).toEqual({ row: 2, col: 0 });
-    expect(GRID_CELLS[at("stick-pink")]).toEqual({ row: 3, col: 0 });
-    expect(GRID_CELLS[at(null)]).toEqual({ row: 4, col: 0 });
-    expect(GRID_CELLS[at("kestrel")]).toEqual({ row: 4, col: 1 });
+  it("lays the locked tiles out from a new row", () => {
+    expect(cells[3]).toEqual({ row: 1, col: 0 });
+    expect(cells[4]).toEqual({ row: 2, col: 0 });
+    expect(cells[8]).toEqual({ row: 3, col: 1 });
   });
 
-  it("Down moves straight down across a group boundary, never diagonally", () => {
-    expect(nextIndex("ArrowDown", at("wraith"), n)).toBe(at("gecko"));
-    expect(nextIndex("ArrowDown", at("gecko"), n)).toBe(at("stick-amber"));
-    expect(nextIndex("ArrowDown", at("stick-pink"), n)).toBe(at(null));
+  it("Down moves straight down across the boundary, never diagonally", () => {
+    expect(nextIndex("ArrowDown", 0, cells)).toBe(3);
+    expect(nextIndex("ArrowDown", 3, cells)).toBe(4);
   });
 
   it("Up from a column with nothing above lands on the nearest tile in the row above", () => {
-    expect(nextIndex("ArrowUp", at("stick-ember"), n)).toBe(at("wraith"));
-    expect(nextIndex("ArrowUp", at("stick-sky"), n)).toBe(at("stick-green"));
+    expect(nextIndex("ArrowUp", 6, cells)).toBe(3);
   });
 
   it("stays put at the top and bottom edges; Left/Right still step in order", () => {
-    expect(nextIndex("ArrowUp", at("wraith"), n)).toBe(at("wraith"));
-    expect(nextIndex("ArrowDown", n - 1, n)).toBe(n - 1);
-    expect(nextIndex("ArrowRight", at("gecko"), n)).toBe(at("stick-green"));
-    expect(nextIndex("Tab", 0, n)).toBeNull();
+    expect(nextIndex("ArrowUp", 0, cells)).toBe(0);
+    expect(nextIndex("ArrowDown", 8, cells)).toBe(8);
+    expect(nextIndex("ArrowRight", 3, cells)).toBe(4);
+    expect(nextIndex("Tab", 0, cells)).toBeNull();
   });
 });
+

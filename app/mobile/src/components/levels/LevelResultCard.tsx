@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ALTITUDE_UNIT } from "@app/lib/units";
 import { avatarName, stickColorOf } from "@app/lib/avatars";
 import { Button } from "../ui";
@@ -11,7 +11,8 @@ import {
 } from "../../lib/levels/model";
 import { HeartIcon, StarIcon, XpBar, livesLabel, useNow } from "./LevelBits";
 import { OutOfLives, type RefillOffer } from "./LevelStartSheet";
-import { ChestReveal } from "./ChestOpening";
+import { ChestCollected, ChestReveal } from "./ChestOpening";
+import { ArrowRight } from "./LevelIcons";
 import { STUCK_BOOSTER_FAILS } from "@app/levels/engagement";
 
 /**
@@ -52,6 +53,11 @@ export function LevelResultCard({
   /** The paid lives refill, offered when a loss leaves no lives. */
   refill?: RefillOffer | null;
 }) {
+  // A clear that opened chests leads with Collect Rewards; Next level waits
+  // below it as a link until the rewards are collected.
+  const chestKey = result.chestsOpened.map((c) => c.chestNumber).join();
+  const [collectedKey, setCollectedKey] = useState<string | null>(null);
+  const chestsOpen = result.chestsOpened.length > 0 && collectedKey !== chestKey;
   const label = result.cleared
     ? `Level ${result.level} cleared, ${result.stars} of ${MAX_STARS} stars`
     : (nearMiss ?? `${result.outOfTime ? "Out of time" : "Caught by the lava"}, ${feetShort(result)} ${ALTITUDE_UNIT} from the summit`);
@@ -69,8 +75,12 @@ export function LevelResultCard({
         />
       )}
       {/* Keyed by chest: a new clear's chests start their opening afresh. */}
-      <ChestReveal key={result.chestsOpened.map((c) => c.chestNumber).join()} chests={result.chestsOpened} />
-      <StreakLine result={result} />
+      {chestsOpen ? (
+        <ChestReveal key={chestKey} chests={result.chestsOpened} onCollect={() => setCollectedKey(chestKey)} />
+      ) : (
+        result.chestsOpened.length > 0 && <ChestCollected chests={result.chestsOpened} />
+      )}
+      {!result.cleared && <StreakLine result={result} />}
       <StuckLine result={result} />
 
       {retryError && (
@@ -78,14 +88,24 @@ export function LevelResultCard({
           {retryError}
         </p>
       )}
-      <div className="mt-6 flex flex-col gap-2.5">
+      <div className={`${chestsOpen ? "mt-1" : "mt-6"} flex flex-col gap-2.5`}>
         {result.cleared ? (
           <>
-            {hasNextLevel && (
-              <Button onPress={onNext} className="min-h-[56px] text-cta">
-                Next level
-              </Button>
-            )}
+            {hasNextLevel &&
+              (chestsOpen ? (
+                <button
+                  type="button"
+                  onClick={onNext}
+                  className="mx-auto flex min-h-[44px] items-center gap-2 px-4 font-display text-meta font-black uppercase tracking-wide text-text-primary transition-transform active:scale-95"
+                >
+                  Next level <ArrowRight size={18} />
+                </button>
+              ) : (
+                <Button onPress={onNext} className="min-h-[56px] text-cta">
+                  Next level
+                </Button>
+              ))}
+            <StreakLine result={result} divider />
             <div className="flex gap-2.5">
               <Button variant="secondary" busy={retryBusy} onPress={onRetry} aria-label={`Replay level ${result.level}`}>
                 Replay
@@ -113,7 +133,14 @@ export function LevelResultCard({
 }
 
 /** The win streak after a frontier run; replays leave it alone and say nothing. */
-export function StreakLine({ result }: { result: Pick<LevelResult, "atFrontier" | "streak" | "cleared"> }) {
+export function StreakLine({
+  result,
+  divider = false,
+}: {
+  result: Pick<LevelResult, "atFrontier" | "streak" | "cleared">;
+  /** Drawn as a rule between the clear's actions, label in the middle. */
+  divider?: boolean;
+}) {
   if (!result.atFrontier || result.streak === null) return null;
   const text =
     result.streak > 0
@@ -121,6 +148,15 @@ export function StreakLine({ result }: { result: Pick<LevelResult, "atFrontier" 
       : result.cleared
         ? "Win streak 0"
         : "Win streak reset. Clear a new level to start one.";
+  if (divider) {
+    return (
+      <p className="my-1 flex items-center gap-3 font-mono text-label font-bold uppercase tracking-label text-text-secondary">
+        <span aria-hidden className="h-px flex-1 bg-white/15" />
+        {text}
+        <span aria-hidden className="h-px flex-1 bg-white/15" />
+      </p>
+    );
+  }
   return (
     <p className="mt-3 text-center font-mono text-label font-bold uppercase tracking-label text-text-secondary">
       {text}

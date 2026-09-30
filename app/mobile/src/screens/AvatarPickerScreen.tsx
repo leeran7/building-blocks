@@ -16,6 +16,7 @@ import { apiFetch } from "../lib/api";
 import { useAuth } from "../contexts/AuthContext";
 import { echoedSetting, useDashboard, useInvalidateAppData, useSettings } from "../contexts/AppDataContext";
 import { HexAvatar } from "../components/HexAvatar";
+import { GemIcon } from "../components/store/GemIcon";
 import { CharacterPreview, type PreviewPose } from "../components/CharacterPreview";
 import { PushHeader, RetryPanel } from "../components/ui";
 import { identityNameFor, INITIALS_LABEL } from "../lib/identity";
@@ -82,19 +83,6 @@ export const OPTIONS: readonly Option[] = [
 /** The tile a saved avatar shows as: a skin's character, else the id itself (null = Initials). */
 export function tileIdOf(avatarId: string | null): string | null {
   return avatarId === null ? null : (characterIdOf(avatarId) ?? avatarId);
-}
-
-/** The group heading shown above option `i`, or null inside a group. */
-export function groupHeading(i: number): string | null {
-  const kind = (o: Option | undefined) => (o === undefined ? null : (o.entry?.unlock.kind ?? "initials"));
-  const here = kind(OPTIONS[i]);
-  const before = kind(OPTIONS[i - 1]);
-  if (here === before) return null;
-  if (here === "premium") return "Premium · coming soon";
-  if (here === "purchase") return "Shop · buy with gems";
-  if (here === "tutorial") return "Free after the tutorial";
-  if (here === "initials" || (here === "stars" && before !== "initials")) return "Initials and star unlocks";
-  return null;
 }
 
 /** A tile the player cannot select yet, and what it takes. */
@@ -176,50 +164,78 @@ export function nextStarUnlock(
 }
 
 /**
- * Each option's visual (row, column) in the grid. A group heading spans a
- * full row, so each group starts a new row and a short last row leaves gaps.
+ * How the picker lays the options out (the Choose Character design): the
+ * player's own characters first (star characters they earned, a Shop
+ * character they bought, the free ones, Initials), then the Shop characters
+ * still for sale as rows of their own, then everything still locked.
  */
-export const GRID_CELLS: ReadonlyArray<{ row: number; col: number }> = (() => {
-  const cells: { row: number; col: number }[] = [];
+export interface PickerLayout {
+  /** The grid: `owned` then `locked`, one radio group. */
+  tiles: readonly Option[];
+  /** Index in `tiles` where the locked ones start (a new row). */
+  lockedStart: number;
+  /** Shop characters not owned yet, shown as rows with a link to the Shop. */
+  shop: readonly Option[];
+}
+
+export function pickerLayout(unlocks: AvatarUnlockState | undefined): PickerLayout {
+  const open = (o: Option) => tileLock(o.entry, unlocks) === null;
+  const kind = (o: Option) => o.entry?.unlock.kind ?? "initials";
+  const owned = [
+    ...OPTIONS.filter((o) => kind(o) === "stars" && open(o)),
+    ...OPTIONS.filter((o) => kind(o) === "purchase" && open(o)),
+    ...OPTIONS.filter((o) => kind(o) !== "stars" && kind(o) !== "purchase" && open(o)),
+  ];
+  const shop = OPTIONS.filter((o) => kind(o) === "purchase" && !open(o));
+  const locked = OPTIONS.filter((o) => kind(o) !== "purchase" && !open(o));
+  return { tiles: [...owned, ...locked], lockedStart: owned.length, shop };
+}
+
+type Cell = { row: number; col: number };
+
+/** Each tile's visual (row, column): rows of COLUMNS, the locked tiles starting a new row. */
+export function gridCells(count: number, lockedStart: number): Cell[] {
+  const cells: Cell[] = [];
   let row = -1;
   let col = COLUMNS;
-  OPTIONS.forEach((_, i) => {
-    if (groupHeading(i) !== null || col === COLUMNS) {
+  for (let i = 0; i < count; i++) {
+    if (i === lockedStart || col === COLUMNS) {
       row += 1;
       col = 0;
     }
     cells.push({ row, col });
     col += 1;
-  });
+  }
   return cells;
-})();
+}
 
-/** The option in visual row `row` nearest column `col`, or null past the grid's edge. */
-function cellAt(row: number, col: number): number | null {
+/** The tile in visual row `row` nearest column `col`, or null past the grid's edge. */
+function cellAt(cells: readonly Cell[], row: number, col: number): number | null {
   let best: number | null = null;
-  GRID_CELLS.forEach((c, i) => {
+  cells.forEach((c, i) => {
     if (c.row !== row) return;
-    if (best === null || Math.abs(c.col - col) < Math.abs(GRID_CELLS[best].col - col)) best = i;
+    if (best === null || Math.abs(c.col - col) < Math.abs(cells[best].col - col)) best = i;
   });
   return best;
 }
 
 /**
  * Index an arrow/Home/End key moves the radio selection to, or null for other
- * keys. Up and Down follow the visual grid, group rows included; Left and
- * Right step through the options in order.
+ * keys. Up and Down follow the visual grid, the locked rows included; Left and
+ * Right step through the tiles in order.
  */
-export function nextIndex(key: string, current: number, count: number): number | null {
-  const here = GRID_CELLS[current];
+export function nextIndex(key: string, current: number, cells: readonly Cell[]): number | null {
+  const count = cells.length;
+  const here = cells[current];
   switch (key) {
     case "ArrowRight":
       return (current + 1) % count;
     case "ArrowLeft":
       return (current - 1 + count) % count;
     case "ArrowDown":
-      return cellAt(here.row + 1, here.col) ?? current;
+      return cellAt(cells, here.row + 1, here.col) ?? current;
     case "ArrowUp":
-      return cellAt(here.row - 1, here.col) ?? current;
+      return cellAt(cells, here.row - 1, here.col) ?? current;
     case "Home":
       return 0;
     case "End":
@@ -269,11 +285,12 @@ export function AvatarPickerScreen() {
   const [error, setError] = useState<string | null>(null);
   const unlocks = settingsData?.avatarUnlocks;
 
-  const viewingIndex = Math.max(
-    0,
-    OPTIONS.findIndex((o) => o.id === viewing),
-  );
-  const viewed = OPTIONS[viewingIndex];
+  const layout = pickerLayout(unlocks);
+  const cells = gridCells(layout.tiles.length, layout.lockedStart);
+  const viewed = OPTIONS.find((o) => o.id === viewing) ?? layout.tiles[0] ?? OPTIONS[0];
+  // The grid tile keyboard focus rests on: the viewed one, or the first when
+  // a Shop row is being viewed.
+  const viewingIndex = Math.max(0, layout.tiles.indexOf(viewed));
   const viewedLock = tileLock(viewed.entry, unlocks);
   // A saved skin is equipped on its character's tile.
   const currentTile = tileIdOf(current);
@@ -319,18 +336,18 @@ export function AvatarPickerScreen() {
     if (error && !saving) saveRef.current?.focus();
   }, [error, saving]);
 
-  const choose = (i: number) => {
-    if (OPTIONS[i].id !== viewing) void tapLight();
-    setViewing(OPTIONS[i].id);
+  const view = (o: Option) => {
+    if (o.id !== viewing) void tapLight();
+    setViewing(o.id);
     setError(null);
     setSavedFlash(false);
   };
 
   const onTileKey = (e: KeyboardEvent<HTMLButtonElement>, i: number) => {
-    const n = nextIndex(e.key, i, OPTIONS.length);
+    const n = nextIndex(e.key, i, cells);
     if (n === null) return;
     e.preventDefault();
-    choose(n);
+    view(layout.tiles[n]);
     tiles.current[n]?.focus();
   };
 
@@ -370,7 +387,7 @@ export function AvatarPickerScreen() {
       setCurrent(picked);
       setSavedFlash(true);
       // Save is disabled now (nothing changed): keep keyboard focus on the grid.
-      tiles.current[OPTIONS.findIndex((o) => o.id === picked)]?.focus();
+      tiles.current[layout.tiles.findIndex((o) => o.id === picked)]?.focus();
       // An avatar can rename a player with no display name (the pseudonym's
       // animal follows it), so every cached copy of their name goes stale:
       // both boards and the dashboard handle behind the Profile header.
@@ -409,6 +426,8 @@ export function AvatarPickerScreen() {
     ? "Saving…"
     : savedFlash && !changed
       ? "Saved"
+      : !changed
+        ? "Equipped"
       : viewedLock?.kind === "premium"
         ? "Not on sale yet"
         : shopLink
@@ -492,7 +511,8 @@ export function AvatarPickerScreen() {
             <div data-avatar-next className="flex items-center gap-2 px-0.5">
               <HexAvatar userId={userId} name={next.entry.name} avatarId={next.entry.id} size={NEXT_HEX} />
               <p className="shrink-0 text-meta text-text-secondary">
-                Next: <span className="font-semibold text-text-primary">{next.entry.name}</span> in {next.starsLeft} ★
+                Next: <span className="font-semibold text-text-primary">{next.entry.name}</span> · {next.starsLeft}{" "}
+                {next.starsLeft === 1 ? "star" : "stars"} to unlock
               </p>
               <div aria-hidden className="h-1.5 min-w-8 flex-1 overflow-hidden rounded-full bg-elevated">
                 <div className="h-full rounded-full bg-signal" style={{ width: `${Math.round(next.progress * 100)}%` }} />
@@ -500,10 +520,10 @@ export function AvatarPickerScreen() {
             </div>
           )}
 
-          <p className="flex justify-between px-0.5 font-mono text-label font-bold uppercase tracking-label text-text-secondary">
-            <span>Characters</span>
+          <p className="-mx-4 mt-1 flex items-center justify-between bg-void/60 px-4 py-2.5 font-mono text-label font-bold uppercase tracking-eyebrow">
+            <span className="text-text-primary">Your characters</span>
             <span className="text-signal">
-              {counts.owned}/{counts.total} unlocked
+              {counts.owned} / {counts.total} unlocked
             </span>
           </p>
         </div>
@@ -539,23 +559,26 @@ export function AvatarPickerScreen() {
             className="flex flex-col gap-4 pb-(--avatar-grid-end)"
             style={{ "--avatar-grid-end": GRID_END_PADDING } as CSSProperties}
           >
-            <div role="radiogroup" aria-label="Characters" className="grid grid-cols-3 gap-2.5">
-              {OPTIONS.map((o, i) => {
-                const checked = o.id === currentTile;
-                const isViewed = i === viewingIndex;
-                const lock = tileLock(o.entry, unlocks);
-                const heading = groupHeading(i);
-                const label = o.id === null ? "Use initials" : o.name;
-                return [
-                  heading && (
-                    <p
-                      key={`h-${i}`}
-                      aria-hidden
-                      className="col-span-3 px-0.5 pt-1 font-mono text-label font-bold uppercase tracking-label text-text-muted"
-                    >
-                      {heading}
-                    </p>
-                  ),
+            <div role="radiogroup" aria-label="Characters" className="flex flex-col gap-2.5">
+              {[0, 1].map((part) => {
+                const from = part === 0 ? 0 : layout.lockedStart;
+                const to = part === 0 ? layout.lockedStart : layout.tiles.length;
+                if (from === to) return null;
+                return (
+                  <div key={part} className="flex flex-col gap-2.5">
+                    {part === 1 && (
+                      <p aria-hidden className="px-0.5 pt-1 font-mono text-label font-bold uppercase tracking-label text-text-muted">
+                        Still locked
+                      </p>
+                    )}
+                    <div className="grid grid-cols-3 gap-2.5">
+                      {layout.tiles.slice(from, to).map((o, k) => {
+                        const i = from + k;
+                        const checked = o.id === currentTile;
+                        const isViewed = i === viewingIndex && viewed === o;
+                        const lock = tileLock(o.entry, unlocks);
+                        const label = o.id === null ? "Use initials" : o.name;
+                        return (
                   <button
                     key={o.id ?? "initials"}
                     ref={(el) => {
@@ -573,8 +596,8 @@ export function AvatarPickerScreen() {
                     }
                     data-locked={lock ? "" : undefined}
                     data-equipped={checked ? "" : undefined}
-                    tabIndex={isViewed ? 0 : -1}
-                    onClick={() => choose(i)}
+                    tabIndex={i === viewingIndex ? 0 : -1}
+                    onClick={() => view(o)}
                     onKeyDown={(e) => onTileKey(e, i)}
                     className={`relative flex min-h-[88px] min-w-0 flex-col items-center gap-1.5 rounded-2xl border px-1 pb-2 pt-2.5 transition-transform active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-void ${
                       checked
@@ -627,8 +650,26 @@ export function AvatarPickerScreen() {
                         </span>
                       )
                     )}
-                  </button>,
-                ];
+                  </button>
+                        );
+                      })}
+                    </div>
+                    {part === 0 &&
+                      layout.shop.map((o) => (
+                        <ShopRow
+                          key={o.id}
+                          option={o}
+                          viewed={viewed === o}
+                          userId={userId}
+                          onView={() => view(o)}
+                          onShop={() => {
+                            void tapLight();
+                            navigate(`/shop/${o.id}`);
+                          }}
+                        />
+                      ))}
+                  </div>
+                );
               })}
             </div>
           </div>
@@ -680,6 +721,61 @@ export function AvatarPickerScreen() {
         </footer>
       )}
     </main>
+  );
+}
+
+/**
+ * A Shop character still for sale: its badge, name and price, and a link to
+ * its page in the Shop. Tapping the row previews it above.
+ */
+function ShopRow({
+  option,
+  viewed,
+  userId,
+  onView,
+  onShop,
+}: {
+  option: Option;
+  viewed: boolean;
+  userId: string;
+  onView: () => void;
+  onShop: () => void;
+}) {
+  const price = option.entry?.unlock.kind === "purchase" ? option.entry.unlock.gems : null;
+  return (
+    <div
+      data-avatar-shop-row={option.id}
+      className={`flex items-center gap-3 rounded-2xl border bg-[rgba(16,15,20,0.9)] p-3 ${
+        viewed ? "border-text-secondary shadow-[0_0_0_1px_var(--color-text-secondary)]" : "border-white/10"
+      }`}
+    >
+      <button
+        type="button"
+        onClick={onView}
+        aria-label={`Preview ${option.name}${price !== null ? `, ${formatGems(price)} gems in the Shop` : ""}`}
+        className="flex min-h-[56px] min-w-0 flex-1 items-center gap-3 text-left"
+      >
+        <HexAvatar userId={userId} name={option.name} avatarId={option.id} size={TILE_HEX} />
+        <span className="min-w-0">
+          <span className="block truncate text-body font-semibold text-text-primary">{option.name}</span>
+          {price !== null && (
+            <span className="flex items-center gap-1.5 whitespace-nowrap text-meta text-text-secondary">
+              <GemIcon size={16} /> {formatGems(price)} gems
+            </span>
+          )}
+        </span>
+      </button>
+      <button
+        type="button"
+        onClick={onShop}
+        className="flex min-h-[44px] shrink-0 items-center gap-1.5 rounded-full border border-white/15 bg-void/60 px-4 font-mono text-label font-bold uppercase tracking-label text-signal transition-transform active:scale-95"
+      >
+        View in shop
+        <svg aria-hidden width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M4 12h15M13 6l6 6-6 6" />
+        </svg>
+      </button>
+    </div>
   );
 }
 

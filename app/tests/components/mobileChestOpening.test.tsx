@@ -23,7 +23,7 @@ vi.mock("../../mobile/src/lib/haptics", () => haptics);
 const motion = vi.hoisted(() => ({ reduce: false }));
 vi.mock("../../mobile/src/lib/motion", () => ({ prefersReducedMotion: () => motion.reduce }));
 
-import { CHEST_LID_MS, CHEST_SHAKE_MS, ChestReveal } from "../../mobile/src/components/levels/ChestOpening";
+import { CHEST_CARD_STAGGER_MS, CHEST_LID_MS, CHEST_SHAKE_MS, CHEST_SPARKS, ChestReveal } from "../../mobile/src/components/levels/ChestOpening";
 import { LevelResultCard } from "../../mobile/src/components/levels/LevelResultCard";
 import type { LevelResult, OpenedChest } from "../../mobile/src/lib/levels/model";
 import { POWER_UP_SPECS } from "../../src/game/powerups";
@@ -116,26 +116,44 @@ describe("star chest opening", () => {
     expect(container.querySelector(".lc-shake")).not.toBeNull();
     expect(allCardLists()).toHaveLength(0);
 
-    advance(CHEST_SHAKE_MS - 1);
+    // The build-up: three beats, each shaking harder with a stronger haptic.
+    const beat = () => container.querySelector("[data-chest-beat]")?.getAttribute("data-chest-beat");
+    expect(beat()).toBe("1");
+    expect(container.textContent).toContain("Something's inside…");
+    advance(CHEST_SHAKE_MS / 3);
+    expect(beat()).toBe("2");
+    expect(haptics.tapMedium).toHaveBeenCalledTimes(2);
+    expect(container.textContent).toContain("It's waking up…");
+    advance(CHEST_SHAKE_MS / 3);
+    expect(beat()).toBe("3");
+    expect(haptics.tapHeavy).toHaveBeenCalledTimes(1);
+    expect(container.textContent).toContain("Here it comes!");
+    expect(haptics.notifySuccess).not.toHaveBeenCalled();
+
+    advance(CHEST_SHAKE_MS / 3 - 1);
     expect(phase()).toBe("shaking");
     advance(1);
     expect(phase()).toBe("opening");
     expect(haptics.notifySuccess).toHaveBeenCalledTimes(1);
     expect(container.querySelector(".lc-lid-fly")).not.toBeNull();
-    expect(container.querySelectorAll(".lc-spark")).toHaveLength(8);
+    expect(container.querySelectorAll(".lc-spark")).toHaveLength(CHEST_SPARKS);
+    expect(container.querySelector(".lc-flash")).not.toBeNull();
+    expect(container.querySelector(".lc-ring")).not.toBeNull();
     expect(allCardLists()).toHaveLength(0);
 
     advance(CHEST_LID_MS);
     expect(phase()).toBe("open");
     expect(container.querySelector(".lc-lid-open")).not.toBeNull();
-    expect(container.querySelectorAll(".lc-spark")).toHaveLength(0);
+    expect(container.querySelectorAll(".lc-spark, .lc-flash, .lc-ring")).toHaveLength(0);
     expect(cards(1)).toEqual(["Giant", "Jetpack"]);
     const lis = [...container.querySelectorAll<HTMLLIElement>('ul[aria-label="Boosters from chest 1"] li')];
-    expect(lis.map((li) => li.style.animationDelay)).toEqual(["0ms", "160ms"]);
+    // Dealt face down and flipped one after another.
+    expect(lis.map((li) => li.style.animationDelay)).toEqual(["0ms", `${CHEST_CARD_STAGGER_MS}ms`]);
+    expect(lis.every((li) => li.querySelector(".lc-back"))).toBe(true);
     expect(lis[1]?.style.borderColor).toBe(POWER_UP_SPECS.jetpack.color);
     expect(status()).toBe("Chest opened: Giant, Jetpack");
-    // Collect ends it; a Skip beside it would do the same, so there is none.
-    expect(button("Collect")).toBeDefined();
+    // See rewards ends it; a Skip beside it would do the same, so there is none.
+    expect(button("See rewards")).toBeDefined();
     expect(button("Skip")).toBeUndefined();
     expect(vi.getTimerCount()).toBe(0);
   });
@@ -172,11 +190,11 @@ describe("star chest opening", () => {
     expect(button("Open chest 4 of 3")).toBeUndefined();
     expect(button("Skip all")).toBeUndefined();
 
-    click("Collect");
+    click("See rewards");
     expect(phase()).toBeNull();
     expect(container.textContent).toContain("3 star chests opened!");
     expect(summary()).toEqual(["+2 Giant", "+1 Jetpack", "+1 Slow Lava", "+1 Rapid Climb"]);
-    expect(container.textContent).toContain("Spend them from any level’s start card.");
+    expect(container.textContent).toContain("Use these from a level’s start screen.");
     expect(status()).toBe("3 star chests opened! +2 Giant, +1 Jetpack, +1 Slow Lava, +1 Rapid Climb");
   });
 
@@ -220,7 +238,7 @@ describe("star chest opening", () => {
     render(THREE);
     expect(phase()).toBeNull();
     expect(button("Open star chest 1 of 3")).toBeUndefined();
-    expect(container.querySelector(".lc-wobble, .lc-shake, .lc-lid-fly, .lc-spark, .lc-rays, .lc-card")).toBeNull();
+    expect(container.querySelector(".lc-wobble, .lc-shake, .lc-lid-fly, .lc-spark, .lc-rays, .lc-card, .lc-mote, .lc-flash")).toBeNull();
     expect(summary()).toEqual(["+2 Giant", "+1 Jetpack", "+1 Slow Lava", "+1 Rapid Climb"]);
     expect(status()).toBe("3 star chests opened! +2 Giant, +1 Jetpack, +1 Slow Lava, +1 Rapid Climb");
     expect(vi.getTimerCount()).toBe(0);
@@ -250,8 +268,8 @@ describe("star chest opening", () => {
     click("Open star chest");
     advance(CHEST_SHAKE_MS);
     const first = sparks();
-    expect(first).toHaveLength(8);
-    expect(new Set(first).size).toBe(8);
+    expect(first).toHaveLength(CHEST_SPARKS);
+    expect(new Set(first).size).toBe(CHEST_SPARKS);
     act(() => root.unmount());
     root = createRoot(container);
     render([THREE[1]!]);
@@ -318,6 +336,23 @@ describe("on the result card", () => {
     expect(button("Open star chest")).toBeDefined();
   });
 
+  it("leads with Collect rewards, then folds the chest and puts Next level first", () => {
+    const next = () =>
+      [...container.querySelectorAll<HTMLButtonElement>("button")].find((b) => b.textContent?.trim() === "Next level");
+    renderCard([THREE[0]!]);
+    click("Open star chest");
+    openFully();
+    click("See rewards");
+    expect(summary()).toHaveLength(2);
+    // Next level waits as a link under Collect rewards.
+    expect(next()?.className).not.toContain("rounded-full");
+    click("Collect rewards");
+    expect(summary()).toEqual([]);
+    expect(container.textContent).toContain("Added to your boosters:");
+    expect(button("Collect rewards")).toBeUndefined();
+    expect(next()?.className).toContain("rounded-full");
+  });
+
   it("starts a later clear's chests closed again, even on the same card", () => {
     renderCard(THREE);
     click("Open star chest 1 of 3");
@@ -326,7 +361,7 @@ describe("on the result card", () => {
     openFully();
     click("Open chest 3 of 3");
     openFully();
-    click("Collect");
+    click("See rewards");
     expect(summary()).toHaveLength(4);
     renderCard([{ chestNumber: 7, boosters: ["jetpack"] }]);
     expect(phase()).toBe("closed");
