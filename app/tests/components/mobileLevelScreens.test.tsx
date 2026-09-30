@@ -361,6 +361,34 @@ describe("friends board on the start card", () => {
   });
 });
 
+describe("start card swipe to close", () => {
+  it("closes when the card is swiped down", async () => {
+    const client = memoryClient();
+    await renderMap(client);
+    await click(pin("Level 1, next to play"));
+    const sheet = container.querySelector<HTMLElement>('[role="dialog"]');
+    if (!sheet) throw new Error("no start card");
+    Object.defineProperty(sheet, "offsetHeight", { value: 500, configurable: true });
+    const fire = (type: string, y: number, t: number) => {
+      const ev = new Event(type, { bubbles: true, cancelable: true });
+      Object.defineProperties(ev, {
+        touches: { value: type === "touchend" ? [] : [{ clientX: 100, clientY: y }] },
+        timeStamp: { value: t },
+      });
+      act(() => {
+        sheet.dispatchEvent(ev);
+      });
+    };
+    fire("touchstart", 100, 0);
+    for (let i = 1; i <= 10; i++) fire("touchmove", 100 + i * 30, i * 100);
+    fire("touchend", 400, 1100);
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 300));
+    });
+    expect(container.querySelector('[role="dialog"]')).toBeNull();
+  });
+});
+
 describe("win streak on the start card", () => {
   it("previews the streak's power-up on the frontier level only", async () => {
     const client = memoryClient();
