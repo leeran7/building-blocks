@@ -184,7 +184,7 @@ function Cleared({ result }: { result: LevelResult }) {
         {Array.from({ length: MAX_STARS }, (_, i) => (
           <span
             key={i}
-            className={`lr-star ${i === 1 ? "-translate-y-2" : ""} ${i < result.stars && i >= result.previousStars ? "lr-new" : ""}`}
+            className={`lr-star ${i === 1 ? "-translate-y-2" : ""}`}
             style={{ animationDelay: `${0.25 + i * 0.18}s` }}
           >
             <StarIcon filled={i < result.stars} size={i === 1 ? 64 : 52} />
@@ -214,10 +214,6 @@ function Cleared({ result }: { result: LevelResult }) {
       </div>
       <style>{`
         .lr-star { display: inline-flex; animation: lrPop 0.45s cubic-bezier(0.16,1,0.3,1) both; }
-        /* A round halo behind a new star. Not a CSS drop-shadow on the svg:
-           WebKit clips that filter to the svg's box and draws a square. */
-        .lr-new { position: relative; }
-        .lr-new::before { content: ""; position: absolute; inset: -35%; z-index: -1; border-radius: 9999px; background: radial-gradient(circle, rgba(203,242,77,0.45) 0%, rgba(203,242,77,0.18) 38%, transparent 68%); pointer-events: none; }
         @keyframes lrPop { from { transform: scale(0.3); opacity: 0; } to { opacity: 1; } }
         @media (prefers-reduced-motion: reduce) { .lr-star { animation: none; } }
       `}</style>

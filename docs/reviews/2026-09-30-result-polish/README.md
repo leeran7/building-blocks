@@ -6,12 +6,12 @@ line are Leeran's screenshots from the live 2.0 app.
 ## Stars on the level cleared card
 
 The glow was a CSS drop-shadow on each star's svg, which WebKit clips to the
-svg's box, so every new star sat in a square. It is now a round halo behind
-the star.
+svg's box, so every new star sat in a square. The glow is gone: plain green
+stars.
 
 | Before | After |
 |--|--|
-| <img src="before-stars.jpg" width="330" alt="Stars in square glow boxes"> | <img src="after-stars.jpg" width="330" alt="Stars with round halos"> |
+| <img src="before-stars.jpg" width="330" alt="Stars in square glow boxes"> | <img src="after-stars.jpg" width="330" alt="Plain green stars"> |
 
 ## A new character
 
