@@ -270,7 +270,7 @@ export function LevelMapScreen() {
           }
         />
       )}
-      {refill.gemPacks}
+      {refill.overlays}
     </main>
   );
 }

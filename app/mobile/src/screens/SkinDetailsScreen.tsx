@@ -14,6 +14,7 @@ import { useAuth } from "../contexts/AuthContext";
 import { useShop } from "../contexts/ShopContext";
 import { echoedSetting, useInvalidateAppData, useSettings } from "../contexts/AppDataContext";
 import { CharacterPreview, type PreviewPose } from "../components/CharacterPreview";
+import { RewardReveal } from "../components/RewardReveal";
 import { HexAvatar } from "../components/HexAvatar";
 import { ScreenHeader } from "../components/ui";
 import { GemBalance } from "../components/store/GemBalance";
@@ -94,6 +95,8 @@ function SkinDetails({ character }: { character: AvatarEntry }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [packsOpen, setPacksOpen] = useState(false);
+  // The payoff after a purchase goes through: what was bought and for how much.
+  const [bought, setBought] = useState<{ entry: AvatarEntry; spent: number; equipped: boolean } | null>(null);
 
   const action = skinAction(selected, {
     savedAvatarId: settings?.avatarId ?? null,
@@ -140,6 +143,9 @@ function SkinDetails({ character }: { character: AvatarEntry }) {
         apply(result);
         // The picker's unlock list now includes it.
         void refreshSettings();
+        // Bought either way; the reveal plays its own success haptic.
+        setBought({ entry: selected, spent: action.price, equipped: await equip(selected.id) });
+        return;
       }
       if (await equip(selected.id)) void notifySuccess();
       else void notifyError();
@@ -303,6 +309,17 @@ function SkinDetails({ character }: { character: AvatarEntry }) {
         </section>
       </div>
       {packsOpen && <GemPacksSheet onClose={() => setPacksOpen(false)} />}
+      {bought && (
+        <RewardReveal
+          subject={<CharacterPreview avatarId={bought.entry.id} pose="idle" locked={false} figurePx={190} sizePx={230} />}
+          eyebrow={bought.entry.skinOf !== undefined ? "New skin unlocked" : "New character unlocked"}
+          title={bought.entry.name}
+          detail={bought.equipped ? "Equipped. Your next climb wears it." : "It's yours. Equip it from Choose Character."}
+          spent={bought.spent}
+          accent={bought.entry.skinOf !== undefined ? "#b98cff" : "#cbf24d"}
+          onDone={() => setBought(null)}
+        />
+      )}
     </main>
   );
 }

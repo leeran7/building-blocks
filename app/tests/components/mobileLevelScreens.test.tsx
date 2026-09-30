@@ -251,6 +251,10 @@ describe("level map", () => {
       expect(buyLives).toHaveBeenCalledTimes(1);
       expect(button("Play level 11")).toBeTruthy();
       expect(container.querySelector('[role="dialog"]')?.textContent).not.toContain("Out of lives");
+      // The payoff plays over the card: the gems spent, then the hearts back.
+      const reveal = document.querySelector("[data-reward-phase]");
+      expect(reveal?.getAttribute("aria-label")).toBe("Lives refilled: 5 lives");
+      expect(reveal?.textContent).toContain("−50");
     });
 
     it("shows the price but cannot be bought without enough gems", async () => {
@@ -300,6 +304,7 @@ describe("level map", () => {
       const alerts = [...container.querySelectorAll('[role="dialog"] [role="alert"]')].map((e) => e.textContent);
       expect(alerts).toContain("Couldn’t reach the server. Check your connection and try again.");
       expect(button("Play level 11")).toBeUndefined();
+      expect(document.querySelector("[data-reward-phase]")).toBeNull();
     });
   });
 
