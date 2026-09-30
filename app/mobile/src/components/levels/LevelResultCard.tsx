@@ -333,7 +333,7 @@ function Lost({
         <span className="block h-full rounded-full bg-ember" style={{ width: `${pct}%` }} />
       </div>
       <p className="mt-1.5 text-center font-mono text-label uppercase tracking-label text-text-muted">
-        {Math.round(peakFt).toLocaleString()} of {goalFt.toLocaleString()} {ALTITUDE_UNIT}
+        {Math.round(peakFt).toLocaleString()} of {Math.round(goalFt).toLocaleString()} {ALTITUDE_UNIT}
       </p>
     </>
   );

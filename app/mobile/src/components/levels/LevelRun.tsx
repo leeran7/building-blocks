@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { buildFreeTower } from "@app/game/freeStack";
 import { useClimb } from "@app/game/useClimb";
@@ -253,7 +253,7 @@ export function LevelRun({
           </h2>
           <span className="mt-4 h-px w-14 bg-border-strong" />
           <p className="mt-4 max-w-[280px] text-center text-body text-text-secondary">
-            Climb to the summit at {goalFt.toLocaleString()} {ALTITUDE_UNIT} and touch the diamond before the lava catches you.
+            Climb to the summit at {Math.round(goalFt).toLocaleString()} {ALTITUDE_UNIT} and touch the diamond before the lava catches you.
           </p>
           {startPowerUp && (
             <p className="mt-3 text-meta text-text-primary">
@@ -289,6 +289,43 @@ export function LevelRun({
   );
 }
 
+/** The goal bar's resting offset below the safe area, px. */
+export const GOAL_BAR_OFFSET = 104;
+/** Space kept between the HUD (with its power-up timers) and the goal bar, px. */
+export const GOAL_BAR_HUD_GAP = 8;
+
+/**
+ * Where the goal bar sits: its resting place, or just under the HUD when the
+ * HUD grows past it (an active power-up's timer stacks under the readouts).
+ */
+export function goalBarTop(topInset: number, hudBottom: number | null): number {
+  const rest = topInset + GOAL_BAR_OFFSET;
+  return hudBottom === null ? rest : Math.max(rest, Math.ceil(hudBottom) + GOAL_BAR_HUD_GAP);
+}
+
+/**
+ * The HUD's bottom edge within the goal bar's container, tracked as it grows
+ * and shrinks; null until measured (or with no HUD beside the bar).
+ */
+function useHudBottom(ref: React.RefObject<HTMLDivElement | null>): number | null {
+  const [bottom, setBottom] = useState<number | null>(null);
+  useLayoutEffect(() => {
+    const parent = ref.current?.parentElement;
+    const hud = parent?.querySelector<HTMLElement>(".exp-hud");
+    if (!parent || !hud) return undefined;
+    const measure = () => {
+      const b = hud.getBoundingClientRect().bottom - parent.getBoundingClientRect().top;
+      setBottom((prev) => (prev === b ? prev : b));
+    };
+    measure();
+    if (typeof ResizeObserver === "undefined") return undefined;
+    const ro = new ResizeObserver(measure);
+    ro.observe(hud);
+    return () => ro.disconnect();
+  }, [ref]);
+  return bottom;
+}
+
 /**
  * Progress to the summit, with the stars still on offer: nobody reads a timer
  * while dodging lava, so the stars drop off the bar as each par passes (§4).
@@ -318,10 +355,14 @@ export function GoalBar({
   const stars = starsForTime(elapsedMs, pars);
   const nextDrop =
     stars === 3 ? pars.threeStarMs : stars === 2 ? pars.twoStarMs : stars === 1 ? pars.oneStarMs : null;
+  const ref = useRef<HTMLDivElement>(null);
+  const hudBottom = useHudBottom(ref);
   return (
     <div
+      ref={ref}
+      data-goal-bar
       className="pointer-events-none absolute left-1/2 z-20 w-[min(84vw,320px)] -translate-x-1/2"
-      style={{ top: topInset + 104 }}
+      style={{ top: goalBarTop(topInset, hudBottom) }}
     >
       <div className="flex items-center justify-between gap-2 font-mono text-label font-bold uppercase tracking-label text-text-primary [text-shadow:0_1px_3px_rgba(0,0,0,0.9)]">
         {practice ? <span className="text-text-secondary">Practice</span> : <StarRow count={stars} size={14} />}
@@ -351,7 +392,7 @@ export function GoalBar({
         <p className="sr-only">Your best try reached {Math.round(bestFailFt)} {ALTITUDE_UNIT}</p>
       )}
       <p className="mt-0.5 text-right font-mono text-[10px] font-bold uppercase tracking-label text-text-secondary [text-shadow:0_1px_3px_rgba(0,0,0,0.9)]">
-        Summit {goalFt.toLocaleString()} {ALTITUDE_UNIT}
+        Summit {Math.round(goalFt).toLocaleString()} {ALTITUDE_UNIT}
       </p>
     </div>
   );

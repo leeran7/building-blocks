@@ -32,3 +32,14 @@ never less than the fade, so the last row can still scroll fully into view.
 | Before | After |
 |--|--|
 | <img src="before-choose-character.jpg" width="330" alt="Tiles cut off in a hard line above Save"> | <img src="after-choose-character.jpg" width="330" alt="Tiles fading out softly above Save"> |
+
+## Power-up timers over the goal bar
+
+The goal bar sat at a fixed spot under the HUD, and an active power-up's timer
+stacks into that same spot, so the stars landed on the timer. The bar now
+measures the HUD and moves below it while timers are showing (none, one, two
+below). The summit is also shown in whole feet (was "295.367").
+
+<img src="before-hud-power-ups.jpg" width="390" alt="Stars on top of the Giant timer">
+
+<img src="after-hud-power-ups.jpg" width="780" alt="Goal bar below no timer, one timer, two timers">
