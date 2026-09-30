@@ -36,9 +36,10 @@ never less than the fade, so the last row can still scroll fully into view.
 ## Power-up timers over the goal bar
 
 The goal bar sat at a fixed spot under the HUD, and an active power-up's timer
-stacks into that same spot, so the stars landed on the timer. The bar now
-measures the HUD and moves below it while timers are showing (none, one, two
-below). The summit is also shown in whole feet (was "295.367").
+stacks into that same spot, so the stars landed on the timer. The goal bar now
+lives inside the HUD's grid, right under the readouts, and power-up timers
+stack below it (none, one, two below). The summit is also shown in whole feet
+(was "295.367").
 
 <img src="before-hud-power-ups.jpg" width="390" alt="Stars on top of the Giant timer">
 

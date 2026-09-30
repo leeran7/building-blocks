@@ -204,19 +204,22 @@ function RaceProgressInstrument({ duel }: { duel: DuelHudInfo }) {
 
 // ─────────────────────────── Main HUD ────────────────────────────────────────
 
-export function ExpeditionHud({ player, hazardY, tick, lavaPhase, lavaPhaseProgress, muted, onToggleMute, announcement, runId, topInset = 0, leftInset = 0, rightInset = 0, duel, ...utilities }: UtilitiesProps & {
+export function ExpeditionHud({ player, hazardY, tick, lavaPhase, lavaPhaseProgress, muted, onToggleMute, announcement, runId, topInset = 0, leftInset = 0, rightInset = 0, duel, goal = null, ...utilities }: UtilitiesProps & {
   player: PlayerState | undefined; hazardY: number; tick: number;
   lavaPhase: HazardPhaseName; lavaPhaseProgress: number;
   announcement: string; runId: number; topInset?: number; leftInset?: number; rightInset?: number;
   /** Optional duel-specific data. When provided, duel instruments render below the main HUD. */
   duel?: DuelHudInfo;
+  /** A level's goal bar (stars and progress): drawn under the readouts, above any power-up timers. */
+  goal?: ReactNode;
 }) {
   const hardenActive = player ? isPowerUpActive(player, "harden-lava", tick) : false;
   const style = { "--exp-top": `${topInset}px`, "--exp-left": `${leftInset}px`, "--exp-right": `${rightInset}px` } as CSSProperties;
-  return <div className="exp-hud" style={style}>
+  return <div className="exp-hud" style={style} data-has-goal={goal ? "" : undefined}>
     <HeightInstrument height={player?.y ?? 0} />
     <LavaClearanceInstrument clearance={(player?.y ?? 0) - hazardY} phase={lavaPhase} progress={lavaPhaseProgress} hardenActive={hardenActive} />
     <UtilityControls muted={muted} onToggleMute={onToggleMute} {...utilities} />
+    {goal && <div className="exp-goal">{goal}</div>}
     <ActivePowerStack player={player} tick={tick} />
     {duel && (
       <div className="exp-duel-strip">
