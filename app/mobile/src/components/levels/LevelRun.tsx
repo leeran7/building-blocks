@@ -39,8 +39,8 @@ import { PowerUpName } from "./LevelStartExtras";
 
 /**
  * The climb itself, on the level's tower and lava from the season manifest
- * (`setup`); the tower's goal height (`goalM`) finishes the climber at the
- * summit.
+ * (`setup`); the tower's goal height (`goalM`) caps it with a summit floor,
+ * and touching the diamond on that floor finishes the climber.
  * Mounted once per attempt (keyed by ticket), so a retry always starts from a
  * clean match.
  */
@@ -253,7 +253,7 @@ export function LevelRun({
           </h2>
           <span className="mt-4 h-px w-14 bg-border-strong" />
           <p className="mt-4 max-w-[280px] text-center text-body text-text-secondary">
-            Reach the summit at {goalFt.toLocaleString()} {ALTITUDE_UNIT} before the lava catches you.
+            Climb to the summit at {goalFt.toLocaleString()} {ALTITUDE_UNIT} and touch the diamond before the lava catches you.
           </p>
           {startPowerUp && (
             <p className="mt-3 text-meta text-text-primary">

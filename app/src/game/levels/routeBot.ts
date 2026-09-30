@@ -11,7 +11,8 @@
  *   (the greedy bot fell into gaps that way and climbed back forever);
  * - it keeps its walk direction while airborne.
  *
- * Level towers add two moves: a hanging ladder (its bottom above the floor)
+ * Level towers add three moves: on the summit floor it runs to the diamond
+ * that ends the level, a hanging ladder (its bottom above the floor)
  * takes a jump to grab, and at a short top (the ladder stops below the next
  * floor) the bot jumps off to reach the floor above.
  *
@@ -30,6 +31,7 @@ import {
   laddersForFloor,
   platformsForFloor,
   platformsNearY,
+  summitDiamond,
 } from "../towers";
 import type { Ladder, PlayerInput, PlayerState, TowerSpec } from "../types";
 
@@ -46,6 +48,8 @@ export function createRouteBot(): RouteBot {
   let target: Ladder | null = null;
   let dir: -1 | 1 = 1;
   let gapJump = false;
+  let diamondTower: TowerSpec | null = null;
+  let diamond: ReturnType<typeof summitDiamond> = null;
 
   return (p, tower, tick) => {
     if (p.onGround || p.onLadder) gapJump = false;
@@ -93,6 +97,18 @@ export function createRouteBot(): RouteBot {
       if (gapJump || steer === 0) {
         return { moveX: steer, jump: false, climbY: 0, usePowerUp: false };
       }
+    }
+
+    // On the summit floor: run to the diamond, the short way round.
+    if (diamondTower !== tower) {
+      diamondTower = tower;
+      diamond = summitDiamond(tower);
+    }
+    if (diamond !== null && p.onGround && p.y >= diamond.floorY - 0.25) {
+      const w = tower.widthM;
+      const ahead = (((diamond.x - p.x) % w) + w) % w;
+      dir = ahead <= w / 2 ? 1 : -1;
+      return { moveX: dir, jump: false, climbY: 0, usePowerUp: false };
     }
 
     const k = floorIndexAt(tower, p.y + 0.5);

@@ -168,6 +168,24 @@ export function nextLifeAt(state: LifeState, now: Date): Date | null {
   return new Date(current.updatedAt.getTime() + LIFE_REFILL_MS);
 }
 
+/**
+ * Gems to top lives back up to MAX_LIVES instead of waiting for the refill
+ * timer. One flat price whatever the count, offered when lives run out.
+ */
+export const LIVES_REFILL_GEMS = 50;
+
+/**
+ * Lives after a paid refill, or null when the player is already full (a
+ * refill would buy nothing, and refusing it is what keeps a retried request
+ * from being charged twice). A full player's timer is irrelevant, so it is
+ * left as it was, like refillLives.
+ */
+export function buyRefill(state: LifeState, now: Date): LifeState | null {
+  const current = refillLives(state, now);
+  if (current.lives >= MAX_LIVES) return null;
+  return { lives: MAX_LIVES, updatedAt: current.updatedAt };
+}
+
 // ── Levels and episodes ──────────────────────────────────────────────────────
 
 /** Levels in a season (§3d). */

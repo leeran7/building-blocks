@@ -416,9 +416,10 @@ describe.skipIf(!PG_URL)("levels on Postgres", () => {
       expect((await submit(uid, again.ticketId, cleared(1200))).unlockedAvatars).toEqual([]);
     });
 
-    it("names the six stick figures on the first level 1 clear (the tutorial), and never again", async () => {
+    it("names the tutorial characters (the six stick figures) on the first level 1 clear, and never again", async () => {
       await user(uid);
       expect(STICK_IDS).toHaveLength(6);
+      expect(STICK_IDS).not.toContain("gecko");
       const first = await start(uid, 1);
       expect((await submit(uid, first.ticketId, cleared(1200))).unlockedAvatars).toEqual(STICK_IDS);
       // A better replay raises level 1's stars (2 -> 3) but is not the tutorial.
@@ -426,6 +427,26 @@ describe.skipIf(!PG_URL)("levels on Postgres", () => {
       expect((await submit(uid, replay.ticketId, cleared(900))).unlockedAvatars).toEqual([]);
       const second = await start(uid, 2);
       expect((await submit(uid, second.ticketId, cleared(1200))).unlockedAvatars).toEqual([]);
+    });
+
+    it("names the Gecko on the first clear of the season's last level, and never again", async () => {
+      await user(uid);
+      // Levels 1..299 already cleared at 2 stars (598), so level 300's 2 stars
+      // cross no star step (580 met, 660 not): only the season unlock is new.
+      await prisma.levelProgress.createMany({
+        data: Array.from({ length: 299 }, (_, i) => ({
+          userId: uid,
+          season: 1,
+          level: i + 1,
+          stars: 2,
+          best_ticks: 1200,
+          sim_version: 1,
+        })),
+      });
+      const last = await start(uid, 300);
+      expect((await submit(uid, last.ticketId, cleared(1200))).unlockedAvatars).toEqual(["gecko"]);
+      const replay = await start(uid, 300, at(10));
+      expect((await submit(uid, replay.ticketId, cleared(900), at(15))).unlockedAvatars).toEqual([]);
     });
 
     it("leaves a saved stick figure out of the tutorial unlock", async () => {

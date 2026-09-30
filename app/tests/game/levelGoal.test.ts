@@ -1,9 +1,9 @@
 /**
  * A level tower has a goal height (`tower.goalM`). The tower is capped by a
  * solid summit floor, the first floor at or above the goal, with nothing on or
- * above it, and stepMatch finishes a climber whose feet reach the goal, before
- * the death line on the same tick. Endless towers have no goalM and are pinned
- * bit-identical by freeStackGolden.test.ts.
+ * above it. A glowing diamond sits on the summit floor, and stepMatch finishes
+ * a climber who touches it, before the death line on the same tick. Endless
+ * towers have no goalM and are pinned bit-identical by freeStackGolden.test.ts.
  */
 
 import { describe, expect, it } from "vitest";
@@ -15,7 +15,11 @@ import {
   laddersForFloor,
   platformsForFloor,
   platformsNearY,
+  summitDiamond,
   summitFloor,
+  touchesSummitDiamond,
+  SUMMIT_DIAMOND_GRAB_X,
+  SUMMIT_DIAMOND_WALK_M,
 } from "../../src/game/towers";
 import { obstaclesForFloor } from "../../src/game/obstacles";
 import { powerUpForFloor } from "../../src/game/powerups";
@@ -116,38 +120,47 @@ describe("a level tower is capped at its summit", () => {
   });
 });
 
-describe("stepMatch finishes a climber at the goal", () => {
-  it("a bot climbing a level tower finishes on the first tick its feet reach the goal", () => {
+describe("stepMatch finishes a climber at the summit diamond", () => {
+  it("a bot climbing a level tower finishes on the first tick it touches the diamond", () => {
     const tower = level("finish-run", { difficulty: 0.2, powerUpChance: 0.1 });
     const goalM = floorHeight(tower, 6) + 2;
     const t = { ...tower, goalM };
+    const diamond = summitDiamond(t)!;
     const live = createMatch({ seed: "finish-run", mode: "solo", tower: t, playerIds: ["bot"] });
     while (live.phase === "countdown") stepMatch(live, {}, DEFAULT_SIM_CONFIG);
 
-    const ys: number[] = [];
+    const at: { x: number; y: number }[] = [];
     while (live.phase === "climb" && live.tick < 20_000) {
       stepMatch(live, { bot: botInput(live.players[0], t, live.tick) }, DEFAULT_SIM_CONFIG);
-      ys.push(live.players[0].y);
+      at.push({ x: live.players[0].x, y: live.players[0].y });
     }
     const p = live.players[0];
     expect(p.status).toBe("finished");
     expect(live.phase).toBe("finished");
     expect(live.winnerId).toBe("bot");
-    // Climb ticks are 1-based: ys[k] is the position after tick k + 1.
-    const firstAtGoal = ys.findIndex((y) => y >= goalM) + 1;
+    // Climb ticks are 1-based: at[k] is the position after tick k + 1.
+    const firstTouch = at.findIndex((q) => touchesSummitDiamond(diamond, q.x, q.y, t.widthM)) + 1;
+    const firstAtGoal = at.findIndex((q) => q.y >= goalM) + 1;
     expect(firstAtGoal).toBeGreaterThan(30);
-    expect(p.finishedTick).toBe(firstAtGoal);
-    expect(live.tick).toBe(firstAtGoal);
+    // Reaching the goal height is no longer the finish: the run along the top is.
+    expect(firstTouch).toBeGreaterThan(firstAtGoal + 30);
+    expect(p.finishedTick).toBe(firstTouch);
+    expect(live.tick).toBe(firstTouch);
+    expect(p.y).toBeCloseTo(diamond.floorY, 5);
   });
 
-  /** A climber in the air above the goal whose fall-death line is above them. */
-  function doomedAboveGoal(goalM: number | undefined): MatchState {
-    const tower = level("finish-first", { goalM, fallDeathBelowPeakM: 5 });
+  /** A falling climber whose fall-death line is above them, at `x` just over the summit. */
+  function doomedOnSummit(goalM: number | undefined, dx: number): MatchState {
+    const base = level("finish-first", { fallDeathBelowPeakM: 5 });
+    const tower = goalM === undefined ? base : { ...base, goalM };
+    const summitY = goalM === undefined ? 41 : summitDiamond(tower)!.floorY;
+    const x = goalM === undefined ? 50 : summitDiamond(tower)!.x + dx;
     const live = createMatch({ seed: "finish-first", mode: "solo", tower, playerIds: ["p"] });
     while (live.phase === "countdown") stepMatch(live, {}, DEFAULT_SIM_CONFIG);
     const p = live.players[0];
-    p.y = 41;
-    p.peakY = 60;
+    p.x = x;
+    p.y = summitY + 1;
+    p.peakY = summitY + 20;
     p.vy = 0;
     p.onGround = false;
     stepMatch(live, {}, DEFAULT_SIM_CONFIG);
@@ -156,18 +169,47 @@ describe("stepMatch finishes a climber at the goal", () => {
 
   it("decides the finish before the death line on the same tick", () => {
     // Positive fixture: without a goal this exact state is eliminated.
-    const endless = doomedAboveGoal(undefined);
+    const endless = doomedOnSummit(undefined, 0);
     expect(endless.players[0].status).toBe("eliminated");
 
-    const lvl = doomedAboveGoal(40);
+    const lvl = doomedOnSummit(40, 0);
     expect(lvl.players[0].status).toBe("finished");
     expect(lvl.players[0].finishedTick).toBe(lvl.tick);
     expect(lvl.winnerId).toBe("p");
   });
 
-  it("does not finish a climber below the goal", () => {
-    const live = doomedAboveGoal(45);
+  it("does not finish a climber above the goal height who is away from the diamond", () => {
+    const live = doomedOnSummit(40, 10);
     expect(live.players[0].status).toBe("eliminated");
+  });
+});
+
+describe("summitDiamond", () => {
+  it("is null on an endless tower", () => {
+    expect(summitDiamond(buildFreeTower())).toBeNull();
+  });
+
+  it("sits on the summit floor a fixed walk from the ladder that reaches it", () => {
+    for (const seed of ["d-1", "d-2", "d-3", "d-4", "d-5", "d-6"]) {
+      const t = level(seed, { difficulty: 0.5, goalM: 150 });
+      const summit = summitFloor(t)!;
+      const d = summitDiamond(t)!;
+      expect(d.floorY).toBe(floorHeight(t, summit));
+      expect(d.y).toBeGreaterThan(d.floorY);
+      const from = laddersForFloor(t, summit - 1)[0].x;
+      const gap = Math.abs(d.x - from) % t.widthM;
+      expect(Math.min(gap, t.widthM - gap)).toBeCloseTo(SUMMIT_DIAMOND_WALK_M, 6);
+      expect(d.x).toBeGreaterThanOrEqual(0);
+      expect(d.x).toBeLessThan(t.widthM);
+    }
+  });
+
+  it("is never touched from the ladder below the summit", () => {
+    const t = level("d-below", { difficulty: 0.5, goalM: 150 });
+    const d = summitDiamond(t)!;
+    expect(touchesSummitDiamond(d, d.x, d.floorY, t.widthM)).toBe(true);
+    expect(touchesSummitDiamond(d, d.x, d.floorY - 1, t.widthM)).toBe(false);
+    expect(touchesSummitDiamond(d, d.x + SUMMIT_DIAMOND_GRAB_X + 0.01, d.floorY, t.widthM)).toBe(false);
   });
 });
 

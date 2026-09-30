@@ -1,7 +1,7 @@
 import { Routes, Route, useNavigate } from "react-router-dom";
 import { ClimbScreen } from "../screens/ClimbScreen";
 import { AnimatedBackdrop } from "./AnimatedBackdrop";
-import { LogoMark } from "./LogoMark";
+import { LogoLockup } from "./LogoMark";
 import { tapHeavy, tapLight } from "../lib/haptics";
 
 export function GuestShell({ onSignIn }: { onSignIn: () => void }) {
@@ -54,13 +54,12 @@ function GuestHome({
 
       <div className="flex flex-1 flex-col items-center justify-center gap-9 px-6 text-center">
         <div className="mt-1 flex flex-col items-center gap-2">
-          <LogoMark size={48} card className="mb-1" />
+          <h1 className="m-0">
+            <LogoLockup className="gh-wordmark h-44 w-auto" />
+          </h1>
           <span className="font-mono text-[11px] uppercase tracking-[0.5em] text-text-muted">
             endless&nbsp;mode
           </span>
-          <h1 className="gh-wordmark font-display text-[2.75rem] font-black uppercase leading-none tracking-tight text-text-primary">
-            Doom<span className="text-signal">stack</span>
-          </h1>
           <span className="h-px w-16 bg-border-strong" />
           <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-text-secondary">
             Your first climb awaits
@@ -115,7 +114,7 @@ function GuestHome({
 
       <style>{`
         .gh-wordmark {
-          text-shadow: 0 0 34px rgba(203, 242, 77, 0.14);
+          filter: drop-shadow(0 0 34px rgba(203, 242, 77, 0.14));
         }
       `}</style>
     </main>

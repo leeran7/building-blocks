@@ -1,6 +1,6 @@
 {
   "name": "tower",
-  "version": "1.2.0",
+  "version": "2.0.0",
   "private": true,
   "packageManager": "pnpm@9.15.9",
   "scripts": {
@@ -44,6 +44,7 @@
     "@capacitor/keyboard": "^8.0.5",
     "@capacitor/splash-screen": "^8.0.2",
     "@capacitor/status-bar": "^8.0.3",
+    "@capgo/native-purchases": "8.8.1",
     "@fontsource-variable/bricolage-grotesque": "5.3.0",
     "@fontsource-variable/hanken-grotesk": "5.3.0",
     "@fontsource/space-mono": "5.3.0",
@@ -57,7 +58,7 @@
     "firebase": "12.19.0",
     "firebase-admin": "14.4.0",
     "nanoid": "^6.0.1",
-    "next": "16.3.4",
+    "next": "16.3.6",
     "react": "19.3.0",
     "react-dom": "19.3.0",
     "react-router-dom": "^7.18.3",
@@ -67,6 +68,9 @@
   "pnpm": {
     "overrides": {
       "jwks-rsa>jose": "^5"
+    },
+    "patchedDependencies": {
+      "@capgo/native-purchases@8.8.1": "patches/@capgo__native-purchases@8.8.1.patch"
     }
   },
   "devDependencies": {
@@ -83,7 +87,7 @@
     "babel-loader": "^10.1.1",
     "dotenv": "^17.4.2",
     "eslint": "9.39.5",
-    "eslint-config-next": "16.3.4",
+    "eslint-config-next": "16.3.6",
     "happy-dom": "^20.14.5",
     "playwright": "1.63.0",
     "postcss": "8.5.28",

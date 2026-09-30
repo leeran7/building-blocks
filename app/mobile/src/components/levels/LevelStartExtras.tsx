@@ -3,6 +3,7 @@ import { POWER_UP_SPECS } from "@app/game/powerups";
 import { STREAK_RAPID_CLIMB, STUCK_BOOSTER_FAILS, type StartPowerUp } from "@app/levels/engagement";
 import { formatClock, type LevelBoardView, type StuckHelp } from "../../lib/levels/model";
 import { Accordion, StarRow } from "./LevelBits";
+import { FriendsIcon, TrophyIcon } from "./LevelIcons";
 
 /**
  * What the start card adds beyond the level itself (§5c, §6.3): the win
@@ -54,17 +55,15 @@ export function FriendsBoard({ level, load }: { level: number; load: (level: num
   }, [level, load]);
 
   if (state.kind === "error") return null;
-  const heading = (
-    <span className="font-mono text-label font-bold uppercase tracking-label text-text-secondary">Friends</span>
-  );
   // Loading and empty fit on one line beside the heading.
   const oneLine = (text: string, busy = false) => (
     <p
-      className="mt-2 flex flex-wrap items-baseline gap-x-2 rounded-2xl border border-white/10 bg-elevated/70 px-3.5 py-2 text-meta text-text-secondary"
+      className="mt-2 flex min-h-[48px] items-center gap-3 rounded-2xl border border-white/10 bg-elevated/70 px-3.5 py-2 text-meta text-text-secondary"
       aria-busy={busy || undefined}
     >
-      {heading}
-      <span>{text}</span>
+      <FriendsIcon size={18} className="shrink-0" />
+      <span className="font-mono text-label uppercase tracking-label">Friends</span>
+      <span className="min-w-0 flex-1 text-right">{text}</span>
     </p>
   );
   if (state.kind === "loading") return oneLine("Loading…", true);
@@ -75,9 +74,10 @@ export function FriendsBoard({ level, load }: { level: number; load: (level: num
   if (rows.length === 0) {
     return oneLine(board.friendCount === 0 ? "Add friends to race their times here." : "No friend has cleared it yet.");
   }
-  const summary = me ? `You're #${me.rank} of ${board.entries.length}` : `${board.entries.length} cleared`;
+  const cleared = board.entries.length;
+  const summary = me ? `You're #${me.rank} of ${cleared}` : `${cleared} ${cleared === 1 ? "friend" : "friends"} cleared`;
   return (
-    <Accordion label="Friends" summary={summary}>
+    <Accordion label="Friends" icon={<FriendsIcon size={18} />} summary={summary}>
       <ol aria-label={`Friends' best times on level ${board.level}`} className="flex flex-col gap-0.5">
         {rows.map((e) => (
           <li
@@ -92,6 +92,29 @@ export function FriendsBoard({ level, load }: { level: number; load: (level: num
         ))}
       </ol>
     </Accordion>
+  );
+}
+
+/** The win streak toward the free Rapid Climb: "1 / 3", and what's left. */
+export function StreakRow({ streak }: { streak: number }) {
+  const left = STREAK_RAPID_CLIMB - streak;
+  return (
+    <div className="flex min-h-[52px] items-center gap-3 rounded-2xl border border-white/10 bg-elevated/70 px-3.5 py-2">
+      <TrophyIcon size={18} className="shrink-0 text-text-secondary" />
+      <p className="flex shrink-0 items-baseline gap-2">
+        <span className="font-mono text-label uppercase tracking-label text-text-secondary">Win streak</span>
+        {left > 0 ? (
+          <span className="font-display text-lead font-black tabular-nums text-text-secondary">
+            <span className="text-signal">{streak}</span> / {STREAK_RAPID_CLIMB}
+          </span>
+        ) : (
+          <span className="font-display text-lead font-black tabular-nums text-signal">{streak}</span>
+        )}
+      </p>
+      <p className="min-w-0 flex-1 border-l border-white/10 pl-3 text-meta leading-snug text-text-secondary">
+        {left > 0 ? `${left} more first ${left === 1 ? "clear" : "clears"} for a free power-up.` : "Keep it going."}
+      </p>
+    </div>
   );
 }
 
@@ -130,14 +153,7 @@ export function LevelStartExtras({
           <span className="text-text-secondary">{startPowerUpReason(startPowerUp, streak)}</span>
         </p>
       )}
-      {showStreak && !startPowerUp && (
-        <p className="text-meta text-text-secondary">
-          Win streak {streak}.{" "}
-          {streak < STREAK_RAPID_CLIMB
-            ? `${STREAK_RAPID_CLIMB - streak} more first ${STREAK_RAPID_CLIMB - streak === 1 ? "clear" : "clears"} for a free power-up.`
-            : "Keep it going."}
-        </p>
-      )}
+      {showStreak && !startPowerUp && <StreakRow streak={streak} />}
       {ghost && (
         <p className="text-meta text-text-secondary">
           Route ghost unlocked. It arrives in a coming update.

@@ -7,7 +7,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Changed
+
+- **Gecko is the final unlock** — the Gecko is no longer free after the
+  tutorial: it unlocks only by clearing a season's last level (level 300),
+  whatever the star count, and sits last in Choose Character. A player who
+  already has it equipped keeps it until they switch away. The level result
+  names it on that first level 300 clear.
+
 ### Added
+
+- **Levels end at a glowing diamond** — every level's climb now ends on the
+  summit floor with a diamond to touch, 20 m along the floor from the ladder
+  that reaches it; crossing the goal height no longer finishes the run. The
+  route bot runs to the diamond, and season 1 is regenerated with the new
+  finish (LEVEL_SPEC_VERSION 4, LEVEL_SIM_VERSION 4).
+
+- **Pay for gems on the web from iPhone** — App Store gem packs now cost
+  30% more than the web price, passing Apple's commission on ($6.49,
+  $12.99, $25.99, $64.99; `appleUsdCents`, set in App Store Connect). On the
+  US App Store the iOS gem-pack sheet also offers each pack at its web price
+  through Stripe Checkout in the browser. `GET /api/shop` returns
+  `webCheckout`; `IOS_WEB_CHECKOUT=off` hides the option without a release.
+
+- **Shop, gems and paid Void skins (mobile)** — a Shop tab with a gem
+  balance and every character's paid Wraith-style skin (`<id>-void`,
+  1,200 gems), and a Skin Details screen (Classic / Void / coming soon,
+  live preview, price and balance after purchase, Purchase and Equip) after
+  the store design. The Wraith is now bought for 2,000 gems; the Gecko is
+  free after the tutorial. Gem packs are App Store consumables on iOS
+  (`POST /api/gems/apple`, signed transactions verified against Apple's
+  root) and Stripe Checkout elsewhere (`POST /api/gems/checkout`, webhook
+  `gem_pack`). New routes `GET /api/shop`, `POST /api/shop/buy`; new
+  column `users.gems` and tables `gem_ledger`, `gem_purchases`,
+  `owned_characters` (migration `20260929000000_shop_gems`). App Store
+  products must be created before the iOS build (docs/deploy.md). Only
+  Production App Store purchases credit gems, except for the accounts in
+  `APPLE_IAP_SANDBOX_UIDS`; `@capgo/native-purchases` is patched so
+  StoreKit transactions are finished only after the server credits them.
 
 - **Daily Climb leaderboard (web and mobile)** — one server-seeded tower per
   UTC day with a verified daily board. Ranks gains All-time | Today tabs
@@ -52,6 +89,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   are untouched.
 
 ### Changed
+
+- **No Super Jump or Jetpack start on early levels** — levels 1-45 (episodes
+  1-3) never start a run with a super jump or jetpack, whether from a win
+  streak, stuck help or an owned booster; a 5-streak there earns the rapid
+  climb instead, the booster picker hides them, and star chests opened before
+  L46 do not hold them. The random orb was already never a start power-up.
+  Both still spawn as orbs from their unlock levels. Server and mobile share
+  `startBoosterTypes` (`EARLY_START_LAST_LEVEL = 45`).
 
 - **Climb Feel 1.25× (presentation only)** — amplify The Climb identity on
   climb-facing surfaces (~1.25× HUD, shake, grain/topo, and climb-scoped enter /

@@ -4,6 +4,7 @@ import { useLevels } from "../contexts/LevelsContext";
 import { tapHeavy, tapLight } from "../lib/haptics";
 import { Button } from "../components/ui";
 import { LevelStartSheet } from "../components/levels/LevelStartSheet";
+import { useLivesRefillOffer } from "../components/levels/useLivesRefillOffer";
 import { LevelStartExtras } from "../components/levels/LevelStartExtras";
 import { BoosterPicker, ChestMeter } from "../components/levels/LevelChests";
 import { LivesPill, StarRow, XpBar, useWhenDue } from "../components/levels/LevelBits";
@@ -14,7 +15,7 @@ import {
   type LevelNode,
   type StartResult,
 } from "../lib/levels/model";
-import type { BoosterType } from "@app/levels/engagement";
+import { startBoosterTypes, type BoosterType } from "@app/levels/engagement";
 
 /** Vertical distance between two pins, px. */
 const ROW = 92;
@@ -55,6 +56,7 @@ export function LevelMapScreen() {
   const navigate = useNavigate();
   const location = useLocation();
   const { client, season, loading, error, refresh, setPlayer } = useLevels();
+  const refill = useLivesRefillOffer();
   const [selected, setSelectedNode] = useState<LevelNode | null>(null);
   // The booster equipped on the open start card; every card opens without one.
   const [booster, setBooster] = useState<BoosterType | null>(null);
@@ -244,6 +246,7 @@ export function LevelMapScreen() {
             navigate(`/levels/${selected.level}/play?practice=1`);
           }}
           onClose={() => setSelected(null)}
+          refill={refill.offer}
           extras={
             <LevelStartExtras
               atFrontier={selected.level === frontier}
@@ -252,18 +255,22 @@ export function LevelMapScreen() {
               stuck={selected.level === season.stuck.level ? season.stuck : null}
               board={{ level: selected.level, load: loadBoard }}
               boosters={
+                // Out of lives the card offers the wait and the refill instead.
+                selected.costsLife && season.player.lives <= 0 ? null : (
                 <BoosterPicker
                   inventory={season.boosters}
-                  allowed={selected.allowedPowerUps}
+                  allowed={startBoosterTypes(selected.level, selected.allowedPowerUps)}
                   selected={booster}
                   onSelect={setBooster}
                   freeStart={selected.level === frontier && season.nextStartPowerUp !== null}
                 />
+                )
               }
             />
           }
         />
       )}
+      {refill.overlays}
     </main>
   );
 }

@@ -3,7 +3,8 @@
  * catalogue allow-list (a retired id reads as null, never as a broken image
  * id), and the write path refuses a non-catalogue id even if a future caller
  * skips the route's validation. Unlocks come from stored rows only: level
- * stars, a level 1 row (the tutorial, for the stick figures) and the saved
+ * stars, a level 1 row (the tutorial, for the stick figures), a level 300 row
+ * (the season, for the Gecko) and the saved
  * avatar. Premium characters are never unlockable, only kept while saved.
  */
 
@@ -33,16 +34,19 @@ const { user, findUnique, update, progress, aggregate, findFirst } = vi.hoisted(
   };
 });
 
+const { ownedFindMany } = vi.hoisted(() => ({ ownedFindMany: vi.fn(async () => [] as { avatar_id: string }[]) }));
+
 vi.mock("../../src/db/client", () => ({
   prisma: {
     user: { findUnique, update },
     savedSocialHandle: { findMany: vi.fn(async () => []) },
     levelProgress: { aggregate, findFirst },
+    ownedCharacter: { findMany: ownedFindMany },
   },
 }));
 
 import { getUserSettings, updateUserSettings } from "../../src/db/settings";
-import { AvatarLockedError, checkAvatarForUser, tutorialCleared } from "../../src/db/avatarUnlocks";
+import { AvatarLockedError, checkAvatarForUser, seasonCleared, tutorialCleared } from "../../src/db/avatarUnlocks";
 import { AVATARS, avatarEntry } from "../../src/lib/avatars";
 
 /** A star-locked avatar and its threshold. */
@@ -82,6 +86,41 @@ describe("tutorialCleared", () => {
     expect(await tutorialCleared("u1", tx)).toBe(true);
     expect(txFindFirst).toHaveBeenCalledTimes(1);
     expect(findFirst).not.toHaveBeenCalled();
+  });
+});
+
+/** u1 has cleared a season's last level. */
+function finishSeason(userId = "u1"): void {
+  progress.rows.push({ id: progress.rows.length + 1, userId, level: 300 });
+}
+
+describe("seasonCleared", () => {
+  it("is true once the player has a level 300 row, and asks for exactly that row", async () => {
+    finishSeason("u1");
+    expect(await seasonCleared("u1")).toBe(true);
+    expect(findFirst).toHaveBeenCalledWith(expect.objectContaining({ where: { userId: "u1", level: 300 } }));
+  });
+
+  it("is false with only level 299, only level 1, or only another player's level 300", async () => {
+    expect(await seasonCleared("u1")).toBe(false);
+    progress.rows.push({ id: 1, userId: "u1", level: 299 }, { id: 2, userId: "u1", level: 1 }, { id: 3, userId: "u2", level: 300 });
+    expect(await seasonCleared("u1")).toBe(false);
+    expect(await seasonCleared("u2")).toBe(true);
+  });
+});
+
+describe("Gecko, the season unlock", () => {
+  it("refuses Gecko after the tutorial at any star count, and saves it once the season is cleared", async () => {
+    finishTutorial();
+    progress.stars = 900;
+    const err = await updateUserSettings("u1", { avatarId: "gecko" }).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(AvatarLockedError);
+    expect(update).not.toHaveBeenCalled();
+    finishSeason();
+    const saved = await updateUserSettings("u1", { avatarId: "gecko" });
+    expect(saved.avatarId).toBe("gecko");
+    expect(saved.avatarUnlocks.seasonDone).toBe(true);
+    expect(saved.avatarUnlocks.unlockedIds.at(-1)).toBe("gecko");
   });
 });
 
@@ -146,16 +185,16 @@ describe("updateUserSettings avatar unlocks (backstop behind the route)", () => 
     expect(update).toHaveBeenCalledWith({ where: { id: "u1" }, data: { avatar_id: LOCKED.id } });
   });
 
-  it.each(["wraith", "gecko"])("refuses the premium %s at any star count after the tutorial, without writing", async (id) => {
+  it.each(["wraith", "gecko-void"])("refuses the unbought Shop entry %s at any star count after the tutorial, without writing", async (id) => {
     progress.stars = 100_000;
     finishTutorial();
     const err = await updateUserSettings("u1", { avatarId: id }).catch((e: unknown) => e);
     expect(err).toBeInstanceOf(AvatarLockedError);
-    expect((err as AvatarLockedError).lock).toMatchObject({ avatarId: id, kind: "premium", requiredStars: null });
+    expect((err as AvatarLockedError).lock).toMatchObject({ avatarId: id, kind: "purchase", requiredStars: null });
     expect(update).not.toHaveBeenCalled();
   });
 
-  it("re-saves a premium character that is already the saved one (grandfathered)", async () => {
+  it("re-saves a Shop character that is already the saved one (grandfathered)", async () => {
     user.avatar_id = "wraith";
     expect((await updateUserSettings("u1", { avatarId: "wraith" })).avatarId).toBe("wraith");
     expect(update).toHaveBeenCalledWith({ where: { id: "u1" }, data: { avatar_id: "wraith" } });
@@ -179,7 +218,15 @@ describe("updateUserSettings avatar unlocks (backstop behind the route)", () => 
 
   it("ignores a forged verdict and checks for itself", async () => {
     progress.stars = 0;
-    const forged = { userId: "u1", avatarId: LOCKED.id, lock: null, stars: 900, tutorialDone: true };
+    const forged = {
+      userId: "u1",
+      avatarId: LOCKED.id,
+      lock: null,
+      stars: 900,
+      tutorialDone: true,
+      seasonDone: true,
+      ownedIds: [],
+    };
     const err = await updateUserSettings("u1", { avatarId: LOCKED.id }, forged).catch((e: unknown) => e);
     expect(err).toBeInstanceOf(AvatarLockedError);
     expect(update).not.toHaveBeenCalled();
@@ -217,12 +264,13 @@ describe("updateUserSettings avatar unlocks (backstop behind the route)", () => 
 });
 
 describe("checkAvatarForUser", () => {
-  it("refuses a premium id at any star count, reading stars, tutorial and the saved avatar", async () => {
+  it("refuses an unbought Shop id at any star count, reading stars, tutorial, owned rows and the saved avatar", async () => {
     progress.stars = 100_000;
     finishTutorial();
-    const check = await checkAvatarForUser("u1", "gecko");
-    expect(check).toMatchObject({ userId: "u1", avatarId: "gecko", stars: 100_000, tutorialDone: true });
-    expect(check.lock).toMatchObject({ kind: "premium", requiredStars: null });
+    const check = await checkAvatarForUser("u1", "wraith");
+    expect(check).toMatchObject({ userId: "u1", avatarId: "wraith", stars: 100_000, tutorialDone: true, ownedIds: [] });
+    expect(check.lock).toMatchObject({ kind: "purchase", requiredStars: null });
+    expect(ownedFindMany).toHaveBeenCalled();
     expect(findUnique).toHaveBeenCalled();
     expect(aggregate).toHaveBeenCalled();
     expect(findFirst).toHaveBeenCalled();
@@ -257,26 +305,30 @@ describe("getUserSettings avatarUnlocks", () => {
     expect(avatarUnlocks).toEqual({
       stars: 15,
       tutorialDone: false,
+      seasonDone: false,
       unlockedIds: ["kestrel", "heron"],
+      ownedIds: [],
       grandfatheredId: "heron",
     });
     expect(stillLocked.length).toBeGreaterThan(0);
     for (const a of stillLocked) expect(avatarUnlocks.unlockedIds).not.toContain(a.id);
   });
 
-  it("adds the six stick figures after the tutorial, and never a premium character", async () => {
+  it("adds the six stick figures after the tutorial, never Gecko before the season, and never an unbought Shop entry", async () => {
     finishTutorial();
     progress.stars = 100_000;
     const { avatarUnlocks } = await getUserSettings("u1");
     expect(avatarUnlocks.tutorialDone).toBe(true);
+    expect(avatarUnlocks.seasonDone).toBe(false);
     expect(STICK_IDS).toHaveLength(6);
     expect(avatarUnlocks.unlockedIds).toEqual(expect.arrayContaining(STICK_IDS));
-    expect(avatarUnlocks.unlockedIds).not.toContain("wraith");
     expect(avatarUnlocks.unlockedIds).not.toContain("gecko");
+    expect(avatarUnlocks.unlockedIds).not.toContain("wraith");
+    expect(avatarUnlocks.unlockedIds).not.toContain("gecko-void");
   });
 
   it("uses the unlock inputs a request already read instead of querying again", async () => {
-    const { avatarUnlocks } = await getUserSettings("u1", { stars: 30, tutorialDone: true });
+    const { avatarUnlocks } = await getUserSettings("u1", { stars: 30, tutorialDone: true, seasonDone: false, ownedIds: [] });
     expect(avatarUnlocks.stars).toBe(30);
     expect(avatarUnlocks.unlockedIds).toEqual([...STICK_IDS, "kestrel", "lynx"]);
     expect(aggregate).not.toHaveBeenCalled();

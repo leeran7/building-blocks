@@ -14,7 +14,16 @@
  * src/lib/avatarUnlocks.ts; the server counts stars in src/db/avatarUnlocks.ts.
  * Level stars are self-reported by the device (context/trust.md), so an
  * unlock is cosmetic and must never gate money or ranking.
+ *
+ * Paid characters and skins (`purchase` rule) are bought with gems in the
+ * Shop and owned per account (owned_characters, src/db/gems.ts). A skin is
+ * its own catalogue id (`<character>-void`) with `skinOf` naming the
+ * character it dresses; it plays exactly like every other climber
+ * (context/trust.md item 9). The picker lists characters only; skins are
+ * bought and equipped from the Shop.
  */
+
+import { LEVELS_PER_SEASON } from "../levels/rules";
 
 /** What a player needs before they may newly select an avatar. */
 export type AvatarUnlock =
@@ -22,8 +31,12 @@ export type AvatarUnlock =
   | { readonly kind: "tutorial" }
   /** Best stars summed over every level of every season, at least `stars`. */
   | { readonly kind: "stars"; readonly stars: number }
+  /** The final unlock: the player has cleared a season's last level (level 300, any season). */
+  | { readonly kind: "season" }
   /** Sold later; nobody can newly select one yet. Never earned by stars. */
-  | { readonly kind: "premium" };
+  | { readonly kind: "premium" }
+  /** Bought in the Shop for `gems`; selectable once owned (a server purchase record). */
+  | { readonly kind: "purchase"; readonly gems: number };
 
 export interface AvatarEntry {
   readonly id: string;
@@ -31,10 +44,13 @@ export interface AvatarEntry {
   readonly unlock: AvatarUnlock;
   /** Stick figures only: the "#rrggbb" the vector climber is drawn in. */
   readonly stickColor?: string;
+  /** Skins only: the character id this skin dresses. Buying it needs that character. */
+  readonly skinOf?: string;
 }
 
 const TUTORIAL: AvatarUnlock = { kind: "tutorial" };
-const PREMIUM: AvatarUnlock = { kind: "premium" };
+const SEASON: AvatarUnlock = { kind: "season" };
+const purchase = (gems: number): AvatarUnlock => ({ kind: "purchase", gems });
 const stars = (n: number): AvatarUnlock => ({ kind: "stars", stars: n });
 const stick = (key: string, name: string, color: string): AvatarEntry => ({
   id: `stick-${key}`,
@@ -46,16 +62,25 @@ const stick = (key: string, name: string, color: string): AvatarEntry => ({
 /** The stick figure every player without a character climbs as. */
 export const DEFAULT_STICK_ID = "stick-green";
 
+/** Gems for the Wraith, the one character sold outright. */
+export const WRAITH_GEMS = 2000;
+/** Gems for any character's Void skin (the Wraith-style paid version). */
+export const SKIN_GEMS = 1200;
+
+/** The id suffix and name of the paid Wraith-style skin every character gets. */
+export const VOID_SKIN_SUFFIX = "-void";
+
 /**
- * Picker order: the premium characters, the stick figures (free once the
- * tutorial is done), then the star ladder cheapest first. No character is
- * free outright; a player with no avatar climbs as the Green Stick. A season
- * is 300 levels of up to 3 stars (900), so the last step (840) asks for most
- * of a season at close to 3 stars a level.
+ * Picker order: the paid Wraith, the stick figures (free once the tutorial
+ * is done), the star ladder cheapest first, and last the Gecko, the final
+ * unlock for finishing a season. No character is free outright; a player
+ * with no avatar climbs as the Green Stick. A season is 300 levels of up to
+ * 3 stars (900), so the last star step (840) asks for most of a season at
+ * close to 3 stars a level. The Void skins follow, one per character with
+ * art, in the same order.
  */
-export const AVATARS: readonly AvatarEntry[] = [
-  { id: "wraith", name: "Wraith", unlock: PREMIUM },
-  { id: "gecko", name: "Gecko", unlock: PREMIUM },
+const CHARACTERS: readonly AvatarEntry[] = [
+  { id: "wraith", name: "Wraith", unlock: purchase(WRAITH_GEMS) },
   stick("green", "Green", "#cbf24d"),
   stick("ember", "Ember", "#ff5a2c"),
   stick("amber", "Amber", "#ffb020"),
@@ -79,7 +104,26 @@ export const AVATARS: readonly AvatarEntry[] = [
   { id: "ibex", name: "Ibex", unlock: stars(660) },
   { id: "sentinel", name: "Sentinel", unlock: stars(750) },
   { id: "viking", name: "Viking", unlock: stars(840) },
+  { id: "gecko", name: "Gecko", unlock: SEASON },
 ];
+
+/** The Void skin's display name: the Wraith's is "Void Walker", every other "Void <Name>". */
+function voidSkinName(character: AvatarEntry): string {
+  return character.id === "wraith" ? "Void Walker" : `Void ${character.name}`;
+}
+
+/**
+ * The paid Wraith-style version of every character with art (stick figures
+ * have none). Priced alike; owning one needs its character selectable first.
+ */
+const SKINS: readonly AvatarEntry[] = CHARACTERS.filter((c) => c.stickColor === undefined).map((c) => ({
+  id: `${c.id}${VOID_SKIN_SUFFIX}`,
+  name: voidSkinName(c),
+  unlock: purchase(SKIN_GEMS),
+  skinOf: c.id,
+}));
+
+export const AVATARS: readonly AvatarEntry[] = [...CHARACTERS, ...SKINS];
 
 const BY_ID: Readonly<Record<string, AvatarEntry>> = Object.fromEntries(AVATARS.map((a) => [a.id, a]));
 
@@ -104,6 +148,30 @@ export function avatarName(id: string | null): string | null {
 export function avatarEntry(id: unknown): AvatarEntry | null {
   const valid = parseAvatarId(id);
   return valid === null ? null : BY_ID[valid];
+}
+
+/** Every character (not skin) in picker order. */
+export const CHARACTER_ENTRIES: readonly AvatarEntry[] = CHARACTERS;
+
+/** The skins that dress `characterId`, in catalogue order (empty for a stick or unknown id). */
+export function skinsOf(characterId: string): AvatarEntry[] {
+  return SKINS.filter((s) => s.skinOf === characterId);
+}
+
+/** The character an id draws as: a skin's `skinOf`, else the id itself; null outside the catalogue. */
+export function characterIdOf(id: unknown): string | null {
+  const entry = avatarEntry(id);
+  return entry === null ? null : (entry.skinOf ?? entry.id);
+}
+
+/** Gems a purchase rule costs, or null for any other rule. */
+export function gemPrice(entry: AvatarEntry): number | null {
+  return entry.unlock.kind === "purchase" ? entry.unlock.gems : null;
+}
+
+/** "1,200" — gem amounts, grouped with commas like the Shop design. */
+export function formatGems(n: number): string {
+  return Math.trunc(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
 }
 
 /**
@@ -153,16 +221,22 @@ export function earnStarsText(stars: number): string {
 
 export const TUTORIAL_REQUIREMENT = "Finish the tutorial";
 export const PREMIUM_REQUIREMENT = "Premium";
+export const SHOP_REQUIREMENT = "Buy in the Shop";
+export const SEASON_REQUIREMENT = "Finish the season";
 
-/** What an entry asks for, for a lock label: "Earn 30 stars", "Finish the tutorial", "Premium". */
+/** What an entry asks for, for a lock label: "Earn 30 stars", "Finish the tutorial", "Buy in the Shop". */
 export function unlockRequirementText(entry: AvatarEntry): string {
   switch (entry.unlock.kind) {
     case "stars":
       return earnStarsText(entry.unlock.stars);
     case "tutorial":
       return TUTORIAL_REQUIREMENT;
+    case "season":
+      return SEASON_REQUIREMENT;
     case "premium":
       return PREMIUM_REQUIREMENT;
+    case "purchase":
+      return SHOP_REQUIREMENT;
   }
 }
 
@@ -173,8 +247,12 @@ export function lockedMessage(entry: AvatarEntry): string {
       return unlockMessage(entry.name, entry.unlock.stars);
     case "tutorial":
       return `Finish the tutorial on level 1 to unlock ${entry.name}`;
+    case "season":
+      return `Clear all ${LEVELS_PER_SEASON} levels of the season to unlock ${entry.name}`;
     case "premium":
       return `${entry.name} is a premium character. It is not on sale yet`;
+    case "purchase":
+      return `Buy ${entry.name} in the Shop for ${formatGems(entry.unlock.gems)} gems`;
   }
 }
 
@@ -190,8 +268,12 @@ export function switchAwayWarning(entry: AvatarEntry): string {
       return `Switching will lock ${entry.name} until you earn ${entry.unlock.stars} stars.`;
     case "tutorial":
       return `Switching will lock ${entry.name} until you finish the tutorial.`;
+    case "season":
+      return `Switching will lock ${entry.name} until you clear all ${LEVELS_PER_SEASON} levels of the season.`;
     case "premium":
       return `Switching will lock ${entry.name}. It is a premium character and you can't pick it again yet.`;
+    case "purchase":
+      return `Switching will lock ${entry.name} until you buy it in the Shop.`;
   }
 }
 

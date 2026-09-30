@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ALTITUDE_UNIT } from "@app/lib/units";
 import { avatarName, stickColorOf } from "@app/lib/avatars";
 import { Button } from "../ui";
@@ -10,8 +10,9 @@ import {
   type PlayerStats,
 } from "../../lib/levels/model";
 import { HeartIcon, StarIcon, XpBar, livesLabel, useNow } from "./LevelBits";
-import { OutOfLives } from "./LevelStartSheet";
-import { ChestReveal } from "./LevelChests";
+import { OutOfLives, type RefillOffer } from "./LevelStartSheet";
+import { ChestCollected, ChestReveal } from "./ChestOpening";
+import { ArrowRight } from "./LevelIcons";
 import { STUCK_BOOSTER_FAILS } from "@app/levels/engagement";
 
 /**
@@ -33,6 +34,7 @@ export function LevelResultCard({
   onPractice,
   onPracticeLevel,
   nearMiss = null,
+  refill = null,
 }: {
   result: LevelResult;
   /** Whether a retry of this level spends a life (tutorial levels don't). */
@@ -48,7 +50,14 @@ export function LevelResultCard({
   onMap: () => void;
   onPractice: () => void;
   onPracticeLevel: () => void;
+  /** The paid lives refill, offered when a loss leaves no lives. */
+  refill?: RefillOffer | null;
 }) {
+  // A clear that opened chests leads with Collect Rewards; Next level waits
+  // below it as a link until the rewards are collected.
+  const chestKey = result.chestsOpened.map((c) => c.chestNumber).join();
+  const [collectedKey, setCollectedKey] = useState<string | null>(null);
+  const chestsOpen = result.chestsOpened.length > 0 && collectedKey !== chestKey;
   const label = result.cleared
     ? `Level ${result.level} cleared, ${result.stars} of ${MAX_STARS} stars`
     : (nearMiss ?? `${result.outOfTime ? "Out of time" : "Caught by the lava"}, ${feetShort(result)} ${ALTITUDE_UNIT} from the summit`);
@@ -65,8 +74,13 @@ export function LevelResultCard({
           nearMiss={nearMiss}
         />
       )}
-      <ChestReveal chests={result.chestsOpened} />
-      <StreakLine result={result} />
+      {/* Keyed by chest: a new clear's chests start their opening afresh. */}
+      {chestsOpen ? (
+        <ChestReveal key={chestKey} chests={result.chestsOpened} onCollect={() => setCollectedKey(chestKey)} />
+      ) : (
+        result.chestsOpened.length > 0 && <ChestCollected chests={result.chestsOpened} />
+      )}
+      {!result.cleared && <StreakLine result={result} />}
       <StuckLine result={result} />
 
       {retryError && (
@@ -74,14 +88,24 @@ export function LevelResultCard({
           {retryError}
         </p>
       )}
-      <div className="mt-6 flex flex-col gap-2.5">
+      <div className={`${chestsOpen ? "mt-1" : "mt-6"} flex flex-col gap-2.5`}>
         {result.cleared ? (
           <>
-            {hasNextLevel && (
-              <Button onPress={onNext} className="min-h-[56px] text-cta">
-                Next level
-              </Button>
-            )}
+            {hasNextLevel &&
+              (chestsOpen ? (
+                <button
+                  type="button"
+                  onClick={onNext}
+                  className="mx-auto flex min-h-[44px] items-center gap-2 px-4 font-display text-meta font-black uppercase tracking-wide text-text-primary transition-transform active:scale-95"
+                >
+                  Next level <ArrowRight size={18} />
+                </button>
+              ) : (
+                <Button onPress={onNext} className="min-h-[56px] text-cta">
+                  Next level
+                </Button>
+              ))}
+            <StreakLine result={result} divider />
             <div className="flex gap-2.5">
               <Button variant="secondary" busy={retryBusy} onPress={onRetry} aria-label={`Replay level ${result.level}`}>
                 Replay
@@ -100,6 +124,7 @@ export function LevelResultCard({
             onMap={onMap}
             onPractice={onPractice}
             onPracticeLevel={onPracticeLevel}
+            refill={refill}
           />
         )}
       </div>
@@ -108,7 +133,14 @@ export function LevelResultCard({
 }
 
 /** The win streak after a frontier run; replays leave it alone and say nothing. */
-export function StreakLine({ result }: { result: Pick<LevelResult, "atFrontier" | "streak" | "cleared"> }) {
+export function StreakLine({
+  result,
+  divider = false,
+}: {
+  result: Pick<LevelResult, "atFrontier" | "streak" | "cleared">;
+  /** Drawn as a rule between the clear's actions, label in the middle. */
+  divider?: boolean;
+}) {
   if (!result.atFrontier || result.streak === null) return null;
   const text =
     result.streak > 0
@@ -116,6 +148,15 @@ export function StreakLine({ result }: { result: Pick<LevelResult, "atFrontier" 
       : result.cleared
         ? "Win streak 0"
         : "Win streak reset. Clear a new level to start one.";
+  if (divider) {
+    return (
+      <p className="my-1 flex items-center gap-3 font-mono text-label font-bold uppercase tracking-label text-text-secondary">
+        <span aria-hidden className="h-px flex-1 bg-white/15" />
+        {text}
+        <span aria-hidden className="h-px flex-1 bg-white/15" />
+      </p>
+    );
+  }
   return (
     <p className="mt-3 text-center font-mono text-label font-bold uppercase tracking-label text-text-secondary">
       {text}
@@ -265,6 +306,7 @@ function LossActions({
   onMap,
   onPractice,
   onPracticeLevel,
+  refill,
 }: {
   player: PlayerStats;
   costsLife: boolean;
@@ -273,12 +315,18 @@ function LossActions({
   onMap: () => void;
   onPractice: () => void;
   onPracticeLevel: () => void;
+  refill: RefillOffer | null;
 }) {
   const now = useNow();
   if (costsLife && player.lives <= 0) {
     return (
       <>
-        <OutOfLives wait={livesLabel(player, now)} onPractice={onPractice} onPracticeLevel={onPracticeLevel} />
+        <OutOfLives
+          wait={livesLabel(player, now)}
+          onPractice={onPractice}
+          onPracticeLevel={onPracticeLevel}
+          refill={refill}
+        />
         <Button variant="ghost" onPress={onMap}>
           Map
         </Button>
@@ -376,6 +424,8 @@ export function SubmitFailedCard({ level, busy, onRetry, onMap }: { level: numbe
 /**
  * The card's shell. It takes focus when it appears, so a screen reader
  * announces the outcome (its label) as the run ends.
+ * On a short phone a tall card (a chest opening) scrolls rather than
+ * pushing its heading off the top.
  */
 function Sheet({ label, children }: { label: string; children: React.ReactNode }) {
   const ref = useRef<HTMLDivElement>(null);
@@ -389,7 +439,7 @@ function Sheet({ label, children }: { label: string; children: React.ReactNode }
       aria-modal="true"
       aria-label={label}
       tabIndex={-1}
-      className="lr-card absolute outline-none focus-visible:outline-none inset-x-0 bottom-0 z-30 mx-auto max-w-md rounded-t-3xl border-t border-border-strong bg-surface/95 px-6 pb-[calc(env(safe-area-inset-bottom)+1.5rem)] pt-3 backdrop-blur-xl"
+      className="lr-card absolute outline-none focus-visible:outline-none inset-x-0 bottom-0 z-30 mx-auto max-h-[calc(100dvh-env(safe-area-inset-top))] max-w-md overflow-y-auto overscroll-contain rounded-t-3xl border-t border-border-strong bg-surface/95 px-6 pb-[calc(env(safe-area-inset-bottom)+1.5rem)] pt-3 backdrop-blur-xl"
     >
       <span aria-hidden className="mx-auto mb-5 block h-1 w-9 rounded-full bg-border-strong" />
       {children}

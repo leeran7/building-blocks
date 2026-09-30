@@ -6,7 +6,16 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { AVATARS, avatarName, parseAvatarId } from "../../src/lib/avatars";
+import {
+  AVATARS,
+  CHARACTER_ENTRIES,
+  avatarName,
+  characterIdOf,
+  formatGems,
+  gemPrice,
+  parseAvatarId,
+  skinsOf,
+} from "../../src/lib/avatars";
 
 describe("parseAvatarId", () => {
   it("accepts every catalogue id as itself", () => {
@@ -37,16 +46,29 @@ describe("parseAvatarId", () => {
 describe("AVATARS catalogue", () => {
   // Ids are persisted in users.avatar_id: renaming or dropping one silently
   // retires every player who picked it, so the list is a stored contract.
-  it("is the approved gallery, in order: premium, the stick figures, then the star ladder", () => {
-    expect(AVATARS.map((a) => a.name)).toEqual([
-      "Wraith", "Gecko",
+  it("is the approved gallery, in order: Wraith, the stick figures, the star ladder, Gecko last, then the Void skins", () => {
+    const characters = [
+      "Wraith",
       "Green Stick", "Ember Stick", "Amber Stick", "Sky Stick", "Violet Stick", "Pink Stick",
       "Kestrel", "Lynx", "Raven", "Panther", "Wolf", "Otter", "Heron", "Yak", "Mantis", "Cobra",
-      "Badger", "Falcon", "Marmot", "Bison", "Ibex", "Sentinel", "Viking",
+      "Badger", "Falcon", "Marmot", "Bison", "Ibex", "Sentinel", "Viking", "Gecko",
+    ];
+    const withArt = characters.filter((n) => !n.endsWith(" Stick"));
+    expect(AVATARS.map((a) => a.name)).toEqual([
+      ...characters,
+      "Void Walker",
+      ...withArt.slice(1).map((n) => `Void ${n}`),
     ]);
+    expect(CHARACTER_ENTRIES.map((a) => a.name)).toEqual(characters);
     let sticks = 0;
+    let skins = 0;
     for (const a of AVATARS) {
-      if (a.stickColor !== undefined) {
+      if (a.skinOf !== undefined) {
+        skins++;
+        // "lynx-void" dresses "lynx"
+        expect(a.id).toBe(`${a.skinOf}-void`);
+        expect(skinsOf(a.skinOf).map((s) => s.id)).toEqual([a.id]);
+      } else if (a.stickColor !== undefined) {
         sticks++;
         // "Green Stick" -> "stick-green"
         expect(a.id).toBe(`stick-${a.name.replace(/ Stick$/, "").toLowerCase()}`);
@@ -56,6 +78,8 @@ describe("AVATARS catalogue", () => {
       }
     }
     expect(sticks).toBe(6);
+    expect(skins).toBe(withArt.length);
+    expect(skinsOf("stick-green")).toEqual([]);
   });
 
   it("has unique, filename-safe ids and non-empty names", () => {
@@ -73,5 +97,27 @@ describe("avatarName", () => {
     expect(avatarName(AVATARS[0].id)).toBe(AVATARS[0].name);
     expect(avatarName(null)).toBeNull();
     expect(avatarName("toString")).toBeNull();
+  });
+});
+
+describe("Shop helpers", () => {
+  it("maps a skin to its character and a character to itself, and nothing else to anything", () => {
+    expect(characterIdOf("lynx-void")).toBe("lynx");
+    expect(characterIdOf("wraith-void")).toBe("wraith");
+    expect(characterIdOf("lynx")).toBe("lynx");
+    for (const bad of ["lynx-gold", "__proto__", "", null, 3]) expect(characterIdOf(bad)).toBeNull();
+  });
+
+  it("prices only purchase rules", () => {
+    expect(gemPrice(AVATARS.find((a) => a.id === "wraith")!)).toBe(2000);
+    expect(gemPrice(AVATARS.find((a) => a.id === "lynx-void")!)).toBe(1200);
+    expect(gemPrice(AVATARS.find((a) => a.id === "lynx")!)).toBeNull();
+  });
+
+  it("groups gem amounts with commas", () => {
+    expect(formatGems(0)).toBe("0");
+    expect(formatGems(999)).toBe("999");
+    expect(formatGems(1200)).toBe("1,200");
+    expect(formatGems(1234567)).toBe("1,234,567");
   });
 });

@@ -28,5 +28,10 @@ export function withMockFallback(server: LevelsClient, mock: () => LevelsClient)
     startLevel: (level, opts) => active.startLevel(level, opts),
     submitResult: (ticketId, run) => active.submitResult(ticketId, run),
     getBoard: (level) => active.getBoard(level),
+    // Only the server sells refills; the mock's season has no refill price,
+    // so the app never offers one while the mock is active.
+    ...(server.buyLives
+      ? { buyLives: () => (active.buyLives ? active.buyLives() : Promise.resolve({ ok: false as const, code: "NETWORK" as const })) }
+      : {}),
   };
 }

@@ -16,6 +16,7 @@ import {
   parseLevelBoard,
   parseOpenedChests,
   parseLevelProfile,
+  parseLivesRefill,
   parseServerResult,
   parseStartPowerUp,
   parseTicket,
@@ -559,5 +560,71 @@ describe("star chests and boosters", () => {
       });
     }
     expect(refusalFor(400, "BOOSTER_NOT_OWNED")).toBe("NETWORK");
+  });
+});
+
+describe("lives refill", () => {
+  const REFILL = { lives: 5, maxLives: 5, nextLifeAt: null, gems: 70 };
+
+  it("reads gems and the refill price from the profile, and none from an older server", () => {
+    expect(parseLevelProfile({ ...PROFILE, gems: 120, livesRefillGems: 50 })?.refill).toEqual({ gems: 120, cost: 50 });
+    expect(parseLevelProfile(PROFILE)?.refill).toBeNull();
+    for (const bad of [
+      { gems: -1, livesRefillGems: 50 },
+      { gems: 120, livesRefillGems: 0 },
+      { gems: 120 },
+      { gems: "120", livesRefillGems: 50 },
+    ]) {
+      expect(parseLevelProfile({ ...PROFILE, ...bad })).toBeNull();
+    }
+  });
+
+  it("parses the refill body and refuses one that breaks the contract", () => {
+    expect(parseLivesRefill(REFILL)).toEqual(REFILL);
+    expect(parseLivesRefill({ ...REFILL, lives: 6 })).toBeNull();
+    expect(parseLivesRefill({ ...REFILL, gems: -1 })).toBeNull();
+    expect(parseLivesRefill({ ...REFILL, nextLifeAt: "soon" })).toBeNull();
+  });
+
+  it("posts the refill and returns full lives with the new balance", async () => {
+    const { fetch, calls } = fakeServer({
+      "/api/levels/me": () => json(200, { ...PROFILE, gems: 120, livesRefillGems: 50 }),
+      "/api/levels/lives": () => json(200, REFILL),
+    });
+    const client = createHttpLevelsClient({ catalog, fetch });
+    expect((await client.getSeason()).refill).toEqual({ gems: 120, cost: 50 });
+    const res = await client.buyLives!();
+    expect(calls[1]).toEqual({ path: "/api/levels/lives", body: {} });
+    expect(res).toEqual({
+      ok: true,
+      gems: 70,
+      player: expect.objectContaining({ lives: 5, maxLives: 5, nextLifeAt: null, xp: 130 }),
+    });
+  });
+
+  it("words each refusal, keeping the balance the server reports", async () => {
+    const cases: [() => Response, unknown][] = [
+      [() => json(409, { code: "LIVES_FULL", lives: 5 }), { ok: false, code: "LIVES_FULL" }],
+      [() => json(409, { code: "NOT_ENOUGH_GEMS", gems: 10, cost: 50 }), { ok: false, code: "NOT_ENOUGH_GEMS", gems: 10 }],
+      [() => json(401, { code: "UNAUTHORIZED" }), { ok: false, code: "NETWORK" }],
+      [() => json(200, { ...REFILL, lives: 9 }), { ok: false, code: "NETWORK" }],
+    ];
+    for (const [route, expected] of cases) {
+      const { fetch } = fakeServer({ "/api/levels/lives": route });
+      expect(await createHttpLevelsClient({ catalog, fetch }).buyLives!()).toEqual(expected);
+    }
+    const offline = fakeServer({});
+    expect(await createHttpLevelsClient({ catalog, fetch: offline.fetch }).buyLives!()).toEqual({ ok: false, code: "NETWORK" });
+  });
+
+  it("never sells a refill from the device-local fallback", async () => {
+    const { fetch } = fakeServer({ "/api/levels/me": () => new Response("Not Found", { status: 404 }) });
+    const client = withMockFallback(
+      createHttpLevelsClient({ catalog, fetch }),
+      () => createMockLevelsClient({ load: () => null, save: () => {} }),
+    );
+    expect((await client.getSeason()).refill).toBeNull();
+    expect(await client.buyLives!()).toEqual({ ok: false, code: "NETWORK" });
+    expect(fetch).toHaveBeenCalledTimes(1);
   });
 });

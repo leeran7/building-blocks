@@ -11,6 +11,8 @@ import { DuelRoomScreen } from "./screens/DuelRoomScreen";
 import { ChallengeScreen } from "./screens/ChallengeScreen";
 import { LevelMapScreen } from "./screens/LevelMapScreen";
 import { LevelPlayScreen } from "./screens/LevelPlayScreen";
+import { ShopScreen } from "./screens/ShopScreen";
+import { SkinDetailsScreen } from "./screens/SkinDetailsScreen";
 import { AnimatedBackdrop } from "./components/AnimatedBackdrop";
 import { RouteTransition } from "./components/RouteTransition";
 import { BottomNav, isTabRoot } from "./components/BottomNav";
@@ -89,6 +91,8 @@ export function App() {
                     <Route path="/profile/edit" element={<EditProfileScreen />} />
                     <Route path="/profile/avatar" element={<AvatarPickerScreen />} />
                     <Route path="/challenge" element={<ChallengeScreen />} />
+                    <Route path="/shop" element={<ShopScreen />} />
+                    <Route path="/shop/:characterId" element={<SkinDetailsScreen />} />
                     {/* Settings live on Edit Profile — keep the path as a redirect
                         for any stray deep links / bookmarks. */}
                     <Route path="/settings" element={<Navigate to="/profile/edit" replace />} />
@@ -124,7 +128,7 @@ function AuthSplash() {
       className="app-fade flex min-h-[100dvh] items-center justify-center"
     >
       <span className="auth-splash-mark">
-        <LogoMark size={84} card />
+        <LogoMark size={96} />
       </span>
       <style>{`
         .auth-splash-mark { animation: splashPulse 1.8s ease-in-out infinite; }

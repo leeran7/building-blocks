@@ -23,19 +23,19 @@ const render = (n: number) =>
 
 describe("level start sheet power-ups", () => {
   it("says a level has none", () => {
-    expect(render(1)).toContain("None on this level");
+    expect(render(1)).toContain("No power-ups");
   });
 
   it("shows the level's rate and each type's seconds", () => {
     const text = render(300);
-    expect(text).toContain("About 1 every 20 floors");
+    expect(text).toContain("Power-up every 20 floors");
     expect(text).toContain("Slow Lava 4.8s");
     expect(text).toContain("Jetpack 4.5s fuel");
-    expect(text).not.toContain("None on this level");
+    expect(text).not.toContain("No power-ups");
   });
 
   it("shows an early level's longer window", () => {
-    expect(render(4)).toMatch(/About 1 every 9 floors .*9\.8s/);
+    expect(render(4)).toMatch(/Power-up every 9 floors .*9\.8s/);
   });
 });
 
@@ -71,7 +71,7 @@ describe("level start sheet", () => {
         onClose: () => {},
       })
     );
-    expect(html).toContain("About 1 every 20 floors");
+    expect(html).toContain("Power-up every 20 floors");
   });
 });
 

@@ -12,8 +12,10 @@ import {
   AvatarLockedError,
   checkAvatarForUser,
   tutorialCleared,
+  seasonCleared,
   isCheckFor,
   levelStarsEarned,
+  ownedCharacterIds,
   type AvatarCheck,
 } from "./avatarUnlocks";
 
@@ -35,6 +37,8 @@ export interface UserSettings {
 export interface KnownUnlockInputs {
   stars: number;
   tutorialDone: boolean;
+  seasonDone: boolean;
+  ownedIds: readonly string[];
 }
 
 /**
@@ -42,7 +46,7 @@ export interface KnownUnlockInputs {
  * request already did them; omit it to read them here.
  */
 export async function getUserSettings(userId: string, known?: KnownUnlockInputs): Promise<UserSettings> {
-  const [user, social, starTotal, tutorialDone] = await Promise.all([
+  const [user, social, starTotal, tutorialDone, seasonDone, ownedIds] = await Promise.all([
     prisma.user.findUnique({
       where: { id: userId },
       select: { display_name: true, username: true, leaderboard_consent_at: true, avatar_id: true },
@@ -53,6 +57,8 @@ export async function getUserSettings(userId: string, known?: KnownUnlockInputs)
     }),
     known?.stars ?? levelStarsEarned(userId),
     known?.tutorialDone ?? tutorialCleared(userId),
+    known?.seasonDone ?? seasonCleared(userId),
+    known?.ownedIds ?? ownedCharacterIds(userId),
   ]);
   const avatarId = parseAvatarId(user?.avatar_id);
   return {
@@ -61,7 +67,7 @@ export async function getUserSettings(userId: string, known?: KnownUnlockInputs)
     social: Object.fromEntries(social.map((s) => [s.platform, s.handle])),
     leaderboardConsent: Boolean(user?.leaderboard_consent_at),
     avatarId,
-    avatarUnlocks: avatarUnlockState({ stars: starTotal, tutorialDone, savedAvatarId: avatarId }),
+    avatarUnlocks: avatarUnlockState({ stars: starTotal, tutorialDone, seasonDone, savedAvatarId: avatarId, ownedIds }),
   };
 }
 
@@ -151,7 +157,12 @@ export async function updateUserSettings(
         ? avatarCheck
         : await checkAvatarForUser(userId, input.avatarId);
       if (check.lock) throw new AvatarLockedError(check.lock);
-      known = { stars: check.stars, tutorialDone: check.tutorialDone };
+      known = {
+        stars: check.stars,
+        tutorialDone: check.tutorialDone,
+        seasonDone: check.seasonDone,
+        ownedIds: check.ownedIds,
+      };
     }
     userPatch.avatar_id = input.avatarId;
   }

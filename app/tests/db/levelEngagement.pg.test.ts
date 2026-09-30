@@ -152,14 +152,18 @@ describe.skipIf(!PG_URL)("level engagement on Postgres", () => {
       expect((await start("a", 7)).startPowerUp).toBeNull();
     });
 
-    it("grants a super jump from 5 once it is unlocked, else the rapid climb", async () => {
+    it("grants a super jump from 5 past the early levels, else the rapid climb", async () => {
       await user("a");
       await clearThrough("a", 5);
       // L6 does not allow the super jump yet (unlocked at L11).
       expect((await start("a", 6)).startPowerUp).toEqual({ type: "rapid-climb", source: "streak" });
       await prisma.levelRunTicket.updateMany({ where: { used_at: null }, data: { used_at: T0, outcome: "cleared" } });
       await clearThrough("a", 10);
-      const t = await start("a", 11);
+      // L11 unlocks it, but no early level (L1-L45) starts with one.
+      expect((await start("a", 11)).startPowerUp).toEqual({ type: "rapid-climb", source: "streak" });
+      await prisma.levelRunTicket.updateMany({ where: { used_at: null }, data: { used_at: T0, outcome: "cleared" } });
+      await clearThrough("a", 45);
+      const t = await start("a", 46);
       expect(t.startPowerUp).toEqual({ type: "super-jump", source: "streak" });
     });
 
@@ -488,12 +492,12 @@ describe.skipIf(!PG_URL)("level engagement on Postgres", () => {
       await user("a");
       await clearThroughWith3("a", 10);
       await play("a", 11, failed());
-      await give("a", "super-jump", 2);
-      const t = await start("a", 11, { booster: "super-jump" });
-      expect(t).toMatchObject({ startPowerUp: { type: "super-jump", source: "booster" }, boosters: { "super-jump": 1 } });
+      await give("a", "sprint-burst", 2);
+      const t = await start("a", 11, { booster: "sprint-burst" });
+      expect(t).toMatchObject({ startPowerUp: { type: "sprint-burst", source: "booster" }, boosters: { "sprint-burst": 1 } });
       expect(await prisma.levelRunTicket.findUniqueOrThrow({ where: { id: t.ticketId } })).toMatchObject({
-        start_power_up: "super-jump",
-        booster: "super-jump",
+        start_power_up: "sprint-burst",
+        booster: "sprint-burst",
       });
     });
 
@@ -503,6 +507,9 @@ describe.skipIf(!PG_URL)("level engagement on Postgres", () => {
       await play("a", 11, failed());
       const lives = await livesOf("a");
       expect(await codeOf(start("a", 11, { booster: "giant" }))).toBe("BOOSTER_NOT_ALLOWED");
+      // Unlocked at L11, but kept out of early-level starts.
+      await give("a", "super-jump", 1);
+      expect(await codeOf(start("a", 11, { booster: "super-jump" }))).toBe("BOOSTER_NOT_ALLOWED");
       expect(await codeOf(start("a", 11, { booster: "rapid-climb" }))).toBe("BOOSTER_NOT_OWNED");
       expect(await livesOf("a")).toBe(lives);
       expect(await prisma.levelRunTicket.count({ where: { used_at: null } })).toBe(0);

@@ -5,8 +5,9 @@ import { prefersReducedMotion } from "../lib/motion";
 
 export type PreviewPose = "idle" | "walk" | "climb";
 
-/** Figure height in CSS px. */
+/** Default figure height in CSS px. */
 const FIGURE_PX = 132;
+/** Default canvas size (square) in CSS px. */
 const SIZE_PX = 168;
 /** In-game speeds (m/s) so the cycles step at the pace they do in a run. */
 const WALK_MPS = 13;
@@ -26,10 +27,16 @@ export function CharacterPreview({
   avatarId,
   pose,
   locked,
+  figurePx = FIGURE_PX,
+  sizePx = SIZE_PX,
 }: {
   avatarId: string | null;
   pose: PreviewPose;
   locked: boolean;
+  /** Figure height in CSS px, feet to the top of the head. */
+  figurePx?: number;
+  /** Canvas width and height in CSS px; the figure stands centred on its bottom edge. */
+  sizePx?: number;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const live = useRef({ avatarId, pose });
@@ -40,8 +47,8 @@ export function CharacterPreview({
     const ctx = canvas?.getContext("2d");
     if (!canvas || !ctx) return;
     const dpr = Math.min(3, window.devicePixelRatio || 1);
-    canvas.width = SIZE_PX * dpr;
-    canvas.height = SIZE_PX * dpr;
+    canvas.width = sizePx * dpr;
+    canvas.height = sizePx * dpr;
     const reduce = prefersReducedMotion();
     const state: ClimberSpriteState = { pose: "idle", x: 0, y: 0, vx: 0, vy: 0, slot: 0, avatarId: null };
     let raf = 0;
@@ -62,24 +69,24 @@ export function CharacterPreview({
       state.avatarId = id;
 
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      ctx.clearRect(0, 0, SIZE_PX, SIZE_PX);
-      const fx = SIZE_PX / 2;
-      const fy = SIZE_PX - 8;
+      ctx.clearRect(0, 0, sizePx, sizePx);
+      const fx = sizePx / 2;
+      const fy = sizePx - 8;
       const stick = climberStickColor(id);
       let drew = true;
       if (stick !== null) {
         const tick = reduce ? 0 : clock * TICKS_PER_SEC;
-        drawClimber(ctx, fx, fy, FIGURE_PX / STICK_H_IN_S, 1, shown, tick, stick, reduce);
+        drawClimber(ctx, fx, fy, figurePx / STICK_H_IN_S, 1, shown, tick, stick, reduce);
       } else {
         // False until the character's sheets decode: draw nothing meanwhile.
-        drew = drawClimberSprite(ctx, fx, fy, FIGURE_PX / DISPLAY_H_IN_S, 1, state, reduce, null, clock);
+        drew = drawClimberSprite(ctx, fx, fy, figurePx / DISPLAY_H_IN_S, 1, state, reduce, null, clock);
       }
       // Reduced motion stops once a frame is on screen.
       if (!reduce || !drew) raf = requestAnimationFrame(draw);
     };
     raf = requestAnimationFrame(draw);
     return () => cancelAnimationFrame(raf);
-  }, [avatarId, pose]);
+  }, [avatarId, pose, figurePx, sizePx]);
 
   return (
     <canvas
@@ -87,7 +94,7 @@ export function CharacterPreview({
       aria-hidden
       data-character-preview
       className={locked ? "opacity-60 grayscale" : undefined}
-      style={{ width: SIZE_PX, height: SIZE_PX }}
+      style={{ width: sizePx, height: sizePx }}
     />
   );
 }

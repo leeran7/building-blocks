@@ -11,6 +11,9 @@ import {
   ladderHasShortTop,
   floorHeight,
   floorIndexAt,
+  summitDiamond,
+  SUMMIT_DIAMOND_GRAB_X,
+  type SummitDiamond,
 } from "../../game/towers";
 import { obstaclesNearY } from "../../game/obstacles";
 import {
@@ -350,6 +353,12 @@ export function paintClimbFrame(
 
   for (const o of obstaclesNearY(tower, yLow, yHigh)) {
     drawObstacle(ctx, o, sx, sy, sizePxPerM, ui, height);
+  }
+
+  const diamond = diamondFor(tower);
+  if (diamond !== null && diamond.y >= yLow && diamond.y <= yHigh) {
+    const touched = player?.status === "finished";
+    drawSummitDiamond(ctx, sx(diamond.x), sy(diamond.floorY), sizePxPerM, ui, state.tick, reducedMotion, touched);
   }
 
   for (const pu of state.powerUps) {
@@ -804,6 +813,109 @@ function drawShortTopCue(
     t.held ? ACCENT : LADDER,
     (t.held ? 2.5 : 2) * ui
   );
+}
+
+const DIAMOND_FACE = "#7cf3ff";
+const DIAMOND_DARK = "#2bb7d9";
+const DIAMOND_LIGHT = "#e9fdff";
+const DIAMONDS = new WeakMap<TowerSpec, SummitDiamond | null>();
+
+/** The tower's summit diamond, worked out once per tower object. */
+function diamondFor(tower: TowerSpec): SummitDiamond | null {
+  let d = DIAMONDS.get(tower);
+  if (d === undefined) {
+    d = summitDiamond(tower);
+    DIAMONDS.set(tower, d);
+  }
+  return d;
+}
+
+/**
+ * The glowing diamond that ends a level, hovering over the summit floor whose
+ * surface is at screen y `floorTop`: a cut gem with a pulsing halo, bobbing
+ * gently. Once the local climber has touched it, it
+ * flares and stops bobbing.
+ */
+function drawSummitDiamond(
+  ctx: PaintCtx,
+  cx: number,
+  floorTop: number,
+  pxPerM: number,
+  ui: number,
+  tick: number,
+  reducedMotion: boolean,
+  touched: boolean
+): void {
+  // Sized to the touch reach, so what you see is what you have to reach.
+  const r = Math.max(12 * ui, pxPerM * SUMMIT_DIAMOND_GRAB_X * 0.75);
+  // Hovers over the floor and only bobs upward, so its point never dips into the slab.
+  const bob = reducedMotion || touched ? 0 : (0.5 + 0.5 * Math.sin(tick * 0.08)) * r * 0.25;
+  const pulse = reducedMotion ? 0.5 : 0.5 + 0.5 * Math.sin(tick * 0.12);
+  const y = floorTop - r - 4 * ui - bob;
+
+  const haloR = r * (touched ? 3.4 : 2.2 + 0.4 * pulse);
+  const halo = ctx.createRadialGradient(cx, y, r * 0.2, cx, y, haloR);
+  halo.addColorStop(0, `rgba(124,243,255,${touched ? 0.75 : 0.35 + 0.2 * pulse})`);
+  halo.addColorStop(1, "rgba(124,243,255,0)");
+  ctx.fillStyle = halo;
+  ctx.beginPath();
+  ctx.arc(cx, y, haloR, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Crown (top 35%) and pavilion (the point), each split into light/dark facets.
+  const w = r * 0.95;
+  const crownTop = y - r * 0.7;
+  const girdle = y - r * 0.2;
+  const tip = y + r;
+  ctx.fillStyle = DIAMOND_FACE;
+  ctx.beginPath();
+  ctx.moveTo(cx - w * 0.55, crownTop);
+  ctx.lineTo(cx + w * 0.55, crownTop);
+  ctx.lineTo(cx + w, girdle);
+  ctx.lineTo(cx, tip);
+  ctx.lineTo(cx - w, girdle);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = DIAMOND_DARK;
+  ctx.beginPath();
+  ctx.moveTo(cx, girdle);
+  ctx.lineTo(cx + w, girdle);
+  ctx.lineTo(cx, tip);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = DIAMOND_LIGHT;
+  ctx.beginPath();
+  ctx.moveTo(cx - w * 0.55, crownTop);
+  ctx.lineTo(cx - w * 0.1, crownTop);
+  ctx.lineTo(cx - w * 0.35, girdle);
+  ctx.lineTo(cx - w, girdle);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = DIAMOND_LIGHT;
+  ctx.lineWidth = Math.max(1, ui);
+  ctx.beginPath();
+  ctx.moveTo(cx - w, girdle);
+  ctx.lineTo(cx + w, girdle);
+  ctx.stroke();
+
+  // A twinkle that sweeps round on its own clock.
+  if (!reducedMotion) {
+    const t = (tick % 90) / 90;
+    if (t < 0.25) {
+      const k = Math.sin((t / 0.25) * Math.PI);
+      const sxp = cx + w * 0.35;
+      const syp = crownTop + r * 0.15;
+      const len = r * 0.55 * k;
+      ctx.strokeStyle = `rgba(255,255,255,${k})`;
+      ctx.lineWidth = Math.max(1, 1.2 * ui);
+      ctx.beginPath();
+      ctx.moveTo(sxp - len, syp);
+      ctx.lineTo(sxp + len, syp);
+      ctx.moveTo(sxp, syp - len);
+      ctx.lineTo(sxp, syp + len);
+      ctx.stroke();
+    }
+  }
 }
 
 /** An up chevron `w` px either side of (cx, midY): "jump up". */

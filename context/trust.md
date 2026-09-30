@@ -67,3 +67,18 @@ irreversible or money-adjacent writes — not generic OWASP.
    rule on `app/src/game/**` fails any import of the avatar or character
    modules there. A character may change how a climber looks, never what it
    can do (Leeran, 2026-09-28).
+10. **Gems are money.** `users.gems` rises only through `creditGemPack`
+   after the provider confirmed payment: the Stripe webhook (paid status,
+   USD, `amount_total` equal to the pack's price, pack read from
+   `src/lib/gemPacks.ts` by id) or an App Store signed transaction whose
+   chain ends at the pinned Apple Root CA - G3, for this bundle, a gem-pack
+   product, this account's `appAccountToken`, and not revoked
+   (`src/api/appleIap.ts`). Credits are unique on (provider, external id),
+   spends on `gem_ledger.idempotency_key`, both under the user row lock,
+   and a CHECK keeps gems >= 0. Prices and what a pack credits come from
+   the catalogues, never the request. A bought character or skin is an
+   `owned_characters` row; that row, never level data, is what makes a
+   `purchase` avatar selectable (item 8). A paid lives refill
+   (`buyLivesRefill`, `LIVES_REFILL_GEMS`) spends in the same transaction
+   that writes `users.lives` and is refused while lives are full, which is
+   what keeps a retried request from being charged twice.

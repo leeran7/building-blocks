@@ -12,6 +12,7 @@ import {
   type LevelTicket,
 } from "../lib/levels/model";
 import { REFUSAL_COPY } from "../components/levels/LevelStartSheet";
+import { useLivesRefillOffer } from "../components/levels/useLivesRefillOffer";
 import { LevelRun } from "../components/levels/LevelRun";
 import { levelRunSetup } from "../lib/levels/catalog";
 import { parseStartPowerUp } from "../lib/levels/httpClient";
@@ -69,6 +70,7 @@ export function LevelPlayScreen() {
   const practice = search.get("practice") === "1";
   const level = Number(params.level);
   const { client, season, setPlayer, refresh, bestFails } = useLevels();
+  const refill = useLivesRefillOffer();
   const seasonNo = season?.season ?? null;
   const node: LevelNode | null =
     season && Number.isInteger(level) && level >= 1 && level <= season.levels.length
@@ -241,8 +243,10 @@ export function LevelPlayScreen() {
           onMap={() => toMap()}
           onPractice={() => navigate("/climb", { replace: true })}
           onPracticeLevel={() => navigate(`/levels/${level}/play?practice=1`, { replace: true })}
+          refill={refill.offer}
         />
       )}
+      {refill.overlays}
       {stage.kind === "failed" && (
         <SubmitFailedCard level={level} busy={false} onRetry={() => void submit(stage.report)} onMap={() => toMap()} />
       )}

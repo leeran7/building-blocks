@@ -129,7 +129,18 @@ export function XpBar({ player, compact = false }: { player: PlayerStats; compac
  * visible, the detail opens on tap. Closed by default so Play stays in reach.
  * The detail stays in the DOM (hidden) so screen readers and search find it.
  */
-export function Accordion({ label, summary, children }: { label: string; summary: ReactNode; children: ReactNode }) {
+export function Accordion({
+  label,
+  summary,
+  icon,
+  children,
+}: {
+  label: string;
+  summary: ReactNode;
+  /** A small icon before the label, in the card's accent. */
+  icon?: ReactNode;
+  children: ReactNode;
+}) {
   const [open, setOpen] = useState(false);
   const panelId = useId();
   return (
@@ -139,9 +150,10 @@ export function Accordion({ label, summary, children }: { label: string; summary
         aria-expanded={open}
         aria-controls={panelId}
         onClick={() => setOpen((o) => !o)}
-        className="flex min-h-[44px] w-full items-center gap-3 px-3.5 py-2 text-left"
+        className="flex min-h-[48px] w-full items-center gap-2.5 px-3.5 py-2 text-left"
       >
-        <span className="font-mono text-label uppercase tracking-label text-text-secondary">{label}</span>
+        {icon && <span className="shrink-0 text-text-secondary">{icon}</span>}
+        <span className="shrink-0 font-mono text-label uppercase tracking-[0.06em] text-text-secondary">{label}</span>
         <span className="min-w-0 flex-1 truncate text-right text-meta text-text-primary">{summary}</span>
         <svg
           width="14"
