@@ -71,7 +71,8 @@ import { createMockLevelsClient } from "../../mobile/src/lib/levels/mockClient";
 import type { BuyLivesResult, LevelResult, LevelRunReport, LevelsClient } from "../../mobile/src/lib/levels/model";
 import { LevelMapScreen, MAP_FADE, pinBottom } from "../../mobile/src/screens/LevelMapScreen";
 import { LevelPlayScreen, ticketFromState } from "../../mobile/src/screens/LevelPlayScreen";
-import { LevelResultCard } from "../../mobile/src/components/levels/LevelResultCard";
+import { LevelResultCard, UNLOCK_REVEAL_DELAY_MS } from "../../mobile/src/components/levels/LevelResultCard";
+import { REVEAL_BURST_MS, REVEAL_CHARGE_MS } from "../../mobile/src/components/RewardReveal";
 import type { RefillOffer } from "../../mobile/src/components/levels/LevelStartSheet";
 import { TICK_HZ } from "../../src/game/types";
 import { POWER_UP_TYPES } from "../../src/game/powerups";
@@ -683,6 +684,52 @@ describe("level result card", () => {
     expect(container.querySelector("[data-new-avatar]")).toBeNull();
     await renderCard(base);
     expect(container.querySelector("[data-new-avatar]")).toBeNull();
+  });
+
+  it("gives each unlocked character its own full-screen reveal once the stars land", async () => {
+    vi.useFakeTimers();
+    try {
+      const reveal = () => document.querySelector("[data-reward-phase]");
+      // The build-up, then the burst (each phase starts its own timer).
+      const playReveal = async () => {
+        for (const ms of [REVEAL_CHARGE_MS, REVEAL_BURST_MS]) {
+          await act(async () => {
+            vi.advanceTimersByTime(ms);
+          });
+        }
+      };
+      await renderCard({ ...base, unlockedAvatars: ["ibex", "falcon"] });
+      expect(reveal()).toBeNull();
+      await act(async () => {
+        vi.advanceTimersByTime(UNLOCK_REVEAL_DELAY_MS);
+      });
+      expect(reveal()?.getAttribute("aria-label")).toBe("New character unlocked: Ibex");
+      // Then the button: Next while more wait.
+      await playReveal();
+      const next = [...document.querySelectorAll<HTMLButtonElement>("[data-reward-phase] button")];
+      expect(next.map((b) => b.textContent)).toEqual(["Next"]);
+      await act(async () => {
+        next[0].click();
+      });
+      expect(reveal()?.getAttribute("aria-label")).toBe("New character unlocked: Falcon");
+      await playReveal();
+      const done = document.querySelector<HTMLButtonElement>("[data-reward-phase] button");
+      expect(done?.textContent).toBe("Continue");
+      await act(async () => {
+        done?.click();
+      });
+      expect(reveal()).toBeNull();
+      // The card still names them.
+      expect(container.querySelector("[data-new-avatar]")?.textContent).toBe("New characters unlocked: Ibex, Falcon");
+
+      await renderCard(base);
+      await act(async () => {
+        vi.advanceTimersByTime(UNLOCK_REVEAL_DELAY_MS);
+      });
+      expect(reveal()).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("promises free help on the next try from the 3rd fail", async () => {
