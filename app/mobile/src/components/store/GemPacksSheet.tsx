@@ -12,7 +12,8 @@ import {
   usesAppStore,
   type PackPurchaseResult,
 } from "../../lib/shop";
-import { notifyError, notifySuccess, tapLight } from "../../lib/haptics";
+import { notifyError, tapLight } from "../../lib/haptics";
+import { GemPile, RewardReveal } from "../RewardReveal";
 import { GemIcon } from "./GemIcon";
 
 const DEFAULT_PACK_ID = "gems-1200";
@@ -33,6 +34,12 @@ export function GemPacksSheet({ onClose }: { onClose: () => void }) {
   const [selectedId, setSelectedId] = useState<string>(DEFAULT_PACK_ID);
   const [message, setMessage] = useState<{ tone: "ok" | "error"; text: string } | null>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
+  // The payoff when gems land: the pack bought, then the balance counting up.
+  const [landed, setLanded] = useState<{ gems: number; from: number; to: number } | null>(null);
+  // Back from paying on the web: the balance before "Refresh balance", so a
+  // rise plays the same payoff (derived, so a stale refresh shows nothing).
+  const [refreshedFrom, setRefreshedFrom] = useState<number | null>(null);
+  const webGain = refreshedFrom !== null && shop !== null && shop.gems > refreshedFrom ? shop.gems - refreshedFrom : 0;
 
   useEffect(() => {
     closeRef.current?.focus();
@@ -64,9 +71,10 @@ export function GemPacksSheet({ onClose }: { onClose: () => void }) {
     try {
       const result: PackPurchaseResult = onWeb ? await buyGemPackOnWeb(pack) : await buyGemPack(pack, shop);
       if (result.kind === "credited") {
+        // The reveal plays the success haptic when it bursts.
+        setLanded({ gems: pack.gems, from: shop.gems, to: result.gems });
         apply({ gems: result.gems });
         setMessage({ tone: "ok", text: `${formatGems(pack.gems)} gems added.` });
-        void notifySuccess();
       } else if (result.kind === "checkout") {
         setMessage({ tone: "ok", text: "Finish paying in the browser. Your gems appear here once it clears." });
       }
@@ -205,13 +213,32 @@ export function GemPacksSheet({ onClose }: { onClose: () => void }) {
         {(!storeBuy || payOnWeb) && (
           <button
             type="button"
-            onClick={() => void refresh()}
+            onClick={() => {
+              if (shop) setRefreshedFrom(shop.gems);
+              void refresh();
+            }}
             className="mt-3 w-full py-2 font-mono text-label font-bold tracking-label text-text-secondary underline underline-offset-4"
           >
             Already paid? Refresh balance
           </button>
         )}
       </section>
+      {(landed || webGain > 0) && (
+        <div onClick={(e) => e.stopPropagation()}>
+          <RewardReveal
+            subject={<GemPile />}
+            eyebrow="Gems added"
+            title={`+${formatGems(landed?.gems ?? webGain)} gems`}
+            countUp={{ from: landed?.from ?? refreshedFrom ?? 0, to: landed?.to ?? shop?.gems ?? 0, suffix: "gems" }}
+            detail="Your new balance."
+            onDone={() => {
+              setLanded(null);
+              setRefreshedFrom(null);
+              onClose();
+            }}
+          />
+        </div>
+      )}
     </div>
   );
 }

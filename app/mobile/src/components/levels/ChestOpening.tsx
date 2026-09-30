@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { POWER_UP_SPECS } from "@app/game/powerups";
 import type { BoosterType } from "@app/levels/engagement";
-import { notifySuccess, tapLight, tapMedium } from "../../lib/haptics";
+import { notifySuccess, tapHeavy, tapLight, tapMedium } from "../../lib/haptics";
 import { prefersReducedMotion } from "../../lib/motion";
 import type { OpenedChest } from "../../lib/levels/model";
 import { Button } from "../ui";
@@ -9,10 +9,13 @@ import { BoosterGlyph } from "./LevelIcons";
 
 /**
  * The result card's star chest opening (design §6.4). Each chest a clear
- * opened waits closed, wobbling, until tapped; then it shakes, the lid flies
- * open in a burst of light, and its boosters rise out one card at a time.
- * Several chests play in turn, and the run ends on the summary of everything
- * received. Skip jumps straight to that summary.
+ * opened waits closed, wobbling, light leaking from under its lid, until
+ * tapped. Then it builds: three shakes, each harder than the last with its
+ * own haptic, the seam burning brighter and light drawn in. The lid blows
+ * open in a flash, a ring and a spray of sparks, and the boosters come out
+ * face down, flipping over one at a time. Several chests play in turn, and
+ * the run ends on the summary of everything received. Skip jumps straight
+ * to that summary.
  *
  * Pure presentation: the server rolled the chests (`OpenedChest[]`), and
  * nothing here picks or reorders what they held. The sparks' angles come
@@ -20,16 +23,20 @@ import { BoosterGlyph } from "./LevelIcons";
  * open at once and the summary shows directly.
  */
 
-/** The shake before the lid gives. */
-export const CHEST_SHAKE_MS = 380;
+/** The build-up before the lid gives: three beats, each shaking harder. */
+export const CHEST_SHAKE_MS = 1200;
+const BEATS = 3;
 /** The lid's flight and the light burst, before the boosters come out. */
-export const CHEST_LID_MS = 460;
-/** Between one booster card and the next. */
-const CARD_STAGGER_MS = 160;
+export const CHEST_LID_MS = 600;
+/** Between one booster card flipping over and the next. */
+export const CHEST_CARD_STAGGER_MS = 380;
 /** Sparks thrown out when the lid opens. */
-const SPARK_COUNT = 8;
-/** How far the sparks fly, in px (plus up to two 10px steps by index). */
-const SPARK_REACH_PX = 46;
+export const CHEST_SPARKS = 14;
+/** How far the sparks fly, in px (plus up to two 16px steps by index). */
+const SPARK_REACH_PX = 58;
+/** Motes of light drawn in to the chest while it shakes. */
+const MOTES = 8;
+const BEAT_MS = CHEST_SHAKE_MS / BEATS;
 
 /**
  * Transforms and opacity only. The lid tips back on the chest's rear rim
@@ -49,15 +56,27 @@ const CHEST_CSS = `
   @keyframes lcGlow { 0%, 100% { opacity: 0.25; transform: scale(0.9); } 50% { opacity: 0.6; transform: scale(1.05); } }
   .lc-glow-on { animation: lcGlowOn ${CHEST_LID_MS}ms ease-out both; }
   @keyframes lcGlowOn { from { opacity: 0.4; transform: scale(0.8); } to { opacity: 0.9; transform: scale(1.3); } }
-  .lc-shake { animation: lcShake ${CHEST_SHAKE_MS}ms linear both; transform-origin: 50% 90%; }
-  @keyframes lcShake {
-    0% { transform: translateX(0) rotate(0); }
-    20% { transform: translateX(-3px) rotate(-6deg); }
-    40% { transform: translateX(3px) rotate(6deg); }
-    60% { transform: translateX(-3px) rotate(-5deg) scale(1.04); }
-    80% { transform: translateX(2px) rotate(4deg) scale(1.06); }
-    100% { transform: translateX(0) rotate(0) scale(1.08); }
-  }
+  .lc-shake { transform-origin: 50% 90%; }
+  .lc-beat-1 .lc-shake { animation: lcShake1 ${BEAT_MS / 2}ms linear infinite; }
+  .lc-beat-2 .lc-shake { animation: lcShake2 ${BEAT_MS / 4}ms linear infinite; }
+  .lc-beat-3 .lc-shake { animation: lcShake3 ${BEAT_MS / 6}ms linear infinite; }
+  @keyframes lcShake1 { 0%,100% { transform: rotate(0); } 25% { transform: translateX(-2px) rotate(-4deg); } 75% { transform: translateX(2px) rotate(4deg); } }
+  @keyframes lcShake2 { 0%,100% { transform: scale(1.05); } 25% { transform: translateX(-3px) rotate(-7deg) scale(1.06); } 75% { transform: translateX(3px) rotate(7deg) scale(1.06); } }
+  @keyframes lcShake3 { 0%,100% { transform: translateY(-2px) scale(1.12); } 25% { transform: translate(-4px,-3px) rotate(-10deg) scale(1.14); } 75% { transform: translate(4px,-1px) rotate(10deg) scale(1.14); } }
+  .lc-seam { opacity: 0.35; animation: lcSeam 1.8s ease-in-out infinite; }
+  @keyframes lcSeam { 0%, 100% { opacity: 0.25; } 50% { opacity: 0.7; } }
+  .lc-beat-1 .lc-seam { animation: none; opacity: 0.6; }
+  .lc-beat-2 .lc-seam { animation: none; opacity: 0.85; }
+  .lc-beat-3 .lc-seam { animation: none; opacity: 1; }
+  .lc-beat-1 .lc-glow { animation: none; opacity: 0.55; transform: scale(1.05); transition: all ${BEAT_MS}ms ease-in; }
+  .lc-beat-2 .lc-glow { animation: none; opacity: 0.8; transform: scale(1.25); transition: all ${BEAT_MS}ms ease-in; }
+  .lc-beat-3 .lc-glow { animation: none; opacity: 1; transform: scale(1.5); transition: all ${BEAT_MS}ms ease-in; }
+  .lc-mote { animation: lcMote 700ms cubic-bezier(.6,0,.9,.5) infinite; }
+  @keyframes lcMote { from { transform: translate(var(--mx), var(--my)); opacity: 0; } 30% { opacity: 1; } to { transform: translate(0, 0) scale(0.2); opacity: 0; } }
+  .lc-flash { animation: lcFlash ${CHEST_LID_MS}ms ease-out both; }
+  @keyframes lcFlash { 0% { opacity: 0; } 10% { opacity: 0.85; } 100% { opacity: 0; } }
+  .lc-ring { animation: lcRing ${CHEST_LID_MS}ms cubic-bezier(.1,.7,.3,1) both; }
+  @keyframes lcRing { from { transform: scale(0.3); opacity: 1; } to { transform: scale(2.4); opacity: 0; } }
   .lc-lid { transform-box: fill-box; transform-origin: 50% 100%; }
   .lc-lid-fly { animation: lcLid ${CHEST_LID_MS}ms cubic-bezier(.2,1.1,.4,1) both; }
   .lc-lid-open { transform: translateY(-9px) scaleY(0.55); }
@@ -81,11 +100,21 @@ const CHEST_CSS = `
   .lc-spark { animation: lcSpark ${CHEST_LID_MS + 120}ms cubic-bezier(.1,.7,.3,1) both; }
   @keyframes lcSpark { from { transform: translate(0, 0) scale(1.2); opacity: 1; } to { transform: translate(var(--dx), var(--dy)) scale(0.3); opacity: 0; } }
   .lc-cards { perspective: 600px; }
-  .lc-card { animation: lcCard 420ms cubic-bezier(.2,1.2,.4,1) both; }
-  @keyframes lcCard { from { transform: translateY(22px) rotateY(90deg); opacity: 0; } to { transform: translateY(0) rotateY(0); opacity: 1; } }
+  /* Dealt face down, a beat of suspense, then flipped face up with a pop.
+     No opacity here: it would flatten the 3D and show the front mirrored. */
+  .lc-card { transform-style: preserve-3d; animation: lcCard 900ms cubic-bezier(.3,1.2,.4,1) both; }
+  @keyframes lcCard {
+    0% { transform: translateY(26px) rotateY(180deg) scale(0.4); }
+    18% { transform: translateY(0) rotateY(180deg) scale(1); }
+    42% { transform: rotateY(180deg) scale(1.04); }
+    82% { transform: rotateY(-8deg) scale(1.12); }
+    100% { transform: rotateY(0) scale(1); }
+  }
+  .lc-face { backface-visibility: hidden; -webkit-backface-visibility: hidden; }
+  .lc-back { transform: rotateY(180deg); backface-visibility: hidden; -webkit-backface-visibility: hidden; }
   @media (prefers-reduced-motion: reduce) {
-    .lc-wobble, .lc-glow, .lc-glow-on, .lc-shake, .lc-lid-fly, .lc-lid-fly .lc-lid-under, .lc-rays, .lc-card { animation: none; }
-    .lc-spark { display: none; }
+    .lc-wobble, .lc-glow, .lc-glow-on, .lc-shake, .lc-seam, .lc-lid-fly, .lc-lid-fly .lc-lid-under, .lc-rays, .lc-card, .lc-flash, .lc-ring { animation: none; }
+    .lc-spark, .lc-mote, .lc-back { display: none; }
   }
 `;
 
@@ -103,12 +132,28 @@ export function ChestReveal({
   const [reduced] = useState(prefersReducedMotion);
   const [index, setIndex] = useState(0);
   const [phase, setPhase] = useState<Phase>(reduced ? "summary" : "closed");
+  const [beat, setBeat] = useState(1);
   const rootRef = useRef<HTMLDivElement>(null);
   const firstPhase = useRef(true);
   // The live region mounts empty and fills after, or a screen reader would
   // not announce it (reduced motion starts on the summary).
   const [live, setLive] = useState(false);
   useEffect(() => setLive(true), []);
+
+  // The build-up: the shake grows in three beats, a harder haptic on each
+  // (the tap that started it was the first).
+  useEffect(() => {
+    if (phase !== "shaking") return;
+    const t2 = setTimeout(() => {
+      setBeat(2);
+      void tapMedium();
+    }, BEAT_MS);
+    const t3 = setTimeout(() => {
+      setBeat(3);
+      void tapHeavy();
+    }, BEAT_MS * 2);
+    return () => [t2, t3].forEach(clearTimeout);
+  }, [phase]);
 
   // The shake hands over to the lid, and the lid to the boosters.
   useEffect(() => {
@@ -141,11 +186,13 @@ export function ChestReveal({
 
   const open = () => {
     void tapMedium();
+    setBeat(1);
     setPhase("shaking");
   };
   const next = () => {
     void tapMedium();
     setIndex(index + 1);
+    setBeat(1);
     setPhase("shaking");
   };
   const toSummary = () => {
@@ -196,7 +243,7 @@ export function ChestReveal({
               aria-label={ofN ? `Open star chest ${ofN}` : "Open star chest"}
               className="mx-auto flex min-h-[44px] flex-col items-center rounded-2xl px-4 transition-transform active:scale-95"
             >
-              <ChestStage key={chest.chestNumber} phase={phase} chestNumber={chest.chestNumber} />
+              <ChestStage key={chest.chestNumber} phase={phase} beat={beat} chestNumber={chest.chestNumber} />
               <span className="flex items-baseline gap-2">
                 <span className="font-display text-lead font-black uppercase text-signal">Star chest!</span>
                 <span className="text-meta text-text-secondary">Tap to open</span>
@@ -204,17 +251,18 @@ export function ChestReveal({
             </button>
           ) : (
             <div className="mx-auto flex flex-col items-center px-4">
-              <ChestStage key={chest.chestNumber} phase={phase} chestNumber={chest.chestNumber} />
+              <ChestStage key={chest.chestNumber} phase={phase} beat={beat} chestNumber={chest.chestNumber} />
               <span className="font-display text-lead font-black uppercase text-signal">
-                {phase === "shaking" ? "Star chest!" : "Chest opened!"}
+                {phase === "shaking" ? ["Something's inside…", "It's waking up…", "Here it comes!"][beat - 1] : "Chest opened!"}
               </span>
             </div>
           )}
+          {phase === "opening" && <span aria-hidden className="lc-flash pointer-events-none absolute inset-0 rounded-2xl bg-white" />}
           {phase === "open" && (
             <>
               <ul aria-label={`Boosters from chest ${index + 1}`} className="lc-cards mt-2 flex flex-wrap justify-center gap-2">
                 {chest.boosters.map((type, i) => (
-                  <BoosterCard key={i} type={type} delayMs={i * CARD_STAGGER_MS} />
+                  <BoosterCard key={i} type={type} delayMs={i * CHEST_CARD_STAGGER_MS} />
                 ))}
               </ul>
               <button
@@ -329,12 +377,20 @@ function BoosterCard({ type, delayMs }: { type: BoosterType; delayMs: number }) 
   const spec = POWER_UP_SPECS[type];
   return (
     <li
-      className="lc-card flex min-w-[88px] items-center justify-center gap-1.5 rounded-xl border-2 bg-elevated px-3 py-1.5"
-      style={{ borderColor: spec.color, animationDelay: `${delayMs}ms` }}
+      className="lc-card relative flex min-w-[96px] items-center justify-center gap-1.5 rounded-xl border-2 bg-elevated px-3 py-2"
+      style={{ borderColor: spec.color, boxShadow: `0 0 18px -4px ${spec.color}`, animationDelay: `${delayMs}ms` }}
     >
-      <span aria-hidden className="inline-block h-2.5 w-2.5 rounded-full" style={{ backgroundColor: spec.color }} />
-      <span className="text-meta font-bold" style={{ color: spec.color }}>
+      <span aria-hidden className="lc-face inline-flex">
+        <BoosterGlyph type={type} size={18} />
+      </span>
+      <span className="lc-face text-meta font-bold" style={{ color: spec.color }}>
         {spec.label}
+      </span>
+      {/* The card's back, seen while it is dealt face down. */}
+      <span aria-hidden className="lc-back absolute -inset-[2px] flex items-center justify-center rounded-xl border-2 border-signal bg-[#24222c]">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="#cbf24d">
+          <path d="m12 2 2.6 6.9L22 9.3l-5.8 4.6 2 7.1L12 17l-6.2 4 2-7.1L2 9.3l7.4-.4z" />
+        </svg>
       </span>
     </li>
   );
@@ -345,30 +401,52 @@ function BoosterCard({ type, delayMs }: { type: BoosterType; delayMs: number }) 
  * so consecutive chests don't burst identically. Deterministic by design.
  */
 function sparkOffset(i: number, chestNumber: number): { dx: number; dy: number } {
-  const deg = (360 / SPARK_COUNT) * i + ((chestNumber * 17) % 45) - 90;
-  const reach = SPARK_REACH_PX + (i % 3) * 10;
+  const deg = (360 / CHEST_SPARKS) * i + ((chestNumber * 17) % 45) - 90;
+  const reach = SPARK_REACH_PX + (i % 3) * 16;
   const rad = (deg * Math.PI) / 180;
   return { dx: Math.round(Math.cos(rad) * reach), dy: Math.round(Math.sin(rad) * reach) };
 }
 
+/** Where charge mote `i` starts before it is drawn into the chest. */
+function moteStart(i: number): { mx: number; my: number } {
+  const rad = ((360 / MOTES) * i + 20) * (Math.PI / 180);
+  const reach = 64 + (i % 2) * 14;
+  return { mx: Math.round(Math.cos(rad) * reach), my: Math.round(Math.sin(rad) * reach) };
+}
+
 /** The big chest with its glow, rays and sparks, animated by phase. */
-function ChestStage({ phase, chestNumber }: { phase: Exclude<Phase, "summary">; chestNumber: number }) {
+function ChestStage({ phase, beat, chestNumber }: { phase: Exclude<Phase, "summary">; beat: number; chestNumber: number }) {
   const opened = phase === "opening" || phase === "open";
   return (
     <span
       aria-hidden
       data-chest-phase={phase}
-      className="pointer-events-none relative flex h-24 w-24 items-center justify-center [@media(max-height:700px)]:h-[60px] [@media(max-height:700px)]:w-[60px]"
+      data-chest-beat={phase === "shaking" ? beat : undefined}
+      className={`pointer-events-none relative flex h-24 w-24 items-center justify-center [@media(max-height:700px)]:h-[60px] [@media(max-height:700px)]:w-[60px] ${
+        phase === "shaking" ? `lc-beat-${beat}` : ""
+      }`}
     >
       <span className={`lc-glow absolute inset-2 rounded-full ${opened ? "lc-glow-on" : ""}`} />
-      {opened && <span className="lc-rays absolute -inset-3 rounded-full" />}
+      {opened && <span className="lc-rays absolute -inset-6 rounded-full" />}
+      {phase === "shaking" &&
+        Array.from({ length: MOTES }, (_, i) => {
+          const { mx, my } = moteStart(i);
+          return (
+            <span
+              key={i}
+              className="lc-mote absolute left-1/2 top-1/2 -ml-[3px] -mt-[3px] h-1.5 w-1.5 rounded-full bg-signal"
+              style={{ "--mx": `${mx}px`, "--my": `${my}px`, animationDelay: `${(i % 4) * 90}ms` } as CSSProperties}
+            />
+          );
+        })}
+      {phase === "opening" && <span className="lc-ring absolute inset-3 rounded-full border-4 border-signal" />}
       {phase === "opening" &&
-        Array.from({ length: SPARK_COUNT }, (_, i) => {
+        Array.from({ length: CHEST_SPARKS }, (_, i) => {
           const { dx, dy } = sparkOffset(i, chestNumber);
           return (
             <span
               key={i}
-              className="lc-spark absolute left-1/2 top-1/2 -ml-1 -mt-1 h-2 w-2 rounded-full bg-signal"
+              className={`lc-spark absolute left-1/2 top-1/2 rounded-full ${i % 2 ? "-ml-1 -mt-1 h-2 w-2 bg-white" : "-ml-1.5 -mt-1.5 h-3 w-3 bg-signal"}`}
               style={{ "--dx": `${dx}px`, "--dy": `${dy}px`, animationDelay: `${(i % 2) * 40}ms` } as CSSProperties}
             />
           );
@@ -404,6 +482,8 @@ function BigChest({ lid }: { lid: "closed" | "flying" | "open" }) {
         {/* The lid's underside, seen once it tips back. */}
         <path className="lc-lid-under" d="M9 30v-6a10 10 0 0 1 10-10h26a10 10 0 0 1 10 10v6z" fill="#0a0a0c" />
       </g>
+      {/* Light leaking through the seam while the lid is still shut. */}
+      {lid === "closed" && <rect className="lc-seam" x="7" y="28.5" width="50" height="3" rx="1.5" fill="#f4ffc8" style={{ filter: "blur(1.2px)" }} />}
     </svg>
   );
 }

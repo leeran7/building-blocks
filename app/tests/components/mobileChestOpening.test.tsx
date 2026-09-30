@@ -23,7 +23,7 @@ vi.mock("../../mobile/src/lib/haptics", () => haptics);
 const motion = vi.hoisted(() => ({ reduce: false }));
 vi.mock("../../mobile/src/lib/motion", () => ({ prefersReducedMotion: () => motion.reduce }));
 
-import { CHEST_LID_MS, CHEST_SHAKE_MS, ChestReveal } from "../../mobile/src/components/levels/ChestOpening";
+import { CHEST_CARD_STAGGER_MS, CHEST_LID_MS, CHEST_SHAKE_MS, CHEST_SPARKS, ChestReveal } from "../../mobile/src/components/levels/ChestOpening";
 import { LevelResultCard } from "../../mobile/src/components/levels/LevelResultCard";
 import type { LevelResult, OpenedChest } from "../../mobile/src/lib/levels/model";
 import { POWER_UP_SPECS } from "../../src/game/powerups";
@@ -116,22 +116,40 @@ describe("star chest opening", () => {
     expect(container.querySelector(".lc-shake")).not.toBeNull();
     expect(allCardLists()).toHaveLength(0);
 
-    advance(CHEST_SHAKE_MS - 1);
+    // The build-up: three beats, each shaking harder with a stronger haptic.
+    const beat = () => container.querySelector("[data-chest-beat]")?.getAttribute("data-chest-beat");
+    expect(beat()).toBe("1");
+    expect(container.textContent).toContain("Something's inside…");
+    advance(CHEST_SHAKE_MS / 3);
+    expect(beat()).toBe("2");
+    expect(haptics.tapMedium).toHaveBeenCalledTimes(2);
+    expect(container.textContent).toContain("It's waking up…");
+    advance(CHEST_SHAKE_MS / 3);
+    expect(beat()).toBe("3");
+    expect(haptics.tapHeavy).toHaveBeenCalledTimes(1);
+    expect(container.textContent).toContain("Here it comes!");
+    expect(haptics.notifySuccess).not.toHaveBeenCalled();
+
+    advance(CHEST_SHAKE_MS / 3 - 1);
     expect(phase()).toBe("shaking");
     advance(1);
     expect(phase()).toBe("opening");
     expect(haptics.notifySuccess).toHaveBeenCalledTimes(1);
     expect(container.querySelector(".lc-lid-fly")).not.toBeNull();
-    expect(container.querySelectorAll(".lc-spark")).toHaveLength(8);
+    expect(container.querySelectorAll(".lc-spark")).toHaveLength(CHEST_SPARKS);
+    expect(container.querySelector(".lc-flash")).not.toBeNull();
+    expect(container.querySelector(".lc-ring")).not.toBeNull();
     expect(allCardLists()).toHaveLength(0);
 
     advance(CHEST_LID_MS);
     expect(phase()).toBe("open");
     expect(container.querySelector(".lc-lid-open")).not.toBeNull();
-    expect(container.querySelectorAll(".lc-spark")).toHaveLength(0);
+    expect(container.querySelectorAll(".lc-spark, .lc-flash, .lc-ring")).toHaveLength(0);
     expect(cards(1)).toEqual(["Giant", "Jetpack"]);
     const lis = [...container.querySelectorAll<HTMLLIElement>('ul[aria-label="Boosters from chest 1"] li')];
-    expect(lis.map((li) => li.style.animationDelay)).toEqual(["0ms", "160ms"]);
+    // Dealt face down and flipped one after another.
+    expect(lis.map((li) => li.style.animationDelay)).toEqual(["0ms", `${CHEST_CARD_STAGGER_MS}ms`]);
+    expect(lis.every((li) => li.querySelector(".lc-back"))).toBe(true);
     expect(lis[1]?.style.borderColor).toBe(POWER_UP_SPECS.jetpack.color);
     expect(status()).toBe("Chest opened: Giant, Jetpack");
     // See rewards ends it; a Skip beside it would do the same, so there is none.
@@ -220,7 +238,7 @@ describe("star chest opening", () => {
     render(THREE);
     expect(phase()).toBeNull();
     expect(button("Open star chest 1 of 3")).toBeUndefined();
-    expect(container.querySelector(".lc-wobble, .lc-shake, .lc-lid-fly, .lc-spark, .lc-rays, .lc-card")).toBeNull();
+    expect(container.querySelector(".lc-wobble, .lc-shake, .lc-lid-fly, .lc-spark, .lc-rays, .lc-card, .lc-mote, .lc-flash")).toBeNull();
     expect(summary()).toEqual(["+2 Giant", "+1 Jetpack", "+1 Slow Lava", "+1 Rapid Climb"]);
     expect(status()).toBe("3 star chests opened! +2 Giant, +1 Jetpack, +1 Slow Lava, +1 Rapid Climb");
     expect(vi.getTimerCount()).toBe(0);
@@ -250,8 +268,8 @@ describe("star chest opening", () => {
     click("Open star chest");
     advance(CHEST_SHAKE_MS);
     const first = sparks();
-    expect(first).toHaveLength(8);
-    expect(new Set(first).size).toBe(8);
+    expect(first).toHaveLength(CHEST_SPARKS);
+    expect(new Set(first).size).toBe(CHEST_SPARKS);
     act(() => root.unmount());
     root = createRoot(container);
     render([THREE[1]!]);

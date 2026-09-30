@@ -246,7 +246,7 @@ export function LevelPlayScreen() {
           refill={refill.offer}
         />
       )}
-      {refill.gemPacks}
+      {refill.overlays}
       {stage.kind === "failed" && (
         <SubmitFailedCard level={level} busy={false} onRetry={() => void submit(stage.report)} onMap={() => toMap()} />
       )}

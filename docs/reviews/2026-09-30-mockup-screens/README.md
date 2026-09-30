@@ -24,3 +24,18 @@ image is Before (the 2.0 gallery), Leeran's mockup, then After.
 Scrolled down: the Wraith Shop row sits under your characters, then the locked ones.
 
 <img src="after-choose-character-shop-row.png" width="220" alt="Choose Character, Shop row and locked characters">
+
+## Reward animations
+
+Each payoff now builds before it gives: three shakes that get harder (with a
+stronger haptic each on iPhone), light gathering in, then a flash, a ring and
+sparks. Recorded from the app with the API mocked; the GIFs run slower and
+choppier than the real thing.
+
+| Star chest | Buying a skin |
+|--|--|
+| <img src="animations/chest-opening.gif" width="300" alt="Star chest shaking, bursting open, boosters dealt face down then flipped"> | <img src="animations/skin-purchase.gif" width="300" alt="Void Kestrel bought: silhouette, gems drain, burst, reveal"> |
+
+| Gems landing (Refresh balance after paying on the web) | Refilling lives with gems |
+|--|--|
+| <img src="animations/gem-pack-web.gif" width="300" alt="Gems added: burst, balance counts up"> | <img src="animations/lives-refill.gif" width="300" alt="Lives refilled: hearts light up after 50 gems drain"> |
