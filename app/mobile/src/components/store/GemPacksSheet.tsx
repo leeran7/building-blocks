@@ -15,6 +15,7 @@ import {
 import { notifyError, tapLight } from "../../lib/haptics";
 import { GemPile, RewardReveal } from "../RewardReveal";
 import { GemIcon } from "./GemIcon";
+import { useSwipeToDismiss } from "../../hooks/useSwipeToDismiss";
 
 const DEFAULT_PACK_ID = "gems-1200";
 
@@ -34,6 +35,9 @@ export function GemPacksSheet({ onClose }: { onClose: () => void }) {
   const [selectedId, setSelectedId] = useState<string>(DEFAULT_PACK_ID);
   const [message, setMessage] = useState<{ tone: "ok" | "error"; text: string } | null>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
+  const sheetRef = useRef<HTMLElement>(null);
+  const scrimRef = useRef<HTMLDivElement>(null);
+  useSwipeToDismiss(sheetRef, onClose, scrimRef);
   // The payoff when gems land: the pack bought, then the balance counting up.
   const [landed, setLanded] = useState<{ gems: number; from: number; to: number } | null>(null);
   // Back from paying on the web: the balance before "Refresh balance", so a
@@ -90,19 +94,23 @@ export function GemPacksSheet({ onClose }: { onClose: () => void }) {
   const storeBuy = usesAppStore();
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end bg-void/70 backdrop-blur-sm" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-end">
+      <div ref={scrimRef} aria-hidden className="absolute inset-0 bg-void/70 backdrop-blur-sm" onClick={onClose} />
       <section
+        ref={sheetRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby="gem-packs-title"
         data-gem-packs
-        onClick={(e) => e.stopPropagation()}
         onKeyDown={(e) => {
           if (e.key === "Escape") onClose();
         }}
-        className="max-h-[calc(100%-env(safe-area-inset-top)-0.75rem)] w-full overflow-y-auto overscroll-contain rounded-t-[28px] border-t border-border-strong bg-surface/95 px-5 pb-[calc(env(safe-area-inset-bottom)+1rem)] pt-2 backdrop-blur-xl"
+        className="relative max-h-[calc(100%-env(safe-area-inset-top)-0.75rem)] w-full overflow-y-auto overscroll-contain rounded-t-[28px] border-t border-border-strong bg-surface/95 px-5 pb-[calc(env(safe-area-inset-bottom)+1rem)] pt-2 backdrop-blur-xl"
       >
-        <span aria-hidden className="mx-auto mb-3 block h-1 w-9 rounded-full bg-border-strong" />
+        {/* The grabber: drag the sheet down from here (or its top) to close it. */}
+        <div data-sheet-grabber aria-hidden className="-mx-5 -mt-2 flex h-6 items-center justify-center">
+          <span className="block h-1 w-9 rounded-full bg-border-strong" />
+        </div>
         <div className="mb-4 flex items-center justify-between">
           <h2 id="gem-packs-title" className="font-display text-title font-black uppercase tracking-tight text-text-primary">
             Get gems

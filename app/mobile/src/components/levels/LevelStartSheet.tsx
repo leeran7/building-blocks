@@ -4,6 +4,7 @@ import { ALTITUDE_UNIT } from "@app/lib/units";
 import { formatGems } from "@app/lib/avatars";
 import { Button } from "../ui";
 import { tapLight } from "../../lib/haptics";
+import { useSwipeToDismiss } from "../../hooks/useSwipeToDismiss";
 import {
   episodeOf,
   formatClock,
@@ -60,6 +61,9 @@ export function LevelStartSheet({
   const hard = isHardLevel(node.level);
   const outOfLives = node.costsLife && (player.lives <= 0 || refusal === "OUT_OF_LIVES");
   const closeRef = useRef<HTMLButtonElement>(null);
+  const sheetRef = useRef<HTMLDivElement>(null);
+  const scrimRef = useRef<HTMLButtonElement>(null);
+  useSwipeToDismiss(sheetRef, onClose, scrimRef);
 
   useEffect(() => {
     // Hand focus back to the pin or button that opened the card.
@@ -102,16 +106,21 @@ export function LevelStartSheet({
         type="button"
         aria-label="Close"
         tabIndex={-1}
+        ref={scrimRef}
         onClick={onClose}
         className="ls-scrim absolute inset-0 bg-void/70 backdrop-blur-sm"
       />
       <div
+        ref={sheetRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
         className="ls-sheet relative w-full max-w-md rounded-t-[28px] border-t border-border-strong bg-surface/95 px-5 pb-[calc(env(safe-area-inset-bottom)+1rem)] pt-2 backdrop-blur-xl max-h-[calc(100%-env(safe-area-inset-top)-0.75rem)] overflow-y-auto overscroll-contain"
       >
-        <span aria-hidden className="mx-auto mb-2 block h-1 w-9 rounded-full bg-border-strong" />
+        {/* The grabber: drag the sheet down from here (or its top) to close it. */}
+        <div data-sheet-grabber aria-hidden className="-mx-5 -mt-2 flex h-5 items-center justify-center">
+          <span className="block h-1 w-9 rounded-full bg-border-strong" />
+        </div>
         <div className="flex items-center gap-3">
           <div className="min-w-0 flex-1">
             <p className={`font-mono text-label font-bold uppercase tracking-eyebrow ${hard ? "text-ember" : "text-signal"}`}>
