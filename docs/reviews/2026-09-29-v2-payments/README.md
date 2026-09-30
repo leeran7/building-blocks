@@ -1,6 +1,9 @@
 # Version 2.0 screenshots
 
-Phone size, from the real screens with sample data. PR #208 links here.
+Phone size (390x844 @2x), taken from the real app screens with sample data
+(mocked API, branch `feature/payments-v2`). Runs, results and chests come from
+real level runs; the climber is moved up the tower to reach the summit or a
+high altitude quickly. PR #208 links here.
 
 ## Shop and skins (#207)
 
@@ -24,8 +27,16 @@ Phone size, from the real screens with sample data. PR #208 links here.
 
 ## Summit diamond level ending (#211)
 
-<img src="summit-diamond.png" width="220" alt="Walking to the diamond on the summit floor"> <img src="summit-diamond-touched.png" width="220" alt="Touching the diamond finishes the level">
+<img src="level-intro-diamond.png" width="220" alt="Level intro: touch the diamond"> <img src="summit-diamond.png" width="220" alt="Walking to the diamond on the summit floor"> <img src="summit-diamond-touched.png" width="220" alt="Touching the diamond finishes the level">
 
-## Choose Character, before and after (#213)
+## Endless and Daily: hanging ladders and short tops (#212)
+
+<img src="endless-hanging-ladder.png" width="220" alt="Endless at 380 ft: hanging ladders"> <img src="endless-short-top.png" width="220" alt="Endless at 796 ft: short tops"> <img src="daily-hanging-ladder-short-top.png" width="220" alt="Daily at 924 ft: hanging ladders and short tops">
+
+## Choose Character (#213)
+
+<img src="choose-character-idle.png" width="220" alt="Choose Character, Idle"> <img src="choose-character-walk.png" width="220" alt="Choose Character, Walk"> <img src="choose-character-climb.png" width="220" alt="Choose Character, Climb"> <img src="choose-character-shop-character.png" width="220" alt="Choose Character, Shop character">
+
+Before and after:
 
 <img src="../../screenshots/character-picker-before-after.jpg" width="660" alt="Choose Character before and after">
