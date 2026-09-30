@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Changed
+
+- **Gecko is the final unlock** — the Gecko is no longer free after the
+  tutorial: it unlocks only by clearing a season's last level (level 300),
+  whatever the star count, and sits last in Choose Character. A player who
+  already has it equipped keeps it until they switch away. The level result
+  names it on that first level 300 clear.
+
 ### Added
 
 - **Levels end at a glowing diamond** — every level's climb now ends on the

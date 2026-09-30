@@ -691,9 +691,16 @@ export async function submitLevelResult(input: SubmitResultInput): Promise<Level
       // The tutorial unlock: this run wrote the player's only level 1 row.
       const tutorialJustDone =
         level === 1 && previousStars === 0 && (await tx.levelProgress.count({ where: { userId, level: 1 } })) === 1;
+      // The season unlock (the Gecko): this run wrote the player's only row
+      // for a season's last level.
+      const seasonJustDone =
+        level === LEVELS_PER_SEASON &&
+        previousStars === 0 &&
+        (await tx.levelProgress.count({ where: { userId, level: LEVELS_PER_SEASON } })) === 1;
       unlockedAvatars = avatarsNewlyUnlocked(after - gained, after, {
         savedAvatarId: user.avatar_id,
         tutorialJustDone,
+        seasonJustDone,
       });
     }
 

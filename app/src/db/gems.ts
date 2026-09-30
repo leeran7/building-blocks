@@ -19,7 +19,7 @@ import { prisma } from "./client";
 import { avatarEntry, parseAvatarId } from "../lib/avatars";
 import { purchaseRefusal, type PurchaseRefusal } from "../lib/avatarUnlocks";
 import type { GemPack } from "../lib/gemPacks";
-import { levelStarsEarned, ownedCharacterIds, tutorialCleared } from "./avatarUnlocks";
+import { levelStarsEarned, ownedCharacterIds, seasonCleared, tutorialCleared } from "./avatarUnlocks";
 
 type Tx = Prisma.TransactionClient;
 
@@ -180,15 +180,17 @@ export async function buyCharacter(userId: string, avatarId: string): Promise<Sh
   if (entry === null) throw new GemError("UNKNOWN_ITEM", "That isn't in the Shop");
   return prisma.$transaction(async (tx) => {
     await lockGems(tx, userId);
-    const [user, ownedIds, stars, tutorialDone] = await Promise.all([
+    const [user, ownedIds, stars, tutorialDone, seasonDone] = await Promise.all([
       tx.user.findUnique({ where: { id: userId }, select: { avatar_id: true } }),
       ownedCharacterIds(userId, tx),
       levelStarsEarned(userId, tx),
       tutorialCleared(userId, tx),
+      seasonCleared(userId, tx),
     ]);
     const refusal = purchaseRefusal(entry, {
       stars,
       tutorialDone,
+      seasonDone,
       savedAvatarId: parseAvatarId(user?.avatar_id),
       ownedIds,
     });

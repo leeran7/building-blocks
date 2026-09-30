@@ -4,7 +4,8 @@
  *
  * An avatar is selectable when either holds:
  *   - its rule is met: a star rule by the player's level stars, a tutorial
- *     rule once they have cleared level 1, a purchase rule once the player
+ *     rule once they have cleared level 1, a season rule once they have
+ *     cleared a season's last level, a purchase rule once the player
  *     owns it (a server-side purchase record, never level data). A premium
  *     rule is never met (not on sale);
  *   - it is the player's saved avatar (grandfathered). This lasts only while
@@ -30,6 +31,8 @@ export interface AvatarUnlockInput {
   stars: number;
   /** Whether they have cleared level 1, read by the server from stored rows. */
   tutorialDone: boolean;
+  /** Whether they have cleared a season's last level, read by the server. Absent means no. */
+  seasonDone?: boolean;
   /** The stored avatar id (any string; anything outside the catalogue is ignored). */
   savedAvatarId: string | null;
   /**
@@ -44,6 +47,8 @@ export interface AvatarUnlockState {
   stars: number;
   /** Absent from an API build older than tutorial unlocks. */
   tutorialDone?: boolean;
+  /** Absent from an API build older than the season unlock. */
+  seasonDone?: boolean;
   /** Every catalogue id this player may select, in catalogue order. */
   unlockedIds: string[];
   /** Catalogue ids bought with gems. Absent from an API build older than the Shop. */
@@ -74,6 +79,8 @@ function earned(entry: AvatarEntry, input: AvatarUnlockInput): boolean {
       return input.stars >= entry.unlock.stars;
     case "tutorial":
       return input.tutorialDone;
+    case "season":
+      return input.seasonDone ?? false;
     case "premium":
       return false;
     case "purchase":
@@ -108,6 +115,7 @@ export function avatarUnlockState(input: AvatarUnlockInput): AvatarUnlockState {
   return {
     stars: input.stars,
     tutorialDone: input.tutorialDone,
+    seasonDone: input.seasonDone ?? false,
     unlockedIds: AVATARS.filter((a) => selectable(a, input)).map((a) => a.id),
     ownedIds: AVATARS.filter((a) => input.ownedIds?.includes(a.id)).map((a) => a.id),
     grandfatheredId: saved && !earned(saved, input) ? saved.id : null,
@@ -116,22 +124,25 @@ export function avatarUnlockState(input: AvatarUnlockInput): AvatarUnlockState {
 
 /**
  * Avatars a run made newly selectable: star rules its stars crossed (from
- * `before` to `after`) and, when it was the player's first clear of level 1,
- * the stick figures. Minus the saved avatar, which they could already select.
+ * `before` to `after`), the stick figures when it was the player's first
+ * clear of level 1, and the Gecko when it was their first clear of a season's
+ * last level. Minus the saved avatar, which they could already select.
  */
 export function avatarsNewlyUnlocked(
   before: number,
   after: number,
-  player: { savedAvatarId: string | null; tutorialJustDone: boolean }
+  player: { savedAvatarId: string | null; tutorialJustDone: boolean; seasonJustDone?: boolean }
 ): string[] {
   const saved = parseAvatarId(player.savedAvatarId);
-  const sticks = player.tutorialJustDone ? AVATARS.filter((a) => a.unlock.kind === "tutorial").map((a) => a.id) : [];
-  return [...sticks, ...avatarsUnlockedBetween(before, after)].filter((id) => id !== saved);
+  const ofKind = (kind: AvatarEntry["unlock"]["kind"]) => AVATARS.filter((a) => a.unlock.kind === kind).map((a) => a.id);
+  const sticks = player.tutorialJustDone ? ofKind("tutorial") : [];
+  const finale = player.seasonJustDone ? ofKind("season") : [];
+  return [...sticks, ...avatarsUnlockedBetween(before, after), ...finale].filter((id) => id !== saved);
 }
 
 /** Why the Shop refuses to sell an entry to this player. */
 export type PurchaseRefusal =
-  /** Not a purchase rule (stars, tutorial, premium): never sold for gems. */
+  /** Not a purchase rule (stars, tutorial, season, premium): never sold for gems. */
   | "NOT_FOR_SALE"
   /** The player already owns it. */
   | "OWNED"
