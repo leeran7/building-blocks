@@ -1,6 +1,6 @@
 /**
- * Generate all native app-icon + splash assets from the Doomstack "stack" logo
- * (three rounded bars — lime / slate / ember — on void), so the icon, launch
+ * Generate all native app-icon + splash assets from the Doomstack app icon
+ * (public/brand/doomstack-icon.svg: DOOM / STACK sinking into lava), so the icon, launch
  * splash, and adaptive icons all match the brand.
  *
  * Pure Node via @resvg/resvg-wasm (already vendored). Renders straight into the
@@ -22,35 +22,35 @@ const wasm = fs.readFileSync(
 await initWasm(wasm);
 
 const VOID = "#0a0a0c";
-const CARD = "#17161c"; // surface-raised — the icon "chip" on the splash
 
-// The mark, in a 1024 coordinate space (matches public/logo-1024.svg).
-const BARS = `
-  <rect x="208" y="256" width="608" height="115" rx="58" fill="#cbf24d"/>
-  <rect x="208" y="454" width="448" height="115" rx="58" fill="#6b6b8a"/>
-  <rect x="208" y="653" width="304" height="115" rx="58" fill="#ff5a2c"/>`;
+// The app icon artwork (DOOM / STACK sinking into lava on a rounded void chip),
+// 1024 coordinate space, text already converted to outlines. Single source of
+// truth shared with public/logo-1024.* and the web favicon.
+const ICON_SVG = fs.readFileSync(path.join(APP, "public/brand/doomstack-icon.svg"), "utf8");
+const DEFS = ICON_SVG.match(/<defs>([\s\S]*)<\/defs>/)[1];
+const BODY = ICON_SVG.match(/<\/defs>([\s\S]*)<\/svg>/)[1];
+// The artwork without its background chip (the two full-size rects).
+const ART = BODY.replace(/<rect width="1024" height="1024"[^>]*\/>/g, "");
 
 const svgHead = (w, h) =>
   `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" xmlns="http://www.w3.org/2000/svg">`;
 
 // Full-bleed app icon (the OS masks its own corners).
-const iconSVG = () =>
-  `${svgHead(1024, 1024)}<rect width="1024" height="1024" fill="${VOID}"/>${BARS}</svg>`;
+const iconSVG = () => ICON_SVG.replaceAll('rx="224"', 'rx="0"');
 
-// Adaptive-icon foreground: bars only, scaled into the ~66% safe zone, transparent.
+// Adaptive-icon foreground: the lettering only, scaled into the ~66% safe zone, transparent.
 const foregroundSVG = () =>
-  `${svgHead(1024, 1024)}<g transform="translate(512 512) scale(0.62) translate(-512 -512)">${BARS}</g></svg>`;
+  `${svgHead(1024, 1024)}<defs>${DEFS}</defs><g transform="translate(512 512) scale(0.62) translate(-512 -512)">${ART}</g></svg>`;
 
-// Launch splash: the icon as a subtle chip centered on void.
+// Launch splash: the rounded icon as a chip centered on void.
 const splashSVG = (w, h) => {
   const s = Math.round(Math.min(w, h) * 0.34);
   const x = (w - s) / 2;
   const y = (h - s) / 2;
   const k = s / 1024;
   return (
-    `${svgHead(w, h)}<rect width="${w}" height="${h}" fill="${VOID}"/>` +
-    `<g transform="translate(${x} ${y}) scale(${k})">` +
-    `<rect width="1024" height="1024" rx="224" fill="${CARD}"/>${BARS}</g></svg>`
+    `${svgHead(w, h)}<defs>${DEFS}</defs><rect width="${w}" height="${h}" fill="${VOID}"/>` +
+    `<g transform="translate(${x} ${y}) scale(${k})">${BODY}</g></svg>`
   );
 };
 

@@ -33,6 +33,7 @@ import { auth } from "../../../src/lib/firebase";
 import { AuthShell } from "../../../src/components/Auth/AuthShell";
 import { setTokenCookie } from "../../../src/lib/authCookie";
 import { safeInternalPath } from "../../../src/lib/safeRedirect";
+import { Wordmark } from "../../../src/components/Brand/Wordmark";
 
 function EyeIcon({ open }: { open: boolean }) {
   return open ? (
@@ -234,9 +235,8 @@ function SignInForm() {
         aria-labelledby="auth-card-title"
       >
         {/* Logo — mobile only; desktop shows the brand panel */}
-        <div className="flex items-center gap-2.5 mb-5 md:hidden">
-          <span className="h-6 w-[3px] rounded-full bg-signal" aria-hidden="true" />
-          <span className="font-display text-xl tracking-tight text-text-primary">DOOMSTACK</span>
+        <div className="mb-5 md:hidden">
+          <Wordmark className="h-8 w-auto" />
         </div>
 
         {/* Title */}

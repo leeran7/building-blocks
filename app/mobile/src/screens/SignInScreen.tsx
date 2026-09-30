@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { tapMedium, notifyError } from "../lib/haptics";
 import { Button } from "../components/ui";
-import { LogoMark } from "../components/LogoMark";
+import { LogoLockup } from "../components/LogoMark";
 
 type Mode = "options" | "email-signin" | "email-signup";
 
@@ -125,13 +125,12 @@ export function SignInScreen({ onGuestContinue }: { onGuestContinue?: () => void
   return (
     <main className="app-fade flex h-[100dvh] flex-col items-center justify-center gap-10 px-8 pb-[calc(env(safe-area-inset-bottom)+2rem)] pt-[calc(env(safe-area-inset-top)+2rem)] text-center">
       <div className="flex flex-col items-center gap-3">
-        <LogoMark size={72} card className="mb-2" />
+        <h1 className="m-0">
+          <LogoLockup className="h-40 w-auto" />
+        </h1>
         <span className="font-mono text-[10px] uppercase tracking-[0.5em] text-text-muted">
           endless&nbsp;climb
         </span>
-        <h1 className="font-display text-4xl font-black uppercase leading-none tracking-tight text-text-primary">
-          Doom<span className="text-signal">stack</span>
-        </h1>
         <p className="max-w-[270px] text-sm leading-relaxed text-white [text-shadow:0_1px_3px_rgba(0,0,0,0.6)]">
           Sign in to save your climbs, rank on the leaderboard, and challenge
           friends.
