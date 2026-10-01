@@ -5,7 +5,7 @@
  * @vitest-environment happy-dom
  */
 
-import { act } from "react";
+import { act, type ReactNode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
@@ -57,7 +57,7 @@ describe("GoalBar in the HUD", () => {
   const goal = (goalFt = 200) => (
     <GoalBar peakFt={20} goalFt={goalFt} elapsedMs={1000} pars={pars} practice={false} />
   );
-  function renderHud(powers: string[]) {
+  function renderHud(powers: string[], countdown: ReactNode = null) {
     const player = { y: 50, peakY: 50, activePowerUps: powers.map((type) => ({ type, startTick: 0, durationTicks: 600 })) } as unknown as PlayerState;
     act(() =>
       root.render(
@@ -72,19 +72,28 @@ describe("GoalBar in the HUD", () => {
           announcement=""
           runId={1}
           goal={goal()}
+          countdown={countdown}
         />,
       ),
     );
   }
 
-  it("puts the stars and progress first, with power-up timers after them", () => {
+  it("puts the stars and progress first, with power-up timers after them, in one band", () => {
     renderHud(["giant", "super-jump"]);
-    const hud = container.querySelector(".exp-hud");
-    expect(hud?.hasAttribute("data-has-goal")).toBe(true);
+    const band = container.querySelector(".exp-hud > .exp-band");
     const bar = container.querySelector("[data-goal-bar]");
     const powers = container.querySelector(".exp-powers");
-    expect(bar && powers).toBeTruthy();
+    expect(band && bar && powers).toBeTruthy();
+    expect(band!.contains(bar) && band!.contains(powers)).toBe(true);
     expect(bar!.compareDocumentPosition(powers!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("draws the countdown at the top of the same band, not over the tower", () => {
+    renderHud([], <span data-testid="count">3</span>);
+    const band = container.querySelector(".exp-hud > .exp-band");
+    const count = container.querySelector(".exp-countdown [data-testid=count]");
+    expect(count && band?.contains(count)).toBe(true);
+    expect(band!.firstElementChild?.classList.contains("exp-countdown")).toBe(true);
   });
 
   it("shows the summit in whole feet", () => {

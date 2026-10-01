@@ -204,7 +204,7 @@ function RaceProgressInstrument({ duel }: { duel: DuelHudInfo }) {
 
 // ─────────────────────────── Main HUD ────────────────────────────────────────
 
-export function ExpeditionHud({ player, hazardY, tick, lavaPhase, lavaPhaseProgress, muted, onToggleMute, announcement, runId, topInset = 0, leftInset = 0, rightInset = 0, duel, goal = null, ...utilities }: UtilitiesProps & {
+export function ExpeditionHud({ player, hazardY, tick, lavaPhase, lavaPhaseProgress, muted, onToggleMute, announcement, runId, topInset = 0, leftInset = 0, rightInset = 0, duel, goal = null, countdown = null, ...utilities }: UtilitiesProps & {
   player: PlayerState | undefined; hazardY: number; tick: number;
   lavaPhase: HazardPhaseName; lavaPhaseProgress: number;
   announcement: string; runId: number; topInset?: number; leftInset?: number; rightInset?: number;
@@ -212,15 +212,17 @@ export function ExpeditionHud({ player, hazardY, tick, lavaPhase, lavaPhaseProgr
   duel?: DuelHudInfo;
   /** A level's goal bar (stars and progress): drawn under the readouts, above any power-up timers. */
   goal?: ReactNode;
+  /** The pre-GO countdown, shown in the same band so it never covers the tower. */
+  countdown?: ReactNode;
 }) {
   const hardenActive = player ? isPowerUpActive(player, "harden-lava", tick) : false;
   const style = { "--exp-top": `${topInset}px`, "--exp-left": `${leftInset}px`, "--exp-right": `${rightInset}px` } as CSSProperties;
-  return <div className="exp-hud" style={style} data-has-goal={goal ? "" : undefined}>
+  return <div className="exp-hud" style={style}>
     <HeightInstrument height={player?.y ?? 0} />
     <LavaClearanceInstrument clearance={(player?.y ?? 0) - hazardY} phase={lavaPhase} progress={lavaPhaseProgress} hardenActive={hardenActive} />
     <UtilityControls muted={muted} onToggleMute={onToggleMute} {...utilities} />
-    {goal && <div className="exp-goal">{goal}</div>}
-    <ActivePowerStack player={player} tick={tick} />
+    {/* One compact band under the readouts: countdown, goal bar and power-up chips. */}
+    <div className="exp-band">{countdown && <div className="exp-countdown">{countdown}</div>}{goal && <div className="exp-goal">{goal}</div>}<ActivePowerStack player={player} tick={tick} /></div>
     {duel && (
       <div className="exp-duel-strip">
         <VersusInstrument duel={duel} />

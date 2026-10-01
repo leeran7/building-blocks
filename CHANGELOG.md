@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Compact climb HUD** — the start countdown, the level's stars and progress
+  bar, and the active power-up chips now sit together in one small panel under
+  the Height and Lava Clearance cards, instead of a full-screen countdown and
+  power-up chips floating over the tower.
 - **Gecko is the final unlock** — the Gecko is no longer free after the
   tutorial: it unlocks only by clearing a season's last level (level 300),
   whatever the star count, and sits last in Choose Character. A player who

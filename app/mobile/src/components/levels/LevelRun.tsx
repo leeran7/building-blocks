@@ -214,6 +214,23 @@ export function LevelRun({
             />
           ) : null
         }
+        countdown={
+          countdownValue !== null ? (
+            <>
+              <span key={countdownValue} className="lp-pop font-display text-5xl font-black leading-none tabular-nums text-text-primary">
+                {countdownValue}
+              </span>
+              <span className="min-w-0">
+                <span className="block font-mono text-label uppercase tracking-eyebrow text-signal">Level {level} · get ready</span>
+                {startPowerUp && (
+                  <span className="mt-1 block text-meta text-text-primary">
+                    Starts with <PowerUpName type={startPowerUp.type} />
+                  </span>
+                )}
+              </span>
+            </>
+          ) : null
+        }
         rightInset={safeArea.right}
         backControl={
           <button
@@ -229,20 +246,6 @@ export function LevelRun({
         }
       />
 
-
-      {phase === "countdown" && (
-        <Overlay>
-          <p className="font-mono text-label uppercase tracking-eyebrow text-signal">Level {level}</p>
-          <p key={countdownValue} className="lp-pop mt-3 font-display text-7xl font-black tabular-nums text-text-primary">
-            {countdownValue}
-          </p>
-          {startPowerUp && (
-            <p className="mt-4 text-meta text-text-primary">
-              Starts with <PowerUpName type={startPowerUp.type} />
-            </p>
-          )}
-        </Overlay>
-      )}
 
       {phase === "lobby" && !autoStart && (
         <Overlay>

@@ -390,20 +390,9 @@ export function ClimbScreen({ onSignIn }: { onSignIn?: () => void } = {}) {
           lavaPhase={lavaPhaseInfo.phase} lavaPhaseProgress={lavaPhaseInfo.progress}
           muted={muted} onToggleMute={() => setMuted(!muted)} announcement={announcement} runId={runId}
           topInset={safeArea.top} leftInset={safeArea.left} rightInset={safeArea.right}
-          backControl={<button type="button" data-game-control className="exp-utility" aria-label="Back to home" title="Back to home" onClick={() => { void tapLight(); goBack(); }}>←</button>}
-        />
-
-        {phase === "countdown" && (
-          <Overlay>
-            <p className="font-mono text-[11px] uppercase tracking-[0.3em] text-signal">
-              get ready
-            </p>
-            <p
-              key={countdownValue}
-              className="cd-pop mt-3 font-display text-7xl font-black tabular-nums text-text-primary"
-            >
-              {countdownValue}
-            </p>
+          countdown={countdownValue !== null ? <>
+            <span key={countdownValue} className="cd-pop font-display text-5xl font-black leading-none tabular-nums text-text-primary">{countdownValue}</span>
+            <span className="font-mono text-[11px] uppercase tracking-[0.3em] text-signal">get ready</span>
             <style>{`
               .cd-pop { animation: cdPop 0.5s cubic-bezier(0.16, 1, 0.3, 1) both; }
               @keyframes cdPop {
@@ -412,8 +401,9 @@ export function ClimbScreen({ onSignIn }: { onSignIn?: () => void } = {}) {
               }
               @media (prefers-reduced-motion: reduce) { .cd-pop { animation: none; } }
             `}</style>
-          </Overlay>
-        )}
+          </> : null}
+          backControl={<button type="button" data-game-control className="exp-utility" aria-label="Back to home" title="Back to home" onClick={() => { void tapLight(); goBack(); }}>←</button>}
+        />
 
         {phase === "lobby" && (
           <Overlay>
