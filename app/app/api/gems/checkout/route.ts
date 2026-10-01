@@ -23,6 +23,15 @@ import { gemPackById } from "../../../../src/lib/gemPacks";
 
 export const runtime = "nodejs";
 
+/**
+ * Stripe's product tax code for a gem pack: "Video Games - downloaded - non
+ * subscription - with permanent rights". The account has Managed Payments on
+ * (Stripe is merchant of record and handles sales tax/VAT), which refuses any
+ * line item without an eligible digital-goods tax code. Gems never expire,
+ * hence permanent rights.
+ */
+const GEM_PACK_TAX_CODE = "txcd_10201000";
+
 export const POST = withAuth(async (request: NextRequest, uid: string) => {
   const rl = await checkRateLimit({
     namespace: "gems:checkout",
@@ -57,6 +66,7 @@ export const POST = withAuth(async (request: NextRequest, uid: string) => {
             product_data: {
               name: `${formatGems(pack.gems)} Doomstack gems`,
               description: "Gems for characters, skins and lives in Doomstack. Non-refundable and not cashable.",
+              tax_code: GEM_PACK_TAX_CODE,
             },
           },
           quantity: 1,

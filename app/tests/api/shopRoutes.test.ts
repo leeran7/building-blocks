@@ -30,7 +30,7 @@ vi.mock("../../src/db/gems", async (importOriginal) => {
   return { GemError: real.GemError, creditGemPack: vi.fn(), buyCharacter: vi.fn(), shopState: vi.fn() };
 });
 
-import { verifyWebhookSignature } from "../../src/api/stripe";
+import { getStripe, verifyWebhookSignature } from "../../src/api/stripe";
 import { recordDeadLetter } from "../../src/db/deadLetter";
 import { appleAccountTokenFor, checkAppleGemTransaction } from "../../src/api/appleIap";
 import { buyCharacter, creditGemPack, GemError, shopState } from "../../src/db/gems";
@@ -38,6 +38,7 @@ import { gemPackById } from "../../src/lib/gemPacks";
 import { POST as webhook } from "../../app/api/webhook/stripe/route";
 import { POST as appleRoute } from "../../app/api/gems/apple/route";
 import { POST as buyRoute } from "../../app/api/shop/buy/route";
+import { POST as checkoutRoute } from "../../app/api/gems/checkout/route";
 import { GET as shopRoute } from "../../app/api/shop/route";
 
 const PACK = gemPackById("gems-1200")!;
@@ -197,5 +198,21 @@ describe("GET /api/shop", () => {
     process.env.IOS_WEB_CHECKOUT = "off";
     expect((await (await get()).json()).webCheckout).toBe(false);
     delete process.env.IOS_WEB_CHECKOUT;
+  });
+});
+
+describe("POST /api/gems/checkout", () => {
+  it("prices the session from the pack table and tags it with a Managed Payments tax code", async () => {
+    const create = vi.fn(async () => ({ url: "https://checkout.stripe.com/c/1" }));
+    vi.mocked(getStripe).mockReturnValue({ checkout: { sessions: { create } } } as unknown as Stripe);
+    const res = await checkoutRoute(authed("/api/gems/checkout", { packId: PACK.id }));
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ checkoutUrl: "https://checkout.stripe.com/c/1" });
+    const params = (create.mock.calls[0] as unknown as [Stripe.Checkout.SessionCreateParams])[0];
+    const item = params.line_items![0].price_data!;
+    expect(item.unit_amount).toBe(PACK.usdCents);
+    // Managed Payments refuses a line item without an eligible digital-goods tax code.
+    expect(item.product_data!.tax_code).toBe("txcd_10201000");
+    expect(params.metadata).toEqual({ type: "gem_pack", user_id: "u1", pack_id: PACK.id });
   });
 });
