@@ -6,7 +6,14 @@ import { TICK_HZ, type PlayerState } from "../../game/types";
 import { PowerUpTypeIcon } from "./PowerUpTypeIcon";
 import "./expedition.css";
 
-/** Passive cartridges; collection and expiry remain owned by the simulation. */
+/** Below this share of the tank the Jetpack chip turns red and blinks. */
+export const LOW_FUEL_FRAC = 0.2;
+
+/**
+ * Passive round chips; collection and expiry remain owned by the simulation.
+ * The ring drains with the power's time. The Jetpack also fills its core with
+ * the fuel left, since the pack can run dry before its window closes.
+ */
 export const ActivePowerStack = memo(function ActivePowerStack({ player, tick }: {
   player: PlayerState | undefined; tick: number;
 }) {
@@ -16,20 +23,24 @@ export const ActivePowerStack = memo(function ActivePowerStack({ player, tick }:
     {active.map(a => {
       const spec = POWER_UP_SPECS[a.type];
       const meter = powerUpChipMeter(a, tick);
-      const seconds = Math.max(0, a.durationTicks - (tick - a.startTick)) / TICK_HZ;
+      const remaining = Math.max(0, a.durationTicks - (tick - a.startTick));
+      const seconds = remaining / TICK_HZ;
+      const timeFrac = a.durationTicks > 0 ? Math.min(1, remaining / a.durationTicks) : 0;
       const fuel = meter.kind === "fuel";
+      const fuelFrac = Math.max(0, Math.min(1, meter.frac));
       const label = `${spec.label}, ${seconds.toFixed(1)}s remaining${fuel ? `, ${meter.seconds.toFixed(1)} gal fuel` : ""}`;
-      return <div key={a.type} className="exp-cartridge" data-power={a.type} aria-label={label} title={label}
-        style={{ "--power-color": spec.color } as CSSProperties}>
-        <span className="exp-power-icon" aria-hidden="true"><PowerUpTypeIcon type={a.type} /></span>
-        <div className="exp-power-body">
-          <div className="exp-power-heading"><span>{spec.label}</span><strong>{seconds.toFixed(1)}<small>s</small></strong></div>
-          <div className="exp-power-meter">
-            {fuel && <span className="exp-label">FUEL</span>}
-            <span className={`exp-track${fuel ? " exp-track-fuel" : ""}`} aria-hidden="true"><i style={{ width: `${Math.max(0, Math.min(1, meter.frac)) * 100}%` }} /></span>
-            {fuel && <span className="exp-fuel-value">{meter.seconds.toFixed(1)} <small>GAL</small></span>}
-          </div>
-        </div>
+      return <div key={a.type} className="exp-chip" data-power={a.type} aria-label={label} title={label}
+        data-low-fuel={fuel && fuelFrac < LOW_FUEL_FRAC ? "" : undefined}
+        style={{ "--power-color": spec.color, "--t": timeFrac.toFixed(3) } as CSSProperties}>
+        <span className="exp-chip-ring" aria-hidden="true">
+          <span className="exp-chip-core">
+            {fuel && <i className="exp-chip-fuel" data-fuel-frac={fuelFrac.toFixed(3)} style={{ height: `${fuelFrac * 100}%` }} />}
+            <PowerUpTypeIcon type={a.type} />
+          </span>
+        </span>
+        <span className="sr-only">{spec.label}</span>
+        <strong>{seconds.toFixed(1)}<small>s</small></strong>
+        {fuel && <span className="exp-fuel-value">{meter.seconds.toFixed(1)} <small>GAL</small></span>}
       </div>;
     })}
   </div>;
