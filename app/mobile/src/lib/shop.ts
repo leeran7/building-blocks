@@ -189,7 +189,13 @@ export async function buyGemPack(pack: GemPack, shop: ShopState): Promise<PackPu
       // Ask to Buy: the approved transaction arrives later (watchAppleTransactions).
       throw new ShopError("Waiting for approval. Your gems arrive once the purchase is approved.", "PENDING");
     }
-    throw new ShopError("The App Store couldn't complete the purchase.", null);
+    if (isMissingProduct(err)) {
+      // StoreKit has no such product for this build: not created, not cleared
+      // for sale, or the Paid Apps agreement isn't active in App Store Connect.
+      throw new ShopError("This gem pack isn't available on the App Store yet.", "UNAVAILABLE");
+    }
+    // Keep StoreKit's own reason: the generic line alone can't be diagnosed.
+    throw new ShopError(`The App Store couldn't complete the purchase (${storeReason(err)}).`, null);
   }
   if (!transaction.jwsRepresentation) {
     throw new ShopError("The App Store didn't return a receipt. Reopen the Shop to retry.", null);
@@ -198,6 +204,19 @@ export async function buyGemPack(pack: GemPack, shop: ShopState): Promise<PackPu
   // Credited (or already credited): only now tell StoreKit we're done.
   await finish(transaction.transactionId);
   return { kind: "credited", gems };
+}
+
+/** The plugin's "Cannot find product for id …" / "Product not found" rejections. */
+function isMissingProduct(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message : String(err);
+  return /cannot find product|product not found/i.test(msg);
+}
+
+/** StoreKit's reason, short enough for the error line. */
+function storeReason(err: unknown): string {
+  const msg = (err instanceof Error ? err.message : String(err)).trim();
+  if (msg === "") return "no reason given";
+  return msg.length > 80 ? `${msg.slice(0, 79)}…` : msg;
 }
 
 function isPending(err: unknown): boolean {
