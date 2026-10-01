@@ -140,6 +140,27 @@ describe("buyGemPack on iOS", () => {
     expect((err as ShopError).code).toBe("PENDING");
     expect(apiFetch).not.toHaveBeenCalled();
   });
+
+  it("says a pack the App Store can't find isn't available yet", async () => {
+    plugin.purchaseProduct.mockRejectedValue(new Error(`Cannot find product for id ${PACK.appleProductId}`));
+    const err = await buyGemPack(PACK, SHOP).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(ShopError);
+    expect((err as ShopError).code).toBe("UNAVAILABLE");
+    expect((err as ShopError).message).toBe("This gem pack isn't available on the App Store yet.");
+    expect(apiFetch).not.toHaveBeenCalled();
+  });
+
+  it("keeps StoreKit's reason for any other failure", async () => {
+    plugin.purchaseProduct.mockRejectedValue(new Error("You are not signed in to the App Store"));
+    const err = await buyGemPack(PACK, SHOP).catch((e: unknown) => e);
+    expect((err as ShopError).code).toBeNull();
+    expect((err as ShopError).message).toBe(
+      "The App Store couldn't complete the purchase (You are not signed in to the App Store)."
+    );
+    plugin.purchaseProduct.mockRejectedValue(new Error(""));
+    const blank = await buyGemPack(PACK, SHOP).catch((e: unknown) => e);
+    expect((blank as ShopError).message).toBe("The App Store couldn't complete the purchase (no reason given).");
+  });
 });
 
 describe("paying outside the App Store", () => {
