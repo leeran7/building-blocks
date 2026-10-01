@@ -13,6 +13,8 @@ import { HeartIcon, StarIcon, XpBar, livesLabel, useNow } from "./LevelBits";
 import { OutOfLives, type RefillOffer } from "./LevelStartSheet";
 import { ChestCollected, ChestReveal } from "./ChestOpening";
 import { ArrowRight } from "./LevelIcons";
+import { RewardReveal } from "../RewardReveal";
+import { CharacterPreview } from "../CharacterPreview";
 import { STUCK_BOOSTER_FAILS } from "@app/levels/engagement";
 
 /**
@@ -212,7 +214,10 @@ function Cleared({ result }: { result: LevelResult }) {
       </div>
       <style>{`
         .lr-star { display: inline-flex; animation: lrPop 0.45s cubic-bezier(0.16,1,0.3,1) both; }
-        .lr-new svg { filter: drop-shadow(0 0 14px rgba(203,242,77,0.7)); }
+        /* A round halo behind a new star. Not a CSS drop-shadow on the svg:
+           WebKit clips that filter to the svg's box and draws a square. */
+        .lr-new { position: relative; }
+        .lr-new::before { content: ""; position: absolute; inset: -35%; z-index: -1; border-radius: 9999px; background: radial-gradient(circle, rgba(203,242,77,0.45) 0%, rgba(203,242,77,0.18) 38%, transparent 68%); pointer-events: none; }
         @keyframes lrPop { from { transform: scale(0.3); opacity: 0; } to { opacity: 1; } }
         @media (prefers-reduced-motion: reduce) { .lr-star { animation: none; } }
       `}</style>
@@ -225,31 +230,71 @@ function Cleared({ result }: { result: LevelResult }) {
  * stick figures (unlocked together by the first level 1 clear) read as one.
  */
 export function unlockedAvatarNames(ids: readonly string[]): string[] {
-  const names: string[] = [];
+  return unlockedAvatars(ids).map((u) => u.name);
+}
+
+/**
+ * The characters this run unlocked, one per reveal: each named character, and
+ * the stick figures once (shown as the first of them).
+ */
+export function unlockedAvatars(ids: readonly string[]): { id: string; name: string }[] {
+  const out: { id: string; name: string }[] = [];
   let sticks = false;
   for (const id of ids) {
     if (stickColorOf(id) !== null) {
-      if (!sticks) names.push("Stick figures");
+      if (!sticks) out.push({ id, name: "Stick figures" });
       sticks = true;
       continue;
     }
     const name = avatarName(id);
-    if (name !== null) names.push(name);
+    if (name !== null) out.push({ id, name });
   }
-  return names;
+  return out;
 }
 
+/** How long the result card shows before a new character's reveal. */
+export const UNLOCK_REVEAL_DELAY_MS = 1100;
+
+/**
+ * A new character gets its own moment: the full-screen reward reveal (the
+ * one a purchase gets), one character after another, over the result card.
+ * The card keeps a line naming them once the reveals are dismissed.
+ */
 function UnlockedAvatars({ ids }: { ids: string[] }) {
-  const names = unlockedAvatarNames(ids);
-  if (names.length === 0) return null;
+  const unlocked = unlockedAvatars(ids);
+  const [shown, setShown] = useState(0);
+  // Let the stars land before the reveal takes the screen.
+  const [ready, setReady] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setReady(true), UNLOCK_REVEAL_DELAY_MS);
+    return () => clearTimeout(t);
+  }, []);
+  if (unlocked.length === 0) return null;
+  const next = ready ? unlocked[shown] : undefined;
   return (
-    <p
-      role="status"
-      data-new-avatar
-      className="rounded-full border border-white/15 bg-white/5 px-3 py-1 text-center font-mono text-label font-bold uppercase tracking-label text-text-primary"
-    >
-      {names.length === 1 ? "New character unlocked" : "New characters unlocked"}: {names.join(", ")}
-    </p>
+    <>
+      <p
+        role="status"
+        data-new-avatar
+        className="flex items-center gap-2 rounded-full border border-signal/40 bg-signal/10 py-1 pl-1 pr-3 text-center font-mono text-label font-bold uppercase tracking-label text-signal"
+      >
+        <span aria-hidden className="inline-flex h-6 w-6 items-center justify-center overflow-hidden rounded-full bg-void/60">
+          <CharacterPreview avatarId={unlocked[0].id} pose="idle" locked={false} figurePx={20} sizePx={24} />
+        </span>
+        {unlocked.length === 1 ? "New character unlocked" : "New characters unlocked"}: {unlocked.map((u) => u.name).join(", ")}
+      </p>
+      {next && (
+        <RewardReveal
+          key={next.id}
+          subject={<CharacterPreview avatarId={next.id} pose="idle" locked={false} figurePx={190} sizePx={230} />}
+          eyebrow={next.name === "Stick figures" ? "New characters unlocked" : "New character unlocked"}
+          title={next.name}
+          detail="Pick it in Choose Character."
+          doneLabel={shown + 1 < unlocked.length ? "Next" : "Continue"}
+          onDone={() => setShown((n) => n + 1)}
+        />
+      )}
+    </>
   );
 }
 
@@ -292,7 +337,7 @@ function Lost({
         <span className="block h-full rounded-full bg-ember" style={{ width: `${pct}%` }} />
       </div>
       <p className="mt-1.5 text-center font-mono text-label uppercase tracking-label text-text-muted">
-        {Math.round(peakFt).toLocaleString()} of {goalFt.toLocaleString()} {ALTITUDE_UNIT}
+        {Math.round(peakFt).toLocaleString()} of {Math.round(goalFt).toLocaleString()} {ALTITUDE_UNIT}
       </p>
     </>
   );

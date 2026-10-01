@@ -69,11 +69,38 @@ describe("passive power cartridges", () => {
       { type: "giant", startTick: 0, durationTicks: durationTicks("giant") },
     ] satisfies ActivePowerUp[];
     const html = renderToStaticMarkup(createElement(ActivePowerStack, { player: p, tick: 60 }));
-    expect(html.match(/class="exp-cartridge"/g)).toHaveLength(2);
+    expect(html.match(/class="exp-chip"/g)).toHaveLength(2);
     expect(html).toContain("28.0s remaining, 7.5 gal fuel");
     expect(html).toContain("Giant, 18.0s remaining");
     expect(html).not.toContain("<button");
     expect(html).not.toContain("tabindex");
+  });
+
+  it("drains each ring with time and fills the Jetpack core with fuel, flagging a near-empty tank", () => {
+    const p = player();
+    const giant = durationTicks("giant");
+    const fuelMax = jetpackFuelTicks();
+    p.activePowerUps = [
+      { type: "jetpack", startTick: 0, durationTicks: durationTicks("jetpack"), fuelRemainingTicks: Math.round(fuelMax / 2) },
+      { type: "giant", startTick: 0, durationTicks: giant },
+    ] satisfies ActivePowerUp[];
+    const half = renderToStaticMarkup(createElement(ActivePowerStack, { player: p, tick: giant / 4 }));
+    const giantChip = half.slice(half.indexOf('data-power="giant"'));
+    expect(giantChip).toMatch(/--t:0\.750/);
+    expect(Number(half.match(/class="exp-chip-fuel" data-fuel-frac="([0-9.]+)"/)?.[1])).toBeCloseTo(0.5, 1);
+    expect(half).not.toContain("data-low-fuel");
+    expect(giantChip).not.toContain("exp-chip-fuel");
+
+    p.activePowerUps[0]!.fuelRemainingTicks = Math.floor(fuelMax * 0.1);
+    const low = renderToStaticMarkup(createElement(ActivePowerStack, { player: p, tick: giant / 4 }));
+    expect(low.match(/data-low-fuel/g)).toHaveLength(1);
+    expect(low.slice(low.indexOf('data-power="giant"'))).not.toContain("data-low-fuel");
+
+    // A nearly spent timer is not low fuel; only the tank blinks.
+    p.activePowerUps[0]!.fuelRemainingTicks = fuelMax;
+    const late = renderToStaticMarkup(createElement(ActivePowerStack, { player: p, tick: Math.floor(giant * 0.9) }));
+    expect(late).toContain('data-power="giant"');
+    expect(late).not.toContain("data-low-fuel");
   });
 });
 

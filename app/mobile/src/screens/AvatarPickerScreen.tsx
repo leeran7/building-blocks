@@ -33,7 +33,12 @@ const NEXT_HEX = 24;
 const PREVIEW_FIGURE_PX = 96;
 const PREVIEW_CANVAS_PX = 124;
 const LOAD_FAILED_MESSAGE = "Couldn't load your profile. Check your connection and try again.";
-const SCROLL_FADE = "linear-gradient(to bottom, #000 calc(100% - 18px), transparent)";
+/**
+ * How far above Save the grid fades out. At 18px the cut read as a hard line
+ * across the tiles over the lava; this long, eased fade dissolves them.
+ */
+const SCROLL_FADE_PX = 48;
+const SCROLL_FADE = `linear-gradient(to bottom, #000 calc(100% - ${SCROLL_FADE_PX}px), rgba(0,0,0,0.5) calc(100% - ${SCROLL_FADE_PX / 2}px), transparent)`;
 /**
  * The clear save bar's height with no error line: pt-3, the 56px button, and
  * pb (1rem + the home indicator). Kept in step with the footer's classes.
@@ -43,10 +48,10 @@ const SAVE_BAR_HEIGHT = "(0.75rem + 56px + 1rem + env(safe-area-inset-bottom))";
  * Space after the last row so it can scroll clear of the lava. The scroller
  * ends at the save bar, but on tall screens the lava crest rises above the
  * bar, so the grid ends LAVA_CLEARANCE above the screen's bottom edge. Never
- * less than 1rem. An error line only makes the bar taller (a little extra
- * space, never less).
+ * less than the fade, so the last row can scroll fully out of it. An error
+ * line only makes the bar taller (a little extra space, never less).
  */
-export const GRID_END_PADDING = `max(1rem, calc(${LAVA_CLEARANCE} - ${SAVE_BAR_HEIGHT}))`;
+export const GRID_END_PADDING = `max(${SCROLL_FADE_PX}px, calc(${LAVA_CLEARANCE} - ${SAVE_BAR_HEIGHT}))`;
 /** A 200 that did not store the pick: an API build older than avatars ignores the field. */
 const AVATAR_NOT_SAVED = "Couldn't save your character. Please update the app or try again later.";
 const SWITCH_WARNING_ID = "avatar-switch-warning";

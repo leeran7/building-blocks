@@ -469,7 +469,7 @@ function activeEntry(type: PowerUpType): ActivePowerUp {
 }
 
 function hudChips(html: string): { ariaLabel: string; html: string }[] {
-  const starts = [...html.matchAll(/<div class="exp-cartridge"[^>]*aria-label="([^"]+)"[^>]*>/g)];
+  const starts = [...html.matchAll(/<div class="exp-chip"[^>]*aria-label="([^"]+)"[^>]*>/g)];
   return starts.map((match, index) => ({
     ariaLabel: decodeEntities(match[1]!),
     html: html.slice(match.index, starts[index + 1]?.index ?? html.length),
