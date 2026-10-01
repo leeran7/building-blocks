@@ -79,7 +79,6 @@ describe("in-run goal bar", () => {
   const bar = (elapsedMs: number, oneStarMs: number | null) =>
     renderToStaticMarkup(
       createElement(GoalBar, {
-        topInset: 0,
         peakFt: 10,
         goalFt: 100,
         elapsedMs,
