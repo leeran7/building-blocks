@@ -17,6 +17,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Wraith colours** — the Void Walker now costs 600 gems (was 1,200), and
+  two more Wraith colours join it in the Shop at 600 each: Blood Walker (red)
+  and Frost Walker (ice blue). Each needs the Wraith first. Their tiles in
+  Skin Details carry a colour dot, since they share the Wraith's portrait.
+  Other characters' Void skins stay at 1,200.
+
 - **Levels end at a glowing diamond** — every level's climb now ends on the
   summit floor with a diamond to touch, 20 m along the floor from the ladder
   that reaches it; crossing the goal height no longer finishes the run. The
