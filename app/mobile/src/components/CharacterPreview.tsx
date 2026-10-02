@@ -9,6 +9,8 @@ export type PreviewPose = "idle" | "walk" | "climb";
 const FIGURE_PX = 132;
 /** Default canvas size (square) in CSS px. */
 const SIZE_PX = 168;
+/** The figure's feet sit this far above the canvas's bottom edge, CSS px. */
+export const PREVIEW_FOOT_PAD = 8;
 /** In-game speeds (m/s) so the cycles step at the pace they do in a run. */
 const WALK_MPS = 13;
 const CLIMB_MPS = 3.2;
@@ -17,11 +19,26 @@ const STICK_H_IN_S = 2.92;
 /** drawClimber swings its limbs at tick * 0.5; the sim runs 30 ticks a second. */
 const TICKS_PER_SEC = 30;
 
+/** Frame cap for an `ambient` preview, matching the menu backdrop's lava (AnimatedBackdrop LAVA_FPS). */
+export const AMBIENT_FPS = 30;
+/**
+ * Paint when at least this long has passed, ms: a frame interval less some
+ * slack, so frame-time jitter at 60/90/120 Hz cannot push every other paint
+ * one refresh late (which would drop to 20-24 fps).
+ */
+const AMBIENT_FRAME_MS = 1000 / AMBIENT_FPS - 2;
+
 /**
  * The character a player would climb as, animated in place: its sprite, or
  * the vector stick figure for a stick character (and for no character: the
  * Green Stick). Reduced motion holds the idle frame. Decorative: the picker
  * names the character beside it.
+ *
+ * `ambient` is for a figure that sits on a screen that stays open (the level
+ * map). It draws once and stops when nothing on the figure moves (a stick
+ * character standing idle), otherwise redraws at most AMBIENT_FPS times a
+ * second, and pauses while the page is hidden. Without it the preview redraws
+ * every animation frame, as the picker and detail screens expect.
  */
 export function CharacterPreview({
   avatarId,
@@ -29,6 +46,7 @@ export function CharacterPreview({
   locked,
   figurePx = FIGURE_PX,
   sizePx = SIZE_PX,
+  ambient = false,
 }: {
   avatarId: string | null;
   pose: PreviewPose;
@@ -37,6 +55,8 @@ export function CharacterPreview({
   figurePx?: number;
   /** Canvas width and height in CSS px; the figure stands centred on its bottom edge. */
   sizePx?: number;
+  /** Save frames on a screen that stays open: see above. */
+  ambient?: boolean;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const live = useRef({ avatarId, pose });
@@ -54,8 +74,14 @@ export function CharacterPreview({
     let raf = 0;
     let last = performance.now();
     let clock = 0;
+    let lastPaint = -Infinity;
+    /** False while the page is hidden (ambient only). */
+    let running = true;
+    /** True once the loop has stopped for good: the frame on screen is final. */
+    let done = false;
 
-    const draw = (now: number) => {
+    /** Paints one frame. `drew` is false until a sprite's sheets decode; `still` when the frame would never change. */
+    const paint = (now: number): { drew: boolean; still: boolean } => {
       const dt = Math.min(0.1, (now - last) / 1000);
       last = now;
       clock += dt;
@@ -71,22 +97,56 @@ export function CharacterPreview({
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.clearRect(0, 0, sizePx, sizePx);
       const fx = sizePx / 2;
-      const fy = sizePx - 8;
+      const fy = sizePx - PREVIEW_FOOT_PAD;
       const stick = climberStickColor(id);
-      let drew = true;
       if (stick !== null) {
         const tick = reduce ? 0 : clock * TICKS_PER_SEC;
         drawClimber(ctx, fx, fy, figurePx / STICK_H_IN_S, 1, shown, tick, stick, reduce);
-      } else {
-        // False until the character's sheets decode: draw nothing meanwhile.
-        drew = drawClimberSprite(ctx, fx, fy, figurePx / DISPLAY_H_IN_S, 1, state, reduce, null, clock);
+        // drawClimber's idle pose ignores the tick: a standing stick figure never moves.
+        return { drew: true, still: shown === "idle" };
       }
-      // Reduced motion stops once a frame is on screen.
-      if (!reduce || !drew) raf = requestAnimationFrame(draw);
+      // False until the character's sheets decode: draw nothing meanwhile.
+      const drew = drawClimberSprite(ctx, fx, fy, figurePx / DISPLAY_H_IN_S, 1, state, reduce, null, clock);
+      return { drew, still: false };
     };
-    raf = requestAnimationFrame(draw);
-    return () => cancelAnimationFrame(raf);
-  }, [avatarId, pose, figurePx, sizePx]);
+
+    const frame = (now: number) => {
+      if (!running) return;
+      if (ambient && now - lastPaint < AMBIENT_FRAME_MS) {
+        raf = requestAnimationFrame(frame);
+        return;
+      }
+      lastPaint = now;
+      const { drew, still } = paint(now);
+      // Reduced motion, and an ambient figure that cannot move, stop once a frame is on screen.
+      if (drew && (reduce || (ambient && still))) {
+        done = true;
+        return;
+      }
+      raf = requestAnimationFrame(frame);
+    };
+    raf = requestAnimationFrame(frame);
+
+    if (!ambient) return () => cancelAnimationFrame(raf);
+
+    const onVisibility = () => {
+      if (document.visibilityState === "hidden") {
+        running = false;
+        cancelAnimationFrame(raf);
+      } else if (!running && !done) {
+        running = true;
+        // Resume without a jump: the hidden time is not animation time.
+        last = performance.now();
+        raf = requestAnimationFrame(frame);
+      }
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      running = false;
+      cancelAnimationFrame(raf);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, [avatarId, pose, figurePx, sizePx, ambient]);
 
   return (
     <canvas

@@ -216,6 +216,30 @@ textarea {
   color: transparent;
   filter: drop-shadow(0 2px 0 rgba(0, 0, 0, 0.55)) drop-shadow(0 0 18px rgba(255, 90, 44, 0.25));
 }
+/*
+  The level map's tower. A slab is a floor: a lit top edge and a darker
+  underside, so it reads as a ledge and not as a card. The two alphas are
+  variables because the lime frontier slab needs a stronger edge than a dark one.
+*/
+.tower-slab {
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / var(--slab-edge, 0.14)),
+    inset 0 -6px 0 rgb(0 0 0 / var(--slab-under, 0.34));
+}
+/*
+  Altimeter tick ruler (the ASCENT motif; mirrors .altimeter in
+  app/app/globals.css). Ticks count up from the bottom edge here, 16px apart
+  (TICK_PITCH in towerGeometry.ts), so they line up with the map's floors.
+*/
+.altimeter {
+  background-image: repeating-linear-gradient(
+    to top,
+    color-mix(in srgb, var(--color-signal) 55%, transparent) 0,
+    color-mix(in srgb, var(--color-signal) 55%, transparent) 1px,
+    transparent 1px,
+    transparent 16px
+  );
+}
 .hex {
   clip-path: polygon(25% 3%, 75% 3%, 100% 50%, 75% 97%, 25% 97%, 0 50%);
 }
