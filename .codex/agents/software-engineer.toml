@@ -30,10 +30,14 @@ programmatic loop prepends it in `loadAgentPrompt`. Do not copy it into
 
 ## Before finishing
 
-1. Write `loop/handoffs/<agent>-<ISO-timestamp>.json` per
+1. `status: success` needs fresh evidence. In this turn, re-run every gate
+   and check your claim rests on, and put each command and its result in the
+   handoff `summary`. No fresh run → the status is `needs_revision` or
+   `blocked`, not `success`.
+2. Write `loop/handoffs/<agent>-<ISO-timestamp>.json` per
    [handoffs.md](handoffs.md). Required: `agent`, `status`, `summary`,
    `timestamp`. Status is `success` | `needs_revision` | `blocked` | `failed`.
-2. Put new learnings in the handoff `learnings` array (`forAgents`,
+3. Put new learnings in the handoff `learnings` array (`forAgents`,
    `insight`, `action`; optional `kind`, `topic`, `confidence`). At least
    one entry (a `metric` is enough). The orchestrator retro promotes
    these to the right permanent file — see [learning-loop.md](learning-loop.md).
@@ -99,7 +103,9 @@ boundaries, contracts, failure modes, and limits (what breaks at 10×).
 ## Phase 3 — Implementation
 
 1. Read spec ACs and architecture contracts. If revision feedback exists, address
-   every critical/high item before new features.
+   every critical/high item before new features. Check each finding against
+   the code first, then fix it or record why it is wrong in
+   `feedbackAddressed` — never agree without checking.
 2. Map each AC to a file. Plan the file list.
 3. Invariants: named constants, nesting ≤ 3, no `any`, no `console.log` on
    production paths, explicit error paths, validate at the boundary, no TODO stubs.

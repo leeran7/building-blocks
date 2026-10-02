@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { readFile, writeFile, mkdir, readdir, symlink, unlink, lstat } from "node:fs/promises";
+import { readFile, writeFile, mkdir, readdir, symlink, unlink, lstat, stat } from "node:fs/promises";
 import { join, dirname, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -84,6 +84,43 @@ function prependProtocol(body, protocolBody) {
   return `<!-- closed-loop:protocol -->\n${protocolBody.trim()}\n<!-- /closed-loop:protocol -->\n\n${stripped}`;
 }
 
+const PROTOCOL_MARKER = "<!-- closed-loop:protocol -->";
+
+// Generated agent files whose source in agents/ is gone stay dispatchable
+// until they are removed. Only files this script generated (they carry the
+// protocol marker) or links left dangling by that removal are pruned; an
+// agent file someone wrote by hand in these directories is never touched.
+async function pruneStaleAgents(dir, ext, keep) {
+  const removed = [];
+  for (const entry of await readdir(dir)) {
+    if (!entry.endsWith(ext) || keep.has(entry)) continue;
+    const path = join(dir, entry);
+    let generated;
+    try {
+      generated = (await readFile(path, "utf-8")).includes(PROTOCOL_MARKER);
+    } catch {
+      generated = (await lstat(path)).isSymbolicLink();
+    }
+    if (!generated) continue;
+    await unlink(path);
+    removed.push(join(relative(ROOT, dir), entry));
+  }
+  return removed;
+}
+
+async function pruneDanglingSymlinks(dir) {
+  const removed = [];
+  for (const entry of await readdir(dir)) {
+    const linkPath = join(dir, entry);
+    if (!(await lstat(linkPath)).isSymbolicLink()) continue;
+    try { await stat(linkPath); } catch {
+      await unlink(linkPath);
+      removed.push(join(relative(ROOT, dir), entry));
+    }
+  }
+  return removed;
+}
+
 async function runHygiene() {
   const { lintAgents } = await import("./hygiene.mjs");
   const { filesChecked, violations } = await lintAgents(ROOT);
@@ -132,7 +169,15 @@ async function syncAgents(claudeConfig, protocolBody) {
     join(ROOT, ".claude", "agents", "claude.config.json"),
   );
 
+  const tomlFiles = files.map((f) => f.replace(".md", ".toml"));
+  const pruned = [
+    ...(await pruneStaleAgents(join(ROOT, ".cursor", "agents"), ".md", new Set(files))),
+    ...(await pruneStaleAgents(join(ROOT, ".claude", "agents"), ".md", new Set(files))),
+    ...(await pruneStaleAgents(join(ROOT, ".codex", "agents"), ".toml", new Set(tomlFiles))),
+  ];
+
   console.log(`Synced ${files.length} agents → .claude/agents/ (generated), .cursor/agents/ (symlinked), .codex/agents/ (TOML)`);
+  if (pruned.length > 0) console.log(`Pruned ${pruned.length} agent file(s) with no source: ${pruned.join(", ")}`);
 }
 
 async function syncSkills() {
@@ -167,7 +212,11 @@ async function syncSkills() {
     synced += 1;
   }
 
+  const pruned = [];
+  for (const dest of targets) pruned.push(...(await pruneDanglingSymlinks(dest)));
+
   console.log(`Synced ${synced} skill pack(s) → .cursor/skills/, .claude/skills/, .agents/skills/ (symlinked)`);
+  if (pruned.length > 0) console.log(`Pruned ${pruned.length} skill link(s) with no source: ${pruned.join(", ")}`);
 }
 
 async function syncHandoffsSchema() {
