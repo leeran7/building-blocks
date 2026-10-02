@@ -19,6 +19,11 @@ Follow these steps exactly when creating a new skill.
   (e.g. `handoffs.md`, `stages.md`), the newer skill symlinks to the original.
   Never copy a file that already exists in another skill directory. Use
   relative symlinks (`../other-skill/file.md`).
+- **Loop agents have no Skill tool** (its listing costs about 12K tokens per
+  dispatch). The `skills` array in `claude.config.json` preloads a skill in
+  full on every dispatch, so keep it for skills an agent needs every time. For
+  an occasional skill, add a row to `context/README.md` so the agent reads the
+  file by path. Plugin skills (`superpowers:…`) reach the main session only.
 - **Sub-files** referenced by SKILL.md live in the same directory or are
   symlinked in from another skill.
 

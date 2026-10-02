@@ -81,4 +81,15 @@ irreversible or money-adjacent writes — not generic OWASP.
    `purchase` avatar selectable (item 8). A paid lives refill
    (`buyLivesRefill`, `LIVES_REFILL_GEMS`) spends in the same transaction
    that writes `users.lives` and is refused while lives are full, which is
-   what keeps a retried request from being charged twice.
+   what keeps a retried request from being charged twice. Two App Store
+   rules sit outside the server: only `Production` transactions credit,
+   except for the uids in `APPLE_IAP_SANDBOX_UIDS` (Sandbox and TestFlight
+   purchases are free, so App Review's demo account must be listed while a
+   build is in review); and the app finishes a StoreKit transaction only
+   after the server answers: on `credited` or `duplicate`, and also on a
+   final refusal (`FINAL_REFUSALS` in `app/mobile/src/lib/shop.ts`, which
+   includes `SANDBOX`). A Sandbox purchase refused before the uid was listed
+   is therefore consumed and cannot be credited later. Finishing after the
+   server depends on the patch in `app/patches/` being the plugin the native
+   projects build (`mobile-release` skill, section 5). Refunds are not
+   clawed back.

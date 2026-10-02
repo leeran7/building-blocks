@@ -62,7 +62,9 @@ boundaries, contracts, failure modes, and limits (what breaks at 10×).
 ## Phase 3 — Implementation
 
 1. Read spec ACs and architecture contracts. If revision feedback exists, address
-   every critical/high item before new features.
+   every critical/high item before new features. Check each finding against
+   the code first, then fix it or record why it is wrong in
+   `feedbackAddressed` — never agree without checking.
 2. Map each AC to a file. Plan the file list.
 3. Invariants: named constants, nesting ≤ 3, no `any`, no `console.log` on
    production paths, explicit error paths, validate at the boundary, no TODO stubs.

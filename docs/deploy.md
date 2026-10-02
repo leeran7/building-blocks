@@ -159,11 +159,11 @@ The iOS app sells gem packs as App Store consumables (`src/lib/gemPacks.ts`).
 Before a build with the Shop goes to TestFlight or review:
 
 1. In App Store Connect → the app → Monetization → In-App Purchases, create
-   one **Consumable** per pack, with exactly these product ids and the
-   nearest price tier: `lol.doomstack.app.gems500` ($4.99),
-   `lol.doomstack.app.gems1200` ($9.99), `lol.doomstack.app.gems2600`
-   ($19.99), `lol.doomstack.app.gems7000` ($49.99). Add a review screenshot
-   of the gem sheet to each.
+   one **Consumable** per pack. The product id is each pack's
+   `appleProductId` and the US price is its `appleUsdCents` in
+   `src/lib/gemPacks.ts` (the web price plus Apple's 30%: $6.49, $12.99,
+   $25.99 and $64.99 today). Add a review screenshot of the gem sheet to
+   each.
 2. In Xcode, add the **In-App Purchase** capability to the App target. The
    `@capgo/native-purchases` package is already in `CapApp-SPM/Package.swift`.
 3. Deploy the server (the migration `20260929000000_shop_gems` and
@@ -171,8 +171,12 @@ Before a build with the Shop goes to TestFlight or review:
 
 No App Store Connect API key is needed: the server verifies each signed
 transaction against Apple's root certificate (`src/api/appleJws.ts`).
-Sandbox and TestFlight purchases verify too and credit real gems, as App
-Review requires. Refunds are not clawed back yet; that needs App Store
+Sandbox and TestFlight purchases verify too, but they cost nothing, so they
+credit gems only for the accounts in `APPLE_IAP_SANDBOX_UIDS`; everyone else
+is refused with `SANDBOX`. App Review buys in Sandbox: put the review demo
+account's Firebase uid in that variable before submitting. The app finishes
+a refused Sandbox transaction, so a purchase made before the uid is listed
+is not credited later. Refunds are not clawed back yet; that needs App Store
 Server Notifications.
 
 Web and Android buy packs through Stripe Checkout (`POST /api/gems/checkout`,
