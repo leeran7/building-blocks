@@ -186,7 +186,8 @@ export function LevelRun({
         fullBleed
         hudInsetTop={safeArea.top}
         includeHud={false}
-        floorMarkerInsetTop={safeArea.top + 80}
+        // Floor labels stop below the goal bar, which sits right under the readouts.
+        floorMarkerInsetTop={safeArea.top + 124}
         myAvatarId={myAvatarId}
       />
 
