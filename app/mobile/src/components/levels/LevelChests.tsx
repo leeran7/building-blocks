@@ -2,8 +2,8 @@ import { POWER_UP_SPECS } from "@app/game/powerups";
 import { BOOSTER_TYPES, type BoosterInventory, type BoosterType } from "@app/levels/engagement";
 import { tapLight } from "../../lib/haptics";
 import type { ChestProgress } from "../../lib/levels/model";
-import { StarIcon } from "./LevelBits";
-import { BoosterGlyph, CheckBadge, NoneIcon } from "./LevelIcons";
+import { Accordion, StarIcon } from "./LevelBits";
+import { BoltIcon, BoosterGlyph, CheckBadge, NoneIcon } from "./LevelIcons";
 
 /**
  * Star chests and boosters (design §6.4): every 20 lifetime stars opens a
@@ -78,7 +78,7 @@ export function BoosterPicker({
   if (owned.length === 0) return null;
   const usable = owned.filter((t) => allowed.includes(t));
   const heading = (
-    <p id="booster-picker-label" className="font-mono text-label font-bold uppercase tracking-eyebrow text-text-primary">
+    <p className="font-mono text-label font-bold uppercase tracking-eyebrow text-text-primary">
       Starting booster
     </p>
   );
@@ -98,11 +98,20 @@ export function BoosterPicker({
     if (type !== selected) void tapLight();
     onSelect(type);
   };
+  // Folded by default so the sheet stays short and Play in reach; the
+  // summary says what the run will start with.
+  const summary = selected ? (
+    <span className="inline-flex items-center gap-1.5 font-bold">
+      <BoosterGlyph type={selected} size={16} />
+      {POWER_UP_SPECS[selected].label}
+    </span>
+  ) : (
+    "None"
+  );
   return (
-    <div className="rounded-2xl border border-white/10 bg-elevated/70 px-3.5 py-3">
-      {heading}
-      <p className="mt-0.5 text-meta text-text-secondary">Optional · choose one from your inventory.</p>
-      <div role="radiogroup" aria-labelledby="booster-picker-label" className="mt-2.5 grid grid-cols-3 gap-2">
+    <Accordion label="Starting booster" icon={<BoltIcon size={18} />} summary={summary} className="">
+      <p className="text-meta text-text-secondary">Optional · choose one from your inventory.</p>
+      <div role="radiogroup" aria-label="Starting booster" className="mt-2.5 grid grid-cols-3 gap-2">
         <BoosterTile on={selected === null} label="No booster" onPick={() => pick(null)}>
           <NoneIcon size={34} className="text-text-secondary" />
           <span className="text-meta font-bold text-text-primary">None</span>
@@ -130,7 +139,7 @@ export function BoosterPicker({
           ? `Used when the run starts. Restart within 3 seconds to keep it.`
           : "Used when the run starts."}
       </p>
-    </div>
+    </Accordion>
   );
 }
 

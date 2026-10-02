@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { POWER_UP_SPECS } from "@app/game/powerups";
 import { ALTITUDE_UNIT } from "@app/lib/units";
 import { formatGems } from "@app/lib/avatars";
@@ -100,7 +101,9 @@ export function LevelStartSheet({
   const intro = node.introPowerUp ? POWER_UP_SPECS[node.introPowerUp] : null;
   const titleId = `level-${node.level}-title`;
 
-  return (
+  // Portalled to the body: screens sit in a stacking context under the tab
+  // bar, which clipped the sheet and hid Play behind it.
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-end justify-center" role="presentation">
       <button
         type="button"
@@ -115,7 +118,7 @@ export function LevelStartSheet({
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className="ls-sheet relative w-full max-w-md rounded-t-[28px] border-t border-border-strong bg-surface/95 px-5 pb-[calc(env(safe-area-inset-bottom)+1rem)] pt-2 backdrop-blur-xl max-h-[calc(100%-env(safe-area-inset-top)-0.75rem)] overflow-y-auto overscroll-contain"
+        className="ls-sheet relative w-full max-w-md rounded-t-[28px] border-t border-border-strong bg-surface/95 px-5 pt-2 backdrop-blur-xl max-h-[calc(100%-env(safe-area-inset-top)-0.75rem)] overflow-y-auto overscroll-contain"
       >
         {/* The grabber: drag the sheet down from here (or its top) to close it. */}
         <div data-sheet-grabber aria-hidden className="-mx-5 -mt-2 flex h-5 items-center justify-center">
@@ -193,7 +196,9 @@ export function LevelStartSheet({
         {/* The friend ghost picker (§6.1) goes here once ghosts land. */}
         {extras}
 
-        <div className="mt-4 flex flex-col gap-1.5">
+        {/* Pinned to the sheet's bottom edge, so Play stays in reach however
+            long the sections above get. */}
+        <div className="sticky bottom-0 -mx-5 mt-2 flex flex-col gap-1.5 bg-surface px-5 pb-[calc(env(safe-area-inset-bottom)+1rem)] pt-2 before:pointer-events-none before:absolute before:inset-x-0 before:-top-4 before:h-4 before:bg-gradient-to-t before:from-surface before:to-transparent before:content-['']">
           {outOfLives ? (
             <OutOfLives
               wait={livesLabel(player, now)}
@@ -231,7 +236,8 @@ export function LevelStartSheet({
         @keyframes lsFade { from { opacity: 0; } to { opacity: 1; } }
         @media (prefers-reduced-motion: reduce) { .ls-sheet, .ls-scrim { animation: none; } }
       `}</style>
-    </div>
+    </div>,
+    document.body,
   );
 }
 

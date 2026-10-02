@@ -133,18 +133,21 @@ export function Accordion({
   label,
   summary,
   icon,
+  className = "mt-2",
   children,
 }: {
   label: string;
   summary: ReactNode;
   /** A small icon before the label, in the card's accent. */
   icon?: ReactNode;
+  /** Spacing above the card; a parent with its own gap passes "". */
+  className?: string;
   children: ReactNode;
 }) {
   const [open, setOpen] = useState(false);
   const panelId = useId();
   return (
-    <div className="mt-2 rounded-2xl border border-white/10 bg-elevated/70">
+    <div className={`rounded-2xl border border-white/10 bg-elevated/70 ${className}`}>
       <button
         type="button"
         aria-expanded={open}
