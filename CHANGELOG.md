@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Tighter climb HUD** — on a level, the stars and progress bar now sit
+  right under the Height and Lava Clearance readouts and line up with them,
+  and active power-up chips sit closer below, so the HUD covers less of the
+  tower. Floor labels no longer draw under the goal bar.
+
 - **Gecko is the final unlock** — the Gecko is no longer free after the
   tutorial: it unlocks only by clearing a season's last level (level 300),
   whatever the star count, and sits last in Choose Character. A player who
