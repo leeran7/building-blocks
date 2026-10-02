@@ -18,6 +18,7 @@
     "cap:sync": "pnpm --dir app cap:sync",
     "cap:ios": "pnpm --dir app cap:ios",
     "cap:ios:run": "pnpm --dir app cap:ios:run",
+    "cap:ios:preview": "pnpm --dir app cap:ios:preview",
     "cap:android": "pnpm --dir app cap:android"
   }
 }

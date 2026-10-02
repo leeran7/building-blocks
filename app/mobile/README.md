@@ -17,7 +17,33 @@ Each also works from the repo root, e.g. `yarn cap:ios` (delegates to
 | `pnpm cap:sync` | Build + copy into `ios/` and `android/` |
 | `pnpm cap:ios` | Sync + open Xcode |
 | `pnpm cap:ios:run` | Sync + run on an iOS simulator/device |
+| `pnpm cap:ios:preview` | Preview build against a Vercel preview deployment (see below) + open Xcode |
 | `pnpm cap:android` | Sync + open Android Studio |
+
+## Preview builds against a Vercel preview
+
+By default the app talks to `https://www.doomstack.lol`. To try a branch's
+backend (API routes, migrations on the preview DB) from Xcode:
+
+1. `cp mobile/.env.preview.example mobile/.env.preview.local` (git-ignored) and
+   set `VITE_API_BASE` to the preview URL. The branch alias
+   (`building-blocks-git-<branch>-leeran7s-projects.vercel.app`) always tracks
+   the branch's latest deploy.
+2. Preview URLs sit behind Vercel Authentication, so set `VITE_VERCEL_BYPASS`
+   to the secret from Vercel → Project Settings → Deployment Protection →
+   **Protection Bypass for Automation**. It is sent as the
+   `x-vercel-protection-bypass` header on API calls.
+3. `pnpm cap:ios:preview`, then Run from Xcode. The app shows an orange
+   `PREVIEW · <host>` badge so it can't be mistaken for a prod build.
+
+These values only apply to Vite's `preview` mode. `pnpm cap:sync` / `cap:ios`
+build in production mode and ignore them, so run one of those again before
+archiving for TestFlight or the App Store (Xcode ships whatever was last
+synced). Share links point at the preview host, and only `www.doomstack.lol`
+links open inside the app.
+
+Sandbox (Xcode/TestFlight) gem purchases are only credited for uids listed in
+`APPLE_IAP_SANDBOX_UIDS`, so set that on the Vercel Preview environment too.
 
 ## Native sign-in setup (required for Apple/Google; guest works without it)
 

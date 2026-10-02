@@ -26,9 +26,11 @@
     "analyze": "ANALYZE=true next build --webpack",
     "mobile:dev": "vite --config mobile/vite.config.mts",
     "mobile:build": "vite build --config mobile/vite.config.mts",
+    "mobile:build:preview": "vite build --config mobile/vite.config.mts --mode preview",
     "cap:sync": "pnpm mobile:build && cap sync",
     "cap:ios": "pnpm cap:sync && open -a /Applications/Xcode.app ios/App/App.xcodeproj",
     "cap:ios:run": "pnpm cap:sync && cap run ios",
+    "cap:ios:preview": "pnpm mobile:build:preview && cap sync ios && open -a /Applications/Xcode.app ios/App/App.xcodeproj",
     "cap:android": "pnpm cap:sync && cap open android"
   },
   "dependencies": {
