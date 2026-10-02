@@ -75,7 +75,7 @@ import { LevelResultCard, UNLOCK_REVEAL_DELAY_MS } from "../../mobile/src/compon
 import { REVEAL_BURST_MS, REVEAL_CHARGE_MS } from "../../mobile/src/components/RewardReveal";
 import type { RefillOffer } from "../../mobile/src/components/levels/LevelStartSheet";
 import { TICK_HZ } from "../../src/game/types";
-import { POWER_UP_TYPES } from "../../src/game/powerups";
+import { POWER_UP_SPECS, POWER_UP_TYPES } from "../../src/game/powerups";
 import { markTutorialsSeen } from "../../mobile/src/lib/levels/tutorialSeen";
 
 let container: HTMLDivElement;
@@ -153,9 +153,9 @@ async function renderMap(client: LevelsClient, initial: string | { pathname: str
 }
 
 const pin = (label: string) =>
-  [...container.querySelectorAll<HTMLButtonElement>("ol button")].find((b) => b.getAttribute("aria-label") === label);
+  [...document.body.querySelectorAll<HTMLButtonElement>("ol button")].find((b) => b.getAttribute("aria-label") === label);
 const button = (label: string) =>
-  [...container.querySelectorAll<HTMLButtonElement>("button")].find(
+  [...document.body.querySelectorAll<HTMLButtonElement>("button")].find(
     (b) => b.getAttribute("aria-label") === label || b.textContent === label,
   );
 
@@ -188,7 +188,7 @@ describe("level map", () => {
     await renderMap(client);
     await click(pin("Level 1, next to play"));
 
-    const dialog = container.querySelector('[role="dialog"]');
+    const dialog = document.body.querySelector('[role="dialog"]');
     expect(dialog?.textContent).toContain("Level 1");
     expect(dialog?.textContent).toContain("Tutorial level: free to play");
 
@@ -209,11 +209,11 @@ describe("level map", () => {
     await click(pin("Level 11, next to play"));
 
     expect(button("Play level 11")).toBeUndefined();
-    expect(container.querySelector('[role="dialog"] [role="alert"]')?.textContent).toBe("Out of lives.");
-    expect(container.querySelector('[role="dialog"]')?.textContent).toMatch(/Out of lives\. Next life in \d+:\d\d/);
+    expect(document.body.querySelector('[role="dialog"] [role="alert"]')?.textContent).toBe("Out of lives.");
+    expect(document.body.querySelector('[role="dialog"]')?.textContent).toMatch(/Out of lives\. Next life in \d+:\d\d/);
 
     // The device-local store has no gems, so no refill is offered.
-    expect(container.querySelector('[aria-label^="Refill lives"]')).toBeNull();
+    expect(document.body.querySelector('[aria-label^="Refill lives"]')).toBeNull();
 
     await click(button("Practice this level"));
     expect(where.pathname).toBe("/levels/11/play");
@@ -246,12 +246,12 @@ describe("level map", () => {
       const { client, buyLives } = await outOfLivesClient(120, 50);
       await renderMap(client);
       await click(pin("Level 11, next to play"));
-      expect(container.querySelector('[role="dialog"]')?.textContent).toContain("Your balance: 120 gems");
+      expect(document.body.querySelector('[role="dialog"]')?.textContent).toContain("Your balance: 120 gems");
 
       await click(button("Refill lives for 50 gems"));
       expect(buyLives).toHaveBeenCalledTimes(1);
       expect(button("Play level 11")).toBeTruthy();
-      expect(container.querySelector('[role="dialog"]')?.textContent).not.toContain("Out of lives");
+      expect(document.body.querySelector('[role="dialog"]')?.textContent).not.toContain("Out of lives");
       // The payoff plays over the card: the gems spent, then the hearts back.
       const reveal = document.querySelector("[data-reward-phase]");
       expect(reveal?.getAttribute("aria-label")).toBe("Lives refilled: 5 lives");
@@ -264,8 +264,8 @@ describe("level map", () => {
       await click(pin("Level 11, next to play"));
       // The price and the gap show; there is no refill to press.
       expect(button("Refill lives for 50 gems")).toBeUndefined();
-      expect(container.querySelector('[role="dialog"]')?.textContent).toContain("Full refill · 50 gems");
-      expect(container.querySelector('[role="dialog"]')?.textContent).toContain("Your balance: 20 gems · 30 more needed");
+      expect(document.body.querySelector('[role="dialog"]')?.textContent).toContain("Full refill · 50 gems");
+      expect(document.body.querySelector('[role="dialog"]')?.textContent).toContain("Your balance: 20 gems · 30 more needed");
       expect(buyLives).not.toHaveBeenCalled();
     });
 
@@ -287,7 +287,7 @@ describe("level map", () => {
       await flush();
       await click(pin("Level 11, next to play"));
       await click(button("Get gems"));
-      expect(container.querySelector("#gem-packs-title")?.textContent).toBe("Get gems");
+      expect(document.body.querySelector("#gem-packs-title")?.textContent).toBe("Get gems");
     });
 
     it("has no Get gems button without the Shop", async () => {
@@ -302,7 +302,7 @@ describe("level map", () => {
       await renderMap(client);
       await click(pin("Level 11, next to play"));
       await click(button("Refill lives for 50 gems"));
-      const alerts = [...container.querySelectorAll('[role="dialog"] [role="alert"]')].map((e) => e.textContent);
+      const alerts = [...document.body.querySelectorAll('[role="dialog"] [role="alert"]')].map((e) => e.textContent);
       expect(alerts).toContain("Couldn’t reach the server. Check your connection and try again.");
       expect(button("Play level 11")).toBeUndefined();
       expect(document.querySelector("[data-reward-phase]")).toBeNull();
@@ -313,16 +313,16 @@ describe("level map", () => {
     const client = memoryClient();
     await clearLevels(client, 2);
     await renderMap(client, { pathname: "/", state: { openLevel: 3 } });
-    expect(container.querySelector('[role="dialog"] h2')?.textContent).toBe("Level 3");
+    expect(document.body.querySelector('[role="dialog"] h2')?.textContent).toBe("Level 3");
   });
 
   it("leaves the Play bar clear so the lava shows behind it, fading the map out instead", async () => {
     await renderMap(memoryClient());
-    const bar = container.querySelector<HTMLElement>("[data-play-bar]");
+    const bar = document.body.querySelector<HTMLElement>("[data-play-bar]");
     expect(bar?.contains(button("Open level 1") ?? null)).toBe(true);
     // No scrim of its own: a dark fill here hid the lava crest above the tab bar.
     expect(bar?.className).not.toMatch(/\bbg-|\bfrom-|\bvia-/);
-    const scroller = container.querySelector("ol")?.closest<HTMLElement>(".overflow-y-auto");
+    const scroller = document.body.querySelector("ol")?.closest<HTMLElement>(".overflow-y-auto");
     expect(scroller?.style.getPropertyValue("mask-image")).toBe(MAP_FADE);
     // Level 1, the lowest pin, sits above the fade's solid stop.
     const solidFrom = Math.max(...[...MAP_FADE.matchAll(/(\d+)px/g)].map((m) => Number(m[1])));
@@ -343,7 +343,7 @@ describe("friends board on the start card", () => {
     await renderMap(client);
     await click(pin("Level 2, 3 of 3 stars"));
     await flush();
-    const list = container.querySelector('ol[aria-label="Friends\' best times on level 2"]');
+    const list = document.body.querySelector('ol[aria-label="Friends\' best times on level 2"]');
     expect(list?.textContent).toContain("You");
     expect(list?.textContent).toContain("0:03");
     // Folded until tapped, so Play stays in reach.
@@ -358,7 +358,7 @@ describe("friends board on the start card", () => {
     await click(button("Close"));
     await click(pin("Level 4, next to play"));
     await flush();
-    expect(container.textContent).toContain("Add friends to race their times here.");
+    expect(document.body.textContent).toContain("Add friends to race their times here.");
   });
 });
 
@@ -367,7 +367,7 @@ describe("start card swipe to close", () => {
     const client = memoryClient();
     await renderMap(client);
     await click(pin("Level 1, next to play"));
-    const sheet = container.querySelector<HTMLElement>('[role="dialog"]');
+    const sheet = document.body.querySelector<HTMLElement>('[role="dialog"]');
     if (!sheet) throw new Error("no start card");
     Object.defineProperty(sheet, "offsetHeight", { value: 500, configurable: true });
     const fire = (type: string, y: number, t: number) => {
@@ -386,7 +386,7 @@ describe("start card swipe to close", () => {
     await act(async () => {
       await new Promise((r) => setTimeout(r, 300));
     });
-    expect(container.querySelector('[role="dialog"]')).toBeNull();
+    expect(document.body.querySelector('[role="dialog"]')).toBeNull();
   });
 });
 
@@ -396,12 +396,12 @@ describe("win streak on the start card", () => {
     await clearLevels(client, 3);
     await renderMap(client);
     await click(pin("Level 4, next to play"));
-    expect(container.textContent).toContain("Win streak 3");
-    expect(container.textContent).toContain("You start with");
-    expect(container.textContent).toContain("Rapid Climb");
+    expect(document.body.textContent).toContain("Win streak 3");
+    expect(document.body.textContent).toContain("You start with");
+    expect(document.body.textContent).toContain("Rapid Climb");
     await click(button("Close"));
     await click(pin("Level 2, 3 of 3 stars"));
-    expect(container.textContent).not.toContain("Win streak");
+    expect(document.body.textContent).not.toContain("Win streak");
   });
 });
 
@@ -419,7 +419,7 @@ describe("star chests and boosters", () => {
   it("shows the stars toward the next chest on the map", async () => {
     const { client } = await withChest();
     await renderMap(client);
-    const meter = container.querySelector('[role="group"][aria-label^="Star chest"]');
+    const meter = document.body.querySelector('[role="group"][aria-label^="Star chest"]');
     expect(meter?.getAttribute("aria-label")).toMatch(/^Star chest: 1 of 20 stars, 19 to go\. \d+ boosters? owned\.$/);
   });
 
@@ -427,14 +427,24 @@ describe("star chests and boosters", () => {
     const { client, type, count } = await withChest();
     await renderMap(client);
     await click(pin("Level 7, 3 of 3 stars"));
-    const chip = [...container.querySelectorAll<HTMLButtonElement>('[role="dialog"] button[role="radio"]')].find((b) =>
+    const chip = [...document.body.querySelectorAll<HTMLButtonElement>('[role="dialog"] button[role="radio"]')].find((b) =>
       b.getAttribute("aria-label")?.endsWith(`, ${count} owned`),
     );
     expect(chip?.getAttribute("aria-checked")).toBe("false");
     expect(button("No booster")?.getAttribute("aria-checked")).toBe("true");
+    // Folded until tapped, so the sheet stays short; the row says what's picked.
+    const fold = [...document.body.querySelectorAll<HTMLButtonElement>("button[aria-expanded]")].find((b) =>
+      b.textContent?.startsWith("Starting booster"),
+    );
+    expect(fold?.getAttribute("aria-expanded")).toBe("false");
+    expect(fold?.textContent).toBe("Starting boosterNone");
+    expect(chip?.closest("[hidden]")).not.toBeNull();
+    await click(fold);
+    expect(chip?.closest("[hidden]")).toBeNull();
     await click(chip);
     expect(chip?.getAttribute("aria-checked")).toBe("true");
-    expect(container.querySelector('[role="dialog"]')?.textContent).toContain("Restart within 3 seconds to keep it.");
+    expect(fold?.textContent).toBe(`Starting booster${POWER_UP_SPECS[type as "giant"].label}`);
+    expect(document.body.querySelector('[role="dialog"]')?.textContent).toContain("Restart within 3 seconds to keep it.");
 
     await click(button("Play level 7"));
     expect(where.pathname).toBe("/levels/7/play");
@@ -446,7 +456,7 @@ describe("star chests and boosters", () => {
     const { client, type, count } = await withChest();
     await renderMap(client);
     await click(pin("Level 7, 3 of 3 stars"));
-    const chip = [...container.querySelectorAll<HTMLButtonElement>('[role="dialog"] button[role="radio"]')].find((b) =>
+    const chip = [...document.body.querySelectorAll<HTMLButtonElement>('[role="dialog"] button[role="radio"]')].find((b) =>
       b.getAttribute("aria-label")?.endsWith(`, ${count} owned`),
     );
     await click(chip);
@@ -461,8 +471,8 @@ describe("star chests and boosters", () => {
     const { client } = await withChest();
     await renderMap(client);
     await click(pin("Level 8, next to play"));
-    expect(container.querySelector('[role="dialog"] button[role="radio"]')).toBeNull();
-    expect(container.textContent).toContain("your boosters are kept");
+    expect(document.body.querySelector('[role="dialog"] button[role="radio"]')).toBeNull();
+    expect(document.body.textContent).toContain("your boosters are kept");
   });
 });
 
@@ -474,13 +484,13 @@ describe("level play route", () => {
     await click(button("Play level 1"));
     await click(button("stub-clear"));
 
-    const card = container.querySelector('[role="dialog"]');
+    const card = document.body.querySelector('[role="dialog"]');
     expect(card?.getAttribute("aria-label")).toBe("Level 1 cleared, 3 of 3 stars");
     expect(document.activeElement).toBe(card);
 
     await click(button("Next level"));
     expect(where.pathname).toBe("/");
-    expect(container.querySelector('[role="dialog"] h2')?.textContent).toBe("Level 2");
+    expect(document.body.querySelector('[role="dialog"] h2')?.textContent).toBe("Level 2");
     expect(pin("Level 1, 3 of 3 stars")).toBeTruthy();
   });
 
@@ -491,12 +501,12 @@ describe("level play route", () => {
     await click(pin("Level 11, next to play"));
     await click(button("Play level 11"));
     await click(button("stub-lose"));
-    expect(container.textContent).toContain("4 of 5 lives left");
+    expect(document.body.textContent).toContain("4 of 5 lives left");
 
     await click(button("Retry"));
     expect(runs.mounted).toHaveLength(2);
     await click(button("stub-lose"));
-    expect(container.textContent).toContain("3 of 5 lives left");
+    expect(document.body.textContent).toContain("3 of 5 lives left");
   });
 
   it("leads a near miss with the floors left, and marks the next try with it", async () => {
@@ -506,12 +516,12 @@ describe("level play route", () => {
     await click(pin("Level 11, next to play"));
     await click(button("Play level 11"));
     await click(button("stub-lose"));
-    expect(container.textContent).not.toContain("from the summit!");
+    expect(document.body.textContent).not.toContain("from the summit!");
     await click(button("Retry"));
     // Half way up is not close: no marker.
     expect(runs.mounted[1].bestFailFt).toBeNull();
     await click(button("stub-near"));
-    expect(container.textContent).toContain("1 floor from the summit!");
+    expect(document.body.textContent).toContain("1 floor from the summit!");
     await click(button("Retry"));
     expect(runs.mounted[2].bestFailFt).toBe(runs.mounted[2].goalFt - 1);
   });
@@ -537,7 +547,7 @@ describe("level play route", () => {
     await click(button("Play level 1"));
     await click(button("stub-lose"));
     await click(button("Retry"));
-    expect(container.querySelector('[role="dialog"] [role="alert"]')?.textContent).toContain("Couldn\u2019t reach the server");
+    expect(document.body.querySelector('[role="dialog"] [role="alert"]')?.textContent).toContain("Couldn\u2019t reach the server");
   });
 
   it("plays Practice this level without a ticket and saves nothing", async () => {
@@ -545,7 +555,7 @@ describe("level play route", () => {
     const submit = vi.spyOn(client, "submitResult");
     await renderMap(client, "/levels/1/play?practice=1");
     await click(button("stub-clear"));
-    expect(container.textContent).toContain("Practice runs earn no stars or XP.");
+    expect(document.body.textContent).toContain("Practice runs earn no stars or XP.");
     expect(submit).not.toHaveBeenCalled();
     expect((await client.getSeason()).frontier).toBe(1);
   });
@@ -619,8 +629,8 @@ describe("level result card", () => {
 
   it("shows the stars won, the time against the star times, XP and Next level on a clear", async () => {
     await renderCard(base);
-    const text = container.textContent ?? "";
-    expect(container.querySelector('[role="img"]')?.getAttribute("aria-label")).toBe("2 of 3 stars");
+    const text = document.body.textContent ?? "";
+    expect(document.body.querySelector('[role="img"]')?.getAttribute("aria-label")).toBe("2 of 3 stars");
     expect(text).toContain("Level 12 cleared");
     expect(text).toContain("0:31");
     expect(text).toContain("3★ at 0:28 · 2★ at 0:36");
@@ -631,10 +641,10 @@ describe("level result card", () => {
   it("says a run lost to the level's clock ran out of time, with the 1-star time", async () => {
     const clocked = { ...base.pars, oneStarMs: 45_000 };
     await renderCard({ ...base, pars: clocked, cleared: false, stars: 0, timeMs: null, peakFt: 200, xpGained: 0, outOfTime: true });
-    expect(container.textContent).toContain("Out of time");
-    expect(container.textContent).not.toContain("Caught by the lava");
+    expect(document.body.textContent).toContain("Out of time");
+    expect(document.body.textContent).not.toContain("Caught by the lava");
     await renderCard({ ...base, pars: clocked });
-    expect(container.textContent).toContain("3★ at 0:28 · 2★ at 0:36 · 1★ at 0:45");
+    expect(document.body.textContent).toContain("3★ at 0:28 · 2★ at 0:36 · 1★ at 0:45");
   });
 
   it("offers a paid refill on a loss that leaves no lives", async () => {
@@ -652,7 +662,7 @@ describe("level result card", () => {
 
   it("leads a loss with the distance to the summit and a retry that shows the lives left", async () => {
     await renderCard({ ...base, cleared: false, stars: 0, timeMs: null, peakFt: 233.4, xpGained: 0 });
-    const text = container.textContent ?? "";
+    const text = document.body.textContent ?? "";
     expect(text).toContain("Caught by the lava");
     expect(text).toContain("34ft");
     expect(text).toContain("from the summit");
@@ -668,22 +678,22 @@ describe("level result card", () => {
 
     await renderCard(lost, false);
     expect(button("Retry")).toBeTruthy();
-    expect(container.textContent).toContain("Tutorial level: free to retry");
+    expect(document.body.textContent).toContain("Tutorial level: free to retry");
   });
 
   it("announces a character the run unlocked, and nothing when none", async () => {
     await renderCard({ ...base, unlockedAvatars: ["ibex"] });
-    const note = container.querySelector("[data-new-avatar]");
+    const note = document.body.querySelector("[data-new-avatar]");
     expect(note?.getAttribute("role")).toBe("status");
     expect(note?.textContent).toBe("New character unlocked: Ibex");
 
     await renderCard({ ...base, unlockedAvatars: ["ibex", "falcon"] });
-    expect(container.querySelector("[data-new-avatar]")?.textContent).toBe("New characters unlocked: Ibex, Falcon");
+    expect(document.body.querySelector("[data-new-avatar]")?.textContent).toBe("New characters unlocked: Ibex, Falcon");
 
     await renderCard({ ...base, unlockedAvatars: [] });
-    expect(container.querySelector("[data-new-avatar]")).toBeNull();
+    expect(document.body.querySelector("[data-new-avatar]")).toBeNull();
     await renderCard(base);
-    expect(container.querySelector("[data-new-avatar]")).toBeNull();
+    expect(document.body.querySelector("[data-new-avatar]")).toBeNull();
   });
 
   it("gives each unlocked character its own full-screen reveal once the stars land", async () => {
@@ -720,7 +730,7 @@ describe("level result card", () => {
       });
       expect(reveal()).toBeNull();
       // The card still names them.
-      expect(container.querySelector("[data-new-avatar]")?.textContent).toBe("New characters unlocked: Ibex, Falcon");
+      expect(document.body.querySelector("[data-new-avatar]")?.textContent).toBe("New characters unlocked: Ibex, Falcon");
 
       await renderCard(base);
       await act(async () => {
@@ -735,29 +745,29 @@ describe("level result card", () => {
   it("promises free help on the next try from the 3rd fail", async () => {
     const lost = { ...base, cleared: false, stars: 0 as const, timeMs: null, peakFt: 100, xpGained: 0, atFrontier: true, streak: 0 };
     await renderCard({ ...lost, failsAtLevel: 2 });
-    expect(container.textContent).not.toContain("free power-up");
+    expect(document.body.textContent).not.toContain("free power-up");
     await renderCard({ ...lost, failsAtLevel: 3 });
-    expect(container.textContent).toContain("Your next try starts with a free power-up.");
+    expect(document.body.textContent).toContain("Your next try starts with a free power-up.");
   });
 
   it("reveals the boosters a clear's star chest held, and nothing on other runs", async () => {
     await renderCard({ ...base, chestsOpened: [{ chestNumber: 1, boosters: ["giant", "giant"] }, { chestNumber: 2, boosters: ["slow-lava"] }] });
     // The opening sequence has its own tests (mobileChestOpening.test.tsx).
     await click(button("Skip all"));
-    const reveal = container.querySelector('ul[aria-label="Boosters from the chest"]');
-    expect(container.textContent).toContain("2 star chests opened!");
+    const reveal = document.body.querySelector('ul[aria-label="Boosters from the chest"]');
+    expect(document.body.textContent).toContain("2 star chests opened!");
     expect([...(reveal?.querySelectorAll("li") ?? [])].map((li) => li.textContent)).toEqual(["+2 Giant", "+1 Slow Lava"]);
     await renderCard(base);
-    expect(container.textContent).not.toContain("star chest");
-    expect(container.textContent).not.toContain("Star chest");
+    expect(document.body.textContent).not.toContain("star chest");
+    expect(document.body.textContent).not.toContain("Star chest");
   });
 
   it("shows the win streak after a frontier run, and nothing after a replay", async () => {
     await renderCard({ ...base, atFrontier: true, streak: 4 });
-    expect(container.textContent).toContain("Win streak 4");
+    expect(document.body.textContent).toContain("Win streak 4");
     await renderCard({ ...base, cleared: false, stars: 0, timeMs: null, peakFt: 100, xpGained: 0, atFrontier: true, streak: 0 });
-    expect(container.textContent).toContain("Win streak reset");
+    expect(document.body.textContent).toContain("Win streak reset");
     await renderCard({ ...base, atFrontier: false, streak: 4 });
-    expect(container.textContent).not.toContain("Win streak");
+    expect(document.body.textContent).not.toContain("Win streak");
   });
 });

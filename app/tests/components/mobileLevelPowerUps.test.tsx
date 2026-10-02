@@ -4,9 +4,12 @@
  * The level start sheet tells the player, before the match, how often orbs
  * turn up on this level and how long each lasts here. Renders the real card
  * from the real catalog entry.
+ *
+ * @vitest-environment happy-dom
  */
 
-import { createElement } from "react";
+import { act, createElement } from "react";
+import { createRoot } from "react-dom/client";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
@@ -40,17 +43,38 @@ describe("level start sheet power-ups", () => {
 });
 
 describe("level start sheet", () => {
-  const sheet = (n: number) =>
-    renderToStaticMarkup(
-      createElement(LevelStartSheet, {
-        node: { ...catalog.level(n), stars: 0, bestMs: null },
-        player: { lives: 5, maxLives: 5, nextLifeAt: null, xp: 0, playerLevel: 1, xpIntoLevel: 0, xpForNext: 100 },
-        onStart: async () => ({ ok: false as const, code: "NETWORK" as const }),
-        onPractice: () => {},
-        onPracticeLevel: () => {},
-        onClose: () => {},
-      })
-    ).replace(/<[^>]+>/g, " ");
+  // The sheet portals to the body, so it is mounted for real and read back
+  // from the document.
+  const mount = (n: number) => {
+    (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+    const host = document.createElement("div");
+    document.body.appendChild(host);
+    const root = createRoot(host);
+    act(() =>
+      root.render(
+        createElement(LevelStartSheet, {
+          node: { ...catalog.level(n), stars: 0, bestMs: null },
+          player: { lives: 5, maxLives: 5, nextLifeAt: null, xp: 0, playerLevel: 1, xpIntoLevel: 0, xpForNext: 100 },
+          onStart: async () => ({ ok: false as const, code: "NETWORK" as const }),
+          onPractice: () => {},
+          onPracticeLevel: () => {},
+          onClose: () => {},
+        })
+      )
+    );
+    const dialog = document.querySelector('[role="dialog"]');
+    const unmount = () => {
+      act(() => root.unmount());
+      host.remove();
+    };
+    return { host, dialog, unmount };
+  };
+  const sheet = (n: number): string => {
+    const { dialog, unmount } = mount(n);
+    const text = dialog?.textContent ?? "";
+    unmount();
+    return text;
+  };
 
   it("shows the 1-star clock in place of any clear", () => {
     for (const n of [1, 20, 300]) {
@@ -60,18 +84,15 @@ describe("level start sheet", () => {
   });
 
   it("shows the level's power-ups before the match", () => {
-    const info = catalog.level(300);
-    const html = renderToStaticMarkup(
-      createElement(LevelStartSheet, {
-        node: { ...info, stars: 0, bestMs: null },
-        player: { lives: 5, maxLives: 5, nextLifeAt: null, xp: 0, playerLevel: 1, xpIntoLevel: 0, xpForNext: 100 },
-        onStart: async () => ({ ok: false as const, code: "NETWORK" as const }),
-        onPractice: () => {},
-        onPracticeLevel: () => {},
-        onClose: () => {},
-      })
-    );
-    expect(html).toContain("Power-up every 20 floors");
+    expect(sheet(300)).toContain("Power-up every 20 floors");
+  });
+
+  it("renders over the page, not inside the screen that opened it", () => {
+    // Inside the screen, the tab bar covered the bottom of the sheet and Play.
+    const { host, dialog, unmount } = mount(5);
+    expect(dialog).not.toBeNull();
+    expect(host.contains(dialog)).toBe(false);
+    unmount();
   });
 });
 
