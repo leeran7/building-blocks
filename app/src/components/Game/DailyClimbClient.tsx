@@ -166,6 +166,7 @@ export function DailyClimbClient() {
         resultFields={DAILY_RESULT_FIELDS}
         shareAfterSave
         onFinish={handleFinish}
+        personalBest={summary?.todayBest ?? 0}
         onBeforeStart={beforeStart}
         startBlockedLabel={refreshingDaily ? "Loading today\u2019s tower\u2026" : null}
         lobbyExtra={
