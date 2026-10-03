@@ -16,6 +16,9 @@ import {
   type StartResult,
 } from "../lib/levels/model";
 import { startBoosterTypes, type BoosterType } from "@app/levels/engagement";
+import { markOnboardingOffered, needsOnboarding, wantsTour } from "../lib/onboarding";
+import { AppTour } from "../components/onboarding/AppTour";
+import { MAP_TOUR } from "../components/onboarding/mapTour";
 
 /** Vertical distance between two pins, px. */
 const ROW = 92;
@@ -117,6 +120,29 @@ export function LevelMapScreen() {
     [client, navigate, setPlayer, refresh],
   );
 
+  // First launch: the training climb, which comes back here with the tour.
+  const firstRun = season !== null && needsOnboarding(season.frontier);
+  useLayoutEffect(() => {
+    if (!firstRun) return;
+    markOnboardingOffered();
+    navigate("/tutorial", { replace: true });
+  }, [firstRun, navigate]);
+  const [touring, setTouring] = useState(false);
+  const tourRequested = wantsTour(location.state);
+  useLayoutEffect(() => {
+    if (!season || !tourRequested) return;
+    navigate(".", { replace: true, state: null });
+    setTouring(true);
+  }, [season, tourRequested, navigate]);
+  const endTour = useCallback(
+    (finished: boolean) => {
+      setTouring(false);
+      // The last step's button opens the next level.
+      if (finished && season) setSelected(season.levels[season.frontier - 1]);
+    },
+    [season, setSelected],
+  );
+
   const loadBoard = useCallback((level: number) => client.getBoard(level), [client]);
 
   const openPractice = useCallback(() => {
@@ -152,14 +178,18 @@ export function LevelMapScreen() {
     <main className="relative flex h-full flex-col">
       <header className="absolute inset-x-0 top-0 z-20 bg-gradient-to-b from-void via-void/80 to-transparent px-4 pb-8 pt-[calc(env(safe-area-inset-top)+0.75rem)]">
         <div className="flex items-center justify-between gap-2">
-          <LivesPill player={season.player} />
-          <XpBar player={season.player} compact />
+          <span data-tour="lives" className="inline-flex">
+            <LivesPill player={season.player} />
+          </span>
+          <span data-tour="xp" className="inline-flex">
+            <XpBar player={season.player} compact />
+          </span>
         </div>
         <p className="mt-2.5 text-center font-mono text-label uppercase tracking-eyebrow text-text-secondary">
           {season.name} · Episode {episode}
         </p>
         {season.chests && (
-          <div className="mt-2 flex justify-center">
+          <div data-tour="chest" className="mx-auto mt-2 flex w-fit justify-center">
             <ChestMeter chests={season.chests} boosters={season.boosters} />
           </div>
         )}
@@ -186,6 +216,7 @@ export function LevelMapScreen() {
             <LevelPin
               key={node.level}
               node={node}
+              tour={node.level === frontier}
               state={node.level === frontier && node.stars === 0 ? "current" : node.level > frontier ? "locked" : "open"}
               onOpen={() => {
                 void tapLight();
@@ -214,6 +245,7 @@ export function LevelMapScreen() {
             void tapLight();
             setSelected(current);
           }}
+          data-tour="play"
           aria-label={`Open level ${current.level}`}
           className="cta-lime flex min-h-[56px] flex-1 items-center justify-center gap-3 rounded-[22px] px-4 text-void transition-transform active:scale-[0.97]"
         >
@@ -225,6 +257,7 @@ export function LevelMapScreen() {
         <button
           type="button"
           onClick={openPractice}
+          data-tour="endless"
           aria-label="Endless, climb as high as you can"
           className="glass flex min-h-[56px] flex-col items-center justify-center rounded-[22px] border border-white/10 px-4 transition-transform active:scale-[0.97]"
         >
@@ -271,6 +304,7 @@ export function LevelMapScreen() {
         />
       )}
       {refill.overlays}
+      {touring && <AppTour steps={MAP_TOUR} onClose={endTour} finishLabel={`Play level ${current.level}`} />}
     </main>
   );
 }
@@ -283,7 +317,18 @@ function openLevelFromState(state: unknown): number | null {
 
 type PinState = "open" | "current" | "locked";
 
-function LevelPin({ node, state, onOpen }: { node: LevelNode; state: PinState; onOpen: () => void }) {
+function LevelPin({
+  node,
+  state,
+  tour,
+  onOpen,
+}: {
+  node: LevelNode;
+  state: PinState;
+  /** The pin the first-run tour points at. */
+  tour: boolean;
+  onOpen: () => void;
+}) {
   const hard = isHardLevel(node.level);
   const locked = state === "locked";
   const current = state === "current";
@@ -308,6 +353,7 @@ function LevelPin({ node, state, onOpen }: { node: LevelNode; state: PinState; o
       <button
         type="button"
         disabled={locked}
+        data-tour={tour ? "next-level" : undefined}
         aria-label={label}
         aria-current={current ? "step" : undefined}
         onClick={onOpen}

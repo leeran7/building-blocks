@@ -77,6 +77,7 @@ import type { RefillOffer } from "../../mobile/src/components/levels/LevelStartS
 import { TICK_HZ } from "../../src/game/types";
 import { POWER_UP_SPECS, POWER_UP_TYPES } from "../../src/game/powerups";
 import { markTutorialsSeen } from "../../mobile/src/lib/levels/tutorialSeen";
+import { markOnboardingDone } from "../../mobile/src/lib/onboarding";
 
 let container: HTMLDivElement;
 let root: Root;
@@ -95,6 +96,8 @@ beforeEach(() => {
   localStorage.clear();
   // The level tutorials have their own tests (mobileLevelTutorial.test.tsx).
   markTutorialsSeen(["basics", ...POWER_UP_TYPES]);
+  // So is the first-run tutorial (mobileOnboarding.test.tsx).
+  markOnboardingDone();
   container = document.createElement("div");
   document.body.appendChild(container);
   root = createRoot(container);
