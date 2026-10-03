@@ -73,7 +73,7 @@ function Intro({ onStart, onSkip }: { onStart: () => void; onSkip: () => void })
           Glowing orbs on the tower give you a boost the moment you touch them.
         </Point>
       </ul>
-      <p className="mt-6 text-meta text-text-secondary">First, a quick practice climb. There is no lava here, so take your time.</p>
+      <p className="mt-6 text-meta text-text-secondary">First, a quick practice climb. The lava here never rises, so take your time.</p>
       <div className="mt-6">
         <Button autoFocus onPress={onStart}>
           Start training
@@ -261,7 +261,7 @@ function TrainingClimb({ onDone, onSkip }: { onDone: () => void; onSkip: () => v
               />
             ))}
           </ol>
-          <div key={goal.id} className="tr-in" role="status" aria-live="polite">
+          <div key={goal.id} className="tr-in">
             <h2
               id="training-goal"
               className="mt-3 font-display text-title font-black uppercase leading-none tracking-tight text-text-primary"
@@ -282,6 +282,12 @@ function TrainingClimb({ onDone, onSkip }: { onDone: () => void; onSkip: () => v
             </p>
           )}
         </section>
+        {/* One region that stays mounted, so each new goal is announced. */}
+        <p className="sr-only" role="status" aria-live="polite">
+          {view.done
+            ? "Summit! Training complete."
+            : `${praise ? `${praise.title} done. ${praise.text} ` : ""}Next: ${goal.title}. ${touch ? goal.touch : goal.keys}`}
+        </p>
         <div className="mx-auto mt-2 max-w-md">
           <ActivePowerStack player={player} tick={view.tick} />
         </div>

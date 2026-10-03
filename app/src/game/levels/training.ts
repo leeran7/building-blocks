@@ -77,13 +77,13 @@ export const TRAINING_GOALS: readonly TrainingGoal[] = [
     title: "Grab the orb",
     touch: "A glowing orb appeared on your floor. Walk into it.",
     keys: "A glowing orb appeared on your floor. Walk into it.",
-    done: "Power-ups start the moment you touch them. The bar up top shows how long it lasts.",
+    done: "Power-ups start the moment you touch them. The ring under this card shows how long it lasts.",
   },
   {
     id: "use",
     title: "Super Jump",
-    touch: "Tap jump, then tap it again in the air. You jump twice as high and can jump in mid-air.",
-    keys: "Tap Space, then tap it again in the air. You jump twice as high and can jump in mid-air.",
+    touch: "Tap jump, then tap it again in the air. You jump much higher, and can jump again in mid-air.",
+    keys: "Tap Space, then tap it again in the air. You jump much higher, and can jump again in mid-air.",
     done: "Each power-up does something different, and they all run out.",
   },
   {

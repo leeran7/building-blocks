@@ -8,6 +8,12 @@ const KEY = "doomstack:onboarding-done";
 
 /** Done this launch, for when storage refuses the write: never offer it twice in a row. */
 let doneThisLaunch = false;
+/**
+ * Already opened from the map this launch. Leaving it with Back (Android)
+ * lands on the map, which must not send the player straight back in; the
+ * next launch offers it again.
+ */
+let offeredThisLaunch = false;
 
 export function onboardingDone(): boolean {
   if (doneThisLaunch) return true;
@@ -34,12 +40,18 @@ export function markOnboardingDone(): void {
  * device already knows the game).
  */
 export function needsOnboarding(frontier: number): boolean {
-  return frontier <= 1 && !onboardingDone();
+  return frontier <= 1 && !offeredThisLaunch && !onboardingDone();
+}
+
+/** The map opened the tutorial: not again until the next launch. */
+export function markOnboardingOffered(): void {
+  offeredThisLaunch = true;
 }
 
 /** Tests only: forget the in-memory flag along with storage. */
 export function resetOnboardingForTests(): void {
   doneThisLaunch = false;
+  offeredThisLaunch = false;
 }
 
 /** Router state that asks the level map to run its tour. */

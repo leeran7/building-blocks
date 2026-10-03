@@ -16,7 +16,7 @@ import {
   type StartResult,
 } from "../lib/levels/model";
 import { startBoosterTypes, type BoosterType } from "@app/levels/engagement";
-import { needsOnboarding, wantsTour } from "../lib/onboarding";
+import { markOnboardingOffered, needsOnboarding, wantsTour } from "../lib/onboarding";
 import { AppTour } from "../components/onboarding/AppTour";
 import { MAP_TOUR } from "../components/onboarding/mapTour";
 
@@ -123,7 +123,9 @@ export function LevelMapScreen() {
   // First launch: the training climb, which comes back here with the tour.
   const firstRun = season !== null && needsOnboarding(season.frontier);
   useLayoutEffect(() => {
-    if (firstRun) navigate("/tutorial", { replace: true });
+    if (!firstRun) return;
+    markOnboardingOffered();
+    navigate("/tutorial", { replace: true });
   }, [firstRun, navigate]);
   const [touring, setTouring] = useState(false);
   const tourRequested = wantsTour(location.state);

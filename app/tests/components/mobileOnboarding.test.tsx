@@ -166,6 +166,21 @@ describe("first launch", () => {
     expect(container.textContent).toContain("Outclimb the lava");
   });
 
+  it("Back out of the training lands on the map, not straight back in", async () => {
+    const client = memoryClient();
+    await render(client, "/");
+    expect(where).toBe("/tutorial");
+    // Android back from a first entry replaces it with the map.
+    await act(async () => root.unmount());
+    root = createRoot(container);
+    await render(client, "/");
+    expect(where).toBe("/");
+    expect(onboardingDone()).toBe(false);
+    // Next launch offers it again.
+    resetOnboardingForTests();
+    expect(needsOnboarding(1)).toBe(true);
+  });
+
   it("stays on the map once the tutorial is done on this device", async () => {
     markOnboardingDone();
     await render(memoryClient(), "/");
