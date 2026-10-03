@@ -6,7 +6,11 @@
 
 const KEY = "doomstack:onboarding-done";
 
+/** Done this launch, for when storage refuses the write: never offer it twice in a row. */
+let doneThisLaunch = false;
+
 export function onboardingDone(): boolean {
+  if (doneThisLaunch) return true;
   try {
     return localStorage.getItem(KEY) === "1";
   } catch {
@@ -16,6 +20,7 @@ export function onboardingDone(): boolean {
 }
 
 export function markOnboardingDone(): void {
+  doneThisLaunch = true;
   try {
     localStorage.setItem(KEY, "1");
   } catch {
@@ -30,6 +35,11 @@ export function markOnboardingDone(): void {
  */
 export function needsOnboarding(frontier: number): boolean {
   return frontier <= 1 && !onboardingDone();
+}
+
+/** Tests only: forget the in-memory flag along with storage. */
+export function resetOnboardingForTests(): void {
+  doneThisLaunch = false;
 }
 
 /** Router state that asks the level map to run its tour. */

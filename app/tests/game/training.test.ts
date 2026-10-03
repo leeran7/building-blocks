@@ -208,6 +208,15 @@ describe("training", () => {
     expect(t.state.tick).toBe(tick);
   });
 
+  it("touching the diamond before the summit goal still ends training", () => {
+    const t = trainedToGrab();
+    // The route bot never goes for the orb: it climbs straight to the diamond.
+    runUntilGoalChanges(t, routeBotInput(), 90 * TICK_HZ);
+    expect(t.state.powerUps.some((o) => o.collected)).toBe(false);
+    expect(t.state.players[0].status).toBe("finished");
+    expect(t.done).toBe(true);
+  });
+
   it("cannot be lost: no lava, no fall death", () => {
     const t = createTraining();
     for (let i = 0; i < 60 * TICK_HZ; i++) t.step(IDLE);

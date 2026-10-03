@@ -13,6 +13,9 @@
  *   use     → spent a Super Jump air jump, or reached a higher floor with it
  *   summit  → touched the summit diamond, which finishes the climb
  *
+ * Touching the diamond ends training from any goal: the engine freezes a
+ * finished climber, so no later goal could be met.
+ *
  * There is no lava and no fall death, so the climb cannot be lost. If the
  * Super Jump runs out before it is used, a fresh orb appears and the goal
  * goes back to "grab".
@@ -182,6 +185,11 @@ export function createTraining(): Training {
       const lastX = before.x;
       stepMatch(state, { [PLAYER_ID]: input }, cfg);
       const p = me();
+      // The diamond ends the climb whatever the goal on screen: training is over.
+      if (p.status === "finished") {
+        goalIndex = TRAINING_GOALS.length;
+        return;
+      }
       const goal = TRAINING_GOALS[goalIndex].id;
       let met = false;
       switch (goal) {
@@ -211,9 +219,6 @@ export function createTraining(): Training {
           }
           break;
         }
-        case "summit":
-          met = p.status === "finished";
-          break;
       }
       if (met) begin(goalIndex + 1);
     },

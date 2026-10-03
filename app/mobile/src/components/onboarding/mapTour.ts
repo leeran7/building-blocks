@@ -31,7 +31,7 @@ export const MAP_TOUR: readonly TourStep[] = [
   {
     target: "play",
     title: "Play",
-    body: "Opens the next level. Pick a booster there if you have one, then tap Start.",
+    body: "Opens the next level. Pick a booster there if you have one, then tap Play.",
   },
   {
     target: "endless",
@@ -51,7 +51,7 @@ export const MAP_TOUR: readonly TourStep[] = [
   {
     target: "tab-shop",
     title: "Shop",
-    body: "Tap + next to your gems to buy a gem pack. Spend gems on character skins, or on lives when you run out.",
+    body: "Tap + next to your gems to buy a gem pack. Spend gems on character skins here, or on a lives refill when a level says you are out.",
   },
   {
     target: "tab-profile",

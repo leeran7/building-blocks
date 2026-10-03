@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useId, useLayoutEffect, useState } from "react";
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 import { Button } from "../ui";
 import { tapLight } from "../../lib/haptics";
@@ -25,8 +26,13 @@ const GAP = 14;
 /**
  * Coach marks: dims the screen, cuts a spotlight around one element at a
  * time and explains it in a card beside it. Steps whose element is not on
- * screen (no chests yet, say) are skipped. `onClose(true)` after the last
- * step, `onClose(false)` on Skip or Escape.
+ * screen (no chests yet, say), or that leave it mid-step, are skipped.
+ * `onClose(true)` when the player taps the last step's button, `onClose(false)`
+ * on Skip, Escape, or when the steps run out on their own.
+ *
+ * Portalled to the body: hub screens sit in a transformed, clipped scene
+ * under the tab bar, which would contain a fixed overlay and hide the tab
+ * steps (as with LevelStartSheet).
  */
 export function AppTour({
   steps,
@@ -48,6 +54,11 @@ export function AppTour({
   useLayoutEffect(() => {
     if (!step) return;
     let raf = 0;
+    const skip = () => {
+      // Not on this screen: move on, or end the tour without the player's tap.
+      if (index < steps.length - 1) setIndex((i) => i + 1);
+      else onClose(false);
+    };
     const measure = () => {
       const el = document.querySelector(`[data-tour="${step.target}"]`);
       const r = el?.getBoundingClientRect();
@@ -56,13 +67,14 @@ export function AppTour({
       return next !== null;
     };
     if (!measure()) {
-      // Not on this screen: move on, or end the tour after the last step.
-      if (index < steps.length - 1) setIndex((i) => i + 1);
-      else onClose(true);
+      skip();
       return;
     }
     const loop = () => {
-      measure();
+      if (!measure()) {
+        skip();
+        return;
+      }
       raf = requestAnimationFrame(loop);
     };
     raf = requestAnimationFrame(loop);
@@ -75,9 +87,24 @@ export function AppTour({
     else setIndex((i) => i + 1);
   }, [last, onClose]);
 
+  // Escape skips; Tab stays inside the card (the map behind is inert).
+  const cardRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose(false);
+      if (e.key !== "Tab" || !cardRef.current) return;
+      const focusable = [...cardRef.current.querySelectorAll<HTMLElement>("button:not([disabled])")];
+      if (focusable.length === 0) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      const inside = cardRef.current.contains(document.activeElement);
+      if (e.shiftKey && (!inside || document.activeElement === first)) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && (!inside || document.activeElement === last)) {
+        e.preventDefault();
+        first.focus();
+      }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -90,7 +117,7 @@ export function AppTour({
   const below = hole.top + hole.height / 2 < viewH / 2;
   const cardPos = below ? { top: hole.top + hole.height + GAP } : { bottom: viewH - hole.top + GAP };
 
-  return (
+  return createPortal(
     <div
       role="dialog"
       aria-modal="true"
@@ -106,6 +133,7 @@ export function AppTour({
         style={{ ...hole, boxShadow: "0 0 0 9999px rgba(5,5,8,0.8), 0 0 24px 4px rgba(203,242,77,0.35)" }}
       />
       <div
+        ref={cardRef}
         key={step.target}
         className="tour-card absolute inset-x-4 mx-auto max-w-sm rounded-3xl border border-white/10 bg-surface/95 px-4 pb-4 pt-3.5 shadow-[0_18px_50px_-12px_rgba(0,0,0,0.9)] backdrop-blur-xl"
         style={cardPos}
@@ -145,7 +173,8 @@ export function AppTour({
         @keyframes tourPulse { 0%, 100% { border-color: rgba(203,242,77,0.8); } 50% { border-color: rgba(203,242,77,0.35); } }
         @media (prefers-reduced-motion: reduce) { .tour-card, .tour-hole { animation: none; } }
       `}</style>
-    </div>
+    </div>,
+    document.body,
   );
 }
 

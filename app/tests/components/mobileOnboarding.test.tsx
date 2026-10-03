@@ -43,6 +43,7 @@ import {
   markOnboardingDone,
   needsOnboarding,
   onboardingDone,
+  resetOnboardingForTests,
   wantsTour,
   TOUR_STATE,
 } from "../../mobile/src/lib/onboarding";
@@ -64,6 +65,7 @@ function Where() {
 
 beforeEach(() => {
   localStorage.clear();
+  resetOnboardingForTests();
   where = "";
   // happy-dom lays nothing out: give tour targets a box so they can be spotlit.
   Element.prototype.getBoundingClientRect = function (this: Element) {
@@ -113,8 +115,8 @@ async function render(client: LevelsClient, path: string, { nav = true }: { nav?
 }
 
 const button = (text: string) =>
-  [...container.querySelectorAll<HTMLButtonElement>("button")].find((b) => b.textContent?.trim() === text);
-const tour = () => container.querySelector<HTMLElement>("[data-app-tour]");
+  [...document.querySelectorAll<HTMLButtonElement>("button")].find((b) => b.textContent?.trim() === text);
+const tour = () => document.querySelector<HTMLElement>("[data-app-tour]");
 const tourTitle = () => tour()?.querySelector("h2")?.textContent;
 
 async function click(el: HTMLElement | undefined) {
@@ -133,6 +135,19 @@ describe("onboarding flag", () => {
     markOnboardingDone();
     expect(onboardingDone()).toBe(true);
     expect(needsOnboarding(1)).toBe(false);
+  });
+
+  it("stays done for this launch when storage refuses the write", () => {
+    const setItem = vi.spyOn(localStorage, "setItem").mockImplementation(() => {
+      throw new Error("QuotaExceededError");
+    });
+    try {
+      markOnboardingDone();
+      expect(localStorage.getItem("doomstack:onboarding-done")).toBeNull();
+      expect(needsOnboarding(1)).toBe(false);
+    } finally {
+      setItem.mockRestore();
+    }
   });
 
   it("reads the tour request from router state, and nothing else", () => {
@@ -239,14 +254,29 @@ describe("training climb", () => {
     await render(memoryClient(), "/tutorial", { nav: false });
     await click(button("Skip tutorial"));
     const titles: string[] = [];
-    while (tour()) {
+    for (let i = 0; tour() && i < MAP_TOUR.length; i++) {
       titles.push(tourTitle() ?? "");
       await click(button("Next") ?? button("Play level 1"));
     }
+    expect(tour()).toBeNull();
     // No tab bar here: the tour stops after the map's own readouts.
     expect(titles).not.toContain("Shop");
     expect(titles).toContain("Endless");
-    expect(document.querySelector('[role="dialog"]')?.textContent).toContain("Level 1");
+    // It ran out on its own, so it opens nothing the player did not ask for.
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
+  });
+
+  it("moves on when the spotlit element leaves the screen mid-step", async () => {
+    vi.useFakeTimers({ toFake: ["requestAnimationFrame", "cancelAnimationFrame"] });
+    await render(memoryClient(), "/tutorial");
+    await click(button("Skip tutorial"));
+    expect(tourTitle()).toBe(MAP_TOUR[0].title);
+    // The first step's pin goes away (no box): the tour moves to the next step.
+    document.querySelector(`[data-tour="${MAP_TOUR[0].target}"]`)?.removeAttribute("data-tour");
+    await act(async () => {
+      vi.advanceTimersByTime(32);
+    });
+    expect(tourTitle()).toBe(MAP_TOUR[1].title);
   });
 
   it("Skip tour closes it without opening a level", async () => {
