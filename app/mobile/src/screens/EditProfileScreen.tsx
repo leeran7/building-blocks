@@ -22,6 +22,7 @@ import {
 } from "../lib/haptics";
 import { hasLeaderboardConsent, setLeaderboardConsent } from "../lib/consent";
 import { clearDailyStore } from "@app/lib/daily";
+import { clearClimbBest } from "@app/lib/climbBest";
 import { normalizeUsername } from "@app/lib/username";
 import {
   SOCIAL_PLATFORMS,
@@ -244,6 +245,7 @@ export function EditProfileScreen() {
       }
       clearAll();
       clearDailyStore(); // device-local streak isn't account-scoped; wipe on delete
+      clearClimbBest();
       await signOut();
       navigate("/");
     } catch {
