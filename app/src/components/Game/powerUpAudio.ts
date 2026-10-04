@@ -21,6 +21,7 @@
 
 import { PowerUpType } from "../../game/types";
 import { createAudioOutput, type AudioOutput } from "./audioOutput";
+import type { RunMomentKind } from "./runMoments";
 
 export type Cue = "pickup" | "activate" | "expire";
 
@@ -221,6 +222,38 @@ const DEATH_HIT: Note[] = [
   },
 ];
 
+/**
+ * Run-moment stings (see runMoments.ts). Bright and short so they sit on top
+ * of the music: a two-note ding per milestone, a little fanfare for a new
+ * best, a quick upward swoop for escaping the lava, and a rising or falling
+ * pair when a duel's lead changes hands.
+ */
+const MOMENT: Record<RunMomentKind, Note[]> = {
+  milestone: [
+    { at: 0, freq: 784, dur: 0.09, wave: "triangle", gain: 0.45 },
+    { at: 0.08, freq: 1175, dur: 0.22, wave: "sine", gain: 0.5 },
+  ],
+  "new-best": [
+    { at: 0, freq: 523, dur: 0.09, wave: "triangle", gain: 0.5 },
+    { at: 0.09, freq: 659, dur: 0.09, wave: "triangle", gain: 0.5 },
+    { at: 0.18, freq: 784, dur: 0.09, wave: "triangle", gain: 0.5 },
+    { at: 0.27, freq: 1047, dur: 0.38, wave: "sine", gain: 0.6 },
+    { at: 0.27, freq: 1319, dur: 0.38, wave: "sine", gain: 0.3 },
+  ],
+  "close-call": [
+    { at: 0, freq: 300, to: 900, dur: 0.18, wave: "triangle", gain: 0.4 },
+    { at: 0.16, freq: 900, dur: 0.12, wave: "sine", gain: 0.35 },
+  ],
+  "took-lead": [
+    { at: 0, freq: 660, dur: 0.08, wave: "triangle", gain: 0.45 },
+    { at: 0.08, freq: 990, dur: 0.18, wave: "sine", gain: 0.5 },
+  ],
+  "lost-lead": [
+    { at: 0, freq: 660, dur: 0.1, wave: "triangle", gain: 0.4 },
+    { at: 0.1, freq: 440, dur: 0.2, wave: "sine", gain: 0.4 },
+  ],
+};
+
 export class PowerUpAudio {
   private ctx: AudioContext | null = null;
   private master: GainNode | null = null;
@@ -322,6 +355,15 @@ export class PowerUpAudio {
     const now = ctx.currentTime + delaySeconds;
     for (const n of LAVA_SURGE) this.playNote(ctx, this.master, n, now);
     this.playNoiseBurst(ctx, this.master, now, 0.3, 0.35, 260);
+  }
+
+  /** Run-moment sting. No context create (see playLavaSting). */
+  playMoment(kind: RunMomentKind): void {
+    if (this.muted) return;
+    const ctx = this.ctx;
+    if (!ctx || !this.master) return;
+    const now = ctx.currentTime;
+    for (const n of MOMENT[kind]) this.playNote(ctx, this.master, n, now);
   }
 
   playLavaSting(delaySeconds = 0): void {

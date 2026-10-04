@@ -35,6 +35,7 @@ import {
   DUEL_HREF,
 } from "../navLinks";
 import { AddFriendButton } from "../Challenge/AddFriendButton";
+import { DuelEmotes } from "./DuelEmotes";
 import type { RealtimeHandle } from "../../net/realtime";
 import type { ResultSource } from "../../game/useRace";
 
@@ -598,6 +599,16 @@ export function DuelResult({
           </a>{" "}
           to save your record.
         </p>
+      )}
+
+      {/* GG, rematch? — emotes stay open on the result screen. */}
+      {realtime && myId && (
+        <DuelEmotes
+          realtime={realtime}
+          myId={myId}
+          opponentName={player1Id === myId ? player2Name : player1Name}
+          layer="screen"
+        />
       )}
     </div>
   );

@@ -8,6 +8,7 @@ import { isPowerUpActive } from "../../game/powerups";
 import { ActivePowerStack } from "./PowerUpHud";
 import { FullscreenButton } from "./FullscreenButton";
 import { GameSettingsButton, type GameToggle } from "./GameSettings";
+import { LAVA_DANGER_FT } from "./runMoments";
 import "./expedition.css";
 
 export function HeightInstrument({ height }: { height: number }) {
@@ -23,12 +24,8 @@ const PHASE_LABEL: Record<HazardPhaseName, string> = {
   stumble: "STUMBLING",
 };
 
-/**
- * Clearance (ft) at or under which the lava readout turns to danger: ~2.7 s
- * at a 9 ft/s ladder. The leash keeps the lava a few tens of feet behind a
- * good climber, so the old 12 ft (~1.3 s) warned too late to act on.
- */
-export const LAVA_DANGER_FT = 24;
+// The close-call callout fires on the climb back out past this same line.
+export { LAVA_DANGER_FT };
 
 export function LavaClearanceInstrument({ clearance: rawClearance, phase, progress, hardenActive = false }: { clearance: number; phase: HazardPhaseName; progress: number; hardenActive?: boolean }) {
   const clearance = Math.max(0, rawClearance);

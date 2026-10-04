@@ -24,6 +24,8 @@ import { ClimbCanvas } from "./ClimbCanvas";
 import { ClimbControlsGuide } from "./ClimbControlsGuide";
 import { ExpeditionHud } from "./ExpeditionHud";
 import { usePowerUpFeedback } from "./usePowerUpFeedback";
+import { RunCallout, useRunMoments } from "./RunCallout";
+import { commitClimbBest, readClimbBest } from "../../lib/climbBest";
 import {
   cameraTargetY,
   climbView,
@@ -101,6 +103,12 @@ export interface ClimbSceneProps {
   lobbyExtra?: ReactNode;
   /** Extra content rendered in the results overlay (e.g. daily streak result). */
   resultExtra?: ReactNode;
+  /**
+   * The best height to beat for the mid-run "New best!" callout. Daily Climb
+   * passes today's best. Left out, the scene uses (and after each run, raises)
+   * the device's endless-climb best.
+   */
+  personalBest?: number;
 }
 
 interface SaveInfo {
@@ -153,6 +161,7 @@ export function ClimbScene({
   startBlockedLabel = null,
   lobbyExtra,
   resultExtra,
+  personalBest,
 }: ClimbSceneProps) {
   const router = useRouter();
   const reducedMotion = usePrefersReducedMotion();
@@ -263,7 +272,7 @@ export function ClimbScene({
   // World one-shots call into the SFX engine; skip them on autoStart replay
   // the same way music is gated — there is no Start click to unlock Web Audio.
   const worldLive = !replaying;
-  const { muted, setMuted, announcement, unlockAudio } = usePowerUpFeedback(
+  const { muted, setMuted, announcement, unlockAudio, playMoment } = usePowerUpFeedback(
     player,
     state.tick,
     runId,
@@ -279,6 +288,20 @@ export function ClimbScene({
       lavaFill: worldLive ? lavaFill : 0,
       dead: worldLive && player?.status === "eliminated",
     }
+  );
+
+  // The endless best this device had before the current run; raised on finish.
+  const [endlessBest, setEndlessBest] = useState(() => (personalBest === undefined ? readClimbBest() : 0));
+  const callout = useRunMoments(
+    {
+      runId,
+      tick: state.tick,
+      live: !replaying && phase === "climb" && player?.status === "climbing",
+      peakY: player?.peakY ?? 0,
+      clearance: lavaGap,
+      bestY: personalBest ?? endlessBest,
+    },
+    playMoment
   );
 
   const redirectPath = `/play`;
@@ -395,7 +418,11 @@ export function ClimbScene({
     if (inputLog.length === 0) return;
     firedFinishRef.current = true;
     onFinish?.(finishPeakY);
-  }, [finished, replaying, inputLog, onFinish, finishPeakY]);
+    if (personalBest === undefined) {
+      commitClimbBest(finishPeakY);
+      setEndlessBest(readClimbBest());
+    }
+  }, [finished, replaying, inputLog, onFinish, finishPeakY, personalBest]);
 
   useEffect(() => {
     if (!user || !token || user.isAnonymous) return;
@@ -531,6 +558,8 @@ export function ClimbScene({
           isFullscreen={isFullscreen} onToggleFullscreen={toggleFullscreen}
           backControl={touchDevice && !replaying ? <button type="button" data-game-control className="exp-utility" aria-label="Back to home" title="Back to home" onClick={() => router.push("/")}>←</button> : undefined}
         />
+
+        <RunCallout callout={callout} topInset={touchDevice ? safeArea.top : 0} />
 
         {phase === "countdown" && (
           <Overlay>

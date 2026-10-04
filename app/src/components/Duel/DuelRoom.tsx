@@ -34,6 +34,8 @@ import { useFullscreen } from "../../hooks/useFullscreen";
 import { GameExitButton } from "../Game/GameExitButton";
 import { FullscreenButton } from "../Game/FullscreenButton";
 import { DuelResult } from "./DuelResult";
+import { DuelEmotes } from "./DuelEmotes";
+import { RunCallout, useRunMoments } from "../Game/RunCallout";
 import { connectRealtime, RealtimeHandle } from "../../net/realtime";
 import { buildTower } from "../../game/towers";
 import { hazardPhase } from "../../game/hazard";
@@ -715,6 +717,19 @@ function DuelGame({
     return new Set([opponentSlot]);
   }, [phase, opponentPresent, opponentSlot]);
 
+  // Lead changes, milestones and close calls. The opponent's height is a
+  // display ghost, so a stale one doesn't count toward the lead.
+  const oppPlayer = state.players.find((p) => p.slot === opponentSlot);
+  const callout = useRunMoments({
+    runId: duelId,
+    tick: state.tick,
+    live: phase === "climb" && myPlayer?.status === "climbing",
+    peakY: myPlayer?.peakY ?? 0,
+    clearance: myPlayer ? myPlayer.y - state.hazardY : Infinity,
+    myY: myPlayer?.y ?? null,
+    opponentY: oppPlayer && !opponentStale ? oppPlayer.y : null,
+  });
+
   if (finished && duelResult) {
     return (
       <DuelResult
@@ -825,6 +840,16 @@ function DuelGame({
             ) : undefined
           }
           duel={duelHudInfo}
+        />
+
+        <RunCallout callout={callout} topInset={touchDevice ? safeArea.top : 0} topPercent={44} />
+
+        <DuelEmotes
+          realtime={realtime}
+          myId={myId}
+          opponentName={mySlot === 0 ? player2Name : player1Name}
+          topInset={touchDevice ? safeArea.top : 0}
+          rightInset={touchDevice ? safeArea.right : 0}
         />
 
         {/* "Opponent joined!" beat — fires when opponent enters presence. */}

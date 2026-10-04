@@ -220,3 +220,56 @@
 /* ── End duel instruments ── */
 @keyframes expedition-danger { 50% { opacity: .55; } }
 @media (prefers-reduced-motion: reduce) { .exp-clearance[data-danger="true"] .exp-wave { animation: none; } .exp-touch-button { transition: none; } .exp-joystick-chevron { transition: none; } }
+/* ── Run callouts: milestones, new best, close call, lead changes ── */
+.exp-callout-layer { position: absolute; z-index: 25; left: 0; right: 0; display: flex; justify-content: center; pointer-events: none; }
+.exp-callout {
+  --callout-color: var(--exp-ivory, #f4f2ec);
+  position: relative; display: flex; flex-direction: column; align-items: center; gap: 2px;
+  padding: 6px 18px; text-align: center; color: var(--callout-color);
+  animation: exp-callout-pop 1.7s cubic-bezier(.16, 1, .3, 1) both;
+}
+.exp-callout strong {
+  font-family: var(--font-display, var(--exp-label-font)); font-weight: 900; text-transform: uppercase;
+  font-size: clamp(28px, 10cqw, 64px); line-height: 1; letter-spacing: -.02em; white-space: nowrap;
+  text-shadow: 0 0 28px color-mix(in srgb, var(--callout-color) 55%, transparent), 0 3px 0 #000a;
+}
+.exp-callout span {
+  font: 600 11px var(--exp-label-font); letter-spacing: .22em; text-transform: uppercase;
+  color: var(--exp-ivory, #f4f2ec); text-shadow: 0 1px 3px #000;
+}
+/* A ring that bursts out behind the word. */
+.exp-callout::before {
+  content: ""; position: absolute; left: 50%; top: 40%; width: 64px; height: 64px; margin: -32px 0 0 -32px;
+  border-radius: 50%; border: 3px solid var(--callout-color); opacity: 0;
+  animation: exp-callout-ring .9s ease-out .05s both;
+}
+.exp-callout[data-kind="milestone"] { --callout-color: var(--exp-ivory, #f4f2ec); }
+.exp-callout[data-kind="milestone"] strong { font-family: var(--exp-number-font); letter-spacing: -.05em; }
+.exp-callout[data-kind="new-best"], .exp-callout[data-kind="took-lead"] { --callout-color: var(--exp-signal, #cbf24d); }
+.exp-callout[data-kind="close-call"] { --callout-color: var(--exp-amber, #ffb020); }
+.exp-callout[data-kind="lost-lead"] { --callout-color: #6bb8ff; }
+/* New best gets a second, wider ring and a shimmer. */
+.exp-callout[data-kind="new-best"]::after {
+  content: ""; position: absolute; left: 50%; top: 40%; width: 64px; height: 64px; margin: -32px 0 0 -32px;
+  border-radius: 50%; border: 2px solid var(--callout-color); opacity: 0;
+  animation: exp-callout-ring 1.1s ease-out .25s both;
+}
+.exp-callout[data-kind="new-best"] strong { animation: exp-callout-shimmer .5s ease-in-out .2s 3 alternate; }
+@keyframes exp-callout-pop {
+  0% { opacity: 0; transform: translateY(14px) scale(.55); }
+  14% { opacity: 1; transform: translateY(0) scale(1.14); }
+  24% { transform: translateY(0) scale(1); }
+  78% { opacity: 1; transform: translateY(-6px) scale(1); }
+  100% { opacity: 0; transform: translateY(-26px) scale(.96); }
+}
+@keyframes exp-callout-ring {
+  0% { opacity: .9; transform: scale(.4); }
+  100% { opacity: 0; transform: scale(4.2); }
+}
+@keyframes exp-callout-shimmer { to { filter: brightness(1.45); } }
+@media (prefers-reduced-motion: reduce) {
+  .exp-callout { animation: exp-callout-fade 1.7s linear both; }
+  .exp-callout::before, .exp-callout::after { display: none; }
+  .exp-callout[data-kind="new-best"] strong { animation: none; }
+}
+@keyframes exp-callout-fade { 0%, 100% { opacity: 0; } 10%, 85% { opacity: 1; } }
