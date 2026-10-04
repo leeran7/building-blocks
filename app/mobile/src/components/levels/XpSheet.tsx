@@ -107,7 +107,7 @@ export function XpSheet({ season, guest, onClose }: { season: SeasonView; guest:
               value={`+${p.episode.xp} XP`}
             />
           )}
-          {!guest && <Row title="Daily Climb" detail={`1 XP a floor, up to ${DAILY_XP_MAX} a day`} value={`+${DAILY_XP_MAX} XP`} />}
+          {!guest && <Row title="Daily Climb" detail={`1 XP a floor of your best run, up to ${DAILY_XP_MAX} a day`} value={`+${DAILY_XP_MAX} XP`} />}
         </Section>
 
         {comingUp && (
