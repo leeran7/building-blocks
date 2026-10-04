@@ -5,6 +5,8 @@
   --emo-signal: var(--color-signal, #cbf24d);
   --emo-blue: #6bb8ff;
   --emo-core: #101012;
+  /* Colour emoji first, so a text font with monochrome emoji glyphs never wins. */
+  --emo-emoji-font: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif;
   position: absolute; inset: 0; z-index: 30; pointer-events: none;
   font-family: var(--font-sans, system-ui, sans-serif);
 }
@@ -50,7 +52,7 @@
 .emo-pick {
   display: flex; align-items: center; justify-content: center; min-height: 48px;
   border: 1px solid #ffffff14; border-radius: 12px; background: #ffffff0a;
-  font-size: 26px; line-height: 1; cursor: pointer; transition: transform .1s ease, background-color .1s ease;
+  font-family: var(--emo-emoji-font); font-size: 26px; line-height: 1; cursor: pointer; transition: transform .1s ease, background-color .1s ease;
   -webkit-tap-highlight-color: transparent; touch-action: manipulation;
 }
 .emo-pick:hover { background: #ffffff1a; }
@@ -94,7 +96,7 @@
 }
 .emo-bubble[data-side="them"] .emo-bubble-body { border-bottom-left-radius: 4px; box-shadow: 0 6px 18px #000a, 0 0 0 2px var(--emo-blue); }
 .emo-bubble[data-side="me"] .emo-bubble-body { border-bottom-right-radius: 4px; box-shadow: 0 6px 18px #000a, 0 0 0 2px var(--emo-signal); }
-.emo-bubble[data-kind="emote"] .emo-bubble-body { padding: 4px 10px; font-size: 40px; font-weight: 400; color: var(--emo-ivory); background: #101012cc; box-shadow: none; }
+.emo-bubble[data-kind="emote"] .emo-bubble-body { padding: 4px 10px; font-family: var(--emo-emoji-font); font-size: 40px; font-weight: 400; color: var(--emo-ivory); background: #101012cc; box-shadow: none; }
 .emo-bubble[data-kind="emote"] .emo-bubble-body { animation: emo-wiggle .6s ease-in-out .15s 2; }
 @keyframes emo-bubble {
   0% { opacity: 0; transform: translateY(10px) scale(.4); }

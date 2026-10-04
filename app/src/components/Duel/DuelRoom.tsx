@@ -842,7 +842,7 @@ function DuelGame({
           duel={duelHudInfo}
         />
 
-        <RunCallout callout={callout} topInset={touchDevice ? safeArea.top : 0} />
+        <RunCallout callout={callout} topInset={touchDevice ? safeArea.top : 0} topPercent={44} />
 
         <DuelEmotes
           realtime={realtime}

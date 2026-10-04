@@ -70,11 +70,20 @@ export function useRunMoments(
 }
 
 /** The on-stage callout: a big word that pops in and floats away. */
-export function RunCallout({ callout, topInset = 0 }: { callout: RunCalloutState | null; topInset?: number }) {
+export function RunCallout({
+  callout,
+  topInset = 0,
+  topPercent = 26,
+}: {
+  callout: RunCalloutState | null;
+  topInset?: number;
+  /** How far down the stage (percent) the callout sits; duels go lower to clear the race bars. */
+  topPercent?: number;
+}) {
   if (!callout) return null;
   const { title, detail } = momentCopy(callout.moment);
   return (
-    <div className="exp-callout-layer" style={{ top: `calc(${topInset}px + 26%)` }} role="status" aria-live="polite">
+    <div className="exp-callout-layer" style={{ top: `calc(${topInset}px + ${topPercent}%)` }} role="status" aria-live="polite">
       <div key={callout.id} className="exp-callout" data-kind={callout.moment.kind}>
         <strong>{title}</strong>
         <span>{detail}</span>

@@ -920,7 +920,7 @@ function DuelGame({
           }
         />
 
-        <RunCallout callout={callout} topInset={safeArea.top} />
+        <RunCallout callout={callout} topInset={safeArea.top} topPercent={44} />
 
         <DuelEmotes
           realtime={realtime}
