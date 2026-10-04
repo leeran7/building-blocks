@@ -161,7 +161,7 @@ describe("Profile header name for the longest pseudonym", () => {
 
     expect(headerName()).toBe(longest);
     // The pencil stays beside the name.
-    expect(identityCard().querySelector('button[aria-label="Edit profile & socials"]')).toBeTruthy();
+    expect(identityCard().querySelector('button[aria-label="Edit profile"]')).toBeTruthy();
   });
 });
 
@@ -181,7 +181,7 @@ describe("Profile's way into Edit Profile", () => {
         ),
       ),
     );
-    // No second "Edit profile & socials" row below the stats.
+    // No second "Edit profile" row below the stats.
     const named = [...container.querySelectorAll("button")].filter((b) =>
       (b.getAttribute("aria-label") ?? b.textContent ?? "").includes("Edit profile"),
     );
@@ -190,5 +190,31 @@ describe("Profile's way into Edit Profile", () => {
 
     act(() => named[0].click());
     expect(container.querySelector("#edit-route")).toBeTruthy();
+  });
+});
+
+describe("Profile's way into Settings", () => {
+  it("is a gear in the header, outside the identity card, and it opens /settings", () => {
+    act(() =>
+      root.render(
+        createElement(
+          MemoryRouter,
+          { initialEntries: ["/profile"] },
+          createElement(
+            Routes,
+            null,
+            createElement(Route, { path: "/profile", element: createElement(ProfileScreen) }),
+            createElement(Route, { path: "/settings", element: createElement("p", { id: "settings-route" }) }),
+          ),
+        ),
+      ),
+    );
+    const gear = container.querySelector<HTMLButtonElement>('button[aria-label="Settings"]');
+    expect(gear).toBeTruthy();
+    expect(identityCard().contains(gear)).toBe(false);
+    expect(gear?.closest("div")?.querySelector("h1")?.textContent).toBe("Profile");
+
+    act(() => gear?.click());
+    expect(container.querySelector("#settings-route")).toBeTruthy();
   });
 });

@@ -76,8 +76,8 @@ interface BannerCopy {
 const ALLTIME_COPY: BannerCopy = {
   unrankedHeadline: "Not ranked yet",
   unrankedDetail: "Finish a climb to get on the board",
-  hiddenDetail: "Turn on leaderboard visibility in Edit profile",
-  hiddenActionLabel: "Edit profile",
+  hiddenDetail: "Turn on leaderboard visibility in Settings",
+  hiddenActionLabel: "Settings",
 };
 
 const TODAY_COPY: BannerCopy = {
@@ -176,7 +176,7 @@ export function LeaderboardScreen() {
           : "ready";
 
   // Opted-out player on today's board: reuse the consent sheet from the
-  // results card instead of sending them to Edit profile.
+  // results card instead of sending them to Settings.
   const [showConsent, setShowConsent] = useState(false);
   const [consentBusy, setConsentBusy] = useState(false);
   const saveConsent = useAcceptLeaderboardConsent();
@@ -189,7 +189,7 @@ export function LeaderboardScreen() {
   }, [saveConsent]);
 
   const bannerCopy = isToday ? TODAY_COPY : ALLTIME_COPY;
-  const onHiddenAction = isToday ? () => setShowConsent(true) : () => navigate("/profile/edit");
+  const onHiddenAction = isToday ? () => setShowConsent(true) : () => navigate("/settings");
   const onPlay = () => navigate(isToday ? DAILY_PLAY_PATH : "/climb");
 
   return (

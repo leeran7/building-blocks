@@ -398,3 +398,57 @@ export function RetryPanel({ message, retrying, attempts, onRetry, children }: R
     </div>
   );
 }
+
+/* ------------------------------------------------------------ GlassSection */
+
+/** A titled glass card grouping related fields (Edit Profile, Settings). */
+export function GlassSection({ title, subtitle, children }: { title: string; subtitle?: string; children: ReactNode }) {
+  return (
+    <section className="glass rounded-3xl border border-white/10 px-5 pb-5 pt-4">
+      <h2 className="font-mono text-label font-bold uppercase tracking-label text-text-secondary">{title}</h2>
+      {subtitle && <p className="mt-1 text-meta text-text-secondary">{subtitle}</p>}
+      <div className="mt-3">{children}</div>
+    </section>
+  );
+}
+
+/* ------------------------------------------------------------------ Toggle */
+
+export interface ToggleProps {
+  label: string;
+  description: string;
+  on: boolean;
+  onToggle: () => void;
+}
+
+/** A labelled on/off switch row. The switch's accessible name is `label`. */
+export function Toggle({ label, description, on, onToggle }: ToggleProps) {
+  return (
+    <div className="flex items-center justify-between gap-4">
+      <div>
+        <p className="text-body font-semibold text-text-primary">{label}</p>
+        <p className="mt-0.5 text-meta text-text-secondary">{description}</p>
+      </div>
+      {/* The 44px-tall button is the tap target; the 32px track is drawn inside it. */}
+      <button
+        role="switch"
+        aria-checked={on}
+        aria-label={label}
+        onClick={onToggle}
+        className="group flex h-11 w-16 shrink-0 items-center justify-center rounded-full focus-visible:outline-none"
+      >
+        <span
+          aria-hidden
+          className={`relative h-8 w-14 rounded-full transition-colors duration-200 group-focus-visible:ring-2 group-focus-visible:ring-signal group-focus-visible:ring-offset-2 group-focus-visible:ring-offset-void ${
+            on ? "bg-signal shadow-[0_0_14px_rgba(203,242,77,0.45)]" : "bg-border-strong"
+          }`}
+        >
+          <span
+            className="absolute top-1 h-6 w-6 rounded-full bg-white shadow-sm transition-[left] duration-200"
+            style={{ left: on ? 28 : 4 }}
+          />
+        </span>
+      </button>
+    </div>
+  );
+}
