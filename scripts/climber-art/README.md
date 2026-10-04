@@ -64,18 +64,42 @@ inside11px gutters; all standing-pose translations and the climb shift are fused
 The crouch retains its relative height and all14 cells keep one shared scale.
 After that, each cycle is stabilised so the engine's crossfades move limbs
 rather than the whole figure: both run strides are scaled about the anchor to
-the idle's visible mass (0.9 to 1.2) and their head column is moved onto the
-idle's, then re-grounded. The climb strip is first re-sequenced into the
-smoothest loop: every frame is used once, as drawn or mirrored (a rear-view
-hand-over-hand is symmetric, so a mirrored frame is the other hand's reach),
-in the order with the smallest silhouette change between consecutive frames,
-frame 1 staying first; the report's `cycle` lists the order (`4m` = frame 4
+the idle's visible height (0.85 to 1.2; not its mass, which a spread stride
+covers less of, so matching it blew the figure up every other step) and their
+head column is moved onto the idle's, then re-grounded. The climb strip is
+first re-sequenced into the smoothest loop: every kept frame is used, as
+drawn or mirrored (a rear-view hand-over-hand is symmetric, so a mirrored
+frame is the other hand's reach), no image twice, in the order with the
+smallest silhouette change between consecutive frames, the first kept frame
+staying first; the report's `cycle` lists the order (`4m` = frame 4
 mirrored) and the per-step pixel change before and after. Then climb frames
 2 to 6 are scaled to frame 1's mass (0.9 to 1.1) and translated onto its body
 (the cross-correlation peak of the blurred alpha, up to 24px), and the strip
 is grounded as a whole. The report's `stabilised` lists each move. Generated
 climb grids are otherwise a bag of poses in no order, drifting 5 to 25px
 between renders, which ghosted and jolted every Void climb loop.
+
+A character whose loop needs a hand can carry `cycle.json` next to its
+masters, `paid-characters/art/<id>-void/cycle.json`:
+
+```json
+{"climb": {"mirror": false, "exclude": [3], "order": ["1", "2m", "4", "5", "6", "3"]}}
+```
+
+`mirror: false` keeps every frame as drawn (for a tail or marking that swaps
+sides when mirrored); `exclude` drops frames whose pose does not belong in the
+loop, their slots filled by mirrors of the others; `order` fixes the loop
+outright. Any other key, or an order that repeats a frame, fails the
+character. The report's `cycle.overrides` echoes what applied.
+
+`smoothness.py` measures the result the way a player sees it: it replays the
+engine's cycle maths (distance-driven frames, the per-character crossfade
+window from `climberCharacters.ts`) at 60 Hz and reports the largest change
+between two displayed frames, with the Wraith as the reference. `--strip`
+writes the displayed frames side by side. The Void climb strips dissolve
+continuously in the engine (`cycleBlend.climb` 0.5): six re-sequenced poses
+cut 14 times a second flicker, dissolved they read as limbs moving, and every
+Void climb then changes less per displayed frame than the Wraith's does.
 Factors below0.65 or shifts over24px fail. Empty frames, clipped
 edges, wrong aspect, and climb pairs with <=1000 visibly different pixels
 fail the character without writing either output. JSON reports record the shared factor, whole-sheet shifts, individual grounding

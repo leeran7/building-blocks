@@ -76,6 +76,10 @@ share this cycle in `tools/climber-art/climb_cycle.py`, and
   192-cell px) to `sheets()`. Do not rescale the sheet to fit.
 - The engine does the smoothing: distance-driven cycles, crossfades, bob,
   lean, squash and stretch. Do not bake motion blur or ground shadows in.
+  A cycle drawn as steps of one motion (the Wraith's) wants the default
+  short crossfade; a cycle assembled from generated poses can ask for a
+  continuous dissolve per cycle with `cycleBlend` (0 to 0.5):
+  `sheets("otter-void", { headTop: 43, cycleBlend: { climb: 0.5 } })`.
 
 ## Registering a character
 
