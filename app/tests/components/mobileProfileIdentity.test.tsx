@@ -212,7 +212,11 @@ describe("Profile's way into Settings", () => {
     const gear = container.querySelector<HTMLButtonElement>('button[aria-label="Settings"]');
     expect(gear).toBeTruthy();
     expect(identityCard().contains(gear)).toBe(false);
-    expect(gear?.closest("div")?.querySelector("h1")?.textContent).toBe("Profile");
+    // In the header: after the Profile title in page order, before the identity card.
+    const title = container.querySelector("h1");
+    expect(title?.textContent).toBe("Profile");
+    expect(title!.compareDocumentPosition(gear!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(gear!.compareDocumentPosition(identityCard()) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 
     act(() => gear?.click());
     expect(container.querySelector("#settings-route")).toBeTruthy();

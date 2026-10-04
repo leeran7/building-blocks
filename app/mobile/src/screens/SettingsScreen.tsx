@@ -2,20 +2,16 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { apiFetch } from "../lib/api";
 import { useAuth } from "../contexts/AuthContext";
-import {
-  useSettings,
-  useClearAppData,
-  useInvalidateAppData,
-  echoedSetting,
-} from "../contexts/AppDataContext";
+import { useSettings, useClearAppData } from "../contexts/AppDataContext";
 import { tapLight, notifyError, isHapticsEnabled, setHapticsEnabled } from "../lib/haptics";
-import { hasLeaderboardConsent, setLeaderboardConsent } from "../lib/consent";
+import { hasLeaderboardConsent } from "../lib/consent";
 import { clearDailyStore } from "@app/lib/daily";
 import { ControlSchemePicker } from "@app/components/ControlSchemePicker";
 import { isSfxMuted, setSfxMuted } from "@app/components/Game/sfxMute";
 import { GlassSection, PushHeader, RetryPanel, Toggle } from "../components/ui";
 import { useBackOr } from "../lib/navigation";
 import { useRetry } from "../hooks/useRetry";
+import { useSaveLeaderboardConsent } from "../hooks/useAcceptLeaderboardConsent";
 
 /** The visibility toggle flipped back: the PUT failed, or its 200 did not echo the value. */
 export const VISIBILITY_NOT_SAVED = "Couldn't save your leaderboard visibility. Try again.";
@@ -33,16 +29,18 @@ export function SettingsScreen() {
   const { signOut } = useAuth();
   const settingsSlice = useSettings();
   const clearAll = useClearAppData();
-  const invalidate = useInvalidateAppData();
+  const saveConsent = useSaveLeaderboardConsent();
 
   const settingsData = settingsSlice.data;
-  const { setSettings, refreshSettings } = settingsSlice;
+  const { refreshSettings } = settingsSlice;
   const goBack = useBackOr("/profile");
-  const headingRef = useRef<HTMLHeadingElement>(null);
+  // Only the Privacy card waits on the settings load, so a recovered load
+  // puts focus back on that card, not the top of the page.
+  const privacyHeadingRef = useRef<HTMLHeadingElement>(null);
   const settingsRetry = useRetry(refreshSettings, {
     failed: settingsSlice.error,
     hasData: settingsData !== null,
-    focusOnRecover: headingRef,
+    focusOnRecover: privacyHeadingRef,
   });
 
   const [soundOn, setSoundOn] = useState(() => !isSfxMuted());
@@ -73,6 +71,12 @@ export function SettingsScreen() {
     else if (prevConfirm.current) deleteTriggerRef.current?.focus();
     prevConfirm.current = deleteConfirm;
   }, [deleteConfirm]);
+  // A failed delete keeps the confirm open with its error inside. Delete was
+  // disabled while the request ran, which drops focus to <body>, so bring it
+  // back into the confirm where the error is read out.
+  useEffect(() => {
+    if (deleteError) confirmRef.current?.focus();
+  }, [deleteError]);
 
   const signOutNow = async () => {
     void tapLight();
@@ -81,33 +85,16 @@ export function SettingsScreen() {
     navigate("/");
   };
 
+  // Flips at once; flips back with a message unless the server echoes it.
   const toggleLeaderboard = async () => {
     const next = !leaderboardVisible;
     setLeaderboardVisible(next);
-    setLeaderboardConsent(next);
     setVisibilityError(null);
     if (next) void tapLight();
-    try {
-      const res = await apiFetch("/api/settings", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ leaderboardConsent: next }),
-      });
-      if (!res.ok) throw new Error("save failed");
-      // Server truth only, as on the avatar picker: a 200 whose settings do not
-      // carry the value sent did not store it, so the toggle flips back.
-      const confirmed = echoedSetting(await res.json().catch(() => null), "leaderboardConsent", next);
-      if (!confirmed) throw new Error("not saved");
-      if (settingsData) {
-        setSettings({ ...settingsData, leaderboardConsent: confirmed.leaderboardConsent });
-      }
-      invalidate(["leaderboard"]);
-    } catch {
-      setLeaderboardVisible(!next);
-      setLeaderboardConsent(!next);
-      setVisibilityError(VISIBILITY_NOT_SAVED);
-      void notifyError();
-    }
+    if (await saveConsent(next)) return;
+    setLeaderboardVisible(!next);
+    setVisibilityError(VISIBILITY_NOT_SAVED);
+    void notifyError();
   };
 
   const deleteAccount = async () => {
@@ -137,7 +124,7 @@ export function SettingsScreen() {
 
   return (
     <main className="flex h-full flex-col">
-      <PushHeader title="Settings" onBack={goBack} headingRef={headingRef} />
+      <PushHeader title="Settings" onBack={goBack} />
 
       <div
         className="flex-1 overflow-y-auto px-4"
@@ -176,7 +163,7 @@ export function SettingsScreen() {
             />
           </GlassSection>
 
-          <GlassSection title="Privacy">
+          <GlassSection title="Privacy" headingRef={privacyHeadingRef}>
             {settingsRetry.showError ? (
               <RetryPanel
                 message={VISIBILITY_LOAD_FAILED}

@@ -15,8 +15,9 @@ import type { SettingsData } from "../../mobile/src/contexts/AppDataContext";
 
 (globalThis as Record<string, unknown>).IS_REACT_ACT_ENVIRONMENT = true;
 
-const { apiFetch, setSettings, invalidate, signOut, clearAll, state } = vi.hoisted(() => ({
+const { apiFetch, setSettings, invalidate, signOut, clearAll, clearDailyStore, state } = vi.hoisted(() => ({
   apiFetch: vi.fn(),
+  clearDailyStore: vi.fn(),
   setSettings: vi.fn(),
   invalidate: vi.fn(),
   signOut: vi.fn(async () => {}),
@@ -25,6 +26,10 @@ const { apiFetch, setSettings, invalidate, signOut, clearAll, state } = vi.hoist
 }));
 
 vi.mock("../../mobile/src/lib/api", () => ({ apiFetch, API_BASE: "https://example.test" }));
+vi.mock("@app/lib/daily", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@app/lib/daily")>()),
+  clearDailyStore,
+}));
 vi.mock("../../mobile/src/contexts/AuthContext", () => ({
   useAuth: () => ({ user: { uid: "u1" }, loading: false, signOut }),
 }));
@@ -47,6 +52,7 @@ vi.mock("../../mobile/src/contexts/AppDataContext", async (importOriginal) => {
       setSettings,
       refreshSettings: vi.fn(async () => {}),
     }),
+    useSetSettings: () => setSettings,
     useInvalidateAppData: () => invalidate,
     useClearAppData: () => clearAll,
   };
@@ -54,6 +60,8 @@ vi.mock("../../mobile/src/contexts/AppDataContext", async (importOriginal) => {
 
 import { SettingsScreen, VISIBILITY_NOT_SAVED } from "../../mobile/src/screens/SettingsScreen";
 import { isSfxMuted } from "@app/components/Game/sfxMute";
+import { CONSENT_STALE_SLICES } from "../../mobile/src/hooks/useAcceptLeaderboardConsent";
+import { hasLeaderboardConsent, setLeaderboardConsent } from "../../mobile/src/lib/consent";
 
 function settings(over: Partial<SettingsData> = {}): SettingsData {
   return {
@@ -64,6 +72,11 @@ function settings(over: Partial<SettingsData> = {}): SettingsData {
     avatarId: null,
     ...over,
   };
+}
+
+function withoutConsentBody() {
+  const { leaderboardConsent: _dropped, ...rest } = settings();
+  return rest;
 }
 
 function json(body: unknown, status = 200): Response {
@@ -188,6 +201,23 @@ describe("Settings before the server settings arrive", () => {
     expect(signOut).toHaveBeenCalledTimes(1);
     expect(apiFetch).not.toHaveBeenCalled();
   });
+
+  it("puts focus on the Privacy card, not the top of the page, when Try again recovers", async () => {
+    state.settings = null;
+    state.error = true;
+    renderSettings();
+    const tryAgain = button(/^Try again$/);
+    tryAgain?.focus();
+    expect(document.activeElement).toBe(tryAgain);
+
+    // The load lands: the panel (and the focused button) gives way to the switch.
+    state.settings = settings();
+    state.error = false;
+    renderSettings();
+    expect(visibility()).toBeTruthy();
+    expect(document.activeElement?.textContent).toBe("Privacy");
+    expect(document.activeElement?.closest("section")?.contains(visibility())).toBe(true);
+  });
 });
 
 describe("Delete account", () => {
@@ -200,16 +230,33 @@ describe("Delete account", () => {
 
     await click(button(/^Delete$/));
     expect(apiFetch).toHaveBeenCalledWith("/api/account/delete", { method: "DELETE" });
+    expect(clearAll).toHaveBeenCalledTimes(1);
+    expect(clearDailyStore).toHaveBeenCalledTimes(1);
     expect(signOut).toHaveBeenCalledTimes(1);
   });
 
-  it("stays signed in and says why when the delete fails", async () => {
-    apiFetch.mockResolvedValueOnce(json({ error: "Nope" }, 500));
+  it.each([
+    ["the server refuses", () => apiFetch.mockResolvedValueOnce(json({ error: "Nope" }, 500)), "Nope"],
+    [
+      "the request never arrives",
+      () => apiFetch.mockRejectedValueOnce(new TypeError("Failed to fetch")),
+      "Could not delete account. Check your connection.",
+    ],
+  ])("stays signed in, keeps local data and says why inside the open confirm when %s", async (_case, arrange, message) => {
+    arrange();
     renderSettings();
     await click(button(/^Delete account$/));
+    // A tap focuses Delete, which the request then disables.
+    button(/^Delete$/)?.focus();
     await click(button(/^Delete$/));
     expect(signOut).not.toHaveBeenCalled();
-    expect(alerts()).toEqual(["Nope"]);
+    expect(clearAll).not.toHaveBeenCalled();
+    expect(clearDailyStore).not.toHaveBeenCalled();
+    expect(alerts()).toEqual([message]);
+    // Focus is in the confirm with the error, not dropped to <body>.
+    const confirm = container.querySelector('[role="alertdialog"]');
+    expect(confirm?.contains(container.querySelector('[role="alert"]'))).toBe(true);
+    expect(document.activeElement).toBe(confirm);
   });
 });
 
@@ -229,7 +276,15 @@ describe("Leaderboard visibility counts as saved only when the server echoes it"
     });
     expect(visibility()?.getAttribute("aria-checked")).toBe("false");
     expect(setSettings).toHaveBeenCalledWith(expect.objectContaining({ leaderboardConsent: false }));
-    expect(invalidate).toHaveBeenCalledWith(["leaderboard"]);
+    // Every board the player's visibility shows on, not only the all-time one.
+    expect(invalidate).toHaveBeenCalledWith(CONSENT_STALE_SLICES);
+    expect(hasLeaderboardConsent()).toBe(false);
+  });
+
+  it("leaves the device's consent as it was until the server confirms", async () => {
+    setLeaderboardConsent(true);
+    await toggleAfter(json(withoutConsentBody()));
+    expect(hasLeaderboardConsent()).toBe(true);
   });
 
   it("flips back when the 200 carries no leaderboardConsent, which would parse as false", async () => {

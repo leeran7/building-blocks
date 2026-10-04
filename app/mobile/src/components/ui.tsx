@@ -1,4 +1,4 @@
-import type { ButtonHTMLAttributes, ReactNode, Ref } from "react";
+import { useId, type ButtonHTMLAttributes, type ReactNode, type Ref } from "react";
 import { tapLight } from "../lib/haptics";
 
 /**
@@ -401,11 +401,25 @@ export function RetryPanel({ message, retrying, attempts, onRetry, children }: R
 
 /* ------------------------------------------------------------ GlassSection */
 
+export interface GlassSectionProps {
+  title: string;
+  subtitle?: string;
+  /** Makes the title a programmatic focus target (tabIndex -1), e.g. useRetry's focusOnRecover. */
+  headingRef?: Ref<HTMLHeadingElement>;
+  children: ReactNode;
+}
+
 /** A titled glass card grouping related fields (Edit Profile, Settings). */
-export function GlassSection({ title, subtitle, children }: { title: string; subtitle?: string; children: ReactNode }) {
+export function GlassSection({ title, subtitle, headingRef, children }: GlassSectionProps) {
   return (
     <section className="glass rounded-3xl border border-white/10 px-5 pb-5 pt-4">
-      <h2 className="font-mono text-label font-bold uppercase tracking-label text-text-secondary">{title}</h2>
+      <h2
+        ref={headingRef}
+        tabIndex={headingRef ? -1 : undefined}
+        className="font-mono text-label font-bold uppercase tracking-label text-text-secondary focus:outline-none"
+      >
+        {title}
+      </h2>
       {subtitle && <p className="mt-1 text-meta text-text-secondary">{subtitle}</p>}
       <div className="mt-3">{children}</div>
     </section>
@@ -421,19 +435,23 @@ export interface ToggleProps {
   onToggle: () => void;
 }
 
-/** A labelled on/off switch row. The switch's accessible name is `label`. */
+/** A labelled on/off switch row. The switch's accessible name is `label`; `description` describes it. */
 export function Toggle({ label, description, on, onToggle }: ToggleProps) {
+  const descriptionId = useId();
   return (
     <div className="flex items-center justify-between gap-4">
       <div>
         <p className="text-body font-semibold text-text-primary">{label}</p>
-        <p className="mt-0.5 text-meta text-text-secondary">{description}</p>
+        <p id={descriptionId} className="mt-0.5 text-meta text-text-secondary">
+          {description}
+        </p>
       </div>
       {/* The 44px-tall button is the tap target; the 32px track is drawn inside it. */}
       <button
         role="switch"
         aria-checked={on}
         aria-label={label}
+        aria-describedby={descriptionId}
         onClick={onToggle}
         className="group flex h-11 w-16 shrink-0 items-center justify-center rounded-full focus-visible:outline-none"
       >

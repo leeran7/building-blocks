@@ -33,9 +33,10 @@ const INPUT =
 
 /**
  * Edit Profile — identity and socials. Preferences and the account actions
- * live on Settings (the gear on Profile). Pushed from Profile; seeds its form once from the shared settings cache so a
- * background refresh never clobbers an in-progress edit. Unsaved fields survive
- * a trip to the avatar picker (see lib/editProfileDraft).
+ * live on Settings (the gear on Profile). Pushed from Profile; seeds its form
+ * once from the shared settings cache so a background refresh never clobbers
+ * an in-progress edit. Unsaved fields survive a trip to the avatar picker (see
+ * lib/editProfileDraft).
  *
  * The form only renders once real settings arrived, and Save needs the seed:
  * a PUT from an unseeded (empty) form would null the saved username and
