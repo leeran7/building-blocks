@@ -2,8 +2,10 @@ import { FIGURE_PX, ladderX, pinX, slabTop, slabUnderside } from "./towerGeometr
 
 /**
  * The climb the level map plays when the player comes back having cleared
- * floors: their character walks to each ladder, climbs it, and steps onto the
- * next floor, one floor per level cleared since the map last showed them.
+ * floors: their character walks to the first ladder and climbs it, walks
+ * along each floor it passes straight to the next ladder (never past it), and
+ * ends in the middle of the new floor: one floor per level cleared since the
+ * map last showed them.
  *
  * Positions use the map's units (towerGeometry): x is % of its width, y is px
  * from its bottom edge, at the figure's feet.
@@ -40,26 +42,28 @@ export interface ClimbSegment {
   /** Start time from the climb's start, seconds. */
   at: number;
   seconds: number;
-  /** The floor this segment ends standing on, when it ends on one. */
+  /** The floor this segment climbs onto, when it ends a ladder. */
   lands: number | null;
 }
 
 /** The segments from floor `from` up to floor `to`, timed from 0 (after the lead-in). */
 export function climbPath(from: number, to: number): ClimbSegment[] {
   const raw: Array<Omit<ClimbSegment, "at" | "seconds"> & { length: number }> = [];
-  const walk = (x0: number, x1: number, y: number, lands: number | null) => {
-    if (Math.abs(x1 - x0) > 1e-6) raw.push({ pose: "walk", x0, y0: y, x1, y1: y, lands, length: Math.abs(x1 - x0) / WALK_PCT_PER_S });
-    else if (lands !== null && raw.length > 0) raw[raw.length - 1].lands = lands;
+  const walk = (x0: number, x1: number, y: number) => {
+    if (Math.abs(x1 - x0) > 1e-6) raw.push({ pose: "walk", x0, y0: y, x1, y1: y, lands: null, length: Math.abs(x1 - x0) / WALK_PCT_PER_S });
   };
   for (let n = from; n < to; n++) {
     const x = ladderX(n);
-    walk(pinX(n), x, slabTop(n), null);
+    // From the start floor's middle, then straight from ladder to ladder: a
+    // floor passed through is never walked to its middle and back.
+    walk(n === from ? pinX(n) : ladderX(n - 1), x, slabTop(n));
     // Up the ladder, then quicker through the slab above (the ladders run behind the floors).
     const through = slabUnderside(n + 1) - FIGURE_PX;
     raw.push({ pose: "climb", x0: x, y0: slabTop(n), x1: x, y1: through, lands: null, length: (through - slabTop(n)) / CLIMB_PX_PER_S });
-    raw.push({ pose: "climb", x0: x, y0: through, x1: x, y1: slabTop(n + 1), lands: null, length: (slabTop(n + 1) - through) / (CLIMB_PX_PER_S * THROUGH_SPEEDUP) });
-    walk(x, pinX(n + 1), slabTop(n + 1), n + 1);
+    raw.push({ pose: "climb", x0: x, y0: through, x1: x, y1: slabTop(n + 1), lands: n + 1, length: (slabTop(n + 1) - through) / (CLIMB_PX_PER_S * THROUGH_SPEEDUP) });
   }
+  // Off the last ladder to the middle of the new floor.
+  walk(ladderX(to - 1), pinX(to), slabTop(to));
   const total = raw.reduce((sum, s) => sum + s.length, 0);
   const scale = total > MAX_CLIMB_S ? MAX_CLIMB_S / total : 1;
   let at = 0;

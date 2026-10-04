@@ -80,7 +80,7 @@ describe("climb path", () => {
   it("walks to each ladder, climbs it and steps onto the next floor, landing on every floor once", () => {
     const path = climbPath(1, 8);
     expect(path[0]).toMatchObject({ x0: pinX(1), y0: slabTop(1) });
-    expect(path[path.length - 1]).toMatchObject({ x1: pinX(8), y1: slabTop(8), lands: 8 });
+    expect(path[path.length - 1]).toMatchObject({ x1: pinX(8), y1: slabTop(8) });
     expect(path.map((s) => s.lands).filter((n) => n !== null)).toEqual([2, 3, 4, 5, 6, 7, 8]);
 
     // Each ladder is two climb segments: up to where the head meets the slab above, then quicker through it.
@@ -105,17 +105,42 @@ describe("climb path", () => {
     }
   });
 
+  it("never turns back on a floor it passes through: it walks straight from ladder to ladder", () => {
+    let checked = 0;
+    for (const [from, to] of [[1, 8], [2, 9], [3, 15], [EPISODE_SIZE - 3, EPISODE_SIZE + 4]]) {
+      const path = climbPath(from, to);
+      for (let n = from + 1; n < to; n++) {
+        // On a floor passed through, at most one walk, from the ladder below to the ladder above.
+        const walks = path.filter((s) => s.pose === "walk" && s.y0 === slabTop(n));
+        expect(walks.length, `floor ${n}`).toBeLessThanOrEqual(1);
+        for (const w of walks) {
+          expect(w.x0).toBe(ladderX(n - 1));
+          expect(w.x1).toBe(ladderX(n));
+        }
+        checked++;
+      }
+      // The whole route moves across the map at most once per floor, and only the end goes to a slab's middle.
+      const middles = path.filter((s) => s.pose === "walk" && s.x1 === pinX(to) && s.y0 === slabTop(to));
+      expect(middles.length).toBeLessThanOrEqual(1);
+    }
+    expect(checked).toBeGreaterThan(0);
+    // Floors 2 and 3 share a ladder spot: climbing 2 -> 4 goes straight up with no walk on floor 3.
+    expect(ladderX(2)).toBe(ladderX(3));
+    expect(climbPath(2, 4).filter((s) => s.pose === "walk" && s.y0 === slabTop(3))).toEqual([]);
+  });
+
   it("climbs through an episode landing in one go", () => {
     const path = climbPath(EPISODE_SIZE, EPISODE_SIZE + 1);
     const climbs = path.filter((s) => s.pose === "climb");
     expect(climbs.length).toBe(2);
     expect(climbs[1].y1 - climbs[0].y0).toBeGreaterThan(slabTop(3) - slabTop(2));
-    expect(path[path.length - 1].lands).toBe(EPISODE_SIZE + 1);
+    expect(path.filter((s) => s.lands !== null).map((s) => s.lands)).toEqual([EPISODE_SIZE + 1]);
   });
 
   it("fits a long climb into MAX_CLIMB_S, and leaves a short one at walking pace", () => {
-    const long = climbPath(1, 1 + MAX_CLIMB_FLOORS);
-    expect(climbDuration(long)).toBeCloseTo(MAX_CLIMB_S, 9);
+    // Past the floor cap a path still fits (climbPath itself takes any span).
+    expect(climbDuration(climbPath(1, 1 + 4 * MAX_CLIMB_FLOORS))).toBeCloseTo(MAX_CLIMB_S, 9);
+    expect(climbDuration(climbPath(1, 1 + MAX_CLIMB_FLOORS))).toBeLessThanOrEqual(MAX_CLIMB_S);
     const short = climbDuration(climbPath(1, 2));
     expect(short).toBeGreaterThan(0.3);
     expect(short).toBeLessThan(MAX_CLIMB_S / 4);
