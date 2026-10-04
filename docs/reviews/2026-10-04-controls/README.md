@@ -39,3 +39,11 @@ The mobile app's run screens add a Vibration switch, which uses the same saved h
 | Before | After | After: switched off |
 |--|--|--|
 | <img src="after-climb-settings.jpg" width="240" alt="Panel with Sound and Controls"> | <img src="after-vibration.jpg" width="240" alt="Panel with Sound, Vibration On and Controls"> | <img src="after-vibration-off.jpg" width="240" alt="Vibration Off"> |
+
+## Climb header on phones
+
+In the Endless climb (no goal bar, no power-up active), the back and cog buttons took the first grid column and squeezed Lava Clearance into the narrow button column. Every item in the top row now has an explicit column. This is the same CSS as the HUD fix PR #230, ported here; it no-ops once the base carries it.
+
+| Before | After | After: cog open |
+|--|--|--|
+| <img src="before-hud.jpg" width="300" alt="Buttons on the left, Lava Clearance crushed into a sliver on the right edge"> | <img src="after-hud.jpg" width="300" alt="Height, Lava Clearance and the buttons side by side"> | <img src="after-hud-settings.jpg" width="240" alt="Settings panel hanging from the cog on the right"> |

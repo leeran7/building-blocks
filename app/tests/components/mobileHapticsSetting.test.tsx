@@ -5,7 +5,7 @@
  * @vitest-environment happy-dom
  */
 
-import { act, createElement } from "react";
+import { act, createElement, useEffect } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { isHapticsEnabled, useHapticsSetting } from "../../mobile/src/lib/hapticsSetting";
@@ -14,15 +14,26 @@ import { isHapticsEnabled, useHapticsSetting } from "../../mobile/src/lib/haptic
 
 let container: HTMLDivElement;
 let root: Root;
-let setting: ReturnType<typeof useHapticsSetting>;
+const seen: { current: ReturnType<typeof useHapticsSetting> | null } = { current: null };
 
 function Probe() {
-  setting = useHapticsSetting();
+  const value = useHapticsSetting();
+  useEffect(() => {
+    seen.current = value;
+  });
   return null;
 }
 
+const setting = {
+  get enabled() {
+    return seen.current!.enabled;
+  },
+  onToggle: () => seen.current!.onToggle(),
+};
+
 beforeEach(() => {
   localStorage.clear();
+  seen.current = null;
   container = document.createElement("div");
   root = createRoot(container);
 });
