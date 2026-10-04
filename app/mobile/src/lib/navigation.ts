@@ -25,6 +25,20 @@ export function parentRoute(pathname: string): string {
 }
 
 /**
+ * The full-screen runs: Endless (/climb), a level, a duel and the training
+ * climb. They take the whole screen, so moving into or out of one is a zoom
+ * (RouteTransition), and the left edge belongs to the game, not swipe-back.
+ */
+export function isGameRoute(pathname: string): boolean {
+  return (
+    pathname === "/climb" ||
+    pathname === "/tutorial" ||
+    pathname.startsWith("/duel/") ||
+    /^\/levels\/\d+\/play$/.test(pathname)
+  );
+}
+
+/**
  * True when there is an in-app entry behind the current one, so `navigate(-1)`
  * stays inside the app. On a cold start or deep link (`#/settings`,
  * `#/profile/edit`) the first entry belongs to whatever was open before, and

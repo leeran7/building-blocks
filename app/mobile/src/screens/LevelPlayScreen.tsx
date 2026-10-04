@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { AnimatePresence } from "motion/react";
 import { useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 
 import { TICK_HZ } from "@app/game/types";
@@ -281,6 +282,7 @@ export function LevelPlayScreen() {
           Checking your run…
         </div>
       )}
+      <AnimatePresence>
       {stage.kind === "result" && (
         <LevelResultCard
           result={player ? { ...stage.result, player } : stage.result}
@@ -297,6 +299,7 @@ export function LevelPlayScreen() {
           refill={refill.offer}
         />
       )}
+      </AnimatePresence>
       {refill.overlays}
       {stage.kind === "failed" && (
         <SubmitFailedCard level={level} busy={false} onRetry={() => void submit(stage.report)} onMap={() => toMap()} />

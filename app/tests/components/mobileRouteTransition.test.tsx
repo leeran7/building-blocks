@@ -43,8 +43,10 @@ import {
 } from "../../mobile/src/components/RouteTransition";
 import { BottomNavDock, isTabRoot } from "../../mobile/src/components/BottomNav";
 import { SheetPortal } from "../../mobile/src/components/SheetPortal";
+import { PageSwap } from "../../mobile/src/components/PageSwap";
+import { isGameRoute } from "../../mobile/src/lib/navigation";
 
-const PATHS = ["/", "/shop", "/shop/wraith", "/profile", "/settings"];
+const PATHS = ["/", "/shop", "/shop/wraith", "/profile", "/settings", "/climb", "/levels/3/play", "/levels/4/play"];
 /** Longer than any transition in the system (lib/motionTokens). */
 const SETTLE_MS = 900;
 
@@ -140,6 +142,14 @@ describe("transitionKind", () => {
     ["/settings", "/profile", NavigationType.Replace, "pop"],
     ["/shop/wraith", "/shop", NavigationType.Push, "pop"],
     ["/profile/edit", "/settings", NavigationType.Pop, "pop"],
+    ["/", "/climb", NavigationType.Push, "launch"],
+    ["/", "/levels/3/play", NavigationType.Push, "launch"],
+    ["/challenge", "/duel/abc", NavigationType.Push, "launch"],
+    ["/levels/3/play", "/levels/4/play", NavigationType.Replace, "launch"],
+    ["/climb", "/", NavigationType.Pop, "land"],
+    ["/levels/3/play", "/", NavigationType.Replace, "land"],
+    ["/tutorial", "/", NavigationType.Replace, "land"],
+    ["/climb", "/leaderboard", NavigationType.Replace, "land"],
   ] as const)("%s -> %s (%s) is a %s", (from, to, nav, kind) => {
     expect(transitionKind(from, to, nav)).toBe(kind);
   });
@@ -172,6 +182,15 @@ describe("scene motion", () => {
     expect(fade.delay).toBe(0);
     expect(sceneEnterFrom(swiped)).toMatchObject({ opacity: 0, x: -40 });
     expect(sceneExitTo({ ...swiped, reduce: true })).toEqual({ opacity: 0, transition: { duration: 0 } });
+  });
+
+  it("zooms a run up into place while the screen behind sinks back, and reverses it on the way out", () => {
+    expect(sceneEnterFrom({ ...base, kind: "launch" })).toEqual({ opacity: 0, scale: 1.06 });
+    expect(sceneExitTo({ ...base, kind: "launch" })).toMatchObject({ opacity: 0, scale: 0.96 });
+    expect(sceneEnterFrom({ ...base, kind: "land" })).toEqual({ opacity: 0, scale: 0.96 });
+    expect(sceneExitTo({ ...base, kind: "land" })).toMatchObject({ opacity: 0, scale: 1.06 });
+    expect(sceneRest({ ...base, kind: "launch" })).toMatchObject({ opacity: 1, scale: 1 });
+    expect(sceneEnterFrom({ ...base, kind: "launch", reduce: true })).toEqual({ opacity: 1, x: 0, y: 0, scale: 1 });
   });
 
   it("moves nothing under reduced motion", () => {
@@ -289,6 +308,104 @@ describe("a swipe still in progress when its screen starts leaving", () => {
     });
     await settle();
     expect(scenes().map((s) => s.textContent)).toEqual(["/settings"]);
+  });
+});
+
+describe("isGameRoute", () => {
+  it.each(["/climb", "/tutorial", "/levels/3/play", "/levels/12/play", "/duel/abc"])("treats %s as a full-screen run", (p) => {
+    expect(isGameRoute(p)).toBe(true);
+  });
+  it.each(["/", "/levels", "/levels/3", "/levels/x/play", "/levels/3/play/x", "/climbing", "/duel", "/shop/climb"])(
+    "treats %s as an ordinary screen",
+    (p) => {
+      expect(isGameRoute(p)).toBe(false);
+    },
+  );
+});
+
+describe("runs zoom in and out", () => {
+  it("sinks the map back as a run zooms in over it, then drops the map", async () => {
+    await mount(["/"]);
+    await settle();
+    const map = sceneOf("/");
+    await go("/climb");
+    expect(sceneOf("/")).toBe(map);
+    expect(map?.dataset.routeRole).toBe("exit");
+    expect(map?.dataset.routeKind).toBe("launch");
+    expect(map?.hasAttribute("inert")).toBe(true);
+    expect(sceneOf("/climb")?.dataset.routeKind).toBe("launch");
+    expect(sceneOf("/climb")?.dataset.routeRole).toBe("enter");
+    await settle();
+    expect(scenes().map((s) => s.textContent)).toEqual(["/climb"]);
+  });
+
+  it("lifts a finished run away as the map rises back", async () => {
+    await mount(["/", "/levels/3/play"]);
+    await settle();
+    await go(-1);
+    expect(sceneOf("/levels/3/play")?.dataset.routeRole).toBe("exit");
+    expect(sceneOf("/levels/3/play")?.dataset.routeKind).toBe("land");
+    expect(sceneOf("/")?.dataset.routeKind).toBe("land");
+    await settle();
+    expect(scenes().map((s) => s.textContent)).toEqual(["/"]);
+  });
+
+  it("leaves a run's left edge to the game: an edge swipe never steps back", async () => {
+    await mount(["/", "/climb"]);
+    await settle();
+    const scene = sceneOf("/climb");
+    if (!scene) throw new Error("scene not found");
+    for (const [type, x] of [["touchstart", 4], ["touchmove", 30], ["touchmove", 380], ["touchend", 0]] as const) {
+      await act(async () => {
+        touch(scene, type, x);
+      });
+    }
+    await settle();
+    expect(scenes().map((s) => s.textContent)).toEqual(["/climb"]);
+    expect(scene.style.transform).not.toContain("translateX");
+  });
+});
+
+describe("PageSwap", () => {
+  let setPage: (p: { page: string; back: boolean }) => void = () => {};
+  function Pages() {
+    const [state, set] = useState({ page: "options", back: false });
+    useEffect(() => {
+      setPage = set;
+    }, []);
+    return createElement(PageSwap, { page: state.page, back: state.back, children: createElement("p", null, state.page) });
+  }
+  const pages = () => [...container.querySelectorAll<HTMLElement>("[data-page]")];
+
+  it("slides the next page in beside the old one, which is inert until it is gone", async () => {
+    await act(async () => {
+      root = createRoot(container);
+      root.render(createElement(Pages));
+    });
+    // The first page is just there: no entrance on mount.
+    expect(pages().map((p) => p.dataset.pageRole)).toEqual(["enter"]);
+    await act(async () => {
+      setPage({ page: "email", back: false });
+    });
+    const old = pages().find((p) => p.dataset.page === "options");
+    expect(old?.dataset.pageRole).toBe("exit");
+    expect(old?.hasAttribute("inert")).toBe(true);
+    expect(pages().find((p) => p.dataset.page === "email")?.dataset.pageRole).toBe("enter");
+    await settle();
+    expect(pages().map((p) => p.dataset.page)).toEqual(["email"]);
+  });
+
+  it("drops the old page straight away under reduced motion", async () => {
+    motion.reduce = true;
+    await act(async () => {
+      root = createRoot(container);
+      root.render(createElement(Pages));
+    });
+    await act(async () => {
+      setPage({ page: "email", back: true });
+    });
+    await settle(80);
+    expect(pages().map((p) => p.dataset.page)).toEqual(["email"]);
   });
 });
 

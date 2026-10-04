@@ -1,4 +1,4 @@
-import { Routes, Route, useLocation, useNavigate } from "react-router-dom";
+import { Routes, Route, useNavigate } from "react-router-dom";
 import { ClimbScreen } from "../screens/ClimbScreen";
 import { LevelMapScreen } from "../screens/LevelMapScreen";
 import { LevelPlayScreen } from "../screens/LevelPlayScreen";
@@ -8,6 +8,7 @@ import { GUEST_MAP_PATH, GuestProvider } from "../contexts/GuestContext";
 import { GUEST_LEVEL_CAP } from "../lib/levels/guestClient";
 import { guestOnboarding } from "../lib/onboarding";
 import { AnimatedBackdrop } from "./AnimatedBackdrop";
+import { RouteTransition } from "./RouteTransition";
 import { LogoLockup } from "./LogoMark";
 import { tapHeavy, tapLight } from "../lib/haptics";
 
@@ -19,7 +20,6 @@ import { tapHeavy, tapLight } from "../lib/haptics";
  */
 export function GuestShell({ onSignIn }: { onSignIn: () => void }) {
   const navigate = useNavigate();
-  const location = useLocation();
 
   // The first thing a guest starts goes through the training climb first.
   const start = (path: GuestTrainingNext) => {
@@ -37,38 +37,42 @@ export function GuestShell({ onSignIn }: { onSignIn: () => void }) {
         <div className="relative flex h-[100dvh] w-full flex-col overflow-hidden bg-void">
           <AnimatedBackdrop />
           <div className="relative z-10 flex-1 overflow-hidden">
-            <Routes>
-              <Route path="/climb" element={<ClimbScreen onSignIn={onSignIn} />} />
-              <Route path={GUEST_MAP_PATH} element={<LevelMapScreen />} />
-              {/* Keyed by entry so "Practice this level" from a result starts fresh.
-                  Literal, like App.tsx: the shared map and start card navigate to /levels/N/play. */}
-              <Route path="/levels/:level/play" element={<LevelPlayScreen key={location.key} />} />
-              <Route path="/tutorial" element={<TrainingScreen />} />
-              <Route
-                path="*"
-                element={
-                  <GuestHome
-                    onPlay={() => {
-                      void tapHeavy();
-                      start("/climb");
-                    }}
-                    onLevels={() => {
-                      void tapHeavy();
-                      // The map itself opens the training for a new guest.
-                      navigate(GUEST_MAP_PATH);
-                    }}
-                    onHowToPlay={() => {
-                      void tapLight();
-                      navigate("/tutorial");
-                    }}
-                    onSignIn={() => {
-                      void tapLight();
-                      onSignIn();
-                    }}
+            <RouteTransition>
+              {(routeLocation) => (
+                <Routes location={routeLocation}>
+                  <Route path="/climb" element={<ClimbScreen onSignIn={onSignIn} />} />
+                  <Route path={GUEST_MAP_PATH} element={<LevelMapScreen />} />
+                  {/* Keyed by entry so "Practice this level" from a result starts fresh.
+                      Literal, like App.tsx: the shared map and start card navigate to /levels/N/play. */}
+                  <Route path="/levels/:level/play" element={<LevelPlayScreen key={routeLocation.key} />} />
+                  <Route path="/tutorial" element={<TrainingScreen />} />
+                  <Route
+                    path="*"
+                    element={
+                      <GuestHome
+                        onPlay={() => {
+                          void tapHeavy();
+                          start("/climb");
+                        }}
+                        onLevels={() => {
+                          void tapHeavy();
+                          // The map itself opens the training for a new guest.
+                          navigate(GUEST_MAP_PATH);
+                        }}
+                        onHowToPlay={() => {
+                          void tapLight();
+                          navigate("/tutorial");
+                        }}
+                        onSignIn={() => {
+                          void tapLight();
+                          onSignIn();
+                        }}
+                      />
+                    }
                   />
-                }
-              />
-            </Routes>
+                </Routes>
+              )}
+            </RouteTransition>
           </div>
         </div>
       </LevelsProvider>

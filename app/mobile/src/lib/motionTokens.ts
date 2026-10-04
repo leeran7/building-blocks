@@ -42,6 +42,17 @@ export const travel = {
   behind: 40,
 } as const;
 
+/**
+ * Scales for the depth axis: going into a run zooms the game up from just past
+ * the glass while the screen behind sinks back, and coming out reverses it.
+ */
+export const zoom = {
+  /** Where an arriving run starts, and where a finished one leaves to. */
+  near: 1.06,
+  /** Where the screen behind a run sinks to, and rises back from. */
+  far: 0.96,
+} as const;
+
 /** A press: the scale a tappable surface dips to, and how it springs back. */
 export const press = {
   whileTap: { scale: 0.96 },

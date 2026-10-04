@@ -4,6 +4,7 @@ import { useAuth } from "../contexts/AuthContext";
 import { tapMedium, notifyError } from "../lib/haptics";
 import { Button } from "../components/ui";
 import { LogoLockup } from "../components/LogoMark";
+import { PageSwap } from "../components/PageSwap";
 import { GUEST_LEVEL_CAP } from "../lib/levels/guestClient";
 
 type Mode = "options" | "email-signin" | "email-signup";
@@ -57,137 +58,143 @@ export function SignInScreen({ onGuestContinue }: { onGuestContinue?: () => void
 
   if (mode === "email-signin" || mode === "email-signup") {
     const isSignup = mode === "email-signup";
+    // Both pages render a PageSwap in the same place, so the form slides in
+    // like a pushed screen and Back slides the options back.
     return (
-      <main className="app-fade flex h-[100dvh] flex-col px-8 pt-[calc(env(safe-area-inset-top)+3.5rem)]">
-        <button
-          onClick={() => { setMode("options"); setError(null); }}
-          className="font-mono text-xs uppercase tracking-[0.2em] text-text-muted transition-transform active:scale-95"
-        >
-          ← Back
-        </button>
+      <PageSwap page="email">
+        <main className="flex h-[100dvh] flex-col px-8 pt-[calc(env(safe-area-inset-top)+3.5rem)]">
+          <button
+            onClick={() => { setMode("options"); setError(null); }}
+            className="font-mono text-xs uppercase tracking-[0.2em] text-text-muted transition-transform active:scale-95"
+          >
+            ← Back
+          </button>
 
-        <div className="flex flex-1 flex-col items-center justify-center gap-6 pb-16">
-          <div className="flex flex-col items-center gap-2 text-center">
-            <span className="font-mono text-[10px] uppercase tracking-[0.4em] text-text-muted">
-              {isSignup ? "join the climb" : "welcome back"}
-            </span>
-            <h2 className="font-display text-2xl font-black uppercase tracking-tight text-text-primary">
-              {isSignup ? "Create Account" : "Sign In"}
-            </h2>
-          </div>
+          <div className="flex flex-1 flex-col items-center justify-center gap-6 pb-16">
+            <div className="flex flex-col items-center gap-2 text-center">
+              <span className="font-mono text-[10px] uppercase tracking-[0.4em] text-text-muted">
+                {isSignup ? "join the climb" : "welcome back"}
+              </span>
+              <h2 className="font-display text-2xl font-black uppercase tracking-tight text-text-primary">
+                {isSignup ? "Create Account" : "Sign In"}
+              </h2>
+            </div>
 
-          <div className="flex w-full max-w-xs flex-col gap-3">
-            <input
-              type="email"
-              placeholder="Email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              inputMode="email"
-              autoCapitalize="none"
-              autoCorrect="off"
-              autoComplete="email"
-              className="min-h-[52px] rounded-2xl border border-border-strong bg-surface px-4 text-base text-text-primary placeholder:text-text-muted focus:border-signal focus:outline-none"
-            />
-            <input
-              type="password"
-              placeholder="Password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              autoComplete={isSignup ? "new-password" : "current-password"}
-              className="min-h-[52px] rounded-2xl border border-border-strong bg-surface px-4 text-base text-text-primary placeholder:text-text-muted focus:border-signal focus:outline-none"
-            />
+            <div className="flex w-full max-w-xs flex-col gap-3">
+              <input
+                type="email"
+                placeholder="Email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                inputMode="email"
+                autoCapitalize="none"
+                autoCorrect="off"
+                autoComplete="email"
+                className="min-h-[52px] rounded-2xl border border-border-strong bg-surface px-4 text-base text-text-primary placeholder:text-text-muted focus:border-signal focus:outline-none"
+              />
+              <input
+                type="password"
+                placeholder="Password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                autoComplete={isSignup ? "new-password" : "current-password"}
+                className="min-h-[52px] rounded-2xl border border-border-strong bg-surface px-4 text-base text-text-primary placeholder:text-text-muted focus:border-signal focus:outline-none"
+              />
 
-            {error && (
-              <p role="alert" className="text-sm text-ember">{error}</p>
-            )}
-
-            <Button
-              onPress={run("email", () =>
-                isSignup ? createAccount(email, password) : signInEmail(email, password)
+              {error && (
+                <p role="alert" className="text-sm text-ember">{error}</p>
               )}
-              busy={busy === "email"}
-              disabled={busy !== null || !email || !password}
-            >
-              {isSignup ? "Create Account" : "Sign In"}
-            </Button>
 
-            <Button
-              variant="secondary"
-              onPress={() => { setMode(isSignup ? "email-signin" : "email-signup"); setError(null); }}
-            >
-              {isSignup ? "Have an account? Sign in" : "Create account"}
-            </Button>
+              <Button
+                onPress={run("email", () =>
+                  isSignup ? createAccount(email, password) : signInEmail(email, password)
+                )}
+                busy={busy === "email"}
+                disabled={busy !== null || !email || !password}
+              >
+                {isSignup ? "Create Account" : "Sign In"}
+              </Button>
+
+              <Button
+                variant="secondary"
+                onPress={() => { setMode(isSignup ? "email-signin" : "email-signup"); setError(null); }}
+              >
+                {isSignup ? "Have an account? Sign in" : "Create account"}
+              </Button>
+            </div>
           </div>
-        </div>
-      </main>
+        </main>
+      </PageSwap>
     );
   }
 
   return (
-    <main className="app-fade flex h-[100dvh] flex-col items-center justify-center gap-10 px-8 pb-[calc(env(safe-area-inset-bottom)+2rem)] pt-[calc(env(safe-area-inset-top)+2rem)] text-center">
-      <div className="flex flex-col items-center gap-3">
-        <h1 className="m-0">
-          <LogoLockup className="h-40 w-auto" />
-        </h1>
-        <span className="font-mono text-[10px] uppercase tracking-[0.5em] text-text-muted">
-          endless&nbsp;climb
-        </span>
-        <p className="max-w-[270px] text-sm leading-relaxed text-white [text-shadow:0_1px_3px_rgba(0,0,0,0.6)]">
-          Sign in to save your climbs, rank on the leaderboard, and challenge
-          friends.
-        </p>
-      </div>
-
-      <div className="flex w-full max-w-xs flex-col gap-3">
-        <Button
-          onPress={run("apple", signInApple)}
-          busy={busy === "apple"}
-          disabled={busy !== null}
-          variant="secondary"
-          className="border-transparent bg-text-primary text-void"
-        >
-          <AppleGlyph />
-          Continue with Apple
-        </Button>
-        <Button
-          onPress={run("google", signInGoogle)}
-          busy={busy === "google"}
-          disabled={busy !== null}
-          variant="secondary"
-        >
-          <GoogleGlyph />
-          Continue with Google
-        </Button>
-        <Button
-          onPress={() => { void tapMedium(); setMode("email-signin"); }}
-          variant="secondary"
-        >
-          <MailGlyph />
-          Sign in with Email
-        </Button>
-        {error && (
-          <p role="alert" className="text-sm text-ember">{error}</p>
-        )}
-      </div>
-
-      {onGuestContinue && (
-        <div className="-mt-6 flex flex-col items-center">
-          <button
-            onClick={() => { void tapMedium(); onGuestContinue(); }}
-            aria-describedby="guest-continue-note"
-            className="inline-flex min-h-[44px] items-center px-4 font-mono text-[11px] uppercase tracking-[0.15em] text-white underline underline-offset-2 [text-shadow:0_1px_3px_rgba(0,0,0,0.6)] transition-colors active:text-white/70"
-          >
-            Continue as Guest
-          </button>
-          <p
-            id="guest-continue-note"
-            className="max-w-[300px] text-center text-xs leading-snug text-white/80 [text-shadow:0_1px_3px_rgba(0,0,0,0.6)]"
-          >
-            Guests play Endless and the first {GUEST_LEVEL_CAP} levels. Sign in for the rest.
+    <PageSwap page="options" back>
+      <main className="flex h-[100dvh] flex-col items-center justify-center gap-10 px-8 pb-[calc(env(safe-area-inset-bottom)+2rem)] pt-[calc(env(safe-area-inset-top)+2rem)] text-center">
+        <div className="flex flex-col items-center gap-3">
+          <h1 className="m-0">
+            <LogoLockup className="h-40 w-auto" />
+          </h1>
+          <span className="font-mono text-[10px] uppercase tracking-[0.5em] text-text-muted">
+            endless&nbsp;climb
+          </span>
+          <p className="max-w-[270px] text-sm leading-relaxed text-white [text-shadow:0_1px_3px_rgba(0,0,0,0.6)]">
+            Sign in to save your climbs, rank on the leaderboard, and challenge
+            friends.
           </p>
         </div>
-      )}
-    </main>
+
+        <div className="flex w-full max-w-xs flex-col gap-3">
+          <Button
+            onPress={run("apple", signInApple)}
+            busy={busy === "apple"}
+            disabled={busy !== null}
+            variant="secondary"
+            className="border-transparent bg-text-primary text-void"
+          >
+            <AppleGlyph />
+            Continue with Apple
+          </Button>
+          <Button
+            onPress={run("google", signInGoogle)}
+            busy={busy === "google"}
+            disabled={busy !== null}
+            variant="secondary"
+          >
+            <GoogleGlyph />
+            Continue with Google
+          </Button>
+          <Button
+            onPress={() => { void tapMedium(); setMode("email-signin"); }}
+            variant="secondary"
+          >
+            <MailGlyph />
+            Sign in with Email
+          </Button>
+          {error && (
+            <p role="alert" className="text-sm text-ember">{error}</p>
+          )}
+        </div>
+
+        {onGuestContinue && (
+          <div className="-mt-6 flex flex-col items-center">
+            <button
+              onClick={() => { void tapMedium(); onGuestContinue(); }}
+              aria-describedby="guest-continue-note"
+              className="inline-flex min-h-[44px] items-center px-4 font-mono text-[11px] uppercase tracking-[0.15em] text-white underline underline-offset-2 [text-shadow:0_1px_3px_rgba(0,0,0,0.6)] transition-colors active:text-white/70"
+            >
+              Continue as Guest
+            </button>
+            <p
+              id="guest-continue-note"
+              className="max-w-[300px] text-center text-xs leading-snug text-white/80 [text-shadow:0_1px_3px_rgba(0,0,0,0.6)]"
+            >
+              Guests play Endless and the first {GUEST_LEVEL_CAP} levels. Sign in for the rest.
+            </p>
+          </div>
+        )}
+      </main>
+    </PageSwap>
   );
 }
 

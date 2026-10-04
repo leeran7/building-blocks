@@ -1,9 +1,13 @@
 import { createPortal } from "react-dom";
+import { motion, useIsPresent } from "motion/react";
+import { duration, ease } from "../../lib/motionTokens";
 
 /**
  * Full-screen overlay shown while the player is in the matchmaking queue.
  * Portalled to the body so it covers the map and the tab bar (no accidental
  * navigation mid-search), and reads as a game loading / matchmaking screen.
+ * Render it under an `AnimatePresence`: it fades in over the map and back out
+ * when the search ends.
  */
 export function SearchingOverlay({
   status,
@@ -18,8 +22,13 @@ export function SearchingOverlay({
   onRetry: () => void;
   onDismiss: () => void;
 }) {
+  const present = useIsPresent();
   return createPortal(
-    <div
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1, transition: { duration: duration.fast, ease: ease.out } }}
+      exit={{ opacity: 0, transition: { duration: duration.fast, ease: ease.in } }}
+      inert={!present}
       className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-void/95 px-6 text-center backdrop-blur-sm"
       role="dialog"
       aria-modal="true"
@@ -102,7 +111,7 @@ export function SearchingOverlay({
           </div>
         </>
       )}
-    </div>,
+    </motion.div>,
     document.body,
   );
 }

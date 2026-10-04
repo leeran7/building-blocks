@@ -163,15 +163,17 @@ export function ModeRail() {
         )}
       </AnimatePresence>
 
-      {queue.state.status !== "idle" && (
-        <SearchingOverlay
-          status={queue.state.status}
-          errorMessage={queue.state.errorMessage}
-          onCancel={queue.cancel}
-          onRetry={queue.join}
-          onDismiss={queue.reset}
-        />
-      )}
+      <AnimatePresence>
+        {queue.state.status !== "idle" && (
+          <SearchingOverlay
+            status={queue.state.status}
+            errorMessage={queue.state.errorMessage}
+            onCancel={queue.cancel}
+            onRetry={queue.join}
+            onDismiss={queue.reset}
+          />
+        )}
+      </AnimatePresence>
     </>
   );
 }

@@ -12,8 +12,8 @@ import {
 } from "motion/react";
 import { tapLight } from "../lib/haptics";
 import { prefersReducedMotion } from "../lib/motion";
-import { duration, ease, spring, travel } from "../lib/motionTokens";
-import { parentRoute, useBackOr } from "../lib/navigation";
+import { duration, ease, spring, travel, zoom } from "../lib/motionTokens";
+import { isGameRoute, parentRoute, useBackOr } from "../lib/navigation";
 import { isTabRoot } from "./BottomNav";
 
 /**
@@ -35,6 +35,11 @@ import { isTabRoot } from "./BottomNav";
  *   A swiped screen steps back the moment the finger lets go and carries on
  *   off the right edge at the finger's speed, while the screen behind arrives
  *   under it at once: no gap of bare backdrop between the two.
+ * - launch: into a full-screen run (Endless, a level, a duel, the training).
+ *   The depth axis: the screen behind sinks back and fades as the run zooms up
+ *   into place from just past the glass.
+ * - land: out of a run, the same in reverse: the run lifts away toward the
+ *   player and the screen behind rises back into place.
  *
  * A LayoutGroup spans both screens, so an element tagged with the same
  * `layoutId` on each (the Shop card's character and Skin Details' preview)
@@ -42,10 +47,13 @@ import { isTabRoot } from "./BottomNav";
  *
  * Reduced motion: screens swap with no movement.
  */
-export type TransitionKind = "initial" | "tab" | "push" | "hero" | "pop";
+export type TransitionKind = "initial" | "tab" | "push" | "hero" | "pop" | "launch" | "land";
 
 /** Which transition a move from `from` to `to` gets. Pure, so tests can call it. */
 export function transitionKind(from: string, to: string, navType: NavigationType): TransitionKind {
+  // Runs move on the depth axis whichever way the history went.
+  if (isGameRoute(to)) return "launch";
+  if (isGameRoute(from)) return "land";
   if (isTabRoot(from) && isTabRoot(to)) return "tab";
   if (navType === "POP") return "pop";
   if (from === "/shop" && to.startsWith("/shop/")) return "hero";
@@ -75,13 +83,15 @@ export function sceneEnterFrom({ kind, reduce }: SceneCustom): TargetAndTransiti
   // Hold still: the shared figure is the motion, and must not fade or slide.
   if (kind === "hero") return { opacity: 1, x: 0 };
   if (kind === "pop") return { opacity: 0, x: -travel.behind };
+  if (kind === "launch") return { opacity: 0, scale: zoom.near };
+  if (kind === "land") return { opacity: 0, scale: zoom.far };
   return { opacity: 0, y: 8, scale: 0.985 };
 }
 
 /** Where a screen comes to rest, and how it gets there. */
 export function sceneRest({ kind, swiped, reduce }: SceneCustom): TargetAndTransition {
   // Behind a swiped screen there is no wait: it is already part way off.
-  const delay = swiped ? 0 : kind === "push" || kind === "pop" ? 0.08 : 0.06;
+  const delay = swiped ? 0 : kind === "push" || kind === "pop" || kind === "launch" ? 0.08 : 0.06;
   const transition = reduce ? { duration: 0 } : { ...spring.smooth, opacity: fadeIn(delay) };
   return { opacity: 1, x: 0, y: 0, scale: 1, transition };
 }
@@ -94,10 +104,14 @@ export function sceneExitTo({ kind, swiped, swipeVelocity, reduce }: SceneCustom
   if (kind === "push") return { opacity: 0, x: -24, transition: leave };
   if (kind === "hero") return { opacity: 0, transition: { duration: duration.exit * 0.7, ease: ease.in } };
   if (kind === "pop") return { opacity: 0, x: 32, transition: leave };
+  // The screen behind a run sinks away; a finished run lifts off toward the player.
+  if (kind === "launch") return { opacity: 0, scale: zoom.far, transition: { duration: duration.fast, ease: ease.in } };
+  if (kind === "land") return { opacity: 0, scale: zoom.near, transition: leave };
   return { opacity: 0, transition: { duration: duration.exit * 0.7, ease: "linear" } };
 }
 
-const SCENE_VARIANTS = { enter: sceneEnterFrom, rest: sceneRest, exit: sceneExitTo };
+/** The scene variants, for anything that swaps pages on the same axes (PageSwap). */
+export const SCENE_VARIANTS = { enter: sceneEnterFrom, rest: sceneRest, exit: sceneExitTo };
 
 /** Set by a swipe-back as it navigates: that screen is leaving at this speed (px/s). */
 let swipedAway: { pathname: string; velocity: number } | null = null;
@@ -195,7 +209,8 @@ function Scene({ pathname, custom, children }: { pathname: string; custom: Scene
   // leaves by comes from AnimatePresence's custom.
   const leavingAs = usePresenceData() as SceneCustom | undefined;
   const kind = present ? custom.kind : (leavingAs?.kind ?? custom.kind);
-  const swipeable = present && !isTabRoot(pathname);
+  // A run's left edge is game input, never a swipe-back.
+  const swipeable = present && !isTabRoot(pathname) && !isGameRoute(pathname);
   // A deep-linked screen has nothing behind it: swipe to its parent instead.
   const back = useBackOr(parentRoute(pathname));
   // The gesture and the transition share one x, so a release carries on from

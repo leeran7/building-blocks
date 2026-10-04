@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from "react";
+import { motion, useIsPresent } from "motion/react";
+import { SHEET_MOTION } from "../SheetPortal";
 import { ALTITUDE_UNIT } from "@app/lib/units";
 import { avatarName, stickColorOf } from "@app/lib/avatars";
 import { Button } from "../ui";
@@ -474,25 +476,24 @@ export function SubmitFailedCard({ level, busy, onRetry, onMap }: { level: numbe
  */
 function Sheet({ label, children }: { label: string; children: React.ReactNode }) {
   const ref = useRef<HTMLDivElement>(null);
+  // Sliding away (Retry, Next): nothing on it may be pressed.
+  const present = useIsPresent();
   useEffect(() => {
     ref.current?.focus();
   }, []);
   return (
-    <div
+    <motion.div
       ref={ref}
+      {...SHEET_MOTION.panel}
+      inert={!present}
       role="dialog"
       aria-modal="true"
       aria-label={label}
       tabIndex={-1}
-      className="lr-card absolute outline-none focus-visible:outline-none inset-x-0 bottom-0 z-30 mx-auto max-h-[calc(100dvh-env(safe-area-inset-top))] max-w-md overflow-y-auto overscroll-contain rounded-t-3xl border-t border-border-strong bg-surface/95 px-6 pb-[calc(env(safe-area-inset-bottom)+1.5rem)] pt-3 backdrop-blur-xl"
+      className="absolute outline-none focus-visible:outline-none inset-x-0 bottom-0 z-30 mx-auto max-h-[calc(100dvh-env(safe-area-inset-top))] max-w-md overflow-y-auto overscroll-contain rounded-t-3xl border-t border-border-strong bg-surface/95 px-6 pb-[calc(env(safe-area-inset-bottom)+1.5rem)] pt-3 backdrop-blur-xl"
     >
       <span aria-hidden className="mx-auto mb-5 block h-1 w-9 rounded-full bg-border-strong" />
       {children}
-      <style>{`
-        .lr-card { animation: lrUp 0.28s cubic-bezier(0.16,1,0.3,1) both; }
-        @keyframes lrUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
-        @media (prefers-reduced-motion: reduce) { .lr-card { animation: none; } }
-      `}</style>
-    </div>
+    </motion.div>
   );
 }
