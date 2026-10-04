@@ -16,9 +16,12 @@ import {
   type StartResult,
 } from "../lib/levels/model";
 import { startBoosterTypes, type BoosterType } from "@app/levels/engagement";
-import { markOnboardingOffered, needsOnboarding, wantsTour } from "../lib/onboarding";
+import { accountOnboarding, guestOnboarding, wantsTour } from "../lib/onboarding";
 import { AppTour } from "../components/onboarding/AppTour";
-import { MAP_TOUR } from "../components/onboarding/mapTour";
+import { GUEST_MAP_TOUR, MAP_TOUR } from "../components/onboarding/mapTour";
+import { useGuest, GUEST_MAP_PATH } from "../contexts/GuestContext";
+import { GUEST_LEVEL_CAP, isGuestLocked } from "../lib/levels/guestClient";
+import { GuestSignInSheet } from "../components/GuestSignInSheet";
 
 /** Vertical distance between two pins, px. */
 const ROW = 92;
@@ -54,11 +57,18 @@ export function pinX(level: number): number {
  * pulses, Hard levels glow ember, and later levels are locked. Tapping an
  * open pin opens the level start card; Endless (the endless climb) sits
  * beside the Play bar.
+ *
+ * A guest gets the same map for the taster (GuestShell): levels above
+ * GUEST_LEVEL_CAP stay locked and ask them to sign in, and the account-only
+ * parts (star chest, friends board, tab tour) are left out.
  */
 export function LevelMapScreen() {
   const navigate = useNavigate();
   const location = useLocation();
   const { client, season, loading, error, refresh, setPlayer } = useLevels();
+  const guest = useGuest();
+  const lockedForGuest = useCallback((level: number) => guest !== null && isGuestLocked(level), [guest]);
+  const [signInPrompt, setSignInPrompt] = useState(false);
   const refill = useLivesRefillOffer();
   const [selected, setSelectedNode] = useState<LevelNode | null>(null);
   // The booster equipped on the open start card; every card opens without one.
@@ -90,8 +100,10 @@ export function LevelMapScreen() {
   useLayoutEffect(() => {
     if (!season || openLevel === null) return;
     navigate(".", { replace: true, state: null });
-    if (openLevel <= season.frontier) setSelected(season.levels[openLevel - 1]);
-  }, [season, openLevel, navigate, setSelected]);
+    // A guest's "Next level" past the taster asks them to sign in.
+    if (lockedForGuest(openLevel)) setSignInPrompt(true);
+    else if (openLevel <= season.frontier) setSelected(season.levels[openLevel - 1]);
+  }, [season, openLevel, navigate, setSelected, lockedForGuest]);
 
   const startLevel = useCallback(
     async (level: number, equipped: BoosterType | null) => {
@@ -121,12 +133,14 @@ export function LevelMapScreen() {
   );
 
   // First launch: the training climb, which comes back here with the tour.
-  const firstRun = season !== null && needsOnboarding(season.frontier);
+  // A guest has their own flag, so signing in later still brings the tour.
+  const onboarding = guest ? guestOnboarding : accountOnboarding;
+  const firstRun = season !== null && onboarding.needs(season.frontier);
   useLayoutEffect(() => {
     if (!firstRun) return;
-    markOnboardingOffered();
-    navigate("/tutorial", { replace: true });
-  }, [firstRun, navigate]);
+    onboarding.markOffered();
+    navigate("/tutorial", { replace: true, state: guest ? { then: GUEST_MAP_PATH } : null });
+  }, [firstRun, navigate, onboarding, guest]);
   const [touring, setTouring] = useState(false);
   const tourRequested = wantsTour(location.state);
   useLayoutEffect(() => {
@@ -138,9 +152,19 @@ export function LevelMapScreen() {
     (finished: boolean) => {
       setTouring(false);
       // The last step's button opens the next level.
-      if (finished && season) setSelected(season.levels[season.frontier - 1]);
+      if (!finished || !season) return;
+      if (lockedForGuest(season.frontier)) setSignInPrompt(true);
+      else setSelected(season.levels[season.frontier - 1]);
     },
-    [season, setSelected],
+    [season, setSelected, lockedForGuest],
+  );
+  const openNext = useCallback(
+    (node: LevelNode) => {
+      void tapLight();
+      if (lockedForGuest(node.level)) setSignInPrompt(true);
+      else setSelected(node);
+    },
+    [lockedForGuest, setSelected],
   );
 
   const loadBoard = useCallback((level: number) => client.getBoard(level), [client]);
@@ -177,6 +201,7 @@ export function LevelMapScreen() {
   return (
     <main className="relative flex h-full flex-col">
       <header className="absolute inset-x-0 top-0 z-20 bg-gradient-to-b from-void via-void/80 to-transparent px-4 pb-8 pt-[calc(env(safe-area-inset-top)+0.75rem)]">
+        {guest && <GuestMapBar onHome={() => navigate("/")} onSignIn={guest.onSignIn} />}
         <div className="flex items-center justify-between gap-2">
           <span data-tour="lives" className="inline-flex">
             <LivesPill player={season.player} />
@@ -188,7 +213,7 @@ export function LevelMapScreen() {
         <p className="mt-2.5 text-center font-mono text-label uppercase tracking-eyebrow text-text-secondary">
           {season.name} · Episode {episode}
         </p>
-        {season.chests && (
+        {season.chests && !guest && (
           <div data-tour="chest" className="mx-auto mt-2 flex w-fit justify-center">
             <ChestMeter chests={season.chests} boosters={season.boosters} />
           </div>
@@ -217,11 +242,15 @@ export function LevelMapScreen() {
               key={node.level}
               node={node}
               tour={node.level === frontier}
-              state={node.level === frontier && node.stars === 0 ? "current" : node.level > frontier ? "locked" : "open"}
-              onOpen={() => {
-                void tapLight();
-                setSelected(node);
-              }}
+              state={
+                node.level === frontier && node.stars === 0 && !lockedForGuest(node.level)
+                  ? "current"
+                  : node.level > frontier || lockedForGuest(node.level)
+                    ? "locked"
+                    : "open"
+              }
+              onOpen={() => openNext(node)}
+              onSignIn={lockedForGuest(node.level) ? () => openNext(node) : undefined}
             />
           ))}
           {shownTop < season.levels.length && (
@@ -241,12 +270,9 @@ export function LevelMapScreen() {
       <div data-play-bar className="absolute inset-x-0 bottom-0 z-20 flex items-stretch gap-2.5 px-4 pb-3">
         <button
           type="button"
-          onClick={() => {
-            void tapLight();
-            setSelected(current);
-          }}
+          onClick={() => openNext(current)}
           data-tour="play"
-          aria-label={`Open level ${current.level}`}
+          aria-label={lockedForGuest(current.level) ? `Sign in to play level ${current.level}` : `Open level ${current.level}`}
           className="cta-lime flex min-h-[56px] flex-1 items-center justify-center gap-3 rounded-[22px] px-4 text-void transition-transform active:scale-[0.97]"
         >
           <span className="font-display text-cta font-black uppercase">Play</span>
@@ -286,7 +312,7 @@ export function LevelMapScreen() {
               streak={season.streak}
               startPowerUp={selected.level === frontier ? season.nextStartPowerUp : null}
               stuck={selected.level === season.stuck.level ? season.stuck : null}
-              board={{ level: selected.level, load: loadBoard }}
+              board={guest ? null : { level: selected.level, load: loadBoard }}
               boosters={
                 // Out of lives the card offers the wait and the refill instead.
                 selected.costsLife && season.player.lives <= 0 ? null : (
@@ -304,7 +330,22 @@ export function LevelMapScreen() {
         />
       )}
       {refill.overlays}
-      {touring && <AppTour steps={MAP_TOUR} onClose={endTour} finishLabel={`Play level ${current.level}`} />}
+      {touring && (
+        <AppTour
+          steps={guest ? GUEST_MAP_TOUR : MAP_TOUR}
+          onClose={endTour}
+          finishLabel={lockedForGuest(current.level) ? "Got it" : `Play level ${current.level}`}
+        />
+      )}
+      {signInPrompt && guest && (
+        <GuestSignInSheet
+          eyebrow={`Levels 1–${GUEST_LEVEL_CAP} done`}
+          title="Unlock all 300 levels"
+          body="Sign in to keep your stars from here on, play every level, add friends and save your scores. Guest stars stay on this device."
+          onSignIn={guest.onSignIn}
+          onClose={() => setSignInPrompt(false)}
+        />
+      )}
     </main>
   );
 }
@@ -322,19 +363,22 @@ function LevelPin({
   state,
   tour,
   onOpen,
+  onSignIn,
 }: {
   node: LevelNode;
   state: PinState;
   /** The pin the first-run tour points at. */
   tour: boolean;
   onOpen: () => void;
+  /** A guest's locked pin above the taster: tapping it asks them to sign in. */
+  onSignIn?: () => void;
 }) {
   const hard = isHardLevel(node.level);
   const locked = state === "locked";
   const current = state === "current";
   const size = current ? 72 : 60;
   const label = locked
-    ? `Level ${node.level}, locked`
+    ? `Level ${node.level}, ${onSignIn ? "sign in to unlock" : "locked"}`
     : `Level ${node.level}${hard ? ", hard" : ""}${node.stars > 0 ? `, ${node.stars} of 3 stars` : current ? ", next to play" : ""}`;
 
   const face = locked
@@ -352,11 +396,11 @@ function LevelPin({
     >
       <button
         type="button"
-        disabled={locked}
+        disabled={locked && !onSignIn}
         data-tour={tour ? "next-level" : undefined}
         aria-label={label}
         aria-current={current ? "step" : undefined}
-        onClick={onOpen}
+        onClick={locked ? onSignIn : onOpen}
         style={{ width: size, height: size }}
         className={`relative flex items-center justify-center rounded-full border-[3px] font-display font-black tabular-nums transition-transform active:scale-90 disabled:active:scale-100 ${current ? "lm-pulse text-headline" : "text-lead"} ${face}`}
       >
@@ -407,6 +451,38 @@ function Trail({ levels, frontier, height }: { levels: number; frontier: number;
         <path d={path(1, lit)} fill="none" stroke="rgba(203,242,77,0.55)" strokeWidth={6} strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
       )}
     </svg>
+  );
+}
+
+/** The guest's way back to guest home, and to Sign In (no tab bar here). */
+function GuestMapBar({ onHome, onSignIn }: { onHome: () => void; onSignIn: () => void }) {
+  return (
+    <div className="mb-2.5 flex items-center justify-between">
+      <button
+        type="button"
+        onClick={() => {
+          void tapLight();
+          onHome();
+        }}
+        aria-label="Back to guest home"
+        className="-ml-2 flex min-h-[44px] items-center gap-1 rounded-full px-2 font-mono text-label uppercase tracking-label text-text-secondary active:scale-95"
+      >
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+          <path d="m15 18-6-6 6-6" />
+        </svg>
+        Home
+      </button>
+      <button
+        type="button"
+        onClick={() => {
+          void tapLight();
+          onSignIn();
+        }}
+        className="min-h-[44px] rounded-full border border-border-strong bg-surface/70 px-4 font-mono text-[11px] uppercase tracking-[0.15em] text-signal transition-transform active:scale-95"
+      >
+        Sign In
+      </button>
+    </div>
   );
 }
 

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect } from "react";
 import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { HomeScreen } from "./screens/HomeScreen";
 import { ClimbScreen } from "./screens/ClimbScreen";
@@ -23,14 +23,17 @@ import { useLevels } from "./contexts/LevelsContext";
 import { launchReady, useLaunchSplash } from "./lib/launchSplash";
 import { GuestShell } from "./components/GuestShell";
 import { LogoMark } from "./components/LogoMark";
+import { useGuestMode } from "./lib/guestMode";
 
 /**
  * Root of the native game shell. The animated backdrop is persistent behind
  * every route — screens push over it as overlays so it always feels like
  * you're "inside the game," never navigating web pages.
  *
- * The app is fully auth-gated: until a real (non-anonymous) account is signed
- * in, the only reachable screen is Sign In. There is no guest play.
+ * Until a real (non-anonymous) account is signed in, the app shows Sign In,
+ * or the guest shell (Endless, the training climb and levels 1 to 3 on the
+ * device) once the player chose "Continue as Guest". Guest mode is kept on
+ * the device across launches until the guest taps Sign In.
  */
 export function App() {
   useNativeShell();
@@ -48,17 +51,11 @@ export function App() {
     }),
   );
 
-  const [guestMode, setGuestMode] = useState(() => {
-    try { return sessionStorage.getItem("doomstack:guest") === "1"; } catch { return false; }
-  });
-  const enterGuest = () => {
-    setGuestMode(true);
-    try { sessionStorage.setItem("doomstack:guest", "1"); } catch {}
-  };
-  const exitGuest = () => {
-    setGuestMode(false);
-    try { sessionStorage.removeItem("doomstack:guest"); } catch {}
-  };
+  const { guestMode, enterGuest, exitGuest } = useGuestMode();
+  // Signed in: guest mode is over, so a later sign-out lands on Sign In.
+  useEffect(() => {
+    if (authed && guestMode) exitGuest();
+  }, [authed, guestMode, exitGuest]);
 
   // NOTE: call useLocation() unconditionally — never behind a short-circuit.
   const location = useLocation();

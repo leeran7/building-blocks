@@ -33,6 +33,8 @@ import { useInvalidateAppData, useSettings, type SliceKey } from "../contexts/Ap
 import { hasLeaderboardConsent } from "../lib/consent";
 import { useAcceptLeaderboardConsent } from "../hooks/useAcceptLeaderboardConsent";
 import { LeaderboardConsentModal } from "../components/LeaderboardConsentModal";
+import { GuestSignInSheet } from "../components/GuestSignInSheet";
+import { GUEST_NUDGE_AFTER_RUNS, recordGuestEndlessRun } from "../lib/guestMode";
 import { tapMedium, tapLight, notifyError, notifySuccess } from "../lib/haptics";
 import { useGameHaptics } from "../lib/useGameHaptics";
 import { commitDailyRun, msUntilReset, formatReset, type DailyRunResult } from "@app/lib/daily";
@@ -161,6 +163,10 @@ export function ClimbScreen({ onSignIn }: { onSignIn?: () => void } = {}) {
   const [consentBusy, setConsentBusy] = useState(false);
   const [consentError, setConsentError] = useState<string | null>(null);
   const saveConsent = useAcceptLeaderboardConsent();
+  // A guest's third finished Endless run brings a one-time sign-in sheet,
+  // on top of the result card's own "Sign in to save".
+  const [runNudge, setRunNudge] = useState(false);
+  const countedRun = useRef(false);
 
   const player = state.players[0];
   const phase = state.phase;
@@ -225,6 +231,16 @@ export function ClimbScreen({ onSignIn }: { onSignIn?: () => void } = {}) {
     setDailyResult(null);
     start();
   }, [start, unlockAudio, isDaily, dailyInfo]);
+
+  useEffect(() => {
+    if (!finished) {
+      countedRun.current = false;
+      return;
+    }
+    if (countedRun.current || isAuthed || isDaily || !onSignIn) return;
+    countedRun.current = true;
+    if (recordGuestEndlessRun()) setRunNudge(true);
+  }, [finished, isAuthed, isDaily, onSignIn]);
 
   // Runs after the render that locked the new seed, so start() uses it.
   useEffect(() => {
@@ -482,6 +498,16 @@ export function ClimbScreen({ onSignIn }: { onSignIn?: () => void } = {}) {
               goBack();
             }}
             onSignIn={onSignIn}
+          />
+        )}
+
+        {runNudge && onSignIn && (
+          <GuestSignInSheet
+            eyebrow={`${GUEST_NUDGE_AFTER_RUNS} climbs in`}
+            title="Save your climbs"
+            body="Sign in to save your scores to the leaderboard, keep your stars, play all 300 levels and race your friends."
+            onSignIn={onSignIn}
+            onClose={() => setRunNudge(false)}
           />
         )}
 

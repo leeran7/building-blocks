@@ -59,3 +59,11 @@ export const MAP_TOUR: readonly TourStep[] = [
     body: "Your characters, stats and settings. Replay this tutorial any time from How to play.",
   },
 ];
+
+/**
+ * The guest's map tour (the levels taster): the map's own readouts only. A
+ * guest has no star chest and no tab bar, so those steps are left out.
+ */
+export const GUEST_MAP_TOUR: readonly TourStep[] = MAP_TOUR.filter(
+  (step) => step.target !== "chest" && !step.target.startsWith("tab-"),
+);

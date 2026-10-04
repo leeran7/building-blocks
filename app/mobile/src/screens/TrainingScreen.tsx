@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 
 import { fillClimbInput, isInteractiveTarget, NO_TOUCH, shouldCaptureGameKey, type TouchInput } from "@app/game/useClimb";
 import { createTraining, TRAINING_GOALS, type Training } from "@app/game/levels/training";
@@ -19,7 +19,8 @@ import { useSettings } from "../contexts/AppDataContext";
 import { notifySuccess, tapLight } from "../lib/haptics";
 import { useGameHaptics } from "../lib/useGameHaptics";
 import { markTutorialsSeen } from "../lib/levels/tutorialSeen";
-import { markOnboardingDone, TOUR_STATE } from "../lib/onboarding";
+import { guestOnboarding, markOnboardingDone, TOUR_STATE } from "../lib/onboarding";
+import { GUEST_MAP_PATH, useGuest } from "../contexts/GuestContext";
 
 type Phase = "intro" | "train" | "ready";
 
@@ -33,19 +34,33 @@ const PRAISE_MS = 2200;
  * map, which runs part two: a tour of the map, its readouts and the tabs.
  *
  * Opened by the map on a first launch, and from Profile → How to play.
+ *
+ * A guest (GuestShell) opens it before their first Endless run or level, and
+ * from How to play on guest home. It marks the guest's own flag, never the
+ * account's, and goes on to what the guest tapped (router state `then`),
+ * else back to guest home.
  */
 export function TrainingScreen() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const guest = useGuest();
   const [phase, setPhase] = useState<Phase>("intro");
+  const guestThen = guestTrainingNext(location.state);
 
   // Either way out marks the tutorial done, so it is offered once.
   const toTour = useCallback(() => {
+    if (guest) {
+      guestOnboarding.markDone();
+      navigate(guestThen, { replace: true, state: guestThen === GUEST_MAP_PATH ? TOUR_STATE : null });
+      return;
+    }
     markOnboardingDone();
     navigate("/", { replace: true, state: TOUR_STATE });
-  }, [navigate]);
+  }, [navigate, guest, guestThen]);
 
+  const nextLabel = !guest || guestThen === GUEST_MAP_PATH ? "Show me around" : guestThen === "/climb" ? "Start climbing" : "Done";
   if (phase === "intro") return <Intro onStart={() => setPhase("train")} onSkip={toTour} />;
-  if (phase === "ready") return <Ready onNext={toTour} />;
+  if (phase === "ready") return <Ready onNext={toTour} nextLabel={nextLabel} />;
   return (
     <TrainingClimb
       onDone={() => {
@@ -57,6 +72,16 @@ export function TrainingScreen() {
       onSkip={toTour}
     />
   );
+}
+
+/** Where a guest's training goes next: Endless, the level map, or guest home. */
+export type GuestTrainingNext = "/climb" | typeof GUEST_MAP_PATH | "/";
+
+/** Reads `then` from router state, allow-listed; anything else is guest home. */
+export function guestTrainingNext(state: unknown): GuestTrainingNext {
+  if (typeof state !== "object" || state === null || !("then" in state)) return "/";
+  const then = (state as { then: unknown }).then;
+  return then === "/climb" || then === GUEST_MAP_PATH ? then : "/";
 }
 
 function Intro({ onStart, onSkip }: { onStart: () => void; onSkip: () => void }) {
@@ -83,7 +108,7 @@ function Intro({ onStart, onSkip }: { onStart: () => void; onSkip: () => void })
   );
 }
 
-function Ready({ onNext }: { onNext: () => void }) {
+function Ready({ onNext, nextLabel }: { onNext: () => void; nextLabel: string }) {
   return (
     <Card eyebrow="Training complete" title="You’re ready">
       <ul className="mt-6 flex flex-col gap-3">
@@ -99,7 +124,7 @@ function Ready({ onNext }: { onNext: () => void }) {
       </ul>
       <div className="mt-8">
         <Button autoFocus onPress={onNext}>
-          Show me around
+          {nextLabel}
         </Button>
       </div>
     </Card>

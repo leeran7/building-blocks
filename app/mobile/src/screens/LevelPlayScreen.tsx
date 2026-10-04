@@ -4,6 +4,7 @@ import { useLocation, useNavigate, useParams, useSearchParams } from "react-rout
 import { TICK_HZ } from "@app/game/types";
 
 import { useLevels } from "../contexts/LevelsContext";
+import { useMapPath } from "../contexts/GuestContext";
 import { tapLight, notifySuccess } from "../lib/haptics";
 import {
   type LevelNode,
@@ -71,6 +72,8 @@ export function LevelPlayScreen() {
   const level = Number(params.level);
   const { client, season, setPlayer, refresh, bestFails } = useLevels();
   const refill = useLivesRefillOffer();
+  // Home for an account; the guest's taster map lives at its own path.
+  const mapPath = useMapPath();
   const seasonNo = season?.season ?? null;
   const node: LevelNode | null =
     season && Number.isInteger(level) && level >= 1 && level <= season.levels.length
@@ -89,15 +92,15 @@ export function LevelPlayScreen() {
   // back to the map rather than play a run nobody can score.
   const missing = !practice && ticket === null;
   useEffect(() => {
-    if (missing) navigate("/", { replace: true });
-  }, [missing, navigate]);
+    if (missing) navigate(mapPath, { replace: true });
+  }, [missing, navigate, mapPath]);
 
   const toMap = useCallback(
     (openLevel?: number) => {
       void tapLight();
-      navigate("/", { replace: true, state: openLevel ? { openLevel } : null });
+      navigate(mapPath, { replace: true, state: openLevel ? { openLevel } : null });
     },
-    [navigate],
+    [navigate, mapPath],
   );
 
   const submit = useCallback(

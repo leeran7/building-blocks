@@ -1,44 +1,89 @@
-import { Routes, Route, useNavigate } from "react-router-dom";
+import { Routes, Route, useLocation, useNavigate } from "react-router-dom";
 import { ClimbScreen } from "../screens/ClimbScreen";
+import { LevelMapScreen } from "../screens/LevelMapScreen";
+import { LevelPlayScreen } from "../screens/LevelPlayScreen";
+import { TrainingScreen, type GuestTrainingNext } from "../screens/TrainingScreen";
+import { LevelsProvider } from "../contexts/LevelsContext";
+import { GUEST_MAP_PATH, GuestProvider } from "../contexts/GuestContext";
+import { GUEST_LEVEL_CAP } from "../lib/levels/guestClient";
+import { guestOnboarding } from "../lib/onboarding";
 import { AnimatedBackdrop } from "./AnimatedBackdrop";
 import { LogoLockup } from "./LogoMark";
 import { tapHeavy, tapLight } from "../lib/haptics";
 
+/**
+ * Guest mode: Endless, the training climb and a levels taster (levels 1 to
+ * GUEST_LEVEL_CAP) on the device, with Sign In always one tap away. The
+ * taster reuses the account's level screens under a guest LevelsProvider,
+ * whose client is device-only: nothing a guest earns reaches the server.
+ */
 export function GuestShell({ onSignIn }: { onSignIn: () => void }) {
   const navigate = useNavigate();
+  const location = useLocation();
+
+  // The first thing a guest starts goes through the training climb first.
+  const start = (path: GuestTrainingNext) => {
+    if (guestOnboarding.needs(1)) {
+      guestOnboarding.markOffered();
+      navigate("/tutorial", { state: { then: path } });
+      return;
+    }
+    navigate(path);
+  };
 
   return (
-    <div className="relative flex h-[100dvh] w-full flex-col overflow-hidden bg-void">
-      <AnimatedBackdrop />
-      <div className="relative z-10 flex-1 overflow-hidden">
-        <Routes>
-          <Route path="/climb" element={<ClimbScreen onSignIn={onSignIn} />} />
-          <Route
-            path="*"
-            element={
-              <GuestHome
-                onPlay={() => {
-                  void tapHeavy();
-                  navigate("/climb");
-                }}
-                onSignIn={() => {
-                  void tapLight();
-                  onSignIn();
-                }}
+    <GuestProvider onSignIn={onSignIn}>
+      <LevelsProvider guest>
+        <div className="relative flex h-[100dvh] w-full flex-col overflow-hidden bg-void">
+          <AnimatedBackdrop />
+          <div className="relative z-10 flex-1 overflow-hidden">
+            <Routes>
+              <Route path="/climb" element={<ClimbScreen onSignIn={onSignIn} />} />
+              <Route path={GUEST_MAP_PATH} element={<LevelMapScreen />} />
+              {/* Keyed by entry so "Practice this level" from a result starts fresh. */}
+              <Route path={`${GUEST_MAP_PATH}/:level/play`} element={<LevelPlayScreen key={location.key} />} />
+              <Route path="/tutorial" element={<TrainingScreen />} />
+              <Route
+                path="*"
+                element={
+                  <GuestHome
+                    onPlay={() => {
+                      void tapHeavy();
+                      start("/climb");
+                    }}
+                    onLevels={() => {
+                      void tapHeavy();
+                      // The map itself opens the training for a new guest.
+                      navigate(GUEST_MAP_PATH);
+                    }}
+                    onHowToPlay={() => {
+                      void tapLight();
+                      navigate("/tutorial");
+                    }}
+                    onSignIn={() => {
+                      void tapLight();
+                      onSignIn();
+                    }}
+                  />
+                }
               />
-            }
-          />
-        </Routes>
-      </div>
-    </div>
+            </Routes>
+          </div>
+        </div>
+      </LevelsProvider>
+    </GuestProvider>
   );
 }
 
 function GuestHome({
   onPlay,
+  onLevels,
+  onHowToPlay,
   onSignIn,
 }: {
   onPlay: () => void;
+  onLevels: () => void;
+  onHowToPlay: () => void;
   onSignIn: () => void;
 }) {
   return (
@@ -58,7 +103,7 @@ function GuestHome({
             <LogoLockup className="gh-wordmark h-44 w-auto" />
           </h1>
           <span className="font-mono text-[11px] uppercase tracking-[0.5em] text-text-muted">
-            endless&nbsp;mode
+            guest&nbsp;mode
           </span>
           <span className="h-px w-16 bg-border-strong" />
           <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-text-secondary">
@@ -86,29 +131,37 @@ function GuestHome({
             <ChevronRight />
           </button>
 
-          {/* Levels need an account (Leeran): guests get Endless only. */}
+          {/* The levels taster (Leeran, 2026-10-04): the rest need an account. */}
           <button
-            onClick={onSignIn}
-            aria-label="Sign in to play Levels"
+            onClick={onLevels}
+            aria-label={`Levels, play levels 1 to ${GUEST_LEVEL_CAP}`}
             className="glass flex w-full items-center gap-4 rounded-2xl border border-white/10 px-5 py-4 text-left transition-transform active:scale-[0.97]"
           >
             <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-signal/50 bg-signal/10 text-signal">
-              <LockGlyph />
+              <StarGlyph />
             </span>
             <span className="flex-1">
               <span className="block font-display text-lg font-black uppercase tracking-wide text-text-primary">
                 Levels
               </span>
               <span className="block text-meta text-text-secondary">
-                Sign in to climb 300 levels and earn stars
+                Play levels 1–{GUEST_LEVEL_CAP}
               </span>
             </span>
+            <ChevronRight className="text-text-muted" />
           </button>
 
-          <p className="max-w-[260px] text-xs leading-relaxed text-white [text-shadow:0_1px_3px_rgba(0,0,0,0.6)]">
-            Sign in to play Levels, add friends, challenge them to 1v1 races,
-            climb the leaderboard, and save your progress.
+          <p className="max-w-[280px] text-xs leading-relaxed text-white [text-shadow:0_1px_3px_rgba(0,0,0,0.6)]">
+            Sign in to keep your stars, play all 300 levels, add friends,
+            race them 1v1 and save your scores to the leaderboard.
           </p>
+          <button
+            type="button"
+            onClick={onHowToPlay}
+            className="min-h-[44px] px-4 font-mono text-[11px] uppercase tracking-[0.15em] text-text-secondary underline underline-offset-2 active:text-text-primary"
+          >
+            How to play
+          </button>
         </div>
       </div>
 
@@ -121,11 +174,10 @@ function GuestHome({
   );
 }
 
-function LockGlyph() {
+function StarGlyph() {
   return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden>
-      <rect x="5" y="11" width="14" height="10" rx="2" />
-      <path d="M8 11V8a4 4 0 0 1 8 0v3" />
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+      <path d="M12 2.5l2.9 6 6.6.9-4.8 4.6 1.2 6.5L12 17.4l-5.9 3.1 1.2-6.5L2.5 9.4l6.6-.9L12 2.5Z" />
     </svg>
   );
 }
@@ -138,9 +190,9 @@ function PlayGlyph() {
   );
 }
 
-function ChevronRight() {
+function ChevronRight({ className = "text-void/60" }: { className?: string }) {
   return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 text-void/60" aria-hidden>
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={`shrink-0 ${className}`} aria-hidden>
       <path d="m9 18 6-6-6-6" />
     </svg>
   );

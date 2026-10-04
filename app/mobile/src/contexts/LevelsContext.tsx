@@ -10,6 +10,7 @@ import {
 } from "react";
 import { useAuth } from "./AuthContext";
 import { createMockLevelsClient } from "../lib/levels/mockClient";
+import { createGuestLevelsClient } from "../lib/levels/guestClient";
 import { createHttpLevelsClient } from "../lib/levels/httpClient";
 import { season1Catalog } from "../lib/levels/catalog";
 import { withMockFallback } from "../lib/levels/fallbackClient";
@@ -46,22 +47,28 @@ export function LevelsProvider({
   children,
   client: injected,
   bestFails: injectedBestFails,
+  guest = false,
 }: {
   children: ReactNode;
   /** Tests and the screenshot harness pass their own client. */
   client?: LevelsClient;
   bestFails?: BestFailStore;
+  /**
+   * The guest taster (GuestShell): the device-only client capped at
+   * GUEST_LEVEL_CAP, loaded with no account. Never the server client.
+   */
+  guest?: boolean;
 }) {
   const { user, loading: authLoading, isAnonymous } = useAuth();
-  const uid = user && !isAnonymous ? user.uid : null;
-  const client = useMemo(
-    () =>
-      injected ??
-      withMockFallback(createHttpLevelsClient({ catalog: season1Catalog() }), () =>
-        createMockLevelsClient({ accountId: uid ?? undefined }),
-      ),
-    [injected, uid],
-  );
+  // A guest has no account here, whatever the auth state says.
+  const uid = !guest && user && !isAnonymous ? user.uid : null;
+  const client = useMemo(() => {
+    if (injected) return injected;
+    if (guest) return createGuestLevelsClient();
+    return withMockFallback(createHttpLevelsClient({ catalog: season1Catalog() }), () =>
+      createMockLevelsClient({ accountId: uid ?? undefined }),
+    );
+  }, [injected, guest, uid]);
   const bestFails = useMemo(
     () => injectedBestFails ?? createBestFailStore({ accountId: uid }),
     [injectedBestFails, uid],
@@ -87,13 +94,13 @@ export function LevelsProvider({
 
   useEffect(() => {
     if (authLoading) return;
-    if (!uid) {
+    if (!uid && !guest) {
       request.current += 1;
       setSeason(null);
       return;
     }
     void refresh();
-  }, [authLoading, uid, refresh]);
+  }, [authLoading, uid, guest, refresh]);
 
   const setPlayer = useCallback((player: PlayerStats) => {
     setSeason((s) => (s ? { ...s, player } : s));
