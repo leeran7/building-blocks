@@ -25,5 +25,5 @@ dist/
 .vercel
 .firebaserc
 scratch
-.next__pycache__/
+.next
 __pycache__/
