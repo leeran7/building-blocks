@@ -848,6 +848,8 @@ function DuelGame({
           realtime={realtime}
           myId={myId}
           opponentName={mySlot === 0 ? player2Name : player1Name}
+          moment={phase === "lobby" ? "lobby" : "climb"}
+          soundMuted={muted}
           topInset={touchDevice ? safeArea.top : 0}
           rightInset={touchDevice ? safeArea.right : 0}
         />

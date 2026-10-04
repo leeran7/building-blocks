@@ -929,6 +929,8 @@ function DuelGame({
           realtime={realtime}
           myId={myId}
           opponentName={mySlot === 0 ? player2Name : player1Name}
+          moment={phase === "lobby" ? "lobby" : "climb"}
+          soundMuted={muted}
           topInset={safeArea.top}
           rightInset={safeArea.right}
           onSend={() => void tapLight()}
@@ -1239,6 +1241,7 @@ function MobileResult({
         realtime={realtime}
         myId={myId}
         opponentName={opponentName}
+        moment="result"
         layer="screen"
         onSend={() => void tapLight()}
         onReceive={() => void tapLight()}

@@ -607,6 +607,7 @@ export function DuelResult({
           realtime={realtime}
           myId={myId}
           opponentName={player1Id === myId ? player2Name : player1Name}
+          moment="result"
           layer="screen"
         />
       )}
