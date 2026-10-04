@@ -11,9 +11,6 @@ interface GuestValue {
 
 const GuestContext = createContext<GuestValue | null>(null);
 
-/** Where the guest's level map lives (guest home keeps "/"). */
-export const GUEST_MAP_PATH = "/levels";
-
 export function GuestProvider({ onSignIn, children }: { onSignIn: () => void; children: ReactNode }) {
   const value = useMemo(() => ({ onSignIn }), [onSignIn]);
   return <GuestContext.Provider value={value}>{children}</GuestContext.Provider>;
@@ -22,9 +19,4 @@ export function GuestProvider({ onSignIn, children }: { onSignIn: () => void; ch
 /** The guest session, or null for a signed-in player. */
 export function useGuest(): GuestValue | null {
   return useContext(GuestContext);
-}
-
-/** The level map's path: "/" (home) for an account, GUEST_MAP_PATH for a guest. */
-export function useMapPath(): string {
-  return useGuest() ? GUEST_MAP_PATH : "/";
 }

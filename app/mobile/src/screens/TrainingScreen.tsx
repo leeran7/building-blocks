@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 
 import { fillClimbInput, isInteractiveTarget, NO_TOUCH, shouldCaptureGameKey, type TouchInput } from "@app/game/useClimb";
 import { createTraining, TRAINING_GOALS, trainingHint, type Training } from "@app/game/levels/training";
@@ -22,7 +22,7 @@ import { notifySuccess, tapLight } from "../lib/haptics";
 import { useGameHaptics } from "../lib/useGameHaptics";
 import { markTutorialsSeen } from "../lib/levels/tutorialSeen";
 import { guestOnboarding, markOnboardingDone, TOUR_STATE } from "../lib/onboarding";
-import { GUEST_MAP_PATH, useGuest } from "../contexts/GuestContext";
+import { useGuest } from "../contexts/GuestContext";
 import { PageSwap } from "../components/PageSwap";
 
 type Phase = "intro" | "controls" | "train" | "ready";
@@ -39,31 +39,22 @@ const PRAISE_MS = 2200;
  *
  * Opened by the map on a first launch, and from Profile → How to play.
  *
- * A guest (GuestShell) opens it before their first Endless run or level, and
- * from How to play on guest home. It marks the guest's own flag, never the
- * account's, and goes on to what the guest tapped (router state `then`),
- * else back to guest home.
+ * A guest (GuestShell) gets it the same way, from their first visit to the
+ * map. It marks the guest's own flag, never the account's.
  */
 export function TrainingScreen() {
   const navigate = useNavigate();
-  const location = useLocation();
   const guest = useGuest();
   const [phase, setPhase] = useState<Phase>("intro");
-  const guestThen = guestTrainingNext(location.state);
   const touch = useCoarsePointer();
 
   // Either way out marks the tutorial done, so it is offered once.
   const toTour = useCallback(() => {
-    if (guest) {
-      guestOnboarding.markDone();
-      navigate(guestThen, { replace: true, state: guestThen === GUEST_MAP_PATH ? TOUR_STATE : null });
-      return;
-    }
-    markOnboardingDone();
+    if (guest) guestOnboarding.markDone();
+    else markOnboardingDone();
     navigate("/", { replace: true, state: TOUR_STATE });
-  }, [navigate, guest, guestThen]);
+  }, [navigate, guest]);
 
-  const nextLabel = !guest || guestThen === GUEST_MAP_PATH ? "Show me around" : guestThen === "/climb" ? "Start climbing" : "Done";
   // Each card hands over to the next on the push axis, like a pushed screen.
   return (
     <PageSwap page={phase}>
@@ -72,7 +63,7 @@ export function TrainingScreen() {
       ) : phase === "controls" ? (
         <PickControls onStart={() => setPhase("train")} onSkip={toTour} />
       ) : phase === "ready" ? (
-        <Ready onNext={toTour} nextLabel={nextLabel} />
+        <Ready onNext={toTour} />
       ) : (
         <TrainingClimb
           onDone={() => {
@@ -86,16 +77,6 @@ export function TrainingScreen() {
       )}
     </PageSwap>
   );
-}
-
-/** Where a guest's training goes next: Endless, the level map, or guest home. */
-export type GuestTrainingNext = "/climb" | typeof GUEST_MAP_PATH | "/";
-
-/** Reads `then` from router state, allow-listed; anything else is guest home. */
-export function guestTrainingNext(state: unknown): GuestTrainingNext {
-  if (typeof state !== "object" || state === null || !("then" in state)) return "/";
-  const then = (state as { then: unknown }).then;
-  return then === "/climb" || then === GUEST_MAP_PATH ? then : "/";
 }
 
 function Intro({ onStart, onSkip }: { onStart: () => void; onSkip: () => void }) {
@@ -142,7 +123,7 @@ function PickControls({ onStart, onSkip }: { onStart: () => void; onSkip: () => 
   );
 }
 
-function Ready({ onNext, nextLabel }: { onNext: () => void; nextLabel: string }) {
+function Ready({ onNext }: { onNext: () => void }) {
   return (
     <Card eyebrow="Training complete" title="You’re ready">
       <ul className="mt-6 flex flex-col gap-3">
@@ -158,7 +139,7 @@ function Ready({ onNext, nextLabel }: { onNext: () => void; nextLabel: string })
       </ul>
       <div className="mt-8">
         <Button autoFocus onPress={onNext}>
-          {nextLabel}
+          Show me around
         </Button>
       </div>
     </Card>

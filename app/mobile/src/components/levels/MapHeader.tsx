@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import type { BoosterInventory } from "@app/levels/engagement";
 import type { ChestProgress, PlayerStats } from "../../lib/levels/model";
 import { GemBalance } from "../store/GemBalance";
@@ -8,8 +9,8 @@ import { ChestMeter } from "./LevelChests";
  * The level map's header: one glass panel in one row of cells: the player
  * level in an XP ring (it opens the XP sheet), lives, the star chest's ring
  * (it opens the chest sheet) and gems. The season and episode sit under the
- * panel. A guest has no chest or gems, so their panel is the level and lives.
- * Every tap target is 44px+.
+ * panel. A guest has no chest or gems: their panel is the level, lives and a
+ * Sign In cell (`trailing`). Every tap target is 44px+.
  */
 export function MapHeader({
   seasonName,
@@ -21,6 +22,7 @@ export function MapHeader({
   onLives,
   onXp,
   onChest,
+  trailing,
 }: {
   seasonName: string;
   episode: number;
@@ -35,6 +37,8 @@ export function MapHeader({
   onXp: () => void;
   /** Opens the chest sheet; without it the chest cell is not a button. */
   onChest?: () => void;
+  /** A last cell after the others (the guest's Sign In). */
+  trailing?: ReactNode;
 }) {
   const divider = "border-l border-white/[0.06]";
   return (
@@ -56,6 +60,7 @@ export function MapHeader({
             <GemBalance compact />
           </span>
         )}
+        {trailing && <span className={`flex shrink-0 items-center px-2 ${divider}`}>{trailing}</span>}
       </div>
       <p className="mt-2 text-center font-mono text-label font-bold uppercase tracking-label text-text-secondary">
         {seasonName} · Episode {episode}
