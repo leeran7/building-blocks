@@ -171,6 +171,10 @@ function Scene({
   const exiting = role === "exit";
   useEffect(() => {
     if (!exiting) return;
+    // A pending swipe step (the delayed back, the snap-back reset) must not run
+    // once this screen is already on its way out: it would step back twice.
+    timers.current.forEach((t) => window.clearTimeout(t));
+    timers.current = [];
     let id = 0;
     const check = () => {
       const running = ref.current?.getAnimations?.().some((a) => a.playState === "running") ?? false;
@@ -257,8 +261,10 @@ function Scene({
     }
   };
 
-  const dragging = engaged && !animating;
-  const style = engaged
+  // Leaving mid-gesture: the exit animation takes over from the drag.
+  const live = engaged && !exiting;
+  const dragging = live && !animating;
+  const style = live
     ? {
         transform: `translate3d(${x}px, 0, 0)`,
         transition: animating
@@ -272,7 +278,7 @@ function Scene({
   return (
     <div
       ref={ref}
-      className={`route-scene ${engaged ? "route-live" : `route-${role}-${kind}`}`}
+      className={`route-scene ${live ? "route-live" : `route-${role}-${kind}`}`}
       style={style}
       inert={exiting}
       aria-hidden={exiting || undefined}

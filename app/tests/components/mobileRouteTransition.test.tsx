@@ -190,6 +190,33 @@ describe("RouteTransition keeps the outgoing screen until it has animated out", 
   });
 });
 
+function touch(target: Element, type: string, clientX: number) {
+  const event = new Event(type, { bubbles: true, cancelable: true });
+  Object.defineProperty(event, "touches", { value: type === "touchend" ? [] : [{ clientX, clientY: 300 }] });
+  target.dispatchEvent(event);
+}
+
+describe("swipe-back racing another back", () => {
+  it("steps back once when Back is pressed while the swiped screen is still sliding away", async () => {
+    await mount(["/profile", "/settings", "/shop/wraith"]);
+    const scene = sceneOf("/shop/wraith");
+    if (!scene) throw new Error("scene not found");
+    for (const [type, x] of [["touchstart", 4], ["touchmove", 30], ["touchmove", 380], ["touchend", 0]] as const) {
+      await act(async () => {
+        touch(scene, type, x);
+      });
+    }
+    // Header Back (or Android back) lands before the swipe's own delayed back.
+    await go(-1);
+    expect(sceneOf("/settings")).not.toBeNull();
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 300));
+    });
+    expect(sceneOf("/settings")?.dataset.routeRole).toBe("enter");
+    expect(sceneOf("/profile")).toBeNull();
+  });
+});
+
 describe("BottomNavDock", () => {
   it("slides the tab bar away with a pushed screen, still marking the tab it left", async () => {
     await mount(["/shop"]);
