@@ -8,7 +8,7 @@ import { TICK_DT, type PlayerInput } from "@app/game/types";
 import { POWER_UP_SPECS } from "@app/game/powerups";
 import { ClimbCanvas } from "@app/components/Game/ClimbCanvas";
 import { ActivePowerStack } from "@app/components/Game/PowerUpHud";
-import { TouchControls, useTouchControlsInset } from "@app/components/Game/TouchControls";
+import { TouchControls, touchControlsInset } from "@app/components/Game/TouchControls";
 import { usePowerUpFeedback } from "@app/components/Game/usePowerUpFeedback";
 import { useCanvasSize } from "@app/hooks/useCanvasSize";
 import { ControlSchemePicker } from "@app/components/ControlSchemePicker";
@@ -227,7 +227,7 @@ function TrainingClimb({ onDone, onSkip }: { onDone: () => void; onSkip: () => v
   const boxRef = useRef<HTMLDivElement>(null);
   const size = useCanvasSize(boxRef, { fill: true });
   const safeArea = useSafeAreaInsets();
-  const bottomInset = useTouchControlsInset(safeArea.bottom);
+  const bottomInset = touchControlsInset(safeArea.bottom);
   const myAvatarId = useSettings().data?.avatarId ?? null;
   const simRef = useMemo(() => ({ current: training.state }), [training]);
   useGameHaptics(simRef, 0, 0);

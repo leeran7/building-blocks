@@ -38,7 +38,9 @@ export function GemBalance({ compact = false }: { compact?: boolean }) {
             void tapLight();
             setOpen(true);
           }}
-          className={`cta-lime flex items-center justify-center text-void transition-transform active:scale-90 ${
+          // The visible disc is 32-36px; the ::before pad grows the tap target
+          // to 44px+ without making the pill taller.
+          className={`cta-lime relative flex items-center justify-center text-void transition-transform active:scale-90 before:absolute before:-inset-1.5 before:content-[''] ${
             compact ? "h-8 w-8 rounded-full" : "h-9 w-9 rounded-xl"
           }`}
         >

@@ -1,6 +1,6 @@
 import { AnimatePresence } from "motion/react";
 import { useState } from "react";
-import { Navigate, useParams } from "react-router-dom";
+import { Navigate, useLocation, useParams } from "react-router-dom";
 import {
   avatarEntry,
   formatGems,
@@ -87,7 +87,9 @@ function SkinDetails({ character }: { character: AvatarEntry }) {
   const invalidate = useInvalidateAppData();
 
   const looks: AvatarEntry[] = [character, ...skinsOf(character.id)];
-  const featured = looks[1];
+  // The look the Shop card showed (the Wraith's card is the character itself), else the first skin.
+  const opened = (useLocation().state as { look?: unknown } | null)?.look;
+  const featured = looks.find((l) => l.id === opened) ?? looks[1];
   const [selectedId, setSelectedId] = useState<string>(() =>
     looks.some((l) => l.id === settings?.avatarId) ? (settings?.avatarId as string) : featured.id,
   );

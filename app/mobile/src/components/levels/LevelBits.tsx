@@ -110,13 +110,15 @@ export function LivesPill({ player, onPress }: { player: PlayerStats; onPress?: 
   );
 }
 
-/** Player level badge and progress to the next player level. */
-export function XpBar({ player, compact = false }: { player: PlayerStats; compact?: boolean }) {
+/**
+ * Player level badge and progress to the next player level. With `onPress`
+ * it is a button (it opens the XP sheet: how to level up and what unlocks next).
+ */
+export function XpBar({ player, compact = false, onPress }: { player: PlayerStats; compact?: boolean; onPress?: () => void }) {
   const pct = player.xpForNext > 0 ? Math.min(100, (player.xpIntoLevel / player.xpForNext) * 100) : 0;
-  return (
-    <span
-      className={`glass inline-flex items-center gap-2 rounded-full border border-white/10 ${compact ? "h-10 pl-1 pr-3" : "h-11 pl-1.5 pr-3.5"}`}
-    >
+  const className = `glass inline-flex items-center gap-2 rounded-full border border-white/10 ${compact ? "h-10 pl-1 pr-3" : "h-11 pl-1.5 pr-3.5"}`;
+  const body = (
+    <>
       <span
         aria-hidden
         className="flex h-8 min-w-8 items-center justify-center rounded-full bg-signal px-1.5 font-display text-meta font-black tabular-nums text-void"
@@ -138,7 +140,20 @@ export function XpBar({ player, compact = false }: { player: PlayerStats; compac
           <span className="block h-full rounded-full bg-signal" style={{ width: `${pct}%` }} />
         </span>
       </span>
-    </span>
+    </>
+  );
+  if (!onPress) return <span className={className}>{body}</span>;
+  return (
+    <button
+      type="button"
+      data-xp-pill
+      aria-label={`Player level ${player.playerLevel}, ${player.xpIntoLevel.toLocaleString()} of ${player.xpForNext.toLocaleString()} XP. Show what unlocks next`}
+      aria-haspopup="dialog"
+      onClick={onPress}
+      className={`${className} transition-transform active:scale-95`}
+    >
+      {body}
+    </button>
   );
 }
 
