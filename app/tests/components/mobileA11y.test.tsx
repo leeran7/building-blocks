@@ -289,7 +289,9 @@ describe("Hub header shared by Ranks and Profile", () => {
     expect(header).toBeTruthy();
     const h1s = container.querySelectorAll("h1");
     const children = [...header!.children] as HTMLElement[];
-    const back = children[0]?.getAttribute("aria-label") === "Back" ? children.shift()! : null;
+    // A pushed hub puts Back on the eyebrow's row: [Back, eyebrow, spacer].
+    const back = children[0]?.querySelector(':scope > button[aria-label="Back"]') ?? null;
+    if (back) children[0] = children[0].children[1] as HTMLElement;
     const [eyebrow, titleRow, ...rest] = children;
     const status = rest.find((el) => el.hasAttribute("data-hub-status"));
     const subtitle = rest.find((el) => !el.hasAttribute("data-hub-status"));
@@ -302,7 +304,7 @@ describe("Hub header shared by Ranks and Profile", () => {
       subtitleClass: subtitle?.className,
       subtitle: subtitle ? [...subtitle.children].map((c) => (c.getAttribute("aria-hidden") ? "·" : c.textContent)) : [],
       status: status ? { className: status.className, label: status.querySelector(".sr-only")?.textContent } : null,
-      childCount: children.length + (back ? 1 : 0),
+      childCount: children.length,
       hasBack: back !== null,
     };
   }
@@ -326,9 +328,7 @@ describe("Hub header shared by Ranks and Profile", () => {
     root = createRoot(container);
     const profile = await headerOf("/profile", createElement(ProfileScreen));
 
-    // Same header; Ranks only adds the gutters that keep the title clear of Back.
-    expect(ranks.header.split(" ")).toContain("px-14");
-    expect(profile.header.trim()).toBe(ranks.header.replace("px-14", "").trim());
+    expect(profile.header).toBe(ranks.header);
     expect(profile.eyebrow).toBe(ranks.eyebrow);
     expect(profile.h1Class).toBe(ranks.h1Class);
     expect(ranks.eyebrow).toContain(">Doomstack<");
@@ -338,7 +338,7 @@ describe("Hub header shared by Ranks and Profile", () => {
     expect(ranks.status?.label).toBe("9 climbers on the all-time board");
     // Ranks is pushed from Modes (not a tab), so it also gets a Back button.
     expect(ranks.hasBack).toBe(true);
-    expect(ranks.childCount).toBe(4);
+    expect(ranks.childCount).toBe(3);
     // Profile: the same tracked-mono subtitle as before, and no pill.
     expect(profile.subtitle).toEqual(["Your climb"]);
     expect(profile.subtitleClass).toBe(

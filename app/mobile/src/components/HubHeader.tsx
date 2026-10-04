@@ -35,23 +35,23 @@ export interface HubHeaderProps {
  * Centered header for the hub screens (Profile, and the pushed Leaderboard): the lime
  * DOOMSTACK eyebrow between two rules, the metal page title, and an optional
  * subtitle and/or status pill. One component so the hub headers cannot drift apart. A pushed
- * hub (Leaderboard) passes `onBack`; other pushed screens use PushHeader. Modes
+ * hub (Leaderboard) passes `onBack`, which puts Back on the eyebrow row; other pushed screens use PushHeader. Modes
  * has its own wordmark.
  */
 export function HubHeader({ title, subtitle, trailing, headingRef, status, onBack }: HubHeaderProps) {
   return (
-    // With Back, equal 3.5rem gutters keep the centred title clear of the 48px button.
-    <header
-      className={`relative flex flex-col items-center pb-5 pt-[calc(env(safe-area-inset-top)+1rem)] text-center ${onBack ? "px-14" : ""}`}
-    >
-      {onBack && <BackButton onBack={onBack} className="absolute left-0 top-[calc(env(safe-area-inset-top)+1rem)]" />}
-      <div className="flex items-center gap-3">
-        <span aria-hidden className="h-px w-8 bg-signal/70" />
-        <span className="pl-(--tracking-eyebrow) font-mono text-label font-bold uppercase tracking-eyebrow text-signal">
-          Doomstack
-        </span>
-        <span aria-hidden className="h-px w-8 bg-signal/70" />
-      </div>
+    <header className="flex flex-col items-center pb-5 pt-[calc(env(safe-area-inset-top)+1rem)] text-center">
+      {onBack ? (
+        // Back shares the eyebrow's row, not the title's: a long title (LEADERBOARD)
+        // fills a 320px screen, and a button beside it would cover its first letter.
+        <div className="grid w-full grid-cols-[3rem_1fr_3rem] items-center">
+          <BackButton onBack={onBack} />
+          <Eyebrow />
+          <span aria-hidden />
+        </div>
+      ) : (
+        <Eyebrow />
+      )}
       <div className="mt-1.5 flex items-center gap-2">
         <h1
           ref={headingRef}
@@ -71,6 +71,18 @@ export function HubHeader({ title, subtitle, trailing, headingRef, status, onBac
       )}
       {status && <StatusPill status={status} />}
     </header>
+  );
+}
+
+function Eyebrow() {
+  return (
+    <div className="flex items-center justify-center gap-3">
+      <span aria-hidden className="h-px w-8 bg-signal/70" />
+      <span className="pl-(--tracking-eyebrow) font-mono text-label font-bold uppercase tracking-eyebrow text-signal">
+        Doomstack
+      </span>
+      <span aria-hidden className="h-px w-8 bg-signal/70" />
+    </div>
   );
 }
 
