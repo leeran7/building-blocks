@@ -1,4 +1,4 @@
-import { AnimatePresence } from "motion/react";
+import { AnimatePresence, motion } from "motion/react";
 import { useState } from "react";
 import { Navigate, useLocation, useParams } from "react-router-dom";
 import {
@@ -23,6 +23,7 @@ import { GemIcon } from "../components/store/GemIcon";
 import { GemPacksSheet } from "../components/store/GemPacksSheet";
 import { buyWithGems, ShopError } from "../lib/shop";
 import { useBackOr } from "../lib/navigation";
+import { riseIn, sharedId, spring } from "../lib/motionTokens";
 import { notifyError, notifySuccess, tapLight } from "../lib/haptics";
 
 const POSES: ReadonlyArray<{ id: PreviewPose; label: string }> = [
@@ -187,8 +188,13 @@ function SkinDetails({ character }: { character: AvatarEntry }) {
   return (
     <main data-skin-details className="flex h-full min-h-0 flex-col">
       <ScreenHeader title="Skin details" onBack={goBack} trailing={<GemBalance />} />
-      <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-[calc(env(safe-area-inset-bottom)+1rem)]">
-        <div role="group" aria-label="Preview pose" className="mx-auto flex w-fit gap-1 rounded-full border border-white/10 bg-void/70 p-[3px]">
+      <motion.div
+        layoutScroll
+        initial="hidden"
+        animate="shown"
+        className="min-h-0 flex-1 overflow-y-auto px-4 pb-[calc(env(safe-area-inset-bottom)+1rem)]"
+      >
+        <motion.div variants={riseIn} custom={0} role="group" aria-label="Preview pose" className="mx-auto flex w-fit gap-1 rounded-full border border-white/10 bg-void/70 p-[3px]">
           {POSES.map((p) => (
             <button
               key={p.id}
@@ -202,13 +208,16 @@ function SkinDetails({ character }: { character: AvatarEntry }) {
               {p.label}
             </button>
           ))}
-        </div>
+        </motion.div>
 
         <section aria-label="Preview" className="flex h-[250px] items-end justify-center">
-          <CharacterPreview avatarId={selected.id} pose={pose} locked={false} figurePx={200} sizePx={250} />
+          {/* The figure the Shop card showed flies up into this spot (sharedId). */}
+          <motion.div layoutId={sharedId.shopLook(selected.id)} layoutCrossfade={false} transition={spring.smooth} className="flex">
+            <CharacterPreview avatarId={selected.id} pose={pose} locked={false} figurePx={200} sizePx={250} />
+          </motion.div>
         </section>
 
-        <section aria-label={`${character.name} looks`} className="px-3">
+        <motion.section variants={riseIn} custom={1} aria-label={`${character.name} looks`} className="px-3">
           <div role="radiogroup" aria-label="Looks" className="grid grid-cols-3 gap-3">
             {looks.map((look) => {
               const on = look.id === selected.id;
@@ -255,9 +264,9 @@ function SkinDetails({ character }: { character: AvatarEntry }) {
               <span className="font-mono text-label font-bold">???</span>
             </div>
           </div>
-        </section>
+        </motion.section>
 
-        <section aria-label="Selected look" className="mt-6 flex flex-col gap-3">
+        <motion.section variants={riseIn} custom={2} aria-label="Selected look" className="mt-6 flex flex-col gap-3">
           <div className="border-b border-white/15 pb-3 text-center">
             <h2 aria-live="polite" className="font-display text-title font-black uppercase leading-none tracking-tight text-text-primary">
               {selected.name}
@@ -318,8 +327,8 @@ function SkinDetails({ character }: { character: AvatarEntry }) {
           <p className="text-center text-label text-text-secondary">
             {isSkin ? "Cosmetic only. No gameplay advantage." : "Skins change how you look, never how you play."}
           </p>
-        </section>
-      </div>
+        </motion.section>
+      </motion.div>
       <AnimatePresence>
         {packsOpen && <GemPacksSheet onClose={() => setPacksOpen(false)} />}
       </AnimatePresence>

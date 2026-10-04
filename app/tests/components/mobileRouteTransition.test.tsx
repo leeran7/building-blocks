@@ -132,7 +132,8 @@ describe("transitionKind", () => {
   it.each([
     ["/shop", "/profile", NavigationType.Push, "tab"],
     ["/profile", "/shop", NavigationType.Pop, "tab"],
-    ["/shop", "/shop/wraith", NavigationType.Push, "push"],
+    ["/shop", "/shop/wraith", NavigationType.Push, "hero"],
+    ["/profile", "/shop/wraith", NavigationType.Push, "push"],
     ["/profile", "/settings", NavigationType.Push, "push"],
     ["/settings", "/profile/edit", NavigationType.Push, "push"],
     ["/shop/wraith", "/shop", NavigationType.Pop, "pop"],
@@ -175,6 +176,7 @@ describe("scene motion", () => {
 describe("RouteTransition keeps the outgoing screen until it has animated out", () => {
   it("pushes Skin Details over a Shop that is still on screen, then drops the Shop", async () => {
     await mount(["/shop"]);
+    await settle();
     const shop = sceneOf("/shop");
     await go("/shop/wraith");
 
@@ -182,7 +184,7 @@ describe("RouteTransition keeps the outgoing screen until it has animated out", 
     // The same Shop element: it was kept mounted, not re-created.
     expect(sceneOf("/shop")).toBe(shop);
     expect(shop?.dataset.routeRole).toBe("exit");
-    expect(shop?.dataset.routeKind).toBe("push");
+    expect(shop?.dataset.routeKind).toBe("hero");
     expect(shop?.hasAttribute("inert")).toBe(true);
     expect(shop?.getAttribute("aria-hidden")).toBe("true");
     expect(sceneOf("/shop/wraith")?.dataset.routeRole).toBe("enter");

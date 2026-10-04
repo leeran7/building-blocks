@@ -67,3 +67,12 @@ export const riseIn = {
     transition: { ...spring.smooth, delay: staggerDelay(index), opacity: { duration: duration.fast, delay: staggerDelay(index) } },
   }),
 } as const;
+
+/**
+ * layoutIds for elements that travel between screens. Both ends render the
+ * same id and Motion flies one into the other (RouteTransition's LayoutGroup).
+ */
+export const sharedId = {
+  /** The figure on a Shop card and the preview on Skin Details, per look. */
+  shopLook: (lookId: string) => `shop-look-${lookId}`,
+} as const;

@@ -44,7 +44,7 @@ export function BottomNavDock({ show }: { show: boolean }) {
 export const DOCK_MOTION = {
   initial: { y: "100%", opacity: 0 },
   animate: { y: 0, opacity: 1, transition: { ...spring.smooth, opacity: { duration: duration.fast } } },
-  exit: { y: "100%", opacity: 0, transition: { duration: duration.base * 0.75, ease: ease.in } },
+  exit: { y: "100%", opacity: 0, transition: { duration: duration.fast, ease: ease.in } },
 } as const;
 
 function DockBar({ activePath }: { activePath: string }) {

@@ -28,6 +28,9 @@ import { isTabRoot } from "./BottomNav";
  *   slide: the old screen drifts left and is gone in the first third, the new
  *   one springs in from the right as it fades up, so the two never show at full
  *   strength on top of each other.
+ * - hero: Shop → Skin Details. The tapped card's figure flies up into the
+ *   preview (a shared layoutId), so the new screen holds still and lets its
+ *   content rise in around it while the Shop fades away.
  * - pop: the same in reverse (Back, Android back, a swipe from the left edge).
  *   After a swipe the screen is already off to the right, so it just goes.
  *
@@ -37,12 +40,13 @@ import { isTabRoot } from "./BottomNav";
  *
  * Reduced motion: screens swap with no movement.
  */
-export type TransitionKind = "initial" | "tab" | "push" | "pop";
+export type TransitionKind = "initial" | "tab" | "push" | "hero" | "pop";
 
 /** Which transition a move from `from` to `to` gets. Pure, so tests can call it. */
 export function transitionKind(from: string, to: string, navType: NavigationType): TransitionKind {
   if (isTabRoot(from) && isTabRoot(to)) return "tab";
   if (navType === "POP") return "pop";
+  if (from === "/shop" && to.startsWith("/shop/")) return "hero";
   // Back from a cold-opened screen replaces it with its parent (useBackOr).
   if (navType === "REPLACE" && parentRoute(from) === to) return "pop";
   if (isTabRoot(to) && !isTabRoot(from)) return "pop";
@@ -64,6 +68,8 @@ const leave = { duration: duration.exit, ease: ease.in };
 export function sceneEnterFrom({ kind, reduce }: SceneCustom): TargetAndTransition {
   if (reduce) return { opacity: 1, x: 0, y: 0, scale: 1 };
   if (kind === "push") return { opacity: 0, x: travel.screen };
+  // Hold still: the shared figure is the motion, and must not fade or slide.
+  if (kind === "hero") return { opacity: 1, x: 0 };
   if (kind === "pop") return { opacity: 0, x: -travel.behind };
   return { opacity: 0, y: 8, scale: 0.985 };
 }
@@ -80,6 +86,7 @@ export function sceneRest({ kind, reduce }: SceneCustom): TargetAndTransition {
 export function sceneExitTo({ kind, swiped, reduce }: SceneCustom): TargetAndTransition {
   if (reduce || swiped) return { opacity: 0, transition: { duration: 0 } };
   if (kind === "push") return { opacity: 0, x: -24, transition: leave };
+  if (kind === "hero") return { opacity: 0, transition: { duration: duration.exit * 0.7, ease: ease.in } };
   if (kind === "pop") return { opacity: 0, x: 32, transition: leave };
   return { opacity: 0, transition: { duration: duration.exit * 0.7, ease: "linear" } };
 }
