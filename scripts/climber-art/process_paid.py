@@ -9,7 +9,7 @@ import sys
 import tempfile
 
 import numpy as np
-from PIL import Image
+from PIL import Image, ImageFilter
 
 IDS = ('kestrel', 'lynx', 'raven', 'panther', 'wolf', 'otter', 'heron', 'yak',
        'mantis', 'cobra', 'badger', 'falcon', 'marmot', 'bison', 'ibex', 'sentinel', 'viking', 'gecko')
@@ -22,6 +22,14 @@ MAX_SHIFT = 24
 MIN_FRAME_DIFF = 1000
 TARGET_GUTTER = 11
 MIN_SHARED_SCALE = 0.65
+# Per-frame cycle stabilisation (see stabilise_climb / stabilise_run): how far a
+# frame's body may be scaled to match its cycle's reference mass, and how far it
+# may be translated onto the reference body.
+RUN_SCALE_RANGE = (0.9, 1.2)
+CLIMB_SCALE_RANGE = (0.9, 1.1)
+STABILISE_SHIFT = 24
+BODY_BLUR = 3
+HEAD_FRACTION = 0.35
 ROOT = (96, 172.5)
 GROUNDED_POSES = frozenset((0, 1, 2, 3, 4, 6, 7))
 REPO = Path(__file__).resolve().parents[2]
@@ -129,6 +137,95 @@ def compile_sheet(path: Path, kind: str, key: str, max_shift: int = MAX_SHIFT,
                     'minClimbDifferencePixels': minimum_diff}
 
 
+def visible_area(cell: Image.Image) -> int:
+    return int(np.count_nonzero(np.asarray(cell)[:, :, 3] > VISIBLE_ALPHA))
+
+
+def scaled_about_root(cell: Image.Image, factor: float) -> Image.Image:
+    """Uniformly scale one frame about the foot anchor (feet stay on the sole row)."""
+    if abs(factor - 1) <= 0.02:
+        return cell
+    transform = (1 / factor, 0, ROOT[0] - ROOT[0] / factor, 0, 1 / factor, ROOT[1] - ROOT[1] / factor)
+    return cell.transform(cell.size, Image.Transform.AFFINE, transform, Image.Resampling.BICUBIC)
+
+
+def translated(cell: Image.Image, dx: int, dy: int) -> tuple[Image.Image, int, int]:
+    """Translate a frame, clamping the move so it keeps a 2px gutter."""
+    left, top, right, bottom = visible_bounds(cell)
+    dx = max(min(dx, CELL - 2 - right), 2 - left)
+    dy = max(min(dy, CELL - 2 - bottom), 2 - top)
+    result = Image.new('RGBA', cell.size)
+    result.alpha_composite(cell, (dx, dy))
+    return result, dx, dy
+
+
+def body_mass(cell: Image.Image) -> np.ndarray:
+    """The frame's alpha blurred, so torso and head outweigh thin limbs."""
+    alpha = Image.fromarray(np.asarray(cell)[:, :, 3]).filter(ImageFilter.GaussianBlur(BODY_BLUR))
+    return np.asarray(alpha).astype(np.float32) / 255
+
+
+def body_offset(reference: np.ndarray, current: np.ndarray, limit: int = STABILISE_SHIFT) -> tuple[int, int]:
+    """The (dx, dy) that moves `current`'s body onto `reference`'s: the cross-correlation peak."""
+    correlation = np.fft.fftshift(np.fft.irfft2(np.fft.rfft2(reference) * np.conj(np.fft.rfft2(current)),
+                                                s=reference.shape))
+    cy, cx = np.array(correlation.shape) // 2
+    window = correlation[cy - limit:cy + limit + 1, cx - limit:cx + limit + 1]
+    dy, dx = np.unravel_index(int(np.argmax(window)), window.shape)
+    return int(dx) - limit, int(dy) - limit
+
+
+def head_centre_x(cell: Image.Image) -> float:
+    """Column centroid of the figure's top rows (the head), which a stride must not swing."""
+    visible = np.asarray(cell)[:, :, 3] > VISIBLE_ALPHA
+    _, top, _, bottom = visible_bounds(cell)
+    return float(np.where(visible[top:top + max(1, int((bottom - top) * HEAD_FRACTION))])[1].mean())
+
+
+def stabilise_climb(frames: list[Image.Image]) -> tuple[list[Image.Image], list[dict]]:
+    """Pin every climb frame's body onto frame 1's, so only the limbs move in the loop.
+
+    Generated climb rows come from separate renders whose body position and
+    size drift by several pixels; the engine crossfades frame boundaries, so
+    that drift ghosts the whole figure. Each later frame is scaled about the
+    anchor to frame 1's visible mass, then translated to the correlation peak
+    of the blurred bodies. Hands are thin, so the peak is the torso.
+    """
+    reference = body_mass(frames[0])
+    area = visible_area(frames[0])
+    result = [frames[0]]
+    moves = [{'scale': 1.0, 'dx': 0, 'dy': 0}]
+    for frame in frames[1:]:
+        factor = float(np.clip(np.sqrt(area / visible_area(frame)), *CLIMB_SCALE_RANGE))
+        frame = scaled_about_root(frame, factor)
+        frame, dx, dy = translated(frame, *body_offset(reference, body_mass(frame)))
+        result.append(frame)
+        moves.append({'scale': round(factor, 3), 'dx': dx, 'dy': dy})
+    sole = SOLE - max(visible_bounds(frame)[3] for frame in result)
+    result = [translated(frame, 0, sole)[0] for frame in result]
+    return result, [{**move, 'dy': move['dy'] + sole} for move in moves]
+
+
+def stabilise_run(frames: list[Image.Image]) -> tuple[list[Image.Image], list[dict]]:
+    """Match both run strides to the idle's mass and head column, then re-ground them.
+
+    A stride rendered smaller than the idle reads as a hop every other step,
+    and one whose head sits off the anchor swings side to side. Feet stay on
+    the sole row, so the fix is a scale about the anchor plus a horizontal move.
+    """
+    area, centre = visible_area(frames[0]), head_centre_x(frames[0])
+    result = list(frames)
+    moves = []
+    for index in (1, 2):
+        factor = float(np.clip(np.sqrt(area / visible_area(frames[index])), *RUN_SCALE_RANGE))
+        frame = scaled_about_root(frames[index], factor)
+        frame, dx, _ = translated(frame, int(round(centre - head_centre_x(frame))), 0)
+        frame, _ = grounded(frame, MAX_SHIFT)
+        result[index] = frame
+        moves.append({'frame': index + 1, 'scale': round(factor, 3), 'dx': dx})
+    return result, moves
+
+
 def split_frames(sheet: Image.Image, kind: str) -> list[Image.Image]:
     cols, count = (4, 8) if kind == 'poses' else (6, 6)
     return [sheet.crop(((i % cols) * CELL, (i // cols) * CELL,
@@ -145,7 +242,13 @@ def scale_limit(bounds: tuple[int, int, int, int]) -> float:
 
 
 def normalize_pair(compiled: dict) -> tuple[dict, float]:
-    """One common factor about the shared foot anchor; never scale individual poses."""
+    """One common factor about the shared foot anchor, then per-cycle stabilisation.
+
+    The shared factor keeps every pose at the character's one body scale. The
+    stabilisers afterwards only correct generation drift inside a cycle (run
+    strides against the idle, climb frames against frame 1) so the engine's
+    crossfades move limbs, not the whole figure.
+    """
     frames = {kind: split_frames(sheet, kind) for kind, (sheet, _) in compiled.items()}
     climb_shift = SOLE - max(visible_bounds(frame)[3] for frame in frames['climb'])
     if abs(climb_shift) > MAX_SHIFT:
@@ -173,8 +276,10 @@ def normalize_pair(compiled: dict) -> tuple[dict, float]:
             normalized.append(frame.transform(frame.size, Image.Transform.AFFINE, transform,
                                               Image.Resampling.BICUBIC)
                               if scale < 1 or shift else frame)
+        normalized, moves = stabilise_climb(normalized) if kind == 'climb' else stabilise_run(normalized)
         report = dict(compiled[kind][1])
         report['wholeSheetShiftY'] = shifts[kind]
+        report['stabilised'] = moves
         report['frames'] = [{**frame_summary(frame, i),
                              'groundingShift': report['frames'][i]['groundingShift']}
                             for i, frame in enumerate(normalized)]

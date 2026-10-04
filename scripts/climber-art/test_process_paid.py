@@ -161,10 +161,57 @@ class PaidArtTests(unittest.TestCase):
             self.assertEqual(report['sheets']['climb']['wholeSheetShiftY'], -10)
             self.assertEqual(report['sheets']['poses']['wholeSheetShiftY'], 0)
             soles = [f['bounds'][3] for f in climbed]
-            self.assertEqual(soles, sorted(soles))
-            self.assertGreaterEqual(soles[-1] - soles[0], 4)
-            self.assertEqual(soles[-1], 172)
+            # Stabilised: the bodies line up, so the soles no longer stagger with the source heights.
+            self.assertLessEqual(max(soles) - min(soles), 3)
+            self.assertEqual(max(soles), 172)
             self.assertTrue(all(min(f['bounds'][:2]) > 0 for f in climbed))
+
+    def test_climb_frames_are_pinned_onto_the_first_body(self):
+        # Frames 4-6 come from a second generated row: same body, drawn 12px right, 7px up and 8% larger.
+        with tempfile.TemporaryDirectory() as temp:
+            folder = Path(temp) / 'kestrel-void'
+            folder.mkdir()
+            atlas(4, 2).save(folder / 'kestrel-void-poses.png')
+            climb = Image.new('RGBA', (6 * 192, 192), (255, 0, 255, 255))
+            draw = ImageDraw.Draw(climb)
+            for i in range(6):
+                dx, dy, grow = (12, -7, 4) if i >= 3 else (0, 0, 0)
+                x = i * 192 + 60 + dx
+                draw.rectangle((x - grow, 40 + dy - grow, x + 70 + grow, 174 + dy), fill=(20, 90, 210, 255))
+                # A hand that climbs the body's side a step per frame, so every frame differs.
+                hand = (x - 30, 20 + dy + 44 * (i % 3)) if i % 2 else (x + 74, 20 + dy + 44 * (i % 3))
+                draw.rectangle((hand[0], hand[1], hand[0] + 26, hand[1] + 40), fill=(240, 200, 30, 255))
+            climb.save(folder / 'kestrel-void-climb.png')
+            report = process_character('kestrel', Path(temp), Path(temp) / 'out', check_only=True)
+            moves = report['sheets']['climb']['stabilised']
+            self.assertTrue(all(abs(m['dx']) <= 1 for m in moves[:3]), moves)
+            self.assertTrue(all(-14 <= m['dx'] <= -10 for m in moves[3:]), moves)
+            self.assertTrue(all(m['scale'] < 1 for m in moves[3:]), moves)
+            # Even frames carry the hand on the right, so their left edge is the body's.
+            lefts = [f['bounds'][0] for f in report['sheets']['climb']['frames'][::2]]
+            self.assertLessEqual(max(lefts) - min(lefts), 4, lefts)
+
+    def test_run_strides_match_the_idle_mass_and_head_column(self):
+        with tempfile.TemporaryDirectory() as temp:
+            folder = Path(temp) / 'kestrel-void'
+            folder.mkdir()
+            poses = atlas(4, 2)
+            draw = ImageDraw.Draw(poses)
+            # run-b (cell 2) drawn 15% shorter and narrower, and its head 14px to the right.
+            draw.rectangle((2 * 192, 0, 3 * 192 - 1, 191), fill=(255, 0, 255, 255))
+            draw.rectangle((2 * 192 + 69, 52, 2 * 192 + 137, 174), fill=(20, 90, 210, 255))
+            poses.save(folder / 'kestrel-void-poses.png')
+            atlas(6, 1, varied=True).save(folder / 'kestrel-void-climb.png')
+            report = process_character('kestrel', Path(temp), Path(temp) / 'out', check_only=True)
+            moves = report['sheets']['poses']['stabilised']
+            self.assertEqual([m['frame'] for m in moves], [2, 3])
+            self.assertAlmostEqual(moves[0]['scale'], 1.0, delta=0.02)
+            self.assertGreater(moves[1]['scale'], 1.1)
+            self.assertLess(moves[1]['dx'], -8)
+            frames = report['sheets']['poses']['frames']
+            self.assertIn(frames[2]['bounds'][3], range(170, 176))
+            heights = [f['bounds'][3] - f['bounds'][1] for f in frames[:3]]
+            self.assertLessEqual(max(heights) - min(heights), 3, heights)
 
     def test_standing_grounding_is_fused_before_shared_scale_without_clipping(self):
         with tempfile.TemporaryDirectory() as temp:
