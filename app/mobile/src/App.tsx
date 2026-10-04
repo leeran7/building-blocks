@@ -12,6 +12,7 @@ import { ChallengeScreen } from "./screens/ChallengeScreen";
 import { LevelMapScreen } from "./screens/LevelMapScreen";
 import { LevelPlayScreen } from "./screens/LevelPlayScreen";
 import { ShopScreen } from "./screens/ShopScreen";
+import { TrainingScreen } from "./screens/TrainingScreen";
 import { SkinDetailsScreen } from "./screens/SkinDetailsScreen";
 import { AnimatedBackdrop } from "./components/AnimatedBackdrop";
 import { RouteTransition } from "./components/RouteTransition";
@@ -61,7 +62,8 @@ export function App() {
 
   // NOTE: call useLocation() unconditionally — never behind a short-circuit.
   const location = useLocation();
-  const onClimb = authed && (location.pathname === "/climb" || isLevelPlay(location.pathname));
+  const onClimb =
+    authed && (location.pathname === "/climb" || location.pathname === "/tutorial" || isLevelPlay(location.pathname));
   const showNav = authed && isTabRoot(location.pathname);
   const guestActive = guestMode && !authed;
 
@@ -77,6 +79,8 @@ export function App() {
             {/* Keyed by entry so "Practice this level" from a result starts fresh. */}
             <Route path="/levels/:level/play" element={<LevelPlayScreen key={location.key} />} />
             <Route path="/duel/:id" element={<DuelRoomScreen />} />
+            {/* First-run tutorial: opened by the map on a first launch, and from Profile. */}
+            <Route path="/tutorial" element={<TrainingScreen />} />
             <Route
               path="*"
               element={
