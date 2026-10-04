@@ -1,7 +1,18 @@
 import { useLocation, useNavigationType, type Location, type NavigationType } from "react-router-dom";
 import { useEffect, useRef, useState, type ReactNode, type TouchEvent } from "react";
+import {
+  AnimatePresence,
+  LayoutGroup,
+  animate,
+  motion,
+  useIsPresent,
+  useMotionValue,
+  usePresenceData,
+  type TargetAndTransition,
+} from "motion/react";
 import { tapLight } from "../lib/haptics";
 import { prefersReducedMotion } from "../lib/motion";
+import { duration, ease, spring, travel } from "../lib/motionTokens";
 import { parentRoute, useBackOr } from "../lib/navigation";
 import { isTabRoot } from "./BottomNav";
 
@@ -9,21 +20,22 @@ import { isTabRoot } from "./BottomNav";
  * How one screen hands over to the next, over the persistent game backdrop.
  *
  * Screens are transparent (the lava backdrop shows through), so the outgoing
- * screen stays mounted for the length of the transition and both animate
- * together. Unmounting it at once, as this used to, left a frame of bare
- * backdrop before the next screen arrived.
+ * screen stays mounted (AnimatePresence) and both animate together:
  *
  * - tab: between two bottom-nav tabs (peers, not a stack). The old tab fades
- *   out fast while the new one fades in with a small settle.
+ *   out fast while the new one fades in and settles up into place.
  * - push: hub → screen (Shop → Skin Details, Profile → Settings). Shared-axis
- *   slide: the old screen drifts left and fades out early, the new one comes
- *   in from the right and fades in, so the two never sit on top of each other
- *   at full strength.
+ *   slide: the old screen drifts left and is gone in the first third, the new
+ *   one springs in from the right as it fades up, so the two never show at full
+ *   strength on top of each other.
  * - pop: the same in reverse (Back, Android back, a swipe from the left edge).
- *   After a swipe the screen is already off to the right, so only the screen
- *   underneath animates in.
+ *   After a swipe the screen is already off to the right, so it just goes.
  *
- * All motion respects prefers-reduced-motion: screens swap with no animation.
+ * A LayoutGroup spans both screens, so an element tagged with the same
+ * `layoutId` on each (the Shop card's character and Skin Details' preview)
+ * travels from one to the other instead of cutting.
+ *
+ * Reduced motion: screens swap with no movement.
  */
 export type TransitionKind = "initial" | "tab" | "push" | "pop";
 
@@ -37,76 +49,98 @@ export function transitionKind(from: string, to: string, navType: NavigationType
   return "push";
 }
 
+/** What the screens animate with for one transition: read by both of them. */
+export interface SceneCustom {
+  kind: TransitionKind;
+  /** The leaving screen was swiped away and is already off screen. */
+  swiped: boolean;
+  reduce: boolean;
+}
+
+const fadeIn = (delay: number) => ({ duration: duration.fast + 0.04, ease: "linear" as const, delay });
+const leave = { duration: duration.exit, ease: ease.in };
+
+/** Where a screen starts when it arrives. */
+export function sceneEnterFrom({ kind, reduce }: SceneCustom): TargetAndTransition {
+  if (reduce) return { opacity: 1, x: 0, y: 0, scale: 1 };
+  if (kind === "push") return { opacity: 0, x: travel.screen };
+  if (kind === "pop") return { opacity: 0, x: -travel.behind };
+  return { opacity: 0, y: 8, scale: 0.985 };
+}
+
+/** Where a screen comes to rest, and how it gets there. */
+export function sceneRest({ kind, reduce }: SceneCustom): TargetAndTransition {
+  const transition = reduce
+    ? { duration: 0 }
+    : { ...spring.smooth, opacity: fadeIn(kind === "push" || kind === "pop" ? 0.08 : 0.06) };
+  return { opacity: 1, x: 0, y: 0, scale: 1, transition };
+}
+
+/** Where a screen goes when it leaves. */
+export function sceneExitTo({ kind, swiped, reduce }: SceneCustom): TargetAndTransition {
+  if (reduce || swiped) return { opacity: 0, transition: { duration: 0 } };
+  if (kind === "push") return { opacity: 0, x: -24, transition: leave };
+  if (kind === "pop") return { opacity: 0, x: 32, transition: leave };
+  return { opacity: 0, transition: { duration: duration.exit * 0.7, ease: "linear" } };
+}
+
+const SCENE_VARIANTS = { enter: sceneEnterFrom, rest: sceneRest, exit: sceneExitTo };
+
 /** Set by a swipe-back just before it navigates: that screen has already left. */
 let swipedAway: string | null = null;
 
-interface Layer {
+interface SceneState {
   id: number;
-  location: Location;
-}
-
-interface Scenes {
-  current: Layer;
-  exiting: Layer | null;
+  pathname: string;
+  key: string;
   kind: TransitionKind;
-  nextId: number;
+  swiped: boolean;
 }
 
 export function RouteTransition({ children }: { children: (location: Location) => ReactNode }) {
   const location = useLocation();
   const navType = useNavigationType();
-  const [scenes, setScenes] = useState<Scenes>(() => ({
-    current: { id: 0, location },
-    exiting: null,
+  const [scene, setScene] = useState<SceneState>(() => ({
+    id: 0,
+    pathname: location.pathname,
+    key: location.key,
     kind: "initial",
-    nextId: 1,
+    swiped: false,
   }));
 
   // Adopt a new location during render (React's derived-state pattern), so the
-  // first frame of the new screen already has the old one beside it.
-  let shown = scenes;
-  if (scenes.current.location.key !== location.key) {
-    const from = scenes.current.location.pathname;
-    if (from === location.pathname) {
-      // Same screen, new entry (a tab tapped twice): no transition, no remount.
-      shown = { ...scenes, current: { ...scenes.current, location } };
-    } else {
-      const skipExit = prefersReducedMotion() || swipedAway === from;
-      shown = {
-        current: { id: scenes.nextId, location },
-        exiting: skipExit ? null : scenes.current,
-        kind: transitionKind(from, location.pathname, navType),
-        nextId: scenes.nextId + 1,
-      };
-    }
-    setScenes(shown);
+  // first frame of the new screen already has the old one leaving beside it.
+  let shown = scene;
+  if (scene.key !== location.key) {
+    shown =
+      scene.pathname === location.pathname
+        ? // Same screen, new entry (a tab tapped twice): no transition, no remount.
+          { ...scene, key: location.key }
+        : {
+            id: scene.id + 1,
+            pathname: location.pathname,
+            key: location.key,
+            kind: transitionKind(scene.pathname, location.pathname, navType),
+            swiped: swipedAway === scene.pathname,
+          };
+    setScene(shown);
   }
 
   useEffect(() => {
     swipedAway = null;
   }, [location.key]);
 
-  const exitingId = shown.exiting?.id;
-  const finishExit = (id: number) =>
-    setScenes((s) => (s.exiting?.id === id ? { ...s, exiting: null } : s));
-
-  const layers: Array<{ layer: Layer; role: "enter" | "exit" }> = [];
-  if (shown.exiting) layers.push({ layer: shown.exiting, role: "exit" });
-  layers.push({ layer: shown.current, role: "enter" });
+  const custom: SceneCustom = { kind: shown.kind, swiped: shown.swiped, reduce: prefersReducedMotion() };
 
   return (
     <div className="route-stage">
-      {layers.map(({ layer, role }) => (
-        <Scene
-          key={layer.id}
-          pathname={layer.location.pathname}
-          role={role}
-          kind={shown.kind}
-          onExited={role === "exit" && exitingId !== undefined ? () => finishExit(exitingId) : undefined}
-        >
-          {children(layer.location)}
-        </Scene>
-      ))}
+      <LayoutGroup>
+        <AnimatePresence custom={custom}>
+          <Scene key={shown.id} pathname={shown.pathname} custom={custom}>
+            {children(location)}
+          </Scene>
+        </AnimatePresence>
+      </LayoutGroup>
       <TransitionStyles />
     </div>
   );
@@ -115,35 +149,25 @@ export function RouteTransition({ children }: { children: (location: Location) =
 const EDGE_PX = 28;
 const POP_RATIO = 0.35;
 const POP_VELOCITY = 0.55;
-/** Checks that a missed animationend can't strand the outgoing screen. */
-const EXIT_SAFETY_MS = 900;
 
 /**
- * One screen in the stage. The same component plays the entering and the
- * exiting role so React keeps the screen mounted when it changes role. Pushed
- * screens (not tab roots) also take the swipe-back gesture from the left edge.
+ * One screen in the stage. While it is the current screen, pushed screens (not
+ * tab roots) take the swipe-back gesture from the left edge; once it starts
+ * leaving it is inert and hidden from assistive tech.
  */
-function Scene({
-  pathname,
-  role,
-  kind,
-  onExited,
-  children,
-}: {
-  pathname: string;
-  role: "enter" | "exit";
-  kind: TransitionKind;
-  onExited?: () => void;
-  children: ReactNode;
-}) {
-  const swipeable = role === "enter" && !isTabRoot(pathname);
+function Scene({ pathname, custom, children }: { pathname: string; custom: SceneCustom; children: ReactNode }) {
+  const present = useIsPresent();
+  // A leaving screen keeps the props it last rendered with; the transition it
+  // leaves by comes from AnimatePresence's custom.
+  const leavingAs = usePresenceData() as SceneCustom | undefined;
+  const kind = present ? custom.kind : (leavingAs?.kind ?? custom.kind);
+  const swipeable = present && !isTabRoot(pathname);
   // A deep-linked screen has nothing behind it: swipe to its parent instead.
   const back = useBackOr(parentRoute(pathname));
-  const ref = useRef<HTMLDivElement>(null);
-  const [x, setX] = useState(0);
-  const [animating, setAnimating] = useState(false);
-  const [animKind, setAnimKind] = useState<"pop" | "snap" | null>(null);
-  const [engaged, setEngaged] = useState(false);
+  // The gesture and the transition share one x, so a release carries on from
+  // wherever the finger let go.
+  const x = useMotionValue(0);
+  const [dragging, setDragging] = useState(false);
 
   const startX = useRef(0);
   const startY = useRef(0);
@@ -152,6 +176,7 @@ function Scene({
   const lastX = useRef(0);
   const lastT = useRef(0);
   const vel = useRef(0);
+  const settling = useRef(false);
   const timers = useRef<number[]>([]);
   useEffect(
     () => () => {
@@ -159,34 +184,20 @@ function Scene({
     },
     [],
   );
+  // Leaving: a pending swipe step (the delayed back) must not also run, or
+  // Back pressed mid-swipe would step back twice.
+  useEffect(() => {
+    if (present) return;
+    timers.current.forEach((id) => window.clearTimeout(id));
+    timers.current = [];
+  }, [present]);
   const later = (fn: () => void, ms: number) => {
     const id = window.setTimeout(fn, ms);
     timers.current.push(id);
   };
 
-  // animationend removes the outgoing screen. In case it never fires (the
-  // WebView was backgrounded mid-transition), drop it once nothing is running.
-  const exitedRef = useRef(onExited);
-  exitedRef.current = onExited;
-  const exiting = role === "exit";
-  useEffect(() => {
-    if (!exiting) return;
-    // A pending swipe step (the delayed back, the snap-back reset) must not run
-    // once this screen is already on its way out: it would step back twice.
-    timers.current.forEach((t) => window.clearTimeout(t));
-    timers.current = [];
-    let id = 0;
-    const check = () => {
-      const running = ref.current?.getAnimations?.().some((a) => a.playState === "running") ?? false;
-      if (running) id = window.setTimeout(check, EXIT_SAFETY_MS);
-      else exitedRef.current?.();
-    };
-    id = window.setTimeout(check, EXIT_SAFETY_MS);
-    return () => window.clearTimeout(id);
-  }, [exiting]);
-
   const onTouchStart = (e: TouchEvent<HTMLDivElement>) => {
-    if (!swipeable || animating) return;
+    if (!swipeable || settling.current) return;
     const t = e.touches[0];
     if (t.clientX > EDGE_PX) return;
     startX.current = t.clientX;
@@ -199,14 +210,14 @@ function Scene({
   };
 
   const onTouchMove = (e: TouchEvent<HTMLDivElement>) => {
-    if (animating || startT.current === 0) return;
+    if (settling.current || startT.current === 0) return;
     const t = e.touches[0];
     const dx = t.clientX - startX.current;
     const dy = t.clientY - startY.current;
     if (axis.current === "none") {
       if (Math.abs(dx) < 6 && Math.abs(dy) < 6) return;
       axis.current = Math.abs(dx) > Math.abs(dy) && dx > 0 ? "h" : "v";
-      if (axis.current === "h") setEngaged(true);
+      if (axis.current === "h") setDragging(true);
     }
     if (axis.current === "h") {
       const clamped = Math.max(0, dx);
@@ -215,7 +226,7 @@ function Scene({
       if (gap > 0) vel.current = (clamped - lastX.current) / gap;
       lastX.current = clamped;
       lastT.current = now;
-      setX(clamped);
+      x.set(clamped);
     }
   };
 
@@ -224,10 +235,11 @@ function Scene({
     const wasHorizontal = axis.current === "h";
     startT.current = 0;
     if (!wasHorizontal) return;
+    setDragging(false);
     const width = window.innerWidth || 1;
-    const flick = vel.current > POP_VELOCITY && x > 40;
-    const shouldPop = x > width * POP_RATIO || flick;
-    const reduce = prefersReducedMotion();
+    const dragged = lastX.current;
+    const flick = vel.current > POP_VELOCITY && dragged > 40;
+    const shouldPop = dragged > width * POP_RATIO || flick;
 
     const goBack = () => {
       void tapLight();
@@ -235,63 +247,45 @@ function Scene({
       back();
     };
 
-    if (reduce) {
+    if (prefersReducedMotion()) {
       if (shouldPop) goBack();
-      else {
-        setX(0);
-        setEngaged(false);
-      }
+      else x.set(0);
       return;
     }
 
-    setAnimating(true);
+    settling.current = true;
     if (shouldPop) {
-      setAnimKind("pop");
-      setX(width);
+      // Carry the finger's speed (px/ms → px/s) into the slide off screen.
+      void animate(x, width, { ...spring.smooth, velocity: vel.current * 1000 });
       later(goBack, 220);
     } else {
-      // Spring snap-back — overshoot signals the screen resisted dismissal.
-      setAnimKind("snap");
-      setX(0);
+      // Spring back: the overshoot says the screen resisted dismissal.
+      void animate(x, 0, spring.bouncy);
       later(() => {
-        setAnimating(false);
-        setEngaged(false);
-        setAnimKind(null);
+        settling.current = false;
       }, 360);
     }
   };
 
-  // Leaving mid-gesture: the exit animation takes over from the drag.
-  const live = engaged && !exiting;
-  const dragging = live && !animating;
-  const style = live
-    ? {
-        transform: `translate3d(${x}px, 0, 0)`,
-        transition: animating
-          ? animKind === "snap"
-            ? "transform 0.36s cubic-bezier(0.34, 1.56, 0.64, 1)"
-            : "transform 0.22s cubic-bezier(0.25, 0.46, 0.45, 0.94)"
-          : "none",
-      }
-    : undefined;
-
   return (
-    <div
-      ref={ref}
-      className={`route-scene ${live ? "route-live" : `route-${role}-${kind}`}`}
-      style={style}
-      inert={exiting}
-      aria-hidden={exiting || undefined}
-      data-route-role={role}
-      onAnimationEnd={(e) => {
-        if (exiting && e.target === e.currentTarget) onExited?.();
-      }}
+    <motion.div
+      className="route-scene"
+      custom={custom}
+      variants={SCENE_VARIANTS}
+      initial="enter"
+      animate="rest"
+      exit="exit"
+      style={{ x }}
+      inert={!present}
+      aria-hidden={!present || undefined}
+      data-route-role={present ? "enter" : "exit"}
+      data-route-kind={kind}
       onTouchStart={onTouchStart}
       onTouchMove={onTouchMove}
       onTouchEnd={endGesture}
       onTouchCancel={endGesture}
     >
-      {dragging && x > 0 && (
+      {dragging && present && (
         <span
           aria-hidden
           className="pointer-events-none fixed inset-y-0 left-0 z-50 w-1"
@@ -302,7 +296,7 @@ function Scene({
         />
       )}
       {children}
-    </div>
+    </motion.div>
   );
 }
 
@@ -315,30 +309,6 @@ function TransitionStyles() {
       .route-stage { position: relative; height: 100%; }
       .route-scene { position: absolute; inset: 0; }
       .route-scene[data-route-role="exit"] { pointer-events: none; }
-      /* Live drag: the gesture owns transform, entrance keyframes suppressed. */
-      .route-live { will-change: transform; }
-
-      /* Shared axis: the leaving screen fades out in the first third, the
-         arriving one fades in after it while it decelerates into place, so the
-         two never show at full strength on top of each other. */
-      .route-enter-initial,
-      .route-enter-tab  { animation: routeSettle 0.32s cubic-bezier(0.2, 0, 0, 1) both, routeFadeIn 0.22s linear 0.06s both; }
-      .route-exit-tab   { animation: routeFadeOut 0.1s linear both; }
-      .route-enter-push { animation: routeFromRight 0.38s cubic-bezier(0.2, 0, 0, 1) both, routeFadeIn 0.22s linear 0.08s both; }
-      .route-exit-push  { animation: routeToLeft 0.12s cubic-bezier(0.4, 0, 1, 1) both; }
-      .route-enter-pop  { animation: routeFromLeft 0.38s cubic-bezier(0.2, 0, 0, 1) both, routeFadeIn 0.22s linear 0.08s both; }
-      .route-exit-pop   { animation: routeToRight 0.12s cubic-bezier(0.4, 0, 1, 1) both; }
-
-      @keyframes routeFadeIn    { from { opacity: 0; } to { opacity: 1; } }
-      @keyframes routeFadeOut   { to { opacity: 0; } }
-      @keyframes routeSettle    { from { transform: translate3d(0, 8px, 0) scale(0.985); } to { transform: none; } }
-      @keyframes routeFromRight { from { transform: translate3d(56px, 0, 0); } to { transform: none; } }
-      @keyframes routeFromLeft  { from { transform: translate3d(-40px, 0, 0); } to { transform: none; } }
-      @keyframes routeToLeft    { to { opacity: 0; transform: translate3d(-24px, 0, 0); } }
-      @keyframes routeToRight   { to { opacity: 0; transform: translate3d(32px, 0, 0); } }
-      @media (prefers-reduced-motion: reduce) {
-        .route-scene { animation: none !important; }
-      }
     `}</style>
   );
 }

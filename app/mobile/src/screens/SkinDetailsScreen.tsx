@@ -1,3 +1,4 @@
+import { AnimatePresence } from "motion/react";
 import { useState } from "react";
 import { Navigate, useParams } from "react-router-dom";
 import {
@@ -317,7 +318,9 @@ function SkinDetails({ character }: { character: AvatarEntry }) {
           </p>
         </section>
       </div>
-      {packsOpen && <GemPacksSheet onClose={() => setPacksOpen(false)} />}
+      <AnimatePresence>
+        {packsOpen && <GemPacksSheet onClose={() => setPacksOpen(false)} />}
+      </AnimatePresence>
       {bought && (
         <RewardReveal
           subject={<CharacterPreview avatarId={bought.entry.id} pose="idle" locked={false} figurePx={190} sizePx={230} />}

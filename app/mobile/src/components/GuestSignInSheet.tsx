@@ -1,8 +1,8 @@
 import { useEffect, useId, useRef, useState } from "react";
-import { createPortal } from "react-dom";
 
 import { Button } from "./ui";
 import { useSwipeToDismiss } from "../hooks/useSwipeToDismiss";
+import { SheetPortal } from "./SheetPortal";
 
 /**
  * A bottom sheet asking a guest to sign in: what an account adds, a Sign in
@@ -47,16 +47,19 @@ export function GuestSignInSheet({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  return createPortal(
-    <div className="fixed inset-0 z-50 flex items-end justify-center" role="presentation">
-      <button
-        type="button"
-        aria-label="Close"
-        tabIndex={-1}
-        ref={scrimRef}
-        onClick={onClose}
-        className="gs-scrim absolute inset-0 bg-void/70 backdrop-blur-sm"
-      />
+  return (
+    <SheetPortal
+      scrim={
+        <button
+          type="button"
+          aria-label="Close"
+          tabIndex={-1}
+          ref={scrimRef}
+          onClick={onClose}
+          className="absolute inset-0 bg-void/70 backdrop-blur-sm"
+        />
+      }
+    >
       <div
         ref={sheetRef}
         role="dialog"
@@ -64,7 +67,7 @@ export function GuestSignInSheet({
         aria-labelledby={titleId}
         aria-describedby={bodyId}
         data-guest-sign-in
-        className="gs-sheet relative w-full max-w-md rounded-t-[28px] border-t border-border-strong bg-surface/95 px-6 pb-[calc(env(safe-area-inset-bottom)+1.5rem)] pt-2 backdrop-blur-xl"
+        className="relative w-full max-w-md rounded-t-[28px] border-t border-border-strong bg-surface/95 px-6 pb-[calc(env(safe-area-inset-bottom)+1.5rem)] pt-2 backdrop-blur-xl"
       >
         <div data-sheet-grabber aria-hidden className="-mx-6 -mt-2 flex h-5 items-center justify-center">
           <span className="block h-1 w-9 rounded-full bg-border-strong" />
@@ -84,15 +87,7 @@ export function GuestSignInSheet({
             Not now
           </Button>
         </div>
-        <style>{`
-          .gs-sheet { animation: gsUp 0.28s cubic-bezier(0.16,1,0.3,1) both; }
-          .gs-scrim { animation: gsFade 0.2s ease-out both; }
-          @keyframes gsUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
-          @keyframes gsFade { from { opacity: 0; } to { opacity: 1; } }
-          @media (prefers-reduced-motion: reduce) { .gs-sheet, .gs-scrim { animation: none; } }
-        `}</style>
       </div>
-    </div>,
-    document.body,
+    </SheetPortal>
   );
 }

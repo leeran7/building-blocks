@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { MotionConfig } from "motion/react";
 import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { HomeScreen } from "./screens/HomeScreen";
 import { ClimbScreen } from "./screens/ClimbScreen";
@@ -66,6 +67,9 @@ export function App() {
   const guestActive = guestMode && !authed;
 
   return (
+    // One motion policy for the app: Motion drops movement (keeps fades) when
+    // the OS asks for reduced motion.
+    <MotionConfig reducedMotion="user">
     <div className="relative flex h-[100dvh] w-full flex-col overflow-hidden bg-void">
       {!onClimb && !guestActive && <AnimatedBackdrop />}
       <div className="relative z-10 flex-1 overflow-hidden">
@@ -114,6 +118,7 @@ export function App() {
           slides away (or back) with the screen when leaving a tab. */}
       {authed && <BottomNavDock show={showNav} />}
     </div>
+    </MotionConfig>
   );
 }
 

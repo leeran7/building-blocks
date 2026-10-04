@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from "react";
-import { createPortal } from "react-dom";
 import { formatGems } from "@app/lib/avatars";
 import { GEM_PACKS, formatUsd, type GemPack } from "@app/lib/gemPacks";
 import { useShop } from "../../contexts/ShopContext";
@@ -17,6 +16,7 @@ import { notifyError, tapLight } from "../../lib/haptics";
 import { GemPile, RewardReveal } from "../RewardReveal";
 import { GemIcon } from "./GemIcon";
 import { useSwipeToDismiss } from "../../hooks/useSwipeToDismiss";
+import { SheetPortal } from "../SheetPortal";
 
 const DEFAULT_PACK_ID = "gems-1200";
 
@@ -99,9 +99,12 @@ export function GemPacksSheet({ onClose }: { onClose: () => void }) {
 
   // Portalled to the body: screens sit in a stacking context under the tab
   // bar, which would cover the sheet's buy button.
-  return createPortal(
-    <div className="fixed inset-0 z-50 flex items-end">
-      <div ref={scrimRef} aria-hidden className="absolute inset-0 bg-void/70 backdrop-blur-sm" onClick={onClose} />
+  return (
+    <SheetPortal centered={false}
+      scrim={
+        <div ref={scrimRef} aria-hidden className="absolute inset-0 bg-void/70 backdrop-blur-sm" onClick={onClose} />
+      }
+    >
       <section
         ref={sheetRef}
         role="dialog"
@@ -257,7 +260,6 @@ export function GemPacksSheet({ onClose }: { onClose: () => void }) {
           />
         </div>
       )}
-    </div>,
-    document.body,
+    </SheetPortal>
   );
 }

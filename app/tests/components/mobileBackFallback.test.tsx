@@ -162,12 +162,13 @@ afterEach(() => {
 
 /** The wrapper RouteTransition draws around the route whose label is `route`. */
 const sceneOf = (route: string) =>
-  [...container.querySelectorAll("p")].find((p) => p.textContent === route)?.parentElement ?? null;
+  [...container.querySelectorAll("p")].find((p) => p.textContent === route)?.closest<HTMLElement>(".route-scene") ?? null;
 
 describe("RouteTransition: the first screen", () => {
   it.each(["/", "/modes", "/profile", "/profile/edit", "/challenge"])("fades %s in on launch with nothing leaving", async (screen) => {
     await mount([screen], transitionTree());
-    expect(sceneOf(screen)?.className).toBe("route-scene route-enter-initial");
+    expect(sceneOf(screen)?.dataset.routeKind).toBe("initial");
+    expect(sceneOf(screen)?.dataset.routeRole).toBe("enter");
     expect(container.querySelectorAll(".route-scene")).toHaveLength(1);
   });
 });
@@ -209,7 +210,7 @@ describe("swipe-back on a pushed screen", () => {
     await mount(["/profile", "/profile/edit"], transitionTree());
     await swipeBack();
     expect(path()).toBe("/profile");
-    expect(sceneOf("/profile")?.classList.contains("route-enter-pop")).toBe(true);
+    expect(sceneOf("/profile")?.dataset.routeKind).toBe("pop");
   });
 
   it("pops to the previous in-app screen when there is one", async () => {
