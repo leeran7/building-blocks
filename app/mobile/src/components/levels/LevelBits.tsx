@@ -75,7 +75,7 @@ export function LivesPill({ player, onPress }: { player: PlayerStats; onPress?: 
   const now = useNow();
   const label = livesLabel(player, now);
   const full = label === "Full";
-  const className = "flex h-12 w-full items-center justify-center gap-2 px-2";
+  const className = "flex h-14 w-full items-center justify-center gap-1.5 px-1 min-[360px]:gap-2 min-[360px]:px-2";
   // The countdown ticks every second, so it is not a live region: only the
   // lives count is announced, and only when it changes.
   const body = (
@@ -89,7 +89,7 @@ export function LivesPill({ player, onPress }: { player: PlayerStats; onPress?: 
           {player.lives}
         </span>
       </span>
-      <span className={`font-mono text-label font-bold tabular-nums uppercase tracking-label ${full ? "text-text-secondary" : "text-text-primary"}`}>
+      <span className={`font-mono text-label font-bold tabular-nums uppercase tracking-[0.04em] min-[360px]:tracking-label ${full ? "text-text-secondary" : "text-text-primary"}`}>
         <span className="sr-only">{full ? "Lives full" : "Next life in "}</span>
         <span aria-hidden={full || undefined}>{label}</span>
       </span>
@@ -144,6 +144,37 @@ export function XpProgress({ player, className }: { player: PlayerStats; classNa
       className={`block h-1.5 overflow-hidden rounded-full bg-white/10 ${className}`}
     >
       <span className="block h-full rounded-full bg-signal" style={{ width: `${pct}%` }} />
+    </span>
+  );
+}
+
+/**
+ * A progress ring around `children` (the map header's player level and star
+ * chest). Decorative: the caller names the progress.
+ */
+export function ProgressRing({ pct, size = 44, children }: { pct: number; size?: number; children: ReactNode }) {
+  const r = size / 2 - 3;
+  const c = 2 * Math.PI * r;
+  const shown = Math.max(0, Math.min(100, pct));
+  return (
+    <span className="relative flex shrink-0 items-center justify-center" style={{ width: size, height: size }}>
+      <svg aria-hidden width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="absolute inset-0 -rotate-90">
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="3.5" />
+        {shown > 0 && (
+          <circle
+            cx={size / 2}
+            cy={size / 2}
+            r={r}
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="3.5"
+            strokeLinecap="round"
+            strokeDasharray={`${(c * shown) / 100} ${c}`}
+            className="text-signal"
+          />
+        )}
+      </svg>
+      <span className="relative">{children}</span>
     </span>
   );
 }

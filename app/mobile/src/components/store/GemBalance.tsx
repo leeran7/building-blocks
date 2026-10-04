@@ -19,7 +19,7 @@ export function GemBalance({ compact = false }: { compact?: boolean }) {
       <div
         data-gem-balance
         className={`flex items-center ${
-          compact ? "h-12 gap-1.5 pl-3 pr-1.5" : "glass h-11 gap-2 rounded-2xl border border-white/10 pl-3 pr-1"
+          compact ? "h-14 gap-1.5 pl-2.5 pr-1.5" : "glass h-11 gap-2 rounded-2xl border border-white/10 pl-3 pr-1"
         }`}
       >
         <GemIcon size={compact ? 16 : 18} />

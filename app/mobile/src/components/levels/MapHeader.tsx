@@ -1,14 +1,14 @@
 import type { BoosterInventory } from "@app/levels/engagement";
 import type { ChestProgress, PlayerStats } from "../../lib/levels/model";
 import { GemBalance } from "../store/GemBalance";
-import { LivesPill, XpProgress } from "./LevelBits";
+import { LivesPill, ProgressRing } from "./LevelBits";
 import { ChestMeter } from "./LevelChests";
 
 /**
- * The level map's header: one glass panel. The top line is the season and
- * episode with the player level (it opens the XP sheet); under it, cells for
- * lives, the star chest and gems. A guest has no chest or gems, so their
- * lives cell spans the panel. Every tap target is 44px or more.
+ * The level map's header: one glass panel in one row of cells: the player
+ * level in an XP ring (it opens the XP sheet), lives, the star chest's ring
+ * and gems. The season and episode sit under the panel. A guest has no chest
+ * or gems, so their panel is the level and lives. Every tap target is 44px+.
  */
 export function MapHeader({
   seasonName,
@@ -32,38 +32,37 @@ export function MapHeader({
   onLives?: () => void;
   onXp: () => void;
 }) {
+  const divider = "border-l border-white/[0.06]";
   return (
-    <div className="glass overflow-hidden rounded-[22px] border border-white/10">
-      <div className="flex h-11 items-center gap-2 pl-4 pr-1">
-        <p className="min-w-0 flex-1 truncate font-mono text-label font-bold uppercase tracking-[0.08em] text-text-secondary min-[360px]:tracking-label">
-          {seasonName} · <span className="min-[360px]:hidden">Ep</span>
-          <span className="hidden min-[360px]:inline">Episode</span> {episode}
-        </p>
-        <span data-tour="xp" className="inline-flex shrink-0">
+    <>
+      <div className="glass flex overflow-hidden rounded-[22px] border border-white/10">
+        <span data-tour="xp" className="flex shrink-0">
           <PlayerLevelButton player={player} onPress={onXp} />
         </span>
-      </div>
-      <div className="flex border-t border-white/[0.06]">
-        <span data-tour="lives" className="flex min-w-0 flex-1">
+        <span data-tour="lives" className={`flex min-w-0 flex-1 ${divider}`}>
           <LivesPill player={player} onPress={onLives} />
         </span>
         {chests && (
-          <span data-tour="chest" className="flex min-w-0 flex-1 border-l border-white/[0.06]">
+          <span data-tour="chest" className={`flex min-w-0 flex-1 ${divider}`}>
             <ChestMeter chests={chests} boosters={boosters} />
           </span>
         )}
         {showGems && (
-          <span data-tour="gems" className="flex shrink-0 border-l border-white/[0.06]">
+          <span data-tour="gems" className={`flex shrink-0 ${divider}`}>
             <GemBalance compact />
           </span>
         )}
       </div>
-    </div>
+      <p className="mt-2 text-center font-mono text-label font-bold uppercase tracking-label text-text-secondary">
+        {seasonName} · Episode {episode}
+      </p>
+    </>
   );
 }
 
-/** "LV 5" and the bar to the next player level; opens the XP sheet. */
+/** The player level in a ring of XP toward the next one; opens the XP sheet. */
 function PlayerLevelButton({ player, onPress }: { player: PlayerStats; onPress: () => void }) {
+  const pct = player.xpForNext > 0 ? (player.xpIntoLevel / player.xpForNext) * 100 : 0;
   return (
     <button
       type="button"
@@ -71,12 +70,19 @@ function PlayerLevelButton({ player, onPress }: { player: PlayerStats; onPress: 
       aria-label={`Player level ${player.playerLevel}, ${player.xpIntoLevel.toLocaleString()} of ${player.xpForNext.toLocaleString()} XP. Show what unlocks next`}
       aria-haspopup="dialog"
       onClick={onPress}
-      className="flex h-11 items-center gap-2 rounded-full px-2.5 transition-transform active:scale-95 min-[360px]:px-3"
+      className="flex h-14 items-center px-2 transition-colors active:bg-white/5"
     >
-      <span aria-hidden className="font-mono text-label font-bold uppercase tracking-label text-text-secondary">
-        Lv <span className="text-text-primary">{player.playerLevel}</span>
+      <span
+        role="progressbar"
+        aria-label={`Player level ${player.playerLevel}`}
+        aria-valuemin={0}
+        aria-valuemax={player.xpForNext}
+        aria-valuenow={player.xpIntoLevel}
+      >
+        <ProgressRing pct={pct}>
+          <span className="font-display text-meta font-black tabular-nums text-signal">{player.playerLevel}</span>
+        </ProgressRing>
       </span>
-      <XpProgress player={player} className="w-10 min-[360px]:w-14" />
     </button>
   );
 }
