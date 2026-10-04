@@ -49,6 +49,8 @@ import {
 } from "../../mobile/src/lib/onboarding";
 import { unseenTutorials } from "../../mobile/src/lib/levels/tutorialSeen";
 import { TICK_HZ } from "../../src/game/types";
+import { TRAINING_GOALS } from "../../src/game/levels/training";
+import { CONTROL_SCHEME_KEY } from "../../src/lib/controlScheme";
 
 let container: HTMLDivElement;
 let root: Root;
@@ -241,6 +243,36 @@ describe("training climb", () => {
     });
     await run(10);
     expect(goal()).toBe("climb");
+  });
+
+  it("asks touch players to pick their controls, and coaches in the layout they picked", async () => {
+    const realMatchMedia = window.matchMedia;
+    window.matchMedia = ((query: string) => ({
+      matches: query === "(pointer: coarse)",
+      media: query,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    })) as unknown as typeof window.matchMedia;
+    try {
+      await render(memoryClient(), "/tutorial");
+      await click(button("Start training"));
+      // Not on the climb yet: the controls choice comes first, Buttons preselected.
+      expect(container.querySelector("[data-training-goal]")).toBeNull();
+      expect(document.querySelector("h1")?.textContent).toBe("Pick your controls");
+      const radio = (name: string) =>
+        [...document.querySelectorAll<HTMLButtonElement>('[role="radio"]')].find((b) => b.textContent?.startsWith(name));
+      expect(radio("Buttons")?.getAttribute("aria-checked")).toBe("true");
+
+      await click(radio("Joystick"));
+      expect(localStorage.getItem(CONTROL_SCHEME_KEY)).toBe("joystick");
+      await click(button("Start training"));
+      const card = container.querySelector("[data-training-goal]");
+      expect(card?.getAttribute("data-training-goal")).toBe("walk");
+      expect(card?.textContent).toContain(TRAINING_GOALS[0]!.stick);
+      expect(container.querySelector(".exp-joystick")).not.toBeNull();
+    } finally {
+      window.matchMedia = realMatchMedia;
+    }
   });
 
   it("Skip goes to the map tour, which ends on the next level's card", async () => {

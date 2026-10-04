@@ -11,6 +11,7 @@ import { act } from "react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { TouchControls } from "../../src/components/Game/TouchControls";
 import { ControlSchemePicker } from "../../src/components/ControlSchemePicker";
+import { ClimbControlsGuide } from "../../src/components/Game/ClimbControlsGuide";
 import {
   CONTROL_SCHEME_KEY,
   DEFAULT_CONTROL_SCHEME,
@@ -79,14 +80,26 @@ describe("parseControlScheme", () => {
 });
 
 describe("control scheme setting", () => {
-  it("defaults to the joystick with nothing saved", () => {
+  it("defaults to the buttons with nothing saved", () => {
+    expect(DEFAULT_CONTROL_SCHEME).toBe("buttons");
     mount(() => {});
-    expect(radio("Joystick").getAttribute("aria-checked")).toBe("true");
+    expect(radio("Buttons").getAttribute("aria-checked")).toBe("true");
+    expect(container.querySelector(".exp-joystick")).toBeNull();
+    expect(container.querySelectorAll(".exp-touch-button")).toHaveLength(4);
+  });
+
+  it("labels jump with the same word in both layouts", () => {
+    mount(() => {});
+    const jumpText = () =>
+      container.querySelector('.exp-touch-button[aria-label="Jump"]')?.textContent?.trim();
+    expect(jumpText()).toBe("Jump");
+    act(() => radio("Joystick").click());
     expect(container.querySelector(".exp-joystick")).not.toBeNull();
-    expect(container.querySelectorAll(".exp-touch-button")).toHaveLength(1);
+    expect(jumpText()).toBe("Jump");
   });
 
   it("choosing Buttons persists it and swaps the controls live", () => {
+    localStorage.setItem(CONTROL_SCHEME_KEY, "joystick");
     mount(() => {});
     act(() => radio("Buttons").click());
 
@@ -150,6 +163,7 @@ describe("joystick input", () => {
   });
 
   it("lights the chevrons for what is pressed", () => {
+    localStorage.setItem(CONTROL_SCHEME_KEY, "joystick");
     mount(() => {});
     const stick = container.querySelector<HTMLElement>(".exp-joystick")!;
     const r = stick.getBoundingClientRect();
@@ -189,5 +203,37 @@ describe("joystick input", () => {
       );
     });
     expect(onInput).toHaveBeenLastCalledWith(expect.objectContaining({ left: true, right: false }));
+  });
+});
+
+describe("controls guide", () => {
+  it("describes the touch layout the player has chosen, and follows a change", () => {
+    const realMatchMedia = window.matchMedia;
+    window.matchMedia = ((query: string) => ({
+      matches: query === "(pointer: coarse)",
+      media: query,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    })) as unknown as typeof window.matchMedia;
+    try {
+      act(() => {
+        root.render(
+          createElement("div", null,
+            createElement(ControlSchemePicker, { labelledBy: "x" }),
+            createElement("div", { id: "guide" }, createElement(ClimbControlsGuide, { variant: "compact" }))
+          )
+        );
+      });
+      const text = () => container.querySelector("#guide")?.textContent ?? "";
+      expect(text()).toContain("Hold ← or →");
+      expect(text()).not.toMatch(/stick/);
+
+      act(() => radio("Joystick").click());
+      expect(text()).toContain("Drag the stick");
+      expect(text()).toContain("Push the stick up");
+      expect(text()).not.toContain("Hold ↑ climb");
+    } finally {
+      window.matchMedia = realMatchMedia;
+    }
   });
 });

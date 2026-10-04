@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { fillClimbInput, isInteractiveTarget, NO_TOUCH, shouldCaptureGameKey, type TouchInput } from "@app/game/useClimb";
-import { createTraining, TRAINING_GOALS, type Training } from "@app/game/levels/training";
+import { createTraining, TRAINING_GOALS, trainingHint, type Training } from "@app/game/levels/training";
 import { emptySample, sampleInterp, type RenderFrame } from "@app/game/renderFeed";
 import { TICK_DT, type PlayerInput } from "@app/game/types";
 import { POWER_UP_SPECS } from "@app/game/powerups";
@@ -11,7 +11,9 @@ import { ActivePowerStack } from "@app/components/Game/PowerUpHud";
 import { TouchControls, useTouchControlsInset } from "@app/components/Game/TouchControls";
 import { usePowerUpFeedback } from "@app/components/Game/usePowerUpFeedback";
 import { useCanvasSize } from "@app/hooks/useCanvasSize";
+import { ControlSchemePicker } from "@app/components/ControlSchemePicker";
 import { useCoarsePointer } from "@app/hooks/useCoarsePointer";
+import { useControlScheme } from "@app/lib/controlScheme";
 import { useSafeAreaInsets } from "@app/hooks/useSafeAreaInsets";
 
 import { Button } from "../components/ui";
@@ -21,15 +23,16 @@ import { useGameHaptics } from "../lib/useGameHaptics";
 import { markTutorialsSeen } from "../lib/levels/tutorialSeen";
 import { markOnboardingDone, TOUR_STATE } from "../lib/onboarding";
 
-type Phase = "intro" | "train" | "ready";
+type Phase = "intro" | "controls" | "train" | "ready";
 
 /** How long the "nice" line for a met goal stays up, ms. */
 const PRAISE_MS = 2200;
 
 /**
- * The first-run tutorial, part one: what the game is, then a short climb the
- * player plays themselves on a practice tower (walk, jump, climb a ladder,
- * grab and use a power-up, touch the summit diamond). It ends on the level
+ * The first-run tutorial, part one: what the game is, a choice of on-screen
+ * controls (touch devices only), then a short climb the player plays
+ * themselves on a practice tower (walk, jump, climb a ladder, grab and use a
+ * power-up, touch the summit diamond). It ends on the level
  * map, which runs part two: a tour of the map, its readouts and the tabs.
  *
  * Opened by the map on a first launch, and from Profile → How to play.
@@ -37,6 +40,7 @@ const PRAISE_MS = 2200;
 export function TrainingScreen() {
   const navigate = useNavigate();
   const [phase, setPhase] = useState<Phase>("intro");
+  const touch = useCoarsePointer();
 
   // Either way out marks the tutorial done, so it is offered once.
   const toTour = useCallback(() => {
@@ -44,7 +48,8 @@ export function TrainingScreen() {
     navigate("/", { replace: true, state: TOUR_STATE });
   }, [navigate]);
 
-  if (phase === "intro") return <Intro onStart={() => setPhase("train")} onSkip={toTour} />;
+  if (phase === "intro") return <Intro onStart={() => setPhase(touch ? "controls" : "train")} onSkip={toTour} />;
+  if (phase === "controls") return <PickControls onStart={() => setPhase("train")} onSkip={toTour} />;
   if (phase === "ready") return <Ready onNext={toTour} />;
   return (
     <TrainingClimb
@@ -74,6 +79,26 @@ function Intro({ onStart, onSkip }: { onStart: () => void; onSkip: () => void })
         </Point>
       </ul>
       <p className="mt-6 text-meta text-text-secondary">First, a quick practice climb. The lava here never rises, so take your time.</p>
+      <div className="mt-6">
+        <Button autoFocus onPress={onStart}>
+          Start training
+        </Button>
+      </div>
+    </Card>
+  );
+}
+
+/** Touch players choose a layout before their first climb; the picker saves on tap. */
+function PickControls({ onStart, onSkip }: { onStart: () => void; onSkip: () => void }) {
+  return (
+    <Card eyebrow="Before you climb" title="Pick your controls" onSkip={onSkip} skipLabel="Skip tutorial">
+      <p className="mt-6 text-meta text-text-secondary">
+        Buttons give you ← → to walk, ↑ to climb and a Jump button. The joystick walks and climbs with one thumb. You
+        can change this any time in Profile, under Edit profile.
+      </p>
+      <div className="mt-4">
+        <ControlSchemePicker labelledBy="training-card-title" />
+      </div>
       <div className="mt-6">
         <Button autoFocus onPress={onStart}>
           Start training
@@ -171,6 +196,7 @@ function TrainingClimb({ onDone, onSkip }: { onDone: () => void; onSkip: () => v
   const training = useMemo(() => createTraining(), []);
   const { view, feed, setTouch } = useTrainingLoop(training);
   const touch = useCoarsePointer();
+  const [scheme] = useControlScheme();
 
   const boxRef = useRef<HTMLDivElement>(null);
   const size = useCanvasSize(boxRef, { fill: true });
@@ -206,6 +232,7 @@ function TrainingClimb({ onDone, onSkip }: { onDone: () => void; onSkip: () => v
   }, [view.done, onDone]);
 
   const goal = TRAINING_GOALS[Math.min(view.goalIndex, TRAINING_GOALS.length - 1)];
+  const hint = trainingHint(goal, touch ? scheme : "keys");
   const orbColor = goal.id === "grab" || goal.id === "use" ? POWER_UP_SPECS["super-jump"].color : undefined;
 
   return (
@@ -270,7 +297,7 @@ function TrainingClimb({ onDone, onSkip }: { onDone: () => void; onSkip: () => v
               {view.done ? "Summit!" : goal.title}
             </h2>
             {!view.done && (
-              <p className="mt-1.5 text-meta leading-snug text-text-secondary">{touch ? goal.touch : goal.keys}</p>
+              <p className="mt-1.5 text-meta leading-snug text-text-secondary">{hint}</p>
             )}
           </div>
           {praise && (
@@ -286,7 +313,7 @@ function TrainingClimb({ onDone, onSkip }: { onDone: () => void; onSkip: () => v
         <p className="sr-only" role="status" aria-live="polite">
           {view.done
             ? "Summit! Training complete."
-            : `${praise ? `${praise.title} done. ${praise.text} ` : ""}Next: ${goal.title}. ${touch ? goal.touch : goal.keys}`}
+            : `${praise ? `${praise.title} done. ${praise.text} ` : ""}Next: ${goal.title}. ${hint}`}
         </p>
         <div className="mx-auto mt-2 max-w-md">
           <ActivePowerStack player={player} tick={view.tick} />
