@@ -145,9 +145,9 @@ export interface RecolorColors {
 }
 
 /**
- * Each character's colours: the accent of its Void skin placeholder (below),
- * and data for a future recolour feature. Pass an entry to
- * `tint(accent, body)` to build a recoloured Wraith.
+ * Each character's colours: the fallback tint for a Void skin missing from
+ * VOID_SKIN_SHEETS (none today), and data for a future recolour feature.
+ * Pass an entry to `tint(accent, body)` to build a recoloured Wraith.
  *
  * Colours were sampled from each portrait in
  * mobile/src/assets/avatars/<id>.webp: `accent` is the brighter half of the
@@ -176,10 +176,10 @@ export const RECOLOR_PALETTE: Readonly<Record<string, RecolorColors>> = {
 };
 
 /**
- * Void skins whose own sheets have landed in public/climb/
- * (`<id>-void-poses-192.png` and `-climb-192.png`), with their sheet options.
+ * Every character's Void skin, with its own sheets in public/climb/
+ * (`<id>-void-poses-192.png` and `-climb-192.png`) and its sheet options.
  * Skull tops exclude crests, ears and horns; calibrated from the approved
- * normalized idle cells. Wraith colour skins retain their tint entries.
+ * normalized idle cells. The Wraith's colour skins are tints, not listed here.
  */
 export const VOID_SKIN_SHEETS: Readonly<Record<string, SheetOptions>> = {
   "kestrel-void": { headTop: 52 },
@@ -202,15 +202,15 @@ export const VOID_SKIN_SHEETS: Readonly<Record<string, SheetOptions>> = {
   "gecko-void": { headTop: 27 },
 };
 
-/** The near-black the Wraith-style placeholders lean their body greys toward. */
+/** The near-black a tinted skin leans its body greys toward. */
 const VOID_BODY = "#0e0e12";
 /** A skin with neither its own colour nor a palette entry: the Void Walker's purple. */
 const FALLBACK_SKIN_ACCENT = "#9b5cff";
 
 /**
- * A skin's registry entry: its own sheets once they land, else the
- * placeholder tint. The Wraith's colour skins use their catalogue colour;
- * every Void skin its character's palette accent.
+ * A skin's registry entry: its own sheets when VOID_SKIN_SHEETS lists it,
+ * else a tinted Wraith. The Wraith's colour skins tint to their catalogue
+ * colour; a Void skin without sheets would tint to its palette accent.
  */
 function voidSkin(skin: AvatarEntry, characterId: string): ClimberCharacter {
   const art = Object.prototype.hasOwnProperty.call(VOID_SKIN_SHEETS, skin.id) ? VOID_SKIN_SHEETS[skin.id] : null;

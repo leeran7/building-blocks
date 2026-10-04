@@ -66,12 +66,12 @@ export const DEFAULT_STICK_ID = "stick-green";
 
 /** Gems for the Wraith, the one character sold outright. */
 export const WRAITH_GEMS = 2000;
-/** Gems for any character's Void skin (the Wraith-style paid version). */
+/** Gems for any character's Void skin (its paid look, with its own art). */
 export const SKIN_GEMS = 1200;
 /** Gems for each of the Wraith's colour skins: the Wraith recoloured, so cheaper than a Void skin. */
 export const WRAITH_COLOR_GEMS = 600;
 
-/** The id suffix and name of the paid Wraith-style skin every character gets. */
+/** The id suffix of the paid Void skin every character gets. */
 export const VOID_SKIN_SUFFIX = "-void";
 
 /**
@@ -122,7 +122,7 @@ const WRAITH_COLORS: readonly { readonly key: string; readonly name: string; rea
 ];
 
 /**
- * The paid skins: the Wraith's colours, then the Wraith-style Void version of
+ * The paid skins: the Wraith's colours, then the Void version of
  * every other character with art (stick figures have none), in picker order.
  * Owning one needs its character selectable first.
  */
