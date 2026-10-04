@@ -8,10 +8,18 @@
 
 ## Flows
 - F-1 Restart mid-run: run starts -> the app is killed -> cold launch lands on `/` -> one-time notice on the map -> note cleared.
+  - critical: yes. Utilization: every mid-run crash, OS kill or update on native.
+  - Empty: no note on the device -> no notice. Failure: a malformed or other-season note -> dropped silently. Success-next: the dismissible banner, then the map as usual. Mid-flow: a relaunch after the notice says nothing.
 - F-2 Reload mid-run (web or webview reload): `history.state` still holds the ticket -> play screen refuses it (not issued this session) -> bounce to the level's card -> notice -> note cleared.
+  - critical: yes. Utilization: web refreshes and iOS/Android webview reloads.
+  - Empty: no note -> "That run has ended." Failure: the level is above the frontier -> banner only, no card. Success-next: the card's Play starts a fresh run. Mid-flow: a reload on an already-scored result card shows the neutral copy, not "interrupted".
 - F-3 Stale link: `/levels/N/play` with no ticket and no note -> level N's card with "That run has ended." (map banner when N is above the frontier).
+  - critical: no. Utilization: rare (no deep link reaches the play route); history and bookmarks only.
 - F-4 Normal finish, quit, or Map from the failed-save card: the note is cleared, and the map says nothing.
+  - critical: yes. Utilization: every run. Failure: a failed submit keeps the note until the player leaves the failed card. Success-next: Next level opens the next card.
 - F-5 Leaving the play route another way (browser Back, Android hardware back): treated as Quit. The ticket stops being live and the note is cleared. Forward to the same history entry bounces like F-2 ("That run has ended."), so it does not replay the ticket.
+  - critical: yes. Utilization: Android hardware back mid-run; browser Back on web.
+  - Empty: N/A (a run is always mounted). Failure: a Retry reply that lands after leaving is noted but not live, so the map reports it. Success-next: the map, quiet. Mid-flow: StrictMode's dev remount does not count as leaving.
 
 ## Acceptance criteria
 - AC-1 Given a level starts (map Play or result Retry), then `{season, level, ticketId, costsLife}` is stored for the account, replacing any older note.
