@@ -69,7 +69,7 @@ import { LevelsProvider } from "../../mobile/src/contexts/LevelsContext";
 import { ShopProvider } from "../../mobile/src/contexts/ShopContext";
 import { createMockLevelsClient } from "../../mobile/src/lib/levels/mockClient";
 import type { BuyLivesResult, LevelResult, LevelRunReport, LevelsClient } from "../../mobile/src/lib/levels/model";
-import { LevelMapScreen, MAP_FADE, pinBottom } from "../../mobile/src/screens/LevelMapScreen";
+import { LevelMapScreen, MAP_FADE, interruptedFromState, pinBottom } from "../../mobile/src/screens/LevelMapScreen";
 import { LevelPlayScreen, ticketFromState } from "../../mobile/src/screens/LevelPlayScreen";
 import { LevelResultCard, UNLOCK_REVEAL_DELAY_MS } from "../../mobile/src/components/levels/LevelResultCard";
 import { REVEAL_BURST_MS, REVEAL_CHARGE_MS } from "../../mobile/src/components/RewardReveal";
@@ -668,6 +668,8 @@ describe("interrupted level runs", () => {
     expect(where.state).toBeNull();
     expect(sheet()?.querySelector("h2")?.textContent).toBe("Level 11");
     expect(sheet()?.querySelector('[role="status"]')?.textContent).toBe(LOST_A_LIFE);
+    // Said once: on the card, not again in a map banner behind it.
+    expect(statuses().filter((t) => t === LOST_A_LIFE)).toHaveLength(1);
     expect(notes().get()).toBeNull();
   });
 
@@ -707,6 +709,53 @@ describe("interrupted level runs", () => {
     await click(button("Map"));
     expect(notes().get()).toBeNull();
     expect(document.body.textContent).not.toContain("interrupted");
+  });
+
+  it("keeps quiet about a retried run when the map shows again mid-run", async () => {
+    const client = memoryClient();
+    await clearLevels(client, 10);
+    await renderMap(client);
+    await click(pin("Level 11, next to play"));
+    await click(button("Play level 11"));
+    await click(button("stub-lose"));
+    await click(button("Retry"));
+    const retried = notes().get();
+    expect(retried).not.toBeNull();
+
+    // Same session, the retried run still going: it is not an interrupted run.
+    await remount(client);
+    expect(document.body.textContent).not.toContain("interrupted");
+    expect(notes().get()).toEqual(retried);
+  });
+
+  it("drops a note from another season on the map without a notice", async () => {
+    const client = memoryClient();
+    await clearLevels(client, 10);
+    expect((await client.getSeason()).season).toBe(1);
+    notes().save({ season: 2, level: 11, ticketId: "ticket-from-season-2", costsLife: true });
+    await renderMap(client);
+    expect(statuses().filter((t) => /\brun\b/.test(t))).toEqual([]);
+    expect(document.body.textContent).not.toContain("interrupted");
+    expect(notes().get()).toBeNull();
+  });
+
+  it("leaves practice runs alone: no bounce, no note, no notice", async () => {
+    await renderMap(memoryClient(), "/levels/1/play?practice=1");
+    expect(where.pathname).toBe("/levels/1/play");
+    expect(runs.mounted).toHaveLength(1);
+    await click(button("stub-lose"));
+    expect(notes().get()).toBeNull();
+    await click(button("Map"));
+    expect(where.pathname).toBe("/");
+    expect(statuses().filter((t) => /\brun\b/.test(t))).toEqual([]);
+    expect(document.body.textContent).not.toContain("That run has ended.");
+  });
+
+  it("takes only interrupted: true as a bounced run", () => {
+    expect(interruptedFromState({ openLevel: 3, interrupted: true })).toBe(true);
+    for (const state of [null, undefined, "interrupted", { openLevel: 3 }, { interrupted: "true" }, { interrupted: 1 }, { interrupted: null }, { interrupted: false }]) {
+      expect(interruptedFromState(state)).toBe(false);
+    }
   });
 });
 
