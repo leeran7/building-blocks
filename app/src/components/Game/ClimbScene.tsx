@@ -36,7 +36,7 @@ import { isLavaInProximity } from "./lava";
 import { lavaMusicIntensity } from "./powerUpCues";
 import {
   TouchControls,
-  useTouchControlsInset,
+  touchControlsInset,
 } from "./TouchControls";
 import { useAuth } from "../../contexts/AuthContext";
 import { useCanvasSize } from "../../hooks/useCanvasSize";
@@ -235,7 +235,7 @@ export function ClimbScene({
   // buttons, so the inset is 0 — otherwise lava in that band is visible on the
   // canvas but ignored by audio. Live play keeps the inset after death so the
   // camera does not jump when the results overlay replaces the buttons.
-  const touchInset = useTouchControlsInset(safeArea.bottom);
+  const touchInset = touchControlsInset(safeArea.bottom);
   const bottomInset =
     touchDevice && !replaying
       ? touchInset
