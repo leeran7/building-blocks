@@ -77,6 +77,7 @@ import type { RefillOffer } from "../../mobile/src/components/levels/LevelStartS
 import { TICK_HZ } from "../../src/game/types";
 import { POWER_UP_SPECS, POWER_UP_TYPES } from "../../src/game/powerups";
 import { markTutorialsSeen } from "../../mobile/src/lib/levels/tutorialSeen";
+import { createRunNoteStore } from "../../mobile/src/lib/levels/runNote";
 
 let container: HTMLDivElement;
 let root: Root;
@@ -582,6 +583,130 @@ describe("level play route", () => {
     expect(ticketFromState({ ticket }, 5)).toBeNull();
     expect(ticketFromState({ ticket: { ...ticket, seed: 7 } }, 4)).toBeNull();
     expect(ticketFromState(null, 4)).toBeNull();
+  });
+});
+
+describe("interrupted level runs", () => {
+  // The provider's store: the mocked account is "me".
+  const notes = () => createRunNoteStore({ accountId: "me" });
+  const LOST_A_LIFE = "Your last run of level 11 was interrupted, so it counts as a loss and used a life.";
+  const sheet = () => document.body.querySelector('[role="dialog"]');
+  const statuses = () => [...document.body.querySelectorAll('[role="status"]')].map((el) => el.textContent ?? "");
+
+  /** A fresh mount of the app on `initial`, as after a reload or restart. */
+  async function remount(client: LevelsClient, initial: string | { pathname: string; state: unknown } = "/") {
+    act(() => root.unmount());
+    root = createRoot(container);
+    await renderMap(client, initial);
+  }
+
+  it("notes the run when it starts, a retry replaces it, and scoring forgets it", async () => {
+    const client = memoryClient();
+    await clearLevels(client, 10);
+    await renderMap(client);
+    await click(pin("Level 11, next to play"));
+    await click(button("Play level 11"));
+    const first = ticketFromState(where.state, 11);
+    expect(first).not.toBeNull();
+    expect(notes().get()).toEqual({ season: 1, level: 11, ticketId: first?.id, costsLife: true });
+
+    await click(button("stub-lose"));
+    expect(notes().get()).toBeNull();
+
+    await click(button("Retry"));
+    const retried = notes().get();
+    expect(retried).toMatchObject({ season: 1, level: 11, costsLife: true });
+    expect(retried?.ticketId).not.toBe(first?.id);
+
+    await click(button("stub-lose"));
+    expect(notes().get()).toBeNull();
+    await click(button("Map"));
+    expect(where.pathname).toBe("/");
+    expect(document.body.textContent).not.toContain("interrupted");
+  });
+
+  it("says once, on the launch after a restart, that the cut-off run counted as a loss", async () => {
+    const client = memoryClient();
+    await clearLevels(client, 10);
+    // Left by the previous launch: its ticket is not one this session issued.
+    notes().save({ season: 1, level: 11, ticketId: "ticket-from-last-launch", costsLife: true });
+    await renderMap(client);
+    expect(statuses()).toContain(LOST_A_LIFE);
+    expect(sheet()).toBeNull();
+    expect(notes().get()).toBeNull();
+
+    await remount(client);
+    expect(document.body.textContent).not.toContain("interrupted");
+  });
+
+  it("keeps quiet about this session's own run when the map shows again mid-run", async () => {
+    const client = memoryClient();
+    await clearLevels(client, 10);
+    await renderMap(client);
+    await click(pin("Level 11, next to play"));
+    await click(button("Play level 11"));
+    const live = notes().get();
+    expect(live).not.toBeNull();
+
+    // The map mounts again in the same session without the run being scored.
+    await remount(client);
+    expect(document.body.textContent).not.toContain("interrupted");
+    expect(notes().get()).toEqual(live);
+  });
+
+  it("does not replay a ticket a reload left in history: the level's card says the run was lost", async () => {
+    const client = memoryClient();
+    await clearLevels(client, 10);
+    // The run before the reload: router state survives it, this session does not.
+    const before = await client.startLevel(11);
+    if (!before.ok) throw new Error("refused");
+    notes().save({ season: 1, level: 11, ticketId: before.ticket.id, costsLife: true });
+
+    await remount(client, { pathname: "/levels/11/play", state: { ticket: before.ticket } });
+    expect(runs.mounted).toHaveLength(0);
+    expect(where.pathname).toBe("/");
+    expect(where.state).toBeNull();
+    expect(sheet()?.querySelector("h2")?.textContent).toBe("Level 11");
+    expect(sheet()?.querySelector('[role="status"]')?.textContent).toBe(LOST_A_LIFE);
+    expect(notes().get()).toBeNull();
+  });
+
+  it("says only that the run ended on a stale link, with nothing about lives", async () => {
+    await renderMap(memoryClient(), "/levels/1/play");
+    expect(where.pathname).toBe("/");
+    expect(sheet()?.querySelector("h2")?.textContent).toBe("Level 1");
+    const notice = sheet()?.querySelector('[role="status"]')?.textContent;
+    expect(notice).toBe("That run has ended.");
+
+    await click(button("Close"));
+    expect(document.body.textContent).not.toContain("That run has ended.");
+  });
+
+  it("shows the notice on the map when the level's card cannot open", async () => {
+    await renderMap(memoryClient(), "/levels/5/play");
+    expect(where.pathname).toBe("/");
+    expect(sheet()).toBeNull();
+    expect(statuses()).toContain("That run has ended.");
+
+    await click(button("Dismiss"));
+    expect(document.body.textContent).not.toContain("That run has ended.");
+  });
+
+  it("keeps the note while a result could not be saved, and drops it when the player leaves", async () => {
+    const base = memoryClient();
+    await clearLevels(base, 10);
+    const offline: LevelsClient = { ...base, submitResult: () => Promise.reject(new Error("offline")) };
+    await renderMap(offline);
+    await click(pin("Level 11, next to play"));
+    await click(button("Play level 11"));
+    const ticket = ticketFromState(where.state, 11);
+    await click(button("stub-lose"));
+    expect(document.body.textContent).toContain("Couldn\u2019t save this run");
+    expect(notes().get()?.ticketId).toBe(ticket?.id);
+
+    await click(button("Map"));
+    expect(notes().get()).toBeNull();
+    expect(document.body.textContent).not.toContain("interrupted");
   });
 });
 

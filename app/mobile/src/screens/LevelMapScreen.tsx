@@ -16,6 +16,7 @@ import {
   type StartResult,
 } from "../lib/levels/model";
 import { startBoosterTypes, type BoosterType } from "@app/levels/engagement";
+import { isTicketLive, markTicketLive, runNoticeFor, type RunNotice } from "../lib/levels/runNote";
 
 /** Vertical distance between two pins, px. */
 const ROW = 92;
@@ -55,13 +56,16 @@ export function pinX(level: number): number {
 export function LevelMapScreen() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { client, season, loading, error, refresh, setPlayer } = useLevels();
+  const { client, season, loading, error, refresh, setPlayer, runNotes } = useLevels();
   const refill = useLivesRefillOffer();
   const [selected, setSelectedNode] = useState<LevelNode | null>(null);
   // The booster equipped on the open start card; every card opens without one.
   const [booster, setBooster] = useState<BoosterType | null>(null);
+  // An interrupted run's one-line notice: on its level's card, else on the map.
+  const [notice, setNotice] = useState<RunNotice | null>(null);
   const setSelected = useCallback((node: LevelNode | null) => {
     setBooster(null);
+    setNotice(null);
     setSelectedNode(node);
   }, []);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -82,13 +86,27 @@ export function LevelMapScreen() {
     el.scrollTop = Math.max(0, height - pinBottom(frontier) - el.clientHeight * 0.55);
   }, [season, frontier, height]);
 
-  // "Next level" on a result card lands here with the next level's card open.
+  // "Next level" on a result card lands here with the next level's card open,
+  // and so does a level run that lost its ticket (marked `interrupted`).
   const openLevel = openLevelFromState(location.state);
+  const interrupted = interruptedFromState(location.state);
+  // Once per history entry: a note left by an earlier session (the launch
+  // after a restart) or by the bounced run is said once, then forgotten.
+  const noticeFor = useRef<string | null>(null);
   useLayoutEffect(() => {
-    if (!season || openLevel === null) return;
-    navigate(".", { replace: true, state: null });
-    if (openLevel <= season.frontier) setSelected(season.levels[openLevel - 1]);
-  }, [season, openLevel, navigate, setSelected]);
+    if (!season) return;
+    let next: RunNotice | null = null;
+    if (noticeFor.current !== location.key) {
+      noticeFor.current = location.key;
+      const verdict = runNoticeFor({ note: runNotes.get(), season: season.season, bounced: interrupted, live: isTicketLive });
+      if (verdict.consume) runNotes.take();
+      // "That run has ended." names no level: show it on the card it bounced to.
+      next = verdict.notice && verdict.notice.level === null && interrupted ? { ...verdict.notice, level: openLevel } : verdict.notice;
+    }
+    if (openLevel !== null || interrupted) navigate(".", { replace: true, state: null });
+    if (openLevel !== null && openLevel <= season.frontier) setSelected(season.levels[openLevel - 1]);
+    if (next) setNotice(next);
+  }, [season, openLevel, interrupted, location.key, navigate, setSelected, runNotes]);
 
   const startLevel = useCallback(
     async (level: number, equipped: BoosterType | null) => {
@@ -100,6 +118,12 @@ export function LevelMapScreen() {
       }
       if (res.ok) {
         void tapHeavy();
+        // Noted before the run, so a reload or restart mid-run is mentioned later.
+        markTicketLive(res.ticket.id);
+        const node = season?.levels[level - 1];
+        if (season && node) {
+          runNotes.save({ season: season.season, level, ticketId: res.ticket.id, costsLife: node.costsLife });
+        }
         setPlayer(res.ticket.player);
         // A spent booster leaves the inventory: reload it for the map.
         if (res.ticket.startPowerUp?.source === "booster") void refresh();
@@ -114,7 +138,7 @@ export function LevelMapScreen() {
       }
       return res;
     },
-    [client, navigate, setPlayer, refresh],
+    [client, navigate, setPlayer, refresh, season, runNotes],
   );
 
   const loadBoard = useCallback((level: number) => client.getBoard(level), [client]);
@@ -205,6 +229,10 @@ export function LevelMapScreen() {
         </div>
       </div>
 
+      {notice && (notice.level === null || selected?.level !== notice.level) && (
+        <MapNotice text={notice.text} onDismiss={() => setNotice(null)} />
+      )}
+
       {/* Clear bar: no scrim, so the lava crest shows behind it. MAP_FADE
           fades the pins out before they reach it. */}
       <div data-play-bar className="absolute inset-x-0 bottom-0 z-20 flex items-stretch gap-2.5 px-4 pb-3">
@@ -246,6 +274,7 @@ export function LevelMapScreen() {
             navigate(`/levels/${selected.level}/play?practice=1`);
           }}
           onClose={() => setSelected(null)}
+          notice={notice && notice.level === selected.level ? notice.text : null}
           refill={refill.offer}
           extras={
             <LevelStartExtras
@@ -279,6 +308,33 @@ function openLevelFromState(state: unknown): number | null {
   if (typeof state !== "object" || state === null || !("openLevel" in state)) return null;
   const n = (state as { openLevel: unknown }).openLevel;
   return typeof n === "number" && Number.isInteger(n) && n >= 1 ? n : null;
+}
+
+/** Whether the map was reached from a level run that had no ticket. */
+export function interruptedFromState(state: unknown): boolean {
+  if (typeof state !== "object" || state === null || !("interrupted" in state)) return false;
+  return (state as { interrupted: unknown }).interrupted === true;
+}
+
+/** An interrupted run's notice when no level card shows it. */
+function MapNotice({ text, onDismiss }: { text: string; onDismiss: () => void }) {
+  return (
+    <div className="absolute inset-x-4 bottom-[84px] z-30 mx-auto flex max-w-md items-center gap-2 rounded-2xl border border-ember/40 bg-surface/95 py-1 pl-4 pr-1 backdrop-blur-xl">
+      <p role="status" className="flex-1 text-meta text-text-primary">
+        {text}
+      </p>
+      <button
+        type="button"
+        aria-label="Dismiss"
+        onClick={onDismiss}
+        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-text-secondary transition-transform active:scale-90"
+      >
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" aria-hidden>
+          <path d="M6 6l12 12M18 6 6 18" />
+        </svg>
+      </button>
+    </div>
+  );
 }
 
 type PinState = "open" | "current" | "locked";
