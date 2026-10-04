@@ -66,6 +66,7 @@ export function CharacterPreview({
   sizePx = SIZE_PX,
   ambient = false,
   still = false,
+  facing = 1,
 }: {
   avatarId: string | null;
   pose: PreviewPose;
@@ -82,10 +83,12 @@ export function CharacterPreview({
   ambient?: boolean;
   /** Paint one idle frame and stop: see above. */
   still?: boolean;
+  /** 1 faces right, -1 mirrors the figure to face left. */
+  facing?: 1 | -1;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const live = useRef({ avatarId, pose });
-  live.current = { avatarId, pose };
+  const live = useRef({ avatarId, pose, facing });
+  live.current = { avatarId, pose, facing };
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -110,7 +113,7 @@ export function CharacterPreview({
       const dt = Math.min(0.1, (now - last) / 1000);
       last = now;
       clock += dt;
-      const { avatarId: id, pose: p } = live.current;
+      const { avatarId: id, pose: p, facing: face } = live.current;
       const shown = reduce ? "idle" : p;
       if (shown === "walk") state.x += WALK_MPS * dt;
       if (shown === "climb") state.y += CLIMB_MPS * dt;
@@ -126,12 +129,12 @@ export function CharacterPreview({
       const stick = climberStickColor(id);
       if (stick !== null) {
         const tick = reduce ? 0 : clock * TICKS_PER_SEC;
-        drawClimber(ctx, fx, fy, figurePx / STICK_H_IN_S, 1, shown, tick, stick, reduce);
+        drawClimber(ctx, fx, fy, figurePx / STICK_H_IN_S, face, shown, tick, stick, reduce);
         // drawClimber's idle pose ignores the tick: a standing stick figure never moves.
         return { drew: true, static: shown === "idle" };
       }
       // False until the character's sheets decode: draw nothing meanwhile.
-      const drew = drawClimberSprite(ctx, fx, fy, figurePx / DISPLAY_H_IN_S, 1, state, reduce, null, clock);
+      const drew = drawClimberSprite(ctx, fx, fy, figurePx / DISPLAY_H_IN_S, face, state, reduce, null, clock);
       return { drew, static: false };
     };
 

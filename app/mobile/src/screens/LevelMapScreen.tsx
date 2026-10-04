@@ -1,5 +1,5 @@
 import { AnimatePresence } from "motion/react";
-import { useCallback, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useLevels } from "../contexts/LevelsContext";
 import { tapHeavy, tapLight } from "../lib/haptics";
@@ -7,6 +7,7 @@ import { Button } from "../components/ui";
 import { LevelStartSheet } from "../components/levels/LevelStartSheet";
 import { LivesSheet } from "../components/levels/LivesSheet";
 import { XpSheet } from "../components/levels/XpSheet";
+import { ChestSheet } from "../components/levels/ChestSheet";
 import { useOptionalShop } from "../contexts/ShopContext";
 import { useLivesRefillOffer } from "../components/levels/useLivesRefillOffer";
 import { LevelStartExtras } from "../components/levels/LevelStartExtras";
@@ -14,7 +15,8 @@ import { BoosterPicker } from "../components/levels/LevelChests";
 import { useWhenDue } from "../components/levels/LevelBits";
 import { MapHeader } from "../components/levels/MapHeader";
 import { TowerMap } from "../components/levels/TowerMap";
-import { pinBottom, towerHeight } from "../components/levels/towerGeometry";
+import { pinBottom, SLAB_H, towerHeight } from "../components/levels/towerGeometry";
+import { useMapClimb } from "../components/levels/useMapClimb";
 import { useEquippedAvatar, useHasAppData } from "../contexts/AppDataContext";
 import { ModeRail } from "../components/modes/ModeRail";
 import { episodeOf, type LevelNode, type StartResult } from "../lib/levels/model";
@@ -59,7 +61,7 @@ export const MAP_FADE = "linear-gradient(to top, transparent 56px, #000 112px)";
 export function LevelMapScreen() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { client, season, loading, error, refresh, setPlayer, runNotes } = useLevels();
+  const { client, season, loading, error, refresh, setPlayer, runNotes, seenFloors } = useLevels();
   const guest = useGuest();
   const lockedForGuest = useCallback((level: number) => guest !== null && isGuestLocked(level), [guest]);
   const [signInPrompt, setSignInPrompt] = useState(false);
@@ -70,6 +72,7 @@ export function LevelMapScreen() {
   const showRail = useHasAppData() && guest === null;
   const [livesOpen, setLivesOpen] = useState(false);
   const [xpOpen, setXpOpen] = useState(false);
+  const [chestOpen, setChestOpen] = useState(false);
   const avatar = useEquippedAvatar();
   const [selected, setSelectedNode] = useState<LevelNode | null>(null);
   // The booster equipped on the open start card; every card opens without one.
@@ -108,13 +111,50 @@ export function LevelMapScreen() {
     return () => observer.disconnect();
   }, [hasHeader]);
 
-  // Open on the frontier, once per frontier, so a new clear scrolls to the next floor.
+  // Floors cleared since the map last showed the player: their character
+  // climbs them, once nothing covers the map (a start card, the tour).
+  const [touring, setTouring] = useState(false);
+  const mapClear = selected === null && !touring && !signInPrompt;
+  const mapClimb = useMapClimb({ season: season?.season ?? null, frontier, store: seenFloors, clear: mapClear });
+  // The scroll follows the climbing figure until the player scrolls themselves.
+  const followClimb = useRef(true);
+  const stopFollowing = useCallback(() => {
+    followClimb.current = false;
+  }, []);
+
+  /** The scrollTop that puts a point `y` px above the map's bottom at 55% down the view. */
+  const scrollFor = useCallback(
+    (el: HTMLElement, y: number) => Math.max(0, (headerH ?? 0) + height - y - el.clientHeight * 0.55),
+    [headerH, height],
+  );
+
+  // Open on the figure's floor (the frontier, or where a climb starts), once
+  // per frontier, so a new clear scrolls to the next floor.
   useLayoutEffect(() => {
     const el = scrollRef.current;
-    if (!el || !season || headerH === null || scrolledFor.current === frontier) return;
+    if (!el || !season || headerH === null || !mapClimb.planned || scrolledFor.current === frontier) return;
     scrolledFor.current = frontier;
-    el.scrollTop = Math.max(0, headerH + height - pinBottom(frontier) - el.clientHeight * 0.55);
-  }, [season, frontier, height, headerH]);
+    el.scrollTop = scrollFor(el, pinBottom(mapClimb.standOn));
+  }, [season, frontier, headerH, mapClimb.planned, mapClimb.standOn, scrollFor]);
+
+  const climbing = mapClimb.climb;
+  useEffect(() => {
+    if (climbing) followClimb.current = true;
+  }, [climbing]);
+  const climb = useMemo(
+    () =>
+      climbing && {
+        ...climbing,
+        onMove: (feet: number) => {
+          const el = scrollRef.current;
+          // The feet stand on a slab's top: follow the slab's centre, as the opening scroll does.
+          if (el && followClimb.current) el.scrollTop = scrollFor(el, feet - SLAB_H / 2);
+        },
+        onLand: () => void tapLight(),
+        onDone: mapClimb.finish,
+      },
+    [climbing, scrollFor, mapClimb.finish],
+  );
 
   // "Next level" on a result card lands here with the next level's card open,
   // and so does a level run that lost its ticket (marked `interrupted`).
@@ -180,7 +220,6 @@ export function LevelMapScreen() {
     onboarding.markOffered();
     navigate("/tutorial", { replace: true, state: guest ? { then: GUEST_MAP_PATH } : null });
   }, [firstRun, navigate, onboarding, guest]);
-  const [touring, setTouring] = useState(false);
   const tourRequested = wantsTour(location.state);
   useLayoutEffect(() => {
     if (!season || !tourRequested) return;
@@ -265,6 +304,10 @@ export function LevelMapScreen() {
             void tapLight();
             setXpOpen(true);
           }}
+          onChest={() => {
+            void tapLight();
+            setChestOpen(true);
+          }}
         />
       </header>
 
@@ -278,6 +321,8 @@ export function LevelMapScreen() {
           WebkitMaskImage: MAP_FADE,
           paddingTop: headerH ?? 0,
         }}
+        onPointerDown={stopFollowing}
+        onWheel={stopFollowing}
       >
         <TowerMap
           seasonName={season.name}
@@ -289,6 +334,8 @@ export function LevelMapScreen() {
           onOpen={openNext}
           signInLocked={guest ? lockedForGuest : undefined}
           onSignIn={openNext}
+          standOn={mapClimb.standOn}
+          climb={climb}
         />
       </div>
 
@@ -375,6 +422,11 @@ export function LevelMapScreen() {
       </AnimatePresence>
       <AnimatePresence>
         {xpOpen && <XpSheet season={season} guest={guest !== null} onClose={() => setXpOpen(false)} />}
+      </AnimatePresence>
+      <AnimatePresence>
+        {chestOpen && !guest && season.chests && (
+          <ChestSheet chests={season.chests} boosters={season.boosters} onClose={() => setChestOpen(false)} />
+        )}
       </AnimatePresence>
       {refill.overlays}
       {touring && (

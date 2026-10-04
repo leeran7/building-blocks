@@ -22,18 +22,24 @@ export function boosterCount(inventory: BoosterInventory): number {
 /**
  * The map's chest meter, a cell of the map header (MapHeader): a ring of
  * stars toward the next chest, the count beside it from 360px up, and a badge
- * on the ring with the boosters owned.
+ * on the ring with the boosters owned. With `onPress` it is a button that
+ * opens the chest sheet (ChestSheet).
  */
-export function ChestMeter({ chests, boosters }: { chests: ChestProgress; boosters: BoosterInventory }) {
+export function ChestMeter({
+  chests,
+  boosters,
+  onPress,
+}: {
+  chests: ChestProgress;
+  boosters: BoosterInventory;
+  onPress?: () => void;
+}) {
   const { starsIntoChest, perChest } = chests;
   const left = perChest - starsIntoChest;
   const owned = boosterCount(boosters);
-  return (
-    <div
-      role="group"
-      aria-label={`Star chest: ${starsIntoChest} of ${perChest} stars, ${left} to go.${owned > 0 ? ` ${owned} ${owned === 1 ? "booster" : "boosters"} owned.` : ""}`}
-      className="flex h-14 w-full items-center justify-center gap-1.5 px-1.5"
-    >
+  const label = `Star chest: ${starsIntoChest} of ${perChest} stars, ${left} to go.${owned > 0 ? ` ${owned} ${owned === 1 ? "booster" : "boosters"} owned.` : ""}`;
+  const body = (
+    <>
       <span aria-hidden className="relative inline-flex shrink-0">
         <ProgressRing pct={(starsIntoChest / perChest) * 100} size={40}>
           <ChestIcon size={18} />
@@ -48,7 +54,27 @@ export function ChestMeter({ chests, boosters }: { chests: ChestProgress; booste
         {starsIntoChest}
         <span className="text-text-secondary">/{perChest}</span>
       </span>
-    </div>
+    </>
+  );
+  const cell = "flex h-14 w-full items-center justify-center gap-1.5 px-1.5";
+  if (!onPress) {
+    return (
+      <div role="group" aria-label={label} className={cell}>
+        {body}
+      </div>
+    );
+  }
+  return (
+    <button
+      type="button"
+      data-chest-meter
+      aria-label={`${label} Show your boosters`}
+      aria-haspopup="dialog"
+      onClick={onPress}
+      className={`${cell} transition-colors active:bg-white/5`}
+    >
+      {body}
+    </button>
   );
 }
 
