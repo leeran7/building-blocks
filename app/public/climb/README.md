@@ -112,19 +112,22 @@ one entry per catalogue avatar. Run `pnpm test` in `app/` after the change.
 
 ## Paid Void skins
 
-Every character with art also has a paid skin in the Wraith style, sold in
-the Shop: `<id>-void` in `src/lib/avatars.ts` ("Void Walker" for the Wraith,
-"Void <Name>" for the rest). Until its art lands, a Void skin draws as the
-Wraith recoloured to its character's accent (`RECOLOR_PALETTE`), and its
-badge shows the character's portrait.
+The 18 `<id>-void` character skins use their own portrait-faithful poses and
+climb sheets. Keep the existing Choose Character portraits: the badge falls
+back to its base character's portrait, preserving the same identity. The
+Wraith's colour skins still use the tint renderer.
 
-To ship a Void skin's art:
+Approved masters live in `paid-characters/art/<id>-void/`. Compile them with
+`scripts/climber-art/process_paid.py` and compare the resulting sheets with
+the reviewed snapshot before replacing runtime PNGs. Each pair shares one
+scale and the foot anchor `(96,172.5)`; standing poses are grounded, while
+falling and relative climbing motion retain their authored positioning.
 
-1. Add `<id>-void-poses-192.png` and `<id>-void-climb-192.png` here, drawn to
-   every rule above (same cell, anchor, head height and poses).
-2. Add `<id>-void.webp` to `mobile/src/assets/avatars/` for its badge.
-3. Register it in `VOID_SKIN_SHEETS` in `climberCharacters.ts`:
-   `"lynx-void": { headTop: 45 },`.
+`VOID_SKIN_SHEETS` in `climberCharacters.ts` registers all 18 pairs with the
+reviewed idle skull-top estimate (excluding horns, ears and crests). Its
+`headTop` determines rendered body height. Recheck this calibration whenever
+source framing or the common compilation scale changes. Native bundling
+resolves the full hyphenated id through `mobile/src/lib/climberSheets.ts`.
 
 A skin is still only a look: it plays exactly like the stick figure.
 

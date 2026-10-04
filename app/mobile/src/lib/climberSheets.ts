@@ -15,7 +15,7 @@ export const BUNDLED_SHEET_FILES: Record<string, unknown> = import.meta.glob(
   { eager: true, import: "default" },
 );
 
-const SHEET_FILE = /\/([a-z0-9]+)-(poses|climb)-192\.png$/;
+const SHEET_FILE = /\/([a-z0-9]+(?:-[a-z0-9]+)*)-(poses|climb)-192\.png$/;
 
 type Sheets = { poses?: string; climb?: string };
 
