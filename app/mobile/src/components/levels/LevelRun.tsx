@@ -9,6 +9,9 @@ import { ClimbCanvas } from "@app/components/Game/ClimbCanvas";
 import { ExpeditionHud } from "@app/components/Game/ExpeditionHud";
 import { TouchControls, useTouchControlsInset } from "@app/components/Game/TouchControls";
 import { usePowerUpFeedback } from "@app/components/Game/usePowerUpFeedback";
+import { RunCallout, useRunMoments } from "@app/components/Game/RunCallout";
+import type { RunMoment } from "@app/components/Game/runMoments";
+import { momentHaptic } from "../../lib/momentHaptics";
 import { lavaMusicIntensity } from "@app/components/Game/powerUpCues";
 import { isLavaInProximity } from "@app/components/Game/lava";
 import {
@@ -115,7 +118,7 @@ export function LevelRun({
   const lavaFill = lavaThreatFill(state.hazardY, camY, view.viewH, bottomInsetM);
   const lavaNear = isLavaInProximity(lavaGapBelowViewM(state.hazardY, camY, bottomInset, view.pxPerM));
   const musicActive = running && (phase === "countdown" || phase === "climb");
-  const { muted, setMuted, announcement, unlockAudio } = usePowerUpFeedback(
+  const { muted, setMuted, announcement, unlockAudio, playMoment } = usePowerUpFeedback(
     player,
     state.tick,
     runId,
@@ -130,6 +133,26 @@ export function LevelRun({
           dead: player?.status === "eliminated",
         }
       : undefined,
+  );
+
+  const onMoment = useCallback(
+    (moment: RunMoment) => {
+      playMoment(moment);
+      momentHaptic(moment);
+    },
+    [playMoment]
+  );
+  // "New best!" here means passing this level's closest failed attempt.
+  const callout = useRunMoments(
+    {
+      runId,
+      tick: state.tick,
+      live: running && phase === "climb" && player?.status === "climbing",
+      peakY: player?.peakY ?? 0,
+      clearance: lavaGap,
+      bestY: bestFailFt,
+    },
+    onMoment
   );
 
   const handleStart = useCallback(() => {
@@ -229,6 +252,8 @@ export function LevelRun({
           </button>
         }
       />
+
+      <RunCallout callout={callout} topInset={safeArea.top} />
 
 
       {phase === "countdown" && (

@@ -14,13 +14,14 @@
  * graph, the mute preference, and the live-region string.
  */
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { PlayerState, PowerUpType } from "../../game/types";
 import { isExpired } from "../../game/powerups";
 import { PowerUpAudio } from "./powerUpAudio";
 import { ClimbMusic } from "./climbMusic";
 import { initialCueMemo, stepCues, type CueMemo } from "./powerUpCues";
 import type { HazardPhaseName } from "../../game/hazard";
+import type { RunMoment } from "./runMoments";
 
 const MUTE_KEY = "doomstack:sfx-muted";
 
@@ -149,8 +150,20 @@ export function usePowerUpFeedback(
     dead,
   ]);
 
+  const playMoment = useCallback(
+    (moment: RunMoment) => {
+      try {
+        audio.playMoment(moment.kind);
+      } catch {
+        /* InvalidStateError must not unmount the game */
+      }
+    },
+    [audio]
+  );
+
   return {
     muted,
+    playMoment,
     setMuted: (next: boolean) => {
       setMutedState(next);
       audio.setMuted(next);
@@ -199,4 +212,6 @@ export interface PowerUpFeedback {
   announcement: string;
   /** Create/resume the AudioContext inside a user gesture (Start, unmute). */
   unlockAudio: () => void;
+  /** Play a run moment's sting (pass as useRunMoments' onMoment). Stable. */
+  playMoment: (moment: RunMoment) => void;
 }
