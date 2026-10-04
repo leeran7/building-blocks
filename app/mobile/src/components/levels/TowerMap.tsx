@@ -105,6 +105,20 @@ export function TowerMap({
       />
       <Structure top={top} frontier={frontier} height={height} />
       <ol aria-label={`${seasonName} levels`} className="absolute inset-0">
+        {/* Before the floors, so a figure on a ladder passes behind the slab above, as the ladders do. */}
+        {climb && !avatar.loading && (
+          <li aria-hidden className="contents">
+            <MapClimber
+              key={`${climb.from}-${climb.to}`}
+              from={climb.from}
+              to={climb.to}
+              avatarId={avatarId}
+              onMove={climb.onMove}
+              onLand={climb.onLand}
+              onDone={climb.onDone}
+            />
+          </li>
+        )}
         {Array.from({ length: landings }, (_, i) => (
           <Landing key={`landing-${i + 2}`} episode={i + 2} />
         ))}
@@ -120,19 +134,6 @@ export function TowerMap({
             onSignIn={signInLocked?.(node.level) ? onSignIn : undefined}
           />
         ))}
-        {climb && !avatar.loading && (
-          <li aria-hidden className="contents">
-            <MapClimber
-              key={`${climb.from}-${climb.to}`}
-              from={climb.from}
-              to={climb.to}
-              avatarId={avatarId}
-              onMove={climb.onMove}
-              onLand={climb.onLand}
-              onDone={climb.onDone}
-            />
-          </li>
-        )}
         {floorsAbove > 0 && (
           <li
             aria-hidden

@@ -9,7 +9,9 @@ import { CLIMB_LEAD_IN_S, climbDuration, climbFrameAt, climbPath } from "./mapCl
  * It moves by style writes each frame, re-rendering only when the pose or the
  * facing changes. `onMove` gets the feet's height (px from the map's bottom)
  * each frame so the screen can scroll with it, `onLand` each floor reached,
- * and `onDone` fires once on the top floor.
+ * and `onDone` fires once on the top floor. TowerMap renders it before the
+ * floors: on a ladder it drops out of the z-10 layer and passes behind the
+ * slab above.
  */
 export function MapClimber({
   from,
@@ -73,7 +75,9 @@ export function MapClimber({
       aria-hidden
       data-you-marker
       data-climbing
-      className="pointer-events-none absolute z-10 flex -translate-x-1/2"
+      // On a ladder it drops behind the floors (the ladders are drawn behind
+      // them), so it climbs up behind the slab above and steps out on top.
+      className={`pointer-events-none absolute flex -translate-x-1/2 ${look.pose === "climb" ? "" : "z-10"}`}
       style={{ left: `${start.x}%`, bottom: start.y - PREVIEW_FOOT_PAD }}
     >
       <CharacterPreview

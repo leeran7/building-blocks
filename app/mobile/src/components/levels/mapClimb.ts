@@ -1,4 +1,4 @@
-import { ladderX, pinX, slabTop } from "./towerGeometry";
+import { FIGURE_PX, ladderX, pinX, slabTop, slabUnderside } from "./towerGeometry";
 
 /**
  * The climb the level map plays when the player comes back having cleared
@@ -15,6 +15,11 @@ export const MAX_CLIMB_FLOORS = 12;
 export const WALK_PCT_PER_S = 70;
 /** Climbing pace up a ladder, px per second. */
 export const CLIMB_PX_PER_S = 220;
+/**
+ * How much faster it climbs while passing behind the slab above (from its head
+ * reaching the underside to its feet on top), so it doesn't seem to vanish.
+ */
+export const THROUGH_SPEEDUP = 1.8;
 /** A climb longer than this at the paces above runs faster to fit, seconds. */
 export const MAX_CLIMB_S = 7;
 /** A beat standing still before the first step, so the eye finds the figure, seconds. */
@@ -49,7 +54,10 @@ export function climbPath(from: number, to: number): ClimbSegment[] {
   for (let n = from; n < to; n++) {
     const x = ladderX(n);
     walk(pinX(n), x, slabTop(n), null);
-    raw.push({ pose: "climb", x0: x, y0: slabTop(n), x1: x, y1: slabTop(n + 1), lands: null, length: (slabTop(n + 1) - slabTop(n)) / CLIMB_PX_PER_S });
+    // Up the ladder, then quicker through the slab above (the ladders run behind the floors).
+    const through = slabUnderside(n + 1) - FIGURE_PX;
+    raw.push({ pose: "climb", x0: x, y0: slabTop(n), x1: x, y1: through, lands: null, length: (through - slabTop(n)) / CLIMB_PX_PER_S });
+    raw.push({ pose: "climb", x0: x, y0: through, x1: x, y1: slabTop(n + 1), lands: null, length: (slabTop(n + 1) - through) / (CLIMB_PX_PER_S * THROUGH_SPEEDUP) });
     walk(x, pinX(n + 1), slabTop(n + 1), n + 1);
   }
   const total = raw.reduce((sum, s) => sum + s.length, 0);

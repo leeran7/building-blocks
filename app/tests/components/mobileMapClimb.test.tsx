@@ -52,11 +52,12 @@ import { createMockLevelsClient } from "../../mobile/src/lib/levels/mockClient";
 import { EPISODE_SIZE, type LevelsClient } from "../../mobile/src/lib/levels/model";
 import { createSeenFloorStore, parseSeenFloor } from "../../mobile/src/lib/levels/seenFloor";
 import { LevelMapScreen } from "../../mobile/src/screens/LevelMapScreen";
-import { ladderX, pinX, slabTop } from "../../mobile/src/components/levels/towerGeometry";
+import { FIGURE_PX, ladderX, pinX, slabTop, slabUnderside } from "../../mobile/src/components/levels/towerGeometry";
 import {
   CLIMB_LEAD_IN_S,
   MAX_CLIMB_FLOORS,
   MAX_CLIMB_S,
+  THROUGH_SPEEDUP,
   climbDuration,
   climbFrameAt,
   climbFrom,
@@ -82,14 +83,19 @@ describe("climb path", () => {
     expect(path[path.length - 1]).toMatchObject({ x1: pinX(8), y1: slabTop(8), lands: 8 });
     expect(path.map((s) => s.lands).filter((n) => n !== null)).toEqual([2, 3, 4, 5, 6, 7, 8]);
 
+    // Each ladder is two climb segments: up to where the head meets the slab above, then quicker through it.
     const climbs = path.filter((s) => s.pose === "climb");
-    expect(climbs.length).toBe(7);
-    climbs.forEach((s, i) => {
-      expect(s.x0).toBe(ladderX(1 + i));
-      expect(s.x1).toBe(ladderX(1 + i));
-      expect(s.y0).toBe(slabTop(1 + i));
-      expect(s.y1).toBe(slabTop(2 + i));
-    });
+    expect(climbs.length).toBe(14);
+    expect(THROUGH_SPEEDUP).toBeGreaterThan(1);
+    for (let i = 0; i < 7; i++) {
+      const [up, through] = [climbs[2 * i], climbs[2 * i + 1]];
+      expect([up.x0, up.x1, through.x0, through.x1]).toEqual(Array(4).fill(ladderX(1 + i)));
+      expect(up.y0).toBe(slabTop(1 + i));
+      expect(up.y1).toBe(slabUnderside(2 + i) - FIGURE_PX);
+      expect(through.y1).toBe(slabTop(2 + i));
+      const pace = (s: typeof up) => (s.y1 - s.y0) / s.seconds;
+      expect(pace(through) / pace(up)).toBeCloseTo(THROUGH_SPEEDUP, 6);
+    }
     // Walks stay on a floor, and each segment starts where the last one ended.
     expect(path.filter((s) => s.pose === "walk").every((s) => s.y0 === s.y1)).toBe(true);
     for (let i = 1; i < path.length; i++) {
@@ -101,8 +107,9 @@ describe("climb path", () => {
 
   it("climbs through an episode landing in one go", () => {
     const path = climbPath(EPISODE_SIZE, EPISODE_SIZE + 1);
-    const [climb] = path.filter((s) => s.pose === "climb");
-    expect(climb.y1 - climb.y0).toBeGreaterThan(slabTop(3) - slabTop(2));
+    const climbs = path.filter((s) => s.pose === "climb");
+    expect(climbs.length).toBe(2);
+    expect(climbs[1].y1 - climbs[0].y0).toBeGreaterThan(slabTop(3) - slabTop(2));
     expect(path[path.length - 1].lands).toBe(EPISODE_SIZE + 1);
   });
 
@@ -269,6 +276,42 @@ describe("climb on the map", () => {
     expect(climbing()).toBe(false);
     expect(figureFloor()).toBe(8);
     expect(haptics.light - before).toBe(7);
+  });
+
+  it("passes behind the floors on a ladder and in front of them on a floor", async () => {
+    const client = memoryClient();
+    await openMap(client);
+    runFrames();
+    await clearLevels(client, 1, 2);
+    await openMap(client);
+    const marker = () => container.querySelector<HTMLElement>("[data-climbing]");
+    // Drawn before every floor, so without z-10 the slabs paint over it.
+    const items = [...container.querySelectorAll("ol > li")];
+    const climberAt = items.findIndex((li) => li.querySelector("[data-climbing]"));
+    const firstFloor = items.findIndex((li) => li.querySelector("button"));
+    expect(climberAt).toBeGreaterThanOrEqual(0);
+    expect(climberAt).toBeLessThan(firstFloor);
+
+    const path = climbPath(1, 3);
+    // The climber's clock starts on its first frame, the next one run.
+    const began = clockMs + 1000 / 60;
+    const seen = { climb: 0, walk: 0 };
+    for (let i = 0; i < 60 * 10 && marker(); i++) {
+      runFrames(1 / 60);
+      const el = marker();
+      if (!el) break;
+      const t = (clockMs - began) / 1000 - CLIMB_LEAD_IN_S;
+      const pose = climbFrameAt(path, t).pose;
+      if (pose === "climb") {
+        seen.climb++;
+        expect(el.classList.contains("z-10")).toBe(false);
+      } else if (pose === "walk") {
+        seen.walk++;
+        expect(el.classList.contains("z-10")).toBe(true);
+      }
+    }
+    expect(seen.climb).toBeGreaterThan(0);
+    expect(seen.walk).toBeGreaterThan(0);
   });
 
   it("waits while Next level's start card covers the map, then climbs every floor won meanwhile", async () => {
