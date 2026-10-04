@@ -29,6 +29,11 @@ export const MAP_TOUR: readonly TourStep[] = [
     body: "A fast finish earns up to 3 stars. Stars fill this chest, and a full chest gives you boosters: power-ups you can start a level with.",
   },
   {
+    target: "gems",
+    title: "Gems",
+    body: "Gems buy lives refills and character skins. Tap + to get more.",
+  },
+  {
     target: "play",
     title: "Play",
     body: "Opens the next level. Pick a booster there if you have one, then tap Play.",
@@ -51,7 +56,7 @@ export const MAP_TOUR: readonly TourStep[] = [
   {
     target: "tab-shop",
     title: "Shop",
-    body: "Tap + next to your gems to buy a gem pack. Spend gems on character skins here, or on a lives refill when a level says you are out.",
+    body: "Character skins, paid for with gems. Tap + next to your gems to buy a gem pack.",
   },
   {
     target: "tab-profile",

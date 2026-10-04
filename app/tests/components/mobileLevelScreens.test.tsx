@@ -23,6 +23,13 @@ vi.mock("../../mobile/src/lib/haptics", () => ({
   notifySuccess: vi.fn(async () => {}),
   notifyError: vi.fn(async () => {}),
 }));
+// The map's gem pill reads the Shop: a fixed balance, no server.
+vi.mock("../../mobile/src/lib/shop", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../../mobile/src/lib/shop")>()),
+  fetchShop: async () => ({ gems: 300, ownedIds: [], appleAccountToken: null, webCheckout: false }),
+  settleUnfinishedPurchases: async () => null,
+  watchAppleTransactions: () => () => {},
+}));
 vi.mock("@app/components/Game/lava", () => ({ drawLava: vi.fn(), isLavaInProximity: () => false }));
 
 /**
@@ -238,10 +245,10 @@ describe("level map", () => {
 
   describe("paid lives refill", () => {
     /** The local store out of lives at level 11, selling refills at `cost` from `gems`. */
-    async function outOfLivesClient(gems: number, cost: number, refused?: BuyLivesResult) {
+    async function outOfLivesClient(gems: number, cost: number, refused?: BuyLivesResult, losses = 5) {
       const base = memoryClient();
       await clearLevels(base, 10);
-      for (let i = 0; i < 5; i++) {
+      for (let i = 0; i < losses; i++) {
         const s = await base.startLevel(11);
         if (!s.ok) throw new Error("refused");
         await base.submitResult(s.ticket.id, { level: s.ticket.level, finished: false, finishedTick: null, raceTicks: 200, peakFt: 5, replayToken: null, outOfTime: false });
@@ -287,7 +294,8 @@ describe("level map", () => {
     });
 
     it("opens the gem packs from a short balance when the Shop is mounted", async () => {
-      const { client } = await outOfLivesClient(20, 50);
+      // The Shop's balance (300) is the one shown once it loads: price above it.
+      const { client } = await outOfLivesClient(20, 500);
       await act(async () => {
         root.render(
           <MemoryRouter initialEntries={["/"]}>
@@ -303,8 +311,106 @@ describe("level map", () => {
       });
       await flush();
       await click(pin("Level 11, next to play"));
-      await click(button("Get gems"));
+      // The card's own Get gems, not the gem pill's "+" in the map header.
+      const getGems = [...document.body.querySelectorAll<HTMLButtonElement>('[role="dialog"] button')].find(
+        (b) => b.textContent === "Get gems",
+      );
+      await click(getGems);
       expect(document.body.querySelector("#gem-packs-title")?.textContent).toBe("Get gems");
+    });
+
+    async function renderMapWithShop(client: LevelsClient) {
+      await act(async () => {
+        root.render(
+          <MemoryRouter initialEntries={["/"]}>
+            <LevelsProvider client={client}>
+              <ShopProvider>
+                <Routes>
+                  <Route path="/" element={<LevelMapScreen />} />
+                </Routes>
+              </ShopProvider>
+            </LevelsProvider>
+          </MemoryRouter>,
+        );
+      });
+      await flush();
+    }
+    const livesPill = () => document.body.querySelector<HTMLButtonElement>("button[data-lives-pill]");
+    const livesSheet = () => document.body.querySelector("[data-lives-sheet]");
+
+    it("shows the gem balance on the map, and its + opens the gem packs", async () => {
+      const { client } = await outOfLivesClient(120, 50, undefined, 0);
+      await renderMapWithShop(client);
+      const pill = document.body.querySelector("header [data-gem-balance]");
+      expect(pill?.textContent).toContain("300");
+      await click(pill?.querySelector<HTMLButtonElement>('button[aria-label="Get gems"]') ?? undefined);
+      expect(document.body.querySelector("#gem-packs-title")?.textContent).toBe("Get gems");
+    });
+
+    it("leaves the gem pill out without the Shop", async () => {
+      const { client } = await outOfLivesClient(120, 50, undefined, 0);
+      await renderMap(client);
+      expect(document.body.querySelector("[data-gem-balance]")).toBeNull();
+    });
+
+    it("sells a refill from the lives pill before the player runs out", async () => {
+      const { client, buyLives } = await outOfLivesClient(120, 50, undefined, 2);
+      await renderMap(client);
+      expect(livesPill()?.getAttribute("aria-label")).toBe("Lives, 3 of 5");
+      await click(livesPill() ?? undefined);
+      expect(livesSheet()?.textContent).toMatch(/3 of 5 lives · Next life in \d+:\d\d/);
+      expect(livesSheet()?.textContent).toContain("Your balance: 120 gems");
+
+      await click(button("Refill lives for 50 gems"));
+      expect(buyLives).toHaveBeenCalledTimes(1);
+      // The sheet closes so the payoff plays on the map, and the pill is full.
+      expect(livesSheet()).toBeNull();
+      expect(document.querySelector("[data-reward-phase]")?.getAttribute("aria-label")).toBe("Lives refilled: 5 lives");
+      expect(livesPill()?.getAttribute("aria-label")).toBe("Lives, 5 of 5");
+    });
+
+    it("closes only the gem packs on Escape when opened from the lives sheet, and hands focus back", async () => {
+      // The Shop's balance (300) is short of the price.
+      const { client } = await outOfLivesClient(20, 500, undefined, 2);
+      await renderMapWithShop(client);
+      await click(livesPill() ?? undefined);
+      const getGems = [...(livesSheet()?.querySelectorAll<HTMLButtonElement>("button") ?? [])].find((b) => b.textContent === "Get gems");
+      getGems?.focus();
+      await click(getGems);
+      expect(document.body.querySelector("#gem-packs-title")).not.toBeNull();
+
+      await act(async () => {
+        document.activeElement?.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+      });
+      await flush();
+      expect(document.body.querySelector("#gem-packs-title")).toBeNull();
+      expect(livesSheet()).not.toBeNull();
+      expect(document.activeElement).toBe(getGems);
+    });
+
+    it("keeps the lives sheet open with the reason when a refill is refused", async () => {
+      const { client } = await outOfLivesClient(120, 50, { ok: false, code: "NETWORK" }, 2);
+      await renderMap(client);
+      await click(livesPill() ?? undefined);
+      await click(button("Refill lives for 50 gems"));
+      expect(livesSheet()?.querySelector('[role="alert"]')?.textContent).toBe(
+        "Couldn’t reach the server. Check your connection and try again.",
+      );
+    });
+
+    it("sells nothing from the lives sheet when lives are full", async () => {
+      const { client, buyLives } = await outOfLivesClient(120, 50, undefined, 0);
+      await renderMap(client);
+      await click(livesPill() ?? undefined);
+      expect(livesSheet()?.textContent).toContain("5 of 5 lives · Full");
+      expect(button("Refill lives for 50 gems")).toBeUndefined();
+      expect(buyLives).not.toHaveBeenCalled();
+    });
+
+    it("leaves the lives pill a plain readout when no refill can be sold", async () => {
+      await renderMap(memoryClient());
+      expect(livesPill()).toBeNull();
+      expect(document.body.querySelector("header")?.textContent).toContain("5 of 5 lives");
     });
 
     it("has no Get gems button without the Shop", async () => {
