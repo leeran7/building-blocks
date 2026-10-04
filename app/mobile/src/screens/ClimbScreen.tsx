@@ -46,7 +46,7 @@ import {
   TODAY_BOARD_PATH,
   type DailySaveResult,
 } from "../lib/dailyBoard";
-import { isDailyInfoStale, type DailyInfo } from "@app/lib/dailyInfo";
+import { isDailyInfoStale, type DailyInfo, type DailyLoadFailure } from "@app/lib/dailyInfo";
 import { DAILY_SIM_VERSION } from "@app/game/simVersion";
 
 /** A finished run as POSTed to either result route. */
@@ -62,7 +62,7 @@ interface RunPayload {
 const CONSENT_SAVE_FAILED = "Couldn\u2019t save that. Check your connection and try again.";
 
 /** Play again on the results card: ready, refetching the daily, or unreachable. */
-type PlayAgainState = "ready" | "loading" | "offline";
+type PlayAgainState = "ready" | "loading" | DailyLoadFailure;
 
 /** Daily save lifecycle on the results card: null = not a daily save. */
 type DailySaveState = DailySaveResult | { status: "pending" } | null;
@@ -95,12 +95,13 @@ export function ClimbScreen({ onSignIn }: { onSignIn?: () => void } = {}) {
   const [searchParams] = useSearchParams();
   // Daily mode: lock the tower to today's shared seed so every player climbs
   // the exact same tower. Only the server can derive the seed (SEC-DC-3), so
-  // the daily cannot start until GET /api/climb/daily answers. Offline, the
-  // lobby offers a retry or an endless run instead.
+  // the daily cannot start until GET /api/climb/daily answers. Without it
+  // (offline, or the server has the daily switched off) the lobby says which,
+  // and offers a retry or an endless run instead.
   // Endless mode leaves the seed free (fresh each start).
   const isDaily = searchParams.get("daily") === "1";
   const [dailyInfo, setDailyInfo] = useState<DailyInfo | null>(null);
-  const [dailyInfoFailed, setDailyInfoFailed] = useState(false);
+  const [dailyFailure, setDailyFailure] = useState<DailyLoadFailure | null>(null);
   const [dailyInfoAttempt, setDailyInfoAttempt] = useState(0);
   // When the current answer was requested: it is stale once the server's
   // reset falls between that and a new start (RV-DC-3).
@@ -112,14 +113,14 @@ export function ClimbScreen({ onSignIn }: { onSignIn?: () => void } = {}) {
     if (!isDaily) return;
     let cancelled = false;
     const requestedAt = Date.now();
-    setDailyInfoFailed(false);
-    void fetchDailyInfo().then((info) => {
+    setDailyFailure(null);
+    void fetchDailyInfo().then((load) => {
       if (cancelled) return;
-      if (info) {
+      if ("info" in load) {
         dailyRequestedAt.current = requestedAt;
-        setDailyInfo(info);
+        setDailyInfo(load.info);
       } else {
-        setDailyInfoFailed(true);
+        setDailyFailure(load.failure);
         setStartWhenReady(false);
       }
     });
@@ -128,11 +129,7 @@ export function ClimbScreen({ onSignIn }: { onSignIn?: () => void } = {}) {
     };
   }, [isDaily, dailyInfoAttempt]);
   const seed = isDaily ? dailyInfo?.seed : undefined;
-  const dailyLobby: "ready" | "loading" | "offline" = !isDaily || dailyInfo
-    ? "ready"
-    : dailyInfoFailed
-      ? "offline"
-      : "loading";
+  const dailyLobby: PlayAgainState = !isDaily || dailyInfo ? "ready" : dailyFailure ?? "loading";
 
   const towerRef = useRef(buildFreeTower());
   const {
@@ -253,11 +250,7 @@ export function ClimbScreen({ onSignIn }: { onSignIn?: () => void } = {}) {
   }, [startWhenReady, dailyInfo, handleStart]);
 
   /** The results card's Play again while a daily tower is (re)loading. */
-  const playAgainState: PlayAgainState = !isDaily || dailyInfo
-    ? "ready"
-    : dailyInfoFailed
-      ? "offline"
-      : "loading";
+  const playAgainState: PlayAgainState = !isDaily || dailyInfo ? "ready" : dailyFailure ?? "loading";
 
   // Death haptic — one buzz when the run ends. In daily mode, also record the
   // run locally (streak + today's best) before showing results.
@@ -461,8 +454,9 @@ export function ClimbScreen({ onSignIn }: { onSignIn?: () => void } = {}) {
                 Loading today&rsquo;s tower…
               </p>
             )}
-            {dailyLobby === "offline" && (
+            {(dailyLobby === "offline" || dailyLobby === "unavailable") && (
               <DailyOffline
+                reason={dailyLobby}
                 onRetry={() => {
                   void tapLight();
                   setDailyInfoAttempt((n) => n + 1);
@@ -543,16 +537,28 @@ function Overlay({ children }: { children: React.ReactNode }) {
   );
 }
 
+/** Why the daily lobby has no tower, in the player's words. */
+const DAILY_FAILURE_COPY: Record<DailyLoadFailure, string> = {
+  offline: "Can\u2019t load today\u2019s tower. Check your connection and try again.",
+  unavailable: "The daily climb is closed right now. Try again later, or climb endless.",
+};
+
 /**
- * The daily's seed comes only from the server, so with no connection the
- * daily cannot start. Say so, and offer a retry or an endless run instead.
+ * The daily's seed comes only from the server, so without its answer the
+ * daily cannot start. Say why, and offer a retry or an endless run instead.
  */
-function DailyOffline({ onRetry, onPlayEndless }: { onRetry: () => void; onPlayEndless: () => void }) {
+function DailyOffline({
+  reason,
+  onRetry,
+  onPlayEndless,
+}: {
+  reason: DailyLoadFailure;
+  onRetry: () => void;
+  onPlayEndless: () => void;
+}) {
   return (
     <div role="alert" className="mt-6 flex flex-col items-center gap-3 text-center">
-      <p className="max-w-65 text-meta text-text-secondary">
-        Can&rsquo;t load today&rsquo;s tower. Check your connection and try again.
-      </p>
+      <p className="max-w-65 text-meta text-text-secondary">{DAILY_FAILURE_COPY[reason]}</p>
       <button
         type="button"
         onClick={onRetry}
@@ -610,6 +616,7 @@ const PLAY_AGAIN_LABEL: Record<PlayAgainState, string> = {
   ready: "Play again",
   loading: "Loading today\u2019s tower\u2026",
   offline: "Can\u2019t reach today\u2019s tower \u00b7 retry",
+  unavailable: "Daily closed \u00b7 retry",
 };
 
 /** Why a daily run is not on today's board, in the player's words. */

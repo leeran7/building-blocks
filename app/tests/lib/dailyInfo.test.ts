@@ -6,7 +6,13 @@
  */
 
 import { describe, expect, it, vi } from "vitest";
-import { isDailyInfoStale, parseDailyInfo, type DailyInfo } from "../../src/lib/dailyInfo";
+import {
+  classifyDailyResponse,
+  isDailyInfoStale,
+  parseDailyInfo,
+  readDailyResponse,
+  type DailyInfo,
+} from "../../src/lib/dailyInfo";
 import { GET } from "../../app/api/climb/daily/route";
 import { TEST_DAILY_SEED_SECRET } from "./dailySeedTestSecret";
 
@@ -78,5 +84,51 @@ describe("isDailyInfoStale", () => {
   it("a device clock ahead of the server refetches once, then plays what the server said (no loop)", () => {
     // Fetched after the device's reset, but the server still named the old day.
     expect(isDailyInfoStale(INFO, reset + 30_000, reset + 60_000)).toBe(false);
+  });
+});
+
+describe("classifyDailyResponse: unavailable vs offline", () => {
+  it("reads the real route's 503 as unavailable when the secret is missing or short", async () => {
+    for (const value of ["", "x".repeat(31)]) {
+      vi.stubEnv("DAILY_SEED_SECRET", value);
+      try {
+        const res = GET();
+        expect(res.status).toBe(503);
+        expect(await readDailyResponse(res)).toEqual({ failure: "unavailable" });
+      } finally {
+        vi.unstubAllEnvs();
+      }
+    }
+  });
+
+  it("reads the real route's 200 as the tower", async () => {
+    vi.stubEnv("DAILY_SEED_SECRET", TEST_DAILY_SEED_SECRET);
+    try {
+      const res = GET();
+      const body: unknown = await res.clone().json();
+      expect(await readDailyResponse(res)).toEqual({ info: parseDailyInfo(body) });
+      expect(parseDailyInfo(body)).not.toBeNull();
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it("only the exact 503 contract is unavailable; every other failure is offline", () => {
+    const unavailable = { error: "x", code: "DAILY_UNAVAILABLE" };
+    expect(classifyDailyResponse(503, unavailable)).toEqual({ failure: "unavailable" });
+    expect(classifyDailyResponse(500, unavailable)).toEqual({ failure: "offline" });
+    expect(classifyDailyResponse(503, { code: "OTHER" })).toEqual({ failure: "offline" });
+    expect(classifyDailyResponse(503, null)).toEqual({ failure: "offline" });
+    expect(classifyDailyResponse(502, "Bad gateway")).toEqual({ failure: "offline" });
+  });
+
+  it("a 200 with a malformed body is offline, never a tower", () => {
+    expect(classifyDailyResponse(200, INFO)).toEqual({ info: INFO });
+    expect(classifyDailyResponse(200, { ...INFO, seed: "nope" })).toEqual({ failure: "offline" });
+  });
+
+  it("a non-JSON body is offline", async () => {
+    const res = new Response("<html>gateway</html>", { status: 503 });
+    expect(await readDailyResponse(res)).toEqual({ failure: "offline" });
   });
 });

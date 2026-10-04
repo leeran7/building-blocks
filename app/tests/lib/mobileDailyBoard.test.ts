@@ -9,7 +9,9 @@ import { describe, expect, it, vi } from "vitest";
 
 vi.mock("../../mobile/src/lib/api", () => ({ apiFetch: vi.fn() }));
 
+import { apiFetch } from "../../mobile/src/lib/api";
 import {
+  fetchDailyInfo,
   parseDailyBoard,
   parseDailySaveResult,
   parseFriendsDailyBoard,
@@ -189,5 +191,27 @@ describe("mobile daily parsers (verifier)", () => {
     expect(
       parseDailySaveResult(200, { saved: "true", day: "2026-09-26", peakY: 1, improved: true, rank: 1, totalClimbers: 1, attempts: 1 })
     ).toEqual({ status: "failed" });
+  });
+});
+
+describe("fetchDailyInfo", () => {
+  const fetchMock = vi.mocked(apiFetch);
+
+  it("says unavailable when the server has the daily switched off", async () => {
+    fetchMock.mockResolvedValueOnce(
+      new Response(JSON.stringify({ error: "x", code: "DAILY_UNAVAILABLE" }), { status: 503 })
+    );
+    expect(await fetchDailyInfo()).toEqual({ failure: "unavailable" });
+  });
+
+  it("says offline when the request itself fails", async () => {
+    fetchMock.mockRejectedValueOnce(new TypeError("Failed to fetch"));
+    expect(await fetchDailyInfo()).toEqual({ failure: "offline" });
+  });
+
+  it("returns the tower on a valid answer", async () => {
+    const info = { day: "2026-09-26", seed: "daily1-AbCdEfGhIjKlMnOpQrSt_-", resetsAt: "2026-09-27T00:00:00.000Z" };
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify(info), { status: 200 }));
+    expect(await fetchDailyInfo()).toEqual({ info });
   });
 });

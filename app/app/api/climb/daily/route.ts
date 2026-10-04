@@ -14,6 +14,7 @@
 
 import { NextResponse } from "next/server";
 import { nextUtcResetAt, utcDayKey } from "../../../../src/lib/dailyDay";
+import { DAILY_UNAVAILABLE_CODE } from "../../../../src/lib/dailyInfo";
 import { dailySeedConfigured, dailySeedFor } from "../../../../src/lib/dailySeedServer";
 
 export const runtime = "nodejs";
@@ -27,7 +28,7 @@ export function GET(): NextResponse {
   if (!dailySeedConfigured()) {
     console.error("[climb/daily] DAILY_SEED_SECRET is missing or too short; the daily is unavailable");
     return NextResponse.json(
-      { error: "The daily climb is unavailable right now", code: "DAILY_UNAVAILABLE" },
+      { error: "The daily climb is unavailable right now", code: DAILY_UNAVAILABLE_CODE },
       { status: 503, headers: NO_STORE }
     );
   }

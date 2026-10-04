@@ -8,7 +8,7 @@
  */
 
 import { parseDayKey } from "@app/lib/dailyDay";
-import { DAILY_INFO_PATH, parseDailyInfo, type DailyInfo } from "@app/lib/dailyInfo";
+import { DAILY_INFO_PATH, readDailyResponse, type DailyLoad } from "@app/lib/dailyInfo";
 import { parseAvatarId } from "@app/lib/avatars";
 import { apiFetch } from "./api";
 
@@ -117,17 +117,16 @@ export function parseFriendsDailyBoard(body: unknown): FriendsDailyBoard | null 
 }
 
 /**
- * The server's live daily tower, or null when unreachable or unavailable.
- * There is no offline fallback: the seed cannot be derived on the device, so
- * without it the daily cannot start (SEC-DC-3).
+ * The server's live daily tower, or why there is none ("unavailable" when the
+ * server says the daily is switched off, "offline" otherwise). There is no
+ * offline fallback: the seed cannot be derived on the device, so without it
+ * the daily cannot start (SEC-DC-3).
  */
-export async function fetchDailyInfo(): Promise<DailyInfo | null> {
+export async function fetchDailyInfo(): Promise<DailyLoad> {
   try {
-    const res = await apiFetch(DAILY_INFO_PATH);
-    if (!res.ok) return null;
-    return parseDailyInfo(await res.json());
+    return await readDailyResponse(await apiFetch(DAILY_INFO_PATH));
   } catch {
-    return null;
+    return { failure: "offline" };
   }
 }
 

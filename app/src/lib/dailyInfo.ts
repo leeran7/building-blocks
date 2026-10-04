@@ -54,3 +54,42 @@ export function isDailyInfoStale(info: DailyInfo, fetchedAtMs: number, nowMs: nu
   const resetsAtMs = Date.parse(info.resetsAt);
   return fetchedAtMs < resetsAtMs && nowMs >= resetsAtMs;
 }
+
+/** The 503 code GET /api/climb/daily sends when the server has no seed key. */
+export const DAILY_UNAVAILABLE_CODE = "DAILY_UNAVAILABLE";
+
+/**
+ * Why there is no tower to play, for the copy the lobby shows:
+ * - "unavailable": the server answered that the daily is switched off, so
+ *   the player's connection is fine and telling them to check it is wrong.
+ * - "offline": anything else (no response, another status, a bad body).
+ */
+export type DailyLoadFailure = "unavailable" | "offline";
+
+export type DailyLoad = { info: DailyInfo } | { failure: DailyLoadFailure };
+
+/**
+ * Classifies a GET /api/climb/daily response. Only the exact 503 contract
+ * counts as "unavailable"; every other failure stays "offline" (retryable).
+ */
+export function classifyDailyResponse(status: number, body: unknown): DailyLoad {
+  if (status >= 200 && status < 300) {
+    const info = parseDailyInfo(body);
+    return info ? { info } : { failure: "offline" };
+  }
+  if (status === 503 && isObject(body) && body.code === DAILY_UNAVAILABLE_CODE) {
+    return { failure: "unavailable" };
+  }
+  return { failure: "offline" };
+}
+
+/** Reads a fetch Response into a DailyLoad; an unreadable body is offline. */
+export async function readDailyResponse(res: Response): Promise<DailyLoad> {
+  let body: unknown = null;
+  try {
+    body = await res.json();
+  } catch {
+    // A non-JSON body (proxy error page) is not a server answer.
+  }
+  return classifyDailyResponse(res.status, body);
+}

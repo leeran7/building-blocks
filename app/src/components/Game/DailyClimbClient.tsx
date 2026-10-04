@@ -24,7 +24,14 @@ import { ClimbControlsGuide } from "./ClimbControlsGuide";
 import { buildFreeTower } from "../../game/freeStack";
 import { ALTITUDE_UNIT } from "../../lib/units";
 import Link from "next/link";
-import { DAILY_INFO_PATH, isDailyInfoStale, parseDailyInfo, type DailyInfo } from "../../lib/dailyInfo";
+import {
+  DAILY_INFO_PATH,
+  isDailyInfoStale,
+  readDailyResponse,
+  type DailyInfo,
+  type DailyLoad,
+  type DailyLoadFailure,
+} from "../../lib/dailyInfo";
 import { DAILY_SIM_VERSION } from "../../game/simVersion";
 import {
   dailySummary,
@@ -42,23 +49,21 @@ const DAILY_RESULT_PATH = "/api/climb/daily/result";
 const DAILY_RESULT_FIELDS = { simVersion: DAILY_SIM_VERSION } as const;
 
 /**
- * The server's live daily tower, or null when unreachable, unavailable or
- * malformed. Parsed by the same strict parser as the mobile app (RV-DC-5).
+ * The server's live daily tower, or why there is none. Classified by the same
+ * strict parser as the mobile app (RV-DC-5).
  */
-async function fetchServerDaily(): Promise<DailyInfo | null> {
+async function fetchServerDaily(): Promise<DailyLoad> {
   try {
-    const res = await fetch(DAILY_INFO_PATH, { cache: "no-store" });
-    if (!res.ok) return null;
-    return parseDailyInfo(await res.json());
+    return await readDailyResponse(await fetch(DAILY_INFO_PATH, { cache: "no-store" }));
   } catch {
-    return null;
+    return { failure: "offline" };
   }
 }
 
 export function DailyClimbClient() {
   const tower = buildFreeTower();
   const [daily, setDaily] = useState<DailyInfo | null>(null);
-  const [dailyFailed, setDailyFailed] = useState(false);
+  const [dailyFailure, setDailyFailure] = useState<DailyLoadFailure | null>(null);
   const [dailyAttempt, setDailyAttempt] = useState(0);
   // When the current answer was requested: it is stale once the server's
   // reset falls between that and a new start (RV-DC-3).
@@ -77,18 +82,18 @@ export function DailyClimbClient() {
   useEffect(() => {
     let cancelled = false;
     const requestedAt = Date.now();
-    setDailyFailed(false);
-    void fetchServerDaily().then((next) => {
+    setDailyFailure(null);
+    void fetchServerDaily().then((load) => {
       if (cancelled) return;
       setRefreshingDaily(false);
-      if (next) {
+      if ("info" in load) {
         dailyRequestedAtRef.current = requestedAt;
-        setDaily(next);
+        setDaily(load.info);
       } else {
         // A closed tower is never played: without today's answer the page
         // falls back to the offline state (only reachable between runs).
         setDaily(null);
-        setDailyFailed(true);
+        setDailyFailure(load.failure);
       }
     });
     return () => {
@@ -145,8 +150,8 @@ export function DailyClimbClient() {
   if (!seed) {
     return (
       <DailyShell today={today} reset={reset} streak={streak} week={week} result={null}>
-        {dailyFailed ? (
-          <DailyOffline onRetry={() => setDailyAttempt((n) => n + 1)} />
+        {dailyFailure ? (
+          <DailyOffline reason={dailyFailure} onRetry={() => setDailyAttempt((n) => n + 1)} />
         ) : (
           <p role="status" className="text-text-muted text-sm text-center font-mono">
             Loading today&rsquo;s climb…
@@ -208,16 +213,20 @@ export function DailyClimbClient() {
 
 // ────────────────────────────── Presentational ─────────────────────────────
 
+/** Why the daily has no tower, in the player's words. */
+const DAILY_FAILURE_COPY: Record<DailyLoadFailure, string> = {
+  offline: "Can\u2019t load today\u2019s tower. Check your connection and try again.",
+  unavailable: "The daily climb is closed right now. Try again later, or climb endless.",
+};
+
 /**
- * Today's seed comes only from the server, so with no connection the daily
- * cannot start. Offer a retry, or an endless run on a random tower.
+ * Today's seed comes only from the server, so without its answer the daily
+ * cannot start. Say why, and offer a retry or an endless run on a random tower.
  */
-function DailyOffline({ onRetry }: { onRetry: () => void }) {
+function DailyOffline({ reason, onRetry }: { reason: DailyLoadFailure; onRetry: () => void }) {
   return (
     <div role="alert" className="flex max-w-sm flex-col items-center gap-3 text-center">
-      <p className="text-sm text-text-secondary">
-        Can&rsquo;t load today&rsquo;s tower. Check your connection and try again.
-      </p>
+      <p className="text-sm text-text-secondary">{DAILY_FAILURE_COPY[reason]}</p>
       <div className="flex flex-col gap-3 sm:flex-row">
         <button
           type="button"
