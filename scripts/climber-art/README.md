@@ -25,3 +25,48 @@ then switch its registry entry to `sheets("<id>")`.
 Kestrel, Mantis and Yak are drawn by their own rig in
 [`kestrel-mantis-yak/`](kestrel-mantis-yak/README.md) (built in parallel with
 this one); run `python3 scripts/climber-art/kestrel-mantis-yak/build.py kestrel mantis yak`.
+
+## Generated paid character compilation
+
+`process_paid.py` uses the renderer's existing Pillow/numpy dependencies. It
+never modifies source masters or registers art automatically:
+
+```sh
+python3 scripts/climber-art/process_paid.py kestrel --check-only --report /tmp/paid-art.json
+python3 scripts/climber-art/process_paid.py kestrel --output-root /tmp/paid-preview
+python3 scripts/climber-art/process_paid.py --all --report /tmp/paid-art-all.json
+python3 -m unittest discover -s scripts/climber-art -p 'test_process_paid.py'
+```
+
+Inputs beneath `paid-characters/art/<id>-void/`:
+
+- `<id>-void-poses.png`: 4x2 square-cell atlas (2:1 image aspect).
+- `<id>-void-climb-grid.png`: preferred 3x2 square-cell grid (3:2 aspect),
+  read row-major and packed into the runtime 6x1 strip.
+- Alternatively `<id>-void-climb.png`: 6x1 square-cell strip (6:1 aspect).
+
+The grid file wins when both climb formats exist. Any resolution is accepted
+if the regular cell grid is square (0.5% aspect tolerance); fractional master
+boundaries such as 1774x887 are resized as one grid. Wide rectangular climb
+cells are rejected rather than squeezed. The artist must maintain identical
+body scale/framing between pose and climb masters; no per-pose resizing occurs.
+
+Green backgrounds are expected for Lynx, Panther, Wolf and Badger, magenta
+for others; `--key` explicitly overrides. Near-key pixels are removed with
+soft alpha edges and key-color unmixing; far colors remain unchanged before
+resampling. Existing real-alpha sheets retain alpha. Check all colors against
+the portrait afterward: no color-key algorithm can distinguish a garment
+whose color matches its backdrop. A bad border/key choice fails explicitly.
+
+Standing poses (idle, both runs, both reaches, celebrate and down/crouch; indices0,1,2,3,4,6,7) receive vertical translations to sole row172, limited to24px (`--max-ground-shift` can reduce this limit). Airborne falling index5 retains its authored position. A single climb-sheet Y shift aligns its lowest sole to172 and preserves
+relative frame motion. A shared uniform scale about(96,172.5) fits both sheets
+inside11px gutters; all standing-pose translations and the climb shift are fused with that scale to prevent intermediate clipping of raised hands. Source-cell edge checks still run before any translation.
+The crouch retains its relative height and all14 cells keep one shared scale.
+Factors below0.65 or shifts over24px fail; no per-frame scaling is allowed. Empty frames, clipped
+edges, wrong aspect, and climb pairs with <=1000 visibly different pixels
+fail the character without writing either output. JSON reports record the shared factor, whole-sheet shifts, individual grounding
+translations, bounding boxes, gutters and climb difference minimum.
+This validates geometry only: visually review anatomy, colors, pose order,
+scale, key spill and climbing direction, measure skull `headTop`, and only
+then add the runtime registry entry. All18 characters are required for the
+full correction; a partial batch is reported as incomplete with exit1.

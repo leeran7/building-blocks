@@ -1,153 +1,42 @@
-# Architecture: 1v1 Quick Play on Mobile
+# Portrait-faithful character assets
+Keep the existing Next/React/Capacitor canvas sprite architecture: it already shares the renderer and loads static sheets by id. No new renderer or image dependency.
 
-**Goal ID:** mobile-quick-play
-**Spec:** `loop/spec.md` (AC-1 through AC-8)
-**Stack:** Capacitor 8 + Vite React SPA, React 19, Tailwind CSS 4, react-router-dom v7
-**Date:** 2026-09-19
-
-## 1. AC to architectural need
-
-| ACs | Need |
-|-----|------|
-| AC-1 | New QuickPlayCard component on HomeScreen using existing ModeCard |
-| AC-2, AC-3, AC-8 | Queue state machine hook: join (POST), poll (GET ~2s), handle matched/waiting/409 |
-| AC-4, NFR-5 | Cancel flow: DELETE + cleanup intervals on unmount |
-| AC-5 | Timeout detection: handle "expired" poll status |
-| AC-6 | Error handling: network errors, non-2xx responses |
-| AC-7 | Haptics: tapMedium on join, tapLight on cancel, notifySuccess on match |
-
-## 2. Stack confirmation
-
-- **React 19 + react-router-dom v7 (HashRouter)**: already in use; no change
-- **apiFetch from mobile/src/lib/api.ts**: already handles Bearer token; no change
-- **Haptics from mobile/src/lib/haptics.ts**: already exported; no change
-- **Not choosing**: No new state management library; React hooks are sufficient.
-  No WebSocket/SSE -- the web uses polling and the backend is designed for it.
-
-## 3. Data flow
-
-```
-HomeScreen
-  |
-  +-- QuickPlayCard (ModeCard with bolt icon)
-  |     |
-  |     +-- onPress -> useMatchmakingQueue.join()
-  |
-  +-- SearchingOverlay (conditionally rendered when queue.status !== "idle")
-        |
-        +-- Shows spinner, status text, cancel button
-        +-- On match: navigate("/duel/${duelId}")
-        +-- On cancel: useMatchmakingQueue.cancel()
-
-useMatchmakingQueue hook:
-  join() -> POST /api/duel/queue { categorySlug: "tech" }
-    |
-    +-- 200 { status: "waiting" } -> start polling
-    +-- 200 { status: "matched", duelId } -> navigate immediately
-    +-- 409 ALREADY_QUEUED -> start polling (resume)
-    +-- 429/5xx/network -> error state
-    |
-  poll (setInterval ~2s) -> GET /api/duel/queue
-    |
-    +-- { status: "matched", duelId } -> stop poll, set matched
-    +-- { status: "waiting" } -> continue
-    +-- { status: "expired" } -> stop poll, set timeout
-    +-- { status: "idle" } -> stop poll, set timeout (slot vanished)
-    |
-  cancel() -> DELETE /api/duel/queue (best-effort)
-    +-- stop poll, reset to idle
+```mermaid
+flowchart LR
+  P[Authoritative Choose Character portraits] --> G[Root image generation / identity review]
+  G --> V[Alpha and frame validation]
+  V --> A[public/climb PNG atlases]
+  A --> W[Web lazy image loader]
+  A --> M[Mobile Vite glob URL mapping]
+  R[climberCharacters registry] --> W
+  R --> M
+  W --> D[Shared sprite draw / CharacterPreview]
+  M --> D
+  D --- B[Boundary: cosmetics only; simulation unchanged]
 ```
 
-## 4. New files
+## Contracts and AC mapping
+AC-1: reference stem `app/mobile/src/assets/avatars/<id>.webp` for each of kestrel, lynx, raven, panther, wolf, otter, heron, yak, mantis, cobra, badger, falcon, marmot, bison, ibex, sentinel, viking, gecko. Paid id is exactly `<id>-void`. `avatarSrc()` already falls back to the base portrait, so preserve that exact source instead of creating redesigned busts. Base registry sheets exist for all 18 and are outside this correction scope.
+AC-2: no changes to avatar catalog, purchase checks, saved selection, fallback renderer, animation cadence or simulation.
+AC-3: source pack cell 512; output cell 192. Poses cells in row order: idle, run-a, run-b, reach-a, reach-b, falling, celebrate, down. Climb is six back-facing traveling hand-over-hand frames. Root anchor `(96,172.5)` defaults; measured `headTop` in output-cell pixels excludes horns/ears/crests. `refH=rootY-headTop`. Scale stays constant across poses. Alpha PNG format must remain type 3 or 6 at bit depth 8 to satisfy existing decoder gate. Inspect gutters/key spill and foot anchoring before copy. Grounding helper exists at tools/climber-art/grounding.py; no existing chroma-key extraction script found. Root owns masters; scripts/climber-art/process_paid.py performs deterministic key/geometry compilation into output assets. It accepts 4x2 poses, 6x1 climbs or 3x2 climb-grid masters; aspect mismatch is rejected, never stretched.
+AC-4: `app/mobile/src/lib/climberSheets.ts` currently captures ids with `[a-z0-9]+`, rejecting every new hyphenated skin id. Extend to validated internal hyphens and keep anchoring; existing registry setter still ignores unknown ids. Vite automatically imports matching public files. `avatarImages.ts` already accepts hyphenated portrait names.
 
-| File | Purpose |
-|------|---------|
-| `app/mobile/src/hooks/useMatchmakingQueue.ts` | Queue state machine hook |
+## Minimal ownership/file map
+- Root: paid-characters/art, generation references and prompts.
+- Engineer after validated handoff: app/public/climb/<id>-void-poses-192.png and -climb-192.png; app/src/components/Game/climberCharacters.ts (18 measured VOID_SKIN_SHEETS entries); app/mobile/src/lib/climberSheets.ts (id parser); relevant public/climb documentation.
+- Preserve app/mobile/src/assets/avatars/*.webp; new paid busts unnecessary when exact base images are required.
+- Verifier: app/tests/game/climberSheetFiles.test.ts, climberCharacters.test.ts and mobile bundle mapping tests as appropriate.
 
-## 5. Modified files
+## Failure modes / performance / security
+Missing web sheet retains current vector/load fallback then Wraith error fallback; a failed climb strip uses own reach frames. Mobile resolves local bundle URLs without a server. Avoid registering absent assets and run production bundle checks so missing filename mappings cannot silently ship. At runtime retain lazy loading and existing bounded catalogue image cache; no additional per-frame work. No API/model/schema/index/auth/PII/secrets changes. Client rendering only; physics imports remain untouched under the existing lint boundary.
 
-| File | Change |
-|------|--------|
-| `app/mobile/src/screens/HomeScreen.tsx` | Add QuickPlayCard + SearchingOverlay + BoltIcon |
+## ADRs
+1. Latest user correction governs all visual design; original pack hood and single-accent text is obsolete reference data.
+2. Preserve exact portrait files/fallback, not regenerated approximate busts.
+3. Register only validated complete assets; do not claim a generic recolor meets identity requirements.
 
-## 6. API contract (existing, no changes)
+## Validation
+Run app lint/typecheck/test after implementation; verifier adds meaningful coverage of all 18 registrations and native hyphenated ids. Existing sheet tests prove dimensions, transparent image decoding, >1000 pairwise frame-difference pixels, and sole rows 170–175. Visual QA must compare all 18 portraits with each animation, both previews and gameplay; tests cannot establish anatomy/style identity. Root/parent performs repo-required remaining gates and handoffs. Discovery has made no runtime changes and has not run implementation gates.
 
-### POST /api/duel/queue
-- Auth: Bearer token (required)
-- Body: `{ categorySlug: "tech" }`
-- 200: `{ status: "waiting" }` or `{ status: "matched", duelId: string }`
-- 409: `{ error: "Already in queue", code: "ALREADY_QUEUED" }`
-- 429: `{ error: "Too many requests", code: "RATE_LIMITED" }`
-
-### GET /api/duel/queue
-- Auth: Bearer token (required)
-- 200: `{ status: "matched", duelId: string }` | `{ status: "waiting" }` | `{ status: "expired" }` | `{ status: "idle" }`
-
-### DELETE /api/duel/queue
-- Auth: Bearer token (required)
-- 200: `{ status: "cancelled" }`
-- 404: `{ error: "Not in queue", code: "NOT_IN_QUEUE" }`
-
-## 7. Queue state type
-
-```typescript
-type QueueStatus = "idle" | "joining" | "searching" | "matched" | "timeout" | "error";
-
-interface QueueState {
-  status: QueueStatus;
-  duelId: string | null;
-  errorMessage: string | null;
-}
-```
-
-## 8. Hook API
-
-```typescript
-interface UseMatchmakingQueue {
-  state: QueueState;
-  join: () => void;
-  cancel: () => void;
-  reset: () => void;
-}
-```
-
-- `join()`: POST to queue, transition to "joining" then "searching" or "matched"
-- `cancel()`: DELETE (best-effort), stop polling, reset to "idle"
-- `reset()`: Reset from timeout/error back to "idle"
-- Cleanup: on unmount, stop polling and DELETE if still searching
-
-## 9. Failure modes
-
-| Dependency | Failure | Handling |
-|-----------|---------|----------|
-| Network (POST) | Timeout/error | Show error state with retry |
-| Network (GET poll) | Single failure | Ignore, next tick recovers |
-| Network (DELETE) | Failure | Best-effort, UI resets anyway |
-| Queue TTL (server) | 300s expiry | Poll returns "expired", show timeout |
-| Rate limit (429) | Too many joins | Show "Too many requests" error |
-
-## 10. ADRs
-
-### ADR-1: Hook vs context for queue state
-
-**Decision:** Custom hook (`useMatchmakingQueue`) colocated with HomeScreen.
-**Rationale:** Queue state is only relevant to HomeScreen; no other screen needs
-it. A context would be premature. The hook encapsulates all side effects
-(intervals, fetch, cleanup) and the state machine.
-
-### ADR-2: Full-screen overlay vs inline card expansion
-
-**Decision:** Full-screen overlay rendered conditionally inside HomeScreen.
-**Rationale:** The web uses an inline panel, but mobile benefits from a
-full-screen takeover that (a) prevents accidental navigation during search,
-(b) provides a large, unambiguous cancel target, and (c) reads as a game
-loading screen rather than a form. The overlay is not a route -- it is
-conditionally rendered JSX gated on queue state, so back-navigation works
-naturally.
-
-### ADR-3: Polling interval and cleanup
-
-**Decision:** 2000ms setInterval, cleared on cancel/unmount/match. Best-effort
-DELETE on unmount cleanup.
-**Rationale:** Matches the web implementation. The server's poll rate limit is
-900/hour, which supports ~2s intervals for 300s (150 polls, well under ceiling).
+## Implemented compiler normalization
+Standing pose indices0,1,2,3,4,6,7 plan vertical translations to sole172 (<=24px); airborne falling index5 stays authored. One whole-climb Y offset aligns the maximum sole to172, preserving relative frame motion. Both sheets then share one factor about(96,172.5), derived from all14 frame extents and11px target gutters. Every standing-pose shift and the climb shift are fused with the shared scale in one affine transform; no per-frame resize or intermediate clipping. Minimum allowed factor0.65. Reports distinguish sharedScale, scaleAnchor, wholeSheetShiftY and individual groundingShift. Seven Python fixtures cover actual decoding/keying/geometry and failure paths; runtime tests also cover native hyphenated ids. Compilation does not imply visual identity approval.

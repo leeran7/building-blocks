@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { inflateSync } from "node:zlib";
 import { describe, expect, it } from "vitest";
-import { CLIMBER_CHARACTERS } from "../../src/components/Game/climberCharacters";
+import { CLIMBER_CHARACTERS, VOID_SKIN_SHEETS } from "../../src/components/Game/climberCharacters";
 
 /**
  * Every registry entry with its own art points at files that exist in
@@ -128,6 +128,36 @@ function soleRow(img: { w: number; rgba: Uint8Array }, cell: number, index: numb
 const SOLE_ROWS_192 = [170, 175] as const;
 
 describe("shipped climber sheets", () => {
+  it("all paid standing frames are grounded and all 14 cells have transparent gutters", () => {
+    expect(Object.keys(VOID_SKIN_SHEETS)).toHaveLength(18);
+    for (const id of Object.keys(VOID_SKIN_SHEETS)) {
+      const character = CLIMBER_CHARACTERS[id];
+      expect(character.kind).toBe("sheets");
+      if (character.kind !== "sheets" || !character.climb) throw new Error(`missing paid art: ${id}`);
+      const poses = decodePng(readFileSync(join(PUBLIC, character.poses)));
+      for (const index of [0, 1, 2, 3, 4, 6, 7]) {
+        expect(soleRow(poses, 192, index, 4), `${id} pose ${index}`).toBeGreaterThanOrEqual(170);
+        expect(soleRow(poses, 192, index, 4), `${id} pose ${index}`).toBeLessThanOrEqual(175);
+      }
+      for (const [path, cols, count] of [[character.poses, 4, 8], [character.climb, 6, 6]] as const) {
+        const image = decodePng(readFileSync(join(PUBLIC, path)));
+        for (let index = 0; index < count; index++) {
+          const x0 = (index % cols) * 192, y0 = Math.floor(index / cols) * 192;
+          let visible = 0;
+          for (let y = 0; y < 192; y++) {
+            for (let x = 0; x < 192; x++) {
+              const alpha = image.rgba[((y0 + y) * image.w + x0 + x) * 4 + 3];
+              if (alpha <= 40) continue;
+              visible++;
+              if (x < 2 || y < 2 || x > 189 || y > 189) throw new Error(`${id} cell ${index} clips`);
+            }
+          }
+          expect(visible, `${id} cell ${index}`).toBeGreaterThan(100);
+        }
+      }
+    }
+  });
+
   it("pngSize reads a real sheet and rejects non-PNG bytes", () => {
     expect(pngSize(readFileSync(join(PUBLIC, "climb/wraith-poses-192.png")))).toEqual({ w: 768, h: 384 });
     expect(pngSize(readFileSync(join(PUBLIC, "climb/volcano-tile.jpg")))).toBeNull();
