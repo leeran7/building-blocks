@@ -104,6 +104,7 @@ import {
   LANDING_H,
   RAIL_TICK_W,
   RAIL_X,
+  SLAB_DEPTH_PX,
   SLAB_H,
   SLAB_MAX_X,
   SLAB_MIN_X,
@@ -229,6 +230,17 @@ describe("tower geometry", () => {
       expect(spans[1][0]).toBe(landing + LANDING_H / 2);
     }
     expect(split).toBe(3);
+  });
+
+  it("keeps each slab block's receding faces on screen and clear of the floor above", () => {
+    // The side face reaches SLAB_DEPTH_PX right of the slab; the rightmost slabs end at SLAB_MAX_X.
+    expect(SLAB_DEPTH_PX).toBeGreaterThan(0);
+    expect(SLAB_DEPTH_PX).toBeLessThanOrEqual(((100 - SLAB_MAX_X) / 100) * NARROWEST_MAP_PX);
+    // The top face rises SLAB_DEPTH_PX over the slab: under the stars hung from the next floor or landing.
+    for (let n = 1; n < TOP; n++) {
+      const above = isEpisodeTop(n) ? landingBottom(episodeOf(n + 1)) - LANDING_H / 2 : slabUnderside(n + 1) - STAR_DROP_PX;
+      expect(slabTop(n) + SLAB_DEPTH_PX, `top face of floor ${n}`).toBeLessThanOrEqual(above);
+    }
   });
 
   it("puts every floor's top surface on the altimeter's tick lattice", () => {
@@ -553,6 +565,29 @@ describe("tower map", () => {
       expect(b.parentElement, name).toBe(li);
       expect(b.className.split(/\s+/), name).toEqual(expect.arrayContaining(["h-full", "w-full"]));
     }
+  });
+
+  it("draws every floor and landing as a block of the map's depth", async () => {
+    const client = memoryClient();
+    await clearLevels(client, EPISODE_SIZE - 1);
+    await renderMap(client);
+
+    const map = container.querySelector("ol")?.parentElement as HTMLElement;
+    expect(map.style.getPropertyValue("--slab-depth")).toBe(`${SLAB_DEPTH_PX}px`);
+    const buttons = floorButtons();
+    expect(buttons.length).toBeGreaterThan(0);
+    for (const b of buttons) {
+      const classes = b.className.split(/\s+/);
+      const name = b.getAttribute("aria-label") ?? "";
+      expect(classes, name).toContain("tower-slab");
+      // Only a locked floor is the unlit wireframe.
+      expect(classes.includes("tower-slab-ghost"), name).toBe(b.disabled);
+    }
+    expect(buttons.some((b) => b.disabled)).toBe(true);
+    expect(buttons.some((b) => !b.disabled)).toBe(true);
+    const landings = container.querySelectorAll("ol > li[data-landing]");
+    expect(landings.length).toBeGreaterThan(0);
+    for (const l of landings) expect(l.className.split(/\s+/)).toContain("tower-slab");
   });
 
   it("hides every decorative layer from assistive tech and from the pointer", async () => {

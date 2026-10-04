@@ -56,6 +56,12 @@ export const RAIL_TICK_W = 4.5;
 export const SLAB_MIN_X = 13;
 /** Right limit for slabs and landings, %. */
 export const SLAB_MAX_X = 97;
+/**
+ * How far a slab block's top and side faces recede, up and to the right, px.
+ * Under SLAB_MAX_X's right margin at the narrowest map (3% of 320 = 9.6), so
+ * the right-hand side faces stay on screen.
+ */
+export const SLAB_DEPTH_PX = 9;
 /** Width of a floor slab, %. */
 export const SLAB_W = 38;
 /** Width of a ladder, rail to rail, %. */

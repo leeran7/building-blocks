@@ -14,6 +14,7 @@ import {
   SLAB_H,
   SLAB_MAX_X,
   SLAB_MIN_X,
+  SLAB_DEPTH_PX,
   SLAB_W,
   STAR_GAP_PX,
   STAR_PX,
@@ -29,6 +30,9 @@ import {
 const BROKEN_GAP_FROM = 0.4;
 const BROKEN_GAP_TO = 0.6;
 const BROKEN_RIGHT_TO = 0.7;
+/** The ladders' shadow offset: x in % of the map's width, y in px (down). */
+const LADDER_SHADOW_X = 0.9;
+const LADDER_SHADOW_Y = 4;
 
 type FloorState = "open" | "current" | "locked";
 
@@ -65,7 +69,10 @@ export function TowerMap({
   const landings = Math.floor((top - 1) / EPISODE_SIZE);
 
   return (
-    <div className="relative mx-auto w-full max-w-md" style={{ height }}>
+    <div
+      className="relative mx-auto w-full max-w-md"
+      style={{ height, ["--slab-depth" as string]: `${SLAB_DEPTH_PX}px` }}
+    >
       <div
         aria-hidden
         className="altimeter pointer-events-none absolute inset-y-0 opacity-40"
@@ -110,12 +117,19 @@ function floorLabel(node: LevelNode, state: FloorState, hard: boolean): string {
   return `Level ${node.level}${hard ? ", hard" : ""}${progress}`;
 }
 
-/** Slab faces. The frontier is the lime one; a Hard floor is ember until it is the frontier. */
-const FACE_LOCKED = "border-border-strong bg-void/60 text-text-muted";
-const FACE_CURRENT = "tower-slab border-signal bg-signal text-void [--slab-edge:0.55] [--slab-under:0.2]";
+/**
+ * Slab blocks: the front face's classes, plus the top and side faces' colours
+ * (.tower-slab in styles.css). The frontier is the lime one; a Hard floor is
+ * ember until it is the frontier; an open floor's top is lit lime; a locked
+ * floor is an unlit wireframe.
+ */
+const FACE_LOCKED = "tower-slab tower-slab-ghost border-border-strong bg-void/60 text-text-muted";
+const FACE_CURRENT =
+  "tower-slab border-signal bg-signal text-void [--slab-edge:0.55] [--slab-under:0.2] [--slab-top:color-mix(in_srgb,var(--color-signal)_65%,white)] [--slab-side:color-mix(in_srgb,var(--color-signal)_55%,black)] [--slab-rim:var(--color-signal)]";
 const FACE_HARD =
-  "tower-slab border-ember/60 border-t-ember bg-[color-mix(in_srgb,var(--color-ember)_16%,var(--color-surface))] text-text-primary";
-const FACE_OPEN = "tower-slab border-border-strong border-t-signal/70 bg-elevated text-text-primary";
+  "tower-slab border-ember/60 border-t-ember bg-[color-mix(in_srgb,var(--color-ember)_16%,var(--color-surface))] text-text-primary [--slab-top:color-mix(in_srgb,var(--color-ember)_55%,var(--color-surface))] [--slab-side:color-mix(in_srgb,var(--color-ember)_22%,var(--color-void))] [--slab-rim:color-mix(in_srgb,var(--color-ember)_60%,transparent)]";
+const FACE_OPEN =
+  "tower-slab border-border-strong border-t-signal/70 bg-elevated text-text-primary [--slab-top:color-mix(in_srgb,var(--color-signal)_22%,var(--color-elevated))]";
 
 function slabFace(state: FloorState, hard: boolean): string {
   if (state === "locked") return FACE_LOCKED;
@@ -158,7 +172,7 @@ function Floor({
         <span
           aria-hidden
           data-you-marker
-          className="pointer-events-none absolute left-1/2 flex -translate-x-1/2"
+          className="pointer-events-none absolute left-1/2 z-10 flex -translate-x-1/2"
           style={{ bottom: `calc(100% - ${PREVIEW_FOOT_PAD}px)` }}
         >
           <CharacterPreview
@@ -177,7 +191,7 @@ function Floor({
         aria-label={floorLabel(node, state, hard)}
         aria-current={current ? "step" : undefined}
         onClick={() => onOpen(node)}
-        className={`relative flex h-full w-full items-center justify-center gap-1.5 rounded-md border pb-1 font-display font-black tabular-nums transition-transform active:scale-[0.97] disabled:active:scale-100 ${current ? "text-headline" : "text-lead"} ${slabFace(state, hard)}`}
+        className={`relative flex h-full w-full items-center justify-center gap-1.5 border pb-1 font-display font-black tabular-nums transition-transform active:scale-[0.97] disabled:active:scale-100 ${current ? "text-headline" : "text-lead"} ${slabFace(state, hard)}`}
       >
         {locked ? (
           <>
@@ -215,7 +229,7 @@ function Landing({ episode }: { episode: number }) {
     <li
       aria-hidden
       data-landing
-      className="tower-slab absolute flex items-center justify-center rounded-md border border-border-strong bg-surface pb-1 font-mono text-label font-bold uppercase tracking-eyebrow text-text-secondary"
+      className="tower-slab absolute flex items-center justify-center border border-border-strong bg-surface pb-1 font-mono text-label font-bold uppercase tracking-eyebrow text-text-secondary"
       style={{
         left: `${SLAB_MIN_X}%`,
         right: `${100 - SLAB_MAX_X}%`,
@@ -254,6 +268,11 @@ function Structure({ top, frontier, height }: { top: number; frontier: number; h
     >
       {paths.dimTicks && <path d={paths.dimTicks} className="text-white/25" strokeWidth={1.5} {...line} />}
       {paths.litTicks && <path d={paths.litTicks} className="text-signal" strokeWidth={1.5} {...line} />}
+      {/* The ladders' shadow on the terrain behind, offset like the slabs' drop-shadow. */}
+      <g transform={`translate(${LADDER_SHADOW_X} ${LADDER_SHADOW_Y})`} className="text-black/45">
+        {paths.brokenLadders && <path d={paths.brokenLadders} strokeWidth={2.5} {...line} />}
+        {paths.litLadders && <path d={paths.litLadders} strokeWidth={3} {...line} />}
+      </g>
       {paths.brokenLadders && <path data-ladders="broken" d={paths.brokenLadders} className="text-white/20" strokeWidth={2} {...line} />}
       {paths.litLadders && <path data-ladders="lit" d={paths.litLadders} className="text-signal/75" strokeWidth={2.5} {...line} />}
     </svg>
