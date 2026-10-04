@@ -5,7 +5,7 @@ import { useLocation, useNavigate, useParams, useSearchParams } from "react-rout
 import { TICK_HZ } from "@app/game/types";
 
 import { useLevels } from "../contexts/LevelsContext";
-import { useGuest, useMapPath } from "../contexts/GuestContext";
+import { useGuest } from "../contexts/GuestContext";
 import { isGuestLocked } from "../lib/levels/guestClient";
 import { tapLight, notifySuccess } from "../lib/haptics";
 import {
@@ -75,8 +75,6 @@ export function LevelPlayScreen() {
   const level = Number(params.level);
   const { client, season, setPlayer, refresh, bestFails, runNotes } = useLevels();
   const refill = useLivesRefillOffer();
-  // Home for an account; the guest's taster map lives at its own path.
-  const mapPath = useMapPath();
   const seasonNo = season?.season ?? null;
   const node: LevelNode | null =
     season && Number.isInteger(level) && level >= 1 && level <= season.levels.length
@@ -107,12 +105,12 @@ export function LevelPlayScreen() {
   useEffect(() => {
     if (!missing) return;
     if (guestLocked) {
-      navigate(mapPath, { replace: true, state: { openLevel: level } });
+      navigate("/", { replace: true, state: { openLevel: level } });
       return;
     }
     const openLevel = Number.isInteger(level) && level >= 1 ? level : undefined;
-    navigate(mapPath, { replace: true, state: { openLevel, interrupted: true } });
-  }, [missing, guestLocked, level, navigate, mapPath]);
+    navigate("/", { replace: true, state: { openLevel, interrupted: true } });
+  }, [missing, guestLocked, level, navigate]);
 
   const ticketId = ticket?.id ?? null;
   // Leaving the play route any way but the screen's own buttons (browser Back,
@@ -141,9 +139,9 @@ export function LevelPlayScreen() {
       // Leaving on purpose: the player knows how this run ended. The unmount
       // release clears it too, but only after the map has read it.
       if (ticketId !== null) runNotes.clear(ticketId);
-      navigate(mapPath, { replace: true, state: openLevel ? { openLevel } : null });
+      navigate("/", { replace: true, state: openLevel ? { openLevel } : null });
     },
-    [navigate, mapPath, ticketId, runNotes],
+    [navigate, ticketId, runNotes],
   );
 
   const submit = useCallback(

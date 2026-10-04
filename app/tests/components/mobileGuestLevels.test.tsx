@@ -3,6 +3,7 @@
  * GUEST_LEVEL_CAP on the device-local store, every level above it asks them
  * to sign in, and the guest LevelsProvider never builds the server client.
  * Guests get the training climb on their own flag, never the account's.
+ * Guest home is the same level map as an account's Play screen.
  *
  * The real GuestShell, level map, start card, play screen and result card
  * run; only the climb itself (LevelRun) and Endless (ClimbScreen) are stubs.
@@ -235,34 +236,48 @@ describe("guest levels provider", () => {
 
   it("the full guest shell never builds the server client either", async () => {
     guestOnboarding.markDone();
-    await renderGuest("/levels");
+    await renderGuest("/");
     expect(pin("Level 1, next to play")).toBeTruthy();
     expect(http.created).toBe(0);
   });
 });
 
 describe("guest home", () => {
-  it("offers Endless, a Levels taster, How to play and Sign In", async () => {
+  it("is the Play screen: the level map with Play, Endless and Sign In", async () => {
     guestOnboarding.markDone();
-    const onSignIn = await renderGuest("/");
-    expect(document.body.textContent).toContain(`Play levels 1–${GUEST_LEVEL_CAP}`);
-    expect(document.body.textContent).toContain("Sign in to keep your stars, play all 300 levels");
-
-    await click(byLabel(`Levels, play levels 1 to ${GUEST_LEVEL_CAP}`));
-    expect(pathname).toBe("/levels");
-    expect(onSignIn).not.toHaveBeenCalled();
-
-    await click(byLabel("Back to guest home"));
-    expect(pathname).toBe("/");
+    await renderGuest("/");
+    expect(pin("Level 1, next to play")).toBeTruthy();
+    expect(byLabel("Open level 1")).toBeTruthy();
+    expect(document.body.querySelector('[data-tour="lives"]')).not.toBeNull();
     await click(byLabel("Endless, climb as high as you can"));
     expect(pathname).toBe("/climb");
     expect(document.body.textContent).toContain("practice climb");
   });
 
-  it("Sign In on guest home leaves guest mode", async () => {
+  it("leaves out what needs an account instead of showing it locked", async () => {
+    guestOnboarding.markDone();
+    await renderGuest("/");
+    for (const target of ["chest", "gems", "modes"]) {
+      expect(document.body.querySelector(`[data-tour="${target}"]`)).toBeNull();
+    }
+    expect(document.body.querySelector("[data-tour^=\"tab-\"]")).toBeNull();
+    // The old landing page and its way back are gone.
+    expect(document.body.textContent).not.toContain("guest mode");
+    expect(byLabel("Back to guest home")).toBeUndefined();
+  });
+
+  it("Sign In on the map leaves guest mode", async () => {
+    guestOnboarding.markDone();
     const onSignIn = await renderGuest("/");
     await click(byLabel("Sign In"));
     expect(onSignIn).toHaveBeenCalledTimes(1);
+  });
+
+  it("the old /levels taster path lands on home", async () => {
+    guestOnboarding.markDone();
+    await renderGuest("/levels");
+    expect(pathname).toBe("/");
+    expect(pin("Level 1, next to play")).toBeTruthy();
   });
 });
 
@@ -273,7 +288,7 @@ describe("guest levels taster", () => {
 
   it("opens levels 1 to 3 and locks every level above them behind sign-in", async () => {
     await clearGuestLevels(2);
-    const onSignIn = await renderGuest("/levels");
+    const onSignIn = await renderGuest("/");
 
     // 1 and 2 cleared, 3 is next: each opens its start card.
     for (const label of ["Level 1, 3 of 3 stars", "Level 2, 3 of 3 stars", "Level 3, next to play"]) {
@@ -300,7 +315,7 @@ describe("guest levels taster", () => {
 
   it("clearing level 3 and pressing Next level asks the guest to sign in", async () => {
     await clearGuestLevels(2);
-    await renderGuest("/levels");
+    await renderGuest("/");
     await click(pin("Level 3, next to play"));
     await click(byLabel("Play level 3"));
     expect(pathname).toBe("/levels/3/play");
@@ -308,7 +323,7 @@ describe("guest levels taster", () => {
     expect(document.body.querySelector('[role="dialog"]')?.getAttribute("aria-label")).toBe("Level 3 cleared, 3 of 3 stars");
 
     await click(byLabel("Next level"));
-    expect(pathname).toBe("/levels");
+    expect(pathname).toBe("/");
     expect(signInSheet()?.textContent).toContain("Unlock all 300 levels");
     // No level 4 start card behind it.
     expect(byLabel("Play level 4")).toBeUndefined();
@@ -318,7 +333,7 @@ describe("guest levels taster", () => {
 
   it("the Play bar at level 4 asks the guest to sign in", async () => {
     await clearGuestLevels(GUEST_LEVEL_CAP);
-    await renderGuest("/levels");
+    await renderGuest("/");
     await click(byLabel("Sign in to play level 4"));
     expect(signInSheet()).not.toBeNull();
     expect(byLabel("Play level 4")).toBeUndefined();
@@ -327,7 +342,7 @@ describe("guest levels taster", () => {
   });
 
   it("a fresh guest tapping the level 4 pin is not told levels 1-3 are done", async () => {
-    await renderGuest("/levels");
+    await renderGuest("/");
     await click(pin("Level 4, sign in to unlock"));
     const text = signInSheet()?.textContent ?? "";
     expect(text).toContain("Unlock all 300 levels");
@@ -337,14 +352,14 @@ describe("guest levels taster", () => {
 
   it("a level link above the cap lands on the taster map, not on the level", async () => {
     await renderGuest("/levels/4/play");
-    expect(pathname).toBe("/levels");
+    expect(pathname).toBe("/");
     expect(byLabel("stub-clear")).toBeUndefined();
   });
 
   it("Practice above the cap does not play: it lands on the map's sign-in prompt", async () => {
     await clearGuestLevels(GUEST_LEVEL_CAP);
     await renderGuest("/levels/4/play?practice=1");
-    expect(pathname).toBe("/levels");
+    expect(pathname).toBe("/");
     expect(byLabel("stub-clear")).toBeUndefined();
     expect(signInSheet()).not.toBeNull();
   });
@@ -359,13 +374,12 @@ describe("guest levels taster", () => {
 });
 
 describe("guest training", () => {
-  it("the first Levels visit trains on the guest flag, then tours the map without tabs", async () => {
+  it("a new guest trains on the guest flag first, then tours the map without tabs", async () => {
     await renderGuest("/");
-    await click(byLabel(`Levels, play levels 1 to ${GUEST_LEVEL_CAP}`));
     expect(pathname).toBe("/tutorial");
     await click(byLabel("Skip tutorial"));
 
-    expect(pathname).toBe("/levels");
+    expect(pathname).toBe("/");
     expect(localStorage.getItem(GUEST_ONBOARDING_KEY)).toBe("1");
     // The account's flag is untouched: signing in later still runs its tour.
     expect(localStorage.getItem(ONBOARDING_KEY)).toBeNull();
@@ -387,31 +401,18 @@ describe("guest training", () => {
     expect(document.body.querySelector('[role="dialog"] h2')?.textContent).toBe("Level 1");
   });
 
-  it("the first Endless run trains first, then goes on to Endless", async () => {
+  it("is offered once: the next visit opens on the map", async () => {
     await renderGuest("/");
-    await click(byLabel("Endless, climb as high as you can"));
     expect(pathname).toBe("/tutorial");
     await click(byLabel("Skip tutorial"));
-    expect(pathname).toBe("/climb");
-    expect(localStorage.getItem(ONBOARDING_KEY)).toBeNull();
     expect(guestOnboarding.done()).toBe(true);
 
-    // Offered once: the next Endless goes straight in.
     await act(async () => root.unmount());
     root = createRoot(container);
     await renderGuest("/");
+    expect(pathname).toBe("/");
     await click(byLabel("Endless, climb as high as you can"));
     expect(pathname).toBe("/climb");
-  });
-
-  it("How to play replays the training and comes back to guest home", async () => {
-    guestOnboarding.markDone();
-    await renderGuest("/");
-    await click(byLabel("How to play"));
-    expect(pathname).toBe("/tutorial");
-    await click(byLabel("Skip tutorial"));
-    expect(pathname).toBe("/");
-    expect(localStorage.getItem(ONBOARDING_KEY)).toBeNull();
   });
 
   it("(control) an account's training does set the account flag", async () => {

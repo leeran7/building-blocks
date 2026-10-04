@@ -25,7 +25,7 @@ import { isTicketLive, mapLanding, noteRunStarted, runNoticeFor, type RunNotice 
 import { accountOnboarding, guestOnboarding, wantsTour } from "../lib/onboarding";
 import { AppTour } from "../components/onboarding/AppTour";
 import { GUEST_MAP_TOUR, MAP_TOUR } from "../components/onboarding/mapTour";
-import { useGuest, GUEST_MAP_PATH } from "../contexts/GuestContext";
+import { useGuest } from "../contexts/GuestContext";
 import { GUEST_LEVEL_CAP, isGuestLocked } from "../lib/levels/guestClient";
 import { GuestSignInSheet } from "../components/GuestSignInSheet";
 
@@ -54,9 +54,10 @@ export const MAP_FADE = "linear-gradient(to top, transparent 56px, #000 112px)";
  * climb) sits beside Play, and the mode rail (Daily, Versus, Ranks) on the
  * right edge above it.
  *
- * A guest gets the same map for the taster (GuestShell): levels above
- * GUEST_LEVEL_CAP stay locked and ask them to sign in, and the account-only
- * parts (star chest, gems, mode rail, friends board, tab tour) are left out.
+ * A guest's home is the same map (GuestShell): levels above GUEST_LEVEL_CAP
+ * stay locked and ask them to sign in, Sign In takes the gems' cell, and the
+ * account-only parts (star chest, gems, mode rail, friends board, tab tour)
+ * are left out.
  */
 export function LevelMapScreen() {
   const navigate = useNavigate();
@@ -218,8 +219,8 @@ export function LevelMapScreen() {
   useLayoutEffect(() => {
     if (!firstRun) return;
     onboarding.markOffered();
-    navigate("/tutorial", { replace: true, state: guest ? { then: GUEST_MAP_PATH } : null });
-  }, [firstRun, navigate, onboarding, guest]);
+    navigate("/tutorial", { replace: true });
+  }, [firstRun, navigate, onboarding]);
   const tourRequested = wantsTour(location.state);
   useLayoutEffect(() => {
     if (!season || !tourRequested) return;
@@ -281,9 +282,10 @@ export function LevelMapScreen() {
   const episode = episodeOf(frontier);
 
   return (
-    <main className="relative flex h-full flex-col">
+    // An account's tab bar sits under this screen and clears the home
+    // indicator; a guest has no tab bar, so the screen stops above it.
+    <main className="relative flex h-full flex-col" style={guest ? { height: "calc(100% - env(safe-area-inset-bottom))" } : undefined}>
       <header ref={headerRef} className="absolute inset-x-0 top-0 z-20 bg-gradient-to-b from-void via-void/80 to-transparent px-4 pb-8 pt-[calc(env(safe-area-inset-top)+0.75rem)]">
-        {guest && <GuestMapBar onHome={() => navigate("/")} onSignIn={guest.onSignIn} />}
         <MapHeader
           seasonName={season.name}
           episode={episode}
@@ -308,6 +310,7 @@ export function LevelMapScreen() {
             void tapLight();
             setChestOpen(true);
           }}
+          trailing={guest && <GuestSignInButton onSignIn={guest.onSignIn} />}
         />
       </header>
 
@@ -498,35 +501,19 @@ function MapNotice({ text, onDismiss }: { text: string; onDismiss: () => void })
   );
 }
 
-/** The guest's way back to guest home, and to Sign In (no tab bar here). */
-function GuestMapBar({ onHome, onSignIn }: { onHome: () => void; onSignIn: () => void }) {
+/** The guest's Sign In, in the header where an account's gems are. */
+function GuestSignInButton({ onSignIn }: { onSignIn: () => void }) {
   return (
-    <div className="mb-2.5 flex items-center justify-between">
-      <button
-        type="button"
-        onClick={() => {
-          void tapLight();
-          onHome();
-        }}
-        aria-label="Back to guest home"
-        className="-ml-2 flex min-h-[44px] items-center gap-1 rounded-full px-2 font-mono text-label uppercase tracking-label text-text-secondary active:scale-95"
-      >
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-          <path d="m15 18-6-6 6-6" />
-        </svg>
-        Home
-      </button>
-      <button
-        type="button"
-        onClick={() => {
-          void tapLight();
-          onSignIn();
-        }}
-        className="min-h-[44px] rounded-full border border-border-strong bg-surface/70 px-4 font-mono text-[11px] uppercase tracking-[0.15em] text-signal transition-transform active:scale-95"
-      >
-        Sign In
-      </button>
-    </div>
+    <button
+      type="button"
+      onClick={() => {
+        void tapLight();
+        onSignIn();
+      }}
+      className="min-h-[44px] rounded-full border border-border-strong bg-surface/70 px-3.5 font-mono text-[11px] uppercase tracking-[0.15em] text-signal transition-transform active:scale-95"
+    >
+      Sign In
+    </button>
   );
 }
 
