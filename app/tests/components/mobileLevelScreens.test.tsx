@@ -542,8 +542,10 @@ describe("star chests and boosters", () => {
   it("shows the stars toward the next chest on the map", async () => {
     const { client } = await withChest();
     await renderMap(client);
-    const meter = document.body.querySelector('[role="group"][aria-label^="Star chest"]');
-    expect(meter?.getAttribute("aria-label")).toMatch(/^Star chest: 1 of 20 stars, 19 to go\. \d+ boosters? owned\.$/);
+    const meter = document.body.querySelector("button[data-chest-meter]");
+    expect(meter?.getAttribute("aria-label")).toMatch(
+      /^Star chest: 1 of 20 stars, 19 to go\. \d+ boosters? owned\. Show your boosters$/,
+    );
   });
 
   it("equips an owned booster on a replay and starts the run with it", async () => {
