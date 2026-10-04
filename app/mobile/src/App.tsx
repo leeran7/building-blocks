@@ -1,6 +1,5 @@
 import { useEffect } from "react";
 import { Routes, Route, Navigate, useLocation } from "react-router-dom";
-import { HomeScreen } from "./screens/HomeScreen";
 import { ClimbScreen } from "./screens/ClimbScreen";
 import { SignInScreen } from "./screens/SignInScreen";
 import { LeaderboardScreen } from "./screens/LeaderboardScreen";
@@ -85,9 +84,8 @@ export function App() {
                 <RouteTransition>
                   <Routes>
                     {/* Levels are the main game: the map is home (design doc §2).
-                        Endless, Daily, Quick Play and Challenge live on Modes. */}
+                        Endless sits on its Play bar; Daily, Versus and Ranks on its mode rail. */}
                     <Route path="/" element={<LevelMapScreen />} />
-                    <Route path="/modes" element={<HomeScreen />} />
                     <Route path="/leaderboard" element={<LeaderboardScreen />} />
                     <Route path="/profile" element={<ProfileScreen />} />
                     <Route path="/profile/edit" element={<EditProfileScreen />} />

@@ -1,12 +1,13 @@
 /**
- * The Home DailyCard's server rank (mobile/src/screens/HomeScreen) and the
+ * The mode rail's Daily button (mobile/src/components/modes/ModeRail) and the
  * day-keyed dailyLeaderboard AppData slice behind it, rendered for real inside
  * the real AppDataProvider. Only the network (apiFetch), auth and haptics are
  * mocked.
  *
- * Covers F-6 (DailyCard shows "#N today · H · Resets in …" once the server
- * knows the rank) and AC-11 / F-5 (at the UTC reset the day slice refetches
- * cold, so the card drops yesterday's rank instead of showing it under today).
+ * Covers F-6 (the Daily button says "#N today · H · Resets in …" once the
+ * server knows the rank, and badges the rank) and AC-11 / F-5 (at the UTC
+ * reset the day slice refetches cold, so the button drops yesterday's rank
+ * instead of showing it under today).
  *
  * The Ranks screen's Today board is deliberately NOT covered here: its tab
  * structure is being redesigned (Global | Friends | Daily), and those checks
@@ -76,7 +77,8 @@ vi.mock("../../mobile/src/lib/api", () => ({
 }));
 
 import { AppDataProvider } from "../../mobile/src/contexts/AppDataContext";
-import { HomeScreen } from "../../mobile/src/screens/HomeScreen";
+import { ModeRail } from "../../mobile/src/components/modes/ModeRail";
+import { commitDailyRun, clearDailyStore } from "../../src/lib/daily";
 import { utcDayKey, nextUtcResetAt } from "../../src/lib/dailyDay";
 
 function allTimeRow(rank: number, userId: string, peakY: number) {
@@ -177,19 +179,21 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-describe("Home DailyCard (F-6)", () => {
-  const card = () => $('button[aria-label="Play the daily climb"]');
+describe("Mode rail Daily button (F-6)", () => {
+  const card = () => $('button[aria-label="Daily Climb"]');
+  const badge = () => card()?.querySelector("[data-badge]")?.textContent;
 
   it("shows today's server rank and height once known", async () => {
     net.daily = dailyBoard([dailyRow(1, ME, 812)], { rank: 1, peakY: 812, attempts: 2 });
-    await render("/", createElement(HomeScreen));
+    await render("/", createElement(ModeRail));
     expect(card()?.textContent).toMatch(/#1 today · 812/);
     expect(card()?.textContent).toMatch(/Resets in/);
+    expect(badge()).toBe("#1");
   });
 
   it("falls back to the countdown when the player has no rank today (hidden or not played)", async () => {
     net.daily = dailyBoard([dailyRow(1, "a", 900)], { rank: null, peakY: 5, attempts: 1 });
-    await render("/", createElement(HomeScreen));
+    await render("/", createElement(ModeRail));
     expect(card()?.textContent).not.toMatch(/today ·/);
     expect(card()?.textContent).toMatch(/Resets in/);
   });
@@ -197,12 +201,31 @@ describe("Home DailyCard (F-6)", () => {
   it("ignores a board for a different day than the device's UTC day", async () => {
     const yesterday = new Date(Date.now() - 86_400_000);
     net.daily = dailyBoard([dailyRow(1, ME, 812)], { rank: 1, peakY: 812, attempts: 1 }, yesterday);
-    await render("/", createElement(HomeScreen));
+    await render("/", createElement(ModeRail));
     expect(card()?.textContent).not.toMatch(/#1 today/);
   });
 
-  it("tapping the card opens today's tower", async () => {
-    await render("/", createElement(HomeScreen));
+  it("unplayed, badges the countdown to the reset", async () => {
+    vi.useFakeTimers({ now: new Date("2026-09-26T12:00:00.000Z"), toFake: ["Date"] });
+    await render("/", createElement(ModeRail));
+    expect(badge()).toBe("12h");
+    expect(card()?.textContent).toMatch(/Resets in 12h 0m/);
+  });
+
+  it("played but not ranked yet, badges a check and says today's height", async () => {
+    commitDailyRun(1200);
+    try {
+      await render("/", createElement(ModeRail));
+      expect(badge()).toBe("✓");
+      expect(card()?.textContent).toMatch(/Today 1,200/);
+      expect(card()?.textContent).toMatch(/1-day streak/);
+    } finally {
+      clearDailyStore();
+    }
+  });
+
+  it("tapping it opens today's tower", async () => {
+    await render("/", createElement(ModeRail));
     await click(card());
     expect(path()).toBe("/climb?daily=1");
   });
@@ -211,7 +234,7 @@ describe("Home DailyCard (F-6)", () => {
     const beforeReset = new Date("2026-09-26T23:59:50.000Z");
     vi.useFakeTimers({ now: beforeReset, toFake: ["Date", "setTimeout", "clearTimeout", "setInterval", "clearInterval"] });
     net.daily = dailyBoard([dailyRow(1, ME, 812)], { rank: 1, peakY: 812, attempts: 2 }, beforeReset);
-    await render("/", createElement(HomeScreen));
+    await render("/", createElement(ModeRail));
     expect(card()?.textContent).toMatch(/#1 today · 812/);
     expect(dailyCalls()).toBe(1);
 
@@ -238,7 +261,7 @@ describe("Home DailyCard (F-6)", () => {
     const midday = new Date("2026-09-26T12:00:00.000Z");
     vi.useFakeTimers({ now: midday, toFake: ["Date", "setTimeout", "clearTimeout", "setInterval", "clearInterval"] });
     net.daily = dailyBoard([dailyRow(1, ME, 812)], { rank: 1, peakY: 812, attempts: 2 }, midday);
-    await render("/", createElement(HomeScreen));
+    await render("/", createElement(ModeRail));
     await act(async () => {
       await vi.advanceTimersByTimeAsync(65_000);
     });
