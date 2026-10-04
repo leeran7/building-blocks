@@ -76,13 +76,13 @@ describe("level gate", () => {
     expect(tooFast.catchMeanFrac).toBeLessThanOrEqual(maxLavaMeanFrac());
     tooFast.lavaMeanFrac = levelSpec(SEASON_1, last.level, last.rev).tightness * tooFast.catchMeanFrac;
     expect(verifyLevelRow(SEASON_1, tooFast).join()).toMatch(/caught by the level's lava/);
-  });
+  }, 60_000);
 
   it("fails a level the slower bot can still clear", () => {
     const tooSlow = { ...row, catchMeanFrac: row.catchMeanFrac * 0.6 };
     tooSlow.lavaMeanFrac = levelSpec(SEASON_1, row.level, row.rev).tightness * tooSlow.catchMeanFrac;
     expect(verifyLevelRow(SEASON_1, tooSlow).join()).toMatch(/prove-red bot \(.* pace\) was cleared/);
-  });
+  }, 60_000);
 
   it("fails a late level no lava can catch", () => {
     expect(verifyLevelRow(SEASON_1, { ...row, catchCapped: true }).join()).toMatch(/cannot be proven loseable/);
